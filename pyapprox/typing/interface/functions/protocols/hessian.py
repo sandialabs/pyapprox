@@ -1,6 +1,12 @@
 from typing import Protocol, runtime_checkable, Generic, Union, Any
 
 from pyapprox.typing.util.backend import Array, Backend
+from pyapprox.typing.interface.functions.protocols.function import (
+    FunctionProtocol,
+)
+from pyapprox.typing.interface.functions.protocols.jacobian import (
+    FunctionWithJacobianProtocol,
+)
 
 
 @runtime_checkable
@@ -33,6 +39,21 @@ class FunctionWithJVPAndHVPProtocol(Protocol, Generic[Array]):
     def hvp(self, sample: Array, vec: Array) -> Array: ...
 
 
+@runtime_checkable
+class FunctionWithJacobianAndWHVPProtocol(Protocol, Generic[Array]):
+    def bkd(self) -> Backend[Array]: ...
+
+    def nvars(self) -> int: ...
+
+    def nqoi(self) -> int: ...
+
+    def __call__(self, samples: Array) -> Array: ...
+
+    def jacobian(self, sample: Array) -> Array: ...
+
+    def whvp(self, sample: Array, vec: Array, weights: Array) -> Array: ...
+
+
 FunctionWithHVPAndJacobianOrJVPProtocol = Union[
     FunctionWithJacobianAndHVPProtocol[Array],
     FunctionWithJVPAndHVPProtocol[Array],
@@ -40,8 +61,11 @@ FunctionWithHVPAndJacobianOrJVPProtocol = Union[
 
 
 def function_has_hvp_and_jacobian_or_jvp(function: Any) -> bool:
-    if not isinstance(
-        function, FunctionWithJacobianAndHVPProtocol
-    ) and not isinstance(function, FunctionWithJVPAndHVPProtocol):
-        return False
-    return True
+    if function.nqoi() == 1:
+        if isinstance(function, FunctionWithJacobianAndHVPProtocol):
+            return True
+        if isinstance(function, FunctionWithJVPAndHVPProtocol):
+            return True
+    if isinstance(function, FunctionWithJacobianAndWHVPProtocol):
+        return True
+    return False

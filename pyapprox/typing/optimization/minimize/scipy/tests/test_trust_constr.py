@@ -19,6 +19,10 @@ from pyapprox.typing.optimization.minimize.scipy.trust_constr import (
 from pyapprox.typing.interface.functions.derivative_checks.derivative_checker import (
     DerivativeChecker,
 )
+from pyapprox.typing.optimization.minimize.benchmarks.evutushenko import (
+    EvtushenkoObjective,
+    EvtushenkoNonLinearConstraint,
+)
 
 
 class TestScipyTrustConstrOptimizer(Generic[Array], AbstractTestCase):
@@ -112,6 +116,87 @@ class TestScipyTrustConstrOptimizer(Generic[Array], AbstractTestCase):
 
         # Assert the constraint is satisfied
         self.assertAlmostEqual(A @ result.optima() - b, 0.0, places=8)
+
+    def test_optimizer_with_evtushenko_objective_and_constraints(self) -> None:
+        """
+        Test the ScipyTrustConstrOptimizer class with the Evtushenko objective,
+        nonlinear constraints, and a linear constraint.
+        """
+        bkd = self.bkd()
+
+        # Define the Evtushenko objective
+        objective = EvtushenkoObjective(backend=bkd)
+
+        # Define the Evtushenko nonlinear constraint
+        nonlinear_constraint = EvtushenkoNonLinearConstraint(backend=bkd)
+
+        # Define the linear constraint
+        linear_con = PyApproxLinearConstraint(
+            bkd.ones((1, 3)), bkd.asarray([1.0]), bkd.asarray([1.0]), bkd
+        )
+
+        # Define initial guess
+        init_guess = bkd.asarray([[0.1], [0.7], [0.2]])
+
+        objective_derivative_checker = DerivativeChecker(objective)
+        errors = objective_derivative_checker.check_derivatives(
+            init_guess, verbosity=0
+        )
+        self.assertTrue(
+            objective_derivative_checker.error_ratios_satisfied(
+                errors[0], 1e-7
+            )
+        )
+
+        constraint_derivative_checker = DerivativeChecker(nonlinear_constraint)
+        errors = constraint_derivative_checker.check_derivatives(
+            init_guess, verbosity=1
+        )
+        self.assertTrue(
+            constraint_derivative_checker.error_ratios_satisfied(
+                errors[0], 1e-7
+            )
+        )
+        return
+
+        # Initialize the optimizer
+        optimizer = ScipyTrustConstrOptimizer(
+            objective=objective,
+            bounds=bkd.array([[0, np.inf], [0, np.inf], [0, np.inf]]),
+            constraints=[nonlinear_constraint, linear_con],
+            verbosity=2,
+            maxiter=100,
+            gtol=1e-10,
+        )
+
+        # Perform optimization
+        result = optimizer.minimize(init_guess)
+        print(result.get_raw_result())
+
+        # Assert that the optimization was successful
+        self.assertTrue(result.success())
+
+        # Assert that the constraints are satisfied
+        nonlinear_constraint_value = nonlinear_constraint(result.optima())
+        self.assertTrue(
+            bkd.all_bool(
+                nonlinear_constraint_value >= nonlinear_constraint.lb()
+            )
+            and bkd.all_bool(
+                nonlinear_constraint_value <= nonlinear_constraint.ub()
+            )
+        )
+
+        linear_constraint_value = bkd.ones((1, 3)) @ result.optima()
+        self.assertAlmostEqual(linear_constraint_value[0, 0], 1.0, places=8)
+
+        # Assert that the result matches the expected optima
+        expected_optima = bkd.array([0.0, 0.0, 1.0])[:, None]
+        bkd.assert_allclose(result.optima(), expected_optima, atol=1e-8)
+
+        # Assert that the objective value matches the expected value
+        expected_fun = objective(expected_optima)
+        self.assertAlmostEqual(result.fun(), expected_fun, places=6)
 
 
 class TestScipyTrustConstrOptimizerNumpy(

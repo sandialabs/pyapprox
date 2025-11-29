@@ -15,6 +15,7 @@ from pyapprox.typing.interface.functions.protocols.jacobian import (
 )
 from pyapprox.typing.interface.functions.protocols.hessian import (
     FunctionWithHVPAndJacobianOrJVPProtocol,
+    FunctionWithJacobianAndWHVPProtocol,
     function_has_hvp_and_jacobian_or_jvp,
 )
 from pyapprox.typing.interface.functions.derivative_checks.base import (
@@ -27,13 +28,7 @@ from pyapprox.typing.interface.functions.derivative_checks.wrappers import (
 
 
 class DerivativeChecker(Generic[Array]):
-    def __init__(
-        self,
-        function: Union[
-            FunctionWithJacobianOrJVPProtocol[Array],
-            FunctionWithHVPAndJacobianOrJVPProtocol[Array],
-        ],
-    ):
+    def __init__(self, function: FunctionWithJacobianOrJVPProtocol[Array]):
         self._validate_function(function)
         self._fun = function
 
@@ -45,6 +40,7 @@ class DerivativeChecker(Generic[Array]):
         function: Union[
             FunctionWithJacobianOrJVPProtocol[Array],
             FunctionWithHVPAndJacobianOrJVPProtocol[Array],
+            FunctionWithJacobianAndWHVPProtocol[Array],
         ],
     ) -> None:
         if not function_has_hvp_and_jacobian_or_jvp(
@@ -52,8 +48,7 @@ class DerivativeChecker(Generic[Array]):
         ) and not function_has_jacobian_or_jvp(function):
             raise ValueError(
                 "The provided function must satisfy either "
-                "'FunctionWithJacobianOrJVPProtocol' or "
-                "'FunctionWithHVPAndJacobianOrJVPProtocol'. "
+                "'FunctionWithJacobianOrJVPProtocol. "
                 f"Got an object of type {type(function).__name__}."
             )
 
@@ -64,6 +59,7 @@ class DerivativeChecker(Generic[Array]):
         direction: Optional[Array] = None,
         relative: bool = True,
         verbosity: int = 0,
+        weights: Optional[Array] = None,
     ) -> List[Array]:
         jacobian_checker = JVPChecker(
             FunctionWithJVP(self._fun),
@@ -78,10 +74,10 @@ class DerivativeChecker(Generic[Array]):
             return errors
         # use cast because type checker cannot determine that
         # self._fun is guaranteed to be this type if execution makes it here
+        if weights is None and not hasattr(self._fun, "hvp"):
+            weights = self.bkd().ones((self._fun.nqoi(), 1))
         hessian_checker = JVPChecker(
-            FunctionWithJVPFromHVP(
-                cast(FunctionWithHVPAndJacobianOrJVPProtocol[Array], self._fun)
-            ),
+            FunctionWithJVPFromHVP(self._fun, weights),
             "H",
             fd_eps,
             direction,

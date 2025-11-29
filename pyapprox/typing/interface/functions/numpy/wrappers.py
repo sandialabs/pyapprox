@@ -54,6 +54,9 @@ class NumpyFunctionWrapper(Generic[Array]):
             self._function(self._convert_samples_from_numpy(samples))
         )
 
+    def __repr__(self) -> str:
+        return f"{self.__class__.__name__}(function={repr(self._function)})"
+
 
 class NumpyFunctionWithJacobianWrapper(Generic[Array]):
     """
@@ -124,6 +127,9 @@ class NumpyFunctionWithJacobianWrapper(Generic[Array]):
             self._function.jacobian(self._convert_samples_from_numpy(sample))
         )
 
+    def __repr__(self) -> str:
+        return f"{self.__class__.__name__}(function={repr(self._function)})"
+
 
 class NumpyFunctionWithJacobianAndHVPWrapper(Generic[Array]):
     """
@@ -135,14 +141,9 @@ class NumpyFunctionWithJacobianAndHVPWrapper(Generic[Array]):
     the function, its Jacobian, and Hessian-vector products.
     """
 
-    def __init__(
-        self,
-        function: FunctionWithJacobianAndHVPProtocol[Array],
-        sample_ndim=2,
-    ):
+    def __init__(self, function: FunctionWithJacobianAndHVPProtocol[Array]):
         self._bkd = function.bkd()
         self._function = function
-        self._sample_ndim = sample_ndim
 
     def bkd(self) -> Backend[Array]:
         return self._bkd
@@ -154,9 +155,7 @@ class NumpyFunctionWithJacobianAndHVPWrapper(Generic[Array]):
         return self._function.nqoi()
 
     def _convert_samples_from_numpy(self, samples: NDArray[Any]) -> Array:
-        if self._sample_ndim == 2:
-            return self._bkd.asarray(samples)
-        return self._bkd.asarray(samples[:, None])
+        return self._bkd.asarray(samples)
 
     def __call__(self, samples: NDArray[Any]) -> NDArray[Any]:
         """
@@ -172,9 +171,10 @@ class NumpyFunctionWithJacobianAndHVPWrapper(Generic[Array]):
         NDArray[Any]
             Function evaluations as a NumPy array.
         """
-        return self._bkd.to_numpy(
+        vals = self._bkd.to_numpy(
             self._function(self._convert_samples_from_numpy(samples))
         )
+        return vals
 
     def jacobian(self, sample: NDArray[Any]) -> NDArray[Any]:
         """
@@ -211,8 +211,6 @@ class NumpyFunctionWithJacobianAndHVPWrapper(Generic[Array]):
             Hessian-vector product as a NumPy array.
         """
         bkd_vec = self._bkd.asarray(vec)
-        if self._sample_ndim == 1:
-            bkd_vec = bkd_vec[:, None]
         hvp = self._bkd.to_numpy(
             self._function.hvp(
                 self._convert_samples_from_numpy(sample),
@@ -220,3 +218,6 @@ class NumpyFunctionWithJacobianAndHVPWrapper(Generic[Array]):
             )
         )
         return hvp
+
+    def __repr__(self) -> str:
+        return f"{self.__class__.__name__}(function={repr(self._function)})"

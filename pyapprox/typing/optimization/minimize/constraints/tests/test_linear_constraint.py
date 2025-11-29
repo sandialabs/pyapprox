@@ -10,7 +10,7 @@ from pyapprox.typing.util.numpy import NumpyBkd
 from pyapprox.typing.util.torch import TorchBkd
 from pyapprox.typing.util.abstracttestcase import AbstractTestCase
 from scipy.optimize import LinearConstraint as ScipyLinearConstraint
-from pyapprox.typing.optimization.linear_constraint import (
+from pyapprox.typing.optimization.minimize.constraints.linear import (
     PyApproxLinearConstraint,
 )
 

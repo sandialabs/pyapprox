@@ -284,6 +284,27 @@ class Backend(Protocol, Generic[Array]):
         ...
 
     @staticmethod
+    def all_bool(
+        array: Array,
+        keepdims: bool = False,
+    ) -> bool:
+        """
+        Overload for all when `axis` is None. Returns a scalar boolean.
+        """
+        ...
+
+    @staticmethod
+    def all_array(
+        array: Array,
+        axis: int,
+        keepdims: bool = False,
+    ) -> Array:
+        """
+        Overload for all when `axis` is specified. Returns an array.
+        """
+        ...
+
+    @staticmethod
     def log(array: Array) -> Array: ...
 
     @staticmethod

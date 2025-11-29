@@ -177,6 +177,21 @@ class NumpyBkd(Backend[NDArray[Any]]):  # Specify NDArray type
         return cast(NDArray[Any], np.any(array, axis=axis, keepdims=keepdims))
 
     @staticmethod
+    def all_bool(
+        array: NDArray[Any],
+        keepdims: bool = False,
+    ) -> bool:
+        return cast(bool, np.all(array, axis=None, keepdims=keepdims))
+
+    @staticmethod
+    def all_array(
+        array: NDArray[Any],
+        axis: int,
+        keepdims: bool = False,
+    ) -> NDArray[Any]:
+        return cast(NDArray[Any], np.all(array, axis=axis, keepdims=keepdims))
+
+    @staticmethod
     def log(array: NDArray[Any]) -> NDArray[Any]:
         return cast(NDArray[Any], np.log(array))
 

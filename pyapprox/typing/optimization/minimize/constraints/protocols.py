@@ -65,7 +65,7 @@ class NonlinearConstraintProtocolWithJacobian(Protocol, Generic[Array]):
 
 
 @runtime_checkable
-class NonlinearConstraintProtocolWithJacobianAndHVP(Protocol, Generic[Array]):
+class NonlinearConstraintProtocolWithJacobianAndWHVP(Protocol, Generic[Array]):
     def bkd(self) -> Backend[Array]: ...
 
     def nvars(self) -> int: ...
@@ -83,15 +83,9 @@ class NonlinearConstraintProtocolWithJacobianAndHVP(Protocol, Generic[Array]):
     def weighted_hvp(self, sample: Array, vec: Array) -> Array: ...
 
 
-UnionOfNonlinearConstraintProtocols = Union[
-    NonlinearConstraintProtocol[Array],
-    NonlinearConstraintProtocolWithJacobian[Array],
-    NonlinearConstraintProtocolWithJacobianAndHVP[Array],
-]
-
-SequenceOfUnionOfConstraintProtocols = Sequence[
+SequenceOfConstraintProtocols = Sequence[
     Union[
-        UnionOfNonlinearConstraintProtocols[Array],
+        NonlinearConstraintProtocol[Array],
         LinearConstraintProtocol[Array],
     ]
 ]

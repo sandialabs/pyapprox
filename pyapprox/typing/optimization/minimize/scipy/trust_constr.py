@@ -5,15 +5,17 @@ from pyapprox.typing.util.backend import Array, Backend
 from pyapprox.typing.optimization.minimize.constraints.linear import (
     PyApproxLinearConstraint,
 )
-from pyapprox.typing.optimization.minimize.constraints.protocols.nonlinear import (
-    UnionOfNonlinearConstraintProtocols,
-    SequenceOfUnionOfConstraintProtocols,
+from pyapprox.typing.optimization.minimize.constraints.protocols import (
+    SequenceOfConstraintProtocols,
 )
-from pyapprox.typing.optimization.minimize.constraints.protocols.validation import (
+from pyapprox.typing.optimization.minimize.constraints.validation import (
     validate_constraints,
 )
-from pyapprox.typing.interface.functions.protocols.hessian import (
-    FunctionWithJacobianAndHVPProtocol,
+from pyapprox.typing.optimization.minimize.objective.validation import (
+    validate_objective,
+)
+from pyapprox.typing.optimization.minimize.objective.protocols import (
+    ObjectiveProtocol,
 )
 from pyapprox.typing.interface.functions.numpy.numpy_function_factory import (
     numpy_function_wrapper_factory,
@@ -24,37 +26,6 @@ from pyapprox.typing.optimization.minimize.scipy.scipy_constraint_factory import
 from pyapprox.typing.optimization.minimize.scipy.scipy_result import (
     ScipyOptimizerResultWrapper,
 )
-
-UnionOfObjectiveProtocols = UnionOfNonlinearConstraintProtocols[Array]
-
-
-def validate_objective(objective: UnionOfObjectiveProtocols[Array]) -> None:
-    """
-    Validate that the given objective satisfies the required protocol.
-
-    Parameters
-    ----------
-    objective : UnionOfObjectiveProtocols
-        The objective function to validate.
-
-    Raises
-    ------
-    TypeError
-        If the objective does not satisfy the required protocol.
-    ValueError
-        If the objective does not have exactly one quantity of interest (nqoi != 1).
-    """
-    if not isinstance(objective, FunctionWithJacobianAndHVPProtocol):
-        raise TypeError(
-            "The provided objective must satisfy the "
-            "'FunctionWithJacobianAndHVPProtocol'. "
-            f"Got an object of type {type(objective).__name__}."
-        )
-    if objective.nqoi() != 1:
-        raise ValueError(
-            f"The provided objective must have exactly one quantity of interest (nqoi=1). "
-            f"Got nqoi={objective.nqoi()}."
-        )
 
 
 class ScipyTrustConstrOptimizer(Generic[Array]):
@@ -67,11 +38,9 @@ class ScipyTrustConstrOptimizer(Generic[Array]):
 
     def __init__(
         self,
-        objective: UnionOfObjectiveProtocols[Array],
+        objective: ObjectiveProtocol,
         bounds: Array,
-        constraints: Optional[
-            SequenceOfUnionOfConstraintProtocols[Array]
-        ] = None,
+        constraints: Optional[SequenceOfConstraintProtocols[Array]] = None,
         verbosity: int = 0,
         maxiter: Optional[int] = None,
         gtol: Optional[float] = None,
@@ -119,9 +88,7 @@ class ScipyTrustConstrOptimizer(Generic[Array]):
 
         # Validate and wrap the objective using the factory
         validate_objective(objective)
-        self._objective = numpy_function_wrapper_factory(
-            objective, sample_ndim=1
-        )
+        self._objective = numpy_function_wrapper_factory(objective)
 
         # Wrap the bounds
         self._bounds = self._convert_bounds(bounds, self._objective.nvars())
@@ -168,10 +135,10 @@ class ScipyTrustConstrOptimizer(Generic[Array]):
         return Bounds(np_bounds[:, 0], np_bounds[:, 1], keep_feasible=True)
 
     def _objective_gradient_from_jacobian(self, sample: Array) -> Array:
-        return self._objective.jacobian(sample)[0]
+        return self._objective.jacobian(sample[:, None])[0]
 
     def _objective_hessp_from_hvp(self, sample: Array, vec: Array) -> Array:
-        return self._objective.hvp(sample, vec)[:, 0]
+        return self._objective.hvp(sample[:, None], vec[:, None])[:, 0]
 
     def minimize(
         self, init_guess: Array
@@ -201,7 +168,7 @@ class ScipyTrustConstrOptimizer(Generic[Array]):
         )
 
         scipy_result = scipy_minimize(  # type: ignore
-            self._objective,
+            lambda x: self._objective(x[:, None])[:, 0],
             self.bkd().to_numpy(init_guess[:, 0]),
             method="trust-constr",
             jac=jac,

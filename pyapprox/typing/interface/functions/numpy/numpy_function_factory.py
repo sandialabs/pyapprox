@@ -30,32 +30,22 @@ from pyapprox.typing.interface.functions.numpy.wrappers import (
 @overload
 def numpy_function_wrapper_factory(
     function: FunctionWithJacobianAndHVPProtocol[Array],
-    sample_ndim: int = 2,
 ) -> NumpyFunctionWithJacobianAndHVPWrapper[Array]: ...
 
 
 @overload
 def numpy_function_wrapper_factory(
     function: FunctionWithJacobianProtocol[Array],
-    sample_ndim: int = 2,
 ) -> NumpyFunctionWithJacobianWrapper[Array]: ...
 
 
 @overload
 def numpy_function_wrapper_factory(
     function: FunctionProtocol[Array],
-    sample_ndim: int = 2,
 ) -> NumpyFunctionWrapper[Array]: ...
 
 
-def numpy_function_wrapper_factory(
-    function: Union[
-        FunctionProtocol[Array],
-        FunctionWithJacobianProtocol[Array],
-        FunctionWithJacobianAndHVPProtocol[Array],
-    ],
-    sample_ndim: int = 2,
-) -> Union[
+def numpy_function_wrapper_factory(function: FunctionProtocol[Array]) -> Union[
     NumpyFunctionWrapper[Array],
     NumpyFunctionWithJacobianWrapper[Array],
     NumpyFunctionWithJacobianAndHVPWrapper[Array],
@@ -89,17 +79,17 @@ def numpy_function_wrapper_factory(
     if isinstance(function, FunctionWithJacobianAndHVPProtocol):
         return cast(
             NumpyFunctionWithJacobianAndHVPWrapper[Array],
-            NumpyFunctionWithJacobianAndHVPWrapper(function, sample_ndim),
+            NumpyFunctionWithJacobianAndHVPWrapper(function),
         )
 
     if isinstance(function, FunctionWithJacobianProtocol):
         return cast(
             NumpyFunctionWithJacobianWrapper[Array],
-            NumpyFunctionWithJacobianWrapper(function, sample_ndim),
+            NumpyFunctionWithJacobianWrapper(function),
         )
 
     if isinstance(function, FunctionProtocol):
-        return NumpyFunctionWrapper(function, sample_ndim)
+        return NumpyFunctionWrapper(function)
 
     raise TypeError(
         "The provided function must satisfy one of the following protocols: "
