@@ -154,7 +154,7 @@ class ScipyDifferentialEvolutionOptimizer(Generic[Array]):
         np_bounds = self.bkd().to_numpy(bounds)
         return Bounds(np_bounds[:, 0], np_bounds[:, 1], keep_feasible=True)
 
-    def minimize(self) -> ScipyOptimizerResultWrapper:
+    def minimize(self, init_guess: Array) -> ScipyOptimizerResultWrapper:
         """
         Perform the optimization.
 
@@ -174,6 +174,7 @@ class ScipyDifferentialEvolutionOptimizer(Generic[Array]):
             recombination=self._recombination,
             seed=self._seed,
             disp=self._disp,
+            x0=init_guess[:, 0],
         )
 
         # Wrap the SciPy result

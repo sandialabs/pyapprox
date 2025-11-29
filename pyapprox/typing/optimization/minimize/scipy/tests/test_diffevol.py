@@ -2,9 +2,11 @@ import unittest
 from typing import Generic, Any
 
 from numpy.typing import NDArray
+import torch
 
 from pyapprox.typing.util.backend import Array, Backend
 from pyapprox.typing.util.numpy import NumpyBkd
+from pyapprox.typing.util.torch import TorchBkd
 from pyapprox.typing.util.abstracttestcase import AbstractTestCase
 from pyapprox.typing.optimization.minimize.scipy.diffevol import (
     ScipyDifferentialEvolutionOptimizer,
@@ -34,7 +36,7 @@ class TestScipyDifferentialEvolutionOptimizer(
 
         # Define the quadratic objective function
         def value_function(x: Array) -> Array:
-            return bkd.asarray([x[0] ** 2 + x[1] ** 2])
+            return bkd.stack([x[0] ** 2 + x[1] ** 2], axis=0)
 
         # Wrap the function using FunctionFromCallable
         objective = FunctionFromCallable(
@@ -86,6 +88,18 @@ class TestScipyDifferentialEvolutionOptimizerNumpy(
         super().setUp()
 
     def bkd(self) -> NumpyBkd:
+        return self._bkd
+
+
+class TestScipyDifferentialEvolutionOptimizerTorch(
+    TestScipyDifferentialEvolutionOptimizer[torch.Tensor], unittest.TestCase
+):
+    def setUp(self) -> None:
+        torch.set_default_dtype(torch.float64)
+        self._bkd = TorchBkd()
+        super().setUp()
+
+    def bkd(self) -> Backend[torch.Tensor]:
         return self._bkd
 
 

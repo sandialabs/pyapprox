@@ -1,20 +1,40 @@
-from typing import Sequence, List, Union, cast
+from typing import Sequence, List, Union, cast, Any
+from functools import partial
+
 import numpy as np
 from scipy.optimize import (
     NonlinearConstraint,
     LinearConstraint as ScipyLinearConstraint,
 )
-from pyapprox.typing.util.backend import Array
+
+from pyapprox.typing.util.backend import Array, Backend
 from pyapprox.typing.optimization.minimize.constraints.linear import (
     PyApproxLinearConstraint,
 )
 from pyapprox.typing.optimization.minimize.constraints.protocols import (
     SequenceOfConstraintProtocols,
     NonlinearConstraintProtocol,
+    NonlinearConstraintProtocolWithJacobianAndWHVP,
 )
 from pyapprox.typing.interface.functions.numpy.numpy_function_factory import (
     numpy_function_wrapper_factory,
 )
+
+
+def _numpy_constraint_hess_from_whvp(
+    constraint: Any,
+    sample: Array,
+    weights: Array,
+) -> Array:
+    nvars = sample.shape[0]
+    actions = []
+    for ii in range(nvars):
+        vec = np.zeros((nvars, 1))
+        vec[ii] = 1.0
+        actions.append(
+            constraint.whvp(sample[:, None], vec, weights[:, None])[:, 0]
+        )
+    return np.stack(actions, axis=1)
 
 
 def convert_constraints(
@@ -56,7 +76,11 @@ def convert_constraints(
                     if hasattr(con, "jacobian")
                     else "2-point"
                 ),
-                con.whvp if hasattr(con, "whvp") else None,
+                (
+                    partial(_numpy_constraint_hess_from_whvp, con)
+                    if hasattr(con, "whvp")
+                    else None
+                ),
                 keep_feasible=getattr(con, "_keep_feasible", False),
             )
             print(scipy_con.hess)
