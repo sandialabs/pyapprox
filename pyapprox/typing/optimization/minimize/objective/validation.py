@@ -2,8 +2,6 @@ from typing import Any
 
 from pyapprox.typing.optimization.minimize.objective.protocols import (
     ObjectiveProtocol,
-    ObjectiveWithJacobianProtocol,
-    ObjectiveWithJacobianAndHVPProtocol,
 )
 
 
@@ -28,13 +26,7 @@ def validate_objective(objective: Any) -> None:
         If the objective does not have exactly one quantity of interest (nqoi != 1).
     """
     # Check the instance against the protocols in order from most complex to least complex
-    if isinstance(objective, ObjectiveWithJacobianAndHVPProtocol):
-        pass  # Valid: Objective satisfies ObjectiveWithJacobianAndHVPProtocol
-    elif isinstance(objective, ObjectiveWithJacobianProtocol):
-        pass  # Valid: Objective satisfies ObjectiveWithJacobianProtocol
-    elif isinstance(objective, ObjectiveProtocol):
-        pass  # Valid: Objective satisfies ObjectiveProtocol
-    else:
+    if not isinstance(objective, ObjectiveProtocol):
         raise TypeError(
             "Invalid objective type: expected an object implementing one of "
             "the protocols in UnionOfObjectiveProtocols, got "

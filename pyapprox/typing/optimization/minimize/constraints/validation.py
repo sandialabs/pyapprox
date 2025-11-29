@@ -24,20 +24,11 @@ def validate_nonlinear_constraint(obj: object) -> None:
     TypeError
         If the object does not satisfy any of the nonlinear constraint protocols.
     """
-    if not isinstance(
-        obj,
-        (
-            NonlinearConstraintProtocol,
-            NonlinearConstraintProtocolWithJacobian,
-            NonlinearConstraintProtocolWithJacobianAndWHVP,
-        ),
-    ):
+    if not isinstance(obj, NonlinearConstraintProtocol):
         raise TypeError(
             "The provided object must satisfy one of the following nonlinear "
             "constraint protocols: "
-            "'NonlinearConstraintProtocol', "
-            "'NonlinearConstraintProtocolWithJacobian', or "
-            "'NonlinearConstraintProtocolWithJacobianAndWHVP'. Got an object "
+            "'NonlinearConstraintProtocol'. Got an object "
             f"of type {type(obj).__name__}."
         )
 
@@ -60,19 +51,11 @@ def validate_constraints(constraints: Sequence[Any]) -> None:
     for idx, obj in enumerate(constraints):
         if not isinstance(
             obj,
-            (
-                NonlinearConstraintProtocol,
-                NonlinearConstraintProtocolWithJacobian,
-                NonlinearConstraintProtocolWithJacobianAndWHVP,
-                PyApproxLinearConstraint,
-            ),
+            (NonlinearConstraintProtocol, PyApproxLinearConstraint),
         ):
             raise TypeError(
                 f"The object at index {idx} must satisfy one of the "
                 "following protocols: "
-                "'NonlinearConstraintProtocol', "
-                "'NonlinearConstraintProtocolWithJacobian', "
-                "'NonlinearConstraintProtocolWithJacobianAndHVP', or "
-                "'PyApproxLinearConstraint'. "
+                "'NonlinearConstraintProtocol' or 'PyApproxLinearConstraint'. "
                 f"Got an object of type {type(obj).__name__}."
             )
