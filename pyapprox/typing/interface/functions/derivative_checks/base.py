@@ -3,10 +3,12 @@ from typing import Optional, Generic
 import numpy as np
 
 from pyapprox.typing.util.backend import Array
-from pyapprox.typing.interface.functions.jacobian_protocols import (
+from pyapprox.typing.interface.functions.protocols.jacobian import (
     FunctionWithJVPProtocol,
 )
-from pyapprox.typing.interface.functions.function import validate_sample
+from pyapprox.typing.interface.functions.protocols.validation import (
+    validate_sample,
+)
 
 
 class JVPChecker(Generic[Array]):

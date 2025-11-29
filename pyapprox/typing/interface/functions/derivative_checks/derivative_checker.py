@@ -9,16 +9,18 @@ from typing import (
 )
 
 from pyapprox.typing.util.backend import Array, Backend
-from pyapprox.typing.interface.functions.jacobian_protocols import (
+from pyapprox.typing.interface.functions.protocols.jacobian import (
     function_has_jacobian_or_jvp,
     FunctionWithJacobianOrJVPProtocol,
 )
-from pyapprox.typing.interface.functions.hessian_protocols import (
+from pyapprox.typing.interface.functions.protocols.hessian import (
     FunctionWithHVPAndJacobianOrJVPProtocol,
     function_has_hvp_and_jacobian_or_jvp,
 )
-from pyapprox.typing.interface.derivative_checks.base import JVPChecker
-from pyapprox.typing.interface.derivative_checks.wrappers import (
+from pyapprox.typing.interface.functions.derivative_checks.base import (
+    JVPChecker,
+)
+from pyapprox.typing.interface.functions.derivative_checks.wrappers import (
     FunctionWithJVP,
     FunctionWithJVPFromHVP,
 )

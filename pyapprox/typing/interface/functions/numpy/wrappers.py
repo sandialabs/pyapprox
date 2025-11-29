@@ -3,11 +3,13 @@ from typing import Generic, Any
 from numpy.typing import NDArray
 
 from pyapprox.typing.util.backend import Array, Backend
-from pyapprox.typing.interface.functions.function import FunctionProtocol
-from pyapprox.typing.interface.functions.jacobian_protocols import (
+from pyapprox.typing.interface.functions.protocols.function import (
+    FunctionProtocol,
+)
+from pyapprox.typing.interface.functions.protocols.jacobian import (
     FunctionWithJacobianProtocol,
 )
-from pyapprox.typing.interface.functions.hessian_protocols import (
+from pyapprox.typing.interface.functions.protocols.hessian import (
     FunctionWithJacobianAndHVPProtocol,
 )
 

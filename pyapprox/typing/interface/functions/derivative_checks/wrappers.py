@@ -2,12 +2,12 @@ from typing import Generic
 
 from pyapprox.typing.util.backend import Array, Backend
 
-from pyapprox.typing.interface.functions.jacobian_protocols import (
+from pyapprox.typing.interface.functions.protocols.jacobian import (
     FunctionWithJVPProtocol,
     FunctionWithJacobianOrJVPProtocol,
     function_has_jacobian_or_jvp,
 )
-from pyapprox.typing.interface.functions.hessian_protocols import (
+from pyapprox.typing.interface.functions.protocols.hessian import (
     FunctionWithHVPAndJacobianOrJVPProtocol,
     function_has_hvp_and_jacobian_or_jvp,
 )

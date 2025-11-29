@@ -37,10 +37,8 @@ class TestGaussianMarginal(Generic[Array], AbstractTestCase):
         Test the PDF computation by comparing to SciPy marginal.
         """
         samples = self.bkd().linspace(-3, 3, 100)
-        pdf_vals = self.marginal.pdf(samples)
-        expected_pdf_vals = self.bkd().asarray(
-            self.scipy_marginal.pdf(samples)
-        )
+        pdf_vals = self.marginal(samples)
+        expected_pdf_vals = self.bkd().asarray(self.scipy_marginal(samples))
         self.bkd().assert_allclose(pdf_vals, expected_pdf_vals)
 
     def test_logpdf(self) -> None:

@@ -4,8 +4,10 @@ import matplotlib.pyplot as plt
 from matplotlib.axes import Axes
 from matplotlib.figure import Figure
 
-from pyapprox.typing.interface.functions.function import (
+from pyapprox.typing.interface.functions.protocols.function import (
     FunctionProtocol,
+)
+from pyapprox.typing.interface.functions.protocols.validation import (
     validate_function,
 )
 from pyapprox.typing.util.backend import Array
@@ -31,7 +33,7 @@ class Plotter1D(Generic[Array]):
         validate_function(function)
         if function.nvars() != 1:
             raise ValueError("Can only plot functions with nvars() == 1")
-        self._bkd = function._bkd
+        self._bkd = function.bkd()
         self._function = function
         self._validate_plot_limits(plot_limits)
         self._plot_limits = plot_limits
@@ -41,7 +43,9 @@ class Plotter1D(Generic[Array]):
             raise ValueError(
                 "plot_limits must have exactly 2 entries: [x_min, x_max]."
             )
-        if self._bkd.any(~self._bkd.isfinite(self._bkd.asarray(plot_limits))):
+        if self._bkd.any_bool(
+            ~self._bkd.isfinite(self._bkd.asarray(plot_limits))
+        ):
             raise ValueError(f"plot limits {plot_limits} must be finite")
 
     def plot(

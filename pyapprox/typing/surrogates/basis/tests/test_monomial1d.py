@@ -8,7 +8,7 @@ from pyapprox.typing.util.backend import Array, Backend
 from pyapprox.typing.util.numpy import NumpyBkd
 from pyapprox.typing.util.torch import TorchBkd
 from pyapprox.typing.util.abstracttestcase import AbstractTestCase
-from pyapprox.typing.surrogates.basis.monomial import MonomialBasis1D
+from pyapprox.typing.surrogates.basis.monomial1d import MonomialBasis1D
 
 
 class TestMonomialBasis1D(Generic[Array], AbstractTestCase):

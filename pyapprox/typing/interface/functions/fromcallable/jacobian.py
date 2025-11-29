@@ -1,53 +1,15 @@
 from typing import Callable
 
 from pyapprox.typing.util.backend import Array, Backend
-from pyapprox.typing.interface.functions.function import (
+from pyapprox.typing.interface.functions.fromcallable.function import (
     FunctionFromCallable,
+)
+from pyapprox.typing.interface.functions.protocols.validation import (
     validate_sample,
     validate_samples,
+    validate_jacobian,
+    validate_jacobians,
 )
-
-
-def validate_jacobian(nqoi: int, nvars: int, jac: Array) -> None:
-    if jac.shape != (nqoi, nvars):
-        raise ValueError(
-            f"Jacobian shape mismatch: expected ({nqoi, nvars}), "
-            f"got {jac.shape}"
-        )
-
-
-def validate_jacobians(
-    nqoi: int, nvars: int, samples: Array, jac: Array
-) -> None:
-    if jac.shape != (samples.shape[1], nqoi, nvars):
-        raise ValueError(
-            f"Jacobian shape mismatch: expected "
-            f"({samples.shape[1], nqoi, nvars}), got {jac.shape}"
-        )
-
-
-def validate_vector_for_apply(nvars: int, vec: Array) -> None:
-    """
-    Validate that the vector has the correct shape for apply operations
-    (e.g., jvp).
-
-    Parameters
-    ----------
-    nvars : int
-        The expected number of variables (length of the vector).
-    vec : Array
-        The input vector to validate.
-
-    Raises
-    ------
-    ValueError
-        If the vector does not have the expected shape.
-    """
-    if vec.shape != (nvars, 1):
-        raise ValueError(
-            f"Invalid vector shape for apply operation: expected ({nvars}, 1), "
-            f"got {vec.shape}."
-        )
 
 
 class FunctionWithJacobianFromCallable(FunctionFromCallable[Array]):

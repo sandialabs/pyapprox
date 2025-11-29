@@ -15,8 +15,8 @@ from pyapprox.typing.surrogates.basis.basisexp_factory import (
 from pyapprox.typing.surrogates.basis.multiindex_basis_factory import (
     multiindex_basis_factory,
 )
-from pyapprox.typing.surrogates.basis.monomial import MonomialBasis1D
-from pyapprox.typing.interface.derivative_checks.derivative_checker import (
+from pyapprox.typing.surrogates.basis.monomial1d import MonomialBasis1D
+from pyapprox.typing.interface.functions.derivative_checks.derivative_checker import (
     DerivativeChecker,
 )
 

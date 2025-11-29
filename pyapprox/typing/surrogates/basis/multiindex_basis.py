@@ -9,7 +9,7 @@ from typing import (
 )
 
 from pyapprox.typing.util.backend import Array, Backend
-from pyapprox.typing.interface.functions.function import (
+from pyapprox.typing.interface.functions.protocols.validation import (
     validate_samples,
 )
 
