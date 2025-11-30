@@ -271,3 +271,7 @@ class NumpyBkd(Backend[NDArray[Any]]):  # Specify NDArray type
         destination: Union[int, tuple[int, ...]],
     ) -> NDArray[Any]:
         return np.moveaxis(array, source, destination)
+
+    @staticmethod
+    def diag(array: NDArray[Any], k: int = 0) -> NDArray[Any]:
+        return np.diag(array, k)
