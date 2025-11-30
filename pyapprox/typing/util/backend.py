@@ -86,6 +86,8 @@ class ArrayProtocol(Protocol):
 
     def __len__(self) -> int: ...
 
+    def item(self) -> Any: ...
+
 
 # Define the Backend protocol without dtype
 @runtime_checkable
@@ -367,3 +369,6 @@ class Backend(Protocol, Generic[Array]):
 
     @staticmethod
     def diag(array: Array, k: int = 0) -> Array: ...
+
+    @staticmethod
+    def diff(array: Array, n: int = 1, axis: int = -1) -> Array: ...
