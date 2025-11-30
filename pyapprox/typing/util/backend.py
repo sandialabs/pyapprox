@@ -364,3 +364,6 @@ class Backend(Protocol, Generic[Array]):
         source: Union[int, tuple[int, ...]],
         destination: Union[int, tuple[int, ...]],
     ) -> Array: ...
+
+    @staticmethod
+    def diag(array: Array, k: int = 0) -> Array: ...

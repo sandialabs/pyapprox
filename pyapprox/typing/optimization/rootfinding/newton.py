@@ -1,103 +1,3 @@
-# from abc import ABC, abstractmethod
-
-# from pyapprox.util.backends.template import BackendMixin, Array
-
-
-# class ResidualEquation(ABC):
-#     def __init__(self, backend: BackendMixin):
-#         self._bkd = backend
-
-#     def bkd(self) -> BackendMixin:
-#         return self._bkd
-
-#     def _check_iterate(self, iterate: Array) -> None:
-#         if iterate.shape != (self.nstates(),):
-#             raise ValueError(
-#                 f"init_iterate has shape {iterate.shape} but must "
-#                 f"have shape {(self.nstates(), )}"
-#             )
-
-#     @abstractmethod
-#     def nstates(self) -> int:
-#         raise NotImplementedError
-
-#     @abstractmethod
-#     def _value(self, iterate: Array) -> Array:
-#         raise NotImplementedError
-
-#     def value(self, iterate: Array) -> Array:
-#         self._check_iterate(iterate)
-#         value = self._value(iterate)
-#         # value is not an iterate but must have the same size
-#         # maybe relax this assumption
-#         self._check_iterate(value)
-#         return value
-
-#     def __call__(self, iterate: Array) -> Array:
-#         return self.value(iterate)
-
-#     @abstractmethod
-#     def _solve(self, init_iterate: Array) -> Array:
-#         raise NotImplementedError
-
-#     def solve(self, init_iterate: Array) -> Array:
-#         self._check_iterate(init_iterate)
-#         iterate = self._solve(init_iterate)
-#         self._check_iterate(iterate)
-#         return iterate
-
-#     def __repr__(self) -> str:
-#         return "{0}".format(self.__class__.__name__)
-
-
-# class ResidualEquationWithJacobian(ResidualEquation):
-#     def use_auto_differentiation(self) -> bool:
-#         return False
-
-#     def _check_automatic_differentiation(self) -> None:
-#         if not self._bkd.jacobian_implemented():
-#             raise NotImplementedError("Automatic differentiation not enabled")
-#         if not self.use_auto_differentiation():
-#             raise RuntimeError(
-#                 f"{self}.use_auto_differentiation() returns False.\n"
-#                 "Set it to return True if all functions this class"
-#                 "requires use a backend that supports auto diffentiation.\n"
-#                 "Otherwise, implement the jacobian with the anlaytical"
-#                 "expression."
-#             )
-
-#     def _jacobian(self, iterate: Array) -> Array:
-#         self._check_automatic_differentiation()
-#         return self._bkd.jacobian(self.__call__, iterate)
-
-#     def jacobian(self, iterate: Array) -> Array:
-#         self._check_iterate(iterate)
-#         jac = self._jacobian(iterate)
-#         if jac.shape != (self.nstates(), self.nstates()):
-#             raise RuntimeError(
-#                 f"{jac.shape=} but must be {(self.nstates(), self.nstates())}"
-#             )
-#         return jac
-
-
-# class NewtonResidual(ResidualEquationWithJacobian):
-#     def linsolve(self, iterate: Array, res: Array) -> Array:
-#         jac = self.jacobian(iterate)
-#         return self._bkd.solve(jac, res)
-
-#     def default_solver(self) -> "NewtonSolver":
-#         return NewtonSolver()
-
-#     def set_solver(self, solver: "NewtonSolver") -> None:
-#         self._solver = solver
-#         self._solver.set_residual(self)
-
-#     def _solve(self, iterate: Array) -> Array:
-#         if not hasattr(self, "_solver"):
-#             self.set_solver(self.default_solver())
-#         return self._solver.solve(iterate)
-
-
 from typing import Protocol, Generic, runtime_checkable
 
 from pyapprox.typing.util.backend import Array, Backend
@@ -107,9 +7,12 @@ from pyapprox.typing.util.backend import Array, Backend
 class NewtonSolverResidualProtocol(Protocol, Generic[Array]):
     def bkd(self) -> Backend[Array]: ...
 
-    def __call__(self, iterate: Array) -> Array: ...
+    # By defining arguments as positional-only in the Protocol definition,
+    # you indicate that the names do not matter in the implementation.
+    # Use the / character in the function signature:
+    def __call__(self, iterate: Array, /) -> Array: ...
 
-    def linsolve(self, sol: Array, prev_residual: Array) -> Array: ...
+    def linsolve(self, state: Array, prev_residual: Array) -> Array: ...
 
 
 class NewtonSolver(Generic[Array]):
@@ -199,3 +102,6 @@ class NewtonSolver(Generic[Array]):
             self._atol,
             self._rtol,
         )
+
+    def residual(self) -> NewtonSolverResidualProtocol[Array]:
+        return self._residual

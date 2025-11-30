@@ -290,3 +290,7 @@ class TorchBkd(Backend[torch.Tensor]):  # Specify torch.Tensor type
         destination: Union[int, tuple[int, ...]],
     ) -> torch.Tensor:
         return torch.movedim(array, source, destination)
+
+    @staticmethod
+    def diag(array: torch.Tensor, k: int = 0) -> torch.Tensor:
+        return torch.diag(array, diagonal=k)
