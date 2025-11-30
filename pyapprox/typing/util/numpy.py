@@ -275,3 +275,7 @@ class NumpyBkd(Backend[NDArray[Any]]):  # Specify NDArray type
     @staticmethod
     def diag(array: NDArray[Any], k: int = 0) -> NDArray[Any]:
         return np.diag(array, k)
+
+    @staticmethod
+    def diff(array: NDArray[Any], n: int = 1, axis: int = -1) -> NDArray[Any]:
+        return np.diff(array, n=n, axis=axis)

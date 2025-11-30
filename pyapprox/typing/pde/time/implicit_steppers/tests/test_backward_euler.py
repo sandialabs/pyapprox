@@ -1,5 +1,6 @@
 import unittest
 from typing import Generic, Any
+
 from numpy.typing import NDArray
 import torch
 
@@ -22,7 +23,8 @@ from pyapprox.typing.pde.time.implicit_steppers.integrator import (
 class TestImplicitTimeIntegration(Generic[Array], AbstractTestCase):
     def bkd(self) -> Backend[Array]:
         """
-        Override this method in derived classes to provide the specific backend.
+        Override this method in derived classes to provide the specific
+        backend.
         """
         raise NotImplementedError(
             "Derived classes must implement this method."
