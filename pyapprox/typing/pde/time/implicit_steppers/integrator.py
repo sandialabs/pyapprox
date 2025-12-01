@@ -104,3 +104,6 @@ class ImplicitTimeIntegrator(Generic[Array]):
             times.append(self._time)
         states = self._bkd.stack(states, axis=1)
         return states, self._bkd.asarray(times)
+
+    def time_residual(self) -> ImplicitTimeSteppingResidualProtocol:
+        return self._time_residual

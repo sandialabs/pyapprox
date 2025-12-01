@@ -372,3 +372,12 @@ class Backend(Protocol, Generic[Array]):
 
     @staticmethod
     def diff(array: Array, n: int = 1, axis: int = -1) -> Array: ...
+
+    @staticmethod
+    def allclose(
+        array1: Array,
+        array2: Array,
+        rtol: float = 1e-05,
+        atol: float = 1e-08,
+        equal_nan: bool = False,
+    ) -> bool: ...
