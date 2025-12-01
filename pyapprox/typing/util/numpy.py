@@ -279,3 +279,16 @@ class NumpyBkd(Backend[NDArray[Any]]):  # Specify NDArray type
     @staticmethod
     def diff(array: NDArray[Any], n: int = 1, axis: int = -1) -> NDArray[Any]:
         return np.diff(array, n=n, axis=axis)
+
+    @staticmethod
+    def allclose(
+        array1: NDArray[Any],
+        array2: NDArray[Any],
+        rtol: float = 1e-05,
+        atol: float = 1e-08,
+        equal_nan: bool = False,
+    ) -> bool:
+
+        return np.allclose(
+            array1, array2, rtol=rtol, atol=atol, equal_nan=equal_nan
+        )

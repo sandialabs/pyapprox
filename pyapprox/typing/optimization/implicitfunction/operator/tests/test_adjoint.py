@@ -13,15 +13,15 @@ from pyapprox.optimization.adjoint import (
     ScalarAdjointOperatorWithHessian,
     VectorAdjointOperator,
 )
-from pyapprox.optimization.adjoint_constraint_registry import (
-    LinearResidualEquation,
-    NonLinearCoupledEquationsResidual,
+from pyapprox.optimization.implicitfunction.benchmarks import (
+    LinearStateEquations,
+    NonLinearCoupledStateEquations,
 )
-from pyapprox.optimization.functional_registry import (
+from pyapprox.optimization.functionals import (
     MSEFunctional,
     TikhinovMSEFunctional,
     WeightedSumFunctional,
-    SubsetVectorAdjointFunctional,
+    SubsetOfStatesAdjointFunctional,
 )
 
 

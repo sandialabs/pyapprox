@@ -1,4 +1,14 @@
-from typing import Any, Optional, Union, Sequence, List, Tuple, overload, cast
+from typing import (
+    Any,
+    Optional,
+    Union,
+    Sequence,
+    List,
+    Tuple,
+    overload,
+    cast,
+    Callable,
+)
 
 import torch
 from numpy.typing import NDArray
@@ -298,3 +308,46 @@ class TorchBkd(Backend[torch.Tensor]):  # Specify torch.Tensor type
     @staticmethod
     def diff(array: torch.Tensor, n: int = 1, axis: int = -1) -> torch.Tensor:
         return torch.diff(array, n=n, dim=axis)
+
+    @staticmethod
+    def allclose(
+        array1: torch.Tensor,
+        array2: torch.Tensor,
+        rtol: float = 1e-05,
+        atol: float = 1e-08,
+        equal_nan: bool = False,
+    ) -> bool:
+        return torch.allclose(
+            array1, array2, rtol=rtol, atol=atol, equal_nan=equal_nan
+        )
+
+    @staticmethod
+    def jacobian(
+        fun: Callable[[torch.Tensor], torch.Tensor], params: torch.Tensor
+    ) -> torch.Tensor:
+        return torch.autograd.functional.jacobian(fun, params)
+
+    @staticmethod
+    def hvp(
+        fun: Callable[[torch.Tensor], torch.Tensor],
+        params: torch.Tensor,
+        vec: torch.Tensor,
+    ) -> torch.Tensor:
+        return torch.autograd.functional.hvp(fun, params, vec)[1]
+
+    @staticmethod
+    def jvp(
+        fun: Callable[[torch.Tensor], torch.Tensor],
+        params: torch.Tensor,
+        vec: torch.Tensor,
+    ) -> torch.Tensor:
+        # set create_graph=True so that result is differentiable.
+        return torch.autograd.functional.jvp(
+            fun, params, vec, create_graph=True
+        )[1]
+
+    @staticmethod
+    def hessian(
+        fun: Callable[[torch.Tensor], torch.Tensor], params: torch.Tensor
+    ) -> torch.Tensor:
+        return torch.autograd.functional.hessian(fun, params)
