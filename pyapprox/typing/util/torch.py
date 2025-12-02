@@ -351,3 +351,26 @@ class TorchBkd(Backend[torch.Tensor]):  # Specify torch.Tensor type
         fun: Callable[[torch.Tensor], torch.Tensor], params: torch.Tensor
     ) -> torch.Tensor:
         return torch.autograd.functional.hessian(fun, params)
+
+    @staticmethod
+    def cholesky(array: torch.Tensor) -> torch.Tensor:
+        return torch.linalg.cholesky(array)
+
+    @staticmethod
+    def solve_triangular(
+        matrix: NDArray[Any],
+        rhs: NDArray[Any],
+        lower: bool = True,
+        unit_diagonal: bool = False,
+    ) -> NDArray[Any]:
+        return torch.linalg.solve_triangular(
+            matrix, rhs, upper=(not lower), unitriangular=unit_diagonal
+        )
+
+    @staticmethod
+    def cholesky_solve(
+        matrix: torch.Tensor,
+        rhs: torch.Tensor,
+        lower: bool = True,
+    ) -> torch.Tensor:
+        return torch.cholesky_solve(rhs, matrix, upper=(not lower))

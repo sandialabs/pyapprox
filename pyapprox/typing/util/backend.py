@@ -381,3 +381,18 @@ class Backend(Protocol, Generic[Array]):
         atol: float = 1e-08,
         equal_nan: bool = False,
     ) -> bool: ...
+
+    @staticmethod
+    def solve_triangular(
+        matrix: Array,
+        rhs: Array,
+        lower: bool = True,
+        unit_diagonal: bool = False,
+    ) -> Array: ...
+
+    @staticmethod
+    def cholesky_solve(
+        matrix: Array,
+        rhs: Array,
+        lower: bool = True,
+    ) -> Array: ...
