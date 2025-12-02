@@ -291,3 +291,26 @@ class NumpyBkd(Backend[NDArray[Any]]):  # Specify NDArray type
         return np.allclose(
             array1, array2, rtol=rtol, atol=atol, equal_nan=equal_nan
         )
+
+    @staticmethod
+    def cholesky(array: NDArray[Any]) -> NDArray[Any]:
+        return np.linalg.cholesky(array)
+
+    @staticmethod
+    def solve_triangular(
+        matrix: NDArray[Any],
+        rhs: NDArray[Any],
+        lower: bool = False,
+        unit_diagonal: bool = False,
+    ) -> NDArray[Any]:
+        return scipy.linalg.solve_triangular(
+            matrix, rhs, lower=lower, unit_diagonal=unit_diagonal
+        )
+
+    @staticmethod
+    def cholesky_solve(
+        matrix: NDArray[Any],
+        rhs: NDArray[Any],
+        lower: bool = True,
+    ) -> NDArray[Any]:
+        return scipy.linalg.cho_solve((matrix, lower), rhs)
