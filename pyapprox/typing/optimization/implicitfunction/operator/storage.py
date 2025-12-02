@@ -1,6 +1,9 @@
 from typing import Generic
 
 from pyapprox.typing.util.backend import Array, Backend
+from pyapprox.typing.interface.functions.protocols.validation import (
+    validate_sample,
+)
 
 
 class AdjointOperatorStorage(Generic[Array]):
@@ -11,16 +14,18 @@ class AdjointOperatorStorage(Generic[Array]):
     including state and QoI Jacobians, forward states, and adjoint states.
     """
 
-    def __init__(self, backend: Backend):
+    def __init__(self, nstates: int, nparams: int, bkd: Backend):
         """
         Initialize the AdjointOperatorStorage object.
 
         Parameters
         ----------
-        backend : Backend
+        bkd : Backend
             Backend used for computations (e.g., NumPy or PyTorch).
         """
-        self._bkd = backend
+        self._bkd = bkd
+        self._nstates = nstates
+        self._nparams = nparams
         self._attribute_names = [
             "_drdy",  # State equation state Jacobian
             "_drdp",  # State equation parameter Jacobian
@@ -39,6 +44,7 @@ class AdjointOperatorStorage(Generic[Array]):
         param : Array
             Parameters to set.
         """
+        validate_sample(self._nparams, param)
         self._param = param
         self._clear()
 
@@ -77,6 +83,7 @@ class AdjointOperatorStorage(Generic[Array]):
         fwd_state : Array
             Forward state to set.
         """
+        validate_sample(self._nstates, fwd_state)
         self._fwd_state = fwd_state
 
     def has_forward_state(self) -> bool:
@@ -244,6 +251,7 @@ class AdjointOperatorStorage(Generic[Array]):
         adj_state : Array
             Adjoint state to set.
         """
+        validate_sample(self._nstates, adj_state)
         self._adj_state = adj_state
 
     def has_adjoint_state(self) -> bool:

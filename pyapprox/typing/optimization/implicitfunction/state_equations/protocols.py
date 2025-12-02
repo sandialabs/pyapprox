@@ -4,12 +4,23 @@ from pyapprox.typing.util.backend import Array, Backend
 
 
 @runtime_checkable
-class ParameterizedStateEquationProtocolWithJacobian(Protocol, Generic[Array]):
+class ParameterizedStateEquationWithJacobianProtocol(Protocol, Generic[Array]):
     """
     Protocol for parameterized state equations with adjoint capabilities.
     """
 
-    def nvars(self) -> int:
+    def bkd(self) -> Backend[Array]:
+        """
+        Return the backend used for computations.
+
+        Returns
+        -------
+        Backend
+            Backend used for computations.
+        """
+        ...
+
+    def nparams(self) -> int:
         """
         Return the number of variables in the system.
 
@@ -31,36 +42,14 @@ class ParameterizedStateEquationProtocolWithJacobian(Protocol, Generic[Array]):
         """
         ...
 
-    def set_parameters(self, param: Array) -> None:
+    def __call__(self, state: Array, param: Array) -> Array:
         """
-        Set the parameters for the residual equation.
+        Compute the residual value for the given state.
 
         Parameters
         ----------
-        param : Array
-            Parameters to set.
-        """
-        ...
-
-    def get_parameters(self) -> Array:
-        """
-        Get the current parameters of the residual equation.
-
-        Returns
-        -------
-        Array
-            Current parameters.
-        """
-        ...
-
-    def value(self, init_state: Array) -> Array:
-        """
-        Compute the residual value for the given initial state.
-
-        Parameters
-        ----------
-        init_state : Array
-            Initial state.
+        state : Array
+            The state.
 
         Returns
         -------
@@ -123,17 +112,6 @@ class ParameterizedStateEquationProtocolWithJacobian(Protocol, Generic[Array]):
         """
         ...
 
-    def use_auto_differentiation(self) -> bool:
-        """
-        Return whether automatic differentiation is enabled.
-
-        Returns
-        -------
-        bool
-            True if automatic differentiation is enabled, False otherwise.
-        """
-        ...
-
 
 @runtime_checkable
 class ParameterizedStateEquationWithJacobianAndHVPProtocol(
@@ -144,7 +122,7 @@ class ParameterizedStateEquationWithJacobianAndHVPProtocol(
     product capabilities.
     """
 
-    def nvars(self) -> int:
+    def nparams(self) -> int:
         """
         Return the number of variables in the system.
 
@@ -177,7 +155,7 @@ class ParameterizedStateEquationWithJacobianAndHVPProtocol(
         """
         ...
 
-    def value(self, state: Array, param: Array) -> Array:
+    def __call__(self, state: Array, param: Array) -> Array:
         """
         Compute the residual value for the given state and parameters.
 

@@ -12,7 +12,11 @@ class SubsetOfStatesAdjointFunctional(Generic[Array]):
     """
 
     def __init__(
-        self, nstates: int, nvars: int, subset: Array, backend: Backend[Array]
+        self,
+        nstates: int,
+        nparams: int,
+        subset: Array,
+        backend: Backend[Array],
     ):
         """
         Initialize the SubsetVectorAdjointFunctional object.
@@ -21,7 +25,7 @@ class SubsetOfStatesAdjointFunctional(Generic[Array]):
         ----------
         nstates : int
             Number of state variables.
-        nvars : int
+        nparams : int
             Number of uncertain variables.
         subset : Array
             Indices of the subset of state variables to extract.
@@ -34,7 +38,7 @@ class SubsetOfStatesAdjointFunctional(Generic[Array]):
             If the subset indices exceed the number of state variables.
         """
         self._nstates = nstates
-        self._nvars = nvars
+        self._nparams = nparams
         if subset.shape[0] > self.nstates():
             raise ValueError(
                 "subset index must be smaller than self.nstates()"
@@ -48,20 +52,20 @@ class SubsetOfStatesAdjointFunctional(Generic[Array]):
     def nstates(self) -> int:
         return self._nstates
 
-    def nvars(self) -> int:
-        return self._nvars
+    def nparams(self) -> int:
+        return self._nparams
 
-    def nunique_vars(self) -> int:
+    def nunique_params(self) -> int:
         return 0
 
-    def value(self, state: Array, param: Array) -> Array:
+    def __call__(self, state: Array, param: Array) -> Array:
         return state[self._subset]
 
     def nqoi(self) -> int:
         return self._subset.shape[0]
 
     def param_jacobian(self, state: Array, param: Array) -> Array:
-        return self._bkd.zeros((self.nqoi(), self.nvars()))
+        return self._bkd.zeros((self.nqoi(), self.nparams()))
 
     def state_jacobian(self, state: Array, param: Array) -> Array:
         jac = self._bkd.zeros((self.nqoi(), self.nstates()))

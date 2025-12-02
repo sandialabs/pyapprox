@@ -1,6 +1,7 @@
 from typing import Generic
 
 from pyapprox.typing.util.backend import Array, Backend
+from pyapprox.typing.util.validate_backend import validate_backend
 
 
 class MSEFunctional(Generic[Array]):
@@ -8,7 +9,7 @@ class MSEFunctional(Generic[Array]):
     Mean Squared Error (MSE) functional with Jacobian and Hessian capabilities.
     """
 
-    def __init__(self, nstates: int, nvars: int, backend: Backend[Array]):
+    def __init__(self, nstates: int, nparams: int, bkd: Backend[Array]):
         """
         Initialize the MSEFunctional object.
 
@@ -16,14 +17,26 @@ class MSEFunctional(Generic[Array]):
         ----------
         nstates : int
             Number of state variables.
-        nvars : int
+        nparams : int
             Number of uncertain variables.
-        backend : Backend
+        bkd : Backend
             Backend used for computations.
         """
+        validate_backend(bkd)
         self._nstates = nstates
-        self._nvars = nvars
-        self._bkd = backend
+        self._nparams = nparams
+        self._bkd = bkd
+
+    def nqoi(self) -> int:
+        """
+        Return the number of quantities of interest (QoI).
+
+        Returns
+        -------
+        int
+            Number of quantities of interest.
+        """
+        return 1
 
     def bkd(self) -> Backend[Array]:
         """
@@ -47,7 +60,7 @@ class MSEFunctional(Generic[Array]):
         """
         return self._nstates
 
-    def nvars(self) -> int:
+    def nparams(self) -> int:
         """
         Return the number of uncertain variables.
 
@@ -56,11 +69,11 @@ class MSEFunctional(Generic[Array]):
         int
             Number of uncertain variables.
         """
-        return self._nvars
+        return self._nparams
 
-    def nunique_vars(self) -> int:
+    def nunique_params(self) -> int:
         """
-        Return the number of unique variables.
+        Return the number of unique parameters in the functional.
 
         Returns
         -------
@@ -83,14 +96,14 @@ class MSEFunctional(Generic[Array]):
         ValueError
             If the shape of `obs` is inconsistent with the number of states.
         """
-        if obs.shape != (self.nstates(),):
+        if obs.shape != (self.nstates(), 1):
             raise ValueError(
                 f"obs has shape {obs.shape} but must have "
-                f"shape {(self.nstates(),)}"
+                f"shape {(self.nstates(), 1)}"
             )
         self._obs = obs
 
-    def value(self, state: Array, param: Array) -> Array:
+    def __call__(self, state: Array, param: Array) -> Array:
         """
         Compute the value of the functional.
 
@@ -106,7 +119,7 @@ class MSEFunctional(Generic[Array]):
         Array
             Value of the functional.
         """
-        return self._bkd.sum((self._obs - state) ** 2) / 2.0
+        return self._bkd.sum((self._obs - state) ** 2, keepdims=True) / 2.0
 
     def param_jacobian(self, state: Array, param: Array) -> Array:
         """
@@ -117,7 +130,7 @@ class MSEFunctional(Generic[Array]):
         Array
             Jacobian matrix with respect to the parameters.
         """
-        return self._bkd.zeros((1, self.nvars()))
+        return self._bkd.zeros((1, self.nparams()))
 
     def state_jacobian(self, state: Array, param: Array) -> Array:
         """
@@ -128,7 +141,7 @@ class MSEFunctional(Generic[Array]):
         Array
             Jacobian matrix with respect to the state.
         """
-        return (state - self._obs)[None, :]
+        return (state - self._obs).T
 
     def param_param_hvp(
         self, state: Array, param: Array, vvec: Array
@@ -141,7 +154,7 @@ class MSEFunctional(Generic[Array]):
         Array
             Hessian-vector product result.
         """
-        return self._bkd.zeros((self.nvars(),))
+        return self._bkd.zeros((self.nparams(), 1))
 
     def state_state_hvp(
         self, state: Array, param: Array, vvec: Array
@@ -167,7 +180,7 @@ class MSEFunctional(Generic[Array]):
         Array
             Hessian-vector product result.
         """
-        return self._bkd.zeros((self.nvars(),))
+        return self._bkd.zeros((self.nparams(), 1))
 
     def state_param_hvp(
         self, state: Array, param: Array, vvec: Array
@@ -180,4 +193,15 @@ class MSEFunctional(Generic[Array]):
         Array
             Hessian-vector product result.
         """
-        return self._bkd.zeros((self.nstates(),))
+        return self._bkd.zeros((self.nstates(), 1))
+
+    def __repr__(self) -> str:
+        """
+        Return a detailed string representation of the object for debugging.
+        """
+        return (
+            f"{self.__class__.__name__}("
+            f"nstates={self.nstates()}, "
+            f"nparams={self.nparams()}, "
+            f"bkd={type(self._bkd).__name__})"
+        )

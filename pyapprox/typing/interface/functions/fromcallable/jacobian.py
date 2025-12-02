@@ -49,3 +49,37 @@ class FunctionWithJacobianFromCallable(FunctionFromCallable[Array]):
         jacs = self._bkd.stack([self.jacobian(sample) for sample in samples.T])
         validate_jacobians(self.nqoi(), self.nvars(), samples, jacs)
         return jacs
+
+
+class FunctionWithJVPFromCallable(FunctionFromCallable[Array]):
+    def __init__(
+        self,
+        nqoi: int,
+        nvars: int,
+        fun: Callable[[Array], Array],
+        jvp: Callable[[Array, Array], Array],
+        bkd: Backend[Array],
+    ):
+        super().__init__(nqoi, nvars, fun, bkd)
+        if not callable(jvp):
+            raise ValueError(
+                "The provided 'jvp' object must be callable. "
+                "Expected a callable object that takes an input of type "
+                "'Array' and returns an output of type 'Array'. "
+                f"Got an object of type {type(jvp).__name__}. "
+                f"Object details: {self}"
+            )
+        self._jvp: Callable[[Array, Array], Array] = jvp
+
+    def nvars(self) -> int:
+        return self._nvars
+
+    def nqoi(self) -> int:
+        return self._nqoi
+
+    def jvp(self, sample: Array, vec: Array) -> Array:
+        validate_sample(self.nvars(), sample)
+        validate_sample(self.nvars(), vec)
+        jvp = self._jvp(sample, vec)
+        validate_sample(self.nqoi(), jvp)
+        return jvp

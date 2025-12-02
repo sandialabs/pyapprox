@@ -1,4 +1,7 @@
 from pyapprox.typing.util.backend import Array
+from pyapprox.typing.optimization.implicitfunction.functionals.mean_squared_error import (
+    MSEFunctional,
+)
 
 
 class TikhonovMSEFunctional(MSEFunctional):
@@ -6,7 +9,7 @@ class TikhonovMSEFunctional(MSEFunctional):
     Tikhonov regularized Mean Squared Error (MSE) functional.
     """
 
-    def value(self, state: Array, param: Array) -> Array:
+    def __call__(self, state: Array, param: Array) -> Array:
         """
         Compute the value of the functional.
 
@@ -15,7 +18,10 @@ class TikhonovMSEFunctional(MSEFunctional):
         Array
             Value of the functional.
         """
-        return super().value(state, param) + self._bkd.sum(param**2) / 2.0
+        return (
+            super().__call__(state, param)
+            + self._bkd.sum(param**2, keepdims=True) / 2.0
+        )
 
     def param_jacobian(self, state: Array, param: Array) -> Array:
         """
@@ -26,7 +32,7 @@ class TikhonovMSEFunctional(MSEFunctional):
         Array
             Jacobian matrix with respect to the parameters.
         """
-        return param[None, :]
+        return param.T
 
     def param_param_hvp(
         self, state: Array, param: Array, vvec: Array

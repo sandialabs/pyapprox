@@ -10,6 +10,7 @@ from pyapprox.typing.optimization.implicitfunction.functionals.protocols import 
 from pyapprox.typing.optimization.implicitfunction.operator.storage import (
     AdjointOperatorStorage,
 )
+from pyapprox.typing.util.validate_backend import validate_backends
 
 
 class AdjointOperatorWithJacobian(Generic[Array]):
@@ -41,18 +42,17 @@ class AdjointOperatorWithJacobian(Generic[Array]):
             If the state equation or functional are not valid instances of
             their respective protocols.
         """
-        self.validate_state_eq(state_eq)
-        self.validate_functional(functional)
+        self._validate_state_eq(state_eq)
+        self._validate_functional(functional)
+        validate_backends([functional.bkd(), state_eq.bkd()])
         self._bkd = state_eq.bkd()
         self._state_eq = state_eq
-        if not self._bkd.bkd_equal(self._bkd, functional.bkd()):
-            raise TypeError(
-                "state_eq backend does not match functional backend"
-            )
         self._functional = functional
-        self._adjoint_data = AdjointOperatorStorage(self._bkd)
+        self._storage = AdjointOperatorStorage(
+            self._state_eq.nstates(), self._state_eq.nparams(), self.bkd()
+        )
 
-    def validate_state_eq(
+    def _validate_state_eq(
         self, state_eq: ParameterizedStateEquationWithJacobianProtocol[Array]
     ) -> None:
         """
@@ -77,7 +77,7 @@ class AdjointOperatorWithJacobian(Generic[Array]):
                 "ParameterizedStateEquationWithJacobianProtocol."
             )
 
-    def validate_functional(
+    def _validate_functional(
         self, functional: ParameterizedFunctionalWithJacobianProtocol[Array]
     ) -> None:
         """
@@ -115,7 +115,7 @@ class AdjointOperatorWithJacobian(Generic[Array]):
         """
         return self._bkd
 
-    def adjoint_data(self) -> AdjointOperatorStorage:
+    def storage(self) -> AdjointOperatorStorage:
         """
         Return the adjoint operator storage.
 
@@ -124,9 +124,20 @@ class AdjointOperatorWithJacobian(Generic[Array]):
         AdjointOperatorStorage
             Storage for adjoint operator data.
         """
-        return self._adjoint_data
+        return self._storage
 
-    def nvars(self) -> int:
+    def nstates(self) -> int:
+        """
+        Return the number of states in the system.
+
+        Returns
+        -------
+        int
+            Number of states.
+        """
+        return self._state_eq.nstates()
+
+    def nparams(self) -> int:
         """
         Return the number of variables in the system.
 
@@ -135,9 +146,9 @@ class AdjointOperatorWithJacobian(Generic[Array]):
         int
             Number of variables.
         """
-        return self._state_eq.nvars()
+        return self._state_eq.nparams()
 
-    def value(self, init_fwd_state: Array, param: Array) -> Array:
+    def __call__(self, init_fwd_state: Array, param: Array) -> Array:
         """
         Compute the value of the functional.
 
@@ -174,10 +185,10 @@ class AdjointOperatorWithJacobian(Generic[Array]):
         """
         drdy = self._state_eq.state_jacobian(fwd_state, param)
         dqdy = self._functional.state_jacobian(fwd_state, param)
-        adj_state = self._bkd.solve(drdy.T, -dqdy[0])
-        self._adjoint_data.set_adjoint_state(adj_state)
-        self._adjoint_data.set_state_eq_state_jacobian(drdy)
-        self._adjoint_data.set_qoi_state_jacobian(dqdy)
+        adj_state = self._bkd.solve(drdy.T, -dqdy.T)
+        self._storage.set_adjoint_state(adj_state)
+        self._storage.set_state_eq_state_jacobian(drdy)
+        self._storage.set_qoi_state_jacobian(dqdy)
         return adj_state
 
     def _get_forward_state(self, init_fwd_state: Array, param: Array) -> Array:
@@ -197,13 +208,13 @@ class AdjointOperatorWithJacobian(Generic[Array]):
             Forward state.
         """
         if (
-            not self._adjoint_data.has_parameter(param)
-            or not self._adjoint_data.has_forward_state()
+            not self._storage.has_parameter(param)
+            or not self._storage.has_forward_state()
         ):
-            self._adjoint_data._clear()
+            self._storage._clear()
             fwd_state = self._state_eq.solve(init_fwd_state, param)
-            self._adjoint_data.set_forward_state(fwd_state)
-        return self._adjoint_data.get_forward_state()
+            self._storage.set_forward_state(fwd_state)
+        return self._storage.get_forward_state()
 
     def _get_state_eq_param_jacobian(
         self, fwd_state: Array, param: Array
@@ -223,10 +234,10 @@ class AdjointOperatorWithJacobian(Generic[Array]):
         Array
             Parameter Jacobian of the state equation.
         """
-        if not self._adjoint_data.has_state_eq_param_jacobian():
+        if not self._storage.has_state_eq_param_jacobian():
             drdp = self._state_eq.param_jacobian(fwd_state, param)
-            self._adjoint_data.set_state_eq_param_jacobian(drdp)
-        return self._adjoint_data.get_state_eq_param_jacobian()
+            self._storage.set_state_eq_param_jacobian(drdp)
+        return self._storage.get_state_eq_param_jacobian()
 
     def jacobian(self, init_fwd_state: Array, param: Array) -> Array:
         """
@@ -248,7 +259,42 @@ class AdjointOperatorWithJacobian(Generic[Array]):
         adj_state = self.solve_adjoint_equation(fwd_state, param)
         drdp = self._get_state_eq_param_jacobian(fwd_state, param)
         jacobian = (
-            self._functional.param_jacobian(fwd_state, param)[0]
-            + adj_state @ drdp
-        )[None, :]
+            self._functional.param_jacobian(fwd_state, param)
+            + adj_state.T @ drdp
+        )
         return jacobian
+
+    def state_equation(
+        self,
+    ) -> ParameterizedStateEquationWithJacobianProtocol[Array]:
+        """
+        Return the state equation object.
+
+        Returns
+        -------
+        ParameterizedStateEquationWithJacobianProtocol
+            State equation object.
+        """
+        return self._state_eq
+
+    def functional(self) -> ParameterizedFunctionalWithJacobianProtocol[Array]:
+        """
+        Return the functional object.
+
+        Returns
+        -------
+        ParameterizedFunctionalWithJacobianProtocol
+            Functional object.
+        """
+        return self._functional
+
+    def __repr__(self) -> str:
+        """
+        Return a detailed string representation of the object for debugging.
+        """
+        return (
+            f"{self.__class__.__name__}("
+            f"nstates={self.nstates()}, "
+            f"nparams={self.nparams()}, "
+            f"bkd={type(self._bkd).__name__})"
+        )

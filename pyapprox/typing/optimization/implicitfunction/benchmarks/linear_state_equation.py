@@ -1,16 +1,51 @@
-from pyapprox.util.backends.template import Array, BackendMixin
-from pyapprox.optimization.adjoint import (
-    AdjointResidualEquationWithHessian,
-    NewtonResidualWithGradient,
+from typing import Generic
+from pyapprox.typing.util.backend import Array, Backend
+from pyapprox.typing.util.validate_backend import validate_backend
+from pyapprox.typing.interface.functions.protocols.validation import (
+    validate_sample,
 )
 
 
-class LinearResidualEquation(AdjointResidualEquationWithHessian):
-    def __init__(self, Amat: Array, bvec: Array, backend: BackendMixin):
-        super().__init__(backend)
-        if bvec.ndim != 1:
+class LinearStateEquation(Generic[Array]):
+    """
+    Linear state equation with Jacobian and Hessian capabilities.
+
+    This class implements a linear residual equation of the form:
+        r(state, param) = state - Amat @ param - bvec
+
+    Parameters
+    ----------
+    Amat : Array
+        Matrix defining the linear system.
+    bvec : Array
+        Vector defining the linear system.
+    bkd : Backend
+        Backend used for numerical computations.
+    """
+
+    def __init__(self, Amat: Array, bvec: Array, bkd: Backend[Array]) -> None:
+        """
+        Initialize the linear state equation.
+
+        Parameters
+        ----------
+        Amat : Array
+            Matrix defining the linear system.
+        bvec : Array
+            Vector defining the linear system.
+        bkd : Backend
+            Backend used for numerical computations.
+
+        Raises
+        ------
+        ValueError
+            If `bvec` is not a 1D array or if the dimensions of `Amat` and `bvec` are inconsistent.
+        """
+        validate_backend(bkd)
+        self._bkd = bkd
+        if bvec.ndim != 2 or bvec.shape[1] != 1:
             raise ValueError(
-                f"bvec must be a 1D array but has shape {bvec.shape}"
+                f"bvec must be a 2D array wioth 1 column but has shape {bvec.shape}"
             )
         if Amat.shape[0] != bvec.shape[0]:
             raise ValueError(
@@ -20,264 +55,230 @@ class LinearResidualEquation(AdjointResidualEquationWithHessian):
         self._Amat = Amat
         self._bvec = bvec
 
-    def nstates(self) -> int:
-        return self._Amat.shape[0]
+    def bkd(self) -> Backend[Array]:
+        """
+        Return the backend used for computations.
 
-    def nvars(self) -> int:
+        Returns
+        -------
+        Backend
+            Backend used for computations.
+        """
+        return self._bkd
+
+    def nparams(self) -> int:
+        """
+        Return the number of uncertain variables.
+
+        Returns
+        -------
+        int
+            Number of uncertain variables.
+        """
         return self._Amat.shape[1]
 
-    def _set_parameters(self, param: Array) -> None:
-        # self._param has been set already by set_parameters
-        # that calls this function
-        pass
+    def nstates(self) -> int:
+        """
+        Return the number of state variables.
 
-    def _value(self, state: Array, param: Array) -> Array:
-        return state - self._Amat @ param
+        Returns
+        -------
+        int
+            Number of state variables.
+        """
+        return self._Amat.shape[0]
 
-    def _solve(self, init_state: Array):
-        # init_state is ignored for this linear problem
-        return self._Amat @ self._param
+    def nqoi(self) -> int:
+        """
+        Return the number of quantities of interest (QoI).
 
-    def _param_jacobian(self, state: Array, param: Array):
+        Returns
+        -------
+        int
+            Number of state variables.
+        """
+        return self.nstates()
+
+    def __call__(self, state: Array, param: Array) -> Array:
+        """
+        Compute the residual value.
+
+        Parameters
+        ----------
+        state : Array
+            State of the system.
+        param : Array
+            Parameters of the system.
+
+        Returns
+        -------
+        Array
+            Residual value.
+        """
+        validate_sample(self.nstates(), state)
+        validate_sample(self.nparams(), param)
+        return state - self._Amat @ param - self._bvec
+
+    def solve(self, init_state: Array, param: Array) -> Array:
+        """
+        Solve the residual equation for the given initial state and parameters.
+
+        Parameters
+        ----------
+        init_state : Array
+            Initial state (ignored for this linear problem).
+        param : Array
+            Parameters of the system.
+
+        Returns
+        -------
+        Array
+            Solution to the residual equation.
+        """
+        validate_sample(self.nstates(), init_state)
+        validate_sample(self.nparams(), param)
+        return self._Amat @ param + self._bvec
+
+    def param_jacobian(self, state: Array, param: Array) -> Array:
+        """
+        Compute the Jacobian of the residual with respect to the parameters.
+
+        Parameters
+        ----------
+        state : Array
+            State of the system.
+        param : Array
+            Parameters of the system.
+
+        Returns
+        -------
+        Array
+            Jacobian matrix with respect to the parameters.
+        """
+        validate_sample(self.nstates(), state)
+        validate_sample(self.nparams(), param)
         return -self._Amat
 
-    def _state_jacobian(self, state: Array, param: Array):
+    def state_jacobian(self, state: Array, param: Array) -> Array:
+        """
+        Compute the Jacobian of the residual with respect to the state.
+
+        Parameters
+        ----------
+        state : Array
+            State of the system.
+        param : Array
+            Parameters of the system.
+
+        Returns
+        -------
+        Array
+            Jacobian matrix with respect to the state.
+        """
+        validate_sample(self.nstates(), state)
+        validate_sample(self.nparams(), param)
         return self._bkd.eye(self.nstates())
 
     def param_param_hvp(
-        self, fwd_state: Array, param: Array, adj_state: Array, vvec: Array
+        self, state: Array, param: Array, adj_state: Array, vvec: Array
     ) -> Array:
-        return self._bkd.zeros((self.nvars(),))
-
-    def _state_state_hvp(
-        self, fwd_state: Array, param: Array, adj_state: Array, wvec: Array
-    ) -> Array:
-        return self._bkd.zeros((self.nstates(),))
-
-    def _param_state_hvp(
-        self, fwd_state: Array, param: Array, adj_state: Array, wvec: Array
-    ) -> Array:
-        return self._bkd.zeros((self.nvars(),))
-
-    def _state_param_hvp(
-        self, fwd_state: Array, param: Array, adj_state: Array, vvec: Array
-    ) -> Array:
-        return self._bkd.zeros((self.nstates(),))
-        pass
-
-
-class NonLinearCoupledEquationsResidual(NewtonResidualWithGradient):
-    r"""
-    Nonlinear coupled equations residual with automatic differentiation.
-
-    This class implements the residual equations for a nonlinear coupled system
-    with adjustable powers for the parameters. The powers of the parameters are
-    set automatically during initialization.
-
-    The system is governed by the following equations:
-
-    .. math::
-        f_1(x_1, x_2) = a^p \cdot x_1^2 + x_2^2 - 1 \\
-        f_2(x_1, x_2) = x_1^2 - b^q \cdot x_2^2 - 1
-
-    where:
-
-    - :math:`x_1, x_2`: State variables.
-    - :math:`a, b`: Parameters.
-    - :math:`p, q`: Powers of the parameters.
-
-    Parameters
-    ----------
-    backend : BackendMixin
-        Backend for numerical computations.
-    """
-
-    def __init__(self, backend: BackendMixin) -> None:
         """
-        Initialize the nonlinear coupled equations residual with automatic
-        differentiation.
+        Compute the Hessian-vector product with respect to the parameters.
 
         Parameters
         ----------
-        backend : BackendMixin
-            Backend for numerical computations.
-
-        Raises
-        ------
-        RuntimeError
-            If the powers of the parameters are less than 1.
-        """
-        super().__init__(backend)
-        self._set_param_powers()
-        if self._apow < 1 or self._bpow < 1:
-            raise RuntimeError("apow and bpow must be >= 1")
-
-    def nstates(self) -> int:
-        """
-        Returns the number of state variables in the residual equation.
-
-        Returns
-        -------
-        nstates: int
-            The number of state variables, which is 2 in this case.
-        """
-        return 2
-
-    def _set_param_powers(self) -> None:
-        """
-        Set the powers of the parameters.
-
-        This method sets the powers of the parameters :math:`a` and :math:`b`
-        to predefined values.
-        """
-        self._apow = 1
-        self._bpow = 1
-
-    def _value(self, iterate: Array, param: Array) -> Array:
-        r"""
-        Compute the residuals for the nonlinear coupled system.
-
-        Parameters
-        ----------
-        iterate : Array
-            Array of shape (nvars,) containing the state variables.
-
-        Returns
-        -------
-        residuals : Array
-            Array of shape (nvars,) containing the residuals.
-
-        Notes
-        -----
-        The residual equations are defined as:
-
-        .. math::
-            f_1(x_1, x_2) = a^p \cdot x_1^2 + x_2^2 - 1 \\
-            f_2(x_1, x_2) = x_1^2 - b^q \cdot x_2^2 - 1
-        """
-        a, b = param
-        return self._bkd.stack(
-            [
-                a**self._apow * iterate[0] ** 2 + iterate[1] ** 2 - 1,
-                iterate[0] ** 2 - b**self._bpow * iterate[1] ** 2 - 1,
-            ],
-            axis=0,
-        )
-
-    def _set_parameters(self, param: Array) -> None:
-        """
-        Set the model parameters.
-
-        Parameters
-        ----------
+        state : Array
+            State of the system.
         param : Array
-            Array containing the model parameters.
-        """
-        self._a, self._b = param
-
-    def nvars(self) -> int:
-        """
-        Return the number of uncertain variables in the model.
+            Parameters of the system.
+        adj_state : Array
+            Adjoint state.
+        vvec : Array
+            Vector for Hessian computation.
 
         Returns
         -------
-        nvars : int
-            Number of uncertain variables in the model. For this model, it is always 2.
+        Array
+            Hessian-vector product result.
         """
-        return 2
+        validate_sample(self.nstates(), state)
+        validate_sample(self.nparams(), param)
+        return self._bkd.zeros((self.nparams(), 1))
 
-    def __repr__(self) -> str:
+    def state_state_hvp(
+        self, state: Array, param: Array, adj_state: Array, wvec: Array
+    ) -> Array:
         """
-        Return a string representation of the class.
-
-        Returns
-        -------
-        repr : str
-            String representation of the class, including the parameter values.
-        """
-        if not hasattr(self, "_a"):
-            return "{0}()".format(self.__class__.__name__)
-        return "{0}(a={1}, b={2})".format(
-            self.__class__.__name__, self._a, self._b
-        )
-
-    def _state_jacobian(self, iterate: Array, param: Array) -> Array:
-        r"""
-        Compute the Jacobian of the residuals with respect to the states.
+        Compute the Hessian-vector product with respect to the state.
 
         Parameters
         ----------
-        iterate : Array
-            Array of shape (nvars,) containing the state variables.
+        state : Array
+            State of the system.
+        param : Array
+            Parameters of the system.
+        adj_state : Array
+            Adjoint state.
+        wvec : Array
+            Vector for Hessian computation.
 
         Returns
         -------
-        jacobian : Array
-            Array of shape (nvars, nvars) containing the Jacobian matrix.
-
-        Notes
-        -----
-        The Jacobian matrix is defined as:
-
-        .. math::
-            J = \begin{bmatrix}
-                2 a^p x_1 & 2 x_2 \\
-                2 x_1 & -2 b^q x_2
-            \end{bmatrix}
+        Array
+            Hessian-vector product result.
         """
-        a, b = param
-        return self._bkd.stack(
-            [
-                self._bkd.hstack(
-                    [2 * a**self._apow * iterate[0], 2 * iterate[1]]
-                ),
-                self._bkd.hstack(
-                    [2 * iterate[0], -2 * b**self._bpow * iterate[1]]
-                ),
-            ],
-            axis=0,
-        )
+        validate_sample(self.nstates(), state)
+        validate_sample(self.nparams(), param)
+        return self._bkd.zeros((self.nstates(), 1))
 
-    def _param_jacobian(self, iterate: Array, param: Array) -> Array:
-        r"""
-        Compute the Jacobian of the residuals with respect to the parameters.
+    def param_state_hvp(
+        self, state: Array, param: Array, adj_state: Array, wvec: Array
+    ) -> Array:
+        """
+        Compute the Hessian-vector product with respect to parameters and state.
 
         Parameters
         ----------
-        iterate : Array
-            Array of shape (nvars,) containing the state variables.
+        state : Array
+            State of the system.
+        param : Array
+            Parameters of the system.
+        adj_state : Array
+            Adjoint state.
+        wvec : Array
+            Vector for Hessian computation.
 
         Returns
         -------
-        param_jacobian : Array
-            Array of shape (nvars, nparams) containing the parameter Jacobian matrix.
-
-        Notes
-        -----
-        The parameter Jacobian matrix is defined as:
-
-        .. math::
-            J_p = \begin{bmatrix}
-                p a^{p-1} x_1^2 & 0 \\
-                0 & -q b^{q-1} x_2^2
-            \end{bmatrix}
+        Array
+            Hessian-vector product result.
         """
-        zero = self._bkd.zeros((1,))
-        a, b = param
-        return self._bkd.stack(
-            [
-                self._bkd.hstack(
-                    [
-                        self._apow * a ** (self._apow - 1) * iterate[0] ** 2,
-                        zero,
-                    ]
-                ),
-                self._bkd.hstack(
-                    [
-                        zero,
-                        -self._bpow * b ** (self._bpow - 1) * iterate[1] ** 2,
-                    ]
-                ),
-            ],
-            axis=0,
-        )
+        validate_sample(self.nstates(), state)
+        validate_sample(self.nparams(), param)
+        return self._bkd.zeros((self.nparams(), 1))
+
+    def state_param_hvp(
+        self, state: Array, param: Array, adj_state: Array, vvec: Array
+    ) -> Array:
+        """
+        Compute the Hessian-vector product with respect to state and parameters.
+
+        Parameters
+        ----------
+        state : Array
+            State of the system.
+        param : Array
+            Parameters of the system.
+        adj_state : Array
+            Adjoint state.
+        vvec : Array
+            Vector for Hessian computation.
+
+        Returns
+        -------
+        Array
+            Hessian-vector product result.
+        """
+        validate_sample(self.nstates(), state)
+        validate_sample(self.nparams(), param)
+        return self._bkd.zeros((self.nstates(), 1))
