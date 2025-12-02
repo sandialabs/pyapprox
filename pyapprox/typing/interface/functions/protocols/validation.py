@@ -119,3 +119,17 @@ def validate_function(function: Any) -> None:
             f"Invalid function type: expected an object implementing "
             f"FunctionProtocol, got {type(function).__name__}. "
         )
+
+
+def validate_1d_array(nvars: int, samples: Array) -> None:
+    """
+    Validate that the array has shape (nvars,).
+    Some member functions may only use 1 sample.
+    """
+    expected_shape = (nvars,)
+    actual_shape = samples.shape
+    if actual_shape != expected_shape:
+        raise ValueError(
+            f"Invalid sample shape: expected {expected_shape}, "
+            f"got {actual_shape}."
+        )

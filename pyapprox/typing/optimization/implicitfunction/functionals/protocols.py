@@ -9,6 +9,17 @@ class ParameterizedFunctionalWithJacobianProtocol(Protocol, Generic[Array]):
     interest (QoI).
     """
 
+    def bkd(self) -> Backend[Array]:
+        """
+        Return the backend used for computations.
+
+        Returns
+        -------
+        Backend
+            Backend used for computations.
+        """
+        ...
+
     def nqoi(self) -> int:
         """
         Return the number of quantities of interest (QoI).
@@ -31,7 +42,7 @@ class ParameterizedFunctionalWithJacobianProtocol(Protocol, Generic[Array]):
         """
         ...
 
-    def nvars(self) -> int:
+    def nparams(self) -> int:
         """
         Return the number of variables in the system.
 
@@ -42,9 +53,9 @@ class ParameterizedFunctionalWithJacobianProtocol(Protocol, Generic[Array]):
         """
         ...
 
-    def nunique_vars(self) -> int:
+    def nunique_params(self) -> int:
         """
-        Return the number of unique variables in the system.
+        Return the number of unique parameters in the functional.
 
         Returns
         -------
@@ -68,17 +79,6 @@ class ParameterizedFunctionalWithJacobianProtocol(Protocol, Generic[Array]):
         -------
         Array
             Values of the functional.
-        """
-        ...
-
-    def use_auto_differentiation(self) -> bool:
-        """
-        Return whether automatic differentiation is enabled.
-
-        Returns
-        -------
-        bool
-            True if automatic differentiation is enabled, False otherwise.
         """
         ...
 
@@ -120,7 +120,7 @@ class ParameterizedFunctionalWithJacobianProtocol(Protocol, Generic[Array]):
 
 
 @runtime_checkable
-class ParamterizedFunctionalWithJacobianAndHVPProtocol(
+class ParameterizedFunctionalWithJacobianAndHVPProtocol(
     Protocol, Generic[Array]
 ):
     """
@@ -150,7 +150,7 @@ class ParamterizedFunctionalWithJacobianAndHVPProtocol(
         """
         ...
 
-    def nvars(self) -> int:
+    def nparams(self) -> int:
         """
         Return the number of variables in the system.
 
@@ -158,6 +158,17 @@ class ParamterizedFunctionalWithJacobianAndHVPProtocol(
         -------
         int
             Number of variables.
+        """
+        ...
+
+    def nunique_params(self) -> int:
+        """
+        Return the number of unique parameters in the functional.
+
+        Returns
+        -------
+        int
+            Number of unique variables.
         """
         ...
 
@@ -172,7 +183,7 @@ class ParamterizedFunctionalWithJacobianAndHVPProtocol(
         """
         ...
 
-    def value(self, state: Array, param: Array) -> Array:
+    def __call__(self, state: Array, param: Array) -> Array:
         """
         Compute the value of the functional.
 

@@ -1,20 +1,21 @@
 from typing import Generic
 from pyapprox.typing.util.backend import Array, Backend
 from pyapprox.typing.optimization.implicitfunction.state_equations.protocols import (
-    AdjointParameterizedStateEquationProtocol,
+    ParameterizedStateEquationWithJacobianAndHVPProtocol,
 )
 from pyapprox.typing.optimization.implicitfunction.functionals.protocols import (
-    AdjointFunctionalProtocol,
+    ParameterizedFunctionalWithJacobianAndHVPProtocol,
 )
 from pyapprox.typing.optimization.implicitfunction.operator.storage import (
     AdjointOperatorStorage,
 )
-from pyapprox.typing.optimization.implicitfunction.operator.jacobian import (
+from pyapprox.typing.optimization.implicitfunction.operator.operator_with_jacobian import (
     AdjointOperatorWithJacobian,
 )
+from pyapprox.typing.util.validate_backend import validate_backends
 
 
-class ScalarAdjointOperatorWithHessian(Generic[Array]):
+class AdjointOperatorWithJacobianAndHVP(Generic[Array]):
     """
     Scalar adjoint operator with Hessian computations.
 
@@ -25,17 +26,17 @@ class ScalarAdjointOperatorWithHessian(Generic[Array]):
 
     def __init__(
         self,
-        residual_eq: AdjointParameterizedStateEquationProtocol[Array],
-        functional: AdjointFunctionalProtocol[Array],
+        state_eq: ParameterizedStateEquationWithJacobianAndHVPProtocol[Array],
+        functional: ParameterizedFunctionalWithJacobianAndHVPProtocol[Array],
     ):
         """
         Initialize the ScalarAdjointOperatorWithHessian object.
 
         Parameters
         ----------
-        residual_eq : AdjointParameterizedStateEquationProtocol
+        state_eq : AdjointParameterizedStateEquationProtocol
             Residual equation object implementing the adjoint residual equation protocol.
-        functional : AdjointFunctionalProtocol
+        functional : ParameterizedFunctionalWithJacobianAndHVPProtocol
             Functional object implementing the adjoint functional protocol.
 
         Raises
@@ -43,13 +44,69 @@ class ScalarAdjointOperatorWithHessian(Generic[Array]):
         TypeError
             If the residual equation or functional are not valid instances of their respective protocols.
         """
+        self._validate_state_eq(state_eq)
+        self._validate_functional(functional)
+        validate_backends([functional.bkd(), state_eq.bkd()])
         self._jacobian_operator = AdjointOperatorWithJacobian(
-            residual_eq, functional
+            state_eq, functional
         )
         self._bkd = self._jacobian_operator.bkd()
-        self._residual_eq = residual_eq
+        self._state_eq = state_eq
         self._functional = functional
-        self._adjoint_data = self._jacobian_operator.adjoint_data()
+
+    def _validate_state_eq(
+        self,
+        state_eq: ParameterizedStateEquationWithJacobianAndHVPProtocol[Array],
+    ) -> None:
+        """
+        Validate the state equation.
+
+        Parameters
+        ----------
+        state_eq : ParameterizedStateEquationWithJacobianAndHVPProtocol
+            State equation object.
+
+        Raises
+        ------
+        TypeError
+            If the state equation is not a valid instance of "
+        "ParameterizedStateEquationWithJacobianAndHVPProtocol.
+        """
+        if not isinstance(
+            state_eq, ParameterizedStateEquationWithJacobianAndHVPProtocol
+        ):
+            raise TypeError(
+                "state_eq must be an instance of "
+                "ParameterizedStateEquationWithJacobianAndHVPProtocol."
+            )
+
+    def _validate_functional(
+        self,
+        functional: ParameterizedFunctionalWithJacobianAndHVPProtocol[Array],
+    ) -> None:
+        """
+        Validate the functional.
+
+        Parameters
+        ----------
+        functional : ParameterizedFunctionalWithJacobianProtocol
+            Functional object.
+
+        Raises
+        ------
+        TypeError
+            If the functional is not a valid instance of "
+            "ParameterizedFunctionalWithJacobianAndHVPProtocol or nqoi != 1.
+        """
+        if not isinstance(
+            functional, ParameterizedFunctionalWithJacobianAndHVPProtocol
+        ):
+            raise TypeError(
+                "functional must be an instance of "
+                "ParameterizedFunctionalWithJacobianAndHVPProtocol."
+            )
+        if functional.nqoi() != 1:
+            raise ValueError("functional must have nqoi == 1.")
 
     def bkd(self) -> Backend[Array]:
         """
@@ -62,7 +119,7 @@ class ScalarAdjointOperatorWithHessian(Generic[Array]):
         """
         return self._bkd
 
-    def adjoint_data(self) -> AdjointOperatorStorage:
+    def storage(self) -> AdjointOperatorStorage:
         """
         Return the adjoint operator storage.
 
@@ -71,9 +128,20 @@ class ScalarAdjointOperatorWithHessian(Generic[Array]):
         AdjointOperatorStorage
             Storage for adjoint operator data.
         """
-        return self._adjoint_data
+        return self._jacobian_operator.storage()
 
-    def nvars(self) -> int:
+    def nstates(self) -> int:
+        """
+        Return the number of states in the system.
+
+        Returns
+        -------
+        int
+            Number of states.
+        """
+        return self._state_eq.nstates()
+
+    def nparams(self) -> int:
         """
         Return the number of variables in the system.
 
@@ -82,9 +150,9 @@ class ScalarAdjointOperatorWithHessian(Generic[Array]):
         int
             Number of variables.
         """
-        return self._jacobian_operator.nvars()
+        return self._jacobian_operator.nparams()
 
-    def value(self, init_fwd_state: Array, param: Array) -> Array:
+    def __call__(self, init_fwd_state: Array, param: Array) -> Array:
         """
         Compute the value of the functional.
 
@@ -100,7 +168,7 @@ class ScalarAdjointOperatorWithHessian(Generic[Array]):
         Array
             Value of the functional.
         """
-        return self._jacobian_operator.value(init_fwd_state, param)
+        return self._jacobian_operator(init_fwd_state, param)
 
     def jacobian(self, init_fwd_state: Array, param: Array) -> Array:
         """
@@ -175,9 +243,7 @@ class ScalarAdjointOperatorWithHessian(Generic[Array]):
         """
         return self._functional.state_state_hvp(
             fwd_state, param, wvec
-        ) + self._residual_eq.state_state_hvp(
-            fwd_state, param, adj_state, wvec
-        )
+        ) + self._state_eq.state_state_hvp(fwd_state, param, adj_state, wvec)
 
     def _lagrangian_state_param_hvp(
         self, fwd_state: Array, param: Array, adj_state: Array, vvec: Array
@@ -203,9 +269,7 @@ class ScalarAdjointOperatorWithHessian(Generic[Array]):
         """
         return self._functional.state_param_hvp(
             fwd_state, param, vvec
-        ) + self._residual_eq.state_param_hvp(
-            fwd_state, param, adj_state, vvec
-        )
+        ) + self._state_eq.state_param_hvp(fwd_state, param, adj_state, vvec)
 
     def _lagrangian_param_state_hvp(
         self, fwd_state: Array, param: Array, adj_state: Array, wvec: Array
@@ -230,13 +294,13 @@ class ScalarAdjointOperatorWithHessian(Generic[Array]):
             Parameter-state Hessian-vector product.
         """
         qps_hvp = self._functional.param_state_hvp(fwd_state, param, wvec)
-        if qps_hvp.ndim != 1:
-            raise RuntimeError("qps_hvp must be a 1D array")
-        rps_hvp = self._residual_eq.param_state_hvp(
+        if qps_hvp.ndim != 2 or qps_hvp.shape[1] != 1:
+            raise RuntimeError("qps_hvp must be a 2D array with shape[1] == 1")
+        rps_hvp = self._state_eq.param_state_hvp(
             fwd_state, param, adj_state, wvec
         )
-        if rps_hvp.ndim != 1:
-            raise RuntimeError("rps_hvp must be a 1D array")
+        if rps_hvp.ndim != 2 or rps_hvp.shape[1] != 1:
+            raise RuntimeError("rps_hvp must be a 2D array with shape[1] == 1")
         return qps_hvp + rps_hvp
 
     def _lagrangian_param_param_hvp(
@@ -262,15 +326,15 @@ class ScalarAdjointOperatorWithHessian(Generic[Array]):
             Parameter-parameter Hessian-vector product.
         """
         qpp_hvp = self._functional.param_param_hvp(fwd_state, param, vvec)
-        if qpp_hvp.ndim != 1:
-            raise RuntimeError("qpp_hvp must be a 1D array")
-        rpp_hvp = self._residual_eq.param_param_hvp(
+        if qpp_hvp.ndim != 2 or qpp_hvp.shape[1] != 1:
+            raise RuntimeError("qpp_hvp must be a 2D array with shape[1] == 1")
+        rpp_hvp = self._state_eq.param_param_hvp(
             fwd_state, param, adj_state, vvec
         )
-        if rpp_hvp.ndim != 1:
+        if rpp_hvp.ndim != 2 or rpp_hvp.shape[1] != 1:
             raise RuntimeError(
-                "rpp_hvp returned by {0} must be a 1D array".format(
-                    self._residual_eq
+                "rpp_hvp returned by {0} must be a 2D array with shape[1] == 1".format(
+                    self._state_eq
                 )
             )
         return qpp_hvp + rpp_hvp
@@ -315,9 +379,21 @@ class ScalarAdjointOperatorWithHessian(Generic[Array]):
             ),
         )
 
-    def apply_hessian(
-        self, init_fwd_state: Array, param: Array, vvec: Array
-    ) -> Array:
+    def _get_adjoint_state(self, init_fwd_state: Array, param: Array) -> Array:
+        if (
+            not self.storage().has_parameter(param)
+            or not self.storage().has_adjoint_state()
+        ):
+            fwd_state = self._jacobian_operator._get_forward_state(
+                init_fwd_state, param
+            )
+            adj_state = self._jacobian_operator.solve_adjoint_equation(
+                fwd_state, param
+            )
+            self.storage().set_adjoint_state(adj_state)
+        return self.storage().get_adjoint_state()
+
+    def hvp(self, init_fwd_state: Array, param: Array, vvec: Array) -> Array:
         """
         Apply the Hessian to a vector.
 
@@ -335,10 +411,10 @@ class ScalarAdjointOperatorWithHessian(Generic[Array]):
         Array
             Result of applying the Hessian to the vector.
         """
-        self._residual_eq._check_state_param_shapes(init_fwd_state, param)
-        if vvec.shape != (self.nvars(),):
+
+        if vvec.shape != (self.nparams(), 1):
             raise ValueError(
-                f"vvec has shape {vvec.shape} but must be {(self.nvars(),)}"
+                f"vvec has shape {vvec.shape} but must be {(self.nparams(), 1)}"
             )
 
         # Load or compute forward state
@@ -347,12 +423,10 @@ class ScalarAdjointOperatorWithHessian(Generic[Array]):
         )
 
         # Load or compute adjoint state
-        adj_state = self._jacobian_operator._get_adjoint_state(
-            init_fwd_state, param
-        )
+        adj_state = self._get_adjoint_state(init_fwd_state, param)
 
         # Load drdy (state Jacobian), guaranteed to exist after adjoint solve
-        drdy = self._adjoint_data.get_residual_eq_state_jacobian()
+        drdy = self.storage().get_state_eq_state_jacobian()
 
         # Load or compute drdp (parameter Jacobian)
         drdp = self._jacobian_operator._get_state_eq_param_jacobian(
@@ -374,3 +448,40 @@ class ScalarAdjointOperatorWithHessian(Generic[Array]):
         )
         hvp = drdp.T @ svec - lps_hvp + lpp_hvp
         return hvp
+
+    def state_equation(
+        self,
+    ) -> ParameterizedStateEquationWithJacobianAndHVPProtocol[Array]:
+        """
+        Return the state equation object.
+
+        Returns
+        -------
+        ParameterizedStateEquationWithJacobianAndHVPProtocol
+            State equation object.
+        """
+        return self._state_eq
+
+    def functional(
+        self,
+    ) -> ParameterizedFunctionalWithJacobianAndHVPProtocol[Array]:
+        """
+        Return the functional object.
+
+        Returns
+        -------
+        ParameterizedFunctionalWithJacobianAndHVPProtocol
+            Functional object.
+        """
+        return self._functional
+
+    def __repr__(self) -> str:
+        """
+        Return a detailed string representation of the object for debugging.
+        """
+        return (
+            f"{self.__class__.__name__}("
+            f"nstates={self.nstates()}, "
+            f"nparams={self.nparams()}, "
+            f"bkd={type(self._bkd).__name__})"
+        )

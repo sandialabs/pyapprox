@@ -105,6 +105,7 @@ class TimeIntegratorNewtonResidual(NewtonResidual):
         # )
         # print("Warning using autograd to compute jacobian")
         # return self._bkd.solve(jac_auto, res)
+
         return self._bkd.solve(self.jacobian(sol), res)
 
     def _param_jacobian(self, fsol_nm1: Array, sol: Array) -> Array:

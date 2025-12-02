@@ -9,6 +9,7 @@ from pyapprox.typing.optimization.implicitfunction.functionals.protocols import 
 from pyapprox.typing.optimization.implicitfunction.operator.storage import (
     AdjointOperatorStorage,
 )
+from pyapprox.typing.util.validate_backend import validate_backends
 
 
 class VectorAdjointOperatorWithJacobian(Generic[Array]):
@@ -22,7 +23,7 @@ class VectorAdjointOperatorWithJacobian(Generic[Array]):
 
     def __init__(
         self,
-        residual_eq: ParameterizedStateEquationWithJacobianProtocol[Array],
+        state_eq: ParameterizedStateEquationWithJacobianProtocol[Array],
         functional: ParameterizedFunctionalWithJacobianProtocol[Array],
     ):
         """
@@ -30,8 +31,8 @@ class VectorAdjointOperatorWithJacobian(Generic[Array]):
 
         Parameters
         ----------
-        residual_eq : ParameterizedStateEquationWithJacobianProtocol
-            Residual equation object implementing the parameterized state
+        state_eq : ParameterizedStateEquationWithJacobianProtocol
+            State equation object implementing the parameterized state
             equation protocol.
         functional : ParameterizedFunctionalWithJacobianProtocol
             Functional object implementing the parameterized functional
@@ -40,43 +41,42 @@ class VectorAdjointOperatorWithJacobian(Generic[Array]):
         Raises
         ------
         TypeError
-            If the residual equation or functional are not valid instances of
+            If the state equation or functional are not valid instances of
             their respective protocols.
         """
-        self.validate_residual_eq(residual_eq)
+        self.validate_state_eq(state_eq)
         self.validate_functional(functional)
-        self._bkd = residual_eq.bkd()
-        self._residual_eq = residual_eq
-        if not self._bkd.bkd_equal(self._bkd, functional.bkd()):
-            raise TypeError(
-                "residual_eq backend does not match functional backend"
-            )
+        validate_backends([functional.bkd(), state_eq.bkd()])
+        self._bkd = state_eq.bkd()
+        self._state_eq = state_eq
         self._functional = functional
-        self._adjoint_data = AdjointOperatorStorage(self._bkd)
+        self._storage = AdjointOperatorStorage(
+            self._state_eq.nstates(), self._state_eq.nparams(), self.bkd()
+        )
 
-    def validate_residual_eq(
+    def validate_state_eq(
         self,
-        residual_eq: ParameterizedStateEquationWithJacobianProtocol[Array],
+        state_eq: ParameterizedStateEquationWithJacobianProtocol[Array],
     ) -> None:
         """
-        Validate the residual equation.
+        Validate the state equation.
 
         Parameters
         ----------
-        residual_eq : ParameterizedStateEquationWithJacobianProtocol
-            Residual equation object.
+        state_eq : ParameterizedStateEquationWithJacobianProtocol
+            State equation object.
 
         Raises
         ------
         TypeError
-            If the residual equation is not a valid instance of
+            If the state equation is not a valid instance of
             ParameterizedStateEquationWithJacobianProtocol.
         """
         if not isinstance(
-            residual_eq, ParameterizedStateEquationWithJacobianProtocol
+            state_eq, ParameterizedStateEquationWithJacobianProtocol
         ):
             raise TypeError(
-                "residual_eq must be an instance of "
+                "state_eq must be an instance of "
                 "ParameterizedStateEquationWithJacobianProtocol."
             )
 
@@ -116,7 +116,7 @@ class VectorAdjointOperatorWithJacobian(Generic[Array]):
         """
         return self._bkd
 
-    def adjoint_data(self) -> AdjointOperatorStorage:
+    def storage(self) -> AdjointOperatorStorage:
         """
         Return the adjoint operator storage.
 
@@ -125,9 +125,9 @@ class VectorAdjointOperatorWithJacobian(Generic[Array]):
         AdjointOperatorStorage
             Storage for adjoint operator data.
         """
-        return self._adjoint_data
+        return self._storage
 
-    def nvars(self) -> int:
+    def nparams(self) -> int:
         """
         Return the number of variables in the system.
 
@@ -136,7 +136,7 @@ class VectorAdjointOperatorWithJacobian(Generic[Array]):
         int
             Number of variables.
         """
-        return self._residual_eq.nvars()
+        return self._state_eq.nparams()
 
     def nqoi(self) -> int:
         """
@@ -149,7 +149,7 @@ class VectorAdjointOperatorWithJacobian(Generic[Array]):
         """
         return self._functional.nqoi()
 
-    def value(self, init_fwd_state: Array, param: Array) -> Array:
+    def __call__(self, init_fwd_state: Array, param: Array) -> Array:
         """
         Compute the value of the functional.
 
@@ -185,13 +185,13 @@ class VectorAdjointOperatorWithJacobian(Generic[Array]):
             Forward state.
         """
         if (
-            not self._adjoint_data.has_parameter(param)
-            or not self._adjoint_data.has_forward_state()
+            not self._storage.has_parameter(param)
+            or not self._storage.has_forward_state()
         ):
-            self._adjoint_data._clear()
-            fwd_state = self._residual_eq.solve(init_fwd_state, param)
-            self._adjoint_data.set_forward_state(fwd_state)
-        return self._adjoint_data.get_forward_state()
+            self._storage._clear()
+            fwd_state = self._state_eq.solve(init_fwd_state, param)
+            self._storage.set_forward_state(fwd_state)
+        return self._storage.get_forward_state()
 
     def _sensitivities(self, fwd_state: Array, param: Array) -> Array:
         """
@@ -210,8 +210,8 @@ class VectorAdjointOperatorWithJacobian(Generic[Array]):
             Sensitivities (Jacobian of the state with respect to the
             parameters).
         """
-        drdy = self._residual_eq.state_jacobian(fwd_state, param)
-        drdp = self._residual_eq.param_jacobian(fwd_state, param)
+        drdy = self._state_eq.state_jacobian(fwd_state, param)
+        drdp = self._state_eq.param_jacobian(fwd_state, param)
         sens = self._bkd.solve(drdy, -drdp)
         return sens
 
@@ -236,3 +236,38 @@ class VectorAdjointOperatorWithJacobian(Generic[Array]):
         dqdy = self._functional.state_jacobian(fwd_state, param)
         dqdp = self._functional.param_jacobian(fwd_state, param)
         return dqdy @ sens + dqdp
+
+    def state_equation(
+        self,
+    ) -> ParameterizedStateEquationWithJacobianProtocol[Array]:
+        """
+        Return the state equation object.
+
+        Returns
+        -------
+        ParameterizedStateEquationWithJacobianProtocol
+            State equation object.
+        """
+        return self._state_eq
+
+    def functional(self) -> ParameterizedFunctionalWithJacobianProtocol[Array]:
+        """
+        Return the functional object.
+
+        Returns
+        -------
+        ParameterizedFunctionalWithJacobianProtocol
+            Functional object.
+        """
+        return self._functional
+
+    def __repr__(self) -> str:
+        """
+        Return a detailed string representation of the object for debugging.
+        """
+        return (
+            f"{self.__class__.__name__}("
+            f"nstates={self.nstates()}, "
+            f"nparams={self.nparams()}, "
+            f"bkd={type(self._bkd).__name__})"
+        )

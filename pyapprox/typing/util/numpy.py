@@ -288,7 +288,6 @@ class NumpyBkd(Backend[NDArray[Any]]):  # Specify NDArray type
         atol: float = 1e-08,
         equal_nan: bool = False,
     ) -> bool:
-
         return np.allclose(
             array1, array2, rtol=rtol, atol=atol, equal_nan=equal_nan
         )

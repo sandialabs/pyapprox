@@ -15,6 +15,65 @@ class NewtonSolverResidualProtocol(Protocol, Generic[Array]):
     def linsolve(self, state: Array, prev_residual: Array) -> Array: ...
 
 
+class NewtonSolverOptions:
+    """
+    Encapsulates options for configuring the Newton solver.
+
+    Useful for passing options through a sequence of function calls.
+    PyApprox tries to avoid this but it is not always possible
+
+    Parameters
+    ----------
+    maxiters : int, optional
+        Maximum number of iterations for the Newton solver. Default is 10.
+    verbosity : int, optional
+        Verbosity level for the solver. Default is 0.
+    step_size : float, optional
+        Step size for the Newton solver. Default is 1.
+    atol : float, optional
+        Absolute tolerance for convergence. Default is 1e-7.
+    rtol : float, optional
+        Relative tolerance for convergence. Default is 1e-7.
+    linesearch_maxiters : int, optional
+        Maximum number of iterations for line search. Default is 5.
+    """
+
+    def __init__(
+        self,
+        maxiters: int = 10,
+        verbosity: int = 0,
+        step_size: float = 1.0,
+        atol: float = 1e-7,
+        rtol: float = 1e-7,
+        linesearch_maxiters: int = 5,
+    ) -> None:
+        self.maxiters = maxiters
+        self.verbosity = verbosity
+        self.step_size = step_size
+        self.atol = atol
+        self.rtol = rtol
+        self.linesearch_maxiters = linesearch_maxiters
+
+    def __repr__(self) -> str:
+        """
+        Return a string representation of the Newton solver options.
+
+        Returns
+        -------
+        str
+            String representation of the options.
+        """
+        return (
+            f"NewtonSolverOptions("
+            f"maxiters={self.maxiters}, "
+            f"verbosity={self.verbosity}, "
+            f"step_size={self.step_size}, "
+            f"atol={self.atol}, "
+            f"rtol={self.rtol}, "
+            f"linesearch_maxiters={self.linesearch_maxiters})"
+        )
+
+
 class NewtonSolver(Generic[Array]):
     def __init__(self, residual: NewtonSolverResidualProtocol[Array]) -> None:
         if not isinstance(residual, NewtonSolverResidualProtocol):
