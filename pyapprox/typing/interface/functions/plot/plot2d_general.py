@@ -6,7 +6,7 @@ from matplotlib.axes import Axes
 from matplotlib.figure import Figure
 from matplotlib.tri import Triangulation
 
-from pyapprox.typing.util.backend import Array
+from pyapprox.typing.util.backends.protocols import Array
 from pyapprox.typing.interface.functions.protocols.function import (
     FunctionProtocol,
 )

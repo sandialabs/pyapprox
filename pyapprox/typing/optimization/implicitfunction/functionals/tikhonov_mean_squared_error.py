@@ -1,4 +1,4 @@
-from pyapprox.typing.util.backend import Array
+from pyapprox.typing.util.backends.protocols import Array
 from pyapprox.typing.optimization.implicitfunction.functionals.mean_squared_error import (
     MSEFunctional,
 )

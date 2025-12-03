@@ -1,6 +1,6 @@
 from typing import Union, overload, cast
 
-from pyapprox.typing.util.backend import Array
+from pyapprox.typing.util.backends.protocols import Array
 from pyapprox.typing.interface.functions.protocols.function import (
     FunctionProtocol,
 )

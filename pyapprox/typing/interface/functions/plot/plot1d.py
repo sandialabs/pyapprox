@@ -10,7 +10,7 @@ from pyapprox.typing.interface.functions.protocols.function import (
 from pyapprox.typing.interface.functions.protocols.validation import (
     validate_function,
 )
-from pyapprox.typing.util.backend import Array
+from pyapprox.typing.util.backends.protocols import Array
 
 
 class Plotter1D(Generic[Array]):

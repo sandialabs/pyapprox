@@ -5,7 +5,7 @@ from mpl_toolkits.mplot3d import Axes3D  # type: ignore
 from matplotlib.contour import QuadContourSet
 from matplotlib.axes import Axes
 from matplotlib.figure import Figure
-from pyapprox.typing.util.backend import Array, Backend
+from pyapprox.typing.util.backends.protocols import Array, Backend
 from pyapprox.typing.interface.functions.protocols.function import (
     FunctionProtocol,
 )

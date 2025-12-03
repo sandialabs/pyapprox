@@ -13,7 +13,7 @@ from pyapprox.typing.util.validate_backend import validate_backends
 from pyapprox.typing.interface.functions.protocols.validation import (
     validate_samples,
 )
-from pyapprox.typing.util.backend import Array, Backend
+from pyapprox.typing.util.backends.protocols import Array, Backend
 from pyapprox.typing.interface.functions.plot.plot1d import Plotter1D
 from pyapprox.typing.interface.functions.plot.plot2d_rectangular import (
     Plotter2DRectangularDomain,

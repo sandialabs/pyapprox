@@ -3,7 +3,7 @@ import math
 
 import numpy as np
 
-from pyapprox.typing.util.backend import Array, Backend
+from pyapprox.typing.util.backends.protocols import Array, Backend
 from pyapprox.typing.util.validate_backend import validate_backend
 
 

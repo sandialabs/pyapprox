@@ -1,6 +1,6 @@
 from typing import Generic, Tuple
 
-from pyapprox.typing.util.backend import Array
+from pyapprox.typing.util.backends.protocols import Array
 from pyapprox.typing.optimization.rootfinding.newton import NewtonSolver
 from pyapprox.typing.pde.time.implicit_steppers.protocols import (
     ImplicitTimeSteppingResidualProtocol,

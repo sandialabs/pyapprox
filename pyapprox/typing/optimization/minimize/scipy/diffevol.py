@@ -3,7 +3,7 @@ from typing import Generic, Union, Optional, Literal
 import numpy as np
 from scipy.optimize import differential_evolution, Bounds
 
-from pyapprox.typing.util.backend import Array, Backend
+from pyapprox.typing.util.backends.protocols import Array, Backend
 from pyapprox.typing.optimization.minimize.scipy.scipy_result import (
     ScipyOptimizerResultWrapper,
 )

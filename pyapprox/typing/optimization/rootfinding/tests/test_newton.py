@@ -2,9 +2,9 @@ import unittest
 from typing import Generic
 import numpy as np
 import torch
-from pyapprox.typing.util.backend import Array, Backend
-from pyapprox.typing.util.numpy import NumpyBkd
-from pyapprox.typing.util.torch import TorchBkd
+from pyapprox.typing.util.backends.protocols import Array, Backend
+from pyapprox.typing.util.backends.numpy import NumpyBkd
+from pyapprox.typing.util.backends.torch import TorchBkd
 from pyapprox.typing.util.abstracttestcase import AbstractTestCase
 from pyapprox.typing.optimization.rootfinding.newton import (
     NewtonSolver,

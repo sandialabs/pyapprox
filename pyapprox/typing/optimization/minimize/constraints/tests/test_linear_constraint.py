@@ -5,9 +5,9 @@ import numpy as np
 import torch
 from numpy.typing import NDArray
 
-from pyapprox.typing.util.backend import Array, Backend
-from pyapprox.typing.util.numpy import NumpyBkd
-from pyapprox.typing.util.torch import TorchBkd
+from pyapprox.typing.util.backends.protocols import Array, Backend
+from pyapprox.typing.util.backends.numpy import NumpyBkd
+from pyapprox.typing.util.backends.torch import TorchBkd
 from pyapprox.typing.util.abstracttestcase import AbstractTestCase
 from scipy.optimize import LinearConstraint as ScipyLinearConstraint
 from pyapprox.typing.optimization.minimize.constraints.linear import (

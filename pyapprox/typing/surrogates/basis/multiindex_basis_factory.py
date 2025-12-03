@@ -1,6 +1,6 @@
 from typing import Union, overload, Sequence
 
-from pyapprox.typing.util.backend import Array
+from pyapprox.typing.util.backends.protocols import Array
 
 from pyapprox.typing.surrogates.basis.multiindex_basis import (
     Basis1DProtocol,

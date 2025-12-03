@@ -1,6 +1,6 @@
 from typing import Generic, Optional, Union
 
-from pyapprox.typing.util.backend import Array, Backend
+from pyapprox.typing.util.backends.protocols import Array, Backend
 
 from pyapprox.typing.interface.functions.protocols.jacobian import (
     FunctionWithJVPProtocol,

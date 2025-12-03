@@ -3,9 +3,9 @@ from typing import Type
 
 import numpy as np
 
-from pyapprox.util.backends.template import Array, BackendMixin
-from pyapprox.util.backends.numpy import NumpyMixin
-from pyapprox.util.backends.torch import TorchMixin
+from pyapprox.util.backends.protocolss.template import Array, BackendMixin
+from pyapprox.util.backends.protocolss.numpy import NumpyMixin
+from pyapprox.util.backends.protocolss.torch import TorchMixin
 from pyapprox.optimization.adjoint import (
     ScalarAdjointFunctionalWithHessian,
     AdjointResidualEquationWithHessian,

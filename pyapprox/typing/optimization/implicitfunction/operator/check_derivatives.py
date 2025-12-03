@@ -1,7 +1,7 @@
 from typing import Optional, List, Generic, Protocol, runtime_checkable
 import unittest  # Enable check_derivatives with good error messages
 
-from pyapprox.typing.util.backend import Array, Backend
+from pyapprox.typing.util.backends.protocols import Array, Backend
 from pyapprox.typing.interface.functions.derivative_checks.derivative_checker import (
     DerivativeChecker,
 )

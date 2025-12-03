@@ -3,7 +3,7 @@ from typing import Generic, Union, Optional, cast
 import numpy as np
 from scipy.optimize import Bounds, minimize as scipy_minimize
 
-from pyapprox.typing.util.backend import Array, Backend
+from pyapprox.typing.util.backends.protocols import Array, Backend
 from pyapprox.typing.optimization.minimize.constraints.linear import (
     PyApproxLinearConstraint,
 )

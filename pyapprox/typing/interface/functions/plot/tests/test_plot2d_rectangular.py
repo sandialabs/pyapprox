@@ -14,9 +14,9 @@ from pyapprox.typing.interface.functions.plot.plot2d_rectangular import (
     Plotter2DRectangularDomain,
     meshgrid_samples,
 )
-from pyapprox.typing.util.backend import Array, Backend
-from pyapprox.typing.util.numpy import NumpyBkd
-from pyapprox.typing.util.torch import TorchBkd
+from pyapprox.typing.util.backends.protocols import Array, Backend
+from pyapprox.typing.util.backends.numpy import NumpyBkd
+from pyapprox.typing.util.backends.torch import TorchBkd
 from pyapprox.typing.util.abstracttestcase import AbstractTestCase
 
 

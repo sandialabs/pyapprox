@@ -1,6 +1,6 @@
 from typing import Callable
 
-from pyapprox.typing.util.backend import Array, Backend
+from pyapprox.typing.util.backends.protocols import Array, Backend
 from pyapprox.typing.interface.functions.protocols.validation import (
     validate_sample,
     validate_vector_for_apply,

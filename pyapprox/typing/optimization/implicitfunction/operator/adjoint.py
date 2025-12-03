@@ -2,7 +2,7 @@ from abc import ABC, abstractmethod
 from typing import Optional
 import unittest  # Enable check_derivatives with good error messages
 
-from pyapprox.util.backends.template import BackendMixin, Array
+from pyapprox.util.backends.protocolss.template import BackendMixin, Array
 from pyapprox.interface.model import GradientCheckMixin
 from pyapprox.optimization.newton import ResidualEquation, NewtonResidual
 

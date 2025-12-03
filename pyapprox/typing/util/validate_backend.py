@@ -1,6 +1,6 @@
 from typing import Any, Sequence
 
-from pyapprox.typing.util.backend import Backend
+from pyapprox.typing.util.backends.protocols import Backend
 
 
 def validate_backend(obj: Any) -> None:

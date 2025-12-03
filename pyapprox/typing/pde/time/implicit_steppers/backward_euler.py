@@ -1,6 +1,6 @@
 from typing import Tuple
 
-from pyapprox.typing.util.backend import Array
+from pyapprox.typing.util.backends.protocols import Array
 from pyapprox.typing.pde.time.implicit_steppers.protocols import (
     ImplicitTimeSteppingResidualBase,
 )
