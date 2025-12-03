@@ -1,6 +1,6 @@
 from typing import Generic
 
-from pyapprox.typing.util.backend import Array
+from pyapprox.typing.util.backends.protocols import Array
 from pyapprox.typing.optimization.minimize.chained.protocols import (
     OptimizerProtocol,
 )

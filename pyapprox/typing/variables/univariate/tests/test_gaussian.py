@@ -5,9 +5,9 @@ import torch
 from scipy.stats import norm
 from numpy.typing import NDArray
 
-from pyapprox.typing.util.backend import Array, Backend
-from pyapprox.typing.util.numpy import NumpyBkd
-from pyapprox.typing.util.torch import TorchBkd
+from pyapprox.typing.util.backends.protocols import Array, Backend
+from pyapprox.typing.util.backends.numpy import NumpyBkd
+from pyapprox.typing.util.backends.torch import TorchBkd
 from pyapprox.typing.util.abstracttestcase import AbstractTestCase
 from pyapprox.typing.variables.univariate.gaussian import GaussianMarginal
 from pyapprox.typing.variables.univariate.scipy_continuous import (

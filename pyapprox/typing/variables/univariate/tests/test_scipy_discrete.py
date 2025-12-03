@@ -5,9 +5,9 @@ import numpy as np
 import torch
 
 from scipy.stats import binom, poisson
-from pyapprox.typing.util.backend import Array, Backend
-from pyapprox.typing.util.numpy import NumpyBkd
-from pyapprox.typing.util.torch import TorchBkd
+from pyapprox.typing.util.backends.protocols import Array, Backend
+from pyapprox.typing.util.backends.numpy import NumpyBkd
+from pyapprox.typing.util.backends.torch import TorchBkd
 from pyapprox.typing.variables.univariate.scipy_discrete import (
     DiscreteScipyRandomVariable1D,
 )

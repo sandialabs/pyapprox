@@ -1,6 +1,6 @@
 from typing import Generic
 
-from pyapprox.typing.util.backend import Array, Backend
+from pyapprox.typing.util.backends.protocols import Array, Backend
 from scipy.optimize import LinearConstraint as ScipyLinearConstraint
 
 

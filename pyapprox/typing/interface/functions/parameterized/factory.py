@@ -10,7 +10,7 @@ from pyapprox.typing.interface.functions.parameterized.wrappers import (
     FunctionOfParametersWithJacobianAndHVP,
     _FunctionOfParameters,
 )
-from pyapprox.typing.util.backend import Array
+from pyapprox.typing.util.backends.protocols import Array
 from pyapprox.typing.interface.functions.protocols.function import (
     FunctionProtocol,
 )

@@ -2,7 +2,7 @@ from typing import Optional, Generic
 
 import numpy as np
 
-from pyapprox.typing.util.backend import Array
+from pyapprox.typing.util.backends.protocols import Array
 from pyapprox.typing.interface.functions.protocols.jacobian import (
     FunctionWithJVPProtocol,
 )

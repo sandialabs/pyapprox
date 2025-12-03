@@ -2,7 +2,7 @@ from typing import Generic
 
 import numpy as np
 
-from pyapprox.typing.util.backend import Array, Backend
+from pyapprox.typing.util.backends.protocols import Array, Backend
 from pyapprox.typing.interface.functions.protocols.validation import (
     validate_sample,
     validate_samples,

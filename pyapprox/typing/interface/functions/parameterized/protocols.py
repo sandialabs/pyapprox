@@ -1,6 +1,6 @@
 from typing import Protocol, runtime_checkable, Generic
 
-from pyapprox.typing.util.backend import Array, Backend
+from pyapprox.typing.util.backends.protocols import Array, Backend
 
 
 @runtime_checkable

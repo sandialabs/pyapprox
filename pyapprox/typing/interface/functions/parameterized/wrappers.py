@@ -18,7 +18,7 @@ from pyapprox.typing.interface.functions.parameterized.protocols import (
 from pyapprox.typing.interface.functions.parameterized.validation import (
     validate_parameterized_function,
 )
-from pyapprox.typing.util.backend import Array, Backend
+from pyapprox.typing.util.backends.protocols import Array, Backend
 
 
 class FunctionOfParameters(Generic[Array]):

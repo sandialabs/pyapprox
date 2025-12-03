@@ -7,7 +7,7 @@ from scipy.optimize import (
     LinearConstraint as ScipyLinearConstraint,
 )
 
-from pyapprox.typing.util.backend import Array, Backend
+from pyapprox.typing.util.backends.protocols import Array, Backend
 from pyapprox.typing.optimization.minimize.constraints.linear import (
     PyApproxLinearConstraint,
 )

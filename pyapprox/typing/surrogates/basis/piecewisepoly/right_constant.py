@@ -1,5 +1,5 @@
 from typing import Generic, Tuple
-from pyapprox.typing.util.backend import Array, Backend
+from pyapprox.typing.util.backends.protocols import Array, Backend
 
 
 class PiecewiseConstantRight(Generic[Array]):

@@ -5,9 +5,9 @@ from numpy.typing import NDArray
 import torch
 
 # Define the Backend and Array types
-from pyapprox.typing.util.backend import Backend, Array
-from pyapprox.typing.util.numpy import NumpyBkd
-from pyapprox.typing.util.torch import TorchBkd
+from pyapprox.typing.util.backends.protocols import Backend, Array
+from pyapprox.typing.util.backends.numpy import NumpyBkd
+from pyapprox.typing.util.backends.torch import TorchBkd
 
 
 # Example function using the backend

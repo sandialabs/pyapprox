@@ -1,4 +1,4 @@
-from pyapprox.util.backends.template import Array, BackendMixin
+from pyapprox.util.backends.protocolss.template import Array, BackendMixin
 from pyapprox.optimization.adjoint import (
     AdjointResidualEquationWithHessian,
     NewtonResidualWithGradient,

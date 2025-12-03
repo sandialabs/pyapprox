@@ -4,7 +4,7 @@ from numpy.typing import NDArray
 import numpy as np
 import scipy
 
-from pyapprox.typing.util.backend import Backend
+from pyapprox.typing.util.backends.protocols import Backend
 
 
 # Implement the NumPy backend
@@ -314,3 +314,23 @@ class NumpyBkd(Backend[NDArray[Any]]):  # Specify NDArray type
         lower: bool = True,
     ) -> NDArray[Any]:
         return scipy.linalg.cho_solve((matrix, lower), rhs)
+
+    @staticmethod
+    def trace(array: NDArray[Any]) -> NDArray[Any]:
+        return np.asarray(np.linalg.trace(array))
+
+    @staticmethod
+    def atleast_1d(array: NDArray[Any]) -> NDArray[Any]:
+        return np.atleast_1d(array)
+
+    @staticmethod
+    def atleast_2d(array: NDArray[Any]) -> NDArray[Any]:
+        return np.atleast_1d(array)
+
+    @staticmethod
+    def tile(array: NDArray[Any], reps: Tuple[int, ...]) -> NDArray[Any]:
+        return np.tile(array, reps=reps)
+
+    @staticmethod
+    def isnan(array: NDArray[Any]) -> NDArray[Any]:
+        return np.isnan(array)

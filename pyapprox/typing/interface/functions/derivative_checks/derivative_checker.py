@@ -8,7 +8,7 @@ from typing import (
     cast,
 )
 
-from pyapprox.typing.util.backend import Array, Backend
+from pyapprox.typing.util.backends.protocols import Array, Backend
 from pyapprox.typing.interface.functions.protocols.jacobian import (
     function_has_jacobian_or_jvp,
     FunctionWithJacobianOrJVPProtocol,

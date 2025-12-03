@@ -2,7 +2,7 @@ from typing import Generic
 
 from scipy.optimize import OptimizeResult
 
-from pyapprox.typing.util.backend import Array, Backend
+from pyapprox.typing.util.backends.protocols import Array, Backend
 
 
 class ScipyOptimizerResultWrapper(Generic[Array]):

@@ -4,7 +4,7 @@ from pyapprox.typing.interface.functions.protocols.function import (
     FunctionProtocol,
 )
 
-from pyapprox.typing.util.backend import Array
+from pyapprox.typing.util.backends.protocols import Array
 
 
 def validate_samples(nvars: int, samples: Array) -> None:

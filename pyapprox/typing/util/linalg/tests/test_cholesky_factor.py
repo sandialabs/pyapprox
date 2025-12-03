@@ -5,9 +5,9 @@ import numpy as np
 from numpy.typing import NDArray
 import torch
 
-from pyapprox.typing.util.backend import Backend, Array
-from pyapprox.typing.util.numpy import NumpyBkd
-from pyapprox.typing.util.torch import TorchBkd
+from pyapprox.typing.util.backends.protocols import Backend, Array
+from pyapprox.typing.util.backends.numpy import NumpyBkd
+from pyapprox.typing.util.backends.torch import TorchBkd
 from pyapprox.typing.util.abstracttestcase import AbstractTestCase
 from pyapprox.typing.util.linalg.cholesky_factor import CholeskyFactor
 

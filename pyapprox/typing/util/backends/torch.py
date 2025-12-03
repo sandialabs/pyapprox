@@ -13,7 +13,7 @@ from typing import (
 import torch
 from numpy.typing import NDArray
 
-from pyapprox.typing.util.backend import Backend
+from pyapprox.typing.util.backends.protocols import Backend
 
 
 # Implement the PyTorch backend
@@ -374,3 +374,23 @@ class TorchBkd(Backend[torch.Tensor]):  # Specify torch.Tensor type
         lower: bool = True,
     ) -> torch.Tensor:
         return torch.cholesky_solve(rhs, matrix, upper=(not lower))
+
+    @staticmethod
+    def trace(array: torch.Tensor) -> torch.Tensor:
+        return torch.trace(array)
+
+    @staticmethod
+    def atleast_1d(array: torch.Tensor) -> torch.Tensor:
+        return torch.atleast_1d(array)
+
+    @staticmethod
+    def atleast_2d(array: torch.Tensor) -> torch.Tensor:
+        return torch.atleast_1d(array)
+
+    @staticmethod
+    def tile(array: torch.Tensor, reps: Tuple[int, ...]) -> torch.Tensor:
+        return torch.tile(array, dims=reps)
+
+    @staticmethod
+    def isnan(array: torch.Tensor) -> torch.Tensor:
+        return torch.isnan(array)

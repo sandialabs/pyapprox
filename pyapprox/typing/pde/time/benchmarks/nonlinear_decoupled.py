@@ -1,5 +1,5 @@
 from typing import Generic
-from pyapprox.typing.util.backend import Array, Backend
+from pyapprox.typing.util.backends.protocols import Array, Backend
 from pyapprox.typing.pde.time.implicit_steppers.protocols import (
     ImplicitODEResidualProtocol,
 )

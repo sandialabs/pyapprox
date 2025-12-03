@@ -88,6 +88,8 @@ class ArrayProtocol(Protocol):
 
     def item(self) -> Any: ...
 
+    def __invert__(self) -> "ArrayProtocol": ...
+
 
 # Define the Backend protocol without dtype
 @runtime_checkable
@@ -383,6 +385,9 @@ class Backend(Protocol, Generic[Array]):
     ) -> bool: ...
 
     @staticmethod
+    def cholesky(array: Array) -> Array: ...
+
+    @staticmethod
     def solve_triangular(
         matrix: Array,
         rhs: Array,
@@ -396,3 +401,18 @@ class Backend(Protocol, Generic[Array]):
         rhs: Array,
         lower: bool = True,
     ) -> Array: ...
+
+    @staticmethod
+    def trace(array: Array) -> Array: ...
+
+    @staticmethod
+    def atleast_1d(array: Array) -> Array: ...
+
+    @staticmethod
+    def atleast_2d(array: Array) -> Array: ...
+
+    @staticmethod
+    def tile(array: Array, reps: Tuple[int, ...]) -> Array: ...
+
+    @staticmethod
+    def isnan(array: Array) -> Array: ...

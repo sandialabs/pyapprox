@@ -4,9 +4,9 @@ from typing import Generic, Any
 from numpy.typing import NDArray
 import torch
 
-from pyapprox.typing.util.backend import Array, Backend
-from pyapprox.typing.util.numpy import NumpyBkd
-from pyapprox.typing.util.torch import TorchBkd
+from pyapprox.typing.util.backends.protocols import Array, Backend
+from pyapprox.typing.util.backends.numpy import NumpyBkd
+from pyapprox.typing.util.backends.torch import TorchBkd
 from pyapprox.typing.util.abstracttestcase import AbstractTestCase
 from pyapprox.typing.surrogates.basis.multiindex_basis_factory import (
     multiindex_basis_factory,

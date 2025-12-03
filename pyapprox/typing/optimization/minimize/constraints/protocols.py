@@ -8,14 +8,14 @@ from typing import (
     Any,
 )
 
-from pyapprox.typing.util.backend import Array, Backend
+from pyapprox.typing.util.backends.protocols import Array, Backend
 from pyapprox.typing.optimization.minimize.constraints.linear import (
     PyApproxLinearConstraint,
 )
 
 
 from typing import Protocol, runtime_checkable, Generic
-from pyapprox.typing.util.backend import Array, Backend
+from pyapprox.typing.util.backends.protocols import Array, Backend
 from scipy.optimize import LinearConstraint as ScipyLinearConstraint
 
 

@@ -1,6 +1,6 @@
 from typing import Callable
 
-from pyapprox.typing.util.backend import Array, Backend
+from pyapprox.typing.util.backends.protocols import Array, Backend
 from pyapprox.typing.interface.functions.fromcallable.function import (
     FunctionFromCallable,
 )

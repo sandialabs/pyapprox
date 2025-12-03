@@ -1,6 +1,6 @@
-from typing import Any, Generic
+from typing import Any, Generic, Tuple
 
-from pyapprox.typing.util.backend import Array, Backend
+from pyapprox.typing.util.backends.protocols import Array, Backend
 
 
 class CholeskyFactor(Generic[Array]):
@@ -21,6 +21,9 @@ class CholeskyFactor(Generic[Array]):
 
     def bkd(self) -> Backend[Array]:
         return self._bkd
+
+    def shape(self) -> Tuple:
+        return self._L.shape
 
     def factor(self) -> Array:
         """
