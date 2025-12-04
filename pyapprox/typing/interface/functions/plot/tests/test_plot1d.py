@@ -12,10 +12,9 @@ from pyapprox.typing.interface.functions.fromcallable.function import (
 from pyapprox.typing.util.backends.protocols import Array, Backend
 from pyapprox.typing.util.backends.numpy import NumpyBkd
 from pyapprox.typing.util.backends.torch import TorchBkd
-from pyapprox.typing.util.abstracttestcase import AbstractTestCase
 
 
-class TestPlotter1D(Generic[Array], AbstractTestCase):
+class TestPlotter1D(Generic[Array], unittest.TestCase):
     def bkd(self) -> Backend[Array]:
         """
         Override this method in derived classes to provide the specific
@@ -49,7 +48,7 @@ class TestPlotter1D(Generic[Array], AbstractTestCase):
 
 
 # Derived test class for NumPy backend
-class TestPlotter1DNumpy(TestPlotter1D[NDArray[Any]], unittest.TestCase):
+class TestPlotter1DNumpy(TestPlotter1D[NDArray[Any]]):
     def setUp(self) -> None:
         self._bkd = NumpyBkd()
         super().setUp()
@@ -60,7 +59,7 @@ class TestPlotter1DNumpy(TestPlotter1D[NDArray[Any]], unittest.TestCase):
 
 
 # Derived test class for PyTorch
-class TestPlotter1DTorch(TestPlotter1D[torch.Tensor], unittest.TestCase):
+class TestPlotter1DTorch(TestPlotter1D[torch.Tensor]):
     def setUp(self) -> None:
         self._bkd = TorchBkd()
         super().setUp()
@@ -71,5 +70,26 @@ class TestPlotter1DTorch(TestPlotter1D[torch.Tensor], unittest.TestCase):
         return self._bkd
 
 
+# Custom test loader to exclude the base class
+def load_tests(
+    loader: unittest.TestLoader, tests, pattern: str
+) -> unittest.TestSuite:
+    """
+    Custom test loader to exclude the base class
+    ContinuousScipyRandomVariable1D.
+    """
+    test_suite = unittest.TestSuite()
+    for test_class in [
+        TestPlotter1DNumpy,
+        TestPlotter1DTorch,
+    ]:
+        test_suite.addTests(loader.loadTestsFromTestCase(test_class))
+    return test_suite
+
+
+# Main block to explicitly run tests using the custom loader
 if __name__ == "__main__":
-    unittest.main()
+    loader = unittest.TestLoader()
+    suite = load_tests(loader, [], None)
+    runner = unittest.TextTestRunner(verbosity=2)
+    runner.run(suite)

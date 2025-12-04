@@ -16,10 +16,9 @@ from pyapprox.typing.surrogates.basis.piecewisepoly import (
     PiecewiseQuadratic,
     PiecewiseCubic,
 )
-from pyapprox.typing.util.abstracttestcase import AbstractTestCase
 
 
-class TestPiecewisePolynomialBasis(Generic[Array], AbstractTestCase):
+class TestPiecewisePolynomialBasis(Generic[Array], unittest.TestCase):
     def bkd(self) -> Backend[Array]:
         """
         Override this method in derived classes to provide the specific
@@ -120,7 +119,7 @@ class TestPiecewisePolynomialBasis(Generic[Array], AbstractTestCase):
         self.assertAlmostEqual(integral, expected_integral, places=7)
 
 
-class TestPiecewisePolynomialConvergence(Generic[Array], AbstractTestCase):
+class TestPiecewisePolynomialConvergence(Generic[Array], unittest.TestCase):
     def bkd(self) -> Backend[Array]:
         """
         Override this method in derived classes to provide the specific
@@ -320,7 +319,7 @@ class TestPiecewisePolynomialBasisTorch(
 
 # Derived test class for NumPy backend
 class TestPiecewisePolynomialConvergenceNumpy(
-    TestPiecewisePolynomialConvergence, unittest.TestCase
+    TestPiecewisePolynomialConvergence
 ):
     def setUp(self) -> None:
         self._bkd = NumpyBkd()
@@ -332,7 +331,7 @@ class TestPiecewisePolynomialConvergenceNumpy(
 
 # Derived test class for PyTorch backend
 class TestPiecewisePolynomialConvergenceTorch(
-    TestPiecewisePolynomialConvergence, unittest.TestCase
+    TestPiecewisePolynomialConvergence
 ):
     def setUp(self) -> None:
         torch.set_default_dtype(torch.float64)
@@ -343,5 +342,28 @@ class TestPiecewisePolynomialConvergenceTorch(
         return self._bkd
 
 
+# Custom test loader to exclude the base class
+def load_tests(
+    loader: unittest.TestLoader, tests, pattern: str
+) -> unittest.TestSuite:
+    """
+    Custom test loader to exclude the base class
+    ContinuousScipyRandomVariable1D.
+    """
+    test_suite = unittest.TestSuite()
+    for test_class in [
+        TestPiecewisePolynomialBasisNumpy,
+        TestPiecewisePolynomialBasisTorch,
+        TestPiecewisePolynomialConvergenceNumpy,
+        TestPiecewisePolynomialConvergenceTorch,
+    ]:
+        test_suite.addTests(loader.loadTestsFromTestCase(test_class))
+    return test_suite
+
+
+# Main block to explicitly run tests using the custom loader
 if __name__ == "__main__":
-    unittest.main()
+    loader = unittest.TestLoader()
+    suite = load_tests(loader, [], None)
+    runner = unittest.TextTestRunner(verbosity=2)
+    runner.run(suite)

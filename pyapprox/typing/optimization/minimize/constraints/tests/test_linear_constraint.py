@@ -8,14 +8,13 @@ from numpy.typing import NDArray
 from pyapprox.typing.util.backends.protocols import Array, Backend
 from pyapprox.typing.util.backends.numpy import NumpyBkd
 from pyapprox.typing.util.backends.torch import TorchBkd
-from pyapprox.typing.util.abstracttestcase import AbstractTestCase
 from scipy.optimize import LinearConstraint as ScipyLinearConstraint
 from pyapprox.typing.optimization.minimize.constraints.linear import (
     PyApproxLinearConstraint,
 )
 
 
-class TestPyApproxLinearConstraint(Generic[Array], AbstractTestCase):
+class TestPyApproxLinearConstraint(Generic[Array], unittest.TestCase):
     def bkd(self) -> Backend[Array]:
         """
         Override this method in derived classes to provide the specific
@@ -66,7 +65,7 @@ class TestPyApproxLinearConstraint(Generic[Array], AbstractTestCase):
 
 
 class TestPyApproxLinearConstraintNumpy(
-    TestPyApproxLinearConstraint[NDArray[Any]], unittest.TestCase
+    TestPyApproxLinearConstraint[NDArray[Any]]
 ):
     def setUp(self) -> None:
         self._bkd = NumpyBkd()
@@ -77,9 +76,10 @@ class TestPyApproxLinearConstraintNumpy(
 
 
 class TestPyApproxLinearConstraintTorch(
-    TestPyApproxLinearConstraint[torch.Tensor], unittest.TestCase
+    TestPyApproxLinearConstraint[torch.Tensor]
 ):
     def setUp(self) -> None:
+        torch.set_default_dtype(torch.float64)
         self._bkd = TorchBkd()
         super().setUp()
 
@@ -87,5 +87,26 @@ class TestPyApproxLinearConstraintTorch(
         return self._bkd
 
 
+# Custom test loader to exclude the base class
+def load_tests(
+    loader: unittest.TestLoader, tests, pattern: str
+) -> unittest.TestSuite:
+    """
+    Custom test loader to exclude the base class
+    ContinuousScipyRandomVariable1D.
+    """
+    test_suite = unittest.TestSuite()
+    for test_class in [
+        TestPyApproxLinearConstraintNumpy,
+        TestPyApproxLinearConstraintTorch,
+    ]:
+        test_suite.addTests(loader.loadTestsFromTestCase(test_class))
+    return test_suite
+
+
+# Main block to explicitly run tests using the custom loader
 if __name__ == "__main__":
-    unittest.main()
+    loader = unittest.TestLoader()
+    suite = load_tests(loader, [], None)
+    runner = unittest.TextTestRunner(verbosity=2)
+    runner.run(suite)

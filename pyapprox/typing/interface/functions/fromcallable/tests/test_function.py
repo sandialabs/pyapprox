@@ -186,7 +186,7 @@ class TestFunction3D(Generic[Array], unittest.TestCase):
 
 
 # Derived test class for NumPy backend
-class TestFunction1DNumpy(TestFunction1D[NDArray[Any]], unittest.TestCase):
+class TestFunction1DNumpy(TestFunction1D[NDArray[Any]]):
     def setUp(self) -> None:
         self._bkd = NumpyBkd()
         super().setUp()
@@ -195,7 +195,7 @@ class TestFunction1DNumpy(TestFunction1D[NDArray[Any]], unittest.TestCase):
         return self._bkd
 
 
-class TestFunction3DNumpy(TestFunction3D[NDArray[Any]], unittest.TestCase):
+class TestFunction3DNumpy(TestFunction3D[NDArray[Any]]):
     def setUp(self) -> None:
         self._bkd = NumpyBkd()
         super().setUp()
@@ -205,7 +205,7 @@ class TestFunction3DNumpy(TestFunction3D[NDArray[Any]], unittest.TestCase):
 
 
 # Derived test class for PyTorch backend
-class TestFunction1DTorch(TestFunction1D[torch.Tensor], unittest.TestCase):
+class TestFunction1DTorch(TestFunction1D[torch.Tensor]):
     def setUp(self) -> None:
         self._bkd = TorchBkd()
         super().setUp()
@@ -214,7 +214,7 @@ class TestFunction1DTorch(TestFunction1D[torch.Tensor], unittest.TestCase):
         return self._bkd
 
 
-class TestFunction3DTorch(TestFunction3D[torch.Tensor], unittest.TestCase):
+class TestFunction3DTorch(TestFunction3D[torch.Tensor]):
     def setUp(self) -> None:
         self._bkd = TorchBkd()
         super().setUp()
@@ -245,5 +245,5 @@ def load_tests(
 if __name__ == "__main__":
     loader = unittest.TestLoader()
     suite = load_tests(loader, [], None)
-    runner = unittest.TextTestRunner()
+    runner = unittest.TextTestRunner(verbosity=2)
     runner.run(suite)

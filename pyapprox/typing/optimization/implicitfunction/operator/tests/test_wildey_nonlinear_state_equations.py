@@ -20,11 +20,10 @@ from pyapprox.typing.optimization.implicitfunction.operator.operator_with_hvp im
 from pyapprox.typing.optimization.implicitfunction.operator.check_derivatives import (
     ImplicitFunctionDerivativeChecker,
 )
-from pyapprox.typing.util.abstracttestcase import AbstractTestCase
 from pyapprox.typing.optimization.rootfinding.newton import NewtonSolverOptions
 
 
-class TestNonLinearCoupledEquations(Generic[Array], AbstractTestCase):
+class TestNonLinearCoupledEquations(Generic[Array], unittest.TestCase):
     def setUp(self) -> None:
         np.random.seed(1)
 
@@ -85,7 +84,7 @@ class TestNonLinearCoupledEquations(Generic[Array], AbstractTestCase):
 
 # Derived test class for NumPy backend
 class TestNonLinearCoupledEquationsNumpy(
-    TestNonLinearCoupledEquations[NDArray[Any]], unittest.TestCase
+    TestNonLinearCoupledEquations[NDArray[Any]]
 ):
     def setUp(self) -> None:
         self._bkd = NumpyBkd()
@@ -97,7 +96,7 @@ class TestNonLinearCoupledEquationsNumpy(
 
 # Derived test class for PyTorch backend
 class TestNonLinearCoupledEquationsTorch(
-    TestNonLinearCoupledEquations[torch.Tensor], unittest.TestCase
+    TestNonLinearCoupledEquations[torch.Tensor]
 ):
     def setUp(self) -> None:
         torch.set_default_dtype(torch.float64)
@@ -108,5 +107,26 @@ class TestNonLinearCoupledEquationsTorch(
         return self._bkd
 
 
+# Custom test loader to exclude the base class
+def load_tests(
+    loader: unittest.TestLoader, tests, pattern: str
+) -> unittest.TestSuite:
+    """
+    Custom test loader to exclude the base class
+    ContinuousScipyRandomVariable1D.
+    """
+    test_suite = unittest.TestSuite()
+    for test_class in [
+        TestNonLinearCoupledEquationsNumpy,
+        TestNonLinearCoupledEquationsTorch,
+    ]:
+        test_suite.addTests(loader.loadTestsFromTestCase(test_class))
+    return test_suite
+
+
+# Main block to explicitly run tests using the custom loader
 if __name__ == "__main__":
-    unittest.main()
+    loader = unittest.TestLoader()
+    suite = load_tests(loader, [], None)
+    runner = unittest.TextTestRunner(verbosity=2)
+    runner.run(suite)

@@ -8,7 +8,6 @@ import torch
 from pyapprox.typing.util.backends.protocols import Backend, Array
 from pyapprox.typing.util.backends.numpy import NumpyBkd
 from pyapprox.typing.util.backends.torch import TorchBkd
-from pyapprox.typing.util.abstracttestcase import AbstractTestCase
 from pyapprox.typing.util.hyperparameter import (
     HyperParameter,
     LogHyperParameter,
@@ -18,7 +17,7 @@ from pyapprox.typing.util.hyperparameter.hyperparameter_list import (
 )
 
 
-class TestHyperParameterList(Generic[Array], AbstractTestCase):
+class TestHyperParameterList(Generic[Array], unittest.TestCase):
     def bkd(self) -> Backend[Array]:
         """
         Override this method in derived classes to provide the specific
@@ -110,9 +109,7 @@ class TestHyperParameterList(Generic[Array], AbstractTestCase):
 
 
 # Derived test class for NumPy backend
-class TestHyperParameterListNumpy(
-    TestHyperParameterList[NDArray[Any]], unittest.TestCase
-):
+class TestHyperParameterListNumpy(TestHyperParameterList[NDArray[Any]]):
     def setUp(self) -> None:
         self._bkd = NumpyBkd()
         super().setUp()
@@ -122,9 +119,7 @@ class TestHyperParameterListNumpy(
 
 
 # Derived test class for PyTorch backend
-class TestHyperParameterListTorch(
-    TestHyperParameterList[torch.Tensor], unittest.TestCase
-):
+class TestHyperParameterListTorch(TestHyperParameterList[torch.Tensor]):
     def setUp(self) -> None:
         torch.set_default_dtype(torch.float64)
         self._bkd = TorchBkd()

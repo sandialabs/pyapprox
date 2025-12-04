@@ -8,7 +8,6 @@ import torch
 from pyapprox.typing.util.backends.protocols import Array, Backend
 from pyapprox.typing.util.backends.numpy import NumpyBkd
 from pyapprox.typing.util.backends.torch import TorchBkd
-from pyapprox.typing.util.abstracttestcase import AbstractTestCase
 from pyapprox.typing.optimization.minimize.scipy.trust_constr import (
     ScipyTrustConstrOptimizer,
 )
@@ -27,7 +26,7 @@ from pyapprox.typing.optimization.minimize.constraints.linear import (
 )
 
 
-class TestChainedOptimizer(Generic[Array], AbstractTestCase):
+class TestChainedOptimizer(Generic[Array], unittest.TestCase):
     def bkd(self) -> Backend[Array]:
         """
         Override this method in derived classes to provide the specific
@@ -118,12 +117,12 @@ class TestChainedOptimizer(Generic[Array], AbstractTestCase):
 
         # Assert that the objective value matches the expected value
         expected_fun = objective(expected_optima)
-        self.assertAlmostEqual(result.fun(), expected_fun, places=6)
+        self.bkd().assert_allclose(
+            result.fun(), float(expected_fun[0, 0]), atol=1e-8
+        )
 
 
-class TestChainedOptimizerNumpy(
-    TestChainedOptimizer[NDArray[Any]], unittest.TestCase
-):
+class TestChainedOptimizerNumpy(TestChainedOptimizer[NDArray[Any]]):
     def setUp(self) -> None:
         self._bkd = NumpyBkd()
         super().setUp()
@@ -132,9 +131,7 @@ class TestChainedOptimizerNumpy(
         return self._bkd
 
 
-class TestChainedOptimizerTorch(
-    TestChainedOptimizer[torch.Tensor], unittest.TestCase
-):
+class TestChainedOptimizerTorch(TestChainedOptimizer[torch.Tensor]):
     def setUp(self) -> None:
         torch.set_default_dtype(torch.float64)
         self._bkd = TorchBkd()
@@ -144,5 +141,26 @@ class TestChainedOptimizerTorch(
         return self._bkd
 
 
+# Custom test loader to exclude the base class
+def load_tests(
+    loader: unittest.TestLoader, tests, pattern: str
+) -> unittest.TestSuite:
+    """
+    Custom test loader to exclude the base class
+    ContinuousScipyRandomVariable1D.
+    """
+    test_suite = unittest.TestSuite()
+    for test_class in [
+        TestChainedOptimizerNumpy,
+        TestChainedOptimizerTorch,
+    ]:
+        test_suite.addTests(loader.loadTestsFromTestCase(test_class))
+    return test_suite
+
+
+# Main block to explicitly run tests using the custom loader
 if __name__ == "__main__":
-    unittest.main()
+    loader = unittest.TestLoader()
+    suite = load_tests(loader, [], None)
+    runner = unittest.TextTestRunner(verbosity=2)
+    runner.run(suite)

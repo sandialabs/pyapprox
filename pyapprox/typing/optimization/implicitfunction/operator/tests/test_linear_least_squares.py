@@ -23,10 +23,9 @@ from pyapprox.typing.optimization.implicitfunction.operator.operator_with_hvp im
 from pyapprox.typing.optimization.implicitfunction.operator.check_derivatives import (
     ImplicitFunctionDerivativeChecker,
 )
-from pyapprox.typing.util.abstracttestcase import AbstractTestCase
 
 
-class TestLinearLeastSquares(Generic[Array], AbstractTestCase):
+class TestLinearLeastSquares(Generic[Array], unittest.TestCase):
     def bkd(self) -> Backend[Array]:
         """
         Override this method in derived classes to provide the specific
@@ -109,9 +108,7 @@ class TestLinearLeastSquares(Generic[Array], AbstractTestCase):
 
 
 # Derived test class for NumPy backend
-class TestLinearLeastSquaresNumpy(
-    TestLinearLeastSquares[NDArray[Any]], unittest.TestCase
-):
+class TestLinearLeastSquaresNumpy(TestLinearLeastSquares[NDArray[Any]]):
     def setUp(self) -> None:
         self._bkd = NumpyBkd()
         super().setUp()
@@ -121,9 +118,7 @@ class TestLinearLeastSquaresNumpy(
 
 
 # Derived test class for PyTorch backend
-class TestLinearLeastSquaresTorch(
-    TestLinearLeastSquares[torch.Tensor], unittest.TestCase
-):
+class TestLinearLeastSquaresTorch(TestLinearLeastSquares[torch.Tensor]):
     def setUp(self) -> None:
         torch.set_default_dtype(torch.float64)
         self._bkd = TorchBkd()
@@ -133,5 +128,26 @@ class TestLinearLeastSquaresTorch(
         return self._bkd
 
 
+# Custom test loader to exclude the base class
+def load_tests(
+    loader: unittest.TestLoader, tests, pattern: str
+) -> unittest.TestSuite:
+    """
+    Custom test loader to exclude the base class
+    ContinuousScipyRandomVariable1D.
+    """
+    test_suite = unittest.TestSuite()
+    for test_class in [
+        TestLinearLeastSquaresNumpy,
+        TestLinearLeastSquaresTorch,
+    ]:
+        test_suite.addTests(loader.loadTestsFromTestCase(test_class))
+    return test_suite
+
+
+# Main block to explicitly run tests using the custom loader
 if __name__ == "__main__":
-    unittest.main()
+    loader = unittest.TestLoader()
+    suite = load_tests(loader, [], None)
+    runner = unittest.TextTestRunner(verbosity=2)
+    runner.run(suite)

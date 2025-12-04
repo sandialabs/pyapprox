@@ -8,7 +8,6 @@ import torch
 from pyapprox.typing.util.backends.protocols import Array, Backend
 from pyapprox.typing.util.backends.numpy import NumpyBkd
 from pyapprox.typing.util.backends.torch import TorchBkd
-from pyapprox.typing.util.abstracttestcase import AbstractTestCase
 from pyapprox.typing.surrogates.basis.basisexp_factory import (
     basis_expansion_factory,
 )
@@ -21,7 +20,7 @@ from pyapprox.typing.interface.functions.derivative_checks.derivative_checker im
 )
 
 
-class TestBasisExpansion(Generic[Array], AbstractTestCase):
+class TestBasisExpansion(Generic[Array], unittest.TestCase):
     def bkd(self) -> Backend[Array]:
         """
         Override this method in derived classes to provide the specific backend.
@@ -76,17 +75,15 @@ class TestBasisExpansion(Generic[Array], AbstractTestCase):
         errors = derivative_checker.check_derivatives(sample)
 
         # Assert that the derivative errors are below a tolerance
-        self.assertTrue(
-            derivative_checker.error_ratios_satisfied(errors[0], 1e-7)
+        self.assertLessEqual(
+            derivative_checker.error_ratio(errors[0]), 1e-7
         )  # Jacobian errors
-        self.assertTrue(
-            derivative_checker.error_ratios_satisfied(errors[0], 1e-7)
+        self.assertLessEqual(
+            derivative_checker.error_ratio(errors[0]), 1e-7
         )  # Hessian errors
 
 
-class TestBasisExpansionNumpy(
-    TestBasisExpansion[NDArray[Any]], unittest.TestCase
-):
+class TestBasisExpansionNumpy(TestBasisExpansion[NDArray[Any]]):
     def setUp(self) -> None:
         self._bkd = NumpyBkd()
         super().setUp()
@@ -95,9 +92,7 @@ class TestBasisExpansionNumpy(
         return self._bkd
 
 
-class TestBasisExpansionTorch(
-    TestBasisExpansion[torch.Tensor], unittest.TestCase
-):
+class TestBasisExpansionTorch(TestBasisExpansion[torch.Tensor]):
     def setUp(self) -> None:
         torch.set_default_dtype(torch.float64)
         self._bkd = TorchBkd()
@@ -107,5 +102,26 @@ class TestBasisExpansionTorch(
         return self._bkd
 
 
+# Custom test loader to exclude the base class
+def load_tests(
+    loader: unittest.TestLoader, tests, pattern: str
+) -> unittest.TestSuite:
+    """
+    Custom test loader to exclude the base class
+    ContinuousScipyRandomVariable1D.
+    """
+    test_suite = unittest.TestSuite()
+    for test_class in [
+        TestBasisExpansionNumpy,
+        TestBasisExpansionTorch,
+    ]:
+        test_suite.addTests(loader.loadTestsFromTestCase(test_class))
+    return test_suite
+
+
+# Main block to explicitly run tests using the custom loader
 if __name__ == "__main__":
-    unittest.main()
+    loader = unittest.TestLoader()
+    suite = load_tests(loader, [], None)
+    runner = unittest.TextTestRunner(verbosity=2)
+    runner.run(suite)

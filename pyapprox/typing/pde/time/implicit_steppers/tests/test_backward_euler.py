@@ -7,7 +7,6 @@ import torch
 from pyapprox.typing.util.backends.protocols import Array, Backend
 from pyapprox.typing.util.backends.numpy import NumpyBkd
 from pyapprox.typing.util.backends.torch import TorchBkd
-from pyapprox.typing.util.abstracttestcase import AbstractTestCase
 from pyapprox.typing.optimization.rootfinding.newton import NewtonSolver
 from pyapprox.typing.pde.time.implicit_steppers.backward_euler import (
     BackwardEulerResidual,
@@ -20,7 +19,7 @@ from pyapprox.typing.pde.time.implicit_steppers.integrator import (
 )
 
 
-class TestImplicitTimeIntegration(Generic[Array], AbstractTestCase):
+class TestImplicitTimeIntegration(Generic[Array], unittest.TestCase):
     def bkd(self) -> Backend[Array]:
         """
         Override this method in derived classes to provide the specific
@@ -113,7 +112,7 @@ class TestImplicitTimeIntegration(Generic[Array], AbstractTestCase):
 
 # Derived test class for NumPy backend
 class TestImplicitTimeIntegrationNumpy(
-    TestImplicitTimeIntegration[NDArray[Any]], unittest.TestCase
+    TestImplicitTimeIntegration[NDArray[Any]]
 ):
     def setUp(self) -> None:
         self._bkd = NumpyBkd()
@@ -125,7 +124,7 @@ class TestImplicitTimeIntegrationNumpy(
 
 # Derived test class for PyTorch backend
 class TestImplicitTimeIntegrationTorch(
-    TestImplicitTimeIntegration[torch.Tensor], unittest.TestCase
+    TestImplicitTimeIntegration[torch.Tensor]
 ):
     def setUp(self) -> None:
         torch.set_default_dtype(torch.float64)
@@ -136,5 +135,24 @@ class TestImplicitTimeIntegrationTorch(
         return self._bkd
 
 
+# Custom test loader to exclude the base class
+def load_tests(
+    loader: unittest.TestLoader, tests, pattern: str
+) -> unittest.TestSuite:
+    """
+    Custom test loader to exclude the base class ImplicitTimeIntegration.
+    """
+    test_suite = unittest.TestSuite()
+    for test_class in [
+        TestImplicitTimeIntegrationNumpy,
+        TestImplicitTimeIntegrationTorch,
+    ]:
+        test_suite.addTests(loader.loadTestsFromTestCase(test_class))
+    return test_suite
+
+
 if __name__ == "__main__":
-    unittest.main()
+    loader = unittest.TestLoader()
+    suite = load_tests(loader, [], None)
+    runner = unittest.TextTestRunner()
+    runner.run(suite)
