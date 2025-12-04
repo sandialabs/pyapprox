@@ -11,7 +11,6 @@ from pyapprox.typing.interface.functions.parameterized.factory import (
 from pyapprox.typing.util.backends.protocols import Array, Backend
 from pyapprox.typing.util.backends.numpy import NumpyBkd
 from pyapprox.typing.util.backends.torch import TorchBkd
-from pyapprox.typing.util.abstracttestcase import AbstractTestCase
 
 
 class ExampleParameterizedFunctionWithHVP(Generic[Array]):
@@ -113,7 +112,7 @@ class ExampleParameterizedFunctionWithHVP(Generic[Array]):
         return hessian @ vec
 
 
-class TestFunctionOfParameters(Generic[Array], AbstractTestCase):
+class TestFunctionOfParameters(Generic[Array], unittest.TestCase):
     def bkd(self) -> Backend[Array]:
         """
         Override this method in derived classes to provide the specific backend.
@@ -201,9 +200,7 @@ class TestFunctionOfParameters(Generic[Array], AbstractTestCase):
 
 
 # Derived test class for NumPy backend
-class TestFunctionOfParametersNumpy(
-    TestFunctionOfParameters[NDArray[Any]], unittest.TestCase
-):
+class TestFunctionOfParametersNumpy(TestFunctionOfParameters[NDArray[Any]]):
     def setUp(self) -> None:
         self._bkd = NumpyBkd()
         super().setUp()
@@ -213,10 +210,9 @@ class TestFunctionOfParametersNumpy(
 
 
 # Derived test class for PyTorch backend
-class TestFunctionOfParametersTorch(
-    TestFunctionOfParameters[torch.Tensor], unittest.TestCase
-):
+class TestFunctionOfParametersTorch(TestFunctionOfParameters[torch.Tensor]):
     def setUp(self) -> None:
+        torch.set_default_dtype(torch.float64)
         self._bkd = TorchBkd()
         super().setUp()
 
@@ -224,5 +220,26 @@ class TestFunctionOfParametersTorch(
         return self._bkd
 
 
+# Custom test loader to exclude the base class
+def load_tests(
+    loader: unittest.TestLoader, tests, pattern: str
+) -> unittest.TestSuite:
+    """
+    Custom test loader to exclude the base class
+    ContinuousScipyRandomVariable1D.
+    """
+    test_suite = unittest.TestSuite()
+    for test_class in [
+        TestFunctionOfParametersNumpy,
+        TestFunctionOfParametersTorch,
+    ]:
+        test_suite.addTests(loader.loadTestsFromTestCase(test_class))
+    return test_suite
+
+
+# Main block to explicitly run tests using the custom loader
 if __name__ == "__main__":
-    unittest.main()
+    loader = unittest.TestLoader()
+    suite = load_tests(loader, [], None)
+    runner = unittest.TextTestRunner(verbosity=2)
+    runner.run(suite)

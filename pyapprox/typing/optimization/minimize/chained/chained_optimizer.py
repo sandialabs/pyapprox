@@ -49,8 +49,8 @@ class ChainedOptimizer(Generic[Array]):
         # Step 1: Perform global optimization
         global_result = self._global_optimizer.minimize(init_guess)
 
-        # Step 2: Use the result of the global optimizer as the initial guess for the local optimizer
-        print(global_result.optima())
+        # Step 2: Use the result of the global optimizer as the initial guess
+        # for the local optimizer
         local_result = self._local_optimizer.minimize(global_result.optima())
 
         return local_result

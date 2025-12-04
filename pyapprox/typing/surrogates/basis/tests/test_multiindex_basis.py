@@ -7,14 +7,13 @@ import torch
 from pyapprox.typing.util.backends.protocols import Array, Backend
 from pyapprox.typing.util.backends.numpy import NumpyBkd
 from pyapprox.typing.util.backends.torch import TorchBkd
-from pyapprox.typing.util.abstracttestcase import AbstractTestCase
 from pyapprox.typing.surrogates.basis.multiindex_basis_factory import (
     multiindex_basis_factory,
 )
 from pyapprox.typing.surrogates.basis.monomial1d import MonomialBasis1D
 
 
-class TestMultiIndexBasis(Generic[Array], AbstractTestCase):
+class TestMultiIndexBasis(Generic[Array], unittest.TestCase):
     def bkd(self) -> Backend[Array]:
         """
         Override this method in derived classes to provide the specific backend.
@@ -56,9 +55,7 @@ class TestMultiIndexBasis(Generic[Array], AbstractTestCase):
         bkd.assert_allclose(basis_matrix, expected_basis_matrix)
 
 
-class TestMultiIndexBasisNumpy(
-    TestMultiIndexBasis[NDArray[Any]], unittest.TestCase
-):
+class TestMultiIndexBasisNumpy(TestMultiIndexBasis[NDArray[Any]]):
     def setUp(self) -> None:
         self._bkd = NumpyBkd()
         super().setUp()
@@ -67,9 +64,7 @@ class TestMultiIndexBasisNumpy(
         return self._bkd
 
 
-class TestMultiIndexBasisTorch(
-    TestMultiIndexBasis[torch.Tensor], unittest.TestCase
-):
+class TestMultiIndexBasisTorch(TestMultiIndexBasis[torch.Tensor]):
     def setUp(self) -> None:
         torch.set_default_dtype(torch.float64)
         self._bkd = TorchBkd()
@@ -79,5 +74,26 @@ class TestMultiIndexBasisTorch(
         return self._bkd
 
 
+# Custom test loader to exclude the base class
+def load_tests(
+    loader: unittest.TestLoader, tests, pattern: str
+) -> unittest.TestSuite:
+    """
+    Custom test loader to exclude the base class
+    ContinuousScipyRandomVariable1D.
+    """
+    test_suite = unittest.TestSuite()
+    for test_class in [
+        TestMultiIndexBasisNumpy,
+        TestMultiIndexBasisTorch,
+    ]:
+        test_suite.addTests(loader.loadTestsFromTestCase(test_class))
+    return test_suite
+
+
+# Main block to explicitly run tests using the custom loader
 if __name__ == "__main__":
-    unittest.main()
+    loader = unittest.TestLoader()
+    suite = load_tests(loader, [], None)
+    runner = unittest.TextTestRunner(verbosity=2)
+    runner.run(suite)

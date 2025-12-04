@@ -8,7 +8,6 @@ import torch
 from pyapprox.typing.util.backends.protocols import Array, Backend
 from pyapprox.typing.util.backends.numpy import NumpyBkd
 from pyapprox.typing.util.backends.torch import TorchBkd
-from pyapprox.typing.util.abstracttestcase import AbstractTestCase
 from pyapprox.typing.optimization.implicitfunction.benchmarks.wildeys_nonlinear_state_equation import (
     NonLinearCoupledStateEquations,
 )
@@ -24,7 +23,7 @@ from pyapprox.typing.optimization.implicitfunction.operator.check_derivatives im
 )
 
 
-class TestSensitivities(Generic[Array], AbstractTestCase):
+class TestSensitivities(Generic[Array], unittest.TestCase):
     def bkd(self) -> Backend[Array]:
         """
         Override this method in derived classes to provide the specific
@@ -69,9 +68,7 @@ class TestSensitivities(Generic[Array], AbstractTestCase):
 
 
 # Derived test class for NumPy backend
-class TestSensitivitiesNumpy(
-    TestSensitivities[NDArray[Any]], unittest.TestCase
-):
+class TestSensitivitiesNumpy(TestSensitivities[NDArray[Any]]):
     def setUp(self) -> None:
         self._bkd = NumpyBkd()
         super().setUp()
@@ -81,9 +78,7 @@ class TestSensitivitiesNumpy(
 
 
 # Derived test class for PyTorch backend
-class TestSensitivitiesTorch(
-    TestSensitivities[torch.Tensor], unittest.TestCase
-):
+class TestSensitivitiesTorch(TestSensitivities[torch.Tensor]):
     def setUp(self) -> None:
         torch.set_default_dtype(torch.float64)
         self._bkd = TorchBkd()
@@ -93,5 +88,26 @@ class TestSensitivitiesTorch(
         return self._bkd
 
 
+# Custom test loader to exclude the base class
+def load_tests(
+    loader: unittest.TestLoader, tests, pattern: str
+) -> unittest.TestSuite:
+    """
+    Custom test loader to exclude the base class
+    ContinuousScipyRandomVariable1D.
+    """
+    test_suite = unittest.TestSuite()
+    for test_class in [
+        TestSensitivitiesNumpy,
+        TestSensitivitiesTorch,
+    ]:
+        test_suite.addTests(loader.loadTestsFromTestCase(test_class))
+    return test_suite
+
+
+# Main block to explicitly run tests using the custom loader
 if __name__ == "__main__":
-    unittest.main()
+    loader = unittest.TestLoader()
+    suite = load_tests(loader, [], None)
+    runner = unittest.TextTestRunner(verbosity=2)
+    runner.run(suite)

@@ -8,7 +8,6 @@ import torch
 from pyapprox.typing.util.backends.protocols import Array, Backend
 from pyapprox.typing.util.backends.numpy import NumpyBkd
 from pyapprox.typing.util.backends.torch import TorchBkd
-from pyapprox.typing.util.abstracttestcase import AbstractTestCase
 from pyapprox.typing.interface.functions.fromcallable.hessian import (
     FunctionWithJacobianAndHVPFromCallable,
 )
@@ -17,7 +16,7 @@ from pyapprox.typing.interface.functions.derivative_checks.derivative_checker im
 )
 
 
-class TestDerivativeChecker(Generic[Array], AbstractTestCase):
+class TestDerivativeChecker(Generic[Array], unittest.TestCase):
     def bkd(self) -> Backend[Array]:
         """
         Override this method in derived classes to provide the specific backend.
@@ -61,16 +60,14 @@ class TestDerivativeChecker(Generic[Array], AbstractTestCase):
         errors = checker.check_derivatives(sample)
 
         # Assert that the gradient errors are below a tolerance
-        self.assertTrue(checker.error_ratios_satisfied(errors[0], 1e-7))
+        self.assertLessEqual(checker.error_ratio(errors[0]), 1e-7)
 
         # Assert that the Hessian errors are below a tolerance
-        self.assertTrue(checker.error_ratios_satisfied(errors[1], 1e-7))
+        self.assertLessEqual(checker.error_ratio(errors[1]), 1e-7)
 
 
 # Derived test class for NumPy backend
-class TestDerivativeCheckerNumpy(
-    TestDerivativeChecker[NDArray[Any]], unittest.TestCase
-):
+class TestDerivativeCheckerNumpy(TestDerivativeChecker[NDArray[Any]]):
     def setUp(self) -> None:
         self._bkd = NumpyBkd()
         super().setUp()
@@ -80,9 +77,7 @@ class TestDerivativeCheckerNumpy(
 
 
 # Derived test class for PyTorch backend
-class TestDerivativeCheckerTorch(
-    TestDerivativeChecker[torch.Tensor], unittest.TestCase
-):
+class TestDerivativeCheckerTorch(TestDerivativeChecker[torch.Tensor]):
     def setUp(self) -> None:
         torch.set_default_dtype(torch.float64)
         self._bkd = TorchBkd()
@@ -92,5 +87,26 @@ class TestDerivativeCheckerTorch(
         return self._bkd
 
 
+# Custom test loader to exclude the base class
+def load_tests(
+    loader: unittest.TestLoader, tests, pattern: str
+) -> unittest.TestSuite:
+    """
+    Custom test loader to exclude the base class
+    ContinuousScipyRandomVariable1D.
+    """
+    test_suite = unittest.TestSuite()
+    for test_class in [
+        TestDerivativeCheckerNumpy,
+        TestDerivativeCheckerTorch,
+    ]:
+        test_suite.addTests(loader.loadTestsFromTestCase(test_class))
+    return test_suite
+
+
+# Main block to explicitly run tests using the custom loader
 if __name__ == "__main__":
-    unittest.main()
+    loader = unittest.TestLoader()
+    suite = load_tests(loader, [], None)
+    runner = unittest.TextTestRunner(verbosity=2)
+    runner.run(suite)

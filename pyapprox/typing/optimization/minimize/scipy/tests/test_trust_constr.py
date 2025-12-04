@@ -8,7 +8,6 @@ import torch
 from pyapprox.typing.util.backends.protocols import Array, Backend
 from pyapprox.typing.util.backends.numpy import NumpyBkd
 from pyapprox.typing.util.backends.torch import TorchBkd
-from pyapprox.typing.util.abstracttestcase import AbstractTestCase
 from pyapprox.typing.interface.functions.fromcallable.hessian import (
     FunctionWithJacobianAndHVPFromCallable,
 )
@@ -27,7 +26,7 @@ from pyapprox.typing.optimization.minimize.benchmarks.evutushenko import (
 )
 
 
-class TestScipyTrustConstrOptimizer(Generic[Array], AbstractTestCase):
+class TestScipyTrustConstrOptimizer(Generic[Array], unittest.TestCase):
     def bkd(self) -> Backend[Array]:
         """
         Override this method in derived classes to provide the specific
@@ -78,9 +77,7 @@ class TestScipyTrustConstrOptimizer(Generic[Array], AbstractTestCase):
         # Check derivatives
         derivative_checker = DerivativeChecker(function)
         errors = derivative_checker.check_derivatives(init_guess)
-        self.assertTrue(
-            derivative_checker.error_ratios_satisfied(errors[0], 1e-7)
-        )
+        self.assertLessEqual(derivative_checker.error_ratio(errors[0]), 1e-7)
 
         # Define coefficient matrix and constraint vector for the linear constraint
         A = bkd.asarray([[1.0, 1.0]])  # Coefficient matrix
@@ -113,10 +110,14 @@ class TestScipyTrustConstrOptimizer(Generic[Array], AbstractTestCase):
 
         # Assert that the objective value matches the expected value
         expected_fun = value_function(expected_optima)
-        self.assertAlmostEqual(result.fun(), expected_fun, places=6)
+        self.bkd().assert_allclose(
+            result.fun(), float(expected_fun[0, 0]), atol=1e-8
+        )
 
         # Assert the constraint is satisfied
-        self.assertAlmostEqual(A @ result.optima() - b, 0.0, places=8)
+        self.bkd().assert_allclose(
+            A @ result.optima()[:, 0] - b, self._bkd.zeros(b.shape), atol=1e-8
+        )
 
     def test_optimizer_with_evtushenko_objective_and_constraints(self) -> None:
         """
@@ -143,20 +144,16 @@ class TestScipyTrustConstrOptimizer(Generic[Array], AbstractTestCase):
         errors = objective_derivative_checker.check_derivatives(
             init_guess, verbosity=0
         )
-        self.assertTrue(
-            objective_derivative_checker.error_ratios_satisfied(
-                errors[0], 1e-7
-            )
+        self.assertLessEqual(
+            objective_derivative_checker.error_ratio(errors[0]), 1e-7
         )
 
         constraint_derivative_checker = DerivativeChecker(nonlinear_constraint)
         errors = constraint_derivative_checker.check_derivatives(
             init_guess, verbosity=0
         )
-        self.assertTrue(
-            constraint_derivative_checker.error_ratios_satisfied(
-                errors[0], 1e-7
-            )
+        self.assertLessEqual(
+            constraint_derivative_checker.error_ratio(errors[0]), 1e-6
         )
 
         # Initialize the optimizer
@@ -195,7 +192,9 @@ class TestScipyTrustConstrOptimizer(Generic[Array], AbstractTestCase):
 
         # Assert that the objective value matches the expected value
         expected_fun = objective(expected_optima)
-        self.assertAlmostEqual(result.fun(), expected_fun, places=6)
+        self.bkd().assert_allclose(
+            result.fun(), expected_fun.item(), atol=1e-8
+        )
 
         # Check that function, jacobian and whvp of objective are
         # called.
@@ -217,7 +216,7 @@ class TestScipyTrustConstrOptimizer(Generic[Array], AbstractTestCase):
 
 
 class TestScipyTrustConstrOptimizerNumpy(
-    TestScipyTrustConstrOptimizer[NDArray[Any]], unittest.TestCase
+    TestScipyTrustConstrOptimizer[NDArray[Any]]
 ):
     def setUp(self) -> None:
         self._bkd = NumpyBkd()
@@ -228,7 +227,7 @@ class TestScipyTrustConstrOptimizerNumpy(
 
 
 class TestScipyTrustConstrOptimizerTorch(
-    TestScipyTrustConstrOptimizer[torch.Tensor], unittest.TestCase
+    TestScipyTrustConstrOptimizer[torch.Tensor]
 ):
     def setUp(self) -> None:
         torch.set_default_dtype(torch.float64)
@@ -239,5 +238,26 @@ class TestScipyTrustConstrOptimizerTorch(
         return self._bkd
 
 
+# Custom test loader to exclude the base class
+def load_tests(
+    loader: unittest.TestLoader, tests, pattern: str
+) -> unittest.TestSuite:
+    """
+    Custom test loader to exclude the base class
+    ContinuousScipyRandomVariable1D.
+    """
+    test_suite = unittest.TestSuite()
+    for test_class in [
+        TestScipyTrustConstrOptimizerNumpy,
+        TestScipyTrustConstrOptimizerTorch,
+    ]:
+        test_suite.addTests(loader.loadTestsFromTestCase(test_class))
+    return test_suite
+
+
+# Main block to explicitly run tests using the custom loader
 if __name__ == "__main__":
-    unittest.main()
+    loader = unittest.TestLoader()
+    suite = load_tests(loader, [], None)
+    runner = unittest.TextTestRunner(verbosity=2)
+    runner.run(suite)

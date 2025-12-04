@@ -11,10 +11,9 @@ from pyapprox.typing.util.backends.torch import TorchBkd
 from pyapprox.typing.variables.univariate.scipy_continuous import (
     ContinuousScipyRandomVariable1D,
 )
-from pyapprox.typing.util.abstracttestcase import AbstractTestCase
 
 
-class TestContinuousScipyRandomVariable1D(Generic[Array], AbstractTestCase):
+class TestContinuousScipyRandomVariable1D(Generic[Array], unittest.TestCase):
     def bkd(self) -> Backend[Array]:
         """
         Override this method in derived classes to provide the specific backend.
@@ -195,7 +194,7 @@ class TestContinuousScipyRandomVariable1D(Generic[Array], AbstractTestCase):
 
 # Derived test class for NumPy backend
 class TestContinuousScipyRandomVariable1DNumpy(
-    TestContinuousScipyRandomVariable1D[Array], unittest.TestCase
+    TestContinuousScipyRandomVariable1D[Array]
 ):
     def setUp(self) -> None:
         self._bkd = NumpyBkd()
@@ -207,7 +206,7 @@ class TestContinuousScipyRandomVariable1DNumpy(
 
 # Derived test class for PyTorch backend
 class TestContinuousScipyRandomVariable1DTorch(
-    TestContinuousScipyRandomVariable1D[torch.Tensor], unittest.TestCase
+    TestContinuousScipyRandomVariable1D[torch.Tensor]
 ):
     def setUp(self) -> None:
         self._bkd = TorchBkd()
@@ -217,5 +216,26 @@ class TestContinuousScipyRandomVariable1DTorch(
         return self._bkd
 
 
+# Custom test loader to exclude the base class
+def load_tests(
+    loader: unittest.TestLoader, tests, pattern: str
+) -> unittest.TestSuite:
+    """
+    Custom test loader to exclude the base class
+    ContinuousScipyRandomVariable1D.
+    """
+    test_suite = unittest.TestSuite()
+    for test_class in [
+        TestContinuousScipyRandomVariable1DNumpy,
+        TestContinuousScipyRandomVariable1DTorch,
+    ]:
+        test_suite.addTests(loader.loadTestsFromTestCase(test_class))
+    return test_suite
+
+
+# Main block to explicitly run tests using the custom loader
 if __name__ == "__main__":
-    unittest.main()
+    loader = unittest.TestLoader()
+    suite = load_tests(loader, [], None)
+    runner = unittest.TextTestRunner(verbosity=2)
+    runner.run(suite)

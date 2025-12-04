@@ -87,8 +87,5 @@ class DerivativeChecker(Generic[Array]):
         errors.append(hessian_checker.check(sample))
         return errors
 
-    def error_ratios_satisfied(self, errors: Array, tol: float) -> bool:
-        print(self.bkd().min(errors) / self.bkd().max(errors))
-        if self.bkd().min(errors) / self.bkd().max(errors) < tol:
-            return True
-        return False
+    def error_ratio(self, errors: Array) -> Array:
+        return self.bkd().min(errors) / self.bkd().max(errors)

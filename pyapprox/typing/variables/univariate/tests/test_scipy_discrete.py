@@ -11,13 +11,13 @@ from pyapprox.typing.util.backends.torch import TorchBkd
 from pyapprox.typing.variables.univariate.scipy_discrete import (
     DiscreteScipyRandomVariable1D,
 )
-from pyapprox.typing.util.abstracttestcase import AbstractTestCase
 
 
-class TestDiscreteScipyRandomVariable1D(Generic[Array], AbstractTestCase):
+class TestDiscreteScipyRandomVariable1D(Generic[Array], unittest.TestCase):
     def bkd(self) -> Backend[Array]:
         """
-        Override this method in derived classes to provide the specific backend.
+        Override this method in derived classes to provide the specific
+        backend.
         """
         raise NotImplementedError(
             "Derived classes must implement this method."
@@ -70,7 +70,7 @@ class TestDiscreteScipyRandomVariable1D(Generic[Array], AbstractTestCase):
 
 # Derived test class for NumPy backend
 class TestDiscreteScipyRandomVariable1DNumpy(
-    TestDiscreteScipyRandomVariable1D[Array], unittest.TestCase
+    TestDiscreteScipyRandomVariable1D[Array]
 ):
     def setUp(self) -> None:
         self._bkd = NumpyBkd()
@@ -82,7 +82,7 @@ class TestDiscreteScipyRandomVariable1DNumpy(
 
 # Derived test class for PyTorch backend
 class TestDiscreteScipyRandomVariable1DTorch(
-    TestDiscreteScipyRandomVariable1D[torch.Tensor], unittest.TestCase
+    TestDiscreteScipyRandomVariable1D[torch.Tensor]
 ):
     def setUp(self) -> None:
         self._bkd = TorchBkd()
@@ -92,5 +92,25 @@ class TestDiscreteScipyRandomVariable1DTorch(
         return self._bkd
 
 
+# Custom test loader to exclude the base class
+def load_tests(
+    loader: unittest.TestLoader, tests, pattern: str
+) -> unittest.TestSuite:
+    """
+    Custom test loader to exclude the base class DiscreteScipyRandomVariable1D.
+    """
+    test_suite = unittest.TestSuite()
+    for test_class in [
+        TestDiscreteScipyRandomVariable1DNumpy,
+        TestDiscreteScipyRandomVariable1DTorch,
+    ]:
+        test_suite.addTests(loader.loadTestsFromTestCase(test_class))
+    return test_suite
+
+
+# Main block to explicitly run tests using the custom loader
 if __name__ == "__main__":
-    unittest.main()
+    loader = unittest.TestLoader()
+    suite = load_tests(loader, [], None)
+    runner = unittest.TextTestRunner(verbosity=2)
+    runner.run(suite)

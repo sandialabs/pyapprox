@@ -103,5 +103,7 @@ class CholeskyFactor(Generic[Array]):
             String representation of the class.
         """
         return "{0}(N={1}, backend={2})".format(
-            self.__class__.__name__, self._L.shape, self.bkd.__class__.__name__
+            self.__class__.__name__,
+            self._L.shape,
+            self.bkd().__class__.__name__,
         )
