@@ -2,28 +2,21 @@ import unittest
 from typing import Generic, Any
 
 import numpy as np
-from numpy.typing import NDArray
 import torch
+from numpy.typing import NDArray
 
 from pyapprox.typing.util.backends.protocols import Backend, Array
 from pyapprox.typing.util.backends.numpy import NumpyBkd
 from pyapprox.typing.util.backends.torch import TorchBkd
-from pyapprox.typing.util.abstracttestcase import AbstractTestCase
 from pyapprox.typing.util.hyperparameter.hyperparameter import HyperParameter
-from pyapprox.typing.util.hyperparameter.transforms import (
-    IdentityHyperParameterTransform,
-)
 
 
-class TestHyperParameter(Generic[Array], AbstractTestCase):
-    def bkd(self) -> Backend[Array]:
-        """
-        Override this method in derived classes to provide the specific
-        backend.
-        """
-        raise NotImplementedError(
-            "Derived classes must implement this method."
-        )
+class TestHyperParameter(Generic[Array], unittest.TestCase):
+    """
+    Base test class for HyperParameter.
+
+    Derived classes must implement the bkd() method to provide the backend.
+    """
 
     def setUp(self) -> None:
         """
@@ -32,8 +25,15 @@ class TestHyperParameter(Generic[Array], AbstractTestCase):
         self.name = "example_param"
         self.nparams = 3
         self.values = self.bkd().array([1.0, 2.0, 3.0])
-        self.bounds = (0.0, 5.0)
-        self.transform = IdentityHyperParameterTransform(self.bkd())
+        self.bounds = self.bkd().array([[0.1, 10.0], [0.1, 10.0], [0.1, 10.0]])
+
+    def bkd(self) -> Backend:
+        """
+        Override this method in derived classes to provide the backend.
+        """
+        raise NotImplementedError(
+            "Derived classes must implement this method."
+        )
 
     def test_initialization(self) -> None:
         """
@@ -45,19 +45,14 @@ class TestHyperParameter(Generic[Array], AbstractTestCase):
             values=self.values,
             bounds=self.bounds,
             bkd=self.bkd(),
-            transform=self.transform,
         )
         self.assertEqual(hyperparameter.nparams(), self.nparams)
         self.bkd().assert_allclose(hyperparameter.get_values(), self.values)
-        self.assertTrue(
-            np.allclose(
-                hyperparameter.get_bounds(), np.tile(self.bounds, self.nparams)
-            )
-        )
+        self.bkd().assert_allclose(hyperparameter.get_bounds(), self.bounds)
 
-    def test_set_values(self) -> None:
+    def test_get_values(self) -> None:
         """
-        Test setting values for HyperParameter.
+        Test the get_values function of HyperParameter.
         """
         hyperparameter = HyperParameter(
             name=self.name,
@@ -65,15 +60,12 @@ class TestHyperParameter(Generic[Array], AbstractTestCase):
             values=self.values,
             bounds=self.bounds,
             bkd=self.bkd(),
-            transform=self.transform,
         )
-        new_values = np.array([4.0, 5.0, 6.0])
-        hyperparameter.set_values(new_values)
-        self.bkd().assert_allclose(hyperparameter.get_values(), new_values)
+        self.bkd().assert_allclose(hyperparameter.get_values(), self.values)
 
-    def test_set_bounds(self) -> None:
+    def test_get_bounds(self) -> None:
         """
-        Test setting bounds for HyperParameter.
+        Test retrieving the bounds for HyperParameter.
         """
         hyperparameter = HyperParameter(
             name=self.name,
@@ -81,15 +73,8 @@ class TestHyperParameter(Generic[Array], AbstractTestCase):
             values=self.values,
             bounds=self.bounds,
             bkd=self.bkd(),
-            transform=self.transform,
         )
-        new_bounds = np.array([0.0, 10.0])
-        hyperparameter.set_bounds(new_bounds)
-        self.assertTrue(
-            np.allclose(
-                hyperparameter.get_bounds(), np.tile(new_bounds, self.nparams)
-            )
-        )
+        self.bkd().assert_allclose(hyperparameter.get_bounds(), self.bounds)
 
     def test_active_indices(self) -> None:
         """
@@ -101,19 +86,84 @@ class TestHyperParameter(Generic[Array], AbstractTestCase):
             values=self.values,
             bounds=self.bounds,
             bkd=self.bkd(),
-            transform=self.transform,
         )
-        active_indices = np.array([0, 2])
+        active_indices = self.bkd().array([0, 2])
         hyperparameter.set_active_indices(active_indices)
-        self.assertTrue(
-            np.allclose(hyperparameter.get_active_indices(), active_indices)
+        self.bkd().assert_allclose(
+            hyperparameter.get_active_indices(), active_indices
+        )
+
+    def test_set_all_active(self) -> None:
+        """
+        Test setting all parameters to active for HyperParameter.
+        """
+        hyperparameter = HyperParameter(
+            name=self.name,
+            nparams=self.nparams,
+            values=self.values,
+            bounds=self.bounds,
+            bkd=self.bkd(),
+        )
+        hyperparameter.set_all_active()
+        self.bkd().assert_allclose(
+            hyperparameter.get_active_indices(),
+            self.bkd().arange(self.nparams, dtype=int),
+        )
+
+    def test_set_all_inactive(self) -> None:
+        """
+        Test setting all parameters to inactive for HyperParameter.
+        """
+        hyperparameter = HyperParameter(
+            name=self.name,
+            nparams=self.nparams,
+            values=self.values,
+            bounds=self.bounds,
+            bkd=self.bkd(),
+        )
+        hyperparameter.set_all_inactive()
+        self.assertEqual(hyperparameter.get_active_indices().shape[0], 0)
+
+    def test_get_active_values(self) -> None:
+        """
+        Test retrieving active values for HyperParameter.
+        """
+        hyperparameter = HyperParameter(
+            name=self.name,
+            nparams=self.nparams,
+            values=self.values,
+            bounds=self.bounds,
+            bkd=self.bkd(),
+        )
+        active_indices = self.bkd().array([0, 2])
+        hyperparameter.set_active_indices(active_indices)
+        self.bkd().assert_allclose(
+            hyperparameter.get_active_values(),
+            self.bkd().array([1.0, 3.0]),
+        )
+
+    def test_set_active_values(self) -> None:
+        """
+        Test setting active values for HyperParameter.
+        """
+        hyperparameter = HyperParameter(
+            name=self.name,
+            nparams=self.nparams,
+            values=self.values,
+            bounds=self.bounds,
+            bkd=self.bkd(),
+        )
+        active_indices = self.bkd().array([0, 2])
+        hyperparameter.set_active_indices(active_indices)
+        new_active_values = self.bkd().array([7.0, 8.0])
+        hyperparameter.set_active_values(new_active_values)
+        self.bkd().assert_allclose(
+            hyperparameter.get_active_values(),
+            new_active_values,
         )
 
 
-# Derived test class for NumPy backend
-class TestHyperParameterNumpy(
-    TestHyperParameter[NDArray[Any]], unittest.TestCase
-):
+class TestHyperParameterNumpy(TestHyperParameter[NDArray[Any]]):
     def setUp(self) -> None:
         self._bkd = NumpyBkd()
         super().setUp()
@@ -122,17 +172,33 @@ class TestHyperParameterNumpy(
         return self._bkd
 
 
-# Derived test class for PyTorch backend
-class TestHyperParameterTorch(
-    TestHyperParameter[torch.Tensor], unittest.TestCase
-):
+class TestHyperParameterTorch(TestHyperParameter[torch.Tensor]):
     def setUp(self) -> None:
         self._bkd = TorchBkd()
         super().setUp()
 
-    def bkd(self) -> Backend[torch.Tensor]:
+    def bkd(self) -> TorchBkd:
         return self._bkd
 
 
+# Custom test loader to exclude the base class
+def load_tests(
+    loader: unittest.TestLoader, tests, pattern: str
+) -> unittest.TestSuite:
+    """
+    Custom test loader to exclude the base class HyperParameter.
+    """
+    test_suite = unittest.TestSuite()
+    for test_class in [
+        TestHyperParameterNumpy,
+        TestHyperParameterTorch,
+    ]:
+        test_suite.addTests(loader.loadTestsFromTestCase(test_class))
+    return test_suite
+
+
 if __name__ == "__main__":
-    unittest.main()
+    loader = unittest.TestLoader()
+    suite = load_tests(loader, [], None)
+    runner = unittest.TextTestRunner()
+    runner.run(suite)

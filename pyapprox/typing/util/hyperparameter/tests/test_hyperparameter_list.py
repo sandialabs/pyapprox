@@ -9,12 +9,12 @@ from pyapprox.typing.util.backends.protocols import Backend, Array
 from pyapprox.typing.util.backends.numpy import NumpyBkd
 from pyapprox.typing.util.backends.torch import TorchBkd
 from pyapprox.typing.util.abstracttestcase import AbstractTestCase
-from pyapprox.typing.util.hyperparameter.hyperparameter import HyperParameter
+from pyapprox.typing.util.hyperparameter import (
+    HyperParameter,
+    LogHyperParameter,
+)
 from pyapprox.typing.util.hyperparameter.hyperparameter_list import (
     HyperParameterList,
-)
-from pyapprox.typing.util.hyperparameter.transforms import (
-    IdentityHyperParameterTransform,
 )
 
 
@@ -38,15 +38,13 @@ class TestHyperParameterList(Generic[Array], AbstractTestCase):
             values=self.bkd().array([1.0, 2.0, 3.0]),
             bounds=(0.0, 5.0),
             bkd=self.bkd(),
-            transform=IdentityHyperParameterTransform(self.bkd()),
         )
-        self.hyperparameter2 = HyperParameter(
+        self.hyperparameter2 = LogHyperParameter(
             name="param2",
             nparams=2,
-            values=self.bkd().array([4.0, 5.0]),
-            bounds=(1.0, 10.0),
+            user_values=self.bkd().array([4.0, 5.0]),
+            user_bounds=(1.0, 10.0),
             bkd=self.bkd(),
-            transform=IdentityHyperParameterTransform(self.bkd()),
         )
         self.hyperparameter_list = HyperParameterList(
             [self.hyperparameter1, self.hyperparameter2]
@@ -63,27 +61,22 @@ class TestHyperParameterList(Generic[Array], AbstractTestCase):
         """
         Test getting values from HyperParameterList.
         """
-        expected_values = self.bkd().array([1.0, 2.0, 3.0, 4.0, 5.0])
+        expected_values = self.bkd().array(
+            [1.0, 2.0, 3.0, np.log(4.0), np.log(5.0)]
+        )
         self.bkd().assert_allclose(
             self.hyperparameter_list.get_values(), expected_values
-        )
-
-    def test_set_values(self) -> None:
-        """
-        Test setting values for HyperParameterList.
-        """
-        new_values = self.bkd().array([6.0, 7.0, 8.0, 9.0, 10.0])
-        self.hyperparameter_list.set_values(new_values)
-        self.bkd().assert_allclose(
-            self.hyperparameter_list.get_values(), new_values
         )
 
     def test_get_bounds(self) -> None:
         """
         Test getting bounds from HyperParameterList.
         """
-        expected_bounds = self.bkd().array(
-            [0.0, 5.0, 0.0, 5.0, 0.0, 5.0, 1.0, 10.0, 1.0, 10.0]
+        expected_bounds = self.bkd().vstack(
+            (
+                self.bkd().array([[0.0, 5.0], [0.0, 5.0], [0.0, 5.0]]),
+                self.bkd().log(self.bkd().array([[1.0, 10.0], [1.0, 10.0]])),
+            )
         )
         self.bkd().assert_allclose(
             self.hyperparameter_list.get_bounds(), expected_bounds
@@ -109,7 +102,6 @@ class TestHyperParameterList(Generic[Array], AbstractTestCase):
             values=self.bkd().array([11.0]),
             bounds=(0.0, 15.0),
             bkd=self.bkd(),
-            transform=IdentityHyperParameterTransform(self.bkd()),
         )
         hyperparameter_list2 = HyperParameterList([hyperparameter3])
         combined_list = self.hyperparameter_list + hyperparameter_list2
@@ -134,6 +126,7 @@ class TestHyperParameterListTorch(
     TestHyperParameterList[torch.Tensor], unittest.TestCase
 ):
     def setUp(self) -> None:
+        torch.set_default_dtype(torch.float64)
         self._bkd = TorchBkd()
         super().setUp()
 
@@ -141,5 +134,24 @@ class TestHyperParameterListTorch(
         return self._bkd
 
 
+# Custom test loader to exclude the base class
+def load_tests(
+    loader: unittest.TestLoader, tests, pattern: str
+) -> unittest.TestSuite:
+    """
+    Custom test loader to exclude the base class HyperParameterList.
+    """
+    test_suite = unittest.TestSuite()
+    for test_class in [
+        TestHyperParameterListNumpy,
+        TestHyperParameterListTorch,
+    ]:
+        test_suite.addTests(loader.loadTestsFromTestCase(test_class))
+    return test_suite
+
+
 if __name__ == "__main__":
-    unittest.main()
+    loader = unittest.TestLoader()
+    suite = load_tests(loader, [], None)
+    runner = unittest.TextTestRunner()
+    runner.run(suite)

@@ -12,7 +12,7 @@ from pyapprox.typing.optimization.implicitfunction.operator.storage import (
 from pyapprox.typing.optimization.implicitfunction.operator.operator_with_jacobian import (
     AdjointOperatorWithJacobian,
 )
-from pyapprox.typing.util.validate_backend import validate_backends
+from pyapprox.typing.util.backends.validation import validate_backends
 
 
 class AdjointOperatorWithJacobianAndHVP(Generic[Array]):

@@ -1,6 +1,6 @@
 from typing import Generic
 from pyapprox.typing.util.backends.protocols import Array, Backend
-from pyapprox.typing.util.validate_backend import validate_backend
+from pyapprox.typing.util.backends.validation import validate_backend
 from pyapprox.typing.interface.functions.protocols.validation import (
     validate_sample,
 )
