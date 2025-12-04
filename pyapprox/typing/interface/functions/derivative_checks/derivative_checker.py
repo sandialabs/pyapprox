@@ -88,6 +88,7 @@ class DerivativeChecker(Generic[Array]):
         return errors
 
     def error_ratios_satisfied(self, errors: Array, tol: float) -> bool:
+        print(self.bkd().min(errors) / self.bkd().max(errors))
         if self.bkd().min(errors) / self.bkd().max(errors) < tol:
             return True
         return False

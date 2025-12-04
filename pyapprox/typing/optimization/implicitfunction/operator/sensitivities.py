@@ -9,7 +9,7 @@ from pyapprox.typing.optimization.implicitfunction.functionals.protocols import 
 from pyapprox.typing.optimization.implicitfunction.operator.storage import (
     AdjointOperatorStorage,
 )
-from pyapprox.typing.util.validate_backend import validate_backends
+from pyapprox.typing.util.backends.validation import validate_backends
 
 
 class VectorAdjointOperatorWithJacobian(Generic[Array]):

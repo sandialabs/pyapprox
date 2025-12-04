@@ -16,10 +16,9 @@ from pyapprox.typing.interface.functions.fromcallable.hessian import (
 from pyapprox.typing.util.backends.protocols import Array, Backend
 from pyapprox.typing.util.backends.numpy import NumpyBkd
 from pyapprox.typing.util.backends.torch import TorchBkd
-from pyapprox.typing.util.abstracttestcase import AbstractTestCase
 
 
-class TestFunction1D(Generic[Array], AbstractTestCase):
+class TestFunction1D(Generic[Array], unittest.TestCase):
     def bkd(self) -> Backend[Array]:
         """
         Override this method in derived classes to provide the specific
@@ -95,11 +94,11 @@ class TestFunction1D(Generic[Array], AbstractTestCase):
     def test_hvp(self) -> None:
         sample = self.samples[:, :1]
         hvp = self.function_with_hessian.hvp(sample, self.vec)
-        self.assertEqual(hvp.shape, (self.nvars,))
+        self.assertEqual(hvp.shape, (self.nvars, 1))
         self.bkd().assert_allclose(hvp, -self.bkd().sin(sample) * self.vec)
 
 
-class TestFunction3D(Generic[Array], AbstractTestCase):
+class TestFunction3D(Generic[Array], unittest.TestCase):
     def bkd(self) -> Backend[Array]:
         """
         Override this method in derived classes to provide the specific
@@ -182,7 +181,7 @@ class TestFunction3D(Generic[Array], AbstractTestCase):
     def test_hvp(self) -> None:
         sample = self.samples[:, :1]
         hvp = self.function_with_hessian.hvp(sample, self.vec)
-        self.assertEqual(hvp.shape, (self.nvars,))
+        self.assertEqual(hvp.shape, (self.nvars, 1))
         self.bkd().assert_allclose(hvp, self.example_hvp(sample, self.vec))
 
 
@@ -224,5 +223,27 @@ class TestFunction3DTorch(TestFunction3D[torch.Tensor], unittest.TestCase):
         return self._bkd
 
 
+# Custom test loader to exclude the base class
+def load_tests(
+    loader: unittest.TestLoader, tests, pattern: str
+) -> unittest.TestSuite:
+    """
+    Custom test loader to exclude the base class Function1D.
+    """
+    test_suite = unittest.TestSuite()
+    for test_class in [
+        TestFunction1DNumpy,
+        TestFunction1DTorch,
+        TestFunction3DNumpy,
+        TestFunction3DTorch,
+    ]:
+        test_suite.addTests(loader.loadTestsFromTestCase(test_class))
+    return test_suite
+
+
+# Main block to explicitly run tests using the custom loader
 if __name__ == "__main__":
-    unittest.main()
+    loader = unittest.TestLoader()
+    suite = load_tests(loader, [], None)
+    runner = unittest.TextTestRunner()
+    runner.run(suite)

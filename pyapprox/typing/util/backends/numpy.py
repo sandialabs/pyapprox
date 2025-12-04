@@ -334,3 +334,29 @@ class NumpyBkd(Backend[NDArray[Any]]):  # Specify NDArray type
     @staticmethod
     def isnan(array: NDArray[Any]) -> NDArray[Any]:
         return np.isnan(array)
+
+    @staticmethod
+    def get_diagonal(
+        array: NDArray[Any], offset: int = 0, axis1: int = 0, axis2: int = 1
+    ) -> NDArray[Any]:
+        return np.diagonal(array, offset, axis1=axis1, axis2=axis2)
+
+    @staticmethod
+    def cdist(
+        XA: NDArray[Any], XB: NDArray[Any], p: float = 2.0
+    ) -> NDArray[Any]:
+        if p == 1.0:
+            metric = "manhattan"
+        elif p == 2.0:
+            metric = "euclidean"
+        else:
+            raise ValueError("p must be either 1.0 or 2.0")
+        return scipy.spatial.distance.cdist(XA, XB, metric)
+
+    @staticmethod
+    def tril(array: NDArray[Any], k: int = 0) -> NDArray[Any]:
+        return np.tril(array, k)
+
+    @staticmethod
+    def triu(array: NDArray[Any], k: int = 0) -> NDArray[Any]:
+        return np.tril(array, k)

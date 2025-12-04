@@ -416,3 +416,17 @@ class Backend(Protocol, Generic[Array]):
 
     @staticmethod
     def isnan(array: Array) -> Array: ...
+
+    @staticmethod
+    def get_diagonal(
+        array: Array, offset: int = 0, axis1: int = 0, axis2: int = 1
+    ) -> Array: ...
+
+    @staticmethod
+    def cdist(XA: Array, XB: Array, p: float = 2.0) -> Array: ...
+
+    @staticmethod
+    def tril(array: Array, k: int = 0) -> Array: ...
+
+    @staticmethod
+    def triu(array: Array, k: int = 0) -> Array: ...

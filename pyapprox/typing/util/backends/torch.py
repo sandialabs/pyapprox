@@ -394,3 +394,23 @@ class TorchBkd(Backend[torch.Tensor]):  # Specify torch.Tensor type
     @staticmethod
     def isnan(array: torch.Tensor) -> torch.Tensor:
         return torch.isnan(array)
+
+    @staticmethod
+    def get_diagonal(
+        array: torch.Tensor, offset: int = 0, axis1: int = 0, axis2: int = 1
+    ) -> torch.Tensor:
+        return torch.diagonal(array, offset, dim1=axis1, dim2=axis2)
+
+    @staticmethod
+    def cdist(
+        XA: torch.Tensor, XB: torch.Tensor, p: float = 2.0
+    ) -> torch.Tensor:
+        return torch.cdist(XA, XB, p)
+
+    @staticmethod
+    def tril(array: torch.Tensor, k: int = 0) -> torch.Tensor:
+        return torch.tril(array, diagonal=k)
+
+    @staticmethod
+    def triu(array: torch.Tensor, k: int = 0) -> torch.Tensor:
+        return torch.tril(array, diagonal=k)

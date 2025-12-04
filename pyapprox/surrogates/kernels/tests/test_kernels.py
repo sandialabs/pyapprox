@@ -73,6 +73,7 @@ class TestKernels:
         kernel_copy = copy.deepcopy(kernel)
         X = bkd.array(np.random.uniform(-1, 1, (nvars, nsamples)))
         jacobian = kernel.param_jacobian(X)
+        kernel.input_jacobian(X, X)
         # The following loop prevents torch from throwing error
         # RuntimeError: Only Tensors created explicitly by the user...
         for hyp in kernel.hyp_list()._hyper_params:
