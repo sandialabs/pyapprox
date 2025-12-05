@@ -1,4 +1,4 @@
-from typing import Union, Tuple, List
+from typing import Union, Tuple, List, Optional
 
 from pyapprox.typing.util.backends.protocols import (
     Array,
@@ -17,13 +17,27 @@ class HyperParameterList:
     ----------
     hyperparam_list : list
         List of HyperParameter objects.
+    bkd : Backend[Array], optional
+        Backend to use if hyperparam_list is empty. If not provided and
+        hyperparam_list is empty, raises ValueError.
     """
 
-    def __init__(self, hyperparam_list: List[HyperParameter]):
+    def __init__(
+        self,
+        hyperparam_list: List[HyperParameter],
+        bkd: Optional[Backend[Array]] = None
+    ):
         """Initialize the HyperParameterList."""
-        self._validate_hyperparameters(hyperparam_list)
+        self._validate_hyperparameters(hyperparam_list, bkd)
         self._hyperparam_list = hyperparam_list
-        self._bkd = self._hyperparam_list[0].bkd()
+        if hyperparam_list:
+            self._bkd = self._hyperparam_list[0].bkd()
+        elif bkd is not None:
+            self._bkd = bkd
+        else:
+            raise ValueError(
+                "Backend must be provided for empty hyperparameter list"
+            )
 
     def bkd(self) -> Backend[Array]:
         """
@@ -37,18 +51,23 @@ class HyperParameterList:
         return self._bkd
 
     def _validate_hyperparameters(
-        self, hyperparam_list: List[HyperParameter]
+        self,
+        hyperparam_list: List[HyperParameter],
+        bkd: Optional[Backend[Array]]
     ) -> None:
         """
         Validate the list of hyperparameters.
 
         Ensures that all hyperparameters use the same backend and are valid.
         """
-        if not hyperparam_list:
-            raise ValueError("The hyperparameter list cannot be empty.")
+        if not hyperparam_list and bkd is None:
+            raise ValueError(
+                "Backend must be provided for empty hyperparameter list"
+            )
 
-        # Ensure all hyperparameters use the same backend
-        validate_backends([hyperparam.bkd() for hyperparam in hyperparam_list])
+        # Ensure all hyperparameters use the same backend (skip if empty)
+        if hyperparam_list:
+            validate_backends([hyperparam.bkd() for hyperparam in hyperparam_list])
 
     def hyperparameters(self) -> List[HyperParameter]:
         """
@@ -88,6 +107,9 @@ class HyperParameterList:
         active_indices : Array
             Active indices of the hyperparameters.
         """
+        if not self._hyperparam_list:
+            return self._bkd.array([])
+
         cnt = 0
         active_indices = []
         for hyp in self._hyperparam_list:
@@ -146,6 +168,9 @@ class HyperParameterList:
         values : Array
             Values of the parameters in the user space.
         """
+        if not self._hyperparam_list:
+            return self._bkd.array([])
+
         return self._bkd.hstack(
             [hyp.get_values() for hyp in self._hyperparam_list]
         )
@@ -173,6 +198,9 @@ class HyperParameterList:
         bounds : Array
             Flattened bounds of the parameters in the user space.
         """
+        if not self._hyperparam_list:
+            return self._bkd.array([]).reshape((0, 2))
+
         return self._bkd.vstack(
             [hyp.get_bounds() for hyp in self._hyperparam_list]
         )
@@ -186,6 +214,9 @@ class HyperParameterList:
         active_values : Array
             Values of the active parameters in the optimization space.
         """
+        if not self._hyperparam_list:
+            return self._bkd.array([])
+
         return self._bkd.hstack(
             [hyp.get_active_values() for hyp in self._hyperparam_list]
         )

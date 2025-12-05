@@ -1,0 +1,475 @@
+"""
+Exact Gaussian Process regression implementation.
+
+This module provides the ExactGaussianProcess class which performs
+full GP regression using Cholesky factorization for numerical stability.
+"""
+
+import numpy as np
+from typing import Generic, Optional
+from pyapprox.typing.util.backends.protocols import Array, Backend
+from pyapprox.typing.surrogates.kernels.protocols import Kernel
+from pyapprox.typing.surrogates.gaussianprocess.data import GPTrainingData
+from pyapprox.typing.surrogates.gaussianprocess.mean_functions import (
+    MeanFunction,
+    ZeroMean
+)
+from pyapprox.typing.util.hyperparameter import HyperParameterList
+from pyapprox.typing.util.linalg.cholesky_factor import CholeskyFactor
+
+
+class ExactGaussianProcess(Generic[Array]):
+    """
+    Exact Gaussian Process regression using Cholesky factorization.
+
+    This class implements full GP regression for the model:
+        Prior: f(x) ~ GP(m(x), k(x, x'))
+        Likelihood: y = f(x) + ε, ε ~ N(0, σ²I)
+
+    The posterior predictive distribution is:
+        f*|y ~ N(μ*, Σ*)
+    where:
+        μ* = m(x*) + k(x*, X)[K + σ²I]^{-1}(y - m(X))
+        Σ* = k(x*, x*) - k(x*, X)[K + σ²I]^{-1}k(X, x*)
+
+    Parameters
+    ----------
+    kernel : Kernel[Array]
+        Covariance kernel function.
+    nvars : int
+        Number of input variables (dimensions).
+    bkd : Backend[Array]
+        Backend for numerical operations.
+    mean_function : Optional[MeanFunction[Array]]
+        Mean function. If None, uses ZeroMean. Default is None.
+    noise_variance : float
+        Observation noise variance σ². Default is 1e-6.
+
+    Examples
+    --------
+    >>> from pyapprox.typing.surrogates.kernels import MaternKernel
+    >>> from pyapprox.typing.util.backends.numpy import NumpyBkd
+    >>> import numpy as np
+    >>>
+    >>> bkd = NumpyBkd()
+    >>> kernel = MaternKernel(2.5, [1.0, 1.0], (0.1, 10.0), 2, bkd)
+    >>> gp = ExactGaussianProcess(kernel, 2, bkd, noise_variance=0.1)
+    >>>
+    >>> X_train = bkd.array(np.random.randn(2, 10))
+    >>> y_train = bkd.array(np.random.randn(10, 1))
+    >>> gp.fit(X_train, y_train)
+    >>>
+    >>> X_test = bkd.array(np.random.randn(2, 5))
+    >>> mean = gp.predict(X_test)
+    >>> std = gp.predict_std(X_test)
+    """
+
+    def __init__(
+        self,
+        kernel: Kernel[Array],
+        nvars: int,
+        bkd: Backend[Array],
+        mean_function: Optional[MeanFunction[Array]] = None,
+        noise_variance: float = 1e-6
+    ):
+        self._kernel = kernel
+        self._nvars = nvars
+        self._bkd = bkd
+
+        # Set mean function (default to zero mean)
+        if mean_function is None:
+            self._mean = ZeroMean(bkd)
+        else:
+            self._mean = mean_function
+
+        # Noise variance
+        if noise_variance <= 0:
+            raise ValueError(
+                f"noise_variance must be positive, got {noise_variance}"
+            )
+        self._noise_variance = noise_variance
+
+        # Training data (set during fit)
+        self._data: Optional[GPTrainingData[Array]] = None
+
+        # Precomputed quantities (set during fit)
+        self._cholesky: Optional[CholeskyFactor[Array]] = None
+        self._alpha: Optional[Array] = None
+
+    def bkd(self) -> Backend[Array]:
+        """Return the backend."""
+        return self._bkd
+
+    def kernel(self) -> Kernel[Array]:
+        """Return the covariance kernel."""
+        return self._kernel
+
+    def nvars(self) -> int:
+        """Return the number of input variables."""
+        return self._nvars
+
+    def nqoi(self) -> int:
+        """
+        Return the number of quantities of interest (output dimensions).
+
+        Returns
+        -------
+        int
+            Number of output dimensions. Returns 1 if not fitted.
+        """
+        if self._data is None:
+            return 1  # Default to 1 if not fitted
+        return self._data.nqoi()
+
+    def is_fitted(self) -> bool:
+        """Check if the GP has been fitted."""
+        return self._data is not None
+
+    def hyp_list(self) -> HyperParameterList:
+        """
+        Return combined hyperparameter list.
+
+        Returns
+        -------
+        HyperParameterList
+            Combined list of kernel and mean function hyperparameters.
+        """
+        kernel_hyps = self._kernel.hyp_list()
+        mean_hyps = self._mean.hyp_list()
+
+        # Combine hyperparameter lists
+        all_hyps = kernel_hyps.hyperparameters() + mean_hyps.hyperparameters()
+        return HyperParameterList(all_hyps)
+
+    def fit(self, X_train: Array, y_train: Array) -> None:
+        """
+        Fit the Gaussian Process to training data.
+
+        This computes the Cholesky factorization of K + σ²I and
+        precomputes α = (K + σ²I)^{-1}(y - m(X)) for efficient
+        prediction.
+
+        Parameters
+        ----------
+        X_train : Array
+            Training input data, shape (nvars, n_train).
+        y_train : Array
+            Training output data, shape (n_train, nqoi).
+
+        Raises
+        ------
+        ValueError
+            If data shapes are invalid.
+        RuntimeError
+            If Cholesky factorization fails (matrix not positive definite).
+        """
+        # Validate and store training data
+        self._data = GPTrainingData(X_train, y_train, self._bkd)
+
+        # Check nvars matches
+        if self._data.nvars() != self._nvars:
+            raise ValueError(
+                f"X_train has {self._data.nvars()} variables, "
+                f"expected {self._nvars}"
+            )
+
+        # Compute kernel matrix K(X, X)
+        K = self._kernel(X_train, X_train)
+
+        # Add observation noise: K_noisy = K + σ²I
+        K_noisy = K + self._bkd.eye(K.shape[0]) * self._noise_variance
+
+        # Compute Cholesky factorization
+        try:
+            L = self._bkd.cholesky(K_noisy)
+            self._cholesky = CholeskyFactor(L, self._bkd)
+        except Exception as e:
+            raise RuntimeError(
+                "Cholesky factorization failed. The kernel matrix K + σ²I "
+                "may not be positive definite. Try increasing noise_variance. "
+                f"Original error: {e}"
+            )
+
+        # Precompute α = (K + σ²I)^{-1}(y - m(X))
+        mean_pred = self._mean(X_train)
+        residual = y_train - mean_pred
+        self._alpha = self._cholesky.solve(residual)
+
+    def predict(self, X: Array) -> Array:
+        """
+        Predict posterior mean at new input locations.
+
+        Parameters
+        ----------
+        X : Array
+            Input locations, shape (nvars, n_test).
+
+        Returns
+        -------
+        Array
+            Posterior mean, shape (n_test, nqoi).
+
+        Raises
+        ------
+        RuntimeError
+            If the GP has not been fitted.
+        """
+        if not self.is_fitted():
+            raise RuntimeError("GP must be fitted before making predictions")
+
+        # Prior mean
+        mean_prior = self._mean(X)
+
+        # Compute k(X*, X)
+        K_star = self._kernel(X, self._data.X())
+
+        # Posterior mean: μ* = m(X*) + k(X*, X) α
+        mean_posterior = mean_prior + K_star @ self._alpha
+
+        return mean_posterior
+
+    def __call__(self, X: Array) -> Array:
+        """
+        Predict posterior mean (alias for predict).
+
+        Returns predictions in format (nqoi, n_test) for compatibility
+        with FunctionProtocol plotting utilities.
+        """
+        # predict() returns (n_test, nqoi), transpose to (nqoi, n_test)
+        return self.predict(X).T
+
+    def predict_std(self, X: Array) -> Array:
+        """
+        Predict posterior standard deviation at new input locations.
+
+        Parameters
+        ----------
+        X : Array
+            Input locations, shape (nvars, n_test).
+
+        Returns
+        -------
+        Array
+            Posterior standard deviation, shape (n_test, nqoi).
+
+        Raises
+        ------
+        RuntimeError
+            If the GP has not been fitted.
+        """
+        if not self.is_fitted():
+            raise RuntimeError("GP must be fitted before making predictions")
+
+        # Compute k(X*, X)
+        K_star = self._kernel(X, self._data.X())
+
+        # Compute k(X*, X*)
+        K_star_star = self._kernel.diag(X)
+
+        # Solve L v = k(X, X*)^T for v where L is Cholesky factor
+        v = self._bkd.solve_triangular(
+            self._cholesky.factor(), K_star.T, lower=True
+        )
+
+        # Posterior variance: var* = k(X*, X*) - v^T v
+        var_posterior = K_star_star - self._bkd.einsum("ij,ij->j", v, v)
+
+        # Ensure non-negative (numerical stability - clamp negative values to zero)
+        # Use array operations: multiply by mask to zero out negative values
+        var_posterior = var_posterior * (var_posterior >= 0.0)
+
+        # Standard deviation
+        std = self._bkd.sqrt(var_posterior)
+
+        # Reshape to (n_test, nqoi) - tile for each output
+        nqoi = self._data.nqoi()
+        std = self._bkd.reshape(std, (std.shape[0], 1))
+        std = self._bkd.tile(std, (1, nqoi))
+
+        return std
+
+    def jacobian(self, sample: Array) -> Array:
+        """
+        Compute the Jacobian of the GP mean with respect to inputs.
+
+        For a GP with mean m(x) and covariance k(x, x'), the posterior mean is:
+            μ*(x) = m(x) + k(x, X) α
+        where α = [K + σ²I]^{-1}(y - m(X)).
+
+        The Jacobian is:
+            ∂μ*/∂x = ∂m/∂x + ∂k(x, X)/∂x @ α
+
+        For ZeroMean and ConstantMean, ∂m/∂x = 0.
+
+        Parameters
+        ----------
+        sample : Array
+            Input locations, shape (nvars, n_samples).
+
+        Returns
+        -------
+        Array
+            Jacobian of shape (nqoi, nvars) for single sample or
+            (n_samples, nqoi, nvars) for multiple samples.
+
+        Raises
+        ------
+        RuntimeError
+            If the GP has not been fitted.
+        """
+        if not self.is_fitted():
+            raise RuntimeError("GP must be fitted before computing Jacobian")
+
+        # Kernel Jacobian: ∂k(x, X)/∂x has shape (n_samples, n_train, nvars)
+        K_jac = self._kernel.jacobian(sample, self._data.X())
+
+        # For each sample point, compute: ∂k(x, X)/∂x @ α
+        # K_jac shape: (n_samples, n_train, nvars)
+        # α shape: (n_train, nqoi)
+        # Result shape: (n_samples, nqoi, nvars) - using einsum to get right order
+        jac = self._bkd.einsum("ijk,jl->ilk", K_jac, self._alpha)
+
+        # If single sample, remove first dimension to get (nqoi, nvars)
+        if sample.shape[1] == 1:
+            jac = jac[0, :, :]
+
+        return jac
+
+    def predict_covariance(self, X: Array) -> Array:
+        """
+        Predict full posterior covariance matrix.
+
+        Parameters
+        ----------
+        X : Array
+            Input locations, shape (nvars, n_test).
+
+        Returns
+        -------
+        Array
+            Posterior covariance matrix, shape (n_test, n_test) for
+            single output (nqoi=1), or (n_test*nqoi, n_test*nqoi) for
+            multiple outputs with block structure.
+
+        Raises
+        ------
+        RuntimeError
+            If the GP has not been fitted.
+        """
+        if not self.is_fitted():
+            raise RuntimeError("GP must be fitted before making predictions")
+
+        n_test = X.shape[1]
+        nqoi = self._data.nqoi()
+
+        # Compute k(X*, X)
+        K_star = self._kernel(X, self._data.X())
+
+        # Compute k(X*, X*)
+        K_star_star = self._kernel(X, X)
+
+        # Solve L v = k(X, X*)^T for v
+        v = self._bkd.solve_triangular(
+            self._cholesky.factor(), K_star.T, lower=True
+        )
+
+        # Posterior covariance: Σ* = k(X*, X*) - v^T v
+        cov_posterior = K_star_star - v.T @ v
+
+        # Ensure symmetry and positive semi-definiteness
+        cov_posterior = 0.5 * (cov_posterior + cov_posterior.T)
+
+        if nqoi == 1:
+            return cov_posterior
+        else:
+            # For multiple outputs, create block diagonal structure
+            # Each output has the same covariance
+            cov_full = self._bkd.zeros((n_test * nqoi, n_test * nqoi))
+            for i in range(nqoi):
+                start = i * n_test
+                end = (i + 1) * n_test
+                cov_full[start:end, start:end] = cov_posterior
+
+            return cov_full
+
+    def neg_log_marginal_likelihood(self) -> float:
+        """
+        Compute the negative log marginal likelihood.
+
+        The negative log marginal likelihood is:
+            -log p(y | X, θ) = 0.5 * [y^T K^{-1} y + log|K| + n log(2π)]
+
+        where K = K(X, X) + σ²I.
+
+        Returns
+        -------
+        float
+            Negative log marginal likelihood value.
+
+        Raises
+        ------
+        RuntimeError
+            If the GP has not been fitted.
+        """
+        if not self.is_fitted():
+            raise RuntimeError(
+                "GP must be fitted before computing marginal likelihood"
+            )
+
+        n = self._data.n_samples()
+
+        # Data fit term: (y - m)^T (K + σ²I)^{-1} (y - m) = (y - m)^T α
+        mean_pred = self._mean(self._data.X())
+        residual = self._data.y() - mean_pred
+        data_fit = float(self._bkd.sum(residual * self._alpha))
+
+        # Complexity penalty: log|K + σ²I|
+        log_det = self._cholesky.log_determinant()
+
+        # Constant term
+        constant = n * np.log(2 * np.pi)
+
+        # Total negative log marginal likelihood
+        nlml = 0.5 * (data_fit + log_det + constant)
+
+        return nlml
+
+    def optimize_hyperparameters(
+        self,
+        optimizer: Optional[object] = None
+    ) -> None:
+        """
+        Optimize hyperparameters by minimizing negative log marginal likelihood.
+
+        This method will be implemented to use typing.optimization.minimize
+        optimizers for hyperparameter optimization.
+
+        Parameters
+        ----------
+        optimizer : Optional[object]
+            Optimizer instance. If None, uses default optimizer.
+
+        Raises
+        ------
+        RuntimeError
+            If the GP has not been fitted.
+        NotImplementedError
+            Currently not implemented (placeholder for future).
+        """
+        if not self.is_fitted():
+            raise RuntimeError(
+                "GP must be fitted before optimizing hyperparameters"
+            )
+
+        raise NotImplementedError(
+            "Hyperparameter optimization will be implemented in a future update"
+        )
+
+    def __repr__(self) -> str:
+        """Return string representation."""
+        fitted_str = "fitted" if self.is_fitted() else "not fitted"
+        return (
+            f"ExactGaussianProcess(kernel={self._kernel.__class__.__name__}, "
+            f"nvars={self._nvars}, noise_variance={self._noise_variance}, "
+            f"mean={self._mean.__class__.__name__}, {fitted_str})"
+        )
