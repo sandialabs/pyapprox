@@ -33,6 +33,27 @@ def validate_nonlinear_constraint(obj: object) -> None:
         )
 
 
+def validate_linear_constraint(obj: object) -> None:
+    """
+    Validate that the given object is a linear constraint.
+
+    Parameters
+    ----------
+    obj : object
+        The object to validate.
+
+    Raises
+    ------
+    TypeError
+        If the object is not a PyApproxLinearConstraint.
+    """
+    if not isinstance(obj, PyApproxLinearConstraint):
+        raise TypeError(
+            "The provided object must be a PyApproxLinearConstraint. "
+            f"Got an object of type {type(obj).__name__}."
+        )
+
+
 def validate_constraints(constraints: Sequence[Any]) -> None:
     """
     Validate that all objects in the list satisfy one of the constraint protocols
