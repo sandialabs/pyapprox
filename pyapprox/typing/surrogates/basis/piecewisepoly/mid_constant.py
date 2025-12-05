@@ -101,7 +101,7 @@ class PiecewiseConstantMidpoint(Generic[Array]):
         """
         return self._nodes
 
-    def bkd(self) -> Backend:
+    def bkd(self) -> Backend[Array]:
         """
         Return the backend used for computations.
 
