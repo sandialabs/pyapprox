@@ -142,6 +142,11 @@ class Backend(Protocol, Generic[Array]):
     ) -> Array: ...
 
     @staticmethod
+    def concatenate(
+        arrays: Union[List[Array], Tuple[Array, ...]], axis: int = 0
+    ) -> Array: ...
+
+    @staticmethod
     def hstack(
         arrays: Union[List[Array], Tuple[Array, ...]],
     ) -> Array: ...

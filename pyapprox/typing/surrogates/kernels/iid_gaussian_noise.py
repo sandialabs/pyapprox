@@ -1,0 +1,216 @@
+"""
+IID Gaussian noise kernel for modeling independent observation noise.
+
+This module provides the IIDGaussianNoise kernel, which models independent
+and identically distributed Gaussian noise in Gaussian process regression.
+"""
+
+from typing import Tuple
+
+from pyapprox.typing.util.hyperparameter import LogHyperParameter
+from pyapprox.typing.util.hyperparameter import HyperParameterList
+from pyapprox.typing.util.backends.protocols import Array, Backend
+from pyapprox.typing.surrogates.kernels.protocols import Kernel
+
+
+class IIDGaussianNoise(Kernel):
+    """
+    IID Gaussian noise kernel for modeling independent observation noise.
+
+    This kernel represents uncorrelated noise:
+    - K(X, X) = σ² * I (identity matrix scaled by noise variance)
+    - K(X, X') = 0 for X ≠ X' (no correlation between different points)
+
+    This is essential for Gaussian process regression where observations
+    are assumed to be noisy: y = f(x) + ε, where ε ~ N(0, σ²I).
+
+    Parameters
+    ----------
+    noise_level : float
+        The noise variance σ².
+    noise_bounds : Tuple[float, float]
+        Bounds for the noise level parameter.
+    bkd : Backend
+        Backend for numerical computations.
+    fixed : bool, optional
+        Whether the hyperparameter is fixed (default is False).
+
+    Examples
+    --------
+    >>> from pyapprox.typing.surrogates.kernels import MaternKernel, IIDGaussianNoise
+    >>> from pyapprox.typing.util.backends.numpy import NumpyBkd
+    >>> bkd = NumpyBkd()
+    >>> matern = MaternKernel(2.5, [1.0, 1.0], (0.1, 10.0), 2, bkd)
+    >>> noise = IIDGaussianNoise(0.1, (0.01, 1.0), bkd)
+    >>> gp_kernel = matern + noise  # GP kernel with observation noise
+    """
+
+    def __init__(
+        self,
+        noise_level: float,
+        noise_bounds: Tuple[float, float],
+        bkd: Backend[Array],
+        fixed: bool = False,
+    ):
+        """
+        Initialize the IIDGaussianNoise kernel.
+
+        Parameters
+        ----------
+        noise_level : float
+            The noise variance σ².
+        noise_bounds : Tuple[float, float]
+            Bounds for the noise level parameter.
+        bkd : Backend[Array]
+            Backend for numerical computations.
+        fixed : bool, optional
+            Whether the hyperparameter is fixed (default is False).
+        """
+        super().__init__(bkd)
+
+        # Use LogHyperParameter to ensure noise level is positive
+        self._log_noise_level = LogHyperParameter(
+            "noise_level",
+            1,  # Scalar parameter
+            [noise_level],
+            noise_bounds,
+            bkd=self._bkd,
+            fixed=fixed,
+        )
+        self._hyp_list = HyperParameterList([self._log_noise_level])
+
+    def hyp_list(self) -> HyperParameterList:
+        """
+        Return the list of hyperparameters associated with the kernel.
+
+        Returns
+        -------
+        hyp_list : HyperParameterList
+            List of hyperparameters.
+        """
+        return self._hyp_list
+
+    def nvars(self) -> int:
+        """
+        Return the number of input variables.
+
+        For IIDGaussianNoise, this is inferred from the input data shape
+        and not stored as an attribute.
+
+        Returns
+        -------
+        nvars : int
+            Returns 0 as IIDGaussianNoise doesn't depend on input dimensions.
+        """
+        # IIDGaussianNoise doesn't have spatial dependence, so nvars is ambiguous.
+        # We return 0 to indicate it works with any number of dimensions.
+        return 0
+
+    def diag(self, X1: Array) -> Array:
+        """
+        Return the diagonal of the kernel matrix.
+
+        For IIDGaussianNoise, the diagonal is a vector of noise level values.
+
+        Parameters
+        ----------
+        X1 : Array
+            Input data, shape (nvars, n).
+
+        Returns
+        -------
+        diag : Array
+            Diagonal of the kernel matrix, shape (n,).
+        """
+        n = X1.shape[1]
+        noise_level = self._log_noise_level.exp_values()[0]
+        return self._bkd.full((n,), noise_level)
+
+    def __call__(self, X1: Array, X2: Array = None) -> Array:
+        """
+        Compute the IID Gaussian noise kernel matrix.
+
+        Parameters
+        ----------
+        X1 : Array
+            Input data, shape (nvars, n1).
+        X2 : Array, optional
+            Input data, shape (nvars, n2). If None, uses X1.
+
+        Returns
+        -------
+        K : Array
+            IID Gaussian noise kernel matrix.
+            - If X2 is None: diagonal matrix σ²*I, shape (n1, n1)
+            - If X2 is provided: zeros, shape (n1, n2)
+              (no correlation between different inputs)
+        """
+        n1 = X1.shape[1]
+        noise_level = self._log_noise_level.exp_values()[0]
+
+        if X2 is None:
+            # Self-covariance: return diagonal matrix
+            return self._bkd.eye(n1) * noise_level
+        else:
+            # Cross-covariance: return zeros (no correlation)
+            n2 = X2.shape[1]
+            return self._bkd.zeros((n1, n2))
+
+    def jacobian(self, X1: Array, X2: Array) -> Array:
+        """
+        Compute Jacobian of IID Gaussian noise kernel w.r.t. inputs.
+
+        Since the IID Gaussian noise kernel has no spatial dependence,
+        the Jacobian is zero everywhere.
+
+        Parameters
+        ----------
+        X1 : Array
+            Input data, shape (nvars, n1).
+        X2 : Array
+            Input data, shape (nvars, n2).
+
+        Returns
+        -------
+        jac : Array
+            Jacobian, shape (n1, n2, nvars). All zeros.
+        """
+        n1 = X1.shape[1]
+        n2 = X2.shape[1]
+        nvars = X1.shape[0]
+
+        return self._bkd.zeros((n1, n2, nvars))
+
+    def jacobian_wrt_params(self, samples: Array) -> Array:
+        """
+        Compute Jacobian of IID Gaussian noise kernel w.r.t. hyperparameters.
+
+        For IIDGaussianNoise with log-parameterization:
+        K = σ² * I (diagonal matrix)
+        log_σ² = log(σ²)
+        dK/d(log_σ²) = dK/dσ² * dσ²/d(log_σ²) = I * σ² = σ² * I
+
+        Parameters
+        ----------
+        samples : Array
+            Input data, shape (nvars, n).
+
+        Returns
+        -------
+        jac : Array
+            Jacobian, shape (n, n, 1).
+            - Diagonal entries: σ² (noise level)
+            - Off-diagonal entries: 0
+        """
+        n = samples.shape[1]
+        noise_level = self._log_noise_level.exp_values()[0]
+
+        # Create jacobian tensor (n, n, 1)
+        jac = self._bkd.zeros((n, n, 1))
+
+        # Set diagonal to noise_level
+        # jac[i, i, 0] = noise_level for all i
+        for i in range(n):
+            jac[i, i, 0] = noise_level
+
+        return jac

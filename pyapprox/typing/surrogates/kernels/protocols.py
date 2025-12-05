@@ -203,6 +203,42 @@ class Kernel(ABC, Generic[Array]):
         """
         raise NotImplementedError()
 
+    def __mul__(self, other: "Kernel") -> "ProductKernel":
+        """
+        Multiply two kernels element-wise.
+
+        Parameters
+        ----------
+        other : Kernel
+            Another kernel to multiply with.
+
+        Returns
+        -------
+        product_kernel : ProductKernel
+            Product of the two kernels.
+        """
+        from pyapprox.typing.surrogates.kernels.composition import ProductKernel
+
+        return ProductKernel(self, other)
+
+    def __add__(self, other: "Kernel") -> "SumKernel":
+        """
+        Add two kernels element-wise.
+
+        Parameters
+        ----------
+        other : Kernel
+            Another kernel to add.
+
+        Returns
+        -------
+        sum_kernel : SumKernel
+            Sum of the two kernels.
+        """
+        from pyapprox.typing.surrogates.kernels.composition import SumKernel
+
+        return SumKernel(self, other)
+
     def __repr__(self) -> str:
         """
         Return a string representation of the Kernel.

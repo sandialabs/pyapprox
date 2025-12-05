@@ -237,13 +237,16 @@ class MaternKernel(Kernel):
             # For nu = 5/2
             tmp = math.sqrt(5) * distances
             tmp2 = (
-                (X1.T[:, None, :] - X1.T[None, :, :])  # / lenscale**2
+                (X1.T[:, None, :] - X1.T[None, :, :]) / lenscale**2
             ) ** 2  # Shape: (n, n, d)
             jac = tmp2 * Kmat[..., None]  # Shape: (n, n, d)
-            jac *= (tmp**2 / 3.0 - tmp - 1.0)[..., None]  # Adjust for nu = 5/2
+            # Correct factor from symbolic differentiation:
+            # dK/d(log ℓ) = K * (Δ²/ℓ²) * 5*(√5*r + 1)/(5*r² + 3*√5*r + 3)
+            # where tmp = √5*r, so denominator = tmp² + 3*tmp + 3
+            jac *= (5.0 * (tmp + 1.0) / (tmp**2 + 3.0 * tmp + 3.0))[..., None]
 
             # Adjust for log(lenscale) using chain rule
-            # jac *= lenscale**2  # Multiply by lenscale^2
+            jac *= lenscale**2  # Multiply by lenscale^2
             return jac
 
         if self._nu == 3 / 2:
@@ -253,7 +256,10 @@ class MaternKernel(Kernel):
                 (X1.T[:, None, :] - X1.T[None, :, :]) / lenscale**2
             ) ** 2  # Shape: (n, n, d)
             jac = tmp2 * Kmat[..., None]  # Shape: (n, n, d)
-            jac *= (tmp - 1.0)[..., None]  # Adjust for nu = 3/2
+            # Correct factor from symbolic differentiation:
+            # dK/d(log ℓ) = K * (Δ²/ℓ²) * 3/(√3*r + 1)
+            # where tmp = √3*r
+            jac *= (3.0 / (tmp + 1.0))[..., None]
 
             # Adjust for log(lenscale) using chain rule
             jac *= lenscale**2  # Multiply by lenscale^2

@@ -91,6 +91,13 @@ class TorchBkd(Backend[torch.Tensor]):  # Specify torch.Tensor type
         return torch.stack(arrays, dim=axis)
 
     @staticmethod
+    def concatenate(
+        arrays: Union[List[torch.Tensor], Tuple[torch.Tensor, ...]],
+        axis: int = 0,
+    ) -> torch.Tensor:
+        return torch.cat(arrays, dim=axis)
+
+    @staticmethod
     def hstack(
         arrays: Union[List[torch.Tensor], Tuple[torch.Tensor, ...]],
     ) -> torch.Tensor:
