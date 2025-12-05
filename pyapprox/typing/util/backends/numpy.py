@@ -325,7 +325,7 @@ class NumpyBkd(Backend[NDArray[Any]]):  # Specify NDArray type
 
     @staticmethod
     def atleast_2d(array: NDArray[Any]) -> NDArray[Any]:
-        return np.atleast_1d(array)
+        return np.atleast_2d(array)
 
     @staticmethod
     def tile(array: NDArray[Any], reps: Tuple[int, ...]) -> NDArray[Any]:
@@ -359,4 +359,4 @@ class NumpyBkd(Backend[NDArray[Any]]):  # Specify NDArray type
 
     @staticmethod
     def triu(array: NDArray[Any], k: int = 0) -> NDArray[Any]:
-        return np.tril(array, k)
+        return np.triu(array, k)

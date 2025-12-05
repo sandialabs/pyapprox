@@ -1,4 +1,4 @@
-from typing import Protocol, Generic, Optional
+from typing import Protocol, Generic, Optional, runtime_checkable
 
 from pyapprox.typing.util.backends.protocols import Array, Backend
 from pyapprox.typing.optimization.minimize.scipy.scipy_result import (
@@ -6,6 +6,7 @@ from pyapprox.typing.optimization.minimize.scipy.scipy_result import (
 )
 
 
+@runtime_checkable
 class OptimizerProtocol(Protocol, Generic[Array]):
     """
     This protocol defines the required methods and attributes for an optimizer
