@@ -436,34 +436,96 @@ class ExactGaussianProcess(Generic[Array]):
 
     def optimize_hyperparameters(
         self,
-        optimizer: Optional[object] = None
+        optimizer: Optional[object] = None,
+        init_guess: Optional[Array] = None
     ) -> None:
         """
         Optimize hyperparameters by minimizing negative log marginal likelihood.
 
-        This method will be implemented to use typing.optimization.minimize
-        optimizers for hyperparameter optimization.
+        Uses typing.optimization.minimize optimizers to find optimal hyperparameters
+        by minimizing the negative log marginal likelihood.
 
         Parameters
         ----------
         optimizer : Optional[object]
-            Optimizer instance. If None, uses default optimizer.
+            Optimizer instance (e.g., ScipyTrustConstrOptimizer,
+            ScipyDifferentialEvolutionOptimizer). If None, uses
+            ScipyTrustConstrOptimizer with verbosity=0 and maxiter=1000.
+        init_guess : Optional[Array]
+            Initial guess for hyperparameters in optimization space.
+            If None, uses current hyperparameter values.
 
         Raises
         ------
         RuntimeError
             If the GP has not been fitted.
-        NotImplementedError
-            Currently not implemented (placeholder for future).
+
+        Examples
+        --------
+        >>> from pyapprox.typing.surrogates.kernels import MaternKernel
+        >>> from pyapprox.typing.util.backends.numpy import NumpyBkd
+        >>> import numpy as np
+        >>>
+        >>> bkd = NumpyBkd()
+        >>> kernel = MaternKernel(2.5, [1.0, 1.0], (0.1, 10.0), 2, bkd)
+        >>> gp = ExactGaussianProcess(kernel, 2, bkd, noise_variance=0.1)
+        >>>
+        >>> X_train = bkd.array(np.random.randn(2, 20))
+        >>> y_train = bkd.array(np.random.randn(20, 1))
+        >>> gp.fit(X_train, y_train)
+        >>>
+        >>> # Optimize hyperparameters using default optimizer
+        >>> gp.optimize_hyperparameters()
         """
         if not self.is_fitted():
             raise RuntimeError(
                 "GP must be fitted before optimizing hyperparameters"
             )
 
-        raise NotImplementedError(
-            "Hyperparameter optimization will be implemented in a future update"
+        from pyapprox.typing.surrogates.gaussianprocess.loss import (
+            NegativeLogMarginalLikelihoodLoss
         )
+
+        # Create loss function
+        loss = NegativeLogMarginalLikelihoodLoss(
+            self, self._data.X(), self._data.y()
+        )
+
+        # Get bounds for hyperparameters
+        bounds = self.hyp_list().get_bounds()
+
+        # Get initial guess
+        if init_guess is None:
+            init_guess = self.hyp_list().get_active_values()
+
+        # Reshape init_guess to (n, 1) if it's 1D
+        if len(init_guess.shape) == 1:
+            init_guess = self._bkd.reshape(init_guess, (len(init_guess), 1))
+
+        # Create optimizer if not provided
+        if optimizer is None:
+            from pyapprox.typing.optimization.minimize.scipy.trust_constr import (
+                ScipyTrustConstrOptimizer
+            )
+            optimizer = ScipyTrustConstrOptimizer(
+                objective=loss,
+                bounds=bounds,
+                verbosity=0,
+                maxiter=1000
+            )
+
+        # Run optimization
+        result = optimizer.minimize(init_guess)
+
+        # Update hyperparameters with optimal values
+        # optima() returns shape (n, 1), flatten to 1D for set_active_values
+        optimal_params = result.optima()
+        if len(optimal_params.shape) == 2:
+            optimal_params = optimal_params[:, 0]
+        self.hyp_list().set_active_values(optimal_params)
+
+        # Refit with optimal hyperparameters
+        self.fit(self._data.X(), self._data.y())
 
     def __repr__(self) -> str:
         """Return string representation."""
