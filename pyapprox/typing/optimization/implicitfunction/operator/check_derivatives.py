@@ -1,4 +1,4 @@
-from typing import Optional, List, Generic, Protocol, runtime_checkable
+from typing import Optional, List, Generic
 import unittest  # Enable check_derivatives with good error messages
 
 from pyapprox.typing.util.backends.protocols import Array, Backend
@@ -22,8 +22,8 @@ from pyapprox.typing.optimization.implicitfunction.operator.sensitivities import
 from pyapprox.typing.interface.functions.protocols.validation import (
     validate_sample,
 )
-from pyapprox.typing.optimization.implicitfunction.operator.storage import (
-    AdjointOperatorStorage,
+from pyapprox.typing.optimization.implicitfunction.operator.protocols import (
+    AdjointOperatorWithJacobianProtocol,
 )
 from pyapprox.typing.optimization.implicitfunction.state_equations.protocols import (
     ParameterizedStateEquationWithJacobianProtocol,
@@ -32,23 +32,6 @@ from pyapprox.typing.optimization.implicitfunction.state_equations.protocols imp
 from pyapprox.typing.optimization.implicitfunction.functionals.protocols import (
     ParameterizedFunctionalWithJacobianProtocol,
 )
-
-
-@runtime_checkable
-class AdjointOperatorWithJacobianProtocol(Generic[Array], Protocol):
-    def bkd(self) -> Backend[Array]: ...
-
-    def jacobian(self, init_fwd_state: Array, param: Array) -> Array: ...
-
-    def storage(self) -> AdjointOperatorStorage: ...
-
-    def state_equation(
-        self,
-    ) -> ParameterizedStateEquationWithJacobianProtocol[Array]: ...
-
-    def functional(
-        self,
-    ) -> ParameterizedFunctionalWithJacobianProtocol[Array]: ...
 
 
 class ImplicitFunctionDerivativeChecker(Generic[Array]):
