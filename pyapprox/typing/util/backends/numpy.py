@@ -78,6 +78,13 @@ class NumpyBkd(Backend[NDArray[Any]]):  # Specify NDArray type
         return np.stack(arrays, axis=axis)
 
     @staticmethod
+    def concatenate(
+        arrays: Union[List[NDArray[Any]], Tuple[NDArray[Any], ...]],
+        axis: int = 0,
+    ) -> NDArray[Any]:
+        return np.concatenate(arrays, axis=axis)
+
+    @staticmethod
     def hstack(
         arrays: Union[List[NDArray[Any]], Tuple[NDArray[Any], ...]],
     ) -> NDArray[Any]:

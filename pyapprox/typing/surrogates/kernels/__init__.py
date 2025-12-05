@@ -16,12 +16,29 @@ Key Classes
 -----------
 - Kernel: Abstract base class for kernel implementations
 
+Kernel Implementations
+---------------------
+- MaternKernel: Matérn kernel for varying levels of smoothness
+- ConstantKernel: Constant kernel for scaling or offset
+- IIDGaussianNoise: Independent Gaussian noise kernel
+
+Composition Kernels
+------------------
+- CompositionKernel: Base class for kernel compositions
+- ProductKernel: Product of two kernels (element-wise multiplication)
+- SumKernel: Sum of two kernels (element-wise addition)
+
 Examples
 --------
->>> from pyapprox.typing.surrogates.kernels import KernelProtocol
->>> def fit_gp(kernel: KernelProtocol, X, y):
-...     K = kernel(X, X)
-...     # Fit Gaussian process
+>>> from pyapprox.typing.surrogates.kernels import MaternKernel, ConstantKernel, IIDGaussianNoise
+>>> from pyapprox.typing.util.backends.numpy import NumpyBkd
+>>> bkd = NumpyBkd()
+>>> # Create individual kernels
+>>> matern = MaternKernel(2.5, [1.0, 1.0], (0.1, 10.0), 2, bkd)
+>>> constant = ConstantKernel(2.0, (0.1, 10.0), bkd)
+>>> noise = IIDGaussianNoise(0.1, (0.01, 1.0), bkd)
+>>> # Compose kernels using operators
+>>> gp_kernel = matern * constant + noise
 """
 
 from .protocols import (
@@ -32,12 +49,30 @@ from .protocols import (
     KernelWithJacobianAndParameterJacobianProtocol,
     Kernel,
 )
+from .matern import MaternKernel
+from .composition import (
+    CompositionKernel,
+    ProductKernel,
+    SumKernel,
+)
+from .constant import ConstantKernel
+from .iid_gaussian_noise import IIDGaussianNoise
 
 __all__ = [
+    # Protocols
     "KernelProtocol",
     "KernelHasJacobianProtocol",
     "KernelHasParameterJacobianProtocol",
     "KernelWithJacobianProtocol",
     "KernelWithJacobianAndParameterJacobianProtocol",
+    # Base class
     "Kernel",
+    # Kernel implementations
+    "MaternKernel",
+    "ConstantKernel",
+    "IIDGaussianNoise",
+    # Composition kernels
+    "CompositionKernel",
+    "ProductKernel",
+    "SumKernel",
 ]
