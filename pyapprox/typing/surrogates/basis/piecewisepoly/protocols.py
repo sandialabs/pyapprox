@@ -1,7 +1,8 @@
-from typing import Protocol, Generic, Tuple
+from typing import Protocol, Generic, Tuple, runtime_checkable
 from pyapprox.typing.util.backends.protocols import Array, Backend
 
 
+@runtime_checkable
 class PiecewisePolynomialProtocol(Protocol, Generic[Array]):
     """
     Protocol for piecewise quadratic basis functions and quadrature rules.
@@ -45,13 +46,13 @@ class PiecewisePolynomialProtocol(Protocol, Generic[Array]):
         """
         ...
 
-    def bkd(self) -> Backend:
+    def bkd(self) -> Backend[Array]:
         """
         Return the backend used for computations.
 
         Returns
         -------
-        Backend
+        Backend[Array]
             Backend used for computations (e.g., NumPy or PyTorch).
         """
         ...

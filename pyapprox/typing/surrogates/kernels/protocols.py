@@ -1,5 +1,5 @@
 from abc import ABC, abstractmethod
-from typing import Generic
+from typing import Generic, Protocol, runtime_checkable
 
 from pyapprox.typing.util.hyperparameter.hyperparameter_list import (
     HyperParameterList,
@@ -8,13 +8,7 @@ from pyapprox.typing.util.backends.protocols import Array, Backend
 from pyapprox.typing.util.backends.validation import validate_backend
 
 
-from typing import Protocol
-from pyapprox.typing.util.hyperparameter.hyperparameter_list import (
-    HyperParameterList,
-)
-from pyapprox.typing.util.backends.protocols import Array, Backend
-
-
+@runtime_checkable
 class KernelProtocol(Protocol, Generic[Array]):
     """
     Protocol for kernel implementations.
@@ -80,71 +74,7 @@ class KernelProtocol(Protocol, Generic[Array]):
         ...
 
 
-class KernelWithJacobianProtocol(Protocol):
-    """
-    Protocol for kernel implementations.
-
-    Defines the interface for kernel classes, including methods for evaluating
-    the kernel, computing Jacobians, and handling hyperparameters.
-    """
-
-    def bkd(self) -> Backend[Array]:
-        """
-        Return the backend used for numerical computations.
-
-        Returns
-        -------
-        bkd : Backend[Array]
-            Backend for numerical computations.
-        """
-        ...
-
-    def hyp_list(self) -> HyperParameterList:
-        """
-        Return the list of hyperparameters associated with the kernel.
-
-        Returns
-        -------
-        hyp_list : HyperParameterList
-            List of hyperparameters.
-        """
-        ...
-
-    def diag(self, X1: Array) -> Array:
-        """
-        Return the diagonal of the kernel matrix.
-
-        Parameters
-        ----------
-        X1 : Array
-            Input data.
-
-        Returns
-        -------
-        diag : Array
-            Diagonal of the kernel matrix.
-        """
-        ...
-
-    def __call__(self, X1: Array, X2: Array = None) -> Array:
-        """
-        Compute the kernel matrix.
-
-        Parameters
-        ----------
-        X1 : Array
-            Input data.
-        X2 : Array, optional
-            Input data. If None, the kernel matrix is computed for X1 only.
-
-        Returns
-        -------
-        kernel_matrix : Array
-            Kernel matrix.
-        """
-        ...
-
-
+@runtime_checkable
 class KernelHasJacobianProtocol(Protocol, Generic[Array]):
     def jacobian(self, X1: Array, X2: Array) -> Array:
         """
@@ -165,6 +95,7 @@ class KernelHasJacobianProtocol(Protocol, Generic[Array]):
         ...
 
 
+@runtime_checkable
 class KernelHasParameterJacobianProtocol(Protocol, Generic[Array]):
     def jacobian_wrt_params(self, samples: Array) -> Array:
         """
