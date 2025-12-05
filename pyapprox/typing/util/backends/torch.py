@@ -259,6 +259,10 @@ class TorchBkd(Backend[torch.Tensor]):  # Specify torch.Tensor type
         return torch.sign(array)
 
     @staticmethod
+    def abs(array: torch.Tensor) -> torch.Tensor:
+        return torch.abs(array)
+
+    @staticmethod
     def sqrt(array: torch.Tensor) -> torch.Tensor:
         return torch.sqrt(array)
 

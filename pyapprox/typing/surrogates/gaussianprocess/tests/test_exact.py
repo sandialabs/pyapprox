@@ -261,12 +261,12 @@ class TestExactGP(Generic[Array], unittest.TestCase):
 
     def test_exact_interpolation_minimal_noise(self) -> None:
         """Test that GP exactly interpolates noiseless data with minimal noise variance."""
-        # Use extremely small noise variance for numerical stability
+        # Use zero noise variance (no nugget term) to test exact interpolation
         gp = ExactGaussianProcess(
             self.kernel,
             self.nvars,
             self.bkd(),
-            noise_variance=1e-12  # Minimal noise for numerical stability
+            noise_variance=1e-14  # Machine precision level noise
         )
 
         # Create clean training data (no noise added)
@@ -278,8 +278,12 @@ class TestExactGP(Generic[Array], unittest.TestCase):
         # Predict at training points - should interpolate exactly
         mean = gp.predict(X_train_clean)
 
-        # With minimal noise, GP should interpolate training data very accurately
-        self.bkd().assert_allclose(mean, y_train_clean, rtol=1e-6, atol=1e-6)
+        # When noise is at machine precision level, error should be < 1e-14
+        error = mean - y_train_clean
+        abs_error = self.bkd().abs(error)
+        max_abs_error = float(self.bkd().max(abs_error))
+        self.assertLess(max_abs_error, 1e-12,
+                       f"Interpolation error {max_abs_error:.2e} exceeds threshold")
 
         # Uncertainty at training points should be very small
         std = gp.predict_std(X_train_clean)
@@ -334,14 +338,11 @@ class TestExactGP(Generic[Array], unittest.TestCase):
         # Predict at test points
         mean = gp.predict(X_test)
 
-        # Compute approximation error (convert to numpy for error computation)
-        if hasattr(mean, 'detach'):  # PyTorch
-            error_np = (mean - y_test).detach().cpu().numpy()
-        else:  # NumPy
-            error_np = np.asarray(mean - y_test)
-
-        max_abs_error = float(np.max(np.abs(error_np)))
-        mean_abs_error = float(np.mean(np.abs(error_np)))
+        # Compute approximation error using backend operations only
+        error = mean - y_test
+        abs_error = self.bkd().abs(error)
+        max_abs_error = float(self.bkd().max(abs_error))
+        mean_abs_error = float(self.bkd().sum(abs_error) / abs_error.shape[0])
 
         # With dense training data and appropriate kernel, error should be very small
         # This demonstrates GP's ability to approximate smooth functions
