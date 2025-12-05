@@ -124,13 +124,13 @@ class PiecewiseQuadratic(Generic[Array]):
         """
         return self._nodes
 
-    def bkd(self) -> Backend:
+    def bkd(self) -> Backend[Array]:
         """
         Return the backend used for computations.
 
         Returns
         -------
-        BackendMixin
+        Backend[Array]
             Backend used for computations (e.g., NumPy or PyTorch).
         """
         return self._bkd
