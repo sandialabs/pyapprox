@@ -346,6 +346,9 @@ class Backend(Protocol, Generic[Array]):
     def sign(array: Array) -> Array: ...
 
     @staticmethod
+    def abs(array: Array) -> Array: ...
+
+    @staticmethod
     def sqrt(array: Array) -> Array: ...
 
     @staticmethod

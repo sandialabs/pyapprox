@@ -20,6 +20,9 @@ from pyapprox.typing.surrogates.gaussianprocess.mean_functions import (
 from pyapprox.typing.surrogates.gaussianprocess.exact import (
     ExactGaussianProcess
 )
+from pyapprox.typing.surrogates.gaussianprocess.loss import (
+    NegativeLogMarginalLikelihoodLoss
+)
 
 __all__ = [
     # Protocols
@@ -35,4 +38,6 @@ __all__ = [
     "ConstantMean",
     # GP implementations
     "ExactGaussianProcess",
+    # Loss functions
+    "NegativeLogMarginalLikelihoodLoss",
 ]
