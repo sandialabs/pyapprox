@@ -352,10 +352,13 @@ class PolynomialScaling(Generic[Array]):
 
     def jacobian_wrt_params(self, X: Array) -> Array:
         """
-        Compute Jacobian w.r.t. hyperparameters ∂ρ/∂θ.
+        Compute Jacobian of kernel K(X, X) w.r.t. hyperparameters.
 
-        For degree 0: ∂ρ/∂c0 = 1
-        For degree 1: ∂ρ/∂c0 = 1, ∂ρ/∂ci = xi
+        For K(x, x') = ρ(x) * ρ(x'), the Jacobian is:
+        ∂K/∂θ_i = (∂ρ(x)/∂θ_i) * ρ(x')^T + ρ(x) * (∂ρ(x')/∂θ_i)^T
+
+        For symmetric evaluation K(X, X):
+        ∂K/∂θ_i = (∂ρ(X)/∂θ_i) @ ρ(X)^T + ρ(X) @ (∂ρ(X)/∂θ_i)^T
 
         Parameters
         ----------
@@ -364,21 +367,136 @@ class PolynomialScaling(Generic[Array]):
 
         Returns
         -------
-        jac_params : Array
-            Jacobian w.r.t. parameters, shape (nsamples, ncoeffs).
-            jac_params[i, j] = ∂ρ(X[:, i])/∂θj
+        jac : Array
+            Jacobian w.r.t. parameters, shape (n, n, ncoeffs).
+        """
+        n_samples = X.shape[1]
+        rho = self.eval_scaling(X)  # (n, 1)
+
+        # Compute ∂ρ/∂θ
+        if self._degree == 0:
+            # Constant: ∂ρ/∂c0 = 1
+            drho_dtheta = self._bkd.ones((n_samples, 1))  # (n, 1)
+        else:
+            # Linear: ∂ρ/∂c0 = 1, ∂ρ/∂ci = xi
+            ones_col = self._bkd.ones((n_samples, 1))
+            drho_dtheta = self._bkd.hstack([ones_col, X.T])  # (n, ncoeffs)
+
+        ncoeffs = drho_dtheta.shape[1]
+        jac = self._bkd.zeros((n_samples, n_samples, ncoeffs))
+
+        # For each parameter i: ∂K/∂θ_i = (∂ρ/∂θ_i) @ ρ^T + ρ @ (∂ρ/∂θ_i)^T
+        for i in range(ncoeffs):
+            drho_i = self._bkd.reshape(drho_dtheta[:, i], (-1, 1))  # (n, 1)
+            jac[:, :, i] = drho_i @ rho.T + rho @ drho_i.T  # (n, n)
+
+        return jac
+
+    def hessian_wrt_params(self, X: Array) -> Array:
+        """
+        Compute Hessian of kernel K(X, X) w.r.t. hyperparameters.
+
+        For K(x, x') = ρ(x) * ρ(x'), the Hessian is:
+        ∂²K/∂θ_i∂θ_j = (∂²ρ(x)/∂θ_i∂θ_j) * ρ(x')^T
+                      + (∂ρ(x)/∂θ_i) * (∂ρ(x')/∂θ_j)^T
+                      + (∂ρ(x)/∂θ_j) * (∂ρ(x')/∂θ_i)^T
+                      + ρ(x) * (∂²ρ(x')/∂θ_i∂θ_j)^T
+
+        For polynomial scaling (degree 0 or 1), ∂²ρ/∂θ_i∂θ_j = 0, so:
+        ∂²K/∂θ_i∂θ_j = (∂ρ/∂θ_i) @ (∂ρ/∂θ_j)^T + (∂ρ/∂θ_j) @ (∂ρ/∂θ_i)^T
+
+        Parameters
+        ----------
+        X : Array
+            Input points, shape (nvars, nsamples).
+
+        Returns
+        -------
+        hess : Array
+            Hessian w.r.t. parameters, shape (n, n, ncoeffs, ncoeffs).
         """
         n_samples = X.shape[1]
 
+        # Compute ∂ρ/∂θ
         if self._degree == 0:
             # Constant: ∂ρ/∂c0 = 1
-            return self._bkd.ones((n_samples, 1))
+            drho_dtheta = self._bkd.ones((n_samples, 1))  # (n, 1)
         else:
             # Linear: ∂ρ/∂c0 = 1, ∂ρ/∂ci = xi
-            # Build Jacobian: first column is ones, rest is X.T
             ones_col = self._bkd.ones((n_samples, 1))
-            jac = self._bkd.hstack([ones_col, X.T])
-            return jac
+            drho_dtheta = self._bkd.hstack([ones_col, X.T])  # (n, ncoeffs)
+
+        ncoeffs = drho_dtheta.shape[1]
+        hess = self._bkd.zeros((n_samples, n_samples, ncoeffs, ncoeffs))
+
+        # For polynomial scaling, ∂²ρ/∂θ_i∂θ_j = 0
+        # So: ∂²K/∂θ_i∂θ_j = (∂ρ/∂θ_i) @ (∂ρ/∂θ_j)^T + (∂ρ/∂θ_j) @ (∂ρ/∂θ_i)^T
+        for i in range(ncoeffs):
+            drho_i = self._bkd.reshape(drho_dtheta[:, i], (-1, 1))  # (n, 1)
+            for j in range(ncoeffs):
+                drho_j = self._bkd.reshape(drho_dtheta[:, j], (-1, 1))  # (n, 1)
+                hess[:, :, i, j] = drho_i @ drho_j.T + drho_j @ drho_i.T  # (n, n)
+
+        return hess
+
+    def hvp_wrt_params(self, X: Array, direction: Array) -> Array:
+        """
+        Compute Hessian-vector product w.r.t. hyperparameters.
+
+        For polynomial scaling K(x, x') = ρ(x) * ρ(x'):
+        ∂²K/∂θ_i∂θ_j = (∂ρ/∂θ_i) @ (∂ρ/∂θ_j)^T + (∂ρ/∂θ_j) @ (∂ρ/∂θ_i)^T
+
+        HVP computes: Σ_j (∂²K/∂θ_i∂θ_j) * v[j] for each i.
+
+        Parameters
+        ----------
+        X : Array
+            Input points, shape (nvars, nsamples).
+        direction : Array
+            Direction vector, shape (ncoeffs,).
+
+        Returns
+        -------
+        hvp : Array
+            Hessian-vector product, shape (n, n, ncoeffs).
+            hvp[:, :, i] = Σ_j (∂²K/∂θ_i∂θ_j) * v[j]
+        """
+        n_samples = X.shape[1]
+
+        # Compute ∂ρ/∂θ
+        if self._degree == 0:
+            # Constant: ∂ρ/∂c0 = 1
+            drho_dtheta = self._bkd.ones((n_samples, 1))  # (n, 1)
+        else:
+            # Linear: ∂ρ/∂c0 = 1, ∂ρ/∂ci = xi
+            ones_col = self._bkd.ones((n_samples, 1))
+            drho_dtheta = self._bkd.hstack([ones_col, X.T])  # (n, ncoeffs)
+
+        ncoeffs = drho_dtheta.shape[1]
+
+        # Vectorized HVP computation
+        # For each i: hvp[:, :, i] = Σ_j H[:, :, i, j] * v[j]
+        # where H[:, :, i, j] = (∂ρ/∂θ_i) @ (∂ρ/∂θ_j)^T + (∂ρ/∂θ_j) @ (∂ρ/∂θ_i)^T
+        #
+        # Expanding: hvp[:, :, i] = Σ_j [(∂ρ/∂θ_i) @ (∂ρ/∂θ_j)^T * v[j] + (∂ρ/∂θ_j) @ (∂ρ/∂θ_i)^T * v[j]]
+        #                         = (∂ρ/∂θ_i) @ (Σ_j ∂ρ/∂θ_j * v[j])^T + (Σ_j ∂ρ/∂θ_j * v[j]) @ (∂ρ/∂θ_i)^T
+        #                         = (∂ρ/∂θ_i) @ D^T + D @ (∂ρ/∂θ_i)^T
+        # where D = drho_dtheta @ direction (shape: n_samples, 1)
+
+        # Compute D = drho_dtheta @ direction
+        D = drho_dtheta @ direction  # (n_samples,)
+
+        # For each i: hvp[:, :, i] = (∂ρ/∂θ_i) @ D^T + D @ (∂ρ/∂θ_i)^T
+        # drho_dtheta[:, i] is (n_samples,), D is (n_samples,)
+        # Outer product: drho_dtheta[:, i:i+1] @ D^T is (n_samples, n_samples)
+
+        # Vectorize using einsum:
+        # hvp[:, :, i] = drho_dtheta[:, i] ⊗ D + D ⊗ drho_dtheta[:, i]
+        hvp = self._bkd.einsum('ni,m->nmi', drho_dtheta, D) + \
+              self._bkd.einsum('n,mi->nmi', D, drho_dtheta)
+        # Shape: (n_samples, n_samples, ncoeffs)
+
+        return hvp
 
     def __repr__(self) -> str:
         """String representation."""

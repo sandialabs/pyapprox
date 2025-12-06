@@ -42,8 +42,12 @@ class ExactGaussianProcess(Generic[Array]):
         Backend for numerical operations.
     mean_function : Optional[MeanFunction[Array]]
         Mean function. If None, uses ZeroMean. Default is None.
-    noise_variance : float
-        Observation noise variance σ². Default is 1e-6.
+    nugget : float
+        Numerical stability parameter added to kernel matrix diagonal.
+        Not a hyperparameter - fixed to user-provided value.
+        Must be positive. Default is 1e-6.
+        Note: Observation noise should be modeled via the kernel
+        (e.g., IIDGaussianNoise), not via this nugget parameter.
 
     Examples
     --------
@@ -53,7 +57,7 @@ class ExactGaussianProcess(Generic[Array]):
     >>>
     >>> bkd = NumpyBkd()
     >>> kernel = MaternKernel(2.5, [1.0, 1.0], (0.1, 10.0), 2, bkd)
-    >>> gp = ExactGaussianProcess(kernel, 2, bkd, noise_variance=0.1)
+    >>> gp = ExactGaussianProcess(kernel, 2, bkd, nugget=1e-10)
     >>>
     >>> X_train = bkd.array(np.random.randn(2, 10))
     >>> y_train = bkd.array(np.random.randn(10, 1))
@@ -70,7 +74,7 @@ class ExactGaussianProcess(Generic[Array]):
         nvars: int,
         bkd: Backend[Array],
         mean_function: Optional[MeanFunction[Array]] = None,
-        noise_variance: float = 1e-6
+        nugget: float = 1e-6
     ):
         self._kernel = kernel
         self._nvars = nvars
@@ -82,12 +86,12 @@ class ExactGaussianProcess(Generic[Array]):
         else:
             self._mean = mean_function
 
-        # Noise variance
-        if noise_variance <= 0:
+        # Nugget for numerical stability
+        if nugget <= 0:
             raise ValueError(
-                f"noise_variance must be positive, got {noise_variance}"
+                f"nugget must be positive, got {nugget}"
             )
-        self._noise_variance = noise_variance
+        self._nugget = nugget
 
         # Training data (set during fit)
         self._data: Optional[GPTrainingData[Array]] = None
@@ -176,8 +180,8 @@ class ExactGaussianProcess(Generic[Array]):
         # Compute kernel matrix K(X, X)
         K = self._kernel(X_train, X_train)
 
-        # Add observation noise: K_noisy = K + σ²I
-        K_noisy = K + self._bkd.eye(K.shape[0]) * self._noise_variance
+        # Add nugget for numerical stability: K_noisy = K + nugget*I
+        K_noisy = K + self._bkd.eye(K.shape[0]) * self._nugget
 
         # Compute Cholesky factorization
         try:
@@ -185,8 +189,8 @@ class ExactGaussianProcess(Generic[Array]):
             self._cholesky = CholeskyFactor(L, self._bkd)
         except Exception as e:
             raise RuntimeError(
-                "Cholesky factorization failed. The kernel matrix K + σ²I "
-                "may not be positive definite. Try increasing noise_variance. "
+                "Cholesky factorization failed. The kernel matrix K + nugget*I "
+                "may not be positive definite. Try increasing nugget. "
                 f"Original error: {e}"
             )
 
@@ -616,7 +620,7 @@ class ExactGaussianProcess(Generic[Array]):
         >>>
         >>> bkd = NumpyBkd()
         >>> kernel = MaternKernel(2.5, [1.0, 1.0], (0.1, 10.0), 2, bkd)
-        >>> gp = ExactGaussianProcess(kernel, 2, bkd, noise_variance=0.1)
+        >>> gp = ExactGaussianProcess(kernel, 2, bkd, nugget=1e-10)
         >>>
         >>> X_train = bkd.array(np.random.randn(2, 20))
         >>> y_train = bkd.array(np.random.randn(20, 1))
@@ -680,6 +684,6 @@ class ExactGaussianProcess(Generic[Array]):
         fitted_str = "fitted" if self.is_fitted() else "not fitted"
         return (
             f"ExactGaussianProcess(kernel={self._kernel.__class__.__name__}, "
-            f"nvars={self._nvars}, noise_variance={self._noise_variance}, "
+            f"nvars={self._nvars}, nugget={self._nugget}, "
             f"mean={self._mean.__class__.__name__}, {fitted_str})"
         )

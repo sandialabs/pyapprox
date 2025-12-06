@@ -269,6 +269,62 @@ class MaternKernel(Kernel):
             "Matern kernel with nu={0} not supported".format(self._nu)
         )
 
+    def hessian_wrt_params(self, X1: Array) -> Array:
+        """
+        Compute Hessian of kernel w.r.t. log-length scale parameters.
+
+        Computes all second derivatives ∂²K/∂(log ℓ_i)∂(log ℓ_j).
+
+        Parameters
+        ----------
+        X1 : Array
+            Input data, shape (nvars, n).
+
+        Returns
+        -------
+        hessian : Array
+            Hessian tensor, shape (n, n, nparams, nparams).
+            hessian[:, :, i, j] = ∂²K/∂(log ℓ_i)∂(log ℓ_j)
+        """
+        lenscale = self._log_lenscale.exp_values()
+        Kmat = self(X1, X1)  # Kernel matrix
+        n = X1.shape[1]
+        nvars = X1.shape[0]
+
+        hess = self._bkd.zeros((n, n, nvars, nvars))
+
+        if self._nu == np.inf:
+            # RBF/Squared Exponential kernel
+            # K = exp(-0.5 * Σ_d (x_d - x'_d)²/ℓ_d²)
+            #
+            # ∂K/∂(log ℓ_d) = K * r_d² where r_d = (x_d - x'_d)/ℓ_d
+            # ∂²K/∂(log ℓ_i)∂(log ℓ_j) = K * r_i² * r_j² for i≠j
+            # ∂²K/∂(log ℓ_d)² = K * r_d² * (r_d² - 2)
+
+            # Compute all scaled squared differences
+            r_sq = []  # List of r_d² for each dimension
+            for d in range(nvars):
+                diff_d = X1[d:d+1, :].T - X1[d:d+1, :]  # Shape: (n, n)
+                r_sq_d = (diff_d / lenscale[d])**2  # (Δ_d/ℓ_d)²
+                r_sq.append(r_sq_d)
+
+            # Compute all Hessian elements
+            for i in range(nvars):
+                for j in range(nvars):
+                    if i == j:
+                        # Diagonal: ∂²K/∂(log ℓ_d)²
+                        hess[:, :, i, j] = Kmat * r_sq[i] * (r_sq[i] - 2.0)
+                    else:
+                        # Off-diagonal: ∂²K/∂(log ℓ_i)∂(log ℓ_j)
+                        hess[:, :, i, j] = Kmat * r_sq[i] * r_sq[j]
+
+            return hess
+
+        else:
+            raise NotImplementedError(
+                f"hessian_wrt_params not implemented for nu={self._nu}"
+            )
+
     def radial_derivatives(self, r: Array) -> Tuple[Array, Array]:
         """
         Compute first and second derivatives of the radial kernel φ(r).
@@ -340,6 +396,64 @@ class MaternKernel(Kernel):
         else:
             raise ValueError(
                 f"radial_derivatives not implemented for nu={self._nu}"
+            )
+
+    def hvp_wrt_params(self, X1: Array, direction: Array) -> Array:
+        """
+        Compute Hessian-vector product w.r.t. hyperparameters.
+
+        Computes HVP = Σ_j (∂²K/∂θ_i∂θ_j) * v[j] for each i,
+        without forming the full Hessian tensor.
+
+        Parameters
+        ----------
+        X1 : Array
+            Input data, shape (nvars, n).
+        direction : Array
+            Direction vector, shape (nparams,).
+
+        Returns
+        -------
+        hvp : Array
+            Hessian-vector product, shape (n, n, nparams).
+            hvp[:, :, i] = Σ_j (∂²K/∂θ_i∂θ_j) * v[j]
+        """
+        lenscale = self._log_lenscale.exp_values()
+        Kmat = self(X1, X1)  # Kernel matrix
+        n = X1.shape[1]
+        nvars = X1.shape[0]
+
+        hvp = self._bkd.zeros((n, n, nvars))
+
+        if self._nu == np.inf:
+            # RBF/Squared Exponential kernel
+            # ∂²K/∂(log ℓ_i)∂(log ℓ_j) = K * r_i² * r_j² for i≠j
+            # ∂²K/∂(log ℓ_d)² = K * r_d² * (r_d² - 2)
+
+            # Vectorized computation of all scaled squared differences
+            # Shape: (nvars, n, n)
+            diffs = X1[:, :, None] - X1[:, None, :]  # (nvars, n, n)
+            r_sq = (diffs / lenscale[:, None, None])**2  # (nvars, n, n)
+
+            # Vectorized HVP computation
+            # For each i: hvp[:,:,i] = Σ_j H[:,:,i,j] * v[j]
+            #           = K * r_i² * Σ_j r_j² * v[j] + K * r_i² * (r_i² - 2) * v[i] - K * r_i² * r_i² * v[i]
+            #           = K * r_i² * (Σ_j r_j² * v[j] - 2*v[i])
+
+            # Compute Σ_j r_j² * v[j]: shape (n, n)
+            r_sq_dot_v = self._bkd.einsum('ijk,i->jk', r_sq, direction)  # (n, n)
+
+            # For each i: hvp[:,:,i] = K * r_i² * (r_sq_dot_v - 2*v[i])
+            # Expand: (n, n, nvars)
+            hvp = Kmat[:, :, None] * r_sq.transpose(1, 2, 0) * (
+                r_sq_dot_v[:, :, None] - 2.0 * direction[None, None, :]
+            )
+
+            return hvp
+
+        else:
+            raise NotImplementedError(
+                f"hvp_wrt_params not implemented for nu={self._nu}"
             )
 
     def hvp_wrt_x1(
