@@ -78,9 +78,9 @@ class MultiOutputGP(Generic[Array]):
     >>> gp = MultiOutputGP(mo_kernel, nugget=1e-6)
     >>> # Fit to data
     >>> X_train = bkd.array(np.random.randn(1, 10))
-    >>> y1 = np.sin(X_train[0, :])
-    >>> y2 = np.cos(X_train[0, :])
-    >>> y_stacked = bkd.array(np.concatenate([y1, y2])[:, None])
+    >>> y1 = bkd.sin(X_train[0, :])
+    >>> y2 = bkd.cos(X_train[0, :])
+    >>> y_stacked = bkd.reshape(bkd.concatenate([y1, y2]), (-1, 1))
     >>> gp.fit([X_train, X_train], y_stacked)
     >>> # Predict
     >>> X_test = bkd.array(np.random.randn(1, 5))

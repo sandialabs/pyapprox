@@ -12,7 +12,7 @@ from numpy.typing import NDArray
 from pyapprox.typing.util.backends.protocols import Backend, Array
 from pyapprox.typing.util.backends.numpy import NumpyBkd
 from pyapprox.typing.util.backends.torch import TorchBkd
-from pyapprox.typing.surrogates.kernels.matern import MaternKernel
+from pyapprox.typing.surrogates.kernels.matern import Matern52Kernel
 from pyapprox.typing.surrogates.gaussianprocess import ExactGaussianProcess
 from pyapprox.typing.interface.functions.derivative_checks.derivative_checker import (
     DerivativeChecker
@@ -40,8 +40,7 @@ class TestExactGPDerivatives(Generic[Array], unittest.TestCase):
         self.y_train = self.bkd().array(y_train_np)
 
         # Create kernel
-        self.kernel = MaternKernel(
-            2.5,
+        self.kernel = Matern52Kernel(
             [1.0, 1.0],
             (0.1, 10.0),
             self.nvars,
@@ -67,7 +66,7 @@ class TestExactGPDerivatives(Generic[Array], unittest.TestCase):
         checker = DerivativeChecker(gp)
 
         # Test point for Jacobian evaluation
-        x0 = self.bkd().array(np.array([[0.5], [0.5]]))
+        x0 = self.bkd().array([[0.5], [0.5]])
 
         # Use logarithmically-spaced step sizes from 1 down to 1e-14
         # This follows the standard approach: 15 values from 10^0 to 10^(-14)

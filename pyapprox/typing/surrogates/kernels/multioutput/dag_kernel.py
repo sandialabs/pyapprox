@@ -262,7 +262,8 @@ class DAGMultiOutputKernel(Generic[Array]):
             parent = path[i]
             child = path[i + 1]
             scaling = self._edge_scalings[(parent, child)]
-            product = product * scaling(X)
+            # Use eval_scaling to get scalar values, not kernel matrix
+            product = product * scaling.eval_scaling(X)
 
         return product
 
@@ -586,7 +587,7 @@ class DAGMultiOutputKernel(Generic[Array]):
                                         for k in range(len(path_i) - 1):
                                             p, c = path_i[k], path_i[k+1]
                                             if (p, c) != edge:
-                                                scaling_i_other = scaling_i_other * self._edge_scalings[(p, c)](X_for_scaling_i)
+                                                scaling_i_other = scaling_i_other * self._edge_scalings[(p, c)].eval_scaling(X_for_scaling_i)
 
                                         contrib = contrib + (dscaling_i * scaling_i_other) * K_ancestor * scaling_j.T
 
@@ -597,7 +598,7 @@ class DAGMultiOutputKernel(Generic[Array]):
                                         for k in range(len(path_j) - 1):
                                             p, c = path_j[k], path_j[k+1]
                                             if (p, c) != edge:
-                                                scaling_j_other = scaling_j_other * self._edge_scalings[(p, c)](X_for_scaling_j)
+                                                scaling_j_other = scaling_j_other * self._edge_scalings[(p, c)].eval_scaling(X_for_scaling_j)
 
                                         contrib = contrib + scaling_i * K_ancestor * (dscaling_j * scaling_j_other).T
 

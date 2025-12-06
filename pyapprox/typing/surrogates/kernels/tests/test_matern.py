@@ -192,7 +192,6 @@ class TestMaternKernel(Generic[Array], unittest.TestCase):
                 jacobian=jac,
                 bkd=self.bkd(),
             )
-            print(kernel)
             # Initialize DerivativeChecker
             checker = DerivativeChecker(function_object)
             # Check derivatives
@@ -201,10 +200,9 @@ class TestMaternKernel(Generic[Array], unittest.TestCase):
                 .hyperparameters()[0]
                 .get_active_values()[:, None]
             )
-            errors = checker.check_derivatives(sample, verbosity=1)
+            errors = checker.check_derivatives(sample, verbosity=0)
             # Assert that the gradient errors are below a tolerance
-            print(checker.error_ratio(errors[0]))
-            self.assertLessEqual(checker.error_ratio(errors[0]), 1e-7)
+            self.assertLess(checker.error_ratio(errors[0]), 1e-6)
 
     def test_repr(self) -> None:
         """

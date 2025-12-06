@@ -12,7 +12,7 @@ from numpy.typing import NDArray
 from pyapprox.typing.util.backends.protocols import Backend, Array
 from pyapprox.typing.util.backends.numpy import NumpyBkd
 from pyapprox.typing.util.backends.torch import TorchBkd
-from pyapprox.typing.surrogates.kernels.matern import MaternKernel
+from pyapprox.typing.surrogates.kernels.matern import Matern52Kernel
 from pyapprox.typing.surrogates.gaussianprocess import (
     ExactGaussianProcess,
     ConstantMean
@@ -51,8 +51,7 @@ class TestExactGPOptimization(Generic[Array], unittest.TestCase):
     def test_optimize_hyperparameters_basic(self) -> None:
         """Test basic hyperparameter optimization."""
         # Use longer length scales initially (suboptimal)
-        kernel = MaternKernel(
-            2.5,
+        kernel = Matern52Kernel(
             [3.0, 3.0],  # Long length scales
             (0.1, 10.0),
             self.nvars,
@@ -102,8 +101,7 @@ class TestExactGPOptimization(Generic[Array], unittest.TestCase):
 
     def test_optimize_hyperparameters_with_constant_mean(self) -> None:
         """Test hyperparameter optimization with ConstantMean."""
-        kernel = MaternKernel(
-            2.5,
+        kernel = Matern52Kernel(
             [2.0, 2.0],
             (0.1, 10.0),
             self.nvars,
@@ -157,8 +155,7 @@ class TestExactGPOptimization(Generic[Array], unittest.TestCase):
         y_test = self.bkd().array(y_test_np)
 
         # Start with poor initial hyperparameters (long length scales)
-        kernel = MaternKernel(
-            2.5,
+        kernel = Matern52Kernel(
             [5.0, 5.0],  # Too long
             (0.1, 10.0),
             self.nvars,
@@ -195,8 +192,7 @@ class TestExactGPOptimization(Generic[Array], unittest.TestCase):
 
     def test_optimize_hyperparameters_custom_initial_guess(self) -> None:
         """Test optimization with custom initial guess."""
-        kernel = MaternKernel(
-            2.5,
+        kernel = Matern52Kernel(
             [1.0, 1.0],
             (0.1, 10.0),
             self.nvars,
@@ -227,8 +223,7 @@ class TestExactGPOptimization(Generic[Array], unittest.TestCase):
 
     def test_optimize_hyperparameters_not_fitted_error(self) -> None:
         """Test that optimization raises error if GP not fitted."""
-        kernel = MaternKernel(
-            2.5,
+        kernel = Matern52Kernel(
             [1.0, 1.0],
             (0.1, 10.0),
             self.nvars,

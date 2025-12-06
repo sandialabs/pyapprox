@@ -266,7 +266,7 @@ class TestMeanFunctions(Generic[Array], unittest.TestCase):
 
         # Minimum error should be small
         min_error = float(self.bkd().min(grad_error))
-        self.assertLess(min_error, 1e-5,
+        self.assertLess(min_error, 1e-6,
                        f"Minimum gradient relative error {min_error} exceeds threshold")
 
     def test_constant_mean_updates(self) -> None:

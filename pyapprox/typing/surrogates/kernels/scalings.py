@@ -121,7 +121,7 @@ class PolynomialScaling(Generic[Array]):
     >>> import numpy as np
     >>> bkd = NumpyBkd()
     >>> scaling = PolynomialScaling([0.8], (0.1, 2.0), bkd, nvars=1)
-    >>> X = bkd.array(np.array([[-1.0, 0.0, 1.0]]))
+    >>> X = bkd.array([[-1.0, 0.0, 1.0]])
     >>> rho = scaling.eval_scaling(X)  # [[0.8], [0.8], [0.8]]
 
     As a kernel (for composition):
