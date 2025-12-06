@@ -136,6 +136,12 @@ class TorchBkd(Backend[torch.Tensor]):  # Specify torch.Tensor type
         return torch.reshape(array, newshape)
 
     @staticmethod
+    def transpose(array: torch.Tensor, axes: Optional[Sequence[int]] = None) -> torch.Tensor:
+        if axes is None:
+            return array.T
+        return array.permute(*axes)
+
+    @staticmethod
     def sum(
         array: torch.Tensor,
         axis: Optional[Union[int, Tuple[int, ...]]] = None,

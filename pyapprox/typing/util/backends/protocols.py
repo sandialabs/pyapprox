@@ -177,6 +177,9 @@ class Backend(Protocol, Generic[Array]):
     def reshape(array: Array, newshape: Sequence[int]) -> Array: ...
 
     @staticmethod
+    def transpose(array: Array, axes: Optional[Sequence[int]] = None) -> Array: ...
+
+    @staticmethod
     def sum(
         array: Array,
         axis: Optional[Union[int, Tuple[int, ...]]] = None,

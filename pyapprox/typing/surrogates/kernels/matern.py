@@ -269,6 +269,183 @@ class MaternKernel(Kernel):
             "Matern kernel with nu={0} not supported".format(self._nu)
         )
 
+    def radial_derivatives(self, r: Array) -> Tuple[Array, Array]:
+        """
+        Compute first and second derivatives of the radial kernel φ(r).
+
+        For Matern kernels: k(x, x') = φ(r) where r = ||x - x'|| / lengthscale
+
+        Parameters
+        ----------
+        r : Array
+            Scaled distances, shape (n_points,)
+
+        Returns
+        -------
+        phi_prime : Array
+            First derivative φ'(r), shape (n_points,)
+        phi_double_prime : Array
+            Second derivative φ''(r), shape (n_points,)
+
+        Notes
+        -----
+        For Matern kernels with different smoothness:
+        - nu = ∞ (RBF): φ(r) = exp(-r²/2)
+                        φ'(r) = -r·exp(-r²/2)
+                        φ''(r) = (r² - 1)·exp(-r²/2)
+
+        - nu = 3/2: φ(r) = (1 + √3·r)·exp(-√3·r)
+                    φ'(r) = -3r·exp(-√3·r)
+                    φ''(r) = 3(√3·r - 1)·exp(-√3·r)
+
+        - nu = 5/2: φ(r) = (1 + √5·r + 5r²/3)·exp(-√5·r)
+                    φ'(r) = (5r/3)·(-√5·r - 1)·exp(-√5·r)
+                    φ''(r) = (5/3)·(5r² - √5·r - 1)·exp(-√5·r)
+        """
+        if self._nu == np.inf:
+            # RBF kernel: φ(r) = exp(-r²/2)
+            exp_term = self._bkd.exp(-r**2 / 2.0)
+            phi_prime = -r * exp_term
+            phi_double_prime = (r**2 - 1) * exp_term
+            return phi_prime, phi_double_prime
+
+        elif self._nu == 3 / 2:
+            # Matern 3/2: φ(r) = (1 + √3·r)·exp(-√3·r)
+            sqrt3 = math.sqrt(3)
+            sqrt3_r = sqrt3 * r
+            exp_term = self._bkd.exp(-sqrt3_r)
+
+            # φ'(r) = -3r·exp(-√3·r)
+            phi_prime = -3 * r * exp_term
+
+            # φ''(r) = 3(√3·r - 1)·exp(-√3·r)
+            phi_double_prime = 3 * (sqrt3_r - 1) * exp_term
+
+            return phi_prime, phi_double_prime
+
+        elif self._nu == 5 / 2:
+            # Matern 5/2: φ(r) = (1 + √5·r + 5r²/3)·exp(-√5·r)
+            sqrt5 = math.sqrt(5)
+            sqrt5_r = sqrt5 * r
+            exp_term = self._bkd.exp(-sqrt5_r)
+
+            # φ'(r) = (5r/3)·(-√5·r - 1)·exp(-√5·r)
+            phi_prime = (5 * r / 3) * (-sqrt5_r - 1) * exp_term
+
+            # φ''(r) = (5/3)·(5r² - √5·r - 1)·exp(-√5·r)
+            phi_double_prime = (5.0 / 3.0) * (5 * r**2 - sqrt5_r - 1) * exp_term
+
+            return phi_prime, phi_double_prime
+
+        else:
+            raise ValueError(
+                f"radial_derivatives not implemented for nu={self._nu}"
+            )
+
+    def hvp_wrt_x1(
+        self, X1: Array, X2: Array, direction: Array
+    ) -> Array:
+        """
+        Compute Hessian-vector product of kernel w.r.t. first argument.
+
+        For Matern kernels with spatial scaling (anisotropic length scales),
+        this computes H[k(X1, X2)]·V where H = ∂²k/∂X1².
+
+        This is the kernel-specific implementation that was originally hardcoded
+        in the GP's hvp() method, now modularized into the kernel class.
+
+        Parameters
+        ----------
+        X1 : Array, shape (nvars, n1)
+            First set of points
+        X2 : Array, shape (nvars, n2)
+            Second set of points
+        direction : Array, shape (nvars,)
+            Direction vector for Hessian-vector product
+
+        Returns
+        -------
+        hvp : Array, shape (n1, n2, nvars)
+            H[k(X1[:, i], X2[:, j])]·V for each pair (i, j)
+
+            This shape is consistent with jacobian() which returns (n1, n2, nvars).
+
+        Notes
+        -----
+        Uses chain rule: H_jk[k] = φ''·(∂r/∂x_j)·(∂r/∂x_k) + φ'·(∂²r/∂x_j∂x_k)
+
+        So H·V = Σ_k H_jk·V_k
+               = φ''·(∂r/∂x_j)·(∂r/∂x·V) + φ'·(Σ_k ∂²r/∂x_j∂x_k·V_k)
+
+        For GP case where n1=1 (single query point):
+        - X1[:, 0] = x_star (query point)
+        - X2 = X_train (all training points)
+        - Result shape: (1, n_train, nvars)
+        """
+        nvars = X1.shape[0]
+        n1 = X1.shape[1]
+        n2 = X2.shape[1]
+
+        lenscale = self._log_lenscale.exp_values()  # (nvars,)
+
+        # For simplicity, handle n1=1 case (typical for GP HVP)
+        # Can be generalized later if needed
+        if n1 != 1:
+            raise NotImplementedError(
+                "hvp_wrt_x1 currently only supports n1=1 (single query point)"
+            )
+
+        # X1 is (nvars, 1), X2 is (nvars, n2), direction is (nvars,)
+        x_star = X1[:, 0]  # (nvars,)
+        V = direction  # (nvars,)
+
+        # Compute differences: (nvars, n2)
+        diffs = x_star[:, None] - X2  # (nvars, n2)
+
+        # Apply length scale scaling
+        diffs_scaled = diffs / lenscale[:, None]  # (nvars, n2)
+
+        # Compute distances
+        r_squared = self._bkd.sum(diffs_scaled**2, axis=0)  # (n2,)
+        r = self._bkd.sqrt(r_squared + 1e-12)
+
+        # Get radial derivatives
+        phi_prime, phi_double_prime = self.radial_derivatives(r)  # (n2,)
+
+        # Compute ∂r/∂x_j = Δx_j / (r · ℓ_j²)
+        # Shape: (nvars, n2)
+        ell_squared = lenscale[:, None]**2
+        r_inv = 1.0 / r  # (n2,)
+        dr_dx = diffs / (r[None, :] * ell_squared)  # (nvars, n2)
+
+        # Compute ∂r/∂x · V: (nvars, n2) · (nvars,) -> (n2,)
+        dr_dot_V = self._bkd.einsum('ki,k->i', dr_dx, V)  # (n2,)
+
+        # TERM 1: φ''·(∂r/∂x_j)·(∂r/∂x·V)
+        #  Shape: (nvars, n2) * (n2,) -> (nvars, n2)
+        term1 = dr_dx * (phi_double_prime[None, :] * dr_dot_V[None, :])
+
+        # TERM 2: φ'·(∂²r/∂x_j∂x_k)·V_k
+        # ∂²r/∂x_j∂x_k = -Δx_j·Δx_k/(r³·ℓ_j²·ℓ_k²) + δ_jk/(r·ℓ_j²)
+        diffs_over_ell2 = diffs / ell_squared  # (nvars, n2)
+
+        # Σ_k Δx_k/ℓ_k²·V_k for each training point: (n2,)
+        diffs_scaled_dot_V = self._bkd.einsum('ki,k->i', diffs_over_ell2, V)
+
+        r_inv3 = r_inv**3  # (n2,)
+
+        # Σ_k ∂²r/∂x_j∂x_k·V_k, shape: (nvars, n2)
+        d2r_dot_V = (-diffs_over_ell2 * (r_inv3[None, :] * diffs_scaled_dot_V[None, :]) +
+                     V[:, None] * r_inv[None, :] / ell_squared)
+
+        term2 = d2r_dot_V * phi_prime[None, :]  # (nvars, n2)
+
+        hvp_2d = term1 + term2  # (nvars, n2)
+
+        # Transpose to (1, n2, nvars) to match expected output shape (n1, n2, nvars)
+        # Add n1 dimension, then transpose: (nvars, 1, n2) -> (1, n2, nvars)
+        return self._bkd.transpose(hvp_2d[:, None, :], (1, 2, 0))
+
     def __repr__(self) -> str:
         """
         Return a string representation of the MaternKernel.

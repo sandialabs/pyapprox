@@ -9,7 +9,7 @@ from typing import Generic
 
 from pyapprox.typing.util.backends.protocols import Array, Backend
 from pyapprox.typing.util.hyperparameter import HyperParameterList
-from pyapprox.typing.surrogates.kernels.protocols import Kernel
+from pyapprox.typing.surrogates.kernels.protocols import Kernel, KernelHasHVPProtocol
 
 
 class CompositionKernel(Kernel, Generic[Array]):
@@ -243,6 +243,80 @@ class ProductKernel(CompositionKernel):
         # Concatenate along parameter dimension
         return self._bkd.concatenate([jac1, jac2], axis=2)
 
+    def hvp_wrt_x1(self, X1: Array, X2: Array, direction: Array) -> Array:
+        """
+        Compute HVP of product kernel w.r.t. first argument.
+
+        Uses product rule for Hessian:
+        H[K1 * K2]·V = H[K1]·V * K2 + 2·(∇K1 ⊗ ∇K2)·V + K1 * H[K2]·V
+
+        Where (∇K1 ⊗ ∇K2)·V is the mixed term from the product rule.
+
+        Parameters
+        ----------
+        X1 : Array, shape (nvars, n1)
+            First set of points
+        X2 : Array, shape (nvars, n2)
+            Second set of points
+        direction : Array, shape (nvars,)
+            Direction vector for HVP
+
+        Returns
+        -------
+        hvp : Array, shape (n1, n2, nvars)
+            H[K(X1, X2)]·V for product kernel
+
+        Raises
+        ------
+        NotImplementedError
+            If either kernel doesn't support hvp_wrt_x1
+        """
+        if not (isinstance(self._kernel1, KernelHasHVPProtocol) and
+                isinstance(self._kernel2, KernelHasHVPProtocol)):
+            raise NotImplementedError(
+                "Both kernels must implement hvp_wrt_x1() for ProductKernel HVP"
+            )
+
+        # Evaluate kernels
+        K1 = self._kernel1(X1, X2)  # (n1, n2)
+        K2 = self._kernel2(X1, X2)  # (n1, n2)
+
+        # Get Jacobians (gradients)
+        if not (hasattr(self._kernel1, "jacobian") and
+                hasattr(self._kernel2, "jacobian")):
+            raise NotImplementedError(
+                "Both kernels must implement jacobian() for ProductKernel HVP"
+            )
+
+        dK1 = self._kernel1.jacobian(X1, X2)  # (n1, n2, nvars)
+        dK2 = self._kernel2.jacobian(X1, X2)  # (n1, n2, nvars)
+
+        # Get HVPs from both kernels
+        HK1_V = self._kernel1.hvp_wrt_x1(X1, X2, direction)  # (n1, n2, nvars)
+        HK2_V = self._kernel2.hvp_wrt_x1(X1, X2, direction)  # (n1, n2, nvars)
+
+        # Product rule for Hessian:
+        # H[K1·K2]·V = H[K1]·V · K2 + K1 · H[K2]·V + 2·(∇K1·V)·∇K2 + 2·∇K1·(∇K2·V)
+        # Simplified: H[K1·K2]·V = (H[K1]·V)·K2 + K1·(H[K2]·V) + 2·(∇K1^T·V)·∇K2
+
+        # Term 1: H[K1]·V * K2
+        term1 = HK1_V * K2[:, :, None]  # (n1, n2, nvars)
+
+        # Term 2: K1 * H[K2]·V
+        term2 = K1[:, :, None] * HK2_V  # (n1, n2, nvars)
+
+        # Term 3: Mixed derivative term
+        # (∇K1)^T · V gives scalar per point pair: (n1, n2, nvars) · (nvars,) -> (n1, n2)
+        dK1_dot_V = self._bkd.einsum('ijk,k->ij', dK1, direction)  # (n1, n2)
+        # Then multiply by ∇K2: (n1, n2) * (n1, n2, nvars) -> (n1, n2, nvars)
+        term3 = dK1_dot_V[:, :, None] * dK2  # (n1, n2, nvars)
+
+        # Term 4: Symmetric mixed term
+        dK2_dot_V = self._bkd.einsum('ijk,k->ij', dK2, direction)  # (n1, n2)
+        term4 = dK2_dot_V[:, :, None] * dK1  # (n1, n2, nvars)
+
+        return term1 + term2 + term3 + term4
+
 
 class SumKernel(CompositionKernel):
     """
@@ -373,3 +447,41 @@ class SumKernel(CompositionKernel):
         # Sum rule: [dK1, dK2]
         # Concatenate along parameter dimension
         return self._bkd.concatenate([dK1, dK2], axis=2)
+
+    def hvp_wrt_x1(self, X1: Array, X2: Array, direction: Array) -> Array:
+        """
+        Compute HVP of sum kernel w.r.t. first argument.
+
+        Uses sum rule for Hessian:
+        H[K1 + K2]·V = H[K1]·V + H[K2]·V
+
+        Parameters
+        ----------
+        X1 : Array, shape (nvars, n1)
+            First set of points
+        X2 : Array, shape (nvars, n2)
+            Second set of points
+        direction : Array, shape (nvars,)
+            Direction vector for HVP
+
+        Returns
+        -------
+        hvp : Array, shape (n1, n2, nvars)
+            H[K(X1, X2)]·V for sum kernel
+
+        Raises
+        ------
+        NotImplementedError
+            If either kernel doesn't support hvp_wrt_x1
+        """
+        if not (isinstance(self._kernel1, KernelHasHVPProtocol) and
+                isinstance(self._kernel2, KernelHasHVPProtocol)):
+            raise NotImplementedError(
+                "Both kernels must implement hvp_wrt_x1() for SumKernel HVP"
+            )
+
+        # Sum rule: just add the HVPs
+        HK1_V = self._kernel1.hvp_wrt_x1(X1, X2, direction)
+        HK2_V = self._kernel2.hvp_wrt_x1(X1, X2, direction)
+
+        return HK1_V + HK2_V
