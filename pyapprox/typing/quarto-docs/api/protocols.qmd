@@ -1,0 +1,528 @@
+---
+title: "Protocols"
+subtitle: "Type protocols and interfaces"
+---
+
+## Overview
+
+The PyApprox Typing Module uses Python protocols (structural typing) instead of inheritance to define interfaces. This enables flexible, type-safe implementations without tight coupling.
+
+::: {.callout-tip}
+## Why Protocols?
+
+Protocols provide **structural typing**: types are compatible if they have the right methods, regardless of inheritance. This is more flexible than inheritance-based typing while maintaining type safety.
+:::
+
+## Core Protocols
+
+### Backend Protocol
+
+Defines interface for numerical operations.
+
+```python
+from typing import Protocol, TypeVar
+
+Array = TypeVar('Array')
+
+class Backend(Protocol[Array]):
+    """Protocol for numerical backend operations."""
+
+    # Array creation
+    def array(self, data) -> Array: ...
+    def zeros(self, shape: tuple[int, ...]) -> Array: ...
+    def ones(self, shape: tuple[int, ...]) -> Array: ...
+    def eye(self, n: int) -> Array: ...
+
+    # Linear algebra
+    def matmul(self, A: Array, B: Array) -> Array: ...
+    def cholesky(self, A: Array) -> Array: ...
+    def solve_triangular(
+        self, A: Array, b: Array, lower: bool = True
+    ) -> Array: ...
+    def eigvalsh(self, A: Array) -> Array: ...
+
+    # Element-wise operations
+    def sqrt(self, x: Array) -> Array: ...
+    def exp(self, x: Array) -> Array: ...
+    def log(self, x: Array) -> Array: ...
+
+    # Reductions
+    def sum(self, x: Array, axis=None, keepdims=False) -> Array: ...
+    def mean(self, x: Array, axis=None, keepdims=False) -> Array: ...
+    def std(self, x: Array, axis=None, keepdims=False) -> Array: ...
+
+    # Comparisons
+    def allclose(
+        self, a: Array, b: Array, rtol: float = 1e-5, atol: float = 1e-8
+    ) -> bool: ...
+    def all_bool(self, x: Array) -> bool: ...
+    def any_bool(self, x: Array) -> bool: ...
+```
+
+**Implementations:**
+- `NumpyBkd` - NumPy backend
+- `TorchBkd` - PyTorch backend
+
+**See also:**
+- [Backends API](backends.qmd)
+- [Developer Guide: Protocols](../developer-guide/protocols.qmd)
+
+### Kernel Protocol
+
+Defines interface for kernel (covariance) functions.
+
+```python
+from typing import Protocol, Generic
+from pyapprox.typing.util.backends.protocols import Array, Backend
+
+class Kernel(Protocol[Array]):
+    """Protocol for kernel implementations."""
+
+    def __call__(self, X1: Array, X2: Array) -> Array:
+        """
+        Evaluate kernel matrix K(X1, X2).
+
+        Parameters
+        ----------
+        X1 : Array
+            Input array, shape (nvars, nsamples1)
+        X2 : Array
+            Input array, shape (nvars, nsamples2)
+
+        Returns
+        -------
+        K : Array
+            Kernel matrix, shape (nsamples1, nsamples2)
+        """
+        ...
+
+    def jacobian_wrt_params(self, X1: Array, X2: Array) -> Array:
+        """
+        Compute Jacobian of kernel wrt hyperparameters.
+
+        Returns
+        -------
+        jac : Array
+            Jacobian, shape (nsamples1, nsamples2, nparams)
+        """
+        ...
+
+    def hyp_list(self) -> HyperparameterList[Array]:
+        """Get hyperparameter list."""
+        ...
+
+    def bkd(self) -> Backend[Array]:
+        """Get backend instance."""
+        ...
+
+    def nvars(self) -> int:
+        """Get number of input variables."""
+        ...
+```
+
+**Implementations:**
+- `MaternKernel`
+- `ProductKernel`, `SumKernel`
+- `MultiLevelKernel`, `DAGMultiOutputKernel`
+- `IndependentMultiOutputKernel`, `LinearCoregionalizationKernel`
+
+**See also:**
+- [Kernels API](kernels.qmd)
+
+### GaussianProcessProtocol
+
+Defines interface for GP regression models.
+
+```python
+class GaussianProcessProtocol(Protocol[Array]):
+    """Protocol for Gaussian Process models."""
+
+    def fit(self, X: Array, y: Array) -> None:
+        """
+        Fit GP to training data.
+
+        Parameters
+        ----------
+        X : Array
+            Training inputs, shape (nvars, ntrain)
+        y : Array
+            Training outputs, shape (ntrain, nqoi)
+        """
+        ...
+
+    def predict(
+        self,
+        X: Array,
+        return_std: bool = False
+    ) -> Array | tuple[Array, Array]:
+        """
+        Predict at test points.
+
+        Parameters
+        ----------
+        X : Array
+            Test inputs, shape (nvars, ntest)
+        return_std : bool
+            If True, return (mean, std), else return mean
+
+        Returns
+        -------
+        mean : Array
+            Predictive mean, shape (ntest, nqoi)
+        std : Array, optional
+            Predictive std dev, shape (ntest, nqoi)
+        """
+        ...
+
+    def kernel(self) -> Kernel[Array]:
+        """Get kernel instance."""
+        ...
+
+    def bkd(self) -> Backend[Array]:
+        """Get backend instance."""
+        ...
+```
+
+**Implementations:**
+- `ExactGaussianProcess`
+- `MultiOutputGP`
+
+**See also:**
+- [Gaussian Processes API](gaussianprocess.qmd)
+
+### HyperparameterList Protocol
+
+Defines interface for managing hyperparameters.
+
+```python
+class HyperparameterList(Protocol[Array]):
+    """Protocol for hyperparameter management."""
+
+    def get_active_values(self) -> Array:
+        """
+        Get current values of active hyperparameters.
+
+        Returns
+        -------
+        values : Array
+            Current parameter values, shape (nparams,)
+        """
+        ...
+
+    def set_active_values(self, values: Array) -> None:
+        """
+        Set values of active hyperparameters.
+
+        Parameters
+        ----------
+        values : Array
+            New parameter values, shape (nparams,)
+        """
+        ...
+
+    def get_bounds(self) -> list[tuple[float, float]]:
+        """
+        Get bounds for optimization.
+
+        Returns
+        -------
+        bounds : list of (min, max) tuples
+            One tuple per parameter
+        """
+        ...
+
+    def nparams(self) -> int:
+        """Get number of active parameters."""
+        ...
+```
+
+**See also:**
+- [Kernels API](kernels.qmd#hyperparameter-management)
+
+## Using Protocols
+
+### Type Checking
+
+Protocols enable static type checking with mypy:
+
+```python
+from pyapprox.typing.util.backends.protocols import Array, Backend
+from pyapprox.typing.surrogates.kernels.protocols import Kernel
+
+def compute_kernel_matrix(
+    X: Array,
+    kernel: Kernel[Array],
+    bkd: Backend[Array]
+) -> Array:
+    """Compute kernel matrix - type-checked!"""
+    K = kernel(X, X)
+    return K
+```
+
+Run mypy to verify:
+```bash
+mypy your_script.py
+```
+
+### Generic Classes
+
+Use `Generic[Array]` for backend-agnostic classes:
+
+```python
+from typing import Generic
+from pyapprox.typing.util.backends.protocols import Array, Backend
+
+class MyModel(Generic[Array]):
+    def __init__(
+        self,
+        kernel: Kernel[Array],
+        bkd: Backend[Array]
+    ) -> None:
+        self._kernel = kernel
+        self._bkd = bkd
+
+    def fit(self, X: Array, y: Array) -> None:
+        K = self._kernel(X, X)
+        # ... backend-agnostic implementation
+```
+
+### Protocol Composition
+
+Combine protocols for complex interfaces:
+
+```python
+class MultiOutputKernel(Protocol[Array]):
+    """Multi-output kernel combines Kernel + list interface."""
+
+    def __call__(
+        self,
+        X1_list: list[Array],
+        X2_list: list[Array]
+    ) -> Array:
+        """Evaluate multi-output kernel."""
+        ...
+
+    def jacobian_wrt_params(
+        self,
+        X1_list: list[Array],
+        X2_list: list[Array]
+    ) -> Array:
+        """Parameter Jacobian."""
+        ...
+
+    # Inherits other methods from Kernel protocol
+    def hyp_list(self) -> HyperparameterList[Array]: ...
+    def bkd(self) -> Backend[Array]: ...
+    def nlevels(self) -> int: ...
+```
+
+## Implementing Custom Protocols
+
+### Custom Backend
+
+Implement `Backend[Array]` for a new numerical library:
+
+```python
+from pyapprox.typing.util.backends.protocols import Backend
+import my_array_library as mal
+
+class MyArrayBkd:
+    """Custom backend implementation."""
+
+    def array(self, data) -> mal.Array:
+        return mal.array(data)
+
+    def zeros(self, shape: tuple[int, ...]) -> mal.Array:
+        return mal.zeros(shape)
+
+    def matmul(self, A: mal.Array, B: mal.Array) -> mal.Array:
+        return mal.matmul(A, B)
+
+    # ... implement all protocol methods
+```
+
+No inheritance needed - just implement the methods!
+
+### Custom Kernel
+
+Implement `Kernel[Array]` for a new covariance function:
+
+```python
+from typing import Generic
+from pyapprox.typing.util.backends.protocols import Array, Backend
+from pyapprox.typing.surrogates.hyperparameters import HyperparameterList
+
+class MyCustomKernel(Generic[Array]):
+    def __init__(
+        self,
+        params: list[float],
+        bounds: tuple[float, float],
+        nvars: int,
+        bkd: Backend[Array]
+    ) -> None:
+        self._nvars = nvars
+        self._bkd = bkd
+        self._hyp_list = HyperparameterList(
+            [Hyperparameter(p, bounds, f"param_{i}")
+             for i, p in enumerate(params)],
+            bkd
+        )
+
+    def __call__(self, X1: Array, X2: Array) -> Array:
+        # Custom kernel evaluation
+        params = self._hyp_list.get_active_values()
+        # ... implementation
+        return K
+
+    def jacobian_wrt_params(self, X1: Array, X2: Array) -> Array:
+        # Gradient computation
+        return jac
+
+    def hyp_list(self) -> HyperparameterList[Array]:
+        return self._hyp_list
+
+    def bkd(self) -> Backend[Array]:
+        return self._bkd
+
+    def nvars(self) -> int:
+        return self._nvars
+```
+
+This kernel automatically works with all GP implementations!
+
+### Custom GP
+
+Implement `GaussianProcessProtocol[Array]` for a new GP method:
+
+```python
+class ApproximateGP(Generic[Array]):
+    """Custom GP using sparse approximations."""
+
+    def __init__(
+        self,
+        kernel: Kernel[Array],
+        bkd: Backend[Array],
+        num_inducing: int = 100
+    ) -> None:
+        self._kernel = kernel
+        self._bkd = bkd
+        self._num_inducing = num_inducing
+
+    def fit(self, X: Array, y: Array) -> None:
+        # Sparse GP fitting
+        ...
+
+    def predict(
+        self,
+        X: Array,
+        return_std: bool = False
+    ) -> Array | tuple[Array, Array]:
+        # Sparse predictions
+        ...
+
+    def kernel(self) -> Kernel[Array]:
+        return self._kernel
+
+    def bkd(self) -> Backend[Array]:
+        return self._bkd
+```
+
+## Benefits of Protocols
+
+### 1. Flexibility
+
+No inheritance constraints - implement only what's needed:
+
+```python
+# This works even though MyKernel doesn't inherit from anything
+my_kernel = MyCustomKernel(...)
+gp = ExactGaussianProcess(my_kernel, bkd)  # ✅ Type-safe!
+```
+
+### 2. Testability
+
+Easy to create mock implementations for testing:
+
+```python
+class MockBackend:
+    """Minimal backend for testing."""
+
+    def array(self, data):
+        return np.array(data)
+
+    def matmul(self, A, B):
+        return A @ B
+
+    # Only implement methods actually used in test
+
+# Works in tests!
+bkd = MockBackend()
+```
+
+### 3. Type Safety
+
+Full static type checking without runtime overhead:
+
+```python
+def my_function(kernel: Kernel[Array]) -> Array:
+    # mypy knows kernel has __call__, jacobian_wrt_params, etc.
+    ...
+```
+
+### 4. Extensibility
+
+Add new implementations without modifying existing code:
+
+```python
+# New kernel
+class PeriodicKernel(Generic[Array]):
+    # ... implement protocol methods
+
+# Works everywhere immediately!
+gp = ExactGaussianProcess(PeriodicKernel(...), bkd)
+```
+
+## Protocol vs Inheritance
+
+### Protocols (Structural Typing)
+
+```python
+# Duck typing with type safety
+class MyKernel(Generic[Array]):
+    def __call__(self, X1, X2): ...
+    def jacobian_wrt_params(self, X1, X2): ...
+    # ... other methods
+
+# mypy knows MyKernel satisfies Kernel[Array] protocol
+```
+
+**Advantages:**
+- ✅ No inheritance required
+- ✅ Easy to test (mock implementations)
+- ✅ Multiple "inheritance" (satisfy multiple protocols)
+- ✅ Decouple interface from implementation
+
+### Inheritance (Nominal Typing)
+
+```python
+# Traditional approach
+class KernelBase(ABC):
+    @abstractmethod
+    def __call__(self, X1, X2): ...
+
+class MyKernel(KernelBase):  # Must inherit
+    def __call__(self, X1, X2): ...
+```
+
+**Disadvantages:**
+- ❌ Tight coupling
+- ❌ Single inheritance limitation
+- ❌ Hard to mock for testing
+- ❌ Implementation dependencies
+
+## See Also
+
+- **[Developer Guide: Protocols](../developer-guide/protocols.qmd)**: Protocol design patterns
+- **[Backends](backends.qmd)**: Backend protocol implementations
+- **[Kernels](kernels.qmd)**: Kernel protocol implementations
+- **[Type Safety](../developer-guide/type-safety.qmd)**: Type checking guide

@@ -1,0 +1,156 @@
+---
+title: "Theory"
+subtitle: "Mathematical foundations of kernels and Gaussian processes"
+---
+
+## Overview
+
+This section provides the mathematical foundations for understanding kernels, Gaussian processes, and multi-output modeling in the PyApprox Typing Module.
+
+## Theory Sections
+
+### [Kernel Theory](kernel-theory.qmd)
+
+Fundamental concepts in kernel methods:
+
+- **Positive Definiteness**: What makes a valid kernel
+- **Reproducing Kernel Hilbert Space (RKHS)**: Mathematical framework
+- **Common Kernels**: Matern, RBF, polynomial kernels
+- **Kernel Properties**: Stationarity, isotropy, smoothness
+- **Kernel Composition**: Sums and products of kernels
+
+**Key Concepts**:
+
+- Mercer's theorem
+- Kernel functions as inner products
+- Smoothness and differentiability
+- Length scale interpretation
+
+### [Multi-Output Kernels](multioutput-kernels.qmd)
+
+Theory of kernels for multiple outputs:
+
+- **Independent Multi-Output Kernels (IMC)**: Block-diagonal structure
+- **Linear Model of Coregionalization (LMC)**: Shared latent processes
+- **Cross-Covariance**: Modeling correlations between outputs
+- **Autoregressive Structure**: Sequential dependencies
+
+**Key Concepts**:
+
+- Separable vs non-separable kernels
+- Rank-reduction in LMC
+- Multi-fidelity modeling
+- Cross-covariance matrices
+
+### [DAG-Structured Kernels](dag-kernels.qmd)
+
+Advanced multi-output kernels with arbitrary dependencies:
+
+- **DAG Representation**: Using directed acyclic graphs
+- **Path-Based Covariance**: Computing K via graph paths
+- **Autoregressive Models**: f_j = Σ ρ_{ij} f_i + δ_j
+- **Precision Matrices**: Sparsity from conditional independence
+- **Scalings**: Spatially varying correlations
+
+**Key Concepts**:
+
+- Topological ordering
+- Conditional independence
+- Information propagation
+- Block matrix structure
+
+### [Gaussian Processes](gaussian-processes.qmd)
+
+Fundamentals of Gaussian process regression:
+
+- **GP Definition**: Distribution over functions
+- **Prior and Posterior**: Updating beliefs with data
+- **Marginal Likelihood**: Model evidence for hyperparameter optimization
+- **Predictive Distribution**: Mean and variance at test points
+- **Computational Complexity**: O(n³) scaling
+
+**Key Concepts**:
+
+- Gaussian distributions
+- Conditioning on observations
+- Cholesky factorization
+- Negative log marginal likelihood
+
+## Mathematical Notation
+
+Throughout the theory documentation, we use consistent notation:
+
+### Scalars and Vectors
+
+- **Scalars**: Lowercase letters (x, y, α, σ)
+- **Vectors**: Bold lowercase (***x***, ***y***, ***α***)
+- **Matrices**: Bold uppercase (***K***, ***X***, ***Σ***)
+- **Sets**: Calligraphic (𝒳, 𝒟)
+
+### Common Symbols
+
+| Symbol | Meaning |
+|--------|---------|
+| ***x*** ∈ ℝ^d^ | Input vector in d dimensions |
+| f(***x***) | Function value at ***x*** |
+| k(***x***, ***x***′) | Kernel function |
+| ***K*** | Kernel matrix (Gram matrix) |
+| σ²_n | Noise variance |
+| ℓ | Length scale parameter |
+| ν | Smoothness parameter (Matern) |
+| ρ(***x***) | Scaling function |
+| δ_j(***x***) | Discrepancy at level j |
+
+### Operators
+
+| Operator | Meaning |
+|----------|---------|
+| E[·] | Expectation |
+| Var[·] | Variance |
+| Cov[·,·] | Covariance |
+| 𝒩(μ, Σ) | Gaussian distribution |
+| ∥·∥ | Euclidean norm |
+| Tr(·) | Matrix trace |
+| det(·) | Matrix determinant |
+
+## Prerequisites
+
+The theory documentation assumes familiarity with:
+
+- **Linear Algebra**: Matrix operations, eigenvalues, positive definiteness
+- **Probability**: Gaussian distributions, conditional probability, expectations
+- **Calculus**: Derivatives, gradients, Taylor expansions
+- **Statistics**: Maximum likelihood, Bayesian inference
+
+For background material, we recommend:
+
+- Rasmussen & Williams (2006), *Gaussian Processes for Machine Learning*
+- Bishop (2006), *Pattern Recognition and Machine Learning*
+- Murphy (2012), *Machine Learning: A Probabilistic Perspective*
+
+## Relationship to Code
+
+Each theory page includes:
+
+- **Mathematical formulas**: Rigorous definitions and derivations
+- **Code examples**: Implementation in PyApprox Typing
+- **Cross-references**: Links to API documentation
+- **Practical notes**: Computational considerations
+
+The theory directly corresponds to the implementation:
+
+```{python}
+#| eval: false
+from pyapprox.typing.surrogates.kernels import MaternKernel
+
+# Matern kernel: k(x, x') = σ² * M_ν(r/ℓ)
+# See theory/kernel-theory.qmd for mathematical details
+kernel = MaternKernel(nu=2.5, length_scale=[1.0], ...)
+```
+
+## See Also
+
+- [Developer Guide](../developer-guide/index.qmd) - Implementation conventions
+- [Gallery](../gallery/index.qmd) - Visual examples
+- [Tutorials](../tutorials/index.qmd) - Step-by-step guides
+- [API Reference](../api/index.qmd) - Complete API documentation

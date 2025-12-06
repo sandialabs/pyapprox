@@ -1,0 +1,568 @@
+---
+title: "Array Shape Conventions"
+subtitle: "Strict conventions for input, output, and Jacobian arrays"
+format:
+  html:
+    toc: true
+    toc-depth: 3
+    code-fold: false
+---
+
+## Overview
+
+The `pyapprox.typing` module follows consistent conventions for array shapes to ensure clarity and interoperability across all components (kernels, functions, optimizers, etc.).
+
+::: {.callout-important}
+## Key Principles
+
+- **Samples are columns** for input arrays X
+- **Variables/dimensions are rows** for input arrays X
+- **Samples are rows** for output arrays y (when shape matters)
+- **Outputs/quantities-of-interest are columns** for output arrays y
+- **1D arrays** are used only when the array structure cannot be 2D (e.g., hyperparameters, diagonal elements)
+:::
+
+## Input Arrays (X)
+
+### Shape Convention
+
+Input arrays **X** have shape **(nvars, nsamples)** where:
+
+- **nvars**: Number of input variables (dimensions)
+- **nsamples**: Number of samples (data points, realizations)
+
+**Each column is one sample**, and **each row is one variable**.
+
+### Interpretation
+
+```
+X = [[x1_sample1, x1_sample2, x1_sample3, ...],
+     [x2_sample1, x2_sample2, x2_sample3, ...],
+     [x3_sample1, x3_sample2, x3_sample3, ...],
+     ...]
+```
+
+- **X[:, i]**: The i-th sample (column vector of length nvars)
+- **X[j, :]**: The j-th variable across all samples (row vector of length nsamples)
+
+### Rationale
+
+This convention is standard in many scientific computing libraries and has several benefits:
+
+1. **Natural matrix operations**: When X is a design matrix, X.T @ X forms the Gram matrix
+2. **Kernel evaluations**: K(X1, X2) naturally computes all pairwise kernel values
+3. **Broadcasting**: Many operations broadcast naturally over samples
+
+### Examples
+
+::: {.panel-tabset}
+
+#### Single Sample in 2D
+
+```{python}
+#| eval: false
+# One sample with x1=1.0, x2=2.0
+X = bkd.array([[1.0], [2.0]])  # Shape: (2, 1)
+```
+
+#### Multiple Samples in 1D
+
+```{python}
+#| eval: false
+# Three samples: x=0.0, x=1.0, x=2.0
+X = bkd.array([[0.0, 1.0, 2.0]])  # Shape: (1, 3)
+```
+
+#### Multiple Samples in 3D
+
+```{python}
+#| eval: false
+# Two samples in 3D space
+X = bkd.array([
+    [1.0, 2.0],   # x1 values
+    [3.0, 4.0],   # x2 values
+    [5.0, 6.0]    # x3 values
+])  # Shape: (3, 2)
+```
+
+:::
+
+## Output Arrays (y)
+
+### Shape Convention
+
+Output arrays **y** have shape **(nsamples, nqoi)** where:
+
+- **nsamples**: Number of samples (evaluations, data points)
+- **nqoi**: Number of quantities of interest (output dimensions)
+
+**Each row is one sample's output**, and **each column is one output variable**.
+
+### Interpretation
+
+```
+y = [[y1_sample1, y2_sample1, y3_sample1, ...],
+     [y1_sample2, y2_sample2, y3_sample2, ...],
+     [y1_sample3, y2_sample3, y3_sample3, ...],
+     ...]
+```
+
+- **y[i, :]**: The i-th sample's outputs (row vector of length nqoi)
+- **y[:, j]**: The j-th output across all samples (column vector of length nsamples)
+
+### Rationale
+
+This convention differs from the input convention for practical reasons:
+
+1. **Observation matrix**: y is typically thought of as an observation matrix where each row is an observation
+2. **Regression target**: Matches convention in GP regression and sklearn
+3. **Statistical interpretation**: Each row is a realization, each column is a variable being measured
+
+### Examples
+
+::: {.panel-tabset}
+
+#### Single Output
+
+```{python}
+#| eval: false
+# Three samples with scalar output
+y = bkd.array([[1.0], [2.0], [3.0]])  # Shape: (3, 1)
+```
+
+#### Multiple Outputs
+
+```{python}
+#| eval: false
+# Two samples with 3 outputs each
+y = bkd.array([
+    [1.0, 2.0, 3.0],  # Sample 1: [y1, y2, y3]
+    [4.0, 5.0, 6.0]   # Sample 2: [y1, y2, y3]
+])  # Shape: (2, 3)
+```
+
+:::
+
+### Special Case: Function Protocol
+
+::: {.callout-warning}
+## Function Protocol Returns Transposed Format
+
+When implementing `FunctionProtocol`, the `__call__` method returns shape **(nqoi, nsamples)** to match the transpose of the output convention.
+
+**This means**:
+
+- **Training data y**: shape (nsamples, nqoi)
+- **Function evaluation f(X)**: shape (nqoi, nsamples)
+:::
+
+To convert between conventions, use transpose:
+
+```{python}
+#| eval: false
+# Function evaluation
+f_X = my_function(X)  # Shape: (nqoi, nsamples)
+
+# Convert to training data format
+y = bkd.transpose(f_X)  # Shape: (nsamples, nqoi)
+```
+
+## Jacobian Arrays
+
+::: {.callout-important}
+## Critical Rule: Always 2D
+
+**Jacobians are always 2D arrays**, even when nqoi=1 or nvars=1.
+
+**We never use 1D gradients.** All derivatives are expressed as Jacobian matrices.
+:::
+
+### Shape Convention
+
+Jacobian arrays have shape **(nqoi, nvars)** where:
+
+- **nqoi**: Number of outputs (quantities of interest)
+- **nvars**: Number of input variables
+
+### Function Jacobian: ∂f/∂x
+
+For a function f: R^nvars → R^nqoi, the Jacobian is:
+
+```{python}
+#| eval: false
+jac = function.jacobian(X)  # Shape: (nqoi, nvars, nsamples)
+```
+
+**Per-sample Jacobian**: For a single sample, shape is **(nqoi, nvars)**:
+
+```{python}
+#| eval: false
+jac_i = jac[:, :, i]  # Shape: (nqoi, nvars)
+```
+
+**Special Cases**:
+
+- Scalar function (nqoi=1): Shape is **(1, nvars)** NOT (nvars,)
+- Single variable (nvars=1): Shape is **(nqoi, 1)** NOT (nqoi,)
+
+### Kernel Jacobian: ∂K/∂x
+
+For kernel spatial derivatives:
+
+```{python}
+#| eval: false
+jac = kernel.jacobian(X1, X2)  # Shape: (nsamples1, nsamples2, nvars)
+```
+
+The last dimension is the gradient direction. For a single kernel value K(x1, x2):
+
+```{python}
+#| eval: false
+grad_x1 = jac[i, j, :]  # Shape: (nvars,) - gradient w.r.t. first argument
+```
+
+::: {.callout-note}
+This is the one exception where we extract a 1D array, but the full Jacobian is always 3D.
+:::
+
+### Parameter Jacobian: ∂f/∂θ
+
+For derivatives with respect to hyperparameters:
+
+```{python}
+#| eval: false
+jac_params = kernel.jacobian_wrt_params(X)  # Shape: (nsamples, nsamples, nparams)
+```
+
+For a scalar loss function L(θ):
+
+```{python}
+#| eval: false
+jac = loss.jacobian(params)  # Shape: (1, nparams) NOT (nparams,)
+```
+
+**Always 2D**: Even though the loss is scalar, the Jacobian must be 2D.
+
+### Jacobian Naming Conventions
+
+::: {.callout-tip}
+## Method Names Indicate Derivative Variable
+
+- `jacobian()` → derivatives w.r.t. **primary variables** (inputs X)
+- `jacobian_wrt_params()` → derivatives w.r.t. **hyperparameters** (θ)
+- `jacobian_wrt_state()` → derivatives w.r.t. **state variables** (u)
+:::
+
+#### Primary Jacobian: `jacobian()`
+
+The `jacobian()` method (without suffix) computes derivatives **with respect to the primary variables** - those that are varied most often:
+
+- **Kernels**: `jacobian(X1, X2)` → ∂K/∂X (spatial derivatives)
+- **Functions**: `jacobian(X)` → ∂f/∂X (function derivatives)
+- **Surrogates/GPs**: `jacobian(X)` → ∂f*/∂X (predictive derivatives)
+
+#### Parameter Jacobian: `jacobian_wrt_params()`
+
+The `jacobian_wrt_params()` method computes derivatives **with respect to hyperparameters** - those that are optimized less frequently:
+
+- **Kernels**: `jacobian_wrt_params(X)` → ∂K/∂θ (kernel hyperparameters)
+- **Surrogates**: `jacobian_wrt_params(X)` → ∂f*/∂θ (model hyperparameters)
+- **Scaling functions**: `jacobian_wrt_params(X)` → ∂ρ/∂c (scaling coefficients)
+
+### Why Always 2D?
+
+**Consistency**: All Jacobians have the same structural interpretation regardless of dimensions:
+
+- **Row i**: Derivatives of output i
+- **Column j**: Derivatives with respect to input j
+
+**Type Safety**: 2D shape prevents ambiguity and makes code more robust:
+
+```{python}
+#| eval: false
+# ❌ BAD - ambiguous shape
+grad = loss.jacobian(params)  # Shape: (nparams,) - is this a gradient or a vector?
+
+# ✅ GOOD - unambiguous
+jac = loss.jacobian(params)  # Shape: (1, nparams) - clearly a Jacobian row
+```
+
+**Matrix Operations**: 2D Jacobians work naturally with matrix operations:
+
+```{python}
+#| eval: false
+# Hessian-vector product: J.T @ J @ v
+H_v = jac.T @ jac @ v  # Works naturally when jac is (1, nparams)
+```
+
+### Examples
+
+::: {.panel-tabset}
+
+#### Scalar Function Jacobian
+
+```{python}
+#| eval: false
+# f: R^3 → R (scalar output)
+class MyScalarFunction(FunctionProtocol[Array]):
+    def nvars(self) -> int:
+        return 3
+
+    def nqoi(self) -> int:
+        return 1
+
+    def jacobian(self, X: Array) -> Array:
+        """
+        Compute Jacobian.
+
+        Parameters
+        ----------
+        X : Array, shape (3, nsamples)
+
+        Returns
+        -------
+        Array, shape (1, 3, nsamples)  # NOT (3, nsamples)!
+        """
+        # Compute gradient
+        grad = compute_gradient(X)  # Shape: (3, nsamples)
+
+        # Reshape to (1, 3, nsamples) for Jacobian format
+        return bkd.reshape(grad, (1, 3, X.shape[1]))
+```
+
+#### Loss Function Jacobian
+
+```{python}
+#| eval: false
+class MyLoss(FunctionWithJacobianProtocol[Array]):
+    def nvars(self) -> int:
+        return nparams  # Number of parameters
+
+    def nqoi(self) -> int:
+        return 1  # Scalar loss
+
+    def jacobian(self, params: Array) -> Array:
+        """
+        Compute loss gradient w.r.t. parameters.
+
+        Parameters
+        ----------
+        params : Array, shape (nparams,)
+
+        Returns
+        -------
+        Array, shape (1, nparams)  # NOT (nparams,)!
+        """
+        grad = compute_gradient(params)  # Shape may vary
+
+        # Ensure 2D output
+        return bkd.reshape(grad, (1, self.nvars()))
+```
+
+:::
+
+## When to Use 1D vs 2D Arrays
+
+### Use 1D Arrays When:
+
+1. **Hyperparameters**: Shape (nparams,) - a flat list of parameter values
+
+```{python}
+#| eval: false
+params = bkd.array([0.5, 1.0, 2.0])  # Shape: (3,)
+```
+
+2. **Diagonal elements**: Shape (n,) - diagonal of a matrix
+
+```{python}
+#| eval: false
+diag = kernel.diag(X)  # Shape: (nsamples,)
+```
+
+3. **Index arrays**: Shape (n,) - indices for selection
+
+```{python}
+#| eval: false
+indices = bkd.array([0, 2, 5])  # Shape: (3,)
+```
+
+### Always Use 2D Arrays For:
+
+1. **Inputs X**: Always use (nvars, nsamples) even for single sample or single variable
+2. **Outputs y**: Always use (nsamples, nqoi) for training data
+3. **Function evaluations**: Always use (nqoi, nsamples) when implementing FunctionProtocol
+4. **Jacobians**: Shape (nqoi, nvars) - even when nqoi=1 or nvars=1
+
+::: {.callout-warning}
+## Ambiguity Problem
+
+A 1D array of length n could mean:
+
+- n samples of a 1D variable? → Should be (1, n)
+- 1 sample of an n-dimensional variable? → Should be (n, 1)
+
+Always use 2D to remove ambiguity.
+:::
+
+### Reshaping Guidelines
+
+**DON'T** use 1D arrays where 2D is expected. Instead, use `reshape`:
+
+```{python}
+#| eval: false
+# ❌ BAD - 1D array for input
+X = bkd.array([1.0, 2.0, 3.0])  # Shape: (3,) - ambiguous!
+
+# ✅ GOOD - 2D array with explicit shape
+X = bkd.array([[1.0, 2.0, 3.0]])  # Shape: (1, 3) - 1 variable, 3 samples
+
+# ✅ GOOD - Alternative using reshape
+X = bkd.reshape(bkd.array([1.0, 2.0, 3.0]), (1, 3))
+```
+
+## Complete Examples
+
+### Example 1: Kernel Evaluation
+
+```{python}
+#| eval: false
+from pyapprox.typing.surrogates.kernels import MaternKernel
+from pyapprox.typing.util.backends.numpy import NumpyBkd
+
+bkd = NumpyBkd()
+kernel = MaternKernel(2.5, [1.0, 1.0], (0.1, 10.0), 2, bkd)
+
+# Input: 5 samples in 2D
+X1 = bkd.random.randn(2, 5)  # Shape: (2, 5)
+
+# Input: 3 samples in 2D
+X2 = bkd.random.randn(2, 3)  # Shape: (2, 3)
+
+# Kernel matrix
+K = kernel(X1, X2)  # Shape: (5, 3)
+# K[i, j] = k(X1[:, i], X2[:, j])
+```
+
+### Example 2: Gaussian Process Regression
+
+```{python}
+#| eval: false
+from pyapprox.typing.surrogates.gaussianprocess import ExactGaussianProcess
+
+# Training data
+X_train = bkd.random.randn(2, 100)  # Shape: (2, 100) - 100 samples in 2D
+y_train = bkd.random.randn(100, 1)  # Shape: (100, 1) - 100 scalar outputs
+
+# Fit GP
+gp = ExactGaussianProcess(kernel, bkd)
+gp.fit(X_train, y_train)
+
+# Test data
+X_test = bkd.random.randn(2, 20)  # Shape: (2, 20) - 20 samples in 2D
+
+# Predict
+y_pred = gp.predict(X_test)  # Shape: (20, 1)
+```
+
+### Example 3: Multi-Output Function
+
+```{python}
+#| eval: false
+from pyapprox.typing.interface.functions.protocols import FunctionProtocol
+
+class MyMultiOutputFunction(FunctionProtocol[Array]):
+    def nvars(self) -> int:
+        return 2
+
+    def nqoi(self) -> int:
+        return 3
+
+    def __call__(self, X: Array) -> Array:
+        """
+        Evaluate function.
+
+        Parameters
+        ----------
+        X : Array, shape (2, nsamples)
+
+        Returns
+        -------
+        Array, shape (3, nsamples)
+        """
+        # Each output is a function of the inputs
+        y1 = X[0, :] + X[1, :]     # Sum
+        y2 = X[0, :] * X[1, :]     # Product
+        y3 = X[0, :] ** 2 + X[1, :] ** 2  # Sum of squares
+
+        return self._bkd.stack([y1, y2, y3], axis=0)  # Shape: (3, nsamples)
+
+# Usage
+f = MyMultiOutputFunction(bkd)
+X = bkd.array([[1.0, 2.0], [3.0, 4.0]])  # Shape: (2, 2) - 2 samples
+y = f(X)  # Shape: (3, 2)
+
+# Convert to training format
+y_train = bkd.transpose(y)  # Shape: (2, 3)
+```
+
+## Backend Compatibility
+
+All array conventions work seamlessly with both NumPy and PyTorch backends:
+
+::: {.panel-tabset}
+
+#### NumPy Backend
+
+```{python}
+#| eval: false
+from pyapprox.typing.util.backends.numpy import NumpyBkd
+import numpy as np
+
+bkd = NumpyBkd()
+X = bkd.array([[1.0, 2.0], [3.0, 4.0]])  # Returns np.ndarray
+```
+
+#### PyTorch Backend
+
+```{python}
+#| eval: false
+from pyapprox.typing.util.backends.torch import TorchBkd
+import torch
+
+bkd = TorchBkd()
+X = bkd.array([[1.0, 2.0], [3.0, 4.0]])  # Returns torch.Tensor
+```
+
+:::
+
+### Key Backend Methods
+
+- `bkd.array()`: Create array from list
+- `bkd.reshape(X, shape)`: Reshape array
+- `bkd.transpose(X)`: Transpose array
+- `bkd.stack(arrays, axis)`: Stack arrays along axis
+- `bkd.to_numpy(X)`: Convert to NumPy (for plotting, assertions)
+
+::: {.callout-important}
+Always use backend methods, never create arrays directly with `np.array()` or `torch.tensor()` in generic code.
+:::
+
+## Summary
+
+| Array Type | Shape | Samples Are | Variables Are |
+|------------|-------|-------------|---------------|
+| Input X | (nvars, nsamples) | Columns | Rows |
+| Output y (training) | (nsamples, nqoi) | Rows | Columns |
+| Function f(X) | (nqoi, nsamples) | Columns | Rows |
+| Hyperparameters | (nparams,) | N/A (1D) | N/A (1D) |
+| Kernel K(X1, X2) | (nsamples1, nsamples2) | Both dims | N/A |
+| Jacobian ∂f/∂X | (nqoi, nvars, nsamples) | Last dim | Middle dim |
+
+**Key Takeaways**:
+
+1. **X is always (nvars, nsamples)** - samples are columns
+2. **y training data is (nsamples, nqoi)** - samples are rows
+3. **FunctionProtocol returns (nqoi, nsamples)** - transpose of y
+4. **Jacobians are always 2D** (nqoi, nvars), even when nqoi=1 or nvars=1
+5. **Use 2D arrays** unless the data is inherently 1D (hyperparameters, indices)
+6. **Transpose** to convert between training format and function format

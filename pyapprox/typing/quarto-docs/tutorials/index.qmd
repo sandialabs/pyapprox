@@ -1,0 +1,83 @@
+---
+title: "Tutorials"
+subtitle: "Interactive guides for learning the PyApprox Typing Module"
+---
+
+## Overview
+
+These tutorials provide hands-on introductions to the PyApprox Typing Module, from basic concepts to advanced multi-output Gaussian processes. Each tutorial is designed to be self-contained and executable.
+
+::: {.callout-note}
+## Prerequisites
+
+- Python 3.8+
+- PyApprox installed with typing extras: `pip install pyapprox[typing]`
+- For PyTorch backend: `pip install torch`
+:::
+
+## Tutorial Progression
+
+### 1. Getting Started
+
+**Status**: Coming soon
+
+Learn the basics of the typing module:
+- Installation and setup
+- Choosing between NumPy and PyTorch backends
+- Creating your first kernel
+- Basic Gaussian Process regression
+
+### 2. Kernel Basics
+
+**Status**: Coming soon
+
+Dive deeper into kernels:
+- Understanding kernel hyperparameters
+- Composing kernels (sum and product)
+- Visualizing kernel behavior
+- Hyperparameter optimization
+
+### 3. Gaussian Process Regression
+
+**Status**: Coming soon
+
+Master GP regression:
+- Training GPs on data
+- Making predictions with uncertainty quantification
+- Interpreting predictive mean and variance
+- Cross-validation and model selection
+
+### 4. Multi-Output Gaussian Processes
+
+**Status**: Coming soon
+
+Work with multiple correlated outputs:
+- Independent multi-output kernels
+- Linear Model of Coregionalization (LMC)
+- Multi-level kernels for multi-fidelity modeling
+- Computational considerations
+
+### 5. DAG-Structured Gaussian Processes
+
+**Status**: Coming soon
+
+Handle complex dependencies:
+- Creating arbitrary DAG structures
+- Path-based covariance computation
+- Understanding precision matrices
+- Applications in hierarchical modeling
+
+## Quick Examples
+
+Until the full tutorials are available, see the [Gallery](../gallery/index.qmd) for working code examples.
+
+## Additional Resources
+
+- **[Developer Guide](../developer-guide/index.qmd)**: Testing conventions, type safety, and protocols
+- **[Theory](../theory/index.qmd)**: Mathematical foundations
+- **[API Reference](../api/index.qmd)**: Detailed function documentation
+- **[Gallery](../gallery/index.qmd)**: Visual examples and plots
+
+## Contributing
+
+Have an idea for a tutorial? [Open an issue](https://github.com/sandialabs/pyapprox/issues) or submit a pull request!
