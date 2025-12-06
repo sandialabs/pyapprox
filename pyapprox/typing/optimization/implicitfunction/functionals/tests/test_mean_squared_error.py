@@ -20,6 +20,8 @@ class TestMSEFunctional(Generic[Array], unittest.TestCase):
     Derived classes must implement the bkd() method to provide the backend.
     """
 
+    __test__ = False
+
     def setUp(self) -> None:
         """
         Set up the test environment for MSEFunctional.

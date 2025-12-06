@@ -15,6 +15,8 @@ from pyapprox.typing.variables.univariate.scipy_continuous import (
 
 
 class TestGaussianMarginal(Generic[Array], unittest.TestCase):
+    __test__ = False
+
     def bkd(self) -> Backend[Array]:
         """
         Override this method in derived classes to provide the specific
@@ -171,26 +173,8 @@ class TestGaussianMarginalTorch(TestGaussianMarginal[torch.Tensor]):
         return self._bkd
 
 
-# Custom test loader to exclude the base class
-def load_tests(
-    loader: unittest.TestLoader, tests, pattern: str
-) -> unittest.TestSuite:
-    """
-    Custom test loader to exclude the base class
-    GaussianMarginal.
-    """
-    test_suite = unittest.TestSuite()
-    for test_class in [
-        TestGaussianMarginalNumpy,
-        TestGaussianMarginalTorch,
-    ]:
-        test_suite.addTests(loader.loadTestsFromTestCase(test_class))
-    return test_suite
+from pyapprox.typing.util.test_utils import load_tests
 
 
-# Main block to explicitly run tests using the custom loader
 if __name__ == "__main__":
-    loader = unittest.TestLoader()
-    suite = load_tests(loader, [], None)
-    runner = unittest.TextTestRunner(verbosity=2)
-    runner.run(suite)
+    unittest.main()

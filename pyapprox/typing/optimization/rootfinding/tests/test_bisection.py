@@ -13,6 +13,8 @@ from pyapprox.typing.optimization.rootfinding.bisection import (
 
 
 class TestBisectionSearch(Generic[Array], unittest.TestCase):
+    __test__ = False
+
     def bkd(self) -> Backend[Array]:
         """
         Override this method in derived classes to provide the specific backend.

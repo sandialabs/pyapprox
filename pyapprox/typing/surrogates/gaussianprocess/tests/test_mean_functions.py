@@ -30,6 +30,8 @@ class TestMeanFunctions(Generic[Array], unittest.TestCase):
     Derived classes must implement the bkd() method.
     """
 
+    __test__ = False
+
     def setUp(self) -> None:
         """Set up test environment."""
         np.random.seed(42)
@@ -312,21 +314,7 @@ class TestMeanFunctionsTorch(TestMeanFunctions[torch.Tensor]):
         return self._bkd
 
 
-# ========== Load Tests Function ==========
-
-def load_tests(loader, tests, pattern):
-    """
-    Customize test loading to skip base classes.
-
-    This ensures only the backend-specific classes are run.
-    """
-    suite = unittest.TestSuite()
-
-    # Add only backend-specific tests
-    suite.addTests(loader.loadTestsFromTestCase(TestMeanFunctionsNumpy))
-    suite.addTests(loader.loadTestsFromTestCase(TestMeanFunctionsTorch))
-
-    return suite
+from pyapprox.typing.util.test_utils import load_tests
 
 
 if __name__ == "__main__":

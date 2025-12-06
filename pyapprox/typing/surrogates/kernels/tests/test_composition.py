@@ -22,6 +22,8 @@ class TestProductKernel(Generic[Array], unittest.TestCase):
     Derived classes must implement the bkd() method to provide the backend.
     """
 
+    __test__ = False
+
     def setUp(self) -> None:
         """
         Set up test environment for ProductKernel.
@@ -222,6 +224,8 @@ class TestSumKernel(Generic[Array], unittest.TestCase):
     Derived classes must implement the bkd() method to provide the backend.
     """
 
+    __test__ = False
+
     def setUp(self) -> None:
         """
         Set up test environment for SumKernel.
@@ -418,6 +422,8 @@ class TestNestedComposition(Generic[Array], unittest.TestCase):
     Test nested composition of kernels.
     """
 
+    __test__ = False
+
     def setUp(self) -> None:
         """
         Set up test environment for nested compositions.
@@ -552,24 +558,7 @@ class TestNestedCompositionTorch(TestNestedComposition[torch.Tensor]):
         return self._bkd
 
 
-# Custom test loader to exclude base classes
-def load_tests(
-    loader: unittest.TestLoader, tests, pattern: str
-) -> unittest.TestSuite:
-    """
-    Custom test loader to exclude the base classes.
-    """
-    test_suite = unittest.TestSuite()
-    for test_class in [
-        TestProductKernelNumpy,
-        TestProductKernelTorch,
-        TestSumKernelNumpy,
-        TestSumKernelTorch,
-        TestNestedCompositionNumpy,
-        TestNestedCompositionTorch,
-    ]:
-        test_suite.addTests(loader.loadTestsFromTestCase(test_class))
-    return test_suite
+from pyapprox.typing.util.test_utils import load_tests
 
 
 if __name__ == "__main__":

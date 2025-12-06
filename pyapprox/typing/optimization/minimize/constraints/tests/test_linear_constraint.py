@@ -15,6 +15,8 @@ from pyapprox.typing.optimization.minimize.constraints.linear import (
 
 
 class TestPyApproxLinearConstraint(Generic[Array], unittest.TestCase):
+    __test__ = False
+
     def bkd(self) -> Backend[Array]:
         """
         Override this method in derived classes to provide the specific

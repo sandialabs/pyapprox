@@ -1,4 +1,4 @@
-from typing import Protocol, Generic, runtime_checkable
+from typing import Protocol, Generic, runtime_checkable, Tuple
 from abc import ABC, abstractmethod
 
 from pyapprox.typing.util.backends.protocols import Array, Backend

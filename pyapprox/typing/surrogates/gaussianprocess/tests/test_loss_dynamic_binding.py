@@ -73,19 +73,13 @@ class MockKernelNoHVP(Kernel):
     # Deliberately NOT implementing hvp_wrt_params to test dynamic binding
 
 
-def load_tests(loader, tests, pattern):
-    """Skip base class tests - only run Numpy and Torch variants."""
-    suite = unittest.TestSuite()
-    for test in tests:
-        for test_case in test:
-            test_class_name = test_case.__class__.__name__
-            if 'Numpy' in test_class_name or 'Torch' in test_class_name:
-                suite.addTest(test_case)
-    return suite
+from pyapprox.typing.util.test_utils import load_tests
 
 
 class TestLossDynamicBinding(Generic[Array], unittest.TestCase):
     """Test NLML loss dynamic method binding based on kernel capabilities."""
+
+    __test__ = False
 
     def bkd(self):
         raise NotImplementedError

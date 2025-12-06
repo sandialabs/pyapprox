@@ -24,6 +24,8 @@ class TestIIDGaussianNoise(Generic[Array], unittest.TestCase):
     Derived classes must implement the bkd() method to provide the backend.
     """
 
+    __test__ = False
+
     def setUp(self) -> None:
         """
         Set up test environment for IIDGaussianNoise.
@@ -371,20 +373,7 @@ class TestIIDGaussianNoiseTorch(TestIIDGaussianNoise[torch.Tensor]):
         return self._bkd
 
 
-# Custom test loader to exclude base class
-def load_tests(
-    loader: unittest.TestLoader, tests, pattern: str
-) -> unittest.TestSuite:
-    """
-    Custom test loader to exclude the base class.
-    """
-    test_suite = unittest.TestSuite()
-    for test_class in [
-        TestIIDGaussianNoiseNumpy,
-        TestIIDGaussianNoiseTorch,
-    ]:
-        test_suite.addTests(loader.loadTestsFromTestCase(test_class))
-    return test_suite
+from pyapprox.typing.util.test_utils import load_tests
 
 
 if __name__ == "__main__":

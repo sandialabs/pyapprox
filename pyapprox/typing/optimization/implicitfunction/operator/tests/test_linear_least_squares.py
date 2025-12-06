@@ -26,6 +26,8 @@ from pyapprox.typing.optimization.implicitfunction.operator.check_derivatives im
 
 
 class TestLinearLeastSquares(Generic[Array], unittest.TestCase):
+    __test__ = False
+
     def bkd(self) -> Backend[Array]:
         """
         Override this method in derived classes to provide the specific

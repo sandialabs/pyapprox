@@ -33,6 +33,8 @@ class TestMultiOutputGPWithIndependentKernel(Generic[Array], unittest.TestCase):
     outputs simultaneously, achieving < 1e-6 interpolation accuracy.
     """
 
+    __test__ = False
+
     def bkd(self) -> Backend[Array]:
         """Override in derived classes."""
         raise NotImplementedError("Derived classes must implement this method.")
@@ -268,6 +270,8 @@ class TestMultiOutputGPWithLMCKernel(Generic[Array], unittest.TestCase):
     Tests a single GP with LMC kernel that captures correlations between outputs.
     """
 
+    __test__ = False
+
     def bkd(self) -> Backend[Array]:
         """Override in derived classes."""
         raise NotImplementedError("Derived classes must implement this method.")
@@ -433,19 +437,7 @@ class TestMultiOutputGPWithLMCKernelTorch(
         return self._bkd
 
 
-def load_tests(
-    loader: unittest.TestLoader, tests, pattern: str
-) -> unittest.TestSuite:
-    """Custom test loader to exclude base classes."""
-    test_suite = unittest.TestSuite()
-    for test_class in [
-        TestMultiOutputGPWithIndependentKernelNumpy,
-        TestMultiOutputGPWithIndependentKernelTorch,
-        TestMultiOutputGPWithLMCKernelNumpy,
-        TestMultiOutputGPWithLMCKernelTorch,
-    ]:
-        test_suite.addTests(loader.loadTestsFromTestCase(test_class))
-    return test_suite
+from pyapprox.typing.util.test_utils import load_tests
 
 
 if __name__ == "__main__":

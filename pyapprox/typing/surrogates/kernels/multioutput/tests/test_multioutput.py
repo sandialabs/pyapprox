@@ -28,6 +28,8 @@ class TestIndependentMultiOutputKernel(Generic[Array], unittest.TestCase):
     Derived classes must implement the bkd() method to provide the backend.
     """
 
+    __test__ = False
+
     def setUp(self) -> None:
         """
         Set up test environment for IndependentMultiOutputKernel.
@@ -499,6 +501,8 @@ class TestLinearCoregionalizationKernel(Generic[Array], unittest.TestCase):
     Derived classes must implement the bkd() method to provide the backend.
     """
 
+    __test__ = False
+
     def setUp(self) -> None:
         """
         Set up test environment for LinearCoregionalizationKernel.
@@ -715,6 +719,8 @@ class TestIndependentKernelIntegration(Generic[Array], unittest.TestCase):
     which is a common pattern in multi-output GPs.
     """
 
+    __test__ = False
+
     def bkd(self) -> Backend[Array]:
         """Override in derived classes."""
         raise NotImplementedError("Derived classes must implement this method.")
@@ -818,6 +824,8 @@ class TestLMCKernelIntegration(Generic[Array], unittest.TestCase):
     Tests LMC kernel properties with realistic coregionalization matrices.
     """
 
+    __test__ = False
+
     def bkd(self) -> Backend[Array]:
         """Override in derived classes."""
         raise NotImplementedError("Derived classes must implement this method.")
@@ -919,26 +927,7 @@ class TestLMCKernelIntegrationTorch(
         return self._bkd
 
 
-# Custom test loader
-def load_tests(
-    loader: unittest.TestLoader, tests, pattern: str
-) -> unittest.TestSuite:
-    """
-    Custom test loader to exclude base classes.
-    """
-    test_suite = unittest.TestSuite()
-    for test_class in [
-        TestIndependentMultiOutputKernelNumpy,
-        TestIndependentMultiOutputKernelTorch,
-        TestLinearCoregionalizationKernelNumpy,
-        TestLinearCoregionalizationKernelTorch,
-        TestIndependentKernelIntegrationNumpy,
-        TestIndependentKernelIntegrationTorch,
-        TestLMCKernelIntegrationNumpy,
-        TestLMCKernelIntegrationTorch,
-    ]:
-        test_suite.addTests(loader.loadTestsFromTestCase(test_class))
-    return test_suite
+from pyapprox.typing.util.test_utils import load_tests
 
 
 if __name__ == "__main__":

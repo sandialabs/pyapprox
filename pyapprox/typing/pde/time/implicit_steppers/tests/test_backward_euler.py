@@ -20,6 +20,8 @@ from pyapprox.typing.pde.time.implicit_steppers.integrator import (
 
 
 class TestImplicitTimeIntegration(Generic[Array], unittest.TestCase):
+    __test__ = False
+
     def bkd(self) -> Backend[Array]:
         """
         Override this method in derived classes to provide the specific
@@ -135,24 +137,8 @@ class TestImplicitTimeIntegrationTorch(
         return self._bkd
 
 
-# Custom test loader to exclude the base class
-def load_tests(
-    loader: unittest.TestLoader, tests, pattern: str
-) -> unittest.TestSuite:
-    """
-    Custom test loader to exclude the base class ImplicitTimeIntegration.
-    """
-    test_suite = unittest.TestSuite()
-    for test_class in [
-        TestImplicitTimeIntegrationNumpy,
-        TestImplicitTimeIntegrationTorch,
-    ]:
-        test_suite.addTests(loader.loadTestsFromTestCase(test_class))
-    return test_suite
+from pyapprox.typing.util.test_utils import load_tests
 
 
 if __name__ == "__main__":
-    loader = unittest.TestLoader()
-    suite = load_tests(loader, [], None)
-    runner = unittest.TextTestRunner()
-    runner.run(suite)
+    unittest.main()

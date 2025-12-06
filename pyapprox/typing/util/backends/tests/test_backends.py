@@ -33,6 +33,8 @@ def foo(x: Array, backend: Backend[Array]) -> Union[Array]:
 
 # Base test class
 class TestBackend(Generic[Array]):
+    __test__ = False
+
     def get_backend(self) -> Backend[Array]:
         """
         Override this method in derived classes to provide the specific backend.
