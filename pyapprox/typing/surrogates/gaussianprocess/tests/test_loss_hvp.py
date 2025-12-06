@@ -66,7 +66,7 @@ class TestLossHVP(Generic[Array], unittest.TestCase):
             kernel=self._kernel,
             nvars=self._nvars,
             bkd=self._bkd,
-            noise_variance=0.01
+            nugget=0.01
         )
 
         # Generate training data
@@ -88,8 +88,8 @@ class TestLossHVP(Generic[Array], unittest.TestCase):
 
         hvp = self._loss.hvp(self._params, direction)
 
-        # Should have shape (1, nactive)
-        self.assertEqual(hvp.shape, (1, nactive))
+        # Should have shape (nactive, 1) following standard convention
+        self.assertEqual(hvp.shape, (nactive, 1))
 
     def test_hvp_linearity(self):
         """Test that HVP is linear in direction: H(θ)·(aV) = a·H(θ)·V."""
@@ -113,7 +113,7 @@ class TestLossHVP(Generic[Array], unittest.TestCase):
         hvp = self._loss.hvp(self._params, direction)
 
         # Should be zero
-        zero_hvp = self._bkd.zeros((1, nactive))
+        zero_hvp = self._bkd.zeros((nactive, 1))
         self.assertTrue(
             self._bkd.allclose(hvp, zero_hvp, atol=1e-12)
         )
@@ -175,10 +175,10 @@ class TestLossHVP(Generic[Array], unittest.TestCase):
 
             hvp = self._loss.hvp(self._params, direction)
 
-            # HVP should have correct shape
-            self.assertEqual(hvp.shape, (1, nactive))
+            # HVP should have correct shape (nactive, 1)
+            self.assertEqual(hvp.shape, (nactive, 1))
 
-            # HVP[0, d] should match the d-th diagonal element of Hessian
+            # HVP[d, 0] should match the d-th diagonal element of Hessian
             # (We're not testing the value, just that it computes without error)
             self.assertTrue(self._bkd.all_bool(self._bkd.isfinite(hvp)))
 
@@ -198,7 +198,7 @@ class TestLossHVP(Generic[Array], unittest.TestCase):
             nvars=self._nvars,
             bkd=self._bkd,
             mean_function=mean,
-            noise_variance=0.01
+            nugget=0.01
         )
 
         X_train = self._bkd.array(np.random.randn(self._nvars, self._n_train))
@@ -216,8 +216,8 @@ class TestLossHVP(Generic[Array], unittest.TestCase):
 
         hvp = loss.hvp(params, direction)
 
-        # Should have correct shape
-        self.assertEqual(hvp.shape, (1, nactive))
+        # Should have correct shape (nactive, 1)
+        self.assertEqual(hvp.shape, (nactive, 1))
 
         # Should be finite
         self.assertTrue(self._bkd.all_bool(self._bkd.isfinite(hvp)))

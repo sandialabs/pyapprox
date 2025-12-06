@@ -9,7 +9,11 @@ from typing import Generic
 
 from pyapprox.typing.util.backends.protocols import Array, Backend
 from pyapprox.typing.util.hyperparameter import HyperParameterList
-from pyapprox.typing.surrogates.kernels.protocols import Kernel, KernelHasHVPProtocol
+from pyapprox.typing.surrogates.kernels.protocols import (
+    Kernel,
+    KernelHasHVPWrtX1Protocol,
+    KernelHasHVPWrtParamsProtocol,
+)
 
 
 class CompositionKernel(Kernel, Generic[Array]):
@@ -283,77 +287,6 @@ class ProductKernel(CompositionKernel):
         # Concatenate along parameter dimension
         return self._bkd.concatenate([jac1, jac2], axis=2)
 
-    def hessian_wrt_params(self, samples: Array) -> Array:
-        """
-        Compute Hessian of product kernel w.r.t. hyperparameters.
-
-        For K = K1 * K2, using product rule:
-        - ∂²K/∂θ_i∂θ_j = (∂²K1/∂θ_i∂θ_j) * K2  (both K1 params)
-        - ∂²K/∂θ_i∂θ_j = (∂K1/∂θ_i) * (∂K2/∂θ_j)  (mixed: K1 and K2 params)
-        - ∂²K/∂θ_i∂θ_j = K1 * (∂²K2/∂θ_i∂θ_j)  (both K2 params)
-
-        Parameters
-        ----------
-        samples : Array
-            Input data, shape (nvars, n).
-
-        Returns
-        -------
-        hess : Array
-            Hessian, shape (n, n, nparams, nparams).
-
-        Raises
-        ------
-        NotImplementedError
-            If either kernel doesn't support parameter Hessians.
-        """
-        if not (
-            hasattr(self._kernel1, "hessian_wrt_params")
-            and hasattr(self._kernel2, "hessian_wrt_params")
-        ):
-            raise NotImplementedError(
-                "Both kernels must implement hessian_wrt_params() "
-                "for ProductKernel parameter Hessian"
-            )
-
-        # Get kernel evaluations
-        K1 = self._kernel1(samples, samples)  # (n, n)
-        K2 = self._kernel2(samples, samples)  # (n, n)
-
-        # Get Jacobians
-        dK1 = self._kernel1.jacobian_wrt_params(samples)  # (n, n, p1)
-        dK2 = self._kernel2.jacobian_wrt_params(samples)  # (n, n, p2)
-
-        # Get Hessians
-        H1 = self._kernel1.hessian_wrt_params(samples)  # (n, n, p1, p1)
-        H2 = self._kernel2.hessian_wrt_params(samples)  # (n, n, p2, p2)
-
-        n = samples.shape[1]
-        p1 = dK1.shape[2]
-        p2 = dK2.shape[2]
-        p_total = p1 + p2
-
-        # Initialize full Hessian
-        hess = self._bkd.zeros((n, n, p_total, p_total))
-
-        # Block 1: K1 params × K1 params -> H1 * K2
-        hess[:, :, :p1, :p1] = H1 * K2[:, :, None, None]
-
-        # Block 2: K2 params × K2 params -> K1 * H2
-        hess[:, :, p1:, p1:] = K1[:, :, None, None] * H2
-
-        # Block 3: K1 params × K2 params (mixed derivatives)
-        # ∂²K/∂θ_i∂θ_j = (∂K1/∂θ_i) * (∂K2/∂θ_j)
-        # dK1[:, :, i] * dK2[:, :, j]
-        # Use einsum: 'ijk,ijl->ijkl' broadcasts properly
-        cross_term = self._bkd.einsum('ijk,ijl->ijkl', dK1, dK2)
-        hess[:, :, :p1, p1:] = cross_term
-
-        # Block 4: K2 params × K1 params (symmetric)
-        hess[:, :, p1:, :p1] = self._bkd.transpose(cross_term, (0, 1, 3, 2))
-
-        return hess
-
     def _hvp_wrt_params(self, samples: Array, direction: Array) -> Array:
         """
         Compute Hessian-vector product w.r.t. hyperparameters for product kernel.
@@ -457,8 +390,8 @@ class ProductKernel(CompositionKernel):
         NotImplementedError
             If either kernel doesn't support hvp_wrt_x1
         """
-        if not (isinstance(self._kernel1, KernelHasHVPProtocol) and
-                isinstance(self._kernel2, KernelHasHVPProtocol)):
+        if not (isinstance(self._kernel1, KernelHasHVPWrtX1Protocol) and
+                isinstance(self._kernel2, KernelHasHVPWrtX1Protocol)):
             raise NotImplementedError(
                 "Both kernels must implement hvp_wrt_x1() for ProductKernel HVP"
             )
@@ -624,61 +557,6 @@ class SumKernel(CompositionKernel):
         # Concatenate along parameter dimension
         return self._bkd.concatenate([dK1, dK2], axis=2)
 
-    def hessian_wrt_params(self, samples: Array) -> Array:
-        """
-        Compute Hessian of sum kernel w.r.t. hyperparameters.
-
-        For K = K1 + K2, using sum rule:
-        - ∂²K/∂θ_i∂θ_j = ∂²K1/∂θ_i∂θ_j  (both K1 params)
-        - ∂²K/∂θ_i∂θ_j = 0  (mixed: K1 and K2 params)
-        - ∂²K/∂θ_i∂θ_j = ∂²K2/∂θ_i∂θ_j  (both K2 params)
-
-        Parameters
-        ----------
-        samples : Array
-            Input data, shape (nvars, n).
-
-        Returns
-        -------
-        hess : Array
-            Hessian, shape (n, n, nparams, nparams).
-
-        Raises
-        ------
-        NotImplementedError
-            If either kernel doesn't support parameter Hessians.
-        """
-        if not (
-            hasattr(self._kernel1, "hessian_wrt_params")
-            and hasattr(self._kernel2, "hessian_wrt_params")
-        ):
-            raise NotImplementedError(
-                "Both kernels must implement hessian_wrt_params() "
-                "for SumKernel parameter Hessian"
-            )
-
-        # Get Hessians from both kernels
-        H1 = self._kernel1.hessian_wrt_params(samples)  # (n, n, p1, p1)
-        H2 = self._kernel2.hessian_wrt_params(samples)  # (n, n, p2, p2)
-
-        n = samples.shape[1]
-        p1 = H1.shape[2]
-        p2 = H2.shape[2]
-        p_total = p1 + p2
-
-        # Initialize full Hessian
-        hess = self._bkd.zeros((n, n, p_total, p_total))
-
-        # Block 1: K1 params × K1 params -> H1
-        hess[:, :, :p1, :p1] = H1
-
-        # Block 2: K2 params × K2 params -> H2
-        hess[:, :, p1:, p1:] = H2
-
-        # Blocks 3 & 4: Mixed derivatives are zero (no coupling between K1 and K2 params)
-
-        return hess
-
     def _hvp_wrt_params(self, samples: Array, direction: Array) -> Array:
         """
         Compute Hessian-vector product w.r.t. hyperparameters for sum kernel.
@@ -749,8 +627,8 @@ class SumKernel(CompositionKernel):
         NotImplementedError
             If either kernel doesn't support hvp_wrt_x1
         """
-        if not (isinstance(self._kernel1, KernelHasHVPProtocol) and
-                isinstance(self._kernel2, KernelHasHVPProtocol)):
+        if not (isinstance(self._kernel1, KernelHasHVPWrtX1Protocol) and
+                isinstance(self._kernel2, KernelHasHVPWrtX1Protocol)):
             raise NotImplementedError(
                 "Both kernels must implement hvp_wrt_x1() for SumKernel HVP"
             )

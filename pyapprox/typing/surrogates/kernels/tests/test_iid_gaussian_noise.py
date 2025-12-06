@@ -32,13 +32,13 @@ class TestIIDGaussianNoise(Generic[Array], unittest.TestCase):
         self.nvars = 2
         self.nsamples1 = 5
         self.nsamples2 = 4
-        self.noise_level = 0.25
-        self.noise_bounds = (0.01, 1.0)
+        self.noise_variance = 0.25
+        self.variance_bounds = (0.01, 1.0)
 
         # Create kernel
         self.kernel = IIDGaussianNoise(
-            self.noise_level,
-            self.noise_bounds,
+            self.noise_variance,
+            self.variance_bounds,
             self.bkd()
         )
 
@@ -59,8 +59,8 @@ class TestIIDGaussianNoise(Generic[Array], unittest.TestCase):
         Test IIDGaussianNoise initialization.
         """
         kernel = IIDGaussianNoise(
-            self.noise_level,
-            self.noise_bounds,
+            self.noise_variance,
+            self.variance_bounds,
             self.bkd()
         )
         self.assertIsNotNone(kernel.bkd())
@@ -95,8 +95,8 @@ class TestIIDGaussianNoise(Generic[Array], unittest.TestCase):
         """
         K = self.kernel(self.X1)
 
-        # Should be diagonal matrix with noise_level on diagonal
-        expected = self.bkd().eye(self.nsamples1) * self.noise_level
+        # Should be diagonal matrix with noise_variance on diagonal
+        expected = self.bkd().eye(self.nsamples1) * self.noise_variance
         self.bkd().assert_allclose(K, expected)
 
     def test_kernel_matrix_cross_is_zeros(self) -> None:
@@ -118,8 +118,8 @@ class TestIIDGaussianNoise(Generic[Array], unittest.TestCase):
         """
         diag = self.kernel.diag(self.X1)
 
-        # Diagonal should be vector of noise_level values
-        expected = self.bkd().full((self.nsamples1,), self.noise_level)
+        # Diagonal should be vector of noise_variance values
+        expected = self.bkd().full((self.nsamples1,), self.noise_variance)
         self.bkd().assert_allclose(diag, expected)
 
     def test_jacobian_is_zero(self) -> None:
@@ -196,7 +196,7 @@ class TestIIDGaussianNoise(Generic[Array], unittest.TestCase):
         for i in range(self.nsamples1):
             self.assertAlmostEqual(
                 float(jac[i, i, 0]),
-                self.noise_level,
+                self.noise_variance,
                 places=10
             )
 
@@ -242,11 +242,10 @@ class TestIIDGaussianNoise(Generic[Array], unittest.TestCase):
 
         This is the typical use case: signal kernel + noise kernel
         """
-        from pyapprox.typing.surrogates.kernels.matern import MaternKernel
+        from pyapprox.typing.surrogates.kernels.matern import Matern52Kernel
 
         # Create a Matern kernel
-        matern = MaternKernel(
-            2.5,
+        matern = Matern52Kernel(
             [1.0, 1.0],
             (0.1, 10.0),
             self.nvars,
@@ -259,7 +258,7 @@ class TestIIDGaussianNoise(Generic[Array], unittest.TestCase):
 
         # Should equal Matern + noise on diagonal
         K_matern = matern(self.X1)
-        expected = K_matern + self.bkd().eye(self.nsamples1) * self.noise_level
+        expected = K_matern + self.bkd().eye(self.nsamples1) * self.noise_variance
         self.bkd().assert_allclose(K, expected)
 
     def test_cross_covariance_with_composition(self) -> None:
@@ -268,10 +267,9 @@ class TestIIDGaussianNoise(Generic[Array], unittest.TestCase):
 
         When computing K(X1, X2) with X1 ≠ X2, the noise term should be zero.
         """
-        from pyapprox.typing.surrogates.kernels.matern import MaternKernel
+        from pyapprox.typing.surrogates.kernels.matern import Matern52Kernel
 
-        matern = MaternKernel(
-            2.5,
+        matern = Matern52Kernel(
             [1.0, 1.0],
             (0.1, 10.0),
             self.nvars,
@@ -292,8 +290,8 @@ class TestIIDGaussianNoise(Generic[Array], unittest.TestCase):
         Test that fixed hyperparameters are not optimized.
         """
         fixed_kernel = IIDGaussianNoise(
-            self.noise_level,
-            self.noise_bounds,
+            self.noise_variance,
+            self.variance_bounds,
             self.bkd(),
             fixed=True
         )

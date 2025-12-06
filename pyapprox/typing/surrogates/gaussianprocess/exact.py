@@ -66,6 +66,23 @@ class ExactGaussianProcess(Generic[Array]):
     >>> X_test = bkd.array(np.random.randn(2, 5))
     >>> mean = gp.predict(X_test)
     >>> std = gp.predict_std(X_test)
+
+    Optional Methods
+    ----------------
+    This class uses dynamic method binding based on kernel capabilities:
+
+    - ``hvp(sample, direction)``: Available if kernel implements
+      ``KernelWithJacobianAndHVPWrtX1Protocol`` (i.e., has ``hvp_wrt_x1`` method).
+
+    Check availability with ``hasattr(gp, 'hvp')``.
+
+    Notes
+    -----
+    The ``jacobian`` method is always available as it only requires the kernel
+    to have a ``jacobian`` method (which all kernels have).
+
+    This class follows the dynamic binding pattern for optional methods.
+    See docs/OPTIONAL_METHODS_CONVENTION.md for details.
     """
 
     def __init__(
@@ -98,7 +115,22 @@ class ExactGaussianProcess(Generic[Array]):
 
         # Precomputed quantities (set during fit)
         self._cholesky: Optional[CholeskyFactor[Array]] = None
+
+        # Conditionally add derivative methods based on kernel capabilities
+        self._setup_derivative_methods()
+
         self._alpha: Optional[Array] = None
+
+    def _setup_derivative_methods(self) -> None:
+        """
+        Conditionally add hvp method based on kernel capabilities.
+
+        The hvp method is only exposed if the kernel implements
+        KernelWithJacobianAndHVPWrtX1Protocol (i.e., has hvp_wrt_x1 method).
+        """
+        from pyapprox.typing.surrogates.kernels.protocols import KernelWithJacobianAndHVPWrtX1Protocol
+        if isinstance(self._kernel, KernelWithJacobianAndHVPWrtX1Protocol):
+            self.hvp = self._hvp
 
     def bkd(self) -> Backend[Array]:
         """Return the backend."""
@@ -346,7 +378,7 @@ class ExactGaussianProcess(Generic[Array]):
         Compute HVP using kernel's hvp_wrt_x1() method.
 
         This is the preferred path for kernels that implement
-        KernelHasHVPProtocol. Works for:
+        KernelWithJacobianAndHVPWrtX1Protocol. Works for:
         - Matern kernels with anisotropic length scales
         - Kernel compositions (if they implement hvp_wrt_x1)
         - Any kernel with efficient HVP computation
@@ -382,9 +414,12 @@ class ExactGaussianProcess(Generic[Array]):
 
         return hvp
 
-    def hvp(self, sample: Array, direction: Array) -> Array:
+    def _hvp(self, sample: Array, direction: Array) -> Array:
         """
         Compute Hessian-vector product for GP mean with respect to inputs.
+
+        This is a private method. The public hvp() method is dynamically
+        added during __init__ if the kernel supports KernelWithJacobianAndHVPWrtX1Protocol.
 
         This computes H(x)·V where H is the Hessian of the GP mean prediction
         with respect to inputs x, and V is a direction vector.
@@ -392,10 +427,6 @@ class ExactGaussianProcess(Generic[Array]):
         For a GP with mean m(x) and covariance k(x, x'), the posterior mean is:
             μ*(x) = m(x) + k(x, X) α
         where α = [K + σ²I]^{-1}(y - m(X)).
-
-        The HVP is computed using one of two methods:
-        1. Optimized radial derivatives (for Matern/RBF kernels)
-        2. General Jacobian-based method (for composed/anisotropic kernels)
 
         Parameters
         ----------
@@ -418,8 +449,7 @@ class ExactGaussianProcess(Generic[Array]):
 
         Notes
         -----
-        This uses analytical second derivatives for Matern kernels.
-        Key optimization: loop over d dimensions, not n points (d << n).
+        This uses analytical second derivatives via kernel's hvp_wrt_x1 method.
         """
         if not self.is_fitted():
             raise RuntimeError("GP must be fitted before computing HVP")
@@ -444,7 +474,7 @@ class ExactGaussianProcess(Generic[Array]):
             for i in range(n_samples):
                 sample_i = sample[:, i:i+1]
                 direction_i = direction[:, i:i+1]
-                hvp_i = self.hvp(sample_i, direction_i)
+                hvp_i = self._hvp(sample_i, direction_i)
                 hvps.append(hvp_i)
             return self._bkd.concatenate(hvps, axis=1)
 
@@ -462,25 +492,9 @@ class ExactGaussianProcess(Generic[Array]):
         # Get α (already computed during fit) - shape: (n_train, 1)
         alpha = self._bkd.reshape(self._alpha, (n_train,))  # (n_train,)
 
-        # Get length scales
-        if hasattr(self._kernel, '_log_lenscale'):
-            # For MaternKernel, get actual length scales (not log values)
-            length_scales = self._kernel._log_lenscale.exp_values()
-        else:
-            length_scales = self._bkd.ones((nvars,))
-
         # Reshape inputs
         V = self._bkd.reshape(direction, (nvars,))  # (nvars,)
         x_star = self._bkd.reshape(sample, (nvars,))  # (nvars,)
-
-        # Use kernel's hvp_wrt_x1 method
-        from pyapprox.typing.surrogates.kernels.protocols import KernelHasHVPProtocol
-        if not isinstance(self._kernel, KernelHasHVPProtocol):
-            raise NotImplementedError(
-                f"Kernel {type(self._kernel).__name__} does not implement "
-                f"KernelHasHVPProtocol (hvp_wrt_x1 method). All kernels used "
-                f"with GP HVP must implement this protocol."
-            )
 
         hvp = self._hvp_using_kernel_hvp(x_star, V, X_train, alpha)
 

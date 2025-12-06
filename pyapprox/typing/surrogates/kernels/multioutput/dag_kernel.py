@@ -101,6 +101,15 @@ class DAGMultiOutputKernel(Generic[Array]):
     >>> # Use with MultiOutputGP
     >>> X_list = [X0, X1, X2]  # Training data for each output
     >>> K = kernel(X_list)
+
+    Notes
+    -----
+    The ``jacobian_wrt_params`` method requires all discrepancy kernels and
+    edge scalings to implement ``jacobian_wrt_params``. This is an inherent
+    requirement (not optional) since the DAG kernel's Jacobian is computed
+    from the component Jacobians.
+
+    ``hvp_wrt_params`` is not currently implemented for DAG kernels.
     """
 
     def __init__(

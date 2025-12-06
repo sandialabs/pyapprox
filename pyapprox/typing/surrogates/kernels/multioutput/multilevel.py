@@ -89,6 +89,12 @@ class MultiLevelKernel(Generic[Array]):
     sequential DAG structure (0 -> 1 -> 2 -> ...). For more complex
     autoregressive structures (tree, diamond, etc.), use DAGMultiOutputKernel
     directly.
+
+    The ``jacobian_wrt_params`` method delegates to the underlying
+    DAGMultiOutputKernel and requires all discrepancy kernels and
+    scalings to implement ``jacobian_wrt_params``.
+
+    ``hvp_wrt_params`` is not implemented (inherited limitation from DAGMultiOutputKernel).
     """
 
     def __init__(

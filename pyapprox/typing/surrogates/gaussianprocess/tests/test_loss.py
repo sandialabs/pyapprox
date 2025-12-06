@@ -65,7 +65,7 @@ class TestNLMLLoss(Generic[Array], unittest.TestCase):
             self.kernel,
             self.nvars,
             self.bkd(),
-            noise_variance=0.1
+            nugget=0.1
         )
 
         loss = NegativeLogMarginalLikelihoodLoss(gp, self.X_train, self.y_train)
@@ -80,7 +80,7 @@ class TestNLMLLoss(Generic[Array], unittest.TestCase):
             self.kernel,
             self.nvars,
             self.bkd(),
-            noise_variance=0.1
+            nugget=0.1
         )
 
         loss = NegativeLogMarginalLikelihoodLoss(gp, self.X_train, self.y_train)
@@ -104,7 +104,7 @@ class TestNLMLLoss(Generic[Array], unittest.TestCase):
             self.kernel,
             self.nvars,
             self.bkd(),
-            noise_variance=0.1
+            nugget=0.1
         )
 
         loss = NegativeLogMarginalLikelihoodLoss(gp, self.X_train, self.y_train)
@@ -126,7 +126,7 @@ class TestNLMLLoss(Generic[Array], unittest.TestCase):
             self.kernel,
             self.nvars,
             self.bkd(),
-            noise_variance=0.1
+            nugget=0.1
         )
 
         loss = NegativeLogMarginalLikelihoodLoss(gp, self.X_train, self.y_train)
@@ -145,7 +145,7 @@ class TestNLMLLoss(Generic[Array], unittest.TestCase):
             self.nvars,
             self.bkd(),
             mean_function=ZeroMean(self.bkd()),
-            noise_variance=0.1
+            nugget=0.1
         )
 
         loss = NegativeLogMarginalLikelihoodLoss(gp, self.X_train, self.y_train)
@@ -194,7 +194,7 @@ class TestNLMLLoss(Generic[Array], unittest.TestCase):
             self.nvars,
             self.bkd(),
             mean_function=constant_mean,
-            noise_variance=0.1
+            nugget=0.1
         )
 
         loss = NegativeLogMarginalLikelihoodLoss(gp, self.X_train, self.y_train)
@@ -238,12 +238,12 @@ class TestNLMLLoss(Generic[Array], unittest.TestCase):
     def test_gradient_different_noise_levels(self) -> None:
         """Test gradient with different noise variance levels."""
         for noise_var in [1e-6, 0.01, 0.1, 1.0]:
-            with self.subTest(noise_variance=noise_var):
+            with self.subTest(nugget=noise_var):
                 gp = ExactGaussianProcess(
                     self.kernel,
                     self.nvars,
                     self.bkd(),
-                    noise_variance=noise_var
+                    nugget=noise_var
                 )
 
                 loss = NegativeLogMarginalLikelihoodLoss(
@@ -266,7 +266,7 @@ class TestNLMLLoss(Generic[Array], unittest.TestCase):
             self.kernel,
             self.nvars,
             self.bkd(),
-            noise_variance=0.1
+            nugget=0.1
         )
 
         loss = NegativeLogMarginalLikelihoodLoss(gp, X_small, y_small)
@@ -307,7 +307,7 @@ class TestNLMLLoss(Generic[Array], unittest.TestCase):
             self.kernel,
             self.nvars,
             self.bkd(),
-            noise_variance=0.1
+            nugget=0.1
         )
 
         loss = NegativeLogMarginalLikelihoodLoss(gp, X_large, y_large)
@@ -341,7 +341,7 @@ class TestNLMLLoss(Generic[Array], unittest.TestCase):
             self.kernel,
             self.nvars,
             self.bkd(),
-            noise_variance=0.1
+            nugget=0.1
         )
 
         loss = NegativeLogMarginalLikelihoodLoss(gp, self.X_train, self.y_train)

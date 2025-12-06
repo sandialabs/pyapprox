@@ -8,7 +8,12 @@ import torch
 from pyapprox.typing.util.backends.protocols import Backend, Array
 from pyapprox.typing.util.backends.numpy import NumpyBkd
 from pyapprox.typing.util.backends.torch import TorchBkd
-from pyapprox.typing.surrogates.kernels.matern import MaternKernel
+from pyapprox.typing.surrogates.kernels.matern import (
+    MaternKernel,
+    SquaredExponentialKernel,
+    Matern52Kernel,
+    Matern32Kernel,
+)
 from pyapprox.typing.interface.functions.derivative_checks.derivative_checker import (
     DerivativeChecker,
 )
@@ -16,6 +21,18 @@ from pyapprox.typing.interface.functions.fromcallable.hessian import (
     FunctionWithJacobianFromCallable,
     FunctionWithJacobianAndHVPFromCallable,
 )
+
+
+def create_matern_kernel(nu, lenscale, lenscale_bounds, nvars, bkd, fixed=False):
+    """Helper to create appropriate Matern kernel based on nu value."""
+    if nu == np.inf:
+        return SquaredExponentialKernel(lenscale, lenscale_bounds, nvars, bkd, fixed)
+    elif nu == 2.5 or nu == 5/2:
+        return Matern52Kernel(lenscale, lenscale_bounds, nvars, bkd, fixed)
+    elif nu == 1.5 or nu == 3/2:
+        return Matern32Kernel(lenscale, lenscale_bounds, nvars, bkd, fixed)
+    else:
+        raise ValueError(f"Unsupported nu value: {nu}")
 
 
 class TestMaternKernel(Generic[Array], unittest.TestCase):
@@ -47,7 +64,7 @@ class TestMaternKernel(Generic[Array], unittest.TestCase):
         Test the computation of the kernel matrix for supported nu values.
         """
         for nu in self.nu_values:
-            kernel = MaternKernel(
+            kernel = create_matern_kernel(
                 nu=nu,
                 lenscale=self.lenscale,
                 lenscale_bounds=self.lenscale_bounds,
@@ -67,7 +84,7 @@ class TestMaternKernel(Generic[Array], unittest.TestCase):
         Test the computation of the diagonal of the kernel matrix.
         """
         for nu in self.nu_values:
-            kernel = MaternKernel(
+            kernel = create_matern_kernel(
                 nu=nu,
                 lenscale=self.lenscale,
                 lenscale_bounds=self.lenscale_bounds,
@@ -84,7 +101,7 @@ class TestMaternKernel(Generic[Array], unittest.TestCase):
         input data.
         """
         for nu in self.nu_values:
-            kernel = MaternKernel(
+            kernel = create_matern_kernel(
                 nu=nu,
                 lenscale=self.lenscale,
                 lenscale_bounds=self.lenscale_bounds,
@@ -133,7 +150,7 @@ class TestMaternKernel(Generic[Array], unittest.TestCase):
         hyperparameters.
         """
         for nu in self.nu_values:
-            kernel = MaternKernel(
+            kernel = create_matern_kernel(
                 nu=nu,
                 lenscale=self.lenscale,
                 lenscale_bounds=self.lenscale_bounds,
@@ -193,7 +210,7 @@ class TestMaternKernel(Generic[Array], unittest.TestCase):
         """
         Test the string representation of the MaternKernel.
         """
-        kernel = MaternKernel(
+        kernel = create_matern_kernel(
             nu=3 / 2,
             lenscale=self.lenscale,
             lenscale_bounds=self.lenscale_bounds,
@@ -201,8 +218,8 @@ class TestMaternKernel(Generic[Array], unittest.TestCase):
             bkd=self.bkd(),
         )
         repr_str = repr(kernel)
-        self.assertIn("MaternKernel", repr_str)
-        self.assertIn("nu=1.5", repr_str)
+        # Check for specific class name (Matern32Kernel for nu=3/2)
+        self.assertIn("Matern32Kernel", repr_str)
         self.assertIn("lenscale", repr_str)
 
     def test_hvp_wrt_x1(self) -> None:
@@ -214,7 +231,7 @@ class TestMaternKernel(Generic[Array], unittest.TestCase):
         """
         for nu in self.nu_values:
             with self.subTest(nu=nu):
-                kernel = MaternKernel(
+                kernel = create_matern_kernel(
                     nu=nu,
                     lenscale=self.lenscale,
                     lenscale_bounds=self.lenscale_bounds,

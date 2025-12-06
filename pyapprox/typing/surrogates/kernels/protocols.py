@@ -115,7 +115,14 @@ class KernelHasParameterJacobianProtocol(Protocol, Generic[Array]):
 
 
 @runtime_checkable
-class KernelHasHVPProtocol(Protocol, Generic[Array]):
+class KernelHasHVPWrtX1Protocol(Protocol, Generic[Array]):
+    """
+    Protocol for kernels with HVP w.r.t. input X1.
+
+    This is the 'Has' protocol - just checks for the method existence.
+    For full protocol including jacobian, use KernelWithJacobianAndHVPWrtX1Protocol.
+    """
+
     def hvp_wrt_x1(
         self, X1: Array, X2: Array, direction: Array
     ) -> Array:
@@ -153,9 +160,72 @@ class KernelHasHVPProtocol(Protocol, Generic[Array]):
         ...
 
 
+
+
+@runtime_checkable
+class KernelHasHVPWrtParamsProtocol(Protocol, Generic[Array]):
+    """
+    Protocol for kernels with HVP w.r.t. hyperparameters.
+
+    This is the 'Has' protocol - just checks for the method existence.
+    For full protocol including jacobian_wrt_params, use
+    KernelWithParameterJacobianAndHVPProtocol.
+    """
+
+    def hvp_wrt_params(self, samples: Array, direction: Array) -> Array:
+        """
+        Compute Hessian-vector product w.r.t. hyperparameters.
+
+        Computes HVP = Σ_j (∂²K/∂θ_i∂θ_j) * v[j] for each i,
+        without forming the full Hessian tensor.
+
+        Parameters
+        ----------
+        samples : Array
+            Input data, shape (nvars, n).
+        direction : Array
+            Direction vector, shape (nparams,).
+
+        Returns
+        -------
+        hvp : Array
+            Hessian-vector product, shape (n, n, nparams).
+            hvp[:, :, i] = Σ_j (∂²K/∂θ_i∂θ_j) * v[j]
+        """
+        ...
+
+
 class KernelWithJacobianProtocol(
     KernelProtocol[Array], KernelHasJacobianProtocol[Array], Protocol
 ):
+    """Kernel with jacobian w.r.t. input X1."""
+    pass
+
+
+class KernelWithJacobianAndHVPWrtX1Protocol(
+    KernelWithJacobianProtocol[Array],
+    KernelHasHVPWrtX1Protocol[Array],
+    Protocol,
+):
+    """Kernel with both jacobian and hvp_wrt_x1 (second derivative w.r.t. X1)."""
+    pass
+
+
+class KernelWithParameterJacobianProtocol(
+    KernelProtocol[Array],
+    KernelHasParameterJacobianProtocol[Array],
+    Protocol,
+):
+    """Kernel with jacobian_wrt_params."""
+    pass
+
+
+class KernelWithParameterJacobianAndHVPProtocol(
+    KernelWithParameterJacobianProtocol[Array],
+    KernelHasHVPWrtParamsProtocol[Array],
+    Protocol,
+):
+    """Kernel with both jacobian_wrt_params and hvp_wrt_params."""
     pass
 
 
@@ -164,6 +234,16 @@ class KernelWithJacobianAndParameterJacobianProtocol(
     KernelHasParameterJacobianProtocol[Array],
     Protocol,
 ):
+    """Kernel with jacobian (w.r.t. X1) and jacobian_wrt_params."""
+    pass
+
+
+class KernelWithFullDerivativesProtocol(
+    KernelWithJacobianAndHVPWrtX1Protocol[Array],
+    KernelWithParameterJacobianAndHVPProtocol[Array],
+    Protocol,
+):
+    """Kernel with all derivative methods: jacobian, hvp_wrt_x1, jacobian_wrt_params, hvp_wrt_params."""
     pass
 
 

@@ -95,7 +95,7 @@ class TestMultiOutputGPWithIndependentKernel(Generic[Array], unittest.TestCase):
         mo_kernel = IndependentMultiOutputKernel(kernels)
 
         # Create and fit GP
-        gp = MultiOutputGP(mo_kernel, noise_variance=1e-14)
+        gp = MultiOutputGP(mo_kernel, nugget=1e-14)
         X_list = [X_train] * self.noutputs
         gp.fit(X_list, y_train_stacked)
 
@@ -175,7 +175,7 @@ class TestMultiOutputGPWithIndependentKernel(Generic[Array], unittest.TestCase):
         mo_kernel = IndependentMultiOutputKernel(kernels)
 
         # Create and fit GP
-        gp = MultiOutputGP(mo_kernel, noise_variance=1e-14)
+        gp = MultiOutputGP(mo_kernel, nugget=1e-14)
         X_train_list = [X_train] * self.noutputs
         gp.fit(X_train_list, y_train_stacked)
 
@@ -337,7 +337,7 @@ class TestMultiOutputGPWithLMCKernel(Generic[Array], unittest.TestCase):
         )
 
         # Create and fit GP
-        gp = MultiOutputGP(lmc_kernel, noise_variance=1e-14)
+        gp = MultiOutputGP(lmc_kernel, nugget=1e-14)
         X_list = [X_train] * self.noutputs
         gp.fit(X_list, y_train_stacked)
 

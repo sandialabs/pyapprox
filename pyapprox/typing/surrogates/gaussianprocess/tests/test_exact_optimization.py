@@ -63,7 +63,7 @@ class TestExactGPOptimization(Generic[Array], unittest.TestCase):
             kernel,
             self.nvars,
             self.bkd(),
-            noise_variance=0.1
+            nugget=0.1
         )
 
         # Fit with initial hyperparameters
@@ -118,7 +118,7 @@ class TestExactGPOptimization(Generic[Array], unittest.TestCase):
             self.nvars,
             self.bkd(),
             mean_function=constant_mean,
-            noise_variance=0.1
+            nugget=0.1
         )
 
         gp.fit(self.X_train, self.y_train)
@@ -169,7 +169,7 @@ class TestExactGPOptimization(Generic[Array], unittest.TestCase):
             kernel,
             self.nvars,
             self.bkd(),
-            noise_variance=0.01
+            nugget=0.01
         )
 
         # Fit and predict before optimization
@@ -207,7 +207,7 @@ class TestExactGPOptimization(Generic[Array], unittest.TestCase):
             kernel,
             self.nvars,
             self.bkd(),
-            noise_variance=0.1
+            nugget=0.1
         )
 
         gp.fit(self.X_train, self.y_train)
@@ -239,7 +239,7 @@ class TestExactGPOptimization(Generic[Array], unittest.TestCase):
             kernel,
             self.nvars,
             self.bkd(),
-            noise_variance=0.1
+            nugget=0.1
         )
 
         # Should raise RuntimeError before fitting

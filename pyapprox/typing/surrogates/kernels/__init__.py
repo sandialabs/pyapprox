@@ -70,11 +70,22 @@ from .protocols import (
     KernelProtocol,
     KernelHasJacobianProtocol,
     KernelHasParameterJacobianProtocol,
+    KernelHasHVPWrtX1Protocol,
+    KernelHasHVPWrtParamsProtocol,
     KernelWithJacobianProtocol,
+    KernelWithJacobianAndHVPWrtX1Protocol,
+    KernelWithParameterJacobianProtocol,
+    KernelWithParameterJacobianAndHVPProtocol,
     KernelWithJacobianAndParameterJacobianProtocol,
+    KernelWithFullDerivativesProtocol,
     Kernel,
 )
-from .matern import MaternKernel
+from .matern import (
+    MaternKernel,
+    SquaredExponentialKernel,
+    Matern52Kernel,
+    Matern32Kernel,
+)
 from .composition import (
     CompositionKernel,
     ProductKernel,
@@ -93,18 +104,28 @@ from .multioutput import (
 )
 
 __all__ = [
-    # Protocols
+    # Protocols - Base (Has)
     "KernelProtocol",
     "KernelHasJacobianProtocol",
     "KernelHasParameterJacobianProtocol",
+    "KernelHasHVPWrtX1Protocol",
+    "KernelHasHVPWrtParamsProtocol",
+    # Protocols - Composite (With)
     "KernelWithJacobianProtocol",
+    "KernelWithJacobianAndHVPWrtX1Protocol",
+    "KernelWithParameterJacobianProtocol",
+    "KernelWithParameterJacobianAndHVPProtocol",
     "KernelWithJacobianAndParameterJacobianProtocol",
+    "KernelWithFullDerivativesProtocol",
     "MultiOutputKernelProtocol",
     "ScalingFunctionProtocol",
     # Base class
     "Kernel",
     # Kernel implementations
     "MaternKernel",
+    "SquaredExponentialKernel",
+    "Matern52Kernel",
+    "Matern32Kernel",
     "IIDGaussianNoise",
     # Scaling functions
     "PolynomialScaling",
