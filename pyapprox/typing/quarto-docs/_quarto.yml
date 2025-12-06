@@ -38,6 +38,7 @@ website:
         - developer-guide/testing-conventions.qmd
         - developer-guide/type-safety.qmd
         - developer-guide/protocols.qmd
+        - developer-guide/gp-hvp-implementation.qmd
         - developer-guide/contributing.qmd
 
     - title: "Tutorials"
@@ -104,12 +105,12 @@ format:
     fig-dpi: 300
 
 execute:
-  freeze: false
-  cache: false
+  freeze: auto
+  cache: true
   echo: true
   warning: true
   error: false
-  eval: false
+  eval: true
 
 highlight-style: github
 
