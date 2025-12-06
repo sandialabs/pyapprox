@@ -214,3 +214,30 @@ class IIDGaussianNoise(Kernel):
             jac[i, i, 0] = noise_level
 
         return jac
+
+    def hvp_wrt_x1(self, X1: Array, X2: Array, direction: Array) -> Array:
+        """
+        Compute HVP of IID Gaussian noise kernel w.r.t. first argument.
+
+        Since IIDGaussianNoise has no spatial dependence, the Hessian is zero.
+        Therefore, the HVP is also zero.
+
+        Parameters
+        ----------
+        X1 : Array, shape (nvars, n1)
+            First set of points
+        X2 : Array, shape (nvars, n2)
+            Second set of points
+        direction : Array, shape (nvars,)
+            Direction vector for HVP
+
+        Returns
+        -------
+        hvp : Array, shape (n1, n2, nvars)
+            HVP (all zeros since kernel has no spatial dependence)
+        """
+        nvars = X1.shape[0]
+        n1 = X1.shape[1]
+        n2 = X2.shape[1]
+
+        return self._bkd.zeros((n1, n2, nvars))

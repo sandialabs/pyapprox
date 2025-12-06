@@ -11,6 +11,7 @@ Key Protocols
 - KernelHasParameterJacobianProtocol: Protocol for kernels with parameter Jacobian
 - KernelWithJacobianProtocol: Composition of kernel and Jacobian protocols
 - KernelWithJacobianAndParameterJacobianProtocol: Full derivative support
+- MultiOutputKernelProtocol: Protocol for multi-output kernel implementations
 
 Key Classes
 -----------
@@ -19,8 +20,12 @@ Key Classes
 Kernel Implementations
 ---------------------
 - MaternKernel: Matérn kernel for varying levels of smoothness
-- ConstantKernel: Constant kernel for scaling or offset
 - IIDGaussianNoise: Independent Gaussian noise kernel
+
+Scaling Functions
+-----------------
+- PolynomialScaling: Polynomial scaling functions for spatially varying kernels
+- ScalingFunctionProtocol: Protocol for scaling functions
 
 Composition Kernels
 ------------------
@@ -28,17 +33,37 @@ Composition Kernels
 - ProductKernel: Product of two kernels (element-wise multiplication)
 - SumKernel: Sum of two kernels (element-wise addition)
 
+Multi-Output Kernels
+-------------------
+- IndependentMultiOutputKernel: Independent kernels per output (block-diagonal)
+- LinearCoregionalizationKernel: Linear model of coregionalization (LMC)
+- MultiLevelKernel: Autoregressive multi-level kernel with spatially varying scalings
+- ScalingFunction: Spatially varying scaling functions for multi-level kernels
+
 Examples
 --------
->>> from pyapprox.typing.surrogates.kernels import MaternKernel, ConstantKernel, IIDGaussianNoise
+Single-output kernel composition:
+
+>>> from pyapprox.typing.surrogates.kernels import MaternKernel, IIDGaussianNoise
 >>> from pyapprox.typing.util.backends.numpy import NumpyBkd
 >>> bkd = NumpyBkd()
 >>> # Create individual kernels
 >>> matern = MaternKernel(2.5, [1.0, 1.0], (0.1, 10.0), 2, bkd)
->>> constant = ConstantKernel(2.0, (0.1, 10.0), bkd)
 >>> noise = IIDGaussianNoise(0.1, (0.01, 1.0), bkd)
 >>> # Compose kernels using operators
->>> gp_kernel = matern * constant + noise
+>>> gp_kernel = matern + noise
+
+Multi-output kernel:
+
+>>> from pyapprox.typing.surrogates.kernels.multioutput import IndependentMultiOutputKernel
+>>> import numpy as np
+>>> # Create independent kernels for each output
+>>> kernel1 = MaternKernel(2.5, [1.0, 1.0], (0.1, 10.0), 2, bkd)
+>>> kernel2 = MaternKernel(1.5, [0.5, 0.5], (0.1, 10.0), 2, bkd)
+>>> mo_kernel = IndependentMultiOutputKernel([kernel1, kernel2])
+>>> # Evaluate with data for each output
+>>> X_list = [bkd.array(np.random.randn(2, 10)), bkd.array(np.random.randn(2, 5))]
+>>> K = mo_kernel(X_list)  # Shape: (15, 15)
 """
 
 from .protocols import (
@@ -55,8 +80,17 @@ from .composition import (
     ProductKernel,
     SumKernel,
 )
-from .constant import ConstantKernel
 from .iid_gaussian_noise import IIDGaussianNoise
+from .scalings import (
+    ScalingFunctionProtocol,
+    PolynomialScaling,
+)
+from .multioutput import (
+    MultiOutputKernelProtocol,
+    IndependentMultiOutputKernel,
+    LinearCoregionalizationKernel,
+    MultiLevelKernel,
+)
 
 __all__ = [
     # Protocols
@@ -65,14 +99,21 @@ __all__ = [
     "KernelHasParameterJacobianProtocol",
     "KernelWithJacobianProtocol",
     "KernelWithJacobianAndParameterJacobianProtocol",
+    "MultiOutputKernelProtocol",
+    "ScalingFunctionProtocol",
     # Base class
     "Kernel",
     # Kernel implementations
     "MaternKernel",
-    "ConstantKernel",
     "IIDGaussianNoise",
+    # Scaling functions
+    "PolynomialScaling",
     # Composition kernels
     "CompositionKernel",
     "ProductKernel",
     "SumKernel",
+    # Multi-output kernels
+    "IndependentMultiOutputKernel",
+    "LinearCoregionalizationKernel",
+    "MultiLevelKernel",
 ]

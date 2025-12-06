@@ -559,3 +559,4 @@ def construct_tensor_product_monomial_scaling(
     basis = MultiIndexBasis([Monomial1D(backend=bkd) for ii in range(nvars)])
     basis.set_tensor_product_indices(nterms_1d)
     return _construct_scaling_from_basis(basis, bounds, val, fixed)
+

@@ -123,6 +123,10 @@ class NumpyBkd(Backend[NDArray[Any]]):  # Specify NDArray type
         return np.reshape(array, newshape)
 
     @staticmethod
+    def transpose(array: NDArray[Any], axes: Optional[Sequence[int]] = None) -> NDArray[Any]:
+        return np.transpose(array, axes)
+
+    @staticmethod
     def sum(
         array: NDArray[Any],
         axis: Optional[Union[int, Tuple[int, ...]]] = None,

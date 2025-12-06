@@ -197,6 +197,26 @@ class TestProductKernel(Generic[Array], unittest.TestCase):
         K2 = product_explicit(self.X1, self.X2)
         self.bkd().assert_allclose(K1, K2)
 
+    def test_hvp_wrt_x1(self) -> None:
+        """
+        Test HVP computation for ProductKernel using product rule.
+        """
+        product = ProductKernel(self.kernel1, self.kernel2)
+
+        # Single point for HVP
+        X1_single = self.X1[:, 0:1]  # (nvars, 1)
+        direction = self.bkd().array(np.random.randn(self.nvars, 1))
+        direction = direction / self.bkd().norm(direction)
+        direction_flat = self.bkd().reshape(direction, (self.nvars,))
+
+        hvp = product.hvp_wrt_x1(X1_single, self.X2, direction_flat)
+
+        # Check shape: (n1, n2, nvars)
+        self.assertEqual(hvp.shape, (1, self.nsamples2, self.nvars))
+
+        # Check finiteness
+        self.assertTrue(self.bkd().all_bool(self.bkd().isfinite(hvp)))
+
 
 class TestSumKernel(Generic[Array], unittest.TestCase):
     """
@@ -377,6 +397,26 @@ class TestSumKernel(Generic[Array], unittest.TestCase):
         K1 = sum_kernel(self.X1, self.X2)
         K2 = sum_explicit(self.X1, self.X2)
         self.bkd().assert_allclose(K1, K2)
+
+    def test_hvp_wrt_x1(self) -> None:
+        """
+        Test HVP computation for SumKernel using sum rule.
+        """
+        sum_kernel = SumKernel(self.kernel1, self.kernel2)
+
+        # Single point for HVP
+        X1_single = self.X1[:, 0:1]  # (nvars, 1)
+        direction = self.bkd().array(np.random.randn(self.nvars, 1))
+        direction = direction / self.bkd().norm(direction)
+        direction_flat = self.bkd().reshape(direction, (self.nvars,))
+
+        hvp = sum_kernel.hvp_wrt_x1(X1_single, self.X2, direction_flat)
+
+        # Check shape: (n1, n2, nvars)
+        self.assertEqual(hvp.shape, (1, self.nsamples2, self.nvars))
+
+        # Check finiteness
+        self.assertTrue(self.bkd().all_bool(self.bkd().isfinite(hvp)))
 
 
 class TestNestedComposition(Generic[Array], unittest.TestCase):

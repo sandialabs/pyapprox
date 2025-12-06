@@ -335,6 +335,154 @@ class ExactGaussianProcess(Generic[Array]):
 
         return jac
 
+    def _hvp_using_kernel_hvp(
+        self, x_star: Array, V: Array, X_train: Array, alpha: Array
+    ) -> Array:
+        """
+        Compute HVP using kernel's hvp_wrt_x1() method.
+
+        This is the preferred path for kernels that implement
+        KernelHasHVPProtocol. Works for:
+        - Matern kernels with anisotropic length scales
+        - Kernel compositions (if they implement hvp_wrt_x1)
+        - Any kernel with efficient HVP computation
+
+        Parameters
+        ----------
+        x_star : Array, shape (nvars,)
+            Query point
+        V : Array, shape (nvars,)
+            Direction vector
+        X_train : Array, shape (nvars, n_train)
+            Training points
+        alpha : Array, shape (n_train,)
+            Dual coefficients
+
+        Returns
+        -------
+        hvp : Array, shape (nvars,)
+            Hessian-vector product
+        """
+        # Call kernel's hvp_wrt_x1 method
+        # X1 = x_star (1 point), X2 = X_train (n_train points), direction = V
+        # Returns: (1, n_train, nvars)
+        kernel_hvp = self._kernel.hvp_wrt_x1(
+            x_star[:, None],  # (nvars, 1)
+            X_train,          # (nvars, n_train)
+            V                 # (nvars,)
+        )  # Shape: (1, n_train, nvars)
+
+        # Contract with alpha: Σ_i H[k(x, x_i)]·V · α_i
+        # Shape: (1, n_train, nvars) · (n_train,) -> (1, nvars) -> (nvars,)
+        hvp = self._bkd.einsum('iqj,q->j', kernel_hvp, alpha)
+
+        return hvp
+
+    def hvp(self, sample: Array, direction: Array) -> Array:
+        """
+        Compute Hessian-vector product for GP mean with respect to inputs.
+
+        This computes H(x)·V where H is the Hessian of the GP mean prediction
+        with respect to inputs x, and V is a direction vector.
+
+        For a GP with mean m(x) and covariance k(x, x'), the posterior mean is:
+            μ*(x) = m(x) + k(x, X) α
+        where α = [K + σ²I]^{-1}(y - m(X)).
+
+        The HVP is computed using one of two methods:
+        1. Optimized radial derivatives (for Matern/RBF kernels)
+        2. General Jacobian-based method (for composed/anisotropic kernels)
+
+        Parameters
+        ----------
+        sample : Array
+            Input locations, shape (nvars, n_samples).
+        direction : Array
+            Direction vector, shape (nvars, n_samples).
+
+        Returns
+        -------
+        Array
+            Hessian-vector product, shape (nvars, n_samples).
+
+        Raises
+        ------
+        RuntimeError
+            If the GP has not been fitted.
+        ValueError
+            If shapes don't match.
+
+        Notes
+        -----
+        This uses analytical second derivatives for Matern kernels.
+        Key optimization: loop over d dimensions, not n points (d << n).
+        """
+        if not self.is_fitted():
+            raise RuntimeError("GP must be fitted before computing HVP")
+
+        if sample.shape != direction.shape:
+            raise ValueError(
+                f"sample and direction must have same shape, "
+                f"got {sample.shape} and {direction.shape}"
+            )
+
+        nvars = sample.shape[0]
+        n_samples = sample.shape[1]
+
+        if nvars != self._nvars:
+            raise ValueError(
+                f"sample has {nvars} variables, expected {self._nvars}"
+            )
+
+        # For multiple samples, compute HVP for each independently
+        if n_samples > 1:
+            hvps = []
+            for i in range(n_samples):
+                sample_i = sample[:, i:i+1]
+                direction_i = direction[:, i:i+1]
+                hvp_i = self.hvp(sample_i, direction_i)
+                hvps.append(hvp_i)
+            return self._bkd.concatenate(hvps, axis=1)
+
+        # Single sample case: sample shape (nvars, 1), direction shape (nvars, 1)
+        nqoi = self._data.nqoi()
+        if nqoi > 1:
+            raise NotImplementedError(
+                "HVP currently only supports single-output GPs (nqoi=1)"
+            )
+
+        # Get training data
+        X_train = self._data.X()  # (nvars, n_train)
+        n_train = X_train.shape[1]
+
+        # Get α (already computed during fit) - shape: (n_train, 1)
+        alpha = self._bkd.reshape(self._alpha, (n_train,))  # (n_train,)
+
+        # Get length scales
+        if hasattr(self._kernel, '_log_lenscale'):
+            # For MaternKernel, get actual length scales (not log values)
+            length_scales = self._kernel._log_lenscale.exp_values()
+        else:
+            length_scales = self._bkd.ones((nvars,))
+
+        # Reshape inputs
+        V = self._bkd.reshape(direction, (nvars,))  # (nvars,)
+        x_star = self._bkd.reshape(sample, (nvars,))  # (nvars,)
+
+        # Use kernel's hvp_wrt_x1 method
+        from pyapprox.typing.surrogates.kernels.protocols import KernelHasHVPProtocol
+        if not isinstance(self._kernel, KernelHasHVPProtocol):
+            raise NotImplementedError(
+                f"Kernel {type(self._kernel).__name__} does not implement "
+                f"KernelHasHVPProtocol (hvp_wrt_x1 method). All kernels used "
+                f"with GP HVP must implement this protocol."
+            )
+
+        hvp = self._hvp_using_kernel_hvp(x_star, V, X_train, alpha)
+
+        # Reshape to (nvars, 1) to match input shape
+        return self._bkd.reshape(hvp, (nvars, 1))
+
     def predict_covariance(self, X: Array) -> Array:
         """
         Predict full posterior covariance matrix.
@@ -482,13 +630,13 @@ class ExactGaussianProcess(Generic[Array]):
                 "GP must be fitted before optimizing hyperparameters"
             )
 
-        from pyapprox.typing.surrogates.gaussianprocess.loss import (
-            NegativeLogMarginalLikelihoodLoss
+        from pyapprox.typing.surrogates.gaussianprocess.gp_loss import (
+            GPNegativeLogMarginalLikelihoodLoss
         )
 
         # Create loss function
-        loss = NegativeLogMarginalLikelihoodLoss(
-            self, self._data.X(), self._data.y()
+        loss = GPNegativeLogMarginalLikelihoodLoss(
+            self, (self._data.X(), self._data.y())
         )
 
         # Get bounds for hyperparameters

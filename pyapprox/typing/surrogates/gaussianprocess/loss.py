@@ -205,26 +205,23 @@ class NegativeLogMarginalLikelihoodLoss(Generic[Array]):
         # 2. Compute gradients w.r.t. mean function hyperparameters
         if mean_hyps.nparams() > 0:
             # For mean functions, the gradient is:
-            # ∂(-log p)/∂m = -α^T @ ∂m/∂θ
+            # ∂(-log p)/∂θ_m = -α^T @ ∂m/∂θ_m
+            #
+            # where α = K^{-1}(y - m(X))
 
-            # For ConstantMean: m(X) = c, so ∂m/∂c = ones vector
-            # ∂(-log p)/∂c = -sum(α)
+            # Get mean function Jacobian: shape (nparams_mean, n_train, 1)
+            mean_jac = self._gp._mean.jacobian_wrt_params(self._X_train)
 
-            # We assume the mean function has simple structure
-            # For now, handle ConstantMean specifically
-            mean_func = self._gp._mean
-            if hasattr(mean_func, '_constant'):
-                # ConstantMean case
-                alpha_vec = alpha[:, 0]  # Shape: (n_train,)
-                grad_constant = -self._bkd.sum(alpha_vec)
-                grad_values.append(grad_constant)
-            else:
-                # For other mean functions, would need to implement
-                # gradient computation based on mean function structure
-                raise NotImplementedError(
-                    f"Gradient computation not implemented for "
-                    f"mean function {type(mean_func).__name__}"
-                )
+            # Compute gradient for each mean function parameter
+            for i in range(mean_hyps.nparams()):
+                # ∂m/∂θ_i has shape (n_train, 1)
+                dm_dtheta = mean_jac[i, :, :]
+
+                # Gradient: -α^T @ ∂m/∂θ_i
+                # alpha shape: (n_train, 1)
+                # dm_dtheta shape: (n_train, 1)
+                grad_mean_i = -self._bkd.sum(alpha * dm_dtheta)
+                grad_values.append(grad_mean_i)
 
         # Stack gradients and reshape to (1, nactive)
         grad = self._bkd.array(grad_values)

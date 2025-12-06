@@ -114,6 +114,45 @@ class KernelHasParameterJacobianProtocol(Protocol, Generic[Array]):
         ...
 
 
+@runtime_checkable
+class KernelHasHVPProtocol(Protocol, Generic[Array]):
+    def hvp_wrt_x1(
+        self, X1: Array, X2: Array, direction: Array
+    ) -> Array:
+        """
+        Compute Hessian-vector product of kernel w.r.t. first argument.
+
+        For kernel k(X1, X2), computes:
+            H[k(X1, X2)] · V
+        where H is the Hessian matrix ∂²k/∂X1² and V is the direction vector.
+
+        This is more efficient than computing the full Hessian tensor and
+        then contracting, especially for high-dimensional problems.
+
+        Parameters
+        ----------
+        X1 : Array, shape (nvars, n1)
+            First set of input points
+        X2 : Array, shape (nvars, n2)
+            Second set of input points
+        direction : Array, shape (nvars,)
+            Direction vector for Hessian-vector product
+
+        Returns
+        -------
+        hvp : Array, shape (n1, n2, nvars)
+            H[k(X1[:, i], X2[:, j])]·V for each pair (i, j)
+
+            This shape is consistent with jacobian() which returns (n1, n2, nvars).
+
+        Notes
+        -----
+        This computes the HVP without materializing the (nvars, nvars, n1, n2)
+        Hessian tensor, making it memory-efficient for high dimensions.
+        """
+        ...
+
+
 class KernelWithJacobianProtocol(
     KernelProtocol[Array], KernelHasJacobianProtocol[Array], Protocol
 ):
