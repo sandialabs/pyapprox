@@ -14,6 +14,7 @@ from pyapprox.typing.interface.functions.derivative_checks.derivative_checker im
 )
 from pyapprox.typing.interface.functions.fromcallable.hessian import (
     FunctionWithJacobianFromCallable,
+    FunctionWithJacobianAndHVPFromCallable,
 )
 
 
@@ -203,6 +204,109 @@ class TestMaternKernel(Generic[Array], unittest.TestCase):
         self.assertIn("MaternKernel", repr_str)
         self.assertIn("nu=1.5", repr_str)
         self.assertIn("lenscale", repr_str)
+
+    def test_hvp_wrt_x1(self) -> None:
+        """
+        Test HVP (Hessian-vector product) using derivative checker.
+
+        Tests that the HVP implementation matches finite difference
+        approximations for all supported Matern smoothness parameters.
+        """
+        for nu in self.nu_values:
+            with self.subTest(nu=nu):
+                kernel = MaternKernel(
+                    nu=nu,
+                    lenscale=self.lenscale,
+                    lenscale_bounds=self.lenscale_bounds,
+                    nvars=self.nvars,
+                    bkd=self.bkd(),
+                )
+
+                # Test point and direction
+                x_test = self.X1[:, :1]  # Shape (nvars, 1)
+                direction = self.bkd().array(np.random.randn(self.nvars, 1))
+                direction = direction / self.bkd().norm(direction)
+                direction_flat = self.bkd().flatten(direction)  # Shape (nvars,)
+
+                # Compute kernel value and derivatives for verification
+                K = kernel(x_test, self.X2)  # Shape (1, n2)
+                jac = kernel.jacobian(x_test, self.X2)  # Shape (1, n2, nvars)
+                hvp = kernel.hvp_wrt_x1(x_test, self.X2, direction_flat)  # Shape (1, n2, nvars)
+
+                # Verify shapes
+                self.assertEqual(K.shape, (1, self.X2.shape[1]))
+                self.assertEqual(jac.shape, (1, self.X2.shape[1], self.nvars))
+                self.assertEqual(hvp.shape, (1, self.X2.shape[1], self.nvars))
+
+                # Verify HVP using derivative checker
+                # We need a scalar function for the checker, so we contract with a vector
+                vec = self.bkd().ones((self.X2.shape[1], 1))
+
+                def kernel_func(x_shaped):
+                    """Kernel function contracted with vec: R^nvars -> R."""
+                    x_reshaped = self.bkd().reshape(x_shaped, (self.nvars, 1))
+                    K_val = kernel(x_reshaped, self.X2)  # Shape (1, n2)
+                    return K_val @ vec  # Shape (1, 1)
+
+                def jacobian_func(x_shaped):
+                    """Jacobian contracted with vec: R^nvars -> R^nvars."""
+                    x_reshaped = self.bkd().reshape(x_shaped, (self.nvars, 1))
+                    jac_val = kernel.jacobian(x_reshaped, self.X2)  # Shape (1, n2, nvars)
+                    # Contract: (1, n2, nvars) with (n2, 1) -> (1, nvars)
+                    result = self.bkd().einsum('ijk,jl->ik', jac_val, vec)
+                    return result  # Shape (1, nvars)
+
+                def hvp_func(x_shaped, v_shaped):
+                    """HVP contracted with vec: R^nvars x R^nvars -> R^nvars."""
+                    x_reshaped = self.bkd().reshape(x_shaped, (self.nvars, 1))
+                    v_flat = self.bkd().flatten(v_shaped)  # Shape (nvars,)
+                    hvp_val = kernel.hvp_wrt_x1(x_reshaped, self.X2, v_flat)  # Shape (1, n2, nvars)
+                    # Contract: (1, n2, nvars) with (n2, 1) -> (nvars, 1)
+                    # einsum 'ijk,jl->ki' gives (nvars, 1) not (1, nvars)
+                    result = self.bkd().einsum('ijk,jl->ki', hvp_val, vec)
+                    return result  # Shape (nvars, 1)
+
+                # Create function object with HVP
+                function_with_hvp = FunctionWithJacobianAndHVPFromCallable(
+                    nvars=self.nvars,
+                    fun=kernel_func,
+                    jacobian=jacobian_func,
+                    hvp=hvp_func,
+                    bkd=self.bkd()
+                )
+
+                # Create derivative checker
+                checker = DerivativeChecker(function_with_hvp)
+
+                # Check derivatives at test point
+                sample = self.bkd().flatten(x_test)[:, None]  # Shape (nvars, 1)
+                errors = checker.check_derivatives(
+                    sample,
+                    direction=direction,
+                    verbosity=0
+                )
+
+                # Verify Jacobian is correct
+                jac_error = errors[0]
+                self.assertTrue(
+                    self.bkd().all_bool(self.bkd().isfinite(jac_error))
+                )
+                jac_ratio = float(checker.error_ratio(jac_error))
+                self.assertLess(
+                    jac_ratio, 1e-6,
+                    f"Jacobian error ratio for nu={nu}: {jac_ratio}"
+                )
+
+                # Verify HVP is correct
+                hvp_error = errors[1]
+                self.assertTrue(
+                    self.bkd().all_bool(self.bkd().isfinite(hvp_error))
+                )
+                hvp_ratio = float(checker.error_ratio(hvp_error))
+                self.assertLess(
+                    hvp_ratio, 1e-5,
+                    f"HVP error ratio for nu={nu}: {hvp_ratio}"
+                )
 
 
 # Derived test class for NumPy backend

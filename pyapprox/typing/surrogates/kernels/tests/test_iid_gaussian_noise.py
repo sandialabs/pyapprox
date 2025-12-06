@@ -325,6 +325,32 @@ class TestIIDGaussianNoise(Generic[Array], unittest.TestCase):
         repr_str = repr(self.kernel)
         self.assertIn("IIDGaussianNoise", repr_str)
 
+    def test_hvp_wrt_x1(self) -> None:
+        """
+        Test HVP returns zeros (noise doesn't depend on x).
+
+        Since IIDGaussianNoise doesn't depend on spatial inputs x,
+        its Hessian with respect to x is zero, and thus HVP should
+        always return zeros.
+        """
+        # Test points
+        X1 = self.bkd().array(np.random.randn(self.nvars, 3))
+        X2 = self.bkd().array(np.random.randn(self.nvars, 4))
+        direction = self.bkd().array(np.random.randn(self.nvars,))  # Shape (nvars,)
+
+        # Compute HVP
+        hvp = self.kernel.hvp_wrt_x1(X1, X2, direction)
+
+        # Should be all zeros with shape (n1, n2, nvars)
+        expected_shape = (X1.shape[1], X2.shape[1], self.nvars)
+        self.assertEqual(hvp.shape, expected_shape)
+
+        # All values should be zero
+        zeros = self.bkd().zeros(expected_shape)
+        self.assertTrue(
+            self.bkd().allclose(hvp, zeros, atol=1e-15)
+        )
+
 
 # NumPy implementation
 class TestIIDGaussianNoiseNumpy(TestIIDGaussianNoise[NDArray[Any]]):
