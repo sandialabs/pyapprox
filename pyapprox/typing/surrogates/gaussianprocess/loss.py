@@ -37,6 +37,26 @@ class NegativeLogMarginalLikelihoodLoss(Generic[Array]):
     y_train : Array
         Training output data, shape (n_train, nqoi).
 
+    Optional Methods
+    ----------------
+    This class uses dynamic method binding based on kernel capabilities:
+
+    - ``jacobian(params)``: Available if kernel has ``jacobian_wrt_params``.
+      Required for gradient-based optimization.
+    - ``hvp(params, direction)``: Available if kernel has ``hvp_wrt_params``.
+      Enables second-order optimizers (e.g., trust-constr with Hessian-vector products).
+
+    Check availability with ``hasattr(loss, 'jacobian')`` or ``hasattr(loss, 'hvp')``.
+
+    Notes
+    -----
+    This class follows the dynamic binding pattern for optional methods:
+
+    - Private methods ``_jacobian`` and ``_hvp`` contain the implementation
+    - During ``__init__``, public methods are conditionally assigned based on
+      kernel capabilities via ``_setup_derivative_methods()``
+    - Optimizers should use ``hasattr()`` to check for available methods
+
     Examples
     --------
     >>> from pyapprox.typing.surrogates.kernels import MaternKernel

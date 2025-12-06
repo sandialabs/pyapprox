@@ -33,6 +33,25 @@ class CompositionKernel(Kernel, Generic[Array]):
         Second kernel.
     _hyp_list : HyperParameterList
         Combined hyperparameter list from both kernels.
+
+    Optional Methods
+    ----------------
+    This class uses dynamic method binding with AND logic for composition:
+
+    - ``jacobian_wrt_params(samples)``: Available if BOTH kernels have it.
+    - ``hvp_wrt_params(samples, direction)``: Available if BOTH kernels have it.
+
+    Check availability with ``hasattr(kernel, 'jacobian_wrt_params')`` or
+    ``hasattr(kernel, 'hvp_wrt_params')``.
+
+    Notes
+    -----
+    **AND Logic Convention**: Composed objects only have a capability if ALL
+    component objects have it. This ensures derivative methods are only available
+    when they can be correctly computed for the entire composition.
+
+    This pattern is implemented via ``_setup_derivative_methods()`` which checks
+    each component kernel's capabilities and conditionally assigns public methods.
     """
 
     def __init__(self, kernel1: Kernel, kernel2: Kernel):
