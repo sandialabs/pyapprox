@@ -15,7 +15,10 @@ import matplotlib.pyplot as plt
 from pyapprox.typing.util.backends.protocols import Backend, Array
 from pyapprox.typing.util.backends.numpy import NumpyBkd
 from pyapprox.typing.util.backends.torch import TorchBkd
-from pyapprox.typing.surrogates.kernels.matern import MaternKernel, MaternKernelBase
+from pyapprox.typing.surrogates.kernels.matern import (
+    MaternKernel,
+    Matern52Kernel,
+)
 from pyapprox.typing.surrogates.gaussianprocess import (
     ExactGaussianProcess,
     ZeroMean,
@@ -53,8 +56,7 @@ class TestExactGPBasic(Generic[Array], unittest.TestCase):
         self.X_test = self.bkd().array(X_test_np)
 
         # Create kernel
-        self.kernel = MaternKernel(
-            2.5,
+        self.kernel = Matern52Kernel(
             [1.0, 1.0],
             (0.1, 10.0),
             self.nvars,
@@ -76,7 +78,7 @@ class TestExactGPBasic(Generic[Array], unittest.TestCase):
 
         self.assertEqual(gp.nvars(), self.nvars)
         self.assertFalse(gp.is_fitted())
-        self.assertIsInstance(gp.kernel(), MaternKernelBase)
+        self.assertIsInstance(gp.kernel(), MaternKernel)
 
     def test_fit_and_predict(self) -> None:
         """Test basic fit and predict."""
@@ -270,8 +272,8 @@ class TestExactGPBasic(Generic[Array], unittest.TestCase):
         )
 
         # Create clean training data (no noise added)
-        X_train_clean = self.bkd().array(np.array([[0.0, 0.5, 1.0], [0.0, 0.5, 1.0]]))
-        y_train_clean = self.bkd().array(np.array([[1.0], [2.0], [3.0]]))
+        X_train_clean = self.bkd().array([[0.0, 0.5, 1.0], [0.0, 0.5, 1.0]])
+        y_train_clean = self.bkd().array([[1.0], [2.0], [3.0]])
 
         gp.fit(X_train_clean, y_train_clean)
 
@@ -310,8 +312,7 @@ class TestExactGPBasic(Generic[Array], unittest.TestCase):
         y_train = self.bkd().array(y_train_np)
 
         # Use Matern kernel with very long length scales to capture smooth polynomial
-        kernel = MaternKernel(
-            2.5,  # nu
+        kernel = Matern52Kernel(
             [5.0, 5.0],  # Very long length scales for smooth approximation
             (0.1, 10.0),
             self.nvars,
@@ -357,8 +358,7 @@ class TestExactGPBasic(Generic[Array], unittest.TestCase):
         """Test plotting 1D GP mean function using Plotter1D."""
         # Create 1D GP
         nvars_1d = 1
-        kernel_1d = MaternKernel(
-            2.5,
+        kernel_1d = Matern52Kernel(
             [1.0],
             (0.1, 10.0),
             nvars_1d,
@@ -373,8 +373,8 @@ class TestExactGPBasic(Generic[Array], unittest.TestCase):
         )
 
         # Create 1D training data
-        X_train_1d = self.bkd().array(np.linspace(-2, 2, 10).reshape(1, -1))
-        y_train_1d = self.bkd().array(np.sin(X_train_1d[0, :])[:, None])
+        X_train_1d = self.bkd().reshape(self.bkd().linspace(-2, 2, 10), (1, -1))
+        y_train_1d = self.bkd().reshape(self.bkd().sin(X_train_1d[0, :]), (-1, 1))
 
         gp.fit(X_train_1d, y_train_1d)
 

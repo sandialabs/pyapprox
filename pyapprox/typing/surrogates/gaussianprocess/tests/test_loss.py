@@ -14,7 +14,7 @@ from numpy.typing import NDArray
 from pyapprox.typing.util.backends.protocols import Backend, Array
 from pyapprox.typing.util.backends.numpy import NumpyBkd
 from pyapprox.typing.util.backends.torch import TorchBkd
-from pyapprox.typing.surrogates.kernels.matern import MaternKernel
+from pyapprox.typing.surrogates.kernels.matern import Matern52Kernel
 from pyapprox.typing.surrogates.gaussianprocess import (
     ExactGaussianProcess,
     ZeroMean,
@@ -47,8 +47,7 @@ class TestNLMLLoss(Generic[Array], unittest.TestCase):
         self.y_train = self.bkd().array(y_train_np)
 
         # Create kernel with optimizable hyperparameters
-        self.kernel = MaternKernel(
-            2.5,
+        self.kernel = Matern52Kernel(
             [1.0, 1.0],
             (0.1, 10.0),
             self.nvars,
@@ -176,7 +175,7 @@ class TestNLMLLoss(Generic[Array], unittest.TestCase):
 
         # Minimum error should be small
         min_error = float(self.bkd().min(grad_error))
-        self.assertLess(min_error, 1e-5,
+        self.assertLess(min_error, 1e-6,
                        f"Minimum gradient relative error {min_error} exceeds threshold")
 
         # Error ratio should indicate good convergence
@@ -227,7 +226,7 @@ class TestNLMLLoss(Generic[Array], unittest.TestCase):
 
         # Minimum error should be small
         min_error = float(self.bkd().min(grad_error))
-        self.assertLess(min_error, 1e-5,
+        self.assertLess(min_error, 1e-6,
                        f"Minimum gradient relative error {min_error} exceeds threshold")
 
         # Error ratio should indicate good convergence

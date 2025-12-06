@@ -304,14 +304,21 @@ class NegativeLogMarginalLikelihoodLoss(Generic[Array]):
             grad_mean = -self._bkd.einsum('jk,ijk->i', alpha, mean_jac)
             grad_parts.append(grad_mean)
 
-        # Concatenate all gradient parts and reshape to (1, nactive)
+        # Concatenate all gradient parts to get FULL gradient (all params)
         if len(grad_parts) == 0:
-            grad = self._bkd.zeros((1, 0))
+            full_grad = self._bkd.zeros((0,))
         elif len(grad_parts) == 1:
-            grad = self._bkd.reshape(grad_parts[0], (1, -1))
+            full_grad = self._bkd.reshape(grad_parts[0], (-1,))
         else:
-            grad = self._bkd.concatenate(grad_parts, axis=0)
-            grad = self._bkd.reshape(grad, (1, -1))
+            full_grad = self._bkd.concatenate(grad_parts, axis=0)
+            full_grad = self._bkd.reshape(full_grad, (-1,))
+
+        # Extract only active parameter gradients
+        # This handles fixed hyperparameters correctly
+        active_grad = self._hyp_list.extract_active(full_grad)
+
+        # Reshape to (1, nactive) for optimizer compatibility
+        grad = self._bkd.reshape(active_grad, (1, -1))
 
         # Note: The kernel's jacobian_wrt_params should already account for
         # parameter transformations (e.g., log-space), so no additional
@@ -384,6 +391,10 @@ class NegativeLogMarginalLikelihoodLoss(Generic[Array]):
                 f"expected {nactive}"
             )
 
+        # Expand active direction to full parameter space
+        # Fixed parameters get direction = 0 (no contribution to HVP)
+        full_direction = self._hyp_list.expand_to_full(direction, fill_value=0.0)
+
         # Update and refit
         self._hyp_list.set_active_values(params)
         self._gp.fit(self._X_train, self._y_train)
@@ -400,6 +411,10 @@ class NegativeLogMarginalLikelihoodLoss(Generic[Array]):
         n_kernel_params = kernel_hyps.nparams()
         n_mean_params = mean_hyps.nparams()
 
+        # Split full direction into kernel and mean parts
+        kernel_direction = full_direction[:n_kernel_params]
+        mean_direction = full_direction[n_kernel_params:]
+
         # Build HVP array directly without lists
         hvp_parts = []
 
@@ -413,7 +428,7 @@ class NegativeLogMarginalLikelihoodLoss(Generic[Array]):
 
             # Compute directional derivative of K: D_V = Σ_j v_j * ∂K/∂θ_j
             # Using einsum for vectorization: D_V[i,j] = Σ_k K_grad[i,j,k] * direction[k]
-            D_V = self._bkd.einsum('ijk,k->ij', K_grad, direction[:n_kernel_params])
+            D_V = self._bkd.einsum('ijk,k->ij', K_grad, kernel_direction)
 
             # Solve: K^{-1} D_V (single solve!)
             Kinv_DV = cholesky.solve(D_V)
@@ -421,7 +436,7 @@ class NegativeLogMarginalLikelihoodLoss(Generic[Array]):
             # Compute HVP directly without forming full Hessian
             # dDV[i,j,param_i] = Σ_j (∂²K/∂θ_i∂θ_j) * v[j]
             if hasattr(kernel, 'hvp_wrt_params'):
-                dDV = kernel.hvp_wrt_params(self._X_train, direction[:n_kernel_params])
+                dDV = kernel.hvp_wrt_params(self._X_train, kernel_direction)
             else:
                 raise NotImplementedError(
                     f"Kernel {type(kernel).__name__} must implement "
@@ -499,10 +514,10 @@ class NegativeLogMarginalLikelihoodLoss(Generic[Array]):
             mean_jac = self._gp._mean.jacobian_wrt_params(self._X_train)
             # Shape: (nparams_mean, n_train, 1)
 
-            # Compute directional derivative for mean
+            # Compute directional derivative for mean using full direction
             D_V_mean = self._bkd.einsum('ijk,i->jk',
                                          mean_jac,
-                                         direction[n_kernel_params:])
+                                         mean_direction)
             # Shape: (n_train, 1)
 
             # Solve: K^{-1} D_V_mean
@@ -515,15 +530,21 @@ class NegativeLogMarginalLikelihoodLoss(Generic[Array]):
             hvp_mean = self._bkd.einsum('ijk,jk->i', mean_jac, Kinv_DV_mean)
             hvp_parts.append(hvp_mean)
 
-        # Concatenate all HVP parts and reshape to (nactive, 1)
-        # Following the standard convention: hvp returns (nvars, 1)
+        # Concatenate all HVP parts to get FULL HVP (all params)
         if len(hvp_parts) == 0:
-            hvp = self._bkd.zeros((0, 1))
+            full_hvp = self._bkd.zeros((0,))
         elif len(hvp_parts) == 1:
-            hvp = self._bkd.reshape(hvp_parts[0], (-1, 1))
+            full_hvp = self._bkd.reshape(hvp_parts[0], (-1,))
         else:
-            hvp = self._bkd.concatenate(hvp_parts, axis=0)
-            hvp = self._bkd.reshape(hvp, (-1, 1))
+            full_hvp = self._bkd.concatenate(hvp_parts, axis=0)
+            full_hvp = self._bkd.reshape(full_hvp, (-1,))
+
+        # Extract only active parameter HVP elements
+        # This handles fixed hyperparameters correctly
+        active_hvp = self._hyp_list.extract_active(full_hvp)
+
+        # Reshape to (nactive, 1) for optimizer compatibility
+        hvp = self._bkd.reshape(active_hvp, (-1, 1))
 
         # Note: The kernel's hvp_wrt_params should already account for
         # parameter transformations (e.g., log-space), so no additional

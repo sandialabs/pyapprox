@@ -184,12 +184,15 @@ class GPNegativeLogMarginalLikelihoodLoss(Generic[Array]):
                     grad_mean_i = -self._bkd.sum(alpha * dm_dtheta)
                     grad_values.append(grad_mean_i)
 
-        # Stack gradients
+        # Stack full gradients (for all parameters, fixed or not)
         if len(grad_values) > 0:
-            grad = self._bkd.array(grad_values)
-            grad = self._bkd.reshape(grad, (1, len(grad_values)))
+            full_grad = self._bkd.array(grad_values)
         else:
-            grad = self._bkd.zeros((1, 0))
+            full_grad = self._bkd.zeros((0,))
+
+        # Extract only active parameter gradients
+        active_grad = self._hyp_list.extract_active(full_grad)
+        grad = self._bkd.reshape(active_grad, (1, len(active_grad)))
 
         return grad
 

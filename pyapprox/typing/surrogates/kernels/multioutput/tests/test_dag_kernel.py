@@ -1,80 +1,36 @@
 """
-Tests for DAGMultiOutputKernel and AutoregressiveDAG.
+Tests for DAGMultiOutputKernel.
 """
 
 import unittest
 from typing import Any, Generic
 import numpy as np
 from numpy.typing import NDArray
+import networkx as nx
 
 from pyapprox.typing.util.backends.protocols import Array, Backend
 from pyapprox.typing.util.backends.numpy import NumpyBkd
-from pyapprox.typing.surrogates.kernels import MaternKernel
+from pyapprox.typing.surrogates.kernels import (
+    Matern32Kernel,
+    Matern52Kernel,
+    SquaredExponentialKernel,
+)
 from pyapprox.typing.surrogates.kernels.multioutput import (
     DAGMultiOutputKernel,
 )
+from pyapprox.typing.surrogates.kernels.scalings import PolynomialScaling
 
 
-class TestAutoregressiveDAG(unittest.TestCase):
-    """Tests for AutoregressiveDAG class."""
-
-    def test_sequential_structure(self):
-        """Test sequential DAG: 0 -> 1 -> 2."""
-        dag = AutoregressiveDAG.from_string("0->1->2")
-
-        self.assertEqual(dag.noutputs(), 3)
-        self.assertEqual(dag.roots(), [0])
-        self.assertEqual(dag.leaves(), [2])
-        self.assertEqual(dag.edges(), [(0, 1), (1, 2)])
-        self.assertEqual(dag.parents(0), [])
-        self.assertEqual(dag.parents(1), [0])
-        self.assertEqual(dag.parents(2), [1])
-        self.assertEqual(dag.children(0), [1])
-        self.assertEqual(dag.children(1), [2])
-        self.assertEqual(dag.children(2), [])
-
-    def test_tree_structure(self):
-        """Test tree DAG: 0 -> 1, 0 -> 2."""
-        dag = AutoregressiveDAG(3)
-        dag.add_edges([(0, 1), (0, 2)])
-
-        self.assertEqual(dag.noutputs(), 3)
-        self.assertEqual(dag.roots(), [0])
-        self.assertEqual(set(dag.leaves()), {1, 2})
-        self.assertEqual(sorted(dag.edges()), [(0, 1), (0, 2)])
-        self.assertEqual(dag.parents(0), [])
-        self.assertEqual(dag.parents(1), [0])
-        self.assertEqual(dag.parents(2), [0])
-        self.assertEqual(sorted(dag.children(0)), [1, 2])
-        self.assertEqual(dag.children(1), [])
-        self.assertEqual(dag.children(2), [])
-
-    def test_diamond_structure(self):
-        """Test diamond DAG: 0 -> 1, 0 -> 2, 1 -> 3, 2 -> 3."""
-        dag = AutoregressiveDAG(4)
-        dag.add_edges([(0, 1), (0, 2), (1, 3), (2, 3)])
-
-        self.assertEqual(dag.noutputs(), 4)
-        self.assertEqual(dag.roots(), [0])
-        self.assertEqual(dag.leaves(), [3])
-        self.assertEqual(sorted(dag.parents(3)), [1, 2])
-
-        # Check paths from 0 to 3
-        paths = dag.all_simple_paths(0, 3)
-        self.assertEqual(len(paths), 2)  # Two paths
-        self.assertIn([0, 1, 3], paths)
-        self.assertIn([0, 2, 3], paths)
-
-    def test_cycle_detection(self):
-        """Test that cycles are detected and rejected."""
-        dag = AutoregressiveDAG(3)
-        dag.add_edge(0, 1)
-        dag.add_edge(1, 2)
-
-        # Trying to add 2 -> 0 should create a cycle
-        with self.assertRaises(ValueError) as context:
-            dag.add_edge(2, 0)
-        self.assertIn("cycle", str(context.exception).lower())
+def create_matern_kernel(nu, lenscale, lenscale_bounds, nvars, bkd):
+    """Create a Matern kernel with the specified nu value."""
+    if nu == 1.5:
+        return Matern32Kernel(lenscale, lenscale_bounds, nvars, bkd)
+    elif nu == 2.5:
+        return Matern52Kernel(lenscale, lenscale_bounds, nvars, bkd)
+    elif nu == np.inf:
+        return SquaredExponentialKernel(lenscale, lenscale_bounds, nvars, bkd)
+    else:
+        raise ValueError(f"Unsupported nu value: {nu}")
 
 
 class TestDAGMultiOutputKernel(Generic[Array], unittest.TestCase):
@@ -87,29 +43,39 @@ class TestDAGMultiOutputKernel(Generic[Array], unittest.TestCase):
         self._bkd = self.bkd()
         self._nvars = 1
 
+    def _create_constant_scaling(self, value: float) -> PolynomialScaling:
+        """Helper to create constant scaling using PolynomialScaling with degree 0."""
+        return PolynomialScaling([value], (0.1, 2.0), self._bkd, nvars=self._nvars)
+
+    def _create_linear_scaling(self, c0: float, c1: float) -> PolynomialScaling:
+        """Helper to create linear scaling using PolynomialScaling with degree 1."""
+        return PolynomialScaling([c0, c1], (0.1, 2.0), self._bkd)
+
     def test_sequential_structure(self):
         """Test sequential structure: 0 -> 1 -> 2."""
-        # Create sequential DAG
-        dag = AutoregressiveDAG.from_string("0->1->2")
+        # Create sequential DAG using networkx
+        dag = nx.DiGraph()
+        dag.add_nodes_from([0, 1, 2])
+        dag.add_edges_from([(0, 1), (1, 2)])
 
         # Create discrepancy kernels
         kernels = [
-            MaternKernel(2.5, [1.0], (0.1, 10.0), self._nvars, self._bkd),
-            MaternKernel(2.5, [0.8], (0.1, 10.0), self._nvars, self._bkd),
-            MaternKernel(2.5, [0.5], (0.1, 10.0), self._nvars, self._bkd),
+            create_matern_kernel(2.5, [1.0], (0.1, 10.0), self._nvars, self._bkd),
+            create_matern_kernel(2.5, [0.8], (0.1, 10.0), self._nvars, self._bkd),
+            create_matern_kernel(2.5, [0.5], (0.1, 10.0), self._nvars, self._bkd),
         ]
 
         # Create constant scalings
         edge_scalings = {
-            (0, 1): ConstantScaling(0.9, (0.1, 2.0), self._bkd, self._nvars),
-            (1, 2): ConstantScaling(0.85, (0.1, 2.0), self._bkd, self._nvars),
+            (0, 1): self._create_constant_scaling(0.9),
+            (1, 2): self._create_constant_scaling(0.85),
         }
 
         # Create DAG kernel
         dag_kernel = DAGMultiOutputKernel(dag, kernels, edge_scalings)
 
         # Test data
-        X = self._bkd.array(np.array([[0.0, 0.5]]))
+        X = self._bkd.array([[0.0, 0.5]])
         X_list = [X, X, X]
 
         # Compute kernel matrix
@@ -132,26 +98,27 @@ class TestDAGMultiOutputKernel(Generic[Array], unittest.TestCase):
         depend on output 0, with no direct connection between 1 and 2.
         """
         # Create tree DAG: root 0 with two independent children
-        dag = AutoregressiveDAG(3)
-        dag.add_edges([(0, 1), (0, 2)])
+        dag = nx.DiGraph()
+        dag.add_nodes_from([0, 1, 2])
+        dag.add_edges_from([(0, 1), (0, 2)])
 
         # Create discrepancy kernels
-        k0 = MaternKernel(2.5, [1.0], (0.1, 10.0), self._nvars, self._bkd)
-        k1 = MaternKernel(2.5, [0.7], (0.1, 10.0), self._nvars, self._bkd)
-        k2 = MaternKernel(2.5, [0.7], (0.1, 10.0), self._nvars, self._bkd)
+        k0 = Matern52Kernel([1.0], (0.1, 10.0), self._nvars, self._bkd)
+        k1 = Matern52Kernel([0.7], (0.1, 10.0), self._nvars, self._bkd)
+        k2 = Matern52Kernel([0.7], (0.1, 10.0), self._nvars, self._bkd)
         kernels = [k0, k1, k2]
 
         # Create scalings for both edges from root
         edge_scalings = {
-            (0, 1): ConstantScaling(0.9, (0.1, 2.0), self._bkd, self._nvars),
-            (0, 2): ConstantScaling(0.85, (0.1, 2.0), self._bkd, self._nvars),
+            (0, 1): self._create_constant_scaling(0.9),
+            (0, 2): self._create_constant_scaling(0.85),
         }
 
         # Create DAG kernel
         dag_kernel = DAGMultiOutputKernel(dag, kernels, edge_scalings)
 
         # Test data - use same points for simplicity
-        X = self._bkd.array(np.array([[0.0, 1.0]]))
+        X = self._bkd.array([[0.0, 1.0]])
         X_list = [X, X, X]
 
         # Compute kernel matrix
@@ -195,30 +162,31 @@ class TestDAGMultiOutputKernel(Generic[Array], unittest.TestCase):
         information through both intermediate nodes.
         """
         # Create diamond DAG
-        dag = AutoregressiveDAG(4)
-        dag.add_edges([(0, 1), (0, 2), (1, 3), (2, 3)])
+        dag = nx.DiGraph()
+        dag.add_nodes_from([0, 1, 2, 3])
+        dag.add_edges_from([(0, 1), (0, 2), (1, 3), (2, 3)])
 
         # Create kernels
         kernels = [
-            MaternKernel(2.5, [1.0], (0.1, 10.0), self._nvars, self._bkd),
-            MaternKernel(2.5, [0.7], (0.1, 10.0), self._nvars, self._bkd),
-            MaternKernel(2.5, [0.7], (0.1, 10.0), self._nvars, self._bkd),
-            MaternKernel(2.5, [0.4], (0.1, 10.0), self._nvars, self._bkd),
+            Matern52Kernel([1.0], (0.1, 10.0), self._nvars, self._bkd),
+            Matern52Kernel([0.7], (0.1, 10.0), self._nvars, self._bkd),
+            Matern52Kernel([0.7], (0.1, 10.0), self._nvars, self._bkd),
+            Matern52Kernel([0.4], (0.1, 10.0), self._nvars, self._bkd),
         ]
 
         # Create scalings
         edge_scalings = {
-            (0, 1): ConstantScaling(0.9, (0.1, 2.0), self._bkd, self._nvars),
-            (0, 2): ConstantScaling(0.85, (0.1, 2.0), self._bkd, self._nvars),
-            (1, 3): ConstantScaling(0.8, (0.1, 2.0), self._bkd, self._nvars),
-            (2, 3): ConstantScaling(0.75, (0.1, 2.0), self._bkd, self._nvars),
+            (0, 1): self._create_constant_scaling(0.9),
+            (0, 2): self._create_constant_scaling(0.85),
+            (1, 3): self._create_constant_scaling(0.8),
+            (2, 3): self._create_constant_scaling(0.75),
         }
 
         # Create DAG kernel
         dag_kernel = DAGMultiOutputKernel(dag, kernels, edge_scalings)
 
         # Test with single point for simplicity
-        X = self._bkd.array(np.array([[0.0]]))
+        X = self._bkd.array([[0.0]])
         X_list = [X, X, X, X]
 
         # Compute kernel
@@ -228,22 +196,42 @@ class TestDAGMultiOutputKernel(Generic[Array], unittest.TestCase):
         self.assertEqual(K.shape, (4, 4))
 
         # For node 3, there are two paths from node 0:
-        # Path 1: 0 -> 1 -> 3 with scaling ρ_01 * ρ_13
-        # Path 2: 0 -> 2 -> 3 with scaling ρ_02 * ρ_23
-        # K_33 should include contributions from both paths
+        # Path 1: 0 -> 1 -> 3 with scaling ρ_01 * ρ_13 = 0.9 * 0.8 = 0.72
+        # Path 2: 0 -> 2 -> 3 with scaling ρ_02 * ρ_23 = 0.85 * 0.75 = 0.6375
+        #
+        # K_33 includes all path-pair contributions:
+        # For ancestor 0: all pairs of paths [0,1,3] and [0,2,3]
+        # For ancestor 1: path [1,3]
+        # For ancestor 2: path [2,3]
+        # For ancestor 3 (self): path [3]
 
-        k0_val = kernels[0](X, X)[0, 0]
-        k1_val = kernels[1](X, X)[0, 0]
-        k2_val = kernels[2](X, X)[0, 0]
-        k3_val = kernels[3](X, X)[0, 0]
+        k0_val = kernels[0](X, X)[0, 0]  # = 1
+        k1_val = kernels[1](X, X)[0, 0]  # = 1
+        k2_val = kernels[2](X, X)[0, 0]  # = 1
+        k3_val = kernels[3](X, X)[0, 0]  # = 1
 
-        # K_33 = (ρ_01*ρ_13)² k0 + (ρ_02*ρ_23)² k0 + ρ_13² k1 + ρ_23² k2 + k3
+        rho_01_13 = 0.9 * 0.8  # = 0.72
+        rho_02_23 = 0.85 * 0.75  # = 0.6375
+
+        # K_33 = sum over ancestors k, sum over all path pairs from k to 3:
+        # Ancestor 0: (w1 + w2)² where w1=0.72, w2=0.6375
+        # = w1²*k0 + 2*w1*w2*k0 + w2²*k0 = (w1+w2)² * k0
+        ancestor_0_contrib = (rho_01_13 + rho_02_23)**2 * k0_val
+
+        # Ancestor 1: path [1,3] with scaling 0.8
+        ancestor_1_contrib = 0.8**2 * k1_val
+
+        # Ancestor 2: path [2,3] with scaling 0.75
+        ancestor_2_contrib = 0.75**2 * k2_val
+
+        # Ancestor 3 (self): path [3] with scaling 1
+        ancestor_3_contrib = k3_val
+
         K_33_expected = (
-            (0.9 * 0.8)**2 * k0_val +
-            (0.85 * 0.75)**2 * k0_val +
-            0.8**2 * k1_val +
-            0.75**2 * k2_val +
-            k3_val
+            ancestor_0_contrib +
+            ancestor_1_contrib +
+            ancestor_2_contrib +
+            ancestor_3_contrib
         )
 
         np.testing.assert_allclose(K[3, 3], K_33_expected, rtol=1e-10)
@@ -251,24 +239,25 @@ class TestDAGMultiOutputKernel(Generic[Array], unittest.TestCase):
     def test_spatially_varying_scaling(self):
         """Test DAG kernel with spatially varying linear scaling."""
         # Simple 0 -> 1 structure
-        dag = AutoregressiveDAG(2)
+        dag = nx.DiGraph()
+        dag.add_nodes_from([0, 1])
         dag.add_edge(0, 1)
 
         # Create kernels
-        k0 = MaternKernel(2.5, [1.0], (0.1, 10.0), self._nvars, self._bkd)
-        k1 = MaternKernel(2.5, [0.5], (0.1, 10.0), self._nvars, self._bkd)
+        k0 = Matern52Kernel([1.0], (0.1, 10.0), self._nvars, self._bkd)
+        k1 = Matern52Kernel([0.5], (0.1, 10.0), self._nvars, self._bkd)
 
         # Linear scaling: ρ(x) = 0.9 + 0.1*x
         edge_scalings = {
-            (0, 1): LinearScaling(0.9, [0.1], (0.1, 2.0), self._bkd),
+            (0, 1): self._create_linear_scaling(0.9, 0.1),
         }
 
         # Create kernel
         dag_kernel = DAGMultiOutputKernel(dag, [k0, k1], edge_scalings)
 
         # Test at points where we can verify scaling
-        X0 = self._bkd.array(np.array([[-1.0, 0.0, 1.0]]))
-        X1 = self._bkd.array(np.array([[-1.0, 1.0]]))
+        X0 = self._bkd.array([[-1.0, 0.0, 1.0]])
+        X1 = self._bkd.array([[-1.0, 1.0]])
 
         K = dag_kernel([X0, X1])
 
@@ -277,33 +266,35 @@ class TestDAGMultiOutputKernel(Generic[Array], unittest.TestCase):
         # At x=0: ρ(0) = 0.9
         # At x=1: ρ(1) = 0.9 + 0.1 = 1.0
 
-        # K_10[i,j] = ρ(X1[i]) * k0(X1[i], X0[j]) * ρ(X0[j])
-        rho_X1 = edge_scalings[(0, 1)](X1)  # [0.8, 1.0]
-        rho_X0 = edge_scalings[(0, 1)](X0)  # [0.8, 0.9, 1.0]
+        # K_10[i,j] = ρ(X1[i]) * k0(X1[i], X0[j])
+        # Note: only the scaling on the higher-fidelity side (output 1) applies
+        rho_X1 = edge_scalings[(0, 1)].eval_scaling(X1)  # [[0.8], [1.0]]
 
-        K_10_expected = rho_X1 * k0(X1, X0) * rho_X0.T
+        K_10_expected = rho_X1 * k0(X1, X0)
 
         np.testing.assert_allclose(K[3:5, :3], K_10_expected, rtol=1e-10)
 
     def test_block_format(self):
         """Test block_format output option."""
         # Simple 0 -> 1 structure
-        dag = AutoregressiveDAG.from_string("0->1")
+        dag = nx.DiGraph()
+        dag.add_nodes_from([0, 1])
+        dag.add_edge(0, 1)
 
         kernels = [
-            MaternKernel(2.5, [1.0], (0.1, 10.0), self._nvars, self._bkd),
-            MaternKernel(2.5, [0.8], (0.1, 10.0), self._nvars, self._bkd),
+            Matern52Kernel([1.0], (0.1, 10.0), self._nvars, self._bkd),
+            Matern52Kernel([0.8], (0.1, 10.0), self._nvars, self._bkd),
         ]
 
         edge_scalings = {
-            (0, 1): ConstantScaling(0.9, (0.1, 2.0), self._bkd, self._nvars),
+            (0, 1): self._create_constant_scaling(0.9),
         }
 
         dag_kernel = DAGMultiOutputKernel(dag, kernels, edge_scalings)
 
         # Test data
-        X0 = self._bkd.array(np.array([[0.0, 1.0]]))
-        X1 = self._bkd.array(np.array([[0.5]]))
+        X0 = self._bkd.array([[0.0, 1.0]])
+        X1 = self._bkd.array([[0.5]])
 
         # Get blocks
         blocks = dag_kernel([X0, X1], block_format=True)
@@ -321,17 +312,19 @@ class TestDAGMultiOutputKernel(Generic[Array], unittest.TestCase):
 
     def test_default_constant_scaling(self):
         """Test that edges without explicit scaling default to constant 1.0."""
-        dag = AutoregressiveDAG.from_string("0->1")
+        dag = nx.DiGraph()
+        dag.add_nodes_from([0, 1])
+        dag.add_edge(0, 1)
 
         kernels = [
-            MaternKernel(2.5, [1.0], (0.1, 10.0), self._nvars, self._bkd),
-            MaternKernel(2.5, [0.8], (0.1, 10.0), self._nvars, self._bkd),
+            Matern52Kernel([1.0], (0.1, 10.0), self._nvars, self._bkd),
+            Matern52Kernel([0.8], (0.1, 10.0), self._nvars, self._bkd),
         ]
 
         # Don't provide edge_scalings - should default to 1.0
         dag_kernel = DAGMultiOutputKernel(dag, kernels, edge_scalings=None)
 
-        X = self._bkd.array(np.array([[0.0]]))
+        X = self._bkd.array([[0.0]])
         K = dag_kernel([X, X])
 
         # With ρ = 1.0, K_11 = k0 + k1
@@ -347,8 +340,6 @@ class TestDAGMultiOutputKernel(Generic[Array], unittest.TestCase):
         have zeros in the blocks corresponding to this conditional independence:
         K_inv[1, 2] = 0 and K_inv[2, 1] = 0.
         """
-        import networkx as nx
-
         # Create fork DAG: 0 -> 1, 0 -> 2
         dag = nx.DiGraph()
         dag.add_nodes_from([0, 1, 2])
@@ -356,13 +347,12 @@ class TestDAGMultiOutputKernel(Generic[Array], unittest.TestCase):
 
         # Create kernels
         kernels = [
-            MaternKernel(2.5, [1.0], (0.1, 10.0), self._nvars, self._bkd),
-            MaternKernel(2.5, [0.5], (0.1, 10.0), self._nvars, self._bkd),
-            MaternKernel(2.5, [0.5], (0.1, 10.0), self._nvars, self._bkd),
+            Matern52Kernel([1.0], (0.1, 10.0), self._nvars, self._bkd),
+            Matern52Kernel([0.5], (0.1, 10.0), self._nvars, self._bkd),
+            Matern52Kernel([0.5], (0.1, 10.0), self._nvars, self._bkd),
         ]
 
         # Use constant scalings (PolynomialScaling with degree 0)
-        from pyapprox.typing.surrogates.kernels.scalings import PolynomialScaling
         edge_scalings = {
             (0, 1): PolynomialScaling([0.9], (0.5, 1.5), self._bkd, nvars=self._nvars),
             (0, 2): PolynomialScaling([0.85], (0.5, 1.5), self._bkd, nvars=self._nvars),
@@ -404,6 +394,13 @@ class TestDAGMultiOutputKernel(Generic[Array], unittest.TestCase):
 class TestDAGMultiOutputKernelNumpy(TestDAGMultiOutputKernel[NDArray[Any]]):
     def bkd(self) -> NumpyBkd:
         return NumpyBkd()
+
+
+def load_tests(loader, tests, pattern):
+    """Skip base class tests."""
+    suite = unittest.TestSuite()
+    suite.addTests(loader.loadTestsFromTestCase(TestDAGMultiOutputKernelNumpy))
+    return suite
 
 
 if __name__ == "__main__":

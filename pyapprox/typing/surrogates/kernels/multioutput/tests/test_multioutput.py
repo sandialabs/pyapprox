@@ -8,7 +8,10 @@ from numpy.typing import NDArray
 from pyapprox.typing.util.backends.protocols import Backend, Array
 from pyapprox.typing.util.backends.numpy import NumpyBkd
 from pyapprox.typing.util.backends.torch import TorchBkd
-from pyapprox.typing.surrogates.kernels.matern import MaternKernel
+from pyapprox.typing.surrogates.kernels.matern import (
+    Matern32Kernel,
+    Matern52Kernel,
+)
 # from pyapprox.typing.surrogates.kernels.constant import ConstantKernel  # Not yet implemented
 from pyapprox.typing.surrogates.kernels.multioutput.independent import (
     IndependentMultiOutputKernel
@@ -37,8 +40,7 @@ class TestIndependentMultiOutputKernel(Generic[Array], unittest.TestCase):
         # Create independent kernels for each output
         self.kernels = []
         for i in range(self.noutputs):
-            kernel = MaternKernel(
-                2.5,
+            kernel = Matern52Kernel(
                 [1.0] * self.nvars,
                 (0.1, 10.0),
                 self.nvars,
@@ -93,8 +95,7 @@ class TestIndependentMultiOutputKernel(Generic[Array], unittest.TestCase):
         else:
             other_bkd = NumpyBkd()
 
-        kernel_other = MaternKernel(
-            2.5,
+        kernel_other = Matern52Kernel(
             [1.0] * self.nvars,
             (0.1, 10.0),
             self.nvars,
@@ -109,8 +110,7 @@ class TestIndependentMultiOutputKernel(Generic[Array], unittest.TestCase):
         """
         Test that kernels with different nvars raise ValueError.
         """
-        kernel_different = MaternKernel(
-            2.5,
+        kernel_different = Matern52Kernel(
             [1.0, 1.0, 1.0],  # 3 dimensions instead of 2
             (0.1, 10.0),
             3,  # Different nvars
@@ -298,8 +298,8 @@ class TestIndependentMultiOutputKernel(Generic[Array], unittest.TestCase):
         # Note: ConstantKernel has nvars=0, so this should raise an error
         # Let's create a test with compatible kernels instead
         kernels_compat = [
-            MaternKernel(2.5, [1.0, 1.0], (0.1, 10.0), self.nvars, self.bkd()),
-            MaternKernel(1.5, [0.5, 0.5], (0.1, 10.0), self.nvars, self.bkd()),
+            Matern52Kernel([1.0, 1.0], (0.1, 10.0), self.nvars, self.bkd()),
+            Matern32Kernel([0.5, 0.5], (0.1, 10.0), self.nvars, self.bkd()),
         ]
 
         mo_kernel = IndependentMultiOutputKernel(kernels_compat)
@@ -463,7 +463,7 @@ class TestIndependentMultiOutputKernel(Generic[Array], unittest.TestCase):
 
         # Minimum error should be small
         min_error = float(self.bkd().min(grad_error))
-        self.assertLess(min_error, 1e-4,
+        self.assertLess(min_error, 1e-6,
                        f"Minimum gradient relative error {min_error} exceeds threshold")
 
 
@@ -510,8 +510,8 @@ class TestLinearCoregionalizationKernel(Generic[Array], unittest.TestCase):
 
         # Create base kernels (shared across outputs)
         self.kernels = [
-            MaternKernel(2.5, [1.0, 1.0], (0.1, 10.0), self.nvars, self.bkd()),
-            MaternKernel(1.5, [0.5, 0.5], (0.1, 10.0), self.nvars, self.bkd()),
+            Matern52Kernel([1.0, 1.0], (0.1, 10.0), self.nvars, self.bkd()),
+            Matern32Kernel([0.5, 0.5], (0.1, 10.0), self.nvars, self.bkd()),
         ]
 
         # Create coregionalization matrices
@@ -734,8 +734,7 @@ class TestIndependentKernelIntegration(Generic[Array], unittest.TestCase):
         # Create independent kernels for each output
         self.kernels = []
         for i in range(self.noutputs):
-            kernel = MaternKernel(
-                2.5,
+            kernel = Matern52Kernel(
                 [1.0] * self.nvars,
                 (0.1, 10.0),
                 self.nvars,
@@ -839,8 +838,7 @@ class TestLMCKernelIntegration(Generic[Array], unittest.TestCase):
         # Create base kernels
         self.base_kernels = []
         for q in range(self.ncomponents):
-            kernel = MaternKernel(
-                2.5,
+            kernel = Matern52Kernel(
                 [1.0] * self.nvars,
                 (0.1, 10.0),
                 self.nvars,

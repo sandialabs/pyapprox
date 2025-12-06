@@ -9,7 +9,7 @@ from numpy.typing import NDArray
 
 from pyapprox.typing.util.backends.protocols import Array, Backend
 from pyapprox.typing.util.backends.numpy import NumpyBkd
-from pyapprox.typing.surrogates.kernels import MaternKernel
+from pyapprox.typing.surrogates.kernels.matern import Matern52Kernel
 from pyapprox.typing.surrogates.kernels.multioutput import (
     MultiLevelKernel,
 )
@@ -39,8 +39,8 @@ class TestMultiLevelKernel(Generic[Array], unittest.TestCase):
     def test_two_level_constant_scaling(self):
         """Test two-level kernel with constant scaling."""
         # Create two kernels
-        k0 = MaternKernel(2.5, [1.0], (0.1, 10.0), self._nvars, self._bkd)
-        k1 = MaternKernel(2.5, [0.5], (0.1, 10.0), self._nvars, self._bkd)
+        k0 = Matern52Kernel([1.0], (0.1, 10.0), self._nvars, self._bkd)
+        k1 = Matern52Kernel([0.5], (0.1, 10.0), self._nvars, self._bkd)
 
         # Constant scaling ρ_0 = 0.8
         rho_0 = self._create_constant_scaling(0.8)
@@ -49,8 +49,8 @@ class TestMultiLevelKernel(Generic[Array], unittest.TestCase):
         ml_kernel = MultiLevelKernel([k0, k1], [rho_0])
 
         # Test data
-        X0 = self._bkd.array(np.array([[-1.0, 0.0, 1.0]]))
-        X1 = self._bkd.array(np.array([[-0.5, 0.5]]))
+        X0 = self._bkd.array([[-1.0, 0.0, 1.0]])
+        X1 = self._bkd.array([[-0.5, 0.5]])
 
         # Compute kernel matrix
         K = ml_kernel([X0, X1])
@@ -77,9 +77,9 @@ class TestMultiLevelKernel(Generic[Array], unittest.TestCase):
     def test_three_level_constant_scaling(self):
         """Test three-level kernel with constant scalings."""
         # Create three kernels
-        k0 = MaternKernel(2.5, [1.0], (0.1, 10.0), self._nvars, self._bkd)
-        k1 = MaternKernel(2.5, [0.8], (0.1, 10.0), self._nvars, self._bkd)
-        k2 = MaternKernel(2.5, [0.5], (0.1, 10.0), self._nvars, self._bkd)
+        k0 = Matern52Kernel([1.0], (0.1, 10.0), self._nvars, self._bkd)
+        k1 = Matern52Kernel([0.8], (0.1, 10.0), self._nvars, self._bkd)
+        k2 = Matern52Kernel([0.5], (0.1, 10.0), self._nvars, self._bkd)
 
         # Constant scalings
         rho_0 = self._create_constant_scaling(0.9)
@@ -89,7 +89,7 @@ class TestMultiLevelKernel(Generic[Array], unittest.TestCase):
         ml_kernel = MultiLevelKernel([k0, k1, k2], [rho_0, rho_1])
 
         # Test data (same points for all levels for simplicity)
-        X = self._bkd.array(np.array([[0.0, 0.5]]))
+        X = self._bkd.array([[0.0, 0.5]])
         X_list = [X, X, X]
 
         # Compute kernel matrix
@@ -99,7 +99,11 @@ class TestMultiLevelKernel(Generic[Array], unittest.TestCase):
         self.assertEqual(K.shape, (6, 6))
 
         # Verify autoregressive structure for level 2:
-        # K_22 = ρ_0² ρ_1² k_0 + ρ_1² k_1 + k_2
+        # f_0 ~ GP(0, k_0)
+        # f_1 = ρ_0 * f_0 + δ_1 ~ GP(0, ρ_0² k_0 + k_1)
+        # f_2 = ρ_1 * f_1 + δ_2 = ρ_0*ρ_1 * f_0 + ρ_1 * δ_1 + δ_2
+        #
+        # K_22 = (ρ_0*ρ_1)² k_0 + ρ_1² k_1 + k_2
         K_22_expected = (
             (0.9 * 0.85)**2 * k0(X, X) +
             0.85**2 * k1(X, X) +
@@ -107,19 +111,21 @@ class TestMultiLevelKernel(Generic[Array], unittest.TestCase):
         )
         np.testing.assert_allclose(K[4:, 4:], K_22_expected, rtol=1e-10)
 
-        # K_21 = ρ_0 ρ_1 k_0 + ρ_1 k_1
-        K_21_expected = 0.9 * 0.85 * k0(X, X) + 0.85 * k1(X, X)
+        # K_21 = Cov[f_2, f_1] = Cov[ρ_0*ρ_1*f_0 + ρ_1*δ_1, ρ_0*f_0 + δ_1]
+        #      = ρ_0² * ρ_1 * k_0 + ρ_1 * k_1
+        K_21_expected = 0.9**2 * 0.85 * k0(X, X) + 0.85 * k1(X, X)
         np.testing.assert_allclose(K[4:, 2:4], K_21_expected, rtol=1e-10)
 
-        # K_20 = ρ_0 ρ_1 k_0
+        # K_20 = Cov[f_2, f_0] = Cov[ρ_0*ρ_1*f_0 + ρ_1*δ_1 + δ_2, f_0]
+        #      = ρ_0 * ρ_1 * k_0
         K_20_expected = 0.9 * 0.85 * k0(X, X)
         np.testing.assert_allclose(K[4:, :2], K_20_expected, rtol=1e-10)
 
     def test_spatially_varying_scaling(self):
         """Test with spatially varying (linear) scaling."""
         # Create two kernels
-        k0 = MaternKernel(2.5, [1.0], (0.1, 10.0), self._nvars, self._bkd)
-        k1 = MaternKernel(2.5, [0.5], (0.1, 10.0), self._nvars, self._bkd)
+        k0 = Matern52Kernel([1.0], (0.1, 10.0), self._nvars, self._bkd)
+        k1 = Matern52Kernel([0.5], (0.1, 10.0), self._nvars, self._bkd)
 
         # Linear scaling ρ(x) = 0.9 + 0.1*x
         rho_0 = self._create_linear_scaling(0.9, 0.1)
@@ -128,32 +134,33 @@ class TestMultiLevelKernel(Generic[Array], unittest.TestCase):
         ml_kernel = MultiLevelKernel([k0, k1], [rho_0])
 
         # Test at specific points
-        X0 = self._bkd.array(np.array([[-1.0, 0.0, 1.0]]))
-        X1 = self._bkd.array(np.array([[-1.0, 1.0]]))
+        X0 = self._bkd.array([[-1.0, 0.0, 1.0]])
+        X1 = self._bkd.array([[-1.0, 1.0]])
 
         # Compute kernel matrix
         K = ml_kernel([X0, X1])
 
         # Manually compute K_10 to verify spatially varying scaling
         # ρ(-1) = 0.8, ρ(0) = 0.9, ρ(1) = 1.0
-        rho_X1 = rho_0(X1)  # Shape (2, 1): [0.8, 1.0]
-        rho_X0 = rho_0(X0)  # Shape (3, 1): [0.8, 0.9, 1.0]
+        # Use eval_scaling to get scaling values, not kernel matrix
+        rho_X1 = rho_0.eval_scaling(X1)  # Shape (2, 1): [[0.8], [1.0]]
 
-        K_00 = k0(X0, X0)
-        K_10_manual = rho_X1 * k0(X1, X0) * rho_X0.T
+        # K_10 = Cov[f_1, f_0] = Cov[ρ*f_0 + δ_1, f_0] = ρ(X1) * k0(X1, X0)
+        # Note: scaling only applies on level 1 side, not level 0
+        K_10_manual = rho_X1 * k0(X1, X0)
 
         np.testing.assert_allclose(K[3:, :3], K_10_manual, rtol=1e-10)
 
     def test_block_format(self):
         """Test block format output."""
         # Create simple two-level kernel
-        k0 = MaternKernel(2.5, [1.0], (0.1, 10.0), self._nvars, self._bkd)
-        k1 = MaternKernel(2.5, [0.5], (0.1, 10.0), self._nvars, self._bkd)
+        k0 = Matern52Kernel([1.0], (0.1, 10.0), self._nvars, self._bkd)
+        k1 = Matern52Kernel([0.5], (0.1, 10.0), self._nvars, self._bkd)
         rho_0 = self._create_constant_scaling(0.8)
         ml_kernel = MultiLevelKernel([k0, k1], [rho_0])
 
-        X0 = self._bkd.array(np.array([[0.0, 0.5]]))
-        X1 = self._bkd.array(np.array([[0.25]]))
+        X0 = self._bkd.array([[0.0, 0.5]])
+        X1 = self._bkd.array([[0.25]])
 
         # Get block format
         blocks = ml_kernel([X0, X1], block_format=True)
@@ -172,13 +179,13 @@ class TestMultiLevelKernel(Generic[Array], unittest.TestCase):
         # K_10 should be (1, 2)
         self.assertEqual(blocks[1][0].shape, (1, 2))
 
-        # K_01 should be None (upper triangular)
-        self.assertIsNone(blocks[0][1])
+        # K_01 should be (2, 1) - transpose of K_10
+        self.assertEqual(blocks[0][1].shape, (2, 1))
 
     def test_symmetry(self):
         """Test that kernel matrix is symmetric for self-covariance."""
-        k0 = MaternKernel(2.5, [1.0], (0.1, 10.0), self._nvars, self._bkd)
-        k1 = MaternKernel(2.5, [0.5], (0.1, 10.0), self._nvars, self._bkd)
+        k0 = Matern52Kernel([1.0], (0.1, 10.0), self._nvars, self._bkd)
+        k1 = Matern52Kernel([0.5], (0.1, 10.0), self._nvars, self._bkd)
         rho_0 = self._create_constant_scaling(0.85)
         ml_kernel = MultiLevelKernel([k0, k1], [rho_0])
 
@@ -192,8 +199,8 @@ class TestMultiLevelKernel(Generic[Array], unittest.TestCase):
 
     def test_hyperparameter_list(self):
         """Test combined hyperparameter list."""
-        k0 = MaternKernel(2.5, [1.0], (0.1, 10.0), self._nvars, self._bkd)
-        k1 = MaternKernel(2.5, [0.5], (0.1, 10.0), self._nvars, self._bkd)
+        k0 = Matern52Kernel([1.0], (0.1, 10.0), self._nvars, self._bkd)
+        k1 = Matern52Kernel([0.5], (0.1, 10.0), self._nvars, self._bkd)
         rho_0 = self._create_linear_scaling(0.9, 0.1)
         ml_kernel = MultiLevelKernel([k0, k1], [rho_0])
 
@@ -208,8 +215,8 @@ class TestMultiLevelKernel(Generic[Array], unittest.TestCase):
 
     def test_validation_errors(self):
         """Test that validation catches errors."""
-        k0 = MaternKernel(2.5, [1.0], (0.1, 10.0), self._nvars, self._bkd)
-        k1 = MaternKernel(2.5, [0.5], (0.1, 10.0), self._nvars, self._bkd)
+        k0 = Matern52Kernel([1.0], (0.1, 10.0), self._nvars, self._bkd)
+        k1 = Matern52Kernel([0.5], (0.1, 10.0), self._nvars, self._bkd)
         rho_0 = self._create_constant_scaling(0.8)
 
         # Wrong number of scalings
@@ -225,16 +232,16 @@ class TestMultiLevelKernel(Generic[Array], unittest.TestCase):
 
     def test_cross_covariance(self):
         """Test cross-covariance with different test points."""
-        k0 = MaternKernel(2.5, [1.0], (0.1, 10.0), self._nvars, self._bkd)
-        k1 = MaternKernel(2.5, [0.5], (0.1, 10.0), self._nvars, self._bkd)
+        k0 = Matern52Kernel([1.0], (0.1, 10.0), self._nvars, self._bkd)
+        k1 = Matern52Kernel([0.5], (0.1, 10.0), self._nvars, self._bkd)
         rho_0 = self._create_constant_scaling(0.8)
         ml_kernel = MultiLevelKernel([k0, k1], [rho_0])
 
-        X1_0 = self._bkd.array(np.array([[0.0, 0.5]]))
-        X1_1 = self._bkd.array(np.array([[0.25]]))
+        X1_0 = self._bkd.array([[0.0, 0.5]])
+        X1_1 = self._bkd.array([[0.25]])
 
-        X2_0 = self._bkd.array(np.array([[-0.5, 0.0, 1.0]]))
-        X2_1 = self._bkd.array(np.array([[0.0, 0.5]]))
+        X2_0 = self._bkd.array([[-0.5, 0.0, 1.0]])
+        X2_1 = self._bkd.array([[0.0, 0.5]])
 
         # Cross-covariance K(X1, X2)
         K_cross = ml_kernel([X1_0, X1_1], [X2_0, X2_1])
@@ -262,10 +269,10 @@ class TestMultiLevelKernel(Generic[Array], unittest.TestCase):
         """
         # Create 4-level sequential structure
         kernels = [
-            MaternKernel(2.5, [1.0], (0.1, 10.0), self._nvars, self._bkd),
-            MaternKernel(2.5, [0.7], (0.1, 10.0), self._nvars, self._bkd),
-            MaternKernel(2.5, [0.5], (0.1, 10.0), self._nvars, self._bkd),
-            MaternKernel(2.5, [0.3], (0.1, 10.0), self._nvars, self._bkd),
+            Matern52Kernel([1.0], (0.1, 10.0), self._nvars, self._bkd),
+            Matern52Kernel([0.7], (0.1, 10.0), self._nvars, self._bkd),
+            Matern52Kernel([0.5], (0.1, 10.0), self._nvars, self._bkd),
+            Matern52Kernel([0.3], (0.1, 10.0), self._nvars, self._bkd),
         ]
 
         # Use constant scalings (PolynomialScaling with degree 0)
@@ -354,8 +361,8 @@ class TestMultiLevelKernel(Generic[Array], unittest.TestCase):
         from pyapprox.typing.surrogates.gaussianprocess import MultiOutputGP
 
         # Create a 2-level kernel
-        k0 = MaternKernel(2.5, [1.0], (0.1, 10.0), self._nvars, self._bkd)
-        k1 = MaternKernel(2.5, [0.5], (0.1, 10.0), self._nvars, self._bkd)
+        k0 = Matern52Kernel([1.0], (0.1, 10.0), self._nvars, self._bkd)
+        k1 = Matern52Kernel([0.5], (0.1, 10.0), self._nvars, self._bkd)
         rho_0 = self._create_constant_scaling(0.8)
         ml_kernel = MultiLevelKernel([k0, k1], [rho_0])
 
@@ -368,12 +375,12 @@ class TestMultiLevelKernel(Generic[Array], unittest.TestCase):
         # Generate outputs (2 levels)
         # Level 0: f_0(x) = sin(x)
         # Level 1: f_1(x) = 0.8 * f_0(x) + noise
-        y0 = np.sin(self._bkd.to_numpy(X_train[0, :]))
-        y1 = 0.8 * y0 + 0.1 * np.random.randn(n_train)
-        y_train = self._bkd.array(np.concatenate([y0, y1])[:, None])
+        y0 = self._bkd.sin(X_train[0, :])
+        y1 = 0.8 * y0 + 0.1 * self._bkd.array(np.random.randn(n_train))
+        y_train = self._bkd.reshape(self._bkd.concatenate([y0, y1]), (-1, 1))
 
         # Create multi-output GP
-        gp = MultiOutputGP(ml_kernel, noise_variance=1e-4)
+        gp = MultiOutputGP(ml_kernel, nugget=1e-4)
 
         # Fit with initial hyperparameters
         gp.fit(X_list, y_train)

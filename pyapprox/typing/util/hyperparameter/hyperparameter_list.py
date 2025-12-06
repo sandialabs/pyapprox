@@ -221,6 +221,91 @@ class HyperParameterList:
             [hyp.get_active_values() for hyp in self._hyperparam_list]
         )
 
+    def get_active_bounds(self) -> ArrayProtocol:
+        """
+        Get the bounds of the active parameters.
+
+        Returns
+        -------
+        active_bounds : Array
+            Bounds of the active parameters, shape (nactive, 2).
+        """
+        if not self._hyperparam_list:
+            return self._bkd.array([]).reshape((0, 2))
+
+        return self._bkd.vstack(
+            [hyp.get_active_bounds() for hyp in self._hyperparam_list]
+        )
+
+    def extract_active(self, full_array: Array) -> ArrayProtocol:
+        """
+        Extract elements corresponding to active parameters from a full array.
+
+        This is useful for extracting active gradient elements from a gradient
+        computed over all parameters. Works with 1D arrays (gradients) and
+        2D arrays with parameters in the last dimension.
+
+        Parameters
+        ----------
+        full_array : Array
+            Array with values for all parameters.
+            - 1D: shape (nparams,)
+            - 2D: shape (..., nparams)
+
+        Returns
+        -------
+        active_array : Array
+            Array with values for active parameters only.
+            - 1D: shape (nactive,)
+            - 2D: shape (..., nactive)
+
+        Examples
+        --------
+        >>> # Extract active gradient elements
+        >>> full_grad = kernel.jacobian_wrt_params(X)  # shape (n, n, nparams)
+        >>> active_grad = hyp_list.extract_active(full_grad)  # shape (n, n, nactive)
+        """
+        active_indices = self.get_active_indices()
+        if full_array.ndim == 1:
+            return full_array[active_indices]
+        else:
+            # For multi-dimensional arrays, extract along last axis
+            return full_array[..., active_indices]
+
+    def expand_to_full(
+        self, active_array: Array, fill_value: float = 0.0
+    ) -> ArrayProtocol:
+        """
+        Expand an active-parameter array to full parameter space.
+
+        Fixed parameters are filled with the specified fill value (default 0).
+        This is useful for expanding a direction vector for HVP computation.
+
+        Parameters
+        ----------
+        active_array : Array
+            Array with values for active parameters only, shape (nactive,).
+        fill_value : float, optional
+            Value to use for fixed parameters (default 0.0).
+
+        Returns
+        -------
+        full_array : Array
+            Array with values for all parameters, shape (nparams,).
+
+        Examples
+        --------
+        >>> # Expand active direction for HVP
+        >>> active_dir = bkd.ones(hyp_list.nactive_params())
+        >>> full_dir = hyp_list.expand_to_full(active_dir)  # zeros for fixed
+        """
+        full_array = self._bkd.full((self.nparams(),), fill_value)
+        active_indices = self.get_active_indices()
+        # Use scatter-like update
+        for i, idx in enumerate(active_indices):
+            full_array[idx] = active_array[i]
+        return full_array
+
     def set_active_values(self, active_params: Array) -> None:
         """
         Set the values of the active parameters in the optimization space.

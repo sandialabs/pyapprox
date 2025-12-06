@@ -648,6 +648,11 @@ class ExactGaussianProcess(Generic[Array]):
                 "GP must be fitted before optimizing hyperparameters"
             )
 
+        # Handle edge case: no active parameters to optimize
+        if self.hyp_list().nactive_params() == 0:
+            # Nothing to optimize - all parameters are fixed
+            return
+
         from pyapprox.typing.surrogates.gaussianprocess.gp_loss import (
             GPNegativeLogMarginalLikelihoodLoss
         )
@@ -657,8 +662,8 @@ class ExactGaussianProcess(Generic[Array]):
             self, (self._data.X(), self._data.y())
         )
 
-        # Get bounds for hyperparameters
-        bounds = self.hyp_list().get_bounds()
+        # Get bounds for active hyperparameters only
+        bounds = self.hyp_list().get_active_bounds()
 
         # Get initial guess
         if init_guess is None:

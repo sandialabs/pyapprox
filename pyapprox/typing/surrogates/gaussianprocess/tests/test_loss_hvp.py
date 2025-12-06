@@ -14,7 +14,7 @@ from numpy.typing import NDArray
 from pyapprox.typing.util.backends.numpy import NumpyBkd
 from pyapprox.typing.util.backends.torch import TorchBkd
 from pyapprox.typing.util.backends.protocols import Array
-from pyapprox.typing.surrogates.kernels import MaternKernel
+from pyapprox.typing.surrogates.kernels import SquaredExponentialKernel
 from pyapprox.typing.surrogates.gaussianprocess import (
     ExactGaussianProcess,
     ConstantMean,
@@ -51,10 +51,9 @@ class TestLossHVP(Generic[Array], unittest.TestCase):
         self._n_train = 15
 
         # Create kernel with two length scale hyperparameters
-        # Use nu=inf (RBF) for simpler second derivatives
+        # Use SquaredExponentialKernel (RBF) for simpler second derivatives
         length_scale = self._bkd.array([1.0, 1.0])
-        self._kernel = MaternKernel(
-            nu=np.inf,  # RBF kernel has simpler second derivatives
+        self._kernel = SquaredExponentialKernel(
             lenscale=length_scale,
             lenscale_bounds=(0.1, 10.0),
             nvars=self._nvars,
@@ -139,7 +138,7 @@ class TestLossHVP(Generic[Array], unittest.TestCase):
             direction=direction,
             fd_eps=fd_eps,
             relative=True,
-            verbosity=1  # Print summary
+            verbosity=0
         )
 
         # Verify Jacobian is correct
@@ -148,7 +147,7 @@ class TestLossHVP(Generic[Array], unittest.TestCase):
             self._bkd.all_bool(self._bkd.isfinite(jac_error))
         )
         jac_ratio = float(checker.error_ratio(jac_error))
-        self.assertLess(jac_ratio, 1e-5, f"Jacobian error ratio: {jac_ratio}")
+        self.assertLess(jac_ratio, 1e-6, f"Jacobian error ratio: {jac_ratio}")
 
         # Verify HVP is correct
         hvp_error = errors[1]
@@ -156,13 +155,7 @@ class TestLossHVP(Generic[Array], unittest.TestCase):
             self._bkd.all_bool(self._bkd.isfinite(hvp_error))
         )
         hvp_ratio = float(checker.error_ratio(hvp_error))
-        # Adjoint method can have larger errors due to accumulation
-        # Still much better than not having HVP at all!
-        self.assertLess(hvp_ratio, 1.0, f"HVP error ratio: {hvp_ratio}")
-
-        # Also check that minimum error is reasonable
-        min_hvp_error = float(self._bkd.min(hvp_error))
-        self.assertLess(min_hvp_error, 0.01, f"Min HVP error: {min_hvp_error}")
+        self.assertLess(hvp_ratio, 1e-6, f"HVP error ratio: {hvp_ratio}")
 
     def test_hvp_coordinate_directions(self):
         """Test HVP in coordinate directions (unit vectors)."""

@@ -15,7 +15,7 @@ from numpy.typing import NDArray
 from pyapprox.typing.util.backends.protocols import Backend, Array
 from pyapprox.typing.util.backends.numpy import NumpyBkd
 from pyapprox.typing.util.backends.torch import TorchBkd
-from pyapprox.typing.surrogates.kernels.matern import MaternKernel
+from pyapprox.typing.surrogates.kernels.matern import Matern52Kernel
 from pyapprox.typing.surrogates.kernels.scalings import PolynomialScaling
 from pyapprox.typing.surrogates.kernels.iid_gaussian_noise import IIDGaussianNoise
 from pyapprox.typing.surrogates.kernels.multioutput import (
@@ -79,8 +79,7 @@ class TestMultiOutputGPWithIndependentKernel(Generic[Array], unittest.TestCase):
         # Create independent kernels for each output
         kernels = []
         for i in range(self.noutputs):
-            matern = MaternKernel(
-                2.5,
+            matern = Matern52Kernel(
                 [1.0] * self.nvars,
                 (0.1, 10.0),
                 self.nvars,
@@ -163,8 +162,7 @@ class TestMultiOutputGPWithIndependentKernel(Generic[Array], unittest.TestCase):
         # Create multi-output kernel
         kernels = []
         for i in range(self.noutputs):
-            matern = MaternKernel(
-                2.5,
+            matern = Matern52Kernel(
                 [1.0] * self.nvars,
                 (0.1, 10.0),
                 self.nvars,
@@ -233,8 +231,7 @@ class TestMultiOutputGPWithIndependentKernel(Generic[Array], unittest.TestCase):
         # Create simple kernels
         kernels = []
         for i in range(self.noutputs):
-            matern = MaternKernel(
-                2.5,
+            matern = Matern52Kernel(
                 [1.0] * self.nvars,
                 (0.1, 10.0),
                 self.nvars,
@@ -309,8 +306,7 @@ class TestMultiOutputGPWithLMCKernel(Generic[Array], unittest.TestCase):
         # Create base kernels
         base_kernels = []
         for q in range(2):  # 2 components
-            matern = MaternKernel(
-                2.5,
+            matern = Matern52Kernel(
                 [1.0] * self.nvars,
                 (0.1, 10.0),
                 self.nvars,
@@ -357,8 +353,7 @@ class TestMultiOutputGPWithLMCKernel(Generic[Array], unittest.TestCase):
         X_train, _ = self._create_test_data(n_train)
 
         # Create base kernel
-        matern = MaternKernel(
-            2.5,
+        matern = Matern52Kernel(
             [1.0] * self.nvars,
             (0.1, 10.0),
             self.nvars,

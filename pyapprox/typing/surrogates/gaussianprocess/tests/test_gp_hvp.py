@@ -12,7 +12,11 @@ from numpy.typing import NDArray
 from pyapprox.typing.util.backends.numpy import NumpyBkd
 from pyapprox.typing.util.backends.torch import TorchBkd
 from pyapprox.typing.util.backends.protocols import Array
-from pyapprox.typing.surrogates.kernels import MaternKernel
+from pyapprox.typing.surrogates.kernels import (
+    Matern32Kernel,
+    Matern52Kernel,
+    SquaredExponentialKernel,
+)
 from pyapprox.typing.surrogates.kernels.iid_gaussian_noise import IIDGaussianNoise
 from pyapprox.typing.surrogates.kernels.scalings import PolynomialScaling
 from pyapprox.typing.surrogates.gaussianprocess import ExactGaussianProcess
@@ -51,8 +55,7 @@ class TestGPHVP(Generic[Array], unittest.TestCase):
 
         # Create kernel
         length_scale = self._bkd.array([0.5, 0.5])
-        self._kernel = MaternKernel(
-            nu=2.5,
+        self._kernel = Matern52Kernel(
             lenscale=length_scale,
             lenscale_bounds=(0.1, 10.0),
             nvars=self._nvars,
@@ -77,8 +80,8 @@ class TestGPHVP(Generic[Array], unittest.TestCase):
     def test_hvp_shape(self):
         """Test that HVP returns correct shape."""
         # Single sample
-        x = self._bkd.array(np.array([[0.5], [0.5]]))
-        v = self._bkd.array(np.array([[1.0], [0.0]]))
+        x = self._bkd.array([[0.5], [0.5]])
+        v = self._bkd.array([[1.0], [0.0]])
 
         hvp = self._gp.hvp(x, v)
 
@@ -87,8 +90,8 @@ class TestGPHVP(Generic[Array], unittest.TestCase):
 
     def test_hvp_linearity(self):
         """Test that HVP is linear in direction: H(x)·(aV) = a·H(x)·V."""
-        x = self._bkd.array(np.array([[0.5], [0.5]]))
-        v = self._bkd.array(np.array([[1.0], [0.5]]))
+        x = self._bkd.array([[0.5], [0.5]])
+        v = self._bkd.array([[1.0], [0.5]])
         a = 2.5
 
         hvp1 = self._gp.hvp(x, v)
@@ -135,7 +138,7 @@ class TestGPHVP(Generic[Array], unittest.TestCase):
         checker = DerivativeChecker(function)
 
         # Test point
-        x0 = self._bkd.array(np.array([[0.5], [0.5]]))
+        x0 = self._bkd.array([[0.5], [0.5]])
 
         # Custom FD step sizes
         fd_eps = self._bkd.flip(self._bkd.logspace(-14, 0, 15))
@@ -145,7 +148,7 @@ class TestGPHVP(Generic[Array], unittest.TestCase):
             x0,
             fd_eps=fd_eps,
             relative=True,
-            verbosity=1  # Print summary
+            verbosity=0
         )
 
         # Verify Jacobian is correct
@@ -162,7 +165,7 @@ class TestGPHVP(Generic[Array], unittest.TestCase):
             self._bkd.all_bool(self._bkd.isfinite(hvp_error))
         )
         hvp_ratio = float(checker.error_ratio(hvp_error))
-        self.assertLess(hvp_ratio, 1e-5, f"HVP error ratio: {hvp_ratio}")
+        self.assertLess(hvp_ratio, 1e-6, f"HVP error ratio: {hvp_ratio}")
 
     def test_hvp_multiple_samples(self):
         """Test HVP with multiple samples."""
@@ -192,7 +195,7 @@ class TestGPHVP(Generic[Array], unittest.TestCase):
 
     def test_hvp_zero_direction(self):
         """Test HVP with zero direction vector."""
-        x = self._bkd.array(np.array([[0.5], [0.5]]))
+        x = self._bkd.array([[0.5], [0.5]])
         v = self._bkd.zeros((self._nvars, 1))
 
         hvp = self._gp.hvp(x, v)
@@ -205,7 +208,7 @@ class TestGPHVP(Generic[Array], unittest.TestCase):
 
     def test_hvp_coordinate_directions(self):
         """Test HVP in coordinate directions."""
-        x = self._bkd.array(np.array([[0.5], [0.5]]))
+        x = self._bkd.array([[0.5], [0.5]])
 
         for d in range(self._nvars):
             # Direction along axis d
@@ -220,8 +223,8 @@ class TestGPHVP(Generic[Array], unittest.TestCase):
 
     def test_hvp_shape_mismatch_error(self):
         """Test that HVP raises error when shapes don't match."""
-        x = self._bkd.array(np.array([[0.5], [0.5]]))
-        v_wrong = self._bkd.array(np.array([[1.0]]))  # Only 1 variable
+        x = self._bkd.array([[0.5], [0.5]])
+        v_wrong = self._bkd.array([[1.0]])  # Only 1 variable
 
         with self.assertRaises(ValueError):
             self._gp.hvp(x, v_wrong)
@@ -235,8 +238,8 @@ class TestGPHVP(Generic[Array], unittest.TestCase):
             bkd=self._bkd
         )
 
-        x = self._bkd.array(np.array([[0.5], [0.5]]))
-        v = self._bkd.array(np.array([[1.0], [0.0]]))
+        x = self._bkd.array([[0.5], [0.5]])
+        v = self._bkd.array([[1.0], [0.0]])
 
         with self.assertRaises(RuntimeError):
             gp_unfitted.hvp(x, v)
@@ -278,6 +281,23 @@ class TestGPHVPCompositionKernels(Generic[Array], unittest.TestCase):
         self.X_train = self._bkd.array(np.random.randn(self.nvars, self.n_train))
         self.y_train = self._bkd.array(np.random.randn(self.n_train, 1))
 
+    def _create_matern_kernel(self, nu: float):
+        """Create Matern kernel for given nu value."""
+        if nu == 1.5:
+            return Matern32Kernel(
+                [1.0]*self.nvars, (0.1, 10.0), self.nvars, self._bkd
+            )
+        elif nu == 2.5:
+            return Matern52Kernel(
+                [1.0]*self.nvars, (0.1, 10.0), self.nvars, self._bkd
+            )
+        elif nu == np.inf:
+            return SquaredExponentialKernel(
+                [1.0]*self.nvars, (0.1, 10.0), self.nvars, self._bkd
+            )
+        else:
+            raise ValueError(f"Unsupported nu value: {nu}")
+
     def _test_composition_hvp_for_nu(self, nu: float) -> None:
         """
         Test HVP for composition kernel with specific Matern nu.
@@ -289,7 +309,7 @@ class TestGPHVPCompositionKernels(Generic[Array], unittest.TestCase):
         """
         # Create composition: scaling * matern + noise
         scaling = PolynomialScaling([0.8], (0.1, 2.0), self._bkd, nvars=self.nvars)
-        matern = MaternKernel(nu, [1.0]*self.nvars, (0.1, 10.0), self.nvars, self._bkd)
+        matern = self._create_matern_kernel(nu)
         noise = IIDGaussianNoise(0.01, (0.001, 0.1), self._bkd)
         kernel = scaling * matern + noise
 
@@ -338,7 +358,7 @@ class TestGPHVPCompositionKernels(Generic[Array], unittest.TestCase):
             self._bkd.all_bool(self._bkd.isfinite(hvp_error))
         )
         hvp_ratio = float(checker.error_ratio(hvp_error))
-        self.assertLess(hvp_ratio, 1e-5, f"HVP error ratio: {hvp_ratio}")
+        self.assertLess(hvp_ratio, 1e-6, f"HVP error ratio: {hvp_ratio}")
 
     def test_composition_hvp_matern_1_5(self) -> None:
         """Test composition HVP with Matern nu=1.5."""
