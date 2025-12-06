@@ -2,6 +2,7 @@
 _site/
 _freeze/
 /.quarto/
+.jupyter_cache/
 
 # Python cache
 __pycache__/
