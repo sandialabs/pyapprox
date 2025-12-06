@@ -1,10 +1,13 @@
+from typing import Sequence
 
+from pyapprox.typing.util.backends.protocols import Array
+from pyapprox.typing.variables.independent import MarginalProtocol
 
 
 class IndependentMarginalsVariable:
     def __init__(
         self,
-        univariate_marginals: Sequence[RandomVariableProtocol],
+        univariate_marginals: Sequence[MarginalProtocol],
     ):
         self._validate_univariate_marginals(univariate_marginals)
         self._bkd = univariate_marginals[0]._bkd

@@ -33,6 +33,8 @@ class TestNLMLLoss(Generic[Array], unittest.TestCase):
     Derived classes must implement the bkd() method.
     """
 
+    __test__ = False
+
     def setUp(self) -> None:
         """Set up test environment."""
         np.random.seed(42)
@@ -372,12 +374,7 @@ class TestNLMLLossTorch(TestNLMLLoss[torch.Tensor]):
         return self._bkd
 
 
-def load_tests(loader: unittest.TestLoader, tests, pattern: str) -> unittest.TestSuite:
-    """Custom test loader to exclude base class."""
-    test_suite = unittest.TestSuite()
-    for test_class in [TestNLMLLossNumpy, TestNLMLLossTorch]:
-        test_suite.addTests(loader.loadTestsFromTestCase(test_class))
-    return test_suite
+from pyapprox.typing.util.test_utils import load_tests
 
 
 if __name__ == "__main__":

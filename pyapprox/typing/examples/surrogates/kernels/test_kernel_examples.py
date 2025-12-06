@@ -9,7 +9,7 @@ import unittest
 from unittest.mock import MagicMock, patch
 import sys
 
-from pyapprox.typing.surrogates.kernels import MaternKernel, PolynomialScaling
+from pyapprox.typing.surrogates.kernels import Matern52Kernel, PolynomialScaling
 from pyapprox.typing.surrogates.kernels.multioutput import (
     MultiLevelKernel,
     DAGMultiOutputKernel,
@@ -31,7 +31,7 @@ class TestKernelMatrixPlotting(unittest.TestCase):
     def test_matern_kernel_matrix(self, mock_linspace):
         """Test Matern kernel matrix computation."""
         # Create kernel
-        kernel = MaternKernel(2.5, [1.0], (0.1, 10.0), 1, self.bkd)
+        kernel = Matern52Kernel([1.0], (0.1, 10.0), 1, self.bkd)
 
         # Mock linspace
         x = self.bkd.to_numpy(self.bkd.array([0.0, 1.0, 2.0]))
@@ -41,8 +41,8 @@ class TestKernelMatrixPlotting(unittest.TestCase):
         mock_ax = MagicMock()
         mock_ax.imshow.return_value = MagicMock()
 
-        # Test heatmap
-        plot_kernel_matrix_heatmap(kernel, (-2.0, 2.0), mock_ax, npts=3)
+        # Test heatmap (disable colorbar since mock affects matplotlib internals)
+        plot_kernel_matrix_heatmap(kernel, (-2.0, 2.0), mock_ax, npts=3, colorbar=False)
         self.assertTrue(mock_ax.imshow.called)
 
         # Verify kernel matrix shape
@@ -52,8 +52,8 @@ class TestKernelMatrixPlotting(unittest.TestCase):
     def test_multilevel_kernel_matrix(self):
         """Test multi-level kernel matrix computation."""
         # Create 2-level kernel
-        k0 = MaternKernel(2.5, [1.0], (0.1, 10.0), 1, self.bkd)
-        k1 = MaternKernel(2.5, [0.5], (0.1, 10.0), 1, self.bkd)
+        k0 = Matern52Kernel([1.0], (0.1, 10.0), 1, self.bkd)
+        k1 = Matern52Kernel([0.5], (0.1, 10.0), 1, self.bkd)
         scaling = PolynomialScaling([0.9], (0.5, 1.5), self.bkd, nvars=1)
 
         ml_kernel = MultiLevelKernel([k0, k1], [scaling])
@@ -106,9 +106,9 @@ class TestKernelMatrixPlotting(unittest.TestCase):
         ])
 
         # Create base kernels for each output
-        k0 = MaternKernel(2.5, [1.0], (0.1, 10.0), 1, self.bkd)
-        k1 = MaternKernel(2.5, [0.8], (0.1, 10.0), 1, self.bkd)
-        k2 = MaternKernel(2.5, [0.6], (0.1, 10.0), 1, self.bkd)
+        k0 = Matern52Kernel([1.0], (0.1, 10.0), 1, self.bkd)
+        k1 = Matern52Kernel([0.8], (0.1, 10.0), 1, self.bkd)
+        k2 = Matern52Kernel([0.6], (0.1, 10.0), 1, self.bkd)
 
         base_kernels = [k0, k1, k2]
 

@@ -20,6 +20,8 @@ class TestCholeskyHyperParameter(Generic[Array], unittest.TestCase):
     Derived classes must implement the bkd() method to provide the backend.
     """
 
+    __test__ = False
+
     def setUp(self) -> None:
         """
         Set up the test environment for CholeskyHyperParameter.
@@ -93,25 +95,8 @@ class TestCholeskyHyperParameterTorch(
         return self._bkd
 
 
-# Custom test loader to exclude the base class
-def load_tests(
-    loader: unittest.TestLoader, tests, pattern: str
-) -> unittest.TestSuite:
-    """
-    Custom test loader to exclude the base class CholeskyHyperParameter.
-    """
-    test_suite = unittest.TestSuite()
-    for test_class in [
-        TestCholeskyHyperParameterNumpy,
-        TestCholeskyHyperParameterTorch,
-    ]:
-        test_suite.addTests(loader.loadTestsFromTestCase(test_class))
-    return test_suite
+from pyapprox.typing.util.test_utils import load_tests
 
 
-# Main block to explicitly run tests using the custom loader
 if __name__ == "__main__":
-    loader = unittest.TestLoader()
-    suite = load_tests(loader, [], None)
-    runner = unittest.TextTestRunner()
-    runner.run(suite)
+    unittest.main()

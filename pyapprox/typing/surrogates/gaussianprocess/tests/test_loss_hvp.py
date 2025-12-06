@@ -25,19 +25,13 @@ from pyapprox.typing.interface.functions.derivative_checks.derivative_checker im
 )
 
 
-def load_tests(loader, tests, pattern):
-    """Skip base class tests."""
-    suite = unittest.TestSuite()
-    for test in tests:
-        for test_case in test:
-            test_class_name = test_case.__class__.__name__
-            if 'Numpy' in test_class_name or 'Torch' in test_class_name:
-                suite.addTest(test_case)
-    return suite
+from pyapprox.typing.util.test_utils import load_tests
 
 
 class TestLossHVP(Generic[Array], unittest.TestCase):
     """Test NLML loss HVP with respect to hyperparameters."""
+
+    __test__ = False
 
     def bkd(self):
         raise NotImplementedError

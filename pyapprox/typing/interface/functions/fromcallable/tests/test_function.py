@@ -19,6 +19,8 @@ from pyapprox.typing.util.backends.torch import TorchBkd
 
 
 class TestFunction1D(Generic[Array], unittest.TestCase):
+    __test__ = False
+
     def bkd(self) -> Backend[Array]:
         """
         Override this method in derived classes to provide the specific
@@ -99,6 +101,8 @@ class TestFunction1D(Generic[Array], unittest.TestCase):
 
 
 class TestFunction3D(Generic[Array], unittest.TestCase):
+    __test__ = False
+
     def bkd(self) -> Backend[Array]:
         """
         Override this method in derived classes to provide the specific
@@ -223,27 +227,8 @@ class TestFunction3DTorch(TestFunction3D[torch.Tensor]):
         return self._bkd
 
 
-# Custom test loader to exclude the base class
-def load_tests(
-    loader: unittest.TestLoader, tests, pattern: str
-) -> unittest.TestSuite:
-    """
-    Custom test loader to exclude the base class Function1D.
-    """
-    test_suite = unittest.TestSuite()
-    for test_class in [
-        TestFunction1DNumpy,
-        TestFunction1DTorch,
-        TestFunction3DNumpy,
-        TestFunction3DTorch,
-    ]:
-        test_suite.addTests(loader.loadTestsFromTestCase(test_class))
-    return test_suite
+from pyapprox.typing.util.test_utils import load_tests
 
 
-# Main block to explicitly run tests using the custom loader
 if __name__ == "__main__":
-    loader = unittest.TestLoader()
-    suite = load_tests(loader, [], None)
-    runner = unittest.TextTestRunner(verbosity=2)
-    runner.run(suite)
+    unittest.main()

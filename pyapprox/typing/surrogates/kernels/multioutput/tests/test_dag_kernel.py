@@ -36,6 +36,8 @@ def create_matern_kernel(nu, lenscale, lenscale_bounds, nvars, bkd):
 class TestDAGMultiOutputKernel(Generic[Array], unittest.TestCase):
     """Base test class for DAGMultiOutputKernel."""
 
+    __test__ = False
+
     def bkd(self) -> Backend[Array]:
         raise NotImplementedError
 
@@ -396,11 +398,7 @@ class TestDAGMultiOutputKernelNumpy(TestDAGMultiOutputKernel[NDArray[Any]]):
         return NumpyBkd()
 
 
-def load_tests(loader, tests, pattern):
-    """Skip base class tests."""
-    suite = unittest.TestSuite()
-    suite.addTests(loader.loadTestsFromTestCase(TestDAGMultiOutputKernelNumpy))
-    return suite
+from pyapprox.typing.util.test_utils import load_tests
 
 
 if __name__ == "__main__":

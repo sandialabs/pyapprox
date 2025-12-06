@@ -6,7 +6,7 @@ This document describes the testing conventions used throughout the `pyapprox.ty
 
 - [Overview](#overview)
 - [Backend-Agnostic Testing Pattern](#backend-agnostic-testing-pattern)
-- [Using load_tests to Skip Base Classes](#using-load_tests-to-skip-base-classes)
+- [Excluding Base Classes from Test Discovery](#excluding-base-classes-from-test-discovery)
 - [Backend-Only Code in Tests](#backend-only-code-in-tests)
 - [Test Structure Examples](#test-structure-examples)
 - [Running Tests](#running-tests)
@@ -20,12 +20,14 @@ The PyApprox typing module supports multiple numerical backends (NumPy and PyTor
 
 1. **Base test class** defines all test logic using backend protocols (Generic over `Array`)
 2. **Concrete test classes** inherit from the base and specify the backend (NumPy or Torch)
-3. **`load_tests` function** ensures only concrete classes run (skips base class)
+3. **`__test__ = False`** attribute on base classes prevents them from running
+4. **Shared `load_tests`** function provides unittest compatibility
 
 This approach ensures:
 - **No code duplication**: Test logic written once, runs on all backends
 - **Type safety**: Generic typing ensures backend-agnostic code
 - **Automatic coverage**: Adding a new backend only requires one new subclass
+- **Clean test output**: No errors from abstract base classes
 
 ---
 
@@ -47,6 +49,8 @@ from pyapprox.typing.util.backends.protocols import Array
 
 class TestMyClass(Generic[Array], unittest.TestCase):
     """Base class for MyClass tests - defines test logic."""
+
+    __test__ = False  # Prevents pytest/unittest from running this class
 
     def bkd(self):
         """Abstract method - must be implemented by subclasses."""
@@ -86,60 +90,109 @@ class TestMyClassTorch(TestMyClass[torch.Tensor]):
 ### Key Principles
 
 1. **Generic Base Class**: Use `Generic[Array]` for the base test class
-2. **Abstract `bkd()` method**: Forces subclasses to specify backend
-3. **Backend operations only**: All array operations go through `self._bkd`
-4. **Concrete subclasses**: One per backend, implementing only `bkd()`
+2. **`__test__ = False`**: Add this attribute to base classes to exclude from discovery
+3. **Abstract `bkd()` method**: Forces subclasses to specify backend
+4. **Backend operations only**: All array operations go through `self._bkd`
+5. **Concrete subclasses**: One per backend, implementing only `bkd()`
 
 ---
 
-## Using load_tests to Skip Base Classes
+## Excluding Base Classes from Test Discovery
 
-When using `unittest` (recommended), add a `load_tests` function to skip base class tests:
+### Using `__test__ = False` (Primary Method)
+
+The simplest and most reliable way to exclude base test classes is using the `__test__ = False` class attribute:
 
 ```python
+class TestMyClass(Generic[Array], unittest.TestCase):
+    """Base class - will not be run directly."""
+
+    __test__ = False  # This line excludes the class from test discovery
+
+    def bkd(self):
+        raise NotImplementedError
+
+    def test_something(self):
+        # Test logic here
+        pass
+
+
+class TestMyClassNumpy(TestMyClass[NDArray[Any]]):
+    """Concrete class - WILL be run (inherits from base but doesn't have __test__ = False in __dict__)."""
+
+    def bkd(self) -> NumpyBkd:
+        return NumpyBkd()
+```
+
+### Shared `load_tests` for unittest (Required for unittest discovery)
+
+For unittest compatibility, import the shared `load_tests` function at the end of each test file:
+
+```python
+from pyapprox.typing.util.test_utils import load_tests
+
+
+if __name__ == "__main__":
+    unittest.main()
+```
+
+The shared `load_tests` function in `pyapprox/typing/util/test_utils.py` handles exclusion:
+
+```python
+"""Shared test utilities for the typing module."""
+
+import unittest
+
+
 def load_tests(loader, tests, pattern):
     """
-    Custom test loader to skip base class tests.
+    Exclude base classes from unittest discovery.
 
-    Only run tests from concrete implementation classes (Numpy, Torch),
-    not from the generic base classes.
+    This function is called automatically by unittest's test discovery.
+    We check __dict__ directly to avoid inheritance issues where derived
+    classes would inherit __test__ = False from their parent.
     """
     suite = unittest.TestSuite()
-
-    # Only add tests from concrete Numpy and Torch classes
-    for test in tests:
-        for test_case in test:
-            test_class_name = test_case.__class__.__name__
-            if 'Numpy' in test_class_name or 'Torch' in test_class_name:
-                suite.addTest(test_case)
-
+    for group in tests:
+        for test in group:
+            # Check __dict__ directly to avoid inheritance issues
+            if test.__class__.__dict__.get('__test__', True):
+                suite.addTest(test)
     return suite
 ```
 
-### Why `load_tests`?
+### pytest Compatibility via conftest.py
 
-- **Prevents base class execution**: Base classes have `NotImplementedError` in `bkd()`
-- **Works with unittest**: Standard Python unittest discovery
-- **Clean output**: No skipped tests or errors from base classes
-- **Automatic**: No need to manually skip in `setUp()`
+The `conftest.py` file in `pyapprox/typing/` handles pytest's test collection:
 
-### Alternative Approaches (Not Recommended)
-
-❌ **Using `skipTest` in `setUp()`**:
 ```python
-def setUp(self):
-    if self.__class__.__name__ == 'TestMyClass':
-        self.skipTest("Base class - tests only run on Numpy/Torch subclasses")
-    # ... rest of setUp
+"""Pytest configuration for typing module tests."""
+
+import unittest
+
+
+def pytest_pycollect_makeitem(collector, name, obj):
+    """
+    Custom collection hook to handle __test__ = False inheritance.
+
+    When a base class has __test__ = False, derived classes inherit this
+    attribute via normal Python inheritance. This hook detects when a class
+    has inherited __test__ = False (i.e., it's not in the class's own __dict__)
+    and resets it to True so pytest will collect and run those tests.
+    """
+    if isinstance(obj, type) and issubclass(obj, unittest.TestCase):
+        # If __test__ is not in this class's __dict__ but is False (inherited)
+        if '__test__' not in obj.__dict__ and getattr(obj, '__test__', True) is False:
+            obj.__test__ = True
+    return None
 ```
-- **Problem**: Shows skipped tests in output (clutter)
-- **Problem**: Requires boilerplate in every base class
 
-❌ **Using pytest fixtures**:
-- **Problem**: Assumes pytest, but we use unittest
-- **Problem**: More complex setup for simple backend switching
+### Why This Approach?
 
-✅ **Use `load_tests`**: Clean, standard, works with unittest
+- **`__test__ = False`**: Standard pytest convention, works out of the box
+- **Shared `load_tests`**: Centralizes unittest exclusion logic, no boilerplate
+- **`conftest.py` hook**: Handles inherited `__test__ = False` for derived classes
+- **Clean output**: No skipped tests or errors from base classes in either framework
 
 ---
 
@@ -148,7 +201,7 @@ def setUp(self):
 ### DO: Use Backend Methods
 
 ```python
-# ✅ GOOD - uses backend methods
+# GOOD - uses backend methods
 X = self._bkd.array([[1.0, 2.0, 3.0]])
 result = self._bkd.sum(X)
 expected = self._bkd.array([[6.0]])
@@ -161,7 +214,7 @@ self.assertTrue(
 ### DON'T: Use numpy/torch Directly
 
 ```python
-# ❌ BAD - uses numpy directly
+# BAD - uses numpy directly
 import numpy as np
 X = self._bkd.array([[1.0, 2.0, 3.0]])
 result = my_function(X)
@@ -177,7 +230,7 @@ np.testing.assert_allclose(
 
 #### Array Creation
 ```python
-# ✅ Use backend array creation
+# Use backend array creation
 X = self._bkd.array([[1.0, 2.0, 3.0]])
 zeros = self._bkd.zeros((3, 3))
 ones = self._bkd.ones((2, 2))
@@ -185,21 +238,21 @@ ones = self._bkd.ones((2, 2))
 
 #### Comparisons
 ```python
-# ✅ Use backend comparison methods
+# Use backend comparison methods
 self.assertTrue(self._bkd.allclose(a, b, rtol=1e-6, atol=1e-7))
 self.assertTrue(self._bkd.all_bool(values > 0))
 ```
 
 #### Shape/Type Checks
 ```python
-# ✅ Use standard Python/unittest assertions
+# Use standard Python/unittest assertions
 self.assertEqual(result.shape, (3, 3))
 self.assertGreater(value, 0.0)
 ```
 
 #### Converting to Native Types (when necessary)
 ```python
-# ✅ Only convert when absolutely necessary
+# Only convert when absolutely necessary
 value_python = self._bkd.to_numpy(value)[0, 0]
 self.assertGreater(value_python, 0.5)
 ```
@@ -225,21 +278,13 @@ from pyapprox.typing.util.backends.numpy import NumpyBkd
 from pyapprox.typing.util.backends.torch import TorchBkd
 from pyapprox.typing.util.backends.protocols import Array
 from pyapprox.typing.surrogates.kernels.my_kernel import MyKernel
-
-
-def load_tests(loader, tests, pattern):
-    """Skip base class tests."""
-    suite = unittest.TestSuite()
-    for test in tests:
-        for test_case in test:
-            test_class_name = test_case.__class__.__name__
-            if 'Numpy' in test_class_name or 'Torch' in test_class_name:
-                suite.addTest(test_case)
-    return suite
+from pyapprox.typing.util.test_utils import load_tests
 
 
 class TestMyKernel(Generic[Array], unittest.TestCase):
     """Base class for MyKernel tests."""
+
+    __test__ = False
 
     def bkd(self):
         raise NotImplementedError
@@ -300,137 +345,55 @@ if __name__ == "__main__":
     unittest.main()
 ```
 
-### Example 2: Testing a Scaling Function
-
-```python
-"""
-Tests for PolynomialScaling.
-"""
-
-import unittest
-from typing import Any, Generic
-
-import torch
-from numpy.typing import NDArray
-
-from pyapprox.typing.util.backends.numpy import NumpyBkd
-from pyapprox.typing.util.backends.torch import TorchBkd
-from pyapprox.typing.util.backends.protocols import Array
-from pyapprox.typing.surrogates.kernels.scalings import PolynomialScaling
-
-
-def load_tests(loader, tests, pattern):
-    """Skip base class tests."""
-    suite = unittest.TestSuite()
-    for test in tests:
-        for test_case in test:
-            test_class_name = test_case.__class__.__name__
-            if 'Numpy' in test_class_name or 'Torch' in test_class_name:
-                suite.addTest(test_case)
-    return suite
-
-
-class TestPolynomialScaling(Generic[Array], unittest.TestCase):
-    """Base class for PolynomialScaling tests."""
-
-    def bkd(self):
-        raise NotImplementedError
-
-    def setUp(self):
-        self._bkd = self.bkd()
-        self._bounds = (0.1, 2.0)
-
-    def test_constant_scaling(self):
-        """Test degree 0 (constant) scaling."""
-        scaling = PolynomialScaling([0.8], self._bounds, self._bkd, nvars=1)
-
-        X = self._bkd.array([[-1.0, 0.0, 1.0]])
-        rho = scaling(X)
-
-        # All values should be 0.8
-        expected = self._bkd.ones((3, 1)) * 0.8
-        self.assertTrue(
-            self._bkd.allclose(rho, expected)
-        )
-
-    def test_linear_scaling_jacobian(self):
-        """Test spatial Jacobian for linear scaling."""
-        scaling = PolynomialScaling([0.9, 0.1], self._bounds, self._bkd)
-
-        X = self._bkd.array([[-1.0, 0.0, 1.0]])
-        jac_x = scaling.jacobian(X)
-
-        # ∂ρ/∂x = 0.1 (constant slope)
-        expected = self._bkd.ones((3, 1)) * 0.1
-        self.assertTrue(
-            self._bkd.allclose(jac_x, expected, rtol=1e-6, atol=1e-7)
-        )
-
-
-class TestPolynomialScalingNumpy(TestPolynomialScaling[NDArray[Any]]):
-    """Test PolynomialScaling with NumPy backend."""
-
-    def bkd(self) -> NumpyBkd:
-        return NumpyBkd()
-
-
-class TestPolynomialScalingTorch(TestPolynomialScaling[torch.Tensor]):
-    """Test PolynomialScaling with PyTorch backend."""
-
-    def bkd(self) -> TorchBkd:
-        return TorchBkd()
-
-
-if __name__ == "__main__":
-    unittest.main()
-```
-
 ---
 
 ## Running Tests
 
-### With unittest (Recommended)
+### With pytest (Recommended)
 
 ```bash
-# Run all tests in a module
-python -m unittest pyapprox.typing.surrogates.kernels.tests.test_my_kernel
+# Run all typing module tests
+pytest pyapprox/typing -v
 
-# Run multiple test modules
-python -m unittest \
-    pyapprox.typing.surrogates.kernels.tests.test_my_kernel \
-    pyapprox.typing.surrogates.kernels.tests.test_scalings
+# Run tests with short traceback
+pytest pyapprox/typing --tb=short -q
 
-# Run specific test class (both backends)
-python -m unittest pyapprox.typing.surrogates.kernels.tests.test_my_kernel.TestMyKernelNumpy
+# Run specific test file
+pytest pyapprox/typing/surrogates/kernels/tests/test_matern.py -v
 
-# Run from file directly
-python pyapprox/typing/surrogates/kernels/tests/test_my_kernel.py
-```
-
-### With pytest (Also Supported)
-
-```bash
-# Run all tests in a module
-pytest pyapprox/typing/surrogates/kernels/tests/test_my_kernel.py
-
-# Run with verbose output
-pytest pyapprox/typing/surrogates/kernels/tests/test_my_kernel.py -v
+# Run specific test class
+pytest pyapprox/typing/surrogates/kernels/tests/test_matern.py::TestMaternKernelNumpy -v
 
 # Run specific test
-pytest pyapprox/typing/surrogates/kernels/tests/test_my_kernel.py::TestMyKernelNumpy::test_kernel_symmetry
+pytest pyapprox/typing/surrogates/kernels/tests/test_matern.py::TestMaternKernelNumpy::test_kernel_symmetry
 ```
 
-**Note**: When using pytest, the `load_tests` function is ignored. Base class tests may run but will fail with `NotImplementedError` - this is expected and can be filtered.
+### With unittest
+
+```bash
+# Run all tests in a module
+python -m unittest pyapprox.typing.surrogates.kernels.tests.test_matern
+
+# Run specific test class
+python -m unittest pyapprox.typing.surrogates.kernels.tests.test_matern.TestMaternKernelNumpy
+
+# Run from file directly
+python pyapprox/typing/surrogates/kernels/tests/test_matern.py
+```
+
+### With conda environment
+
+```bash
+# Run with conda environment
+conda run -n linalg python -m pytest pyapprox/typing -v
+```
 
 ### Expected Output
 
 ```
-$ python -m unittest pyapprox.typing.surrogates.kernels.tests.test_my_kernel
-......................................................................
-----------------------------------------------------------------------
-Ran 66 tests in 0.549s
-
-OK
+$ pytest pyapprox/typing --tb=no -q
+..........................................................................
+624 passed in 6.42s
 ```
 
 ---
@@ -439,26 +402,26 @@ OK
 
 ### 1. Always Use Backend Methods
 
-❌ **Bad**:
+Bad:
 ```python
 import numpy as np
 result = np.sum(array)
 ```
 
-✅ **Good**:
+Good:
 ```python
 result = self._bkd.sum(array)
 ```
 
 ### 2. Never Import numpy/torch Directly in Tests
 
-❌ **Bad**:
+Bad:
 ```python
 import numpy as np
 import torch
 ```
 
-✅ **Good**:
+Good:
 ```python
 import torch  # Only for type annotations
 from numpy.typing import NDArray  # Only for type annotations
@@ -472,17 +435,17 @@ The imports should only be used for:
 
 Different backends have different precision:
 - **NumPy**: float64 by default (high precision)
-- **PyTorch**: float32 by default (lower precision)
+- **PyTorch**: float64 when set (we use `torch.set_default_dtype(torch.float64)`)
 
 Use relaxed tolerances for cross-backend compatibility:
 
 ```python
-# ✅ Good - relaxed tolerance for float32
+# Good - relaxed tolerance
 self.assertTrue(
     self._bkd.allclose(result, expected, rtol=1e-6, atol=1e-7)
 )
 
-# ❌ Too strict - may fail on torch
+# Too strict - may fail intermittently
 self.assertTrue(
     self._bkd.allclose(result, expected, rtol=1e-10)
 )
@@ -518,7 +481,7 @@ class TestMyKernel(Generic[Array], unittest.TestCase):
 Follow this structure:
 ```
 tests/
-├── test_matern.py          # Tests MaternKernel
+├── test_matern.py          # Tests MaternKernel classes
 ├── test_scalings.py        # Tests PolynomialScaling
 ├── test_composition.py     # Tests ProductKernel, SumKernel
 └── test_plot.py           # Tests plotting wrappers
@@ -527,12 +490,12 @@ tests/
 ### 7. Use Descriptive Test Names
 
 ```python
-# ✅ Good - clear what is being tested
+# Good - clear what is being tested
 def test_kernel_matrix_shape(self):
 def test_kernel_symmetry(self):
 def test_constant_scaling_jacobian(self):
 
-# ❌ Bad - unclear what is being tested
+# Bad - unclear what is being tested
 def test_kernel(self):
 def test_1(self):
 ```
@@ -543,7 +506,7 @@ def test_1(self):
 class TestMyKernelNumpy(TestMyKernel[NDArray[Any]]):
     """Test MyKernel with NumPy backend."""
 
-    def bkd(self) -> NumpyBkd:  # ✅ Return type annotation
+    def bkd(self) -> NumpyBkd:  # Return type annotation
         return NumpyBkd()
 ```
 
@@ -624,29 +587,13 @@ from pyapprox.typing.util.backends.numpy import NumpyBkd
 from pyapprox.typing.util.backends.torch import TorchBkd
 from pyapprox.typing.util.backends.protocols import Array
 from pyapprox.typing.[module.path] import [ClassName]
-
-
-def load_tests(loader, tests, pattern):
-    """
-    Custom test loader to skip base class tests.
-
-    Only run tests from concrete implementation classes (Numpy, Torch),
-    not from the generic base classes.
-    """
-    suite = unittest.TestSuite()
-
-    # Only add tests from concrete Numpy and Torch classes
-    for test in tests:
-        for test_case in test:
-            test_class_name = test_case.__class__.__name__
-            if 'Numpy' in test_class_name or 'Torch' in test_class_name:
-                suite.addTest(test_case)
-
-    return suite
+from pyapprox.typing.util.test_utils import load_tests
 
 
 class Test[ClassName](Generic[Array], unittest.TestCase):
     """Base class for [ClassName] tests."""
+
+    __test__ = False
 
     def bkd(self):
         raise NotImplementedError
@@ -684,13 +631,14 @@ if __name__ == "__main__":
 
 **Key Takeaways**:
 
-1. ✅ Use Generic base class with `Generic[Array]`
-2. ✅ Add `load_tests` function to skip base class tests
-3. ✅ Use backend methods exclusively (never numpy/torch directly)
-4. ✅ Import torch unconditionally (assumed installed)
-5. ✅ Run with `python -m unittest` for clean output
-6. ✅ Use relaxed tolerances for cross-backend compatibility
-7. ✅ Test with both NumPy and Torch backends
-8. ✅ One concrete test class per backend
+1. Use Generic base class with `Generic[Array]`
+2. Add `__test__ = False` to base classes to exclude them from discovery
+3. Import shared `load_tests` from `pyapprox.typing.util.test_utils`
+4. Use backend methods exclusively (never numpy/torch directly)
+5. Import torch unconditionally (assumed installed)
+6. Run with `pytest` or `unittest` - both are supported
+7. Use relaxed tolerances (1e-6) for cross-backend compatibility
+8. Test with both NumPy and Torch backends
+9. One concrete test class per backend
 
 Following these conventions ensures consistent, maintainable, backend-agnostic testing throughout the PyApprox typing module.

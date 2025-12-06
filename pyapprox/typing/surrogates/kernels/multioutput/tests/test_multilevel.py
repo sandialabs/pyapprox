@@ -21,6 +21,8 @@ from pyapprox.typing.surrogates.kernels.scalings import (
 class TestMultiLevelKernel(Generic[Array], unittest.TestCase):
     """Base test class for MultiLevelKernel."""
 
+    __test__ = False
+
     def bkd(self) -> Backend[Array]:
         raise NotImplementedError
 
@@ -400,6 +402,9 @@ class TestMultiLevelKernel(Generic[Array], unittest.TestCase):
 class TestMultiLevelKernelNumpy(TestMultiLevelKernel[NDArray[Any]]):
     def bkd(self) -> NumpyBkd:
         return NumpyBkd()
+
+
+from pyapprox.typing.util.test_utils import load_tests
 
 
 if __name__ == "__main__":

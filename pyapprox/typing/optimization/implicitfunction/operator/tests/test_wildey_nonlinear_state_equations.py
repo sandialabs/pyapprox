@@ -24,6 +24,8 @@ from pyapprox.typing.optimization.rootfinding.newton import NewtonSolverOptions
 
 
 class TestNonLinearCoupledEquations(Generic[Array], unittest.TestCase):
+    __test__ = False
+
     def setUp(self) -> None:
         np.random.seed(1)
 

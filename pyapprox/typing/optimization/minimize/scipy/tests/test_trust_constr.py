@@ -27,6 +27,8 @@ from pyapprox.typing.optimization.minimize.benchmarks.evutushenko import (
 
 
 class TestScipyTrustConstrOptimizer(Generic[Array], unittest.TestCase):
+    __test__ = False
+
     def bkd(self) -> Backend[Array]:
         """
         Override this method in derived classes to provide the specific

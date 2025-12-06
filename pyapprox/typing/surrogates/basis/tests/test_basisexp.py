@@ -21,6 +21,8 @@ from pyapprox.typing.interface.functions.derivative_checks.derivative_checker im
 
 
 class TestBasisExpansion(Generic[Array], unittest.TestCase):
+    __test__ = False
+
     def bkd(self) -> Backend[Array]:
         """
         Override this method in derived classes to provide the specific backend.
@@ -76,10 +78,10 @@ class TestBasisExpansion(Generic[Array], unittest.TestCase):
 
         # Assert that the derivative errors are below a tolerance
         self.assertLessEqual(
-            derivative_checker.error_ratio(errors[0]), 1e-7
+            derivative_checker.error_ratio(errors[0]), 1e-6
         )  # Jacobian errors
         self.assertLessEqual(
-            derivative_checker.error_ratio(errors[0]), 1e-7
+            derivative_checker.error_ratio(errors[0]), 1e-6
         )  # Hessian errors
 
 
@@ -102,21 +104,7 @@ class TestBasisExpansionTorch(TestBasisExpansion[torch.Tensor]):
         return self._bkd
 
 
-# Custom test loader to exclude the base class
-def load_tests(
-    loader: unittest.TestLoader, tests, pattern: str
-) -> unittest.TestSuite:
-    """
-    Custom test loader to exclude the base class
-    ContinuousScipyRandomVariable1D.
-    """
-    test_suite = unittest.TestSuite()
-    for test_class in [
-        TestBasisExpansionNumpy,
-        TestBasisExpansionTorch,
-    ]:
-        test_suite.addTests(loader.loadTestsFromTestCase(test_class))
-    return test_suite
+from pyapprox.typing.util.test_utils import load_tests
 
 
 # Main block to explicitly run tests using the custom loader

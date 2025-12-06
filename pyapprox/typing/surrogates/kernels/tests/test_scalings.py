@@ -15,27 +15,13 @@ from pyapprox.typing.util.backends.protocols import Array
 from pyapprox.typing.surrogates.kernels.scalings import PolynomialScaling
 
 
-def load_tests(loader, tests, pattern):
-    """
-    Custom test loader to skip base class tests.
-
-    Only run tests from concrete implementation classes (Numpy, Torch),
-    not from the generic base classes.
-    """
-    suite = unittest.TestSuite()
-
-    # Only add tests from concrete Numpy and Torch classes
-    for test in tests:
-        for test_case in test:
-            test_class_name = test_case.__class__.__name__
-            if 'Numpy' in test_class_name or 'Torch' in test_class_name:
-                suite.addTest(test_case)
-
-    return suite
+from pyapprox.typing.util.test_utils import load_tests
 
 
 class TestPolynomialScaling(Generic[Array], unittest.TestCase):
     """Base class for PolynomialScaling tests."""
+
+    __test__ = False
 
     def bkd(self):
         raise NotImplementedError

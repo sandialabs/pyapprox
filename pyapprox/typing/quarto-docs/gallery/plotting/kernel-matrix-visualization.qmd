@@ -60,7 +60,7 @@ fig = plt.figure(figsize=(14, 6))
 ax1 = fig.add_subplot(1, 2, 1)
 im = plot_kernel_matrix_heatmap(
     kernel,
-    x_limits=(-3.0, 3.0),
+    bounds=(-3.0, 3.0),
     ax=ax1,
     npts=100,
     cmap="viridis"
@@ -74,7 +74,7 @@ plt.colorbar(im, ax=ax1, label="K(x, x')")
 ax2 = fig.add_subplot(1, 2, 2, projection="3d")
 surf = plot_kernel_matrix_surface(
     kernel,
-    x_limits=(-3.0, 3.0),
+    bounds=(-3.0, 3.0),
     ax=ax2,
     npts=50,
     cmap="viridis",
@@ -121,7 +121,7 @@ fig, axes = plt.subplots(1, 3, figsize=(18, 5))
 for ax, kernel, ls in zip(axes, kernels, length_scales):
     im = plot_kernel_matrix_heatmap(
         kernel,
-        x_limits=(-3.0, 3.0),
+        bounds=(-3.0, 3.0),
         ax=ax,
         npts=100,
         cmap="viridis"
@@ -173,7 +173,7 @@ for i, (kernel, nu) in enumerate(zip(kernels, nu_values), 1):
     ax = fig.add_subplot(1, 3, i, projection="3d")
     surf = plot_kernel_matrix_surface(
         kernel,
-        x_limits=(-3.0, 3.0),
+        bounds=(-3.0, 3.0),
         ax=ax,
         npts=50,
         cmap="viridis",
