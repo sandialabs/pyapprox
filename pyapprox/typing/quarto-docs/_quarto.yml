@@ -1,0 +1,119 @@
+project:
+  type: website
+  output-dir: _site
+
+website:
+  title: "PyApprox Typing Module"
+  description: "Type-safe implementations of surrogate modeling with dual backend support"
+  repo-url: https://github.com/sandialabs/pyapprox
+  repo-actions: [edit, issue]
+
+  navbar:
+    background: primary
+    search: true
+    left:
+      - text: "Developer Guide"
+        href: developer-guide/index.qmd
+      - text: "Tutorials"
+        href: tutorials/index.qmd
+      - text: "Theory"
+        href: theory/index.qmd
+      - text: "Gallery"
+        href: gallery/index.qmd
+      - text: "API"
+        href: api/index.qmd
+    right:
+      - icon: github
+        href: https://github.com/sandialabs/pyapprox
+      - text: "Main Docs"
+        href: https://sandialabs.github.io/pyapprox/
+
+  sidebar:
+    - title: "Developer Guide"
+      style: "docked"
+      background: light
+      contents:
+        - developer-guide/index.qmd
+        - developer-guide/array-conventions.qmd
+        - developer-guide/testing-conventions.qmd
+        - developer-guide/type-safety.qmd
+        - developer-guide/protocols.qmd
+        - developer-guide/contributing.qmd
+
+    - title: "Tutorials"
+      contents:
+        - tutorials/index.qmd
+        - tutorials/getting-started.ipynb
+        - tutorials/kernel-basics.ipynb
+        - tutorials/gaussian-process-regression.ipynb
+        - tutorials/multioutput-gps.ipynb
+        - tutorials/dag-structured-gps.ipynb
+
+    - title: "Theory"
+      contents:
+        - theory/index.qmd
+        - theory/kernel-theory.qmd
+        - theory/multioutput-kernels.qmd
+        - theory/dag-kernels.qmd
+        - theory/gaussian-processes.qmd
+
+    - title: "Gallery"
+      contents:
+        - gallery/index.qmd
+        - section: "Plotting Examples"
+          contents:
+            - gallery/plotting/index.qmd
+        - section: "Usage Examples"
+          contents:
+            - gallery/usage/index.qmd
+
+    - title: "API Reference"
+      contents:
+        - api/index.qmd
+        - api/kernels.qmd
+        - api/gaussianprocess.qmd
+        - api/backends.qmd
+        - api/protocols.qmd
+
+  page-footer:
+    left: |
+      PyApprox Typing Module documentation
+    right: |
+      Built with [Quarto](https://quarto.org/)
+
+format:
+  html:
+    theme: cosmo
+    css: styles.css
+    toc: true
+    toc-depth: 3
+    toc-location: right
+    number-sections: true
+    number-depth: 3
+    code-copy: true
+    code-fold: false
+    code-tools: true
+    code-line-numbers: false
+    html-math-method: mathjax
+    anchor-sections: true
+    smooth-scroll: true
+    link-external-icon: true
+    link-external-newwindow: true
+    fig-width: 8
+    fig-height: 6
+    fig-dpi: 300
+
+execute:
+  freeze: false
+  cache: false
+  echo: true
+  warning: true
+  error: false
+  eval: false
+
+highlight-style: github
+
+filters:
+  - quarto
+
+bibliography: references.bib

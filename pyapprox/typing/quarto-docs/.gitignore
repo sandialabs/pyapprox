@@ -1,0 +1,27 @@
+# Quarto build artifacts
+_site/
+_freeze/
+/.quarto/
+
+# Python cache
+__pycache__/
+*.py[cod]
+*$py.class
+.ipynb_checkpoints/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Temporary files
+*.tmp
+*.bak
+
+**/*.quarto_ipynb

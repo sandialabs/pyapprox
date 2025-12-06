@@ -1,0 +1,319 @@
+---
+title: "Kernel Theory"
+subtitle: "Fundamental concepts in kernel methods"
+---
+
+## Introduction
+
+Kernels are fundamental to Gaussian processes and many machine learning methods. A kernel function k(***x***, ***x***′) measures the similarity or correlation between two points ***x*** and ***x***′ in input space.
+
+## Positive Definite Kernels
+
+### Definition
+
+A function k: 𝒳 × 𝒳 → ℝ is a **positive definite kernel** if for any finite set of points {***x***₁, ..., ***x***_n} ⊂ 𝒳, the **Gram matrix** (kernel matrix) ***K*** with entries K_ij = k(***x***_i, ***x***_j) is positive semi-definite:
+
+$$
+\mathbf{c}^\top \mathbf{K} \mathbf{c} \geq 0 \quad \forall \mathbf{c} \in \mathbb{R}^n
+$$ {#eq-positive-definite}
+
+::: {.callout-note}
+## Why Positive Definiteness?
+
+Positive definiteness ensures that:
+
+1. The kernel matrix ***K*** has a Cholesky factorization ***K*** = ***LL***^⊤
+2. The associated Gaussian process is well-defined
+3. Predictions have non-negative variance
+:::
+
+### Mercer's Theorem
+
+For continuous kernels on compact domains, Mercer's theorem provides an eigenfunction expansion:
+
+$$
+k(\mathbf{x}, \mathbf{x}') = \sum_{i=1}^{\infty} \lambda_i \phi_i(\mathbf{x}) \phi_i(\mathbf{x}')
+$$ {#eq-mercer}
+
+where λ_i ≥ 0 are eigenvalues and φ_i are orthonormal eigenfunctions.
+
+## Reproducing Kernel Hilbert Space (RKHS)
+
+Every positive definite kernel k defines a unique Hilbert space ℋ_k of functions, called the **reproducing kernel Hilbert space** (RKHS).
+
+### Reproducing Property
+
+For any f ∈ ℋ_k and ***x*** ∈ 𝒳:
+
+$$
+f(\mathbf{x}) = \langle f, k(\mathbf{x}, \cdot) \rangle_{\mathcal{H}_k}
+$$ {#eq-reproducing}
+
+The kernel "reproduces" function values through inner products.
+
+### Representer Theorem
+
+Solutions to regularized empirical risk minimization have the form:
+
+$$
+f^*(\mathbf{x}) = \sum_{i=1}^n \alpha_i k(\mathbf{x}, \mathbf{x}_i)
+$$ {#eq-representer}
+
+This justifies kernel methods: optimal solutions lie in the span of kernel functions at training points.
+
+## Common Kernels
+
+### Squared Exponential (RBF) Kernel
+
+The **squared exponential** or **radial basis function** (RBF) kernel:
+
+$$
+k_{\text{SE}}(\mathbf{x}, \mathbf{x}') = \sigma^2 \exp\left(-\frac{\|\mathbf{x} - \mathbf{x}'\|^2}{2\ell^2}\right)
+$$ {#eq-rbf}
+
+**Properties**:
+
+- Infinitely differentiable
+- Stationary: depends only on ***x*** - ***x***′
+- Isotropic: depends only on ∥***x*** - ***x***′∥
+- Very smooth functions
+
+**Implementation**:
+
+```{python}
+#| eval: false
+from pyapprox.typing.surrogates.kernels import MaternKernel
+
+# RBF is Matern with nu = infinity
+kernel_rbf = MaternKernel(nu=np.inf, length_scale=[1.0], ...)
+```
+
+### Matern Kernel
+
+The **Matern kernel** with smoothness parameter ν:
+
+$$
+k_{\nu}(\mathbf{x}, \mathbf{x}') = \sigma^2 \frac{2^{1-\nu}}{\Gamma(\nu)} \left(\sqrt{2\nu} \frac{r}{\ell}\right)^\nu K_\nu\left(\sqrt{2\nu} \frac{r}{\ell}\right)
+$$ {#eq-matern}
+
+where r = ∥***x*** - ***x***′∥, ℓ is the length scale, and K_ν is the modified Bessel function of the second kind.
+
+**Properties**:
+
+- Functions are ⌊ν - 1⌋ times differentiable
+- Commonly used values: ν = 1/2, 3/2, 5/2
+- As ν → ∞, approaches RBF kernel
+- More flexible than RBF
+
+**Special Cases**:
+
+$$
+\begin{aligned}
+k_{1/2}(r) &= \sigma^2 \exp\left(-\frac{r}{\ell}\right) \quad \text{(Exponential)} \\
+k_{3/2}(r) &= \sigma^2 \left(1 + \frac{\sqrt{3}r}{\ell}\right) \exp\left(-\frac{\sqrt{3}r}{\ell}\right) \\
+k_{5/2}(r) &= \sigma^2 \left(1 + \frac{\sqrt{5}r}{\ell} + \frac{5r^2}{3\ell^2}\right) \exp\left(-\frac{\sqrt{5}r}{\ell}\right)
+\end{aligned}
+$$ {#eq-matern-special}
+
+**Implementation**:
+
+```{python}
+#| eval: false
+from pyapprox.typing.surrogates.kernels import MaternKernel
+from pyapprox.typing.util.backends.numpy import NumpyBkd
+
+bkd = NumpyBkd()
+
+# Matern-5/2: twice differentiable
+kernel = MaternKernel(
+    nu=2.5,
+    length_scale=[1.0],
+    bounds=(0.1, 10.0),
+    nvars=1,
+    bkd=bkd
+)
+```
+
+### Polynomial Kernel
+
+The **polynomial kernel** of degree d:
+
+$$
+k_{\text{poly}}(\mathbf{x}, \mathbf{x}') = (\mathbf{x}^\top \mathbf{x}' + c)^d
+$$ {#eq-polynomial}
+
+**Properties**:
+
+- Non-stationary
+- Models global trends
+- Limited smoothness
+
+## Kernel Properties
+
+### Stationarity
+
+A kernel is **stationary** if it depends only on the difference ***x*** - ***x***′:
+
+$$
+k(\mathbf{x}, \mathbf{x}') = k(\mathbf{x} - \mathbf{x}')
+$$ {#eq-stationary}
+
+Stationary kernels model functions with consistent behavior across the input space.
+
+### Isotropy
+
+A kernel is **isotropic** if it depends only on the Euclidean distance:
+
+$$
+k(\mathbf{x}, \mathbf{x}') = k(\|\mathbf{x} - \mathbf{x}'\|)
+$$ {#eq-isotropic}
+
+Isotropic kernels treat all directions equally. Both RBF and Matern are isotropic.
+
+### Automatic Relevance Determination (ARD)
+
+Use different length scales for each input dimension:
+
+$$
+k_{\text{ARD}}(\mathbf{x}, \mathbf{x}') = \sigma^2 \exp\left(-\frac{1}{2}\sum_{i=1}^d \frac{(x_i - x_i')^2}{\ell_i^2}\right)
+$$ {#eq-ard}
+
+ARD kernels learn which inputs are relevant.
+
+**Implementation**:
+
+```{python}
+#| eval: false
+# Different length scale per dimension
+kernel = MaternKernel(
+    nu=2.5,
+    length_scale=[1.0, 0.5, 2.0],  # 3 dimensions, different scales
+    bounds=(0.1, 10.0),
+    nvars=3,
+    bkd=bkd
+)
+```
+
+## Kernel Composition
+
+### Sum of Kernels
+
+If k₁ and k₂ are positive definite, so is:
+
+$$
+k(\mathbf{x}, \mathbf{x}') = k_1(\mathbf{x}, \mathbf{x}') + k_2(\mathbf{x}, \mathbf{x}')
+$$ {#eq-sum}
+
+**Interpretation**: Functions are sums of functions from each component.
+
+**Example**: Periodic + smooth trend
+
+```{python}
+#| eval: false
+from pyapprox.typing.surrogates.kernels.composition import SumKernel
+
+# Periodic component + smooth trend
+k_periodic = PeriodicKernel(...)
+k_smooth = MaternKernel(...)
+k_combined = SumKernel([k_periodic, k_smooth], bkd)
+```
+
+### Product of Kernels
+
+If k₁ and k₂ are positive definite, so is:
+
+$$
+k(\mathbf{x}, \mathbf{x}') = k_1(\mathbf{x}, \mathbf{x}') \cdot k_2(\mathbf{x}, \mathbf{x}')
+$$ {#eq-product}
+
+**Interpretation**: Combines properties of both kernels.
+
+**Example**: Smooth with varying amplitude
+
+```{python}
+#| eval: false
+from pyapprox.typing.surrogates.kernels.composition import ProductKernel
+
+k1 = MaternKernel(...)
+k2 = LinearKernel(...)  # Varying amplitude
+k_combined = ProductKernel([k1, k2], bkd)
+```
+
+### Scaling
+
+Multiplying by a positive constant preserves positive definiteness:
+
+$$
+k(\mathbf{x}, \mathbf{x}') = \sigma^2 k_0(\mathbf{x}, \mathbf{x}')
+$$ {#eq-scaling}
+
+σ² controls the **output variance** or **signal variance**.
+
+## Hyperparameters
+
+Kernel hyperparameters control the properties of functions sampled from the GP:
+
+| Parameter | Symbol | Effect |
+|-----------|--------|--------|
+| Signal variance | σ² | Overall scale of function values |
+| Length scale | ℓ | Correlation distance between points |
+| Smoothness | ν | Differentiability of functions |
+
+### Length Scale Interpretation
+
+The length scale ℓ determines how quickly the correlation decays:
+
+- **Small ℓ**: Rapid variation, fine-scale structure
+- **Large ℓ**: Slow variation, smooth global trends
+
+$$
+k(0, r) \approx \sigma^2 \exp\left(-\frac{r^2}{2\ell^2}\right) \quad \text{(RBF)}
+$$ {#eq-length-scale}
+
+At distance r = ℓ, correlation has decayed to ≈ 0.6 of maximum.
+
+## Computational Considerations
+
+### Kernel Matrix Evaluation
+
+Computing the kernel matrix ***K*** for n points:
+
+```{python}
+#| eval: false
+# X: shape (nvars, n)
+K = kernel(X, X)  # Shape: (n, n)
+```
+
+**Cost**: O(n²) kernel evaluations
+
+### Diagonal Computation
+
+Many algorithms only need the diagonal:
+
+```{python}
+#| eval: false
+# Efficient diagonal computation
+diag_K = kernel.diag(X)  # Shape: (n,)
+```
+
+**Cost**: O(n) kernel evaluations (much faster!)
+
+### Gradient Computation
+
+For hyperparameter optimization, we need ∂***K***/∂θ:
+
+```{python}
+#| eval: false
+# Jacobian w.r.t. hyperparameters
+K_grad = kernel.jacobian_wrt_params(X)  # Shape: (n, n, nparams)
+```
+
+See [Gaussian Processes](gaussian-processes.qmd) for optimization details.
+
+## See Also
+
+- [Multi-output Kernels](multioutput-kernels.qmd) - Kernels for multiple outputs
+- [DAG Kernels](dag-kernels.qmd) - Structured multi-output kernels
+- [Gaussian Processes](gaussian-processes.qmd) - Using kernels for regression
+- [Kernel API](../api/kernels.qmd) - Implementation details
+- [Gallery](../gallery/plotting/kernel-matrix-visualization.qmd) - Visual examples

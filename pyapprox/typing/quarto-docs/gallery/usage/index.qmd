@@ -1,0 +1,156 @@
+---
+title: "Usage Examples"
+subtitle: "End-to-end workflows and practical applications"
+listing:
+  id: usage-examples
+  contents: "*.qmd"
+  type: grid
+  grid-columns: 2
+  fields: [title, description, image, categories]
+  sort: "title"
+  filter-ui: true
+  categories: true
+---
+
+## Overview
+
+This section contains practical examples demonstrating complete workflows for common tasks like building Gaussian process models, optimizing hyperparameters, and working with multi-output structures.
+
+::: {#usage-examples}
+:::
+
+## Common Workflow Pattern
+
+Most examples follow this general workflow:
+
+### 1. Setup and Initialization
+
+```{python}
+#| eval: false
+from pyapprox.typing.util.backends.numpy import NumpyBkd
+from pyapprox.typing.surrogates.kernels import MaternKernel
+from pyapprox.typing.surrogates.gaussianprocess import ExactGaussianProcess
+
+# Initialize backend
+bkd = NumpyBkd()
+```
+
+### 2. Create Kernel and GP
+
+```{python}
+#| eval: false
+# Create kernel with hyperparameters
+kernel = MaternKernel(2.5, [1.0], (0.1, 10.0), nvars=1, bkd=bkd)
+
+# Create GP model
+gp = ExactGaussianProcess(kernel, bkd, noise_variance=0.01)
+```
+
+### 3. Prepare Training Data
+
+```{python}
+#| eval: false
+import numpy as np
+
+# Generate or load training data
+X_train = bkd.array(np.random.rand(1, 20))
+y_train = bkd.array(np.sin(2 * np.pi * X_train[0, :]).reshape(-1, 1))
+```
+
+### 4. Fit the Model
+
+```{python}
+#| eval: false
+# Fit GP to training data
+gp.fit(X_train, y_train)
+
+# Optional: Optimize hyperparameters
+from pyapprox.typing.surrogates.gaussianprocess.gp_loss import (
+    GPNegativeLogMarginalLikelihoodLoss
+)
+
+loss = GPNegativeLogMarginalLikelihoodLoss(gp, (X_train, y_train))
+# ... optimization code ...
+```
+
+### 5. Make Predictions
+
+```{python}
+#| eval: false
+# Test points
+X_test = bkd.array(np.linspace(0, 1, 100).reshape(1, -1))
+
+# Predict with uncertainty
+mean, std = gp.predict(X_test, return_std=True)
+```
+
+### 6. Visualize Results
+
+```{python}
+#| eval: false
+import matplotlib.pyplot as plt
+
+# Plot predictions with uncertainty
+plt.figure(figsize=(10, 6))
+plt.plot(bkd.to_numpy(X_test[0, :]), bkd.to_numpy(mean[:, 0]), 'b-', label='Mean')
+plt.fill_between(
+    bkd.to_numpy(X_test[0, :]),
+    bkd.to_numpy(mean[:, 0] - 2*std[:, 0]),
+    bkd.to_numpy(mean[:, 0] + 2*std[:, 0]),
+    alpha=0.3, label='95% CI'
+)
+plt.scatter(bkd.to_numpy(X_train[0, :]), bkd.to_numpy(y_train[:, 0]),
+            c='r', marker='o', label='Training data')
+plt.legend()
+plt.show()
+```
+
+## Example Categories
+
+### Multi-Fidelity Modeling
+
+Examples demonstrating multi-level and DAG-structured kernels for modeling data at different fidelity levels or with complex dependencies.
+
+**Key Concepts**:
+
+- Multi-level kernels (sequential dependencies)
+- DAG kernels (arbitrary dependency structures)
+- Autoregressive models
+- Cross-level correlations
+
+### Hyperparameter Optimization
+
+Examples showing how to optimize kernel hyperparameters using gradient-based methods and the negative log marginal likelihood.
+
+**Key Concepts**:
+
+- Negative log marginal likelihood
+- Gradient computation
+- L-BFGS-B optimization
+- Hyperparameter bounds
+
+### Uncertainty Quantification
+
+Examples demonstrating prediction with uncertainty quantification, including confidence intervals and credible regions.
+
+**Key Concepts**:
+
+- Predictive mean and variance
+- Confidence intervals
+- Monte Carlo sampling
+- Uncertainty propagation
+
+## Tips
+
+- **Start simple**: Begin with single-output GPs before moving to multi-output
+- **Check convergence**: Monitor optimization progress and check for convergence
+- **Validate predictions**: Use held-out test data to validate model quality
+- **Visualize**: Plot kernel matrices and predictions to understand model behavior
+- **Scale data**: Normalize inputs for better numerical stability
+
+## See Also
+
+- [Tutorials](../../tutorials/index.qmd) - Step-by-step learning paths
+- [Theory](../../theory/index.qmd) - Mathematical foundations
+- [Plotting Examples](../plotting/index.qmd) - Visualization techniques
+- [API Reference](../../api/index.qmd) - Complete API documentation

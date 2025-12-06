@@ -1,0 +1,92 @@
+---
+title: "Gallery"
+subtitle: "Visual examples and usage patterns"
+---
+
+## Overview
+
+This gallery showcases visual examples and practical usage patterns for the PyApprox Typing Module. Each example demonstrates key features with working code and visualizations.
+
+## Gallery Categories
+
+### [Plotting Examples](plotting/index.qmd)
+
+Visual demonstrations of kernel matrices, Gaussian process predictions, and multi-output structures:
+
+- **Kernel Matrix Visualization**: Visualizing different kernel types and their properties
+- **GP Prediction Plots**: Uncertainty quantification and prediction intervals
+- **Multi-output Correlations**: Cross-covariance structure visualization
+
+**Key Features**:
+
+- Matplotlib-based visualizations
+- Kernel matrix heatmaps
+- Comparison plots across backends
+
+### [Usage Examples](usage/index.qmd)
+
+Practical examples demonstrating common workflows:
+
+- **DAG-Structured Gaussian Processes**: Multi-fidelity modeling with arbitrary dependencies
+- **Hyperparameter Optimization**: Training GPs with gradient-based optimization
+- **Multi-level Kernels**: Sequential multi-fidelity structures
+
+**Key Features**:
+
+- End-to-end workflows
+- Real-world applications
+- Best practices
+
+## Running Examples
+
+All examples can be run directly as Python scripts or integrated into your own code.
+
+### Prerequisites
+
+```bash
+# Install with plotting dependencies
+pip install pyapprox[typing]
+pip install matplotlib
+
+# For PyTorch examples
+pip install torch
+```
+
+### Running an Example
+
+```bash
+# Run from the examples directory
+cd pyapprox/typing/examples/surrogates/kernels
+python kernel_matrix_plotting_example.py
+
+# Or run as module
+python -m pyapprox.typing.examples.surrogates.kernels.kernel_matrix_plotting_example
+```
+
+## Example Structure
+
+Each gallery example follows a consistent structure:
+
+1. **Imports and Setup**: Backend selection and imports
+2. **Data Generation**: Creating test data
+3. **Model Creation**: Building kernels, GPs, or other objects
+4. **Computation**: Running the example
+5. **Visualization**: Plotting results
+
+## Contributing Examples
+
+Want to add an example to the gallery?
+
+1. Create a Python file in `pyapprox/typing/examples/`
+2. Follow the structure of existing examples
+3. Include clear docstrings and comments
+4. Add visualization code
+5. Create a corresponding `.qmd` file in this gallery
+
+See the [Contributing Guide](../developer-guide/contributing.qmd) for details.
+
+## See Also
+
+- [Tutorials](../tutorials/index.qmd) - Step-by-step learning paths
+- [API Reference](../api/index.qmd) - Complete API documentation
+- [Theory](../theory/index.qmd) - Mathematical foundations
