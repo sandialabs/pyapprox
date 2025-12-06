@@ -43,7 +43,7 @@ class JVPChecker(Generic[Array]):
             direction = self._bkd.asarray(np.random.normal(0, 1, (nvars, 1)))
             direction /= self._bkd.norm(direction)
 
-            self._symb = symb
+        self._symb = symb
         self._fd_eps = fd_eps
         self._direction = direction
         self._relative = relative

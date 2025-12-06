@@ -16,7 +16,7 @@ from pyapprox.typing.util.backends.protocols import Backend, Array
 from pyapprox.typing.util.backends.numpy import NumpyBkd
 from pyapprox.typing.util.backends.torch import TorchBkd
 from pyapprox.typing.surrogates.kernels.matern import MaternKernel
-from pyapprox.typing.surrogates.kernels.constant import ConstantKernel
+from pyapprox.typing.surrogates.kernels.scalings import PolynomialScaling
 from pyapprox.typing.surrogates.kernels.iid_gaussian_noise import IIDGaussianNoise
 from pyapprox.typing.surrogates.kernels.multioutput import (
     IndependentMultiOutputKernel,
@@ -86,9 +86,9 @@ class TestMultiOutputGPWithIndependentKernel(Generic[Array], unittest.TestCase):
                 self.nvars,
                 self.bkd()
             )
-            constant = ConstantKernel(1.0, (0.1, 10.0), self.bkd())
+            constant = PolynomialScaling([1.0], (0.1, 10.0), self.bkd(), nvars=self.nvars)
             noise = IIDGaussianNoise(1e-14, (1e-16, 1e-12), self.bkd())
-            kernel = matern * constant + noise
+            kernel = constant * matern + noise
             kernels.append(kernel)
 
         # Create multi-output kernel
@@ -316,8 +316,8 @@ class TestMultiOutputGPWithLMCKernel(Generic[Array], unittest.TestCase):
                 self.nvars,
                 self.bkd()
             )
-            constant = ConstantKernel(1.0, (0.1, 10.0), self.bkd())
-            kernel = matern * constant
+            constant = PolynomialScaling([1.0], (0.1, 10.0), self.bkd(), nvars=self.nvars)
+            kernel = constant * matern
             base_kernels.append(kernel)
 
         # Create coregionalization matrices
