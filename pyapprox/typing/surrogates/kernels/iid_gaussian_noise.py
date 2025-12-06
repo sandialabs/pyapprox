@@ -141,14 +141,14 @@ class IIDGaussianNoise(Kernel):
         -------
         K : Array
             IID Gaussian noise kernel matrix.
-            - If X2 is None: diagonal matrix σ²*I, shape (n1, n1)
-            - If X2 is provided: zeros, shape (n1, n2)
+            - If X2 is None or X2 is X1: diagonal matrix σ²*I, shape (n1, n1)
+            - If X2 is provided and different from X1: zeros, shape (n1, n2)
               (no correlation between different inputs)
         """
         n1 = X1.shape[1]
         noise_level = self._log_noise_level.exp_values()[0]
 
-        if X2 is None:
+        if X2 is None or X2 is X1:
             # Self-covariance: return diagonal matrix
             return self._bkd.eye(n1) * noise_level
         else:
@@ -214,6 +214,74 @@ class IIDGaussianNoise(Kernel):
             jac[i, i, 0] = noise_level
 
         return jac
+
+    def hessian_wrt_params(self, samples: Array) -> Array:
+        """
+        Compute Hessian of IID Gaussian noise kernel w.r.t. hyperparameters.
+
+        For IIDGaussianNoise with log-parameterization:
+        K = σ² * I
+        θ = log(σ²)
+        ∂K/∂θ = σ² * I
+        ∂²K/∂θ² = σ² * I (since ∂(σ²)/∂θ = σ² and ∂²(σ²)/∂θ² = σ²)
+
+        Parameters
+        ----------
+        samples : Array
+            Input data, shape (nvars, n).
+
+        Returns
+        -------
+        hess : Array
+            Hessian, shape (n, n, 1, 1).
+            - Diagonal entries: σ² (noise level)
+            - Off-diagonal entries: 0
+        """
+        n = samples.shape[1]
+        noise_level = self._log_noise_level.exp_values()[0]
+
+        # Create hessian tensor (n, n, 1, 1)
+        hess = self._bkd.zeros((n, n, 1, 1))
+
+        # Set diagonal to noise_level
+        # hess[i, i, 0, 0] = noise_level for all i
+        for i in range(n):
+            hess[i, i, 0, 0] = noise_level
+
+        return hess
+
+    def hvp_wrt_params(self, X1: Array, direction: Array) -> Array:
+        """
+        Compute Hessian-vector product w.r.t. hyperparameters.
+
+        For IIDGaussianNoise with log-parameterization:
+        K = σ² * I
+        θ = log(σ²)
+        ∂K/∂θ = σ² * I
+        ∂²K/∂θ² = σ² * I
+
+        Since there's only one parameter, HVP is just the Hessian times the scalar direction.
+
+        Parameters
+        ----------
+        X1 : Array
+            Input data, shape (nvars, n).
+        direction : Array
+            Direction vector, shape (1,).
+
+        Returns
+        -------
+        hvp : Array
+            Hessian-vector product, shape (n, n, 1).
+            hvp[:, :, 0] = ∂²K/∂θ² * direction[0]
+        """
+        n = X1.shape[1]
+        noise_level = self._log_noise_level.exp_values()[0]
+
+        # Vectorized: create diagonal matrix and scale by noise_level * direction[0]
+        hvp = self._bkd.eye(n)[:, :, None] * (noise_level * direction[0])
+
+        return hvp
 
     def hvp_wrt_x1(self, X1: Array, X2: Array, direction: Array) -> Array:
         """

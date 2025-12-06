@@ -68,6 +68,35 @@ class CompositionKernel(Kernel, Generic[Array]):
         # Combine hyperparameter lists
         self._hyp_list = kernel1.hyp_list() + kernel2.hyp_list()
 
+        # Conditionally add derivative methods based on component kernel support
+        self._setup_derivative_methods()
+
+    def _setup_derivative_methods(self) -> None:
+        """
+        Conditionally add jacobian_wrt_params and hvp_wrt_params methods.
+
+        Composition kernels only support these methods if BOTH component
+        kernels support them. This ensures that derivative methods are only
+        available when they can be correctly computed.
+        """
+        # Check if both kernels support jacobian_wrt_params
+        has_jac_1 = hasattr(self._kernel1, 'jacobian_wrt_params')
+        has_jac_2 = hasattr(self._kernel2, 'jacobian_wrt_params')
+
+        if has_jac_1 and has_jac_2:
+            # Both kernels support jacobian, add the method
+            self.jacobian_wrt_params = self._jacobian_wrt_params
+        # Otherwise, jacobian_wrt_params will not exist on this instance
+
+        # Check if both kernels support hvp_wrt_params
+        has_hvp_1 = hasattr(self._kernel1, 'hvp_wrt_params')
+        has_hvp_2 = hasattr(self._kernel2, 'hvp_wrt_params')
+
+        if has_hvp_1 and has_hvp_2:
+            # Both kernels support HVP, add the method
+            self.hvp_wrt_params = self._hvp_wrt_params
+        # Otherwise, hvp_wrt_params will not exist on this instance
+
     def hyp_list(self) -> HyperParameterList:
         """
         Return the combined hyperparameter list.
@@ -193,9 +222,12 @@ class ProductKernel(CompositionKernel):
         # Need to broadcast K to match dK shape
         return dK1 * K2[..., None] + K1[..., None] * dK2
 
-    def jacobian_wrt_params(self, samples: Array) -> Array:
+    def _jacobian_wrt_params(self, samples: Array) -> Array:
         """
         Compute Jacobian of product kernel w.r.t. hyperparameters.
+
+        This is a private method. The public jacobian_wrt_params() method is
+        dynamically added during __init__ if both component kernels support it.
 
         Parameters
         ----------
@@ -206,20 +238,9 @@ class ProductKernel(CompositionKernel):
         -------
         jac : Array
             Jacobian, shape (n, n, nparams1 + nparams2).
-
-        Raises
-        ------
-        NotImplementedError
-            If either kernel doesn't support parameter Jacobians.
         """
-        if not (
-            hasattr(self._kernel1, "jacobian_wrt_params")
-            and hasattr(self._kernel2, "jacobian_wrt_params")
-        ):
-            raise NotImplementedError(
-                "Both kernels must implement jacobian_wrt_params() "
-                "for ProductKernel parameter Jacobian"
-            )
+        # This method is only callable if both kernels support jacobian_wrt_params
+        # (checked in _setup_derivative_methods)
 
         K1 = self._kernel1(samples, samples)
         K2 = self._kernel2(samples, samples)
@@ -242,6 +263,152 @@ class ProductKernel(CompositionKernel):
 
         # Concatenate along parameter dimension
         return self._bkd.concatenate([jac1, jac2], axis=2)
+
+    def hessian_wrt_params(self, samples: Array) -> Array:
+        """
+        Compute Hessian of product kernel w.r.t. hyperparameters.
+
+        For K = K1 * K2, using product rule:
+        - ∂²K/∂θ_i∂θ_j = (∂²K1/∂θ_i∂θ_j) * K2  (both K1 params)
+        - ∂²K/∂θ_i∂θ_j = (∂K1/∂θ_i) * (∂K2/∂θ_j)  (mixed: K1 and K2 params)
+        - ∂²K/∂θ_i∂θ_j = K1 * (∂²K2/∂θ_i∂θ_j)  (both K2 params)
+
+        Parameters
+        ----------
+        samples : Array
+            Input data, shape (nvars, n).
+
+        Returns
+        -------
+        hess : Array
+            Hessian, shape (n, n, nparams, nparams).
+
+        Raises
+        ------
+        NotImplementedError
+            If either kernel doesn't support parameter Hessians.
+        """
+        if not (
+            hasattr(self._kernel1, "hessian_wrt_params")
+            and hasattr(self._kernel2, "hessian_wrt_params")
+        ):
+            raise NotImplementedError(
+                "Both kernels must implement hessian_wrt_params() "
+                "for ProductKernel parameter Hessian"
+            )
+
+        # Get kernel evaluations
+        K1 = self._kernel1(samples, samples)  # (n, n)
+        K2 = self._kernel2(samples, samples)  # (n, n)
+
+        # Get Jacobians
+        dK1 = self._kernel1.jacobian_wrt_params(samples)  # (n, n, p1)
+        dK2 = self._kernel2.jacobian_wrt_params(samples)  # (n, n, p2)
+
+        # Get Hessians
+        H1 = self._kernel1.hessian_wrt_params(samples)  # (n, n, p1, p1)
+        H2 = self._kernel2.hessian_wrt_params(samples)  # (n, n, p2, p2)
+
+        n = samples.shape[1]
+        p1 = dK1.shape[2]
+        p2 = dK2.shape[2]
+        p_total = p1 + p2
+
+        # Initialize full Hessian
+        hess = self._bkd.zeros((n, n, p_total, p_total))
+
+        # Block 1: K1 params × K1 params -> H1 * K2
+        hess[:, :, :p1, :p1] = H1 * K2[:, :, None, None]
+
+        # Block 2: K2 params × K2 params -> K1 * H2
+        hess[:, :, p1:, p1:] = K1[:, :, None, None] * H2
+
+        # Block 3: K1 params × K2 params (mixed derivatives)
+        # ∂²K/∂θ_i∂θ_j = (∂K1/∂θ_i) * (∂K2/∂θ_j)
+        # dK1[:, :, i] * dK2[:, :, j]
+        # Use einsum: 'ijk,ijl->ijkl' broadcasts properly
+        cross_term = self._bkd.einsum('ijk,ijl->ijkl', dK1, dK2)
+        hess[:, :, :p1, p1:] = cross_term
+
+        # Block 4: K2 params × K1 params (symmetric)
+        hess[:, :, p1:, :p1] = self._bkd.transpose(cross_term, (0, 1, 3, 2))
+
+        return hess
+
+    def _hvp_wrt_params(self, samples: Array, direction: Array) -> Array:
+        """
+        Compute Hessian-vector product w.r.t. hyperparameters for product kernel.
+
+        For K = K1 * K2, using product rule:
+        ∂²K/∂θ_i∂θ_j depends on whether i, j belong to K1 or K2:
+        - If both in K1: (∂²K1/∂θ_i∂θ_j) * K2
+        - If both in K2: K1 * (∂²K2/∂θ_i∂θ_j)
+        - If i in K1, j in K2: (∂K1/∂θ_i) * (∂K2/∂θ_j)
+        - If i in K2, j in K1: (∂K2/∂θ_i) * (∂K1/∂θ_j)
+
+        HVP computes: Σ_j (∂²K/∂θ_i∂θ_j) * v[j] for each i.
+
+        Parameters
+        ----------
+        samples : Array
+            Input data, shape (nvars, n).
+        direction : Array
+            Direction vector, shape (p1 + p2,).
+
+        Returns
+        -------
+        hvp : Array
+            Hessian-vector product, shape (n, n, p1+p2).
+        """
+        # This method is only callable if both kernels support hvp_wrt_params
+        # (checked in _setup_derivative_methods)
+
+        # Get dimensions
+        p1 = self._kernel1.hyp_list().nactive_params()
+        p2 = self._kernel2.hyp_list().nactive_params()
+        n = samples.shape[1]
+
+        # Split direction vector
+        v1 = direction[:p1]  # Direction for K1 params
+        v2 = direction[p1:]  # Direction for K2 params
+
+        # Evaluate kernels and their derivatives
+        K1 = self._kernel1(samples, samples)  # (n, n)
+        K2 = self._kernel2(samples, samples)  # (n, n)
+
+        dK1 = self._kernel1.jacobian_wrt_params(samples)  # (n, n, p1)
+        dK2 = self._kernel2.jacobian_wrt_params(samples)  # (n, n, p2)
+
+        HK1_v = self._kernel1.hvp_wrt_params(samples, v1)  # (n, n, p1)
+        HK2_v = self._kernel2.hvp_wrt_params(samples, v2)  # (n, n, p2)
+
+        hvp = self._bkd.zeros((n, n, p1 + p2))
+
+        # Block 1: K1 parameters (i in K1)
+        # hvp[:, :, i] = Σ_{j in K1} (∂²K1/∂θ_i∂θ_j * K2) * v1[j]
+        #              + Σ_{j in K2} (∂K1/∂θ_i * ∂K2/∂θ_j) * v2[j]
+        # = (Σ_{j in K1} ∂²K1/∂θ_i∂θ_j * v1[j]) * K2 + (∂K1/∂θ_i) * (Σ_{j in K2} ∂K2/∂θ_j * v2[j])
+        # = HK1_v[:, :, i] * K2 + dK1[:, :, i] * (dK2 · v2)
+
+        # Compute dK2 · v2: shape (n, n)
+        dK2_dot_v2 = self._bkd.einsum('ijk,k->ij', dK2, v2)
+
+        for i in range(p1):
+            hvp[:, :, i] = HK1_v[:, :, i] * K2 + dK1[:, :, i] * dK2_dot_v2
+
+        # Block 2: K2 parameters (i in K2)
+        # hvp[:, :, p1+i] = Σ_{j in K1} (∂K1/∂θ_j * ∂K2/∂θ_i) * v1[j]
+        #                 + Σ_{j in K2} (K1 * ∂²K2/∂θ_i∂θ_j) * v2[j]
+        # = (Σ_{j in K1} ∂K1/∂θ_j * v1[j]) * ∂K2/∂θ_i + K1 * (Σ_{j in K2} ∂²K2/∂θ_i∂θ_j * v2[j])
+        # = (dK1 · v1) * dK2[:, :, i] + K1 * HK2_v[:, :, i]
+
+        # Compute dK1 · v1: shape (n, n)
+        dK1_dot_v1 = self._bkd.einsum('ijk,k->ij', dK1, v1)
+
+        for i in range(p2):
+            hvp[:, :, p1 + i] = dK1_dot_v1 * dK2[:, :, i] + K1 * HK2_v[:, :, i]
+
+        return hvp
 
     def hvp_wrt_x1(self, X1: Array, X2: Array, direction: Array) -> Array:
         """
@@ -413,7 +580,7 @@ class SumKernel(CompositionKernel):
         # Sum rule: dK1 + dK2
         return dK1 + dK2
 
-    def jacobian_wrt_params(self, samples: Array) -> Array:
+    def _jacobian_wrt_params(self, samples: Array) -> Array:
         """
         Compute Jacobian of sum kernel w.r.t. hyperparameters.
 
@@ -427,19 +594,9 @@ class SumKernel(CompositionKernel):
         jac : Array
             Jacobian, shape (n, n, nparams1 + nparams2).
 
-        Raises
-        ------
-        NotImplementedError
-            If either kernel doesn't support parameter Jacobians.
         """
-        if not (
-            hasattr(self._kernel1, "jacobian_wrt_params")
-            and hasattr(self._kernel2, "jacobian_wrt_params")
-        ):
-            raise NotImplementedError(
-                "Both kernels must implement jacobian_wrt_params() "
-                "for SumKernel parameter Jacobian"
-            )
+        # This method is only callable if both kernels support jacobian_wrt_params
+        # (checked in _setup_derivative_methods)
 
         dK1 = self._kernel1.jacobian_wrt_params(samples)
         dK2 = self._kernel2.jacobian_wrt_params(samples)
@@ -447,6 +604,105 @@ class SumKernel(CompositionKernel):
         # Sum rule: [dK1, dK2]
         # Concatenate along parameter dimension
         return self._bkd.concatenate([dK1, dK2], axis=2)
+
+    def hessian_wrt_params(self, samples: Array) -> Array:
+        """
+        Compute Hessian of sum kernel w.r.t. hyperparameters.
+
+        For K = K1 + K2, using sum rule:
+        - ∂²K/∂θ_i∂θ_j = ∂²K1/∂θ_i∂θ_j  (both K1 params)
+        - ∂²K/∂θ_i∂θ_j = 0  (mixed: K1 and K2 params)
+        - ∂²K/∂θ_i∂θ_j = ∂²K2/∂θ_i∂θ_j  (both K2 params)
+
+        Parameters
+        ----------
+        samples : Array
+            Input data, shape (nvars, n).
+
+        Returns
+        -------
+        hess : Array
+            Hessian, shape (n, n, nparams, nparams).
+
+        Raises
+        ------
+        NotImplementedError
+            If either kernel doesn't support parameter Hessians.
+        """
+        if not (
+            hasattr(self._kernel1, "hessian_wrt_params")
+            and hasattr(self._kernel2, "hessian_wrt_params")
+        ):
+            raise NotImplementedError(
+                "Both kernels must implement hessian_wrt_params() "
+                "for SumKernel parameter Hessian"
+            )
+
+        # Get Hessians from both kernels
+        H1 = self._kernel1.hessian_wrt_params(samples)  # (n, n, p1, p1)
+        H2 = self._kernel2.hessian_wrt_params(samples)  # (n, n, p2, p2)
+
+        n = samples.shape[1]
+        p1 = H1.shape[2]
+        p2 = H2.shape[2]
+        p_total = p1 + p2
+
+        # Initialize full Hessian
+        hess = self._bkd.zeros((n, n, p_total, p_total))
+
+        # Block 1: K1 params × K1 params -> H1
+        hess[:, :, :p1, :p1] = H1
+
+        # Block 2: K2 params × K2 params -> H2
+        hess[:, :, p1:, p1:] = H2
+
+        # Blocks 3 & 4: Mixed derivatives are zero (no coupling between K1 and K2 params)
+
+        return hess
+
+    def _hvp_wrt_params(self, samples: Array, direction: Array) -> Array:
+        """
+        Compute Hessian-vector product w.r.t. hyperparameters for sum kernel.
+
+        For K = K1 + K2, using sum rule:
+        ∂²K/∂θ_i∂θ_j = ∂²K1/∂θ_i∂θ_j if both i,j belong to K1
+        ∂²K/∂θ_i∂θ_j = ∂²K2/∂θ_i∂θ_j if both i,j belong to K2
+        ∂²K/∂θ_i∂θ_j = 0 if i,j belong to different kernels
+
+        HVP computes: Σ_j (∂²K/∂θ_i∂θ_j) * v[j] for each i.
+
+        Parameters
+        ----------
+        samples : Array
+            Input data, shape (nvars, n).
+        direction : Array
+            Direction vector, shape (p1 + p2,).
+
+        Returns
+        -------
+        hvp : Array
+            Hessian-vector product, shape (n, n, p1+p2).
+        """
+        # This method is only callable if both kernels support hvp_wrt_params
+        # (checked in _setup_derivative_methods)
+
+        # Get dimensions
+        p1 = self._kernel1.hyp_list().nactive_params()
+        p2 = self._kernel2.hyp_list().nactive_params()
+        n = samples.shape[1]
+
+        # Split direction vector
+        v1 = direction[:p1]  # Direction for K1 params
+        v2 = direction[p1:]  # Direction for K2 params
+
+        # Get HVPs from both kernels
+        HK1_v = self._kernel1.hvp_wrt_params(samples, v1)  # (n, n, p1)
+        HK2_v = self._kernel2.hvp_wrt_params(samples, v2)  # (n, n, p2)
+
+        # Sum rule: Just concatenate the HVPs
+        # For i in K1: hvp[:, :, i] = HK1_v[:, :, i] (only K1 params contribute)
+        # For i in K2: hvp[:, :, p1+i] = HK2_v[:, :, i] (only K2 params contribute)
+        return self._bkd.concatenate([HK1_v, HK2_v], axis=2)
 
     def hvp_wrt_x1(self, X1: Array, X2: Array, direction: Array) -> Array:
         """
