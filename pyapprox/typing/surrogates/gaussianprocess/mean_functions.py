@@ -60,6 +60,25 @@ class MeanFunction(ABC, Generic[Array]):
         """
         ...
 
+    @abstractmethod
+    def jacobian_wrt_params(self, X: Array) -> Array:
+        """
+        Compute Jacobian of mean function w.r.t. hyperparameters.
+
+        Parameters
+        ----------
+        X : Array
+            Input locations, shape (nvars, n_points).
+
+        Returns
+        -------
+        Array
+            Jacobian, shape (nparams, n_points, 1).
+            The gradient ∂m/∂θ_i for each hyperparameter.
+            For mean functions with no parameters, returns empty array.
+        """
+        ...
+
     def bkd(self) -> Backend[Array]:
         """
         Return the backend.
@@ -131,6 +150,25 @@ class ZeroMean(MeanFunction[Array]):
             Empty list (zero mean has no hyperparameters).
         """
         return self._hyp_list
+
+    def jacobian_wrt_params(self, X: Array) -> Array:
+        """
+        Compute Jacobian w.r.t. hyperparameters.
+
+        Since ZeroMean has no hyperparameters, returns empty array.
+
+        Parameters
+        ----------
+        X : Array
+            Input locations, shape (nvars, n_points).
+
+        Returns
+        -------
+        Array
+            Empty array, shape (0, n_points, 1).
+        """
+        n_points = X.shape[1]
+        return self._bkd.zeros((0, n_points, 1))
 
     def __repr__(self) -> str:
         """Return string representation."""
@@ -218,6 +256,26 @@ class ConstantMean(MeanFunction[Array]):
             List containing the constant hyperparameter.
         """
         return self._hyp_list
+
+    def jacobian_wrt_params(self, X: Array) -> Array:
+        """
+        Compute Jacobian w.r.t. hyperparameters.
+
+        For ConstantMean, m(x) = c for all x, so ∂m/∂c = 1.
+
+        Parameters
+        ----------
+        X : Array
+            Input locations, shape (nvars, n_points).
+
+        Returns
+        -------
+        Array
+            Jacobian, shape (1, n_points, 1).
+            All entries are 1.0 since ∂m/∂c = 1.
+        """
+        n_points = X.shape[1]
+        return self._bkd.ones((1, n_points, 1))
 
     def __repr__(self) -> str:
         """Return string representation."""
