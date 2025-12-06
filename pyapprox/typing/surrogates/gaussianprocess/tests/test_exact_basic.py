@@ -15,7 +15,7 @@ import matplotlib.pyplot as plt
 from pyapprox.typing.util.backends.protocols import Backend, Array
 from pyapprox.typing.util.backends.numpy import NumpyBkd
 from pyapprox.typing.util.backends.torch import TorchBkd
-from pyapprox.typing.surrogates.kernels.matern import MaternKernel
+from pyapprox.typing.surrogates.kernels.matern import MaternKernel, MaternKernelBase
 from pyapprox.typing.surrogates.gaussianprocess import (
     ExactGaussianProcess,
     ZeroMean,
@@ -71,12 +71,12 @@ class TestExactGPBasic(Generic[Array], unittest.TestCase):
             self.kernel,
             self.nvars,
             self.bkd(),
-            noise_variance=0.1
+            nugget=0.1
         )
 
         self.assertEqual(gp.nvars(), self.nvars)
         self.assertFalse(gp.is_fitted())
-        self.assertIsInstance(gp.kernel(), MaternKernel)
+        self.assertIsInstance(gp.kernel(), MaternKernelBase)
 
     def test_fit_and_predict(self) -> None:
         """Test basic fit and predict."""
@@ -84,7 +84,7 @@ class TestExactGPBasic(Generic[Array], unittest.TestCase):
             self.kernel,
             self.nvars,
             self.bkd(),
-            noise_variance=0.1
+            nugget=0.1
         )
 
         # Fit
@@ -104,7 +104,7 @@ class TestExactGPBasic(Generic[Array], unittest.TestCase):
             self.kernel,
             self.nvars,
             self.bkd(),
-            noise_variance=0.1
+            nugget=0.1
         )
 
         gp.fit(self.X_train, self.y_train)
@@ -122,7 +122,7 @@ class TestExactGPBasic(Generic[Array], unittest.TestCase):
             self.kernel,
             self.nvars,
             self.bkd(),
-            noise_variance=0.1
+            nugget=0.1
         )
 
         gp.fit(self.X_train, self.y_train)
@@ -140,7 +140,7 @@ class TestExactGPBasic(Generic[Array], unittest.TestCase):
             self.kernel,
             self.nvars,
             self.bkd(),
-            noise_variance=1e-8  # Very low noise
+            nugget=1e-8  # Very low noise
         )
 
         gp.fit(self.X_train, self.y_train)
@@ -157,7 +157,7 @@ class TestExactGPBasic(Generic[Array], unittest.TestCase):
             self.kernel,
             self.nvars,
             self.bkd(),
-            noise_variance=0.01
+            nugget=0.01
         )
 
         gp.fit(self.X_train, self.y_train)
@@ -175,7 +175,7 @@ class TestExactGPBasic(Generic[Array], unittest.TestCase):
             self.kernel,
             self.nvars,
             self.bkd(),
-            noise_variance=0.1
+            nugget=0.1
         )
 
         gp.fit(self.X_train, self.y_train)
@@ -196,7 +196,7 @@ class TestExactGPBasic(Generic[Array], unittest.TestCase):
             self.nvars,
             self.bkd(),
             mean_function=zero_mean,
-            noise_variance=0.1
+            nugget=0.1
         )
 
         gp.fit(self.X_train, self.y_train)
@@ -213,7 +213,7 @@ class TestExactGPBasic(Generic[Array], unittest.TestCase):
             self.nvars,
             self.bkd(),
             mean_function=constant_mean,
-            noise_variance=0.1
+            nugget=0.1
         )
 
         gp.fit(self.X_train, self.y_train)
@@ -227,7 +227,7 @@ class TestExactGPBasic(Generic[Array], unittest.TestCase):
             self.kernel,
             self.nvars,
             self.bkd(),
-            noise_variance=0.1
+            nugget=0.1
         )
 
         gp.fit(self.X_train, self.y_train)
@@ -244,7 +244,7 @@ class TestExactGPBasic(Generic[Array], unittest.TestCase):
             self.kernel,
             self.nvars,
             self.bkd(),
-            noise_variance=0.1
+            nugget=0.1
         )
 
         with self.assertRaises(RuntimeError):
@@ -266,7 +266,7 @@ class TestExactGPBasic(Generic[Array], unittest.TestCase):
             self.kernel,
             self.nvars,
             self.bkd(),
-            noise_variance=1e-14  # Machine precision level noise
+            nugget=1e-14  # Machine precision level noise
         )
 
         # Create clean training data (no noise added)
@@ -322,7 +322,7 @@ class TestExactGPBasic(Generic[Array], unittest.TestCase):
             kernel,
             self.nvars,
             self.bkd(),
-            noise_variance=1e-10  # Minimal noise
+            nugget=1e-10  # Minimal noise
         )
 
         gp.fit(X_train, y_train)
@@ -369,7 +369,7 @@ class TestExactGPBasic(Generic[Array], unittest.TestCase):
             kernel_1d,
             nvars_1d,
             self.bkd(),
-            noise_variance=0.01
+            nugget=0.01
         )
 
         # Create 1D training data
@@ -410,7 +410,7 @@ class TestExactGPBasic(Generic[Array], unittest.TestCase):
             self.kernel,
             self.nvars,
             self.bkd(),
-            noise_variance=0.01
+            nugget=0.01
         )
 
         gp.fit(self.X_train, self.y_train)

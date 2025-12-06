@@ -26,10 +26,10 @@ class IIDGaussianNoise(Kernel):
 
     Parameters
     ----------
-    noise_level : float
+    noise_variance : float
         The noise variance σ².
-    noise_bounds : Tuple[float, float]
-        Bounds for the noise level parameter.
+    variance_bounds : Tuple[float, float]
+        Bounds for the noise variance parameter.
     bkd : Backend
         Backend for numerical computations.
     fixed : bool, optional
@@ -47,8 +47,8 @@ class IIDGaussianNoise(Kernel):
 
     def __init__(
         self,
-        noise_level: float,
-        noise_bounds: Tuple[float, float],
+        noise_variance: float,
+        variance_bounds: Tuple[float, float],
         bkd: Backend[Array],
         fixed: bool = False,
     ):
@@ -57,10 +57,10 @@ class IIDGaussianNoise(Kernel):
 
         Parameters
         ----------
-        noise_level : float
+        noise_variance : float
             The noise variance σ².
-        noise_bounds : Tuple[float, float]
-            Bounds for the noise level parameter.
+        variance_bounds : Tuple[float, float]
+            Bounds for the noise variance parameter.
         bkd : Backend[Array]
             Backend for numerical computations.
         fixed : bool, optional
@@ -68,16 +68,16 @@ class IIDGaussianNoise(Kernel):
         """
         super().__init__(bkd)
 
-        # Use LogHyperParameter to ensure noise level is positive
-        self._log_noise_level = LogHyperParameter(
-            "noise_level",
+        # Use LogHyperParameter to ensure noise variance is positive
+        self._log_noise_variance = LogHyperParameter(
+            "noise_variance",
             1,  # Scalar parameter
-            [noise_level],
-            noise_bounds,
+            [noise_variance],
+            variance_bounds,
             bkd=self._bkd,
             fixed=fixed,
         )
-        self._hyp_list = HyperParameterList([self._log_noise_level])
+        self._hyp_list = HyperParameterList([self._log_noise_variance])
 
     def hyp_list(self) -> HyperParameterList:
         """
@@ -110,7 +110,7 @@ class IIDGaussianNoise(Kernel):
         """
         Return the diagonal of the kernel matrix.
 
-        For IIDGaussianNoise, the diagonal is a vector of noise level values.
+        For IIDGaussianNoise, the diagonal is a vector of noise variance values.
 
         Parameters
         ----------
@@ -123,8 +123,8 @@ class IIDGaussianNoise(Kernel):
             Diagonal of the kernel matrix, shape (n,).
         """
         n = X1.shape[1]
-        noise_level = self._log_noise_level.exp_values()[0]
-        return self._bkd.full((n,), noise_level)
+        noise_variance = self._log_noise_variance.exp_values()[0]
+        return self._bkd.full((n,), noise_variance)
 
     def __call__(self, X1: Array, X2: Array = None) -> Array:
         """
@@ -146,11 +146,11 @@ class IIDGaussianNoise(Kernel):
               (no correlation between different inputs)
         """
         n1 = X1.shape[1]
-        noise_level = self._log_noise_level.exp_values()[0]
+        noise_variance = self._log_noise_variance.exp_values()[0]
 
         if X2 is None or X2 is X1:
             # Self-covariance: return diagonal matrix
-            return self._bkd.eye(n1) * noise_level
+            return self._bkd.eye(n1) * noise_variance
         else:
             # Cross-covariance: return zeros (no correlation)
             n2 = X2.shape[1]
@@ -199,56 +199,17 @@ class IIDGaussianNoise(Kernel):
         -------
         jac : Array
             Jacobian, shape (n, n, 1).
-            - Diagonal entries: σ² (noise level)
+            - Diagonal entries: σ² (noise variance)
             - Off-diagonal entries: 0
         """
         n = samples.shape[1]
-        noise_level = self._log_noise_level.exp_values()[0]
+        noise_variance = self._log_noise_variance.exp_values()[0]
 
-        # Create jacobian tensor (n, n, 1)
-        jac = self._bkd.zeros((n, n, 1))
-
-        # Set diagonal to noise_level
-        # jac[i, i, 0] = noise_level for all i
-        for i in range(n):
-            jac[i, i, 0] = noise_level
+        # Vectorized: create diagonal matrix and add parameter dimension
+        # jac[i, j, 0] = noise_variance * δ_{ij}
+        jac = self._bkd.eye(n)[:, :, None] * noise_variance
 
         return jac
-
-    def hessian_wrt_params(self, samples: Array) -> Array:
-        """
-        Compute Hessian of IID Gaussian noise kernel w.r.t. hyperparameters.
-
-        For IIDGaussianNoise with log-parameterization:
-        K = σ² * I
-        θ = log(σ²)
-        ∂K/∂θ = σ² * I
-        ∂²K/∂θ² = σ² * I (since ∂(σ²)/∂θ = σ² and ∂²(σ²)/∂θ² = σ²)
-
-        Parameters
-        ----------
-        samples : Array
-            Input data, shape (nvars, n).
-
-        Returns
-        -------
-        hess : Array
-            Hessian, shape (n, n, 1, 1).
-            - Diagonal entries: σ² (noise level)
-            - Off-diagonal entries: 0
-        """
-        n = samples.shape[1]
-        noise_level = self._log_noise_level.exp_values()[0]
-
-        # Create hessian tensor (n, n, 1, 1)
-        hess = self._bkd.zeros((n, n, 1, 1))
-
-        # Set diagonal to noise_level
-        # hess[i, i, 0, 0] = noise_level for all i
-        for i in range(n):
-            hess[i, i, 0, 0] = noise_level
-
-        return hess
 
     def hvp_wrt_params(self, X1: Array, direction: Array) -> Array:
         """
@@ -276,10 +237,10 @@ class IIDGaussianNoise(Kernel):
             hvp[:, :, 0] = ∂²K/∂θ² * direction[0]
         """
         n = X1.shape[1]
-        noise_level = self._log_noise_level.exp_values()[0]
+        noise_variance = self._log_noise_variance.exp_values()[0]
 
-        # Vectorized: create diagonal matrix and scale by noise_level * direction[0]
-        hvp = self._bkd.eye(n)[:, :, None] * (noise_level * direction[0])
+        # Vectorized: create diagonal matrix and scale by noise_variance * direction[0]
+        hvp = self._bkd.eye(n)[:, :, None] * (noise_variance * direction[0])
 
         return hvp
 

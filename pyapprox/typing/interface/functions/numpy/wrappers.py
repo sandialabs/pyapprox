@@ -211,7 +211,8 @@ class NumpyFunctionWithJacobianAndHVPWrapper(Generic[Array]):
         NDArray[Any]
             Hessian-vector product as a NumPy array.
         """
-        bkd_vec = self._bkd.asarray(vec)
+        # Ensure vec is double - scipy's LinearOperator may probe with int8
+        bkd_vec = self._bkd.asarray(vec, dtype=self._bkd.double_dtype())
         hvp = self._bkd.to_numpy(
             self._function.hvp(
                 self._convert_samples_from_numpy(sample),
@@ -291,7 +292,7 @@ class NumpyFunctionWithJacobianAndWHVPWrapper(Generic[Array]):
         self, sample: NDArray[Any], vec: NDArray[Any], weights: NDArray[Any]
     ) -> NDArray[Any]:
         """
-        Compute the Hessian-vector product of the function at the given sample.
+        Compute the weighted Hessian-vector product of the function.
 
         Parameters
         ----------
@@ -299,14 +300,17 @@ class NumpyFunctionWithJacobianAndWHVPWrapper(Generic[Array]):
             Input sample as a NumPy array.
         vec : NDArray[Any]
             Vector for the Hessian-vector product.
+        weights : NDArray[Any]
+            Weights for the Hessian-vector product.
 
         Returns
         -------
         NDArray[Any]
-            Hessian-vector product as a NumPy array.
+            Weighted Hessian-vector product as a NumPy array.
         """
-        bkd_vec = self._bkd.asarray(vec)
-        bkd_weights = self._bkd.asarray(weights)
+        # Ensure vec and weights are double - scipy may probe with int8
+        bkd_vec = self._bkd.asarray(vec, dtype=self._bkd.double_dtype())
+        bkd_weights = self._bkd.asarray(weights, dtype=self._bkd.double_dtype())
         whvp = self._bkd.to_numpy(
             self._function.whvp(
                 self._convert_samples_from_numpy(sample), bkd_vec, bkd_weights

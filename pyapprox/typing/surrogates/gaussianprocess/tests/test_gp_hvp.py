@@ -64,7 +64,7 @@ class TestGPHVP(Generic[Array], unittest.TestCase):
             kernel=self._kernel,
             nvars=self._nvars,
             bkd=self._bkd,
-            noise_variance=0.01
+            nugget=0.01
         )
 
         # Generate training data

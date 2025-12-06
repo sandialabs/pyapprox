@@ -58,7 +58,7 @@ class TestExactGPDerivatives(Generic[Array], unittest.TestCase):
             self.kernel,
             self.nvars,
             self.bkd(),
-            noise_variance=0.01
+            nugget=0.01
         )
 
         gp.fit(self.X_train, self.y_train)

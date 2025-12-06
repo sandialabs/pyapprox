@@ -39,16 +39,16 @@ class MultiOutputGP(Generic[Array]):
     ----------
     kernel : IndependentMultiOutputKernel or LinearCoregionalizationKernel
         Multi-output kernel for covariance computation.
-    noise_variance : float, optional
-        Observation noise variance (added to diagonal for stability).
-        Default: 1e-6.
+    nugget : float, optional
+        Small value added to diagonal for numerical stability during
+        matrix inversion. Default: 1e-6.
 
     Attributes
     ----------
     _kernel : MultiOutputKernel
         The multi-output kernel.
-    _noise_variance : float
-        Observation noise variance.
+    _nugget : float
+        Nugget for numerical conditioning.
     _bkd : Backend
         Backend for numerical operations.
     _is_fitted : bool
@@ -75,7 +75,7 @@ class MultiOutputGP(Generic[Array]):
     >>> k2 = MaternKernel(2.5, [1.0], (0.1, 10.0), 1, bkd)
     >>> mo_kernel = IndependentMultiOutputKernel([k1, k2])
     >>> # Create GP
-    >>> gp = MultiOutputGP(mo_kernel, noise_variance=1e-6)
+    >>> gp = MultiOutputGP(mo_kernel, nugget=1e-6)
     >>> # Fit to data
     >>> X_train = bkd.array(np.random.randn(1, 10))
     >>> y1 = np.sin(X_train[0, :])
@@ -91,7 +91,7 @@ class MultiOutputGP(Generic[Array]):
     def __init__(
         self,
         kernel: Union[IndependentMultiOutputKernel, LinearCoregionalizationKernel],
-        noise_variance: float = 1e-6,
+        nugget: float = 1e-6,
     ):
         """
         Initialize the MultiOutputGP.
@@ -100,11 +100,11 @@ class MultiOutputGP(Generic[Array]):
         ----------
         kernel : IndependentMultiOutputKernel or LinearCoregionalizationKernel
             Multi-output kernel.
-        noise_variance : float, optional
-            Observation noise variance. Default: 1e-6.
+        nugget : float, optional
+            Small value added to diagonal for numerical stability. Default: 1e-6.
         """
         self._kernel = kernel
-        self._noise_variance = noise_variance
+        self._nugget = nugget
         self._bkd = kernel.bkd()
         self._is_fitted = False
 
@@ -194,7 +194,7 @@ class MultiOutputGP(Generic[Array]):
 
         # Build kernel matrix
         K = self._kernel(X_train_list, block_format=False)
-        K_noisy = K + self._bkd.eye(K.shape[0]) * self._noise_variance
+        K_noisy = K + self._bkd.eye(K.shape[0]) * self._nugget
 
         # Cholesky factorization
         L = self._bkd.cholesky(K_noisy)
@@ -512,7 +512,7 @@ class MultiOutputGP(Generic[Array]):
         return (
             f"MultiOutputGP(\n"
             f"  kernel={repr(self._kernel)},\n"
-            f"  noise_variance={self._noise_variance},\n"
+            f"  nugget={self._nugget},\n"
             f"  status={fitted_str}\n"
             f")"
         )

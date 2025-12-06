@@ -515,16 +515,17 @@ class NegativeLogMarginalLikelihoodLoss(Generic[Array]):
             hvp_mean = self._bkd.einsum('ijk,jk->i', mean_jac, Kinv_DV_mean)
             hvp_parts.append(hvp_mean)
 
-        # Concatenate all HVP parts and reshape to (1, nactive)
+        # Concatenate all HVP parts and reshape to (nactive, 1)
+        # Following the standard convention: hvp returns (nvars, 1)
         if len(hvp_parts) == 0:
-            hvp = self._bkd.zeros((1, 0))
+            hvp = self._bkd.zeros((0, 1))
         elif len(hvp_parts) == 1:
-            hvp = self._bkd.reshape(hvp_parts[0], (1, -1))
+            hvp = self._bkd.reshape(hvp_parts[0], (-1, 1))
         else:
             hvp = self._bkd.concatenate(hvp_parts, axis=0)
-            hvp = self._bkd.reshape(hvp, (1, -1))
+            hvp = self._bkd.reshape(hvp, (-1, 1))
 
-        # Note: The kernel's hessian_wrt_params should already account for
+        # Note: The kernel's hvp_wrt_params should already account for
         # parameter transformations (e.g., log-space), so no additional
         # chain rule application is needed here
 

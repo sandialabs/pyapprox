@@ -12,7 +12,7 @@ from pyapprox.typing.surrogates.kernels.composition import (
     ProductKernel,
     SumKernel,
 )
-from pyapprox.typing.surrogates.kernels.matern import MaternKernel
+from pyapprox.typing.surrogates.kernels.matern import Matern52Kernel, Matern32Kernel
 
 
 class TestProductKernel(Generic[Array], unittest.TestCase):
@@ -32,15 +32,13 @@ class TestProductKernel(Generic[Array], unittest.TestCase):
         self.nsamples2 = 4
 
         # Create two Matern kernels for composition
-        self.kernel1 = MaternKernel(
-            2.5,
+        self.kernel1 = Matern52Kernel(
             [1.0, 1.0],
             (0.1, 10.0),
             self.nvars,
             self.bkd()
         )
-        self.kernel2 = MaternKernel(
-            1.5,
+        self.kernel2 = Matern32Kernel(
             [0.5, 0.5],
             (0.1, 10.0),
             self.nvars,
@@ -77,8 +75,7 @@ class TestProductKernel(Generic[Array], unittest.TestCase):
         else:
             other_bkd = NumpyBkd()
 
-        kernel_other = MaternKernel(
-            2.5,
+        kernel_other = Matern52Kernel(
             [1.0, 1.0],
             (0.1, 10.0),
             self.nvars,
@@ -235,15 +232,13 @@ class TestSumKernel(Generic[Array], unittest.TestCase):
         self.nsamples2 = 4
 
         # Create two Matern kernels for composition
-        self.kernel1 = MaternKernel(
-            2.5,
+        self.kernel1 = Matern52Kernel(
             [1.0, 1.0],
             (0.1, 10.0),
             self.nvars,
             self.bkd()
         )
-        self.kernel2 = MaternKernel(
-            1.5,
+        self.kernel2 = Matern32Kernel(
             [0.5, 0.5],
             (0.1, 10.0),
             self.nvars,
@@ -280,8 +275,7 @@ class TestSumKernel(Generic[Array], unittest.TestCase):
         else:
             other_bkd = NumpyBkd()
 
-        kernel_other = MaternKernel(
-            2.5,
+        kernel_other = Matern52Kernel(
             [1.0, 1.0],
             (0.1, 10.0),
             self.nvars,
@@ -433,14 +427,14 @@ class TestNestedComposition(Generic[Array], unittest.TestCase):
         self.nsamples = 5
 
         # Create three kernels
-        self.k1 = MaternKernel(
-            2.5, [1.0, 1.0], (0.1, 10.0), self.nvars, self.bkd()
+        self.k1 = Matern52Kernel(
+            [1.0, 1.0], (0.1, 10.0), self.nvars, self.bkd()
         )
-        self.k2 = MaternKernel(
-            1.5, [0.5, 0.5], (0.1, 10.0), self.nvars, self.bkd()
+        self.k2 = Matern32Kernel(
+            [0.5, 0.5], (0.1, 10.0), self.nvars, self.bkd()
         )
-        self.k3 = MaternKernel(
-            3/2, [2.0, 2.0], (0.1, 10.0), self.nvars, self.bkd()
+        self.k3 = Matern32Kernel(
+            [2.0, 2.0], (0.1, 10.0), self.nvars, self.bkd()
         )
 
         self.X = self.bkd().array(np.random.randn(self.nvars, self.nsamples))

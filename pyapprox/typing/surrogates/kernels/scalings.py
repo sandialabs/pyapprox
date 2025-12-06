@@ -352,6 +352,32 @@ class PolynomialScaling(Generic[Array]):
 
     def jacobian_wrt_params(self, X: Array) -> Array:
         """
+        Compute Jacobian of scaling function ρ(X) w.r.t. hyperparameters.
+
+        Parameters
+        ----------
+        X : Array
+            Input points, shape (nvars, nsamples).
+
+        Returns
+        -------
+        jac : Array
+            Jacobian w.r.t. parameters, shape (nsamples, ncoeffs).
+            jac[i, j] = ∂ρ(X[:, i])/∂θ_j
+        """
+        n_samples = X.shape[1]
+
+        # Compute ∂ρ/∂θ
+        if self._degree == 0:
+            # Constant: ∂ρ/∂c0 = 1
+            return self._bkd.ones((n_samples, 1))  # (n, 1)
+        else:
+            # Linear: ∂ρ/∂c0 = 1, ∂ρ/∂ci = xi
+            ones_col = self._bkd.ones((n_samples, 1))
+            return self._bkd.hstack([ones_col, X.T])  # (n, ncoeffs)
+
+    def kernel_jacobian_wrt_params(self, X: Array) -> Array:
+        """
         Compute Jacobian of kernel K(X, X) w.r.t. hyperparameters.
 
         For K(x, x') = ρ(x) * ρ(x'), the Jacobian is:
@@ -372,15 +398,7 @@ class PolynomialScaling(Generic[Array]):
         """
         n_samples = X.shape[1]
         rho = self.eval_scaling(X)  # (n, 1)
-
-        # Compute ∂ρ/∂θ
-        if self._degree == 0:
-            # Constant: ∂ρ/∂c0 = 1
-            drho_dtheta = self._bkd.ones((n_samples, 1))  # (n, 1)
-        else:
-            # Linear: ∂ρ/∂c0 = 1, ∂ρ/∂ci = xi
-            ones_col = self._bkd.ones((n_samples, 1))
-            drho_dtheta = self._bkd.hstack([ones_col, X.T])  # (n, ncoeffs)
+        drho_dtheta = self.jacobian_wrt_params(X)  # (n, ncoeffs)
 
         ncoeffs = drho_dtheta.shape[1]
         jac = self._bkd.zeros((n_samples, n_samples, ncoeffs))
@@ -391,53 +409,6 @@ class PolynomialScaling(Generic[Array]):
             jac[:, :, i] = drho_i @ rho.T + rho @ drho_i.T  # (n, n)
 
         return jac
-
-    def hessian_wrt_params(self, X: Array) -> Array:
-        """
-        Compute Hessian of kernel K(X, X) w.r.t. hyperparameters.
-
-        For K(x, x') = ρ(x) * ρ(x'), the Hessian is:
-        ∂²K/∂θ_i∂θ_j = (∂²ρ(x)/∂θ_i∂θ_j) * ρ(x')^T
-                      + (∂ρ(x)/∂θ_i) * (∂ρ(x')/∂θ_j)^T
-                      + (∂ρ(x)/∂θ_j) * (∂ρ(x')/∂θ_i)^T
-                      + ρ(x) * (∂²ρ(x')/∂θ_i∂θ_j)^T
-
-        For polynomial scaling (degree 0 or 1), ∂²ρ/∂θ_i∂θ_j = 0, so:
-        ∂²K/∂θ_i∂θ_j = (∂ρ/∂θ_i) @ (∂ρ/∂θ_j)^T + (∂ρ/∂θ_j) @ (∂ρ/∂θ_i)^T
-
-        Parameters
-        ----------
-        X : Array
-            Input points, shape (nvars, nsamples).
-
-        Returns
-        -------
-        hess : Array
-            Hessian w.r.t. parameters, shape (n, n, ncoeffs, ncoeffs).
-        """
-        n_samples = X.shape[1]
-
-        # Compute ∂ρ/∂θ
-        if self._degree == 0:
-            # Constant: ∂ρ/∂c0 = 1
-            drho_dtheta = self._bkd.ones((n_samples, 1))  # (n, 1)
-        else:
-            # Linear: ∂ρ/∂c0 = 1, ∂ρ/∂ci = xi
-            ones_col = self._bkd.ones((n_samples, 1))
-            drho_dtheta = self._bkd.hstack([ones_col, X.T])  # (n, ncoeffs)
-
-        ncoeffs = drho_dtheta.shape[1]
-        hess = self._bkd.zeros((n_samples, n_samples, ncoeffs, ncoeffs))
-
-        # For polynomial scaling, ∂²ρ/∂θ_i∂θ_j = 0
-        # So: ∂²K/∂θ_i∂θ_j = (∂ρ/∂θ_i) @ (∂ρ/∂θ_j)^T + (∂ρ/∂θ_j) @ (∂ρ/∂θ_i)^T
-        for i in range(ncoeffs):
-            drho_i = self._bkd.reshape(drho_dtheta[:, i], (-1, 1))  # (n, 1)
-            for j in range(ncoeffs):
-                drho_j = self._bkd.reshape(drho_dtheta[:, j], (-1, 1))  # (n, 1)
-                hess[:, :, i, j] = drho_i @ drho_j.T + drho_j @ drho_i.T  # (n, n)
-
-        return hess
 
     def hvp_wrt_params(self, X: Array, direction: Array) -> Array:
         """
@@ -461,18 +432,7 @@ class PolynomialScaling(Generic[Array]):
             Hessian-vector product, shape (n, n, ncoeffs).
             hvp[:, :, i] = Σ_j (∂²K/∂θ_i∂θ_j) * v[j]
         """
-        n_samples = X.shape[1]
-
-        # Compute ∂ρ/∂θ
-        if self._degree == 0:
-            # Constant: ∂ρ/∂c0 = 1
-            drho_dtheta = self._bkd.ones((n_samples, 1))  # (n, 1)
-        else:
-            # Linear: ∂ρ/∂c0 = 1, ∂ρ/∂ci = xi
-            ones_col = self._bkd.ones((n_samples, 1))
-            drho_dtheta = self._bkd.hstack([ones_col, X.T])  # (n, ncoeffs)
-
-        ncoeffs = drho_dtheta.shape[1]
+        drho_dtheta = self.jacobian_wrt_params(X)  # (n, ncoeffs)
 
         # Vectorized HVP computation
         # For each i: hvp[:, :, i] = Σ_j H[:, :, i, j] * v[j]

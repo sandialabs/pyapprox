@@ -190,8 +190,32 @@ class FunctionOfParametersWithJacobianAndHVP(
 
 class _FunctionOfParameters(FunctionProtocol[Array]):
     """
-    Adapts a ParameterizedFunction f(x, p) → Function of p with x frozen.
-    Dynamically exposes jacobian/hvp based on underlying capabilities.
+    Adapts a ParameterizedFunction f(x, p) to a Function of p with x frozen.
+
+    This class dynamically exposes jacobian/hvp based on underlying capabilities.
+
+    Parameters
+    ----------
+    param_fun : ParameterizedFunctionProtocol[Array]
+        The parameterized function f(x, p).
+    fixed_x : Array
+        The fixed value of x.
+
+    Optional Methods
+    ----------------
+    This class uses dynamic method binding based on param_fun capabilities:
+
+    - ``jacobian(params)``: Available if param_fun implements
+      ``ParameterizedFunctionWithJacobianProtocol``.
+    - ``hvp(params, vec)``: Available if param_fun implements
+      ``ParameterizedFunctionWithJacobianAndHVPProtocol``.
+
+    Check availability with ``hasattr(func, 'jacobian')`` or ``hasattr(func, 'hvp')``.
+
+    Notes
+    -----
+    This class follows the dynamic binding pattern for optional methods.
+    See docs/OPTIONAL_METHODS_CONVENTION.md for details.
     """
 
     def __init__(
@@ -205,12 +229,21 @@ class _FunctionOfParameters(FunctionProtocol[Array]):
         validate_samples(param_fun.nvars(), fixed_x)
         self._fixed_x = fixed_x
 
-        # Dynamically bind optional methods based on underlying capabilities
-        if isinstance(param_fun, ParameterizedFunctionWithJacobianProtocol):
+        # Conditionally add derivative methods based on param_fun capabilities
+        self._setup_derivative_methods()
+
+    def _setup_derivative_methods(self) -> None:
+        """
+        Conditionally add jacobian and hvp methods.
+
+        Methods are only exposed if the underlying parameterized function
+        supports them.
+        """
+        if isinstance(self._param_fun, ParameterizedFunctionWithJacobianProtocol):
             self.jacobian = self._jacobian
 
         if isinstance(
-            param_fun, ParameterizedFunctionWithJacobianAndHVPProtocol
+            self._param_fun, ParameterizedFunctionWithJacobianAndHVPProtocol
         ):
             self.hvp = self._hvp
 
