@@ -78,6 +78,45 @@ class BackwardEulerResidual(TimeSteppingResidualBase[Array]):
         ) - self._deltat * self._residual.jacobian(state)
 
     # =========================================================================
+    # Sensitivity Protocol Methods
+    # =========================================================================
+
+    def is_explicit(self) -> bool:
+        """Return False since Backward Euler is an implicit scheme."""
+        return False
+
+    def has_prev_state_hessian(self) -> bool:
+        """Return False since R_{n+1} does not depend on f(y_n)."""
+        return False
+
+    def sensitivity_off_diag_jacobian(
+        self, fsol_nm1: Array, fsol_n: Array, deltat: float
+    ) -> Array:
+        """
+        Compute dR_n/dy_{n-1} for forward sensitivity propagation.
+
+        For Backward Euler R_n = y_n - y_{n-1} - Δt·f(y_n):
+            dR_n/dy_{n-1} = -M
+
+        The f(y_n) term does not depend on y_{n-1}.
+
+        Parameters
+        ----------
+        fsol_nm1 : Array
+            Solution at previous time step y_{n-1}. Shape: (nstates,)
+        fsol_n : Array
+            Solution at current time step y_n. Shape: (nstates,)
+        deltat : float
+            Time step size Δt.
+
+        Returns
+        -------
+        Array
+            Off-diagonal Jacobian dR_n/dy_{n-1}. Shape: (nstates, nstates)
+        """
+        return -self._residual.mass_matrix(fsol_nm1.shape[0])
+
+    # =========================================================================
     # Adjoint Methods
     # =========================================================================
 

@@ -35,6 +35,10 @@ class TimeTrajectoryStorage(Generic[Array]):
             "_times",
             "_sensitivity_sols",
             "_second_adjoint_sols",
+            # Jacobian trajectories (cached to avoid recomputation)
+            "_diag_jacobians",
+            "_offdiag_jacobians",
+            "_param_jacobians",
         ]
 
     def set_parameter(self, param: Array) -> None:
@@ -207,6 +211,79 @@ class TimeTrajectoryStorage(Generic[Array]):
                 "must call set_second_adjoint_trajectory first"
             )
         return self._second_adjoint_sols
+
+    # =========================================================================
+    # Jacobian Trajectories (for caching to avoid recomputation)
+    # =========================================================================
+
+    def set_jacobian_trajectories(
+        self,
+        diag: Array,
+        offdiag: Array,
+        param: Array,
+    ) -> None:
+        """
+        Set all Jacobian trajectories at once.
+
+        Parameters
+        ----------
+        diag : Array
+            Diagonal Jacobians dR_n/dy_n. Shape: (nstates, nstates, ntimes)
+        offdiag : Array
+            Off-diagonal Jacobians dR_n/dy_{n-1}. Shape: (nstates, nstates, ntimes)
+        param : Array
+            Parameter Jacobians dR_n/dp. Shape: (nstates, nparams, ntimes)
+        """
+        self._diag_jacobians = diag
+        self._offdiag_jacobians = offdiag
+        self._param_jacobians = param
+
+    def has_jacobian_trajectories(self) -> bool:
+        """Check if all Jacobian trajectories are set."""
+        return (
+            hasattr(self, "_diag_jacobians")
+            and hasattr(self, "_offdiag_jacobians")
+            and hasattr(self, "_param_jacobians")
+        )
+
+    def get_jacobian_trajectories(self) -> Tuple[Array, Array, Array]:
+        """
+        Get all Jacobian trajectories.
+
+        Returns
+        -------
+        Tuple[Array, Array, Array]
+            (diag, offdiag, param) Jacobian arrays.
+        """
+        if not self.has_jacobian_trajectories():
+            raise AttributeError("must call set_jacobian_trajectories first")
+        return (
+            self._diag_jacobians,
+            self._offdiag_jacobians,
+            self._param_jacobians,
+        )
+
+    def get_jacobians_at_step(self, n: int) -> Tuple[Array, Array, Array]:
+        """
+        Get Jacobians at a specific time step.
+
+        Parameters
+        ----------
+        n : int
+            Time step index.
+
+        Returns
+        -------
+        Tuple[Array, Array, Array]
+            (diag_n, offdiag_n, param_n) Jacobians at step n.
+        """
+        if not self.has_jacobian_trajectories():
+            raise AttributeError("must call set_jacobian_trajectories first")
+        return (
+            self._diag_jacobians[:, :, n],
+            self._offdiag_jacobians[:, :, n],
+            self._param_jacobians[:, :, n],
+        )
 
     def __repr__(self) -> str:
         return (

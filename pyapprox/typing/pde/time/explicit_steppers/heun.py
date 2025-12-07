@@ -96,6 +96,61 @@ class HeunResidual(TimeSteppingResidualBase[Array]):
         return self._residual.mass_matrix(state.shape[0])
 
     # =========================================================================
+    # Sensitivity Protocol Methods
+    # =========================================================================
+
+    def is_explicit(self) -> bool:
+        """Return True since Heun is an explicit scheme."""
+        return True
+
+    def has_prev_state_hessian(self) -> bool:
+        """Return False since R_{n+1} does not depend on f(y_n)."""
+        return False
+
+    def sensitivity_off_diag_jacobian(
+        self, fsol_nm1: Array, fsol_n: Array, deltat: float
+    ) -> Array:
+        """
+        Compute dR_n/dy_{n-1} for forward sensitivity propagation.
+
+        For Heun R_n = y_n - y_{n-1} - (Δt/2)·(k1 + k2):
+            k1 = f(y_{n-1}), k2 = f(y_{n-1} + Δt·k1)
+
+        dR_n/dy_{n-1} = -(M + (Δt/2)·(J1 + J2·(M + Δt·J1)))
+
+        Parameters
+        ----------
+        fsol_nm1 : Array
+            Solution at previous time step y_{n-1}. Shape: (nstates,)
+        fsol_n : Array
+            Solution at current time step y_n. Shape: (nstates,)
+        deltat : float
+            Time step size Δt.
+
+        Returns
+        -------
+        Array
+            Off-diagonal Jacobian dR_n/dy_{n-1}. Shape: (nstates, nstates)
+        """
+        self._residual.set_time(self._time)
+        k1_jac = self._residual.jacobian(fsol_nm1)
+
+        # k2 evaluation point
+        k1 = self._residual(fsol_nm1)
+        k2_state = fsol_nm1 + deltat * k1
+
+        self._residual.set_time(self._time + deltat)
+        k2_jac = self._residual.jacobian(k2_state)
+
+        mass = self._residual.mass_matrix(fsol_nm1.shape[0])
+
+        # dR/dy_{n-1} = -(M + (Δt/2)·(J1 + J2·(M + Δt·J1)))
+        return -(
+            mass
+            + 0.5 * deltat * (k1_jac + k2_jac @ (mass + deltat * k1_jac))
+        )
+
+    # =========================================================================
     # Adjoint Methods
     # =========================================================================
 

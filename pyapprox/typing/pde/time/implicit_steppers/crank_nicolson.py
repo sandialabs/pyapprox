@@ -92,6 +92,53 @@ class CrankNicolsonResidual(TimeSteppingResidualBase[Array]):
         )
 
     # =========================================================================
+    # Sensitivity Protocol Methods
+    # =========================================================================
+
+    def is_explicit(self) -> bool:
+        """Return False since Crank-Nicolson is an implicit scheme."""
+        return False
+
+    def has_prev_state_hessian(self) -> bool:
+        """
+        Return True since R_{n+1} depends on f(y_n) (y_n is y_{n-1} for R_{n+1}).
+
+        Crank-Nicolson: R_n = y_n - y_{n-1} - (Δt/2)·[f(y_{n-1}) + f(y_n)]
+
+        This means R_{n+1} has a term f(y_n), so when computing d²L/dy_n²
+        we need to include the contribution from R_{n+1}'s dependence on y_n.
+        """
+        return True
+
+    def sensitivity_off_diag_jacobian(
+        self, fsol_nm1: Array, fsol_n: Array, deltat: float
+    ) -> Array:
+        """
+        Compute dR_n/dy_{n-1} for forward sensitivity propagation.
+
+        For Crank-Nicolson R_n = y_n - y_{n-1} - (Δt/2)·[f(y_{n-1}) + f(y_n)]:
+            dR_n/dy_{n-1} = -(M + (Δt/2)·J_{n-1})
+
+        Parameters
+        ----------
+        fsol_nm1 : Array
+            Solution at previous time step y_{n-1}. Shape: (nstates,)
+        fsol_n : Array
+            Solution at current time step y_n. Shape: (nstates,)
+        deltat : float
+            Time step size Δt.
+
+        Returns
+        -------
+        Array
+            Off-diagonal Jacobian dR_n/dy_{n-1}. Shape: (nstates, nstates)
+        """
+        self._residual.set_time(self._time)
+        mass = self._residual.mass_matrix(fsol_nm1.shape[0])
+        jac = self._residual.jacobian(fsol_nm1)
+        return -(mass + 0.5 * deltat * jac)
+
+    # =========================================================================
     # Adjoint Methods
     # =========================================================================
 

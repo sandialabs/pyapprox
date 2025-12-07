@@ -69,23 +69,35 @@ class TimeAdjointOperatorWithHVP(Generic[Array]):
         # Check for HVP capability
         self._has_hvp = hasattr(self._time_residual, "state_state_hvp")
 
-        # Check scheme type
-        class_name = self._time_residual.__class__.__name__
-        self._explicit_scheme = "ForwardEuler" in class_name or "Heun" in class_name
-        self._crank_nicolson_scheme = "CrankNicolson" in class_name
+        # Verify stepper implements sensitivity protocol
+        self._validate_sensitivity_protocol()
+
+    def _validate_sensitivity_protocol(self) -> None:
+        """Verify stepper implements required sensitivity protocol methods."""
+        required_methods = [
+            "sensitivity_off_diag_jacobian",
+            "is_explicit",
+            "has_prev_state_hessian",
+        ]
+        missing = [m for m in required_methods if not hasattr(self._time_residual, m)]
+        if missing:
+            raise TypeError(
+                f"Time residual {type(self._time_residual).__name__} must implement "
+                f"sensitivity protocol methods: {missing}"
+            )
 
     def _is_explicit_scheme(self) -> bool:
         """Check if the time stepping scheme is explicit."""
-        return self._explicit_scheme
+        return self._time_residual.is_explicit()
 
     def _is_crank_nicolson(self) -> bool:
-        """Check if using Crank-Nicolson scheme.
+        """Check if scheme has prev-state Hessian contributions.
 
-        Crank-Nicolson is a special case because R_n depends on BOTH
-        y_{n-1} and y_n through f(y_{n-1}) and f(y_n). This means the
-        Hessian at y_n includes contributions from BOTH R_n and R_{n+1}.
+        Returns True for schemes where R_{n+1} depends on f(y_n), meaning
+        the Hessian at y_n includes contributions from BOTH R_n and R_{n+1}.
+        (e.g., Crank-Nicolson)
         """
-        return self._crank_nicolson_scheme
+        return self._time_residual.has_prev_state_hessian()
 
     def bkd(self) -> Backend[Array]:
         """Return the backend."""
@@ -328,58 +340,12 @@ class TimeAdjointOperatorWithHVP(Generic[Array]):
         """
         Get dR_n/dy_{n-1} for sensitivity propagation.
 
-        This is computed from the time stepping scheme. For most schemes:
-        dR_n/dy_{n-1} = -M - Δt·(contribution from f evaluated at y_{n-1})
+        Delegates to the stepper's sensitivity_off_diag_jacobian method.
+        Each stepper knows its own formula for dR_n/dy_{n-1}.
         """
-        # The off-diagonal in adjoint is (dR_{n+1}/dy_n)^T
-        # For forward sensitivity, we need dR_n/dy_{n-1}
-        # This differs by which time step we're looking at
-
-        nstates = fsol_nm1.shape[0]
-        mass = self._time_residual.native_residual.mass_matrix(nstates)
-
-        # For explicit methods: dR_n/dy_{n-1} = -M - Δt·J_{n-1}
-        # For implicit methods: dR_n/dy_{n-1} = -M
-        # This depends on the specific scheme
-
-        # Use the adjoint_off_diag_jacobian evaluated correctly
-        # Note: adjoint_off_diag gives (dR_{n+1}/dy_n)^T
-        # We want dR_n/dy_{n-1}, so we need to be careful about indices
-
-        # Compute directly based on scheme type
-        self._time_residual.native_residual.set_time(
-            self._time_residual._time
+        return self._time_residual.sensitivity_off_diag_jacobian(
+            fsol_nm1, fsol_n, deltat_n
         )
-        jac_nm1 = self._time_residual.native_residual.jacobian(fsol_nm1)
-
-        # Get the class name to determine scheme type
-        class_name = self._time_residual.__class__.__name__
-
-        if "ForwardEuler" in class_name:
-            # dR_n/dy_{n-1} = -M - Δt·J_{n-1}
-            return -mass - deltat_n * jac_nm1
-        elif "BackwardEuler" in class_name:
-            # dR_n/dy_{n-1} = -M
-            return -mass
-        elif "Heun" in class_name:
-            # Heun has chain rule through k1, k2
-            # Simplified: use -M - (Δt/2)·(contribution)
-            k1 = self._time_residual.native_residual(fsol_nm1)
-            k2_state = fsol_nm1 + deltat_n * k1
-            self._time_residual.native_residual.set_time(
-                self._time_residual._time + deltat_n
-            )
-            k2_jac = self._time_residual.native_residual.jacobian(k2_state)
-            return -(
-                mass
-                + 0.5 * deltat_n * (jac_nm1 + k2_jac @ (mass + deltat_n * jac_nm1))
-            )
-        elif "CrankNicolson" in class_name:
-            # dR_n/dy_{n-1} = -M - (Δt/2)·J_{n-1}
-            return -mass - 0.5 * deltat_n * jac_nm1
-        else:
-            # Default: use -M
-            return -mass
 
     # =========================================================================
     # Second Adjoint (for Hessian)
