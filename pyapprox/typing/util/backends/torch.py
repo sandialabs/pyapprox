@@ -430,4 +430,16 @@ class TorchBkd(Backend[torch.Tensor]):  # Specify torch.Tensor type
 
     @staticmethod
     def triu(array: torch.Tensor, k: int = 0) -> torch.Tensor:
-        return torch.tril(array, diagonal=k)
+        return torch.triu(array, diagonal=k)
+
+    @staticmethod
+    def kron(a: torch.Tensor, b: torch.Tensor) -> torch.Tensor:
+        return torch.kron(a, b)
+
+    @staticmethod
+    def repeat(
+        array: torch.Tensor, repeats: int, axis: Optional[int] = None
+    ) -> torch.Tensor:
+        if axis is None:
+            return array.flatten().repeat_interleave(repeats)
+        return array.repeat_interleave(repeats, dim=axis)

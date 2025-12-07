@@ -375,3 +375,13 @@ class NumpyBkd(Backend[NDArray[Any]]):  # Specify NDArray type
     @staticmethod
     def triu(array: NDArray[Any], k: int = 0) -> NDArray[Any]:
         return np.triu(array, k)
+
+    @staticmethod
+    def kron(a: NDArray[Any], b: NDArray[Any]) -> NDArray[Any]:
+        return np.kron(a, b)
+
+    @staticmethod
+    def repeat(
+        array: NDArray[Any], repeats: int, axis: Optional[int] = None
+    ) -> NDArray[Any]:
+        return np.repeat(array, repeats, axis=axis)

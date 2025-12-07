@@ -426,6 +426,16 @@ class Backend(Protocol, Generic[Array]):
     def tile(array: Array, reps: Tuple[int, ...]) -> Array: ...
 
     @staticmethod
+    def kron(a: Array, b: Array) -> Array:
+        """Compute Kronecker product of two matrices."""
+        ...
+
+    @staticmethod
+    def repeat(array: Array, repeats: int, axis: Optional[int] = None) -> Array:
+        """Repeat elements of an array."""
+        ...
+
+    @staticmethod
     def isnan(array: Array) -> Array: ...
 
     @staticmethod
