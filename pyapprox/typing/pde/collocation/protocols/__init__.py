@@ -10,6 +10,9 @@ from pyapprox.typing.pde.collocation.protocols.mesh import (
     MeshWithTransformProtocol,
 )
 from pyapprox.typing.pde.collocation.protocols.basis import (
+    NodesGenerator1DProtocol,
+    DerivativeMatrix1DProtocol,
+    TensorProductBasisProtocol,
     BasisProtocol,
     BasisWithQuadratureProtocol,
 )
@@ -42,7 +45,11 @@ __all__ = [
     "MeshProtocol",
     "TransformProtocol",
     "MeshWithTransformProtocol",
-    # Basis
+    # Basis (extensibility protocols)
+    "NodesGenerator1DProtocol",
+    "DerivativeMatrix1DProtocol",
+    "TensorProductBasisProtocol",
+    # Basis (high-level)
     "BasisProtocol",
     "BasisWithQuadratureProtocol",
     # Operators
