@@ -70,17 +70,21 @@ class ChebyshevBasis1D(Generic[Array]):
         """
         return self._tensor_basis.nodes_1d(0)
 
-    def derivative_matrix(self, order: int = 1) -> Array:
+    def derivative_matrix(self, order: int = 1, dim: int = 0) -> Array:
         """Return derivative matrix.
 
         Parameters
         ----------
         order : int, optional
             Derivative order. Default is 1.
+        dim : int, optional
+            Spatial dimension. Must be 0 for 1D. Default is 0.
 
         Returns
         -------
         Array
             Derivative matrix. Shape: (npts, npts)
         """
+        if dim != 0:
+            raise ValueError(f"dim must be 0 for 1D basis, got {dim}")
         return self._tensor_basis.derivative_matrix(order, dim=0)
