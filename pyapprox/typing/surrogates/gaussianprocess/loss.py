@@ -43,8 +43,10 @@ class NegativeLogMarginalLikelihoodLoss(Generic[Array]):
 
     - ``jacobian(params)``: Available if kernel has ``jacobian_wrt_params``.
       Required for gradient-based optimization.
-    - ``hvp(params, direction)``: Available if kernel has ``hvp_wrt_params``.
-      Enables second-order optimizers (e.g., trust-constr with Hessian-vector products).
+    - ``hvp(params, direction)``: **CURRENTLY DISABLED**. There is a suspected
+      bug in the HVP implementation - benchmarks show that trust-constr with HVP
+      sometimes takes MORE iterations than without HVP, which should never happen
+      for correct Hessian-based optimization. See benchmark_hvp.py for details.
 
     Check availability with ``hasattr(loss, 'jacobian')`` or ``hasattr(loss, 'hvp')``.
 
@@ -165,19 +167,24 @@ class NegativeLogMarginalLikelihoodLoss(Generic[Array]):
         # Kernel Jacobian is required, mean Jacobian is optional
         # If mean has no parameters, it doesn't need jacobian_wrt_params
 
-        # Check kernel support for HVP (optional, enables second-order methods)
-        has_kernel_hvp = hasattr(kernel, 'hvp_wrt_params')
-        has_mean_hvp = hasattr(mean, 'hvp_wrt_params')
-
         # Dynamically add jacobian method (always available if we get here)
         self.jacobian = self._jacobian
 
-        # Dynamically add hvp method only if kernel supports it
-        if has_kernel_hvp:
-            self.hvp = self._hvp
-            self._supports_hvp = True
-        else:
-            self._supports_hvp = False
+        # HVP is currently DISABLED due to suspected bug in implementation.
+        # Benchmarks show that trust-constr with HVP sometimes takes MORE
+        # iterations than without HVP (e.g., nvars=4, n_train=1000: 87 vs 26 iters),
+        # which should never happen for correct Hessian-based optimization.
+        # See: pyapprox/typing/surrogates/gaussianprocess/tests/benchmark_hvp.py
+        #
+        # TODO: Investigate and fix HVP implementation before re-enabling.
+        # When fixed, uncomment the following:
+        # has_kernel_hvp = hasattr(kernel, 'hvp_wrt_params')
+        # if has_kernel_hvp:
+        #     self.hvp = self._hvp
+        #     self._supports_hvp = True
+        # else:
+        #     self._supports_hvp = False
+        self._supports_hvp = False
 
     def __call__(self, params: Array) -> Array:
         """
