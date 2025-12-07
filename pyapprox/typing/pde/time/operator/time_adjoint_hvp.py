@@ -69,6 +69,14 @@ class TimeAdjointOperatorWithHVP(Generic[Array]):
         # Check for HVP capability
         self._has_hvp = hasattr(self._time_residual, "state_state_hvp")
 
+        # Check if explicit scheme (Forward Euler, Heun)
+        class_name = self._time_residual.__class__.__name__
+        self._explicit_scheme = "ForwardEuler" in class_name or "Heun" in class_name
+
+    def _is_explicit_scheme(self) -> bool:
+        """Check if the time stepping scheme is explicit."""
+        return self._explicit_scheme
+
     def bkd(self) -> Backend[Array]:
         """Return the backend."""
         return self._bkd
@@ -380,7 +388,16 @@ class TimeAdjointOperatorWithHVP(Generic[Array]):
         Solve the second adjoint equations for HVP computation.
 
         The second adjoint s satisfies equations similar to the first adjoint,
-        but with additional Hessian terms on the RHS.
+        but with Hessian terms on the RHS.
+
+        Key insight from Heinkenschloss Algorithm 4.1:
+        - Algorithm 4.1 defines w via: c_y·w = c_u·v (positive sign)
+        - Our implementation uses w = dy/dp·v, which is w = -c_y^{-1}·c_u·v
+        - So our w = -w_Heinkenschloss
+
+        This affects the second adjoint RHS:
+        - Algorithm 4.1: c_y^T·p = ∇_{yy}L·w_H - ∇_{yu}L·v
+        - With our w: RHS = -∇_{yy}L·w - ∇_{yu}L·v
 
         Parameters
         ----------
@@ -389,7 +406,7 @@ class TimeAdjointOperatorWithHVP(Generic[Array]):
         adj_sols : Array
             First adjoint solutions. Shape: (nstates, ntimes)
         w_sols : Array
-            Sensitivity solutions. Shape: (nstates, ntimes)
+            Sensitivity solutions w = dy/dp·v. Shape: (nstates, ntimes)
         times : Array
             Time points. Shape: (ntimes,)
         param : Array
@@ -406,25 +423,44 @@ class TimeAdjointOperatorWithHVP(Generic[Array]):
         s_sols = self._bkd.zeros(fwd_sols.shape)
         s_sols = self._bkd.copy(s_sols)
 
-        # Initial condition at final time: similar to first adjoint
-        # but with Hessian contributions
+        # Initial condition at final time
         deltat_N = float(times[-1] - times[-2])
         self._time_residual.set_time(
             float(times[-2]), deltat_N, fwd_sols[:, -2]
         )
 
-        # d²Q/dy² · w_N - d²Q/dydp · v
+        # Functional Hessian terms at final time
+        # ∇_{yy}Q · w and ∇_{yu}Q · v
         qss_hvp = self._functional.state_state_hvp(
             fwd_sols, param, ntimes - 1, w_sols[:, -1:]
         )
         qsp_hvp = self._functional.state_param_hvp(
             fwd_sols, param, ntimes - 1, vvec
         )
-        rhs_N = qss_hvp - qsp_hvp
 
-        # For implicit methods, solve (dR/dy_N)^T · s_N = -rhs_N
+        # Residual Hessian at final time: λ_N · d²R_N/dy² · w
+        # For explicit schemes, use w_{N-1}; for implicit, use w_N
+        w_idx_N = ntimes - 2 if self._is_explicit_scheme() else ntimes - 1
+        rss_hvp = self._time_residual.state_state_hvp(
+            fwd_sols[:, -2],
+            fwd_sols[:, -1],
+            adj_sols[:, -1],
+            w_sols[:, w_idx_N],
+        )
+        rsp_hvp = self._time_residual.state_param_hvp(
+            fwd_sols[:, -2],
+            fwd_sols[:, -1],
+            adj_sols[:, -1],
+            vvec[self._functional.nunique_params():] if self._functional.nunique_params() > 0 else vvec,
+        )
+
+        # CORRECTED RHS: -∇_{yy}L·w - ∇_{yu}L·v
+        # (negative sign on Lyy·w because our w = -w_Heinkenschloss)
+        rhs_N = -(qss_hvp.flatten() + rss_hvp) - (qsp_hvp.flatten() + rsp_hvp)
+
+        # Solve (dR/dy_N)^T · s_N = RHS
         drdy_N = self._time_residual.jacobian(fwd_sols[:, -1])
-        s_sols[:, -1:] = -self._bkd.solve(drdy_N.T, rhs_N)
+        s_sols[:, -1:] = self._bkd.solve(drdy_N.T, rhs_N.reshape(-1, 1))
 
         # Backward sweep
         for nn in range(ntimes - 2, 0, -1):
@@ -452,13 +488,15 @@ class TimeAdjointOperatorWithHVP(Generic[Array]):
                 fwd_sols, param, nn, vvec
             )
 
-            # Residual Hessian terms from adjoint
-            # L_yy · w = d²Q/dy² · w + λ^T · d²R/dy²
+            # Residual Hessian terms: λ_n · d²R_n/dy² · w, etc.
+            # For explicit schemes (Forward Euler, Heun), use w_{n-1}
+            # For implicit schemes (Backward Euler, Crank-Nicolson), use w_n
+            w_idx = nn - 1 if self._is_explicit_scheme() else nn
             rss_hvp = self._time_residual.state_state_hvp(
                 fwd_sols[:, nn - 1],
                 fwd_sols[:, nn],
                 adj_sols[:, nn],
-                w_sols[:, nn],
+                w_sols[:, w_idx],
             )
             rsp_hvp = self._time_residual.state_param_hvp(
                 fwd_sols[:, nn - 1],
@@ -467,11 +505,11 @@ class TimeAdjointOperatorWithHVP(Generic[Array]):
                 vvec[self._functional.nunique_params():] if self._functional.nunique_params() > 0 else vvec,
             )
 
-            # RHS: -B^T · s_{n+1} - (L_yy · w - L_yp · v)
+            # CORRECTED RHS: -B^T·s_{n+1} - ∇_{yy}L·w - ∇_{yu}L·v
             rhs = (
                 -drduT_offdiag @ s_sols[:, nn + 1]
                 - (qss_hvp.flatten() + rss_hvp)
-                + (qsp_hvp.flatten() + rsp_hvp)
+                - (qsp_hvp.flatten() + rsp_hvp)
             )
 
             s_sols[:, nn] = self._bkd.solve(drduT_diag, rhs)
@@ -495,10 +533,11 @@ class TimeAdjointOperatorWithHVP(Generic[Array]):
             fwd_sols, param, 0, vvec
         )
 
+        # CORRECTED RHS
         rhs = (
             -drduT_offdiag @ s_sols[:, 1]
             - qss_hvp.flatten()
-            + qsp_hvp.flatten()
+            - qsp_hvp.flatten()
         )
         s_sols[:, 0] = self._bkd.solve(drduT_diag, rhs)
 
@@ -571,16 +610,18 @@ class TimeAdjointOperatorWithHVP(Generic[Array]):
                 drdp = self._bkd.hstack((zeros, drdp))
             hvp += drdp.T @ s_sols[:, nn:nn+1]
 
-            # -L_py · w + L_pp · v
+            # +L_py · w + L_pp · v (corrected sign: our w = -w_Heinkenschloss)
             # L_py = d²Q/dpdy + λ^T · d²R/dpdy
+            # For explicit schemes, use w_{n-1} for residual Hessian
+            w_idx = nn - 1 if self._is_explicit_scheme() else nn
             qps_hvp = self._functional.param_state_hvp(
-                fwd_sols, param, nn, w_sols[:, nn:nn+1]
+                fwd_sols, param, nn, w_sols[:, nn:nn+1]  # Functional uses w_n
             )
             rps_hvp = self._time_residual.param_state_hvp(
                 fwd_sols[:, nn - 1],
                 fwd_sols[:, nn],
                 adj_sols[:, nn],
-                w_sols[:, nn],
+                w_sols[:, w_idx],  # Residual uses w_{n-1} for explicit schemes
             )
             # Handle dimension - rps_hvp may be (nparams_res,)
             if rps_hvp.ndim == 1:
@@ -591,7 +632,9 @@ class TimeAdjointOperatorWithHVP(Generic[Array]):
                 rps_full[n_unique:] = rps_hvp
                 rps_hvp = rps_full
 
-            hvp -= qps_hvp + rps_hvp
+            # CORRECTED: Since our w = -w_Heinkenschloss, the -∇_{uy}L·w_H
+            # term becomes +∇_{uy}L·w
+            hvp += qps_hvp + rps_hvp
 
             # L_pp = d²Q/dp² + λ^T · d²R/dp²
             # (functional d²Q/dp² already added above)

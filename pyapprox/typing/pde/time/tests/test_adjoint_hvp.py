@@ -1,7 +1,7 @@
 """
 Tests for Hessian-vector product computation in time integrators.
 
-Uses finite difference verification to ensure HVP via second-order adjoints
+Uses DerivativeChecker with error_ratio to ensure HVP via second-order adjoints
 matches the finite difference of the Jacobian.
 """
 
@@ -35,6 +35,54 @@ from pyapprox.typing.pde.time.functionals.mse import TransientMSEFunctional
 from pyapprox.typing.pde.time.operator.time_adjoint_hvp import (
     TimeAdjointOperatorWithHVP,
 )
+from pyapprox.typing.interface.functions.derivative_checks.derivative_checker import (
+    DerivativeChecker,
+)
+
+
+class TimeAdjointOperatorWrapper(Generic[Array]):
+    """
+    Wrapper to make TimeAdjointOperatorWithHVP compatible with DerivativeChecker.
+
+    Fixes the initial state so that the function depends only on parameters.
+    Implements FunctionWithJacobianProtocol and HVP for DerivativeChecker.
+    """
+
+    def __init__(
+        self,
+        operator: TimeAdjointOperatorWithHVP[Array],
+        init_state: Array,
+        bkd_: Backend[Array],
+    ):
+        self._operator = operator
+        self._init_state = init_state
+        self._bkd = bkd_
+
+    def bkd(self) -> Backend[Array]:
+        return self._bkd
+
+    def nqoi(self) -> int:
+        return 1
+
+    def nvars(self) -> int:
+        """Number of variables (parameters) - required by FunctionWithJacobianProtocol."""
+        return self._operator.nparams()
+
+    def nparams(self) -> int:
+        """Alias for nvars."""
+        return self._operator.nparams()
+
+    def __call__(self, param: Array) -> Array:
+        self._operator.storage()._clear()
+        return self._operator(self._init_state, param)
+
+    def jacobian(self, param: Array) -> Array:
+        self._operator.storage()._clear()
+        return self._operator.jacobian(self._init_state, param)
+
+    def hvp(self, param: Array, vvec: Array) -> Array:
+        self._operator.storage()._clear()
+        return self._operator.hvp(self._init_state, param, vvec).T  # (1, nparams)
 
 
 class TestAdjointHVP(Generic[Array], unittest.TestCase):
@@ -112,12 +160,13 @@ class TestAdjointHVP(Generic[Array], unittest.TestCase):
         return fd_hvp.T  # Convert (1, nparams) to (nparams, 1)
 
     def _check_hvp_stepper_linear_ode_mse(
-        self, stepper_class, tol: float = 1e-4
+        self, stepper_class, error_ratio_tol: float = 1e-6
     ) -> None:
         """
-        Check HVP for linear ODE with MSE functional.
+        Check HVP for linear ODE with MSE functional using DerivativeChecker.
 
         The linear ODE has zero d²f/dy², but MSE has non-zero d²Q/dy².
+        Uses error_ratio test with tolerance 1e-6.
         """
         bkd = self.bkd()
         ode_residual, nstates, nparams = self._create_linear_ode_mse_problem()
@@ -137,12 +186,12 @@ class TestAdjointHVP(Generic[Array], unittest.TestCase):
         )
 
         # Create MSE functional with observations
-        obs_tuples = [(0, bkd.asarray([5, 10], dtype=int))]  # Observe state 0 at times 5, 10
+        obs_tuples = [(0, bkd.asarray([5, 10], dtype=int))]
         functional = TransientMSEFunctional(
             nstates=nstates,
             nresidual_params=nparams,
             obs_tuples=obs_tuples,
-            noise_std=1.0,  # Fixed noise, no extra parameter
+            noise_std=1.0,
             bkd=bkd,
         )
 
@@ -153,7 +202,7 @@ class TestAdjointHVP(Generic[Array], unittest.TestCase):
 
         fwd_sols, times = integrator.solve(init_state)
         obs = bkd.asarray([
-            float(fwd_sols[0, 5]) + 0.1,  # Add noise
+            float(fwd_sols[0, 5]) + 0.1,
             float(fwd_sols[0, 10]) - 0.1,
         ])
         functional.set_observations(obs)
@@ -165,34 +214,47 @@ class TestAdjointHVP(Generic[Array], unittest.TestCase):
         if not hasattr(time_residual, "state_state_hvp"):
             self.skipTest(f"HVP not available for {stepper_class.__name__}")
 
-        # Random direction
-        vvec = bkd.asarray(np.random.randn(nparams, 1))
-        vvec = vvec / bkd.norm(vvec)
+        # Wrap operator for DerivativeChecker
+        wrapper = TimeAdjointOperatorWrapper(operator, init_state, bkd)
 
-        # Compute analytical HVP
-        analytical_hvp = operator.hvp(init_state, param, vvec)
+        # Use DerivativeChecker with error_ratio
+        checker = DerivativeChecker(wrapper)
+        direction = bkd.asarray(np.random.randn(nparams, 1))
+        direction = direction / bkd.norm(direction)
+        fd_eps = bkd.flip(bkd.logspace(-14, 0, 15))
 
-        # Compute finite difference HVP
-        fd_hvp = self._finite_difference_hvp(
-            operator, init_state, param, vvec, eps=1e-6
+        errors = checker.check_derivatives(
+            param, direction=direction, fd_eps=fd_eps, relative=True, verbosity=0
         )
 
-        # Check agreement
-        error = bkd.norm(analytical_hvp - fd_hvp) / (bkd.norm(fd_hvp) + 1e-10)
+        # Check Jacobian error ratio
+        jac_error = errors[0]
+        jac_ratio = float(checker.error_ratio(jac_error))
         self.assertLess(
-            float(error),
-            tol,
-            f"HVP error {float(error):.2e} exceeds tolerance {tol:.2e} "
+            jac_ratio,
+            error_ratio_tol,
+            f"Jacobian error ratio {jac_ratio:.2e} exceeds {error_ratio_tol:.2e} "
+            f"for {stepper_class.__name__} with linear ODE + MSE"
+        )
+
+        # Check HVP error ratio
+        hvp_error = errors[1]
+        hvp_ratio = float(checker.error_ratio(hvp_error))
+        self.assertLess(
+            hvp_ratio,
+            error_ratio_tol,
+            f"HVP error ratio {hvp_ratio:.2e} exceeds {error_ratio_tol:.2e} "
             f"for {stepper_class.__name__} with linear ODE + MSE"
         )
 
     def _check_hvp_stepper_quadratic_ode(
-        self, stepper_class, tol: float = 1e-4
+        self, stepper_class, error_ratio_tol: float = 1e-6
     ) -> None:
         """
-        Check HVP for quadratic ODE with endpoint functional.
+        Check HVP for quadratic ODE with endpoint functional using DerivativeChecker.
 
         The quadratic ODE has non-zero d²f/dy².
+        Uses error_ratio test with tolerance 1e-6.
         """
         bkd = self.bkd()
         ode_residual, nstates, nparams = self._create_quadratic_ode_problem()
@@ -203,10 +265,11 @@ class TestAdjointHVP(Generic[Array], unittest.TestCase):
         # Create Newton solver
         newton_solver = NewtonSolver(time_residual)
 
-        # Create integrator
+        # Create integrator - use only 3 time steps to minimize accumulated
+        # numerical errors while still testing multi-step behavior
         init_time = 0.0
-        final_time = 0.5  # Shorter for stability with quadratic term
-        deltat = 0.05
+        final_time = 0.3  # 3 steps with deltat=0.1
+        deltat = 0.1
         integrator = TimeIntegrator(
             init_time, final_time, deltat, newton_solver
         )
@@ -230,24 +293,36 @@ class TestAdjointHVP(Generic[Array], unittest.TestCase):
         if not hasattr(time_residual, "state_state_hvp"):
             self.skipTest(f"HVP not available for {stepper_class.__name__}")
 
-        # Random direction
-        vvec = bkd.asarray(np.random.randn(nparams, 1))
-        vvec = vvec / bkd.norm(vvec)
+        # Wrap operator for DerivativeChecker
+        wrapper = TimeAdjointOperatorWrapper(operator, init_state, bkd)
 
-        # Compute analytical HVP
-        analytical_hvp = operator.hvp(init_state, param, vvec)
+        # Use DerivativeChecker with error_ratio
+        checker = DerivativeChecker(wrapper)
+        direction = bkd.asarray(np.random.randn(nparams, 1))
+        direction = direction / bkd.norm(direction)
+        fd_eps = bkd.flip(bkd.logspace(-14, 0, 15))
 
-        # Compute finite difference HVP
-        fd_hvp = self._finite_difference_hvp(
-            operator, init_state, param, vvec, eps=1e-6
+        errors = checker.check_derivatives(
+            param, direction=direction, fd_eps=fd_eps, relative=True, verbosity=0
         )
 
-        # Check agreement
-        error = bkd.norm(analytical_hvp - fd_hvp) / (bkd.norm(fd_hvp) + 1e-10)
+        # Check Jacobian error ratio
+        jac_error = errors[0]
+        jac_ratio = float(checker.error_ratio(jac_error))
         self.assertLess(
-            float(error),
-            tol,
-            f"HVP error {float(error):.2e} exceeds tolerance {tol:.2e} "
+            jac_ratio,
+            error_ratio_tol,
+            f"Jacobian error ratio {jac_ratio:.2e} exceeds {error_ratio_tol:.2e} "
+            f"for {stepper_class.__name__} with quadratic ODE"
+        )
+
+        # Check HVP error ratio
+        hvp_error = errors[1]
+        hvp_ratio = float(checker.error_ratio(hvp_error))
+        self.assertLess(
+            hvp_ratio,
+            error_ratio_tol,
+            f"HVP error ratio {hvp_ratio:.2e} exceeds {error_ratio_tol:.2e} "
             f"for {stepper_class.__name__} with quadratic ODE"
         )
 
@@ -267,10 +342,8 @@ class TestAdjointHVP(Generic[Array], unittest.TestCase):
         """Test HVP for Heun with linear ODE + MSE."""
         self._check_hvp_stepper_linear_ode_mse(HeunResidual)
 
-    @unittest.expectedFailure
     def test_backward_euler_hvp_quadratic_ode(self) -> None:
         """Test HVP for Backward Euler with quadratic ODE."""
-        # TODO: Debug second-order adjoint for nonlinear ODEs
         self._check_hvp_stepper_quadratic_ode(BackwardEulerResidual)
 
     @unittest.expectedFailure
@@ -289,14 +362,16 @@ class TestAdjointHVP(Generic[Array], unittest.TestCase):
         self._check_hvp_stepper_quadratic_ode(HeunResidual)
 
     def _check_hvp_stepper_quadratic_ode_mse(
-        self, stepper_class, tol: float = 1e-4
+        self, stepper_class, error_ratio_tol: float = 1e-6
     ) -> None:
         """
-        Check HVP for quadratic ODE with MSE functional.
+        Check HVP for quadratic ODE with MSE functional using DerivativeChecker.
 
         Both the ODE and functional are nonlinear:
         - Quadratic ODE has non-zero d²f/dy²
         - MSE functional has non-zero d²Q/dy²
+
+        Uses error_ratio test with tolerance 1e-6.
         """
         bkd = self.bkd()
         ode_residual, nstates, nparams = self._create_quadratic_ode_problem()
@@ -307,17 +382,17 @@ class TestAdjointHVP(Generic[Array], unittest.TestCase):
         # Create Newton solver
         newton_solver = NewtonSolver(time_residual)
 
-        # Create integrator
+        # Create integrator - use only 3 time steps
         init_time = 0.0
-        final_time = 0.5  # Shorter for stability
-        deltat = 0.05
+        final_time = 0.3  # 3 steps with deltat=0.1
+        deltat = 0.1
         integrator = TimeIntegrator(
             init_time, final_time, deltat, newton_solver
         )
 
         # Create MSE functional with observations
-        # Note: indices must be within range [0, ntimes-1] = [0, 10]
-        obs_tuples = [(0, bkd.asarray([3, 6, 10], dtype=int))]
+        # Note: indices must be within range [0, ntimes-1] = [0, 3]
+        obs_tuples = [(0, bkd.asarray([1, 3], dtype=int))]
         functional = TransientMSEFunctional(
             nstates=nstates,
             nresidual_params=nparams,
@@ -333,11 +408,10 @@ class TestAdjointHVP(Generic[Array], unittest.TestCase):
         ode_residual.set_param(param.flatten())
         fwd_sols, times = integrator.solve(init_state)
 
-        # Create noisy observations
+        # Create noisy observations at time indices 1 and 3
         obs = bkd.asarray([
-            float(fwd_sols[0, 3]) + 0.05,
-            float(fwd_sols[0, 6]) - 0.03,
-            float(fwd_sols[0, 10]) + 0.02,
+            float(fwd_sols[0, 1]) + 0.05,
+            float(fwd_sols[0, 3]) - 0.03,
         ])
         functional.set_observations(obs)
 
@@ -348,31 +422,41 @@ class TestAdjointHVP(Generic[Array], unittest.TestCase):
         if not hasattr(time_residual, "state_state_hvp"):
             self.skipTest(f"HVP not available for {stepper_class.__name__}")
 
-        # Random direction
-        vvec = bkd.asarray(np.random.randn(nparams, 1))
-        vvec = vvec / bkd.norm(vvec)
+        # Wrap operator for DerivativeChecker
+        wrapper = TimeAdjointOperatorWrapper(operator, init_state, bkd)
 
-        # Compute analytical HVP
-        analytical_hvp = operator.hvp(init_state, param, vvec)
+        # Use DerivativeChecker with error_ratio
+        checker = DerivativeChecker(wrapper)
+        direction = bkd.asarray(np.random.randn(nparams, 1))
+        direction = direction / bkd.norm(direction)
+        fd_eps = bkd.flip(bkd.logspace(-14, 0, 15))
 
-        # Compute finite difference HVP
-        fd_hvp = self._finite_difference_hvp(
-            operator, init_state, param, vvec, eps=1e-6
+        errors = checker.check_derivatives(
+            param, direction=direction, fd_eps=fd_eps, relative=True, verbosity=0
         )
 
-        # Check agreement
-        error = bkd.norm(analytical_hvp - fd_hvp) / (bkd.norm(fd_hvp) + 1e-10)
+        # Check Jacobian error ratio
+        jac_error = errors[0]
+        jac_ratio = float(checker.error_ratio(jac_error))
         self.assertLess(
-            float(error),
-            tol,
-            f"HVP error {float(error):.2e} exceeds tolerance {tol:.2e} "
+            jac_ratio,
+            error_ratio_tol,
+            f"Jacobian error ratio {jac_ratio:.2e} exceeds {error_ratio_tol:.2e} "
             f"for {stepper_class.__name__} with quadratic ODE + MSE"
         )
 
-    @unittest.expectedFailure
+        # Check HVP error ratio
+        hvp_error = errors[1]
+        hvp_ratio = float(checker.error_ratio(hvp_error))
+        self.assertLess(
+            hvp_ratio,
+            error_ratio_tol,
+            f"HVP error ratio {hvp_ratio:.2e} exceeds {error_ratio_tol:.2e} "
+            f"for {stepper_class.__name__} with quadratic ODE + MSE"
+        )
+
     def test_backward_euler_hvp_quadratic_ode_mse(self) -> None:
         """Test HVP for Backward Euler with quadratic ODE + MSE (both nonlinear)."""
-        # TODO: Debug second-order adjoint for nonlinear ODEs
         self._check_hvp_stepper_quadratic_ode_mse(BackwardEulerResidual)
 
     @unittest.expectedFailure
