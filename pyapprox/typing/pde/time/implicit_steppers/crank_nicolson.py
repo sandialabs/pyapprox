@@ -1,9 +1,11 @@
 """
-Backward Euler time stepping residual with adjoint support.
+Crank-Nicolson time stepping residual with adjoint support.
 
-The Backward Euler method is a first-order implicit time integrator:
+The Crank-Nicolson method is a second-order implicit time integrator:
 
-    y_n - y_{n-1} - Δt·f(y_n, t_n) = 0
+    y_n - y_{n-1} - (Δt/2)·[f(y_{n-1}, t_{n-1}) + f(y_n, t_n)] = 0
+
+This is also known as the trapezoidal rule or implicit midpoint method.
 
 This module provides full adjoint support for gradient computation dQ/dp
 via the adjoint method.
@@ -18,13 +20,13 @@ from pyapprox.typing.pde.time.protocols import (
 )
 
 
-class BackwardEulerResidual(TimeSteppingResidualBase[Array]):
+class CrankNicolsonResidual(TimeSteppingResidualBase[Array]):
     """
-    Backward Euler time stepping residual.
+    Crank-Nicolson time stepping residual.
 
-    Residual: R(y_n) = y_n - y_{n-1} - Δt·f(y_n, t_n) = 0
+    Residual: R(y_n) = y_n - y_{n-1} - (Δt/2)·[f(y_{n-1}, t_{n-1}) + f(y_n, t_n)] = 0
 
-    This is a first-order implicit method (A-stable).
+    This is a second-order implicit method (A-stable).
 
     Optional Methods
     ----------------
@@ -39,9 +41,9 @@ class BackwardEulerResidual(TimeSteppingResidualBase[Array]):
 
     def __call__(self, state: Array) -> Array:
         """
-        Evaluate the Backward Euler residual.
+        Evaluate the Crank-Nicolson residual.
 
-        R(y_n) = y_n - y_{n-1} - Δt·f(y_n, t_n)
+        R(y_n) = y_n - y_{n-1} - (Δt/2)·[f(y_{n-1}, t_{n-1}) + f(y_n, t_n)]
 
         Parameters
         ----------
@@ -53,14 +55,25 @@ class BackwardEulerResidual(TimeSteppingResidualBase[Array]):
         Array
             Residual value. Shape: (nstates,)
         """
+        # f(y_{n-1}, t_{n-1})
+        self._residual.set_time(self._time)
+        current_res = self._residual(self._prev_state)
+
+        # f(y_n, t_n)
         self._residual.set_time(self._time + self._deltat)
-        return state - self._prev_state - self._deltat * self._residual(state)
+        next_res = self._residual(state)
+
+        return (
+            state
+            - self._prev_state
+            - 0.5 * self._deltat * (current_res + next_res)
+        )
 
     def jacobian(self, state: Array) -> Array:
         """
         Compute the Jacobian dR/dy_n.
 
-        dR/dy_n = M - Δt·(df/dy)
+        dR/dy_n = M - (Δt/2)·(df/dy)|_{y_n, t_n}
 
         Parameters
         ----------
@@ -73,9 +86,10 @@ class BackwardEulerResidual(TimeSteppingResidualBase[Array]):
             Jacobian matrix. Shape: (nstates, nstates)
         """
         self._residual.set_time(self._time + self._deltat)
-        return self._residual.mass_matrix(
-            state.shape[0]
-        ) - self._deltat * self._residual.jacobian(state)
+        return (
+            self._residual.mass_matrix(state.shape[0])
+            - 0.5 * self._deltat * self._residual.jacobian(state)
+        )
 
     # =========================================================================
     # Adjoint Methods
@@ -85,7 +99,7 @@ class BackwardEulerResidual(TimeSteppingResidualBase[Array]):
         """
         Compute the parameter Jacobian dR/dp for one time step.
 
-        dR/dp = -Δt·(df/dp)|_{y_n, t_n}
+        dR/dp = -(Δt/2)·[(df/dp)|_{y_{n-1}, t_{n-1}} + (df/dp)|_{y_n, t_n}]
 
         Parameters
         ----------
@@ -99,14 +113,19 @@ class BackwardEulerResidual(TimeSteppingResidualBase[Array]):
         Array
             Parameter Jacobian. Shape: (nstates, nparams)
         """
+        self._residual.set_time(self._time)
+        current_param_jac = self._residual.param_jacobian(fsol_nm1)
+
         self._residual.set_time(self._time + self._deltat)
-        return -self._deltat * self._residual.param_jacobian(fsol_n)
+        next_param_jac = self._residual.param_jacobian(fsol_n)
+
+        return -0.5 * self._deltat * (current_param_jac + next_param_jac)
 
     def adjoint_diag_jacobian(self, fsol_n: Array) -> Array:
         """
         Compute the diagonal Jacobian block for adjoint solve.
 
-        (dR/dy_n)ᵀ = (M - Δt·J)ᵀ
+        (dR/dy_n)^T = (M - (Δt/2)·J)^T
 
         Note: set_time should have been called with time = t_n (current time),
         not t_{n-1}. The adjoint solve works backward from final time.
@@ -124,7 +143,7 @@ class BackwardEulerResidual(TimeSteppingResidualBase[Array]):
         self._residual.set_time(self._time)
         return (
             self._residual.mass_matrix(fsol_n.shape[0])
-            - self._deltat * self._residual.jacobian(fsol_n)
+            - 0.5 * self._deltat * self._residual.jacobian(fsol_n)
         ).T
 
     def adjoint_off_diag_jacobian(
@@ -133,7 +152,8 @@ class BackwardEulerResidual(TimeSteppingResidualBase[Array]):
         """
         Compute the off-diagonal Jacobian for adjoint coupling.
 
-        For Backward Euler: -Mᵀ (couples λ_n to λ_{n+1})
+        For Crank-Nicolson:
+        dR_{n+1}/dy_n = -(M + (Δt_{n+1}/2)·J_n)
 
         Parameters
         ----------
@@ -147,7 +167,11 @@ class BackwardEulerResidual(TimeSteppingResidualBase[Array]):
         Array
             Off-diagonal coupling. Shape: (nstates, nstates)
         """
-        return -self._residual.mass_matrix(fsol_n.shape[0]).T
+        self._residual.set_time(self._time)
+        return -(
+            self._residual.mass_matrix(fsol_n.shape[0])
+            + 0.5 * deltat_np1 * self._residual.jacobian(fsol_n)
+        ).T
 
     def adjoint_initial_condition(
         self, final_fwd_sol: Array, final_dqdu: Array
@@ -155,7 +179,7 @@ class BackwardEulerResidual(TimeSteppingResidualBase[Array]):
         """
         Compute initial condition for backward adjoint solve.
 
-        At final time T, solve: (dR/dy_N)ᵀ·λ_N = -dQ/dy_N
+        At final time T, solve: (dR/dy_N)^T·λ_N = -dQ/dy_N
 
         Parameters
         ----------
@@ -182,7 +206,7 @@ class BackwardEulerResidual(TimeSteppingResidualBase[Array]):
         """
         Compute the adjoint at initial time (final step of backward sweep).
 
-        Solves: Mᵀ·λ_0 = -B_1ᵀ·λ_1 - dQ/dy_0
+        Solves: M^T·λ_0 = -B_1^T·λ_1 - dQ/dy_0
 
         Parameters
         ----------
@@ -200,16 +224,16 @@ class BackwardEulerResidual(TimeSteppingResidualBase[Array]):
         Array
             Adjoint solution at initial time λ_0. Shape: (nstates,)
         """
-        # For Backward Euler, the final adjoint solve uses mass matrix
         drduT_diag = self._residual.mass_matrix(fsol_0.shape[0]).T
         drduT_offdiag = self.adjoint_off_diag_jacobian(fsol_0, deltat_1)
         return self._bkd.solve(drduT_diag, -drduT_offdiag @ asol_1 - dqdu_0)
 
     def quadrature_samples_weights(self, times: Array) -> Tuple[Array, Array]:
         """
-        Compute quadrature rule consistent with Backward Euler.
+        Compute quadrature rule consistent with Crank-Nicolson.
 
-        Backward Euler uses right-point (piecewise constant right) quadrature.
+        Crank-Nicolson uses trapezoidal (linear) quadrature, consistent with
+        its 2nd order accuracy.
 
         Parameters
         ----------
@@ -223,15 +247,11 @@ class BackwardEulerResidual(TimeSteppingResidualBase[Array]):
         quadw : Array
             Quadrature weights. Shape: (ntimes,)
         """
-        from pyapprox.typing.surrogates.basis.piecewisepoly.right_constant import (
-            PiecewiseConstantRight,
+        from pyapprox.typing.surrogates.basis.piecewisepoly.linear import (
+            PiecewiseLinear,
         )
-        quadrature = PiecewiseConstantRight(times, self._bkd)
-        quadx, quadw = quadrature.quadrature_rule()
-        # Flatten weights if needed
-        if quadw.ndim > 1:
-            quadw = quadw[:, 0]
-        return quadx, quadw
+        quadrature = PiecewiseLinear(times, self._bkd)
+        return quadrature.quadrature_rule()
 
     # =========================================================================
     # HVP Methods (conditionally available via dynamic binding)
@@ -245,12 +265,12 @@ class BackwardEulerResidual(TimeSteppingResidualBase[Array]):
         wvec: Array,
     ) -> Array:
         """
-        Compute (d²R/dy_n²)·w contracted with adjoint.
+        Compute (d^2R/dy_n^2)·w contracted with adjoint.
 
-        For Backward Euler: d²R/dy² = -Δt·(d²f/dy²)
+        For Crank-Nicolson: d^2R/dy^2 = -(Δt/2)·(d^2f/dy^2)|_{y_n, t_n}
         """
         self._residual.set_time(self._time + self._deltat)
-        return -self._deltat * self._residual.state_state_hvp(
+        return -0.5 * self._deltat * self._residual.state_state_hvp(
             fsol_n, adj_state, wvec
         )
 
@@ -262,14 +282,19 @@ class BackwardEulerResidual(TimeSteppingResidualBase[Array]):
         vvec: Array,
     ) -> Array:
         """
-        Compute (d²R/dy_n dp)·v contracted with adjoint.
+        Compute (d^2R/dy_n dp)·v contracted with adjoint.
 
-        For Backward Euler: d²R/dydp = -Δt·(d²f/dydp)
+        For Crank-Nicolson: contributions from both y_{n-1} and y_n
         """
+        # Contribution from y_{n-1} term
+        self._residual.set_time(self._time)
+        hvp_nm1 = self._residual.state_param_hvp(fsol_nm1, adj_state, vvec)
+
+        # Contribution from y_n term
         self._residual.set_time(self._time + self._deltat)
-        return -self._deltat * self._residual.state_param_hvp(
-            fsol_n, adj_state, vvec
-        )
+        hvp_n = self._residual.state_param_hvp(fsol_n, adj_state, vvec)
+
+        return -0.5 * self._deltat * (hvp_nm1 + hvp_n)
 
     def _param_state_hvp(
         self,
@@ -279,14 +304,19 @@ class BackwardEulerResidual(TimeSteppingResidualBase[Array]):
         wvec: Array,
     ) -> Array:
         """
-        Compute (d²R/dp dy_n)·w contracted with adjoint.
+        Compute (d^2R/dp dy_n)·w contracted with adjoint.
 
-        For Backward Euler: d²R/dpdy = -Δt·(d²f/dpdy)
+        For Crank-Nicolson: contributions from both y_{n-1} and y_n
         """
+        # Contribution from y_{n-1} term
+        self._residual.set_time(self._time)
+        hvp_nm1 = self._residual.param_state_hvp(fsol_nm1, adj_state, wvec)
+
+        # Contribution from y_n term
         self._residual.set_time(self._time + self._deltat)
-        return -self._deltat * self._residual.param_state_hvp(
-            fsol_n, adj_state, wvec
-        )
+        hvp_n = self._residual.param_state_hvp(fsol_n, adj_state, wvec)
+
+        return -0.5 * self._deltat * (hvp_nm1 + hvp_n)
 
     def _param_param_hvp(
         self,
@@ -296,11 +326,16 @@ class BackwardEulerResidual(TimeSteppingResidualBase[Array]):
         vvec: Array,
     ) -> Array:
         """
-        Compute (d²R/dp²)·v contracted with adjoint.
+        Compute (d^2R/dp^2)·v contracted with adjoint.
 
-        For Backward Euler: d²R/dp² = -Δt·(d²f/dp²)
+        For Crank-Nicolson: contributions from both y_{n-1} and y_n
         """
+        # Contribution from y_{n-1} term
+        self._residual.set_time(self._time)
+        hvp_nm1 = self._residual.param_param_hvp(fsol_nm1, adj_state, vvec)
+
+        # Contribution from y_n term
         self._residual.set_time(self._time + self._deltat)
-        return -self._deltat * self._residual.param_param_hvp(
-            fsol_n, adj_state, vvec
-        )
+        hvp_n = self._residual.param_param_hvp(fsol_n, adj_state, vvec)
+
+        return -0.5 * self._deltat * (hvp_nm1 + hvp_n)
