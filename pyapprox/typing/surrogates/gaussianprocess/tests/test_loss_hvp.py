@@ -2,6 +2,11 @@
 Tests for NegativeLogMarginalLikelihoodLoss HVP with respect to hyperparameters.
 
 Tests the adjoint method implementation for ultra-fast Hessian-vector products.
+
+NOTE: These tests are currently SKIPPED because HVP is disabled in the loss
+function due to a suspected bug. Benchmarks show that trust-constr with HVP
+sometimes takes MORE iterations than without HVP, which should never happen
+for correct Hessian-based optimization. See benchmark_hvp.py for details.
 """
 
 import unittest
@@ -28,6 +33,15 @@ from pyapprox.typing.interface.functions.derivative_checks.derivative_checker im
 from pyapprox.typing.util.test_utils import load_tests
 
 
+# HVP is currently disabled due to suspected bug - see loss.py
+HVP_DISABLED_REASON = (
+    "HVP is currently disabled in NegativeLogMarginalLikelihoodLoss due to "
+    "suspected bug. Benchmarks show trust-constr with HVP takes MORE iterations "
+    "than without HVP in some cases. See benchmark_hvp.py for details."
+)
+
+
+@unittest.skip(HVP_DISABLED_REASON)
 class TestLossHVP(Generic[Array], unittest.TestCase):
     """Test NLML loss HVP with respect to hyperparameters."""
 

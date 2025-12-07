@@ -11,6 +11,12 @@ All Matern kernel variants (RBF/nu=inf, Matern 5/2, Matern 3/2) now have
 hvp_wrt_params support. To test dynamic binding for kernels without HVP,
 we create a MockKernelNoHVP that wraps a Matern kernel but doesn't expose
 the hvp_wrt_params method.
+
+NOTE: HVP is currently DISABLED in NegativeLogMarginalLikelihoodLoss due to
+a suspected bug. Benchmarks show that trust-constr with HVP sometimes takes
+MORE iterations than without HVP, which should never happen for correct
+Hessian-based optimization. See benchmark_hvp.py for details.
+Many tests in this file are skipped until the bug is fixed.
 """
 
 import unittest
@@ -37,6 +43,13 @@ from pyapprox.typing.surrogates.gaussianprocess.loss import (
 )
 from pyapprox.typing.optimization.minimize.scipy.trust_constr import (
     ScipyTrustConstrOptimizer,
+)
+
+
+# HVP is currently disabled due to suspected bug - see loss.py
+HVP_DISABLED_REASON = (
+    "HVP is currently disabled in NegativeLogMarginalLikelihoodLoss due to "
+    "suspected bug. See benchmark_hvp.py for details."
 )
 
 
@@ -153,6 +166,7 @@ class TestLossDynamicBinding(Generic[Array], unittest.TestCase):
             "MockKernelNoHVP should NOT have hvp_wrt_params"
         )
 
+    @unittest.skip(HVP_DISABLED_REASON)
     def test_loss_hvp_with_rbf_kernel(self):
         """Test that loss has hvp when kernel has hvp_wrt_params (RBF)."""
         kernel = self._create_rbf_kernel()
@@ -173,6 +187,7 @@ class TestLossDynamicBinding(Generic[Array], unittest.TestCase):
             "Loss._supports_hvp should be True"
         )
 
+    @unittest.skip(HVP_DISABLED_REASON)
     def test_loss_hvp_with_matern52_kernel(self):
         """Test that loss has hvp when kernel has hvp_wrt_params (Matern 5/2)."""
         kernel = self._create_matern52_kernel()
@@ -193,6 +208,7 @@ class TestLossDynamicBinding(Generic[Array], unittest.TestCase):
             "Loss._supports_hvp should be True for Matern 5/2"
         )
 
+    @unittest.skip(HVP_DISABLED_REASON)
     def test_loss_hvp_with_matern32_kernel(self):
         """Test that loss has hvp when kernel has hvp_wrt_params (Matern 3/2)."""
         kernel = self._create_matern32_kernel()
@@ -213,6 +229,7 @@ class TestLossDynamicBinding(Generic[Array], unittest.TestCase):
             "Loss._supports_hvp should be True for Matern 3/2"
         )
 
+    @unittest.skip(HVP_DISABLED_REASON)
     def test_composition_kernel_hvp_when_all_have_it(self):
         """Test that composed kernel has hvp_wrt_params when all components do."""
         # Product of RBF and Matern 5/2 - both have hvp_wrt_params
@@ -288,6 +305,7 @@ class TestLossDynamicBinding(Generic[Array], unittest.TestCase):
             "Sum of kernels with hvp_wrt_params should have hvp_wrt_params"
         )
 
+    @unittest.skip(HVP_DISABLED_REASON)
     def test_optimizer_uses_hvp_with_rbf(self):
         """Test that optimizer uses HVP when loss has it (RBF kernel)."""
         kernel = self._create_rbf_kernel()
@@ -336,6 +354,7 @@ class TestLossDynamicBinding(Generic[Array], unittest.TestCase):
             f"Optimizer should use jacobian, but njev={scipy_result.njev}"
         )
 
+    @unittest.skip(HVP_DISABLED_REASON)
     def test_optimizer_uses_hvp_with_matern52(self):
         """Test that optimizer uses HVP when loss has it (Matern 5/2 kernel)."""
         kernel = self._create_matern52_kernel()
