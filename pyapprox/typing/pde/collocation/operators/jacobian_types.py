@@ -208,17 +208,21 @@ class DenseJacobian(SparseJacobian[Array]):
         if isinstance(other, ZeroJacobian):
             return self.copy()
         if isinstance(other, DiagJacobian):
-            # Add diagonal blocks to dense
+            # Add diagonal blocks to dense using vectorized indexing
             dense_jac = self._bkd.copy(self._sparse_jac)
-            stride = self._shape[0]
-            ninput_funs = self._shape[1] // stride
-            for ii in range(ninput_funs):
-                # Add diagonal to block
-                diag_vals = other._sparse_jac[:, ii]
-                for jj in range(stride):
-                    dense_jac[jj, ii * stride + jj] = (
-                        dense_jac[jj, ii * stride + jj] + diag_vals[jj]
-                    )
+            nmesh = self._shape[0]
+            ninput_funs = self._shape[1] // nmesh
+            # Compute all column indices using floor division:
+            # col_idx = [0, 1, ..., nmesh-1, nmesh, nmesh+1, ..., 2*nmesh-1, ...]
+            col_idx = self._bkd.arange(self._shape[1])
+            # row_idx = col_idx % nmesh gives [0,1,...,nmesh-1,0,1,...,nmesh-1,...]
+            row_idx = col_idx % nmesh
+            # Flatten diagonal values in correct order (block by block)
+            diag_flat = self._bkd.flatten(
+                self._bkd.transpose(other._sparse_jac)
+            )
+            # Vectorized update
+            dense_jac[row_idx, col_idx] = dense_jac[row_idx, col_idx] + diag_flat
             return DenseJacobian(self._bkd, self._shape, dense_jac)
         # Dense + Dense
         return DenseJacobian(
@@ -232,15 +236,19 @@ class DenseJacobian(SparseJacobian[Array]):
         if isinstance(other, ZeroJacobian):
             return self.copy()
         if isinstance(other, DiagJacobian):
+            # Subtract diagonal blocks from dense using vectorized indexing
             dense_jac = self._bkd.copy(self._sparse_jac)
-            stride = self._shape[0]
-            ninput_funs = self._shape[1] // stride
-            for ii in range(ninput_funs):
-                diag_vals = other._sparse_jac[:, ii]
-                for jj in range(stride):
-                    dense_jac[jj, ii * stride + jj] = (
-                        dense_jac[jj, ii * stride + jj] - diag_vals[jj]
-                    )
+            nmesh = self._shape[0]
+            # Compute all column indices
+            col_idx = self._bkd.arange(self._shape[1])
+            # row_idx = col_idx % nmesh gives [0,1,...,nmesh-1,0,1,...,nmesh-1,...]
+            row_idx = col_idx % nmesh
+            # Flatten diagonal values in correct order (block by block)
+            diag_flat = self._bkd.flatten(
+                self._bkd.transpose(other._sparse_jac)
+            )
+            # Vectorized update
+            dense_jac[row_idx, col_idx] = dense_jac[row_idx, col_idx] - diag_flat
             return DenseJacobian(self._bkd, self._shape, dense_jac)
         return DenseJacobian(
             self._bkd, self._shape,
@@ -272,13 +280,19 @@ class DiagJacobian(SparseJacobian[Array]):
         self._sparse_jac = jac
 
     def get_jacobian(self) -> Array:
-        """Expand to full dense matrix."""
-        nmesh_pts = self._shape[0]
-        ninput_funs = self._sparse_jac.shape[1]
-        blocks = []
-        for ii in range(ninput_funs):
-            blocks.append(self._bkd.diag(self._sparse_jac[:, ii]))
-        return self._bkd.hstack(blocks)
+        """Expand to full dense matrix using vectorized indexing."""
+        nmesh = self._shape[0]
+        # Pre-allocate full matrix
+        full = self._bkd.zeros(self._shape)
+        # Compute all column indices
+        col_idx = self._bkd.arange(self._shape[1])
+        # row_idx = col_idx % nmesh gives [0,1,...,nmesh-1,0,1,...,nmesh-1,...]
+        row_idx = col_idx % nmesh
+        # Flatten diagonal values in correct order (transpose to get block order)
+        diag_flat = self._bkd.flatten(self._bkd.transpose(self._sparse_jac))
+        # Vectorized scatter
+        full[row_idx, col_idx] = diag_flat
+        return full
 
     def __neg__(self) -> "DiagJacobian[Array]":
         return DiagJacobian(self._bkd, self._shape, -self._sparse_jac)
@@ -310,21 +324,31 @@ class DiagJacobian(SparseJacobian[Array]):
         )
 
     def rdot(self, other: Array) -> "DenseJacobian[Array]":
-        """Compute A @ diag(d) for each input function block."""
+        """Compute A @ diag(d) for each input function block.
+
+        Uses broadcasting: A @ diag(d) = A * d (column scaling).
+        For multiple input functions, computes all blocks at once.
+        """
         if other.shape[1] != self._shape[0]:
             raise ValueError(
                 f"Shape mismatch: {other.shape} @ {self._shape}"
             )
-        nmesh_pts = self._shape[0]
+        nmesh = self._shape[0]
         ninput_funs = self._sparse_jac.shape[1]
-        new_shape = (other.shape[0], self._shape[1])
+        m = other.shape[0]
+        new_shape = (m, self._shape[1])
 
-        # Result is dense: A @ diag(d) = A * d (column scaling)
-        dense_jac = self._bkd.zeros(new_shape)
-        for ii in range(ninput_funs):
-            # A @ diag(d) = (A.T * d).T = A * d[None, :]
-            block = other * self._sparse_jac[:, ii]
-            dense_jac[:, ii * nmesh_pts : (ii + 1) * nmesh_pts] = block
+        # Vectorized: broadcast other (m, nmesh) with diag (nmesh, ninput)
+        # Result: (m, nmesh, ninput) -> reshape to (m, nmesh * ninput)
+        # other[:, :, None] has shape (m, nmesh, 1)
+        # self._sparse_jac[None, :, :] has shape (1, nmesh, ninput)
+        # Product has shape (m, nmesh, ninput)
+        scaled = other[:, :, None] * self._sparse_jac[None, :, :]
+        # Transpose to (m, ninput, nmesh) then reshape to (m, ninput * nmesh)
+        dense_jac = self._bkd.reshape(
+            self._bkd.transpose(scaled, (0, 2, 1)),
+            new_shape
+        )
         return DenseJacobian(self._bkd, new_shape, dense_jac)
 
     def __add__(
