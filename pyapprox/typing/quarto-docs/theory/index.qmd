@@ -59,6 +59,22 @@ Advanced multi-output kernels with arbitrary dependencies:
 - Information propagation
 - Block matrix structure
 
+### [Time-Dependent Adjoint HVP](time-adjoint-hvp.qmd)
+
+Hessian-vector products for time integration via second-order adjoints:
+
+- **Block Matrix Formulation**: Time stepping as $c_Y \cdot Y = c_p$
+- **Five Adjoint Steps**: Forward, adjoint, sensitivity, second adjoint, accumulation
+- **Time Steppers**: Forward Euler, Backward Euler, Crank-Nicolson, Heun
+- **Explicit vs Implicit**: Different Hessian structures
+
+**Key Concepts**:
+
+- Lagrangian formulation for constrained optimization
+- Adjoint equations from transposed block matrix
+- Second-order adjoint for Hessian information
+- Index mapping for explicit vs implicit schemes
+
 ### [Gaussian Processes](gaussian-processes.qmd)
 
 Fundamentals of Gaussian process regression:

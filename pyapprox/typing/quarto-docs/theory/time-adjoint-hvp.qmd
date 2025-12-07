@@ -1,0 +1,813 @@
+---
+title: "Time-Dependent Adjoint HVP"
+subtitle: "Hessian-vector products via second-order adjoints for time integration"
+format:
+  html:
+    toc: true
+    toc-depth: 3
+    code-overflow: wrap
+    html-math-method: mathjax
+---
+
+## General HVP via Second-Order Adjoints
+
+Before introducing time dependence, we present the general framework for computing Hessian-vector products via second-order adjoints for constrained optimization problems.
+
+### General Problem Setup
+
+Consider the constrained optimization problem:
+
+- **State**: $Y \in \mathbb{R}^{n_Y}$
+- **Parameters**: $p \in \mathbb{R}^{n_p}$
+- **Constraint**: $c(Y, p) = 0$ where $c: \mathbb{R}^{n_Y} \times \mathbb{R}^{n_p} \to \mathbb{R}^{n_Y}$
+- **Objective**: $Q(Y, p) \in \mathbb{R}$
+
+The constraint implicitly defines $Y = Y(p)$. We want the **reduced Hessian-vector product**:
+$$
+\text{HVP} = \frac{d^2 Q}{dp^2} \cdot v
+$$
+
+where the total derivative accounts for the implicit dependence $Y(p)$.
+
+### Lagrangian and Optimality Conditions
+
+The Lagrangian is:
+$$
+L(Y, \lambda, p) = Q(Y, p) + \lambda^T c(Y, p)
+$$
+
+At a solution, the optimality conditions are:
+$$
+\nabla_Y L = \nabla_Y Q + c_Y^T \lambda = 0
+$$
+$$
+c(Y, p) = 0
+$$
+
+where $c_Y = \frac{\partial c}{\partial Y}$ is the constraint Jacobian.
+
+### The Five Steps (Heinkenschloss Algorithm 4.1)
+
+The following algorithm is from Heinkenschloss (2008), adapted to our notation where $Y$ is the state, $p$ is the parameter, and we minimize $Q$ subject to $c(Y, p) = 0$.
+
+::: {.callout-note}
+## Five-Step HVP Algorithm
+
+**Step 1: Forward Solve** — Find $Y^*$ satisfying the constraint
+$$
+c(Y^*, p) = 0
+$$
+
+**Step 2: Adjoint Solve** — Find $\lambda$ from the adjoint equation
+$$
+c_Y^T \lambda = -\nabla_Y Q
+$$
+
+**Step 3: Forward Sensitivity** — Solve for $w$
+$$
+c_Y \cdot w = c_p \cdot v
+$$
+where $c_p = \frac{\partial c}{\partial p}$.
+
+Note: $w$ defined this way satisfies $w = -\frac{dY}{dp} \cdot v$ (negative of the sensitivity).
+
+**Step 4: Second Adjoint** — Solve for $s$
+$$
+c_Y^T \cdot s = \nabla_{YY}^2 L \cdot w - \nabla_{Yp}^2 L \cdot v
+$$
+
+**Step 5: Accumulate HVP** — Combine all contributions
+$$
+\text{HVP} = c_p^T \cdot s - \nabla_{pY}^2 L \cdot w + \nabla_{pp}^2 L \cdot v
+$$
+:::
+
+::: {.callout-warning}
+## Sign Convention
+
+In Heinkenschloss's formulation:
+
+- Step 3 defines $w$ via $c_Y w = c_p v$ (no negative sign)
+- This means $w = c_Y^{-1} c_p v$, whereas $\frac{dY}{dp} = -c_Y^{-1} c_p$
+- So $w = -\frac{dY}{dp} \cdot v$ (opposite sign from the physical sensitivity)
+
+This sign convention propagates through Steps 4 and 5. The final HVP is correct regardless of which convention is used, as long as it's applied consistently.
+:::
+
+### Derivation Sketch
+
+The gradient is (from Algorithm 3.2 in Heinkenschloss):
+$$
+\nabla \hat{Q}(p) = \nabla_p Q(Y(p), p) + c_p(Y(p), p)^T \lambda(p)
+$$
+
+where $\lambda$ solves the adjoint equation $c_Y^T \lambda = -\nabla_Y Q$.
+
+To compute the Hessian, differentiate the adjoint equation (3.10) with respect to $p$:
+$$
+\nabla_{YY}^2 L \cdot \frac{dY}{dp} + \nabla_{Yp}^2 L + c_Y^T \frac{d\lambda}{dp} = 0
+$$
+
+This gives (equation 4.1 in Heinkenschloss):
+$$
+\frac{d\lambda}{dp} = -c_Y^{-T}\left[\nabla_{YY}^2 L \cdot c_Y^{-1} c_p + \nabla_{Yp}^2 L\right]
+$$
+
+Differentiating the gradient (equation 4.2):
+$$
+\nabla^2 \hat{Q}(p) = \nabla_{pY}^2 L \cdot \frac{dY}{dp} + \nabla_{pp}^2 L + c_p^T \frac{d\lambda}{dp}
+$$
+
+Substituting and simplifying yields the Hessian formula (4.3). For HVP computation, we avoid forming the full Hessian by:
+
+1. Solving $c_Y w = c_p v$ (Step 3) — note $w = -\frac{dY}{dp} \cdot v$
+2. Solving $c_Y^T s = \nabla_{YY}^2 L \cdot w - \nabla_{Yp}^2 L \cdot v$ (Step 4)
+3. Computing $\text{HVP} = c_p^T s - \nabla_{pY}^2 L \cdot w + \nabla_{pp}^2 L \cdot v$ (Step 5)
+
+### Matrix Form Summary
+
+| Step | Equation | Unknowns |
+|------|----------|----------|
+| 1. Forward | $c(Y, p) = 0$ | $Y$ |
+| 2. Adjoint | $c_Y^T \lambda = -\nabla_Y Q$ | $\lambda$ |
+| 3. Sensitivity | $c_Y w = c_p v$ | $w$ |
+| 4. Second Adjoint | $c_Y^T s = \nabla_{YY}^2 L \cdot w - \nabla_{Yp}^2 L \cdot v$ | $s$ |
+| 5. Accumulate | $\text{HVP} = c_p^T s - \nabla_{pY}^2 L \cdot w + \nabla_{pp}^2 L \cdot v$ | — |
+
+::: {.callout-important}
+## Key Insight: Parameter Dependence of $c_Y$
+
+The constraint Jacobian $c_Y = c_Y(Y, p)$ depends on both state and parameters. This dependence appears in:
+
+1. **Step 4 RHS**: The term $\frac{\partial(c_Y^T \lambda)}{\partial p}$ captures how the adjoint equation changes with $p$
+2. **Hessian terms**: $\nabla_{YY}^2 L$ includes $\lambda^T \frac{\partial^2 c}{\partial Y^2}$ which involves second derivatives of the constraint
+
+If $c_Y$ were independent of $p$, the second adjoint would simplify significantly.
+:::
+
+---
+
+## Time-Dependent Problem Statement
+
+We now specialize the general framework to time-dependent systems.
+
+Given a time-dependent system with parameter $p$:
+
+- **ODE**: $\frac{dy}{dt} = f(y, t; p)$, with $y(0) = y_0(p)$
+- **Discretization**: Time steps $t_0, t_1, \ldots, t_N$ with $\Delta t_n = t_n - t_{n-1}$
+- **State trajectory**: $Y = [y_0, y_1, \ldots, y_N]^T$ where $y_n \in \mathbb{R}^{n_s}$
+- **Objective functional**: $Q(Y, p)$ (e.g., endpoint $Q = y_N$ or path integral)
+
+We want to compute the **Hessian-vector product**:
+$$
+\text{HVP} = \frac{\partial^2 Q}{\partial p^2} \cdot v
+$$
+
+for a direction vector $v$.
+
+## Block Matrix Formulation
+
+### Constraint Residual
+
+The time discretization defines a constraint residual $R(Y, p) = 0$ where each row enforces the time stepping scheme:
+
+$$
+R_n(y_{n-1}, y_n, p) = 0 \quad \text{for } n = 0, 1, \ldots, N
+$$
+
+The full system can be written as a **block lower-triangular matrix equation**:
+
+$$
+\underbrace{\begin{bmatrix}
+I & & & \\
+B_1 & A_1 & & \\
+& B_2 & A_2 & \\
+& & \ddots & \ddots \\
+& & & B_N & A_N
+\end{bmatrix}}_{c_Y}
+\begin{bmatrix}
+y_0 \\ y_1 \\ y_2 \\ \vdots \\ y_N
+\end{bmatrix}
+=
+\underbrace{\begin{bmatrix}
+y_0(p) \\
+g_1(p) \\
+g_2(p) \\
+\vdots \\
+g_N(p)
+\end{bmatrix}}_{c_p}
+$$
+
+where:
+
+- $A_n = \frac{\partial R_n}{\partial y_n}$ is the **diagonal block** (Jacobian w.r.t. current state)
+- $B_n = \frac{\partial R_n}{\partial y_{n-1}}$ is the **off-diagonal block** (coupling to previous state)
+- Row 0 enforces the initial condition: $y_0 = y_0(p)$
+
+::: {.callout-important}
+## Parameter Dependence of $c_Y$
+
+The constraint Jacobian $c_Y$ and its blocks $A_n$, $B_n$ **depend on the parameters $p$** through the ODE right-hand side $f(y, t; p)$:
+
+$$
+A_n(Y, p) = \frac{\partial R_n}{\partial y_n} = I - \theta \Delta t \cdot \frac{\partial f}{\partial y}(y_n, t_n; p)
+$$
+
+$$
+B_n(Y, p) = \frac{\partial R_n}{\partial y_{n-1}} = -I - (1-\theta) \Delta t \cdot \frac{\partial f}{\partial y}(y_{n-1}, t_{n-1}; p)
+$$
+
+where $\theta \in [0, 1]$ depends on the scheme (0 for Forward Euler, 1 for Backward Euler, 0.5 for Crank-Nicolson).
+
+This parameter dependence is **critical for HVP computation** because:
+
+1. The adjoint equation $c_Y^T \lambda = -\nabla_Y Q$ has a LHS that depends on $p$
+2. Differentiating w.r.t. $p$ produces $\frac{\partial c_Y^T}{\partial p} \lambda$ terms
+3. These terms drive the second adjoint equation
+
+If $f$ is linear in $p$ (e.g., $f = Ay + Bp$), then $\frac{\partial f}{\partial y}$ may still depend on $p$ if $A = A(p)$.
+:::
+
+We write $c_Y = c_Y(Y, p)$ to emphasize this dependence when needed.
+
+### Lagrangian Formulation
+
+The constrained optimization problem is:
+$$
+\min_{Y} Q(Y, p) \quad \text{subject to} \quad c_Y \cdot Y = c_p
+$$
+
+The Lagrangian is:
+$$
+L(Y, \lambda, p) = Q(Y, p) + \lambda^T \cdot (c_Y \cdot Y - c_p)
+$$
+
+where $\lambda = [\lambda_0, \lambda_1, \ldots, \lambda_N]^T$ are the adjoint variables.
+
+---
+
+## The Five Adjoint Steps for HVP
+
+### Step 1: Forward Solve
+
+Solve the time-stepping equations to get the state trajectory $Y^*(p)$:
+
+$$
+c_Y \cdot Y^* = c_p
+$$
+
+::: {.callout-note}
+## Block Structure
+The block lower-triangular structure means we solve forward in time:
+$$
+y_n = A_n^{-1}(g_n - B_n y_{n-1})
+$$
+:::
+
+### Step 2: Adjoint Solve
+
+Solve the adjoint equations backward in time:
+
+$$
+c_Y^T \cdot \lambda = -\nabla_Y Q
+$$
+
+Expanding the transpose:
+$$
+\underbrace{\begin{bmatrix}
+I & B_1^T & & \\
+& A_1^T & B_2^T & \\
+& & A_2^T & \ddots \\
+& & & \ddots & B_N^T \\
+& & & & A_N^T
+\end{bmatrix}}_{c_Y^T}
+\begin{bmatrix}
+\lambda_0 \\ \lambda_1 \\ \lambda_2 \\ \vdots \\ \lambda_N
+\end{bmatrix}
+=
+-\begin{bmatrix}
+\frac{\partial Q}{\partial y_0} \\
+\frac{\partial Q}{\partial y_1} \\
+\frac{\partial Q}{\partial y_2} \\
+\vdots \\
+\frac{\partial Q}{\partial y_N}
+\end{bmatrix}
+$$
+
+The block upper-triangular structure means we solve **backward** starting from $n=N$:
+$$
+A_N^T \lambda_N = -\frac{\partial Q}{\partial y_N}
+$$
+$$
+A_n^T \lambda_n = -\frac{\partial Q}{\partial y_n} - B_{n+1}^T \lambda_{n+1} \quad \text{for } n < N
+$$
+
+### Step 3: Forward Sensitivity
+
+Following Heinkenschloss Algorithm 4.1, solve for $w$:
+
+$$
+c_Y \cdot w = c_p \cdot v
+$$
+
+where $c_p = \frac{\partial c}{\partial p}$ is the parameter Jacobian of the constraint.
+
+::: {.callout-warning}
+## Sign Convention
+With this definition, $w = -\frac{dY}{dp} \cdot v$ (negative of the physical sensitivity). This is because:
+$$
+\frac{dc}{dp} = c_Y \frac{dY}{dp} + c_p = 0 \quad \Rightarrow \quad \frac{dY}{dp} = -c_Y^{-1} c_p
+$$
+So $c_Y w = c_p v$ gives $w = c_Y^{-1} c_p v = -\frac{dY}{dp} v$.
+:::
+
+For time stepping, $c_p$ at step $n$ is just $\frac{\partial R_n}{\partial p}$. The forward sweep is:
+$$
+A_n \cdot w_n = -B_n \cdot w_{n-1} + \frac{\partial R_n}{\partial p} \cdot v
+$$
+
+**Initial condition**: $w_0 = \frac{\partial y_0}{\partial p} \cdot v$ if initial condition depends on $p$, otherwise $w_0 = 0$.
+
+### Step 4: Second Adjoint
+
+Following Heinkenschloss Algorithm 4.1 Step 4, solve for $s$:
+
+$$
+c_Y^T \cdot s = \nabla_{YY}^2 L \cdot w - \nabla_{Yp}^2 L \cdot v
+$$
+
+where:
+
+- $\nabla_{YY}^2 L = \nabla_{YY}^2 Q + \sum_n \lambda_n^T \cdot \frac{\partial^2 R_n}{\partial Y^2}$ (Hessian of Lagrangian w.r.t. state)
+- $\nabla_{Yp}^2 L = \nabla_{Yp}^2 Q + \sum_n \lambda_n^T \cdot \frac{\partial^2 R_n}{\partial Y \partial p}$ (mixed Hessian)
+
+::: {.callout-important}
+## Parameter Dependence of $c_Y$
+
+**Recall that $c_Y = c_Y(Y, p)$ depends on parameters** through $\frac{\partial f}{\partial y}(y, t; p)$. The Hessian terms $\frac{\partial^2 R_n}{\partial Y^2}$ and $\frac{\partial^2 R_n}{\partial Y \partial p}$ capture this dependence.
+
+For example, if $f(y; p) = Ay + p_0 y^2 + p_1$, then:
+$$
+\frac{\partial f}{\partial y} = A + 2p_0 y \quad \Rightarrow \quad \frac{\partial^2 f}{\partial y \partial p_0} = 2y
+$$
+
+This means $\frac{\partial^2 R_n}{\partial y \partial p_0} = -\Delta t \cdot 2y$ contributes to $\nabla_{Yp}^2 L$.
+:::
+
+**Backward sweep** (similar structure to first adjoint):
+
+**Final time** ($n = N$):
+$$
+A_N^T s_N = \nabla_{y_N y_N}^2 L \cdot w_N - \nabla_{y_N p}^2 L \cdot v
+$$
+
+**Intermediate times** ($1 \leq n < N$):
+$$
+A_n^T s_n = -B_{n+1}^T s_{n+1} + \nabla_{y_n y_n}^2 L \cdot w_n - \nabla_{y_n p}^2 L \cdot v
+$$
+
+where $\nabla_{y_n y_n}^2 L$ includes contributions from both $Q$ and the residuals $R_n$, $R_{n+1}$ that depend on $y_n$.
+
+### Step 5: Accumulate HVP
+
+Following Heinkenschloss Algorithm 4.1 Step 5:
+
+$$
+\text{HVP} = c_p^T \cdot s - \nabla_{pY}^2 L \cdot w + \nabla_{pp}^2 L \cdot v
+$$
+
+For time stepping, this expands to:
+
+$$
+\text{HVP} = \sum_{n=1}^{N} \left(\frac{\partial R_n}{\partial p}\right)^T s_n - \sum_{n=1}^{N} \lambda_n^T \frac{\partial^2 R_n}{\partial p \partial Y} \cdot w + \nabla_{pp}^2 Q \cdot v + \sum_{n=1}^{N} \lambda_n^T \frac{\partial^2 R_n}{\partial p^2} \cdot v
+$$
+
+where:
+
+- $c_p^T s = \sum_n \left(\frac{\partial R_n}{\partial p}\right)^T s_n$: Contribution from second adjoint
+- $-\nabla_{pY}^2 L \cdot w$: Mixed Hessian term (note the **negative sign** from Heinkenschloss)
+- $\nabla_{pp}^2 L \cdot v = \nabla_{pp}^2 Q \cdot v + \sum_n \lambda_n^T \frac{\partial^2 R_n}{\partial p^2} \cdot v$: Parameter Hessian
+
+---
+
+## Block Matrix Forms for Time Steppers
+
+We now derive the specific block matrices $A_n$ and $B_n$ for each time stepping scheme.
+
+### Forward Euler (Explicit, 1st Order)
+
+**Residual**:
+$$
+R_n = y_n - y_{n-1} - \Delta t \cdot f(y_{n-1}, t_{n-1}; p) = 0
+$$
+
+**Blocks**:
+$$
+A_n = \frac{\partial R_n}{\partial y_n} = I
+$$
+$$
+B_n = \frac{\partial R_n}{\partial y_{n-1}} = -I - \Delta t \cdot \frac{\partial f}{\partial y}\bigg|_{y_{n-1}}
+$$
+
+**Key property**: $A_n = I$ is constant and independent of state, so $\frac{\partial A_n}{\partial p} = 0$.
+
+::: {.callout-important}
+## Explicit Scheme Property
+For explicit schemes, $A_n = I$ (identity), which means:
+
+1. No Newton iteration needed for forward solve
+2. $\frac{\partial^2 R_n}{\partial y_n^2} = 0$ (no Hessian from diagonal)
+3. Hessian contributions come from $B_n$ (off-diagonal) and $\frac{\partial R_n}{\partial p}$
+:::
+
+**Three-step example** ($n = 0, 1, 2, 3$):
+
+$$
+\begin{bmatrix}
+I & & & \\
+-I - \Delta t J_0 & I & & \\
+& -I - \Delta t J_1 & I & \\
+& & -I - \Delta t J_2 & I
+\end{bmatrix}
+\begin{bmatrix}
+y_0 \\ y_1 \\ y_2 \\ y_3
+\end{bmatrix}
+=
+\begin{bmatrix}
+y_0(p) \\
+\Delta t \cdot f_0(p) \\
+\Delta t \cdot f_1(p) \\
+\Delta t \cdot f_2(p)
+\end{bmatrix}
+$$
+
+where $J_n = \frac{\partial f}{\partial y}|_{y_n}$ and $f_n = f(y_n, t_n; p)$.
+
+Wait - let me rewrite this more carefully. The residual is:
+$$
+R_n = y_n - y_{n-1} - \Delta t \cdot f(y_{n-1}; p)
+$$
+
+So the constraint equation $R_n = 0$ gives:
+$$
+y_n = y_{n-1} + \Delta t \cdot f(y_{n-1}; p)
+$$
+
+To write this as $c_Y \cdot Y = c_p$, we rearrange:
+$$
+y_n - y_{n-1} = \Delta t \cdot f(y_{n-1}; p)
+$$
+
+But the RHS depends on $y_{n-1}$, so this isn't quite linear in $Y$. The block matrix form is really:
+
+$$
+R_n(Y, p) = [0, \ldots, -I - \Delta t J_{n-1}, I, 0, \ldots] \cdot Y - \Delta t(f_{n-1} - J_{n-1} y_{n-1}) = 0
+$$
+
+This is the linearization. For clarity, let's define:
+
+$$
+g_n(p) = y_{n-1} + \Delta t \cdot f(y_{n-1}; p) - A_n^{-1} B_n y_{n-1}
+$$
+
+Actually, for implementation purposes, we work directly with the residual $R_n$ and its Jacobians:
+
+| Quantity | Formula |
+|----------|---------|
+| $R_n$ | $y_n - y_{n-1} - \Delta t \cdot f(y_{n-1})$ |
+| $\frac{\partial R_n}{\partial y_n}$ | $I$ |
+| $\frac{\partial R_n}{\partial y_{n-1}}$ | $-I - \Delta t \cdot \frac{\partial f}{\partial y}|_{n-1}$ |
+| $\frac{\partial R_n}{\partial p}$ | $-\Delta t \cdot \frac{\partial f}{\partial p}|_{n-1}$ |
+| $\frac{\partial^2 R_n}{\partial y_n^2}$ | $0$ |
+| $\frac{\partial^2 R_n}{\partial y_{n-1}^2}$ | $-\Delta t \cdot \frac{\partial^2 f}{\partial y^2}|_{n-1}$ |
+| $\frac{\partial^2 R_n}{\partial y_{n-1} \partial p}$ | $-\Delta t \cdot \frac{\partial^2 f}{\partial y \partial p}|_{n-1}$ |
+| $\frac{\partial^2 R_n}{\partial p^2}$ | $-\Delta t \cdot \frac{\partial^2 f}{\partial p^2}|_{n-1}$ |
+
+### Backward Euler (Implicit, 1st Order)
+
+**Residual**:
+$$
+R_n = y_n - y_{n-1} - \Delta t \cdot f(y_n, t_n; p) = 0
+$$
+
+**Blocks**:
+$$
+A_n = \frac{\partial R_n}{\partial y_n} = I - \Delta t \cdot \frac{\partial f}{\partial y}\bigg|_{y_n}
+$$
+$$
+B_n = \frac{\partial R_n}{\partial y_{n-1}} = -I
+$$
+
+**Key property**: $A_n$ depends on $y_n$ through $\frac{\partial f}{\partial y}$, so $\frac{\partial^2 R_n}{\partial y_n^2} \neq 0$.
+
+**Three-step example**:
+
+$$
+\begin{bmatrix}
+I & & & \\
+-I & I - \Delta t J_1 & & \\
+& -I & I - \Delta t J_2 & \\
+& & -I & I - \Delta t J_3
+\end{bmatrix}
+\begin{bmatrix}
+y_0 \\ y_1 \\ y_2 \\ y_3
+\end{bmatrix}
+=
+\begin{bmatrix}
+y_0(p) \\
+-\Delta t (f_1 - J_1 y_1) \\
+-\Delta t (f_2 - J_2 y_2) \\
+-\Delta t (f_3 - J_3 y_3)
+\end{bmatrix}
+$$
+
+| Quantity | Formula |
+|----------|---------|
+| $R_n$ | $y_n - y_{n-1} - \Delta t \cdot f(y_n)$ |
+| $\frac{\partial R_n}{\partial y_n}$ | $I - \Delta t \cdot \frac{\partial f}{\partial y}|_n$ |
+| $\frac{\partial R_n}{\partial y_{n-1}}$ | $-I$ |
+| $\frac{\partial R_n}{\partial p}$ | $-\Delta t \cdot \frac{\partial f}{\partial p}|_n$ |
+| $\frac{\partial^2 R_n}{\partial y_n^2}$ | $-\Delta t \cdot \frac{\partial^2 f}{\partial y^2}|_n$ |
+| $\frac{\partial^2 R_n}{\partial y_{n-1}^2}$ | $0$ |
+| $\frac{\partial^2 R_n}{\partial y_n \partial p}$ | $-\Delta t \cdot \frac{\partial^2 f}{\partial y \partial p}|_n$ |
+| $\frac{\partial^2 R_n}{\partial p^2}$ | $-\Delta t \cdot \frac{\partial^2 f}{\partial p^2}|_n$ |
+
+### Crank-Nicolson (Implicit, 2nd Order)
+
+**Residual**:
+$$
+R_n = y_n - y_{n-1} - \frac{\Delta t}{2}\left[f(y_{n-1}; p) + f(y_n; p)\right] = 0
+$$
+
+**Blocks**:
+$$
+A_n = \frac{\partial R_n}{\partial y_n} = I - \frac{\Delta t}{2} \cdot \frac{\partial f}{\partial y}\bigg|_{y_n}
+$$
+$$
+B_n = \frac{\partial R_n}{\partial y_{n-1}} = -I - \frac{\Delta t}{2} \cdot \frac{\partial f}{\partial y}\bigg|_{y_{n-1}}
+$$
+
+**Key property**: Both $A_n$ and $B_n$ depend on the respective states.
+
+**Three-step example**:
+
+$$
+\begin{bmatrix}
+I & & & \\
+-I - \frac{\Delta t}{2} J_0 & I - \frac{\Delta t}{2} J_1 & & \\
+& -I - \frac{\Delta t}{2} J_1 & I - \frac{\Delta t}{2} J_2 & \\
+& & -I - \frac{\Delta t}{2} J_2 & I - \frac{\Delta t}{2} J_3
+\end{bmatrix}
+\begin{bmatrix}
+y_0 \\ y_1 \\ y_2 \\ y_3
+\end{bmatrix}
+= c_p
+$$
+
+| Quantity | Formula |
+|----------|---------|
+| $R_n$ | $y_n - y_{n-1} - \frac{\Delta t}{2}[f(y_{n-1}) + f(y_n)]$ |
+| $\frac{\partial R_n}{\partial y_n}$ | $I - \frac{\Delta t}{2} \cdot \frac{\partial f}{\partial y}|_n$ |
+| $\frac{\partial R_n}{\partial y_{n-1}}$ | $-I - \frac{\Delta t}{2} \cdot \frac{\partial f}{\partial y}|_{n-1}$ |
+| $\frac{\partial R_n}{\partial p}$ | $-\frac{\Delta t}{2}[\frac{\partial f}{\partial p}|_{n-1} + \frac{\partial f}{\partial p}|_n]$ |
+| $\frac{\partial^2 R_n}{\partial y_n^2}$ | $-\frac{\Delta t}{2} \cdot \frac{\partial^2 f}{\partial y^2}|_n$ |
+| $\frac{\partial^2 R_n}{\partial y_{n-1}^2}$ | $-\frac{\Delta t}{2} \cdot \frac{\partial^2 f}{\partial y^2}|_{n-1}$ |
+| $\frac{\partial^2 R_n}{\partial y_n \partial p}$ | $-\frac{\Delta t}{2} \cdot \frac{\partial^2 f}{\partial y \partial p}|_n$ |
+| $\frac{\partial^2 R_n}{\partial y_{n-1} \partial p}$ | $-\frac{\Delta t}{2} \cdot \frac{\partial^2 f}{\partial y \partial p}|_{n-1}$ |
+| $\frac{\partial^2 R_n}{\partial p^2}$ | $-\frac{\Delta t}{2}[\frac{\partial^2 f}{\partial p^2}|_{n-1} + \frac{\partial^2 f}{\partial p^2}|_n]$ |
+
+### Heun (Explicit RK2, 2nd Order)
+
+**Residual** (two-stage):
+$$
+k_1 = f(y_{n-1}, t_{n-1}; p)
+$$
+$$
+k_2 = f(y_{n-1} + \Delta t \cdot k_1, t_n; p)
+$$
+$$
+R_n = y_n - y_{n-1} - \frac{\Delta t}{2}(k_1 + k_2) = 0
+$$
+
+**Blocks**:
+$$
+A_n = \frac{\partial R_n}{\partial y_n} = I
+$$
+$$
+B_n = \frac{\partial R_n}{\partial y_{n-1}} = -I - \frac{\Delta t}{2}\left[\frac{\partial f}{\partial y}\bigg|_{y_{n-1}} + \frac{\partial f}{\partial y}\bigg|_{k_2\text{-state}} \cdot (I + \Delta t \cdot \frac{\partial f}{\partial y}\bigg|_{y_{n-1}})\right]
+$$
+
+**Key property**: Like Forward Euler, $A_n = I$ is constant, but $B_n$ has a chain rule through $k_2$.
+
+Let $\tilde{y} = y_{n-1} + \Delta t \cdot k_1$ and $J_{n-1} = \frac{\partial f}{\partial y}|_{y_{n-1}}$, $\tilde{J} = \frac{\partial f}{\partial y}|_{\tilde{y}}$.
+
+| Quantity | Formula |
+|----------|---------|
+| $R_n$ | $y_n - y_{n-1} - \frac{\Delta t}{2}(k_1 + k_2)$ |
+| $\frac{\partial R_n}{\partial y_n}$ | $I$ |
+| $\frac{\partial R_n}{\partial y_{n-1}}$ | $-I - \frac{\Delta t}{2}[J_{n-1} + \tilde{J}(I + \Delta t J_{n-1})]$ |
+| $\frac{\partial R_n}{\partial p}$ | $-\frac{\Delta t}{2}[\frac{\partial f}{\partial p}|_{n-1} + \frac{\partial f}{\partial p}|_{\tilde{y}} + \tilde{J} \cdot \Delta t \cdot \frac{\partial f}{\partial p}|_{n-1}]$ |
+| $\frac{\partial^2 R_n}{\partial y_n^2}$ | $0$ |
+
+The $\frac{\partial^2 R_n}{\partial y_{n-1}^2}$ involves chain rule through $k_2$:
+$$
+\frac{\partial^2 R_n}{\partial y_{n-1}^2} = -\frac{\Delta t}{2}\left[\frac{\partial^2 f}{\partial y^2}\bigg|_{n-1} + \text{(chain rule terms through } \tilde{y}\text{)}\right]
+$$
+
+---
+
+## Connecting Block Matrix to Adjoint Steps
+
+### Adjoint Solve (Step 2)
+
+The adjoint equation $c_Y^T \lambda = -\nabla_Y Q$ becomes:
+
+**Final time** ($n = N$):
+$$
+A_N^T \lambda_N = -\frac{\partial Q}{\partial y_N}
+$$
+
+**Intermediate times** ($1 \leq n < N$):
+$$
+A_n^T \lambda_n + B_{n+1}^T \lambda_{n+1} = -\frac{\partial Q}{\partial y_n}
+$$
+
+Solving backward:
+$$
+\lambda_n = (A_n^T)^{-1}\left[-\frac{\partial Q}{\partial y_n} - B_{n+1}^T \lambda_{n+1}\right]
+$$
+
+::: {.callout-tip}
+## Explicit vs Implicit
+For **explicit schemes** ($A_n = I$): $\lambda_n = -\frac{\partial Q}{\partial y_n} - B_{n+1}^T \lambda_{n+1}$
+
+For **implicit schemes**: Must solve linear system with $A_n^T = I - \Delta t \cdot J_n^T$
+:::
+
+### Forward Sensitivity (Step 3)
+
+The sensitivity equation $c_Y \cdot w = -\frac{\partial R}{\partial p} \cdot v$ becomes:
+
+**Initial time** ($n = 0$):
+$$
+w_0 = \frac{\partial y_0}{\partial p} \cdot v
+$$
+
+**Later times** ($n \geq 1$):
+$$
+A_n w_n + B_n w_{n-1} = -\frac{\partial R_n}{\partial p} \cdot v
+$$
+
+Solving forward:
+$$
+w_n = A_n^{-1}\left[-B_n w_{n-1} - \frac{\partial R_n}{\partial p} \cdot v\right]
+$$
+
+### Second Adjoint (Step 4)
+
+The second adjoint captures how the adjoint equation changes with $p$:
+
+$$
+c_Y^T s = -\frac{\partial}{\partial p}[c_Y^T \lambda] \cdot v - \nabla_{YY}^2 L \cdot w - \nabla_{Yp}^2 L \cdot v
+$$
+
+The key term is $\frac{\partial}{\partial p}[c_Y^T \lambda]$. For row $n$:
+
+$$
+\frac{\partial}{\partial p}[A_n^T \lambda_n + B_{n+1}^T \lambda_{n+1}] \cdot v
+$$
+
+**For explicit schemes** ($A_n = I$, so $\frac{\partial A_n}{\partial p} = 0$):
+$$
+\frac{\partial}{\partial p}[\lambda_n + B_{n+1}^T \lambda_{n+1}] \cdot v = \frac{\partial \lambda_n}{\partial p} \cdot v + \frac{\partial B_{n+1}^T}{\partial p} \lambda_{n+1} \cdot v
+$$
+
+But we don't explicitly compute $\frac{\partial \lambda}{\partial p}$. Instead, the second adjoint $s$ captures this implicitly. The RHS for the second adjoint at step $n$ is:
+
+$$
+\text{RHS}_n = -\frac{\partial B_{n+1}^T}{\partial Y}\lambda_{n+1} \cdot w - \frac{\partial B_{n+1}^T}{\partial p}\lambda_{n+1} \cdot v - \nabla_{y_n y_n}^2 L \cdot w_n - \nabla_{y_n p}^2 L \cdot v
+$$
+
+where:
+$$
+\nabla_{y_n y_n}^2 L = \frac{\partial^2 Q}{\partial y_n^2} + \lambda_n^T \frac{\partial^2 R_n}{\partial y_n^2} + \lambda_{n+1}^T \frac{\partial^2 R_{n+1}}{\partial y_n^2}
+$$
+
+::: {.callout-warning}
+## Critical Insight for Explicit Schemes
+For **Forward Euler** and **Heun**, the residual $R_n$ depends on $y_{n-1}$, not $y_n$, for the nonlinear terms. So:
+
+- $\frac{\partial^2 R_n}{\partial y_n^2} = 0$ (diagonal Hessian is zero)
+- $\frac{\partial^2 R_n}{\partial y_{n-1}^2} \neq 0$ (off-diagonal Hessian is nonzero)
+
+This means the Hessian contribution from $R_n$ appears in the **row for $y_{n-1}$**, not $y_n$!
+:::
+
+### HVP Accumulation (Step 5)
+
+The final HVP sums contributions:
+
+$$
+\text{HVP} = \underbrace{\frac{\partial^2 Q}{\partial p^2} \cdot v}_{\text{functional Hessian}} + \underbrace{\sum_n \left(\frac{\partial R_n}{\partial p}\right)^T s_n}_{\text{from second adjoint}} + \underbrace{\sum_n \lambda_n^T \frac{\partial^2 R_n}{\partial p \partial Y} \cdot w}_{\nabla_{pY}^2 L \cdot w} + \underbrace{\sum_n \lambda_n^T \frac{\partial^2 R_n}{\partial p^2} \cdot v}_{\nabla_{pp}^2 L \cdot v}
+$$
+
+---
+
+## Summary: Required Derivatives per Scheme
+
+### Forward Euler
+
+| Derivative | Used In | Notes |
+|------------|---------|-------|
+| $\frac{\partial R_n}{\partial y_n} = I$ | Forward, adjoint solve | Trivial inversion |
+| $\frac{\partial R_n}{\partial y_{n-1}}$ | Sensitivity, second adjoint | Contains $J_{n-1}$ |
+| $\frac{\partial R_n}{\partial p}$ | Sensitivity, HVP accumulation | |
+| $\frac{\partial^2 R_n}{\partial y_{n-1}^2}$ | Second adjoint RHS | Hessian appears at $y_{n-1}$ |
+| $\frac{\partial^2 R_n}{\partial y_{n-1} \partial p}$ | Second adjoint RHS | |
+| $\frac{\partial^2 R_n}{\partial p \partial y_{n-1}}$ | HVP accumulation | |
+| $\frac{\partial^2 R_n}{\partial p^2}$ | HVP accumulation | |
+
+### Backward Euler
+
+| Derivative | Used In | Notes |
+|------------|---------|-------|
+| $\frac{\partial R_n}{\partial y_n}$ | Forward (Newton), adjoint | Requires linear solve |
+| $\frac{\partial R_n}{\partial y_{n-1}} = -I$ | Sensitivity, second adjoint | Simple |
+| $\frac{\partial R_n}{\partial p}$ | Sensitivity, HVP accumulation | |
+| $\frac{\partial^2 R_n}{\partial y_n^2}$ | Second adjoint RHS | Hessian at $y_n$ |
+| $\frac{\partial^2 R_n}{\partial y_n \partial p}$ | Second adjoint RHS | |
+| $\frac{\partial^2 R_n}{\partial p \partial y_n}$ | HVP accumulation | |
+| $\frac{\partial^2 R_n}{\partial p^2}$ | HVP accumulation | |
+
+### Crank-Nicolson
+
+| Derivative | Used In | Notes |
+|------------|---------|-------|
+| $\frac{\partial R_n}{\partial y_n}$ | Forward (Newton), adjoint | Contains $J_n$ |
+| $\frac{\partial R_n}{\partial y_{n-1}}$ | Sensitivity, second adjoint | Contains $J_{n-1}$ |
+| $\frac{\partial R_n}{\partial p}$ | Sensitivity, HVP accumulation | Both $J_{n-1}$ and $J_n$ |
+| $\frac{\partial^2 R_n}{\partial y_n^2}$ | Second adjoint RHS | At $y_n$ |
+| $\frac{\partial^2 R_n}{\partial y_{n-1}^2}$ | Second adjoint RHS | At $y_{n-1}$ |
+| Mixed derivatives | Second adjoint, HVP | All combinations |
+
+### Heun
+
+| Derivative | Used In | Notes |
+|------------|---------|-------|
+| $\frac{\partial R_n}{\partial y_n} = I$ | Forward, adjoint solve | Trivial |
+| $\frac{\partial R_n}{\partial y_{n-1}}$ | Sensitivity, second adjoint | Chain rule through $k_2$ |
+| $\frac{\partial R_n}{\partial p}$ | Sensitivity, HVP | Chain rule through $k_2$ |
+| $\frac{\partial^2 R_n}{\partial y_{n-1}^2}$ | Second adjoint RHS | Complex chain rule |
+| $\frac{\partial^2 R_n}{\partial y_{n-1} \partial p}$ | Second adjoint RHS | |
+| $\frac{\partial^2 R_n}{\partial p^2}$ | HVP accumulation | |
+
+---
+
+## Implementation Notes
+
+### Explicit Scheme Index Mapping
+
+For **explicit schemes** (Forward Euler, Heun), the sensitivity $w_n$ depends on $y_{n-1}$:
+
+```
+Forward solve:  y_n = y_{n-1} + Δt·f(y_{n-1})
+Sensitivity:    w_n depends on w_{n-1} and ∂f/∂p at y_{n-1}
+
+Second adjoint RHS at n uses:
+  - λ_n (first adjoint at n)
+  - w_{n-1} (sensitivity at n-1, because R_n depends on y_{n-1})
+  - d²R_n/dy_{n-1}² (Hessian evaluated at y_{n-1})
+```
+
+### Implicit Scheme Index Mapping
+
+For **implicit schemes** (Backward Euler, Crank-Nicolson), the sensitivity $w_n$ depends on $y_n$:
+
+```
+Forward solve:  y_n solves R_n(y_n, y_{n-1}) = 0 implicitly
+Sensitivity:    w_n depends on w_{n-1} and ∂f/∂p at y_n
+
+Second adjoint RHS at n uses:
+  - λ_n (first adjoint at n)
+  - w_n (sensitivity at n, because R_n depends on y_n)
+  - d²R_n/dy_n² (Hessian evaluated at y_n)
+```
+
+### Second Adjoint Final Condition
+
+**Explicit schemes** ($A_N = I$):
+$$
+s_N = -\frac{\partial^2 Q}{\partial y_N^2} \cdot w_N - \frac{\partial^2 Q}{\partial y_N \partial p} \cdot v
+$$
+
+Note: No $\frac{\partial^2 R_N}{\partial y_N^2}$ term since it's zero.
+
+**Implicit schemes**:
+$$
+(A_N^T) s_N = -\frac{\partial^2 Q}{\partial y_N^2} \cdot w_N - \frac{\partial^2 Q}{\partial y_N \partial p} \cdot v - \lambda_N^T \frac{\partial^2 R_N}{\partial y_N^2} \cdot w_N - \lambda_N^T \frac{\partial^2 R_N}{\partial y_N \partial p} \cdot v
+$$
+
+## See Also
+
+- [GP HVP Implementation](../developer-guide/gp-hvp-implementation.qmd) - Similar HVP patterns for Gaussian processes
+- [Derivative Checking](../developer-guide/derivative-checking.qmd) - How to verify HVP implementations

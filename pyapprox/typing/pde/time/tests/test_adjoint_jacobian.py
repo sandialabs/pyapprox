@@ -11,6 +11,7 @@ import numpy as np
 
 from pyapprox.typing.util.backends.protocols import Array, Backend
 from pyapprox.typing.util.backends.numpy import NumpyBkd
+from pyapprox.typing.util.test_utils import load_tests
 from pyapprox.typing.optimization.rootfinding.newton import NewtonSolver
 from pyapprox.typing.pde.time.benchmarks.linear_ode import LinearODEResidual
 from pyapprox.typing.pde.time.implicit_steppers.backward_euler import (
