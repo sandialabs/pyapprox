@@ -211,66 +211,12 @@ class BackwardEulerResidual(TimeSteppingResidualBase[Array]):
         drdu = self.jacobian(final_fwd_sol)
         return self._bkd.solve(drdu.T, -final_dqdu)
 
-    def adjoint_final_solution(
-        self,
-        fsol_0: Array,
-        asol_1: Array,
-        dqdu_0: Array,
-        deltat_1: float,
-    ) -> Array:
-        """
-        Compute the adjoint at initial time (final step of backward sweep).
-
-        Solves: Mᵀ·λ_0 = -B_1ᵀ·λ_1 - dQ/dy_0
-
-        Parameters
-        ----------
-        fsol_0 : Array
-            Forward solution at initial time. Shape: (nstates,)
-        asol_1 : Array
-            Adjoint solution at time step 1. Shape: (nstates,)
-        dqdu_0 : Array
-            Gradient dQ/dy at initial time. Shape: (nstates,)
-        deltat_1 : float
-            Time step size for first interval.
-
-        Returns
-        -------
-        Array
-            Adjoint solution at initial time λ_0. Shape: (nstates,)
-        """
-        # For Backward Euler, the final adjoint solve uses mass matrix
-        drduT_diag = self._residual.mass_matrix(fsol_0.shape[0]).T
-        drduT_offdiag = self.adjoint_off_diag_jacobian(fsol_0, deltat_1)
-        return self._bkd.solve(drduT_diag, -drduT_offdiag @ asol_1 - dqdu_0)
-
-    def quadrature_samples_weights(self, times: Array) -> Tuple[Array, Array]:
-        """
-        Compute quadrature rule consistent with Backward Euler.
-
-        Backward Euler uses right-point (piecewise constant right) quadrature.
-
-        Parameters
-        ----------
-        times : Array
-            Time points. Shape: (ntimes,)
-
-        Returns
-        -------
-        quadx : Array
-            Quadrature sample points. Shape: (ntimes,)
-        quadw : Array
-            Quadrature weights. Shape: (ntimes,)
-        """
+    def _get_quadrature_class(self):
+        """Return quadrature class for Backward Euler (right-constant)."""
         from pyapprox.typing.surrogates.basis.piecewisepoly.right_constant import (
             PiecewiseConstantRight,
         )
-        quadrature = PiecewiseConstantRight(times, self._bkd)
-        quadx, quadw = quadrature.quadrature_rule()
-        # Flatten weights if needed
-        if quadw.ndim > 1:
-            quadw = quadw[:, 0]
-        return quadx, quadw
+        return PiecewiseConstantRight
 
     # =========================================================================
     # HVP Methods (conditionally available via dynamic binding)
