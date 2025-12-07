@@ -159,7 +159,7 @@ class AffineTransform2D(Generic[Array]):
         Array
             Physical coordinates. Shape: (2, npts)
         """
-        result = self._bkd.zeros_like(reference_pts)
+        result = self._bkd.zeros(reference_pts.shape)
         result[0, :] = self._scale_x * reference_pts[0, :] + self._shift_x
         result[1, :] = self._scale_y * reference_pts[1, :] + self._shift_y
         return result
@@ -177,7 +177,7 @@ class AffineTransform2D(Generic[Array]):
         Array
             Reference coordinates. Shape: (2, npts)
         """
-        result = self._bkd.zeros_like(physical_pts)
+        result = self._bkd.zeros(physical_pts.shape)
         result[0, :] = (physical_pts[0, :] - self._shift_x) / self._scale_x
         result[1, :] = (physical_pts[1, :] - self._shift_y) / self._scale_y
         return result
@@ -289,7 +289,7 @@ class AffineTransform3D(Generic[Array]):
         Array
             Physical coordinates. Shape: (3, npts)
         """
-        result = self._bkd.zeros_like(reference_pts)
+        result = self._bkd.zeros(reference_pts.shape)
         result[0, :] = self._scale_x * reference_pts[0, :] + self._shift_x
         result[1, :] = self._scale_y * reference_pts[1, :] + self._shift_y
         result[2, :] = self._scale_z * reference_pts[2, :] + self._shift_z
@@ -308,7 +308,7 @@ class AffineTransform3D(Generic[Array]):
         Array
             Reference coordinates. Shape: (3, npts)
         """
-        result = self._bkd.zeros_like(physical_pts)
+        result = self._bkd.zeros(physical_pts.shape)
         result[0, :] = (physical_pts[0, :] - self._shift_x) / self._scale_x
         result[1, :] = (physical_pts[1, :] - self._shift_y) / self._scale_y
         result[2, :] = (physical_pts[2, :] - self._shift_z) / self._scale_z
