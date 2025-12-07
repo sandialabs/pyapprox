@@ -85,6 +85,46 @@ class ForwardEulerResidual(TimeSteppingResidualBase[Array]):
         return self._residual.mass_matrix(state.shape[0])
 
     # =========================================================================
+    # Sensitivity Protocol Methods
+    # =========================================================================
+
+    def is_explicit(self) -> bool:
+        """Return True since Forward Euler is an explicit scheme."""
+        return True
+
+    def has_prev_state_hessian(self) -> bool:
+        """Return False since R_{n+1} does not depend on f(y_n)."""
+        return False
+
+    def sensitivity_off_diag_jacobian(
+        self, fsol_nm1: Array, fsol_n: Array, deltat: float
+    ) -> Array:
+        """
+        Compute dR_n/dy_{n-1} for forward sensitivity propagation.
+
+        For Forward Euler R_n = y_n - y_{n-1} - Δt·f(y_{n-1}):
+            dR_n/dy_{n-1} = -M - Δt·J_{n-1}
+
+        Parameters
+        ----------
+        fsol_nm1 : Array
+            Solution at previous time step y_{n-1}. Shape: (nstates,)
+        fsol_n : Array
+            Solution at current time step y_n. Shape: (nstates,)
+        deltat : float
+            Time step size Δt.
+
+        Returns
+        -------
+        Array
+            Off-diagonal Jacobian dR_n/dy_{n-1}. Shape: (nstates, nstates)
+        """
+        self._residual.set_time(self._time)
+        mass = self._residual.mass_matrix(fsol_nm1.shape[0])
+        jac = self._residual.jacobian(fsol_nm1)
+        return -mass - deltat * jac
+
+    # =========================================================================
     # Adjoint Methods
     # =========================================================================
 
