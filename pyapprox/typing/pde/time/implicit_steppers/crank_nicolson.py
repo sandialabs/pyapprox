@@ -256,6 +256,34 @@ class CrankNicolsonResidual(TimeSteppingResidualBase[Array]):
     # =========================================================================
     # HVP Methods (conditionally available via dynamic binding)
     # =========================================================================
+    #
+    # For Crank-Nicolson, the residual is:
+    #   R(y_n) = y_n - y_{n-1} - (Δt/2)·[f(y_{n-1}, t_{n-1}) + f(y_n, t_n)]
+    #
+    # Key insight: y_{n-1} is FIXED when computing derivatives w.r.t. y_n.
+    # The term f(y_{n-1}) does NOT contribute to d²R/dy_n² since it's independent
+    # of the current state y_n.
+    #
+    # However, when computing d²R/dp², BOTH terms contribute since both
+    # f(y_{n-1}, p) and f(y_n, p) depend on parameters p.
+    # =========================================================================
+
+    def _setup_derivative_methods(self) -> None:
+        """
+        Override base class to add Crank-Nicolson specific prev_* methods.
+
+        In addition to the standard HVP methods (state_state_hvp, etc.),
+        Crank-Nicolson needs prev_* methods because R_{n+1} depends on y_n
+        through the f(y_{n-1}) term.
+        """
+        # Call parent implementation for standard derivative methods
+        super()._setup_derivative_methods()
+
+        # Add Crank-Nicolson specific methods for R_{n+1} contributions
+        if hasattr(self._residual, "state_state_hvp"):
+            self.prev_state_state_hvp = self._prev_state_state_hvp
+            self.prev_state_param_hvp = self._prev_state_param_hvp
+            self.prev_param_state_hvp = self._prev_param_state_hvp
 
     def _state_state_hvp(
         self,
@@ -265,9 +293,11 @@ class CrankNicolsonResidual(TimeSteppingResidualBase[Array]):
         wvec: Array,
     ) -> Array:
         """
-        Compute (d^2R/dy_n^2)·w contracted with adjoint.
+        Compute (d²R/dy_n²)·w contracted with adjoint.
 
-        For Crank-Nicolson: d^2R/dy^2 = -(Δt/2)·(d^2f/dy^2)|_{y_n, t_n}
+        For Crank-Nicolson: d²R/dy_n² = -(Δt/2)·(d²f/dy²)|_{y_n, t_n}
+
+        Note: The f(y_{n-1}) term doesn't contribute because y_{n-1} is fixed.
         """
         self._residual.set_time(self._time + self._deltat)
         return -0.5 * self._deltat * self._residual.state_state_hvp(
@@ -282,19 +312,21 @@ class CrankNicolsonResidual(TimeSteppingResidualBase[Array]):
         vvec: Array,
     ) -> Array:
         """
-        Compute (d^2R/dy_n dp)·v contracted with adjoint.
+        Compute (d²R/dy_n dp)·v contracted with adjoint.
 
-        For Crank-Nicolson: contributions from both y_{n-1} and y_n
+        For Crank-Nicolson:
+        dR/dp = -(Δt/2)·[df/dp|_{y_{n-1}} + df/dp|_{y_n}]
+
+        d²R/(dy_n dp) = -(Δt/2)·d²f/(dy dp)|_{y_n, t_n}
+
+        Note: The f(y_{n-1}) term doesn't contribute to d²R/(dy_n dp)
+        because y_{n-1} is independent of y_n.
         """
-        # Contribution from y_{n-1} term
-        self._residual.set_time(self._time)
-        hvp_nm1 = self._residual.state_param_hvp(fsol_nm1, adj_state, vvec)
-
-        # Contribution from y_n term
+        # Only contribution from y_n term (y_{n-1} is fixed w.r.t. y_n)
         self._residual.set_time(self._time + self._deltat)
         hvp_n = self._residual.state_param_hvp(fsol_n, adj_state, vvec)
 
-        return -0.5 * self._deltat * (hvp_nm1 + hvp_n)
+        return -0.5 * self._deltat * hvp_n
 
     def _param_state_hvp(
         self,
@@ -304,19 +336,20 @@ class CrankNicolsonResidual(TimeSteppingResidualBase[Array]):
         wvec: Array,
     ) -> Array:
         """
-        Compute (d^2R/dp dy_n)·w contracted with adjoint.
+        Compute (d²R/dp dy_n)·w contracted with adjoint.
 
-        For Crank-Nicolson: contributions from both y_{n-1} and y_n
+        For Crank-Nicolson:
+        dR/dy_n = I - (Δt/2)·df/dy|_{y_n}
+
+        d²R/(dp dy_n) = -(Δt/2)·d²f/(dp dy)|_{y_n, t_n}
+
+        Note: The f(y_{n-1}) term doesn't contribute because y_{n-1} is fixed.
         """
-        # Contribution from y_{n-1} term
-        self._residual.set_time(self._time)
-        hvp_nm1 = self._residual.param_state_hvp(fsol_nm1, adj_state, wvec)
-
-        # Contribution from y_n term
+        # Only contribution from y_n term (y_{n-1} is fixed w.r.t. y_n)
         self._residual.set_time(self._time + self._deltat)
         hvp_n = self._residual.param_state_hvp(fsol_n, adj_state, wvec)
 
-        return -0.5 * self._deltat * (hvp_nm1 + hvp_n)
+        return -0.5 * self._deltat * hvp_n
 
     def _param_param_hvp(
         self,
@@ -326,9 +359,15 @@ class CrankNicolsonResidual(TimeSteppingResidualBase[Array]):
         vvec: Array,
     ) -> Array:
         """
-        Compute (d^2R/dp^2)·v contracted with adjoint.
+        Compute (d²R/dp²)·v contracted with adjoint.
 
-        For Crank-Nicolson: contributions from both y_{n-1} and y_n
+        For Crank-Nicolson:
+        dR/dp = -(Δt/2)·[df/dp|_{y_{n-1}} + df/dp|_{y_n}]
+
+        d²R/dp² = -(Δt/2)·[d²f/dp²|_{y_{n-1}} + d²f/dp²|_{y_n}]
+
+        Note: BOTH terms contribute because both f(y_{n-1}, p) and f(y_n, p)
+        depend on parameters p.
         """
         # Contribution from y_{n-1} term
         self._residual.set_time(self._time)
@@ -339,3 +378,103 @@ class CrankNicolsonResidual(TimeSteppingResidualBase[Array]):
         hvp_n = self._residual.param_param_hvp(fsol_n, adj_state, vvec)
 
         return -0.5 * self._deltat * (hvp_nm1 + hvp_n)
+
+    # =========================================================================
+    # Off-diagonal HVP Methods for Crank-Nicolson
+    # =========================================================================
+    #
+    # For Crank-Nicolson, R_n depends on BOTH y_{n-1} and y_n.
+    # When computing ∂²L/∂y_n², we need contributions from:
+    # - R_n (via f(y_n)) - computed by state_state_hvp above
+    # - R_{n+1} (via f(y_n) where y_n is y_{n-1} for R_{n+1})
+    #
+    # These "prev" methods compute the R_{n+1} contribution evaluated at y_n.
+    # =========================================================================
+
+    def _prev_state_state_hvp(
+        self,
+        fsol_n: Array,
+        adj_state: Array,
+        wvec: Array,
+    ) -> Array:
+        """
+        Compute (∂²R_{n+1}/∂y_n²)·w contracted with adjoint.
+
+        For Crank-Nicolson R_{n+1}, the y_n term is f(y_n) (the y_{n-1} of R_{n+1}):
+        ∂²R_{n+1}/∂y_n² = -(Δt/2)·∂²f/∂y²|_{y_n}
+
+        Parameters
+        ----------
+        fsol_n : Array
+            Solution at time n (acts as y_{n-1} for R_{n+1}). Shape: (nstates,)
+        adj_state : Array
+            Adjoint at time n+1 (λ_{n+1}). Shape: (nstates,)
+        wvec : Array
+            Sensitivity at y_n. Shape: (nstates,)
+
+        Returns
+        -------
+        Array
+            Hessian contribution. Shape: (nstates,)
+        """
+        # Time is set for t_n (because we're evaluating f at y_n)
+        return -0.5 * self._deltat * self._residual.state_state_hvp(
+            fsol_n, adj_state, wvec
+        )
+
+    def _prev_state_param_hvp(
+        self,
+        fsol_n: Array,
+        adj_state: Array,
+        vvec: Array,
+    ) -> Array:
+        """
+        Compute (∂²R_{n+1}/∂y_n ∂p)·v contracted with adjoint.
+
+        For Crank-Nicolson R_{n+1}, the y_n term is f(y_n, p):
+        ∂²R_{n+1}/∂y_n ∂p = -(Δt/2)·∂²f/∂y∂p|_{y_n}
+
+        Parameters
+        ----------
+        fsol_n : Array
+            Solution at time n. Shape: (nstates,)
+        adj_state : Array
+            Adjoint at time n+1 (λ_{n+1}). Shape: (nstates,)
+        vvec : Array
+            Direction vector. Shape: (nparams, 1)
+
+        Returns
+        -------
+        Array
+            Mixed Hessian contribution. Shape: (nstates,)
+        """
+        return -0.5 * self._deltat * self._residual.state_param_hvp(
+            fsol_n, adj_state, vvec
+        )
+
+    def _prev_param_state_hvp(
+        self,
+        fsol_n: Array,
+        adj_state: Array,
+        wvec: Array,
+    ) -> Array:
+        """
+        Compute (∂²R_{n+1}/∂p ∂y_n)·w contracted with adjoint.
+
+        Parameters
+        ----------
+        fsol_n : Array
+            Solution at time n. Shape: (nstates,)
+        adj_state : Array
+            Adjoint at time n+1 (λ_{n+1}). Shape: (nstates,)
+        wvec : Array
+            Sensitivity at y_n. Shape: (nstates,)
+
+        Returns
+        -------
+        Array
+            Mixed Hessian contribution. Shape: (nparams,)
+        """
+        return -0.5 * self._deltat * self._residual.param_state_hvp(
+            fsol_n, adj_state, wvec
+        )
