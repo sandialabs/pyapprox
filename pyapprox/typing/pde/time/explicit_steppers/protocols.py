@@ -1,11 +1,32 @@
-from typing import Protocol, Generic
+"""
+Protocols for explicit time stepping residuals.
 
-from pyapprox.typing.util.backends.protocols import Array, Backend
+This module re-exports protocols from the unified protocols module.
 
+For new code, prefer importing from ``pyapprox.typing.pde.time.protocols``.
+"""
 
-class ExplicitODEResidualProtocol(Protocol, Generic[Array]):
-    def bkd(self) -> Backend[Array]: ...
+# Re-export from unified protocols
+from pyapprox.typing.pde.time.protocols import (
+    ODEResidualProtocol,
+    ODEResidualWithParamJacobianProtocol,
+    ODEResidualWithHVPProtocol,
+    TimeSteppingResidualProtocol,
+    AdjointEnabledTimeSteppingResidualProtocol,
+    HVPEnabledTimeSteppingResidualProtocol,
+    TimeSteppingResidualBase,
+)
 
-    def __call__(self, iterate: Array) -> Array: ...
+# Legacy alias for backward compatibility
+ExplicitODEResidualProtocol = ODEResidualProtocol
 
-    def set_time(self, time: float) -> None: ...
+__all__ = [
+    "ODEResidualProtocol",
+    "ODEResidualWithParamJacobianProtocol",
+    "ODEResidualWithHVPProtocol",
+    "TimeSteppingResidualProtocol",
+    "AdjointEnabledTimeSteppingResidualProtocol",
+    "HVPEnabledTimeSteppingResidualProtocol",
+    "TimeSteppingResidualBase",
+    "ExplicitODEResidualProtocol",
+]
