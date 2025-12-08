@@ -143,6 +143,14 @@ class NumpyBkd(Backend[NDArray[Any]]):  # Specify NDArray type
         return cast(NDArray[Any], np.cos(array))
 
     @staticmethod
+    def arccos(array: NDArray[Any]) -> NDArray[Any]:
+        return cast(NDArray[Any], np.arccos(array))
+
+    @staticmethod
+    def arctan2(y: NDArray[Any], x: NDArray[Any]) -> NDArray[Any]:
+        return cast(NDArray[Any], np.arctan2(y, x))
+
+    @staticmethod
     def full(
         shape: Tuple[int, ...], fill_value: float, dtype: Optional[Any] = None
     ) -> NDArray[Any]:
