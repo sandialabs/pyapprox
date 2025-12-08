@@ -11,6 +11,10 @@ from pyapprox.typing.pde.collocation.physics.advection_diffusion import (
     create_steady_diffusion,
     create_advection_diffusion,
 )
+from pyapprox.typing.pde.collocation.physics.linear_elasticity import (
+    LinearElasticityPhysics,
+    create_linear_elasticity,
+)
 
 __all__ = [
     # Base classes
@@ -22,4 +26,7 @@ __all__ = [
     "AdvectionDiffusionReactionWithParam",
     "create_steady_diffusion",
     "create_advection_diffusion",
+    # Linear Elasticity
+    "LinearElasticityPhysics",
+    "create_linear_elasticity",
 ]
