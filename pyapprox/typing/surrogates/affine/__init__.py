@@ -22,6 +22,7 @@ Phases:
 - Phase 3: Multivariate basis with Jacobian/Hessian support
 - Phase 4: Basis expansions and PCE statistics
 - Phase 5: Linear system solvers
+- Phase 6: Extended univariate polynomials (Laguerre, discrete, numeric)
 """
 
 from pyapprox.typing.surrogates.affine.protocols import (
@@ -79,6 +80,22 @@ from pyapprox.typing.surrogates.affine.univariate import (
     # Hermite
     HermitePolynomial1D,
     hermite_recurrence,
+    # Laguerre
+    LaguerrePolynomial1D,
+    laguerre_recurrence,
+    # Discrete polynomials
+    KrawtchoukPolynomial1D,
+    krawtchouk_recurrence,
+    HahnPolynomial1D,
+    hahn_recurrence,
+    CharlierPolynomial1D,
+    charlier_recurrence,
+    DiscreteChebyshevPolynomial1D,
+    discrete_chebyshev_recurrence,
+    # Numeric polynomials
+    DiscreteNumericOrthonormalPolynomial1D,
+    WeightedSamplePolynomial1D,
+    lanczos_recursion,
     # Quadrature
     GaussQuadratureRule,
     GaussLobattoQuadratureRule,
@@ -187,17 +204,36 @@ __all__ = [
     "RegularizedSolverProtocol",
     "QuantileSolverProtocol",
     "ConstrainedSolverProtocol",
-    # Univariate implementations
+    # Univariate implementations - base
     "OrthonormalPolynomial1D",
     "evaluate_orthonormal_polynomial_1d",
     "evaluate_orthonormal_polynomial_derivatives_1d",
+    # Univariate - Jacobi family
     "JacobiPolynomial1D",
     "LegendrePolynomial1D",
     "Chebyshev1stKindPolynomial1D",
     "Chebyshev2ndKindPolynomial1D",
     "jacobi_recurrence",
+    # Univariate - Hermite
     "HermitePolynomial1D",
     "hermite_recurrence",
+    # Univariate - Laguerre
+    "LaguerrePolynomial1D",
+    "laguerre_recurrence",
+    # Univariate - Discrete
+    "KrawtchoukPolynomial1D",
+    "krawtchouk_recurrence",
+    "HahnPolynomial1D",
+    "hahn_recurrence",
+    "CharlierPolynomial1D",
+    "charlier_recurrence",
+    "DiscreteChebyshevPolynomial1D",
+    "discrete_chebyshev_recurrence",
+    # Univariate - Numeric
+    "DiscreteNumericOrthonormalPolynomial1D",
+    "WeightedSamplePolynomial1D",
+    "lanczos_recursion",
+    # Quadrature
     "GaussQuadratureRule",
     "GaussLobattoQuadratureRule",
     # Index utilities
