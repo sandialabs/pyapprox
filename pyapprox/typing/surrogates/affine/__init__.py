@@ -13,11 +13,14 @@ indices
     Multi-index generation with composable admissibility criteria.
 basis
     Multivariate basis functions with Jacobian/Hessian support.
+expansions
+    Basis expansions including PCE with statistics support.
 
 Phases:
 - Phase 1: Univariate basis protocols and implementations
 - Phase 2: Index generation with composable admissibility criteria
 - Phase 3: Multivariate basis with Jacobian/Hessian support
+- Phase 4: Basis expansions and PCE statistics
 """
 
 from pyapprox.typing.surrogates.affine.protocols import (
@@ -46,6 +49,13 @@ from pyapprox.typing.surrogates.affine.protocols import (
     AdmissibilityCriteriaProtocol,
     IndexGrowthRuleProtocol,
     CompositeAdmissibilityCriteriaProtocol,
+    # Expansion protocols
+    BasisExpansionProtocol,
+    BasisExpansionHasJacobianProtocol,
+    BasisExpansionHasHessianProtocol,
+    FittableBasisExpansionProtocol,
+    PCEStatisticsProtocol,
+    LinearSystemSolverProtocol,
 )
 
 from pyapprox.typing.surrogates.affine.univariate import (
@@ -103,6 +113,20 @@ from pyapprox.typing.surrogates.affine.basis import (
     FixedTensorProductQuadratureRule,
 )
 
+from pyapprox.typing.surrogates.affine.expansions import (
+    # Base class
+    BasisExpansion,
+    # PCE
+    PolynomialChaosExpansion,
+    create_pce,
+    # Solvers
+    LeastSquaresSolver,
+    WeightedLeastSquaresSolver,
+    RidgeRegressionSolver,
+    # Statistics module
+    pce_statistics,
+)
+
 __all__ = [
     # Univariate protocols
     "Basis1DProtocol",
@@ -129,6 +153,13 @@ __all__ = [
     "AdmissibilityCriteriaProtocol",
     "IndexGrowthRuleProtocol",
     "CompositeAdmissibilityCriteriaProtocol",
+    # Expansion protocols
+    "BasisExpansionProtocol",
+    "BasisExpansionHasJacobianProtocol",
+    "BasisExpansionHasHessianProtocol",
+    "FittableBasisExpansionProtocol",
+    "PCEStatisticsProtocol",
+    "LinearSystemSolverProtocol",
     # Univariate implementations
     "OrthonormalPolynomial1D",
     "evaluate_orthonormal_polynomial_1d",
@@ -172,4 +203,14 @@ __all__ = [
     "QuadratureRule",
     "TensorProductQuadratureRule",
     "FixedTensorProductQuadratureRule",
+    # Expansions
+    "BasisExpansion",
+    "PolynomialChaosExpansion",
+    "create_pce",
+    # Solvers
+    "LeastSquaresSolver",
+    "WeightedLeastSquaresSolver",
+    "RidgeRegressionSolver",
+    # Statistics module
+    "pce_statistics",
 ]

@@ -482,3 +482,68 @@ class Backend(Protocol, Generic[Array]):
     def int64_dtype() -> Any:
         """Return the int64 dtype for this backend."""
         ...
+
+    @staticmethod
+    def where(
+        condition: Array,
+        x: Union[Array, float, None] = None,
+        y: Union[Array, float, None] = None,
+    ) -> Array:
+        """Return elements chosen from x or y depending on condition.
+
+        Parameters
+        ----------
+        condition : Array
+            Boolean array of condition.
+        x : Array or scalar, optional
+            Values where condition is True.
+        y : Array or scalar, optional
+            Values where condition is False.
+
+        Returns
+        -------
+        Array
+            If x and y provided: array of elements from x where condition is
+            True, elements from y otherwise.
+            If only condition provided: tuple of arrays of indices where True.
+        """
+        ...
+
+    @staticmethod
+    def lstsq(
+        a: Array,
+        b: Array,
+        rcond: Optional[float] = None,
+    ) -> Array:
+        """Solve least squares problem min ||ax - b||_2.
+
+        Parameters
+        ----------
+        a : Array
+            Coefficient matrix. Shape: (m, n)
+        b : Array
+            Ordinate values. Shape: (m,) or (m, k)
+        rcond : float, optional
+            Cutoff for small singular values.
+
+        Returns
+        -------
+        Array
+            Least squares solution. Shape: (n,) or (n, k)
+        """
+        ...
+
+    @staticmethod
+    def ones_like(array: Array, dtype: Optional[Any] = None) -> Array:
+        """Return an array of ones with the same shape as input."""
+        ...
+
+    @staticmethod
+    def zeros_like(array: Array, dtype: Optional[Any] = None) -> Array:
+        """Return an array of zeros with the same shape as input."""
+        ...
+
+    @staticmethod
+    def default_dtype() -> Any:
+        """Return the default floating point dtype for this backend."""
+        ...
