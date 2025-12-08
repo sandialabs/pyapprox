@@ -20,6 +20,15 @@ from pyapprox.typing.pde.collocation.manufactured_solutions.advection_diffusion 
 from pyapprox.typing.pde.collocation.manufactured_solutions.linear_elasticity import (
     ManufacturedLinearElasticityEquations,
 )
+from pyapprox.typing.pde.collocation.manufactured_solutions.helmholtz import (
+    ManufacturedHelmholtz,
+)
+from pyapprox.typing.pde.collocation.manufactured_solutions.burgers import (
+    ManufacturedBurgers1D,
+)
+from pyapprox.typing.pde.collocation.manufactured_solutions.shallow_ice import (
+    ManufacturedShallowIce,
+)
 
 __all__ = [
     # Base classes
@@ -33,4 +42,7 @@ __all__ = [
     # Manufactured solutions
     "ManufacturedAdvectionDiffusionReaction",
     "ManufacturedLinearElasticityEquations",
+    "ManufacturedHelmholtz",
+    "ManufacturedBurgers1D",
+    "ManufacturedShallowIce",
 ]
