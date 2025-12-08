@@ -11,10 +11,13 @@ univariate
     Univariate (1D) basis functions including orthonormal polynomials.
 indices
     Multi-index generation with composable admissibility criteria.
+basis
+    Multivariate basis functions with Jacobian/Hessian support.
 
 Phases:
 - Phase 1: Univariate basis protocols and implementations
 - Phase 2: Index generation with composable admissibility criteria
+- Phase 3: Multivariate basis with Jacobian/Hessian support
 """
 
 from pyapprox.typing.surrogates.affine.protocols import (
@@ -90,6 +93,16 @@ from pyapprox.typing.surrogates.affine.indices import (
     HyperbolicIndexGenerator,
 )
 
+from pyapprox.typing.surrogates.affine.basis import (
+    # Core basis classes
+    MultiIndexBasis,
+    OrthonormalPolynomialBasis,
+    # Quadrature rules
+    QuadratureRule,
+    TensorProductQuadratureRule,
+    FixedTensorProductQuadratureRule,
+)
+
 __all__ = [
     # Univariate protocols
     "Basis1DProtocol",
@@ -152,4 +165,11 @@ __all__ = [
     "IndexGenerator",
     "IterativeIndexGenerator",
     "HyperbolicIndexGenerator",
+    # Multivariate basis
+    "MultiIndexBasis",
+    "OrthonormalPolynomialBasis",
+    # Quadrature rules
+    "QuadratureRule",
+    "TensorProductQuadratureRule",
+    "FixedTensorProductQuadratureRule",
 ]

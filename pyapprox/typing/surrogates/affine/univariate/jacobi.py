@@ -52,8 +52,23 @@ def jacobi_recurrence(
     Array
         Recursion coefficients. Shape: (ncoefs, 2)
     """
-    if ncoefs <= 1:
+    if ncoefs < 1:
         return bkd.ones((0, 2))
+    if ncoefs == 1:
+        # Just need the first coefficient for the constant polynomial
+        ab = bkd.ones((1, 2))
+        ab[0, 0] = (beta - alpha) / (alpha + beta + 2.0)
+        ab[0, 1] = bkd.exp(
+            (alpha + beta + 1.0) * math.log(2.0)
+            + bkd.asarray(
+                sp.gammaln(bkd.to_numpy(alpha + 1.0))
+                + sp.gammaln(bkd.to_numpy(beta + 1.0))
+                - sp.gammaln(bkd.to_numpy(alpha + beta + 2.0))
+            )
+        )
+        if probability:
+            ab[:, 1] = bkd.sqrt(ab[:, 1])
+        return ab
 
     ab = bkd.ones((ncoefs, 2)) * bkd.array([beta**2.0 - alpha**2.0, 1.0])
 
