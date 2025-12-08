@@ -48,6 +48,17 @@ from pyapprox.typing.surrogates.affine.protocols.solver import (
     ConstrainedSolverProtocol,
 )
 
+from pyapprox.typing.surrogates.affine.protocols.refinement import (
+    CostFunctionProtocol,
+    RefinementCriteriaProtocol,
+)
+
+from pyapprox.typing.surrogates.affine.protocols.adaptive import (
+    AdaptiveIteratorProtocol,
+    PrioritizedCandidateQueueProtocol,
+    BasisIndexGeneratorProtocol,
+)
+
 __all__ = [
     # Univariate basis protocols
     "Basis1DProtocol",
@@ -87,4 +98,11 @@ __all__ = [
     "RegularizedSolverProtocol",
     "QuantileSolverProtocol",
     "ConstrainedSolverProtocol",
+    # Refinement protocols
+    "CostFunctionProtocol",
+    "RefinementCriteriaProtocol",
+    # Adaptive protocols
+    "AdaptiveIteratorProtocol",
+    "PrioritizedCandidateQueueProtocol",
+    "BasisIndexGeneratorProtocol",
 ]
