@@ -29,6 +29,19 @@ from pyapprox.typing.pde.collocation.manufactured_solutions.burgers import (
 from pyapprox.typing.pde.collocation.manufactured_solutions.shallow_ice import (
     ManufacturedShallowIce,
 )
+from pyapprox.typing.pde.collocation.manufactured_solutions.shallow_wave import (
+    ManufacturedShallowWave,
+)
+from pyapprox.typing.pde.collocation.manufactured_solutions.reaction_diffusion import (
+    ManufacturedTwoSpeciesReactionDiffusion,
+)
+from pyapprox.typing.pde.collocation.manufactured_solutions.shallow_shelf import (
+    ManufacturedShallowShelfVelocityEquations,
+    ManufacturedShallowShelfVelocityAndDepthEquations,
+)
+from pyapprox.typing.pde.collocation.manufactured_solutions.stokes import (
+    ManufacturedStokes,
+)
 
 __all__ = [
     # Base classes
@@ -39,10 +52,16 @@ __all__ = [
     "DiffusionMixin",
     "ReactionMixin",
     "AdvectionMixin",
-    # Manufactured solutions
+    # Scalar manufactured solutions
     "ManufacturedAdvectionDiffusionReaction",
-    "ManufacturedLinearElasticityEquations",
     "ManufacturedHelmholtz",
     "ManufacturedBurgers1D",
     "ManufacturedShallowIce",
+    # Vector manufactured solutions
+    "ManufacturedLinearElasticityEquations",
+    "ManufacturedShallowWave",
+    "ManufacturedTwoSpeciesReactionDiffusion",
+    "ManufacturedShallowShelfVelocityEquations",
+    "ManufacturedShallowShelfVelocityAndDepthEquations",
+    "ManufacturedStokes",
 ]
