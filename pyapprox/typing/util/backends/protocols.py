@@ -457,3 +457,13 @@ class Backend(Protocol, Generic[Array]):
 
     @staticmethod
     def triu(array: Array, k: int = 0) -> Array: ...
+
+    @staticmethod
+    def eigh(array: Array) -> Tuple[Array, Array]:
+        """Compute eigenvalues and eigenvectors of symmetric matrix."""
+        ...
+
+    @staticmethod
+    def gammaln(array: Array) -> Array:
+        """Compute log of gamma function."""
+        ...
