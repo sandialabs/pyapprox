@@ -17,6 +17,9 @@ from pyapprox.typing.pde.collocation.manufactured_solutions.mixins import (
 from pyapprox.typing.pde.collocation.manufactured_solutions.advection_diffusion import (
     ManufacturedAdvectionDiffusionReaction,
 )
+from pyapprox.typing.pde.collocation.manufactured_solutions.linear_elasticity import (
+    ManufacturedLinearElasticityEquations,
+)
 
 __all__ = [
     # Base classes
@@ -29,4 +32,5 @@ __all__ = [
     "AdvectionMixin",
     # Manufactured solutions
     "ManufacturedAdvectionDiffusionReaction",
+    "ManufacturedLinearElasticityEquations",
 ]
