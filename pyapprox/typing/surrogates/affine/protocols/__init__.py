@@ -40,6 +40,14 @@ from pyapprox.typing.surrogates.affine.protocols.expansion import (
     LinearSystemSolverProtocol,
 )
 
+from pyapprox.typing.surrogates.affine.protocols.solver import (
+    WeightedSolverProtocol,
+    SparseSolverProtocol,
+    RegularizedSolverProtocol,
+    QuantileSolverProtocol,
+    ConstrainedSolverProtocol,
+)
+
 __all__ = [
     # Univariate basis protocols
     "Basis1DProtocol",
@@ -73,4 +81,10 @@ __all__ = [
     "FittableBasisExpansionProtocol",
     "PCEStatisticsProtocol",
     "LinearSystemSolverProtocol",
+    # Solver protocols
+    "WeightedSolverProtocol",
+    "SparseSolverProtocol",
+    "RegularizedSolverProtocol",
+    "QuantileSolverProtocol",
+    "ConstrainedSolverProtocol",
 ]

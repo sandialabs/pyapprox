@@ -21,6 +21,7 @@ Phases:
 - Phase 2: Index generation with composable admissibility criteria
 - Phase 3: Multivariate basis with Jacobian/Hessian support
 - Phase 4: Basis expansions and PCE statistics
+- Phase 5: Linear system solvers
 """
 
 from pyapprox.typing.surrogates.affine.protocols import (
@@ -56,6 +57,12 @@ from pyapprox.typing.surrogates.affine.protocols import (
     FittableBasisExpansionProtocol,
     PCEStatisticsProtocol,
     LinearSystemSolverProtocol,
+    # Solver protocols
+    WeightedSolverProtocol,
+    SparseSolverProtocol,
+    RegularizedSolverProtocol,
+    QuantileSolverProtocol,
+    ConstrainedSolverProtocol,
 )
 
 from pyapprox.typing.surrogates.affine.univariate import (
@@ -119,12 +126,26 @@ from pyapprox.typing.surrogates.affine.expansions import (
     # PCE
     PolynomialChaosExpansion,
     create_pce,
-    # Solvers
-    LeastSquaresSolver,
-    WeightedLeastSquaresSolver,
-    RidgeRegressionSolver,
     # Statistics module
     pce_statistics,
+)
+
+from pyapprox.typing.surrogates.affine.solvers import (
+    # Base
+    LinearSystemSolver,
+    SingleQoiSolverMixin,
+    # Least squares
+    LeastSquaresSolver,
+    RidgeRegressionSolver,
+    LinearlyConstrainedLstSqSolver,
+    # Sparse
+    OMPSolver,
+    OMPTerminationFlag,
+    BasisPursuitSolver,
+    BasisPursuitDenoisingSolver,
+    # Quantile
+    QuantileRegressionSolver,
+    ExpectileRegressionSolver,
 )
 
 __all__ = [
@@ -160,6 +181,12 @@ __all__ = [
     "FittableBasisExpansionProtocol",
     "PCEStatisticsProtocol",
     "LinearSystemSolverProtocol",
+    # Solver protocols
+    "WeightedSolverProtocol",
+    "SparseSolverProtocol",
+    "RegularizedSolverProtocol",
+    "QuantileSolverProtocol",
+    "ConstrainedSolverProtocol",
     # Univariate implementations
     "OrthonormalPolynomial1D",
     "evaluate_orthonormal_polynomial_1d",
@@ -207,10 +234,21 @@ __all__ = [
     "BasisExpansion",
     "PolynomialChaosExpansion",
     "create_pce",
-    # Solvers
+    # Solvers - Base
+    "LinearSystemSolver",
+    "SingleQoiSolverMixin",
+    # Solvers - Least squares
     "LeastSquaresSolver",
-    "WeightedLeastSquaresSolver",
     "RidgeRegressionSolver",
+    "LinearlyConstrainedLstSqSolver",
+    # Solvers - Sparse
+    "OMPSolver",
+    "OMPTerminationFlag",
+    "BasisPursuitSolver",
+    "BasisPursuitDenoisingSolver",
+    # Solvers - Quantile
+    "QuantileRegressionSolver",
+    "ExpectileRegressionSolver",
     # Statistics module
     "pce_statistics",
 ]
