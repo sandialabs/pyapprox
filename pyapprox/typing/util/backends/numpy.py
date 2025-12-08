@@ -401,3 +401,19 @@ class NumpyBkd(Backend[NDArray[Any]]):  # Specify NDArray type
     @staticmethod
     def gammaln(array: NDArray[Any]) -> NDArray[Any]:
         return scipy.special.gammaln(array)
+
+    @staticmethod
+    def argmin(
+        array: NDArray[Any], axis: Optional[int] = None
+    ) -> NDArray[Any]:
+        return np.asarray(np.argmin(array, axis=axis))
+
+    @staticmethod
+    def argmax(
+        array: NDArray[Any], axis: Optional[int] = None
+    ) -> NDArray[Any]:
+        return np.asarray(np.argmax(array, axis=axis))
+
+    @staticmethod
+    def int64_dtype() -> Any:
+        return np.int64
