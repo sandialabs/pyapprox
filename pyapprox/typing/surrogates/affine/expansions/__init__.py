@@ -11,13 +11,13 @@ from pyapprox.typing.surrogates.affine.expansions.pce import (
     create_pce,
 )
 
-from pyapprox.typing.surrogates.affine.expansions.solvers import (
+from pyapprox.typing.surrogates.affine.expansions import pce_statistics
+
+# Re-export solvers from solvers module for backward compatibility
+from pyapprox.typing.surrogates.affine.solvers import (
     LeastSquaresSolver,
-    WeightedLeastSquaresSolver,
     RidgeRegressionSolver,
 )
-
-from pyapprox.typing.surrogates.affine.expansions import pce_statistics
 
 __all__ = [
     # Base classes
@@ -25,9 +25,8 @@ __all__ = [
     # PCE
     "PolynomialChaosExpansion",
     "create_pce",
-    # Solvers
+    # Solvers (re-exported for convenience)
     "LeastSquaresSolver",
-    "WeightedLeastSquaresSolver",
     "RidgeRegressionSolver",
     # Statistics module
     "pce_statistics",
