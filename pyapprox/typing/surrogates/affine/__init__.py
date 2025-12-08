@@ -23,6 +23,7 @@ Phases:
 - Phase 4: Basis expansions and PCE statistics
 - Phase 5: Linear system solvers
 - Phase 6: Extended univariate polynomials (Laguerre, discrete, numeric)
+- Phase 7: Adaptive indexing (priority queue, refinement criteria, basis generator)
 """
 
 from pyapprox.typing.surrogates.affine.protocols import (
@@ -64,6 +65,13 @@ from pyapprox.typing.surrogates.affine.protocols import (
     RegularizedSolverProtocol,
     QuantileSolverProtocol,
     ConstrainedSolverProtocol,
+    # Refinement protocols
+    CostFunctionProtocol,
+    RefinementCriteriaProtocol,
+    # Adaptive protocols
+    AdaptiveIteratorProtocol,
+    PrioritizedCandidateQueueProtocol,
+    BasisIndexGeneratorProtocol,
 )
 
 from pyapprox.typing.surrogates.affine.univariate import (
@@ -125,6 +133,20 @@ from pyapprox.typing.surrogates.affine.indices import (
     IndexGenerator,
     IterativeIndexGenerator,
     HyperbolicIndexGenerator,
+    # Priority queue
+    PriorityQueue,
+    # Refinement criteria
+    CostFunction,
+    UnitCostFunction,
+    LevelCostFunction,
+    ExponentialCostFunction,
+    RefinementCriteria,
+    LevelRefinementCriteria,
+    CostWeightedRefinementCriteria,
+    # Basis generator
+    BasisIndexGenerator,
+    # Adaptive refinement
+    AdaptiveIndexRefinement,
 )
 
 from pyapprox.typing.surrogates.affine.basis import (
@@ -204,6 +226,13 @@ __all__ = [
     "RegularizedSolverProtocol",
     "QuantileSolverProtocol",
     "ConstrainedSolverProtocol",
+    # Refinement protocols
+    "CostFunctionProtocol",
+    "RefinementCriteriaProtocol",
+    # Adaptive protocols
+    "AdaptiveIteratorProtocol",
+    "PrioritizedCandidateQueueProtocol",
+    "BasisIndexGeneratorProtocol",
     # Univariate implementations - base
     "OrthonormalPolynomial1D",
     "evaluate_orthonormal_polynomial_1d",
@@ -259,6 +288,20 @@ __all__ = [
     "IndexGenerator",
     "IterativeIndexGenerator",
     "HyperbolicIndexGenerator",
+    # Priority queue
+    "PriorityQueue",
+    # Refinement criteria
+    "CostFunction",
+    "UnitCostFunction",
+    "LevelCostFunction",
+    "ExponentialCostFunction",
+    "RefinementCriteria",
+    "LevelRefinementCriteria",
+    "CostWeightedRefinementCriteria",
+    # Basis generator
+    "BasisIndexGenerator",
+    # Adaptive refinement
+    "AdaptiveIndexRefinement",
     # Multivariate basis
     "MultiIndexBasis",
     "OrthonormalPolynomialBasis",
