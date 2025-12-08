@@ -393,3 +393,11 @@ class NumpyBkd(Backend[NDArray[Any]]):  # Specify NDArray type
         array: NDArray[Any], repeats: int, axis: Optional[int] = None
     ) -> NDArray[Any]:
         return np.repeat(array, repeats, axis=axis)
+
+    @staticmethod
+    def eigh(array: NDArray[Any]) -> Tuple[NDArray[Any], NDArray[Any]]:
+        return np.linalg.eigh(array)
+
+    @staticmethod
+    def gammaln(array: NDArray[Any]) -> NDArray[Any]:
+        return scipy.special.gammaln(array)
