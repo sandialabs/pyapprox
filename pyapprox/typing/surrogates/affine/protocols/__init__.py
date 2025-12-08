@@ -23,6 +23,14 @@ from pyapprox.typing.surrogates.affine.protocols.multivariate_basis import (
     MultiIndexBasisWithJacobianAndHessianProtocol,
 )
 
+from pyapprox.typing.surrogates.affine.protocols.index import (
+    IndexGeneratorProtocol,
+    IterativeIndexGeneratorProtocol,
+    AdmissibilityCriteriaProtocol,
+    IndexGrowthRuleProtocol,
+    CompositeAdmissibilityCriteriaProtocol,
+)
+
 __all__ = [
     # Univariate basis protocols
     "Basis1DProtocol",
@@ -43,4 +51,10 @@ __all__ = [
     "TensorProductBasisProtocol",
     "MultiIndexBasisWithJacobianProtocol",
     "MultiIndexBasisWithJacobianAndHessianProtocol",
+    # Index protocols
+    "IndexGeneratorProtocol",
+    "IterativeIndexGeneratorProtocol",
+    "AdmissibilityCriteriaProtocol",
+    "IndexGrowthRuleProtocol",
+    "CompositeAdmissibilityCriteriaProtocol",
 ]

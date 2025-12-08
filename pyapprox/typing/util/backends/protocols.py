@@ -467,3 +467,18 @@ class Backend(Protocol, Generic[Array]):
     def gammaln(array: Array) -> Array:
         """Compute log of gamma function."""
         ...
+
+    @staticmethod
+    def argmin(array: Array, axis: Optional[int] = None) -> Array:
+        """Return indices of minimum values along an axis."""
+        ...
+
+    @staticmethod
+    def argmax(array: Array, axis: Optional[int] = None) -> Array:
+        """Return indices of maximum values along an axis."""
+        ...
+
+    @staticmethod
+    def int64_dtype() -> Any:
+        """Return the int64 dtype for this backend."""
+        ...

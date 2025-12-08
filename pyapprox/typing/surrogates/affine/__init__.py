@@ -9,11 +9,12 @@ protocols
     Protocol definitions for basis functions, expansions, indices, etc.
 univariate
     Univariate (1D) basis functions including orthonormal polynomials.
+indices
+    Multi-index generation with composable admissibility criteria.
 
-Phase 1 (Current):
-- Univariate basis protocols and implementations
-- Jacobi, Legendre, Chebyshev, Hermite polynomials
-- Gaussian quadrature rules
+Phases:
+- Phase 1: Univariate basis protocols and implementations
+- Phase 2: Index generation with composable admissibility criteria
 """
 
 from pyapprox.typing.surrogates.affine.protocols import (
@@ -36,6 +37,12 @@ from pyapprox.typing.surrogates.affine.protocols import (
     TensorProductBasisProtocol,
     MultiIndexBasisWithJacobianProtocol,
     MultiIndexBasisWithJacobianAndHessianProtocol,
+    # Index protocols
+    IndexGeneratorProtocol,
+    IterativeIndexGeneratorProtocol,
+    AdmissibilityCriteriaProtocol,
+    IndexGrowthRuleProtocol,
+    CompositeAdmissibilityCriteriaProtocol,
 )
 
 from pyapprox.typing.surrogates.affine.univariate import (
@@ -55,6 +62,32 @@ from pyapprox.typing.surrogates.affine.univariate import (
     # Quadrature
     GaussQuadratureRule,
     GaussLobattoQuadratureRule,
+)
+
+from pyapprox.typing.surrogates.affine.indices import (
+    # Utilities
+    hash_index,
+    compute_hyperbolic_indices,
+    compute_hyperbolic_level_indices,
+    sort_indices_lexiographically,
+    argsort_indices_lexiographically,
+    indices_pnorm,
+    # Admissibility criteria
+    AdmissibilityCriteria,
+    MaxLevelCriteria,
+    Max1DLevelsCriteria,
+    MaxIndicesCriteria,
+    CompositeCriteria,
+    # Growth rules
+    IndexGrowthRule,
+    LinearGrowthRule,
+    DoublePlusOneGrowthRule,
+    ConstantGrowthRule,
+    ExponentialGrowthRule,
+    # Generators
+    IndexGenerator,
+    IterativeIndexGenerator,
+    HyperbolicIndexGenerator,
 )
 
 __all__ = [
@@ -77,6 +110,12 @@ __all__ = [
     "TensorProductBasisProtocol",
     "MultiIndexBasisWithJacobianProtocol",
     "MultiIndexBasisWithJacobianAndHessianProtocol",
+    # Index protocols
+    "IndexGeneratorProtocol",
+    "IterativeIndexGeneratorProtocol",
+    "AdmissibilityCriteriaProtocol",
+    "IndexGrowthRuleProtocol",
+    "CompositeAdmissibilityCriteriaProtocol",
     # Univariate implementations
     "OrthonormalPolynomial1D",
     "evaluate_orthonormal_polynomial_1d",
@@ -90,4 +129,27 @@ __all__ = [
     "hermite_recurrence",
     "GaussQuadratureRule",
     "GaussLobattoQuadratureRule",
+    # Index utilities
+    "hash_index",
+    "compute_hyperbolic_indices",
+    "compute_hyperbolic_level_indices",
+    "sort_indices_lexiographically",
+    "argsort_indices_lexiographically",
+    "indices_pnorm",
+    # Admissibility criteria
+    "AdmissibilityCriteria",
+    "MaxLevelCriteria",
+    "Max1DLevelsCriteria",
+    "MaxIndicesCriteria",
+    "CompositeCriteria",
+    # Growth rules
+    "IndexGrowthRule",
+    "LinearGrowthRule",
+    "DoublePlusOneGrowthRule",
+    "ConstantGrowthRule",
+    "ExponentialGrowthRule",
+    # Index generators
+    "IndexGenerator",
+    "IterativeIndexGenerator",
+    "HyperbolicIndexGenerator",
 ]
