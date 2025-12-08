@@ -417,3 +417,38 @@ class NumpyBkd(Backend[NDArray[Any]]):  # Specify NDArray type
     @staticmethod
     def int64_dtype() -> Any:
         return np.int64
+
+    @staticmethod
+    def where(
+        condition: NDArray[Any],
+        x: Union[NDArray[Any], float, None] = None,
+        y: Union[NDArray[Any], float, None] = None,
+    ) -> NDArray[Any]:
+        if x is None and y is None:
+            return np.where(condition)
+        return np.where(condition, x, y)
+
+    @staticmethod
+    def lstsq(
+        a: NDArray[Any],
+        b: NDArray[Any],
+        rcond: Optional[float] = None,
+    ) -> NDArray[Any]:
+        result, _, _, _ = np.linalg.lstsq(a, b, rcond=rcond)
+        return result
+
+    @staticmethod
+    def ones_like(
+        array: NDArray[Any], dtype: Optional[Any] = None
+    ) -> NDArray[Any]:
+        return np.ones_like(array, dtype=dtype)
+
+    @staticmethod
+    def zeros_like(
+        array: NDArray[Any], dtype: Optional[Any] = None
+    ) -> NDArray[Any]:
+        return np.zeros_like(array, dtype=dtype)
+
+    @staticmethod
+    def default_dtype() -> Any:
+        return np.float64

@@ -31,6 +31,15 @@ from pyapprox.typing.surrogates.affine.protocols.index import (
     CompositeAdmissibilityCriteriaProtocol,
 )
 
+from pyapprox.typing.surrogates.affine.protocols.expansion import (
+    BasisExpansionProtocol,
+    BasisExpansionHasJacobianProtocol,
+    BasisExpansionHasHessianProtocol,
+    FittableBasisExpansionProtocol,
+    PCEStatisticsProtocol,
+    LinearSystemSolverProtocol,
+)
+
 __all__ = [
     # Univariate basis protocols
     "Basis1DProtocol",
@@ -57,4 +66,11 @@ __all__ = [
     "AdmissibilityCriteriaProtocol",
     "IndexGrowthRuleProtocol",
     "CompositeAdmissibilityCriteriaProtocol",
+    # Expansion protocols
+    "BasisExpansionProtocol",
+    "BasisExpansionHasJacobianProtocol",
+    "BasisExpansionHasHessianProtocol",
+    "FittableBasisExpansionProtocol",
+    "PCEStatisticsProtocol",
+    "LinearSystemSolverProtocol",
 ]
