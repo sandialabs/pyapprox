@@ -82,6 +82,25 @@ class AbstractGalerkinPhysics(ABC, Generic[Array]):
             )
         return self._mass_matrix_cached
 
+    def mass_solve(self, rhs: Array) -> Array:
+        """Solve M * x = rhs for x.
+
+        This default implementation uses a direct solve. Override in subclasses
+        to exploit structure (e.g., diagonal/lumped mass matrix).
+
+        Parameters
+        ----------
+        rhs : Array
+            Right-hand side vector. Shape: (nstates,) or (nstates, ncols)
+
+        Returns
+        -------
+        Array
+            Solution x = M^{-1} * rhs. Same shape as rhs.
+        """
+        M = self.mass_matrix()
+        return self._bkd.solve(M, rhs)
+
     @abstractmethod
     def _assemble_stiffness(self, state: Array, time: float) -> Array:
         """Assemble stiffness matrix K(u, t).

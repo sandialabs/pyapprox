@@ -48,6 +48,10 @@ from pyapprox.typing.pde.galerkin.time_integration import (
     GalerkinPhysicsODEAdapter,
 )
 
+from pyapprox.typing.pde.galerkin.solvers import (
+    SteadyStateSolver,
+)
+
 __all__ = [
     # Mesh protocols
     "GalerkinMeshProtocol",
@@ -74,4 +78,6 @@ __all__ = [
     "LinearAdvectionDiffusionReaction",
     # Time integration adapter
     "GalerkinPhysicsODEAdapter",
+    # Solvers
+    "SteadyStateSolver",
 ]
