@@ -233,6 +233,47 @@ class AdvectionDiffusionReaction(AbstractScalarPhysics[Array]):
 
         return jacobian
 
+    def compute_interface_flux(
+        self, state: Array, boundary_indices: Array, normal: Array
+    ) -> Array:
+        """Compute diffusive flux at boundary for DtN domain decomposition.
+
+        Computes D * grad(u) · n at the specified boundary points.
+
+        Parameters
+        ----------
+        state : Array
+            Solution state. Shape: (npts,)
+        boundary_indices : Array
+            Mesh indices at interface. Shape: (nboundary,)
+        normal : Array
+            Outward unit normal. Shape: (ndim,)
+
+        Returns
+        -------
+        Array
+            Flux at boundary points. Shape: (nboundary,)
+        """
+        ndim = self._basis.ndim()
+        nboundary = boundary_indices.shape[0]
+
+        # Compute grad(u) · n at boundary points
+        flux = self._bkd.zeros((nboundary,))
+        for dim in range(ndim):
+            D_dim = self._D_matrices[dim]
+            grad_u_dim = D_dim @ state
+            flux = flux + grad_u_dim[boundary_indices] * float(normal[dim])
+
+        # Scale by diffusion coefficient
+        if self._is_variable_diffusion:
+            # Variable diffusion: multiply by D(x) at boundary
+            flux = self._diffusion_array[boundary_indices] * flux
+        else:
+            # Constant diffusion: multiply by scalar D
+            flux = float(self._diffusion_value) * flux
+
+        return flux
+
 
 class AdvectionDiffusionReactionWithParam(AdvectionDiffusionReaction[Array]):
     """ADR physics with parameterized diffusion coefficient.
