@@ -1,0 +1,250 @@
+"""
+Protocols for probability distributions.
+
+These protocols define the interface for marginal and joint distributions
+at different capability levels.
+
+Protocol Hierarchy
+------------------
+DistributionProtocol
+    Base protocol with sampling and logpdf.
+MarginalProtocol
+    Adds CDF, inverse CDF for 1D distributions.
+MarginalWithJacobianProtocol
+    Adds Jacobian of CDF for sensitivity analysis.
+JointDistributionProtocol
+    Multivariate distribution with marginal access.
+"""
+
+from typing import Protocol, Generic, runtime_checkable, Sequence
+
+from pyapprox.typing.util.backends.protocols import Array, Backend
+
+
+@runtime_checkable
+class DistributionProtocol(Protocol, Generic[Array]):
+    """
+    Base protocol for probability distributions.
+
+    All distributions must support sampling and log-PDF evaluation.
+
+    Methods
+    -------
+    bkd()
+        Get the computational backend.
+    nvars()
+        Number of random variables.
+    rvs(nsamples)
+        Generate random samples.
+    logpdf(samples)
+        Evaluate log probability density function.
+    """
+
+    def bkd(self) -> Backend[Array]:
+        """Get the backend used for computations."""
+        ...
+
+    def nvars(self) -> int:
+        """
+        Return the number of random variables.
+
+        Returns
+        -------
+        int
+            Number of variables (dimension of the distribution).
+        """
+        ...
+
+    def rvs(self, nsamples: int) -> Array:
+        """
+        Generate random samples from the distribution.
+
+        Parameters
+        ----------
+        nsamples : int
+            Number of samples to generate.
+
+        Returns
+        -------
+        Array
+            Random samples. Shape: (nvars, nsamples)
+        """
+        ...
+
+    def logpdf(self, samples: Array) -> Array:
+        """
+        Evaluate the log probability density function.
+
+        Parameters
+        ----------
+        samples : Array
+            Sample points. Shape: (nvars, nsamples)
+
+        Returns
+        -------
+        Array
+            Log PDF values. Shape: (nsamples,)
+        """
+        ...
+
+
+@runtime_checkable
+class MarginalProtocol(Protocol, Generic[Array]):
+    """
+    Protocol for 1D marginal distributions.
+
+    Extends DistributionProtocol with CDF and inverse CDF for
+    probability integral transforms.
+
+    Methods
+    -------
+    cdf(samples)
+        Evaluate cumulative distribution function.
+    invcdf(probs)
+        Evaluate inverse CDF (quantile function).
+    """
+
+    def bkd(self) -> Backend[Array]:
+        ...
+
+    def nvars(self) -> int:
+        ...
+
+    def rvs(self, nsamples: int) -> Array:
+        ...
+
+    def logpdf(self, samples: Array) -> Array:
+        ...
+
+    def cdf(self, samples: Array) -> Array:
+        """
+        Evaluate the cumulative distribution function.
+
+        Parameters
+        ----------
+        samples : Array
+            Sample points. Shape: (1, nsamples) or (nsamples,)
+
+        Returns
+        -------
+        Array
+            CDF values in [0, 1]. Shape: (nsamples,)
+        """
+        ...
+
+    def invcdf(self, probs: Array) -> Array:
+        """
+        Evaluate the inverse CDF (quantile function).
+
+        Parameters
+        ----------
+        probs : Array
+            Probability values in [0, 1]. Shape: (nsamples,)
+
+        Returns
+        -------
+        Array
+            Quantile values. Shape: (nsamples,)
+        """
+        ...
+
+
+@runtime_checkable
+class MarginalWithJacobianProtocol(Protocol, Generic[Array]):
+    """
+    Marginal distribution with Jacobian support for sensitivity analysis.
+
+    The Jacobian of the inverse CDF is the reciprocal of the PDF:
+        d(F^{-1})/dp = 1 / f(F^{-1}(p))
+
+    Methods
+    -------
+    invcdf_jacobian(probs)
+        Jacobian of inverse CDF.
+    """
+
+    def bkd(self) -> Backend[Array]:
+        ...
+
+    def nvars(self) -> int:
+        ...
+
+    def rvs(self, nsamples: int) -> Array:
+        ...
+
+    def logpdf(self, samples: Array) -> Array:
+        ...
+
+    def cdf(self, samples: Array) -> Array:
+        ...
+
+    def invcdf(self, probs: Array) -> Array:
+        ...
+
+    def invcdf_jacobian(self, probs: Array) -> Array:
+        """
+        Compute Jacobian of inverse CDF.
+
+        d(F^{-1})/dp = 1 / pdf(F^{-1}(p))
+
+        Parameters
+        ----------
+        probs : Array
+            Probability values in [0, 1]. Shape: (nsamples,)
+
+        Returns
+        -------
+        Array
+            Jacobian values. Shape: (nsamples,)
+        """
+        ...
+
+
+@runtime_checkable
+class JointDistributionProtocol(Protocol, Generic[Array]):
+    """
+    Protocol for multivariate joint distributions.
+
+    Provides access to marginal distributions and joint operations.
+
+    Methods
+    -------
+    marginals()
+        Return list of marginal distributions.
+    correlation_matrix()
+        Return the correlation matrix (if defined).
+    """
+
+    def bkd(self) -> Backend[Array]:
+        ...
+
+    def nvars(self) -> int:
+        ...
+
+    def rvs(self, nsamples: int) -> Array:
+        ...
+
+    def logpdf(self, samples: Array) -> Array:
+        ...
+
+    def marginals(self) -> Sequence[MarginalProtocol[Array]]:
+        """
+        Return the marginal distributions.
+
+        Returns
+        -------
+        Sequence[MarginalProtocol]
+            List of marginal distributions.
+        """
+        ...
+
+    def correlation_matrix(self) -> Array:
+        """
+        Return the correlation matrix.
+
+        Returns
+        -------
+        Array
+            Correlation matrix. Shape: (nvars, nvars)
+        """
+        ...
