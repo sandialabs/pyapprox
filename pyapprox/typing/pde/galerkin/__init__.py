@@ -4,7 +4,7 @@ This module provides a framework for solving PDEs using Galerkin finite
 element methods with scikit-fem (skfem):
 - Backend abstraction for NumPy/PyTorch compatibility
 - Protocol-based interfaces for extensibility
-- Support for 1D and 2D domains
+- Support for 1D, 2D and 3D domains
 - Integration with time stepping from typing.pde.time
 
 The key difference from the collocation module is that Galerkin uses
@@ -33,16 +33,19 @@ from pyapprox.typing.pde.galerkin.protocols import (
 from pyapprox.typing.pde.galerkin.mesh import (
     StructuredMesh1D,
     StructuredMesh2D,
+    StructuredMesh3D,
 )
 
 from pyapprox.typing.pde.galerkin.basis import (
     LagrangeBasis,
+    VectorLagrangeBasis,
 )
 
 from pyapprox.typing.pde.galerkin.physics import (
     AbstractGalerkinPhysics,
     LinearAdvectionDiffusionReaction,
     Helmholtz,
+    LinearElasticity,
 )
 
 from pyapprox.typing.pde.galerkin.time_integration import (
@@ -72,12 +75,15 @@ __all__ = [
     # Mesh implementations
     "StructuredMesh1D",
     "StructuredMesh2D",
+    "StructuredMesh3D",
     # Basis implementations
     "LagrangeBasis",
+    "VectorLagrangeBasis",
     # Physics implementations
     "AbstractGalerkinPhysics",
     "LinearAdvectionDiffusionReaction",
     "Helmholtz",
+    "LinearElasticity",
     # Time integration adapter
     "GalerkinPhysicsODEAdapter",
     # Solvers
