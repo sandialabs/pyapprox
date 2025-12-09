@@ -84,11 +84,11 @@ from .posterior import (
     LogUnNormalizedPosterior,
 )
 
-# Sampling (will be added in Phase 6)
-# from .sampling import (
-#     MetropolisSampler,
-#     HamiltonianMonteCarlo,
-# )
+# Sampling
+from .sampling import (
+    MetropolisHastingsSampler,
+    AdaptiveMetropolisSampler,
+)
 
 __all__ = [
     # Protocols
@@ -115,4 +115,7 @@ __all__ = [
     "LowRankLaplacePosterior",
     # Posterior utilities
     "LogUnNormalizedPosterior",
+    # Sampling
+    "MetropolisHastingsSampler",
+    "AdaptiveMetropolisSampler",
 ]

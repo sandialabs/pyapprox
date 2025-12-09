@@ -144,9 +144,9 @@ class DenseCholeskyMultivariateGaussian(Generic[Array]):
         Array
             Random samples. Shape: (nvars, nsamples)
         """
-        # Generate standard normal samples
+        # Generate standard normal samples (explicitly float64 for backend compatibility)
         std_normal = self._bkd.asarray(
-            np.random.normal(0, 1, (self._nvars, nsamples))
+            np.random.normal(0, 1, (self._nvars, nsamples)).astype(np.float64)
         )
         # Transform: L @ z + mean
         return self._cov_op.apply(std_normal) + self._mean
