@@ -452,3 +452,7 @@ class NumpyBkd(Backend[NDArray[Any]]):  # Specify NDArray type
     @staticmethod
     def default_dtype() -> Any:
         return np.float64
+
+    @staticmethod
+    def slogdet(array: NDArray[Any]) -> Tuple[NDArray[Any], NDArray[Any]]:
+        return np.linalg.slogdet(array)

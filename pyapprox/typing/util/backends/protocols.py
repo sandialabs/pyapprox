@@ -547,3 +547,21 @@ class Backend(Protocol, Generic[Array]):
     def default_dtype() -> Any:
         """Return the default floating point dtype for this backend."""
         ...
+
+    @staticmethod
+    def slogdet(array: Array) -> Tuple[Array, Array]:
+        """Compute sign and log-determinant of a matrix.
+
+        Parameters
+        ----------
+        array : Array
+            Square matrix. Shape: (n, n)
+
+        Returns
+        -------
+        sign : Array
+            Sign of determinant (1, 0, or -1).
+        logdet : Array
+            Natural log of absolute value of determinant.
+        """
+        ...
