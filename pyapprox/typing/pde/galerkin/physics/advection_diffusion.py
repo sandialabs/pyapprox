@@ -1,13 +1,16 @@
 """Linear advection-diffusion-reaction physics for Galerkin FEM.
 
 Solves the equation:
-    du/dt = div(D * grad(u)) - v . grad(u) + r*u + f
+    du/dt = div(D * grad(u)) - v . grad(u) - r*u + f
 
 where:
     D = diffusivity (scalar or function)
     v = velocity field
-    r = reaction coefficient
+    r = reaction coefficient (positive = decay, negative = growth)
     f = forcing/source term
+
+In steady state with no advection:
+    -div(D * grad(u)) + r*u = f
 """
 
 from typing import Generic, Optional, Callable, List
@@ -34,15 +37,18 @@ class LinearAdvectionDiffusionReaction(AbstractGalerkinPhysics[Array]):
     """Linear advection-diffusion-reaction physics.
 
     Solves:
-        du/dt = div(D * grad(u)) - v . grad(u) + r*u + f
+        du/dt = div(D * grad(u)) - v . grad(u) - r*u + f
 
     In weak form (for M * du/dt = F):
         F = b - K*u
     where:
         K_ij = integral(D * grad(phi_j) . grad(phi_i))
                + integral(v . grad(phi_j) * phi_i)
-               - integral(r * phi_j * phi_i)
+               + integral(r * phi_j * phi_i)
         b_i = integral(f * phi_i)
+
+    In steady state (F=0): K*u = b, which corresponds to:
+        -div(D * grad(u)) + v . grad(u) + r*u = f
 
     Parameters
     ----------
@@ -137,7 +143,7 @@ class LinearAdvectionDiffusionReaction(AbstractGalerkinPhysics[Array]):
         K combines diffusion, advection, and reaction:
             K_ij = integral(D * grad(phi_j) . grad(phi_i))
                    + integral(v . grad(phi_j) * phi_i)
-                   - integral(r * phi_j * phi_i)
+                   + integral(r * phi_j * phi_i)
         """
         if self._stiffness_cached is not None:
             return self._stiffness_cached
@@ -167,8 +173,8 @@ class LinearAdvectionDiffusionReaction(AbstractGalerkinPhysics[Array]):
             # Diffusion term: D * grad(u) . grad(v)
             result = diff * dot(grad(u), grad(v))
 
-            # Reaction term: -r * u * v
-            result = result - react * u * v
+            # Reaction term: +r * u * v
+            result = result + react * u * v
 
             return result
 

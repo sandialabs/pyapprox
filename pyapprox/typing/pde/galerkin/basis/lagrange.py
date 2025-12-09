@@ -20,6 +20,10 @@ try:
         ElementQuad2,
         ElementTriP1,
         ElementTriP2,
+        ElementHex1,
+        ElementHex2,
+        ElementTetP1,
+        ElementTetP2,
     )
 except ImportError:
     raise ImportError(
@@ -86,13 +90,18 @@ class LagrangeBasis(Generic[Array]):
             ("MeshQuad", 2): ElementQuad2(),
             ("MeshTri", 1): ElementTriP1(),
             ("MeshTri", 2): ElementTriP2(),
+            ("MeshHex", 1): ElementHex1(),
+            ("MeshHex", 2): ElementHex2(),
+            ("MeshTet", 1): ElementTetP1(),
+            ("MeshTet", 2): ElementTetP2(),
         }
 
         key = (base_type, degree)
         if key not in element_map:
             raise ValueError(
                 f"Unsupported mesh/degree combination: {mesh_type}, degree={degree}. "
-                f"Supported mesh types: MeshLine, MeshQuad, MeshTri with degree 1 or 2."
+                f"Supported mesh types: MeshLine, MeshQuad, MeshTri, MeshHex, MeshTet "
+                f"with degree 1 or 2."
             )
 
         return element_map[key]
