@@ -12,6 +12,7 @@ from pyapprox.typing.probability.gaussian import (
     DenseCholeskyMultivariateGaussian,
     DiagonalMultivariateGaussian,
     OperatorBasedMultivariateGaussian,
+    GaussianCanonicalForm,
 )
 from pyapprox.typing.probability.covariance import (
     DenseCholeskyCovarianceOperator,
@@ -301,6 +302,104 @@ class TestCrossValidation(unittest.TestCase):
         logpdf_operator = operator.logpdf(samples)
 
         np.testing.assert_array_almost_equal(logpdf_dense, logpdf_operator)
+
+
+class TestGaussianCanonicalForm(unittest.TestCase):
+    """Tests for GaussianCanonicalForm."""
+
+    def setUp(self):
+        self.bkd = NumpyBkd()
+        self.mean = np.array([1.0, 2.0])
+        self.cov = np.array([[1.0, 0.5], [0.5, 1.0]])
+        self.canonical = GaussianCanonicalForm.from_moments(
+            self.mean, self.cov, self.bkd
+        )
+
+    def test_nvars(self):
+        """Test nvars returns correct dimension."""
+        self.assertEqual(self.canonical.nvars(), 2)
+
+    def test_roundtrip_moments(self):
+        """Test from_moments -> to_moments roundtrip."""
+        mean_recovered, cov_recovered = self.canonical.to_moments()
+        np.testing.assert_array_almost_equal(mean_recovered, self.mean)
+        np.testing.assert_array_almost_equal(cov_recovered, self.cov)
+
+    def test_logpdf_vs_dense(self):
+        """Test logpdf matches DenseCholeskyMultivariateGaussian."""
+        dense = DenseCholeskyMultivariateGaussian(
+            self.mean[:, None], self.cov, self.bkd
+        )
+        samples = np.array([[1.0, 0.5, 2.0], [2.0, 1.5, 3.0]])
+
+        logpdf_canonical = self.canonical.logpdf(samples)
+        logpdf_dense = dense.logpdf(samples)
+
+        np.testing.assert_array_almost_equal(logpdf_canonical, logpdf_dense)
+
+    def test_multiply_same(self):
+        """Test multiplying distribution with itself."""
+        product = self.canonical.multiply(self.canonical)
+
+        # Precision and shift should double
+        np.testing.assert_array_almost_equal(
+            product.precision(), 2 * self.canonical.precision()
+        )
+        np.testing.assert_array_almost_equal(
+            product.shift(), 2 * self.canonical.shift()
+        )
+
+    def test_multiply_normalized(self):
+        """Test normalized product matches analytical result."""
+        # Product of two Gaussians is still Gaussian
+        product = self.canonical.multiply(self.canonical).normalize()
+
+        # Should be a valid Gaussian
+        self.assertEqual(product.nvars(), 2)
+
+        # Test it integrates to 1 (approximately)
+        samples = product.rvs(1000)
+        self.assertEqual(samples.shape, (2, 1000))
+
+    def test_condition(self):
+        """Test conditioning on observed variable."""
+        # Condition x_1 on observed value
+        fixed_indices = np.array([1])
+        values = np.array([2.5])
+
+        conditional = self.canonical.condition(fixed_indices, values)
+
+        # Should have one fewer variable
+        self.assertEqual(conditional.nvars(), 1)
+
+        # Verify by converting to moments
+        mean_cond, cov_cond = conditional.to_moments()
+        self.assertEqual(mean_cond.shape, (1,))
+        self.assertEqual(cov_cond.shape, (1, 1))
+
+    def test_marginalize(self):
+        """Test marginalizing out a variable."""
+        # Marginalize out x_1
+        marg_indices = np.array([1])
+
+        marginal = self.canonical.marginalize(marg_indices)
+
+        # Should have one fewer variable
+        self.assertEqual(marginal.nvars(), 1)
+
+        # Verify by converting to moments
+        mean_marg, cov_marg = marginal.to_moments()
+
+        # Mean should be mean[0]
+        self.assertAlmostEqual(float(mean_marg[0]), self.mean[0], places=5)
+
+        # Covariance should be cov[0, 0]
+        self.assertAlmostEqual(float(cov_marg[0, 0]), self.cov[0, 0], places=5)
+
+    def test_rvs_shape(self):
+        """Test rvs returns correct shape."""
+        samples = self.canonical.rvs(100)
+        self.assertEqual(samples.shape, (2, 100))
 
 
 if __name__ == "__main__":

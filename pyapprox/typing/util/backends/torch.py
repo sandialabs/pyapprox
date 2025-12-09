@@ -443,3 +443,9 @@ class TorchBkd(Backend[torch.Tensor]):  # Specify torch.Tensor type
         if axis is None:
             return array.flatten().repeat_interleave(repeats)
         return array.repeat_interleave(repeats, dim=axis)
+
+    @staticmethod
+    def slogdet(
+        array: torch.Tensor,
+    ) -> Tuple[torch.Tensor, torch.Tensor]:
+        return torch.linalg.slogdet(array)

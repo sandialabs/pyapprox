@@ -20,10 +20,13 @@ from .core import GaussianLogPDFCore
 from .dense import DenseCholeskyMultivariateGaussian
 from .diagonal import DiagonalMultivariateGaussian
 from .operator import OperatorBasedMultivariateGaussian
+from .canonical import GaussianCanonicalForm, compute_normalization
 
 __all__ = [
     "GaussianLogPDFCore",
     "DenseCholeskyMultivariateGaussian",
     "DiagonalMultivariateGaussian",
     "OperatorBasedMultivariateGaussian",
+    "GaussianCanonicalForm",
+    "compute_normalization",
 ]
