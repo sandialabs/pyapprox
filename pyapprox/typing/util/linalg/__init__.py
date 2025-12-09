@@ -19,6 +19,21 @@ from pyapprox.typing.util.linalg.pivoted_qr import (
     PivotedQRFactorizer,
 )
 
+from pyapprox.typing.util.linalg.randomized import (
+    MatVecOperator,
+    SymmetricMatVecOperator,
+    DenseMatVecOperator,
+    DenseSymmetricMatVecOperator,
+    FunctionMatVecOperator,
+    FunctionSymmetricMatVecOperator,
+    RandomizedSVD,
+    SinglePassRandomizedSVD,
+    DoublePassRandomizedSVD,
+    randomized_symmetric_eigendecomposition,
+    adjust_sign_svd,
+    get_low_rank_matrix,
+)
+
 __all__ = [
     # Cholesky
     "CholeskyFactor",
@@ -31,4 +46,17 @@ __all__ = [
     "get_final_pivots_from_sequential_pivots",
     # Pivoted QR
     "PivotedQRFactorizer",
+    # Randomized
+    "MatVecOperator",
+    "SymmetricMatVecOperator",
+    "DenseMatVecOperator",
+    "DenseSymmetricMatVecOperator",
+    "FunctionMatVecOperator",
+    "FunctionSymmetricMatVecOperator",
+    "RandomizedSVD",
+    "SinglePassRandomizedSVD",
+    "DoublePassRandomizedSVD",
+    "randomized_symmetric_eigendecomposition",
+    "adjust_sign_svd",
+    "get_low_rank_matrix",
 ]

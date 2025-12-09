@@ -71,16 +71,18 @@ from .pushforward import (
     DenseGaussianPrediction,
 )
 
-# Laplace approximation (will be added in Phase 4)
-# from .laplace import (
-#     DenseLaplacePosterior,
-#     LowRankLaplacePosterior,
-# )
+# Laplace approximation
+from .laplace import (
+    ApplyNegLogLikelihoodHessian,
+    PriorConditionedHessianMatVec,
+    DenseLaplacePosterior,
+    LowRankLaplacePosterior,
+)
 
-# Posterior utilities (will be added in Phase 5)
-# from .posterior import (
-#     LogUnNormalizedPosterior,
-# )
+# Posterior utilities
+from .posterior import (
+    LogUnNormalizedPosterior,
+)
 
 # Sampling (will be added in Phase 6)
 # from .sampling import (
@@ -106,4 +108,11 @@ __all__ = [
     # Pushforward
     "GaussianPushforward",
     "DenseGaussianPrediction",
+    # Laplace approximation
+    "ApplyNegLogLikelihoodHessian",
+    "PriorConditionedHessianMatVec",
+    "DenseLaplacePosterior",
+    "LowRankLaplacePosterior",
+    # Posterior utilities
+    "LogUnNormalizedPosterior",
 ]
