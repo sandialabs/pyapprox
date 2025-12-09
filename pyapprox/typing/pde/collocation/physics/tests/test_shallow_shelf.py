@@ -1,0 +1,459 @@
+"""Tests for Shallow Shelf Approximation physics implementations."""
+
+import unittest
+import math
+import numpy as np
+
+from pyapprox.typing.util.backends.numpy import NumpyBkd
+from pyapprox.typing.pde.collocation.basis import ChebyshevBasis1D, ChebyshevBasis2D
+from pyapprox.typing.pde.collocation.physics.shallow_shelf import (
+    ShallowShelfVelocityPhysics,
+    ShallowShelfDepthPhysics,
+    create_shallow_shelf_velocity,
+    create_shallow_shelf_depth,
+)
+from pyapprox.typing.pde.collocation.physics.tests.test_utils import (
+    PhysicsTestBase,
+)
+from pyapprox.typing.pde.collocation.time_integration import (
+    CollocationModel,
+    TimeIntegrationConfig,
+)
+from pyapprox.typing.pde.collocation.manufactured_solutions.shallow_shelf import (
+    ManufacturedShallowShelfVelocityEquations,
+)
+
+
+class TestShallowShelfVelocityPhysics(PhysicsTestBase):
+    """Tests for ShallowShelfVelocityPhysics."""
+
+    __test__ = True
+
+    def bkd(self):
+        return NumpyBkd()
+
+    def test_jacobian_derivative_checker(self):
+        """Test Jacobian matches finite differences."""
+        bkd = self.bkd()
+        npts_1d = 6
+        basis = ChebyshevBasis2D(npts_1d, npts_1d, bkd)
+        npts = basis.npts()
+
+        # Uniform depth and flat bed
+        depth = bkd.full((npts,), 1000.0)
+        bed = bkd.zeros((npts,))
+
+        physics = ShallowShelfVelocityPhysics(
+            basis, bkd, depth=depth, bed=bed,
+            friction=1e6, A=1e-16, rho=917.0
+        )
+
+        # Small random velocities
+        np.random.seed(42)
+        state = bkd.array(0.1 * np.random.randn(physics.nstates()))
+
+        self.check_jacobian(physics, state, time=0.0)
+
+    def test_jacobian_sloped_bed(self):
+        """Test Jacobian with sloped bed topography."""
+        bkd = self.bkd()
+        npts_1d = 5
+        basis = ChebyshevBasis2D(npts_1d, npts_1d, bkd)
+        npts = basis.npts()
+
+        # Create 2D bed slope (tile 1D nodes along y)
+        nodes_x_1d = bkd.array(np.cos(np.pi * np.arange(npts_1d) / (npts_1d - 1)))
+        # Tile to create 2D grid (npts_1d x npts_1d -> flattened npts)
+        bed = 100.0 * bkd.array(np.tile(nodes_x_1d, npts_1d))
+        depth = bkd.full((npts,), 800.0)
+
+        physics = ShallowShelfVelocityPhysics(
+            basis, bkd, depth=depth, bed=bed,
+            friction=5e5, A=1e-16, rho=917.0
+        )
+
+        np.random.seed(123)
+        state = bkd.array(0.05 * np.random.randn(physics.nstates()))
+
+        self.check_jacobian(physics, state, time=0.0)
+
+    def test_ncomponents(self):
+        """Test number of components."""
+        bkd = self.bkd()
+        npts_1d = 5
+        basis = ChebyshevBasis2D(npts_1d, npts_1d, bkd)
+        npts = basis.npts()
+
+        depth = bkd.full((npts,), 1000.0)
+        bed = bkd.zeros((npts,))
+
+        physics = ShallowShelfVelocityPhysics(
+            basis, bkd, depth=depth, bed=bed,
+            friction=1e6, A=1e-16, rho=917.0
+        )
+
+        # 2D: u and v velocity components
+        self.assertEqual(physics.ncomponents(), 2)
+        self.assertEqual(physics.nstates(), 2 * npts)
+
+    def test_requires_2d_basis(self):
+        """Test that 1D basis raises error."""
+        bkd = self.bkd()
+        npts = 10
+        basis = ChebyshevBasis1D(npts, bkd)
+
+        depth = bkd.full((npts,), 1000.0)
+        bed = bkd.zeros((npts,))
+
+        with self.assertRaises(ValueError):
+            ShallowShelfVelocityPhysics(
+                basis, bkd, depth=depth, bed=bed,
+                friction=1e6, A=1e-16, rho=917.0
+            )
+
+    def test_factory_function(self):
+        """Test create_shallow_shelf_velocity factory."""
+        bkd = self.bkd()
+        npts_1d = 5
+        basis = ChebyshevBasis2D(npts_1d, npts_1d, bkd)
+        npts = basis.npts()
+
+        depth = bkd.full((npts,), 1000.0)
+        bed = bkd.zeros((npts,))
+
+        physics = create_shallow_shelf_velocity(
+            basis, bkd, depth=depth, bed=bed,
+            friction=1e6, A=1e-16, rho=917.0
+        )
+
+        self.assertEqual(physics.ncomponents(), 2)
+
+    def test_set_depth(self):
+        """Test updating depth."""
+        bkd = self.bkd()
+        npts_1d = 5
+        basis = ChebyshevBasis2D(npts_1d, npts_1d, bkd)
+        npts = basis.npts()
+
+        depth = bkd.full((npts,), 1000.0)
+        bed = bkd.zeros((npts,))
+
+        physics = ShallowShelfVelocityPhysics(
+            basis, bkd, depth=depth, bed=bed,
+            friction=1e6, A=1e-16, rho=917.0
+        )
+
+        # Update depth
+        new_depth = bkd.full((npts,), 800.0)
+        physics.set_depth(new_depth)
+
+        # Check that residual can still be computed
+        state = bkd.zeros((physics.nstates(),))
+        residual = physics.residual(state, time=0.0)
+        self.assertEqual(residual.shape[0], physics.nstates())
+
+    def test_residual_at_manufactured_solution(self):
+        """Verify residual is near zero at manufactured solution.
+
+        Uses a manufactured solution with smooth polynomial velocities.
+        The forcing term is computed analytically so that the exact
+        solution satisfies the SSA equations.
+
+        Note: Uses default xy meshgrid indexing with C-order flattening,
+        which matches the tensor product basis ordering.
+
+        The SSA equations have highly nonlinear viscosity (Glen's flow law
+        with n=3), requiring many points for spectral accuracy. With 50
+        points per dimension, the residual norm reaches ~7.6e-9.
+        """
+        bkd = self.bkd()
+        npts_1d = 50  # Need many points for nonlinear SSA
+        basis = ChebyshevBasis2D(npts_1d, npts_1d, bkd)
+        npts = basis.npts()
+
+        # Manufactured solution parameters
+        depth_str = "1.0"
+        bed_str = "0.0"
+        friction_str = "1.0"
+        A = 1.0
+        rho = 1.0
+        sol_strs = ["x**2 + y", "x + y**2"]
+
+        man_sol = ManufacturedShallowShelfVelocityEquations(
+            sol_strs=sol_strs,
+            nvars=2,
+            bed_str=bed_str,
+            depth_str=depth_str,
+            friction_str=friction_str,
+            A=A,
+            rho=rho,
+            bkd=bkd,
+            oned=False,
+        )
+
+        # Get nodes using default xy indexing
+        nodes_x = basis.nodes_x()
+        nodes_y = basis.nodes_y()
+        X, Y = np.meshgrid(nodes_x, nodes_y)  # default 'xy' indexing
+        X_flat = X.flatten()
+        Y_flat = Y.flatten()
+        nodes_2d = np.vstack([X_flat, Y_flat])
+
+        # Get exact solution and forcing
+        exact_sol_vals = man_sol.functions["solution"](nodes_2d)
+        u_exact = exact_sol_vals[:, 0]
+        v_exact = exact_sol_vals[:, 1]
+        exact_state = bkd.hstack([u_exact, v_exact])
+
+        forcing_vals = man_sol.functions["forcing"](nodes_2d)
+        forcing_u = forcing_vals[:, 0]
+        forcing_v = forcing_vals[:, 1]
+        forcing = bkd.hstack([forcing_u, forcing_v])
+
+        # Get fields
+        depth_vals = man_sol.functions["depth"](nodes_2d).flatten()
+        bed_vals = man_sol.functions["bed"](nodes_2d).flatten()
+        friction_vals = man_sol.functions["friction"](nodes_2d).flatten()
+
+        # Create physics with forcing
+        physics = ShallowShelfVelocityPhysics(
+            basis, bkd,
+            depth=depth_vals,
+            bed=bed_vals,
+            friction=friction_vals,
+            A=A,
+            rho=rho,
+            forcing=lambda t: forcing,
+        )
+
+        # Compute residual at exact solution
+        residual = physics.residual(exact_state, time=0.0)
+
+        # Residual should be very small (spectral discretization error only)
+        res_norm = float(bkd.norm(residual))
+        self.assertLess(res_norm, 1e-8, f"Residual norm {res_norm:.4e} too large")
+
+
+class TestShallowShelfDepthPhysics(PhysicsTestBase):
+    """Tests for ShallowShelfDepthPhysics."""
+
+    __test__ = True
+
+    def bkd(self):
+        return NumpyBkd()
+
+    def test_jacobian_constant_velocity(self):
+        """Test Jacobian with constant velocity field."""
+        bkd = self.bkd()
+        npts_1d = 6
+        basis = ChebyshevBasis2D(npts_1d, npts_1d, bkd)
+        npts = basis.npts()
+
+        physics = ShallowShelfDepthPhysics(basis, bkd)
+
+        # Set constant velocity field (u, v)
+        velocity = bkd.hstack([
+            bkd.full((npts,), 100.0),  # u
+            bkd.full((npts,), 50.0),   # v
+        ])
+        physics.set_velocities(velocity)
+
+        # Positive depth
+        np.random.seed(42)
+        state = bkd.array(500.0 + 50.0 * np.random.randn(npts))
+        state = bkd.array(np.maximum(np.asarray(state), 100.0))  # Ensure positive
+
+        self.check_jacobian(physics, state, time=0.0)
+
+    def test_jacobian_2d(self):
+        """Test Jacobian for 2D depth evolution."""
+        bkd = self.bkd()
+        npts_1d = 6
+        basis = ChebyshevBasis2D(npts_1d, npts_1d, bkd)
+        npts = basis.npts()
+
+        physics = ShallowShelfDepthPhysics(basis, bkd)
+
+        # Set velocity field (u, v)
+        velocity = bkd.hstack([
+            bkd.full((npts,), 50.0),  # u
+            bkd.full((npts,), 20.0),  # v
+        ])
+        physics.set_velocities(velocity)
+
+        # Positive depth
+        np.random.seed(42)
+        state = bkd.array(500.0 + 50.0 * np.random.randn(npts))
+        state = bkd.array(np.maximum(np.asarray(state), 100.0))  # Ensure positive
+
+        self.check_jacobian(physics, state, time=0.0)
+
+    def test_residual_uniform_depth_and_velocity(self):
+        """Test residual is zero for uniform depth and divergence-free velocity."""
+        bkd = self.bkd()
+        npts_1d = 8
+        basis = ChebyshevBasis2D(npts_1d, npts_1d, bkd)
+        npts = basis.npts()
+
+        physics = ShallowShelfDepthPhysics(basis, bkd)
+
+        # Uniform velocity (constant velocity is divergence-free)
+        velocity = bkd.hstack([
+            bkd.full((npts,), 100.0),  # u
+            bkd.full((npts,), 50.0),   # v
+        ])
+        physics.set_velocities(velocity)
+
+        # Uniform depth
+        state = bkd.full((npts,), 1000.0)
+
+        # For uniform H and (u,v): -div(H*vel) = -H*div(vel) - vel·grad(H) = 0
+        residual = physics.residual(state, time=0.0)
+
+        # Should be very small (not exactly zero due to spectral diff of constant)
+        self.assertLess(float(bkd.norm(residual)), 1e-9)
+
+    def test_ncomponents(self):
+        """Test number of components."""
+        bkd = self.bkd()
+        npts_1d = 5
+        basis = ChebyshevBasis2D(npts_1d, npts_1d, bkd)
+        npts = basis.npts()
+
+        physics = ShallowShelfDepthPhysics(basis, bkd)
+
+        self.assertEqual(physics.ncomponents(), 1)
+        self.assertEqual(physics.nstates(), npts)
+
+    def test_requires_velocity_set(self):
+        """Test that residual requires velocities to be set."""
+        bkd = self.bkd()
+        npts_1d = 5
+        basis = ChebyshevBasis2D(npts_1d, npts_1d, bkd)
+        npts = basis.npts()
+
+        physics = ShallowShelfDepthPhysics(basis, bkd)
+        state = bkd.full((npts,), 1000.0)
+
+        with self.assertRaises(RuntimeError):
+            physics.residual(state, time=0.0)
+
+    def test_requires_2d_basis(self):
+        """Test that 1D basis raises error."""
+        bkd = self.bkd()
+        npts = 10
+        basis = ChebyshevBasis1D(npts, bkd)
+
+        with self.assertRaises(ValueError):
+            ShallowShelfDepthPhysics(basis, bkd)
+
+    def test_factory_function(self):
+        """Test create_shallow_shelf_depth factory."""
+        bkd = self.bkd()
+        npts_1d = 5
+        basis = ChebyshevBasis2D(npts_1d, npts_1d, bkd)
+        npts = basis.npts()
+
+        physics = create_shallow_shelf_depth(basis, bkd)
+
+        self.assertEqual(physics.ncomponents(), 1)
+        self.assertEqual(physics.nstates(), npts)
+
+    def test_transient_depth_equilibrium(self):
+        """Test transient equilibrium for depth evolution.
+
+        Shallow shelf depth equation: dH/dt = -div(H*u)
+        For uniform depth and divergence-free velocity, depth should remain constant.
+
+        Note: Uses constant velocity which is divergence-free.
+        """
+        bkd = self.bkd()
+        npts_1d = 8
+        basis = ChebyshevBasis2D(npts_1d, npts_1d, bkd)
+        npts = basis.npts()
+
+        physics = ShallowShelfDepthPhysics(basis, bkd)
+
+        # Set constant velocity field (divergence-free)
+        velocity = bkd.hstack([
+            bkd.full((npts,), 100.0),  # u = constant
+            bkd.full((npts,), 50.0),   # v = constant
+        ])
+        physics.set_velocities(velocity)
+
+        model = CollocationModel(physics, bkd)
+
+        # Initial depth: uniform
+        H0 = bkd.full((npts,), 800.0)
+
+        config = TimeIntegrationConfig(
+            method="backward_euler",
+            init_time=0.0,
+            final_time=0.01,
+            deltat=0.002,
+        )
+
+        solutions, times = model.solve_transient(H0, config)
+
+        # Check solution is finite and physical (H > 0)
+        H_final = solutions[:, -1]
+        self.assertTrue(bkd.isfinite(bkd.norm(H_final)))
+        self.assertGreater(float(bkd.min(H_final)), 0.0)
+
+        # With uniform depth and divergence-free velocity:
+        # -div(H*u) = -H*div(u) - u·grad(H) = 0 (since div(u)=0 and grad(H)=0)
+        # So depth should remain unchanged
+        bkd.assert_allclose(H_final, H0, rtol=1e-6, atol=1e-10)
+
+    def test_transient_depth_with_forcing(self):
+        """Test transient depth evolution with source term.
+
+        dH/dt = -div(H*u) + f
+        With uniform depth, constant velocity (div-free), and constant f > 0,
+        depth should increase linearly: H(t) = H0 + f*t
+        """
+        bkd = self.bkd()
+        npts_1d = 8
+        basis = ChebyshevBasis2D(npts_1d, npts_1d, bkd)
+        npts = basis.npts()
+
+        # Constant accumulation rate
+        f_val = 10.0  # depth increase per unit time
+        forcing = bkd.full((npts,), f_val)
+
+        physics = ShallowShelfDepthPhysics(
+            basis, bkd,
+            forcing=lambda t: forcing
+        )
+
+        # Set zero velocity (simplest case)
+        velocity = bkd.zeros((2 * npts,))
+        physics.set_velocities(velocity)
+
+        model = CollocationModel(physics, bkd)
+
+        # Initial depth: uniform
+        H0 = bkd.full((npts,), 800.0)
+        final_time = 0.1
+
+        config = TimeIntegrationConfig(
+            method="backward_euler",
+            init_time=0.0,
+            final_time=final_time,
+            deltat=0.01,
+        )
+
+        solutions, times = model.solve_transient(H0, config)
+
+        # Check solution is finite and physical (H > 0)
+        H_final = solutions[:, -1]
+        self.assertTrue(bkd.isfinite(bkd.norm(H_final)))
+        self.assertGreater(float(bkd.min(H_final)), 0.0)
+
+        # Expected: H(t) = H0 + f*t
+        H_expected = H0 + f_val * final_time
+        bkd.assert_allclose(H_final, H_expected, rtol=0.01, atol=1e-6)
+
+
+if __name__ == "__main__":
+    unittest.main()

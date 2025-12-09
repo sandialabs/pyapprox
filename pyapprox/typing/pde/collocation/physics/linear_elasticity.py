@@ -244,6 +244,62 @@ class LinearElasticityPhysics(AbstractVectorPhysics[Array], Generic[Array]):
 
         return jacobian
 
+    def compute_interface_flux(
+        self, state: Array, boundary_indices: Array, normal: Array
+    ) -> Array:
+        """Compute traction at boundary for DtN domain decomposition.
+
+        Computes t = σ · n at the specified boundary points, where:
+        - σ is the stress tensor
+        - n is the outward unit normal
+
+        Parameters
+        ----------
+        state : Array
+            Solution state [u, v]. Shape: (2*npts,)
+        boundary_indices : Array
+            Mesh indices at interface. Shape: (nboundary,)
+        normal : Array
+            Outward unit normal. Shape: (2,)
+
+        Returns
+        -------
+        Array
+            Traction [t_x, t_y] at boundary points.
+            Shape: (2*nboundary,) with component-stacked ordering.
+        """
+        bkd = self._bkd
+        nboundary = boundary_indices.shape[0]
+
+        u, v = self._extract_components(state)
+
+        # Compute strain components at boundary
+        ux = (self._Dx @ u)[boundary_indices]
+        uy = (self._Dy @ u)[boundary_indices]
+        vx = (self._Dx @ v)[boundary_indices]
+        vy = (self._Dy @ v)[boundary_indices]
+
+        exx = ux
+        exy = 0.5 * (uy + vx)
+        eyy = vy
+        trace_e = exx + eyy
+
+        # Stress tensor at boundary
+        lam = self._lambda_array[boundary_indices]
+        mu = self._mu_array[boundary_indices]
+        sigma_xx = lam * trace_e + 2.0 * mu * exx
+        sigma_xy = 2.0 * mu * exy
+        sigma_yy = lam * trace_e + 2.0 * mu * eyy
+
+        # Traction t = σ · n
+        nx = float(normal[0])
+        ny = float(normal[1])
+        traction_x = sigma_xx * nx + sigma_xy * ny
+        traction_y = sigma_xy * nx + sigma_yy * ny
+
+        # Component-stacked ordering: [t_x_0, ..., t_x_n, t_y_0, ..., t_y_n]
+        return bkd.concatenate([traction_x, traction_y])
+
 
 def create_linear_elasticity(
     basis: TensorProductBasisProtocol[Array],
