@@ -42,6 +42,7 @@ from pyapprox.typing.pde.galerkin.basis import (
 from pyapprox.typing.pde.galerkin.physics import (
     AbstractGalerkinPhysics,
     LinearAdvectionDiffusionReaction,
+    Helmholtz,
 )
 
 from pyapprox.typing.pde.galerkin.time_integration import (
@@ -76,6 +77,7 @@ __all__ = [
     # Physics implementations
     "AbstractGalerkinPhysics",
     "LinearAdvectionDiffusionReaction",
+    "Helmholtz",
     # Time integration adapter
     "GalerkinPhysicsODEAdapter",
     # Solvers
