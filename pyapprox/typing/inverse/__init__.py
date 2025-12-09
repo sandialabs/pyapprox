@@ -65,10 +65,11 @@ from .conjugate import (
     DirichletConjugatePosterior,
 )
 
-# Pushforward (will be added in Phase 3)
-# from .pushforward import (
-#     GaussianPushforward,
-# )
+# Pushforward
+from .pushforward import (
+    GaussianPushforward,
+    DenseGaussianPrediction,
+)
 
 # Laplace approximation (will be added in Phase 4)
 # from .laplace import (
@@ -102,4 +103,7 @@ __all__ = [
     "DenseGaussianConjugatePosterior",
     "BetaConjugatePosterior",
     "DirichletConjugatePosterior",
+    # Pushforward
+    "GaussianPushforward",
+    "DenseGaussianPrediction",
 ]
