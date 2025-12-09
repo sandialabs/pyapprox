@@ -1,0 +1,274 @@
+"""
+SciPy discrete distribution wrapper.
+
+Provides a wrapper for SciPy discrete distributions.
+"""
+
+from typing import Generic, Any, Dict, Tuple
+
+import numpy as np
+from scipy.stats import _discrete_distns
+
+from pyapprox.typing.util.backends.protocols import Array, Backend
+
+
+class ScipyDiscreteMarginal(Generic[Array]):
+    """
+    Wrapper for SciPy discrete distributions.
+
+    Adapts SciPy frozen discrete random variables to a protocol-compatible
+    interface.
+
+    Parameters
+    ----------
+    scipy_rv : rv_discrete_frozen
+        A frozen SciPy discrete random variable.
+    bkd : Backend[Array]
+        The backend to use for computations.
+
+    Examples
+    --------
+    >>> import numpy as np
+    >>> from scipy.stats import binom
+    >>> from pyapprox.typing.util.backends.numpy import NumpyBkd
+    >>> bkd = NumpyBkd()
+    >>> scipy_rv = binom(n=10, p=0.5)
+    >>> dist = ScipyDiscreteMarginal(scipy_rv, bkd)
+    >>> samples = np.array([0, 5, 10])
+    >>> pmf_vals = dist(samples)
+    """
+
+    def __init__(self, scipy_rv: Any, bkd: Backend[Array]):
+        self._bkd = bkd
+        self._validate_marginal(scipy_rv)
+        self._scipy_rv = scipy_rv
+        self._name, self._scales, self._shapes = self._get_distribution_info()
+
+    def _validate_marginal(self, scipy_rv: Any) -> None:
+        """Validate that this is a discrete SciPy random variable."""
+        if scipy_rv.dist.name not in _discrete_distns._distn_names:
+            raise ValueError("marginal is not a discrete SciPy variable")
+
+    def bkd(self) -> Backend[Array]:
+        """Get the backend used for computations."""
+        return self._bkd
+
+    def nvars(self) -> int:
+        """Return the number of variables (always 1 for univariate)."""
+        return 1
+
+    def __call__(self, samples: Array) -> Array:
+        """
+        Evaluate the probability mass function.
+
+        Parameters
+        ----------
+        samples : Array
+            Points at which to evaluate the PMF.
+
+        Returns
+        -------
+        Array
+            PMF values.
+        """
+        return self._bkd.asarray(
+            self._scipy_rv.pmf(self._bkd.to_numpy(samples))
+        )
+
+    def pmf(self, samples: Array) -> Array:
+        """Alias for __call__, evaluate PMF."""
+        return self(samples)
+
+    def logpmf(self, samples: Array) -> Array:
+        """
+        Evaluate the log probability mass function.
+
+        Parameters
+        ----------
+        samples : Array
+            Points at which to evaluate the log PMF.
+
+        Returns
+        -------
+        Array
+            Log PMF values.
+        """
+        return self._bkd.asarray(
+            self._scipy_rv.logpmf(self._bkd.to_numpy(samples))
+        )
+
+    # Alias for protocol compatibility
+    def logpdf(self, samples: Array) -> Array:
+        """Alias for logpmf for protocol compatibility."""
+        return self.logpmf(samples)
+
+    def cdf(self, samples: Array) -> Array:
+        """
+        Evaluate the cumulative distribution function.
+
+        Parameters
+        ----------
+        samples : Array
+            Points at which to evaluate the CDF.
+
+        Returns
+        -------
+        Array
+            CDF values in [0, 1].
+        """
+        return self._bkd.asarray(
+            self._scipy_rv.cdf(self._bkd.to_numpy(samples))
+        )
+
+    def invcdf(self, probs: Array) -> Array:
+        """
+        Evaluate the inverse CDF (quantile function).
+
+        For discrete distributions, returns the smallest integer k
+        such that CDF(k) >= p.
+
+        Parameters
+        ----------
+        probs : Array
+            Probability values in [0, 1].
+
+        Returns
+        -------
+        Array
+            Quantile values (integers).
+        """
+        return self._bkd.asarray(
+            self._scipy_rv.ppf(self._bkd.to_numpy(probs))
+        )
+
+    # Alias for compatibility
+    ppf = invcdf
+
+    def rvs(self, nsamples: int) -> Array:
+        """
+        Generate random samples from the distribution.
+
+        Parameters
+        ----------
+        nsamples : int
+            Number of samples to generate.
+
+        Returns
+        -------
+        Array
+            Random samples. Shape: (1, nsamples) for protocol compliance.
+        """
+        samples = self._bkd.asarray(self._scipy_rv.rvs(int(nsamples)))
+        return self._bkd.reshape(samples, (1, nsamples))
+
+    def mean_value(self) -> float:
+        """Return the mean of the distribution."""
+        return float(self._scipy_rv.mean())
+
+    def variance(self) -> float:
+        """Return the variance of the distribution."""
+        return float(self._scipy_rv.var())
+
+    def std(self) -> float:
+        """Return the standard deviation."""
+        return float(self._scipy_rv.std())
+
+    def median(self) -> float:
+        """Return the median of the distribution."""
+        return float(self._scipy_rv.median())
+
+    def is_bounded(self) -> bool:
+        """
+        Check if the distribution has bounded support.
+
+        Returns
+        -------
+        bool
+            True if both endpoints are finite.
+        """
+        interval = self._scipy_rv.interval(1)
+        return bool(np.isfinite(interval[0]) and np.isfinite(interval[1]))
+
+    def interval(self, alpha: float) -> Array:
+        """
+        Compute the interval with given probability content.
+
+        Parameters
+        ----------
+        alpha : float
+            Probability content of the interval.
+
+        Returns
+        -------
+        Array
+            Interval [lower, upper].
+        """
+        return self._bkd.asarray(self._scipy_rv.interval(alpha))
+
+    def _get_distribution_info(
+        self,
+    ) -> Tuple[str, Dict[str, Array], Dict[str, Any]]:
+        """Extract distribution name, scales, and shapes from SciPy rv."""
+        name = self._scipy_rv.dist.name
+        shape_names = self._scipy_rv.dist.shapes
+
+        if shape_names is not None:
+            shape_names = [n.strip() for n in shape_names.split(",")]
+            shape_values = [
+                self._scipy_rv.args[ii]
+                for ii in range(
+                    min(len(self._scipy_rv.args), len(shape_names))
+                )
+            ]
+            shape_values += [
+                self._scipy_rv.kwds[shape_names[ii]]
+                for ii in range(len(self._scipy_rv.args), len(shape_names))
+            ]
+            shapes = dict(zip(shape_names, shape_values))
+        else:
+            shapes = {}
+
+        # Extract scale parameters (loc, scale)
+        scale_values = [
+            self._scipy_rv.args[ii]
+            for ii in range(len(shapes), len(self._scipy_rv.args))
+        ]
+        scale_values += [
+            self._scipy_rv.kwds[key]
+            for key in self._scipy_rv.kwds
+            if key not in shapes
+        ]
+
+        if len(scale_values) == 0:
+            scale_values = [0.0, 1.0]
+        elif len(scale_values) == 1:
+            if "scale" not in self._scipy_rv.kwds:
+                scale_values.append(1.0)
+            elif "loc" not in self._scipy_rv.kwds:
+                scale_values = [0.0] + scale_values
+
+        scales = {
+            "loc": self._bkd.asarray([scale_values[0]]),
+            "scale": self._bkd.asarray([scale_values[1]]),
+        }
+
+        return name, scales, shapes
+
+    @property
+    def name(self) -> str:
+        """Distribution name."""
+        return self._name
+
+    @property
+    def shapes(self) -> Dict[str, Any]:
+        """Shape parameters."""
+        return self._shapes
+
+    @property
+    def scales(self) -> Dict[str, Array]:
+        """Scale parameters (loc, scale)."""
+        return self._scales
+
+    def __repr__(self) -> str:
+        """Return string representation."""
+        return f"ScipyDiscreteMarginal({self._name}, shapes={self._shapes})"
