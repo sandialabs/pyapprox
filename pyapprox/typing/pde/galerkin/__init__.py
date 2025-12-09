@@ -39,6 +39,15 @@ from pyapprox.typing.pde.galerkin.basis import (
     LagrangeBasis,
 )
 
+from pyapprox.typing.pde.galerkin.physics import (
+    AbstractGalerkinPhysics,
+    LinearAdvectionDiffusionReaction,
+)
+
+from pyapprox.typing.pde.galerkin.time_integration import (
+    GalerkinPhysicsODEAdapter,
+)
+
 __all__ = [
     # Mesh protocols
     "GalerkinMeshProtocol",
@@ -60,4 +69,9 @@ __all__ = [
     "StructuredMesh2D",
     # Basis implementations
     "LagrangeBasis",
+    # Physics implementations
+    "AbstractGalerkinPhysics",
+    "LinearAdvectionDiffusionReaction",
+    # Time integration adapter
+    "GalerkinPhysicsODEAdapter",
 ]
