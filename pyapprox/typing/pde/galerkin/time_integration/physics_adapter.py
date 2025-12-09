@@ -62,8 +62,7 @@ class GalerkinPhysicsODEAdapter(Generic[Array]):
         self._bkd = physics.bkd()
         self._time: float = 0.0
 
-        # Cache the mass matrix and its factorization for efficiency
-        self._mass_matrix_cached: Optional[Array] = None
+        # Cache identity matrix for mass_matrix method
         self._identity_cached: Optional[Array] = None
 
         # Setup optional methods based on physics capabilities
@@ -99,17 +98,14 @@ class GalerkinPhysicsODEAdapter(Generic[Array]):
         """
         self._time = time
 
-    def _get_mass_matrix(self) -> Array:
-        """Get the cached FEM mass matrix."""
-        if self._mass_matrix_cached is None:
-            self._mass_matrix_cached = self._physics.mass_matrix()
-        return self._mass_matrix_cached
-
     def __call__(self, state: Array) -> Array:
         """Evaluate the ODE residual f(u, t) = M^{-1} * F(u, t).
 
         For Galerkin with M * du/dt = F(u, t), we transform to standard form
         du/dt = f(u, t) by solving f = M^{-1} * F.
+
+        Uses the physics.mass_solve() method which can be overridden to
+        exploit mass matrix structure (e.g., lumped/diagonal mass).
 
         Parameters
         ----------
@@ -122,11 +118,13 @@ class GalerkinPhysicsODEAdapter(Generic[Array]):
             Residual f(u, t) = M^{-1} * F(u, t). Shape: (nstates,)
         """
         F = self._physics.residual(state, self._time)
-        M = self._get_mass_matrix()
-        return self._bkd.solve(M, F)
+        return self._physics.mass_solve(F)
 
     def jacobian(self, state: Array) -> Array:
         """Compute the Jacobian df/du = M^{-1} * dF/du.
+
+        Uses the physics.mass_solve() method which can be overridden to
+        exploit mass matrix structure.
 
         Parameters
         ----------
@@ -139,9 +137,8 @@ class GalerkinPhysicsODEAdapter(Generic[Array]):
             Jacobian df/du. Shape: (nstates, nstates)
         """
         J_F = self._physics.jacobian(state, self._time)
-        M = self._get_mass_matrix()
         # Solve M * J = J_F for each column of J
-        return self._bkd.solve(M, J_F)
+        return self._physics.mass_solve(J_F)
 
     def mass_matrix(self, nstates: int) -> Array:
         """Return the identity matrix.
