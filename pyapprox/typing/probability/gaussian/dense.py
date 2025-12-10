@@ -10,7 +10,9 @@ from typing import Generic
 import numpy as np
 
 from pyapprox.typing.util.backends.protocols import Array, Backend
-from pyapprox.typing.probability.covariance import DenseCholeskyCovarianceOperator
+from pyapprox.typing.probability.covariance import (
+    DenseCholeskyCovarianceOperator,
+)
 from pyapprox.typing.probability.gaussian.core import GaussianLogPDFCore
 
 
@@ -41,9 +43,7 @@ class DenseCholeskyMultivariateGaussian(Generic[Array]):
     >>> samples = dist.rvs(100)
     """
 
-    def __init__(
-        self, mean: Array, covariance: Array, bkd: Backend[Array]
-    ):
+    def __init__(self, mean: Array, covariance: Array, bkd: Backend[Array]):
         self._bkd = bkd
         self._mean = mean
         self._nvars = mean.shape[0]
@@ -233,7 +233,6 @@ class DenseCholeskyMultivariateGaussian(Generic[Array]):
             KL divergence value.
         """
         cov1 = self.covariance()
-        cov2 = other.covariance()
         cov2_inv = other.covariance_inverse()
 
         mean_diff = other.mean() - self.mean()
@@ -242,9 +241,7 @@ class DenseCholeskyMultivariateGaussian(Generic[Array]):
         trace_term = self._bkd.sum(cov2_inv * cov1)
 
         # (m2-m1)^T C2^{-1} (m2-m1)
-        quad_term = float(
-            (mean_diff.T @ (cov2_inv @ mean_diff)).squeeze()
-        )
+        quad_term = float((mean_diff.T @ (cov2_inv @ mean_diff)).squeeze())
 
         # log|C2| - log|C1| = 2*(log|L2| - log|L1|)
         log_det_term = 2.0 * (

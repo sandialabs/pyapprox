@@ -237,3 +237,6 @@ class OperatorBasedCovarianceOperator(Generic[Array]):
             cnt += nvectors
 
         return diagonal
+
+
+# TODO use PEP 484 standard and explicitly declare Optional from typing module

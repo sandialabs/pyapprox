@@ -256,9 +256,7 @@ class NatafTransform(Generic[Array]):
         L_np = self._bkd.to_numpy(self._chol)
         for k in range(nsamples):
             dx_dy_k = self._bkd.to_numpy(dx_dy[:, k])
-            jacobian[:, :, k] = self._bkd.asarray(
-                np.diag(dx_dy_k) @ L_np
-            )
+            jacobian[:, :, k] = self._bkd.asarray(np.diag(dx_dy_k) @ L_np)
 
         return x, jacobian
 
@@ -269,9 +267,7 @@ class NatafTransform(Generic[Array]):
 
         for i, marginal in enumerate(self._marginals):
             probs = marginal.cdf(samples[i])
-            probs_np = np.clip(
-                self._bkd.to_numpy(probs), 1e-15, 1.0 - 1e-15
-            )
+            probs_np = np.clip(self._bkd.to_numpy(probs), 1e-15, 1.0 - 1e-15)
             y[i] = self._bkd.asarray(self._standard_normal.ppf(probs_np))
 
         return y
@@ -316,9 +312,7 @@ class NatafTransform(Generic[Array]):
 
         return self._bkd.asarray(corr_std)
 
-    def _compute_std_correlation_ij(
-        self, rho: float, i: int, j: int
-    ) -> float:
+    def _compute_std_correlation_ij(self, rho: float, i: int, j: int) -> float:
         """
         Compute standard normal correlation for pair (i, j).
 
@@ -396,3 +390,6 @@ class NatafTransform(Generic[Array]):
     def __repr__(self) -> str:
         """Return string representation."""
         return f"NatafTransform(nvars={self._nvars})"
+
+
+# TODO: make sure latex math renders in docs, e.g. use .. math:: and :math:`` or suggest alternatives

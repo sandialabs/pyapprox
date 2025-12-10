@@ -140,9 +140,7 @@ class TestDenseCholeskyMultivariateGaussian(unittest.TestCase):
     def test_invalid_cov_shape(self):
         """Test invalid covariance shape raises error."""
         with self.assertRaises(ValueError):
-            DenseCholeskyMultivariateGaussian(
-                self.mean, np.eye(3), self.bkd
-            )
+            DenseCholeskyMultivariateGaussian(self.mean, np.eye(3), self.bkd)
 
 
 class TestDiagonalMultivariateGaussian(unittest.TestCase):
@@ -191,7 +189,9 @@ class TestDiagonalMultivariateGaussian(unittest.TestCase):
         # Compute as product of independent univariates
         logpdf_expected = np.zeros(2)
         for i in range(3):
-            univariate = stats.norm(self.mean[i, 0], np.sqrt(self.variances[i]))
+            univariate = stats.norm(
+                self.mean[i, 0], np.sqrt(self.variances[i])
+            )
             logpdf_expected += univariate.logpdf(samples[i])
 
         np.testing.assert_array_almost_equal(logpdf_ours, logpdf_expected)
@@ -234,9 +234,9 @@ class TestOperatorBasedMultivariateGaussian(unittest.TestCase):
 
     def test_logpdf_at_mean(self):
         """Test logpdf at mean is maximum."""
-        samples = np.array([[0.0, 1.0, -1.0],
-                           [0.0, 1.0, -1.0],
-                           [0.0, 1.0, -1.0]])
+        samples = np.array(
+            [[0.0, 1.0, -1.0], [0.0, 1.0, -1.0], [0.0, 1.0, -1.0]]
+        )
         logpdf = self.dist.logpdf(samples)
         # At mean (column 0), logpdf should be maximum
         self.assertGreater(logpdf[0], logpdf[1])
@@ -404,3 +404,16 @@ class TestGaussianCanonicalForm(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+# TODO: my code returns jacobians (e.g. (nvars, nsamples) not gradients, e.g update this file and those in this module to be consistent with this convention.
+# use __test__ = False pattern typing/interface/functions/fromcallable/tests/ and load_tests to avoid running base class.
+# avoid use of torch and numpy specific functions except np.random, for example use bkd.assert_allclose instead of np.testing.assert_array_almost_equal
+# split test files into files for each class
+# wrap outputs of scipy functinos with bkd.asarray() before comparing
+# test gradient with typing.funcitons.derivative_checks.derivative_checker and error_ratio < 1e-6
+# apply similar changes throughout module
+
+# Future: add log_hvp hessian
+
+# Typing module plan: Suggest how to differentiate between funcitions that take in one sample vs multiple samples, similarly for jacobians and hvp at one sample vs many samples. E.g. should we change name, make single sample functions take 1D array and multiple sample functions take 2D array. I think I would like both functions to take 2D arrays, single sample models just take a 2D array with one column. Suggest pros and cons
