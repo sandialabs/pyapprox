@@ -4,6 +4,17 @@ This module defines protocols for:
 - SubspaceProtocol: Individual tensor product subspaces
 - SparseGridProtocol: Sparse grid surrogates (combinations of subspaces)
 - AdaptiveSparseGridProtocol: Adaptive sparse grids with refinement
+- SubspaceWithDerivativesProtocol: Subspaces with Jacobian/Hessian support
+- SparseGridWithDerivativesProtocol: Sparse grids with derivative support
+
+Protocol Hierarchy:
+    SubspaceProtocol (base)
+        ↓
+    SubspaceWithDerivativesProtocol - adds jacobian/hessian methods
+
+    SparseGridProtocol (base)
+        ↓
+    SparseGridWithDerivativesProtocol - adds jacobian/hvp/whvp methods
 """
 
 from typing import Generic, List, Optional, Protocol, runtime_checkable
@@ -233,4 +244,133 @@ class AdaptiveSparseGridProtocol(Protocol, Generic[Array]):
         Array
             Interpolant values of shape (npoints, nqoi)
         """
+        ...
+
+
+@runtime_checkable
+class SubspaceWithDerivativesProtocol(SubspaceProtocol[Array], Protocol, Generic[Array]):
+    """Protocol for tensor product subspace with derivative support.
+
+    Extends SubspaceProtocol with Jacobian and Hessian computation.
+    Used for smooth bases (polynomials, B-splines) where derivatives exist.
+    """
+
+    def jacobian(self, sample: Array) -> Array:
+        """Compute Jacobian at a single sample point.
+
+        Parameters
+        ----------
+        sample : Array
+            Single evaluation point of shape (nvars, 1)
+
+        Returns
+        -------
+        Array
+            Jacobian matrix of shape (nqoi, nvars)
+        """
+        ...
+
+    def hessian(self, sample: Array, qoi_idx: int = 0) -> Array:
+        """Compute Hessian at a single sample point for one QoI.
+
+        Parameters
+        ----------
+        sample : Array
+            Single evaluation point of shape (nvars, 1)
+        qoi_idx : int
+            Index of quantity of interest. Default: 0.
+
+        Returns
+        -------
+        Array
+            Hessian matrix of shape (nvars, nvars)
+        """
+        ...
+
+    def jacobian_supported(self) -> bool:
+        """Return whether Jacobian computation is supported."""
+        ...
+
+    def hessian_supported(self) -> bool:
+        """Return whether Hessian computation is supported."""
+        ...
+
+
+@runtime_checkable
+class SparseGridWithDerivativesProtocol(SparseGridProtocol[Array], Protocol, Generic[Array]):
+    """Protocol for sparse grid surrogates with derivative support.
+
+    Extends SparseGridProtocol with Jacobian, HVP (Hessian-vector product),
+    and WHVP (weighted Hessian-vector product) computation.
+
+    For scalar-valued functions (nqoi=1), use hvp().
+    For vector-valued functions (nqoi>1), use whvp() with weights.
+    """
+
+    def nqoi(self) -> int:
+        """Return the number of quantities of interest."""
+        ...
+
+    def jacobian(self, sample: Array) -> Array:
+        """Compute Jacobian at a single sample point.
+
+        Parameters
+        ----------
+        sample : Array
+            Single evaluation point of shape (nvars, 1)
+
+        Returns
+        -------
+        Array
+            Jacobian matrix of shape (nqoi, nvars)
+        """
+        ...
+
+    def hvp(self, sample: Array, vec: Array) -> Array:
+        """Compute Hessian-vector product for scalar-valued function.
+
+        Only valid when nqoi=1.
+
+        Parameters
+        ----------
+        sample : Array
+            Single evaluation point of shape (nvars, 1)
+        vec : Array
+            Direction vector of shape (nvars, 1)
+
+        Returns
+        -------
+        Array
+            Hessian-vector product of shape (nvars, 1)
+        """
+        ...
+
+    def whvp(self, sample: Array, vec: Array, weights: Array) -> Array:
+        """Compute weighted Hessian-vector product for vector-valued function.
+
+        For vector-valued functions, computes sum_i weights[i] * H_i @ vec
+        where H_i is the Hessian of the i-th QoI.
+
+        Parameters
+        ----------
+        sample : Array
+            Single evaluation point of shape (nvars, 1)
+        vec : Array
+            Direction vector of shape (nvars, 1)
+        weights : Array
+            Weights for each QoI of shape (nqoi, 1)
+
+        Returns
+        -------
+        Array
+            Weighted Hessian-vector product of shape (nvars, 1)
+        """
+        ...
+
+    def jacobian_supported(self) -> bool:
+        """Return whether Jacobian computation is supported."""
+        ...
+
+    def hvp_supported(self) -> bool:
+        """Return whether HVP/WHVP computation is supported."""
         ...

@@ -2,7 +2,9 @@
 
 from .sparse_grid import (
     SubspaceProtocol,
+    SubspaceWithDerivativesProtocol,
     SparseGridProtocol,
+    SparseGridWithDerivativesProtocol,
     AdaptiveSparseGridProtocol,
 )
 from .local_refinement import (
@@ -11,9 +13,14 @@ from .local_refinement import (
 )
 
 __all__ = [
+    # Base protocols
     "SubspaceProtocol",
     "SparseGridProtocol",
     "AdaptiveSparseGridProtocol",
+    # Derivative protocols
+    "SubspaceWithDerivativesProtocol",
+    "SparseGridWithDerivativesProtocol",
+    # Local refinement
     "LocalIndexGeneratorProtocol",
     "LocalRefinementCriteriaProtocol",
 ]

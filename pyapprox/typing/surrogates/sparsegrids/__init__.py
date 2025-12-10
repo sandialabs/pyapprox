@@ -8,6 +8,7 @@ Key classes:
 - CombinationSparseGrid: Base class for sparse grids
 - IsotropicCombinationSparseGrid: Pre-computed isotropic sparse grid
 - TensorProductSubspace: Individual tensor product in sparse grid
+- SparseGridFunction: Wrapper for DerivativeChecker integration
 
 Key functions:
 - compute_smolyak_coefficients: Compute combination coefficients
@@ -16,7 +17,9 @@ Key functions:
 
 from .protocols import (
     SubspaceProtocol,
+    SubspaceWithDerivativesProtocol,
     SparseGridProtocol,
+    SparseGridWithDerivativesProtocol,
     AdaptiveSparseGridProtocol,
     LocalIndexGeneratorProtocol,
     LocalRefinementCriteriaProtocol,
@@ -35,10 +38,14 @@ from .combination import CombinationSparseGrid
 
 from .isotropic import IsotropicCombinationSparseGrid
 
+from .wrappers import SparseGridFunction
+
 __all__ = [
     # Protocols
     "SubspaceProtocol",
+    "SubspaceWithDerivativesProtocol",
     "SparseGridProtocol",
+    "SparseGridWithDerivativesProtocol",
     "AdaptiveSparseGridProtocol",
     "LocalIndexGeneratorProtocol",
     "LocalRefinementCriteriaProtocol",
@@ -51,4 +58,6 @@ __all__ = [
     "TensorProductSubspace",
     "CombinationSparseGrid",
     "IsotropicCombinationSparseGrid",
+    # Wrappers
+    "SparseGridFunction",
 ]
