@@ -225,9 +225,7 @@ class IndependentGaussianTransform(Generic[Array]):
         self._bkd = bkd
         self._marginals = marginals
         self._nvars = len(marginals)
-        self._transforms = [
-            GaussianTransform(m, bkd) for m in marginals
-        ]
+        self._transforms = [GaussianTransform(m, bkd) for m in marginals]
         self._standard_normal = stats.norm(0, 1)
 
     def bkd(self) -> Backend[Array]:
@@ -381,9 +379,13 @@ class IndependentGaussianTransform(Generic[Array]):
             Log determinant. Shape: (nsamples,)
         """
         _, jacobian_diag = self.map_to_canonical_with_jacobian(samples)
-        return self._bkd.sum(self._bkd.log(self._bkd.abs(jacobian_diag)), axis=0)
+        return self._bkd.sum(
+            self._bkd.log(self._bkd.abs(jacobian_diag)), axis=0
+        )
 
-    def log_det_jacobian_from_canonical(self, canonical_samples: Array) -> Array:
+    def log_det_jacobian_from_canonical(
+        self, canonical_samples: Array
+    ) -> Array:
         """
         Compute log absolute determinant of Jacobian (from canonical).
 
@@ -397,9 +399,16 @@ class IndependentGaussianTransform(Generic[Array]):
         Array
             Log determinant. Shape: (nsamples,)
         """
-        _, jacobian_diag = self.map_from_canonical_with_jacobian(canonical_samples)
-        return self._bkd.sum(self._bkd.log(self._bkd.abs(jacobian_diag)), axis=0)
+        _, jacobian_diag = self.map_from_canonical_with_jacobian(
+            canonical_samples
+        )
+        return self._bkd.sum(
+            self._bkd.log(self._bkd.abs(jacobian_diag)), axis=0
+        )
 
     def __repr__(self) -> str:
         """Return string representation."""
         return f"IndependentGaussianTransform(nvars={self._nvars})"
+
+
+# TODO add check that marginal argument to __init__ has nvars ==1

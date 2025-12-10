@@ -9,7 +9,9 @@ from typing import Generic
 import math
 
 from pyapprox.typing.util.backends.protocols import Array, Backend
-from pyapprox.typing.probability.protocols import SqrtCovarianceOperatorProtocol
+from pyapprox.typing.probability.protocols import (
+    SqrtCovarianceOperatorProtocol,
+)
 
 
 class GaussianLogPDFCore(Generic[Array]):

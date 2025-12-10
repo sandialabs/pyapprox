@@ -83,3 +83,8 @@ class TestTorchBackend(TestBackend[torch.Tensor], unittest.TestCase):
 # Run the tests
 if __name__ == "__main__":
     unittest.main()
+
+
+# TODO:
+# complete tests of all functions in backend protocol:
+# use __test__ = False pattern typing/interface/functions/fromcallable/tests/ and load_tests to avoid running base class.

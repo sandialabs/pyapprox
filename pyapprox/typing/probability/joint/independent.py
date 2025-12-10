@@ -334,3 +334,6 @@ class IndependentJoint(Generic[Array]):
     def __repr__(self) -> str:
         """Return string representation."""
         return f"IndependentJoint(nvars={self._nvars})"
+
+
+# TODO: does use of float destroy autograd for torch. If so remove its use from all modules. Write tests just for TorchBkd that check autograd compute the jacobian of the logpdf correctly with respect to the distribution shape parameters, e.g Gaussian covariance, BetaMarginal a, and B. Do for all classes in typing.probability that have a logpdf, except  ScipyMarginals which will not be differentiable with autograd because the wrap scipy.

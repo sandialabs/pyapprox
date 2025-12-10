@@ -268,3 +268,12 @@ class TestProtocolCompliance(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+# TODO:
+# use __test__ = False pattern typing/interface/functions/fromcallable/tests/ and load_tests to avoid running base class.
+# avoid use of torch and numpy specific functions except np.random, for example use bkd.assert_allclose instead of np.testing.assert_array_almost_equal and np.all should be bkd.all_bool
+# convert BetaMarginal, UniformMarginal, GammaMarginal, CustomDiscreteMarginal, DiscreteChebyshevMarginal in pyapprox/variables/ in typing.probability.univariate_module leaving original code untouched.
+# split up tests into smaller class specific files
+# apply similar changes throughout module
+# rm typing.variables module after checking all functionality there has been added to typing.probability

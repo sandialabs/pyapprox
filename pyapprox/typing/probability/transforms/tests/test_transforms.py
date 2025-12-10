@@ -137,7 +137,9 @@ class TestGaussianTransform(unittest.TestCase):
         x_back, jac_from = self.transform.map_from_canonical_with_jacobian(y)
 
         # jac_to * jac_from should be close to 1
-        np.testing.assert_array_almost_equal(jac_to * jac_from, [1.0], decimal=5)
+        np.testing.assert_array_almost_equal(
+            jac_to * jac_from, [1.0], decimal=5
+        )
 
 
 class TestIndependentGaussianTransform(unittest.TestCase):
@@ -368,23 +370,44 @@ class TestNatafTransformNonGaussian(unittest.TestCase):
         """Test canonical samples are approximately standard normal."""
         # Generate samples from marginals
         np.random.seed(42)
-        n = 1000
-        x = np.array([
-            np.random.uniform(0, 1, n),
-            np.random.beta(2, 5, n),
-        ])
+        n = 10000000
+        x = np.array(
+            [
+                np.random.uniform(0, 1, n),
+                np.random.beta(2, 5, n),
+            ]
+        )
 
         # Transform to canonical
         z = self.transform.map_to_canonical(x)
+        print(np.cov(z))  # the off diagonal terms have the wrong sign
+        # the error of the lowerdiagonal term does not decrease with n
 
         # Check that each component is approximately standard normal
         for i in range(2):
             z_i = z[i]
-            # Mean should be close to 0 (within 0.2)
-            self.assertLess(abs(float(np.mean(z_i))), 0.2)
-            # Std should be close to 1 (within 0.2)
-            self.assertLess(abs(float(np.std(z_i)) - 1.0), 0.2)
+            # Mean should be close to 0 (within 3e-3)
+            print(abs(float(np.mean(z_i))))
+            self.assertLess(abs(float(np.mean(z_i))), 3e-3)
+            # Std should be close to 1 (within 3e-3)
+            print(np.std(z_i))
+            self.assertLess(abs(float(np.std(z_i)) - 1.0), 3e-3)
 
 
 if __name__ == "__main__":
     unittest.main()
+
+
+# TODO: Test all jacobians with typing.funcitons.derivative_checks.derivative_checker and error_ratio < 1e-6
+# there are not rosenblattTransform tests, not all nataftransforms tests have been converted
+# make sure to add all tests in pyapprox.variables module that are not present in typing.probablity module tests. List tests missing then implement.
+# use __test__ = False pattern typing/interface/functions/fromcallable/tests/ and load_tests to avoid running base class.
+# avoid use of torch and numpy specific feunctions except np.random,
+# in any test that uses np.random set np.random.seed in setUp to ensure reproducibliity
+# use bkd.assert_allclose even for floats instead of assertLess
+#  Fix failing test_canonical_is_approximately_normal after including tests from  pyapprox.variables
+# replace np.testing.assert_array_almost_equal with bkd.assert_allclose
+# improve test_coverage of nataftransform and rosenblatt transform
+# apply similar changes throughout module
+
+# Future: minimize mypy warnings in typing.probability module

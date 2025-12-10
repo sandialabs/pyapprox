@@ -74,7 +74,9 @@ class GaussianLogLikelihood(Generic[Array]):
         """Return the number of observations."""
         return self._nobs
 
-    def noise_covariance_operator(self) -> SqrtCovarianceOperatorProtocol[Array]:
+    def noise_covariance_operator(
+        self,
+    ) -> SqrtCovarianceOperatorProtocol[Array]:
         """Get the noise covariance operator."""
         return self._noise_cov_op
 
@@ -127,7 +129,9 @@ class GaussianLogLikelihood(Generic[Array]):
             Log-likelihood values. Shape: (nsamples,)
         """
         if self._observations is None:
-            raise ValueError("Observations not set. Call set_observations first.")
+            raise ValueError(
+                "Observations not set. Call set_observations first."
+            )
 
         if model_outputs.ndim == 1:
             model_outputs = self._bkd.reshape(model_outputs, (self._nobs, 1))
@@ -179,7 +183,7 @@ class GaussianLogLikelihood(Generic[Array]):
 
         for j in range(n_obs):
             # Compute residuals for all model samples vs this observation
-            obs_j = observations[:, j:j+1]
+            obs_j = observations[:, j : j + 1]
             residuals = obs_j - model_outputs
 
             if self._design_weights is not None:
@@ -323,7 +327,9 @@ class DiagonalGaussianLogLikelihood(Generic[Array]):
         """Return the number of observations."""
         return self._nobs
 
-    def noise_covariance_operator(self) -> SqrtCovarianceOperatorProtocol[Array]:
+    def noise_covariance_operator(
+        self,
+    ) -> SqrtCovarianceOperatorProtocol[Array]:
         """Get the noise covariance operator."""
         return self._noise_cov_op
 
@@ -421,3 +427,6 @@ class DiagonalGaussianLogLikelihood(Generic[Array]):
     def __repr__(self) -> str:
         """Return string representation."""
         return f"DiagonalGaussianLogLikelihood(nobs={self._nobs})"
+
+
+# TODO logpdf_vectorized contains a loop and so is not vectorized. Fix.

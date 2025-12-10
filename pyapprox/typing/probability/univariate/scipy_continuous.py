@@ -126,9 +126,7 @@ class ScipyContinuousMarginal(Generic[Array]):
         Array
             Quantile values.
         """
-        return self._bkd.asarray(
-            self._scipy_rv.ppf(self._bkd.to_numpy(probs))
-        )
+        return self._bkd.asarray(self._scipy_rv.ppf(self._bkd.to_numpy(probs)))
 
     # Alias for compatibility
     ppf = invcdf
@@ -261,3 +259,6 @@ class ScipyContinuousMarginal(Generic[Array]):
     def __repr__(self) -> str:
         """Return string representation."""
         return f"ScipyContinuousMarginal({self._name}, shapes={self._shapes})"
+
+
+# Notes: consider changing mean_value to mean
