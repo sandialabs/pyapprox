@@ -276,6 +276,127 @@ class CombinationSparseGrid(Generic[Array]):
 
         return indices
 
+    def nqoi(self) -> int:
+        """Return the number of quantities of interest."""
+        if self._nqoi is None:
+            raise ValueError("Values not set. Call set_values() first.")
+        return self._nqoi
+
+    def jacobian_supported(self) -> bool:
+        """Return whether Jacobian computation is supported."""
+        return True
+
+    def hvp_supported(self) -> bool:
+        """Return whether HVP/WHVP computation is supported."""
+        return True
+
+    def jacobian(self, sample: Array) -> Array:
+        """Compute Jacobian at a single sample point.
+
+        Parameters
+        ----------
+        sample : Array
+            Single evaluation point of shape (nvars, 1)
+
+        Returns
+        -------
+        Array
+            Jacobian matrix of shape (nqoi, nvars)
+        """
+        if self._values is None:
+            raise ValueError("Values not set. Call set_values() first.")
+
+        if self._smolyak_coefficients is None:
+            self._update_smolyak_coefficients()
+
+        jacobian = self._bkd.zeros((self._nqoi, self._nvars))
+
+        for j, subspace in enumerate(self._subspace_list):
+            coef = float(self._smolyak_coefficients[j])
+            if abs(coef) > 1e-14:
+                subspace_jac = subspace.jacobian(sample)
+                jacobian = jacobian + coef * subspace_jac
+
+        return jacobian
+
+    def hvp(self, sample: Array, vec: Array) -> Array:
+        """Compute Hessian-vector product for scalar-valued function.
+
+        Only valid when nqoi=1. Uses efficient computation without forming
+        the full Hessian.
+
+        Parameters
+        ----------
+        sample : Array
+            Single evaluation point of shape (nvars, 1)
+        vec : Array
+            Direction vector of shape (nvars, 1)
+
+        Returns
+        -------
+        Array
+            Hessian-vector product of shape (nvars, 1)
+        """
+        if self._values is None:
+            raise ValueError("Values not set. Call set_values() first.")
+
+        if self._nqoi != 1:
+            raise ValueError(
+                f"hvp requires nqoi=1, got nqoi={self._nqoi}. Use whvp instead."
+            )
+
+        if self._smolyak_coefficients is None:
+            self._update_smolyak_coefficients()
+
+        # Use efficient subspace HVP without forming full Hessian
+        result = self._bkd.zeros((self._nvars, 1))
+
+        for j, subspace in enumerate(self._subspace_list):
+            coef = float(self._smolyak_coefficients[j])
+            if abs(coef) > 1e-14:
+                subspace_hvp = subspace.hvp(sample, vec, qoi_idx=0)
+                result = result + coef * subspace_hvp
+
+        return result
+
+    def whvp(self, sample: Array, vec: Array, weights: Array) -> Array:
+        """Compute weighted Hessian-vector product for vector-valued function.
+
+        For vector-valued functions, computes sum_i weights[i] * H_i @ vec
+        where H_i is the Hessian of the i-th QoI. Uses efficient computation
+        without forming full Hessians.
+
+        Parameters
+        ----------
+        sample : Array
+            Single evaluation point of shape (nvars, 1)
+        vec : Array
+            Direction vector of shape (nvars, 1)
+        weights : Array
+            Weights for each QoI. Can be shape (nqoi, 1), (1, nqoi), or (nqoi,).
+
+        Returns
+        -------
+        Array
+            Weighted Hessian-vector product of shape (nvars, 1)
+        """
+        if self._values is None:
+            raise ValueError("Values not set. Call set_values() first.")
+
+        if self._smolyak_coefficients is None:
+            self._update_smolyak_coefficients()
+
+        # Use efficient subspace WHVP without forming full Hessians
+        result = self._bkd.zeros((self._nvars, 1))
+
+        for j, subspace in enumerate(self._subspace_list):
+            coef = float(self._smolyak_coefficients[j])
+            if abs(coef) > 1e-14:
+                subspace_whvp = subspace.whvp(sample, vec, weights)
+                result = result + coef * subspace_whvp
+
+        return result
+
     def __repr__(self) -> str:
         return (
             f"CombinationSparseGrid(nvars={self._nvars}, "
