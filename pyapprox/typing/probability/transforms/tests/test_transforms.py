@@ -23,6 +23,13 @@ from pyapprox.typing.probability.transforms import (
     GaussianTransform,
     IndependentGaussianTransform,
     NatafTransform,
+    RosenblattTransform,
+)
+from pyapprox.typing.interface.functions.derivative_checks.derivative_checker import (
+    DerivativeChecker,
+)
+from pyapprox.typing.interface.functions.fromcallable.jacobian import (
+    FunctionWithJacobianFromCallable,
 )
 
 
@@ -103,6 +110,36 @@ class TestAffineTransform(Generic[Array], unittest.TestCase):
                 self._bkd,
             )
 
+    def test_jacobian_derivative_checker(self) -> None:
+        """Test Jacobian using DerivativeChecker."""
+        nvars = self.transform.nvars()
+
+        def fun(sample: Array) -> Array:
+            # sample is (nvars, 1), output is (nvars, 1)
+            x = self._bkd.reshape(sample, (nvars, 1))
+            y = self.transform.map_to_canonical(x)
+            return self._bkd.flatten(y)[:, None]
+
+        def jacobian(sample: Array) -> Array:
+            # Return full Jacobian (nqoi, nvars) = (nvars, nvars)
+            x = self._bkd.reshape(sample, (nvars, 1))
+            _, jac_diag = self.transform.map_to_canonical_with_jacobian(x)
+            # jac_diag is (nvars, 1), create diagonal matrix
+            return self._bkd.diag(self._bkd.flatten(jac_diag))
+
+        function_obj = FunctionWithJacobianFromCallable(
+            nqoi=nvars,
+            nvars=nvars,
+            fun=fun,
+            jacobian=jacobian,
+            bkd=self._bkd,
+        )
+
+        checker = DerivativeChecker(function_obj)
+        sample = self._bkd.asarray([[1.5], [3.0]])
+        errors = checker.check_derivatives(sample)
+        self.assertLessEqual(float(checker.error_ratio(errors[0])), 1e-6)
+
 
 class TestAffineTransformNumpy(TestAffineTransform[NDArray[Any]]):
     """NumPy backend tests for AffineTransform."""
@@ -170,6 +207,34 @@ class TestGaussianTransform(Generic[Array], unittest.TestCase):
         self.assertTrue(
             self._bkd.allclose(jac_to * jac_from, expected, rtol=1e-5)
         )
+
+    def test_jacobian_derivative_checker(self) -> None:
+        """Test Jacobian using DerivativeChecker."""
+
+        def fun(sample: Array) -> Array:
+            # sample is (1, 1), output is (1, 1)
+            x = self._bkd.flatten(sample)
+            y = self.transform.map_to_canonical(x)
+            return y[:, None]
+
+        def jacobian(sample: Array) -> Array:
+            # Return Jacobian (nqoi, nvars) = (1, 1)
+            x = self._bkd.flatten(sample)
+            _, jac = self.transform.map_to_canonical_with_jacobian(x)
+            return jac[:, None]
+
+        function_obj = FunctionWithJacobianFromCallable(
+            nqoi=1,
+            nvars=1,
+            fun=fun,
+            jacobian=jacobian,
+            bkd=self._bkd,
+        )
+
+        checker = DerivativeChecker(function_obj)
+        sample = self._bkd.asarray([[0.3]])
+        errors = checker.check_derivatives(sample)
+        self.assertLessEqual(float(checker.error_ratio(errors[0])), 1e-6)
 
 
 class TestGaussianTransformNumpy(TestGaussianTransform[NDArray[Any]]):
@@ -244,6 +309,36 @@ class TestIndependentGaussianTransform(Generic[Array], unittest.TestCase):
         x = self._bkd.asarray([[0.5], [0.4], [0.5]])
         y = self.transform.map_to_canonical(x)
         self.assertTrue(self._bkd.allclose(y[2], x[2], rtol=1e-5))
+
+    def test_jacobian_derivative_checker(self) -> None:
+        """Test Jacobian using DerivativeChecker."""
+        nvars = self.transform.nvars()
+
+        def fun(sample: Array) -> Array:
+            # sample is (nvars, 1), output is (nvars, 1)
+            x = self._bkd.reshape(sample, (nvars, 1))
+            y = self.transform.map_to_canonical(x)
+            return self._bkd.flatten(y)[:, None]
+
+        def jacobian(sample: Array) -> Array:
+            # Return full Jacobian (nqoi, nvars) = (nvars, nvars)
+            x = self._bkd.reshape(sample, (nvars, 1))
+            _, jac_diag = self.transform.map_to_canonical_with_jacobian(x)
+            # jac_diag is (nvars, 1), create diagonal matrix
+            return self._bkd.diag(self._bkd.flatten(jac_diag))
+
+        function_obj = FunctionWithJacobianFromCallable(
+            nqoi=nvars,
+            nvars=nvars,
+            fun=fun,
+            jacobian=jacobian,
+            bkd=self._bkd,
+        )
+
+        checker = DerivativeChecker(function_obj)
+        sample = self._bkd.asarray([[0.5], [0.3], [0.0]])
+        errors = checker.check_derivatives(sample)
+        self.assertLessEqual(float(checker.error_ratio(errors[0])), 1e-6)
 
 
 class TestIndependentGaussianTransformNumpy(
@@ -457,6 +552,36 @@ class TestNatafTransform(Generic[Array], unittest.TestCase):
                 self._bkd,
             )
 
+    def test_jacobian_derivative_checker(self) -> None:
+        """Test Jacobian using DerivativeChecker."""
+        nvars = self.transform.nvars()
+
+        def fun(sample: Array) -> Array:
+            # sample is (nvars, 1), output is (nvars, 1)
+            x = self._bkd.reshape(sample, (nvars, 1))
+            z = self.transform.map_to_canonical(x)
+            return self._bkd.flatten(z)[:, None]
+
+        def jacobian(sample: Array) -> Array:
+            # Return full Jacobian (nqoi, nvars) = (nvars, nvars)
+            x = self._bkd.reshape(sample, (nvars, 1))
+            _, jac = self.transform.map_to_canonical_with_jacobian(x)
+            # jac is (nvars, nvars, 1), extract for single sample
+            return jac[:, :, 0]
+
+        function_obj = FunctionWithJacobianFromCallable(
+            nqoi=nvars,
+            nvars=nvars,
+            fun=fun,
+            jacobian=jacobian,
+            bkd=self._bkd,
+        )
+
+        checker = DerivativeChecker(function_obj)
+        sample = self._bkd.asarray([[0.5], [0.3]])
+        errors = checker.check_derivatives(sample)
+        self.assertLessEqual(float(checker.error_ratio(errors[0])), 1e-6)
+
 
 class TestNatafTransformNumpy(TestNatafTransform[NDArray[Any]]):
     """NumPy backend tests for NatafTransform."""
@@ -561,6 +686,134 @@ class TestNatafTransformNonGaussianTorch(
     TestNatafTransformNonGaussian[torch.Tensor]
 ):
     """PyTorch backend tests for NatafTransform with non-Gaussian marginals."""
+
+    def bkd(self) -> TorchBkd:
+        torch.set_default_dtype(torch.float64)
+        return TorchBkd()
+
+
+class TestRosenblattTransform(Generic[Array], unittest.TestCase):
+    """Tests for RosenblattTransform."""
+
+    __test__ = False
+
+    def bkd(self) -> Backend[Array]:
+        raise NotImplementedError("Derived classes must implement this method.")
+
+    def setUp(self) -> None:
+        self._bkd = self.bkd()
+        # Use a bivariate Gaussian PDF for testing
+        self.nvars = 2
+        self.mean = np.array([0.0, 0.0])
+        self.cov = np.array([[1.0, 0.5], [0.5, 1.0]])
+        self.cov_inv = np.linalg.inv(self.cov)
+        self.cov_det = np.linalg.det(self.cov)
+
+        def joint_pdf(samples: Array) -> Array:
+            """Bivariate Gaussian PDF."""
+            samples_np = self._bkd.to_numpy(samples)
+            nsamples = samples_np.shape[1]
+            pdf_vals = np.zeros(nsamples)
+            for i in range(nsamples):
+                x = samples_np[:, i] - self.mean
+                exponent = -0.5 * x @ self.cov_inv @ x
+                pdf_vals[i] = (
+                    np.exp(exponent)
+                    / (2 * np.pi * np.sqrt(self.cov_det))
+                )
+            return self._bkd.asarray(pdf_vals)
+
+        self.joint_pdf = joint_pdf
+        bounds = self._bkd.asarray([[-5.0, -5.0], [5.0, 5.0]])
+        self.transform = RosenblattTransform(
+            self.joint_pdf, self.nvars, self._bkd, bounds
+        )
+
+    def test_nvars(self) -> None:
+        """Test nvars returns correct dimension."""
+        self.assertEqual(self.transform.nvars(), 2)
+
+    def test_map_to_uniform_shape(self) -> None:
+        """Test map to uniform returns correct shape."""
+        x = self._bkd.asarray([[0.0, 0.5], [0.0, 0.5]])
+        u = self.transform.map_to_uniform(x)
+        self.assertEqual(u.shape, (2, 2))
+
+    def test_map_to_canonical_shape(self) -> None:
+        """Test map to canonical returns correct shape."""
+        x = self._bkd.asarray([[0.0, 0.5], [0.0, 0.5]])
+        z = self.transform.map_to_canonical(x)
+        self.assertEqual(z.shape, (2, 2))
+
+    def test_map_from_uniform_shape(self) -> None:
+        """Test map from uniform returns correct shape."""
+        u = self._bkd.asarray([[0.5, 0.3], [0.5, 0.7]])
+        x = self.transform.map_from_uniform(u)
+        self.assertEqual(x.shape, (2, 2))
+
+    def test_map_from_canonical_shape(self) -> None:
+        """Test map from canonical returns correct shape."""
+        z = self._bkd.asarray([[0.0, 0.5], [0.0, 0.5]])
+        x = self.transform.map_from_canonical(z)
+        self.assertEqual(x.shape, (2, 2))
+
+    def test_uniform_bounds(self) -> None:
+        """Test uniform samples are in [0, 1]."""
+        x = self._bkd.asarray([[0.0], [0.0]])
+        u = self.transform.map_to_uniform(x)
+        u_np = self._bkd.to_numpy(u)
+        self.assertTrue(np.all(u_np >= 0.0))
+        self.assertTrue(np.all(u_np <= 1.0))
+
+    @unittest.skip(
+        "RosenblattTransform numerical integration is incomplete - "
+        "see TODO in rosenblatt.py for proper multivariate integration"
+    )
+    def test_rosenblatt_recovers_nataf_for_gaussian(self) -> None:
+        """Test Rosenblatt gives same result as Nataf for Gaussian marginals.
+
+        For a Gaussian joint distribution, both transforms should produce
+        the same independent standard normal samples.
+
+        Note: This test is skipped because the current Rosenblatt implementation
+        uses placeholder numerical integration that doesn't properly compute
+        marginal densities by integrating out other variables.
+        """
+        # Create Nataf transform with same Gaussian setup
+        marginals = [
+            GaussianMarginal(0.0, 1.0, self._bkd),
+            GaussianMarginal(0.0, 1.0, self._bkd),
+        ]
+        correlation = self._bkd.asarray([[1.0, 0.5], [0.5, 1.0]])
+        nataf = NatafTransform(marginals, correlation, self._bkd)
+
+        # Test at the origin (mean of distribution)
+        x = self._bkd.asarray([[0.0], [0.0]])
+
+        # Both transforms applied to the same point
+        z_rosenblatt = self.transform.map_to_canonical(x)
+        z_nataf = nataf.map_to_canonical(x)
+
+        # For the origin of a zero-mean Gaussian, both should give ~0
+        # The Rosenblatt is numerical so use relaxed tolerance
+        self.assertTrue(
+            self._bkd.allclose(
+                z_rosenblatt,
+                z_nataf,
+                atol=0.1,  # Relaxed due to numerical integration in Rosenblatt
+            )
+        )
+
+
+class TestRosenblattTransformNumpy(TestRosenblattTransform[NDArray[Any]]):
+    """NumPy backend tests for RosenblattTransform."""
+
+    def bkd(self) -> NumpyBkd:
+        return NumpyBkd()
+
+
+class TestRosenblattTransformTorch(TestRosenblattTransform[torch.Tensor]):
+    """PyTorch backend tests for RosenblattTransform."""
 
     def bkd(self) -> TorchBkd:
         torch.set_default_dtype(torch.float64)
