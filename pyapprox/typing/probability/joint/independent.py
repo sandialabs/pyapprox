@@ -122,6 +122,17 @@ class IndependentJoint(Generic[Array]):
             samples_list.append(self._bkd.flatten(marg_samples))
         return self._bkd.stack(samples_list, axis=0)
 
+    def _validate_input(self, samples: Array) -> None:
+        """Validate that input is 2D with shape (nvars, nsamples)."""
+        if samples.ndim != 2:
+            raise ValueError(
+                f"Expected 2D array with shape (nvars, nsamples), got {samples.ndim}D"
+            )
+        if samples.shape[0] != self._nvars:
+            raise ValueError(
+                f"Expected {self._nvars} variables, got {samples.shape[0]}"
+            )
+
     def logpdf(self, samples: Array) -> Array:
         """
         Evaluate the joint log probability density function.
@@ -132,23 +143,30 @@ class IndependentJoint(Generic[Array]):
         Parameters
         ----------
         samples : Array
-            Sample points. Shape: (nvars, nsamples)
+            Sample points. Shape: (nvars, nsamples) - must be 2D
 
         Returns
         -------
         Array
-            Log PDF values. Shape: (nsamples,)
+            Log PDF values. Shape: (1, nsamples)
+
+        Raises
+        ------
+        ValueError
+            If input is not 2D or has wrong first dimension
         """
-        if samples.ndim == 1:
-            samples = self._bkd.reshape(samples, (self._nvars, 1))
+        self._validate_input(samples)
 
         nsamples = samples.shape[1]
         logpdf_total = self._bkd.zeros((nsamples,))
 
         for i, marginal in enumerate(self._marginals):
-            logpdf_total = logpdf_total + marginal.logpdf(samples[i])
+            # Slice out row i and reshape to (1, nsamples) for marginal
+            row_2d = self._bkd.reshape(samples[i], (1, -1))
+            marg_logpdf = marginal.logpdf(row_2d)  # Returns (1, nsamples)
+            logpdf_total = logpdf_total + marg_logpdf[0]
 
-        return logpdf_total
+        return self._bkd.reshape(logpdf_total, (1, -1))
 
     def pdf(self, samples: Array) -> Array:
         """
@@ -157,12 +175,17 @@ class IndependentJoint(Generic[Array]):
         Parameters
         ----------
         samples : Array
-            Sample points. Shape: (nvars, nsamples)
+            Sample points. Shape: (nvars, nsamples) - must be 2D
 
         Returns
         -------
         Array
-            PDF values. Shape: (nsamples,)
+            PDF values. Shape: (1, nsamples)
+
+        Raises
+        ------
+        ValueError
+            If input is not 2D or has wrong first dimension
         """
         return self._bkd.exp(self.logpdf(samples))
 
@@ -176,23 +199,30 @@ class IndependentJoint(Generic[Array]):
         Parameters
         ----------
         samples : Array
-            Sample points. Shape: (nvars, nsamples)
+            Sample points. Shape: (nvars, nsamples) - must be 2D
 
         Returns
         -------
         Array
-            CDF values in [0, 1]. Shape: (nsamples,)
+            CDF values in [0, 1]. Shape: (1, nsamples)
+
+        Raises
+        ------
+        ValueError
+            If input is not 2D or has wrong first dimension
         """
-        if samples.ndim == 1:
-            samples = self._bkd.reshape(samples, (self._nvars, 1))
+        self._validate_input(samples)
 
         nsamples = samples.shape[1]
         cdf_total = self._bkd.ones((nsamples,))
 
         for i, marginal in enumerate(self._marginals):
-            cdf_total = cdf_total * marginal.cdf(samples[i])
+            # Slice out row i and reshape to (1, nsamples) for marginal
+            row_2d = self._bkd.reshape(samples[i], (1, -1))
+            marg_cdf = marginal.cdf(row_2d)  # Returns (1, nsamples)
+            cdf_total = cdf_total * marg_cdf[0]
 
-        return cdf_total
+        return self._bkd.reshape(cdf_total, (1, -1))
 
     def invcdf(self, probs: Array) -> Array:
         """
@@ -203,19 +233,26 @@ class IndependentJoint(Generic[Array]):
         Parameters
         ----------
         probs : Array
-            Probability values. Shape: (nvars, nsamples)
+            Probability values. Shape: (nvars, nsamples) - must be 2D
 
         Returns
         -------
         Array
             Quantile values. Shape: (nvars, nsamples)
+
+        Raises
+        ------
+        ValueError
+            If input is not 2D or has wrong first dimension
         """
-        if probs.ndim == 1:
-            probs = self._bkd.reshape(probs, (self._nvars, 1))
+        self._validate_input(probs)
 
         samples_list = []
         for i, marginal in enumerate(self._marginals):
-            samples_list.append(marginal.invcdf(probs[i]))
+            # Slice out row i and reshape to (1, nsamples) for marginal
+            row_2d = self._bkd.reshape(probs[i], (1, -1))
+            marg_invcdf = marginal.invcdf(row_2d)  # Returns (1, nsamples)
+            samples_list.append(marg_invcdf[0])  # Flatten to 1D for stacking
 
         return self._bkd.stack(samples_list, axis=0)
 
@@ -318,9 +355,10 @@ class IndependentJoint(Generic[Array]):
 
         for marginal in self._marginals:
             if hasattr(marginal, "interval"):
-                interval = marginal.interval(1.0)
-                lower_bounds.append(float(interval[0]))
-                upper_bounds.append(float(interval[1]))
+                interval = marginal.interval(1.0)  # Returns shape (1, 2)
+                interval_flat = self._bkd.flatten(interval)
+                lower_bounds.append(float(self._bkd.to_numpy(interval_flat)[0]))
+                upper_bounds.append(float(self._bkd.to_numpy(interval_flat)[1]))
             else:
                 # Default to unbounded
                 lower_bounds.append(-np.inf)

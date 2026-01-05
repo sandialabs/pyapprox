@@ -35,8 +35,9 @@ class TestGaussianMarginalAutograd(unittest.TestCase):
 
     def test_logpdf_gradient_wrt_samples(self) -> None:
         """Test autograd gradient of logpdf w.r.t. sample values."""
-        samples = torch.tensor([1.0, 2.0, 3.0], requires_grad=True)
-        logpdf = self.dist.logpdf(samples)
+        # Shape: (1, nsamples) for univariate distribution
+        samples = torch.tensor([[1.0, 2.0, 3.0]], requires_grad=True)
+        logpdf = self.dist.logpdf(samples)  # Returns (1, nsamples)
 
         # Sum to get scalar for backward
         loss = logpdf.sum()
@@ -51,8 +52,9 @@ class TestGaussianMarginalAutograd(unittest.TestCase):
 
     def test_pdf_gradient_wrt_samples(self) -> None:
         """Test autograd gradient of pdf w.r.t. sample values."""
-        samples = torch.tensor([1.5, 2.0, 2.5], requires_grad=True)
-        pdf = self.dist(samples)
+        # Shape: (1, nsamples) for univariate distribution
+        samples = torch.tensor([[1.5, 2.0, 2.5]], requires_grad=True)
+        pdf = self.dist(samples)  # Returns (1, nsamples)
 
         loss = pdf.sum()
         loss.backward()
@@ -67,8 +69,9 @@ class TestGaussianMarginalAutograd(unittest.TestCase):
 
     def test_cdf_gradient_wrt_samples(self) -> None:
         """Test autograd gradient of cdf w.r.t. sample values."""
-        samples = torch.tensor([1.5, 2.0, 2.5], requires_grad=True)
-        cdf = self.dist.cdf(samples)
+        # Shape: (1, nsamples) for univariate distribution
+        samples = torch.tensor([[1.5, 2.0, 2.5]], requires_grad=True)
+        cdf = self.dist.cdf(samples)  # Returns (1, nsamples)
 
         loss = cdf.sum()
         loss.backward()
@@ -82,8 +85,9 @@ class TestGaussianMarginalAutograd(unittest.TestCase):
 
     def test_invcdf_gradient_wrt_probs(self) -> None:
         """Test autograd gradient of invcdf w.r.t. probabilities."""
-        probs = torch.tensor([0.25, 0.5, 0.75], requires_grad=True)
-        quantiles = self.dist.invcdf(probs)
+        # Shape: (1, nsamples) for univariate distribution
+        probs = torch.tensor([[0.25, 0.5, 0.75]], requires_grad=True)
+        quantiles = self.dist.invcdf(probs)  # Returns (1, nsamples)
 
         loss = quantiles.sum()
         loss.backward()
@@ -98,10 +102,11 @@ class TestGaussianMarginalAutograd(unittest.TestCase):
 
     def test_logpdf_second_derivative(self) -> None:
         """Test second derivative of logpdf is computable."""
-        samples = torch.tensor([1.5, 2.0, 2.5], requires_grad=True)
+        # Shape: (1, nsamples) for univariate distribution
+        samples = torch.tensor([[1.5, 2.0, 2.5]], requires_grad=True)
 
         # First derivative
-        logpdf = self.dist.logpdf(samples)
+        logpdf = self.dist.logpdf(samples)  # Returns (1, nsamples)
         grad1 = torch.autograd.grad(
             logpdf.sum(), samples, create_graph=True
         )[0]
@@ -129,8 +134,9 @@ class TestGaussianMarginalAutogradFiniteDiff(unittest.TestCase):
 
     def test_logpdf_gradient_finite_diff(self) -> None:
         """Compare autograd gradient to finite difference."""
-        samples = torch.tensor([0.5, 1.0, 1.5], requires_grad=True)
-        logpdf = self.dist.logpdf(samples)
+        # Shape: (1, nsamples) for univariate distribution
+        samples = torch.tensor([[0.5, 1.0, 1.5]], requires_grad=True)
+        logpdf = self.dist.logpdf(samples)  # Returns (1, nsamples)
         loss = logpdf.sum()
         loss.backward()
         autograd_grad = samples.grad.clone()
@@ -138,12 +144,12 @@ class TestGaussianMarginalAutogradFiniteDiff(unittest.TestCase):
         # Finite difference
         eps = 1e-6
         fd_grad = torch.zeros_like(samples)
-        for i in range(len(samples)):
+        for i in range(samples.shape[1]):
             samples_plus = samples.detach().clone()
             samples_minus = samples.detach().clone()
-            samples_plus[i] += eps
-            samples_minus[i] -= eps
-            fd_grad[i] = (
+            samples_plus[0, i] += eps
+            samples_minus[0, i] -= eps
+            fd_grad[0, i] = (
                 self.dist.logpdf(samples_plus).sum()
                 - self.dist.logpdf(samples_minus).sum()
             ) / (2 * eps)

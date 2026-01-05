@@ -74,6 +74,18 @@ class RosenblattTransform(Generic[Array]):
 
         self._standard_normal = stats.norm(0, 1)
 
+    def _validate_input(self, samples: Array) -> None:
+        """Validate that input is 2D with shape (nvars, nsamples)."""
+        if samples.ndim != 2:
+            raise ValueError(
+                f"Expected 2D array with shape (nvars, nsamples), "
+                f"got {samples.ndim}D"
+            )
+        if samples.shape[0] != self._nvars:
+            raise ValueError(
+                f"Expected {self._nvars} variables, got {samples.shape[0]}"
+            )
+
     def bkd(self) -> Backend[Array]:
         """Get the backend used for computations."""
         return self._bkd
@@ -91,15 +103,19 @@ class RosenblattTransform(Generic[Array]):
         Parameters
         ----------
         samples : Array
-            Samples from the joint. Shape: (nvars, nsamples)
+            Samples from the joint. Shape: (nvars, nsamples) - must be 2D
 
         Returns
         -------
         Array
             Uniform samples. Shape: (nvars, nsamples)
+
+        Raises
+        ------
+        ValueError
+            If input is not 2D with correct shape
         """
-        if samples.ndim == 1:
-            samples = self._bkd.reshape(samples, (self._nvars, 1))
+        self._validate_input(samples)
 
         nsamples = samples.shape[1]
         uniform = self._bkd.zeros((self._nvars, nsamples))
@@ -117,13 +133,19 @@ class RosenblattTransform(Generic[Array]):
         Parameters
         ----------
         samples : Array
-            Samples from the joint. Shape: (nvars, nsamples)
+            Samples from the joint. Shape: (nvars, nsamples) - must be 2D
 
         Returns
         -------
         Array
             Standard normal samples. Shape: (nvars, nsamples)
+
+        Raises
+        ------
+        ValueError
+            If input is not 2D with correct shape
         """
+        self._validate_input(samples)
         uniform = self.map_to_uniform(samples)
         # Clip to avoid infinities
         uniform_np = np.clip(
@@ -140,17 +162,19 @@ class RosenblattTransform(Generic[Array]):
         Parameters
         ----------
         uniform_samples : Array
-            Uniform [0,1] samples. Shape: (nvars, nsamples)
+            Uniform [0,1] samples. Shape: (nvars, nsamples) - must be 2D
 
         Returns
         -------
         Array
             Samples from the joint. Shape: (nvars, nsamples)
+
+        Raises
+        ------
+        ValueError
+            If input is not 2D with correct shape
         """
-        if uniform_samples.ndim == 1:
-            uniform_samples = self._bkd.reshape(
-                uniform_samples, (self._nvars, 1)
-            )
+        self._validate_input(uniform_samples)
 
         nsamples = uniform_samples.shape[1]
         samples = self._bkd.zeros((self._nvars, nsamples))
@@ -168,13 +192,19 @@ class RosenblattTransform(Generic[Array]):
         Parameters
         ----------
         canonical_samples : Array
-            Standard normal samples. Shape: (nvars, nsamples)
+            Standard normal samples. Shape: (nvars, nsamples) - must be 2D
 
         Returns
         -------
         Array
             Samples from the joint. Shape: (nvars, nsamples)
+
+        Raises
+        ------
+        ValueError
+            If input is not 2D with correct shape
         """
+        self._validate_input(canonical_samples)
         uniform = self._bkd.asarray(
             self._standard_normal.cdf(self._bkd.to_numpy(canonical_samples))
         )

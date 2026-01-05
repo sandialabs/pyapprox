@@ -39,9 +39,9 @@ class UniformMarginal(Generic[Array]):
     >>> from pyapprox.typing.util.backends.numpy import NumpyBkd
     >>> bkd = NumpyBkd()
     >>> dist = UniformMarginal(lower=0.0, upper=1.0, bkd=bkd)
-    >>> samples = np.array([0.1, 0.5, 0.9])
-    >>> pdf_vals = dist(samples)  # All equal to 1.0
-    >>> cdf_vals = dist.cdf(samples)  # Linear from 0 to 1
+    >>> samples = np.array([[0.1, 0.5, 0.9]])  # Shape: (1, 3)
+    >>> pdf_vals = dist(samples)  # All equal to 1.0, shape: (1, 3)
+    >>> cdf_vals = dist.cdf(samples)  # Linear from 0 to 1, shape: (1, 3)
     """
 
     def __init__(self, lower: float, upper: float, bkd: Backend[Array]):
@@ -56,6 +56,19 @@ class UniformMarginal(Generic[Array]):
         self._width = upper - lower
         self._pdf_val = 1.0 / self._width
         self._log_pdf_val = -math.log(self._width)
+
+    def _validate_input(self, samples: Array) -> Array:
+        """Validate that input is 2D with shape (1, nsamples)."""
+        if samples.ndim != 2:
+            raise ValueError(
+                f"Expected 2D array with shape (1, nsamples), got {samples.ndim}D"
+            )
+        if samples.shape[0] != 1:
+            raise ValueError(
+                f"Univariate distribution expects shape (1, nsamples), "
+                f"got {samples.shape}"
+            )
+        return samples[0]  # Return 1D for internal computation
 
     def bkd(self) -> Backend[Array]:
         """Get the backend used for computations."""
@@ -82,14 +95,21 @@ class UniformMarginal(Generic[Array]):
         Parameters
         ----------
         samples : Array
-            Points at which to evaluate the PDF.
+            Points at which to evaluate the PDF. Shape: (1, nsamples) - must be 2D
 
         Returns
         -------
         Array
-            The evaluated PDF values (constant within bounds).
+            The evaluated PDF values (constant within bounds). Shape: (1, nsamples)
+
+        Raises
+        ------
+        ValueError
+            If input is not 2D or has wrong first dimension
         """
-        return self._bkd.ones_like(samples) * self._pdf_val
+        samples_1d = self._validate_input(samples)
+        result = self._bkd.ones_like(samples_1d) * self._pdf_val
+        return self._bkd.reshape(result, (1, -1))
 
     def logpdf(self, samples: Array) -> Array:
         """
@@ -98,14 +118,21 @@ class UniformMarginal(Generic[Array]):
         Parameters
         ----------
         samples : Array
-            Points at which to evaluate the log PDF.
+            Points at which to evaluate the log PDF. Shape: (1, nsamples) - must be 2D
 
         Returns
         -------
         Array
-            The evaluated log PDF values (constant within bounds).
+            The evaluated log PDF values (constant within bounds). Shape: (1, nsamples)
+
+        Raises
+        ------
+        ValueError
+            If input is not 2D or has wrong first dimension
         """
-        return self._bkd.ones_like(samples) * self._log_pdf_val
+        samples_1d = self._validate_input(samples)
+        result = self._bkd.ones_like(samples_1d) * self._log_pdf_val
+        return self._bkd.reshape(result, (1, -1))
 
     def cdf(self, samples: Array) -> Array:
         """
@@ -114,14 +141,21 @@ class UniformMarginal(Generic[Array]):
         Parameters
         ----------
         samples : Array
-            Points at which to evaluate the CDF.
+            Points at which to evaluate the CDF. Shape: (1, nsamples) - must be 2D
 
         Returns
         -------
         Array
-            CDF values in [0, 1].
+            CDF values in [0, 1]. Shape: (1, nsamples)
+
+        Raises
+        ------
+        ValueError
+            If input is not 2D or has wrong first dimension
         """
-        return (samples - self._lower) / self._width
+        samples_1d = self._validate_input(samples)
+        result = (samples_1d - self._lower) / self._width
+        return self._bkd.reshape(result, (1, -1))
 
     def invcdf(self, probs: Array) -> Array:
         """
@@ -130,14 +164,21 @@ class UniformMarginal(Generic[Array]):
         Parameters
         ----------
         probs : Array
-            Probability values in [0, 1].
+            Probability values in [0, 1]. Shape: (1, nsamples) - must be 2D
 
         Returns
         -------
         Array
-            Quantile values in [lower, upper].
+            Quantile values in [lower, upper]. Shape: (1, nsamples)
+
+        Raises
+        ------
+        ValueError
+            If input is not 2D or has wrong first dimension
         """
-        return self._lower + probs * self._width
+        probs_1d = self._validate_input(probs)
+        result = self._lower + probs_1d * self._width
+        return self._bkd.reshape(result, (1, -1))
 
     # Alias for compatibility
     ppf = invcdf
@@ -151,14 +192,21 @@ class UniformMarginal(Generic[Array]):
         Parameters
         ----------
         probs : Array
-            Probability values in [0, 1].
+            Probability values in [0, 1]. Shape: (1, nsamples) - must be 2D
 
         Returns
         -------
         Array
-            Jacobian values (all equal to width).
+            Jacobian values (all equal to width). Shape: (1, nsamples)
+
+        Raises
+        ------
+        ValueError
+            If input is not 2D or has wrong first dimension
         """
-        return self._bkd.ones_like(probs) * self._width
+        probs_1d = self._validate_input(probs)
+        result = self._bkd.ones_like(probs_1d) * self._width
+        return self._bkd.reshape(result, (1, -1))
 
     def rvs(self, nsamples: int) -> Array:
         """
@@ -172,7 +220,7 @@ class UniformMarginal(Generic[Array]):
         Returns
         -------
         Array
-            Random samples. Shape: (1, nsamples) for protocol compliance.
+            Random samples. Shape: (1, nsamples)
         """
         usamples = np.random.uniform(self._lower, self._upper, nsamples)
         return self._bkd.reshape(self._bkd.asarray(usamples), (1, nsamples))
@@ -249,9 +297,11 @@ class UniformMarginal(Generic[Array]):
         -------
         Array
             Interval [lower, upper] such that P(lower < X < upper) = alpha.
+            Shape: (1, 2)
         """
         eps = (1.0 - alpha) / 2.0
-        return self.invcdf(self._bkd.asarray([eps, 1.0 - eps]))
+        probs_2d = self._bkd.array([[eps, 1.0 - eps]])  # Shape: (1, 2)
+        return self.invcdf(probs_2d)
 
     def logpdf_jacobian(self, samples: Array) -> Array:
         """
@@ -262,14 +312,20 @@ class UniformMarginal(Generic[Array]):
         Parameters
         ----------
         samples : Array
-            Points at which to compute the Jacobian.
+            Points at which to compute the Jacobian. Shape: (1, nsamples) - must be 2D
 
         Returns
         -------
         Array
             Jacobian values (all zeros). Shape: (1, nsamples)
+
+        Raises
+        ------
+        ValueError
+            If input is not 2D or has wrong first dimension
         """
-        return self._bkd.zeros((1, samples.shape[-1]))
+        samples_1d = self._validate_input(samples)
+        return self._bkd.zeros((1, len(samples_1d)))
 
     def pdf_jacobian(self, samples: Array) -> Array:
         """
@@ -280,14 +336,20 @@ class UniformMarginal(Generic[Array]):
         Parameters
         ----------
         samples : Array
-            Points at which to compute the Jacobian.
+            Points at which to compute the Jacobian. Shape: (1, nsamples) - must be 2D
 
         Returns
         -------
         Array
             Jacobian values (all zeros). Shape: (1, nsamples)
+
+        Raises
+        ------
+        ValueError
+            If input is not 2D or has wrong first dimension
         """
-        return self._bkd.zeros((1, samples.shape[-1]))
+        samples_1d = self._validate_input(samples)
+        return self._bkd.zeros((1, len(samples_1d)))
 
     def __eq__(self, other: Any) -> bool:
         """Check equality with another UniformMarginal."""

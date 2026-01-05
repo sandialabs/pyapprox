@@ -71,6 +71,17 @@ class GaussianTransform(Generic[Array]):
         """Return the marginal distribution."""
         return self._marginal
 
+    def _validate_input(self, samples: Array) -> None:
+        """Validate that input is 2D with shape (1, nsamples)."""
+        if samples.ndim != 2:
+            raise ValueError(
+                f"Expected 2D array with shape (1, nsamples), got {samples.ndim}D"
+            )
+        if samples.shape[0] != 1:
+            raise ValueError(
+                f"Expected 1 variable, got {samples.shape[0]}"
+            )
+
     def map_to_canonical(self, samples: Array) -> Array:
         """
         Transform samples to standard normal space.
@@ -80,21 +91,29 @@ class GaussianTransform(Generic[Array]):
         Parameters
         ----------
         samples : Array
-            Samples from the marginal. Shape: (nsamples,) or (1, nsamples)
+            Samples from the marginal. Shape: (1, nsamples) - must be 2D
 
         Returns
         -------
         Array
-            Samples in standard normal space. Same shape as input.
+            Samples in standard normal space. Shape: (1, nsamples)
+
+        Raises
+        ------
+        ValueError
+            If input is not 2D with shape (1, nsamples)
         """
-        # Get uniform samples via CDF
+        self._validate_input(samples)
+
+        # Get uniform samples via CDF - marginal.cdf expects (1, nsamples)
         probs = self._marginal.cdf(samples)
 
         # Clip to avoid infinities
         probs_np = np.clip(self._bkd.to_numpy(probs), 1e-15, 1.0 - 1e-15)
 
         # Transform to standard normal
-        return self._bkd.asarray(self._standard_normal.ppf(probs_np))
+        result = self._bkd.asarray(self._standard_normal.ppf(probs_np))
+        return self._bkd.reshape(result, (1, -1))
 
     def map_from_canonical(self, canonical_samples: Array) -> Array:
         """
@@ -105,19 +124,28 @@ class GaussianTransform(Generic[Array]):
         Parameters
         ----------
         canonical_samples : Array
-            Standard normal samples. Shape: (nsamples,) or (1, nsamples)
+            Standard normal samples. Shape: (1, nsamples) - must be 2D
 
         Returns
         -------
         Array
-            Samples from the marginal.
-        """
-        # Get uniform samples via standard normal CDF
-        probs = self._bkd.asarray(
-            self._standard_normal.cdf(self._bkd.to_numpy(canonical_samples))
-        )
+            Samples from the marginal. Shape: (1, nsamples)
 
-        # Transform to marginal space
+        Raises
+        ------
+        ValueError
+            If input is not 2D with shape (1, nsamples)
+        """
+        self._validate_input(canonical_samples)
+
+        # Get uniform samples via standard normal CDF
+        probs_np = self._standard_normal.cdf(
+            self._bkd.to_numpy(canonical_samples)
+        )
+        probs = self._bkd.asarray(probs_np)
+        probs = self._bkd.reshape(probs, (1, -1))
+
+        # Transform to marginal space - marginal.invcdf expects (1, nsamples)
         return self._marginal.invcdf(probs)
 
     def map_to_canonical_with_jacobian(
@@ -134,14 +162,20 @@ class GaussianTransform(Generic[Array]):
         Parameters
         ----------
         samples : Array
-            Samples from the marginal. Shape: (nsamples,) or (1, nsamples)
+            Samples from the marginal. Shape: (1, nsamples) - must be 2D
 
         Returns
         -------
         Tuple[Array, Array]
-            canonical : Standard normal samples
-            jacobian : dy/dx values. Shape same as samples
+            canonical : Standard normal samples. Shape: (1, nsamples)
+            jacobian : dy/dx values. Shape: (1, nsamples)
+
+        Raises
+        ------
+        ValueError
+            If input is not 2D with shape (1, nsamples)
         """
+        self._validate_input(samples)
         canonical = self.map_to_canonical(samples)
 
         # f(x) / phi(y)
@@ -149,6 +183,7 @@ class GaussianTransform(Generic[Array]):
         normal_pdf = self._bkd.asarray(
             self._standard_normal.pdf(self._bkd.to_numpy(canonical))
         )
+        normal_pdf = self._bkd.reshape(normal_pdf, (1, -1))
 
         # Avoid division by zero
         jacobian = marginal_pdf / (normal_pdf + 1e-15)
@@ -167,20 +202,27 @@ class GaussianTransform(Generic[Array]):
         Parameters
         ----------
         canonical_samples : Array
-            Standard normal samples.
+            Standard normal samples. Shape: (1, nsamples) - must be 2D
 
         Returns
         -------
         Tuple[Array, Array]
-            samples : Marginal samples
-            jacobian : dx/dy values
+            samples : Marginal samples. Shape: (1, nsamples)
+            jacobian : dx/dy values. Shape: (1, nsamples)
+
+        Raises
+        ------
+        ValueError
+            If input is not 2D with shape (1, nsamples)
         """
+        self._validate_input(canonical_samples)
         samples = self.map_from_canonical(canonical_samples)
 
         # phi(y) / f(x)
         normal_pdf = self._bkd.asarray(
             self._standard_normal.pdf(self._bkd.to_numpy(canonical_samples))
         )
+        normal_pdf = self._bkd.reshape(normal_pdf, (1, -1))
         marginal_pdf = self._bkd.exp(self._marginal.logpdf(samples))
 
         jacobian = normal_pdf / (marginal_pdf + 1e-15)
@@ -245,6 +287,18 @@ class IndependentGaussianTransform(Generic[Array]):
         """Return list of marginal distributions."""
         return self._marginals
 
+    def _validate_input(self, samples: Array) -> None:
+        """Validate that input is 2D with shape (nvars, nsamples)."""
+        if samples.ndim != 2:
+            raise ValueError(
+                f"Expected 2D array with shape (nvars, nsamples), "
+                f"got {samples.ndim}D"
+            )
+        if samples.shape[0] != self._nvars:
+            raise ValueError(
+                f"Expected {self._nvars} variables, got {samples.shape[0]}"
+            )
+
     def map_to_canonical(self, samples: Array) -> Array:
         """
         Transform samples to standard normal space.
@@ -252,19 +306,26 @@ class IndependentGaussianTransform(Generic[Array]):
         Parameters
         ----------
         samples : Array
-            Samples from the joint. Shape: (nvars, nsamples)
+            Samples from the joint. Shape: (nvars, nsamples) - must be 2D
 
         Returns
         -------
         Array
             Standard normal samples. Shape: (nvars, nsamples)
+
+        Raises
+        ------
+        ValueError
+            If input is not 2D with correct shape
         """
-        if samples.ndim == 1:
-            samples = self._bkd.reshape(samples, (self._nvars, 1))
+        self._validate_input(samples)
 
         canonical_list = []
         for i, transform in enumerate(self._transforms):
-            canonical_list.append(transform.map_to_canonical(samples[i]))
+            # Reshape row to (1, nsamples) for univariate transform
+            row_2d = self._bkd.reshape(samples[i], (1, -1))
+            canon = transform.map_to_canonical(row_2d)
+            canonical_list.append(canon[0])  # Back to 1D for stacking
 
         return self._bkd.stack(canonical_list, axis=0)
 
@@ -275,23 +336,26 @@ class IndependentGaussianTransform(Generic[Array]):
         Parameters
         ----------
         canonical_samples : Array
-            Standard normal samples. Shape: (nvars, nsamples)
+            Standard normal samples. Shape: (nvars, nsamples) - must be 2D
 
         Returns
         -------
         Array
             Samples from the joint. Shape: (nvars, nsamples)
+
+        Raises
+        ------
+        ValueError
+            If input is not 2D with correct shape
         """
-        if canonical_samples.ndim == 1:
-            canonical_samples = self._bkd.reshape(
-                canonical_samples, (self._nvars, 1)
-            )
+        self._validate_input(canonical_samples)
 
         samples_list = []
         for i, transform in enumerate(self._transforms):
-            samples_list.append(
-                transform.map_from_canonical(canonical_samples[i])
-            )
+            # Reshape row to (1, nsamples) for univariate transform
+            row_2d = self._bkd.reshape(canonical_samples[i], (1, -1))
+            samp = transform.map_from_canonical(row_2d)
+            samples_list.append(samp[0])  # Back to 1D for stacking
 
         return self._bkd.stack(samples_list, axis=0)
 
@@ -307,23 +371,29 @@ class IndependentGaussianTransform(Generic[Array]):
         Parameters
         ----------
         samples : Array
-            Samples from the joint. Shape: (nvars, nsamples)
+            Samples from the joint. Shape: (nvars, nsamples) - must be 2D
 
         Returns
         -------
         Tuple[Array, Array]
             canonical : Standard normal samples. Shape: (nvars, nsamples)
             jacobian_diag : Diagonal Jacobian. Shape: (nvars, nsamples)
+
+        Raises
+        ------
+        ValueError
+            If input is not 2D with correct shape
         """
-        if samples.ndim == 1:
-            samples = self._bkd.reshape(samples, (self._nvars, 1))
+        self._validate_input(samples)
 
         canonical_list = []
         jacobian_list = []
         for i, transform in enumerate(self._transforms):
-            canon, jac = transform.map_to_canonical_with_jacobian(samples[i])
-            canonical_list.append(canon)
-            jacobian_list.append(jac)
+            # Reshape row to (1, nsamples) for univariate transform
+            row_2d = self._bkd.reshape(samples[i], (1, -1))
+            canon, jac = transform.map_to_canonical_with_jacobian(row_2d)
+            canonical_list.append(canon[0])  # Back to 1D for stacking
+            jacobian_list.append(jac[0])
 
         return (
             self._bkd.stack(canonical_list, axis=0),
@@ -339,27 +409,29 @@ class IndependentGaussianTransform(Generic[Array]):
         Parameters
         ----------
         canonical_samples : Array
-            Standard normal samples. Shape: (nvars, nsamples)
+            Standard normal samples. Shape: (nvars, nsamples) - must be 2D
 
         Returns
         -------
         Tuple[Array, Array]
             samples : Joint samples. Shape: (nvars, nsamples)
             jacobian_diag : Diagonal Jacobian. Shape: (nvars, nsamples)
+
+        Raises
+        ------
+        ValueError
+            If input is not 2D with correct shape
         """
-        if canonical_samples.ndim == 1:
-            canonical_samples = self._bkd.reshape(
-                canonical_samples, (self._nvars, 1)
-            )
+        self._validate_input(canonical_samples)
 
         samples_list = []
         jacobian_list = []
         for i, transform in enumerate(self._transforms):
-            samp, jac = transform.map_from_canonical_with_jacobian(
-                canonical_samples[i]
-            )
-            samples_list.append(samp)
-            jacobian_list.append(jac)
+            # Reshape row to (1, nsamples) for univariate transform
+            row_2d = self._bkd.reshape(canonical_samples[i], (1, -1))
+            samp, jac = transform.map_from_canonical_with_jacobian(row_2d)
+            samples_list.append(samp[0])  # Back to 1D for stacking
+            jacobian_list.append(jac[0])
 
         return (
             self._bkd.stack(samples_list, axis=0),
@@ -376,17 +448,23 @@ class IndependentGaussianTransform(Generic[Array]):
         Parameters
         ----------
         samples : Array
-            Samples from the joint. Shape: (nvars, nsamples)
+            Samples from the joint. Shape: (nvars, nsamples) - must be 2D
 
         Returns
         -------
         Array
-            Log determinant. Shape: (nsamples,)
+            Log determinant. Shape: (1, nsamples)
+
+        Raises
+        ------
+        ValueError
+            If input is not 2D with correct shape
         """
         _, jacobian_diag = self.map_to_canonical_with_jacobian(samples)
-        return self._bkd.sum(
+        result = self._bkd.sum(
             self._bkd.log(self._bkd.abs(jacobian_diag)), axis=0
         )
+        return self._bkd.reshape(result, (1, -1))
 
     def log_det_jacobian_from_canonical(
         self, canonical_samples: Array
@@ -397,19 +475,25 @@ class IndependentGaussianTransform(Generic[Array]):
         Parameters
         ----------
         canonical_samples : Array
-            Standard normal samples. Shape: (nvars, nsamples)
+            Standard normal samples. Shape: (nvars, nsamples) - must be 2D
 
         Returns
         -------
         Array
-            Log determinant. Shape: (nsamples,)
+            Log determinant. Shape: (1, nsamples)
+
+        Raises
+        ------
+        ValueError
+            If input is not 2D with correct shape
         """
         _, jacobian_diag = self.map_from_canonical_with_jacobian(
             canonical_samples
         )
-        return self._bkd.sum(
+        result = self._bkd.sum(
             self._bkd.log(self._bkd.abs(jacobian_diag)), axis=0
         )
+        return self._bkd.reshape(result, (1, -1))
 
     def __repr__(self) -> str:
         """Return string representation."""

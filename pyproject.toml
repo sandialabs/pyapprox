@@ -79,3 +79,15 @@ exclude_also = [
 
 [tool.black]
 line-length=79
+
+[tool.mypy]
+strict = true
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = ["*"]
+follow_imports = "silent"
+
+[[tool.mypy.overrides]]
+module = ["pyapprox.*"]
+follow_imports = "normal"

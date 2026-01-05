@@ -84,6 +84,18 @@ class AffineTransform(Generic[Array]):
         """Return scale parameters."""
         return self._scale
 
+    def _validate_input(self, samples: Array) -> None:
+        """Validate that input is 2D with shape (nvars, nsamples)."""
+        if samples.ndim != 2:
+            raise ValueError(
+                f"Expected 2D array with shape (nvars, nsamples), "
+                f"got {samples.ndim}D"
+            )
+        if samples.shape[0] != self._nvars:
+            raise ValueError(
+                f"Expected {self._nvars} variables, got {samples.shape[0]}"
+            )
+
     def map_to_canonical(self, samples: Array) -> Array:
         """
         Transform samples to canonical (standardized) space.
@@ -93,15 +105,19 @@ class AffineTransform(Generic[Array]):
         Parameters
         ----------
         samples : Array
-            Samples in original space. Shape: (nvars, nsamples)
+            Samples in original space. Shape: (nvars, nsamples) - must be 2D
 
         Returns
         -------
         Array
             Samples in canonical space. Shape: (nvars, nsamples)
+
+        Raises
+        ------
+        ValueError
+            If input is not 2D with correct shape
         """
-        if samples.ndim == 1:
-            samples = self._bkd.reshape(samples, (self._nvars, 1))
+        self._validate_input(samples)
 
         # Broadcast: (nvars, 1) operations
         return (samples - self._loc[:, None]) * self._inv_scale[:, None]
@@ -115,17 +131,19 @@ class AffineTransform(Generic[Array]):
         Parameters
         ----------
         canonical_samples : Array
-            Samples in canonical space. Shape: (nvars, nsamples)
+            Samples in canonical space. Shape: (nvars, nsamples) - must be 2D
 
         Returns
         -------
         Array
             Samples in original space. Shape: (nvars, nsamples)
+
+        Raises
+        ------
+        ValueError
+            If input is not 2D with correct shape
         """
-        if canonical_samples.ndim == 1:
-            canonical_samples = self._bkd.reshape(
-                canonical_samples, (self._nvars, 1)
-            )
+        self._validate_input(canonical_samples)
 
         return self._loc[:, None] + self._scale[:, None] * canonical_samples
 
@@ -141,13 +159,18 @@ class AffineTransform(Generic[Array]):
         Parameters
         ----------
         samples : Array
-            Samples in original space. Shape: (nvars, nsamples)
+            Samples in original space. Shape: (nvars, nsamples) - must be 2D
 
         Returns
         -------
         Tuple[Array, Array]
             canonical_samples : Shape: (nvars, nsamples)
             jacobian_diag : Shape: (nvars, nsamples)
+
+        Raises
+        ------
+        ValueError
+            If input is not 2D with correct shape
         """
         canonical = self.map_to_canonical(samples)
         nsamples = canonical.shape[1]
@@ -171,13 +194,18 @@ class AffineTransform(Generic[Array]):
         Parameters
         ----------
         canonical_samples : Array
-            Samples in canonical space. Shape: (nvars, nsamples)
+            Samples in canonical space. Shape: (nvars, nsamples) - must be 2D
 
         Returns
         -------
         Tuple[Array, Array]
             samples : Shape: (nvars, nsamples)
             jacobian_diag : Shape: (nvars, nsamples)
+
+        Raises
+        ------
+        ValueError
+            If input is not 2D with correct shape
         """
         samples = self.map_from_canonical(canonical_samples)
         nsamples = samples.shape[1]
@@ -200,20 +228,25 @@ class AffineTransform(Generic[Array]):
         Parameters
         ----------
         samples : Array
-            Samples (unused, included for interface consistency).
+            Samples. Shape: (nvars, nsamples) - must be 2D
 
         Returns
         -------
         Array
-            Log determinant. Shape: (nsamples,)
+            Log determinant. Shape: (1, nsamples)
+
+        Raises
+        ------
+        ValueError
+            If input is not 2D with correct shape
         """
-        if samples.ndim == 1:
-            nsamples = 1
-        else:
-            nsamples = samples.shape[1]
+        self._validate_input(samples)
+        nsamples = samples.shape[1]
 
         log_det = -float(self._bkd.sum(self._bkd.log(self._scale)))
-        return self._bkd.full((nsamples,), log_det)
+        return self._bkd.reshape(
+            self._bkd.full((nsamples,), log_det), (1, -1)
+        )
 
     def log_det_jacobian_from_canonical(self, canonical_samples: Array) -> Array:
         """
@@ -224,20 +257,25 @@ class AffineTransform(Generic[Array]):
         Parameters
         ----------
         canonical_samples : Array
-            Canonical samples (unused, included for interface consistency).
+            Canonical samples. Shape: (nvars, nsamples) - must be 2D
 
         Returns
         -------
         Array
-            Log determinant. Shape: (nsamples,)
+            Log determinant. Shape: (1, nsamples)
+
+        Raises
+        ------
+        ValueError
+            If input is not 2D with correct shape
         """
-        if canonical_samples.ndim == 1:
-            nsamples = 1
-        else:
-            nsamples = canonical_samples.shape[1]
+        self._validate_input(canonical_samples)
+        nsamples = canonical_samples.shape[1]
 
         log_det = float(self._bkd.sum(self._bkd.log(self._scale)))
-        return self._bkd.full((nsamples,), log_det)
+        return self._bkd.reshape(
+            self._bkd.full((nsamples,), log_det), (1, -1)
+        )
 
     def __repr__(self) -> str:
         """Return string representation."""

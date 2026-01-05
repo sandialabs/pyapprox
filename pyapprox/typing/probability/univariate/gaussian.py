@@ -35,9 +35,9 @@ class GaussianMarginal(Generic[Array]):
     >>> from pyapprox.typing.util.backends.numpy import NumpyBkd
     >>> bkd = NumpyBkd()
     >>> dist = GaussianMarginal(mean=0.0, stdev=1.0, bkd=bkd)
-    >>> samples = np.array([0.0, 1.0, -1.0])
-    >>> pdf_vals = dist(samples)  # PDF values
-    >>> cdf_vals = dist.cdf(samples)  # CDF values
+    >>> samples = np.array([[0.0, 1.0, -1.0]])  # Shape: (1, 3)
+    >>> pdf_vals = dist(samples)  # PDF values, shape: (1, 3)
+    >>> cdf_vals = dist.cdf(samples)  # CDF values, shape: (1, 3)
     """
 
     def __init__(self, mean: float, stdev: float, bkd: Backend[Array]):
@@ -46,6 +46,19 @@ class GaussianMarginal(Generic[Array]):
         self._stdev = float(stdev)
         self._var = stdev**2
         self._log_const = -0.5 * math.log(2.0 * math.pi) - math.log(stdev)
+
+    def _validate_input(self, samples: Array) -> Array:
+        """Validate that input is 2D with shape (1, nsamples)."""
+        if samples.ndim != 2:
+            raise ValueError(
+                f"Expected 2D array with shape (1, nsamples), got {samples.ndim}D"
+            )
+        if samples.shape[0] != 1:
+            raise ValueError(
+                f"Univariate distribution expects shape (1, nsamples), "
+                f"got {samples.shape}"
+            )
+        return samples[0]  # Return 1D for internal computation
 
     def bkd(self) -> Backend[Array]:
         """Get the backend used for computations."""
@@ -62,12 +75,17 @@ class GaussianMarginal(Generic[Array]):
         Parameters
         ----------
         samples : Array
-            Points at which to evaluate the PDF.
+            Points at which to evaluate the PDF. Shape: (1, nsamples) - must be 2D
 
         Returns
         -------
         Array
-            The evaluated PDF values.
+            The evaluated PDF values. Shape: (1, nsamples)
+
+        Raises
+        ------
+        ValueError
+            If input is not 2D or has wrong first dimension
         """
         return self._bkd.exp(self.logpdf(samples))
 
@@ -78,15 +96,22 @@ class GaussianMarginal(Generic[Array]):
         Parameters
         ----------
         samples : Array
-            Points at which to evaluate the log PDF.
+            Points at which to evaluate the log PDF. Shape: (1, nsamples) - must be 2D
 
         Returns
         -------
         Array
-            The evaluated log PDF values.
+            The evaluated log PDF values. Shape: (1, nsamples)
+
+        Raises
+        ------
+        ValueError
+            If input is not 2D or has wrong first dimension
         """
-        z = (samples - self._mean) / self._stdev
-        return self._log_const - 0.5 * z**2
+        samples_1d = self._validate_input(samples)
+        z = (samples_1d - self._mean) / self._stdev
+        result = self._log_const - 0.5 * z**2
+        return self._bkd.reshape(result, (1, -1))
 
     def cdf(self, samples: Array) -> Array:
         """
@@ -95,15 +120,22 @@ class GaussianMarginal(Generic[Array]):
         Parameters
         ----------
         samples : Array
-            Points at which to evaluate the CDF.
+            Points at which to evaluate the CDF. Shape: (1, nsamples) - must be 2D
 
         Returns
         -------
         Array
-            CDF values in [0, 1].
+            CDF values in [0, 1]. Shape: (1, nsamples)
+
+        Raises
+        ------
+        ValueError
+            If input is not 2D or has wrong first dimension
         """
-        z = (samples - self._mean) / (self._stdev * math.sqrt(2.0))
-        return 0.5 * (1.0 + self._bkd.erf(z))
+        samples_1d = self._validate_input(samples)
+        z = (samples_1d - self._mean) / (self._stdev * math.sqrt(2.0))
+        result = 0.5 * (1.0 + self._bkd.erf(z))
+        return self._bkd.reshape(result, (1, -1))
 
     def invcdf(self, probs: Array) -> Array:
         """
@@ -112,16 +144,23 @@ class GaussianMarginal(Generic[Array]):
         Parameters
         ----------
         probs : Array
-            Probability values in [0, 1].
+            Probability values in [0, 1]. Shape: (1, nsamples) - must be 2D
 
         Returns
         -------
         Array
-            Quantile values.
+            Quantile values. Shape: (1, nsamples)
+
+        Raises
+        ------
+        ValueError
+            If input is not 2D or has wrong first dimension
         """
-        return (
-            math.sqrt(2.0) * self._bkd.erfinv(2.0 * probs - 1.0)
+        probs_1d = self._validate_input(probs)
+        result = (
+            math.sqrt(2.0) * self._bkd.erfinv(2.0 * probs_1d - 1.0)
         ) * self._stdev + self._mean
+        return self._bkd.reshape(result, (1, -1))
 
     # Alias for compatibility
     ppf = invcdf
@@ -135,13 +174,20 @@ class GaussianMarginal(Generic[Array]):
         Parameters
         ----------
         probs : Array
-            Probability values in [0, 1].
+            Probability values in [0, 1]. Shape: (1, nsamples) - must be 2D
 
         Returns
         -------
         Array
-            Jacobian values.
+            Jacobian values. Shape: (1, nsamples)
+
+        Raises
+        ------
+        ValueError
+            If input is not 2D or has wrong first dimension
         """
+        # Validate input (also done in invcdf and __call__)
+        self._validate_input(probs)
         samples = self.invcdf(probs)
         pdf_vals = self(samples)
         return 1.0 / pdf_vals
@@ -158,11 +204,12 @@ class GaussianMarginal(Generic[Array]):
         Returns
         -------
         Array
-            Random samples. Shape: (1, nsamples) for protocol compliance.
+            Random samples. Shape: (1, nsamples)
         """
         usamples = self._bkd.asarray(np.random.uniform(0, 1, nsamples))
-        samples = self.invcdf(usamples)
-        return self._bkd.reshape(samples, (1, nsamples))
+        # Convert to 2D for invcdf
+        usamples_2d = self._bkd.reshape(usamples, (1, nsamples))
+        return self.invcdf(usamples_2d)
 
     def mean_value(self) -> float:
         """
@@ -221,9 +268,11 @@ class GaussianMarginal(Generic[Array]):
         -------
         Array
             Interval [lower, upper] such that P(lower < X < upper) = alpha.
+            Shape: (1, 2)
         """
         eps = (1.0 - alpha) / 2.0
-        return self.invcdf(self._bkd.array([eps, 1.0 - eps]))
+        probs_2d = self._bkd.array([[eps, 1.0 - eps]])  # Shape: (1, 2)
+        return self.invcdf(probs_2d)
 
     def logpdf_jacobian(self, samples: Array) -> Array:
         """
@@ -232,14 +281,20 @@ class GaussianMarginal(Generic[Array]):
         Parameters
         ----------
         samples : Array
-            Points at which to compute the Jacobian.
+            Points at which to compute the Jacobian. Shape: (1, nsamples) - must be 2D
 
         Returns
         -------
         Array
             Jacobian values. Shape: (1, nsamples)
+
+        Raises
+        ------
+        ValueError
+            If input is not 2D or has wrong first dimension
         """
-        grad = -(samples - self._mean) / self._var
+        samples_1d = self._validate_input(samples)
+        grad = -(samples_1d - self._mean) / self._var
         return self._bkd.reshape(grad, (1, -1))
 
     def pdf_jacobian(self, samples: Array) -> Array:
@@ -249,13 +304,19 @@ class GaussianMarginal(Generic[Array]):
         Parameters
         ----------
         samples : Array
-            Points at which to compute the Jacobian.
+            Points at which to compute the Jacobian. Shape: (1, nsamples) - must be 2D
 
         Returns
         -------
         Array
             Jacobian values. Shape: (1, nsamples)
+
+        Raises
+        ------
+        ValueError
+            If input is not 2D or has wrong first dimension
         """
+        # Input validation is done by __call__ and logpdf_jacobian
         pdf_vals = self(samples)
         logpdf_jac = self.logpdf_jacobian(samples)
         return pdf_vals * logpdf_jac

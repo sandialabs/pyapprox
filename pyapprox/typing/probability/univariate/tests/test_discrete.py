@@ -53,24 +53,25 @@ class TestCustomDiscreteMarginal(Generic[Array], unittest.TestCase):
 
     def test_pmf_at_mass_points(self) -> None:
         """Test PMF at mass points."""
-        samples = self._bkd.asarray([0.0, 1.0, 2.0, 3.0])
+        samples = self._bkd.asarray([[0.0, 1.0, 2.0, 3.0]])
         pmf_vals = self._dist.pmf(samples)
+        expected = self._bkd.reshape(self._pk, (1, -1))
         self.assertTrue(
-            self._bkd.allclose(pmf_vals, self._pk, atol=1e-10)
+            self._bkd.allclose(pmf_vals, expected, atol=1e-10)
         )
 
     def test_pmf_off_mass_points(self) -> None:
         """Test PMF returns 0 at non-mass points."""
-        samples = self._bkd.asarray([0.5, 1.5, 2.5, 4.0])
+        samples = self._bkd.asarray([[0.5, 1.5, 2.5, 4.0]])
         pmf_vals = self._dist.pmf(samples)
-        expected = self._bkd.zeros((4,))
+        expected = self._bkd.zeros((1, 4))
         self.assertTrue(
             self._bkd.allclose(pmf_vals, expected, atol=1e-10)
         )
 
     def test_pdf_alias(self) -> None:
         """Test pdf is alias for pmf."""
-        samples = self._bkd.asarray([0.0, 1.0, 2.0])
+        samples = self._bkd.asarray([[0.0, 1.0, 2.0]])
         self.assertTrue(
             self._bkd.allclose(
                 self._dist.pdf(samples),
@@ -81,47 +82,47 @@ class TestCustomDiscreteMarginal(Generic[Array], unittest.TestCase):
 
     def test_logpmf(self) -> None:
         """Test logpmf at mass points."""
-        samples = self._bkd.asarray([0.0, 1.0, 2.0, 3.0])
+        samples = self._bkd.asarray([[0.0, 1.0, 2.0, 3.0]])
         logpmf_vals = self._dist.logpmf(samples)
-        expected = self._bkd.log(self._pk)
+        expected = self._bkd.reshape(self._bkd.log(self._pk), (1, -1))
         self.assertTrue(
             self._bkd.allclose(logpmf_vals, expected, atol=1e-10)
         )
 
     def test_cdf_at_mass_points(self) -> None:
         """Test CDF at mass points."""
-        samples = self._bkd.asarray([0.0, 1.0, 2.0, 3.0])
+        samples = self._bkd.asarray([[0.0, 1.0, 2.0, 3.0]])
         cdf_vals = self._dist.cdf(samples)
         # CDF should be cumulative sum: [0.1, 0.5, 0.8, 1.0]
-        expected = self._bkd.asarray([0.1, 0.5, 0.8, 1.0])
+        expected = self._bkd.asarray([[0.1, 0.5, 0.8, 1.0]])
         self.assertTrue(
             self._bkd.allclose(cdf_vals, expected, atol=1e-10)
         )
 
     def test_cdf_between_mass_points(self) -> None:
         """Test CDF between mass points."""
-        samples = self._bkd.asarray([0.5, 1.5, 2.5])
+        samples = self._bkd.asarray([[0.5, 1.5, 2.5]])
         cdf_vals = self._dist.cdf(samples)
         # CDF is step function: [0.1, 0.5, 0.8]
-        expected = self._bkd.asarray([0.1, 0.5, 0.8])
+        expected = self._bkd.asarray([[0.1, 0.5, 0.8]])
         self.assertTrue(
             self._bkd.allclose(cdf_vals, expected, atol=1e-10)
         )
 
     def test_cdf_below_support(self) -> None:
         """Test CDF below support is 0."""
-        samples = self._bkd.asarray([-1.0, -0.5])
+        samples = self._bkd.asarray([[-1.0, -0.5]])
         cdf_vals = self._dist.cdf(samples)
-        expected = self._bkd.zeros((2,))
+        expected = self._bkd.zeros((1, 2))
         self.assertTrue(
             self._bkd.allclose(cdf_vals, expected, atol=1e-10)
         )
 
     def test_cdf_above_support(self) -> None:
         """Test CDF above support is 1."""
-        samples = self._bkd.asarray([3.5, 4.0, 10.0])
+        samples = self._bkd.asarray([[3.5, 4.0, 10.0]])
         cdf_vals = self._dist.cdf(samples)
-        expected = self._bkd.ones((3,))
+        expected = self._bkd.ones((1, 3))
         self.assertTrue(
             self._bkd.allclose(cdf_vals, expected, atol=1e-10)
         )
@@ -129,17 +130,17 @@ class TestCustomDiscreteMarginal(Generic[Array], unittest.TestCase):
     def test_invcdf(self) -> None:
         """Test inverse CDF."""
         # At cumulative probabilities, should return mass points
-        probs = self._bkd.asarray([0.05, 0.1, 0.3, 0.5, 0.7, 0.8, 0.9, 1.0])
+        probs = self._bkd.asarray([[0.05, 0.1, 0.3, 0.5, 0.7, 0.8, 0.9, 1.0]])
         invcdf_vals = self._dist.invcdf(probs)
         # 0.05 -> 0, 0.1 -> 0, 0.3 -> 1, 0.5 -> 1, 0.7 -> 2, 0.8 -> 2, 0.9 -> 3, 1.0 -> 3
-        expected = self._bkd.asarray([0.0, 0.0, 1.0, 1.0, 2.0, 2.0, 3.0, 3.0])
+        expected = self._bkd.asarray([[0.0, 0.0, 1.0, 1.0, 2.0, 2.0, 3.0, 3.0]])
         self.assertTrue(
             self._bkd.allclose(invcdf_vals, expected, atol=1e-10)
         )
 
     def test_ppf_alias(self) -> None:
         """Test ppf is alias for invcdf."""
-        probs = self._bkd.asarray([0.25, 0.5, 0.75])
+        probs = self._bkd.asarray([[0.25, 0.5, 0.75]])
         self.assertTrue(
             self._bkd.allclose(
                 self._dist.ppf(probs),
@@ -150,7 +151,7 @@ class TestCustomDiscreteMarginal(Generic[Array], unittest.TestCase):
 
     def test_cdf_invcdf_roundtrip(self) -> None:
         """Test invcdf(cdf(x)) returns valid mass point."""
-        samples = self._bkd.asarray([0.0, 1.0, 2.0, 3.0])
+        samples = self._bkd.asarray([[0.0, 1.0, 2.0, 3.0]])
         recovered = self._dist.invcdf(self._dist.cdf(samples))
         # For discrete, recovered should be same as input
         self.assertTrue(
@@ -253,8 +254,9 @@ class TestCustomDiscreteMarginal(Generic[Array], unittest.TestCase):
     def test_interval(self) -> None:
         """Test interval returns valid bounds."""
         interval = self._dist.interval(0.8)
-        self.assertEqual(len(interval), 2)
-        lower, upper = float(interval[0]), float(interval[1])
+        # interval returns shape (1, 2) with [lower, upper] bounds
+        self.assertEqual(interval.shape, (1, 2))
+        lower, upper = float(interval[0, 0]), float(interval[0, 1])
         self.assertLessEqual(lower, upper)
 
     def test_equality(self) -> None:
@@ -388,16 +390,16 @@ class TestDiscreteChebyshevMarginal(Generic[Array], unittest.TestCase):
 
     def test_pmf_uniform(self) -> None:
         """Test PMF is uniform at all mass points."""
-        samples = self._bkd.asarray([0.0, 1.0, 2.0, 3.0, 4.0])
+        samples = self._bkd.asarray([[0.0, 1.0, 2.0, 3.0, 4.0]])
         pmf_vals = self._dist.pmf(samples)
-        expected = self._bkd.ones((5,)) / 5.0
+        expected = self._bkd.ones((1, 5)) / 5.0
         self.assertTrue(self._bkd.allclose(pmf_vals, expected, atol=1e-10))
 
     def test_cdf_linear(self) -> None:
         """Test CDF is step function with uniform jumps."""
-        samples = self._bkd.asarray([0.0, 1.0, 2.0, 3.0, 4.0])
+        samples = self._bkd.asarray([[0.0, 1.0, 2.0, 3.0, 4.0]])
         cdf_vals = self._dist.cdf(samples)
-        expected = self._bkd.asarray([0.2, 0.4, 0.6, 0.8, 1.0])
+        expected = self._bkd.asarray([[0.2, 0.4, 0.6, 0.8, 1.0]])
         self.assertTrue(self._bkd.allclose(cdf_vals, expected, atol=1e-10))
 
     def test_mean_value(self) -> None:

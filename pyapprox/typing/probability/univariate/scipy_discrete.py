@@ -34,8 +34,8 @@ class ScipyDiscreteMarginal(Generic[Array]):
     >>> bkd = NumpyBkd()
     >>> scipy_rv = binom(n=10, p=0.5)
     >>> dist = ScipyDiscreteMarginal(scipy_rv, bkd)
-    >>> samples = np.array([0, 5, 10])
-    >>> pmf_vals = dist(samples)
+    >>> samples = np.array([[0, 5, 10]])  # Shape: (1, 3)
+    >>> pmf_vals = dist(samples)  # Shape: (1, 3)
     """
 
     def __init__(self, scipy_rv: Any, bkd: Backend[Array]):
@@ -57,6 +57,19 @@ class ScipyDiscreteMarginal(Generic[Array]):
         """Return the number of variables (always 1 for univariate)."""
         return 1
 
+    def _validate_input(self, samples: Array) -> Array:
+        """Validate that input is 2D with shape (1, nsamples)."""
+        if samples.ndim != 2:
+            raise ValueError(
+                f"Expected 2D array with shape (1, nsamples), got {samples.ndim}D"
+            )
+        if samples.shape[0] != 1:
+            raise ValueError(
+                f"Univariate distribution expects shape (1, nsamples), "
+                f"got {samples.shape}"
+            )
+        return samples[0]  # Return 1D for internal computation
+
     def __call__(self, samples: Array) -> Array:
         """
         Evaluate the probability mass function.
@@ -64,16 +77,23 @@ class ScipyDiscreteMarginal(Generic[Array]):
         Parameters
         ----------
         samples : Array
-            Points at which to evaluate the PMF.
+            Points at which to evaluate the PMF. Shape: (1, nsamples) - must be 2D
 
         Returns
         -------
         Array
-            PMF values.
+            PMF values. Shape: (1, nsamples)
+
+        Raises
+        ------
+        ValueError
+            If input is not 2D or has wrong first dimension
         """
-        return self._bkd.asarray(
-            self._scipy_rv.pmf(self._bkd.to_numpy(samples))
+        samples_1d = self._validate_input(samples)
+        result = self._bkd.asarray(
+            self._scipy_rv.pmf(self._bkd.to_numpy(samples_1d))
         )
+        return self._bkd.reshape(result, (1, -1))
 
     def pmf(self, samples: Array) -> Array:
         """Alias for __call__, evaluate PMF."""
@@ -86,16 +106,23 @@ class ScipyDiscreteMarginal(Generic[Array]):
         Parameters
         ----------
         samples : Array
-            Points at which to evaluate the log PMF.
+            Points at which to evaluate the log PMF. Shape: (1, nsamples) - must be 2D
 
         Returns
         -------
         Array
-            Log PMF values.
+            Log PMF values. Shape: (1, nsamples)
+
+        Raises
+        ------
+        ValueError
+            If input is not 2D or has wrong first dimension
         """
-        return self._bkd.asarray(
-            self._scipy_rv.logpmf(self._bkd.to_numpy(samples))
+        samples_1d = self._validate_input(samples)
+        result = self._bkd.asarray(
+            self._scipy_rv.logpmf(self._bkd.to_numpy(samples_1d))
         )
+        return self._bkd.reshape(result, (1, -1))
 
     # Alias for protocol compatibility
     def logpdf(self, samples: Array) -> Array:
@@ -109,16 +136,23 @@ class ScipyDiscreteMarginal(Generic[Array]):
         Parameters
         ----------
         samples : Array
-            Points at which to evaluate the CDF.
+            Points at which to evaluate the CDF. Shape: (1, nsamples) - must be 2D
 
         Returns
         -------
         Array
-            CDF values in [0, 1].
+            CDF values in [0, 1]. Shape: (1, nsamples)
+
+        Raises
+        ------
+        ValueError
+            If input is not 2D or has wrong first dimension
         """
-        return self._bkd.asarray(
-            self._scipy_rv.cdf(self._bkd.to_numpy(samples))
+        samples_1d = self._validate_input(samples)
+        result = self._bkd.asarray(
+            self._scipy_rv.cdf(self._bkd.to_numpy(samples_1d))
         )
+        return self._bkd.reshape(result, (1, -1))
 
     def invcdf(self, probs: Array) -> Array:
         """
@@ -130,16 +164,23 @@ class ScipyDiscreteMarginal(Generic[Array]):
         Parameters
         ----------
         probs : Array
-            Probability values in [0, 1].
+            Probability values in [0, 1]. Shape: (1, nsamples) - must be 2D
 
         Returns
         -------
         Array
-            Quantile values (integers).
+            Quantile values (integers). Shape: (1, nsamples)
+
+        Raises
+        ------
+        ValueError
+            If input is not 2D or has wrong first dimension
         """
-        return self._bkd.asarray(
-            self._scipy_rv.ppf(self._bkd.to_numpy(probs))
+        probs_1d = self._validate_input(probs)
+        result = self._bkd.asarray(
+            self._scipy_rv.ppf(self._bkd.to_numpy(probs_1d))
         )
+        return self._bkd.reshape(result, (1, -1))
 
     # Alias for compatibility
     ppf = invcdf
@@ -201,9 +242,10 @@ class ScipyDiscreteMarginal(Generic[Array]):
         Returns
         -------
         Array
-            Interval [lower, upper].
+            Interval [lower, upper]. Shape: (1, 2)
         """
-        return self._bkd.asarray(self._scipy_rv.interval(alpha))
+        result = self._bkd.asarray(self._scipy_rv.interval(alpha))
+        return self._bkd.reshape(result, (1, -1))
 
     def _get_distribution_info(
         self,

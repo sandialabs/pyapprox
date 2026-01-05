@@ -114,6 +114,18 @@ class GaussianLogLikelihood(Generic[Array]):
             )
         self._design_weights = weights
 
+    def _validate_model_outputs(self, model_outputs: Array) -> None:
+        """Validate that model_outputs is 2D with correct shape."""
+        if model_outputs.ndim != 2:
+            raise ValueError(
+                f"Expected 2D array with shape (nobs, nsamples), "
+                f"got {model_outputs.ndim}D"
+            )
+        if model_outputs.shape[0] != self._nobs:
+            raise ValueError(
+                f"Expected {self._nobs} observations, got {model_outputs.shape[0]}"
+            )
+
     def logpdf(self, model_outputs: Array) -> Array:
         """
         Evaluate the log-likelihood.
@@ -121,20 +133,24 @@ class GaussianLogLikelihood(Generic[Array]):
         Parameters
         ----------
         model_outputs : Array
-            Model predictions. Shape: (nobs, nsamples)
+            Model predictions. Shape: (nobs, nsamples) - must be 2D
 
         Returns
         -------
         Array
-            Log-likelihood values. Shape: (nsamples,)
+            Log-likelihood values. Shape: (1, nsamples)
+
+        Raises
+        ------
+        ValueError
+            If observations not set or model_outputs has wrong shape
         """
         if self._observations is None:
             raise ValueError(
                 "Observations not set. Call set_observations first."
             )
 
-        if model_outputs.ndim == 1:
-            model_outputs = self._bkd.reshape(model_outputs, (self._nobs, 1))
+        self._validate_model_outputs(model_outputs)
 
         # Residuals: obs - model
         residuals = self._observations - model_outputs
@@ -149,7 +165,8 @@ class GaussianLogLikelihood(Generic[Array]):
         # Squared Mahalanobis distance: ||L^{-1}(obs - model)||^2
         squared_dist = self._bkd.sum(whitened**2, axis=0)
 
-        return self._log_norm_const - 0.5 * squared_dist
+        result = self._log_norm_const - 0.5 * squared_dist
+        return self._bkd.reshape(result, (1, -1))
 
     def logpdf_vectorized(
         self, model_outputs: Array, observations: Array
@@ -162,19 +179,25 @@ class GaussianLogLikelihood(Generic[Array]):
         Parameters
         ----------
         model_outputs : Array
-            Model predictions. Shape: (nobs, n_model_samples)
+            Model predictions. Shape: (nobs, n_model_samples) - must be 2D
         observations : Array
-            Observed data. Shape: (nobs, n_obs_samples)
+            Observed data. Shape: (nobs, n_obs_samples) - must be 2D
 
         Returns
         -------
         Array
             Log-likelihood matrix. Shape: (n_model_samples, n_obs_samples)
+
+        Raises
+        ------
+        ValueError
+            If inputs are not 2D
         """
-        if model_outputs.ndim == 1:
-            model_outputs = self._bkd.reshape(model_outputs, (self._nobs, 1))
-        if observations.ndim == 1:
-            observations = self._bkd.reshape(observations, (self._nobs, 1))
+        self._validate_model_outputs(model_outputs)
+        if observations.ndim != 2:
+            raise ValueError(
+                f"Expected 2D observations array, got {observations.ndim}D"
+            )
 
         n_model = model_outputs.shape[1]
         n_obs = observations.shape[1]
@@ -211,7 +234,7 @@ class GaussianLogLikelihood(Generic[Array]):
         Parameters
         ----------
         model_outputs : Array
-            Model predictions. Shape: (nobs,) or (nobs, n_model_samples)
+            Model predictions. Shape: (nobs, n_model_samples) - must be 2D
         nsamples : int
             Number of noise samples per model output.
 
@@ -219,9 +242,13 @@ class GaussianLogLikelihood(Generic[Array]):
         -------
         Array
             Noisy observations. Shape: (nobs, n_model_samples * nsamples)
+
+        Raises
+        ------
+        ValueError
+            If model_outputs is not 2D
         """
-        if model_outputs.ndim == 1:
-            model_outputs = self._bkd.reshape(model_outputs, (self._nobs, 1))
+        self._validate_model_outputs(model_outputs)
 
         n_model = model_outputs.shape[1]
         total_samples = n_model * nsamples
@@ -258,18 +285,22 @@ class GaussianLogLikelihood(Generic[Array]):
         Parameters
         ----------
         model_outputs : Array
-            Model predictions. Shape: (nobs, nsamples)
+            Model predictions. Shape: (nobs, nsamples) - must be 2D
 
         Returns
         -------
         Array
             Gradient. Shape: (nobs, nsamples)
+
+        Raises
+        ------
+        ValueError
+            If observations not set or model_outputs has wrong shape
         """
         if self._observations is None:
             raise ValueError("Observations not set.")
 
-        if model_outputs.ndim == 1:
-            model_outputs = self._bkd.reshape(model_outputs, (self._nobs, 1))
+        self._validate_model_outputs(model_outputs)
 
         residuals = self._observations - model_outputs
 
@@ -362,6 +393,18 @@ class DiagonalGaussianLogLikelihood(Generic[Array]):
             )
         self._design_weights = weights
 
+    def _validate_model_outputs(self, model_outputs: Array) -> None:
+        """Validate that model_outputs is 2D with correct shape."""
+        if model_outputs.ndim != 2:
+            raise ValueError(
+                f"Expected 2D array with shape (nobs, nsamples), "
+                f"got {model_outputs.ndim}D"
+            )
+        if model_outputs.shape[0] != self._nobs:
+            raise ValueError(
+                f"Expected {self._nobs} observations, got {model_outputs.shape[0]}"
+            )
+
     def logpdf(self, model_outputs: Array) -> Array:
         """
         Evaluate the log-likelihood.
@@ -369,18 +412,22 @@ class DiagonalGaussianLogLikelihood(Generic[Array]):
         Parameters
         ----------
         model_outputs : Array
-            Model predictions. Shape: (nobs, nsamples)
+            Model predictions. Shape: (nobs, nsamples) - must be 2D
 
         Returns
         -------
         Array
-            Log-likelihood values. Shape: (nsamples,)
+            Log-likelihood values. Shape: (1, nsamples)
+
+        Raises
+        ------
+        ValueError
+            If observations not set or model_outputs has wrong shape
         """
         if self._observations is None:
             raise ValueError("Observations not set.")
 
-        if model_outputs.ndim == 1:
-            model_outputs = self._bkd.reshape(model_outputs, (self._nobs, 1))
+        self._validate_model_outputs(model_outputs)
 
         residuals = self._observations - model_outputs
 
@@ -394,12 +441,31 @@ class DiagonalGaussianLogLikelihood(Generic[Array]):
                 residuals**2 * self._inv_var[:, None], axis=0
             )
 
-        return self._log_norm_const - 0.5 * squared_dist
+        result = self._log_norm_const - 0.5 * squared_dist
+        return self._bkd.reshape(result, (1, -1))
 
     def rvs(self, model_outputs: Array, nsamples: int = 1) -> Array:
-        """Sample from the likelihood."""
-        if model_outputs.ndim == 1:
-            model_outputs = self._bkd.reshape(model_outputs, (self._nobs, 1))
+        """
+        Sample from the likelihood.
+
+        Parameters
+        ----------
+        model_outputs : Array
+            Model predictions. Shape: (nobs, n_model_samples) - must be 2D
+        nsamples : int
+            Number of noise samples per model output.
+
+        Returns
+        -------
+        Array
+            Noisy observations. Shape: (nobs, n_model_samples * nsamples)
+
+        Raises
+        ------
+        ValueError
+            If model_outputs is not 2D
+        """
+        self._validate_model_outputs(model_outputs)
 
         n_model = model_outputs.shape[1]
         total_samples = n_model * nsamples
@@ -423,12 +489,28 @@ class DiagonalGaussianLogLikelihood(Generic[Array]):
         return float(-0.5 * self._nobs * math.log(2 * math.pi) - 0.5 * log_det)
 
     def gradient(self, model_outputs: Array) -> Array:
-        """Compute gradient of log-likelihood w.r.t. model outputs."""
+        """
+        Compute gradient of log-likelihood w.r.t. model outputs.
+
+        Parameters
+        ----------
+        model_outputs : Array
+            Model predictions. Shape: (nobs, nsamples) - must be 2D
+
+        Returns
+        -------
+        Array
+            Gradient. Shape: (nobs, nsamples)
+
+        Raises
+        ------
+        ValueError
+            If observations not set or model_outputs has wrong shape
+        """
         if self._observations is None:
             raise ValueError("Observations not set.")
 
-        if model_outputs.ndim == 1:
-            model_outputs = self._bkd.reshape(model_outputs, (self._nobs, 1))
+        self._validate_model_outputs(model_outputs)
 
         residuals = self._observations - model_outputs
         return self._inv_var[:, None] * residuals

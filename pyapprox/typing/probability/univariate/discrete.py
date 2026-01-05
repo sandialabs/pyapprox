@@ -35,7 +35,7 @@ class CustomDiscreteMarginal(Generic[Array]):
     >>> xk = np.array([0.0, 1.0, 2.0])
     >>> pk = np.array([0.2, 0.5, 0.3])
     >>> dist = CustomDiscreteMarginal(xk, pk, bkd)
-    >>> dist.pmf(np.array([0.0, 1.0]))  # Returns [0.2, 0.5]
+    >>> dist.pmf(np.array([[0.0, 1.0]]))  # Returns [[0.2, 0.5]], shape (1, 2)
     """
 
     def __init__(
@@ -98,6 +98,19 @@ class CustomDiscreteMarginal(Generic[Array]):
         """Return the number of variables (always 1 for univariate)."""
         return 1
 
+    def _validate_input(self, samples: Array) -> Array:
+        """Validate that input is 2D with shape (1, nsamples)."""
+        if samples.ndim != 2:
+            raise ValueError(
+                f"Expected 2D array with shape (1, nsamples), got {samples.ndim}D"
+            )
+        if samples.shape[0] != 1:
+            raise ValueError(
+                f"Univariate distribution expects shape (1, nsamples), "
+                f"got {samples.shape}"
+            )
+        return samples[0]  # Return 1D for internal computation
+
     def nmasses(self) -> int:
         """Return the number of probability masses."""
         return len(self._xk_np)
@@ -120,12 +133,17 @@ class CustomDiscreteMarginal(Generic[Array]):
         Parameters
         ----------
         samples : Array
-            Points at which to evaluate the PMF.
+            Points at which to evaluate the PMF. Shape: (1, nsamples) - must be 2D
 
         Returns
         -------
         Array
-            PMF values (0 for points not at mass locations).
+            PMF values (0 for points not at mass locations). Shape: (1, nsamples)
+
+        Raises
+        ------
+        ValueError
+            If input is not 2D or has wrong first dimension
         """
         return self.pmf(samples)
 
@@ -136,14 +154,20 @@ class CustomDiscreteMarginal(Generic[Array]):
         Parameters
         ----------
         samples : Array
-            Points at which to evaluate the PMF.
+            Points at which to evaluate the PMF. Shape: (1, nsamples) - must be 2D
 
         Returns
         -------
         Array
-            PMF values (0 for points not at mass locations).
+            PMF values (0 for points not at mass locations). Shape: (1, nsamples)
+
+        Raises
+        ------
+        ValueError
+            If input is not 2D or has wrong first dimension
         """
-        samples_np = self._bkd.to_numpy(self._bkd.flatten(samples))
+        samples_1d = self._validate_input(samples)
+        samples_np = self._bkd.to_numpy(samples_1d)
         result = np.zeros(len(samples_np))
 
         # Tolerance for floating-point comparison
@@ -156,7 +180,7 @@ class CustomDiscreteMarginal(Generic[Array]):
                 idx = np.where(matches)[0][0]
                 result[ii] = self._pk_np[idx]
 
-        return self._bkd.reshape(self._bkd.asarray(result), samples.shape)
+        return self._bkd.reshape(self._bkd.asarray(result), (1, -1))
 
     def logpmf(self, samples: Array) -> Array:
         """
@@ -165,13 +189,19 @@ class CustomDiscreteMarginal(Generic[Array]):
         Parameters
         ----------
         samples : Array
-            Points at which to evaluate the log PMF.
+            Points at which to evaluate the log PMF. Shape: (1, nsamples) - must be 2D
 
         Returns
         -------
         Array
-            Log PMF values (-inf for points not at mass locations).
+            Log PMF values (-inf for points not at mass locations). Shape: (1, nsamples)
+
+        Raises
+        ------
+        ValueError
+            If input is not 2D or has wrong first dimension
         """
+        # Validation done by pmf
         pmf_vals = self.pmf(samples)
         return self._bkd.log(pmf_vals)
 
@@ -191,14 +221,20 @@ class CustomDiscreteMarginal(Generic[Array]):
         Parameters
         ----------
         samples : Array
-            Points at which to evaluate the CDF.
+            Points at which to evaluate the CDF. Shape: (1, nsamples) - must be 2D
 
         Returns
         -------
         Array
-            CDF values in [0, 1].
+            CDF values in [0, 1]. Shape: (1, nsamples)
+
+        Raises
+        ------
+        ValueError
+            If input is not 2D or has wrong first dimension
         """
-        samples_np = self._bkd.to_numpy(self._bkd.flatten(samples))
+        samples_1d = self._validate_input(samples)
+        samples_np = self._bkd.to_numpy(samples_1d)
         result = np.zeros(len(samples_np))
 
         for ii, x in enumerate(samples_np):
@@ -212,7 +248,7 @@ class CustomDiscreteMarginal(Generic[Array]):
                 if idx >= 0:
                     result[ii] = self._ecdf_np[idx]
 
-        return self._bkd.reshape(self._bkd.asarray(result), samples.shape)
+        return self._bkd.reshape(self._bkd.asarray(result), (1, -1))
 
     def invcdf(self, probs: Array) -> Array:
         """
@@ -221,14 +257,20 @@ class CustomDiscreteMarginal(Generic[Array]):
         Parameters
         ----------
         probs : Array
-            Probability values in [0, 1].
+            Probability values in [0, 1]. Shape: (1, nsamples) - must be 2D
 
         Returns
         -------
         Array
-            Quantile values (mass point locations).
+            Quantile values (mass point locations). Shape: (1, nsamples)
+
+        Raises
+        ------
+        ValueError
+            If input is not 2D or has wrong first dimension
         """
-        probs_np = self._bkd.to_numpy(self._bkd.flatten(probs))
+        probs_1d = self._validate_input(probs)
+        probs_np = self._bkd.to_numpy(probs_1d)
         result = np.zeros(len(probs_np))
 
         for ii, p in enumerate(probs_np):
@@ -241,7 +283,7 @@ class CustomDiscreteMarginal(Generic[Array]):
                 idx = np.searchsorted(self._ecdf_np, p, side="left")
                 result[ii] = self._xk_np[idx]
 
-        return self._bkd.reshape(self._bkd.asarray(result), probs.shape)
+        return self._bkd.reshape(self._bkd.asarray(result), (1, -1))
 
     # Alias for compatibility
     ppf = invcdf
@@ -355,9 +397,11 @@ class CustomDiscreteMarginal(Generic[Array]):
         -------
         Array
             Interval [lower, upper] such that P(lower <= X <= upper) >= alpha.
+            Shape: (1, 2)
         """
         eps = (1.0 - alpha) / 2.0
-        return self.invcdf(self._bkd.asarray([eps, 1.0 - eps]))
+        probs_2d = self._bkd.array([[eps, 1.0 - eps]])  # Shape: (1, 2)
+        return self.invcdf(probs_2d)
 
     def __eq__(self, other: Any) -> bool:
         """Check equality with another CustomDiscreteMarginal."""
@@ -395,7 +439,7 @@ class DiscreteChebyshevMarginal(CustomDiscreteMarginal[Array]):
     >>> bkd = NumpyBkd()
     >>> dist = DiscreteChebyshevMarginal(5, bkd)
     >>> # Uniform distribution over {0, 1, 2, 3, 4}
-    >>> dist.pmf(bkd.asarray([0.0, 2.0, 4.0]))  # Returns [0.2, 0.2, 0.2]
+    >>> dist.pmf(bkd.asarray([[0.0, 2.0, 4.0]]))  # Returns [[0.2, 0.2, 0.2]]
     """
 
     def __init__(self, nmasses: int, bkd: Backend[Array]):

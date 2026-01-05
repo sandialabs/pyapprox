@@ -107,6 +107,18 @@ class NatafTransform(Generic[Array]):
         """Return correlation matrix in standard normal space."""
         return self._correlation_std
 
+    def _validate_input(self, samples: Array) -> None:
+        """Validate that input is 2D with shape (nvars, nsamples)."""
+        if samples.ndim != 2:
+            raise ValueError(
+                f"Expected 2D array with shape (nvars, nsamples), "
+                f"got {samples.ndim}D"
+            )
+        if samples.shape[0] != self._nvars:
+            raise ValueError(
+                f"Expected {self._nvars} variables, got {samples.shape[0]}"
+            )
+
     def map_to_canonical(self, samples: Array) -> Array:
         """
         Transform correlated samples to independent standard normal.
@@ -116,15 +128,19 @@ class NatafTransform(Generic[Array]):
         Parameters
         ----------
         samples : Array
-            Correlated samples. Shape: (nvars, nsamples)
+            Correlated samples. Shape: (nvars, nsamples) - must be 2D
 
         Returns
         -------
         Array
             Independent standard normal samples. Shape: (nvars, nsamples)
+
+        Raises
+        ------
+        ValueError
+            If input is not 2D with correct shape
         """
-        if samples.ndim == 1:
-            samples = self._bkd.reshape(samples, (self._nvars, 1))
+        self._validate_input(samples)
 
         # Step 1: X -> Y (standard normal marginals)
         y = self._to_standard_normal_marginals(samples)
@@ -143,17 +159,19 @@ class NatafTransform(Generic[Array]):
         Parameters
         ----------
         canonical_samples : Array
-            Independent standard normal samples. Shape: (nvars, nsamples)
+            Independent standard normal samples. Shape: (nvars, nsamples) - must be 2D
 
         Returns
         -------
         Array
             Correlated samples. Shape: (nvars, nsamples)
+
+        Raises
+        ------
+        ValueError
+            If input is not 2D with correct shape
         """
-        if canonical_samples.ndim == 1:
-            canonical_samples = self._bkd.reshape(
-                canonical_samples, (self._nvars, 1)
-            )
+        self._validate_input(canonical_samples)
 
         # Step 1: Z -> Y (correlate)
         y = self._chol @ canonical_samples
@@ -177,16 +195,20 @@ class NatafTransform(Generic[Array]):
         Parameters
         ----------
         samples : Array
-            Correlated samples. Shape: (nvars, nsamples)
+            Correlated samples. Shape: (nvars, nsamples) - must be 2D
 
         Returns
         -------
         Tuple[Array, Array]
             canonical : Independent standard normals. Shape: (nvars, nsamples)
             jacobian : Full Jacobian. Shape: (nvars, nvars, nsamples)
+
+        Raises
+        ------
+        ValueError
+            If input is not 2D with correct shape
         """
-        if samples.ndim == 1:
-            samples = self._bkd.reshape(samples, (self._nvars, 1))
+        self._validate_input(samples)
 
         nsamples = samples.shape[1]
 
@@ -197,7 +219,9 @@ class NatafTransform(Generic[Array]):
         # Jacobian: dy_i/dx_i = f_i(x_i) / phi(y_i) (diagonal)
         dy_dx = self._bkd.zeros((self._nvars, nsamples))
         for i, marginal in enumerate(self._marginals):
-            f_x = self._bkd.exp(marginal.logpdf(samples[i]))
+            # Reshape to (1, nsamples) for marginal method
+            row_2d = self._bkd.reshape(samples[i], (1, -1))
+            f_x = self._bkd.exp(marginal.logpdf(row_2d))[0]
             phi_y = self._bkd.asarray(
                 self._standard_normal.pdf(self._bkd.to_numpy(y[i]))
             )
@@ -226,18 +250,20 @@ class NatafTransform(Generic[Array]):
         Parameters
         ----------
         canonical_samples : Array
-            Independent standard normals. Shape: (nvars, nsamples)
+            Independent standard normals. Shape: (nvars, nsamples) - must be 2D
 
         Returns
         -------
         Tuple[Array, Array]
             samples : Correlated samples. Shape: (nvars, nsamples)
             jacobian : Full Jacobian. Shape: (nvars, nvars, nsamples)
+
+        Raises
+        ------
+        ValueError
+            If input is not 2D with correct shape
         """
-        if canonical_samples.ndim == 1:
-            canonical_samples = self._bkd.reshape(
-                canonical_samples, (self._nvars, 1)
-            )
+        self._validate_input(canonical_samples)
 
         nsamples = canonical_samples.shape[1]
 
@@ -251,7 +277,9 @@ class NatafTransform(Generic[Array]):
             phi_y = self._bkd.asarray(
                 self._standard_normal.pdf(self._bkd.to_numpy(y[i]))
             )
-            f_x = self._bkd.exp(marginal.logpdf(x[i]))
+            # Reshape to (1, nsamples) for marginal method
+            row_2d = self._bkd.reshape(x[i], (1, -1))
+            f_x = self._bkd.exp(marginal.logpdf(row_2d))[0]
             dx_dy[i] = phi_y / (f_x + 1e-15)
 
         # dx/dz = diag(dx/dy) @ L
@@ -269,8 +297,10 @@ class NatafTransform(Generic[Array]):
         y = self._bkd.zeros((self._nvars, nsamples))
 
         for i, marginal in enumerate(self._marginals):
-            probs = marginal.cdf(samples[i])
-            probs_np = np.clip(self._bkd.to_numpy(probs), 1e-15, 1.0 - 1e-15)
+            # Reshape to (1, nsamples) for marginal method
+            row_2d = self._bkd.reshape(samples[i], (1, -1))
+            probs = marginal.cdf(row_2d)  # Returns (1, nsamples)
+            probs_np = np.clip(self._bkd.to_numpy(probs[0]), 1e-15, 1.0 - 1e-15)
             y[i] = self._bkd.asarray(self._standard_normal.ppf(probs_np))
 
         return y
@@ -284,7 +314,10 @@ class NatafTransform(Generic[Array]):
             probs = self._bkd.asarray(
                 self._standard_normal.cdf(self._bkd.to_numpy(y[i]))
             )
-            x[i] = marginal.invcdf(probs)
+            # Reshape to (1, nsamples) for marginal method
+            probs_2d = self._bkd.reshape(probs, (1, -1))
+            result = marginal.invcdf(probs_2d)  # Returns (1, nsamples)
+            x[i] = result[0]
 
         return x
 
@@ -359,15 +392,19 @@ class NatafTransform(Generic[Array]):
         Parameters
         ----------
         samples : Array
-            Samples. Shape: (nvars, nsamples)
+            Samples. Shape: (nvars, nsamples) - must be 2D
 
         Returns
         -------
         Array
-            Log determinant. Shape: (nsamples,)
+            Log determinant. Shape: (1, nsamples)
+
+        Raises
+        ------
+        ValueError
+            If input is not 2D with correct shape
         """
-        if samples.ndim == 1:
-            samples = self._bkd.reshape(samples, (self._nvars, 1))
+        self._validate_input(samples)
 
         nsamples = samples.shape[1]
 
@@ -382,13 +419,16 @@ class NatafTransform(Generic[Array]):
         # sum_i log|dy_i/dx_i| = sum_i [log f_i(x_i) - log phi(y_i)]
         log_det_marginal = self._bkd.zeros((nsamples,))
         for i, marginal in enumerate(self._marginals):
-            log_f = marginal.logpdf(samples[i])
+            # Reshape to (1, nsamples) for marginal method
+            row_2d = self._bkd.reshape(samples[i], (1, -1))
+            log_f = marginal.logpdf(row_2d)[0]  # Extract from (1, nsamples)
             log_phi = self._bkd.asarray(
                 self._standard_normal.logpdf(self._bkd.to_numpy(y[i]))
             )
             log_det_marginal = log_det_marginal + log_f - log_phi
 
-        return float(log_det_L_inv) + log_det_marginal
+        result = float(log_det_L_inv) + log_det_marginal
+        return self._bkd.reshape(result, (1, -1))
 
     def __repr__(self) -> str:
         """Return string representation."""

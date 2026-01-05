@@ -39,12 +39,17 @@ class _BetaCDFNewtonResidual(Generic[Array]):
 
     def __call__(self, iterate: Array) -> Array:
         """Compute residual: CDF(x) - p."""
-        return self._marginal.cdf(iterate) - self._usamples
+        # Convert 1D iterate to 2D for marginal.cdf
+        iterate_2d = self._bkd.reshape(iterate, (1, -1))
+        cdf_vals = self._marginal.cdf(iterate_2d)
+        return cdf_vals[0] - self._usamples
 
     def linsolve(self, iterate: Array, res: Array) -> Array:
         """Solve J * delta = res where J = diag(pdf(x))."""
         # CDF jacobian is pdf, so linsolve is res / pdf
-        return res / self._marginal(iterate)
+        iterate_2d = self._bkd.reshape(iterate, (1, -1))
+        pdf_vals = self._marginal(iterate_2d)
+        return res / pdf_vals[0]
 
 
 class BetaMarginal(Generic[Array]):
@@ -76,9 +81,9 @@ class BetaMarginal(Generic[Array]):
     >>> from pyapprox.typing.util.backends.numpy import NumpyBkd
     >>> bkd = NumpyBkd()
     >>> dist = BetaMarginal(alpha=2.0, beta=5.0, bkd=bkd)
-    >>> samples = np.array([0.1, 0.3, 0.5])
-    >>> pdf_vals = dist(samples)  # PDF values
-    >>> cdf_vals = dist.cdf(samples)  # CDF values (autograd-compatible)
+    >>> samples = np.array([[0.1, 0.3, 0.5]])  # Shape: (1, 3)
+    >>> pdf_vals = dist(samples)  # PDF values, shape: (1, 3)
+    >>> cdf_vals = dist.cdf(samples)  # CDF values, shape: (1, 3)
     """
 
     def __init__(
@@ -149,6 +154,19 @@ class BetaMarginal(Generic[Array]):
         """Get the backend used for computations."""
         return self._bkd
 
+    def _validate_input(self, samples: Array) -> Array:
+        """Validate that input is 2D with shape (1, nsamples)."""
+        if samples.ndim != 2:
+            raise ValueError(
+                f"Expected 2D array with shape (1, nsamples), got {samples.ndim}D"
+            )
+        if samples.shape[0] != 1:
+            raise ValueError(
+                f"Univariate distribution expects shape (1, nsamples), "
+                f"got {samples.shape}"
+            )
+        return samples[0]  # Return 1D for internal computation
+
     def nvars(self) -> int:
         """Return the number of variables (always 1 for univariate)."""
         return 1
@@ -170,12 +188,18 @@ class BetaMarginal(Generic[Array]):
         Parameters
         ----------
         samples : Array
-            Points at which to evaluate the PDF. Must be in [0, 1].
+            Points at which to evaluate the PDF. Shape: (1, nsamples) - must be 2D.
+            Values must be in [0, 1].
 
         Returns
         -------
         Array
-            The evaluated PDF values.
+            The evaluated PDF values. Shape: (1, nsamples)
+
+        Raises
+        ------
+        ValueError
+            If input is not 2D or has wrong first dimension
         """
         return self._bkd.exp(self.logpdf(samples))
 
@@ -186,13 +210,20 @@ class BetaMarginal(Generic[Array]):
         Parameters
         ----------
         samples : Array
-            Points at which to evaluate the log PDF. Must be in [0, 1].
+            Points at which to evaluate the log PDF. Shape: (1, nsamples) - must be 2D.
+            Values must be in [0, 1].
 
         Returns
         -------
         Array
-            The evaluated log PDF values.
+            The evaluated log PDF values. Shape: (1, nsamples)
+
+        Raises
+        ------
+        ValueError
+            If input is not 2D or has wrong first dimension
         """
+        samples_1d = self._validate_input(samples)
         # log f(x) = (a-1)*log(x) + (b-1)*log(1-x) - log(B(a,b))
         # log(B(a,b)) = gammaln(a) + gammaln(b) - gammaln(a+b)
         log_beta = (
@@ -200,28 +231,34 @@ class BetaMarginal(Generic[Array]):
             + self._bkd.gammaln(self._beta)
             - self._bkd.gammaln(self._alpha + self._beta)
         )
-        log_x = self._bkd.log(samples)
-        log_1mx = self._bkd.log(1.0 - samples)
-        return (
+        log_x = self._bkd.log(samples_1d)
+        log_1mx = self._bkd.log(1.0 - samples_1d)
+        result = (
             (self._alpha - 1.0) * log_x
             + (self._beta - 1.0) * log_1mx
             - log_beta
         )
+        return self._bkd.reshape(result, (1, -1))
 
-    def _betainc(self, samples: Array) -> Array:
+    def _betainc(self, samples_1d: Array) -> Array:
         """
         Compute regularized incomplete beta function via quadrature.
 
         I_x(a, b) = (1/B(a,b)) * integral_0^x t^{a-1} (1-t)^{b-1} dt
 
         This is autograd-compatible since it uses backend operations only.
+
+        Parameters
+        ----------
+        samples_1d : Array
+            1D array of sample points (already validated and extracted).
         """
         # Transform integral_0^x to integral_0^1 with substitution t = x*u
         # integral_0^x t^{a-1}(1-t)^{b-1} dt = x^a * integral_0^1 u^{a-1}(1-x*u)^{b-1} du
         # Note: simpler is just evaluating the integrand at quadrature points
         # scaled by x
-        quadx = samples[:, None] * self._quadx_01[None, :]
-        quadw = samples[:, None] * self._quadw_01[None, :]
+        quadx = samples_1d[:, None] * self._quadx_01[None, :]
+        quadw = samples_1d[:, None] * self._quadw_01[None, :]
 
         # Integrand: t^{a-1} (1-t)^{b-1}
         integrand_vals = (
@@ -246,14 +283,22 @@ class BetaMarginal(Generic[Array]):
         Parameters
         ----------
         samples : Array
-            Points at which to evaluate the CDF. Must be in [0, 1].
+            Points at which to evaluate the CDF. Shape: (1, nsamples) - must be 2D.
+            Values must be in [0, 1].
 
         Returns
         -------
         Array
-            CDF values in [0, 1].
+            CDF values in [0, 1]. Shape: (1, nsamples)
+
+        Raises
+        ------
+        ValueError
+            If input is not 2D or has wrong first dimension
         """
-        return self._betainc(samples)
+        samples_1d = self._validate_input(samples)
+        result = self._betainc(samples_1d)
+        return self._bkd.reshape(result, (1, -1))
 
     def invcdf(self, probs: Array) -> Array:
         """
@@ -265,14 +310,20 @@ class BetaMarginal(Generic[Array]):
         Parameters
         ----------
         probs : Array
-            Probability values in [0, 1].
+            Probability values in [0, 1]. Shape: (1, nsamples) - must be 2D.
 
         Returns
         -------
         Array
-            Quantile values in [0, 1].
+            Quantile values in [0, 1]. Shape: (1, nsamples)
+
+        Raises
+        ------
+        ValueError
+            If input is not 2D or has wrong first dimension
         """
-        probs_flat = self._bkd.flatten(probs)
+        probs_1d = self._validate_input(probs)
+        probs_flat = self._bkd.flatten(probs_1d)
 
         # Handle boundary cases
         idx0 = self._bkd.where(probs_flat == 0.0)[0]
@@ -288,7 +339,7 @@ class BetaMarginal(Generic[Array]):
             result = self._set_indices(result, idx1, 1.0)
 
         if len(jdx) == 0:
-            return self._bkd.reshape(result, probs.shape)
+            return self._bkd.reshape(result, (1, -1))
 
         # Get scipy initial guess
         probs_np = self._bkd.to_numpy(probs_flat[jdx])
@@ -302,7 +353,7 @@ class BetaMarginal(Generic[Array]):
         for ii, idx in enumerate(self._bkd.to_numpy(jdx)):
             result = self._set_index(result, int(idx), quantiles[ii])
 
-        return self._bkd.reshape(result, probs.shape)
+        return self._bkd.reshape(result, (1, -1))
 
     def _set_indices(self, arr: Array, indices: Array, value: float) -> Array:
         """Set values at indices (helper for modification)."""
@@ -329,13 +380,20 @@ class BetaMarginal(Generic[Array]):
         Parameters
         ----------
         probs : Array
-            Probability values in [0, 1].
+            Probability values in [0, 1]. Shape: (1, nsamples) - must be 2D.
 
         Returns
         -------
         Array
-            Jacobian values.
+            Jacobian values. Shape: (1, nsamples)
+
+        Raises
+        ------
+        ValueError
+            If input is not 2D or has wrong first dimension
         """
+        # Validate input (also done in invcdf and __call__)
+        self._validate_input(probs)
         samples = self.invcdf(probs)
         pdf_vals = self(samples)
         return 1.0 / pdf_vals
@@ -430,9 +488,11 @@ class BetaMarginal(Generic[Array]):
         -------
         Array
             Interval [lower, upper] such that P(lower < X < upper) = alpha.
+            Shape: (1, 2)
         """
         eps = (1.0 - alpha) / 2.0
-        return self.invcdf(self._bkd.asarray([eps, 1.0 - eps]))
+        probs_2d = self._bkd.array([[eps, 1.0 - eps]])  # Shape: (1, 2)
+        return self.invcdf(probs_2d)
 
     def logpdf_jacobian(self, samples: Array) -> Array:
         """
@@ -443,14 +503,20 @@ class BetaMarginal(Generic[Array]):
         Parameters
         ----------
         samples : Array
-            Points at which to compute the Jacobian.
+            Points at which to compute the Jacobian. Shape: (1, nsamples) - must be 2D
 
         Returns
         -------
         Array
             Jacobian values. Shape: (1, nsamples)
+
+        Raises
+        ------
+        ValueError
+            If input is not 2D or has wrong first dimension
         """
-        grad = (self._alpha - 1.0) / samples - (self._beta - 1.0) / (1.0 - samples)
+        samples_1d = self._validate_input(samples)
+        grad = (self._alpha - 1.0) / samples_1d - (self._beta - 1.0) / (1.0 - samples_1d)
         return self._bkd.reshape(grad, (1, -1))
 
     def pdf_jacobian(self, samples: Array) -> Array:
@@ -460,13 +526,19 @@ class BetaMarginal(Generic[Array]):
         Parameters
         ----------
         samples : Array
-            Points at which to compute the Jacobian.
+            Points at which to compute the Jacobian. Shape: (1, nsamples) - must be 2D
 
         Returns
         -------
         Array
             Jacobian values. Shape: (1, nsamples)
+
+        Raises
+        ------
+        ValueError
+            If input is not 2D or has wrong first dimension
         """
+        # Input validation is done by __call__ and logpdf_jacobian
         pdf_vals = self(samples)
         logpdf_jac = self.logpdf_jacobian(samples)
         return pdf_vals * logpdf_jac

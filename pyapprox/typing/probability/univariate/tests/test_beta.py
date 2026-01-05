@@ -61,41 +61,41 @@ class TestBetaMarginal(Generic[Array], unittest.TestCase):
 
     def test_pdf_matches_scipy(self) -> None:
         """Test PDF matches scipy."""
-        samples = self._bkd.asarray([0.1, 0.3, 0.5, 0.7])
+        samples = self._bkd.asarray([[0.1, 0.3, 0.5, 0.7]])
         pdf_vals = self._dist(samples)
-        expected = self._bkd.asarray(self._scipy_dist.pdf([0.1, 0.3, 0.5, 0.7]))
+        expected = self._bkd.asarray([self._scipy_dist.pdf([0.1, 0.3, 0.5, 0.7])])
         self.assertTrue(self._bkd.allclose(pdf_vals, expected, rtol=1e-10))
 
     def test_logpdf_matches_scipy(self) -> None:
         """Test logpdf matches scipy."""
-        samples = self._bkd.asarray([0.1, 0.3, 0.5, 0.7])
+        samples = self._bkd.asarray([[0.1, 0.3, 0.5, 0.7]])
         logpdf_vals = self._dist.logpdf(samples)
-        expected = self._bkd.asarray(self._scipy_dist.logpdf([0.1, 0.3, 0.5, 0.7]))
+        expected = self._bkd.asarray([self._scipy_dist.logpdf([0.1, 0.3, 0.5, 0.7])])
         self.assertTrue(self._bkd.allclose(logpdf_vals, expected, rtol=1e-10))
 
     def test_cdf_matches_scipy(self) -> None:
         """Test CDF matches scipy."""
-        samples = self._bkd.asarray([0.1, 0.3, 0.5, 0.7])
+        samples = self._bkd.asarray([[0.1, 0.3, 0.5, 0.7]])
         cdf_vals = self._dist.cdf(samples)
-        expected = self._bkd.asarray(self._scipy_dist.cdf([0.1, 0.3, 0.5, 0.7]))
+        expected = self._bkd.asarray([self._scipy_dist.cdf([0.1, 0.3, 0.5, 0.7])])
         self.assertTrue(self._bkd.allclose(cdf_vals, expected, rtol=1e-10))
 
     def test_invcdf_matches_scipy(self) -> None:
         """Test invcdf matches scipy ppf."""
-        probs = self._bkd.asarray([0.1, 0.5, 0.9])
+        probs = self._bkd.asarray([[0.1, 0.5, 0.9]])
         invcdf_vals = self._dist.invcdf(probs)
-        expected = self._bkd.asarray(self._scipy_dist.ppf([0.1, 0.5, 0.9]))
+        expected = self._bkd.asarray([self._scipy_dist.ppf([0.1, 0.5, 0.9])])
         self.assertTrue(self._bkd.allclose(invcdf_vals, expected, rtol=1e-10))
 
     def test_cdf_invcdf_inverse(self) -> None:
         """Test cdf(invcdf(p)) = p."""
-        probs = self._bkd.asarray([0.1, 0.5, 0.9])
+        probs = self._bkd.asarray([[0.1, 0.5, 0.9]])
         recovered = self._dist.cdf(self._dist.invcdf(probs))
         self.assertTrue(self._bkd.allclose(recovered, probs, rtol=1e-6))
 
     def test_invcdf_cdf_inverse(self) -> None:
         """Test invcdf(cdf(x)) = x."""
-        samples = self._bkd.asarray([0.2, 0.4, 0.6])
+        samples = self._bkd.asarray([[0.2, 0.4, 0.6]])
         recovered = self._dist.invcdf(self._dist.cdf(samples))
         self.assertTrue(self._bkd.allclose(recovered, samples, rtol=1e-6))
 
@@ -113,7 +113,7 @@ class TestBetaMarginal(Generic[Array], unittest.TestCase):
 
     def test_logpdf_exp_equals_pdf(self) -> None:
         """Test exp(logpdf) = pdf."""
-        samples = self._bkd.asarray([0.2, 0.4, 0.6])
+        samples = self._bkd.asarray([[0.2, 0.4, 0.6]])
         pdf_vals = self._dist(samples)
         logpdf_vals = self._dist.logpdf(samples)
         self.assertTrue(
@@ -170,8 +170,9 @@ class TestBetaMarginal(Generic[Array], unittest.TestCase):
         """Test interval contains correct probability."""
         alpha = 0.95
         interval = self._dist.interval(alpha)
-        self.assertEqual(len(interval), 2)
-        lower, upper = float(interval[0]), float(interval[1])
+        # interval returns shape (1, 2) with [lower, upper] bounds
+        self.assertEqual(interval.shape, (1, 2))
+        lower, upper = float(interval[0, 0]), float(interval[0, 1])
         self.assertLess(lower, 0.5)
         self.assertGreater(upper, 0.5)
         # Check probability content
@@ -186,7 +187,7 @@ class TestBetaMarginal(Generic[Array], unittest.TestCase):
 
     def test_invcdf_jacobian(self) -> None:
         """Test invcdf Jacobian = 1/pdf at quantile."""
-        probs = self._bkd.asarray([0.25, 0.5, 0.75])
+        probs = self._bkd.asarray([[0.25, 0.5, 0.75]])
         jacobian = self._dist.invcdf_jacobian(probs)
         quantiles = self._dist.invcdf(probs)
         pdf_at_quantiles = self._dist(quantiles)
@@ -198,13 +199,13 @@ class TestBetaMarginal(Generic[Array], unittest.TestCase):
         """Test logpdf Jacobian using DerivativeChecker."""
 
         def fun(sample: Array) -> Array:
-            x = self._bkd.flatten(sample)
-            logpdf = self._dist.logpdf(x)
-            return logpdf[:, None]
+            # sample is (1, 1), logpdf returns (1, 1)
+            logpdf = self._dist.logpdf(sample)
+            return logpdf.T  # Return (nsamples, nqoi) = (1, 1)
 
         def jacobian(sample: Array) -> Array:
-            x = self._bkd.flatten(sample)
-            return self._dist.logpdf_jacobian(x)
+            # sample is (1, 1), logpdf_jacobian returns (1, 1)
+            return self._dist.logpdf_jacobian(sample)
 
         function_obj = FunctionWithJacobianFromCallable(
             nqoi=1,

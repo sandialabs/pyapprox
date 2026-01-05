@@ -15,11 +15,13 @@ The `pyapprox.typing` module follows consistent conventions for array shapes to 
 ::: {.callout-important}
 ## Key Principles
 
-- **Samples are columns** for input arrays X
+- **Samples are columns** for both input arrays X and output arrays y
 - **Variables/dimensions are rows** for input arrays X
-- **Samples are rows** for output arrays y (when shape matters)
-- **Outputs/quantities-of-interest are columns** for output arrays y
-- **1D arrays** are used only when the array structure cannot be 2D (e.g., hyperparameters, diagonal elements)
+- **Outputs/quantities-of-interest are rows** for output arrays y
+- **Single sample**: 2D array with shape `(nvars, 1)` - one column
+- **Single output**: 2D array with shape `(nqoi, 1)` - one column
+- **Jacobians/Hessians** are always 2D or 3D, never 1D
+- **Strict validation**: Functions raise `ValueError` if input is 1D when 2D is expected (no automatic reshaping)
 :::
 
 ## Input Arrays (X)
@@ -91,32 +93,32 @@ X = bkd.array([
 
 ### Shape Convention
 
-Output arrays **y** have shape **(nsamples, nqoi)** where:
+Output arrays **y** have shape **(nqoi, nsamples)** where:
 
-- **nsamples**: Number of samples (evaluations, data points)
 - **nqoi**: Number of quantities of interest (output dimensions)
+- **nsamples**: Number of samples (evaluations, data points)
 
-**Each row is one sample's output**, and **each column is one output variable**.
+**Each row is one output variable**, and **each column is one sample's output**.
 
 ### Interpretation
 
 ```
-y = [[y1_sample1, y2_sample1, y3_sample1, ...],
-     [y1_sample2, y2_sample2, y3_sample2, ...],
-     [y1_sample3, y2_sample3, y3_sample3, ...],
+y = [[y1_sample1, y1_sample2, y1_sample3, ...],
+     [y2_sample1, y2_sample2, y2_sample3, ...],
+     [y3_sample1, y3_sample2, y3_sample3, ...],
      ...]
 ```
 
-- **y[i, :]**: The i-th sample's outputs (row vector of length nqoi)
-- **y[:, j]**: The j-th output across all samples (column vector of length nsamples)
+- **y[:, i]**: The i-th sample's outputs (column vector of length nqoi)
+- **y[j, :]**: The j-th output across all samples (row vector of length nsamples)
 
 ### Rationale
 
-This convention differs from the input convention for practical reasons:
+This convention matches the input convention for consistency:
 
-1. **Observation matrix**: y is typically thought of as an observation matrix where each row is an observation
-2. **Regression target**: Matches convention in GP regression and sklearn
-3. **Statistical interpretation**: Each row is a realization, each column is a variable being measured
+1. **Samples are columns**: Both inputs X and outputs y have samples as columns
+2. **Natural broadcasting**: Operations between X and y broadcast naturally
+3. **Consistent indexing**: `X[:, i]` and `y[:, i]` both give the i-th sample
 
 ### Examples
 
@@ -127,7 +129,7 @@ This convention differs from the input convention for practical reasons:
 ```{python}
 #| eval: false
 # Three samples with scalar output
-y = bkd.array([[1.0], [2.0], [3.0]])  # Shape: (3, 1)
+y = bkd.array([[1.0, 2.0, 3.0]])  # Shape: (1, 3)
 ```
 
 #### Multiple Outputs
@@ -136,74 +138,77 @@ y = bkd.array([[1.0], [2.0], [3.0]])  # Shape: (3, 1)
 #| eval: false
 # Two samples with 3 outputs each
 y = bkd.array([
-    [1.0, 2.0, 3.0],  # Sample 1: [y1, y2, y3]
-    [4.0, 5.0, 6.0]   # Sample 2: [y1, y2, y3]
-])  # Shape: (2, 3)
+    [1.0, 4.0],  # y1 values for samples 1 and 2
+    [2.0, 5.0],  # y2 values for samples 1 and 2
+    [3.0, 6.0]   # y3 values for samples 1 and 2
+])  # Shape: (3, 2)
 ```
 
 :::
 
-### Special Case: Function Protocol
+### Special Case: Training Data
 
-::: {.callout-warning}
-## Function Protocol Returns Transposed Format
+::: {.callout-note}
+## Training Data Convention
 
-When implementing `FunctionProtocol`, the `__call__` method returns shape **(nqoi, nsamples)** to match the transpose of the output convention.
-
-**This means**:
-
-- **Training data y**: shape (nsamples, nqoi)
-- **Function evaluation f(X)**: shape (nqoi, nsamples)
-:::
-
-To convert between conventions, use transpose:
+Some external libraries (sklearn, etc.) expect training data in shape **(nsamples, nqoi)** where samples are rows. When interfacing with such libraries, transpose as needed:
 
 ```{python}
 #| eval: false
-# Function evaluation
-f_X = my_function(X)  # Shape: (nqoi, nsamples)
+# PyApprox convention
+y = my_function(X)  # Shape: (nqoi, nsamples)
 
-# Convert to training data format
-y = bkd.transpose(f_X)  # Shape: (nsamples, nqoi)
+# Convert for sklearn
+y_sklearn = bkd.transpose(y)  # Shape: (nsamples, nqoi)
 ```
+:::
 
 ## Jacobian Arrays
 
 ::: {.callout-important}
-## Critical Rule: Always 2D
+## Critical Rule: Never 1D Gradients
 
-**Jacobians are always 2D arrays**, even when nqoi=1 or nvars=1.
+**Jacobians are never 1D gradients.** All derivatives are expressed as Jacobian matrices:
 
-**We never use 1D gradients.** All derivatives are expressed as Jacobian matrices.
+- **Single sample**: Shape `(nqoi, nvars)` - always 2D
+- **Batch**: Shape `(nsamples, nqoi, nvars)` - always 3D
 :::
 
 ### Shape Convention
 
-Jacobian arrays have shape **(nqoi, nvars)** where:
+For a **single sample**, Jacobian arrays have shape **(nqoi, nvars)** where:
 
 - **nqoi**: Number of outputs (quantities of interest)
 - **nvars**: Number of input variables
 
+For **batch evaluation**, Jacobian arrays have shape **(nsamples, nqoi, nvars)** where samples index the first dimension.
+
 ### Function Jacobian: ∂f/∂x
 
-For a function f: R^nvars → R^nqoi, the Jacobian is:
+For a function f: R^nvars → R^nqoi:
 
 ```{python}
 #| eval: false
-jac = function.jacobian(X)  # Shape: (nqoi, nvars, nsamples)
+# Single sample jacobian
+sample = bkd.array([0.5, 0.3, 0.2])  # Shape: (nvars,)
+jac = function.jacobian(sample)       # Shape: (nqoi, nvars)
+
+# Batch jacobian
+samples = bkd.array([[0.5, 0.8], [0.3, 0.6], [0.2, 0.4]])  # Shape: (nvars, nsamples)
+jac = function.jacobian_batch(samples)  # Shape: (nsamples, nqoi, nvars)
 ```
 
-**Per-sample Jacobian**: For a single sample, shape is **(nqoi, nvars)**:
+**Per-sample Jacobian from batch**: Extract with first index:
 
 ```{python}
 #| eval: false
-jac_i = jac[:, :, i]  # Shape: (nqoi, nvars)
+jac_i = jac[i, :, :]  # Shape: (nqoi, nvars)
 ```
 
 **Special Cases**:
 
-- Scalar function (nqoi=1): Shape is **(1, nvars)** NOT (nvars,)
-- Single variable (nvars=1): Shape is **(nqoi, 1)** NOT (nqoi,)
+- Scalar function (nqoi=1): Single sample shape is **(1, nvars)** NOT (nvars,)
+- Single variable (nvars=1): Single sample shape is **(nqoi, 1)** NOT (nqoi,)
 
 ### Kernel Jacobian: ∂K/∂x
 
@@ -299,7 +304,7 @@ H_v = jac.T @ jac @ v  # Works naturally when jac is (1, nparams)
 
 ::: {.panel-tabset}
 
-#### Scalar Function Jacobian
+#### Single Sample Jacobian
 
 ```{python}
 #| eval: false
@@ -311,23 +316,40 @@ class MyScalarFunction(FunctionProtocol[Array]):
     def nqoi(self) -> int:
         return 1
 
-    def jacobian(self, X: Array) -> Array:
+    def jacobian(self, sample: Array) -> Array:
         """
-        Compute Jacobian.
+        Compute Jacobian for a single sample.
 
         Parameters
         ----------
-        X : Array, shape (3, nsamples)
+        sample : Array, shape (3,)
 
         Returns
         -------
-        Array, shape (1, 3, nsamples)  # NOT (3, nsamples)!
+        Array, shape (1, 3)  # NOT (3,)!
         """
-        # Compute gradient
-        grad = compute_gradient(X)  # Shape: (3, nsamples)
+        grad = compute_gradient(sample)  # Shape: (3,)
 
-        # Reshape to (1, 3, nsamples) for Jacobian format
-        return bkd.reshape(grad, (1, 3, X.shape[1]))
+        # Reshape to (1, 3) for Jacobian format
+        return bkd.reshape(grad, (1, 3))
+
+    def jacobian_batch(self, samples: Array) -> Array:
+        """
+        Compute Jacobian for multiple samples.
+
+        Parameters
+        ----------
+        samples : Array, shape (3, nsamples)
+
+        Returns
+        -------
+        Array, shape (nsamples, 1, 3)
+        """
+        nsamples = samples.shape[1]
+        jac = bkd.zeros((nsamples, 1, 3))
+        for i in range(nsamples):
+            jac[i, :, :] = self.jacobian(samples[:, i])
+        return jac
 ```
 
 #### Loss Function Jacobian
@@ -343,7 +365,7 @@ class MyLoss(FunctionWithJacobianProtocol[Array]):
 
     def jacobian(self, params: Array) -> Array:
         """
-        Compute loss gradient w.r.t. parameters.
+        Compute loss gradient w.r.t. parameters (single sample).
 
         Parameters
         ----------
@@ -388,10 +410,22 @@ indices = bkd.array([0, 2, 5])  # Shape: (3,)
 
 ### Always Use 2D Arrays For:
 
-1. **Inputs X**: Always use (nvars, nsamples) even for single sample or single variable
-2. **Outputs y**: Always use (nsamples, nqoi) for training data
-3. **Function evaluations**: Always use (nqoi, nsamples) when implementing FunctionProtocol
-4. **Jacobians**: Shape (nqoi, nvars) - even when nqoi=1 or nvars=1
+1. **Batch inputs X**: Always use (nvars, nsamples) for multiple samples
+2. **Outputs y**: Always use (nqoi, nsamples) for function outputs
+3. **Batch function evaluations**: Always use (nqoi, nsamples) when implementing FunctionProtocol `__call__`
+4. **Single-sample Jacobians**: Shape (nqoi, nvars) - even when nqoi=1 or nvars=1
+
+### Use 1D Arrays Only For:
+
+1. **Hyperparameters**: Shape (nparams,) - a flat list of parameter values
+2. **Diagonal elements**: Shape (n,) - diagonal of a matrix
+3. **Index arrays**: Shape (n,) - indices for selection
+
+::: {.callout-important}
+## Single Samples Are Still 2D
+
+Single samples use shape `(nvars, 1)` not `(nvars,)`. This maintains consistency with batch operations.
+:::
 
 ::: {.callout-warning}
 ## Ambiguity Problem
@@ -547,22 +581,192 @@ X = bkd.array([[1.0, 2.0], [3.0, 4.0]])  # Returns torch.Tensor
 Always use backend methods, never create arrays directly with `np.array()` or `torch.tensor()` in generic code.
 :::
 
+## Single Sample vs Batch Evaluation
+
+The module uses **consistent 2D array shapes** for both single-sample and batch operations. A single sample is simply a batch with `nsamples=1`.
+
+### Function Naming Convention
+
+| Operation | Single Sample | Batch |
+|-----------|---------------|-------|
+| Evaluation | `evaluate(sample)` | `__call__(samples)` |
+| Jacobian | `jacobian(sample)` | `jacobian_batch(samples)` |
+| Hessian | `hessian(sample)` | `hessian_batch(samples)` |
+| HVP | `hvp(sample, vec)` | `hvp_batch(samples, vecs)` |
+| Weighted HVP | `whvp(sample, vec, weights)` | `whvp_batch(samples, vecs, weights)` |
+
+::: {.callout-tip}
+## Naming Rules
+
+- **Single sample methods**: No suffix (e.g., `jacobian`, `hessian`, `hvp`, `whvp`)
+- **Batch methods**: `_batch` suffix (e.g., `jacobian_batch`, `hessian_batch`)
+- **Arguments**: Use singular (`sample`, `vec`) vs plural (`samples`, `vecs`)
+:::
+
+### Evaluation Shape Conventions
+
+#### Single Sample Evaluation
+
+```{python}
+#| eval: false
+# Single sample: 2D input with one column, 2D output with one column
+sample = bkd.array([[0.5], [0.3], [0.2]])  # Shape: (nvars, 1)
+result = function.evaluate(sample)          # Shape: (nqoi, 1)
+```
+
+#### Batch Evaluation
+
+```{python}
+#| eval: false
+# Batch: 2D input, 2D output
+samples = bkd.array([[0.5, 0.8], [0.3, 0.6], [0.2, 0.4]])  # Shape: (nvars, nsamples)
+result = function(samples)  # Shape: (nqoi, nsamples)
+```
+
+### Jacobian Shape Conventions
+
+#### Single Sample Jacobian
+
+```{python}
+#| eval: false
+# Single sample jacobian: 2D input, 2D output
+sample = bkd.array([[0.5], [0.3], [0.2]])  # Shape: (nvars, 1)
+jac = function.jacobian(sample)             # Shape: (nqoi, nvars)
+```
+
+#### Batch Jacobian
+
+```{python}
+#| eval: false
+# Batch jacobian: 3D output with samples in first dimension
+samples = bkd.array([[0.5, 0.8], [0.3, 0.6], [0.2, 0.4]])  # Shape: (nvars, nsamples)
+jac = function.jacobian_batch(samples)  # Shape: (nsamples, nqoi, nvars)
+```
+
+::: {.callout-note}
+## Batch Jacobian Layout
+
+The batch Jacobian has shape `(nsamples, nqoi, nvars)` where:
+
+- First dimension indexes samples
+- `jac[i, :, :]` is the Jacobian for sample i, with shape `(nqoi, nvars)`
+:::
+
+### Hessian Shape Conventions
+
+::: {.callout-warning}
+## Hessian Restriction
+
+`hessian()` and `hessian_batch()` are only valid when `nqoi == 1`.
+For multi-output functions, use `whvp()` with weights instead.
+:::
+
+#### Single Sample Hessian
+
+```{python}
+#| eval: false
+# Single sample hessian (nqoi must be 1)
+sample = bkd.array([[0.5], [0.3], [0.2]])  # Shape: (nvars, 1)
+hess = function.hessian(sample)             # Shape: (nvars, nvars)
+```
+
+#### Batch Hessian
+
+```{python}
+#| eval: false
+# Batch hessian (nqoi must be 1)
+samples = bkd.array([[0.5, 0.8], [0.3, 0.6], [0.2, 0.4]])  # Shape: (nvars, nsamples)
+hess = function.hessian_batch(samples)  # Shape: (nsamples, nvars, nvars)
+```
+
+### HVP and WHVP Shape Conventions
+
+#### Hessian-Vector Product (HVP)
+
+::: {.callout-warning}
+`hvp()` and `hvp_batch()` are only valid when `nqoi == 1`.
+:::
+
+```{python}
+#| eval: false
+# Single sample HVP
+sample = bkd.array([[0.5], [0.3], [0.2]])  # Shape: (nvars, 1)
+vec = bkd.array([[1.0], [0.0], [0.0]])      # Shape: (nvars, 1)
+result = function.hvp(sample, vec)          # Shape: (nvars, 1)
+
+# Batch HVP
+samples = bkd.array([[0.5, 0.8], [0.3, 0.6], [0.2, 0.4]])  # Shape: (nvars, nsamples)
+vecs = bkd.array([[1.0, 0.5], [0.0, 0.5], [0.0, 0.0]])     # Shape: (nvars, nsamples)
+result = function.hvp_batch(samples, vecs)  # Shape: (nsamples, nvars)
+```
+
+#### Weighted Hessian-Vector Product (WHVP)
+
+::: {.callout-tip}
+`whvp()` works for any `nqoi`. It computes the weighted sum of per-output Hessian-vector products.
+:::
+
+```{python}
+#| eval: false
+# Single sample WHVP (works for any nqoi)
+sample = bkd.array([[0.5], [0.3], [0.2]])   # Shape: (nvars, 1)
+vec = bkd.array([[1.0], [0.0], [0.0]])       # Shape: (nvars, 1)
+weights = bkd.array([[0.7], [0.2], [0.1]])   # Shape: (nqoi, 1) - one weight per output
+result = function.whvp(sample, vec, weights)  # Shape: (nvars, 1)
+
+# Batch WHVP
+samples = bkd.array([[0.5, 0.8], [0.3, 0.6], [0.2, 0.4]])  # Shape: (nvars, nsamples)
+vecs = bkd.array([[1.0, 0.5], [0.0, 0.5], [0.0, 0.0]])     # Shape: (nvars, nsamples)
+weights = bkd.array([[0.7], [0.2], [0.1]])   # Shape: (nqoi, 1)
+result = function.whvp_batch(samples, vecs, weights)  # Shape: (nsamples, nvars)
+```
+
+### Shape Summary Table
+
+#### Single Sample Methods
+
+| Method | Input | Output |
+|--------|-------|--------|
+| `evaluate(sample)` | `(nvars, 1)` | `(nqoi, 1)` |
+| `jacobian(sample)` | `(nvars, 1)` | `(nqoi, nvars)` |
+| `hessian(sample)` | `(nvars, 1)` | `(nvars, nvars)` |
+| `hvp(sample, vec)` | `(nvars, 1), (nvars, 1)` | `(nvars, 1)` |
+| `whvp(sample, vec, weights)` | `(nvars, 1), (nvars, 1), (nqoi, 1)` | `(nvars, 1)` |
+
+#### Batch Methods
+
+| Method | Input | Output |
+|--------|-------|--------|
+| `__call__(samples)` | `(nvars, nsamples)` | `(nqoi, nsamples)` |
+| `jacobian_batch(samples)` | `(nvars, nsamples)` | `(nsamples, nqoi, nvars)` |
+| `hessian_batch(samples)` | `(nvars, nsamples)` | `(nsamples, nvars, nvars)` |
+| `hvp_batch(samples, vecs)` | `(nvars, nsamples), (nvars, nsamples)` | `(nsamples, nvars)` |
+| `whvp_batch(samples, vecs, weights)` | `(nvars, nsamples), (nvars, nsamples), (nqoi, 1)` | `(nsamples, nvars)` |
+
 ## Summary
 
-| Array Type | Shape | Samples Are | Variables Are |
-|------------|-------|-------------|---------------|
-| Input X | (nvars, nsamples) | Columns | Rows |
-| Output y (training) | (nsamples, nqoi) | Rows | Columns |
-| Function f(X) | (nqoi, nsamples) | Columns | Rows |
-| Hyperparameters | (nparams,) | N/A (1D) | N/A (1D) |
-| Kernel K(X1, X2) | (nsamples1, nsamples2) | Both dims | N/A |
-| Jacobian ∂f/∂X | (nqoi, nvars, nsamples) | Last dim | Middle dim |
+| Array Type | Shape | Description |
+|------------|-------|-------------|
+| Input X (batch) | (nvars, nsamples) | Samples as columns |
+| Input x (single) | (nvars, 1) | Single sample as one column |
+| Output f(X) (batch) | (nqoi, nsamples) | QoIs as rows, samples as columns |
+| Output f(x) (single) | (nqoi, 1) | Single output as one column |
+| Hyperparameters | (nparams,) | 1D array (exception) |
+| Kernel K(X1, X2) | (nsamples1, nsamples2) | Kernel matrix |
+| Jacobian (single) | (nqoi, nvars) | 2D matrix |
+| Jacobian (batch) | (nsamples, nqoi, nvars) | Per-sample Jacobians |
+| Hessian (single) | (nvars, nvars) | 2D matrix (nqoi=1 only) |
+| Hessian (batch) | (nsamples, nvars, nvars) | Per-sample Hessians |
+| HVP (single) | (nvars, 1) | 2D column vector |
+| HVP (batch) | (nsamples, nvars) | Samples in first dim |
 
 **Key Takeaways**:
 
-1. **X is always (nvars, nsamples)** - samples are columns
-2. **y training data is (nsamples, nqoi)** - samples are rows
-3. **FunctionProtocol returns (nqoi, nsamples)** - transpose of y
-4. **Jacobians are always 2D** (nqoi, nvars), even when nqoi=1 or nvars=1
-5. **Use 2D arrays** unless the data is inherently 1D (hyperparameters, indices)
-6. **Transpose** to convert between training format and function format
+1. **Samples are always columns** - both X and y use `(dims, nsamples)` format
+2. **Single sample is `(nvars, 1)`** not `(nvars,)` - always 2D
+3. **Single output is `(nqoi, 1)`** not `(nqoi,)` - always 2D
+4. **Single-sample methods** have no suffix: `jacobian`, `hessian`, `hvp`, `whvp`
+5. **Batch methods** have `_batch` suffix: `jacobian_batch`, `hessian_batch`, etc.
+6. **Jacobian single sample is 2D** (nqoi, nvars), **batch is 3D** (nsamples, nqoi, nvars)
+7. **hessian/hvp** only for nqoi=1; use **whvp** for multi-output functions
+8. **Only hyperparameters use 1D arrays** - everything else is 2D or 3D

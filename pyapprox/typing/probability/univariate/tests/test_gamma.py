@@ -68,41 +68,41 @@ class TestGammaMarginal(Generic[Array], unittest.TestCase):
 
     def test_pdf_matches_scipy(self) -> None:
         """Test PDF matches scipy."""
-        samples = self._bkd.asarray([0.5, 1.0, 2.0, 3.0])
+        samples = self._bkd.asarray([[0.5, 1.0, 2.0, 3.0]])
         pdf_vals = self._dist(samples)
-        expected = self._bkd.asarray(self._scipy_dist.pdf([0.5, 1.0, 2.0, 3.0]))
+        expected = self._bkd.asarray([self._scipy_dist.pdf([0.5, 1.0, 2.0, 3.0])])
         self.assertTrue(self._bkd.allclose(pdf_vals, expected, rtol=1e-10))
 
     def test_logpdf_matches_scipy(self) -> None:
         """Test logpdf matches scipy."""
-        samples = self._bkd.asarray([0.5, 1.0, 2.0, 3.0])
+        samples = self._bkd.asarray([[0.5, 1.0, 2.0, 3.0]])
         logpdf_vals = self._dist.logpdf(samples)
-        expected = self._bkd.asarray(self._scipy_dist.logpdf([0.5, 1.0, 2.0, 3.0]))
+        expected = self._bkd.asarray([self._scipy_dist.logpdf([0.5, 1.0, 2.0, 3.0])])
         self.assertTrue(self._bkd.allclose(logpdf_vals, expected, rtol=1e-10))
 
     def test_cdf_matches_scipy(self) -> None:
         """Test CDF matches scipy."""
-        samples = self._bkd.asarray([0.5, 1.0, 2.0, 3.0])
+        samples = self._bkd.asarray([[0.5, 1.0, 2.0, 3.0]])
         cdf_vals = self._dist.cdf(samples)
-        expected = self._bkd.asarray(self._scipy_dist.cdf([0.5, 1.0, 2.0, 3.0]))
+        expected = self._bkd.asarray([self._scipy_dist.cdf([0.5, 1.0, 2.0, 3.0])])
         self.assertTrue(self._bkd.allclose(cdf_vals, expected, rtol=1e-10))
 
     def test_invcdf_matches_scipy(self) -> None:
         """Test invcdf matches scipy ppf."""
-        probs = self._bkd.asarray([0.1, 0.5, 0.9])
+        probs = self._bkd.asarray([[0.1, 0.5, 0.9]])
         invcdf_vals = self._dist.invcdf(probs)
-        expected = self._bkd.asarray(self._scipy_dist.ppf([0.1, 0.5, 0.9]))
+        expected = self._bkd.asarray([self._scipy_dist.ppf([0.1, 0.5, 0.9])])
         self.assertTrue(self._bkd.allclose(invcdf_vals, expected, rtol=1e-10))
 
     def test_cdf_invcdf_inverse(self) -> None:
         """Test cdf(invcdf(p)) = p."""
-        probs = self._bkd.asarray([0.1, 0.5, 0.9])
+        probs = self._bkd.asarray([[0.1, 0.5, 0.9]])
         recovered = self._dist.cdf(self._dist.invcdf(probs))
         self.assertTrue(self._bkd.allclose(recovered, probs, rtol=1e-6))
 
     def test_invcdf_cdf_inverse(self) -> None:
         """Test invcdf(cdf(x)) = x."""
-        samples = self._bkd.asarray([0.5, 1.0, 2.0])
+        samples = self._bkd.asarray([[0.5, 1.0, 2.0]])
         recovered = self._dist.invcdf(self._dist.cdf(samples))
         self.assertTrue(self._bkd.allclose(recovered, samples, rtol=1e-6))
 
@@ -119,7 +119,7 @@ class TestGammaMarginal(Generic[Array], unittest.TestCase):
 
     def test_logpdf_exp_equals_pdf(self) -> None:
         """Test exp(logpdf) = pdf."""
-        samples = self._bkd.asarray([0.5, 1.0, 2.0])
+        samples = self._bkd.asarray([[0.5, 1.0, 2.0]])
         pdf_vals = self._dist(samples)
         logpdf_vals = self._dist.logpdf(samples)
         self.assertTrue(
@@ -170,8 +170,9 @@ class TestGammaMarginal(Generic[Array], unittest.TestCase):
         """Test interval contains correct probability."""
         alpha = 0.95
         interval = self._dist.interval(alpha)
-        self.assertEqual(len(interval), 2)
-        lower, upper = float(interval[0]), float(interval[1])
+        # interval returns shape (1, 2) with [lower, upper] bounds
+        self.assertEqual(interval.shape, (1, 2))
+        lower, upper = float(interval[0, 0]), float(interval[0, 1])
         self.assertGreater(lower, 0.0)
         self.assertLess(lower, upper)
         # Check probability content
@@ -186,7 +187,7 @@ class TestGammaMarginal(Generic[Array], unittest.TestCase):
 
     def test_invcdf_jacobian(self) -> None:
         """Test invcdf Jacobian = 1/pdf at quantile."""
-        probs = self._bkd.asarray([0.25, 0.5, 0.75])
+        probs = self._bkd.asarray([[0.25, 0.5, 0.75]])
         jacobian = self._dist.invcdf_jacobian(probs)
         quantiles = self._dist.invcdf(probs)
         pdf_at_quantiles = self._dist(quantiles)
@@ -198,13 +199,13 @@ class TestGammaMarginal(Generic[Array], unittest.TestCase):
         """Test logpdf Jacobian using DerivativeChecker."""
 
         def fun(sample: Array) -> Array:
-            x = self._bkd.flatten(sample)
-            logpdf = self._dist.logpdf(x)
-            return logpdf[:, None]
+            # sample is (1, 1), logpdf returns (1, 1)
+            logpdf = self._dist.logpdf(sample)
+            return logpdf.T  # Return (nsamples, nqoi) = (1, 1)
 
         def jacobian(sample: Array) -> Array:
-            x = self._bkd.flatten(sample)
-            return self._dist.logpdf_jacobian(x)
+            # sample is (1, 1), logpdf_jacobian returns (1, 1)
+            return self._dist.logpdf_jacobian(sample)
 
         function_obj = FunctionWithJacobianFromCallable(
             nqoi=1,
@@ -251,14 +252,14 @@ class TestGammaMarginal(Generic[Array], unittest.TestCase):
         exp_dist = GammaMarginal(shape=1.0, scale=2.0, bkd=self._bkd)
         scipy_exp = stats.expon(scale=2.0)
 
-        samples = self._bkd.asarray([0.5, 1.0, 2.0])
+        samples = self._bkd.asarray([[0.5, 1.0, 2.0]])
         pdf_vals = exp_dist(samples)
-        expected = self._bkd.asarray(scipy_exp.pdf([0.5, 1.0, 2.0]))
+        expected = self._bkd.asarray([scipy_exp.pdf([0.5, 1.0, 2.0])])
         self.assertTrue(self._bkd.allclose(pdf_vals, expected, rtol=1e-10))
 
     def test_ppf_alias(self) -> None:
         """Test ppf is alias for invcdf."""
-        probs = self._bkd.asarray([0.25, 0.5, 0.75])
+        probs = self._bkd.asarray([[0.25, 0.5, 0.75]])
         self.assertTrue(
             self._bkd.allclose(self._dist.ppf(probs), self._dist.invcdf(probs), rtol=1e-10)
         )
@@ -291,7 +292,7 @@ class TestGammaMarginalAutograd(unittest.TestCase):
 
     def test_logpdf_gradient_wrt_samples(self) -> None:
         """Test autograd gradient of logpdf w.r.t. sample values."""
-        samples = torch.tensor([0.5, 1.0, 2.0], requires_grad=True)
+        samples = torch.tensor([[0.5, 1.0, 2.0]], requires_grad=True)
         logpdf = self._dist.logpdf(samples)
 
         # Sum to get scalar for backward
@@ -308,7 +309,7 @@ class TestGammaMarginalAutograd(unittest.TestCase):
 
     def test_pdf_gradient_wrt_samples(self) -> None:
         """Test autograd gradient of pdf w.r.t. sample values."""
-        samples = torch.tensor([0.5, 1.0, 2.0], requires_grad=True)
+        samples = torch.tensor([[0.5, 1.0, 2.0]], requires_grad=True)
         pdf = self._dist(samples)
 
         loss = pdf.sum()

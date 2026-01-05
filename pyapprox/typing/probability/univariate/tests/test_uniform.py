@@ -61,7 +61,7 @@ class TestUniformMarginal(Generic[Array], unittest.TestCase):
 
     def test_pdf_constant(self) -> None:
         """Test PDF is constant within bounds."""
-        samples = self._bkd.asarray([0.0, 0.5, 1.0, 1.5])
+        samples = self._bkd.asarray([[0.0, 0.5, 1.0, 1.5]])
         pdf_vals = self._dist(samples)
         expected_val = 1.0 / (self._upper - self._lower)
         expected = self._bkd.ones_like(samples) * expected_val
@@ -69,41 +69,41 @@ class TestUniformMarginal(Generic[Array], unittest.TestCase):
 
     def test_pdf_matches_scipy(self) -> None:
         """Test PDF matches scipy."""
-        samples = self._bkd.asarray([0.0, 0.5, 1.0])
+        samples = self._bkd.asarray([[0.0, 0.5, 1.0]])
         pdf_vals = self._dist(samples)
-        expected = self._bkd.asarray(self._scipy_dist.pdf([0.0, 0.5, 1.0]))
+        expected = self._bkd.asarray([self._scipy_dist.pdf([0.0, 0.5, 1.0])])
         self.assertTrue(self._bkd.allclose(pdf_vals, expected, rtol=1e-10))
 
     def test_logpdf_matches_scipy(self) -> None:
         """Test logpdf matches scipy."""
-        samples = self._bkd.asarray([0.0, 0.5, 1.0])
+        samples = self._bkd.asarray([[0.0, 0.5, 1.0]])
         logpdf_vals = self._dist.logpdf(samples)
-        expected = self._bkd.asarray(self._scipy_dist.logpdf([0.0, 0.5, 1.0]))
+        expected = self._bkd.asarray([self._scipy_dist.logpdf([0.0, 0.5, 1.0])])
         self.assertTrue(self._bkd.allclose(logpdf_vals, expected, rtol=1e-10))
 
     def test_cdf_matches_scipy(self) -> None:
         """Test CDF matches scipy."""
-        samples = self._bkd.asarray([-0.5, 0.0, 0.5, 1.0, 1.5])
+        samples = self._bkd.asarray([[-0.5, 0.0, 0.5, 1.0, 1.5]])
         cdf_vals = self._dist.cdf(samples)
-        expected = self._bkd.asarray(self._scipy_dist.cdf([-0.5, 0.0, 0.5, 1.0, 1.5]))
+        expected = self._bkd.asarray([self._scipy_dist.cdf([-0.5, 0.0, 0.5, 1.0, 1.5])])
         self.assertTrue(self._bkd.allclose(cdf_vals, expected, rtol=1e-10))
 
     def test_invcdf_matches_scipy(self) -> None:
         """Test invcdf matches scipy ppf."""
-        probs = self._bkd.asarray([0.0, 0.25, 0.5, 0.75, 1.0])
+        probs = self._bkd.asarray([[0.0, 0.25, 0.5, 0.75, 1.0]])
         invcdf_vals = self._dist.invcdf(probs)
-        expected = self._bkd.asarray(self._scipy_dist.ppf([0.0, 0.25, 0.5, 0.75, 1.0]))
+        expected = self._bkd.asarray([self._scipy_dist.ppf([0.0, 0.25, 0.5, 0.75, 1.0])])
         self.assertTrue(self._bkd.allclose(invcdf_vals, expected, rtol=1e-10))
 
     def test_cdf_invcdf_inverse(self) -> None:
         """Test cdf(invcdf(p)) = p."""
-        probs = self._bkd.asarray([0.1, 0.5, 0.9])
+        probs = self._bkd.asarray([[0.1, 0.5, 0.9]])
         recovered = self._dist.cdf(self._dist.invcdf(probs))
         self.assertTrue(self._bkd.allclose(recovered, probs, rtol=1e-10))
 
     def test_invcdf_cdf_inverse(self) -> None:
         """Test invcdf(cdf(x)) = x."""
-        samples = self._bkd.asarray([0.0, 0.5, 1.0])
+        samples = self._bkd.asarray([[0.0, 0.5, 1.0]])
         recovered = self._dist.invcdf(self._dist.cdf(samples))
         self.assertTrue(self._bkd.allclose(recovered, samples, rtol=1e-10))
 
@@ -121,7 +121,7 @@ class TestUniformMarginal(Generic[Array], unittest.TestCase):
 
     def test_logpdf_exp_equals_pdf(self) -> None:
         """Test exp(logpdf) = pdf."""
-        samples = self._bkd.asarray([0.0, 0.5, 1.0])
+        samples = self._bkd.asarray([[0.0, 0.5, 1.0]])
         pdf_vals = self._dist(samples)
         logpdf_vals = self._dist.logpdf(samples)
         self.assertTrue(
@@ -206,8 +206,9 @@ class TestUniformMarginal(Generic[Array], unittest.TestCase):
         """Test interval contains correct probability."""
         alpha = 0.95
         interval = self._dist.interval(alpha)
-        self.assertEqual(len(interval), 2)
-        lower, upper = float(interval[0]), float(interval[1])
+        # interval returns shape (1, 2) with [lower, upper] bounds
+        self.assertEqual(interval.shape, (1, 2))
+        lower, upper = float(interval[0, 0]), float(interval[0, 1])
         self.assertGreater(lower, self._lower)
         self.assertLess(upper, self._upper)
         # Check probability content
@@ -222,7 +223,7 @@ class TestUniformMarginal(Generic[Array], unittest.TestCase):
 
     def test_invcdf_jacobian(self) -> None:
         """Test invcdf Jacobian = width (constant for uniform)."""
-        probs = self._bkd.asarray([0.25, 0.5, 0.75])
+        probs = self._bkd.asarray([[0.25, 0.5, 0.75]])
         jacobian = self._dist.invcdf_jacobian(probs)
         expected_width = self._upper - self._lower
         expected = self._bkd.ones_like(probs) * expected_width
@@ -230,14 +231,14 @@ class TestUniformMarginal(Generic[Array], unittest.TestCase):
 
     def test_logpdf_jacobian_zero(self) -> None:
         """Test logpdf Jacobian is zero (constant PDF)."""
-        samples = self._bkd.asarray([0.0, 0.5, 1.0])
+        samples = self._bkd.asarray([[0.0, 0.5, 1.0]])
         jacobian = self._dist.logpdf_jacobian(samples)
         expected = self._bkd.zeros((1, 3))
         self.assertTrue(self._bkd.allclose(jacobian, expected, atol=1e-10))
 
     def test_pdf_jacobian_zero(self) -> None:
         """Test pdf Jacobian is zero (constant PDF)."""
-        samples = self._bkd.asarray([0.0, 0.5, 1.0])
+        samples = self._bkd.asarray([[0.0, 0.5, 1.0]])
         jacobian = self._dist.pdf_jacobian(samples)
         expected = self._bkd.zeros((1, 3))
         self.assertTrue(self._bkd.allclose(jacobian, expected, atol=1e-10))
@@ -266,7 +267,7 @@ class TestUniformMarginal(Generic[Array], unittest.TestCase):
     def test_standard_uniform(self) -> None:
         """Test standard uniform [0, 1]."""
         dist = UniformMarginal(0.0, 1.0, self._bkd)
-        samples = self._bkd.asarray([0.0, 0.25, 0.5, 0.75, 1.0])
+        samples = self._bkd.asarray([[0.0, 0.25, 0.5, 0.75, 1.0]])
 
         # PDF should be 1.0 everywhere
         pdf_vals = dist(samples)
@@ -284,7 +285,7 @@ class TestUniformMarginal(Generic[Array], unittest.TestCase):
 
     def test_ppf_alias(self) -> None:
         """Test ppf is alias for invcdf."""
-        probs = self._bkd.asarray([0.25, 0.5, 0.75])
+        probs = self._bkd.asarray([[0.25, 0.5, 0.75]])
         self.assertTrue(
             self._bkd.allclose(self._dist.ppf(probs), self._dist.invcdf(probs), rtol=1e-10)
         )

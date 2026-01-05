@@ -39,12 +39,17 @@ class _GammaCDFNewtonResidual(Generic[Array]):
 
     def __call__(self, iterate: Array) -> Array:
         """Compute residual: CDF(x) - p."""
-        return self._marginal.cdf(iterate) - self._usamples
+        # Convert 1D iterate to 2D for marginal.cdf
+        iterate_2d = self._bkd.reshape(iterate, (1, -1))
+        cdf_vals = self._marginal.cdf(iterate_2d)
+        return cdf_vals[0] - self._usamples
 
     def linsolve(self, iterate: Array, res: Array) -> Array:
         """Solve J * delta = res where J = diag(pdf(x))."""
         # CDF jacobian is pdf, so linsolve is res / pdf
-        return res / self._marginal(iterate)
+        iterate_2d = self._bkd.reshape(iterate, (1, -1))
+        pdf_vals = self._marginal(iterate_2d)
+        return res / pdf_vals[0]
 
 
 class GammaMarginal(Generic[Array]):
@@ -76,9 +81,9 @@ class GammaMarginal(Generic[Array]):
     >>> from pyapprox.typing.util.backends.numpy import NumpyBkd
     >>> bkd = NumpyBkd()
     >>> dist = GammaMarginal(shape=2.0, scale=1.0, bkd=bkd)
-    >>> samples = np.array([0.5, 1.0, 2.0])
-    >>> pdf_vals = dist(samples)  # PDF values
-    >>> cdf_vals = dist.cdf(samples)  # CDF values (autograd-compatible)
+    >>> samples = np.array([[0.5, 1.0, 2.0]])  # Shape: (1, 3)
+    >>> pdf_vals = dist(samples)  # PDF values, shape: (1, 3)
+    >>> cdf_vals = dist.cdf(samples)  # CDF values, shape: (1, 3)
     """
 
     def __init__(
@@ -149,6 +154,19 @@ class GammaMarginal(Generic[Array]):
         """Get the backend used for computations."""
         return self._bkd
 
+    def _validate_input(self, samples: Array) -> Array:
+        """Validate that input is 2D with shape (1, nsamples)."""
+        if samples.ndim != 2:
+            raise ValueError(
+                f"Expected 2D array with shape (1, nsamples), got {samples.ndim}D"
+            )
+        if samples.shape[0] != 1:
+            raise ValueError(
+                f"Univariate distribution expects shape (1, nsamples), "
+                f"got {samples.shape}"
+            )
+        return samples[0]  # Return 1D for internal computation
+
     def nvars(self) -> int:
         """Return the number of variables (always 1 for univariate)."""
         return 1
@@ -175,12 +193,17 @@ class GammaMarginal(Generic[Array]):
         Parameters
         ----------
         samples : Array
-            Points at which to evaluate the PDF. Must be >= 0.
+            Points at which to evaluate the PDF. Shape: (1, nsamples) - must be 2D
 
         Returns
         -------
         Array
-            The evaluated PDF values.
+            The evaluated PDF values. Shape: (1, nsamples)
+
+        Raises
+        ------
+        ValueError
+            If input is not 2D or has wrong first dimension
         """
         return self._bkd.exp(self.logpdf(samples))
 
@@ -191,20 +214,27 @@ class GammaMarginal(Generic[Array]):
         Parameters
         ----------
         samples : Array
-            Points at which to evaluate the log PDF. Must be >= 0.
+            Points at which to evaluate the log PDF. Shape: (1, nsamples) - must be 2D
 
         Returns
         -------
         Array
-            The evaluated log PDF values.
+            The evaluated log PDF values. Shape: (1, nsamples)
+
+        Raises
+        ------
+        ValueError
+            If input is not 2D or has wrong first dimension
         """
+        samples_1d = self._validate_input(samples)
         # log f(x) = k*log(rate) - gammaln(k) + (k-1)*log(x) - rate*x
         log_const = (
             self._shape * self._bkd.log(self._rate)
             - self._bkd.gammaln(self._shape)
         )
-        log_x = self._bkd.log(samples)
-        return log_const + (self._shape - 1.0) * log_x - self._rate * samples
+        log_x = self._bkd.log(samples_1d)
+        result = log_const + (self._shape - 1.0) * log_x - self._rate * samples_1d
+        return self._bkd.reshape(result, (1, -1))
 
     def _gammainc(self, samples: Array) -> Array:
         """
@@ -233,14 +263,21 @@ class GammaMarginal(Generic[Array]):
         Parameters
         ----------
         samples : Array
-            Points at which to evaluate the CDF. Must be >= 0.
+            Points at which to evaluate the CDF. Shape: (1, nsamples) - must be 2D
 
         Returns
         -------
         Array
-            CDF values in [0, 1].
+            CDF values in [0, 1]. Shape: (1, nsamples)
+
+        Raises
+        ------
+        ValueError
+            If input is not 2D or has wrong first dimension
         """
-        return self._gammainc(samples)
+        samples_1d = self._validate_input(samples)
+        result = self._gammainc(samples_1d)
+        return self._bkd.reshape(result, (1, -1))
 
     def invcdf(self, probs: Array) -> Array:
         """
@@ -252,22 +289,27 @@ class GammaMarginal(Generic[Array]):
         Parameters
         ----------
         probs : Array
-            Probability values in [0, 1].
+            Probability values in [0, 1]. Shape: (1, nsamples) - must be 2D
 
         Returns
         -------
         Array
-            Quantile values in [0, infinity).
+            Quantile values in [0, infinity). Shape: (1, nsamples)
+
+        Raises
+        ------
+        ValueError
+            If input is not 2D or has wrong first dimension
         """
-        probs_flat = self._bkd.flatten(probs)
+        probs_1d = self._validate_input(probs)
 
         # Handle boundary cases
-        idx0 = self._bkd.where(probs_flat == 0.0)[0]
-        idx1 = self._bkd.where(probs_flat == 1.0)[0]
-        jdx = self._bkd.where((probs_flat != 0.0) & (probs_flat != 1.0))[0]
+        idx0 = self._bkd.where(probs_1d == 0.0)[0]
+        idx1 = self._bkd.where(probs_1d == 1.0)[0]
+        jdx = self._bkd.where((probs_1d != 0.0) & (probs_1d != 1.0))[0]
 
         # Initialize result
-        result = self._bkd.zeros_like(probs_flat)
+        result = self._bkd.zeros_like(probs_1d)
 
         if len(idx0) > 0:
             result = self._set_indices(result, idx0, 0.0)
@@ -275,23 +317,23 @@ class GammaMarginal(Generic[Array]):
             result = self._set_indices(result, idx1, float("inf"))
 
         if len(jdx) == 0:
-            return self._bkd.reshape(result, probs.shape)
+            return self._bkd.reshape(result, (1, -1))
 
         # Get scipy initial guess
-        probs_np = self._bkd.to_numpy(probs_flat[jdx])
+        probs_np = self._bkd.to_numpy(probs_1d[jdx])
         from scipy import stats
         scipy_rv = stats.gamma(self.shape, scale=self.scale)
         init_guess = self._bkd.asarray(scipy_rv.ppf(probs_np))
 
         # Newton iteration (1 step for autograd)
-        self._newton_residual.set_usamples(probs_flat[jdx])
+        self._newton_residual.set_usamples(probs_1d[jdx])
         quantiles = self._newton_solver.solve(init_guess)
 
         # Update result at interior indices
         for ii, idx in enumerate(self._bkd.to_numpy(jdx)):
             result = self._set_index(result, int(idx), quantiles[ii])
 
-        return self._bkd.reshape(result, probs.shape)
+        return self._bkd.reshape(result, (1, -1))
 
     def _set_indices(self, arr: Array, indices: Array, value: float) -> Array:
         """Set values at indices (helper for in-place modification)."""
@@ -318,13 +360,20 @@ class GammaMarginal(Generic[Array]):
         Parameters
         ----------
         probs : Array
-            Probability values in [0, 1].
+            Probability values in [0, 1]. Shape: (1, nsamples) - must be 2D
 
         Returns
         -------
         Array
-            Jacobian values.
+            Jacobian values. Shape: (1, nsamples)
+
+        Raises
+        ------
+        ValueError
+            If input is not 2D or has wrong first dimension
         """
+        # Validation done by invcdf and __call__
+        self._validate_input(probs)
         samples = self.invcdf(probs)
         pdf_vals = self(samples)
         return 1.0 / pdf_vals
@@ -418,9 +467,11 @@ class GammaMarginal(Generic[Array]):
         -------
         Array
             Interval [lower, upper] such that P(lower < X < upper) = alpha.
+            Shape: (1, 2)
         """
         eps = (1.0 - alpha) / 2.0
-        return self.invcdf(self._bkd.asarray([eps, 1.0 - eps]))
+        probs_2d = self._bkd.array([[eps, 1.0 - eps]])  # Shape: (1, 2)
+        return self.invcdf(probs_2d)
 
     def logpdf_jacobian(self, samples: Array) -> Array:
         """
@@ -431,14 +482,20 @@ class GammaMarginal(Generic[Array]):
         Parameters
         ----------
         samples : Array
-            Points at which to compute the Jacobian.
+            Points at which to compute the Jacobian. Shape: (1, nsamples) - must be 2D
 
         Returns
         -------
         Array
             Jacobian values. Shape: (1, nsamples)
+
+        Raises
+        ------
+        ValueError
+            If input is not 2D or has wrong first dimension
         """
-        grad = (self._shape - 1.0) / samples - self._rate
+        samples_1d = self._validate_input(samples)
+        grad = (self._shape - 1.0) / samples_1d - self._rate
         return self._bkd.reshape(grad, (1, -1))
 
     def pdf_jacobian(self, samples: Array) -> Array:
@@ -448,13 +505,19 @@ class GammaMarginal(Generic[Array]):
         Parameters
         ----------
         samples : Array
-            Points at which to compute the Jacobian.
+            Points at which to compute the Jacobian. Shape: (1, nsamples) - must be 2D
 
         Returns
         -------
         Array
             Jacobian values. Shape: (1, nsamples)
+
+        Raises
+        ------
+        ValueError
+            If input is not 2D or has wrong first dimension
         """
+        # Validation done by __call__ and logpdf_jacobian
         pdf_vals = self(samples)
         logpdf_jac = self.logpdf_jacobian(samples)
         return pdf_vals * logpdf_jac

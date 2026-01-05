@@ -78,12 +78,17 @@ class DistributionProtocol(Protocol, Generic[Array]):
         Parameters
         ----------
         samples : Array
-            Sample points. Shape: (nvars, nsamples)
+            Sample points. Shape: (nvars, nsamples) - must be 2D
 
         Returns
         -------
         Array
-            Log PDF values. Shape: (nsamples,)
+            Log PDF values. Shape: (1, nsamples)
+
+        Raises
+        ------
+        ValueError
+            If input is not 2D or has wrong first dimension
         """
         ...
 
@@ -123,12 +128,17 @@ class MarginalProtocol(Protocol, Generic[Array]):
         Parameters
         ----------
         samples : Array
-            Sample points. Shape: (1, nsamples) or (nsamples,)
+            Sample points. Shape: (1, nsamples) - must be 2D
 
         Returns
         -------
         Array
-            CDF values in [0, 1]. Shape: (nsamples,)
+            CDF values in [0, 1]. Shape: (1, nsamples)
+
+        Raises
+        ------
+        ValueError
+            If input is not 2D or has wrong first dimension
         """
         ...
 
@@ -139,12 +149,17 @@ class MarginalProtocol(Protocol, Generic[Array]):
         Parameters
         ----------
         probs : Array
-            Probability values in [0, 1]. Shape: (nsamples,)
+            Probability values in [0, 1]. Shape: (1, nsamples) - must be 2D
 
         Returns
         -------
         Array
-            Quantile values. Shape: (nsamples,)
+            Quantile values. Shape: (1, nsamples)
+
+        Raises
+        ------
+        ValueError
+            If input is not 2D or has wrong first dimension
         """
         ...
 
@@ -190,12 +205,17 @@ class MarginalWithJacobianProtocol(Protocol, Generic[Array]):
         Parameters
         ----------
         probs : Array
-            Probability values in [0, 1]. Shape: (nsamples,)
+            Probability values in [0, 1]. Shape: (1, nsamples) - must be 2D
 
         Returns
         -------
         Array
-            Jacobian values. Shape: (nsamples,)
+            Jacobian values. Shape: (1, nsamples)
+
+        Raises
+        ------
+        ValueError
+            If input is not 2D or has wrong first dimension
         """
         ...
 

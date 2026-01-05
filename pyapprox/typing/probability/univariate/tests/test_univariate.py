@@ -41,15 +41,15 @@ class TestGaussianMarginal(Generic[Array], unittest.TestCase):
 
     def test_pdf_at_mean(self) -> None:
         """Test PDF is maximized at mean."""
-        samples = self._bkd.asarray([self.mean - 1, self.mean, self.mean + 1])
+        samples = self._bkd.asarray([[self.mean - 1, self.mean, self.mean + 1]])
         pdf_vals = self.dist(samples)
         # PDF at mean should be greater than at other points
-        self.assertTrue(float(pdf_vals[1]) > float(pdf_vals[0]))
-        self.assertTrue(float(pdf_vals[1]) > float(pdf_vals[2]))
+        self.assertTrue(float(pdf_vals[0, 1]) > float(pdf_vals[0, 0]))
+        self.assertTrue(float(pdf_vals[0, 1]) > float(pdf_vals[0, 2]))
 
     def test_cdf_at_mean(self) -> None:
         """Test CDF at mean is 0.5."""
-        cdf_val = self.dist.cdf(self._bkd.asarray([self.mean]))[0]
+        cdf_val = self.dist.cdf(self._bkd.asarray([[self.mean]]))[0, 0]
         self.assertTrue(
             self._bkd.allclose(
                 self._bkd.asarray([float(cdf_val)]),
@@ -60,20 +60,20 @@ class TestGaussianMarginal(Generic[Array], unittest.TestCase):
 
     def test_cdf_monotonic(self) -> None:
         """Test CDF is monotonically increasing."""
-        samples = self._bkd.asarray([0.0, 1.0, 2.0, 3.0, 4.0])
+        samples = self._bkd.asarray([[0.0, 1.0, 2.0, 3.0, 4.0]])
         cdf_vals = self.dist.cdf(samples)
-        diffs = cdf_vals[1:] - cdf_vals[:-1]
+        diffs = cdf_vals[0, 1:] - cdf_vals[0, :-1]
         self.assertTrue(self._bkd.all_bool(diffs >= 0))
 
     def test_invcdf_cdf_inverse(self) -> None:
         """Test invcdf(cdf(x)) = x."""
-        samples = self._bkd.asarray([1.0, 2.0, 3.0])
+        samples = self._bkd.asarray([[1.0, 2.0, 3.0]])
         recovered = self.dist.invcdf(self.dist.cdf(samples))
         self.assertTrue(self._bkd.allclose(recovered, samples, rtol=1e-6))
 
     def test_cdf_invcdf_inverse(self) -> None:
         """Test cdf(invcdf(p)) = p."""
-        probs = self._bkd.asarray([0.1, 0.5, 0.9])
+        probs = self._bkd.asarray([[0.1, 0.5, 0.9]])
         recovered = self.dist.cdf(self.dist.invcdf(probs))
         self.assertTrue(self._bkd.allclose(recovered, probs, rtol=1e-6))
 
@@ -84,7 +84,7 @@ class TestGaussianMarginal(Generic[Array], unittest.TestCase):
 
     def test_logpdf_exp_equals_pdf(self) -> None:
         """Test exp(logpdf) = pdf."""
-        samples = self._bkd.asarray([1.0, 2.0, 3.0])
+        samples = self._bkd.asarray([[1.0, 2.0, 3.0]])
         pdf_vals = self.dist(samples)
         logpdf_vals = self.dist.logpdf(samples)
         self.assertTrue(
@@ -123,13 +123,14 @@ class TestGaussianMarginal(Generic[Array], unittest.TestCase):
         """Test interval contains correct probability."""
         alpha = 0.95
         interval = self.dist.interval(alpha)
-        self.assertEqual(len(interval), 2)
-        self.assertLess(interval[0], self.mean)
-        self.assertGreater(interval[1], self.mean)
+        # interval returns shape (1, 2) with [lower, upper] bounds
+        self.assertEqual(interval.shape, (1, 2))
+        self.assertLess(float(interval[0, 0]), self.mean)
+        self.assertGreater(float(interval[0, 1]), self.mean)
 
     def test_invcdf_jacobian(self) -> None:
         """Test invcdf Jacobian = 1/pdf at quantile."""
-        probs = self._bkd.asarray([0.25, 0.5, 0.75])
+        probs = self._bkd.asarray([[0.25, 0.5, 0.75]])
         jacobian = self.dist.invcdf_jacobian(probs)
         quantiles = self.dist.invcdf(probs)
         pdf_at_quantiles = self.dist(quantiles)
@@ -180,23 +181,23 @@ class TestScipyContinuousMarginal(Generic[Array], unittest.TestCase):
 
     def test_pdf(self) -> None:
         """Test PDF matches scipy."""
-        samples = self._bkd.asarray([0.1, 0.3, 0.5, 0.7])
+        samples = self._bkd.asarray([[0.1, 0.3, 0.5, 0.7]])
         pdf_vals = self.dist(samples)
-        expected = self._bkd.asarray(self.scipy_rv.pdf([0.1, 0.3, 0.5, 0.7]))
+        expected = self._bkd.asarray([self.scipy_rv.pdf([0.1, 0.3, 0.5, 0.7])])
         self.assertTrue(self._bkd.allclose(pdf_vals, expected, rtol=1e-6))
 
     def test_cdf(self) -> None:
         """Test CDF matches scipy."""
-        samples = self._bkd.asarray([0.1, 0.3, 0.5, 0.7])
+        samples = self._bkd.asarray([[0.1, 0.3, 0.5, 0.7]])
         cdf_vals = self.dist.cdf(samples)
-        expected = self._bkd.asarray(self.scipy_rv.cdf([0.1, 0.3, 0.5, 0.7]))
+        expected = self._bkd.asarray([self.scipy_rv.cdf([0.1, 0.3, 0.5, 0.7])])
         self.assertTrue(self._bkd.allclose(cdf_vals, expected, rtol=1e-6))
 
     def test_invcdf(self) -> None:
         """Test invcdf matches scipy ppf."""
-        probs = self._bkd.asarray([0.1, 0.5, 0.9])
+        probs = self._bkd.asarray([[0.1, 0.5, 0.9]])
         invcdf_vals = self.dist.invcdf(probs)
-        expected = self._bkd.asarray(self.scipy_rv.ppf([0.1, 0.5, 0.9]))
+        expected = self._bkd.asarray([self.scipy_rv.ppf([0.1, 0.5, 0.9])])
         self.assertTrue(self._bkd.allclose(invcdf_vals, expected, rtol=1e-6))
 
     def test_rvs_shape(self) -> None:
@@ -262,23 +263,23 @@ class TestScipyDiscreteMarginal(Generic[Array], unittest.TestCase):
 
     def test_pmf(self) -> None:
         """Test PMF matches scipy."""
-        samples = self._bkd.asarray([0.0, 3.0, 5.0, 10.0])
+        samples = self._bkd.asarray([[0.0, 3.0, 5.0, 10.0]])
         pmf_vals = self.dist(samples)
-        expected = self._bkd.asarray(self.scipy_rv.pmf([0, 3, 5, 10]))
+        expected = self._bkd.asarray([self.scipy_rv.pmf([0, 3, 5, 10])])
         self.assertTrue(self._bkd.allclose(pmf_vals, expected, rtol=1e-6))
 
     def test_cdf(self) -> None:
         """Test CDF matches scipy."""
-        samples = self._bkd.asarray([0.0, 3.0, 5.0, 10.0])
+        samples = self._bkd.asarray([[0.0, 3.0, 5.0, 10.0]])
         cdf_vals = self.dist.cdf(samples)
-        expected = self._bkd.asarray(self.scipy_rv.cdf([0, 3, 5, 10]))
+        expected = self._bkd.asarray([self.scipy_rv.cdf([0, 3, 5, 10])])
         self.assertTrue(self._bkd.allclose(cdf_vals, expected, rtol=1e-6))
 
     def test_invcdf(self) -> None:
         """Test invcdf matches scipy ppf."""
-        probs = self._bkd.asarray([0.1, 0.5, 0.9])
+        probs = self._bkd.asarray([[0.1, 0.5, 0.9]])
         invcdf_vals = self.dist.invcdf(probs)
-        expected = self._bkd.asarray(self.scipy_rv.ppf([0.1, 0.5, 0.9]))
+        expected = self._bkd.asarray([self.scipy_rv.ppf([0.1, 0.5, 0.9])])
         self.assertTrue(self._bkd.allclose(invcdf_vals, expected, rtol=1e-6))
 
     def test_rvs_shape(self) -> None:

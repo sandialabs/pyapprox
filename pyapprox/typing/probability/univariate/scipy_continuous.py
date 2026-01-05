@@ -35,8 +35,8 @@ class ScipyContinuousMarginal(Generic[Array]):
     >>> bkd = NumpyBkd()
     >>> scipy_rv = beta(a=2, b=5)
     >>> dist = ScipyContinuousMarginal(scipy_rv, bkd)
-    >>> samples = np.array([0.1, 0.5, 0.9])
-    >>> pdf_vals = dist(samples)
+    >>> samples = np.array([[0.1, 0.5, 0.9]])  # Shape: (1, 3)
+    >>> pdf_vals = dist(samples)  # Shape: (1, 3)
     """
 
     def __init__(self, scipy_rv: Any, bkd: Backend[Array]):
@@ -58,6 +58,19 @@ class ScipyContinuousMarginal(Generic[Array]):
         """Return the number of variables (always 1 for univariate)."""
         return 1
 
+    def _validate_input(self, samples: Array) -> Array:
+        """Validate that input is 2D with shape (1, nsamples)."""
+        if samples.ndim != 2:
+            raise ValueError(
+                f"Expected 2D array with shape (1, nsamples), got {samples.ndim}D"
+            )
+        if samples.shape[0] != 1:
+            raise ValueError(
+                f"Univariate distribution expects shape (1, nsamples), "
+                f"got {samples.shape}"
+            )
+        return samples[0]  # Return 1D for internal computation
+
     def __call__(self, samples: Array) -> Array:
         """
         Evaluate the probability density function.
@@ -65,16 +78,23 @@ class ScipyContinuousMarginal(Generic[Array]):
         Parameters
         ----------
         samples : Array
-            Points at which to evaluate the PDF.
+            Points at which to evaluate the PDF. Shape: (1, nsamples) - must be 2D
 
         Returns
         -------
         Array
-            PDF values.
+            PDF values. Shape: (1, nsamples)
+
+        Raises
+        ------
+        ValueError
+            If input is not 2D or has wrong first dimension
         """
-        return self._bkd.asarray(
-            self._scipy_rv.pdf(self._bkd.to_numpy(samples))
+        samples_1d = self._validate_input(samples)
+        result = self._bkd.asarray(
+            self._scipy_rv.pdf(self._bkd.to_numpy(samples_1d))
         )
+        return self._bkd.reshape(result, (1, -1))
 
     def logpdf(self, samples: Array) -> Array:
         """
@@ -83,16 +103,23 @@ class ScipyContinuousMarginal(Generic[Array]):
         Parameters
         ----------
         samples : Array
-            Points at which to evaluate the log PDF.
+            Points at which to evaluate the log PDF. Shape: (1, nsamples) - must be 2D
 
         Returns
         -------
         Array
-            Log PDF values.
+            Log PDF values. Shape: (1, nsamples)
+
+        Raises
+        ------
+        ValueError
+            If input is not 2D or has wrong first dimension
         """
-        return self._bkd.asarray(
-            self._scipy_rv.logpdf(self._bkd.to_numpy(samples))
+        samples_1d = self._validate_input(samples)
+        result = self._bkd.asarray(
+            self._scipy_rv.logpdf(self._bkd.to_numpy(samples_1d))
         )
+        return self._bkd.reshape(result, (1, -1))
 
     def cdf(self, samples: Array) -> Array:
         """
@@ -101,16 +128,23 @@ class ScipyContinuousMarginal(Generic[Array]):
         Parameters
         ----------
         samples : Array
-            Points at which to evaluate the CDF.
+            Points at which to evaluate the CDF. Shape: (1, nsamples) - must be 2D
 
         Returns
         -------
         Array
-            CDF values in [0, 1].
+            CDF values in [0, 1]. Shape: (1, nsamples)
+
+        Raises
+        ------
+        ValueError
+            If input is not 2D or has wrong first dimension
         """
-        return self._bkd.asarray(
-            self._scipy_rv.cdf(self._bkd.to_numpy(samples))
+        samples_1d = self._validate_input(samples)
+        result = self._bkd.asarray(
+            self._scipy_rv.cdf(self._bkd.to_numpy(samples_1d))
         )
+        return self._bkd.reshape(result, (1, -1))
 
     def invcdf(self, probs: Array) -> Array:
         """
@@ -119,14 +153,21 @@ class ScipyContinuousMarginal(Generic[Array]):
         Parameters
         ----------
         probs : Array
-            Probability values in [0, 1].
+            Probability values in [0, 1]. Shape: (1, nsamples) - must be 2D
 
         Returns
         -------
         Array
-            Quantile values.
+            Quantile values. Shape: (1, nsamples)
+
+        Raises
+        ------
+        ValueError
+            If input is not 2D or has wrong first dimension
         """
-        return self._bkd.asarray(self._scipy_rv.ppf(self._bkd.to_numpy(probs)))
+        probs_1d = self._validate_input(probs)
+        result = self._bkd.asarray(self._scipy_rv.ppf(self._bkd.to_numpy(probs_1d)))
+        return self._bkd.reshape(result, (1, -1))
 
     # Alias for compatibility
     ppf = invcdf
@@ -188,9 +229,10 @@ class ScipyContinuousMarginal(Generic[Array]):
         Returns
         -------
         Array
-            Interval [lower, upper].
+            Interval [lower, upper]. Shape: (1, 2)
         """
-        return self._bkd.asarray(self._scipy_rv.interval(alpha))
+        result = self._bkd.asarray(self._scipy_rv.interval(alpha))
+        return self._bkd.reshape(result, (1, -1))
 
     def _get_distribution_info(
         self,

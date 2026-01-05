@@ -70,23 +70,23 @@ class TestGaussianLogLikelihood(Generic[Array], unittest.TestCase):
 
     def test_logpdf_vs_scipy(self) -> None:
         """Test logpdf matches scipy multivariate normal."""
-        obs = self._bkd.asarray([1.0, 2.0, 3.0])
+        obs = self._bkd.asarray([[1.0], [2.0], [3.0]])  # Shape: (nobs, 1)
         self.likelihood.set_observations(obs)
 
-        model = self._bkd.asarray([1.01, 1.99, 3.02])
+        model = self._bkd.asarray([[1.01], [1.99], [3.02]])  # Shape: (nobs, 1)
 
         # Our likelihood
         logpdf_ours = self.likelihood.logpdf(model)
 
         # Scipy (note: scipy uses obs as the random variable, model as mean)
-        model_np = self._bkd.to_numpy(model)
+        model_np = self._bkd.to_numpy(model).flatten()
         scipy_dist = stats.multivariate_normal(model_np, self.noise_cov)
-        obs_np = self._bkd.to_numpy(obs)
+        obs_np = self._bkd.to_numpy(obs).flatten()
         logpdf_scipy = scipy_dist.logpdf(obs_np)
 
         self.assertTrue(
             self._bkd.allclose(
-                logpdf_ours,
+                self._bkd.flatten(logpdf_ours),
                 self._bkd.asarray([logpdf_scipy]),
                 rtol=1e-12,
             )
@@ -101,8 +101,8 @@ class TestGaussianLogLikelihood(Generic[Array], unittest.TestCase):
             [[1.0, 1.1, 0.9], [2.0, 2.1, 1.9], [3.0, 3.1, 2.9]]
         )
         logpdf = self.likelihood.logpdf(model)
-
-        self.assertEqual(logpdf.shape, (3,))
+        # logpdf returns (1, nsamples)
+        self.assertEqual(logpdf.shape, (1, 3))
 
     def test_rvs_shape(self) -> None:
         """Test rvs returns correct shape."""
@@ -180,21 +180,21 @@ class TestGaussianLogLikelihoodCorrelated(Generic[Array], unittest.TestCase):
 
     def test_logpdf_vs_scipy(self) -> None:
         """Test logpdf matches scipy for correlated noise."""
-        obs = self._bkd.asarray([1.0, 2.0])
+        obs = self._bkd.asarray([[1.0], [2.0]])  # Shape: (nobs, 1)
         self.likelihood.set_observations(obs)
 
-        model = self._bkd.asarray([1.1, 1.9])
+        model = self._bkd.asarray([[1.1], [1.9]])  # Shape: (nobs, 1)
 
         logpdf_ours = self.likelihood.logpdf(model)
 
-        model_np = self._bkd.to_numpy(model)
+        model_np = self._bkd.to_numpy(model).flatten()
         scipy_dist = stats.multivariate_normal(model_np, self.noise_cov)
-        obs_np = self._bkd.to_numpy(obs)
+        obs_np = self._bkd.to_numpy(obs).flatten()
         logpdf_scipy = scipy_dist.logpdf(obs_np)
 
         self.assertTrue(
             self._bkd.allclose(
-                logpdf_ours,
+                self._bkd.flatten(logpdf_ours),
                 self._bkd.asarray([logpdf_scipy]),
                 rtol=1e-12,
             )

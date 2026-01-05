@@ -175,14 +175,14 @@ class TestGaussianTransform(Generic[Array], unittest.TestCase):
 
     def test_median_to_zero(self) -> None:
         """Test median of uniform maps to 0 (median of normal)."""
-        x = self._bkd.asarray([0.5])
+        x = self._bkd.asarray([[0.5]])  # Shape: (1, 1) for univariate transform
         y = self.transform.map_to_canonical(x)
-        expected = self._bkd.asarray([0.0])
+        expected = self._bkd.asarray([[0.0]])
         self.assertTrue(self._bkd.allclose(y, expected, rtol=1e-6))
 
     def test_roundtrip(self) -> None:
         """Test roundtrip preserves samples."""
-        x = self._bkd.asarray([0.1, 0.3, 0.5, 0.7, 0.9])
+        x = self._bkd.asarray([[0.1, 0.3, 0.5, 0.7, 0.9]])  # Shape: (1, nsamples)
         y = self.transform.map_to_canonical(x)
         x_recovered = self.transform.map_from_canonical(y)
         self.assertTrue(self._bkd.allclose(x, x_recovered, rtol=1e-6))
@@ -192,18 +192,18 @@ class TestGaussianTransform(Generic[Array], unittest.TestCase):
         normal = GaussianMarginal(0.0, 1.0, self._bkd)
         transform = GaussianTransform(normal, self._bkd)
 
-        x = self._bkd.asarray([-1.0, 0.0, 1.0, 2.0])
+        x = self._bkd.asarray([[-1.0, 0.0, 1.0, 2.0]])  # Shape: (1, nsamples)
         y = transform.map_to_canonical(x)
         self.assertTrue(self._bkd.allclose(x, y, rtol=1e-5))
 
     def test_jacobian_chain_rule(self) -> None:
         """Test Jacobian satisfies chain rule."""
-        x = self._bkd.asarray([0.3])
+        x = self._bkd.asarray([[0.3]])  # Shape: (1, 1) for univariate transform
         y, jac_to = self.transform.map_to_canonical_with_jacobian(x)
         x_back, jac_from = self.transform.map_from_canonical_with_jacobian(y)
 
         # jac_to * jac_from should be close to 1
-        expected = self._bkd.asarray([1.0])
+        expected = self._bkd.asarray([[1.0]])
         self.assertTrue(
             self._bkd.allclose(jac_to * jac_from, expected, rtol=1e-5)
         )
@@ -212,16 +212,14 @@ class TestGaussianTransform(Generic[Array], unittest.TestCase):
         """Test Jacobian using DerivativeChecker."""
 
         def fun(sample: Array) -> Array:
-            # sample is (1, 1), output is (1, 1)
-            x = self._bkd.flatten(sample)
-            y = self.transform.map_to_canonical(x)
-            return y[:, None]
+            # sample is (1, 1), transform expects (1, nsamples)
+            y = self.transform.map_to_canonical(sample)  # Returns (1, 1)
+            return y.T  # Return (nsamples, nqoi) = (1, 1)
 
         def jacobian(sample: Array) -> Array:
             # Return Jacobian (nqoi, nvars) = (1, 1)
-            x = self._bkd.flatten(sample)
-            _, jac = self.transform.map_to_canonical_with_jacobian(x)
-            return jac[:, None]
+            _, jac = self.transform.map_to_canonical_with_jacobian(sample)
+            return jac  # Already (1, 1)
 
         function_obj = FunctionWithJacobianFromCallable(
             nqoi=1,
@@ -302,7 +300,8 @@ class TestIndependentGaussianTransform(Generic[Array], unittest.TestCase):
         """Test log determinant has correct shape."""
         x = self._bkd.asarray([[0.5, 0.3], [0.4, 0.2], [0.0, 1.0]])
         log_det = self.transform.log_det_jacobian_to_canonical(x)
-        self.assertEqual(log_det.shape, (2,))
+        # log_det_jacobian returns (1, nsamples)
+        self.assertEqual(log_det.shape, (1, 2))
 
     def test_normal_component_identity(self) -> None:
         """Test normal component is identity transform."""
@@ -446,15 +445,15 @@ class TestGaussianTransformProtocol(Generic[Array], unittest.TestCase):
 
     def test_has_map_to_canonical(self) -> None:
         """Test has map_to_canonical method."""
-        x = self._bkd.asarray([0.3, 0.5, 0.7])
+        x = self._bkd.asarray([[0.3, 0.5, 0.7]])  # Shape: (1, nsamples)
         y = self.transform.map_to_canonical(x)
-        self.assertEqual(y.shape, (3,))
+        self.assertEqual(y.shape, (1, 3))
 
     def test_has_map_from_canonical(self) -> None:
         """Test has map_from_canonical method."""
-        y = self._bkd.asarray([-1.0, 0.0, 1.0])
+        y = self._bkd.asarray([[-1.0, 0.0, 1.0]])  # Shape: (1, nsamples)
         x = self.transform.map_from_canonical(y)
-        self.assertEqual(x.shape, (3,))
+        self.assertEqual(x.shape, (1, 3))
 
 
 class TestGaussianTransformProtocolNumpy(

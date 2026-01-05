@@ -66,10 +66,12 @@ class TestIndependentJoint(Generic[Array], unittest.TestCase):
 
         logpdf_joint = self.joint.logpdf(samples)
 
-        # Compute manually as sum
-        logpdf_expected = self._bkd.zeros((3,))
+        # Compute manually as sum - marginals expect 2D input (1, nsamples)
+        logpdf_expected = self._bkd.zeros((1, 3))
         for i, marginal in enumerate(self.marginals):
-            logpdf_expected = logpdf_expected + marginal.logpdf(samples[i])
+            row_2d = self._bkd.reshape(samples[i], (1, -1))
+            logpdf_expected = logpdf_expected + marginal.logpdf(row_2d)
+        logpdf_expected = self._bkd.flatten(logpdf_expected)
 
         self.assertTrue(
             self._bkd.allclose(logpdf_joint, logpdf_expected, rtol=1e-6)
@@ -90,10 +92,12 @@ class TestIndependentJoint(Generic[Array], unittest.TestCase):
 
         cdf_joint = self.joint.cdf(samples)
 
-        # Compute manually as product
-        cdf_expected = self._bkd.ones((2,))
+        # Compute manually as product - marginals expect 2D input (1, nsamples)
+        cdf_expected = self._bkd.ones((1, 2))
         for i, marginal in enumerate(self.marginals):
-            cdf_expected = cdf_expected * marginal.cdf(samples[i])
+            row_2d = self._bkd.reshape(samples[i], (1, -1))
+            cdf_expected = cdf_expected * marginal.cdf(row_2d)
+        cdf_expected = self._bkd.flatten(cdf_expected)
 
         self.assertTrue(self._bkd.allclose(cdf_joint, cdf_expected, rtol=1e-6))
 
@@ -103,9 +107,10 @@ class TestIndependentJoint(Generic[Array], unittest.TestCase):
 
         quantiles = self.joint.invcdf(probs)
 
-        # Verify each component
+        # Verify each component - marginals expect 2D input (1, nsamples)
         for i, marginal in enumerate(self.marginals):
-            expected = marginal.invcdf(probs[i])
+            row_2d = self._bkd.reshape(probs[i], (1, -1))
+            expected = self._bkd.flatten(marginal.invcdf(row_2d))
             self.assertTrue(self._bkd.allclose(quantiles[i], expected, rtol=1e-6))
 
     def test_correlation_matrix_identity(self) -> None:
@@ -292,7 +297,8 @@ class TestIndependentJointSingleVariable(Generic[Array], unittest.TestCase):
         samples = self._bkd.asarray([[0.0, 1.0, -1.0]])
 
         logpdf_joint = self.joint.logpdf(samples)
-        logpdf_marginal = self.marginal.logpdf(samples[0])
+        # Marginal expects 2D input (1, nsamples), joint samples is already (1, nsamples)
+        logpdf_marginal = self._bkd.flatten(self.marginal.logpdf(samples))
 
         self.assertTrue(
             self._bkd.allclose(logpdf_joint, logpdf_marginal, rtol=1e-6)
@@ -351,7 +357,8 @@ class TestIndependentJointProtocol(Generic[Array], unittest.TestCase):
         """Test has logpdf method."""
         samples = self._bkd.asarray([[0.0, 0.5], [0.5, 0.8]])
         logpdf = self.joint.logpdf(samples)
-        self.assertEqual(logpdf.shape, (2,))
+        # Joint logpdf returns (1, nsamples) = (1, 2)
+        self.assertEqual(logpdf.shape, (1, 2))
 
     def test_has_marginals(self) -> None:
         """Test has marginals method."""
