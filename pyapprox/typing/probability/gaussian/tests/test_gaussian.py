@@ -3,10 +3,17 @@ Tests for multivariate Gaussian distributions.
 """
 
 import unittest
-import numpy as np
-from scipy import stats
+from typing import Any, Generic
 
+import numpy as np
+from numpy.typing import NDArray
+from scipy import stats
+import torch
+
+from pyapprox.typing.util.backends.protocols import Array, Backend
 from pyapprox.typing.util.backends.numpy import NumpyBkd
+from pyapprox.typing.util.backends.torch import TorchBkd
+from pyapprox.typing.util.test_utils import load_tests
 from pyapprox.typing.probability.gaussian import (
     GaussianLogPDFCore,
     DenseCholeskyMultivariateGaussian,
@@ -20,336 +27,503 @@ from pyapprox.typing.probability.covariance import (
 )
 
 
-class TestGaussianLogPDFCore(unittest.TestCase):
+class TestGaussianLogPDFCore(Generic[Array], unittest.TestCase):
     """Tests for GaussianLogPDFCore."""
 
-    def setUp(self):
-        self.bkd = NumpyBkd()
-        self.cov = np.array([[1.0, 0.5], [0.5, 1.0]])
-        self.cov_op = DenseCholeskyCovarianceOperator(self.cov, self.bkd)
-        self.core = GaussianLogPDFCore(self.cov_op, self.bkd)
+    __test__ = False
 
-    def test_nvars(self):
+    def bkd(self) -> Backend[Array]:
+        raise NotImplementedError("Derived classes must implement this method.")
+
+    def setUp(self) -> None:
+        self._bkd = self.bkd()
+        self.cov = self._bkd.asarray([[1.0, 0.5], [0.5, 1.0]])
+        self.cov_op = DenseCholeskyCovarianceOperator(self.cov, self._bkd)
+        self.core = GaussianLogPDFCore(self.cov_op, self._bkd)
+
+    def test_nvars(self) -> None:
         """Test nvars returns correct dimension."""
         self.assertEqual(self.core.nvars(), 2)
 
-    def test_compute_at_zero(self):
+    def test_compute_at_zero(self) -> None:
         """Test log-PDF at zero residuals."""
-        residuals = np.zeros((2, 1))
+        residuals = self._bkd.zeros((2, 1))
         logpdf = self.core.compute(residuals)
-        # At mean, logpdf = log_const
         expected = self.core.log_normalization_constant()
-        self.assertAlmostEqual(logpdf[0], expected)
-
-    def test_compute_gradient_at_zero(self):
-        """Test gradient at zero residuals is zero."""
-        residuals = np.zeros((2, 3))
-        gradient = self.core.compute_gradient(residuals)
-        np.testing.assert_array_almost_equal(gradient, np.zeros((2, 3)))
-
-
-class TestDenseCholeskyMultivariateGaussian(unittest.TestCase):
-    """Tests for DenseCholeskyMultivariateGaussian."""
-
-    def setUp(self):
-        self.bkd = NumpyBkd()
-        self.mean = np.array([[1.0], [2.0]])
-        self.cov = np.array([[1.0, 0.5], [0.5, 1.0]])
-        self.dist = DenseCholeskyMultivariateGaussian(
-            self.mean, self.cov, self.bkd
+        self.assertTrue(
+            self._bkd.allclose(
+                self._bkd.asarray([logpdf[0]]),
+                self._bkd.asarray([expected]),
+                rtol=1e-6,
+            )
         )
 
-    def test_nvars(self):
+    def test_compute_gradient_at_zero(self) -> None:
+        """Test gradient at zero residuals is zero."""
+        residuals = self._bkd.zeros((2, 3))
+        gradient = self.core.compute_gradient(residuals)
+        expected = self._bkd.zeros((2, 3))
+        self.assertTrue(self._bkd.allclose(gradient, expected, atol=1e-10))
+
+
+class TestGaussianLogPDFCoreNumpy(TestGaussianLogPDFCore[NDArray[Any]]):
+    """NumPy backend tests for GaussianLogPDFCore."""
+
+    def bkd(self) -> NumpyBkd:
+        return NumpyBkd()
+
+
+class TestGaussianLogPDFCoreTorch(TestGaussianLogPDFCore[torch.Tensor]):
+    """PyTorch backend tests for GaussianLogPDFCore."""
+
+    def bkd(self) -> TorchBkd:
+        torch.set_default_dtype(torch.float64)
+        return TorchBkd()
+
+
+class TestDenseCholeskyMultivariateGaussian(Generic[Array], unittest.TestCase):
+    """Tests for DenseCholeskyMultivariateGaussian."""
+
+    __test__ = False
+
+    def bkd(self) -> Backend[Array]:
+        raise NotImplementedError("Derived classes must implement this method.")
+
+    def setUp(self) -> None:
+        self._bkd = self.bkd()
+        self.mean = self._bkd.asarray([[1.0], [2.0]])
+        self.cov = self._bkd.asarray([[1.0, 0.5], [0.5, 1.0]])
+        self.dist = DenseCholeskyMultivariateGaussian(
+            self.mean, self.cov, self._bkd
+        )
+
+    def test_nvars(self) -> None:
         """Test nvars returns correct dimension."""
         self.assertEqual(self.dist.nvars(), 2)
 
-    def test_mean(self):
+    def test_mean(self) -> None:
         """Test mean returns correct value."""
-        np.testing.assert_array_equal(self.dist.mean(), self.mean)
+        self.assertTrue(self._bkd.allclose(self.dist.mean(), self.mean, atol=1e-10))
 
-    def test_covariance(self):
+    def test_covariance(self) -> None:
         """Test covariance returns correct value."""
-        np.testing.assert_array_equal(self.dist.covariance(), self.cov)
+        self.assertTrue(
+            self._bkd.allclose(self.dist.covariance(), self.cov, atol=1e-10)
+        )
 
-    def test_covariance_inverse(self):
+    def test_covariance_inverse(self) -> None:
         """Test covariance_inverse is inverse."""
         identity = self.cov @ self.dist.covariance_inverse()
-        np.testing.assert_array_almost_equal(identity, np.eye(2))
+        expected = self._bkd.eye(2)
+        self.assertTrue(self._bkd.allclose(identity, expected, atol=1e-10))
 
-    def test_rvs_shape(self):
+    def test_rvs_shape(self) -> None:
         """Test rvs returns correct shape."""
         samples = self.dist.rvs(100)
         self.assertEqual(samples.shape, (2, 100))
 
-    def test_logpdf_vs_scipy(self):
+    def test_logpdf_vs_scipy(self) -> None:
         """Test logpdf matches scipy.stats."""
         scipy_dist = stats.multivariate_normal(
-            mean=self.mean.flatten(), cov=self.cov
+            mean=self._bkd.to_numpy(self.mean).flatten(),
+            cov=self._bkd.to_numpy(self.cov),
         )
-        samples = np.array([[1.0, 0.5, 2.0], [2.0, 1.5, 3.0]])
+        samples = self._bkd.asarray([[1.0, 0.5, 2.0], [2.0, 1.5, 3.0]])
         logpdf_ours = self.dist.logpdf(samples)
-        logpdf_scipy = scipy_dist.logpdf(samples.T)
-        np.testing.assert_array_almost_equal(logpdf_ours, logpdf_scipy)
+        logpdf_scipy = self._bkd.asarray(
+            scipy_dist.logpdf(self._bkd.to_numpy(samples).T)
+        )
+        self.assertTrue(self._bkd.allclose(logpdf_ours, logpdf_scipy, rtol=1e-6))
 
-    def test_pdf_exp_logpdf(self):
+    def test_pdf_exp_logpdf(self) -> None:
         """Test pdf = exp(logpdf)."""
-        samples = np.array([[1.0, 2.0], [2.0, 3.0]])
+        samples = self._bkd.asarray([[1.0, 2.0], [2.0, 3.0]])
         pdf_vals = self.dist.pdf(samples)
         logpdf_vals = self.dist.logpdf(samples)
-        np.testing.assert_array_almost_equal(pdf_vals, np.exp(logpdf_vals))
+        self.assertTrue(
+            self._bkd.allclose(pdf_vals, self._bkd.exp(logpdf_vals), rtol=1e-6)
+        )
 
-    def test_logpdf_gradient_finite_diff(self):
+    def test_logpdf_gradient_finite_diff(self) -> None:
         """Test logpdf gradient against finite differences."""
-        sample = np.array([[1.5], [2.5]])
+        sample = self._bkd.asarray([[1.5], [2.5]])
         grad = self.dist.logpdf_gradient(sample)
 
         eps = 1e-6
-        grad_fd = np.zeros((2, 1))
+        grad_fd = self._bkd.zeros((2, 1))
         for i in range(2):
-            sample_plus = sample.copy()
-            sample_plus[i] += eps
-            sample_minus = sample.copy()
-            sample_minus[i] -= eps
-            grad_fd[i] = (
-                self.dist.logpdf(sample_plus)[0]
-                - self.dist.logpdf(sample_minus)[0]
+            sample_plus = self._bkd.copy(sample)
+            sample_plus[i] = sample_plus[i] + eps
+            sample_minus = self._bkd.copy(sample)
+            sample_minus[i] = sample_minus[i] - eps
+            diff = (
+                float(self.dist.logpdf(sample_plus)[0])
+                - float(self.dist.logpdf(sample_minus)[0])
             ) / (2 * eps)
+            grad_fd[i, 0] = diff
 
-        np.testing.assert_array_almost_equal(grad, grad_fd, decimal=5)
+        self.assertTrue(self._bkd.allclose(grad, grad_fd, rtol=1e-5))
 
-    def test_kl_divergence_same_dist(self):
+    def test_kl_divergence_same_dist(self) -> None:
         """Test KL divergence of distribution with itself is zero."""
         kl = self.dist.kl_divergence(self.dist)
-        self.assertAlmostEqual(kl, 0.0)
+        self.assertTrue(
+            self._bkd.allclose(
+                self._bkd.asarray([kl]),
+                self._bkd.asarray([0.0]),
+                atol=1e-10,
+            )
+        )
 
-    def test_kl_divergence_positive(self):
+    def test_kl_divergence_positive(self) -> None:
         """Test KL divergence is positive for different distributions."""
         other = DenseCholeskyMultivariateGaussian(
-            np.array([[0.0], [0.0]]), self.cov, self.bkd
+            self._bkd.asarray([[0.0], [0.0]]), self.cov, self._bkd
         )
         kl = self.dist.kl_divergence(other)
-        self.assertGreater(kl, 0.0)
+        self.assertGreater(float(kl), 0.0)
 
-    def test_invalid_mean_shape(self):
+    def test_invalid_mean_shape(self) -> None:
         """Test invalid mean shape raises error."""
         with self.assertRaises(ValueError):
             DenseCholeskyMultivariateGaussian(
-                np.array([1.0, 2.0]), self.cov, self.bkd
+                self._bkd.asarray([1.0, 2.0]), self.cov, self._bkd
             )
 
-    def test_invalid_cov_shape(self):
+    def test_invalid_cov_shape(self) -> None:
         """Test invalid covariance shape raises error."""
         with self.assertRaises(ValueError):
-            DenseCholeskyMultivariateGaussian(self.mean, np.eye(3), self.bkd)
+            DenseCholeskyMultivariateGaussian(
+                self.mean, self._bkd.eye(3), self._bkd
+            )
 
 
-class TestDiagonalMultivariateGaussian(unittest.TestCase):
+class TestDenseCholeskyMultivariateGaussianNumpy(
+    TestDenseCholeskyMultivariateGaussian[NDArray[Any]]
+):
+    """NumPy backend tests for DenseCholeskyMultivariateGaussian."""
+
+    def bkd(self) -> NumpyBkd:
+        return NumpyBkd()
+
+
+class TestDenseCholeskyMultivariateGaussianTorch(
+    TestDenseCholeskyMultivariateGaussian[torch.Tensor]
+):
+    """PyTorch backend tests for DenseCholeskyMultivariateGaussian."""
+
+    def bkd(self) -> TorchBkd:
+        torch.set_default_dtype(torch.float64)
+        return TorchBkd()
+
+
+class TestDiagonalMultivariateGaussian(Generic[Array], unittest.TestCase):
     """Tests for DiagonalMultivariateGaussian."""
 
-    def setUp(self):
-        self.bkd = NumpyBkd()
-        self.mean = np.array([[1.0], [2.0], [3.0]])
-        self.variances = np.array([1.0, 4.0, 9.0])
+    __test__ = False
+
+    def bkd(self) -> Backend[Array]:
+        raise NotImplementedError("Derived classes must implement this method.")
+
+    def setUp(self) -> None:
+        self._bkd = self.bkd()
+        self.mean = self._bkd.asarray([[1.0], [2.0], [3.0]])
+        self.variances = self._bkd.asarray([1.0, 4.0, 9.0])
         self.dist = DiagonalMultivariateGaussian(
-            self.mean, self.variances, self.bkd
+            self.mean, self.variances, self._bkd
         )
 
-    def test_nvars(self):
+    def test_nvars(self) -> None:
         """Test nvars returns correct dimension."""
         self.assertEqual(self.dist.nvars(), 3)
 
-    def test_variances(self):
+    def test_variances(self) -> None:
         """Test variances returns correct value."""
-        np.testing.assert_array_equal(self.dist.variances(), self.variances)
-
-    def test_standard_deviations(self):
-        """Test standard_deviations."""
-        expected = np.sqrt(self.variances)
-        np.testing.assert_array_almost_equal(
-            self.dist.standard_deviations(), expected
+        self.assertTrue(
+            self._bkd.allclose(self.dist.variances(), self.variances, atol=1e-10)
         )
 
-    def test_covariance(self):
+    def test_standard_deviations(self) -> None:
+        """Test standard_deviations."""
+        expected = self._bkd.sqrt(self.variances)
+        self.assertTrue(
+            self._bkd.allclose(self.dist.standard_deviations(), expected, atol=1e-10)
+        )
+
+    def test_covariance(self) -> None:
         """Test covariance returns diagonal matrix."""
         cov = self.dist.covariance()
-        expected = np.diag(self.variances)
-        np.testing.assert_array_equal(cov, expected)
+        expected = self._bkd.diag(self.variances)
+        self.assertTrue(self._bkd.allclose(cov, expected, atol=1e-10))
 
-    def test_rvs_shape(self):
+    def test_rvs_shape(self) -> None:
         """Test rvs returns correct shape."""
         samples = self.dist.rvs(100)
         self.assertEqual(samples.shape, (3, 100))
 
-    def test_logpdf_vs_product_of_univariates(self):
+    def test_logpdf_vs_product_of_univariates(self) -> None:
         """Test logpdf equals sum of univariate log-pdfs."""
-        samples = np.array([[1.0, 2.0], [2.0, 3.0], [3.0, 4.0]])
+        samples = self._bkd.asarray([[1.0, 2.0], [2.0, 3.0], [3.0, 4.0]])
 
         logpdf_ours = self.dist.logpdf(samples)
 
         # Compute as product of independent univariates
+        samples_np = self._bkd.to_numpy(samples)
+        mean_np = self._bkd.to_numpy(self.mean)
+        var_np = self._bkd.to_numpy(self.variances)
         logpdf_expected = np.zeros(2)
         for i in range(3):
-            univariate = stats.norm(
-                self.mean[i, 0], np.sqrt(self.variances[i])
+            univariate = stats.norm(mean_np[i, 0], np.sqrt(var_np[i]))
+            logpdf_expected += univariate.logpdf(samples_np[i])
+
+        self.assertTrue(
+            self._bkd.allclose(
+                logpdf_ours, self._bkd.asarray(logpdf_expected), rtol=1e-6
             )
-            logpdf_expected += univariate.logpdf(samples[i])
+        )
 
-        np.testing.assert_array_almost_equal(logpdf_ours, logpdf_expected)
-
-    def test_kl_divergence_same_dist(self):
+    def test_kl_divergence_same_dist(self) -> None:
         """Test KL divergence of distribution with itself is zero."""
         kl = self.dist.kl_divergence(self.dist)
-        self.assertAlmostEqual(kl, 0.0)
+        self.assertTrue(
+            self._bkd.allclose(
+                self._bkd.asarray([kl]),
+                self._bkd.asarray([0.0]),
+                atol=1e-10,
+            )
+        )
 
 
-class TestOperatorBasedMultivariateGaussian(unittest.TestCase):
+class TestDiagonalMultivariateGaussianNumpy(
+    TestDiagonalMultivariateGaussian[NDArray[Any]]
+):
+    """NumPy backend tests for DiagonalMultivariateGaussian."""
+
+    def bkd(self) -> NumpyBkd:
+        return NumpyBkd()
+
+
+class TestDiagonalMultivariateGaussianTorch(
+    TestDiagonalMultivariateGaussian[torch.Tensor]
+):
+    """PyTorch backend tests for DiagonalMultivariateGaussian."""
+
+    def bkd(self) -> TorchBkd:
+        torch.set_default_dtype(torch.float64)
+        return TorchBkd()
+
+
+class TestOperatorBasedMultivariateGaussian(Generic[Array], unittest.TestCase):
     """Tests for OperatorBasedMultivariateGaussian."""
 
-    def setUp(self):
-        self.bkd = NumpyBkd()
+    __test__ = False
+
+    def bkd(self) -> Backend[Array]:
+        raise NotImplementedError("Derived classes must implement this method.")
+
+    def setUp(self) -> None:
+        self._bkd = self.bkd()
         self.nvars = 3
         self.scale = 2.0
-        self.mean = np.zeros((self.nvars, 1))
+        self.mean = self._bkd.zeros((self.nvars, 1))
 
         # Create scaling operator: L = scale * I
         self.cov_op = OperatorBasedCovarianceOperator(
             apply_sqrt=lambda x: self.scale * x,
             apply_sqrt_inv=lambda x: x / self.scale,
-            log_determinant=self.nvars * np.log(self.scale),
+            log_determinant=self.nvars * float(np.log(self.scale)),
             nvars=self.nvars,
-            bkd=self.bkd,
+            bkd=self._bkd,
         )
         self.dist = OperatorBasedMultivariateGaussian(
-            self.mean, self.cov_op, self.bkd
+            self.mean, self.cov_op, self._bkd
         )
 
-    def test_nvars(self):
+    def test_nvars(self) -> None:
         """Test nvars returns correct dimension."""
         self.assertEqual(self.dist.nvars(), 3)
 
-    def test_rvs_shape(self):
+    def test_rvs_shape(self) -> None:
         """Test rvs returns correct shape."""
         samples = self.dist.rvs(100)
         self.assertEqual(samples.shape, (3, 100))
 
-    def test_logpdf_at_mean(self):
+    def test_logpdf_at_mean(self) -> None:
         """Test logpdf at mean is maximum."""
-        samples = np.array(
+        samples = self._bkd.asarray(
             [[0.0, 1.0, -1.0], [0.0, 1.0, -1.0], [0.0, 1.0, -1.0]]
         )
         logpdf = self.dist.logpdf(samples)
         # At mean (column 0), logpdf should be maximum
-        self.assertGreater(logpdf[0], logpdf[1])
-        self.assertGreater(logpdf[0], logpdf[2])
+        self.assertGreater(float(logpdf[0]), float(logpdf[1]))
+        self.assertGreater(float(logpdf[0]), float(logpdf[2]))
 
-    def test_covariance_diagonal(self):
+    def test_covariance_diagonal(self) -> None:
         """Test covariance diagonal computation."""
         diagonal = self.dist.covariance_diagonal()
-        expected = np.full(self.nvars, self.scale**2)
-        np.testing.assert_array_almost_equal(diagonal, expected)
+        expected = self._bkd.full((self.nvars,), self.scale**2)
+        self.assertTrue(self._bkd.allclose(diagonal, expected, rtol=1e-6))
 
-    def test_invalid_mean_cov_mismatch(self):
+    def test_invalid_mean_cov_mismatch(self) -> None:
         """Test mismatched mean and cov_op dimensions."""
-        wrong_mean = np.zeros((5, 1))
+        wrong_mean = self._bkd.zeros((5, 1))
         with self.assertRaises(ValueError):
             OperatorBasedMultivariateGaussian(
-                wrong_mean, self.cov_op, self.bkd
+                wrong_mean, self.cov_op, self._bkd
             )
 
 
-class TestCrossValidation(unittest.TestCase):
+class TestOperatorBasedMultivariateGaussianNumpy(
+    TestOperatorBasedMultivariateGaussian[NDArray[Any]]
+):
+    """NumPy backend tests for OperatorBasedMultivariateGaussian."""
+
+    def bkd(self) -> NumpyBkd:
+        return NumpyBkd()
+
+
+class TestOperatorBasedMultivariateGaussianTorch(
+    TestOperatorBasedMultivariateGaussian[torch.Tensor]
+):
+    """PyTorch backend tests for OperatorBasedMultivariateGaussian."""
+
+    def bkd(self) -> TorchBkd:
+        torch.set_default_dtype(torch.float64)
+        return TorchBkd()
+
+
+class TestCrossValidation(Generic[Array], unittest.TestCase):
     """Cross-validation tests between implementations."""
 
-    def setUp(self):
-        self.bkd = NumpyBkd()
-        self.mean = np.array([[1.0], [2.0]])
-        self.cov = np.array([[4.0, 0.0], [0.0, 9.0]])  # Diagonal
+    __test__ = False
 
-    def test_dense_vs_diagonal_for_diagonal_cov(self):
+    def bkd(self) -> Backend[Array]:
+        raise NotImplementedError("Derived classes must implement this method.")
+
+    def setUp(self) -> None:
+        self._bkd = self.bkd()
+        self.mean = self._bkd.asarray([[1.0], [2.0]])
+        self.cov = self._bkd.asarray([[4.0, 0.0], [0.0, 9.0]])  # Diagonal
+
+    def test_dense_vs_diagonal_for_diagonal_cov(self) -> None:
         """Test dense and diagonal implementations agree for diagonal cov."""
         dense = DenseCholeskyMultivariateGaussian(
-            self.mean, self.cov, self.bkd
+            self.mean, self.cov, self._bkd
         )
         diagonal = DiagonalMultivariateGaussian(
-            self.mean, np.diag(self.cov), self.bkd
+            self.mean, self._bkd.get_diagonal(self.cov), self._bkd
         )
 
-        samples = np.array([[1.0, 2.0, 3.0], [2.0, 3.0, 4.0]])
+        samples = self._bkd.asarray([[1.0, 2.0, 3.0], [2.0, 3.0, 4.0]])
 
         logpdf_dense = dense.logpdf(samples)
         logpdf_diagonal = diagonal.logpdf(samples)
 
-        np.testing.assert_array_almost_equal(logpdf_dense, logpdf_diagonal)
+        self.assertTrue(
+            self._bkd.allclose(logpdf_dense, logpdf_diagonal, rtol=1e-6)
+        )
 
-    def test_dense_vs_operator_for_identity_cov(self):
+    def test_dense_vs_operator_for_identity_cov(self) -> None:
         """Test dense and operator implementations agree for identity cov."""
-        mean = np.zeros((3, 1))
-        cov = np.eye(3)
+        mean = self._bkd.zeros((3, 1))
+        cov = self._bkd.eye(3)
 
-        dense = DenseCholeskyMultivariateGaussian(mean, cov, self.bkd)
+        dense = DenseCholeskyMultivariateGaussian(mean, cov, self._bkd)
         cov_op = OperatorBasedCovarianceOperator(
             apply_sqrt=lambda x: x,
             apply_sqrt_inv=lambda x: x,
             log_determinant=0.0,
             nvars=3,
-            bkd=self.bkd,
+            bkd=self._bkd,
         )
-        operator = OperatorBasedMultivariateGaussian(mean, cov_op, self.bkd)
+        operator = OperatorBasedMultivariateGaussian(mean, cov_op, self._bkd)
 
-        samples = np.random.randn(3, 5)
+        # Use deterministic samples
+        samples = self._bkd.asarray(
+            [[0.1, -0.5, 1.2, 0.3, -0.8],
+             [0.2, 0.7, -0.3, 0.9, 0.1],
+             [-0.4, 0.2, 0.5, -0.6, 0.4]]
+        )
 
         logpdf_dense = dense.logpdf(samples)
         logpdf_operator = operator.logpdf(samples)
 
-        np.testing.assert_array_almost_equal(logpdf_dense, logpdf_operator)
-
-
-class TestGaussianCanonicalForm(unittest.TestCase):
-    """Tests for GaussianCanonicalForm."""
-
-    def setUp(self):
-        self.bkd = NumpyBkd()
-        self.mean = np.array([1.0, 2.0])
-        self.cov = np.array([[1.0, 0.5], [0.5, 1.0]])
-        self.canonical = GaussianCanonicalForm.from_moments(
-            self.mean, self.cov, self.bkd
+        self.assertTrue(
+            self._bkd.allclose(logpdf_dense, logpdf_operator, rtol=1e-6)
         )
 
-    def test_nvars(self):
+
+class TestCrossValidationNumpy(TestCrossValidation[NDArray[Any]]):
+    """NumPy backend tests for cross-validation."""
+
+    def bkd(self) -> NumpyBkd:
+        return NumpyBkd()
+
+
+class TestCrossValidationTorch(TestCrossValidation[torch.Tensor]):
+    """PyTorch backend tests for cross-validation."""
+
+    def bkd(self) -> TorchBkd:
+        torch.set_default_dtype(torch.float64)
+        return TorchBkd()
+
+
+class TestGaussianCanonicalForm(Generic[Array], unittest.TestCase):
+    """Tests for GaussianCanonicalForm."""
+
+    __test__ = False
+
+    def bkd(self) -> Backend[Array]:
+        raise NotImplementedError("Derived classes must implement this method.")
+
+    def setUp(self) -> None:
+        self._bkd = self.bkd()
+        self.mean = self._bkd.asarray([1.0, 2.0])
+        self.cov = self._bkd.asarray([[1.0, 0.5], [0.5, 1.0]])
+        self.canonical = GaussianCanonicalForm.from_moments(
+            self.mean, self.cov, self._bkd
+        )
+
+    def test_nvars(self) -> None:
         """Test nvars returns correct dimension."""
         self.assertEqual(self.canonical.nvars(), 2)
 
-    def test_roundtrip_moments(self):
+    def test_roundtrip_moments(self) -> None:
         """Test from_moments -> to_moments roundtrip."""
         mean_recovered, cov_recovered = self.canonical.to_moments()
-        np.testing.assert_array_almost_equal(mean_recovered, self.mean)
-        np.testing.assert_array_almost_equal(cov_recovered, self.cov)
+        self.assertTrue(self._bkd.allclose(mean_recovered, self.mean, rtol=1e-6))
+        self.assertTrue(self._bkd.allclose(cov_recovered, self.cov, rtol=1e-6))
 
-    def test_logpdf_vs_dense(self):
+    def test_logpdf_vs_dense(self) -> None:
         """Test logpdf matches DenseCholeskyMultivariateGaussian."""
-        dense = DenseCholeskyMultivariateGaussian(
-            self.mean[:, None], self.cov, self.bkd
-        )
-        samples = np.array([[1.0, 0.5, 2.0], [2.0, 1.5, 3.0]])
+        mean_2d = self._bkd.reshape(self.mean, (2, 1))
+        dense = DenseCholeskyMultivariateGaussian(mean_2d, self.cov, self._bkd)
+        samples = self._bkd.asarray([[1.0, 0.5, 2.0], [2.0, 1.5, 3.0]])
 
         logpdf_canonical = self.canonical.logpdf(samples)
         logpdf_dense = dense.logpdf(samples)
 
-        np.testing.assert_array_almost_equal(logpdf_canonical, logpdf_dense)
+        self.assertTrue(
+            self._bkd.allclose(logpdf_canonical, logpdf_dense, rtol=1e-6)
+        )
 
-    def test_multiply_same(self):
+    def test_multiply_same(self) -> None:
         """Test multiplying distribution with itself."""
         product = self.canonical.multiply(self.canonical)
 
         # Precision and shift should double
-        np.testing.assert_array_almost_equal(
-            product.precision(), 2 * self.canonical.precision()
+        self.assertTrue(
+            self._bkd.allclose(
+                product.precision(), 2 * self.canonical.precision(), rtol=1e-6
+            )
         )
-        np.testing.assert_array_almost_equal(
-            product.shift(), 2 * self.canonical.shift()
+        self.assertTrue(
+            self._bkd.allclose(
+                product.shift(), 2 * self.canonical.shift(), rtol=1e-6
+            )
         )
 
-    def test_multiply_normalized(self):
+    def test_multiply_normalized(self) -> None:
         """Test normalized product matches analytical result."""
         # Product of two Gaussians is still Gaussian
         product = self.canonical.multiply(self.canonical).normalize()
@@ -361,11 +535,11 @@ class TestGaussianCanonicalForm(unittest.TestCase):
         samples = product.rvs(1000)
         self.assertEqual(samples.shape, (2, 1000))
 
-    def test_condition(self):
+    def test_condition(self) -> None:
         """Test conditioning on observed variable."""
         # Condition x_1 on observed value
-        fixed_indices = np.array([1])
-        values = np.array([2.5])
+        fixed_indices = self._bkd.asarray([1])
+        values = self._bkd.asarray([2.5])
 
         conditional = self.canonical.condition(fixed_indices, values)
 
@@ -377,10 +551,10 @@ class TestGaussianCanonicalForm(unittest.TestCase):
         self.assertEqual(mean_cond.shape, (1,))
         self.assertEqual(cov_cond.shape, (1, 1))
 
-    def test_marginalize(self):
+    def test_marginalize(self) -> None:
         """Test marginalizing out a variable."""
         # Marginalize out x_1
-        marg_indices = np.array([1])
+        marg_indices = self._bkd.asarray([1])
 
         marginal = self.canonical.marginalize(marg_indices)
 
@@ -391,29 +565,43 @@ class TestGaussianCanonicalForm(unittest.TestCase):
         mean_marg, cov_marg = marginal.to_moments()
 
         # Mean should be mean[0]
-        self.assertAlmostEqual(float(mean_marg[0]), self.mean[0], places=5)
+        self.assertTrue(
+            self._bkd.allclose(
+                self._bkd.asarray([mean_marg[0]]),
+                self._bkd.asarray([self.mean[0]]),
+                rtol=1e-5,
+            )
+        )
 
         # Covariance should be cov[0, 0]
-        self.assertAlmostEqual(float(cov_marg[0, 0]), self.cov[0, 0], places=5)
+        self.assertTrue(
+            self._bkd.allclose(
+                self._bkd.asarray([cov_marg[0, 0]]),
+                self._bkd.asarray([self.cov[0, 0]]),
+                rtol=1e-5,
+            )
+        )
 
-    def test_rvs_shape(self):
+    def test_rvs_shape(self) -> None:
         """Test rvs returns correct shape."""
         samples = self.canonical.rvs(100)
         self.assertEqual(samples.shape, (2, 100))
 
 
+class TestGaussianCanonicalFormNumpy(TestGaussianCanonicalForm[NDArray[Any]]):
+    """NumPy backend tests for GaussianCanonicalForm."""
+
+    def bkd(self) -> NumpyBkd:
+        return NumpyBkd()
+
+
+class TestGaussianCanonicalFormTorch(TestGaussianCanonicalForm[torch.Tensor]):
+    """PyTorch backend tests for GaussianCanonicalForm."""
+
+    def bkd(self) -> TorchBkd:
+        torch.set_default_dtype(torch.float64)
+        return TorchBkd()
+
+
 if __name__ == "__main__":
     unittest.main()
-
-
-# TODO: my code returns jacobians (e.g. (nvars, nsamples) not gradients, e.g update this file and those in this module to be consistent with this convention.
-# use __test__ = False pattern typing/interface/functions/fromcallable/tests/ and load_tests to avoid running base class.
-# avoid use of torch and numpy specific functions except np.random, for example use bkd.assert_allclose instead of np.testing.assert_array_almost_equal
-# split test files into files for each class
-# wrap outputs of scipy functinos with bkd.asarray() before comparing
-# test gradient with typing.funcitons.derivative_checks.derivative_checker and error_ratio < 1e-6
-# apply similar changes throughout module
-
-# Future: add log_hvp hessian
-
-# Typing module plan: Suggest how to differentiate between funcitions that take in one sample vs multiple samples, similarly for jacobians and hvp at one sample vs many samples. E.g. should we change name, make single sample functions take 1D array and multiple sample functions take 2D array. I think I would like both functions to take 2D arrays, single sample models just take a 2D array with one column. Suggest pros and cons

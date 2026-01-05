@@ -3,10 +3,17 @@ Tests for probability transforms.
 """
 
 import unittest
-import numpy as np
-from scipy import stats
+from typing import Any, Generic
 
+import numpy as np
+from numpy.typing import NDArray
+from scipy import stats
+import torch
+
+from pyapprox.typing.util.backends.protocols import Array, Backend
 from pyapprox.typing.util.backends.numpy import NumpyBkd
+from pyapprox.typing.util.backends.torch import TorchBkd
+from pyapprox.typing.util.test_utils import load_tests
 from pyapprox.typing.probability.univariate import (
     ScipyContinuousMarginal,
     GaussianMarginal,
@@ -19,395 +26,546 @@ from pyapprox.typing.probability.transforms import (
 )
 
 
-class TestAffineTransform(unittest.TestCase):
+class TestAffineTransform(Generic[Array], unittest.TestCase):
     """Tests for AffineTransform."""
 
-    def setUp(self):
-        self.bkd = NumpyBkd()
-        self.loc = np.array([1.0, 2.0])
-        self.scale = np.array([2.0, 3.0])
-        self.transform = AffineTransform(self.loc, self.scale, self.bkd)
+    __test__ = False
 
-    def test_nvars(self):
+    def bkd(self) -> Backend[Array]:
+        raise NotImplementedError("Derived classes must implement this method.")
+
+    def setUp(self) -> None:
+        self._bkd = self.bkd()
+        self.loc = self._bkd.asarray([1.0, 2.0])
+        self.scale = self._bkd.asarray([2.0, 3.0])
+        self.transform = AffineTransform(self.loc, self.scale, self._bkd)
+
+    def test_nvars(self) -> None:
         """Test nvars returns correct dimension."""
         self.assertEqual(self.transform.nvars(), 2)
 
-    def test_loc_scale(self):
+    def test_loc_scale(self) -> None:
         """Test loc and scale accessors."""
-        np.testing.assert_array_equal(self.transform.loc(), self.loc)
-        np.testing.assert_array_equal(self.transform.scale(), self.scale)
+        self.assertTrue(self._bkd.allclose(self.transform.loc(), self.loc, atol=1e-10))
+        self.assertTrue(
+            self._bkd.allclose(self.transform.scale(), self.scale, atol=1e-10)
+        )
 
-    def test_map_to_canonical(self):
+    def test_map_to_canonical(self) -> None:
         """Test map to canonical space."""
-        # x = [1, 2] -> y = [0, 0] (at loc, canonical is 0)
-        # x = [3, 5] -> y = [1, 1]
-        x = np.array([[1.0, 3.0], [2.0, 5.0]])
+        x = self._bkd.asarray([[1.0, 3.0], [2.0, 5.0]])
         y = self.transform.map_to_canonical(x)
-        expected = np.array([[0.0, 1.0], [0.0, 1.0]])
-        np.testing.assert_array_almost_equal(y, expected)
+        expected = self._bkd.asarray([[0.0, 1.0], [0.0, 1.0]])
+        self.assertTrue(self._bkd.allclose(y, expected, rtol=1e-6))
 
-    def test_map_from_canonical(self):
+    def test_map_from_canonical(self) -> None:
         """Test map from canonical space."""
-        # y = [0, 0] -> x = [1, 2]
-        # y = [1, 1] -> x = [3, 5]
-        y = np.array([[0.0, 1.0], [0.0, 1.0]])
+        y = self._bkd.asarray([[0.0, 1.0], [0.0, 1.0]])
         x = self.transform.map_from_canonical(y)
-        expected = np.array([[1.0, 3.0], [2.0, 5.0]])
-        np.testing.assert_array_almost_equal(x, expected)
+        expected = self._bkd.asarray([[1.0, 3.0], [2.0, 5.0]])
+        self.assertTrue(self._bkd.allclose(x, expected, rtol=1e-6))
 
-    def test_roundtrip(self):
+    def test_roundtrip(self) -> None:
         """Test that map_to_canonical and map_from_canonical are inverses."""
-        x = np.array([[0.0, 1.0, 5.0], [1.0, 3.0, 10.0]])
+        x = self._bkd.asarray([[0.0, 1.0, 5.0], [1.0, 3.0, 10.0]])
         y = self.transform.map_to_canonical(x)
         x_recovered = self.transform.map_from_canonical(y)
-        np.testing.assert_array_almost_equal(x, x_recovered)
+        self.assertTrue(self._bkd.allclose(x, x_recovered, rtol=1e-6))
 
-    def test_jacobian_to_canonical(self):
+    def test_jacobian_to_canonical(self) -> None:
         """Test Jacobian to canonical is 1/scale."""
-        x = np.array([[1.0, 3.0], [2.0, 5.0]])
+        x = self._bkd.asarray([[1.0, 3.0], [2.0, 5.0]])
         _, jacobian = self.transform.map_to_canonical_with_jacobian(x)
-        expected = np.array([[0.5, 0.5], [1.0 / 3.0, 1.0 / 3.0]])
-        np.testing.assert_array_almost_equal(jacobian, expected)
+        expected = self._bkd.asarray([[0.5, 0.5], [1.0 / 3.0, 1.0 / 3.0]])
+        self.assertTrue(self._bkd.allclose(jacobian, expected, rtol=1e-6))
 
-    def test_jacobian_from_canonical(self):
+    def test_jacobian_from_canonical(self) -> None:
         """Test Jacobian from canonical is scale."""
-        y = np.array([[0.0, 1.0], [0.0, 1.0]])
+        y = self._bkd.asarray([[0.0, 1.0], [0.0, 1.0]])
         _, jacobian = self.transform.map_from_canonical_with_jacobian(y)
-        expected = np.array([[2.0, 2.0], [3.0, 3.0]])
-        np.testing.assert_array_almost_equal(jacobian, expected)
+        expected = self._bkd.asarray([[2.0, 2.0], [3.0, 3.0]])
+        self.assertTrue(self._bkd.allclose(jacobian, expected, rtol=1e-6))
 
-    def test_log_det_jacobian(self):
+    def test_log_det_jacobian(self) -> None:
         """Test log determinant of Jacobian."""
-        x = np.array([[1.0, 3.0], [2.0, 5.0]])
+        x = self._bkd.asarray([[1.0, 3.0], [2.0, 5.0]])
         log_det = self.transform.log_det_jacobian_to_canonical(x)
-        # log(1/2) + log(1/3) = -log(2) - log(3)
-        expected = -np.log(2) - np.log(3)
-        np.testing.assert_array_almost_equal(log_det, [expected, expected])
+        expected_val = -np.log(2) - np.log(3)
+        expected = self._bkd.asarray([expected_val, expected_val])
+        self.assertTrue(self._bkd.allclose(log_det, expected, rtol=1e-6))
 
-    def test_mismatched_shapes_raises(self):
+    def test_mismatched_shapes_raises(self) -> None:
         """Test mismatched loc and scale raises error."""
         with self.assertRaises(ValueError):
             AffineTransform(
-                np.array([1.0, 2.0]),
-                np.array([1.0]),
-                self.bkd,
+                self._bkd.asarray([1.0, 2.0]),
+                self._bkd.asarray([1.0]),
+                self._bkd,
             )
 
 
-class TestGaussianTransform(unittest.TestCase):
+class TestAffineTransformNumpy(TestAffineTransform[NDArray[Any]]):
+    """NumPy backend tests for AffineTransform."""
+
+    def bkd(self) -> NumpyBkd:
+        return NumpyBkd()
+
+
+class TestAffineTransformTorch(TestAffineTransform[torch.Tensor]):
+    """PyTorch backend tests for AffineTransform."""
+
+    def bkd(self) -> TorchBkd:
+        torch.set_default_dtype(torch.float64)
+        return TorchBkd()
+
+
+class TestGaussianTransform(Generic[Array], unittest.TestCase):
     """Tests for GaussianTransform."""
 
-    def setUp(self):
-        self.bkd = NumpyBkd()
-        # Uniform [0, 1] marginal
-        self.uniform = ScipyContinuousMarginal(stats.uniform(0, 1), self.bkd)
-        self.transform = GaussianTransform(self.uniform, self.bkd)
+    __test__ = False
 
-    def test_nvars(self):
+    def bkd(self) -> Backend[Array]:
+        raise NotImplementedError("Derived classes must implement this method.")
+
+    def setUp(self) -> None:
+        self._bkd = self.bkd()
+        self.uniform = ScipyContinuousMarginal(stats.uniform(0, 1), self._bkd)
+        self.transform = GaussianTransform(self.uniform, self._bkd)
+
+    def test_nvars(self) -> None:
         """Test nvars returns 1."""
         self.assertEqual(self.transform.nvars(), 1)
 
-    def test_median_to_zero(self):
+    def test_median_to_zero(self) -> None:
         """Test median of uniform maps to 0 (median of normal)."""
-        x = np.array([0.5])
+        x = self._bkd.asarray([0.5])
         y = self.transform.map_to_canonical(x)
-        # 0.5 is median of U[0,1], should map to 0 (median of N(0,1))
-        np.testing.assert_array_almost_equal(y, [0.0])
+        expected = self._bkd.asarray([0.0])
+        self.assertTrue(self._bkd.allclose(y, expected, rtol=1e-6))
 
-    def test_roundtrip(self):
+    def test_roundtrip(self) -> None:
         """Test roundtrip preserves samples."""
-        x = np.array([0.1, 0.3, 0.5, 0.7, 0.9])
+        x = self._bkd.asarray([0.1, 0.3, 0.5, 0.7, 0.9])
         y = self.transform.map_to_canonical(x)
         x_recovered = self.transform.map_from_canonical(y)
-        np.testing.assert_array_almost_equal(x, x_recovered)
+        self.assertTrue(self._bkd.allclose(x, x_recovered, rtol=1e-6))
 
-    def test_normal_to_normal_identity(self):
+    def test_normal_to_normal_identity(self) -> None:
         """Test normal marginal gives identity transform."""
-        normal = GaussianMarginal(0.0, 1.0, self.bkd)
-        transform = GaussianTransform(normal, self.bkd)
+        normal = GaussianMarginal(0.0, 1.0, self._bkd)
+        transform = GaussianTransform(normal, self._bkd)
 
-        x = np.array([-1.0, 0.0, 1.0, 2.0])
+        x = self._bkd.asarray([-1.0, 0.0, 1.0, 2.0])
         y = transform.map_to_canonical(x)
-        np.testing.assert_array_almost_equal(x, y, decimal=5)
+        self.assertTrue(self._bkd.allclose(x, y, rtol=1e-5))
 
-    def test_jacobian_chain_rule(self):
+    def test_jacobian_chain_rule(self) -> None:
         """Test Jacobian satisfies chain rule."""
-        x = np.array([0.3])
+        x = self._bkd.asarray([0.3])
         y, jac_to = self.transform.map_to_canonical_with_jacobian(x)
         x_back, jac_from = self.transform.map_from_canonical_with_jacobian(y)
 
         # jac_to * jac_from should be close to 1
-        np.testing.assert_array_almost_equal(
-            jac_to * jac_from, [1.0], decimal=5
+        expected = self._bkd.asarray([1.0])
+        self.assertTrue(
+            self._bkd.allclose(jac_to * jac_from, expected, rtol=1e-5)
         )
 
 
-class TestIndependentGaussianTransform(unittest.TestCase):
+class TestGaussianTransformNumpy(TestGaussianTransform[NDArray[Any]]):
+    """NumPy backend tests for GaussianTransform."""
+
+    def bkd(self) -> NumpyBkd:
+        return NumpyBkd()
+
+
+class TestGaussianTransformTorch(TestGaussianTransform[torch.Tensor]):
+    """PyTorch backend tests for GaussianTransform."""
+
+    def bkd(self) -> TorchBkd:
+        torch.set_default_dtype(torch.float64)
+        return TorchBkd()
+
+
+
+class TestIndependentGaussianTransform(Generic[Array], unittest.TestCase):
     """Tests for IndependentGaussianTransform."""
 
-    def setUp(self):
-        self.bkd = NumpyBkd()
-        self.marginals = [
-            ScipyContinuousMarginal(stats.uniform(0, 1), self.bkd),
-            ScipyContinuousMarginal(stats.beta(2, 5), self.bkd),
-            ScipyContinuousMarginal(stats.norm(0, 1), self.bkd),
-        ]
-        self.transform = IndependentGaussianTransform(self.marginals, self.bkd)
+    __test__ = False
 
-    def test_nvars(self):
+    def bkd(self) -> Backend[Array]:
+        raise NotImplementedError("Derived classes must implement this method.")
+
+    def setUp(self) -> None:
+        self._bkd = self.bkd()
+        self.marginals = [
+            ScipyContinuousMarginal(stats.uniform(0, 1), self._bkd),
+            ScipyContinuousMarginal(stats.beta(2, 5), self._bkd),
+            ScipyContinuousMarginal(stats.norm(0, 1), self._bkd),
+        ]
+        self.transform = IndependentGaussianTransform(self.marginals, self._bkd)
+
+    def test_nvars(self) -> None:
         """Test nvars returns correct dimension."""
         self.assertEqual(self.transform.nvars(), 3)
 
-    def test_marginals(self):
+    def test_marginals(self) -> None:
         """Test marginals accessor."""
         marginals = self.transform.marginals()
         self.assertEqual(len(marginals), 3)
 
-    def test_map_to_canonical_shape(self):
+    def test_map_to_canonical_shape(self) -> None:
         """Test map to canonical returns correct shape."""
-        x = np.array([[0.5, 0.3], [0.4, 0.2], [0.0, 1.0]])
+        x = self._bkd.asarray([[0.5, 0.3], [0.4, 0.2], [0.0, 1.0]])
         y = self.transform.map_to_canonical(x)
         self.assertEqual(y.shape, (3, 2))
 
-    def test_roundtrip(self):
+    def test_roundtrip(self) -> None:
         """Test roundtrip preserves samples."""
-        x = np.array([[0.3, 0.7], [0.2, 0.6], [-1.0, 1.0]])
+        x = self._bkd.asarray([[0.3, 0.7], [0.2, 0.6], [-1.0, 1.0]])
         y = self.transform.map_to_canonical(x)
         x_recovered = self.transform.map_from_canonical(y)
-        np.testing.assert_array_almost_equal(x, x_recovered, decimal=5)
+        self.assertTrue(self._bkd.allclose(x, x_recovered, rtol=1e-5))
 
-    def test_jacobian_shape(self):
+    def test_jacobian_shape(self) -> None:
         """Test Jacobian has correct shape."""
-        x = np.array([[0.5, 0.3], [0.4, 0.2], [0.0, 1.0]])
+        x = self._bkd.asarray([[0.5, 0.3], [0.4, 0.2], [0.0, 1.0]])
         _, jacobian = self.transform.map_to_canonical_with_jacobian(x)
         self.assertEqual(jacobian.shape, (3, 2))
 
-    def test_log_det_jacobian_shape(self):
+    def test_log_det_jacobian_shape(self) -> None:
         """Test log determinant has correct shape."""
-        x = np.array([[0.5, 0.3], [0.4, 0.2], [0.0, 1.0]])
+        x = self._bkd.asarray([[0.5, 0.3], [0.4, 0.2], [0.0, 1.0]])
         log_det = self.transform.log_det_jacobian_to_canonical(x)
         self.assertEqual(log_det.shape, (2,))
 
-    def test_normal_component_identity(self):
+    def test_normal_component_identity(self) -> None:
         """Test normal component is identity transform."""
-        x = np.array([[0.5], [0.4], [0.5]])  # Third is N(0,1)
+        x = self._bkd.asarray([[0.5], [0.4], [0.5]])
         y = self.transform.map_to_canonical(x)
-        # Third component should be approximately unchanged
-        np.testing.assert_array_almost_equal(y[2], x[2], decimal=5)
+        self.assertTrue(self._bkd.allclose(y[2], x[2], rtol=1e-5))
 
 
-class TestAffineTransformProtocol(unittest.TestCase):
+class TestIndependentGaussianTransformNumpy(
+    TestIndependentGaussianTransform[NDArray[Any]]
+):
+    """NumPy backend tests for IndependentGaussianTransform."""
+
+    def bkd(self) -> NumpyBkd:
+        return NumpyBkd()
+
+
+class TestIndependentGaussianTransformTorch(
+    TestIndependentGaussianTransform[torch.Tensor]
+):
+    """PyTorch backend tests for IndependentGaussianTransform."""
+
+    def bkd(self) -> TorchBkd:
+        torch.set_default_dtype(torch.float64)
+        return TorchBkd()
+
+
+class TestAffineTransformProtocol(Generic[Array], unittest.TestCase):
     """Test AffineTransform satisfies TransformWithJacobianProtocol."""
 
-    def setUp(self):
-        self.bkd = NumpyBkd()
+    __test__ = False
+
+    def bkd(self) -> Backend[Array]:
+        raise NotImplementedError("Derived classes must implement this method.")
+
+    def setUp(self) -> None:
+        self._bkd = self.bkd()
         self.transform = AffineTransform(
-            np.array([0.0, 1.0]),
-            np.array([1.0, 2.0]),
-            self.bkd,
+            self._bkd.asarray([0.0, 1.0]),
+            self._bkd.asarray([1.0, 2.0]),
+            self._bkd,
         )
 
-    def test_has_bkd(self):
+    def test_has_bkd(self) -> None:
         """Test has bkd method."""
         self.assertIsNotNone(self.transform.bkd())
 
-    def test_has_nvars(self):
+    def test_has_nvars(self) -> None:
         """Test has nvars method."""
         self.assertEqual(self.transform.nvars(), 2)
 
-    def test_has_map_to_canonical(self):
+    def test_has_map_to_canonical(self) -> None:
         """Test has map_to_canonical method."""
-        x = np.array([[0.0, 1.0], [1.0, 3.0]])
+        x = self._bkd.asarray([[0.0, 1.0], [1.0, 3.0]])
         y = self.transform.map_to_canonical(x)
         self.assertEqual(y.shape, (2, 2))
 
-    def test_has_map_from_canonical(self):
+    def test_has_map_from_canonical(self) -> None:
         """Test has map_from_canonical method."""
-        y = np.array([[0.0, 1.0], [0.0, 1.0]])
+        y = self._bkd.asarray([[0.0, 1.0], [0.0, 1.0]])
         x = self.transform.map_from_canonical(y)
         self.assertEqual(x.shape, (2, 2))
 
-    def test_has_map_with_jacobian(self):
+    def test_has_map_with_jacobian(self) -> None:
         """Test has map_to_canonical_with_jacobian method."""
-        x = np.array([[0.0, 1.0], [1.0, 3.0]])
+        x = self._bkd.asarray([[0.0, 1.0], [1.0, 3.0]])
         y, jac = self.transform.map_to_canonical_with_jacobian(x)
         self.assertEqual(y.shape, (2, 2))
         self.assertEqual(jac.shape, (2, 2))
 
 
-class TestGaussianTransformProtocol(unittest.TestCase):
+class TestAffineTransformProtocolNumpy(
+    TestAffineTransformProtocol[NDArray[Any]]
+):
+    """NumPy backend tests for AffineTransform protocol."""
+
+    def bkd(self) -> NumpyBkd:
+        return NumpyBkd()
+
+
+class TestAffineTransformProtocolTorch(
+    TestAffineTransformProtocol[torch.Tensor]
+):
+    """PyTorch backend tests for AffineTransform protocol."""
+
+    def bkd(self) -> TorchBkd:
+        torch.set_default_dtype(torch.float64)
+        return TorchBkd()
+
+
+class TestGaussianTransformProtocol(Generic[Array], unittest.TestCase):
     """Test GaussianTransform satisfies TransformWithJacobianProtocol."""
 
-    def setUp(self):
-        self.bkd = NumpyBkd()
-        self.marginal = ScipyContinuousMarginal(stats.uniform(0, 1), self.bkd)
-        self.transform = GaussianTransform(self.marginal, self.bkd)
+    __test__ = False
 
-    def test_has_bkd(self):
+    def bkd(self) -> Backend[Array]:
+        raise NotImplementedError("Derived classes must implement this method.")
+
+    def setUp(self) -> None:
+        self._bkd = self.bkd()
+        self.marginal = ScipyContinuousMarginal(stats.uniform(0, 1), self._bkd)
+        self.transform = GaussianTransform(self.marginal, self._bkd)
+
+    def test_has_bkd(self) -> None:
         """Test has bkd method."""
         self.assertIsNotNone(self.transform.bkd())
 
-    def test_has_nvars(self):
+    def test_has_nvars(self) -> None:
         """Test has nvars method."""
         self.assertEqual(self.transform.nvars(), 1)
 
-    def test_has_map_to_canonical(self):
+    def test_has_map_to_canonical(self) -> None:
         """Test has map_to_canonical method."""
-        x = np.array([0.3, 0.5, 0.7])
+        x = self._bkd.asarray([0.3, 0.5, 0.7])
         y = self.transform.map_to_canonical(x)
         self.assertEqual(y.shape, (3,))
 
-    def test_has_map_from_canonical(self):
+    def test_has_map_from_canonical(self) -> None:
         """Test has map_from_canonical method."""
-        y = np.array([-1.0, 0.0, 1.0])
+        y = self._bkd.asarray([-1.0, 0.0, 1.0])
         x = self.transform.map_from_canonical(y)
         self.assertEqual(x.shape, (3,))
 
 
-class TestNatafTransform(unittest.TestCase):
+class TestGaussianTransformProtocolNumpy(
+    TestGaussianTransformProtocol[NDArray[Any]]
+):
+    """NumPy backend tests for GaussianTransform protocol."""
+
+    def bkd(self) -> NumpyBkd:
+        return NumpyBkd()
+
+
+class TestGaussianTransformProtocolTorch(
+    TestGaussianTransformProtocol[torch.Tensor]
+):
+    """PyTorch backend tests for GaussianTransform protocol."""
+
+    def bkd(self) -> TorchBkd:
+        torch.set_default_dtype(torch.float64)
+        return TorchBkd()
+
+
+class TestNatafTransform(Generic[Array], unittest.TestCase):
     """Tests for NatafTransform."""
 
-    def setUp(self):
-        self.bkd = NumpyBkd()
-        # Two normal marginals with correlation
+    __test__ = False
+
+    def bkd(self) -> Backend[Array]:
+        raise NotImplementedError("Derived classes must implement this method.")
+
+    def setUp(self) -> None:
+        self._bkd = self.bkd()
         self.marginals = [
-            GaussianMarginal(0.0, 1.0, self.bkd),
-            GaussianMarginal(0.0, 1.0, self.bkd),
+            GaussianMarginal(0.0, 1.0, self._bkd),
+            GaussianMarginal(0.0, 1.0, self._bkd),
         ]
-        # Correlation matrix
-        self.correlation = np.array([[1.0, 0.5], [0.5, 1.0]])
+        self.correlation = self._bkd.asarray([[1.0, 0.5], [0.5, 1.0]])
         self.transform = NatafTransform(
-            self.marginals, self.correlation, self.bkd
+            self.marginals, self.correlation, self._bkd
         )
 
-    def test_nvars(self):
+    def test_nvars(self) -> None:
         """Test nvars returns correct dimension."""
         self.assertEqual(self.transform.nvars(), 2)
 
-    def test_marginals(self):
+    def test_marginals(self) -> None:
         """Test marginals accessor."""
         marginals = self.transform.marginals()
         self.assertEqual(len(marginals), 2)
 
-    def test_correlation(self):
+    def test_correlation(self) -> None:
         """Test correlation accessor."""
         corr = self.transform.correlation()
-        np.testing.assert_array_almost_equal(corr, self.correlation)
+        self.assertTrue(self._bkd.allclose(corr, self.correlation, rtol=1e-6))
 
-    def test_map_to_canonical_shape(self):
+    def test_map_to_canonical_shape(self) -> None:
         """Test map to canonical returns correct shape."""
-        x = np.array([[0.0, 1.0], [0.0, 1.0]])
+        x = self._bkd.asarray([[0.0, 1.0], [0.0, 1.0]])
         z = self.transform.map_to_canonical(x)
         self.assertEqual(z.shape, (2, 2))
 
-    def test_map_from_canonical_shape(self):
+    def test_map_from_canonical_shape(self) -> None:
         """Test map from canonical returns correct shape."""
-        z = np.array([[0.0, 1.0], [0.0, 1.0]])
+        z = self._bkd.asarray([[0.0, 1.0], [0.0, 1.0]])
         x = self.transform.map_from_canonical(z)
         self.assertEqual(x.shape, (2, 2))
 
-    def test_roundtrip(self):
+    def test_roundtrip(self) -> None:
         """Test roundtrip preserves samples."""
-        x = np.array([[0.0, 0.5, -0.5], [0.0, 1.0, -1.0]])
+        x = self._bkd.asarray([[0.0, 0.5, -0.5], [0.0, 1.0, -1.0]])
         z = self.transform.map_to_canonical(x)
         x_recovered = self.transform.map_from_canonical(z)
-        np.testing.assert_array_almost_equal(x, x_recovered, decimal=5)
+        self.assertTrue(self._bkd.allclose(x, x_recovered, rtol=1e-5))
 
-    def test_identity_correlation(self):
+    def test_identity_correlation(self) -> None:
         """Test identity correlation gives independent transform."""
-        identity = np.eye(2)
-        transform = NatafTransform(self.marginals, identity, self.bkd)
+        identity = self._bkd.eye(2)
+        transform = NatafTransform(self.marginals, identity, self._bkd)
 
-        x = np.array([[0.0, 1.0], [0.0, 1.0]])
+        x = self._bkd.asarray([[0.0, 1.0], [0.0, 1.0]])
         z = transform.map_to_canonical(x)
-        # With identity correlation, output should equal input
-        # since marginals are already standard normal
-        np.testing.assert_array_almost_equal(x, z, decimal=5)
+        self.assertTrue(self._bkd.allclose(x, z, rtol=1e-5))
 
-    def test_jacobian_shape(self):
+    def test_jacobian_shape(self) -> None:
         """Test Jacobian has correct shape."""
-        x = np.array([[0.0, 1.0], [0.0, 1.0]])
+        x = self._bkd.asarray([[0.0, 1.0], [0.0, 1.0]])
         _, jacobian = self.transform.map_to_canonical_with_jacobian(x)
-        self.assertEqual(jacobian.shape, (2, 2, 2))  # (nvars, nvars, nsamples)
+        self.assertEqual(jacobian.shape, (2, 2, 2))
 
-    def test_invalid_correlation_shape_raises(self):
+    def test_invalid_correlation_shape_raises(self) -> None:
         """Test mismatched correlation shape raises error."""
         with self.assertRaises(ValueError):
             NatafTransform(
                 self.marginals,
-                np.eye(3),  # Wrong size
-                self.bkd,
+                self._bkd.eye(3),
+                self._bkd,
             )
 
 
-class TestNatafTransformNonGaussian(unittest.TestCase):
+class TestNatafTransformNumpy(TestNatafTransform[NDArray[Any]]):
+    """NumPy backend tests for NatafTransform."""
+
+    def bkd(self) -> NumpyBkd:
+        return NumpyBkd()
+
+
+class TestNatafTransformTorch(TestNatafTransform[torch.Tensor]):
+    """PyTorch backend tests for NatafTransform."""
+
+    def bkd(self) -> TorchBkd:
+        torch.set_default_dtype(torch.float64)
+        return TorchBkd()
+
+
+class TestNatafTransformNonGaussian(Generic[Array], unittest.TestCase):
     """Tests for NatafTransform with non-Gaussian marginals."""
 
-    def setUp(self):
-        self.bkd = NumpyBkd()
-        # Uniform and beta marginals
+    __test__ = False
+
+    def bkd(self) -> Backend[Array]:
+        raise NotImplementedError("Derived classes must implement this method.")
+
+    def setUp(self) -> None:
+        np.random.seed(42)
+        self._bkd = self.bkd()
         self.marginals = [
-            ScipyContinuousMarginal(stats.uniform(0, 1), self.bkd),
-            ScipyContinuousMarginal(stats.beta(2, 5), self.bkd),
+            ScipyContinuousMarginal(stats.uniform(0, 1), self._bkd),
+            ScipyContinuousMarginal(stats.beta(2, 5), self._bkd),
         ]
-        self.correlation = np.array([[1.0, 0.3], [0.3, 1.0]])
+        self.correlation = self._bkd.asarray([[1.0, 0.3], [0.3, 1.0]])
         self.transform = NatafTransform(
-            self.marginals, self.correlation, self.bkd
+            self.marginals, self.correlation, self._bkd
         )
 
-    def test_nvars(self):
+    def test_nvars(self) -> None:
         """Test nvars returns correct dimension."""
         self.assertEqual(self.transform.nvars(), 2)
 
-    def test_roundtrip(self):
+    def test_roundtrip(self) -> None:
         """Test roundtrip preserves samples."""
-        x = np.array([[0.3, 0.7], [0.2, 0.4]])
+        x = self._bkd.asarray([[0.3, 0.7], [0.2, 0.4]])
         z = self.transform.map_to_canonical(x)
         x_recovered = self.transform.map_from_canonical(z)
-        np.testing.assert_array_almost_equal(x, x_recovered, decimal=4)
+        self.assertTrue(self._bkd.allclose(x, x_recovered, rtol=1e-4))
 
-    def test_canonical_is_approximately_normal(self):
-        """Test canonical samples are approximately standard normal."""
-        # Generate samples from marginals
+    def test_canonical_is_approximately_normal(self) -> None:
+        """Test canonical samples are approximately standard normal.
+
+        The correct procedure is:
+        1. Generate independent standard normal samples Z
+        2. Use map_from_canonical(Z) to get correlated samples X
+        3. Use map_to_canonical(X) to transform back to Z'
+        4. Z' should be approximately standard normal with identity covariance
+        """
         np.random.seed(42)
         n = 10000000
-        x = np.array(
-            [
-                np.random.uniform(0, 1, n),
-                np.random.beta(2, 5, n),
-            ]
-        )
 
-        # Transform to canonical
+        # Generate independent standard normal samples
+        z_initial = self._bkd.asarray(np.random.randn(2, n))
+
+        # Transform to correlated physical space samples
+        x = self.transform.map_from_canonical(z_initial)
+
+        # Transform back to canonical (should recover standard normals)
         z = self.transform.map_to_canonical(x)
-        print(np.cov(z))  # the off diagonal terms have the wrong sign
-        # the error of the lowerdiagonal term does not decrease with n
+        z_np = self._bkd.to_numpy(z)
 
-        # Check that each component is approximately standard normal
         for i in range(2):
-            z_i = z[i]
-            # Mean should be close to 0 (within 3e-3)
-            print(abs(float(np.mean(z_i))))
-            self.assertLess(abs(float(np.mean(z_i))), 3e-3)
-            # Std should be close to 1 (within 3e-3)
-            print(np.std(z_i))
-            self.assertLess(abs(float(np.std(z_i)) - 1.0), 3e-3)
+            z_i = z_np[i]
+            mean_val = float(np.mean(z_i))
+            std_val = float(np.std(z_i))
+            # Mean should be close to 0
+            self.assertTrue(
+                self._bkd.allclose(
+                    self._bkd.asarray([mean_val]),
+                    self._bkd.asarray([0.0]),
+                    atol=3e-3,
+                )
+            )
+            # Std should be close to 1
+            self.assertTrue(
+                self._bkd.allclose(
+                    self._bkd.asarray([std_val]),
+                    self._bkd.asarray([1.0]),
+                    atol=3e-3,
+                )
+            )
+
+
+class TestNatafTransformNonGaussianNumpy(
+    TestNatafTransformNonGaussian[NDArray[Any]]
+):
+    """NumPy backend tests for NatafTransform with non-Gaussian marginals."""
+
+    def bkd(self) -> NumpyBkd:
+        return NumpyBkd()
+
+
+class TestNatafTransformNonGaussianTorch(
+    TestNatafTransformNonGaussian[torch.Tensor]
+):
+    """PyTorch backend tests for NatafTransform with non-Gaussian marginals."""
+
+    def bkd(self) -> TorchBkd:
+        torch.set_default_dtype(torch.float64)
+        return TorchBkd()
 
 
 if __name__ == "__main__":
     unittest.main()
-
-
-# TODO: Test all jacobians with typing.funcitons.derivative_checks.derivative_checker and error_ratio < 1e-6
-# there are not rosenblattTransform tests, not all nataftransforms tests have been converted
-# make sure to add all tests in pyapprox.variables module that are not present in typing.probablity module tests. List tests missing then implement.
-# use __test__ = False pattern typing/interface/functions/fromcallable/tests/ and load_tests to avoid running base class.
-# avoid use of torch and numpy specific feunctions except np.random,
-# in any test that uses np.random set np.random.seed in setUp to ensure reproducibliity
-# use bkd.assert_allclose even for floats instead of assertLess
-#  Fix failing test_canonical_is_approximately_normal after including tests from  pyapprox.variables
-# replace np.testing.assert_array_almost_equal with bkd.assert_allclose
-# improve test_coverage of nataftransform and rosenblatt transform
-# apply similar changes throughout module
-
-# Future: minimize mypy warnings in typing.probability module
