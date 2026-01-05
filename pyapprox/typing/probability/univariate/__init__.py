@@ -8,6 +8,10 @@ Classes
 -------
 BetaMarginal
     Beta distribution with analytical implementation.
+CustomDiscreteMarginal
+    Custom discrete distribution from user-provided masses.
+DiscreteChebyshevMarginal
+    Uniform discrete distribution over equally-spaced points.
 GammaMarginal
     Gamma distribution with analytical implementation.
 GaussianMarginal
@@ -21,6 +25,7 @@ ScipyDiscreteMarginal
 """
 
 from .beta import BetaMarginal
+from .discrete import CustomDiscreteMarginal, DiscreteChebyshevMarginal
 from .gamma import GammaMarginal
 from .gaussian import GaussianMarginal
 from .uniform import UniformMarginal
@@ -29,6 +34,8 @@ from .scipy_discrete import ScipyDiscreteMarginal
 
 __all__ = [
     "BetaMarginal",
+    "CustomDiscreteMarginal",
+    "DiscreteChebyshevMarginal",
     "GammaMarginal",
     "GaussianMarginal",
     "UniformMarginal",
