@@ -179,21 +179,30 @@ class GaussianLogLikelihood(Generic[Array]):
         n_model = model_outputs.shape[1]
         n_obs = observations.shape[1]
 
-        logpdf = self._bkd.zeros((n_model, n_obs))
+        # Compute residuals for all (model, obs) combinations via broadcasting
+        # model_outputs: (nobs, n_model) -> (nobs, n_model, 1)
+        # observations: (nobs, n_obs) -> (nobs, 1, n_obs)
+        # residuals: (nobs, n_model, n_obs)
+        residuals = (
+            observations[:, None, :] - model_outputs[:, :, None]
+        )
 
-        for j in range(n_obs):
-            # Compute residuals for all model samples vs this observation
-            obs_j = observations[:, j : j + 1]
-            residuals = obs_j - model_outputs
+        if self._design_weights is not None:
+            residuals = residuals * self._design_weights[:, None, None]
 
-            if self._design_weights is not None:
-                residuals = residuals * self._design_weights[:, None]
+        # Reshape to 2D for apply_inv: (nobs, n_model * n_obs)
+        residuals_2d = self._bkd.reshape(residuals, (self._nobs, n_model * n_obs))
 
-            whitened = self._noise_cov_op.apply_inv(residuals)
-            squared_dist = self._bkd.sum(whitened**2, axis=0)
-            logpdf[:, j] = self._log_norm_const - 0.5 * squared_dist
+        # Apply whitening transformation
+        whitened_2d = self._noise_cov_op.apply_inv(residuals_2d)
 
-        return logpdf
+        # Reshape back to 3D: (nobs, n_model, n_obs)
+        whitened = self._bkd.reshape(whitened_2d, (self._nobs, n_model, n_obs))
+
+        # Sum squared over nobs dimension -> (n_model, n_obs)
+        squared_dist = self._bkd.sum(whitened**2, axis=0)
+
+        return self._log_norm_const - 0.5 * squared_dist
 
     def rvs(self, model_outputs: Array, nsamples: int = 1) -> Array:
         """
@@ -429,4 +438,3 @@ class DiagonalGaussianLogLikelihood(Generic[Array]):
         return f"DiagonalGaussianLogLikelihood(nobs={self._nobs})"
 
 
-# TODO logpdf_vectorized contains a loop and so is not vectorized. Fix.

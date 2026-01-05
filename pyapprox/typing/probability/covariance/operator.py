@@ -6,7 +6,7 @@ covariance is defined implicitly (e.g., infinite-dimensional fields,
 kernel operators).
 """
 
-from typing import Generic, Callable
+from typing import Generic, Callable, Optional
 
 from pyapprox.typing.util.backends.protocols import Array, Backend
 
@@ -67,8 +67,8 @@ class OperatorBasedCovarianceOperator(Generic[Array]):
         log_determinant: float,
         nvars: int,
         bkd: Backend[Array],
-        apply_sqrt_transpose: Callable[[Array], Array] = None,
-        apply_sqrt_inv_transpose: Callable[[Array], Array] = None,
+        apply_sqrt_transpose: Optional[Callable[[Array], Array]] = None,
+        apply_sqrt_inv_transpose: Optional[Callable[[Array], Array]] = None,
     ):
         self._bkd = bkd
         self._nvars = nvars
@@ -185,7 +185,7 @@ class OperatorBasedCovarianceOperator(Generic[Array]):
         return self._log_det
 
     def compute_covariance_diagonal(
-        self, batch_size: int = None, active_indices: Array = None
+        self, batch_size: Optional[int] = None, active_indices: Optional[Array] = None
     ) -> Array:
         """
         Compute diagonal of covariance via probe vectors.
@@ -237,6 +237,3 @@ class OperatorBasedCovarianceOperator(Generic[Array]):
             cnt += nvectors
 
         return diagonal
-
-
-# TODO use PEP 484 standard and explicitly declare Optional from typing module

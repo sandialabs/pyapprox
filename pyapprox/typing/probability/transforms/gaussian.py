@@ -49,6 +49,11 @@ class GaussianTransform(Generic[Array]):
         marginal: MarginalProtocol[Array],
         bkd: Backend[Array],
     ):
+        if marginal.nvars() != 1:
+            raise ValueError(
+                f"GaussianTransform requires univariate marginal (nvars=1), "
+                f"got nvars={marginal.nvars()}"
+            )
         self._bkd = bkd
         self._marginal = marginal
         # Standard normal for inverse CDF
@@ -409,6 +414,3 @@ class IndependentGaussianTransform(Generic[Array]):
     def __repr__(self) -> str:
         """Return string representation."""
         return f"IndependentGaussianTransform(nvars={self._nvars})"
-
-
-# TODO add check that marginal argument to __init__ has nvars ==1

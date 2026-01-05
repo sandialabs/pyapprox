@@ -51,11 +51,14 @@ class NatafTransform(Generic[Array]):
     the marginals and a Gaussian copula. This is an approximation for
     arbitrary joint distributions.
 
-    The correlation matrix R_0 in standard normal space is computed by
+    The correlation matrix :math:`R_0` in standard normal space is computed by
     solving the integral equation:
-        R_{ij} = E[X_i X_j] / (sigma_i sigma_j)
-               = integral phi_2(y_i, y_j; R_0,ij) F_i^{-1}(Phi(y_i))
-                         F_j^{-1}(Phi(y_j)) dy_i dy_j / (sigma_i sigma_j)
+
+    .. math::
+
+        R_{ij} = \\frac{E[X_i X_j]}{\\sigma_i \\sigma_j}
+               = \\frac{1}{\\sigma_i \\sigma_j} \\int \\phi_2(y_i, y_j; R_{0,ij})
+                 F_i^{-1}(\\Phi(y_i)) F_j^{-1}(\\Phi(y_j)) \\, dy_i \\, dy_j
     """
 
     def __init__(
@@ -390,6 +393,3 @@ class NatafTransform(Generic[Array]):
     def __repr__(self) -> str:
         """Return string representation."""
         return f"NatafTransform(nvars={self._nvars})"
-
-
-# TODO: make sure latex math renders in docs, e.g. use .. math:: and :math:`` or suggest alternatives
