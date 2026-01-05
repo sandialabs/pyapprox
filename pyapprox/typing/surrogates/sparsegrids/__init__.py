@@ -40,7 +40,14 @@ from .isotropic import IsotropicCombinationSparseGrid
 
 from .adaptive import AdaptiveCombinationSparseGrid
 
+from .multiindex import MultiIndexAdaptiveCombinationSparseGrid
+
 from .wrappers import SparseGridFunction
+
+from .converters import (
+    SparseGridToPCEConverter,
+    TensorProductSubspaceToPCEConverter,
+)
 
 __all__ = [
     # Protocols
@@ -61,6 +68,10 @@ __all__ = [
     "CombinationSparseGrid",
     "IsotropicCombinationSparseGrid",
     "AdaptiveCombinationSparseGrid",
+    "MultiIndexAdaptiveCombinationSparseGrid",
     # Wrappers
     "SparseGridFunction",
+    # Converters
+    "SparseGridToPCEConverter",
+    "TensorProductSubspaceToPCEConverter",
 ]

@@ -456,3 +456,20 @@ class NumpyBkd(Backend[NDArray[Any]]):  # Specify NDArray type
     @staticmethod
     def slogdet(array: NDArray[Any]) -> Tuple[NDArray[Any], NDArray[Any]]:
         return np.linalg.slogdet(array)
+
+    @staticmethod
+    def mean(
+        array: NDArray[Any],
+        axis: Optional[Union[int, Tuple[int, ...]]] = None,
+        keepdims: bool = False,
+    ) -> NDArray[Any]:
+        return np.asarray(np.mean(array, axis=axis, keepdims=keepdims))
+
+    @staticmethod
+    def var(
+        array: NDArray[Any],
+        axis: Optional[Union[int, Tuple[int, ...]]] = None,
+        keepdims: bool = False,
+        ddof: int = 0,
+    ) -> NDArray[Any]:
+        return np.asarray(np.var(array, axis=axis, keepdims=keepdims, ddof=ddof))

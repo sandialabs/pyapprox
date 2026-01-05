@@ -565,3 +565,57 @@ class Backend(Protocol, Generic[Array]):
             Natural log of absolute value of determinant.
         """
         ...
+
+    @staticmethod
+    def mean(
+        array: Array,
+        axis: Optional[Union[int, Tuple[int, ...]]] = None,
+        keepdims: bool = False,
+    ) -> Array:
+        """Compute arithmetic mean along the specified axis.
+
+        Parameters
+        ----------
+        array : Array
+            Input array.
+        axis : int or tuple of ints, optional
+            Axis or axes along which to compute means.
+            If None, compute over flattened array.
+        keepdims : bool
+            If True, reduced axes are kept with size 1.
+
+        Returns
+        -------
+        Array
+            Mean values.
+        """
+        ...
+
+    @staticmethod
+    def var(
+        array: Array,
+        axis: Optional[Union[int, Tuple[int, ...]]] = None,
+        keepdims: bool = False,
+        ddof: int = 0,
+    ) -> Array:
+        """Compute variance along the specified axis.
+
+        Parameters
+        ----------
+        array : Array
+            Input array.
+        axis : int or tuple of ints, optional
+            Axis or axes along which to compute variance.
+            If None, compute over flattened array.
+        keepdims : bool
+            If True, reduced axes are kept with size 1.
+        ddof : int
+            Delta degrees of freedom. Default: 0 (population variance).
+            Use 1 for sample variance.
+
+        Returns
+        -------
+        Array
+            Variance values.
+        """
+        ...

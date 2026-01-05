@@ -67,6 +67,18 @@ from pyapprox.typing.surrogates.affine.univariate.quadrature import (
     GaussLobattoQuadratureRule,
 )
 
+from pyapprox.typing.surrogates.affine.univariate.bspline import (
+    BSpline1D,
+    HierarchicalBSpline1D,
+)
+
+from pyapprox.typing.surrogates.affine.univariate.lagrange import (
+    LagrangeBasis1D,
+    univariate_lagrange_polynomial,
+    univariate_lagrange_first_derivative,
+    univariate_lagrange_second_derivative,
+)
+
 __all__ = [
     # Base class and functions
     "OrthonormalPolynomial1D",
@@ -100,4 +112,12 @@ __all__ = [
     # Quadrature
     "GaussQuadratureRule",
     "GaussLobattoQuadratureRule",
+    # B-splines
+    "BSpline1D",
+    "HierarchicalBSpline1D",
+    # Lagrange basis
+    "LagrangeBasis1D",
+    "univariate_lagrange_polynomial",
+    "univariate_lagrange_first_derivative",
+    "univariate_lagrange_second_derivative",
 ]

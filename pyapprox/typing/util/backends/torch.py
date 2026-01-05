@@ -449,3 +449,56 @@ class TorchBkd(Backend[torch.Tensor]):  # Specify torch.Tensor type
         array: torch.Tensor,
     ) -> Tuple[torch.Tensor, torch.Tensor]:
         return torch.linalg.slogdet(array)
+
+    @staticmethod
+    def mean(
+        array: torch.Tensor,
+        axis: Optional[Union[int, Tuple[int, ...]]] = None,
+        keepdims: bool = False,
+    ) -> torch.Tensor:
+        if axis is None:
+            return torch.mean(array)
+        return torch.mean(array, dim=axis, keepdim=keepdims)
+
+    @staticmethod
+    def var(
+        array: torch.Tensor,
+        axis: Optional[Union[int, Tuple[int, ...]]] = None,
+        keepdims: bool = False,
+        ddof: int = 0,
+    ) -> torch.Tensor:
+        # torch.var uses correction (Bessel's correction) instead of ddof
+        # correction=0 gives population variance, correction=1 gives sample variance
+        if axis is None:
+            return torch.var(array, correction=ddof)
+        return torch.var(array, dim=axis, keepdim=keepdims, correction=ddof)
+
+    @staticmethod
+    def eigh(array: torch.Tensor) -> Tuple[torch.Tensor, torch.Tensor]:
+        return torch.linalg.eigh(array)
+
+    @staticmethod
+    def where(
+        condition: torch.Tensor,
+        x: Union[torch.Tensor, float, None] = None,
+        y: Union[torch.Tensor, float, None] = None,
+    ) -> torch.Tensor:
+        if x is None and y is None:
+            return torch.where(condition)
+        return torch.where(condition, x, y)
+
+    @staticmethod
+    def ones_like(
+        array: torch.Tensor, dtype: Optional[Any] = None
+    ) -> torch.Tensor:
+        return torch.ones_like(array, dtype=dtype)
+
+    @staticmethod
+    def zeros_like(
+        array: torch.Tensor, dtype: Optional[Any] = None
+    ) -> torch.Tensor:
+        return torch.zeros_like(array, dtype=dtype)
+
+    @staticmethod
+    def default_dtype() -> Any:
+        return torch.float64
