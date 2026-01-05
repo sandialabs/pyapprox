@@ -38,6 +38,8 @@ from .combination import CombinationSparseGrid
 
 from .isotropic import IsotropicCombinationSparseGrid
 
+from .adaptive import AdaptiveCombinationSparseGrid
+
 from .wrappers import SparseGridFunction
 
 __all__ = [
@@ -58,6 +60,7 @@ __all__ = [
     "TensorProductSubspace",
     "CombinationSparseGrid",
     "IsotropicCombinationSparseGrid",
+    "AdaptiveCombinationSparseGrid",
     # Wrappers
     "SparseGridFunction",
 ]

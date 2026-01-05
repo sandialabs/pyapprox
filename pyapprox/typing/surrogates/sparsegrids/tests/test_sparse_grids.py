@@ -273,5 +273,137 @@ class TestAdmissibility(unittest.TestCase):
         self.assertFalse(check_admissibility(candidate, existing, self.bkd))
 
 
+class TestAdaptiveSparseGrid(unittest.TestCase):
+    """Tests for AdaptiveCombinationSparseGrid."""
+
+    def setUp(self):
+        self.bkd = NumpyBkd()
+
+    def test_step_samples_values_pattern(self):
+        """Test the step_samples/step_values pattern."""
+        from pyapprox.typing.surrogates.sparsegrids import (
+            AdaptiveCombinationSparseGrid,
+        )
+        from pyapprox.typing.surrogates.affine.univariate import LegendrePolynomial1D
+        from pyapprox.typing.surrogates.affine.indices import (
+            LinearGrowthRule,
+            MaxLevelCriteria,
+        )
+
+        basis = LegendrePolynomial1D(self.bkd)
+        growth = LinearGrowthRule(scale=2, shift=1)
+        admis = MaxLevelCriteria(max_level=3, pnorm=1.0, bkd=self.bkd)
+
+        grid = AdaptiveCombinationSparseGrid(
+            self.bkd, [basis, basis], growth, admis
+        )
+
+        # First step should return samples
+        samples = grid.step_samples()
+        self.assertIsNotNone(samples)
+        self.assertGreater(samples.shape[1], 0)
+
+        # Values should be accepted
+        values = samples[0:1, :].T ** 2 + samples[1:2, :].T ** 2
+        grid.step_values(values)
+
+        # Second step should also return samples (candidates exist)
+        samples2 = grid.step_samples()
+        self.assertIsNotNone(samples2)
+        self.assertGreater(samples2.shape[1], 0)
+
+    def test_evaluation_after_refinement(self):
+        """Test that evaluation works after refinement."""
+        from pyapprox.typing.surrogates.sparsegrids import (
+            AdaptiveCombinationSparseGrid,
+        )
+        from pyapprox.typing.surrogates.affine.univariate import LegendrePolynomial1D
+        from pyapprox.typing.surrogates.affine.indices import (
+            LinearGrowthRule,
+            MaxLevelCriteria,
+        )
+
+        basis = LegendrePolynomial1D(self.bkd)
+        growth = LinearGrowthRule(scale=2, shift=1)
+        admis = MaxLevelCriteria(max_level=3, pnorm=1.0, bkd=self.bkd)
+
+        grid = AdaptiveCombinationSparseGrid(
+            self.bkd, [basis, basis], growth, admis
+        )
+
+        # Test function: f(x, y) = x^2 + y^2
+        def test_func(samples):
+            x, y = samples[0, :], samples[1, :]
+            return (x ** 2 + y ** 2)[:, None]
+
+        # Perform several refinement steps
+        for _ in range(3):
+            samples = grid.step_samples()
+            if samples is None:
+                break
+            values = test_func(samples)
+            grid.step_values(values)
+
+        # Evaluation should work
+        test_pts = self.bkd.asarray([[0.3, -0.5],
+                                      [0.2, 0.4]])
+        result = grid(test_pts)
+        expected = test_func(test_pts)
+
+        np.testing.assert_allclose(
+            self.bkd.to_numpy(result),
+            self.bkd.to_numpy(expected),
+            rtol=1e-8
+        )
+
+    def test_convergence_on_polynomial(self):
+        """Test that adaptive grid converges for polynomial target."""
+        from pyapprox.typing.surrogates.sparsegrids import (
+            AdaptiveCombinationSparseGrid,
+        )
+        from pyapprox.typing.surrogates.affine.univariate import LegendrePolynomial1D
+        from pyapprox.typing.surrogates.affine.indices import (
+            LinearGrowthRule,
+            MaxLevelCriteria,
+        )
+
+        basis = LegendrePolynomial1D(self.bkd)
+        growth = LinearGrowthRule(scale=2, shift=1)
+        admis = MaxLevelCriteria(max_level=3, pnorm=1.0, bkd=self.bkd)
+
+        grid = AdaptiveCombinationSparseGrid(
+            self.bkd, [basis, basis], growth, admis
+        )
+
+        # Polynomial that should be exactly represented
+        def poly_func(samples):
+            x, y = samples[0, :], samples[1, :]
+            return (x ** 2 + y ** 2)[:, None]
+
+        # Refine until convergence
+        max_steps = 10
+        for _ in range(max_steps):
+            samples = grid.step_samples()
+            if samples is None:
+                break
+            values = poly_func(samples)
+            grid.step_values(values)
+
+        # Should have refined at least once
+        self.assertGreater(grid.nsubspaces(), 1)
+
+        # Evaluation should be exact
+        test_pts = self.bkd.asarray([[0.3, -0.5, 0.8],
+                                      [0.2, 0.4, -0.7]])
+        result = grid(test_pts)
+        expected = poly_func(test_pts)
+
+        np.testing.assert_allclose(
+            self.bkd.to_numpy(result),
+            self.bkd.to_numpy(expected),
+            rtol=1e-10
+        )
+
+
 if __name__ == "__main__":
     unittest.main()
