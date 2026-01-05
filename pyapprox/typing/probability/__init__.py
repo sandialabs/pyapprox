@@ -72,7 +72,12 @@ from .covariance import (
 
 # Univariate distributions
 from .univariate import (
+    BetaMarginal,
+    CustomDiscreteMarginal,
+    DiscreteChebyshevMarginal,
+    GammaMarginal,
     GaussianMarginal,
+    UniformMarginal,
     ScipyContinuousMarginal,
     ScipyDiscreteMarginal,
 )
@@ -127,7 +132,12 @@ __all__ = [
     "DiagonalCovarianceOperator",
     "OperatorBasedCovarianceOperator",
     # Univariate distributions
+    "BetaMarginal",
+    "CustomDiscreteMarginal",
+    "DiscreteChebyshevMarginal",
+    "GammaMarginal",
     "GaussianMarginal",
+    "UniformMarginal",
     "ScipyContinuousMarginal",
     "ScipyDiscreteMarginal",
     # Multivariate Gaussian
