@@ -33,6 +33,11 @@ from .quadrature import (
     GaussianQuadratureSampler,
     OEDQuadratureSampler,
 )
+from .solver import (
+    RelaxedKLOEDSolver,
+    RelaxedOEDConfig,
+    BruteForceKLOEDSolver,
+)
 
 __all__ = [
     # Likelihood
@@ -49,4 +54,8 @@ __all__ = [
     "HaltonSampler",
     "GaussianQuadratureSampler",
     "OEDQuadratureSampler",
+    # Solvers
+    "RelaxedKLOEDSolver",
+    "RelaxedOEDConfig",
+    "BruteForceKLOEDSolver",
 ]

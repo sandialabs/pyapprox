@@ -5,4 +5,12 @@ This module provides solvers for optimal experimental design problems,
 including continuous relaxation methods and discrete brute-force search.
 """
 
-__all__: list[str] = []
+from .relaxed import RelaxedKLOEDSolver, RelaxedOEDConfig, OEDObjectiveWrapper
+from .brute_force import BruteForceKLOEDSolver
+
+__all__ = [
+    "RelaxedKLOEDSolver",
+    "RelaxedOEDConfig",
+    "OEDObjectiveWrapper",
+    "BruteForceKLOEDSolver",
+]
