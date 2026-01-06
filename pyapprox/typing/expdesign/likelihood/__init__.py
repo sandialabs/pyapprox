@@ -10,8 +10,12 @@ from .gaussian import (
     GaussianOEDOuterLoopLikelihood,
     GaussianOEDInnerLoopLikelihood,
 )
+from .parallel_gaussian import (
+    ParallelGaussianOEDInnerLoopLikelihood,
+)
 
 __all__ = [
     "GaussianOEDOuterLoopLikelihood",
     "GaussianOEDInnerLoopLikelihood",
+    "ParallelGaussianOEDInnerLoopLikelihood",
 ]
