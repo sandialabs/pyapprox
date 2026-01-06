@@ -130,17 +130,12 @@ class Evidence(Generic[Array]):
         # Shape: (ninner, nouter, nobs)
         loglike_jac = self._loglike.jacobian_matrix(design_weights)
 
-        # d/dw like = like * d/dw loglike
-        # weighted_like_jac[i, j, k] = quad_weights[i] * like[i,j] * loglike_jac[i,j,k]
-        weighted_like_jac = (
-            self._quad_weights[:, None, None]
-            * self._cached_like_matrix[:, :, None]
-            * loglike_jac
+        # d/dw evidence[j] = sum_i quad_weights[i] * like[i,j] * loglike_jac[i,j,k]
+        # Use einsum to avoid large intermediate arrays
+        quad_weighted_like = self._quad_weights[:, None] * self._cached_like_matrix
+        evidence_jac = self._bkd.einsum(
+            "io,iok->ok", quad_weighted_like, loglike_jac
         )
-
-        # Sum over inner samples
-        # Shape: (nouter, nobs)
-        evidence_jac = self._bkd.sum(weighted_like_jac, axis=0)
 
         return evidence_jac
 
@@ -293,12 +288,13 @@ class LogEvidence(Generic[Array]):
         loglike_jac = self._loglike.jacobian_matrix(design_weights)  # (ninner, nouter, nobs)
 
         # d/dw evidence[j] = sum_i quad_weights[i] * like[i,j] * loglike_jac[i,j,k]
-        weighted_like_jac = (
-            self._quad_weights[:, None, None]
-            * like_matrix[:, :, None]
-            * loglike_jac
+        # Use einsum to avoid large intermediate arrays
+        # quad_weighted_like: (ninner, nouter) = quad_weights[i] * like[i, j]
+        quad_weighted_like = self._quad_weights[:, None] * like_matrix
+        # evidence_jac[j, k] = sum_i quad_weighted_like[i, j] * loglike_jac[i, j, k]
+        evidence_jac = self._bkd.einsum(
+            "io,iok->ok", quad_weighted_like, loglike_jac
         )
-        evidence_jac = self._bkd.sum(weighted_like_jac, axis=0)  # (nouter, nobs)
 
         # d/dw log(evidence) = (1/evidence) * d/dw evidence
         log_evidence_jac = evidence_jac / evidence[:, None]

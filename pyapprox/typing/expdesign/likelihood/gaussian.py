@@ -404,9 +404,12 @@ class GaussianOEDInnerLoopLikelihood(Generic[Array]):
 
         # Squared Mahalanobis: sum over obs of (residual^2 * inv_var)
         # residuals: (nobs, ninner, nouter), inv_var: (nobs,)
-        squared_dist = self._bkd.sum(
-            self._residuals**2 * inv_var[:, None, None], axis=0
-        )
+        # Use einsum for efficiency - avoids large intermediate array
+        # Scale residuals by sqrt(inv_var), then compute squared norm
+        sqrt_inv_var = self._bkd.sqrt(inv_var)
+        scaled_res = sqrt_inv_var[:, None, None] * self._residuals
+        # ijk,ijk->jk computes element-wise product and sums over first axis
+        squared_dist = self._bkd.einsum("ijk,ijk->jk", scaled_res, scaled_res)
 
         return log_norm - 0.5 * squared_dist
 
