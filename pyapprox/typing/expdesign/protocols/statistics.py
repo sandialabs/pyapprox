@@ -1,0 +1,91 @@
+"""
+Protocols for sample average statistics.
+
+Sample statistics compute expectations and risk measures over samples,
+used for prediction OED objectives.
+"""
+
+from typing import Protocol, Generic, runtime_checkable
+
+from pyapprox.typing.util.backends.protocols import Array, Backend
+
+
+@runtime_checkable
+class SampleStatisticProtocol(Protocol, Generic[Array]):
+    """
+    Protocol for sample average statistics.
+
+    Sample statistics compute weighted averages of function values, such as
+    mean, variance, entropic risk, or AVaR. They are used for:
+    - Risk measures over prediction space
+    - Noise statistics over data realizations
+
+    Methods
+    -------
+    bkd()
+        Get the computational backend.
+    jacobian_implemented()
+        Whether analytical Jacobian is available.
+    __call__(values, weights)
+        Compute the statistic.
+    jacobian(values, jac_values, weights)
+        Compute Jacobian via chain rule.
+    """
+
+    def bkd(self) -> Backend[Array]:
+        """Get the backend used for computations."""
+        ...
+
+    def jacobian_implemented(self) -> bool:
+        """
+        Check if analytical Jacobian is implemented.
+
+        Returns
+        -------
+        bool
+            True if jacobian() method is available.
+        """
+        ...
+
+    def __call__(self, values: Array, weights: Array) -> Array:
+        """
+        Compute the sample statistic.
+
+        Parameters
+        ----------
+        values : Array
+            Sample values. Shape: (nsamples, nqoi)
+        weights : Array
+            Quadrature weights. Shape: (nsamples, 1)
+
+        Returns
+        -------
+        Array
+            Statistic value. Shape: (1, nqoi)
+        """
+        ...
+
+    def jacobian(
+        self, values: Array, jac_values: Array, weights: Array
+    ) -> Array:
+        """
+        Compute Jacobian of statistic w.r.t. upstream variables via chain rule.
+
+        This computes d(stat)/d(upstream) = d(stat)/d(values) @ d(values)/d(upstream)
+
+        Parameters
+        ----------
+        values : Array
+            Sample values. Shape: (nsamples, nqoi)
+        jac_values : Array
+            Jacobians of values w.r.t. upstream variables.
+            Shape: (nsamples, nqoi, nvars)
+        weights : Array
+            Quadrature weights. Shape: (nsamples, 1)
+
+        Returns
+        -------
+        Array
+            Jacobian of statistic. Shape: (nqoi, nvars)
+        """
+        ...
