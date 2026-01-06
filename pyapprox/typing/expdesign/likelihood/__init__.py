@@ -6,4 +6,12 @@ experimental design, including vectorized evaluation and Jacobians
 with respect to design weights.
 """
 
-__all__: list[str] = []
+from .gaussian import (
+    GaussianOEDOuterLoopLikelihood,
+    GaussianOEDInnerLoopLikelihood,
+)
+
+__all__ = [
+    "GaussianOEDOuterLoopLikelihood",
+    "GaussianOEDInnerLoopLikelihood",
+]
