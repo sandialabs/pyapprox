@@ -6,4 +6,18 @@ used in computing expectations over prior and data distributions.
 Supports Monte Carlo, quasi-Monte Carlo (Halton/Sobol), and Gaussian quadrature.
 """
 
-__all__: list[str] = []
+from .sampler import (
+    QuadratureSampler,
+    MonteCarloSampler,
+    HaltonSampler,
+    GaussianQuadratureSampler,
+    OEDQuadratureSampler,
+)
+
+__all__ = [
+    "QuadratureSampler",
+    "MonteCarloSampler",
+    "HaltonSampler",
+    "GaussianQuadratureSampler",
+    "OEDQuadratureSampler",
+]
