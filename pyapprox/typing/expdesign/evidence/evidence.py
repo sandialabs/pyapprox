@@ -139,6 +139,58 @@ class Evidence(Generic[Array]):
 
         return evidence_jac
 
+    @property
+    def quad_weighted_like_vals(self) -> Array:
+        """
+        Get the quadrature-weighted likelihood values.
+
+        This is quad_weights[:, None] * like_matrix, where like_matrix[i, j]
+        is the likelihood of outer sample j given inner sample i.
+
+        Returns
+        -------
+        Array
+            Quadrature-weighted likelihood. Shape: (ninner, nouter)
+
+        Raises
+        ------
+        RuntimeError
+            If called before __call__ or jacobian.
+        """
+        if self._cached_like_matrix is None:
+            raise RuntimeError(
+                "Must call __call__ or jacobian before accessing "
+                "quad_weighted_like_vals"
+            )
+        return self._quad_weights[:, None] * self._cached_like_matrix
+
+    def quad_weighted_likelihood_jacobian(self, design_weights: Array) -> Array:
+        """
+        Compute the Jacobian of quad_weighted_like_vals w.r.t. design weights.
+
+        This computes:
+            d/dw [quad_weights[i] * like[i,j]] = quad_weights[i] * like[i,j] * d/dw loglike[i,j]
+
+        Parameters
+        ----------
+        design_weights : Array
+            Design weights. Shape: (nobs, 1)
+
+        Returns
+        -------
+        Array
+            Jacobian. Shape: (ninner, nouter, nobs)
+        """
+        self._compute_likelihood_matrix(design_weights)
+
+        # Get jacobian of log-likelihood matrix
+        # Shape: (ninner, nouter, nobs)
+        loglike_jac = self._loglike.jacobian_matrix(design_weights)
+
+        # d/dw [quad_weights[i] * like[i,j]] = quad_weights[i] * like[i,j] * loglike_jac[i,j,k]
+        quad_weighted_like = self.quad_weighted_like_vals
+        return quad_weighted_like[:, :, None] * loglike_jac
+
     def effective_sample_size(self, design_weights: Array) -> Array:
         """
         Compute effective sample size for importance sampling.
