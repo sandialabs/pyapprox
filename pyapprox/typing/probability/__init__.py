@@ -21,6 +21,8 @@ transforms
     Probability transforms (affine, Gaussian, Nataf, Rosenblatt).
 likelihood
     Likelihood functions for Bayesian inference.
+risk
+    Analytical risk measures for specific distributions.
 
 Examples
 --------
@@ -112,6 +114,11 @@ from .likelihood import (
     DiagonalGaussianLogLikelihood,
 )
 
+# Risk measures
+from .risk import (
+    GaussianAnalyticalRiskMeasures,
+)
+
 __all__ = [
     # Protocols
     "DistributionProtocol",
@@ -158,4 +165,6 @@ __all__ = [
     # Likelihood
     "GaussianLogLikelihood",
     "DiagonalGaussianLogLikelihood",
+    # Risk measures
+    "GaussianAnalyticalRiskMeasures",
 ]

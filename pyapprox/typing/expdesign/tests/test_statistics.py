@@ -28,36 +28,7 @@ from pyapprox.typing.expdesign.statistics import (
     SampleAverageEntropicRisk,
     SampleAverageSmoothedAVaR,
 )
-
-# Analytical Gaussian risk measure formulas (from legacy code)
-
-
-class GaussianAnalyticalRiskMeasures:
-    """Analytical risk measures for Gaussian distributions."""
-
-    def __init__(self, mu: float, sigma: float) -> None:
-        self._mu = mu
-        self._sigma = sigma
-
-    def mean(self) -> float:
-        return self._mu
-
-    def variance(self) -> float:
-        return self._sigma ** 2
-
-    def stdev(self) -> float:
-        return self._sigma
-
-    def entropic(self, alpha: float) -> float:
-        """Entropic risk: (1/alpha) * log(E[exp(alpha * X)])."""
-        return self._mu + 0.5 * alpha * self._sigma ** 2
-
-    def AVaR(self, beta: float) -> float:
-        """Average Value at Risk (CVaR) for Gaussian."""
-        from scipy.stats import norm
-        return self._mu + self._sigma * norm.pdf(
-            norm.ppf(beta)
-        ) / (1 - beta)
+from pyapprox.typing.probability.risk import GaussianAnalyticalRiskMeasures
 
 
 class TestSampleStatistics(Generic[Array], unittest.TestCase):
