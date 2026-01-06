@@ -88,6 +88,22 @@ from .posterior import (
 from .sampling import (
     MetropolisHastingsSampler,
     AdaptiveMetropolisSampler,
+    HamiltonianMonteCarlo,
+    DelayedRejectionAdaptiveMetropolis,
+    MCMCResult,
+    autocorrelation,
+    effective_sample_size,
+    integrated_autocorrelation_time,
+    rhat,
+    MCMCDiagnostics,
+    compute_diagnostics,
+)
+
+# Bayesian networks
+from .bayesnet import (
+    GaussianFactor,
+    GaussianNetwork,
+    cond_prob_variable_elimination,
 )
 
 __all__ = [
@@ -118,4 +134,17 @@ __all__ = [
     # Sampling
     "MetropolisHastingsSampler",
     "AdaptiveMetropolisSampler",
+    "HamiltonianMonteCarlo",
+    "DelayedRejectionAdaptiveMetropolis",
+    "MCMCResult",
+    "autocorrelation",
+    "effective_sample_size",
+    "integrated_autocorrelation_time",
+    "rhat",
+    "MCMCDiagnostics",
+    "compute_diagnostics",
+    # Bayesian networks
+    "GaussianFactor",
+    "GaussianNetwork",
+    "cond_prob_variable_elimination",
 ]

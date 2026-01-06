@@ -136,7 +136,9 @@ class LogUnNormalizedPosterior(Generic[Array]):
         # Log-prior
         logprior = self._prior.logpdf(samples)
 
-        return loglike + logprior
+        # Compute sum and flatten to 1D
+        result = loglike + logprior
+        return self._bkd.flatten(result)
 
     def jacobian(
         self,
