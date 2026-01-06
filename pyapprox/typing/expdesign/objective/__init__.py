@@ -5,4 +5,8 @@ This module provides objective functions for optimal experimental design,
 including KL-OED (expected information gain) and related objectives.
 """
 
-__all__: list[str] = []
+from .kl_objective import KLOEDObjective
+
+__all__ = [
+    "KLOEDObjective",
+]
