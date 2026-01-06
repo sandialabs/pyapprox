@@ -272,6 +272,12 @@ class NumpyBkd(Backend[NDArray[Any]]):  # Specify NDArray type
         return np.flip(array, axis=axis)
 
     @staticmethod
+    def sort(
+        array: NDArray[Any], axis: int = -1
+    ) -> NDArray[Any]:
+        return np.sort(array, axis=axis)
+
+    @staticmethod
     def min(
         array: NDArray[Any], axis: Optional[int] = None, keepdims: bool = False
     ) -> NDArray[Any]:
@@ -473,3 +479,11 @@ class NumpyBkd(Backend[NDArray[Any]]):  # Specify NDArray type
         ddof: int = 0,
     ) -> NDArray[Any]:
         return np.asarray(np.var(array, axis=axis, keepdims=keepdims, ddof=ddof))
+
+    @staticmethod
+    def maximum(x1: NDArray[Any], x2: NDArray[Any]) -> NDArray[Any]:
+        return np.maximum(x1, x2)
+
+    @staticmethod
+    def minimum(x1: NDArray[Any], x2: NDArray[Any]) -> NDArray[Any]:
+        return np.minimum(x1, x2)

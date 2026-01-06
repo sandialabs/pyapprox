@@ -367,6 +367,9 @@ class Backend(Protocol, Generic[Array]):
     def flip(array: Array, axis: Optional[Tuple[int]] = None) -> Array: ...
 
     @staticmethod
+    def sort(array: Array, axis: int = -1) -> Array: ...
+
+    @staticmethod
     def min(
         array: Array, axis: Optional[int] = None, keepdims: bool = False
     ) -> Array: ...
@@ -618,4 +621,14 @@ class Backend(Protocol, Generic[Array]):
         Array
             Variance values.
         """
+        ...
+
+    @staticmethod
+    def maximum(x1: Array, x2: Array) -> Array:
+        """Element-wise maximum of two arrays."""
+        ...
+
+    @staticmethod
+    def minimum(x1: Array, x2: Array) -> Array:
+        """Element-wise minimum of two arrays."""
         ...

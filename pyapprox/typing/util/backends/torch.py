@@ -293,6 +293,12 @@ class TorchBkd(Backend[torch.Tensor]):  # Specify torch.Tensor type
         return torch.flip(array, dims=dims)
 
     @staticmethod
+    def sort(
+        array: torch.Tensor, axis: int = -1
+    ) -> torch.Tensor:
+        return torch.sort(array, dim=axis).values
+
+    @staticmethod
     def min(
         array: torch.Tensor, axis: Optional[int] = None, keepdims: bool = False
     ) -> torch.Tensor:
@@ -506,3 +512,11 @@ class TorchBkd(Backend[torch.Tensor]):  # Specify torch.Tensor type
     @staticmethod
     def default_dtype() -> Any:
         return torch.float64
+
+    @staticmethod
+    def maximum(x1: torch.Tensor, x2: torch.Tensor) -> torch.Tensor:
+        return torch.maximum(x1, x2)
+
+    @staticmethod
+    def minimum(x1: torch.Tensor, x2: torch.Tensor) -> torch.Tensor:
+        return torch.minimum(x1, x2)
