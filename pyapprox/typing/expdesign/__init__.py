@@ -2,7 +2,9 @@
 Experimental Design module for pyapprox.typing.
 
 This module provides optimal experimental design (OED) functionality,
-with a focus on Bayesian OED using expected information gain (KL divergence).
+including:
+- KL-OED: Expected information gain (KL divergence) based designs
+- Prediction OED: Designs that minimize expected deviation in predictions
 
 Example
 -------
@@ -39,6 +41,27 @@ Basic KL-OED workflow:
     >>> solver = RelaxedKLOEDSolver(objective, RelaxedOEDConfig(maxiter=100))
     >>> optimal_weights, eig = solver.solve()
 
+Basic Prediction OED workflow:
+
+    >>> from pyapprox.typing.expdesign import create_prediction_oed_objective
+    >>> from pyapprox.typing.util.backends.numpy import NumpyBkd
+    >>> import numpy as np
+    >>>
+    >>> bkd = NumpyBkd()
+    >>> nobs, ninner, nouter, npred = 3, 20, 10, 2
+    >>>
+    >>> noise_variances = bkd.asarray([0.1, 0.15, 0.2])
+    >>> outer_shapes = bkd.asarray(np.random.randn(nobs, nouter))
+    >>> inner_shapes = bkd.asarray(np.random.randn(nobs, ninner))
+    >>> latent_samples = bkd.asarray(np.random.randn(nobs, nouter))
+    >>> qoi_vals = bkd.asarray(np.random.randn(ninner, npred))
+    >>>
+    >>> objective = create_prediction_oed_objective(
+    ...     noise_variances, outer_shapes, inner_shapes,
+    ...     latent_samples, qoi_vals, bkd,
+    ...     deviation_type="stdev", risk_type="mean"
+    ... )
+
 Submodules
 ----------
 protocols
@@ -48,7 +71,11 @@ likelihood
 evidence
     Evidence computation for Bayesian OED.
 objective
-    OED objective functions (KL-OED, etc.).
+    OED objective functions (KL-OED, Prediction OED).
+deviation
+    Deviation measures for prediction OED (StdDev, Entropic, AVaR).
+statistics
+    Sample statistics for prediction OED (Mean, Variance, etc.).
 quadrature
     Quadrature samplers for expectation computation.
 solver
@@ -64,7 +91,21 @@ from .likelihood import (
     GaussianOEDInnerLoopLikelihood,
 )
 from .evidence import Evidence, LogEvidence
-from .objective import KLOEDObjective
+from .objective import KLOEDObjective, PredictionOEDObjective
+from .deviation import (
+    DeviationMeasure,
+    StandardDeviationMeasure,
+    EntropicDeviationMeasure,
+    AVaRDeviationMeasure,
+)
+from .statistics import (
+    SampleStatistic,
+    SampleAverageMean,
+    SampleAverageVariance,
+    SampleAverageStdev,
+    SampleAverageEntropicRisk,
+    SampleAverageSmoothedAVaR,
+)
 from .quadrature import (
     QuadratureSampler,
     MonteCarloSampler,
@@ -76,6 +117,11 @@ from .solver import (
     RelaxedKLOEDSolver,
     RelaxedOEDConfig,
     BruteForceKLOEDSolver,
+)
+from .prediction import (
+    create_deviation_measure,
+    create_risk_measure,
+    create_prediction_oed_objective,
 )
 
 
@@ -175,8 +221,21 @@ __all__ = [
     # Evidence
     "Evidence",
     "LogEvidence",
-    # Objective
+    # Objectives
     "KLOEDObjective",
+    "PredictionOEDObjective",
+    # Deviation measures
+    "DeviationMeasure",
+    "StandardDeviationMeasure",
+    "EntropicDeviationMeasure",
+    "AVaRDeviationMeasure",
+    # Sample statistics
+    "SampleStatistic",
+    "SampleAverageMean",
+    "SampleAverageVariance",
+    "SampleAverageStdev",
+    "SampleAverageEntropicRisk",
+    "SampleAverageSmoothedAVaR",
     # Quadrature samplers
     "QuadratureSampler",
     "MonteCarloSampler",
@@ -187,7 +246,11 @@ __all__ = [
     "RelaxedKLOEDSolver",
     "RelaxedOEDConfig",
     "BruteForceKLOEDSolver",
-    # Convenience functions
+    # KL-OED convenience functions
     "create_kl_oed_objective",
     "solve_kl_oed",
+    # Prediction OED convenience functions
+    "create_deviation_measure",
+    "create_risk_measure",
+    "create_prediction_oed_objective",
 ]
