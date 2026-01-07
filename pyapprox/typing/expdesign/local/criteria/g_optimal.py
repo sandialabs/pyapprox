@@ -110,11 +110,9 @@ class GOptimalCriterion(LocalOEDCriterionBase[Array], Generic[Array]):
             jacs.append(jac[0, :])
         return self._bkd.stack(jacs)
 
-    def hvp_implemented(self) -> bool:
-        """Whether Hessian-vector product is implemented."""
-        # HVP is not implemented for G-optimal in legacy either
-        # because it's a multi-output objective used with minimax
-        return False
+    # NOTE: hvp is NOT implemented for G-optimal because it's a multi-output
+    # objective used with minimax optimization. Following the optional methods
+    # convention, hvp is simply not defined on this class.
 
 
 class GOptimalLeastSquaresCriterion(GOptimalCriterion[Array], Generic[Array]):

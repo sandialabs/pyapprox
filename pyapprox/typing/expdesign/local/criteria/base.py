@@ -117,31 +117,6 @@ class LocalOEDCriterionBase(ABC, Generic[Array]):
         """
         raise NotImplementedError
 
-    def hvp_implemented(self) -> bool:
-        """Whether Hessian-vector product is implemented."""
-        return False
-
-    def hvp(self, design_weights: Array, vec: Array) -> Array:
-        """
-        Hessian-vector product.
-
-        Parameters
-        ----------
-        design_weights : Array
-            Design weights. Shape: (nvars, 1)
-        vec : Array
-            Direction vector. Shape: (nvars, 1)
-
-        Returns
-        -------
-        Array
-            Hessian-vector product. Shape: (nvars, 1)
-
-        Raises
-        ------
-        NotImplementedError
-            If HVP is not implemented for this criterion.
-        """
-        raise NotImplementedError(
-            f"HVP not implemented for {self.__class__.__name__}"
-        )
+    # NOTE: hvp() is NOT defined here. Following the optional methods convention,
+    # hvp should only exist on subclasses that actually implement it.
+    # Check with hasattr(criterion, 'hvp') before using.

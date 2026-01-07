@@ -127,10 +127,6 @@ class IOptimalCriterion(LocalOEDCriterionBase[Array], Generic[Array]):
             jac = jac + adjoint.jacobian(design_weights)
         return jac
 
-    def hvp_implemented(self) -> bool:
-        """Whether Hessian-vector product is implemented."""
-        return True
-
     def hvp(self, design_weights: Array, vec: Array) -> Array:
         """
         Hessian-vector product.

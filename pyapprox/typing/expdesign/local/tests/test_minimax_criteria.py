@@ -98,14 +98,14 @@ class TestGOptimalCriterion(Generic[Array], unittest.TestCase):
 
         self.assertEqual(crit.nvars(), self._ndesign_pts)
 
-    def test_hvp_not_implemented(self):
-        """Test that HVP is not implemented for G-optimal."""
+    def test_hvp_not_available(self):
+        """Test that HVP is not available for G-optimal (optional methods convention)."""
         dm = LeastSquaresDesignMatrices(
             self._design_factors, self._bkd, self._noise_mult
         )
         crit = GOptimalCriterion(dm, self._pred_factors, self._bkd)
 
-        self.assertFalse(crit.hvp_implemented())
+        self.assertFalse(hasattr(crit, 'hvp'))
 
     def test_values_are_positive(self):
         """Test that prediction variances are positive."""

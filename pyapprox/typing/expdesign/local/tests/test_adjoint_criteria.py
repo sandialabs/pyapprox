@@ -97,13 +97,13 @@ class TestCOptimalCriterion(Generic[Array], unittest.TestCase):
         self.assertEqual(hvp.shape, (self._ndesign_pts, 1))
         self.assertTrue(self._bkd.all_bool(self._bkd.isfinite(hvp)))
 
-    def test_hvp_implemented(self):
-        """Test that HVP is implemented."""
+    def test_hvp_available(self):
+        """Test that HVP is available (following optional methods convention)."""
         dm = LeastSquaresDesignMatrices(
             self._design_factors, self._bkd, self._noise_mult
         )
         crit = COptimalCriterion(dm, self._vec, self._bkd)
-        self.assertTrue(crit.hvp_implemented())
+        self.assertTrue(hasattr(crit, 'hvp'))
 
     def test_nvars_nqoi(self):
         """Test nvars and nqoi properties."""

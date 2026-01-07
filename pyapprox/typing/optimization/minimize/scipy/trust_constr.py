@@ -144,20 +144,6 @@ class ScipyTrustConstrOptimizer(Generic[Array]):
     def _objective_hessp_from_hvp(self, sample: Array, vec: Array) -> Array:
         return self._objective.hvp(sample[:, None], vec[:, None])[:, 0]
 
-    def _hvp_is_implemented(self) -> bool:
-        """Check if HVP is implemented for the objective."""
-        if not hasattr(self._objective, "hvp"):
-            return False
-        # Check if hvp_implemented() method exists (e.g., OED criteria)
-        if hasattr(self._objective, "hvp_implemented"):
-            return self._objective.hvp_implemented()
-        # Also check the underlying function if it's a wrapper
-        if hasattr(self._objective, "_function"):
-            func = self._objective._function
-            if hasattr(func, "hvp_implemented"):
-                return func.hvp_implemented()
-        return True
-
     def minimize(
         self, init_guess: Array
     ) -> ScipyOptimizerResultWrapper[Array]:
@@ -181,7 +167,7 @@ class ScipyTrustConstrOptimizer(Generic[Array]):
         )
         hessp = (
             self._objective_hessp_from_hvp
-            if self._hvp_is_implemented()
+            if hasattr(self._objective, "hvp")
             else None
         )
 
