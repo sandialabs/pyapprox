@@ -5,6 +5,7 @@ This module provides optimal experimental design (OED) functionality,
 including:
 - KL-OED: Expected information gain (KL divergence) based designs
 - Prediction OED: Designs that minimize expected deviation in predictions
+- Local OED: Classical optimal designs for linear regression (D, A, C, I, G, R-optimal)
 
 Example
 -------
@@ -80,6 +81,8 @@ quadrature
     Quadrature samplers for expectation computation.
 solver
     OED optimization solvers.
+local
+    Local OED for linear regression (D, A, C, I, G, R-optimal criteria).
 """
 
 from typing import Optional, Tuple
@@ -122,6 +125,27 @@ from .prediction import (
     create_deviation_measure,
     create_risk_measure,
     create_prediction_oed_objective,
+)
+# Local OED (linear regression design)
+from .local import (
+    # Design matrices
+    LeastSquaresDesignMatrices,
+    QuantileDesignMatrices,
+    # Criteria
+    DOptimalCriterion,
+    AOptimalCriterion,
+    COptimalCriterion,
+    IOptimalCriterion,
+    GOptimalCriterion,
+    ROptimalCriterion,
+    # Solvers
+    ScipyLocalOEDSolver,
+    MinimaxLocalOEDSolver,
+    AVaRLocalOEDSolver,
+    # Factory
+    create_design_matrices,
+    create_criterion,
+    create_solver,
 )
 
 
@@ -253,4 +277,22 @@ __all__ = [
     "create_deviation_measure",
     "create_risk_measure",
     "create_prediction_oed_objective",
+    # Local OED - Design matrices
+    "LeastSquaresDesignMatrices",
+    "QuantileDesignMatrices",
+    # Local OED - Criteria
+    "DOptimalCriterion",
+    "AOptimalCriterion",
+    "COptimalCriterion",
+    "IOptimalCriterion",
+    "GOptimalCriterion",
+    "ROptimalCriterion",
+    # Local OED - Solvers
+    "ScipyLocalOEDSolver",
+    "MinimaxLocalOEDSolver",
+    "AVaRLocalOEDSolver",
+    # Local OED - Factory
+    "create_design_matrices",
+    "create_criterion",
+    "create_solver",
 ]
