@@ -45,9 +45,11 @@ docs = ['numpydoc', 'sphinx', 'sphinx_automodapi', 'sphinx_rtd_theme',
 # yapf 0.40.2 has bug that prevents its use with elpy
 lint = ["jedi", "black", "autopep8", "yapf==0.40.1", "flake8", "mypy"]
 gpu = ["torchaudio", "torchvision"]
+parallel = ["joblib", "mpire"]
 all = ['numpydoc', 'sphinx', 'sphinx_automodapi', 'sphinx_rtd_theme',
        'sphinx-gallery', 'jupyter', "jedi", "black", "autopep8",
-       "yapf==0.40.1", "flake8", "torchaudio", "torchvision"
+       "yapf==0.40.1", "flake8", "torchaudio", "torchvision",
+       "joblib", "mpire"
        ]
 
 # coverage must be run from the directory of this file
