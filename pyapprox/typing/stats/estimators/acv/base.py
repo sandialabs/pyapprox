@@ -4,7 +4,7 @@ Provides the foundation for all ACV-type estimators with multiple low-fidelity
 models as control variates.
 """
 
-from typing import Generic, List, Callable, Optional, Tuple
+from typing import Generic, List, Callable, Optional, Tuple, Any
 from abc import abstractmethod
 
 import numpy as np
@@ -12,6 +12,7 @@ import numpy as np
 from pyapprox.typing.util.backends.protocols import Array, Backend
 from pyapprox.typing.stats.protocols import StatisticWithDiscrepancyProtocol
 from pyapprox.typing.stats.estimators.base import AbstractEstimator
+from pyapprox.typing.stats.estimators.bootstrap import BootstrapMixin
 from pyapprox.typing.stats.allocation.matrices import (
     get_allocation_matrix_from_recursion,
     get_nsamples_per_model,
@@ -19,7 +20,7 @@ from pyapprox.typing.stats.allocation.matrices import (
 )
 
 
-class ACVEstimator(AbstractEstimator[Array], Generic[Array]):
+class ACVEstimator(BootstrapMixin[Array], AbstractEstimator[Array], Generic[Array]):
     """Base Approximate Control Variate estimator.
 
     The ACV estimator uses multiple low-fidelity models as control variates:
@@ -444,6 +445,61 @@ class ACVEstimator(AbstractEstimator[Array], Generic[Array]):
             return max(1 - total_rho_sq, 0.01)
         else:
             return 0.5
+
+    def _estimate_with_weights(
+        self, values_per_model: List[Array], weights: Any
+    ) -> Array:
+        """Compute ACV estimate using specified weights.
+
+        Parameters
+        ----------
+        values_per_model : List[Array]
+            Model values.
+        weights : Any
+            Control variate weights. If None, uses stored weights.
+
+        Returns
+        -------
+        Array
+            Estimated statistic.
+        """
+        if weights is None:
+            return self(values_per_model)
+
+        if len(values_per_model) != self.nmodels():
+            raise ValueError(
+                f"Expected {self.nmodels()} model outputs, got {len(values_per_model)}"
+            )
+
+        bkd = self._bkd
+        nmodels = self.nmodels()
+        nsamples_np = bkd.to_numpy(self.nsamples_per_model())
+        weights_np = bkd.to_numpy(weights)
+
+        nhf = int(nsamples_np[0])
+
+        # Q_0: HF mean
+        Q0 = bkd.sum(values_per_model[0], axis=0) / nhf
+
+        # Control variate correction
+        correction = bkd.zeros(self._stat.nstats())
+
+        for m in range(1, nmodels):
+            nlf = int(nsamples_np[m])
+            n_shared = min(nhf, nlf)
+
+            # Q_m: LF mean on shared samples
+            Q_m = bkd.sum(values_per_model[m][:n_shared], axis=0) / n_shared
+
+            # mu_m: LF mean on all samples
+            mu_m = bkd.sum(values_per_model[m], axis=0) / nlf
+
+            # Weight for this control
+            eta_m = weights_np[m - 1] if weights_np.ndim == 1 else weights_np[m - 1, :]
+
+            correction = correction + eta_m * (mu_m - Q_m)
+
+        return Q0 + correction
 
     def __repr__(self) -> str:
         nsamples_str = "not allocated"

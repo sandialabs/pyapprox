@@ -3,16 +3,17 @@
 The simplest estimator that uses only the high-fidelity model.
 """
 
-from typing import Generic, List, Callable
+from typing import Generic, List, Callable, Any
 
 import numpy as np
 
 from pyapprox.typing.util.backends.protocols import Array, Backend
 from pyapprox.typing.stats.protocols import StatisticWithCovarianceProtocol
 from pyapprox.typing.stats.estimators.base import AbstractEstimator
+from pyapprox.typing.stats.estimators.bootstrap import BootstrapMixin
 
 
-class MCEstimator(AbstractEstimator[Array], Generic[Array]):
+class MCEstimator(BootstrapMixin[Array], AbstractEstimator[Array], Generic[Array]):
     """Monte Carlo estimator using only the high-fidelity model.
 
     This is the simplest estimator that directly estimates the statistic
@@ -138,6 +139,25 @@ class MCEstimator(AbstractEstimator[Array], Generic[Array]):
             Variance reduction = 1.0 (no reduction for single-model MC).
         """
         return 1.0
+
+    def _estimate_with_weights(
+        self, values_per_model: List[Array], weights: Any
+    ) -> Array:
+        """Compute estimate (weights ignored for MC).
+
+        Parameters
+        ----------
+        values_per_model : List[Array]
+            Model values.
+        weights : Any
+            Ignored for MC estimator.
+
+        Returns
+        -------
+        Array
+            Estimated statistic.
+        """
+        return self(values_per_model)
 
     def __repr__(self) -> str:
         nsamples_str = "not allocated"

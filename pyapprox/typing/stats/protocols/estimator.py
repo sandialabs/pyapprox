@@ -4,9 +4,12 @@ Defines a 3-level protocol hierarchy:
 - Level 1: EstimatorProtocol - Base for all estimators
 - Level 2: ControlVariateEstimatorProtocol - Control variate estimators
 - Level 3: ParametricEstimatorProtocol - Configurable recursion structure
+
+Additional optional protocols:
+- BootstrapEstimatorProtocol - Estimators supporting bootstrap variance estimation
 """
 
-from typing import Protocol, Generic, List, Callable, runtime_checkable
+from typing import Protocol, Generic, List, Callable, Tuple, Optional, runtime_checkable
 
 from pyapprox.typing.util.backends.protocols import Array, Backend
 
@@ -214,5 +217,50 @@ class ParametricEstimatorProtocol(
         -------
         Array
             Allocation matrix. Shape: (nmodels, npartitions)
+        """
+        ...
+
+
+@runtime_checkable
+class BootstrapEstimatorProtocol(EstimatorProtocol[Array], Protocol):
+    """Optional protocol for estimators supporting bootstrap variance estimation.
+
+    This protocol extends EstimatorProtocol to add bootstrap resampling
+    capability for variance estimation.
+
+    Bootstrap modes:
+    - "values": Resample model outputs only
+    - "values_weights": Resample both outputs and pilot values (recompute weights)
+    - "weights": Resample pilot values only (recompute weights)
+    """
+
+    def bootstrap(
+        self,
+        values_per_model: List[Array],
+        nbootstraps: int = 1000,
+        mode: str = "values",
+        pilot_values: Optional[List[Array]] = None,
+    ) -> Tuple[Array, ...]:
+        """Estimate variance using bootstrap resampling.
+
+        Parameters
+        ----------
+        values_per_model : List[Array]
+            Model outputs. values_per_model[m] has shape (nsamples_m, nqoi)
+        nbootstraps : int
+            Number of bootstrap iterations.
+        mode : str
+            Bootstrap mode: "values", "values_weights", or "weights"
+        pilot_values : List[Array], optional
+            Pilot sample values. Required if mode is "values_weights" or "weights".
+
+        Returns
+        -------
+        Tuple[Array, ...]
+            If mode == "values":
+                (bootstrap_mean, bootstrap_covariance)
+            If mode in ("values_weights", "weights"):
+                (bootstrap_mean, bootstrap_covariance,
+                 bootstrap_weights_mean, bootstrap_weights_covariance)
         """
         ...

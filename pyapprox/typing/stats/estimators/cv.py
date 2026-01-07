@@ -3,16 +3,17 @@
 Uses a single low-fidelity model as a control variate to reduce variance.
 """
 
-from typing import Generic, List, Callable, Optional
+from typing import Generic, List, Callable, Optional, Any
 
 import numpy as np
 
 from pyapprox.typing.util.backends.protocols import Array, Backend
 from pyapprox.typing.stats.protocols import StatisticWithDiscrepancyProtocol
 from pyapprox.typing.stats.estimators.base import AbstractEstimator
+from pyapprox.typing.stats.estimators.bootstrap import BootstrapMixin
 
 
-class CVEstimator(AbstractEstimator[Array], Generic[Array]):
+class CVEstimator(BootstrapMixin[Array], AbstractEstimator[Array], Generic[Array]):
     """Control Variate estimator using one low-fidelity model.
 
     The CV estimator uses a low-fidelity model as a control variate:
@@ -375,6 +376,59 @@ class CVEstimator(AbstractEstimator[Array], Generic[Array]):
         else:
             # Average variance reduction
             return 0.5  # Placeholder
+
+    def _compute_optimal_weights(self) -> Array:
+        """Compute optimal control variate weights.
+
+        This method is called by BootstrapMixin during weight resampling.
+
+        Returns
+        -------
+        Array
+            Optimal weights.
+        """
+        self._compute_weights()
+        return self._weights  # type: ignore
+
+    def _estimate_with_weights(
+        self, values_per_model: List[Array], weights: Any
+    ) -> Array:
+        """Compute estimate using specified weights.
+
+        Parameters
+        ----------
+        values_per_model : List[Array]
+            Model values.
+        weights : Any
+            Control variate weights. If None, uses stored weights.
+
+        Returns
+        -------
+        Array
+            Estimated statistic.
+        """
+        if weights is None:
+            return self(values_per_model)
+
+        bkd = self._bkd
+        hf_values, lf_values = values_per_model
+
+        nhf = hf_values.shape[0]
+
+        # Q_0: HF mean on shared samples
+        Q0 = bkd.sum(hf_values, axis=0) / nhf
+
+        # Q_1: LF mean on shared samples (first nhf)
+        Q1 = bkd.sum(lf_values[:nhf], axis=0) / nhf
+
+        # mu_1: LF mean on all samples
+        nlf = lf_values.shape[0]
+        mu1 = bkd.sum(lf_values, axis=0) / nlf
+
+        # Control variate estimate with provided weights
+        result = Q0 + weights * (mu1 - Q1)
+
+        return result
 
     def __repr__(self) -> str:
         nsamples_str = "not allocated"
