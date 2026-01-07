@@ -54,14 +54,38 @@ from .design_matrices import (
 )
 from .criteria import (
     LocalOEDCriterionBase,
+    # D-optimal
     DOptimalCriterion,
     DOptimalLeastSquaresCriterion,
     DOptimalQuantileCriterion,
+    # C-optimal
+    COptimalCriterion,
+    COptimalLeastSquaresCriterion,
+    COptimalQuantileCriterion,
+    # A-optimal
+    AOptimalCriterion,
+    AOptimalLeastSquaresCriterion,
+    AOptimalQuantileCriterion,
+    # I-optimal
+    IOptimalCriterion,
+    IOptimalLeastSquaresCriterion,
+    # G-optimal (minimax)
+    GOptimalCriterion,
+    GOptimalLeastSquaresCriterion,
+    # R-optimal (AVaR)
+    ROptimalCriterion,
+    ROptimalLeastSquaresCriterion,
 )
 from .adjoint import (
     QuadraticFunctional,
     LinearResidual,
     AdjointModel,
+)
+from .solver import (
+    LocalOEDSolverBase,
+    ScipyLocalOEDSolver,
+    MinimaxLocalOEDSolver,
+    AVaRLocalOEDSolver,
 )
 
 __all__ = [
@@ -76,13 +100,36 @@ __all__ = [
     "DesignMatricesBase",
     "LeastSquaresDesignMatrices",
     "QuantileDesignMatrices",
-    # Criteria
+    # Criteria base
     "LocalOEDCriterionBase",
+    # D-optimal
     "DOptimalCriterion",
     "DOptimalLeastSquaresCriterion",
     "DOptimalQuantileCriterion",
+    # C-optimal
+    "COptimalCriterion",
+    "COptimalLeastSquaresCriterion",
+    "COptimalQuantileCriterion",
+    # A-optimal
+    "AOptimalCriterion",
+    "AOptimalLeastSquaresCriterion",
+    "AOptimalQuantileCriterion",
+    # I-optimal
+    "IOptimalCriterion",
+    "IOptimalLeastSquaresCriterion",
+    # G-optimal (minimax)
+    "GOptimalCriterion",
+    "GOptimalLeastSquaresCriterion",
+    # R-optimal (AVaR)
+    "ROptimalCriterion",
+    "ROptimalLeastSquaresCriterion",
     # Adjoint infrastructure
     "QuadraticFunctional",
     "LinearResidual",
     "AdjointModel",
+    # Solvers
+    "LocalOEDSolverBase",
+    "ScipyLocalOEDSolver",
+    "MinimaxLocalOEDSolver",
+    "AVaRLocalOEDSolver",
 ]
