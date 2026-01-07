@@ -8,7 +8,7 @@ from pyapprox.typing.interface.functions.protocols.validation import (
     validate_sample,
     validate_samples,
     validate_jacobian,
-    validate_jacobians,
+    validate_jacobian_batch,
 )
 
 
@@ -47,7 +47,7 @@ class FunctionWithJacobianFromCallable(FunctionFromCallable[Array]):
     def jacobians(self, samples: Array) -> Array:
         validate_samples(self.nvars(), samples)
         jacs = self._bkd.stack([self.jacobian(sample) for sample in samples.T])
-        validate_jacobians(self.nqoi(), self.nvars(), samples, jacs)
+        validate_jacobian_batch(self.nqoi(), self.nvars(), samples.shape[1], jacs)
         return jacs
 
 
