@@ -287,7 +287,7 @@ class ACVEstimator(BootstrapMixin[Array], AbstractEstimator[Array], Generic[Arra
         return self._weights
 
     def generate_samples_per_model(
-        self, rvs: Callable[[int], Array]
+        self, rvs: Callable[[int], Array], npilot_samples: int = 0
     ) -> List[Array]:
         """Generate samples for each model.
 
@@ -299,6 +299,10 @@ class ACVEstimator(BootstrapMixin[Array], AbstractEstimator[Array], Generic[Arra
         ----------
         rvs : Callable[[int], Array]
             Random variable sampler.
+        npilot_samples : int, optional
+            Number of pilot samples to skip from the first partition.
+            These samples are assumed to have been generated previously
+            for pilot covariance estimation.
 
         Returns
         -------
@@ -308,7 +312,16 @@ class ACVEstimator(BootstrapMixin[Array], AbstractEstimator[Array], Generic[Arra
         nsamples = self.nsamples_per_model()
         nsamples_np = self._bkd.to_numpy(nsamples)
         npart = self.npartition_samples()
-        npart_np = self._bkd.to_numpy(npart)
+        npart_np = self._bkd.to_numpy(npart).copy()
+
+        # Adjust first partition for pilot samples
+        if npilot_samples > 0:
+            if npilot_samples > npart_np[0]:
+                raise ValueError(
+                    f"npilot_samples ({npilot_samples}) exceeds first partition "
+                    f"size ({npart_np[0]})"
+                )
+            npart_np[0] -= npilot_samples
 
         nmodels = self.nmodels()
         alloc_mat = self._bkd.to_numpy(self.get_allocation_matrix())
@@ -340,6 +353,47 @@ class ACVEstimator(BootstrapMixin[Array], AbstractEstimator[Array], Generic[Arra
                 model_samples.append(all_samples[:0])
 
         return model_samples
+
+    def insert_pilot_values(
+        self, pilot_values: List[Array], values_per_model: List[Array]
+    ) -> List[Array]:
+        """Insert pilot sample values at the beginning of model values.
+
+        Pilot samples are added to models that use the first partition
+        (partition 0), which typically includes the high-fidelity model.
+
+        Parameters
+        ----------
+        pilot_values : List[Array]
+            Pilot sample values for each model. pilot_values[m] has shape
+            (npilot, nqoi).
+        values_per_model : List[Array]
+            Model values without pilot samples.
+
+        Returns
+        -------
+        List[Array]
+            Model values with pilot samples prepended where appropriate.
+        """
+        bkd = self._bkd
+        alloc_mat = bkd.to_numpy(self.get_allocation_matrix())
+        nmodels = self.nmodels()
+
+        new_values_per_model = []
+        for m in range(nmodels):
+            # Check if this model uses the first partition
+            uses_first_partition = alloc_mat[m, 0] == 1
+
+            if uses_first_partition:
+                # Prepend pilot values
+                new_values_per_model.append(
+                    bkd.vstack([pilot_values[m], values_per_model[m]])
+                )
+            else:
+                # Copy without modification
+                new_values_per_model.append(bkd.copy(values_per_model[m]))
+
+        return new_values_per_model
 
     def __call__(self, values: List[Array]) -> Array:
         """Compute ACV estimate.

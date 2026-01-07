@@ -201,7 +201,7 @@ class GroupACVEstimator(AbstractEstimator[Array], Generic[Array]):
         return self._weights
 
     def generate_samples_per_model(
-        self, rvs: Callable[[int], Array]
+        self, rvs: Callable[[int], Array], npilot_samples: int = 0
     ) -> List[Array]:
         """Generate samples for each model based on group structure.
 
@@ -209,6 +209,10 @@ class GroupACVEstimator(AbstractEstimator[Array], Generic[Array]):
         ----------
         rvs : Callable[[int], Array]
             Random variable sampler.
+        npilot_samples : int, optional
+            Number of pilot samples to skip from the first group.
+            These samples are assumed to have been generated previously
+            for pilot covariance estimation.
 
         Returns
         -------
@@ -218,9 +222,19 @@ class GroupACVEstimator(AbstractEstimator[Array], Generic[Array]):
         nmodels = self.nmodels()
         nsamples_np = self._bkd.to_numpy(self.nsamples_per_model())
 
+        # Adjust first group for pilot samples
+        adjusted_group_samples = list(self._group_samples)
+        if npilot_samples > 0:
+            if npilot_samples > adjusted_group_samples[0]:
+                raise ValueError(
+                    f"npilot_samples ({npilot_samples}) exceeds first group "
+                    f"size ({adjusted_group_samples[0]})"
+                )
+            adjusted_group_samples[0] -= npilot_samples
+
         # Generate samples for each group
         group_samples = []
-        for g, n_g in enumerate(self._group_samples):
+        for g, n_g in enumerate(adjusted_group_samples):
             group_samples.append(rvs(n_g) if n_g > 0 else rvs(1)[:0])
 
         # Assign samples to models
@@ -229,7 +243,7 @@ class GroupACVEstimator(AbstractEstimator[Array], Generic[Array]):
             # Find groups containing this model
             model_samps = []
             for g, group in enumerate(self._groups):
-                if m in group and self._group_samples[g] > 0:
+                if m in group and adjusted_group_samples[g] > 0:
                     model_samps.append(group_samples[g])
 
             if model_samps:
@@ -238,6 +252,46 @@ class GroupACVEstimator(AbstractEstimator[Array], Generic[Array]):
                 model_samples.append(rvs(1)[:0])
 
         return model_samples
+
+    def insert_pilot_values(
+        self, pilot_values: List[Array], values_per_model: List[Array]
+    ) -> List[Array]:
+        """Insert pilot sample values at the beginning of model values.
+
+        Pilot samples are added to models that appear in the first group,
+        which typically includes the high-fidelity model.
+
+        Parameters
+        ----------
+        pilot_values : List[Array]
+            Pilot sample values for each model. pilot_values[m] has shape
+            (npilot, nqoi).
+        values_per_model : List[Array]
+            Model values without pilot samples.
+
+        Returns
+        -------
+        List[Array]
+            Model values with pilot samples prepended where appropriate.
+        """
+        bkd = self._bkd
+        nmodels = self.nmodels()
+
+        # Models in the first group get pilot samples
+        first_group = set(self._groups[0])
+
+        new_values_per_model = []
+        for m in range(nmodels):
+            if m in first_group:
+                # Prepend pilot values
+                new_values_per_model.append(
+                    bkd.vstack([pilot_values[m], values_per_model[m]])
+                )
+            else:
+                # Copy without modification
+                new_values_per_model.append(bkd.copy(values_per_model[m]))
+
+        return new_values_per_model
 
     def __call__(self, values: List[Array]) -> Array:
         """Compute Group ACV estimate.
