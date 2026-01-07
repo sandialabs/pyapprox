@@ -157,8 +157,11 @@ class TestGaussianLogLikelihoodTorch(TestGaussianLogLikelihood[torch.Tensor]):
     """PyTorch backend tests for GaussianLogLikelihood."""
 
     def bkd(self) -> TorchBkd:
-        torch.set_default_dtype(torch.float64)
         return TorchBkd()
+
+    def setUp(self) -> None:
+        torch.set_default_dtype(torch.float64)
+        super().setUp()
 
 
 class TestGaussianLogLikelihoodCorrelated(Generic[Array], unittest.TestCase):
@@ -216,8 +219,11 @@ class TestGaussianLogLikelihoodCorrelatedTorch(
     """PyTorch backend tests for GaussianLogLikelihood with correlated noise."""
 
     def bkd(self) -> TorchBkd:
-        torch.set_default_dtype(torch.float64)
         return TorchBkd()
+
+    def setUp(self) -> None:
+        torch.set_default_dtype(torch.float64)
+        super().setUp()
 
 
 class TestDiagonalGaussianLogLikelihood(Generic[Array], unittest.TestCase):
@@ -300,8 +306,11 @@ class TestDiagonalGaussianLogLikelihoodTorch(
     """PyTorch backend tests for DiagonalGaussianLogLikelihood."""
 
     def bkd(self) -> TorchBkd:
-        torch.set_default_dtype(torch.float64)
         return TorchBkd()
+
+    def setUp(self) -> None:
+        torch.set_default_dtype(torch.float64)
+        super().setUp()
 
 
 class TestDesignWeights(Generic[Array], unittest.TestCase):
@@ -352,8 +361,11 @@ class TestDesignWeightsTorch(TestDesignWeights[torch.Tensor]):
     """PyTorch backend tests for design weights."""
 
     def bkd(self) -> TorchBkd:
-        torch.set_default_dtype(torch.float64)
         return TorchBkd()
+
+    def setUp(self) -> None:
+        torch.set_default_dtype(torch.float64)
+        super().setUp()
 
 
 class TestVectorizedLogLikelihood(Generic[Array], unittest.TestCase):
@@ -407,8 +419,135 @@ class TestVectorizedLogLikelihoodTorch(TestVectorizedLogLikelihood[torch.Tensor]
     """PyTorch backend tests for vectorized log-likelihood."""
 
     def bkd(self) -> TorchBkd:
-        torch.set_default_dtype(torch.float64)
         return TorchBkd()
+
+    def setUp(self) -> None:
+        torch.set_default_dtype(torch.float64)
+        super().setUp()
+
+
+class TestParallelDiagonalGaussianLogLikelihood(Generic[Array], unittest.TestCase):
+    """Tests for ParallelDiagonalGaussianLogLikelihood."""
+
+    __test__ = False
+
+    def bkd(self) -> Backend[Array]:
+        raise NotImplementedError("Derived classes must implement this method.")
+
+    def setUp(self) -> None:
+        self._bkd = self.bkd()
+        self.noise_var = np.array([0.01, 0.02, 0.01])
+
+    def test_sequential_matches_base(self) -> None:
+        """Test nprocs=1 matches base class."""
+        from pyapprox.typing.probability.likelihood.parallel_diagonal_gaussian import (
+            ParallelDiagonalGaussianLogLikelihood,
+        )
+
+        base = DiagonalGaussianLogLikelihood(
+            self._bkd.asarray(self.noise_var), self._bkd
+        )
+        parallel = ParallelDiagonalGaussianLogLikelihood(
+            self._bkd.asarray(self.noise_var), self._bkd, nprocs=1
+        )
+
+        obs = self._bkd.asarray([[1.0], [2.0], [3.0]])
+        base.set_observations(obs)
+        parallel.set_observations(obs)
+
+        model = self._bkd.asarray([[1.01], [1.99], [3.02]])
+
+        logpdf_base = base.logpdf(model)
+        logpdf_parallel = parallel.logpdf(model)
+
+        self.assertTrue(self._bkd.allclose(logpdf_base, logpdf_parallel, rtol=1e-12))
+
+    def test_parallel_matches_sequential(self) -> None:
+        """Test parallel logpdf_vectorized matches sequential."""
+        from pyapprox.typing.probability.likelihood.parallel_diagonal_gaussian import (
+            ParallelDiagonalGaussianLogLikelihood,
+        )
+
+        seq_lik = ParallelDiagonalGaussianLogLikelihood(
+            self._bkd.asarray(self.noise_var), self._bkd, nprocs=1
+        )
+        par_lik = ParallelDiagonalGaussianLogLikelihood(
+            self._bkd.asarray(self.noise_var), self._bkd, nprocs=2
+        )
+
+        model = self._bkd.asarray([[1.0, 1.1, 1.2], [2.0, 2.1, 2.2], [3.0, 3.1, 3.2]])
+        obs = self._bkd.asarray([[1.0, 1.5, 1.2, 1.3], [2.0, 2.5, 2.2, 2.3], [3.0, 3.5, 3.2, 3.3]])
+
+        result_seq = seq_lik.logpdf_vectorized(model, obs)
+        result_par = par_lik.logpdf_vectorized(model, obs)
+
+        self.assertEqual(result_seq.shape, result_par.shape)
+        self.assertTrue(self._bkd.allclose(result_seq, result_par, rtol=1e-12))
+
+    def test_logpdf_vectorized_shape(self) -> None:
+        """Test logpdf_vectorized returns correct shape."""
+        from pyapprox.typing.probability.likelihood.parallel_diagonal_gaussian import (
+            ParallelDiagonalGaussianLogLikelihood,
+        )
+
+        lik = ParallelDiagonalGaussianLogLikelihood(
+            self._bkd.asarray(self.noise_var), self._bkd, nprocs=2
+        )
+
+        n_model = 5
+        n_obs = 8
+        model = self._bkd.asarray(np.random.randn(3, n_model))
+        obs = self._bkd.asarray(np.random.randn(3, n_obs))
+
+        result = lik.logpdf_vectorized(model, obs)
+
+        self.assertEqual(result.shape, (n_model, n_obs))
+
+    def test_nprocs(self) -> None:
+        """Test nprocs accessor."""
+        from pyapprox.typing.probability.likelihood.parallel_diagonal_gaussian import (
+            ParallelDiagonalGaussianLogLikelihood,
+        )
+
+        lik = ParallelDiagonalGaussianLogLikelihood(
+            self._bkd.asarray(self.noise_var), self._bkd, nprocs=4
+        )
+        self.assertEqual(lik.nprocs(), 4)
+
+    def test_repr(self) -> None:
+        """Test string representation."""
+        from pyapprox.typing.probability.likelihood.parallel_diagonal_gaussian import (
+            ParallelDiagonalGaussianLogLikelihood,
+        )
+
+        lik = ParallelDiagonalGaussianLogLikelihood(
+            self._bkd.asarray(self.noise_var), self._bkd, nprocs=4
+        )
+        repr_str = repr(lik)
+        self.assertIn("ParallelDiagonalGaussianLogLikelihood", repr_str)
+        self.assertIn("nprocs=4", repr_str)
+
+
+class TestParallelDiagonalGaussianLogLikelihoodNumpy(
+    TestParallelDiagonalGaussianLogLikelihood[NDArray[Any]]
+):
+    """NumPy backend tests for ParallelDiagonalGaussianLogLikelihood."""
+
+    def bkd(self) -> NumpyBkd:
+        return NumpyBkd()
+
+
+class TestParallelDiagonalGaussianLogLikelihoodTorch(
+    TestParallelDiagonalGaussianLogLikelihood[torch.Tensor]
+):
+    """PyTorch backend tests for ParallelDiagonalGaussianLogLikelihood."""
+
+    def bkd(self) -> TorchBkd:
+        return TorchBkd()
+
+    def setUp(self) -> None:
+        torch.set_default_dtype(torch.float64)
+        super().setUp()
 
 
 if __name__ == "__main__":
