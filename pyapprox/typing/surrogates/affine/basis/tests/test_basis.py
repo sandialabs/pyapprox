@@ -64,34 +64,34 @@ class TestMultiIndexBasis(_BaseBasisTest, unittest.TestCase):
         values = basis(samples)
         self.assertEqual(values.shape, (nsamples, basis.nterms()))
 
-    def test_jacobians_shape(self):
+    def test_jacobian_batch_shape(self):
         """Test Jacobian computation shape."""
         bkd = self.bkd
         basis = self._create_basis(nvars=3, max_level=2)
         nsamples = 10
         samples = bkd.asarray(np.random.uniform(-1, 1, (3, nsamples)))
 
-        jac = basis.jacobians(samples)
+        jac = basis.jacobian_batch(samples)
         self.assertEqual(jac.shape, (nsamples, basis.nterms(), 3))
 
-    def test_hessians_shape(self):
+    def test_hessian_batch_shape(self):
         """Test Hessian computation shape."""
         bkd = self.bkd
         basis = self._create_basis(nvars=2, max_level=3)
         nsamples = 8
         samples = bkd.asarray(np.random.uniform(-1, 1, (2, nsamples)))
 
-        hess = basis.hessians(samples)
+        hess = basis.hessian_batch(samples)
         self.assertEqual(hess.shape, (nsamples, basis.nterms(), 2, 2))
 
-    def test_jacobian_finite_difference(self):
+    def test_jacobian_batch_finite_difference(self):
         """Test Jacobian accuracy via finite differences."""
         bkd = self.bkd
         basis = self._create_basis(nvars=2, max_level=3)
         nsamples = 5
         samples = bkd.asarray(np.random.uniform(-0.9, 0.9, (2, nsamples)))
 
-        jac = basis.jacobians(samples)
+        jac = basis.jacobian_batch(samples)
 
         # Finite difference check
         eps = 1e-7
@@ -104,14 +104,14 @@ class TestMultiIndexBasis(_BaseBasisTest, unittest.TestCase):
             fd_jac = (basis(samples_plus) - basis(samples_minus)) / (2 * eps)
             bkd.assert_allclose(jac[:, :, dd], fd_jac, rtol=1e-5, atol=1e-7)
 
-    def test_hessian_finite_difference(self):
+    def test_hessian_batch_finite_difference(self):
         """Test Hessian accuracy via finite differences."""
         bkd = self.bkd
         basis = self._create_basis(nvars=2, max_level=2)
         nsamples = 3
         samples = bkd.asarray(np.random.uniform(-0.9, 0.9, (2, nsamples)))
 
-        hess = basis.hessians(samples)
+        hess = basis.hessian_batch(samples)
 
         # Finite difference check on Jacobian
         eps = 1e-6
@@ -121,22 +121,22 @@ class TestMultiIndexBasis(_BaseBasisTest, unittest.TestCase):
             samples_plus[dd, :] += eps
             samples_minus[dd, :] -= eps
 
-            jac_plus = basis.jacobians(samples_plus)
-            jac_minus = basis.jacobians(samples_minus)
+            jac_plus = basis.jacobian_batch(samples_plus)
+            jac_minus = basis.jacobian_batch(samples_minus)
 
             fd_hess_row = (jac_plus - jac_minus) / (2 * eps)
             bkd.assert_allclose(
                 hess[:, :, dd, :], fd_hess_row, rtol=1e-4, atol=1e-6
             )
 
-    def test_hessian_symmetry(self):
+    def test_hessian_batch_symmetry(self):
         """Test that Hessian is symmetric."""
         bkd = self.bkd
         basis = self._create_basis(nvars=3, max_level=2)
         nsamples = 5
         samples = bkd.asarray(np.random.uniform(-1, 1, (3, nsamples)))
 
-        hess = basis.hessians(samples)
+        hess = basis.hessian_batch(samples)
 
         for dd in range(3):
             for kk in range(dd + 1, 3):
@@ -323,7 +323,7 @@ class TestMixedBases(_BaseBasisTest, unittest.TestCase):
         self.assertEqual(values.shape, (nsamples, basis.nterms()))
 
         # Jacobians should work
-        jac = basis.jacobians(samples)
+        jac = basis.jacobian_batch(samples)
         self.assertEqual(jac.shape, (nsamples, basis.nterms(), 2))
 
 

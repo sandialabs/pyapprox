@@ -241,35 +241,45 @@ class OrthonormalPolynomial1D(Generic[Array]):
             self._rcoefs, self._bkd, samples
         )
 
-    def jacobians(self, samples: Array) -> Array:
+    def jacobian_batch(self, samples: Array) -> Array:
         """Evaluate first derivatives of basis functions.
 
         Parameters
         ----------
         samples : Array
-            Sample points in canonical domain. Shape: (1, nsamples)
+            Sample points in canonical domain. Shape: (1, nsamples). Must be 2D.
 
         Returns
         -------
         Array
             First derivatives. Shape: (nsamples, nterms)
+
+        Raises
+        ------
+        ValueError
+            If samples is not 2D with shape (1, nsamples).
         """
         return evaluate_orthonormal_polynomial_derivatives_1d(
             self._rcoefs, self._bkd, samples, order=1
         )
 
-    def hessians(self, samples: Array) -> Array:
+    def hessian_batch(self, samples: Array) -> Array:
         """Evaluate second derivatives of basis functions.
 
         Parameters
         ----------
         samples : Array
-            Sample points in canonical domain. Shape: (1, nsamples)
+            Sample points in canonical domain. Shape: (1, nsamples). Must be 2D.
 
         Returns
         -------
         Array
             Second derivatives. Shape: (nsamples, nterms)
+
+        Raises
+        ------
+        ValueError
+            If samples is not 2D with shape (1, nsamples).
         """
         return evaluate_orthonormal_polynomial_derivatives_1d(
             self._rcoefs, self._bkd, samples, order=2

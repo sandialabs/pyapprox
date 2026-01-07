@@ -250,21 +250,41 @@ class Chebyshev1stKindPolynomial1D(JacobiPolynomial1D[Array], Generic[Array]):
         vals[:, 1:] /= 2**0.5
         return vals
 
-    def jacobians(self, samples: Array) -> Array:
+    def jacobian_batch(self, samples: Array) -> Array:
         """Evaluate first derivatives of Chebyshev polynomials.
 
         Note: Applies same scaling factor as evaluation.
+
+        Parameters
+        ----------
+        samples : Array
+            Sample points. Shape: (1, nsamples). Must be 2D.
+
+        Returns
+        -------
+        Array
+            First derivatives. Shape: (nsamples, nterms)
         """
-        jacs = super().jacobians(samples)
+        jacs = super().jacobian_batch(samples)
         jacs[:, 1:] /= 2**0.5
         return jacs
 
-    def hessians(self, samples: Array) -> Array:
+    def hessian_batch(self, samples: Array) -> Array:
         """Evaluate second derivatives of Chebyshev polynomials.
 
         Note: Applies same scaling factor as evaluation.
+
+        Parameters
+        ----------
+        samples : Array
+            Sample points. Shape: (1, nsamples). Must be 2D.
+
+        Returns
+        -------
+        Array
+            Second derivatives. Shape: (nsamples, nterms)
         """
-        hess = super().hessians(samples)
+        hess = super().hessian_batch(samples)
         hess[:, 1:] /= 2**0.5
         return hess
 

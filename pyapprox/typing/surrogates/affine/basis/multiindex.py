@@ -174,8 +174,8 @@ class MultiIndexBasis(ABC, Generic[Array]):
         derivs = []
         for dd in range(self.nvars()):
             basis = self._bases_1d[dd]
-            # Univariate jacobians return (nsamples, nterms_1d)
-            jac = basis.jacobians(samples[dd : dd + 1, :])
+            # Univariate jacobian_batch returns (nsamples, nterms_1d)
+            jac = basis.jacobian_batch(samples[dd : dd + 1, :])
             derivs.append(jac)
         return derivs
 
@@ -199,8 +199,8 @@ class MultiIndexBasis(ABC, Generic[Array]):
         derivs = []
         for dd in range(self.nvars()):
             basis = self._bases_1d[dd]
-            # Univariate hessians return (nsamples, nterms_1d)
-            hess = basis.hessians(samples[dd : dd + 1, :])
+            # Univariate hessian_batch returns (nsamples, nterms_1d)
+            hess = basis.hessian_batch(samples[dd : dd + 1, :])
             derivs.append(hess)
         return derivs
 
@@ -233,7 +233,7 @@ class MultiIndexBasis(ABC, Generic[Array]):
 
         return basis_matrix
 
-    def jacobians(self, samples: Array) -> Array:
+    def jacobian_batch(self, samples: Array) -> Array:
         """Compute Jacobians of basis functions.
 
         For multivariate basis functions, the Jacobian w.r.t. x_d is:
@@ -242,12 +242,17 @@ class MultiIndexBasis(ABC, Generic[Array]):
         Parameters
         ----------
         samples : Array
-            Sample points. Shape: (nvars, nsamples)
+            Sample points. Shape: (nvars, nsamples). Must be 2D.
 
         Returns
         -------
         Array
             Jacobians. Shape: (nsamples, nterms, nvars)
+
+        Raises
+        ------
+        ValueError
+            If samples is not 2D with shape (nvars, nsamples).
         """
         if self._indices is None:
             raise ValueError("Indices have not been set")
@@ -273,7 +278,7 @@ class MultiIndexBasis(ABC, Generic[Array]):
         # From list of (nsamples, nterms) to (nsamples, nterms, nvars)
         return self._bkd.moveaxis(self._bkd.stack(jac_list, axis=0), 0, -1)
 
-    def hessians(self, samples: Array) -> Array:
+    def hessian_batch(self, samples: Array) -> Array:
         """Compute Hessians of basis functions.
 
         For diagonal terms (d == k):
@@ -285,12 +290,17 @@ class MultiIndexBasis(ABC, Generic[Array]):
         Parameters
         ----------
         samples : Array
-            Sample points. Shape: (nvars, nsamples)
+            Sample points. Shape: (nvars, nsamples). Must be 2D.
 
         Returns
         -------
         Array
             Hessians. Shape: (nsamples, nterms, nvars, nvars)
+
+        Raises
+        ------
+        ValueError
+            If samples is not 2D with shape (nvars, nsamples).
         """
         if self._indices is None:
             raise ValueError("Indices have not been set")

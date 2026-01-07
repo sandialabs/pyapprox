@@ -91,7 +91,7 @@ class TestBasisExpansion(_BaseExpansionTest, unittest.TestCase):
         values = exp(samples)
         self.assertEqual(values.shape, (nsamples, 2))
 
-    def test_jacobian_shape(self):
+    def test_jacobian_batch_shape(self):
         """Test Jacobian shape."""
         bkd = self.bkd
         basis = self._create_basis(nvars=3, max_level=2)
@@ -102,10 +102,10 @@ class TestBasisExpansion(_BaseExpansionTest, unittest.TestCase):
 
         nsamples = 10
         samples = bkd.asarray(np.random.uniform(-1, 1, (3, nsamples)))
-        jac = exp.jacobians(samples)
+        jac = exp.jacobian_batch(samples)
         self.assertEqual(jac.shape, (nsamples, 2, 3))
 
-    def test_hessian_shape(self):
+    def test_hessian_batch_shape(self):
         """Test Hessian shape."""
         bkd = self.bkd
         basis = self._create_basis(nvars=2, max_level=2)
@@ -115,10 +115,10 @@ class TestBasisExpansion(_BaseExpansionTest, unittest.TestCase):
 
         nsamples = 5
         samples = bkd.asarray(np.random.uniform(-1, 1, (2, nsamples)))
-        hess = exp.hessians(samples)
+        hess = exp.hessian_batch(samples)
         self.assertEqual(hess.shape, (nsamples, 1, 2, 2))
 
-    def test_jacobian_finite_difference(self):
+    def test_jacobian_batch_finite_difference(self):
         """Test Jacobian accuracy via finite differences."""
         bkd = self.bkd
         basis = self._create_basis(nvars=2, max_level=2)
@@ -128,7 +128,7 @@ class TestBasisExpansion(_BaseExpansionTest, unittest.TestCase):
 
         nsamples = 5
         samples = bkd.asarray(np.random.uniform(-0.9, 0.9, (2, nsamples)))
-        jac = exp.jacobians(samples)
+        jac = exp.jacobian_batch(samples)
 
         eps = 1e-7
         for dd in range(2):

@@ -63,36 +63,36 @@ class _OrthonormalPolynomialTestBase(ABC):
 
         self.assertEqual(vals.shape, (10, 5))
 
-    def test_jacobians_shape(self):
+    def test_jacobian_batch_shape(self):
         """Test that Jacobians have correct shape."""
         bkd = NumpyBkd
         poly = self._create_polynomial()
         poly.set_nterms(5)
 
         samples = bkd.linspace(-0.9, 0.9, 10)[None, :]
-        jacs = poly.jacobians(samples)
+        jacs = poly.jacobian_batch(samples)
 
         self.assertEqual(jacs.shape, (10, 5))
 
-    def test_hessians_shape(self):
+    def test_hessian_batch_shape(self):
         """Test that Hessians have correct shape."""
         bkd = NumpyBkd
         poly = self._create_polynomial()
         poly.set_nterms(5)
 
         samples = bkd.linspace(-0.9, 0.9, 10)[None, :]
-        hess = poly.hessians(samples)
+        hess = poly.hessian_batch(samples)
 
         self.assertEqual(hess.shape, (10, 5))
 
-    def test_jacobians_finite_difference(self):
+    def test_jacobian_batch_finite_difference(self):
         """Test Jacobians against finite differences."""
         bkd = NumpyBkd
         poly = self._create_polynomial()
         poly.set_nterms(5)
 
         samples = bkd.linspace(-0.8, 0.8, 5)[None, :]
-        jacs = poly.jacobians(samples)
+        jacs = poly.jacobian_batch(samples)
 
         # Finite difference check
         eps = 1e-7

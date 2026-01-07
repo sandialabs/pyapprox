@@ -84,27 +84,33 @@ class BasisHasJacobianProtocol(Protocol, Generic[Array]):
 
     Methods
     -------
-    jacobians(samples: Array) -> Array
+    jacobian_batch(samples: Array) -> Array
         Evaluate first derivatives at sample points.
 
     Notes
     -----
+    Input shape: (nvars, nsamples) - must be 2D, raises ValueError for 1D input.
     Output shape: (nsamples, nterms, nvars)
-    jacobians[i, j, k] = d(basis_j)/d(x_k) evaluated at sample i
+    jacobian_batch[i, j, k] = d(basis_j)/d(x_k) evaluated at sample i
     """
 
-    def jacobians(self, samples: Array) -> Array:
+    def jacobian_batch(self, samples: Array) -> Array:
         """Evaluate first derivatives of basis functions.
 
         Parameters
         ----------
         samples : Array
-            Sample points. Shape: (nvars, nsamples)
+            Sample points. Shape: (nvars, nsamples). Must be 2D.
 
         Returns
         -------
         Array
             Jacobians of each basis term. Shape: (nsamples, nterms, nvars)
+
+        Raises
+        ------
+        ValueError
+            If samples is not 2D with shape (nvars, nsamples).
         """
         ...
 
@@ -115,27 +121,33 @@ class BasisHasHessianProtocol(Protocol, Generic[Array]):
 
     Methods
     -------
-    hessians(samples: Array) -> Array
+    hessian_batch(samples: Array) -> Array
         Evaluate second derivatives at sample points.
 
     Notes
     -----
+    Input shape: (nvars, nsamples) - must be 2D, raises ValueError for 1D input.
     Output shape: (nsamples, nterms, nvars, nvars)
-    hessians[i, j, k, l] = d^2(basis_j)/d(x_k)d(x_l) evaluated at sample i
+    hessian_batch[i, j, k, l] = d^2(basis_j)/d(x_k)d(x_l) evaluated at sample i
     """
 
-    def hessians(self, samples: Array) -> Array:
+    def hessian_batch(self, samples: Array) -> Array:
         """Evaluate second derivatives of basis functions.
 
         Parameters
         ----------
         samples : Array
-            Sample points. Shape: (nvars, nsamples)
+            Sample points. Shape: (nvars, nsamples). Must be 2D.
 
         Returns
         -------
         Array
             Hessians of each basis term. Shape: (nsamples, nterms, nvars, nvars)
+
+        Raises
+        ------
+        ValueError
+            If samples is not 2D with shape (nvars, nsamples).
         """
         ...
 

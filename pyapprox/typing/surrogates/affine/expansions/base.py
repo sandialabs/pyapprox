@@ -124,48 +124,58 @@ class BasisExpansion(Generic[Array]):
         # result: (nsamples, nqoi)
         return self._bkd.dot(self._basis(samples), self._coef)
 
-    def jacobians(self, samples: Array) -> Array:
+    def jacobian_batch(self, samples: Array) -> Array:
         """Compute Jacobians of expansion at samples.
 
         Parameters
         ----------
         samples : Array
-            Sample points. Shape: (nvars, nsamples)
+            Sample points. Shape: (nvars, nsamples). Must be 2D.
 
         Returns
         -------
         Array
             Jacobians. Shape: (nsamples, nqoi, nvars)
+
+        Raises
+        ------
+        ValueError
+            If samples is not 2D with shape (nvars, nsamples).
         """
         if not self._jacobian_supported:
             raise NotImplementedError("Basis does not support Jacobians")
 
-        # basis.jacobians(samples): (nsamples, nterms, nvars)
+        # basis.jacobian_batch(samples): (nsamples, nterms, nvars)
         # coef: (nterms, nqoi)
         # result: (nsamples, nqoi, nvars)
-        basis_jac = self._basis.jacobians(samples)
+        basis_jac = self._basis.jacobian_batch(samples)
         return self._bkd.einsum("ijk,jl->ilk", basis_jac, self._coef)
 
-    def hessians(self, samples: Array) -> Array:
+    def hessian_batch(self, samples: Array) -> Array:
         """Compute Hessians of expansion at samples.
 
         Parameters
         ----------
         samples : Array
-            Sample points. Shape: (nvars, nsamples)
+            Sample points. Shape: (nvars, nsamples). Must be 2D.
 
         Returns
         -------
         Array
             Hessians. Shape: (nsamples, nqoi, nvars, nvars)
+
+        Raises
+        ------
+        ValueError
+            If samples is not 2D with shape (nvars, nsamples).
         """
         if not self._hessian_supported:
             raise NotImplementedError("Basis does not support Hessians")
 
-        # basis.hessians(samples): (nsamples, nterms, nvars, nvars)
+        # basis.hessian_batch(samples): (nsamples, nterms, nvars, nvars)
         # coef: (nterms, nqoi)
         # result: (nsamples, nqoi, nvars, nvars)
-        basis_hess = self._basis.hessians(samples)
+        basis_hess = self._basis.hessian_batch(samples)
         return self._bkd.einsum("ijkl,jm->imkl", basis_hess, self._coef)
 
     def fit(

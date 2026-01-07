@@ -85,26 +85,32 @@ class Basis1DHasJacobianProtocol(Protocol, Generic[Array]):
 
     Methods
     -------
-    jacobians(samples: Array) -> Array
+    jacobian_batch(samples: Array) -> Array
         Evaluate first derivatives at sample points.
 
     Notes
     -----
+    Input shape: (1, nsamples) - must be 2D, raises ValueError for 1D input.
     Output shape: (nsamples, nterms) - derivative w.r.t. the single variable.
     """
 
-    def jacobians(self, samples: Array) -> Array:
+    def jacobian_batch(self, samples: Array) -> Array:
         """Evaluate first derivatives of basis functions.
 
         Parameters
         ----------
         samples : Array
-            Sample points. Shape: (1, nsamples)
+            Sample points. Shape: (1, nsamples). Must be 2D.
 
         Returns
         -------
         Array
             First derivatives. Shape: (nsamples, nterms)
+
+        Raises
+        ------
+        ValueError
+            If samples is not 2D with shape (1, nsamples).
         """
         ...
 
@@ -115,26 +121,32 @@ class Basis1DHasHessianProtocol(Protocol, Generic[Array]):
 
     Methods
     -------
-    hessians(samples: Array) -> Array
+    hessian_batch(samples: Array) -> Array
         Evaluate second derivatives at sample points.
 
     Notes
     -----
+    Input shape: (1, nsamples) - must be 2D, raises ValueError for 1D input.
     Output shape: (nsamples, nterms) - second derivative w.r.t. the single variable.
     """
 
-    def hessians(self, samples: Array) -> Array:
+    def hessian_batch(self, samples: Array) -> Array:
         """Evaluate second derivatives of basis functions.
 
         Parameters
         ----------
         samples : Array
-            Sample points. Shape: (1, nsamples)
+            Sample points. Shape: (1, nsamples). Must be 2D.
 
         Returns
         -------
         Array
             Second derivatives. Shape: (nsamples, nterms)
+
+        Raises
+        ------
+        ValueError
+            If samples is not 2D with shape (1, nsamples).
         """
         ...
 

@@ -174,18 +174,23 @@ class BSpline1D(Generic[Array]):
 
         return result
 
-    def jacobians(self, samples: Array) -> Array:
+    def jacobian_batch(self, samples: Array) -> Array:
         """Evaluate first derivatives of B-spline basis functions.
 
         Parameters
         ----------
         samples : Array
-            Sample points. Shape: (1, nsamples)
+            Sample points. Shape: (1, nsamples). Must be 2D.
 
         Returns
         -------
         Array
             First derivatives. Shape: (nsamples, nterms)
+
+        Raises
+        ------
+        ValueError
+            If samples is not 2D with shape (1, nsamples).
         """
         x = samples[0, :]
         nsamples = x.shape[0]
@@ -199,18 +204,23 @@ class BSpline1D(Generic[Array]):
 
         return result
 
-    def hessians(self, samples: Array) -> Array:
+    def hessian_batch(self, samples: Array) -> Array:
         """Evaluate second derivatives of B-spline basis functions.
 
         Parameters
         ----------
         samples : Array
-            Sample points. Shape: (1, nsamples)
+            Sample points. Shape: (1, nsamples). Must be 2D.
 
         Returns
         -------
         Array
             Second derivatives. Shape: (nsamples, nterms)
+
+        Raises
+        ------
+        ValueError
+            If samples is not 2D with shape (1, nsamples).
         """
         x = samples[0, :]
         nsamples = x.shape[0]
@@ -441,18 +451,23 @@ class HierarchicalBSpline1D(Generic[Array]):
 
         return result
 
-    def jacobians(self, samples: Array) -> Array:
+    def jacobian_batch(self, samples: Array) -> Array:
         """Evaluate first derivatives of all basis functions.
 
         Parameters
         ----------
         samples : Array
-            Sample points. Shape: (1, nsamples)
+            Sample points. Shape: (1, nsamples). Must be 2D.
 
         Returns
         -------
         Array
             First derivatives. Shape: (nsamples, nterms)
+
+        Raises
+        ------
+        ValueError
+            If samples is not 2D with shape (1, nsamples).
         """
         nsamples = samples.shape[1]
         result = self._bkd.zeros((nsamples, self._nterms))

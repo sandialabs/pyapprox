@@ -79,6 +79,10 @@ from pyapprox.typing.surrogates.affine.univariate.lagrange import (
     univariate_lagrange_second_derivative,
 )
 
+from pyapprox.typing.surrogates.affine.univariate.monomial import (
+    MonomialBasis1D,
+)
+
 __all__ = [
     # Base class and functions
     "OrthonormalPolynomial1D",
@@ -120,4 +124,6 @@ __all__ = [
     "univariate_lagrange_polynomial",
     "univariate_lagrange_first_derivative",
     "univariate_lagrange_second_derivative",
+    # Monomial basis
+    "MonomialBasis1D",
 ]

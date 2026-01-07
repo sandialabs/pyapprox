@@ -239,18 +239,23 @@ class LagrangeBasis1D(Generic[Array]):
             self._abscissa, samples[0], self._bkd
         )
 
-    def jacobians(self, samples: Array) -> Array:
+    def jacobian_batch(self, samples: Array) -> Array:
         """Evaluate first derivatives of Lagrange basis.
 
         Parameters
         ----------
         samples : Array
-            Evaluation points. Shape: (1, nsamples)
+            Evaluation points. Shape: (1, nsamples). Must be 2D.
 
         Returns
         -------
         Array
             First derivatives. Shape: (nsamples, nterms)
+
+        Raises
+        ------
+        ValueError
+            If samples is not 2D with shape (1, nsamples).
         """
         if self._abscissa is None:
             raise ValueError("Must call set_nterms before evaluation")
@@ -258,18 +263,23 @@ class LagrangeBasis1D(Generic[Array]):
             self._abscissa, samples[0], self._bkd
         )
 
-    def hessians(self, samples: Array) -> Array:
+    def hessian_batch(self, samples: Array) -> Array:
         """Evaluate second derivatives of Lagrange basis.
 
         Parameters
         ----------
         samples : Array
-            Evaluation points. Shape: (1, nsamples)
+            Evaluation points. Shape: (1, nsamples). Must be 2D.
 
         Returns
         -------
         Array
             Second derivatives. Shape: (nsamples, nterms)
+
+        Raises
+        ------
+        ValueError
+            If samples is not 2D with shape (1, nsamples).
         """
         if self._abscissa is None:
             raise ValueError("Must call set_nterms before evaluation")
@@ -295,9 +305,9 @@ class LagrangeBasis1D(Generic[Array]):
         if order == 0:
             return self(samples)
         elif order == 1:
-            return self.jacobians(samples)
+            return self.jacobian_batch(samples)
         elif order == 2:
-            return self.hessians(samples)
+            return self.hessian_batch(samples)
         else:
             raise ValueError(
                 f"Derivative order {order} not supported. Max is 2."

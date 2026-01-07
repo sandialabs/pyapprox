@@ -61,18 +61,23 @@ class BasisExpansionProtocol(Protocol, Generic[Array]):
 class BasisExpansionHasJacobianProtocol(Protocol, Generic[Array]):
     """Protocol for expansions that support Jacobian computation."""
 
-    def jacobians(self, samples: Array) -> Array:
+    def jacobian_batch(self, samples: Array) -> Array:
         """Compute Jacobians of expansion at samples.
 
         Parameters
         ----------
         samples : Array
-            Sample points. Shape: (nvars, nsamples)
+            Sample points. Shape: (nvars, nsamples). Must be 2D.
 
         Returns
         -------
         Array
             Jacobians. Shape: (nsamples, nqoi, nvars)
+
+        Raises
+        ------
+        ValueError
+            If samples is not 2D with shape (nvars, nsamples).
         """
         ...
 
@@ -81,18 +86,23 @@ class BasisExpansionHasJacobianProtocol(Protocol, Generic[Array]):
 class BasisExpansionHasHessianProtocol(Protocol, Generic[Array]):
     """Protocol for expansions that support Hessian computation."""
 
-    def hessians(self, samples: Array) -> Array:
+    def hessian_batch(self, samples: Array) -> Array:
         """Compute Hessians of expansion at samples.
 
         Parameters
         ----------
         samples : Array
-            Sample points. Shape: (nvars, nsamples)
+            Sample points. Shape: (nvars, nsamples). Must be 2D.
 
         Returns
         -------
         Array
             Hessians. Shape: (nsamples, nqoi, nvars, nvars)
+
+        Raises
+        ------
+        ValueError
+            If samples is not 2D with shape (nvars, nsamples).
         """
         ...
 
