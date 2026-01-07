@@ -87,6 +87,11 @@ from .solver import (
     MinimaxLocalOEDSolver,
     AVaRLocalOEDSolver,
 )
+from .factory import (
+    create_design_matrices,
+    create_criterion,
+    create_solver,
+)
 
 __all__ = [
     # Protocols
@@ -132,4 +137,8 @@ __all__ = [
     "ScipyLocalOEDSolver",
     "MinimaxLocalOEDSolver",
     "AVaRLocalOEDSolver",
+    # Factory functions
+    "create_design_matrices",
+    "create_criterion",
+    "create_solver",
 ]
