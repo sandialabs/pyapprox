@@ -25,8 +25,14 @@ from pyapprox.typing.util.test_utils import load_tests  # noqa: F401
 from pyapprox.typing.expdesign.quadrature import (
     MonteCarloSampler,
     HaltonSampler,
+    SobolSampler,
     GaussianQuadratureSampler,
     OEDQuadratureSampler,
+)
+from pyapprox.typing.probability.joint import IndependentJoint
+from pyapprox.typing.probability.univariate import (
+    GaussianMarginal,
+    UniformMarginal,
 )
 
 
@@ -41,11 +47,21 @@ class TestMonteCarloSampler(Generic[Array], unittest.TestCase):
     def setUp(self):
         self._bkd = self.bkd()
         self._nvars = 3
-        self._seed = 42
 
-    def test_sample_shape_normal(self):
-        """Test sample shape for standard normal sampling."""
-        sampler = MonteCarloSampler(self._nvars, self._bkd, seed=self._seed)
+    def _create_gaussian_distribution(self):
+        """Create a standard normal joint distribution."""
+        marginals = [GaussianMarginal(0.0, 1.0, self._bkd) for _ in range(self._nvars)]
+        return IndependentJoint(marginals, self._bkd)
+
+    def _create_uniform_distribution(self):
+        """Create a uniform [0, 1] joint distribution."""
+        marginals = [UniformMarginal(0.0, 1.0, self._bkd) for _ in range(self._nvars)]
+        return IndependentJoint(marginals, self._bkd)
+
+    def test_sample_shape_gaussian(self):
+        """Test sample shape for Gaussian distribution."""
+        distribution = self._create_gaussian_distribution()
+        sampler = MonteCarloSampler(distribution, self._bkd)
         nsamples = 100
         samples, weights = sampler.sample(nsamples)
 
@@ -53,10 +69,9 @@ class TestMonteCarloSampler(Generic[Array], unittest.TestCase):
         self.assertEqual(weights.shape, (nsamples,))
 
     def test_sample_shape_uniform(self):
-        """Test sample shape for uniform sampling."""
-        sampler = MonteCarloSampler(
-            self._nvars, self._bkd, seed=self._seed, uniform=True
-        )
+        """Test sample shape for uniform distribution."""
+        distribution = self._create_uniform_distribution()
+        sampler = MonteCarloSampler(distribution, self._bkd)
         nsamples = 100
         samples, weights = sampler.sample(nsamples)
 
@@ -65,52 +80,29 @@ class TestMonteCarloSampler(Generic[Array], unittest.TestCase):
 
     def test_weights_sum_to_one(self):
         """Test that weights sum to 1."""
-        sampler = MonteCarloSampler(self._nvars, self._bkd, seed=self._seed)
+        distribution = self._create_gaussian_distribution()
+        sampler = MonteCarloSampler(distribution, self._bkd)
         _, weights = sampler.sample(100)
 
         weight_sum = self._bkd.sum(weights)
         expected = self._bkd.asarray(1.0)
-        self.assertTrue(self._bkd.allclose(weight_sum, expected, rtol=1e-10))
+        self._bkd.assert_allclose(weight_sum, expected, rtol=1e-10)
 
     def test_uniform_weights(self):
         """Test that all weights are equal."""
-        sampler = MonteCarloSampler(self._nvars, self._bkd, seed=self._seed)
+        distribution = self._create_gaussian_distribution()
+        sampler = MonteCarloSampler(distribution, self._bkd)
         nsamples = 50
         _, weights = sampler.sample(nsamples)
 
         expected_weight = self._bkd.asarray(1.0 / nsamples)
-        self.assertTrue(
-            self._bkd.allclose(weights[0], expected_weight, rtol=1e-10)
-        )
-        self.assertTrue(
-            self._bkd.allclose(weights[-1], expected_weight, rtol=1e-10)
-        )
-
-    def test_reproducibility_with_seed(self):
-        """Test that same seed gives same samples."""
-        sampler1 = MonteCarloSampler(self._nvars, self._bkd, seed=self._seed)
-        sampler2 = MonteCarloSampler(self._nvars, self._bkd, seed=self._seed)
-
-        samples1, _ = sampler1.sample(50)
-        samples2, _ = sampler2.sample(50)
-
-        self.assertTrue(self._bkd.allclose(samples1, samples2, rtol=1e-12))
-
-    def test_reset_reproducibility(self):
-        """Test that reset gives same sequence."""
-        sampler = MonteCarloSampler(self._nvars, self._bkd, seed=self._seed)
-
-        samples1, _ = sampler.sample(50)
-        sampler.reset()
-        samples2, _ = sampler.sample(50)
-
-        self.assertTrue(self._bkd.allclose(samples1, samples2, rtol=1e-12))
+        self._bkd.assert_allclose(weights[0], expected_weight, rtol=1e-10)
+        self._bkd.assert_allclose(weights[-1], expected_weight, rtol=1e-10)
 
     def test_uniform_samples_in_range(self):
-        """Test uniform samples are in [0, 1]."""
-        sampler = MonteCarloSampler(
-            self._nvars, self._bkd, seed=self._seed, uniform=True
-        )
+        """Test uniform distribution samples are in [0, 1]."""
+        distribution = self._create_uniform_distribution()
+        sampler = MonteCarloSampler(distribution, self._bkd)
         samples, _ = sampler.sample(1000)
 
         samples_np = self._bkd.to_numpy(samples)
@@ -119,12 +111,14 @@ class TestMonteCarloSampler(Generic[Array], unittest.TestCase):
 
     def test_nvars_method(self):
         """Test nvars() returns correct value."""
-        sampler = MonteCarloSampler(self._nvars, self._bkd, seed=self._seed)
+        distribution = self._create_gaussian_distribution()
+        sampler = MonteCarloSampler(distribution, self._bkd)
         self.assertEqual(sampler.nvars(), self._nvars)
 
     def test_bkd_method(self):
         """Test bkd() returns the backend."""
-        sampler = MonteCarloSampler(self._nvars, self._bkd, seed=self._seed)
+        distribution = self._create_gaussian_distribution()
+        sampler = MonteCarloSampler(distribution, self._bkd)
         self.assertIs(sampler.bkd(), self._bkd)
 
 
@@ -164,7 +158,7 @@ class TestHaltonSampler(Generic[Array], unittest.TestCase):
 
     def test_sample_shape(self):
         """Test sample shape."""
-        sampler = HaltonSampler(self._nvars, self._bkd)
+        sampler = HaltonSampler(self._nvars, self._bkd, seed=42)
         nsamples = 100
         samples, weights = sampler.sample(nsamples)
 
@@ -173,36 +167,50 @@ class TestHaltonSampler(Generic[Array], unittest.TestCase):
 
     def test_weights_sum_to_one(self):
         """Test that weights sum to 1."""
-        sampler = HaltonSampler(self._nvars, self._bkd)
+        sampler = HaltonSampler(self._nvars, self._bkd, seed=42)
         _, weights = sampler.sample(100)
 
         weight_sum = self._bkd.sum(weights)
         expected = self._bkd.asarray(1.0)
-        self.assertTrue(self._bkd.allclose(weight_sum, expected, rtol=1e-10))
+        self._bkd.assert_allclose(weight_sum, expected, rtol=1e-10)
 
-    def test_deterministic_sequence(self):
-        """Test that Halton sequence is deterministic."""
-        sampler1 = HaltonSampler(self._nvars, self._bkd, start_index=0)
-        sampler2 = HaltonSampler(self._nvars, self._bkd, start_index=0)
+    def test_deterministic_with_seed(self):
+        """Test that same seed gives same samples."""
+        sampler1 = HaltonSampler(self._nvars, self._bkd, seed=42)
+        sampler2 = HaltonSampler(self._nvars, self._bkd, seed=42)
 
         samples1, _ = sampler1.sample(50)
         samples2, _ = sampler2.sample(50)
 
-        self.assertTrue(self._bkd.allclose(samples1, samples2, rtol=1e-12))
+        self._bkd.assert_allclose(samples1, samples2, rtol=1e-12)
+
+    def test_deterministic_without_scramble(self):
+        """Test that unscrambled Halton is deterministic."""
+        sampler1 = HaltonSampler(
+            self._nvars, self._bkd, start_index=0, scramble=False
+        )
+        sampler2 = HaltonSampler(
+            self._nvars, self._bkd, start_index=0, scramble=False
+        )
+
+        samples1, _ = sampler1.sample(50)
+        samples2, _ = sampler2.sample(50)
+
+        self._bkd.assert_allclose(samples1, samples2, rtol=1e-12)
 
     def test_reset_restarts_sequence(self):
         """Test that reset restarts the sequence."""
-        sampler = HaltonSampler(self._nvars, self._bkd, start_index=0)
+        sampler = HaltonSampler(self._nvars, self._bkd, start_index=0, seed=42)
 
         samples1, _ = sampler.sample(50)
         sampler.reset()
         samples2, _ = sampler.sample(50)
 
-        self.assertTrue(self._bkd.allclose(samples1, samples2, rtol=1e-12))
+        self._bkd.assert_allclose(samples1, samples2, rtol=1e-12)
 
     def test_sequential_samples_different(self):
         """Test that sequential batches give different samples."""
-        sampler = HaltonSampler(self._nvars, self._bkd, start_index=0)
+        sampler = HaltonSampler(self._nvars, self._bkd, start_index=0, seed=42)
 
         samples1, _ = sampler.sample(50)
         samples2, _ = sampler.sample(50)
@@ -215,7 +223,7 @@ class TestHaltonSampler(Generic[Array], unittest.TestCase):
     def test_uniform_samples_without_transform(self):
         """Test uniform samples are in [0, 1] when not transforming."""
         sampler = HaltonSampler(
-            self._nvars, self._bkd, start_index=1, transform_to_normal=False
+            self._nvars, self._bkd, start_index=1, transform_to_normal=False, seed=42
         )
         samples, _ = sampler.sample(100)
 
@@ -226,7 +234,7 @@ class TestHaltonSampler(Generic[Array], unittest.TestCase):
     def test_normal_transform(self):
         """Test that transformed samples have approximately normal stats."""
         sampler = HaltonSampler(
-            self._nvars, self._bkd, start_index=1, transform_to_normal=True
+            self._nvars, self._bkd, start_index=1, transform_to_normal=True, seed=42
         )
         samples, _ = sampler.sample(1000)
 
@@ -241,8 +249,10 @@ class TestHaltonSampler(Generic[Array], unittest.TestCase):
         nvars = 2
         nsamples = 100
 
-        # Halton samples
-        halton = HaltonSampler(nvars, self._bkd, start_index=1, transform_to_normal=False)
+        # Halton samples (unscrambled for deterministic low-discrepancy)
+        halton = HaltonSampler(
+            nvars, self._bkd, start_index=1, transform_to_normal=False, scramble=False
+        )
         halton_samples, _ = halton.sample(nsamples)
         halton_np = self._bkd.to_numpy(halton_samples)
 
@@ -262,6 +272,27 @@ class TestHaltonSampler(Generic[Array], unittest.TestCase):
         # For 100 points in 2D unit hypercube, min dist should be > 0.01
         self.assertGreater(halton_min_dist, 0.01)
 
+    def test_start_index_skips_samples(self):
+        """Test that start_index skips the initial samples."""
+        # Get samples starting from 0
+        sampler1 = HaltonSampler(
+            self._nvars, self._bkd, start_index=0, scramble=False,
+            transform_to_normal=False
+        )
+        samples_full, _ = sampler1.sample(10)
+
+        # Get samples starting from 2
+        sampler2 = HaltonSampler(
+            self._nvars, self._bkd, start_index=2, scramble=False,
+            transform_to_normal=False
+        )
+        samples_skip, _ = sampler2.sample(8)
+
+        # Samples starting from 2 should match samples[2:] from full
+        samples_full_np = self._bkd.to_numpy(samples_full)
+        samples_skip_np = self._bkd.to_numpy(samples_skip)
+        self.assertTrue(np.allclose(samples_full_np[:, 2:], samples_skip_np))
+
 
 class TestHaltonSamplerNumpy(TestHaltonSampler[NDArray[Any]]):
     """NumPy backend tests."""
@@ -273,6 +304,195 @@ class TestHaltonSamplerNumpy(TestHaltonSampler[NDArray[Any]]):
 
 
 class TestHaltonSamplerTorch(TestHaltonSampler[torch.Tensor]):
+    """PyTorch backend tests."""
+
+    __test__ = True
+
+    def bkd(self) -> TorchBkd:
+        return TorchBkd()
+
+    def setUp(self):
+        torch.set_default_dtype(torch.float64)
+        super().setUp()
+
+
+class TestSobolSampler(Generic[Array], unittest.TestCase):
+    """Base test class for Sobol sampler."""
+
+    __test__ = False
+
+    def bkd(self):
+        raise NotImplementedError
+
+    def setUp(self):
+        self._bkd = self.bkd()
+        self._nvars = 3
+
+    def test_sample_shape(self):
+        """Test sample shape."""
+        sampler = SobolSampler(self._nvars, self._bkd, seed=42)
+        nsamples = 100
+        samples, weights = sampler.sample(nsamples)
+
+        self.assertEqual(samples.shape, (self._nvars, nsamples))
+        self.assertEqual(weights.shape, (nsamples,))
+
+    def test_weights_sum_to_one(self):
+        """Test that weights sum to 1."""
+        sampler = SobolSampler(self._nvars, self._bkd, seed=42)
+        _, weights = sampler.sample(100)
+
+        weight_sum = self._bkd.sum(weights)
+        expected = self._bkd.asarray(1.0)
+        self._bkd.assert_allclose(weight_sum, expected, rtol=1e-10)
+
+    def test_deterministic_with_seed(self):
+        """Test that same seed gives same samples."""
+        sampler1 = SobolSampler(self._nvars, self._bkd, seed=42)
+        sampler2 = SobolSampler(self._nvars, self._bkd, seed=42)
+
+        samples1, _ = sampler1.sample(50)
+        samples2, _ = sampler2.sample(50)
+
+        self._bkd.assert_allclose(samples1, samples2, rtol=1e-12)
+
+    def test_deterministic_without_scramble(self):
+        """Test that unscrambled Sobol is deterministic."""
+        sampler1 = SobolSampler(
+            self._nvars, self._bkd, start_index=0, scramble=False
+        )
+        sampler2 = SobolSampler(
+            self._nvars, self._bkd, start_index=0, scramble=False
+        )
+
+        samples1, _ = sampler1.sample(50)
+        samples2, _ = sampler2.sample(50)
+
+        self._bkd.assert_allclose(samples1, samples2, rtol=1e-12)
+
+    def test_reset_restarts_sequence(self):
+        """Test that reset restarts the sequence."""
+        sampler = SobolSampler(self._nvars, self._bkd, start_index=0, seed=42)
+
+        samples1, _ = sampler.sample(50)
+        sampler.reset()
+        samples2, _ = sampler.sample(50)
+
+        self._bkd.assert_allclose(samples1, samples2, rtol=1e-12)
+
+    def test_sequential_samples_different(self):
+        """Test that sequential batches give different samples."""
+        sampler = SobolSampler(self._nvars, self._bkd, start_index=0, seed=42)
+
+        samples1, _ = sampler.sample(50)
+        samples2, _ = sampler.sample(50)
+
+        # The two batches should be different (continuing sequence)
+        samples1_np = self._bkd.to_numpy(samples1)
+        samples2_np = self._bkd.to_numpy(samples2)
+        self.assertFalse(np.allclose(samples1_np, samples2_np))
+
+    def test_uniform_samples_without_transform(self):
+        """Test uniform samples are in [0, 1] when not transforming."""
+        sampler = SobolSampler(
+            self._nvars, self._bkd, start_index=1, transform_to_normal=False, seed=42
+        )
+        samples, _ = sampler.sample(100)
+
+        samples_np = self._bkd.to_numpy(samples)
+        self.assertTrue(np.all(samples_np >= 0.0))
+        self.assertTrue(np.all(samples_np <= 1.0))
+
+    def test_normal_transform(self):
+        """Test that transformed samples have approximately normal stats."""
+        sampler = SobolSampler(
+            self._nvars, self._bkd, start_index=1, transform_to_normal=True, seed=42
+        )
+        samples, _ = sampler.sample(1000)
+
+        samples_np = self._bkd.to_numpy(samples)
+        # Check mean is close to 0
+        self.assertTrue(np.abs(np.mean(samples_np)) < 0.1)
+        # Check std is close to 1
+        self.assertTrue(np.abs(np.std(samples_np) - 1.0) < 0.1)
+
+    def test_low_discrepancy_property(self):
+        """Test that Sobol has better coverage than random."""
+        nvars = 2
+        nsamples = 100
+
+        # Sobol samples (unscrambled for deterministic low-discrepancy)
+        sobol = SobolSampler(
+            nvars, self._bkd, start_index=1, transform_to_normal=False, scramble=False
+        )
+        sobol_samples, _ = sobol.sample(nsamples)
+        sobol_np = self._bkd.to_numpy(sobol_samples)
+
+        # Compute simple discrepancy measure: min pairwise distance
+        def min_pairwise_distance(samples):
+            # samples: (nvars, nsamples)
+            min_dist = np.inf
+            for i in range(samples.shape[1]):
+                for j in range(i + 1, samples.shape[1]):
+                    dist = np.linalg.norm(samples[:, i] - samples[:, j])
+                    min_dist = min(min_dist, dist)
+            return min_dist
+
+        sobol_min_dist = min_pairwise_distance(sobol_np)
+
+        # Sobol should have reasonable minimum distance (not clustered)
+        # For 100 points in 2D unit hypercube, min dist should be > 0.01
+        self.assertGreater(sobol_min_dist, 0.01)
+
+    def test_start_index_skips_samples(self):
+        """Test that start_index skips the initial samples."""
+        # Get samples starting from 0
+        sampler1 = SobolSampler(
+            self._nvars, self._bkd, start_index=0, scramble=False,
+            transform_to_normal=False
+        )
+        samples_full, _ = sampler1.sample(10)
+
+        # Get samples starting from 2
+        sampler2 = SobolSampler(
+            self._nvars, self._bkd, start_index=2, scramble=False,
+            transform_to_normal=False
+        )
+        samples_skip, _ = sampler2.sample(8)
+
+        # Samples starting from 2 should match samples[2:] from full
+        samples_full_np = self._bkd.to_numpy(samples_full)
+        samples_skip_np = self._bkd.to_numpy(samples_skip)
+        self.assertTrue(np.allclose(samples_full_np[:, 2:], samples_skip_np))
+
+    def test_sobol_known_values(self):
+        """Test Sobol sequence against known values."""
+        # First few Sobol points in 2D (unscrambled)
+        sampler = SobolSampler(
+            2, self._bkd, start_index=0, scramble=False, transform_to_normal=False
+        )
+        samples, _ = sampler.sample(4)
+        samples_np = self._bkd.to_numpy(samples)
+
+        # Known Sobol sequence values (first 4 points in 2D)
+        # [0, 0], [0.5, 0.5], [0.75, 0.25], [0.25, 0.75]
+        expected = np.array([
+            [0.0, 0.5, 0.75, 0.25],
+            [0.0, 0.5, 0.25, 0.75],
+        ])
+        self.assertTrue(np.allclose(samples_np, expected, rtol=1e-10))
+
+
+class TestSobolSamplerNumpy(TestSobolSampler[NDArray[Any]]):
+    """NumPy backend tests."""
+
+    __test__ = True
+
+    def bkd(self) -> NumpyBkd:
+        return NumpyBkd()
+
+
+class TestSobolSamplerTorch(TestSobolSampler[torch.Tensor]):
     """PyTorch backend tests."""
 
     __test__ = True
@@ -332,7 +552,7 @@ class TestGaussianQuadratureSampler(Generic[Array], unittest.TestCase):
         # For probabilist's Hermite, weights should sum to 1
         weight_sum = self._bkd.sum(weights)
         expected = self._bkd.asarray(1.0)
-        self.assertTrue(self._bkd.allclose(weight_sum, expected, rtol=1e-6))
+        self._bkd.assert_allclose(weight_sum, expected, rtol=1e-6)
 
     def test_deterministic(self):
         """Test that quadrature is deterministic."""
@@ -342,8 +562,8 @@ class TestGaussianQuadratureSampler(Generic[Array], unittest.TestCase):
         samples1, weights1 = sampler1.sample(0)
         samples2, weights2 = sampler2.sample(0)
 
-        self.assertTrue(self._bkd.allclose(samples1, samples2, rtol=1e-12))
-        self.assertTrue(self._bkd.allclose(weights1, weights2, rtol=1e-12))
+        self._bkd.assert_allclose(samples1, samples2, rtol=1e-12)
+        self._bkd.assert_allclose(weights1, weights2, rtol=1e-12)
 
     def test_integrates_polynomial_exactly(self):
         """Test that Gauss quadrature integrates polynomials exactly."""
@@ -359,7 +579,7 @@ class TestGaussianQuadratureSampler(Generic[Array], unittest.TestCase):
         integral = self._bkd.sum(weights * x_squared)
 
         expected = self._bkd.asarray(1.0)
-        self.assertTrue(self._bkd.allclose(integral, expected, rtol=1e-10))
+        self._bkd.assert_allclose(integral, expected, rtol=1e-10)
 
     def test_integrates_multivariate_polynomial(self):
         """Test integration of multivariate polynomial."""
@@ -376,7 +596,7 @@ class TestGaussianQuadratureSampler(Generic[Array], unittest.TestCase):
         integral = self._bkd.sum(weights * integrand)
 
         expected = self._bkd.asarray(2.0)
-        self.assertTrue(self._bkd.allclose(integral, expected, rtol=1e-10))
+        self._bkd.assert_allclose(integral, expected, rtol=1e-10)
 
 
 class TestGaussianQuadratureSamplerNumpy(TestGaussianQuadratureSampler[NDArray[Any]]):
@@ -414,11 +634,18 @@ class TestOEDQuadratureSampler(Generic[Array], unittest.TestCase):
         self._nvars_prior = 3
         self._nobs = 5
 
+    def _create_prior_distribution(self):
+        """Create a standard normal prior distribution."""
+        marginals = [
+            GaussianMarginal(0.0, 1.0, self._bkd)
+            for _ in range(self._nvars_prior)
+        ]
+        return IndependentJoint(marginals, self._bkd)
+
     def test_sample_prior_shape(self):
         """Test prior sampling shape."""
-        prior_sampler = MonteCarloSampler(
-            self._nvars_prior, self._bkd, seed=42
-        )
+        prior_dist = self._create_prior_distribution()
+        prior_sampler = MonteCarloSampler(prior_dist, self._bkd)
         oed_sampler = OEDQuadratureSampler(
             prior_sampler, self._nobs, self._bkd
         )
@@ -431,9 +658,8 @@ class TestOEDQuadratureSampler(Generic[Array], unittest.TestCase):
 
     def test_sample_joint_shape(self):
         """Test joint sampling shape."""
-        prior_sampler = MonteCarloSampler(
-            self._nvars_prior, self._bkd, seed=42
-        )
+        prior_dist = self._create_prior_distribution()
+        prior_sampler = MonteCarloSampler(prior_dist, self._bkd)
         oed_sampler = OEDQuadratureSampler(
             prior_sampler, self._nobs, self._bkd
         )
@@ -449,9 +675,8 @@ class TestOEDQuadratureSampler(Generic[Array], unittest.TestCase):
 
     def test_nvars_prior_method(self):
         """Test nvars_prior() returns correct value."""
-        prior_sampler = MonteCarloSampler(
-            self._nvars_prior, self._bkd, seed=42
-        )
+        prior_dist = self._create_prior_distribution()
+        prior_sampler = MonteCarloSampler(prior_dist, self._bkd)
         oed_sampler = OEDQuadratureSampler(
             prior_sampler, self._nobs, self._bkd
         )
@@ -460,9 +685,8 @@ class TestOEDQuadratureSampler(Generic[Array], unittest.TestCase):
 
     def test_nobs_method(self):
         """Test nobs() returns correct value."""
-        prior_sampler = MonteCarloSampler(
-            self._nvars_prior, self._bkd, seed=42
-        )
+        prior_dist = self._create_prior_distribution()
+        prior_sampler = MonteCarloSampler(prior_dist, self._bkd)
         oed_sampler = OEDQuadratureSampler(
             prior_sampler, self._nobs, self._bkd
         )
@@ -470,11 +694,14 @@ class TestOEDQuadratureSampler(Generic[Array], unittest.TestCase):
         self.assertEqual(oed_sampler.nobs(), self._nobs)
 
     def test_reset(self):
-        """Test that reset gives reproducible results."""
-        prior_sampler = MonteCarloSampler(
-            self._nvars_prior, self._bkd, seed=42
+        """Test that reset gives reproducible results with QMC samplers."""
+        # Use Halton samplers which support deterministic reset
+        prior_sampler = HaltonSampler(
+            self._nvars_prior, self._bkd, seed=42, transform_to_normal=True
         )
-        noise_sampler = MonteCarloSampler(self._nobs, self._bkd, seed=123)
+        noise_sampler = HaltonSampler(
+            self._nobs, self._bkd, seed=123, transform_to_normal=True
+        )
         oed_sampler = OEDQuadratureSampler(
             prior_sampler, self._nobs, self._bkd, noise_sampler
         )
@@ -483,14 +710,13 @@ class TestOEDQuadratureSampler(Generic[Array], unittest.TestCase):
         oed_sampler.reset()
         prior2, latent2, _ = oed_sampler.sample_joint(50)
 
-        self.assertTrue(self._bkd.allclose(prior1, prior2, rtol=1e-12))
-        self.assertTrue(self._bkd.allclose(latent1, latent2, rtol=1e-12))
+        self._bkd.assert_allclose(prior1, prior2, rtol=1e-12)
+        self._bkd.assert_allclose(latent1, latent2, rtol=1e-12)
 
     def test_custom_noise_sampler(self):
         """Test with custom noise sampler."""
-        prior_sampler = MonteCarloSampler(
-            self._nvars_prior, self._bkd, seed=42
-        )
+        prior_dist = self._create_prior_distribution()
+        prior_sampler = MonteCarloSampler(prior_dist, self._bkd)
         # Use Halton for noise
         noise_sampler = HaltonSampler(self._nobs, self._bkd, start_index=0)
         oed_sampler = OEDQuadratureSampler(

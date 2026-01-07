@@ -30,6 +30,8 @@ from pyapprox.typing.expdesign import (
     HaltonSampler,
     GaussianQuadratureSampler,
 )
+from pyapprox.typing.probability.joint import IndependentJoint
+from pyapprox.typing.probability.univariate import GaussianMarginal
 
 
 class TestFullOEDWorkflow(Generic[Array], unittest.TestCase):
@@ -199,8 +201,12 @@ class TestFullOEDWorkflow(Generic[Array], unittest.TestCase):
         nvars = 2
         nobs = 3
 
+        # Create Gaussian distribution for MC sampler
+        marginals = [GaussianMarginal(0.0, 1.0, self._bkd) for _ in range(nvars)]
+        distribution = IndependentJoint(marginals, self._bkd)
+
         # Create samplers
-        mc_sampler = MonteCarloSampler(nvars, self._bkd, seed=42)
+        mc_sampler = MonteCarloSampler(distribution, self._bkd, seed=42)
         halton_sampler = HaltonSampler(nvars, self._bkd, start_index=1)
 
         # Generate samples
@@ -215,9 +221,13 @@ class TestFullOEDWorkflow(Generic[Array], unittest.TestCase):
         # Verify weights sum to 1
         mc_sum = self._bkd.sum(mc_weights)
         halton_sum = self._bkd.sum(halton_weights)
-        expected = self._bkd.asarray(1.0)
-        self.assertTrue(self._bkd.allclose(mc_sum, expected, rtol=1e-10))
-        self.assertTrue(self._bkd.allclose(halton_sum, expected, rtol=1e-10))
+        expected = self._bkd.asarray([1.0])
+        self._bkd.assert_allclose(
+            self._bkd.asarray([mc_sum]), expected, rtol=1e-10
+        )
+        self._bkd.assert_allclose(
+            self._bkd.asarray([halton_sum]), expected, rtol=1e-10
+        )
 
     def test_increasing_samples_convergence(self):
         """Test that EIG converges as sample count increases."""

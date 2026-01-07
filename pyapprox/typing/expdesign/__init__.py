@@ -110,12 +110,13 @@ from .statistics import (
     SampleAverageSmoothedAVaR,
 )
 from .quadrature import (
-    QuadratureSampler,
     MonteCarloSampler,
     HaltonSampler,
+    SobolSampler,
     GaussianQuadratureSampler,
     OEDQuadratureSampler,
 )
+from .protocols import QuadratureSamplerProtocol
 from .solver import (
     RelaxedKLOEDSolver,
     RelaxedOEDConfig,
@@ -261,9 +262,10 @@ __all__ = [
     "SampleAverageEntropicRisk",
     "SampleAverageSmoothedAVaR",
     # Quadrature samplers
-    "QuadratureSampler",
+    "QuadratureSamplerProtocol",
     "MonteCarloSampler",
     "HaltonSampler",
+    "SobolSampler",
     "GaussianQuadratureSampler",
     "OEDQuadratureSampler",
     # Solvers
