@@ -7,8 +7,8 @@ This module provides optimality criteria for experimental design:
 - A-optimal: Minimize trace of covariance matrix
 - C-optimal: Minimize variance of linear combination
 - I-optimal: Minimize integrated prediction variance
-- G-optimal: Minimize maximum prediction variance (TODO)
-- R-optimal: Minimize risk-based prediction variance (TODO)
+- G-optimal: Minimize maximum prediction variance (minimax)
+- R-optimal: Minimize risk-based prediction variance (AVaR)
 """
 
 from .base import LocalOEDCriterionBase
@@ -31,6 +31,14 @@ from .i_optimal import (
     IOptimalCriterion,
     IOptimalLeastSquaresCriterion,
 )
+from .g_optimal import (
+    GOptimalCriterion,
+    GOptimalLeastSquaresCriterion,
+)
+from .r_optimal import (
+    ROptimalCriterion,
+    ROptimalLeastSquaresCriterion,
+)
 
 __all__ = [
     "LocalOEDCriterionBase",
@@ -49,4 +57,10 @@ __all__ = [
     # I-optimal
     "IOptimalCriterion",
     "IOptimalLeastSquaresCriterion",
+    # G-optimal (minimax)
+    "GOptimalCriterion",
+    "GOptimalLeastSquaresCriterion",
+    # R-optimal (AVaR)
+    "ROptimalCriterion",
+    "ROptimalLeastSquaresCriterion",
 ]
