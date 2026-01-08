@@ -39,13 +39,21 @@ from pyapprox.typing.benchmarks.registry import BenchmarkRegistry
 from pyapprox.typing.benchmarks.functions.algebraic import (
     IshigamiFunction,
     RosenbrockFunction,
+    SobolGFunction,
+    sobol_g_indices,
+    BraninFunction,
+    BRANIN_GLOBAL_MINIMUM,
+    BRANIN_MINIMIZERS,
 )
 
 # Instances (also registers with BenchmarkRegistry)
 from pyapprox.typing.benchmarks.instances import (
     ishigami_3d,
+    sobol_g_6d,
+    sobol_g_4d,
     rosenbrock_2d,
     rosenbrock_10d,
+    branin_2d,
 )
 
 __all__ = [
@@ -72,8 +80,16 @@ __all__ = [
     # Functions
     "IshigamiFunction",
     "RosenbrockFunction",
+    "SobolGFunction",
+    "sobol_g_indices",
+    "BraninFunction",
+    "BRANIN_GLOBAL_MINIMUM",
+    "BRANIN_MINIMIZERS",
     # Instances
     "ishigami_3d",
+    "sobol_g_6d",
+    "sobol_g_4d",
     "rosenbrock_2d",
     "rosenbrock_10d",
+    "branin_2d",
 ]

@@ -16,6 +16,10 @@ from pyapprox.typing.benchmarks.registry import BenchmarkRegistry
 from pyapprox.typing.benchmarks.functions.algebraic.ishigami import (
     IshigamiFunction,
 )
+from pyapprox.typing.benchmarks.functions.algebraic.sobol_g import (
+    SobolGFunction,
+    sobol_g_indices,
+)
 from pyapprox.typing.probability.univariate.uniform import UniformMarginal
 from pyapprox.typing.probability.joint.independent import IndependentJoint
 
@@ -108,3 +112,135 @@ def _ishigami_3d_factory(bkd: Backend[Array]) -> BenchmarkWithPrior[
     Array, SensitivityGroundTruth
 ]:
     return ishigami_3d(bkd)
+
+
+def sobol_g_6d(
+    bkd: Backend[Array],
+) -> BenchmarkWithPrior[Array, SensitivityGroundTruth]:
+    """Create the standard 6D Sobol G-function benchmark.
+
+    Standard configuration with a = [0, 1, 4.5, 9, 99, 99].
+    This gives decreasing importance from x1 to x6.
+
+    Parameters
+    ----------
+    bkd : Backend[Array]
+        Backend for array operations.
+
+    Returns
+    -------
+    BenchmarkWithPrior[Array, SensitivityGroundTruth]
+        The Sobol G benchmark instance.
+
+    References
+    ----------
+    Sobol, I.M. (1993). "Sensitivity analysis for non-linear mathematical
+    models."
+    """
+    a = [0.0, 1.0, 4.5, 9.0, 99.0, 99.0]
+    nvars = len(a)
+
+    # Analytical Sobol indices
+    main_effects, total_effects, variance = sobol_g_indices(a)
+
+    # Build Sobol indices dict for first-order
+    sobol_dict = {(i,): float(main_effects[i]) for i in range(nvars)}
+
+    # Standard uniform prior on [0, 1]^6
+    prior = IndependentJoint(
+        [UniformMarginal(0.0, 1.0, bkd) for _ in range(nvars)],
+        bkd,
+    )
+
+    return BenchmarkWithPrior(
+        _name="sobol_g_6d",
+        _function=SobolGFunction(bkd, a=a),
+        _domain=BoxDomain(
+            _bounds=bkd.array([[0.0, 1.0]] * nvars),
+            _bkd=bkd,
+        ),
+        _ground_truth=SensitivityGroundTruth(
+            mean=1.0,  # Product of means, each g_i has mean 1
+            variance=float(variance),
+            main_effects=main_effects,
+            total_effects=total_effects,
+            sobol_indices=sobol_dict,
+        ),
+        _prior=prior,
+        _description="Sobol G-function - 6D with standard importance parameters",
+        _reference="Sobol, I.M. (1993)",
+    )
+
+
+def sobol_g_4d(
+    bkd: Backend[Array],
+) -> BenchmarkWithPrior[Array, SensitivityGroundTruth]:
+    """Create a 4D Sobol G-function benchmark.
+
+    Configuration with a = [0, 0, 0, 0] giving equal importance.
+
+    Parameters
+    ----------
+    bkd : Backend[Array]
+        Backend for array operations.
+
+    Returns
+    -------
+    BenchmarkWithPrior[Array, SensitivityGroundTruth]
+        The Sobol G benchmark instance.
+    """
+    a = [0.0, 0.0, 0.0, 0.0]
+    nvars = len(a)
+
+    # Analytical Sobol indices
+    main_effects, total_effects, variance = sobol_g_indices(a)
+
+    # Build Sobol indices dict for first-order
+    sobol_dict = {(i,): float(main_effects[i]) for i in range(nvars)}
+
+    # Standard uniform prior on [0, 1]^4
+    prior = IndependentJoint(
+        [UniformMarginal(0.0, 1.0, bkd) for _ in range(nvars)],
+        bkd,
+    )
+
+    return BenchmarkWithPrior(
+        _name="sobol_g_4d",
+        _function=SobolGFunction(bkd, a=a),
+        _domain=BoxDomain(
+            _bounds=bkd.array([[0.0, 1.0]] * nvars),
+            _bkd=bkd,
+        ),
+        _ground_truth=SensitivityGroundTruth(
+            mean=1.0,
+            variance=float(variance),
+            main_effects=main_effects,
+            total_effects=total_effects,
+            sobol_indices=sobol_dict,
+        ),
+        _prior=prior,
+        _description="Sobol G-function - 4D with equal importance",
+        _reference="Sobol, I.M. (1993)",
+    )
+
+
+@BenchmarkRegistry.register(
+    "sobol_g_6d",
+    category="sensitivity",
+    description="Standard 6D Sobol G-function for sensitivity analysis",
+)
+def _sobol_g_6d_factory(bkd: Backend[Array]) -> BenchmarkWithPrior[
+    Array, SensitivityGroundTruth
+]:
+    return sobol_g_6d(bkd)
+
+
+@BenchmarkRegistry.register(
+    "sobol_g_4d",
+    category="sensitivity",
+    description="4D Sobol G-function with equal importance",
+)
+def _sobol_g_4d_factory(bkd: Backend[Array]) -> BenchmarkWithPrior[
+    Array, SensitivityGroundTruth
+]:
+    return sobol_g_4d(bkd)
