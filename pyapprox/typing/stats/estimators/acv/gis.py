@@ -77,12 +77,11 @@ class GISEstimator(ACVEstimator[Array], Generic[Array]):
             Independent samples for each model.
         """
         nsamples = self.nsamples_per_model()
-        nsamples_np = self._bkd.to_numpy(nsamples)
 
-        model_samples = []
+        model_samples: List[Array] = []
         for m in range(self.nmodels()):
-            n_m = int(nsamples_np[m])
-            model_samples.append(rvs(n_m) if n_m > 0 else rvs(1)[:0])
+            n_m = int(nsamples[m].item())
+            model_samples.append(rvs(n_m) if n_m > 0 else rvs(1)[:, :0])
 
         return model_samples
 
@@ -108,11 +107,9 @@ class GISEstimator(ACVEstimator[Array], Generic[Array]):
             )
 
         bkd = self._bkd
-        nmodels = self.nmodels()
-        nsamples_np = bkd.to_numpy(self.nsamples_per_model())
-        weights = bkd.to_numpy(self.weights())
+        nsamples = self.nsamples_per_model()
 
-        nhf = int(nsamples_np[0])
+        nhf = int(nsamples[0].item())
 
         # Q_0: HF mean
         Q0 = bkd.sum(values[0], axis=0) / nhf

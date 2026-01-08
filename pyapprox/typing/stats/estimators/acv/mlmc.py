@@ -67,61 +67,64 @@ class MLMCEstimator(ACVEstimator[Array], Generic[Array]):
         recursion_index = np.arange(nmodels - 1, dtype=np.int64)
         super().__init__(stat, costs, bkd, bkd.asarray(recursion_index))
 
-    def _compute_level_variances(self) -> np.ndarray:
+    def _compute_level_variances(self) -> Array:
         """Compute variance of level differences Y_l = Q_l - Q_{l-1}.
 
         Returns
         -------
-        variances : ndarray
+        variances : Array
             Variance of Y_l for each level.
         """
         bkd = self._bkd
         cov = self._stat.cov()
-        cov_np = bkd.to_numpy(cov)
-
         nmodels = self.nmodels()
         nqoi = self._stat.nqoi()
 
-        variances = np.zeros(nmodels)
+        var_list = []
 
         for l in range(nmodels):
             if nqoi == 1:
-                var_l = cov_np[l, l]
+                var_l = cov[l, l]
                 if l == 0:
                     # Y_0 = Q_0
-                    variances[l] = var_l
+                    var_list.append(bkd.reshape(var_l, (1,)))
                 else:
                     # Y_l = Q_l - Q_{l-1}
-                    var_lm1 = cov_np[l - 1, l - 1]
-                    cov_l_lm1 = cov_np[l, l - 1]
-                    variances[l] = var_l + var_lm1 - 2 * cov_l_lm1
+                    var_lm1 = cov[l - 1, l - 1]
+                    cov_l_lm1 = cov[l, l - 1]
+                    diff_var = var_l + var_lm1 - 2 * cov_l_lm1
+                    var_list.append(bkd.reshape(diff_var, (1,)))
             else:
-                var_l = np.trace(cov_np[l*nqoi:(l+1)*nqoi, l*nqoi:(l+1)*nqoi]) / nqoi
+                var_l = bkd.trace(cov[l * nqoi : (l + 1) * nqoi,
+                                      l * nqoi : (l + 1) * nqoi]) / nqoi
                 if l == 0:
-                    variances[l] = var_l
+                    var_list.append(bkd.reshape(var_l, (1,)))
                 else:
-                    var_lm1 = np.trace(cov_np[(l-1)*nqoi:l*nqoi, (l-1)*nqoi:l*nqoi]) / nqoi
-                    cov_l_lm1 = np.trace(cov_np[l*nqoi:(l+1)*nqoi, (l-1)*nqoi:l*nqoi]) / nqoi
-                    variances[l] = var_l + var_lm1 - 2 * cov_l_lm1
+                    var_lm1 = bkd.trace(cov[(l - 1) * nqoi : l * nqoi,
+                                            (l - 1) * nqoi : l * nqoi]) / nqoi
+                    cov_l_lm1 = bkd.trace(cov[l * nqoi : (l + 1) * nqoi,
+                                              (l - 1) * nqoi : l * nqoi]) / nqoi
+                    diff_var = var_l + var_lm1 - 2 * cov_l_lm1
+                    var_list.append(bkd.reshape(diff_var, (1,)))
+
+        variances = bkd.concatenate(var_list)
 
         # Ensure positive
-        variances = np.maximum(variances, 1e-10)
+        variances = bkd.maximum(variances, bkd.asarray(1e-10) * bkd.ones_like(variances))
 
         return variances
 
-    def _compute_sample_ratios(self) -> np.ndarray:
+    def _compute_sample_ratios(self) -> Array:
         """Compute MLMC optimal sample ratios.
 
         For MLMC: n_l propto sqrt(V_l / c_l)
         """
         bkd = self._bkd
-        costs_np = bkd.to_numpy(self._costs)
-        nmodels = self.nmodels()
 
         variances = self._compute_level_variances()
 
         # Compute raw ratios: sqrt(V_l / c_l)
-        raw_ratios = np.sqrt(variances / costs_np)
+        raw_ratios = bkd.sqrt(variances / self._costs)
 
         # Normalize to get n_l / n_0
         ratios = raw_ratios / raw_ratios[0]
@@ -150,17 +153,17 @@ class MLMCEstimator(ACVEstimator[Array], Generic[Array]):
 
         bkd = self._bkd
         nmodels = self.nmodels()
-        nsamples_np = bkd.to_numpy(self.nsamples_per_model())
+        nsamples = self.nsamples_per_model()
 
         # Compute level estimators
         # Y_0 = Q_0
-        n0 = int(nsamples_np[0])
+        n0 = int(nsamples[0].item())
         Y = bkd.sum(values[0], axis=0) / n0
 
         # Y_l = Q_l - Q_{l-1} on shared samples
         for l in range(1, nmodels):
-            nl = int(nsamples_np[l])
-            n_shared = min(nl, int(nsamples_np[l - 1]))
+            nl = int(nsamples[l].item())
+            n_shared = min(nl, int(nsamples[l - 1].item()))
 
             Q_l = bkd.sum(values[l][:n_shared], axis=0) / n_shared
             Q_lm1 = bkd.sum(values[l - 1][:n_shared], axis=0) / n_shared
@@ -175,14 +178,20 @@ class MLMCEstimator(ACVEstimator[Array], Generic[Array]):
 
         MLMC achieves variance reduction through level correlation.
         """
+        bkd = self._bkd
         variances = self._compute_level_variances()
 
         # Effective variance reduction
         # Compare sum of level variances to single-level variance
-        total_var = np.sum(variances)
+        total_var = bkd.sum(variances)
         hf_var = variances[-1]
 
-        return total_var / hf_var if hf_var > 0 else 1.0
+        result = bkd.where(
+            hf_var > 0,
+            total_var / hf_var,
+            bkd.asarray(1.0)
+        )
+        return float(bkd.to_numpy(result))
 
     def __repr__(self) -> str:
         nsamples_str = "not allocated"

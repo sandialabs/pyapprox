@@ -132,76 +132,85 @@ class ACVEstimator(BootstrapMixin[Array], AbstractEstimator[Array], Generic[Arra
         alloc_mat = self.get_allocation_matrix()
         CF, cf = self._stat.get_acv_discrepancy_covariances(alloc_mat, npart)
 
-        CF_np = bkd.to_numpy(CF)
-        cf_np = bkd.to_numpy(cf)
-
         nqoi = self._stat.nqoi()
         ncontrols = self.nmodels() - 1
 
         # Solve for weights: eta = cf^{-1} @ CF^T
-        # For scalar QoI
         if nqoi == 1:
             # Simple case: direct solution
-            try:
-                if cf_np.size == 1:
-                    eta = CF_np.flatten() / cf_np.flatten() if cf_np.flatten()[0] != 0 else np.zeros(ncontrols)
-                else:
-                    eta = np.linalg.solve(cf_np, CF_np.T).flatten()
-            except np.linalg.LinAlgError:
-                eta = np.zeros(ncontrols)
+            cf_flat = bkd.flatten(cf)
+            CF_flat = bkd.flatten(CF)
+            if cf.shape == (1, 1):
+                cf_val = cf[0, 0]
+                # Avoid division by zero
+                eta = CF_flat / bkd.maximum(bkd.abs(cf_val), bkd.asarray(1e-14))
+            else:
+                eta = bkd.flatten(bkd.solve(cf, bkd.reshape(CF_flat, (-1, 1))))
         else:
             # Multi-QoI: block-wise solution
-            try:
-                eta = np.linalg.solve(cf_np, CF_np.T)
-            except np.linalg.LinAlgError:
-                eta = np.zeros((nqoi * ncontrols, nqoi))
+            eta = bkd.solve(cf, CF.T)
 
-        return bkd.asarray(eta)
+        return eta
 
-    def _compute_sample_ratios(self) -> np.ndarray:
+    def _compute_sample_ratios(self) -> Array:
         """Compute optimal sample ratios n_m / n_0.
 
         Returns array of ratios for each model.
         """
         bkd = self._bkd
         cov = self._stat.cov()
-        cov_np = bkd.to_numpy(cov)
-        costs_np = bkd.to_numpy(self._costs)
-
         nmodels = self.nmodels()
         nqoi = self._stat.nqoi()
 
-        # Extract variances and correlations
+        # Extract variances (diagonal elements)
         if nqoi == 1:
-            variances = np.diag(cov_np)
-            correlations = np.zeros(nmodels)
-            for m in range(nmodels):
-                correlations[m] = cov_np[0, m] / np.sqrt(cov_np[0, 0] * cov_np[m, m])
+            variances = bkd.get_diagonal(cov)
         else:
-            # Use trace-based averaging
-            variances = np.array([
-                np.trace(cov_np[m*nqoi:(m+1)*nqoi, m*nqoi:(m+1)*nqoi]) / nqoi
-                for m in range(nmodels)
-            ])
-            correlations = np.zeros(nmodels)
+            # Use trace-based averaging for multi-QoI
+            # Build indices for each model's block diagonal
+            traces = []
             for m in range(nmodels):
-                cov_0m = cov_np[:nqoi, m*nqoi:(m+1)*nqoi]
-                correlations[m] = np.trace(cov_0m) / nqoi / np.sqrt(variances[0] * variances[m])
+                block = cov[m * nqoi : (m + 1) * nqoi, m * nqoi : (m + 1) * nqoi]
+                traces.append(bkd.trace(block) / nqoi)
+            variances = bkd.stack(traces)
+
+        # Extract correlations with model 0
+        if nqoi == 1:
+            # cov[0, m] / sqrt(cov[0,0] * cov[m,m])
+            correlations = cov[0, :] / bkd.sqrt(cov[0, 0] * variances)
+        else:
+            # Use trace-based averaging for multi-QoI
+            corrs = []
+            for m in range(nmodels):
+                cov_0m = cov[:nqoi, m * nqoi : (m + 1) * nqoi]
+                corr = bkd.trace(cov_0m) / nqoi / bkd.sqrt(variances[0] * variances[m])
+                corrs.append(corr)
+            correlations = bkd.stack(corrs)
 
         # Compute sample ratios using optimization
-        ratios = np.ones(nmodels)
-        c0 = costs_np[0]
+        c0 = self._costs[0]
+        rho_sq = correlations ** 2
 
-        for m in range(1, nmodels):
-            rho_sq = correlations[m] ** 2
-            cm = costs_np[m]
+        # Optimal ratio: r_m = sqrt((c0/c_m) * rho_m^2 / (1 - rho_m^2))
+        # For m=0, ratio is always 1
+        # For valid correlations 0 < rho^2 < 1
+        ratios = bkd.ones((nmodels,))
 
-            # Optimal ratio from variance minimization
-            if rho_sq > 0 and rho_sq < 1:
-                r = np.sqrt((c0 / cm) * rho_sq / (1 - rho_sq))
-                ratios[m] = max(r, 1.0)
-            else:
-                ratios[m] = 1.0
+        # Vectorized computation for m >= 1
+        cm = self._costs[1:]
+        rho_sq_m = rho_sq[1:]
+
+        # Compute ratios where valid (0 < rho^2 < 1)
+        valid_mask = (rho_sq_m > 0) & (rho_sq_m < 1)
+        denom = bkd.where(valid_mask, 1 - rho_sq_m, bkd.ones_like(rho_sq_m))
+        r = bkd.sqrt((c0 / cm) * rho_sq_m / denom)
+        r = bkd.maximum(r, bkd.ones_like(r))
+
+        # Apply mask: use r where valid, else 1.0
+        r = bkd.where(valid_mask, r, bkd.ones_like(r))
+
+        # Combine with first element
+        ratios = bkd.concatenate([bkd.asarray([1.0]), r])
 
         return ratios
 
@@ -214,65 +223,62 @@ class ACVEstimator(BootstrapMixin[Array], AbstractEstimator[Array], Generic[Arra
             Total computational budget.
         """
         bkd = self._bkd
-        costs_np = bkd.to_numpy(self._costs)
-        nmodels = self.nmodels()
 
         # Get optimal sample ratios
         ratios = self._compute_sample_ratios()
 
         # Compute HF samples from budget
         # Total cost = sum_m (n_m * c_m) = n_0 * sum_m (r_m * c_m)
-        weighted_cost = np.sum(ratios * costs_np)
-        n0 = int(target_cost / weighted_cost)
-        n0 = max(n0, self._stat.min_nsamples())
+        weighted_cost = bkd.sum(ratios * self._costs)
+        n0 = target_cost / weighted_cost
+        n0 = bkd.maximum(n0, bkd.asarray(float(self._stat.min_nsamples())))
 
         # Compute samples per model
-        nsamples = np.round(ratios * n0).astype(np.int64)
-        nsamples = np.maximum(nsamples, self._stat.min_nsamples())
+        nsamples = bkd.round(ratios * n0)
+        min_samples = bkd.asarray(float(self._stat.min_nsamples()))
+        nsamples = bkd.maximum(nsamples, min_samples * bkd.ones_like(nsamples))
 
-        self._nsamples = bkd.asarray(nsamples)
+        self._nsamples = nsamples
 
         # Compute partition samples from allocation matrix
         alloc_mat = self.get_allocation_matrix()
-        alloc_np = bkd.to_numpy(alloc_mat)
 
         # Solve for partition samples: A @ npart = nsamples
-        # Use constrained optimization to ensure non-negative
-        npart = self._solve_partition_allocation(alloc_np, nsamples)
-        self._npartition_samples = bkd.asarray(npart)
+        npart = self._solve_partition_allocation(alloc_mat, nsamples)
+        self._npartition_samples = npart
 
         # Compute optimal weights
         self._weights = self._compute_optimal_weights()
 
     def _solve_partition_allocation(
-        self, alloc_mat: np.ndarray, nsamples: np.ndarray
-    ) -> np.ndarray:
+        self, alloc_mat: Array, nsamples: Array
+    ) -> Array:
         """Solve for partition samples from model samples.
 
         Given A @ npart = nsamples, find non-negative npart.
         """
-        nmodels, npartitions = alloc_mat.shape
+        bkd = self._bkd
+        nmodels = alloc_mat.shape[0]
+        npartitions = alloc_mat.shape[1]
 
         # For standard ACV structure, we can solve analytically
-        npart = np.zeros(npartitions, dtype=np.int64)
+        # Build partition samples as a list then stack
+        parts = []
 
         # Partition 0: HF only = 0 (all HF shared with some LF)
-        npart[0] = 0
+        parts.append(bkd.asarray([0.0]))
 
         # For each LF model, assign shared and only partitions
         for m in range(1, nmodels):
-            shared_part = 2 * (m - 1) + 1
-            only_part = 2 * (m - 1) + 2
-
-            # n_shared + n_only_m = n_m
             # n_shared = min(n_0, n_m)
-            n_shared = min(nsamples[0], nsamples[m])
-            n_only = nsamples[m] - n_shared
+            n_shared = bkd.minimum(nsamples[0], nsamples[m])
+            # n_only = max(n_m - n_shared, 0)
+            n_only = bkd.maximum(nsamples[m] - n_shared, bkd.asarray(0.0))
 
-            npart[shared_part] = n_shared
-            npart[only_part] = max(n_only, 0)
+            parts.append(bkd.reshape(n_shared, (1,)))
+            parts.append(bkd.reshape(n_only, (1,)))
 
-        return npart
+        return bkd.concatenate(parts)
 
     def npartition_samples(self) -> Array:
         """Return samples per partition."""
@@ -439,48 +445,52 @@ class ACVEstimator(BootstrapMixin[Array], AbstractEstimator[Array], Generic[Arra
         List[Array]
             Samples for each model.
         """
-        nsamples = self.nsamples_per_model()
-        nsamples_np = self._bkd.to_numpy(nsamples)
-        npart = self.npartition_samples()
-        npart_np = self._bkd.to_numpy(npart).copy()
+        bkd = self._bkd
+        npart = bkd.copy(self.npartition_samples())
+        npartitions = len(npart)
 
         # Adjust first partition for pilot samples
         if npilot_samples > 0:
-            if npilot_samples > npart_np[0]:
+            if npilot_samples > npart[0].item():
                 raise ValueError(
                     f"npilot_samples ({npilot_samples}) exceeds first partition "
-                    f"size ({npart_np[0]})"
+                    f"size ({npart[0].item()})"
                 )
-            npart_np[0] -= npilot_samples
+            npart = bkd.concatenate([
+                bkd.asarray([npart[0] - npilot_samples]),
+                npart[1:]
+            ])
 
         nmodels = self.nmodels()
-        alloc_mat = self._bkd.to_numpy(self.get_allocation_matrix())
+        alloc_mat = self.get_allocation_matrix()
 
         # Generate all unique samples needed
-        total_samples = int(np.sum(npart_np))
-        all_samples = rvs(total_samples) if total_samples > 0 else rvs(1)[:0]
+        total_samples = int(bkd.sum(npart).item())
+        all_samples = rvs(total_samples) if total_samples > 0 else rvs(1)[:, :0]
 
         # Assign samples to partitions
-        partition_samples = []
+        partition_samples: List[Array] = []
         start = 0
-        for p in range(len(npart_np)):
-            end = start + int(npart_np[p])
-            partition_samples.append(all_samples[start:end])
+        for p in range(npartitions):
+            count = int(npart[p].item())
+            end = start + count
+            partition_samples.append(all_samples[:, start:end])
             start = end
 
         # Collect samples for each model
-        model_samples = []
+        model_samples: List[Array] = []
         for m in range(nmodels):
-            model_samps = []
-            for p in range(len(npart_np)):
-                if alloc_mat[m, p] == 1 and npart_np[p] > 0:
+            model_samps: List[Array] = []
+            for p in range(npartitions):
+                count = int(npart[p].item())
+                if alloc_mat[m, p].item() == 1 and count > 0:
                     model_samps.append(partition_samples[p])
 
             if model_samps:
-                model_samples.append(self._bkd.concatenate(model_samps, axis=0))
+                model_samples.append(bkd.concatenate(model_samps, axis=1))
             else:
                 # Empty array with correct shape
-                model_samples.append(all_samples[:0])
+                model_samples.append(all_samples[:, :0])
 
         return model_samples
 
@@ -506,13 +516,13 @@ class ACVEstimator(BootstrapMixin[Array], AbstractEstimator[Array], Generic[Arra
             Model values with pilot samples prepended where appropriate.
         """
         bkd = self._bkd
-        alloc_mat = bkd.to_numpy(self.get_allocation_matrix())
+        alloc_mat = self.get_allocation_matrix()
         nmodels = self.nmodels()
 
-        new_values_per_model = []
+        new_values_per_model: List[Array] = []
         for m in range(nmodels):
             # Check if this model uses the first partition
-            uses_first_partition = alloc_mat[m, 0] == 1
+            uses_first_partition = alloc_mat[m, 0].item() == 1
 
             if uses_first_partition:
                 # Prepend pilot values
@@ -547,19 +557,19 @@ class ACVEstimator(BootstrapMixin[Array], AbstractEstimator[Array], Generic[Arra
 
         bkd = self._bkd
         nmodels = self.nmodels()
-        nsamples_np = bkd.to_numpy(self.nsamples_per_model())
-        weights = bkd.to_numpy(self.weights())
+        nsamples = self.nsamples_per_model()
+        weights = self.weights()
 
-        nhf = int(nsamples_np[0])
+        nhf = int(nsamples[0].item())
 
         # Q_0: HF mean
         Q0 = bkd.sum(values[0], axis=0) / nhf
 
         # Control variate correction
-        correction = bkd.zeros(self._stat.nstats())
+        correction = bkd.zeros((self._stat.nstats(),))
 
         for m in range(1, nmodels):
-            nlf = int(nsamples_np[m])
+            nlf = int(nsamples[m].item())
             n_shared = min(nhf, nlf)
 
             # Q_m: LF mean on shared samples
@@ -585,26 +595,25 @@ class ACVEstimator(BootstrapMixin[Array], AbstractEstimator[Array], Generic[Arra
         """
         bkd = self._bkd
         nsamples = self.nsamples_per_model()
-        nhf = int(bkd.to_numpy(nsamples)[0])
+        nhf = nsamples[0]
 
         # HF covariance
         hf_cov = self._stat.high_fidelity_estimator_covariance(nhf)
 
         # Compute variance reduction from control variates
         cov = self._stat.cov()
-        cov_np = bkd.to_numpy(cov)
         nqoi = self._stat.nqoi()
 
         if nqoi == 1:
             # Compute total correlation
-            total_rho_sq = 0
+            total_rho_sq = bkd.asarray(0.0)
             for m in range(1, self.nmodels()):
-                rho = cov_np[0, m] / np.sqrt(cov_np[0, 0] * cov_np[m, m])
-                total_rho_sq += rho ** 2
+                rho = cov[0, m] / bkd.sqrt(cov[0, 0] * cov[m, m])
+                total_rho_sq = total_rho_sq + rho ** 2
 
             # Variance reduction factor (approximate)
-            var_red = max(1 - total_rho_sq, 0.01)
-            return bkd.asarray(bkd.to_numpy(hf_cov) * var_red)
+            var_red = bkd.maximum(1 - total_rho_sq, bkd.asarray(0.01))
+            return hf_cov * var_red
         else:
             return hf_cov
 
@@ -618,15 +627,15 @@ class ACVEstimator(BootstrapMixin[Array], AbstractEstimator[Array], Generic[Arra
         """
         bkd = self._bkd
         cov = self._stat.cov()
-        cov_np = bkd.to_numpy(cov)
         nqoi = self._stat.nqoi()
 
         if nqoi == 1:
-            total_rho_sq = 0
+            total_rho_sq = bkd.asarray(0.0)
             for m in range(1, self.nmodels()):
-                rho = cov_np[0, m] / np.sqrt(cov_np[0, 0] * cov_np[m, m])
-                total_rho_sq += rho ** 2
-            return max(1 - total_rho_sq, 0.01)
+                rho = cov[0, m] / bkd.sqrt(cov[0, 0] * cov[m, m])
+                total_rho_sq = total_rho_sq + rho ** 2
+            result = bkd.maximum(1 - total_rho_sq, bkd.asarray(0.01))
+            return float(bkd.to_numpy(result))
         else:
             return 0.5
 
@@ -657,19 +666,18 @@ class ACVEstimator(BootstrapMixin[Array], AbstractEstimator[Array], Generic[Arra
 
         bkd = self._bkd
         nmodels = self.nmodels()
-        nsamples_np = bkd.to_numpy(self.nsamples_per_model())
-        weights_np = bkd.to_numpy(weights)
+        nsamples = self.nsamples_per_model()
 
-        nhf = int(nsamples_np[0])
+        nhf = int(nsamples[0].item())
 
         # Q_0: HF mean
         Q0 = bkd.sum(values_per_model[0], axis=0) / nhf
 
         # Control variate correction
-        correction = bkd.zeros(self._stat.nstats())
+        correction = bkd.zeros((self._stat.nstats(),))
 
         for m in range(1, nmodels):
-            nlf = int(nsamples_np[m])
+            nlf = int(nsamples[m].item())
             n_shared = min(nhf, nlf)
 
             # Q_m: LF mean on shared samples
@@ -679,7 +687,7 @@ class ACVEstimator(BootstrapMixin[Array], AbstractEstimator[Array], Generic[Arra
             mu_m = bkd.sum(values_per_model[m], axis=0) / nlf
 
             # Weight for this control
-            eta_m = weights_np[m - 1] if weights_np.ndim == 1 else weights_np[m - 1, :]
+            eta_m = weights[m - 1] if weights.ndim == 1 else weights[m - 1, :]
 
             correction = correction + eta_m * (mu_m - Q_m)
 
