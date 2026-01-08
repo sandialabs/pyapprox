@@ -258,6 +258,10 @@ class NumpyBkd(Backend[NDArray[Any]]):  # Specify NDArray type
         return cast(NDArray[Any], np.abs(array))
 
     @staticmethod
+    def round(array: NDArray[Any]) -> NDArray[Any]:
+        return cast(NDArray[Any], np.round(array))
+
+    @staticmethod
     def sqrt(array: NDArray[Any]) -> NDArray[Any]:
         return cast(NDArray[Any], np.sqrt(array))
 

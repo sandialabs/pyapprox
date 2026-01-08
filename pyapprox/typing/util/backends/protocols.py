@@ -358,6 +358,9 @@ class Backend(Protocol, Generic[Array]):
     def abs(array: Array) -> Array: ...
 
     @staticmethod
+    def round(array: Array) -> Array: ...
+
+    @staticmethod
     def sqrt(array: Array) -> Array: ...
 
     @staticmethod

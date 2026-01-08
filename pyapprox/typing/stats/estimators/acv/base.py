@@ -286,6 +286,136 @@ class ACVEstimator(BootstrapMixin[Array], AbstractEstimator[Array], Generic[Arra
             raise ValueError("Weights not computed.")
         return self._weights
 
+    def _get_nhf_samples_from_partition_ratios(
+        self, target_cost: float, partition_ratios: Array
+    ) -> Array:
+        """Compute number of HF samples from partition ratios.
+
+        Parameters
+        ----------
+        target_cost : float
+            Total computational budget.
+        partition_ratios : Array
+            Partition sample ratios relative to first partition. Shape: (npartitions-1,)
+
+        Returns
+        -------
+        Array
+            Number of HF samples (scalar).
+        """
+        bkd = self._bkd
+        alloc_mat = self.get_allocation_matrix()
+
+        # Cost per partition: sum of model costs for models in each partition
+        partition_costs = alloc_mat.T @ self._costs
+
+        # Total cost = nhf * (partition_costs[0] + sum_i partition_ratios[i] * partition_costs[i+1])
+        weighted_partition_cost = partition_costs[0] + bkd.sum(
+            partition_ratios * partition_costs[1:]
+        )
+        nhf = target_cost / weighted_partition_cost
+        return nhf
+
+    def _npartition_samples_from_partition_ratios(
+        self, target_cost: float, partition_ratios: Array
+    ) -> Array:
+        """Compute partition samples from partition ratios.
+
+        Parameters
+        ----------
+        target_cost : float
+            Total computational budget.
+        partition_ratios : Array
+            Partition sample ratios relative to first partition. Shape: (npartitions-1,)
+
+        Returns
+        -------
+        Array
+            Samples per partition. Shape: (npartitions,)
+        """
+        bkd = self._bkd
+        nhf = self._get_nhf_samples_from_partition_ratios(target_cost, partition_ratios)
+        npartition_samples = bkd.concatenate([
+            bkd.reshape(nhf, (1,)),
+            partition_ratios * nhf
+        ])
+        return npartition_samples
+
+    def _covariance_from_npartition_samples(
+        self, npartition_samples: Array
+    ) -> Array:
+        """Compute estimator covariance from partition samples.
+
+        Parameters
+        ----------
+        npartition_samples : Array
+            Samples per partition. Shape: (npartitions,)
+
+        Returns
+        -------
+        Array
+            Estimator covariance matrix.
+        """
+        bkd = self._bkd
+        alloc_mat = self.get_allocation_matrix()
+
+        # Get discrepancy covariances
+        CF, cf = self._stat.get_acv_discrepancy_covariances(alloc_mat, npartition_samples)
+        nqoi = self._stat.nqoi()
+
+        # Compute weights from covariances: eta = cf^{-1} @ CF^T
+        if nqoi == 1:
+            # Scalar case
+            cf_flat = bkd.flatten(cf)
+            CF_flat = bkd.flatten(CF)
+            # Check if cf is essentially a scalar
+            if cf.shape == (1, 1):
+                cf_val = cf[0, 0]
+                # Avoid division by zero
+                eta = CF_flat / bkd.maximum(bkd.abs(cf_val), bkd.asarray(1e-14))
+            else:
+                # Solve linear system
+                eta = bkd.flatten(bkd.solve(cf, bkd.reshape(CF_flat, (-1, 1))))
+        else:
+            # Multi-QoI: use least squares
+            eta_sol, _, _, _ = bkd.lstsq(cf, CF.T)
+            eta = eta_sol.T
+
+        # Compute HF covariance
+        nhf = npartition_samples[0]
+        hf_cov = self._stat.high_fidelity_estimator_covariance(nhf)
+
+        # Compute variance reduction
+        if nqoi == 1:
+            # V(Q_ACV) = V(Q_0) - eta^T @ cf @ eta
+            eta_row = bkd.reshape(eta, (1, -1))
+            var_red = eta_row @ cf @ eta_row.T
+            return hf_cov - bkd.reshape(var_red, hf_cov.shape)
+        else:
+            return hf_cov
+
+    def _covariance_from_partition_ratios(
+        self, target_cost: float, partition_ratios: Array
+    ) -> Array:
+        """Compute estimator covariance from partition ratios.
+
+        Parameters
+        ----------
+        target_cost : float
+            Total computational budget.
+        partition_ratios : Array
+            Partition sample ratios relative to first partition.
+
+        Returns
+        -------
+        Array
+            Estimator covariance matrix.
+        """
+        npartition_samples = self._npartition_samples_from_partition_ratios(
+            target_cost, partition_ratios
+        )
+        return self._covariance_from_npartition_samples(npartition_samples)
+
     def generate_samples_per_model(
         self, rvs: Callable[[int], Array], npilot_samples: int = 0
     ) -> List[Array]:

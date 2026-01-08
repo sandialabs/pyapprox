@@ -119,7 +119,7 @@ class TorchBkd(Backend[torch.Tensor]):  # Specify torch.Tensor type
 
     @staticmethod
     def to_numpy(array: torch.Tensor) -> NDArray[Any]:
-        return array.numpy()
+        return array.detach().numpy()
 
     @staticmethod
     def flatten(array: torch.Tensor) -> torch.Tensor:
@@ -271,6 +271,10 @@ class TorchBkd(Backend[torch.Tensor]):  # Specify torch.Tensor type
     @staticmethod
     def abs(array: torch.Tensor) -> torch.Tensor:
         return torch.abs(array)
+
+    @staticmethod
+    def round(array: torch.Tensor) -> torch.Tensor:
+        return torch.round(array)
 
     @staticmethod
     def sqrt(array: torch.Tensor) -> torch.Tensor:
