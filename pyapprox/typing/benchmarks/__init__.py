@@ -26,6 +26,7 @@ from pyapprox.typing.benchmarks.ground_truth import (
     QuadratureGroundTruth,
     MultifidelityGroundTruth,
     InverseGroundTruth,
+    ODEGroundTruth,
 )
 from pyapprox.typing.benchmarks.benchmark import (
     BoxDomain,
@@ -45,6 +46,23 @@ from pyapprox.typing.benchmarks.functions.algebraic import (
     BRANIN_GLOBAL_MINIMUM,
     BRANIN_MINIMIZERS,
 )
+from pyapprox.typing.benchmarks.functions.genz import (
+    OscillatoryFunction,
+    ProductPeakFunction,
+    CornerPeakFunction,
+    GaussianPeakFunction,
+)
+from pyapprox.typing.benchmarks.functions.multifidelity import (
+    PolynomialModelFunction,
+    PolynomialEnsemble,
+)
+
+# ODE Benchmarks
+from pyapprox.typing.benchmarks.functions.ode import (
+    ODEBenchmark,
+    ODETimeConfig,
+    ODEQoIFunction,
+)
 
 # Instances (also registers with BenchmarkRegistry)
 from pyapprox.typing.benchmarks.instances import (
@@ -54,6 +72,18 @@ from pyapprox.typing.benchmarks.instances import (
     rosenbrock_2d,
     rosenbrock_10d,
     branin_2d,
+    genz_oscillatory_2d,
+    genz_product_peak_2d,
+    genz_corner_peak_2d,
+    genz_gaussian_peak_2d,
+    genz_oscillatory_5d,
+    genz_gaussian_peak_5d,
+    polynomial_ensemble_5model,
+    polynomial_ensemble_3model,
+    lotka_volterra_3species,
+    coupled_springs_2mass,
+    hastings_ecology_3species,
+    chemical_reaction_surface,
 )
 
 __all__ = [
@@ -70,6 +100,7 @@ __all__ = [
     "QuadratureGroundTruth",
     "MultifidelityGroundTruth",
     "InverseGroundTruth",
+    "ODEGroundTruth",
     # Benchmark classes
     "BoxDomain",
     "Benchmark",
@@ -77,7 +108,7 @@ __all__ = [
     "ConstrainedBenchmark",
     # Registry
     "BenchmarkRegistry",
-    # Functions
+    # Functions - Algebraic
     "IshigamiFunction",
     "RosenbrockFunction",
     "SobolGFunction",
@@ -85,11 +116,39 @@ __all__ = [
     "BraninFunction",
     "BRANIN_GLOBAL_MINIMUM",
     "BRANIN_MINIMIZERS",
-    # Instances
+    # Functions - Genz
+    "OscillatoryFunction",
+    "ProductPeakFunction",
+    "CornerPeakFunction",
+    "GaussianPeakFunction",
+    # Functions - Multifidelity
+    "PolynomialModelFunction",
+    "PolynomialEnsemble",
+    # Functions - ODE
+    "ODEBenchmark",
+    "ODETimeConfig",
+    "ODEQoIFunction",
+    # Instances - Sensitivity
     "ishigami_3d",
     "sobol_g_6d",
     "sobol_g_4d",
+    # Instances - Optimization
     "rosenbrock_2d",
     "rosenbrock_10d",
     "branin_2d",
+    # Instances - Quadrature
+    "genz_oscillatory_2d",
+    "genz_product_peak_2d",
+    "genz_corner_peak_2d",
+    "genz_gaussian_peak_2d",
+    "genz_oscillatory_5d",
+    "genz_gaussian_peak_5d",
+    # Instances - Multifidelity
+    "polynomial_ensemble_5model",
+    "polynomial_ensemble_3model",
+    # Instances - ODE
+    "lotka_volterra_3species",
+    "coupled_springs_2mass",
+    "hastings_ecology_3species",
+    "chemical_reaction_surface",
 ]
