@@ -1,0 +1,82 @@
+<!--
+pyapprox Tutorial MathJax Macros
+For HTML output via Quarto (MathJax 3.x)
+Mirrors _macros.tex but uses MathJax-compatible syntax
+-->
+
+<script>
+MathJax = {
+  tex: {
+    macros: {
+      // Vectors/Matrices/Tensors
+      vc: ["{\\mathbf{#1}}", 1],
+      mt: ["{\\mathbf{#1}}", 1],
+      ts: ["{\\mathcal{#1}}", 1],
+
+      // Common Vectors
+      params: "{\\boldsymbol{\\theta}}",
+      inputs: "{\\mathbf{x}}",
+      outputs: "{\\mathbf{y}}",
+      data: "{\\mathbf{y}}",
+      state: "{\\mathbf{u}}",
+
+      // Dimensions
+      dparams: "{d_\\theta}",
+      dinputs: "{d_x}",
+      doutputs: "{d_y}",
+      dstates: "{d_u}",
+      Reals: ["{\\mathbb{R}^{#1}}", 1],
+
+      // Samples
+      nsamples: "{N}",
+      sample: ["^{(#1)}", 1],
+      samplemat: ["{\\mathbf{#1}}", 1],
+
+      // Random Variables
+      rv: ["{\\tilde{#1}}", 1],
+
+      // Functions and Models
+      model: "{f}",
+      qoifunc: "{q}",
+      qoifunctional: "{g}",
+      surrogate: ["{f_{#1}}", 1],
+      surr: "{f_N}",
+
+      // Probability
+      E: "{\\mathbb{E}}",
+      Var: "{\\mathbb{V}}",
+      Cov: "{\\mathrm{Cov}}",
+      pdf: "{p}",
+      normal: "{\\mathcal{N}}",
+      uniform: "{\\mathcal{U}}",
+
+      // Sensitivity Analysis
+      Sobol: ["{S_{#1}}", 1],
+      SobolT: ["{S_{#1}^T}", 1],
+      maineff: ["{V_{#1}}", 1],
+      totaleff: ["{V_{#1}^T}", 1],
+
+      // Operators
+      argmin: "{\\operatorname*{arg\\,min}}",
+      argmax: "{\\operatorname*{arg\\,max}}",
+      dd: "{\\mathrm{d}}",
+      pd: ["{\\frac{\\partial #1}{\\partial #2}}", 2],
+
+      // Common Matrices
+      CovMat: "{\\boldsymbol{\\Sigma}}",
+      IdentMat: "{\\mathbf{I}}",
+      JacMat: "{\\mathbf{J}}",
+      HessMat: "{\\mathbf{H}}",
+
+      // Time-dependent Problems
+      tinit: "{t_0}",
+      tfinal: "{t_f}",
+      deltat: "{\\Delta t}",
+
+      // Integration/Quadrature
+      integral: "{\\mathcal{I}}",
+      domain: "{\\Omega}"
+    }
+  }
+};
+</script>

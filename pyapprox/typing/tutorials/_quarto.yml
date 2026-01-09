@@ -1,0 +1,80 @@
+project:
+  type: website
+  output-dir: _site
+
+website:
+  title: "PyApprox UQ Tutorials"
+  navbar:
+    left:
+      - text: "Home"
+        href: index.qmd
+      - text: "Tutorial Library"
+        href: library/index.qmd
+      - text: "Workshops"
+        href: workshops/index.qmd
+    right:
+      - icon: github
+        href: https://github.com/sandialabs/pyapprox
+  sidebar:
+    - title: "Tutorial Library"
+      style: "docked"
+      search: true
+      contents:
+        - section: "Getting Started"
+          contents:
+            - library/setup_environment.qmd
+            - library/uq_problem_framing.qmd
+        - section: "Forward UQ"
+          contents:
+            - library/forward_model_definition.qmd
+            - library/random_variables_distributions.qmd
+            - library/quantities_of_interest.qmd
+            - library/monte_carlo_basics.qmd
+        - section: "Sensitivity Analysis"
+          contents:
+            - library/sobol_sensitivity_analysis.qmd
+        - section: "Inverse Problems"
+          contents:
+            - library/bayesian_calibration_intro.qmd
+            - library/hamiltonian_mcmc.qmd
+        - section: "Surrogates"
+          contents:
+            - library/polynomial_chaos_expansion.qmd
+            - library/gaussian_process_surrogates.qmd
+        - section: "Multifidelity"
+          contents:
+            - library/control_variates.qmd
+            - library/multifidelity_monte_carlo.qmd
+        - section: "Advanced Topics"
+          contents:
+            - library/optimal_experimental_design.qmd
+            - library/optimization_under_uncertainty.qmd
+            - library/backend_alternatives.qmd
+            - library/benchmark_setup.qmd
+
+format:
+  html:
+    theme: cosmo
+    css: library/styles.css
+    toc: true
+    toc-depth: 3
+    code-fold: false
+    code-tools: true
+    code-copy: true
+    code-overflow: wrap
+    include-in-header:
+      - file: _macros_html.tex
+  pdf:
+    documentclass: article
+    include-in-header:
+      - file: _macros.tex
+
+execute:
+  echo: true
+  warning: false
+  freeze: auto
+
+jupyter: python3
+
+# Notebook conversion
+notebook-links: true

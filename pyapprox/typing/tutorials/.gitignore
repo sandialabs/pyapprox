@@ -1,0 +1,17 @@
+# Quarto build output
+_site/
+_freeze/
+
+# Quarto cache/temp files
+.quarto/
+**/*.quarto_ipynb
+
+# Generated notebooks
+library/notebooks/
+**/*.ipynb
+
+# Python cache
+__pycache__/
+*.pyc
+
+/.quarto/

@@ -1,0 +1,75 @@
+% =============================================================================
+% pyapprox Tutorial LaTeX Macros
+% =============================================================================
+% Single source of truth - changes propagate to all tutorials
+% For PDF output via Quarto
+% =============================================================================
+
+% === Vectors/Matrices/Tensors ===
+\newcommand{\vc}[1]{\mathbf{#1}}                    % vector (bold lowercase)
+\newcommand{\mt}[1]{\mathbf{#1}}                    % matrix (bold uppercase)
+\newcommand{\ts}[1]{\mathcal{#1}}                   % tensor (calligraphic)
+
+% === Common Vectors ===
+\newcommand{\params}{\boldsymbol{\theta}}           % parameter vector
+\newcommand{\inputs}{\vc{x}}                        % spatial input vector
+\newcommand{\outputs}{\vc{y}}                       % output vector
+\newcommand{\data}{\vc{y}}                          % observed data
+\newcommand{\state}{\vc{u}}                         % state vector (for ODEs)
+
+% === Dimensions (always d with subscript) ===
+\newcommand{\dparams}{d_\theta}                     % parameter dimension
+\newcommand{\dinputs}{d_x}                          % spatial input dimension
+\newcommand{\doutputs}{d_y}                         % output/QoI dimension
+\newcommand{\dstates}{d_u}                          % state dimension
+\newcommand{\Reals}[1]{\mathbb{R}^{#1}}             % R^d
+
+% === Samples (N is RESERVED for number of samples ONLY) ===
+\newcommand{\nsamples}{N}                           % number of samples
+\newcommand{\sample}[1]{^{(#1)}}                    % sample superscript: \theta\sample{k}
+\newcommand{\samplemat}[1]{\mt{#1}}                 % matrix of samples
+
+% === Random Variables ===
+\newcommand{\rv}[1]{\tilde{#1}}                     % random variable (when distinction needed)
+
+% === Functions and Models ===
+\newcommand{\model}{f}                              % forward model
+\newcommand{\qoifunc}{q}                            % QoI map (params -> QoI)
+\newcommand{\qoifunctional}{g}                      % QoI functional (solution -> QoI)
+\newcommand{\surrogate}[1]{\model_{#1}}             % surrogate: \surrogate{\nsamples} = f_N
+\newcommand{\surr}{\surrogate{\nsamples}}           % shorthand for f_N
+
+% === Probability ===
+\newcommand{\E}{\mathbb{E}}                         % expectation
+\newcommand{\Var}{\mathbb{V}}                       % variance
+\newcommand{\Cov}{\mathrm{Cov}}                     % covariance
+\newcommand{\pdf}{p}                                % probability density function
+\newcommand{\normal}{\mathcal{N}}                   % normal distribution
+\newcommand{\uniform}{\mathcal{U}}                  % uniform distribution
+
+% === Sensitivity Analysis ===
+\newcommand{\Sobol}[1]{S_{#1}}                      % first-order Sobol index
+\newcommand{\SobolT}[1]{S_{#1}^T}                   % total-order Sobol index
+\newcommand{\maineff}[1]{V_{#1}}                    % main effect variance
+\newcommand{\totaleff}[1]{V_{#1}^T}                 % total effect variance
+
+% === Operators ===
+\DeclareMathOperator*{\argmin}{arg\,min}
+\DeclareMathOperator*{\argmax}{arg\,max}
+\newcommand{\dd}{\mathrm{d}}                        % differential d
+\newcommand{\pd}[2]{\frac{\partial #1}{\partial #2}}  % partial derivative
+
+% === Common Matrices ===
+\newcommand{\CovMat}{\boldsymbol{\Sigma}}           % covariance matrix
+\newcommand{\IdentMat}{\mt{I}}                      % identity matrix
+\newcommand{\JacMat}{\mt{J}}                        % Jacobian matrix
+\newcommand{\HessMat}{\mt{H}}                       % Hessian matrix
+
+% === Time-dependent Problems ===
+\newcommand{\tinit}{t_0}                            % initial time
+\newcommand{\tfinal}{t_f}                           % final time
+\newcommand{\deltat}{\Delta t}                      % time step
+
+% === Integration/Quadrature ===
+\newcommand{\integral}{\mathcal{I}}                 % integral operator
+\newcommand{\domain}{\Omega}                        % domain
