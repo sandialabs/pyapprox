@@ -1,0 +1,618 @@
+---
+title: "Benchmark Setup"
+subtitle: "PyApprox Tutorial Library"
+description: "Creating custom UQ benchmarks from scratch"
+prerequisites:
+  - forward_model_definition
+tags:
+  - advanced
+  - infrastructure
+format:
+  html:
+    code-fold: false
+    code-tools: true
+    toc: true
+execute:
+  echo: true
+  warning: false
+jupyter: python3
+---
+
+::: {.callout-tip collapse="true"}
+## Download Notebook
+[Download as Jupyter Notebook](notebooks/benchmark_setup.ipynb)
+:::
+
+## Learning Objectives
+
+After completing this tutorial, you will be able to:
+
+- Understand the components of a PyApprox benchmark
+- Create a custom ODE residual function
+- Set up time integration for ODE systems
+- Define quantities of interest (QoI) functionals
+- Package everything into a reusable benchmark
+
+## Prerequisites
+
+Complete [Forward Model Definition](forward_model_definition.qmd) before this tutorial.
+
+## Why Custom Benchmarks?
+
+While PyApprox provides built-in benchmarks, you may need to:
+
+- Use your own physical model
+- Customize parameters, domains, or priors
+- Create benchmarks for testing new algorithms
+- Share reproducible test cases with colleagues
+
+## Benchmark Architecture
+
+A PyApprox benchmark connects several components:
+
+```
+Parameters (θ) → Residual → Time Stepper → Solver → Solution(t) → Functional → QoI
+```
+
+Let's build each component for a simple example: the **Logistic Growth ODE**.
+
+## Setup
+
+```{python}
+import numpy as np
+import matplotlib.pyplot as plt
+from pyapprox.typing.util.backends.numpy import NumpyBkd
+
+bkd = NumpyBkd()
+np.random.seed(42)
+```
+
+## The Logistic Growth Model
+
+We'll implement the logistic growth equation:
+
+$$
+\frac{dx}{dt} = r x \left(1 - \frac{x}{K}\right)
+$$
+
+where:
+
+- $x(t)$ is the population at time $t$
+- $r$ is the growth rate
+- $K$ is the carrying capacity
+
+Parameters: $\params = (r, K)$
+
+## Step 1: Define the ODE Right-Hand Side
+
+The ODE system is defined by its **right-hand side** function $f(x, t)$:
+
+$$
+\frac{dx}{dt} = f(x, t) = r x \left(1 - \frac{x}{K}\right)
+$$
+
+PyApprox time steppers expect a class with specific methods.
+
+```{python}
+from typing import Generic
+from pyapprox.typing.util.backends.protocols import Array, Backend
+
+class LogisticResidual(Generic[Array]):
+    """
+    Logistic growth ODE: dx/dt = r*x*(1 - x/K)
+
+    Implements the ODEResidualProtocol interface required by time steppers.
+    """
+
+    def __init__(self, bkd: Backend[Array]):
+        self._bkd = bkd
+        self._param: Array | None = None
+        self._time: float = 0.0
+
+    def bkd(self) -> Backend[Array]:
+        return self._bkd
+
+    def nstates(self) -> int:
+        """Number of state variables."""
+        return 1
+
+    def nparams(self) -> int:
+        """Number of parameters."""
+        return 2  # r, K
+
+    def set_param(self, param: Array) -> None:
+        """Set the parameters (r, K)."""
+        self._param = param
+
+    def set_time(self, time: float) -> None:
+        """Set the current time (required by time steppers)."""
+        self._time = time  # Not used for autonomous ODE, but required interface
+
+    def __call__(self, state: Array) -> Array:
+        """
+        Evaluate ODE right-hand side: f(x) = r*x*(1 - x/K)
+
+        Parameters
+        ----------
+        state : Array
+            Current state x. Shape: (nstates,)
+
+        Returns
+        -------
+        Array
+            Time derivative dx/dt. Shape: (nstates,)
+        """
+        if self._param is None:
+            raise ValueError("Parameters not set. Call set_param first.")
+
+        x = state[0]
+        r = self._param[0]
+        K = self._param[1]
+
+        # f(x) = r*x*(1 - x/K)
+        dxdt = r * x * (1.0 - x / K)
+        return self._bkd.asarray([dxdt])
+
+    def jacobian(self, state: Array) -> Array:
+        """
+        Jacobian of ODE w.r.t. state: df/dx
+
+        df/dx = r*(1 - x/K) + r*x*(-1/K) = r - 2*r*x/K
+        """
+        if self._param is None:
+            raise ValueError("Parameters not set.")
+
+        x = state[0]
+        r = self._param[0]
+        K = self._param[1]
+
+        df_dx = r - 2.0 * r * x / K
+        return self._bkd.asarray([[df_dx]])
+
+    def mass_matrix(self, nstates: int) -> Array:
+        """Return identity matrix (standard ODE, not DAE)."""
+        return self._bkd.eye(nstates)
+
+# Test the ODE right-hand side
+residual = LogisticResidual(bkd)
+residual.set_param(bkd.asarray([1.0, 10.0]))  # r=1, K=10
+
+state = bkd.asarray([5.0])
+dxdt = residual(state)
+print(f"dx/dt at x=5: {dxdt[0]:.4f}")
+print(f"Expected: r*5*(1-5/10) = 1*5*0.5 = 2.5")
+```
+
+## Step 2: Set Up Time Integration
+
+PyApprox provides time steppers that integrate ODEs:
+
+```{python}
+from pyapprox.typing.pde.time.implicit_steppers.backward_euler import BackwardEulerResidual
+from pyapprox.typing.optimization.rootfinding.newton import NewtonSolver
+from pyapprox.typing.pde.time.implicit_steppers.integrator import TimeIntegrator
+
+# Wrap residual with time stepper
+time_residual = BackwardEulerResidual(residual)
+
+# Create Newton solver for implicit time stepping
+newton_solver = NewtonSolver(time_residual)
+
+# Create time integrator
+integrator = TimeIntegrator(
+    init_time=0.0,
+    final_time=10.0,
+    deltat=0.1,
+    newton_solver=newton_solver,
+)
+
+print(f"Time integrator set up:")
+print(f"  Time span: [0, 10]")
+print(f"  Time step: 0.1")
+print(f"  Number of steps: {int(10/0.1)}")
+```
+
+## Step 3: Solve the ODE
+
+```{python}
+# Set parameters
+r, K = 0.5, 10.0
+residual.set_param(bkd.asarray([r, K]))
+
+# Initial condition
+x0 = bkd.asarray([1.0])
+
+# Solve
+solutions, times = integrator.solve(x0)
+
+print(f"Solution shape: {solutions.shape}")
+print(f"Times shape: {times.shape}")
+print(f"Final solution: {solutions[0, -1]:.4f}")
+print(f"Analytical steady state: {K}")
+```
+
+### Visualize the Solution
+
+```{python}
+# Analytical solution for comparison
+def logistic_analytical(t, x0, r, K):
+    return K / (1 + (K/x0 - 1) * np.exp(-r*t))
+
+t_np = bkd.to_numpy(times)
+x_numerical = bkd.to_numpy(solutions)[0, :]
+x_analytical = logistic_analytical(t_np, 1.0, r, K)
+
+fig, ax = plt.subplots(figsize=(8, 5))
+ax.plot(t_np, x_numerical, 'b-', linewidth=2, label='Numerical')
+ax.plot(t_np, x_analytical, 'r--', linewidth=2, label='Analytical')
+ax.axhline(K, color='gray', linestyle=':', label=f'Carrying capacity K={K}')
+ax.set_xlabel('Time')
+ax.set_ylabel('Population x(t)')
+ax.set_title('Logistic Growth ODE')
+ax.legend()
+ax.grid(True, alpha=0.3)
+plt.tight_layout()
+plt.show()
+```
+
+## Step 4: Define QoI Functional
+
+A **functional** extracts a scalar or vector quantity from the solution trajectory:
+
+```{python}
+class EndpointFunctional:
+    """Extract the final state value."""
+
+    def __init__(self, bkd: Backend):
+        self._bkd = bkd
+
+    def __call__(self, solutions: Array, times: Array) -> Array:
+        """
+        Return the final state.
+
+        Parameters
+        ----------
+        solutions : Array
+            Solution trajectory. Shape: (nstates, ntimes)
+        times : Array
+            Time points. Shape: (ntimes,)
+
+        Returns
+        -------
+        Array
+            Final state. Shape: (nstates,)
+        """
+        return solutions[:, -1]
+
+
+class MaxFunctional:
+    """Extract the maximum state value over time."""
+
+    def __init__(self, bkd: Backend):
+        self._bkd = bkd
+
+    def __call__(self, solutions: Array, times: Array) -> Array:
+        """Return the maximum state value."""
+        return self._bkd.max(solutions, axis=1)
+
+
+class TimeMeanFunctional:
+    """Extract the time-averaged state value."""
+
+    def __init__(self, bkd: Backend):
+        self._bkd = bkd
+
+    def __call__(self, solutions: Array, times: Array) -> Array:
+        """Return the time-averaged state."""
+        return self._bkd.mean(solutions, axis=1)
+
+
+# Test functionals
+endpoint = EndpointFunctional(bkd)
+maximum = MaxFunctional(bkd)
+time_mean = TimeMeanFunctional(bkd)
+
+print(f"Endpoint QoI: {endpoint(solutions, times)[0]:.4f}")
+print(f"Maximum QoI: {maximum(solutions, times)[0]:.4f}")
+print(f"Time-mean QoI: {time_mean(solutions, times)[0]:.4f}")
+```
+
+## Step 5: Create the QoI Function
+
+The **QoI function** maps parameters to quantities of interest:
+
+```{python}
+class LogisticQoIFunction:
+    """
+    QoI function for logistic growth model.
+
+    Maps parameters (r, K) to a quantity of interest.
+    """
+
+    def __init__(
+        self,
+        bkd: Backend,
+        functional: str = "endpoint",
+        x0: float = 1.0,
+        final_time: float = 10.0,
+        deltat: float = 0.1,
+    ):
+        self._bkd = bkd
+        self._x0 = x0
+        self._final_time = final_time
+        self._deltat = deltat
+
+        # Create components
+        self._residual = LogisticResidual(bkd)
+        self._time_residual = BackwardEulerResidual(self._residual)
+        self._newton_solver = NewtonSolver(self._time_residual)
+        self._integrator = TimeIntegrator(
+            init_time=0.0,
+            final_time=final_time,
+            deltat=deltat,
+            newton_solver=self._newton_solver,
+        )
+
+        # Set functional
+        if functional == "endpoint":
+            self._functional = EndpointFunctional(bkd)
+        elif functional == "max":
+            self._functional = MaxFunctional(bkd)
+        elif functional == "mean":
+            self._functional = TimeMeanFunctional(bkd)
+        else:
+            raise ValueError(f"Unknown functional: {functional}")
+
+    def nvars(self) -> int:
+        """Number of input parameters."""
+        return 2
+
+    def nqoi(self) -> int:
+        """Number of output quantities."""
+        return 1
+
+    def __call__(self, samples: Array) -> Array:
+        """
+        Evaluate QoI for parameter samples.
+
+        Parameters
+        ----------
+        samples : Array
+            Parameter samples. Shape: (nvars, nsamples)
+
+        Returns
+        -------
+        Array
+            QoI values. Shape: (nqoi, nsamples)
+        """
+        nsamples = samples.shape[1]
+        qoi_values = self._bkd.zeros((self.nqoi(), nsamples))
+
+        x0 = self._bkd.asarray([self._x0])
+
+        for i in range(nsamples):
+            # Set parameters for this sample
+            param = samples[:, i]
+            self._residual.set_param(param)
+
+            # Solve ODE
+            solutions, times = self._integrator.solve(x0)
+
+            # Extract QoI
+            qoi = self._functional(solutions, times)
+            qoi_values[:, i] = qoi
+
+        return qoi_values
+
+
+# Test the QoI function
+qoi_func = LogisticQoIFunction(bkd, functional="endpoint")
+
+# Single parameter sample
+params = bkd.asarray([[0.5], [10.0]])  # r=0.5, K=10
+qoi = qoi_func(params)
+print(f"QoI for r=0.5, K=10: {qoi[0, 0]:.4f}")
+
+# Multiple samples
+params_multi = bkd.asarray([[0.3, 0.5, 0.7], [8.0, 10.0, 12.0]])
+qoi_multi = qoi_func(params_multi)
+print(f"QoIs for 3 samples: {bkd.to_numpy(qoi_multi)[0, :]}")
+```
+
+## Step 6: Package as a Benchmark
+
+Now we assemble everything into a benchmark class:
+
+```{python}
+from dataclasses import dataclass
+from pyapprox.typing.probability.univariate.uniform import UniformMarginal
+from pyapprox.typing.probability.joint.independent import IndependentJoint
+
+
+@dataclass
+class LogisticGroundTruth:
+    """Ground truth for logistic benchmark."""
+    nstates: int = 1
+    nparams: int = 2
+    initial_condition: tuple = (1.0,)
+    nominal_parameters: tuple = (0.5, 10.0)  # r, K
+    init_time: float = 0.0
+    final_time: float = 10.0
+    deltat: float = 0.1
+
+
+class LogisticBenchmark:
+    """
+    Logistic growth benchmark for UQ studies.
+
+    Parameters: (r, K) where
+        - r: growth rate in [0.1, 1.0]
+        - K: carrying capacity in [5.0, 15.0]
+    """
+
+    def __init__(self, bkd: Backend):
+        self._bkd = bkd
+        self._gt = LogisticGroundTruth()
+
+        # Parameter bounds
+        self._r_bounds = (0.1, 1.0)
+        self._K_bounds = (5.0, 15.0)
+
+    def name(self) -> str:
+        return "logistic_growth"
+
+    def nparams(self) -> int:
+        return 2
+
+    def nstates(self) -> int:
+        return 1
+
+    def ground_truth(self) -> LogisticGroundTruth:
+        return self._gt
+
+    def bounds(self) -> Array:
+        """Return the parameter bounds. Shape: (nparams, 2)"""
+        return self._bkd.asarray([
+            [self._r_bounds[0], self._r_bounds[1]],
+            [self._K_bounds[0], self._K_bounds[1]],
+        ])
+
+    def prior(self) -> IndependentJoint:
+        """Return the prior distribution (uniform on domain)."""
+        r_marginal = UniformMarginal(
+            self._r_bounds[0], self._r_bounds[1], self._bkd
+        )
+        K_marginal = UniformMarginal(
+            self._K_bounds[0], self._K_bounds[1], self._bkd
+        )
+        return IndependentJoint([r_marginal, K_marginal], self._bkd)
+
+    def residual(self) -> LogisticResidual:
+        """Return the ODE residual."""
+        return LogisticResidual(self._bkd)
+
+    def qoi_function(self, functional: str = "endpoint") -> LogisticQoIFunction:
+        """
+        Return the QoI function.
+
+        Parameters
+        ----------
+        functional : str
+            Type of functional: "endpoint", "max", or "mean"
+        """
+        gt = self._gt
+        return LogisticQoIFunction(
+            self._bkd,
+            functional=functional,
+            x0=gt.initial_condition[0],
+            final_time=gt.final_time,
+            deltat=gt.deltat,
+        )
+
+
+# Create benchmark
+benchmark = LogisticBenchmark(bkd)
+print(f"Benchmark: {benchmark.name()}")
+print(f"Parameters: {benchmark.nparams()}")
+print(f"States: {benchmark.nstates()}")
+print(f"Ground truth: {benchmark.ground_truth()}")
+```
+
+## Using the Custom Benchmark
+
+Now we can use it just like built-in benchmarks:
+
+```{python}
+# Get QoI function
+qoi_func = benchmark.qoi_function(functional="endpoint")
+
+# Sample from prior
+prior = benchmark.prior()
+n_samples = 100
+samples = prior.rvs(n_samples)
+
+print(f"Samples shape: {samples.shape}")
+print(f"r range: [{samples[0, :].min():.3f}, {samples[0, :].max():.3f}]")
+print(f"K range: [{samples[1, :].min():.3f}, {samples[1, :].max():.3f}]")
+```
+
+```{python}
+# Evaluate QoI
+qoi_values = qoi_func(samples)
+
+print(f"\nQoI Statistics (endpoint population):")
+print(f"  Mean: {np.mean(bkd.to_numpy(qoi_values)):.4f}")
+print(f"  Std: {np.std(bkd.to_numpy(qoi_values)):.4f}")
+print(f"  Min: {np.min(bkd.to_numpy(qoi_values)):.4f}")
+print(f"  Max: {np.max(bkd.to_numpy(qoi_values)):.4f}")
+```
+
+### Visualize Parameter-QoI Relationship
+
+```{python}
+fig, axes = plt.subplots(1, 2, figsize=(12, 5))
+
+samples_np = bkd.to_numpy(samples)
+qoi_np = bkd.to_numpy(qoi_values)[0, :]
+
+# QoI vs growth rate r
+ax = axes[0]
+ax.scatter(samples_np[0, :], qoi_np, alpha=0.5, s=20)
+ax.set_xlabel('Growth rate r')
+ax.set_ylabel('Final population')
+ax.set_title('QoI vs Growth Rate')
+ax.grid(True, alpha=0.3)
+
+# QoI vs carrying capacity K
+ax = axes[1]
+ax.scatter(samples_np[1, :], qoi_np, alpha=0.5, s=20)
+ax.set_xlabel('Carrying capacity K')
+ax.set_ylabel('Final population')
+ax.set_title('QoI vs Carrying Capacity')
+ax.grid(True, alpha=0.3)
+
+plt.tight_layout()
+plt.show()
+```
+
+The final population is strongly correlated with carrying capacity $K$ (as expected - it's the steady state!).
+
+## Summary: Benchmark Components
+
+| Component | Purpose | Key Methods |
+|-----------|---------|-------------|
+| `Residual` | Define ODE | `__call__`, `jacobian_wrt_state` |
+| `TimeIntegrator` | Solve ODE | `solve()` |
+| `Functional` | Extract QoI | `__call__(solutions, times)` |
+| `QoIFunction` | Map params → QoI | `__call__(samples)` |
+| `Benchmark` | Package everything | `qoi_function()`, `prior()`, `domain()` |
+
+## Key Takeaways
+
+- A **benchmark** packages model, domain, prior, and QoI function together
+- The **residual** defines the ODE in implicit form
+- **Time integrators** solve the ODE numerically
+- **Functionals** extract quantities of interest from solutions
+- The **QoI function** provides a clean interface for UQ algorithms
+- Custom benchmarks follow the same interface as built-in ones
+
+## Exercises
+
+1. **(Easy)** Add a new functional that returns the time at which the population reaches 90% of carrying capacity.
+
+2. **(Medium)** Extend the logistic model to include harvesting: $dx/dt = rx(1-x/K) - h$ where $h$ is the harvest rate. Add $h$ as a third parameter.
+
+3. **(Challenge)** Create a benchmark for the SIR epidemic model:
+   $$
+   \frac{dS}{dt} = -\beta SI, \quad
+   \frac{dI}{dt} = \beta SI - \gamma I, \quad
+   \frac{dR}{dt} = \gamma I
+   $$
+   with parameters $(\beta, \gamma)$ and QoI = peak number of infected.
+
+## Next Steps
+
+Continue with:
+
+- [Sobol Sensitivity Analysis](sobol_sensitivity_analysis.qmd) - Analyze parameter importance
+- [Bayesian Calibration Intro](bayesian_calibration_intro.qmd) - Infer parameters from data
