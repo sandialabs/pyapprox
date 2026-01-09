@@ -1,0 +1,342 @@
+---
+title: "Monte Carlo Basics"
+subtitle: "PyApprox Tutorial Library"
+description: "Sampling-based uncertainty propagation"
+prerequisites:
+  - random_variables_distributions
+tags:
+  - sampling
+  - forward-uq
+format:
+  html:
+    code-fold: false
+    code-tools: true
+    toc: true
+execute:
+  echo: true
+  warning: false
+jupyter: python3
+---
+
+::: {.callout-tip collapse="true"}
+## Download Notebook
+[Download as Jupyter Notebook](notebooks/monte_carlo_basics.ipynb)
+:::
+
+## Learning Objectives
+
+After completing this tutorial, you will be able to:
+
+- Explain how Monte Carlo sampling propagates uncertainty
+- Estimate mean and variance from samples
+- Quantify estimation error and confidence intervals
+- Understand convergence rates
+
+## Prerequisites
+
+Complete these tutorials first:
+
+- [Random Variables & Distributions](random_variables_distributions.qmd)
+
+## The Monte Carlo Method
+
+**Monte Carlo (MC)** estimation uses random sampling to estimate statistics. For a QoI $q(\params)$ where $\params$ has distribution $\pdf(\params)$:
+
+$$
+\E_{\params}[q] = \int q(\params) \pdf(\params) \, d\params \approx \frac{1}{N} \sum_{k=1}^{N} q(\params^{(k)})
+$$
+
+where $\params^{(k)} \sim \pdf(\params)$ are random samples.
+
+### Why Monte Carlo?
+
+- Works for **any** distribution (no closed-form required)
+- Handles **high-dimensional** parameter spaces
+- Convergence rate is **independent of dimension**: $O(1/\sqrt{N})$
+- Easy to implement and parallelize
+
+## Setup
+
+```{python}
+import numpy as np
+import matplotlib.pyplot as plt
+from pyapprox.typing.util.backends.numpy import NumpyBkd
+from pyapprox.typing.benchmarks import lotka_volterra_3species
+
+bkd = NumpyBkd()
+benchmark = lotka_volterra_3species(bkd)
+gt = benchmark.ground_truth()
+
+# Create the QoI function
+qoi_func = benchmark.qoi_function(functional="endpoint_0")  # Species 1 final pop
+print(f"QoI: Species 1 final population")
+print(f"Input dimension: {qoi_func.nvars()}")
+print(f"Output dimension: {qoi_func.nqoi()}")
+```
+
+## Basic Monte Carlo Estimation
+
+### Step 1: Generate Samples
+
+```{python}
+np.random.seed(42)
+
+# Sample from prior U[0.3, 0.7]^12
+nsamples = 500
+lower, upper = 0.3, 0.7
+samples = lower + (upper - lower) * np.random.rand(12, nsamples)
+samples = bkd.asarray(samples)
+
+print(f"Generated {nsamples} parameter samples")
+print(f"Samples shape: {samples.shape}")
+```
+
+### Step 2: Evaluate QoI
+
+```{python}
+# Evaluate QoI for all samples
+qoi_values = qoi_func(samples)
+qoi_values = bkd.to_numpy(qoi_values).flatten()
+
+print(f"QoI values shape: {qoi_values.shape}")
+print(f"First 5 QoI values: {qoi_values[:5]}")
+```
+
+### Step 3: Estimate Statistics
+
+```{python}
+# Monte Carlo estimates
+mc_mean = np.mean(qoi_values)
+mc_var = np.var(qoi_values, ddof=1)  # Unbiased variance
+mc_std = np.std(qoi_values, ddof=1)
+
+print(f"\nMonte Carlo Estimates (N={nsamples}):")
+print(f"  Mean:     {mc_mean:.5f}")
+print(f"  Variance: {mc_var:.5f}")
+print(f"  Std Dev:  {mc_std:.5f}")
+```
+
+## Visualizing the QoI Distribution
+
+```{python}
+fig, axes = plt.subplots(1, 2, figsize=(12, 4))
+
+# Histogram
+axes[0].hist(qoi_values, bins=30, density=True, alpha=0.7, edgecolor='black')
+axes[0].axvline(mc_mean, color='red', linewidth=2, label=f'Mean = {mc_mean:.3f}')
+axes[0].axvline(mc_mean - mc_std, color='orange', linestyle='--', label=f'±1 Std Dev')
+axes[0].axvline(mc_mean + mc_std, color='orange', linestyle='--')
+axes[0].set_xlabel('Species 1 Final Population')
+axes[0].set_ylabel('Density')
+axes[0].set_title('QoI Distribution')
+axes[0].legend()
+
+# Cumulative distribution
+sorted_vals = np.sort(qoi_values)
+cdf = np.arange(1, nsamples + 1) / nsamples
+axes[1].plot(sorted_vals, cdf, linewidth=2)
+axes[1].axhline(0.5, color='gray', linestyle='--', alpha=0.5)
+axes[1].axvline(np.median(qoi_values), color='red', linestyle='--', label=f'Median = {np.median(qoi_values):.3f}')
+axes[1].set_xlabel('Species 1 Final Population')
+axes[1].set_ylabel('Cumulative Probability')
+axes[1].set_title('Empirical CDF')
+axes[1].legend()
+
+plt.tight_layout()
+plt.show()
+```
+
+## Estimation Error
+
+The MC estimate has **sampling error** that decreases as $N$ increases.
+
+### Standard Error of the Mean
+
+The standard error (SE) quantifies uncertainty in our mean estimate:
+
+$$
+\text{SE} = \frac{\sigma}{\sqrt{N}} \approx \frac{s}{\sqrt{N}}
+$$
+
+where $s$ is the sample standard deviation.
+
+```{python}
+se_mean = mc_std / np.sqrt(nsamples)
+print(f"Standard Error of Mean: {se_mean:.5f}")
+print(f"95% Confidence Interval: [{mc_mean - 1.96*se_mean:.5f}, {mc_mean + 1.96*se_mean:.5f}]")
+```
+
+### Convergence Study
+
+Let's see how the estimate improves with more samples:
+
+```{python}
+# Study convergence
+np.random.seed(123)
+sample_sizes = [10, 25, 50, 100, 250, 500, 1000, 2000]
+
+means = []
+std_errors = []
+
+for n in sample_sizes:
+    samples_n = lower + (upper - lower) * np.random.rand(12, n)
+    qoi_n = bkd.to_numpy(qoi_func(bkd.asarray(samples_n))).flatten()
+    means.append(np.mean(qoi_n))
+    std_errors.append(np.std(qoi_n, ddof=1) / np.sqrt(n))
+
+means = np.array(means)
+std_errors = np.array(std_errors)
+```
+
+```{python}
+fig, axes = plt.subplots(1, 2, figsize=(12, 4))
+
+# Mean convergence
+axes[0].errorbar(sample_sizes, means, yerr=1.96*std_errors, fmt='o-', capsize=5)
+axes[0].axhline(means[-1], color='red', linestyle='--', alpha=0.5, label='N=2000 estimate')
+axes[0].set_xscale('log')
+axes[0].set_xlabel('Number of Samples N')
+axes[0].set_ylabel('Mean Estimate')
+axes[0].set_title('Convergence of Mean')
+axes[0].legend()
+axes[0].grid(True, alpha=0.3)
+
+# Standard error decay
+axes[1].loglog(sample_sizes, std_errors, 'o-', label='Observed')
+axes[1].loglog(sample_sizes, std_errors[0] * np.sqrt(sample_sizes[0]) / np.sqrt(sample_sizes),
+               'r--', label='$O(1/\sqrt{N})$')
+axes[1].set_xlabel('Number of Samples N')
+axes[1].set_ylabel('Standard Error')
+axes[1].set_title('Error Decay')
+axes[1].legend()
+axes[1].grid(True, alpha=0.3)
+
+plt.tight_layout()
+plt.show()
+```
+
+## The $1/\sqrt{N}$ Convergence Rate
+
+The key property of Monte Carlo:
+
+$$
+\text{Error} \propto \frac{1}{\sqrt{N}}
+$$
+
+This means:
+
+- To reduce error by **half**, need **4×** more samples
+- To reduce error by **10×**, need **100×** more samples
+
+```{python}
+# Demonstrate convergence rate
+print("Samples needed for different error levels:")
+print(f"  Error = 0.01:  {int((mc_std / 0.01)**2):,} samples")
+print(f"  Error = 0.001: {int((mc_std / 0.001)**2):,} samples")
+```
+
+## Probability Estimation
+
+Monte Carlo can estimate probabilities:
+
+$$
+P(q > \text{threshold}) \approx \frac{1}{N} \sum_{k=1}^{N} \mathbf{1}[q(\params^{(k)}) > \text{threshold}]
+$$
+
+```{python}
+# Estimate P(Species 1 final pop > 0.6)
+threshold = 0.6
+prob_exceed = np.mean(qoi_values > threshold)
+
+print(f"P(q > {threshold}): {prob_exceed:.3f}")
+print(f"This means {int(prob_exceed * 100)}% of scenarios exceed threshold")
+```
+
+### Confidence Interval for Probability
+
+```{python}
+# Standard error for proportion
+se_prob = np.sqrt(prob_exceed * (1 - prob_exceed) / nsamples)
+ci_lower = prob_exceed - 1.96 * se_prob
+ci_upper = prob_exceed + 1.96 * se_prob
+
+print(f"95% CI: [{ci_lower:.3f}, {ci_upper:.3f}]")
+```
+
+## Percentile Estimation
+
+```{python}
+# Estimate percentiles
+percentiles = [5, 25, 50, 75, 95]
+values = np.percentile(qoi_values, percentiles)
+
+print("Percentile estimates:")
+for p, v in zip(percentiles, values):
+    print(f"  {p}th percentile: {v:.4f}")
+```
+
+## Multiple QoIs
+
+Let's estimate statistics for all species:
+
+```{python}
+# Evaluate all species
+qoi_all = benchmark.qoi_function(functional="endpoint")
+np.random.seed(42)
+samples = lower + (upper - lower) * np.random.rand(12, 1000)
+qoi_all_values = bkd.to_numpy(qoi_all(bkd.asarray(samples)))
+
+print("Statistics for all species:")
+print("-" * 50)
+for i in range(3):
+    mean = np.mean(qoi_all_values[i, :])
+    std = np.std(qoi_all_values[i, :], ddof=1)
+    se = std / np.sqrt(1000)
+    print(f"Species {i+1}: Mean = {mean:.4f} ± {1.96*se:.4f} (95% CI)")
+```
+
+## Correlation Between QoIs
+
+```{python}
+# Compute correlation matrix
+corr = np.corrcoef(qoi_all_values)
+print("Correlation matrix between species final populations:")
+print(np.array2string(corr, precision=3))
+```
+
+## When is Monte Carlo Sufficient?
+
+Monte Carlo is efficient when:
+
+- **High-dimensional** problems (MC doesn't suffer from curse of dimensionality)
+- **Moderate accuracy** is acceptable
+- **Model evaluation** is cheap
+
+Consider alternatives when:
+
+- Very **high accuracy** is needed
+- Model is **expensive** to evaluate
+- **Variance reduction** techniques can help (see [Control Variates](control_variates.qmd))
+
+## Key Takeaways
+
+- **Monte Carlo** estimates statistics from random samples
+- **Standard error** decreases as $1/\sqrt{N}$
+- Need **4× samples** to halve the error
+- Can estimate **probabilities** and **percentiles**, not just means
+- MC convergence is **dimension-independent**
+
+## Exercises
+
+1. **(Easy)** Estimate the mean and 95% confidence interval for the maximum population of Species 2 using 500 samples.
+
+2. **(Medium)** Compare the variance of Species 1, 2, and 3 final populations. Which species has the most uncertain outcome?
+
+3. **(Challenge)** Estimate $P(\text{all species survive})$ where "survive" means final population > 0.4. Determine how many samples you need for the 95% CI width to be less than 0.05.
+
+## Next Steps
+
+Continue with:
+
+- [Sobol Sensitivity Analysis](sobol_sensitivity_analysis.qmd) - Which parameters drive the uncertainty?
+- [Bayesian Calibration Intro](bayesian_calibration_intro.qmd) - Learning parameters from data

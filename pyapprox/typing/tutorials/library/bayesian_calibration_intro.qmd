@@ -1,0 +1,553 @@
+---
+title: "Bayesian Calibration Introduction"
+subtitle: "PyApprox Tutorial Library"
+description: "Learning model parameters from observed data"
+prerequisites:
+  - monte_carlo_basics
+tags:
+  - inference
+  - bayesian
+format:
+  html:
+    code-fold: false
+    code-tools: true
+    toc: true
+execute:
+  echo: true
+  warning: false
+jupyter: python3
+---
+
+::: {.callout-tip collapse="true"}
+## Download Notebook
+[Download as Jupyter Notebook](notebooks/bayesian_calibration_intro.ipynb)
+:::
+
+## Learning Objectives
+
+After completing this tutorial, you will be able to:
+
+- Explain Bayesian inference for parameter estimation
+- Construct likelihood functions from data and noise models
+- Compute the posterior distribution using Bayes' theorem
+- Find the Maximum A Posteriori (MAP) estimate
+- Sample from the posterior using MCMC
+
+## Prerequisites
+
+Complete [Monte Carlo Basics](monte_carlo_basics.qmd) before this tutorial.
+
+## Why Bayesian Calibration?
+
+**Bayesian Calibration** answers: *What parameter values are consistent with observed data?*
+
+Unlike point estimation (finding a single "best" value), Bayesian inference provides:
+
+- **Probability distributions** over parameters
+- **Uncertainty quantification** that accounts for data noise and limited observations
+- **Prior incorporation** of existing knowledge
+
+## Bayes' Theorem
+
+The foundation of Bayesian inference:
+
+$$
+\pdf(\params | \data) = \frac{\pdf(\data | \params) \pdf(\params)}{\pdf(\data)}
+$$
+
+where:
+
+- $\pdf(\params | \data)$: **Posterior** - what we want to know about parameters after seeing data
+- $\pdf(\data | \params)$: **Likelihood** - probability of observing data given parameters
+- $\pdf(\params)$: **Prior** - what we believed before seeing data
+- $\pdf(\data)$: **Evidence** - normalizing constant (often doesn't need computing)
+
+## Setup
+
+For this tutorial, we'll use a simpler model to focus on the inference concepts:
+
+```{python}
+import numpy as np
+import matplotlib.pyplot as plt
+from pyapprox.typing.util.backends.numpy import NumpyBkd
+
+bkd = NumpyBkd()
+np.random.seed(42)
+```
+
+## A Simple Calibration Problem
+
+Consider a linear model where we want to estimate slope and intercept from noisy observations.
+
+### Define the Model
+
+```{python}
+def model_fn(params):
+    """
+    Linear model: y = slope * x + intercept
+
+    Parameters
+    ----------
+    params : Array
+        Shape (2, nsamples) where row 0 is slope, row 1 is intercept
+
+    Returns
+    -------
+    Array
+        Model outputs at fixed x locations. Shape (nobs, nsamples)
+    """
+    # Fixed observation locations
+    x_obs = np.array([0.0, 0.25, 0.5, 0.75, 1.0])
+    nobs = len(x_obs)
+    nsamples = params.shape[1]
+
+    # Evaluate model: y = slope * x + intercept
+    outputs = np.zeros((nobs, nsamples))
+    for i in range(nsamples):
+        slope = params[0, i]
+        intercept = params[1, i]
+        outputs[:, i] = slope * x_obs + intercept
+
+    return outputs
+
+# Test the model
+test_params = bkd.asarray([[2.0], [0.5]])  # slope=2, intercept=0.5
+test_output = model_fn(test_params)
+print(f"Model output shape: {test_output.shape}")
+print(f"Model outputs at x=[0, 0.25, 0.5, 0.75, 1.0]: {test_output[:, 0]}")
+```
+
+### Generate Synthetic Data
+
+We'll create "true" data that we pretend to observe:
+
+```{python}
+# True parameters (unknown in practice)
+true_slope = 2.5
+true_intercept = 0.3
+true_params = bkd.asarray([[true_slope], [true_intercept]])
+
+# Get true model outputs
+true_outputs = model_fn(true_params)
+
+# Add measurement noise
+noise_std = 0.15
+noise = noise_std * np.random.randn(5, 1)
+observations = true_outputs + noise
+
+print(f"True parameters: slope={true_slope}, intercept={true_intercept}")
+print(f"Noise standard deviation: {noise_std}")
+print(f"Observations: {observations[:, 0]}")
+```
+
+```{python}
+# Visualize the data
+x_obs = np.array([0.0, 0.25, 0.5, 0.75, 1.0])
+x_line = np.linspace(0, 1, 100)
+y_true = true_slope * x_line + true_intercept
+
+fig, ax = plt.subplots(figsize=(8, 5))
+ax.plot(x_line, y_true, 'b-', linewidth=2, label='True model')
+ax.scatter(x_obs, observations[:, 0], c='red', s=100, zorder=5,
+           label='Observations', edgecolors='black')
+ax.errorbar(x_obs, observations[:, 0], yerr=noise_std, fmt='none',
+            c='red', capsize=5, alpha=0.5, label='Noise (1 std)')
+ax.set_xlabel('x')
+ax.set_ylabel('y')
+ax.set_title('Calibration Problem: Estimate slope and intercept')
+ax.legend()
+ax.grid(True, alpha=0.3)
+plt.tight_layout()
+plt.show()
+```
+
+## The Likelihood Function
+
+The **likelihood** measures how probable the observed data is for given parameter values.
+
+For Gaussian noise with known variance:
+
+$$
+\pdf(\data | \params) = \prod_{i=1}^{n_{\text{obs}}} \normal(y_i | f_i(\params), \sigma^2)
+$$
+
+The log-likelihood is:
+
+$$
+\log \pdf(\data | \params) = -\frac{1}{2\sigma^2} \sum_{i=1}^{n_{\text{obs}}} (y_i - f_i(\params))^2 + \text{const}
+$$
+
+```{python}
+from pyapprox.typing.probability.likelihood.gaussian import DiagonalGaussianLogLikelihood
+
+# Create likelihood with known noise variance
+noise_var = bkd.asarray(np.full(5, noise_std**2))
+likelihood = DiagonalGaussianLogLikelihood(noise_var, bkd)
+likelihood.set_observations(observations)
+
+# Test likelihood at true parameters
+model_at_true = model_fn(true_params)
+loglike_true = likelihood.logpdf(model_at_true)
+print(f"Log-likelihood at true parameters: {loglike_true[0, 0]:.4f}")
+```
+
+## The Prior Distribution
+
+The **prior** encodes what we know (or assume) about parameters *before* seeing data.
+
+We'll use independent uniform priors:
+
+- Slope: $\uniform(0, 5)$
+- Intercept: $\uniform(-1, 2)$
+
+```{python}
+from pyapprox.typing.probability.univariate.uniform import UniformMarginal
+from pyapprox.typing.probability.joint.independent import IndependentJoint
+
+# Define prior bounds
+slope_bounds = (0.0, 5.0)
+intercept_bounds = (-1.0, 2.0)
+
+# Create uniform marginals
+slope_prior = UniformMarginal(slope_bounds[0], slope_bounds[1], bkd)
+intercept_prior = UniformMarginal(intercept_bounds[0], intercept_bounds[1], bkd)
+
+# Joint prior (independent)
+prior = IndependentJoint([slope_prior, intercept_prior], bkd)
+
+print(f"Prior dimension: {prior.nvars()}")
+```
+
+## The Posterior Distribution
+
+The **posterior** combines likelihood and prior:
+
+$$
+\log \pdf(\params | \data) \propto \log \pdf(\data | \params) + \log \pdf(\params)
+$$
+
+```{python}
+from pyapprox.typing.inverse.posterior.log_unnormalized import LogUnNormalizedPosterior
+
+# Create posterior
+posterior = LogUnNormalizedPosterior(
+    model_fn=model_fn,
+    likelihood=likelihood,
+    prior=prior,
+    bkd=bkd,
+)
+
+print(f"Posterior has {posterior.nvars()} parameters")
+
+# Evaluate at true parameters
+logpost_true = posterior(true_params)
+print(f"Log-posterior at true parameters: {logpost_true[0]:.4f}")
+```
+
+## Visualizing the Posterior
+
+Let's visualize the posterior landscape:
+
+```{python}
+# Create grid for visualization
+n_grid = 50
+slopes = np.linspace(0.5, 4.5, n_grid)
+intercepts = np.linspace(-0.5, 1.5, n_grid)
+S, I = np.meshgrid(slopes, intercepts)
+
+# Evaluate posterior on grid
+log_posteriors = np.zeros((n_grid, n_grid))
+for i in range(n_grid):
+    for j in range(n_grid):
+        params = bkd.asarray([[S[i, j]], [I[i, j]]])
+        log_posteriors[i, j] = float(posterior(params)[0])
+
+# Convert to probability (relative)
+log_posteriors -= np.max(log_posteriors)  # Normalize for visualization
+posteriors = np.exp(log_posteriors)
+```
+
+```{python}
+fig, axes = plt.subplots(1, 2, figsize=(14, 5))
+
+# Contour plot
+ax = axes[0]
+contour = ax.contourf(S, I, posteriors, levels=20, cmap='Blues')
+ax.scatter([true_slope], [true_intercept], c='red', s=150, marker='*',
+           label='True', zorder=5, edgecolors='black')
+ax.set_xlabel('Slope')
+ax.set_ylabel('Intercept')
+ax.set_title('Posterior Distribution')
+ax.legend()
+plt.colorbar(contour, ax=ax, label='Relative probability')
+
+# Marginal distributions
+ax = axes[1]
+# Marginalize by summing
+marginal_slope = np.sum(posteriors, axis=0)
+marginal_slope /= np.sum(marginal_slope) * (slopes[1] - slopes[0])
+
+marginal_intercept = np.sum(posteriors, axis=1)
+marginal_intercept /= np.sum(marginal_intercept) * (intercepts[1] - intercepts[0])
+
+ax.plot(slopes, marginal_slope, 'b-', linewidth=2, label='Slope marginal')
+ax.axvline(true_slope, color='b', linestyle='--', alpha=0.5)
+ax.set_xlabel('Parameter value')
+ax.set_ylabel('Density')
+ax.set_title('Marginal Posteriors')
+
+ax2 = ax.twinx()
+ax2.plot(intercepts, marginal_intercept, 'g-', linewidth=2, label='Intercept marginal')
+ax2.axvline(true_intercept, color='g', linestyle='--', alpha=0.5)
+ax2.set_ylabel('Density (intercept)', color='g')
+
+ax.legend(loc='upper left')
+ax2.legend(loc='upper right')
+
+plt.tight_layout()
+plt.show()
+```
+
+## Maximum A Posteriori (MAP) Estimation
+
+The **MAP estimate** is the mode of the posterior - the most probable parameter values:
+
+$$
+\params_{\text{MAP}} = \argmax_{\params} \pdf(\params | \data)
+$$
+
+```{python}
+# Define bounds for optimization
+bounds = bkd.asarray([
+    [slope_bounds[0], slope_bounds[1]],
+    [intercept_bounds[0], intercept_bounds[1]]
+])
+
+# Find MAP estimate
+initial_guess = bkd.asarray([[2.0], [0.5]])
+map_estimate = posterior.maximum_aposteriori_point(
+    initial_guess=initial_guess,
+    bounds=bounds,
+)
+
+map_slope = float(map_estimate[0, 0])
+map_intercept = float(map_estimate[1, 0])
+
+print(f"MAP estimate:")
+print(f"  Slope: {map_slope:.4f} (true: {true_slope})")
+print(f"  Intercept: {map_intercept:.4f} (true: {true_intercept})")
+print(f"  Slope error: {abs(map_slope - true_slope):.4f}")
+print(f"  Intercept error: {abs(map_intercept - true_intercept):.4f}")
+```
+
+## MCMC Sampling
+
+To fully characterize uncertainty, we need samples from the posterior. **Markov Chain Monte Carlo (MCMC)** generates correlated samples that (eventually) represent the posterior distribution.
+
+```{python}
+from pyapprox.typing.inverse.sampling.metropolis import AdaptiveMetropolisSampler
+
+# Create MCMC sampler
+sampler = AdaptiveMetropolisSampler(
+    log_posterior_fn=lambda x: posterior(x),
+    nvars=2,
+    bkd=bkd,
+    proposal_cov=0.1 * bkd.eye(2),  # Initial proposal
+)
+
+# Run MCMC
+result = sampler.sample(
+    nsamples=5000,
+    burn=1000,
+    initial_state=map_estimate,  # Start at MAP
+    bounds=bounds,
+)
+
+print(f"MCMC completed:")
+print(f"  Samples shape: {result.samples.shape}")
+print(f"  Acceptance rate: {result.acceptance_rate:.2%}")
+```
+
+## Analyzing MCMC Results
+
+### Trace Plots
+
+Trace plots show the MCMC chain evolution - useful for checking convergence:
+
+```{python}
+fig, axes = plt.subplots(2, 2, figsize=(12, 8))
+
+# Slope trace
+ax = axes[0, 0]
+ax.plot(result.samples[0, :], alpha=0.7)
+ax.axhline(true_slope, color='red', linestyle='--', label='True')
+ax.set_xlabel('Iteration')
+ax.set_ylabel('Slope')
+ax.set_title('Slope Trace')
+ax.legend()
+
+# Intercept trace
+ax = axes[0, 1]
+ax.plot(result.samples[1, :], alpha=0.7)
+ax.axhline(true_intercept, color='red', linestyle='--', label='True')
+ax.set_xlabel('Iteration')
+ax.set_ylabel('Intercept')
+ax.set_title('Intercept Trace')
+ax.legend()
+
+# Slope histogram
+ax = axes[1, 0]
+ax.hist(result.samples[0, :], bins=50, density=True, alpha=0.7, edgecolor='black')
+ax.axvline(true_slope, color='red', linestyle='--', label='True', linewidth=2)
+ax.axvline(np.mean(result.samples[0, :]), color='green', linestyle='-',
+           label='Posterior mean', linewidth=2)
+ax.set_xlabel('Slope')
+ax.set_ylabel('Density')
+ax.set_title('Slope Posterior')
+ax.legend()
+
+# Intercept histogram
+ax = axes[1, 1]
+ax.hist(result.samples[1, :], bins=50, density=True, alpha=0.7, edgecolor='black')
+ax.axvline(true_intercept, color='red', linestyle='--', label='True', linewidth=2)
+ax.axvline(np.mean(result.samples[1, :]), color='green', linestyle='-',
+           label='Posterior mean', linewidth=2)
+ax.set_xlabel('Intercept')
+ax.set_ylabel('Density')
+ax.set_title('Intercept Posterior')
+ax.legend()
+
+plt.tight_layout()
+plt.show()
+```
+
+### Posterior Statistics
+
+```{python}
+samples = bkd.to_numpy(result.samples)
+
+print("Posterior Statistics:")
+print("-" * 50)
+print(f"{'Parameter':<12}{'Mean':<12}{'Std':<12}{'True':<12}")
+print("-" * 50)
+
+slope_mean = np.mean(samples[0, :])
+slope_std = np.std(samples[0, :])
+print(f"{'Slope':<12}{slope_mean:<12.4f}{slope_std:<12.4f}{true_slope:<12.4f}")
+
+intercept_mean = np.mean(samples[1, :])
+intercept_std = np.std(samples[1, :])
+print(f"{'Intercept':<12}{intercept_mean:<12.4f}{intercept_std:<12.4f}{true_intercept:<12.4f}")
+```
+
+### Credible Intervals
+
+```{python}
+# 95% credible intervals
+slope_ci = np.percentile(samples[0, :], [2.5, 97.5])
+intercept_ci = np.percentile(samples[1, :], [2.5, 97.5])
+
+print("\n95% Credible Intervals:")
+print(f"  Slope: [{slope_ci[0]:.4f}, {slope_ci[1]:.4f}]")
+print(f"    True value in interval: {slope_ci[0] <= true_slope <= slope_ci[1]}")
+print(f"  Intercept: [{intercept_ci[0]:.4f}, {intercept_ci[1]:.4f}]")
+print(f"    True value in interval: {intercept_ci[0] <= true_intercept <= intercept_ci[1]}")
+```
+
+### Joint Posterior
+
+```{python}
+fig, ax = plt.subplots(figsize=(8, 6))
+
+# Scatter plot of samples
+ax.scatter(samples[0, ::10], samples[1, ::10], alpha=0.3, s=10, label='Samples')
+ax.scatter([true_slope], [true_intercept], c='red', s=150, marker='*',
+           label='True', zorder=5, edgecolors='black')
+ax.scatter([map_slope], [map_intercept], c='green', s=150, marker='D',
+           label='MAP', zorder=5, edgecolors='black')
+
+ax.set_xlabel('Slope')
+ax.set_ylabel('Intercept')
+ax.set_title('Joint Posterior Samples')
+ax.legend()
+ax.grid(True, alpha=0.3)
+
+plt.tight_layout()
+plt.show()
+```
+
+## Posterior Predictive
+
+The **posterior predictive** shows model predictions accounting for parameter uncertainty:
+
+```{python}
+# Generate predictions for each posterior sample
+x_pred = np.linspace(0, 1, 100)
+n_pred_samples = 200
+sample_indices = np.random.choice(samples.shape[1], n_pred_samples, replace=False)
+
+fig, ax = plt.subplots(figsize=(8, 5))
+
+# Plot posterior predictive
+for idx in sample_indices:
+    slope_s = samples[0, idx]
+    intercept_s = samples[1, idx]
+    y_pred = slope_s * x_pred + intercept_s
+    ax.plot(x_pred, y_pred, 'b-', alpha=0.05, linewidth=0.5)
+
+# True model
+y_true = true_slope * x_pred + true_intercept
+ax.plot(x_pred, y_true, 'r-', linewidth=2, label='True model')
+
+# Mean prediction
+y_mean = slope_mean * x_pred + intercept_mean
+ax.plot(x_pred, y_mean, 'g--', linewidth=2, label='Posterior mean')
+
+# Data
+ax.scatter(x_obs, observations[:, 0], c='red', s=100, zorder=5,
+           label='Observations', edgecolors='black')
+
+ax.set_xlabel('x')
+ax.set_ylabel('y')
+ax.set_title('Posterior Predictive Distribution')
+ax.legend()
+ax.grid(True, alpha=0.3)
+
+plt.tight_layout()
+plt.show()
+```
+
+## Summary of Bayesian Calibration
+
+| Component | Formula | Purpose |
+|-----------|---------|---------|
+| Prior $\pdf(\params)$ | Specified distribution | Encodes prior knowledge |
+| Likelihood $\pdf(\data|\params)$ | $\prod_i \pdf(y_i | f(\params))$ | Data fit |
+| Posterior $\pdf(\params|\data)$ | $\propto$ Likelihood $\times$ Prior | Updated belief |
+| MAP | $\argmax \pdf(\params|\data)$ | Point estimate |
+| Credible Interval | Percentiles of samples | Uncertainty range |
+
+## Key Takeaways
+
+- **Bayes' theorem** updates prior beliefs with data to get the posterior
+- The **likelihood** measures how well parameters explain the data
+- The **prior** encodes knowledge before seeing data
+- **MAP estimation** finds the most probable parameter values
+- **MCMC sampling** characterizes the full posterior distribution
+- **Credible intervals** quantify parameter uncertainty
+- The **posterior predictive** propagates uncertainty to predictions
+
+## Exercises
+
+1. **(Easy)** Reduce the noise standard deviation to 0.05 and re-run the calibration. How do the credible intervals change?
+
+2. **(Medium)** Change the prior to be more informative: U[2.0, 3.0] for slope and U[0.0, 0.5] for intercept. How does this affect the posterior when the prior includes the true values? What if it doesn't?
+
+3. **(Challenge)** Calibrate the Lotka-Volterra model using the `benchmark.qoi_function()`. Generate synthetic observations at the true parameter values, add noise, and estimate the growth rate $r_1$. Start with just 1 parameter to keep MCMC tractable.
+
+## Next Steps
+
+Continue with:
+
+- [Hamiltonian Monte Carlo](hamiltonian_mcmc.qmd) - More efficient MCMC for high dimensions
+- [Sobol Sensitivity Analysis](sobol_sensitivity_analysis.qmd) - Which parameters matter most?
