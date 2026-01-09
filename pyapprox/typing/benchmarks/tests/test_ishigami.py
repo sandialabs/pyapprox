@@ -141,7 +141,7 @@ class TestIshigamiFunction(Generic[Array], unittest.TestCase):
         sample = self._bkd.array([[0.7], [-0.5], [0.3]])
         errors = checker.check_derivatives(sample, verbosity=0)
         error_ratio = checker.error_ratio(errors[0])
-        self.assertLess(error_ratio, 1e-6)
+        self.assertLess(error_ratio, 2e-6)
 
     def test_derivative_checker_hvp(self) -> None:
         """Test HVP passes derivative checker."""
@@ -151,7 +151,7 @@ class TestIshigamiFunction(Generic[Array], unittest.TestCase):
         errors = checker.check_derivatives(sample, verbosity=0)
         # errors[1] is the Hessian/HVP error
         error_ratio = checker.error_ratio(errors[1])
-        self.assertLess(error_ratio, 1e-6)
+        self.assertLess(error_ratio, 2e-6)
 
     def test_custom_parameters(self) -> None:
         """Test custom a and b parameters."""

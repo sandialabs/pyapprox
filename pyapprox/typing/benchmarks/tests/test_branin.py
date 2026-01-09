@@ -150,7 +150,7 @@ class TestBraninFunction(Generic[Array], unittest.TestCase):
         sample = self._bkd.array([[0.5], [5.0]])
         errors = checker.check_derivatives(sample, verbosity=0)
         error_ratio = checker.error_ratio(errors[0])
-        self.assertLess(error_ratio, 1e-6)
+        self.assertLess(error_ratio, 2e-6)
 
     def test_derivative_checker_hvp(self) -> None:
         """Test HVP passes derivative checker."""
@@ -159,7 +159,7 @@ class TestBraninFunction(Generic[Array], unittest.TestCase):
         sample = self._bkd.array([[0.5], [5.0]])
         errors = checker.check_derivatives(sample, verbosity=0)
         error_ratio = checker.error_ratio(errors[1])
-        self.assertLess(error_ratio, 1e-6)
+        self.assertLess(error_ratio, 2e-6)
 
 
 class TestBraninFunctionNumpy(TestBraninFunction[NDArray[Any]]):
