@@ -1,0 +1,116 @@
+# Introduction to Uncertainty Quantification Workshop
+# A 4-hour hands-on workshop using the Lotka-Volterra ecological model
+
+name: "Introduction to Uncertainty Quantification with PyApprox"
+date: "2025"
+duration: "4 hours"
+
+description: |
+  This workshop provides a practical introduction to Uncertainty Quantification (UQ)
+  using the pyapprox library. Participants will learn core UQ concepts through hands-on
+  examples with an ecological population dynamics model (Lotka-Volterra 3-species).
+
+  By the end of this workshop, you will be able to:
+
+  - Frame engineering/scientific problems as UQ problems
+  - Propagate uncertainty through computational models
+  - Identify the most important parameters using sensitivity analysis
+  - Infer model parameters from observed data
+
+attendee_prerequisites:
+  - Python programming experience (NumPy familiarity helpful)
+  - Basic probability and statistics (mean, variance, distributions)
+  - Basic calculus (derivatives, integrals)
+  - Laptop with pyapprox installed (see setup tutorial)
+
+tutorials:
+  # Session 1: Foundations (90 min)
+  - id: setup_environment
+    duration_minutes: 15
+    notes: |
+      Quick verification that everyone's environment is working.
+      Have attendees run the test code to confirm installation.
+      Address any conda/pip issues before proceeding.
+
+  - id: uq_problem_framing
+    duration_minutes: 25
+    notes: |
+      Key conceptual foundation. Emphasize the forward vs inverse problem distinction.
+      Use the Lotka-Volterra model as the running example throughout.
+      Draw the UQ workflow diagram on the board.
+
+  - id: forward_model_definition
+    duration_minutes: 25
+    notes: |
+      First hands-on coding. Introduce the benchmark interface.
+      Show how qoi_function() wraps the complexity of ODE solving.
+      Let attendees experiment with different parameter values.
+
+  - id: random_variables_distributions
+    duration_minutes: 25
+    notes: |
+      Connect probability concepts to UQ. Explain prior distributions.
+      Demonstrate sampling and histogram visualization.
+      Emphasize the role of the prior in Bayesian inference (foreshadowing).
+
+  - type: break
+    duration_minutes: 15
+    notes: Coffee break
+
+  # Session 2: Forward UQ (75 min)
+  - id: quantities_of_interest
+    duration_minutes: 20
+    notes: |
+      Discuss different QoI types and their practical interpretations.
+      Show how the same model can have different QoIs for different questions.
+      Connect to decision-making context.
+
+  - id: monte_carlo_basics
+    duration_minutes: 30
+    notes: |
+      Core UQ technique. Emphasize the 1/sqrt(N) convergence rate.
+      Have attendees predict how many samples they need for a given accuracy.
+      Discuss computational cost vs accuracy trade-off.
+
+  - id: sobol_sensitivity_analysis
+    duration_minutes: 25
+    notes: |
+      Practical sensitivity analysis. Explain first-order vs total-order indices.
+      Discuss implications: which parameters to measure more precisely?
+      Connect to experimental design decisions.
+
+  - type: break
+    duration_minutes: 15
+    notes: Lunch break (or mid-session break for half-day format)
+
+  # Session 3: Inverse UQ (60 min)
+  - id: bayesian_calibration_intro
+    duration_minutes: 60
+    notes: |
+      Capstone tutorial. Build up from Bayes' theorem to MCMC sampling.
+      Use a simple linear model first, then discuss applying to Lotka-Volterra.
+      Emphasize uncertainty quantification in the inferred parameters.
+      Leave time for the exercises if possible.
+
+optional_tutorials:
+  - id: polynomial_chaos_expansion
+    notes: For participants interested in surrogate modeling
+
+  - id: gaussian_process_surrogates
+    notes: Alternative surrogate with uncertainty quantification
+
+  - id: backend_alternatives
+    notes: For participants interested in PyTorch/GPU computing
+
+  - id: benchmark_setup
+    notes: For participants who want to create custom benchmarks
+
+resources:
+  - type: github_repo
+    url: https://github.com/sandialabs/pyapprox
+
+  - type: documentation
+    url: https://sandialabs.github.io/pyapprox/
+
+instructor_contact:
+  office_hours: "By appointment"

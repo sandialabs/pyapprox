@@ -1,0 +1,99 @@
+---
+title: "PyApprox Workshops"
+subtitle: "Event-specific tutorial compositions"
+---
+
+## Overview
+
+Workshops are curated sequences of tutorials from the [Tutorial Library](../library/index.qmd), designed for specific events or learning objectives. Each workshop provides a structured learning path with timing guidance and instructor notes.
+
+## Available Workshops
+
+### [Introduction to UQ (2025)](intro_to_uq_2025/index.qmd)
+
+**Duration:** 4 hours
+**Audience:** Researchers and engineers new to uncertainty quantification
+**Topics:** Forward UQ, sensitivity analysis, Bayesian calibration
+
+A hands-on introduction to uncertainty quantification using pyapprox. Covers core UQ concepts using the Lotka-Volterra ecosystem model as a running example.
+
+**Prerequisites for Attendees:**
+
+- Basic Python programming
+- Familiarity with NumPy arrays
+- Basic probability concepts (mean, variance, distributions)
+
+## Workshop Format
+
+Each workshop directory contains:
+
+| File | Purpose |
+|------|---------|
+| `workshop.yml` | Configuration file with schedule, notes, resources |
+| `index.qmd` | Generated workshop landing page (from workshop.yml) |
+| `_quarto.yml` | Quarto rendering configuration |
+
+## Creating a New Workshop
+
+1. Create a new directory: `workshops/my_workshop_name/`
+
+2. Create `workshop.yml` with this structure:
+
+```yaml
+name: "Workshop Name"
+event_id: my_workshop_name
+date: 2025-XX-XX
+duration: 4 hours
+description: >
+  Multi-line description of the workshop.
+
+attendee_prerequisites:
+  - Prerequisite 1
+  - Prerequisite 2
+
+tutorials:
+  - id: setup_environment
+    duration_minutes: 15
+    notes: "Instructor notes for this section"
+
+  - id: uq_problem_framing
+    duration_minutes: 20
+    notes: "Additional notes"
+
+  - type: break
+    duration_minutes: 15
+
+  - id: next_tutorial
+    duration_minutes: 30
+
+optional_tutorials:
+  - id: advanced_topic
+    notes: "Include if time permits"
+
+resources:
+  - type: github_repo
+    url: https://github.com/sandialabs/pyapprox
+```
+
+3. Run the generator script:
+
+```bash
+python ../scripts/generate_workshop_index.py my_workshop_name
+```
+
+4. This creates `index.qmd` and `_quarto.yml` from your `workshop.yml`.
+
+## Workshop Philosophy
+
+Workshops compose existing tutorials rather than creating new content. This ensures:
+
+- **Consistency**: All workshops use the same notation and code patterns
+- **Maintainability**: Updates to library tutorials propagate to all workshops
+- **Flexibility**: Easy to create workshops for different audiences and durations
+
+Customization is achieved through:
+
+- Tutorial selection and ordering
+- Instructor notes in `workshop.yml`
+- Time allocations for each section
+- Optional tutorials for advanced audiences
