@@ -158,6 +158,18 @@ class TorchBkd(Backend[torch.Tensor]):  # Specify torch.Tensor type
         return torch.cos(array)
 
     @staticmethod
+    def arccos(array: torch.Tensor) -> torch.Tensor:
+        return torch.arccos(array)
+
+    @staticmethod
+    def arctan(array: torch.Tensor) -> torch.Tensor:
+        return torch.arctan(array)
+
+    @staticmethod
+    def arctan2(y: torch.Tensor, x: torch.Tensor) -> torch.Tensor:
+        return torch.arctan2(y, x)
+
+    @staticmethod
     def full(
         shape: Tuple[int, ...], fill_value: float, dtype: Optional[Any] = None
     ) -> torch.Tensor:

@@ -196,6 +196,9 @@ class Backend(Protocol, Generic[Array]):
     def arccos(array: Array) -> Array: ...
 
     @staticmethod
+    def arctan(array: Array) -> Array: ...
+
+    @staticmethod
     def arctan2(y: Array, x: Array) -> Array: ...
 
     @staticmethod
