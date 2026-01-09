@@ -1,0 +1,407 @@
+---
+title: "Control Variates"
+subtitle: "PyApprox Tutorial Library"
+description: "Variance reduction using low-fidelity models as control variates"
+prerequisites:
+  - monte_carlo_basics
+tags:
+  - variance-reduction
+  - multifidelity
+  - advanced
+format:
+  html:
+    code-fold: false
+    code-tools: true
+    toc: true
+execute:
+  echo: true
+  warning: false
+jupyter: python3
+---
+
+::: {.callout-tip collapse="true"}
+## Download Notebook
+[Download as Jupyter Notebook](notebooks/control_variates.ipynb)
+:::
+
+## Learning Objectives
+
+After completing this tutorial, you will be able to:
+
+- Understand control variates as a variance reduction technique
+- Compute optimal control variate weights
+- Allocate samples optimally between high and low-fidelity models
+- Quantify variance reduction achieved by control variates
+- Implement CV estimation using PyApprox
+
+## Prerequisites
+
+Complete [Monte Carlo Basics](monte_carlo_basics.qmd) before this tutorial.
+
+## The Control Variate Idea
+
+Standard Monte Carlo has a well-known limitation: reducing variance by a factor of 10 requires 100 times more samples. When model evaluations are expensive, this becomes impractical.
+
+**Control variates** offer an alternative: use a correlated cheap model to reduce variance without more expensive evaluations.
+
+### The Setup
+
+Consider two models:
+
+| Model | Cost | Accuracy | Role |
+|-------|------|----------|------|
+| High-fidelity (HF) | Expensive | High | Target quantity |
+| Low-fidelity (LF) | Cheap | Lower | Control variate |
+
+If the models are correlated, LF information helps estimate the HF mean more accurately.
+
+## Mathematical Foundation
+
+### Standard Monte Carlo
+
+The MC estimator for $\mu_0 = \E_{\params}[f_0(\params)]$ is:
+
+$$
+\hat{Q}_0 = \frac{1}{N} \sum_{i=1}^{N} f_0(\params^{(i)})
+$$
+
+with variance $\Var(\hat{Q}_0) = \sigma_0^2 / N$.
+
+### Control Variate Estimator
+
+The CV estimator uses a control variate $f_1$:
+
+$$
+\hat{Q}_{CV} = \hat{Q}_0 + \eta (\mu_1 - \hat{Q}_1)
+$$
+
+where:
+
+- $\hat{Q}_0$ = HF sample mean on shared samples
+- $\hat{Q}_1$ = LF sample mean on shared samples
+- $\mu_1$ = LF mean (estimated with more samples)
+- $\eta$ = optimal weight
+
+### Optimal Weight
+
+The variance-minimizing weight is:
+
+$$
+\eta^* = \frac{\Cov_{\params}(f_0, f_1)}{\Var_{\params}[f_1]}
+$$
+
+This is the regression coefficient from regressing $f_0$ on $f_1$.
+
+### Variance Reduction
+
+With optimal weights, the CV variance is:
+
+$$
+\Var(\hat{Q}_{CV}) = \Var(\hat{Q}_0)(1 - \rho^2)
+$$
+
+where $\rho = \Corr(f_0, f_1)$ is the correlation between models.
+
+**Key insight**: Higher correlation $\rightarrow$ greater variance reduction.
+
+| Correlation | Variance Reduction Factor |
+|-------------|---------------------------|
+| 0.5 | 1.33x |
+| 0.9 | 5.3x |
+| 0.95 | 10x |
+| 0.99 | 50x |
+
+## Setup
+
+```{python}
+import numpy as np
+import matplotlib.pyplot as plt
+
+from pyapprox.typing.util.backends.numpy import NumpyBkd
+from pyapprox.typing.stats import MultiOutputMean
+from pyapprox.typing.stats.estimators.cv import CVEstimator
+
+bkd = NumpyBkd()
+np.random.seed(42)
+```
+
+## Example: Correlated Polynomial Models
+
+Let's create two polynomial models with known correlation.
+
+```{python}
+def high_fidelity(x):
+    """HF model: cubic polynomial."""
+    return x**3 - 2*x**2 + x + 0.5
+
+def low_fidelity(x):
+    """LF model: quadratic approximation with noise."""
+    return 0.9 * (x**3 - 2*x**2 + x + 0.5) + 0.1 * x
+```
+
+```{python}
+# Visualize the models
+x_plot = np.linspace(0, 1, 100)
+
+fig, ax = plt.subplots(figsize=(8, 5))
+ax.plot(x_plot, high_fidelity(x_plot), 'b-', linewidth=2, label='High-fidelity')
+ax.plot(x_plot, low_fidelity(x_plot), 'r--', linewidth=2, label='Low-fidelity')
+ax.set_xlabel('x')
+ax.set_ylabel('f(x)')
+ax.set_title('High and Low Fidelity Models')
+ax.legend()
+ax.grid(True, alpha=0.3)
+plt.tight_layout()
+plt.show()
+```
+
+## Estimating Model Statistics
+
+First, let's estimate the covariance between models using pilot samples.
+
+```{python}
+# Pilot samples to estimate covariance
+n_pilot = 100
+pilot_samples = np.random.uniform(0, 1, n_pilot)
+
+hf_pilot = high_fidelity(pilot_samples)
+lf_pilot = low_fidelity(pilot_samples)
+
+# Compute covariance matrix
+cov_00 = np.var(hf_pilot, ddof=1)
+cov_11 = np.var(lf_pilot, ddof=1)
+cov_01 = np.cov(hf_pilot, lf_pilot, ddof=1)[0, 1]
+
+# Build 2x2 covariance matrix for 2 models
+pilot_cov = np.array([[cov_00, cov_01],
+                      [cov_01, cov_11]])
+
+rho = cov_01 / np.sqrt(cov_00 * cov_11)
+print(f"Model correlation: {rho:.4f}")
+print(f"Expected variance reduction: {1/(1-rho**2):.2f}x")
+```
+
+## Using CVEstimator
+
+The `CVEstimator` handles optimal weight computation and sample allocation.
+
+```{python}
+# Create statistic object
+stat = MultiOutputMean(nqoi=1, bkd=bkd)
+
+# Set pilot covariance
+stat.set_pilot_quantities(bkd.asarray(pilot_cov))
+
+# Define model costs (HF is 10x more expensive)
+costs = bkd.asarray([10.0, 1.0])
+
+# Create CV estimator
+cv_estimator = CVEstimator(stat, costs, bkd)
+print(cv_estimator)
+```
+
+## Sample Allocation
+
+Given a computational budget, CV optimally allocates samples between models.
+
+```{python}
+# Allocate samples for a budget of 500 cost units
+target_cost = 500.0
+cv_estimator.allocate_samples(target_cost)
+
+# Check allocation
+nsamples = cv_estimator.nsamples_per_model()
+nsamples_np = bkd.to_numpy(nsamples)
+print(f"HF samples: {int(nsamples_np[0])}")
+print(f"LF samples: {int(nsamples_np[1])}")
+
+# Check partition structure
+npartitions = cv_estimator.npartition_samples()
+npart_np = bkd.to_numpy(npartitions)
+print(f"\nPartition structure:")
+print(f"  P0 (HF only): {int(npart_np[0])}")
+print(f"  P1 (shared): {int(npart_np[1])}")
+print(f"  P2 (LF only): {int(npart_np[2])}")
+```
+
+## Computing the CV Estimate
+
+```{python}
+# Generate samples
+nhf = int(nsamples_np[0])
+nlf = int(nsamples_np[1])
+
+# All samples (LF gets more)
+all_samples = np.random.uniform(0, 1, nlf)
+
+# HF evaluations on shared samples (first nhf)
+hf_samples = all_samples[:nhf]
+hf_values = high_fidelity(hf_samples).reshape(-1, 1)
+
+# LF evaluations on all samples
+lf_values = low_fidelity(all_samples).reshape(-1, 1)
+
+# Compute CV estimate
+cv_estimate = cv_estimator([hf_values, lf_values])
+print(f"CV estimate: {float(cv_estimate[0]):.6f}")
+
+# Compare to optimal weight
+weights = cv_estimator.weights()
+print(f"Optimal weight eta: {float(weights[0]):.4f}")
+```
+
+## Comparing CV to Standard MC
+
+Let's compare the variance of CV and MC estimators.
+
+```{python}
+def run_mc_estimator(n_samples, n_trials=100):
+    """Run MC estimator multiple times."""
+    estimates = []
+    for _ in range(n_trials):
+        samples = np.random.uniform(0, 1, n_samples)
+        values = high_fidelity(samples)
+        estimates.append(np.mean(values))
+    return np.array(estimates)
+
+def run_cv_estimator(cv_est, n_trials=100):
+    """Run CV estimator multiple times."""
+    estimates = []
+    nsamples_np = bkd.to_numpy(cv_est.nsamples_per_model())
+    nhf, nlf = int(nsamples_np[0]), int(nsamples_np[1])
+
+    for _ in range(n_trials):
+        all_samples = np.random.uniform(0, 1, nlf)
+        hf_values = high_fidelity(all_samples[:nhf]).reshape(-1, 1)
+        lf_values = low_fidelity(all_samples).reshape(-1, 1)
+        est = cv_est([hf_values, lf_values])
+        estimates.append(float(est[0]))
+    return np.array(estimates)
+```
+
+```{python}
+# Run comparison
+n_trials = 500
+
+# MC with same HF cost
+mc_nhf = int(target_cost / 10)  # Same budget, only HF
+mc_estimates = run_mc_estimator(mc_nhf, n_trials)
+
+# CV estimator
+cv_estimates = run_cv_estimator(cv_estimator, n_trials)
+
+# Compare variances
+mc_var = np.var(mc_estimates)
+cv_var = np.var(cv_estimates)
+
+print(f"MC variance: {mc_var:.8f}")
+print(f"CV variance: {cv_var:.8f}")
+print(f"Variance reduction: {mc_var/cv_var:.2f}x")
+```
+
+```{python}
+# Visualize distributions
+fig, axes = plt.subplots(1, 2, figsize=(12, 4))
+
+# Histogram comparison
+ax = axes[0]
+ax.hist(mc_estimates, bins=30, alpha=0.6, label=f'MC (var={mc_var:.6f})')
+ax.hist(cv_estimates, bins=30, alpha=0.6, label=f'CV (var={cv_var:.6f})')
+ax.axvline(np.mean(mc_estimates), color='blue', linestyle='--', linewidth=2)
+ax.axvline(np.mean(cv_estimates), color='orange', linestyle='--', linewidth=2)
+ax.set_xlabel('Estimate')
+ax.set_ylabel('Frequency')
+ax.set_title('Distribution of Estimates')
+ax.legend()
+
+# Variance vs cost
+ax = axes[1]
+costs_range = np.linspace(100, 1000, 20)
+mc_vars = []
+cv_vars = []
+
+for cost in costs_range:
+    # MC variance (analytical)
+    mc_n = int(cost / 10)
+    mc_vars.append(cov_00 / mc_n)
+
+    # CV variance (analytical approximation)
+    cv_n = int(cost / (10 + cov_01/cov_11))  # Approximate
+    cv_vars.append(cov_00 * (1 - rho**2) / max(cv_n, 1))
+
+ax.semilogy(costs_range, mc_vars, 'b-', linewidth=2, label='MC')
+ax.semilogy(costs_range, cv_vars, 'r--', linewidth=2, label='CV')
+ax.set_xlabel('Computational Cost')
+ax.set_ylabel('Estimator Variance')
+ax.set_title('Variance Convergence')
+ax.legend()
+ax.grid(True, alpha=0.3)
+
+plt.tight_layout()
+plt.show()
+```
+
+## When Control Variates Help
+
+CV is most effective when:
+
+1. **High correlation**: $|\rho| > 0.9$ gives 5x+ variance reduction
+2. **Large cost ratio**: LF is much cheaper than HF
+3. **Known LF statistics**: We can estimate $\mu_1$ cheaply
+
+```{python}
+# Variance reduction vs correlation
+correlations = np.linspace(0, 0.99, 50)
+variance_reduction = 1 / (1 - correlations**2)
+
+fig, ax = plt.subplots(figsize=(8, 5))
+ax.semilogy(correlations, variance_reduction, 'b-', linewidth=2)
+ax.axhline(10, color='r', linestyle='--', alpha=0.5, label='10x reduction')
+ax.axvline(0.95, color='g', linestyle='--', alpha=0.5, label=r'$\rho=0.95$')
+ax.set_xlabel(r'Correlation $|\rho|$')
+ax.set_ylabel('Variance Reduction Factor')
+ax.set_title('Variance Reduction vs Model Correlation')
+ax.legend()
+ax.grid(True, alpha=0.3)
+plt.tight_layout()
+plt.show()
+```
+
+## Connection to Regression
+
+The CV estimator is equivalent to:
+
+$$
+\hat{Q}_{CV} = \hat{Q}_0 - \hat{\beta}(\hat{Q}_1 - \mu_1)
+$$
+
+where $\hat{\beta}$ is the least-squares regression coefficient.
+
+This connection explains why:
+
+- Optimal weights come from regression theory
+- The residual variance determines CV variance
+- Multiple control variates extend to multivariate regression
+
+## Key Takeaways
+
+- **Control variates** reduce variance using correlated cheap models
+- **Optimal weight** $\eta^* = \Cov_{\params}(f_0, f_1)/\Var_{\params}[f_1]$ minimizes variance
+- **Variance reduction** is $(1 - \rho^2)^{-1}$ for optimal weights
+- **High correlation** ($\rho > 0.9$) is essential for significant gains
+- **CVEstimator** handles allocation and weight computation automatically
+
+## Exercises
+
+1. **(Easy)** Verify that the analytical variance reduction formula matches the empirical reduction in the example above.
+
+2. **(Medium)** Create a scenario where CV performs worse than MC due to estimation error in the pilot covariance. What correlation and sample size cause this?
+
+3. **(Challenge)** Extend the CV estimator to use the LF model as a control for variance estimation, not just mean estimation. Hint: Consider $(f_0 - \mu_0)^2$ as the quantity of interest.
+
+## Next Steps
+
+Continue with:
+
+- [Multifidelity Monte Carlo](multifidelity_monte_carlo.qmd) - Extension to multiple control variates
+- [Bayesian Calibration Intro](bayesian_calibration_intro.qmd) - Using models for inference

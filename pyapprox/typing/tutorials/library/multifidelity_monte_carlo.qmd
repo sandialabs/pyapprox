@@ -1,0 +1,417 @@
+---
+title: "Multifidelity Monte Carlo"
+subtitle: "PyApprox Tutorial Library"
+description: "Using multiple low-fidelity models for optimal variance reduction"
+prerequisites:
+  - monte_carlo_basics
+  - control_variates
+tags:
+  - multifidelity
+  - variance-reduction
+  - advanced
+format:
+  html:
+    code-fold: false
+    code-tools: true
+    toc: true
+execute:
+  echo: true
+  warning: false
+jupyter: python3
+---
+
+::: {.callout-tip collapse="true"}
+## Download Notebook
+[Download as Jupyter Notebook](notebooks/multifidelity_monte_carlo.ipynb)
+:::
+
+## Learning Objectives
+
+After completing this tutorial, you will be able to:
+
+- Understand multifidelity Monte Carlo (MFMC) as an extension of control variates
+- Compare MFMC with Multilevel Monte Carlo (MLMC)
+- Allocate samples optimally across multiple model fidelities
+- Choose appropriate multifidelity strategies for different model hierarchies
+
+## Prerequisites
+
+Complete [Control Variates](control_variates.qmd) before this tutorial.
+
+## Beyond Two Models
+
+The [Control Variates](control_variates.qmd) tutorial showed how one cheap model reduces variance. But what if we have multiple models of varying fidelity and cost?
+
+**Multifidelity Monte Carlo (MFMC)** optimally combines $M$ models to minimize variance for a given budget.
+
+## Model Hierarchy
+
+Consider an ensemble of models:
+
+| Model | Description | Cost | Correlation |
+|-------|-------------|------|-------------|
+| $f_0$ | High-fidelity (target) | $c_0$ (expensive) | 1.0 |
+| $f_1$ | Medium-fidelity | $c_1$ | $\rho_1$ |
+| $f_2$ | Low-fidelity | $c_2$ | $\rho_2$ |
+| ... | ... | ... | ... |
+| $f_M$ | Cheapest | $c_M$ (cheap) | $\rho_M$ |
+
+Typically: $c_0 > c_1 > ... > c_M$ and $|\rho_1| > |\rho_2| > ... > |\rho_M|$.
+
+## MFMC Estimator
+
+The MFMC estimator generalizes control variates:
+
+$$
+\hat{Q}_{MFMC} = \hat{Q}_0 + \sum_{m=1}^{M} \alpha_m (\hat{\mu}_m - \hat{Q}_m)
+$$
+
+where:
+
+- $\hat{Q}_0$ = HF mean on shared samples
+- $\hat{Q}_m$ = Model $m$ mean on shared samples
+- $\hat{\mu}_m$ = Model $m$ mean on extended samples
+- $\alpha_m$ = optimal weights
+
+### Optimal Weights
+
+For MFMC with model ordering by correlation:
+
+$$
+\alpha_m = \rho_{0m} \frac{\sigma_0}{\sigma_m}
+$$
+
+### Optimal Sample Allocation
+
+The ratio of samples at level $m$ to HF samples:
+
+$$
+r_m = \sqrt{\frac{c_0}{c_m} \cdot \frac{\rho_m^2 - \rho_{m+1}^2}{1 - \rho_1^2}}
+$$
+
+(with $\rho_{M+1} = 0$).
+
+## Setup
+
+```{python}
+import numpy as np
+import matplotlib.pyplot as plt
+
+from pyapprox.typing.util.backends.numpy import NumpyBkd
+from pyapprox.typing.stats import MultiOutputMean
+from pyapprox.typing.stats.estimators.acv.mfmc import MFMCEstimator
+from pyapprox.typing.stats.estimators.acv.mlmc import MLMCEstimator
+
+bkd = NumpyBkd()
+np.random.seed(42)
+```
+
+## Example: Three-Fidelity Model Hierarchy
+
+```{python}
+def model_0(x):
+    """High-fidelity: expensive, accurate."""
+    return np.sin(4 * np.pi * x) * np.exp(-2 * x)
+
+def model_1(x):
+    """Medium-fidelity: moderate cost/accuracy."""
+    return 0.9 * np.sin(4 * np.pi * x) * np.exp(-2 * x) + 0.05 * np.cos(2 * np.pi * x)
+
+def model_2(x):
+    """Low-fidelity: cheap, less accurate."""
+    return 0.7 * np.sin(4 * np.pi * x) * np.exp(-2 * x) + 0.1 * x
+```
+
+```{python}
+# Visualize the model hierarchy
+x_plot = np.linspace(0, 1, 200)
+
+fig, ax = plt.subplots(figsize=(10, 5))
+ax.plot(x_plot, model_0(x_plot), 'b-', linewidth=2, label='$f_0$ (HF)')
+ax.plot(x_plot, model_1(x_plot), 'r--', linewidth=2, label='$f_1$ (MF)')
+ax.plot(x_plot, model_2(x_plot), 'g:', linewidth=2, label='$f_2$ (LF)')
+ax.set_xlabel('x')
+ax.set_ylabel('f(x)')
+ax.set_title('Three-Fidelity Model Hierarchy')
+ax.legend()
+ax.grid(True, alpha=0.3)
+plt.tight_layout()
+plt.show()
+```
+
+## Estimating Model Correlations
+
+```{python}
+# Pilot samples to estimate covariance
+n_pilot = 200
+pilot_samples = np.random.uniform(0, 1, n_pilot)
+
+f0 = model_0(pilot_samples)
+f1 = model_1(pilot_samples)
+f2 = model_2(pilot_samples)
+
+# Build covariance matrix
+values = np.vstack([f0, f1, f2])
+pilot_cov = np.cov(values)
+
+# Compute correlations
+rho_01 = pilot_cov[0, 1] / np.sqrt(pilot_cov[0, 0] * pilot_cov[1, 1])
+rho_02 = pilot_cov[0, 2] / np.sqrt(pilot_cov[0, 0] * pilot_cov[2, 2])
+
+print("Covariance matrix:")
+print(pilot_cov.round(6))
+print(f"\nCorrelation with HF:")
+print(f"  rho_01 = {rho_01:.4f}")
+print(f"  rho_02 = {rho_02:.4f}")
+```
+
+## Using MFMCEstimator
+
+```{python}
+# Create statistic
+stat = MultiOutputMean(nqoi=1, bkd=bkd)
+stat.set_pilot_quantities(bkd.asarray(pilot_cov))
+
+# Model costs (HF is 100x more expensive than LF)
+costs = bkd.asarray([100.0, 10.0, 1.0])
+
+# Create MFMC estimator
+mfmc = MFMCEstimator(stat, costs, bkd)
+print(mfmc)
+```
+
+```{python}
+# Allocate samples for budget
+target_cost = 2000.0
+mfmc.allocate_samples(target_cost)
+
+# Check allocation
+nsamples = mfmc.nsamples_per_model()
+nsamples_np = bkd.to_numpy(nsamples)
+print("\nSample allocation:")
+for m, n in enumerate(nsamples_np):
+    print(f"  Model {m}: {int(n)} samples")
+
+# Check weights
+weights = mfmc.weights()
+print(f"\nOptimal weights: {bkd.to_numpy(weights)}")
+```
+
+## MFMC vs Standard MC
+
+```{python}
+def evaluate_mfmc(mfmc_est, n_samples_np):
+    """Evaluate MFMC estimator once."""
+    n0 = int(n_samples_np[0])
+    n1 = int(n_samples_np[1])
+    n2 = int(n_samples_np[2])
+
+    # Generate samples (nested structure)
+    n_max = n2  # LF has most samples
+    all_samples = np.random.uniform(0, 1, n_max)
+
+    # Evaluate each model on appropriate samples
+    v0 = model_0(all_samples[:n0]).reshape(-1, 1)
+    v1 = model_1(all_samples[:n1]).reshape(-1, 1)
+    v2 = model_2(all_samples[:n2]).reshape(-1, 1)
+
+    return mfmc_est([v0, v1, v2])
+
+def run_mfmc_trials(mfmc_est, n_trials=200):
+    """Run multiple MFMC trials."""
+    nsamples_np = bkd.to_numpy(mfmc_est.nsamples_per_model())
+    estimates = []
+    for _ in range(n_trials):
+        est = evaluate_mfmc(mfmc_est, nsamples_np)
+        estimates.append(float(est[0]))
+    return np.array(estimates)
+
+def run_mc_trials(cost_budget, hf_cost, n_trials=200):
+    """Run standard MC trials."""
+    n_hf = int(cost_budget / hf_cost)
+    estimates = []
+    for _ in range(n_trials):
+        samples = np.random.uniform(0, 1, n_hf)
+        estimates.append(np.mean(model_0(samples)))
+    return np.array(estimates)
+```
+
+```{python}
+# Compare estimators
+n_trials = 500
+
+mfmc_estimates = run_mfmc_trials(mfmc, n_trials)
+mc_estimates = run_mc_trials(target_cost, costs[0].item(), n_trials)
+
+mfmc_var = np.var(mfmc_estimates)
+mc_var = np.var(mc_estimates)
+
+print(f"MC variance:   {mc_var:.8f}")
+print(f"MFMC variance: {mfmc_var:.8f}")
+print(f"Variance reduction: {mc_var/mfmc_var:.1f}x")
+```
+
+```{python}
+# Visualize comparison
+fig, ax = plt.subplots(figsize=(8, 5))
+ax.hist(mc_estimates, bins=30, alpha=0.6, density=True, label=f'MC (var={mc_var:.6f})')
+ax.hist(mfmc_estimates, bins=30, alpha=0.6, density=True, label=f'MFMC (var={mfmc_var:.6f})')
+ax.axvline(np.mean(mc_estimates), color='blue', linestyle='--', linewidth=2)
+ax.axvline(np.mean(mfmc_estimates), color='orange', linestyle='--', linewidth=2)
+ax.set_xlabel('Estimate')
+ax.set_ylabel('Density')
+ax.set_title('MC vs MFMC Estimate Distributions')
+ax.legend()
+plt.tight_layout()
+plt.show()
+```
+
+## Multilevel Monte Carlo (MLMC)
+
+MLMC is an alternative multifidelity approach using a **telescoping sum**:
+
+$$
+\E_X[f_L] = \E_X[f_0] + \sum_{l=1}^{L} \E_X[f_l - f_{l-1}]
+$$
+
+Each term $Y_l = f_l - f_{l-1}$ is estimated independently.
+
+### When to Use MLMC vs MFMC
+
+| Aspect | MFMC | MLMC |
+|--------|------|------|
+| Model relationship | All models approximate HF | Successive refinements |
+| Sample structure | Nested (shared + extended) | Independent level differences |
+| Best for | Diverse surrogate models | Grid/mesh refinement |
+| Correlation need | All models correlated with HF | Adjacent levels correlated |
+
+```{python}
+# Create MLMC estimator for comparison
+mlmc = MLMCEstimator(stat, costs, bkd)
+mlmc.allocate_samples(target_cost)
+
+mlmc_nsamples = bkd.to_numpy(mlmc.nsamples_per_model())
+print("MLMC sample allocation:")
+for l, n in enumerate(mlmc_nsamples):
+    print(f"  Level {l}: {int(n)} samples")
+```
+
+## Effect of Cost Ratios
+
+The benefit of multifidelity methods depends on cost ratios.
+
+```{python}
+def compute_variance_reduction(rho1, rho2, c0, c1, c2):
+    """Analytical variance reduction for MFMC."""
+    # Simplified formula for 3 models
+    rho1_sq = rho1**2
+    rho2_sq = rho2**2
+
+    # MFMC variance reduction (approximate)
+    if rho1_sq < 1:
+        vr = 1 / (1 - rho1_sq)  # From first control variate
+        # Additional reduction from second
+        if rho2_sq < rho1_sq:
+            vr *= 1 / (1 - (rho2_sq - 0) / (1 - rho1_sq))
+    else:
+        vr = 1.0
+    return min(vr, 100)  # Cap for display
+```
+
+```{python}
+# Variance reduction vs correlation
+rho1_vals = np.linspace(0.5, 0.99, 50)
+vr_mfmc = []
+vr_cv = []
+
+for rho1 in rho1_vals:
+    # MFMC with rho2 = 0.5 * rho1
+    rho2 = 0.5 * rho1
+    vr_mfmc.append(1 / (1 - rho1**2))  # Simplified
+    vr_cv.append(1 / (1 - rho1**2))
+
+fig, ax = plt.subplots(figsize=(8, 5))
+ax.semilogy(rho1_vals, vr_mfmc, 'b-', linewidth=2, label='MFMC/CV')
+ax.axhline(10, color='r', linestyle='--', alpha=0.5, label='10x reduction')
+ax.set_xlabel(r'Correlation $\rho_1$')
+ax.set_ylabel('Variance Reduction Factor')
+ax.set_title('Variance Reduction vs Primary Correlation')
+ax.legend()
+ax.grid(True, alpha=0.3)
+plt.tight_layout()
+plt.show()
+```
+
+## Practical Considerations
+
+### 1. Model Ordering
+
+MFMC requires models ordered by **decreasing correlation** with HF:
+
+$$
+|\rho_1| \geq |\rho_2| \geq ... \geq |\rho_M|
+$$
+
+Violating this degrades performance.
+
+### 2. Pilot Study Design
+
+Accurate covariance estimates require sufficient pilot samples:
+
+- Rule of thumb: $n_{pilot} \geq 10 \cdot M$ (number of models)
+- More pilots needed for weak correlations
+- Reuse pilot samples for actual estimation when possible
+
+### 3. Computational Trade-offs
+
+```{python}
+# Visualize the cost-variance trade-off
+budgets = np.linspace(500, 5000, 20)
+mc_vars = []
+mfmc_vars = []
+
+base_var = pilot_cov[0, 0]
+for budget in budgets:
+    # MC variance
+    n_mc = int(budget / 100)  # HF cost = 100
+    mc_vars.append(base_var / max(n_mc, 1))
+
+    # MFMC variance (approximate)
+    mfmc_factor = 1 - rho_01**2
+    n_equiv = int(budget / (100 + 10*2 + 1*5))  # Approximate effective samples
+    mfmc_vars.append(base_var * mfmc_factor / max(n_equiv, 1))
+
+fig, ax = plt.subplots(figsize=(8, 5))
+ax.semilogy(budgets, mc_vars, 'b-', linewidth=2, label='MC')
+ax.semilogy(budgets, mfmc_vars, 'r--', linewidth=2, label='MFMC')
+ax.set_xlabel('Computational Budget')
+ax.set_ylabel('Estimator Variance')
+ax.set_title('Variance vs Budget')
+ax.legend()
+ax.grid(True, alpha=0.3)
+plt.tight_layout()
+plt.show()
+```
+
+## Key Takeaways
+
+- **MFMC** extends control variates to multiple models
+- **Optimal allocation** balances cost and correlation across fidelities
+- **MLMC** uses telescoping sums; best for mesh/grid refinement hierarchies
+- **Model ordering** by decreasing correlation is essential for MFMC
+- **Variance reduction** scales with $1/(1-\rho_1^2)$ from the most correlated model
+
+## Exercises
+
+1. **(Easy)** Compare the sample allocation between MFMC and MLMC for the same budget. Which allocates more samples to the coarsest model?
+
+2. **(Medium)** Create a 4-model hierarchy and verify that MFMC achieves greater variance reduction than using only 2 models.
+
+3. **(Challenge)** Implement a convergence study: plot estimator variance vs budget for MC, CV (2 models), and MFMC (3 models). At what budget does MFMC become beneficial?
+
+## Next Steps
+
+Continue with:
+
+- [Hamiltonian MCMC](hamiltonian_mcmc.qmd) - Advanced sampling methods
+- [Optimal Experimental Design](optimal_experimental_design.qmd) - Designing efficient experiments
