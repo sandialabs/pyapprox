@@ -1,18 +1,17 @@
-from pyapprox.typing.surrogates.basis.piecewisepoly.linear import (
+"""Re-exports from new location for backwards compatibility.
+
+The canonical location is now:
+    pyapprox.typing.surrogates.affine.univariate.piecewisepoly
+"""
+
+from pyapprox.typing.surrogates.affine.univariate.piecewisepoly import (
     PiecewiseLinear,
-)
-from pyapprox.typing.surrogates.basis.piecewisepoly.quadratic import (
     PiecewiseQuadratic,
-)
-from pyapprox.typing.surrogates.basis.piecewisepoly.cubic import PiecewiseCubic
-from pyapprox.typing.surrogates.basis.piecewisepoly.left_constant import (
+    PiecewiseCubic,
     PiecewiseConstantLeft,
-)
-from pyapprox.typing.surrogates.basis.piecewisepoly.right_constant import (
     PiecewiseConstantRight,
-)
-from pyapprox.typing.surrogates.basis.piecewisepoly.mid_constant import (
     PiecewiseConstantMidpoint,
+    PiecewisePolynomialProtocol,
 )
 
 __all__ = [
@@ -22,4 +21,5 @@ __all__ = [
     "PiecewiseConstantLeft",
     "PiecewiseConstantRight",
     "PiecewiseConstantMidpoint",
+    "PiecewisePolynomialProtocol",
 ]
