@@ -12,8 +12,10 @@ import numpy as np
 from scipy import special, stats
 
 from pyapprox.typing.util.backends.protocols import Array, Backend
-from pyapprox.typing.surrogates.affine.univariate.jacobi import JacobiPolynomial1D
-from pyapprox.typing.surrogates.affine.univariate.quadrature import GaussQuadratureRule
+from pyapprox.typing.surrogates.affine.univariate.globalpoly import (
+    JacobiPolynomial1D,
+    GaussQuadratureRule,
+)
 from pyapprox.typing.optimization.rootfinding.newton import (
     NewtonSolver,
     NewtonSolverResidualProtocol,
@@ -126,7 +128,7 @@ class BetaMarginal(Generic[Array]):
         unnormalized PDF.
         """
         # Use Legendre polynomial for quadrature, mapped to [0, 1]
-        from pyapprox.typing.surrogates.affine.univariate.jacobi import (
+        from pyapprox.typing.surrogates.affine.univariate.globalpoly import (
             LegendrePolynomial1D,
         )
 

@@ -58,6 +58,18 @@ class TestGaussianLogPDFCore(Generic[Array], unittest.TestCase):
             )
         )
 
+    def test_compute_shape(self) -> None:
+        """Test compute() returns (1, nsamples) not (nsamples,)."""
+        residuals = self._bkd.zeros((2, 5))
+        logpdf = self.core.compute(residuals)
+        self.assertEqual(logpdf.shape, (1, 5))
+
+    def test_compute_shape_single_sample(self) -> None:
+        """Test compute() returns (1, 1) for single sample."""
+        residuals = self._bkd.zeros((2, 1))
+        logpdf = self.core.compute(residuals)
+        self.assertEqual(logpdf.shape, (1, 1))
+
     def test_compute_gradient_at_zero(self) -> None:
         """Test gradient at zero residuals is zero."""
         residuals = self._bkd.zeros((2, 3))
@@ -197,6 +209,18 @@ class TestDenseCholeskyMultivariateGaussian(Generic[Array], unittest.TestCase):
                 self.mean, self._bkd.eye(3), self._bkd
             )
 
+    def test_logpdf_shape(self) -> None:
+        """Test logpdf returns (1, nsamples) not (nsamples,)."""
+        samples = self._bkd.asarray([[1.0, 2.0, 3.0], [2.0, 3.0, 4.0]])
+        result = self.dist.logpdf(samples)
+        self.assertEqual(result.shape, (1, 3))
+
+    def test_pdf_shape(self) -> None:
+        """Test pdf returns (1, nsamples) not (nsamples,)."""
+        samples = self._bkd.asarray([[1.0, 2.0, 3.0], [2.0, 3.0, 4.0]])
+        result = self.dist.pdf(samples)
+        self.assertEqual(result.shape, (1, 3))
+
 
 class TestDenseCholeskyMultivariateGaussianNumpy(
     TestDenseCholeskyMultivariateGaussian[NDArray[Any]]
@@ -293,6 +317,18 @@ class TestDiagonalMultivariateGaussian(Generic[Array], unittest.TestCase):
             )
         )
 
+    def test_logpdf_shape(self) -> None:
+        """Test logpdf returns (1, nsamples) not (nsamples,)."""
+        samples = self._bkd.asarray([[1.0, 2.0], [2.0, 3.0], [3.0, 4.0]])
+        result = self.dist.logpdf(samples)
+        self.assertEqual(result.shape, (1, 2))
+
+    def test_pdf_shape(self) -> None:
+        """Test pdf returns (1, nsamples) not (nsamples,)."""
+        samples = self._bkd.asarray([[1.0, 2.0], [2.0, 3.0], [3.0, 4.0]])
+        result = self.dist.pdf(samples)
+        self.assertEqual(result.shape, (1, 2))
+
 
 class TestDiagonalMultivariateGaussianNumpy(
     TestDiagonalMultivariateGaussian[NDArray[Any]]
@@ -354,9 +390,9 @@ class TestOperatorBasedMultivariateGaussian(Generic[Array], unittest.TestCase):
             [[0.0, 1.0, -1.0], [0.0, 1.0, -1.0], [0.0, 1.0, -1.0]]
         )
         logpdf = self.dist.logpdf(samples)
-        # At mean (column 0), logpdf should be maximum
-        self.assertGreater(float(logpdf[0]), float(logpdf[1]))
-        self.assertGreater(float(logpdf[0]), float(logpdf[2]))
+        # logpdf has shape (1, nsamples), at mean (column 0) should be maximum
+        self.assertGreater(float(logpdf[0, 0]), float(logpdf[0, 1]))
+        self.assertGreater(float(logpdf[0, 0]), float(logpdf[0, 2]))
 
     def test_covariance_diagonal(self) -> None:
         """Test covariance diagonal computation."""
@@ -371,6 +407,22 @@ class TestOperatorBasedMultivariateGaussian(Generic[Array], unittest.TestCase):
             OperatorBasedMultivariateGaussian(
                 wrong_mean, self.cov_op, self._bkd
             )
+
+    def test_logpdf_shape(self) -> None:
+        """Test logpdf returns (1, nsamples) not (nsamples,)."""
+        samples = self._bkd.asarray(
+            [[0.0, 1.0, -1.0, 0.5], [0.0, 1.0, -1.0, 0.5], [0.0, 1.0, -1.0, 0.5]]
+        )
+        result = self.dist.logpdf(samples)
+        self.assertEqual(result.shape, (1, 4))
+
+    def test_pdf_shape(self) -> None:
+        """Test pdf returns (1, nsamples) not (nsamples,)."""
+        samples = self._bkd.asarray(
+            [[0.0, 1.0, -1.0, 0.5], [0.0, 1.0, -1.0, 0.5], [0.0, 1.0, -1.0, 0.5]]
+        )
+        result = self.dist.pdf(samples)
+        self.assertEqual(result.shape, (1, 4))
 
 
 class TestOperatorBasedMultivariateGaussianNumpy(
@@ -586,6 +638,12 @@ class TestGaussianCanonicalForm(Generic[Array], unittest.TestCase):
         """Test rvs returns correct shape."""
         samples = self.canonical.rvs(100)
         self.assertEqual(samples.shape, (2, 100))
+
+    def test_logpdf_shape(self) -> None:
+        """Test logpdf returns (1, nsamples) not (nsamples,)."""
+        samples = self._bkd.asarray([[1.0, 2.0, 3.0], [2.0, 3.0, 4.0]])
+        result = self.canonical.logpdf(samples)
+        self.assertEqual(result.shape, (1, 3))
 
 
 class TestGaussianCanonicalFormNumpy(TestGaussianCanonicalForm[NDArray[Any]]):

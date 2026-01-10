@@ -153,7 +153,7 @@ class GaussianCanonicalForm(Generic[Array]):
         Returns
         -------
         Array
-            Log PDF values. Shape: (nsamples,)
+            Log PDF values. Shape: (1, nsamples)
         """
         # h^T x for each sample
         linear_term = self._shift @ samples
@@ -162,7 +162,8 @@ class GaussianCanonicalForm(Generic[Array]):
         Kx = self._precision @ samples
         quadratic_term = self._bkd.sum(samples * Kx, axis=0)
 
-        return self._normalization + linear_term - 0.5 * quadratic_term
+        result = self._normalization + linear_term - 0.5 * quadratic_term
+        return self._bkd.reshape(result, (1, -1))
 
     def pdf(self, samples: Array) -> Array:
         """Evaluate probability density function."""

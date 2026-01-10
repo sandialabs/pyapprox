@@ -174,7 +174,7 @@ class DiagonalMultivariateGaussian(Generic[Array]):
         Returns
         -------
         Array
-            Log PDF values. Shape: (nsamples,)
+            Log PDF values. Shape: (1, nsamples)
         """
         residuals = samples - self._mean
         return self._logpdf_core.compute(residuals)
@@ -191,7 +191,7 @@ class DiagonalMultivariateGaussian(Generic[Array]):
         Returns
         -------
         Array
-            PDF values. Shape: (nsamples,)
+            PDF values. Shape: (1, nsamples)
         """
         return self._bkd.exp(self.logpdf(samples))
 

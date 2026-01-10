@@ -12,8 +12,10 @@ import numpy as np
 from scipy import special
 
 from pyapprox.typing.util.backends.protocols import Array, Backend
-from pyapprox.typing.surrogates.affine.univariate.jacobi import LegendrePolynomial1D
-from pyapprox.typing.surrogates.affine.univariate.quadrature import GaussQuadratureRule
+from pyapprox.typing.surrogates.affine.univariate.globalpoly import (
+    LegendrePolynomial1D,
+    GaussQuadratureRule,
+)
 from pyapprox.typing.optimization.rootfinding.newton import (
     NewtonSolver,
     NewtonSolverResidualProtocol,

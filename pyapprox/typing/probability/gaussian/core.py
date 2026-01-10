@@ -76,7 +76,7 @@ class GaussianLogPDFCore(Generic[Array]):
         Returns
         -------
         Array
-            Log-PDF values. Shape: (nsamples,)
+            Log-PDF values. Shape: (1, nsamples)
         """
         # Whiten: L^{-1} @ residuals
         whitened = self._cov_op.apply_inv(residuals)
@@ -85,7 +85,8 @@ class GaussianLogPDFCore(Generic[Array]):
         # ||L^{-1}(x-mean)||^2 = sum_i (L^{-1}(x-mean))_i^2
         sq_mahal = self._bkd.sum(whitened * whitened, axis=0)
 
-        return self._log_const - 0.5 * sq_mahal
+        result = self._log_const - 0.5 * sq_mahal
+        return self._bkd.reshape(result, (1, -1))
 
     def compute_gradient(self, residuals: Array) -> Array:
         """
