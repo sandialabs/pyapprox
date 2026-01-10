@@ -7,7 +7,7 @@ with Gauss-Legendre quadrature points (strictly interior to [-1,1]).
 from typing import Generic, Tuple
 
 from pyapprox.typing.util.backends.protocols import Array, Backend
-from pyapprox.typing.surrogates.affine.univariate.jacobi import (
+from pyapprox.typing.surrogates.affine.univariate.globalpoly import (
     LegendrePolynomial1D,
 )
 

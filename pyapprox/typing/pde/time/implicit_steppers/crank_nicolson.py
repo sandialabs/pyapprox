@@ -245,7 +245,7 @@ class CrankNicolsonResidual(TimeSteppingResidualBase[Array]):
 
     def _get_quadrature_class(self):
         """Return quadrature class for Crank-Nicolson (trapezoidal/linear)."""
-        from pyapprox.typing.surrogates.basis.piecewisepoly.linear import (
+        from pyapprox.typing.surrogates.affine.univariate.piecewisepoly import (
             PiecewiseLinear,
         )
         return PiecewiseLinear

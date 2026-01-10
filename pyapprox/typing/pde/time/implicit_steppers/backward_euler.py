@@ -213,7 +213,7 @@ class BackwardEulerResidual(TimeSteppingResidualBase[Array]):
 
     def _get_quadrature_class(self):
         """Return quadrature class for Backward Euler (right-constant)."""
-        from pyapprox.typing.surrogates.basis.piecewisepoly.right_constant import (
+        from pyapprox.typing.surrogates.affine.univariate.piecewisepoly import (
             PiecewiseConstantRight,
         )
         return PiecewiseConstantRight
