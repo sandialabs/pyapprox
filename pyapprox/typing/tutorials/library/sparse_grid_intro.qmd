@@ -1,0 +1,442 @@
+---
+title: "Introduction to Sparse Grids"
+subtitle: "PyApprox Tutorial Library"
+description: "Efficient high-dimensional interpolation using Smolyak combination technique"
+prerequisites:
+  - polynomial_chaos_expansion
+tags:
+  - surrogate
+  - forward-uq
+format:
+  html:
+    code-fold: false
+    code-tools: true
+    toc: true
+execute:
+  echo: true
+  warning: false
+jupyter: python3
+---
+
+::: {.callout-tip collapse="true"}
+## Download Notebook
+[Download as Jupyter Notebook](notebooks/sparse_grid_intro.ipynb)
+:::
+
+## Learning Objectives
+
+After completing this tutorial, you will be able to:
+
+- Explain the curse of dimensionality in tensor product approximations
+- Understand the Smolyak combination technique for sparse grids
+- Construct isotropic sparse grids for function interpolation
+- Compute Smolyak coefficients for downward-closed index sets
+- Compare sparse grid efficiency to tensor products
+
+## Prerequisites
+
+Complete [Polynomial Chaos Expansion](polynomial_chaos_expansion.qmd) before this tutorial.
+
+## The Curse of Dimensionality
+
+Tensor product interpolation combines 1D rules by taking their Cartesian product. For $n$ points per dimension in $d$ dimensions, this requires $n^d$ points. This **exponential growth** makes tensor products impractical for high dimensions.
+
+| Dimensions | Points/dim | Tensor product points |
+|------------|------------|----------------------|
+| 2 | 5 | 25 |
+| 4 | 5 | 625 |
+| 6 | 5 | 15,625 |
+| 10 | 5 | 9,765,625 |
+
+**Sparse grids** overcome this by combining many low-resolution tensor products with carefully chosen weights.
+
+## Setup
+
+```{python}
+import numpy as np
+import matplotlib.pyplot as plt
+from pyapprox.typing.util.backends.numpy import NumpyBkd
+
+bkd = NumpyBkd()
+np.random.seed(42)
+```
+
+## The Smolyak Combination Technique
+
+A sparse grid approximates a function as a weighted sum of tensor product interpolants:
+
+$$
+f_{\mathcal{I}}(\bm{z}) = \sum_{\bm{k} \in \mathcal{I}} c_{\bm{k}} f_{\bm{k}}(\bm{z})
+$$
+
+where:
+
+- $\bm{k} = [k_1, \ldots, k_d]$ is a multi-index controlling resolution in each dimension
+- $\mathcal{I}$ is the **index set** (must be downward closed)
+- $c_{\bm{k}}$ are **Smolyak coefficients**
+- $f_{\bm{k}}$ is a tensor product interpolant using $n(k_i)$ points in dimension $i$
+
+### Downward Closed Index Sets
+
+An index set $\mathcal{I}$ is **downward closed** if:
+$$
+\bm{\gamma} \leq \bm{k} \text{ and } \bm{k} \in \mathcal{I} \implies \bm{\gamma} \in \mathcal{I}
+$$
+
+where $\leq$ is applied component-wise. This ensures all "parent" indices are included.
+
+```{python}
+from pyapprox.typing.surrogates.sparsegrids import (
+    is_downward_closed,
+    compute_smolyak_coefficients,
+)
+
+# Valid downward-closed set: {(0,0), (1,0), (0,1)}
+valid_indices = bkd.asarray([[0, 1, 0], [0, 0, 1]])
+print(f"Is {{(0,0), (1,0), (0,1)}} downward closed? {is_downward_closed(valid_indices, bkd)}")
+
+# Invalid set: {(0,0), (2,0)} - missing (1,0)
+invalid_indices = bkd.asarray([[0, 2], [0, 0]])
+print(f"Is {{(0,0), (2,0)}} downward closed? {is_downward_closed(invalid_indices, bkd)}")
+```
+
+### Smolyak Coefficients
+
+For a downward-closed set, the Smolyak coefficients satisfy:
+$$
+c_{\bm{k}} = \sum_{\bm{i} \in \{0,1\}^d : \bm{k}+\bm{i} \in \mathcal{I}} (-1)^{\|\bm{i}\|_1}
+$$
+
+Key property: **Smolyak coefficients sum to 1**.
+
+```{python}
+# Compute coefficients for level-2 isotropic set
+indices = bkd.asarray([
+    [0, 1, 0, 2, 1, 0],
+    [0, 0, 1, 0, 1, 2]
+])
+coefs = compute_smolyak_coefficients(indices, bkd)
+
+print("Index | Coefficient")
+print("------|------------")
+for j in range(indices.shape[1]):
+    k1, k2 = int(indices[0, j]), int(indices[1, j])
+    print(f"({k1},{k2})  |  {float(coefs[j]):+.0f}")
+print(f"Sum   |  {float(bkd.sum(coefs)):.0f}")
+```
+
+## Isotropic Sparse Grids
+
+An **isotropic** sparse grid uses all indices with bounded $L^1$ norm:
+$$
+\mathcal{I}(L) = \{\bm{k} : \|\bm{k}\|_1 \leq L\}
+$$
+
+```{python}
+from pyapprox.typing.surrogates.sparsegrids import IsotropicCombinationSparseGrid
+from pyapprox.typing.surrogates.affine.univariate import LegendrePolynomial1D
+from pyapprox.typing.surrogates.affine.indices import LinearGrowthRule
+
+# Define univariate basis and growth rule
+nvars = 2
+basis = LegendrePolynomial1D(bkd)
+growth = LinearGrowthRule(scale=1, shift=1)  # n(k) = k + 1 points at level k
+
+# Create isotropic sparse grids at different levels
+for level in [0, 1, 2, 3]:
+    grid = IsotropicCombinationSparseGrid(
+        bkd,
+        [basis for _ in range(nvars)],
+        growth,
+        level=level
+    )
+    print(f"Level {level}: {grid.nsubspaces()} subspaces, {grid.nsamples()} samples")
+```
+
+### Visualizing Sparse Grid Points
+
+```{python}
+fig, axes = plt.subplots(1, 4, figsize=(14, 3.5))
+
+for i, level in enumerate([0, 1, 2, 3]):
+    grid = IsotropicCombinationSparseGrid(
+        bkd,
+        [LegendrePolynomial1D(bkd) for _ in range(2)],
+        LinearGrowthRule(scale=1, shift=1),
+        level=level
+    )
+    samples = grid.get_samples()
+
+    ax = axes[i]
+    ax.scatter(samples[0, :], samples[1, :], s=40, c='blue', alpha=0.7)
+    ax.set_xlim(-1.1, 1.1)
+    ax.set_ylim(-1.1, 1.1)
+    ax.set_aspect('equal')
+    ax.set_title(f'Level {level}: {grid.nsamples()} points')
+    ax.set_xlabel('$z_1$')
+    if i == 0:
+        ax.set_ylabel('$z_2$')
+    ax.grid(True, alpha=0.3)
+
+plt.tight_layout()
+plt.show()
+```
+
+## Example: Interpolating a 2D Function
+
+Let's interpolate a smooth function with a sparse grid:
+
+$$
+f(z_1, z_2) = \cos(\pi z_1) \cos(\pi z_2 / 2)
+$$
+
+```{python}
+def target_function(samples, bkd):
+    """
+    f(z1, z2) = cos(pi*z1) * cos(pi*z2/2)
+
+    Parameters
+    ----------
+    samples : Array
+        Input samples. Shape: (2, nsamples)
+    bkd : Backend
+        Computational backend.
+
+    Returns
+    -------
+    Array
+        Function values. Shape: (1, nsamples)
+    """
+    z1, z2 = samples[0, :], samples[1, :]
+    values = bkd.cos(np.pi * z1) * bkd.cos(np.pi * z2 / 2)
+    return bkd.reshape(values, (1, -1))
+
+# Create and evaluate sparse grid
+level = 3
+grid = IsotropicCombinationSparseGrid(
+    bkd,
+    [LegendrePolynomial1D(bkd) for _ in range(2)],
+    LinearGrowthRule(scale=1, shift=1),
+    level=level
+)
+
+# Get samples and compute function values
+samples = grid.get_samples()
+values = target_function(samples, bkd)  # No to_numpy needed!
+grid.set_values(values)
+
+print(f"Sparse grid: {grid.nsamples()} evaluation points")
+```
+
+### Comparing Accuracy
+
+```{python}
+# Generate test points for error computation
+n_test = 1000
+test_samples = bkd.asarray(np.random.uniform(-1, 1, (2, n_test)))
+true_values = target_function(test_samples, bkd)  # Shape: (1, n_test)
+
+# Evaluate sparse grid interpolant
+approx_values = grid(test_samples)  # Shape: (1, n_test)
+
+# Compute error using backend methods
+error = float(bkd.sqrt(bkd.sum((true_values - approx_values) ** 2)) / np.sqrt(n_test))
+print(f"RMS interpolation error: {error:.2e}")
+```
+
+### Visualizing the Interpolant
+
+```{python}
+from pyapprox.typing.interface.functions.plot.plot2d_rectangular import (
+    Plotter2DRectangularDomain,
+    meshgrid_samples,
+)
+from pyapprox.typing.interface.functions.fromcallable.function import (
+    FunctionFromCallable,
+)
+
+fig, axes = plt.subplots(1, 3, figsize=(14, 4))
+plot_limits = [-1, 1, -1, 1]
+
+# Wrap target function as FunctionProtocol for plotting
+true_func = FunctionFromCallable(
+    nqoi=1, nvars=2,
+    fun=lambda s: target_function(s, bkd),
+    bkd=bkd
+)
+true_plotter = Plotter2DRectangularDomain(true_func, plot_limits)
+
+# Plot true function using plotter
+true_plotter.plot_contours(axes[0], qoi=0, npts_1d=51, levels=20, cmap='coolwarm')
+axes[0].set_title('True function')
+axes[0].set_xlabel('$z_1$')
+axes[0].set_ylabel('$z_2$')
+
+# Plot sparse grid interpolant using plotter
+sg_plotter = Plotter2DRectangularDomain(grid, plot_limits)
+sg_plotter.plot_contours(axes[1], qoi=0, npts_1d=51, levels=20, cmap='coolwarm')
+sg_samples = bkd.to_numpy(grid.get_samples())  # to_numpy only for scatter
+axes[1].scatter(sg_samples[0, :], sg_samples[1, :], c='k', s=20, alpha=0.7)
+axes[1].set_title(f'Sparse grid (L={level}, n={grid.nsamples()})')
+axes[1].set_xlabel('$z_1$')
+
+# Error plot - need manual evaluation for difference
+X, Y, eval_pts = meshgrid_samples(51, plot_limits, bkd)
+true_vals = target_function(eval_pts, bkd)
+approx_vals = grid(eval_pts)
+error_vals = bkd.abs(true_vals - approx_vals)
+error_2d = bkd.reshape(error_vals[0], X.shape)
+im_err = axes[2].contourf(bkd.to_numpy(X), bkd.to_numpy(Y),
+                           bkd.to_numpy(error_2d), levels=20, cmap='Reds')
+axes[2].set_title(f'|Error| (max={float(bkd.max(error_vals)):.2e})')
+axes[2].set_xlabel('$z_1$')
+plt.colorbar(im_err, ax=axes[2])
+
+plt.tight_layout()
+plt.show()
+```
+
+## Sparse Grids vs Tensor Products
+
+The key advantage of sparse grids is **efficiency** in high dimensions.
+
+```{python}
+def count_tensor_product_points(nvars, level, growth_rule):
+    """Count points in tensor product with given level per dimension."""
+    return growth_rule(level) ** nvars
+
+def count_sparse_grid_points(nvars, max_level, growth_rule, bkd):
+    """Count unique points in isotropic sparse grid."""
+    basis = LegendrePolynomial1D(bkd)
+    grid = IsotropicCombinationSparseGrid(
+        bkd,
+        [basis for _ in range(nvars)],
+        growth_rule,
+        level=max_level
+    )
+    return grid.nsamples()
+
+growth = LinearGrowthRule(scale=1, shift=1)
+
+# Compare point counts
+print("Points required for different levels:")
+print("-" * 50)
+print(f"{'Level':<8} {'d=2 TP':>10} {'d=2 SG':>10} {'d=4 TP':>10} {'d=4 SG':>10}")
+print("-" * 50)
+
+for level in range(1, 5):
+    tp_2d = count_tensor_product_points(2, level, growth)
+    sg_2d = count_sparse_grid_points(2, level, growth, bkd)
+    tp_4d = count_tensor_product_points(4, level, growth)
+    sg_4d = count_sparse_grid_points(4, level, growth, bkd)
+    print(f"{level:<8} {tp_2d:>10,} {sg_2d:>10,} {tp_4d:>10,} {sg_4d:>10,}")
+```
+
+### Convergence Comparison
+
+```{python}
+# Compare convergence for 4D function
+def smooth_4d_function(samples, bkd):
+    """Exponential function in 4D. Returns shape (1, nsamples)."""
+    result = bkd.exp(-0.05 * bkd.sum((samples + 1) / 2 - 0.5, axis=0) ** 2)
+    return bkd.reshape(result, (1, -1))
+
+nvars = 4
+growth = LinearGrowthRule(scale=1, shift=1)
+
+# Test samples
+n_test = 2000
+test_samples = bkd.asarray(np.random.uniform(-1, 1, (nvars, n_test)))
+true_values = smooth_4d_function(test_samples, bkd)  # Shape: (1, n_test)
+
+# Compute errors at different levels
+sg_npts, sg_errors = [], []
+for level in range(0, 5):
+    grid = IsotropicCombinationSparseGrid(
+        bkd,
+        [LegendrePolynomial1D(bkd) for _ in range(nvars)],
+        growth,
+        level=level
+    )
+    samples = grid.get_samples()
+    values = smooth_4d_function(samples, bkd)  # Shape: (1, nsamples)
+    grid.set_values(values)
+
+    approx = grid(test_samples)  # Shape: (1, n_test)
+    error = float(bkd.sqrt(bkd.sum((true_values - approx) ** 2)) / np.sqrt(n_test))
+
+    sg_npts.append(grid.nsamples())
+    sg_errors.append(error)
+    print(f"Level {level}: {grid.nsamples():>6} points, error = {error:.2e}")
+```
+
+```{python}
+plt.figure(figsize=(8, 5))
+plt.loglog(sg_npts, sg_errors, 'o-', linewidth=2, markersize=8)
+plt.xlabel('Number of samples')
+plt.ylabel('RMS Error')
+plt.title(f'Sparse Grid Convergence ({nvars}D)')
+plt.grid(True, alpha=0.3)
+plt.show()
+```
+
+## Computing Statistics with Sparse Grids
+
+Sparse grids can efficiently compute expectations (means) using quadrature:
+
+```{python}
+# Compute mean of the 2D function using sparse grid quadrature
+grid_2d = IsotropicCombinationSparseGrid(
+    bkd,
+    [LegendrePolynomial1D(bkd) for _ in range(2)],
+    LinearGrowthRule(scale=1, shift=1),
+    level=4
+)
+samples = grid_2d.get_samples()
+values = target_function(samples, bkd)  # Shape: (1, nsamples)
+grid_2d.set_values(values)
+
+# Compute mean using sparse grid quadrature
+sg_mean = float(grid_2d.mean()[0])
+
+# Compare with Monte Carlo estimate
+mc_samples = bkd.asarray(np.random.uniform(-1, 1, (2, 100000)))
+mc_values = target_function(mc_samples, bkd)
+mc_mean = float(bkd.mean(mc_values))
+
+print(f"Sparse grid mean: {sg_mean:.6f}")
+print(f"Monte Carlo mean: {mc_mean:.6f}")
+print(f"Difference: {abs(sg_mean - mc_mean):.2e}")
+```
+
+## Summary
+
+- **Sparse grids** combine tensor products to reduce the curse of dimensionality
+- The **Smolyak coefficients** ensure the combination is exact for polynomials
+- **Downward closed** index sets guarantee valid combinations
+- **Isotropic** sparse grids use all indices with bounded $L^1$ norm
+- For smooth functions, sparse grids require far fewer points than tensor products
+
+## Exercises
+
+::: {.callout-note}
+## Exercise 1: Effect of Growth Rule (Easy)
+
+The growth rule $n(k) = k + 1$ gives $k+1$ points at level $k$. Modify the examples to use a doubled growth rule $n(k) = 2k + 1$ and observe how this affects the number of sparse grid points.
+:::
+
+::: {.callout-note}
+## Exercise 2: Dimension Scaling (Medium)
+
+Create a plot showing how the ratio of sparse grid points to tensor product points changes with dimension for fixed level $L=3$. What happens as $d \to \infty$?
+:::
+
+::: {.callout-note}
+## Exercise 3: Anisotropic Function (Hard)
+
+Consider the function $f(z_1, z_2) = \sin(10 z_1) + z_2$, which varies much more rapidly in $z_1$. How does an isotropic sparse grid perform compared to a tensor product with more points in $z_1$? This motivates **adaptive** sparse grids covered in the next tutorial.
+:::
+
+## Next Steps
+
+- Learn about [Adaptive Sparse Grids](adaptive_sparse_grid.qmd) for functions with varying smoothness

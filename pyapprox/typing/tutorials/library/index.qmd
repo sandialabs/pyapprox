@@ -45,6 +45,8 @@ This library contains modular tutorials covering uncertainty quantification (UQ)
 | Tutorial | Description | Prerequisites |
 |----------|-------------|---------------|
 | [Polynomial Chaos Expansion](polynomial_chaos_expansion.qmd) | Spectral surrogate models | MC Basics |
+| [Introduction to Sparse Grids](sparse_grid_intro.qmd) | Smolyak combination technique | PCE |
+| [Adaptive Sparse Grids](adaptive_sparse_grid.qmd) | Goal-oriented sparse grid refinement | Sparse Grids |
 | [Gaussian Process Surrogates](gaussian_process_surrogates.qmd) | Kriging/GP regression | MC Basics |
 
 ### Multifidelity Methods
@@ -78,13 +80,15 @@ Recommended for newcomers to uncertainty quantification:
 7. Sobol Sensitivity Analysis
 8. Bayesian Calibration Intro
 
-### Path 2: Surrogate Modeling (2 hours)
+### Path 2: Surrogate Modeling (3 hours)
 
 For users interested in building surrogate models:
 
 1. Monte Carlo Basics (prerequisite)
-2. Gaussian Process Surrogates
-3. Polynomial Chaos Expansion
+2. Polynomial Chaos Expansion
+3. Introduction to Sparse Grids
+4. Adaptive Sparse Grids
+5. Gaussian Process Surrogates
 
 ### Path 3: Multifidelity Methods (2 hours)
 
@@ -105,7 +109,7 @@ For users working with multi-resolution models:
 - **sampling**: Monte Carlo Basics, Hamiltonian MCMC
 - **sensitivity**: Sobol Sensitivity Analysis
 - **inference**: Bayesian Calibration, Hamiltonian MCMC
-- **surrogate**: PCE, Gaussian Process
+- **surrogate**: PCE, Sparse Grids, Adaptive Sparse Grids, Gaussian Process
 - **multifidelity**: Control Variates, MFMC
 - **design**: Optimal Experimental Design
 - **optimization**: Optimization Under Uncertainty
