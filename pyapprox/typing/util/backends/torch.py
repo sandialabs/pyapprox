@@ -439,6 +439,22 @@ class TorchBkd(Backend[torch.Tensor]):  # Specify torch.Tensor type
         return torch.isnan(array)
 
     @staticmethod
+    def argmin(
+        array: torch.Tensor, axis: Optional[int] = None
+    ) -> torch.Tensor:
+        if axis is None:
+            return torch.argmin(array)
+        return torch.argmin(array, dim=axis)
+
+    @staticmethod
+    def argmax(
+        array: torch.Tensor, axis: Optional[int] = None
+    ) -> torch.Tensor:
+        if axis is None:
+            return torch.argmax(array)
+        return torch.argmax(array, dim=axis)
+
+    @staticmethod
     def get_diagonal(
         array: torch.Tensor, offset: int = 0, axis1: int = 0, axis2: int = 1
     ) -> torch.Tensor:
