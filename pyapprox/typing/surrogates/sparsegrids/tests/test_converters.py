@@ -50,7 +50,7 @@ class TestSparseGridToPCEConverter(Generic[Array], unittest.TestCase):
         # f(x, y) = x^2 + 2*x*y + y
         samples = grid.get_samples()
         x, y = samples[0, :], samples[1, :]
-        values = self._bkd.reshape(x ** 2 + 2 * x * y + y, (-1, 1))
+        values = self._bkd.reshape(x ** 2 + 2 * x * y + y, (1, -1))
         grid.set_values(values)
 
         # Convert to PCE
@@ -59,11 +59,12 @@ class TestSparseGridToPCEConverter(Generic[Array], unittest.TestCase):
         pce = converter.convert(grid)
 
         # Test evaluation matches
+        # Note: PCE returns (nsamples, nqoi) while grid returns (nqoi, nsamples)
         test_pts = self._bkd.asarray([[-0.5, 0.0, 0.5], [0.3, 0.0, -0.3]])
         grid_vals = grid(test_pts)
         pce_vals = pce(test_pts)
 
-        self.assertTrue(self._bkd.allclose(grid_vals, pce_vals, rtol=1e-10))
+        self.assertTrue(self._bkd.allclose(grid_vals, pce_vals.T, rtol=1e-10))
 
     def test_pce_mean_variance(self) -> None:
         """Test PCE statistics are correct."""
@@ -82,7 +83,7 @@ class TestSparseGridToPCEConverter(Generic[Array], unittest.TestCase):
         # Var[f] = 13/15
         samples = grid.get_samples()
         x, y = samples[0, :], samples[1, :]
-        values = self._bkd.reshape(x ** 2 + 2 * x * y + y, (-1, 1))
+        values = self._bkd.reshape(x ** 2 + 2 * x * y + y, (1, -1))
         grid.set_values(values)
 
         # Convert to PCE
@@ -115,7 +116,7 @@ class TestSparseGridToPCEConverter(Generic[Array], unittest.TestCase):
         # f(x, y) = x^2 + 2*x*y + y
         samples = grid.get_samples()
         x, y = samples[0, :], samples[1, :]
-        values = self._bkd.reshape(x ** 2 + 2 * x * y + y, (-1, 1))
+        values = self._bkd.reshape(x ** 2 + 2 * x * y + y, (1, -1))
         grid.set_values(values)
 
         # Convert to PCE
@@ -161,7 +162,7 @@ class TestSparseGridToPCEConverter(Generic[Array], unittest.TestCase):
         # f(x, y, z) = x + y + z
         samples = grid.get_samples()
         values = self._bkd.reshape(
-            samples[0, :] + samples[1, :] + samples[2, :], (-1, 1)
+            samples[0, :] + samples[1, :] + samples[2, :], (1, -1)
         )
         grid.set_values(values)
 
@@ -171,6 +172,7 @@ class TestSparseGridToPCEConverter(Generic[Array], unittest.TestCase):
         pce = converter.convert(grid)
 
         # Test evaluation
+        # Note: PCE returns (nsamples, nqoi) while grid returns (nqoi, nsamples)
         test_pts = self._bkd.asarray([
             [0.1, 0.2],
             [0.3, 0.4],
@@ -179,7 +181,7 @@ class TestSparseGridToPCEConverter(Generic[Array], unittest.TestCase):
         grid_vals = grid(test_pts)
         pce_vals = pce(test_pts)
 
-        self.assertTrue(self._bkd.allclose(grid_vals, pce_vals, rtol=1e-10))
+        self.assertTrue(self._bkd.allclose(grid_vals, pce_vals.T, rtol=1e-10))
 
         # Mean should be 0 for linear function
         pce_mean = pce.mean()
@@ -197,9 +199,9 @@ class TestSparseGridToPCEConverter(Generic[Array], unittest.TestCase):
             self._bkd, bases_1d, growth, level
         )
 
-        # Two QoIs: f1 = x, f2 = y
+        # Two QoIs: f1 = x, f2 = y - shape (nqoi, nsamples) = (2, nsamples)
         samples = grid.get_samples()
-        values = self._bkd.stack([samples[0, :], samples[1, :]], axis=1)
+        values = self._bkd.stack([samples[0, :], samples[1, :]], axis=0)
         grid.set_values(values)
 
         # Convert to PCE
@@ -208,12 +210,13 @@ class TestSparseGridToPCEConverter(Generic[Array], unittest.TestCase):
         pce = converter.convert(grid)
 
         # Test evaluation
+        # Note: PCE returns (nsamples, nqoi) while grid returns (nqoi, nsamples)
         test_pts = self._bkd.asarray([[0.3, -0.5], [0.2, 0.4]])
         grid_vals = grid(test_pts)
         pce_vals = pce(test_pts)
 
-        self.assertEqual(pce_vals.shape[1], 2)
-        self.assertTrue(self._bkd.allclose(grid_vals, pce_vals, rtol=1e-10))
+        self.assertEqual(pce_vals.shape[1], 2)  # PCE: (nsamples, nqoi)
+        self.assertTrue(self._bkd.allclose(grid_vals, pce_vals.T, rtol=1e-10))
 
 
 class TestTensorProductSubspaceToPCEConverter(Generic[Array], unittest.TestCase):
@@ -241,7 +244,7 @@ class TestTensorProductSubspaceToPCEConverter(Generic[Array], unittest.TestCase)
 
         # f(x, y) = x^2 + y
         samples = subspace.get_samples()
-        values = self._bkd.reshape(samples[0, :] ** 2 + samples[1, :], (-1, 1))
+        values = self._bkd.reshape(samples[0, :] ** 2 + samples[1, :], (1, -1))
         subspace.set_values(values)
 
         # Convert to PCE coefficients
@@ -249,10 +252,10 @@ class TestTensorProductSubspaceToPCEConverter(Generic[Array], unittest.TestCase)
         converter = TensorProductSubspaceToPCEConverter(self._bkd, pce_bases_1d)
         indices, coefficients = converter.convert_subspace(subspace)
 
-        # Verify shapes
+        # Verify shapes - coefficients is (nqoi, ncoefs)
         self.assertEqual(indices.shape[0], nvars)
-        self.assertEqual(coefficients.shape[1], 1)
-        self.assertEqual(indices.shape[1], coefficients.shape[0])
+        self.assertEqual(coefficients.shape[0], 1)  # nqoi is first dimension
+        self.assertEqual(indices.shape[1], coefficients.shape[1])
 
 
 # NumPy backend tests

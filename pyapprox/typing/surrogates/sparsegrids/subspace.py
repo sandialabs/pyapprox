@@ -2,92 +2,30 @@
 
 A subspace represents a single tensor product of univariate interpolations,
 identified by a multi-index specifying the level in each dimension.
+
+This module wraps TensorProductInterpolant with sparse-grid-specific
+functionality: multi-index tracking, growth rules, and quadrature.
 """
 
-from typing import Generic, List, Optional, Tuple
+from typing import Callable, Generic, List, Optional, Tuple
 
 from pyapprox.typing.util.backends.protocols import Array, Backend
+from pyapprox.typing.util.cartesian import outer_product_weights
 from pyapprox.typing.surrogates.affine.protocols import (
     Basis1DProtocol,
     IndexGrowthRuleProtocol,
 )
-
-
-def _lagrange_derivatives_1d(
-    nodes: Array,
-    pt_idx: int,
-    x: Array,
-    bkd: "Backend[Array]",
-) -> Tuple[Array, Array, Array]:
-    """Compute 1D Lagrange basis function and its derivatives at points.
-
-    Parameters
-    ----------
-    nodes : Array
-        Interpolation nodes, shape (npts,)
-    pt_idx : int
-        Index of the interpolation point
-    x : Array
-        Evaluation points, shape (npoints,)
-    bkd : Backend[Array]
-        Computational backend
-
-    Returns
-    -------
-    L : Array
-        Lagrange basis values, shape (npoints,)
-    dL : Array
-        First derivatives, shape (npoints,)
-    d2L : Array
-        Second derivatives, shape (npoints,)
-    """
-    npoints = x.shape[0]
-    npts = nodes.shape[0]
-    x_i = float(nodes[pt_idx])
-
-    # Compute Lagrange basis L_i(x) = prod_{j!=i} (x - x_j) / (x_i - x_j)
-    L = bkd.ones((npoints,))
-    for j in range(npts):
-        if j != pt_idx:
-            x_j = float(nodes[j])
-            L = L * (x - x_j) / (x_i - x_j)
-
-    # Compute first derivative using product rule:
-    # dL/dx = sum_k [ prod_{j!=i,j!=k} (x-x_j)/(x_i-x_j) * 1/(x_i-x_k) ]
-    dL = bkd.zeros((npoints,))
-    for k in range(npts):
-        if k != pt_idx:
-            term = bkd.ones((npoints,))
-            for j in range(npts):
-                if j != pt_idx and j != k:
-                    x_j = float(nodes[j])
-                    term = term * (x - x_j) / (x_i - x_j)
-            x_k = float(nodes[k])
-            term = term / (x_i - x_k)
-            dL = dL + term
-
-    # Compute second derivative using product rule on first derivative:
-    # d2L/dx2 = sum_k sum_m [ prod_{j!=i,j!=k,j!=m} ... ]
-    d2L = bkd.zeros((npoints,))
-    for k in range(npts):
-        if k != pt_idx:
-            for m in range(npts):
-                if m != pt_idx and m != k:
-                    term = bkd.ones((npoints,))
-                    for j in range(npts):
-                        if j != pt_idx and j != k and j != m:
-                            x_j = float(nodes[j])
-                            term = term * (x - x_j) / (x_i - x_j)
-                    x_k = float(nodes[k])
-                    x_m = float(nodes[m])
-                    term = term / ((x_i - x_k) * (x_i - x_m))
-                    d2L = d2L + term
-
-    return L, dL, d2L
+from pyapprox.typing.surrogates.affine.univariate.lagrange import LagrangeBasis1D
+from pyapprox.typing.surrogates.tensorproduct import TensorProductInterpolant
 
 
 class TensorProductSubspace(Generic[Array]):
     """Single tensor product subspace in sparse grid.
+
+    Wraps TensorProductInterpolant with sparse-grid-specific functionality:
+    - Multi-index tracking (level in each dimension)
+    - Growth rule (level -> number of points)
+    - Quadrature weights and integration
 
     Parameters
     ----------
@@ -99,6 +37,11 @@ class TensorProductSubspace(Generic[Array]):
         Univariate bases for each dimension.
     growth_rule : IndexGrowthRuleProtocol
         Rule mapping level to number of points.
+
+    Notes
+    -----
+    Values have shape (nqoi, nsamples) following CLAUDE.md conventions:
+    - Output f(X) (batch): (nqoi, nsamples) - QoIs as rows, samples as columns
 
     Examples
     --------
@@ -123,25 +66,69 @@ class TensorProductSubspace(Generic[Array]):
         self._index = bkd.copy(index)
         self._univariate_bases = univariate_bases
         self._growth_rule = growth_rule
-        self._values: Optional[Array] = None
 
-        # Compute 1D samples and number of points per dimension
-        self._1d_samples: List[Array] = []
+        # Compute number of points per dimension from growth rule
         self._npts_1d: List[int] = []
-        for dim in range(self.nvars()):
+        for dim in range(len(univariate_bases)):
             level = int(index[dim])
             npts = growth_rule(level)
             self._npts_1d.append(npts)
 
-            # Get quadrature points for this level
-            basis = univariate_bases[dim]
-            basis.set_nterms(npts)
-            samples_1d, _ = basis.gauss_quadrature_rule(npts)
-            self._1d_samples.append(samples_1d)
+        # Find unique bases and set each to the maximum npts it needs
+        # This handles the case where the same basis is used for multiple dims
+        max_npts_per_basis: dict[int, int] = {}
+        for dim, basis in enumerate(univariate_bases):
+            basis_id = id(basis)
+            npts = self._npts_1d[dim]
+            if basis_id not in max_npts_per_basis:
+                max_npts_per_basis[basis_id] = npts
+            else:
+                max_npts_per_basis[basis_id] = max(
+                    max_npts_per_basis[basis_id], npts
+                )
 
-        # Build tensor product samples
-        self._samples = self._build_tensor_product_samples()
-        self._nsamples = self._samples.shape[1]
+        # Set each unique basis to its maximum required nterms
+        for basis in univariate_bases:
+            basis_id = id(basis)
+            basis.set_nterms(max_npts_per_basis[basis_id])
+
+        # Create LagrangeBasis1D for each dimension using quadrature points
+        # from the univariate bases. We create a wrapper quadrature rule that
+        # ensures the underlying basis has enough terms before calling the rule.
+        self._interp_bases_1d: List[LagrangeBasis1D[Array]] = []
+        self._1d_weights: List[Array] = []
+
+        for dim, basis in enumerate(univariate_bases):
+            npts = self._npts_1d[dim]
+
+            # Get quadrature points and weights
+            samples_1d, weights_1d = basis.gauss_quadrature_rule(npts)
+            self._1d_weights.append(weights_1d)
+
+            # Create Lagrange interpolation basis at quadrature points
+            if isinstance(basis, LagrangeBasis1D):
+                interp_basis: LagrangeBasis1D[Array] = basis
+            else:
+                # Create a wrapper quadrature rule that ensures the polynomial
+                # has enough terms. This is needed because multiple subspaces
+                # may share the same polynomial basis with different nterms.
+                def make_quadrature_rule(
+                    b: Basis1DProtocol[Array],
+                ) -> Callable[[int], Tuple[Array, Array]]:
+                    def quadrature_rule(npoints: int) -> Tuple[Array, Array]:
+                        b.set_nterms(max(b.nterms(), npoints))
+                        return b.gauss_quadrature_rule(npoints)
+                    return quadrature_rule
+
+                interp_basis = LagrangeBasis1D(
+                    bkd, make_quadrature_rule(basis)
+                )
+            self._interp_bases_1d.append(interp_basis)
+
+        # Create TensorProductInterpolant using Lagrange bases
+        self._interpolant = TensorProductInterpolant(
+            bkd, self._interp_bases_1d, self._npts_1d
+        )
 
     def bkd(self) -> Backend[Array]:
         """Return the computational backend."""
@@ -153,58 +140,54 @@ class TensorProductSubspace(Generic[Array]):
 
     def nvars(self) -> int:
         """Return the number of variables."""
-        return len(self._univariate_bases)
+        return self._interpolant.nvars()
 
     def nsamples(self) -> int:
         """Return the number of samples in this subspace."""
-        return self._nsamples
+        return self._interpolant.nsamples()
+
+    def nqoi(self) -> int:
+        """Return the number of quantities of interest, or 0 if not set."""
+        return self._interpolant.nqoi()
 
     def get_samples(self) -> Array:
         """Return sample locations for this subspace."""
-        return self._bkd.copy(self._samples)
+        return self._interpolant.get_samples()
+
+    def get_samples_1d(self, dim: int) -> Array:
+        """Return 1D interpolation nodes for a specific dimension.
+
+        Parameters
+        ----------
+        dim : int
+            Dimension index.
+
+        Returns
+        -------
+        Array
+            1D sample locations with shape (1, npts_1d[dim]).
+        """
+        return self._interpolant.get_samples_1d(dim)
 
     def get_values(self) -> Optional[Array]:
-        """Return function values at samples, if set."""
-        return self._values
+        """Return function values at samples, if set.
+
+        Returns
+        -------
+        Optional[Array]
+            Values with shape (nqoi, nsamples), or None if not set.
+        """
+        return self._interpolant.get_values()
 
     def set_values(self, values: Array) -> None:
-        """Set function values at samples."""
-        if values.shape[0] != self._nsamples:
-            raise ValueError(
-                f"Expected {self._nsamples} values, got {values.shape[0]}"
-            )
-        self._values = self._bkd.copy(values)
+        """Set function values at samples.
 
-    def _build_tensor_product_samples(self) -> Array:
-        """Build tensor product of 1D sample locations."""
-        nvars = self.nvars()
-
-        # Compute total number of samples
-        total = 1
-        for npts in self._npts_1d:
-            total *= npts
-
-        # Build tensor product grid
-        samples = self._bkd.zeros((nvars, total))
-
-        # Use meshgrid-like approach
-        repeat_inner = 1
-        for dim in range(nvars - 1, -1, -1):
-            npts = self._npts_1d[dim]
-            samples_1d = self._1d_samples[dim].flatten()
-
-            repeat_outer = total // (npts * repeat_inner)
-
-            idx = 0
-            for _ in range(repeat_outer):
-                for pt_idx in range(npts):
-                    for _ in range(repeat_inner):
-                        samples[dim, idx] = samples_1d[pt_idx]
-                        idx += 1
-
-            repeat_inner *= npts
-
-        return samples
+        Parameters
+        ----------
+        values : Array
+            Values with shape (nqoi, nsamples).
+        """
+        self._interpolant.set_values(values)
 
     def __call__(self, samples: Array) -> Array:
         """Evaluate subspace interpolant at given samples.
@@ -217,96 +200,17 @@ class TensorProductSubspace(Generic[Array]):
         Returns
         -------
         Array
-            Interpolant values of shape (npoints, nqoi)
+            Interpolant values of shape (nqoi, npoints)
         """
-        if self._values is None:
-            raise ValueError("Values not set. Call set_values() first.")
-
-        npoints = samples.shape[1]
-        nqoi = self._values.shape[1]
-
-        # Evaluate 1D bases at each sample point
-        basis_vals_1d: List[Array] = []
-        for dim in range(self.nvars()):
-            npts = self._npts_1d[dim]
-            self._univariate_bases[dim].set_nterms(npts)
-            vals = self._univariate_bases[dim](samples[dim:dim+1, :])
-            basis_vals_1d.append(vals)  # Shape: (npoints, npts)
-
-        # Compute Lagrange interpolation coefficients
-        # For each sample point, compute the tensor product of 1D Lagrange values
-        result = self._bkd.zeros((npoints, nqoi))
-
-        # Build interpolation matrix
-        # Each row corresponds to a sample point
-        # Each column corresponds to a tensor product basis function
-        interp_mat = self._bkd.ones((npoints, self._nsamples))
-
-        idx = 0
-        repeat_inner = 1
-        for dim in range(self.nvars() - 1, -1, -1):
-            npts = self._npts_1d[dim]
-            repeat_outer = self._nsamples // (npts * repeat_inner)
-
-            col = 0
-            for _ in range(repeat_outer):
-                for pt_idx in range(npts):
-                    for _ in range(repeat_inner):
-                        # Lagrange basis for this point
-                        interp_mat[:, col] *= self._lagrange_basis_1d(
-                            dim, pt_idx, samples[dim:dim+1, :]
-                        )
-                        col += 1
-
-            repeat_inner *= npts
-
-        # Apply interpolation
-        result = interp_mat @ self._values
-
-        return result
-
-    def _lagrange_basis_1d(
-        self,
-        dim: int,
-        pt_idx: int,
-        samples: Array,
-    ) -> Array:
-        """Compute 1D Lagrange basis function at given samples.
-
-        Parameters
-        ----------
-        dim : int
-            Dimension index
-        pt_idx : int
-            Index of the interpolation point
-        samples : Array
-            Evaluation points, shape (1, npoints)
-
-        Returns
-        -------
-        Array
-            Lagrange basis values, shape (npoints,)
-        """
-        nodes = self._1d_samples[dim].flatten()
-        npoints = samples.shape[1]
-
-        x_i = float(nodes[pt_idx])
-        result = self._bkd.ones((npoints,))
-
-        for j, x_j in enumerate(nodes):
-            if j != pt_idx:
-                x_j = float(x_j)
-                result = result * (samples[0, :] - x_j) / (x_i - x_j)
-
-        return result
+        return self._interpolant(samples)
 
     def jacobian_supported(self) -> bool:
         """Return whether Jacobian computation is supported."""
-        return True
+        return self._interpolant.jacobian_supported()
 
     def hessian_supported(self) -> bool:
         """Return whether Hessian computation is supported."""
-        return True
+        return self._interpolant.hessian_supported()
 
     def jacobian(self, sample: Array) -> Array:
         """Compute Jacobian at a single sample point.
@@ -321,147 +225,29 @@ class TensorProductSubspace(Generic[Array]):
         Array
             Jacobian matrix of shape (nqoi, nvars)
         """
-        if self._values is None:
-            raise ValueError("Values not set. Call set_values() first.")
+        return self._interpolant.jacobian(sample)
 
-        nvars = self.nvars()
-        nqoi = self._values.shape[1]
+    def hessian(self, sample: Array) -> Array:
+        """Compute Hessian at a single sample point for scalar QoI.
 
-        # Compute 1D Lagrange basis values and derivatives at the sample point
-        L_1d: List[Array] = []
-        dL_1d: List[Array] = []
-
-        for dim in range(nvars):
-            nodes = self._1d_samples[dim].flatten()
-            x = sample[dim, :]
-            L, dL, _ = _lagrange_derivatives_1d(nodes, 0, x, self._bkd)
-            # We need all basis functions, not just one
-            L_all = self._bkd.zeros((self._npts_1d[dim],))
-            dL_all = self._bkd.zeros((self._npts_1d[dim],))
-            for pt_idx in range(self._npts_1d[dim]):
-                L, dL, _ = _lagrange_derivatives_1d(nodes, pt_idx, x, self._bkd)
-                L_all[pt_idx] = L[0]
-                dL_all[pt_idx] = dL[0]
-            L_1d.append(L_all)
-            dL_1d.append(dL_all)
-
-        # Compute Jacobian using product rule on tensor product
-        # f(x) = sum_i c_i * prod_d L_{i_d}(x_d)
-        # df/dx_d = sum_i c_i * dL_{i_d}/dx_d * prod_{k!=d} L_{i_k}(x_k)
-        jacobian = self._bkd.zeros((nqoi, nvars))
-
-        for dim in range(nvars):
-            # Build tensor product: dL in dim, L in other dims
-            interp_deriv = self._bkd.ones((self._nsamples,))
-
-            repeat_inner = 1
-            for d in range(nvars - 1, -1, -1):
-                npts = self._npts_1d[d]
-                repeat_outer = self._nsamples // (npts * repeat_inner)
-
-                col = 0
-                for _ in range(repeat_outer):
-                    for pt_idx in range(npts):
-                        for _ in range(repeat_inner):
-                            if d == dim:
-                                interp_deriv[col] *= dL_1d[d][pt_idx]
-                            else:
-                                interp_deriv[col] *= L_1d[d][pt_idx]
-                            col += 1
-                repeat_inner *= npts
-
-            # Apply to values
-            for q in range(nqoi):
-                jacobian[q, dim] = self._bkd.dot(
-                    interp_deriv, self._values[:, q]
-                )
-
-        return jacobian
-
-    def hessian(self, sample: Array, qoi_idx: int = 0) -> Array:
-        """Compute Hessian at a single sample point for one QoI.
+        Only valid when nqoi == 1.
 
         Parameters
         ----------
         sample : Array
             Single evaluation point of shape (nvars, 1)
-        qoi_idx : int
-            Index of quantity of interest. Default: 0.
 
         Returns
         -------
         Array
             Hessian matrix of shape (nvars, nvars)
         """
-        if self._values is None:
-            raise ValueError("Values not set. Call set_values() first.")
+        return self._interpolant.hessian(sample)
 
-        nvars = self.nvars()
+    def hvp(self, sample: Array, vec: Array) -> Array:
+        """Compute Hessian-vector product efficiently.
 
-        # Compute 1D Lagrange basis values and derivatives at the sample point
-        L_1d: List[Array] = []
-        dL_1d: List[Array] = []
-        d2L_1d: List[Array] = []
-
-        for dim in range(nvars):
-            nodes = self._1d_samples[dim].flatten()
-            x = sample[dim, :]
-            L_all = self._bkd.zeros((self._npts_1d[dim],))
-            dL_all = self._bkd.zeros((self._npts_1d[dim],))
-            d2L_all = self._bkd.zeros((self._npts_1d[dim],))
-            for pt_idx in range(self._npts_1d[dim]):
-                L, dL, d2L = _lagrange_derivatives_1d(
-                    nodes, pt_idx, x, self._bkd
-                )
-                L_all[pt_idx] = L[0]
-                dL_all[pt_idx] = dL[0]
-                d2L_all[pt_idx] = d2L[0]
-            L_1d.append(L_all)
-            dL_1d.append(dL_all)
-            d2L_1d.append(d2L_all)
-
-        # Compute Hessian using product rule
-        # d2f/dx_d1 dx_d2 = sum_i c_i * ...
-        hessian = self._bkd.zeros((nvars, nvars))
-        values_q = self._values[:, qoi_idx]
-
-        for dim1 in range(nvars):
-            for dim2 in range(dim1, nvars):
-                # Build tensor product for this Hessian entry
-                interp_deriv = self._bkd.ones((self._nsamples,))
-
-                repeat_inner = 1
-                for d in range(nvars - 1, -1, -1):
-                    npts = self._npts_1d[d]
-                    repeat_outer = self._nsamples // (npts * repeat_inner)
-
-                    col = 0
-                    for _ in range(repeat_outer):
-                        for pt_idx in range(npts):
-                            for _ in range(repeat_inner):
-                                if dim1 == dim2 and d == dim1:
-                                    # Second derivative in same direction
-                                    interp_deriv[col] *= d2L_1d[d][pt_idx]
-                                elif d == dim1 or d == dim2:
-                                    # First derivative
-                                    interp_deriv[col] *= dL_1d[d][pt_idx]
-                                else:
-                                    # No derivative
-                                    interp_deriv[col] *= L_1d[d][pt_idx]
-                                col += 1
-                    repeat_inner *= npts
-
-                val = self._bkd.dot(interp_deriv, values_q)
-                hessian[dim1, dim2] = val
-                if dim1 != dim2:
-                    hessian[dim2, dim1] = val
-
-        return hessian
-
-    def hvp(self, sample: Array, vec: Array, qoi_idx: int = 0) -> Array:
-        """Compute Hessian-vector product efficiently without forming Hessian.
-
-        Computes H @ v where H is the Hessian, without explicitly forming H.
+        Only valid when nqoi == 1.
 
         Parameters
         ----------
@@ -469,87 +255,13 @@ class TensorProductSubspace(Generic[Array]):
             Single evaluation point of shape (nvars, 1)
         vec : Array
             Direction vector of shape (nvars, 1)
-        qoi_idx : int
-            Index of quantity of interest. Default: 0.
 
         Returns
         -------
         Array
             Hessian-vector product of shape (nvars, 1)
         """
-        if self._values is None:
-            raise ValueError("Values not set. Call set_values() first.")
-
-        nvars = self.nvars()
-        vec_flat = vec.flatten()
-
-        # Compute 1D Lagrange basis values and derivatives at the sample point
-        L_1d: List[Array] = []
-        dL_1d: List[Array] = []
-        d2L_1d: List[Array] = []
-
-        for dim in range(nvars):
-            nodes = self._1d_samples[dim].flatten()
-            x = sample[dim, :]
-            L_all = self._bkd.zeros((self._npts_1d[dim],))
-            dL_all = self._bkd.zeros((self._npts_1d[dim],))
-            d2L_all = self._bkd.zeros((self._npts_1d[dim],))
-            for pt_idx in range(self._npts_1d[dim]):
-                L, dL, d2L = _lagrange_derivatives_1d(
-                    nodes, pt_idx, x, self._bkd
-                )
-                L_all[pt_idx] = L[0]
-                dL_all[pt_idx] = dL[0]
-                d2L_all[pt_idx] = d2L[0]
-            L_1d.append(L_all)
-            dL_1d.append(dL_all)
-            d2L_1d.append(d2L_all)
-
-        values_q = self._values[:, qoi_idx]
-        result = self._bkd.zeros((nvars, 1))
-
-        # Compute H @ v efficiently by computing each row dot v
-        # (H @ v)_i = sum_j H_ij * v_j
-        # For tensor product interpolation, we can compute this more efficiently
-        # by grouping terms that share the same tensor product structure
-        for dim1 in range(nvars):
-            row_sum = 0.0
-
-            for dim2 in range(nvars):
-                v_j = float(vec_flat[dim2])
-                if abs(v_j) < 1e-14:
-                    continue
-
-                # Build tensor product for H[dim1, dim2]
-                interp_deriv = self._bkd.ones((self._nsamples,))
-
-                repeat_inner = 1
-                for d in range(nvars - 1, -1, -1):
-                    npts = self._npts_1d[d]
-                    repeat_outer = self._nsamples // (npts * repeat_inner)
-
-                    col = 0
-                    for _ in range(repeat_outer):
-                        for pt_idx in range(npts):
-                            for _ in range(repeat_inner):
-                                if dim1 == dim2 and d == dim1:
-                                    # Second derivative in same direction
-                                    interp_deriv[col] *= d2L_1d[d][pt_idx]
-                                elif d == dim1 or d == dim2:
-                                    # First derivative
-                                    interp_deriv[col] *= dL_1d[d][pt_idx]
-                                else:
-                                    # No derivative
-                                    interp_deriv[col] *= L_1d[d][pt_idx]
-                                col += 1
-                    repeat_inner *= npts
-
-                H_ij = float(self._bkd.dot(interp_deriv, values_q))
-                row_sum += H_ij * v_j
-
-            result[dim1, 0] = row_sum
-
-        return result
+        return self._interpolant.hvp(sample, vec)
 
     def whvp(
         self,
@@ -568,32 +280,61 @@ class TensorProductSubspace(Generic[Array]):
         vec : Array
             Direction vector of shape (nvars, 1)
         weights : Array
-            Weights for each QoI. Can be shape (nqoi, 1), (1, nqoi), or (nqoi,).
+            Weights for each QoI. Shape: (nqoi, 1), (1, nqoi), or (nqoi,).
 
         Returns
         -------
         Array
             Weighted Hessian-vector product of shape (nvars, 1)
         """
-        if self._values is None:
+        return self._interpolant.whvp(sample, vec, weights)
+
+    def get_quadrature_weights(self) -> Array:
+        """Return the tensor product quadrature weights.
+
+        The weights are the raw tensor product of 1D quadrature weights
+        without normalization. For Gauss-Legendre on [-1,1]^d, the sum
+        of weights equals 2^d (Lebesgue measure).
+
+        Returns
+        -------
+        Array
+            Tensor product weights of shape (nsamples,)
+        """
+        return outer_product_weights(self._1d_weights, self._bkd)
+
+    def integrate(self) -> Array:
+        """Compute integral using tensor product quadrature.
+
+        Computes the weighted sum:
+            integral f(x) w(x) dx ≈ sum_i weights[i] * f(x_i)
+
+        where w(x) is the weight function associated with the polynomial
+        basis. For orthonormal polynomials with probability=True, the
+        weights sum to 1 and this directly computes the expectation E[f].
+
+        Returns
+        -------
+        Array
+            Integral values of shape (nqoi,)
+
+        Notes
+        -----
+        For exactly interpolated functions (polynomials up to the
+        quadrature degree), this gives the exact integral.
+        """
+        values = self._interpolant.get_values()
+        if values is None:
             raise ValueError("Values not set. Call set_values() first.")
 
-        nqoi = self._values.shape[1]
-        result = self._bkd.zeros((self.nvars(), 1))
-
-        # Handle different weight shapes
-        weights_flat = weights.flatten()
-
-        for qoi_idx in range(nqoi):
-            w = float(weights_flat[qoi_idx])
-            if abs(w) > 1e-14:
-                result = result + w * self.hvp(sample, vec, qoi_idx=qoi_idx)
-
-        return result
+        weights = self.get_quadrature_weights()
+        # values is (nqoi, nsamples), weights is (nsamples,)
+        # Result should be (nqoi,)
+        return values @ weights
 
     def __repr__(self) -> str:
         index_str = ",".join(str(int(i)) for i in self._index)
         return (
             f"TensorProductSubspace(index=[{index_str}], "
-            f"nsamples={self._nsamples})"
+            f"nsamples={self.nsamples()})"
         )

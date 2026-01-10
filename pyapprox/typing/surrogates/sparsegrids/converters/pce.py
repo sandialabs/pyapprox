@@ -205,20 +205,21 @@ class TensorProductSubspaceToPCEConverter(Generic[Array]):
         indices : Array
             Multi-indices for PCE terms, shape (nvars, nterms)
         coefficients : Array
-            PCE coefficients, shape (nterms, nqoi)
+            PCE coefficients, shape (nqoi, nterms)
         """
         values = subspace.get_values()
         if values is None:
             raise ValueError("Subspace values not set")
 
-        nqoi = values.shape[1]
+        nqoi = values.shape[0]  # nqoi is first dimension
 
         # Get 1D projection coefficients for each dimension
         projection_coefs_1d: List[Array] = []
         npts_1d: List[int] = []
 
         for dim in range(self._nvars):
-            nodes = self._bkd.flatten(subspace._1d_samples[dim])
+            samples_1d = subspace.get_samples_1d(dim)
+            nodes = self._bkd.flatten(samples_1d)
             proj_coefs = self._get_projection_coefficients(dim, nodes)
             projection_coefs_1d.append(proj_coefs)
             npts_1d.append(nodes.shape[0])
@@ -254,16 +255,17 @@ class TensorProductSubspaceToPCEConverter(Generic[Array]):
         #   PCE_coef = sum over Lagrange indices (j_0, ..., j_{d-1}) of
         #              prod_d proj_coefs[d][j_d, i_d] * Lagrange_value[j_0,...,j_{d-1}]
 
-        coefficients = self._bkd.zeros((nterms, nqoi))
+        coefficients = self._bkd.zeros((nqoi, nterms))
 
         # The subspace values are organized in tensor product order
         # matching the samples from _build_tensor_product_samples
+        nsamples = values.shape[1]  # nsamples is second dimension
         for term_idx in range(nterms):
             # Extract multi-index for this PCE term
             term_multi_idx = [int(indices[dim, term_idx]) for dim in range(self._nvars)]
 
             # Sum over all Lagrange basis functions
-            for sample_idx in range(values.shape[0]):
+            for sample_idx in range(nsamples):
                 # Extract multi-index for this sample (Lagrange basis)
                 sample_multi_idx = self._sample_idx_to_multi_idx(
                     sample_idx, npts_1d
@@ -277,7 +279,7 @@ class TensorProductSubspaceToPCEConverter(Generic[Array]):
                     proj_coef *= float(projection_coefs_1d[dim][j_d, i_d])
 
                 # Add contribution from this Lagrange basis
-                coefficients[term_idx, :] += proj_coef * values[sample_idx, :]
+                coefficients[:, term_idx] += proj_coef * values[:, sample_idx]
 
         return indices, coefficients
 
@@ -384,7 +386,7 @@ class SparseGridToPCEConverter(Generic[Array]):
         if first_values is None:
             raise ValueError("Sparse grid values not set")
         if nqoi is None:
-            nqoi = first_values.shape[1]
+            nqoi = first_values.shape[0]  # nqoi is first dimension
 
         # Collect all unique indices and their coefficients
         all_indices: dict = {}  # multi-index tuple -> coefficient array
@@ -402,25 +404,26 @@ class SparseGridToPCEConverter(Generic[Array]):
             weighted_coefficients = coef * coefficients
 
             # Merge into accumulated indices
+            # coefficients has shape (nqoi, nterms)
             for term_idx in range(indices.shape[1]):
                 idx_tuple = tuple(int(indices[dim, term_idx]) for dim in range(self._nvars))
 
                 if idx_tuple in all_indices:
-                    all_indices[idx_tuple] = all_indices[idx_tuple] + weighted_coefficients[term_idx, :]
+                    all_indices[idx_tuple] = all_indices[idx_tuple] + weighted_coefficients[:, term_idx]
                 else:
-                    all_indices[idx_tuple] = self._bkd.copy(weighted_coefficients[term_idx, :])
+                    all_indices[idx_tuple] = self._bkd.copy(weighted_coefficients[:, term_idx])
 
         # Build final PCE
         nterms = len(all_indices)
         pce_indices = self._bkd.zeros(
             (self._nvars, nterms), dtype=self._bkd.int64_dtype()
         )
-        pce_coefficients = self._bkd.zeros((nterms, nqoi))
+        pce_coefficients = self._bkd.zeros((nqoi, nterms))
 
         for j, (idx_tuple, coefs) in enumerate(all_indices.items()):
             for dim in range(self._nvars):
                 pce_indices[dim, j] = idx_tuple[dim]
-            pce_coefficients[j, :] = coefs
+            pce_coefficients[:, j] = coefs
 
         # Determine maximum index in each dimension and set 1D basis nterms
         max_indices = [0] * self._nvars
@@ -443,6 +446,7 @@ class SparseGridToPCEConverter(Generic[Array]):
             bases_for_pce, self._bkd, pce_indices
         )
         pce = PolynomialChaosExpansion(basis, self._bkd, nqoi)
-        pce.set_coefficients(pce_coefficients)
+        # PCE expects coefficients in (nterms, nqoi) format
+        pce.set_coefficients(pce_coefficients.T)
 
         return pce

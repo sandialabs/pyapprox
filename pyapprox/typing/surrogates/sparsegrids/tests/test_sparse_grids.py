@@ -128,14 +128,17 @@ class TestTensorProductSubspace(unittest.TestCase):
 
         # Test function: f(x, y) = x^2 + y
         samples = subspace.get_samples()
-        values = samples[0:1, :].T ** 2 + samples[1:2, :].T
+        x, y = samples[0, :], samples[1, :]
+        # Values shape: (nqoi, nsamples) = (1, nsamples)
+        values = (x ** 2 + y).reshape((1, -1))
         subspace.set_values(values)
 
         # Test at new points
         test_pts = self.bkd.asarray([[0.3, -0.5, 0.7],
                                       [0.2, 0.4, -0.3]])
         result = subspace(test_pts)
-        expected = test_pts[0:1, :].T ** 2 + test_pts[1:2, :].T
+        x_t, y_t = test_pts[0, :], test_pts[1, :]
+        expected = (x_t ** 2 + y_t).reshape((1, -1))
 
         np.testing.assert_allclose(
             self.bkd.to_numpy(result),
@@ -206,7 +209,8 @@ class TestIsotropicSparseGrid(unittest.TestCase):
         # Test function: f(x, y) = x^2 + x*y + y^2
         samples = grid.get_samples()
         x, y = samples[0, :], samples[1, :]
-        values = (x ** 2 + x * y + y ** 2)[:, None]
+        # Values shape: (nqoi, nsamples) = (1, nsamples)
+        values = (x ** 2 + x * y + y ** 2).reshape((1, -1))
         grid.set_values(values)
 
         # Test at new points
@@ -215,7 +219,7 @@ class TestIsotropicSparseGrid(unittest.TestCase):
         result = grid(test_pts)
 
         x_test, y_test = test_pts[0, :], test_pts[1, :]
-        expected = (x_test ** 2 + x_test * y_test + y_test ** 2)[:, None]
+        expected = (x_test ** 2 + x_test * y_test + y_test ** 2).reshape((1, -1))
 
         np.testing.assert_allclose(
             self.bkd.to_numpy(result),
@@ -304,7 +308,9 @@ class TestAdaptiveSparseGrid(unittest.TestCase):
         self.assertGreater(samples.shape[1], 0)
 
         # Values should be accepted
-        values = samples[0:1, :].T ** 2 + samples[1:2, :].T ** 2
+        # Values shape: (nqoi, nsamples) = (1, nsamples)
+        x, y = samples[0, :], samples[1, :]
+        values = (x ** 2 + y ** 2).reshape((1, -1))
         grid.step_values(values)
 
         # Second step should also return samples (candidates exist)
@@ -332,9 +338,10 @@ class TestAdaptiveSparseGrid(unittest.TestCase):
         )
 
         # Test function: f(x, y) = x^2 + y^2
+        # Values shape: (nqoi, nsamples) = (1, nsamples)
         def test_func(samples):
             x, y = samples[0, :], samples[1, :]
-            return (x ** 2 + y ** 2)[:, None]
+            return (x ** 2 + y ** 2).reshape((1, -1))
 
         # Perform several refinement steps
         for _ in range(3):
@@ -376,9 +383,10 @@ class TestAdaptiveSparseGrid(unittest.TestCase):
         )
 
         # Polynomial that should be exactly represented
+        # Values shape: (nqoi, nsamples) = (1, nsamples)
         def poly_func(samples):
             x, y = samples[0, :], samples[1, :]
-            return (x ** 2 + y ** 2)[:, None]
+            return (x ** 2 + y ** 2).reshape((1, -1))
 
         # Refine until convergence
         max_steps = 10

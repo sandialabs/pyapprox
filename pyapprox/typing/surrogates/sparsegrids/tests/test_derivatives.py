@@ -51,7 +51,7 @@ class TestSparseGridDerivatives(Generic[Array], unittest.TestCase):
         # f(x, y) = x + 2*y
         samples = grid.get_samples()
         values = self._bkd.reshape(
-            samples[0, :] + 2 * samples[1, :], (-1, 1)
+            samples[0, :] + 2 * samples[1, :], (1, -1)
         )
         grid.set_values(values)
 
@@ -88,7 +88,7 @@ class TestSparseGridDerivatives(Generic[Array], unittest.TestCase):
         # f(x, y) = x^2 + x*y
         samples = grid.get_samples()
         x, y = samples[0, :], samples[1, :]
-        values = self._bkd.reshape(x ** 2 + x * y, (-1, 1))
+        values = self._bkd.reshape(x ** 2 + x * y, (1, -1))
         grid.set_values(values)
 
         # Wrap for derivative checker
@@ -125,7 +125,7 @@ class TestSparseGridDerivatives(Generic[Array], unittest.TestCase):
         # f(x, y, z) = x + y + z
         samples = grid.get_samples()
         values = self._bkd.reshape(
-            samples[0, :] + samples[1, :] + samples[2, :], (-1, 1)
+            samples[0, :] + samples[1, :] + samples[2, :], (1, -1)
         )
         grid.set_values(values)
 
@@ -162,7 +162,7 @@ class TestSparseGridDerivatives(Generic[Array], unittest.TestCase):
         # f(x, y) = x^2 + y^2
         samples = grid.get_samples()
         values = self._bkd.reshape(
-            samples[0, :] ** 2 + samples[1, :] ** 2, (-1, 1)
+            samples[0, :] ** 2 + samples[1, :] ** 2, (1, -1)
         )
         grid.set_values(values)
 
@@ -193,7 +193,7 @@ class TestSparseGridDerivatives(Generic[Array], unittest.TestCase):
         # f(x, y) = x^2 + y^2
         samples = grid.get_samples()
         values = self._bkd.reshape(
-            samples[0, :] ** 2 + samples[1, :] ** 2, (-1, 1)
+            samples[0, :] ** 2 + samples[1, :] ** 2, (1, -1)
         )
         grid.set_values(values)
 
@@ -227,7 +227,7 @@ class TestSparseGridDerivatives(Generic[Array], unittest.TestCase):
         # f(x, y) = x^2 + y^2
         samples = grid.get_samples()
         values = self._bkd.reshape(
-            samples[0, :] ** 2 + samples[1, :] ** 2, (-1, 1)
+            samples[0, :] ** 2 + samples[1, :] ** 2, (1, -1)
         )
         grid.set_values(values)
 

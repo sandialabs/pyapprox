@@ -4,7 +4,7 @@ Sparse grids are linear combinations of tensor product subspaces using
 the Smolyak combination technique.
 """
 
-from typing import Dict, Generic, List, Optional, Set, Tuple
+from typing import Dict, Generic, List, Optional, Tuple
 
 from pyapprox.typing.util.backends.protocols import Array, Backend
 from pyapprox.typing.surrogates.affine.protocols import (
@@ -32,6 +32,11 @@ class CombinationSparseGrid(Generic[Array]):
         Univariate bases for each dimension.
     growth_rule : IndexGrowthRuleProtocol
         Rule mapping level to number of points.
+
+    Notes
+    -----
+    Values have shape (nqoi, nsamples) following CLAUDE.md conventions:
+    - Output f(X) (batch): (nqoi, nsamples) - QoIs as rows, samples as columns
 
     Examples
     --------
@@ -106,19 +111,19 @@ class CombinationSparseGrid(Generic[Array]):
         Parameters
         ----------
         values : Array
-            Values of shape (nsamples, nqoi)
+            Values of shape (nqoi, nsamples).
         """
         if self._unique_samples is None:
             self._collect_unique_samples()
 
         nsamples = self._unique_samples.shape[1]
-        if values.shape[0] != nsamples:
+        if values.shape[1] != nsamples:
             raise ValueError(
-                f"Expected {nsamples} values, got {values.shape[0]}"
+                f"Expected {nsamples} samples (columns), got {values.shape[1]}"
             )
 
         self._values = self._bkd.copy(values)
-        self._nqoi = values.shape[1]
+        self._nqoi = values.shape[0]
 
         # Distribute values to subspaces
         self._distribute_values_to_subspaces()
@@ -214,13 +219,14 @@ class CombinationSparseGrid(Generic[Array]):
             samples = subspace.get_samples()
             nsamples = samples.shape[1]
 
-            subspace_values = self._bkd.zeros((nsamples, self._nqoi))
+            # Values shape: (nqoi, nsamples_subspace)
+            subspace_values = self._bkd.zeros((self._nqoi, nsamples))
             for j in range(nsamples):
                 key = tuple(
                     float(samples[i, j]) for i in range(self._nvars)
                 )
                 idx = self._sample_to_idx[key]
-                subspace_values[j, :] = self._values[idx, :]
+                subspace_values[:, j] = self._values[:, idx]
 
             subspace.set_values(subspace_values)
 
@@ -235,7 +241,7 @@ class CombinationSparseGrid(Generic[Array]):
         Returns
         -------
         Array
-            Interpolant values of shape (npoints, nqoi)
+            Interpolant values of shape (nqoi, npoints)
         """
         if self._values is None:
             raise ValueError("Values not set. Call set_values() first.")
@@ -244,7 +250,7 @@ class CombinationSparseGrid(Generic[Array]):
             self._update_smolyak_coefficients()
 
         npoints = samples.shape[1]
-        result = self._bkd.zeros((npoints, self._nqoi))
+        result = self._bkd.zeros((self._nqoi, npoints))
 
         for j, subspace in enumerate(self._subspace_list):
             coef = float(self._smolyak_coefficients[j])
@@ -354,7 +360,7 @@ class CombinationSparseGrid(Generic[Array]):
         for j, subspace in enumerate(self._subspace_list):
             coef = float(self._smolyak_coefficients[j])
             if abs(coef) > 1e-14:
-                subspace_hvp = subspace.hvp(sample, vec, qoi_idx=0)
+                subspace_hvp = subspace.hvp(sample, vec)
                 result = result + coef * subspace_hvp
 
         return result
@@ -394,6 +400,46 @@ class CombinationSparseGrid(Generic[Array]):
             if abs(coef) > 1e-14:
                 subspace_whvp = subspace.whvp(sample, vec, weights)
                 result = result + coef * subspace_whvp
+
+        return result
+
+    def mean(self) -> Array:
+        """Compute the integral of the interpolant using sparse grid quadrature.
+
+        Computes the Smolyak combination of tensor product integrals:
+            I[f] = sum_k c_k * I_k[f]
+
+        where c_k are Smolyak coefficients and I_k[f] is the tensor product
+        quadrature integral for subspace k.
+
+        For orthonormal polynomial bases with probability=True (default),
+        the quadrature weights sum to 1, so this directly computes E[f].
+        For physics measure (probability=False), weights reflect the
+        integral of the weight function.
+
+        Returns
+        -------
+        Array
+            Integral values of shape (nqoi,)
+
+        Notes
+        -----
+        Quadrature weights are NOT normalized here - they come directly
+        from the Gauss quadrature rule of each polynomial basis.
+        """
+        if self._values is None:
+            raise ValueError("Values not set. Call set_values() first.")
+
+        if self._smolyak_coefficients is None:
+            self._update_smolyak_coefficients()
+
+        result = self._bkd.zeros((self._nqoi,))
+
+        for j, subspace in enumerate(self._subspace_list):
+            coef = float(self._smolyak_coefficients[j])
+            if abs(coef) > 1e-14:
+                subspace_mean = subspace.integrate()
+                result = result + coef * subspace_mean
 
         return result
 

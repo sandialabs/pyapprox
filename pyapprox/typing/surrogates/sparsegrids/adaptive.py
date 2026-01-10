@@ -132,7 +132,7 @@ class AdaptiveCombinationSparseGrid(CombinationSparseGrid[Array], Generic[Array]
         current_vals = self._evaluate_selected_only(samples)
         error = float(
             self._bkd.norm(subspace_values - current_vals)
-            / max(1, subspace_values.shape[0])
+            / max(1, subspace_values.shape[1])  # nsamples is in second dim
         )
 
         # Higher error = higher priority (return positive priority)
@@ -141,17 +141,17 @@ class AdaptiveCombinationSparseGrid(CombinationSparseGrid[Array], Generic[Array]
     def _evaluate_selected_only(self, samples: Array) -> Array:
         """Evaluate sparse grid using only selected subspaces."""
         if self._values is None or self._nqoi is None:
-            return self._bkd.zeros((samples.shape[1], 1))
+            return self._bkd.zeros((1, samples.shape[1]))
 
         # Get Smolyak coefficients for selected indices only
         selected_indices = self._index_gen.get_selected_indices()
         if selected_indices.shape[1] == 0:
-            return self._bkd.zeros((samples.shape[1], self._nqoi))
+            return self._bkd.zeros((self._nqoi, samples.shape[1]))
 
         smolyak_coefs = compute_smolyak_coefficients(selected_indices, self._bkd)
 
         npoints = samples.shape[1]
-        result = self._bkd.zeros((npoints, self._nqoi))
+        result = self._bkd.zeros((self._nqoi, npoints))
 
         for j, index in enumerate(selected_indices.T):
             key = _index_to_tuple(index)
@@ -304,13 +304,13 @@ class AdaptiveCombinationSparseGrid(CombinationSparseGrid[Array], Generic[Array]
         Parameters
         ----------
         values : Array
-            Values of shape (nnew, nqoi)
+            Values of shape (nqoi, nnew)
         """
         if self._values is None:
             self._values = values
-            self._nqoi = values.shape[1]
+            self._nqoi = values.shape[0]  # nqoi is first dim
         else:
-            self._values = self._bkd.vstack((self._values, values))
+            self._values = self._bkd.hstack((self._values, values))
 
         # Distribute values to subspaces
         self._distribute_values_to_subspaces()
@@ -397,7 +397,7 @@ class AdaptiveCombinationSparseGrid(CombinationSparseGrid[Array], Generic[Array]
         Returns
         -------
         Array
-            Interpolant values of shape (npoints, nqoi)
+            Interpolant values of shape (nqoi, npoints)
         """
         if self._values is None or self._nqoi is None:
             raise ValueError("Values not set. Call step_values() first.")

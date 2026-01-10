@@ -50,9 +50,9 @@ class TestAdaptiveSparseGrid(Generic[Array], unittest.TestCase):
         self.assertIsNotNone(samples)
         self.assertGreater(samples.shape[1], 0)
 
-        # Values should be accepted
+        # Values should be accepted - shape (nqoi, nsamples)
         x, y = samples[0, :], samples[1, :]
-        values = self._bkd.reshape(x ** 2 + y ** 2, (-1, 1))
+        values = self._bkd.reshape(x ** 2 + y ** 2, (1, -1))
         grid.step_values(values)
 
         # Second step should also return samples (candidates exist)
@@ -70,10 +70,10 @@ class TestAdaptiveSparseGrid(Generic[Array], unittest.TestCase):
             self._bkd, [basis, basis], growth, admis
         )
 
-        # Test function: f(x, y) = x^2 + y^2
+        # Test function: f(x, y) = x^2 + y^2 - shape (nqoi, nsamples)
         def test_func(samples: Array) -> Array:
             x, y = samples[0, :], samples[1, :]
-            return self._bkd.reshape(x ** 2 + y ** 2, (-1, 1))
+            return self._bkd.reshape(x ** 2 + y ** 2, (1, -1))
 
         # Perform several refinement steps
         for _ in range(3):
@@ -100,10 +100,10 @@ class TestAdaptiveSparseGrid(Generic[Array], unittest.TestCase):
             self._bkd, [basis, basis], growth, admis
         )
 
-        # Polynomial that should be exactly represented
+        # Polynomial that should be exactly represented - shape (nqoi, nsamples)
         def poly_func(samples: Array) -> Array:
             x, y = samples[0, :], samples[1, :]
-            return self._bkd.reshape(x ** 2 + y ** 2, (-1, 1))
+            return self._bkd.reshape(x ** 2 + y ** 2, (1, -1))
 
         # Refine until convergence
         max_steps = 10
@@ -134,10 +134,10 @@ class TestAdaptiveSparseGrid(Generic[Array], unittest.TestCase):
             self._bkd, [basis, basis], growth, admis
         )
 
-        # Two QoIs
+        # Two QoIs - shape (nqoi, nsamples)
         def multi_func(samples: Array) -> Array:
             x, y = samples[0, :], samples[1, :]
-            return self._bkd.stack([x + y, x * y], axis=1)
+            return self._bkd.stack([x + y, x * y], axis=0)
 
         # Refine
         for _ in range(3):
@@ -151,7 +151,7 @@ class TestAdaptiveSparseGrid(Generic[Array], unittest.TestCase):
         test_pts = self._bkd.asarray([[0.3, -0.2], [0.4, 0.5]])
         result = grid(test_pts)
 
-        self.assertEqual(result.shape[1], 2)
+        self.assertEqual(result.shape[0], 2)  # nqoi is first dimension
 
     def test_3d_adaptive_grid(self) -> None:
         """Test 3D adaptive sparse grid."""
@@ -163,10 +163,10 @@ class TestAdaptiveSparseGrid(Generic[Array], unittest.TestCase):
             self._bkd, bases, growth, admis
         )
 
-        # Linear function
+        # Linear function - shape (nqoi, nsamples)
         def linear_func(samples: Array) -> Array:
             return self._bkd.reshape(
-                samples[0, :] + samples[1, :] + samples[2, :], (-1, 1)
+                samples[0, :] + samples[1, :] + samples[2, :], (1, -1)
             )
 
         # Refine until convergence (or max steps)

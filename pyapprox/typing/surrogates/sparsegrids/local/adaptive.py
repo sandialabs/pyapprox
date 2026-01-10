@@ -427,6 +427,104 @@ class LocallyAdaptiveCombinationSparseGrid(Generic[Array]):
         """Return number of candidate basis functions."""
         return self._index_gen.ncandidates()
 
+    def _integrate_1d_basis(self, idx: int) -> float:
+        """Compute integral of 1D hierarchical basis function over [0, 1].
+
+        For piecewise linear hat functions:
+        - Interior hat: area = base * height / 2 = 2*half_width * 1 / 2 = half_width
+        - Boundary half-hat: area = half_width * 1 / 2 = half_width / 2
+
+        Parameters
+        ----------
+        idx : int
+            1D basis index.
+
+        Returns
+        -------
+        float
+            Integral of the basis function over [0, 1].
+        """
+        import math
+
+        if idx == 0:
+            # Root: center=0.5, half_width=0.5, full hat
+            return 0.5
+        elif idx == 1:
+            # Left boundary: half-hat at x=0
+            return 0.25
+        elif idx == 2:
+            # Right boundary: half-hat at x=1
+            return 0.25
+        else:
+            # Interior hierarchical: level determines half_width
+            level = int(math.floor(math.log2(idx + 1)))
+            half_width = 1.0 / (2 ** (level + 1))
+            return half_width
+
+    def _integrate_basis(self, basis_index: Array) -> float:
+        """Compute integral of tensor-product basis function over [0, 1]^nvars.
+
+        Parameters
+        ----------
+        basis_index : Array
+            Basis index. Shape: (nvars,)
+
+        Returns
+        -------
+        float
+            Integral of the basis function.
+        """
+        integral = 1.0
+        for d in range(self._nvars):
+            idx = int(basis_index[d])
+            integral *= self._integrate_1d_basis(idx)
+        return integral
+
+    def mean(self) -> Array:
+        """Compute the mean (expectation) of the interpolant.
+
+        Computes E[f] = integral f(x) dx over [0, 1]^nvars using the
+        hierarchical representation:
+            E[f] = sum_i c_i * integral(phi_i)
+
+        where c_i are the hierarchical coefficients (function values at nodes)
+        and phi_i are the basis functions.
+
+        Returns
+        -------
+        Array
+            Mean values of shape (nqoi,)
+
+        Notes
+        -----
+        This computes the expectation with respect to the uniform probability
+        measure on [0, 1]^nvars. For more accurate integration, use more
+        refinement steps.
+        """
+        if self._values is None or self._nqoi is None:
+            raise ValueError("Values not set. Call step_values() first.")
+
+        result = self._bkd.zeros((self._nqoi,))
+
+        # Sum over selected basis functions only
+        for key, sample_idx in self._basis_to_sample_idx.items():
+            if key not in self._index_gen._sel_basis_indices_dict:
+                continue
+
+            basis_index = self._bkd.asarray(
+                list(key), dtype=self._bkd.int64_dtype()
+            )
+
+            # Compute integral of this basis function
+            basis_integral = self._integrate_basis(basis_index)
+
+            # Get coefficient (value at node)
+            if sample_idx < self._values.shape[0]:
+                coef = self._values[sample_idx, :]  # Shape: (nqoi,)
+                result = result + basis_integral * coef
+
+        return result
+
     def __repr__(self) -> str:
         return (
             f"LocallyAdaptiveCombinationSparseGrid(nvars={self._nvars}, "
