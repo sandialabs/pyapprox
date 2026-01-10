@@ -15,7 +15,7 @@ from typing import Generic, Tuple
 from scipy import special as sp
 
 from pyapprox.typing.util.backends.protocols import Array, Backend
-from pyapprox.typing.surrogates.affine.univariate.orthopoly_base import (
+from pyapprox.typing.surrogates.affine.univariate.globalpoly.orthopoly_base import (
     OrthonormalPolynomial1D,
 )
 
@@ -43,36 +43,29 @@ def jacobi_recurrence(
     beta : Array
         Second Jacobi parameter.
     probability : bool
-        If True, normalize for probability measure.
+        If True, normalize for probability measure (set b[0] = 1.0).
     bkd : Backend[Array]
         Computational backend.
 
     Returns
     -------
     Array
-        Recursion coefficients. Shape: (ncoefs, 2)
+        Recursion coefficients. Shape: (ncoefs, 2) or (0, 2) if ncoefs == 0.
+
+    Notes
+    -----
+    For ncoefs=1:
+        - a[0] = (beta - alpha) / (alpha + beta + 2) is the 1-point quadrature node
+        - b[0] = 1 (probability) or integral of weight function (physics measure)
+
+    For Legendre (alpha=beta=0): a[0]=0, b[0]=1, so 1-pt quad is x=0, w=1.
     """
-    if ncoefs < 1:
+    if ncoefs == 0:
         return bkd.ones((0, 2))
-    if ncoefs == 1:
-        # Just need the first coefficient for the constant polynomial
-        ab = bkd.ones((1, 2))
-        ab[0, 0] = (beta - alpha) / (alpha + beta + 2.0)
-        ab[0, 1] = bkd.exp(
-            (alpha + beta + 1.0) * math.log(2.0)
-            + bkd.asarray(
-                sp.gammaln(bkd.to_numpy(alpha + 1.0))
-                + sp.gammaln(bkd.to_numpy(beta + 1.0))
-                - sp.gammaln(bkd.to_numpy(alpha + beta + 2.0))
-            )
-        )
-        if probability:
-            ab[:, 1] = bkd.sqrt(ab[:, 1])
-        return ab
 
     ab = bkd.ones((ncoefs, 2)) * bkd.array([beta**2.0 - alpha**2.0, 1.0])
 
-    # Special cases
+    # First coefficient (always needed for ncoefs >= 1)
     ab[0, 0] = (beta - alpha) / (alpha + beta + 2.0)
     ab[0, 1] = bkd.exp(
         (alpha + beta + 1.0) * math.log(2.0)
@@ -92,16 +85,17 @@ def jacobi_recurrence(
             / ((alpha + beta + 2.0) ** 2 * (alpha + beta + 3.0))
         )
 
-    inds = bkd.arange(2, ncoefs)
-    ab[2:, 0] /= (2.0 * inds + alpha + beta) * (2 * inds + alpha + beta + 2.0)
-    ab[2:, 1] = (
-        4 * inds * (inds + alpha) * (inds + beta) * (inds + alpha + beta)
-    )
-    ab[2:, 1] /= (
-        (2.0 * inds + alpha + beta) ** 2
-        * (2.0 * inds + alpha + beta + 1.0)
-        * (2.0 * inds + alpha + beta - 1)
-    )
+    if ncoefs > 2:
+        inds = bkd.arange(2, ncoefs)
+        ab[2:, 0] /= (2.0 * inds + alpha + beta) * (2 * inds + alpha + beta + 2.0)
+        ab[2:, 1] = (
+            4 * inds * (inds + alpha) * (inds + beta) * (inds + alpha + beta)
+        )
+        ab[2:, 1] /= (
+            (2.0 * inds + alpha + beta) ** 2
+            * (2.0 * inds + alpha + beta + 1.0)
+            * (2.0 * inds + alpha + beta - 1)
+        )
 
     ab[:, 1] = bkd.sqrt(ab[:, 1])
 

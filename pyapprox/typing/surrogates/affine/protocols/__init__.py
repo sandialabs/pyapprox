@@ -7,6 +7,7 @@ from pyapprox.typing.surrogates.affine.protocols.basis1d import (
     Basis1DHasDerivativesProtocol,
     Basis1DWithJacobianProtocol,
     Basis1DWithJacobianAndHessianProtocol,
+    InterpolationBasis1DProtocol,
     OrthonormalPolynomial1DProtocol,
     Basis1DHasQuadratureProtocol,
 )
@@ -67,6 +68,7 @@ __all__ = [
     "Basis1DHasDerivativesProtocol",
     "Basis1DWithJacobianProtocol",
     "Basis1DWithJacobianAndHessianProtocol",
+    "InterpolationBasis1DProtocol",
     "OrthonormalPolynomial1DProtocol",
     "Basis1DHasQuadratureProtocol",
     # Multivariate basis protocols

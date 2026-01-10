@@ -11,7 +11,7 @@ probability distributions:
 from typing import Generic
 
 from pyapprox.typing.util.backends.protocols import Array, Backend
-from pyapprox.typing.surrogates.affine.univariate.orthopoly_base import (
+from pyapprox.typing.surrogates.affine.univariate.globalpoly.orthopoly_base import (
     OrthonormalPolynomial1D,
 )
 

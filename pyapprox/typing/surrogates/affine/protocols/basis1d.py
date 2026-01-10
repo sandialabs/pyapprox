@@ -13,10 +13,14 @@ Protocol Hierarchy:
     - Basis1DHasJacobianProtocol
     - Basis1DHasHessianProtocol
     - Basis1DHasDerivativesProtocol (arbitrary order)
+    - Basis1DHasQuadratureProtocol
 
 "With" protocols compose capabilities:
     - Basis1DWithJacobianProtocol = Basis1DProtocol + HasJacobian
     - Basis1DWithJacobianAndHessianProtocol = WithJacobian + HasHessian
+
+Interpolation protocols:
+    - InterpolationBasis1DProtocol - for tensor product interpolation
 
 Specialized protocols:
     - OrthonormalPolynomial1DProtocol - for orthonormal polynomial bases
@@ -213,6 +217,101 @@ class Basis1DWithJacobianAndHessianProtocol(
     """
 
     pass
+
+
+# Interpolation protocols
+
+
+@runtime_checkable
+class InterpolationBasis1DProtocol(Protocol, Generic[Array]):
+    """Protocol for 1D bases suitable for tensor product interpolation.
+
+    This protocol defines the requirements for a 1D basis that can be used
+    in tensor product interpolation. It requires:
+    - Evaluation of basis functions at sample points
+    - A method to get interpolation nodes (sample locations)
+
+    Derivative support (jacobian_batch, hessian_batch) is checked at runtime
+    via isinstance checks against Basis1DHasJacobianProtocol and
+    Basis1DHasHessianProtocol.
+
+    This protocol is NOT satisfied by orthogonal polynomial bases (Legendre,
+    Hermite, etc.) directly. Use LagrangeBasis1D or piecewise polynomial
+    bases for tensor product interpolation.
+
+    Methods
+    -------
+    bkd() -> Backend[Array]
+        Return the computational backend.
+    set_nterms(nterms: int) -> None
+        Set the number of basis terms (interpolation points).
+    nterms() -> int
+        Return the current number of terms.
+    __call__(samples: Array) -> Array
+        Evaluate basis at sample points.
+    get_samples(nterms: int) -> Array
+        Return interpolation nodes for the given number of terms.
+
+    Notes
+    -----
+    Input samples shape: (1, nsamples)
+    Output shape: (nsamples, nterms)
+    Interpolation nodes shape: (1, nterms)
+
+    Examples
+    --------
+    LagrangeBasis1D satisfies this protocol:
+
+    >>> isinstance(lagrange_basis, InterpolationBasis1DProtocol)
+    True
+
+    Orthogonal polynomial bases do NOT satisfy this protocol:
+
+    >>> isinstance(legendre_poly, InterpolationBasis1DProtocol)
+    False
+    """
+
+    def bkd(self) -> Backend[Array]:
+        """Return the computational backend."""
+        ...
+
+    def set_nterms(self, nterms: int) -> None:
+        """Set the number of basis terms (interpolation points)."""
+        ...
+
+    def nterms(self) -> int:
+        """Return the number of basis terms."""
+        ...
+
+    def __call__(self, samples: Array) -> Array:
+        """Evaluate basis functions at sample points.
+
+        Parameters
+        ----------
+        samples : Array
+            Sample points. Shape: (1, nsamples)
+
+        Returns
+        -------
+        Array
+            Basis values. Shape: (nsamples, nterms)
+        """
+        ...
+
+    def get_samples(self, nterms: int) -> Array:
+        """Return interpolation nodes for the given number of terms.
+
+        Parameters
+        ----------
+        nterms : int
+            Number of interpolation points.
+
+        Returns
+        -------
+        Array
+            Interpolation nodes. Shape: (1, nterms)
+        """
+        ...
 
 
 # Specialized protocols

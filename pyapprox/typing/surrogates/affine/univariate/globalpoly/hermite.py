@@ -13,7 +13,7 @@ from typing import Generic
 from scipy import special as sp
 
 from pyapprox.typing.util.backends.protocols import Array, Backend
-from pyapprox.typing.surrogates.affine.univariate.orthopoly_base import (
+from pyapprox.typing.surrogates.affine.univariate.globalpoly.orthopoly_base import (
     OrthonormalPolynomial1D,
 )
 

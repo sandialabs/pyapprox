@@ -330,5 +330,23 @@ class LagrangeBasis1D(Generic[Array]):
         """
         return self._quadrature_rule(npoints)
 
+    def get_samples(self, nterms: int) -> Array:
+        """Return interpolation nodes for the given number of terms.
+
+        This method satisfies the InterpolationBasis1DProtocol requirement.
+
+        Parameters
+        ----------
+        nterms : int
+            Number of interpolation points.
+
+        Returns
+        -------
+        Array
+            Interpolation nodes. Shape: (1, nterms)
+        """
+        samples, _ = self._quadrature_rule(nterms)
+        return samples
+
     def __repr__(self) -> str:
         return f"LagrangeBasis1D(nterms={self._nterms})"

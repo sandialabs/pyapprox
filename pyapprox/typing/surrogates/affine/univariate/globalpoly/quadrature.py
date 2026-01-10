@@ -7,7 +7,7 @@ polynomial families to compute Gaussian quadrature points and weights.
 from typing import Generic, Tuple, Optional
 
 from pyapprox.typing.util.backends.protocols import Array, Backend
-from pyapprox.typing.surrogates.affine.univariate.orthopoly_base import (
+from pyapprox.typing.surrogates.affine.univariate.globalpoly.orthopoly_base import (
     OrthonormalPolynomial1D,
 )
 
