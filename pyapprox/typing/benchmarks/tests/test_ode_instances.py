@@ -72,11 +72,11 @@ class TestLotkaVolterra3SpeciesBenchmark(Generic[Array], unittest.TestCase):
         self.assertEqual(gt.nparams, 12)
 
     def test_ground_truth_initial_condition(self) -> None:
-        """Test ground truth initial condition."""
+        """Test ground truth initial condition has shape (nstates, 1)."""
         benchmark = lotka_volterra_3species(self._bkd)
         gt = benchmark.ground_truth()
-        expected = np.array([0.3, 0.4, 0.3])
-        np.testing.assert_allclose(gt.initial_condition, expected, atol=1e-14)
+        expected = self._bkd.array([[0.3], [0.4], [0.3]])
+        self._bkd.assert_allclose(gt.initial_condition, expected, atol=1e-14)
 
     def test_time_config(self) -> None:
         """Test time configuration."""
@@ -121,8 +121,8 @@ class TestLotkaVolterra3SpeciesBenchmark(Generic[Array], unittest.TestCase):
         param = self._bkd.asarray(gt.nominal_parameters)
         residual.set_param(param)
 
-        # Evaluate at initial condition
-        state = self._bkd.asarray(gt.initial_condition)
+        # Evaluate at initial condition (flatten from (nstates, 1) to (nstates,))
+        state = self._bkd.flatten(gt.initial_condition)
         f = residual(state)
         self.assertEqual(f.shape, (3,))
 
@@ -135,7 +135,8 @@ class TestLotkaVolterra3SpeciesBenchmark(Generic[Array], unittest.TestCase):
         param = self._bkd.asarray(gt.nominal_parameters)
         residual.set_param(param)
 
-        state = self._bkd.asarray(gt.initial_condition)
+        # Flatten from (nstates, 1) to (nstates,)
+        state = self._bkd.flatten(gt.initial_condition)
         jac = residual.jacobian(state)
         self.assertEqual(jac.shape, (3, 3))
 
@@ -148,7 +149,8 @@ class TestLotkaVolterra3SpeciesBenchmark(Generic[Array], unittest.TestCase):
         param = self._bkd.asarray(gt.nominal_parameters)
         residual.set_param(param)
 
-        state = self._bkd.asarray(gt.initial_condition)
+        # Flatten from (nstates, 1) to (nstates,)
+        state = self._bkd.flatten(gt.initial_condition)
         pjac = residual.param_jacobian(state)
         self.assertEqual(pjac.shape, (3, 12))
 
@@ -233,7 +235,8 @@ class TestCoupledSprings2MassBenchmark(Generic[Array], unittest.TestCase):
         param = self._bkd.asarray(gt.nominal_parameters)
         residual.set_param(param)
 
-        state = self._bkd.asarray(gt.initial_condition)
+        # Flatten from (nstates, 1) to (nstates,)
+        state = self._bkd.flatten(gt.initial_condition)
         f = residual(state)
         self.assertEqual(f.shape, (4,))
 
@@ -318,7 +321,8 @@ class TestHastingsEcology3SpeciesBenchmark(Generic[Array], unittest.TestCase):
         param = self._bkd.asarray(gt.nominal_parameters)
         residual.set_param(param)
 
-        state = self._bkd.asarray(gt.initial_condition)
+        # Flatten from (nstates, 1) to (nstates,)
+        state = self._bkd.flatten(gt.initial_condition)
         f = residual(state)
         self.assertEqual(f.shape, (3,))
 
@@ -378,11 +382,11 @@ class TestChemicalReactionSurfaceBenchmark(Generic[Array], unittest.TestCase):
         self.assertEqual(tc.ntimes(), 1001)
 
     def test_ground_truth_initial_condition_zeros(self) -> None:
-        """Test initial condition is zeros (empty surface)."""
+        """Test initial condition is zeros (empty surface) with shape (nstates, 1)."""
         benchmark = chemical_reaction_surface(self._bkd)
         gt = benchmark.ground_truth()
-        expected = np.array([0.0, 0.0, 0.0])
-        np.testing.assert_allclose(gt.initial_condition, expected, atol=1e-14)
+        expected = self._bkd.array([[0.0], [0.0], [0.0]])
+        self._bkd.assert_allclose(gt.initial_condition, expected, atol=1e-14)
 
     def test_ground_truth_reference(self) -> None:
         """Test benchmark reference."""
@@ -404,7 +408,8 @@ class TestChemicalReactionSurfaceBenchmark(Generic[Array], unittest.TestCase):
         param = self._bkd.asarray(gt.nominal_parameters)
         residual.set_param(param)
 
-        state = self._bkd.asarray(gt.initial_condition)
+        # Flatten from (nstates, 1) to (nstates,)
+        state = self._bkd.flatten(gt.initial_condition)
         f = residual(state)
         self.assertEqual(f.shape, (3,))
 

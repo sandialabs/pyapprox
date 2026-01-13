@@ -5,9 +5,6 @@ and known ground truth values.
 """
 
 import math
-from typing import Generic
-
-import numpy as np
 
 from pyapprox.typing.util.backends.protocols import Array, Backend
 from pyapprox.typing.benchmarks.benchmark import BenchmarkWithPrior, BoxDomain
@@ -61,11 +58,11 @@ def ishigami_3d(
     D3 = 0.0
     D13 = b**2 * pi**8 / 18 - b**2 * pi**8 / 50
 
-    main_effects = np.array([D1 / variance, D2 / variance, D3 / variance])
-    total_effects = np.array([
-        (D1 + D13) / variance,
-        D2 / variance,
-        D13 / variance,
+    main_effects = bkd.array([[D1 / variance], [D2 / variance], [D3 / variance]])
+    total_effects = bkd.array([
+        [(D1 + D13) / variance],
+        [D2 / variance],
+        [D13 / variance],
     ])
 
     # Standard uniform prior for sensitivity analysis
@@ -140,11 +137,11 @@ def sobol_g_6d(
     a = [0.0, 1.0, 4.5, 9.0, 99.0, 99.0]
     nvars = len(a)
 
-    # Analytical Sobol indices
-    main_effects, total_effects, variance = sobol_g_indices(a)
+    # Analytical Sobol indices (returns backend arrays with shape (nvars, 1))
+    main_effects, total_effects, variance = sobol_g_indices(a, bkd)
 
     # Build Sobol indices dict for first-order
-    sobol_dict = {(i,): float(main_effects[i]) for i in range(nvars)}
+    sobol_dict = {(i,): float(main_effects[i, 0]) for i in range(nvars)}
 
     # Standard uniform prior on [0, 1]^6
     prior = IndependentJoint(
@@ -192,11 +189,11 @@ def sobol_g_4d(
     a = [0.0, 0.0, 0.0, 0.0]
     nvars = len(a)
 
-    # Analytical Sobol indices
-    main_effects, total_effects, variance = sobol_g_indices(a)
+    # Analytical Sobol indices (returns backend arrays with shape (nvars, 1))
+    main_effects, total_effects, variance = sobol_g_indices(a, bkd)
 
     # Build Sobol indices dict for first-order
-    sobol_dict = {(i,): float(main_effects[i]) for i in range(nvars)}
+    sobol_dict = {(i,): float(main_effects[i, 0]) for i in range(nvars)}
 
     # Standard uniform prior on [0, 1]^4
     prior = IndependentJoint(

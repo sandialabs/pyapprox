@@ -5,10 +5,6 @@ and known ground truth values. They wrap existing residuals from
 pyapprox.typing.pde.time.benchmarks.
 """
 
-from typing import List
-
-import numpy as np
-
 from pyapprox.typing.util.backends.protocols import Array, Backend
 from pyapprox.typing.benchmarks.benchmark import BoxDomain
 from pyapprox.typing.benchmarks.ground_truth import ODEGroundTruth
@@ -32,7 +28,7 @@ from pyapprox.typing.probability.joint.independent import IndependentJoint
 
 def lotka_volterra_3species(
     bkd: Backend[Array],
-) -> ODEBenchmark[Array, ODEGroundTruth]:
+) -> ODEBenchmark[Array, ODEGroundTruth[Array]]:
     """Create the 3-species competitive Lotka-Volterra benchmark.
 
     Standard 3-species competitive Lotka-Volterra benchmark with uniform
@@ -79,11 +75,11 @@ def lotka_volterra_3species(
     # Domain bounds
     bounds = bkd.array([[0.3, 0.7]] * nparams)
 
-    # Initial condition (from legacy code)
-    initial_condition = np.array([0.3, 0.4, 0.3])
+    # Initial condition (from legacy code) - shape (nstates, 1)
+    initial_condition = bkd.array([[0.3], [0.4], [0.3]])
 
-    # Nominal parameters (center of prior)
-    nominal_parameters = np.full(nparams, 0.5)
+    # Nominal parameters (center of prior) - shape (nparams, 1)
+    nominal_parameters = bkd.full((nparams, 1), 0.5)
 
     return ODEBenchmark(
         _name="lotka_volterra_3species",
@@ -116,13 +112,13 @@ def lotka_volterra_3species(
 )
 def _lotka_volterra_3species_factory(
     bkd: Backend[Array],
-) -> ODEBenchmark[Array, ODEGroundTruth]:
+) -> ODEBenchmark[Array, ODEGroundTruth[Array]]:
     return lotka_volterra_3species(bkd)
 
 
 def coupled_springs_2mass(
     bkd: Backend[Array],
-) -> ODEBenchmark[Array, ODEGroundTruth]:
+) -> ODEBenchmark[Array, ODEGroundTruth[Array]]:
     """Create the two-mass coupled springs benchmark.
 
     Two masses connected by springs with friction. The left end of the
@@ -187,11 +183,12 @@ def coupled_springs_2mass(
     # Domain bounds
     bounds = bkd.array(prior_ranges)
 
-    # Nominal parameters (center of prior)
-    nominal_parameters = np.array([(lo + hi) / 2 for lo, hi in prior_ranges])
+    # Nominal parameters (center of prior) - shape (nparams, 1)
+    nominal_parameters = bkd.array([(lo + hi) / 2 for lo, hi in prior_ranges]).reshape(-1, 1)
 
     # Initial condition from parameters (last 4 params are initial conditions)
-    initial_condition = nominal_parameters[8:]
+    # Shape: (nstates, 1)
+    initial_condition = nominal_parameters[8:, :]
 
     return ODEBenchmark(
         _name="coupled_springs_2mass",
@@ -224,13 +221,13 @@ def coupled_springs_2mass(
 )
 def _coupled_springs_2mass_factory(
     bkd: Backend[Array],
-) -> ODEBenchmark[Array, ODEGroundTruth]:
+) -> ODEBenchmark[Array, ODEGroundTruth[Array]]:
     return coupled_springs_2mass(bkd)
 
 
 def hastings_ecology_3species(
     bkd: Backend[Array],
-) -> ODEBenchmark[Array, ODEGroundTruth]:
+) -> ODEBenchmark[Array, ODEGroundTruth[Array]]:
     """Create the Hastings-Powell three-species ecology benchmark.
 
     Three-species food chain model with saturating functional response.
@@ -270,12 +267,12 @@ def hastings_ecology_3species(
     # Create residual
     residual = HastingsEcologyResidual(bkd)
 
-    # Nominal values from legacy code
-    nominal_values = np.array([5.0, 3.0, 0.1, 2.0, 0.4, 0.01, 0.75, 0.15, 10.0])
+    # Nominal values from legacy code - shape (nparams, 1)
+    nominal_values = bkd.array([5.0, 3.0, 0.1, 2.0, 0.4, 0.01, 0.75, 0.15, 10.0]).reshape(-1, 1)
 
     # Prior: U[0.95*nominal, 1.05*nominal] for each parameter
     prior_ranges = [
-        (0.95 * val, 1.05 * val) for val in nominal_values
+        (0.95 * float(val), 1.05 * float(val)) for val in nominal_values[:, 0]
     ]
 
     prior = IndependentJoint(
@@ -290,7 +287,8 @@ def hastings_ecology_3species(
     bounds = bkd.array(prior_ranges)
 
     # Initial condition from parameters (last 3 params are initial conditions)
-    initial_condition = nominal_values[6:]
+    # Shape: (nstates, 1)
+    initial_condition = nominal_values[6:, :]
 
     return ODEBenchmark(
         _name="hastings_ecology_3species",
@@ -323,13 +321,13 @@ def hastings_ecology_3species(
 )
 def _hastings_ecology_3species_factory(
     bkd: Backend[Array],
-) -> ODEBenchmark[Array, ODEGroundTruth]:
+) -> ODEBenchmark[Array, ODEGroundTruth[Array]]:
     return hastings_ecology_3species(bkd)
 
 
 def chemical_reaction_surface(
     bkd: Backend[Array],
-) -> ODEBenchmark[Array, ODEGroundTruth]:
+) -> ODEBenchmark[Array, ODEGroundTruth[Array]]:
     """Create the chemical reaction surface adsorption benchmark.
 
     Surface adsorption model describing species adsorbing onto a surface
@@ -373,18 +371,18 @@ def chemical_reaction_surface(
     # Create residual
     residual = ChemicalReactionResidual(bkd)
 
-    # Nominal values from legacy code
-    nominal_values = np.array([1.6, 20.75, 0.04, 1.0, 0.36, 0.016])
+    # Nominal values from legacy code - shape (nparams, 1)
+    nominal_values = bkd.array([1.6, 20.75, 0.04, 1.0, 0.36, 0.016]).reshape(-1, 1)
 
     # Prior ranges from legacy code:
     # a: U[0, 4], b: U[5, 35], c,d,e,f: U[0.9*nominal, 1.1*nominal]
     prior_ranges = [
         (0.0, 4.0),  # a
         (5.0, 35.0),  # b
-        (0.9 * nominal_values[2], 1.1 * nominal_values[2]),  # c
-        (0.9 * nominal_values[3], 1.1 * nominal_values[3]),  # d
-        (0.9 * nominal_values[4], 1.1 * nominal_values[4]),  # e
-        (0.9 * nominal_values[5], 1.1 * nominal_values[5]),  # f
+        (0.9 * float(nominal_values[2, 0]), 1.1 * float(nominal_values[2, 0])),  # c
+        (0.9 * float(nominal_values[3, 0]), 1.1 * float(nominal_values[3, 0])),  # d
+        (0.9 * float(nominal_values[4, 0]), 1.1 * float(nominal_values[4, 0])),  # e
+        (0.9 * float(nominal_values[5, 0]), 1.1 * float(nominal_values[5, 0])),  # f
     ]
 
     prior = IndependentJoint(
@@ -398,8 +396,8 @@ def chemical_reaction_surface(
     # Domain bounds
     bounds = bkd.array(prior_ranges)
 
-    # Initial condition is fixed at zeros (empty surface)
-    initial_condition = np.array([0.0, 0.0, 0.0])
+    # Initial condition is fixed at zeros (empty surface) - shape (nstates, 1)
+    initial_condition = bkd.array([[0.0], [0.0], [0.0]])
 
     return ODEBenchmark(
         _name="chemical_reaction_surface",
@@ -432,5 +430,5 @@ def chemical_reaction_surface(
 )
 def _chemical_reaction_surface_factory(
     bkd: Backend[Array],
-) -> ODEBenchmark[Array, ODEGroundTruth]:
+) -> ODEBenchmark[Array, ODEGroundTruth[Array]]:
     return chemical_reaction_surface(bkd)

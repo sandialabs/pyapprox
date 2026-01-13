@@ -89,8 +89,10 @@ class TestIshigami3DBenchmark(Generic[Array], unittest.TestCase):
         benchmark = ishigami_3d(self._bkd)
         gt = benchmark.ground_truth()
         main_effects = gt.get("main_effects")
+        # main_effects has shape (nvars, 1)
+        self.assertEqual(main_effects.shape, (3, 1))
         # Sum of main effects should be less than 1 due to interactions
-        main_sum = sum(main_effects)
+        main_sum = float(self._bkd.sum(main_effects))
         self.assertLess(main_sum, 1.0)
         self.assertGreater(main_sum, 0.0)
 
@@ -99,8 +101,10 @@ class TestIshigami3DBenchmark(Generic[Array], unittest.TestCase):
         benchmark = ishigami_3d(self._bkd)
         gt = benchmark.ground_truth()
         total_effects = gt.get("total_effects")
+        # total_effects has shape (nvars, 1)
+        self.assertEqual(total_effects.shape, (3, 1))
         # Total effects sum can exceed 1
-        total_sum = sum(total_effects)
+        total_sum = float(self._bkd.sum(total_effects))
         self.assertGreater(total_sum, 1.0)
 
     def test_ground_truth_sobol_indices(self) -> None:

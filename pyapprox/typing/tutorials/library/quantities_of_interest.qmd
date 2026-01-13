@@ -65,8 +65,8 @@ bkd = NumpyBkd()
 benchmark = lotka_volterra_3species(bkd)
 gt = benchmark.ground_truth()
 
-# Get nominal parameters
-nominal_params = bkd.asarray(gt.nominal_parameters).reshape(-1, 1)
+# Get nominal parameters (already shape (nparams, 1))
+nominal_params = gt.nominal_parameters
 ```
 
 ## Common QoI Types
@@ -131,26 +131,15 @@ $$
 Let's compute this by accessing the full trajectory:
 
 ```{python}
-from pyapprox.typing.pde.time.implicit_steppers.backward_euler import BackwardEulerResidual
-from pyapprox.typing.optimization.rootfinding.newton import NewtonSolver
-from pyapprox.typing.pde.time.implicit_steppers.integrator import TimeIntegrator
-
-# Set up integrator
+# Set parameters on the residual
 residual = benchmark.residual()
-residual.set_param(bkd.asarray(gt.nominal_parameters))
-time_config = benchmark.time_config()
+residual.set_param(gt.nominal_parameters)
 
-time_residual = BackwardEulerResidual(residual)
-newton_solver = NewtonSolver(time_residual)
-integrator = TimeIntegrator(
-    init_time=time_config.init_time,
-    final_time=time_config.final_time,
-    deltat=time_config.deltat,
-    newton_solver=newton_solver,
-)
+# Get a configured integrator from the benchmark
+integrator = benchmark.integrator()
 
-# Solve and compute time average
-solutions, times = integrator.solve(bkd.asarray(gt.initial_condition))
+# Solve and compute time average (flatten initial_condition for integrator)
+solutions, times = integrator.solve(bkd.flatten(gt.initial_condition))
 time_average = np.mean(bkd.to_numpy(solutions), axis=1)
 
 print(f"Time-averaged populations: {time_average}")

@@ -58,7 +58,8 @@ class ODEQoIFunction(Generic[Array]):
         if not isinstance(gt, ODEGroundTruth):
             raise ValueError("ODEQoIFunction requires ODEGroundTruth")
 
-        self._init_state = self._bkd.asarray(gt.initial_condition)
+        # Flatten initial_condition from (nstates, 1) to (nstates,) for integrator
+        self._init_state = self._bkd.flatten(gt.initial_condition)
         self._time_config = benchmark.time_config()
         self._nstates = gt.nstates
         self._nparams = gt.nparams
@@ -320,6 +321,79 @@ class ODEBenchmark(Generic[Array, GT]):
         if isinstance(gt, ODEGroundTruth):
             return gt.nparams
         raise ValueError("Ground truth does not contain nparams")
+
+    def integrator(
+        self,
+        stepper: str = "backward_euler",
+    ) -> Any:
+        """Create a time integrator for this ODE benchmark.
+
+        This returns a configured TimeIntegrator ready to solve the ODE.
+        Before calling solve(), set parameters on the residual using
+        `benchmark.residual().set_param(params)`.
+
+        Parameters
+        ----------
+        stepper : str, optional
+            Time stepping method: "backward_euler" (default), "forward_euler",
+            "heun", "crank_nicolson"
+
+        Returns
+        -------
+        TimeIntegrator
+            Configured time integrator. Call `integrator.solve(init_state)`
+            to solve the ODE.
+
+        Examples
+        --------
+        >>> benchmark = lotka_volterra_3species(bkd)
+        >>> gt = benchmark.ground_truth()
+        >>> residual = benchmark.residual()
+        >>> residual.set_param(gt.nominal_parameters)
+        >>> integrator = benchmark.integrator()
+        >>> solutions, times = integrator.solve(bkd.flatten(gt.initial_condition))
+        """
+        from pyapprox.typing.optimization.rootfinding.newton import NewtonSolver
+        from pyapprox.typing.pde.time.implicit_steppers.integrator import (
+            TimeIntegrator,
+        )
+
+        # Create time stepping residual
+        time_residual = self._create_time_residual(stepper)
+
+        # Create Newton solver and integrator
+        newton_solver = NewtonSolver(time_residual)
+        return TimeIntegrator(
+            init_time=self._time_config.init_time,
+            final_time=self._time_config.final_time,
+            deltat=self._time_config.deltat,
+            newton_solver=newton_solver,
+        )
+
+    def _create_time_residual(self, stepper: str) -> Any:
+        """Create time stepping residual based on stepper type."""
+        if stepper == "backward_euler":
+            from pyapprox.typing.pde.time.implicit_steppers.backward_euler import (
+                BackwardEulerResidual,
+            )
+            return BackwardEulerResidual(self._residual)
+        elif stepper == "forward_euler":
+            from pyapprox.typing.pde.time.explicit_steppers.forward_euler import (
+                ForwardEulerResidual,
+            )
+            return ForwardEulerResidual(self._residual)
+        elif stepper == "heun":
+            from pyapprox.typing.pde.time.explicit_steppers.heun import (
+                HeunResidual,
+            )
+            return HeunResidual(self._residual)
+        elif stepper == "crank_nicolson":
+            from pyapprox.typing.pde.time.implicit_steppers.crank_nicolson import (
+                CrankNicolsonResidual,
+            )
+            return CrankNicolsonResidual(self._residual)
+        else:
+            raise ValueError(f"Unknown stepper type: {stepper}")
 
     def qoi_function(
         self,

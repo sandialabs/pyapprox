@@ -75,7 +75,11 @@ A probability distribution describing our uncertainty about the parameters *befo
 
 ### 3. The Quantity of Interest (QoI)
 
-The specific output or statistic we want to predict, such as:
+The specific output(s) from the model that we care about. The QoI is the model output itself: $f(\params)$.
+
+### 4. UQ Statistics
+
+Once we have the QoI, we compute **statistical quantities** to characterize uncertainty in the output, such as:
 
 - Mean output: $\E_{\params}[f(\params)]$
 - Output variance: $\Var_{\params}[f(\params)]$
@@ -193,7 +197,8 @@ See [CONVENTIONS.md](../CONVENTIONS.md) for the complete notation guide.
 - **UQ** systematically handles uncertainty in computational models
 - **Forward UQ**: Propagate input uncertainty to output predictions
 - **Inverse UQ**: Infer parameters from observed data
-- A UQ problem requires: a **model**, a **prior**, and a **QoI**
+- A UQ problem requires: a **model**, a **prior**, a **QoI**, and **UQ statistics**
+- The **QoI** is the model output itself; **UQ statistics** quantify uncertainty in the QoI
 - The **Lotka-Volterra** model serves as our running example
 
 ## Exercises

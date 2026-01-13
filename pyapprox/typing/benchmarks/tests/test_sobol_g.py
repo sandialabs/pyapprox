@@ -164,36 +164,42 @@ class TestSobolGFunctionTorch(TestSobolGFunction[torch.Tensor]):
 class TestSobolGIndices(unittest.TestCase):
     """Tests for sobol_g_indices helper function."""
 
+    def setUp(self) -> None:
+        self._bkd = NumpyBkd()
+
     def test_standard_6d_indices(self) -> None:
         """Test analytical indices for standard 6D configuration."""
-        import numpy as np
-
         a = [0, 1, 4.5, 9, 99, 99]
-        main, total, var = sobol_g_indices(a)
+        main, total, var = sobol_g_indices(a, self._bkd)
+
+        # main and total have shape (nvars, 1)
+        self.assertEqual(main.shape, (6, 1))
+        self.assertEqual(total.shape, (6, 1))
 
         # First variable (a=0) should be most important
-        self.assertEqual(np.argmax(main), 0)
-        self.assertEqual(np.argmax(total), 0)
+        self.assertEqual(int(self._bkd.argmax(main[:, 0])), 0)
+        self.assertEqual(int(self._bkd.argmax(total[:, 0])), 0)
 
         # Main effects should sum to less than 1 (interactions exist)
-        self.assertLess(np.sum(main), 1.0)
+        self.assertLess(float(self._bkd.sum(main)), 1.0)
 
         # All indices should be non-negative
-        self.assertTrue(np.all(main >= 0))
-        self.assertTrue(np.all(total >= 0))
+        self.assertTrue(self._bkd.all_bool(main >= 0))
+        self.assertTrue(self._bkd.all_bool(total >= 0))
 
     def test_single_important_variable(self) -> None:
         """Test with one important variable."""
-        import numpy as np
-
         # a=0 means most important, a=99 means almost irrelevant
         a = [0, 99, 99]
-        main, total, var = sobol_g_indices(a)
+        main, total, var = sobol_g_indices(a, self._bkd)
+
+        # main has shape (nvars, 1)
+        self.assertEqual(main.shape, (3, 1))
 
         # First variable should dominate
-        self.assertGreater(main[0], 0.9)
-        self.assertLess(main[1], 0.01)
-        self.assertLess(main[2], 0.01)
+        self.assertGreater(float(main[0, 0]), 0.9)
+        self.assertLess(float(main[1, 0]), 0.01)
+        self.assertLess(float(main[2, 0]), 0.01)
 
 
 if __name__ == "__main__":

@@ -23,6 +23,7 @@ This library contains modular tutorials covering uncertainty quantification (UQ)
 | Tutorial | Description | Prerequisites |
 |----------|-------------|---------------|
 | [Forward Model Definition](forward_model_definition.qmd) | Define and evaluate forward models | Setup |
+| [ODE Integration Infrastructure](ode_integration.qmd) | ODE solvers and time stepping methods | Forward Model |
 | [Random Variables & Distributions](random_variables_distributions.qmd) | Probability distributions for uncertain inputs | Setup |
 | [Quantities of Interest](quantities_of_interest.qmd) | Extract meaningful outputs from models | Forward Model |
 | [Monte Carlo Basics](monte_carlo_basics.qmd) | Sampling-based uncertainty propagation | Distributions |
@@ -104,7 +105,7 @@ For users working with multi-resolution models:
 
 - **setup**: Setup Environment
 - **concepts**: UQ Problem Framing
-- **forward-uq**: Forward Model Definition, QoI, Monte Carlo Basics
+- **forward-uq**: Forward Model Definition, ODE Integration, QoI, Monte Carlo Basics
 - **probability**: Random Variables & Distributions
 - **sampling**: Monte Carlo Basics, Hamiltonian MCMC
 - **sensitivity**: Sobol Sensitivity Analysis

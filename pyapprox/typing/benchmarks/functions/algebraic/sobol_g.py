@@ -215,37 +215,43 @@ class SobolGFunction(Generic[Array]):
         return bkd.reshape(bkd.stack(result_components), (n, 1))
 
 
-def sobol_g_indices(a: Sequence[float]) -> tuple:
+def sobol_g_indices(
+    a: Sequence[float],
+    bkd: Backend[Array],
+) -> tuple[Array, Array, float]:
     """Compute analytical Sobol indices for Sobol G function.
 
     Parameters
     ----------
     a : Sequence[float]
         Importance parameters.
+    bkd : Backend[Array]
+        Backend for array operations.
 
     Returns
     -------
-    tuple
-        (main_effects, total_effects, variance)
+    tuple[Array, Array, float]
+        (main_effects, total_effects, variance) where main_effects and
+        total_effects have shape (nvars, 1).
     """
-    import numpy as np
-
-    a = np.array(a)
+    a_arr = bkd.asarray(a)
     n = len(a)
 
     # Variance of g_i: Var(g_i) = 1 / (3 * (1 + a_i)^2)
-    var_gi = 1.0 / (3.0 * (1 + a) ** 2)
+    var_gi = 1.0 / (3.0 * (1 + a_arr) ** 2)
 
     # Total variance: prod(1 + Var(g_i)) - 1
-    total_var = np.prod(1 + var_gi) - 1
+    total_var = float(bkd.prod(1 + var_gi) - 1)
 
     # First-order indices: S_i = Var(g_i) / total_var
-    main_effects = var_gi / total_var
+    main_effects = bkd.reshape(var_gi / total_var, (n, 1))
 
     # Total indices: ST_i = 1 - prod_{j != i}(1 + Var(g_j)) / (1 + total_var)
-    total_effects = np.zeros(n)
+    total_list = []
     for i in range(n):
-        other_product = np.prod([1 + var_gi[j] for j in range(n) if j != i])
-        total_effects[i] = 1 - (other_product - 1) / total_var
+        other_indices = [j for j in range(n) if j != i]
+        other_product = bkd.prod(bkd.asarray([1 + var_gi[j] for j in other_indices]))
+        total_list.append(1 - (other_product - 1) / total_var)
+    total_effects = bkd.reshape(bkd.asarray(total_list), (n, 1))
 
     return main_effects, total_effects, total_var

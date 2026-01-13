@@ -125,8 +125,8 @@ Let's evaluate the model at the nominal parameter values:
 ```{python}
 import numpy as np
 
-# Get nominal parameters as a column vector (required shape)
-nominal_params = bkd.asarray(gt.nominal_parameters).reshape(-1, 1)
+# Get nominal parameters (already shape (nparams, 1))
+nominal_params = gt.nominal_parameters
 print(f"Parameter shape: {nominal_params.shape}")
 
 # Evaluate the QoI function
@@ -148,8 +148,7 @@ np.random.seed(42)
 
 # Perturb nominal values by ±10%
 perturbations = 1.0 + 0.1 * (2 * np.random.rand(12, nsamples) - 1)
-samples = gt.nominal_parameters.reshape(-1, 1) * perturbations
-samples = bkd.asarray(samples)
+samples = gt.nominal_parameters * perturbations
 
 print(f"Samples shape: {samples.shape}")
 
@@ -168,31 +167,15 @@ Let's visualize how the populations evolve over time. We'll access the full time
 ```{python}
 import matplotlib.pyplot as plt
 
-# Get the residual and time config
+# Set parameters on the residual
 residual = benchmark.residual()
-time_config = benchmark.time_config()
+residual.set_param(gt.nominal_parameters)
 
-# Set parameters
-residual.set_param(bkd.asarray(gt.nominal_parameters))
+# Get a configured integrator from the benchmark
+integrator = benchmark.integrator()
 
-# Import time integration components
-from pyapprox.typing.pde.time.implicit_steppers.backward_euler import BackwardEulerResidual
-from pyapprox.typing.optimization.rootfinding.newton import NewtonSolver
-from pyapprox.typing.pde.time.implicit_steppers.integrator import TimeIntegrator
-
-# Create integrator
-time_residual = BackwardEulerResidual(residual)
-newton_solver = NewtonSolver(time_residual)
-integrator = TimeIntegrator(
-    init_time=time_config.init_time,
-    final_time=time_config.final_time,
-    deltat=time_config.deltat,
-    newton_solver=newton_solver,
-)
-
-# Solve
-init_state = bkd.asarray(gt.initial_condition)
-solutions, times = integrator.solve(init_state)
+# Solve (flatten initial_condition from (nstates, 1) to (nstates,) for integrator)
+solutions, times = integrator.solve(bkd.flatten(gt.initial_condition))
 
 print(f"Solution shape: {solutions.shape}")
 print(f"Times shape: {times.shape}")
@@ -267,6 +250,7 @@ The PyApprox benchmark interface provides:
 | `benchmark.prior()` | Prior distribution |
 | `benchmark.ground_truth()` | Known values (nominal params, etc.) |
 | `benchmark.qoi_function()` | Callable QoI function |
+| `benchmark.integrator()` | Configured time integrator |
 
 The QoI function follows the convention:
 
@@ -295,3 +279,4 @@ Continue with:
 
 - [Random Variables & Distributions](random_variables_distributions.qmd) - Specifying parameter uncertainty
 - [Quantities of Interest](quantities_of_interest.qmd) - Extracting meaningful outputs
+- [ODE Integration Infrastructure](ode_integration.qmd) - Deep dive into ODE solvers

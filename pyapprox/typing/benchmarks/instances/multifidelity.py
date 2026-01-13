@@ -7,8 +7,6 @@ estimators (MLMC, MFMC, ACV) with known analytical statistics.
 from typing import TypeVar, Generic
 from dataclasses import dataclass
 
-import numpy as np
-
 from pyapprox.typing.util.backends.protocols import Array, Backend
 from pyapprox.typing.benchmarks.benchmark import BoxDomain
 from pyapprox.typing.benchmarks.ground_truth import MultifidelityGroundTruth
@@ -100,16 +98,16 @@ def polynomial_ensemble_5model(
     nmodels = 5
     ensemble = PolynomialEnsemble(bkd, nmodels=nmodels)
 
-    # Extract analytical statistics
-    means = bkd.to_numpy(ensemble.means())
-    variances = bkd.to_numpy(ensemble.variances())
-    covariance = bkd.to_numpy(ensemble.covariance_matrix())
-    costs = bkd.to_numpy(ensemble.costs())
+    # Extract analytical statistics (keep as backend arrays)
+    means = ensemble.means()
+    variances = ensemble.variances()
+    costs = ensemble.costs()
+    correlations = ensemble.correlation_matrix()
 
     ground_truth = MultifidelityGroundTruth(
-        high_fidelity_mean=float(means[0]),
-        high_fidelity_variance=float(variances[0]),
-        model_correlations=bkd.to_numpy(ensemble.correlation_matrix()),
+        high_fidelity_mean=float(bkd.to_numpy(means)[0]),
+        high_fidelity_variance=float(bkd.to_numpy(variances)[0]),
+        model_correlations=correlations,
         model_costs=costs,
     )
 
@@ -151,14 +149,16 @@ def polynomial_ensemble_3model(
     nmodels = 3
     ensemble = PolynomialEnsemble(bkd, nmodels=nmodels)
 
-    means = bkd.to_numpy(ensemble.means())
-    variances = bkd.to_numpy(ensemble.variances())
-    costs = bkd.to_numpy(ensemble.costs())
+    # Extract analytical statistics (keep as backend arrays)
+    means = ensemble.means()
+    variances = ensemble.variances()
+    costs = ensemble.costs()
+    correlations = ensemble.correlation_matrix()
 
     ground_truth = MultifidelityGroundTruth(
-        high_fidelity_mean=float(means[0]),
-        high_fidelity_variance=float(variances[0]),
-        model_correlations=bkd.to_numpy(ensemble.correlation_matrix()),
+        high_fidelity_mean=float(bkd.to_numpy(means)[0]),
+        high_fidelity_variance=float(bkd.to_numpy(variances)[0]),
+        model_correlations=correlations,
         model_costs=costs,
     )
 

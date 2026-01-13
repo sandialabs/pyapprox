@@ -5,20 +5,19 @@ ground truth dataclass containing the known/computable values.
 """
 
 from dataclasses import dataclass, field
-from typing import Optional, Dict, Any, Sequence, Tuple, Callable
+from typing import Optional, Dict, Any, Sequence, Tuple, Callable, Generic
 
-import numpy as np
-from numpy.typing import NDArray
+from pyapprox.typing.util.backends.protocols import Array
 
 
 @dataclass(frozen=True)
-class SensitivityGroundTruth:
+class SensitivityGroundTruth(Generic[Array]):
     """Ground truth for sensitivity analysis benchmarks."""
 
     mean: Optional[float] = None
     variance: Optional[float] = None
-    main_effects: Optional[NDArray[np.floating[Any]]] = None
-    total_effects: Optional[NDArray[np.floating[Any]]] = None
+    main_effects: Optional[Array] = None
+    total_effects: Optional[Array] = None
     sobol_indices: Optional[Dict[Tuple[int, ...], float]] = None
 
     def available(self) -> Sequence[str]:
@@ -37,12 +36,12 @@ class SensitivityGroundTruth:
 
 
 @dataclass(frozen=True)
-class OptimizationGroundTruth:
+class OptimizationGroundTruth(Generic[Array]):
     """Ground truth for optimization benchmarks."""
 
     global_minimum: Optional[float] = None
-    global_minimizers: Optional[NDArray[np.floating[Any]]] = None
-    local_minima: Optional[NDArray[np.floating[Any]]] = None
+    global_minimizers: Optional[Array] = None
+    local_minima: Optional[Array] = None
 
     def available(self) -> Sequence[str]:
         """Return list of available ground truth properties."""
@@ -82,14 +81,14 @@ class QuadratureGroundTruth:
 
 
 @dataclass(frozen=True)
-class MultifidelityGroundTruth:
+class MultifidelityGroundTruth(Generic[Array]):
     """Ground truth for multifidelity benchmarks."""
 
     high_fidelity_mean: Optional[float] = None
     high_fidelity_variance: Optional[float] = None
-    model_correlations: Optional[NDArray[np.floating[Any]]] = None
-    model_costs: Optional[NDArray[np.floating[Any]]] = None
-    optimal_allocation: Optional[NDArray[np.floating[Any]]] = None
+    model_correlations: Optional[Array] = None
+    model_costs: Optional[Array] = None
+    optimal_allocation: Optional[Array] = None
 
     def available(self) -> Sequence[str]:
         """Return list of available ground truth properties."""
@@ -107,13 +106,13 @@ class MultifidelityGroundTruth:
 
 
 @dataclass(frozen=True)
-class InverseGroundTruth:
+class InverseGroundTruth(Generic[Array]):
     """Ground truth for inverse/inference benchmarks."""
 
-    true_parameters: Optional[NDArray[np.floating[Any]]] = None
-    posterior_mean: Optional[NDArray[np.floating[Any]]] = None
-    posterior_covariance: Optional[NDArray[np.floating[Any]]] = None
-    map_estimate: Optional[NDArray[np.floating[Any]]] = None
+    true_parameters: Optional[Array] = None
+    posterior_mean: Optional[Array] = None
+    posterior_covariance: Optional[Array] = None
+    map_estimate: Optional[Array] = None
     evidence: Optional[float] = None
 
     def available(self) -> Sequence[str]:
@@ -132,7 +131,7 @@ class InverseGroundTruth:
 
 
 @dataclass(frozen=True)
-class ODEGroundTruth:
+class ODEGroundTruth(Generic[Array]):
     """Ground truth for ODE benchmarks.
 
     Attributes
@@ -141,37 +140,35 @@ class ODEGroundTruth:
         Number of state variables in the ODE system.
     nparams : int
         Number of parameters in the ODE system.
-    initial_condition : np.ndarray, optional
-        Default initial condition for the ODE system. Shape: (nstates,).
-    nominal_parameters : np.ndarray, optional
-        Nominal parameter values. Shape: (nparams,).
+    initial_condition : Array, optional
+        Default initial condition for the ODE system. Shape: (nstates, 1).
+    nominal_parameters : Array, optional
+        Nominal parameter values. Shape: (nparams, 1).
     init_time : float, optional
         Initial time for integration.
     final_time : float, optional
         Final time for integration.
     deltat : float, optional
         Time step for integration.
-    reference_solution : np.ndarray, optional
+    reference_solution : Array, optional
         High-fidelity numerical reference solution. Shape: (nstates, ntimes).
     analytical_solution : Callable, optional
         Analytical solution function if available (e.g., for linear ODEs).
-        Signature: (time: float, params: np.ndarray) -> np.ndarray
-    steady_state : np.ndarray, optional
-        Steady state solution for dissipative systems. Shape: (nstates,).
+        Signature: (time: float, params: Array) -> Array
+    steady_state : Array, optional
+        Steady state solution for dissipative systems. Shape: (nstates, 1).
     """
 
     nstates: int
     nparams: int
-    initial_condition: Optional[NDArray[np.floating[Any]]] = None
-    nominal_parameters: Optional[NDArray[np.floating[Any]]] = None
+    initial_condition: Optional[Array] = None
+    nominal_parameters: Optional[Array] = None
     init_time: Optional[float] = None
     final_time: Optional[float] = None
     deltat: Optional[float] = None
-    reference_solution: Optional[NDArray[np.floating[Any]]] = None
-    analytical_solution: Optional[
-        Callable[[float, NDArray[np.floating[Any]]], NDArray[np.floating[Any]]]
-    ] = None
-    steady_state: Optional[NDArray[np.floating[Any]]] = None
+    reference_solution: Optional[Array] = None
+    analytical_solution: Optional[Callable[[float, Array], Array]] = None
+    steady_state: Optional[Array] = None
 
     def available(self) -> Sequence[str]:
         """Return list of available ground truth properties."""

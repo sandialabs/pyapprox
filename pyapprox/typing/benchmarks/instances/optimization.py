@@ -4,8 +4,6 @@ These are pre-configured benchmark instances with standard parameters
 and known ground truth values.
 """
 
-import numpy as np
-
 from pyapprox.typing.util.backends.protocols import Array, Backend
 from pyapprox.typing.benchmarks.benchmark import Benchmark, BoxDomain
 from pyapprox.typing.benchmarks.ground_truth import OptimizationGroundTruth
@@ -52,7 +50,7 @@ def rosenbrock_2d(
         ),
         _ground_truth=OptimizationGroundTruth(
             global_minimum=0.0,
-            global_minimizers=np.array([[1.0], [1.0]]),
+            global_minimizers=bkd.array([[1.0], [1.0]]),
         ),
         _description="2D Rosenbrock function - banana-shaped valley",
         _reference="Rosenbrock, H.H. (1960)",
@@ -92,7 +90,7 @@ def rosenbrock_10d(
         ),
         _ground_truth=OptimizationGroundTruth(
             global_minimum=0.0,
-            global_minimizers=np.ones((nvars, 1)),
+            global_minimizers=bkd.ones((nvars, 1)),
         ),
         _description="10D Rosenbrock function - high-dimensional optimization",
         _reference="Rosenbrock, H.H. (1960)",
@@ -149,7 +147,7 @@ def branin_2d(
     solutions of simultaneous nonlinear equations."
     """
     # Convert minimizers to array format (nvars, n_minimizers)
-    minimizers = np.array([
+    minimizers = bkd.array([
         [m[0] for m in BRANIN_MINIMIZERS],
         [m[1] for m in BRANIN_MINIMIZERS],
     ])
