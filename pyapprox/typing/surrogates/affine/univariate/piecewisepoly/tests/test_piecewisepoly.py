@@ -346,6 +346,177 @@ class TestPiecewisePolynomialConvergenceTorch(
         return self._bkd
 
 
+from pyapprox.typing.surrogates.affine.univariate.piecewisepoly import (
+    EquidistantNodeGenerator,
+    DynamicPiecewiseBasis,
+)
+
+
+class TestDynamicPiecewiseBasis(Generic[Array], unittest.TestCase):
+    """Tests for DynamicPiecewiseBasis and node generators."""
+
+    __test__ = False
+
+    def bkd(self) -> Backend[Array]:
+        raise NotImplementedError("Derived classes must implement this method.")
+
+    def setUp(self) -> None:
+        self._bkd = self.bkd()
+
+    def test_equidistant_node_generator(self) -> None:
+        """Test that EquidistantNodeGenerator generates correct nodes."""
+        node_gen = EquidistantNodeGenerator(self._bkd, (-1.0, 1.0))
+
+        # 5 nodes on [-1, 1]
+        nodes = node_gen(5)
+        expected = self._bkd.asarray([-1.0, -0.5, 0.0, 0.5, 1.0])
+        self._bkd.assert_allclose(nodes, expected, atol=1e-12)
+
+        # 3 nodes on [-1, 1]
+        nodes = node_gen(3)
+        expected = self._bkd.asarray([-1.0, 0.0, 1.0])
+        self._bkd.assert_allclose(nodes, expected, atol=1e-12)
+
+    def test_equidistant_node_generator_custom_bounds(self) -> None:
+        """Test EquidistantNodeGenerator with custom bounds."""
+        node_gen = EquidistantNodeGenerator(self._bkd, (0.0, 2.0))
+        nodes = node_gen(5)
+        expected = self._bkd.asarray([0.0, 0.5, 1.0, 1.5, 2.0])
+        self._bkd.assert_allclose(nodes, expected, atol=1e-12)
+
+    def test_equidistant_node_generator_bkd(self) -> None:
+        """Test that EquidistantNodeGenerator returns correct backend."""
+        node_gen = EquidistantNodeGenerator(self._bkd, (-1.0, 1.0))
+        self.assertIs(node_gen.bkd(), self._bkd)
+
+    def test_dynamic_piecewise_basis_set_nterms(self) -> None:
+        """Test DynamicPiecewiseBasis.set_nterms creates correct basis."""
+        node_gen = EquidistantNodeGenerator(self._bkd, (-1.0, 1.0))
+        basis = DynamicPiecewiseBasis(self._bkd, PiecewiseQuadratic, node_gen)
+
+        # Initially no terms
+        self.assertEqual(basis.nterms(), 0)
+
+        # Set to 5 terms
+        basis.set_nterms(5)
+        self.assertEqual(basis.nterms(), 5)
+
+        # Check quadrature rule has correct size
+        pts, wts = basis.quadrature_rule()
+        self.assertEqual(pts.shape[0], 5)
+        self.assertEqual(wts.shape[0], 5)
+
+    def test_dynamic_piecewise_basis_evaluation(self) -> None:
+        """Test DynamicPiecewiseBasis evaluation after set_nterms."""
+        node_gen = EquidistantNodeGenerator(self._bkd, (0.0, 1.0))
+        basis = DynamicPiecewiseBasis(self._bkd, PiecewiseLinear, node_gen)
+        basis.set_nterms(5)
+
+        # Evaluate at test points
+        samples = self._bkd.asarray([0.0, 0.25, 0.5, 0.75, 1.0])
+        values = basis(samples)
+
+        # Linear basis at nodes should give identity matrix
+        # Values shape: (nsamples, nterms)
+        expected_diag = self._bkd.eye(5)
+        self._bkd.assert_allclose(values, expected_diag, atol=1e-12)
+
+    def test_dynamic_piecewise_basis_error_before_set_nterms(self) -> None:
+        """Test DynamicPiecewiseBasis raises error if used before set_nterms."""
+        node_gen = EquidistantNodeGenerator(self._bkd, (-1.0, 1.0))
+        basis = DynamicPiecewiseBasis(self._bkd, PiecewiseQuadratic, node_gen)
+
+        # Should raise ValueError on call
+        with self.assertRaises(ValueError):
+            basis(self._bkd.asarray([0.0]))
+
+        # Should raise ValueError on quadrature_rule
+        with self.assertRaises(ValueError):
+            basis.quadrature_rule()
+
+    def test_dynamic_piecewise_basis_interpolation(self) -> None:
+        """Test DynamicPiecewiseBasis interpolates quadratic function exactly."""
+        node_gen = EquidistantNodeGenerator(self._bkd, (0.0, 1.0))
+        basis = DynamicPiecewiseBasis(self._bkd, PiecewiseQuadratic, node_gen)
+        basis.set_nterms(5)
+
+        # Target function: f(x) = x^2
+        target = lambda x: x ** 2
+
+        # Get quadrature points and evaluate target
+        pts, _ = basis.quadrature_rule()
+        target_vals = target(pts)
+
+        # Evaluate basis at test points
+        test_pts = self._bkd.linspace(0.0, 1.0, 50)
+        basis_vals = basis(test_pts)
+
+        # Interpolate
+        interp_vals = basis_vals @ target_vals
+
+        # Should match target function
+        expected = target(test_pts)
+        self._bkd.assert_allclose(interp_vals, expected, atol=1e-10)
+
+    def test_dynamic_piecewise_basis_quadrature_integration(self) -> None:
+        """Test DynamicPiecewiseBasis quadrature integrates correctly."""
+        node_gen = EquidistantNodeGenerator(self._bkd, (0.0, 1.0))
+        basis = DynamicPiecewiseBasis(self._bkd, PiecewiseQuadratic, node_gen)
+        basis.set_nterms(5)
+
+        # Quadrature for integral of x^2 on [0, 1]
+        pts, wts = basis.quadrature_rule()
+        target = lambda x: x ** 2
+        integral = wts @ target(pts)
+
+        # Integral of x^2 on [0, 1] = 1/3
+        expected = self._bkd.asarray([1.0 / 3.0])
+        self._bkd.assert_allclose(
+            self._bkd.asarray([float(integral)]), expected, rtol=1e-10
+        )
+
+    def test_dynamic_piecewise_basis_bkd(self) -> None:
+        """Test DynamicPiecewiseBasis returns correct backend."""
+        node_gen = EquidistantNodeGenerator(self._bkd, (-1.0, 1.0))
+        basis = DynamicPiecewiseBasis(self._bkd, PiecewiseQuadratic, node_gen)
+        self.assertIs(basis.bkd(), self._bkd)
+
+    def test_dynamic_piecewise_basis_reset_nterms(self) -> None:
+        """Test DynamicPiecewiseBasis can be reset to different nterms."""
+        node_gen = EquidistantNodeGenerator(self._bkd, (0.0, 1.0))
+        basis = DynamicPiecewiseBasis(self._bkd, PiecewiseLinear, node_gen)
+
+        # Set to 3 terms
+        basis.set_nterms(3)
+        self.assertEqual(basis.nterms(), 3)
+        pts3, _ = basis.quadrature_rule()
+        self.assertEqual(pts3.shape[0], 3)
+
+        # Reset to 7 terms
+        basis.set_nterms(7)
+        self.assertEqual(basis.nterms(), 7)
+        pts7, _ = basis.quadrature_rule()
+        self.assertEqual(pts7.shape[0], 7)
+
+
+class TestDynamicPiecewiseBasisNumpy(TestDynamicPiecewiseBasis[NDArray[Any]]):
+    """NumPy backend tests for DynamicPiecewiseBasis."""
+
+    def bkd(self) -> NumpyBkd:
+        return NumpyBkd()
+
+
+class TestDynamicPiecewiseBasisTorch(TestDynamicPiecewiseBasis[torch.Tensor]):
+    """PyTorch backend tests for DynamicPiecewiseBasis."""
+
+    def setUp(self) -> None:
+        torch.set_default_dtype(torch.float64)
+        super().setUp()
+
+    def bkd(self) -> TorchBkd:
+        return TorchBkd()
+
+
 from pyapprox.typing.util.test_utils import load_tests
 
 
