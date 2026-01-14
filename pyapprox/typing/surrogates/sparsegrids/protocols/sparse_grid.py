@@ -68,7 +68,7 @@ class SubspaceProtocol(Protocol, Generic[Array]):
         Returns
         -------
         Optional[Array]
-            Values of shape (nsamples, nqoi) or None if not set
+            Values of shape (nqoi, nsamples) or None if not set
         """
         ...
 
@@ -78,7 +78,7 @@ class SubspaceProtocol(Protocol, Generic[Array]):
         Parameters
         ----------
         values : Array
-            Values of shape (nsamples, nqoi)
+            Values of shape (nqoi, nsamples)
         """
         ...
 
@@ -88,12 +88,12 @@ class SubspaceProtocol(Protocol, Generic[Array]):
         Parameters
         ----------
         samples : Array
-            Evaluation points of shape (nvars, npoints)
+            Evaluation points of shape (nvars, nsamples)
 
         Returns
         -------
         Array
-            Interpolant values of shape (npoints, nqoi)
+            Interpolant values of shape (nqoi, nsamples)
         """
         ...
 
@@ -154,7 +154,7 @@ class SparseGridProtocol(Protocol, Generic[Array]):
         Parameters
         ----------
         values : Array
-            Values of shape (nsamples, nqoi)
+            Values of shape (nqoi, nsamples)
         """
         ...
 
@@ -164,12 +164,12 @@ class SparseGridProtocol(Protocol, Generic[Array]):
         Parameters
         ----------
         samples : Array
-            Evaluation points of shape (nvars, npoints)
+            Evaluation points of shape (nvars, nsamples)
 
         Returns
         -------
         Array
-            Interpolant values of shape (npoints, nqoi)
+            Interpolant values of shape (nqoi, nsamples)
         """
         ...
 
@@ -207,7 +207,7 @@ class AdaptiveSparseGridProtocol(Protocol, Generic[Array]):
         Parameters
         ----------
         values : Array
-            Values of shape (nnew, nqoi)
+            Values of shape (nqoi, nnew)
         """
         ...
 
@@ -237,12 +237,12 @@ class AdaptiveSparseGridProtocol(Protocol, Generic[Array]):
         Parameters
         ----------
         samples : Array
-            Evaluation points of shape (nvars, npoints)
+            Evaluation points of shape (nvars, nsamples)
 
         Returns
         -------
         Array
-            Interpolant values of shape (npoints, nqoi)
+            Interpolant values of shape (nqoi, nsamples)
         """
         ...
 
