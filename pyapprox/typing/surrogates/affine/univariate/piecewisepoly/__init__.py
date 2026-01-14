@@ -17,6 +17,12 @@ PiecewiseConstantRight
     Right-constant basis functions with right Riemann sum quadrature.
 PiecewiseConstantMidpoint
     Midpoint-constant basis functions with midpoint quadrature.
+NodeGenerator
+    Abstract base for generating interpolation nodes dynamically.
+EquidistantNodeGenerator
+    Generate equidistant nodes on an interval.
+DynamicPiecewiseBasis
+    Wrapper providing set_nterms() for piecewise polynomial bases.
 """
 
 from pyapprox.typing.surrogates.affine.univariate.piecewisepoly.linear import (
@@ -40,6 +46,11 @@ from pyapprox.typing.surrogates.affine.univariate.piecewisepoly.mid_constant imp
 from pyapprox.typing.surrogates.affine.univariate.piecewisepoly.protocols import (
     PiecewisePolynomialProtocol,
 )
+from pyapprox.typing.surrogates.affine.univariate.piecewisepoly.dynamic import (
+    NodeGenerator,
+    EquidistantNodeGenerator,
+    DynamicPiecewiseBasis,
+)
 
 __all__ = [
     "PiecewiseLinear",
@@ -49,4 +60,7 @@ __all__ = [
     "PiecewiseConstantRight",
     "PiecewiseConstantMidpoint",
     "PiecewisePolynomialProtocol",
+    "NodeGenerator",
+    "EquidistantNodeGenerator",
+    "DynamicPiecewiseBasis",
 ]
