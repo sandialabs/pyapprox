@@ -50,6 +50,23 @@ def compute_smolyak_coefficients(
     Array
         Combination coefficients, shape (nsubspaces,)
 
+    Notes
+    -----
+    The Smolyak combination technique expresses a sparse grid interpolant
+    as a weighted sum of tensor product interpolants:
+
+        I_K = sum_{k in K} c_k * I_k
+
+    where K is a downward-closed index set, I_k is the tensor product
+    interpolant for subspace k, and c_k are the combination coefficients.
+
+    Key mathematical properties:
+
+    1. **Sum to one**: sum(c_k) = 1, ensuring constants are reproduced exactly
+    2. **Boundary coefficients**: Indices with no forward neighbors have c_k = 1
+    3. **Telescoping in 1D**: Only the highest level has non-zero coefficient
+    4. **Negative coefficients**: Interior indices can have negative coefficients
+
     Examples
     --------
     >>> from pyapprox.typing.util.backends.numpy import NumpyBkd
@@ -116,6 +133,15 @@ def is_downward_closed(subspace_indices: Array, bkd: Backend[Array]) -> bool:
     -------
     bool
         True if the index set is downward closed
+
+    Notes
+    -----
+    A downward-closed (or lower) set is essential for Smolyak combination.
+    It ensures that all "predecessor" subspaces required for interpolation
+    are available. Without this property, the combination would be incomplete.
+
+    Mathematically, K is downward-closed if:
+        k in K and k' <= k (componentwise) implies k' in K
     """
     nvars = subspace_indices.shape[0]
     nsubspaces = subspace_indices.shape[1]
@@ -193,6 +219,13 @@ def check_admissibility(
     -------
     bool
         True if candidate can be added while maintaining downward closure
+
+    Notes
+    -----
+    Admissibility is used during adaptive refinement to ensure that adding
+    a new index maintains the downward-closed property. A candidate is
+    admissible if and only if all its immediate predecessors (indices with
+    exactly one coordinate decremented by 1) are already in the set.
     """
     nvars = candidate.shape[0]
     nsubspaces = existing_indices.shape[1] if existing_indices.ndim > 1 else 0
