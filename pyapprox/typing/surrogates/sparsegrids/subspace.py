@@ -7,7 +7,7 @@ This module wraps TensorProductInterpolant with sparse-grid-specific
 functionality: multi-index tracking, growth rules, and quadrature.
 """
 
-from typing import Callable, Generic, List, Optional, Tuple
+from typing import Generic, List, Optional
 
 from pyapprox.typing.util.backends.protocols import Array, Backend
 from pyapprox.typing.util.cartesian import outer_product_weights
@@ -17,6 +17,11 @@ from pyapprox.typing.surrogates.affine.protocols import (
 )
 from pyapprox.typing.surrogates.affine.univariate.lagrange import LagrangeBasis1D
 from pyapprox.typing.surrogates.tensorproduct import TensorProductInterpolant
+from pyapprox.typing.surrogates.sparsegrids.basis_setup import (
+    compute_npts_from_growth_rule,
+    get_quadrature_rule,
+    create_lagrange_from_quadrature,
+)
 
 
 class TensorProductSubspace(Generic[Array]):
@@ -68,62 +73,31 @@ class TensorProductSubspace(Generic[Array]):
         self._growth_rule = growth_rule
 
         # Compute number of points per dimension from growth rule
-        self._npts_1d: List[int] = []
-        for dim in range(len(univariate_bases)):
-            level = int(index[dim])
-            npts = growth_rule(level)
-            self._npts_1d.append(npts)
+        self._npts_1d = compute_npts_from_growth_rule(index, growth_rule)
 
-        # Find unique bases and set each to the maximum npts it needs
-        # This handles the case where the same basis is used for multiple dims
-        max_npts_per_basis: dict[int, int] = {}
-        for dim, basis in enumerate(univariate_bases):
-            basis_id = id(basis)
-            npts = self._npts_1d[dim]
-            if basis_id not in max_npts_per_basis:
-                max_npts_per_basis[basis_id] = npts
-            else:
-                max_npts_per_basis[basis_id] = max(
-                    max_npts_per_basis[basis_id], npts
-                )
-
-        # Set each unique basis to its maximum required nterms
-        for basis in univariate_bases:
-            basis_id = id(basis)
-            basis.set_nterms(max_npts_per_basis[basis_id])
-
-        # Create LagrangeBasis1D for each dimension using quadrature points
-        # from the univariate bases. We create a wrapper quadrature rule that
-        # ensures the underlying basis has enough terms before calling the rule.
+        # Create independent LagrangeBasis1D for each dimension
+        # IMPORTANT: Each dimension needs its own basis instance because
+        # different dimensions may have different numbers of points.
+        # Even if the same basis object is passed for multiple dimensions,
+        # we create separate LagrangeBasis1D wrappers for each.
         self._interp_bases_1d: List[LagrangeBasis1D[Array]] = []
         self._1d_weights: List[Array] = []
 
         for dim, basis in enumerate(univariate_bases):
             npts = self._npts_1d[dim]
 
-            # Get quadrature points and weights
-            samples_1d, weights_1d = basis.gauss_quadrature_rule(npts)
-            self._1d_weights.append(weights_1d)
+            # Extract quadrature rule from the basis
+            quad_rule = get_quadrature_rule(basis)
 
-            # Create Lagrange interpolation basis at quadrature points
-            if isinstance(basis, LagrangeBasis1D):
-                interp_basis: LagrangeBasis1D[Array] = basis
-            else:
-                # Create a wrapper quadrature rule that ensures the polynomial
-                # has enough terms. This is needed because multiple subspaces
-                # may share the same polynomial basis with different nterms.
-                def make_quadrature_rule(
-                    b: Basis1DProtocol[Array],
-                ) -> Callable[[int], Tuple[Array, Array]]:
-                    def quadrature_rule(npoints: int) -> Tuple[Array, Array]:
-                        b.set_nterms(max(b.nterms(), npoints))
-                        return b.gauss_quadrature_rule(npoints)
-                    return quadrature_rule
+            # Create a new LagrangeBasis1D for this dimension
+            # This ensures each dimension has independent nterms
+            interp_basis: LagrangeBasis1D[Array] = create_lagrange_from_quadrature(
+                bkd, quad_rule
+            )
+            _, weights_1d = quad_rule(npts)
 
-                interp_basis = LagrangeBasis1D(
-                    bkd, make_quadrature_rule(basis)
-                )
             self._interp_bases_1d.append(interp_basis)
+            self._1d_weights.append(weights_1d)
 
         # Create TensorProductInterpolant using Lagrange bases
         self._interpolant = TensorProductInterpolant(
