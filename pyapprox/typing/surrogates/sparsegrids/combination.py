@@ -11,6 +11,7 @@ from pyapprox.typing.surrogates.affine.protocols import (
     Basis1DProtocol,
     IndexGrowthRuleProtocol,
 )
+from pyapprox.typing.surrogates.affine.indices import IndexGenerator
 
 from .smolyak import compute_smolyak_coefficients, _index_to_tuple
 from .subspace import TensorProductSubspace
@@ -71,6 +72,9 @@ class CombinationSparseGrid(Generic[Array]):
         self._values: Optional[Array] = None
         self._nqoi: Optional[int] = None
 
+        # Optional index generator (set by subclasses)
+        self._index_gen: Optional[IndexGenerator[Array]] = None
+
     def bkd(self) -> Backend[Array]:
         """Return the computational backend."""
         return self._bkd
@@ -82,6 +86,17 @@ class CombinationSparseGrid(Generic[Array]):
     def nsubspaces(self) -> int:
         """Return the number of subspaces."""
         return len(self._subspace_list)
+
+    def get_index_generator(self) -> Optional[IndexGenerator[Array]]:
+        """Return the index generator if set.
+
+        Returns
+        -------
+        Optional[IndexGenerator[Array]]
+            The index generator used for this sparse grid, or None if
+            indices were added manually.
+        """
+        return self._index_gen
 
     def get_subspaces(self) -> List[TensorProductSubspace[Array]]:
         """Return list of all subspaces."""
