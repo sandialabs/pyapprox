@@ -4,9 +4,13 @@ This module provides refinement criteria based on L2 norm error
 for adaptive sparse grid construction.
 """
 
-from typing import TYPE_CHECKING, Generic, Tuple
+from typing import TYPE_CHECKING, Generic, Optional, Tuple
 
 from pyapprox.typing.util.backends.protocols import Array, Backend
+from pyapprox.typing.surrogates.sparsegrids.refinement.protocols import (
+    SparseGridCostFunctionProtocol,
+)
+from pyapprox.typing.surrogates.sparsegrids.refinement.cost import UnitCostFunction
 
 if TYPE_CHECKING:
     from pyapprox.typing.surrogates.sparsegrids.adaptive import (
@@ -17,14 +21,19 @@ if TYPE_CHECKING:
 class L2NormRefinementCriteria(Generic[Array]):
     """Refinement criteria based on L2 norm interpolation error.
 
-    Computes the error as the L2 norm of the difference between function
-    values at subspace samples and the current interpolant evaluated at
-    those samples. Higher errors result in higher refinement priority.
+    Computes the error as the L2 norm of the hierarchical surplus
+    (difference between function values and current interpolant)
+    normalized by sample count. Priority = error / cost.
+
+    This matches the legacy implementation in
+    pyapprox.surrogates.sparsegrids.combination.L2NormRefinementCriteria.
 
     Parameters
     ----------
     bkd : Backend[Array]
         Computational backend.
+    cost_function : SparseGridCostFunctionProtocol[Array], optional
+        Cost function for cost-aware refinement. Default: UnitCostFunction.
 
     Examples
     --------
@@ -38,10 +47,16 @@ class L2NormRefinementCriteria(Generic[Array]):
     >>> # grid = AdaptiveCombinationSparseGrid(..., refinement_priority=criteria)
     """
 
-    def __init__(self, bkd: Backend[Array]):
+    def __init__(
+        self,
+        bkd: Backend[Array],
+        cost_function: Optional[SparseGridCostFunctionProtocol[Array]] = None,
+    ):
         self._bkd = bkd
+        self._cost_function: SparseGridCostFunctionProtocol[Array] = (
+            cost_function if cost_function is not None else UnitCostFunction(bkd)
+        )
 
-    @property
     def bkd(self) -> Backend[Array]:
         """Return the computational backend."""
         return self._bkd
@@ -59,7 +74,7 @@ class L2NormRefinementCriteria(Generic[Array]):
         subspace_index : Array
             Multi-index of the subspace. Shape: (nvars,)
         subspace_values : Array
-            Function values at subspace samples. Shape: (nsamples, nqoi)
+            Function values at subspace samples. Shape: (nqoi, nsamples)
         grid : AdaptiveCombinationSparseGrid
             The adaptive sparse grid.
 
@@ -67,7 +82,7 @@ class L2NormRefinementCriteria(Generic[Array]):
         -------
         Tuple[float, float]
             (priority, error) where:
-            - priority: Higher value means refine sooner (equals error)
+            - priority: Higher value means refine sooner (error / cost)
             - error: L2 norm interpolation error normalized by sample count
         """
         from pyapprox.typing.surrogates.sparsegrids.smolyak import _index_to_tuple
@@ -83,13 +98,16 @@ class L2NormRefinementCriteria(Generic[Array]):
         current_vals = grid._evaluate_selected_only(samples)
 
         # Compute L2 norm error normalized by number of samples
+        nsamples = subspace_values.shape[1]
         error = float(
-            self._bkd.norm(subspace_values - current_vals)
-            / max(1, subspace_values.shape[0])
+            self._bkd.norm(subspace_values - current_vals) / max(1, nsamples)
         )
 
-        # Higher error = higher priority
-        return error, error
+        # Priority = error / cost (following legacy pattern)
+        cost = nsamples * self._cost_function(subspace_index)
+        priority = error / max(cost, 1e-14)
+
+        return priority, error
 
     def __repr__(self) -> str:
-        return "L2NormRefinementCriteria()"
+        return f"L2NormRefinementCriteria(cost_function={self._cost_function!r})"

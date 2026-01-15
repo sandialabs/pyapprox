@@ -193,6 +193,49 @@ class CombinationSparseGrid(Generic[Array]):
             indices, self._bkd
         )
 
+    def _adjust_smolyak_coefficients(
+        self,
+        smolyak_coefs: Array,
+        new_index: Array,
+        indices: Array,
+    ) -> Array:
+        """Incrementally update Smolyak coefficients when adding a new index.
+
+        This is more efficient than recomputing all coefficients from scratch.
+        The algorithm updates coefficients for all indices that are "neighbors"
+        of the new index (differ by at most 1 in each component).
+
+        This matches the legacy implementation in
+        pyapprox.surrogates.sparsegrids.combination.AdaptiveCombinationSparseGrid._adjust_smolyak_coefficients().
+
+        Parameters
+        ----------
+        smolyak_coefs : Array
+            Current Smolyak coefficients. Shape: (nindices,)
+        new_index : Array
+            New index being added. Shape: (nvars,)
+        indices : Array
+            All indices (including new_index). Shape: (nvars, nindices)
+
+        Returns
+        -------
+        Array
+            Updated Smolyak coefficients.
+        """
+        new_smolyak_coefs = self._bkd.copy(smolyak_coefs)
+        nindices = indices.shape[1]
+
+        for idx in range(nindices):
+            diff = new_index - indices[:, idx]
+            # Check if this index is a neighbor: all diffs >= 0 and max diff <= 1
+            if self._bkd.all_bool(diff >= 0) and float(self._bkd.max(diff)) <= 1:
+                # Update coefficient using inclusion-exclusion formula
+                new_smolyak_coefs[idx] = new_smolyak_coefs[idx] + (
+                    (-1.0) ** float(self._bkd.sum(diff))
+                )
+
+        return new_smolyak_coefs
+
     def _collect_unique_samples(self) -> None:
         """Collect unique samples from all subspaces."""
         if len(self._subspace_list) == 0:
@@ -442,19 +485,66 @@ class CombinationSparseGrid(Generic[Array]):
         Quadrature weights are NOT normalized here - they come directly
         from the Gauss quadrature rule of each polynomial basis.
         """
+        return self._compute_moment("integrate")
+
+    def variance(self) -> Array:
+        """Compute the variance of the interpolant using sparse grid quadrature.
+
+        Computes the Smolyak combination of tensor product variances:
+            Var[f] = sum_k c_k * Var_k[f]
+
+        where c_k are Smolyak coefficients and Var_k[f] is the tensor product
+        quadrature variance for subspace k.
+
+        This matches the legacy implementation in
+        pyapprox.surrogates.sparsegrids.combination.CombinationSparseGrid.variance().
+
+        Returns
+        -------
+        Array
+            Variance values of shape (nqoi,)
+        """
+        return self._compute_moment("variance")
+
+    def _compute_moment(
+        self, moment: str, smolyak_coefs: Optional[Array] = None
+    ) -> Array:
+        """Compute a moment using Smolyak combination of subspace moments.
+
+        This matches the legacy implementation in
+        pyapprox.surrogates.sparsegrids.combination.CombinationSparseGrid._compute_moment().
+
+        Parameters
+        ----------
+        moment : str
+            The moment to compute. Either "integrate" (for mean) or "variance".
+        smolyak_coefs : Array, optional
+            Smolyak coefficients to use. If None, uses the grid's current
+            coefficients. This allows computing moments with hypothetical
+            coefficient sets (e.g., for variance-based refinement criteria).
+
+        Returns
+        -------
+        Array
+            Moment values of shape (nqoi,).
+        """
         if self._values is None:
             raise ValueError("Values not set. Call set_values() first.")
 
-        if self._smolyak_coefficients is None:
-            self._update_smolyak_coefficients()
+        if smolyak_coefs is None:
+            if self._smolyak_coefficients is None:
+                self._update_smolyak_coefficients()
+            smolyak_coefs = self._smolyak_coefficients
 
         result = self._bkd.zeros((self._nqoi,))
 
         for j, subspace in enumerate(self._subspace_list):
-            coef = float(self._smolyak_coefficients[j])
+            if j >= len(smolyak_coefs):
+                break
+            coef = float(smolyak_coefs[j])
             if abs(coef) > 1e-14:
-                subspace_mean = subspace.integrate()
-                result = result + coef * subspace_mean
+                subspace_moment = getattr(subspace, moment)()
+                result = result + coef * subspace_moment
 
         return result
 

@@ -97,6 +97,10 @@ class AdaptiveCombinationSparseGrid(CombinationSparseGrid[Array], Generic[Array]
         # Unique samples tracking per subspace
         self._subspace_unique_sample_indices: List[List[int]] = []
 
+        # Stored Smolyak coefficients for selected indices (incrementally updated)
+        # Shape: (nselected + ncandidates,) with candidates having 0 coefficients
+        self._selected_smolyak_coefs: Optional[Array] = None
+
     def _default_refinement_priority(
         self,
         subspace_index: Array,
@@ -184,15 +188,26 @@ class AdaptiveCombinationSparseGrid(CombinationSparseGrid[Array], Generic[Array]
         )
         self._index_gen.set_selected_indices(zero_index)
 
-        # Add selected subspaces
+        # Add selected subspaces (selected subspaces start with error 0)
         selected_indices = self._index_gen.get_selected_indices()
         for index in selected_indices.T:
             self._add_subspace(index)
-            self._subspace_errors.append(float("inf"))
+            self._subspace_errors.append(0.0)
+
+        # Initialize Smolyak coefficients for selected indices
+        self._selected_smolyak_coefs = compute_smolyak_coefficients(
+            selected_indices, self._bkd
+        )
 
         # Add candidate subspaces
         cand_indices = self._index_gen.get_candidate_indices()
         if cand_indices is not None:
+            # Extend Smolyak coefficients with zeros for candidates
+            ncandidates = cand_indices.shape[1]
+            self._selected_smolyak_coefs = self._bkd.hstack((
+                self._selected_smolyak_coefs,
+                self._bkd.zeros((ncandidates,))
+            ))
             for index in cand_indices.T:
                 self._add_subspace(index)
                 self._subspace_errors.append(float("inf"))
@@ -213,6 +228,22 @@ class AdaptiveCombinationSparseGrid(CombinationSparseGrid[Array], Generic[Array]
 
             # Refine this subspace (moves from candidate to selected)
             new_cand_indices = self._index_gen.refine_index(best_index)
+
+            # Extend Smolyak coefficients array for new candidates
+            if self._selected_smolyak_coefs is not None:
+                self._selected_smolyak_coefs = self._bkd.hstack((
+                    self._selected_smolyak_coefs,
+                    self._bkd.zeros((new_cand_indices.shape[1],))
+                ))
+
+            # Incrementally update Smolyak coefficients for the refined index
+            # This is done after refine_index moves it from candidate to selected
+            if self._selected_smolyak_coefs is not None:
+                self._selected_smolyak_coefs = self._adjust_smolyak_coefficients(
+                    self._selected_smolyak_coefs,
+                    best_index,
+                    self._index_gen.get_indices(),
+                )
 
             # Reset error for the refined subspace
             self._subspace_errors[best_idx] = 0.0
@@ -383,6 +414,82 @@ class AdaptiveCombinationSparseGrid(CombinationSparseGrid[Array], Generic[Array]
         if self._nqoi is None:
             raise ValueError("Values not set. Call step_values() first.")
         return self._nqoi
+
+    def _adjust_smolyak_coefficients_with_candidate_index(
+        self, candidate_index: Array
+    ) -> Array:
+        """Compute Smolyak coefficients as if candidate were selected.
+
+        This is used by variance-based refinement criteria to compute what
+        the mean and variance would be if a candidate subspace were added.
+
+        Uses the stored _selected_smolyak_coefs and incrementally updates them
+        rather than recomputing from scratch, following the legacy pattern in
+        pyapprox.surrogates.sparsegrids.combination.AdaptiveCombinationSparseGrid._adjust_smolyak_coefficients_with_candidate_index().
+
+        Parameters
+        ----------
+        candidate_index : Array
+            Candidate index to temporarily include. Shape: (nvars,)
+
+        Returns
+        -------
+        Array
+            Adjusted Smolyak coefficients including the candidate.
+        """
+        if self._selected_smolyak_coefs is None:
+            # Fallback: compute from scratch
+            selected = self._index_gen.get_selected_indices()
+            temp_indices = self._bkd.hstack((selected, candidate_index[:, None]))
+            return compute_smolyak_coefficients(temp_indices, self._bkd)
+
+        # Use stored coefficients and incrementally update
+        # The stored coefficients already have zeros for candidates
+        # We need to compute what they would be if this candidate were selected
+        all_indices = self._index_gen.get_indices()
+        return self._adjust_smolyak_coefficients(
+            self._selected_smolyak_coefs,
+            candidate_index,
+            all_indices,
+        )
+
+    def mean(self) -> Array:
+        """Compute mean of the interpolant using selected subspaces only.
+
+        Uses the stored Smolyak coefficients for efficiency. Only selected
+        subspaces (with non-zero coefficients) contribute to the mean.
+
+        Returns
+        -------
+        Array
+            Mean values of shape (nqoi,).
+        """
+        if self._selected_smolyak_coefs is not None:
+            return self._compute_moment("integrate", self._selected_smolyak_coefs)
+        # Fallback: compute from scratch
+        smolyak_coefs = compute_smolyak_coefficients(
+            self._index_gen.get_selected_indices(), self._bkd
+        )
+        return self._compute_moment("integrate", smolyak_coefs)
+
+    def variance(self) -> Array:
+        """Compute variance of the interpolant using selected subspaces only.
+
+        Uses the stored Smolyak coefficients for efficiency. Only selected
+        subspaces (with non-zero coefficients) contribute to the variance.
+
+        Returns
+        -------
+        Array
+            Variance values of shape (nqoi,).
+        """
+        if self._selected_smolyak_coefs is not None:
+            return self._compute_moment("variance", self._selected_smolyak_coefs)
+        # Fallback: compute from scratch
+        smolyak_coefs = compute_smolyak_coefficients(
+            self._index_gen.get_selected_indices(), self._bkd
+        )
+        return self._compute_moment("variance", smolyak_coefs)
 
     def __call__(self, samples: Array) -> Array:
         """Evaluate sparse grid interpolant using selected subspaces.

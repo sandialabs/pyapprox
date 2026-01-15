@@ -456,6 +456,195 @@ class TestIsotropicSparseGrid(Generic[Array], unittest.TestCase):
         )
 
 
+class TestIncrementalSmolyakUpdate(Generic[Array], unittest.TestCase):
+    """Tests for _adjust_smolyak_coefficients incremental update.
+
+    Tests verify the incremental Smolyak coefficient update algorithm
+    produces the same results as computing coefficients from scratch.
+    """
+
+    __test__ = False
+
+    def bkd(self) -> Backend[Array]:
+        raise NotImplementedError
+
+    def setUp(self) -> None:
+        self._bkd = self.bkd()
+        self._basis = LegendrePolynomial1D(self._bkd)
+        self._growth = LinearGrowthRule(scale=1, shift=1)
+
+    def test_add_single_index_1d(self) -> None:
+        """Test incremental update when adding one index in 1D."""
+        # Start with indices [0, 1]
+        grid = CombinationSparseGrid(
+            self._bkd, [self._basis], self._growth
+        )
+        grid._add_subspace(self._bkd.asarray([0]))
+        grid._add_subspace(self._bkd.asarray([1]))
+
+        # Current coefficients
+        old_coefs = grid.get_smolyak_coefficients()
+
+        # Add new index [2]
+        new_index = self._bkd.asarray([2])
+        old_indices = grid.get_subspace_indices()
+
+        # Extend coefficients array for new index
+        extended_coefs = self._bkd.hstack((old_coefs, self._bkd.zeros((1,))))
+        new_indices = self._bkd.hstack((old_indices, new_index[:, None]))
+
+        # Compute incrementally
+        incremental_coefs = grid._adjust_smolyak_coefficients(
+            extended_coefs, new_index, new_indices
+        )
+
+        # Compute from scratch
+        scratch_coefs = compute_smolyak_coefficients(new_indices, self._bkd)
+
+        self._bkd.assert_allclose(incremental_coefs, scratch_coefs)
+
+    def test_add_single_index_2d(self) -> None:
+        """Test incremental update when adding one index in 2D."""
+        # Start with 2D level 1: {(0,0), (1,0), (0,1)}
+        grid = CombinationSparseGrid(
+            self._bkd, [self._basis, self._basis], self._growth
+        )
+        grid._add_subspace(self._bkd.asarray([0, 0]))
+        grid._add_subspace(self._bkd.asarray([1, 0]))
+        grid._add_subspace(self._bkd.asarray([0, 1]))
+
+        old_coefs = grid.get_smolyak_coefficients()
+        old_indices = grid.get_subspace_indices()
+
+        # Add (1,1)
+        new_index = self._bkd.asarray([1, 1])
+        extended_coefs = self._bkd.hstack((old_coefs, self._bkd.zeros((1,))))
+        new_indices = self._bkd.hstack((old_indices, new_index[:, None]))
+
+        incremental_coefs = grid._adjust_smolyak_coefficients(
+            extended_coefs, new_index, new_indices
+        )
+        scratch_coefs = compute_smolyak_coefficients(new_indices, self._bkd)
+
+        self._bkd.assert_allclose(incremental_coefs, scratch_coefs)
+
+    def test_add_boundary_index_2d(self) -> None:
+        """Test incremental update when adding boundary index in 2D."""
+        # Start with {(0,0), (1,0), (0,1), (1,1)}
+        grid = CombinationSparseGrid(
+            self._bkd, [self._basis, self._basis], self._growth
+        )
+        grid._add_subspace(self._bkd.asarray([0, 0]))
+        grid._add_subspace(self._bkd.asarray([1, 0]))
+        grid._add_subspace(self._bkd.asarray([0, 1]))
+        grid._add_subspace(self._bkd.asarray([1, 1]))
+
+        old_coefs = grid.get_smolyak_coefficients()
+        old_indices = grid.get_subspace_indices()
+
+        # Add (2,0) - boundary index
+        new_index = self._bkd.asarray([2, 0])
+        extended_coefs = self._bkd.hstack((old_coefs, self._bkd.zeros((1,))))
+        new_indices = self._bkd.hstack((old_indices, new_index[:, None]))
+
+        incremental_coefs = grid._adjust_smolyak_coefficients(
+            extended_coefs, new_index, new_indices
+        )
+        scratch_coefs = compute_smolyak_coefficients(new_indices, self._bkd)
+
+        self._bkd.assert_allclose(incremental_coefs, scratch_coefs)
+
+    def test_add_multiple_indices_sequential(self) -> None:
+        """Test sequential incremental updates produce correct result."""
+        grid = CombinationSparseGrid(
+            self._bkd, [self._basis, self._basis], self._growth
+        )
+
+        # Build up indices one by one
+        indices_to_add = [
+            self._bkd.asarray([0, 0]),
+            self._bkd.asarray([1, 0]),
+            self._bkd.asarray([0, 1]),
+            self._bkd.asarray([2, 0]),
+            self._bkd.asarray([1, 1]),
+            self._bkd.asarray([0, 2]),
+        ]
+
+        # Add first index manually
+        grid._add_subspace(indices_to_add[0])
+        current_coefs = grid.get_smolyak_coefficients()
+
+        # Add remaining indices incrementally
+        for new_index in indices_to_add[1:]:
+            old_indices = grid.get_subspace_indices()
+            grid._add_subspace(new_index)
+
+            extended_coefs = self._bkd.hstack(
+                (current_coefs, self._bkd.zeros((1,)))
+            )
+            new_indices = self._bkd.hstack((old_indices, new_index[:, None]))
+
+            current_coefs = grid._adjust_smolyak_coefficients(
+                extended_coefs, new_index, new_indices
+            )
+
+        # Compare with from-scratch computation
+        final_indices = grid.get_subspace_indices()
+        scratch_coefs = compute_smolyak_coefficients(final_indices, self._bkd)
+
+        self._bkd.assert_allclose(current_coefs, scratch_coefs)
+
+    def test_coefficients_sum_to_one_after_update(self) -> None:
+        """Test that coefficients still sum to 1 after incremental update."""
+        grid = CombinationSparseGrid(
+            self._bkd, [self._basis, self._basis], self._growth
+        )
+        grid._add_subspace(self._bkd.asarray([0, 0]))
+        grid._add_subspace(self._bkd.asarray([1, 0]))
+        grid._add_subspace(self._bkd.asarray([0, 1]))
+
+        old_coefs = grid.get_smolyak_coefficients()
+        old_indices = grid.get_subspace_indices()
+
+        new_index = self._bkd.asarray([1, 1])
+        extended_coefs = self._bkd.hstack((old_coefs, self._bkd.zeros((1,))))
+        new_indices = self._bkd.hstack((old_indices, new_index[:, None]))
+
+        incremental_coefs = grid._adjust_smolyak_coefficients(
+            extended_coefs, new_index, new_indices
+        )
+
+        coef_sum = float(self._bkd.sum(incremental_coefs))
+        self.assertAlmostEqual(coef_sum, 1.0, places=12)
+
+    def test_3d_incremental_update(self) -> None:
+        """Test incremental update in 3D."""
+        grid = CombinationSparseGrid(
+            self._bkd, [self._basis, self._basis, self._basis], self._growth
+        )
+
+        # Build 3D level 1 set
+        grid._add_subspace(self._bkd.asarray([0, 0, 0]))
+        grid._add_subspace(self._bkd.asarray([1, 0, 0]))
+        grid._add_subspace(self._bkd.asarray([0, 1, 0]))
+        grid._add_subspace(self._bkd.asarray([0, 0, 1]))
+
+        old_coefs = grid.get_smolyak_coefficients()
+        old_indices = grid.get_subspace_indices()
+
+        # Add (1,1,0)
+        new_index = self._bkd.asarray([1, 1, 0])
+        extended_coefs = self._bkd.hstack((old_coefs, self._bkd.zeros((1,))))
+        new_indices = self._bkd.hstack((old_indices, new_index[:, None]))
+
+        incremental_coefs = grid._adjust_smolyak_coefficients(
+            extended_coefs, new_index, new_indices
+        )
+        scratch_coefs = compute_smolyak_coefficients(new_indices, self._bkd)
+
+        self._bkd.assert_allclose(incremental_coefs, scratch_coefs)
+
+
 class TestSparseGridQuadrature(Generic[Array], unittest.TestCase):
     """Test sparse grid quadrature (mean computation).
 
@@ -726,6 +915,13 @@ class TestIsotropicSparseGridNumpy(TestIsotropicSparseGrid[NDArray[Any]]):
         return NumpyBkd()
 
 
+class TestIncrementalSmolyakUpdateNumpy(TestIncrementalSmolyakUpdate[NDArray[Any]]):
+    """NumPy backend tests for incremental Smolyak update."""
+
+    def bkd(self) -> NumpyBkd:
+        return NumpyBkd()
+
+
 # PyTorch backend tests
 class TestSmolyakCoefficientsTorch(TestSmolyakCoefficients[torch.Tensor]):
     """PyTorch backend tests for Smolyak coefficients."""
@@ -795,6 +991,17 @@ class TestExactInterpolationTorch(TestExactInterpolation[torch.Tensor]):
 
 class TestSparseGridQuadratureTorch(TestSparseGridQuadrature[torch.Tensor]):
     """PyTorch backend tests for sparse grid quadrature."""
+
+    def setUp(self) -> None:
+        torch.set_default_dtype(torch.float64)
+        super().setUp()
+
+    def bkd(self) -> TorchBkd:
+        return TorchBkd()
+
+
+class TestIncrementalSmolyakUpdateTorch(TestIncrementalSmolyakUpdate[torch.Tensor]):
+    """PyTorch backend tests for incremental Smolyak update."""
 
     def setUp(self) -> None:
         torch.set_default_dtype(torch.float64)

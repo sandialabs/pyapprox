@@ -306,6 +306,33 @@ class TensorProductSubspace(Generic[Array]):
         # Result should be (nqoi,)
         return values @ weights
 
+    def variance(self) -> Array:
+        """Compute variance using tensor product quadrature.
+
+        Computes Var[f] = E[f^2] - E[f]^2 using the same quadrature weights
+        as integrate(). This matches the legacy implementation in
+        pyapprox.surrogates.affine.basisexp.TensorProductInterpolant.variance().
+
+        Returns
+        -------
+        Array
+            Variance values of shape (nqoi,)
+
+        Notes
+        -----
+        For exactly interpolated functions (polynomials up to the
+        quadrature degree), this gives the exact variance.
+        """
+        values = self._interpolant.get_values()
+        if values is None:
+            raise ValueError("Values not set. Call set_values() first.")
+
+        weights = self.get_quadrature_weights()
+        mean = self.integrate()
+        # E[f^2] = (values^2) @ weights, values is (nqoi, nsamples)
+        mean_sq = (values**2) @ weights
+        return mean_sq - mean**2
+
     def __repr__(self) -> str:
         index_str = ",".join(str(int(i)) for i in self._index)
         return (
