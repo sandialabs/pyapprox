@@ -1,4 +1,13 @@
-"""Tests for IsotropicCombinationSparseGrid."""
+"""Tests for IsotropicCombinationSparseGrid.
+
+Tests run on both NumPy and PyTorch backends using the base class pattern.
+
+This file contains tests specific to IsotropicCombinationSparseGrid:
+- TestIsotropicSparseGrid: Core functionality tests
+- TestIsotropicWithGenerator: Index generator integration tests
+- TestIsotropicQuadrature: Quadrature/integration tests
+- TestIsotropicLegacy: Legacy comparison tests
+"""
 
 import unittest
 from typing import Any, Generic
@@ -10,29 +19,37 @@ from pyapprox.typing.surrogates.affine.indices import (
     HyperbolicIndexGenerator,
     LinearGrowthRule,
 )
-from pyapprox.typing.surrogates.affine.univariate import LegendrePolynomial1D
+from pyapprox.typing.surrogates.affine.univariate import (
+    HermitePolynomial1D,
+    LegendrePolynomial1D,
+)
 from pyapprox.typing.surrogates.sparsegrids import (
     IsotropicCombinationSparseGrid,
     is_downward_closed,
 )
 from pyapprox.typing.util.backends.numpy import NumpyBkd
-from pyapprox.typing.util.backends.protocols import Array
+from pyapprox.typing.util.backends.protocols import Array, Backend
 from pyapprox.typing.util.backends.torch import TorchBkd
 from pyapprox.typing.util.test_utils import load_tests
 
 
+# =============================================================================
+# Core functionality tests
+# =============================================================================
+
+
 class TestIsotropicSparseGrid(Generic[Array], unittest.TestCase):
-    """Tests for IsotropicCombinationSparseGrid."""
+    """Tests for IsotropicCombinationSparseGrid core functionality."""
 
     __test__ = False
 
-    def bkd(self):
+    def bkd(self) -> Backend[Array]:
         raise NotImplementedError
 
-    def setUp(self):
+    def setUp(self) -> None:
         self._bkd = self.bkd()
 
-    def test_level_0(self):
+    def test_level_0(self) -> None:
         """Test level 0 sparse grid (single point)."""
         basis = LegendrePolynomial1D(self._bkd)
         growth = LinearGrowthRule(scale=1, shift=1)  # n(l) = l + 1
@@ -102,6 +119,62 @@ class TestIsotropicSparseGrid(Generic[Array], unittest.TestCase):
             )
 
 
+    def test_polynomial_exactness_by_degree(self) -> None:
+        """Test that degree d polynomial is exact at level >= d.
+
+        Sparse grid with level L exactly integrates polynomials of total
+        degree up to 2L+1 for Gauss-Legendre rules with linear growth.
+        For interpolation, it exactly represents polynomials of total
+        degree up to L.
+        """
+        basis = LegendrePolynomial1D(self._bkd)
+        growth = LinearGrowthRule(scale=1, shift=1)
+
+        # Test polynomial of degree 2: f(x,y) = x^2 + xy + y^2
+        for level in [2, 3, 4]:
+            grid = IsotropicCombinationSparseGrid(
+                self._bkd, [basis, basis], growth, level=level
+            )
+
+            samples = grid.get_samples()
+            x, y = samples[0, :], samples[1, :]
+            values = self._bkd.reshape(x**2 + x*y + y**2, (1, -1))
+            grid.set_values(values)
+
+            # Test at random points
+            test_pts = self._bkd.asarray([
+                [0.123, -0.456, 0.789],
+                [0.234, 0.567, -0.321]
+            ])
+            result = grid(test_pts)
+            x_t, y_t = test_pts[0, :], test_pts[1, :]
+            expected = self._bkd.reshape(x_t**2 + x_t*y_t + y_t**2, (1, -1))
+
+            self._bkd.assert_allclose(result, expected, rtol=1e-10)
+
+    def test_higher_degree_polynomial(self) -> None:
+        """Test higher degree polynomial requires higher level."""
+        basis = LegendrePolynomial1D(self._bkd)
+        growth = LinearGrowthRule(scale=1, shift=1)
+
+        # f(x,y) = x^3 + x^2*y + x*y^2 + y^3 requires at least level 3
+        grid = IsotropicCombinationSparseGrid(
+            self._bkd, [basis, basis], growth, level=3
+        )
+
+        samples = grid.get_samples()
+        x, y = samples[0, :], samples[1, :]
+        values = self._bkd.reshape(x**3 + x**2*y + x*y**2 + y**3, (1, -1))
+        grid.set_values(values)
+
+        test_pts = self._bkd.asarray([[0.3, -0.5], [0.4, 0.6]])
+        result = grid(test_pts)
+        x_t, y_t = test_pts[0, :], test_pts[1, :]
+        expected = self._bkd.reshape(x_t**3 + x_t**2*y_t + x_t*y_t**2 + y_t**3, (1, -1))
+
+        self._bkd.assert_allclose(result, expected, rtol=1e-10)
+
+
 class TestIsotropicSparseGridNumpy(TestIsotropicSparseGrid[NDArray[Any]]):
     """NumPy backend tests."""
 
@@ -119,9 +192,176 @@ class TestIsotropicSparseGridTorch(TestIsotropicSparseGrid[torch.Tensor]):
     def bkd(self) -> TorchBkd:
         return TorchBkd()
 
-    def setUp(self):
+    def setUp(self) -> None:
         torch.set_default_dtype(torch.float64)
         super().setUp()
+
+
+# =============================================================================
+# Quadrature and integration tests
+# =============================================================================
+
+
+class TestIsotropicQuadrature(Generic[Array], unittest.TestCase):
+    """Tests for IsotropicCombinationSparseGrid quadrature/integration."""
+
+    __test__ = False
+
+    def bkd(self) -> Backend[Array]:
+        raise NotImplementedError
+
+    def setUp(self) -> None:
+        self._bkd = self.bkd()
+
+    def test_mean_monomial_exact(self) -> None:
+        """Test that mean of x^2 + y^2 is exactly 2/3 on [-1,1]^2.
+
+        For uniform distribution on [-1,1], E[x^2] = 1/3.
+        So E[x^2 + y^2] = 1/3 + 1/3 = 2/3.
+        """
+        basis = LegendrePolynomial1D(self._bkd)
+        growth = LinearGrowthRule(scale=1, shift=1)
+
+        grid = IsotropicCombinationSparseGrid(
+            self._bkd, [basis, basis], growth, level=2
+        )
+
+        samples = grid.get_samples()
+        x, y = samples[0, :], samples[1, :]
+        values = self._bkd.reshape(x**2 + y**2, (1, -1))
+        grid.set_values(values)
+
+        mean = grid.mean()
+        expected = 2.0 / 3.0
+        self._bkd.assert_allclose(mean, self._bkd.asarray([expected]), rtol=1e-12)
+
+    def test_mean_mixed_monomial(self) -> None:
+        """Test mean of x^2*y^2 is exactly 1/9 on [-1,1]^2.
+
+        E[x^2*y^2] = E[x^2] * E[y^2] = (1/3) * (1/3) = 1/9.
+        """
+        basis = LegendrePolynomial1D(self._bkd)
+        growth = LinearGrowthRule(scale=1, shift=1)
+
+        grid = IsotropicCombinationSparseGrid(
+            self._bkd, [basis, basis], growth, level=3
+        )
+
+        samples = grid.get_samples()
+        x, y = samples[0, :], samples[1, :]
+        values = self._bkd.reshape(x**2 * y**2, (1, -1))
+        grid.set_values(values)
+
+        mean = grid.mean()
+        expected = 1.0 / 9.0
+        self._bkd.assert_allclose(mean, self._bkd.asarray([expected]), rtol=1e-12)
+
+    def test_integration_symmetry_odd_function(self) -> None:
+        """Test that odd functions integrate to zero.
+
+        For symmetric distribution, E[x + y] = E[x^3 + y^3] = E[xy] = 0.
+        """
+        basis = LegendrePolynomial1D(self._bkd)
+        growth = LinearGrowthRule(scale=1, shift=1)
+
+        grid = IsotropicCombinationSparseGrid(
+            self._bkd, [basis, basis], growth, level=3
+        )
+
+        samples = grid.get_samples()
+        x, y = samples[0, :], samples[1, :]
+
+        # Test E[x + y] = 0
+        values_sum = self._bkd.reshape(x + y, (1, -1))
+        grid.set_values(values_sum)
+        mean_sum = grid.mean()
+        self._bkd.assert_allclose(mean_sum, self._bkd.asarray([0.0]), atol=1e-14)
+
+        # Test E[x^3 + y^3] = 0
+        values_cubes = self._bkd.reshape(x**3 + y**3, (1, -1))
+        grid.set_values(values_cubes)
+        mean_cubes = grid.mean()
+        self._bkd.assert_allclose(mean_cubes, self._bkd.asarray([0.0]), atol=1e-14)
+
+        # Test E[x*y] = 0 (product of independent odd functions)
+        values_xy = self._bkd.reshape(x * y, (1, -1))
+        grid.set_values(values_xy)
+        mean_xy = grid.mean()
+        self._bkd.assert_allclose(mean_xy, self._bkd.asarray([0.0]), atol=1e-14)
+
+    def test_variance_sum_function(self) -> None:
+        """Test variance of f(x,y) = x + y.
+
+        Var[x + y] = Var[x] + Var[y] = 1/3 + 1/3 = 2/3.
+        """
+        basis = LegendrePolynomial1D(self._bkd)
+        growth = LinearGrowthRule(scale=1, shift=1)
+
+        grid = IsotropicCombinationSparseGrid(
+            self._bkd, [basis, basis], growth, level=2
+        )
+
+        samples = grid.get_samples()
+        x, y = samples[0, :], samples[1, :]
+        values = self._bkd.reshape(x + y, (1, -1))
+        grid.set_values(values)
+
+        variance = grid.variance()
+        expected = 2.0 / 3.0
+        self._bkd.assert_allclose(
+            variance, self._bkd.asarray([expected]), rtol=1e-10
+        )
+
+    def test_variance_product_function(self) -> None:
+        """Test variance of f(x,y) = x*y.
+
+        E[xy] = 0, E[(xy)^2] = E[x^2]*E[y^2] = 1/9
+        Var[xy] = E[(xy)^2] - E[xy]^2 = 1/9 - 0 = 1/9.
+        """
+        basis = LegendrePolynomial1D(self._bkd)
+        growth = LinearGrowthRule(scale=1, shift=1)
+
+        grid = IsotropicCombinationSparseGrid(
+            self._bkd, [basis, basis], growth, level=2
+        )
+
+        samples = grid.get_samples()
+        x, y = samples[0, :], samples[1, :]
+        values = self._bkd.reshape(x * y, (1, -1))
+        grid.set_values(values)
+
+        variance = grid.variance()
+        expected = 1.0 / 9.0
+        self._bkd.assert_allclose(
+            variance, self._bkd.asarray([expected]), rtol=1e-10
+        )
+
+
+class TestIsotropicQuadratureNumpy(TestIsotropicQuadrature[NDArray[Any]]):
+    """NumPy backend tests for quadrature."""
+
+    __test__ = True
+
+    def bkd(self) -> NumpyBkd:
+        return NumpyBkd()
+
+
+class TestIsotropicQuadratureTorch(TestIsotropicQuadrature[torch.Tensor]):
+    """PyTorch backend tests for quadrature."""
+
+    __test__ = True
+
+    def bkd(self) -> TorchBkd:
+        return TorchBkd()
+
+    def setUp(self) -> None:
+        torch.set_default_dtype(torch.float64)
+        super().setUp()
+
+
+# =============================================================================
+# Index generator integration tests
+# =============================================================================
 
 
 class TestIsotropicWithGenerator(Generic[Array], unittest.TestCase):
@@ -292,6 +532,249 @@ class TestIsotropicWithGeneratorTorch(TestIsotropicWithGenerator[torch.Tensor]):
         return TorchBkd()
 
     def setUp(self):
+        torch.set_default_dtype(torch.float64)
+        super().setUp()
+
+
+# =============================================================================
+# Legacy comparison tests
+# =============================================================================
+
+
+class TestIsotropicLegacy(Generic[Array], unittest.TestCase):
+    """Legacy comparison tests for IsotropicCombinationSparseGrid.
+
+    These tests verify that the typing implementation produces the same
+    results as the legacy implementation when using the same quadrature
+    rules (Clenshaw-Curtis).
+    """
+
+    __test__ = False
+
+    def bkd(self) -> Backend[Array]:
+        raise NotImplementedError
+
+    def setUp(self) -> None:
+        self._bkd = self.bkd()
+
+    def _build_legacy_sparse_grid(self, nvars: int, level: int, nqoi: int):
+        """Build a legacy sparse grid with Clenshaw-Curtis quadrature."""
+        from pyapprox.surrogates.univariate.base import (
+            ClenshawCurtisQuadratureRule as LegacyCCQuadratureRule,
+        )
+        from pyapprox.surrogates.univariate.lagrange import UnivariateLagrangeBasis
+        from pyapprox.surrogates.affine.basis import TensorProductInterpolatingBasis
+        from pyapprox.surrogates.affine.multiindex import DoublePlusOneIndexGrowthRule
+        from pyapprox.surrogates.sparsegrids.combination import (
+            IsotropicCombinationSparseGrid as LegacyIsotropicSG,
+        )
+
+        quad_rule = LegacyCCQuadratureRule(
+            store=True, bounds=[-1, 1], prob_measure=True
+        )
+        # Initialize Lagrange basis with valid CC nterms (2^level + 1)
+        # The growth rule determines actual points per subspace level
+        growth = DoublePlusOneIndexGrowthRule()
+        max_nterms = growth(level)  # 2^level + 1
+        bases_1d = [
+            UnivariateLagrangeBasis(quad_rule, max_nterms) for _ in range(nvars)
+        ]
+        basis = TensorProductInterpolatingBasis(bases_1d)
+
+        # Don't specify backend - let legacy use its default
+        sg = LegacyIsotropicSG(
+            nqoi,
+            nvars,
+            level,
+            growth,
+            basis,
+        )
+        return sg
+
+    def _build_typing_sparse_grid(self, nvars: int, level: int):
+        """Build a typing sparse grid with Clenshaw-Curtis quadrature."""
+        from pyapprox.typing.surrogates.affine.univariate import LagrangeBasis1D
+        from pyapprox.typing.surrogates.affine.univariate.globalpoly import (
+            ClenshawCurtisQuadratureRule,
+        )
+        from pyapprox.typing.surrogates.affine.indices import DoublePlusOneGrowthRule
+        from pyapprox.typing.surrogates.sparsegrids import (
+            IsotropicCombinationSparseGrid,
+        )
+
+        cc_quad = ClenshawCurtisQuadratureRule(self._bkd, store=True)
+        bases = [LagrangeBasis1D(self._bkd, cc_quad) for _ in range(nvars)]
+        growth = DoublePlusOneGrowthRule()
+
+        sg = IsotropicCombinationSparseGrid(self._bkd, bases, growth, level=level)
+        return sg
+
+    def test_sample_points_match(self) -> None:
+        """Test that sample points match between typing and legacy."""
+        nvars, level = 2, 3
+
+        legacy_sg = self._build_legacy_sparse_grid(nvars, level, nqoi=1)
+        typing_sg = self._build_typing_sparse_grid(nvars, level)
+
+        legacy_samples = legacy_sg.train_samples()
+        typing_samples = self._bkd.to_numpy(typing_sg.get_samples())
+
+        # Both should have the same number of samples
+        self.assertEqual(legacy_samples.shape[1], typing_samples.shape[1])
+
+        # Sort samples to ensure we can compare them
+        legacy_sorted = legacy_samples[:, legacy_samples[0, :].argsort()]
+        typing_sorted = typing_samples[:, typing_samples[0, :].argsort()]
+
+        # Compare sorted samples
+        import numpy as np
+        np.testing.assert_allclose(legacy_sorted, typing_sorted, rtol=1e-12)
+
+    def test_interpolation_matches_legacy(self) -> None:
+        """Test interpolation matches legacy implementation."""
+        nvars, level, nqoi = 2, 3, 1
+
+        legacy_sg = self._build_legacy_sparse_grid(nvars, level, nqoi)
+        typing_sg = self._build_typing_sparse_grid(nvars, level)
+
+        # Function: f(x, y) = x^2 + x*y + y^2
+        def test_func_np(samples):
+            x, y = samples[0, :], samples[1, :]
+            return (x**2 + x * y + y**2).reshape(1, -1)  # (nqoi, nsamples)
+
+        # Set values on both grids
+        # Legacy expects values shape (nsamples, nqoi) - transpose of typing
+        legacy_samples = legacy_sg.train_samples()
+        legacy_values = test_func_np(legacy_samples).T
+        legacy_sg.fit(legacy_samples, legacy_values)
+
+        typing_samples = typing_sg.get_samples()
+        typing_values = self._bkd.reshape(
+            typing_samples[0, :] ** 2
+            + typing_samples[0, :] * typing_samples[1, :]
+            + typing_samples[1, :] ** 2,
+            (1, -1),
+        )
+        typing_sg.set_values(typing_values)
+
+        # Evaluate at test points
+        import numpy as np
+        test_pts_np = np.array([[0.3, -0.5, 0.7], [0.2, 0.4, -0.3]])
+        test_pts = self._bkd.asarray(test_pts_np)
+
+        # Legacy returns (nsamples, nqoi), typing returns (nqoi, nsamples)
+        legacy_result = legacy_sg(test_pts_np).T
+        typing_result = self._bkd.to_numpy(typing_sg(test_pts))
+
+        np.testing.assert_allclose(legacy_result, typing_result, rtol=1e-10)
+
+    def test_mean_matches_legacy(self) -> None:
+        """Test mean computation matches legacy implementation."""
+        nvars, level, nqoi = 2, 3, 1
+
+        legacy_sg = self._build_legacy_sparse_grid(nvars, level, nqoi)
+        typing_sg = self._build_typing_sparse_grid(nvars, level)
+
+        # Function: f(x, y) = x^2 + y^2
+        # Legacy expects values shape (nsamples, nqoi) - transpose of typing
+        legacy_samples = legacy_sg.train_samples()
+        legacy_values = (
+            legacy_samples[0, :] ** 2 + legacy_samples[1, :] ** 2
+        ).reshape(1, -1).T
+        legacy_sg.fit(legacy_samples, legacy_values)
+
+        typing_samples = typing_sg.get_samples()
+        typing_values = self._bkd.reshape(
+            typing_samples[0, :] ** 2 + typing_samples[1, :] ** 2, (1, -1)
+        )
+        typing_sg.set_values(typing_values)
+
+        legacy_mean = legacy_sg.mean()
+        typing_mean = self._bkd.to_numpy(typing_sg.mean())
+
+        import numpy as np
+        np.testing.assert_allclose(legacy_mean, typing_mean, rtol=1e-12)
+
+    def test_variance_matches_legacy(self) -> None:
+        """Test variance computation matches legacy implementation."""
+        nvars, level, nqoi = 2, 3, 1
+
+        legacy_sg = self._build_legacy_sparse_grid(nvars, level, nqoi)
+        typing_sg = self._build_typing_sparse_grid(nvars, level)
+
+        # Function: f(x, y) = x + y
+        # Legacy expects values shape (nsamples, nqoi) - transpose of typing
+        legacy_samples = legacy_sg.train_samples()
+        legacy_values = (legacy_samples[0, :] + legacy_samples[1, :]).reshape(
+            1, -1
+        ).T
+        legacy_sg.fit(legacy_samples, legacy_values)
+
+        typing_samples = typing_sg.get_samples()
+        typing_values = self._bkd.reshape(
+            typing_samples[0, :] + typing_samples[1, :], (1, -1)
+        )
+        typing_sg.set_values(typing_values)
+
+        legacy_variance = legacy_sg.variance()
+        typing_variance = self._bkd.to_numpy(typing_sg.variance())
+
+        import numpy as np
+        np.testing.assert_allclose(legacy_variance, typing_variance, rtol=1e-10)
+
+    def test_higher_dimension_matches_legacy(self) -> None:
+        """Test 3D sparse grid matches legacy implementation."""
+        nvars, level, nqoi = 3, 2, 1
+
+        legacy_sg = self._build_legacy_sparse_grid(nvars, level, nqoi)
+        typing_sg = self._build_typing_sparse_grid(nvars, level)
+
+        # Function: f(x, y, z) = x*y + y*z + x*z
+        # Legacy expects values shape (nsamples, nqoi) - transpose of typing
+        legacy_samples = legacy_sg.train_samples()
+        x, y, z = legacy_samples[0, :], legacy_samples[1, :], legacy_samples[2, :]
+        legacy_values = (x * y + y * z + x * z).reshape(1, -1).T
+        legacy_sg.fit(legacy_samples, legacy_values)
+
+        typing_samples = typing_sg.get_samples()
+        tx, ty, tz = (
+            typing_samples[0, :],
+            typing_samples[1, :],
+            typing_samples[2, :],
+        )
+        typing_values = self._bkd.reshape(tx * ty + ty * tz + tx * tz, (1, -1))
+        typing_sg.set_values(typing_values)
+
+        # Compare at test points
+        import numpy as np
+        test_pts_np = np.array([[0.3, -0.5], [0.2, 0.4], [-0.1, 0.6]])
+        test_pts = self._bkd.asarray(test_pts_np)
+
+        # Legacy returns (nsamples, nqoi), typing returns (nqoi, nsamples)
+        legacy_result = legacy_sg(test_pts_np).T
+        typing_result = self._bkd.to_numpy(typing_sg(test_pts))
+
+        np.testing.assert_allclose(legacy_result, typing_result, rtol=1e-10)
+
+
+class TestIsotropicLegacyNumpy(TestIsotropicLegacy[NDArray[Any]]):
+    """NumPy backend tests for legacy comparison."""
+
+    __test__ = True
+
+    def bkd(self) -> NumpyBkd:
+        return NumpyBkd()
+
+
+class TestIsotropicLegacyTorch(TestIsotropicLegacy[torch.Tensor]):
+    """PyTorch backend tests for legacy comparison."""
+
+    __test__ = True
+
+    def bkd(self) -> TorchBkd:
+        return TorchBkd()
+
+    def setUp(self) -> None:
         torch.set_default_dtype(torch.float64)
         super().setUp()
 

@@ -121,7 +121,7 @@ class IndexGenerator(ABC):
 
     def get_indices(self) -> Array:
         indices = self._get_indices()
-        if indices.dtype != self._bkd.int():
+        if indices.dtype != self._bkd.int_dtype():
             raise RuntimeError("indices must be integers")
         return indices
 
@@ -211,7 +211,7 @@ class IterativeIndexGenerator(IndexGenerator):
         self._sel_indices_dict = dict()
         self._cand_indices_dict = dict()
 
-        if selected_indices.dtype != self._bkd.int():
+        if selected_indices.dtype != self._bkd.int_dtype():
             raise RuntimeError("selected_indices must be integers")
 
         if (

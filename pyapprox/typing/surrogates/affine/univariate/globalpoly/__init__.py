@@ -65,6 +65,7 @@ from pyapprox.typing.surrogates.affine.univariate.globalpoly.numeric import (
 from pyapprox.typing.surrogates.affine.univariate.globalpoly.quadrature import (
     GaussQuadratureRule,
     GaussLobattoQuadratureRule,
+    ClenshawCurtisQuadratureRule,
 )
 
 __all__ = [
@@ -100,4 +101,5 @@ __all__ = [
     # Quadrature
     "GaussQuadratureRule",
     "GaussLobattoQuadratureRule",
+    "ClenshawCurtisQuadratureRule",
 ]
