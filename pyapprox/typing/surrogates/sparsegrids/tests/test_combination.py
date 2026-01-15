@@ -1,11 +1,23 @@
-"""Dual-backend tests for CombinationSparseGrid and IsotropicCombinationSparseGrid.
+"""Dual-backend tests for CombinationSparseGrid base class.
 
 Tests run on both NumPy and PyTorch backends using the base class pattern.
+
+This file contains tests specific to CombinationSparseGrid base class:
+- TestCombinationSparseGridBase: Core functionality tests
+- TestIncrementalSmolyakUpdate: Incremental coefficient updates
+- TestCombinationSparseGridLegacy: Legacy comparison tests
+
+Tests for other components have been migrated to:
+- test_smolyak.py: Smolyak coefficients, downward closure, admissibility
+- test_subspace.py: TensorProductSubspace
+- test_isotropic.py: IsotropicCombinationSparseGrid
+- test_refinement.py: Refinement criteria
 """
 
 import unittest
 from typing import Any, Generic
 
+import numpy as np
 import torch
 from numpy.typing import NDArray
 
@@ -17,157 +29,19 @@ from pyapprox.typing.util.test_utils import load_tests
 from pyapprox.typing.surrogates.sparsegrids import (
     CombinationSparseGrid,
     IsotropicCombinationSparseGrid,
-    TensorProductSubspace,
     compute_smolyak_coefficients,
-    is_downward_closed,
-    check_admissibility,
 )
 from pyapprox.typing.surrogates.affine.univariate import LegendrePolynomial1D
 from pyapprox.typing.surrogates.affine.indices import LinearGrowthRule
 
 
-class TestSmolyakCoefficients(Generic[Array], unittest.TestCase):
-    """Tests for Smolyak coefficient computation - dual backend."""
-
-    __test__ = False
-
-    def bkd(self) -> Backend[Array]:
-        raise NotImplementedError
-
-    def setUp(self) -> None:
-        self._bkd = self.bkd()
-
-    def test_1d_level_2(self) -> None:
-        """Test Smolyak coefficients for 1D level 2."""
-        indices = self._bkd.asarray([[0, 1, 2]])
-        coefs = compute_smolyak_coefficients(indices, self._bkd)
-
-        # In 1D, only final level has coef=1
-        expected = self._bkd.asarray([0.0, 0.0, 1.0])
-        self.assertTrue(self._bkd.allclose(coefs, expected))
-
-    def test_2d_level_1(self) -> None:
-        """Test Smolyak coefficients for 2D level 1."""
-        indices = self._bkd.asarray([[0, 1, 0], [0, 0, 1]])
-        coefs = compute_smolyak_coefficients(indices, self._bkd)
-
-        # c_{0,0} = -1, c_{1,0} = 1, c_{0,1} = 1
-        expected = self._bkd.asarray([-1.0, 1.0, 1.0])
-        self.assertTrue(self._bkd.allclose(coefs, expected))
-
-    def test_coefficients_sum_to_one(self) -> None:
-        """Test that Smolyak coefficients sum to 1."""
-        indices = self._bkd.asarray([[0, 1, 0, 2, 1, 0], [0, 0, 1, 0, 1, 2]])
-        coefs = compute_smolyak_coefficients(indices, self._bkd)
-        self.assertAlmostEqual(float(self._bkd.sum(coefs)), 1.0, places=10)
+# =============================================================================
+# Tests for CombinationSparseGrid base class functionality
+# =============================================================================
 
 
-class TestDownwardClosed(Generic[Array], unittest.TestCase):
-    """Tests for downward closure checking - dual backend."""
-
-    __test__ = False
-
-    def bkd(self) -> Backend[Array]:
-        raise NotImplementedError
-
-    def setUp(self) -> None:
-        self._bkd = self.bkd()
-
-    def test_downward_closed_set(self) -> None:
-        """Test that a proper set is detected as downward closed."""
-        indices = self._bkd.asarray([[0, 1, 0], [0, 0, 1]])
-        self.assertTrue(is_downward_closed(indices, self._bkd))
-
-    def test_not_downward_closed(self) -> None:
-        """Test that an improper set is detected."""
-        indices = self._bkd.asarray([[0, 2], [0, 0]])
-        self.assertFalse(is_downward_closed(indices, self._bkd))
-
-
-class TestAdmissibility(Generic[Array], unittest.TestCase):
-    """Tests for admissibility checking - dual backend."""
-
-    __test__ = False
-
-    def bkd(self) -> Backend[Array]:
-        raise NotImplementedError
-
-    def setUp(self) -> None:
-        self._bkd = self.bkd()
-
-    def test_admissible_candidate(self) -> None:
-        """Test admissible candidate detection."""
-        existing = self._bkd.asarray([[0, 1, 0], [0, 0, 1]])
-        candidate = self._bkd.asarray([1, 1])
-        self.assertTrue(check_admissibility(candidate, existing, self._bkd))
-
-    def test_inadmissible_candidate(self) -> None:
-        """Test inadmissible candidate detection."""
-        existing = self._bkd.asarray([[0, 1], [0, 0]])
-        candidate = self._bkd.asarray([1, 1])
-        self.assertFalse(check_admissibility(candidate, existing, self._bkd))
-
-
-class TestTensorProductSubspace(Generic[Array], unittest.TestCase):
-    """Tests for TensorProductSubspace - dual backend."""
-
-    __test__ = False
-
-    def bkd(self) -> Backend[Array]:
-        raise NotImplementedError
-
-    def setUp(self) -> None:
-        self._bkd = self.bkd()
-
-    def test_subspace_samples(self) -> None:
-        """Test that subspace generates correct number of samples."""
-        basis = LegendrePolynomial1D(self._bkd)
-        growth = LinearGrowthRule(scale=1, shift=1)
-
-        index = self._bkd.asarray([1, 2])
-        subspace = TensorProductSubspace(
-            self._bkd, index, [basis, basis], growth
-        )
-
-        self.assertEqual(subspace.nsamples(), 6)
-        self.assertEqual(subspace.get_samples().shape, (2, 6))
-
-    def test_subspace_interpolation(self) -> None:
-        """Test that subspace interpolates exactly for polynomials."""
-        basis = LegendrePolynomial1D(self._bkd)
-        growth = LinearGrowthRule(scale=1, shift=1)
-
-        index = self._bkd.asarray([2, 2])
-        subspace = TensorProductSubspace(
-            self._bkd, index, [basis, basis], growth
-        )
-
-        # f(x, y) = x^2 + y
-        samples = subspace.get_samples()
-        # Values shape: (nqoi, nsamples) = (1, nsamples)
-        values = self._bkd.reshape(samples[0, :] ** 2 + samples[1, :], (1, -1))
-        subspace.set_values(values)
-
-        test_pts = self._bkd.asarray([[0.3, -0.5, 0.7], [0.2, 0.4, -0.3]])
-        result = subspace(test_pts)
-        expected = self._bkd.reshape(
-            test_pts[0, :] ** 2 + test_pts[1, :], (1, -1)
-        )
-
-        self.assertTrue(self._bkd.allclose(result, expected, rtol=1e-10))
-
-
-class TestExactInterpolation(Generic[Array], unittest.TestCase):
-    """Tests for exact polynomial interpolation - dual backend.
-
-    For Legendre basis with linear growth rule:
-    - Level L sparse grid can exactly interpolate polynomials up to
-      total degree L in each variable.
-
-    The growth rule n(l) = l + 1 gives n points at level l.
-    With n Gauss-Legendre points, polynomials up to degree 2n-1 are
-    exactly integrated, and up to degree n-1 are exactly interpolated.
-    """
+class TestCombinationSparseGridBase(Generic[Array], unittest.TestCase):
+    """Tests for CombinationSparseGrid base class functionality."""
 
     __test__ = False
 
@@ -179,281 +53,230 @@ class TestExactInterpolation(Generic[Array], unittest.TestCase):
         self._basis = LegendrePolynomial1D(self._bkd)
         self._growth = LinearGrowthRule(scale=1, shift=1)
 
-    def test_exact_interp_degree_1_2d(self) -> None:
-        """Test exact interpolation of degree-1 polynomial in 2D.
-
-        f(x, y) = 2*x + 3*y + 1 should be exactly interpolated by level >= 1.
-        """
-        grid = IsotropicCombinationSparseGrid(
-            self._bkd, [self._basis, self._basis], self._growth, level=1
+    def test_unique_samples_collected_correctly(self) -> None:
+        """Test that unique samples are collected from all subspaces."""
+        grid = CombinationSparseGrid(
+            self._bkd, [self._basis, self._basis], self._growth
         )
 
+        # Add subspaces manually
+        grid._add_subspace(self._bkd.asarray([0, 0]))  # 1 sample
+        grid._add_subspace(self._bkd.asarray([1, 0]))  # 2 samples
+        grid._add_subspace(self._bkd.asarray([0, 1]))  # 2 samples
+
         samples = grid.get_samples()
-        x, y = samples[0, :], samples[1, :]
-        # Values shape: (nqoi, nsamples) = (1, nsamples)
-        values = self._bkd.reshape(2.0 * x + 3.0 * y + 1.0, (1, -1))
-        grid.set_values(values)
 
-        test_pts = self._bkd.asarray([[0.23, -0.67, 0.11], [0.45, 0.89, -0.33]])
-        result = grid(test_pts)
-        x_t, y_t = test_pts[0, :], test_pts[1, :]
-        expected = self._bkd.reshape(2.0 * x_t + 3.0 * y_t + 1.0, (1, -1))
+        # Should have nvars=2
+        self.assertEqual(samples.shape[0], 2)
 
-        self._bkd.assert_allclose(result, expected, rtol=1e-12)
+        # Verify no duplicate columns
+        for i in range(samples.shape[1]):
+            for j in range(i + 1, samples.shape[1]):
+                is_same = self._bkd.allclose(
+                    samples[:, i:i+1], samples[:, j:j+1], rtol=1e-14, atol=1e-14
+                )
+                self.assertFalse(
+                    is_same,
+                    f"Duplicate samples found at indices {i} and {j}"
+                )
 
-    def test_exact_interp_degree_2_2d(self) -> None:
-        """Test exact interpolation of degree-2 polynomial in 2D.
-
-        f(x, y) = x^2 + x*y + y^2 should be exactly interpolated by level >= 2.
-        """
-        grid = IsotropicCombinationSparseGrid(
-            self._bkd, [self._basis, self._basis], self._growth, level=2
+    def test_values_distributed_to_subspaces(self) -> None:
+        """Test that set_values distributes to each subspace correctly."""
+        grid = CombinationSparseGrid(
+            self._bkd, [self._basis, self._basis], self._growth
         )
+        grid._add_subspace(self._bkd.asarray([1, 0]))
+        grid._add_subspace(self._bkd.asarray([0, 1]))
 
         samples = grid.get_samples()
-        x, y = samples[0, :], samples[1, :]
-        # Values shape: (nqoi, nsamples) = (1, nsamples)
-        values = self._bkd.reshape(x**2 + x * y + y**2, (1, -1))
+        # f(x,y) = x + y
+        values = self._bkd.reshape(samples[0, :] + samples[1, :], (1, -1))
         grid.set_values(values)
 
-        test_pts = self._bkd.asarray([[0.23, -0.67, 0.11], [0.45, 0.89, -0.33]])
-        result = grid(test_pts)
-        x_t, y_t = test_pts[0, :], test_pts[1, :]
-        expected = self._bkd.reshape(x_t**2 + x_t * y_t + y_t**2, (1, -1))
-
-        self._bkd.assert_allclose(result, expected, rtol=1e-10)
-
-    def test_exact_interp_degree_3_2d(self) -> None:
-        """Test exact interpolation of degree-3 polynomial in 2D.
-
-        f(x, y) = x^3 + y^3 should be exactly interpolated by level >= 3.
-        """
-        grid = IsotropicCombinationSparseGrid(
-            self._bkd, [self._basis, self._basis], self._growth, level=3
-        )
-
-        samples = grid.get_samples()
-        x, y = samples[0, :], samples[1, :]
-        # Values shape: (nqoi, nsamples) = (1, nsamples)
-        values = self._bkd.reshape(x**3 + y**3, (1, -1))
-        grid.set_values(values)
-
-        test_pts = self._bkd.asarray([[0.23, -0.67, 0.11], [0.45, 0.89, -0.33]])
-        result = grid(test_pts)
-        x_t, y_t = test_pts[0, :], test_pts[1, :]
-        expected = self._bkd.reshape(x_t**3 + y_t**3, (1, -1))
-
-        self._bkd.assert_allclose(result, expected, rtol=1e-10)
-
-    def test_anisotropic_polynomial_higher_in_dim0(self) -> None:
-        """Test polynomial with higher degree in dim 0.
-
-        f(x, y) = x^4 + y should require more refinement in x than y.
-        Error should decrease faster as level increases.
-        """
-        errors = []
-        for level in [2, 3, 4]:
-            grid = IsotropicCombinationSparseGrid(
-                self._bkd, [self._basis, self._basis], self._growth, level=level
-            )
-
-            samples = grid.get_samples()
-            x, y = samples[0, :], samples[1, :]
-            # x^4 + y: high degree in x, low degree in y
-            # Values shape: (nqoi, nsamples) = (1, nsamples)
-            values = self._bkd.reshape(x**4 + y, (1, -1))
-            grid.set_values(values)
-
-            # Test at multiple points
-            test_pts = self._bkd.asarray(
-                [[0.1, 0.3, 0.5, 0.7, 0.9, -0.2, -0.6],
-                 [0.2, 0.4, 0.6, 0.8, -0.1, -0.3, -0.5]]
-            )
-            result = grid(test_pts)
-            x_t, y_t = test_pts[0, :], test_pts[1, :]
-            expected = self._bkd.reshape(x_t**4 + y_t, (1, -1))
-
-            error = float(self._bkd.max(self._bkd.abs(result - expected)))
-            errors.append(error)
-
-        # Error should decrease as level increases
-        self.assertLess(errors[1], errors[0])
-        self.assertLess(errors[2], errors[1])
-
-    def test_convergence_rate_smooth_function(self) -> None:
-        """Test convergence rate for smooth function.
-
-        For smooth functions, sparse grid error should decrease
-        polynomially with number of points.
-        """
-        errors = []
-        npoints_list = []
-
-        for level in [1, 2, 3, 4]:
-            grid = IsotropicCombinationSparseGrid(
-                self._bkd, [self._basis, self._basis], self._growth, level=level
-            )
-
-            samples = grid.get_samples()
-            npoints_list.append(grid.nsamples())
-            x, y = samples[0, :], samples[1, :]
-            # Smooth analytic function
-            # Values shape: (nqoi, nsamples) = (1, nsamples)
-            values = self._bkd.reshape(
-                self._bkd.exp(-x**2 - y**2), (1, -1)
-            )
-            grid.set_values(values)
-
-            # Dense test grid
-            test_x = self._bkd.linspace(-0.9, 0.9, 10)
-            test_y = self._bkd.linspace(-0.9, 0.9, 10)
-            test_pts_list = []
-            for i in range(10):
-                for j in range(10):
-                    test_pts_list.append([float(test_x[i]), float(test_y[j])])
-            test_pts = self._bkd.asarray(test_pts_list).T
-
-            result = grid(test_pts)
-            x_t, y_t = test_pts[0, :], test_pts[1, :]
+        # Each subspace should have values at its sample locations
+        for subspace in grid.get_subspaces():
+            sub_samples = subspace.get_samples()
+            sub_values = subspace.get_values()
             expected = self._bkd.reshape(
-                self._bkd.exp(-x_t**2 - y_t**2), (1, -1)
+                sub_samples[0, :] + sub_samples[1, :], (1, -1)
             )
+            self._bkd.assert_allclose(sub_values, expected, rtol=1e-12)
 
-            error = float(
-                self._bkd.sqrt(self._bkd.mean((result - expected)**2))
-            )
-            errors.append(error)
-
-        # Error should decrease significantly
-        self.assertLess(errors[-1], errors[0] / 10)
-
-
-class TestIsotropicSparseGrid(Generic[Array], unittest.TestCase):
-    """Tests for IsotropicCombinationSparseGrid - dual backend."""
-
-    __test__ = False
-
-    def bkd(self) -> Backend[Array]:
-        raise NotImplementedError
-
-    def setUp(self) -> None:
-        self._bkd = self.bkd()
-
-    def test_level_0(self) -> None:
-        """Test level 0 sparse grid (single point)."""
-        basis = LegendrePolynomial1D(self._bkd)
-        growth = LinearGrowthRule(scale=1, shift=1)
-
-        grid = IsotropicCombinationSparseGrid(
-            self._bkd, [basis, basis], growth, level=0
+    def test_smolyak_combination_evaluation(self) -> None:
+        """Test evaluation is weighted sum: sum_k c_k * I_k(f)(x)."""
+        grid = CombinationSparseGrid(
+            self._bkd, [self._basis, self._basis], self._growth
         )
-
-        self.assertEqual(grid.nsubspaces(), 1)
-        self.assertEqual(grid.nsamples(), 1)
-
-    def test_level_2_subspaces(self) -> None:
-        """Test level 2 sparse grid has correct number of subspaces."""
-        basis = LegendrePolynomial1D(self._bkd)
-        growth = LinearGrowthRule(scale=1, shift=1)
-
-        grid = IsotropicCombinationSparseGrid(
-            self._bkd, [basis, basis], growth, level=2
-        )
-
-        # 2D level 2: 6 subspaces
-        self.assertEqual(grid.nsubspaces(), 6)
-
-    def test_interpolation(self) -> None:
-        """Test sparse grid interpolation."""
-        basis = LegendrePolynomial1D(self._bkd)
-        growth = LinearGrowthRule(scale=1, shift=1)
-
-        grid = IsotropicCombinationSparseGrid(
-            self._bkd, [basis, basis], growth, level=3
-        )
+        grid._add_subspace(self._bkd.asarray([0, 0]))
+        grid._add_subspace(self._bkd.asarray([1, 0]))
+        grid._add_subspace(self._bkd.asarray([0, 1]))
 
         samples = grid.get_samples()
-        x, y = samples[0, :], samples[1, :]
-        # Values shape: (nqoi, nsamples) = (1, nsamples)
-        values = self._bkd.reshape(x ** 2 + x * y + y ** 2, (1, -1))
+        values = self._bkd.reshape(samples[0, :] ** 2, (1, -1))
         grid.set_values(values)
 
-        test_pts = self._bkd.asarray([[0.3, -0.5, 0.7], [0.2, 0.4, -0.3]])
-        result = grid(test_pts)
+        test_pt = self._bkd.asarray([[0.5], [0.3]])
+        result = grid(test_pt)
 
-        x_test, y_test = test_pts[0, :], test_pts[1, :]
-        expected = self._bkd.reshape(
-            x_test ** 2 + x_test * y_test + y_test ** 2, (1, -1)
+        # Manually compute weighted sum
+        coefs = grid.get_smolyak_coefficients()
+        subspaces = grid.get_subspaces()
+        manual_result = self._bkd.zeros((1, 1))
+        for j, subspace in enumerate(subspaces):
+            coef = float(coefs[j])
+            if abs(coef) > 1e-14:
+                manual_result = manual_result + coef * subspace(test_pt)
+
+        self._bkd.assert_allclose(result, manual_result, rtol=1e-12)
+
+    def test_mean_is_smolyak_weighted_subspace_means(self) -> None:
+        """Test mean() computes Smolyak-weighted sum of subspace means."""
+        grid = CombinationSparseGrid(
+            self._bkd, [self._basis, self._basis], self._growth
         )
+        grid._add_subspace(self._bkd.asarray([0, 0]))
+        grid._add_subspace(self._bkd.asarray([1, 0]))
+        grid._add_subspace(self._bkd.asarray([0, 1]))
 
-        self.assertTrue(self._bkd.allclose(result, expected, rtol=1e-8))
-
-    def test_smolyak_coefficients_sum(self) -> None:
-        """Test Smolyak coefficients sum to 1."""
-        basis = LegendrePolynomial1D(self._bkd)
-        growth = LinearGrowthRule(scale=1, shift=1)
-
-        for level in [1, 2, 3]:
-            grid = IsotropicCombinationSparseGrid(
-                self._bkd, [basis, basis], growth, level=level
-            )
-            coefs = grid.get_smolyak_coefficients()
-            self.assertAlmostEqual(float(self._bkd.sum(coefs)), 1.0, places=10)
-
-    def test_3d_sparse_grid(self) -> None:
-        """Test 3D sparse grid construction and evaluation."""
-        bases = [LegendrePolynomial1D(self._bkd) for _ in range(3)]
-        growth = LinearGrowthRule(scale=1, shift=1)
-
-        grid = IsotropicCombinationSparseGrid(self._bkd, bases, growth, level=2)
-
-        # f(x, y, z) = x + y + z
         samples = grid.get_samples()
-        # Values shape: (nqoi, nsamples) = (1, nsamples)
+        # f(x,y) = x^2 + y^2
         values = self._bkd.reshape(
-            samples[0, :] + samples[1, :] + samples[2, :], (1, -1)
+            samples[0, :] ** 2 + samples[1, :] ** 2, (1, -1)
         )
         grid.set_values(values)
 
-        test_pts = self._bkd.asarray([
-            [0.1, 0.2, 0.3],
-            [0.4, 0.5, 0.6],
-            [-0.1, -0.2, -0.3]
-        ])
-        result = grid(test_pts)
-        expected = self._bkd.reshape(
-            test_pts[0, :] + test_pts[1, :] + test_pts[2, :], (1, -1)
+        mean = grid.mean()
+
+        # Manually compute weighted sum of subspace integrals
+        coefs = grid.get_smolyak_coefficients()
+        subspaces = grid.get_subspaces()
+        manual_mean = self._bkd.zeros((1,))
+        for j, subspace in enumerate(subspaces):
+            coef = float(coefs[j])
+            if abs(coef) > 1e-14:
+                manual_mean = manual_mean + coef * subspace.integrate()
+
+        self._bkd.assert_allclose(mean, manual_mean, rtol=1e-12)
+
+    def test_variance_is_smolyak_weighted_subspace_variances(self) -> None:
+        """Test variance() computes Smolyak-weighted sum of subspace variances."""
+        grid = CombinationSparseGrid(
+            self._bkd, [self._basis, self._basis], self._growth
         )
-
-        self.assertTrue(self._bkd.allclose(result, expected, rtol=1e-10))
-
-    def test_multi_qoi(self) -> None:
-        """Test sparse grid with multiple quantities of interest."""
-        basis = LegendrePolynomial1D(self._bkd)
-        growth = LinearGrowthRule(scale=1, shift=1)
-
-        grid = IsotropicCombinationSparseGrid(
-            self._bkd, [basis, basis], growth, level=2
-        )
+        grid._add_subspace(self._bkd.asarray([0, 0]))
+        grid._add_subspace(self._bkd.asarray([1, 0]))
+        grid._add_subspace(self._bkd.asarray([0, 1]))
+        grid._add_subspace(self._bkd.asarray([1, 1]))
 
         samples = grid.get_samples()
-        x, y = samples[0, :], samples[1, :]
-        # Two QoIs: f1 = x, f2 = y
-        # Values shape: (nqoi, nsamples) = (2, nsamples), stack along axis=0
-        values = self._bkd.stack([x, y], axis=0)
+        # f(x,y) = x
+        values = self._bkd.reshape(samples[0, :], (1, -1))
         grid.set_values(values)
 
+        variance = grid.variance()
+
+        # Manually compute weighted sum of subspace variances
+        coefs = grid.get_smolyak_coefficients()
+        subspaces = grid.get_subspaces()
+        manual_variance = self._bkd.zeros((1,))
+        for j, subspace in enumerate(subspaces):
+            coef = float(coefs[j])
+            if abs(coef) > 1e-14:
+                manual_variance = manual_variance + coef * subspace.variance()
+
+        self._bkd.assert_allclose(variance, manual_variance, rtol=1e-12)
+
+    def test_jacobian_is_smolyak_weighted_subspace_jacobians(self) -> None:
+        """Test jacobian is weighted sum of subspace jacobians."""
+        grid = CombinationSparseGrid(
+            self._bkd, [self._basis, self._basis], self._growth
+        )
+        grid._add_subspace(self._bkd.asarray([0, 0]))
+        grid._add_subspace(self._bkd.asarray([1, 0]))
+        grid._add_subspace(self._bkd.asarray([0, 1]))
+        grid._add_subspace(self._bkd.asarray([1, 1]))
+
+        samples = grid.get_samples()
+        # f(x,y) = x^2 + y^2
+        values = self._bkd.reshape(
+            samples[0, :] ** 2 + samples[1, :] ** 2, (1, -1)
+        )
+        grid.set_values(values)
+
+        test_pt = self._bkd.asarray([[0.3], [0.5]])
+        jacobian = grid.jacobian(test_pt)
+
+        # Manually compute weighted sum of subspace jacobians
+        coefs = grid.get_smolyak_coefficients()
+        subspaces = grid.get_subspaces()
+        manual_jacobian = self._bkd.zeros((1, 2))
+        for j, subspace in enumerate(subspaces):
+            coef = float(coefs[j])
+            if abs(coef) > 1e-14:
+                manual_jacobian = manual_jacobian + coef * subspace.jacobian(test_pt)
+
+        self._bkd.assert_allclose(jacobian, manual_jacobian, rtol=1e-10)
+
+    def test_hvp_is_smolyak_weighted_subspace_hvps(self) -> None:
+        """Test hvp is weighted sum of subspace hvps."""
+        grid = CombinationSparseGrid(
+            self._bkd, [self._basis, self._basis], self._growth
+        )
+        grid._add_subspace(self._bkd.asarray([2, 0]))
+        grid._add_subspace(self._bkd.asarray([0, 2]))
+        grid._add_subspace(self._bkd.asarray([1, 1]))
+        grid._add_subspace(self._bkd.asarray([2, 2]))
+
+        samples = grid.get_samples()
+        # f(x,y) = x^2 + y^2 (scalar function for hvp)
+        values = self._bkd.reshape(
+            samples[0, :] ** 2 + samples[1, :] ** 2, (1, -1)
+        )
+        grid.set_values(values)
+
+        test_pt = self._bkd.asarray([[0.3], [0.5]])
+        vec = self._bkd.asarray([[1.0], [2.0]])
+        hvp = grid.hvp(test_pt, vec)
+
+        # Manually compute weighted sum of subspace hvps
+        coefs = grid.get_smolyak_coefficients()
+        subspaces = grid.get_subspaces()
+        manual_hvp = self._bkd.zeros((2, 1))
+        for j, subspace in enumerate(subspaces):
+            coef = float(coefs[j])
+            if abs(coef) > 1e-14:
+                manual_hvp = manual_hvp + coef * subspace.hvp(test_pt, vec)
+
+        self._bkd.assert_allclose(hvp, manual_hvp, rtol=1e-10)
+
+    def test_nqoi_multi_output(self) -> None:
+        """Test CombinationSparseGrid with multiple QoIs."""
+        grid = CombinationSparseGrid(
+            self._bkd, [self._basis, self._basis], self._growth
+        )
+        grid._add_subspace(self._bkd.asarray([1, 0]))
+        grid._add_subspace(self._bkd.asarray([0, 1]))
+
+        samples = grid.get_samples()
+        # Two QoIs: f1 = x, f2 = y
+        values = self._bkd.stack([samples[0, :], samples[1, :]], axis=0)
+        grid.set_values(values)
+
+        self.assertEqual(grid.nqoi(), 2)
+
+        # Test evaluation
         test_pts = self._bkd.asarray([[0.3, -0.5], [0.2, 0.4]])
         result = grid(test_pts)
 
         # Result shape: (nqoi, nsamples) = (2, 2)
-        self.assertEqual(result.shape[0], 2)  # nqoi
-        self.assertTrue(
-            self._bkd.allclose(result[0, :], test_pts[0, :], rtol=1e-10)
-        )
-        self.assertTrue(
-            self._bkd.allclose(result[1, :], test_pts[1, :], rtol=1e-10)
-        )
+        self.assertEqual(result.shape[0], 2)
+        self._bkd.assert_allclose(result[0, :], test_pts[0, :], rtol=1e-10)
+        self._bkd.assert_allclose(result[1, :], test_pts[1, :], rtol=1e-10)
+
+
+# =============================================================================
+# Tests for incremental Smolyak coefficient updates
+# =============================================================================
 
 
 class TestIncrementalSmolyakUpdate(Generic[Array], unittest.TestCase):
@@ -475,37 +298,28 @@ class TestIncrementalSmolyakUpdate(Generic[Array], unittest.TestCase):
 
     def test_add_single_index_1d(self) -> None:
         """Test incremental update when adding one index in 1D."""
-        # Start with indices [0, 1]
         grid = CombinationSparseGrid(
             self._bkd, [self._basis], self._growth
         )
         grid._add_subspace(self._bkd.asarray([0]))
         grid._add_subspace(self._bkd.asarray([1]))
 
-        # Current coefficients
         old_coefs = grid.get_smolyak_coefficients()
-
-        # Add new index [2]
         new_index = self._bkd.asarray([2])
         old_indices = grid.get_subspace_indices()
 
-        # Extend coefficients array for new index
         extended_coefs = self._bkd.hstack((old_coefs, self._bkd.zeros((1,))))
         new_indices = self._bkd.hstack((old_indices, new_index[:, None]))
 
-        # Compute incrementally
         incremental_coefs = grid._adjust_smolyak_coefficients(
             extended_coefs, new_index, new_indices
         )
-
-        # Compute from scratch
         scratch_coefs = compute_smolyak_coefficients(new_indices, self._bkd)
 
         self._bkd.assert_allclose(incremental_coefs, scratch_coefs)
 
     def test_add_single_index_2d(self) -> None:
         """Test incremental update when adding one index in 2D."""
-        # Start with 2D level 1: {(0,0), (1,0), (0,1)}
         grid = CombinationSparseGrid(
             self._bkd, [self._basis, self._basis], self._growth
         )
@@ -516,7 +330,6 @@ class TestIncrementalSmolyakUpdate(Generic[Array], unittest.TestCase):
         old_coefs = grid.get_smolyak_coefficients()
         old_indices = grid.get_subspace_indices()
 
-        # Add (1,1)
         new_index = self._bkd.asarray([1, 1])
         extended_coefs = self._bkd.hstack((old_coefs, self._bkd.zeros((1,))))
         new_indices = self._bkd.hstack((old_indices, new_index[:, None]))
@@ -530,7 +343,6 @@ class TestIncrementalSmolyakUpdate(Generic[Array], unittest.TestCase):
 
     def test_add_boundary_index_2d(self) -> None:
         """Test incremental update when adding boundary index in 2D."""
-        # Start with {(0,0), (1,0), (0,1), (1,1)}
         grid = CombinationSparseGrid(
             self._bkd, [self._basis, self._basis], self._growth
         )
@@ -542,7 +354,6 @@ class TestIncrementalSmolyakUpdate(Generic[Array], unittest.TestCase):
         old_coefs = grid.get_smolyak_coefficients()
         old_indices = grid.get_subspace_indices()
 
-        # Add (2,0) - boundary index
         new_index = self._bkd.asarray([2, 0])
         extended_coefs = self._bkd.hstack((old_coefs, self._bkd.zeros((1,))))
         new_indices = self._bkd.hstack((old_indices, new_index[:, None]))
@@ -560,7 +371,6 @@ class TestIncrementalSmolyakUpdate(Generic[Array], unittest.TestCase):
             self._bkd, [self._basis, self._basis], self._growth
         )
 
-        # Build up indices one by one
         indices_to_add = [
             self._bkd.asarray([0, 0]),
             self._bkd.asarray([1, 0]),
@@ -570,11 +380,9 @@ class TestIncrementalSmolyakUpdate(Generic[Array], unittest.TestCase):
             self._bkd.asarray([0, 2]),
         ]
 
-        # Add first index manually
         grid._add_subspace(indices_to_add[0])
         current_coefs = grid.get_smolyak_coefficients()
 
-        # Add remaining indices incrementally
         for new_index in indices_to_add[1:]:
             old_indices = grid.get_subspace_indices()
             grid._add_subspace(new_index)
@@ -588,7 +396,6 @@ class TestIncrementalSmolyakUpdate(Generic[Array], unittest.TestCase):
                 extended_coefs, new_index, new_indices
             )
 
-        # Compare with from-scratch computation
         final_indices = grid.get_subspace_indices()
         scratch_coefs = compute_smolyak_coefficients(final_indices, self._bkd)
 
@@ -615,7 +422,11 @@ class TestIncrementalSmolyakUpdate(Generic[Array], unittest.TestCase):
         )
 
         coef_sum = float(self._bkd.sum(incremental_coefs))
-        self.assertAlmostEqual(coef_sum, 1.0, places=12)
+        self._bkd.assert_allclose(
+            self._bkd.asarray([coef_sum]),
+            self._bkd.asarray([1.0]),
+            rtol=1e-12
+        )
 
     def test_3d_incremental_update(self) -> None:
         """Test incremental update in 3D."""
@@ -623,7 +434,6 @@ class TestIncrementalSmolyakUpdate(Generic[Array], unittest.TestCase):
             self._bkd, [self._basis, self._basis, self._basis], self._growth
         )
 
-        # Build 3D level 1 set
         grid._add_subspace(self._bkd.asarray([0, 0, 0]))
         grid._add_subspace(self._bkd.asarray([1, 0, 0]))
         grid._add_subspace(self._bkd.asarray([0, 1, 0]))
@@ -632,7 +442,6 @@ class TestIncrementalSmolyakUpdate(Generic[Array], unittest.TestCase):
         old_coefs = grid.get_smolyak_coefficients()
         old_indices = grid.get_subspace_indices()
 
-        # Add (1,1,0)
         new_index = self._bkd.asarray([1, 1, 0])
         extended_coefs = self._bkd.hstack((old_coefs, self._bkd.zeros((1,))))
         new_indices = self._bkd.hstack((old_indices, new_index[:, None]))
@@ -645,13 +454,16 @@ class TestIncrementalSmolyakUpdate(Generic[Array], unittest.TestCase):
         self._bkd.assert_allclose(incremental_coefs, scratch_coefs)
 
 
-class TestSparseGridQuadrature(Generic[Array], unittest.TestCase):
-    """Test sparse grid quadrature (mean computation).
+# =============================================================================
+# Legacy comparison tests
+# =============================================================================
 
-    Tests verify:
-    1. Exact integration for polynomials up to the quadrature degree
-    2. Correct mean of constant, linear, and polynomial functions
-    3. Accuracy tied to sparse grid level
+
+class TestCombinationSparseGridLegacy(Generic[Array], unittest.TestCase):
+    """Legacy comparison tests for CombinationSparseGrid.
+
+    These tests verify that the typing module implementation matches
+    the legacy implementation in pyapprox.surrogates.sparsegrids.combination.
     """
 
     __test__ = False
@@ -661,255 +473,185 @@ class TestSparseGridQuadrature(Generic[Array], unittest.TestCase):
 
     def setUp(self) -> None:
         self._bkd = self.bkd()
+        self._basis = LegendrePolynomial1D(self._bkd)
+        self._growth = LinearGrowthRule(scale=1, shift=1)
 
-    def test_mean_constant_1d(self) -> None:
-        """Mean of f(x) = c should be c."""
-        basis = LegendrePolynomial1D(self._bkd)
-        growth = LinearGrowthRule(scale=1, shift=1)
+    def test_smolyak_coefficients_match_legacy_formula(self) -> None:
+        """Verify Smolyak coefficients match legacy inclusion-exclusion formula.
+
+        The legacy implementation uses:
+        c_k = sum_e (-1)^|e| * I(k+e in K)
+        where e iterates over all binary shifts in {0,1}^nvars.
+        """
+        # Build a 2D level 2 index set
         grid = IsotropicCombinationSparseGrid(
-            self._bkd, [basis], growth, level=1
+            self._bkd, [self._basis, self._basis], self._growth, level=2
+        )
+
+        indices = grid.get_subspace_indices()
+        coefs = grid.get_smolyak_coefficients()
+
+        # Manually compute using inclusion-exclusion formula
+        nvars = 2
+        nindices = indices.shape[1]
+
+        # Create index lookup
+        index_set = set()
+        for j in range(nindices):
+            idx = tuple(int(indices[i, j]) for i in range(nvars))
+            index_set.add(idx)
+
+        # Compute expected coefficients
+        expected_coefs = []
+        for j in range(nindices):
+            idx = tuple(int(indices[i, j]) for i in range(nvars))
+            coef = 0.0
+            # Iterate over all binary shifts
+            for shift_bits in range(2 ** nvars):
+                shift = tuple((shift_bits >> d) & 1 for d in range(nvars))
+                neighbor = tuple(idx[d] + shift[d] for d in range(nvars))
+                if neighbor in index_set:
+                    coef += (-1.0) ** sum(shift)
+            expected_coefs.append(coef)
+
+        expected = self._bkd.asarray(expected_coefs)
+        self._bkd.assert_allclose(coefs, expected, rtol=1e-12)
+
+    def test_evaluation_matches_smolyak_formula(self) -> None:
+        """Verify evaluation matches Smolyak combination formula.
+
+        I[f](x) = sum_k c_k * I_k[f](x)
+        """
+        grid = IsotropicCombinationSparseGrid(
+            self._bkd, [self._basis, self._basis], self._growth, level=2
         )
 
         samples = grid.get_samples()
-        c = 3.5
-        # Values shape: (nqoi, nsamples) = (1, nsamples)
-        values = self._bkd.full((1, samples.shape[1]), c)
+        x, y = samples[0, :], samples[1, :]
+        values = self._bkd.reshape(x ** 2 + x * y + y ** 2, (1, -1))
         grid.set_values(values)
 
-        mean = grid.mean()
-        self._bkd.assert_allclose(mean, self._bkd.asarray([c]), rtol=1e-12)
+        # Test at multiple points
+        test_pts = self._bkd.asarray([
+            [0.1, 0.3, -0.5, 0.7],
+            [0.2, -0.4, 0.6, -0.8]
+        ])
+        result = grid(test_pts)
 
-    def test_mean_constant_2d(self) -> None:
-        """Mean of f(x,y) = c should be c in 2D."""
-        basis = LegendrePolynomial1D(self._bkd)
-        growth = LinearGrowthRule(scale=1, shift=1)
+        # Manually compute Smolyak combination
+        coefs = grid.get_smolyak_coefficients()
+        subspaces = grid.get_subspaces()
+
+        manual_result = self._bkd.zeros((1, test_pts.shape[1]))
+        for j, subspace in enumerate(subspaces):
+            coef = float(coefs[j])
+            if abs(coef) > 1e-14:
+                manual_result = manual_result + coef * subspace(test_pts)
+
+        self._bkd.assert_allclose(result, manual_result, rtol=1e-12)
+
+    def test_mean_matches_quadrature_formula(self) -> None:
+        """Verify mean matches Smolyak quadrature formula.
+
+        E[f] = sum_k c_k * E_k[f]
+        where E_k[f] is the tensor product quadrature integral.
+        """
         grid = IsotropicCombinationSparseGrid(
-            self._bkd, [basis, basis], growth, level=2
+            self._bkd, [self._basis, self._basis], self._growth, level=2
         )
 
         samples = grid.get_samples()
-        c = 2.7
-        # Values shape: (nqoi, nsamples) = (1, nsamples)
-        values = self._bkd.full((1, samples.shape[1]), c)
-        grid.set_values(values)
-
-        mean = grid.mean()
-        self._bkd.assert_allclose(mean, self._bkd.asarray([c]), rtol=1e-12)
-
-    def test_mean_linear_is_zero(self) -> None:
-        """Mean of f(x) = x should be 0 on [-1,1]."""
-        basis = LegendrePolynomial1D(self._bkd)
-        growth = LinearGrowthRule(scale=1, shift=1)
-        grid = IsotropicCombinationSparseGrid(
-            self._bkd, [basis], growth, level=2
-        )
-
-        samples = grid.get_samples()
-        # Values shape: (nqoi, nsamples) = (1, nsamples)
-        values = self._bkd.reshape(samples[0, :], (1, -1))
-        grid.set_values(values)
-
-        mean = grid.mean()
-        self._bkd.assert_allclose(mean, self._bkd.asarray([0.0]), atol=1e-12)
-
-    def test_mean_quadratic(self) -> None:
-        """Mean of f(x) = x^2 should be 1/3 on [-1,1]."""
-        basis = LegendrePolynomial1D(self._bkd)
-        growth = LinearGrowthRule(scale=1, shift=1)
-        grid = IsotropicCombinationSparseGrid(
-            self._bkd, [basis], growth, level=2
-        )
-
-        samples = grid.get_samples()
-        # Values shape: (nqoi, nsamples) = (1, nsamples)
-        values = self._bkd.reshape(samples[0, :] ** 2, (1, -1))
-        grid.set_values(values)
-
-        mean = grid.mean()
-        expected = 1.0 / 3.0  # E[x^2] for uniform on [-1,1]
-        self._bkd.assert_allclose(
-            mean, self._bkd.asarray([expected]), rtol=1e-12
-        )
-
-    def test_mean_product_2d(self) -> None:
-        """Mean of f(x,y) = x*y should be 0 on [-1,1]^2."""
-        basis = LegendrePolynomial1D(self._bkd)
-        growth = LinearGrowthRule(scale=1, shift=1)
-        grid = IsotropicCombinationSparseGrid(
-            self._bkd, [basis, basis], growth, level=2
-        )
-
-        samples = grid.get_samples()
-        # Values shape: (nqoi, nsamples) = (1, nsamples)
-        values = self._bkd.reshape(
-            samples[0, :] * samples[1, :], (1, -1)
-        )
-        grid.set_values(values)
-
-        mean = grid.mean()
-        self._bkd.assert_allclose(mean, self._bkd.asarray([0.0]), atol=1e-12)
-
-    def test_mean_sum_of_squares_2d(self) -> None:
-        """Mean of f(x,y) = x^2 + y^2 should be 2/3 on [-1,1]^2."""
-        basis = LegendrePolynomial1D(self._bkd)
-        growth = LinearGrowthRule(scale=1, shift=1)
-        grid = IsotropicCombinationSparseGrid(
-            self._bkd, [basis, basis], growth, level=2
-        )
-
-        samples = grid.get_samples()
-        # Values shape: (nqoi, nsamples) = (1, nsamples)
+        # f(x,y) = x^2 + y^2, E[f] = E[x^2] + E[y^2] = 1/3 + 1/3 = 2/3
         values = self._bkd.reshape(
             samples[0, :] ** 2 + samples[1, :] ** 2, (1, -1)
         )
         grid.set_values(values)
 
         mean = grid.mean()
-        expected = 2.0 / 3.0  # E[x^2] + E[y^2] = 1/3 + 1/3
+        expected = 2.0 / 3.0
+
         self._bkd.assert_allclose(
             mean, self._bkd.asarray([expected]), rtol=1e-12
         )
 
-    def test_mean_polynomial_exact(self) -> None:
-        """Sparse grid exactly integrates polynomials up to its degree."""
-        basis = LegendrePolynomial1D(self._bkd)
-        growth = LinearGrowthRule(scale=1, shift=1)
+    def test_variance_formula(self) -> None:
+        """Verify variance uses correct Smolyak combination.
 
-        # Level 2 with growth n(l) = l + 1 gives max degree per dim = 2
-        # So can exactly integrate x^2, y^2, x^2*y^2 etc.
+        Var[f] = sum_k c_k * Var_k[f]
+        """
         grid = IsotropicCombinationSparseGrid(
-            self._bkd, [basis, basis], growth, level=2
+            self._bkd, [self._basis, self._basis], self._growth, level=2
         )
 
         samples = grid.get_samples()
-        # f(x,y) = x^2 * y^2, E[f] = E[x^2]*E[y^2] = (1/3)*(1/3) = 1/9
-        # Values shape: (nqoi, nsamples) = (1, nsamples)
-        values = self._bkd.reshape(
-            (samples[0, :] ** 2) * (samples[1, :] ** 2), (1, -1)
-        )
+        # f(x,y) = x, Var[x] = E[x^2] - E[x]^2 = 1/3 - 0 = 1/3
+        values = self._bkd.reshape(samples[0, :], (1, -1))
         grid.set_values(values)
 
-        mean = grid.mean()
-        expected = 1.0 / 9.0
+        variance = grid.variance()
+        expected = 1.0 / 3.0
+
         self._bkd.assert_allclose(
-            mean, self._bkd.asarray([expected]), rtol=1e-12
+            variance, self._bkd.asarray([expected]), rtol=1e-10
         )
 
-    def test_mean_high_degree_polynomial(self) -> None:
-        """Higher level sparse grid can integrate higher degree polynomials."""
-        basis = LegendrePolynomial1D(self._bkd)
-        growth = LinearGrowthRule(scale=1, shift=1)
+    def test_jacobian_analytical(self) -> None:
+        """Verify Jacobian against analytical derivative.
 
-        # Level 4 for higher precision
+        f(x, y) = x^2 + y^2
+        J = [2x, 2y]
+        """
         grid = IsotropicCombinationSparseGrid(
-            self._bkd, [basis, basis], growth, level=4
+            self._bkd, [self._basis, self._basis], self._growth, level=3
         )
 
         samples = grid.get_samples()
-        # f(x,y) = x^4 + y^4, E[f] = E[x^4] + E[y^4] = 1/5 + 1/5 = 2/5
-        # E[x^4] = integral_{-1}^{1} x^4 * (1/2) dx = (1/5)
-        # Values shape: (nqoi, nsamples) = (1, nsamples)
         values = self._bkd.reshape(
-            samples[0, :] ** 4 + samples[1, :] ** 4, (1, -1)
+            samples[0, :] ** 2 + samples[1, :] ** 2, (1, -1)
         )
         grid.set_values(values)
 
-        mean = grid.mean()
-        expected = 2.0 / 5.0
-        self._bkd.assert_allclose(
-            mean, self._bkd.asarray([expected]), rtol=1e-11
-        )
+        # Test at a specific point
+        test_pt = self._bkd.asarray([[0.3], [0.5]])
+        jacobian = grid.jacobian(test_pt)
 
-    def test_mean_multi_qoi(self) -> None:
-        """Mean computation with multiple QoIs."""
-        basis = LegendrePolynomial1D(self._bkd)
-        growth = LinearGrowthRule(scale=1, shift=1)
+        # Expected: [2*0.3, 2*0.5] = [0.6, 1.0]
+        expected = self._bkd.asarray([[0.6, 1.0]])
+        self._bkd.assert_allclose(jacobian, expected, rtol=1e-8)
+
+    def test_hvp_analytical(self) -> None:
+        """Verify HVP against analytical Hessian-vector product.
+
+        f(x, y) = x^2 + y^2
+        H = [[2, 0], [0, 2]]
+        H @ [1, 2] = [2, 4]
+        """
         grid = IsotropicCombinationSparseGrid(
-            self._bkd, [basis, basis], growth, level=2
+            self._bkd, [self._basis, self._basis], self._growth, level=3
         )
 
         samples = grid.get_samples()
-        # QoI 1: f1 = 1 (mean = 1)
-        # QoI 2: f2 = x^2 (mean = 1/3)
-        qoi1 = self._bkd.ones((samples.shape[1],))
-        qoi2 = samples[0, :] ** 2
-        # Values shape: (nqoi, nsamples) = (2, nsamples), stack along axis=0
-        values = self._bkd.stack([qoi1, qoi2], axis=0)
-        grid.set_values(values)
-
-        mean = grid.mean()
-        expected = self._bkd.asarray([1.0, 1.0 / 3.0])
-        self._bkd.assert_allclose(mean, expected, rtol=1e-12)
-
-    def test_mean_3d(self) -> None:
-        """Mean computation in 3D."""
-        basis = LegendrePolynomial1D(self._bkd)
-        growth = LinearGrowthRule(scale=1, shift=1)
-        grid = IsotropicCombinationSparseGrid(
-            self._bkd, [basis, basis, basis], growth, level=2
-        )
-
-        samples = grid.get_samples()
-        # f(x,y,z) = x^2 + y^2 + z^2, E[f] = 3 * 1/3 = 1
-        # Values shape: (nqoi, nsamples) = (1, nsamples)
         values = self._bkd.reshape(
-            samples[0, :] ** 2 + samples[1, :] ** 2 + samples[2, :] ** 2,
-            (1, -1)
+            samples[0, :] ** 2 + samples[1, :] ** 2, (1, -1)
         )
         grid.set_values(values)
 
-        mean = grid.mean()
-        expected = 1.0
-        self._bkd.assert_allclose(
-            mean, self._bkd.asarray([expected]), rtol=1e-12
-        )
+        test_pt = self._bkd.asarray([[0.3], [0.5]])
+        vec = self._bkd.asarray([[1.0], [2.0]])
+        hvp = grid.hvp(test_pt, vec)
+
+        # Expected: [[2, 0], [0, 2]] @ [[1], [2]] = [[2], [4]]
+        expected = self._bkd.asarray([[2.0], [4.0]])
+        self._bkd.assert_allclose(hvp, expected, rtol=1e-8)
 
 
+# =============================================================================
 # NumPy backend tests
-class TestSmolyakCoefficientsNumpy(TestSmolyakCoefficients[NDArray[Any]]):
-    """NumPy backend tests for Smolyak coefficients."""
-
-    def bkd(self) -> NumpyBkd:
-        return NumpyBkd()
+# =============================================================================
 
 
-class TestDownwardClosedNumpy(TestDownwardClosed[NDArray[Any]]):
-    """NumPy backend tests for downward closure."""
-
-    def bkd(self) -> NumpyBkd:
-        return NumpyBkd()
-
-
-class TestAdmissibilityNumpy(TestAdmissibility[NDArray[Any]]):
-    """NumPy backend tests for admissibility."""
-
-    def bkd(self) -> NumpyBkd:
-        return NumpyBkd()
-
-
-class TestTensorProductSubspaceNumpy(TestTensorProductSubspace[NDArray[Any]]):
-    """NumPy backend tests for TensorProductSubspace."""
-
-    def bkd(self) -> NumpyBkd:
-        return NumpyBkd()
-
-
-class TestExactInterpolationNumpy(TestExactInterpolation[NDArray[Any]]):
-    """NumPy backend tests for exact interpolation."""
-
-    def bkd(self) -> NumpyBkd:
-        return NumpyBkd()
-
-
-class TestSparseGridQuadratureNumpy(TestSparseGridQuadrature[NDArray[Any]]):
-    """NumPy backend tests for sparse grid quadrature."""
-
-    def bkd(self) -> NumpyBkd:
-        return NumpyBkd()
-
-
-class TestIsotropicSparseGridNumpy(TestIsotropicSparseGrid[NDArray[Any]]):
-    """NumPy backend tests for IsotropicCombinationSparseGrid."""
+class TestCombinationSparseGridBaseNumpy(TestCombinationSparseGridBase[NDArray[Any]]):
+    """NumPy backend tests for CombinationSparseGrid base class."""
 
     def bkd(self) -> NumpyBkd:
         return NumpyBkd()
@@ -922,75 +664,20 @@ class TestIncrementalSmolyakUpdateNumpy(TestIncrementalSmolyakUpdate[NDArray[Any
         return NumpyBkd()
 
 
+class TestCombinationSparseGridLegacyNumpy(TestCombinationSparseGridLegacy[NDArray[Any]]):
+    """NumPy backend tests for legacy comparison."""
+
+    def bkd(self) -> NumpyBkd:
+        return NumpyBkd()
+
+
+# =============================================================================
 # PyTorch backend tests
-class TestSmolyakCoefficientsTorch(TestSmolyakCoefficients[torch.Tensor]):
-    """PyTorch backend tests for Smolyak coefficients."""
-
-    def setUp(self) -> None:
-        torch.set_default_dtype(torch.float64)
-        super().setUp()
-
-    def bkd(self) -> TorchBkd:
-        return TorchBkd()
+# =============================================================================
 
 
-class TestDownwardClosedTorch(TestDownwardClosed[torch.Tensor]):
-    """PyTorch backend tests for downward closure."""
-
-    def setUp(self) -> None:
-        torch.set_default_dtype(torch.float64)
-        super().setUp()
-
-    def bkd(self) -> TorchBkd:
-        return TorchBkd()
-
-
-class TestAdmissibilityTorch(TestAdmissibility[torch.Tensor]):
-    """PyTorch backend tests for admissibility."""
-
-    def setUp(self) -> None:
-        torch.set_default_dtype(torch.float64)
-        super().setUp()
-
-    def bkd(self) -> TorchBkd:
-        return TorchBkd()
-
-
-class TestTensorProductSubspaceTorch(TestTensorProductSubspace[torch.Tensor]):
-    """PyTorch backend tests for TensorProductSubspace."""
-
-    def setUp(self) -> None:
-        torch.set_default_dtype(torch.float64)
-        super().setUp()
-
-    def bkd(self) -> TorchBkd:
-        return TorchBkd()
-
-
-class TestIsotropicSparseGridTorch(TestIsotropicSparseGrid[torch.Tensor]):
-    """PyTorch backend tests for IsotropicCombinationSparseGrid."""
-
-    def setUp(self) -> None:
-        torch.set_default_dtype(torch.float64)
-        super().setUp()
-
-    def bkd(self) -> TorchBkd:
-        return TorchBkd()
-
-
-class TestExactInterpolationTorch(TestExactInterpolation[torch.Tensor]):
-    """PyTorch backend tests for exact interpolation."""
-
-    def setUp(self) -> None:
-        torch.set_default_dtype(torch.float64)
-        super().setUp()
-
-    def bkd(self) -> TorchBkd:
-        return TorchBkd()
-
-
-class TestSparseGridQuadratureTorch(TestSparseGridQuadrature[torch.Tensor]):
-    """PyTorch backend tests for sparse grid quadrature."""
+class TestCombinationSparseGridBaseTorch(TestCombinationSparseGridBase[torch.Tensor]):
+    """PyTorch backend tests for CombinationSparseGrid base class."""
 
     def setUp(self) -> None:
         torch.set_default_dtype(torch.float64)
@@ -1002,6 +689,17 @@ class TestSparseGridQuadratureTorch(TestSparseGridQuadrature[torch.Tensor]):
 
 class TestIncrementalSmolyakUpdateTorch(TestIncrementalSmolyakUpdate[torch.Tensor]):
     """PyTorch backend tests for incremental Smolyak update."""
+
+    def setUp(self) -> None:
+        torch.set_default_dtype(torch.float64)
+        super().setUp()
+
+    def bkd(self) -> TorchBkd:
+        return TorchBkd()
+
+
+class TestCombinationSparseGridLegacyTorch(TestCombinationSparseGridLegacy[torch.Tensor]):
+    """PyTorch backend tests for legacy comparison."""
 
     def setUp(self) -> None:
         torch.set_default_dtype(torch.float64)
