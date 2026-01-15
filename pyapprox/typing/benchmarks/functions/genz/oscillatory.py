@@ -149,8 +149,7 @@ class OscillatoryFunction(Generic[Array]):
         float
             The analytical integral value.
         """
-        bkd = self._bkd
-        return float(self._oscillatory_recursive_integrate(0, True))
+        return float(self._compute_integral())
 
     def _oscillatory_recursive_integrate(
         self, var_id: int, cosine: bool
