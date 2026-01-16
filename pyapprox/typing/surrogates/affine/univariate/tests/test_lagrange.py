@@ -206,14 +206,23 @@ class TestLagrangeBasis1D(Generic[Array], unittest.TestCase):
         with self.assertRaises(ValueError):
             basis.derivatives(samples, 3)
 
-    def test_gauss_quadrature_rule(self) -> None:
-        """Test gauss_quadrature_rule method."""
+    def test_quadrature_rule(self) -> None:
+        """Test quadrature_rule method."""
+        quad_rule = self._get_quadrature_rule()
+        basis = LagrangeBasis1D(self._bkd, quad_rule)
+        basis.set_nterms(5)
+
+        points, weights = basis.quadrature_rule()
+        self.assertEqual(points.shape, (1, 5))
+        self.assertEqual(weights.shape, (5, 1))
+
+    def test_quadrature_rule_before_set_nterms(self) -> None:
+        """Test quadrature_rule raises error if set_nterms not called."""
         quad_rule = self._get_quadrature_rule()
         basis = LagrangeBasis1D(self._bkd, quad_rule)
 
-        points, weights = basis.gauss_quadrature_rule(5)
-        self.assertEqual(points.shape, (1, 5))
-        self.assertEqual(weights.shape, (5, 1))
+        with self.assertRaises(ValueError):
+            basis.quadrature_rule()
 
     def test_repr(self) -> None:
         """Test string representation."""
@@ -240,9 +249,10 @@ class TestLagrangeBasis1D(Generic[Array], unittest.TestCase):
         """Test get_samples returns same points as quadrature rule."""
         quad_rule = self._get_quadrature_rule()
         basis = LagrangeBasis1D(self._bkd, quad_rule)
+        basis.set_nterms(5)
 
         samples_from_get = basis.get_samples(5)
-        samples_from_quad, _ = basis.gauss_quadrature_rule(5)
+        samples_from_quad, _ = basis.quadrature_rule()
 
         self._bkd.assert_allclose(samples_from_get, samples_from_quad, rtol=1e-12)
 
@@ -258,7 +268,10 @@ class TestLagrangeBasis1D(Generic[Array], unittest.TestCase):
         self.assertTrue(isinstance(basis, InterpolationBasis1DProtocol))
 
     def test_orthogonal_poly_not_interpolation_protocol(self) -> None:
-        """Test that orthogonal polynomials do NOT satisfy InterpolationBasis1DProtocol."""
+        """
+        Test that orthogonal polynomials do NOT satisfy
+        InterpolationBasis1DProtocol.
+        """
         from pyapprox.typing.surrogates.affine.protocols import (
             InterpolationBasis1DProtocol,
         )
@@ -274,6 +287,7 @@ class TestLagrangeBasis1D(Generic[Array], unittest.TestCase):
 
     def test_numerical_first_derivative(self) -> None:
         """Test first derivative against finite differences."""
+        # TODO use derivative checker for testing first derivative
         quad_rule = self._get_quadrature_rule()
         basis = LagrangeBasis1D(self._bkd, quad_rule)
         basis.set_nterms(5)
@@ -295,6 +309,7 @@ class TestLagrangeBasis1D(Generic[Array], unittest.TestCase):
 
     def test_numerical_second_derivative(self) -> None:
         """Test second derivative against finite differences."""
+        # TODO use derivative checker for testing second derivative
         quad_rule = self._get_quadrature_rule()
         basis = LagrangeBasis1D(self._bkd, quad_rule)
         basis.set_nterms(5)

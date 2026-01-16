@@ -7,13 +7,13 @@ polynomials at the quadrature points.
 The key design is that LagrangeBasis1D accepts any quadrature rule as a
 callable (npoints) -> (samples, weights). This allows using:
 - Gauss quadrature points from orthogonal polynomials
-- Leja sequence points from LejaSequence1D.get_sequence
+- Leja sequence points from LejaSequence1D.quadrature_rule
 - Clenshaw-Curtis or other nested quadrature rules
 - Any custom point set
 
 Example with Leja sequence:
     leja_seq = LejaSequence1D(bkd, poly, weighting, bounds=(-1.0, 1.0))
-    basis = LagrangeBasis1D(bkd, leja_seq.get_sequence)
+    basis = LagrangeBasis1D(bkd, leja_seq.quadrature_rule)
 """
 
 from typing import Callable, Generic, Optional, Tuple
@@ -173,7 +173,7 @@ class LagrangeBasis1D(Generic[Array]):
     >>> poly = JacobiPolynomial1D(0.0, 0.0, bkd)
     >>> weighting = ChristoffelWeighting(bkd)
     >>> leja_seq = LejaSequence1D(bkd, poly, weighting, bounds=(-1.0, 1.0))
-    >>> basis = LagrangeBasis1D(bkd, leja_seq.get_sequence)
+    >>> basis = LagrangeBasis1D(bkd, leja_seq.quadrature_rule)
     >>> basis.set_nterms(5)
     >>> samples = bkd.asarray([[0.0, 0.5, -0.5]])
     >>> values = basis(samples)  # Shape: (3, 5)
@@ -313,22 +313,27 @@ class LagrangeBasis1D(Generic[Array]):
                 f"Derivative order {order} not supported. Max is 2."
             )
 
-    def gauss_quadrature_rule(self, npoints: int) -> Tuple[Array, Array]:
-        """Return quadrature points and weights.
+    def quadrature_rule(self) -> Tuple[Array, Array]:
+        """Return quadrature points and weights for current nterms.
 
-        Parameters
-        ----------
-        npoints : int
-            Number of quadrature points.
+        Must call set_nterms before using this method.
 
         Returns
         -------
         points : Array
-            Quadrature points. Shape: (1, npoints)
+            Quadrature points. Shape: (1, nterms)
         weights : Array
-            Quadrature weights. Shape: (npoints, 1)
+            Quadrature weights. Shape: (nterms, 1)
+
+        Raises
+        ------
+        ValueError
+            If set_nterms has not been called.
         """
-        return self._quadrature_rule(npoints)
+        if self._abscissa is None:
+            raise ValueError("Must call set_nterms before quadrature_rule")
+        # Return cached samples and weights in standard shapes
+        return self._bkd.reshape(self._abscissa, (1, -1)), self._weights
 
     def get_samples(self, nterms: int) -> Array:
         """Return interpolation nodes for the given number of terms.
