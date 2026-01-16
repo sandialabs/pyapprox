@@ -60,7 +60,7 @@ class ScipyTrustConstrMinimizer:
     >>> optimizer = ScipyTrustConstrMinimizer(gtol=1e-8, maxiter=500)
     >>> # leja = LejaSequence1D(bkd, basis, weighting, bounds, optimizer=optimizer)
     """
-
+    # todo: delete this class and use scipy wrapper in typing.optimization.minimize as default, but leja should accept anything that meets the minimizer protocol, so we can change optimizers if the user desires
     def __init__(
         self,
         gtol: Optional[float] = None,
@@ -354,7 +354,7 @@ class LejaSequence1D(Generic[Array]):
     >>> basis = JacobiPolynomial1D(bkd, alpha=0.0, beta=0.0)
     >>> weighting = ChristoffelWeighting(bkd)
     >>> leja = LejaSequence1D(bkd, basis, weighting, bounds=(-1.0, 1.0))
-    >>> samples, weights = leja.get_sequence(10)
+    >>> samples, weights = leja.quadrature_rule(10)
 
     Custom optimizer settings:
 
@@ -452,7 +452,7 @@ class LejaSequence1D(Generic[Array]):
         for _ in range(n_new_points):
             self._step()
 
-    def get_sequence(self, npoints: int) -> Tuple[Array, Array]:
+    def quadrature_rule(self, npoints: int) -> Tuple[Array, Array]:
         """Get Leja sequence with specified number of points.
 
         Extends sequence if needed and returns both sample locations

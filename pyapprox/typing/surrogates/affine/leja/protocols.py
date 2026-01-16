@@ -81,7 +81,7 @@ class LejaSequence1DProtocol(Protocol, Generic[Array]):
         """Return the computational backend."""
         ...
 
-    def get_sequence(self, npoints: int) -> Tuple[Array, Array]:
+    def quadrature_rule(self, npoints: int) -> Tuple[Array, Array]:
         """Get Leja sequence with specified number of points.
 
         Parameters

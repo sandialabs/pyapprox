@@ -63,6 +63,7 @@ class LejaSampler(Generic[Array]):
         self._candidates = candidate_samples
         self._weighting = weighting
         self._tol = tol
+        self._init_pivots: Optional[Array] = None
 
         # Compute basis matrix at candidates
         self._basis_mat = basis(candidate_samples)  # (ncandidates, nterms)
@@ -76,11 +77,8 @@ class LejaSampler(Generic[Array]):
             self._precond_weights = None
             self._precond_mat = self._basis_mat
 
-        # Initialize LU factorizer
-        # Factorize transpose: we want to select rows (samples) via column pivots
-        self._factorizer = PivotedLUFactorizer(
-            bkd, self._precond_mat.T, tol=tol
-        )
+        # Initialize LU factorizer (deferred until sample() is called)
+        self._factorizer: Optional[PivotedLUFactorizer[Array]] = None
         self._nselected = 0
 
     def bkd(self) -> Backend[Array]:
@@ -94,6 +92,34 @@ class LejaSampler(Generic[Array]):
     def ncandidates(self) -> int:
         """Return total number of candidate samples."""
         return self._candidates.shape[1]
+
+    def set_initial_pivots(self, init_pivots: Array) -> None:
+        """Set initial pivot indices to use before automatic selection.
+
+        These pivots will be used first (in order) before the algorithm
+        selects additional points based on maximum determinant.
+
+        Parameters
+        ----------
+        init_pivots : Array
+            Indices into the candidate set to use as initial pivots.
+            Must be set before calling sample().
+        """
+        if self._nselected > 0:
+            raise RuntimeError(
+                "Cannot set initial pivots after sampling has begun"
+            )
+        self._init_pivots = init_pivots
+
+    def _ensure_factorizer(self) -> None:
+        """Create the factorizer if not yet created."""
+        if self._factorizer is None:
+            self._factorizer = PivotedLUFactorizer(
+                self._bkd,
+                self._precond_mat.T,
+                tol=self._tol,
+                init_pivots=self._init_pivots,
+            )
 
     def sample(self, nsamples: int) -> Array:
         """Generate Leja samples by selecting from candidates.
@@ -113,6 +139,8 @@ class LejaSampler(Generic[Array]):
                 f"Cannot select {nsamples} samples from "
                 f"{self.ncandidates()} candidates"
             )
+
+        self._ensure_factorizer()
 
         if nsamples > self._nselected:
             # Need to select more samples
@@ -136,6 +164,7 @@ class LejaSampler(Generic[Array]):
         Array
             The new samples only. Shape: (nvars, n_new_samples)
         """
+        self._ensure_factorizer()
         old_count = self._nselected
         new_total = old_count + n_new_samples
         self._factorizer.update(new_total)
@@ -147,19 +176,25 @@ class LejaSampler(Generic[Array]):
 
     def get_selected_indices(self) -> Array:
         """Return indices of selected samples from candidate set."""
+        self._ensure_factorizer()
         return self._factorizer.pivots()
 
     def get_all_selected_samples(self) -> Array:
         """Return all currently selected samples."""
+        self._ensure_factorizer()
         pivots = self._factorizer.pivots()
         return self._candidates[:, pivots]
 
     def success(self) -> bool:
         """Return True if factorization was successful."""
+        if self._factorizer is None:
+            return True  # No factorization attempted yet
         return self._factorizer.success()
 
     def termination_message(self) -> str:
         """Return termination status message."""
+        if self._factorizer is None:
+            return "Factorization not yet started"
         return self._factorizer.termination_message()
 
     def __repr__(self) -> str:
