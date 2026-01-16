@@ -458,7 +458,7 @@ class TestTensorProductSubspace(Generic[Array], unittest.TestCase):
         )
 
         # Create Lagrange basis using Leja sequence
-        lagrange = LagrangeBasis1D(self._bkd, leja.get_sequence)
+        lagrange = LagrangeBasis1D(self._bkd, leja.quadrature_rule)
         growth = LinearGrowthRule(scale=1, shift=1)
 
         # Level 3 -> 4 points

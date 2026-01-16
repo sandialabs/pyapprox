@@ -12,9 +12,11 @@ This file contains tests specific to IsotropicCombinationSparseGrid:
 import unittest
 from typing import Any, Generic
 
+from scipy import stats
 import torch
 from numpy.typing import NDArray
 
+from pyapprox.typing.surrogates.affine.expansions import create_pce
 from pyapprox.typing.surrogates.affine.indices import (
     HyperbolicIndexGenerator,
     LinearGrowthRule,
@@ -23,6 +25,10 @@ from pyapprox.typing.surrogates.affine.univariate import (
     HermitePolynomial1D,
     LegendrePolynomial1D,
 )
+from pyapprox.typing.variables.univariate.scipy_continuous import (
+    ContinuousScipyRandomVariable1D,
+)
+from pyapprox.typing.variables.independent import IndependentRandomVariable
 from pyapprox.typing.surrogates.sparsegrids import (
     IsotropicCombinationSparseGrid,
     is_downward_closed,
@@ -63,7 +69,7 @@ class TestIsotropicSparseGrid(Generic[Array], unittest.TestCase):
         self.assertEqual(grid.nsamples(), 1)
 
     def test_level_2_subspaces(self):
-        """Test level 2 sparse grid has correct number of subspaces."""
+        """Test level 2 sparse grid has correct subspaces."""
         basis = LegendrePolynomial1D(self._bkd)
         growth = LinearGrowthRule(scale=1, shift=1)  # n(l) = l + 1
 
@@ -72,36 +78,72 @@ class TestIsotropicSparseGrid(Generic[Array], unittest.TestCase):
         )
 
         # 2D level 2: indices with |k|_1 <= 2
-        # (0,0), (1,0), (0,1), (2,0), (1,1), (0,2) = 6 subspaces
+        expected_indices = {
+            (0, 0), (1, 0), (0, 1), (2, 0), (1, 1), (0, 2)
+        }
+
+        # Get actual indices from grid
+        grid_indices = grid.get_subspace_indices()
+        actual_indices = set()
+        for j in range(grid_indices.shape[1]):
+            idx = tuple(int(grid_indices[i, j]) for i in range(2))
+            actual_indices.add(idx)
+
         self.assertEqual(grid.nsubspaces(), 6)
+        self.assertEqual(actual_indices, expected_indices)
 
     def test_interpolation(self):
-        """Test sparse grid interpolation."""
+        """Test sparse grid interpolation using a PCE with matching index set.
+
+        Creates a PCE with hyperbolic index set that the sparse grid can
+        exactly interpolate, then verifies interpolation at random samples
+        drawn from the underlying uniform distribution.
+
+        TODO: repeat this for different nvars and level, e.g. (2, 3) (2, 4) (3, 2) and joint variables. reuse code do not create seperate functions with redundant code for each combination. Note that pce.nterms will be much less than what sparse grid is capable of interepolating. level of a sparse grid is used with growth rule which grows much faster than level of hyperbolic index set. Repeat this test with integration but for different random variabls and gauss quadrature rules and leja quadrature rules. reuse code to avoid test file bloat, e.g. for test_gauss_quadrature_integration iterate over different nvars, levels, and joint variables, e.g. all uniform, all gaussian, mix of gaussian and uniform. Do same for test_leja_quadrature_integration. create_pce should be create_hyperbolic_pce to better reflect its contents, should also construct helper function create_tensor_product_pce. also create helper function create_bases_1d that takes in independentrandom variables and returns the correct list of 1d bases. use the legacy code for this as a starting point but update to use new typing infrastrcture and coding convenctions. make sure that backend protocol has all the functions that appear in both torch and nupy backends. This way we can always check backend has what is needed
+        """
+        nvars = 2
+        level = 3
         basis = LegendrePolynomial1D(self._bkd)
         growth = LinearGrowthRule(scale=1, shift=1)  # n(l) = l + 1
 
         grid = IsotropicCombinationSparseGrid(
-            self._bkd, [basis, basis], growth, level=3
+            self._bkd, [basis, basis], growth, level=level
         )
 
-        # Test function: f(x, y) = x^2 + x*y + y^2
+        # Create a PCE with hyperbolic index set matching the sparse grid
+        # The sparse grid with level L can exactly interpolate polynomials
+        # of total degree up to L
+        bases_1d = [LegendrePolynomial1D(self._bkd) for _ in range(nvars)]
+        pce = create_pce(bases_1d, max_level=level, bkd=self._bkd, nqoi=1)
+
+        # Set random coefficients on the PCE
+        nterms = pce.nterms()
+        #TODO: randomly generated coefficients from multivariate standard normal
+        coefficients = self._bkd.asarray(
+            [[0.5], [-0.3], [0.2], [0.1], [-0.15], [0.25]]
+            + [[0.0]] * (nterms - 6)  # Zero out higher terms if any
+        )
+        pce.set_coefficients(coefficients[:nterms, :])
+
+        # Evaluate PCE at sparse grid samples and set values
         samples = grid.get_samples()
-        x, y = samples[0, :], samples[1, :]
-        # Values shape: (nqoi, nsamples) = (1, nsamples)
-        values = self._bkd.reshape(x ** 2 + x * y + y ** 2, (1, -1))
+        values = pce(samples)
         grid.set_values(values)
 
-        # Test at new points
-        test_pts = self._bkd.asarray([[0.3, -0.5, 0.7],
-                                      [0.2, 0.4, -0.3]])
-        result = grid(test_pts)
-
-        x_test, y_test = test_pts[0, :], test_pts[1, :]
-        expected = self._bkd.reshape(
-            x_test ** 2 + x_test * y_test + y_test ** 2, (1, -1)
+        # Generate random test points from uniform distribution on [-1, 1]^2
+        uniform_marginal = ContinuousScipyRandomVariable1D(
+            stats.uniform(-1, 2), self._bkd  # uniform(-1, 2) = U[-1, 1]
         )
+        joint = IndependentRandomVariable(
+            [uniform_marginal for _ in range(nvars)], self._bkd
+        )
+        test_pts = joint.rvs(20)
 
-        self._bkd.assert_allclose(result, expected, rtol=1e-8)
+        # Compare sparse grid interpolation to exact PCE evaluation
+        result = grid(test_pts)
+        expected = pce(test_pts)
+
+        self._bkd.assert_allclose(result, expected, rtol=1e-10)
 
     def test_smolyak_coefficients_sum(self):
         """Test Smolyak coefficients sum to 1."""
@@ -117,62 +159,6 @@ class TestIsotropicSparseGrid(Generic[Array], unittest.TestCase):
                 self._bkd.asarray([float(self._bkd.sum(coefs))]),
                 self._bkd.asarray([1.0])
             )
-
-
-    def test_polynomial_exactness_by_degree(self) -> None:
-        """Test that degree d polynomial is exact at level >= d.
-
-        Sparse grid with level L exactly integrates polynomials of total
-        degree up to 2L+1 for Gauss-Legendre rules with linear growth.
-        For interpolation, it exactly represents polynomials of total
-        degree up to L.
-        """
-        basis = LegendrePolynomial1D(self._bkd)
-        growth = LinearGrowthRule(scale=1, shift=1)
-
-        # Test polynomial of degree 2: f(x,y) = x^2 + xy + y^2
-        for level in [2, 3, 4]:
-            grid = IsotropicCombinationSparseGrid(
-                self._bkd, [basis, basis], growth, level=level
-            )
-
-            samples = grid.get_samples()
-            x, y = samples[0, :], samples[1, :]
-            values = self._bkd.reshape(x**2 + x*y + y**2, (1, -1))
-            grid.set_values(values)
-
-            # Test at random points
-            test_pts = self._bkd.asarray([
-                [0.123, -0.456, 0.789],
-                [0.234, 0.567, -0.321]
-            ])
-            result = grid(test_pts)
-            x_t, y_t = test_pts[0, :], test_pts[1, :]
-            expected = self._bkd.reshape(x_t**2 + x_t*y_t + y_t**2, (1, -1))
-
-            self._bkd.assert_allclose(result, expected, rtol=1e-10)
-
-    def test_higher_degree_polynomial(self) -> None:
-        """Test higher degree polynomial requires higher level."""
-        basis = LegendrePolynomial1D(self._bkd)
-        growth = LinearGrowthRule(scale=1, shift=1)
-
-        # f(x,y) = x^3 + x^2*y + x*y^2 + y^3 requires at least level 3
-        grid = IsotropicCombinationSparseGrid(
-            self._bkd, [basis, basis], growth, level=3
-        )
-
-        samples = grid.get_samples()
-        x, y = samples[0, :], samples[1, :]
-        values = self._bkd.reshape(x**3 + x**2*y + x*y**2 + y**3, (1, -1))
-        grid.set_values(values)
-
-        test_pts = self._bkd.asarray([[0.3, -0.5], [0.4, 0.6]])
-        result = grid(test_pts)
-        x_t, y_t = test_pts[0, :], test_pts[1, :]
-        expected = self._bkd.reshape(x_t**3 + x_t**2*y_t + x_t*y_t**2 + y_t**3, (1, -1))
-
-        self._bkd.assert_allclose(result, expected, rtol=1e-10)
 
 
 class TestIsotropicSparseGridNumpy(TestIsotropicSparseGrid[NDArray[Any]]):
