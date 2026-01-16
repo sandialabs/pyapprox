@@ -46,6 +46,7 @@ from pyapprox.typing.surrogates.affine.univariate.globalpoly import (
     DiscreteNumericOrthonormalPolynomial1D,
     WeightedSamplePolynomial1D,
     lanczos_recursion,
+    ContinuousNumericOrthonormalPolynomial1D,
     GaussQuadratureRule,
     GaussLobattoQuadratureRule,
 )
@@ -64,6 +65,13 @@ from pyapprox.typing.surrogates.affine.univariate.lagrange import (
 
 from pyapprox.typing.surrogates.affine.univariate.monomial import (
     MonomialBasis1D,
+)
+
+from pyapprox.typing.surrogates.affine.univariate.transforms import (
+    Univariate1DTransformProtocol,
+    IdentityTransform1D,
+    BoundedAffineTransform1D,
+    UnboundedAffineTransform1D,
 )
 
 from pyapprox.typing.surrogates.affine.univariate.piecewisepoly import (
@@ -106,6 +114,8 @@ __all__ = [
     "DiscreteNumericOrthonormalPolynomial1D",
     "WeightedSamplePolynomial1D",
     "lanczos_recursion",
+    # Continuous numeric polynomials
+    "ContinuousNumericOrthonormalPolynomial1D",
     # Quadrature
     "GaussQuadratureRule",
     "GaussLobattoQuadratureRule",
@@ -119,6 +129,11 @@ __all__ = [
     "univariate_lagrange_second_derivative",
     # Monomial basis
     "MonomialBasis1D",
+    # Domain transforms
+    "Univariate1DTransformProtocol",
+    "IdentityTransform1D",
+    "BoundedAffineTransform1D",
+    "UnboundedAffineTransform1D",
     # Piecewise polynomials
     "PiecewiseLinear",
     "PiecewiseQuadratic",
