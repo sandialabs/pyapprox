@@ -82,6 +82,12 @@ exclude_also = [
 [tool.black]
 line-length=79
 
+[tool.ruff]
+line-length = 79
+
+[tool.flake8]
+max-line-length = 79
+
 [tool.mypy]
 strict = true
 ignore_missing_imports = true
