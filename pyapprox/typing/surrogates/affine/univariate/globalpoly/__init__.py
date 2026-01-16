@@ -62,6 +62,12 @@ from pyapprox.typing.surrogates.affine.univariate.globalpoly.numeric import (
     lanczos_recursion,
 )
 
+from pyapprox.typing.surrogates.affine.univariate.globalpoly.continuous_numeric import (
+    ContinuousNumericOrthonormalPolynomial1D,
+    PredictorCorrector,
+    GaussLegendreIntegrator,
+)
+
 from pyapprox.typing.surrogates.affine.univariate.globalpoly.quadrature import (
     GaussQuadratureRule,
     GaussLobattoQuadratureRule,
@@ -98,6 +104,10 @@ __all__ = [
     "DiscreteNumericOrthonormalPolynomial1D",
     "WeightedSamplePolynomial1D",
     "lanczos_recursion",
+    # Continuous numeric polynomials
+    "ContinuousNumericOrthonormalPolynomial1D",
+    "PredictorCorrector",
+    "GaussLegendreIntegrator",
     # Quadrature
     "GaussQuadratureRule",
     "GaussLobattoQuadratureRule",
