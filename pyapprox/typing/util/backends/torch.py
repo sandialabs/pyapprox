@@ -297,6 +297,16 @@ class TorchBkd(Backend[torch.Tensor]):  # Specify torch.Tensor type
         return cast(torch.Tensor, torch.linalg.solve(Amat, Bmat))
 
     @staticmethod
+    def lstsq(
+        a: torch.Tensor,
+        b: torch.Tensor,
+        rcond: Optional[float] = None,
+    ) -> torch.Tensor:
+        """Solve least squares problem min ||ax - b||_2."""
+        result = torch.linalg.lstsq(a, b, rcond=rcond)
+        return result.solution
+
+    @staticmethod
     def flip(
         array: torch.Tensor, axis: Optional[Tuple[int]] = None
     ) -> torch.Tensor:
@@ -552,3 +562,33 @@ class TorchBkd(Backend[torch.Tensor]):  # Specify torch.Tensor type
     @staticmethod
     def minimum(x1: torch.Tensor, x2: torch.Tensor) -> torch.Tensor:
         return torch.minimum(x1, x2)
+
+    @staticmethod
+    def qr(
+        array: torch.Tensor, mode: str = "reduced"
+    ) -> Tuple[torch.Tensor, torch.Tensor]:
+        return torch.linalg.qr(array, mode=mode)
+
+    @staticmethod
+    def lu(
+        array: torch.Tensor,
+    ) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
+        """Compute LU factorization with partial pivoting.
+
+        Returns P, L, U such that A = P @ L @ U.
+
+        Parameters
+        ----------
+        array : torch.Tensor
+            Matrix to factorize.
+
+        Returns
+        -------
+        P : torch.Tensor
+            Permutation matrix.
+        L : torch.Tensor
+            Lower triangular matrix with unit diagonal.
+        U : torch.Tensor
+            Upper triangular matrix.
+        """
+        return torch.linalg.lu(array)

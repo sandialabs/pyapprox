@@ -638,3 +638,45 @@ class Backend(Protocol, Generic[Array]):
     def minimum(x1: Array, x2: Array) -> Array:
         """Element-wise minimum of two arrays."""
         ...
+
+    @staticmethod
+    def qr(array: Array, mode: str = "reduced") -> Tuple[Array, Array]:
+        """Compute QR factorization.
+
+        Parameters
+        ----------
+        array : Array
+            Matrix to factorize. Shape: (m, n)
+        mode : str
+            Factorization mode. 'reduced' (default) or 'complete'.
+
+        Returns
+        -------
+        Q : Array
+            Orthogonal matrix.
+        R : Array
+            Upper triangular matrix.
+        """
+        ...
+
+    @staticmethod
+    def lu(array: Array) -> Tuple[Array, Array, Array]:
+        """Compute LU factorization with partial pivoting.
+
+        Returns P, L, U such that A = P @ L @ U.
+
+        Parameters
+        ----------
+        array : Array
+            Matrix to factorize.
+
+        Returns
+        -------
+        P : Array
+            Permutation matrix.
+        L : Array
+            Lower triangular matrix with unit diagonal.
+        U : Array
+            Upper triangular matrix.
+        """
+        ...

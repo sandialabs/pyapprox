@@ -495,3 +495,33 @@ class NumpyBkd(Backend[NDArray[Any]]):  # Specify NDArray type
     @staticmethod
     def minimum(x1: NDArray[Any], x2: NDArray[Any]) -> NDArray[Any]:
         return np.minimum(x1, x2)
+
+    @staticmethod
+    def qr(
+        array: NDArray[Any], mode: str = "reduced"
+    ) -> Tuple[NDArray[Any], NDArray[Any]]:
+        return np.linalg.qr(array, mode=mode)
+
+    @staticmethod
+    def lu(
+        array: NDArray[Any],
+    ) -> Tuple[NDArray[Any], NDArray[Any], NDArray[Any]]:
+        """Compute LU factorization with partial pivoting.
+
+        Returns P, L, U such that A = P @ L @ U.
+
+        Parameters
+        ----------
+        array : NDArray
+            Matrix to factorize.
+
+        Returns
+        -------
+        P : NDArray
+            Permutation matrix.
+        L : NDArray
+            Lower triangular matrix with unit diagonal.
+        U : NDArray
+            Upper triangular matrix.
+        """
+        return scipy.linalg.lu(array)
