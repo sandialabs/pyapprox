@@ -52,7 +52,7 @@ class BasisExpansionProtocol(Protocol, Generic[Array]):
         Returns
         -------
         Array
-            Values at samples. Shape: (nsamples, nqoi)
+            Values at samples. Shape: (nqoi, nsamples)
         """
         ...
 
@@ -97,12 +97,12 @@ class BasisExpansionHasHessianProtocol(Protocol, Generic[Array]):
         Returns
         -------
         Array
-            Hessians. Shape: (nsamples, nqoi, nvars, nvars)
+            Hessians. Shape: (nsamples, nvars, nvars)
 
         Raises
         ------
         ValueError
-            If samples is not 2D with shape (nvars, nsamples).
+            If nqoi != 1 (Hessian only supported for scalar-valued functions).
         """
         ...
 
@@ -119,7 +119,7 @@ class FittableBasisExpansionProtocol(Protocol, Generic[Array]):
         samples : Array
             Training sample points. Shape: (nvars, nsamples)
         values : Array
-            Training values. Shape: (nsamples, nqoi)
+            Training values. Shape: (nqoi, nsamples)
         """
         ...
 

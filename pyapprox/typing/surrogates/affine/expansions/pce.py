@@ -5,7 +5,7 @@ polynomial basis functions: f(x) ≈ Σ_i c_i ψ_i(x), where ψ_i are
 orthonormal with respect to the input probability measure.
 """
 
-from typing import Generic, List, Optional
+from typing import Generic, List, Optional, Tuple
 
 from pyapprox.typing.util.backends.protocols import Array, Backend
 from pyapprox.typing.surrogates.affine.protocols import (
@@ -21,6 +21,23 @@ from pyapprox.typing.surrogates.affine.indices import (
     compute_hyperbolic_indices,
 )
 from pyapprox.typing.surrogates.affine.expansions.base import BasisExpansion
+from pyapprox.typing.probability.univariate import (
+    BetaMarginal,
+    GaussianMarginal,
+    GammaMarginal,
+    UniformMarginal,
+    CustomDiscreteMarginal,
+    ScipyDiscreteMarginal,
+)
+from pyapprox.typing.surrogates.affine.univariate.globalpoly import (
+    JacobiPolynomial1D,
+    LegendrePolynomial1D,
+    HermitePolynomial1D,
+    LaguerrePolynomial1D,
+    ContinuousNumericOrthonormalPolynomial1D,
+    CharlierPolynomial1D,
+    DiscreteNumericOrthonormalPolynomial1D,
+)
 
 
 class PolynomialChaosExpansion(BasisExpansion[Array], Generic[Array]):
@@ -249,20 +266,22 @@ class PolynomialChaosExpansion(BasisExpansion[Array], Generic[Array]):
         quad_samples : Array
             Quadrature sample points. Shape: (nvars, nsamples)
         values : Array
-            Function values at quadrature points. Shape: (nsamples, nqoi)
+            Function values at quadrature points. Shape: (nqoi, nsamples) or
+            (nsamples,) for nqoi=1.
         quad_weights : Array
             Quadrature weights. Shape: (nsamples,)
         """
         if values.ndim == 1:
-            values = self._bkd.reshape(values, (-1, 1))
+            values = self._bkd.reshape(values, (1, -1))
 
         # Evaluate basis at quadrature points
         basis_vals = self._basis(quad_samples)  # (nsamples, nterms)
 
         # Compute coefficients via projection
         # c_i = Σ_j w_j f(x_j) ψ_i(x_j)
-        weighted_values = values * self._bkd.reshape(quad_weights, (-1, 1))
-        coef = self._bkd.dot(basis_vals.T, weighted_values)  # (nterms, nqoi)
+        # values: (nqoi, nsamples) -> transpose to (nsamples, nqoi)
+        weighted_values = values.T * self._bkd.reshape(quad_weights, (-1, 1))
+        coef = basis_vals.T @ weighted_values  # (nterms, nqoi)
         self.set_coefficients(coef)
 
     def __repr__(self) -> str:
@@ -306,3 +325,141 @@ def create_pce(
     indices = compute_hyperbolic_indices(nvars, max_level, pnorm, bkd)
     basis = OrthonormalPolynomialBasis(bases_1d, bkd, indices)
     return PolynomialChaosExpansion(basis, bkd, nqoi, solver)
+
+
+def _get_scipy_discrete_probability_masses(
+    marginal: ScipyDiscreteMarginal[Array],
+    bkd: Backend[Array],
+) -> Tuple[Array, Array]:
+    """Compute probability masses for ScipyDiscreteMarginal.
+
+    Follows legacy pattern from orthopoly.py lines 912-919.
+
+    Parameters
+    ----------
+    marginal : ScipyDiscreteMarginal[Array]
+        The discrete marginal distribution.
+    bkd : Backend[Array]
+        Computational backend.
+
+    Returns
+    -------
+    Tuple[Array, Array]
+        Tuple of (locations, probabilities), both 1D arrays.
+    """
+    if marginal.is_bounded():
+        alpha = 1.0
+    else:
+        alpha = 1 - 1e-8
+
+    interval = marginal.interval(alpha)  # Shape: (1, 2)
+    lo, hi = int(interval[0, 0]), int(interval[0, 1])
+    xk = bkd.arange(lo, hi + 1, dtype=bkd.default_dtype())
+    pk = marginal(bkd.reshape(xk, (1, -1)))[0, :]  # Get 1D probabilities
+    return xk, pk
+
+
+def get_orthonormal_poly_from_marginal(
+    marginal,
+    bkd: Backend[Array],
+) -> OrthonormalPolynomial1D[Array]:
+    """Get orthonormal polynomial basis for a marginal distribution.
+
+    Uses the Askey scheme to select optimal polynomial family. Follows
+    legacy patterns from pyapprox/surrogates/univariate/orthopoly.py.
+
+    Continuous distributions:
+    - UniformMarginal -> LegendrePolynomial1D
+    - GaussianMarginal -> HermitePolynomial1D
+    - BetaMarginal -> JacobiPolynomial1D(alpha=beta_param-1, beta=alpha_param-1)
+    - GammaMarginal -> LaguerrePolynomial1D(rho=shape-1)
+    - Other continuous -> ContinuousNumericOrthonormalPolynomial1D
+
+    Discrete distributions:
+    - ScipyDiscreteMarginal with name="poisson" -> CharlierPolynomial1D
+    - All other discrete -> DiscreteNumericOrthonormalPolynomial1D
+      (Note: binom/hypergeom use numeric rather than Krawtchouk/Hahn
+      because those polynomials aren't defined on [-1,1])
+
+    Parameters
+    ----------
+    marginal : MarginalProtocol
+        Univariate marginal distribution.
+    bkd : Backend[Array]
+        Computational backend.
+
+    Returns
+    -------
+    OrthonormalPolynomial1D[Array]
+        Orthonormal polynomial basis for the marginal.
+    """
+    # Continuous distributions - Askey scheme mapping
+    if isinstance(marginal, UniformMarginal):
+        return LegendrePolynomial1D(bkd)
+
+    if isinstance(marginal, GaussianMarginal):
+        return HermitePolynomial1D(bkd, rho=0.0, prob_meas=True)
+
+    if isinstance(marginal, BetaMarginal):
+        # Beta(a, b) -> Jacobi(alpha=b-1, beta=a-1) - note parameter swap!
+        return JacobiPolynomial1D(marginal.beta - 1, marginal.alpha - 1, bkd)
+
+    if isinstance(marginal, GammaMarginal):
+        # Gamma(shape, scale) -> Laguerre(rho=shape-1)
+        # This is an improvement over legacy which uses numeric
+        return LaguerrePolynomial1D(bkd, rho=marginal.shape - 1)
+
+    # Discrete distributions
+    if isinstance(marginal, ScipyDiscreteMarginal):
+        if marginal.name == "poisson":
+            return CharlierPolynomial1D(bkd, mu=marginal.shapes["mu"])
+        else:
+            # For binomial, hypergeometric, and other discrete distributions,
+            # use DiscreteNumericOrthonormalPolynomial1D (following legacy)
+            xk, pk = _get_scipy_discrete_probability_masses(marginal, bkd)
+            return DiscreteNumericOrthonormalPolynomial1D(bkd, xk, pk)
+
+    if isinstance(marginal, CustomDiscreteMarginal):
+        xk, pk = marginal.probability_masses()
+        return DiscreteNumericOrthonormalPolynomial1D(bkd, xk, pk)
+
+    # Fallback for other continuous distributions
+    # Use ContinuousNumericOrthonormalPolynomial1D
+    return ContinuousNumericOrthonormalPolynomial1D(marginal, bkd)
+
+
+def create_pce_from_marginals(
+    marginals: List,
+    max_level: int,
+    bkd: Backend[Array],
+    pnorm: float = 1.0,
+    nqoi: int = 1,
+    solver: Optional[LinearSystemSolverProtocol[Array]] = None,
+) -> PolynomialChaosExpansion[Array]:
+    """Create PCE from marginal distributions.
+
+    Automatically selects optimal orthonormal polynomial for each marginal
+    using the Askey scheme. Supports both continuous and discrete marginals.
+
+    Parameters
+    ----------
+    marginals : List of marginals
+        Univariate marginal distributions for each variable.
+    max_level : int
+        Maximum polynomial level.
+    bkd : Backend[Array]
+        Computational backend.
+    pnorm : float
+        p-norm for hyperbolic index selection. Default: 1.0
+    nqoi : int
+        Number of quantities of interest. Default: 1
+    solver : LinearSystemSolverProtocol, optional
+        Solver for fitting.
+
+    Returns
+    -------
+    PolynomialChaosExpansion[Array]
+        PCE with appropriate polynomial bases.
+    """
+    bases_1d = [get_orthonormal_poly_from_marginal(m, bkd) for m in marginals]
+    return create_pce(bases_1d, max_level, bkd, pnorm, nqoi, solver)

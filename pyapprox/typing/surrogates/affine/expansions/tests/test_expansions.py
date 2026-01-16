@@ -15,25 +15,32 @@ from pyapprox.typing.util.test_utils import load_tests
 from pyapprox.typing.surrogates.affine.univariate import (
     LegendrePolynomial1D,
     HermitePolynomial1D,
+    LaguerrePolynomial1D,
+    JacobiPolynomial1D,
+    Chebyshev1stKindPolynomial1D,
+    Chebyshev2ndKindPolynomial1D,
+    MonomialBasis1D,
 )
 from pyapprox.typing.surrogates.affine.indices import (
     compute_hyperbolic_indices,
 )
 from pyapprox.typing.surrogates.affine.basis import (
+    MultiIndexBasis,
     OrthonormalPolynomialBasis,
 )
 from pyapprox.typing.surrogates.affine.expansions import (
     BasisExpansion,
     PolynomialChaosExpansion,
     create_pce,
-    LeastSquaresSolver,
-    RidgeRegressionSolver,
     pce_statistics,
 )
-from pyapprox.typing.interface.functions.derivative_checks.derivative_checker import (
-    DerivativeChecker,
-    BatchDerivativeChecker,
-)
+from pyapprox.typing.surrogates.affine.solvers import LeastSquaresSolver
+
+# Tests are organized into separate files:
+# - test_solvers.py: Linear system solvers (LeastSquares, Ridge, OMP, etc.)
+# - test_pce_statistics.py: PCE statistics and Sobol indices
+# - test_derivative_checks.py: Derivative validation with DerivativeChecker
+# This file: BasisExpansion tests with multiple basis types and dimensions
 
 
 class TestBasisExpansion(Generic[Array], unittest.TestCase):
@@ -265,6 +272,707 @@ class TestBasisExpansionFittingNumpy(TestBasisExpansionFitting[NDArray[Any]]):
 
 
 class TestBasisExpansionFittingTorch(TestBasisExpansionFitting[torch.Tensor]):
+    """PyTorch backend tests."""
+
+    __test__ = True
+
+    def bkd(self) -> TorchBkd:
+        return TorchBkd()
+
+    def setUp(self):
+        torch.set_default_dtype(torch.float64)
+        super().setUp()
+
+
+class TestHermiteBasisExpansion(Generic[Array], unittest.TestCase):
+    """Test BasisExpansion with Hermite polynomials.
+
+    Hermite polynomials are orthonormal with respect to the standard
+    Gaussian distribution. Tests use samples from the normal distribution.
+    """
+
+    __test__ = False
+
+    def bkd(self) -> Backend[Array]:
+        raise NotImplementedError
+
+    def setUp(self):
+        self._bkd = self.bkd()
+
+    def _create_hermite_basis(self, nvars: int, max_level: int):
+        bkd = self._bkd
+        bases_1d = [HermitePolynomial1D(bkd) for _ in range(nvars)]
+        indices = compute_hyperbolic_indices(nvars, max_level, 1.0, bkd)
+        return OrthonormalPolynomialBasis(bases_1d, bkd, indices)
+
+    def test_fit_polynomial_1d(self):
+        """Test fitting a quadratic polynomial in 1D Hermite basis."""
+        bkd = self._bkd
+        basis = self._create_hermite_basis(nvars=1, max_level=4)
+        exp = BasisExpansion(basis, bkd, nqoi=1)
+
+        # Generate training data for f(x) = x^2 - 1
+        # E[x^2] = 1 for standard normal, so E[f] = 0
+        nsamples = 100
+        np.random.seed(42)
+        samples = bkd.asarray(np.random.randn(1, nsamples))
+        x = samples[0, :]
+        values = bkd.reshape(x**2 - 1.0, (1, -1))
+
+        exp.fit(samples, values)
+
+        # Test on new samples from the same distribution
+        np.random.seed(123)
+        test_samples = bkd.asarray(np.random.randn(1, 50))
+        x_test = test_samples[0, :]
+        expected = bkd.reshape(x_test**2 - 1.0, (1, -1))
+        predicted = exp(test_samples)
+
+        bkd.assert_allclose(predicted, expected, rtol=1e-10, atol=1e-10)
+
+    def test_fit_polynomial_2d(self):
+        """Test fitting a quadratic polynomial in 2D Hermite basis."""
+        bkd = self._bkd
+        basis = self._create_hermite_basis(nvars=2, max_level=3)
+        exp = BasisExpansion(basis, bkd, nqoi=1)
+
+        # f(x,y) = x^2 + y^2 + x*y (quadratic with interaction)
+        nsamples = 100
+        np.random.seed(42)
+        samples = bkd.asarray(np.random.randn(2, nsamples))
+        x, y = samples[0, :], samples[1, :]
+        values = bkd.reshape(x**2 + y**2 + x * y, (1, -1))
+
+        exp.fit(samples, values)
+
+        # Test on new samples
+        np.random.seed(123)
+        test_samples = bkd.asarray(np.random.randn(2, 30))
+        x_test, y_test = test_samples[0, :], test_samples[1, :]
+        expected = bkd.reshape(x_test**2 + y_test**2 + x_test * y_test, (1, -1))
+        predicted = exp(test_samples)
+
+        bkd.assert_allclose(predicted, expected, rtol=1e-10, atol=1e-10)
+
+    def test_fit_cubic_polynomial(self):
+        """Test fitting a cubic polynomial in Hermite basis."""
+        bkd = self._bkd
+        basis = self._create_hermite_basis(nvars=2, max_level=4)
+        exp = BasisExpansion(basis, bkd, nqoi=1)
+
+        # f(x,y) = x^3 + x^2*y + x*y^2 (cubic with mixed terms)
+        nsamples = 150
+        np.random.seed(42)
+        samples = bkd.asarray(np.random.randn(2, nsamples))
+        x, y = samples[0, :], samples[1, :]
+        values = bkd.reshape(x**3 + x**2 * y + x * y**2, (1, -1))
+
+        exp.fit(samples, values)
+
+        # Test
+        np.random.seed(123)
+        test_samples = bkd.asarray(np.random.randn(2, 30))
+        x_test, y_test = test_samples[0, :], test_samples[1, :]
+        expected = bkd.reshape(
+            x_test**3 + x_test**2 * y_test + x_test * y_test**2, (1, -1)
+        )
+        predicted = exp(test_samples)
+
+        bkd.assert_allclose(predicted, expected, rtol=1e-10, atol=1e-10)
+
+    def test_evaluation_shape(self):
+        """Test evaluation returns correct shape."""
+        bkd = self._bkd
+        basis = self._create_hermite_basis(nvars=2, max_level=3)
+        exp = BasisExpansion(basis, bkd, nqoi=3)
+
+        np.random.seed(42)
+        exp.set_coefficients(bkd.asarray(np.random.randn(exp.nterms(), 3)))
+
+        nsamples = 10
+        samples = bkd.asarray(np.random.randn(2, nsamples))
+        values = exp(samples)
+        self.assertEqual(values.shape, (3, nsamples))
+
+
+class TestHermiteBasisExpansionNumpy(TestHermiteBasisExpansion[NDArray[Any]]):
+    """NumPy backend tests."""
+
+    __test__ = True
+
+    def bkd(self) -> NumpyBkd:
+        return NumpyBkd()
+
+
+class TestHermiteBasisExpansionTorch(TestHermiteBasisExpansion[torch.Tensor]):
+    """PyTorch backend tests."""
+
+    __test__ = True
+
+    def bkd(self) -> TorchBkd:
+        return TorchBkd()
+
+    def setUp(self):
+        torch.set_default_dtype(torch.float64)
+        super().setUp()
+
+
+class TestLaguerreBasisExpansion(Generic[Array], unittest.TestCase):
+    """Test BasisExpansion with Laguerre polynomials.
+
+    Laguerre polynomials are orthonormal with respect to the exponential
+    distribution (gamma with alpha=0). Support is [0, infinity).
+    """
+
+    __test__ = False
+
+    def bkd(self) -> Backend[Array]:
+        raise NotImplementedError
+
+    def setUp(self):
+        self._bkd = self.bkd()
+
+    def _create_laguerre_basis(self, nvars: int, max_level: int):
+        bkd = self._bkd
+        bases_1d = [LaguerrePolynomial1D(bkd) for _ in range(nvars)]
+        indices = compute_hyperbolic_indices(nvars, max_level, 1.0, bkd)
+        return OrthonormalPolynomialBasis(bases_1d, bkd, indices)
+
+    def test_fit_polynomial_1d(self):
+        """Test fitting a quadratic polynomial in 1D Laguerre basis."""
+        bkd = self._bkd
+        basis = self._create_laguerre_basis(nvars=1, max_level=4)
+        exp = BasisExpansion(basis, bkd, nqoi=1)
+
+        # Generate training data for f(x) = x^2 - 2*x + 1
+        # For exponential distribution: E[x] = 1, E[x^2] = 2
+        nsamples = 100
+        np.random.seed(42)
+        samples = bkd.asarray(np.random.exponential(1.0, (1, nsamples)))
+        x = samples[0, :]
+        values = bkd.reshape(x**2 - 2.0 * x + 1.0, (1, -1))
+
+        exp.fit(samples, values)
+
+        # Test on new samples
+        np.random.seed(123)
+        test_samples = bkd.asarray(np.random.exponential(1.0, (1, 50)))
+        x_test = test_samples[0, :]
+        expected = bkd.reshape(x_test**2 - 2.0 * x_test + 1.0, (1, -1))
+        predicted = exp(test_samples)
+
+        bkd.assert_allclose(predicted, expected, rtol=1e-10, atol=1e-10)
+
+    def test_fit_polynomial_2d(self):
+        """Test fitting a quadratic polynomial in 2D Laguerre basis."""
+        bkd = self._bkd
+        basis = self._create_laguerre_basis(nvars=2, max_level=3)
+        exp = BasisExpansion(basis, bkd, nqoi=1)
+
+        # f(x,y) = x^2 + y^2 + x*y - 2 (quadratic with interaction)
+        nsamples = 100
+        np.random.seed(42)
+        samples = bkd.asarray(np.random.exponential(1.0, (2, nsamples)))
+        x, y = samples[0, :], samples[1, :]
+        values = bkd.reshape(x**2 + y**2 + x * y - 2.0, (1, -1))
+
+        exp.fit(samples, values)
+
+        # Test on new samples
+        np.random.seed(123)
+        test_samples = bkd.asarray(np.random.exponential(1.0, (2, 30)))
+        x_test, y_test = test_samples[0, :], test_samples[1, :]
+        expected = bkd.reshape(
+            x_test**2 + y_test**2 + x_test * y_test - 2.0, (1, -1)
+        )
+        predicted = exp(test_samples)
+
+        bkd.assert_allclose(predicted, expected, rtol=1e-10, atol=1e-10)
+
+    def test_evaluation_shape(self):
+        """Test evaluation returns correct shape."""
+        bkd = self._bkd
+        basis = self._create_laguerre_basis(nvars=2, max_level=3)
+        exp = BasisExpansion(basis, bkd, nqoi=2)
+
+        np.random.seed(42)
+        exp.set_coefficients(bkd.asarray(np.random.randn(exp.nterms(), 2)))
+
+        nsamples = 10
+        samples = bkd.asarray(np.random.exponential(1.0, (2, nsamples)))
+        values = exp(samples)
+        self.assertEqual(values.shape, (2, nsamples))
+
+
+class TestLaguerreBasisExpansionNumpy(TestLaguerreBasisExpansion[NDArray[Any]]):
+    """NumPy backend tests."""
+
+    __test__ = True
+
+    def bkd(self) -> NumpyBkd:
+        return NumpyBkd()
+
+
+class TestLaguerreBasisExpansionTorch(TestLaguerreBasisExpansion[torch.Tensor]):
+    """PyTorch backend tests."""
+
+    __test__ = True
+
+    def bkd(self) -> TorchBkd:
+        return TorchBkd()
+
+    def setUp(self):
+        torch.set_default_dtype(torch.float64)
+        super().setUp()
+
+
+class TestJacobiBasisExpansion(Generic[Array], unittest.TestCase):
+    """Test BasisExpansion with Jacobi polynomials.
+
+    Jacobi polynomials with parameters (alpha, beta) are orthonormal with
+    respect to the beta distribution on [-1, 1].
+    """
+
+    __test__ = False
+
+    def bkd(self) -> Backend[Array]:
+        raise NotImplementedError
+
+    def setUp(self):
+        self._bkd = self.bkd()
+
+    def _create_jacobi_basis(
+        self, nvars: int, max_level: int, alpha: float = 0.5, beta: float = 1.0
+    ):
+        bkd = self._bkd
+        bases_1d = [JacobiPolynomial1D(alpha, beta, bkd) for _ in range(nvars)]
+        indices = compute_hyperbolic_indices(nvars, max_level, 1.0, bkd)
+        return OrthonormalPolynomialBasis(bases_1d, bkd, indices)
+
+    def test_fit_polynomial_1d(self):
+        """Test fitting a quadratic polynomial in 1D Jacobi basis."""
+        bkd = self._bkd
+        basis = self._create_jacobi_basis(nvars=1, max_level=4, alpha=0.5, beta=0.5)
+        exp = BasisExpansion(basis, bkd, nqoi=1)
+
+        # Generate training data for f(x) = x^2 + x
+        nsamples = 100
+        np.random.seed(42)
+        samples = bkd.asarray(np.random.uniform(-1, 1, (1, nsamples)))
+        x = samples[0, :]
+        values = bkd.reshape(x**2 + x, (1, -1))
+
+        exp.fit(samples, values)
+
+        # Test on new samples
+        np.random.seed(123)
+        test_samples = bkd.asarray(np.random.uniform(-1, 1, (1, 50)))
+        x_test = test_samples[0, :]
+        expected = bkd.reshape(x_test**2 + x_test, (1, -1))
+        predicted = exp(test_samples)
+
+        bkd.assert_allclose(predicted, expected, rtol=1e-10, atol=1e-10)
+
+    def test_fit_polynomial_2d(self):
+        """Test fitting a quadratic polynomial in 2D Jacobi basis."""
+        bkd = self._bkd
+        basis = self._create_jacobi_basis(nvars=2, max_level=3, alpha=1.0, beta=2.0)
+        exp = BasisExpansion(basis, bkd, nqoi=1)
+
+        # f(x,y) = x^2 + y^2 + x*y (quadratic)
+        nsamples = 100
+        np.random.seed(42)
+        samples = bkd.asarray(np.random.uniform(-1, 1, (2, nsamples)))
+        x, y = samples[0, :], samples[1, :]
+        values = bkd.reshape(x**2 + y**2 + x * y, (1, -1))
+
+        exp.fit(samples, values)
+
+        # Test on new samples
+        np.random.seed(123)
+        test_samples = bkd.asarray(np.random.uniform(-1, 1, (2, 30)))
+        x_test, y_test = test_samples[0, :], test_samples[1, :]
+        expected = bkd.reshape(x_test**2 + y_test**2 + x_test * y_test, (1, -1))
+        predicted = exp(test_samples)
+
+        bkd.assert_allclose(predicted, expected, rtol=1e-10, atol=1e-10)
+
+    def test_different_alpha_beta(self):
+        """Test Jacobi with various alpha, beta parameters on quadratic."""
+        bkd = self._bkd
+
+        # Test several (alpha, beta) combinations
+        test_cases = [(0.0, 0.0), (1.0, 1.0), (2.0, 0.5), (0.5, 2.0)]
+
+        for alpha, beta in test_cases:
+            basis = self._create_jacobi_basis(
+                nvars=1, max_level=3, alpha=alpha, beta=beta
+            )
+            exp = BasisExpansion(basis, bkd, nqoi=1)
+
+            # Fit quadratic function f(x) = x^2 - 0.5
+            nsamples = 50
+            np.random.seed(42)
+            samples = bkd.asarray(np.random.uniform(-1, 1, (1, nsamples)))
+            x = samples[0, :]
+            values = bkd.reshape(x**2 - 0.5, (1, -1))
+
+            exp.fit(samples, values)
+
+            # Test
+            np.random.seed(123)
+            test_samples = bkd.asarray(np.random.uniform(-1, 1, (1, 20)))
+            x_test = test_samples[0, :]
+            expected = bkd.reshape(x_test**2 - 0.5, (1, -1))
+            predicted = exp(test_samples)
+
+            bkd.assert_allclose(
+                predicted, expected, rtol=1e-10, atol=1e-10,
+            )
+
+    def test_evaluation_shape(self):
+        """Test evaluation returns correct shape."""
+        bkd = self._bkd
+        basis = self._create_jacobi_basis(nvars=2, max_level=3)
+        exp = BasisExpansion(basis, bkd, nqoi=2)
+
+        np.random.seed(42)
+        exp.set_coefficients(bkd.asarray(np.random.randn(exp.nterms(), 2)))
+
+        nsamples = 10
+        samples = bkd.asarray(np.random.uniform(-1, 1, (2, nsamples)))
+        values = exp(samples)
+        self.assertEqual(values.shape, (2, nsamples))
+
+
+class TestJacobiBasisExpansionNumpy(TestJacobiBasisExpansion[NDArray[Any]]):
+    """NumPy backend tests."""
+
+    __test__ = True
+
+    def bkd(self) -> NumpyBkd:
+        return NumpyBkd()
+
+
+class TestJacobiBasisExpansionTorch(TestJacobiBasisExpansion[torch.Tensor]):
+    """PyTorch backend tests."""
+
+    __test__ = True
+
+    def bkd(self) -> TorchBkd:
+        return TorchBkd()
+
+    def setUp(self):
+        torch.set_default_dtype(torch.float64)
+        super().setUp()
+
+
+class TestChebyshevBasisExpansion(Generic[Array], unittest.TestCase):
+    """Test BasisExpansion with Chebyshev polynomials.
+
+    Chebyshev polynomials of the first kind are orthonormal with respect
+    to the arcsine distribution on [-1, 1]. Chebyshev polynomials of the
+    second kind use a different weight function.
+    """
+
+    __test__ = False
+
+    def bkd(self) -> Backend[Array]:
+        raise NotImplementedError
+
+    def setUp(self):
+        self._bkd = self.bkd()
+
+    def _create_chebyshev_basis(self, nvars: int, max_level: int, kind: int = 1):
+        bkd = self._bkd
+        if kind == 1:
+            bases_1d = [Chebyshev1stKindPolynomial1D(bkd) for _ in range(nvars)]
+        else:
+            bases_1d = [Chebyshev2ndKindPolynomial1D(bkd) for _ in range(nvars)]
+        indices = compute_hyperbolic_indices(nvars, max_level, 1.0, bkd)
+        return OrthonormalPolynomialBasis(bases_1d, bkd, indices)
+
+    def test_fit_polynomial_1d_first_kind(self):
+        """Test fitting a quadratic polynomial in 1D Chebyshev 1st kind basis."""
+        bkd = self._bkd
+        basis = self._create_chebyshev_basis(nvars=1, max_level=4, kind=1)
+        exp = BasisExpansion(basis, bkd, nqoi=1)
+
+        # Generate training data for f(x) = x^2 + 0.5*x
+        nsamples = 100
+        np.random.seed(42)
+        samples = bkd.asarray(np.random.uniform(-1, 1, (1, nsamples)))
+        x = samples[0, :]
+        values = bkd.reshape(x**2 + 0.5 * x, (1, -1))
+
+        exp.fit(samples, values)
+
+        # Test on new samples
+        np.random.seed(123)
+        test_samples = bkd.asarray(np.random.uniform(-1, 1, (1, 50)))
+        x_test = test_samples[0, :]
+        expected = bkd.reshape(x_test**2 + 0.5 * x_test, (1, -1))
+        predicted = exp(test_samples)
+
+        bkd.assert_allclose(predicted, expected, rtol=1e-10, atol=1e-10)
+
+    def test_fit_polynomial_2d_first_kind(self):
+        """Test fitting a quadratic polynomial in 2D Chebyshev 1st kind basis."""
+        bkd = self._bkd
+        basis = self._create_chebyshev_basis(nvars=2, max_level=3, kind=1)
+        exp = BasisExpansion(basis, bkd, nqoi=1)
+
+        # f(x,y) = x^2 + y^2 + x*y (quadratic with interaction)
+        nsamples = 100
+        np.random.seed(42)
+        samples = bkd.asarray(np.random.uniform(-1, 1, (2, nsamples)))
+        x, y = samples[0, :], samples[1, :]
+        values = bkd.reshape(x**2 + y**2 + x * y, (1, -1))
+
+        exp.fit(samples, values)
+
+        # Test
+        np.random.seed(123)
+        test_samples = bkd.asarray(np.random.uniform(-1, 1, (2, 30)))
+        x_test, y_test = test_samples[0, :], test_samples[1, :]
+        expected = bkd.reshape(x_test**2 + y_test**2 + x_test * y_test, (1, -1))
+        predicted = exp(test_samples)
+
+        bkd.assert_allclose(predicted, expected, rtol=1e-10, atol=1e-10)
+
+    def test_fit_polynomial_1d_second_kind(self):
+        """Test fitting a quadratic polynomial in 1D Chebyshev 2nd kind basis."""
+        bkd = self._bkd
+        basis = self._create_chebyshev_basis(nvars=1, max_level=4, kind=2)
+        exp = BasisExpansion(basis, bkd, nqoi=1)
+
+        # Generate training data for f(x) = x^2 - 0.3*x
+        nsamples = 100
+        np.random.seed(42)
+        samples = bkd.asarray(np.random.uniform(-1, 1, (1, nsamples)))
+        x = samples[0, :]
+        values = bkd.reshape(x**2 - 0.3 * x, (1, -1))
+
+        exp.fit(samples, values)
+
+        # Test on new samples
+        np.random.seed(123)
+        test_samples = bkd.asarray(np.random.uniform(-1, 1, (1, 50)))
+        x_test = test_samples[0, :]
+        expected = bkd.reshape(x_test**2 - 0.3 * x_test, (1, -1))
+        predicted = exp(test_samples)
+
+        bkd.assert_allclose(predicted, expected, rtol=1e-10, atol=1e-10)
+
+    def test_fit_polynomial_2d_second_kind(self):
+        """Test fitting a quadratic polynomial in 2D Chebyshev 2nd kind basis."""
+        bkd = self._bkd
+        basis = self._create_chebyshev_basis(nvars=2, max_level=3, kind=2)
+        exp = BasisExpansion(basis, bkd, nqoi=1)
+
+        # f(x,y) = x^2 + x*y + y^2 (quadratic with interaction)
+        nsamples = 100
+        np.random.seed(42)
+        samples = bkd.asarray(np.random.uniform(-1, 1, (2, nsamples)))
+        x, y = samples[0, :], samples[1, :]
+        values = bkd.reshape(x**2 + x * y + y**2, (1, -1))
+
+        exp.fit(samples, values)
+
+        # Test
+        np.random.seed(123)
+        test_samples = bkd.asarray(np.random.uniform(-1, 1, (2, 30)))
+        x_test, y_test = test_samples[0, :], test_samples[1, :]
+        expected = bkd.reshape(x_test**2 + x_test * y_test + y_test**2, (1, -1))
+        predicted = exp(test_samples)
+
+        bkd.assert_allclose(predicted, expected, rtol=1e-10, atol=1e-10)
+
+    def test_evaluation_shape_first_kind(self):
+        """Test evaluation returns correct shape for 1st kind."""
+        bkd = self._bkd
+        basis = self._create_chebyshev_basis(nvars=2, max_level=3, kind=1)
+        exp = BasisExpansion(basis, bkd, nqoi=2)
+
+        np.random.seed(42)
+        exp.set_coefficients(bkd.asarray(np.random.randn(exp.nterms(), 2)))
+
+        nsamples = 10
+        samples = bkd.asarray(np.random.uniform(-1, 1, (2, nsamples)))
+        values = exp(samples)
+        self.assertEqual(values.shape, (2, nsamples))
+
+    def test_evaluation_shape_second_kind(self):
+        """Test evaluation returns correct shape for 2nd kind."""
+        bkd = self._bkd
+        basis = self._create_chebyshev_basis(nvars=2, max_level=3, kind=2)
+        exp = BasisExpansion(basis, bkd, nqoi=3)
+
+        np.random.seed(42)
+        exp.set_coefficients(bkd.asarray(np.random.randn(exp.nterms(), 3)))
+
+        nsamples = 8
+        samples = bkd.asarray(np.random.uniform(-1, 1, (2, nsamples)))
+        values = exp(samples)
+        self.assertEqual(values.shape, (3, nsamples))
+
+
+class TestChebyshevBasisExpansionNumpy(TestChebyshevBasisExpansion[NDArray[Any]]):
+    """NumPy backend tests."""
+
+    __test__ = True
+
+    def bkd(self) -> NumpyBkd:
+        return NumpyBkd()
+
+
+class TestChebyshevBasisExpansionTorch(TestChebyshevBasisExpansion[torch.Tensor]):
+    """PyTorch backend tests."""
+
+    __test__ = True
+
+    def bkd(self) -> TorchBkd:
+        return TorchBkd()
+
+    def setUp(self):
+        torch.set_default_dtype(torch.float64)
+        super().setUp()
+
+
+class TestMonomialBasisExpansion(Generic[Array], unittest.TestCase):
+    """Test BasisExpansion with Monomial polynomials.
+
+    Monomial polynomials {1, x, x², ...} provide a simple non-orthonormal basis.
+    Tests use MultiIndexBasis directly (not OrthonormalPolynomialBasis).
+    """
+
+    __test__ = False
+
+    def bkd(self) -> Backend[Array]:
+        raise NotImplementedError
+
+    def setUp(self):
+        self._bkd = self.bkd()
+
+    def _create_monomial_basis(self, nvars: int, max_level: int):
+        """Create a MultiIndexBasis with MonomialBasis1D univariate bases."""
+        bkd = self._bkd
+        bases_1d = [MonomialBasis1D(bkd) for _ in range(nvars)]
+        indices = compute_hyperbolic_indices(nvars, max_level, 1.0, bkd)
+        # MultiIndexBasis is marked ABC but has no abstract methods
+        basis = MultiIndexBasis.__new__(MultiIndexBasis)
+        MultiIndexBasis.__init__(basis, bases_1d, bkd, indices)
+        return basis
+
+    def test_fit_polynomial_1d(self):
+        """Test fitting a quadratic polynomial in 1D monomial basis."""
+        bkd = self._bkd
+        basis = self._create_monomial_basis(nvars=1, max_level=4)
+        exp = BasisExpansion(basis, bkd, nqoi=1)
+
+        # Generate training data for f(x) = x² + 2x + 1
+        nsamples = 50
+        np.random.seed(42)
+        samples = bkd.asarray(np.random.uniform(-1, 1, (1, nsamples)))
+        x = samples[0, :]
+        values = bkd.reshape(x**2 + 2.0 * x + 1.0, (1, -1))
+
+        exp.fit(samples, values)
+
+        # Test on new samples
+        np.random.seed(123)
+        test_samples = bkd.asarray(np.random.uniform(-1, 1, (1, 30)))
+        x_test = test_samples[0, :]
+        expected = bkd.reshape(x_test**2 + 2.0 * x_test + 1.0, (1, -1))
+        predicted = exp(test_samples)
+
+        bkd.assert_allclose(predicted, expected, rtol=1e-10, atol=1e-10)
+
+    def test_fit_polynomial_2d(self):
+        """Test fitting a quadratic polynomial in 2D monomial basis."""
+        bkd = self._bkd
+        basis = self._create_monomial_basis(nvars=2, max_level=3)
+        exp = BasisExpansion(basis, bkd, nqoi=1)
+
+        # f(x,y) = x² + y² + xy (quadratic with interaction)
+        nsamples = 100
+        np.random.seed(42)
+        samples = bkd.asarray(np.random.uniform(-1, 1, (2, nsamples)))
+        x, y = samples[0, :], samples[1, :]
+        values = bkd.reshape(x**2 + y**2 + x * y, (1, -1))
+
+        exp.fit(samples, values)
+
+        # Test on new samples
+        np.random.seed(123)
+        test_samples = bkd.asarray(np.random.uniform(-1, 1, (2, 30)))
+        x_test, y_test = test_samples[0, :], test_samples[1, :]
+        expected = bkd.reshape(x_test**2 + y_test**2 + x_test * y_test, (1, -1))
+        predicted = exp(test_samples)
+
+        bkd.assert_allclose(predicted, expected, rtol=1e-10, atol=1e-10)
+
+    def test_fit_cubic_polynomial(self):
+        """Test fitting a cubic polynomial in monomial basis."""
+        bkd = self._bkd
+        basis = self._create_monomial_basis(nvars=2, max_level=4)
+        exp = BasisExpansion(basis, bkd, nqoi=1)
+
+        # f(x,y) = x³ + x²y + xy² (cubic with mixed terms)
+        nsamples = 150
+        np.random.seed(42)
+        samples = bkd.asarray(np.random.uniform(-1, 1, (2, nsamples)))
+        x, y = samples[0, :], samples[1, :]
+        values = bkd.reshape(x**3 + x**2 * y + x * y**2, (1, -1))
+
+        exp.fit(samples, values)
+
+        # Test
+        np.random.seed(123)
+        test_samples = bkd.asarray(np.random.uniform(-1, 1, (2, 30)))
+        x_test, y_test = test_samples[0, :], test_samples[1, :]
+        expected = bkd.reshape(
+            x_test**3 + x_test**2 * y_test + x_test * y_test**2, (1, -1)
+        )
+        predicted = exp(test_samples)
+
+        bkd.assert_allclose(predicted, expected, rtol=1e-10, atol=1e-10)
+
+    def test_evaluation_shape(self):
+        """Test evaluation returns correct shape."""
+        bkd = self._bkd
+        basis = self._create_monomial_basis(nvars=2, max_level=3)
+        exp = BasisExpansion(basis, bkd, nqoi=3)
+
+        np.random.seed(42)
+        exp.set_coefficients(bkd.asarray(np.random.randn(exp.nterms(), 3)))
+
+        nsamples = 10
+        samples = bkd.asarray(np.random.uniform(-1, 1, (2, nsamples)))
+        values = exp(samples)
+        self.assertEqual(values.shape, (3, nsamples))
+
+    def test_derivative_methods_available(self):
+        """Test that jacobian_batch and hessian_batch are available."""
+        bkd = self._bkd
+        basis = self._create_monomial_basis(nvars=2, max_level=3)
+        exp = BasisExpansion(basis, bkd, nqoi=1)
+
+        # MonomialBasis1D implements jacobian_batch and hessian_batch
+        self.assertTrue(hasattr(exp, "jacobian_batch"))
+        self.assertTrue(hasattr(exp, "hessian_batch"))
+
+
+class TestMonomialBasisExpansionNumpy(TestMonomialBasisExpansion[NDArray[Any]]):
+    """NumPy backend tests."""
+
+    __test__ = True
+
+    def bkd(self) -> NumpyBkd:
+        return NumpyBkd()
+
+
+class TestMonomialBasisExpansionTorch(TestMonomialBasisExpansion[torch.Tensor]):
     """PyTorch backend tests."""
 
     __test__ = True
@@ -560,169 +1268,256 @@ class TestPCEStatisticsFunctionsTorch(TestPCEStatisticsFunctions[torch.Tensor]):
         super().setUp()
 
 
-class TestSolvers(Generic[Array], unittest.TestCase):
-    """Test linear system solvers."""
+class TestMixedBasisExpansion(Generic[Array], unittest.TestCase):
+    """Test BasisExpansion with mixed polynomial bases."""
 
     __test__ = False
 
     def bkd(self) -> Backend[Array]:
         raise NotImplementedError
 
-    def setUp(self):
+    def setUp(self) -> None:
         self._bkd = self.bkd()
 
-    def test_least_squares_overdetermined(self):
-        """Test least squares on overdetermined system."""
+    def _create_mixed_pce(self, nqoi: int = 1):
+        """Create PCE with Legendre, Hermite, and Laguerre bases."""
         bkd = self._bkd
-        solver = LeastSquaresSolver(bkd)
+        bases_1d = [
+            LegendrePolynomial1D(bkd),      # var 0: uniform
+            HermitePolynomial1D(bkd, rho=0.0, prob_meas=True),  # var 1: gaussian
+            LaguerrePolynomial1D(bkd, rho=1.0),  # var 2: gamma(2,1)
+        ]
+        return create_pce(bases_1d, max_level=3, bkd=bkd, nqoi=nqoi)
 
-        # y = 2x + 1 with some noise
-        x = bkd.asarray(np.linspace(0, 1, 20).reshape(-1, 1))
-        basis_matrix = bkd.concatenate([bkd.ones((20, 1)), x], axis=1)
-        y = 2 * x + 1
-
-        coef = solver.solve(basis_matrix, y)
-        bkd.assert_allclose(
-            bkd.reshape(coef[0, 0], (1,)), bkd.asarray([1.0]), atol=1e-10
-        )
-        bkd.assert_allclose(
-            bkd.reshape(coef[1, 0], (1,)), bkd.asarray([2.0]), atol=1e-10
-        )
-
-    def test_ridge_regression(self):
-        """Test ridge regression."""
+    def test_mixed_basis_evaluation(self):
+        """Test evaluation with mixed polynomial bases."""
         bkd = self._bkd
-        solver = RidgeRegressionSolver(bkd, alpha=0.1)
-
-        x = bkd.asarray(np.linspace(0, 1, 20).reshape(-1, 1))
-        basis_matrix = bkd.concatenate([bkd.ones((20, 1)), x], axis=1)
-        y = 2 * x + 1
-
-        coef = solver.solve(basis_matrix, y)
-        # Ridge regression should still get reasonable coefficients
-        self.assertTrue(0.5 < bkd.to_numpy(coef[0, 0]) < 1.5)
-        self.assertTrue(1.5 < bkd.to_numpy(coef[1, 0]) < 2.5)
-
-
-class TestSolversNumpy(TestSolvers[NDArray[Any]]):
-    """NumPy backend tests."""
-
-    __test__ = True
-
-    def bkd(self) -> NumpyBkd:
-        return NumpyBkd()
-
-
-class TestSolversTorch(TestSolvers[torch.Tensor]):
-    """PyTorch backend tests."""
-
-    __test__ = True
-
-    def bkd(self) -> TorchBkd:
-        return TorchBkd()
-
-    def setUp(self):
-        torch.set_default_dtype(torch.float64)
-        super().setUp()
-
-
-class TestDerivativeChecker(Generic[Array], unittest.TestCase):
-    """Test derivatives using DerivativeChecker per CLAUDE.md."""
-
-    __test__ = False
-
-    def bkd(self) -> Backend[Array]:
-        raise NotImplementedError
-
-    def setUp(self):
-        self._bkd = self.bkd()
-
-    def _create_pce(self, nvars: int, max_level: int, nqoi: int = 1):
-        bkd = self._bkd
-        bases_1d = [LegendrePolynomial1D(bkd) for _ in range(nvars)]
-        return create_pce(bases_1d, max_level, bkd, nqoi=nqoi)
-
-    def test_jacobian_with_derivative_checker(self):
-        """Validate Jacobian using DerivativeChecker for single-sample methods."""
-        bkd = self._bkd
-        pce = self._create_pce(nvars=2, max_level=3, nqoi=1)
-
-        # Set random coefficients
-        np.random.seed(42)
-        pce.set_coefficients(bkd.asarray(np.random.randn(pce.nterms(), 1)))
-
-        # Check derivatives using standard DerivativeChecker for single-sample methods
-        checker = DerivativeChecker(pce)
-        sample = bkd.asarray(np.random.uniform(-0.9, 0.9, (2, 1)))
-        errors = checker.check_derivatives(sample, verbosity=0)
-
-        # error_ratio should be ~1e-6 for correct derivatives
-        # A small ratio indicates the minimum error is much smaller than maximum
-        jac_error = checker.error_ratio(errors[0])
-        self.assertLess(float(jac_error), 1e-6)
-
-    def test_hessian_with_derivative_checker(self):
-        """Validate Hessian using DerivativeChecker for single-sample methods."""
-        bkd = self._bkd
-        pce = self._create_pce(nvars=2, max_level=3, nqoi=1)
-
-        # Set random coefficients
-        np.random.seed(42)
-        pce.set_coefficients(bkd.asarray(np.random.randn(pce.nterms(), 1)))
-
-        # Check derivatives
-        checker = DerivativeChecker(pce)
-        sample = bkd.asarray(np.random.uniform(-0.9, 0.9, (2, 1)))
-        errors = checker.check_derivatives(sample, verbosity=0)
-
-        # error_ratio should be ~1e-6 for correct derivatives
-        hess_error = checker.error_ratio(errors[1])
-        self.assertLess(float(hess_error), 1e-6)
-
-    def test_jacobian_batch_with_batch_derivative_checker(self):
-        """Validate jacobian_batch using BatchDerivativeChecker."""
-        bkd = self._bkd
-        pce = self._create_pce(nvars=2, max_level=3, nqoi=2)
+        pce = self._create_mixed_pce(nqoi=2)
 
         # Set random coefficients
         np.random.seed(42)
         pce.set_coefficients(bkd.asarray(np.random.randn(pce.nterms(), 2)))
 
-        # Create test samples
-        nsamples = 5
-        samples = bkd.asarray(np.random.uniform(-0.9, 0.9, (2, nsamples)))
+        # Generate samples in appropriate domains
+        nsamples = 10
+        samples = bkd.zeros((3, nsamples))
+        samples[0, :] = bkd.asarray(np.random.uniform(-1, 1, nsamples))  # uniform
+        samples[1, :] = bkd.asarray(np.random.randn(nsamples))  # gaussian
+        samples[2, :] = bkd.asarray(np.random.exponential(1.0, nsamples))  # gamma
 
-        # Check jacobian_batch using BatchDerivativeChecker
-        checker = BatchDerivativeChecker(pce, samples)
-        errors = checker.check_jacobian_batch(verbosity=0)
+        values = pce(samples)
+        self.assertEqual(values.shape, (2, nsamples))
 
-        # error_ratio should be ~1e-6 for correct derivatives
-        error_ratio = checker.error_ratio(errors)
-        self.assertLess(float(error_ratio), 1e-6)
-
-    def test_hessian_batch_with_batch_derivative_checker(self):
-        """Validate hessian_batch using BatchDerivativeChecker."""
+    def test_mixed_basis_fitting(self):
+        """Test fitting with mixed polynomial bases."""
         bkd = self._bkd
-        pce = self._create_pce(nvars=2, max_level=3, nqoi=1)
+        pce = self._create_mixed_pce(nqoi=1)
 
-        # Set random coefficients
+        # Generate training data: f(x,y,z) = x^2 + y + z
+        nsamples = 100
+        np.random.seed(42)
+        samples = bkd.zeros((3, nsamples))
+        x = bkd.asarray(np.random.uniform(-1, 1, nsamples))
+        y = bkd.asarray(np.random.randn(nsamples))
+        z = bkd.asarray(np.random.exponential(1.0, nsamples))
+        samples[0, :] = x
+        samples[1, :] = y
+        samples[2, :] = z
+        values = bkd.reshape(x**2 + y + z, (1, -1))
+
+        pce.fit(samples, values)
+
+        # Test on new samples
+        np.random.seed(123)
+        test_samples = bkd.zeros((3, 20))
+        x_test = bkd.asarray(np.random.uniform(-1, 1, 20))
+        y_test = bkd.asarray(np.random.randn(20))
+        z_test = bkd.asarray(np.random.exponential(1.0, 20))
+        test_samples[0, :] = x_test
+        test_samples[1, :] = y_test
+        test_samples[2, :] = z_test
+        expected = bkd.reshape(x_test**2 + y_test + z_test, (1, -1))
+        predicted = pce(test_samples)
+
+        bkd.assert_allclose(predicted, expected, rtol=1e-10, atol=1e-10)
+
+    def test_create_pce_from_marginals_continuous(self):
+        """Test create_pce_from_marginals with continuous distributions."""
+        from pyapprox.typing.surrogates.affine.expansions.pce import (
+            create_pce_from_marginals,
+        )
+        from pyapprox.typing.probability.univariate import (
+            UniformMarginal,
+            GaussianMarginal,
+            GammaMarginal,
+        )
+
+        bkd = self._bkd
+        marginals = [
+            UniformMarginal(-1.0, 1.0, bkd),
+            GaussianMarginal(0.0, 1.0, bkd),
+            GammaMarginal(2.0, 1.0, bkd=bkd),
+        ]
+        pce = create_pce_from_marginals(marginals, max_level=3, bkd=bkd)
+
+        # Verify correct polynomial types selected
+        self.assertEqual(pce.nvars(), 3)
+        self.assertGreater(pce.nterms(), 0)
+
+        # Check that we can evaluate
+        nsamples = 5
+        samples = bkd.zeros((3, nsamples))
+        samples[0, :] = bkd.asarray(np.random.uniform(-1, 1, nsamples))
+        samples[1, :] = bkd.asarray(np.random.randn(nsamples))
+        samples[2, :] = bkd.asarray(np.random.exponential(1.0, nsamples))
+        values = pce(samples)
+        self.assertEqual(values.shape, (1, nsamples))
+
+    def test_create_pce_from_marginals_discrete(self):
+        """Test create_pce_from_marginals with discrete distributions."""
+        from pyapprox.typing.surrogates.affine.expansions.pce import (
+            create_pce_from_marginals,
+        )
+        from pyapprox.typing.probability.univariate import ScipyDiscreteMarginal
+        from scipy import stats
+
+        bkd = self._bkd
+        marginals = [
+            ScipyDiscreteMarginal(stats.poisson(mu=3.0), bkd),  # -> CharlierPolynomial1D
+            ScipyDiscreteMarginal(stats.binom(n=10, p=0.3), bkd),  # -> DiscreteNumeric
+        ]
+        pce = create_pce_from_marginals(marginals, max_level=3, bkd=bkd)
+
+        # Verify correct polynomial types
+        self.assertEqual(pce.nvars(), 2)
+        self.assertGreater(pce.nterms(), 0)
+
+        # Check that we can evaluate
+        nsamples = 5
+        samples = bkd.zeros((2, nsamples))
+        # Sample from Poisson and binomial
+        samples[0, :] = bkd.asarray(np.random.poisson(3.0, nsamples).astype(float))
+        samples[1, :] = bkd.asarray(np.random.binomial(10, 0.3, nsamples).astype(float))
+        values = pce(samples)
+        self.assertEqual(values.shape, (1, nsamples))
+
+    def test_discrete_orthonormality_exact(self):
+        """Test orthonormality of discrete polynomials using exact evaluation.
+
+        For discrete distributions, evaluate at all mass points weighted by
+        probabilities to verify orthonormality:
+        sum_k p_i(x_k) * p_j(x_k) * P(X=x_k) ≈ δ_ij
+
+        Note: For unbounded distributions like Poisson, we can only capture
+        a finite interval of mass points, so orthonormality degrades slightly
+        for higher polynomial degrees. We test with fewer terms and use a
+        more relaxed tolerance for Poisson.
+        """
+        from pyapprox.typing.surrogates.affine.expansions.pce import (
+            create_pce_from_marginals,
+        )
+        from pyapprox.typing.probability.univariate import ScipyDiscreteMarginal
+        from scipy import stats
+
+        bkd = self._bkd
+
+        # Test Charlier polynomial orthonormality (Poisson)
+        # For unbounded distributions, use fewer terms since we can't capture
+        # all mass points, which causes orthonormality to degrade
+        poisson_marginal = ScipyDiscreteMarginal(stats.poisson(mu=3.0), bkd)
+        pce_poisson = create_pce_from_marginals([poisson_marginal], max_level=3, bkd=bkd)
+        basis_1d = pce_poisson._basis._bases_1d[0]
+        nterms = 4  # Use fewer terms for better orthonormality with truncated support
+        basis_1d.set_nterms(nterms)
+
+        # Get all mass points for Poisson (use interval that captures 1-1e-8 of mass)
+        interval = poisson_marginal.interval(1 - 1e-8)  # Shape: (1, 2)
+        lo, hi = int(interval[0, 0]), int(interval[0, 1])
+        xk = bkd.arange(lo, hi + 1, dtype=bkd.default_dtype())
+        pk = poisson_marginal(bkd.reshape(xk, (1, -1)))[0, :]  # 1D probabilities
+
+        # Evaluate polynomials at all mass points
+        samples = bkd.reshape(xk, (1, -1))  # Shape: (1, nmasses)
+        vals = basis_1d(samples)  # Shape: (nmasses, nterms)
+
+        # Compute weighted Grammian: G_ij = sum_k vals[k,i] * vals[k,j] * pk[k]
+        weighted_vals = vals * bkd.reshape(pk, (-1, 1))  # Broadcast weights
+        grammian = vals.T @ weighted_vals
+        expected = bkd.eye(nterms)
+        # Use relaxed tolerance due to truncated support for unbounded distribution
+        bkd.assert_allclose(grammian, expected, rtol=1e-3, atol=1e-4)
+
+    def test_discrete_numeric_orthonormality_exact(self):
+        """Test orthonormality of numeric discrete polynomials using exact evaluation.
+
+        For distributions that use DiscreteNumericOrthonormalPolynomial1D (like binomial),
+        verify orthonormality by evaluating at all mass points.
+        """
+        from pyapprox.typing.surrogates.affine.expansions.pce import (
+            create_pce_from_marginals,
+        )
+        from pyapprox.typing.probability.univariate import ScipyDiscreteMarginal
+        from scipy import stats
+
+        bkd = self._bkd
+
+        # Test binomial (uses DiscreteNumericOrthonormalPolynomial1D)
+        binom_marginal = ScipyDiscreteMarginal(stats.binom(n=10, p=0.3), bkd)
+        pce_binom = create_pce_from_marginals([binom_marginal], max_level=4, bkd=bkd)
+        basis_1d = pce_binom._basis._bases_1d[0]
+        nterms = 5
+        basis_1d.set_nterms(nterms)
+
+        # For binomial(n=10), mass points are exactly {0, 1, ..., 10}
+        xk = bkd.arange(0, 11, dtype=bkd.default_dtype())
+        pk = binom_marginal(bkd.reshape(xk, (1, -1)))[0, :]  # 1D probabilities
+
+        # Evaluate polynomials at all mass points
+        samples = bkd.reshape(xk, (1, -1))  # Shape: (1, 11)
+        vals = basis_1d(samples)  # Shape: (11, nterms)
+
+        # Compute weighted Grammian
+        weighted_vals = vals * bkd.reshape(pk, (-1, 1))
+        grammian = vals.T @ weighted_vals
+        expected = bkd.eye(nterms)
+        bkd.assert_allclose(grammian, expected, rtol=1e-8, atol=1e-10)
+
+    def test_mixed_basis_jacobian_batch(self):
+        """Test jacobian_batch with mixed bases."""
+        bkd = self._bkd
+        pce = self._create_mixed_pce(nqoi=2)
+
+        np.random.seed(42)
+        pce.set_coefficients(bkd.asarray(np.random.randn(pce.nterms(), 2)))
+
+        nsamples = 5
+        samples = bkd.zeros((3, nsamples))
+        samples[0, :] = bkd.asarray(np.random.uniform(-0.9, 0.9, nsamples))
+        samples[1, :] = bkd.asarray(np.random.randn(nsamples))
+        samples[2, :] = bkd.asarray(np.random.exponential(1.0, nsamples))
+
+        jac = pce.jacobian_batch(samples)
+        self.assertEqual(jac.shape, (nsamples, 2, 3))
+
+    def test_mixed_basis_hessian_batch(self):
+        """Test hessian_batch with mixed bases (nqoi=1)."""
+        bkd = self._bkd
+        pce = self._create_mixed_pce(nqoi=1)
+
         np.random.seed(42)
         pce.set_coefficients(bkd.asarray(np.random.randn(pce.nterms(), 1)))
 
-        # Create test samples
         nsamples = 5
-        samples = bkd.asarray(np.random.uniform(-0.9, 0.9, (2, nsamples)))
+        samples = bkd.zeros((3, nsamples))
+        samples[0, :] = bkd.asarray(np.random.uniform(-0.9, 0.9, nsamples))
+        samples[1, :] = bkd.asarray(np.random.randn(nsamples))
+        samples[2, :] = bkd.asarray(np.random.exponential(1.0, nsamples))
 
-        # Check hessian_batch using BatchDerivativeChecker
-        checker = BatchDerivativeChecker(pce, samples)
-        errors = checker.check_hessian_batch(verbosity=0)
-
-        # error_ratio should be ~1e-6 for correct derivatives
-        error_ratio = checker.error_ratio(errors)
-        self.assertLess(float(error_ratio), 1e-6)
+        hess = pce.hessian_batch(samples)
+        self.assertEqual(hess.shape, (nsamples, 3, 3))
 
 
-class TestDerivativeCheckerNumpy(TestDerivativeChecker[NDArray[Any]]):
+class TestMixedBasisExpansionNumpy(TestMixedBasisExpansion[NDArray[Any]]):
     """NumPy backend tests."""
 
     __test__ = True
@@ -731,7 +1526,7 @@ class TestDerivativeCheckerNumpy(TestDerivativeChecker[NDArray[Any]]):
         return NumpyBkd()
 
 
-class TestDerivativeCheckerTorch(TestDerivativeChecker[torch.Tensor]):
+class TestMixedBasisExpansionTorch(TestMixedBasisExpansion[torch.Tensor]):
     """PyTorch backend tests."""
 
     __test__ = True
@@ -739,7 +1534,7 @@ class TestDerivativeCheckerTorch(TestDerivativeChecker[torch.Tensor]):
     def bkd(self) -> TorchBkd:
         return TorchBkd()
 
-    def setUp(self):
+    def setUp(self) -> None:
         torch.set_default_dtype(torch.float64)
         super().setUp()
 
