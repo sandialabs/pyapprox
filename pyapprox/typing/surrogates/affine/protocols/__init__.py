@@ -60,6 +60,11 @@ from pyapprox.typing.surrogates.affine.protocols.adaptive import (
     BasisIndexGeneratorProtocol,
 )
 
+from pyapprox.typing.surrogates.affine.protocols.quadrature import (
+    QuadratureRuleGeneratorProtocol,
+    QuadratureRuleStatefulProtocol,
+)
+
 __all__ = [
     # Univariate basis protocols
     "Basis1DProtocol",
@@ -107,4 +112,7 @@ __all__ = [
     "AdaptiveIteratorProtocol",
     "PrioritizedCandidateQueueProtocol",
     "BasisIndexGeneratorProtocol",
+    # Quadrature protocols
+    "QuadratureRuleGeneratorProtocol",
+    "QuadratureRuleStatefulProtocol",
 ]
