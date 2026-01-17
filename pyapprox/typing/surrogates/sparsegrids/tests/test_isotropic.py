@@ -25,13 +25,14 @@ from pyapprox.typing.surrogates.affine.univariate import (
     HermitePolynomial1D,
     LegendrePolynomial1D,
 )
-from pyapprox.typing.variables.univariate.scipy_continuous import (
-    ContinuousScipyRandomVariable1D,
+from pyapprox.typing.probability import (
+    ScipyContinuousMarginal,
+    IndependentJoint,
 )
-from pyapprox.typing.variables.independent import IndependentRandomVariable
 from pyapprox.typing.surrogates.sparsegrids import (
     IsotropicCombinationSparseGrid,
     is_downward_closed,
+    PrebuiltBasisFactory,
 )
 from pyapprox.typing.util.backends.numpy import NumpyBkd
 from pyapprox.typing.util.backends.protocols import Array, Backend
@@ -58,10 +59,11 @@ class TestIsotropicSparseGrid(Generic[Array], unittest.TestCase):
     def test_level_0(self) -> None:
         """Test level 0 sparse grid (single point)."""
         basis = LegendrePolynomial1D(self._bkd)
+        factory = PrebuiltBasisFactory(basis)
         growth = LinearGrowthRule(scale=1, shift=1)  # n(l) = l + 1
 
         grid = IsotropicCombinationSparseGrid(
-            self._bkd, [basis, basis], growth, level=0
+            self._bkd, [factory, factory], growth, level=0
         )
 
         # Level 0: only (0,0) subspace, 1 sample
@@ -71,10 +73,11 @@ class TestIsotropicSparseGrid(Generic[Array], unittest.TestCase):
     def test_level_2_subspaces(self):
         """Test level 2 sparse grid has correct subspaces."""
         basis = LegendrePolynomial1D(self._bkd)
+        factory = PrebuiltBasisFactory(basis)
         growth = LinearGrowthRule(scale=1, shift=1)  # n(l) = l + 1
 
         grid = IsotropicCombinationSparseGrid(
-            self._bkd, [basis, basis], growth, level=2
+            self._bkd, [factory, factory], growth, level=2
         )
 
         # 2D level 2: indices with |k|_1 <= 2
@@ -104,10 +107,11 @@ class TestIsotropicSparseGrid(Generic[Array], unittest.TestCase):
         nvars = 2
         level = 3
         basis = LegendrePolynomial1D(self._bkd)
+        factory = PrebuiltBasisFactory(basis)
         growth = LinearGrowthRule(scale=1, shift=1)  # n(l) = l + 1
 
         grid = IsotropicCombinationSparseGrid(
-            self._bkd, [basis, basis], growth, level=level
+            self._bkd, [factory, factory], growth, level=level
         )
 
         # Create a PCE with hyperbolic index set matching the sparse grid
@@ -131,10 +135,10 @@ class TestIsotropicSparseGrid(Generic[Array], unittest.TestCase):
         grid.set_values(values)
 
         # Generate random test points from uniform distribution on [-1, 1]^2
-        uniform_marginal = ContinuousScipyRandomVariable1D(
+        uniform_marginal = ScipyContinuousMarginal(
             stats.uniform(-1, 2), self._bkd  # uniform(-1, 2) = U[-1, 1]
         )
-        joint = IndependentRandomVariable(
+        joint = IndependentJoint(
             [uniform_marginal for _ in range(nvars)], self._bkd
         )
         test_pts = joint.rvs(20)
@@ -148,11 +152,12 @@ class TestIsotropicSparseGrid(Generic[Array], unittest.TestCase):
     def test_smolyak_coefficients_sum(self):
         """Test Smolyak coefficients sum to 1."""
         basis = LegendrePolynomial1D(self._bkd)
+        factory = PrebuiltBasisFactory(basis)
         growth = LinearGrowthRule(scale=1, shift=1)  # n(l) = l + 1
 
         for level in [1, 2, 3]:
             grid = IsotropicCombinationSparseGrid(
-                self._bkd, [basis, basis], growth, level=level
+                self._bkd, [factory, factory], growth, level=level
             )
             coefs = grid.get_smolyak_coefficients()
             self._bkd.assert_allclose(
@@ -206,10 +211,11 @@ class TestIsotropicQuadrature(Generic[Array], unittest.TestCase):
         So E[x^2 + y^2] = 1/3 + 1/3 = 2/3.
         """
         basis = LegendrePolynomial1D(self._bkd)
+        factory = PrebuiltBasisFactory(basis)
         growth = LinearGrowthRule(scale=1, shift=1)
 
         grid = IsotropicCombinationSparseGrid(
-            self._bkd, [basis, basis], growth, level=2
+            self._bkd, [factory, factory], growth, level=2
         )
 
         samples = grid.get_samples()
@@ -227,10 +233,11 @@ class TestIsotropicQuadrature(Generic[Array], unittest.TestCase):
         E[x^2*y^2] = E[x^2] * E[y^2] = (1/3) * (1/3) = 1/9.
         """
         basis = LegendrePolynomial1D(self._bkd)
+        factory = PrebuiltBasisFactory(basis)
         growth = LinearGrowthRule(scale=1, shift=1)
 
         grid = IsotropicCombinationSparseGrid(
-            self._bkd, [basis, basis], growth, level=3
+            self._bkd, [factory, factory], growth, level=3
         )
 
         samples = grid.get_samples()
@@ -248,10 +255,11 @@ class TestIsotropicQuadrature(Generic[Array], unittest.TestCase):
         For symmetric distribution, E[x + y] = E[x^3 + y^3] = E[xy] = 0.
         """
         basis = LegendrePolynomial1D(self._bkd)
+        factory = PrebuiltBasisFactory(basis)
         growth = LinearGrowthRule(scale=1, shift=1)
 
         grid = IsotropicCombinationSparseGrid(
-            self._bkd, [basis, basis], growth, level=3
+            self._bkd, [factory, factory], growth, level=3
         )
 
         samples = grid.get_samples()
@@ -281,10 +289,11 @@ class TestIsotropicQuadrature(Generic[Array], unittest.TestCase):
         Var[x + y] = Var[x] + Var[y] = 1/3 + 1/3 = 2/3.
         """
         basis = LegendrePolynomial1D(self._bkd)
+        factory = PrebuiltBasisFactory(basis)
         growth = LinearGrowthRule(scale=1, shift=1)
 
         grid = IsotropicCombinationSparseGrid(
-            self._bkd, [basis, basis], growth, level=2
+            self._bkd, [factory, factory], growth, level=2
         )
 
         samples = grid.get_samples()
@@ -305,10 +314,11 @@ class TestIsotropicQuadrature(Generic[Array], unittest.TestCase):
         Var[xy] = E[(xy)^2] - E[xy]^2 = 1/9 - 0 = 1/9.
         """
         basis = LegendrePolynomial1D(self._bkd)
+        factory = PrebuiltBasisFactory(basis)
         growth = LinearGrowthRule(scale=1, shift=1)
 
         grid = IsotropicCombinationSparseGrid(
-            self._bkd, [basis, basis], growth, level=2
+            self._bkd, [factory, factory], growth, level=2
         )
 
         samples = grid.get_samples()
@@ -364,10 +374,11 @@ class TestIsotropicWithGenerator(Generic[Array], unittest.TestCase):
     def test_generator_is_accessible(self):
         """Test that the index generator is accessible and correctly typed."""
         basis = LegendrePolynomial1D(self._bkd)
+        factory = PrebuiltBasisFactory(basis)
         growth = LinearGrowthRule(scale=1, shift=1)
 
         grid = IsotropicCombinationSparseGrid(
-            self._bkd, [basis, basis], growth, level=2
+            self._bkd, [factory, factory], growth, level=2
         )
 
         # Generator should be accessible
@@ -381,10 +392,11 @@ class TestIsotropicWithGenerator(Generic[Array], unittest.TestCase):
     def test_generator_produces_same_indices(self):
         """Test that generator produces same indices as the grid's subspaces."""
         basis = LegendrePolynomial1D(self._bkd)
+        factory = PrebuiltBasisFactory(basis)
         growth = LinearGrowthRule(scale=1, shift=1)
 
         grid = IsotropicCombinationSparseGrid(
-            self._bkd, [basis, basis], growth, level=2
+            self._bkd, [factory, factory], growth, level=2
         )
 
         # Get indices from grid and generator
@@ -411,6 +423,7 @@ class TestIsotropicWithGenerator(Generic[Array], unittest.TestCase):
     def test_generator_index_count_by_level(self):
         """Test that generator produces correct number of indices for each level."""
         basis = LegendrePolynomial1D(self._bkd)
+        factory = PrebuiltBasisFactory(basis)
         growth = LinearGrowthRule(scale=1, shift=1)
 
         # Expected number of indices for 2D isotropic grid at each level
@@ -424,7 +437,7 @@ class TestIsotropicWithGenerator(Generic[Array], unittest.TestCase):
 
         for level, expected in expected_counts.items():
             grid = IsotropicCombinationSparseGrid(
-                self._bkd, [basis, basis], growth, level=level
+                self._bkd, [factory, factory], growth, level=level
             )
             self.assertEqual(
                 grid.nsubspaces(), expected,
@@ -434,10 +447,11 @@ class TestIsotropicWithGenerator(Generic[Array], unittest.TestCase):
     def test_2d_level_3_index_set(self):
         """Test exact index set for 2D level 3 sparse grid."""
         basis = LegendrePolynomial1D(self._bkd)
+        factory = PrebuiltBasisFactory(basis)
         growth = LinearGrowthRule(scale=1, shift=1)
 
         grid = IsotropicCombinationSparseGrid(
-            self._bkd, [basis, basis], growth, level=3
+            self._bkd, [factory, factory], growth, level=3
         )
 
         # Expected indices: all (i,j) with i+j <= 3
@@ -459,10 +473,11 @@ class TestIsotropicWithGenerator(Generic[Array], unittest.TestCase):
     def test_3d_level_2_index_set(self):
         """Test exact index set for 3D level 2 sparse grid."""
         basis = LegendrePolynomial1D(self._bkd)
+        factory = PrebuiltBasisFactory(basis)
         growth = LinearGrowthRule(scale=1, shift=1)
 
         grid = IsotropicCombinationSparseGrid(
-            self._bkd, [basis, basis, basis], growth, level=2
+            self._bkd, [factory, factory, factory], growth, level=2
         )
 
         # Expected indices: all (i,j,k) with i+j+k <= 2
@@ -490,10 +505,11 @@ class TestIsotropicWithGenerator(Generic[Array], unittest.TestCase):
     def test_generator_downward_closed(self):
         """Test that generator produces a downward-closed index set."""
         basis = LegendrePolynomial1D(self._bkd)
+        factory = PrebuiltBasisFactory(basis)
         growth = LinearGrowthRule(scale=1, shift=1)
 
         grid = IsotropicCombinationSparseGrid(
-            self._bkd, [basis, basis], growth, level=3
+            self._bkd, [factory, factory], growth, level=3
         )
 
         indices = grid.get_subspace_indices()
@@ -586,13 +602,15 @@ class TestIsotropicLegacy(Generic[Array], unittest.TestCase):
         from pyapprox.typing.surrogates.affine.indices import DoublePlusOneGrowthRule
         from pyapprox.typing.surrogates.sparsegrids import (
             IsotropicCombinationSparseGrid,
+            PrebuiltBasisFactory,
         )
 
         cc_quad = ClenshawCurtisQuadratureRule(self._bkd, store=True)
         bases = [LagrangeBasis1D(self._bkd, cc_quad) for _ in range(nvars)]
+        factories = [PrebuiltBasisFactory(b) for b in bases]
         growth = DoublePlusOneGrowthRule()
 
-        sg = IsotropicCombinationSparseGrid(self._bkd, bases, growth, level=level)
+        sg = IsotropicCombinationSparseGrid(self._bkd, factories, growth, level=level)
         return sg
 
     def test_sample_points_match(self) -> None:

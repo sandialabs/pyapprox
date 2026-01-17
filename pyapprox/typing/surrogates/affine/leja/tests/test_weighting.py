@@ -11,9 +11,7 @@ from pyapprox.typing.util.backends.numpy import NumpyBkd
 from pyapprox.typing.util.backends.torch import TorchBkd
 from pyapprox.typing.util.backends.protocols import Array, Backend
 from pyapprox.typing.util.test_utils import load_tests
-from pyapprox.typing.variables.univariate.scipy_continuous import (
-    ContinuousScipyRandomVariable1D,
-)
+from pyapprox.typing.probability import ScipyContinuousMarginal
 
 
 class TestChristoffelWeighting(Generic[Array], unittest.TestCase):
@@ -78,11 +76,13 @@ class TestPDFWeighting(Generic[Array], unittest.TestCase):
         from pyapprox.typing.surrogates.affine.leja import PDFWeighting
 
         # Use typing wrapper for scipy distribution
-        rv = ContinuousScipyRandomVariable1D(stats.uniform(-1, 2), self._bkd)
+        rv = ScipyContinuousMarginal(stats.uniform(-1, 2), self._bkd)
 
         # PDFWeighting expects a callable that returns backend arrays
+        # ScipyContinuousMarginal uses __call__ for PDF (FunctionProtocol)
+        # Input shape: (1, nsamples), output shape: (1, nsamples)
         def pdf_callable(samples: Array) -> Array:
-            return rv.pdf(samples)
+            return rv(self._bkd.reshape(samples, (1, -1)))[0, :]
 
         weighting = PDFWeighting(self._bkd, pdf_callable)
         samples = self._bkd.asarray([[0.0, 0.5, 1.0]])
@@ -96,11 +96,13 @@ class TestPDFWeighting(Generic[Array], unittest.TestCase):
         from pyapprox.typing.surrogates.affine.leja import PDFWeighting
 
         # Use typing wrapper for scipy distribution
-        rv = ContinuousScipyRandomVariable1D(stats.norm(0, 1), self._bkd)
+        rv = ScipyContinuousMarginal(stats.norm(0, 1), self._bkd)
 
         # PDFWeighting expects a callable that returns backend arrays
+        # ScipyContinuousMarginal uses __call__ for PDF (FunctionProtocol)
+        # Input shape: (1, nsamples), output shape: (1, nsamples)
         def pdf_callable(samples: Array) -> Array:
-            return rv.pdf(samples)
+            return rv(self._bkd.reshape(samples, (1, -1)))[0, :]
 
         weighting = PDFWeighting(self._bkd, pdf_callable)
         samples = self._bkd.asarray([[0.0, 0.5, 1.0]])
@@ -108,7 +110,8 @@ class TestPDFWeighting(Generic[Array], unittest.TestCase):
         weights = weighting(samples, basis_values)
 
         # Get expected PDF values using the typed distribution
-        expected = rv.pdf(samples[0, :])
+        # rv() expects (1, nsamples) and returns (1, nsamples)
+        expected = rv(samples)[0, :]
         self._bkd.assert_allclose(weights[:, 0], expected, rtol=1e-10)
 
 
