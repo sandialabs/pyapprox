@@ -5,17 +5,14 @@ Provides an analytically-defined Beta distribution that implements
 MarginalWithJacobianProtocol with full autograd support.
 """
 
-from typing import Generic, Any, Tuple
+from typing import Generic, Any, Tuple, Optional
 import math
 
 import numpy as np
 from scipy import special, stats
 
 from pyapprox.typing.util.backends.protocols import Array, Backend
-from pyapprox.typing.surrogates.affine.univariate.globalpoly import (
-    JacobiPolynomial1D,
-    GaussQuadratureRule,
-)
+from pyapprox.typing.probability.protocols import UniformQuadratureRule01Protocol
 from pyapprox.typing.optimization.rootfinding.newton import (
     NewtonSolver,
     NewtonSolverResidualProtocol,
@@ -74,15 +71,27 @@ class BetaMarginal(Generic[Array]):
         Shape parameter beta (b > 0).
     bkd : Backend[Array]
         The backend to use for computations.
+    quadrature_rule : UniformQuadratureRule01Protocol[Array], optional
+        Quadrature rule on [0, 1] with Lebesgue measure for CDF computation.
+        If not provided, cdf() and invcdf() will raise RuntimeError.
     nquad_samples : int, optional
         Number of quadrature samples for CDF computation. Default is 50.
+        Only used if quadrature_rule is provided.
 
     Examples
     --------
     >>> import numpy as np
     >>> from pyapprox.typing.util.backends.numpy import NumpyBkd
+    >>> from pyapprox.typing.surrogates.affine.univariate.globalpoly import (
+    ...     LegendrePolynomial1D, GaussQuadratureRule
+    ... )
     >>> bkd = NumpyBkd()
-    >>> dist = BetaMarginal(alpha=2.0, beta=5.0, bkd=bkd)
+    >>> # Create quadrature rule on [0, 1] with Lebesgue measure
+    >>> from pyapprox.typing.probability.univariate.beta import (
+    ...     GaussLegendreQuadrature01
+    ... )
+    >>> quad_rule = GaussLegendreQuadrature01(bkd)
+    >>> dist = BetaMarginal(alpha=2.0, beta=5.0, bkd=bkd, quadrature_rule=quad_rule)
     >>> samples = np.array([[0.1, 0.3, 0.5]])  # Shape: (1, 3)
     >>> pdf_vals = dist(samples)  # PDF values, shape: (1, 3)
     >>> cdf_vals = dist.cdf(samples)  # CDF values, shape: (1, 3)
@@ -93,6 +102,7 @@ class BetaMarginal(Generic[Array]):
         alpha: float,
         beta: float,
         bkd: Backend[Array],
+        quadrature_rule: Optional[UniformQuadratureRule01Protocol[Array]] = None,
         nquad_samples: int = 50,
     ):
         # Validate parameters
@@ -110,35 +120,58 @@ class BetaMarginal(Generic[Array]):
         self._alpha = self._bkd.asarray(alpha_val)
         self._beta = self._bkd.asarray(beta_val)
 
-        # Setup quadrature for CDF (autograd-compatible)
-        self._setup_quadrature(nquad_samples)
+        # Setup quadrature for CDF (autograd-compatible) if provided
+        self._quadrature_rule = quadrature_rule
+        self._quadx_01: Optional[Array] = None
+        self._quadw_01: Optional[Array] = None
+        self._newton_solver: Optional[NewtonSolver[Array]] = None
+        self._newton_residual: Optional[_BetaCDFNewtonResidual[Array]] = None
 
-        # Setup Newton solver for inverse CDF
-        self._setup_newton_solver()
+        if quadrature_rule is not None:
+            self._setup_quadrature(quadrature_rule, nquad_samples)
+            # Setup Newton solver for inverse CDF (only if quadrature available)
+            self._setup_newton_solver()
 
         # Store scipy distribution for initial guess and rvs
         self._scipy_rv = stats.beta(alpha_val, beta_val)
 
-    def _setup_quadrature(self, nquad_samples: int) -> None:
-        """Setup Gauss-Jacobi quadrature for Beta CDF.
+    def _setup_quadrature(
+        self,
+        quadrature_rule: UniformQuadratureRule01Protocol[Array],
+        nquad_samples: int,
+    ) -> None:
+        """Setup quadrature for Beta CDF.
 
-        For Beta(a, b), the CDF can be computed using quadrature with
-        the Jacobi weight function w(x) = x^{a-1} (1-x)^{b-1} on [0, 1].
-        We use Legendre (uniform weight) on [0, 1] and multiply by the
-        unnormalized PDF.
+        The quadrature rule must be on [0, 1] with the Lebesgue measure.
+        For Beta(a, b), we compute the CDF by integrating the unnormalized
+        PDF against this uniform measure.
+
+        Raises
+        ------
+        ValueError
+            If the quadrature rule does not integrate the Lebesgue measure
+            on [0, 1] (validated by integrating f(x)=x^2 which should be 1/3).
         """
-        # Use Legendre polynomial for quadrature, mapped to [0, 1]
-        from pyapprox.typing.surrogates.affine.univariate.globalpoly import (
-            LegendrePolynomial1D,
-        )
-
-        legendre = LegendrePolynomial1D(self._bkd)
-        quad_rule = GaussQuadratureRule(legendre, store=True)
-        points, weights = quad_rule(nquad_samples)
-
-        # Map from [-1, 1] to [0, 1]: x_01 = (x + 1) / 2
-        self._quadx_01 = self._bkd.flatten((points + 1.0) / 2.0)
+        points, weights = quadrature_rule(nquad_samples)
+        self._quadx_01 = self._bkd.flatten(points)
         self._quadw_01 = self._bkd.flatten(weights)
+
+        # Validate: integral of f(x)=x^2 on [0,1] should be 1/3
+        x_squared = self._quadx_01 ** 2
+        integral = self._bkd.sum(x_squared * self._quadw_01)
+        expected = 1.0 / 3.0
+        if not self._bkd.allclose(
+            self._bkd.atleast_1d(integral),
+            self._bkd.atleast_1d(self._bkd.asarray(expected)),
+            rtol=1e-6,
+            atol=1e-8,
+        ):
+            integral_val = float(self._bkd.to_numpy(integral))
+            raise ValueError(
+                f"Quadrature rule does not integrate Lebesgue measure on [0, 1]. "
+                f"Expected integral of x^2 to be {expected:.10f}, got {integral_val:.10f}. "
+                f"Ensure the quadrature rule has points in [0, 1] and weights sum to 1."
+            )
 
     def _setup_newton_solver(self) -> None:
         """Setup Newton solver for inverse CDF computation."""
@@ -242,6 +275,14 @@ class BetaMarginal(Generic[Array]):
         )
         return self._bkd.reshape(result, (1, -1))
 
+    def _require_quadrature(self) -> None:
+        """Raise RuntimeError if quadrature rule was not provided."""
+        if self._quadx_01 is None or self._quadw_01 is None:
+            raise RuntimeError(
+                "CDF/invcdf methods require a quadrature rule. "
+                "Pass a UniformQuadratureRule01Protocol to the constructor."
+            )
+
     def _betainc(self, samples_1d: Array) -> Array:
         """
         Compute regularized incomplete beta function via quadrature.
@@ -255,6 +296,10 @@ class BetaMarginal(Generic[Array]):
         samples_1d : Array
             1D array of sample points (already validated and extracted).
         """
+        self._require_quadrature()
+        assert self._quadx_01 is not None  # for type checker
+        assert self._quadw_01 is not None
+
         # Transform integral_0^x to integral_0^1 with substitution t = x*u
         # integral_0^x t^{a-1}(1-t)^{b-1} dt = x^a * integral_0^1 u^{a-1}(1-x*u)^{b-1} du
         # Note: simpler is just evaluating the integrand at quadrature points
@@ -297,6 +342,8 @@ class BetaMarginal(Generic[Array]):
         ------
         ValueError
             If input is not 2D or has wrong first dimension
+        RuntimeError
+            If quadrature rule was not provided at construction
         """
         samples_1d = self._validate_input(samples)
         result = self._betainc(samples_1d)
@@ -323,7 +370,13 @@ class BetaMarginal(Generic[Array]):
         ------
         ValueError
             If input is not 2D or has wrong first dimension
+        RuntimeError
+            If quadrature rule was not provided at construction
         """
+        self._require_quadrature()
+        assert self._newton_solver is not None  # for type checker
+        assert self._newton_residual is not None
+
         probs_1d = self._validate_input(probs)
         probs_flat = self._bkd.flatten(probs_1d)
 

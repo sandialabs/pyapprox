@@ -5,12 +5,16 @@ Provides joint distributions where all marginals are independent.
 The joint PDF is the product of marginal PDFs.
 """
 
-from typing import Generic, Sequence, List
+from typing import Generic, Sequence, List, Optional, Union
 
 import numpy as np
 
 from pyapprox.typing.util.backends.protocols import Array, Backend
 from pyapprox.typing.probability.protocols import MarginalProtocol
+from pyapprox.typing.interface.functions.plot.plot1d import Plotter1D
+from pyapprox.typing.interface.functions.plot.plot2d_rectangular import (
+    Plotter2DRectangularDomain,
+)
 
 
 class IndependentJoint(Generic[Array]):
@@ -55,6 +59,24 @@ class IndependentJoint(Generic[Array]):
         self._bkd = bkd
         self._marginals = list(marginals)
         self._nvars = len(marginals)
+        self._setup_derivative_methods()
+
+    def _setup_derivative_methods(self) -> None:
+        """
+        Conditionally add Jacobian methods based on marginal capabilities.
+
+        Uses dynamic method binding: methods are only available if ALL marginals
+        support the required operations.
+        """
+        # Check if all marginals have logpdf_jacobian
+        if all(hasattr(m, "logpdf_jacobian") for m in self._marginals):
+            self.logpdf_jacobian = self._logpdf_jacobian  # type: ignore
+            self.logpdf_jacobian_batch = self._logpdf_jacobian_batch  # type: ignore
+
+        # Check if all marginals have pdf_jacobian
+        if all(hasattr(m, "pdf_jacobian") for m in self._marginals):
+            self.jacobian = self._jacobian  # type: ignore
+            self.jacobian_batch = self._jacobian_batch  # type: ignore
 
     def bkd(self) -> Backend[Array]:
         """Get the backend used for computations."""
@@ -70,6 +92,19 @@ class IndependentJoint(Generic[Array]):
             Number of variables (dimension of the distribution).
         """
         return self._nvars
+
+    def nqoi(self) -> int:
+        """
+        Return the number of quantities of interest.
+
+        For a joint PDF, this is always 1 (the probability density is scalar).
+
+        Returns
+        -------
+        int
+            Always returns 1.
+        """
+        return 1
 
     def marginals(self) -> List[MarginalProtocol[Array]]:
         """
@@ -188,6 +223,24 @@ class IndependentJoint(Generic[Array]):
             If input is not 2D or has wrong first dimension
         """
         return self._bkd.exp(self.logpdf(samples))
+
+    def __call__(self, samples: Array) -> Array:
+        """
+        Evaluate the joint probability density function.
+
+        Alias for `pdf()` to satisfy `FunctionProtocol`.
+
+        Parameters
+        ----------
+        samples : Array
+            Sample points. Shape: (nvars, nsamples) - must be 2D
+
+        Returns
+        -------
+        Array
+            PDF values. Shape: (1, nsamples)
+        """
+        return self.pdf(samples)
 
     def cdf(self, samples: Array) -> Array:
         """
@@ -368,6 +421,203 @@ class IndependentJoint(Generic[Array]):
             [self._bkd.asarray(lower_bounds), self._bkd.asarray(upper_bounds)],
             axis=0,
         )
+
+    def domain(self) -> Array:
+        """
+        Return the domain of the joint distribution.
+
+        Returns bounds as (nvars, 2) per CLAUDE.md conventions.
+        For bounded marginals, uses interval(1.0). For unbounded, uses [-inf, inf].
+
+        Returns
+        -------
+        Array
+            Domain bounds. Shape: (nvars, 2) where [:, 0] is lower, [:, 1] is upper.
+        """
+        domain_list = []
+        for marginal in self._marginals:
+            if hasattr(marginal, "is_bounded") and marginal.is_bounded():
+                if hasattr(marginal, "interval"):
+                    interval = marginal.interval(1.0)  # Returns shape (1, 2)
+                    domain_list.append(self._bkd.flatten(interval))
+                else:
+                    domain_list.append(self._bkd.asarray([-np.inf, np.inf]))
+            else:
+                domain_list.append(self._bkd.asarray([-np.inf, np.inf]))
+        return self._bkd.stack(domain_list, axis=0)
+
+    def plotter(
+        self, plot_limits: Optional[Array] = None
+    ) -> Union[Plotter1D[Array], Plotter2DRectangularDomain[Array]]:
+        """
+        Create a plotter for visualizing the joint PDF.
+
+        Parameters
+        ----------
+        plot_limits : Optional[Array]
+            Plot limits as [xmin, xmax] for 1D or [xmin, xmax, ymin, ymax] for 2D.
+            Required if the distribution is unbounded.
+
+        Returns
+        -------
+        Union[Plotter1D, Plotter2DRectangularDomain]
+            A plotter object for 1D or 2D visualization.
+
+        Raises
+        ------
+        NotImplementedError
+            If nvars > 2.
+        ValueError
+            If distribution is unbounded and plot_limits is not provided.
+        """
+        if self._nvars > 2:
+            raise NotImplementedError("Only 1D and 2D distributions can be plotted")
+        if not self.is_bounded() and plot_limits is None:
+            raise ValueError(
+                "Must provide plot_limits because distribution is unbounded"
+            )
+        if plot_limits is None:
+            plot_limits = self._bkd.flatten(self.domain())
+        if self._nvars == 1:
+            return Plotter1D(self, plot_limits)
+        return Plotter2DRectangularDomain(self, plot_limits)
+
+    def _logpdf_jacobian(self, sample: Array) -> Array:
+        """
+        Compute Jacobian of joint log-PDF for a single sample.
+
+        For independent marginals:
+            d/dx_i [sum_j log(p_j)] = d/dx_i [log(p_i)] = logpdf_jacobian_i
+
+        Parameters
+        ----------
+        sample : Array
+            Single sample point. Shape: (nvars, 1) - must be 2D
+
+        Returns
+        -------
+        Array
+            Jacobian values. Shape: (1, nvars)
+        """
+        self._validate_input(sample)
+        jac_values = []
+        for i, marginal in enumerate(self._marginals):
+            row_2d = self._bkd.reshape(sample[i], (1, -1))
+            # marginal.logpdf_jacobian returns (1, 1) for single sample
+            marg_jac = marginal.logpdf_jacobian(row_2d)  # type: ignore
+            jac_values.append(marg_jac[0, 0])
+        return self._bkd.reshape(self._bkd.asarray(jac_values), (1, -1))
+
+    def _logpdf_jacobian_batch(self, samples: Array) -> Array:
+        """
+        Compute Jacobian of joint log-PDF for multiple samples.
+
+        For independent marginals:
+            d/dx_i [sum_j log(p_j)] = d/dx_i [log(p_i)] = logpdf_jacobian_i
+
+        Parameters
+        ----------
+        samples : Array
+            Sample points. Shape: (nvars, nsamples) - must be 2D
+
+        Returns
+        -------
+        Array
+            Jacobian values. Shape: (nsamples, 1, nvars)
+        """
+        self._validate_input(samples)
+        nsamples = samples.shape[1]
+        jac_list = []
+        for i, marginal in enumerate(self._marginals):
+            row_2d = self._bkd.reshape(samples[i], (1, -1))
+            # marginal.logpdf_jacobian returns (1, nsamples)
+            marg_jac = marginal.logpdf_jacobian(row_2d)  # type: ignore
+            jac_list.append(marg_jac[0])  # Shape: (nsamples,)
+        # Stack to (nvars, nsamples) then transpose to (nsamples, nvars)
+        jac_2d = self._bkd.stack(jac_list, axis=0).T
+        # Reshape to (nsamples, 1, nvars)
+        return self._bkd.reshape(jac_2d, (nsamples, 1, self._nvars))
+
+    def _jacobian(self, sample: Array) -> Array:
+        """
+        Compute Jacobian of joint PDF for a single sample.
+
+        Uses product rule: d/dx_i [prod_j p_j] = p'_i * prod_{j!=i} p_j
+
+        Parameters
+        ----------
+        sample : Array
+            Single sample point. Shape: (nvars, 1) - must be 2D
+
+        Returns
+        -------
+        Array
+            Jacobian values. Shape: (1, nvars)
+        """
+        self._validate_input(sample)
+        # Compute all marginal PDFs
+        pdf_vals = []
+        for i, marginal in enumerate(self._marginals):
+            row_2d = self._bkd.reshape(sample[i], (1, -1))
+            pdf_vals.append(marginal(row_2d)[0, 0])  # Scalar
+
+        jac_values = []
+        for i, marginal in enumerate(self._marginals):
+            row_2d = self._bkd.reshape(sample[i], (1, -1))
+            # marginal.pdf_jacobian returns (1, 1) for single sample
+            pdf_jac_i = marginal.pdf_jacobian(row_2d)[0, 0]  # type: ignore
+            # Product of all other PDFs
+            other_product = 1.0
+            for j, pdf_val in enumerate(pdf_vals):
+                if j != i:
+                    other_product = other_product * pdf_val
+            jac_values.append(pdf_jac_i * other_product)
+
+        return self._bkd.reshape(self._bkd.asarray(jac_values), (1, -1))
+
+    def _jacobian_batch(self, samples: Array) -> Array:
+        """
+        Compute Jacobian of joint PDF for multiple samples.
+
+        Uses product rule: d/dx_i [prod_j p_j] = p'_i * prod_{j!=i} p_j
+
+        Parameters
+        ----------
+        samples : Array
+            Sample points. Shape: (nvars, nsamples) - must be 2D
+
+        Returns
+        -------
+        Array
+            Jacobian values. Shape: (nsamples, 1, nvars)
+        """
+        self._validate_input(samples)
+        nsamples = samples.shape[1]
+
+        # Compute all marginal PDFs: shape (nvars, nsamples)
+        pdf_vals = []
+        for i, marginal in enumerate(self._marginals):
+            row_2d = self._bkd.reshape(samples[i], (1, -1))
+            pdf_vals.append(marginal(row_2d)[0])  # Shape: (nsamples,)
+        pdf_stack = self._bkd.stack(pdf_vals, axis=0)  # Shape: (nvars, nsamples)
+
+        # Compute Jacobian for each variable using product rule
+        jac_list = []
+        for i, marginal in enumerate(self._marginals):
+            row_2d = self._bkd.reshape(samples[i], (1, -1))
+            # marginal.pdf_jacobian returns (1, nsamples)
+            pdf_jac_i = marginal.pdf_jacobian(row_2d)[0]  # type: ignore
+            # Product of all other PDFs
+            other_product = self._bkd.ones((nsamples,))
+            for j in range(self._nvars):
+                if j != i:
+                    other_product = other_product * pdf_stack[j]
+            jac_list.append(pdf_jac_i * other_product)
+
+        # Stack to (nvars, nsamples) then transpose to (nsamples, nvars)
+        jac_2d = self._bkd.stack(jac_list, axis=0).T
+        # Reshape to (nsamples, 1, nvars)
+        return self._bkd.reshape(jac_2d, (nsamples, 1, self._nvars))
 
     def __repr__(self) -> str:
         """Return string representation."""

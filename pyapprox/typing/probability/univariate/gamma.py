@@ -5,17 +5,14 @@ Provides an analytically-defined Gamma distribution that implements
 MarginalWithJacobianProtocol with full autograd support.
 """
 
-from typing import Generic, Any, Tuple
+from typing import Generic, Any, Tuple, Optional
 import math
 
 import numpy as np
 from scipy import special
 
 from pyapprox.typing.util.backends.protocols import Array, Backend
-from pyapprox.typing.surrogates.affine.univariate.globalpoly import (
-    LegendrePolynomial1D,
-    GaussQuadratureRule,
-)
+from pyapprox.typing.probability.protocols import UniformQuadratureRule01Protocol
 from pyapprox.typing.optimization.rootfinding.newton import (
     NewtonSolver,
     NewtonSolverResidualProtocol,
@@ -74,25 +71,30 @@ class GammaMarginal(Generic[Array]):
         Scale parameter theta (theta > 0). Default is 1.0.
     bkd : Backend[Array]
         The backend to use for computations.
+    quadrature_rule : UniformQuadratureRule01Protocol[Array], optional
+        Quadrature rule on [0, 1] with Lebesgue measure for CDF computation.
+        If not provided, cdf() and invcdf() will raise RuntimeError.
     nquad_samples : int, optional
         Number of quadrature samples for CDF computation. Default is 50.
+        Only used if quadrature_rule is provided.
 
     Examples
     --------
     >>> import numpy as np
     >>> from pyapprox.typing.util.backends.numpy import NumpyBkd
     >>> bkd = NumpyBkd()
+    >>> # For CDF support, provide a quadrature rule on [0, 1]
     >>> dist = GammaMarginal(shape=2.0, scale=1.0, bkd=bkd)
     >>> samples = np.array([[0.5, 1.0, 2.0]])  # Shape: (1, 3)
     >>> pdf_vals = dist(samples)  # PDF values, shape: (1, 3)
-    >>> cdf_vals = dist.cdf(samples)  # CDF values, shape: (1, 3)
     """
 
     def __init__(
         self,
         shape: float,
         scale: float = 1.0,
-        bkd: Backend[Array] = None,
+        bkd: Backend[Array] = None,  # type: ignore
+        quadrature_rule: Optional[UniformQuadratureRule01Protocol[Array]] = None,
         nquad_samples: int = 50,
     ):
         if bkd is None:
@@ -114,30 +116,57 @@ class GammaMarginal(Generic[Array]):
         self._scale = self._bkd.asarray(scale_val)
         self._rate = 1.0 / self._scale
 
-        # Setup quadrature for CDF (autograd-compatible)
-        self._setup_quadrature(nquad_samples)
+        # Setup quadrature for CDF (autograd-compatible) if provided
+        self._quadrature_rule = quadrature_rule
+        self._quadx_01: Optional[Array] = None
+        self._quadw_01: Optional[Array] = None
+        self._newton_solver: Optional[NewtonSolver[Array]] = None
+        self._newton_residual: Optional[_GammaCDFNewtonResidual[Array]] = None
 
-        # Setup Newton solver for inverse CDF
-        self._setup_newton_solver()
+        if quadrature_rule is not None:
+            self._setup_quadrature(quadrature_rule, nquad_samples)
+            # Setup Newton solver for inverse CDF (only if quadrature available)
+            self._setup_newton_solver()
 
         # Store scipy distribution for initial guess and rvs
         from scipy import stats
         self._scipy_rv = stats.gamma(shape_val, scale=scale_val)
 
-    def _setup_quadrature(self, nquad_samples: int) -> None:
-        """Setup Gauss-Legendre quadrature on [0, 1]."""
-        # Use Legendre polynomial for quadrature on [-1, 1], then map to [0, 1]
-        # GaussQuadratureRule integrates against uniform measure (sums to 1)
-        legendre = LegendrePolynomial1D(self._bkd)
-        quad_rule = GaussQuadratureRule(legendre, store=True)
-        points, weights = quad_rule(nquad_samples)
+    def _setup_quadrature(
+        self,
+        quadrature_rule: UniformQuadratureRule01Protocol[Array],
+        nquad_samples: int,
+    ) -> None:
+        """Setup quadrature for Gamma CDF.
 
-        # Map from [-1, 1] to [0, 1]: x_01 = (x + 1) / 2
-        # For Lebesgue integral on [0, 1], weights remain the same since
-        # integral of uniform measure on [-1,1] = integral of uniform on [0,1] = 1
-        # points shape is (1, npoints), weights shape is (npoints, 1)
-        self._quadx_01 = self._bkd.flatten((points + 1.0) / 2.0)
+        The quadrature rule must be on [0, 1] with the Lebesgue measure.
+
+        Raises
+        ------
+        ValueError
+            If the quadrature rule does not integrate the Lebesgue measure
+            on [0, 1] (validated by integrating f(x)=x^2 which should be 1/3).
+        """
+        points, weights = quadrature_rule(nquad_samples)
+        self._quadx_01 = self._bkd.flatten(points)
         self._quadw_01 = self._bkd.flatten(weights)
+
+        # Validate: integral of f(x)=x^2 on [0,1] should be 1/3
+        x_squared = self._quadx_01 ** 2
+        integral = self._bkd.sum(x_squared * self._quadw_01)
+        expected = 1.0 / 3.0
+        if not self._bkd.allclose(
+            self._bkd.atleast_1d(integral),
+            self._bkd.atleast_1d(self._bkd.asarray(expected)),
+            rtol=1e-6,
+            atol=1e-8,
+        ):
+            integral_val = float(self._bkd.to_numpy(integral))
+            raise ValueError(
+                f"Quadrature rule does not integrate Lebesgue measure on [0, 1]. "
+                f"Expected integral of x^2 to be {expected:.10f}, got {integral_val:.10f}. "
+                f"Ensure the quadrature rule has points in [0, 1] and weights sum to 1."
+            )
 
     def _setup_newton_solver(self) -> None:
         """Setup Newton solver for inverse CDF computation."""
@@ -238,6 +267,14 @@ class GammaMarginal(Generic[Array]):
         result = log_const + (self._shape - 1.0) * log_x - self._rate * samples_1d
         return self._bkd.reshape(result, (1, -1))
 
+    def _require_quadrature(self) -> None:
+        """Raise RuntimeError if quadrature rule was not provided."""
+        if self._quadx_01 is None or self._quadw_01 is None:
+            raise RuntimeError(
+                "CDF/invcdf methods require a quadrature rule. "
+                "Pass a UniformQuadratureRule01Protocol to the constructor."
+            )
+
     def _gammainc(self, samples: Array) -> Array:
         """
         Compute regularized lower incomplete gamma function via quadrature.
@@ -246,6 +283,10 @@ class GammaMarginal(Generic[Array]):
 
         gammainc(k, x) = (1/Gamma(k)) * integral_0^x t^{k-1} * exp(-t) dt
         """
+        self._require_quadrature()
+        assert self._quadx_01 is not None  # for type checker
+        assert self._quadw_01 is not None
+
         # Transform integral_0^x to integral_0^1 with substitution t = x*u
         # integral_0^x t^{k-1} exp(-t) dt = x^k * integral_0^1 u^{k-1} exp(-x*u) du
         # Using rate: for rate*x instead of x
@@ -276,6 +317,8 @@ class GammaMarginal(Generic[Array]):
         ------
         ValueError
             If input is not 2D or has wrong first dimension
+        RuntimeError
+            If quadrature rule was not provided at construction
         """
         samples_1d = self._validate_input(samples)
         result = self._gammainc(samples_1d)
@@ -302,7 +345,13 @@ class GammaMarginal(Generic[Array]):
         ------
         ValueError
             If input is not 2D or has wrong first dimension
+        RuntimeError
+            If quadrature rule was not provided at construction
         """
+        self._require_quadrature()
+        assert self._newton_solver is not None  # for type checker
+        assert self._newton_residual is not None
+
         probs_1d = self._validate_input(probs)
 
         # Handle boundary cases

@@ -3,7 +3,7 @@ Tests for BetaMarginal distribution.
 """
 
 import unittest
-from typing import Any, Generic
+from typing import Any, Generic, Tuple
 
 import numpy as np
 from numpy.typing import NDArray
@@ -21,6 +21,30 @@ from pyapprox.typing.interface.functions.derivative_checks.derivative_checker im
 from pyapprox.typing.interface.functions.fromcallable.jacobian import (
     FunctionWithJacobianFromCallable,
 )
+from pyapprox.typing.surrogates.affine.univariate.globalpoly import (
+    LegendrePolynomial1D,
+    GaussQuadratureRule,
+)
+
+
+class GaussLegendreQuadrature01(Generic[Array]):
+    """Gauss-Legendre quadrature on [0, 1] with Lebesgue measure for tests."""
+
+    def __init__(self, bkd: Backend[Array]) -> None:
+        self._bkd = bkd
+        self._legendre = LegendrePolynomial1D(bkd)
+        self._quad_rule = GaussQuadratureRule(self._legendre, store=True)
+
+    def bkd(self) -> Backend[Array]:
+        return self._bkd
+
+    def __call__(self, npoints: int) -> Tuple[Array, Array]:
+        points_11, weights_11 = self._quad_rule(npoints)
+        # Map from [-1, 1] to [0, 1]
+        # GaussQuadratureRule integrates uniform probability measure on [-1,1]
+        # (weights sum to 1). For [0,1] we just shift points; weights stay same.
+        points_01 = (points_11 + 1.0) / 2.0
+        return points_01, weights_11
 
 
 class TestBetaMarginal(Generic[Array], unittest.TestCase):
@@ -35,7 +59,11 @@ class TestBetaMarginal(Generic[Array], unittest.TestCase):
         self._bkd = self.bkd()
         self._alpha = 2.0
         self._beta = 5.0
-        self._dist = BetaMarginal(self._alpha, self._beta, self._bkd)
+        # Create quadrature rule on [0, 1] for CDF/invcdf tests
+        self._quad_rule = GaussLegendreQuadrature01(self._bkd)
+        self._dist = BetaMarginal(
+            self._alpha, self._beta, self._bkd, quadrature_rule=self._quad_rule
+        )
         self._scipy_dist = stats.beta(self._alpha, self._beta)
 
     def test_nvars(self) -> None:

@@ -16,7 +16,7 @@ JointDistributionProtocol
     Multivariate distribution with marginal access.
 """
 
-from typing import Protocol, Generic, runtime_checkable, Sequence
+from typing import Protocol, Generic, runtime_checkable, Sequence, Tuple
 
 from pyapprox.typing.util.backends.protocols import Array, Backend
 
@@ -266,5 +266,55 @@ class JointDistributionProtocol(Protocol, Generic[Array]):
         -------
         Array
             Correlation matrix. Shape: (nvars, nvars)
+        """
+        ...
+
+
+@runtime_checkable
+class UniformQuadratureRule01Protocol(Protocol, Generic[Array]):
+    """
+    Protocol for quadrature rules on [0, 1] with the Lebesgue measure.
+
+    This protocol is for quadrature rules that approximate integrals of the form:
+        integral_0^1 f(x) dx ≈ sum_i w_i f(x_i)
+
+    where points x_i are in [0, 1] and weights w_i sum to 1.
+
+    This is used by distributions that need numerical integration for CDF
+    computation (e.g., BetaMarginal), where the integrand is the unnormalized
+    PDF and the quadrature must be on [0, 1] with uniform weight.
+
+    Methods
+    -------
+    bkd()
+        Get the computational backend.
+    __call__(npoints)
+        Compute quadrature points and weights on [0, 1].
+    """
+
+    def bkd(self) -> Backend[Array]:
+        """Get the backend used for computations."""
+        ...
+
+    def __call__(self, npoints: int) -> Tuple[Array, Array]:
+        """
+        Compute quadrature points and weights on [0, 1].
+
+        The quadrature rule must satisfy:
+        - Points are in [0, 1]
+        - Weights sum to 1 (Lebesgue measure on [0, 1])
+        - Approximates: integral_0^1 f(x) dx ≈ sum_i w_i f(x_i)
+
+        Parameters
+        ----------
+        npoints : int
+            Number of quadrature points.
+
+        Returns
+        -------
+        points : Array
+            Quadrature points in [0, 1]. Shape: (1, npoints)
+        weights : Array
+            Quadrature weights (sum to 1). Shape: (npoints, 1)
         """
         ...

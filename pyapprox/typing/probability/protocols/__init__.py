@@ -15,6 +15,7 @@ from .distribution import (
     MarginalProtocol,
     MarginalWithJacobianProtocol,
     JointDistributionProtocol,
+    UniformQuadratureRule01Protocol,
 )
 
 from .covariance import (
@@ -41,6 +42,7 @@ __all__ = [
     "MarginalProtocol",
     "MarginalWithJacobianProtocol",
     "JointDistributionProtocol",
+    "UniformQuadratureRule01Protocol",
     # Covariance
     "SqrtCovarianceOperatorProtocol",
     "CovarianceOperatorProtocol",
