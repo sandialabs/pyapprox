@@ -46,14 +46,14 @@ class TestUniformMarginal(Generic[Array], unittest.TestCase):
         """Test lower and upper accessors."""
         self.assertTrue(
             self._bkd.allclose(
-                self._bkd.asarray([self._dist.lower]),
+                self._bkd.asarray([self._dist.lower()]),
                 self._bkd.asarray([self._lower]),
                 atol=1e-10,
             )
         )
         self.assertTrue(
             self._bkd.allclose(
-                self._bkd.asarray([self._dist.upper]),
+                self._bkd.asarray([self._dist.upper()]),
                 self._bkd.asarray([self._upper]),
                 atol=1e-10,
             )

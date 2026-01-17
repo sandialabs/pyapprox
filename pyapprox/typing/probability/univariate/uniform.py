@@ -11,6 +11,10 @@ import math
 import numpy as np
 
 from pyapprox.typing.util.backends.protocols import Array, Backend
+from pyapprox.typing.util.hyperparameter import (
+    HyperParameter,
+    HyperParameterList,
+)
 
 
 class UniformMarginal(Generic[Array]):
@@ -51,11 +55,24 @@ class UniformMarginal(Generic[Array]):
             )
 
         self._bkd = bkd
-        self._lower = float(lower)
-        self._upper = float(upper)
-        self._width = upper - lower
-        self._pdf_val = 1.0 / self._width
-        self._log_pdf_val = -math.log(self._width)
+
+        # Create hyperparameter list for parameter optimization
+        # Both bounds are unbounded real numbers (no log transform)
+        self._lower_hyp = HyperParameter(
+            name="lower",
+            nparams=1,
+            values=lower,
+            bounds=(-1e10, 1e10),  # Effectively unbounded
+            bkd=bkd,
+        )
+        self._upper_hyp = HyperParameter(
+            name="upper",
+            nparams=1,
+            values=upper,
+            bounds=(-1e10, 1e10),  # Effectively unbounded
+            bkd=bkd,
+        )
+        self._hyp_list = HyperParameterList([self._lower_hyp, self._upper_hyp])
 
     def _validate_input(self, samples: Array) -> Array:
         """Validate that input is 2D with shape (1, nsamples)."""
@@ -74,19 +91,37 @@ class UniformMarginal(Generic[Array]):
         """Get the backend used for computations."""
         return self._bkd
 
+    def hyp_list(self) -> HyperParameterList:
+        """Return the hyperparameter list for parameter optimization."""
+        return self._hyp_list
+
+    def nparams(self) -> int:
+        """Return the number of distribution parameters (lower and upper)."""
+        return self._hyp_list.nparams()
+
+    def _get_lower(self) -> Array:
+        """Get lower bound as array (preserves autograd graph)."""
+        return self._lower_hyp.get_values()[0]
+
+    def _get_upper(self) -> Array:
+        """Get upper bound as array (preserves autograd graph)."""
+        return self._upper_hyp.get_values()[0]
+
+    def _get_width(self) -> Array:
+        """Get width as array (preserves autograd graph)."""
+        return self._get_upper() - self._get_lower()
+
     def nvars(self) -> int:
         """Return the number of variables (always 1 for univariate)."""
         return 1
 
-    @property
     def lower(self) -> float:
         """Return the lower bound."""
-        return self._lower
+        return float(self._bkd.to_numpy(self._lower_hyp.get_values())[0])
 
-    @property
     def upper(self) -> float:
         """Return the upper bound."""
-        return self._upper
+        return float(self._bkd.to_numpy(self._upper_hyp.get_values())[0])
 
     def __call__(self, samples: Array) -> Array:
         """
@@ -108,7 +143,9 @@ class UniformMarginal(Generic[Array]):
             If input is not 2D or has wrong first dimension
         """
         samples_1d = self._validate_input(samples)
-        result = self._bkd.ones_like(samples_1d) * self._pdf_val
+        width = self._get_width()
+        pdf_val = 1.0 / width
+        result = self._bkd.ones_like(samples_1d) * pdf_val
         return self._bkd.reshape(result, (1, -1))
 
     def logpdf(self, samples: Array) -> Array:
@@ -131,7 +168,9 @@ class UniformMarginal(Generic[Array]):
             If input is not 2D or has wrong first dimension
         """
         samples_1d = self._validate_input(samples)
-        result = self._bkd.ones_like(samples_1d) * self._log_pdf_val
+        width = self._get_width()
+        log_pdf_val = -self._bkd.log(width)
+        result = self._bkd.ones_like(samples_1d) * log_pdf_val
         return self._bkd.reshape(result, (1, -1))
 
     def cdf(self, samples: Array) -> Array:
@@ -154,7 +193,9 @@ class UniformMarginal(Generic[Array]):
             If input is not 2D or has wrong first dimension
         """
         samples_1d = self._validate_input(samples)
-        result = (samples_1d - self._lower) / self._width
+        lower = self._get_lower()
+        width = self._get_width()
+        result = (samples_1d - lower) / width
         return self._bkd.reshape(result, (1, -1))
 
     def invcdf(self, probs: Array) -> Array:
@@ -177,7 +218,9 @@ class UniformMarginal(Generic[Array]):
             If input is not 2D or has wrong first dimension
         """
         probs_1d = self._validate_input(probs)
-        result = self._lower + probs_1d * self._width
+        lower = self._get_lower()
+        width = self._get_width()
+        result = lower + probs_1d * width
         return self._bkd.reshape(result, (1, -1))
 
     # Alias for compatibility
@@ -205,7 +248,8 @@ class UniformMarginal(Generic[Array]):
             If input is not 2D or has wrong first dimension
         """
         probs_1d = self._validate_input(probs)
-        result = self._bkd.ones_like(probs_1d) * self._width
+        width = self._get_width()
+        result = self._bkd.ones_like(probs_1d) * width
         return self._bkd.reshape(result, (1, -1))
 
     def rvs(self, nsamples: int) -> Array:
@@ -222,7 +266,9 @@ class UniformMarginal(Generic[Array]):
         Array
             Random samples. Shape: (1, nsamples)
         """
-        usamples = np.random.uniform(self._lower, self._upper, nsamples)
+        lower_val = self.lower()
+        upper_val = self.upper()
+        usamples = np.random.uniform(lower_val, upper_val, nsamples)
         return self._bkd.reshape(self._bkd.asarray(usamples), (1, nsamples))
 
     def mean_value(self) -> float:
@@ -236,7 +282,7 @@ class UniformMarginal(Generic[Array]):
         float
             Mean value.
         """
-        return (self._lower + self._upper) / 2.0
+        return (self.lower() + self.upper()) / 2.0
 
     def variance(self) -> float:
         """
@@ -249,7 +295,8 @@ class UniformMarginal(Generic[Array]):
         float
             Variance value.
         """
-        return self._width**2 / 12.0
+        width = self.upper() - self.lower()
+        return width**2 / 12.0
 
     def std(self) -> float:
         """
@@ -260,7 +307,8 @@ class UniformMarginal(Generic[Array]):
         float
             Standard deviation.
         """
-        return self._width / math.sqrt(12.0)
+        width = self.upper() - self.lower()
+        return width / math.sqrt(12.0)
 
     def is_bounded(self) -> bool:
         """
@@ -282,7 +330,7 @@ class UniformMarginal(Generic[Array]):
         Tuple[float, float]
             Lower and upper bounds.
         """
-        return (self._lower, self._upper)
+        return (self.lower(), self.upper())
 
     def interval(self, alpha: float) -> Array:
         """
@@ -355,8 +403,8 @@ class UniformMarginal(Generic[Array]):
         """Check equality with another UniformMarginal."""
         if not isinstance(other, UniformMarginal):
             return False
-        return self._lower == other._lower and self._upper == other._upper
+        return self.lower() == other.lower() and self.upper() == other.upper()
 
     def __repr__(self) -> str:
         """Return string representation."""
-        return f"UniformMarginal(lower={self._lower}, upper={self._upper})"
+        return f"UniformMarginal(lower={self.lower()}, upper={self.upper()})"

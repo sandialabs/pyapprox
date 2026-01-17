@@ -11,6 +11,11 @@ import math
 import numpy as np
 
 from pyapprox.typing.util.backends.protocols import Array, Backend
+from pyapprox.typing.util.hyperparameter import (
+    HyperParameter,
+    LogHyperParameter,
+    HyperParameterList,
+)
 
 
 class GaussianMarginal(Generic[Array]):
@@ -42,10 +47,28 @@ class GaussianMarginal(Generic[Array]):
 
     def __init__(self, mean: float, stdev: float, bkd: Backend[Array]):
         self._bkd = bkd
-        self._mean = float(mean)
-        self._stdev = float(stdev)
-        self._var = stdev**2
-        self._log_const = -0.5 * math.log(2.0 * math.pi) - math.log(stdev)
+
+        # Create hyperparameter list for parameter optimization
+        # mean: unbounded, no log transform
+        self._mean_hyp = HyperParameter(
+            name="mean",
+            nparams=1,
+            values=mean,
+            bounds=(-1e10, 1e10),  # Effectively unbounded
+            bkd=bkd,
+        )
+        # stdev: positive, use log transform
+        self._stdev_hyp = LogHyperParameter(
+            name="stdev",
+            nparams=1,
+            user_values=stdev,
+            user_bounds=(1e-10, 1e10),
+            bkd=bkd,
+        )
+        self._hyp_list = HyperParameterList([self._mean_hyp, self._stdev_hyp])
+
+        # Constant for log PDF computation
+        self._log_2pi = math.log(2.0 * math.pi)
 
     def _validate_input(self, samples: Array) -> Array:
         """Validate that input is 2D with shape (1, nsamples)."""
@@ -63,6 +86,27 @@ class GaussianMarginal(Generic[Array]):
     def bkd(self) -> Backend[Array]:
         """Get the backend used for computations."""
         return self._bkd
+
+    def hyp_list(self) -> HyperParameterList:
+        """Return the hyperparameter list for parameter optimization."""
+        return self._hyp_list
+
+    def nparams(self) -> int:
+        """Return the number of distribution parameters (mean and stdev)."""
+        return self._hyp_list.nparams()
+
+    def _get_mean(self) -> Array:
+        """Get mean as array (preserves autograd graph)."""
+        return self._mean_hyp.get_values()[0]
+
+    def _get_stdev(self) -> Array:
+        """Get stdev as array (preserves autograd graph)."""
+        return self._stdev_hyp.exp_values()[0]
+
+    def _get_var(self) -> Array:
+        """Get variance as array (preserves autograd graph)."""
+        stdev = self._get_stdev()
+        return stdev * stdev
 
     def nvars(self) -> int:
         """Return the number of variables (always 1 for univariate)."""
@@ -109,8 +153,11 @@ class GaussianMarginal(Generic[Array]):
             If input is not 2D or has wrong first dimension
         """
         samples_1d = self._validate_input(samples)
-        z = (samples_1d - self._mean) / self._stdev
-        result = self._log_const - 0.5 * z**2
+        mean = self._get_mean()
+        stdev = self._get_stdev()
+        z = (samples_1d - mean) / stdev
+        log_const = -0.5 * self._log_2pi - self._bkd.log(stdev)
+        result = log_const - 0.5 * z**2
         return self._bkd.reshape(result, (1, -1))
 
     def cdf(self, samples: Array) -> Array:
@@ -133,7 +180,9 @@ class GaussianMarginal(Generic[Array]):
             If input is not 2D or has wrong first dimension
         """
         samples_1d = self._validate_input(samples)
-        z = (samples_1d - self._mean) / (self._stdev * math.sqrt(2.0))
+        mean = self._get_mean()
+        stdev = self._get_stdev()
+        z = (samples_1d - mean) / (stdev * math.sqrt(2.0))
         result = 0.5 * (1.0 + self._bkd.erf(z))
         return self._bkd.reshape(result, (1, -1))
 
@@ -157,9 +206,11 @@ class GaussianMarginal(Generic[Array]):
             If input is not 2D or has wrong first dimension
         """
         probs_1d = self._validate_input(probs)
+        mean = self._get_mean()
+        stdev = self._get_stdev()
         result = (
             math.sqrt(2.0) * self._bkd.erfinv(2.0 * probs_1d - 1.0)
-        ) * self._stdev + self._mean
+        ) * stdev + mean
         return self._bkd.reshape(result, (1, -1))
 
     # Alias for compatibility
@@ -220,7 +271,7 @@ class GaussianMarginal(Generic[Array]):
         float
             Mean value.
         """
-        return self._mean
+        return float(self._bkd.to_numpy(self._mean_hyp.get_values())[0])
 
     def variance(self) -> float:
         """
@@ -231,7 +282,8 @@ class GaussianMarginal(Generic[Array]):
         float
             Variance value.
         """
-        return self._var
+        stdev = float(self._bkd.to_numpy(self._stdev_hyp.exp_values())[0])
+        return stdev * stdev
 
     def std(self) -> float:
         """
@@ -242,7 +294,7 @@ class GaussianMarginal(Generic[Array]):
         float
             Standard deviation.
         """
-        return self._stdev
+        return float(self._bkd.to_numpy(self._stdev_hyp.exp_values())[0])
 
     def is_bounded(self) -> bool:
         """
@@ -294,7 +346,9 @@ class GaussianMarginal(Generic[Array]):
             If input is not 2D or has wrong first dimension
         """
         samples_1d = self._validate_input(samples)
-        grad = -(samples_1d - self._mean) / self._var
+        mean = self._get_mean()
+        var = self._get_var()
+        grad = -(samples_1d - mean) / var
         return self._bkd.reshape(grad, (1, -1))
 
     def pdf_jacobian(self, samples: Array) -> Array:
@@ -325,8 +379,11 @@ class GaussianMarginal(Generic[Array]):
         """Check equality with another GaussianMarginal."""
         if not isinstance(other, GaussianMarginal):
             return False
-        return self._mean == other._mean and self._stdev == other._stdev
+        return (
+            self.mean_value() == other.mean_value()
+            and self.std() == other.std()
+        )
 
     def __repr__(self) -> str:
         """Return string representation."""
-        return f"GaussianMarginal(mean={self._mean}, stdev={self._stdev})"
+        return f"GaussianMarginal(mean={self.mean_value()}, stdev={self.std()})"
