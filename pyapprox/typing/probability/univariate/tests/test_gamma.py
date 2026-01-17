@@ -74,21 +74,21 @@ class TestGammaMarginal(Generic[Array], unittest.TestCase):
         """Test shape and scale parameter accessors."""
         self.assertTrue(
             self._bkd.allclose(
-                self._bkd.asarray([self._dist.shape]),
+                self._bkd.asarray([self._dist.shape()]),
                 self._bkd.asarray([self._shape]),
                 atol=1e-10,
             )
         )
         self.assertTrue(
             self._bkd.allclose(
-                self._bkd.asarray([self._dist.scale]),
+                self._bkd.asarray([self._dist.scale()]),
                 self._bkd.asarray([self._scale]),
                 atol=1e-10,
             )
         )
         self.assertTrue(
             self._bkd.allclose(
-                self._bkd.asarray([self._dist.rate]),
+                self._bkd.asarray([self._dist.rate()]),
                 self._bkd.asarray([1.0 / self._scale]),
                 atol=1e-10,
             )

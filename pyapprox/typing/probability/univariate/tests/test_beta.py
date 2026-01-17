@@ -74,14 +74,14 @@ class TestBetaMarginal(Generic[Array], unittest.TestCase):
         """Test shape parameter accessors."""
         self.assertTrue(
             self._bkd.allclose(
-                self._bkd.asarray([self._dist.alpha]),
+                self._bkd.asarray([self._dist.alpha()]),
                 self._bkd.asarray([self._alpha]),
                 atol=1e-10,
             )
         )
         self.assertTrue(
             self._bkd.allclose(
-                self._bkd.asarray([self._dist.beta]),
+                self._bkd.asarray([self._dist.beta()]),
                 self._bkd.asarray([self._beta]),
                 atol=1e-10,
             )

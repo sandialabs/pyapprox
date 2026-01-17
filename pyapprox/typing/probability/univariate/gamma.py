@@ -12,6 +12,10 @@ import numpy as np
 from scipy import special
 
 from pyapprox.typing.util.backends.protocols import Array, Backend
+from pyapprox.typing.util.hyperparameter import (
+    LogHyperParameter,
+    HyperParameterList,
+)
 from pyapprox.typing.probability.protocols import UniformQuadratureRule01Protocol
 from pyapprox.typing.optimization.rootfinding.newton import (
     NewtonSolver,
@@ -111,10 +115,23 @@ class GammaMarginal(Generic[Array]):
         if scale_val <= 0:
             raise ValueError(f"scale must be positive, got {scale_val}")
 
-        # Store as backend arrays for autograd support
-        self._shape = self._bkd.asarray(shape_val)
-        self._scale = self._bkd.asarray(scale_val)
-        self._rate = 1.0 / self._scale
+        # Create hyperparameter list for parameter optimization
+        # Both parameters are positive, so use log transform
+        self._shape_hyp = LogHyperParameter(
+            name="shape",
+            nparams=1,
+            user_values=shape_val,
+            user_bounds=(1e-10, 1e10),
+            bkd=bkd,
+        )
+        self._scale_hyp = LogHyperParameter(
+            name="scale",
+            nparams=1,
+            user_values=scale_val,
+            user_bounds=(1e-10, 1e10),
+            bkd=bkd,
+        )
+        self._hyp_list = HyperParameterList([self._shape_hyp, self._scale_hyp])
 
         # Setup quadrature for CDF (autograd-compatible) if provided
         self._quadrature_rule = quadrature_rule
@@ -185,6 +202,26 @@ class GammaMarginal(Generic[Array]):
         """Get the backend used for computations."""
         return self._bkd
 
+    def hyp_list(self) -> HyperParameterList:
+        """Return the hyperparameter list for parameter optimization."""
+        return self._hyp_list
+
+    def nparams(self) -> int:
+        """Return the number of distribution parameters (shape and scale)."""
+        return self._hyp_list.nparams()
+
+    def _get_shape(self) -> Array:
+        """Get shape as array (preserves autograd graph)."""
+        return self._shape_hyp.exp_values()[0]
+
+    def _get_scale(self) -> Array:
+        """Get scale as array (preserves autograd graph)."""
+        return self._scale_hyp.exp_values()[0]
+
+    def _get_rate(self) -> Array:
+        """Get rate (1/scale) as array (preserves autograd graph)."""
+        return 1.0 / self._get_scale()
+
     def _validate_input(self, samples: Array) -> Array:
         """Validate that input is 2D with shape (1, nsamples)."""
         if samples.ndim != 2:
@@ -202,20 +239,17 @@ class GammaMarginal(Generic[Array]):
         """Return the number of variables (always 1 for univariate)."""
         return 1
 
-    @property
     def shape(self) -> float:
         """Return the shape parameter."""
-        return float(self._bkd.to_numpy(self._shape))
+        return float(self._bkd.to_numpy(self._shape_hyp.exp_values())[0])
 
-    @property
     def scale(self) -> float:
         """Return the scale parameter."""
-        return float(self._bkd.to_numpy(self._scale))
+        return float(self._bkd.to_numpy(self._scale_hyp.exp_values())[0])
 
-    @property
     def rate(self) -> float:
         """Return the rate parameter (1/scale)."""
-        return 1.0 / self.scale
+        return 1.0 / self.scale()
 
     def __call__(self, samples: Array) -> Array:
         """
@@ -258,13 +292,15 @@ class GammaMarginal(Generic[Array]):
             If input is not 2D or has wrong first dimension
         """
         samples_1d = self._validate_input(samples)
+        shape = self._get_shape()
+        rate = self._get_rate()
         # log f(x) = k*log(rate) - gammaln(k) + (k-1)*log(x) - rate*x
         log_const = (
-            self._shape * self._bkd.log(self._rate)
-            - self._bkd.gammaln(self._shape)
+            shape * self._bkd.log(rate)
+            - self._bkd.gammaln(shape)
         )
         log_x = self._bkd.log(samples_1d)
-        result = log_const + (self._shape - 1.0) * log_x - self._rate * samples_1d
+        result = log_const + (shape - 1.0) * log_x - rate * samples_1d
         return self._bkd.reshape(result, (1, -1))
 
     def _require_quadrature(self) -> None:
@@ -287,15 +323,17 @@ class GammaMarginal(Generic[Array]):
         assert self._quadx_01 is not None  # for type checker
         assert self._quadw_01 is not None
 
+        shape = self._get_shape()
+        rate = self._get_rate()
         # Transform integral_0^x to integral_0^1 with substitution t = x*u
         # integral_0^x t^{k-1} exp(-t) dt = x^k * integral_0^1 u^{k-1} exp(-x*u) du
         # Using rate: for rate*x instead of x
-        rate_x = self._rate * samples
+        rate_x = rate * samples
         quadx = rate_x[:, None] * self._quadx_01[None, :]
         quadw = rate_x[:, None] * self._quadw_01[None, :]
-        integrand_vals = quadx ** (self._shape - 1.0) * self._bkd.exp(-quadx)
+        integrand_vals = quadx ** (shape - 1.0) * self._bkd.exp(-quadx)
         integral = self._bkd.sum(integrand_vals * quadw, axis=1)
-        return integral / self._bkd.exp(self._bkd.gammaln(self._shape))
+        return integral / self._bkd.exp(self._bkd.gammaln(shape))
 
     def cdf(self, samples: Array) -> Array:
         """
@@ -373,7 +411,7 @@ class GammaMarginal(Generic[Array]):
         # Get scipy initial guess
         probs_np = self._bkd.to_numpy(probs_1d[jdx])
         from scipy import stats
-        scipy_rv = stats.gamma(self.shape, scale=self.scale)
+        scipy_rv = stats.gamma(self.shape(), scale=self.scale())
         init_guess = self._bkd.asarray(scipy_rv.ppf(probs_np))
 
         # Newton iteration (1 step for autograd)
@@ -443,7 +481,7 @@ class GammaMarginal(Generic[Array]):
         Array
             Random samples. Shape: (1, nsamples) for protocol compliance.
         """
-        samples = np.random.gamma(self.shape, self.scale, nsamples)
+        samples = np.random.gamma(self.shape(), self.scale(), nsamples)
         return self._bkd.reshape(self._bkd.asarray(samples), (1, nsamples))
 
     def mean_value(self) -> float:
@@ -457,7 +495,7 @@ class GammaMarginal(Generic[Array]):
         float
             Mean value.
         """
-        return self.shape * self.scale
+        return self.shape() * self.scale()
 
     def variance(self) -> float:
         """
@@ -470,7 +508,7 @@ class GammaMarginal(Generic[Array]):
         float
             Variance value.
         """
-        return self.shape * self.scale**2
+        return self.shape() * self.scale() ** 2
 
     def std(self) -> float:
         """
@@ -546,7 +584,9 @@ class GammaMarginal(Generic[Array]):
             If input is not 2D or has wrong first dimension
         """
         samples_1d = self._validate_input(samples)
-        grad = (self._shape - 1.0) / samples_1d - self._rate
+        shape = self._get_shape()
+        rate = self._get_rate()
+        grad = (shape - 1.0) / samples_1d - rate
         return self._bkd.reshape(grad, (1, -1))
 
     def pdf_jacobian(self, samples: Array) -> Array:
@@ -577,8 +617,8 @@ class GammaMarginal(Generic[Array]):
         """Check equality with another GammaMarginal."""
         if not isinstance(other, GammaMarginal):
             return False
-        return self.shape == other.shape and self.scale == other.scale
+        return self.shape() == other.shape() and self.scale() == other.scale()
 
     def __repr__(self) -> str:
         """Return string representation."""
-        return f"GammaMarginal(shape={self.shape}, scale={self.scale})"
+        return f"GammaMarginal(shape={self.shape()}, scale={self.scale()})"

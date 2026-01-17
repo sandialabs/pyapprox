@@ -12,6 +12,10 @@ import numpy as np
 from scipy import special, stats
 
 from pyapprox.typing.util.backends.protocols import Array, Backend
+from pyapprox.typing.util.hyperparameter import (
+    LogHyperParameter,
+    HyperParameterList,
+)
 from pyapprox.typing.probability.protocols import UniformQuadratureRule01Protocol
 from pyapprox.typing.optimization.rootfinding.newton import (
     NewtonSolver,
@@ -116,9 +120,23 @@ class BetaMarginal(Generic[Array]):
 
         self._bkd = bkd
 
-        # Store as backend arrays for autograd support
-        self._alpha = self._bkd.asarray(alpha_val)
-        self._beta = self._bkd.asarray(beta_val)
+        # Create hyperparameter list for parameter optimization
+        # Both alpha and beta are positive, use log transform
+        self._alpha_hyp = LogHyperParameter(
+            name="alpha",
+            nparams=1,
+            user_values=alpha_val,
+            user_bounds=(1e-10, 1e10),
+            bkd=bkd,
+        )
+        self._beta_hyp = LogHyperParameter(
+            name="beta",
+            nparams=1,
+            user_values=beta_val,
+            user_bounds=(1e-10, 1e10),
+            bkd=bkd,
+        )
+        self._hyp_list = HyperParameterList([self._alpha_hyp, self._beta_hyp])
 
         # Setup quadrature for CDF (autograd-compatible) if provided
         self._quadrature_rule = quadrature_rule
@@ -189,6 +207,22 @@ class BetaMarginal(Generic[Array]):
         """Get the backend used for computations."""
         return self._bkd
 
+    def hyp_list(self) -> HyperParameterList:
+        """Return the hyperparameter list for parameter optimization."""
+        return self._hyp_list
+
+    def nparams(self) -> int:
+        """Return the number of distribution parameters (alpha and beta)."""
+        return self._hyp_list.nparams()
+
+    def _get_alpha(self) -> Array:
+        """Get alpha as array (preserves autograd graph)."""
+        return self._alpha_hyp.exp_values()[0]
+
+    def _get_beta(self) -> Array:
+        """Get beta as array (preserves autograd graph)."""
+        return self._beta_hyp.exp_values()[0]
+
     def _validate_input(self, samples: Array) -> Array:
         """Validate that input is 2D with shape (1, nsamples)."""
         if samples.ndim != 2:
@@ -206,15 +240,13 @@ class BetaMarginal(Generic[Array]):
         """Return the number of variables (always 1 for univariate)."""
         return 1
 
-    @property
     def alpha(self) -> float:
         """Return the alpha shape parameter."""
-        return float(self._bkd.to_numpy(self._alpha))
+        return float(self._bkd.to_numpy(self._alpha_hyp.exp_values())[0])
 
-    @property
     def beta(self) -> float:
         """Return the beta shape parameter."""
-        return float(self._bkd.to_numpy(self._beta))
+        return float(self._bkd.to_numpy(self._beta_hyp.exp_values())[0])
 
     def __call__(self, samples: Array) -> Array:
         """
@@ -259,19 +291,21 @@ class BetaMarginal(Generic[Array]):
             If input is not 2D or has wrong first dimension
         """
         samples_1d = self._validate_input(samples)
+        alpha = self._get_alpha()
+        beta = self._get_beta()
         # log f(x) = (a-1)*log(x) + (b-1)*log(1-x) - log(B(a,b))
         # log(B(a,b)) = gammaln(a) + gammaln(b) - gammaln(a+b)
-        log_beta = (
-            self._bkd.gammaln(self._alpha)
-            + self._bkd.gammaln(self._beta)
-            - self._bkd.gammaln(self._alpha + self._beta)
+        log_beta_func = (
+            self._bkd.gammaln(alpha)
+            + self._bkd.gammaln(beta)
+            - self._bkd.gammaln(alpha + beta)
         )
         log_x = self._bkd.log(samples_1d)
         log_1mx = self._bkd.log(1.0 - samples_1d)
         result = (
-            (self._alpha - 1.0) * log_x
-            + (self._beta - 1.0) * log_1mx
-            - log_beta
+            (alpha - 1.0) * log_x
+            + (beta - 1.0) * log_1mx
+            - log_beta_func
         )
         return self._bkd.reshape(result, (1, -1))
 
@@ -300,6 +334,9 @@ class BetaMarginal(Generic[Array]):
         assert self._quadx_01 is not None  # for type checker
         assert self._quadw_01 is not None
 
+        alpha = self._get_alpha()
+        beta = self._get_beta()
+
         # Transform integral_0^x to integral_0^1 with substitution t = x*u
         # integral_0^x t^{a-1}(1-t)^{b-1} dt = x^a * integral_0^1 u^{a-1}(1-x*u)^{b-1} du
         # Note: simpler is just evaluating the integrand at quadrature points
@@ -309,17 +346,17 @@ class BetaMarginal(Generic[Array]):
 
         # Integrand: t^{a-1} (1-t)^{b-1}
         integrand_vals = (
-            quadx ** (self._alpha - 1.0) * (1.0 - quadx) ** (self._beta - 1.0)
+            quadx ** (alpha - 1.0) * (1.0 - quadx) ** (beta - 1.0)
         )
         integral = self._bkd.sum(integrand_vals * quadw, axis=1)
 
         # Normalize by B(a, b)
-        log_beta = (
-            self._bkd.gammaln(self._alpha)
-            + self._bkd.gammaln(self._beta)
-            - self._bkd.gammaln(self._alpha + self._beta)
+        log_beta_func = (
+            self._bkd.gammaln(alpha)
+            + self._bkd.gammaln(beta)
+            - self._bkd.gammaln(alpha + beta)
         )
-        return integral / self._bkd.exp(log_beta)
+        return integral / self._bkd.exp(log_beta_func)
 
     def cdf(self, samples: Array) -> Array:
         """
@@ -467,7 +504,7 @@ class BetaMarginal(Generic[Array]):
         Array
             Random samples. Shape: (1, nsamples) for protocol compliance.
         """
-        samples = np.random.beta(self.alpha, self.beta, nsamples)
+        samples = np.random.beta(self.alpha(), self.beta(), nsamples)
         return self._bkd.reshape(self._bkd.asarray(samples), (1, nsamples))
 
     def mean_value(self) -> float:
@@ -481,7 +518,7 @@ class BetaMarginal(Generic[Array]):
         float
             Mean value.
         """
-        return self.alpha / (self.alpha + self.beta)
+        return self.alpha() / (self.alpha() + self.beta())
 
     def variance(self) -> float:
         """
@@ -494,8 +531,8 @@ class BetaMarginal(Generic[Array]):
         float
             Variance value.
         """
-        ab = self.alpha + self.beta
-        return (self.alpha * self.beta) / (ab**2 * (ab + 1))
+        ab = self.alpha() + self.beta()
+        return (self.alpha() * self.beta()) / (ab**2 * (ab + 1))
 
     def std(self) -> float:
         """
@@ -571,7 +608,9 @@ class BetaMarginal(Generic[Array]):
             If input is not 2D or has wrong first dimension
         """
         samples_1d = self._validate_input(samples)
-        grad = (self._alpha - 1.0) / samples_1d - (self._beta - 1.0) / (1.0 - samples_1d)
+        alpha = self._get_alpha()
+        beta = self._get_beta()
+        grad = (alpha - 1.0) / samples_1d - (beta - 1.0) / (1.0 - samples_1d)
         return self._bkd.reshape(grad, (1, -1))
 
     def pdf_jacobian(self, samples: Array) -> Array:
@@ -602,8 +641,8 @@ class BetaMarginal(Generic[Array]):
         """Check equality with another BetaMarginal."""
         if not isinstance(other, BetaMarginal):
             return False
-        return self.alpha == other.alpha and self.beta == other.beta
+        return self.alpha() == other.alpha() and self.beta() == other.beta()
 
     def __repr__(self) -> str:
         """Return string representation."""
-        return f"BetaMarginal(alpha={self.alpha}, beta={self.beta})"
+        return f"BetaMarginal(alpha={self.alpha()}, beta={self.beta()})"
