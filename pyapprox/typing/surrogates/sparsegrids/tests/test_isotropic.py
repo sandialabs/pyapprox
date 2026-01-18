@@ -783,5 +783,316 @@ class TestIsotropicLegacyTorch(TestIsotropicLegacy[torch.Tensor]):
         super().setUp()
 
 
+# =============================================================================
+# Parametrized tests for systematic coverage
+# =============================================================================
+
+import numpy as np
+from unittest_parametrize import ParametrizedTestCase, parametrize
+
+from pyapprox.typing.surrogates.sparsegrids.tests.test_helpers import (
+    create_test_joint,
+    create_test_pce,
+    create_test_grid_gauss,
+    create_test_grid_leja,
+)
+
+
+# Interpolation test configurations for Gauss quadrature: (name, joint_config, level)
+# Gauss quadrature works with all marginal types
+GAUSS_INTERPOLATION_CONFIGS = [
+    ("2d_uniform_L1", "2d_uniform", 1),
+    ("2d_uniform_L2", "2d_uniform", 2),
+    ("2d_uniform_L3", "2d_uniform", 3),
+    ("2d_gaussian_L2", "2d_gaussian", 2),
+    ("2d_gaussian_L3", "2d_gaussian", 3),
+    ("2d_beta_L2", "2d_beta", 2),
+    ("2d_gamma_L2", "2d_gamma", 2),
+    ("2d_gamma_L3", "2d_gamma", 3),
+    ("2d_mixed_ug_L3", "2d_mixed_ug", 3),
+    ("3d_uniform_L2", "3d_uniform", 2),
+    ("3d_mixed_L2", "3d_mixed", 2),
+    ("4d_uniform_L2", "4d_uniform", 2),
+]
+
+# Leja quadrature only works with bounded marginals (uniform, beta)
+# Gaussian and Gamma require CDF/invcdf which needs quadrature rule
+LEJA_INTERPOLATION_CONFIGS = [
+    ("2d_uniform_L1", "2d_uniform", 1),
+    ("2d_uniform_L2", "2d_uniform", 2),
+    ("2d_uniform_L3", "2d_uniform", 3),
+    ("2d_beta_L2", "2d_beta", 2),
+    ("2d_mixed_ub_L2", "2d_mixed_ub", 2),
+    ("3d_uniform_L2", "3d_uniform", 2),
+    ("4d_uniform_L2", "4d_uniform", 2),
+]
+
+
+class TestIsotropicInterpolation(
+    Generic[Array], ParametrizedTestCase, unittest.TestCase
+):
+    """Parametrized interpolation tests for sparse grids.
+
+    Tests that sparse grids exactly interpolate PCE functions with
+    matching polynomial degree across various:
+    - Marginal distributions (uniform, gaussian, beta, gamma)
+    - Dimensions (2D, 3D, 4D)
+    - Levels (1, 2, 3)
+    - Quadrature rules (Gauss, Leja)
+
+    Note: Leja quadrature only works with bounded marginals (uniform, beta)
+    since unbounded marginals (gaussian, gamma) require CDF/invcdf methods
+    that need a quadrature rule for numerical integration.
+    """
+
+    __test__ = False
+
+    def bkd(self) -> Backend[Array]:
+        raise NotImplementedError
+
+    def setUp(self) -> None:
+        self._bkd = self.bkd()
+
+    @parametrize(
+        "name,joint_config,level",
+        GAUSS_INTERPOLATION_CONFIGS,
+    )
+    def test_gauss_interpolation(
+        self, name: str, joint_config: str, level: int
+    ) -> None:
+        """Test Gauss quadrature sparse grid exactly interpolates PCE."""
+        joint = create_test_joint(joint_config, self._bkd)
+        pce = create_test_pce(joint, level, nqoi=1, bkd=self._bkd)
+        grid = create_test_grid_gauss(joint, level, self._bkd)
+
+        # Set grid values from PCE at sparse grid samples
+        samples = grid.get_samples()
+        values = pce(samples)
+        grid.set_values(values)
+
+        # Test at random points from joint distribution
+        np.random.seed(123)
+        test_pts = joint.rvs(20)
+        result = grid(test_pts)
+        expected = pce(test_pts)
+
+        self._bkd.assert_allclose(result, expected, rtol=1e-10)
+
+    @parametrize(
+        "name,joint_config,level",
+        LEJA_INTERPOLATION_CONFIGS,
+    )
+    def test_leja_interpolation(
+        self, name: str, joint_config: str, level: int
+    ) -> None:
+        """Test Leja quadrature sparse grid exactly interpolates PCE."""
+        joint = create_test_joint(joint_config, self._bkd)
+        pce = create_test_pce(joint, level, nqoi=1, bkd=self._bkd)
+        grid = create_test_grid_leja(joint, level, self._bkd)
+
+        samples = grid.get_samples()
+        values = pce(samples)
+        grid.set_values(values)
+
+        np.random.seed(123)
+        test_pts = joint.rvs(20)
+        result = grid(test_pts)
+        expected = pce(test_pts)
+
+        self._bkd.assert_allclose(result, expected, rtol=1e-10)
+
+
+class TestIsotropicInterpolationNumpy(
+    TestIsotropicInterpolation[NDArray[Any]]
+):
+    """NumPy backend interpolation tests."""
+
+    __test__ = True
+
+    def bkd(self) -> NumpyBkd:
+        return NumpyBkd()
+
+
+class TestIsotropicInterpolationTorch(
+    TestIsotropicInterpolation[torch.Tensor]
+):
+    """PyTorch backend interpolation tests."""
+
+    __test__ = True
+
+    def bkd(self) -> TorchBkd:
+        torch.set_default_dtype(torch.float64)
+        return TorchBkd()
+
+
+# Integration test configurations for Gauss quadrature: (name, joint_config, level)
+# TODO: Beta and gamma marginals fail integration tests - see Phase 3 in plan
+GAUSS_INTEGRATION_CONFIGS = [
+    ("2d_uniform_L3", "2d_uniform", 3),
+    ("2d_uniform_L4", "2d_uniform", 4),
+    ("2d_gaussian_L3", "2d_gaussian", 3),
+    ("2d_mixed_ug_L4", "2d_mixed_ug", 4),
+    ("3d_uniform_L3", "3d_uniform", 3),
+]
+
+# Leja integration only tested with uniform marginals
+# TODO: Beta fails - see Phase 3 in plan
+LEJA_INTEGRATION_CONFIGS = [
+    ("2d_uniform_L3", "2d_uniform", 3),
+    ("2d_uniform_L4", "2d_uniform", 4),
+    ("3d_uniform_L3", "3d_uniform", 3),
+]
+
+
+class TestIsotropicIntegration(
+    Generic[Array], ParametrizedTestCase, unittest.TestCase
+):
+    """Parametrized integration tests for sparse grids.
+
+    Tests that sparse grid quadrature computes correct mean for
+    PCE functions. The PCE mean equals its constant coefficient (c_0).
+
+    Note: Leja quadrature only works with bounded marginals (uniform, beta).
+    """
+
+    __test__ = False
+
+    def bkd(self) -> Backend[Array]:
+        raise NotImplementedError
+
+    def setUp(self) -> None:
+        self._bkd = self.bkd()
+
+    @parametrize(
+        "name,joint_config,level",
+        GAUSS_INTEGRATION_CONFIGS,
+    )
+    def test_gauss_integration_mean(
+        self, name: str, joint_config: str, level: int
+    ) -> None:
+        """Test Gauss quadrature integrates to correct mean."""
+        joint = create_test_joint(joint_config, self._bkd)
+        pce = create_test_pce(joint, level, nqoi=1, bkd=self._bkd)
+        grid = create_test_grid_gauss(joint, level, self._bkd)
+
+        samples = grid.get_samples()
+        values = pce(samples)
+        grid.set_values(values)
+
+        # PCE mean is c_0 (coefficient of constant term)
+        expected_mean = pce.get_coefficients()[0, :]
+        grid_mean = grid.mean()
+
+        self._bkd.assert_allclose(grid_mean, expected_mean, rtol=1e-10)
+
+    @parametrize(
+        "name,joint_config,level",
+        LEJA_INTEGRATION_CONFIGS,
+    )
+    def test_leja_integration_mean(
+        self, name: str, joint_config: str, level: int
+    ) -> None:
+        """Test Leja quadrature integrates to correct mean."""
+        joint = create_test_joint(joint_config, self._bkd)
+        pce = create_test_pce(joint, level, nqoi=1, bkd=self._bkd)
+        grid = create_test_grid_leja(joint, level, self._bkd)
+
+        samples = grid.get_samples()
+        values = pce(samples)
+        grid.set_values(values)
+
+        expected_mean = pce.get_coefficients()[0, :]
+        grid_mean = grid.mean()
+
+        self._bkd.assert_allclose(grid_mean, expected_mean, rtol=1e-10)
+
+
+class TestIsotropicIntegrationNumpy(TestIsotropicIntegration[NDArray[Any]]):
+    """NumPy backend integration tests."""
+
+    __test__ = True
+
+    def bkd(self) -> NumpyBkd:
+        return NumpyBkd()
+
+
+class TestIsotropicIntegrationTorch(TestIsotropicIntegration[torch.Tensor]):
+    """PyTorch backend integration tests."""
+
+    __test__ = True
+
+    def bkd(self) -> TorchBkd:
+        torch.set_default_dtype(torch.float64)
+        return TorchBkd()
+
+
+# Multi-QoI test configurations: (name, joint_config, level, nqoi)
+MULTI_QOI_CONFIGS = [
+    ("2d_uniform_L2_nqoi2", "2d_uniform", 2, 2),
+    ("2d_uniform_L3_nqoi3", "2d_uniform", 3, 3),
+    ("3d_uniform_L2_nqoi2", "3d_uniform", 2, 2),
+]
+
+
+class TestIsotropicMultiQoI(
+    Generic[Array], ParametrizedTestCase, unittest.TestCase
+):
+    """Parametrized multi-QoI tests for sparse grids.
+
+    Tests that sparse grids correctly handle multiple quantities of interest.
+    """
+
+    __test__ = False
+
+    def bkd(self) -> Backend[Array]:
+        raise NotImplementedError
+
+    def setUp(self) -> None:
+        self._bkd = self.bkd()
+
+    @parametrize(
+        "name,joint_config,level,nqoi",
+        MULTI_QOI_CONFIGS,
+    )
+    def test_multi_qoi_interpolation(
+        self, name: str, joint_config: str, level: int, nqoi: int
+    ) -> None:
+        """Test multi-QoI sparse grid interpolation."""
+        joint = create_test_joint(joint_config, self._bkd)
+        pce = create_test_pce(joint, level, nqoi=nqoi, bkd=self._bkd)
+        grid = create_test_grid_gauss(joint, level, self._bkd)
+
+        samples = grid.get_samples()
+        values = pce(samples)
+        grid.set_values(values)
+
+        np.random.seed(123)
+        test_pts = joint.rvs(10)
+        result = grid(test_pts)
+        expected = pce(test_pts)
+
+        self.assertEqual(result.shape[0], nqoi)
+        self._bkd.assert_allclose(result, expected, rtol=1e-10)
+
+
+class TestIsotropicMultiQoINumpy(TestIsotropicMultiQoI[NDArray[Any]]):
+    """NumPy backend multi-QoI tests."""
+
+    __test__ = True
+
+    def bkd(self) -> NumpyBkd:
+        return NumpyBkd()
+
+
+class TestIsotropicMultiQoITorch(TestIsotropicMultiQoI[torch.Tensor]):
+    """PyTorch backend multi-QoI tests."""
+
+    __test__ = True
+
+    def bkd(self) -> TorchBkd:
+        torch.set_default_dtype(torch.float64)
+        return TorchBkd()
+
+
 if __name__ == "__main__":
     unittest.main()

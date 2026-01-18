@@ -17,6 +17,7 @@ from pyapprox.typing.util.hyperparameter import (
     HyperParameterList,
 )
 from pyapprox.typing.probability.protocols import UniformQuadratureRule01Protocol
+from pyapprox.typing.probability.univariate.beta import ScipyGaussLegendreQuadrature01
 from pyapprox.typing.optimization.rootfinding.newton import (
     NewtonSolver,
     NewtonSolverResidualProtocol,
@@ -77,20 +78,20 @@ class GammaMarginal(Generic[Array]):
         The backend to use for computations.
     quadrature_rule : UniformQuadratureRule01Protocol[Array], optional
         Quadrature rule on [0, 1] with Lebesgue measure for CDF computation.
-        If not provided, cdf() and invcdf() will raise RuntimeError.
+        If not provided, uses ScipyGaussLegendreQuadrature01.
     nquad_samples : int, optional
         Number of quadrature samples for CDF computation. Default is 50.
-        Only used if quadrature_rule is provided.
 
     Examples
     --------
     >>> import numpy as np
     >>> from pyapprox.typing.util.backends.numpy import NumpyBkd
     >>> bkd = NumpyBkd()
-    >>> # For CDF support, provide a quadrature rule on [0, 1]
+    >>> # Default quadrature rule is used automatically
     >>> dist = GammaMarginal(shape=2.0, scale=1.0, bkd=bkd)
     >>> samples = np.array([[0.5, 1.0, 2.0]])  # Shape: (1, 3)
     >>> pdf_vals = dist(samples)  # PDF values, shape: (1, 3)
+    >>> cdf_vals = dist.cdf(samples)  # CDF values, shape: (1, 3)
     """
 
     def __init__(
@@ -133,17 +134,19 @@ class GammaMarginal(Generic[Array]):
         )
         self._hyp_list = HyperParameterList([self._shape_hyp, self._scale_hyp])
 
-        # Setup quadrature for CDF (autograd-compatible) if provided
+        # Setup quadrature for CDF (autograd-compatible)
+        # Use default GaussLegendreQuadrature01 if none provided
+        if quadrature_rule is None:
+            quadrature_rule = ScipyGaussLegendreQuadrature01(bkd)
         self._quadrature_rule = quadrature_rule
         self._quadx_01: Optional[Array] = None
         self._quadw_01: Optional[Array] = None
         self._newton_solver: Optional[NewtonSolver[Array]] = None
         self._newton_residual: Optional[_GammaCDFNewtonResidual[Array]] = None
 
-        if quadrature_rule is not None:
-            self._setup_quadrature(quadrature_rule, nquad_samples)
-            # Setup Newton solver for inverse CDF (only if quadrature available)
-            self._setup_newton_solver()
+        self._setup_quadrature(quadrature_rule, nquad_samples)
+        # Setup Newton solver for inverse CDF
+        self._setup_newton_solver()
 
         # Store scipy distribution for initial guess and rvs
         from scipy import stats

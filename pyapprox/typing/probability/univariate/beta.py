@@ -10,6 +10,7 @@ import math
 
 import numpy as np
 from scipy import special, stats
+from scipy.special import roots_legendre
 
 from pyapprox.typing.util.backends.protocols import Array, Backend
 from pyapprox.typing.util.hyperparameter import (
@@ -21,6 +22,64 @@ from pyapprox.typing.optimization.rootfinding.newton import (
     NewtonSolver,
     NewtonSolverResidualProtocol,
 )
+
+
+class ScipyGaussLegendreQuadrature01(Generic[Array]):
+    """Gauss-Legendre quadrature on [0, 1] with Lebesgue measure.
+
+    This uses scipy.special.roots_legendre which returns points and weights
+    for integrating on [-1, 1] with the Lebesgue measure (not probability
+    measure). The weights sum to 2 (length of interval). We transform to
+    [0, 1] and normalize weights to sum to 1.
+
+    Parameters
+    ----------
+    bkd : Backend[Array]
+        Computational backend.
+
+    Examples
+    --------
+    >>> from pyapprox.typing.util.backends.numpy import NumpyBkd
+    >>> bkd = NumpyBkd()
+    >>> quad = ScipyGaussLegendreQuadrature01(bkd)
+    >>> points, weights = quad(5)
+    >>> # Points are in [0, 1], weights sum to 1
+    """
+
+    def __init__(self, bkd: Backend[Array]) -> None:
+        self._bkd = bkd
+
+    def bkd(self) -> Backend[Array]:
+        return self._bkd
+
+    def __call__(self, npoints: int) -> Tuple[Array, Array]:
+        """Get quadrature points and weights.
+
+        Parameters
+        ----------
+        npoints : int
+            Number of quadrature points.
+
+        Returns
+        -------
+        points : Array
+            Quadrature points in [0, 1], shape (npoints,).
+        weights : Array
+            Quadrature weights summing to 1, shape (npoints,).
+        """
+        # scipy returns points in [-1, 1] and weights that sum to 2
+        points_11, weights_11 = roots_legendre(npoints)
+
+        # Transform points from [-1, 1] to [0, 1]
+        points_01 = (points_11 + 1.0) / 2.0
+
+        # Scale weights: integral on [0,1] = (1/2) * integral on [-1,1]
+        # scipy weights sum to 2, so divide by 2 to get weights summing to 1
+        weights_01 = weights_11 / 2.0
+
+        return self._bkd.asarray(points_01.tolist()), self._bkd.asarray(
+            weights_01.tolist()
+        )
 
 
 class _BetaCDFNewtonResidual(Generic[Array]):
@@ -77,25 +136,17 @@ class BetaMarginal(Generic[Array]):
         The backend to use for computations.
     quadrature_rule : UniformQuadratureRule01Protocol[Array], optional
         Quadrature rule on [0, 1] with Lebesgue measure for CDF computation.
-        If not provided, cdf() and invcdf() will raise RuntimeError.
+        If not provided, uses ScipyGaussLegendreQuadrature01.
     nquad_samples : int, optional
         Number of quadrature samples for CDF computation. Default is 50.
-        Only used if quadrature_rule is provided.
 
     Examples
     --------
     >>> import numpy as np
     >>> from pyapprox.typing.util.backends.numpy import NumpyBkd
-    >>> from pyapprox.typing.surrogates.affine.univariate.globalpoly import (
-    ...     LegendrePolynomial1D, GaussQuadratureRule
-    ... )
     >>> bkd = NumpyBkd()
-    >>> # Create quadrature rule on [0, 1] with Lebesgue measure
-    >>> from pyapprox.typing.probability.univariate.beta import (
-    ...     GaussLegendreQuadrature01
-    ... )
-    >>> quad_rule = GaussLegendreQuadrature01(bkd)
-    >>> dist = BetaMarginal(alpha=2.0, beta=5.0, bkd=bkd, quadrature_rule=quad_rule)
+    >>> # Default quadrature rule is used automatically
+    >>> dist = BetaMarginal(alpha=2.0, beta=5.0, bkd=bkd)
     >>> samples = np.array([[0.1, 0.3, 0.5]])  # Shape: (1, 3)
     >>> pdf_vals = dist(samples)  # PDF values, shape: (1, 3)
     >>> cdf_vals = dist.cdf(samples)  # CDF values, shape: (1, 3)
@@ -138,17 +189,19 @@ class BetaMarginal(Generic[Array]):
         )
         self._hyp_list = HyperParameterList([self._alpha_hyp, self._beta_hyp])
 
-        # Setup quadrature for CDF (autograd-compatible) if provided
+        # Setup quadrature for CDF (autograd-compatible)
+        # Use default GaussLegendreQuadrature01 if none provided
+        if quadrature_rule is None:
+            quadrature_rule = ScipyGaussLegendreQuadrature01(bkd)
         self._quadrature_rule = quadrature_rule
         self._quadx_01: Optional[Array] = None
         self._quadw_01: Optional[Array] = None
         self._newton_solver: Optional[NewtonSolver[Array]] = None
         self._newton_residual: Optional[_BetaCDFNewtonResidual[Array]] = None
 
-        if quadrature_rule is not None:
-            self._setup_quadrature(quadrature_rule, nquad_samples)
-            # Setup Newton solver for inverse CDF (only if quadrature available)
-            self._setup_newton_solver()
+        self._setup_quadrature(quadrature_rule, nquad_samples)
+        # Setup Newton solver for inverse CDF
+        self._setup_newton_solver()
 
         # Store scipy distribution for initial guess and rvs
         self._scipy_rv = stats.beta(alpha_val, beta_val)
