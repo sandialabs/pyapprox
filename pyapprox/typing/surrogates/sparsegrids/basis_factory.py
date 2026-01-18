@@ -452,7 +452,7 @@ def get_transform_from_marginal(
     array([[0. , 0.5, 1. ]])
     """
     if isinstance(marginal, UniformMarginal):
-        return BoundedAffineTransform1D(bkd, marginal.lower, marginal.upper)
+        return BoundedAffineTransform1D(bkd, marginal.lower(), marginal.upper())
 
     if isinstance(marginal, GaussianMarginal):
         return UnboundedAffineTransform1D(
@@ -466,7 +466,7 @@ def get_transform_from_marginal(
     if isinstance(marginal, GammaMarginal):
         # Laguerre polynomials with scale parameter
         # The scale from Gamma(k, θ) maps canonical Gamma(k, 1) to user domain
-        return UnboundedAffineTransform1D(bkd, loc=0.0, scale=marginal.scale)
+        return UnboundedAffineTransform1D(bkd, loc=0.0, scale=marginal.scale())
 
     # Default: identity transform (assume canonical and user domain are same)
     return IdentityTransform1D(bkd)

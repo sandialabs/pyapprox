@@ -402,12 +402,12 @@ def get_orthonormal_poly_from_marginal(
 
     if isinstance(marginal, BetaMarginal):
         # Beta(a, b) -> Jacobi(alpha=b-1, beta=a-1) - note parameter swap!
-        return JacobiPolynomial1D(marginal.beta - 1, marginal.alpha - 1, bkd)
+        return JacobiPolynomial1D(marginal.beta() - 1, marginal.alpha() - 1, bkd)
 
     if isinstance(marginal, GammaMarginal):
         # Gamma(shape, scale) -> Laguerre(rho=shape-1)
         # This is an improvement over legacy which uses numeric
-        return LaguerrePolynomial1D(bkd, rho=marginal.shape - 1)
+        return LaguerrePolynomial1D(bkd, rho=marginal.shape() - 1)
 
     # Discrete distributions
     if isinstance(marginal, ScipyDiscreteMarginal):
