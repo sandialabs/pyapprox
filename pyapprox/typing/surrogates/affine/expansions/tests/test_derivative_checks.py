@@ -1027,5 +1027,321 @@ class TestMixedBasisDerivativesTorch(TestMixedBasisDerivatives[torch.Tensor]):
         super().setUp()
 
 
+class TestJacobianWrtParams(Generic[Array], unittest.TestCase):
+    """Test jacobian_wrt_params for BasisExpansion.
+
+    Tests validate that jacobian_wrt_params (derivatives w.r.t. active coefficients)
+    matches finite differences using DerivativeChecker.
+
+    Note: jacobian_wrt_params returns Jacobian w.r.t. ACTIVE params only.
+    By default all params are active, so nactive_params == nparams.
+    """
+
+    __test__ = False
+
+    def bkd(self) -> Backend[Array]:
+        raise NotImplementedError
+
+    def setUp(self):
+        self._bkd = self.bkd()
+
+    def _create_pce(self, nvars: int, max_level: int, nqoi: int = 1):
+        bkd = self._bkd
+        bases_1d = [LegendrePolynomial1D(bkd) for _ in range(nvars)]
+        return create_pce(bases_1d, max_level, bkd, nqoi=nqoi)
+
+    def test_jacobian_wrt_params_1d(self):
+        """Test jacobian_wrt_params for 1D expansion with nqoi=1."""
+        bkd = self._bkd
+        pce = self._create_pce(nvars=1, max_level=3, nqoi=1)
+
+        np.random.seed(42)
+        pce.set_coefficients(bkd.asarray(np.random.randn(pce.nterms(), 1)))
+
+        # Evaluate at a fixed sample
+        samples = bkd.asarray(np.random.uniform(-0.9, 0.9, (1, 3)))
+
+        # Create wrapper: params -> output values
+        from pyapprox.typing.interface.functions.fromcallable.jacobian import (
+            FunctionWithJacobianFromCallable,
+        )
+
+        # By default all params are active
+        nactive = pce.nactive_params()
+
+        def fun(params: Array) -> Array:
+            # params shape: (nactive_params, 1)
+            pce.hyp_list().set_active_values(params[:, 0])
+            pce._sync_from_hyp_list()
+            return pce(samples).T  # (nsamples, nqoi)
+
+        def jacobian_func(params: Array) -> Array:
+            # params shape: (nactive_params, 1)
+            pce.hyp_list().set_active_values(params[:, 0])
+            pce._sync_from_hyp_list()
+            # jacobian_wrt_params returns (nsamples, nqoi, nactive_params)
+            jac = pce.jacobian_wrt_params(samples)
+            # Sum over samples to get (nqoi, nactive_params)
+            return bkd.sum(jac, axis=0)
+
+        function_obj = FunctionWithJacobianFromCallable(
+            nqoi=pce.nqoi(),
+            nvars=nactive,
+            fun=lambda p: bkd.sum(fun(p), axis=0, keepdims=True).T,  # (nqoi, 1)
+            jacobian=jacobian_func,
+            bkd=bkd,
+        )
+
+        checker = DerivativeChecker(function_obj)
+        params = pce.hyp_list().get_active_values()
+        sample_params = bkd.reshape(params, (nactive, 1))
+        errors = checker.check_derivatives(sample_params, verbosity=0)
+
+        jac_error = checker.error_ratio(errors[0])
+        self.assertLess(float(jac_error), 1e-6)
+
+    def test_jacobian_wrt_params_2d(self):
+        """Test jacobian_wrt_params for 2D expansion with nqoi=1."""
+        bkd = self._bkd
+        pce = self._create_pce(nvars=2, max_level=2, nqoi=1)
+
+        np.random.seed(42)
+        pce.set_coefficients(bkd.asarray(np.random.randn(pce.nterms(), 1)))
+
+        # Evaluate at a fixed sample
+        samples = bkd.asarray(np.random.uniform(-0.9, 0.9, (2, 1)))
+
+        from pyapprox.typing.interface.functions.fromcallable.jacobian import (
+            FunctionWithJacobianFromCallable,
+        )
+
+        nactive = pce.nactive_params()
+
+        def fun(params: Array) -> Array:
+            pce.hyp_list().set_active_values(params[:, 0])
+            pce._sync_from_hyp_list()
+            return pce(samples).T  # (nsamples, nqoi)
+
+        def jacobian_func(params: Array) -> Array:
+            pce.hyp_list().set_active_values(params[:, 0])
+            pce._sync_from_hyp_list()
+            jac = pce.jacobian_wrt_params(samples)  # (nsamples, nqoi, nactive_params)
+            return jac[0, :, :]  # (nqoi, nactive_params) for single sample
+
+        function_obj = FunctionWithJacobianFromCallable(
+            nqoi=pce.nqoi(),
+            nvars=nactive,
+            fun=lambda p: fun(p),
+            jacobian=jacobian_func,
+            bkd=bkd,
+        )
+
+        checker = DerivativeChecker(function_obj)
+        params = pce.hyp_list().get_active_values()
+        sample_params = bkd.reshape(params, (nactive, 1))
+        errors = checker.check_derivatives(sample_params, verbosity=0)
+
+        jac_error = checker.error_ratio(errors[0])
+        self.assertLess(float(jac_error), 1e-6)
+
+    def test_jacobian_wrt_params_multi_qoi(self):
+        """Test jacobian_wrt_params for expansion with nqoi > 1."""
+        bkd = self._bkd
+        pce = self._create_pce(nvars=2, max_level=2, nqoi=2)
+
+        np.random.seed(42)
+        pce.set_coefficients(bkd.asarray(np.random.randn(pce.nterms(), 2)))
+
+        # Evaluate at a single sample
+        samples = bkd.asarray(np.random.uniform(-0.9, 0.9, (2, 1)))
+
+        from pyapprox.typing.interface.functions.fromcallable.jacobian import (
+            FunctionWithJacobianFromCallable,
+        )
+
+        nactive = pce.nactive_params()
+
+        def fun(params: Array) -> Array:
+            pce.hyp_list().set_active_values(params[:, 0])
+            pce._sync_from_hyp_list()
+            # pce(samples) returns (nqoi, nsamples)
+            # For FunctionFromCallable we need (nqoi, 1) output
+            return pce(samples)  # (nqoi, nsamples=1)
+
+        def jacobian_func(params: Array) -> Array:
+            pce.hyp_list().set_active_values(params[:, 0])
+            pce._sync_from_hyp_list()
+            jac = pce.jacobian_wrt_params(samples)  # (1, nqoi, nactive_params)
+            return jac[0, :, :]  # (nqoi, nactive_params)
+
+        function_obj = FunctionWithJacobianFromCallable(
+            nqoi=pce.nqoi(),
+            nvars=nactive,
+            fun=fun,
+            jacobian=jacobian_func,
+            bkd=bkd,
+        )
+
+        checker = DerivativeChecker(function_obj)
+        params = pce.hyp_list().get_active_values()
+        sample_params = bkd.reshape(params, (nactive, 1))
+        errors = checker.check_derivatives(sample_params, verbosity=0)
+
+        jac_error = checker.error_ratio(errors[0])
+        self.assertLess(float(jac_error), 1e-6)
+
+    def test_jacobian_wrt_params_with_fixed_params(self):
+        """Test jacobian_wrt_params when some params are fixed (inactive).
+
+        Verifies that jacobian only includes active parameters and that
+        the derivative check passes for the reduced parameter space.
+        """
+        bkd = self._bkd
+        pce = self._create_pce(nvars=2, max_level=2, nqoi=1)
+
+        np.random.seed(42)
+        pce.set_coefficients(bkd.asarray(np.random.randn(pce.nterms(), 1)))
+
+        # Fix the first 2 parameters (make them inactive)
+        # Only optimize the remaining parameters
+        nparams_total = pce.nparams()
+        active_indices = bkd.arange(2, nparams_total)
+        pce.hyp_list().set_active_indices(active_indices)
+
+        nactive = pce.nactive_params()
+        self.assertEqual(nactive, nparams_total - 2)
+
+        # Evaluate at a single sample
+        samples = bkd.asarray(np.random.uniform(-0.9, 0.9, (2, 1)))
+
+        from pyapprox.typing.interface.functions.fromcallable.jacobian import (
+            FunctionWithJacobianFromCallable,
+        )
+
+        def fun(params: Array) -> Array:
+            # params shape: (nactive_params, 1)
+            pce.hyp_list().set_active_values(params[:, 0])
+            pce._sync_from_hyp_list()
+            return pce(samples).T  # (nsamples, nqoi)
+
+        def jacobian_func(params: Array) -> Array:
+            pce.hyp_list().set_active_values(params[:, 0])
+            pce._sync_from_hyp_list()
+            jac = pce.jacobian_wrt_params(samples)  # (nsamples, nqoi, nactive_params)
+            return jac[0, :, :]  # (nqoi, nactive_params) for single sample
+
+        function_obj = FunctionWithJacobianFromCallable(
+            nqoi=pce.nqoi(),
+            nvars=nactive,
+            fun=lambda p: fun(p),
+            jacobian=jacobian_func,
+            bkd=bkd,
+        )
+
+        checker = DerivativeChecker(function_obj)
+        params = pce.hyp_list().get_active_values()
+        sample_params = bkd.reshape(params, (nactive, 1))
+        errors = checker.check_derivatives(sample_params, verbosity=0)
+
+        jac_error = checker.error_ratio(errors[0])
+        self.assertLess(float(jac_error), 1e-6)
+
+        # Verify the jacobian shape is correct (only active params)
+        jac = pce.jacobian_wrt_params(samples)
+        self.assertEqual(jac.shape, (1, 1, nactive))
+
+
+class TestJacobianWrtParamsNumpy(TestJacobianWrtParams[NDArray[Any]]):
+    """NumPy backend tests."""
+
+    __test__ = True
+
+    def bkd(self) -> NumpyBkd:
+        return NumpyBkd()
+
+
+class TestJacobianWrtParamsTorch(TestJacobianWrtParams[torch.Tensor]):
+    """PyTorch backend tests."""
+
+    __test__ = True
+
+    def bkd(self) -> TorchBkd:
+        return TorchBkd()
+
+    def setUp(self):
+        torch.set_default_dtype(torch.float64)
+        super().setUp()
+
+    def test_jacobian_wrt_params_autograd(self):
+        """Verify jacobian_wrt_params matches torch autograd."""
+        from torch.autograd.functional import jacobian as torch_jacobian
+
+        bkd = self._bkd
+        pce = self._create_pce(nvars=2, max_level=2, nqoi=1)
+
+        np.random.seed(42)
+        pce.set_coefficients(bkd.asarray(np.random.randn(pce.nterms(), 1)))
+
+        # Evaluate at multiple samples
+        samples = bkd.asarray(np.random.uniform(-0.9, 0.9, (2, 3)))
+
+        # Get analytical jacobian (w.r.t. active params)
+        analytical_jac = pce.jacobian_wrt_params(samples)  # (nsamples, nqoi, nactive)
+        nactive = pce.nactive_params()
+
+        # Get autograd jacobian
+        def output_from_params(params: torch.Tensor) -> torch.Tensor:
+            # params shape: (nactive_params,)
+            pce.hyp_list().set_active_values(params)
+            pce._sync_from_hyp_list()
+            return pce(samples).flatten()  # (nsamples * nqoi,)
+
+        params = pce.hyp_list().get_active_values()
+        autograd_jac = torch_jacobian(output_from_params, params)
+        # autograd_jac shape: (nsamples * nqoi, nactive_params)
+
+        # Reshape analytical to match autograd
+        nsamples = samples.shape[1]
+        analytical_flat = bkd.reshape(analytical_jac, (nsamples * pce.nqoi(), nactive))
+
+        bkd.assert_allclose(analytical_flat, autograd_jac, rtol=1e-10)
+
+    def test_jacobian_wrt_params_autograd_multi_qoi(self):
+        """Verify jacobian_wrt_params matches torch autograd for multi-QoI."""
+        from torch.autograd.functional import jacobian as torch_jacobian
+
+        bkd = self._bkd
+        pce = self._create_pce(nvars=2, max_level=2, nqoi=2)
+
+        np.random.seed(42)
+        pce.set_coefficients(bkd.asarray(np.random.randn(pce.nterms(), 2)))
+
+        # Evaluate at multiple samples
+        samples = bkd.asarray(np.random.uniform(-0.9, 0.9, (2, 3)))
+
+        # Get analytical jacobian (w.r.t. active params)
+        analytical_jac = pce.jacobian_wrt_params(samples)  # (nsamples, nqoi, nactive)
+        nactive = pce.nactive_params()
+
+        # Get autograd jacobian
+        def output_from_params(params: torch.Tensor) -> torch.Tensor:
+            # params shape: (nactive_params,)
+            pce.hyp_list().set_active_values(params)
+            pce._sync_from_hyp_list()
+            # PCE output is (nqoi, nsamples), need to flatten properly
+            # Order should match analytical: sample-major, then qoi
+            return pce(samples).T.flatten()  # (nsamples, nqoi) flattened
+
+        params = pce.hyp_list().get_active_values()
+        autograd_jac = torch_jacobian(output_from_params, params)
+        # autograd_jac shape: (nsamples * nqoi, nactive_params)
+
+        # Reshape analytical to match autograd
+        nsamples = samples.shape[1]
+        analytical_flat = bkd.reshape(analytical_jac, (nsamples * pce.nqoi(), nactive))
+
+        bkd.assert_allclose(analytical_flat, autograd_jac, rtol=1e-10)
+
+
 if __name__ == "__main__":
     unittest.main()

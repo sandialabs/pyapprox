@@ -7,6 +7,10 @@ functions: f(x) = Σ_i c_i φ_i(x).
 from typing import Generic, Optional, Union
 
 from pyapprox.typing.util.backends.protocols import Array, Backend
+from pyapprox.typing.util.hyperparameter import (
+    HyperParameter,
+    HyperParameterList,
+)
 from pyapprox.typing.surrogates.affine.protocols import (
     BasisProtocol,
     BasisHasJacobianProtocol,
@@ -48,6 +52,9 @@ class BasisExpansion(Generic[Array]):
         # Initialize coefficients to zeros
         self._coef: Optional[Array] = None
         self._initialize_coefficients()
+
+        # HyperParameterList for optimization (created lazily)
+        self._hyp_list: Optional[HyperParameterList] = None
 
         # Dynamically bind derivative methods based on basis capabilities
         self._setup_derivative_methods()
@@ -117,6 +124,116 @@ class BasisExpansion(Generic[Array]):
     def get_basis(self) -> BasisProtocol[Array]:
         """Return the basis object."""
         return self._basis
+
+    def hyp_list(self) -> HyperParameterList:
+        """Return the hyperparameter list for coefficient optimization.
+
+        The coefficients are stored as a single HyperParameter with shape
+        (nterms * nqoi,). Bounds are (-inf, inf) since coefficients can be
+        any real value.
+
+        Returns
+        -------
+        HyperParameterList[Array]
+            Hyperparameter list containing the flattened coefficients.
+        """
+        if self._hyp_list is None:
+            ncoeffs = self.nterms() * self._nqoi
+            self._hyp_list = HyperParameterList(
+                [
+                    HyperParameter(
+                        name="coefficients",
+                        nparams=ncoeffs,
+                        values=self._bkd.flatten(self._coef),
+                        bounds=(-1e10, 1e10),  # Effectively unbounded
+                        bkd=self._bkd,
+                    )
+                ],
+                self._bkd,
+            )
+        return self._hyp_list
+
+    def _sync_from_hyp_list(self) -> None:
+        """Sync coefficients from hyp_list values."""
+        if self._hyp_list is not None:
+            values = self._hyp_list.get_values()
+            self._coef = self._bkd.reshape(values, (self.nterms(), self._nqoi))
+
+    def nparams(self) -> int:
+        """Return the total number of parameters.
+
+        Returns
+        -------
+        int
+            Number of coefficients (nterms * nqoi).
+        """
+        return self.nterms() * self._nqoi
+
+    def nactive_params(self) -> int:
+        """Return the number of active (optimizable) parameters.
+
+        Returns
+        -------
+        int
+            Number of active coefficients.
+        """
+        return self.hyp_list().nactive_params()
+
+    def jacobian_wrt_params(self, samples: Array) -> Array:
+        """Compute Jacobian of output w.r.t. active coefficients.
+
+        For a basis expansion f(x) = Σ_i c_i φ_i(x), the Jacobian w.r.t.
+        coefficients is simply the basis matrix: ∂f/∂c_i = φ_i(x).
+
+        Only returns Jacobian for active (optimizable) parameters.
+        Fixed parameters have zero gradient by definition.
+
+        Parameters
+        ----------
+        samples : Array
+            Sample points. Shape: (nvars, nsamples)
+
+        Returns
+        -------
+        Array
+            Jacobian. Shape: (nsamples, nqoi, nactive_params)
+            For nqoi=1, each row is the basis values at that sample.
+        """
+        # Sync coefficients from hyp_list if it exists
+        self._sync_from_hyp_list()
+
+        nsamples = samples.shape[1]
+        # basis(samples): (nsamples, nterms)
+        basis_vals = self._basis(samples)
+
+        # Get active indices from hyp_list
+        active_indices = self.hyp_list().get_active_indices()
+
+        if self._nqoi == 1:
+            # Full jacobian shape: (nsamples, 1, nterms)
+            # Select only active columns
+            full_jac = self._bkd.reshape(basis_vals, (nsamples, 1, self.nterms()))
+            return full_jac[:, :, active_indices]
+        else:
+            # For nqoi > 1, each output q depends only on coefficients c_{:,q}
+            # d(f_q)/d(c_{i,r}) = φ_i(x) if q==r, else 0
+            #
+            # Coefficients are flattened as (nterms, nqoi).flatten() which gives
+            # row-major order: [c_{0,0}, c_{0,1}, c_{1,0}, c_{1,1}, ...]
+            # i.e., coefficient c_{i,q} is at param index i*nqoi + q
+            #
+            # So param p corresponds to term i=p//nqoi and qoi q=p%nqoi
+            nterms = self.nterms()
+            nparams = nterms * self._nqoi
+            full_jac = self._bkd.zeros((nsamples, self._nqoi, nparams))
+            for i in range(nterms):
+                for q in range(self._nqoi):
+                    # Param index for coefficient c_{i,q}
+                    param_idx = i * self._nqoi + q
+                    # d(f_q)/d(c_{i,q}) = φ_i(x)
+                    full_jac[:, q, param_idx] = basis_vals[:, i]
+            # Select only active columns
+            return full_jac[:, :, active_indices]
 
     def __call__(self, samples: Array) -> Array:
         """Evaluate expansion at samples.

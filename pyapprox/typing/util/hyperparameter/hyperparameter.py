@@ -194,6 +194,28 @@ class HyperParameter(Generic[Array]):
         """
         return self._values
 
+    def set_values(self, values: Array) -> None:
+        """
+        Set all parameter values (both active and inactive).
+
+        Parameters
+        ----------
+        values : Array
+            Values for all parameters. Shape: (nparams,)
+
+        Raises
+        ------
+        ValueError
+            If values shape doesn't match nparams.
+        """
+        if values.ndim != 1:
+            raise ValueError("values must be a 1D array")
+        if values.shape[0] != self.nparams():
+            raise ValueError(
+                f"values shape {values.shape} inconsistent with nparams {self.nparams()}"
+            )
+        self._values = values
+
     def get_active_values(self) -> Array:
         """
         Get the values of the active parameters.
