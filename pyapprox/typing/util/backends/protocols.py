@@ -639,6 +639,35 @@ class Backend(Protocol, Generic[Array]):
         ...
 
     @staticmethod
+    def std(
+        array: Array,
+        axis: Optional[Union[int, Tuple[int, ...]]] = None,
+        keepdims: bool = False,
+        ddof: int = 0,
+    ) -> Array:
+        """Compute standard deviation along the specified axis.
+
+        Parameters
+        ----------
+        array : Array
+            Input array.
+        axis : int or tuple of ints, optional
+            Axis or axes along which to compute standard deviation.
+            If None, compute over flattened array.
+        keepdims : bool
+            If True, reduced axes are kept with size 1.
+        ddof : int
+            Delta degrees of freedom. Default: 0 (population std).
+            Use 1 for sample std.
+
+        Returns
+        -------
+        Array
+            Standard deviation values.
+        """
+        ...
+
+    @staticmethod
     def maximum(x1: Array, x2: Array) -> Array:
         """Element-wise maximum of two arrays."""
         ...

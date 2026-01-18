@@ -493,6 +493,15 @@ class NumpyBkd(Backend[NDArray[Any]]):  # Specify NDArray type
         return np.asarray(np.var(array, axis=axis, keepdims=keepdims, ddof=ddof))
 
     @staticmethod
+    def std(
+        array: NDArray[Any],
+        axis: Optional[Union[int, Tuple[int, ...]]] = None,
+        keepdims: bool = False,
+        ddof: int = 0,
+    ) -> NDArray[Any]:
+        return np.asarray(np.std(array, axis=axis, keepdims=keepdims, ddof=ddof))
+
+    @staticmethod
     def maximum(x1: NDArray[Any], x2: NDArray[Any]) -> NDArray[Any]:
         return np.maximum(x1, x2)
 

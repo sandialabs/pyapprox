@@ -530,6 +530,19 @@ class TorchBkd(Backend[torch.Tensor]):  # Specify torch.Tensor type
         return torch.var(array, dim=axis, keepdim=keepdims, correction=ddof)
 
     @staticmethod
+    def std(
+        array: torch.Tensor,
+        axis: Optional[Union[int, Tuple[int, ...]]] = None,
+        keepdims: bool = False,
+        ddof: int = 0,
+    ) -> torch.Tensor:
+        # torch.std uses correction (Bessel's correction) instead of ddof
+        # correction=0 gives population std, correction=1 gives sample std
+        if axis is None:
+            return torch.std(array, correction=ddof)
+        return torch.std(array, dim=axis, keepdim=keepdims, correction=ddof)
+
+    @staticmethod
     def eigh(array: torch.Tensor) -> Tuple[torch.Tensor, torch.Tensor]:
         return torch.linalg.eigh(array)
 
