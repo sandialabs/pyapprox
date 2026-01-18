@@ -375,6 +375,43 @@ class GaussianMarginal(Generic[Array]):
         logpdf_jac = self.logpdf_jacobian(samples)
         return pdf_vals * logpdf_jac
 
+    def logpdf_jacobian_wrt_params(self, samples: Array) -> Array:
+        """
+        Compute the Jacobian of log PDF w.r.t. distribution parameters.
+
+        Returns derivatives in the optimizer's parameter space (log-space
+        for stdev).
+
+        Parameters
+        ----------
+        samples : Array
+            Points at which to compute the Jacobian.
+            Shape: (1, nsamples) - must be 2D
+
+        Returns
+        -------
+        Array
+            Jacobian matrix with shape (nsamples, nparams).
+            Column 0: d(logpdf)/d(mean)
+            Column 1: d(logpdf)/d(log_stdev)
+        """
+        samples_1d = self._validate_input(samples)
+        mean = self._get_mean()
+        stdev = self._get_stdev()
+
+        # z = (x - mean) / stdev
+        z = (samples_1d - mean) / stdev
+
+        # d(logpdf)/d(mean) = (x - mean) / stdev^2 = z / stdev
+        d_mean = z / stdev
+
+        # d(logpdf)/d(stdev) = -1/stdev + (x-mean)^2/stdev^3 = (-1 + z^2)/stdev
+        # d(logpdf)/d(log_stdev) = stdev * d(logpdf)/d(stdev) = -1 + z^2
+        d_log_stdev = -1.0 + z**2
+
+        # Stack columns: shape (nsamples, 2)
+        return self._bkd.stack([d_mean, d_log_stdev], axis=1)
+
     def __eq__(self, other: Any) -> bool:
         """Check equality with another GaussianMarginal."""
         if not isinstance(other, GaussianMarginal):

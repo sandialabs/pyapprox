@@ -478,6 +478,15 @@ class Backend(Protocol, Generic[Array]):
         ...
 
     @staticmethod
+    def digamma(array: Array) -> Array:
+        """Compute digamma function (psi function).
+
+        The digamma function is the logarithmic derivative of the gamma function:
+        psi(x) = d/dx ln(Gamma(x)) = Gamma'(x) / Gamma(x)
+        """
+        ...
+
+    @staticmethod
     def argmin(array: Array, axis: Optional[int] = None) -> Array:
         """Return indices of minimum values along an axis."""
         ...

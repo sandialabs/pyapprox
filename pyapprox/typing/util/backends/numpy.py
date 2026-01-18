@@ -417,6 +417,10 @@ class NumpyBkd(Backend[NDArray[Any]]):  # Specify NDArray type
         return scipy.special.gammaln(array)
 
     @staticmethod
+    def digamma(array: NDArray[Any]) -> NDArray[Any]:
+        return scipy.special.digamma(array)
+
+    @staticmethod
     def argmin(
         array: NDArray[Any], axis: Optional[int] = None
     ) -> NDArray[Any]:

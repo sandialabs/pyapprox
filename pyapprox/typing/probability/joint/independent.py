@@ -10,6 +10,7 @@ from typing import Generic, Sequence, List, Optional, Union
 import numpy as np
 
 from pyapprox.typing.util.backends.protocols import Array, Backend
+from pyapprox.typing.util.hyperparameter import HyperParameterList
 from pyapprox.typing.probability.protocols import MarginalProtocol
 from pyapprox.typing.interface.functions.plot.plot1d import Plotter1D
 from pyapprox.typing.interface.functions.plot.plot2d_rectangular import (
@@ -59,7 +60,23 @@ class IndependentJoint(Generic[Array]):
         self._bkd = bkd
         self._marginals = list(marginals)
         self._nvars = len(marginals)
+        self._setup_hyperparameter_list()
         self._setup_derivative_methods()
+
+    def _setup_hyperparameter_list(self) -> None:
+        """
+        Setup the aggregated hyperparameter list from marginals.
+
+        Only available if all marginals have hyp_list() method.
+        """
+        self._hyp_list: Optional[HyperParameterList] = None
+        if all(hasattr(m, "hyp_list") for m in self._marginals):
+            hyp_lists = [m.hyp_list() for m in self._marginals]  # type: ignore
+            if hyp_lists:
+                combined = hyp_lists[0]
+                for hyp_list in hyp_lists[1:]:
+                    combined = combined + hyp_list
+                self._hyp_list = combined
 
     def _setup_derivative_methods(self) -> None:
         """
@@ -78,6 +95,12 @@ class IndependentJoint(Generic[Array]):
             self.jacobian = self._jacobian  # type: ignore
             self.jacobian_batch = self._jacobian_batch  # type: ignore
 
+        # Check if all marginals have logpdf_jacobian_wrt_params
+        if all(hasattr(m, "logpdf_jacobian_wrt_params") for m in self._marginals):
+            self.logpdf_jacobian_wrt_params = (  # type: ignore
+                self._logpdf_jacobian_wrt_params
+            )
+
     def bkd(self) -> Backend[Array]:
         """Get the backend used for computations."""
         return self._bkd
@@ -92,6 +115,46 @@ class IndependentJoint(Generic[Array]):
             Number of variables (dimension of the distribution).
         """
         return self._nvars
+
+    def hyp_list(self) -> HyperParameterList:
+        """
+        Return the aggregated hyperparameter list.
+
+        Only available if all marginals have hyp_list() method.
+
+        Returns
+        -------
+        HyperParameterList
+            Combined hyperparameter list from all marginals.
+
+        Raises
+        ------
+        RuntimeError
+            If not all marginals have hyp_list() method.
+        """
+        if self._hyp_list is None:
+            raise RuntimeError(
+                "hyp_list() not available: not all marginals have hyp_list() method"
+            )
+        return self._hyp_list
+
+    def nparams(self) -> int:
+        """
+        Return the total number of distribution parameters.
+
+        Only available if all marginals have hyp_list() method.
+
+        Returns
+        -------
+        int
+            Total number of parameters across all marginals.
+
+        Raises
+        ------
+        RuntimeError
+            If not all marginals have hyp_list() method.
+        """
+        return self.hyp_list().nparams()
 
     def nqoi(self) -> int:
         """
@@ -618,6 +681,39 @@ class IndependentJoint(Generic[Array]):
         jac_2d = self._bkd.stack(jac_list, axis=0).T
         # Reshape to (nsamples, 1, nvars)
         return self._bkd.reshape(jac_2d, (nsamples, 1, self._nvars))
+
+    def _logpdf_jacobian_wrt_params(self, samples: Array) -> Array:
+        """
+        Compute Jacobian of joint log-PDF w.r.t. all distribution parameters.
+
+        For independent marginals with parameters theta = (theta_1, ..., theta_n):
+            d/d(theta_i) [sum_j log(p_j)] = d/d(theta_i) [log(p_i)]
+
+        Each marginal's parameter gradients are concatenated.
+
+        Parameters
+        ----------
+        samples : Array
+            Sample points. Shape: (nvars, nsamples) - must be 2D
+
+        Returns
+        -------
+        Array
+            Jacobian values. Shape: (nsamples, total_nparams)
+            where total_nparams = sum of nparams across all marginals.
+        """
+        self._validate_input(samples)
+        nsamples = samples.shape[1]
+
+        jac_list = []
+        for i, marginal in enumerate(self._marginals):
+            row_2d = self._bkd.reshape(samples[i], (1, -1))
+            # Each marginal returns shape (nsamples, marginal_nparams)
+            marg_jac = marginal.logpdf_jacobian_wrt_params(row_2d)  # type: ignore
+            jac_list.append(marg_jac)
+
+        # Concatenate along parameter dimension: shape (nsamples, total_nparams)
+        return self._bkd.hstack(jac_list)
 
     def __repr__(self) -> str:
         """Return string representation."""

@@ -12,6 +12,8 @@ MarginalProtocol
     Adds CDF, inverse CDF for 1D distributions.
 MarginalWithJacobianProtocol
     Adds Jacobian of CDF for sensitivity analysis.
+MarginalWithParamJacobianProtocol
+    Adds Jacobian w.r.t. distribution parameters for MLE/VI.
 JointDistributionProtocol
     Multivariate distribution with marginal access.
 """
@@ -19,6 +21,7 @@ JointDistributionProtocol
 from typing import Protocol, Generic, runtime_checkable, Sequence, Tuple
 
 from pyapprox.typing.util.backends.protocols import Array, Backend
+from pyapprox.typing.util.hyperparameter import HyperParameterList
 
 
 @runtime_checkable
@@ -211,6 +214,103 @@ class MarginalWithJacobianProtocol(Protocol, Generic[Array]):
         -------
         Array
             Jacobian values. Shape: (1, nsamples)
+
+        Raises
+        ------
+        ValueError
+            If input is not 2D or has wrong first dimension
+        """
+        ...
+
+
+@runtime_checkable
+class MarginalWithParamJacobianProtocol(Protocol, Generic[Array]):
+    """
+    Marginal distribution with parameter Jacobian for optimization.
+
+    Extends MarginalWithJacobianProtocol with gradients w.r.t. distribution
+    parameters. This enables gradient-based optimization for:
+    - Maximum likelihood estimation (MLE)
+    - Variational inference (VI)
+
+    The HyperParameterList manages parameter transformations (e.g., log-space
+    for positive parameters) to enable unconstrained optimization.
+
+    Methods
+    -------
+    hyp_list()
+        Return the hyperparameter list for parameter optimization.
+    nparams()
+        Return the number of distribution parameters.
+    logpdf_jacobian_wrt_params(samples)
+        Jacobian of log-PDF w.r.t. distribution parameters.
+    """
+
+    def bkd(self) -> Backend[Array]:
+        ...
+
+    def nvars(self) -> int:
+        ...
+
+    def rvs(self, nsamples: int) -> Array:
+        ...
+
+    def logpdf(self, samples: Array) -> Array:
+        ...
+
+    def cdf(self, samples: Array) -> Array:
+        ...
+
+    def invcdf(self, probs: Array) -> Array:
+        ...
+
+    def invcdf_jacobian(self, probs: Array) -> Array:
+        ...
+
+    def hyp_list(self) -> HyperParameterList:
+        """
+        Return the hyperparameter list for parameter optimization.
+
+        The hyperparameter list manages:
+        - Parameter values (possibly in transformed space)
+        - Parameter bounds
+        - Active/fixed parameter selection
+
+        Returns
+        -------
+        HyperParameterList
+            Hyperparameter list containing distribution parameters.
+        """
+        ...
+
+    def nparams(self) -> int:
+        """
+        Return the total number of distribution parameters.
+
+        Returns
+        -------
+        int
+            Number of parameters.
+        """
+        ...
+
+    def logpdf_jacobian_wrt_params(self, samples: Array) -> Array:
+        """
+        Compute Jacobian of log-PDF w.r.t. distribution parameters.
+
+        Gradients are computed in the optimizer's parameter space
+        (i.e., log-space for log-transformed parameters).
+
+        Parameters
+        ----------
+        samples : Array
+            Sample points. Shape: (1, nsamples) - must be 2D
+
+        Returns
+        -------
+        Array
+            Jacobian values. Shape: (nsamples, nparams)
+            Each row contains gradients for one sample.
 
         Raises
         ------

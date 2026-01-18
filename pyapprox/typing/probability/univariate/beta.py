@@ -637,6 +637,55 @@ class BetaMarginal(Generic[Array]):
         logpdf_jac = self.logpdf_jacobian(samples)
         return pdf_vals * logpdf_jac
 
+    def logpdf_jacobian_wrt_params(self, samples: Array) -> Array:
+        """
+        Compute the Jacobian of log PDF w.r.t. distribution parameters.
+
+        For Beta(alpha, beta), log PDF is:
+        logpdf = (a-1)*log(x) + (b-1)*log(1-x) - log(B(a,b))
+
+        where log(B(a,b)) = gammaln(a) + gammaln(b) - gammaln(a+b)
+
+        Derivatives in log-space (optimizer sees log_alpha, log_beta):
+        d(logpdf)/d(log_alpha) = alpha * (log(x) - psi(alpha) + psi(alpha+beta))
+        d(logpdf)/d(log_beta) = beta * (log(1-x) - psi(beta) + psi(alpha+beta))
+
+        Parameters
+        ----------
+        samples : Array
+            Points at which to compute the Jacobian.
+            Shape: (1, nsamples) - must be 2D
+
+        Returns
+        -------
+        Array
+            Jacobian matrix with shape (nsamples, nparams).
+            Column 0: d(logpdf)/d(log_alpha)
+            Column 1: d(logpdf)/d(log_beta)
+        """
+        samples_1d = self._validate_input(samples)
+        alpha = self._get_alpha()
+        beta = self._get_beta()
+
+        log_x = self._bkd.log(samples_1d)
+        log_1mx = self._bkd.log(1.0 - samples_1d)
+
+        # Digamma terms
+        psi_alpha = self._bkd.digamma(alpha)
+        psi_beta = self._bkd.digamma(beta)
+        psi_sum = self._bkd.digamma(alpha + beta)
+
+        # d(logpdf)/d(alpha) = log(x) - psi(alpha) + psi(alpha+beta)
+        # d(logpdf)/d(log_alpha) = alpha * d(logpdf)/d(alpha)
+        d_log_alpha = alpha * (log_x - psi_alpha + psi_sum)
+
+        # d(logpdf)/d(beta) = log(1-x) - psi(beta) + psi(alpha+beta)
+        # d(logpdf)/d(log_beta) = beta * d(logpdf)/d(beta)
+        d_log_beta = beta * (log_1mx - psi_beta + psi_sum)
+
+        # Stack columns: shape (nsamples, 2)
+        return self._bkd.stack([d_log_alpha, d_log_beta], axis=1)
+
     def __eq__(self, other: Any) -> bool:
         """Check equality with another BetaMarginal."""
         if not isinstance(other, BetaMarginal):

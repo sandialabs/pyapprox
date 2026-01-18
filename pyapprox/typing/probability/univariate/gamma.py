@@ -613,6 +613,51 @@ class GammaMarginal(Generic[Array]):
         logpdf_jac = self.logpdf_jacobian(samples)
         return pdf_vals * logpdf_jac
 
+    def logpdf_jacobian_wrt_params(self, samples: Array) -> Array:
+        """
+        Compute the Jacobian of log PDF w.r.t. distribution parameters.
+
+        For Gamma(shape=k, scale=theta), log PDF is:
+        logpdf = (k-1)*log(x) - x/theta - k*log(theta) - gammaln(k)
+
+        Derivatives in log-space (optimizer sees log_shape, log_scale):
+        d(logpdf)/d(log_shape) = shape * (log(x) - log(scale) - psi(shape))
+        d(logpdf)/d(log_scale) = -shape + x/scale
+
+        Parameters
+        ----------
+        samples : Array
+            Points at which to compute the Jacobian.
+            Shape: (1, nsamples) - must be 2D
+
+        Returns
+        -------
+        Array
+            Jacobian matrix with shape (nsamples, nparams).
+            Column 0: d(logpdf)/d(log_shape)
+            Column 1: d(logpdf)/d(log_scale)
+        """
+        samples_1d = self._validate_input(samples)
+        shape = self._get_shape()
+        scale = self._get_scale()
+
+        log_x = self._bkd.log(samples_1d)
+        log_scale = self._bkd.log(scale)
+
+        # Digamma term
+        psi_shape = self._bkd.digamma(shape)
+
+        # d(logpdf)/d(shape) = log(x) - log(scale) - psi(shape)
+        # d(logpdf)/d(log_shape) = shape * d(logpdf)/d(shape)
+        d_log_shape = shape * (log_x - log_scale - psi_shape)
+
+        # d(logpdf)/d(scale) = -shape/scale + x/scale^2
+        # d(logpdf)/d(log_scale) = scale * d(logpdf)/d(scale) = -shape + x/scale
+        d_log_scale = -shape + samples_1d / scale
+
+        # Stack columns: shape (nsamples, 2)
+        return self._bkd.stack([d_log_shape, d_log_scale], axis=1)
+
     def __eq__(self, other: Any) -> bool:
         """Check equality with another GammaMarginal."""
         if not isinstance(other, GammaMarginal):

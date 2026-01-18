@@ -399,6 +399,39 @@ class UniformMarginal(Generic[Array]):
         samples_1d = self._validate_input(samples)
         return self._bkd.zeros((1, len(samples_1d)))
 
+    def logpdf_jacobian_wrt_params(self, samples: Array) -> Array:
+        """
+        Compute the Jacobian of log PDF w.r.t. distribution parameters.
+
+        For Uniform on [lower, upper]:
+        logpdf = -log(upper - lower)
+
+        Parameters
+        ----------
+        samples : Array
+            Points at which to compute the Jacobian.
+            Shape: (1, nsamples) - must be 2D
+
+        Returns
+        -------
+        Array
+            Jacobian matrix with shape (nsamples, nparams).
+            Column 0: d(logpdf)/d(lower) = 1/(upper - lower)
+            Column 1: d(logpdf)/d(upper) = -1/(upper - lower)
+        """
+        samples_1d = self._validate_input(samples)
+        nsamples = len(samples_1d)
+        width = self._get_width()
+
+        # d(logpdf)/d(lower) = 1 / (upper - lower)
+        d_lower = self._bkd.ones((nsamples,)) / width
+
+        # d(logpdf)/d(upper) = -1 / (upper - lower)
+        d_upper = -self._bkd.ones((nsamples,)) / width
+
+        # Stack columns: shape (nsamples, 2)
+        return self._bkd.stack([d_lower, d_upper], axis=1)
+
     def __eq__(self, other: Any) -> bool:
         """Check equality with another UniformMarginal."""
         if not isinstance(other, UniformMarginal):
