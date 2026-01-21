@@ -169,9 +169,40 @@ class Backend(Protocol, Generic[Array]):
     def flatten(array: Array) -> Array: ...
 
     @staticmethod
+    def ravel(array: Array) -> Array:
+        """Flatten array to 1D (contiguous view when possible).
+
+        Parameters
+        ----------
+        array : Array
+            Input array.
+
+        Returns
+        -------
+        Array
+            Flattened 1D array.
+        """
+        ...
+
+    @staticmethod
     def meshgrid(
-        arrays: Tuple[Array, ...], indexing: str = "xy"
-    ) -> Tuple[Array, ...]: ...
+        *arrays: Array, indexing: str = "xy"
+    ) -> Tuple[Array, ...]:
+        """Create coordinate grids from 1D arrays.
+
+        Parameters
+        ----------
+        *arrays : Array
+            1D arrays representing grid coordinates.
+        indexing : str
+            Cartesian ('xy') or matrix ('ij') indexing. Default: 'xy'.
+
+        Returns
+        -------
+        Tuple[Array, ...]
+            Coordinate grids, one per input array.
+        """
+        ...
 
     @staticmethod
     def reshape(array: Array, newshape: Sequence[int]) -> Array: ...

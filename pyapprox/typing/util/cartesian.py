@@ -6,6 +6,10 @@ interpolation, quadrature, and sparse grids.
 
 Functions
 ---------
+cartesian_product(bkd, vectors)
+    Generic cartesian product of 1D vectors using meshgrid.
+outer_product(bkd, vectors)
+    Generic outer product of 1D vectors using einsum.
 cartesian_product_indices(dims, bkd)
     Generate multi-indices for a full tensor product grid.
 cartesian_product_samples(samples_1d, bkd)
@@ -17,6 +21,103 @@ outer_product_weights(weights_1d, bkd)
 from typing import List
 
 from pyapprox.typing.util.backends.protocols import Array, Backend
+
+
+def cartesian_product(bkd: Backend[Array], vectors: List[Array]) -> Array:
+    """Compute cartesian product of 1D vectors using meshgrid.
+
+    Parameters
+    ----------
+    bkd : Backend[Array]
+        Computational backend (numpy or torch).
+    vectors : List[Array]
+        List of 1D arrays (at least 2 required).
+
+    Returns
+    -------
+    Array
+        Cartesian product with shape (ndim, prod(lens)).
+        Last vector in input list varies fastest (C-order).
+
+    Raises
+    ------
+    ValueError
+        If fewer than 2 vectors provided.
+
+    Examples
+    --------
+    >>> from pyapprox.typing.util.backends.numpy import NumpyBkd
+    >>> bkd = NumpyBkd()
+    >>> x = bkd.asarray([0, 1])
+    >>> y = bkd.asarray([0, 1, 2])
+    >>> cartesian_product(bkd, [x, y])
+    array([[0, 0, 0, 1, 1, 1],
+           [0, 1, 2, 0, 1, 2]])
+    """
+    if len(vectors) < 2:
+        raise ValueError(
+            f"cartesian_product requires at least 2 vectors, got {len(vectors)}"
+        )
+
+    # Flatten all vectors to 1D
+    flat_vectors = [bkd.ravel(v) for v in vectors]
+
+    # Use meshgrid with indexing='ij' for C-order (last dim varies fastest)
+    grids = bkd.meshgrid(*flat_vectors, indexing="ij")
+
+    # Stack raveled grids: each grid flattened becomes a row
+    # Result shape: (ndim, prod(lens))
+    stacked = bkd.stack([bkd.ravel(g) for g in grids], axis=0)
+    return stacked
+
+
+def outer_product(bkd: Backend[Array], vectors: List[Array]) -> Array:
+    """Compute outer product of 1D vectors using einsum.
+
+    Parameters
+    ----------
+    bkd : Backend[Array]
+        Computational backend (numpy or torch).
+    vectors : List[Array]
+        List of 1D arrays (at least 2 required, max 26).
+
+    Returns
+    -------
+    Array
+        Outer product with shape (len(v1), len(v2), ...).
+
+    Raises
+    ------
+    ValueError
+        If fewer than 2 or more than 26 vectors provided.
+
+    Examples
+    --------
+    >>> from pyapprox.typing.util.backends.numpy import NumpyBkd
+    >>> bkd = NumpyBkd()
+    >>> x = bkd.asarray([1.0, 2.0])
+    >>> y = bkd.asarray([3.0, 4.0, 5.0])
+    >>> outer_product(bkd, [x, y])
+    array([[ 3.,  4.,  5.],
+           [ 6.,  8., 10.]])
+    """
+    if len(vectors) < 2:
+        raise ValueError(
+            f"outer_product requires at least 2 vectors, got {len(vectors)}"
+        )
+    if len(vectors) > 26:
+        raise ValueError(
+            f"outer_product supports at most 26 vectors, got {len(vectors)}"
+        )
+
+    # Build einsum subscripts: 'a,b,c->abc'
+    letters = "abcdefghijklmnopqrstuvwxyz"
+    inputs = ",".join(letters[i] for i in range(len(vectors)))
+    output = letters[: len(vectors)]
+    subscripts = f"{inputs}->{output}"
+
+    flat_vectors = [bkd.ravel(v) for v in vectors]
+    return bkd.einsum(subscripts, *flat_vectors)
 
 
 def cartesian_product_indices(dims: List[int], bkd: Backend[Array]) -> Array:
@@ -52,28 +153,16 @@ def cartesian_product_indices(dims: List[int], bkd: Backend[Array]) -> Array:
     The ordering convention (last dimension varies fastest) matches NumPy's
     default array ordering and is consistent with sparse grid conventions.
     """
-    nvars = len(dims)
-    total = 1
-    for n in dims:
-        total *= n
+    if len(dims) < 2:
+        # Handle 1D case directly
+        if len(dims) == 1:
+            return bkd.reshape(
+                bkd.arange(dims[0], dtype=bkd.int64_dtype()), (1, dims[0])
+            )
+        raise ValueError("dims must have at least 1 element")
 
-    indices = bkd.zeros((nvars, total), dtype=bkd.int64_dtype())
-
-    # Last dimension varies fastest (C-order)
-    repeat_inner = 1
-    for dim in range(nvars - 1, -1, -1):
-        npts = dims[dim]
-        repeat_outer = total // (npts * repeat_inner)
-
-        col = 0
-        for _ in range(repeat_outer):
-            for pt_idx in range(npts):
-                for _ in range(repeat_inner):
-                    indices[dim, col] = pt_idx
-                    col += 1
-        repeat_inner *= npts
-
-    return indices
+    vectors = [bkd.arange(d, dtype=bkd.int64_dtype()) for d in dims]
+    return cartesian_product(bkd, vectors)
 
 
 def cartesian_product_samples(
@@ -112,35 +201,15 @@ def cartesian_product_samples(
     -----
     The ordering convention matches `cartesian_product_indices`.
     """
-    nvars = len(samples_1d)
+    if len(samples_1d) < 2:
+        # Handle 1D case directly
+        if len(samples_1d) == 1:
+            flat = bkd.ravel(samples_1d[0])
+            return bkd.reshape(flat, (1, flat.shape[0]))
+        raise ValueError("samples_1d must have at least 1 element")
 
-    # Get dimensions from 1D sample arrays
-    dims = []
-    for samples in samples_1d:
-        flat = samples.flatten()
-        dims.append(flat.shape[0])
-
-    total = 1
-    for n in dims:
-        total *= n
-
-    result = bkd.zeros((nvars, total))
-
-    repeat_inner = 1
-    for dim in range(nvars - 1, -1, -1):
-        npts = dims[dim]
-        samples_flat = samples_1d[dim].flatten()
-        repeat_outer = total // (npts * repeat_inner)
-
-        idx = 0
-        for _ in range(repeat_outer):
-            for pt_idx in range(npts):
-                for _ in range(repeat_inner):
-                    result[dim, idx] = samples_flat[pt_idx]
-                    idx += 1
-        repeat_inner *= npts
-
-    return result
+    # cartesian_product already flattens inputs
+    return cartesian_product(bkd, samples_1d)
 
 
 def outer_product_weights(
@@ -182,34 +251,11 @@ def outer_product_weights(
     The ordering convention matches `cartesian_product_indices` and
     `cartesian_product_samples`.
     """
-    nvars = len(weights_1d)
+    if len(weights_1d) < 2:
+        # Handle 1D case directly
+        if len(weights_1d) == 1:
+            return bkd.ravel(weights_1d[0])
+        raise ValueError("weights_1d must have at least 1 element")
 
-    # Get dimensions and flatten weights
-    dims = []
-    flat_weights = []
-    for weights in weights_1d:
-        flat = weights.flatten()
-        dims.append(flat.shape[0])
-        flat_weights.append(flat)
-
-    total = 1
-    for n in dims:
-        total *= n
-
-    result = bkd.ones((total,))
-
-    repeat_inner = 1
-    for dim in range(nvars - 1, -1, -1):
-        npts = dims[dim]
-        w = flat_weights[dim]
-        repeat_outer = total // (npts * repeat_inner)
-
-        idx = 0
-        for _ in range(repeat_outer):
-            for pt_idx in range(npts):
-                for _ in range(repeat_inner):
-                    result[idx] = result[idx] * w[pt_idx]
-                    idx += 1
-        repeat_inner *= npts
-
-    return result
+    # outer_product returns shape (n1, n2, ...), flatten to 1D
+    return bkd.ravel(outer_product(bkd, weights_1d))

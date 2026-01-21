@@ -113,8 +113,12 @@ class NumpyBkd(Backend[NDArray[Any]]):  # Specify NDArray type
         return array.flatten()
 
     @staticmethod
+    def ravel(array: NDArray[Any]) -> NDArray[Any]:
+        return np.ravel(array)
+
+    @staticmethod
     def meshgrid(
-        arrays: Tuple[NDArray[Any], ...], indexing: str = "xy"
+        *arrays: NDArray[Any], indexing: str = "xy"
     ) -> Tuple[NDArray[Any], ...]:
         return np.meshgrid(*arrays, indexing=indexing)  # type: ignore
 

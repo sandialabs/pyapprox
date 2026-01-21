@@ -126,8 +126,12 @@ class TorchBkd(Backend[torch.Tensor]):  # Specify torch.Tensor type
         return array.flatten()
 
     @staticmethod
+    def ravel(array: torch.Tensor) -> torch.Tensor:
+        return torch.ravel(array)
+
+    @staticmethod
     def meshgrid(
-        arrays: Tuple[torch.Tensor, ...], indexing: str = "xy"
+        *arrays: torch.Tensor, indexing: str = "xy"
     ) -> Tuple[torch.Tensor, ...]:
         return torch.meshgrid(*arrays, indexing=indexing)
 
