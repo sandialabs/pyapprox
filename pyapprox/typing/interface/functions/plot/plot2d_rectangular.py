@@ -54,7 +54,7 @@ def meshgrid_samples(
     space_fn = bkd.logspace if logspace else bkd.linspace
     x = space_fn(plot_limits[0], plot_limits[1], num_pts_1d[0])
     y = space_fn(plot_limits[2], plot_limits[3], num_pts_1d[1])
-    X, Y = bkd.meshgrid((x, y))
+    X, Y = bkd.meshgrid(x, y)
     pts = bkd.stack((bkd.flatten(X), bkd.flatten(Y)), axis=0)
     return X, Y, pts
 

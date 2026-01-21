@@ -472,7 +472,7 @@ class TestManufacturedADR2D(Generic[Array], unittest.TestCase):
         # Use 'xy' indexing for compatibility with Kronecker product structure
         nodes_x = basis.nodes_x()
         nodes_y = basis.nodes_y()
-        xx, yy = bkd.meshgrid((nodes_x, nodes_y), indexing='xy')
+        xx, yy = bkd.meshgrid(nodes_x, nodes_y, indexing='xy')
         nodes = bkd.stack([xx.flatten(), yy.flatten()], axis=0)  # (2, npts)
         u_exact = man_sol.functions["solution"](nodes)
         forcing = man_sol.functions["forcing"](nodes)
@@ -544,7 +544,7 @@ class TestManufacturedADR2D(Generic[Array], unittest.TestCase):
 
         nodes_x = basis.nodes_x()
         nodes_y = basis.nodes_y()
-        xx, yy = bkd.meshgrid((nodes_x, nodes_y), indexing='xy')
+        xx, yy = bkd.meshgrid(nodes_x, nodes_y, indexing='xy')
         nodes = bkd.stack([xx.flatten(), yy.flatten()], axis=0)
         u_exact = man_sol.functions["solution"](nodes)
         forcing = man_sol.functions["forcing"](nodes)
@@ -591,7 +591,7 @@ class TestManufacturedADR2D(Generic[Array], unittest.TestCase):
         # Use 'xy' indexing for compatibility with Kronecker product structure
         nodes_x = basis.nodes_x()
         nodes_y = basis.nodes_y()
-        xx, yy = bkd.meshgrid((nodes_x, nodes_y), indexing='xy')
+        xx, yy = bkd.meshgrid(nodes_x, nodes_y, indexing='xy')
         nodes = bkd.stack([xx.flatten(), yy.flatten()], axis=0)
         u_exact = man_sol.functions["solution"](nodes)
         forcing = man_sol.functions["forcing"](nodes)

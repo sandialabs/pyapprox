@@ -121,7 +121,7 @@ class TestManufacturedShallowWave(Generic[Array], unittest.TestCase):
         # Create test points
         x = bkd.linspace(-0.9, 0.9, 5)
         y = bkd.linspace(-0.9, 0.9, 5)
-        xx, yy = bkd.meshgrid((x, y), indexing='xy')
+        xx, yy = bkd.meshgrid(x, y, indexing='xy')
         nodes = bkd.stack([xx.flatten(), yy.flatten()], axis=0)
 
         sol = man_sol.functions["solution"](nodes)
@@ -225,7 +225,7 @@ class TestManufacturedTwoSpeciesReactionDiffusion(Generic[Array], unittest.TestC
         )
         x = bkd.linspace(-0.9, 0.9, 5)
         y = bkd.linspace(-0.9, 0.9, 5)
-        xx, yy = bkd.meshgrid((x, y), indexing='xy')
+        xx, yy = bkd.meshgrid(x, y, indexing='xy')
         nodes = bkd.stack([xx.flatten(), yy.flatten()], axis=0)
 
         sol = man_sol.functions["solution"](nodes)
@@ -298,7 +298,7 @@ class TestManufacturedShallowShelf(Generic[Array], unittest.TestCase):
         # Create test points (avoid boundary for strain rate singularity)
         x = bkd.linspace(-0.8, 0.8, 5)
         y = bkd.linspace(-0.8, 0.8, 5)
-        xx, yy = bkd.meshgrid((x, y), indexing='xy')
+        xx, yy = bkd.meshgrid(x, y, indexing='xy')
         nodes = bkd.stack([xx.flatten(), yy.flatten()], axis=0)
 
         sol = man_sol.functions["solution"](nodes)
@@ -368,7 +368,7 @@ class TestManufacturedStokes(Generic[Array], unittest.TestCase):
         )
         x = bkd.linspace(-0.9, 0.9, 5)
         y = bkd.linspace(-0.9, 0.9, 5)
-        xx, yy = bkd.meshgrid((x, y), indexing='xy')
+        xx, yy = bkd.meshgrid(x, y, indexing='xy')
         nodes = bkd.stack([xx.flatten(), yy.flatten()], axis=0)
 
         sol = man_sol.functions["solution"](nodes)
@@ -397,7 +397,7 @@ class TestManufacturedStokes(Generic[Array], unittest.TestCase):
         )
         x = bkd.linspace(-0.9, 0.9, 5)
         y = bkd.linspace(-0.9, 0.9, 5)
-        xx, yy = bkd.meshgrid((x, y), indexing='xy')
+        xx, yy = bkd.meshgrid(x, y, indexing='xy')
         nodes = bkd.stack([xx.flatten(), yy.flatten()], axis=0)
 
         # Get pressure forcing (should be zero for divergence-free flow)

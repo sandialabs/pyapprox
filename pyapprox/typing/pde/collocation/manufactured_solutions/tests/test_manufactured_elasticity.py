@@ -111,7 +111,7 @@ class TestLinearElasticity(Generic[Array], unittest.TestCase):
         # Construct mesh nodes with 'xy' indexing
         nodes_x = basis.nodes_x()
         nodes_y = basis.nodes_y()
-        xx, yy = bkd.meshgrid((nodes_x, nodes_y), indexing='xy')
+        xx, yy = bkd.meshgrid(nodes_x, nodes_y, indexing='xy')
         nodes = bkd.stack([xx.flatten(), yy.flatten()], axis=0)
 
         # Get exact solution and forcing
@@ -230,7 +230,7 @@ class TestLinearElasticity(Generic[Array], unittest.TestCase):
         # Construct mesh nodes
         nodes_x = basis.nodes_x()
         nodes_y = basis.nodes_y()
-        xx, yy = bkd.meshgrid((nodes_x, nodes_y), indexing='xy')
+        xx, yy = bkd.meshgrid(nodes_x, nodes_y, indexing='xy')
         nodes = bkd.stack([xx.flatten(), yy.flatten()], axis=0)
 
         u_exact = man_sol.functions["solution"](nodes)

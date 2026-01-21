@@ -103,7 +103,7 @@ class TensorProductQuadratureRule(QuadratureRule[Array], Generic[Array]):
             weights_1d.append(self._bkd.flatten(wts))  # Flatten weights
 
         # Build tensor product grid
-        grids = self._bkd.meshgrid(tuple(points_1d), indexing="ij")
+        grids = self._bkd.meshgrid(*points_1d, indexing="ij")
         points = self._bkd.stack(
             [self._bkd.flatten(g) for g in grids], axis=0
         )

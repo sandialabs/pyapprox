@@ -110,7 +110,7 @@ class TestManufacturedHelmholtz(Generic[Array], unittest.TestCase):
         # Create test points
         x = bkd.linspace(0, 1, 5)
         y = bkd.linspace(0, 1, 5)
-        xx, yy = bkd.meshgrid((x, y), indexing='xy')
+        xx, yy = bkd.meshgrid(x, y, indexing='xy')
         nodes = bkd.stack([xx.flatten(), yy.flatten()], axis=0)
 
         # Evaluate functions
@@ -390,7 +390,7 @@ class TestManufacturedShallowIce(Generic[Array], unittest.TestCase):
         # Create test points
         x = bkd.linspace(-0.9, 0.9, 5)
         y = bkd.linspace(-0.9, 0.9, 5)
-        xx, yy = bkd.meshgrid((x, y), indexing='xy')
+        xx, yy = bkd.meshgrid(x, y, indexing='xy')
         nodes = bkd.stack([xx.flatten(), yy.flatten()], axis=0)
 
         # Evaluate functions

@@ -64,7 +64,7 @@ class ManufacturedHelmholtz(
     >>> # Get forcing function
     >>> x = bkd.linspace(0, 1, 10)
     >>> y = bkd.linspace(0, 1, 10)
-    >>> xx, yy = bkd.meshgrid((x, y), indexing='xy')
+    >>> xx, yy = bkd.meshgrid(x, y, indexing='xy')
     >>> nodes = bkd.stack([xx.flatten(), yy.flatten()], axis=0)
     >>> forcing = man_sol.functions["forcing"](nodes)
     """
