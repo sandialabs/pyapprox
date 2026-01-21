@@ -6,15 +6,17 @@ Tests validate:
 3. jacobian_wrt_x with DerivativeChecker
 4. jacobian_wrt_params with DerivativeChecker
 5. Torch autograd compatibility
+6. Bounds support with various [lb, ub] configurations
 """
 
 import unittest
-from typing import Any, Generic
+from typing import Any, Generic, Tuple
 
 import numpy as np
 import torch
 from numpy.typing import NDArray
 from scipy import stats
+from unittest_parametrize import ParametrizedTestCase, parametrize
 
 from pyapprox.typing.util.backends.numpy import NumpyBkd
 from pyapprox.typing.util.backends.torch import TorchBkd
@@ -31,6 +33,15 @@ from pyapprox.typing.interface.functions.derivative_checks.derivative_checker im
 from pyapprox.typing.interface.functions.fromcallable.jacobian import (
     FunctionWithJacobianFromCallable,
 )
+
+# Test configurations for bounds: (name, lb, ub)
+COND_BETA_BOUNDS_CONFIGS = [
+    ("canonical", 0.0, 1.0),
+    ("scaled_02", 0.0, 2.0),
+    ("shifted_25", 2.0, 5.0),
+    ("negative", -1.0, 3.0),
+    ("wide", -10.0, 10.0),
+]
 
 
 class TestConditionalBeta(Generic[Array], unittest.TestCase):
@@ -319,6 +330,256 @@ class TestConditionalBetaTorch(TestConditionalBeta[torch.Tensor]):
         # autograd_jac shape: (nsamples, nactive)
 
         bkd.assert_allclose(analytical_jac, autograd_jac, rtol=1e-10)
+
+
+class TestConditionalBetaBounded(
+    Generic[Array], ParametrizedTestCase, unittest.TestCase
+):
+    """Parametrized tests for ConditionalBeta with various bounds."""
+
+    __test__ = False
+
+    def bkd(self) -> Backend[Array]:
+        raise NotImplementedError
+
+    def _create_basis_expansion(
+        self, nvars: int, max_level: int, nqoi: int = 1
+    ) -> BasisExpansion:
+        """Helper to create a Legendre basis expansion."""
+        bkd = self.bkd()
+        bases_1d = [LegendrePolynomial1D(bkd) for _ in range(nvars)]
+        indices = compute_hyperbolic_indices(nvars, max_level, 1.0, bkd)
+        basis = OrthonormalPolynomialBasis(bases_1d, bkd, indices)
+        return BasisExpansion(basis, bkd, nqoi=nqoi)
+
+    def _create_conditional_beta_with_bounds(
+        self, nvars: int, lb: float, ub: float, max_level: int = 2
+    ) -> ConditionalBeta:
+        """Helper to create a ConditionalBeta with bounds."""
+        bkd = self.bkd()
+        log_alpha_func = self._create_basis_expansion(nvars, max_level, nqoi=1)
+        log_beta_func = self._create_basis_expansion(nvars, max_level, nqoi=1)
+
+        np.random.seed(42)
+        log_alpha_func.set_coefficients(
+            bkd.asarray(0.5 + 0.5 * np.random.randn(log_alpha_func.nterms(), 1))
+        )
+        log_beta_func.set_coefficients(
+            bkd.asarray(0.5 + 0.5 * np.random.randn(log_beta_func.nterms(), 1))
+        )
+
+        return ConditionalBeta(log_alpha_func, log_beta_func, bkd, lb=lb, ub=ub)
+
+    @parametrize("name,lb,ub", COND_BETA_BOUNDS_CONFIGS)
+    def test_bounds_accessors(self, name: str, lb: float, ub: float) -> None:
+        """Test bounds accessor methods."""
+        bkd = self.bkd()
+        cond = self._create_conditional_beta_with_bounds(nvars=1, lb=lb, ub=ub)
+        bkd.assert_allclose(
+            bkd.asarray([cond.lower()]), bkd.asarray([lb]), atol=1e-10
+        )
+        bkd.assert_allclose(
+            bkd.asarray([cond.upper()]), bkd.asarray([ub]), atol=1e-10
+        )
+        lower, upper = cond.bounds()
+        bkd.assert_allclose(
+            bkd.asarray([lower, upper]), bkd.asarray([lb, ub]), atol=1e-10
+        )
+
+    @parametrize("name,lb,ub", COND_BETA_BOUNDS_CONFIGS)
+    def test_logpdf_matches_scipy_bounded(
+        self, name: str, lb: float, ub: float
+    ) -> None:
+        """Test logpdf matches scipy with loc/scale for constant alpha/beta."""
+        bkd = self.bkd()
+        scale = ub - lb
+
+        # Create constant functions (degree-0 polynomial)
+        log_alpha_func = self._create_basis_expansion(nvars=1, max_level=0, nqoi=1)
+        log_beta_func = self._create_basis_expansion(nvars=1, max_level=0, nqoi=1)
+
+        alpha_val = 2.5
+        beta_val = 3.0
+        log_alpha_func.set_coefficients(bkd.asarray([[np.log(alpha_val)]]))
+        log_beta_func.set_coefficients(bkd.asarray([[np.log(beta_val)]]))
+
+        cond = ConditionalBeta(log_alpha_func, log_beta_func, bkd, lb=lb, ub=ub)
+
+        np.random.seed(42)
+        nsamples = 10
+        x = bkd.asarray(np.random.uniform(-0.9, 0.9, (1, nsamples)))
+        # y values in [lb, ub]
+        y_vals = lb + 0.1 * scale + 0.8 * scale * np.random.uniform(0, 1, nsamples)
+        y = bkd.asarray(y_vals.reshape(1, -1))
+
+        log_probs = cond.logpdf(x, y)
+
+        # Compare with scipy (using loc/scale)
+        scipy_log_probs = stats.beta.logpdf(
+            bkd.to_numpy(y[0, :]), a=alpha_val, b=beta_val, loc=lb, scale=scale
+        )
+
+        bkd.assert_allclose(log_probs[0, :], bkd.asarray(scipy_log_probs), rtol=1e-10)
+
+    @parametrize("name,lb,ub", COND_BETA_BOUNDS_CONFIGS)
+    def test_rvs_in_bounds(self, name: str, lb: float, ub: float) -> None:
+        """Test rvs produces samples in [lb, ub]."""
+        bkd = self.bkd()
+        cond = self._create_conditional_beta_with_bounds(nvars=1, lb=lb, ub=ub)
+
+        np.random.seed(42)
+        nsamples = 1000
+        x = bkd.asarray(np.random.uniform(-0.9, 0.9, (1, nsamples)))
+        samples = cond.rvs(x)
+
+        samples_np = bkd.to_numpy(samples)
+        self.assertTrue(np.all(samples_np >= lb))
+        self.assertTrue(np.all(samples_np <= ub))
+
+    @parametrize("name,lb,ub", COND_BETA_BOUNDS_CONFIGS)
+    def test_rvs_statistics_bounded(self, name: str, lb: float, ub: float) -> None:
+        """Test rvs generates samples with correct mean for bounded domain."""
+        bkd = self.bkd()
+        scale = ub - lb
+
+        # Create constant functions
+        log_alpha_func = self._create_basis_expansion(nvars=1, max_level=0, nqoi=1)
+        log_beta_func = self._create_basis_expansion(nvars=1, max_level=0, nqoi=1)
+
+        alpha_val = 2.0
+        beta_val = 5.0
+        log_alpha_func.set_coefficients(bkd.asarray([[np.log(alpha_val)]]))
+        log_beta_func.set_coefficients(bkd.asarray([[np.log(beta_val)]]))
+
+        cond = ConditionalBeta(log_alpha_func, log_beta_func, bkd, lb=lb, ub=ub)
+
+        nsamples = 10000
+        x = bkd.zeros((1, nsamples))
+
+        np.random.seed(42)
+        samples = cond.rvs(x)
+
+        sample_mean = float(bkd.to_numpy(bkd.mean(samples)))
+        # Expected mean on [lb, ub]: lb + scale * E[Y] where Y ~ Beta on [0, 1]
+        expected_mean = lb + scale * alpha_val / (alpha_val + beta_val)
+
+        self.assertAlmostEqual(sample_mean, expected_mean, delta=0.05 * scale)
+
+    @parametrize("name,lb,ub", COND_BETA_BOUNDS_CONFIGS)
+    def test_logpdf_jacobian_wrt_x_bounded(
+        self, name: str, lb: float, ub: float
+    ) -> None:
+        """Test logpdf_jacobian_wrt_x using DerivativeChecker for bounded domain."""
+        bkd = self.bkd()
+        cond = self._create_conditional_beta_with_bounds(
+            nvars=2, lb=lb, ub=ub, max_level=2
+        )
+        scale = ub - lb
+
+        np.random.seed(42)
+        # y in (lb, ub), stay away from boundaries
+        y_val = lb + 0.4 * scale
+        y = bkd.asarray([[y_val]])
+
+        def fun(x: Array) -> Array:
+            return cond.logpdf(x, y).T
+
+        def jacobian_func(x: Array) -> Array:
+            return cond.logpdf_jacobian_wrt_x(x, y)
+
+        function_obj = FunctionWithJacobianFromCallable(
+            nqoi=1, nvars=cond.nvars(), fun=fun, jacobian=jacobian_func, bkd=bkd
+        )
+
+        checker = DerivativeChecker(function_obj)
+        sample = bkd.asarray(np.random.uniform(-0.9, 0.9, (2, 1)))
+        errors = checker.check_derivatives(sample, verbosity=0)
+        self.assertLess(float(checker.error_ratio(errors[0])), 1e-5)
+
+    @parametrize("name,lb,ub", COND_BETA_BOUNDS_CONFIGS)
+    def test_logpdf_jacobian_wrt_params_bounded(
+        self, name: str, lb: float, ub: float
+    ) -> None:
+        """Test logpdf_jacobian_wrt_params using DerivativeChecker for bounded."""
+        bkd = self.bkd()
+        cond = self._create_conditional_beta_with_bounds(
+            nvars=2, lb=lb, ub=ub, max_level=2
+        )
+        scale = ub - lb
+
+        np.random.seed(42)
+        x = bkd.asarray(np.random.uniform(-0.9, 0.9, (2, 1)))
+        y_val = lb + 0.4 * scale
+        y = bkd.asarray([[y_val]])
+
+        nactive = cond.nparams()
+
+        def fun(params: Array) -> Array:
+            cond.hyp_list().set_active_values(params[:, 0])
+            cond._log_alpha_func._sync_from_hyp_list()
+            cond._log_beta_func._sync_from_hyp_list()
+            return cond.logpdf(x, y).T
+
+        def jacobian_func(params: Array) -> Array:
+            cond.hyp_list().set_active_values(params[:, 0])
+            cond._log_alpha_func._sync_from_hyp_list()
+            cond._log_beta_func._sync_from_hyp_list()
+            jac = cond.logpdf_jacobian_wrt_params(x, y)
+            return jac
+
+        function_obj = FunctionWithJacobianFromCallable(
+            nqoi=1, nvars=nactive, fun=fun, jacobian=jacobian_func, bkd=bkd
+        )
+
+        checker = DerivativeChecker(function_obj)
+        params = cond.hyp_list().get_active_values()
+        sample_params = bkd.reshape(params, (nactive, 1))
+        errors = checker.check_derivatives(sample_params, verbosity=0)
+        self.assertLess(float(checker.error_ratio(errors[0])), 1e-5)
+
+
+class TestConditionalBetaBoundedNumpy(TestConditionalBetaBounded[NDArray[Any]]):
+    """NumPy backend parametrized tests for ConditionalBeta with bounds."""
+
+    def bkd(self) -> NumpyBkd:
+        return NumpyBkd()
+
+
+class TestConditionalBetaBoundedTorch(TestConditionalBetaBounded[torch.Tensor]):
+    """PyTorch backend parametrized tests for ConditionalBeta with bounds."""
+
+    def bkd(self) -> TorchBkd:
+        torch.set_default_dtype(torch.float64)
+        return TorchBkd()
+
+
+class TestConditionalBetaBoundsValidation(unittest.TestCase):
+    """Tests for bounds validation in ConditionalBeta."""
+
+    def _create_simple_expansion(self, bkd: Backend) -> BasisExpansion:
+        """Create a simple constant basis expansion."""
+        bases_1d = [LegendrePolynomial1D(bkd)]
+        indices = compute_hyperbolic_indices(1, 0, 1.0, bkd)
+        basis = OrthonormalPolynomialBasis(bases_1d, bkd, indices)
+        exp = BasisExpansion(basis, bkd, nqoi=1)
+        exp.set_coefficients(bkd.asarray([[0.5]]))
+        return exp
+
+    def test_invalid_bounds_lb_equals_ub(self) -> None:
+        """Test that lb == ub raises ValueError."""
+        bkd = NumpyBkd()
+        log_alpha = self._create_simple_expansion(bkd)
+        log_beta = self._create_simple_expansion(bkd)
+        with self.assertRaises(ValueError):
+            ConditionalBeta(log_alpha, log_beta, bkd, lb=1.0, ub=1.0)
+
+    def test_invalid_bounds_lb_greater_ub(self) -> None:
+        """Test that lb > ub raises ValueError."""
+        bkd = NumpyBkd()
+        log_alpha = self._create_simple_expansion(bkd)
+        log_beta = self._create_simple_expansion(bkd)
+        with self.assertRaises(ValueError):
+            ConditionalBeta(log_alpha, log_beta, bkd, lb=2.0, ub=1.0)
 
 
 if __name__ == "__main__":

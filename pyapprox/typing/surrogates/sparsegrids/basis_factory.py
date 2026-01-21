@@ -460,8 +460,9 @@ def get_transform_from_marginal(
         )
 
     if isinstance(marginal, BetaMarginal):
-        # Beta is on [0, 1], Jacobi polynomials are on [-1, 1]
-        return BoundedAffineTransform1D(bkd, 0.0, 1.0)
+        # Beta is on [lb, ub], Jacobi polynomials are on [-1, 1]
+        lb, ub = marginal.bounds()
+        return BoundedAffineTransform1D(bkd, lb, ub)
 
     if isinstance(marginal, GammaMarginal):
         # Laguerre polynomials with scale parameter

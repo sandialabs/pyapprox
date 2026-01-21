@@ -5,7 +5,8 @@ Provides a conditional Beta distribution where the log-shape parameters
 are functions of the conditioning variable.
 """
 
-from typing import Generic
+import math
+from typing import Generic, Tuple
 
 import numpy as np
 
@@ -34,6 +35,10 @@ class ConditionalBeta(Generic[Array]):
         Function mapping x to log(beta). Same interface as log_alpha_func.
     bkd : Backend[Array]
         Computational backend.
+    lb : float, optional
+        Lower bound of the support. Default is 0.0.
+    ub : float, optional
+        Upper bound of the support. Default is 1.0.
 
     Examples
     --------
@@ -47,7 +52,7 @@ class ConditionalBeta(Generic[Array]):
     >>>
     >>> cond = ConditionalBeta(log_alpha_func, log_beta_func, bkd)
     >>> x = bkd.array([[0.5, 0.7]])  # Shape: (nvars=1, nsamples=2)
-    >>> y = bkd.array([[0.3, 0.6]])  # Shape: (nqoi=1, nsamples=2), must be in (0, 1)
+    >>> y = bkd.array([[0.3, 0.6]])  # Shape: (nqoi=1, nsamples=2), must be in (lb, ub)
     >>> log_probs = cond.logpdf(x, y)  # Shape: (1, 2)
     """
 
@@ -56,10 +61,20 @@ class ConditionalBeta(Generic[Array]):
         log_alpha_func: Generic[Array],
         log_beta_func: Generic[Array],
         bkd: Backend[Array],
+        lb: float = 0.0,
+        ub: float = 1.0,
     ):
         self._log_alpha_func = log_alpha_func
         self._log_beta_func = log_beta_func
         self._bkd = bkd
+
+        # Validate and store bounds (NOT hyperparameters - fixed values)
+        if lb >= ub:
+            raise ValueError(f"lb must be < ub, got lb={lb}, ub={ub}")
+        self._lb = float(lb)
+        self._ub = float(ub)
+        self._scale = self._ub - self._lb
+        self._log_scale = math.log(self._scale)
 
         # Validate that both functions have nqoi=1
         if log_alpha_func.nqoi() != 1:
@@ -124,6 +139,18 @@ class ConditionalBeta(Generic[Array]):
         """Return the number of output variables (always 1)."""
         return 1
 
+    def lower(self) -> float:
+        """Return the lower bound of the support."""
+        return self._lb
+
+    def upper(self) -> float:
+        """Return the upper bound of the support."""
+        return self._ub
+
+    def bounds(self) -> Tuple[float, float]:
+        """Return the support bounds (lb, ub)."""
+        return (self._lb, self._ub)
+
     def _validate_inputs(self, x: Array, y: Array) -> None:
         """Validate input shapes."""
         if x.ndim != 2:
@@ -154,7 +181,7 @@ class ConditionalBeta(Generic[Array]):
         x : Array
             Conditioning variable values. Shape: (nvars, nsamples)
         y : Array
-            Output variable values. Shape: (1, nsamples). Must be in (0, 1).
+            Output variable values. Shape: (1, nsamples). Must be in (lb, ub).
 
         Returns
         -------
@@ -162,6 +189,9 @@ class ConditionalBeta(Generic[Array]):
             Log PDF values. Shape: (1, nsamples)
         """
         self._validate_inputs(x, y)
+
+        # Transform y from [lb, ub] to [0, 1]
+        y_01 = (y - self._lb) / self._scale
 
         log_alpha = self._log_alpha_func(x)  # (1, nsamples)
         log_beta = self._log_beta_func(x)  # (1, nsamples)
@@ -175,10 +205,16 @@ class ConditionalBeta(Generic[Array]):
             - self._bkd.gammaln(alpha + beta)
         )
 
-        log_y = self._bkd.log(y)
-        log_1my = self._bkd.log(1.0 - y)
+        log_y = self._bkd.log(y_01)
+        log_1my = self._bkd.log(1.0 - y_01)
 
-        return (alpha - 1.0) * log_y + (beta - 1.0) * log_1my - log_beta_func
+        # Include Jacobian correction: -log(scale)
+        return (
+            (alpha - 1.0) * log_y
+            + (beta - 1.0) * log_1my
+            - log_beta_func
+            - self._log_scale
+        )
 
     def rvs(self, x: Array) -> Array:
         """
@@ -192,7 +228,7 @@ class ConditionalBeta(Generic[Array]):
         Returns
         -------
         Array
-            Random samples. Shape: (1, nsamples). Values are in (0, 1).
+            Random samples. Shape: (1, nsamples). Values are in (lb, ub).
         """
         if x.ndim != 2:
             raise ValueError(f"x must be 2D, got {x.ndim}D")
@@ -208,7 +244,9 @@ class ConditionalBeta(Generic[Array]):
             self._bkd.exp(self._log_beta_func(x))
         ).flatten()
 
-        samples = np.random.beta(alpha, beta)
+        # Generate samples on [0, 1] and transform to [lb, ub]
+        samples_01 = np.random.beta(alpha, beta)
+        samples = self._lb + samples_01 * self._scale
         return self._bkd.reshape(self._bkd.asarray(samples), (1, -1))
 
     def _logpdf_jacobian_wrt_x(self, x: Array, y: Array) -> Array:
@@ -224,7 +262,7 @@ class ConditionalBeta(Generic[Array]):
         x : Array
             Conditioning variable values. Shape: (nvars, 1)
         y : Array
-            Output variable values. Shape: (1, 1)
+            Output variable values. Shape: (1, 1). Must be in (lb, ub).
 
         Returns
         -------
@@ -233,24 +271,27 @@ class ConditionalBeta(Generic[Array]):
         """
         self._validate_inputs(x, y)
 
+        # Transform y from [lb, ub] to [0, 1]
+        y_01 = (y - self._lb) / self._scale
+
         log_alpha = self._log_alpha_func(x)  # (1, 1)
         log_beta = self._log_beta_func(x)  # (1, 1)
         alpha = self._bkd.exp(log_alpha)
         beta = self._bkd.exp(log_beta)
 
-        log_y = self._bkd.log(y)
-        log_1my = self._bkd.log(1.0 - y)
+        log_y = self._bkd.log(y_01)
+        log_1my = self._bkd.log(1.0 - y_01)
 
         # Digamma terms
         psi_alpha = self._bkd.digamma(alpha)
         psi_beta = self._bkd.digamma(beta)
         psi_sum = self._bkd.digamma(alpha + beta)
 
-        # d(logpdf)/d(alpha) = log(y) - psi(alpha) + psi(alpha+beta)
+        # d(logpdf)/d(alpha) = log(y_01) - psi(alpha) + psi(alpha+beta)
         # d(logpdf)/d(log_alpha) = alpha * d(logpdf)/d(alpha)
         dlogpdf_dlogalpha = alpha * (log_y - psi_alpha + psi_sum)
 
-        # d(logpdf)/d(beta) = log(1-y) - psi(beta) + psi(alpha+beta)
+        # d(logpdf)/d(beta) = log(1-y_01) - psi(beta) + psi(alpha+beta)
         # d(logpdf)/d(log_beta) = beta * d(logpdf)/d(beta)
         dlogpdf_dlogbeta = beta * (log_1my - psi_beta + psi_sum)
 
@@ -259,7 +300,7 @@ class ConditionalBeta(Generic[Array]):
         dlogalpha_dx = self._log_alpha_func.jacobian(x)  # (1, nvars)
         dlogbeta_dx = self._log_beta_func.jacobian(x)  # (1, nvars)
 
-        # Chain rule
+        # Chain rule (Jacobian correction from scale is constant, doesn't affect derivative)
         result = dlogpdf_dlogalpha * dlogalpha_dx + dlogpdf_dlogbeta * dlogbeta_dx
 
         return result  # (1, nvars)
@@ -275,7 +316,7 @@ class ConditionalBeta(Generic[Array]):
         x : Array
             Conditioning variable values. Shape: (nvars, nsamples)
         y : Array
-            Output variable values. Shape: (1, nsamples)
+            Output variable values. Shape: (1, nsamples). Must be in (lb, ub).
 
         Returns
         -------
@@ -284,24 +325,27 @@ class ConditionalBeta(Generic[Array]):
         """
         self._validate_inputs(x, y)
 
+        # Transform y from [lb, ub] to [0, 1]
+        y_01 = (y - self._lb) / self._scale
+
         nsamples = x.shape[1]
         log_alpha = self._log_alpha_func(x)  # (1, nsamples)
         log_beta = self._log_beta_func(x)  # (1, nsamples)
         alpha = self._bkd.exp(log_alpha)
         beta = self._bkd.exp(log_beta)
 
-        log_y = self._bkd.log(y)
-        log_1my = self._bkd.log(1.0 - y)
+        log_y = self._bkd.log(y_01)
+        log_1my = self._bkd.log(1.0 - y_01)
 
         # Digamma terms
         psi_alpha = self._bkd.digamma(alpha)
         psi_beta = self._bkd.digamma(beta)
         psi_sum = self._bkd.digamma(alpha + beta)
 
-        # d(logpdf)/d(log_alpha) = alpha * (log(y) - psi(alpha) + psi(alpha+beta))
+        # d(logpdf)/d(log_alpha) = alpha * (log(y_01) - psi(alpha) + psi(alpha+beta))
         dlogpdf_dlogalpha = alpha * (log_y - psi_alpha + psi_sum)
 
-        # d(logpdf)/d(log_beta) = beta * (log(1-y) - psi(beta) + psi(alpha+beta))
+        # d(logpdf)/d(log_beta) = beta * (log(1-y_01) - psi(beta) + psi(alpha+beta))
         dlogpdf_dlogbeta = beta * (log_1my - psi_beta + psi_sum)
 
         # Get Jacobians of log_alpha and log_beta w.r.t. their params
@@ -313,7 +357,7 @@ class ConditionalBeta(Generic[Array]):
             x
         )  # (nsamples, 1, n_beta_params)
 
-        # Chain rule
+        # Chain rule (Jacobian correction from scale is constant, doesn't affect derivative)
         # dlogpdf_dlogalpha: (1, nsamples) -> need (nsamples, 1, 1) for broadcasting
         dlogpdf_dlogalpha_expanded = self._bkd.reshape(
             dlogpdf_dlogalpha.T, (nsamples, 1, 1)
@@ -340,6 +384,7 @@ class ConditionalBeta(Generic[Array]):
         """Return string representation."""
         return (
             f"ConditionalBeta(nvars={self.nvars()}, nqoi={self.nqoi()}, "
+            f"lb={self._lb}, ub={self._ub}, "
             f"log_alpha_func={self._log_alpha_func}, "
             f"log_beta_func={self._log_beta_func})"
         )

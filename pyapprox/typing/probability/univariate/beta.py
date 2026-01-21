@@ -116,7 +116,7 @@ class _BetaCDFNewtonResidual(Generic[Array]):
 
 class BetaMarginal(Generic[Array]):
     """
-    Beta distribution on [0, 1] with autograd support.
+    Beta distribution on [lb, ub] with autograd support.
 
     Implements MarginalWithJacobianProtocol with analytical formulas for
     PDF and logpdf, and numerical quadrature for CDF (autograd-compatible).
@@ -124,7 +124,8 @@ class BetaMarginal(Generic[Array]):
     The Beta distribution has PDF:
         f(x; a, b) = x^{a-1} (1-x)^{b-1} / B(a, b)
 
-    where B(a, b) is the beta function.
+    where B(a, b) is the beta function. When lb and ub are specified,
+    the distribution is scaled and shifted to [lb, ub].
 
     Parameters
     ----------
@@ -134,6 +135,10 @@ class BetaMarginal(Generic[Array]):
         Shape parameter beta (b > 0).
     bkd : Backend[Array]
         The backend to use for computations.
+    lb : float, optional
+        Lower bound of the distribution support. Default is 0.0.
+    ub : float, optional
+        Upper bound of the distribution support. Default is 1.0.
     quadrature_rule : UniformQuadratureRule01Protocol[Array], optional
         Quadrature rule on [0, 1] with Lebesgue measure for CDF computation.
         If not provided, uses ScipyGaussLegendreQuadrature01.
@@ -145,8 +150,10 @@ class BetaMarginal(Generic[Array]):
     >>> import numpy as np
     >>> from pyapprox.typing.util.backends.numpy import NumpyBkd
     >>> bkd = NumpyBkd()
-    >>> # Default quadrature rule is used automatically
+    >>> # Default: Beta on [0, 1]
     >>> dist = BetaMarginal(alpha=2.0, beta=5.0, bkd=bkd)
+    >>> # Beta on [2, 5]
+    >>> dist2 = BetaMarginal(alpha=2.0, beta=5.0, bkd=bkd, lb=2.0, ub=5.0)
     >>> samples = np.array([[0.1, 0.3, 0.5]])  # Shape: (1, 3)
     >>> pdf_vals = dist(samples)  # PDF values, shape: (1, 3)
     >>> cdf_vals = dist.cdf(samples)  # CDF values, shape: (1, 3)
@@ -157,6 +164,8 @@ class BetaMarginal(Generic[Array]):
         alpha: float,
         beta: float,
         bkd: Backend[Array],
+        lb: float = 0.0,
+        ub: float = 1.0,
         quadrature_rule: Optional[UniformQuadratureRule01Protocol[Array]] = None,
         nquad_samples: int = 50,
     ):
@@ -168,8 +177,15 @@ class BetaMarginal(Generic[Array]):
             raise ValueError(f"alpha must be positive, got {alpha_val}")
         if beta_val <= 0:
             raise ValueError(f"beta must be positive, got {beta_val}")
+        if lb >= ub:
+            raise ValueError(f"lb must be < ub, got lb={lb}, ub={ub}")
 
         self._bkd = bkd
+
+        # Store bounds (NOT hyperparameters - fixed values)
+        self._lb = float(lb)
+        self._ub = float(ub)
+        self._scale = self._ub - self._lb
 
         # Create hyperparameter list for parameter optimization
         # Both alpha and beta are positive, use log transform
@@ -204,7 +220,8 @@ class BetaMarginal(Generic[Array]):
         self._setup_newton_solver()
 
         # Store scipy distribution for initial guess and rvs
-        self._scipy_rv = stats.beta(alpha_val, beta_val)
+        # Use loc=lb, scale=ub-lb for bounded Beta
+        self._scipy_rv = stats.beta(alpha_val, beta_val, loc=self._lb, scale=self._scale)
 
     def _setup_quadrature(
         self,
@@ -331,7 +348,7 @@ class BetaMarginal(Generic[Array]):
         ----------
         samples : Array
             Points at which to evaluate the log PDF. Shape: (1, nsamples) - must be 2D.
-            Values must be in [0, 1].
+            Values must be in [lb, ub].
 
         Returns
         -------
@@ -344,21 +361,26 @@ class BetaMarginal(Generic[Array]):
             If input is not 2D or has wrong first dimension
         """
         samples_1d = self._validate_input(samples)
+
+        # Transform from [lb, ub] to [0, 1]
+        samples_01 = (samples_1d - self._lb) / self._scale
+
         alpha = self._get_alpha()
         beta = self._get_beta()
-        # log f(x) = (a-1)*log(x) + (b-1)*log(1-x) - log(B(a,b))
+        # log f(x) = (a-1)*log(x) + (b-1)*log(1-x) - log(B(a,b)) - log(scale)
         # log(B(a,b)) = gammaln(a) + gammaln(b) - gammaln(a+b)
         log_beta_func = (
             self._bkd.gammaln(alpha)
             + self._bkd.gammaln(beta)
             - self._bkd.gammaln(alpha + beta)
         )
-        log_x = self._bkd.log(samples_1d)
-        log_1mx = self._bkd.log(1.0 - samples_1d)
+        log_x = self._bkd.log(samples_01)
+        log_1mx = self._bkd.log(1.0 - samples_01)
         result = (
             (alpha - 1.0) * log_x
             + (beta - 1.0) * log_1mx
             - log_beta_func
+            - math.log(self._scale)  # Jacobian correction
         )
         return self._bkd.reshape(result, (1, -1))
 
@@ -421,7 +443,7 @@ class BetaMarginal(Generic[Array]):
         ----------
         samples : Array
             Points at which to evaluate the CDF. Shape: (1, nsamples) - must be 2D.
-            Values must be in [0, 1].
+            Values must be in [lb, ub].
 
         Returns
         -------
@@ -436,7 +458,9 @@ class BetaMarginal(Generic[Array]):
             If quadrature rule was not provided at construction
         """
         samples_1d = self._validate_input(samples)
-        result = self._betainc(samples_1d)
+        # Transform from [lb, ub] to [0, 1]
+        samples_01 = (samples_1d - self._lb) / self._scale
+        result = self._betainc(samples_01)
         return self._bkd.reshape(result, (1, -1))
 
     def invcdf(self, probs: Array) -> Array:
@@ -454,7 +478,7 @@ class BetaMarginal(Generic[Array]):
         Returns
         -------
         Array
-            Quantile values in [0, 1]. Shape: (1, nsamples)
+            Quantile values in [lb, ub]. Shape: (1, nsamples)
 
         Raises
         ------
@@ -470,7 +494,7 @@ class BetaMarginal(Generic[Array]):
         probs_1d = self._validate_input(probs)
         probs_flat = self._bkd.flatten(probs_1d)
 
-        # Handle boundary cases
+        # Handle boundary cases (use lb and ub instead of 0 and 1)
         idx0 = self._bkd.where(probs_flat == 0.0)[0]
         idx1 = self._bkd.where(probs_flat == 1.0)[0]
         jdx = self._bkd.where((probs_flat != 0.0) & (probs_flat != 1.0))[0]
@@ -479,14 +503,14 @@ class BetaMarginal(Generic[Array]):
         result = self._bkd.zeros_like(probs_flat)
 
         if len(idx0) > 0:
-            result = self._set_indices(result, idx0, 0.0)
+            result = self._set_indices(result, idx0, self._lb)
         if len(idx1) > 0:
-            result = self._set_indices(result, idx1, 1.0)
+            result = self._set_indices(result, idx1, self._ub)
 
         if len(jdx) == 0:
             return self._bkd.reshape(result, (1, -1))
 
-        # Get scipy initial guess
+        # Get scipy initial guess (already returns values in [lb, ub])
         probs_np = self._bkd.to_numpy(probs_flat[jdx])
         init_guess = self._bkd.asarray(self._scipy_rv.ppf(probs_np))
 
@@ -555,29 +579,36 @@ class BetaMarginal(Generic[Array]):
         Returns
         -------
         Array
-            Random samples. Shape: (1, nsamples) for protocol compliance.
+            Random samples in [lb, ub]. Shape: (1, nsamples) for protocol compliance.
         """
-        samples = np.random.beta(self.alpha(), self.beta(), nsamples)
+        # Generate samples in [0, 1] and transform to [lb, ub]
+        samples_01 = np.random.beta(self.alpha(), self.beta(), nsamples)
+        samples = self._lb + samples_01 * self._scale
         return self._bkd.reshape(self._bkd.asarray(samples), (1, nsamples))
 
     def mean_value(self) -> float:
         """
         Return the mean of the distribution.
 
-        mean = alpha / (alpha + beta)
+        mean = lb + scale * alpha / (alpha + beta)
+
+        For Beta on [0, 1], this is alpha / (alpha + beta).
 
         Returns
         -------
         float
             Mean value.
         """
-        return self.alpha() / (self.alpha() + self.beta())
+        mean_01 = self.alpha() / (self.alpha() + self.beta())
+        return self._lb + self._scale * mean_01
 
     def variance(self) -> float:
         """
         Return the variance of the distribution.
 
-        variance = alpha * beta / ((alpha + beta)^2 * (alpha + beta + 1))
+        variance = scale^2 * alpha * beta / ((alpha + beta)^2 * (alpha + beta + 1))
+
+        For Beta on [0, 1], this is alpha * beta / ((alpha + beta)^2 * (alpha + beta + 1)).
 
         Returns
         -------
@@ -585,7 +616,8 @@ class BetaMarginal(Generic[Array]):
             Variance value.
         """
         ab = self.alpha() + self.beta()
-        return (self.alpha() * self.beta()) / (ab**2 * (ab + 1))
+        var_01 = (self.alpha() * self.beta()) / (ab**2 * (ab + 1))
+        return self._scale**2 * var_01
 
     def std(self) -> float:
         """
@@ -605,9 +637,31 @@ class BetaMarginal(Generic[Array]):
         Returns
         -------
         bool
-            True for Beta (bounded on [0, 1]).
+            True for Beta (bounded on [lb, ub]).
         """
         return True
+
+    def lower(self) -> float:
+        """
+        Return the lower bound.
+
+        Returns
+        -------
+        float
+            Lower bound of the support.
+        """
+        return self._lb
+
+    def upper(self) -> float:
+        """
+        Return the upper bound.
+
+        Returns
+        -------
+        float
+            Upper bound of the support.
+        """
+        return self._ub
 
     def bounds(self) -> Tuple[float, float]:
         """
@@ -616,9 +670,9 @@ class BetaMarginal(Generic[Array]):
         Returns
         -------
         Tuple[float, float]
-            Lower and upper bounds (0, 1).
+            Lower and upper bounds (lb, ub).
         """
-        return (0.0, 1.0)
+        return (self._lb, self._ub)
 
     def interval(self, alpha: float) -> Array:
         """
@@ -643,7 +697,9 @@ class BetaMarginal(Generic[Array]):
         """
         Compute the Jacobian of the log PDF.
 
-        d/dx log f(x) = (a-1)/x - (b-1)/(1-x)
+        For x in [lb, ub], let t = (x - lb) / scale be in [0, 1].
+        d/dx log f(x) = (d/dt log f_01(t)) * (1/scale)
+                      = ((a-1)/t - (b-1)/(1-t)) / scale
 
         Parameters
         ----------
@@ -661,9 +717,14 @@ class BetaMarginal(Generic[Array]):
             If input is not 2D or has wrong first dimension
         """
         samples_1d = self._validate_input(samples)
+        # Transform to [0, 1]
+        samples_01 = (samples_1d - self._lb) / self._scale
         alpha = self._get_alpha()
         beta = self._get_beta()
-        grad = (alpha - 1.0) / samples_1d - (beta - 1.0) / (1.0 - samples_1d)
+        # Derivative w.r.t. t on [0, 1]
+        grad_01 = (alpha - 1.0) / samples_01 - (beta - 1.0) / (1.0 - samples_01)
+        # Chain rule: d/dx = (1/scale) * d/dt
+        grad = grad_01 / self._scale
         return self._bkd.reshape(grad, (1, -1))
 
     def pdf_jacobian(self, samples: Array) -> Array:
@@ -694,14 +755,18 @@ class BetaMarginal(Generic[Array]):
         """
         Compute the Jacobian of log PDF w.r.t. distribution parameters.
 
-        For Beta(alpha, beta), log PDF is:
-        logpdf = (a-1)*log(x) + (b-1)*log(1-x) - log(B(a,b))
+        For Beta(alpha, beta) on [lb, ub], log PDF is:
+        logpdf = (a-1)*log(t) + (b-1)*log(1-t) - log(B(a,b)) - log(scale)
 
-        where log(B(a,b)) = gammaln(a) + gammaln(b) - gammaln(a+b)
+        where t = (x - lb) / scale is in [0, 1].
+        log(B(a,b)) = gammaln(a) + gammaln(b) - gammaln(a+b)
 
         Derivatives in log-space (optimizer sees log_alpha, log_beta):
-        d(logpdf)/d(log_alpha) = alpha * (log(x) - psi(alpha) + psi(alpha+beta))
-        d(logpdf)/d(log_beta) = beta * (log(1-x) - psi(beta) + psi(alpha+beta))
+        d(logpdf)/d(log_alpha) = alpha * (log(t) - psi(alpha) + psi(alpha+beta))
+        d(logpdf)/d(log_beta) = beta * (log(1-t) - psi(beta) + psi(alpha+beta))
+
+        Note: The -log(scale) term is constant w.r.t. alpha, beta, so it doesn't
+        affect the parameter jacobian.
 
         Parameters
         ----------
@@ -717,22 +782,25 @@ class BetaMarginal(Generic[Array]):
             Column 1: d(logpdf)/d(log_beta)
         """
         samples_1d = self._validate_input(samples)
+        # Transform to [0, 1]
+        samples_01 = (samples_1d - self._lb) / self._scale
+
         alpha = self._get_alpha()
         beta = self._get_beta()
 
-        log_x = self._bkd.log(samples_1d)
-        log_1mx = self._bkd.log(1.0 - samples_1d)
+        log_x = self._bkd.log(samples_01)
+        log_1mx = self._bkd.log(1.0 - samples_01)
 
         # Digamma terms
         psi_alpha = self._bkd.digamma(alpha)
         psi_beta = self._bkd.digamma(beta)
         psi_sum = self._bkd.digamma(alpha + beta)
 
-        # d(logpdf)/d(alpha) = log(x) - psi(alpha) + psi(alpha+beta)
+        # d(logpdf)/d(alpha) = log(t) - psi(alpha) + psi(alpha+beta)
         # d(logpdf)/d(log_alpha) = alpha * d(logpdf)/d(alpha)
         d_log_alpha = alpha * (log_x - psi_alpha + psi_sum)
 
-        # d(logpdf)/d(beta) = log(1-x) - psi(beta) + psi(alpha+beta)
+        # d(logpdf)/d(beta) = log(1-t) - psi(beta) + psi(alpha+beta)
         # d(logpdf)/d(log_beta) = beta * d(logpdf)/d(beta)
         d_log_beta = beta * (log_1mx - psi_beta + psi_sum)
 
@@ -743,8 +811,16 @@ class BetaMarginal(Generic[Array]):
         """Check equality with another BetaMarginal."""
         if not isinstance(other, BetaMarginal):
             return False
-        return self.alpha() == other.alpha() and self.beta() == other.beta()
+        return (
+            self.alpha() == other.alpha()
+            and self.beta() == other.beta()
+            and self._lb == other._lb
+            and self._ub == other._ub
+        )
 
     def __repr__(self) -> str:
         """Return string representation."""
-        return f"BetaMarginal(alpha={self.alpha()}, beta={self.beta()})"
+        return (
+            f"BetaMarginal(alpha={self.alpha()}, beta={self.beta()}, "
+            f"lb={self._lb}, ub={self._ub})"
+        )
