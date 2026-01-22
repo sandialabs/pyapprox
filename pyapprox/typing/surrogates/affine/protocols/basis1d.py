@@ -378,3 +378,83 @@ class Basis1DHasQuadratureProtocol(Protocol, Generic[Array]):
             Quadrature weights. Shape: (npoints,)
         """
         ...
+
+
+@runtime_checkable
+class PhysicalDomainBasis1DProtocol(Protocol, Generic[Array]):
+    """Protocol for 1D bases that accept samples in physical domain.
+
+    This protocol is for bases that accept samples directly from the
+    marginal distribution's support (physical/user domain), rather than
+    requiring transformation to canonical domain first.
+
+    Implementations include:
+    - TransformedBasis1D: Wraps a canonical-domain polynomial with a transform
+    - NativeBasis1D: Wraps a physical-domain polynomial (e.g., discrete numeric)
+
+    This protocol provides a consistent interface for PCE and sparse grids,
+    ensuring samples can be used directly without manual transformation.
+
+    Methods
+    -------
+    bkd() -> Backend[Array]
+        Return the computational backend.
+    set_nterms(nterms: int) -> None
+        Set the number of basis terms.
+    nterms() -> int
+        Return the current number of terms.
+    __call__(samples: Array) -> Array
+        Evaluate basis at physical domain sample points.
+    gauss_quadrature_rule(npoints: int) -> Tuple[Array, Array]
+        Return quadrature points (in physical domain) and weights.
+
+    Notes
+    -----
+    Input samples shape: (1, nsamples) in physical domain
+    Output shape: (nsamples, nterms)
+    Quadrature points shape: (1, npoints) in physical domain
+    """
+
+    def bkd(self) -> Backend[Array]:
+        """Return the computational backend."""
+        ...
+
+    def set_nterms(self, nterms: int) -> None:
+        """Set the number of basis terms."""
+        ...
+
+    def nterms(self) -> int:
+        """Return the number of basis terms."""
+        ...
+
+    def __call__(self, samples: Array) -> Array:
+        """Evaluate basis functions at physical domain sample points.
+
+        Parameters
+        ----------
+        samples : Array
+            Sample points in physical domain. Shape: (1, nsamples)
+
+        Returns
+        -------
+        Array
+            Basis values. Shape: (nsamples, nterms)
+        """
+        ...
+
+    def gauss_quadrature_rule(self, npoints: int) -> Tuple[Array, Array]:
+        """Compute Gaussian quadrature rule in physical domain.
+
+        Parameters
+        ----------
+        npoints : int
+            Number of quadrature points.
+
+        Returns
+        -------
+        points : Array
+            Quadrature points in physical domain. Shape: (1, npoints)
+        weights : Array
+            Quadrature weights. Shape: (npoints, 1)
+        """
+        ...
