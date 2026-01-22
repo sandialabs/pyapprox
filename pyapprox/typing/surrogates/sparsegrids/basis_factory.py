@@ -8,6 +8,7 @@ Key classes:
 - BasisFactoryProtocol: Protocol for basis factories
 - GaussLagrangeFactory: Creates Lagrange basis with Gauss quadrature
 - LejaLagrangeFactory: Creates Lagrange basis with Leja quadrature (cached)
+- ClenshawCurtisLagrangeFactory: Creates Lagrange basis with CC quadrature (nested)
 - PiecewiseFactory: Creates piecewise polynomial basis (placeholder)
 - PrebuiltBasisFactory: Wraps existing basis for migration
 
@@ -16,6 +17,8 @@ Key functions:
 - create_bases_from_marginals: Create pre-built bases for tensor products
 - get_transform_from_marginal: Get appropriate domain transform
 - get_bounds_from_marginal: Get integration bounds from marginal
+- register_basis_factory: Register custom factory types
+- get_registered_basis_types: List available factory types
 
 Design notes:
 - Lagrange interpolation is numerically stable in user domain for affine
@@ -23,9 +26,11 @@ Design notes:
 - Quadrature weights are NOT adjusted when transforming domains (matches
   legacy behavior) - orthonormal polynomials are constructed for the
   probability measure, so weights integrate correctly as-is
+- The factory system uses a registry pattern for extensibility
 """
 
-from typing import Callable, Generic, List, Optional, Protocol, Tuple, runtime_checkable
+from functools import partial
+from typing import Any, Callable, Dict, Generic, List, Optional, Protocol, Tuple, runtime_checkable
 
 from pyapprox.typing.util.backends.protocols import Array, Backend
 from pyapprox.typing.surrogates.affine.protocols import Basis1DProtocol
@@ -38,6 +43,59 @@ from pyapprox.typing.surrogates.affine.univariate.transforms import (
 from pyapprox.typing.surrogates.affine.univariate.registry import (
     _lookup_analytical,
 )
+
+
+# Type alias for factory creators: (marginal, bkd, **kwargs) -> BasisFactoryProtocol
+# Using Any for marginal type since marginals have different types
+FactoryCreator = Callable[..., "BasisFactoryProtocol[Array]"]
+
+# Module-level registry for basis factory creators
+# Maps basis_type name -> callable(marginal, bkd, **kwargs) -> BasisFactoryProtocol
+_BASIS_FACTORY_REGISTRY: Dict[str, FactoryCreator] = {}
+
+
+def register_basis_factory(name: str, factory_creator: FactoryCreator) -> None:
+    """Register a basis factory creator by name.
+
+    This allows extending the basis factory system without modifying
+    existing code. New factory types can be registered at module load
+    or dynamically at runtime.
+
+    Parameters
+    ----------
+    name : str
+        Name to use when calling create_basis_factories(basis_type=name).
+    factory_creator : Callable
+        Callable that takes (marginal, bkd, **kwargs) and returns a
+        BasisFactoryProtocol instance.
+
+    Examples
+    --------
+    >>> def my_factory_creator(marginal, bkd, **kwargs):
+    ...     return MyCustomFactory(marginal, bkd)
+    >>> register_basis_factory("my_custom", my_factory_creator)
+    >>> # Now can use: create_basis_factories(marginals, bkd, "my_custom")
+    """
+    _BASIS_FACTORY_REGISTRY[name] = factory_creator
+
+
+def get_registered_basis_types() -> List[str]:
+    """Return list of registered basis factory type names.
+
+    Returns
+    -------
+    List[str]
+        Sorted list of registered basis type names.
+
+    Examples
+    --------
+    >>> types = get_registered_basis_types()
+    >>> "gauss" in types
+    True
+    >>> "leja" in types
+    True
+    """
+    return sorted(_BASIS_FACTORY_REGISTRY.keys())
 
 
 @runtime_checkable
@@ -294,6 +352,95 @@ class LejaLagrangeFactory(Generic[Array]):
         )
 
 
+class ClenshawCurtisLagrangeFactory(Generic[Array]):
+    """Factory that creates Lagrange basis with Clenshaw-Curtis quadrature.
+
+    Clenshaw-Curtis points are nested: points at level l are a subset of
+    points at level l+1. This makes them ideal for adaptive sparse grids
+    where the hierarchical surplus should be stable.
+
+    Important: Requires a compatible growth rule for proper nesting.
+    Use DoublePlusOneGrowthRule which gives n = 2^l + 1 points at level l
+    (with level 0 giving 1 point).
+
+    Parameters
+    ----------
+    marginal : MarginalProtocol
+        Univariate marginal distribution.
+    bkd : Backend[Array]
+        Computational backend.
+
+    Examples
+    --------
+    >>> from pyapprox.typing.util.backends.numpy import NumpyBkd
+    >>> from pyapprox.typing.probability.univariate import UniformMarginal
+    >>> bkd = NumpyBkd()
+    >>> marginal = UniformMarginal(lower=0.0, upper=1.0, bkd=bkd)
+    >>> factory = ClenshawCurtisLagrangeFactory(marginal, bkd)
+    >>> basis = factory.create_basis()
+    >>> basis.set_nterms(5)  # Must be 1 or 2^l + 1
+    >>> samples, weights = basis.quadrature_rule()
+    >>> # samples are in [0, 1], not [-1, 1]
+    """
+
+    def __init__(self, marginal, bkd: Backend[Array]) -> None:
+        self._marginal = marginal
+        self._bkd = bkd
+        self._cc_rule = None
+        self._transform: Optional[Univariate1DTransformProtocol[Array]] = None
+
+    def bkd(self) -> Backend[Array]:
+        """Return the computational backend."""
+        return self._bkd
+
+    def _setup(self) -> None:
+        """Initialize Clenshaw-Curtis quadrature and transform (lazy)."""
+        if self._cc_rule is None:
+            from pyapprox.typing.surrogates.affine.univariate.globalpoly.quadrature import (
+                ClenshawCurtisQuadratureRule,
+            )
+
+            # Create CC rule with caching enabled and probability measure
+            self._cc_rule = ClenshawCurtisQuadratureRule(
+                self._bkd, store=True, prob_measure=True
+            )
+            self._transform = get_transform_from_marginal(
+                self._marginal, self._bkd
+            )
+
+    def create_basis(self) -> LagrangeBasis1D[Array]:
+        """Create a Lagrange basis with user-domain Clenshaw-Curtis quadrature.
+
+        Returns
+        -------
+        LagrangeBasis1D[Array]
+            Lagrange basis with CC quadrature points in user domain.
+        """
+        self._setup()
+
+        # Capture references for closure (assertions satisfy mypy after _setup)
+        cc_rule = self._cc_rule
+        transform = self._transform
+        assert cc_rule is not None
+        assert transform is not None
+        bkd = self._bkd
+
+        def user_domain_quad_rule(npoints: int) -> Tuple[Array, Array]:
+            """Quadrature rule that returns user-domain CC points."""
+            # Get canonical domain CC quadrature
+            canonical_pts, weights = cc_rule(npoints)
+
+            # Transform to user domain (weights unchanged per legacy behavior)
+            user_pts = transform.map_from_canonical(canonical_pts)
+
+            return user_pts, weights
+
+        return LagrangeBasis1D(bkd, user_domain_quad_rule)
+
+    def __repr__(self) -> str:
+        return f"ClenshawCurtisLagrangeFactory(marginal={self._marginal!r})"
+
+
 class PiecewiseFactory(Generic[Array]):
     """Factory that creates piecewise polynomial basis from marginal.
 
@@ -505,34 +652,14 @@ def create_basis_factories(
     >>> len(factories)
     2
     """
-    factories: List[BasisFactoryProtocol[Array]] = []
+    if basis_type not in _BASIS_FACTORY_REGISTRY:
+        raise ValueError(
+            f"Unknown basis_type: {basis_type}. "
+            f"Available: {get_registered_basis_types()}"
+        )
 
-    for marginal in marginals:
-        if basis_type == "gauss":
-            factory: BasisFactoryProtocol[Array] = GaussLagrangeFactory(
-                marginal, bkd
-            )
-        elif basis_type == "leja":
-            factory = LejaLagrangeFactory(
-                marginal,
-                bkd,
-                weighting=kwargs.get("weighting", "christoffel"),
-                eps=kwargs.get("eps", 1e-6),
-            )
-        elif basis_type.startswith("piecewise_"):
-            poly_type = basis_type.replace("piecewise_", "")
-            factory = PiecewiseFactory(
-                marginal,
-                bkd,
-                poly_type=poly_type,
-                eps=kwargs.get("eps", 1e-6),
-            )
-        else:
-            raise ValueError(f"Unknown basis_type: {basis_type}")
-
-        factories.append(factory)
-
-    return factories
+    factory_creator = _BASIS_FACTORY_REGISTRY[basis_type]
+    return [factory_creator(marginal, bkd, **kwargs) for marginal in marginals]
 
 
 def create_bases_from_marginals(
@@ -576,14 +703,76 @@ def create_bases_from_marginals(
     return [factory.create_basis() for factory in factories]
 
 
+# ---------------------------------------------------------------------
+# Built-in factory creators and registration
+# ---------------------------------------------------------------------
+
+
+def _create_gauss_factory(
+    marginal: Any, bkd: Backend[Array], **kwargs: Any
+) -> GaussLagrangeFactory[Array]:
+    """Factory creator for Gauss-Lagrange basis."""
+    return GaussLagrangeFactory(marginal, bkd)
+
+
+def _create_leja_factory(
+    marginal: Any, bkd: Backend[Array], **kwargs: Any
+) -> LejaLagrangeFactory[Array]:
+    """Factory creator for Leja-Lagrange basis."""
+    return LejaLagrangeFactory(
+        marginal,
+        bkd,
+        weighting=kwargs.get("weighting", "christoffel"),
+        eps=kwargs.get("eps", 1e-6),
+    )
+
+
+def _create_clenshaw_curtis_factory(
+    marginal: Any, bkd: Backend[Array], **kwargs: Any
+) -> ClenshawCurtisLagrangeFactory[Array]:
+    """Factory creator for Clenshaw-Curtis Lagrange basis."""
+    return ClenshawCurtisLagrangeFactory(marginal, bkd)
+
+
+def _create_piecewise_factory(
+    marginal: Any, bkd: Backend[Array], poly_type: str, **kwargs: Any
+) -> PiecewiseFactory[Array]:
+    """Factory creator for piecewise polynomial basis."""
+    return PiecewiseFactory(
+        marginal,
+        bkd,
+        poly_type=poly_type,
+        eps=kwargs.get("eps", 1e-6),
+    )
+
+
+# Register built-in factories at module load
+register_basis_factory("gauss", _create_gauss_factory)
+register_basis_factory("leja", _create_leja_factory)
+register_basis_factory("clenshaw_curtis", _create_clenshaw_curtis_factory)
+register_basis_factory(
+    "piecewise_linear", partial(_create_piecewise_factory, poly_type="linear")
+)
+register_basis_factory(
+    "piecewise_quadratic",
+    partial(_create_piecewise_factory, poly_type="quadratic"),
+)
+register_basis_factory(
+    "piecewise_cubic", partial(_create_piecewise_factory, poly_type="cubic")
+)
+
+
 __all__ = [
     "BasisFactoryProtocol",
     "GaussLagrangeFactory",
     "LejaLagrangeFactory",
+    "ClenshawCurtisLagrangeFactory",
     "PiecewiseFactory",
     "PrebuiltBasisFactory",
     "get_bounds_from_marginal",
     "get_transform_from_marginal",  # Re-exported from transforms module
     "create_basis_factories",
     "create_bases_from_marginals",
+    "register_basis_factory",
+    "get_registered_basis_types",
 ]

@@ -24,11 +24,14 @@ from pyapprox.typing.surrogates.sparsegrids.basis_factory import (
     BasisFactoryProtocol,
     GaussLagrangeFactory,
     LejaLagrangeFactory,
+    ClenshawCurtisLagrangeFactory,
     PrebuiltBasisFactory,
     create_basis_factories,
     create_bases_from_marginals,
     get_bounds_from_marginal,
     get_transform_from_marginal,
+    register_basis_factory,
+    get_registered_basis_types,
 )
 
 
@@ -486,6 +489,301 @@ class TestLejaLagrangeFactoryNumpy(TestLejaLagrangeFactory[NDArray[Any]]):
 
 
 class TestLejaLagrangeFactoryTorch(TestLejaLagrangeFactory[torch.Tensor]):
+    """PyTorch backend tests."""
+
+    __test__ = True
+
+    def bkd(self) -> TorchBkd:
+        return TorchBkd()
+
+    def setUp(self) -> None:
+        torch.set_default_dtype(torch.float64)
+        super().setUp()
+
+
+# =============================================================================
+# ClenshawCurtisLagrangeFactory tests
+# =============================================================================
+
+
+class TestClenshawCurtisLagrangeFactory(Generic[Array], unittest.TestCase):
+    """Tests for ClenshawCurtisLagrangeFactory."""
+
+    __test__ = False
+
+    def bkd(self) -> Backend[Array]:
+        raise NotImplementedError
+
+    def setUp(self) -> None:
+        self._bkd = self.bkd()
+
+    def test_factory_implements_protocol(self) -> None:
+        """Test that factory implements BasisFactoryProtocol."""
+        marginal = UniformMarginal(lower=0.0, upper=1.0, bkd=self._bkd)
+        factory = ClenshawCurtisLagrangeFactory(marginal, self._bkd)
+
+        self.assertIsInstance(factory, BasisFactoryProtocol)
+
+    def test_uniform_marginal_quadrature_in_user_domain(self) -> None:
+        """Test that Uniform[0,1] returns quadrature points in [0,1]."""
+        marginal = UniformMarginal(lower=0.0, upper=1.0, bkd=self._bkd)
+        factory = ClenshawCurtisLagrangeFactory(marginal, self._bkd)
+
+        basis = factory.create_basis()
+        basis.set_nterms(5)  # 2^2 + 1 = 5
+        samples, weights = basis.quadrature_rule()
+
+        # Samples should be in [0, 1]
+        min_val = float(self._bkd.min(samples))
+        max_val = float(self._bkd.max(samples))
+
+        self.assertGreaterEqual(min_val, 0.0)
+        self.assertLessEqual(max_val, 1.0)
+
+    def test_uniform_marginal_integration_mean(self) -> None:
+        """Test that integration of x over [0,1] gives mean=0.5."""
+        marginal = UniformMarginal(lower=0.0, upper=1.0, bkd=self._bkd)
+        factory = ClenshawCurtisLagrangeFactory(marginal, self._bkd)
+
+        basis = factory.create_basis()
+        basis.set_nterms(5)  # 2^2 + 1 = 5
+        samples, weights = basis.quadrature_rule()
+
+        # Integrate f(x) = x over [0, 1] with uniform density
+        # Expected mean = 0.5
+        x = samples[0, :]
+        mean = float(self._bkd.sum(x * weights[:, 0]))
+
+        self._bkd.assert_allclose(
+            self._bkd.asarray([mean]),
+            self._bkd.asarray([0.5]),
+            rtol=1e-12,
+        )
+
+    def test_uniform_marginal_integration_variance(self) -> None:
+        """Test that integration of (x-0.5)^2 over [0,1] gives variance=1/12."""
+        marginal = UniformMarginal(lower=0.0, upper=1.0, bkd=self._bkd)
+        factory = ClenshawCurtisLagrangeFactory(marginal, self._bkd)
+
+        basis = factory.create_basis()
+        basis.set_nterms(9)  # 2^3 + 1 = 9 for higher accuracy
+        samples, weights = basis.quadrature_rule()
+
+        # Integrate f(x) = (x - 0.5)^2 over [0, 1] with uniform density
+        # Expected variance = 1/12
+        x = samples[0, :]
+        variance = float(self._bkd.sum((x - 0.5) ** 2 * weights[:, 0]))
+
+        self._bkd.assert_allclose(
+            self._bkd.asarray([variance]),
+            self._bkd.asarray([1.0 / 12.0]),
+            rtol=1e-12,
+        )
+
+    def test_points_are_nested(self) -> None:
+        """Test that CC points at level l are subset of points at level l+1."""
+        marginal = UniformMarginal(lower=0.0, upper=1.0, bkd=self._bkd)
+        factory = ClenshawCurtisLagrangeFactory(marginal, self._bkd)
+        basis = factory.create_basis()
+
+        # Test nesting for levels 0 through 3
+        for npoints_curr, npoints_next in [(1, 3), (3, 5), (5, 9)]:
+            basis.set_nterms(npoints_curr)
+            pts_curr, _ = basis.quadrature_rule()
+
+            basis.set_nterms(npoints_next)
+            pts_next, _ = basis.quadrature_rule()
+
+            # Every point at current level should exist at next level
+            for i in range(npoints_curr):
+                pt = float(pts_curr[0, i])
+                found = any(
+                    abs(float(pts_next[0, j]) - pt) < 1e-12
+                    for j in range(npoints_next)
+                )
+                self.assertTrue(
+                    found,
+                    f"Point {pt} at level with {npoints_curr} pts "
+                    f"not found at level with {npoints_next} pts",
+                )
+
+    def test_weights_sum_to_one(self) -> None:
+        """Test that weights sum to 1 (probability measure)."""
+        marginal = UniformMarginal(lower=0.0, upper=1.0, bkd=self._bkd)
+        factory = ClenshawCurtisLagrangeFactory(marginal, self._bkd)
+        basis = factory.create_basis()
+
+        for npoints in [1, 3, 5, 9, 17]:
+            basis.set_nterms(npoints)
+            _, weights = basis.quadrature_rule()
+            weight_sum = float(self._bkd.sum(weights))
+            self._bkd.assert_allclose(
+                self._bkd.asarray([weight_sum]),
+                self._bkd.asarray([1.0]),
+                rtol=1e-12,
+            )
+
+    def test_gaussian_marginal_user_domain(self) -> None:
+        """Test that N(5, 2^2) returns points centered around mean."""
+        marginal = GaussianMarginal(mean=5.0, stdev=2.0, bkd=self._bkd)
+        factory = ClenshawCurtisLagrangeFactory(marginal, self._bkd)
+
+        basis = factory.create_basis()
+        basis.set_nterms(5)
+        samples, weights = basis.quadrature_rule()
+
+        # Samples should be centered around mean=5
+        # The CC points on [-1, 1] get transformed to [5-2, 5+2] = [3, 7]
+        min_val = float(self._bkd.min(samples))
+        max_val = float(self._bkd.max(samples))
+
+        self.assertGreater(min_val, 2.0)  # At least 3.0 minus some margin
+        self.assertLess(max_val, 8.0)  # At most 7.0 plus some margin
+
+    def test_factory_creates_independent_bases(self) -> None:
+        """Test that each create_basis() call returns independent bases."""
+        marginal = UniformMarginal(lower=0.0, upper=1.0, bkd=self._bkd)
+        factory = ClenshawCurtisLagrangeFactory(marginal, self._bkd)
+
+        basis1 = factory.create_basis()
+        basis2 = factory.create_basis()
+
+        # Set different nterms (both must be valid CC sizes: 1, 3, 5, 9, ...)
+        basis1.set_nterms(3)
+        basis2.set_nterms(9)
+
+        # They should have different numbers of samples
+        samples1, _ = basis1.quadrature_rule()
+        samples2, _ = basis2.quadrature_rule()
+
+        self.assertEqual(samples1.shape[1], 3)
+        self.assertEqual(samples2.shape[1], 9)
+
+    def test_quadrature_caching(self) -> None:
+        """Test that CC quadrature rule is cached for efficiency."""
+        marginal = UniformMarginal(lower=0.0, upper=1.0, bkd=self._bkd)
+        factory = ClenshawCurtisLagrangeFactory(marginal, self._bkd)
+
+        # Create two bases from the same factory
+        basis1 = factory.create_basis()
+        basis2 = factory.create_basis()
+
+        basis1.set_nterms(5)
+        basis2.set_nterms(5)
+
+        samples1, weights1 = basis1.quadrature_rule()
+        samples2, weights2 = basis2.quadrature_rule()
+
+        # Same samples and weights due to caching
+        self._bkd.assert_allclose(samples1, samples2, rtol=1e-12)
+        self._bkd.assert_allclose(weights1, weights2, rtol=1e-12)
+
+
+class TestClenshawCurtisLagrangeFactoryNumpy(
+    TestClenshawCurtisLagrangeFactory[NDArray[Any]]
+):
+    """NumPy backend tests."""
+
+    __test__ = True
+
+    def bkd(self) -> NumpyBkd:
+        return NumpyBkd()
+
+
+class TestClenshawCurtisLagrangeFactoryTorch(
+    TestClenshawCurtisLagrangeFactory[torch.Tensor]
+):
+    """PyTorch backend tests."""
+
+    __test__ = True
+
+    def bkd(self) -> TorchBkd:
+        return TorchBkd()
+
+    def setUp(self) -> None:
+        torch.set_default_dtype(torch.float64)
+        super().setUp()
+
+
+# =============================================================================
+# Registry pattern tests
+# =============================================================================
+
+
+class TestBasisFactoryRegistry(Generic[Array], unittest.TestCase):
+    """Tests for basis factory registry pattern."""
+
+    __test__ = False
+
+    def bkd(self) -> Backend[Array]:
+        raise NotImplementedError
+
+    def setUp(self) -> None:
+        self._bkd = self.bkd()
+
+    def test_get_registered_basis_types(self) -> None:
+        """Test that get_registered_basis_types returns expected types."""
+        types = get_registered_basis_types()
+
+        # Check that all built-in types are registered
+        self.assertIn("gauss", types)
+        self.assertIn("leja", types)
+        self.assertIn("clenshaw_curtis", types)
+        self.assertIn("piecewise_linear", types)
+        self.assertIn("piecewise_quadratic", types)
+        self.assertIn("piecewise_cubic", types)
+
+        # Check that result is sorted
+        self.assertEqual(types, sorted(types))
+
+    def test_create_basis_factories_gauss(self) -> None:
+        """Test create_basis_factories with gauss type via registry."""
+        marginals = [UniformMarginal(0.0, 1.0, self._bkd)]
+        factories = create_basis_factories(marginals, self._bkd, "gauss")
+
+        self.assertEqual(len(factories), 1)
+        self.assertIsInstance(factories[0], GaussLagrangeFactory)
+
+    def test_create_basis_factories_leja(self) -> None:
+        """Test create_basis_factories with leja type via registry."""
+        marginals = [UniformMarginal(0.0, 1.0, self._bkd)]
+        factories = create_basis_factories(marginals, self._bkd, "leja")
+
+        self.assertEqual(len(factories), 1)
+        self.assertIsInstance(factories[0], LejaLagrangeFactory)
+
+    def test_create_basis_factories_clenshaw_curtis(self) -> None:
+        """Test create_basis_factories with clenshaw_curtis type via registry."""
+        marginals = [UniformMarginal(0.0, 1.0, self._bkd)]
+        factories = create_basis_factories(
+            marginals, self._bkd, "clenshaw_curtis"
+        )
+
+        self.assertEqual(len(factories), 1)
+        self.assertIsInstance(factories[0], ClenshawCurtisLagrangeFactory)
+
+    def test_create_basis_factories_unknown_type(self) -> None:
+        """Test that unknown basis_type raises ValueError with helpful message."""
+        marginals = [UniformMarginal(0.0, 1.0, self._bkd)]
+
+        with self.assertRaises(ValueError) as context:
+            create_basis_factories(marginals, self._bkd, "unknown_type")
+
+        error_msg = str(context.exception)
+        self.assertIn("unknown_type", error_msg)
+        self.assertIn("Available", error_msg)
+
+
+class TestBasisFactoryRegistryNumpy(TestBasisFactoryRegistry[NDArray[Any]]):
+    """NumPy backend tests."""
+
+    __test__ = True
+
+    def bkd(self) -> NumpyBkd:
+        return NumpyBkd()
+
+
+class TestBasisFactoryRegistryTorch(TestBasisFactoryRegistry[torch.Tensor]):
     """PyTorch backend tests."""
 
     __test__ = True
