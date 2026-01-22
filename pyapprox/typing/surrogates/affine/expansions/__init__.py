@@ -9,6 +9,7 @@ from pyapprox.typing.surrogates.affine.expansions.base import BasisExpansion
 from pyapprox.typing.surrogates.affine.expansions.pce import (
     PolynomialChaosExpansion,
     create_pce,
+    create_pce_from_marginals,
 )
 
 from pyapprox.typing.surrogates.affine.expansions import pce_statistics
@@ -25,6 +26,7 @@ __all__ = [
     # PCE
     "PolynomialChaosExpansion",
     "create_pce",
+    "create_pce_from_marginals",
     # Solvers (re-exported for convenience)
     "LeastSquaresSolver",
     "RidgeRegressionSolver",
