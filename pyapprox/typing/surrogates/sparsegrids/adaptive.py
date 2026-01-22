@@ -8,7 +8,6 @@ from typing import Callable, Generic, List, Optional, Tuple
 
 from pyapprox.typing.util.backends.protocols import Array, Backend
 from pyapprox.typing.surrogates.affine.protocols import (
-    Basis1DProtocol,
     IndexGrowthRuleProtocol,
 )
 from pyapprox.typing.surrogates.affine.indices import (
@@ -21,6 +20,7 @@ from pyapprox.typing.surrogates.affine.indices import (
 from .smolyak import compute_smolyak_coefficients, _index_to_tuple
 from .subspace import TensorProductSubspace
 from .combination import CombinationSparseGrid
+from .basis_factory import BasisFactoryProtocol
 
 
 class AdaptiveCombinationSparseGrid(CombinationSparseGrid[Array], Generic[Array]):
@@ -34,8 +34,8 @@ class AdaptiveCombinationSparseGrid(CombinationSparseGrid[Array], Generic[Array]
     ----------
     bkd : Backend[Array]
         Computational backend.
-    univariate_bases : List[Basis1DProtocol[Array]]
-        Univariate bases for each dimension.
+    basis_factories : List[BasisFactoryProtocol[Array]]
+        Factories for creating univariate bases for each dimension.
     growth_rule : IndexGrowthRuleProtocol
         Rule mapping level to number of points.
     admissibility : AdmissibilityCriteria[Array]
@@ -51,11 +51,13 @@ class AdaptiveCombinationSparseGrid(CombinationSparseGrid[Array], Generic[Array]
     >>> from pyapprox.typing.surrogates.affine.indices import (
     ...     LinearGrowthRule, MaxLevelCriteria
     ... )
+    >>> from pyapprox.typing.surrogates.sparsegrids import PrebuiltBasisFactory
     >>> bkd = NumpyBkd()
     >>> bases = [LegendrePolynomial1D(bkd) for _ in range(2)]
+    >>> factories = [PrebuiltBasisFactory(b) for b in bases]
     >>> growth = LinearGrowthRule(scale=2, shift=1)
     >>> admis = MaxLevelCriteria(max_level=5, pnorm=1.0, bkd=bkd)
-    >>> grid = AdaptiveCombinationSparseGrid(bkd, bases, growth, admis)
+    >>> grid = AdaptiveCombinationSparseGrid(bkd, factories, growth, admis)
     >>> samples = grid.step_samples()  # Get first samples
     >>> values = my_function(samples)
     >>> grid.step_values(values)
@@ -66,7 +68,7 @@ class AdaptiveCombinationSparseGrid(CombinationSparseGrid[Array], Generic[Array]
     def __init__(
         self,
         bkd: Backend[Array],
-        univariate_bases: List[Basis1DProtocol[Array]],
+        basis_factories: List[BasisFactoryProtocol[Array]],
         growth_rule: IndexGrowthRuleProtocol,
         admissibility: AdmissibilityCriteria[Array],
         refinement_priority: Optional[
@@ -76,7 +78,7 @@ class AdaptiveCombinationSparseGrid(CombinationSparseGrid[Array], Generic[Array]
             ]
         ] = None,
     ):
-        super().__init__(bkd, univariate_bases, growth_rule)
+        super().__init__(bkd, basis_factories, growth_rule)
         self._admissibility = admissibility
         self._refinement_priority = (
             refinement_priority or self._default_refinement_priority
@@ -283,7 +285,7 @@ class AdaptiveCombinationSparseGrid(CombinationSparseGrid[Array], Generic[Array]
         subspace = TensorProductSubspace(
             self._bkd,
             index,
-            self._univariate_bases,
+            self._basis_factories,
             self._growth_rule,
         )
         self._subspaces[key] = subspace
@@ -383,7 +385,22 @@ class AdaptiveCombinationSparseGrid(CombinationSparseGrid[Array], Generic[Array]
         -------
         float
             Sum of subspace errors.
+
+        Raises
+        ------
+        RuntimeError
+            If any subspace error is infinity after step_values() has been called.
+            This indicates a bug in the error computation.
         """
+        # Check for infinities - these should never appear after step_values()
+        # has been called for all candidate subspaces
+        inf_count = sum(1 for e in self._subspace_errors if e == float("inf"))
+        if inf_count > 0:
+            raise RuntimeError(
+                f"Found {inf_count} subspace(s) with infinite error. "
+                "This should not happen after step_values() is called. "
+                "Check that values are provided for all candidate subspaces."
+            )
         return sum(self._subspace_errors)
 
     def get_candidate_subspaces(self) -> List[Array]:

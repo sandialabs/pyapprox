@@ -6,16 +6,26 @@ Polynomial Chaos Expansions (PCE) using spectral projection.
 The conversion works by:
 1. Converting each tensor product subspace's Lagrange interpolant to PCE
 2. Combining subspace PCEs using Smolyak coefficients
+
+Important
+---------
+The ``orthonormal_bases_1d`` parameter must be created using
+``create_bases_1d(marginals, bkd)`` from
+``pyapprox.typing.surrogates.affine.univariate``. This returns
+``TransformedBasis1D`` objects that handle domain transforms correctly,
+ensuring quadrature points are in physical domain to match the sparse
+grid's Lagrange nodes.
+
+Do NOT pass raw ``OrthonormalPolynomial1D`` objects (e.g., ``LegendrePolynomial1D``)
+directly, as their ``gauss_quadrature_rule()`` returns canonical domain points
+which will cause incorrect spectral projection for non-canonical domains.
 """
 
-from typing import cast, Generic, List, Optional, Sequence, Tuple
+from typing import Generic, List, Optional, Sequence, Tuple
 
 from pyapprox.typing.util.backends.protocols import Array, Backend
-from pyapprox.typing.surrogates.affine.univariate import (
-    OrthonormalPolynomial1D,
-)
 from pyapprox.typing.surrogates.affine.protocols import (
-    OrthonormalPolynomial1DProtocol,
+    PhysicalDomainBasis1DProtocol,
 )
 from pyapprox.typing.surrogates.affine.basis import OrthonormalPolynomialBasis
 from pyapprox.typing.surrogates.affine.expansions import (
@@ -39,25 +49,30 @@ class TensorProductSubspaceToPCEConverter(Generic[Array]):
     ----------
     bkd : Backend[Array]
         Computational backend.
-    orthonormal_bases_1d : List[OrthonormalPolynomial1D[Array]]
-        Univariate orthonormal polynomial bases for each dimension.
-        These define the target PCE basis.
+    orthonormal_bases_1d : Sequence[PhysicalDomainBasis1DProtocol[Array]]
+        Univariate bases for each dimension, created via ``create_bases_1d()``.
+        These define the target PCE basis and must return physical-domain
+        quadrature points from ``gauss_quadrature_rule()``.
 
     Examples
     --------
     >>> from pyapprox.typing.util.backends.numpy import NumpyBkd
-    >>> from pyapprox.typing.surrogates.affine.univariate import (
-    ...     LegendrePolynomial1D,
-    ... )
+    >>> from pyapprox.typing.probability import UniformMarginal
+    >>> from pyapprox.typing.surrogates.affine.univariate import create_bases_1d
     >>> bkd = NumpyBkd()
-    >>> bases_1d = [LegendrePolynomial1D(bkd) for _ in range(2)]
+    >>> marginals = [UniformMarginal(0.0, 1.0, bkd) for _ in range(2)]
+    >>> bases_1d = create_bases_1d(marginals, bkd)
     >>> converter = TensorProductSubspaceToPCEConverter(bkd, bases_1d)
+
+    See Also
+    --------
+    create_bases_1d : Factory function to create physical-domain bases.
     """
 
     def __init__(
         self,
         bkd: Backend[Array],
-        orthonormal_bases_1d: Sequence[OrthonormalPolynomial1D[Array]],
+        orthonormal_bases_1d: Sequence[PhysicalDomainBasis1DProtocol[Array]],
     ):
         self._bkd = bkd
         self._orthonormal_bases_1d = list(orthonormal_bases_1d)
@@ -315,25 +330,43 @@ class SparseGridToPCEConverter(Generic[Array]):
     ----------
     bkd : Backend[Array]
         Computational backend.
-    orthonormal_bases_1d : List[OrthonormalPolynomial1D[Array]]
-        Univariate orthonormal polynomial bases for each dimension.
-        These define the target PCE basis.
+    orthonormal_bases_1d : Sequence[PhysicalDomainBasis1DProtocol[Array]]
+        Univariate bases for each dimension, created via ``create_bases_1d()``.
+        These define the target PCE basis and must return physical-domain
+        quadrature points from ``gauss_quadrature_rule()``.
 
     Examples
     --------
     >>> from pyapprox.typing.util.backends.numpy import NumpyBkd
-    >>> from pyapprox.typing.surrogates.affine.univariate import (
-    ...     LegendrePolynomial1D,
+    >>> from pyapprox.typing.probability import UniformMarginal
+    >>> from pyapprox.typing.surrogates.affine.univariate import create_bases_1d
+    >>> from pyapprox.typing.surrogates.sparsegrids import (
+    ...     IsotropicCombinationSparseGrid,
     ... )
+    >>> from pyapprox.typing.surrogates.sparsegrids.basis_factory import (
+    ...     GaussLagrangeFactory,
+    ... )
+    >>> from pyapprox.typing.surrogates.affine.indices import LinearGrowthRule
     >>> bkd = NumpyBkd()
-    >>> bases_1d = [LegendrePolynomial1D(bkd) for _ in range(2)]
+    >>> marginals = [UniformMarginal(0.0, 1.0, bkd) for _ in range(2)]
+    >>> factories = [GaussLagrangeFactory(m, bkd) for m in marginals]
+    >>> growth = LinearGrowthRule(scale=2, shift=1)
+    >>> grid = IsotropicCombinationSparseGrid(bkd, factories, growth, level=3)
+    >>> # ... set grid values ...
+    >>> bases_1d = create_bases_1d(marginals, bkd)
     >>> converter = SparseGridToPCEConverter(bkd, bases_1d)
+    >>> pce = converter.convert(grid)
+
+    See Also
+    --------
+    create_bases_1d : Factory function to create physical-domain bases.
+    TensorProductSubspaceToPCEConverter : Lower-level subspace converter.
     """
 
     def __init__(
         self,
         bkd: Backend[Array],
-        orthonormal_bases_1d: Sequence[OrthonormalPolynomial1D[Array]],
+        orthonormal_bases_1d: Sequence[PhysicalDomainBasis1DProtocol[Array]],
     ):
         self._bkd = bkd
         self._orthonormal_bases_1d = list(orthonormal_bases_1d)
@@ -438,12 +471,8 @@ class SparseGridToPCEConverter(Generic[Array]):
                 self._orthonormal_bases_1d[dim].set_nterms(required_nterms)
 
         # Create PCE with these indices
-        bases_for_pce = cast(
-            List[OrthonormalPolynomial1DProtocol[Array]],
-            self._orthonormal_bases_1d
-        )
         basis = OrthonormalPolynomialBasis(
-            bases_for_pce, self._bkd, pce_indices
+            self._orthonormal_bases_1d, self._bkd, pce_indices
         )
         pce = PolynomialChaosExpansion(basis, self._bkd, nqoi)
         # PCE expects coefficients in (nterms, nqoi) format

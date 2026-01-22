@@ -8,12 +8,12 @@ from typing import Generic, List
 
 from pyapprox.typing.util.backends.protocols import Array, Backend
 from pyapprox.typing.surrogates.affine.protocols import (
-    Basis1DProtocol,
     IndexGrowthRuleProtocol,
 )
 from pyapprox.typing.surrogates.affine.indices import HyperbolicIndexGenerator
 
 from .combination import CombinationSparseGrid
+from .basis_factory import BasisFactoryProtocol
 
 
 class IsotropicCombinationSparseGrid(CombinationSparseGrid[Array], Generic[Array]):
@@ -30,8 +30,8 @@ class IsotropicCombinationSparseGrid(CombinationSparseGrid[Array], Generic[Array
     ----------
     bkd : Backend[Array]
         Computational backend.
-    univariate_bases : List[Basis1DProtocol[Array]]
-        Univariate bases for each dimension.
+    basis_factories : List[BasisFactoryProtocol[Array]]
+        Factories for creating univariate bases for each dimension.
     growth_rule : IndexGrowthRuleProtocol
         Rule mapping level to number of points.
     level : int
@@ -42,21 +42,23 @@ class IsotropicCombinationSparseGrid(CombinationSparseGrid[Array], Generic[Array
     >>> from pyapprox.typing.util.backends.numpy import NumpyBkd
     >>> from pyapprox.typing.surrogates.affine.univariate import LegendrePolynomial1D
     >>> from pyapprox.typing.surrogates.affine.indices import LinearGrowthRule
+    >>> from pyapprox.typing.surrogates.sparsegrids import PrebuiltBasisFactory
     >>> bkd = NumpyBkd()
     >>> bases = [LegendrePolynomial1D(bkd) for _ in range(2)]
+    >>> factories = [PrebuiltBasisFactory(b) for b in bases]
     >>> growth = LinearGrowthRule()
-    >>> grid = IsotropicCombinationSparseGrid(bkd, bases, growth, level=3)
+    >>> grid = IsotropicCombinationSparseGrid(bkd, factories, growth, level=3)
     >>> print(f"Subspaces: {grid.nsubspaces()}, Samples: {grid.nsamples()}")
     """
 
     def __init__(
         self,
         bkd: Backend[Array],
-        univariate_bases: List[Basis1DProtocol[Array]],
+        basis_factories: List[BasisFactoryProtocol[Array]],
         growth_rule: IndexGrowthRuleProtocol,
         level: int,
     ):
-        super().__init__(bkd, univariate_bases, growth_rule)
+        super().__init__(bkd, basis_factories, growth_rule)
         self._level = level
 
         # Create index generator with pnorm=1.0 for isotropic (total degree)

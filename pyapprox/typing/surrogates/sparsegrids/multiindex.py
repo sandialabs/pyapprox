@@ -9,7 +9,6 @@ from typing import Callable, Generic, List, Optional, Tuple
 
 from pyapprox.typing.util.backends.protocols import Array, Backend
 from pyapprox.typing.surrogates.affine.protocols import (
-    Basis1DProtocol,
     IndexGrowthRuleProtocol,
 )
 from pyapprox.typing.surrogates.affine.indices import (
@@ -20,6 +19,7 @@ from pyapprox.typing.surrogates.affine.indices import (
 from pyapprox.typing.surrogates.affine.univariate import LagrangeBasis1D
 
 from .adaptive import AdaptiveCombinationSparseGrid
+from .basis_factory import BasisFactoryProtocol, PrebuiltBasisFactory
 
 
 class MultiIndexAdaptiveCombinationSparseGrid(
@@ -42,8 +42,8 @@ class MultiIndexAdaptiveCombinationSparseGrid(
     ----------
     bkd : Backend[Array]
         Computational backend.
-    physical_bases : List[Basis1DProtocol[Array]]
-        Univariate bases for physical input variables.
+    physical_basis_factories : List[BasisFactoryProtocol[Array]]
+        Factories for creating univariate bases for physical input variables.
     nrefinement_vars : int
         Number of refinement/fidelity variables.
     refinement_bounds : Array
@@ -64,17 +64,19 @@ class MultiIndexAdaptiveCombinationSparseGrid(
     --------
     >>> from pyapprox.typing.util.backends.numpy import NumpyBkd
     >>> from pyapprox.typing.surrogates.affine.univariate import LegendrePolynomial1D
+    >>> from pyapprox.typing.surrogates.sparsegrids import PrebuiltBasisFactory
     >>> import numpy as np
     >>> bkd = NumpyBkd()
     >>>
     >>> # 2 physical variables with Legendre bases
     >>> physical_bases = [LegendrePolynomial1D(bkd) for _ in range(2)]
+    >>> physical_factories = [PrebuiltBasisFactory(b) for b in physical_bases]
     >>>
     >>> # 1 fidelity variable - need at least 5 levels for level 2 sparse grid
     >>> # with LinearGrowthRule(scale=2, shift=1): 2*2+1 = 5 points
     >>> refinement_bounds = bkd.asarray([5])
     >>> grid = MultiIndexAdaptiveCombinationSparseGrid(
-    ...     bkd, physical_bases, nrefinement_vars=1,
+    ...     bkd, physical_factories, nrefinement_vars=1,
     ...     refinement_bounds=refinement_bounds
     ... )
     >>>
@@ -87,7 +89,7 @@ class MultiIndexAdaptiveCombinationSparseGrid(
     def __init__(
         self,
         bkd: Backend[Array],
-        physical_bases: List[Basis1DProtocol[Array]],
+        physical_basis_factories: List[BasisFactoryProtocol[Array]],
         nrefinement_vars: int,
         refinement_bounds: Array,
         growth_rule: Optional[IndexGrowthRuleProtocol] = None,
@@ -103,7 +105,7 @@ class MultiIndexAdaptiveCombinationSparseGrid(
             ]
         ] = None,
     ):
-        self._nvars_physical = len(physical_bases)
+        self._nvars_physical = len(physical_basis_factories)
         self._nrefinement_vars = nrefinement_vars
         self._refinement_bounds = bkd.copy(refinement_bounds)
 
@@ -116,16 +118,15 @@ class MultiIndexAdaptiveCombinationSparseGrid(
         if growth_rule is None:
             growth_rule = LinearGrowthRule(scale=2, shift=1)
 
-        # For refinement variables, create discrete level bases
-        refinement_bases: List[Basis1DProtocol[Array]] = []
+        # For refinement variables, create discrete level bases wrapped in factories
+        refinement_factories: List[BasisFactoryProtocol[Array]] = []
         for dim in range(nrefinement_vars):
             max_level = int(refinement_bounds[dim])
-            refinement_bases.append(
-                self._create_discrete_level_basis(bkd, max_level)
-            )
+            refinement_basis = self._create_discrete_level_basis(bkd, max_level)
+            refinement_factories.append(PrebuiltBasisFactory(refinement_basis))
 
-        # Combine all bases
-        all_bases = list(physical_bases) + refinement_bases
+        # Combine all factories
+        all_factories = list(physical_basis_factories) + refinement_factories
 
         # Default admissibility with refinement bounds
         if admissibility is None:
@@ -142,7 +143,7 @@ class MultiIndexAdaptiveCombinationSparseGrid(
 
         super().__init__(
             bkd,
-            all_bases,
+            all_factories,
             growth_rule,
             admissibility,
             refinement_priority,

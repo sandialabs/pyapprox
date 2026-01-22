@@ -49,6 +49,18 @@ from .converters import (
     TensorProductSubspaceToPCEConverter,
 )
 
+from .basis_factory import (
+    BasisFactoryProtocol,
+    GaussLagrangeFactory,
+    LejaLagrangeFactory,
+    PiecewiseFactory,
+    PrebuiltBasisFactory,
+    get_bounds_from_marginal,
+    get_transform_from_marginal,
+    create_basis_factories,
+    create_bases_from_marginals,
+)
+
 __all__ = [
     # Protocols
     "SubspaceProtocol",
@@ -74,4 +86,14 @@ __all__ = [
     # Converters
     "SparseGridToPCEConverter",
     "TensorProductSubspaceToPCEConverter",
+    # Basis factories
+    "BasisFactoryProtocol",
+    "GaussLagrangeFactory",
+    "LejaLagrangeFactory",
+    "PiecewiseFactory",
+    "PrebuiltBasisFactory",
+    "get_bounds_from_marginal",
+    "get_transform_from_marginal",
+    "create_basis_factories",
+    "create_bases_from_marginals",
 ]

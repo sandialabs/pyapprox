@@ -31,19 +31,12 @@ from pyapprox.typing.util.backends.protocols import Array, Backend
 from pyapprox.typing.surrogates.affine.protocols import Basis1DProtocol
 from pyapprox.typing.surrogates.affine.univariate.lagrange import LagrangeBasis1D
 from pyapprox.typing.surrogates.affine.univariate.transforms import (
-    BoundedAffineTransform1D,
     IdentityTransform1D,
-    UnboundedAffineTransform1D,
     Univariate1DTransformProtocol,
+    get_transform_from_marginal,
 )
-from pyapprox.typing.surrogates.affine.expansions.pce import (
-    get_orthonormal_poly_from_marginal,
-)
-from pyapprox.typing.probability.univariate import (
-    BetaMarginal,
-    GammaMarginal,
-    GaussianMarginal,
-    UniformMarginal,
+from pyapprox.typing.surrogates.affine.univariate.registry import (
+    _lookup_analytical,
 )
 
 
@@ -112,9 +105,24 @@ class GaussLagrangeFactory(Generic[Array]):
     def _setup(self) -> None:
         """Initialize polynomial and transform (lazy initialization)."""
         if self._poly is None:
-            self._poly = get_orthonormal_poly_from_marginal(
-                self._marginal, self._bkd
-            )
+            # Use registry to get polynomial for the marginal
+            entry = _lookup_analytical(self._marginal)
+            if entry is not None:
+                self._poly = entry.polynomial_factory(self._marginal, self._bkd)
+            else:
+                # Fallback for custom marginals
+                from pyapprox.typing.surrogates.affine.univariate.globalpoly.continuous_numeric import (
+                    BoundedNumericOrthonormalPolynomial1D,
+                    UnboundedNumericOrthonormalPolynomial1D,
+                )
+                if hasattr(self._marginal, "is_bounded") and self._marginal.is_bounded():
+                    self._poly = BoundedNumericOrthonormalPolynomial1D(
+                        self._bkd, self._marginal
+                    )
+                else:
+                    self._poly = UnboundedNumericOrthonormalPolynomial1D(
+                        self._bkd, self._marginal
+                    )
             self._transform = get_transform_from_marginal(
                 self._marginal, self._bkd
             )
@@ -214,8 +222,25 @@ class LejaLagrangeFactory(Generic[Array]):
             PDFWeighting,
         )
 
-        # Get polynomial and bounds
-        poly = get_orthonormal_poly_from_marginal(self._marginal, self._bkd)
+        # Get polynomial using registry
+        entry = _lookup_analytical(self._marginal)
+        if entry is not None:
+            poly = entry.polynomial_factory(self._marginal, self._bkd)
+        else:
+            # Fallback for custom marginals
+            from pyapprox.typing.surrogates.affine.univariate.globalpoly.continuous_numeric import (
+                BoundedNumericOrthonormalPolynomial1D,
+                UnboundedNumericOrthonormalPolynomial1D,
+            )
+            if hasattr(self._marginal, "is_bounded") and self._marginal.is_bounded():
+                poly = BoundedNumericOrthonormalPolynomial1D(
+                    self._bkd, self._marginal
+                )
+            else:
+                poly = UnboundedNumericOrthonormalPolynomial1D(
+                    self._bkd, self._marginal
+                )
+
         bounds = get_bounds_from_marginal(self._marginal, self._eps)
         self._transform = get_transform_from_marginal(self._marginal, self._bkd)
 
@@ -311,15 +336,37 @@ class PiecewiseFactory(Generic[Array]):
         Returns
         -------
         Basis1DProtocol[Array]
-            Piecewise polynomial basis.
+            Piecewise polynomial basis with dynamic node count support.
 
         Raises
         ------
-        NotImplementedError
-            This factory is not yet implemented.
+        ValueError
+            If poly_type is not one of "linear", "quadratic", "cubic".
         """
-        raise NotImplementedError(
-            "PiecewiseFactory is a placeholder for future implementation"
+        from pyapprox.typing.surrogates.affine.univariate.piecewisepoly import (
+            DynamicPiecewiseBasis,
+            EquidistantNodeGenerator,
+            PiecewiseLinear,
+            PiecewiseQuadratic,
+            PiecewiseCubic,
+        )
+
+        bounds = get_bounds_from_marginal(self._marginal, self._eps)
+        node_gen = EquidistantNodeGenerator(self._bkd, bounds)
+
+        basis_classes = {
+            "linear": PiecewiseLinear,
+            "quadratic": PiecewiseQuadratic,
+            "cubic": PiecewiseCubic,
+        }
+        if self._poly_type not in basis_classes:
+            raise ValueError(
+                f"Unknown poly_type: {self._poly_type}. "
+                f"Expected one of: {list(basis_classes.keys())}"
+            )
+
+        return DynamicPiecewiseBasis(
+            self._bkd, basis_classes[self._poly_type], node_gen
         )
 
     def __repr__(self) -> str:
@@ -416,61 +463,6 @@ def get_bounds_from_marginal(marginal, eps: float = 1e-6) -> Tuple[float, float]
         bounds = marginal.interval(1.0 - eps)
 
     return float(bounds[0, 0]), float(bounds[0, 1])
-
-
-def get_transform_from_marginal(
-    marginal, bkd: Backend[Array]
-) -> Univariate1DTransformProtocol[Array]:
-    """Get appropriate domain transform from marginal.
-
-    Creates a transform that maps from canonical domain to user domain:
-    - Uniform[a, b]: BoundedAffineTransform from [-1, 1] to [a, b]
-    - Gaussian(μ, σ): UnboundedAffineTransform from N(0,1) to N(μ, σ²)
-    - Beta(α, β): BoundedAffineTransform from [-1, 1] to [0, 1]
-    - Gamma(k, θ): UnboundedAffineTransform from Gamma(k, 1) to Gamma(k, θ)
-
-    Parameters
-    ----------
-    marginal : MarginalProtocol
-        Univariate marginal distribution.
-    bkd : Backend[Array]
-        Computational backend.
-
-    Returns
-    -------
-    Univariate1DTransformProtocol[Array]
-        Domain transform.
-
-    Examples
-    --------
-    >>> from pyapprox.typing.util.backends.numpy import NumpyBkd
-    >>> from pyapprox.typing.probability.univariate import UniformMarginal
-    >>> bkd = NumpyBkd()
-    >>> marginal = UniformMarginal(lower=0.0, upper=1.0, bkd=bkd)
-    >>> transform = get_transform_from_marginal(marginal, bkd)
-    >>> transform.map_from_canonical(bkd.asarray([[-1.0, 0.0, 1.0]]))
-    array([[0. , 0.5, 1. ]])
-    """
-    if isinstance(marginal, UniformMarginal):
-        return BoundedAffineTransform1D(bkd, marginal.lower(), marginal.upper())
-
-    if isinstance(marginal, GaussianMarginal):
-        return UnboundedAffineTransform1D(
-            bkd, loc=marginal.mean_value(), scale=marginal.std()
-        )
-
-    if isinstance(marginal, BetaMarginal):
-        # Beta is on [lb, ub], Jacobi polynomials are on [-1, 1]
-        lb, ub = marginal.bounds()
-        return BoundedAffineTransform1D(bkd, lb, ub)
-
-    if isinstance(marginal, GammaMarginal):
-        # Laguerre polynomials with scale parameter
-        # The scale from Gamma(k, θ) maps canonical Gamma(k, 1) to user domain
-        return UnboundedAffineTransform1D(bkd, loc=0.0, scale=marginal.scale())
-
-    # Default: identity transform (assume canonical and user domain are same)
-    return IdentityTransform1D(bkd)
 
 
 def create_basis_factories(
@@ -591,7 +583,7 @@ __all__ = [
     "PiecewiseFactory",
     "PrebuiltBasisFactory",
     "get_bounds_from_marginal",
-    "get_transform_from_marginal",
+    "get_transform_from_marginal",  # Re-exported from transforms module
     "create_basis_factories",
     "create_bases_from_marginals",
 ]

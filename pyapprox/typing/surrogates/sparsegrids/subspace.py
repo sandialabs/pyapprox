@@ -12,7 +12,6 @@ from typing import Generic, List, Optional
 from pyapprox.typing.util.backends.protocols import Array, Backend
 from pyapprox.typing.util.cartesian import outer_product_weights
 from pyapprox.typing.surrogates.affine.protocols import (
-    Basis1DProtocol,
     IndexGrowthRuleProtocol,
 )
 from pyapprox.typing.surrogates.affine.univariate.lagrange import LagrangeBasis1D
@@ -22,6 +21,7 @@ from pyapprox.typing.surrogates.sparsegrids.basis_setup import (
     get_quadrature_rule,
     create_lagrange_from_quadrature,
 )
+from pyapprox.typing.surrogates.sparsegrids.basis_factory import BasisFactoryProtocol
 
 
 class TensorProductSubspace(Generic[Array]):
@@ -38,8 +38,9 @@ class TensorProductSubspace(Generic[Array]):
         Computational backend.
     index : Array
         Multi-index identifying this subspace, shape (nvars,)
-    univariate_bases : List[Basis1DProtocol[Array]]
-        Univariate bases for each dimension.
+    basis_factories : List[BasisFactoryProtocol[Array]]
+        Factories for creating univariate bases for each dimension.
+        Each factory's create_basis() is called to get fresh basis instances.
     growth_rule : IndexGrowthRuleProtocol
         Rule mapping level to number of points.
 
@@ -53,23 +54,25 @@ class TensorProductSubspace(Generic[Array]):
     >>> from pyapprox.typing.util.backends.numpy import NumpyBkd
     >>> from pyapprox.typing.surrogates.affine.univariate import LegendrePolynomial1D
     >>> from pyapprox.typing.surrogates.affine.indices import LinearGrowthRule
+    >>> from pyapprox.typing.surrogates.sparsegrids import PrebuiltBasisFactory
     >>> bkd = NumpyBkd()
     >>> basis = LegendrePolynomial1D(bkd)
+    >>> factories = [PrebuiltBasisFactory(basis), PrebuiltBasisFactory(basis)]
     >>> growth = LinearGrowthRule()
     >>> index = bkd.asarray([1, 2])
-    >>> subspace = TensorProductSubspace(bkd, index, [basis, basis], growth)
+    >>> subspace = TensorProductSubspace(bkd, index, factories, growth)
     """
 
     def __init__(
         self,
         bkd: Backend[Array],
         index: Array,
-        univariate_bases: List[Basis1DProtocol[Array]],
+        basis_factories: List[BasisFactoryProtocol[Array]],
         growth_rule: IndexGrowthRuleProtocol,
     ):
         self._bkd = bkd
         self._index = bkd.copy(index)
-        self._univariate_bases = univariate_bases
+        self._basis_factories = basis_factories
         self._growth_rule = growth_rule
 
         # Compute number of points per dimension from growth rule
@@ -78,13 +81,15 @@ class TensorProductSubspace(Generic[Array]):
         # Create independent LagrangeBasis1D for each dimension
         # IMPORTANT: Each dimension needs its own basis instance because
         # different dimensions may have different numbers of points.
-        # Even if the same basis object is passed for multiple dimensions,
-        # we create separate LagrangeBasis1D wrappers for each.
+        # We call create_basis() on each factory to get a fresh instance.
         self._interp_bases_1d: List[LagrangeBasis1D[Array]] = []
         self._1d_weights: List[Array] = []
 
-        for dim, basis in enumerate(univariate_bases):
+        for dim, factory in enumerate(basis_factories):
             npts = self._npts_1d[dim]
+
+            # Get a fresh basis from the factory
+            basis = factory.create_basis()
 
             # Extract quadrature rule from the basis
             quad_rule = get_quadrature_rule(basis)

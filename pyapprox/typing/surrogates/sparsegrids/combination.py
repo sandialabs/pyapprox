@@ -8,13 +8,13 @@ from typing import Dict, Generic, List, Optional, Tuple
 
 from pyapprox.typing.util.backends.protocols import Array, Backend
 from pyapprox.typing.surrogates.affine.protocols import (
-    Basis1DProtocol,
     IndexGrowthRuleProtocol,
 )
 from pyapprox.typing.surrogates.affine.indices import IndexGenerator
 
 from .smolyak import compute_smolyak_coefficients, _index_to_tuple
 from .subspace import TensorProductSubspace
+from .basis_factory import BasisFactoryProtocol
 
 
 class CombinationSparseGrid(Generic[Array]):
@@ -29,8 +29,9 @@ class CombinationSparseGrid(Generic[Array]):
     ----------
     bkd : Backend[Array]
         Computational backend.
-    univariate_bases : List[Basis1DProtocol[Array]]
-        Univariate bases for each dimension.
+    basis_factories : List[BasisFactoryProtocol[Array]]
+        Factories for creating univariate bases for each dimension.
+        Each factory's create_basis() is called when creating subspaces.
     growth_rule : IndexGrowthRuleProtocol
         Rule mapping level to number of points.
 
@@ -44,22 +45,24 @@ class CombinationSparseGrid(Generic[Array]):
     >>> from pyapprox.typing.util.backends.numpy import NumpyBkd
     >>> from pyapprox.typing.surrogates.affine.univariate import LegendrePolynomial1D
     >>> from pyapprox.typing.surrogates.affine.indices import LinearGrowthRule
+    >>> from pyapprox.typing.surrogates.sparsegrids import PrebuiltBasisFactory
     >>> bkd = NumpyBkd()
     >>> bases = [LegendrePolynomial1D(bkd) for _ in range(2)]
+    >>> factories = [PrebuiltBasisFactory(b) for b in bases]
     >>> growth = LinearGrowthRule()
-    >>> grid = CombinationSparseGrid(bkd, bases, growth)
+    >>> grid = CombinationSparseGrid(bkd, factories, growth)
     """
 
     def __init__(
         self,
         bkd: Backend[Array],
-        univariate_bases: List[Basis1DProtocol[Array]],
+        basis_factories: List[BasisFactoryProtocol[Array]],
         growth_rule: IndexGrowthRuleProtocol,
     ):
         self._bkd = bkd
-        self._univariate_bases = univariate_bases
+        self._basis_factories = basis_factories
         self._growth_rule = growth_rule
-        self._nvars = len(univariate_bases)
+        self._nvars = len(basis_factories)
 
         # Subspace storage
         self._subspaces: Dict[Tuple[int, ...], TensorProductSubspace[Array]] = {}
@@ -163,7 +166,7 @@ class CombinationSparseGrid(Generic[Array]):
         subspace = TensorProductSubspace(
             self._bkd,
             index,
-            self._univariate_bases,
+            self._basis_factories,
             self._growth_rule,
         )
         self._subspaces[key] = subspace
