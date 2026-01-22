@@ -8,9 +8,12 @@ from typing import Generic, List, Optional, Tuple
 
 from pyapprox.typing.util.backends.protocols import Array, Backend
 from pyapprox.typing.surrogates.affine.protocols import (
-    OrthonormalPolynomial1DProtocol,
+    PhysicalDomainBasis1DProtocol,
 )
 from pyapprox.typing.surrogates.affine.basis.multiindex import MultiIndexBasis
+from pyapprox.typing.surrogates.affine.univariate.globalpoly.orthopoly_base import (
+    OrthonormalPolynomial1D,
+)
 
 
 class OrthonormalPolynomialBasis(MultiIndexBasis[Array], Generic[Array]):
@@ -21,26 +24,40 @@ class OrthonormalPolynomialBasis(MultiIndexBasis[Array], Generic[Array]):
 
     Parameters
     ----------
-    bases_1d : List[OrthonormalPolynomial1DProtocol[Array]]
-        List of orthonormal polynomial bases, one per variable.
+    bases_1d : List[PhysicalDomainBasis1DProtocol[Array]]
+        List of physical-domain polynomial bases (TransformedBasis1D or
+        NativeBasis1D), one per variable. Use create_basis_1d() to create
+        bases from marginal distributions.
     bkd : Backend[Array]
         Computational backend.
     indices : Array, optional
         Multi-indices specifying which basis functions to include.
         Shape: (nvars, nterms). If None, must be set later.
+
+    Raises
+    ------
+    TypeError
+        If a raw OrthonormalPolynomial1D is passed instead of a wrapped basis.
     """
 
     def __init__(
         self,
-        bases_1d: List[OrthonormalPolynomial1DProtocol[Array]],
+        bases_1d: List[PhysicalDomainBasis1DProtocol[Array]],
         bkd: Backend[Array],
         indices: Optional[Array] = None,
     ):
-        # Verify all bases are orthonormal polynomials
+        # Reject raw polynomials - must use create_basis_1d() to wrap them
         for ii, basis in enumerate(bases_1d):
-            if not isinstance(basis, OrthonormalPolynomial1DProtocol):
+            if isinstance(basis, OrthonormalPolynomial1D):
                 raise TypeError(
-                    f"bases_1d[{ii}] must be OrthonormalPolynomial1DProtocol, "
+                    f"bases_1d[{ii}] is a raw OrthonormalPolynomial1D "
+                    f"({type(basis).__name__}). Use create_basis_1d(marginal, bkd) "
+                    f"to create physical-domain bases that handle domain transforms."
+                )
+            # Verify it has required methods
+            if not isinstance(basis, PhysicalDomainBasis1DProtocol):
+                raise TypeError(
+                    f"bases_1d[{ii}] must implement PhysicalDomainBasis1DProtocol, "
                     f"got {type(basis).__name__}"
                 )
 

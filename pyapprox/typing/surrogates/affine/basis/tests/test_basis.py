@@ -10,8 +10,7 @@ from pyapprox.typing.util.backends.numpy import NumpyBkd
 from pyapprox.typing.util.backends.protocols import Backend
 
 from pyapprox.typing.surrogates.affine.univariate import (
-    LegendrePolynomial1D,
-    HermitePolynomial1D,
+    create_bases_1d,
 )
 from pyapprox.typing.surrogates.affine.indices import (
     compute_hyperbolic_indices,
@@ -21,6 +20,10 @@ from pyapprox.typing.surrogates.affine.basis import (
     OrthonormalPolynomialBasis,
     TensorProductQuadratureRule,
     FixedTensorProductQuadratureRule,
+)
+from pyapprox.typing.probability import (
+    UniformMarginal,
+    GaussianMarginal,
 )
 
 
@@ -42,7 +45,8 @@ class TestMultiIndexBasis(_BaseBasisTest, unittest.TestCase):
     def _create_basis(self, nvars: int, max_level: int):
         """Helper to create a Legendre basis with hyperbolic indices."""
         bkd = self.bkd
-        bases_1d = [LegendrePolynomial1D(bkd) for _ in range(nvars)]
+        marginals = [UniformMarginal(-1.0, 1.0, bkd) for _ in range(nvars)]
+        bases_1d = create_bases_1d(marginals, bkd)
         indices = compute_hyperbolic_indices(nvars, max_level, 1.0, bkd)
         return OrthonormalPolynomialBasis(bases_1d, bkd, indices)
 
@@ -145,7 +149,8 @@ class TestMultiIndexBasis(_BaseBasisTest, unittest.TestCase):
     def test_constant_basis(self):
         """Test that first basis function is constant."""
         bkd = self.bkd
-        bases_1d = [LegendrePolynomial1D(bkd) for _ in range(2)]
+        marginals = [UniformMarginal(-1.0, 1.0, bkd) for _ in range(2)]
+        bases_1d = create_bases_1d(marginals, bkd)
         # Just the zero index
         indices = bkd.zeros((2, 1), dtype=bkd.int64_dtype())
         basis = OrthonormalPolynomialBasis(bases_1d, bkd, indices)
@@ -166,7 +171,8 @@ class TestOrthonormalPolynomialBasis(_BaseBasisTest, unittest.TestCase):
     def test_univariate_quadrature(self):
         """Test univariate quadrature access."""
         bkd = self.bkd
-        bases_1d = [LegendrePolynomial1D(bkd) for _ in range(2)]
+        marginals = [UniformMarginal(-1.0, 1.0, bkd) for _ in range(2)]
+        bases_1d = create_bases_1d(marginals, bkd)
         for b in bases_1d:
             b.set_nterms(5)
         indices = compute_hyperbolic_indices(2, 3, 1.0, bkd)
@@ -179,7 +185,8 @@ class TestOrthonormalPolynomialBasis(_BaseBasisTest, unittest.TestCase):
     def test_tensor_product_quadrature(self):
         """Test tensor product quadrature rule."""
         bkd = self.bkd
-        bases_1d = [LegendrePolynomial1D(bkd) for _ in range(2)]
+        marginals = [UniformMarginal(-1.0, 1.0, bkd) for _ in range(2)]
+        bases_1d = create_bases_1d(marginals, bkd)
         for b in bases_1d:
             b.set_nterms(4)
         indices = compute_hyperbolic_indices(2, 2, 1.0, bkd)
@@ -195,7 +202,8 @@ class TestOrthonormalPolynomialBasis(_BaseBasisTest, unittest.TestCase):
     def test_orthonormality(self):
         """Test orthonormality using quadrature."""
         bkd = self.bkd
-        bases_1d = [LegendrePolynomial1D(bkd) for _ in range(2)]
+        marginals = [UniformMarginal(-1.0, 1.0, bkd) for _ in range(2)]
+        bases_1d = create_bases_1d(marginals, bkd)
         indices = compute_hyperbolic_indices(2, 3, 1.0, bkd)
         basis = OrthonormalPolynomialBasis(bases_1d, bkd, indices)
 
@@ -223,7 +231,8 @@ class TestTensorProductQuadratureRule(_BaseBasisTest, unittest.TestCase):
     def test_quadrature_shape(self):
         """Test quadrature points and weights shape."""
         bkd = self.bkd
-        bases_1d = [LegendrePolynomial1D(bkd) for _ in range(3)]
+        marginals = [UniformMarginal(-1.0, 1.0, bkd) for _ in range(3)]
+        bases_1d = create_bases_1d(marginals, bkd)
         npoints_1d = [3, 4, 5]
 
         quad = TensorProductQuadratureRule(bases_1d, npoints_1d, bkd)
@@ -241,7 +250,8 @@ class TestTensorProductQuadratureRule(_BaseBasisTest, unittest.TestCase):
         [-1,1]^2 with total weight 1), so it computes expected values.
         """
         bkd = self.bkd
-        bases_1d = [LegendrePolynomial1D(bkd) for _ in range(2)]
+        marginals = [UniformMarginal(-1.0, 1.0, bkd) for _ in range(2)]
+        bases_1d = create_bases_1d(marginals, bkd)
         npoints_1d = [5, 5]
 
         quad = TensorProductQuadratureRule(bases_1d, npoints_1d, bkd)
@@ -263,7 +273,8 @@ class TestTensorProductQuadratureRule(_BaseBasisTest, unittest.TestCase):
         the integral of f=1 gives 1.
         """
         bkd = self.bkd
-        bases_1d = [LegendrePolynomial1D(bkd) for _ in range(2)]
+        marginals = [UniformMarginal(-1.0, 1.0, bkd) for _ in range(2)]
+        bases_1d = create_bases_1d(marginals, bkd)
         npoints_1d = [3, 3]
 
         quad = TensorProductQuadratureRule(bases_1d, npoints_1d, bkd)
@@ -305,11 +316,11 @@ class TestMixedBases(_BaseBasisTest, unittest.TestCase):
     def test_mixed_legendre_hermite(self):
         """Test basis with Legendre and Hermite polynomials."""
         bkd = self.bkd
-        bases_1d = [LegendrePolynomial1D(bkd), HermitePolynomial1D(bkd)]
+        marginals = [UniformMarginal(-1.0, 1.0, bkd), GaussianMarginal(0.0, 1.0, bkd)]
+        bases_1d = create_bases_1d(marginals, bkd)
         indices = compute_hyperbolic_indices(2, 2, 1.0, bkd)
 
-        basis = MultiIndexBasis.__new__(MultiIndexBasis)
-        MultiIndexBasis.__init__(basis, bases_1d, bkd, indices)
+        basis = OrthonormalPolynomialBasis(bases_1d, bkd, indices)
 
         # Should work with samples in appropriate ranges
         nsamples = 10
