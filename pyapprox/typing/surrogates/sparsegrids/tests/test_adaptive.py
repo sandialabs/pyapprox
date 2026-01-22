@@ -327,24 +327,44 @@ class TestAdaptiveConvergenceTorch(TestAdaptiveConvergence[torch.Tensor]):
 # =============================================================================
 # Anisotropic Index Set Recovery Tests
 # =============================================================================
+#
+# IMPORTANT: Index recovery tests require NESTED quadrature points (Leja or
+# Clenshaw-Curtis). With non-nested points (Gauss), the hierarchical surplus
+# fluctuates as new subspaces are added, causing spurious over-refinement.
+#
+# Nested points ensure that points at level l are a subset of points at level
+# l+1, which gives stable hierarchical surpluses and correct adaptive behavior.
+# =============================================================================
 
 ANISOTROPIC_CONFIGS = [
-    # (name, joint_config, max_levels_1d, total_degree, growth_type)
-    # Linear (1,1) growth: d = l + 1
-    ("2d_aniso_31_lin11", "2d_uniform", [3, 1], None, "linear_1_1"),
-    ("2d_aniso_32_td4_lin11", "2d_uniform", [3, 2], 4, "linear_1_1"),
-    ("3d_aniso_312_lin11", "3d_uniform", [3, 1, 2], None, "linear_1_1"),
-    ("3d_aniso_312_td4_lin11", "3d_uniform", [3, 1, 2], 4, "linear_1_1"),
-    # Linear (2,1) growth: d = 2*l + 1
-    ("2d_aniso_31_lin21", "2d_uniform", [3, 1], None, "linear_2_1"),
-    ("3d_aniso_312_lin21", "3d_uniform", [3, 1, 2], None, "linear_2_1"),
+    # (name, joint_config, max_levels_1d, total_degree, growth_type, basis_type)
+    # Leja points with Linear (1,1) growth: d = l + 1
+    ("2d_aniso_31_lin11_leja", "2d_uniform", [3, 1], None, "linear_1_1", "leja"),
+    ("2d_aniso_32_td4_lin11_leja", "2d_uniform", [3, 2], 4, "linear_1_1", "leja"),
+    ("3d_aniso_312_lin11_leja", "3d_uniform", [3, 1, 2], None, "linear_1_1", "leja"),
+    ("3d_aniso_312_td4_lin11_leja", "3d_uniform", [3, 1, 2], 4, "linear_1_1", "leja"),
+    # Leja points with Linear (2,1) growth: d = 2*l + 1
+    ("2d_aniso_31_lin21_leja", "2d_uniform", [3, 1], None, "linear_2_1", "leja"),
+    ("3d_aniso_312_lin21_leja", "3d_uniform", [3, 1, 2], None, "linear_2_1", "leja"),
+    # Clenshaw-Curtis points with matching growth rule (nested, d = 2^l + 1)
+    ("2d_aniso_31_cc", "2d_uniform", [3, 1], None, "clenshaw_curtis", "clenshaw_curtis"),
+    ("3d_aniso_312_cc", "3d_uniform", [3, 1, 2], None, "clenshaw_curtis", "clenshaw_curtis"),
 ]
 
 
 class TestAdaptiveAnisotropicRecovery(
     Generic[Array], ParametrizedTestCase, unittest.TestCase
 ):
-    """Tests for adaptive recovery of anisotropic index sets without over-refinement."""
+    """Tests for adaptive recovery of anisotropic index sets.
+
+    These tests verify that adaptive sparse grids correctly recover the
+    subspaces needed to exactly represent anisotropic PCE targets without
+    over-refinement.
+
+    IMPORTANT: These tests require nested quadrature points (Leja or
+    Clenshaw-Curtis). Non-nested points cause hierarchical surplus
+    fluctuations leading to spurious over-refinement.
+    """
 
     __test__ = False
 
@@ -356,48 +376,46 @@ class TestAdaptiveAnisotropicRecovery(
 
     def _assert_no_over_refinement(
         self,
-        grid: AdaptiveCombinationSparseGrid[Array],
-        required_sg_indices: Array,
+        selected_indices: Array,
+        required_indices: Array,
     ) -> None:
-        """Assert adaptive grid selected exactly required subspaces plus exploration.
+        """Assert selected subspaces don't over-refine beyond required.
 
-        The adaptive algorithm should select all required subspaces. It may also
-        select at most one additional level beyond required in each dimension
-        for exploration (to discover that those subspaces have zero error).
+        The adaptive algorithm should select all required subspaces. It may
+        also select at most one additional level beyond required in each
+        dimension for exploration (to discover those subspaces have zero error).
 
         Parameters
         ----------
-        grid : AdaptiveCombinationSparseGrid
-            The adaptive grid to check.
-        required_sg_indices : Array
+        selected_indices : Array
+            Selected SG subspace indices. Shape: (nvars, nsubspaces)
+        required_indices : Array
             Required SG subspace indices. Shape: (nvars, nsubspaces)
         """
-        selected_indices = grid.get_selected_subspace_indices()
         nvars = selected_indices.shape[0]
 
-        # Max required level per dimension
-        max_required = [
-            int(self._bkd.to_numpy(self._bkd.max(required_sg_indices[d, :])))
+        # For each selected subspace, check it's at most +1 beyond required
+        # in each dimension
+        max_required = self._bkd.asarray([
+            int(self._bkd.to_numpy(self._bkd.max(required_indices[d, :])))
             for d in range(nvars)
-        ]
+        ])
 
-        # Max achieved level per dimension
-        max_achieved = [
-            int(self._bkd.to_numpy(self._bkd.max(selected_indices[d, :])))
-            for d in range(nvars)
-        ]
-
-        # Check: achieved should be at most required + 1 (exploration tolerance)
-        for d in range(nvars):
-            self.assertLessEqual(
-                max_achieved[d],
-                max_required[d] + 1,
-                f"Over-refinement in dim {d}: achieved {max_achieved[d]}, "
-                f"required {max_required[d]}, tolerance 1",
-            )
+        for j in range(selected_indices.shape[1]):
+            sel_idx = selected_indices[:, j]
+            for d in range(nvars):
+                sel_level = int(self._bkd.to_numpy(sel_idx[d]))
+                max_req = int(self._bkd.to_numpy(max_required[d]))
+                self.assertLessEqual(
+                    sel_level,
+                    max_req + 1,
+                    f"Over-refinement: selected {self._bkd.to_numpy(sel_idx)} "
+                    f"exceeds max required {self._bkd.to_numpy(max_required)} + 1 "
+                    f"in dim {d}",
+                )
 
     @parametrize(
-        "name,joint_config,max_levels_1d,total_degree,growth_type",
+        "name,joint_config,max_levels_1d,total_degree,growth_type,basis_type",
         ANISOTROPIC_CONFIGS,
     )
     def test_recovers_anisotropic_index_set(
@@ -407,11 +425,16 @@ class TestAdaptiveAnisotropicRecovery(
         max_levels_1d: List[int],
         total_degree: int | None,
         growth_type: str,
+        basis_type: str,
     ) -> None:
         """Test adaptive SG recovers anisotropic PCE index set without over-refinement.
 
-        Note: Error threshold of 1e-12 is for polynomial targets that should be
-        exactly representable by the sparse grid.
+        Note: This test requires nested quadrature points (Leja or Clenshaw-Curtis).
+        Non-nested points (Gauss) cause hierarchical surplus fluctuations that lead
+        to spurious over-refinement.
+
+        Error threshold of 1e-12 is for polynomial targets that should be exactly
+        representable by the sparse grid.
         """
         joint = create_test_joint(joint_config, self._bkd)
 
@@ -420,85 +443,56 @@ class TestAdaptiveAnisotropicRecovery(
             joint, max_levels_1d, total_degree, nqoi=1, bkd=self._bkd
         )
 
-        # Get growth rule and compute required SG subspaces from PCE indices
-        growth = GROWTH_RULES[growth_type]
+        # PCE indices are polynomial degrees. For sparse grid admissibility with
+        # pnorm=1 (L1 norm), max_level must be >= max total degree of the PCE.
         pce_indices = pce.get_indices()
-        required_sg_indices = compute_required_sg_subspaces(
-            pce_indices, growth, self._bkd
+        max_total_degree = max(
+            int(self._bkd.to_numpy(self._bkd.sum(pce_indices[:, j])))
+            for j in range(pce_indices.shape[1])
         )
+        max_level = max_total_degree + 2  # Allow exploration buffer
 
-        # Max required level per dimension (for setting admissibility)
-        max_required_levels = [
-            int(self._bkd.to_numpy(self._bkd.max(required_sg_indices[d, :])))
-            for d in range(required_sg_indices.shape[0])
-        ]
-        max_level = max(max_required_levels) + 2  # Allow exploration buffer
-
+        growth = GROWTH_RULES[growth_type]
         factories = create_basis_factories(
-            joint.marginals(), self._bkd, "gauss"
+            joint.marginals(), self._bkd, basis_type
         )
         admis = MaxLevelCriteria(max_level=max_level, pnorm=1.0, bkd=self._bkd)
         grid = AdaptiveCombinationSparseGrid(
-            self._bkd, factories, growth, admis, verbosity=2
+            self._bkd, factories, growth, admis
         )
 
-        # DEBUG: Print setup info
-        print(f"\n{'='*60}")
-        print(f"TEST: {name}")
-        print(f"max_levels_1d: {max_levels_1d}, total_degree: {total_degree}")
-        print(f"growth_type: {growth_type}")
-        print(f"PCE nterms: {pce.nterms()}")
-        print(f"Required SG subspaces: {required_sg_indices.shape[1]}")
-        print(f"Max required levels per dim: {max_required_levels}")
-        print(f"max_level (with buffer): {max_level}")
-        print(f"{'='*60}")
-
-        # Refine until convergence OR error < tolerance
-        tol = 1e-12  # For exact polynomial targets
-        for i in range(100):
+        # Refine until convergence
+        tol = 1e-12
+        for _ in range(100):
             samples = grid.step_samples()
             if samples is None:
-                print(
-                    f"Step {i}: step_samples returned None - no more candidates"
-                )
                 break
             values = pce(samples)
             grid.step_values(values)
 
-            error = grid.error_estimate()
-            num_selected = grid.get_selected_subspace_indices().shape[1]
-
-            # Get max level per dimension
-            selected_indices = grid.get_selected_subspace_indices()
-            max_levels_achieved = [
-                int(self._bkd.to_numpy(self._bkd.max(selected_indices[d, :])))
-                for d in range(selected_indices.shape[0])
-            ]
-
-            print(
-                f"Step {i}: error={error:.2e}, selected={num_selected}, "
-                f"max_levels={max_levels_achieved}"
-            )
-
-            if error < tol:
-                print(f"*** Converged at step {i} with error {error:.2e} ***")
+            if grid.error_estimate() < tol:
                 break
-        else:
-            print(
-                f"*** Did NOT converge after 100 steps, final error={error:.2e} ***"
-            )
 
         # Verify exact interpolation
         np.random.seed(123)
         test_pts = joint.rvs(20)
         self._bkd.assert_allclose(grid(test_pts), pce(test_pts), rtol=1e-10)
 
-        # Verify no over-refinement
-        print(
-            f"\nFinal check: max_required={max_required_levels}, "
-            f"achieved={max_levels_achieved}"
-        )
-        self._assert_no_over_refinement(grid, required_sg_indices)
+        # Compute required SG subspaces from PCE indices and growth rule
+        required_sg = compute_required_sg_subspaces(pce_indices, growth, self._bkd)
+        selected_sg = grid.get_selected_subspace_indices()
+
+        # Check all required subspaces are selected
+        for j in range(required_sg.shape[1]):
+            req_idx = tuple(int(x) for x in self._bkd.to_numpy(required_sg[:, j]))
+            found = any(
+                req_idx == tuple(int(x) for x in self._bkd.to_numpy(selected_sg[:, k]))
+                for k in range(selected_sg.shape[1])
+            )
+            self.assertTrue(found, f"Required subspace {req_idx} not selected")
+
+        # Check no over-refinement (at most 1 level beyond required per dimension)
+        self._assert_no_over_refinement(selected_sg, required_sg)
 
 
 class TestAdaptiveAnisotropicRecoveryNumpy(
@@ -527,17 +521,28 @@ class TestAdaptiveAnisotropicRecoveryTorch(
 # Additive Function Recovery Tests
 # =============================================================================
 
+# =============================================================================
+# Additive Function Recovery Tests
+# =============================================================================
+#
+# IMPORTANT: Additive function tests require NESTED quadrature points (Leja or
+# Clenshaw-Curtis). With non-nested points (Gauss), the hierarchical surplus
+# fluctuates, causing the adaptive algorithm to incorrectly refine cross-terms.
+#
+# For f(x) = g1(x1) + g2(x2) + ..., the adaptive grid should only select 1D
+# subspaces (plus explored level-1 multi-dimensional subspaces that are
+# rejected due to zero error).
+# =============================================================================
+
 ADDITIVE_CONFIGS = [
     # (name, joint_config, max_levels_1d, growth_type, basis_type)
-    # Linear (1,1) growth with Gauss points
-    ("2d_additive_32_lin11_gauss", "2d_uniform", [3, 2], "linear_1_1", "gauss"),
-    ("3d_additive_324_lin11_gauss", "3d_uniform", [3, 2, 4], "linear_1_1", "gauss"),
-    # Linear (2,1) growth with Gauss points
-    ("2d_additive_32_lin21_gauss", "2d_uniform", [3, 2], "linear_2_1", "gauss"),
-    ("3d_additive_324_lin21_gauss", "3d_uniform", [3, 2, 4], "linear_2_1", "gauss"),
-    # Clenshaw-Curtis growth with CC nested points
-    # DoublePlusOneGrowthRule: npts(l) = 2^l + 1 (level 0 gives 1, level 1 gives 3, etc.)
-    # For additive functions, nested points ensure stable hierarchical surpluses
+    # Leja points with Linear (1,1) growth
+    ("2d_additive_32_lin11_leja", "2d_uniform", [3, 2], "linear_1_1", "leja"),
+    ("3d_additive_324_lin11_leja", "3d_uniform", [3, 2, 4], "linear_1_1", "leja"),
+    # Leja points with Linear (2,1) growth
+    ("2d_additive_32_lin21_leja", "2d_uniform", [3, 2], "linear_2_1", "leja"),
+    ("3d_additive_324_lin21_leja", "3d_uniform", [3, 2, 4], "linear_2_1", "leja"),
+    # Clenshaw-Curtis points with matching growth rule (nested, d = 2^l + 1)
     ("2d_additive_32_cc", "2d_uniform", [3, 2], "clenshaw_curtis", "clenshaw_curtis"),
     ("3d_additive_324_cc", "3d_uniform", [3, 2, 4], "clenshaw_curtis", "clenshaw_curtis"),
 ]
