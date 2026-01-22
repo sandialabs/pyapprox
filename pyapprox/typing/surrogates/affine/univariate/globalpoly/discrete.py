@@ -289,6 +289,9 @@ class CharlierPolynomial1D(OrthonormalPolynomial1D[Array], Generic[Array]):
 
     Orthogonal with respect to Poisson(mu) distribution.
 
+    This polynomial operates in physical domain - it expects samples
+    directly from the Poisson support {0, 1, 2, ...}.
+
     Parameters
     ----------
     bkd : Backend[Array]
@@ -296,6 +299,9 @@ class CharlierPolynomial1D(OrthonormalPolynomial1D[Array], Generic[Array]):
     mu : float
         Poisson rate parameter (mu > 0).
     """
+
+    # Operates in physical domain (Poisson support {0, 1, 2, ...})
+    _operates_in_physical_domain = True
 
     def __init__(
         self,

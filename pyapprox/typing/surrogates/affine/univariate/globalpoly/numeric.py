@@ -108,6 +108,9 @@ class DiscreteNumericOrthonormalPolynomial1D(
     Uses the Lanczos algorithm to compute recursion coefficients
     from arbitrary discrete probability measures.
 
+    This polynomial operates in physical domain - it expects samples
+    directly from the discrete support (e.g., {0, 1, 2, ...} for Poisson).
+
     Parameters
     ----------
     bkd : Backend[Array]
@@ -130,6 +133,9 @@ class DiscreteNumericOrthonormalPolynomial1D(
     >>> poly = DiscreteNumericOrthonormalPolynomial1D(bkd, samples, weights)
     >>> poly.set_nterms(5)
     """
+
+    # Operates in physical domain (actual discrete support)
+    _operates_in_physical_domain = True
 
     def __init__(
         self,

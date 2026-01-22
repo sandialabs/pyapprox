@@ -143,6 +143,12 @@ class OrthonormalPolynomial1D(Generic[Array]):
     This base class operates in the canonical domain of the polynomial.
     Transformations to/from physical domain are handled separately.
 
+    Subclasses should set the class attribute `_operates_in_physical_domain`
+    to True if they operate directly in the physical domain (e.g., discrete
+    polynomials on actual support points). By default, polynomials operate
+    in canonical domain and require a transform wrapper for physical domain
+    samples.
+
     Parameters
     ----------
     bkd : Backend[Array]
@@ -154,7 +160,13 @@ class OrthonormalPolynomial1D(Generic[Array]):
         Recursion coefficients. Shape: (nterms, 2)
     _prob_meas : bool
         If True, polynomials are orthonormal w.r.t. probability measure.
+    _operates_in_physical_domain : bool
+        Class attribute. If True, polynomial expects physical domain samples.
+        If False (default), polynomial expects canonical domain samples.
     """
+
+    # Class attribute: override in subclasses that operate in physical domain
+    _operates_in_physical_domain: bool = False
 
     def __init__(self, bkd: Backend[Array]):
         self._bkd = bkd
@@ -164,6 +176,21 @@ class OrthonormalPolynomial1D(Generic[Array]):
     def bkd(self) -> Backend[Array]:
         """Return the computational backend."""
         return self._bkd
+
+    def operates_in_physical_domain(self) -> bool:
+        """Return True if this polynomial operates in physical domain.
+
+        Polynomials that return True expect samples directly from the
+        marginal distribution's support (physical domain). Polynomials
+        that return False (default) expect samples in canonical domain
+        and require a transform wrapper when used with physical samples.
+
+        Returns
+        -------
+        bool
+            True if polynomial operates in physical domain, False otherwise.
+        """
+        return self._operates_in_physical_domain
 
     def _ncoefs(self) -> int:
         """Return number of computed recursion coefficients."""

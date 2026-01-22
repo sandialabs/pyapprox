@@ -46,9 +46,27 @@ from pyapprox.typing.surrogates.affine.univariate.globalpoly import (
     DiscreteNumericOrthonormalPolynomial1D,
     WeightedSamplePolynomial1D,
     lanczos_recursion,
-    ContinuousNumericOrthonormalPolynomial1D,
+    BoundedNumericOrthonormalPolynomial1D,
+    UnboundedNumericOrthonormalPolynomial1D,
     GaussQuadratureRule,
     GaussLobattoQuadratureRule,
+)
+
+# Physical-domain basis wrappers
+from pyapprox.typing.surrogates.affine.univariate.transformed import (
+    TransformedBasis1D,
+    NativeBasis1D,
+)
+
+# Factory for creating physical-domain bases from marginals
+from pyapprox.typing.surrogates.affine.univariate.factory import (
+    create_basis_1d,
+    create_bases_1d,
+)
+
+# Transform utilities
+from pyapprox.typing.surrogates.affine.univariate.transforms import (
+    get_transform_from_marginal,
 )
 
 from pyapprox.typing.surrogates.affine.univariate.bspline import (
@@ -115,10 +133,18 @@ __all__ = [
     "WeightedSamplePolynomial1D",
     "lanczos_recursion",
     # Continuous numeric polynomials
-    "ContinuousNumericOrthonormalPolynomial1D",
+    "BoundedNumericOrthonormalPolynomial1D",
+    "UnboundedNumericOrthonormalPolynomial1D",
     # Quadrature
     "GaussQuadratureRule",
     "GaussLobattoQuadratureRule",
+    # Physical-domain basis wrappers
+    "TransformedBasis1D",
+    "NativeBasis1D",
+    # Factory functions
+    "create_basis_1d",
+    "create_bases_1d",
+    "get_transform_from_marginal",
     # B-splines
     "BSpline1D",
     "HierarchicalBSpline1D",

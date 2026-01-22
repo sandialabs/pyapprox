@@ -432,10 +432,10 @@ class PredictorCorrector(Generic[Array]):
         return self._bkd.asarray(ab_np)
 
 
-class ContinuousNumericOrthonormalPolynomial1D(
+class _ContinuousNumericBase(
     OrthonormalPolynomial1D[Array], Generic[Array]
 ):
-    """Orthonormal polynomials for arbitrary continuous marginals.
+    """Base class for continuous numeric orthonormal polynomials.
 
     Uses the predictor-corrector method to compute recursion coefficients
     via numerical integration of the marginal's PDF.
@@ -443,17 +443,12 @@ class ContinuousNumericOrthonormalPolynomial1D(
     Domain Conventions
     ------------------
     - For bounded marginals: polynomials are defined on [-1, 1] (canonical).
-      Samples are mapped from physical domain to [-1, 1] for evaluation.
+      Samples must be in canonical domain [-1, 1]. Use BoundedNumericOrthonormalPolynomial1D.
     - For unbounded marginals: polynomials are defined on the physical domain
-      of the random variable (no transformation). The recursion coefficients
-      are specific to the actual distribution parameters (e.g., for
-      Gamma(shape, scale), coefficients depend on both shape and scale).
+      of the random variable (no transformation). Use UnboundedNumericOrthonormalPolynomial1D.
 
-    This means that for unbounded distributions with non-unit scale/location,
-    the recursion coefficients will NOT match the canonical analytic forms
-    (e.g., Hermite for Gaussian, Laguerre for Gamma). However, orthonormality
-    with respect to the actual measure is guaranteed and can be verified via
-    Monte Carlo integration.
+    This is an internal base class. Use BoundedNumericOrthonormalPolynomial1D
+    or UnboundedNumericOrthonormalPolynomial1D instead.
 
     Parameters
     ----------
@@ -474,27 +469,6 @@ class ContinuousNumericOrthonormalPolynomial1D(
         - maxiters : int (default 1000)
         - adaptive : bool (default True)
         - maxinner_iters : int (default 10)
-
-    Notes
-    -----
-    For bounded domains, uses Gauss-Legendre quadrature.
-    For unbounded domains, uses interval expansion with adaptive quadrature.
-
-    This class supports any continuous marginal that implements a
-    callable PDF via __call__. For discrete marginals, use
-    DiscreteNumericOrthonormalPolynomial1D instead.
-
-    Examples
-    --------
-    >>> from pyapprox.typing.util.backends.numpy import NumpyBkd
-    >>> from pyapprox.typing.probability.univariate import BetaMarginal
-    >>> bkd = NumpyBkd()
-    >>> marginal = BetaMarginal(3.0, 2.0, bkd)
-    >>> poly = ContinuousNumericOrthonormalPolynomial1D(marginal, bkd)
-    >>> poly.set_nterms(5)
-    >>> # Samples in canonical domain [-1, 1]
-    >>> samples = bkd.array([[-0.6, 0.0, 0.6]])
-    >>> values = poly(samples)  # Shape: (3, 5)
     """
 
     def __init__(
@@ -627,6 +601,123 @@ class ContinuousNumericOrthonormalPolynomial1D(
 
     def __repr__(self) -> str:
         return (
-            f"ContinuousNumericOrthonormalPolynomial1D("
+            f"{self.__class__.__name__}("
             f"marginal={type(self._marginal).__name__}, nterms={self.nterms()})"
         )
+
+
+class BoundedNumericOrthonormalPolynomial1D(_ContinuousNumericBase[Array]):
+    """Numeric orthonormal polynomials for bounded continuous marginals.
+
+    Uses the predictor-corrector method to compute recursion coefficients
+    via numerical integration of the marginal's PDF.
+
+    This polynomial expects samples in canonical domain [-1, 1]. The caller
+    must transform physical domain samples to [-1, 1] before evaluation.
+    Use TransformedBasis1D wrapper for physical domain samples.
+
+    Parameters
+    ----------
+    marginal : Any
+        The continuous marginal distribution. Must be bounded (is_bounded() returns True).
+        Must have:
+        - __call__(samples) method returning PDF values
+        - is_bounded() method returning True
+        - interval(alpha) method returning bounds
+    bkd : Backend[Array]
+        Computational backend.
+    nquad_points : int
+        Number of quadrature points for integration. Default: 100.
+
+    Examples
+    --------
+    >>> from pyapprox.typing.util.backends.numpy import NumpyBkd
+    >>> from pyapprox.typing.probability.univariate import BetaMarginal
+    >>> bkd = NumpyBkd()
+    >>> marginal = BetaMarginal(3.0, 2.0, bkd)
+    >>> poly = BoundedNumericOrthonormalPolynomial1D(marginal, bkd)
+    >>> poly.set_nterms(5)
+    >>> # Samples in canonical domain [-1, 1]
+    >>> samples = bkd.array([[-0.6, 0.0, 0.6]])
+    >>> values = poly(samples)  # Shape: (3, 5)
+    """
+
+    # Operates in canonical domain [-1, 1], requires TransformedBasis1D wrapper
+    _operates_in_physical_domain = False
+
+    def __init__(
+        self,
+        marginal,
+        bkd: Backend[Array],
+        nquad_points: int = 100,
+    ):
+        if not marginal.is_bounded():
+            raise ValueError(
+                f"BoundedNumericOrthonormalPolynomial1D requires bounded marginal, "
+                f"got {type(marginal).__name__} with is_bounded()=False. "
+                f"Use UnboundedNumericOrthonormalPolynomial1D instead."
+            )
+        super().__init__(marginal, bkd, nquad_points)
+
+
+class UnboundedNumericOrthonormalPolynomial1D(_ContinuousNumericBase[Array]):
+    """Numeric orthonormal polynomials for unbounded continuous marginals.
+
+    Uses the predictor-corrector method to compute recursion coefficients
+    via numerical integration of the marginal's PDF.
+
+    This polynomial operates in the physical domain - it expects samples
+    directly from the marginal distribution's support (e.g., [0, ∞) for Gamma).
+    No transform wrapper is needed.
+
+    Parameters
+    ----------
+    marginal : Any
+        The continuous marginal distribution. Must be unbounded (is_bounded() returns False).
+        Must have:
+        - __call__(samples) method returning PDF values
+        - is_bounded() method returning False
+        - interval(alpha) method returning bounds
+    bkd : Backend[Array]
+        Computational backend.
+    nquad_points : int
+        Number of quadrature points for integration. Default: 100.
+    integrator_options : dict, optional
+        Options for unbounded integrator:
+        - interval_size : float (default 2.0)
+        - atol : float (default 1e-8)
+        - rtol : float (default 1e-8)
+        - maxiters : int (default 1000)
+        - adaptive : bool (default True)
+        - maxinner_iters : int (default 10)
+
+    Examples
+    --------
+    >>> from pyapprox.typing.util.backends.numpy import NumpyBkd
+    >>> from pyapprox.typing.probability.univariate import GammaMarginal
+    >>> bkd = NumpyBkd()
+    >>> marginal = GammaMarginal(3.0, 2.0, bkd)
+    >>> poly = UnboundedNumericOrthonormalPolynomial1D(marginal, bkd)
+    >>> poly.set_nterms(5)
+    >>> # Samples in physical domain [0, ∞)
+    >>> samples = bkd.array([[0.5, 1.0, 2.0]])
+    >>> values = poly(samples)  # Shape: (3, 5)
+    """
+
+    # Operates in physical domain (no transform needed)
+    _operates_in_physical_domain = True
+
+    def __init__(
+        self,
+        marginal,
+        bkd: Backend[Array],
+        nquad_points: int = 100,
+        integrator_options: Optional[dict] = None,
+    ):
+        if marginal.is_bounded():
+            raise ValueError(
+                f"UnboundedNumericOrthonormalPolynomial1D requires unbounded marginal, "
+                f"got {type(marginal).__name__} with is_bounded()=True. "
+                f"Use BoundedNumericOrthonormalPolynomial1D instead."
+            )
+        super().__init__(marginal, bkd, nquad_points, integrator_options)
