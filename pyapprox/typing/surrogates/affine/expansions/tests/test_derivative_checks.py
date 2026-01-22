@@ -24,13 +24,8 @@ from pyapprox.typing.util.backends.protocols import Array, Backend
 from pyapprox.typing.util.test_utils import load_tests
 
 from pyapprox.typing.surrogates.affine.univariate import (
-    LegendrePolynomial1D,
-    HermitePolynomial1D,
-    LaguerrePolynomial1D,
-    JacobiPolynomial1D,
-    Chebyshev1stKindPolynomial1D,
-    Chebyshev2ndKindPolynomial1D,
     MonomialBasis1D,
+    create_bases_1d,
 )
 from pyapprox.typing.surrogates.affine.indices import (
     compute_hyperbolic_indices,
@@ -41,7 +36,13 @@ from pyapprox.typing.surrogates.affine.basis import (
 )
 from pyapprox.typing.surrogates.affine.expansions import (
     BasisExpansion,
-    create_pce,
+    create_pce_from_marginals,
+)
+from pyapprox.typing.probability import (
+    UniformMarginal,
+    GaussianMarginal,
+    GammaMarginal,
+    BetaMarginal,
 )
 from pyapprox.typing.interface.functions.derivative_checks.derivative_checker import (
     DerivativeChecker,
@@ -62,8 +63,8 @@ class TestDerivativeCheckerLegendre(Generic[Array], unittest.TestCase):
 
     def _create_pce(self, nvars: int, max_level: int, nqoi: int = 1):
         bkd = self._bkd
-        bases_1d = [LegendrePolynomial1D(bkd) for _ in range(nvars)]
-        return create_pce(bases_1d, max_level, bkd, nqoi=nqoi)
+        marginals = [UniformMarginal(-1.0, 1.0, bkd) for _ in range(nvars)]
+        return create_pce_from_marginals(marginals, max_level, bkd, nqoi=nqoi)
 
     def test_jacobian_1d(self):
         """Test Jacobian for 1D Legendre expansion."""
@@ -230,7 +231,8 @@ class TestDerivativeCheckerHermite(Generic[Array], unittest.TestCase):
 
     def _create_hermite_expansion(self, nvars: int, max_level: int, nqoi: int = 1):
         bkd = self._bkd
-        bases_1d = [HermitePolynomial1D(bkd) for _ in range(nvars)]
+        marginals = [GaussianMarginal(0.0, 1.0, bkd) for _ in range(nvars)]
+        bases_1d = create_bases_1d(marginals, bkd)
         indices = compute_hyperbolic_indices(nvars, max_level, 1.0, bkd)
         basis = OrthonormalPolynomialBasis(bases_1d, bkd, indices)
         return BasisExpansion(basis, bkd, nqoi=nqoi)
@@ -325,7 +327,7 @@ class TestDerivativeCheckerLaguerre(Generic[Array], unittest.TestCase):
     """Test derivatives for Laguerre polynomial expansion.
 
     Laguerre polynomials are orthonormal with respect to the exponential
-    distribution (gamma with alpha=0). Tests use samples from [0.1, 5.0]
+    distribution (gamma with shape=1). Tests use samples from [0.1, 5.0]
     to stay in the support while avoiding boundary issues.
     """
 
@@ -339,7 +341,8 @@ class TestDerivativeCheckerLaguerre(Generic[Array], unittest.TestCase):
 
     def _create_laguerre_expansion(self, nvars: int, max_level: int, nqoi: int = 1):
         bkd = self._bkd
-        bases_1d = [LaguerrePolynomial1D(bkd) for _ in range(nvars)]
+        marginals = [GammaMarginal(1.0, 1.0, bkd=bkd) for _ in range(nvars)]
+        bases_1d = create_bases_1d(marginals, bkd)
         indices = compute_hyperbolic_indices(nvars, max_level, 1.0, bkd)
         basis = OrthonormalPolynomialBasis(bases_1d, bkd, indices)
         return BasisExpansion(basis, bkd, nqoi=nqoi)
@@ -432,7 +435,12 @@ class TestDerivativeCheckerJacobi(Generic[Array], unittest.TestCase):
         self, nvars: int, max_level: int, alpha: float, beta: float, nqoi: int = 1
     ):
         bkd = self._bkd
-        bases_1d = [JacobiPolynomial1D(alpha, beta, bkd) for _ in range(nvars)]
+        # BetaMarginal(a, b) on [0, 1] -> Jacobi(b-1, a-1) on [-1, 1]
+        # For Jacobi(alpha, beta), use Beta(beta+1, alpha+1)
+        marginals = [
+            BetaMarginal(beta + 1.0, alpha + 1.0, bkd) for _ in range(nvars)
+        ]
+        bases_1d = create_bases_1d(marginals, bkd)
         indices = compute_hyperbolic_indices(nvars, max_level, 1.0, bkd)
         basis = OrthonormalPolynomialBasis(bases_1d, bkd, indices)
         return BasisExpansion(basis, bkd, nqoi=nqoi)
@@ -532,7 +540,7 @@ class TestDerivativeCheckerChebyshev(Generic[Array], unittest.TestCase):
     """Test derivatives for Chebyshev polynomial expansion.
 
     Chebyshev polynomials (1st kind) are orthonormal with respect to
-    the arcsine distribution on [-1, 1].
+    the arcsine distribution on [-1, 1] (Beta(0.5, 0.5)).
     """
 
     __test__ = False
@@ -547,10 +555,13 @@ class TestDerivativeCheckerChebyshev(Generic[Array], unittest.TestCase):
         self, nvars: int, max_level: int, nqoi: int = 1, kind: int = 1
     ):
         bkd = self._bkd
+        # Chebyshev 1st kind: Beta(0.5, 0.5) -> Jacobi(-0.5, -0.5)
+        # Chebyshev 2nd kind: Beta(1.5, 1.5) -> Jacobi(0.5, 0.5)
         if kind == 1:
-            bases_1d = [Chebyshev1stKindPolynomial1D(bkd) for _ in range(nvars)]
+            marginals = [BetaMarginal(0.5, 0.5, bkd) for _ in range(nvars)]
         else:
-            bases_1d = [Chebyshev2ndKindPolynomial1D(bkd) for _ in range(nvars)]
+            marginals = [BetaMarginal(1.5, 1.5, bkd) for _ in range(nvars)]
+        bases_1d = create_bases_1d(marginals, bkd)
         indices = compute_hyperbolic_indices(nvars, max_level, 1.0, bkd)
         basis = OrthonormalPolynomialBasis(bases_1d, bkd, indices)
         return BasisExpansion(basis, bkd, nqoi=nqoi)
@@ -670,8 +681,8 @@ class TestDerivativeCheckerMultiQoi(Generic[Array], unittest.TestCase):
 
     def _create_pce(self, nvars: int, max_level: int, nqoi: int = 1):
         bkd = self._bkd
-        bases_1d = [LegendrePolynomial1D(bkd) for _ in range(nvars)]
-        return create_pce(bases_1d, max_level, bkd, nqoi=nqoi)
+        marginals = [UniformMarginal(-1.0, 1.0, bkd) for _ in range(nvars)]
+        return create_pce_from_marginals(marginals, max_level, bkd, nqoi=nqoi)
 
     def test_jacobian_batch_multi_qoi(self):
         """Test jacobian_batch for multi-QoI expansion."""
@@ -922,11 +933,11 @@ class TestMixedBasisDerivatives(Generic[Array], unittest.TestCase):
     def _create_mixed_pce(self, nqoi: int = 1):
         """Create PCE with Legendre and Hermite bases."""
         bkd = self._bkd
-        bases_1d = [
-            LegendrePolynomial1D(bkd),
-            HermitePolynomial1D(bkd, rho=0.0, prob_meas=True),
+        marginals = [
+            UniformMarginal(-1.0, 1.0, bkd),
+            GaussianMarginal(0.0, 1.0, bkd),
         ]
-        return create_pce(bases_1d, max_level=3, bkd=bkd, nqoi=nqoi)
+        return create_pce_from_marginals(marginals, max_level=3, bkd=bkd, nqoi=nqoi)
 
     def test_jacobian_with_derivative_checker(self):
         """Validate jacobian for mixed basis using DerivativeChecker."""
@@ -1047,8 +1058,8 @@ class TestJacobianWrtParams(Generic[Array], unittest.TestCase):
 
     def _create_pce(self, nvars: int, max_level: int, nqoi: int = 1):
         bkd = self._bkd
-        bases_1d = [LegendrePolynomial1D(bkd) for _ in range(nvars)]
-        return create_pce(bases_1d, max_level, bkd, nqoi=nqoi)
+        marginals = [UniformMarginal(-1.0, 1.0, bkd) for _ in range(nvars)]
+        return create_pce_from_marginals(marginals, max_level, bkd, nqoi=nqoi)
 
     def test_jacobian_wrt_params_1d(self):
         """Test jacobian_wrt_params for 1D expansion with nqoi=1."""

@@ -13,13 +13,8 @@ from pyapprox.typing.util.backends.protocols import Array, Backend
 from pyapprox.typing.util.test_utils import load_tests
 
 from pyapprox.typing.surrogates.affine.univariate import (
-    LegendrePolynomial1D,
-    HermitePolynomial1D,
-    LaguerrePolynomial1D,
-    JacobiPolynomial1D,
-    Chebyshev1stKindPolynomial1D,
-    Chebyshev2ndKindPolynomial1D,
     MonomialBasis1D,
+    create_bases_1d,
 )
 from pyapprox.typing.surrogates.affine.indices import (
     compute_hyperbolic_indices,
@@ -31,10 +26,16 @@ from pyapprox.typing.surrogates.affine.basis import (
 from pyapprox.typing.surrogates.affine.expansions import (
     BasisExpansion,
     PolynomialChaosExpansion,
-    create_pce,
+    create_pce_from_marginals,
     pce_statistics,
 )
 from pyapprox.typing.surrogates.affine.solvers import LeastSquaresSolver
+from pyapprox.typing.probability import (
+    UniformMarginal,
+    GaussianMarginal,
+    GammaMarginal,
+    BetaMarginal,
+)
 
 # Tests are organized into separate files:
 # - test_solvers.py: Linear system solvers (LeastSquares, Ridge, OMP, etc.)
@@ -55,9 +56,10 @@ class TestBasisExpansion(Generic[Array], unittest.TestCase):
         self._bkd = self.bkd()
 
     def _create_basis(self, nvars: int, max_level: int):
-        """Helper to create a Legendre basis."""
+        """Helper to create a Legendre basis for uniform marginals."""
         bkd = self._bkd
-        bases_1d = [LegendrePolynomial1D(bkd) for _ in range(nvars)]
+        marginals = [UniformMarginal(-1.0, 1.0, bkd) for _ in range(nvars)]
+        bases_1d = create_bases_1d(marginals, bkd)
         indices = compute_hyperbolic_indices(nvars, max_level, 1.0, bkd)
         return OrthonormalPolynomialBasis(bases_1d, bkd, indices)
 
@@ -213,7 +215,8 @@ class TestBasisExpansionFitting(Generic[Array], unittest.TestCase):
 
     def _create_basis(self, nvars: int, max_level: int):
         bkd = self._bkd
-        bases_1d = [LegendrePolynomial1D(bkd) for _ in range(nvars)]
+        marginals = [UniformMarginal(-1.0, 1.0, bkd) for _ in range(nvars)]
+        bases_1d = create_bases_1d(marginals, bkd)
         indices = compute_hyperbolic_indices(nvars, max_level, 1.0, bkd)
         return OrthonormalPolynomialBasis(bases_1d, bkd, indices)
 
@@ -301,7 +304,8 @@ class TestHermiteBasisExpansion(Generic[Array], unittest.TestCase):
 
     def _create_hermite_basis(self, nvars: int, max_level: int):
         bkd = self._bkd
-        bases_1d = [HermitePolynomial1D(bkd) for _ in range(nvars)]
+        marginals = [GaussianMarginal(0.0, 1.0, bkd) for _ in range(nvars)]
+        bases_1d = create_bases_1d(marginals, bkd)
         indices = compute_hyperbolic_indices(nvars, max_level, 1.0, bkd)
         return OrthonormalPolynomialBasis(bases_1d, bkd, indices)
 
@@ -421,7 +425,7 @@ class TestLaguerreBasisExpansion(Generic[Array], unittest.TestCase):
     """Test BasisExpansion with Laguerre polynomials.
 
     Laguerre polynomials are orthonormal with respect to the exponential
-    distribution (gamma with alpha=0). Support is [0, infinity).
+    distribution (gamma with shape=1, scale=1). Support is [0, infinity).
     """
 
     __test__ = False
@@ -434,7 +438,9 @@ class TestLaguerreBasisExpansion(Generic[Array], unittest.TestCase):
 
     def _create_laguerre_basis(self, nvars: int, max_level: int):
         bkd = self._bkd
-        bases_1d = [LaguerrePolynomial1D(bkd) for _ in range(nvars)]
+        # Gamma(1, 1) = exponential distribution
+        marginals = [GammaMarginal(1.0, 1.0, bkd=bkd) for _ in range(nvars)]
+        bases_1d = create_bases_1d(marginals, bkd)
         indices = compute_hyperbolic_indices(nvars, max_level, 1.0, bkd)
         return OrthonormalPolynomialBasis(bases_1d, bkd, indices)
 
@@ -545,7 +551,12 @@ class TestJacobiBasisExpansion(Generic[Array], unittest.TestCase):
         self, nvars: int, max_level: int, alpha: float = 0.5, beta: float = 1.0
     ):
         bkd = self._bkd
-        bases_1d = [JacobiPolynomial1D(alpha, beta, bkd) for _ in range(nvars)]
+        # BetaMarginal(a, b) on [0, 1] -> Jacobi(b-1, a-1) on [-1, 1]
+        # For Jacobi(alpha, beta), use Beta(beta+1, alpha+1)
+        marginals = [
+            BetaMarginal(beta + 1.0, alpha + 1.0, bkd) for _ in range(nvars)
+        ]
+        bases_1d = create_bases_1d(marginals, bkd)
         indices = compute_hyperbolic_indices(nvars, max_level, 1.0, bkd)
         return OrthonormalPolynomialBasis(bases_1d, bkd, indices)
 
@@ -671,8 +682,8 @@ class TestChebyshevBasisExpansion(Generic[Array], unittest.TestCase):
     """Test BasisExpansion with Chebyshev polynomials.
 
     Chebyshev polynomials of the first kind are orthonormal with respect
-    to the arcsine distribution on [-1, 1]. Chebyshev polynomials of the
-    second kind use a different weight function.
+    to the arcsine distribution on [-1, 1] (Beta(0.5, 0.5)).
+    Chebyshev polynomials of the second kind use Beta(1.5, 1.5).
     """
 
     __test__ = False
@@ -685,10 +696,13 @@ class TestChebyshevBasisExpansion(Generic[Array], unittest.TestCase):
 
     def _create_chebyshev_basis(self, nvars: int, max_level: int, kind: int = 1):
         bkd = self._bkd
+        # Chebyshev 1st kind: Beta(0.5, 0.5) -> Jacobi(-0.5, -0.5)
+        # Chebyshev 2nd kind: Beta(1.5, 1.5) -> Jacobi(0.5, 0.5)
         if kind == 1:
-            bases_1d = [Chebyshev1stKindPolynomial1D(bkd) for _ in range(nvars)]
+            marginals = [BetaMarginal(0.5, 0.5, bkd) for _ in range(nvars)]
         else:
-            bases_1d = [Chebyshev2ndKindPolynomial1D(bkd) for _ in range(nvars)]
+            marginals = [BetaMarginal(1.5, 1.5, bkd) for _ in range(nvars)]
+        bases_1d = create_bases_1d(marginals, bkd)
         indices = compute_hyperbolic_indices(nvars, max_level, 1.0, bkd)
         return OrthonormalPolynomialBasis(bases_1d, bkd, indices)
 
@@ -998,8 +1012,8 @@ class TestPolynomialChaosExpansion(Generic[Array], unittest.TestCase):
 
     def _create_pce(self, nvars: int, max_level: int, nqoi: int = 1):
         bkd = self._bkd
-        bases_1d = [LegendrePolynomial1D(bkd) for _ in range(nvars)]
-        return create_pce(bases_1d, max_level, bkd, nqoi=nqoi)
+        marginals = [UniformMarginal(-1.0, 1.0, bkd) for _ in range(nvars)]
+        return create_pce_from_marginals(marginals, max_level, bkd, nqoi=nqoi)
 
     def test_mean_constant(self):
         """Test mean computation for constant function."""
@@ -1059,7 +1073,8 @@ class TestPolynomialChaosExpansion(Generic[Array], unittest.TestCase):
     def test_fit_via_projection(self):
         """Test spectral projection fitting."""
         bkd = self._bkd
-        bases_1d = [LegendrePolynomial1D(bkd) for _ in range(2)]
+        marginals = [UniformMarginal(-1.0, 1.0, bkd) for _ in range(2)]
+        bases_1d = create_bases_1d(marginals, bkd)
         indices = compute_hyperbolic_indices(2, 3, 1.0, bkd)
         basis = OrthonormalPolynomialBasis(bases_1d, bkd, indices)
         pce = PolynomialChaosExpansion(basis, bkd)
@@ -1119,8 +1134,8 @@ class TestPCESobolIndices(Generic[Array], unittest.TestCase):
 
     def _create_pce(self, nvars: int, max_level: int, nqoi: int = 1):
         bkd = self._bkd
-        bases_1d = [LegendrePolynomial1D(bkd) for _ in range(nvars)]
-        return create_pce(bases_1d, max_level, bkd, nqoi=nqoi)
+        marginals = [UniformMarginal(-1.0, 1.0, bkd) for _ in range(nvars)]
+        return create_pce_from_marginals(marginals, max_level, bkd, nqoi=nqoi)
 
     def test_total_sobol_sum(self):
         """Test that total Sobol indices are valid."""
@@ -1218,8 +1233,8 @@ class TestPCEStatisticsFunctions(Generic[Array], unittest.TestCase):
 
     def _create_pce(self, nvars: int, max_level: int, nqoi: int = 1):
         bkd = self._bkd
-        bases_1d = [LegendrePolynomial1D(bkd) for _ in range(nvars)]
-        return create_pce(bases_1d, max_level, bkd, nqoi=nqoi)
+        marginals = [UniformMarginal(-1.0, 1.0, bkd) for _ in range(nvars)]
+        return create_pce_from_marginals(marginals, max_level, bkd, nqoi=nqoi)
 
     def test_functions_match_methods(self):
         """Test that standalone functions match PCE methods."""
@@ -1282,12 +1297,12 @@ class TestMixedBasisExpansion(Generic[Array], unittest.TestCase):
     def _create_mixed_pce(self, nqoi: int = 1):
         """Create PCE with Legendre, Hermite, and Laguerre bases."""
         bkd = self._bkd
-        bases_1d = [
-            LegendrePolynomial1D(bkd),      # var 0: uniform
-            HermitePolynomial1D(bkd, rho=0.0, prob_meas=True),  # var 1: gaussian
-            LaguerrePolynomial1D(bkd, rho=1.0),  # var 2: gamma(2,1)
+        marginals = [
+            UniformMarginal(-1.0, 1.0, bkd),  # var 0: uniform
+            GaussianMarginal(0.0, 1.0, bkd),  # var 1: gaussian
+            GammaMarginal(2.0, 1.0, bkd=bkd),  # var 2: gamma(2,1)
         ]
-        return create_pce(bases_1d, max_level=3, bkd=bkd, nqoi=nqoi)
+        return create_pce_from_marginals(marginals, max_level=3, bkd=bkd, nqoi=nqoi)
 
     def test_mixed_basis_evaluation(self):
         """Test evaluation with mixed polynomial bases."""
