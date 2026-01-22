@@ -17,10 +17,11 @@ from pyapprox.typing.surrogates.affine.indices import (
     LinearGrowthRule,
     MaxLevelCriteria,
 )
-from pyapprox.typing.surrogates.affine.univariate import LegendrePolynomial1D
 from pyapprox.typing.surrogates.sparsegrids import (
     AdaptiveCombinationSparseGrid,
 )
+from pyapprox.typing.surrogates.sparsegrids.basis_factory import GaussLagrangeFactory
+from pyapprox.typing.probability import UniformMarginal
 from pyapprox.typing.util.backends.numpy import NumpyBkd
 from pyapprox.typing.util.backends.protocols import Array
 from pyapprox.typing.util.backends.torch import TorchBkd
@@ -40,12 +41,13 @@ class TestAdaptiveSparseGrid(Generic[Array], unittest.TestCase):
 
     def test_step_samples_values_pattern(self):
         """Test the step_samples/step_values pattern."""
-        basis = LegendrePolynomial1D(self._bkd)
+        marginal = UniformMarginal(-1.0, 1.0, self._bkd)
+        factory = GaussLagrangeFactory(marginal, self._bkd)
         growth = LinearGrowthRule(scale=2, shift=1)
         admis = MaxLevelCriteria(max_level=3, pnorm=1.0, bkd=self._bkd)
 
         grid = AdaptiveCombinationSparseGrid(
-            self._bkd, [basis, basis], growth, admis
+            self._bkd, [factory, factory], growth, admis
         )
 
         # First step should return samples
@@ -66,12 +68,13 @@ class TestAdaptiveSparseGrid(Generic[Array], unittest.TestCase):
 
     def test_evaluation_after_refinement(self):
         """Test that evaluation works after refinement."""
-        basis = LegendrePolynomial1D(self._bkd)
+        marginal = UniformMarginal(-1.0, 1.0, self._bkd)
+        factory = GaussLagrangeFactory(marginal, self._bkd)
         growth = LinearGrowthRule(scale=2, shift=1)
         admis = MaxLevelCriteria(max_level=3, pnorm=1.0, bkd=self._bkd)
 
         grid = AdaptiveCombinationSparseGrid(
-            self._bkd, [basis, basis], growth, admis
+            self._bkd, [factory, factory], growth, admis
         )
 
         # Test function: f(x, y) = x^2 + y^2
@@ -98,12 +101,13 @@ class TestAdaptiveSparseGrid(Generic[Array], unittest.TestCase):
 
     def test_convergence_on_polynomial(self):
         """Test that adaptive grid converges for polynomial target."""
-        basis = LegendrePolynomial1D(self._bkd)
+        marginal = UniformMarginal(-1.0, 1.0, self._bkd)
+        factory = GaussLagrangeFactory(marginal, self._bkd)
         growth = LinearGrowthRule(scale=2, shift=1)
         admis = MaxLevelCriteria(max_level=3, pnorm=1.0, bkd=self._bkd)
 
         grid = AdaptiveCombinationSparseGrid(
-            self._bkd, [basis, basis], growth, admis
+            self._bkd, [factory, factory], growth, admis
         )
 
         # Polynomial that should be exactly represented

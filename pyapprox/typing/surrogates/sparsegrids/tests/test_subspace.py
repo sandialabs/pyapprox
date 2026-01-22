@@ -14,6 +14,11 @@ from pyapprox.typing.surrogates.sparsegrids.basis_setup import (
     get_quadrature_rule,
     create_lagrange_from_quadrature,
 )
+from pyapprox.typing.surrogates.sparsegrids.basis_factory import (
+    GaussLagrangeFactory,
+    LejaLagrangeFactory,
+    PiecewiseFactory,
+)
 from pyapprox.typing.surrogates.affine.univariate.globalpoly import HermitePolynomial1D
 from pyapprox.typing.surrogates.affine.univariate.piecewisepoly import (
     PiecewiseQuadratic,
@@ -22,6 +27,7 @@ from pyapprox.typing.surrogates.affine.univariate.piecewisepoly import (
 )
 from pyapprox.typing.surrogates.affine.univariate.lagrange import LagrangeBasis1D
 from pyapprox.typing.surrogates.affine.leja import LejaSequence1D, ChristoffelWeighting
+from pyapprox.typing.probability import UniformMarginal, GaussianMarginal
 from pyapprox.typing.util.backends.numpy import NumpyBkd
 from pyapprox.typing.util.backends.protocols import Array
 from pyapprox.typing.util.backends.torch import TorchBkd
@@ -173,13 +179,14 @@ class TestTensorProductSubspace(Generic[Array], unittest.TestCase):
 
     def test_subspace_samples(self):
         """Test that subspace generates correct number of samples."""
-        basis = LegendrePolynomial1D(self._bkd)
+        marginal = UniformMarginal(-1.0, 1.0, self._bkd)
+        factory = GaussLagrangeFactory(marginal, self._bkd)
         growth = LinearGrowthRule(scale=1, shift=1)  # n(l) = l + 1
 
         # Level (1, 2) -> 2 x 3 = 6 samples
         index = self._bkd.asarray([1, 2])
         subspace = TensorProductSubspace(
-            self._bkd, index, [basis, basis], growth
+            self._bkd, index, [factory, factory], growth
         )
 
         self.assertEqual(subspace.nsamples(), 6)
@@ -187,26 +194,28 @@ class TestTensorProductSubspace(Generic[Array], unittest.TestCase):
 
     def test_subspace_single_dimension(self):
         """Test 1D subspace at various levels."""
-        basis = LegendrePolynomial1D(self._bkd)
+        marginal = UniformMarginal(-1.0, 1.0, self._bkd)
+        factory = GaussLagrangeFactory(marginal, self._bkd)
         growth = LinearGrowthRule(scale=1, shift=1)
 
         for level in range(4):
             index = self._bkd.asarray([level])
             subspace = TensorProductSubspace(
-                self._bkd, index, [basis], growth
+                self._bkd, index, [factory], growth
             )
             expected_npts = growth(level)
             self.assertEqual(subspace.nsamples(), expected_npts)
 
     def test_subspace_interpolation(self):
         """Test that subspace interpolates exactly for polynomials."""
-        basis = LegendrePolynomial1D(self._bkd)
+        marginal = UniformMarginal(-1.0, 1.0, self._bkd)
+        factory = GaussLagrangeFactory(marginal, self._bkd)
         growth = LinearGrowthRule(scale=1, shift=1)  # n(l) = l + 1
 
         # Level (2, 2) -> 3 x 3 = 9 samples, can interpolate degree 2 exactly
         index = self._bkd.asarray([2, 2])
         subspace = TensorProductSubspace(
-            self._bkd, index, [basis, basis], growth
+            self._bkd, index, [factory, factory], growth
         )
 
         # Test function: f(x, y) = x^2 + y
@@ -226,14 +235,15 @@ class TestTensorProductSubspace(Generic[Array], unittest.TestCase):
 
     def test_subspace_polynomial_exactness_by_degree(self):
         """Test polynomial exactness: degree-d polynomial exact at level d."""
-        basis = LegendrePolynomial1D(self._bkd)
+        marginal = UniformMarginal(-1.0, 1.0, self._bkd)
+        factory = GaussLagrangeFactory(marginal, self._bkd)
         growth = LinearGrowthRule(scale=1, shift=1)
 
         # Test various polynomial degrees
         for degree in range(1, 5):
             index = self._bkd.asarray([degree, degree])
             subspace = TensorProductSubspace(
-                self._bkd, index, [basis, basis], growth
+                self._bkd, index, [factory, factory], growth
             )
 
             # Polynomial of total degree = degree
@@ -253,13 +263,14 @@ class TestTensorProductSubspace(Generic[Array], unittest.TestCase):
 
     def test_subspace_jacobian_polynomial(self):
         """Test Jacobian computation for polynomial function."""
-        basis = LegendrePolynomial1D(self._bkd)
+        marginal = UniformMarginal(-1.0, 1.0, self._bkd)
+        factory = GaussLagrangeFactory(marginal, self._bkd)
         growth = LinearGrowthRule(scale=1, shift=1)
 
         # Level (2, 2) -> can interpolate degree 2
         index = self._bkd.asarray([2, 2])
         subspace = TensorProductSubspace(
-            self._bkd, index, [basis, basis], growth
+            self._bkd, index, [factory, factory], growth
         )
 
         # f(x, y) = x^2 + 2*x*y + y^2 = (x + y)^2
@@ -279,13 +290,14 @@ class TestTensorProductSubspace(Generic[Array], unittest.TestCase):
 
     def test_subspace_hessian_polynomial(self):
         """Test Hessian computation for polynomial function."""
-        basis = LegendrePolynomial1D(self._bkd)
+        marginal = UniformMarginal(-1.0, 1.0, self._bkd)
+        factory = GaussLagrangeFactory(marginal, self._bkd)
         growth = LinearGrowthRule(scale=1, shift=1)
 
         # Level (2, 2) -> can interpolate degree 2
         index = self._bkd.asarray([2, 2])
         subspace = TensorProductSubspace(
-            self._bkd, index, [basis, basis], growth
+            self._bkd, index, [factory, factory], growth
         )
 
         # f(x, y) = x^2 + x*y + y^2
@@ -304,12 +316,13 @@ class TestTensorProductSubspace(Generic[Array], unittest.TestCase):
 
     def test_subspace_hvp_polynomial(self):
         """Test Hessian-vector product matches explicit Hessian @ vec."""
-        basis = LegendrePolynomial1D(self._bkd)
+        marginal = UniformMarginal(-1.0, 1.0, self._bkd)
+        factory = GaussLagrangeFactory(marginal, self._bkd)
         growth = LinearGrowthRule(scale=1, shift=1)
 
         index = self._bkd.asarray([2, 2])
         subspace = TensorProductSubspace(
-            self._bkd, index, [basis, basis], growth
+            self._bkd, index, [factory, factory], growth
         )
 
         # f(x, y) = x^2 + x*y + y^2
@@ -332,13 +345,14 @@ class TestTensorProductSubspace(Generic[Array], unittest.TestCase):
 
     def test_subspace_integrate_monomial_even(self):
         """Test quadrature exactness for even monomial."""
-        basis = LegendrePolynomial1D(self._bkd)
+        marginal = UniformMarginal(-1.0, 1.0, self._bkd)
+        factory = GaussLagrangeFactory(marginal, self._bkd)
         growth = LinearGrowthRule(scale=1, shift=1)
 
         # Level 2 -> 3 points, can integrate degree 4 exactly (2n-1 = 5)
         index = self._bkd.asarray([2, 2])
         subspace = TensorProductSubspace(
-            self._bkd, index, [basis, basis], growth
+            self._bkd, index, [factory, factory], growth
         )
 
         # f(x, y) = x^2 * y^2
@@ -356,12 +370,13 @@ class TestTensorProductSubspace(Generic[Array], unittest.TestCase):
 
     def test_subspace_integrate_odd_zero(self):
         """Test that odd functions integrate to zero on symmetric domain."""
-        basis = LegendrePolynomial1D(self._bkd)
+        marginal = UniformMarginal(-1.0, 1.0, self._bkd)
+        factory = GaussLagrangeFactory(marginal, self._bkd)
         growth = LinearGrowthRule(scale=1, shift=1)
 
         index = self._bkd.asarray([3, 3])
         subspace = TensorProductSubspace(
-            self._bkd, index, [basis, basis], growth
+            self._bkd, index, [factory, factory], growth
         )
 
         # f(x, y) = x^3 (odd in x)
@@ -376,12 +391,13 @@ class TestTensorProductSubspace(Generic[Array], unittest.TestCase):
 
     def test_subspace_quadrature_weights_shape(self):
         """Test quadrature weights have correct shape."""
-        basis = LegendrePolynomial1D(self._bkd)
+        marginal = UniformMarginal(-1.0, 1.0, self._bkd)
+        factory = GaussLagrangeFactory(marginal, self._bkd)
         growth = LinearGrowthRule(scale=1, shift=1)
 
         index = self._bkd.asarray([2, 3])
         subspace = TensorProductSubspace(
-            self._bkd, index, [basis, basis], growth
+            self._bkd, index, [factory, factory], growth
         )
 
         weights = subspace.get_quadrature_weights()
@@ -394,13 +410,14 @@ class TestTensorProductSubspace(Generic[Array], unittest.TestCase):
         Integrates f(x, y) = x^2 + y^2 over standard normal distribution.
         Expected: E[x^2] + E[y^2] = 1 + 1 = 2
         """
-        hermite = HermitePolynomial1D(self._bkd)
+        marginal = GaussianMarginal(0.0, 1.0, self._bkd)
+        factory = GaussLagrangeFactory(marginal, self._bkd)
         growth = LinearGrowthRule(scale=1, shift=1)
 
         # Level (2, 2) -> 3 x 3 = 9 points
         index = self._bkd.asarray([2, 2])
         subspace = TensorProductSubspace(
-            self._bkd, index, [hermite, hermite], growth
+            self._bkd, index, [factory, factory], growth
         )
 
         samples = subspace.get_samples()
@@ -418,13 +435,14 @@ class TestTensorProductSubspace(Generic[Array], unittest.TestCase):
 
         For standard normal: E[x^4] = 3 (fourth moment)
         """
-        hermite = HermitePolynomial1D(self._bkd)
+        marginal = GaussianMarginal(0.0, 1.0, self._bkd)
+        factory = GaussLagrangeFactory(marginal, self._bkd)
         growth = LinearGrowthRule(scale=1, shift=1)
 
         # Level 3 -> 4 points, can integrate degree 6 exactly
         index = self._bkd.asarray([3])
         subspace = TensorProductSubspace(
-            self._bkd, index, [hermite], growth
+            self._bkd, index, [factory], growth
         )
 
         samples = subspace.get_samples()
@@ -451,20 +469,14 @@ class TestTensorProductSubspace(Generic[Array], unittest.TestCase):
         if self._bkd.lstsq(test_A, test_b) is None:
             self.skipTest("Backend lstsq returns None (not implemented)")
 
-        legendre = LegendrePolynomial1D(self._bkd)
-        weighting = ChristoffelWeighting(self._bkd)
-        leja = LejaSequence1D(
-            self._bkd, legendre, weighting, bounds=(-1.0, 1.0)
-        )
-
-        # Create Lagrange basis using Leja sequence
-        lagrange = LagrangeBasis1D(self._bkd, leja.quadrature_rule)
+        marginal = UniformMarginal(-1.0, 1.0, self._bkd)
+        factory = LejaLagrangeFactory(marginal, self._bkd)
         growth = LinearGrowthRule(scale=1, shift=1)
 
         # Level 3 -> 4 points
         index = self._bkd.asarray([3, 3])
         subspace = TensorProductSubspace(
-            self._bkd, index, [lagrange, lagrange], growth
+            self._bkd, index, [factory, factory], growth
         )
 
         # Test polynomial exactness: f(x, y) = x^2 + y^2
@@ -486,16 +498,15 @@ class TestTensorProductSubspace(Generic[Array], unittest.TestCase):
         Uses Simpson's rule quadrature for integration of exactly
         representable functions.
         """
-        # Create dynamic piecewise quadratic with node generator
-        node_gen = EquidistantNodeGenerator(self._bkd, (-1.0, 1.0))
-        piecewise = DynamicPiecewiseBasis(self._bkd, PiecewiseQuadratic, node_gen)
+        marginal = UniformMarginal(-1.0, 1.0, self._bkd)
+        factory = PiecewiseFactory(marginal, self._bkd, poly_type="quadratic")
 
         # Growth rule: level 2 -> 5 nodes (must be odd for quadratic)
         growth = LinearGrowthRule(scale=2, shift=1)  # n(l) = 2*l + 1
 
         index = self._bkd.asarray([2])  # level 2 -> 5 nodes
         subspace = TensorProductSubspace(
-            self._bkd, index, [piecewise], growth
+            self._bkd, index, [factory], growth
         )
 
         # Test function: f(x) = x^2 (quadratic, exactly representable)
@@ -516,16 +527,15 @@ class TestTensorProductSubspace(Generic[Array], unittest.TestCase):
         Integrates f(x, y) = x^2 * y^2 over [-1, 1]^2.
         Integral = (2/3) * (2/3) = 4/9
         """
-        # Create dynamic piecewise quadratic with node generator
-        node_gen = EquidistantNodeGenerator(self._bkd, (-1.0, 1.0))
-        piecewise = DynamicPiecewiseBasis(self._bkd, PiecewiseQuadratic, node_gen)
+        marginal = UniformMarginal(-1.0, 1.0, self._bkd)
+        factory = PiecewiseFactory(marginal, self._bkd, poly_type="quadratic")
 
         # Growth rule: level 2 -> 5 nodes (must be odd for quadratic)
         growth = LinearGrowthRule(scale=2, shift=1)  # n(l) = 2*l + 1
 
         index = self._bkd.asarray([2, 2])  # level 2 -> 5 nodes each dim
         subspace = TensorProductSubspace(
-            self._bkd, index, [piecewise, piecewise], growth
+            self._bkd, index, [factory, factory], growth
         )
 
         samples = subspace.get_samples()
@@ -550,11 +560,11 @@ class TestTensorProductSubspace(Generic[Array], unittest.TestCase):
         Combined: (2/3) * (1/3) = 2/9
         """
         # Dimension 0: Dynamic piecewise quadratic
-        node_gen = EquidistantNodeGenerator(self._bkd, (-1.0, 1.0))
-        piecewise = DynamicPiecewiseBasis(self._bkd, PiecewiseQuadratic, node_gen)
+        marginal = UniformMarginal(-1.0, 1.0, self._bkd)
+        piecewise_factory = PiecewiseFactory(marginal, self._bkd, poly_type="quadratic")
 
         # Dimension 1: Gauss-Legendre (probability measure)
-        legendre = LegendrePolynomial1D(self._bkd)
+        gauss_factory = GaussLagrangeFactory(marginal, self._bkd)
 
         # Growth rule: level 2 -> 5 nodes for piecewise, level+1 for Gauss
         growth = LinearGrowthRule(scale=2, shift=1)  # n(l) = 2*l + 1
@@ -563,7 +573,7 @@ class TestTensorProductSubspace(Generic[Array], unittest.TestCase):
         # But we use same growth for both - piecewise needs odd, Gauss is flexible
         index = self._bkd.asarray([2, 2])
         subspace = TensorProductSubspace(
-            self._bkd, index, [piecewise, legendre], growth
+            self._bkd, index, [piecewise_factory, gauss_factory], growth
         )
 
         samples = subspace.get_samples()

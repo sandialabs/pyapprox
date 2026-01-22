@@ -16,24 +16,22 @@ from scipy import stats
 import torch
 from numpy.typing import NDArray
 
-from pyapprox.typing.surrogates.affine.expansions import create_pce
+from pyapprox.typing.surrogates.affine.expansions import create_pce_from_marginals
 from pyapprox.typing.surrogates.affine.indices import (
     HyperbolicIndexGenerator,
     LinearGrowthRule,
 )
-from pyapprox.typing.surrogates.affine.univariate import (
-    HermitePolynomial1D,
-    LegendrePolynomial1D,
-)
 from pyapprox.typing.probability import (
     ScipyContinuousMarginal,
     IndependentJoint,
+    UniformMarginal,
+    GaussianMarginal,
 )
 from pyapprox.typing.surrogates.sparsegrids import (
     IsotropicCombinationSparseGrid,
     is_downward_closed,
-    PrebuiltBasisFactory,
 )
+from pyapprox.typing.surrogates.sparsegrids.basis_factory import GaussLagrangeFactory
 from pyapprox.typing.util.backends.numpy import NumpyBkd
 from pyapprox.typing.util.backends.protocols import Array, Backend
 from pyapprox.typing.util.backends.torch import TorchBkd
@@ -58,8 +56,8 @@ class TestIsotropicSparseGrid(Generic[Array], unittest.TestCase):
 
     def test_level_0(self) -> None:
         """Test level 0 sparse grid (single point)."""
-        basis = LegendrePolynomial1D(self._bkd)
-        factory = PrebuiltBasisFactory(basis)
+        marginal = UniformMarginal(-1.0, 1.0, self._bkd)
+        factory = GaussLagrangeFactory(marginal, self._bkd)
         growth = LinearGrowthRule(scale=1, shift=1)  # n(l) = l + 1
 
         grid = IsotropicCombinationSparseGrid(
@@ -72,8 +70,8 @@ class TestIsotropicSparseGrid(Generic[Array], unittest.TestCase):
 
     def test_level_2_subspaces(self):
         """Test level 2 sparse grid has correct subspaces."""
-        basis = LegendrePolynomial1D(self._bkd)
-        factory = PrebuiltBasisFactory(basis)
+        marginal = UniformMarginal(-1.0, 1.0, self._bkd)
+        factory = GaussLagrangeFactory(marginal, self._bkd)
         growth = LinearGrowthRule(scale=1, shift=1)  # n(l) = l + 1
 
         grid = IsotropicCombinationSparseGrid(
@@ -106,8 +104,8 @@ class TestIsotropicSparseGrid(Generic[Array], unittest.TestCase):
         """
         nvars = 2
         level = 3
-        basis = LegendrePolynomial1D(self._bkd)
-        factory = PrebuiltBasisFactory(basis)
+        marginal = UniformMarginal(-1.0, 1.0, self._bkd)
+        factory = GaussLagrangeFactory(marginal, self._bkd)
         growth = LinearGrowthRule(scale=1, shift=1)  # n(l) = l + 1
 
         grid = IsotropicCombinationSparseGrid(
@@ -117,8 +115,8 @@ class TestIsotropicSparseGrid(Generic[Array], unittest.TestCase):
         # Create a PCE with hyperbolic index set matching the sparse grid
         # The sparse grid with level L can exactly interpolate polynomials
         # of total degree up to L
-        bases_1d = [LegendrePolynomial1D(self._bkd) for _ in range(nvars)]
-        pce = create_pce(bases_1d, max_level=level, bkd=self._bkd, nqoi=1)
+        marginals = [UniformMarginal(-1.0, 1.0, self._bkd) for _ in range(nvars)]
+        pce = create_pce_from_marginals(marginals, max_level=level, bkd=self._bkd, nqoi=1)
 
         # Set random coefficients on the PCE
         nterms = pce.nterms()
@@ -151,8 +149,8 @@ class TestIsotropicSparseGrid(Generic[Array], unittest.TestCase):
 
     def test_smolyak_coefficients_sum(self):
         """Test Smolyak coefficients sum to 1."""
-        basis = LegendrePolynomial1D(self._bkd)
-        factory = PrebuiltBasisFactory(basis)
+        marginal = UniformMarginal(-1.0, 1.0, self._bkd)
+        factory = GaussLagrangeFactory(marginal, self._bkd)
         growth = LinearGrowthRule(scale=1, shift=1)  # n(l) = l + 1
 
         for level in [1, 2, 3]:
@@ -210,8 +208,8 @@ class TestIsotropicQuadrature(Generic[Array], unittest.TestCase):
         For uniform distribution on [-1,1], E[x^2] = 1/3.
         So E[x^2 + y^2] = 1/3 + 1/3 = 2/3.
         """
-        basis = LegendrePolynomial1D(self._bkd)
-        factory = PrebuiltBasisFactory(basis)
+        marginal = UniformMarginal(-1.0, 1.0, self._bkd)
+        factory = GaussLagrangeFactory(marginal, self._bkd)
         growth = LinearGrowthRule(scale=1, shift=1)
 
         grid = IsotropicCombinationSparseGrid(
@@ -232,8 +230,8 @@ class TestIsotropicQuadrature(Generic[Array], unittest.TestCase):
 
         E[x^2*y^2] = E[x^2] * E[y^2] = (1/3) * (1/3) = 1/9.
         """
-        basis = LegendrePolynomial1D(self._bkd)
-        factory = PrebuiltBasisFactory(basis)
+        marginal = UniformMarginal(-1.0, 1.0, self._bkd)
+        factory = GaussLagrangeFactory(marginal, self._bkd)
         growth = LinearGrowthRule(scale=1, shift=1)
 
         grid = IsotropicCombinationSparseGrid(
@@ -254,8 +252,8 @@ class TestIsotropicQuadrature(Generic[Array], unittest.TestCase):
 
         For symmetric distribution, E[x + y] = E[x^3 + y^3] = E[xy] = 0.
         """
-        basis = LegendrePolynomial1D(self._bkd)
-        factory = PrebuiltBasisFactory(basis)
+        marginal = UniformMarginal(-1.0, 1.0, self._bkd)
+        factory = GaussLagrangeFactory(marginal, self._bkd)
         growth = LinearGrowthRule(scale=1, shift=1)
 
         grid = IsotropicCombinationSparseGrid(
@@ -288,8 +286,8 @@ class TestIsotropicQuadrature(Generic[Array], unittest.TestCase):
 
         Var[x + y] = Var[x] + Var[y] = 1/3 + 1/3 = 2/3.
         """
-        basis = LegendrePolynomial1D(self._bkd)
-        factory = PrebuiltBasisFactory(basis)
+        marginal = UniformMarginal(-1.0, 1.0, self._bkd)
+        factory = GaussLagrangeFactory(marginal, self._bkd)
         growth = LinearGrowthRule(scale=1, shift=1)
 
         grid = IsotropicCombinationSparseGrid(
@@ -313,8 +311,8 @@ class TestIsotropicQuadrature(Generic[Array], unittest.TestCase):
         E[xy] = 0, E[(xy)^2] = E[x^2]*E[y^2] = 1/9
         Var[xy] = E[(xy)^2] - E[xy]^2 = 1/9 - 0 = 1/9.
         """
-        basis = LegendrePolynomial1D(self._bkd)
-        factory = PrebuiltBasisFactory(basis)
+        marginal = UniformMarginal(-1.0, 1.0, self._bkd)
+        factory = GaussLagrangeFactory(marginal, self._bkd)
         growth = LinearGrowthRule(scale=1, shift=1)
 
         grid = IsotropicCombinationSparseGrid(
@@ -373,8 +371,8 @@ class TestIsotropicWithGenerator(Generic[Array], unittest.TestCase):
 
     def test_generator_is_accessible(self):
         """Test that the index generator is accessible and correctly typed."""
-        basis = LegendrePolynomial1D(self._bkd)
-        factory = PrebuiltBasisFactory(basis)
+        marginal = UniformMarginal(-1.0, 1.0, self._bkd)
+        factory = GaussLagrangeFactory(marginal, self._bkd)
         growth = LinearGrowthRule(scale=1, shift=1)
 
         grid = IsotropicCombinationSparseGrid(
@@ -391,8 +389,8 @@ class TestIsotropicWithGenerator(Generic[Array], unittest.TestCase):
 
     def test_generator_produces_same_indices(self):
         """Test that generator produces same indices as the grid's subspaces."""
-        basis = LegendrePolynomial1D(self._bkd)
-        factory = PrebuiltBasisFactory(basis)
+        marginal = UniformMarginal(-1.0, 1.0, self._bkd)
+        factory = GaussLagrangeFactory(marginal, self._bkd)
         growth = LinearGrowthRule(scale=1, shift=1)
 
         grid = IsotropicCombinationSparseGrid(
@@ -422,8 +420,8 @@ class TestIsotropicWithGenerator(Generic[Array], unittest.TestCase):
 
     def test_generator_index_count_by_level(self):
         """Test that generator produces correct number of indices for each level."""
-        basis = LegendrePolynomial1D(self._bkd)
-        factory = PrebuiltBasisFactory(basis)
+        marginal = UniformMarginal(-1.0, 1.0, self._bkd)
+        factory = GaussLagrangeFactory(marginal, self._bkd)
         growth = LinearGrowthRule(scale=1, shift=1)
 
         # Expected number of indices for 2D isotropic grid at each level
@@ -446,8 +444,8 @@ class TestIsotropicWithGenerator(Generic[Array], unittest.TestCase):
 
     def test_2d_level_3_index_set(self):
         """Test exact index set for 2D level 3 sparse grid."""
-        basis = LegendrePolynomial1D(self._bkd)
-        factory = PrebuiltBasisFactory(basis)
+        marginal = UniformMarginal(-1.0, 1.0, self._bkd)
+        factory = GaussLagrangeFactory(marginal, self._bkd)
         growth = LinearGrowthRule(scale=1, shift=1)
 
         grid = IsotropicCombinationSparseGrid(
@@ -472,8 +470,8 @@ class TestIsotropicWithGenerator(Generic[Array], unittest.TestCase):
 
     def test_3d_level_2_index_set(self):
         """Test exact index set for 3D level 2 sparse grid."""
-        basis = LegendrePolynomial1D(self._bkd)
-        factory = PrebuiltBasisFactory(basis)
+        marginal = UniformMarginal(-1.0, 1.0, self._bkd)
+        factory = GaussLagrangeFactory(marginal, self._bkd)
         growth = LinearGrowthRule(scale=1, shift=1)
 
         grid = IsotropicCombinationSparseGrid(
@@ -504,8 +502,8 @@ class TestIsotropicWithGenerator(Generic[Array], unittest.TestCase):
 
     def test_generator_downward_closed(self):
         """Test that generator produces a downward-closed index set."""
-        basis = LegendrePolynomial1D(self._bkd)
-        factory = PrebuiltBasisFactory(basis)
+        marginal = UniformMarginal(-1.0, 1.0, self._bkd)
+        factory = GaussLagrangeFactory(marginal, self._bkd)
         growth = LinearGrowthRule(scale=1, shift=1)
 
         grid = IsotropicCombinationSparseGrid(
@@ -926,20 +924,24 @@ class TestIsotropicInterpolationTorch(
 
 
 # Integration test configurations for Gauss quadrature: (name, joint_config, level)
-# TODO: Beta and gamma marginals fail integration tests - see Phase 3 in plan
 GAUSS_INTEGRATION_CONFIGS = [
     ("2d_uniform_L3", "2d_uniform", 3),
     ("2d_uniform_L4", "2d_uniform", 4),
     ("2d_gaussian_L3", "2d_gaussian", 3),
+    ("2d_beta_L3", "2d_beta", 3),
+    ("2d_gamma_L3", "2d_gamma", 3),
     ("2d_mixed_ug_L4", "2d_mixed_ug", 4),
+    ("2d_mixed_ub_L3", "2d_mixed_ub", 3),
     ("3d_uniform_L3", "3d_uniform", 3),
+    ("3d_gamma_L2", "3d_gamma", 2),
 ]
 
-# Leja integration only tested with uniform marginals
-# TODO: Beta fails - see Phase 3 in plan
+# Leja integration only tested with bounded marginals (uniform, beta)
 LEJA_INTEGRATION_CONFIGS = [
     ("2d_uniform_L3", "2d_uniform", 3),
     ("2d_uniform_L4", "2d_uniform", 4),
+    ("2d_beta_L3", "2d_beta", 3),
+    ("2d_mixed_ub_L3", "2d_mixed_ub", 3),
     ("3d_uniform_L3", "3d_uniform", 3),
 ]
 

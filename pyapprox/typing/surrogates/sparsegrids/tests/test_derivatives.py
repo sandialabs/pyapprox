@@ -18,7 +18,8 @@ from pyapprox.typing.surrogates.sparsegrids import (
     IsotropicCombinationSparseGrid,
     SparseGridFunction,
 )
-from pyapprox.typing.surrogates.affine.univariate import LegendrePolynomial1D
+from pyapprox.typing.surrogates.sparsegrids.basis_factory import GaussLagrangeFactory
+from pyapprox.typing.probability import UniformMarginal
 from pyapprox.typing.surrogates.affine.indices import LinearGrowthRule
 from pyapprox.typing.interface.functions.derivative_checks.derivative_checker import (
     DerivativeChecker,
@@ -41,11 +42,12 @@ class TestSparseGridDerivatives(Generic[Array], unittest.TestCase):
         nvars = 2
         level = 2
 
-        bases_1d = [LegendrePolynomial1D(self._bkd) for _ in range(nvars)]
+        marginal = UniformMarginal(-1.0, 1.0, self._bkd)
+        factories = [GaussLagrangeFactory(marginal, self._bkd) for _ in range(nvars)]
         growth = LinearGrowthRule(scale=1, shift=1)
 
         grid = IsotropicCombinationSparseGrid(
-            self._bkd, bases_1d, growth, level
+            self._bkd, factories, growth, level
         )
 
         # f(x, y) = x + 2*y
@@ -78,11 +80,12 @@ class TestSparseGridDerivatives(Generic[Array], unittest.TestCase):
         nvars = 2
         level = 3
 
-        bases_1d = [LegendrePolynomial1D(self._bkd) for _ in range(nvars)]
+        marginal = UniformMarginal(-1.0, 1.0, self._bkd)
+        factories = [GaussLagrangeFactory(marginal, self._bkd) for _ in range(nvars)]
         growth = LinearGrowthRule(scale=1, shift=1)
 
         grid = IsotropicCombinationSparseGrid(
-            self._bkd, bases_1d, growth, level
+            self._bkd, factories, growth, level
         )
 
         # f(x, y) = x^2 + x*y
@@ -115,11 +118,12 @@ class TestSparseGridDerivatives(Generic[Array], unittest.TestCase):
         nvars = 3
         level = 2
 
-        bases_1d = [LegendrePolynomial1D(self._bkd) for _ in range(nvars)]
+        marginal = UniformMarginal(-1.0, 1.0, self._bkd)
+        factories = [GaussLagrangeFactory(marginal, self._bkd) for _ in range(nvars)]
         growth = LinearGrowthRule(scale=1, shift=1)
 
         grid = IsotropicCombinationSparseGrid(
-            self._bkd, bases_1d, growth, level
+            self._bkd, factories, growth, level
         )
 
         # f(x, y, z) = x + y + z
@@ -152,11 +156,12 @@ class TestSparseGridDerivatives(Generic[Array], unittest.TestCase):
         nvars = 2
         level = 3
 
-        bases_1d = [LegendrePolynomial1D(self._bkd) for _ in range(nvars)]
+        marginal = UniformMarginal(-1.0, 1.0, self._bkd)
+        factories = [GaussLagrangeFactory(marginal, self._bkd) for _ in range(nvars)]
         growth = LinearGrowthRule(scale=1, shift=1)
 
         grid = IsotropicCombinationSparseGrid(
-            self._bkd, bases_1d, growth, level
+            self._bkd, factories, growth, level
         )
 
         # f(x, y) = x^2 + y^2
@@ -183,11 +188,12 @@ class TestSparseGridDerivatives(Generic[Array], unittest.TestCase):
         nvars = 2
         level = 3
 
-        bases_1d = [LegendrePolynomial1D(self._bkd) for _ in range(nvars)]
+        marginal = UniformMarginal(-1.0, 1.0, self._bkd)
+        factories = [GaussLagrangeFactory(marginal, self._bkd) for _ in range(nvars)]
         growth = LinearGrowthRule(scale=1, shift=1)
 
         grid = IsotropicCombinationSparseGrid(
-            self._bkd, bases_1d, growth, level
+            self._bkd, factories, growth, level
         )
 
         # f(x, y) = x^2 + y^2
@@ -217,11 +223,12 @@ class TestSparseGridDerivatives(Generic[Array], unittest.TestCase):
         nvars = 2
         level = 3
 
-        bases_1d = [LegendrePolynomial1D(self._bkd) for _ in range(nvars)]
+        marginal = UniformMarginal(-1.0, 1.0, self._bkd)
+        factories = [GaussLagrangeFactory(marginal, self._bkd) for _ in range(nvars)]
         growth = LinearGrowthRule(scale=1, shift=1)
 
         grid = IsotropicCombinationSparseGrid(
-            self._bkd, bases_1d, growth, level
+            self._bkd, factories, growth, level
         )
 
         # f(x, y) = x^2 + y^2

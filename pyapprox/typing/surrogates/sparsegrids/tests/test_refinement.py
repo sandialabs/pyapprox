@@ -26,7 +26,8 @@ from pyapprox.typing.surrogates.sparsegrids.refinement import (
     SparseGridCostFunctionProtocol,
     SparseGridRefinementCriteriaProtocol,
 )
-from pyapprox.typing.surrogates.affine.univariate import LegendrePolynomial1D
+from pyapprox.typing.surrogates.sparsegrids.basis_factory import GaussLagrangeFactory
+from pyapprox.typing.probability import UniformMarginal
 from pyapprox.typing.surrogates.affine.indices import (
     LinearGrowthRule,
     MaxLevelCriteria,
@@ -90,14 +91,15 @@ class TestSubspaceVariance(Generic[Array], unittest.TestCase):
 
     def setUp(self) -> None:
         self._bkd = self.bkd()
-        self._basis = LegendrePolynomial1D(self._bkd)
+        self._marginal = UniformMarginal(-1.0, 1.0, self._bkd)
+        self._factory = GaussLagrangeFactory(self._marginal, self._bkd)
         self._growth = LinearGrowthRule(scale=1, shift=1)
 
     def test_variance_constant_is_zero(self) -> None:
         """Variance of constant function should be 0."""
         index = self._bkd.asarray([1, 1])
         subspace = TensorProductSubspace(
-            self._bkd, index, [self._basis, self._basis], self._growth
+            self._bkd, index, [self._factory, self._factory], self._growth
         )
 
         samples = subspace.get_samples()
@@ -114,7 +116,7 @@ class TestSubspaceVariance(Generic[Array], unittest.TestCase):
         """Variance of f(x,y) = x should be 1/3 on [-1,1]^2."""
         index = self._bkd.asarray([2, 2])
         subspace = TensorProductSubspace(
-            self._bkd, index, [self._basis, self._basis], self._growth
+            self._bkd, index, [self._factory, self._factory], self._growth
         )
 
         samples = subspace.get_samples()
@@ -132,7 +134,7 @@ class TestSubspaceVariance(Generic[Array], unittest.TestCase):
         """Variance of f(x,y) = x^2 should be E[x^4] - E[x^2]^2 = 1/5 - 1/9."""
         index = self._bkd.asarray([3, 1])
         subspace = TensorProductSubspace(
-            self._bkd, index, [self._basis, self._basis], self._growth
+            self._bkd, index, [self._factory, self._factory], self._growth
         )
 
         samples = subspace.get_samples()
@@ -158,7 +160,8 @@ class TestL2NormRefinementCriteria(Generic[Array], unittest.TestCase):
 
     def setUp(self) -> None:
         self._bkd = self.bkd()
-        self._basis = LegendrePolynomial1D(self._bkd)
+        self._marginal = UniformMarginal(-1.0, 1.0, self._bkd)
+        self._factory = GaussLagrangeFactory(self._marginal, self._bkd)
         self._growth = LinearGrowthRule(scale=1, shift=1)
 
     def test_l2norm_satisfies_protocol(self) -> None:
@@ -173,7 +176,7 @@ class TestL2NormRefinementCriteria(Generic[Array], unittest.TestCase):
 
         grid = AdaptiveCombinationSparseGrid(
             self._bkd,
-            [self._basis, self._basis],
+            [self._factory, self._factory],
             self._growth,
             admis,
             refinement_priority=criteria,
@@ -200,7 +203,7 @@ class TestL2NormRefinementCriteria(Generic[Array], unittest.TestCase):
 
         grid = AdaptiveCombinationSparseGrid(
             self._bkd,
-            [self._basis, self._basis],
+            [self._factory, self._factory],
             self._growth,
             admis,
             refinement_priority=criteria,
@@ -226,7 +229,8 @@ class TestVarianceRefinementCriteria(Generic[Array], unittest.TestCase):
 
     def setUp(self) -> None:
         self._bkd = self.bkd()
-        self._basis = LegendrePolynomial1D(self._bkd)
+        self._marginal = UniformMarginal(-1.0, 1.0, self._bkd)
+        self._factory = GaussLagrangeFactory(self._marginal, self._bkd)
         self._growth = LinearGrowthRule(scale=1, shift=1)
 
     def test_variance_satisfies_protocol(self) -> None:
@@ -241,7 +245,7 @@ class TestVarianceRefinementCriteria(Generic[Array], unittest.TestCase):
 
         grid = AdaptiveCombinationSparseGrid(
             self._bkd,
-            [self._basis, self._basis],
+            [self._factory, self._factory],
             self._growth,
             admis,
             refinement_priority=criteria,
@@ -263,7 +267,7 @@ class TestVarianceRefinementCriteria(Generic[Array], unittest.TestCase):
 
         grid = AdaptiveCombinationSparseGrid(
             self._bkd,
-            [self._basis, self._basis],
+            [self._factory, self._factory],
             self._growth,
             admis,
             refinement_priority=criteria,
@@ -312,7 +316,8 @@ class TestAdaptiveGridWithIncrementalSmolyak(Generic[Array], unittest.TestCase):
 
     def setUp(self) -> None:
         self._bkd = self.bkd()
-        self._basis = LegendrePolynomial1D(self._bkd)
+        self._marginal = UniformMarginal(-1.0, 1.0, self._bkd)
+        self._factory = GaussLagrangeFactory(self._marginal, self._bkd)
         self._growth = LinearGrowthRule(scale=1, shift=1)
 
     def test_mean_with_stored_coefficients(self) -> None:
@@ -320,7 +325,7 @@ class TestAdaptiveGridWithIncrementalSmolyak(Generic[Array], unittest.TestCase):
         admis = MaxLevelCriteria(max_level=3, pnorm=1.0, bkd=self._bkd)
         grid = AdaptiveCombinationSparseGrid(
             self._bkd,
-            [self._basis, self._basis],
+            [self._factory, self._factory],
             self._growth,
             admis,
         )
@@ -344,7 +349,7 @@ class TestAdaptiveGridWithIncrementalSmolyak(Generic[Array], unittest.TestCase):
         admis = MaxLevelCriteria(max_level=3, pnorm=1.0, bkd=self._bkd)
         grid = AdaptiveCombinationSparseGrid(
             self._bkd,
-            [self._basis, self._basis],
+            [self._factory, self._factory],
             self._growth,
             admis,
         )
@@ -384,7 +389,7 @@ class TestAdaptiveGridWithIncrementalSmolyak(Generic[Array], unittest.TestCase):
         admis = MaxLevelCriteria(max_level=4, pnorm=1.0, bkd=self._bkd)
         grid = AdaptiveCombinationSparseGrid(
             self._bkd,
-            [self._basis, self._basis],
+            [self._factory, self._factory],
             self._growth,
             admis,
         )
@@ -431,7 +436,8 @@ class TestRefinementOrdering(Generic[Array], unittest.TestCase):
 
     def setUp(self) -> None:
         self._bkd = self.bkd()
-        self._basis = LegendrePolynomial1D(self._bkd)
+        self._marginal = UniformMarginal(-1.0, 1.0, self._bkd)
+        self._factory = GaussLagrangeFactory(self._marginal, self._bkd)
         self._growth = LinearGrowthRule(scale=1, shift=1)
 
     def test_higher_error_refined_first(self) -> None:
@@ -441,7 +447,7 @@ class TestRefinementOrdering(Generic[Array], unittest.TestCase):
 
         grid = AdaptiveCombinationSparseGrid(
             self._bkd,
-            [self._basis, self._basis],
+            [self._factory, self._factory],
             self._growth,
             admis,
             refinement_priority=criteria,

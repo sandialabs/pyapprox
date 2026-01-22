@@ -30,6 +30,7 @@ from pyapprox.typing.surrogates.sparsegrids import (
     CombinationSparseGrid,
     IsotropicCombinationSparseGrid,
     compute_smolyak_coefficients,
+    PrebuiltBasisFactory,
 )
 from pyapprox.typing.surrogates.affine.univariate import LegendrePolynomial1D
 from pyapprox.typing.surrogates.affine.indices import LinearGrowthRule
@@ -51,12 +52,13 @@ class TestCombinationSparseGridBase(Generic[Array], unittest.TestCase):
     def setUp(self) -> None:
         self._bkd = self.bkd()
         self._basis = LegendrePolynomial1D(self._bkd)
+        self._factory = PrebuiltBasisFactory(self._basis)
         self._growth = LinearGrowthRule(scale=1, shift=1)
 
     def test_unique_samples_collected_correctly(self) -> None:
         """Test that unique samples are collected from all subspaces."""
         grid = CombinationSparseGrid(
-            self._bkd, [self._basis, self._basis], self._growth
+            self._bkd, [self._factory, self._factory], self._growth
         )
 
         # Add subspaces manually
@@ -83,7 +85,7 @@ class TestCombinationSparseGridBase(Generic[Array], unittest.TestCase):
     def test_values_distributed_to_subspaces(self) -> None:
         """Test that set_values distributes to each subspace correctly."""
         grid = CombinationSparseGrid(
-            self._bkd, [self._basis, self._basis], self._growth
+            self._bkd, [self._factory, self._factory], self._growth
         )
         grid._add_subspace(self._bkd.asarray([1, 0]))
         grid._add_subspace(self._bkd.asarray([0, 1]))
@@ -105,7 +107,7 @@ class TestCombinationSparseGridBase(Generic[Array], unittest.TestCase):
     def test_smolyak_combination_evaluation(self) -> None:
         """Test evaluation is weighted sum: sum_k c_k * I_k(f)(x)."""
         grid = CombinationSparseGrid(
-            self._bkd, [self._basis, self._basis], self._growth
+            self._bkd, [self._factory, self._factory], self._growth
         )
         grid._add_subspace(self._bkd.asarray([0, 0]))
         grid._add_subspace(self._bkd.asarray([1, 0]))
@@ -132,7 +134,7 @@ class TestCombinationSparseGridBase(Generic[Array], unittest.TestCase):
     def test_mean_is_smolyak_weighted_subspace_means(self) -> None:
         """Test mean() computes Smolyak-weighted sum of subspace means."""
         grid = CombinationSparseGrid(
-            self._bkd, [self._basis, self._basis], self._growth
+            self._bkd, [self._factory, self._factory], self._growth
         )
         grid._add_subspace(self._bkd.asarray([0, 0]))
         grid._add_subspace(self._bkd.asarray([1, 0]))
@@ -161,7 +163,7 @@ class TestCombinationSparseGridBase(Generic[Array], unittest.TestCase):
     def test_variance_is_smolyak_weighted_subspace_variances(self) -> None:
         """Test variance() computes Smolyak-weighted sum of subspace variances."""
         grid = CombinationSparseGrid(
-            self._bkd, [self._basis, self._basis], self._growth
+            self._bkd, [self._factory, self._factory], self._growth
         )
         grid._add_subspace(self._bkd.asarray([0, 0]))
         grid._add_subspace(self._bkd.asarray([1, 0]))
@@ -189,7 +191,7 @@ class TestCombinationSparseGridBase(Generic[Array], unittest.TestCase):
     def test_jacobian_is_smolyak_weighted_subspace_jacobians(self) -> None:
         """Test jacobian is weighted sum of subspace jacobians."""
         grid = CombinationSparseGrid(
-            self._bkd, [self._basis, self._basis], self._growth
+            self._bkd, [self._factory, self._factory], self._growth
         )
         grid._add_subspace(self._bkd.asarray([0, 0]))
         grid._add_subspace(self._bkd.asarray([1, 0]))
@@ -220,7 +222,7 @@ class TestCombinationSparseGridBase(Generic[Array], unittest.TestCase):
     def test_hvp_is_smolyak_weighted_subspace_hvps(self) -> None:
         """Test hvp is weighted sum of subspace hvps."""
         grid = CombinationSparseGrid(
-            self._bkd, [self._basis, self._basis], self._growth
+            self._bkd, [self._factory, self._factory], self._growth
         )
         grid._add_subspace(self._bkd.asarray([2, 0]))
         grid._add_subspace(self._bkd.asarray([0, 2]))
@@ -252,7 +254,7 @@ class TestCombinationSparseGridBase(Generic[Array], unittest.TestCase):
     def test_nqoi_multi_output(self) -> None:
         """Test CombinationSparseGrid with multiple QoIs."""
         grid = CombinationSparseGrid(
-            self._bkd, [self._basis, self._basis], self._growth
+            self._bkd, [self._factory, self._factory], self._growth
         )
         grid._add_subspace(self._bkd.asarray([1, 0]))
         grid._add_subspace(self._bkd.asarray([0, 1]))
@@ -294,12 +296,13 @@ class TestIncrementalSmolyakUpdate(Generic[Array], unittest.TestCase):
     def setUp(self) -> None:
         self._bkd = self.bkd()
         self._basis = LegendrePolynomial1D(self._bkd)
+        self._factory = PrebuiltBasisFactory(self._basis)
         self._growth = LinearGrowthRule(scale=1, shift=1)
 
     def test_add_single_index_1d(self) -> None:
         """Test incremental update when adding one index in 1D."""
         grid = CombinationSparseGrid(
-            self._bkd, [self._basis], self._growth
+            self._bkd, [self._factory], self._growth
         )
         grid._add_subspace(self._bkd.asarray([0]))
         grid._add_subspace(self._bkd.asarray([1]))
@@ -321,7 +324,7 @@ class TestIncrementalSmolyakUpdate(Generic[Array], unittest.TestCase):
     def test_add_single_index_2d(self) -> None:
         """Test incremental update when adding one index in 2D."""
         grid = CombinationSparseGrid(
-            self._bkd, [self._basis, self._basis], self._growth
+            self._bkd, [self._factory, self._factory], self._growth
         )
         grid._add_subspace(self._bkd.asarray([0, 0]))
         grid._add_subspace(self._bkd.asarray([1, 0]))
@@ -344,7 +347,7 @@ class TestIncrementalSmolyakUpdate(Generic[Array], unittest.TestCase):
     def test_add_boundary_index_2d(self) -> None:
         """Test incremental update when adding boundary index in 2D."""
         grid = CombinationSparseGrid(
-            self._bkd, [self._basis, self._basis], self._growth
+            self._bkd, [self._factory, self._factory], self._growth
         )
         grid._add_subspace(self._bkd.asarray([0, 0]))
         grid._add_subspace(self._bkd.asarray([1, 0]))
@@ -368,7 +371,7 @@ class TestIncrementalSmolyakUpdate(Generic[Array], unittest.TestCase):
     def test_add_multiple_indices_sequential(self) -> None:
         """Test sequential incremental updates produce correct result."""
         grid = CombinationSparseGrid(
-            self._bkd, [self._basis, self._basis], self._growth
+            self._bkd, [self._factory, self._factory], self._growth
         )
 
         indices_to_add = [
@@ -404,7 +407,7 @@ class TestIncrementalSmolyakUpdate(Generic[Array], unittest.TestCase):
     def test_coefficients_sum_to_one_after_update(self) -> None:
         """Test that coefficients still sum to 1 after incremental update."""
         grid = CombinationSparseGrid(
-            self._bkd, [self._basis, self._basis], self._growth
+            self._bkd, [self._factory, self._factory], self._growth
         )
         grid._add_subspace(self._bkd.asarray([0, 0]))
         grid._add_subspace(self._bkd.asarray([1, 0]))
@@ -431,7 +434,7 @@ class TestIncrementalSmolyakUpdate(Generic[Array], unittest.TestCase):
     def test_3d_incremental_update(self) -> None:
         """Test incremental update in 3D."""
         grid = CombinationSparseGrid(
-            self._bkd, [self._basis, self._basis, self._basis], self._growth
+            self._bkd, [self._factory, self._factory, self._factory], self._growth
         )
 
         grid._add_subspace(self._bkd.asarray([0, 0, 0]))
@@ -474,6 +477,7 @@ class TestCombinationSparseGridLegacy(Generic[Array], unittest.TestCase):
     def setUp(self) -> None:
         self._bkd = self.bkd()
         self._basis = LegendrePolynomial1D(self._bkd)
+        self._factory = PrebuiltBasisFactory(self._basis)
         self._growth = LinearGrowthRule(scale=1, shift=1)
 
     def test_smolyak_coefficients_match_legacy_formula(self) -> None:
@@ -485,7 +489,7 @@ class TestCombinationSparseGridLegacy(Generic[Array], unittest.TestCase):
         """
         # Build a 2D level 2 index set
         grid = IsotropicCombinationSparseGrid(
-            self._bkd, [self._basis, self._basis], self._growth, level=2
+            self._bkd, [self._factory, self._factory], self._growth, level=2
         )
 
         indices = grid.get_subspace_indices()
@@ -523,7 +527,7 @@ class TestCombinationSparseGridLegacy(Generic[Array], unittest.TestCase):
         I[f](x) = sum_k c_k * I_k[f](x)
         """
         grid = IsotropicCombinationSparseGrid(
-            self._bkd, [self._basis, self._basis], self._growth, level=2
+            self._bkd, [self._factory, self._factory], self._growth, level=2
         )
 
         samples = grid.get_samples()
@@ -557,7 +561,7 @@ class TestCombinationSparseGridLegacy(Generic[Array], unittest.TestCase):
         where E_k[f] is the tensor product quadrature integral.
         """
         grid = IsotropicCombinationSparseGrid(
-            self._bkd, [self._basis, self._basis], self._growth, level=2
+            self._bkd, [self._factory, self._factory], self._growth, level=2
         )
 
         samples = grid.get_samples()
@@ -580,7 +584,7 @@ class TestCombinationSparseGridLegacy(Generic[Array], unittest.TestCase):
         Var[f] = sum_k c_k * Var_k[f]
         """
         grid = IsotropicCombinationSparseGrid(
-            self._bkd, [self._basis, self._basis], self._growth, level=2
+            self._bkd, [self._factory, self._factory], self._growth, level=2
         )
 
         samples = grid.get_samples()
@@ -602,7 +606,7 @@ class TestCombinationSparseGridLegacy(Generic[Array], unittest.TestCase):
         J = [2x, 2y]
         """
         grid = IsotropicCombinationSparseGrid(
-            self._bkd, [self._basis, self._basis], self._growth, level=3
+            self._bkd, [self._factory, self._factory], self._growth, level=3
         )
 
         samples = grid.get_samples()
@@ -627,7 +631,7 @@ class TestCombinationSparseGridLegacy(Generic[Array], unittest.TestCase):
         H @ [1, 2] = [2, 4]
         """
         grid = IsotropicCombinationSparseGrid(
-            self._bkd, [self._basis, self._basis], self._growth, level=3
+            self._bkd, [self._factory, self._factory], self._growth, level=3
         )
 
         samples = grid.get_samples()

@@ -20,7 +20,9 @@ from pyapprox.typing.surrogates.sparsegrids import (
     TensorProductSubspaceToPCEConverter,
     TensorProductSubspace,
 )
-from pyapprox.typing.surrogates.affine.univariate import LegendrePolynomial1D
+from pyapprox.typing.surrogates.sparsegrids.basis_factory import GaussLagrangeFactory
+from pyapprox.typing.surrogates.affine.univariate import create_bases_1d
+from pyapprox.typing.probability import UniformMarginal
 from pyapprox.typing.surrogates.affine.indices import LinearGrowthRule
 
 
@@ -40,11 +42,12 @@ class TestSparseGridToPCEConverter(Generic[Array], unittest.TestCase):
         nvars = 2
         level = 3
 
-        bases_1d = [LegendrePolynomial1D(self._bkd) for _ in range(nvars)]
+        marginals = [UniformMarginal(-1.0, 1.0, self._bkd) for _ in range(nvars)]
+        factories = [GaussLagrangeFactory(m, self._bkd) for m in marginals]
         growth = LinearGrowthRule(scale=2, shift=1)
 
         grid = IsotropicCombinationSparseGrid(
-            self._bkd, bases_1d, growth, level
+            self._bkd, factories, growth, level
         )
 
         # f(x, y) = x^2 + 2*x*y + y
@@ -54,28 +57,29 @@ class TestSparseGridToPCEConverter(Generic[Array], unittest.TestCase):
         grid.set_values(values)
 
         # Convert to PCE
-        pce_bases_1d = [LegendrePolynomial1D(self._bkd) for _ in range(nvars)]
+        pce_bases_1d = create_bases_1d(marginals, self._bkd)
         converter = SparseGridToPCEConverter(self._bkd, pce_bases_1d)
         pce = converter.convert(grid)
 
         # Test evaluation matches
-        # Note: PCE returns (nsamples, nqoi) while grid returns (nqoi, nsamples)
+        # Both return (nqoi, nsamples) per CLAUDE.md conventions
         test_pts = self._bkd.asarray([[-0.5, 0.0, 0.5], [0.3, 0.0, -0.3]])
         grid_vals = grid(test_pts)
         pce_vals = pce(test_pts)
 
-        self.assertTrue(self._bkd.allclose(grid_vals, pce_vals.T, rtol=1e-10))
+        self._bkd.assert_allclose(grid_vals, pce_vals, rtol=1e-10, atol=1e-14)
 
     def test_pce_mean_variance(self) -> None:
         """Test PCE statistics are correct."""
         nvars = 2
         level = 4
 
-        bases_1d = [LegendrePolynomial1D(self._bkd) for _ in range(nvars)]
+        marginals = [UniformMarginal(-1.0, 1.0, self._bkd) for _ in range(nvars)]
+        factories = [GaussLagrangeFactory(m, self._bkd) for m in marginals]
         growth = LinearGrowthRule(scale=2, shift=1)
 
         grid = IsotropicCombinationSparseGrid(
-            self._bkd, bases_1d, growth, level
+            self._bkd, factories, growth, level
         )
 
         # f(x, y) = x^2 + 2*x*y + y
@@ -87,7 +91,7 @@ class TestSparseGridToPCEConverter(Generic[Array], unittest.TestCase):
         grid.set_values(values)
 
         # Convert to PCE
-        pce_bases_1d = [LegendrePolynomial1D(self._bkd) for _ in range(nvars)]
+        pce_bases_1d = create_bases_1d(marginals, self._bkd)
         converter = SparseGridToPCEConverter(self._bkd, pce_bases_1d)
         pce = converter.convert(grid)
 
@@ -106,11 +110,12 @@ class TestSparseGridToPCEConverter(Generic[Array], unittest.TestCase):
         nvars = 2
         level = 4
 
-        bases_1d = [LegendrePolynomial1D(self._bkd) for _ in range(nvars)]
+        marginals = [UniformMarginal(-1.0, 1.0, self._bkd) for _ in range(nvars)]
+        factories = [GaussLagrangeFactory(m, self._bkd) for m in marginals]
         growth = LinearGrowthRule(scale=2, shift=1)
 
         grid = IsotropicCombinationSparseGrid(
-            self._bkd, bases_1d, growth, level
+            self._bkd, factories, growth, level
         )
 
         # f(x, y) = x^2 + 2*x*y + y
@@ -120,7 +125,7 @@ class TestSparseGridToPCEConverter(Generic[Array], unittest.TestCase):
         grid.set_values(values)
 
         # Convert to PCE
-        pce_bases_1d = [LegendrePolynomial1D(self._bkd) for _ in range(nvars)]
+        pce_bases_1d = create_bases_1d(marginals, self._bkd)
         converter = SparseGridToPCEConverter(self._bkd, pce_bases_1d)
         pce = converter.convert(grid)
 
@@ -152,11 +157,12 @@ class TestSparseGridToPCEConverter(Generic[Array], unittest.TestCase):
         nvars = 3
         level = 2
 
-        bases_1d = [LegendrePolynomial1D(self._bkd) for _ in range(nvars)]
+        marginals = [UniformMarginal(-1.0, 1.0, self._bkd) for _ in range(nvars)]
+        factories = [GaussLagrangeFactory(m, self._bkd) for m in marginals]
         growth = LinearGrowthRule(scale=2, shift=1)
 
         grid = IsotropicCombinationSparseGrid(
-            self._bkd, bases_1d, growth, level
+            self._bkd, factories, growth, level
         )
 
         # f(x, y, z) = x + y + z
@@ -167,12 +173,12 @@ class TestSparseGridToPCEConverter(Generic[Array], unittest.TestCase):
         grid.set_values(values)
 
         # Convert to PCE
-        pce_bases_1d = [LegendrePolynomial1D(self._bkd) for _ in range(nvars)]
+        pce_bases_1d = create_bases_1d(marginals, self._bkd)
         converter = SparseGridToPCEConverter(self._bkd, pce_bases_1d)
         pce = converter.convert(grid)
 
-        # Test evaluation
-        # Note: PCE returns (nsamples, nqoi) while grid returns (nqoi, nsamples)
+        # Test evaluation matches
+        # Both return (nqoi, nsamples) per CLAUDE.md conventions
         test_pts = self._bkd.asarray([
             [0.1, 0.2],
             [0.3, 0.4],
@@ -181,22 +187,64 @@ class TestSparseGridToPCEConverter(Generic[Array], unittest.TestCase):
         grid_vals = grid(test_pts)
         pce_vals = pce(test_pts)
 
-        self.assertTrue(self._bkd.allclose(grid_vals, pce_vals.T, rtol=1e-10))
+        self._bkd.assert_allclose(grid_vals, pce_vals, rtol=1e-10, atol=1e-14)
 
         # Mean should be 0 for linear function
         pce_mean = pce.mean()
         self.assertAlmostEqual(float(pce_mean[0]), 0.0, places=10)
+
+    def test_non_canonical_domain(self) -> None:
+        """Test conversion with non-canonical domain [0, 1].
+
+        Verifies converter works correctly when user domain differs from
+        canonical domain. The converter relies on TransformedBasis1D from
+        create_bases_1d() to handle domain transforms automatically.
+        """
+        nvars = 2
+        level = 3
+
+        # Use [0, 1] domain instead of canonical [-1, 1]
+        marginals = [UniformMarginal(0.0, 1.0, self._bkd) for _ in range(nvars)]
+        factories = [GaussLagrangeFactory(m, self._bkd) for m in marginals]
+        growth = LinearGrowthRule(scale=2, shift=1)
+
+        grid = IsotropicCombinationSparseGrid(
+            self._bkd, factories, growth, level
+        )
+
+        # Verify samples are in [0, 1] domain
+        samples = grid.get_samples()
+        self.assertTrue(self._bkd.all_bool(samples >= 0.0))
+        self.assertTrue(self._bkd.all_bool(samples <= 1.0))
+
+        # f(x, y) = x^2 + 2*x*y + y
+        x, y = samples[0, :], samples[1, :]
+        values = self._bkd.reshape(x ** 2 + 2 * x * y + y, (1, -1))
+        grid.set_values(values)
+
+        # Convert to PCE
+        pce_bases_1d = create_bases_1d(marginals, self._bkd)
+        converter = SparseGridToPCEConverter(self._bkd, pce_bases_1d)
+        pce = converter.convert(grid)
+
+        # Test evaluation matches at points in [0, 1] domain
+        test_pts = self._bkd.asarray([[0.25, 0.5, 0.75], [0.3, 0.5, 0.7]])
+        grid_vals = grid(test_pts)
+        pce_vals = pce(test_pts)
+
+        self._bkd.assert_allclose(grid_vals, pce_vals, rtol=1e-10, atol=1e-14)
 
     def test_multi_qoi_conversion(self) -> None:
         """Test conversion with multiple quantities of interest."""
         nvars = 2
         level = 3
 
-        bases_1d = [LegendrePolynomial1D(self._bkd) for _ in range(nvars)]
+        marginals = [UniformMarginal(-1.0, 1.0, self._bkd) for _ in range(nvars)]
+        factories = [GaussLagrangeFactory(m, self._bkd) for m in marginals]
         growth = LinearGrowthRule(scale=2, shift=1)
 
         grid = IsotropicCombinationSparseGrid(
-            self._bkd, bases_1d, growth, level
+            self._bkd, factories, growth, level
         )
 
         # Two QoIs: f1 = x, f2 = y - shape (nqoi, nsamples) = (2, nsamples)
@@ -205,18 +253,18 @@ class TestSparseGridToPCEConverter(Generic[Array], unittest.TestCase):
         grid.set_values(values)
 
         # Convert to PCE
-        pce_bases_1d = [LegendrePolynomial1D(self._bkd) for _ in range(nvars)]
+        pce_bases_1d = create_bases_1d(marginals, self._bkd)
         converter = SparseGridToPCEConverter(self._bkd, pce_bases_1d)
         pce = converter.convert(grid)
 
-        # Test evaluation
-        # Note: PCE returns (nsamples, nqoi) while grid returns (nqoi, nsamples)
+        # Test evaluation matches
+        # Both return (nqoi, nsamples) per CLAUDE.md conventions
         test_pts = self._bkd.asarray([[0.3, -0.5], [0.2, 0.4]])
         grid_vals = grid(test_pts)
         pce_vals = pce(test_pts)
 
-        self.assertEqual(pce_vals.shape[1], 2)  # PCE: (nsamples, nqoi)
-        self.assertTrue(self._bkd.allclose(grid_vals, pce_vals.T, rtol=1e-10))
+        self.assertEqual(pce_vals.shape[0], 2)  # nqoi=2 is first dimension
+        self._bkd.assert_allclose(grid_vals, pce_vals, rtol=1e-10, atol=1e-14)
 
 
 class TestTensorProductSubspaceToPCEConverter(Generic[Array], unittest.TestCase):
@@ -233,13 +281,14 @@ class TestTensorProductSubspaceToPCEConverter(Generic[Array], unittest.TestCase)
     def test_subspace_conversion(self) -> None:
         """Test conversion of single tensor product subspace."""
         nvars = 2
-        bases_1d = [LegendrePolynomial1D(self._bkd) for _ in range(nvars)]
+        marginals = [UniformMarginal(-1.0, 1.0, self._bkd) for _ in range(nvars)]
+        factories = [GaussLagrangeFactory(m, self._bkd) for m in marginals]
         growth = LinearGrowthRule(scale=1, shift=1)
 
         # Create a subspace
         index = self._bkd.asarray([2, 2])
         subspace = TensorProductSubspace(
-            self._bkd, index, bases_1d, growth
+            self._bkd, index, factories, growth
         )
 
         # f(x, y) = x^2 + y
@@ -248,7 +297,7 @@ class TestTensorProductSubspaceToPCEConverter(Generic[Array], unittest.TestCase)
         subspace.set_values(values)
 
         # Convert to PCE coefficients
-        pce_bases_1d = [LegendrePolynomial1D(self._bkd) for _ in range(nvars)]
+        pce_bases_1d = create_bases_1d(marginals, self._bkd)
         converter = TensorProductSubspaceToPCEConverter(self._bkd, pce_bases_1d)
         indices, coefficients = converter.convert_subspace(subspace)
 
