@@ -10,7 +10,7 @@ This file contains tests specific to IsotropicCombinationSparseGrid:
 """
 
 import unittest
-from typing import Any, Generic
+from typing import Any, Generic, List
 
 from scipy import stats
 import torch
@@ -1088,6 +1088,404 @@ class TestIsotropicMultiQoINumpy(TestIsotropicMultiQoI[NDArray[Any]]):
 
 class TestIsotropicMultiQoITorch(TestIsotropicMultiQoI[torch.Tensor]):
     """PyTorch backend multi-QoI tests."""
+
+    __test__ = True
+
+    def bkd(self) -> TorchBkd:
+        torch.set_default_dtype(torch.float64)
+        return TorchBkd()
+
+
+# =============================================================================
+# Piecewise polynomial interpolation tests
+# =============================================================================
+
+from pyapprox.typing.surrogates.sparsegrids.tests.test_helpers import (
+    create_test_grid,
+    create_test_grid_mixed,
+    create_smooth_test_function,
+)
+
+# Piecewise polynomial interpolation configs: (name, joint_config, level, basis_type, tol)
+# Growth rules: DoublePlusOneGrowthRule for linear/quadratic, CubicNestedGrowthRule for cubic
+# Tolerances based on actual achievable errors at the given levels:
+# - Linear O(h^2): level 6 -> ~4e-3, level 8 -> ~3e-4
+# - Quadratic O(h^3): level 6 -> ~2e-4, level 8 -> ~5e-6
+# - Cubic O(h^4): level 4 -> ~3e-4, level 6 -> ~1e-6
+PIECEWISE_INTERPOLATION_CONFIGS = [
+    # Linear at level 8: error ~3e-4 with O(h^2) convergence
+    ("2d_uniform_L8_linear", "2d_uniform", 8, "piecewise_linear", 1e-3),
+    ("2d_beta_L8_linear", "2d_beta", 8, "piecewise_linear", 1e-3),
+    # Quadratic at level 8: error ~5e-6 with O(h^3) convergence
+    ("2d_uniform_L8_quadratic", "2d_uniform", 8, "piecewise_quadratic", 1e-5),
+    ("2d_beta_L8_quadratic", "2d_beta", 8, "piecewise_quadratic", 1e-5),
+    # Cubic at level 6: error ~1e-6 with O(h^4) convergence
+    ("2d_uniform_L6_cubic", "2d_uniform", 6, "piecewise_cubic", 1e-5),
+    ("2d_beta_L6_cubic", "2d_beta", 6, "piecewise_cubic", 1e-5),
+    # Different domain (beta = [0,1])
+    ("2d_mixed_ub_L8_linear", "2d_mixed_ub", 8, "piecewise_linear", 1e-3),
+]
+
+
+class TestPiecewiseInterpolation(
+    Generic[Array], ParametrizedTestCase, unittest.TestCase
+):
+    """Parametrized interpolation tests for piecewise polynomial bases.
+
+    Uses DoublePlusOneGrowthRule for nested equidistant points.
+    Tests that piecewise sparse grids achieve small interpolation error
+    on smooth test functions.
+    """
+
+    __test__ = False
+
+    def bkd(self) -> Backend[Array]:
+        raise NotImplementedError
+
+    def setUp(self) -> None:
+        self._bkd = self.bkd()
+
+    @parametrize(
+        "name,joint_config,level,basis_type,tol",
+        PIECEWISE_INTERPOLATION_CONFIGS,
+    )
+    def test_piecewise_interpolation_error(
+        self, name: str, joint_config: str, level: int, basis_type: str, tol: float
+    ) -> None:
+        """Test piecewise sparse grid achieves expected interpolation error."""
+        joint = create_test_joint(joint_config, self._bkd)
+        grid = create_test_grid(joint, level, self._bkd, basis_type)
+        # DoublePlusOneGrowthRule is default for piecewise
+
+        test_func = create_smooth_test_function(joint, self._bkd)
+
+        samples = grid.get_samples()
+        values = test_func(samples)
+        grid.set_values(values)
+
+        # Test at random points
+        np.random.seed(123)
+        test_pts = joint.rvs(50)
+        result = grid(test_pts)
+        expected = test_func(test_pts)
+
+        # Verify interpolation error is within tolerance
+        error = float(
+            self._bkd.to_numpy(self._bkd.max(self._bkd.abs(result - expected)))
+        )
+        self.assertLess(error, tol)
+
+    @parametrize(
+        "name,basis_type,expected_min_ratio",
+        [
+            # Linear O(h^2): error ratio ~3-4x per level (expect >= 2.5)
+            ("linear_convergence", "piecewise_linear", 2.5),
+            # Quadratic O(h^3): error ratio ~6-9x per level (expect >= 5)
+            ("quadratic_convergence", "piecewise_quadratic", 5.0),
+            # Cubic O(h^4): error ratio ~14-16x per level (expect >= 10)
+            ("cubic_convergence", "piecewise_cubic", 10.0),
+        ],
+    )
+    def test_piecewise_convergence_rate(
+        self, name: str, basis_type: str, expected_min_ratio: float
+    ) -> None:
+        """Test piecewise polynomials converge at expected rates.
+
+        Convergence rates for smooth functions:
+        - Linear O(h^2): doubling points -> 4x error reduction
+        - Quadratic O(h^3): doubling points -> 8x error reduction
+        - Cubic O(h^4): doubling points -> 16x error reduction
+        """
+        joint = create_test_joint("2d_uniform", self._bkd)
+        test_func = create_smooth_test_function(joint, self._bkd)
+
+        # Test error reduction between two consecutive levels
+        level1, level2 = 5, 6
+        errors = []
+        for level in [level1, level2]:
+            grid = create_test_grid(joint, level, self._bkd, basis_type)
+            samples = grid.get_samples()
+            values = test_func(samples)
+            grid.set_values(values)
+
+            np.random.seed(123)
+            test_pts = joint.rvs(200)
+            result = grid(test_pts)
+            expected = test_func(test_pts)
+
+            error = float(
+                self._bkd.to_numpy(self._bkd.max(self._bkd.abs(result - expected)))
+            )
+            errors.append(error)
+
+        # Verify error reduction ratio meets minimum expectation
+        ratio = errors[0] / errors[1]
+        self.assertGreater(
+            ratio, expected_min_ratio,
+            f"{basis_type}: error ratio {ratio:.2f} < {expected_min_ratio}"
+        )
+
+
+class TestPiecewiseInterpolationNumpy(TestPiecewiseInterpolation[NDArray[Any]]):
+    """NumPy backend piecewise interpolation tests."""
+
+    __test__ = True
+
+    def bkd(self) -> NumpyBkd:
+        return NumpyBkd()
+
+
+class TestPiecewiseInterpolationTorch(TestPiecewiseInterpolation[torch.Tensor]):
+    """PyTorch backend piecewise interpolation tests."""
+
+    __test__ = True
+
+    def bkd(self) -> TorchBkd:
+        torch.set_default_dtype(torch.float64)
+        return TorchBkd()
+
+
+# =============================================================================
+# Mixed Lagrange + piecewise interpolation tests
+# =============================================================================
+
+# Mixed Lagrange + piecewise interpolation configs:
+# (name, joint_config, level, basis_types_per_dim)
+# Mixed basis interpolation configs with levels chosen to achieve < 1e-3 error
+# Per-dimension growth rules are automatically selected based on basis type:
+# - piecewise_cubic: CubicNestedGrowthRule
+# - piecewise_linear/quadratic, clenshaw_curtis: DoublePlusOneGrowthRule
+# - gauss, leja: DoublePlusOneGrowthRule (for nesting compatibility)
+MIXED_BASIS_INTERPOLATION_CONFIGS = [
+    # Gauss + piecewise_linear: level 7 for ~2.6e-4 error
+    ("2d_gauss_pwlinear_L7", "2d_uniform", 7, ["gauss", "piecewise_linear"]),
+    # CC + piecewise_linear: level 7 for ~3.7e-4 error
+    ("2d_cc_pwlinear_L7", "2d_uniform", 7, ["clenshaw_curtis", "piecewise_linear"]),
+    # Leja + piecewise_quadratic: level 5 for ~7.4e-4 error (faster convergence)
+    ("2d_leja_pwquad_L5", "2d_uniform", 5, ["leja", "piecewise_quadratic"]),
+    # Leja + piecewise_cubic: level 4 for ~5e-4 error (uses per-dim growth rules)
+    ("2d_leja_pwcubic_L4", "2d_uniform", 4, ["leja", "piecewise_cubic"]),
+]
+
+
+class TestMixedBasisInterpolation(
+    Generic[Array], ParametrizedTestCase, unittest.TestCase
+):
+    """Parametrized interpolation tests for mixed Lagrange + piecewise bases.
+
+    Tests sparse grids with different basis types per dimension.
+    Uses DoublePlusOneGrowthRule for nesting compatibility across all basis types.
+    """
+
+    __test__ = False
+
+    def bkd(self) -> Backend[Array]:
+        raise NotImplementedError
+
+    def setUp(self) -> None:
+        self._bkd = self.bkd()
+
+    @parametrize(
+        "name,joint_config,level,basis_types",
+        MIXED_BASIS_INTERPOLATION_CONFIGS,
+    )
+    def test_mixed_interpolation_error(
+        self, name: str, joint_config: str, level: int, basis_types: List[str]
+    ) -> None:
+        """Test mixed basis sparse grid achieves small interpolation error."""
+        joint = create_test_joint(joint_config, self._bkd)
+        grid = create_test_grid_mixed(joint, level, self._bkd, basis_types)
+
+        test_func = create_smooth_test_function(joint, self._bkd)
+
+        samples = grid.get_samples()
+        values = test_func(samples)
+        grid.set_values(values)
+
+        np.random.seed(123)
+        test_pts = joint.rvs(50)
+        result = grid(test_pts)
+        expected = test_func(test_pts)
+
+        error = float(
+            self._bkd.to_numpy(self._bkd.max(self._bkd.abs(result - expected)))
+        )
+        self.assertLess(error, 1e-3)
+
+
+class TestMixedBasisInterpolationNumpy(TestMixedBasisInterpolation[NDArray[Any]]):
+    """NumPy backend mixed basis interpolation tests."""
+
+    __test__ = True
+
+    def bkd(self) -> NumpyBkd:
+        return NumpyBkd()
+
+
+class TestMixedBasisInterpolationTorch(TestMixedBasisInterpolation[torch.Tensor]):
+    """PyTorch backend mixed basis interpolation tests."""
+
+    __test__ = True
+
+    def bkd(self) -> TorchBkd:
+        torch.set_default_dtype(torch.float64)
+        return TorchBkd()
+
+
+# =============================================================================
+# Piecewise integration tests
+# =============================================================================
+
+# Piecewise integration configs: only uniform distributions
+# (piecewise quadrature uses uniform measure, not arbitrary probability densities)
+# Note: The smooth test function cos(pi*x)*cos(pi*y) has mean ~0 on [-1,1]^2,
+# so we use absolute tolerance for comparisons
+PIECEWISE_INTEGRATION_CONFIGS = [
+    ("2d_uniform_L3_linear", "2d_uniform", 3, "piecewise_linear"),
+    ("2d_uniform_L4_linear", "2d_uniform", 4, "piecewise_linear"),
+    ("2d_uniform_L3_quadratic", "2d_uniform", 3, "piecewise_quadratic"),
+    ("2d_uniform_L3_cubic", "2d_uniform", 3, "piecewise_cubic"),
+    ("2d_uniform_L5_cubic", "2d_uniform", 5, "piecewise_cubic"),
+]
+
+# Mixed basis integration: Gauss + piecewise both need uniform measure
+# (or the Gauss quadrature incorporates PDF while piecewise does not)
+MIXED_BASIS_INTEGRATION_CONFIGS = [
+    ("2d_gauss_pwlinear_L3", "2d_uniform", 3, ["gauss", "piecewise_linear"]),
+    ("2d_cc_pwlinear_L3", "2d_uniform", 3, ["clenshaw_curtis", "piecewise_linear"]),
+]
+
+
+class TestPiecewiseIntegration(
+    Generic[Array], ParametrizedTestCase, unittest.TestCase
+):
+    """Parametrized integration tests for piecewise bases.
+
+    Tests quadrature accuracy by comparing against high-level Gauss reference.
+    """
+
+    __test__ = False
+
+    def bkd(self) -> Backend[Array]:
+        raise NotImplementedError
+
+    def setUp(self) -> None:
+        self._bkd = self.bkd()
+
+    @parametrize(
+        "name,joint_config,level,basis_type",
+        PIECEWISE_INTEGRATION_CONFIGS,
+    )
+    def test_piecewise_integration(
+        self, name: str, joint_config: str, level: int, basis_type: str
+    ) -> None:
+        """Test piecewise quadrature computes approximate mean.
+
+        Note: The smooth test function cos(pi*x)*cos(pi*y) has exact mean 0
+        on [-1,1]^2 with uniform measure, so both grid and reference should
+        compute values near machine epsilon. We use absolute tolerance.
+        """
+        joint = create_test_joint(joint_config, self._bkd)
+        grid = create_test_grid(joint, level, self._bkd, basis_type)
+
+        test_func = create_smooth_test_function(joint, self._bkd)
+
+        samples = grid.get_samples()
+        values = test_func(samples)
+        grid.set_values(values)
+
+        # Compare against high-level Gauss quadrature reference
+        ref_grid = create_test_grid_gauss(joint, level + 2, self._bkd)
+        ref_samples = ref_grid.get_samples()
+        ref_values = test_func(ref_samples)
+        ref_grid.set_values(ref_values)
+        ref_mean = ref_grid.mean()
+
+        grid_mean = grid.mean()
+
+        # Use absolute tolerance since true mean is 0 for this test function
+        # Higher-degree piecewise (quadratic, cubic) should be more accurate
+        self._bkd.assert_allclose(grid_mean, ref_mean, atol=1e-10)
+
+
+class TestPiecewiseIntegrationNumpy(TestPiecewiseIntegration[NDArray[Any]]):
+    """NumPy backend piecewise integration tests."""
+
+    __test__ = True
+
+    def bkd(self) -> NumpyBkd:
+        return NumpyBkd()
+
+
+class TestPiecewiseIntegrationTorch(TestPiecewiseIntegration[torch.Tensor]):
+    """PyTorch backend piecewise integration tests."""
+
+    __test__ = True
+
+    def bkd(self) -> TorchBkd:
+        torch.set_default_dtype(torch.float64)
+        return TorchBkd()
+
+
+class TestMixedBasisIntegration(
+    Generic[Array], ParametrizedTestCase, unittest.TestCase
+):
+    """Parametrized integration tests for mixed bases."""
+
+    __test__ = False
+
+    def bkd(self) -> Backend[Array]:
+        raise NotImplementedError
+
+    def setUp(self) -> None:
+        self._bkd = self.bkd()
+
+    @parametrize(
+        "name,joint_config,level,basis_types",
+        MIXED_BASIS_INTEGRATION_CONFIGS,
+    )
+    def test_mixed_integration(
+        self, name: str, joint_config: str, level: int, basis_types: List[str]
+    ) -> None:
+        """Test mixed basis quadrature computes approximate mean.
+
+        Note: The smooth test function cos(pi*x)*cos(pi*y) has exact mean 0
+        on [-1,1]^2 with uniform measure, so both grid and reference should
+        compute values near machine epsilon. We use absolute tolerance.
+        """
+        joint = create_test_joint(joint_config, self._bkd)
+        grid = create_test_grid_mixed(joint, level, self._bkd, basis_types)
+
+        test_func = create_smooth_test_function(joint, self._bkd)
+
+        samples = grid.get_samples()
+        values = test_func(samples)
+        grid.set_values(values)
+
+        # Compare against high-level Gauss quadrature reference
+        ref_grid = create_test_grid_gauss(joint, level + 2, self._bkd)
+        ref_samples = ref_grid.get_samples()
+        ref_values = test_func(ref_samples)
+        ref_grid.set_values(ref_values)
+        ref_mean = ref_grid.mean()
+
+        grid_mean = grid.mean()
+
+        # Use absolute tolerance since true mean is 0 for this test function
+        self._bkd.assert_allclose(grid_mean, ref_mean, atol=1e-10)
+
+
+class TestMixedBasisIntegrationNumpy(TestMixedBasisIntegration[NDArray[Any]]):
+    """NumPy backend mixed basis integration tests."""
+
+    __test__ = True
+
+    def bkd(self) -> NumpyBkd:
+        return NumpyBkd()
+
+
+class TestMixedBasisIntegrationTorch(TestMixedBasisIntegration[torch.Tensor]):
+    """PyTorch backend mixed basis integration tests."""
 
     __test__ = True
 

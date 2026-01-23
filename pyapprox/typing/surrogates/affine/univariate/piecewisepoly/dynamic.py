@@ -126,15 +126,20 @@ class DynamicPiecewiseBasis(Generic[Array]):
         """Set number of basis terms (nodes).
 
         Creates a new internal basis with the specified number of nodes.
+        For nterms=1, uses a constant basis (no internal basis created).
 
         Parameters
         ----------
         nterms : int
             Number of nodes/terms.
         """
-        nodes = self._node_gen(nterms)
-        self._basis = self._basis_class(nodes, self._bkd)
         self._nterms = nterms
+        if nterms == 1:
+            # 1-point case: constant basis, no piecewise polynomial needed
+            self._basis = None
+        else:
+            nodes = self._node_gen(nterms)
+            self._basis = self._basis_class(nodes, self._bkd)
 
     def nterms(self) -> int:
         """Return current number of terms (nodes)."""
@@ -146,41 +151,89 @@ class DynamicPiecewiseBasis(Generic[Array]):
         Parameters
         ----------
         samples : Array
-            Points to evaluate at, shape (npts,).
+            Points to evaluate at, shape (1, nsamples).
 
         Returns
         -------
         Array
-            Basis values, shape (npts, nterms).
+            Basis values, shape (nsamples, nterms).
 
         Raises
         ------
         ValueError
-            If set_nterms has not been called.
+            If set_nterms has not been called or samples has wrong shape.
         """
-        if self._basis is None:
+        if self._nterms == 0:
             raise ValueError("Must call set_nterms before evaluation")
-        result: Array = self._basis(samples)
+
+        # Strict shape validation per CLAUDE.md conventions
+        if samples.ndim != 2 or samples.shape[0] != 1:
+            raise ValueError(
+                f"Expected samples shape (1, nsamples), got {samples.shape}"
+            )
+
+        samples_1d = samples[0]
+
+        # Handle 1-point case: constant basis function = 1 everywhere
+        if self._nterms == 1:
+            npts = samples_1d.shape[0]
+            return self._bkd.ones((npts, 1))
+
+        result: Array = self._basis(samples_1d)
         return result
 
     def quadrature_rule(self) -> Tuple[Array, Array]:
         """Return quadrature points and weights.
 
+        For the 1-point case (constant basis), returns the midpoint with
+        weight equal to the domain width.
+
         Returns
         -------
         Tuple[Array, Array]
-            (points, weights) where points has shape (nterms,)
-            and weights has shape (nterms,).
+            (points, weights) where points has shape (1, nterms)
+            and weights has shape (nterms, 1). Matches LagrangeBasis1D format.
 
         Raises
         ------
         ValueError
             If set_nterms has not been called.
         """
-        if self._basis is None:
+        if self._nterms == 0:
             raise ValueError("Must call set_nterms before quadrature_rule")
-        result: Tuple[Array, Array] = self._basis.quadrature_rule()
-        return result
+
+        # Handle 1-point case: constant basis with weight = domain width
+        if self._nterms == 1:
+            a, b = self._node_gen._bounds
+            points = self._bkd.reshape(
+                self._bkd.asarray([(a + b) / 2.0]), (1, 1)
+            )
+            weights = self._bkd.reshape(self._bkd.asarray([b - a]), (1, 1))
+            return points, weights
+
+        pts, wts = self._basis.quadrature_rule()
+        # Reshape to match LagrangeBasis1D: points (1, n), weights (n, 1)
+        return self._bkd.reshape(pts, (1, -1)), self._bkd.reshape(wts, (-1, 1))
+
+    def get_samples(self, nterms: int) -> Array:
+        """Return interpolation nodes for the given number of terms.
+
+        Parameters
+        ----------
+        nterms : int
+            Number of interpolation nodes.
+
+        Returns
+        -------
+        Array
+            Node locations with shape (1, nterms).
+        """
+        if nterms == 1:
+            # 1-point case: midpoint
+            a, b = self._node_gen._bounds
+            return self._bkd.reshape(self._bkd.asarray([(a + b) / 2.0]), (1, 1))
+        nodes = self._node_gen(nterms)
+        return self._bkd.reshape(nodes, (1, nterms))
 
     def bkd(self) -> Backend[Array]:
         """Return the computational backend."""

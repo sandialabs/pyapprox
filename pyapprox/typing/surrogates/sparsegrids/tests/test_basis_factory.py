@@ -20,6 +20,7 @@ from pyapprox.typing.probability.univariate import (
     UniformMarginal,
 )
 from pyapprox.typing.surrogates.affine.univariate import LegendrePolynomial1D
+from pyapprox.typing.surrogates.affine.univariate.lagrange import LagrangeBasis1D
 from pyapprox.typing.surrogates.sparsegrids.basis_factory import (
     BasisFactoryProtocol,
     GaussLagrangeFactory,
@@ -269,12 +270,28 @@ class TestPrebuiltBasisFactory(Generic[Array], unittest.TestCase):
         self._bkd = self.bkd()
 
     def test_wraps_existing_basis(self) -> None:
-        """Test that PrebuiltBasisFactory wraps an existing basis."""
+        """Test that PrebuiltBasisFactory creates LagrangeBasis1D from basis quadrature.
+
+        PrebuiltBasisFactory extracts the quadrature rule from the wrapped basis
+        and creates fresh LagrangeBasis1D instances each time. This ensures
+        independent state for each subspace in a sparse grid.
+        """
         basis = LegendrePolynomial1D(self._bkd)
         factory = PrebuiltBasisFactory(basis)
 
+        # create_basis() returns LagrangeBasis1D, not the original basis
         created = factory.create_basis()
-        self.assertIs(created, basis)
+        self.assertIsInstance(created, LagrangeBasis1D)
+
+        # Each call creates an independent instance
+        created2 = factory.create_basis()
+        self.assertIsNot(created, created2)
+
+        # The bases should have independent state
+        created.set_nterms(3)
+        created2.set_nterms(5)
+        self.assertEqual(created.nterms(), 3)
+        self.assertEqual(created2.nterms(), 5)
 
     def test_factory_implements_protocol(self) -> None:
         """Test that factory implements BasisFactoryProtocol."""

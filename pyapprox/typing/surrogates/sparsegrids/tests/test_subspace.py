@@ -119,6 +119,10 @@ class TestBasisSetup(Generic[Array], unittest.TestCase):
 
         For DynamicPiecewiseBasis, the npoints argument is used to set
         the number of nodes (via set_nterms), enabling use with sparse grids.
+
+        Per CLAUDE.md conventions, quadrature rules return 2D shapes:
+        - points: (1, nterms) matching (nvars, nsamples) with nvars=1
+        - weights: (nterms, 1) matching (nqoi, nsamples) with nqoi=1
         """
         # Create dynamic piecewise quadratic with node generator
         node_gen = EquidistantNodeGenerator(self._bkd, (-1.0, 1.0))
@@ -126,15 +130,15 @@ class TestBasisSetup(Generic[Array], unittest.TestCase):
         quad_rule = get_quadrature_rule(piecewise)
 
         # npoints determines number of nodes for DynamicPiecewiseBasis
+        # Shapes follow 2D convention: points (1, n), weights (n, 1)
         samples, weights = quad_rule(5)
-        self.assertEqual(len(samples.shape), 1)
-        self.assertEqual(samples.shape[0], 5)
-        self.assertEqual(weights.shape[0], 5)
+        self.assertEqual(samples.shape, (1, 5))
+        self.assertEqual(weights.shape, (5, 1))
 
         # Can request different number of points
         samples7, weights7 = quad_rule(7)
-        self.assertEqual(samples7.shape[0], 7)
-        self.assertEqual(weights7.shape[0], 7)
+        self.assertEqual(samples7.shape, (1, 7))
+        self.assertEqual(weights7.shape, (7, 1))
 
     def test_get_quadrature_rule_error(self):
         """Test error raised for unsupported basis type."""
