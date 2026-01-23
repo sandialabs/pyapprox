@@ -4,7 +4,7 @@ This module provides adaptive sparse grid surrogates that refine
 subspaces based on error indicators.
 """
 
-from typing import Callable, Generic, List, Optional, Tuple, Union
+from typing import Callable, Generic, List, Optional, Tuple, Union, cast
 
 from pyapprox.typing.util.backends.protocols import Array, Backend
 from pyapprox.typing.surrogates.affine.protocols import (
@@ -16,6 +16,9 @@ from pyapprox.typing.surrogates.affine.indices import (
     AdmissibilityCriteria,
     LinearGrowthRule,
 )
+
+# Type alias for the index generator used in adaptive grids
+_IndexGenType = IterativeIndexGenerator
 
 from .smolyak import compute_smolyak_coefficients, _index_to_tuple
 from .subspace import TensorProductSubspace
@@ -94,7 +97,10 @@ class AdaptiveCombinationSparseGrid(CombinationSparseGrid[Array], Generic[Array]
         self._verbosity = verbosity
 
         # Index generator for tracking selected/candidate subspaces
-        self._index_gen = IterativeIndexGenerator(self._nvars, bkd)
+        # Type annotation shadows base class's Optional[IndexGenerator[Array]]
+        self._index_gen: _IndexGenType[Array] = IterativeIndexGenerator(
+            self._nvars, bkd
+        )
         self._index_gen.set_admissibility_criteria(admissibility)
 
         # Priority queue for candidate subspaces
@@ -237,6 +243,7 @@ class AdaptiveCombinationSparseGrid(CombinationSparseGrid[Array], Generic[Array]
 
         # Collect and return unique samples
         self._collect_unique_samples()
+        assert self._unique_samples is not None
         return self._bkd.copy(self._unique_samples)
 
     def _next_step_samples(self) -> Optional[Array]:
@@ -345,6 +352,7 @@ class AdaptiveCombinationSparseGrid(CombinationSparseGrid[Array], Generic[Array]
         # Ensure unique_samples is initialized
         if self._unique_samples is None:
             self._collect_unique_samples()
+        assert self._unique_samples is not None
 
         current_count = self._unique_samples.shape[1]
 

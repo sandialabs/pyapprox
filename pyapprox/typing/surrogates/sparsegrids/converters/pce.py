@@ -21,7 +21,7 @@ directly, as their ``gauss_quadrature_rule()`` returns canonical domain points
 which will cause incorrect spectral projection for non-canonical domains.
 """
 
-from typing import Generic, List, Optional, Sequence, Tuple
+from typing import Dict, Generic, List, Optional, Sequence, Tuple
 
 from pyapprox.typing.util.backends.protocols import Array, Backend
 from pyapprox.typing.surrogates.affine.protocols import (
@@ -79,7 +79,10 @@ class TensorProductSubspaceToPCEConverter(Generic[Array]):
         self._nvars = len(orthonormal_bases_1d)
 
         # Cache for computed projection coefficients
-        self._cached_projection_coefs: dict = {}
+        # Key: (dim, tuple of node values), Value: projection coefficients array
+        self._cached_projection_coefs: Dict[
+            Tuple[int, Tuple[float, ...]], Array
+        ] = {}
 
     def bkd(self) -> Backend[Array]:
         """Return the computational backend."""
@@ -422,7 +425,8 @@ class SparseGridToPCEConverter(Generic[Array]):
             nqoi = first_values.shape[0]  # nqoi is first dimension
 
         # Collect all unique indices and their coefficients
-        all_indices: dict = {}  # multi-index tuple -> coefficient array
+        # Key: multi-index tuple, Value: coefficient array
+        all_indices: Dict[Tuple[int, ...], Array] = {}
 
         for subspace_idx, subspace in enumerate(subspaces):
             coef = float(smolyak_coefs[subspace_idx])

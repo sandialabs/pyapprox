@@ -5,7 +5,7 @@ models through refinement variables. The sparse grid is built over both
 the physical variables and fidelity/refinement indices.
 """
 
-from typing import Callable, Generic, List, Optional, Tuple
+from typing import Callable, Generic, List, Optional, Tuple, cast
 
 from pyapprox.typing.util.backends.protocols import Array, Backend
 from pyapprox.typing.surrogates.affine.protocols import (
@@ -136,17 +136,35 @@ class MultiIndexAdaptiveCombinationSparseGrid(
             max_levels = bkd.hstack(
                 [
                     bkd.full((self._nvars_physical,), 1000.0),
-                    refinement_bounds.flatten(),
+                    bkd.flatten(refinement_bounds),
                 ]
             )
             admissibility = Max1DLevelsCriteria(max_levels, bkd)
+
+        # Cast refinement_priority to match parent's expected type
+        # This is safe because MultiIndexAdaptiveCombinationSparseGrid is a
+        # subclass of AdaptiveCombinationSparseGrid
+        parent_priority: Optional[
+            Callable[
+                [Array, Array, AdaptiveCombinationSparseGrid[Array]],
+                Tuple[float, float],
+            ]
+        ] = None
+        if refinement_priority is not None:
+            parent_priority = cast(
+                Callable[
+                    [Array, Array, AdaptiveCombinationSparseGrid[Array]],
+                    Tuple[float, float],
+                ],
+                refinement_priority,
+            )
 
         super().__init__(
             bkd,
             all_factories,
             growth_rule,
             admissibility,
-            refinement_priority,
+            parent_priority,
         )
 
     def _create_discrete_level_basis(
