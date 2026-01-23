@@ -15,6 +15,7 @@ from pyapprox.typing.surrogates.affine.indices import IndexGenerator
 from .smolyak import compute_smolyak_coefficients, _index_to_tuple
 from .subspace import TensorProductSubspace
 from .basis_factory import BasisFactoryProtocol
+from .protocols import SubspaceProtocol
 
 
 class CombinationSparseGrid(Generic[Array]):
@@ -103,7 +104,7 @@ class CombinationSparseGrid(Generic[Array]):
         """
         return self._index_gen
 
-    def get_subspaces(self) -> List[TensorProductSubspace[Array]]:
+    def get_subspaces(self) -> List[SubspaceProtocol[Array]]:
         """Return list of all subspaces."""
         return list(self._subspace_list)
 

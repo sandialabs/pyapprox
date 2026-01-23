@@ -45,10 +45,15 @@ from pyapprox.typing.surrogates.sparsegrids import (
     TensorProductSubspace,
 )
 from pyapprox.typing.surrogates.sparsegrids.basis_factory import (
+    BasisFactoryProtocol,
     ClenshawCurtisLagrangeFactory,
     GaussLagrangeFactory,
     LejaLagrangeFactory,
     PiecewiseFactory,
+)
+from pyapprox.typing.surrogates.affine.protocols import (
+    IndexGrowthRuleProtocol,
+    PhysicalDomainBasis1DProtocol,
 )
 from pyapprox.typing.util.backends.protocols import Array, Backend
 from pyapprox.typing.util.cartesian import cartesian_product_indices
@@ -338,7 +343,9 @@ def create_tensor_product_pce(
     indices = cartesian_product_indices(dims, bkd)
 
     # Create physical-domain polynomial bases for each marginal
-    bases_1d = [get_basis_from_marginal(m, bkd) for m in marginals]
+    bases_1d: List[PhysicalDomainBasis1DProtocol[Any]] = [
+        get_basis_from_marginal(m, bkd) for m in marginals
+    ]
 
     # Create basis with explicit tensor product indices
     basis = OrthonormalPolynomialBasis(bases_1d, bkd, indices)
@@ -447,9 +454,10 @@ def create_test_tensor_product_subspace_mixed(
     9
     """
     marginals = joint.marginals()
-    factories = []
+    factories: List[BasisFactoryProtocol[Array]] = []
 
     for marginal, btype in zip(marginals, basis_types):
+        factory: BasisFactoryProtocol[Array]
         if btype == "gauss":
             factory = GaussLagrangeFactory(marginal, bkd)
         elif btype == "leja":
@@ -531,7 +539,9 @@ def create_anisotropic_pce(
     indices = gen.get_selected_indices()
 
     # Create bases and PCE
-    bases_1d = [get_basis_from_marginal(m, bkd) for m in joint.marginals()]
+    bases_1d: List[PhysicalDomainBasis1DProtocol[Any]] = [
+        get_basis_from_marginal(m, bkd) for m in joint.marginals()
+    ]
     basis = OrthonormalPolynomialBasis(bases_1d, bkd, indices)
     pce = PolynomialChaosExpansion(basis, bkd, nqoi=nqoi)
 
@@ -618,7 +628,9 @@ def create_additive_pce(
     """
     indices = create_additive_indices(max_level_per_dim, bkd)
 
-    bases_1d = [get_basis_from_marginal(m, bkd) for m in joint.marginals()]
+    bases_1d: List[PhysicalDomainBasis1DProtocol[Any]] = [
+        get_basis_from_marginal(m, bkd) for m in joint.marginals()
+    ]
     basis = OrthonormalPolynomialBasis(bases_1d, bkd, indices)
     pce = PolynomialChaosExpansion(basis, bkd, nqoi=nqoi)
 
@@ -807,7 +819,7 @@ def create_test_grid(
     return IsotropicCombinationSparseGrid(bkd, factories, growth, level=level)
 
 
-def _get_default_growth_rule(basis_type: str) -> IndexGrowthRule:
+def _get_default_growth_rule(basis_type: str) -> IndexGrowthRuleProtocol:
     """Get the default growth rule for a basis type."""
     if basis_type == "piecewise_cubic":
         return CubicNestedGrowthRule()
@@ -824,7 +836,9 @@ def create_test_grid_mixed(
     level: int,
     bkd: Backend[Array],
     basis_types: List[str],
-    growth_rules: List[IndexGrowthRule] | IndexGrowthRule | None = None,
+    growth_rules: (
+        List[IndexGrowthRuleProtocol] | IndexGrowthRuleProtocol | None
+    ) = None,
 ) -> IsotropicCombinationSparseGrid[Array]:
     """Create sparse grid with mixed basis types per dimension.
 
@@ -860,8 +874,9 @@ def create_test_grid_mixed(
             f"number of marginals ({len(marginals)})"
         )
 
-    factories = []
+    factories: List[BasisFactoryProtocol[Array]] = []
     for marginal, btype in zip(marginals, basis_types):
+        factory: BasisFactoryProtocol[Array]
         if btype == "gauss":
             factory = GaussLagrangeFactory(marginal, bkd)
         elif btype == "leja":
@@ -876,14 +891,17 @@ def create_test_grid_mixed(
         factories.append(factory)
 
     # Determine growth rules
+    resolved_rules: IndexGrowthRuleProtocol | List[IndexGrowthRuleProtocol]
     if growth_rules is None:
         # Use per-dimension defaults based on basis type
-        growth_rules = [_get_default_growth_rule(bt) for bt in basis_types]
+        resolved_rules = [_get_default_growth_rule(bt) for bt in basis_types]
     elif not isinstance(growth_rules, list):
         # Single rule for all dimensions
-        growth_rules = growth_rules
+        resolved_rules = growth_rules
+    else:
+        resolved_rules = growth_rules
 
-    return IsotropicCombinationSparseGrid(bkd, factories, growth_rules, level=level)
+    return IsotropicCombinationSparseGrid(bkd, factories, resolved_rules, level=level)
 
 
 # =============================================================================

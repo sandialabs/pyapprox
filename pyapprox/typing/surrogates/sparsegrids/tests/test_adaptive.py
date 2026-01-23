@@ -32,6 +32,7 @@ from pyapprox.typing.surrogates.sparsegrids import (
     create_basis_factories,
 )
 from pyapprox.typing.surrogates.sparsegrids.basis_factory import (
+    BasisFactoryProtocol,
     GaussLagrangeFactory,
 )
 from pyapprox.typing.surrogates.sparsegrids.tests.test_helpers import (
@@ -75,6 +76,7 @@ class TestAdaptiveSparseGrid(Generic[Array], unittest.TestCase):
         # First step should return samples
         samples = grid.step_samples()
         self.assertIsNotNone(samples)
+        assert samples is not None  # for mypy
         self.assertGreater(samples.shape[1], 0)
 
         # Values should be accepted - shape (nqoi, nsamples)
@@ -85,6 +87,7 @@ class TestAdaptiveSparseGrid(Generic[Array], unittest.TestCase):
         # Second step should also return samples (candidates exist)
         samples2 = grid.step_samples()
         self.assertIsNotNone(samples2)
+        assert samples2 is not None  # for mypy
         self.assertGreater(samples2.shape[1], 0)
 
     def test_evaluation_after_refinement(self) -> None:
@@ -186,7 +189,7 @@ class TestAdaptiveSparseGrid(Generic[Array], unittest.TestCase):
     def test_3d_adaptive_grid(self) -> None:
         """Test 3D adaptive sparse grid."""
         marginal = UniformMarginal(-1.0, 1.0, self._bkd)
-        factories = [
+        factories: List[BasisFactoryProtocol[Array]] = [
             GaussLagrangeFactory(marginal, self._bkd) for _ in range(3)
         ]
         growth = LinearGrowthRule(scale=2, shift=1)

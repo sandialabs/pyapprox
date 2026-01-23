@@ -15,7 +15,7 @@ Tests for other components have been migrated to:
 """
 
 import unittest
-from typing import Any, Generic
+from typing import Any, Generic, cast
 
 import numpy as np
 import torch
@@ -32,6 +32,7 @@ from pyapprox.typing.surrogates.sparsegrids import (
     compute_smolyak_coefficients,
     PrebuiltBasisFactory,
 )
+from pyapprox.typing.surrogates.sparsegrids.subspace import TensorProductSubspace
 from pyapprox.typing.surrogates.affine.univariate import LegendrePolynomial1D
 from pyapprox.typing.surrogates.affine.indices import LinearGrowthRule
 
@@ -99,6 +100,7 @@ class TestCombinationSparseGridBase(Generic[Array], unittest.TestCase):
         for subspace in grid.get_subspaces():
             sub_samples = subspace.get_samples()
             sub_values = subspace.get_values()
+            assert sub_values is not None
             expected = self._bkd.reshape(
                 sub_samples[0, :] + sub_samples[1, :], (1, -1)
             )
@@ -156,7 +158,8 @@ class TestCombinationSparseGridBase(Generic[Array], unittest.TestCase):
         for j, subspace in enumerate(subspaces):
             coef = float(coefs[j])
             if abs(coef) > 1e-14:
-                manual_mean = manual_mean + coef * subspace.integrate()
+                tp_subspace = cast(TensorProductSubspace[Array], subspace)
+                manual_mean = manual_mean + coef * tp_subspace.integrate()
 
         self._bkd.assert_allclose(mean, manual_mean, rtol=1e-12)
 
@@ -184,7 +187,8 @@ class TestCombinationSparseGridBase(Generic[Array], unittest.TestCase):
         for j, subspace in enumerate(subspaces):
             coef = float(coefs[j])
             if abs(coef) > 1e-14:
-                manual_variance = manual_variance + coef * subspace.variance()
+                tp_subspace = cast(TensorProductSubspace[Array], subspace)
+                manual_variance = manual_variance + coef * tp_subspace.variance()
 
         self._bkd.assert_allclose(variance, manual_variance, rtol=1e-12)
 
@@ -215,7 +219,8 @@ class TestCombinationSparseGridBase(Generic[Array], unittest.TestCase):
         for j, subspace in enumerate(subspaces):
             coef = float(coefs[j])
             if abs(coef) > 1e-14:
-                manual_jacobian = manual_jacobian + coef * subspace.jacobian(test_pt)
+                tp_subspace = cast(TensorProductSubspace[Array], subspace)
+                manual_jacobian = manual_jacobian + coef * tp_subspace.jacobian(test_pt)
 
         self._bkd.assert_allclose(jacobian, manual_jacobian, rtol=1e-10)
 
@@ -247,7 +252,8 @@ class TestCombinationSparseGridBase(Generic[Array], unittest.TestCase):
         for j, subspace in enumerate(subspaces):
             coef = float(coefs[j])
             if abs(coef) > 1e-14:
-                manual_hvp = manual_hvp + coef * subspace.hvp(test_pt, vec)
+                tp_subspace = cast(TensorProductSubspace[Array], subspace)
+                manual_hvp = manual_hvp + coef * tp_subspace.hvp(test_pt, vec)
 
         self._bkd.assert_allclose(hvp, manual_hvp, rtol=1e-10)
 
@@ -424,7 +430,7 @@ class TestIncrementalSmolyakUpdate(Generic[Array], unittest.TestCase):
             extended_coefs, new_index, new_indices
         )
 
-        coef_sum = float(self._bkd.sum(incremental_coefs))
+        coef_sum = float(self._bkd.sum(incremental_coefs).item())
         self._bkd.assert_allclose(
             self._bkd.asarray([coef_sum]),
             self._bkd.asarray([1.0]),

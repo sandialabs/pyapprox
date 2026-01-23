@@ -10,6 +10,8 @@ sparse grid refactoring plan. Tests for other modules have been moved to:
 import unittest
 from typing import Any, Generic
 
+from pyapprox.typing.util.backends.protocols import Backend
+
 import torch
 from numpy.typing import NDArray
 
@@ -33,13 +35,13 @@ class TestAdaptiveSparseGrid(Generic[Array], unittest.TestCase):
 
     __test__ = False
 
-    def bkd(self):
+    def bkd(self) -> Backend[Array]:
         raise NotImplementedError
 
-    def setUp(self):
+    def setUp(self) -> None:
         self._bkd = self.bkd()
 
-    def test_step_samples_values_pattern(self):
+    def test_step_samples_values_pattern(self) -> None:
         """Test the step_samples/step_values pattern."""
         marginal = UniformMarginal(-1.0, 1.0, self._bkd)
         factory = GaussLagrangeFactory(marginal, self._bkd)
@@ -53,6 +55,7 @@ class TestAdaptiveSparseGrid(Generic[Array], unittest.TestCase):
         # First step should return samples
         samples = grid.step_samples()
         self.assertIsNotNone(samples)
+        assert samples is not None  # for mypy
         self.assertGreater(samples.shape[1], 0)
 
         # Values should be accepted
@@ -64,9 +67,10 @@ class TestAdaptiveSparseGrid(Generic[Array], unittest.TestCase):
         # Second step should also return samples (candidates exist)
         samples2 = grid.step_samples()
         self.assertIsNotNone(samples2)
+        assert samples2 is not None  # for mypy
         self.assertGreater(samples2.shape[1], 0)
 
-    def test_evaluation_after_refinement(self):
+    def test_evaluation_after_refinement(self) -> None:
         """Test that evaluation works after refinement."""
         marginal = UniformMarginal(-1.0, 1.0, self._bkd)
         factory = GaussLagrangeFactory(marginal, self._bkd)
@@ -79,7 +83,7 @@ class TestAdaptiveSparseGrid(Generic[Array], unittest.TestCase):
 
         # Test function: f(x, y) = x^2 + y^2
         # Values shape: (nqoi, nsamples) = (1, nsamples)
-        def test_func(samples):
+        def test_func(samples: Array) -> Array:
             x, y = samples[0, :], samples[1, :]
             return self._bkd.reshape(x ** 2 + y ** 2, (1, -1))
 
@@ -99,7 +103,7 @@ class TestAdaptiveSparseGrid(Generic[Array], unittest.TestCase):
 
         self._bkd.assert_allclose(result, expected, rtol=1e-8)
 
-    def test_convergence_on_polynomial(self):
+    def test_convergence_on_polynomial(self) -> None:
         """Test that adaptive grid converges for polynomial target."""
         marginal = UniformMarginal(-1.0, 1.0, self._bkd)
         factory = GaussLagrangeFactory(marginal, self._bkd)
@@ -112,7 +116,7 @@ class TestAdaptiveSparseGrid(Generic[Array], unittest.TestCase):
 
         # Polynomial that should be exactly represented
         # Values shape: (nqoi, nsamples) = (1, nsamples)
-        def poly_func(samples):
+        def poly_func(samples: Array) -> Array:
             x, y = samples[0, :], samples[1, :]
             return self._bkd.reshape(x ** 2 + y ** 2, (1, -1))
 
@@ -154,7 +158,7 @@ class TestAdaptiveSparseGridTorch(TestAdaptiveSparseGrid[torch.Tensor]):
     def bkd(self) -> TorchBkd:
         return TorchBkd()
 
-    def setUp(self):
+    def setUp(self) -> None:
         torch.set_default_dtype(torch.float64)
         super().setUp()
 

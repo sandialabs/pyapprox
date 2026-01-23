@@ -185,6 +185,7 @@ class TestL2NormRefinementCriteria(Generic[Array], unittest.TestCase):
         # First step: get samples
         samples = grid.step_samples()
         self.assertIsNotNone(samples)
+        assert samples is not None  # for mypy
 
         # Provide values for a smooth function
         x, y = samples[0, :], samples[1, :]
@@ -210,6 +211,7 @@ class TestL2NormRefinementCriteria(Generic[Array], unittest.TestCase):
         )
 
         samples = grid.step_samples()
+        assert samples is not None  # for mypy
         x, y = samples[0, :], samples[1, :]
         values = self._bkd.reshape(x**2 + y**2, (1, -1))
         grid.step_values(values)
@@ -252,6 +254,7 @@ class TestVarianceRefinementCriteria(Generic[Array], unittest.TestCase):
         )
 
         samples = grid.step_samples()
+        assert samples is not None  # for mypy
         x, y = samples[0, :], samples[1, :]
         values = self._bkd.reshape(x**2 + y**2, (1, -1))
         grid.step_values(values)
@@ -275,6 +278,7 @@ class TestVarianceRefinementCriteria(Generic[Array], unittest.TestCase):
 
         # First step
         samples = grid.step_samples()
+        assert samples is not None  # for mypy
         x, y = samples[0, :], samples[1, :]
         # Use a higher-order polynomial to ensure moment changes
         values = self._bkd.reshape(x**3 + y**3 + x * y, (1, -1))
@@ -331,6 +335,7 @@ class TestAdaptiveGridWithIncrementalSmolyak(Generic[Array], unittest.TestCase):
         )
 
         samples = grid.step_samples()
+        assert samples is not None  # for mypy
         # Constant function - mean should be the constant
         c = 2.5
         values = self._bkd.full((1, samples.shape[1]), c)
@@ -360,6 +365,7 @@ class TestAdaptiveGridWithIncrementalSmolyak(Generic[Array], unittest.TestCase):
 
         # First step
         samples = grid.step_samples()
+        assert samples is not None  # for mypy
         values = target_fn(samples)
         grid.step_values(values)
 
@@ -396,6 +402,7 @@ class TestAdaptiveGridWithIncrementalSmolyak(Generic[Array], unittest.TestCase):
 
         # First step
         samples1 = grid.step_samples()
+        assert samples1 is not None  # for mypy
         x1, y1 = samples1[0, :], samples1[1, :]
         values1 = self._bkd.reshape(x1**2 + y1**2, (1, -1))
         grid.step_values(values1)
@@ -459,6 +466,7 @@ class TestRefinementOrdering(Generic[Array], unittest.TestCase):
             return self._bkd.reshape(x**4 + y, (1, -1))
 
         samples = grid.step_samples()
+        assert samples is not None  # for mypy
         values = target_fn(samples)
         grid.step_values(values)
 

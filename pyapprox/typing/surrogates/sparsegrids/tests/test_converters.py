@@ -4,7 +4,7 @@ Tests run on both NumPy and PyTorch backends using the base class pattern.
 """
 
 import unittest
-from typing import Any, Generic
+from typing import Any, Generic, List
 
 import torch
 from numpy.typing import NDArray
@@ -20,7 +20,10 @@ from pyapprox.typing.surrogates.sparsegrids import (
     TensorProductSubspaceToPCEConverter,
     TensorProductSubspace,
 )
-from pyapprox.typing.surrogates.sparsegrids.basis_factory import GaussLagrangeFactory
+from pyapprox.typing.surrogates.sparsegrids.basis_factory import (
+    BasisFactoryProtocol,
+    GaussLagrangeFactory,
+)
 from pyapprox.typing.surrogates.affine.univariate import create_bases_1d
 from pyapprox.typing.probability import UniformMarginal
 from pyapprox.typing.surrogates.affine.indices import LinearGrowthRule
@@ -43,7 +46,9 @@ class TestSparseGridToPCEConverter(Generic[Array], unittest.TestCase):
         level = 3
 
         marginals = [UniformMarginal(-1.0, 1.0, self._bkd) for _ in range(nvars)]
-        factories = [GaussLagrangeFactory(m, self._bkd) for m in marginals]
+        factories: List[BasisFactoryProtocol[Array]] = [
+            GaussLagrangeFactory(m, self._bkd) for m in marginals
+        ]
         growth = LinearGrowthRule(scale=2, shift=1)
 
         grid = IsotropicCombinationSparseGrid(
@@ -75,7 +80,9 @@ class TestSparseGridToPCEConverter(Generic[Array], unittest.TestCase):
         level = 4
 
         marginals = [UniformMarginal(-1.0, 1.0, self._bkd) for _ in range(nvars)]
-        factories = [GaussLagrangeFactory(m, self._bkd) for m in marginals]
+        factories: List[BasisFactoryProtocol[Array]] = [
+            GaussLagrangeFactory(m, self._bkd) for m in marginals
+        ]
         growth = LinearGrowthRule(scale=2, shift=1)
 
         grid = IsotropicCombinationSparseGrid(
@@ -111,7 +118,9 @@ class TestSparseGridToPCEConverter(Generic[Array], unittest.TestCase):
         level = 4
 
         marginals = [UniformMarginal(-1.0, 1.0, self._bkd) for _ in range(nvars)]
-        factories = [GaussLagrangeFactory(m, self._bkd) for m in marginals]
+        factories: List[BasisFactoryProtocol[Array]] = [
+            GaussLagrangeFactory(m, self._bkd) for m in marginals
+        ]
         growth = LinearGrowthRule(scale=2, shift=1)
 
         grid = IsotropicCombinationSparseGrid(
@@ -158,7 +167,9 @@ class TestSparseGridToPCEConverter(Generic[Array], unittest.TestCase):
         level = 2
 
         marginals = [UniformMarginal(-1.0, 1.0, self._bkd) for _ in range(nvars)]
-        factories = [GaussLagrangeFactory(m, self._bkd) for m in marginals]
+        factories: List[BasisFactoryProtocol[Array]] = [
+            GaussLagrangeFactory(m, self._bkd) for m in marginals
+        ]
         growth = LinearGrowthRule(scale=2, shift=1)
 
         grid = IsotropicCombinationSparseGrid(
@@ -205,7 +216,9 @@ class TestSparseGridToPCEConverter(Generic[Array], unittest.TestCase):
 
         # Use [0, 1] domain instead of canonical [-1, 1]
         marginals = [UniformMarginal(0.0, 1.0, self._bkd) for _ in range(nvars)]
-        factories = [GaussLagrangeFactory(m, self._bkd) for m in marginals]
+        factories: List[BasisFactoryProtocol[Array]] = [
+            GaussLagrangeFactory(m, self._bkd) for m in marginals
+        ]
         growth = LinearGrowthRule(scale=2, shift=1)
 
         grid = IsotropicCombinationSparseGrid(
@@ -214,8 +227,12 @@ class TestSparseGridToPCEConverter(Generic[Array], unittest.TestCase):
 
         # Verify samples are in [0, 1] domain
         samples = grid.get_samples()
-        self.assertTrue(self._bkd.all_bool(samples >= 0.0))
-        self.assertTrue(self._bkd.all_bool(samples <= 1.0))
+        lb_check = samples >= self._bkd.asarray(0.0)
+        ub_check = samples <= self._bkd.asarray(1.0)
+        assert not isinstance(lb_check, bool)  # for mypy
+        assert not isinstance(ub_check, bool)  # for mypy
+        self.assertTrue(self._bkd.all_bool(lb_check))
+        self.assertTrue(self._bkd.all_bool(ub_check))
 
         # f(x, y) = x^2 + 2*x*y + y
         x, y = samples[0, :], samples[1, :]
@@ -240,7 +257,9 @@ class TestSparseGridToPCEConverter(Generic[Array], unittest.TestCase):
         level = 3
 
         marginals = [UniformMarginal(-1.0, 1.0, self._bkd) for _ in range(nvars)]
-        factories = [GaussLagrangeFactory(m, self._bkd) for m in marginals]
+        factories: List[BasisFactoryProtocol[Array]] = [
+            GaussLagrangeFactory(m, self._bkd) for m in marginals
+        ]
         growth = LinearGrowthRule(scale=2, shift=1)
 
         grid = IsotropicCombinationSparseGrid(
@@ -282,7 +301,9 @@ class TestTensorProductSubspaceToPCEConverter(Generic[Array], unittest.TestCase)
         """Test conversion of single tensor product subspace."""
         nvars = 2
         marginals = [UniformMarginal(-1.0, 1.0, self._bkd) for _ in range(nvars)]
-        factories = [GaussLagrangeFactory(m, self._bkd) for m in marginals]
+        factories: List[BasisFactoryProtocol[Array]] = [
+            GaussLagrangeFactory(m, self._bkd) for m in marginals
+        ]
         growth = LinearGrowthRule(scale=1, shift=1)
 
         # Create a subspace

@@ -351,29 +351,39 @@ class TestGaussQuadrature1D(
 
             if mtype == "uniform":
                 lb, ub = params["lower"], params["upper"]
+                lb_check = points >= self._bkd.asarray(lb - 1e-12)
+                ub_check = points <= self._bkd.asarray(ub + 1e-12)
+                assert not isinstance(lb_check, bool)  # for mypy
+                assert not isinstance(ub_check, bool)  # for mypy
                 self.assertTrue(
-                    self._bkd.all_bool(points >= lb - 1e-12),
+                    self._bkd.all_bool(lb_check),
                     f"Points below lower bound for {name} with {npoints} points"
                 )
                 self.assertTrue(
-                    self._bkd.all_bool(points <= ub + 1e-12),
+                    self._bkd.all_bool(ub_check),
                     f"Points above upper bound for {name} with {npoints} points"
                 )
 
             elif mtype == "beta":
                 lb, ub = params.get("lb", 0.0), params.get("ub", 1.0)
+                lb_check = points >= self._bkd.asarray(lb - 1e-12)
+                ub_check = points <= self._bkd.asarray(ub + 1e-12)
+                assert not isinstance(lb_check, bool)  # for mypy
+                assert not isinstance(ub_check, bool)  # for mypy
                 self.assertTrue(
-                    self._bkd.all_bool(points >= lb - 1e-12),
+                    self._bkd.all_bool(lb_check),
                     f"Points below lower bound for {name} with {npoints} points"
                 )
                 self.assertTrue(
-                    self._bkd.all_bool(points <= ub + 1e-12),
+                    self._bkd.all_bool(ub_check),
                     f"Points above upper bound for {name} with {npoints} points"
                 )
 
             elif mtype == "gamma":
+                lb_check = points >= self._bkd.asarray(-1e-12)
+                assert not isinstance(lb_check, bool)  # for mypy
                 self.assertTrue(
-                    self._bkd.all_bool(points >= -1e-12),
+                    self._bkd.all_bool(lb_check),
                     f"Points below 0 for {name} with {npoints} points"
                 )
 

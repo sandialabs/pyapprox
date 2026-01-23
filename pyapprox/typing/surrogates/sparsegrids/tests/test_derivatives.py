@@ -4,7 +4,7 @@ Tests run on both NumPy and PyTorch backends using the base class pattern.
 """
 
 import unittest
-from typing import Any, Generic
+from typing import Any, Generic, List
 
 import torch
 from numpy.typing import NDArray
@@ -18,7 +18,10 @@ from pyapprox.typing.surrogates.sparsegrids import (
     IsotropicCombinationSparseGrid,
     SparseGridFunction,
 )
-from pyapprox.typing.surrogates.sparsegrids.basis_factory import GaussLagrangeFactory
+from pyapprox.typing.surrogates.sparsegrids.basis_factory import (
+    BasisFactoryProtocol,
+    GaussLagrangeFactory,
+)
 from pyapprox.typing.probability import UniformMarginal
 from pyapprox.typing.surrogates.affine.indices import LinearGrowthRule
 from pyapprox.typing.interface.functions.derivative_checks.derivative_checker import (
@@ -43,7 +46,9 @@ class TestSparseGridDerivatives(Generic[Array], unittest.TestCase):
         level = 2
 
         marginal = UniformMarginal(-1.0, 1.0, self._bkd)
-        factories = [GaussLagrangeFactory(marginal, self._bkd) for _ in range(nvars)]
+        factories: List[BasisFactoryProtocol[Array]] = [
+            GaussLagrangeFactory(marginal, self._bkd) for _ in range(nvars)
+        ]
         growth = LinearGrowthRule(scale=1, shift=1)
 
         grid = IsotropicCombinationSparseGrid(
@@ -72,7 +77,7 @@ class TestSparseGridDerivatives(Generic[Array], unittest.TestCase):
         self.assertTrue(self._bkd.allclose(jac, expected_jac, rtol=1e-6))
 
         # Error ratio should be small for linear function
-        jac_error = checker.error_ratio(errors[0])
+        jac_error = float(checker.error_ratio(errors[0]).item())
         self.assertLess(jac_error, 1e-6)
 
     def test_jacobian_quadratic_function(self) -> None:
@@ -81,7 +86,9 @@ class TestSparseGridDerivatives(Generic[Array], unittest.TestCase):
         level = 3
 
         marginal = UniformMarginal(-1.0, 1.0, self._bkd)
-        factories = [GaussLagrangeFactory(marginal, self._bkd) for _ in range(nvars)]
+        factories: List[BasisFactoryProtocol[Array]] = [
+            GaussLagrangeFactory(marginal, self._bkd) for _ in range(nvars)
+        ]
         growth = LinearGrowthRule(scale=1, shift=1)
 
         grid = IsotropicCombinationSparseGrid(
@@ -110,7 +117,7 @@ class TestSparseGridDerivatives(Generic[Array], unittest.TestCase):
         self.assertTrue(self._bkd.allclose(jac, expected_jac, rtol=1e-6))
 
         # Error ratio should be small
-        jac_error = checker.error_ratio(errors[0])
+        jac_error = float(checker.error_ratio(errors[0]).item())
         self.assertLess(jac_error, 1e-6)
 
     def test_jacobian_3d_function(self) -> None:
@@ -119,7 +126,9 @@ class TestSparseGridDerivatives(Generic[Array], unittest.TestCase):
         level = 2
 
         marginal = UniformMarginal(-1.0, 1.0, self._bkd)
-        factories = [GaussLagrangeFactory(marginal, self._bkd) for _ in range(nvars)]
+        factories: List[BasisFactoryProtocol[Array]] = [
+            GaussLagrangeFactory(marginal, self._bkd) for _ in range(nvars)
+        ]
         growth = LinearGrowthRule(scale=1, shift=1)
 
         grid = IsotropicCombinationSparseGrid(
@@ -148,7 +157,7 @@ class TestSparseGridDerivatives(Generic[Array], unittest.TestCase):
         self.assertTrue(self._bkd.allclose(jac, expected_jac, rtol=1e-6))
 
         # Error ratio should be small
-        jac_error = checker.error_ratio(errors[0])
+        jac_error = float(checker.error_ratio(errors[0]).item())
         self.assertLess(jac_error, 1e-6)
 
     def test_derivative_checker_passes(self) -> None:
@@ -157,7 +166,9 @@ class TestSparseGridDerivatives(Generic[Array], unittest.TestCase):
         level = 3
 
         marginal = UniformMarginal(-1.0, 1.0, self._bkd)
-        factories = [GaussLagrangeFactory(marginal, self._bkd) for _ in range(nvars)]
+        factories: List[BasisFactoryProtocol[Array]] = [
+            GaussLagrangeFactory(marginal, self._bkd) for _ in range(nvars)
+        ]
         growth = LinearGrowthRule(scale=1, shift=1)
 
         grid = IsotropicCombinationSparseGrid(
@@ -180,7 +191,7 @@ class TestSparseGridDerivatives(Generic[Array], unittest.TestCase):
             checker = DerivativeChecker(sg_func)
             errors = checker.check_derivatives(test_pt, verbosity=0)
 
-            jac_error = checker.error_ratio(errors[0])
+            jac_error = float(checker.error_ratio(errors[0]).item())
             self.assertLess(jac_error, 1e-6)
 
     def test_hessian_vector_product(self) -> None:
@@ -189,7 +200,9 @@ class TestSparseGridDerivatives(Generic[Array], unittest.TestCase):
         level = 3
 
         marginal = UniformMarginal(-1.0, 1.0, self._bkd)
-        factories = [GaussLagrangeFactory(marginal, self._bkd) for _ in range(nvars)]
+        factories: List[BasisFactoryProtocol[Array]] = [
+            GaussLagrangeFactory(marginal, self._bkd) for _ in range(nvars)
+        ]
         growth = LinearGrowthRule(scale=1, shift=1)
 
         grid = IsotropicCombinationSparseGrid(
@@ -224,7 +237,9 @@ class TestSparseGridDerivatives(Generic[Array], unittest.TestCase):
         level = 3
 
         marginal = UniformMarginal(-1.0, 1.0, self._bkd)
-        factories = [GaussLagrangeFactory(marginal, self._bkd) for _ in range(nvars)]
+        factories: List[BasisFactoryProtocol[Array]] = [
+            GaussLagrangeFactory(marginal, self._bkd) for _ in range(nvars)
+        ]
         growth = LinearGrowthRule(scale=1, shift=1)
 
         grid = IsotropicCombinationSparseGrid(

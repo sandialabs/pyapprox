@@ -3,10 +3,13 @@
 This file configures pytest to skip base test classes that have __test__ = False.
 """
 
+from typing import List
+
 import pytest
+from pytest import Config, Item
 
 
-def pytest_collection_modifyitems(config, items):
+def pytest_collection_modifyitems(config: Config, items: List[Item]) -> None:
     """Skip test classes with __test__ = False."""
     skip_marker = pytest.mark.skip(reason="Base test class")
     for item in items:
