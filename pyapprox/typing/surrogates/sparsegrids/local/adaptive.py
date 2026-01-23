@@ -4,7 +4,7 @@ This module provides locally-adaptive sparse grids that refine
 individual basis functions rather than entire subspaces.
 """
 
-from typing import Callable, Dict, Generic, List, Optional, Tuple
+from typing import Callable, Dict, Generic, List, Optional, Tuple, cast
 
 from pyapprox.typing.util.backends.protocols import Array, Backend
 from pyapprox.typing.surrogates.affine.protocols import (
@@ -89,7 +89,6 @@ class LocallyAdaptiveCombinationSparseGrid(Generic[Array]):
         self._first_step = True
         self._basis_errors: List[float] = []
 
-    @property
     def bkd(self) -> Backend[Array]:
         """Return the computational backend."""
         return self._bkd
@@ -211,18 +210,19 @@ class LocallyAdaptiveCombinationSparseGrid(Generic[Array]):
             return self._next_step_samples()
 
         # Collect new samples
+        assert self._samples is not None
         samples_list: List[Array] = []
-        current_count = self._samples.shape[1]
+        current_count = int(self._samples.shape[1])
 
-        for i, idx in enumerate(new_candidates):
-            sample = self._basis_index_to_sample(idx)
+        for i, cand_idx in enumerate(new_candidates):
+            sample = self._basis_index_to_sample(cand_idx)
             samples_list.append(sample)
-            self._basis_to_sample_idx[self._index_gen._hash_index(idx)] = (
+            self._basis_to_sample_idx[self._index_gen._hash_index(cand_idx)] = (
                 current_count + i
             )
 
         new_samples = self._bkd.hstack(samples_list)
-        self._samples = self._bkd.hstack((self._samples, new_samples))
+        self._samples = self._bkd.hstack([self._samples, new_samples])
         return new_samples
 
     def step_values(self, values: Array) -> None:
@@ -248,6 +248,9 @@ class LocallyAdaptiveCombinationSparseGrid(Generic[Array]):
 
         cand_indices = self._index_gen.get_candidate_indices()
         if cand_indices is None:
+            return
+
+        if self._values is None:
             return
 
         for j in range(cand_indices.shape[1]):
@@ -379,16 +382,21 @@ class LocallyAdaptiveCombinationSparseGrid(Generic[Array]):
         zeros = self._bkd.zeros_like(one_minus_dist)
 
         # Use where to compute max(0, 1 - dist)
-        vals = self._bkd.where(one_minus_dist > 0, one_minus_dist, zeros)
+        # Cast condition to Array since Array comparison always returns Array
+        vals = self._bkd.where(
+            cast(Array, one_minus_dist > 0), one_minus_dist, zeros
+        )
 
         # Handle boundary bases (half hats at x=0 and x=1)
         if idx == 1:
             # Left boundary: only active for x <= half_width
-            vals = self._bkd.where(x <= half_width, 1.0 - x / half_width, zeros)
+            vals = self._bkd.where(
+                cast(Array, x <= half_width), 1.0 - x / half_width, zeros
+            )
         elif idx == 2:
             # Right boundary: only active for x >= 1 - half_width
             vals = self._bkd.where(
-                x >= 1.0 - half_width,
+                cast(Array, x >= 1.0 - half_width),
                 1.0 - (1.0 - x) / half_width,
                 zeros
             )
@@ -458,7 +466,7 @@ class LocallyAdaptiveCombinationSparseGrid(Generic[Array]):
         else:
             # Interior hierarchical: level determines half_width
             level = int(math.floor(math.log2(idx + 1)))
-            half_width = 1.0 / (2 ** (level + 1))
+            half_width: float = 1.0 / (2 ** (level + 1))
             return half_width
 
     def _integrate_basis(self, basis_index: Array) -> float:

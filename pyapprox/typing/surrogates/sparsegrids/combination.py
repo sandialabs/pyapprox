@@ -111,19 +111,22 @@ class CombinationSparseGrid(Generic[Array]):
         """Return Smolyak combination coefficients."""
         if self._smolyak_coefficients is None:
             self._update_smolyak_coefficients()
+        assert self._smolyak_coefficients is not None
         return self._bkd.copy(self._smolyak_coefficients)
 
     def get_samples(self) -> Array:
         """Return all unique sample locations."""
         if self._unique_samples is None:
             self._collect_unique_samples()
+        assert self._unique_samples is not None
         return self._bkd.copy(self._unique_samples)
 
     def nsamples(self) -> int:
         """Return number of unique samples."""
         if self._unique_samples is None:
             self._collect_unique_samples()
-        return self._unique_samples.shape[1]
+        assert self._unique_samples is not None
+        return int(self._unique_samples.shape[1])
 
     def set_values(self, values: Array) -> None:
         """Set function values at all unique samples.
@@ -135,6 +138,7 @@ class CombinationSparseGrid(Generic[Array]):
         """
         if self._unique_samples is None:
             self._collect_unique_samples()
+        assert self._unique_samples is not None
 
         nsamples = self._unique_samples.shape[1]
         if values.shape[1] != nsamples:
@@ -233,10 +237,12 @@ class CombinationSparseGrid(Generic[Array]):
         for idx in range(nindices):
             diff = new_index - indices[:, idx]
             # Check if this index is a neighbor: all diffs >= 0 and max diff <= 1
-            if self._bkd.all_bool(diff >= 0) and float(self._bkd.max(diff)) <= 1:
+            max_diff: float = self._bkd.max(diff).item()
+            if self._bkd.all_bool(diff >= 0) and max_diff <= 1:
                 # Update coefficient using inclusion-exclusion formula
+                sum_diff: float = self._bkd.sum(diff).item()
                 new_smolyak_coefs[idx] = new_smolyak_coefs[idx] + (
-                    (-1.0) ** float(self._bkd.sum(diff))
+                    (-1.0) ** sum_diff
                 )
 
         return new_smolyak_coefs
@@ -277,6 +283,7 @@ class CombinationSparseGrid(Generic[Array]):
         """Distribute global values to each subspace."""
         if self._values is None:
             return
+        assert self._nqoi is not None
 
         for subspace in self._subspace_list:
             samples = subspace.get_samples()
@@ -286,7 +293,7 @@ class CombinationSparseGrid(Generic[Array]):
             subspace_values = self._bkd.zeros((self._nqoi, nsamples))
             for j in range(nsamples):
                 key = tuple(
-                    float(samples[i, j]) for i in range(self._nvars)
+                    samples[i, j].item() for i in range(self._nvars)
                 )
                 idx = self._sample_to_idx[key]
                 subspace_values[:, j] = self._values[:, idx]
@@ -308,15 +315,17 @@ class CombinationSparseGrid(Generic[Array]):
         """
         if self._values is None:
             raise ValueError("Values not set. Call set_values() first.")
+        assert self._nqoi is not None
 
         if self._smolyak_coefficients is None:
             self._update_smolyak_coefficients()
+        assert self._smolyak_coefficients is not None
 
         npoints = samples.shape[1]
         result = self._bkd.zeros((self._nqoi, npoints))
 
         for j, subspace in enumerate(self._subspace_list):
-            coef = float(self._smolyak_coefficients[j])
+            coef: float = self._smolyak_coefficients[j].item()
             if abs(coef) > 1e-14:
                 subspace_vals = subspace(samples)
                 result = result + coef * subspace_vals
@@ -374,14 +383,16 @@ class CombinationSparseGrid(Generic[Array]):
         """
         if self._values is None:
             raise ValueError("Values not set. Call set_values() first.")
+        assert self._nqoi is not None
 
         if self._smolyak_coefficients is None:
             self._update_smolyak_coefficients()
+        assert self._smolyak_coefficients is not None
 
         jacobian = self._bkd.zeros((self._nqoi, self._nvars))
 
         for j, subspace in enumerate(self._subspace_list):
-            coef = float(self._smolyak_coefficients[j])
+            coef: float = self._smolyak_coefficients[j].item()
             if abs(coef) > 1e-14:
                 subspace_jac = subspace.jacobian(sample)
                 jacobian = jacobian + coef * subspace_jac
@@ -416,12 +427,13 @@ class CombinationSparseGrid(Generic[Array]):
 
         if self._smolyak_coefficients is None:
             self._update_smolyak_coefficients()
+        assert self._smolyak_coefficients is not None
 
         # Use efficient subspace HVP without forming full Hessian
         result = self._bkd.zeros((self._nvars, 1))
 
         for j, subspace in enumerate(self._subspace_list):
-            coef = float(self._smolyak_coefficients[j])
+            coef: float = self._smolyak_coefficients[j].item()
             if abs(coef) > 1e-14:
                 subspace_hvp = subspace.hvp(sample, vec)
                 result = result + coef * subspace_hvp
@@ -454,12 +466,13 @@ class CombinationSparseGrid(Generic[Array]):
 
         if self._smolyak_coefficients is None:
             self._update_smolyak_coefficients()
+        assert self._smolyak_coefficients is not None
 
         # Use efficient subspace WHVP without forming full Hessians
         result = self._bkd.zeros((self._nvars, 1))
 
         for j, subspace in enumerate(self._subspace_list):
-            coef = float(self._smolyak_coefficients[j])
+            coef: float = self._smolyak_coefficients[j].item()
             if abs(coef) > 1e-14:
                 subspace_whvp = subspace.whvp(sample, vec, weights)
                 result = result + coef * subspace_whvp
@@ -535,18 +548,21 @@ class CombinationSparseGrid(Generic[Array]):
         """
         if self._values is None:
             raise ValueError("Values not set. Call set_values() first.")
+        assert self._nqoi is not None
 
         if smolyak_coefs is None:
             if self._smolyak_coefficients is None:
                 self._update_smolyak_coefficients()
+            assert self._smolyak_coefficients is not None
             smolyak_coefs = self._smolyak_coefficients
 
         result = self._bkd.zeros((self._nqoi,))
+        ncoefs = smolyak_coefs.shape[0]
 
         for j, subspace in enumerate(self._subspace_list):
-            if j >= len(smolyak_coefs):
+            if j >= ncoefs:
                 break
-            coef = float(smolyak_coefs[j])
+            coef: float = smolyak_coefs[j].item()
             if abs(coef) > 1e-14:
                 subspace_moment = getattr(subspace, moment)()
                 result = result + coef * subspace_moment

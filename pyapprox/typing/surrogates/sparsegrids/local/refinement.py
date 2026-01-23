@@ -40,7 +40,6 @@ class LocalHierarchicalRefinementCriteria(Generic[Array]):
     def __init__(self, bkd: Backend[Array]):
         self._bkd = bkd
 
-    @property
     def bkd(self) -> Backend[Array]:
         """Return the computational backend."""
         return self._bkd
@@ -79,7 +78,7 @@ class LocalHierarchicalRefinementCriteria(Generic[Array]):
         surplus = self._bkd.abs(basis_value - interpolant_value)
 
         # Error is max surplus over all QoIs
-        error = float(self._bkd.max(surplus))
+        error: float = self._bkd.max(surplus).item()
 
         # Higher error = higher priority
         return error, error

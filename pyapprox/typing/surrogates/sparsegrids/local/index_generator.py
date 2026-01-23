@@ -4,7 +4,7 @@ This module provides index generation for locally-adaptive sparse grids
 that refine individual basis functions using hierarchical splitting.
 """
 
-from typing import Dict, Generic, List, Optional, Tuple
+from typing import Dict, Generic, List, Optional, Tuple, cast
 
 from pyapprox.typing.util.backends.protocols import Array, Backend
 
@@ -48,7 +48,6 @@ class LocalIndexGenerator(Generic[Array]):
         self._sel_basis_indices_dict: Dict[Tuple[int, ...], int] = {}
         self._cand_basis_indices_dict: Dict[Tuple[int, ...], int] = {}
 
-    @property
     def bkd(self) -> Backend[Array]:
         """Return the computational backend."""
         return self._bkd
@@ -244,9 +243,10 @@ class LocalIndexGenerator(Generic[Array]):
         for child in children:
             key = self._hash_index(child)
             if key not in self._basis_indices_dict:
-                idx = self._basis_indices.shape[1]
+                assert self._basis_indices is not None
+                idx = int(self._basis_indices.shape[1])
                 self._basis_indices = self._bkd.hstack(
-                    (self._basis_indices, child[:, None])
+                    [self._basis_indices, child[:, None]]
                 )
                 self._basis_indices_dict[key] = idx
                 self._cand_basis_indices_dict[key] = idx
@@ -288,8 +288,9 @@ class LocalIndexGenerator(Generic[Array]):
             return self._bkd.zeros(
                 (self._nvars, 0), dtype=self._bkd.int64_dtype()
             )
+        assert self._basis_indices is not None
         idxs = list(self._sel_basis_indices_dict.values())
-        return self._basis_indices[:, idxs]
+        return cast(Array, self._basis_indices[:, idxs])
 
     def get_candidate_indices(self) -> Optional[Array]:
         """Return candidate basis indices.
@@ -301,8 +302,9 @@ class LocalIndexGenerator(Generic[Array]):
         """
         if self.ncandidates() == 0:
             return None
+        assert self._basis_indices is not None
         idxs = list(self._cand_basis_indices_dict.values())
-        return self._basis_indices[:, idxs]
+        return cast(Array, self._basis_indices[:, idxs])
 
     def __repr__(self) -> str:
         return (

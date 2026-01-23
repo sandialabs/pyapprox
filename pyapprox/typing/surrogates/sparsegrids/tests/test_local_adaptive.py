@@ -506,7 +506,7 @@ class TestLocalHierarchicalRefinementCriteria(Generic[Array], unittest.TestCase)
     def test_init(self) -> None:
         """Test refinement criteria initialization."""
         criteria = LocalHierarchicalRefinementCriteria(self._bkd)
-        self.assertEqual(criteria.bkd, self._bkd)
+        self.assertEqual(criteria.bkd(), self._bkd)
 
     def test_repr(self) -> None:
         """Test string representation."""
