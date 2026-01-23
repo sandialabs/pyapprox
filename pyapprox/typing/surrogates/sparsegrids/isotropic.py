@@ -4,7 +4,7 @@ Pre-computed sparse grid with fixed level in all dimensions.
 Uses HyperbolicIndexGenerator with pnorm=1.0 for index generation.
 """
 
-from typing import Generic, List
+from typing import Generic, List, Union
 
 from pyapprox.typing.util.backends.protocols import Array, Backend
 from pyapprox.typing.surrogates.affine.protocols import (
@@ -32,8 +32,10 @@ class IsotropicCombinationSparseGrid(CombinationSparseGrid[Array], Generic[Array
         Computational backend.
     basis_factories : List[BasisFactoryProtocol[Array]]
         Factories for creating univariate bases for each dimension.
-    growth_rule : IndexGrowthRuleProtocol
-        Rule mapping level to number of points.
+    growth_rules : IndexGrowthRuleProtocol or List[IndexGrowthRuleProtocol]
+        Rule(s) mapping level to number of points. If a single rule, it is
+        used for all dimensions. If a list, each element applies to the
+        corresponding dimension.
     level : int
         Maximum level (L1 norm bound for subspace indices).
 
@@ -55,10 +57,10 @@ class IsotropicCombinationSparseGrid(CombinationSparseGrid[Array], Generic[Array
         self,
         bkd: Backend[Array],
         basis_factories: List[BasisFactoryProtocol[Array]],
-        growth_rule: IndexGrowthRuleProtocol,
+        growth_rules: Union[IndexGrowthRuleProtocol, List[IndexGrowthRuleProtocol]],
         level: int,
     ):
-        super().__init__(bkd, basis_factories, growth_rule)
+        super().__init__(bkd, basis_factories, growth_rules)
         self._level = level
 
         # Create index generator with pnorm=1.0 for isotropic (total degree)

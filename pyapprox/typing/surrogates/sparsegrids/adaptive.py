@@ -4,7 +4,7 @@ This module provides adaptive sparse grid surrogates that refine
 subspaces based on error indicators.
 """
 
-from typing import Callable, Generic, List, Optional, Tuple
+from typing import Callable, Generic, List, Optional, Tuple, Union
 
 from pyapprox.typing.util.backends.protocols import Array, Backend
 from pyapprox.typing.surrogates.affine.protocols import (
@@ -36,13 +36,20 @@ class AdaptiveCombinationSparseGrid(CombinationSparseGrid[Array], Generic[Array]
         Computational backend.
     basis_factories : List[BasisFactoryProtocol[Array]]
         Factories for creating univariate bases for each dimension.
-    growth_rule : IndexGrowthRuleProtocol
-        Rule mapping level to number of points.
+    growth_rules : IndexGrowthRuleProtocol or List[IndexGrowthRuleProtocol]
+        Rule(s) mapping level to number of points. If a single rule, it is
+        used for all dimensions. If a list, each element applies to the
+        corresponding dimension.
     admissibility : AdmissibilityCriteria[Array]
         Criteria for admissible subspace indices.
     refinement_priority : Callable[[Array, Array, "AdaptiveCombinationSparseGrid"], Tuple[float, float]], optional
         Function(subspace_index, subspace_values, grid) -> (priority, error)
         Higher priority indices are refined first. Default: L2 norm error.
+    verbosity : int, optional
+        Verbosity level for debugging output:
+        - 0: No output (default)
+        - 1: Low-level info (subspace being refined, total error)
+        - 2: Debug info (all new candidates, errors, priorities)
 
     Examples
     --------
@@ -69,7 +76,7 @@ class AdaptiveCombinationSparseGrid(CombinationSparseGrid[Array], Generic[Array]
         self,
         bkd: Backend[Array],
         basis_factories: List[BasisFactoryProtocol[Array]],
-        growth_rule: IndexGrowthRuleProtocol,
+        growth_rules: Union[IndexGrowthRuleProtocol, List[IndexGrowthRuleProtocol]],
         admissibility: AdmissibilityCriteria[Array],
         refinement_priority: Optional[
             Callable[
@@ -77,12 +84,14 @@ class AdaptiveCombinationSparseGrid(CombinationSparseGrid[Array], Generic[Array]
                 Tuple[float, float],
             ]
         ] = None,
+        verbosity: int = 0,
     ):
-        super().__init__(bkd, basis_factories, growth_rule)
+        super().__init__(bkd, basis_factories, growth_rules)
         self._admissibility = admissibility
         self._refinement_priority = (
             refinement_priority or self._default_refinement_priority
         )
+        self._verbosity = verbosity
 
         # Index generator for tracking selected/candidate subspaces
         self._index_gen = IterativeIndexGenerator(self._nvars, bkd)
@@ -196,6 +205,9 @@ class AdaptiveCombinationSparseGrid(CombinationSparseGrid[Array], Generic[Array]
             self._add_subspace(index)
             self._subspace_errors.append(0.0)
 
+        if self._verbosity >= 1:
+            print(f"[Adaptive SG] First step: selected (0,...,0)")
+
         # Initialize Smolyak coefficients for selected indices
         self._selected_smolyak_coefs = compute_smolyak_coefficients(
             selected_indices, self._bkd
@@ -214,6 +226,12 @@ class AdaptiveCombinationSparseGrid(CombinationSparseGrid[Array], Generic[Array]
                 self._add_subspace(index)
                 self._subspace_errors.append(float("inf"))
 
+            if self._verbosity >= 2:
+                print(f"[Adaptive SG] Initial candidates:")
+                for index in cand_indices.T:
+                    idx_tuple = tuple(int(x) for x in self._bkd.to_numpy(index))
+                    print(f"  - {idx_tuple} (error=inf, priority=pending)")
+
         self._last_subspace_indices = self._index_gen.get_indices()
         self._first_step = False
 
@@ -227,6 +245,19 @@ class AdaptiveCombinationSparseGrid(CombinationSparseGrid[Array], Generic[Array]
             # Get best candidate subspace
             priority, error, best_idx = self._candidate_queue.get()
             best_index = self._index_gen._indices[:, best_idx]
+            best_index_tuple = tuple(
+                int(x) for x in self._bkd.to_numpy(best_index)
+            )
+
+            if self._verbosity >= 1:
+                total_error = sum(
+                    e for e in self._subspace_errors if e != float("inf")
+                )
+                print(
+                    f"[Adaptive SG] Refining {best_index_tuple}: "
+                    f"priority={priority:.2e}, error={error:.2e}, "
+                    f"total_error={total_error:.2e}"
+                )
 
             # Refine this subspace (moves from candidate to selected)
             new_cand_indices = self._index_gen.refine_index(best_index)
@@ -255,8 +286,19 @@ class AdaptiveCombinationSparseGrid(CombinationSparseGrid[Array], Generic[Array]
                 self._add_subspace_without_invalidating(index)
                 self._subspace_errors.append(float("inf"))
 
+            if self._verbosity >= 2 and new_cand_indices.shape[1] > 0:
+                print(f"[Adaptive SG] New candidates from {best_index_tuple}:")
+                for index in new_cand_indices.T:
+                    idx_tuple = tuple(int(x) for x in self._bkd.to_numpy(index))
+                    print(f"  - {idx_tuple} (error=inf, priority=pending)")
+
             if new_cand_indices.shape[1] == 0:
                 # No new candidates from this one, try next best
+                if self._verbosity >= 2:
+                    print(
+                        f"[Adaptive SG] No new candidates from {best_index_tuple}, "
+                        "trying next best"
+                    )
                 continue
 
             self._last_subspace_indices = new_cand_indices
@@ -286,7 +328,7 @@ class AdaptiveCombinationSparseGrid(CombinationSparseGrid[Array], Generic[Array]
             self._bkd,
             index,
             self._basis_factories,
-            self._growth_rule,
+            self._growth_rules,
         )
         self._subspaces[key] = subspace
         self._subspace_list.append(subspace)
@@ -359,6 +401,9 @@ class AdaptiveCombinationSparseGrid(CombinationSparseGrid[Array], Generic[Array]
         if cand_indices is None:
             return
 
+        if self._verbosity >= 2:
+            print("[Adaptive SG] Prioritizing candidates:")
+
         for index in cand_indices.T:
             key = _index_to_tuple(index)
             if key not in self._subspaces:
@@ -377,6 +422,10 @@ class AdaptiveCombinationSparseGrid(CombinationSparseGrid[Array], Generic[Array]
             idx = self._index_gen._cand_indices_dict[self._index_gen._hash_index(index)]
             self._candidate_queue.put(priority, error, idx)
             self._subspace_errors[idx] = error
+
+            if self._verbosity >= 2:
+                idx_tuple = tuple(int(x) for x in self._bkd.to_numpy(index))
+                print(f"  - {idx_tuple}: error={error:.2e}, priority={priority:.2e}")
 
     def error_estimate(self) -> float:
         """Return current error estimate.
@@ -431,6 +480,32 @@ class AdaptiveCombinationSparseGrid(CombinationSparseGrid[Array], Generic[Array]
         if self._nqoi is None:
             raise ValueError("Values not set. Call step_values() first.")
         return self._nqoi
+
+    def verbosity(self) -> int:
+        """Return the current verbosity level.
+
+        Returns
+        -------
+        int
+            Verbosity level:
+            - 0: No output
+            - 1: Low-level info (subspace being refined, total error)
+            - 2: Debug info (all new candidates, errors, priorities)
+        """
+        return self._verbosity
+
+    def set_verbosity(self, level: int) -> None:
+        """Set the verbosity level.
+
+        Parameters
+        ----------
+        level : int
+            Verbosity level:
+            - 0: No output
+            - 1: Low-level info (subspace being refined, total error)
+            - 2: Debug info (all new candidates, errors, priorities)
+        """
+        self._verbosity = level
 
     def _adjust_smolyak_coefficients_with_candidate_index(
         self, candidate_index: Array

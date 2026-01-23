@@ -7,19 +7,17 @@ This module wraps TensorProductInterpolant with sparse-grid-specific
 functionality: multi-index tracking, growth rules, and quadrature.
 """
 
-from typing import Generic, List, Optional
+from typing import Generic, List, Optional, Union
 
 from pyapprox.typing.util.backends.protocols import Array, Backend
 from pyapprox.typing.util.cartesian import outer_product_weights
 from pyapprox.typing.surrogates.affine.protocols import (
     IndexGrowthRuleProtocol,
+    InterpolationBasis1DProtocol,
 )
-from pyapprox.typing.surrogates.affine.univariate.lagrange import LagrangeBasis1D
 from pyapprox.typing.surrogates.tensorproduct import TensorProductInterpolant
 from pyapprox.typing.surrogates.sparsegrids.basis_setup import (
     compute_npts_from_growth_rule,
-    get_quadrature_rule,
-    create_lagrange_from_quadrature,
 )
 from pyapprox.typing.surrogates.sparsegrids.basis_factory import BasisFactoryProtocol
 
@@ -41,8 +39,10 @@ class TensorProductSubspace(Generic[Array]):
     basis_factories : List[BasisFactoryProtocol[Array]]
         Factories for creating univariate bases for each dimension.
         Each factory's create_basis() is called to get fresh basis instances.
-    growth_rule : IndexGrowthRuleProtocol
-        Rule mapping level to number of points.
+    growth_rules : IndexGrowthRuleProtocol or List[IndexGrowthRuleProtocol]
+        Rule(s) mapping level to number of points. If a single rule, it is
+        used for all dimensions. If a list, each element applies to the
+        corresponding dimension.
 
     Notes
     -----
@@ -68,38 +68,42 @@ class TensorProductSubspace(Generic[Array]):
         bkd: Backend[Array],
         index: Array,
         basis_factories: List[BasisFactoryProtocol[Array]],
-        growth_rule: IndexGrowthRuleProtocol,
+        growth_rules: Union[IndexGrowthRuleProtocol, List[IndexGrowthRuleProtocol]],
     ):
         self._bkd = bkd
         self._index = bkd.copy(index)
         self._basis_factories = basis_factories
-        self._growth_rule = growth_rule
+        self._growth_rules = growth_rules
 
-        # Compute number of points per dimension from growth rule
-        self._npts_1d = compute_npts_from_growth_rule(index, growth_rule)
+        # Compute number of points per dimension from growth rule(s)
+        self._npts_1d = compute_npts_from_growth_rule(index, growth_rules)
 
-        # Create independent LagrangeBasis1D for each dimension
-        # IMPORTANT: Each dimension needs its own basis instance because
-        # different dimensions may have different numbers of points.
+        # Create independent bases for each dimension
+        # Each dimension needs its own basis instance because different
+        # dimensions may have different numbers of points.
         # We call create_basis() on each factory to get a fresh instance.
-        self._interp_bases_1d: List[LagrangeBasis1D[Array]] = []
+        self._interp_bases_1d: List[InterpolationBasis1DProtocol[Array]] = []
         self._1d_weights: List[Array] = []
 
         for dim, factory in enumerate(basis_factories):
             npts = self._npts_1d[dim]
 
-            # Get a fresh basis from the factory
-            basis = factory.create_basis()
+            # Get basis from factory - no wrapping, no branching
+            interp_basis = factory.create_basis()
 
-            # Extract quadrature rule from the basis
-            quad_rule = get_quadrature_rule(basis)
+            # Validate (not branching - raises if invalid)
+            if not isinstance(interp_basis, InterpolationBasis1DProtocol):
+                raise TypeError(
+                    f"Factory {type(factory).__name__} returned "
+                    f"{type(interp_basis).__name__}, "
+                    f"expected InterpolationBasis1DProtocol"
+                )
 
-            # Create a new LagrangeBasis1D for this dimension
-            # This ensures each dimension has independent nterms
-            interp_basis: LagrangeBasis1D[Array] = create_lagrange_from_quadrature(
-                bkd, quad_rule
-            )
-            _, weights_1d = quad_rule(npts)
+            interp_basis.set_nterms(npts)
+
+            # Get quadrature weights for integration
+            # All bases have quadrature_rule() after set_nterms()
+            _, weights_1d = interp_basis.quadrature_rule()
 
             self._interp_bases_1d.append(interp_basis)
             self._1d_weights.append(weights_1d)

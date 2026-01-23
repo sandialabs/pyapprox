@@ -4,7 +4,7 @@ Sparse grids are linear combinations of tensor product subspaces using
 the Smolyak combination technique.
 """
 
-from typing import Dict, Generic, List, Optional, Tuple
+from typing import Dict, Generic, List, Optional, Tuple, Union
 
 from pyapprox.typing.util.backends.protocols import Array, Backend
 from pyapprox.typing.surrogates.affine.protocols import (
@@ -32,8 +32,10 @@ class CombinationSparseGrid(Generic[Array]):
     basis_factories : List[BasisFactoryProtocol[Array]]
         Factories for creating univariate bases for each dimension.
         Each factory's create_basis() is called when creating subspaces.
-    growth_rule : IndexGrowthRuleProtocol
-        Rule mapping level to number of points.
+    growth_rules : IndexGrowthRuleProtocol or List[IndexGrowthRuleProtocol]
+        Rule(s) mapping level to number of points. If a single rule, it is
+        used for all dimensions. If a list, each element applies to the
+        corresponding dimension.
 
     Notes
     -----
@@ -57,11 +59,11 @@ class CombinationSparseGrid(Generic[Array]):
         self,
         bkd: Backend[Array],
         basis_factories: List[BasisFactoryProtocol[Array]],
-        growth_rule: IndexGrowthRuleProtocol,
+        growth_rules: Union[IndexGrowthRuleProtocol, List[IndexGrowthRuleProtocol]],
     ):
         self._bkd = bkd
         self._basis_factories = basis_factories
-        self._growth_rule = growth_rule
+        self._growth_rules = growth_rules
         self._nvars = len(basis_factories)
 
         # Subspace storage
@@ -167,7 +169,7 @@ class CombinationSparseGrid(Generic[Array]):
             self._bkd,
             index,
             self._basis_factories,
-            self._growth_rule,
+            self._growth_rules,
         )
         self._subspaces[key] = subspace
         self._subspace_list.append(subspace)

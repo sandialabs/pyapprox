@@ -7,7 +7,7 @@ in tensor product constructions, handling:
 - Growth rule application to multi-indices
 """
 
-from typing import Callable, List, Tuple, cast
+from typing import Callable, List, Tuple, Union, cast
 
 from pyapprox.typing.util.backends.protocols import Array, Backend
 from pyapprox.typing.surrogates.affine.protocols import (
@@ -19,24 +19,42 @@ from pyapprox.typing.surrogates.affine.univariate.lagrange import LagrangeBasis1
 
 def compute_npts_from_growth_rule(
     index: Array,
-    growth_rule: IndexGrowthRuleProtocol,
+    growth_rules: Union[IndexGrowthRuleProtocol, List[IndexGrowthRuleProtocol]],
 ) -> List[int]:
-    """Compute number of points per dimension from a multi-index and growth rule.
+    """Compute number of points per dimension from a multi-index and growth rule(s).
 
     Parameters
     ----------
     index : Array
         Multi-index specifying level in each dimension. Shape: (nvars,)
-    growth_rule : IndexGrowthRuleProtocol
-        Rule mapping level to number of points.
+    growth_rules : IndexGrowthRuleProtocol or List[IndexGrowthRuleProtocol]
+        Rule(s) mapping level to number of points. If a single rule, it is
+        used for all dimensions. If a list, each element applies to the
+        corresponding dimension.
 
     Returns
     -------
     List[int]
         Number of points in each dimension.
+
+    Raises
+    ------
+    ValueError
+        If growth_rules is a list with length not matching nvars.
     """
     nvars = len(index)
-    return [growth_rule(int(index[dim])) for dim in range(nvars)]
+
+    # Handle single growth rule (apply to all dimensions)
+    if not isinstance(growth_rules, list):
+        return [growth_rules(int(index[dim])) for dim in range(nvars)]
+
+    # Handle per-dimension growth rules
+    if len(growth_rules) != nvars:
+        raise ValueError(
+            f"growth_rules list length ({len(growth_rules)}) must match "
+            f"nvars ({nvars})"
+        )
+    return [growth_rules[dim](int(index[dim])) for dim in range(nvars)]
 
 
 def get_quadrature_rule(
