@@ -14,7 +14,7 @@ from pyapprox.typing.surrogates.sparsegrids import (
 from pyapprox.typing.util.backends.numpy import NumpyBkd
 from pyapprox.typing.util.backends.protocols import Array
 from pyapprox.typing.util.backends.torch import TorchBkd
-from pyapprox.typing.util.test_utils import load_tests
+from pyapprox.typing.util.test_utils import load_tests  # noqa: F401
 
 
 class TestSmolyakCoefficients(Generic[Array], unittest.TestCase):

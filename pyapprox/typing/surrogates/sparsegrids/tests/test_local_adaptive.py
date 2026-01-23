@@ -12,7 +12,7 @@ from numpy.typing import NDArray
 from pyapprox.typing.util.backends.numpy import NumpyBkd
 from pyapprox.typing.util.backends.torch import TorchBkd
 from pyapprox.typing.util.backends.protocols import Array, Backend
-from pyapprox.typing.util.test_utils import load_tests
+from pyapprox.typing.util.test_utils import load_tests  # noqa: F401
 
 from pyapprox.typing.surrogates.sparsegrids.local import (
     LocallyAdaptiveCombinationSparseGrid,
@@ -148,7 +148,7 @@ class TestLocallyAdaptiveSparseGrid(Generic[Array], unittest.TestCase):
 
         # Initially
         initial_selected = grid.nselected()
-        initial_candidates = grid.ncandidates()
+        _ = grid.ncandidates()  # Verify method works, value not needed
 
         # After first step
         samples = grid.step_samples()

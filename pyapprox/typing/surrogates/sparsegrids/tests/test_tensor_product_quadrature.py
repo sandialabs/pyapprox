@@ -14,7 +14,7 @@ These tests verify:
 """
 
 import unittest
-from typing import Any, Generic, List
+from typing import Any, Generic
 
 import numpy as np
 import torch
@@ -24,7 +24,7 @@ from unittest_parametrize import ParametrizedTestCase, parametrize
 from pyapprox.typing.util.backends.numpy import NumpyBkd
 from pyapprox.typing.util.backends.torch import TorchBkd
 from pyapprox.typing.util.backends.protocols import Array
-from pyapprox.typing.util.test_utils import load_tests
+from pyapprox.typing.util.test_utils import load_tests  # noqa: F401
 from pyapprox.typing.surrogates.sparsegrids.tests.test_helpers import (
     create_test_joint,
     create_tensor_product_pce,

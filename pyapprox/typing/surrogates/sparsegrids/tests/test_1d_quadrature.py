@@ -16,7 +16,6 @@ marginals (Beta, Gamma) where interpolation tests pass but integration fails.
 import unittest
 from typing import Any, Dict, Generic, Tuple, Union
 
-import numpy as np
 import torch
 from numpy.typing import NDArray
 from unittest_parametrize import ParametrizedTestCase, parametrize
@@ -33,7 +32,7 @@ from pyapprox.typing.surrogates.sparsegrids.basis_factory import (
 from pyapprox.typing.util.backends.numpy import NumpyBkd
 from pyapprox.typing.util.backends.protocols import Array, Backend
 from pyapprox.typing.util.backends.torch import TorchBkd
-from pyapprox.typing.util.test_utils import load_tests
+from pyapprox.typing.util.test_utils import load_tests  # noqa: F401
 
 # Type alias for marginal types
 MarginalType = Union[

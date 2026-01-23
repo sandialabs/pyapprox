@@ -12,7 +12,7 @@ from numpy.typing import NDArray
 from pyapprox.typing.util.backends.numpy import NumpyBkd
 from pyapprox.typing.util.backends.protocols import Array, Backend
 from pyapprox.typing.util.backends.torch import TorchBkd
-from pyapprox.typing.util.test_utils import load_tests
+from pyapprox.typing.util.test_utils import load_tests  # noqa: F401
 
 from pyapprox.typing.probability.univariate import (
     BetaMarginal,
@@ -31,7 +31,6 @@ from pyapprox.typing.surrogates.sparsegrids.basis_factory import (
     create_bases_from_marginals,
     get_bounds_from_marginal,
     get_transform_from_marginal,
-    register_basis_factory,
     get_registered_basis_types,
 )
 

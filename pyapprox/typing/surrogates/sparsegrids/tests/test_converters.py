@@ -12,7 +12,7 @@ from numpy.typing import NDArray
 from pyapprox.typing.util.backends.numpy import NumpyBkd
 from pyapprox.typing.util.backends.torch import TorchBkd
 from pyapprox.typing.util.backends.protocols import Array, Backend
-from pyapprox.typing.util.test_utils import load_tests
+from pyapprox.typing.util.test_utils import load_tests  # noqa: F401
 
 from pyapprox.typing.surrogates.sparsegrids import (
     IsotropicCombinationSparseGrid,
@@ -109,8 +109,16 @@ class TestSparseGridToPCEConverter(Generic[Array], unittest.TestCase):
         exact_mean = 1.0 / 3.0
         exact_var = 13.0 / 15.0
 
-        self.assertAlmostEqual(float(pce_mean[0]), exact_mean, places=10)
-        self.assertAlmostEqual(float(pce_var[0]), exact_var, places=10)
+        self._bkd.assert_allclose(
+            self._bkd.asarray([float(pce_mean[0])]),
+            self._bkd.asarray([exact_mean]),
+            rtol=1e-10,
+        )
+        self._bkd.assert_allclose(
+            self._bkd.asarray([float(pce_var[0])]),
+            self._bkd.asarray([exact_var]),
+            rtol=1e-10,
+        )
 
     def test_sobol_indices(self) -> None:
         """Test PCE Sobol indices are correct."""
@@ -148,17 +156,25 @@ class TestSparseGridToPCEConverter(Generic[Array], unittest.TestCase):
         exact_main_x = 4.0 / 39.0
         exact_main_y = 5.0 / 13.0
 
-        self.assertAlmostEqual(
-            float(main_sobol[0, 0]), exact_main_x, places=6
+        self._bkd.assert_allclose(
+            self._bkd.asarray([float(main_sobol[0, 0])]),
+            self._bkd.asarray([exact_main_x]),
+            rtol=1e-6,
         )
-        self.assertAlmostEqual(
-            float(main_sobol[1, 0]), exact_main_y, places=6
+        self._bkd.assert_allclose(
+            self._bkd.asarray([float(main_sobol[1, 0])]),
+            self._bkd.asarray([exact_main_y]),
+            rtol=1e-6,
         )
-        self.assertAlmostEqual(
-            float(total_sobol[0, 0]), exact_total_x, places=6
+        self._bkd.assert_allclose(
+            self._bkd.asarray([float(total_sobol[0, 0])]),
+            self._bkd.asarray([exact_total_x]),
+            rtol=1e-6,
         )
-        self.assertAlmostEqual(
-            float(total_sobol[1, 0]), exact_total_y, places=6
+        self._bkd.assert_allclose(
+            self._bkd.asarray([float(total_sobol[1, 0])]),
+            self._bkd.asarray([exact_total_y]),
+            rtol=1e-6,
         )
 
     def test_3d_conversion(self) -> None:
@@ -202,7 +218,11 @@ class TestSparseGridToPCEConverter(Generic[Array], unittest.TestCase):
 
         # Mean should be 0 for linear function
         pce_mean = pce.mean()
-        self.assertAlmostEqual(float(pce_mean[0]), 0.0, places=10)
+        self._bkd.assert_allclose(
+            self._bkd.asarray([float(pce_mean[0])]),
+            self._bkd.asarray([0.0]),
+            atol=1e-10,
+        )
 
     def test_non_canonical_domain(self) -> None:
         """Test conversion with non-canonical domain [0, 1].

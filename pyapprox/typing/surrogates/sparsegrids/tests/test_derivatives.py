@@ -12,7 +12,7 @@ from numpy.typing import NDArray
 from pyapprox.typing.util.backends.numpy import NumpyBkd
 from pyapprox.typing.util.backends.torch import TorchBkd
 from pyapprox.typing.util.backends.protocols import Array, Backend
-from pyapprox.typing.util.test_utils import load_tests
+from pyapprox.typing.util.test_utils import load_tests  # noqa: F401
 
 from pyapprox.typing.surrogates.sparsegrids import (
     IsotropicCombinationSparseGrid,
@@ -74,7 +74,7 @@ class TestSparseGridDerivatives(Generic[Array], unittest.TestCase):
         jac = sg_func.jacobian(test_pt)
         expected_jac = self._bkd.asarray([[1.0, 2.0]])
 
-        self.assertTrue(self._bkd.allclose(jac, expected_jac, rtol=1e-6))
+        self._bkd.assert_allclose(jac, expected_jac, rtol=1e-6)
 
         # Error ratio should be small for linear function
         jac_error = float(checker.error_ratio(errors[0]).item())
@@ -114,7 +114,7 @@ class TestSparseGridDerivatives(Generic[Array], unittest.TestCase):
         jac = sg_func.jacobian(test_pt)
         expected_jac = self._bkd.asarray([[1.0, 0.3]])
 
-        self.assertTrue(self._bkd.allclose(jac, expected_jac, rtol=1e-6))
+        self._bkd.assert_allclose(jac, expected_jac, rtol=1e-6)
 
         # Error ratio should be small
         jac_error = float(checker.error_ratio(errors[0]).item())
@@ -154,7 +154,7 @@ class TestSparseGridDerivatives(Generic[Array], unittest.TestCase):
         jac = sg_func.jacobian(test_pt)
         expected_jac = self._bkd.asarray([[1.0, 1.0, 1.0]])
 
-        self.assertTrue(self._bkd.allclose(jac, expected_jac, rtol=1e-6))
+        self._bkd.assert_allclose(jac, expected_jac, rtol=1e-6)
 
         # Error ratio should be small
         jac_error = float(checker.error_ratio(errors[0]).item())
@@ -229,7 +229,7 @@ class TestSparseGridDerivatives(Generic[Array], unittest.TestCase):
         # HVP with [1, 0] should give [2, 0]
         expected_hvp = self._bkd.asarray([[2.0], [0.0]])
 
-        self.assertTrue(self._bkd.allclose(hvp, expected_hvp, rtol=1e-6))
+        self._bkd.assert_allclose(hvp, expected_hvp, rtol=1e-6)
 
     def test_weighted_hvp(self) -> None:
         """Test weighted HVP computation."""
@@ -267,7 +267,7 @@ class TestSparseGridDerivatives(Generic[Array], unittest.TestCase):
         # WHVP with [1, 1] and weight 0.5 should give 0.5 * [2, 2] = [1, 1]
         expected_whvp = self._bkd.asarray([[1.0], [1.0]])
 
-        self.assertTrue(self._bkd.allclose(whvp, expected_whvp, rtol=1e-6))
+        self._bkd.assert_allclose(whvp, expected_whvp, rtol=1e-6)
 
 
 # NumPy backend tests

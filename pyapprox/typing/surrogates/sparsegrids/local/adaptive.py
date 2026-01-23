@@ -9,7 +9,6 @@ from typing import Callable, Dict, Generic, List, Optional, Tuple, cast
 from pyapprox.typing.util.backends.protocols import Array, Backend
 from pyapprox.typing.surrogates.affine.protocols import (
     Basis1DProtocol,
-    IndexGrowthRuleProtocol,
 )
 from pyapprox.typing.surrogates.affine.indices import PriorityQueue
 

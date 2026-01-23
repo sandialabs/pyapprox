@@ -25,7 +25,7 @@ from unittest_parametrize import ParametrizedTestCase, parametrize
 from pyapprox.typing.util.backends.numpy import NumpyBkd
 from pyapprox.typing.util.backends.torch import TorchBkd
 from pyapprox.typing.util.backends.protocols import Array, Backend
-from pyapprox.typing.util.test_utils import load_tests
+from pyapprox.typing.util.test_utils import load_tests  # noqa: F401
 
 from pyapprox.typing.surrogates.sparsegrids import (
     AdaptiveCombinationSparseGrid,
@@ -119,7 +119,7 @@ class TestAdaptiveSparseGrid(Generic[Array], unittest.TestCase):
         result = grid(test_pts)
         expected = test_func(test_pts)
 
-        self.assertTrue(self._bkd.allclose(result, expected, rtol=1e-8))
+        self._bkd.assert_allclose(result, expected, rtol=1e-8)
 
     def test_convergence_on_polynomial(self) -> None:
         """Test that adaptive grid converges for polynomial target."""
@@ -154,7 +154,7 @@ class TestAdaptiveSparseGrid(Generic[Array], unittest.TestCase):
         result = grid(test_pts)
         expected = poly_func(test_pts)
 
-        self.assertTrue(self._bkd.allclose(result, expected, rtol=1e-10))
+        self._bkd.assert_allclose(result, expected, rtol=1e-10)
 
     def test_multi_qoi_adaptive(self) -> None:
         """Test adaptive grid with multiple quantities of interest."""
@@ -218,7 +218,7 @@ class TestAdaptiveSparseGrid(Generic[Array], unittest.TestCase):
         result = grid(test_pts)
         expected = linear_func(test_pts)
 
-        self.assertTrue(self._bkd.allclose(result, expected, rtol=1e-10))
+        self._bkd.assert_allclose(result, expected, rtol=1e-10)
 
 
 # NumPy backend tests

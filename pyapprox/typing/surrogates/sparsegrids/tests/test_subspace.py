@@ -25,8 +25,6 @@ from pyapprox.typing.surrogates.affine.univariate.piecewisepoly import (
     DynamicPiecewiseBasis,
     EquidistantNodeGenerator,
 )
-from pyapprox.typing.surrogates.affine.univariate.lagrange import LagrangeBasis1D
-from pyapprox.typing.surrogates.affine.leja import LejaSequence1D, ChristoffelWeighting
 from pyapprox.typing.probability import UniformMarginal, GaussianMarginal
 from pyapprox.typing.util.backends.numpy import NumpyBkd
 from pyapprox.typing.util.backends.protocols import Array

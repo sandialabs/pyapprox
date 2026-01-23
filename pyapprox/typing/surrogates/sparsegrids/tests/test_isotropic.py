@@ -12,9 +12,11 @@ This file contains tests specific to IsotropicCombinationSparseGrid:
 import unittest
 from typing import Any, Generic, List
 
+import numpy as np
 from scipy import stats
 import torch
 from numpy.typing import NDArray
+from unittest_parametrize import ParametrizedTestCase, parametrize
 
 from pyapprox.typing.surrogates.affine.expansions import create_pce_from_marginals
 from pyapprox.typing.surrogates.affine.indices import (
@@ -25,7 +27,6 @@ from pyapprox.typing.probability import (
     ScipyContinuousMarginal,
     IndependentJoint,
     UniformMarginal,
-    GaussianMarginal,
 )
 from pyapprox.typing.surrogates.sparsegrids import (
     IsotropicCombinationSparseGrid,
@@ -35,7 +36,16 @@ from pyapprox.typing.surrogates.sparsegrids.basis_factory import GaussLagrangeFa
 from pyapprox.typing.util.backends.numpy import NumpyBkd
 from pyapprox.typing.util.backends.protocols import Array, Backend
 from pyapprox.typing.util.backends.torch import TorchBkd
-from pyapprox.typing.util.test_utils import load_tests
+from pyapprox.typing.util.test_utils import load_tests  # noqa: F401
+from pyapprox.typing.surrogates.sparsegrids.tests.test_helpers import (
+    create_test_joint,
+    create_test_pce,
+    create_test_grid_gauss,
+    create_test_grid_leja,
+    create_test_grid,
+    create_test_grid_mixed,
+    create_smooth_test_function,
+)
 
 
 # =============================================================================
@@ -139,6 +149,8 @@ class TestIsotropicSparseGrid(Generic[Array], unittest.TestCase):
         joint = IndependentJoint(
             [uniform_marginal for _ in range(nvars)], self._bkd
         )
+        import numpy as np
+        np.random.seed(42)
         test_pts = joint.rvs(20)
 
         # Compare sparse grid interpolation to exact PCE evaluation
@@ -629,8 +641,11 @@ class TestIsotropicLegacy(Generic[Array], unittest.TestCase):
         typing_sorted = typing_samples[:, typing_samples[0, :].argsort()]
 
         # Compare sorted samples
-        import numpy as np
-        np.testing.assert_allclose(legacy_sorted, typing_sorted, rtol=1e-12)
+        self._bkd.assert_allclose(
+            self._bkd.asarray(legacy_sorted),
+            self._bkd.asarray(typing_sorted),
+            rtol=1e-12,
+        )
 
     def test_interpolation_matches_legacy(self) -> None:
         """Test interpolation matches legacy implementation."""
@@ -668,7 +683,11 @@ class TestIsotropicLegacy(Generic[Array], unittest.TestCase):
         legacy_result = legacy_sg(test_pts_np).T
         typing_result = self._bkd.to_numpy(typing_sg(test_pts))
 
-        np.testing.assert_allclose(legacy_result, typing_result, rtol=1e-10)
+        self._bkd.assert_allclose(
+            self._bkd.asarray(legacy_result),
+            self._bkd.asarray(typing_result),
+            rtol=1e-10,
+        )
 
     def test_mean_matches_legacy(self) -> None:
         """Test mean computation matches legacy implementation."""
@@ -694,8 +713,11 @@ class TestIsotropicLegacy(Generic[Array], unittest.TestCase):
         legacy_mean = legacy_sg.mean()
         typing_mean = self._bkd.to_numpy(typing_sg.mean())
 
-        import numpy as np
-        np.testing.assert_allclose(legacy_mean, typing_mean, rtol=1e-12)
+        self._bkd.assert_allclose(
+            self._bkd.asarray(legacy_mean),
+            self._bkd.asarray(typing_mean),
+            rtol=1e-12,
+        )
 
     def test_variance_matches_legacy(self) -> None:
         """Test variance computation matches legacy implementation."""
@@ -721,8 +743,11 @@ class TestIsotropicLegacy(Generic[Array], unittest.TestCase):
         legacy_variance = legacy_sg.variance()
         typing_variance = self._bkd.to_numpy(typing_sg.variance())
 
-        import numpy as np
-        np.testing.assert_allclose(legacy_variance, typing_variance, rtol=1e-10)
+        self._bkd.assert_allclose(
+            self._bkd.asarray(legacy_variance),
+            self._bkd.asarray(typing_variance),
+            rtol=1e-10,
+        )
 
     def test_higher_dimension_matches_legacy(self) -> None:
         """Test 3D sparse grid matches legacy implementation."""
@@ -756,7 +781,11 @@ class TestIsotropicLegacy(Generic[Array], unittest.TestCase):
         legacy_result = legacy_sg(test_pts_np).T
         typing_result = self._bkd.to_numpy(typing_sg(test_pts))
 
-        np.testing.assert_allclose(legacy_result, typing_result, rtol=1e-10)
+        self._bkd.assert_allclose(
+            self._bkd.asarray(legacy_result),
+            self._bkd.asarray(typing_result),
+            rtol=1e-10,
+        )
 
 
 class TestIsotropicLegacyNumpy(TestIsotropicLegacy[NDArray[Any]]):
@@ -784,16 +813,6 @@ class TestIsotropicLegacyTorch(TestIsotropicLegacy[torch.Tensor]):
 # =============================================================================
 # Parametrized tests for systematic coverage
 # =============================================================================
-
-import numpy as np
-from unittest_parametrize import ParametrizedTestCase, parametrize
-
-from pyapprox.typing.surrogates.sparsegrids.tests.test_helpers import (
-    create_test_joint,
-    create_test_pce,
-    create_test_grid_gauss,
-    create_test_grid_leja,
-)
 
 
 # Interpolation test configurations for Gauss quadrature: (name, joint_config, level)
@@ -1100,11 +1119,6 @@ class TestIsotropicMultiQoITorch(TestIsotropicMultiQoI[torch.Tensor]):
 # Piecewise polynomial interpolation tests
 # =============================================================================
 
-from pyapprox.typing.surrogates.sparsegrids.tests.test_helpers import (
-    create_test_grid,
-    create_test_grid_mixed,
-    create_smooth_test_function,
-)
 
 # Piecewise polynomial interpolation configs: (name, joint_config, level, basis_type, tol)
 # Growth rules: DoublePlusOneGrowthRule for linear/quadratic, CubicNestedGrowthRule for cubic

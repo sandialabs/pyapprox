@@ -30,7 +30,7 @@ Design notes:
 """
 
 from functools import partial
-from typing import Any, Callable, Dict, Generic, List, Optional, Protocol, Tuple, Union, runtime_checkable
+from typing import Any, Callable, Dict, Generic, List, Optional, Protocol, Tuple, runtime_checkable
 
 from pyapprox.typing.util.backends.protocols import Array, Backend
 from pyapprox.typing.surrogates.affine.protocols import (
@@ -40,7 +40,6 @@ from pyapprox.typing.surrogates.affine.protocols import (
 )
 from pyapprox.typing.surrogates.affine.univariate.lagrange import LagrangeBasis1D
 from pyapprox.typing.surrogates.affine.univariate.transforms import (
-    IdentityTransform1D,
     Univariate1DTransformProtocol,
     get_transform_from_marginal,
 )

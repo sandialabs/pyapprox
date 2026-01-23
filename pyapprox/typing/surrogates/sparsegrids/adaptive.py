@@ -4,7 +4,7 @@ This module provides adaptive sparse grid surrogates that refine
 subspaces based on error indicators.
 """
 
-from typing import Callable, Generic, List, Optional, Tuple, Union, cast
+from typing import Callable, Generic, List, Optional, Tuple, Union
 
 from pyapprox.typing.util.backends.protocols import Array, Backend
 from pyapprox.typing.surrogates.affine.protocols import (
@@ -14,16 +14,14 @@ from pyapprox.typing.surrogates.affine.indices import (
     IterativeIndexGenerator,
     PriorityQueue,
     AdmissibilityCriteria,
-    LinearGrowthRule,
 )
-
-# Type alias for the index generator used in adaptive grids
-_IndexGenType = IterativeIndexGenerator
-
 from .smolyak import compute_smolyak_coefficients, _index_to_tuple
 from .subspace import TensorProductSubspace
 from .combination import CombinationSparseGrid
 from .basis_factory import BasisFactoryProtocol
+
+# Type alias for the index generator used in adaptive grids
+_IndexGenType = IterativeIndexGenerator
 
 
 class AdaptiveCombinationSparseGrid(CombinationSparseGrid[Array], Generic[Array]):
@@ -212,7 +210,7 @@ class AdaptiveCombinationSparseGrid(CombinationSparseGrid[Array], Generic[Array]
             self._subspace_errors.append(0.0)
 
         if self._verbosity >= 1:
-            print(f"[Adaptive SG] First step: selected (0,...,0)")
+            print("[Adaptive SG] First step: selected (0,...,0)")
 
         # Initialize Smolyak coefficients for selected indices
         self._selected_smolyak_coefs = compute_smolyak_coefficients(
@@ -233,7 +231,7 @@ class AdaptiveCombinationSparseGrid(CombinationSparseGrid[Array], Generic[Array]
                 self._subspace_errors.append(float("inf"))
 
             if self._verbosity >= 2:
-                print(f"[Adaptive SG] Initial candidates:")
+                print("[Adaptive SG] Initial candidates:")
                 for index in cand_indices.T:
                     idx_tuple = tuple(int(x) for x in self._bkd.to_numpy(index))
                     print(f"  - {idx_tuple} (error=inf, priority=pending)")
