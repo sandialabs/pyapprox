@@ -15,6 +15,7 @@ from pyapprox.typing.surrogates.affine.indices.utils import (
     compute_hyperbolic_indices,
     sort_indices_lexiographically,
     indices_pnorm,
+    compute_downward_closure,
 )
 from pyapprox.typing.surrogates.affine.indices.admissibility import (
     MaxLevelCriteria,
@@ -27,6 +28,7 @@ from pyapprox.typing.surrogates.affine.indices.growth_rules import (
     DoublePlusOneGrowthRule,
     ConstantGrowthRule,
     ExponentialGrowthRule,
+    inverse_growth_rule,
 )
 from pyapprox.typing.surrogates.affine.indices.generators import (
     HyperbolicIndexGenerator,
@@ -480,6 +482,140 @@ class TestIterativeIndexGenerator(_BaseIndexTest, unittest.TestCase):
                     sel_set,
                     "Candidate index found in selected set",
                 )
+
+
+class TestInverseGrowthRule(unittest.TestCase):
+    """Test inverse_growth_rule function."""
+
+    def test_linear_growth_rule_11(self):
+        """Test LinearGrowthRule(1,1): n(l) = l+1, degree d needs level d."""
+        rule = LinearGrowthRule(scale=1, shift=1)
+        # n(0) = 1, so level 0 represents degree 0
+        # n(1) = 2, so level 1 represents degree 1
+        # n(d) = d+1, so level d represents degree d
+        self.assertEqual(inverse_growth_rule(0, rule), 0)
+        self.assertEqual(inverse_growth_rule(1, rule), 1)
+        self.assertEqual(inverse_growth_rule(2, rule), 2)
+        self.assertEqual(inverse_growth_rule(5, rule), 5)
+
+    def test_linear_growth_rule_21(self):
+        """Test LinearGrowthRule(2,1): n(l) = 2l+1 for l>0."""
+        rule = LinearGrowthRule(scale=2, shift=1)
+        # n(0) = 1, n(1) = 3, n(2) = 5, n(3) = 7
+        # degree 0: need n > 0, n(0) = 1 > 0, level 0
+        # degree 1: need n > 1, n(0) = 1 not > 1, n(1) = 3 > 1, level 1
+        # degree 2: need n > 2, n(1) = 3 > 2, level 1
+        # degree 3: need n > 3, n(1) = 3 not > 3, n(2) = 5 > 3, level 2
+        # degree 4: need n > 4, n(2) = 5 > 4, level 2
+        self.assertEqual(inverse_growth_rule(0, rule), 0)
+        self.assertEqual(inverse_growth_rule(1, rule), 1)
+        self.assertEqual(inverse_growth_rule(2, rule), 1)
+        self.assertEqual(inverse_growth_rule(3, rule), 2)
+        self.assertEqual(inverse_growth_rule(4, rule), 2)
+
+    def test_double_plus_one(self):
+        """Test DoublePlusOneGrowthRule."""
+        rule = DoublePlusOneGrowthRule()
+        # n(0) = 1, n(1) = 3, n(2) = 5, n(3) = 9, n(4) = 17
+        # degree 0: n(0) = 1 > 0, level 0
+        # degree 2: need n > 2, n(1) = 3 > 2, level 1
+        # degree 4: need n > 4, n(2) = 5 > 4, level 2
+        # degree 8: need n > 8, n(3) = 9 > 8, level 3
+        self.assertEqual(inverse_growth_rule(0, rule), 0)
+        self.assertEqual(inverse_growth_rule(2, rule), 1)
+        self.assertEqual(inverse_growth_rule(4, rule), 2)
+        self.assertEqual(inverse_growth_rule(8, rule), 3)
+
+    def test_degree_zero(self):
+        """Test that degree 0 returns level 0 for typical growth rules."""
+        # Any growth rule with n(0) >= 1 should return level 0 for degree 0
+        self.assertEqual(inverse_growth_rule(0, LinearGrowthRule(1, 1)), 0)
+        self.assertEqual(inverse_growth_rule(0, DoublePlusOneGrowthRule()), 0)
+        self.assertEqual(inverse_growth_rule(0, ExponentialGrowthRule(2)), 0)
+
+    def test_negative_degree_raises(self):
+        """Test that negative degree raises ValueError."""
+        rule = LinearGrowthRule(1, 1)
+        with self.assertRaises(ValueError):
+            inverse_growth_rule(-1, rule)
+
+
+class TestComputeDownwardClosure(_BaseIndexTest, unittest.TestCase):
+    """Test compute_downward_closure function."""
+
+    __test__ = True
+
+    def test_single_index_2d(self):
+        """Test closure of {(2,1)} has 6 elements."""
+        bkd = self.bkd
+        indices = bkd.asarray([[2], [1]], dtype=bkd.int64_dtype())
+        closure = compute_downward_closure(indices, bkd)
+        # {(0,0), (1,0), (2,0), (0,1), (1,1), (2,1)} = 6 elements
+        self.assertEqual(closure.shape[1], 6)
+        self.assertEqual(closure.shape[0], 2)
+
+    def test_multiple_indices(self):
+        """Test closure of {(1,0), (0,2)} has 4 elements."""
+        bkd = self.bkd
+        indices = bkd.asarray([[1, 0], [0, 2]], dtype=bkd.int64_dtype())
+        closure = compute_downward_closure(indices, bkd)
+        # {(0,0), (1,0), (0,1), (0,2)} = 4 elements
+        self.assertEqual(closure.shape[1], 4)
+
+    def test_zero_index(self):
+        """Test closure of {(0,0)} is just {(0,0)}."""
+        bkd = self.bkd
+        indices = bkd.asarray([[0], [0]], dtype=bkd.int64_dtype())
+        closure = compute_downward_closure(indices, bkd)
+        self.assertEqual(closure.shape[1], 1)
+        expected = bkd.asarray([[0], [0]], dtype=bkd.int64_dtype())
+        bkd.assert_allclose(closure, expected)
+
+    def test_3d_closure(self):
+        """Test 3D closure."""
+        bkd = self.bkd
+        # Closure of {(1,1,1)} has 2*2*2 = 8 elements
+        indices = bkd.asarray([[1], [1], [1]], dtype=bkd.int64_dtype())
+        closure = compute_downward_closure(indices, bkd)
+        self.assertEqual(closure.shape[1], 8)
+        self.assertEqual(closure.shape[0], 3)
+
+    def test_is_sorted(self):
+        """Test that output is sorted lexicographically."""
+        bkd = self.bkd
+        indices = bkd.asarray([[2], [1]], dtype=bkd.int64_dtype())
+        closure = compute_downward_closure(indices, bkd)
+
+        # Verify sorted: first by total level, then lexicographically
+        # Expected order: (0,0), (1,0), (0,1), (2,0), (1,1), (2,1)
+        expected = bkd.asarray(
+            [[0, 1, 0, 2, 1, 2], [0, 0, 1, 0, 1, 1]], dtype=bkd.int64_dtype()
+        )
+        bkd.assert_allclose(closure, expected)
+
+    def test_downward_closed_property(self):
+        """Test that all predecessors are present in the closure."""
+        bkd = self.bkd
+        indices = bkd.asarray([[3], [2]], dtype=bkd.int64_dtype())
+        closure = compute_downward_closure(indices, bkd)
+
+        # Build set of all indices in closure
+        closure_set = set()
+        for j in range(closure.shape[1]):
+            idx = tuple(int(bkd.to_numpy(closure[i, j])) for i in range(2))
+            closure_set.add(idx)
+
+        # Verify every index has all its predecessors
+        for idx in closure_set:
+            for dim in range(2):
+                if idx[dim] > 0:
+                    predecessor = list(idx)
+                    predecessor[dim] -= 1
+                    self.assertIn(
+                        tuple(predecessor),
+                        closure_set,
+                        f"Index {idx} missing predecessor in dim {dim}",
+                    )
 
 
 if __name__ == "__main__":
