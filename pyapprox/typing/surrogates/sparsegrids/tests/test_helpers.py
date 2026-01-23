@@ -33,6 +33,7 @@ from pyapprox.typing.surrogates.affine.expansions.pce import (
 )
 from pyapprox.typing.surrogates.affine.basis import OrthonormalPolynomialBasis
 from pyapprox.typing.surrogates.affine.indices import (
+    CubicNestedGrowthRule,
     DoublePlusOneGrowthRule,
     HyperbolicIndexGenerator,
     IndexGrowthRule,
@@ -44,6 +45,7 @@ from pyapprox.typing.surrogates.sparsegrids import (
     TensorProductSubspace,
 )
 from pyapprox.typing.surrogates.sparsegrids.basis_factory import (
+    ClenshawCurtisLagrangeFactory,
     GaussLagrangeFactory,
     LejaLagrangeFactory,
     PiecewiseFactory,
@@ -96,6 +98,7 @@ GROWTH_RULES: Dict[str, IndexGrowthRule] = {
     "linear_1_1": LinearGrowthRule(scale=1, shift=1),  # d = l + 1
     "linear_2_1": LinearGrowthRule(scale=2, shift=1),  # d = 2*l + 1
     "clenshaw_curtis": DoublePlusOneGrowthRule(),  # d = 2^l + 1 (nested)
+    "cubic_nested": CubicNestedGrowthRule(),  # d = 3 * 2^(l-1) + 1 (nested for cubic)
 }
 
 
@@ -634,6 +637,9 @@ def get_required_sg_levels(
     For each dimension d, find minimum SG level l such that
     growth(l) > pce_max_levels[d] (number of points covers degree + 1).
 
+    Note: This only computes per-dimension max levels. For PCEs with cross-terms,
+    use `compute_required_sg_subspaces` to get the full required index set.
+
     Parameters
     ----------
     pce_max_levels : List[int]
@@ -653,13 +659,290 @@ def get_required_sg_levels(
     >>> get_required_sg_levels([3, 1], growth)  # Need levels [3, 1]
     [3, 1]
     """
-    required = []
-    for max_deg in pce_max_levels:
-        for level in range(100):
-            if growth(level) > max_deg:
-                required.append(level)
+    from pyapprox.typing.surrogates.affine.indices import inverse_growth_rule
+
+    return [inverse_growth_rule(max_deg, growth) for max_deg in pce_max_levels]
+
+
+def compute_required_sg_subspaces(
+    pce_indices: Array,
+    growth: IndexGrowthRule,
+    bkd: Backend[Array],
+) -> Array:
+    """Compute sparse grid subspace indices required to represent a PCE.
+
+    For each PCE multi-index specifying polynomial degrees, computes the minimum
+    sparse grid level in each dimension needed to represent that degree, then
+    takes the downward closure to get a valid sparse grid index set.
+
+    The relationship between PCE degree d and sparse grid level l is:
+        l = min{k : growth(k) > d}
+
+    Since Lagrange interpolation with n points can exactly represent polynomials
+    of degree n-1, we need growth(l) > d to have enough points.
+
+    Parameters
+    ----------
+    pce_indices : Array
+        PCE multi-indices specifying polynomial degrees. Shape: (nvars, nterms)
+    growth : IndexGrowthRule
+        Growth rule mapping sparse grid level to number of points.
+    bkd : Backend[Array]
+        Computational backend.
+
+    Returns
+    -------
+    Array
+        Sparse grid subspace indices. Shape: (nvars, nsubspaces)
+        The result is guaranteed to be downward-closed and sorted.
+
+    Examples
+    --------
+    >>> from pyapprox.typing.util.backends.numpy import NumpyBkd
+    >>> from pyapprox.typing.surrogates.affine.indices import LinearGrowthRule
+    >>> bkd = NumpyBkd()
+    >>> growth = LinearGrowthRule(scale=1, shift=1)  # n(l) = l + 1
+    >>> # PCE with terms up to degree (3, 1) including cross-term (3, 1)
+    >>> pce_indices = bkd.asarray([[3, 0], [1, 1]], dtype=bkd.int64_dtype())
+    >>> sg_indices = compute_required_sg_subspaces(pce_indices, growth, bkd)
+    >>> # The term (3, 1) requires SG level (3, 1), and downward closure gives
+    >>> # all indices (i, j) with i <= 3 and j <= 1
+    """
+    from pyapprox.typing.surrogates.affine.indices import (
+        inverse_growth_rule,
+        compute_downward_closure,
+    )
+
+    nvars = pce_indices.shape[0]
+    nterms = pce_indices.shape[1]
+
+    if nterms == 0:
+        # Empty PCE: return just the zero index
+        return bkd.zeros((nvars, 1), dtype=bkd.int64_dtype())
+
+    # Compute minimum SG level for each PCE term
+    sg_levels = bkd.zeros((nvars, nterms), dtype=bkd.int64_dtype())
+
+    for j in range(nterms):
+        for i in range(nvars):
+            degree = int(bkd.to_numpy(pce_indices[i, j]))
+            sg_levels[i, j] = inverse_growth_rule(degree, growth)
+
+    # Compute downward closure
+    return compute_downward_closure(sg_levels, bkd)
+
+
+# =============================================================================
+# Basis type configurations for extensibility
+# =============================================================================
+
+# (name, basis_type, default_growth_rule_name)
+# Extensible: add "spline", "wavelet" entries when implemented
+BASIS_TYPE_CONFIGS: List[Tuple[str, str, str]] = [
+    ("gauss", "gauss", "linear_1_1"),
+    ("leja", "leja", "linear_1_1"),
+    ("clenshaw_curtis", "clenshaw_curtis", "clenshaw_curtis"),
+    ("piecewise_linear", "piecewise_linear", "clenshaw_curtis"),
+    ("piecewise_quadratic", "piecewise_quadratic", "clenshaw_curtis"),
+    ("piecewise_cubic", "piecewise_cubic", "cubic_nested"),  # special growth rule for cubic
+]
+
+# Bounded-only basis types (require bounded domains)
+BOUNDED_BASIS_TYPES: List[str] = [
+    "piecewise_linear",
+    "piecewise_quadratic",
+    "piecewise_cubic",
+]
+
+
+# =============================================================================
+# Generic sparse grid creation
+# =============================================================================
+
+
+def create_test_grid(
+    joint: IndependentJoint[Array],
+    level: int,
+    bkd: Backend[Array],
+    basis_type: str = "gauss",
+    growth: IndexGrowthRule | None = None,
+) -> IsotropicCombinationSparseGrid[Array]:
+    """Create sparse grid with specified basis type.
+
+    If growth is None, uses default:
+    - DoublePlusOneGrowthRule for piecewise and clenshaw_curtis bases
+    - LinearGrowthRule(1,1) for Lagrange bases (gauss, leja)
+
+    Parameters
+    ----------
+    joint : IndependentJoint[Array]
+        Joint distribution defining the marginals.
+    level : int
+        Sparse grid level.
+    bkd : Backend[Array]
+        Computational backend.
+    basis_type : str, optional
+        Type of basis factory. Default: "gauss".
+    growth : IndexGrowthRule, optional
+        Growth rule. If None, uses default based on basis_type.
+
+    Returns
+    -------
+    IsotropicCombinationSparseGrid[Array]
+        Sparse grid with specified basis type.
+    """
+    factories = create_basis_factories(joint.marginals(), bkd, basis_type)
+
+    if growth is None:
+        # Look up default growth rule from BASIS_TYPE_CONFIGS registry
+        growth_name = None
+        for config in BASIS_TYPE_CONFIGS:
+            if config[0] == basis_type:
+                growth_name = config[2]
                 break
-    return required
+        if growth_name is None:
+            growth_name = "linear_1_1"  # fallback default
+        growth = GROWTH_RULES[growth_name]
+
+    return IsotropicCombinationSparseGrid(bkd, factories, growth, level=level)
+
+
+def _get_default_growth_rule(basis_type: str) -> IndexGrowthRule:
+    """Get the default growth rule for a basis type."""
+    if basis_type == "piecewise_cubic":
+        return CubicNestedGrowthRule()
+    elif basis_type.startswith("piecewise_") or basis_type == "clenshaw_curtis":
+        return DoublePlusOneGrowthRule()
+    else:
+        # Gauss, Leja use linear by default but DoublePlusOneGrowthRule
+        # is also valid for them
+        return DoublePlusOneGrowthRule()
+
+
+def create_test_grid_mixed(
+    joint: IndependentJoint[Array],
+    level: int,
+    bkd: Backend[Array],
+    basis_types: List[str],
+    growth_rules: List[IndexGrowthRule] | IndexGrowthRule | None = None,
+) -> IsotropicCombinationSparseGrid[Array]:
+    """Create sparse grid with mixed basis types per dimension.
+
+    Allows testing Lagrange in some dims, piecewise in others.
+    Uses per-dimension growth rules by default based on basis type:
+    - piecewise_cubic: CubicNestedGrowthRule
+    - other piecewise, clenshaw_curtis: DoublePlusOneGrowthRule
+    - gauss, leja: DoublePlusOneGrowthRule (for compatibility)
+
+    Parameters
+    ----------
+    joint : IndependentJoint[Array]
+        Joint distribution defining the marginals.
+    level : int
+        Sparse grid level.
+    bkd : Backend[Array]
+        Computational backend.
+    basis_types : List[str]
+        Basis type for each dimension.
+    growth_rules : List[IndexGrowthRule] or IndexGrowthRule or None, optional
+        Growth rule(s). If None, uses default per-dimension rules based on
+        basis_types. If a single rule, uses it for all dimensions.
+
+    Returns
+    -------
+    IsotropicCombinationSparseGrid[Array]
+        Sparse grid with mixed basis types.
+    """
+    marginals = joint.marginals()
+    if len(basis_types) != len(marginals):
+        raise ValueError(
+            f"basis_types length ({len(basis_types)}) must match "
+            f"number of marginals ({len(marginals)})"
+        )
+
+    factories = []
+    for marginal, btype in zip(marginals, basis_types):
+        if btype == "gauss":
+            factory = GaussLagrangeFactory(marginal, bkd)
+        elif btype == "leja":
+            factory = LejaLagrangeFactory(marginal, bkd)
+        elif btype == "clenshaw_curtis":
+            factory = ClenshawCurtisLagrangeFactory(marginal, bkd)
+        elif btype.startswith("piecewise_"):
+            poly_type = btype.replace("piecewise_", "")
+            factory = PiecewiseFactory(marginal, bkd, poly_type=poly_type)
+        else:
+            raise ValueError(f"Unknown basis_type: {btype}")
+        factories.append(factory)
+
+    # Determine growth rules
+    if growth_rules is None:
+        # Use per-dimension defaults based on basis type
+        growth_rules = [_get_default_growth_rule(bt) for bt in basis_types]
+    elif not isinstance(growth_rules, list):
+        # Single rule for all dimensions
+        growth_rules = growth_rules
+
+    return IsotropicCombinationSparseGrid(bkd, factories, growth_rules, level=level)
+
+
+# =============================================================================
+# Smooth test function for piecewise interpolation
+# =============================================================================
+
+
+def _get_marginal_bounds(marginal: Any) -> Tuple[float, float]:
+    """Get bounds from a marginal distribution."""
+    if hasattr(marginal, "bounds"):
+        bounds = marginal.bounds()
+        return float(bounds[0]), float(bounds[1])
+    elif hasattr(marginal, "_lb") and hasattr(marginal, "_ub"):
+        return float(marginal._lb), float(marginal._ub)
+    else:
+        # Default for unbounded (should not happen for piecewise tests)
+        return -1.0, 1.0
+
+
+def create_smooth_test_function(
+    joint: IndependentJoint[Array],
+    bkd: Backend[Array],
+) -> Callable[[Array], Array]:
+    """Create smooth test function for piecewise interpolation tests.
+
+    Returns f(x) = prod_i cos(pi * (x_i - a_i) / (b_i - a_i))
+    where [a_i, b_i] are the bounds of marginal i.
+
+    This function is smooth and has value 1 at domain center, oscillating
+    toward the boundaries. It provides a good test for interpolation.
+
+    Parameters
+    ----------
+    joint : IndependentJoint[Array]
+        Joint distribution defining the domain bounds.
+    bkd : Backend[Array]
+        Computational backend.
+
+    Returns
+    -------
+    Callable[[Array], Array]
+        Test function f: (nvars, nsamples) -> (1, nsamples)
+    """
+    import math
+
+    marginals = joint.marginals()
+    bounds_list = [_get_marginal_bounds(m) for m in marginals]
+
+    def test_func(samples: Array) -> Array:
+        # samples shape: (nvars, nsamples)
+        result = bkd.ones((1, samples.shape[1]))
+        for i, (a, b) in enumerate(bounds_list):
+            # Normalize to [0, 1]
+            normalized = (samples[i, :] - a) / (b - a)
+            # Cosine oscillation
+            result = result * bkd.cos(math.pi * normalized)
+        return result
+
+    return test_func
 
 
 # =============================================================================
@@ -671,15 +954,21 @@ __all__ = [
     "JOINT_CONFIGS",
     "BOUNDED_JOINT_CONFIGS",
     "GROWTH_RULES",
+    "BASIS_TYPE_CONFIGS",
+    "BOUNDED_BASIS_TYPES",
     "create_test_joint",
     "create_test_pce",
     "create_tensor_product_pce",
     "create_test_grid_gauss",
     "create_test_grid_leja",
+    "create_test_grid",
+    "create_test_grid_mixed",
     "create_test_tensor_product_subspace",
     "create_test_tensor_product_subspace_mixed",
     "create_anisotropic_pce",
     "create_additive_indices",
     "create_additive_pce",
     "get_required_sg_levels",
+    "compute_required_sg_subspaces",
+    "create_smooth_test_function",
 ]

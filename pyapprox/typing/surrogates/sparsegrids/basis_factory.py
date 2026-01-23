@@ -33,7 +33,10 @@ from functools import partial
 from typing import Any, Callable, Dict, Generic, List, Optional, Protocol, Tuple, runtime_checkable
 
 from pyapprox.typing.util.backends.protocols import Array, Backend
-from pyapprox.typing.surrogates.affine.protocols import Basis1DProtocol
+from pyapprox.typing.surrogates.affine.protocols import (
+    Basis1DProtocol,
+    InterpolationBasis1DProtocol,
+)
 from pyapprox.typing.surrogates.affine.univariate.lagrange import LagrangeBasis1D
 from pyapprox.typing.surrogates.affine.univariate.transforms import (
     IdentityTransform1D,
@@ -100,7 +103,7 @@ def get_registered_basis_types() -> List[str]:
 
 @runtime_checkable
 class BasisFactoryProtocol(Protocol, Generic[Array]):
-    """Protocol for factories that create univariate bases.
+    """Protocol for factories that create univariate interpolation bases.
 
     Factories are used by sparse grids to create fresh basis instances
     for each subspace. This allows different subspaces to have different
@@ -109,16 +112,19 @@ class BasisFactoryProtocol(Protocol, Generic[Array]):
     The factory handles domain transforms internally, so the basis
     operates in the user's domain (e.g., Uniform[0,1] returns samples
     in [0,1], not the canonical [-1,1]).
+
+    The returned basis must satisfy InterpolationBasis1DProtocol, which
+    requires: bkd(), set_nterms(), nterms(), __call__(), get_samples().
     """
 
     def bkd(self) -> Backend[Array]:
         """Return the computational backend."""
         ...
 
-    def create_basis(self) -> Basis1DProtocol[Array]:
-        """Create a new basis instance.
+    def create_basis(self) -> InterpolationBasis1DProtocol[Array]:
+        """Create a new interpolation basis instance.
 
-        Returns a fresh basis that supports set_nterms() and quadrature_rule().
+        Returns a fresh basis that satisfies InterpolationBasis1DProtocol.
         For sparse grids, this is called once per dimension per subspace.
         """
         ...
@@ -477,13 +483,14 @@ class PiecewiseFactory(Generic[Array]):
         """Return the computational backend."""
         return self._bkd
 
-    def create_basis(self) -> Basis1DProtocol[Array]:
+    def create_basis(self) -> InterpolationBasis1DProtocol[Array]:
         """Create a piecewise polynomial basis.
 
         Returns
         -------
-        Basis1DProtocol[Array]
+        InterpolationBasis1DProtocol[Array]
             Piecewise polynomial basis with dynamic node count support.
+            Satisfies InterpolationBasis1DProtocol.
 
         Raises
         ------
@@ -527,52 +534,65 @@ class PrebuiltBasisFactory(Generic[Array]):
     """Factory that wraps an existing basis for migration.
 
     This factory allows existing code that uses pre-built bases to
-    work with the new factory-based API. It simply returns a copy
-    of the wrapped basis on each create_basis() call.
+    work with the new factory-based API. It extracts the quadrature rule
+    from the prebuilt basis at construction time, then creates a fresh
+    LagrangeBasis1D instance on each create_basis() call.
 
-    Note: For true sparse grid usage where each subspace needs
-    independent state, the wrapped basis must support being reused
-    (i.e., set_nterms should work correctly when called multiple times).
+    This ensures independent state for each subspace in a sparse grid,
+    matching the behavior of other factories (GaussLagrangeFactory, etc.).
 
     Parameters
     ----------
     basis : Basis1DProtocol[Array]
-        Pre-built basis to wrap.
+        Pre-built basis to wrap. Must have a quadrature rule method
+        (gauss_quadrature_rule or quadrature_rule).
 
     Examples
     --------
     >>> from pyapprox.typing.util.backends.numpy import NumpyBkd
-    >>> from pyapprox.typing.surrogates.affine.univariate import LegendrePolynomial1D
+    >>> from pyapprox.typing.surrogates.affine.univariate import LagrangeBasis1D
+    >>> from pyapprox.typing.surrogates.affine.univariate.globalpoly import (
+    ...     ClenshawCurtisQuadratureRule,
+    ... )
     >>> bkd = NumpyBkd()
-    >>> basis = LegendrePolynomial1D(bkd)
+    >>> cc_quad = ClenshawCurtisQuadratureRule(bkd, store=True)
+    >>> basis = LagrangeBasis1D(bkd, cc_quad)
     >>> factory = PrebuiltBasisFactory(basis)
-    >>> # Use with sparse grid:
-    >>> # grid = IsotropicCombinationSparseGrid(bkd, [factory, factory], growth, level)
+    >>> # Each create_basis() returns independent instance:
+    >>> b1 = factory.create_basis()
+    >>> b2 = factory.create_basis()
+    >>> b1.set_nterms(3)
+    >>> b2.set_nterms(5)
+    >>> assert b1.nterms() == 3 and b2.nterms() == 5
     """
 
     def __init__(self, basis: Basis1DProtocol[Array]) -> None:
-        self._basis = basis
+        from pyapprox.typing.surrogates.sparsegrids.basis_setup import (
+            get_quadrature_rule,
+        )
+
+        self._bkd = basis.bkd()
+        self._quad_rule = get_quadrature_rule(basis)  # Extract once at construction
 
     def bkd(self) -> Backend[Array]:
         """Return the computational backend."""
-        return self._basis.bkd()
+        return self._bkd
 
-    def create_basis(self) -> Basis1DProtocol[Array]:
-        """Return the wrapped basis.
+    def create_basis(self) -> InterpolationBasis1DProtocol[Array]:
+        """Create a fresh LagrangeBasis1D with the wrapped basis's quadrature rule.
 
-        Note: This returns the same basis instance each time.
-        For sparse grids, the basis's set_nterms() will be called
-        with different values for different subspaces.
+        Returns a new LagrangeBasis1D instance each time, ensuring independent
+        state for each subspace in a sparse grid.
 
         Returns
         -------
-        Basis1DProtocol[Array]
-            The wrapped basis.
+        InterpolationBasis1DProtocol[Array]
+            Fresh Lagrange basis using the prebuilt basis's quadrature rule.
         """
-        return self._basis
+        return LagrangeBasis1D(self._bkd, self._quad_rule)
 
     def __repr__(self) -> str:
-        return f"PrebuiltBasisFactory(basis={self._basis!r})"
+        return f"PrebuiltBasisFactory(quad_rule={self._quad_rule!r})"
 
 
 def get_bounds_from_marginal(marginal, eps: float = 1e-6) -> Tuple[float, float]:
