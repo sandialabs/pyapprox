@@ -104,12 +104,28 @@ class MarginalProtocol(Protocol, Generic[Array]):
     Extends DistributionProtocol with CDF and inverse CDF for
     probability integral transforms.
 
+    All marginal distributions must implement both `pdf()` and `__call__()`,
+    where `__call__` is an alias for `pdf()`. This applies to both continuous
+    and discrete marginals. When writing code that uses marginals, prefer
+    `pdf()` for clarity.
+
+    Derivatives: `jacobian()` returns the derivative of `pdf()` (equivalently,
+    `__call__`) with respect to the input.
+
     Methods
     -------
+    pdf(samples)
+        Evaluate probability density function.
+    __call__(samples)
+        Alias for pdf(). Evaluate probability density function.
     cdf(samples)
         Evaluate cumulative distribution function.
     invcdf(probs)
         Evaluate inverse CDF (quantile function).
+    is_bounded()
+        Check if the distribution has bounded support.
+    interval(alpha)
+        Compute credible interval with given probability content.
     """
 
     def bkd(self) -> Backend[Array]:
@@ -122,6 +138,43 @@ class MarginalProtocol(Protocol, Generic[Array]):
         ...
 
     def logpdf(self, samples: Array) -> Array:
+        ...
+
+    def pdf(self, samples: Array) -> Array:
+        """
+        Evaluate the probability density function.
+
+        Parameters
+        ----------
+        samples : Array
+            Sample points. Shape: (1, nsamples) - must be 2D
+
+        Returns
+        -------
+        Array
+            PDF values. Shape: (1, nsamples)
+
+        Raises
+        ------
+        ValueError
+            If input is not 2D or has wrong first dimension
+        """
+        ...
+
+    def __call__(self, samples: Array) -> Array:
+        """
+        Evaluate the probability density function (alias for pdf).
+
+        Parameters
+        ----------
+        samples : Array
+            Sample points. Shape: (1, nsamples) - must be 2D
+
+        Returns
+        -------
+        Array
+            PDF values. Shape: (1, nsamples)
+        """
         ...
 
     def cdf(self, samples: Array) -> Array:
@@ -166,6 +219,34 @@ class MarginalProtocol(Protocol, Generic[Array]):
         """
         ...
 
+    def is_bounded(self) -> bool:
+        """
+        Check if the distribution has bounded support.
+
+        Returns
+        -------
+        bool
+            True if the distribution has finite lower and upper bounds.
+        """
+        ...
+
+    def interval(self, alpha: float) -> Array:
+        """
+        Compute credible interval with given probability content.
+
+        Parameters
+        ----------
+        alpha : float
+            Probability content of the interval (0 < alpha <= 1).
+
+        Returns
+        -------
+        Array
+            Interval [lower, upper] such that P(lower < X < upper) = alpha.
+            Shape: (1, 2)
+        """
+        ...
+
 
 @runtime_checkable
 class MarginalWithJacobianProtocol(Protocol, Generic[Array]):
@@ -193,10 +274,22 @@ class MarginalWithJacobianProtocol(Protocol, Generic[Array]):
     def logpdf(self, samples: Array) -> Array:
         ...
 
+    def pdf(self, samples: Array) -> Array:
+        ...
+
+    def __call__(self, samples: Array) -> Array:
+        ...
+
     def cdf(self, samples: Array) -> Array:
         ...
 
     def invcdf(self, probs: Array) -> Array:
+        ...
+
+    def is_bounded(self) -> bool:
+        ...
+
+    def interval(self, alpha: float) -> Array:
         ...
 
     def invcdf_jacobian(self, probs: Array) -> Array:
@@ -258,10 +351,22 @@ class MarginalWithParamJacobianProtocol(Protocol, Generic[Array]):
     def logpdf(self, samples: Array) -> Array:
         ...
 
+    def pdf(self, samples: Array) -> Array:
+        ...
+
+    def __call__(self, samples: Array) -> Array:
+        ...
+
     def cdf(self, samples: Array) -> Array:
         ...
 
     def invcdf(self, probs: Array) -> Array:
+        ...
+
+    def is_bounded(self) -> bool:
+        ...
+
+    def interval(self, alpha: float) -> Array:
         ...
 
     def invcdf_jacobian(self, probs: Array) -> Array:

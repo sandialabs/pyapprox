@@ -123,7 +123,7 @@ class UniformMarginal(Generic[Array]):
         """Return the upper bound."""
         return float(self._bkd.to_numpy(self._upper_hyp.get_values())[0])
 
-    def __call__(self, samples: Array) -> Array:
+    def pdf(self, samples: Array) -> Array:
         """
         Evaluate the probability density function (PDF).
 
@@ -147,6 +147,10 @@ class UniformMarginal(Generic[Array]):
         pdf_val = 1.0 / width
         result = self._bkd.ones_like(samples_1d) * pdf_val
         return self._bkd.reshape(result, (1, -1))
+
+    def __call__(self, samples: Array) -> Array:
+        """Evaluate the PDF (alias for pdf())."""
+        return self.pdf(samples)
 
     def logpdf(self, samples: Array) -> Array:
         """

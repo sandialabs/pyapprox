@@ -318,10 +318,10 @@ class InterpolationBasis1DProtocol(Protocol, Generic[Array]):
 
 
 @runtime_checkable
-class OrthonormalPolynomial1DProtocol(Protocol, Generic[Array]):
+class OrthonormalPolynomial1DProtocol(Basis1DProtocol[Array], Protocol, Generic[Array]):
     """Protocol for orthonormal polynomial bases.
 
-    Orthonormal polynomials have additional capabilities:
+    Extends Basis1DProtocol with additional capabilities:
     - Gauss quadrature rule computation
     - Recursion coefficient access
 

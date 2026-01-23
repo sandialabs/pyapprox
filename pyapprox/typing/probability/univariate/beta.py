@@ -318,7 +318,7 @@ class BetaMarginal(Generic[Array]):
         """Return the beta shape parameter."""
         return float(self._bkd.to_numpy(self._beta_hyp.exp_values())[0])
 
-    def __call__(self, samples: Array) -> Array:
+    def pdf(self, samples: Array) -> Array:
         """
         Evaluate the probability density function (PDF).
 
@@ -339,6 +339,10 @@ class BetaMarginal(Generic[Array]):
             If input is not 2D or has wrong first dimension
         """
         return self._bkd.exp(self.logpdf(samples))
+
+    def __call__(self, samples: Array) -> Array:
+        """Evaluate the PDF (alias for pdf())."""
+        return self.pdf(samples)
 
     def logpdf(self, samples: Array) -> Array:
         """

@@ -254,7 +254,7 @@ class GammaMarginal(Generic[Array]):
         """Return the rate parameter (1/scale)."""
         return 1.0 / self.scale()
 
-    def __call__(self, samples: Array) -> Array:
+    def pdf(self, samples: Array) -> Array:
         """
         Evaluate the probability density function (PDF).
 
@@ -274,6 +274,10 @@ class GammaMarginal(Generic[Array]):
             If input is not 2D or has wrong first dimension
         """
         return self._bkd.exp(self.logpdf(samples))
+
+    def __call__(self, samples: Array) -> Array:
+        """Evaluate the PDF (alias for pdf())."""
+        return self.pdf(samples)
 
     def logpdf(self, samples: Array) -> Array:
         """

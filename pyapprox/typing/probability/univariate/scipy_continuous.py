@@ -71,7 +71,7 @@ class ScipyContinuousMarginal(Generic[Array]):
             )
         return samples[0]  # Return 1D for internal computation
 
-    def __call__(self, samples: Array) -> Array:
+    def pdf(self, samples: Array) -> Array:
         """
         Evaluate the probability density function.
 
@@ -95,6 +95,10 @@ class ScipyContinuousMarginal(Generic[Array]):
             self._scipy_rv.pdf(self._bkd.to_numpy(samples_1d))
         )
         return self._bkd.reshape(result, (1, -1))
+
+    def __call__(self, samples: Array) -> Array:
+        """Evaluate the PDF (alias for pdf())."""
+        return self.pdf(samples)
 
     def logpdf(self, samples: Array) -> Array:
         """

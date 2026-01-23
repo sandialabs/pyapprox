@@ -70,7 +70,7 @@ class ScipyDiscreteMarginal(Generic[Array]):
             )
         return samples[0]  # Return 1D for internal computation
 
-    def __call__(self, samples: Array) -> Array:
+    def pmf(self, samples: Array) -> Array:
         """
         Evaluate the probability mass function.
 
@@ -95,9 +95,13 @@ class ScipyDiscreteMarginal(Generic[Array]):
         )
         return self._bkd.reshape(result, (1, -1))
 
-    def pmf(self, samples: Array) -> Array:
-        """Alias for __call__, evaluate PMF."""
-        return self(samples)
+    def pdf(self, samples: Array) -> Array:
+        """Alias for pmf() (protocol compatibility)."""
+        return self.pmf(samples)
+
+    def __call__(self, samples: Array) -> Array:
+        """Evaluate the PDF/PMF (alias for pdf()/pmf())."""
+        return self.pmf(samples)
 
     def logpmf(self, samples: Array) -> Array:
         """

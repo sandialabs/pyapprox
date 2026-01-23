@@ -100,7 +100,7 @@ class LevelCostFunction(Generic[Array]):
         float
             Cost = sum(index) + 1.
         """
-        return float(self._bkd.sum(subspace_index)) + 1.0
+        return float(self._bkd.sum(subspace_index).item()) + 1.0
 
     def __repr__(self) -> str:
         return "LevelCostFunction()"

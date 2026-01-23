@@ -30,12 +30,13 @@ Design notes:
 """
 
 from functools import partial
-from typing import Any, Callable, Dict, Generic, List, Optional, Protocol, Tuple, runtime_checkable
+from typing import Any, Callable, Dict, Generic, List, Optional, Protocol, Tuple, Union, runtime_checkable
 
 from pyapprox.typing.util.backends.protocols import Array, Backend
 from pyapprox.typing.surrogates.affine.protocols import (
     Basis1DProtocol,
     InterpolationBasis1DProtocol,
+    OrthonormalPolynomial1DProtocol,
 )
 from pyapprox.typing.surrogates.affine.univariate.lagrange import LagrangeBasis1D
 from pyapprox.typing.surrogates.affine.univariate.transforms import (
@@ -46,11 +47,24 @@ from pyapprox.typing.surrogates.affine.univariate.transforms import (
 from pyapprox.typing.surrogates.affine.univariate.registry import (
     _lookup_analytical,
 )
+from pyapprox.typing.surrogates.affine.univariate.globalpoly.quadrature import (
+    ClenshawCurtisQuadratureRule,
+)
+from pyapprox.typing.surrogates.affine.leja.protocols import (
+    LejaSequence1DProtocol,
+    LejaWeightingProtocol,
+)
+from pyapprox.typing.surrogates.affine.leja.univariate import LejaSequence1D
+from pyapprox.typing.surrogates.affine.leja.weighting import (
+    ChristoffelWeighting,
+    PDFWeighting,
+)
+from pyapprox.typing.probability.protocols import MarginalProtocol
 
 
-# Type alias for factory creators: (marginal, bkd, **kwargs) -> BasisFactoryProtocol
-# Using Any for marginal type since marginals have different types
-FactoryCreator = Callable[..., "BasisFactoryProtocol[Array]"]
+# Type alias for factory creators
+# Using Any for return type since factories are generic over Array type
+FactoryCreator = Callable[..., Any]
 
 # Module-level registry for basis factory creators
 # Maps basis_type name -> callable(marginal, bkd, **kwargs) -> BasisFactoryProtocol
@@ -156,10 +170,12 @@ class GaussLagrangeFactory(Generic[Array]):
     >>> # samples are in [0, 1], not [-1, 1]
     """
 
-    def __init__(self, marginal, bkd: Backend[Array]) -> None:
+    def __init__(self, marginal: MarginalProtocol[Array], bkd: Backend[Array]) -> None:
         self._marginal = marginal
         self._bkd = bkd
-        self._poly = None
+        # Polynomial must provide gauss_quadrature_rule, nterms, set_nterms
+        # OrthonormalPolynomial1DProtocol extends Basis1DProtocol and adds gauss_quadrature_rule
+        self._poly: Optional[OrthonormalPolynomial1DProtocol[Array]] = None
         self._transform: Optional[Univariate1DTransformProtocol[Array]] = None
 
     def bkd(self) -> Backend[Array]:
@@ -181,11 +197,11 @@ class GaussLagrangeFactory(Generic[Array]):
                 )
                 if hasattr(self._marginal, "is_bounded") and self._marginal.is_bounded():
                     self._poly = BoundedNumericOrthonormalPolynomial1D(
-                        self._bkd, self._marginal
+                        self._marginal, self._bkd
                     )
                 else:
                     self._poly = UnboundedNumericOrthonormalPolynomial1D(
-                        self._bkd, self._marginal
+                        self._marginal, self._bkd
                     )
             self._transform = get_transform_from_marginal(
                 self._marginal, self._bkd
@@ -201,9 +217,13 @@ class GaussLagrangeFactory(Generic[Array]):
         """
         self._setup()
 
-        # Capture references for closure
+        # Capture references for closure (raise if _setup failed)
         poly = self._poly
         transform = self._transform
+        if poly is None:
+            raise RuntimeError("_setup() failed to initialize polynomial")
+        if transform is None:
+            raise RuntimeError("_setup() failed to initialize transform")
         bkd = self._bkd
 
         def user_domain_quad_rule(npoints: int) -> Tuple[Array, Array]:
@@ -259,32 +279,26 @@ class LejaLagrangeFactory(Generic[Array]):
 
     def __init__(
         self,
-        marginal,
+        marginal: MarginalProtocol[Array],
         bkd: Backend[Array],
         weighting: str = "christoffel",
         eps: float = 1e-6,
     ) -> None:
         self._marginal = marginal
         self._bkd = bkd
-        self._weighting = weighting
+        self._weighting_type = weighting
         self._eps = eps
-        self._leja_seq = None  # Cached across create_basis() calls
+        self._leja_seq: Optional[LejaSequence1DProtocol[Array]] = None
         self._transform: Optional[Univariate1DTransformProtocol[Array]] = None
 
     def bkd(self) -> Backend[Array]:
         """Return the computational backend."""
         return self._bkd
 
-    def _get_or_create_leja_sequence(self):
+    def _get_or_create_leja_sequence(self) -> LejaSequence1DProtocol[Array]:
         """Get or create the cached Leja sequence."""
         if self._leja_seq is not None:
             return self._leja_seq
-
-        from pyapprox.typing.surrogates.affine.leja.univariate import LejaSequence1D
-        from pyapprox.typing.surrogates.affine.leja.weighting import (
-            ChristoffelWeighting,
-            PDFWeighting,
-        )
 
         # Get polynomial using registry
         entry = _lookup_analytical(self._marginal)
@@ -298,24 +312,25 @@ class LejaLagrangeFactory(Generic[Array]):
             )
             if hasattr(self._marginal, "is_bounded") and self._marginal.is_bounded():
                 poly = BoundedNumericOrthonormalPolynomial1D(
-                    self._bkd, self._marginal
+                    self._marginal, self._bkd
                 )
             else:
                 poly = UnboundedNumericOrthonormalPolynomial1D(
-                    self._bkd, self._marginal
+                    self._marginal, self._bkd
                 )
 
         bounds = get_bounds_from_marginal(self._marginal, self._eps)
         self._transform = get_transform_from_marginal(self._marginal, self._bkd)
 
         # Create weighting
-        if self._weighting == "christoffel":
+        weighting: LejaWeightingProtocol[Array]
+        if self._weighting_type == "christoffel":
             weighting = ChristoffelWeighting(self._bkd)
-        elif self._weighting == "pdf":
+        elif self._weighting_type == "pdf":
             # For PDF weighting we need the marginal's PDF
-            weighting = PDFWeighting(self._marginal, self._bkd)
+            weighting = PDFWeighting(self._bkd, self._marginal.pdf)
         else:
-            raise ValueError(f"Unknown weighting: {self._weighting}")
+            raise ValueError(f"Unknown weighting: {self._weighting_type}")
 
         # Create Leja sequence in canonical domain
         self._leja_seq = LejaSequence1D(
@@ -337,6 +352,10 @@ class LejaLagrangeFactory(Generic[Array]):
         """
         leja_seq = self._get_or_create_leja_sequence()
         transform = self._transform
+        if transform is None:
+            raise RuntimeError(
+                "_get_or_create_leja_sequence() failed to initialize transform"
+            )
         bkd = self._bkd
 
         def user_domain_quad_rule(npoints: int) -> Tuple[Array, Array]:
@@ -354,7 +373,7 @@ class LejaLagrangeFactory(Generic[Array]):
     def __repr__(self) -> str:
         return (
             f"LejaLagrangeFactory(marginal={self._marginal!r}, "
-            f"weighting={self._weighting!r})"
+            f"weighting={self._weighting_type!r})"
         )
 
 
@@ -389,10 +408,10 @@ class ClenshawCurtisLagrangeFactory(Generic[Array]):
     >>> # samples are in [0, 1], not [-1, 1]
     """
 
-    def __init__(self, marginal, bkd: Backend[Array]) -> None:
+    def __init__(self, marginal: MarginalProtocol[Array], bkd: Backend[Array]) -> None:
         self._marginal = marginal
         self._bkd = bkd
-        self._cc_rule = None
+        self._cc_rule: Optional[ClenshawCurtisQuadratureRule[Array]] = None
         self._transform: Optional[Univariate1DTransformProtocol[Array]] = None
 
     def bkd(self) -> Backend[Array]:
@@ -402,10 +421,6 @@ class ClenshawCurtisLagrangeFactory(Generic[Array]):
     def _setup(self) -> None:
         """Initialize Clenshaw-Curtis quadrature and transform (lazy)."""
         if self._cc_rule is None:
-            from pyapprox.typing.surrogates.affine.univariate.globalpoly.quadrature import (
-                ClenshawCurtisQuadratureRule,
-            )
-
             # Create CC rule with caching enabled and probability measure
             self._cc_rule = ClenshawCurtisQuadratureRule(
                 self._bkd, store=True, prob_measure=True
@@ -424,11 +439,13 @@ class ClenshawCurtisLagrangeFactory(Generic[Array]):
         """
         self._setup()
 
-        # Capture references for closure (assertions satisfy mypy after _setup)
+        # Capture references for closure (raise if _setup failed)
         cc_rule = self._cc_rule
         transform = self._transform
-        assert cc_rule is not None
-        assert transform is not None
+        if cc_rule is None:
+            raise RuntimeError("_setup() failed to initialize CC rule")
+        if transform is None:
+            raise RuntimeError("_setup() failed to initialize transform")
         bkd = self._bkd
 
         def user_domain_quad_rule(npoints: int) -> Tuple[Array, Array]:
@@ -469,7 +486,7 @@ class PiecewiseFactory(Generic[Array]):
 
     def __init__(
         self,
-        marginal,
+        marginal: MarginalProtocol[Array],
         bkd: Backend[Array],
         poly_type: str = "quadratic",
         eps: float = 1e-6,
@@ -595,7 +612,9 @@ class PrebuiltBasisFactory(Generic[Array]):
         return f"PrebuiltBasisFactory(quad_rule={self._quad_rule!r})"
 
 
-def get_bounds_from_marginal(marginal, eps: float = 1e-6) -> Tuple[float, float]:
+def get_bounds_from_marginal(
+    marginal: MarginalProtocol[Array], eps: float = 1e-6
+) -> Tuple[float, float]:
     """Get integration bounds from marginal.
 
     For bounded distributions, returns the full support.
@@ -633,10 +652,10 @@ def get_bounds_from_marginal(marginal, eps: float = 1e-6) -> Tuple[float, float]
 
 
 def create_basis_factories(
-    marginals: List,
+    marginals: List[MarginalProtocol[Array]],
     bkd: Backend[Array],
     basis_type: str = "gauss",
-    **kwargs,
+    **kwargs: Any,
 ) -> List[BasisFactoryProtocol[Array]]:
     """Create list of basis factories from marginals.
 
@@ -683,10 +702,10 @@ def create_basis_factories(
 
 
 def create_bases_from_marginals(
-    marginals: List,
+    marginals: List[MarginalProtocol[Array]],
     bkd: Backend[Array],
     basis_type: str = "gauss",
-    **kwargs,
+    **kwargs: Any,
 ) -> List[Basis1DProtocol[Array]]:
     """Create list of pre-built bases from marginals.
 

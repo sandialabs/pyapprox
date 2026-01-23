@@ -14,19 +14,26 @@ The coefficients are computed using:
     c_k = sum_{e in {0,1}^d} (-1)^|e| * indicator(k + e in K)
 """
 
-from typing import Generic, Set, Tuple
+from typing import Set, Tuple
 
 from pyapprox.typing.util.backends.protocols import Array, Backend
 
 
 def _index_to_tuple(index: Array) -> Tuple[int, ...]:
-    """Convert array index to hashable tuple."""
-    return tuple(int(i) for i in index.flatten())
+    """Convert array index to hashable tuple.
 
+    Parameters
+    ----------
+    index : Array
+        1D array of shape (nvars,)
 
-def _tuple_to_index(tup: Tuple[int, ...], bkd: Backend) -> Array:
-    """Convert tuple back to array index."""
-    return bkd.asarray(list(tup), dtype=bkd.int64_dtype())
+    Returns
+    -------
+    Tuple[int, ...]
+        Hashable tuple representation of the index
+    """
+    # Iterate directly over elements - works for 1D arrays
+    return tuple(int(index[i]) for i in range(index.shape[0]))
 
 
 def compute_smolyak_coefficients(

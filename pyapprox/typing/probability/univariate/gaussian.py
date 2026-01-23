@@ -112,7 +112,7 @@ class GaussianMarginal(Generic[Array]):
         """Return the number of variables (always 1 for univariate)."""
         return 1
 
-    def __call__(self, samples: Array) -> Array:
+    def pdf(self, samples: Array) -> Array:
         """
         Evaluate the probability density function (PDF).
 
@@ -132,6 +132,10 @@ class GaussianMarginal(Generic[Array]):
             If input is not 2D or has wrong first dimension
         """
         return self._bkd.exp(self.logpdf(samples))
+
+    def __call__(self, samples: Array) -> Array:
+        """Evaluate the PDF (alias for pdf())."""
+        return self.pdf(samples)
 
     def logpdf(self, samples: Array) -> Array:
         """
