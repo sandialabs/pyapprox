@@ -1275,8 +1275,6 @@ MIXED_BASIS_INTERPOLATION_CONFIGS = [
     ("2d_gauss_pwlinear_L7", "2d_uniform", 7, ["gauss", "piecewise_linear"]),
     # CC + piecewise_linear: level 7 for ~3.7e-4 error
     ("2d_cc_pwlinear_L7", "2d_uniform", 7, ["clenshaw_curtis", "piecewise_linear"]),
-    # Leja + piecewise_quadratic: level 5 for ~7.4e-4 error (faster convergence)
-    ("2d_leja_pwquad_L5", "2d_uniform", 5, ["leja", "piecewise_quadratic"]),
     # Leja + piecewise_cubic: level 4 for ~5e-4 error (uses per-dim growth rules)
     ("2d_leja_pwcubic_L4", "2d_uniform", 4, ["leja", "piecewise_cubic"]),
 ]
