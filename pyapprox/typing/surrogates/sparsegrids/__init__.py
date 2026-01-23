@@ -8,7 +8,6 @@ Key classes:
 - CombinationSparseGrid: Base class for sparse grids
 - IsotropicCombinationSparseGrid: Pre-computed isotropic sparse grid
 - TensorProductSubspace: Individual tensor product in sparse grid
-- SparseGridFunction: Wrapper for DerivativeChecker integration
 
 Key functions:
 - compute_smolyak_coefficients: Compute combination coefficients
@@ -41,8 +40,6 @@ from .isotropic import IsotropicCombinationSparseGrid
 from .adaptive import AdaptiveCombinationSparseGrid
 
 from .multiindex import MultiIndexAdaptiveCombinationSparseGrid
-
-from .wrappers import SparseGridFunction
 
 from .converters import (
     SparseGridToPCEConverter,
@@ -81,8 +78,6 @@ __all__ = [
     "IsotropicCombinationSparseGrid",
     "AdaptiveCombinationSparseGrid",
     "MultiIndexAdaptiveCombinationSparseGrid",
-    # Wrappers
-    "SparseGridFunction",
     # Converters
     "SparseGridToPCEConverter",
     "TensorProductSubspaceToPCEConverter",

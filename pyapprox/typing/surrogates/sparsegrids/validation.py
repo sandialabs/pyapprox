@@ -16,9 +16,6 @@ from pyapprox.typing.surrogates.affine.protocols import (
     Basis1DProtocol,
 )
 from pyapprox.typing.surrogates.sparsegrids.basis_factory import BasisFactoryProtocol
-from pyapprox.typing.surrogates.sparsegrids.protocols import (
-    SparseGridWithDerivativesProtocol,
-)
 
 
 def validate_backend(bkd: object, param_name: str = "bkd") -> None:
@@ -78,15 +75,4 @@ def validate_basis1d(basis: object, param_name: str = "univariate_basis") -> Non
         raise TypeError(
             f"{param_name} must satisfy Basis1DProtocol, "
             f"got {type(basis).__name__}"
-        )
-
-
-def validate_sparse_grid_with_derivatives(
-    grid: object, param_name: str = "sparse_grid"
-) -> None:
-    """Validate that grid satisfies SparseGridWithDerivativesProtocol."""
-    if not isinstance(grid, SparseGridWithDerivativesProtocol):
-        raise TypeError(
-            f"{param_name} must satisfy SparseGridWithDerivativesProtocol, "
-            f"got {type(grid).__name__}"
         )

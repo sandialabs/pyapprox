@@ -163,6 +163,9 @@ class CombinationSparseGrid(Generic[Array]):
         # Distribute values to subspaces
         self._distribute_values_to_subspaces()
 
+        # Bind derivative methods based on nqoi
+        self._setup_derivative_methods()
+
     def _add_subspace(self, index: Array) -> TensorProductSubspace[Array]:
         """Add a subspace to the sparse grid.
 
@@ -379,7 +382,29 @@ class CombinationSparseGrid(Generic[Array]):
         """Return whether HVP/WHVP computation is supported."""
         return True
 
-    def jacobian(self, sample: Array) -> Array:
+    def _setup_derivative_methods(self) -> None:
+        """Bind derivative methods based on nqoi.
+
+        Per CLAUDE.md "Optional Methods Convention", methods that depend
+        on runtime state should be bound dynamically so hasattr() works
+        for capability discovery.
+
+        DerivativeChecker uses hasattr(obj, 'hvp') to decide whether to
+        use hvp (nqoi=1) or whvp (any nqoi).
+        """
+        # jacobian - always available once values are set
+        self.jacobian = self._jacobian
+
+        # hvp - only for scalar functions (nqoi == 1)
+        if self._nqoi == 1:
+            self.hvp = self._hvp
+        elif hasattr(self, "hvp"):
+            delattr(self, "hvp")
+
+        # whvp - always available (works for any nqoi)
+        self.whvp = self._whvp
+
+    def _jacobian(self, sample: Array) -> Array:
         """Compute Jacobian at a single sample point.
 
         Parameters
@@ -410,11 +435,12 @@ class CombinationSparseGrid(Generic[Array]):
 
         return jacobian
 
-    def hvp(self, sample: Array, vec: Array) -> Array:
+    def _hvp(self, sample: Array, vec: Array) -> Array:
         """Compute Hessian-vector product for scalar-valued function.
 
         Only valid when nqoi=1. Uses efficient computation without forming
-        the full Hessian.
+        the full Hessian. This method is bound to self.hvp by
+        _setup_derivative_methods() only when nqoi == 1.
 
         Parameters
         ----------
@@ -431,11 +457,6 @@ class CombinationSparseGrid(Generic[Array]):
         if self._values is None:
             raise ValueError("Values not set. Call set_values() first.")
 
-        if self._nqoi != 1:
-            raise ValueError(
-                f"hvp requires nqoi=1, got nqoi={self._nqoi}. Use whvp instead."
-            )
-
         if self._smolyak_coefficients is None:
             self._update_smolyak_coefficients()
         assert self._smolyak_coefficients is not None
@@ -451,12 +472,13 @@ class CombinationSparseGrid(Generic[Array]):
 
         return result
 
-    def whvp(self, sample: Array, vec: Array, weights: Array) -> Array:
+    def _whvp(self, sample: Array, vec: Array, weights: Array) -> Array:
         """Compute weighted Hessian-vector product for vector-valued function.
 
         For vector-valued functions, computes sum_i weights[i] * H_i @ vec
         where H_i is the Hessian of the i-th QoI. Uses efficient computation
-        without forming full Hessians.
+        without forming full Hessians. This method is bound to self.whvp by
+        _setup_derivative_methods().
 
         Parameters
         ----------

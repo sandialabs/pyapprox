@@ -16,7 +16,6 @@ from pyapprox.typing.util.test_utils import load_tests  # noqa: F401
 
 from pyapprox.typing.surrogates.sparsegrids import (
     IsotropicCombinationSparseGrid,
-    SparseGridFunction,
 )
 from pyapprox.typing.surrogates.sparsegrids.basis_factory import (
     BasisFactoryProtocol,
@@ -62,16 +61,13 @@ class TestSparseGridDerivatives(Generic[Array], unittest.TestCase):
         )
         grid.set_values(values)
 
-        # Wrap for derivative checker
-        sg_func = SparseGridFunction(grid)
-
-        # Check derivatives
+        # Check derivatives - grid now directly satisfies function protocols
         test_pt = self._bkd.asarray([[0.3], [0.4]])
-        checker = DerivativeChecker(sg_func)
+        checker = DerivativeChecker(grid)
         errors = checker.check_derivatives(test_pt, verbosity=0)
 
         # Jacobian should be [1, 2] - shape is (nqoi, nvars) = (1, 2)
-        jac = sg_func.jacobian(test_pt)
+        jac = grid.jacobian(test_pt)
         expected_jac = self._bkd.asarray([[1.0, 2.0]])
 
         self._bkd.assert_allclose(jac, expected_jac, rtol=1e-6)
@@ -101,17 +97,14 @@ class TestSparseGridDerivatives(Generic[Array], unittest.TestCase):
         values = self._bkd.reshape(x ** 2 + x * y, (1, -1))
         grid.set_values(values)
 
-        # Wrap for derivative checker
-        sg_func = SparseGridFunction(grid)
-
-        # Check derivatives
+        # Check derivatives - grid now directly satisfies function protocols
         test_pt = self._bkd.asarray([[0.3], [0.4]])
-        checker = DerivativeChecker(sg_func)
+        checker = DerivativeChecker(grid)
         errors = checker.check_derivatives(test_pt, verbosity=0)
 
         # Jacobian at (0.3, 0.4) should be [2*0.3 + 0.4, 0.3] = [1.0, 0.3]
         # Shape is (nqoi, nvars) = (1, 2)
-        jac = sg_func.jacobian(test_pt)
+        jac = grid.jacobian(test_pt)
         expected_jac = self._bkd.asarray([[1.0, 0.3]])
 
         self._bkd.assert_allclose(jac, expected_jac, rtol=1e-6)
@@ -142,16 +135,13 @@ class TestSparseGridDerivatives(Generic[Array], unittest.TestCase):
         )
         grid.set_values(values)
 
-        # Wrap for derivative checker
-        sg_func = SparseGridFunction(grid)
-
-        # Check derivatives
+        # Check derivatives - grid now directly satisfies function protocols
         test_pt = self._bkd.asarray([[0.1], [0.2], [0.3]])
-        checker = DerivativeChecker(sg_func)
+        checker = DerivativeChecker(grid)
         errors = checker.check_derivatives(test_pt, verbosity=0)
 
         # Jacobian should be [1, 1, 1] - shape is (nqoi, nvars) = (1, 3)
-        jac = sg_func.jacobian(test_pt)
+        jac = grid.jacobian(test_pt)
         expected_jac = self._bkd.asarray([[1.0, 1.0, 1.0]])
 
         self._bkd.assert_allclose(jac, expected_jac, rtol=1e-6)
@@ -182,13 +172,10 @@ class TestSparseGridDerivatives(Generic[Array], unittest.TestCase):
         )
         grid.set_values(values)
 
-        # Wrap for derivative checker
-        sg_func = SparseGridFunction(grid)
-
-        # Check derivatives at multiple points
+        # Check derivatives at multiple points - grid directly satisfies protocols
         for x_val, y_val in [(0.0, 0.0), (0.3, 0.4), (-0.5, 0.2)]:
             test_pt = self._bkd.asarray([[x_val], [y_val]])
-            checker = DerivativeChecker(sg_func)
+            checker = DerivativeChecker(grid)
             errors = checker.check_derivatives(test_pt, verbosity=0)
 
             jac_error = float(checker.error_ratio(errors[0]).item())
@@ -216,14 +203,11 @@ class TestSparseGridDerivatives(Generic[Array], unittest.TestCase):
         )
         grid.set_values(values)
 
-        # Wrap for derivative checker
-        sg_func = SparseGridFunction(grid)
-
-        # Check HVP
+        # Check HVP - grid now directly satisfies function protocols
         test_pt = self._bkd.asarray([[0.3], [0.4]])
         vec = self._bkd.asarray([[1.0], [0.0]])
 
-        hvp = sg_func.hvp(test_pt, vec)
+        hvp = grid.hvp(test_pt, vec)
 
         # Hessian is [[2, 0], [0, 2]]
         # HVP with [1, 0] should give [2, 0]
@@ -253,15 +237,12 @@ class TestSparseGridDerivatives(Generic[Array], unittest.TestCase):
         )
         grid.set_values(values)
 
-        # Wrap for derivative checker
-        sg_func = SparseGridFunction(grid)
-
-        # Check WHVP
+        # Check WHVP - grid now directly satisfies function protocols
         test_pt = self._bkd.asarray([[0.3], [0.4]])
         vec = self._bkd.asarray([[1.0], [1.0]])
         weights = self._bkd.asarray([[0.5]])  # Shape (1, nqoi)
 
-        whvp = sg_func.whvp(test_pt, vec, weights)
+        whvp = grid.whvp(test_pt, vec, weights)
 
         # Hessian is [[2, 0], [0, 2]]
         # WHVP with [1, 1] and weight 0.5 should give 0.5 * [2, 2] = [1, 1]
