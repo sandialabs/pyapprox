@@ -134,3 +134,87 @@ class ExponentialGrowthRule(IndexGrowthRule):
 
     def __repr__(self) -> str:
         return f"ExponentialGrowthRule(base={self._base})"
+
+
+class CubicNestedGrowthRule(IndexGrowthRule):
+    """Nested growth rule for cubic piecewise polynomials: n(l) = 3 * 2^(l-1) + 1.
+
+    At level 0, returns 1.
+
+    This rule produces nested equidistant points compatible with cubic
+    piecewise polynomial bases, which require (n - 4) % 3 == 0.
+
+    The sequence is: 1, 4, 7, 13, 25, 49, 97, ...
+
+    For l > 0: n(l) - 1 = 3 * 2^(l-1), which ensures:
+    - n(l) - 4 = 3 * (2^(l-1) - 1), divisible by 3 ✓
+    - n(l+1) - 1 = 2 * (n(l) - 1), so equidistant points are nested ✓
+
+    Examples
+    --------
+    >>> rule = CubicNestedGrowthRule()
+    >>> [rule(l) for l in range(6)]
+    [1, 4, 7, 13, 25, 49]
+    """
+
+    def __call__(self, level: int) -> int:
+        if level == 0:
+            return 1
+        return 3 * (2 ** (level - 1)) + 1
+
+    def __repr__(self) -> str:
+        return "CubicNestedGrowthRule()"
+
+
+def inverse_growth_rule(degree: int, growth_rule: IndexGrowthRule) -> int:
+    """Find minimum level l such that growth_rule(l) > degree.
+
+    This is the inverse of the growth rule: given a polynomial degree d,
+    find the minimum sparse grid level needed to represent polynomials
+    of that degree. Since Lagrange interpolation with n points can
+    exactly represent polynomials of degree n-1, we need the first level
+    where growth_rule(l) > degree.
+
+    Parameters
+    ----------
+    degree : int
+        Polynomial degree to represent.
+    growth_rule : IndexGrowthRule
+        Growth rule mapping level to number of points.
+
+    Returns
+    -------
+    int
+        Minimum level l such that growth_rule(l) > degree.
+
+    Raises
+    ------
+    ValueError
+        If degree is negative or if no level found within search limit.
+
+    Examples
+    --------
+    >>> rule = LinearGrowthRule(scale=1, shift=1)  # n(l) = l + 1
+    >>> inverse_growth_rule(0, rule)  # need n > 0, so n=1 at level 0
+    0
+    >>> inverse_growth_rule(1, rule)  # need n > 1, so n=2 at level 1
+    1
+    >>> inverse_growth_rule(3, rule)  # need n > 3, so n=4 at level 3
+    3
+
+    >>> rule = LinearGrowthRule(scale=2, shift=1)  # n(l) = 2*l + 1 for l>0
+    >>> inverse_growth_rule(2, rule)  # need n > 2, so n=3 at level 1
+    1
+    >>> inverse_growth_rule(4, rule)  # need n > 4, so n=5 at level 2
+    2
+    """
+    if degree < 0:
+        raise ValueError("Degree must be non-negative")
+
+    for level in range(1000):
+        if growth_rule(level) > degree:
+            return level
+
+    raise ValueError(
+        f"Could not find level for degree {degree} within search limit"
+    )

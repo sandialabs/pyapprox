@@ -190,3 +190,68 @@ def indices_pnorm(indices: Array, pnorm: float, bkd: Backend[Array]) -> Array:
     if indices.ndim == 1:
         return bkd.sum(indices**pnorm) ** (1.0 / pnorm)
     return bkd.sum(indices**pnorm, axis=0) ** (1.0 / pnorm)
+
+
+def compute_downward_closure(indices: Array, bkd: Backend[Array]) -> Array:
+    """Compute the downward closure of a set of multi-indices.
+
+    The downward closure of a set S of multi-indices is the smallest
+    downward-closed set containing S. For each index (l_0, ..., l_{d-1})
+    in S, the closure includes all indices (k_0, ..., k_{d-1}) where
+    0 <= k_i <= l_i for all dimensions i.
+
+    Parameters
+    ----------
+    indices : Array
+        Multi-indices to compute closure of. Shape: (nvars, nindices)
+    bkd : Backend[Array]
+        Computational backend.
+
+    Returns
+    -------
+    Array
+        Downward closure of the input indices. Shape: (nvars, nclosure)
+        Sorted lexicographically by total level, then by dimension.
+
+    Examples
+    --------
+    >>> from pyapprox.typing.util.backends.numpy import NumpyBkd
+    >>> bkd = NumpyBkd()
+    >>> # Closure of {(2, 1)} = {(0,0), (1,0), (2,0), (0,1), (1,1), (2,1)}
+    >>> indices = bkd.asarray([[2], [1]])
+    >>> closure = compute_downward_closure(indices, bkd)
+    >>> closure.shape[1]  # 6 indices
+    6
+
+    >>> # Closure of {(1, 0), (0, 2)} includes both closures merged
+    >>> indices = bkd.asarray([[1, 0], [0, 2]])
+    >>> closure = compute_downward_closure(indices, bkd)
+    >>> # Result: {(0,0), (1,0), (0,1), (0,2)}
+    >>> closure.shape[1]
+    4
+    """
+    nvars = indices.shape[0]
+
+    # Collect all indices in the closure using a set
+    closure_set: set[tuple[int, ...]] = set()
+
+    for j in range(indices.shape[1]):
+        index = tuple(int(bkd.to_numpy(indices[i, j])) for i in range(nvars))
+
+        # Add all predecessors (including the index itself)
+        ranges = [range(index[i] + 1) for i in range(nvars)]
+        for predecessor in itertools.product(*ranges):
+            closure_set.add(predecessor)
+
+    # Convert to array
+    nclosure = len(closure_set)
+    if nclosure == 0:
+        return bkd.zeros((nvars, 0), dtype=bkd.int64_dtype())
+
+    result = bkd.zeros((nvars, nclosure), dtype=bkd.int64_dtype())
+    for j, idx in enumerate(closure_set):
+        for i in range(nvars):
+            result[i, j] = idx[i]
+
+    # Sort lexicographically for consistent output
+    return sort_indices_lexiographically(result, bkd)

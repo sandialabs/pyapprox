@@ -7,6 +7,7 @@ from pyapprox.typing.surrogates.affine.indices.utils import (
     sort_indices_lexiographically,
     argsort_indices_lexiographically,
     indices_pnorm,
+    compute_downward_closure,
 )
 
 from pyapprox.typing.surrogates.affine.indices.admissibility import (
@@ -23,6 +24,8 @@ from pyapprox.typing.surrogates.affine.indices.growth_rules import (
     DoublePlusOneGrowthRule,
     ConstantGrowthRule,
     ExponentialGrowthRule,
+    CubicNestedGrowthRule,
+    inverse_growth_rule,
 )
 
 from pyapprox.typing.surrogates.affine.indices.generators import (
@@ -61,6 +64,7 @@ __all__ = [
     "sort_indices_lexiographically",
     "argsort_indices_lexiographically",
     "indices_pnorm",
+    "compute_downward_closure",
     # Admissibility criteria
     "AdmissibilityCriteria",
     "MaxLevelCriteria",
@@ -73,6 +77,8 @@ __all__ = [
     "DoublePlusOneGrowthRule",
     "ConstantGrowthRule",
     "ExponentialGrowthRule",
+    "CubicNestedGrowthRule",
+    "inverse_growth_rule",
     # Generators
     "IndexGenerator",
     "IterativeIndexGenerator",
