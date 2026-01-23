@@ -4,7 +4,7 @@ This module provides adaptive sparse grid surrogates that refine
 subspaces based on error indicators.
 """
 
-from typing import Callable, Generic, List, Optional, Tuple, Union
+from typing import Generic, List, Optional, Tuple, Union
 
 from pyapprox.typing.util.backends.protocols import Array, Backend
 from pyapprox.typing.surrogates.affine.protocols import (
@@ -20,6 +20,8 @@ from .subspace import TensorProductSubspace
 from .combination import CombinationSparseGrid
 from .basis_factory import BasisFactoryProtocol
 from .validation import validate_admissibility
+from .refinement.protocols import SparseGridRefinementCriteriaProtocol
+from .refinement.l2norm import L2NormRefinementCriteria
 
 # Type alias for the index generator used in adaptive grids
 _IndexGenType = IterativeIndexGenerator
@@ -44,9 +46,10 @@ class AdaptiveCombinationSparseGrid(CombinationSparseGrid[Array], Generic[Array]
         corresponding dimension.
     admissibility : AdmissibilityCriteria[Array]
         Criteria for admissible subspace indices.
-    refinement_priority : Callable[[Array, Array, "AdaptiveCombinationSparseGrid"], Tuple[float, float]], optional
-        Function(subspace_index, subspace_values, grid) -> (priority, error)
-        Higher priority indices are refined first. Default: L2 norm error.
+    refinement_priority : SparseGridRefinementCriteriaProtocol[Array], optional
+        Criteria for computing refinement priorities.
+        Higher priority indices are refined first.
+        Default: L2NormRefinementCriteria.
     verbosity : int, optional
         Verbosity level for debugging output:
         - 0: No output (default)
@@ -81,10 +84,7 @@ class AdaptiveCombinationSparseGrid(CombinationSparseGrid[Array], Generic[Array]
         growth_rules: Union[IndexGrowthRuleProtocol, List[IndexGrowthRuleProtocol]],
         admissibility: AdmissibilityCriteria[Array],
         refinement_priority: Optional[
-            Callable[
-                [Array, Array, "AdaptiveCombinationSparseGrid[Array]"],
-                Tuple[float, float],
-            ]
+            SparseGridRefinementCriteriaProtocol[Array]
         ] = None,
         verbosity: int = 0,
     ):
@@ -93,9 +93,14 @@ class AdaptiveCombinationSparseGrid(CombinationSparseGrid[Array], Generic[Array]
 
         super().__init__(bkd, basis_factories, growth_rules)
         self._admissibility = admissibility
-        self._refinement_priority = (
-            refinement_priority or self._default_refinement_priority
-        )
+        if refinement_priority is None:
+            refinement_priority = L2NormRefinementCriteria(bkd)
+        if not isinstance(refinement_priority, SparseGridRefinementCriteriaProtocol):
+            raise TypeError(
+                f"refinement_priority must satisfy SparseGridRefinementCriteriaProtocol, "
+                f"got {type(refinement_priority).__name__}"
+            )
+        self._refinement_priority = refinement_priority
         self._verbosity = verbosity
 
         # Index generator for tracking selected/candidate subspaces
@@ -119,47 +124,6 @@ class AdaptiveCombinationSparseGrid(CombinationSparseGrid[Array], Generic[Array]
         # Stored Smolyak coefficients for selected indices (incrementally updated)
         # Shape: (nselected + ncandidates,) with candidates having 0 coefficients
         self._selected_smolyak_coefs: Optional[Array] = None
-
-    def _default_refinement_priority(
-        self,
-        subspace_index: Array,
-        subspace_values: Array,
-        grid: "AdaptiveCombinationSparseGrid[Array]",
-    ) -> Tuple[float, float]:
-        """Default refinement priority based on L2 norm error.
-
-        Computes the interpolation error on the subspace samples.
-
-        Parameters
-        ----------
-        subspace_index : Array
-            Multi-index of the subspace.
-        subspace_values : Array
-            Function values at subspace samples.
-        grid : AdaptiveCombinationSparseGrid
-            The sparse grid (self).
-
-        Returns
-        -------
-        Tuple[float, float]
-            (priority, error) where higher priority = refine first.
-        """
-        key = _index_to_tuple(subspace_index)
-        if key not in self._subspaces:
-            return 0.0, float("inf")
-
-        subspace = self._subspaces[key]
-        samples = subspace.get_samples()
-
-        # Evaluate current interpolant at subspace samples
-        current_vals = self._evaluate_selected_only(samples)
-        error = float(
-            self._bkd.norm(subspace_values - current_vals)
-            / max(1, subspace_values.shape[1])  # nsamples is in second dim
-        )
-
-        # Higher error = higher priority (return positive priority)
-        return error, error
 
     def _evaluate_selected_only(self, samples: Array) -> Array:
         """Evaluate sparse grid using only selected subspaces."""

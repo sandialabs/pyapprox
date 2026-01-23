@@ -5,7 +5,7 @@ models through refinement variables. The sparse grid is built over both
 the physical variables and fidelity/refinement indices.
 """
 
-from typing import Callable, Generic, List, Optional, Tuple, cast
+from typing import Generic, List, Optional, Tuple
 
 from pyapprox.typing.util.backends.protocols import Array, Backend
 from pyapprox.typing.surrogates.affine.protocols import (
@@ -20,6 +20,7 @@ from pyapprox.typing.surrogates.affine.univariate import LagrangeBasis1D
 
 from .adaptive import AdaptiveCombinationSparseGrid
 from .basis_factory import BasisFactoryProtocol, PrebuiltBasisFactory
+from .refinement.protocols import SparseGridRefinementCriteriaProtocol
 
 
 class MultiIndexAdaptiveCombinationSparseGrid(
@@ -57,8 +58,8 @@ class MultiIndexAdaptiveCombinationSparseGrid(
     admissibility : AdmissibilityCriteria[Array], optional
         Criteria for admissible subspace indices.
         If None, uses Max1DLevelsCriteria with refinement_bounds.
-    refinement_priority : Callable, optional
-        Function(subspace_index, subspace_values, grid) -> (priority, error).
+    refinement_priority : SparseGridRefinementCriteriaProtocol[Array], optional
+        Criteria for computing refinement priorities. Default: L2NormRefinementCriteria.
 
     Examples
     --------
@@ -95,14 +96,7 @@ class MultiIndexAdaptiveCombinationSparseGrid(
         growth_rule: Optional[IndexGrowthRuleProtocol] = None,
         admissibility: Optional[AdmissibilityCriteria[Array]] = None,
         refinement_priority: Optional[
-            Callable[
-                [
-                    Array,
-                    Array,
-                    "MultiIndexAdaptiveCombinationSparseGrid[Array]",
-                ],
-                Tuple[float, float],
-            ]
+            SparseGridRefinementCriteriaProtocol[Array]
         ] = None,
     ):
         self._nvars_physical = len(physical_basis_factories)
@@ -141,30 +135,12 @@ class MultiIndexAdaptiveCombinationSparseGrid(
             )
             admissibility = Max1DLevelsCriteria(max_levels, bkd)
 
-        # Cast refinement_priority to match parent's expected type
-        # This is safe because MultiIndexAdaptiveCombinationSparseGrid is a
-        # subclass of AdaptiveCombinationSparseGrid
-        parent_priority: Optional[
-            Callable[
-                [Array, Array, AdaptiveCombinationSparseGrid[Array]],
-                Tuple[float, float],
-            ]
-        ] = None
-        if refinement_priority is not None:
-            parent_priority = cast(
-                Callable[
-                    [Array, Array, AdaptiveCombinationSparseGrid[Array]],
-                    Tuple[float, float],
-                ],
-                refinement_priority,
-            )
-
         super().__init__(
             bkd,
             all_factories,
             growth_rule,
             admissibility,
-            parent_priority,
+            refinement_priority,
         )
 
     def _create_discrete_level_basis(
