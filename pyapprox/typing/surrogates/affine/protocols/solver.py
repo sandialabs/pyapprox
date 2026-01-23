@@ -40,7 +40,7 @@ class LinearSystemSolverProtocol(Protocol, Generic[Array]):
 
 
 @runtime_checkable
-class WeightedSolverProtocol(Protocol, Generic[Array]):
+class WeightedSolverProtocol(Protocol, Generic[Array]):  # type: ignore[misc]
     """Protocol for solvers that support sample weights."""
 
     def set_weights(self, weights: Array) -> None:
@@ -55,7 +55,7 @@ class WeightedSolverProtocol(Protocol, Generic[Array]):
 
 
 @runtime_checkable
-class SparseSolverProtocol(Protocol, Generic[Array]):
+class SparseSolverProtocol(Protocol, Generic[Array]):  # type: ignore[misc]
     """Protocol for sparse solvers with sparsity control."""
 
     def set_max_nonzeros(self, max_nonzeros: int) -> None:
@@ -70,7 +70,7 @@ class SparseSolverProtocol(Protocol, Generic[Array]):
 
 
 @runtime_checkable
-class RegularizedSolverProtocol(Protocol, Generic[Array]):
+class RegularizedSolverProtocol(Protocol, Generic[Array]):  # type: ignore[misc]
     """Protocol for regularized solvers."""
 
     def set_regularization(self, alpha: float) -> None:
@@ -85,7 +85,7 @@ class RegularizedSolverProtocol(Protocol, Generic[Array]):
 
 
 @runtime_checkable
-class QuantileSolverProtocol(Protocol, Generic[Array]):
+class QuantileSolverProtocol(Protocol, Generic[Array]):  # type: ignore[misc]
     """Protocol for quantile regression solvers."""
 
     def set_quantile(self, quantile: float) -> None:
@@ -100,7 +100,7 @@ class QuantileSolverProtocol(Protocol, Generic[Array]):
 
 
 @runtime_checkable
-class ConstrainedSolverProtocol(Protocol, Generic[Array]):
+class ConstrainedSolverProtocol(Protocol, Generic[Array]):  # type: ignore[misc]
     """Protocol for solvers with linear constraints."""
 
     def set_constraints(

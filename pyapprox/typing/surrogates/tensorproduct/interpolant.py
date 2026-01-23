@@ -5,7 +5,7 @@ used independently of sparse grids. It requires 1D bases that satisfy the
 InterpolationBasis1DProtocol.
 """
 
-from typing import Generic, List, Optional, Sequence
+from typing import Generic, List, Optional, Sequence, cast
 
 from pyapprox.typing.util.backends.protocols import Array, Backend
 from pyapprox.typing.util.cartesian import (
@@ -118,13 +118,13 @@ class TensorProductInterpolant(Generic[Array]):
 
     def nsamples(self) -> int:
         """Return the total number of interpolation points."""
-        return self._nsamples
+        return int(self._nsamples)
 
     def nqoi(self) -> int:
         """Return the number of quantities of interest, or 0 if not set."""
         if self._values is None:
             return 0
-        return self._values.shape[0]
+        return int(self._values.shape[0])
 
     def get_samples(self) -> Array:
         """Return interpolation node locations.
@@ -229,7 +229,7 @@ class TensorProductInterpolant(Generic[Array]):
             interp_mat = interp_mat * basis_vals_1d[dd][:, self._tp_indices[dd, :]]
 
         # Apply to values: (nqoi, nsamples) @ (nsamples, npoints) = (nqoi, npoints)
-        return self._values @ interp_mat.T
+        return self._bkd.dot(self._values, interp_mat.T)
 
     # Derivative support methods
 
@@ -259,7 +259,8 @@ class TensorProductInterpolant(Generic[Array]):
 
         derivs = []
         for dd in range(self.nvars()):
-            jac = self._bases_1d[dd].jacobian_batch(samples[dd : dd + 1, :])
+            basis = cast(Basis1DHasJacobianProtocol[Array], self._bases_1d[dd])
+            jac = basis.jacobian_batch(samples[dd : dd + 1, :])
             derivs.append(jac)
         return derivs
 
@@ -281,7 +282,8 @@ class TensorProductInterpolant(Generic[Array]):
 
         derivs = []
         for dd in range(self.nvars()):
-            hess = self._bases_1d[dd].hessian_batch(samples[dd : dd + 1, :])
+            basis = cast(Basis1DHasHessianProtocol[Array], self._bases_1d[dd])
+            hess = basis.hessian_batch(samples[dd : dd + 1, :])
             derivs.append(hess)
         return derivs
 
@@ -440,7 +442,7 @@ class TensorProductInterpolant(Generic[Array]):
             raise RuntimeError("HVP not supported by univariate bases")
 
         nvars = self.nvars()
-        vec_flat = vec.flatten()
+        vec_flat = self._bkd.flatten(vec)
 
         basis_vals_1d = self._basis_vals_1d(sample)
         basis_derivs_1d = self._basis_jacobians_1d(sample)
@@ -450,12 +452,10 @@ class TensorProductInterpolant(Generic[Array]):
         result = self._bkd.zeros((nvars, 1))
 
         for dim1 in range(nvars):
-            row_sum = 0.0
+            row_sum: Array = self._bkd.asarray(0.0)
 
             for dim2 in range(nvars):
-                v_j = float(vec_flat[dim2])
-                if abs(v_j) < 1e-14:
-                    continue
+                v_j = vec_flat[dim2]
 
                 if dim1 == dim2:
                     interp_deriv = basis_hess_1d[dim1][0, self._tp_indices[dim1, :]]
@@ -472,8 +472,8 @@ class TensorProductInterpolant(Generic[Array]):
                             * basis_vals_1d[dd][0, self._tp_indices[dd, :]]
                         )
 
-                H_ij = float(self._bkd.dot(interp_deriv, values_q))
-                row_sum += H_ij * v_j
+                H_ij = self._bkd.dot(interp_deriv, values_q)
+                row_sum = row_sum + H_ij * v_j
 
             result[dim1, 0] = row_sum
 
@@ -489,18 +489,19 @@ class TensorProductInterpolant(Generic[Array]):
 
         This is used by whvp to compute weighted HVP across QoIs.
         """
+        if self._values is None:
+            raise ValueError("Values not set. Call set_values() first.")
+
         nvars = self.nvars()
-        vec_flat = vec.flatten()
+        vec_flat = self._bkd.flatten(vec)
         values_q = self._values[qoi_idx, :]  # Shape: (nsamples,)
         result = self._bkd.zeros((nvars, 1))
 
         for dim1 in range(nvars):
-            row_sum = 0.0
+            row_sum: Array = self._bkd.asarray(0.0)
 
             for dim2 in range(nvars):
-                v_j = float(vec_flat[dim2])
-                if abs(v_j) < 1e-14:
-                    continue
+                v_j = vec_flat[dim2]
 
                 if dim1 == dim2:
                     interp_deriv = basis_hess_1d[dim1][0, self._tp_indices[dim1, :]]
@@ -517,8 +518,8 @@ class TensorProductInterpolant(Generic[Array]):
                             * basis_vals_1d[dd][0, self._tp_indices[dd, :]]
                         )
 
-                H_ij = float(self._bkd.dot(interp_deriv, values_q))
-                row_sum += H_ij * v_j
+                H_ij = self._bkd.dot(interp_deriv, values_q)
+                row_sum = row_sum + H_ij * v_j
 
             result[dim1, 0] = row_sum
 
@@ -559,7 +560,7 @@ class TensorProductInterpolant(Generic[Array]):
         nqoi = self._values.shape[0]
         result = self._bkd.zeros((self.nvars(), 1))
 
-        weights_flat = weights.flatten()
+        weights_flat = self._bkd.flatten(weights)
 
         # Precompute basis evaluations once for all QoIs
         basis_vals_1d = self._basis_vals_1d(sample)
@@ -567,13 +568,12 @@ class TensorProductInterpolant(Generic[Array]):
         basis_hess_1d = self._basis_hessians_1d(sample)
 
         for qoi_idx in range(nqoi):
-            w = float(weights_flat[qoi_idx])
-            if abs(w) > 1e-14:
-                hvp_q = self._hvp_for_qoi(
-                    sample, vec, qoi_idx,
-                    basis_vals_1d, basis_derivs_1d, basis_hess_1d
-                )
-                result = result + w * hvp_q
+            w = weights_flat[qoi_idx]
+            hvp_q = self._hvp_for_qoi(
+                sample, vec, qoi_idx,
+                basis_vals_1d, basis_derivs_1d, basis_hess_1d
+            )
+            result = result + w * hvp_q
 
         return result
 

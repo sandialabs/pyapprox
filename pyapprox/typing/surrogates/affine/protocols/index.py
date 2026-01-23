@@ -136,7 +136,7 @@ class IterativeIndexGeneratorProtocol(Protocol, Generic[Array]):
 
 
 @runtime_checkable
-class AdmissibilityCriteriaProtocol(Protocol, Generic[Array]):
+class AdmissibilityCriteriaProtocol(Protocol, Generic[Array]):  # type: ignore[misc]
     """Protocol for index admissibility criteria.
 
     Admissibility criteria determine which indices can be added to

@@ -26,7 +26,7 @@ Specialized protocols:
     - OrthonormalPolynomial1DProtocol - for orthonormal polynomial bases
 """
 
-from typing import Generic, Tuple, Protocol, runtime_checkable
+from typing import Generic, Protocol, Tuple, runtime_checkable
 
 from pyapprox.typing.util.backends.protocols import Array, Backend
 
@@ -313,6 +313,25 @@ class InterpolationBasis1DProtocol(Protocol, Generic[Array]):
         """
         ...
 
+    def quadrature_rule(self) -> Tuple[Array, Array]:
+        """Return quadrature points and weights for current nterms.
+
+        Must call `set_nterms()` before using this method.
+
+        Returns
+        -------
+        points : Array
+            Quadrature points. Shape: (1, nterms)
+        weights : Array
+            Quadrature weights. Shape: (nterms, 1)
+
+        Raises
+        ------
+        ValueError
+            If `set_nterms()` has not been called.
+        """
+        ...
+
 
 # Specialized protocols
 
@@ -359,7 +378,7 @@ class OrthonormalPolynomial1DProtocol(Basis1DProtocol[Array], Protocol, Generic[
 
 
 @runtime_checkable
-class Basis1DHasQuadratureProtocol(Protocol, Generic[Array]):
+class Basis1DHasQuadratureProtocol(Protocol, Generic[Array]):  # type: ignore[misc]
     """Protocol for 1D bases with quadrature rule support."""
 
     def quadrature_rule(self, npoints: int) -> Tuple[Array, Array]:

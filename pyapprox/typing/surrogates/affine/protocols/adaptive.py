@@ -68,7 +68,7 @@ class AdaptiveIteratorProtocol(Protocol, Generic[Array]):
 
 
 @runtime_checkable
-class PrioritizedCandidateQueueProtocol(Protocol, Generic[Array]):
+class PrioritizedCandidateQueueProtocol(Protocol, Generic[Array]):  # type: ignore[misc]
     """Protocol for priority queues of candidate indices.
 
     Priority queues manage candidate indices for adaptive refinement,

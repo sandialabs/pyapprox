@@ -108,7 +108,7 @@ class BasisExpansionHasHessianProtocol(Protocol, Generic[Array]):
 
 
 @runtime_checkable
-class FittableBasisExpansionProtocol(Protocol, Generic[Array]):
+class FittableBasisExpansionProtocol(Protocol, Generic[Array]):  # type: ignore[misc]
     """Protocol for expansions that can be fitted to data."""
 
     def fit(self, samples: Array, values: Array) -> None:

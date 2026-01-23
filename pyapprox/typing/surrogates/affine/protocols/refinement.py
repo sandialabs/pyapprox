@@ -14,7 +14,7 @@ from pyapprox.typing.util.backends.protocols import Array
 
 
 @runtime_checkable
-class CostFunctionProtocol(Protocol, Generic[Array]):
+class CostFunctionProtocol(Protocol, Generic[Array]):  # type: ignore[misc]
     """Protocol for computing refinement costs.
 
     Cost functions estimate the computational cost of refining a given
@@ -43,7 +43,7 @@ class CostFunctionProtocol(Protocol, Generic[Array]):
 
 
 @runtime_checkable
-class RefinementCriteriaProtocol(Protocol, Generic[Array]):
+class RefinementCriteriaProtocol(Protocol, Generic[Array]):  # type: ignore[misc]
     """Protocol for refinement criteria.
 
     Refinement criteria determine which indices should be refined based

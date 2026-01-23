@@ -21,7 +21,10 @@ Multi-index protocols:
     - MultiIndexBasisProtocol - for bases with multi-index structure
 """
 
-from typing import Generic, Protocol, runtime_checkable
+from typing import TYPE_CHECKING, Generic, List, Protocol, runtime_checkable
+
+if TYPE_CHECKING:
+    from pyapprox.typing.surrogates.affine.protocols.basis1d import Basis1DProtocol
 
 from pyapprox.typing.util.backends.protocols import Array, Backend
 
@@ -239,11 +242,11 @@ class TensorProductBasisProtocol(Protocol, Generic[Array]):
 
     Methods
     -------
-    get_univariate_bases() -> list
+    get_univariate_bases() -> List[Basis1DProtocol[Array]]
         Return the univariate bases for each variable.
     """
 
-    def get_univariate_bases(self) -> list:
+    def get_univariate_bases(self) -> List["Basis1DProtocol[Array]"]:
         """Return the univariate bases.
 
         Returns

@@ -528,11 +528,6 @@ class Backend(Protocol, Generic[Array]):
         ...
 
     @staticmethod
-    def int64_dtype() -> Any:
-        """Return the int64 dtype for this backend."""
-        ...
-
-    @staticmethod
     def where(
         condition: Array,
         x: Union[Array, float, None] = None,
