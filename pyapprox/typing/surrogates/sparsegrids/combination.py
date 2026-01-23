@@ -16,6 +16,11 @@ from .smolyak import compute_smolyak_coefficients, _index_to_tuple
 from .subspace import TensorProductSubspace
 from .basis_factory import BasisFactoryProtocol
 from .protocols import SubspaceProtocol
+from .validation import (
+    validate_backend,
+    validate_basis_factories,
+    validate_growth_rules,
+)
 
 
 class CombinationSparseGrid(Generic[Array]):
@@ -62,6 +67,11 @@ class CombinationSparseGrid(Generic[Array]):
         basis_factories: List[BasisFactoryProtocol[Array]],
         growth_rules: Union[IndexGrowthRuleProtocol, List[IndexGrowthRuleProtocol]],
     ):
+        # Runtime protocol validation
+        validate_backend(bkd)
+        validate_basis_factories(basis_factories)
+        validate_growth_rules(growth_rules)
+
         self._bkd = bkd
         self._basis_factories = basis_factories
         self._growth_rules = growth_rules

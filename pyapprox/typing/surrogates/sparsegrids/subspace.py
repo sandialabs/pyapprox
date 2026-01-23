@@ -20,6 +20,11 @@ from pyapprox.typing.surrogates.sparsegrids.basis_setup import (
     compute_npts_from_growth_rule,
 )
 from pyapprox.typing.surrogates.sparsegrids.basis_factory import BasisFactoryProtocol
+from pyapprox.typing.surrogates.sparsegrids.validation import (
+    validate_backend,
+    validate_basis_factories,
+    validate_growth_rules,
+)
 
 
 class TensorProductSubspace(Generic[Array]):
@@ -70,6 +75,11 @@ class TensorProductSubspace(Generic[Array]):
         basis_factories: List[BasisFactoryProtocol[Array]],
         growth_rules: Union[IndexGrowthRuleProtocol, List[IndexGrowthRuleProtocol]],
     ):
+        # Runtime protocol validation
+        validate_backend(bkd)
+        validate_basis_factories(basis_factories)
+        validate_growth_rules(growth_rules)
+
         self._bkd = bkd
         self._index = bkd.copy(index)
         self._basis_factories = basis_factories

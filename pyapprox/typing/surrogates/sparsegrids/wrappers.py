@@ -10,6 +10,9 @@ from pyapprox.typing.util.backends.protocols import Array, Backend
 from pyapprox.typing.surrogates.sparsegrids.protocols import (
     SparseGridWithDerivativesProtocol,
 )
+from pyapprox.typing.surrogates.sparsegrids.validation import (
+    validate_sparse_grid_with_derivatives,
+)
 
 
 class SparseGridFunction(Generic[Array]):
@@ -38,6 +41,9 @@ class SparseGridFunction(Generic[Array]):
     """
 
     def __init__(self, sparse_grid: SparseGridWithDerivativesProtocol[Array]):
+        # Runtime protocol validation
+        validate_sparse_grid_with_derivatives(sparse_grid)
+
         self._grid = sparse_grid
 
     def bkd(self) -> Backend[Array]:

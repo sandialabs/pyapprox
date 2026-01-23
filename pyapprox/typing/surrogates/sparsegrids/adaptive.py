@@ -19,6 +19,7 @@ from .smolyak import compute_smolyak_coefficients, _index_to_tuple
 from .subspace import TensorProductSubspace
 from .combination import CombinationSparseGrid
 from .basis_factory import BasisFactoryProtocol
+from .validation import validate_admissibility
 
 # Type alias for the index generator used in adaptive grids
 _IndexGenType = IterativeIndexGenerator
@@ -87,6 +88,9 @@ class AdaptiveCombinationSparseGrid(CombinationSparseGrid[Array], Generic[Array]
         ] = None,
         verbosity: int = 0,
     ):
+        # Runtime protocol validation (bkd, basis_factories, growth_rules validated by parent)
+        validate_admissibility(admissibility)
+
         super().__init__(bkd, basis_factories, growth_rules)
         self._admissibility = admissibility
         self._refinement_priority = (

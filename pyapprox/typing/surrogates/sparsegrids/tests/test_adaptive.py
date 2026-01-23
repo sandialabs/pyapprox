@@ -638,6 +638,55 @@ class TestAdaptiveAdditiveRecovery(
                 )
 
 
+class TestAdaptiveSparseGridProtocolValidation(Generic[Array], unittest.TestCase):
+    """Tests for runtime protocol validation in AdaptiveCombinationSparseGrid."""
+
+    __test__ = False
+
+    def bkd(self) -> Backend[Array]:
+        raise NotImplementedError
+
+    def setUp(self) -> None:
+        self._bkd = self.bkd()
+        marginal = UniformMarginal(-1.0, 1.0, self._bkd)
+        self._factory = GaussLagrangeFactory(marginal, self._bkd)
+        self._growth = LinearGrowthRule(scale=2, shift=1)
+        self._admis = MaxLevelCriteria(max_level=3, pnorm=1.0, bkd=self._bkd)
+
+    def test_invalid_admissibility_raises_typeerror(self) -> None:
+        """Verify TypeError raised when admissibility doesn't satisfy protocol."""
+        with self.assertRaises(TypeError) as ctx:
+            AdaptiveCombinationSparseGrid(
+                self._bkd,
+                [self._factory, self._factory],
+                self._growth,
+                "not an admissibility criteria"  # type: ignore[arg-type]
+            )
+        self.assertIn("AdmissibilityCriteriaProtocol", str(ctx.exception))
+
+
+class TestAdaptiveSparseGridProtocolValidationNumpy(
+    TestAdaptiveSparseGridProtocolValidation[NDArray[Any]]
+):
+    """NumPy backend tests for protocol validation."""
+
+    def bkd(self) -> NumpyBkd:
+        return NumpyBkd()
+
+
+class TestAdaptiveSparseGridProtocolValidationTorch(
+    TestAdaptiveSparseGridProtocolValidation[torch.Tensor]
+):
+    """PyTorch backend tests for protocol validation."""
+
+    def setUp(self) -> None:
+        torch.set_default_dtype(torch.float64)
+        super().setUp()
+
+    def bkd(self) -> TorchBkd:
+        return TorchBkd()
+
+
 class TestAdaptiveAdditiveRecoveryNumpy(
     TestAdaptiveAdditiveRecovery[NDArray[Any]]
 ):

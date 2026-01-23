@@ -61,6 +61,9 @@ class LocallyAdaptiveCombinationSparseGrid(Generic[Array]):
             ]
         ] = None,
     ):
+        # TODO: Runtime protocol validation incomplete - univariate_basis
+        # parameter is stored but never used. Needs refactoring.
+
         self._bkd = bkd
         self._nvars = nvars
         self._univariate_basis = univariate_basis

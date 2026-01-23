@@ -659,6 +659,94 @@ class TestCombinationSparseGridLegacy(Generic[Array], unittest.TestCase):
 # =============================================================================
 
 
+# =============================================================================
+# Runtime protocol validation tests
+# =============================================================================
+
+
+class TestCombinationSparseGridProtocolValidation(Generic[Array], unittest.TestCase):
+    """Tests for runtime protocol validation in CombinationSparseGrid."""
+
+    __test__ = False
+
+    def bkd(self) -> Backend[Array]:
+        raise NotImplementedError
+
+    def setUp(self) -> None:
+        self._bkd = self.bkd()
+        self._basis = LegendrePolynomial1D(self._bkd)
+        self._factory = PrebuiltBasisFactory(self._basis)
+        self._growth = LinearGrowthRule(scale=1, shift=1)
+
+    def test_invalid_bkd_raises_typeerror(self) -> None:
+        """Verify TypeError raised when bkd doesn't satisfy Backend."""
+        with self.assertRaises(TypeError) as ctx:
+            CombinationSparseGrid(
+                "not a backend",  # type: ignore[arg-type]
+                [self._factory, self._factory],
+                self._growth
+            )
+        self.assertIn("Backend", str(ctx.exception))
+        self.assertIn("str", str(ctx.exception))
+
+    def test_invalid_basis_factories_raises_typeerror(self) -> None:
+        """Verify TypeError raised when basis_factories don't satisfy protocol."""
+        with self.assertRaises(TypeError) as ctx:
+            CombinationSparseGrid(
+                self._bkd,
+                ["not a factory", "also not"],  # type: ignore[list-item]
+                self._growth
+            )
+        self.assertIn("BasisFactoryProtocol", str(ctx.exception))
+
+    def test_invalid_growth_rules_raises_typeerror(self) -> None:
+        """Verify TypeError raised when growth_rules don't satisfy protocol."""
+        with self.assertRaises(TypeError) as ctx:
+            CombinationSparseGrid(
+                self._bkd,
+                [self._factory, self._factory],
+                "not a growth rule"  # type: ignore[arg-type]
+            )
+        self.assertIn("IndexGrowthRuleProtocol", str(ctx.exception))
+
+    def test_invalid_growth_rules_list_raises_typeerror(self) -> None:
+        """Verify TypeError raised when growth_rules list contains invalid items."""
+        with self.assertRaises(TypeError) as ctx:
+            CombinationSparseGrid(
+                self._bkd,
+                [self._factory, self._factory],
+                [self._growth, "not a rule"]  # type: ignore[list-item]
+            )
+        self.assertIn("IndexGrowthRuleProtocol", str(ctx.exception))
+
+
+class TestCombinationSparseGridProtocolValidationNumpy(
+    TestCombinationSparseGridProtocolValidation[NDArray[Any]]
+):
+    """NumPy backend tests for protocol validation."""
+
+    def bkd(self) -> NumpyBkd:
+        return NumpyBkd()
+
+
+class TestCombinationSparseGridProtocolValidationTorch(
+    TestCombinationSparseGridProtocolValidation[torch.Tensor]
+):
+    """PyTorch backend tests for protocol validation."""
+
+    def setUp(self) -> None:
+        torch.set_default_dtype(torch.float64)
+        super().setUp()
+
+    def bkd(self) -> TorchBkd:
+        return TorchBkd()
+
+
+# =============================================================================
+# NumPy backend tests
+# =============================================================================
+
+
 class TestCombinationSparseGridBaseNumpy(TestCombinationSparseGridBase[NDArray[Any]]):
     """NumPy backend tests for CombinationSparseGrid base class."""
 

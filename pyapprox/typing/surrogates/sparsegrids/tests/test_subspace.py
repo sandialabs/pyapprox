@@ -590,6 +590,84 @@ class TestTensorProductSubspace(Generic[Array], unittest.TestCase):
         self._bkd.assert_allclose(integral, expected, rtol=1e-10)
 
 
+class TestTensorProductSubspaceProtocolValidation(Generic[Array], unittest.TestCase):
+    """Tests for runtime protocol validation in TensorProductSubspace."""
+
+    __test__ = False
+
+    def bkd(self):
+        raise NotImplementedError
+
+    def setUp(self):
+        self._bkd = self.bkd()
+        marginal = UniformMarginal(-1.0, 1.0, self._bkd)
+        self._factory = GaussLagrangeFactory(marginal, self._bkd)
+        self._growth = LinearGrowthRule(scale=1, shift=1)
+
+    def test_invalid_bkd_raises_typeerror(self):
+        """Verify TypeError raised when bkd doesn't satisfy Backend."""
+        index = self._bkd.asarray([1, 2])
+        with self.assertRaises(TypeError) as ctx:
+            TensorProductSubspace(
+                "not a backend",  # type: ignore[arg-type]
+                index,
+                [self._factory, self._factory],
+                self._growth
+            )
+        self.assertIn("Backend", str(ctx.exception))
+        self.assertIn("str", str(ctx.exception))
+
+    def test_invalid_basis_factories_raises_typeerror(self):
+        """Verify TypeError raised when basis_factories don't satisfy protocol."""
+        index = self._bkd.asarray([1, 2])
+        with self.assertRaises(TypeError) as ctx:
+            TensorProductSubspace(
+                self._bkd,
+                index,
+                ["not a factory", "also not"],  # type: ignore[list-item]
+                self._growth
+            )
+        self.assertIn("BasisFactoryProtocol", str(ctx.exception))
+
+    def test_invalid_growth_rules_raises_typeerror(self):
+        """Verify TypeError raised when growth_rules don't satisfy protocol."""
+        index = self._bkd.asarray([1, 2])
+        with self.assertRaises(TypeError) as ctx:
+            TensorProductSubspace(
+                self._bkd,
+                index,
+                [self._factory, self._factory],
+                "not a growth rule"  # type: ignore[arg-type]
+            )
+        self.assertIn("IndexGrowthRuleProtocol", str(ctx.exception))
+
+
+class TestTensorProductSubspaceProtocolValidationNumpy(
+    TestTensorProductSubspaceProtocolValidation[NDArray[Any]]
+):
+    """NumPy backend tests for protocol validation."""
+
+    __test__ = True
+
+    def bkd(self) -> NumpyBkd:
+        return NumpyBkd()
+
+
+class TestTensorProductSubspaceProtocolValidationTorch(
+    TestTensorProductSubspaceProtocolValidation[torch.Tensor]
+):
+    """PyTorch backend tests for protocol validation."""
+
+    __test__ = True
+
+    def bkd(self) -> TorchBkd:
+        return TorchBkd()
+
+    def setUp(self):
+        torch.set_default_dtype(torch.float64)
+        super().setUp()
+
+
 class TestTensorProductSubspaceNumpy(TestTensorProductSubspace[NDArray[Any]]):
     """NumPy backend tests."""
 
