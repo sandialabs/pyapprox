@@ -697,6 +697,10 @@ def create_basis_factories(
 ) -> List[BasisFactoryProtocol[Array]]:
     """Create list of basis factories from marginals.
 
+    Dimensions with identical marginal configurations share the same
+    factory instance. For Leja factories, this means they share the
+    cached Leja sequence, avoiding redundant computation.
+
     Parameters
     ----------
     marginals : List[MarginalProtocol]
@@ -718,6 +722,7 @@ def create_basis_factories(
     -------
     List[BasisFactoryProtocol[Array]]
         List of basis factories, one per marginal.
+        Identical marginals share the same factory instance.
 
     Examples
     --------
@@ -728,6 +733,8 @@ def create_basis_factories(
     >>> factories = create_basis_factories(marginals, bkd, basis_type="gauss")
     >>> len(factories)
     2
+    >>> factories[0] is factories[1]  # Same marginal, same factory
+    True
     """
     if basis_type not in _BASIS_FACTORY_REGISTRY:
         raise ValueError(
@@ -736,7 +743,32 @@ def create_basis_factories(
         )
 
     factory_creator = _BASIS_FACTORY_REGISTRY[basis_type]
-    return [factory_creator(marginal, bkd, **kwargs) for marginal in marginals]
+
+    # Track seen marginals and their factories
+    # Use list since marginals aren't hashable
+    seen_marginals: List[MarginalProtocol[Array]] = []
+    seen_factories: List[BasisFactoryProtocol[Array]] = []
+    factories: List[BasisFactoryProtocol[Array]] = []
+
+    for marginal in marginals:
+        # Check if we've seen an equal marginal
+        found_idx = None
+        for idx, seen in enumerate(seen_marginals):
+            if marginal == seen:
+                found_idx = idx
+                break
+
+        if found_idx is not None:
+            # Reuse existing factory
+            factories.append(seen_factories[found_idx])
+        else:
+            # Create new factory
+            factory = factory_creator(marginal, bkd, **kwargs)
+            seen_marginals.append(marginal)
+            seen_factories.append(factory)
+            factories.append(factory)
+
+    return factories
 
 
 def create_bases_from_marginals(

@@ -414,6 +414,49 @@ class TestHelperFunctions(Generic[Array], unittest.TestCase):
             samples, weights = basis.quadrature_rule()
             self.assertEqual(samples.shape[1], 5)
 
+    def test_factory_sharing_identical_marginals(self) -> None:
+        """Identical marginals share the same factory instance."""
+        marginals = [
+            UniformMarginal(-1.0, 1.0, self._bkd),
+            UniformMarginal(-1.0, 1.0, self._bkd),  # Same
+            UniformMarginal(0.0, 2.0, self._bkd),  # Different
+        ]
+
+        for basis_type in ["gauss", "leja"]:
+            factories = create_basis_factories(marginals, self._bkd, basis_type)
+            self.assertIs(factories[0], factories[1])
+            self.assertIsNot(factories[0], factories[2])
+
+    def test_factory_sharing_different_types(self) -> None:
+        """Different marginal types get different factories."""
+        marginals = [
+            UniformMarginal(-1.0, 1.0, self._bkd),
+            GaussianMarginal(0.0, 1.0, self._bkd),
+        ]
+
+        factories = create_basis_factories(marginals, self._bkd, "gauss")
+        self.assertIsNot(factories[0], factories[1])
+
+    def test_leja_sequence_shared_across_dimensions(self) -> None:
+        """Verify Leja sequence is computed once for identical dimensions."""
+        marginals = [UniformMarginal(-1.0, 1.0, self._bkd) for _ in range(5)]
+
+        factories = create_basis_factories(marginals, self._bkd, "leja")
+
+        # All should be the exact same instance
+        for i in range(1, 5):
+            self.assertIs(factories[0], factories[i])
+
+        # Create bases and verify they share the Leja sequence
+        bases = [f.create_basis() for f in factories]
+        for b in bases:
+            b.set_nterms(5)
+
+        # Get samples - should be identical since sharing same Leja sequence
+        samples_list = [b.quadrature_rule()[0] for b in bases]
+        for s in samples_list[1:]:
+            self._bkd.assert_allclose(samples_list[0], s)
+
 
 class TestHelperFunctionsNumpy(TestHelperFunctions[NDArray[Any]]):
     """NumPy backend tests."""
