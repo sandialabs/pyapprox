@@ -711,8 +711,10 @@ def create_basis_factories(
         Type of basis factory to create. One of:
         - "gauss": GaussLagrangeFactory (default)
         - "leja": LejaLagrangeFactory
-        - "piecewise_linear", "piecewise_quadratic", "piecewise_cubic":
-          PiecewiseFactory (not yet implemented)
+        - "clenshaw_curtis": ClenshawCurtisFactory
+        - "piecewise_linear": PiecewiseFactory with linear polynomials
+        - "piecewise_quadratic": PiecewiseFactory with quadratic polynomials
+        - "piecewise_cubic": PiecewiseFactory with cubic polynomials
     **kwargs
         Additional arguments passed to factory constructors.
         For "leja": weighting (str), eps (float)
@@ -723,6 +725,23 @@ def create_basis_factories(
     List[BasisFactoryProtocol[Array]]
         List of basis factories, one per marginal.
         Identical marginals share the same factory instance.
+
+    Notes
+    -----
+    **Growth Rule Compatibility**
+
+    When using these factories with sparse grids, certain basis types have
+    constraints on the growth rule:
+
+    - gauss, leja, piecewise_linear: Any growth rule works
+    - clenshaw_curtis: Any growth rule works (DoublePlusOneGrowthRule for nested)
+    - piecewise_quadratic: Requires odd number of nodes.
+      Use DoublePlusOneGrowthRule() which produces 1, 3, 5, 9, 17, ...
+    - piecewise_cubic: Requires (n - 4) % 3 == 0.
+      Use CubicNestedGrowthRule() which produces 1, 4, 7, 13, 25, ...
+
+    The sparse grid constructor validates growth rule compatibility and raises
+    a ValueError with guidance if an incompatible combination is detected.
 
     Examples
     --------

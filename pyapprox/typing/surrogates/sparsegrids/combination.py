@@ -23,6 +23,7 @@ from .validation import (
     validate_backend,
     validate_basis_factories,
     validate_growth_rules,
+    validate_piecewise_growth_compatibility,
 )
 
 
@@ -74,6 +75,7 @@ class CombinationSparseGrid(Generic[Array]):
         validate_backend(bkd)
         validate_basis_factories(basis_factories)
         validate_growth_rules(growth_rules)
+        validate_piecewise_growth_compatibility(basis_factories, growth_rules)
 
         self._bkd = bkd
         self._basis_factories = basis_factories

@@ -76,3 +76,76 @@ def validate_basis1d(basis: object, param_name: str = "univariate_basis") -> Non
             f"{param_name} must satisfy Basis1DProtocol, "
             f"got {type(basis).__name__}"
         )
+
+
+def validate_piecewise_growth_compatibility(
+    factories: Sequence[object],
+    growth_rules: Union[object, Sequence[object]],
+    max_level: int = 5,
+) -> None:
+    """Validate that growth rules are compatible with piecewise basis factories.
+
+    Piecewise polynomial bases have specific node count requirements:
+    - piecewise_quadratic: Requires odd number of nodes
+    - piecewise_cubic: Requires (n - 4) % 3 == 0
+
+    This function checks the first few levels to catch incompatibilities early.
+
+    Parameters
+    ----------
+    factories : Sequence[BasisFactoryProtocol]
+        List of basis factories.
+    growth_rules : IndexGrowthRuleProtocol or Sequence[IndexGrowthRuleProtocol]
+        Growth rule(s) to validate.
+    max_level : int, optional
+        Maximum level to check. Default: 5.
+
+    Raises
+    ------
+    ValueError
+        If a growth rule produces incompatible node counts for a piecewise basis.
+
+    Notes
+    -----
+    Growth rule requirements by basis type:
+
+    - piecewise_linear: Any growth rule works
+    - piecewise_quadratic: Use DoublePlusOneGrowthRule() (produces 1, 3, 5, 9, 17, ...)
+    - piecewise_cubic: Use CubicNestedGrowthRule() (produces 1, 4, 7, 13, 25, ...)
+    - gauss, leja, clenshaw_curtis: LinearGrowthRule or DoublePlusOneGrowthRule
+    """
+    # Import here to avoid circular imports
+    from pyapprox.typing.surrogates.sparsegrids.basis_factory import PiecewiseFactory
+
+    # Normalize growth_rules to a list
+    if isinstance(growth_rules, list):
+        rules_list = growth_rules
+    else:
+        rules_list = [growth_rules] * len(factories)
+
+    for dim, (factory, rule) in enumerate(zip(factories, rules_list)):
+        # Only check PiecewiseFactory instances
+        if not isinstance(factory, PiecewiseFactory):
+            continue
+
+        poly_type = getattr(factory, "_poly_type", None)
+        if poly_type is None:
+            continue
+
+        # Check node counts for first few levels
+        for level in range(1, max_level + 1):
+            npts = rule(level)
+
+            if poly_type == "quadratic" and npts > 1 and npts % 2 == 0:
+                raise ValueError(
+                    f"piecewise_quadratic (dimension {dim}) requires odd number "
+                    f"of nodes, but growth_rule({level}) = {npts}. "
+                    f"Use DoublePlusOneGrowthRule() instead of {rule!r}."
+                )
+
+            if poly_type == "cubic" and npts > 1 and (npts - 4) % 3 != 0:
+                raise ValueError(
+                    f"piecewise_cubic (dimension {dim}) requires (n - 4) % 3 == 0, "
+                    f"but growth_rule({level}) = {npts}. "
+                    f"Use CubicNestedGrowthRule() instead of {rule!r}."
+                )
