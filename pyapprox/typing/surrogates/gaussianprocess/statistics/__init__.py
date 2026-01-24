@@ -22,9 +22,17 @@ from pyapprox.typing.surrogates.gaussianprocess.statistics.validation import (
     validate_separable_kernel,
     validate_zero_mean,
 )
+from pyapprox.typing.surrogates.gaussianprocess.statistics.integrals import (
+    SeparableKernelIntegralCalculator,
+)
+from pyapprox.typing.surrogates.gaussianprocess.statistics.moments import (
+    GaussianProcessStatistics,
+)
 
 __all__ = [
     "KernelIntegralCalculatorProtocol",
     "validate_separable_kernel",
     "validate_zero_mean",
+    "SeparableKernelIntegralCalculator",
+    "GaussianProcessStatistics",
 ]
