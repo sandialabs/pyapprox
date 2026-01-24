@@ -18,7 +18,8 @@ from pyapprox.typing.util.backends.torch import TorchBkd
 from pyapprox.typing.util.backends.protocols import Array, Backend
 from pyapprox.typing.util.test_utils import load_tests
 
-from pyapprox.typing.surrogates.affine.univariate import LegendrePolynomial1D
+from pyapprox.typing.probability.univariate import UniformMarginal
+from pyapprox.typing.surrogates.affine.univariate import create_bases_1d
 from pyapprox.typing.surrogates.affine.expansions import (
     create_pce,
     pce_statistics,
@@ -38,7 +39,8 @@ class TestPCEMeanVariance(Generic[Array], unittest.TestCase):
 
     def _create_pce(self, nvars: int, max_level: int, nqoi: int = 1):
         bkd = self._bkd
-        bases_1d = [LegendrePolynomial1D(bkd) for _ in range(nvars)]
+        marginals = [UniformMarginal(-1.0, 1.0, bkd) for _ in range(nvars)]
+        bases_1d = create_bases_1d(marginals, bkd)
         return create_pce(bases_1d, max_level, bkd, nqoi=nqoi)
 
     def test_mean_constant_function(self):
@@ -158,7 +160,8 @@ class TestPCECovariance(Generic[Array], unittest.TestCase):
 
     def _create_pce(self, nvars: int, max_level: int, nqoi: int = 1):
         bkd = self._bkd
-        bases_1d = [LegendrePolynomial1D(bkd) for _ in range(nvars)]
+        marginals = [UniformMarginal(-1.0, 1.0, bkd) for _ in range(nvars)]
+        bases_1d = create_bases_1d(marginals, bkd)
         return create_pce(bases_1d, max_level, bkd, nqoi=nqoi)
 
     def test_covariance_diagonal_equals_variance(self):
@@ -245,7 +248,8 @@ class TestSobolIndices(Generic[Array], unittest.TestCase):
 
     def _create_pce(self, nvars: int, max_level: int, nqoi: int = 1):
         bkd = self._bkd
-        bases_1d = [LegendrePolynomial1D(bkd) for _ in range(nvars)]
+        marginals = [UniformMarginal(-1.0, 1.0, bkd) for _ in range(nvars)]
+        bases_1d = create_bases_1d(marginals, bkd)
         return create_pce(bases_1d, max_level, bkd, nqoi=nqoi)
 
     def test_total_sobol_sum_with_interactions(self):
@@ -373,7 +377,8 @@ class TestInteractionSobolIndices(Generic[Array], unittest.TestCase):
 
     def _create_pce(self, nvars: int, max_level: int, nqoi: int = 1):
         bkd = self._bkd
-        bases_1d = [LegendrePolynomial1D(bkd) for _ in range(nvars)]
+        marginals = [UniformMarginal(-1.0, 1.0, bkd) for _ in range(nvars)]
+        bases_1d = create_bases_1d(marginals, bkd)
         return create_pce(bases_1d, max_level, bkd, nqoi=nqoi)
 
     def test_interaction_indices_additive_function(self):
@@ -472,7 +477,8 @@ class TestPCEStatisticsFunctions(Generic[Array], unittest.TestCase):
 
     def _create_pce(self, nvars: int, max_level: int, nqoi: int = 1):
         bkd = self._bkd
-        bases_1d = [LegendrePolynomial1D(bkd) for _ in range(nvars)]
+        marginals = [UniformMarginal(-1.0, 1.0, bkd) for _ in range(nvars)]
+        bases_1d = create_bases_1d(marginals, bkd)
         return create_pce(bases_1d, max_level, bkd, nqoi=nqoi)
 
     def test_functions_match_methods(self):

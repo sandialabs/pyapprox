@@ -23,7 +23,8 @@ from pyapprox.typing.util.backends.torch import TorchBkd
 from pyapprox.typing.util.backends.protocols import Array, Backend
 from pyapprox.typing.util.test_utils import load_tests
 from pyapprox.typing.probability.conditional.beta import ConditionalBeta
-from pyapprox.typing.surrogates.affine.univariate import LegendrePolynomial1D
+from pyapprox.typing.probability.univariate import UniformMarginal
+from pyapprox.typing.surrogates.affine.univariate import create_bases_1d
 from pyapprox.typing.surrogates.affine.indices import compute_hyperbolic_indices
 from pyapprox.typing.surrogates.affine.basis import OrthonormalPolynomialBasis
 from pyapprox.typing.surrogates.affine.expansions import BasisExpansion
@@ -60,7 +61,8 @@ class TestConditionalBeta(Generic[Array], unittest.TestCase):
     ) -> BasisExpansion:
         """Helper to create a Legendre basis expansion."""
         bkd = self._bkd
-        bases_1d = [LegendrePolynomial1D(bkd) for _ in range(nvars)]
+        marginals = [UniformMarginal(-1.0, 1.0, bkd) for _ in range(nvars)]
+        bases_1d = create_bases_1d(marginals, bkd)
         indices = compute_hyperbolic_indices(nvars, max_level, 1.0, bkd)
         basis = OrthonormalPolynomialBasis(bases_1d, bkd, indices)
         return BasisExpansion(basis, bkd, nqoi=nqoi)
@@ -347,7 +349,8 @@ class TestConditionalBetaBounded(
     ) -> BasisExpansion:
         """Helper to create a Legendre basis expansion."""
         bkd = self.bkd()
-        bases_1d = [LegendrePolynomial1D(bkd) for _ in range(nvars)]
+        marginals = [UniformMarginal(-1.0, 1.0, bkd) for _ in range(nvars)]
+        bases_1d = create_bases_1d(marginals, bkd)
         indices = compute_hyperbolic_indices(nvars, max_level, 1.0, bkd)
         basis = OrthonormalPolynomialBasis(bases_1d, bkd, indices)
         return BasisExpansion(basis, bkd, nqoi=nqoi)
@@ -558,7 +561,8 @@ class TestConditionalBetaBoundsValidation(unittest.TestCase):
 
     def _create_simple_expansion(self, bkd: Backend) -> BasisExpansion:
         """Create a simple constant basis expansion."""
-        bases_1d = [LegendrePolynomial1D(bkd)]
+        marginals = [UniformMarginal(-1.0, 1.0, bkd)]
+        bases_1d = create_bases_1d(marginals, bkd)
         indices = compute_hyperbolic_indices(1, 0, 1.0, bkd)
         basis = OrthonormalPolynomialBasis(bases_1d, bkd, indices)
         exp = BasisExpansion(basis, bkd, nqoi=1)

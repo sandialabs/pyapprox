@@ -206,17 +206,11 @@ class GaussLagrangeFactory(Generic[Array]):
             else:
                 # Fallback for custom marginals
                 from pyapprox.typing.surrogates.affine.univariate.globalpoly.continuous_numeric import (
-                    BoundedNumericOrthonormalPolynomial1D,
-                    UnboundedNumericOrthonormalPolynomial1D,
+                    ContinuousNumericOrthonormalPolynomial1D,
                 )
-                if hasattr(self._marginal, "is_bounded") and self._marginal.is_bounded():
-                    self._poly = BoundedNumericOrthonormalPolynomial1D(
-                        self._marginal, self._bkd
-                    )
-                else:
-                    self._poly = UnboundedNumericOrthonormalPolynomial1D(
-                        self._marginal, self._bkd
-                    )
+                self._poly = ContinuousNumericOrthonormalPolynomial1D(
+                    self._marginal, self._bkd
+                )
             self._transform = get_transform_from_marginal(
                 self._marginal, self._bkd
             )
@@ -325,17 +319,11 @@ class LejaLagrangeFactory(Generic[Array]):
         else:
             # Fallback for custom marginals
             from pyapprox.typing.surrogates.affine.univariate.globalpoly.continuous_numeric import (
-                BoundedNumericOrthonormalPolynomial1D,
-                UnboundedNumericOrthonormalPolynomial1D,
+                ContinuousNumericOrthonormalPolynomial1D,
             )
-            if hasattr(self._marginal, "is_bounded") and self._marginal.is_bounded():
-                poly = BoundedNumericOrthonormalPolynomial1D(
-                    self._marginal, self._bkd
-                )
-            else:
-                poly = UnboundedNumericOrthonormalPolynomial1D(
-                    self._marginal, self._bkd
-                )
+            poly = ContinuousNumericOrthonormalPolynomial1D(
+                self._marginal, self._bkd
+            )
 
         bounds = get_bounds_from_marginal(self._marginal, self._eps)
         self._transform = get_transform_from_marginal(self._marginal, self._bkd)

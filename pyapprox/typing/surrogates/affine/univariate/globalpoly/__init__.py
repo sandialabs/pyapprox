@@ -63,8 +63,9 @@ from pyapprox.typing.surrogates.affine.univariate.globalpoly.numeric import (
 )
 
 from pyapprox.typing.surrogates.affine.univariate.globalpoly.continuous_numeric import (
-    BoundedNumericOrthonormalPolynomial1D,
-    UnboundedNumericOrthonormalPolynomial1D,
+    BoundedContinuousNumericOrthonormalPolynomial1D,
+    UnboundedContinuousNumericOrthonormalPolynomial1D,
+    ContinuousNumericOrthonormalPolynomial1D,
     PredictorCorrector,
     GaussLegendreIntegrator,
 )
@@ -106,8 +107,9 @@ __all__ = [
     "WeightedSamplePolynomial1D",
     "lanczos_recursion",
     # Continuous numeric polynomials
-    "BoundedNumericOrthonormalPolynomial1D",
-    "UnboundedNumericOrthonormalPolynomial1D",
+    "BoundedContinuousNumericOrthonormalPolynomial1D",
+    "UnboundedContinuousNumericOrthonormalPolynomial1D",
+    "ContinuousNumericOrthonormalPolynomial1D",
     "PredictorCorrector",
     "GaussLegendreIntegrator",
     # Quadrature

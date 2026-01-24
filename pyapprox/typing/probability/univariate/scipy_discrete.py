@@ -315,6 +315,41 @@ class ScipyDiscreteMarginal(Generic[Array]):
         """Scale parameters (loc, scale)."""
         return self._scales
 
+    def probability_masses(self) -> Tuple[Array, Array]:
+        """Get the support points and probability masses.
+
+        Returns the discrete points where the distribution has non-zero
+        probability and their corresponding probability masses.
+
+        Returns
+        -------
+        xk : Array
+            Support points. Shape: (npoints,)
+        pk : Array
+            Probability masses. Shape: (npoints,)
+        """
+        # Get support bounds
+        a, b = self._scipy_rv.support()
+
+        # For unbounded distributions, use a probability threshold
+        if not np.isfinite(a) or not np.isfinite(b):
+            # Find bounds that capture most of the probability mass
+            eps = 1e-12
+            a_bounded = int(self._scipy_rv.ppf(eps)) if not np.isfinite(a) else int(a)
+            b_bounded = int(self._scipy_rv.ppf(1 - eps)) if not np.isfinite(b) else int(b)
+            xk = np.arange(a_bounded, b_bounded + 1)
+        else:
+            xk = np.arange(int(a), int(b) + 1)
+
+        pk = self._scipy_rv.pmf(xk)
+
+        # Filter to points with non-zero probability
+        nonzero_mask = pk > 0
+        xk = xk[nonzero_mask]
+        pk = pk[nonzero_mask]
+
+        return self._bkd.asarray(xk), self._bkd.asarray(pk)
+
     def __repr__(self) -> str:
         """Return string representation."""
         return f"ScipyDiscreteMarginal({self._name}, shapes={self._shapes})"

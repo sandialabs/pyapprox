@@ -85,11 +85,9 @@ def create_basis_1d(
     )
     from pyapprox.typing.surrogates.affine.univariate.transforms import (
         BoundedAffineTransform1D,
-        IdentityTransform1D,
     )
     from pyapprox.typing.surrogates.affine.univariate.globalpoly.continuous_numeric import (
-        BoundedNumericOrthonormalPolynomial1D,
-        UnboundedNumericOrthonormalPolynomial1D,
+        ContinuousNumericOrthonormalPolynomial1D,
     )
 
     # Check analytical registry first
@@ -107,16 +105,14 @@ def create_basis_1d(
 
     # Fallback for custom marginals based on is_bounded()
     if hasattr(marginal, "is_bounded"):
+        polynomial = ContinuousNumericOrthonormalPolynomial1D(marginal, bkd)
         if marginal.is_bounded():
-            # Bounded custom marginal: use BoundedNumericOrthonormalPolynomial1D
-            polynomial = BoundedNumericOrthonormalPolynomial1D(bkd, marginal)
+            # Bounded custom marginal: use TransformedBasis1D with affine transform
             lb, ub = marginal.bounds()
             transform = BoundedAffineTransform1D(bkd, lb, ub)
             return TransformedBasis1D(polynomial, transform)
         else:
-            # Unbounded custom marginal: use UnboundedNumericOrthonormalPolynomial1D
-            polynomial = UnboundedNumericOrthonormalPolynomial1D(bkd, marginal)
-            # Physical domain polynomial, use identity transform wrapper
+            # Unbounded custom marginal: physical domain polynomial, use NativeBasis1D
             return NativeBasis1D(polynomial)
 
     raise ValueError(
