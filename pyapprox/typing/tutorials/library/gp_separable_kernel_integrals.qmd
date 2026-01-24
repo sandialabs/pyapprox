@@ -1,0 +1,405 @@
+---
+title: "Separable Kernel Integrals"
+subtitle: "PyApprox Tutorial Library"
+description: "Efficient 1D building blocks for multi-dimensional GP statistics"
+prerequisites:
+  - gp_mean_uncertain_inputs
+tags:
+  - gp-statistics
+  - computational-efficiency
+format:
+  html:
+    code-fold: false
+    code-tools: true
+    toc: true
+execute:
+  echo: true
+  warning: false
+jupyter: python3
+---
+
+## Learning Objectives
+
+After completing this tutorial, you will be able to:
+
+- Factor $d$-dimensional integrals into products of 1D integrals
+- Compute 1D integrals: $\tau_k$, $P_k$, $u_k$, $\nu_k$, $\lambda_k$, $\Pi_k$, $\xi_{1,k}$
+- Use Gauss quadrature for numerical integration
+- Understand the exponential-to-linear complexity reduction
+
+## Prerequisites
+
+Complete [GP Mean with Uncertain Inputs](gp_mean_uncertain_inputs.qmd) before this tutorial. This tutorial can be read alongside Tutorials 1-3.
+
+## Conceptual Introduction
+
+Computing GP statistics in high dimensions faces the **curse of dimensionality**: naively, integrals over $d$ dimensions require $\mathcal{O}(Q^d)$ quadrature evaluations.
+
+> **Note:** This tutorial assumes a GP with zero prior mean. Extension to non-zero constant mean is future work.
+
+For **tensor-product (separable) kernels** and **independent random variables**, we can factor multi-dimensional integrals into products of 1D integrals:
+
+$$
+\int_{\mathbb{R}^d} C(\vc{z}, \vc{x}) \rho(\vc{z}) d\vc{z} = \prod_{k=1}^d \int_{\mathbb{R}} C_k(z_k, x_k) \rho_k(z_k) dz_k
+$$
+
+This reduces complexity from $\mathcal{O}(Q^d)$ to $\mathcal{O}(d \cdot Q)$!
+
+## Setup
+
+```{python}
+import numpy as np
+import matplotlib.pyplot as plt
+
+np.random.seed(42)
+```
+
+## Assumptions
+
+### Tensor-Product Kernel
+
+The $d$-dimensional kernel factorizes as:
+
+$$
+C(\vc{x}, \vc{z}) = \prod_{k=1}^d C_k(x_k, z_k)
+$$
+
+For the RBF kernel:
+
+$$
+C(\vc{x}, \vc{z}) = \exp\left(-\sum_{k=1}^d \frac{(x_k - z_k)^2}{2\ell_k^2}\right) = \prod_{k=1}^d \exp\left(-\frac{(x_k - z_k)^2}{2\ell_k^2}\right)
+$$
+
+### Independent Random Variables
+
+The joint density factorizes:
+
+$$
+\rho(\vc{z}) = \prod_{k=1}^d \rho_k(z_k)
+$$
+
+## 1D Quantities
+
+### Setup for 2D Example
+
+```{python}
+# 2D GP example
+d = 2
+N = 8  # training points
+length_scales = [1.0, 0.8]
+
+# Training data
+train_X = np.random.randn(N, d)
+train_y = np.sin(train_X[:, 0]) + 0.5 * np.cos(train_X[:, 1]) + 0.1 * np.random.randn(N)
+
+# 1D RBF kernel
+def rbf_1d(x1, x2, l):
+    x1, x2 = np.atleast_1d(x1), np.atleast_1d(x2)
+    return np.exp(-0.5 * (x1[:, None] - x2[None, :])**2 / l**2)
+
+# Gauss-Hermite quadrature for N(0,1)
+Q = 30
+quad_x, quad_w = np.polynomial.hermite.hermgauss(Q)
+quad_x = quad_x * np.sqrt(2)
+quad_w = quad_w / np.sqrt(np.pi)
+
+print(f"Dimensions: d = {d}")
+print(f"Training points: N = {N}")
+print(f"Quadrature points per dim: Q = {Q}")
+```
+
+### $\tau_k$: 1D Correlation Integral
+
+$$
+\tau_{k,i} = \int C_k(z_k, x_k^{(i)}) \rho_k(z_k) \, dz_k
+$$
+
+```{python}
+# Compute τ_k for each dimension
+tau_1d = []
+for k in range(d):
+    K_k = rbf_1d(quad_x, train_X[:, k], length_scales[k])
+    tau_k = quad_w @ K_k
+    tau_1d.append(tau_k)
+    print(f"τ_{k} shape: {tau_k.shape}, values: {tau_k[:3].round(4)}...")
+
+# Full τ = element-wise product of 1D τ's
+tau = np.prod(tau_1d, axis=0)
+print(f"\nFull τ shape: {tau.shape}")
+print(f"τ = τ_0 ⊙ τ_1: {tau[:3].round(4)}...")
+```
+
+### $P_k$: 1D Kernel Outer Product
+
+$$
+P_{k,ij} = \int C_k(z_k, x_k^{(i)}) C_k(z_k, x_k^{(j)}) \rho_k(z_k) \, dz_k
+$$
+
+```{python}
+# Compute P_k for each dimension
+P_1d = []
+for k in range(d):
+    K_k = rbf_1d(quad_x, train_X[:, k], length_scales[k])
+    P_k = K_k.T @ (quad_w[:, None] * K_k)
+    P_1d.append(P_k)
+    print(f"P_{k} shape: {P_k.shape}")
+
+# Full P = element-wise product of 1D P's
+P = np.prod(P_1d, axis=0)
+print(f"\nFull P shape: {P.shape}")
+print(f"P is symmetric: {np.allclose(P, P.T)}")
+```
+
+### $u_k$: 1D Double Integral
+
+$$
+u_k = \int \int C_k(z_k, w_k) \rho_k(z_k) \rho_k(w_k) \, dz_k \, dw_k
+$$
+
+```{python}
+# Compute u_k for each dimension
+u_1d = []
+for k in range(d):
+    K_k_qq = rbf_1d(quad_x, quad_x, length_scales[k])
+    u_k = quad_w @ K_k_qq @ quad_w
+    u_1d.append(u_k)
+    print(f"u_{k} = {u_k:.6f}")
+
+# Full u = product of 1D u's
+u = np.prod(u_1d)
+print(f"\nFull u = {u:.6f}")
+```
+
+### Verification: Compare with Direct Computation
+
+```{python}
+# Direct 2D computation of τ (for verification)
+# Need 2D tensor grid of quadrature points
+quad_X1, quad_X2 = np.meshgrid(quad_x, quad_x)
+quad_W1, quad_W2 = np.meshgrid(quad_w, quad_w)
+quad_W_2d = quad_W1 * quad_W2  # joint weights
+
+tau_direct = np.zeros(N)
+for i in range(N):
+    # C(z, x^(i)) = C_0(z_0, x_0^(i)) * C_1(z_1, x_1^(i))
+    C_0 = np.exp(-0.5 * (quad_X1 - train_X[i, 0])**2 / length_scales[0]**2)
+    C_1 = np.exp(-0.5 * (quad_X2 - train_X[i, 1])**2 / length_scales[1]**2)
+    tau_direct[i] = np.sum(quad_W_2d * C_0 * C_1)
+
+print("Verification: τ (factorized vs direct)")
+print(f"  Factorized: {tau[:3].round(6)}")
+print(f"  Direct:     {tau_direct[:3].round(6)}")
+print(f"  Match: {np.allclose(tau, tau_direct)}")
+```
+
+## Higher-Order 1D Integrals
+
+### $\nu_k$: Squared Kernel Integral
+
+$$
+\nu_k = \int \int C_k(z_k, w_k)^2 \rho_k(z_k) \rho_k(w_k) \, dz_k \, dw_k
+$$
+
+```{python}
+nu_1d = []
+for k in range(d):
+    K_k_qq = rbf_1d(quad_x, quad_x, length_scales[k])
+    nu_k = quad_w @ (K_k_qq ** 2) @ quad_w
+    nu_1d.append(nu_k)
+    print(f"ν_{k} = {nu_k:.6f}")
+
+nu = np.prod(nu_1d)
+print(f"\nFull ν = {nu:.6f}")
+```
+
+### $\lambda_k$: Triple Correlation
+
+$$
+\lambda_{k,i} = \int C_k(z_k, z_k) C_k(z_k, x_k^{(i)}) \rho_k(z_k) \, dz_k
+$$
+
+Note: For RBF kernels, $C_k(z_k, z_k) = 1$, so $\lambda_{k,i} = \tau_{k,i}$.
+
+```{python}
+# For RBF: C_k(z_k, z_k) = 1, so λ_k = τ_k
+# For general kernels, would compute:
+lam_1d = []
+for k in range(d):
+    # C_k(z_k, z_k) = 1 for RBF correlation
+    C_kk = np.ones(Q)  # C_k(quad_x, quad_x) diagonal
+    K_k = rbf_1d(quad_x, train_X[:, k], length_scales[k])
+    lam_k = (quad_w * C_kk) @ K_k
+    lam_1d.append(lam_k)
+    print(f"λ_{k} = τ_{k} (for RBF): {np.allclose(lam_k, tau_1d[k])}")
+
+lam = np.prod(lam_1d, axis=0)
+```
+
+### $\Pi_k$: Triple Kernel Product
+
+$$
+\Pi_{k,ij} = \int \int C_k(x_k, x_k^{(i)}) C_k(x_k, z_k) C_k(z_k, x_k^{(j)}) \rho_k(x_k) \rho_k(z_k) \, dx_k \, dz_k
+$$
+
+```{python}
+# Compute Π_k for each dimension
+Pi_1d = []
+for k in range(d):
+    K_k = rbf_1d(quad_x, train_X[:, k], length_scales[k])  # (Q, N)
+    K_k_qq = rbf_1d(quad_x, quad_x, length_scales[k])       # (Q, Q)
+
+    Pi_k = np.zeros((N, N))
+    for i in range(N):
+        for j in range(N):
+            # Π_{k,ij} = ∫∫ C_k(x,x_i) C_k(x,z) C_k(z,x_j) ρ(x)ρ(z) dx dz
+            integrand = K_k[:, i, None] * K_k_qq * K_k[None, :, j]
+            Pi_k[i, j] = quad_w @ integrand @ quad_w
+    Pi_1d.append(Pi_k)
+    print(f"Π_{k} shape: {Pi_k.shape}")
+
+# Full Π = element-wise product
+Pi = np.prod(Pi_1d, axis=0)
+print(f"\nFull Π shape: {Pi.shape}")
+```
+
+### $\xi_{1,k}$: Triple Integral Scalar
+
+$$
+\xi_{1,k} = \int \int \int C_k(w_k, x_k) C_k(w_k, z_k) \rho_k(w_k) \rho_k(x_k) \rho_k(z_k) \, dw_k \, dx_k \, dz_k
+$$
+
+```{python}
+xi1_1d = []
+for k in range(d):
+    K_k_qq = rbf_1d(quad_x, quad_x, length_scales[k])
+
+    # ξ₁ₖ = ∫∫∫ C_k(w,x) C_k(w,z) ρ(w)ρ(x)ρ(z) dw dx dz
+    # = Σ_w Σ_x Σ_z w_w w_x w_z C_k(w,x) C_k(w,z)
+    xi1_k = 0.0
+    for q_w in range(Q):
+        for q_x in range(Q):
+            for q_z in range(Q):
+                xi1_k += (quad_w[q_w] * quad_w[q_x] * quad_w[q_z] *
+                          K_k_qq[q_w, q_x] * K_k_qq[q_w, q_z])
+    xi1_1d.append(xi1_k)
+    print(f"ξ₁,{k} = {xi1_k:.6f}")
+
+xi1 = np.prod(xi1_1d)
+print(f"\nFull ξ₁ = {xi1:.6f}")
+```
+
+## Complexity Comparison
+
+```{python}
+def compare_complexity(d, Q, N):
+    """Compare naive vs factorized complexity."""
+    return {
+        'τ': (Q**d * N, d * Q * N, Q**d * N / (d * Q * N)),
+        'P': (Q**d * N**2, d * Q * N**2, Q**d * N**2 / (d * Q * N**2)),
+        'u': (Q**(2*d), d * Q**2, Q**(2*d) / (d * Q**2)),
+        'Π': (Q**(2*d) * N**2, d * Q**2 * N**2, Q**(2*d) * N**2 / (d * Q**2 * N**2)),
+        'ξ₁': (Q**(3*d), d * Q**3, Q**(3*d) / (d * Q**3)),
+    }
+
+d_test, Q_test, N_test = 5, 30, 100
+results = compare_complexity(d_test, Q_test, N_test)
+
+print(f"Complexity comparison for d={d_test}, Q={Q_test}, N={N_test}:")
+print(f"{'Quantity':<8} {'Naive':>15} {'Factorized':>15} {'Speedup':>15}")
+print("-" * 55)
+for name, (naive, factorized, speedup) in results.items():
+    print(f"{name:<8} {naive:>15.2e} {factorized:>15.2e} {speedup:>15.2e}x")
+```
+
+## Summary Table of 1D Integrals
+
+| Quantity | 1D Formula | Quadrature Dim | Full Form |
+|----------|------------|----------------|-----------|
+| $\tau_{k,i}$ | $\int C_k(z_k, x_k^{(i)}) \rho_k dz_k$ | 1D | $\tau_i = \prod_k \tau_{k,i}$ |
+| $P_{k,ij}$ | $\int C_k(z_k, x_k^{(i)}) C_k(z_k, x_k^{(j)}) \rho_k dz_k$ | 1D | $P_{ij} = \prod_k P_{k,ij}$ |
+| $u_k$ | $\int\int C_k(z_k, w_k) \rho_k(z_k) \rho_k(w_k) dz_k dw_k$ | 2D | $u = \prod_k u_k$ |
+| $\nu_k$ | $\int\int C_k(z_k, w_k)^2 \rho_k^2 dz_k dw_k$ | 2D | $\nu = \prod_k \nu_k$ |
+| $\lambda_{k,i}$ | $\int C_k(z_k, z_k) C_k(z_k, x_k^{(i)}) \rho_k dz_k$ | 1D | $\lambda_i = \prod_k \lambda_{k,i}$ |
+| $\Pi_{k,ij}$ | $\int\int C_k(x_k, x_k^{(i)}) C_k(x_k, z_k) C_k(z_k, x_k^{(j)}) \rho_k^2 dx_k dz_k$ | 2D | $\Pi_{ij} = \prod_k \Pi_{k,ij}$ |
+| $\xi_{1,k}$ | $\int\int\int C_k(w_k, x_k) C_k(w_k, z_k) \rho_k^3 dw_k dx_k dz_k$ | 3D | $\xi_1 = \prod_k \xi_{1,k}$ |
+
+## Implementation Pattern
+
+```{python}
+def compute_all_1d_quantities(train_X, length_scales, quad_x, quad_w):
+    """Compute all 1D quantities for GP statistics."""
+    d = train_X.shape[1]
+    N = train_X.shape[0]
+    Q = len(quad_x)
+
+    tau_1d = []
+    P_1d = []
+    u_1d = []
+    nu_1d = []
+    Pi_1d = []
+
+    for k in range(d):
+        K_qt = rbf_1d(quad_x, train_X[:, k], length_scales[k])
+        K_qq = rbf_1d(quad_x, quad_x, length_scales[k])
+
+        # τ_k
+        tau_k = quad_w @ K_qt
+        tau_1d.append(tau_k)
+
+        # P_k
+        P_k = K_qt.T @ (quad_w[:, None] * K_qt)
+        P_1d.append(P_k)
+
+        # u_k
+        u_k = quad_w @ K_qq @ quad_w
+        u_1d.append(u_k)
+
+        # ν_k
+        nu_k = quad_w @ (K_qq ** 2) @ quad_w
+        nu_1d.append(nu_k)
+
+        # Π_k (2D quadrature)
+        Pi_k = np.zeros((N, N))
+        for i in range(N):
+            for j in range(N):
+                integrand = K_qt[:, i, None] * K_qq * K_qt[None, :, j]
+                Pi_k[i, j] = quad_w @ integrand @ quad_w
+        Pi_1d.append(Pi_k)
+
+    return {
+        'tau_1d': tau_1d,
+        'P_1d': P_1d,
+        'u_1d': u_1d,
+        'nu_1d': nu_1d,
+        'Pi_1d': Pi_1d,
+    }
+
+# Usage
+quantities = compute_all_1d_quantities(train_X, length_scales, quad_x, quad_w)
+print("Computed 1D quantities for", d, "dimensions")
+for name, vals in quantities.items():
+    print(f"  {name}: {len(vals)} arrays")
+```
+
+## Key Takeaways
+
+- **Separable kernels** allow factorization of $d$-dimensional integrals
+- Each quantity is a **product of 1D integrals** over dimensions
+- Complexity drops from $\mathcal{O}(Q^d)$ to $\mathcal{O}(d \cdot Q)$ — exponential to linear!
+- **Precompute and cache** 1D quantities for efficiency
+- The factorization requires **independent input variables**
+
+## Exercises
+
+1. **(Easy)** Compute $\tau_k$ for a uniform distribution $\mathcal{U}(-1, 1)$ using Gauss-Legendre quadrature.
+
+2. **(Medium)** Verify that $P_k$ is positive definite for any valid kernel and quadrature rule.
+
+3. **(Challenge)** Derive an analytical formula for $u_k$ when using an RBF kernel with a Gaussian input distribution $\mathcal{N}(\mu_k, \sigma_k^2)$.
+
+## Next Steps
+
+Continue with:
+
+- [Sobol Indices from GP Statistics](gp_sobol_indices.qmd) - Sensitivity analysis using these quantities
+- [Marginalized Gaussian Processes](gp_marginalization.qmd) - 1D projections of multi-dimensional GPs

@@ -1,0 +1,376 @@
+---
+title: "Mean of GP Variance"
+subtitle: "PyApprox Tutorial Library"
+description: "Computing the expected variance of GP predictions over uncertain inputs"
+prerequisites:
+  - gp_mean_uncertain_inputs
+tags:
+  - gp-statistics
+  - forward-uq
+format:
+  html:
+    code-fold: false
+    code-tools: true
+    toc: true
+execute:
+  echo: true
+  warning: false
+jupyter: python3
+---
+
+## Learning Objectives
+
+After completing this tutorial, you will be able to:
+
+- Define the $\mt{P}$ matrix (outer product integral of kernel evaluations)
+- Compute $\zeta = \vc{y}^\top \mt{A}^{-1} \mt{P} \mt{A}^{-1} \vc{y}$
+- Compute $v^2 = 1 - \mathrm{Trace}[\mt{P} \mt{A}^{-1}]$
+- Derive $\E[\gamma_f] = \zeta + s^2 v^2 - \eta^2 - s^2 \varsigma^2$
+
+## Prerequisites
+
+Complete [GP Mean with Uncertain Inputs](gp_mean_uncertain_inputs.qmd) before this tutorial.
+
+## Conceptual Introduction
+
+In the previous tutorial, we computed the mean and variance of the GP mean $\mu_f = \int f(\vc{z}) \rho(\vc{z}) d\vc{z}$ over uncertain inputs. Now we focus on the **variance** of the GP output:
+
+$$
+\gamma_f = \int f^2(\vc{z}) \rho(\vc{z}) d\vc{z} - \mu_f^2 = \kappa_f - \mu_f^2
+$$
+
+where $\kappa_f = \int f^2(\vc{z}) \rho(\vc{z}) d\vc{z}$ is the second moment.
+
+> **Note:** This tutorial assumes a GP with zero prior mean. Extension to non-zero constant mean is future work.
+
+Since both $\kappa_f$ and $\mu_f$ are random (due to GP uncertainty), $\gamma_f$ is also a random variable. We derive $\E[\gamma_f]$.
+
+## Setup
+
+```{python}
+import numpy as np
+import matplotlib.pyplot as plt
+
+np.random.seed(42)
+```
+
+## Review: Quantities from Previous Tutorial
+
+```{python}
+# Setup: 1D GP
+N = 5  # training points
+length_scale = 1.0
+kernel_var = 1.5  # s²
+
+# Training data
+train_x = np.random.randn(N)
+train_y = np.sin(train_x) + 0.1 * np.random.randn(N)
+
+# RBF correlation function
+def rbf_corr(x1, x2, l):
+    x1, x2 = np.atleast_1d(x1), np.atleast_1d(x2)
+    return np.exp(-0.5 * (x1[:, None] - x2[None, :])**2 / l**2)
+
+# Kernel matrix and inverse
+A = rbf_corr(train_x, train_x, length_scale) + 1e-8 * np.eye(N)
+A_inv = np.linalg.inv(A)
+
+# Gauss-Hermite quadrature
+Q = 50
+quad_x, quad_w = np.polynomial.hermite.hermgauss(Q)
+quad_x = quad_x * np.sqrt(2)
+quad_w = quad_w / np.sqrt(np.pi)
+
+# Compute τ and u from previous tutorial
+K_quad_train = rbf_corr(quad_x, train_x, length_scale)
+tau = quad_w @ K_quad_train
+K_quad_quad = rbf_corr(quad_x, quad_x, length_scale)
+u = quad_w @ K_quad_quad @ quad_w
+
+# η and ς²
+eta = tau @ A_inv @ train_y
+varpi = tau @ A_inv @ tau
+varsigma_sq = u - varpi
+
+print(f"From previous tutorial:")
+print(f"  η = {eta:.6f}")
+print(f"  ς² = {varsigma_sq:.6f}")
+```
+
+## The P Matrix
+
+The key new quantity is the **$\mt{P}$ matrix**:
+
+$$
+\mt{P} = \int \vc{t}(\vc{z}) \vc{t}(\vc{z})^\top \rho(\vc{z}) d\vc{z} \in \mathbb{R}^{N \times N}
+$$
+
+with elements:
+
+$$
+P_{ij} = \int C(\vc{z}, \vc{x}^{(i)}) C(\vc{z}, \vc{x}^{(j)}) \rho(\vc{z}) d\vc{z}
+$$
+
+This is an outer product of kernel evaluations, integrated over the input distribution.
+
+```{python}
+# Compute P: P_ij = ∫ C(z, x_i) C(z, x_j) ρ(z) dz
+# = ∫ t(z) t(z)ᵀ ρ(z) dz
+# Using quadrature: P ≈ Σ_q w_q t(z_q) t(z_q)ᵀ
+P = K_quad_train.T @ (quad_w[:, None] * K_quad_train)
+
+print(f"P shape: {P.shape}")
+print(f"P is symmetric: {np.allclose(P, P.T)}")
+print(f"P is positive semi-definite: {np.all(np.linalg.eigvalsh(P) >= -1e-10)}")
+```
+
+### Dimension Check
+
+```{python}
+print("Dimension check for P:")
+print(f"  t(z)ᵀ: 1 × {N}")
+print(f"  t(z):  {N} × 1")
+print(f"  t(z)t(z)ᵀ: {N} × {N}")
+print(f"  P = ∫ t(z)t(z)ᵀ dF: {N} × {N} ✓")
+```
+
+## Computing $\zeta$
+
+$$
+\zeta = \vc{y}^\top \mt{A}^{-1} \mt{P} \mt{A}^{-1} \vc{y}
+$$
+
+This quantity represents the expected squared GP mean:
+
+$$
+\zeta = \int m^*(\vc{z})^2 \rho(\vc{z}) d\vc{z} = \E_{\vc{z}}[m^*(\vc{z})^2]
+$$
+
+```{python}
+# ζ = yᵀ A⁻¹ P A⁻¹ y
+alpha = A_inv @ train_y  # α = A⁻¹y
+zeta = train_y @ A_inv @ P @ alpha
+
+print(f"ζ = {zeta:.6f}")
+
+# Verify: ζ = ∫ m*(z)² ρ(z) dz
+m_star_quad = K_quad_train @ alpha  # m*(quad_x)
+zeta_check = quad_w @ (m_star_quad ** 2)
+
+print(f"ζ (quadrature check) = {zeta_check:.6f}")
+print(f"Match: {np.isclose(zeta, zeta_check)}")
+```
+
+## Computing $v^2$
+
+$$
+v^2 = \int C^*(\vc{z}, \vc{z}) \rho(\vc{z}) d\vc{z} = 1 - \mathrm{Trace}[\mt{P} \mt{A}^{-1}]
+$$
+
+This is the **average posterior variance** (scaled by $s^2$).
+
+### Derivation
+
+The posterior variance at $\vc{z}$ is:
+
+$$
+C^*(\vc{z}, \vc{z}) = C(\vc{z}, \vc{z}) - \vc{t}(\vc{z})^\top \mt{A}^{-1} \vc{t}(\vc{z}) = 1 - \vc{t}(\vc{z})^\top \mt{A}^{-1} \vc{t}(\vc{z})
+$$
+
+since $C(\vc{z}, \vc{z}) = 1$ for a correlation function.
+
+Integrating:
+
+$$
+v^2 = \int 1 \cdot \rho(\vc{z}) d\vc{z} - \int \vc{t}(\vc{z})^\top \mt{A}^{-1} \vc{t}(\vc{z}) \rho(\vc{z}) d\vc{z}
+$$
+
+Using the trace cyclic property:
+
+$$
+\vc{t}(\vc{z})^\top \mt{A}^{-1} \vc{t}(\vc{z}) = \mathrm{Trace}[\vc{t}(\vc{z}) \vc{t}(\vc{z})^\top \mt{A}^{-1}]
+$$
+
+Therefore:
+
+$$
+v^2 = 1 - \mathrm{Trace}\left[\left(\int \vc{t}(\vc{z}) \vc{t}(\vc{z})^\top \rho(\vc{z}) d\vc{z}\right) \mt{A}^{-1}\right] = 1 - \mathrm{Trace}[\mt{P} \mt{A}^{-1}]
+$$
+
+```{python}
+# v² = 1 - Trace[P A⁻¹]
+v_sq = 1 - np.trace(P @ A_inv)
+
+print(f"v² = {v_sq:.6f}")
+
+# Verify: v² = ∫ C*(z, z) ρ(z) dz
+C_star_diag = 1 - np.sum((K_quad_train @ A_inv) * K_quad_train, axis=1)
+v_sq_check = quad_w @ C_star_diag
+
+print(f"v² (quadrature check) = {v_sq_check:.6f}")
+print(f"Match: {np.isclose(v_sq, v_sq_check)}")
+```
+
+## Mean of Variance: $\E[\gamma_f]$
+
+The mean of the GP variance is:
+
+$$
+\E[\gamma_f] = \E[\kappa_f - \mu_f^2] = \E[\kappa_f] - \E[\mu_f^2]
+$$
+
+We have:
+
+$$
+\E[\mu_f^2] = \Var[\mu_f] + \E[\mu_f]^2 = s^2 \varsigma^2 + \eta^2
+$$
+
+For $\E[\kappa_f]$, we use the fact that for a Gaussian $X \sim \normal(\mu, \sigma^2)$:
+
+$$
+\E[X^2] = \mu^2 + \sigma^2
+$$
+
+Applying this to $f(\vc{z}) \sim \normal(m^*(\vc{z}), s^2 C^*(\vc{z}, \vc{z}))$:
+
+$$
+\E[f^2(\vc{z})] = m^*(\vc{z})^2 + s^2 C^*(\vc{z}, \vc{z})
+$$
+
+Integrating:
+
+$$
+\E[\kappa_f] = \int \left(m^*(\vc{z})^2 + s^2 C^*(\vc{z}, \vc{z})\right) \rho(\vc{z}) d\vc{z} = \zeta + s^2 v^2
+$$
+
+Therefore:
+
+$$
+\E[\gamma_f] = \zeta + s^2 v^2 - \eta^2 - s^2 \varsigma^2
+$$
+
+```{python}
+# E[γ_f] = ζ + s²v² - η² - s²ς²
+E_gamma = zeta + kernel_var * v_sq - eta**2 - kernel_var * varsigma_sq
+
+print(f"E[γ_f] = ζ + s²v² - η² - s²ς²")
+print(f"       = {zeta:.6f} + {kernel_var * v_sq:.6f} - {eta**2:.6f} - {kernel_var * varsigma_sq:.6f}")
+print(f"       = {E_gamma:.6f}")
+```
+
+## Monte Carlo Verification
+
+```{python}
+# Sample GP posterior at quadrature points
+m_star_quad = K_quad_train @ A_inv @ train_y
+C_star_quad = kernel_var * (K_quad_quad - K_quad_train @ A_inv @ K_quad_train.T)
+C_star_quad += 1e-10 * np.eye(Q)
+
+L_quad = np.linalg.cholesky(C_star_quad)
+
+# Draw GP realizations and compute μ_f and γ_f for each
+n_realizations = 10000
+mu_samples = np.zeros(n_realizations)
+gamma_samples = np.zeros(n_realizations)
+
+for r in range(n_realizations):
+    z = np.random.randn(Q)
+    f_r = m_star_quad + L_quad @ z
+
+    mu_r = quad_w @ f_r
+    kappa_r = quad_w @ (f_r ** 2)
+    gamma_r = kappa_r - mu_r**2
+
+    mu_samples[r] = mu_r
+    gamma_samples[r] = gamma_r
+
+mc_E_gamma = np.mean(gamma_samples)
+
+print(f"Monte Carlo E[γ_f] (n={n_realizations}): {mc_E_gamma:.6f}")
+print(f"Analytical E[γ_f]:                       {E_gamma:.6f}")
+print(f"Relative error:                          {abs(mc_E_gamma - E_gamma)/E_gamma:.2%}")
+```
+
+## Visualizing the Relationship
+
+```{python}
+fig, axes = plt.subplots(1, 2, figsize=(12, 5))
+
+# Distribution of γ_f
+ax = axes[0]
+ax.hist(gamma_samples, bins=50, density=True, alpha=0.7, label='MC samples')
+ax.axvline(E_gamma, color='red', linestyle='--', linewidth=2,
+           label=f'E[γ_f] = {E_gamma:.3f}')
+ax.axvline(mc_E_gamma, color='green', linestyle=':', linewidth=2,
+           label=f'MC mean = {mc_E_gamma:.3f}')
+ax.set_xlabel('γ_f')
+ax.set_ylabel('Density')
+ax.set_title('Distribution of GP Variance γ_f')
+ax.legend()
+ax.grid(True, alpha=0.3)
+
+# Joint distribution of μ_f and γ_f
+ax = axes[1]
+ax.scatter(mu_samples, gamma_samples, alpha=0.1, s=1)
+ax.axvline(eta, color='red', linestyle='--', label=f'η = {eta:.3f}')
+ax.axhline(E_gamma, color='green', linestyle='--', label=f'E[γ_f] = {E_gamma:.3f}')
+ax.set_xlabel('μ_f (GP mean)')
+ax.set_ylabel('γ_f (GP variance)')
+ax.set_title('Joint Distribution of μ_f and γ_f')
+ax.legend()
+ax.grid(True, alpha=0.3)
+
+plt.tight_layout()
+plt.show()
+```
+
+## Component Analysis
+
+Let's break down the contributions to $\E[\gamma_f]$:
+
+```{python}
+print("Breakdown of E[γ_f]:")
+print(f"  ζ = E[m*²]           = {zeta:.6f}  (squared posterior mean)")
+print(f"  s²v² = E[s²C*]       = {kernel_var * v_sq:.6f}  (average posterior variance)")
+print(f"  η² = E[μ_f]²         = {eta**2:.6f}  (squared mean of GP mean)")
+print(f"  s²ς² = Var[μ_f]      = {kernel_var * varsigma_sq:.6f}  (variance of GP mean)")
+print(f"  -------------------")
+print(f"  E[γ_f]               = {E_gamma:.6f}")
+print()
+print("Interpretation:")
+print(f"  E[κ_f] = ζ + s²v²    = {zeta + kernel_var * v_sq:.6f}  (E of second moment)")
+print(f"  E[μ_f²] = η² + s²ς²  = {eta**2 + kernel_var * varsigma_sq:.6f}  (E of squared mean)")
+```
+
+## Summary of Key Formulas
+
+| Quantity | Formula | Meaning |
+|----------|---------|---------|
+| $P_{ij}$ | $\int C(\vc{z}, \vc{x}^{(i)}) C(\vc{z}, \vc{x}^{(j)}) \rho(\vc{z}) d\vc{z}$ | Kernel outer product |
+| $\zeta$ | $\vc{y}^\top \mt{A}^{-1} \mt{P} \mt{A}^{-1} \vc{y}$ | Expected squared mean |
+| $v^2$ | $1 - \mathrm{Trace}[\mt{P} \mt{A}^{-1}]$ | Average posterior variance |
+| $\E[\gamma_f]$ | $\zeta + s^2 v^2 - \eta^2 - s^2 \varsigma^2$ | Mean of GP variance |
+
+## Key Takeaways
+
+- The **$\mt{P}$ matrix** captures the integrated outer product of kernel evaluations
+- $\zeta$ represents the expected squared GP posterior mean
+- $v^2$ represents the average posterior variance (scaled)
+- $\E[\gamma_f]$ combines contributions from both mean and variance
+- The formula $\E[\gamma_f] = \zeta + s^2 v^2 - \eta^2 - s^2 \varsigma^2$ is exact (no approximation)
+- Monte Carlo verification confirms the analytical derivation
+
+## Exercises
+
+1. **(Easy)** Verify that $\mt{P}$ is positive semi-definite by checking its eigenvalues.
+
+2. **(Medium)** Show that $v^2 \leq 1$ using the trace inequality. Hint: The eigenvalues of $\mt{P} \mt{A}^{-1}$ are non-negative.
+
+3. **(Challenge)** Compute $\E[\gamma_f]$ for the case where the GP perfectly fits a linear function $f(z) = az + b$. What do you expect $\E[\gamma_f]$ to be and why?
+
+## Next Steps
+
+Continue with:
+
+- [Variance of GP Variance](gp_variance_of_variance.qmd) - Computing $\Var[\gamma_f]$
+- [Separable Kernel Integrals](gp_separable_kernel_integrals.qmd) - Efficient computation via factorization

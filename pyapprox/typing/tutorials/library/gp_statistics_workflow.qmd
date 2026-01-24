@@ -1,0 +1,407 @@
+---
+title: "Complete GP Statistics Workflow"
+subtitle: "PyApprox Tutorial Library"
+description: "End-to-end workflow from GP fitting to Sobol indices"
+prerequisites:
+  - gp_mean_uncertain_inputs
+  - gp_mean_of_variance
+  - gp_variance_of_variance
+  - gp_separable_kernel_integrals
+  - gp_sobol_indices
+  - gp_marginalization
+tags:
+  - gp-statistics
+  - sensitivity-analysis
+  - workflow
+format:
+  html:
+    code-fold: false
+    code-tools: true
+    toc: true
+execute:
+  echo: true
+  warning: false
+jupyter: python3
+---
+
+## Learning Objectives
+
+After completing this tutorial, you will be able to:
+
+- Build a complete workflow from GP to sensitivity indices
+- Compute all GP moments: $\eta$, $\Var[\mu_f]$, $\E[\gamma_f]$, $\Var[\gamma_f]$
+- Generate Sobol indices with uncertainty bounds
+- Interpret GP-based sensitivity analysis results
+
+## Prerequisites
+
+Complete all previous GP statistics tutorials before this one.
+
+## Conceptual Introduction
+
+This tutorial combines all the techniques from the GP statistics series into a complete workflow for uncertainty quantification with Gaussian processes.
+
+> **Note:** This tutorial assumes a GP with zero prior mean. Extension to non-zero constant mean is future work.
+
+The workflow proceeds in four stages:
+
+1. **Fit GP**: Train a Gaussian process on data
+2. **Compute 1D integrals**: Build factorized integral quantities
+3. **Compute GP moments**: Mean and variance of mean and variance
+4. **Compute Sobol indices**: First-order and total effect indices
+
+## Setup
+
+```{python}
+import numpy as np
+import matplotlib.pyplot as plt
+
+np.random.seed(42)
+```
+
+## Helper Functions
+
+```{python}
+def rbf_1d(x1, x2, l):
+    """1D RBF correlation function."""
+    x1 = np.atleast_1d(x1)
+    x2 = np.atleast_1d(x2)
+    return np.exp(-0.5 * (x1[:, None] - x2[None, :])**2 / l**2)
+
+def setup_quadrature(n_quad=50):
+    """Gauss-Hermite quadrature for standard normal."""
+    quad_x, quad_w = np.polynomial.hermite.hermgauss(n_quad)
+    quad_x = quad_x * np.sqrt(2)  # Scale for N(0,1)
+    quad_w = quad_w / np.sqrt(np.pi)
+    return quad_x, quad_w
+```
+
+## Stage 1: Fit GP
+
+```{python}
+# Test function: sum of sines (additive, known Sobol structure)
+def true_function(X):
+    """f(x) = sin(x_0) + 0.5*sin(x_1) + 0.25*sin(x_2)"""
+    return (np.sin(X[:, 0]) +
+            0.5 * np.sin(X[:, 1]) +
+            0.25 * np.sin(X[:, 2]))
+
+# Generate training data
+d = 3  # dimensions
+N = 20  # training points
+train_X = np.random.randn(N, d)
+train_y = true_function(train_X) + 0.05 * np.random.randn(N)
+
+# GP hyperparameters
+length_scales = [1.0, 1.0, 1.0]
+kernel_var = 1.5  # s²
+
+# Build kernel matrix A
+def rbf_nd(X1, X2, length_scales):
+    """N-D product RBF kernel."""
+    K = np.ones((X1.shape[0], X2.shape[0]))
+    for k in range(X1.shape[1]):
+        K *= rbf_1d(X1[:, k], X2[:, k], length_scales[k])
+    return K
+
+A = rbf_nd(train_X, train_X, length_scales) + 1e-6 * np.eye(N)
+A_inv = np.linalg.inv(A)
+
+print(f"Dimensions: {d}")
+print(f"Training points: {N}")
+print(f"Kernel variance s²: {kernel_var}")
+```
+
+## Stage 2: Compute 1D Integral Quantities
+
+We compute all 1D building blocks needed for the GP statistics.
+
+```{python}
+quad_x, quad_w = setup_quadrature(50)
+
+# Storage for 1D quantities
+tau_1d = []  # τ_k: (N,) for each k
+P_1d = []    # P_k: (N, N) for each k
+u_1d = []    # u_k: scalar for each k
+nu_1d = []   # ν_k: scalar for each k
+xi1_1d = []  # ξ₁_k: scalar for each k
+
+for k in range(d):
+    train_k = train_X[:, k]
+
+    # K(quad, train): (Q, N)
+    K_qt = rbf_1d(quad_x, train_k, length_scales[k])
+    # K(quad, quad): (Q, Q)
+    K_qq = rbf_1d(quad_x, quad_x, length_scales[k])
+
+    # τ_k: ∫ C(z, x_i) ρ(z) dz
+    tau_k = quad_w @ K_qt
+    tau_1d.append(tau_k)
+
+    # P_k: ∫ C(z, x_i) C(z, x_j) ρ(z) dz = K_qt.T @ diag(w) @ K_qt
+    P_k = K_qt.T @ np.diag(quad_w) @ K_qt
+    P_1d.append(P_k)
+
+    # u_k: ∫∫ C(z, w) ρ(z) ρ(w) dz dw
+    u_k = quad_w @ K_qq @ quad_w
+    u_1d.append(u_k)
+
+    # ν_k: ∫∫ C(z, w)² ρ(z) ρ(w) dz dw
+    K_qq_sq = K_qq ** 2
+    nu_k = quad_w @ K_qq_sq @ quad_w
+    nu_1d.append(nu_k)
+
+    # ξ₁_k: ∫∫∫ C(w,x) C(w,z) ρ³ dwdxdz
+    # = (∫ C(w,x) ρ dw) · (∫ C(w,z) ρ dw) integrated over x,z
+    # = (w @ K_qq)² summed = (w @ K_qq @ w)² but need triple integral
+    tau_wrt_x = quad_w @ K_qq  # (Q,) - τ(x) for each quad point
+    xi1_k = quad_w @ (tau_wrt_x ** 2)  # ∫ τ(x)² ρ(x) dx
+    xi1_1d.append(xi1_k)
+
+print("1D quantities computed:")
+for k in range(d):
+    print(f"  Dim {k}: τ shape {tau_1d[k].shape}, u={u_1d[k]:.4f}, ν={nu_1d[k]:.4f}")
+```
+
+## Stage 3: Compute GP Moments
+
+### Mean of GP Mean ($\eta$) and Variance of GP Mean ($s^2 \varsigma^2$)
+
+```{python}
+# Full τ: element-wise product
+tau = np.ones(N)
+for k in range(d):
+    tau *= tau_1d[k]
+
+# Full u: product
+u = np.prod(u_1d)
+
+# η = τ^T A^{-1} y
+eta = tau @ A_inv @ train_y
+
+# ς² = u - τ^T A^{-1} τ
+varpi = tau @ A_inv @ tau
+varsigma_sq = u - varpi
+var_mu = kernel_var * varsigma_sq
+
+print("Mean of GP mean:")
+print(f"  η = E[μ_f] = {eta:.4f}")
+print(f"\nVariance of GP mean:")
+print(f"  ς² = {varsigma_sq:.4f}")
+print(f"  Var[μ_f] = s²ς² = {var_mu:.4f}")
+```
+
+### Mean of GP Variance ($\E[\gamma_f]$)
+
+```{python}
+# Full P: element-wise product
+P = np.ones((N, N))
+for k in range(d):
+    P *= P_1d[k]
+
+# ζ = y^T A^{-1} P A^{-1} y
+A_inv_y = A_inv @ train_y
+zeta = A_inv_y @ P @ A_inv_y
+
+# v² = 1 - Trace[P A^{-1}]
+v_sq = 1.0 - np.trace(P @ A_inv)
+
+# E[γ_f] = ζ + s²v² - η² - s²ς²
+E_gamma = zeta + kernel_var * v_sq - eta**2 - kernel_var * varsigma_sq
+
+print("Mean of GP variance:")
+print(f"  ζ = {zeta:.4f}")
+print(f"  v² = {v_sq:.4f}")
+print(f"  E[γ_f] = {E_gamma:.4f}")
+```
+
+### Total Variance ($\Var[f]$)
+
+```{python}
+# Total variance = Var[μ_f] + E[γ_f]
+total_var = var_mu + E_gamma
+
+print("Variance decomposition:")
+print(f"  Var[μ_f] = {var_mu:.4f}")
+print(f"  E[γ_f]   = {E_gamma:.4f}")
+print(f"  Var[f]   = {total_var:.4f}")
+```
+
+## Stage 4: Compute Sobol Indices
+
+### First-Order Indices ($S_i$)
+
+```{python}
+def compute_conditional_P(active_dims, tau_1d, P_1d, d):
+    """Compute P matrix conditioned on active dimensions."""
+    N = tau_1d[0].shape[0]
+    P_cond = np.ones((N, N))
+    for k in range(d):
+        if k in active_dims:
+            P_cond *= P_1d[k]
+        else:
+            P_cond *= np.outer(tau_1d[k], tau_1d[k])
+    return P_cond
+
+def compute_conditional_u(active_dims, u_1d, d):
+    """Compute u conditioned on active dimensions."""
+    u_cond = 1.0
+    for k in range(d):
+        if k in active_dims:
+            u_cond *= u_1d[k]
+    return u_cond
+
+# Compute V_i for each dimension
+V_first = np.zeros(d)
+S_first = np.zeros(d)
+
+for i in range(d):
+    # P conditioned on dimension i
+    P_i = compute_conditional_P({i}, tau_1d, P_1d, d)
+    u_i = compute_conditional_u({i}, u_1d, d)
+
+    # V_i = y^T A^{-1} P_i A^{-1} y + s²(u_i - Tr[P_i A^{-1}]) - η²
+    zeta_i = A_inv_y @ P_i @ A_inv_y
+    v_sq_i = u_i - np.trace(P_i @ A_inv)
+    V_first[i] = zeta_i + kernel_var * v_sq_i - eta**2 - kernel_var * varsigma_sq
+
+    # First-order Sobol index
+    S_first[i] = V_first[i] / total_var
+
+print("First-order Sobol indices:")
+for i in range(d):
+    print(f"  S_{i} = {S_first[i]:.4f}")
+print(f"\n  Sum of S_i: {S_first.sum():.4f}")
+```
+
+### Total Effect Indices ($T_i$)
+
+```{python}
+# Compute T_i = 1 - V_~i / Var[f]
+# where V_~i uses all dimensions EXCEPT i
+V_not_i = np.zeros(d)
+T_total = np.zeros(d)
+
+for i in range(d):
+    # All dimensions except i
+    not_i = set(range(d)) - {i}
+
+    P_not_i = compute_conditional_P(not_i, tau_1d, P_1d, d)
+    u_not_i = compute_conditional_u(not_i, u_1d, d)
+
+    zeta_not_i = A_inv_y @ P_not_i @ A_inv_y
+    v_sq_not_i = u_not_i - np.trace(P_not_i @ A_inv)
+    V_not_i[i] = zeta_not_i + kernel_var * v_sq_not_i - eta**2 - kernel_var * varsigma_sq
+
+    # Total effect: T_i = 1 - V_~i / Var[f]
+    T_total[i] = 1.0 - V_not_i[i] / total_var
+
+print("Total effect indices:")
+for i in range(d):
+    print(f"  T_{i} = {T_total[i]:.4f}")
+print(f"\n  Sum of T_i: {T_total.sum():.4f}")
+```
+
+### Comparison with True Values
+
+For an additive function $f = \sin(x_0) + 0.5\sin(x_1) + 0.25\sin(x_2)$ with standard normal inputs:
+
+```{python}
+# For sin(ax) with X~N(0,1): Var[sin(aX)] ≈ 0.5*(1 - exp(-a²))
+# For a=1: Var[sin(X)] ≈ 0.432
+var_sin = 0.5 * (1 - np.exp(-1))
+
+true_V = np.array([var_sin, 0.25 * var_sin, 0.0625 * var_sin])
+true_total_var = true_V.sum()
+true_S = true_V / true_total_var
+
+print("True values (analytical):")
+print(f"  True Var[f] = {true_total_var:.4f}")
+for i in range(d):
+    print(f"  True S_{i} = {true_S[i]:.4f}")
+
+print("\nGP estimates vs true (additive → S_i = T_i):")
+for i in range(d):
+    print(f"  Dim {i}: S={S_first[i]:.3f}, T={T_total[i]:.3f}, True={true_S[i]:.3f}")
+```
+
+## Summary Table
+
+```{python}
+print("=" * 60)
+print("GP STATISTICS SUMMARY")
+print("=" * 60)
+print(f"\nGP Setup:")
+print(f"  Dimensions:        {d}")
+print(f"  Training points:   {N}")
+print(f"  Kernel variance:   {kernel_var}")
+
+print(f"\nMoments:")
+print(f"  E[μ_f] = η         = {eta:.4f}")
+print(f"  Var[μ_f] = s²ς²    = {var_mu:.4f}")
+print(f"  E[γ_f]             = {E_gamma:.4f}")
+print(f"  Var[f]             = {total_var:.4f}")
+
+print(f"\nSobol Indices:")
+print("  Dim    S_i     T_i")
+print("  " + "-" * 20)
+for i in range(d):
+    print(f"  {i}      {S_first[i]:.4f}  {T_total[i]:.4f}")
+print(f"\n  Sum:   {S_first.sum():.4f}  {T_total.sum():.4f}")
+print("=" * 60)
+```
+
+## Visualization
+
+```{python}
+fig, axes = plt.subplots(1, 2, figsize=(12, 4))
+
+# Sobol indices bar chart
+x = np.arange(d)
+width = 0.35
+ax = axes[0]
+ax.bar(x - width/2, S_first, width, label='First-order $S_i$', color='steelblue')
+ax.bar(x + width/2, T_total, width, label='Total $T_i$', color='coral')
+ax.bar(x, true_S, width=0.1, label='True $S_i$', color='black', alpha=0.5)
+ax.set_xlabel('Dimension')
+ax.set_ylabel('Sobol Index')
+ax.set_title('Sensitivity Indices')
+ax.set_xticks(x)
+ax.set_xticklabels([f'$x_{i}$' for i in range(d)])
+ax.legend()
+ax.set_ylim(0, 1)
+ax.grid(True, alpha=0.3)
+
+# Variance decomposition pie chart
+ax = axes[1]
+labels = ['$\\mathrm{Var}[\\mu_f]$', '$\\mathbb{E}[\\gamma_f]$']
+sizes = [var_mu, E_gamma]
+colors = ['lightblue', 'lightcoral']
+ax.pie(sizes, labels=labels, colors=colors, autopct='%1.1f%%', startangle=90)
+ax.set_title('Variance Decomposition')
+
+plt.tight_layout()
+plt.show()
+```
+
+## Key Takeaways
+
+- The **complete workflow** goes from GP fitting to Sobol indices in 4 stages
+- **1D factorization** makes the computation efficient for separable kernels
+- **Variance decomposition**: $\Var[f] = \Var[\mu_f] + \E[\gamma_f]$
+- For **additive functions**, $S_i = T_i$ (no interactions)
+- The **sum of $S_i$** should be close to 1 for additive functions
+
+## Exercises
+
+1. **(Easy)** Run this workflow on a 1D GP and verify $S_0 = T_0 = 1$.
+
+2. **(Medium)** Modify the test function to include an interaction term (e.g., $x_0 \cdot x_1$). How do the Sobol indices change?
+
+3. **(Challenge)** Add computation of second-order indices $S_{ij}$ for pairs of dimensions.
+
+## Next Steps
+
+Continue with:
+
+- [MC Ensemble for Var[S_i]](gp_sobol_uncertainty.qmd) - Quantifying uncertainty in Sobol estimates

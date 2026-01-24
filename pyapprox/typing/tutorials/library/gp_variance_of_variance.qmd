@@ -1,0 +1,474 @@
+---
+title: "Variance of GP Variance"
+subtitle: "PyApprox Tutorial Library"
+description: "Computing higher-order GP statistics using Isserlis' theorem"
+prerequisites:
+  - gp_mean_of_variance
+tags:
+  - gp-statistics
+  - forward-uq
+format:
+  html:
+    code-fold: false
+    code-tools: true
+    toc: true
+execute:
+  echo: true
+  warning: false
+jupyter: python3
+---
+
+## Learning Objectives
+
+After completing this tutorial, you will be able to:
+
+- Apply Isserlis' theorem for 4th moments of Gaussians
+- Define auxiliary quantities: $\chi$, $\nu$, $\varphi$, $\psi$, $\mt{\Pi}$, $\vc{\lambda}$, $\xi$, $\varrho$
+- Compute $\vartheta_1$, $\vartheta_2$, $\vartheta_3$ components
+- Derive $\Var[\gamma_f] = \vartheta_1 - 2\vartheta_2 + \vartheta_3 - \E[\gamma_f]^2$
+
+## Prerequisites
+
+Complete [Mean of GP Variance](gp_mean_of_variance.qmd) before this tutorial.
+
+## Conceptual Introduction
+
+We have derived $\E[\gamma_f]$ for the GP variance. To fully characterize the distribution of $\gamma_f$, we need its variance:
+
+$$
+\Var[\gamma_f] = \E[(\kappa_f - \mu_f^2)^2] - \E[\gamma_f]^2
+$$
+
+This requires computing $\E[\kappa_f^2]$, $\E[\kappa_f \mu_f^2]$, and $\E[\mu_f^4]$, which involve 4th moments of Gaussian random variables.
+
+> **Note:** This tutorial assumes a GP with zero prior mean. Extension to non-zero constant mean is future work.
+
+## Setup
+
+```{python}
+import numpy as np
+import matplotlib.pyplot as plt
+
+np.random.seed(42)
+```
+
+## Isserlis' Theorem
+
+For jointly Gaussian variables $(X_1, X_2, X_3, X_4)$ with means $\mu_i$ and covariances $\omega_{ij}$:
+
+$$
+\E[X_1 X_2 X_3 X_4] = \mu_1\mu_2\mu_3\mu_4 + \sum_{\text{pairings}} \omega_{ij}\omega_{kl} + \sum_{\text{mixed}} \mu_i\mu_j\omega_{kl}
+$$
+
+The full expansion has 15 terms organized as:
+
+- 1 term: $\mu_1\mu_2\mu_3\mu_4$ (all means)
+- 3 terms: $\omega_{12}\omega_{34}$, $\omega_{13}\omega_{24}$, $\omega_{14}\omega_{23}$ (all covariances)
+- 6 terms: products of two means and one covariance
+
+```{python}
+def verify_isserlis():
+    """Verify Isserlis' theorem numerically."""
+    np.random.seed(123)
+
+    # Define a 4D Gaussian
+    mu = np.array([1.0, 2.0, 0.5, -1.0])
+    Sigma = np.array([
+        [1.0, 0.3, 0.2, 0.1],
+        [0.3, 1.5, 0.4, 0.2],
+        [0.2, 0.4, 0.8, 0.3],
+        [0.1, 0.2, 0.3, 1.2]
+    ])
+
+    # MC estimate
+    n_samples = 500000
+    samples = np.random.multivariate_normal(mu, Sigma, n_samples)
+    mc_E = np.mean(samples[:, 0] * samples[:, 1] * samples[:, 2] * samples[:, 3])
+
+    # Isserlis formula
+    m1, m2, m3, m4 = mu
+    w12, w13, w14 = Sigma[0, 1], Sigma[0, 2], Sigma[0, 3]
+    w23, w24, w34 = Sigma[1, 2], Sigma[1, 3], Sigma[2, 3]
+
+    isserlis = (m1*m2*m3*m4 +
+                w12*w34 + w13*w24 + w14*w23 +
+                m1*m2*w34 + m1*m3*w24 + m1*m4*w23 +
+                m2*m3*w14 + m2*m4*w13 + m3*m4*w12)
+
+    print(f"Monte Carlo E[X₁X₂X₃X₄]: {mc_E:.6f}")
+    print(f"Isserlis formula:         {isserlis:.6f}")
+    print(f"Match: {np.isclose(mc_E, isserlis, rtol=0.01)}")
+
+verify_isserlis()
+```
+
+## Setup: Review Previous Quantities
+
+```{python}
+# Setup: 1D GP
+N = 5
+length_scale = 1.0
+kernel_var = 1.5  # s²
+
+train_x = np.random.randn(N)
+train_y = np.sin(train_x) + 0.1 * np.random.randn(N)
+
+def rbf_corr(x1, x2, l):
+    x1, x2 = np.atleast_1d(x1), np.atleast_1d(x2)
+    return np.exp(-0.5 * (x1[:, None] - x2[None, :])**2 / l**2)
+
+A = rbf_corr(train_x, train_x, length_scale) + 1e-8 * np.eye(N)
+A_inv = np.linalg.inv(A)
+
+# Quadrature
+Q = 50
+quad_x, quad_w = np.polynomial.hermite.hermgauss(Q)
+quad_x = quad_x * np.sqrt(2)
+quad_w = quad_w / np.sqrt(np.pi)
+
+# Basic quantities
+K_qt = rbf_corr(quad_x, train_x, length_scale)
+K_qq = rbf_corr(quad_x, quad_x, length_scale)
+tau = quad_w @ K_qt
+u = quad_w @ K_qq @ quad_w
+P = K_qt.T @ (quad_w[:, None] * K_qt)
+
+alpha = A_inv @ train_y
+eta = tau @ alpha
+varpi = tau @ A_inv @ tau
+varsigma_sq = u - varpi
+zeta = train_y @ A_inv @ P @ alpha
+v_sq = 1 - np.trace(P @ A_inv)
+
+E_gamma = zeta + kernel_var * v_sq - eta**2 - kernel_var * varsigma_sq
+
+print(f"Previous quantities:")
+print(f"  η = {eta:.6f}, ς² = {varsigma_sq:.6f}")
+print(f"  ζ = {zeta:.6f}, v² = {v_sq:.6f}")
+print(f"  E[γ_f] = {E_gamma:.6f}")
+```
+
+## Term 1: $\E[\kappa_f^2]$
+
+Setting $i = j$ and $k = l$ in Isserlis' theorem:
+
+$$
+\E[X_i^2 X_k^2] = 4\mu_i\mu_k\omega_{ik} + 2\omega_{ik}^2 + (\mu_i^2 + \omega_{ii})(\mu_k^2 + \omega_{kk})
+$$
+
+After integration over $(\vc{x}, \vc{z})$:
+
+$$
+\vartheta_1 = \E[\kappa_f^2] = 4\phi s^2 + 2\chi s^4 + (\zeta + v^2 s^2)^2
+$$
+
+### Computing $\chi$
+
+$$
+\chi = \int \int C^*(\vc{x}, \vc{z})^2 \rho(\vc{x}) \rho(\vc{z}) \, d\vc{x} \, d\vc{z} = \nu + \varphi - 2\psi
+$$
+
+where:
+
+$$
+\nu = \int \int C(\vc{x}, \vc{z})^2 \rho(\vc{x}) \rho(\vc{z}) \, d\vc{x} \, d\vc{z}
+$$
+
+```{python}
+# ν = ∫∫ C(x,z)² ρ(x)ρ(z) dx dz
+nu = quad_w @ (K_qq ** 2) @ quad_w
+
+print(f"ν = {nu:.6f}")
+```
+
+$$
+\varphi = \mathrm{Trace}[\mt{A}^{-1} \mt{P} \mt{A}^{-1} \mt{P}]
+$$
+
+```{python}
+# φ = Trace[A⁻¹ P A⁻¹ P]
+AinvP = A_inv @ P
+varphi = np.trace(AinvP @ AinvP)
+
+print(f"φ = {varphi:.6f}")
+```
+
+For $\psi$, we need the $\mt{\Pi}$ matrix:
+
+$$
+\mt{\Pi}_{ij} = \int \int \vc{t}(\vc{z}) C(\vc{z}, \vc{x}) \vc{t}(\vc{x})^\top \rho(\vc{x}) \rho(\vc{z}) \, d\vc{x} \, d\vc{z}
+$$
+
+$$
+\psi = \mathrm{Trace}[\mt{A}^{-1} \mt{\Pi}]
+$$
+
+```{python}
+# Π_ij = ∫∫ C(x,x_i) C(x,z) C(z,x_j) ρ(x)ρ(z) dx dz
+# Using 2D quadrature
+Pi = np.zeros((N, N))
+for i in range(N):
+    for j in range(N):
+        # For each (i,j), integrate over x and z
+        integrand = (K_qt[:, i, None] * K_qq * K_qt[None, :, j])
+        Pi[i, j] = quad_w @ integrand @ quad_w
+
+psi = np.trace(A_inv @ Pi)
+
+print(f"Π shape: {Pi.shape}")
+print(f"ψ = Trace[A⁻¹Π] = {psi:.6f}")
+```
+
+```{python}
+# χ = ν + φ - 2ψ
+chi = nu + varphi - 2 * psi
+
+print(f"χ = ν + φ - 2ψ = {nu:.4f} + {varphi:.4f} - 2×{psi:.4f} = {chi:.6f}")
+```
+
+### Computing $\phi$ (the other one)
+
+$$
+\phi = \int \int m^*(\vc{x}) m^*(\vc{z}) C^*(\vc{x}, \vc{z}) \rho(\vc{x}) \rho(\vc{z}) \, d\vc{x} \, d\vc{z}
+$$
+
+$$
+\phi = \vc{y}^\top \mt{A}^{-1} \mt{\Pi} \mt{A}^{-1} \vc{y} - \vc{y}^\top \mt{A}^{-1} \mt{P} \mt{A}^{-1} \mt{P} \mt{A}^{-1} \vc{y}
+$$
+
+```{python}
+# φ (the product with m*) - note: different from varphi above!
+phi_term = train_y @ A_inv @ Pi @ alpha - train_y @ A_inv @ P @ AinvP @ alpha
+
+print(f"φ (m*m*C* term) = {phi_term:.6f}")
+```
+
+### Computing $\vartheta_1$
+
+```{python}
+# ϑ₁ = E[κ_f²] = 4φ s² + 2χ s⁴ + (ζ + v²s²)²
+theta_1 = (4 * phi_term * kernel_var +
+           2 * chi * kernel_var**2 +
+           (zeta + v_sq * kernel_var)**2)
+
+print(f"ϑ₁ = {theta_1:.6f}")
+```
+
+## Term 2: $\E[\mu_f^2 \kappa_f]$
+
+### The $\vc{\lambda}$ Vector
+
+$$
+\vc{\lambda} = \int \int C(\vc{x}, \vc{z}) \vc{t}(\vc{x}) \rho(\vc{x}) \rho(\vc{z}) \, d\vc{x} \, d\vc{z}
+$$
+
+```{python}
+# λ = ∫∫ C(x,z) t(x) ρ(x)ρ(z) dx dz
+# = ∫∫ C(x,z) C(x, train) ρ(x)ρ(z) dx dz
+lam = np.zeros(N)
+for i in range(N):
+    integrand = K_qq * K_qt[:, i, None]
+    lam[i] = quad_w @ integrand @ quad_w
+
+print(f"λ shape: {lam.shape}")
+print(f"λ values: {lam.round(4)}")
+```
+
+### Computing $\varrho$
+
+$$
+\varrho = \int \int m^*(\vc{x}) C^*(\vc{x}, \vc{z}) \rho(\vc{x}) \rho(\vc{z}) \, d\vc{x} \, d\vc{z}
+$$
+
+$$
+\varrho = \vc{\lambda}^\top \mt{A}^{-1} \vc{y} - \vc{\tau}^\top \mt{A}^{-1} \mt{P} \mt{A}^{-1} \vc{y}
+$$
+
+```{python}
+# ϱ = λᵀA⁻¹y - τᵀA⁻¹PA⁻¹y
+varrho = lam @ alpha - tau @ A_inv @ P @ alpha
+
+print(f"ϱ = {varrho:.6f}")
+```
+
+### Computing $\xi$
+
+$$
+\xi = \int \int \int C^*(\vc{w}, \vc{x}) C^*(\vc{w}, \vc{z}) \rho(\vc{w}) \rho(\vc{x}) \rho(\vc{z}) \, d\vc{w} \, d\vc{x} \, d\vc{z}
+$$
+
+$$
+\xi = \xi_1 - 2\xi_2 + \xi_3
+$$
+
+```{python}
+# ξ₁ = ∫∫∫ C(w,x)C(w,z) ρ(w)ρ(x)ρ(z) dw dx dz
+# For 1D with tensor quadrature, this is a triple sum
+xi_1 = 0.0
+for q1 in range(Q):  # w
+    for q2 in range(Q):  # x
+        for q3 in range(Q):  # z
+            xi_1 += (quad_w[q1] * quad_w[q2] * quad_w[q3] *
+                     K_qq[q1, q2] * K_qq[q1, q3])
+
+# ξ₂ = λᵀA⁻¹τ
+xi_2 = lam @ A_inv @ tau
+
+# ξ₃ = τᵀA⁻¹PA⁻¹τ
+xi_3 = tau @ A_inv @ P @ A_inv @ tau
+
+xi = xi_1 - 2 * xi_2 + xi_3
+
+print(f"ξ₁ = {xi_1:.6f}")
+print(f"ξ₂ = {xi_2:.6f}")
+print(f"ξ₃ = {xi_3:.6f}")
+print(f"ξ = ξ₁ - 2ξ₂ + ξ₃ = {xi:.6f}")
+```
+
+### Computing $\vartheta_2$
+
+$$
+\vartheta_2 = \E[\mu_f^2 \kappa_f] = 4\eta\varrho s^2 + 2\xi s^4 + \zeta \varsigma^2 s^2 + \varsigma^2 v^2 s^4 + \eta^2\zeta + \eta^2 v^2 s^2
+$$
+
+```{python}
+# ϑ₂ = E[μ_f² κ_f]
+theta_2 = (4 * eta * varrho * kernel_var +
+           2 * xi * kernel_var**2 +
+           zeta * varsigma_sq * kernel_var +
+           varsigma_sq * v_sq * kernel_var**2 +
+           eta**2 * zeta +
+           eta**2 * v_sq * kernel_var)
+
+print(f"ϑ₂ = {theta_2:.6f}")
+```
+
+## Term 3: $\E[\mu_f^4]$
+
+From the univariate 4th moment formula:
+
+$$
+\E[X^4] = \mu^4 + 6\mu^2\sigma^2 + 3\sigma^4
+$$
+
+With $\mu = \eta$ and $\sigma^2 = s^2 \varsigma^2$:
+
+$$
+\vartheta_3 = \E[\mu_f^4] = \eta^4 + 6\eta^2 s^2 \varsigma^2 + 3 s^4 \varsigma^4
+$$
+
+```{python}
+# ϑ₃ = E[μ_f⁴] = η⁴ + 6η²s²ς² + 3s⁴ς⁴
+theta_3 = (eta**4 +
+           6 * eta**2 * kernel_var * varsigma_sq +
+           3 * kernel_var**2 * varsigma_sq**2)
+
+print(f"ϑ₃ = {theta_3:.6f}")
+```
+
+## Final Variance of Variance
+
+$$
+\Var[\gamma_f] = \vartheta_1 - 2\vartheta_2 + \vartheta_3 - \E[\gamma_f]^2
+$$
+
+```{python}
+# Var[γ_f] = ϑ₁ - 2ϑ₂ + ϑ₃ - E[γ_f]²
+Var_gamma = theta_1 - 2 * theta_2 + theta_3 - E_gamma**2
+
+print(f"Var[γ_f] = ϑ₁ - 2ϑ₂ + ϑ₃ - E[γ_f]²")
+print(f"        = {theta_1:.6f} - 2×{theta_2:.6f} + {theta_3:.6f} - {E_gamma**2:.6f}")
+print(f"        = {Var_gamma:.6f}")
+print(f"Std[γ_f] = {np.sqrt(max(0, Var_gamma)):.6f}")
+```
+
+## Monte Carlo Verification
+
+```{python}
+# Sample GP posterior at quadrature points
+m_star_quad = K_qt @ alpha
+C_star_quad = kernel_var * (K_qq - K_qt @ A_inv @ K_qt.T)
+C_star_quad += 1e-10 * np.eye(Q)
+
+L_quad = np.linalg.cholesky(C_star_quad)
+
+# Draw GP realizations
+n_realizations = 20000
+gamma_samples = np.zeros(n_realizations)
+
+for r in range(n_realizations):
+    z = np.random.randn(Q)
+    f_r = m_star_quad + L_quad @ z
+
+    mu_r = quad_w @ f_r
+    kappa_r = quad_w @ (f_r ** 2)
+    gamma_samples[r] = kappa_r - mu_r**2
+
+mc_E_gamma = np.mean(gamma_samples)
+mc_Var_gamma = np.var(gamma_samples)
+
+print(f"Monte Carlo results (n={n_realizations}):")
+print(f"  E[γ_f]:   MC = {mc_E_gamma:.6f}, Analytical = {E_gamma:.6f}")
+print(f"  Var[γ_f]: MC = {mc_Var_gamma:.6f}, Analytical = {Var_gamma:.6f}")
+print(f"  Std[γ_f]: MC = {np.sqrt(mc_Var_gamma):.6f}, Analytical = {np.sqrt(max(0, Var_gamma)):.6f}")
+```
+
+## Visualization
+
+```{python}
+fig, ax = plt.subplots(figsize=(10, 5))
+
+# Histogram of γ_f samples
+ax.hist(gamma_samples, bins=50, density=True, alpha=0.7, label='MC samples')
+
+# Mark mean and std
+ax.axvline(E_gamma, color='red', linestyle='--', linewidth=2,
+           label=f'E[γ_f] = {E_gamma:.3f}')
+ax.axvline(E_gamma - np.sqrt(max(0, Var_gamma)), color='orange', linestyle=':',
+           label=f'±σ (analytical)')
+ax.axvline(E_gamma + np.sqrt(max(0, Var_gamma)), color='orange', linestyle=':')
+
+ax.set_xlabel('γ_f')
+ax.set_ylabel('Density')
+ax.set_title('Distribution of GP Variance γ_f with Analytical Statistics')
+ax.legend()
+ax.grid(True, alpha=0.3)
+
+plt.tight_layout()
+plt.show()
+```
+
+## Summary of Auxiliary Quantities
+
+| Quantity | Formula | Meaning |
+|----------|---------|---------|
+| $\nu$ | $\int\int C(\vc{x},\vc{z})^2 \rho^2 d\vc{x}d\vc{z}$ | Squared prior correlation |
+| $\varphi$ | $\mathrm{Tr}[\mt{A}^{-1}\mt{P}\mt{A}^{-1}\mt{P}]$ | Squared posterior correction |
+| $\psi$ | $\mathrm{Tr}[\mt{A}^{-1}\mt{\Pi}]$ | Cross term |
+| $\chi$ | $\nu + \varphi - 2\psi$ | Integrated squared posterior covariance |
+| $\vc{\lambda}$ | $\int\int C(\vc{x},\vc{z})\vc{t}(\vc{x}) \rho^2 d\vc{x}d\vc{z}$ | Kernel-correlation product |
+| $\xi$ | $\xi_1 - 2\xi_2 + \xi_3$ | Triple integral term |
+| $\varrho$ | $\vc{\lambda}^\top\mt{A}^{-1}\vc{y} - \vc{\tau}^\top\mt{A}^{-1}\mt{P}\mt{A}^{-1}\vc{y}$ | Mean-covariance cross term |
+
+## Key Takeaways
+
+- **Isserlis' theorem** enables computation of 4th moments for Gaussians
+- The variance formula involves many auxiliary quantities: $\chi$, $\nu$, $\varphi$, $\psi$, $\xi$, $\varrho$
+- Each term has a clear probabilistic interpretation
+- The formula $\Var[\gamma_f] = \vartheta_1 - 2\vartheta_2 + \vartheta_3 - \E[\gamma_f]^2$ is exact
+- Monte Carlo verification confirms the complex derivation
+
+## Exercises
+
+1. **(Easy)** Verify that $\E[X^4] = \mu^4 + 6\mu^2\sigma^2 + 3\sigma^4$ for $X \sim \normal(\mu, \sigma^2)$ using the moment generating function.
+
+2. **(Medium)** Show that $\Var[\gamma_f] \geq 0$ for any GP and input distribution.
+
+3. **(Challenge)** Derive the simplified formula for $\Var[\gamma_f]$ when $\vc{y} = \vc{0}$ (training values are all zero). Which terms vanish?
+
+## Next Steps
+
+Continue with:
+
+- [Separable Kernel Integrals](gp_separable_kernel_integrals.qmd) - Efficient computation via factorization
+- [Sobol Indices from GP Statistics](gp_sobol_indices.qmd) - Sensitivity analysis

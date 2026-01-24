@@ -1,0 +1,317 @@
+---
+title: "GP Mean with Uncertain Inputs"
+subtitle: "PyApprox Tutorial Library"
+description: "Computing the mean and variance of GP predictions over uncertain inputs"
+prerequisites:
+  - gaussian_process_surrogates
+tags:
+  - gp-statistics
+  - forward-uq
+format:
+  html:
+    code-fold: false
+    code-tools: true
+    toc: true
+execute:
+  echo: true
+  warning: false
+jupyter: python3
+---
+
+## Learning Objectives
+
+After completing this tutorial, you will be able to:
+
+- Define the kernel integral $\vc{\tau}$ and understand its role in GP statistics
+- Compute the expected value $\eta = \vc{\tau}^\top \mt{A}^{-1} \vc{y}$ of the GP mean
+- Compute the variance $s^2 \varsigma^2$ of the GP mean over uncertain inputs
+- Verify formulas using Monte Carlo simulation
+
+## Prerequisites
+
+Complete [Gaussian Process Surrogates](gaussian_process_surrogates.qmd) before this tutorial.
+
+## Conceptual Introduction
+
+When using a Gaussian Process (GP) as a surrogate model for uncertainty quantification, we often want to compute statistics like the mean and variance of the GP output over a distribution of inputs. The **mean of the GP mean** and **variance of the GP mean** tell us how the GP prediction varies as we integrate over input uncertainty.
+
+> **Note:** This tutorial assumes a GP with zero prior mean. Extension to non-zero constant mean is future work.
+
+Given a GP posterior $f \sim \mathcal{GP}(m^*, s^2 C^*)$ and an input distribution with density $\rho(\vc{z})$, we want to compute:
+
+$$
+\mu_f = \int f(\vc{z}) \, \rho(\vc{z}) \, d\vc{z}
+$$
+
+Since $f$ is a random function (GP), $\mu_f$ is a random variable. We will derive its mean and variance.
+
+## Setup
+
+```{python}
+import numpy as np
+import matplotlib.pyplot as plt
+
+np.random.seed(42)
+```
+
+## Key Quantities
+
+### The Correlation Vector $\vc{t}(\vc{z})$
+
+For a GP with correlation function $C(\vc{z}, \vc{z}')$ and $N$ training points $\{\vc{x}^{(j)}\}_{j=1}^N$, the correlation vector is:
+
+$$
+[\vc{t}(\vc{z})]_j = C(\vc{z}, \vc{x}^{(j)}) \in \mathbb{R}^N
+$$
+
+This vector measures the correlation between a new point $\vc{z}$ and all training points.
+
+### The Kernel Integral $\vc{\tau}$
+
+The **integrated correlation vector** is:
+
+$$
+\vc{\tau} = \int \vc{t}(\vc{z}) \, \rho(\vc{z}) \, d\vc{z} \in \mathbb{R}^N
+$$
+
+with elements:
+
+$$
+\tau_j = \int C(\vc{z}, \vc{x}^{(j)}) \, \rho(\vc{z}) \, d\vc{z}
+$$
+
+This measures how each training point "contributes" after averaging over the input distribution.
+
+### The Double Integral $u$
+
+The scalar quantity $u$ represents the integrated prior covariance:
+
+$$
+u = \int \int C(\vc{z}, \vc{w}) \, \rho(\vc{z}) \, \rho(\vc{w}) \, d\vc{z} \, d\vc{w}
+$$
+
+## Mean of the GP Mean
+
+The GP posterior mean at a point $\vc{z}$ is:
+
+$$
+m^*(\vc{z}) = \vc{t}(\vc{z})^\top \mt{A}^{-1} \vc{y}
+$$
+
+where $\mt{A}$ is the kernel matrix and $\vc{y}$ are the training values.
+
+Taking the expectation over the input distribution:
+
+$$
+\eta = \E_{\vc{z}}[\mu_f] = \int m^*(\vc{z}) \, \rho(\vc{z}) \, d\vc{z} = \vc{\tau}^\top \mt{A}^{-1} \vc{y}
+$$
+
+```{python}
+# Setup: 1D GP for simplicity
+N = 5  # training points
+length_scale = 1.0
+kernel_var = 1.5  # s²
+
+# Training data
+train_x = np.random.randn(N)
+train_y = np.sin(train_x) + 0.1 * np.random.randn(N)
+
+# 1D RBF kernel (correlation function, C(x,x) = 1)
+def rbf_corr(x1, x2, l):
+    """RBF correlation function."""
+    x1 = np.atleast_1d(x1)
+    x2 = np.atleast_1d(x2)
+    return np.exp(-0.5 * (x1[:, None] - x2[None, :])**2 / l**2)
+
+# Kernel matrix A (correlation, not covariance)
+A = rbf_corr(train_x, train_x, length_scale) + 1e-8 * np.eye(N)
+A_inv = np.linalg.inv(A)
+
+print(f"Training points: {N}")
+print(f"Kernel matrix shape: {A.shape}")
+```
+
+### Computing $\vc{\tau}$ with Gauss-Hermite Quadrature
+
+For a standard normal input distribution, we use Gauss-Hermite quadrature:
+
+```{python}
+# Gauss-Hermite quadrature for N(0, 1)
+Q = 50  # quadrature points
+quad_x, quad_w = np.polynomial.hermite.hermgauss(Q)
+quad_x = quad_x * np.sqrt(2)  # scale for N(0, 1)
+quad_w = quad_w / np.sqrt(np.pi)  # normalize weights
+
+# Compute τ: τ_j = ∫ C(z, x_j) ρ(z) dz
+K_quad_train = rbf_corr(quad_x, train_x, length_scale)
+tau = quad_w @ K_quad_train
+
+print(f"τ shape: {tau.shape}")
+print(f"τ values: {tau.round(4)}")
+```
+
+### Computing $\eta$
+
+```{python}
+# η = τᵀ A⁻¹ y
+eta = tau @ A_inv @ train_y
+
+print(f"η = E[μ_f] = {eta:.6f}")
+```
+
+## Variance of the GP Mean
+
+The variance of $\mu_f$ is:
+
+$$
+\Var_{\vc{z}}[\mu_f] = s^2 \varsigma^2 = s^2 (u - \varpi)
+$$
+
+where:
+
+$$
+\varpi = \vc{\tau}^\top \mt{A}^{-1} \vc{\tau}
+$$
+
+### Computing $u$
+
+```{python}
+# u = ∫∫ C(z, w) ρ(z) ρ(w) dz dw
+K_quad_quad = rbf_corr(quad_x, quad_x, length_scale)
+u = quad_w @ K_quad_quad @ quad_w
+
+print(f"u = {u:.6f}")
+```
+
+### Computing $\varpi$ and $\varsigma^2$
+
+```{python}
+# ϖ = τᵀ A⁻¹ τ
+varpi = tau @ A_inv @ tau
+
+# ς² = u - ϖ
+varsigma_sq = u - varpi
+
+print(f"ϖ = {varpi:.6f}")
+print(f"ς² = u - ϖ = {varsigma_sq:.6f}")
+print(f"Var[μ_f] = s² ς² = {kernel_var * varsigma_sq:.6f}")
+```
+
+## Monte Carlo Verification
+
+Let's verify our formulas using Monte Carlo sampling from the GP posterior:
+
+```{python}
+# Monte Carlo verification
+n_mc = 50000
+mc_samples = np.random.randn(n_mc)
+
+# GP posterior mean at MC samples: m*(z) = t(z)ᵀ A⁻¹ y
+K_mc_train = rbf_corr(mc_samples, train_x, length_scale)
+posterior_means = K_mc_train @ A_inv @ train_y
+
+# MC estimate of E[μ_f]
+mc_eta = np.mean(posterior_means)
+
+# MC estimate of Var[μ_f] (but this is variance of m*, not of f!)
+# We need to sample from GP posterior, not just use posterior mean
+
+print(f"MC estimate of E[m*(z)] (n={n_mc}): {mc_eta:.6f}")
+print(f"Analytical η:                        {eta:.6f}")
+print(f"Difference:                          {abs(mc_eta - eta):.6f}")
+```
+
+### Full GP Posterior Sampling
+
+To verify $\Var[\mu_f]$, we need to sample functions from the GP posterior:
+
+```{python}
+# Sample GP posterior at quadrature points
+# f(quad_x) ~ N(m*(quad_x), s² C*(quad_x, quad_x))
+m_star_quad = K_quad_train @ A_inv @ train_y
+C_star_quad = kernel_var * (K_quad_quad - K_quad_train @ A_inv @ K_quad_train.T)
+C_star_quad += 1e-10 * np.eye(Q)  # numerical stability
+
+L_quad = np.linalg.cholesky(C_star_quad)
+
+# Draw GP realizations and compute μ_f for each
+n_realizations = 10000
+mu_samples = np.zeros(n_realizations)
+
+for r in range(n_realizations):
+    z = np.random.randn(Q)
+    f_r = m_star_quad + L_quad @ z  # GP sample at quadrature points
+    mu_samples[r] = quad_w @ f_r    # μ_f = ∫ f(z) ρ(z) dz
+
+mc_var_mu = np.var(mu_samples)
+analytical_var_mu = kernel_var * varsigma_sq
+
+print(f"\nMC estimate of Var[μ_f] (n={n_realizations}): {mc_var_mu:.6f}")
+print(f"Analytical Var[μ_f] = s²ς²:                   {analytical_var_mu:.6f}")
+print(f"Relative error:                               {abs(mc_var_mu - analytical_var_mu)/analytical_var_mu:.2%}")
+```
+
+## Distribution of $\mu_f$
+
+Since $\mu_f$ is a linear functional of the GP posterior, it is Gaussian:
+
+$$
+\mu_f \mid \vc{\theta}, \vc{y} \sim \normal(\eta, s^2 \varsigma^2)
+$$
+
+```{python}
+fig, ax = plt.subplots(figsize=(10, 5))
+
+# Histogram of MC samples
+ax.hist(mu_samples, bins=50, density=True, alpha=0.7, label='MC samples')
+
+# Analytical Gaussian
+x_range = np.linspace(mu_samples.min(), mu_samples.max(), 200)
+std_mu = np.sqrt(analytical_var_mu)
+gaussian_pdf = (1 / (std_mu * np.sqrt(2 * np.pi)) *
+                np.exp(-0.5 * ((x_range - eta) / std_mu)**2))
+ax.plot(x_range, gaussian_pdf, 'r-', linewidth=2, label='Analytical N(η, s²ς²)')
+
+ax.axvline(eta, color='green', linestyle='--', label=f'η = {eta:.3f}')
+ax.set_xlabel('μ_f')
+ax.set_ylabel('Density')
+ax.set_title('Distribution of GP Mean over Uncertain Inputs')
+ax.legend()
+ax.grid(True, alpha=0.3)
+
+plt.tight_layout()
+plt.show()
+```
+
+## Summary of Key Formulas
+
+| Quantity | Formula | Meaning |
+|----------|---------|---------|
+| $\tau_j$ | $\int C(\vc{z}, \vc{x}^{(j)}) \rho(\vc{z}) d\vc{z}$ | Integrated correlation |
+| $u$ | $\int \int C(\vc{z}, \vc{w}) \rho(\vc{z}) \rho(\vc{w}) d\vc{z} d\vc{w}$ | Integrated prior covariance |
+| $\eta$ | $\vc{\tau}^\top \mt{A}^{-1} \vc{y}$ | Mean of GP mean |
+| $\varsigma^2$ | $u - \vc{\tau}^\top \mt{A}^{-1} \vc{\tau}$ | Scaled variance of GP mean |
+| $\Var[\mu_f]$ | $s^2 \varsigma^2$ | Variance of GP mean |
+
+## Key Takeaways
+
+- The **mean of the GP mean** $\eta$ is computed analytically using the kernel integral $\vc{\tau}$
+- The **variance of the GP mean** $s^2 \varsigma^2$ measures uncertainty due to the GP approximation
+- The GP mean $\mu_f$ follows a **Gaussian distribution** since it's a linear functional
+- Gauss-Hermite quadrature provides accurate numerical integration for Gaussian inputs
+- Monte Carlo verification confirms the analytical formulas
+
+## Exercises
+
+1. **(Easy)** Verify that $\tau_j$ for a uniform distribution $\mathcal{U}(-1, 1)$ using Gauss-Legendre quadrature.
+
+2. **(Medium)** For a 2D GP with product kernel $C(\vc{z}, \vc{z}') = C_1(z_1, z_1') \cdot C_2(z_2, z_2')$ and independent inputs, show that $\tau_j = \tau_{1,j} \cdot \tau_{2,j}$ where $\tau_{k,j}$ are the 1D integrals.
+
+3. **(Challenge)** Derive the analytical formula for $\tau_j$ when using an RBF kernel with a Gaussian input distribution. Hint: The integral of a product of Gaussians is a Gaussian.
+
+## Next Steps
+
+Continue with:
+
+- [Mean of GP Variance](gp_mean_of_variance.qmd) - Computing $\E[\gamma_f]$
+- [Separable Kernel Integrals](gp_separable_kernel_integrals.qmd) - Efficient computation via factorization

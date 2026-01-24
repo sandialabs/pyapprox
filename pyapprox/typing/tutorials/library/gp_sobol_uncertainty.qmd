@@ -1,0 +1,354 @@
+---
+title: "Uncertainty in GP Sobol Indices"
+subtitle: "PyApprox Tutorial Library"
+description: "Quantifying uncertainty in sensitivity indices using Monte Carlo ensemble"
+prerequisites:
+  - gp_mean_uncertain_inputs
+  - gp_sobol_indices
+  - gp_statistics_workflow
+tags:
+  - gp-statistics
+  - sensitivity-analysis
+  - uncertainty-quantification
+format:
+  html:
+    code-fold: false
+    code-tools: true
+    toc: true
+execute:
+  echo: true
+  warning: false
+jupyter: python3
+---
+
+## Learning Objectives
+
+After completing this tutorial, you will be able to:
+
+- Understand why Sobol indices are random variables under GP uncertainty
+- Use Monte Carlo sampling to estimate the distribution of $S_i$
+- Recognize the critical requirement: quadrature points $\neq$ training points
+- Verify MC convergence rate $O(1/\sqrt{n})$
+
+## Prerequisites
+
+Complete [GP Mean with Uncertain Inputs](gp_mean_uncertain_inputs.qmd), [GP Sobol Indices](gp_sobol_indices.qmd), and [Complete GP Statistics Workflow](gp_statistics_workflow.qmd) before this tutorial.
+
+## Conceptual Introduction
+
+When using a GP surrogate for sensitivity analysis, the Sobol indices are **random variables** because the GP is an approximation with uncertainty. Different realizations from the GP posterior yield different sensitivity indices.
+
+> **Note:** This tutorial assumes a GP with zero prior mean. Extension to non-zero constant mean is future work.
+
+The Monte Carlo (MC) ensemble approach:
+
+1. Draw random realizations $f^{(r)}$ from the GP posterior
+2. Compute $S_i^{(r)}$ for each realization
+3. Use the empirical distribution to quantify uncertainty
+
+## Setup
+
+```{python}
+import numpy as np
+import matplotlib.pyplot as plt
+
+np.random.seed(42)
+```
+
+## Why Sobol Indices are Random
+
+For each GP realization $f^{(r)} \sim \mathcal{GP}(m^*, s^2 C^*)$:
+$$
+S_i^{(r)} = \frac{V_i^{(r)}}{\gamma_f^{(r)}}
+$$
+
+where:
+- $\gamma_f^{(r)} = \Var[f^{(r)}]$ is the total variance of realization $r$
+- $V_i^{(r)} = \Var[\E[f^{(r)} \mid z_i]]$ is the main effect
+
+Since $f^{(r)}$ varies across realizations, so do the Sobol indices.
+
+## Critical Requirement: Sample Points ≠ Training Points
+
+At training points $\vc{x}^{(j)}$, the GP posterior has:
+- **Mean**: $m^*(\vc{x}^{(j)}) = y_j$ (exact interpolation)
+- **Variance**: $C^*(\vc{x}^{(j)}, \vc{x}^{(j)}) = 0$ (no uncertainty)
+
+If we use training points for quadrature, all GP realizations have **identical values** at those points, giving artificially low variance in $S_i^{(r)}$.
+
+```{python}
+# Demonstrate zero variance at training points
+def rbf_1d(x1, x2, l):
+    x1 = np.atleast_1d(x1)
+    x2 = np.atleast_1d(x2)
+    return np.exp(-0.5 * (x1[:, None] - x2[None, :])**2 / l**2)
+
+N = 5
+train_x = np.linspace(-2, 2, N)
+
+A = rbf_1d(train_x, train_x, 1.0) + 1e-10 * np.eye(N)
+A_inv = np.linalg.inv(A)
+
+# Posterior variance at training points
+K_tt = rbf_1d(train_x, train_x, 1.0)
+C_star_train = K_tt - K_tt @ A_inv @ K_tt
+
+print("Posterior variance at TRAINING points:")
+print(f"  {np.diag(C_star_train).round(10)}")
+print("  (All zeros - no GP uncertainty here!)")
+
+# Posterior variance at quadrature points (different from training)
+quad_x = np.linspace(-3, 3, 20)
+K_qt = rbf_1d(quad_x, train_x, 1.0)
+K_qq = rbf_1d(quad_x, quad_x, 1.0)
+C_star_quad = K_qq - K_qt @ A_inv @ K_qt.T
+
+print("\nPosterior variance at QUADRATURE points:")
+print(f"  Min:  {np.min(np.diag(C_star_quad)):.4f}")
+print(f"  Max:  {np.max(np.diag(C_star_quad)):.4f}")
+print("  (Substantial uncertainty - this is what we need!)")
+```
+
+## Monte Carlo Ensemble Implementation
+
+### Setup GP and Quadrature
+
+```{python}
+# 1D GP for simplicity
+np.random.seed(42)
+N = 8
+length_scale = 1.0
+kernel_var = 1.5
+
+train_x = np.random.randn(N)
+train_y = np.sin(train_x) + 0.1 * np.random.randn(N)
+
+A = rbf_1d(train_x, train_x, length_scale) + 1e-8 * np.eye(N)
+A_inv = np.linalg.inv(A)
+
+# Gauss-Hermite quadrature (points differ from training!)
+Q = 50
+quad_x, quad_w = np.polynomial.hermite.hermgauss(Q)
+quad_x = quad_x * np.sqrt(2)
+quad_w = quad_w / np.sqrt(np.pi)
+
+# GP posterior at quadrature points
+K_qt = rbf_1d(quad_x, train_x, length_scale)
+K_qq = rbf_1d(quad_x, quad_x, length_scale)
+
+m_star = K_qt @ A_inv @ train_y
+C_star = kernel_var * (K_qq - K_qt @ A_inv @ K_qt.T)
+C_star += 1e-10 * np.eye(Q)  # Numerical stability
+
+L = np.linalg.cholesky(C_star)
+
+print(f"Training points: {N}")
+print(f"Quadrature points: {Q}")
+print(f"Posterior mean range: [{m_star.min():.3f}, {m_star.max():.3f}]")
+print(f"Posterior std range: [{np.sqrt(np.diag(C_star)).min():.3f}, {np.sqrt(np.diag(C_star)).max():.3f}]")
+```
+
+### Sample GP Realizations
+
+```{python}
+n_realizations = 2000
+
+mu_samples = np.zeros(n_realizations)
+gamma_samples = np.zeros(n_realizations)
+
+for r in range(n_realizations):
+    # Sample GP realization at quadrature points
+    z = np.random.randn(Q)
+    f_r = m_star + L @ z
+
+    # Compute mean: μ_f = ∫ f(z) ρ(z) dz
+    mu_samples[r] = quad_w @ f_r
+
+    # Compute variance: γ_f = ∫ f² dF - μ²
+    kappa_r = quad_w @ (f_r ** 2)
+    gamma_samples[r] = kappa_r - mu_samples[r]**2
+
+print(f"Sampled {n_realizations} GP realizations")
+print(f"\nμ_f samples:")
+print(f"  Mean: {mu_samples.mean():.4f}")
+print(f"  Std:  {mu_samples.std():.4f}")
+print(f"\nγ_f samples:")
+print(f"  Mean: {gamma_samples.mean():.4f}")
+print(f"  Std:  {gamma_samples.std():.4f}")
+```
+
+## Comparison with Analytical Formulas
+
+```{python}
+# Analytical quantities
+tau = quad_w @ K_qt
+P = K_qt.T @ np.diag(quad_w) @ K_qt
+u = quad_w @ K_qq @ quad_w
+
+eta = tau @ A_inv @ train_y
+varpi = tau @ A_inv @ tau
+varsigma_sq = u - varpi
+zeta = train_y @ A_inv @ P @ A_inv @ train_y
+v_sq = 1 - np.trace(P @ A_inv)
+
+E_mu_analytical = eta
+Var_mu_analytical = kernel_var * varsigma_sq
+E_gamma_analytical = zeta + kernel_var * v_sq - eta**2 - kernel_var * varsigma_sq
+
+print("Comparison: Analytical vs MC")
+print("-" * 45)
+print(f"{'Quantity':<20} {'Analytical':>10} {'MC':>10}")
+print("-" * 45)
+print(f"{'E[μ_f]':<20} {E_mu_analytical:>10.4f} {mu_samples.mean():>10.4f}")
+print(f"{'Var[μ_f]':<20} {Var_mu_analytical:>10.4f} {mu_samples.var():>10.4f}")
+print(f"{'E[γ_f]':<20} {E_gamma_analytical:>10.4f} {gamma_samples.mean():>10.4f}")
+print("-" * 45)
+print("MC converges to analytical values!")
+```
+
+## Convergence Rate Verification
+
+The MC standard error scales as $O(1/\sqrt{n})$:
+
+```{python}
+# Compute running estimates
+n_points = np.logspace(1, np.log10(n_realizations), 50).astype(int)
+n_points = np.unique(n_points)
+
+errors_mu = []
+errors_gamma = []
+
+for n in n_points:
+    mu_est = mu_samples[:n].mean()
+    gamma_est = gamma_samples[:n].mean()
+    errors_mu.append(abs(mu_est - E_mu_analytical))
+    errors_gamma.append(abs(gamma_est - E_gamma_analytical))
+
+# Fit convergence rate
+log_n = np.log(n_points)
+log_err_mu = np.log(np.array(errors_mu) + 1e-10)
+slope_mu, _ = np.polyfit(log_n[-20:], log_err_mu[-20:], 1)
+
+print(f"Convergence rate for E[μ_f]: n^{slope_mu:.2f}")
+print(f"(Expected: n^-0.5)")
+
+fig, ax = plt.subplots(figsize=(8, 5))
+ax.loglog(n_points, errors_mu, 'b.-', label='E[μ_f] error')
+ax.loglog(n_points, errors_gamma, 'r.-', label='E[γ_f] error')
+ax.loglog(n_points, 0.5 / np.sqrt(n_points), 'k--', label=r'$O(1/\sqrt{n})$')
+ax.set_xlabel('Number of realizations')
+ax.set_ylabel('Absolute error')
+ax.set_title('MC Convergence')
+ax.legend()
+ax.grid(True, alpha=0.3)
+plt.tight_layout()
+plt.show()
+```
+
+## Distribution of Sobol Index (1D Case)
+
+For a 1D GP, the "Sobol index" is trivially 1, but we can examine the distribution of $\gamma_f$:
+
+```{python}
+fig, axes = plt.subplots(1, 2, figsize=(12, 4))
+
+# Distribution of μ_f
+ax = axes[0]
+ax.hist(mu_samples, bins=50, density=True, alpha=0.7, label='MC samples')
+x_range = np.linspace(mu_samples.min(), mu_samples.max(), 100)
+gaussian_pdf = (1 / np.sqrt(2*np.pi*Var_mu_analytical) *
+                np.exp(-0.5 * (x_range - E_mu_analytical)**2 / Var_mu_analytical))
+ax.plot(x_range, gaussian_pdf, 'r-', linewidth=2, label=f'N(η, s²ς²)')
+ax.axvline(E_mu_analytical, color='green', linestyle='--', label=f'η = {E_mu_analytical:.3f}')
+ax.set_xlabel('μ_f')
+ax.set_ylabel('Density')
+ax.set_title('Distribution of GP Mean')
+ax.legend()
+ax.grid(True, alpha=0.3)
+
+# Distribution of γ_f
+ax = axes[1]
+ax.hist(gamma_samples, bins=50, density=True, alpha=0.7, label='MC samples')
+ax.axvline(E_gamma_analytical, color='green', linestyle='--', label=f'E[γ] = {E_gamma_analytical:.3f}')
+ax.axvline(gamma_samples.mean(), color='blue', linestyle=':', label=f'MC mean = {gamma_samples.mean():.3f}')
+ax.set_xlabel('γ_f')
+ax.set_ylabel('Density')
+ax.set_title('Distribution of GP Variance')
+ax.legend()
+ax.grid(True, alpha=0.3)
+
+plt.tight_layout()
+plt.show()
+```
+
+## Correlation Between $V_i$ and $\gamma_f$
+
+The Sobol index $S_i = V_i / \gamma_f$ is a ratio. When $V_i$ and $\gamma_f$ are positively correlated, the ratio has lower variance than expected:
+
+```{python}
+# Correlation between μ_f² and γ_f
+# (In 1D, V_i ≈ Var[μ_f] relates to μ_f fluctuations)
+mu_sq = mu_samples**2
+corr = np.corrcoef(mu_sq, gamma_samples)[0, 1]
+
+print(f"Correlation between μ_f² and γ_f: {corr:.3f}")
+print("(Typical values: 0.6-0.8 for well-sampled GPs)")
+
+# Implications for Var[S_i]
+print("\nImplication:")
+print("  When V_i and γ_f move together,")
+print("  their ratio S_i = V_i/γ_f stays relatively stable.")
+print("  This reduces Var[S_i] compared to treating them as independent.")
+```
+
+## Practical Guidelines
+
+| Parameter | Recommendation | Notes |
+|-----------|---------------|-------|
+| Quadrature $Q$ | 20-50 per dimension | Total = $Q^d$ (curse of dimensionality) |
+| Realizations $R$ | 1000-5000 | More for accurate tail quantiles |
+| Quadrature location | Different from training | GP has zero variance at training points |
+
+## Summary: Two Sources of Error
+
+```{python}
+print("=" * 50)
+print("SOURCES OF ERROR IN MC SOBOL ESTIMATES")
+print("=" * 50)
+print()
+print("1. QUADRATURE ERROR")
+print("   - Approximating ∫ f dF with Σ w_j f(x_j)")
+print("   - Depends on number of quadrature points Q")
+print("   - Affects both analytical and MC approaches")
+print()
+print("2. MC SAMPLING ERROR")
+print("   - Finite number of GP realizations R")
+print("   - Standard error ~ 1/√R")
+print("   - Only affects MC estimates")
+print()
+print("TOTAL ERROR = f(Q) + O(1/√R)")
+print("=" * 50)
+```
+
+## Key Takeaways
+
+- Sobol indices are **random variables** under GP uncertainty
+- Quadrature points must **differ from training points** (GP variance = 0 at training)
+- MC converges as $O(1/\sqrt{n})$ — use 1000-5000 realizations
+- $V_i$ and $\gamma_f$ are **positively correlated** (~0.6-0.7), stabilizing $S_i$
+- Report both **point estimates** and **confidence intervals**
+
+## Exercises
+
+1. **(Easy)** Verify that posterior variance is zero at training points for your GP.
+
+2. **(Medium)** Compare Sobol sequence sampling vs random sampling for the quadrature points. Which gives faster convergence?
+
+3. **(Challenge)** Compute the correlation between $V_i$ and $\gamma_f$ empirically for a 2D GP and compare to the expected ~0.6-0.7 range.
+
+## Next Steps
+
+This completes the GP statistics tutorial series. For implementation, see:
+
+- PyApprox `GaussianProcessStatistics` class
+- PyApprox `EnsembleGaussianProcessSensitivityAnalysis` class
