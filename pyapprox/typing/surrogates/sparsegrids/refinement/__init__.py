@@ -11,6 +11,7 @@ Protocols:
 Cost Functions:
     UnitCostFunction: Unit cost (all subspaces equal)
     LevelCostFunction: Cost proportional to L1 norm of index
+    ConfigIndexCostFunction: Cost based on config/fidelity index only
 
 Refinement Criteria:
     L2NormRefinementCriteria: Priority based on L2 norm interpolation error
@@ -35,6 +36,7 @@ from pyapprox.typing.surrogates.sparsegrids.refinement.protocols import (
 from pyapprox.typing.surrogates.sparsegrids.refinement.cost import (
     UnitCostFunction,
     LevelCostFunction,
+    ConfigIndexCostFunction,
 )
 from pyapprox.typing.surrogates.sparsegrids.refinement.l2norm import (
     L2NormRefinementCriteria,
@@ -50,6 +52,7 @@ __all__ = [
     # Cost functions
     "UnitCostFunction",
     "LevelCostFunction",
+    "ConfigIndexCostFunction",
     # Refinement criteria
     "L2NormRefinementCriteria",
     "VarianceRefinementCriteria",

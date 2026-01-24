@@ -39,7 +39,10 @@ from .isotropic import IsotropicCombinationSparseGrid
 
 from .adaptive import AdaptiveCombinationSparseGrid
 
-from .multiindex import MultiIndexAdaptiveCombinationSparseGrid
+from .multifidelity import (
+    MultiFidelityModelFactoryProtocol,
+    MultiIndexAdaptiveCombinationSparseGrid,
+)
 
 from .converters import (
     SparseGridToPCEConverter,
@@ -77,6 +80,8 @@ __all__ = [
     "CombinationSparseGrid",
     "IsotropicCombinationSparseGrid",
     "AdaptiveCombinationSparseGrid",
+    # Multi-fidelity
+    "MultiFidelityModelFactoryProtocol",
     "MultiIndexAdaptiveCombinationSparseGrid",
     # Converters
     "SparseGridToPCEConverter",
