@@ -146,17 +146,17 @@ class IterativeIndexGenerator(IndexGenerator[Array], Generic[Array]):
 
     def _is_admissible(self, index: Array) -> bool:
         """Check if an index is admissible."""
-        fail_msg = f"Index {self._bkd.to_numpy(index)} is not admissible: "
-
         # Check if already in selected or candidate sets
         key = self._hash_index(index)
         if key in self._sel_indices_dict:
             if self._verbosity > 1:
-                print(fail_msg + "already in selected set")
+                print(f"Index {self._bkd.to_numpy(index)} is not admissible: "
+                      "already in selected set")
             return False
         if key in self._cand_indices_dict:
             if self._verbosity > 1:
-                print(fail_msg + "already in candidate set")
+                print(f"Index {self._bkd.to_numpy(index)} is not admissible: "
+                      "already in candidate set")
             return False
 
         # Check downward closure
@@ -165,14 +165,16 @@ class IterativeIndexGenerator(IndexGenerator[Array], Generic[Array]):
                 neighbor = self._get_backward_neighbor(index, dim_id)
                 if self._hash_index(neighbor) not in self._sel_indices_dict:
                     if self._verbosity > 1:
-                        print(fail_msg + "not downward closed")
+                        print(f"Index {self._bkd.to_numpy(index)} is not "
+                              "admissible: not downward closed")
                     return False
 
         # Check admissibility criteria
         if self._admis_criteria is not None:
             is_admissible = self._admis_criteria(index)
             if not is_admissible and self._verbosity > 1:
-                print(fail_msg + self._admis_criteria.failure_message())
+                print(f"Index {self._bkd.to_numpy(index)} is not admissible: "
+                      f"{self._admis_criteria.failure_message()}")
             return is_admissible
 
         return True
