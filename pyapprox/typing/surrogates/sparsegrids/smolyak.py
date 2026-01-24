@@ -85,38 +85,49 @@ def compute_smolyak_coefficients(
     """
     nvars = subspace_indices.shape[0]
     nsubspaces = subspace_indices.shape[1]
+    nshifts = 2**nvars
 
-    # Build set of index tuples for fast lookup
+    # Build set of index tuples for fast O(1) lookup
     index_set: Set[Tuple[int, ...]] = set()
     for j in range(nsubspaces):
         index_set.add(_index_to_tuple(subspace_indices[:, j]))
 
-    # Compute coefficients using inclusion-exclusion
+    # Precompute all 2^nvars shift vectors and their signs
+    # shifts: shape (nvars, nshifts) - each column is a binary shift vector
+    # signs: shape (nshifts,) - (-1)^|shift| for each shift
+    shifts = bkd.zeros((nvars, nshifts), dtype=bkd.int64_dtype())
+    signs = bkd.zeros((nshifts,))
+
+    for shift_int in range(nshifts):
+        temp = shift_int
+        parity = 0
+        for dim in range(nvars):
+            bit = temp % 2
+            shifts[dim, shift_int] = bit
+            parity += bit
+            temp //= 2
+        signs[shift_int] = (-1.0) ** parity
+
+    # Vectorized coefficient computation
+    # For each shift, compute all shifted indices at once and check membership
+    # shifted_indices: shape (nvars, nsubspaces) for each shift
     coefficients = bkd.zeros((nsubspaces,))
 
-    for j in range(nsubspaces):
-        index = subspace_indices[:, j]
-        coef = 0.0
+    for shift_idx in range(nshifts):
+        shift = shifts[:, shift_idx]  # shape (nvars,)
+        sign = signs[shift_idx]
 
-        # Iterate over all 2^d shifts in {0,1}^d
-        for shift_int in range(2**nvars):
-            # Convert integer to binary shift vector
-            shift = []
-            temp = shift_int
-            for _ in range(nvars):
-                shift.append(temp % 2)
-                temp //= 2
+        # Compute shifted indices for all subspaces at once
+        # shift needs to be reshaped to (nvars, 1) for broadcasting
+        shift_col = bkd.reshape(shift, (nvars, 1))
+        shifted = subspace_indices + shift_col  # shape (nvars, nsubspaces)
 
-            # Compute shifted index
-            shifted = tuple(int(index[i]) + shift[i] for i in range(nvars))
-
-            # Check if shifted index is in the set
-            if shifted in index_set:
-                # Add (-1)^|shift| contribution
-                sign = (-1) ** sum(shift)
-                coef += sign
-
-        coefficients[j] = coef
+        # Check membership for each shifted index
+        # This loop is O(nsubspaces) but uses fast set lookup
+        for j in range(nsubspaces):
+            shifted_tuple = _index_to_tuple(shifted[:, j])
+            if shifted_tuple in index_set:
+                coefficients[j] = coefficients[j] + sign
 
     return coefficients
 
