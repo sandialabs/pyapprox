@@ -42,30 +42,53 @@ class PiecewiseQuadratic(Generic[Array]):
             Values of the basis functions at the given points.
         """
         assert xx.ndim == 1, "Input points must be a 1D array."
-        nnodes = self._nodes.shape[0]
+        bkd = self._bkd
+        nodes = self._nodes
+        nnodes = nodes.shape[0]
+        npts = xx.shape[0]
+
         if nnodes == 1:
-            return self._bkd.ones((xx.shape[0], nnodes))
-        vals = self._bkd.zeros((xx.shape[0], nnodes))
-        for ii in range(nnodes):
-            if ii % 2 == 1:
-                xl, xm, xr = self._nodes[ii - 1 : ii + 2]
-                II = self._bkd.nonzero((xx >= xl) & (xx <= xr))[0]
-                vals[II, ii] = (
-                    (xx[II] - xl) / (xm - xl) * (xx[II] - xr) / (xm - xr)
-                )
-                continue
-            if ii < nnodes - 2:
-                xl, xm, xr = self._nodes[ii : ii + 3]
-                II = self._bkd.nonzero((xx >= xl) & (xx <= xr))[0]
-                vals[II, ii] = (
-                    (xx[II] - xm) / (xl - xm) * (xx[II] - xr) / (xl - xr)
-                )
-            if ii > 1:
-                xl, xm, xr = self._nodes[ii - 2 : ii + 1]
-                II = self._bkd.nonzero((xx >= xl) & (xx <= xr))[0]
-                vals[II, ii] = (
-                    (xx[II] - xl) / (xr - xl) * (xx[II] - xm) / (xr - xm)
-                )
+            return bkd.ones((npts, nnodes))
+
+        vals = bkd.zeros((npts, nnodes))
+
+        # Elements are pairs: [0,1,2], [2,3,4], [4,5,6], ...
+        # Each element has 3 nodes: left (even), middle (odd), right (even)
+        n_elements = (nnodes - 1) // 2
+
+        # Find element index using even-indexed nodes as element boundaries
+        even_nodes = nodes[::2]  # nodes 0, 2, 4, ...
+        elem_idx = bkd.searchsorted(even_nodes, xx, side="right") - 1
+        elem_idx = bkd.clip(elem_idx, 0, n_elements - 1)
+
+        # Get node indices for each element
+        left_idx = 2 * elem_idx      # even: 0, 2, 4, ...
+        mid_idx = left_idx + 1       # odd: 1, 3, 5, ...
+        right_idx = left_idx + 2     # even: 2, 4, 6, ...
+
+        # Get node values
+        xl = nodes[left_idx]
+        xm = nodes[mid_idx]
+        xr = nodes[right_idx]
+
+        # Compute Lagrange basis values for quadratic interpolation
+        pt_indices = bkd.arange(npts)
+
+        # Left basis (at even node): L_0(x) = (x-xm)(x-xr) / (xl-xm)(xl-xr)
+        vals[pt_indices, left_idx] = (
+            (xx - xm) / (xl - xm) * (xx - xr) / (xl - xr)
+        )
+
+        # Middle basis (at odd node): L_1(x) = (x-xl)(x-xr) / (xm-xl)(xm-xr)
+        vals[pt_indices, mid_idx] = (
+            (xx - xl) / (xm - xl) * (xx - xr) / (xm - xr)
+        )
+
+        # Right basis (at even node): L_2(x) = (x-xl)(x-xm) / (xr-xl)(xr-xm)
+        vals[pt_indices, right_idx] = (
+            (xx - xl) / (xr - xl) * (xx - xm) / (xr - xm)
+        )
+
         return vals
 
     def _quadrature_weights(self) -> Array:

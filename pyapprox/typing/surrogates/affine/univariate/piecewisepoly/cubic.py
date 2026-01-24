@@ -44,57 +44,70 @@ class PiecewiseCubic(Generic[Array]):
             Values of the basis functions at the given points.
         """
         assert xx.ndim == 1, "Input points must be a 1D array."
-        nnodes = self._nodes.shape[0]
+        bkd = self._bkd
+        nodes = self._nodes
+        nnodes = nodes.shape[0]
+        npts = xx.shape[0]
+
         if nnodes == 1:
-            return self._bkd.ones((xx.shape[0], nnodes))
-        vals = self._bkd.zeros((xx.shape[0], nnodes))
-        for ii in range(nnodes):
-            if ii % 3 == 1:
-                x1, x2, x3, x4 = self._nodes[ii - 1 : ii + 3]
-                II = self._bkd.nonzero((xx >= x1) & (xx <= x4))[0]
-                vals[II, ii] = (
-                    (xx[II] - x1)
-                    / (x2 - x1)
-                    * (xx[II] - x3)
-                    / (x2 - x3)
-                    * (xx[II] - x4)
-                    / (x2 - x4)
-                )
-                continue
-            if ii % 3 == 2:
-                x1, x2, x3, x4 = self._nodes[ii - 2 : ii + 2]
-                II = self._bkd.nonzero((xx >= x1) & (xx <= x4))[0]
-                vals[II, ii] = (
-                    (xx[II] - x1)
-                    / (x3 - x1)
-                    * (xx[II] - x2)
-                    / (x3 - x2)
-                    * (xx[II] - x4)
-                    / (x3 - x4)
-                )
-                continue
-            if ii % 3 == 0 and ii < nnodes - 3:
-                x1, x2, x3, x4 = self._nodes[ii : ii + 4]
-                II = self._bkd.nonzero((xx >= x1) & (xx <= x4))[0]
-                vals[II, ii] = (
-                    (xx[II] - x2)
-                    / (x1 - x2)
-                    * (xx[II] - x3)
-                    / (x1 - x3)
-                    * (xx[II] - x4)
-                    / (x1 - x4)
-                )
-            if ii % 3 == 0 and ii >= 3:
-                x1, x2, x3, x4 = self._nodes[ii - 3 : ii + 1]
-                II = self._bkd.nonzero((xx >= x1) & (xx <= x4))[0]
-                vals[II, ii] = (
-                    (xx[II] - x1)
-                    / (x4 - x1)
-                    * (xx[II] - x2)
-                    / (x4 - x2)
-                    * (xx[II] - x3)
-                    / (x4 - x3)
-                )
+            return bkd.ones((npts, nnodes))
+
+        vals = bkd.zeros((npts, nnodes))
+
+        # Elements are groups of 4 nodes: [0,1,2,3], [3,4,5,6], [6,7,8,9], ...
+        # Node indices: 0,1,2,3,4,5,6,... where multiples of 3 are boundaries
+        # n_elements = (nnodes - 1) // 3
+        n_elements = (nnodes - 1) // 3
+
+        # Find element index using nodes at positions 0, 3, 6, ... as boundaries
+        boundary_nodes = nodes[::3]  # nodes 0, 3, 6, ...
+        elem_idx = bkd.searchsorted(boundary_nodes, xx, side="right") - 1
+        elem_idx = bkd.clip(elem_idx, 0, n_elements - 1)
+
+        # Get node indices for each element
+        # Element k has nodes at indices 3k, 3k+1, 3k+2, 3k+3
+        idx0 = 3 * elem_idx      # 0, 3, 6, ...
+        idx1 = idx0 + 1          # 1, 4, 7, ...
+        idx2 = idx0 + 2          # 2, 5, 8, ...
+        idx3 = idx0 + 3          # 3, 6, 9, ...
+
+        # Get node values
+        x1 = nodes[idx0]
+        x2 = nodes[idx1]
+        x3 = nodes[idx2]
+        x4 = nodes[idx3]
+
+        # Compute Lagrange basis values for cubic interpolation
+        pt_indices = bkd.arange(npts)
+
+        # Basis at node 0 (idx0): L_0(x) = (x-x2)(x-x3)(x-x4) / (x1-x2)(x1-x3)(x1-x4)
+        vals[pt_indices, idx0] = (
+            (xx - x2) / (x1 - x2) *
+            (xx - x3) / (x1 - x3) *
+            (xx - x4) / (x1 - x4)
+        )
+
+        # Basis at node 1 (idx1): L_1(x) = (x-x1)(x-x3)(x-x4) / (x2-x1)(x2-x3)(x2-x4)
+        vals[pt_indices, idx1] = (
+            (xx - x1) / (x2 - x1) *
+            (xx - x3) / (x2 - x3) *
+            (xx - x4) / (x2 - x4)
+        )
+
+        # Basis at node 2 (idx2): L_2(x) = (x-x1)(x-x2)(x-x4) / (x3-x1)(x3-x2)(x3-x4)
+        vals[pt_indices, idx2] = (
+            (xx - x1) / (x3 - x1) *
+            (xx - x2) / (x3 - x2) *
+            (xx - x4) / (x3 - x4)
+        )
+
+        # Basis at node 3 (idx3): L_3(x) = (x-x1)(x-x2)(x-x3) / (x4-x1)(x4-x2)(x4-x3)
+        vals[pt_indices, idx3] = (
+            (xx - x1) / (x4 - x1) *
+            (xx - x2) / (x4 - x2) *
+            (xx - x3) / (x4 - x3)
+        )
+
         return vals
 
     def _quadrature_weights(self) -> Array:
