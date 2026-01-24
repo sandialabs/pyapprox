@@ -407,6 +407,14 @@ class Backend(Protocol, Generic[Array]):
     def sort(array: Array, axis: int = -1) -> Array: ...
 
     @staticmethod
+    def searchsorted(
+        sorted_array: Array, values: Array, side: str = "left"
+    ) -> Array: ...
+
+    @staticmethod
+    def clip(array: Array, a_min: Any, a_max: Any) -> Array: ...
+
+    @staticmethod
     def min(
         array: Array, axis: Optional[int] = None, keepdims: bool = False
     ) -> Array: ...

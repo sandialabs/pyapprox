@@ -48,21 +48,39 @@ class PiecewiseLinear(Generic[Array]):
             Values of the basis functions at the given points.
         """
         assert xx.ndim == 1, "Input points must be a 1D array."
+        bkd = self._bkd
         nodes = self._nodes
         nnodes = nodes.shape[0]
+        npts = xx.shape[0]
+
         if nnodes == 1:
-            return self._bkd.ones((xx.shape[0], nnodes))
-        vals = self._bkd.zeros((xx.shape[0], nnodes))
-        for ii in range(nnodes):
-            xm = nodes[ii]
-            if ii > 0:
-                xl = nodes[ii - 1]
-                II = self._bkd.nonzero((xx >= xl) & (xx <= xm))[0]
-                vals[II, ii] = (xx[II] - xl) / (xm - xl)
-            if ii < nnodes - 1:
-                xr = nodes[ii + 1]
-                JJ = self._bkd.nonzero((xx >= xm) & (xx <= xr))[0]
-                vals[JJ, ii] = (xr - xx[JJ]) / (xr - xm)
+            return bkd.ones((npts, nnodes))
+
+        vals = bkd.zeros((npts, nnodes))
+
+        # Find interval indices for all points at once
+        # idx[i] is the index of the rightmost node <= xx[i]
+        idx = bkd.searchsorted(nodes, xx, side="right") - 1
+
+        # Clamp to valid range [0, nnodes-2] for interior intervals
+        idx = bkd.clip(idx, 0, nnodes - 2)
+
+        # Get left and right nodes for each point's interval
+        xl = nodes[idx]
+        xr = nodes[idx + 1]
+
+        # Compute normalized position within interval
+        t = (xx - xl) / (xr - xl)
+
+        # Create index arrays for scatter
+        pt_indices = bkd.arange(npts)
+
+        # Left basis function contribution (value = 1 - t at node idx)
+        vals[pt_indices, idx] = 1 - t
+
+        # Right basis function contribution (value = t at node idx + 1)
+        vals[pt_indices, idx + 1] = t
+
         return vals
 
     def quadrature_rule(self) -> Tuple[Array, Array]:

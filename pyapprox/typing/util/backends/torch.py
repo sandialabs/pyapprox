@@ -333,6 +333,18 @@ class TorchBkd(Backend[torch.Tensor]):  # Specify torch.Tensor type
         return torch.sort(array, dim=axis).values
 
     @staticmethod
+    def searchsorted(
+        sorted_array: torch.Tensor, values: torch.Tensor, side: str = "left"
+    ) -> torch.Tensor:
+        return torch.searchsorted(sorted_array, values, side=side)  # type: ignore
+
+    @staticmethod
+    def clip(
+        array: torch.Tensor, a_min: Any, a_max: Any
+    ) -> torch.Tensor:
+        return torch.clamp(array, a_min, a_max)
+
+    @staticmethod
     def min(
         array: torch.Tensor, axis: Optional[int] = None, keepdims: bool = False
     ) -> torch.Tensor:

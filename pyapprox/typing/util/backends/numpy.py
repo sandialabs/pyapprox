@@ -290,6 +290,18 @@ class NumpyBkd(Backend[NDArray[Any]]):  # Specify NDArray type
         return np.sort(array, axis=axis)
 
     @staticmethod
+    def searchsorted(
+        sorted_array: NDArray[Any], values: NDArray[Any], side: str = "left"
+    ) -> NDArray[Any]:
+        return np.searchsorted(sorted_array, values, side=side)
+
+    @staticmethod
+    def clip(
+        array: NDArray[Any], a_min: Any, a_max: Any
+    ) -> NDArray[Any]:
+        return np.clip(array, a_min, a_max)
+
+    @staticmethod
     def min(
         array: NDArray[Any], axis: Optional[int] = None, keepdims: bool = False
     ) -> NDArray[Any]:
