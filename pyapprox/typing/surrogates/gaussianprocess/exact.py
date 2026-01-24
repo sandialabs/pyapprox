@@ -161,6 +161,17 @@ class ExactGaussianProcess(Generic[Array]):
         """Check if the GP has been fitted."""
         return self._data is not None
 
+    def mean(self) -> MeanFunction[Array]:
+        """
+        Return the mean function.
+
+        Returns
+        -------
+        MeanFunction[Array]
+            The mean function instance.
+        """
+        return self._mean
+
     def hyp_list(self) -> HyperParameterList:
         """
         Return combined hyperparameter list.

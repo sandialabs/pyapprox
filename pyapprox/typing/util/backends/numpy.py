@@ -369,6 +369,10 @@ class NumpyBkd(Backend[NDArray[Any]]):  # Specify NDArray type
         return scipy.linalg.cho_solve((matrix, lower), rhs)
 
     @staticmethod
+    def eigvalsh(array: NDArray[Any]) -> NDArray[Any]:
+        return np.linalg.eigvalsh(array)
+
+    @staticmethod
     def trace(array: NDArray[Any]) -> NDArray[Any]:
         return np.asarray(np.linalg.trace(array))
 

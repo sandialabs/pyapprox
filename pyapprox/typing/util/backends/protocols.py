@@ -468,6 +468,23 @@ class Backend(Protocol, Generic[Array]):
     ) -> Array: ...
 
     @staticmethod
+    def eigvalsh(array: Array) -> Array:
+        """
+        Compute eigenvalues of a Hermitian/symmetric matrix.
+
+        Parameters
+        ----------
+        array : Array
+            Hermitian/symmetric matrix, shape (n, n).
+
+        Returns
+        -------
+        Array
+            Eigenvalues in ascending order, shape (n,).
+        """
+        ...
+
+    @staticmethod
     def trace(array: Array) -> Array: ...
 
     @staticmethod

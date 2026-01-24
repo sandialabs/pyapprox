@@ -39,6 +39,17 @@ class KernelProtocol(Protocol, Generic[Array]):
         """
         ...
 
+    def nvars(self) -> int:
+        """
+        Return the number of input variables (dimensionality).
+
+        Returns
+        -------
+        int
+            Number of input dimensions.
+        """
+        ...
+
     def diag(self, X1: Array) -> Array:
         """
         Return the diagonal of the kernel matrix.

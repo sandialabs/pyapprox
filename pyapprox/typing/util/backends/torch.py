@@ -449,6 +449,10 @@ class TorchBkd(Backend[torch.Tensor]):  # Specify torch.Tensor type
         return torch.cholesky_solve(rhs, matrix, upper=(not lower))
 
     @staticmethod
+    def eigvalsh(array: torch.Tensor) -> torch.Tensor:
+        return torch.linalg.eigvalsh(array)
+
+    @staticmethod
     def trace(array: torch.Tensor) -> torch.Tensor:
         return torch.trace(array)
 
