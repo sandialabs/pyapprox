@@ -297,6 +297,7 @@ class AdaptiveCombinationSparseGrid(CombinationSparseGrid[Array], Generic[Array]
         if key in self._subspaces:
             return self._subspaces[key]
 
+        subspace_idx = len(self._subspace_list)
         subspace = TensorProductSubspace(
             self._bkd,
             index,
@@ -306,37 +307,43 @@ class AdaptiveCombinationSparseGrid(CombinationSparseGrid[Array], Generic[Array]
         self._subspaces[key] = subspace
         self._subspace_list.append(subspace)
 
+        # Build index mappings for sample deduplication
+        # Pass samples for non-nested path (needed for coordinate-based hashing)
+        self._basis_gen._set_unique_subspace_basis_indices(
+            index, subspace_idx,
+            subspace_samples=subspace.get_samples()
+        )
+
         # Invalidate Smolyak coefficients but NOT unique_samples
         self._smolyak_coefficients = None
 
         return subspace
 
     def _get_new_unique_samples(self, new_indices: Array) -> Array:
-        """Get unique samples for newly added subspaces."""
-        new_samples_list: List[Array] = []
+        """Get unique samples for newly added subspaces.
 
+        Uses precomputed index mappings from BasisIndexGenerator.
+        """
         # Ensure unique_samples is initialized
         if self._unique_samples is None:
             self._collect_unique_samples()
         assert self._unique_samples is not None
 
-        current_count = self._unique_samples.shape[1]
+        new_samples_list: List[Array] = []
 
         for index in new_indices.T:
             key = _index_to_tuple(index)
             subspace = self._subspaces[key]
-            subspace_samples = subspace.get_samples()
+            subspace_idx = self._subspace_list.index(subspace)
 
-            # Find truly new samples
-            for j in range(subspace_samples.shape[1]):
-                sample = subspace_samples[:, j]
-                sample_key = tuple(float(sample[i]) for i in range(self._nvars))
+            unique_local = self._basis_gen.get_unique_local_indices(subspace_idx)
 
-                if sample_key not in self._sample_to_idx:
-                    self._sample_to_idx[sample_key] = (
-                        current_count + len(new_samples_list)
-                    )
-                    new_samples_list.append(sample[:, None])
+            if len(unique_local) > 0:
+                subspace_samples = subspace.get_samples()
+                idx_array = self._bkd.asarray(
+                    unique_local, dtype=self._bkd.int64_dtype()
+                )
+                new_samples_list.append(subspace_samples[:, idx_array])
 
         if len(new_samples_list) == 0:
             return self._bkd.zeros((self._nvars, 0))

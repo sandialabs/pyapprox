@@ -142,6 +142,21 @@ class BasisFactoryProtocol(Protocol, Generic[Array]):
         """
         ...
 
+    def is_nested(self) -> bool:
+        """Return True if quadrature nodes are nested across levels.
+
+        Nested quadrature rules (e.g., Clenshaw-Curtis, Leja) have the property
+        that points at level l are a subset of points at level l+1. This allows
+        for more efficient sample deduplication using basis indices rather than
+        floating-point coordinate hashing.
+
+        Returns
+        -------
+        bool
+            True if the quadrature rule is nested, False otherwise.
+        """
+        ...
+
 
 class GaussLagrangeFactory(Generic[Array]):
     """Factory that creates Lagrange basis with Gauss quadrature from marginal.
@@ -240,6 +255,10 @@ class GaussLagrangeFactory(Generic[Array]):
             return user_pts, weights
 
         return LagrangeBasis1D(bkd, user_domain_quad_rule)
+
+    def is_nested(self) -> bool:
+        """Return False - Gauss quadrature points are not nested."""
+        return False
 
     def __repr__(self) -> str:
         return f"GaussLagrangeFactory(marginal={self._marginal!r})"
@@ -369,6 +388,10 @@ class LejaLagrangeFactory(Generic[Array]):
 
         return LagrangeBasis1D(bkd, user_domain_quad_rule)
 
+    def is_nested(self) -> bool:
+        """Return True - Leja sequences are nested by construction."""
+        return True
+
     def __repr__(self) -> str:
         return (
             f"LejaLagrangeFactory(marginal={self._marginal!r}, "
@@ -459,6 +482,10 @@ class ClenshawCurtisLagrangeFactory(Generic[Array]):
 
         return LagrangeBasis1D(bkd, user_domain_quad_rule)
 
+    def is_nested(self) -> bool:
+        """Return True - Clenshaw-Curtis points are nested."""
+        return True
+
     def __repr__(self) -> str:
         return f"ClenshawCurtisLagrangeFactory(marginal={self._marginal!r})"
 
@@ -539,6 +566,10 @@ class PiecewiseFactory(Generic[Array]):
             self._bkd, basis_classes[self._poly_type], node_gen
         )
 
+    def is_nested(self) -> bool:
+        """Return False - piecewise polynomial nodes are not necessarily nested."""
+        return False
+
     def __repr__(self) -> str:
         return (
             f"PiecewiseFactory(marginal={self._marginal!r}, "
@@ -606,6 +637,14 @@ class PrebuiltBasisFactory(Generic[Array]):
             Fresh Lagrange basis using the prebuilt basis's quadrature rule.
         """
         return LagrangeBasis1D(self._bkd, self._quad_rule)
+
+    def is_nested(self) -> bool:
+        """Return False - cannot determine nestedness for prebuilt basis.
+
+        Conservative default: assume non-nested unless the wrapped basis
+        explicitly indicates otherwise.
+        """
+        return False
 
     def __repr__(self) -> str:
         return f"PrebuiltBasisFactory(quad_rule={self._quad_rule!r})"

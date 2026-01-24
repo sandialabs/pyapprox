@@ -11,6 +11,9 @@ from pyapprox.typing.surrogates.affine.protocols import (
     IndexGrowthRuleProtocol,
 )
 from pyapprox.typing.surrogates.affine.indices import IndexGenerator
+from pyapprox.typing.surrogates.affine.indices.basis_generator import (
+    BasisIndexGenerator,
+)
 
 from .smolyak import compute_smolyak_coefficients, _index_to_tuple
 from .subspace import TensorProductSubspace
@@ -82,9 +85,19 @@ class CombinationSparseGrid(Generic[Array]):
         self._subspace_list: List[TensorProductSubspace[Array]] = []
         self._smolyak_coefficients: Optional[Array] = None
 
+        # Detect if all factories provide nested rules
+        all_nested = all(
+            getattr(f, "is_nested", lambda: False)()
+            for f in basis_factories
+        )
+
+        # Basis index generator for sample deduplication
+        self._basis_gen = BasisIndexGenerator(
+            bkd, self._nvars, growth_rules, all_nested=all_nested
+        )
+
         # Sample tracking
         self._unique_samples: Optional[Array] = None
-        self._sample_to_idx: Dict[Tuple[float, ...], int] = {}
         self._values: Optional[Array] = None
         self._nqoi: Optional[int] = None
 
@@ -183,6 +196,7 @@ class CombinationSparseGrid(Generic[Array]):
         if key in self._subspaces:
             return self._subspaces[key]
 
+        subspace_idx = len(self._subspace_list)
         subspace = TensorProductSubspace(
             self._bkd,
             index,
@@ -191,6 +205,13 @@ class CombinationSparseGrid(Generic[Array]):
         )
         self._subspaces[key] = subspace
         self._subspace_list.append(subspace)
+
+        # Build index mappings for sample deduplication
+        # Pass samples for non-nested path (needed for coordinate-based hashing)
+        self._basis_gen._set_unique_subspace_basis_indices(
+            index, subspace_idx,
+            subspace_samples=subspace.get_samples()
+        )
 
         # Invalidate cached data
         self._smolyak_coefficients = None
@@ -262,56 +283,42 @@ class CombinationSparseGrid(Generic[Array]):
         return new_smolyak_coefs
 
     def _collect_unique_samples(self) -> None:
-        """Collect unique samples from all subspaces."""
+        """Collect unique samples using precomputed index mappings."""
         if len(self._subspace_list) == 0:
             self._unique_samples = self._bkd.zeros((self._nvars, 0))
             return
 
-        # Collect all samples
-        all_samples: List[Array] = []
-        for subspace in self._subspace_list:
-            all_samples.append(subspace.get_samples())
-
-        combined = self._bkd.hstack(all_samples)
-
-        # Find unique samples
-        unique_list: List[List[float]] = []
-        self._sample_to_idx = {}
-
-        for j in range(combined.shape[1]):
-            sample = combined[:, j]
-            key = tuple(float(sample[i]) for i in range(self._nvars))
-
-            if key not in self._sample_to_idx:
-                self._sample_to_idx[key] = len(unique_list)
-                unique_list.append(list(key))
-
-        # Build unique samples array
-        n_unique = len(unique_list)
+        n_unique = self._basis_gen.n_unique_samples()
         self._unique_samples = self._bkd.zeros((self._nvars, n_unique))
-        for j, sample in enumerate(unique_list):
-            for i in range(self._nvars):
-                self._unique_samples[i, j] = sample[i]
+
+        global_idx = 0
+        for subspace_idx, subspace in enumerate(self._subspace_list):
+            subspace_samples = subspace.get_samples()
+            unique_local = self._basis_gen.get_unique_local_indices(subspace_idx)
+
+            if len(unique_local) > 0:
+                idx_array = self._bkd.asarray(
+                    unique_local, dtype=self._bkd.int64_dtype()
+                )
+                n_new = len(unique_local)
+                self._unique_samples[:, global_idx:global_idx + n_new] = (
+                    subspace_samples[:, idx_array]
+                )
+                global_idx += n_new
 
     def _distribute_values_to_subspaces(self) -> None:
-        """Distribute global values to each subspace."""
+        """Distribute global values using precomputed indices.
+
+        No per-sample iteration, no .item() calls, preserves autograd.
+        """
         if self._values is None:
             return
-        assert self._nqoi is not None
 
-        for subspace in self._subspace_list:
-            samples = subspace.get_samples()
-            nsamples = samples.shape[1]
-
-            # Values shape: (nqoi, nsamples_subspace)
-            subspace_values = self._bkd.zeros((self._nqoi, nsamples))
-            for j in range(nsamples):
-                key = tuple(
-                    samples[i, j].item() for i in range(self._nvars)
-                )
-                idx = self._sample_to_idx[key]
-                subspace_values[:, j] = self._values[:, idx]
-
+        for subspace_idx, subspace in enumerate(self._subspace_list):
+            global_indices = self._basis_gen.get_subspace_value_indices(
+                subspace_idx
+            )
+            subspace_values = self._values[:, global_indices]
             subspace.set_values(subspace_values)
 
     def __call__(self, samples: Array) -> Array:

@@ -219,7 +219,7 @@ class TestBasisIndexGenerator(_BaseAdaptiveTest, unittest.TestCase):
         """Test basis count with linear growth rule."""
         bkd = self.bkd
         growth_rule = LinearGrowthRule(scale=1, shift=1)
-        gen = BasisIndexGenerator(bkd, nvars=2, growth_rule=growth_rule)
+        gen = BasisIndexGenerator(bkd, nvars=2, growth_rules=growth_rule)
 
         index = bkd.asarray([2, 1], dtype=bkd.int64_dtype())
         counts = gen.nunivariate_basis(index)
@@ -231,7 +231,7 @@ class TestBasisIndexGenerator(_BaseAdaptiveTest, unittest.TestCase):
         """Test basis count with double plus one growth rule."""
         bkd = self.bkd
         growth_rule = DoublePlusOneGrowthRule()
-        gen = BasisIndexGenerator(bkd, nvars=2, growth_rule=growth_rule)
+        gen = BasisIndexGenerator(bkd, nvars=2, growth_rules=growth_rule)
 
         index = bkd.asarray([3, 2], dtype=bkd.int64_dtype())
         counts = gen.nunivariate_basis(index)
@@ -243,7 +243,7 @@ class TestBasisIndexGenerator(_BaseAdaptiveTest, unittest.TestCase):
         """Test total subspace basis count."""
         bkd = self.bkd
         growth_rule = LinearGrowthRule(scale=1, shift=1)
-        gen = BasisIndexGenerator(bkd, nvars=2, growth_rule=growth_rule)
+        gen = BasisIndexGenerator(bkd, nvars=2, growth_rules=growth_rule)
 
         index = bkd.asarray([2, 1], dtype=bkd.int64_dtype())
         total = gen.nsubspace_basis(index)
@@ -273,7 +273,7 @@ class TestBasisIndexGenerator(_BaseAdaptiveTest, unittest.TestCase):
         """Test basis index generation for a subspace."""
         bkd = self.bkd
         growth_rule = LinearGrowthRule(scale=1, shift=1)
-        gen = BasisIndexGenerator(bkd, nvars=2, growth_rule=growth_rule)
+        gen = BasisIndexGenerator(bkd, nvars=2, growth_rules=growth_rule)
 
         # Level [1, 1] -> linear gives [2, 2] basis functions
         index = bkd.asarray([1, 1], dtype=bkd.int64_dtype())
