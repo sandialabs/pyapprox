@@ -9,7 +9,7 @@ For a product kernel C(x, z) = prod_k C_k(x_k, z_k), the multidimensional
 integrals factor as products of 1D integrals computed by these functions.
 """
 
-from typing import Callable, Generic
+from typing import Callable
 from pyapprox.typing.util.backends.protocols import Array, Backend
 
 

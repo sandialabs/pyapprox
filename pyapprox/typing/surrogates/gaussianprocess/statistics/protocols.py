@@ -214,6 +214,24 @@ class KernelIntegralCalculatorProtocol(Protocol, Generic[Array]):
         """
         ...
 
+    def Gamma(self) -> Array:
+        """
+        Compute the Gamma vector for Var[gamma] computation.
+
+        Gamma_i = integral integral C(x^(i), z) C(z, v) rho(z) rho(v) dz dv
+
+        This is a double integral where one argument is a training point and
+        the other two are integration variables.
+
+        For separable kernels, the full Gamma is: Gamma = prod_k Gamma_k
+
+        Returns
+        -------
+        Array
+            Shape (N,) where N is the number of training points.
+        """
+        ...
+
     def conditional_P(self, index: Array) -> Array:
         """
         Compute P matrix with variables in 'index' fixed.

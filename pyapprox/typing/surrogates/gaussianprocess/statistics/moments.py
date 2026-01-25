@@ -351,7 +351,6 @@ class GaussianProcessStatistics(Generic[Array]):
 
         # === Extended integral quantities from calculator ===
         nu = self._calc.nu()  # ν
-        lambda_vec = self._calc.lambda_vec()  # λ
         Pi = self._calc.Pi()  # Π
         xi1 = self._calc.xi1()  # ξ₁
 
@@ -388,25 +387,6 @@ class GaussianProcessStatistics(Generic[Array]):
         P_A_inv_P_alpha = P @ (A_inv_P @ alpha_1d)
         phi_term2 = alpha_1d @ P_A_inv_P_alpha
         phi = phi_term1 - phi_term2
-
-        # === Intermediate quantities for ϑ₂ ===
-
-        # ϱ = λᵀA⁻¹y - τᵀA⁻¹PA⁻¹y
-        # First term: λᵀα
-        varrho_term1 = lambda_vec @ alpha_1d
-        # Second term: τᵀ(A⁻¹P)α = τ·(A⁻¹P·α)
-        A_inv_P_alpha = A_inv_P @ alpha_1d
-        varrho_term2 = tau @ A_inv_P_alpha
-        varrho = varrho_term1 - varrho_term2
-
-        # ξ₂ = λᵀA⁻¹τ
-        xi2 = lambda_vec @ A_inv_tau
-
-        # ξ₃ = τᵀA⁻¹PA⁻¹τ = τᵀ(A⁻¹P)(A⁻¹τ)
-        xi3 = tau @ (A_inv_P @ A_inv_tau)
-
-        # ξ = ξ₁ - 2ξ₂ + ξ₃
-        xi = xi1 - 2 * xi2 + xi3
 
         # === Compute ϑ₁, ϑ₂, ϑ₃ ===
 
