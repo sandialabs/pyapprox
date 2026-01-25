@@ -161,6 +161,60 @@ class ExactGaussianProcess(Generic[Array]):
         """Check if the GP has been fitted."""
         return self._data is not None
 
+    def data(self) -> GPTrainingData[Array]:
+        """
+        Return the training data container.
+
+        Returns
+        -------
+        GPTrainingData[Array]
+            Training data (X, y) used to fit the GP.
+
+        Raises
+        ------
+        RuntimeError
+            If the GP has not been fitted yet.
+        """
+        if self._data is None:
+            raise RuntimeError("GP must be fitted before accessing data.")
+        return self._data
+
+    def cholesky(self) -> CholeskyFactor[Array]:
+        """
+        Return the Cholesky factor of the kernel matrix.
+
+        Returns
+        -------
+        CholeskyFactor[Array]
+            Cholesky factor of K + nugget*I.
+
+        Raises
+        ------
+        RuntimeError
+            If the GP has not been fitted yet.
+        """
+        if self._cholesky is None:
+            raise RuntimeError("GP must be fitted before accessing cholesky.")
+        return self._cholesky
+
+    def alpha(self) -> Array:
+        """
+        Return the precomputed weights alpha = A^{-1}(y - m(X)).
+
+        Returns
+        -------
+        Array
+            Precomputed weights, shape (n_train, nqoi).
+
+        Raises
+        ------
+        RuntimeError
+            If the GP has not been fitted yet.
+        """
+        if self._alpha is None:
+            raise RuntimeError("GP must be fitted before accessing alpha.")
+        return self._alpha
+
     def mean(self) -> MeanFunction[Array]:
         """
         Return the mean function.

@@ -327,19 +327,55 @@ print(f"ξ = ξ₁ - 2ξ₂ + ξ₃ = {xi:.6f}")
 
 ### Computing $\vartheta_2$
 
+The correct formula for $\vartheta_2 = \E[\mu_f^2 \kappa_f]$ requires a new integral $\vc{\Gamma}$:
+
 $$
-\vartheta_2 = \E[\mu_f^2 \kappa_f] = 4\eta\varrho s^2 + 2\xi s^4 + \zeta \varsigma^2 s^2 + \varsigma^2 v^2 s^4 + \eta^2\zeta + \eta^2 v^2 s^2
+\Gamma_i = \int \int C(\vc{x}^{(i)}, \vc{z}) C(\vc{z}, \vc{v}) \rho(\vc{z}) \rho(\vc{v}) \, d\vc{z} \, d\vc{v}
 $$
+
+This is a double integral where one argument is the training point and the other two are integration variables.
 
 ```{python}
-# ϑ₂ = E[μ_f² κ_f]
-theta_2 = (4 * eta * varrho * kernel_var +
-           2 * xi * kernel_var**2 +
-           zeta * varsigma_sq * kernel_var +
-           varsigma_sq * v_sq * kernel_var**2 +
-           eta**2 * zeta +
-           eta**2 * v_sq * kernel_var)
+# Γᵢ = ∫∫ C(xᵢ, z) C(z, v) ρ(z)ρ(v) dz dv
+# For 1D: Γᵢ = Σⱼ Σₗ wⱼ wₗ C(xᵢ, zⱼ) C(zⱼ, vₗ)
+Gamma = np.zeros(N)
+for i in range(N):
+    for j in range(Q):
+        for l in range(Q):
+            Gamma[i] += quad_w[j] * quad_w[l] * K_qt[j, i] * K_qq[j, l]
 
+print(f"Γ shape: {Gamma.shape}")
+print(f"Γ values: {Gamma.round(4)}")
+```
+
+The correct $\vartheta_2$ formula is:
+
+$$
+\vartheta_2 = \E[\kappa_f] \cdot \E[\mu_f^2] + 4\eta s^2 (\vc{\alpha}^\top \vc{\Gamma} - \vc{\alpha}^\top \mt{P} \vc{\beta}) + 2s^4 (\xi_1 - 2\vc{\beta}^\top \vc{\Gamma} + \vc{\beta}^\top \mt{P} \vc{\beta})
+$$
+
+where $\vc{\alpha} = \mt{A}^{-1}\vc{y}$, $\vc{\beta} = \mt{A}^{-1}\vc{\tau}$, $\E[\kappa_f] = \zeta + s^2 v^2$, and $\E[\mu_f^2] = \eta^2 + s^2 \varsigma^2$.
+
+```{python}
+# ϑ₂ = E[κ]·E[μ²] + Term_B + Term_C
+E_kappa = zeta + kernel_var * v_sq
+E_mu_sq = eta**2 + kernel_var * varsigma_sq
+
+# α = A⁻¹y, β = A⁻¹τ
+beta = A_inv @ tau
+
+# Term_B = 4ηs² · (αᵀΓ - αᵀPβ)
+term_B = 4 * eta * kernel_var * (alpha @ Gamma - alpha @ (P @ beta))
+
+# Term_C = 2s⁴ · (ξ₁ - 2βᵀΓ + βᵀPβ)
+term_C = 2 * kernel_var**2 * (xi_1 - 2 * (beta @ Gamma) + (beta @ (P @ beta)))
+
+theta_2 = E_kappa * E_mu_sq + term_B + term_C
+
+print(f"E[κ] = {E_kappa:.6f}")
+print(f"E[μ²] = {E_mu_sq:.6f}")
+print(f"Term_B = {term_B:.6f}")
+print(f"Term_C = {term_C:.6f}")
 print(f"ϑ₂ = {theta_2:.6f}")
 ```
 
@@ -447,7 +483,8 @@ plt.show()
 | $\psi$ | $\mathrm{Tr}[\mt{A}^{-1}\mt{\Pi}]$ | Cross term |
 | $\chi$ | $\nu + \varphi - 2\psi$ | Integrated squared posterior covariance |
 | $\vc{\lambda}$ | $\int\int C(\vc{x},\vc{z})\vc{t}(\vc{x}) \rho^2 d\vc{x}d\vc{z}$ | Kernel-correlation product |
-| $\xi$ | $\xi_1 - 2\xi_2 + \xi_3$ | Triple integral term |
+| $\vc{\Gamma}$ | $\int\int C(\vc{x}^{(i)},\vc{z})C(\vc{z},\vc{v}) \rho^2 d\vc{z}d\vc{v}$ | Double kernel integral for $\vartheta_2$ |
+| $\xi_1$ | $\int\int\int C(\vc{w},\vc{x})C(\vc{w},\vc{z}) \rho^3$ | Triple integral term |
 | $\varrho$ | $\vc{\lambda}^\top\mt{A}^{-1}\vc{y} - \vc{\tau}^\top\mt{A}^{-1}\mt{P}\mt{A}^{-1}\vc{y}$ | Mean-covariance cross term |
 
 ## Key Takeaways

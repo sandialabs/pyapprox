@@ -152,6 +152,46 @@ class MultiOutputGP(Generic[Array]):
         """
         return self._is_fitted
 
+    def cholesky(self) -> CholeskyFactor[Array]:
+        """
+        Return the Cholesky factor of the kernel matrix.
+
+        Returns
+        -------
+        CholeskyFactor[Array]
+            Cholesky factor of K + nugget*I.
+
+        Raises
+        ------
+        RuntimeError
+            If the GP has not been fitted yet.
+        """
+        if not self._is_fitted:
+            raise RuntimeError("GP must be fitted before accessing cholesky.")
+        return self._cholesky
+
+    def alpha(self) -> Array:
+        """
+        Return the precomputed weights alpha = (K + nugget*I)^{-1} y.
+
+        Returns
+        -------
+        Array
+            Precomputed weights, shape (n_total, 1).
+
+        Raises
+        ------
+        RuntimeError
+            If the GP has not been fitted yet.
+        """
+        if not self._is_fitted:
+            raise RuntimeError("GP must be fitted before accessing alpha.")
+        return self._alpha
+
+    # TODO: Add a data() method returning a GPTrainingData-like container
+    # that holds X_train_list and y_train_stacked, similar to ExactGaussianProcess.
+    # This would allow MultiOutputGP to satisfy PredictiveGPProtocol.
+
     def fit(self, X_train_list: List[Array], y_train_stacked: Array) -> None:
         """
         Fit the multi-output GP to training data.

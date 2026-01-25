@@ -233,6 +233,24 @@ class TestGaussianProcessStatistics(Generic[Array], unittest.TestCase):
         # Same object (cached)
         self.assertIs(eta1, eta2)
 
+    def test_variance_of_variance_nonnegative(self) -> None:
+        """Test Var[gamma_f] >= 0."""
+        var_var = self._stats.variance_of_variance()
+        self.assertGreaterEqual(float(self._bkd.to_numpy(var_var)), 0.0)
+
+    def test_variance_of_variance_scalar(self) -> None:
+        """Test variance_of_variance returns a scalar."""
+        var_var = self._stats.variance_of_variance()
+        # Should be a scalar (0-dim array)
+        self.assertEqual(len(var_var.shape), 0)
+
+    def test_variance_of_variance_caching(self) -> None:
+        """Test that variance_of_variance results are cached."""
+        var_var1 = self._stats.variance_of_variance()
+        var_var2 = self._stats.variance_of_variance()
+        # Same object (cached)
+        self.assertIs(var_var1, var_var2)
+
     @slow_test
     def test_limit_many_training_points(self) -> None:
         """Test that Var[mu_f] -> 0 as N -> infinity."""
@@ -401,15 +419,15 @@ class TestMCComparison(Generic[Array], unittest.TestCase):
         nquad = quad_pts.shape[1]
 
         # Compute GP posterior mean and covariance at quadrature points
-        X_train = self._gp._data.X()  # (1, n_train)
-        y_train = self._gp._data.y()  # (n_train, 1)
+        X_train = self._gp.data().X()  # (1, n_train)
+        y_train = self._gp.data().y()  # (n_train, 1)
 
         # Prior covariance matrices
         K_qq = self._gp.kernel()(quad_pts, quad_pts)  # (nquad, nquad)
         K_qt = self._gp.kernel()(quad_pts, X_train)   # (nquad, n_train)
 
         # Posterior mean: m* = K_qt @ A^{-1} @ y
-        chol = self._gp._cholesky
+        chol = self._gp.cholesky()
         alpha = chol.solve(y_train)  # A^{-1} @ y, shape (n_train, 1)
         m_star = K_qt @ alpha  # (nquad, 1)
         m_star = self._bkd.reshape(m_star, (-1,))  # (nquad,)
@@ -452,6 +470,91 @@ class TestMCComparison(Generic[Array], unittest.TestCase):
         rel_error = abs(var_quad_val - var_mc) / max(var_quad_val, 1e-10)
         self.assertLess(rel_error, 0.1,
             f"Relative error {rel_error:.4f} too large: quad={var_quad_val:.6f}, mc={var_mc:.6f}")
+
+    @slow_test
+    def test_mc_convergence_variance_of_variance(self) -> None:
+        """
+        Compare quadrature Var[γ_f] to MC estimate.
+
+        Var[γ_f] requires sampling from the GP posterior and computing
+        variance statistics across samples.
+
+        For each sample f^(r) from the posterior:
+        1. Evaluate f^(r) at quadrature points
+        2. Compute κ^(r) = Σ_j w_j [f^(r)(z_j)]²
+        3. Compute μ^(r) = Σ_j w_j f^(r)(z_j)
+        4. Compute γ^(r) = κ^(r) - [μ^(r)]²
+        5. Compute Var[{γ^(r)}] across samples
+        """
+        np.random.seed(12345)
+
+        # Quadrature estimate
+        var_var_quad = self._stats.variance_of_variance()
+
+        # Get quadrature points and weights from the bases used by the calculator
+        quad_pts, quad_wts = self._bases[0].quadrature_rule()
+        # quad_pts shape: (1, nquad), quad_wts shape: (nquad, 1)
+        quad_wts = self._bkd.reshape(quad_wts, (-1,))  # (nquad,)
+        nquad = quad_pts.shape[1]
+
+        # Compute GP posterior mean and covariance at quadrature points
+        X_train = self._gp.data().X()  # (1, n_train)
+        y_train = self._gp.data().y()  # (n_train, 1)
+
+        # Prior covariance matrices
+        K_qq = self._gp.kernel()(quad_pts, quad_pts)  # (nquad, nquad)
+        K_qt = self._gp.kernel()(quad_pts, X_train)   # (nquad, n_train)
+
+        # Posterior mean: m* = K_qt @ A^{-1} @ y
+        chol = self._gp.cholesky()
+        alpha = chol.solve(y_train)  # A^{-1} @ y, shape (n_train, 1)
+        m_star = K_qt @ alpha  # (nquad, 1)
+        m_star = self._bkd.reshape(m_star, (-1,))  # (nquad,)
+
+        # Posterior covariance: C* = K_qq - K_qt @ A^{-1} @ K_tq
+        A_inv_K_tq = chol.solve(K_qt.T)  # (n_train, nquad)
+        C_star = K_qq - K_qt @ A_inv_K_tq  # (nquad, nquad)
+
+        # Add small jitter for numerical stability
+        C_star = C_star + 1e-8 * self._bkd.eye(nquad)
+
+        # Cholesky of posterior covariance
+        L_star = self._bkd.cholesky(C_star)  # (nquad, nquad)
+
+        # Sample from GP posterior and compute γ^(r) for each sample
+        n_samples = 10000
+        gamma_samples = []
+
+        for _ in range(n_samples):
+            # Sample z ~ N(0, I)
+            z = self._bkd.array(np.random.randn(nquad))
+
+            # Sample f = m* + L @ z
+            f_sample = m_star + L_star @ z  # (nquad,)
+
+            # Compute κ^(r) = Σ_j w_j [f^(r)(z_j)]²
+            kappa_r = self._bkd.sum(quad_wts * f_sample ** 2)
+
+            # Compute μ^(r) = Σ_j w_j f^(r)(z_j)
+            mu_r = self._bkd.sum(quad_wts * f_sample)
+
+            # Compute γ^(r) = κ^(r) - [μ^(r)]²
+            gamma_r = kappa_r - mu_r ** 2
+            gamma_samples.append(float(self._bkd.to_numpy(gamma_r)))
+
+        # Compute variance across samples
+        gamma_samples_arr = np.array(gamma_samples)
+        var_var_mc = np.var(gamma_samples_arr)
+
+        # Compare
+        var_var_quad_val = float(self._bkd.to_numpy(var_var_quad))
+
+        # Allow tolerance for MC error
+        # Variance of variance is a fourth-moment statistic, so has higher
+        # MC error than variance of mean
+        rel_error = abs(var_var_quad_val - var_var_mc) / max(var_var_quad_val, 1e-10)
+        self.assertLess(rel_error, 0.2,
+            f"Relative error {rel_error:.4f} too large: quad={var_var_quad_val:.6f}, mc={var_var_mc:.6f}")
 
 
 class TestValidation(Generic[Array], unittest.TestCase):

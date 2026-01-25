@@ -10,6 +10,10 @@ from typing import Protocol, Optional, runtime_checkable, Generic
 from pyapprox.typing.util.backends.protocols import Array, Backend
 from pyapprox.typing.surrogates.kernels.protocols import Kernel
 from pyapprox.typing.util.hyperparameter import HyperParameterList
+from pyapprox.typing.surrogates.gaussianprocess.data import GPTrainingData
+from pyapprox.typing.util.linalg.cholesky_factor import CholeskyFactor
+from pyapprox.typing.surrogates.gaussianprocess.data import GPTrainingData
+from pyapprox.typing.util.linalg.cholesky_factor import CholeskyFactor
 
 
 @runtime_checkable
@@ -179,6 +183,54 @@ class PredictiveGPProtocol(FittableGPProtocol[Array], Protocol):
         -------
         Array
             Posterior mean, shape (n_test, nqoi).
+
+        Raises
+        ------
+        RuntimeError
+            If the GP has not been fitted yet.
+        """
+        ...
+
+    def data(self) -> GPTrainingData[Array]:
+        """
+        Return the training data container.
+
+        Returns
+        -------
+        GPTrainingData[Array]
+            Training data (X, y) used to fit the GP.
+
+        Raises
+        ------
+        RuntimeError
+            If the GP has not been fitted yet.
+        """
+        ...
+
+    def cholesky(self) -> CholeskyFactor[Array]:
+        """
+        Return the Cholesky factor of the kernel matrix.
+
+        Returns
+        -------
+        CholeskyFactor[Array]
+            Cholesky factor of K + nugget*I.
+
+        Raises
+        ------
+        RuntimeError
+            If the GP has not been fitted yet.
+        """
+        ...
+
+    def alpha(self) -> Array:
+        """
+        Return the precomputed weights alpha = A^{-1}(y - m(X)).
+
+        Returns
+        -------
+        Array
+            Precomputed weights, shape (n_train, nqoi).
 
         Raises
         ------
