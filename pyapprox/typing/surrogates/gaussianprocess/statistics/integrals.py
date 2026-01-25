@@ -52,6 +52,7 @@ from pyapprox.typing.surrogates.gaussianprocess.statistics.integrals_1d import (
     compute_lambda_1d,
     compute_Pi_1d,
     compute_xi1_1d,
+    compute_Gamma_1d,
 )
 from pyapprox.typing.surrogates.kernels.composition import ProductKernel
 from pyapprox.typing.surrogates.kernels.protocols import KernelProtocol
@@ -203,8 +204,8 @@ class SeparableKernelIntegralCalculator(Generic[Array]):
             )
 
         # Get training data
-        self._train_samples = gp._data.X()  # Shape: (nvars, N)
-        self._n_train = gp._data.n_samples()
+        self._train_samples = gp.data().X()  # Shape: (nvars, N)
+        self._n_train = gp.data().n_samples()
 
         # Get quadrature rules from the bases (points in physical domain)
         self._quad_samples: List[Array] = []
@@ -485,6 +486,42 @@ class SeparableKernelIntegralCalculator(Generic[Array]):
 
         self._cache['xi1'] = xi1
         return xi1
+
+    def Gamma(self) -> Array:
+        """
+        Compute the Gamma vector for Var[gamma] computation.
+
+        Gamma_i = integral integral C(x^(i), z) C(z, v) rho(z) rho(v) dz dv
+
+        For separable kernels: Gamma = prod_k Gamma_k (element-wise product).
+
+        This integral is needed for the correct vartheta_2 formula in
+        variance_of_variance().
+
+        Returns
+        -------
+        Array
+            Shape (N,) where N is the number of training points.
+        """
+        if 'Gamma' in self._cache:
+            return self._cache['Gamma']
+
+        nvars = len(self._kernels_1d)
+
+        # Compute 1D Gamma for each dimension and take product
+        Gamma = self._bkd.ones((self._n_train,))
+        for dim in range(nvars):
+            Gamma_1d = compute_Gamma_1d(
+                self._quad_samples[dim],
+                self._quad_weights[dim],
+                self._get_train_samples_1d(dim),
+                self._get_kernel_callable(dim),
+                self._bkd
+            )
+            Gamma = Gamma * Gamma_1d
+
+        self._cache['Gamma'] = Gamma
+        return Gamma
 
     def conditional_P(self, index: Array) -> Array:
         """

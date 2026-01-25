@@ -332,3 +332,53 @@ def compute_xi1_1d(
     xi1 = quad_weights @ (tau_quad * tau_quad)
 
     return xi1
+
+
+def compute_Gamma_1d(
+    quad_samples: Array,
+    quad_weights: Array,
+    train_samples_1d: Array,
+    kernel_1d: Callable[[Array, Array], Array],
+    bkd: Backend[Array]
+) -> Array:
+    """
+    Compute the 1D Gamma integral for variance of variance.
+
+    Gamma_k,i = integral integral C_k(x_k^(i), z_k) C_k(z_k, v_k)
+                rho_k(z_k) rho_k(v_k) dz_k dv_k
+
+    This is a double integral where one argument is the training point
+    and the other two are integration variables.
+
+    Parameters
+    ----------
+    quad_samples : Array
+        Quadrature points, shape (1, nquad).
+    quad_weights : Array
+        Quadrature weights, shape (nquad,).
+    train_samples_1d : Array
+        Training points for dimension k, shape (1, N).
+    kernel_1d : Callable[[Array, Array], Array]
+        1D kernel function: kernel(x1, x2) -> (n1, n2).
+    bkd : Backend[Array]
+        Backend for numerical operations.
+
+    Returns
+    -------
+    Array
+        Gamma values for each training point, shape (N,).
+    """
+    # K_train_quad[i, j] = k(x_i, z_j), shape (N, nquad)
+    K_train_quad = kernel_1d(train_samples_1d, quad_samples)
+
+    # K_quad_quad[j, l] = k(z_j, v_l), shape (nquad, nquad)
+    K_quad_quad = kernel_1d(quad_samples, quad_samples)
+
+    # Gamma_i = sum_j sum_l w_j w_l k(x_i, z_j) k(z_j, v_l)
+    #         = sum_j w_j k(x_i, z_j) [sum_l w_l k(z_j, v_l)]
+    #         = sum_j w_j k(x_i, z_j) (K_quad_quad @ w)_j
+    #         = K_train_quad @ diag(w) @ K_quad_quad @ w
+    inner = K_quad_quad @ quad_weights  # shape (nquad,)
+    Gamma = K_train_quad @ (quad_weights * inner)  # shape (N,)
+
+    return Gamma
