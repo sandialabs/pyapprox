@@ -438,6 +438,9 @@ class Backend(Protocol, Generic[Array]):
     def diag(array: Array, k: int = 0) -> Array: ...
 
     @staticmethod
+    def outer(a: Array, b: Array) -> Array: ...
+
+    @staticmethod
     def diff(array: Array, n: int = 1, axis: int = -1) -> Array: ...
 
     @staticmethod

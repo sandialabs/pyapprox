@@ -334,6 +334,61 @@ def compute_xi1_1d(
     return xi1
 
 
+def compute_conditional_P_1d(
+    quad_samples: Array,
+    quad_weights: Array,
+    train_samples_1d: Array,
+    kernel_1d: Callable[[Array, Array], Array],
+    bkd: Backend[Array]
+) -> Array:
+    """
+    Compute the 1D conditional P matrix for sensitivity analysis.
+
+    P̃_{k,ij} = ∫∫ C_k(x, x^(i)) C_k(z, x^(j)) ρ(x) ρ(z) dx dz
+             = τ_{k,i} · τ_{k,j}  (outer product)
+
+    Mathematical derivation:
+    - The double integral factors because x and z are INDEPENDENT
+    - Unlike standard P where the SAME point appears in both kernels
+    - Result is a rank-1 matrix: P̃ = τ τᵀ
+
+    This is used for dimensions that are INTEGRATED OUT (not conditioned on)
+    in the conditional variance computation for sensitivity analysis.
+
+    Comparison with standard P:
+    - Standard P_k: ∫ C(x, x^(i)) C(x, x^(j)) ρ(x) dx (single integration point)
+    - Conditional P̃_k: ∫∫ C(x, x^(i)) C(z, x^(j)) ρ(x)ρ(z) dx dz = τ_i · τ_j
+
+    The key difference is that in P̃, the two kernel evaluations use INDEPENDENT
+    integration points (x and z), so the integral factors. In standard P, the
+    SAME point x appears in both kernels, so it doesn't factor.
+
+    Parameters
+    ----------
+    quad_samples : Array
+        Quadrature points, shape (1, nquad).
+    quad_weights : Array
+        Quadrature weights, shape (nquad,).
+    train_samples_1d : Array
+        Training points for dimension k, shape (1, N).
+    kernel_1d : Callable[[Array, Array], Array]
+        1D kernel function: kernel(x1, x2) -> (n1, n2).
+    bkd : Backend[Array]
+        Backend for numerical operations.
+
+    Returns
+    -------
+    Array
+        Conditional P matrix for dimension k, shape (N, N).
+        This is a rank-1 matrix equal to τ_k τ_k^T.
+    """
+    # Compute tau for this dimension
+    tau = compute_tau_1d(quad_samples, quad_weights, train_samples_1d,
+                         kernel_1d, bkd)
+    # P̃ = τ τᵀ (rank-1 outer product)
+    return bkd.outer(tau, tau)
+
+
 def compute_Gamma_1d(
     quad_samples: Array,
     quad_weights: Array,

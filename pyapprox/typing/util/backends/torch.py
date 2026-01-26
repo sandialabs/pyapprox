@@ -379,6 +379,10 @@ class TorchBkd(Backend[torch.Tensor]):  # Specify torch.Tensor type
         return torch.diag(array, diagonal=k)
 
     @staticmethod
+    def outer(a: torch.Tensor, b: torch.Tensor) -> torch.Tensor:
+        return torch.outer(a, b)
+
+    @staticmethod
     def diff(array: torch.Tensor, n: int = 1, axis: int = -1) -> torch.Tensor:
         return torch.diff(array, n=n, dim=axis)
 

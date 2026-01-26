@@ -330,6 +330,10 @@ class NumpyBkd(Backend[NDArray[Any]]):  # Specify NDArray type
         return np.diag(array, k)
 
     @staticmethod
+    def outer(a: NDArray[Any], b: NDArray[Any]) -> NDArray[Any]:
+        return np.outer(a, b)
+
+    @staticmethod
     def diff(array: NDArray[Any], n: int = 1, axis: int = -1) -> NDArray[Any]:
         return np.diff(array, n=n, axis=axis)
 

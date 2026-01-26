@@ -53,6 +53,7 @@ from pyapprox.typing.surrogates.gaussianprocess.statistics.integrals_1d import (
     compute_Pi_1d,
     compute_xi1_1d,
     compute_Gamma_1d,
+    compute_conditional_P_1d,
 )
 from pyapprox.typing.surrogates.kernels.composition import ProductKernel
 from pyapprox.typing.surrogates.kernels.protocols import KernelProtocol
@@ -525,73 +526,159 @@ class SeparableKernelIntegralCalculator(Generic[Array]):
 
     def conditional_P(self, index: Array) -> Array:
         """
-        Compute P matrix with variables in 'index' fixed.
+        Compute conditional P matrix for sensitivity analysis.
 
-        This is used for computing sensitivity indices. The integral is
-        computed only over variables NOT in the index set.
+        For index set p (dimensions where index[k] = 1):
+        - Dimensions k ∈ p (conditioned on): use standard P_{k,ij}
+        - Dimensions k ∉ p (integrated out): use P̃_{k,ij} = τ_{k,i} τ_{k,j}
+
+        Mathematical Background
+        -----------------------
+        For sensitivity analysis, we need to compute conditional variances
+        where some dimensions are conditioned on and others are integrated out.
+
+        The standard P matrix uses a single integration point:
+        P_{k,ij} = ∫ C_k(x, x^(i)) C_k(x, x^(j)) ρ(x) dx
+
+        The conditional P̃ matrix uses two independent integration points:
+        P̃_{k,ij} = ∫∫ C_k(x, x^(i)) C_k(z, x^(j)) ρ(x) ρ(z) dx dz
+                 = τ_{k,i} · τ_{k,j}
+
+        The key insight is that P̃ factors into an outer product τ τᵀ because
+        the two integration variables x and z are independent.
+
+        Mathematical reference: docs/plans/gp-stats-phase4-sensitivity-bugfix.md
 
         Parameters
         ----------
         index : Array
-            Indices of variables to treat as fixed (complement set).
-            Shape (n_fixed,) with integer values in [0, nvars).
+            Binary vector of shape (nvars,).
+            index[k] = 1: dimension k is CONDITIONED ON (use standard P_k)
+            index[k] = 0: dimension k is INTEGRATED OUT (use P̃_k = τ_k τ_k^T)
 
         Returns
         -------
         Array
-            Shape (N, N) where N is the number of training points.
+            Conditional P matrix, shape (N, N).
+
+        Raises
+        ------
+        ValueError
+            If index length does not match number of dimensions.
+
+        Examples
+        --------
+        # Main effect of variable 0 (only z_0 conditioned):
+        index = bkd.asarray([1.0, 0.0, 0.0])  # nvars=3
+        P_p = calc.conditional_P(index)
+
+        # Total effect of variable 0 (all except z_0 conditioned):
+        index = bkd.asarray([0.0, 1.0, 1.0])  # nvars=3
+        P_p = calc.conditional_P(index)
         """
         nvars = len(self._kernels_1d)
-        index_set = set(int(i) for i in self._bkd.to_numpy(index))
+        index_np = self._bkd.to_numpy(index).flatten()
 
-        # Compute P only over dimensions NOT in index
-        P = self._bkd.ones((self._n_train, self._n_train))
-        for dim in range(nvars):
-            if dim in index_set:
-                continue  # Skip fixed dimensions
-            P_1d = compute_P_1d(
-                self._quad_samples[dim],
-                self._quad_weights[dim],
-                self._get_train_samples_1d(dim),
-                self._get_kernel_callable(dim),
-                self._bkd
+        if len(index_np) != nvars:
+            raise ValueError(
+                f"index must have length {nvars} (one per dimension), "
+                f"got length {len(index_np)}"
             )
-            P = P * P_1d
 
-        return P
+        P_p = self._bkd.ones((self._n_train, self._n_train))
+        for dim in range(nvars):
+            if index_np[dim] == 1:
+                # Conditioned on: use standard P (single integration point)
+                P_1d = compute_P_1d(
+                    self._quad_samples[dim],
+                    self._quad_weights[dim],
+                    self._get_train_samples_1d(dim),
+                    self._get_kernel_callable(dim),
+                    self._bkd
+                )
+            else:
+                # Integrated out: use outer product P̃ = τ τᵀ
+                P_1d = compute_conditional_P_1d(
+                    self._quad_samples[dim],
+                    self._quad_weights[dim],
+                    self._get_train_samples_1d(dim),
+                    self._get_kernel_callable(dim),
+                    self._bkd
+                )
+            P_p = P_p * P_1d
+
+        return P_p
 
     def conditional_u(self, index: Array) -> Array:
         """
-        Compute u scalar with variables in 'index' fixed.
+        Compute conditional u scalar for sensitivity analysis.
 
-        This is used for computing sensitivity indices. The integral is
-        computed only over variables NOT in the index set.
+        For index set p (dimensions where index[k] = 1):
+        - Dimensions k ∈ p (conditioned on): contribute factor 1
+        - Dimensions k ∉ p (integrated out): contribute factor u_k
+
+        u_p = ∏_{k ∉ p} u_k
+
+        Mathematical Background
+        -----------------------
+        When dimension k is conditioned on (fixed), we're evaluating:
+        ∫ C_k(z_k, z_k) ρ_k(z_k) dz_k
+
+        For correlation kernels (normalized so C_k(x, x) = 1):
+        ∫ 1 · ρ_k(z_k) dz_k = 1
+
+        When dimension k is integrated out, we use the standard u_k:
+        u_k = ∫∫ C_k(x, z) ρ_k(x) ρ_k(z) dx dz
+
+        Mathematical reference: docs/plans/gp-stats-phase4-sensitivity-bugfix.md
 
         Parameters
         ----------
         index : Array
-            Indices of variables to treat as fixed (complement set).
-            Shape (n_fixed,) with integer values in [0, nvars).
+            Binary vector of shape (nvars,).
+            index[k] = 1: dimension k is CONDITIONED ON (factor = 1)
+            index[k] = 0: dimension k is INTEGRATED OUT (factor = u_k)
 
         Returns
         -------
         Array
-            Scalar (0-dimensional or shape () array).
+            Conditional u scalar.
+
+        Raises
+        ------
+        ValueError
+            If index length does not match number of dimensions.
+
+        Examples
+        --------
+        # All conditioned: u_p = 1
+        index = bkd.asarray([1.0, 1.0, 1.0])
+        u_p = calc.conditional_u(index)  # Returns 1.0
+
+        # None conditioned: u_p = u (full prior variance)
+        index = bkd.asarray([0.0, 0.0, 0.0])
+        u_p = calc.conditional_u(index)  # Returns u = ∏_k u_k
         """
         nvars = len(self._kernels_1d)
-        index_set = set(int(i) for i in self._bkd.to_numpy(index))
+        index_np = self._bkd.to_numpy(index).flatten()
 
-        # Compute u only over dimensions NOT in index
-        u = self._bkd.asarray(1.0)
-        for dim in range(nvars):
-            if dim in index_set:
-                continue  # Skip fixed dimensions
-            u_1d = compute_u_1d(
-                self._quad_samples[dim],
-                self._quad_weights[dim],
-                self._get_kernel_callable(dim),
-                self._bkd
+        if len(index_np) != nvars:
+            raise ValueError(
+                f"index must have length {nvars} (one per dimension), "
+                f"got length {len(index_np)}"
             )
-            u = u * u_1d
 
-        return u
+        u_p = self._bkd.asarray(1.0)
+        for dim in range(nvars):
+            if index_np[dim] == 0:
+                # Integrated out: multiply by u_k
+                u_1d = compute_u_1d(
+                    self._quad_samples[dim],
+                    self._quad_weights[dim],
+                    self._get_kernel_callable(dim),
+                    self._bkd
+                )
+                u_p = u_p * u_1d
+            # If index[k] = 1 (conditioned on): factor is 1, no multiplication needed
+
+        return u_p

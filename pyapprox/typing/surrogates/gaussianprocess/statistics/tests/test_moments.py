@@ -135,25 +135,39 @@ class TestSeparableKernelIntegralCalculator(Generic[Array], unittest.TestCase):
         self.assertIs(tau1, tau2)
 
     def test_conditional_P_subset(self) -> None:
-        """Test conditional_P excludes fixed dimensions."""
-        # Fix dimension 0, integrate over dimension 1
-        index = self._bkd.asarray([0])
+        """Test conditional_P with binary index vector.
+
+        index[k] = 1: dimension k is CONDITIONED ON (use standard P_k)
+        index[k] = 0: dimension k is INTEGRATED OUT (use P̃_k = τ_k τ_k^T)
+        """
+        # Condition on dimension 0, integrate out dimension 1
+        # index = [1, 0] means: dim 0 conditioned (use P_0), dim 1 integrated (use τ_1 τ_1^T)
+        index = self._bkd.asarray([1.0, 0.0])
         P_cond = self._calc.conditional_P(index)
 
-        # Should only have contribution from dimension 1
+        # Should have correct shape
         self.assertEqual(P_cond.shape, (self._n_train, self._n_train))
+        # P_cond should be symmetric
+        self._bkd.assert_allclose(P_cond, P_cond.T, rtol=1e-12)
         # P_cond should be positive semi-definite
         eigvals = self._bkd.eigvalsh(P_cond)
         self.assertTrue(self._bkd.all_bool(eigvals > -1e-10))
 
     def test_conditional_u_subset(self) -> None:
-        """Test conditional_u excludes fixed dimensions."""
-        # Fix dimension 0, integrate over dimension 1
-        index = self._bkd.asarray([0])
+        """Test conditional_u with binary index vector.
+
+        index[k] = 1: dimension k is CONDITIONED ON (factor = 1)
+        index[k] = 0: dimension k is INTEGRATED OUT (factor = u_k)
+        """
+        # Condition on dimension 0, integrate out dimension 1
+        # u_p = 1 * u_1 (only dim 1 contributes to the integral)
+        index = self._bkd.asarray([1.0, 0.0])
         u_cond = self._calc.conditional_u(index)
 
-        # Should be positive
-        self.assertGreater(float(self._bkd.to_numpy(u_cond)), 0.0)
+        # Should be positive and <= 1 (max kernel value for normalized kernels)
+        u_cond_val = float(self._bkd.to_numpy(u_cond))
+        self.assertGreater(u_cond_val, 0.0)
+        self.assertLessEqual(u_cond_val, 1.0 + 1e-10)
 
 
 class TestGaussianProcessStatistics(Generic[Array], unittest.TestCase):
