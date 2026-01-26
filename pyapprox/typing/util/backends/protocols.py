@@ -407,6 +407,24 @@ class Backend(Protocol, Generic[Array]):
     def sort(array: Array, axis: int = -1) -> Array: ...
 
     @staticmethod
+    def argsort(array: Array, axis: int = -1) -> Array:
+        """Return indices that would sort the array.
+
+        Parameters
+        ----------
+        array : Array
+            Input array.
+        axis : int
+            Axis along which to sort. Default is -1 (last axis).
+
+        Returns
+        -------
+        Array
+            Array of indices that sort the input array.
+        """
+        ...
+
+    @staticmethod
     def searchsorted(
         sorted_array: Array, values: Array, side: str = "left"
     ) -> Array: ...

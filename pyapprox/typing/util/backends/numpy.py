@@ -290,6 +290,12 @@ class NumpyBkd(Backend[NDArray[Any]]):  # Specify NDArray type
         return np.sort(array, axis=axis)
 
     @staticmethod
+    def argsort(
+        array: NDArray[Any], axis: int = -1
+    ) -> NDArray[Any]:
+        return np.argsort(array, axis=axis)
+
+    @staticmethod
     def searchsorted(
         sorted_array: NDArray[Any], values: NDArray[Any], side: str = "left"
     ) -> NDArray[Any]:

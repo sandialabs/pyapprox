@@ -35,7 +35,7 @@ Users should create quadrature rules using the sparse grid infrastructure:
     calc = SeparableKernelIntegralCalculator(gp, bases, bkd=bkd)
 """
 
-from typing import Generic, List, Callable
+from typing import Generic, List, Callable, Optional
 from pyapprox.typing.util.backends.protocols import Array, Backend
 from pyapprox.typing.surrogates.gaussianprocess.protocols import (
     PredictiveGPProtocol,
@@ -60,6 +60,7 @@ from pyapprox.typing.surrogates.kernels.protocols import KernelProtocol
 from pyapprox.typing.surrogates.affine.protocols.quadrature import (
     QuadratureRuleStatefulProtocol,
 )
+from pyapprox.typing.probability.protocols.distribution import MarginalProtocol
 
 
 def _extract_1d_kernels(kernel: KernelProtocol[Array]) -> List[KernelProtocol[Array]]:
@@ -111,6 +112,10 @@ class SeparableKernelIntegralCalculator(Generic[Array]):
         before passing to this constructor. The quadrature rules must return
         points in the physical domain with weights normalized for the
         probability measure.
+    marginals : List[MarginalProtocol[Array]]
+        List of 1D marginal distributions, one per input dimension.
+        These define the probability measure for integration and are used
+        by GaussianProcessEnsemble for Monte Carlo sampling.
     bkd : Backend[Array], optional
         Backend for numerical operations. If None, uses GP's backend.
 
@@ -150,7 +155,7 @@ class SeparableKernelIntegralCalculator(Generic[Array]):
     >>> for b in bases:
     ...     b.set_nterms(20)  # Number of quadrature points
     >>>
-    >>> calc = SeparableKernelIntegralCalculator(gp, bases, bkd=bkd)
+    >>> calc = SeparableKernelIntegralCalculator(gp, bases, marginals, bkd=bkd)
     >>> tau = calc.tau()  # Shape: (10,)
     >>> P = calc.P()      # Shape: (10, 10)
     >>> u = calc.u()      # Scalar
@@ -160,7 +165,8 @@ class SeparableKernelIntegralCalculator(Generic[Array]):
         self,
         gp: PredictiveGPProtocol[Array],
         quadrature_bases: List[QuadratureRuleStatefulProtocol[Array]],
-        bkd: Backend[Array] = None,
+        marginals: List[MarginalProtocol[Array]],
+        bkd: Optional[Backend[Array]] = None,
     ):
         # Validate GP is fitted
         if not gp.is_fitted():
@@ -183,8 +189,16 @@ class SeparableKernelIntegralCalculator(Generic[Array]):
                 f"number of input variables ({nvars})."
             )
 
+        # Validate number of marginals matches nvars
+        if len(marginals) != nvars:
+            raise ValueError(
+                f"Number of marginals ({len(marginals)}) must match "
+                f"number of input variables ({nvars})."
+            )
+
         self._gp = gp
         self._quadrature_bases = quadrature_bases
+        self._marginals = marginals
 
         # Use GP's backend if not provided
         if bkd is None:
@@ -223,6 +237,10 @@ class SeparableKernelIntegralCalculator(Generic[Array]):
     def bkd(self) -> Backend[Array]:
         """Return the backend."""
         return self._bkd
+
+    def marginals(self) -> List[MarginalProtocol[Array]]:
+        """Return the list of marginal distributions."""
+        return self._marginals
 
     def _get_kernel_callable(self, dim: int) -> Callable[[Array, Array], Array]:
         """

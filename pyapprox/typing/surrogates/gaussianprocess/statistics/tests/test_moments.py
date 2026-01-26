@@ -89,7 +89,7 @@ class TestSeparableKernelIntegralCalculator(Generic[Array], unittest.TestCase):
 
         # Create calculator
         self._calc = SeparableKernelIntegralCalculator(
-            self._gp, bases, bkd=self._bkd
+            self._gp, bases, self._marginals, bkd=self._bkd
         )
 
     def bkd(self) -> Backend[Array]:
@@ -217,7 +217,7 @@ class TestGaussianProcessStatistics(Generic[Array], unittest.TestCase):
         # Create quadrature bases and calculator
         bases = _create_quadrature_bases(self._marginals, 30, self._bkd)
         self._calc = SeparableKernelIntegralCalculator(
-            self._gp, bases, bkd=self._bkd
+            self._gp, bases, self._marginals, bkd=self._bkd
         )
         self._stats = GaussianProcessStatistics(self._gp, self._calc)
 
@@ -290,7 +290,7 @@ class TestGaussianProcessStatistics(Generic[Array], unittest.TestCase):
         # Create quadrature bases
         bases_large = _create_quadrature_bases(self._marginals, 30, self._bkd)
         calc_large = SeparableKernelIntegralCalculator(
-            gp_large, bases_large, bkd=self._bkd
+            gp_large, bases_large, self._marginals, bkd=self._bkd
         )
         stats_large = GaussianProcessStatistics(gp_large, calc_large)
 
@@ -363,7 +363,7 @@ class TestMCComparison(Generic[Array], unittest.TestCase):
         bases = _create_quadrature_bases(self._marginals, self._nquad, self._bkd)
         self._bases = bases
         self._calc = SeparableKernelIntegralCalculator(
-            self._gp, bases, bkd=self._bkd
+            self._gp, bases, self._marginals, bkd=self._bkd
         )
         self._stats = GaussianProcessStatistics(self._gp, self._calc)
 
@@ -726,7 +726,7 @@ class TestKnownMoments(Generic[Array], unittest.TestCase):
         ]
         bases = _create_quadrature_bases(marginals, 50, bkd)
 
-        calc = SeparableKernelIntegralCalculator(gp, bases, bkd=bkd)
+        calc = SeparableKernelIntegralCalculator(gp, bases, marginals, bkd=bkd)
         stats = GaussianProcessStatistics(gp, calc)
 
         # Test mean of mean - tolerance should be comparable to GP error
@@ -815,7 +815,7 @@ class TestKnownMoments(Generic[Array], unittest.TestCase):
         ]
         bases = _create_quadrature_bases(marginals, 50, bkd)
 
-        calc = SeparableKernelIntegralCalculator(gp, bases, bkd=bkd)
+        calc = SeparableKernelIntegralCalculator(gp, bases, marginals, bkd=bkd)
         stats = GaussianProcessStatistics(gp, calc)
 
         # Test mean of mean - tolerance should be comparable to GP error
@@ -894,7 +894,7 @@ class TestKnownMoments(Generic[Array], unittest.TestCase):
         marginals = [UniformMarginal(-1.0, 1.0, bkd)]
         bases = _create_quadrature_bases(marginals, 50, bkd)
 
-        calc = SeparableKernelIntegralCalculator(gp, bases, bkd=bkd)
+        calc = SeparableKernelIntegralCalculator(gp, bases, marginals, bkd=bkd)
         stats = GaussianProcessStatistics(gp, calc)
 
         # Test mean of mean - use atol since expected is 0
@@ -941,7 +941,7 @@ class TestValidation(Generic[Array], unittest.TestCase):
         bases = _create_quadrature_bases(marginals, 10, self._bkd)
 
         with self.assertRaises(RuntimeError):
-            SeparableKernelIntegralCalculator(gp, bases, bkd=self._bkd)
+            SeparableKernelIntegralCalculator(gp, bases, marginals, bkd=self._bkd)
 
     def test_wrong_number_of_bases_raises_error(self) -> None:
         """Test that wrong number of quadrature bases raises ValueError."""
@@ -959,7 +959,7 @@ class TestValidation(Generic[Array], unittest.TestCase):
         bases = _create_quadrature_bases(marginals, 10, self._bkd)
 
         with self.assertRaises(ValueError):
-            SeparableKernelIntegralCalculator(gp, bases, bkd=self._bkd)
+            SeparableKernelIntegralCalculator(gp, bases, marginals, bkd=self._bkd)
 
     def test_non_separable_kernel_raises_error(self) -> None:
         """Test that non-separable kernel raises TypeError."""
@@ -978,7 +978,7 @@ class TestValidation(Generic[Array], unittest.TestCase):
         bases = _create_quadrature_bases(marginals, 10, self._bkd)
 
         with self.assertRaises(TypeError):
-            SeparableKernelIntegralCalculator(gp, bases, bkd=self._bkd)
+            SeparableKernelIntegralCalculator(gp, bases, marginals, bkd=self._bkd)
 
 
 # NumPy backend tests

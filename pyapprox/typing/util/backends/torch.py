@@ -333,6 +333,12 @@ class TorchBkd(Backend[torch.Tensor]):  # Specify torch.Tensor type
         return torch.sort(array, dim=axis).values
 
     @staticmethod
+    def argsort(
+        array: torch.Tensor, axis: int = -1
+    ) -> torch.Tensor:
+        return torch.argsort(array, dim=axis)
+
+    @staticmethod
     def searchsorted(
         sorted_array: torch.Tensor, values: torch.Tensor, side: str = "left"
     ) -> torch.Tensor:

@@ -15,7 +15,10 @@ from pyapprox.typing.util.backends.numpy import NumpyBkd
 from pyapprox.typing.util.backends.torch import TorchBkd
 from pyapprox.typing.util.test_utils import load_tests  # noqa: F401
 from pyapprox.typing.surrogates.kernels.matern import SquaredExponentialKernel
-from pyapprox.typing.surrogates.kernels.composition import ProductKernel
+from pyapprox.typing.surrogates.kernels.composition import (
+    ProductKernel,
+    SeparableProductKernel,
+)
 from pyapprox.typing.surrogates.gaussianprocess import ExactGaussianProcess
 from pyapprox.typing.surrogates.gaussianprocess.mean_functions import (
     ZeroMean,
@@ -409,7 +412,7 @@ class TestConditionalMethods(Generic[Array], unittest.TestCase):
         # Create 2D separable kernel (product of 1D SE kernels)
         k1 = SquaredExponentialKernel([1.0], (0.1, 10.0), 1, self._bkd)
         k2 = SquaredExponentialKernel([0.8], (0.1, 10.0), 1, self._bkd)
-        kernel = ProductKernel(k1, k2)
+        kernel = SeparableProductKernel([k1, k2], self._bkd)
 
         # Create GP
         self._gp = ExactGaussianProcess(
@@ -437,7 +440,7 @@ class TestConditionalMethods(Generic[Array], unittest.TestCase):
 
         # Create calculator
         self._calc = SeparableKernelIntegralCalculator(
-            self._gp, bases, bkd=self._bkd
+            self._gp, bases, marginals, bkd=self._bkd
         )
 
         self._nvars = 2

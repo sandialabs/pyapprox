@@ -94,7 +94,7 @@ class TestGaussianProcessSensitivity(Generic[Array], unittest.TestCase):
 
         # Create calculator and statistics
         self._calc = SeparableKernelIntegralCalculator(
-            self._gp, bases, bkd=self._bkd
+            self._gp, bases, self._marginals, bkd=self._bkd
         )
         self._stats = GaussianProcessStatistics(self._gp, self._calc)
         self._sens = GaussianProcessSensitivity(self._stats)
@@ -274,7 +274,7 @@ class TestKnownFunctions(Generic[Array], unittest.TestCase):
         ]
         bases = _create_quadrature_bases(marginals, 40, self._bkd)
 
-        calc = SeparableKernelIntegralCalculator(gp, bases, bkd=self._bkd)
+        calc = SeparableKernelIntegralCalculator(gp, bases, marginals, bkd=self._bkd)
         stats = GaussianProcessStatistics(gp, calc)
         sens = GaussianProcessSensitivity(stats)
 
@@ -355,7 +355,7 @@ class TestKnownFunctions(Generic[Array], unittest.TestCase):
         ]
         bases = _create_quadrature_bases(marginals, 40, self._bkd)
 
-        calc = SeparableKernelIntegralCalculator(gp, bases, bkd=self._bkd)
+        calc = SeparableKernelIntegralCalculator(gp, bases, marginals, bkd=self._bkd)
         stats = GaussianProcessStatistics(gp, calc)
         sens = GaussianProcessSensitivity(stats)
 
@@ -416,7 +416,7 @@ class TestKnownFunctions(Generic[Array], unittest.TestCase):
         ]
         bases = _create_quadrature_bases(marginals, 40, self._bkd)
 
-        calc = SeparableKernelIntegralCalculator(gp, bases, bkd=self._bkd)
+        calc = SeparableKernelIntegralCalculator(gp, bases, marginals, bkd=self._bkd)
         stats = GaussianProcessStatistics(gp, calc)
         sens = GaussianProcessSensitivity(stats)
 
@@ -603,7 +603,7 @@ class TestIshigamiBenchmark(Generic[Array], unittest.TestCase):
         marginals = [UniformMarginal(-pi, pi, bkd) for _ in range(3)]
         bases = _create_quadrature_bases(marginals, 40, bkd)
 
-        calc = SeparableKernelIntegralCalculator(gp, bases, bkd=bkd)
+        calc = SeparableKernelIntegralCalculator(gp, bases, marginals, bkd=bkd)
         stats = GaussianProcessStatistics(gp, calc)
         sens = GaussianProcessSensitivity(stats)
 
@@ -692,7 +692,7 @@ class TestConditionalPAndU(Generic[Array], unittest.TestCase):
         ]
         bases = _create_quadrature_bases(marginals, 30, self._bkd)
         self._calc = SeparableKernelIntegralCalculator(
-            gp, bases, bkd=self._bkd
+            gp, bases, marginals, bkd=self._bkd
         )
         self._stats = GaussianProcessStatistics(gp, self._calc)
         self._sens = GaussianProcessSensitivity(self._stats)
