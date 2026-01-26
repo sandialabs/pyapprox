@@ -32,7 +32,7 @@ def generate_data(nvars, n_train, bkd, seed=42):
     np.random.seed(seed)
     X_train_np = np.random.randn(nvars, n_train)
     # Simple function: sum of sines
-    y_train_np = np.sin(X_train_np.sum(axis=0))[:, None]
+    y_train_np = np.sin(X_train_np.sum(axis=0))[None, :]  # Shape: (1, n_train)
     return bkd.array(X_train_np), bkd.array(y_train_np)
 
 
@@ -171,7 +171,7 @@ def benchmark_autograd_gp(nvars, n_train, n_timing_calls=10):
     # Generate data
     np.random.seed(42)
     X_train_np = np.random.randn(nvars, n_train)
-    y_train_np = np.sin(X_train_np.sum(axis=0))[:, None]
+    y_train_np = np.sin(X_train_np.sum(axis=0))[None, :]  # Shape: (1, n_train)
     X_train = torch.tensor(X_train_np)
     y_train = torch.tensor(y_train_np)
 

@@ -154,12 +154,21 @@ class GPNegativeLogMarginalLikelihoodLoss(Generic[Array]):
             K_grad = kernel.jacobian_wrt_params(X_data)
             n_kernel_params = K_grad.shape[2]
 
+            # alpha shape: (nqoi, n_train) for single-output or (n_total, 1) for multi-output
+            # For single-output, transpose to (n_train, nqoi) for matrix ops
+            if alpha.shape[0] < alpha.shape[1]:
+                # Single-output: alpha is (nqoi, n_train), need (n_train, nqoi)
+                alpha_for_kernel = alpha.T
+            else:
+                # Multi-output: alpha is already (n_total, 1)
+                alpha_for_kernel = alpha
+
             for i in range(n_kernel_params):
                 dK = K_grad[:, :, i]
 
                 # Gradient formula (same for all GPs):
                 # ∂(-log p)/∂θ = 0.5 * (trace(K^{-1} @ dK) - α^T @ dK @ α)
-                term1 = self._bkd.sum(alpha * (dK @ alpha))
+                term1 = self._bkd.sum(alpha_for_kernel * (dK @ alpha_for_kernel))
                 Kinv_dK = cholesky.solve(dK)
                 term2 = self._bkd.trace(Kinv_dK)
 
@@ -176,11 +185,12 @@ class GPNegativeLogMarginalLikelihoodLoss(Generic[Array]):
                 # For multi-output GP: X_train_list is first arg
                 X_data = self._fit_args[0]
 
-                # Get mean function Jacobian
+                # Get mean function Jacobian: shape (nparams, 1, n_train)
                 mean_jac = self._gp._mean.jacobian_wrt_params(X_data)
 
                 for i in range(mean_hyps.nparams()):
-                    dm_dtheta = mean_jac[i, :, :]
+                    # mean_jac[i] has shape (1, n_train), alpha has shape (nqoi, n_train)
+                    dm_dtheta = mean_jac[i, :, :]  # Shape: (1, n_train)
                     grad_mean_i = -self._bkd.sum(alpha * dm_dtheta)
                     grad_values.append(grad_mean_i)
 

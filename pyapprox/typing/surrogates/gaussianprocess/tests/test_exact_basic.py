@@ -3,6 +3,7 @@ Tests for basic ExactGaussianProcess functionality.
 
 Tests initialization, fitting, prediction, mean functions, and plotting.
 """
+import math
 import unittest
 from typing import Generic, Any
 import numpy as np
@@ -48,7 +49,7 @@ class TestExactGPBasic(Generic[Array], unittest.TestCase):
 
         # Create training data
         X_train_np = np.random.randn(self.nvars, self.n_train)
-        y_train_np = np.sin(X_train_np[0, :] + X_train_np[1, :])[:, None]
+        y_train_np = np.sin(X_train_np[0, :] + X_train_np[1, :])[None, :]  # Shape: (1, n_train)
 
         self.X_train = self.bkd().array(X_train_np)
         self.y_train = self.bkd().array(y_train_np)
@@ -97,7 +98,7 @@ class TestExactGPBasic(Generic[Array], unittest.TestCase):
 
         # Predict
         mean = gp.predict(self.X_test)
-        self.assertEqual(mean.shape, (self.n_test, 1))
+        self.assertEqual(mean.shape, (1, self.n_test))
 
         # All predictions should be finite
         self.assertTrue(self.bkd().all_bool(self.bkd().isfinite(mean)))
@@ -115,7 +116,7 @@ class TestExactGPBasic(Generic[Array], unittest.TestCase):
 
         # Predict standard deviation
         std = gp.predict_std(self.X_test)
-        self.assertEqual(std.shape, (self.n_test, 1))
+        self.assertEqual(std.shape, (1, self.n_test))
 
         # All std should be positive
         self.assertTrue(self.bkd().all_bool(std > 0))
@@ -170,7 +171,7 @@ class TestExactGPBasic(Generic[Array], unittest.TestCase):
         std = gp.predict_std(self.X_train)
 
         # Std should be close to noise level (but not exactly due to kernel effects)
-        expected_std = self.bkd().full((self.n_train, 1), np.sqrt(0.01))
+        expected_std = self.bkd().full((1, self.n_train), math.sqrt(0.01))
         self.bkd().assert_allclose(std, expected_std, rtol=0.3, atol=0.03)
 
     def test_neg_log_marginal_likelihood(self) -> None:
@@ -188,7 +189,7 @@ class TestExactGPBasic(Generic[Array], unittest.TestCase):
         nlml = gp.neg_log_marginal_likelihood()
 
         # Should be a positive finite value
-        self.assertTrue(np.isfinite(nlml))
+        self.assertTrue(math.isfinite(nlml))
         self.assertGreater(nlml, 0)
 
     def test_zero_mean_function(self) -> None:
@@ -206,7 +207,7 @@ class TestExactGPBasic(Generic[Array], unittest.TestCase):
         gp.fit(self.X_train, self.y_train)
         mean = gp.predict(self.X_test)
 
-        self.assertEqual(mean.shape, (self.n_test, 1))
+        self.assertEqual(mean.shape, (1, self.n_test))
 
     def test_constant_mean_function(self) -> None:
         """Test with constant mean function."""
@@ -223,10 +224,10 @@ class TestExactGPBasic(Generic[Array], unittest.TestCase):
         gp.fit(self.X_train, self.y_train)
         mean = gp.predict(self.X_test)
 
-        self.assertEqual(mean.shape, (self.n_test, 1))
+        self.assertEqual(mean.shape, (1, self.n_test))
 
     def test_call_alias(self) -> None:
-        """Test that __call__ returns transposed predict for FunctionProtocol compatibility."""
+        """Test that __call__ is alias for predict (both return (nqoi, n_test))."""
         gp = ExactGaussianProcess(
             self.kernel,
             self.nvars,
@@ -236,11 +237,11 @@ class TestExactGPBasic(Generic[Array], unittest.TestCase):
 
         gp.fit(self.X_train, self.y_train)
 
-        mean_predict = gp.predict(self.X_test)  # Shape: (n_test, nqoi)
+        mean_predict = gp.predict(self.X_test)  # Shape: (nqoi, n_test)
         mean_call = gp(self.X_test)  # Shape: (nqoi, n_test) for FunctionProtocol
 
-        # __call__ should return transpose of predict
-        self.bkd().assert_allclose(mean_predict, mean_call.T)
+        # __call__ should return same as predict
+        self.bkd().assert_allclose(mean_predict, mean_call)
 
     def test_error_before_fit(self) -> None:
         """Test that prediction raises error before fit."""
@@ -275,7 +276,7 @@ class TestExactGPBasic(Generic[Array], unittest.TestCase):
 
         # Create clean training data (no noise added)
         X_train_clean = self.bkd().array([[0.0, 0.5, 1.0], [0.0, 0.5, 1.0]])
-        y_train_clean = self.bkd().array([[1.0], [2.0], [3.0]])
+        y_train_clean = self.bkd().array([[1.0, 2.0, 3.0]])  # Shape: (1, 3)
 
         gp.fit(X_train_clean, y_train_clean)
 
@@ -308,7 +309,7 @@ class TestExactGPBasic(Generic[Array], unittest.TestCase):
         x2_train = np.linspace(-1, 1, n_train_1d)
         X1_train, X2_train = np.meshgrid(x1_train, x2_train)
         X_train_np = np.vstack([X1_train.ravel(), X2_train.ravel()])
-        y_train_np = polynomial(X_train_np)[:, None]
+        y_train_np = polynomial(X_train_np)[None, :]  # Shape: (1, n_train)
 
         X_train = self.bkd().array(X_train_np)
         y_train = self.bkd().array(y_train_np)
@@ -333,7 +334,7 @@ class TestExactGPBasic(Generic[Array], unittest.TestCase):
         # Create test points (unseen locations, but within training domain)
         np.random.seed(123)
         X_test_np = np.random.uniform(-0.9, 0.9, (self.nvars, 15))
-        y_test_np = polynomial(X_test_np)[:, None]
+        y_test_np = polynomial(X_test_np)[None, :]  # Shape: (1, n_test)
 
         X_test = self.bkd().array(X_test_np)
         y_test = self.bkd().array(y_test_np)
@@ -345,7 +346,7 @@ class TestExactGPBasic(Generic[Array], unittest.TestCase):
         error = mean - y_test
         abs_error = self.bkd().abs(error)
         max_abs_error = float(self.bkd().max(abs_error))
-        mean_abs_error = float(self.bkd().sum(abs_error) / abs_error.shape[0])
+        mean_abs_error = float(self.bkd().sum(abs_error) / abs_error.shape[1])
 
         # With dense training data and appropriate kernel, error should be very small
         # This demonstrates GP's ability to approximate smooth functions
@@ -376,7 +377,7 @@ class TestExactGPBasic(Generic[Array], unittest.TestCase):
 
         # Create 1D training data
         X_train_1d = self.bkd().reshape(self.bkd().linspace(-2, 2, 10), (1, -1))
-        y_train_1d = self.bkd().reshape(self.bkd().sin(X_train_1d[0, :]), (-1, 1))
+        y_train_1d = self.bkd().reshape(self.bkd().sin(X_train_1d[0, :]), (1, -1))  # Shape: (1, n_train)
 
         gp.fit(X_train_1d, y_train_1d)
 
@@ -390,7 +391,7 @@ class TestExactGPBasic(Generic[Array], unittest.TestCase):
         # Plot training data
         ax.plot(
             self.bkd().to_numpy(X_train_1d[0, :]),
-            self.bkd().to_numpy(y_train_1d[:, 0]),
+            self.bkd().to_numpy(y_train_1d[0, :]),
             'ro', label='Training Data'
         )
 
@@ -474,7 +475,7 @@ class TestExactGPBasicTorch(TestExactGPBasic[torch.Tensor]):
         return self._bkd
 
 
-from pyapprox.typing.util.test_utils import load_tests
+from pyapprox.typing.util.test_utils import load_tests  # noqa: F401
 
 
 if __name__ == "__main__":

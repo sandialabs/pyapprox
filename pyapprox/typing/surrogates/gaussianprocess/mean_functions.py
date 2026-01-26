@@ -44,7 +44,7 @@ class MeanFunction(ABC, Generic[Array]):
         Returns
         -------
         Array
-            Mean function values, shape (n_points, 1).
+            Mean function values, shape (1, n_points).
         """
         ...
 
@@ -73,7 +73,7 @@ class MeanFunction(ABC, Generic[Array]):
         Returns
         -------
         Array
-            Jacobian, shape (nparams, n_points, 1).
+            Jacobian, shape (nparams, 1, n_points).
             The gradient ∂m/∂θ_i for each hyperparameter.
             For mean functions with no parameters, returns empty array.
         """
@@ -113,7 +113,7 @@ class ZeroMean(MeanFunction[Array]):
     >>> X = bkd.array(np.random.randn(2, 5))
     >>> m = mean(X)
     >>> m.shape
-    (5, 1)
+    (1, 5)
     >>> bkd.all_bool(m == 0.0)
     True
     """
@@ -135,10 +135,10 @@ class ZeroMean(MeanFunction[Array]):
         Returns
         -------
         Array
-            Zeros, shape (n_points, 1).
+            Zeros, shape (1, n_points).
         """
         n_points = X.shape[1]
-        return self._bkd.zeros((n_points, 1))
+        return self._bkd.zeros((1, n_points))
 
     def hyp_list(self) -> HyperParameterList:
         """
@@ -165,10 +165,10 @@ class ZeroMean(MeanFunction[Array]):
         Returns
         -------
         Array
-            Empty array, shape (0, n_points, 1).
+            Empty array, shape (0, 1, n_points).
         """
         n_points = X.shape[1]
-        return self._bkd.zeros((0, n_points, 1))
+        return self._bkd.zeros((0, 1, n_points))
 
     def __repr__(self) -> str:
         """Return string representation."""
@@ -203,7 +203,7 @@ class ConstantMean(MeanFunction[Array]):
     >>> X = bkd.array(np.random.randn(2, 5))
     >>> m = mean(X)
     >>> m.shape
-    (5, 1)
+    (1, 5)
     >>> bkd.all_bool(m == 1.5)
     True
     """
@@ -240,11 +240,11 @@ class ConstantMean(MeanFunction[Array]):
         Returns
         -------
         Array
-            Constant values, shape (n_points, 1).
+            Constant values, shape (1, n_points).
         """
         n_points = X.shape[1]
         constant_value = self._constant.get_values()[0]
-        return self._bkd.full((n_points, 1), constant_value)
+        return self._bkd.full((1, n_points), constant_value)
 
     def hyp_list(self) -> HyperParameterList:
         """
@@ -271,11 +271,11 @@ class ConstantMean(MeanFunction[Array]):
         Returns
         -------
         Array
-            Jacobian, shape (1, n_points, 1).
+            Jacobian, shape (1, 1, n_points).
             All entries are 1.0 since ∂m/∂c = 1.
         """
         n_points = X.shape[1]
-        return self._bkd.ones((1, n_points, 1))
+        return self._bkd.ones((1, 1, n_points))
 
     def __repr__(self) -> str:
         """Return string representation."""

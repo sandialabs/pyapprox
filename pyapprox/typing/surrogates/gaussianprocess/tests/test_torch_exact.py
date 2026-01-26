@@ -36,7 +36,7 @@ class TestTorchExactGaussianProcess(unittest.TestCase):
 
         # Generate training data
         X_train = torch.linspace(-2, 2, 10).reshape(1, -1)
-        y_train = torch.sin(X_train[0])[:, None]
+        y_train = torch.sin(X_train[0])[None, :]  # Shape: (1, n_train)
 
         gp.fit(X_train, y_train)
         self.assertTrue(gp.is_fitted())
@@ -45,7 +45,7 @@ class TestTorchExactGaussianProcess(unittest.TestCase):
         X_test = torch.linspace(-2, 2, 5).reshape(1, -1)
         mean = gp.predict(X_test)
 
-        self.assertEqual(mean.shape, (5, 1))
+        self.assertEqual(mean.shape, (1, 5))
 
     def test_predict_interpolates_training_data(self):
         """Test predictions at training points match training values."""
@@ -56,7 +56,7 @@ class TestTorchExactGaussianProcess(unittest.TestCase):
         gp = TorchExactGaussianProcess(kernel, nvars=1, nugget=1e-10)
 
         X_train = torch.linspace(-2, 2, 10).reshape(1, -1)
-        y_train = torch.sin(X_train[0])[:, None]
+        y_train = torch.sin(X_train[0])[None, :]  # Shape: (1, n_train)
 
         gp.fit(X_train, y_train)
 
@@ -74,14 +74,14 @@ class TestTorchExactGaussianProcess(unittest.TestCase):
         gp = TorchExactGaussianProcess(kernel, nvars=1, nugget=1e-10)
 
         X_train = torch.linspace(-2, 2, 10).reshape(1, -1)
-        y_train = torch.sin(X_train[0])[:, None]
+        y_train = torch.sin(X_train[0])[None, :]  # Shape: (1, n_train)
 
         gp.fit(X_train, y_train)
 
         X_test = torch.linspace(-2, 2, 5).reshape(1, -1)
         std = gp.predict_std(X_test)
 
-        self.assertEqual(std.shape, (5, 1))
+        self.assertEqual(std.shape, (1, 5))
         self.assertTrue(torch.all(std >= 0))
 
     def test_std_near_zero_at_training_points(self):
@@ -93,7 +93,7 @@ class TestTorchExactGaussianProcess(unittest.TestCase):
         gp = TorchExactGaussianProcess(kernel, nvars=1, nugget=1e-10)
 
         X_train = torch.linspace(-2, 2, 10).reshape(1, -1)
-        y_train = torch.sin(X_train[0])[:, None]
+        y_train = torch.sin(X_train[0])[None, :]  # Shape: (1, n_train)
 
         gp.fit(X_train, y_train)
 
@@ -110,7 +110,7 @@ class TestTorchExactGaussianProcess(unittest.TestCase):
         gp = TorchExactGaussianProcess(kernel, nvars=2)
 
         X_train = torch.randn(2, 20)
-        y_train = torch.randn(20, 1)
+        y_train = torch.randn(1, 20)  # Shape: (nqoi, n_train)
 
         gp.fit(X_train, y_train)
 
@@ -119,9 +119,9 @@ class TestTorchExactGaussianProcess(unittest.TestCase):
         jac = gp.jacobian(X_test)
         self.assertEqual(jac.shape, (1, 2))  # (nqoi, nvars)
 
-        # Multiple samples
+        # Multiple samples - use jacobian_batch
         X_test_multi = torch.randn(2, 5, requires_grad=True)
-        jac_multi = gp.jacobian(X_test_multi)
+        jac_multi = gp.jacobian_batch(X_test_multi)
         self.assertEqual(jac_multi.shape, (5, 1, 2))  # (n_samples, nqoi, nvars)
 
     def test_jacobian_finite_difference(self):
@@ -133,7 +133,7 @@ class TestTorchExactGaussianProcess(unittest.TestCase):
         gp = TorchExactGaussianProcess(kernel, nvars=1)
 
         X_train = torch.linspace(-2, 2, 20).reshape(1, -1)
-        y_train = torch.sin(X_train[0])[:, None]
+        y_train = torch.sin(X_train[0])[None, :]  # Shape: (1, n_train)
 
         gp.fit(X_train, y_train)
 
@@ -145,8 +145,8 @@ class TestTorchExactGaussianProcess(unittest.TestCase):
         x_plus = torch.tensor([[0.5 + eps]])
         x_minus = torch.tensor([[0.5 - eps]])
 
-        f_plus = gp.predict(x_plus)[0, 0]
-        f_minus = gp.predict(x_minus)[0, 0]
+        f_plus = gp.predict(x_plus)[0, 0]  # Shape: (1, 1) -> scalar
+        f_minus = gp.predict(x_minus)[0, 0]  # Shape: (1, 1) -> scalar
 
         jac_fd = (f_plus - f_minus) / (2 * eps)
 
@@ -177,7 +177,7 @@ class TestTorchExactGaussianProcess(unittest.TestCase):
         gp = TorchExactGaussianProcess(kernel, nvars=1)
 
         X_train = torch.linspace(-2, 2, 10).reshape(1, -1)
-        y_train = torch.sin(X_train[0])[:, None]
+        y_train = torch.sin(X_train[0])[None, :]  # Shape: (1, n_train)
 
         gp.fit(X_train, y_train)
 
@@ -198,17 +198,17 @@ class TestTorchExactGaussianProcess(unittest.TestCase):
             gp = TorchExactGaussianProcess(kernel, nvars=1)
 
             X_train = torch.linspace(-2, 2, 20).reshape(1, -1)
-            y_train = torch.sin(X_train[0])[:, None]
+            y_train = torch.sin(X_train[0])[None, :]  # Shape: (1, n_train)
 
             gp.fit(X_train, y_train)
 
             X_test = torch.linspace(-2, 2, 10).reshape(1, -1)
             mean = gp.predict(X_test)
 
-            self.assertEqual(mean.shape, (10, 1))
+            self.assertEqual(mean.shape, (1, 10))
 
             # Check predictions are reasonable
-            y_true = torch.sin(X_test[0])[:, None]
+            y_true = torch.sin(X_test[0])[None, :]  # Shape: (1, n_test)
             error = torch.abs(mean - y_true).mean()
             self.assertLess(float(error), 0.5)
 
@@ -221,7 +221,7 @@ class TestTorchExactGaussianProcess(unittest.TestCase):
         gp = TorchExactGaussianProcess(kernel, nvars=1)
 
         X_train = torch.linspace(-2, 2, 10).reshape(1, -1)
-        y_train = torch.sin(X_train[0])[:, None]
+        y_train = torch.sin(X_train[0])[None, :]  # Shape: (1, n_train)
 
         gp.fit(X_train, y_train)
 
@@ -240,14 +240,14 @@ class TestTorchExactGaussianProcess(unittest.TestCase):
         gp = TorchExactGaussianProcess(kernel, nvars=3)
 
         X_train = torch.randn(3, 30)
-        y_train = torch.randn(30, 1)
+        y_train = torch.randn(1, 30)  # Shape: (nqoi, n_train)
 
         gp.fit(X_train, y_train)
 
         X_test = torch.randn(3, 10)
         mean = gp.predict(X_test)
 
-        self.assertEqual(mean.shape, (10, 1))
+        self.assertEqual(mean.shape, (1, 10))
 
     def test_repr(self):
         """Test string representation."""
@@ -262,7 +262,7 @@ class TestTorchExactGaussianProcess(unittest.TestCase):
         self.assertIn("not fitted", repr_str)
 
         X_train = torch.linspace(-2, 2, 10).reshape(1, -1)
-        y_train = torch.sin(X_train[0])[:, None]
+        y_train = torch.sin(X_train[0])[None, :]  # Shape: (1, n_train)
         gp.fit(X_train, y_train)
 
         repr_str = repr(gp)
@@ -289,7 +289,7 @@ class TestTorchExactGaussianProcess(unittest.TestCase):
 
         # Same training data
         X_train = torch.linspace(-2, 2, 15).reshape(1, -1)
-        y_train = torch.sin(X_train[0])[:, None]
+        y_train = torch.sin(X_train[0])[None, :]  # Shape: (1, n_train)
 
         torch_gp.fit(X_train, y_train)
         ref_gp.fit(X_train, y_train)
@@ -325,7 +325,7 @@ class TestTorchExactGaussianProcess(unittest.TestCase):
 
         # Same training data
         X_train = torch.linspace(-2, 2, 15).reshape(1, -1)
-        y_train = torch.sin(X_train[0])[:, None]
+        y_train = torch.sin(X_train[0])[None, :]  # Shape: (1, n_train)
 
         torch_gp.fit(X_train, y_train)
         ref_gp.fit(X_train, y_train)
@@ -357,7 +357,7 @@ class TestTorchExactGaussianProcess(unittest.TestCase):
 
         # Training data
         X_train = torch.randn(2, 15)
-        y_train = torch.sin(X_train[0] + X_train[1])[:, None]
+        y_train = torch.sin(X_train[0] + X_train[1])[None, :]  # Shape: (1, n_train)
         gp.fit(X_train, y_train)
 
         # Create derivative checker
@@ -411,7 +411,7 @@ class TestTorchExactGaussianProcess(unittest.TestCase):
 
         # Training data
         X_train = torch.linspace(-2, 2, 20).reshape(1, -1)
-        y_train = torch.sin(X_train[0])[:, None]
+        y_train = torch.sin(X_train[0])[None, :]  # Shape: (1, n_train)
         gp.fit(X_train, y_train)
 
         # Create derivative checker

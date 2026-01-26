@@ -38,7 +38,7 @@ class TestMeanFunctions(Generic[Array], unittest.TestCase):
         self.nvars = 2
         self.n_points = 10
 
-        # Create test points
+        # Create test points (use numpy for random generation, then convert)
         X_np = np.random.randn(self.nvars, self.n_points)
         self.X = self.bkd().array(X_np)
 
@@ -54,8 +54,8 @@ class TestMeanFunctions(Generic[Array], unittest.TestCase):
 
         m = mean(self.X)
 
-        # Check shape
-        self.assertEqual(m.shape, (self.n_points, 1))
+        # Check shape - (1, n_points) per convention
+        self.assertEqual(m.shape, (1, self.n_points))
 
         # Check all zeros
         self.assertTrue(
@@ -78,8 +78,8 @@ class TestMeanFunctions(Generic[Array], unittest.TestCase):
 
         jac = mean.jacobian_wrt_params(self.X)
 
-        # Should have shape (0, n_points, 1) since no parameters
-        self.assertEqual(jac.shape, (0, self.n_points, 1))
+        # Should have shape (0, 1, n_points) since no parameters
+        self.assertEqual(jac.shape, (0, 1, self.n_points))
 
     # ========== ConstantMean Tests ==========
 
@@ -90,12 +90,12 @@ class TestMeanFunctions(Generic[Array], unittest.TestCase):
 
         m = mean(self.X)
 
-        # Check shape
-        self.assertEqual(m.shape, (self.n_points, 1))
+        # Check shape - (1, n_points) per convention
+        self.assertEqual(m.shape, (1, self.n_points))
 
-        # Check all equal to constant
-        m_np = self.bkd().to_numpy(m)
-        self.assertTrue(np.allclose(m_np, constant_value))
+        # Check all equal to constant using backend
+        expected = self.bkd().full((1, self.n_points), constant_value)
+        self.bkd().assert_allclose(m, expected)
 
     def test_constant_mean_hyperparameters(self) -> None:
         """Test ConstantMean hyperparameters."""
@@ -108,10 +108,10 @@ class TestMeanFunctions(Generic[Array], unittest.TestCase):
         self.assertEqual(hyp_list.nparams(), 1)
         self.assertEqual(hyp_list.nactive_params(), 1)
 
-        # Check value
+        # Check value using backend
         values = hyp_list.get_active_values()
-        values_np = self.bkd().to_numpy(values)
-        self.assertAlmostEqual(values_np[0], constant_value, places=10)
+        expected = self.bkd().array([constant_value])
+        self.bkd().assert_allclose(values, expected, rtol=1e-10)
 
     def test_constant_mean_jacobian_shape(self) -> None:
         """Test ConstantMean Jacobian shape."""
@@ -119,8 +119,8 @@ class TestMeanFunctions(Generic[Array], unittest.TestCase):
 
         jac = mean.jacobian_wrt_params(self.X)
 
-        # Should have shape (1, n_points, 1) - one parameter
-        self.assertEqual(jac.shape, (1, self.n_points, 1))
+        # Should have shape (1, 1, n_points) - one parameter
+        self.assertEqual(jac.shape, (1, 1, self.n_points))
 
     def test_constant_mean_jacobian_values(self) -> None:
         """Test ConstantMean Jacobian values."""
@@ -130,8 +130,8 @@ class TestMeanFunctions(Generic[Array], unittest.TestCase):
 
         # For constant mean m(x) = c, we have ∂m/∂c = 1
         # So Jacobian should be all ones
-        jac_np = self.bkd().to_numpy(jac)
-        self.assertTrue(np.allclose(jac_np, 1.0))
+        expected = self.bkd().ones((1, 1, self.n_points))
+        self.bkd().assert_allclose(jac, expected)
 
     def test_constant_mean_jacobian_finite_difference(self) -> None:
         """
@@ -145,19 +145,19 @@ class TestMeanFunctions(Generic[Array], unittest.TestCase):
         class MeanFunctionWrapper:
             """Wrapper to make mean function compatible with DerivativeChecker."""
 
-            def __init__(self, mean_func, X, bkd):
+            def __init__(self, mean_func: ConstantMean, X: Array, bkd: Backend[Array]):
                 self._mean = mean_func
                 self._X = X
                 self._bkd = bkd
 
-            def bkd(self):
+            def bkd(self) -> Backend[Array]:
                 return self._bkd
 
-            def nvars(self):
+            def nvars(self) -> int:
                 """Number of parameters being optimized."""
                 return self._mean.hyp_list().nactive_params()
 
-            def nqoi(self):
+            def nqoi(self) -> int:
                 """Number of outputs - number of samples in this case."""
                 return self._X.shape[1]
 
@@ -175,14 +175,15 @@ class TestMeanFunctions(Generic[Array], unittest.TestCase):
                 Array, shape (nqoi, 1) = (n_points, 1)
                     Mean function values.
                 """
-                # Flatten params if needed (DerivativeChecker may pass (nparams, 1))
+                # Flatten params if needed
                 params_flat = self._bkd.reshape(params, (-1,))
 
                 # Update hyperparameters
                 self._mean.hyp_list().set_active_values(params_flat)
 
-                # Evaluate mean (returns shape (n_points, 1))
-                return self._mean(self._X)
+                # Evaluate mean (returns shape (1, n_points))
+                # Transpose to (n_points, 1) for DerivativeChecker
+                return self._mean(self._X).T
 
             def jacobian(self, params: Array) -> Array:
                 """
@@ -204,15 +205,14 @@ class TestMeanFunctions(Generic[Array], unittest.TestCase):
                 # Update hyperparameters
                 self._mean.hyp_list().set_active_values(params_flat)
 
-                # Get Jacobian: shape (nparams, n_points, 1)
+                # Get Jacobian: shape (nparams, 1, n_points)
                 jac = self._mean.jacobian_wrt_params(self._X)
 
                 # Reshape to (n_points, nparams) for DerivativeChecker
-                # First reshape to (nparams, n_points) by removing last dim
                 nparams = jac.shape[0]
-                n_points = jac.shape[1]
+                n_points = jac.shape[2]
                 jac = self._bkd.reshape(jac, (nparams, n_points))
-                # Then transpose to (n_points, nparams)
+                # Transpose to (n_points, nparams)
                 jac = jac.T
 
                 return jac
@@ -236,9 +236,8 @@ class TestMeanFunctions(Generic[Array], unittest.TestCase):
                 # Compute Jacobian
                 J = self.jacobian(params)  # (n_points, nparams)
 
-                # Flatten v and ensure same dtype as J
-                v_np = self._bkd.to_numpy(v).flatten()
-                v_reshaped = self._bkd.array(v_np.reshape(-1, 1))  # (nparams, 1)
+                # Reshape v to (nparams, 1) using backend
+                v_reshaped = self._bkd.reshape(v, (-1, 1))
 
                 # JVP = J @ v
                 return J @ v_reshaped
@@ -277,8 +276,8 @@ class TestMeanFunctions(Generic[Array], unittest.TestCase):
 
         # Initial evaluation
         m1 = mean(self.X)
-        m1_np = self.bkd().to_numpy(m1)
-        self.assertTrue(np.allclose(m1_np, 1.0))
+        expected1 = self.bkd().full((1, self.n_points), 1.0)
+        self.bkd().assert_allclose(m1, expected1)
 
         # Update hyperparameter
         new_value = self.bkd().array([3.5])
@@ -286,8 +285,8 @@ class TestMeanFunctions(Generic[Array], unittest.TestCase):
 
         # Evaluate again
         m2 = mean(self.X)
-        m2_np = self.bkd().to_numpy(m2)
-        self.assertTrue(np.allclose(m2_np, 3.5))
+        expected2 = self.bkd().full((1, self.n_points), 3.5)
+        self.bkd().assert_allclose(m2, expected2)
 
 
 # ========== Backend-Specific Test Classes ==========
@@ -295,34 +294,33 @@ class TestMeanFunctions(Generic[Array], unittest.TestCase):
 class TestMeanFunctionsNumpy(TestMeanFunctions[NDArray[Any]]):
     """Test mean functions with NumPy backend."""
 
+    def setUp(self) -> None:
+        self._bkd = NumpyBkd()
+        super().setUp()
+
     def bkd(self) -> NumpyBkd:
         """Return NumPy backend."""
-        if not hasattr(self, '_bkd'):
-            self._bkd = NumpyBkd()
         return self._bkd
 
 
 class TestMeanFunctionsTorch(TestMeanFunctions[torch.Tensor]):
     """Test mean functions with PyTorch backend."""
 
+    def setUp(self) -> None:
+        torch.set_default_dtype(torch.float64)
+        self._bkd = TorchBkd()
+        super().setUp()
+
     def bkd(self) -> TorchBkd:
         """Return PyTorch backend."""
-        if not hasattr(self, '_bkd'):
-            # Set default dtype to float64 for consistency
-            torch.set_default_dtype(torch.float64)
-            self._bkd = TorchBkd()
         return self._bkd
 
 
-from pyapprox.typing.util.test_utils import load_tests
+from pyapprox.typing.util.test_utils import load_tests  # noqa: F401
 
 
 if __name__ == "__main__":
-    # Run tests
-    suite = unittest.TestLoader().loadTestsFromModule(__import__(__name__))
+    loader = unittest.TestLoader()
+    suite = load_tests(loader, [], None)
     runner = unittest.TextTestRunner(verbosity=2)
-    result = runner.run(suite)
-
-    # Exit with error code if tests failed
-    import sys
-    sys.exit(0 if result.wasSuccessful() else 1)
+    runner.run(suite)

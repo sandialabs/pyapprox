@@ -36,7 +36,7 @@ class TestExactGPDerivatives(Generic[Array], unittest.TestCase):
 
         # Create training data
         X_train_np = np.random.randn(self.nvars, self.n_train)
-        y_train_np = np.sin(X_train_np[0, :] + X_train_np[1, :])[:, None]
+        y_train_np = np.sin(X_train_np[0, :] + X_train_np[1, :])[None, :]  # Shape: (1, n_train)
 
         self.X_train = self.bkd().array(X_train_np)
         self.y_train = self.bkd().array(y_train_np)
@@ -112,7 +112,7 @@ class TestExactGPDerivativesNumpy(TestExactGPDerivatives[NDArray[Any]]):
 
 
 # PyTorch implementation
-class TestExactGPDerivativesTorchTorch(TestExactGPDerivatives[torch.Tensor]):
+class TestExactGPDerivativesTorch(TestExactGPDerivatives[torch.Tensor]):
     def setUp(self) -> None:
         torch.set_default_dtype(torch.float64)
         self._bkd = TorchBkd()
@@ -122,7 +122,7 @@ class TestExactGPDerivativesTorchTorch(TestExactGPDerivatives[torch.Tensor]):
         return self._bkd
 
 
-from pyapprox.typing.util.test_utils import load_tests
+from pyapprox.typing.util.test_utils import load_tests  # noqa: F401
 
 
 if __name__ == "__main__":

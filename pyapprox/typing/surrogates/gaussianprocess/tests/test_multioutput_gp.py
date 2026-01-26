@@ -101,24 +101,16 @@ class TestMultiOutputGPWithIndependentKernel(Generic[Array], unittest.TestCase):
         gp.fit(X_list, y_train_stacked)
 
         # Predict at training points (should interpolate)
-        y_pred_stacked = gp.predict(X_list)
-
-        # Check overall interpolation accuracy
-        error = self.bkd().abs(y_pred_stacked - y_train_stacked)
-        max_error = self.bkd().max(error).item()
-
-        # Should interpolate with very high accuracy
-        self.assertLess(max_error, 1e-6,
-                       f"Interpolation error {max_error:.2e} exceeds 1e-6")
+        # predict() returns a list of arrays, each with shape (1, n_train)
+        y_pred_list = gp.predict(X_list)
 
         # Verify each output interpolates its specific function correctly
         X_train_np = self.bkd().to_numpy(X_train)
 
         for i in range(self.noutputs):
-            start = i * n_train
-            end = (i + 1) * n_train
-            y_pred_i = y_pred_stacked[start:end, 0]
-            y_true_i = y_train_unstacked[:, i]
+            # y_pred_list[i] has shape (1, n_train)
+            y_pred_i = y_pred_list[i][0, :]  # (n_train,)
+            y_true_i = y_train_unstacked[:, i]  # (n_train,)
 
             # Check interpolation error
             error_i = self.bkd().abs(y_pred_i - y_true_i)
@@ -181,21 +173,23 @@ class TestMultiOutputGPWithIndependentKernel(Generic[Array], unittest.TestCase):
 
         # Predict at test points
         X_test_list = [X_test] * self.noutputs
-        y_pred = gp.predict(X_test_list)
+        # predict() returns a list of arrays, each with shape (1, n_test)
+        y_pred_list = gp.predict(X_test_list)
 
-        # Check shape
-        expected_shape = (n_test * self.noutputs, 1)
-        self.assertEqual(y_pred.shape, expected_shape)
+        # Check that we got a list of predictions
+        self.assertEqual(len(y_pred_list), self.noutputs)
+        for i in range(self.noutputs):
+            self.assertEqual(y_pred_list[i].shape, (1, n_test))
 
         # Predictions should be in reasonable range
-        y_pred_abs = self.bkd().abs(y_pred)
-        max_pred = self.bkd().max(y_pred_abs).item()
-        self.assertLess(max_pred, 10.0)
+        for i in range(self.noutputs):
+            y_pred_abs = self.bkd().abs(y_pred_list[i])
+            max_pred = self.bkd().max(y_pred_abs).item()
+            self.assertLess(max_pred, 10.0)
 
         # Verify predictions are reasonable approximations
-        y_pred_np = self.bkd().to_numpy(y_pred)
-        y_pred_0 = y_pred_np[0:n_test, 0]
-        y_pred_1 = y_pred_np[n_test:2*n_test, 0]
+        y_pred_0 = self.bkd().to_numpy(y_pred_list[0][0, :])
+        y_pred_1 = self.bkd().to_numpy(y_pred_list[1][0, :])
 
         # Should approximate the true functions (not perfect, but reasonable)
         error_0 = np.abs(y_pred_0 - y_test_0)
@@ -206,20 +200,28 @@ class TestMultiOutputGPWithIndependentKernel(Generic[Array], unittest.TestCase):
         self.assertLess(np.mean(error_1), 0.5)
 
         # Test predict_with_uncertainty
-        y_pred_unc, y_std = gp.predict_with_uncertainty(X_test_list)
+        # Returns lists of arrays, each with shape (1, n_test)
+        y_pred_unc_list, y_std_list = gp.predict_with_uncertainty(X_test_list)
+
+        # Check lengths
+        self.assertEqual(len(y_pred_unc_list), self.noutputs)
+        self.assertEqual(len(y_std_list), self.noutputs)
 
         # Check shapes
-        self.assertEqual(y_pred_unc.shape, expected_shape)
-        self.assertEqual(y_std.shape, expected_shape)
+        for i in range(self.noutputs):
+            self.assertEqual(y_pred_unc_list[i].shape, (1, n_test))
+            self.assertEqual(y_std_list[i].shape, (1, n_test))
 
         # Predictions should match
-        error_match = self.bkd().abs(y_pred - y_pred_unc)
-        max_match_error = self.bkd().max(error_match).item()
-        self.assertLess(max_match_error, 1e-10)
+        for i in range(self.noutputs):
+            error_match = self.bkd().abs(y_pred_list[i] - y_pred_unc_list[i])
+            max_match_error = self.bkd().max(error_match).item()
+            self.assertLess(max_match_error, 1e-10)
 
         # Uncertainties should be positive
-        y_std_min = self.bkd().min(y_std).item()
-        self.assertGreaterEqual(y_std_min, 0.0)
+        for i in range(self.noutputs):
+            y_std_min = self.bkd().min(y_std_list[i]).item()
+            self.assertGreaterEqual(y_std_min, 0.0)
 
     def test_block_diagonal_structure_preserved(self) -> None:
         """
@@ -342,14 +344,21 @@ class TestMultiOutputGPWithLMCKernel(Generic[Array], unittest.TestCase):
         gp.fit(X_list, y_train_stacked)
 
         # Predict at training points
-        y_pred = gp.predict(X_list)
+        # predict() returns a list of arrays, each with shape (1, n_train)
+        y_pred_list = gp.predict(X_list)
 
-        # Check interpolation accuracy
-        error = self.bkd().abs(y_pred - y_train_stacked)
-        max_error = self.bkd().max(error).item()
+        # Check interpolation accuracy for each output
+        for i in range(self.noutputs):
+            start = i * n_train
+            end = (i + 1) * n_train
+            y_true_i = y_train_stacked[start:end, 0]  # (n_train,)
+            y_pred_i = y_pred_list[i][0, :]  # (n_train,)
 
-        self.assertLess(max_error, 1e-6,
-                       f"LMC interpolation error {max_error:.2e} exceeds 1e-6")
+            error_i = self.bkd().abs(y_pred_i - y_true_i)
+            max_error_i = self.bkd().max(error_i).item()
+
+            self.assertLess(max_error_i, 1e-6,
+                           f"LMC output {i} error {max_error_i:.2e} exceeds 1e-6")
 
     def test_lmc_captures_correlations(self) -> None:
         """Test that LMC kernel has non-zero off-diagonal blocks."""
@@ -392,9 +401,11 @@ class TestMultiOutputGPWithIndependentKernelNumpy(
 ):
     """NumPy backend tests."""
 
+    def setUp(self) -> None:
+        self._bkd = NumpyBkd()
+        super().setUp()
+
     def bkd(self) -> NumpyBkd:
-        if not hasattr(self, '_bkd'):
-            self._bkd = NumpyBkd()
         return self._bkd
 
 
@@ -417,9 +428,11 @@ class TestMultiOutputGPWithLMCKernelNumpy(
 ):
     """NumPy backend tests for LMC."""
 
+    def setUp(self) -> None:
+        self._bkd = NumpyBkd()
+        super().setUp()
+
     def bkd(self) -> NumpyBkd:
-        if not hasattr(self, '_bkd'):
-            self._bkd = NumpyBkd()
         return self._bkd
 
 
@@ -437,7 +450,7 @@ class TestMultiOutputGPWithLMCKernelTorch(
         return self._bkd
 
 
-from pyapprox.typing.util.test_utils import load_tests
+from pyapprox.typing.util.test_utils import load_tests  # noqa: F401
 
 
 if __name__ == "__main__":

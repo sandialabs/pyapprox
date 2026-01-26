@@ -98,7 +98,7 @@ class GaussianProcessStatistics(Generic[Array]):
         self._bkd = gp.bkd()
 
         # Get training data
-        self._y = gp.data().y()  # Shape: (n_train, nqoi)
+        self._y = gp.data().y()  # Shape: (nqoi, n_train)
         self._n_train = gp.data().n_samples()
 
         # Get the Cholesky factor for efficient solves
@@ -167,12 +167,12 @@ class GaussianProcessStatistics(Generic[Array]):
         tau = self._calc.tau()  # Shape: (n_train,)
 
         # Compute A^{-1} y (already computed in GP as alpha)
-        alpha = self._gp.alpha()  # Shape: (n_train, nqoi)
+        alpha = self._gp.alpha()  # Shape: (nqoi, n_train)
 
-        # eta = tau^T * alpha
-        # For single output: tau shape (n_train,), alpha shape (n_train, 1)
-        # Result: (1,) or scalar
-        eta = tau @ alpha  # Shape: (nqoi,)
+        # eta = tau^T * alpha^T = alpha @ tau
+        # For single output: tau shape (n_train,), alpha shape (1, n_train)
+        # Result: (nqoi,)
+        eta = alpha @ tau  # Shape: (nqoi,)
 
         # Squeeze to scalar if nqoi=1
         if eta.shape[0] == 1:
@@ -249,10 +249,10 @@ class GaussianProcessStatistics(Generic[Array]):
         s2 = self._get_kernel_variance()
 
         # Compute A^{-1} y (already have as alpha)
-        alpha = self._gp.alpha()  # Shape: (n_train, nqoi)
+        alpha = self._gp.alpha()  # Shape: (nqoi, n_train)
 
         # For single output, squeeze to 1D
-        if alpha.shape[1] == 1:
+        if alpha.shape[0] == 1:
             alpha_1d = self._bkd.reshape(alpha, (-1,))  # Shape: (n_train,)
         else:
             raise NotImplementedError(
@@ -332,9 +332,9 @@ class GaussianProcessStatistics(Generic[Array]):
         P = self._calc.P()
 
         # A⁻¹y (already computed as alpha)
-        alpha = self._gp.alpha()
-        if alpha.shape[1] == 1:
-            alpha_1d = self._bkd.reshape(alpha, (-1,))
+        alpha = self._gp.alpha()  # Shape: (nqoi, n_train)
+        if alpha.shape[0] == 1:
+            alpha_1d = self._bkd.reshape(alpha, (-1,))  # Shape: (n_train,)
         else:
             raise NotImplementedError(
                 "variance_of_variance currently only supports single-output GPs (nqoi=1)"

@@ -164,10 +164,10 @@ class GaussianProcessSensitivity(Generic[Array]):
         s2 = self._get_kernel_variance()
 
         # Get alpha = A^{-1} y from GP
-        alpha = self._stats._gp.alpha()  # Shape: (n_train, nqoi)
+        alpha = self._stats._gp.alpha()  # Shape: (nqoi, n_train)
 
         # For single output, squeeze to 1D
-        if alpha.shape[1] == 1:
+        if alpha.shape[0] == 1:
             alpha_1d = self._bkd.reshape(alpha, (-1,))  # Shape: (n_train,)
         else:
             raise NotImplementedError(

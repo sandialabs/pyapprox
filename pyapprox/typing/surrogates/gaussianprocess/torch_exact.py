@@ -73,7 +73,7 @@ class TorchExactGaussianProcess:
     >>>
     >>> # Fit
     >>> X_train = torch.randn(1, 20, dtype=torch.float64)
-    >>> y_train = torch.sin(X_train[0])[:, None]
+    >>> y_train = torch.sin(X_train[0])[None, :]  # Shape: (nqoi, n_train)
     >>> gp.fit(X_train, y_train)
     >>>
     >>> # Predict with gradients
@@ -134,6 +134,7 @@ class TorchExactGaussianProcess:
         """
         # Jacobian is always available (first-order derivatives work)
         self.jacobian = self._jacobian
+        self.jacobian_batch = self._jacobian_batch
 
         # HVP is NOT available - torch.cdist doesn't support second-order
         # derivatives needed for Hessian computation
@@ -176,7 +177,7 @@ class TorchExactGaussianProcess:
         ----------
         X_train : torch.Tensor, shape (nvars, n_train)
             Training inputs.
-        y_train : torch.Tensor, shape (n_train, nqoi)
+        y_train : torch.Tensor, shape (nqoi, n_train)
             Training outputs.
         """
         self._data = GPTrainingData(X_train, y_train, self._bkd)
@@ -204,9 +205,11 @@ class TorchExactGaussianProcess:
             )
 
         # Compute alpha = K^{-1}(y - m)
-        mean_pred = self._mean(X_train)
-        residual = y_train - mean_pred
-        self._alpha = self._cholesky.solve(residual)
+        # y_train is (nqoi, n_train), mean_pred is (nqoi, n_train)
+        # We need alpha to be (n_train, nqoi) for the solve
+        mean_pred = self._mean(X_train)  # (nqoi, n_train)
+        residual = (y_train - mean_pred).T  # (n_train, nqoi)
+        self._alpha = self._cholesky.solve(residual)  # (n_train, nqoi)
 
     def predict(self, X: torch.Tensor) -> torch.Tensor:
         """
@@ -219,19 +222,21 @@ class TorchExactGaussianProcess:
 
         Returns
         -------
-        mean : torch.Tensor, shape (n_test, nqoi)
+        mean : torch.Tensor, shape (nqoi, n_test)
             Posterior mean predictions.
         """
         if not self.is_fitted():
             raise RuntimeError("GP must be fitted before prediction")
 
-        mean_prior = self._mean(X)
-        K_star = self._kernel(X, self._data.X())
-        return mean_prior + K_star @ self._alpha
+        mean_prior = self._mean(X)  # (nqoi, n_test)
+        K_star = self._kernel(X, self._data.X())  # (n_test, n_train)
+        # K_star @ alpha: (n_test, n_train) @ (n_train, nqoi) -> (n_test, nqoi)
+        # Transpose to get (nqoi, n_test)
+        return mean_prior + (K_star @ self._alpha).T
 
     def __call__(self, X: torch.Tensor) -> torch.Tensor:
         """Predict posterior mean (returns shape (nqoi, n_test))."""
-        return self.predict(X).T
+        return self.predict(X)
 
     def predict_std(self, X: torch.Tensor) -> torch.Tensor:
         """
@@ -244,7 +249,7 @@ class TorchExactGaussianProcess:
 
         Returns
         -------
-        std : torch.Tensor, shape (n_test, nqoi)
+        std : torch.Tensor, shape (nqoi, n_test)
             Posterior standard deviations.
         """
         if not self.is_fitted():
@@ -259,50 +264,79 @@ class TorchExactGaussianProcess:
 
         var = K_star_star - self._bkd.einsum("ij,ij->j", v, v)
         var = var * (var >= 0.0)  # Clamp negative values
-        std = self._bkd.sqrt(var)
+        std = self._bkd.sqrt(var)  # (n_test,)
 
         nqoi = self._data.nqoi()
-        std = self._bkd.reshape(std, (std.shape[0], 1))
-        return self._bkd.tile(std, (1, nqoi))
+        # Reshape to (1, n_test) and tile to (nqoi, n_test)
+        std = self._bkd.reshape(std, (1, std.shape[0]))
+        return self._bkd.tile(std, (nqoi, 1))
 
-    def _jacobian(self, X: torch.Tensor) -> torch.Tensor:
+    def _jacobian(self, sample: torch.Tensor) -> torch.Tensor:
         """
-        Compute Jacobian of GP mean w.r.t. inputs using bkd.jacobian.
+        Compute Jacobian of GP mean w.r.t. inputs (single sample).
 
         Parameters
         ----------
-        X : torch.Tensor, shape (nvars, n_samples)
+        sample : torch.Tensor, shape (nvars, 1)
+            Single input location.
+
+        Returns
+        -------
+        jac : torch.Tensor
+            Jacobian, shape (nqoi, nvars).
+        """
+        if not self.is_fitted():
+            raise RuntimeError("GP must be fitted before computing Jacobian")
+
+        if sample.shape[1] != 1:
+            raise ValueError(
+                f"jacobian() expects single sample with shape (nvars, 1), "
+                f"got {sample.shape}. Use jacobian_batch() for multiple samples."
+            )
+
+        x = sample[:, 0]  # (nvars,)
+
+        # Define prediction function for single sample
+        def pred_func(x: torch.Tensor) -> torch.Tensor:
+            # x is (nvars,), reshape to (nvars, 1) for predict
+            # predict returns (nqoi, 1), flatten to (nqoi,)
+            return self.predict(x[:, None])[:, 0]  # (nqoi,)
+
+        # Use bkd.jacobian: returns (nqoi, nvars)
+        return self._bkd.jacobian(pred_func, x)
+
+    def _jacobian_batch(self, samples: torch.Tensor) -> torch.Tensor:
+        """
+        Compute Jacobian of GP mean w.r.t. inputs (batch).
+
+        Parameters
+        ----------
+        samples : torch.Tensor, shape (nvars, n_samples)
             Input locations.
 
         Returns
         -------
         jac : torch.Tensor
-            Jacobian. Shape (nqoi, nvars) for single sample,
-            (n_samples, nqoi, nvars) for multiple samples.
+            Jacobian, shape (n_samples, nqoi, nvars).
         """
         if not self.is_fitted():
             raise RuntimeError("GP must be fitted before computing Jacobian")
 
-        n_samples = X.shape[1]
-        nqoi = self.nqoi()
+        n_samples = samples.shape[1]
 
         jacs = []
         for i in range(n_samples):
-            x_i = X[:, i]  # (nvars,)
+            x_i = samples[:, i]  # (nvars,)
 
             # Define prediction function for single sample
             def pred_func(x: torch.Tensor) -> torch.Tensor:
-                # x is (nvars,), reshape to (nvars, 1) for predict
                 return self.predict(x[:, None])[:, 0]  # (nqoi,)
 
             # Use bkd.jacobian: returns (nqoi, nvars)
             jac_i = self._bkd.jacobian(pred_func, x_i)
             jacs.append(jac_i)
 
-        if n_samples == 1:
-            return jacs[0]  # (nqoi, nvars)
-        else:
-            return torch.stack(jacs, dim=0)  # (n_samples, nqoi, nvars)
+        return torch.stack(jacs, dim=0)  # (n_samples, nqoi, nvars)
 
     def _hvp(self, X: torch.Tensor, direction: torch.Tensor) -> torch.Tensor:
         """
@@ -369,8 +403,8 @@ class TorchExactGaussianProcess:
         import math
         n = self._data.n_samples()
 
-        mean_pred = self._mean(self._data.X())
-        residual = self._data.y() - mean_pred
+        mean_pred = self._mean(self._data.X())  # (nqoi, n_train)
+        residual = (self._data.y() - mean_pred).T  # (n_train, nqoi)
         data_fit = float(self._bkd.sum(residual * self._alpha))
 
         log_det = self._cholesky.log_determinant()
@@ -421,7 +455,7 @@ class TorchExactGaussianProcess:
         import math
 
         X_train = self._data.X()
-        y_train = self._data.y()
+        y_train = self._data.y()  # (nqoi, n_train)
         n = X_train.shape[1]
 
         # Recompute kernel matrix (preserves graph)
@@ -432,9 +466,9 @@ class TorchExactGaussianProcess:
         L = torch.linalg.cholesky(K_noisy)
 
         # Solve for alpha
-        mean_pred = self._mean(X_train)
-        residual = y_train - mean_pred
-        alpha = torch.cholesky_solve(residual, L)
+        mean_pred = self._mean(X_train)  # (nqoi, n_train)
+        residual = (y_train - mean_pred).T  # (n_train, nqoi)
+        alpha = torch.cholesky_solve(residual, L)  # (n_train, nqoi)
 
         # Data fit term
         data_fit = (residual * alpha).sum()

@@ -43,7 +43,7 @@ class TestNLMLLoss(Generic[Array], unittest.TestCase):
 
         # Create training data
         X_train_np = np.random.randn(self.nvars, self.n_train)
-        y_train_np = np.sin(X_train_np[0, :] + X_train_np[1, :])[:, None]
+        y_train_np = np.sin(X_train_np[0, :] + X_train_np[1, :])[None, :]  # Shape: (1, n_train)
 
         self.X_train = self.bkd().array(X_train_np)
         self.y_train = self.bkd().array(y_train_np)
@@ -261,7 +261,7 @@ class TestNLMLLoss(Generic[Array], unittest.TestCase):
         """Test gradient with small dataset (n=3 points)."""
         # Create small dataset
         X_small = self.X_train[:, :3]
-        y_small = self.y_train[:3, :]
+        y_small = self.y_train[:, :3]  # Shape: (1, 3)
 
         gp = ExactGaussianProcess(
             self.kernel,
@@ -298,10 +298,10 @@ class TestNLMLLoss(Generic[Array], unittest.TestCase):
     def test_gradient_with_larger_dataset(self) -> None:
         """Test gradient with larger dataset (n=50 points)."""
         np.random.seed(123)
-        X_large = self.bkd().array(np.random.randn(self.nvars, 50))
+        X_large_np = np.random.randn(self.nvars, 50)
+        X_large = self.bkd().array(X_large_np)
         y_large = self.bkd().array(
-            np.sin(self.bkd().to_numpy(X_large[0, :]) +
-                   self.bkd().to_numpy(X_large[1, :]))[:, None]
+            np.sin(X_large_np[0, :] + X_large_np[1, :])[None, :]  # Shape: (1, 50)
         )
 
         gp = ExactGaussianProcess(
@@ -374,7 +374,7 @@ class TestNLMLLossTorch(TestNLMLLoss[torch.Tensor]):
         return self._bkd
 
 
-from pyapprox.typing.util.test_utils import load_tests
+from pyapprox.typing.util.test_utils import load_tests  # noqa: F401
 
 
 if __name__ == "__main__":

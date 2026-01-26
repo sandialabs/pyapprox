@@ -79,7 +79,7 @@ class FittableGPProtocol(GaussianProcessProtocol[Array], Protocol):
         X_train : Array
             Training input data, shape (nvars, n_train).
         y_train : Array
-            Training output data, shape (n_train, nqoi).
+            Training output data, shape (nqoi, n_train).
         """
         ...
 
@@ -117,7 +117,7 @@ class PredictiveGPProtocol(FittableGPProtocol[Array], Protocol):
         Returns
         -------
         Array
-            Posterior mean predictions, shape (n_test, nqoi).
+            Posterior mean predictions, shape (nqoi, n_test).
 
         Raises
         ------
@@ -138,7 +138,7 @@ class PredictiveGPProtocol(FittableGPProtocol[Array], Protocol):
         Returns
         -------
         Array
-            Posterior standard deviation, shape (n_test, nqoi).
+            Posterior standard deviation, shape (nqoi, n_test).
 
         Raises
         ------
@@ -182,7 +182,7 @@ class PredictiveGPProtocol(FittableGPProtocol[Array], Protocol):
         Returns
         -------
         Array
-            Posterior mean, shape (n_test, nqoi).
+            Posterior mean, shape (nqoi, n_test).
 
         Raises
         ------
@@ -230,7 +230,7 @@ class PredictiveGPProtocol(FittableGPProtocol[Array], Protocol):
         Returns
         -------
         Array
-            Precomputed weights, shape (n_train, nqoi).
+            Precomputed weights, shape (nqoi, n_train).
 
         Raises
         ------

@@ -21,7 +21,7 @@ class GPTrainingData(Generic[Array]):
     X_train : Array
         Training input data, shape (nvars, n_train).
     y_train : Array
-        Training output data, shape (n_train, nqoi).
+        Training output data, shape (nqoi, n_train).
     bkd : Backend[Array]
         Backend for numerical operations.
 
@@ -36,7 +36,7 @@ class GPTrainingData(Generic[Array]):
     >>> import numpy as np
     >>> bkd = NumpyBkd()
     >>> X = bkd.array(np.random.randn(2, 10))  # 2D input, 10 samples
-    >>> y = bkd.array(np.random.randn(10, 1))  # 10 samples, 1 output
+    >>> y = bkd.array(np.random.randn(1, 10))  # 1 output, 10 samples
     >>> data = GPTrainingData(X, y, bkd)
     >>> data.n_samples()
     10
@@ -62,7 +62,7 @@ class GPTrainingData(Generic[Array]):
         X_train : Array
             Training inputs, shape (nvars, n_train).
         y_train : Array
-            Training outputs, shape (n_train, nqoi).
+            Training outputs, shape (nqoi, n_train).
 
         Raises
         ------
@@ -80,13 +80,13 @@ class GPTrainingData(Generic[Array]):
         if n_train == 0:
             raise ValueError("X_train must have at least one sample")
 
-        # Validate y_train
+        # Validate y_train - shape is (nqoi, n_train)
         if y_train.ndim != 2:
             raise ValueError(
-                f"y_train must be 2D (n_train, nqoi), got shape {y_train.shape}"
+                f"y_train must be 2D (nqoi, n_train), got shape {y_train.shape}"
             )
 
-        n_train_y, nqoi = y_train.shape
+        nqoi, n_train_y = y_train.shape
 
         if n_train_y != n_train:
             raise ValueError(
@@ -122,7 +122,7 @@ class GPTrainingData(Generic[Array]):
         Returns
         -------
         Array
-            Training outputs, shape (n_train, nqoi).
+            Training outputs, shape (nqoi, n_train).
         """
         return self._y_train
 

@@ -37,7 +37,7 @@ class TestExactGPOptimization(Generic[Array], unittest.TestCase):
 
         # Create training data
         X_train_np = np.random.randn(self.nvars, self.n_train)
-        y_train_np = np.sin(X_train_np[0, :] + X_train_np[1, :])[:, None]
+        y_train_np = np.sin(X_train_np[0, :] + X_train_np[1, :])[None, :]  # Shape: (1, n_train)
 
         self.X_train = self.bkd().array(X_train_np)
         self.y_train = self.bkd().array(y_train_np)
@@ -98,7 +98,7 @@ class TestExactGPOptimization(Generic[Array], unittest.TestCase):
 
         # GP should still make predictions
         mean = gp.predict(self.X_test)
-        self.assertEqual(mean.shape, (self.n_test, 1))
+        self.assertEqual(mean.shape, (1, self.n_test))
         self.assertTrue(self.bkd().all_bool(self.bkd().isfinite(mean)))
 
     def test_optimize_hyperparameters_with_constant_mean(self) -> None:
@@ -143,7 +143,7 @@ class TestExactGPOptimization(Generic[Array], unittest.TestCase):
 
         # True function with characteristic length scale ~0.5
         y_train_np = np.sin(2 * X_train_np[0, :]) * np.cos(2 * X_train_np[1, :])
-        y_train_np = y_train_np[:, None]
+        y_train_np = y_train_np[None, :]  # Shape: (1, n_train)
 
         X_train = self.bkd().array(X_train_np)
         y_train = self.bkd().array(y_train_np)
@@ -151,7 +151,7 @@ class TestExactGPOptimization(Generic[Array], unittest.TestCase):
         # Test points
         X_test_np = np.random.uniform(-2, 2, (self.nvars, 10))
         y_test_np = np.sin(2 * X_test_np[0, :]) * np.cos(2 * X_test_np[1, :])
-        y_test_np = y_test_np[:, None]
+        y_test_np = y_test_np[None, :]  # Shape: (1, n_test)
 
         X_test = self.bkd().array(X_test_np)
         y_test = self.bkd().array(y_test_np)
@@ -175,8 +175,8 @@ class TestExactGPOptimization(Generic[Array], unittest.TestCase):
         gp.fit(X_train, y_train)
         mean_before = gp.predict(X_test)
         error_before = mean_before - y_test
-        abs_error_before = error_before * (2 * (error_before >= 0) - 1)
-        mse_before = float(self.bkd().sum(abs_error_before ** 2) / abs_error_before.shape[0])
+        abs_error_before = self.bkd().abs(error_before)
+        mse_before = float(self.bkd().sum(abs_error_before ** 2) / abs_error_before.shape[1])
 
         # Optimize hyperparameters
         gp.optimize_hyperparameters()
@@ -184,8 +184,8 @@ class TestExactGPOptimization(Generic[Array], unittest.TestCase):
         # Predict after optimization
         mean_after = gp.predict(X_test)
         error_after = mean_after - y_test
-        abs_error_after = error_after * (2 * (error_after >= 0) - 1)
-        mse_after = float(self.bkd().sum(abs_error_after ** 2) / abs_error_after.shape[0])
+        abs_error_after = self.bkd().abs(error_after)
+        mse_after = float(self.bkd().sum(abs_error_after ** 2) / abs_error_after.shape[1])
 
         # MSE should improve (or stay similar if already good)
         # We allow some tolerance for cases where optimization doesn't help much
@@ -221,7 +221,7 @@ class TestExactGPOptimization(Generic[Array], unittest.TestCase):
 
         # Should still make predictions
         mean = gp.predict(self.X_test)
-        self.assertEqual(mean.shape, (self.n_test, 1))
+        self.assertEqual(mean.shape, (1, self.n_test))
 
     def test_optimize_hyperparameters_not_fitted_error(self) -> None:
         """Test that optimization raises error if GP not fitted."""
@@ -265,7 +265,7 @@ class TestExactGPOptimizationTorch(TestExactGPOptimization[torch.Tensor]):
         return self._bkd
 
 
-from pyapprox.typing.util.test_utils import load_tests
+from pyapprox.typing.util.test_utils import load_tests  # noqa: F401
 
 
 if __name__ == "__main__":

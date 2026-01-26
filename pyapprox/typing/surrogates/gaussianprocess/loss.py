@@ -35,7 +35,7 @@ class NegativeLogMarginalLikelihoodLoss(Generic[Array]):
     X_train : Array
         Training input data, shape (nvars, n_train).
     y_train : Array
-        Training output data, shape (n_train, nqoi).
+        Training output data, shape (nqoi, n_train).
 
     Optional Methods
     ----------------
@@ -70,7 +70,7 @@ class NegativeLogMarginalLikelihoodLoss(Generic[Array]):
     >>> gp = ExactGaussianProcess(kernel, 2, bkd, nugget=1e-10)
     >>>
     >>> X_train = bkd.array(np.random.randn(2, 10))
-    >>> y_train = bkd.array(np.random.randn(10, 1))
+    >>> y_train = bkd.array(np.random.randn(1, 10))  # Shape: (nqoi, n_train)
     >>>
     >>> loss = NegativeLogMarginalLikelihoodLoss(gp, X_train, y_train)
     >>> params = gp.hyp_list().get_active_values()
@@ -249,7 +249,7 @@ class NegativeLogMarginalLikelihoodLoss(Generic[Array]):
         self._gp.fit(self._X_train, self._y_train)
 
         # Get alpha and cholesky from GP
-        alpha = self._gp._alpha  # Shape: (n_train, nqoi)
+        alpha = self._gp._alpha  # Shape: (nqoi, n_train)
         cholesky = self._gp._cholesky
         n_train = self._X_train.shape[1]
 
@@ -274,7 +274,8 @@ class NegativeLogMarginalLikelihoodLoss(Generic[Array]):
             n_kernel_params = K_grad.shape[2]
 
             # Vectorized computation for all kernel parameters at once
-            alpha_vec = alpha[:, 0:1]  # Shape: (n_train, 1)
+            # alpha shape: (nqoi, n_train), take first output and transpose
+            alpha_vec = alpha[0:1, :].T  # Shape: (n_train, 1)
 
             # term1[i] = α^T @ K_grad[:,:,i] @ α for all i
             # Using einsum: sum over both n_train dimensions
@@ -302,13 +303,13 @@ class NegativeLogMarginalLikelihoodLoss(Generic[Array]):
             #
             # where α = K^{-1}(y - m(X))
 
-            # Get mean function Jacobian: shape (nparams_mean, n_train, 1)
+            # Get mean function Jacobian: shape (nparams_mean, 1, n_train)
             mean_jac = self._gp._mean.jacobian_wrt_params(self._X_train)
 
             # Vectorized gradient for all mean parameters at once
-            # grad[i] = -α^T @ mean_jac[i,:,:]
-            # Using einsum to sum over n_train and nqoi dimensions
-            grad_mean = -self._bkd.einsum('jk,ijk->i', alpha, mean_jac)
+            # alpha shape: (nqoi, n_train), mean_jac shape: (nparams_mean, 1, n_train)
+            # grad[i] = -sum over n_train: alpha[k, j] * mean_jac[i, k, j]
+            grad_mean = -self._bkd.einsum('kj,ikj->i', alpha, mean_jac)
             grad_parts.append(grad_mean)
 
         # Concatenate all gradient parts to get FULL gradient (all params)
@@ -407,8 +408,8 @@ class NegativeLogMarginalLikelihoodLoss(Generic[Array]):
         self._gp.fit(self._X_train, self._y_train)
 
         # Get alpha and cholesky from GP
-        alpha = self._gp._alpha  # Shape: (n_train, nqoi)
-        alpha_vec = alpha[:, 0:1]  # Shape: (n_train, 1) for single output
+        alpha = self._gp._alpha  # Shape: (nqoi, n_train)
+        alpha_vec = alpha[0:1, :].T  # Shape: (n_train, 1) for single output
         cholesky = self._gp._cholesky
         n_train = self._X_train.shape[1]
 

@@ -5,7 +5,7 @@ This module provides GP classes that handle multiple outputs using
 multi-output kernels (IndependentMultiOutputKernel or LinearCoregionalizationKernel).
 """
 
-from typing import List, Tuple, Union, Generic
+from typing import List, Optional, Tuple, Union, Generic
 import numpy as np
 
 from pyapprox.typing.util.backends.protocols import Array, Backend
@@ -13,6 +13,9 @@ from pyapprox.typing.util.linalg.cholesky_factor import CholeskyFactor
 from pyapprox.typing.surrogates.kernels.multioutput import (
     IndependentMultiOutputKernel,
     LinearCoregionalizationKernel,
+)
+from pyapprox.typing.surrogates.gaussianprocess.multioutput_data import (
+    MultiOutputGPTrainingData
 )
 
 
@@ -76,16 +79,15 @@ class MultiOutputGP(Generic[Array]):
     >>> mo_kernel = IndependentMultiOutputKernel([k1, k2])
     >>> # Create GP
     >>> gp = MultiOutputGP(mo_kernel, nugget=1e-6)
-    >>> # Fit to data
+    >>> # Fit to data using list format (preferred)
     >>> X_train = bkd.array(np.random.randn(1, 10))
-    >>> y1 = bkd.sin(X_train[0, :])
-    >>> y2 = bkd.cos(X_train[0, :])
-    >>> y_stacked = bkd.reshape(bkd.concatenate([y1, y2]), (-1, 1))
-    >>> gp.fit([X_train, X_train], y_stacked)
+    >>> y1 = bkd.reshape(bkd.sin(X_train[0, :]), (1, -1))  # Shape: (1, 10)
+    >>> y2 = bkd.reshape(bkd.cos(X_train[0, :]), (1, -1))  # Shape: (1, 10)
+    >>> gp.fit([X_train, X_train], [y1, y2])
     >>> # Predict
     >>> X_test = bkd.array(np.random.randn(1, 5))
-    >>> mean = gp.predict([X_test, X_test])
-    >>> mean, std = gp.predict_with_uncertainty([X_test, X_test])
+    >>> mean_list = gp.predict([X_test, X_test])  # Returns list of (1, n_test) arrays
+    >>> mean_list, std_list = gp.predict_with_uncertainty([X_test, X_test])
     """
 
     def __init__(
@@ -107,6 +109,7 @@ class MultiOutputGP(Generic[Array]):
         self._nugget = nugget
         self._bkd = kernel.bkd()
         self._is_fitted = False
+        self._data: Optional[MultiOutputGPTrainingData[Array]] = None
 
     def bkd(self) -> Backend[Array]:
         """
@@ -188,11 +191,29 @@ class MultiOutputGP(Generic[Array]):
             raise RuntimeError("GP must be fitted before accessing alpha.")
         return self._alpha
 
-    # TODO: Add a data() method returning a GPTrainingData-like container
-    # that holds X_train_list and y_train_stacked, similar to ExactGaussianProcess.
-    # This would allow MultiOutputGP to satisfy PredictiveGPProtocol.
+    def data(self) -> MultiOutputGPTrainingData[Array]:
+        """
+        Return the training data container.
 
-    def fit(self, X_train_list: List[Array], y_train_stacked: Array) -> None:
+        Returns
+        -------
+        MultiOutputGPTrainingData[Array]
+            Training data (X_list, y_list) used to fit the GP.
+
+        Raises
+        ------
+        RuntimeError
+            If the GP has not been fitted yet.
+        """
+        if self._data is None:
+            raise RuntimeError("GP must be fitted before accessing data.")
+        return self._data
+
+    def fit(
+        self,
+        X_train_list: List[Array],
+        y_train: Union[List[Array], Array]
+    ) -> None:
         """
         Fit the multi-output GP to training data.
 
@@ -201,9 +222,12 @@ class MultiOutputGP(Generic[Array]):
         X_train_list : List[Array]
             Training inputs for each output. Each array has shape (nvars, n_i).
             For most cases, all outputs use same X: X_train_list = [X] * noutputs.
-        y_train_stacked : Array
-            Stacked training outputs, shape (sum(n_i), 1).
-            Format: [y_0; y_1; ...; y_{M-1}] where y_i are outputs.
+        y_train : Union[List[Array], Array]
+            Training outputs. Can be provided in two formats:
+            - List format (preferred): List of arrays, each with shape (1, n_i).
+              This follows the standard convention where values are (nqoi, n_samples).
+            - Stacked format (legacy): Single array with shape (sum(n_i), 1).
+              Format: [y_0; y_1; ...; y_{M-1}] where y_i are outputs.
 
         Raises
         ------
@@ -216,18 +240,37 @@ class MultiOutputGP(Generic[Array]):
                 f"number of outputs ({self._kernel.noutputs()})"
             )
 
-        # Validate stacked output shape
-        n_total = sum(X.shape[1] for X in X_train_list)
-        if y_train_stacked.shape[0] != n_total:
-            raise ValueError(
-                f"y_train_stacked has {y_train_stacked.shape[0]} rows, "
-                f"expected {n_total} (sum of samples across outputs)"
-            )
-        if y_train_stacked.shape[1] != 1:
-            raise ValueError(
-                f"y_train_stacked must have shape (n_total, 1), "
-                f"got {y_train_stacked.shape}"
-            )
+        # Handle both list and stacked formats
+        if isinstance(y_train, list):
+            # List format: each y has shape (1, n_i)
+            self._data = MultiOutputGPTrainingData(X_train_list, y_train, self._bkd)
+            y_train_stacked = self._data.y_stacked()
+        else:
+            # Stacked format (legacy): shape (sum(n_i), 1)
+            y_train_stacked = y_train
+            # Create data container by unstacking
+            n_total = sum(X.shape[1] for X in X_train_list)
+            if y_train_stacked.shape[0] != n_total:
+                raise ValueError(
+                    f"y_train_stacked has {y_train_stacked.shape[0]} rows, "
+                    f"expected {n_total} (sum of samples across outputs)"
+                )
+            if y_train_stacked.shape[1] != 1:
+                raise ValueError(
+                    f"y_train_stacked must have shape (n_total, 1), "
+                    f"got {y_train_stacked.shape}"
+                )
+            # Convert stacked to list format for data container
+            y_list = []
+            offset = 0
+            for X in X_train_list:
+                n_i = X.shape[1]
+                y_i = self._bkd.reshape(
+                    y_train_stacked[offset:offset + n_i, 0], (1, n_i)
+                )
+                y_list.append(y_i)
+                offset += n_i
+            self._data = MultiOutputGPTrainingData(X_train_list, y_list, self._bkd)
 
         self._X_train_list = X_train_list
         self._y_train_stacked = y_train_stacked
@@ -289,7 +332,33 @@ class MultiOutputGP(Generic[Array]):
 
         return float(nll)
 
-    def predict(self, X_test_list: List[Array]) -> Array:
+    def _unstack_predictions(
+        self, stacked: Array, n_samples_list: List[int]
+    ) -> List[Array]:
+        """
+        Convert stacked predictions to list format.
+
+        Parameters
+        ----------
+        stacked : Array
+            Stacked array, shape (sum(n_i), 1).
+        n_samples_list : List[int]
+            Number of samples for each output.
+
+        Returns
+        -------
+        List[Array]
+            List of arrays, each with shape (1, n_i).
+        """
+        result = []
+        offset = 0
+        for n_i in n_samples_list:
+            arr_i = self._bkd.reshape(stacked[offset:offset + n_i, 0], (1, n_i))
+            result.append(arr_i)
+            offset += n_i
+        return result
+
+    def predict(self, X_test_list: List[Array]) -> List[Array]:
         """
         Predict mean at test points.
 
@@ -301,8 +370,8 @@ class MultiOutputGP(Generic[Array]):
 
         Returns
         -------
-        y_pred : Array
-            Stacked predictions, shape (sum(n_test_i), 1).
+        y_pred : List[Array]
+            Predictions for each output, each with shape (1, n_test_i).
 
         Raises
         ------
@@ -321,14 +390,16 @@ class MultiOutputGP(Generic[Array]):
         # Cross-covariance: K(X_test, X_train)
         K_star = self._kernel(X_test_list, self._X_train_list, block_format=False)
 
-        # Mean prediction: μ* = K_star @ alpha
-        y_pred = K_star @ self._alpha
+        # Mean prediction: μ* = K_star @ alpha (stacked format)
+        y_pred_stacked = K_star @ self._alpha
 
-        return y_pred
+        # Convert to list format
+        n_samples_list = [X.shape[1] for X in X_test_list]
+        return self._unstack_predictions(y_pred_stacked, n_samples_list)
 
     def predict_with_uncertainty(
         self, X_test_list: List[Array]
-    ) -> Tuple[Array, Array]:
+    ) -> Tuple[List[Array], List[Array]]:
         """
         Predict mean and standard deviation.
 
@@ -339,10 +410,10 @@ class MultiOutputGP(Generic[Array]):
 
         Returns
         -------
-        mean : Array
-            Mean predictions, shape (sum(n_test_i), 1).
-        std : Array
-            Standard deviations, shape (sum(n_test_i), 1).
+        mean : List[Array]
+            Mean predictions for each output, each with shape (1, n_test_i).
+        std : List[Array]
+            Standard deviations for each output, each with shape (1, n_test_i).
 
         Raises
         ------
@@ -358,7 +429,7 @@ class MultiOutputGP(Generic[Array]):
                 f"number of outputs ({self._kernel.noutputs()})"
             )
 
-        # Mean prediction
+        # Mean prediction (already in list format)
         mean = self.predict(X_test_list)
 
         # Cross-covariance for variance computation
@@ -392,14 +463,18 @@ class MultiOutputGP(Generic[Array]):
         # (arise from numerical errors in Cholesky solve)
         var = var * (var >= 0.0)
 
-        # Standard deviation
-        std = self._bkd.sqrt(var)[:, None]
+        # Standard deviation (stacked format)
+        std_stacked = self._bkd.sqrt(var)[:, None]
+
+        # Convert to list format
+        n_samples_list = [X.shape[1] for X in X_test_list]
+        std = self._unstack_predictions(std_stacked, n_samples_list)
 
         return mean, std
 
     def predict_covariance(
         self, X_test_list: List[Array]
-    ) -> Tuple[Array, Array]:
+    ) -> Tuple[List[Array], Array]:
         """
         Predict mean and full covariance matrix.
 
@@ -410,10 +485,11 @@ class MultiOutputGP(Generic[Array]):
 
         Returns
         -------
-        mean : Array
-            Mean predictions, shape (sum(n_test_i), 1).
+        mean : List[Array]
+            Mean predictions for each output, each with shape (1, n_test_i).
         cov : Array
             Covariance matrix, shape (sum(n_test_i), sum(n_test_i)).
+            This is the full joint covariance across all outputs.
 
         Raises
         ------
@@ -435,7 +511,7 @@ class MultiOutputGP(Generic[Array]):
                 f"number of outputs ({self._kernel.noutputs()})"
             )
 
-        # Mean prediction
+        # Mean prediction (already in list format)
         mean = self.predict(X_test_list)
 
         # Cross-covariance

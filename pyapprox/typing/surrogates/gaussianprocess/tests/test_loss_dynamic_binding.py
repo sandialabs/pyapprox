@@ -105,7 +105,7 @@ class TestLossDynamicBinding(Generic[Array], unittest.TestCase):
 
         # Generate training data
         self._X_train = self._bkd.array(np.random.randn(self._nvars, self._n_train))
-        self._y_train = self._bkd.array(np.random.randn(self._n_train, 1))
+        self._y_train = self._bkd.array(np.random.randn(1, self._n_train))
 
     def _create_rbf_kernel(self):
         """Create Squared Exponential kernel (nu=inf), which has hvp_wrt_params."""

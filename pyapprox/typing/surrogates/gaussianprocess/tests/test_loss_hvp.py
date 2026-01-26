@@ -78,7 +78,7 @@ class TestLossHVP(Generic[Array], unittest.TestCase):
 
         # Generate training data
         X_train = self._bkd.array(np.random.randn(self._nvars, self._n_train))
-        y_train = self._bkd.array(np.random.randn(self._n_train, 1))
+        y_train = self._bkd.array(np.random.randn(1, self._n_train))
 
         # Create loss function
         self._loss = NegativeLogMarginalLikelihoodLoss(

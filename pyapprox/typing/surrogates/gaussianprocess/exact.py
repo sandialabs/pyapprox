@@ -60,7 +60,7 @@ class ExactGaussianProcess(Generic[Array]):
     >>> gp = ExactGaussianProcess(kernel, 2, bkd, nugget=1e-10)
     >>>
     >>> X_train = bkd.array(np.random.randn(2, 10))
-    >>> y_train = bkd.array(np.random.randn(10, 1))
+    >>> y_train = bkd.array(np.random.randn(1, 10))  # Shape: (nqoi, n_train)
     >>> gp.fit(X_train, y_train)
     >>>
     >>> X_test = bkd.array(np.random.randn(2, 5))
@@ -123,14 +123,15 @@ class ExactGaussianProcess(Generic[Array]):
 
     def _setup_derivative_methods(self) -> None:
         """
-        Conditionally add hvp method based on kernel capabilities.
+        Conditionally add hvp/hvp_batch methods based on kernel capabilities.
 
-        The hvp method is only exposed if the kernel implements
+        The hvp methods are only exposed if the kernel implements
         KernelWithJacobianAndHVPWrtX1Protocol (i.e., has hvp_wrt_x1 method).
         """
         from pyapprox.typing.surrogates.kernels.protocols import KernelWithJacobianAndHVPWrtX1Protocol
         if isinstance(self._kernel, KernelWithJacobianAndHVPWrtX1Protocol):
             self.hvp = self._hvp
+            self.hvp_batch = self._hvp_batch
 
     def bkd(self) -> Backend[Array]:
         """Return the backend."""
@@ -204,7 +205,7 @@ class ExactGaussianProcess(Generic[Array]):
         Returns
         -------
         Array
-            Precomputed weights, shape (n_train, nqoi).
+            Precomputed weights, shape (nqoi, n_train).
 
         Raises
         ------
@@ -255,7 +256,7 @@ class ExactGaussianProcess(Generic[Array]):
         X_train : Array
             Training input data, shape (nvars, n_train).
         y_train : Array
-            Training output data, shape (n_train, nqoi).
+            Training output data, shape (nqoi, n_train).
 
         Raises
         ------
@@ -292,9 +293,13 @@ class ExactGaussianProcess(Generic[Array]):
             )
 
         # Precompute α = (K + σ²I)^{-1}(y - m(X))
+        # y_train shape: (nqoi, n_train), mean_pred shape: (1, n_train)
+        # residual shape: (nqoi, n_train)
         mean_pred = self._mean(X_train)
         residual = y_train - mean_pred
-        self._alpha = self._cholesky.solve(residual)
+        # Solve for each output: alpha shape becomes (nqoi, n_train)
+        # Cholesky solve expects (n_train, k), so transpose, solve, transpose back
+        self._alpha = self._cholesky.solve(residual.T).T
 
     def predict(self, X: Array) -> Array:
         """
@@ -308,7 +313,7 @@ class ExactGaussianProcess(Generic[Array]):
         Returns
         -------
         Array
-            Posterior mean, shape (n_test, nqoi).
+            Posterior mean, shape (nqoi, n_test).
 
         Raises
         ------
@@ -318,14 +323,16 @@ class ExactGaussianProcess(Generic[Array]):
         if not self.is_fitted():
             raise RuntimeError("GP must be fitted before making predictions")
 
-        # Prior mean
+        # Prior mean: shape (1, n_test)
         mean_prior = self._mean(X)
 
-        # Compute k(X*, X)
+        # Compute k(X*, X): shape (n_test, n_train)
         K_star = self._kernel(X, self._data.X())
 
-        # Posterior mean: μ* = m(X*) + k(X*, X) α
-        mean_posterior = mean_prior + K_star @ self._alpha
+        # Posterior mean: μ* = m(X*) + α @ k(X*, X)^T
+        # alpha shape: (nqoi, n_train), K_star shape: (n_test, n_train)
+        # Result: (nqoi, n_test)
+        mean_posterior = mean_prior + self._alpha @ K_star.T
 
         return mean_posterior
 
@@ -334,10 +341,9 @@ class ExactGaussianProcess(Generic[Array]):
         Predict posterior mean (alias for predict).
 
         Returns predictions in format (nqoi, n_test) for compatibility
-        with FunctionProtocol plotting utilities.
+        with FunctionProtocol.
         """
-        # predict() returns (n_test, nqoi), transpose to (nqoi, n_test)
-        return self.predict(X).T
+        return self.predict(X)
 
     def predict_std(self, X: Array) -> Array:
         """
@@ -351,7 +357,7 @@ class ExactGaussianProcess(Generic[Array]):
         Returns
         -------
         Array
-            Posterior standard deviation, shape (n_test, nqoi).
+            Posterior standard deviation, shape (nqoi, n_test).
 
         Raises
         ------
@@ -382,36 +388,75 @@ class ExactGaussianProcess(Generic[Array]):
         # Standard deviation
         std = self._bkd.sqrt(var_posterior)
 
-        # Reshape to (n_test, nqoi) - tile for each output
+        # Reshape to (nqoi, n_test) - tile for each output
         nqoi = self._data.nqoi()
-        std = self._bkd.reshape(std, (std.shape[0], 1))
-        std = self._bkd.tile(std, (1, nqoi))
+        std = self._bkd.reshape(std, (1, std.shape[0]))
+        std = self._bkd.tile(std, (nqoi, 1))
 
         return std
 
     def jacobian(self, sample: Array) -> Array:
         """
-        Compute the Jacobian of the GP mean with respect to inputs.
+        Compute the Jacobian of the GP mean with respect to inputs (single sample).
 
         For a GP with mean m(x) and covariance k(x, x'), the posterior mean is:
-            μ*(x) = m(x) + k(x, X) α
+            μ*(x) = m(x) + α @ k(x, X)^T
         where α = [K + σ²I]^{-1}(y - m(X)).
 
         The Jacobian is:
-            ∂μ*/∂x = ∂m/∂x + ∂k(x, X)/∂x @ α
+            ∂μ*/∂x = ∂m/∂x + α @ ∂k(x, X)^T/∂x
 
         For ZeroMean and ConstantMean, ∂m/∂x = 0.
 
         Parameters
         ----------
         sample : Array
+            Single input location, shape (nvars, 1).
+
+        Returns
+        -------
+        Array
+            Jacobian of shape (nqoi, nvars).
+
+        Raises
+        ------
+        RuntimeError
+            If the GP has not been fitted.
+        ValueError
+            If sample is not a single sample.
+        """
+        if not self.is_fitted():
+            raise RuntimeError("GP must be fitted before computing Jacobian")
+
+        if sample.shape[1] != 1:
+            raise ValueError(
+                f"jacobian() expects single sample with shape (nvars, 1), "
+                f"got {sample.shape}. Use jacobian_batch() for multiple samples."
+            )
+
+        # Kernel Jacobian: ∂k(x, X)/∂x has shape (1, n_train, nvars)
+        K_jac = self._kernel.jacobian(sample, self._data.X())
+
+        # Compute: α @ ∂k(x, X)^T/∂x
+        # K_jac shape: (1, n_train, nvars), α shape: (nqoi, n_train)
+        # Result shape: (1, nqoi, nvars) -> squeeze to (nqoi, nvars)
+        jac = self._bkd.einsum("lj,ijk->ilk", self._alpha, K_jac)
+
+        return jac[0, :, :]
+
+    def jacobian_batch(self, samples: Array) -> Array:
+        """
+        Compute the Jacobian of the GP mean with respect to inputs (batch).
+
+        Parameters
+        ----------
+        samples : Array
             Input locations, shape (nvars, n_samples).
 
         Returns
         -------
         Array
-            Jacobian of shape (nqoi, nvars) for single sample or
-            (n_samples, nqoi, nvars) for multiple samples.
+            Jacobian of shape (n_samples, nqoi, nvars).
 
         Raises
         ------
@@ -422,17 +467,12 @@ class ExactGaussianProcess(Generic[Array]):
             raise RuntimeError("GP must be fitted before computing Jacobian")
 
         # Kernel Jacobian: ∂k(x, X)/∂x has shape (n_samples, n_train, nvars)
-        K_jac = self._kernel.jacobian(sample, self._data.X())
+        K_jac = self._kernel.jacobian(samples, self._data.X())
 
-        # For each sample point, compute: ∂k(x, X)/∂x @ α
-        # K_jac shape: (n_samples, n_train, nvars)
-        # α shape: (n_train, nqoi)
-        # Result shape: (n_samples, nqoi, nvars) - using einsum to get right order
-        jac = self._bkd.einsum("ijk,jl->ilk", K_jac, self._alpha)
-
-        # If single sample, remove first dimension to get (nqoi, nvars)
-        if sample.shape[1] == 1:
-            jac = jac[0, :, :]
+        # For each sample point, compute: α @ ∂k(x, X)^T/∂x
+        # K_jac shape: (n_samples, n_train, nvars), α shape: (nqoi, n_train)
+        # Result shape: (n_samples, nqoi, nvars)
+        jac = self._bkd.einsum("lj,ijk->ilk", self._alpha, K_jac)
 
         return jac
 
@@ -479,71 +519,56 @@ class ExactGaussianProcess(Generic[Array]):
 
         return hvp
 
-    def _hvp(self, sample: Array, direction: Array) -> Array:
+    def _hvp(self, sample: Array, vec: Array) -> Array:
         """
-        Compute Hessian-vector product for GP mean with respect to inputs.
+        Compute Hessian-vector product for GP mean (single sample).
 
         This is a private method. The public hvp() method is dynamically
         added during __init__ if the kernel supports KernelWithJacobianAndHVPWrtX1Protocol.
 
-        This computes H(x)·V where H is the Hessian of the GP mean prediction
-        with respect to inputs x, and V is a direction vector.
-
-        For a GP with mean m(x) and covariance k(x, x'), the posterior mean is:
-            μ*(x) = m(x) + k(x, X) α
-        where α = [K + σ²I]^{-1}(y - m(X)).
+        This computes H(x)·v where H is the Hessian of the GP mean prediction
+        with respect to inputs x, and v is a direction vector.
 
         Parameters
         ----------
         sample : Array
-            Input locations, shape (nvars, n_samples).
-        direction : Array
-            Direction vector, shape (nvars, n_samples).
+            Single input location, shape (nvars, 1).
+        vec : Array
+            Direction vector, shape (nvars, 1).
 
         Returns
         -------
         Array
-            Hessian-vector product, shape (nvars, n_samples).
+            Hessian-vector product, shape (nvars, 1).
 
         Raises
         ------
         RuntimeError
             If the GP has not been fitted.
         ValueError
-            If shapes don't match.
-
-        Notes
-        -----
-        This uses analytical second derivatives via kernel's hvp_wrt_x1 method.
+            If shapes don't match or not single sample.
         """
         if not self.is_fitted():
             raise RuntimeError("GP must be fitted before computing HVP")
 
-        if sample.shape != direction.shape:
+        if sample.shape[1] != 1:
             raise ValueError(
-                f"sample and direction must have same shape, "
-                f"got {sample.shape} and {direction.shape}"
+                f"hvp() expects single sample with shape (nvars, 1), "
+                f"got {sample.shape}. Use hvp_batch() for multiple samples."
+            )
+
+        if sample.shape != vec.shape:
+            raise ValueError(
+                f"sample and vec must have same shape, "
+                f"got {sample.shape} and {vec.shape}"
             )
 
         nvars = sample.shape[0]
-        n_samples = sample.shape[1]
-
         if nvars != self._nvars:
             raise ValueError(
                 f"sample has {nvars} variables, expected {self._nvars}"
             )
 
-        # For multiple samples, compute HVP for each independently
-        if n_samples > 1:
-            hvps = []
-            for i in range(n_samples):
-                sample_i = sample[:, i:i+1]
-                direction_i = direction[:, i:i+1]
-                hvp_i = self._hvp(sample_i, direction_i)
-                hvps.append(hvp_i)
-            return self._bkd.concatenate(hvps, axis=1)
-
-        # Single sample case: sample shape (nvars, 1), direction shape (nvars, 1)
         nqoi = self._data.nqoi()
         if nqoi > 1:
             raise NotImplementedError(
@@ -554,17 +579,74 @@ class ExactGaussianProcess(Generic[Array]):
         X_train = self._data.X()  # (nvars, n_train)
         n_train = X_train.shape[1]
 
-        # Get α (already computed during fit) - shape: (n_train, 1)
+        # Get α - shape: (nqoi, n_train) = (1, n_train)
         alpha = self._bkd.reshape(self._alpha, (n_train,))  # (n_train,)
 
         # Reshape inputs
-        V = self._bkd.reshape(direction, (nvars,))  # (nvars,)
+        V = self._bkd.reshape(vec, (nvars,))  # (nvars,)
         x_star = self._bkd.reshape(sample, (nvars,))  # (nvars,)
 
         hvp = self._hvp_using_kernel_hvp(x_star, V, X_train, alpha)
 
-        # Reshape to (nvars, 1) to match input shape
+        # Reshape to (nvars, 1)
         return self._bkd.reshape(hvp, (nvars, 1))
+
+    def _hvp_batch(self, samples: Array, vecs: Array) -> Array:
+        """
+        Compute Hessian-vector product for GP mean (batch).
+
+        Parameters
+        ----------
+        samples : Array
+            Input locations, shape (nvars, n_samples).
+        vecs : Array
+            Direction vectors, shape (nvars, n_samples).
+
+        Returns
+        -------
+        Array
+            Hessian-vector products, shape (n_samples, nvars).
+
+        Raises
+        ------
+        RuntimeError
+            If the GP has not been fitted.
+        ValueError
+            If shapes don't match.
+        """
+        if not self.is_fitted():
+            raise RuntimeError("GP must be fitted before computing HVP")
+
+        if samples.shape != vecs.shape:
+            raise ValueError(
+                f"samples and vecs must have same shape, "
+                f"got {samples.shape} and {vecs.shape}"
+            )
+
+        nvars = samples.shape[0]
+        n_samples = samples.shape[1]
+
+        if nvars != self._nvars:
+            raise ValueError(
+                f"samples has {nvars} variables, expected {self._nvars}"
+            )
+
+        nqoi = self._data.nqoi()
+        if nqoi > 1:
+            raise NotImplementedError(
+                "HVP currently only supports single-output GPs (nqoi=1)"
+            )
+
+        # Compute HVP for each sample
+        hvps = []
+        for i in range(n_samples):
+            sample_i = samples[:, i:i+1]
+            vec_i = vecs[:, i:i+1]
+            hvp_i = self._hvp(sample_i, vec_i)  # (nvars, 1)
+            hvps.append(hvp_i[:, 0])  # (nvars,)
+
+        # Stack to (n_samples, nvars)
+        return self._bkd.stack(hvps, axis=0)
 
     def predict_covariance(self, X: Array) -> Array:
         """
@@ -702,7 +784,7 @@ class ExactGaussianProcess(Generic[Array]):
         >>> gp = ExactGaussianProcess(kernel, 2, bkd, nugget=1e-10)
         >>>
         >>> X_train = bkd.array(np.random.randn(2, 20))
-        >>> y_train = bkd.array(np.random.randn(20, 1))
+        >>> y_train = bkd.array(np.random.randn(1, 20))  # Shape: (nqoi, n_train)
         >>> gp.fit(X_train, y_train)
         >>>
         >>> # Optimize hyperparameters using default optimizer

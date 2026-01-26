@@ -66,7 +66,7 @@ class TestGPHVP(Generic[Array], unittest.TestCase):
 
         # Generate training data
         X_train = self._bkd.array(np.random.randn(self._nvars, self._n_train))
-        y_train = self._bkd.array(np.random.randn(self._n_train, 1))
+        y_train = self._bkd.array(np.random.randn(1, self._n_train))  # Shape: (1, n_train)
 
         # Fit GP
         self._gp.fit(X_train, y_train)
@@ -162,29 +162,27 @@ class TestGPHVP(Generic[Array], unittest.TestCase):
         self.assertLess(hvp_ratio, 1e-6, f"HVP error ratio: {hvp_ratio}")
 
     def test_hvp_multiple_samples(self):
-        """Test HVP with multiple samples."""
+        """Test HVP with multiple samples using hvp_batch."""
         # Multiple samples
         X = self._bkd.array(np.random.randn(self._nvars, 3))
         V = self._bkd.array(np.random.randn(self._nvars, 3))
 
-        hvp = self._gp.hvp(X, V)
+        hvp = self._gp.hvp_batch(X, V)
 
-        # Should have shape (nvars, 3)
-        self.assertEqual(hvp.shape, (self._nvars, 3))
+        # Should have shape (n_samples, nvars) = (3, nvars)
+        self.assertEqual(hvp.shape, (3, self._nvars))
 
-        # Each column should match single-sample computation
+        # Each row should match single-sample computation
         for i in range(3):
             x_i = X[:, i:i+1]
             v_i = V[:, i:i+1]
-            hvp_i_single = self._gp.hvp(x_i, v_i)
+            hvp_i_single = self._gp.hvp(x_i, v_i)  # (nvars, 1)
 
-            self.assertTrue(
-                self._bkd.allclose(
-                    hvp[:, i:i+1],
-                    hvp_i_single,
-                    rtol=1e-10,
-                    atol=1e-12
-                )
+            self._bkd.assert_allclose(
+                hvp[i, :],
+                hvp_i_single[:, 0],
+                rtol=1e-10,
+                atol=1e-12
             )
 
     def test_hvp_zero_direction(self):
@@ -275,7 +273,7 @@ class TestGPHVPCompositionKernels(Generic[Array], unittest.TestCase):
 
         # Create sample data
         self.X_train = self._bkd.array(np.random.randn(self.nvars, self.n_train))
-        self.y_train = self._bkd.array(np.random.randn(self.n_train, 1))
+        self.y_train = self._bkd.array(np.random.randn(1, self.n_train))  # Shape: (1, n_train)
 
     def _create_matern_kernel(self, nu: float):
         """Create Matern kernel for given nu value."""
