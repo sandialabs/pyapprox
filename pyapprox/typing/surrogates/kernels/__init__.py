@@ -78,6 +78,7 @@ from .protocols import (
     KernelWithParameterJacobianAndHVPProtocol,
     KernelWithJacobianAndParameterJacobianProtocol,
     KernelWithFullDerivativesProtocol,
+    SeparableKernelProtocol,
     Kernel,
 )
 from .matern import (
@@ -118,6 +119,7 @@ __all__ = [
     "KernelWithParameterJacobianAndHVPProtocol",
     "KernelWithJacobianAndParameterJacobianProtocol",
     "KernelWithFullDerivativesProtocol",
+    "SeparableKernelProtocol",
     "MultiOutputKernelProtocol",
     "ScalingFunctionProtocol",
     # Base class

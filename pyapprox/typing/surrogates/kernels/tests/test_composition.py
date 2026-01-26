@@ -767,7 +767,173 @@ class TestSeparableProductKernelTorch(TestSeparableProductKernel[torch.Tensor]):
         return TorchBkd()
 
 
-from pyapprox.typing.util.test_utils import load_tests
+class TestSeparableKernelProtocol(Generic[Array], unittest.TestCase):
+    """
+    Test that kernels correctly satisfy SeparableKernelProtocol.
+
+    Tests protocol compliance for SeparableProductKernel and
+    SquaredExponentialKernel, and verifies that non-separable
+    kernels (M32, M52) do NOT satisfy the protocol.
+    """
+
+    __test__ = False
+
+    def setUp(self) -> None:
+        np.random.seed(42)
+        self._bkd = self.bkd()
+
+    def bkd(self) -> Backend[Array]:
+        raise NotImplementedError
+
+    def test_separable_product_kernel_satisfies_protocol(self) -> None:
+        """SeparableProductKernel should satisfy SeparableKernelProtocol."""
+        from pyapprox.typing.surrogates.kernels.protocols import (
+            SeparableKernelProtocol,
+        )
+
+        bkd = self._bkd
+        k1 = SquaredExponentialKernel([1.0], (0.01, 100.0), 1, bkd)
+        k2 = SquaredExponentialKernel([2.0], (0.01, 100.0), 1, bkd)
+        kernel = SeparableProductKernel([k1, k2], bkd)
+
+        self.assertTrue(isinstance(kernel, SeparableKernelProtocol))
+
+    def test_ard_se_kernel_satisfies_protocol(self) -> None:
+        """SquaredExponentialKernel with ARD should satisfy SeparableKernelProtocol."""
+        from pyapprox.typing.surrogates.kernels.protocols import (
+            SeparableKernelProtocol,
+        )
+
+        bkd = self._bkd
+        kernel = SquaredExponentialKernel([1.0, 2.0], (0.01, 100.0), 2, bkd)
+
+        self.assertTrue(isinstance(kernel, SeparableKernelProtocol))
+
+    def test_matern52_does_not_satisfy_protocol(self) -> None:
+        """Matern52Kernel should NOT satisfy SeparableKernelProtocol."""
+        from pyapprox.typing.surrogates.kernels.protocols import (
+            SeparableKernelProtocol,
+        )
+
+        bkd = self._bkd
+        kernel = Matern52Kernel([1.0, 2.0], (0.01, 100.0), 2, bkd)
+
+        self.assertFalse(isinstance(kernel, SeparableKernelProtocol))
+
+    def test_matern32_does_not_satisfy_protocol(self) -> None:
+        """Matern32Kernel should NOT satisfy SeparableKernelProtocol."""
+        from pyapprox.typing.surrogates.kernels.protocols import (
+            SeparableKernelProtocol,
+        )
+
+        bkd = self._bkd
+        kernel = Matern32Kernel([1.0, 2.0], (0.01, 100.0), 2, bkd)
+
+        self.assertFalse(isinstance(kernel, SeparableKernelProtocol))
+
+    def test_se_kernel_get_kernel_1d_returns_correct_type(self) -> None:
+        """get_kernel_1d should return SquaredExponentialKernel."""
+        bkd = self._bkd
+        kernel = SquaredExponentialKernel([1.0, 2.0, 3.0], (0.01, 100.0), 3, bkd)
+
+        k0 = kernel.get_kernel_1d(0)
+        k1 = kernel.get_kernel_1d(1)
+        k2 = kernel.get_kernel_1d(2)
+
+        # Should be same type
+        self.assertIsInstance(k0, SquaredExponentialKernel)
+        self.assertIsInstance(k1, SquaredExponentialKernel)
+        self.assertIsInstance(k2, SquaredExponentialKernel)
+
+        # Should have nvars=1
+        self.assertEqual(k0.nvars(), 1)
+        self.assertEqual(k1.nvars(), 1)
+        self.assertEqual(k2.nvars(), 1)
+
+    def test_se_kernel_get_kernel_1d_correct_length_scales(self) -> None:
+        """get_kernel_1d should return kernel with correct length scale."""
+        bkd = self._bkd
+        ls = [1.5, 2.5, 3.5]
+        kernel = SquaredExponentialKernel(ls, (0.01, 100.0), 3, bkd)
+
+        for dim in range(3):
+            k_1d = kernel.get_kernel_1d(dim)
+            ls_1d = k_1d._log_lenscale.exp_values()
+            bkd.assert_allclose(ls_1d, bkd.asarray([ls[dim]]), rtol=1e-12)
+
+    def test_se_kernel_get_kernel_1d_factorization(self) -> None:
+        """SE kernel should factor correctly: K(x,y) = prod_d K_d(x_d, y_d)."""
+        bkd = self._bkd
+        ls = [1.5, 2.5]
+        kernel = SquaredExponentialKernel(ls, (0.01, 100.0), 2, bkd)
+
+        # Test points
+        x = bkd.asarray([[0.3], [0.7]])  # (2, 1)
+        y = bkd.asarray([[0.8], [0.2]])  # (2, 1)
+
+        # Full kernel evaluation
+        K_full = kernel(x, y)
+
+        # Factored evaluation using 1D kernels
+        k0 = kernel.get_kernel_1d(0)
+        k1 = kernel.get_kernel_1d(1)
+
+        K0 = k0(bkd.asarray([[0.3]]), bkd.asarray([[0.8]]))
+        K1 = k1(bkd.asarray([[0.7]]), bkd.asarray([[0.2]]))
+        K_factored = K0 * K1
+
+        bkd.assert_allclose(K_full, K_factored, rtol=1e-12)
+
+    def test_se_kernel_get_kernel_1d_batch_factorization(self) -> None:
+        """SE kernel factorization should work for batched inputs."""
+        bkd = self._bkd
+        ls = [1.0, 2.0]
+        kernel = SquaredExponentialKernel(ls, (0.01, 100.0), 2, bkd)
+
+        # Batched test points
+        X1 = bkd.asarray([[0.1, 0.3, 0.5], [0.2, 0.4, 0.6]])  # (2, 3)
+        X2 = bkd.asarray([[0.7, 0.9], [0.8, 1.0]])  # (2, 2)
+
+        # Full kernel evaluation
+        K_full = kernel(X1, X2)  # (3, 2)
+
+        # Factored evaluation
+        k0 = kernel.get_kernel_1d(0)
+        k1 = kernel.get_kernel_1d(1)
+
+        K0 = k0(bkd.reshape(X1[0, :], (1, -1)), bkd.reshape(X2[0, :], (1, -1)))
+        K1 = k1(bkd.reshape(X1[1, :], (1, -1)), bkd.reshape(X2[1, :], (1, -1)))
+        K_factored = K0 * K1
+
+        bkd.assert_allclose(K_full, K_factored, rtol=1e-12)
+
+    def test_se_kernel_get_kernel_1d_out_of_bounds(self) -> None:
+        """get_kernel_1d should raise IndexError for invalid dim."""
+        bkd = self._bkd
+        kernel = SquaredExponentialKernel([1.0, 2.0], (0.01, 100.0), 2, bkd)
+
+        with self.assertRaises(IndexError):
+            kernel.get_kernel_1d(-1)
+
+        with self.assertRaises(IndexError):
+            kernel.get_kernel_1d(2)
+
+        with self.assertRaises(IndexError):
+            kernel.get_kernel_1d(10)
+
+
+class TestSeparableKernelProtocolNumpy(TestSeparableKernelProtocol[NDArray[Any]]):
+    def bkd(self) -> NumpyBkd:
+        return NumpyBkd()
+
+
+class TestSeparableKernelProtocolTorch(TestSeparableKernelProtocol[torch.Tensor]):
+    def bkd(self) -> TorchBkd:
+        torch.set_default_dtype(torch.float64)
+        return TorchBkd()
+
+
+from pyapprox.typing.util.test_utils import load_tests  # noqa: F401, E402
 
 
 if __name__ == "__main__":

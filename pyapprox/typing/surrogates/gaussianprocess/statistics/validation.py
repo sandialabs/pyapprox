@@ -6,8 +6,10 @@ for computing statistics using the separable kernel approach.
 """
 
 from pyapprox.typing.util.backends.protocols import Array
-from pyapprox.typing.surrogates.kernels.protocols import KernelProtocol
-from pyapprox.typing.surrogates.kernels.composition import SeparableProductKernel
+from pyapprox.typing.surrogates.kernels.protocols import (
+    KernelProtocol,
+    SeparableKernelProtocol,
+)
 from pyapprox.typing.surrogates.gaussianprocess.protocols import (
     GaussianProcessProtocol,
 )
@@ -33,34 +35,31 @@ def validate_separable_kernel(kernel: KernelProtocol[Array]) -> None:
     Raises
     ------
     TypeError
-        If the kernel is not a ProductKernel or does not have the
-        required separable structure.
+        If the kernel does not satisfy SeparableKernelProtocol.
 
     Notes
     -----
-    Currently this function checks if the kernel is an instance of
-    ProductKernel. More sophisticated checks could verify that the
-    component kernels operate on disjoint dimensions.
+    A kernel satisfies SeparableKernelProtocol if it implements:
+    - nvars() -> int
+    - get_kernel_1d(dim: int) -> KernelProtocol
+
+    The following kernels satisfy this protocol:
+    - SeparableProductKernel: Explicitly constructed from 1D kernels
+    - SquaredExponentialKernel: exp(-0.5 * sum_d ...) = prod_d exp(...)
+
+    Matern 3/2 and 5/2 kernels are NOT separable because they use
+    the combined Euclidean distance inside nonlinear polynomial terms.
 
     Examples
     --------
-    >>> from pyapprox.typing.surrogates.kernels.matern import MaternKernel
-    >>> from pyapprox.typing.surrogates.kernels.composition import ProductKernel
+    >>> from pyapprox.typing.surrogates.kernels.matern import SquaredExponentialKernel
     >>> from pyapprox.typing.util.backends.numpy import NumpyBkd
     >>> bkd = NumpyBkd()
-    >>> k1 = MaternKernel(2.5, [1.0], (0.1, 10.0), 1, bkd)
-    >>> k2 = MaternKernel(2.5, [1.0], (0.1, 10.0), 1, bkd)
-    >>> prod_kernel = ProductKernel(k1, k2)
-    >>> validate_separable_kernel(prod_kernel)  # OK
-
-    >>> single_kernel = MaternKernel(2.5, [1.0, 1.0], (0.1, 10.0), 2, bkd)
-    >>> validate_separable_kernel(single_kernel)  # Raises TypeError
-    Traceback (most recent call last):
-        ...
-    TypeError: ...
+    >>> kernel = SquaredExponentialKernel([1.0, 2.0], (0.1, 10.0), 2, bkd)
+    >>> validate_separable_kernel(kernel)  # OK - SE kernel is separable
     """
-    # Check if it's a SeparableProductKernel
-    if isinstance(kernel, SeparableProductKernel):
+    # Check if kernel satisfies SeparableKernelProtocol
+    if isinstance(kernel, SeparableKernelProtocol):
         return
 
     # For single-dimensional kernels, they are trivially separable
@@ -69,11 +68,12 @@ def validate_separable_kernel(kernel: KernelProtocol[Array]) -> None:
 
     # Otherwise, kernel is not separable
     raise TypeError(
-        f"Kernel must be separable (SeparableProductKernel) for GP statistics "
+        f"Kernel must satisfy SeparableKernelProtocol for GP statistics "
         f"computations, but got {type(kernel).__name__}. "
-        f"For multi-dimensional inputs, construct a separable product kernel: "
-        f"kernel = SeparableProductKernel([k1, k2, ..., kd], bkd) where each "
-        f"ki is a 1D kernel."
+        f"Separable kernels include: SeparableProductKernel, "
+        f"SquaredExponentialKernel (with ARD). "
+        f"Note: Matern 3/2 and 5/2 are NOT separable. "
+        f"For non-separable kernels, wrap 1D kernels in SeparableProductKernel."
     )
 
 

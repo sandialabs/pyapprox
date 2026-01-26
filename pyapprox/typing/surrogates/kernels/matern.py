@@ -257,6 +257,55 @@ class SquaredExponentialKernel(MaternKernel):
         phi_double_prime = (r**2 - 1) * exp_term
         return phi_prime, phi_double_prime
 
+    def get_kernel_1d(self, dim: int) -> "SquaredExponentialKernel":
+        """
+        Get a 1D SE kernel for a specific dimension.
+
+        The Squared Exponential kernel is separable:
+            K(x, y) = exp(-0.5 * sum_d (x_d - y_d)^2 / l_d^2)
+                    = prod_d exp(-0.5 * (x_d - y_d)^2 / l_d^2)
+                    = prod_d K_d(x_d, y_d)
+
+        This method returns the 1D kernel K_d for dimension d.
+
+        Parameters
+        ----------
+        dim : int
+            Dimension index (0 to nvars-1).
+
+        Returns
+        -------
+        kernel_1d : SquaredExponentialKernel
+            A new 1D SE kernel with the length scale for dimension `dim`.
+
+        Raises
+        ------
+        IndexError
+            If dim is out of range [0, nvars-1].
+        """
+        if dim < 0 or dim >= self._nvars:
+            raise IndexError(
+                f"dim must be in range [0, {self._nvars - 1}], got {dim}"
+            )
+
+        # Extract length scale for this dimension
+        ls_dim = self._log_lenscale.exp_values()[dim:dim+1]
+
+        # Get bounds in user space (exp of log bounds)
+        bounds = self._bkd.exp(self._log_lenscale.get_bounds())
+        bounds_tuple = (
+            float(self._bkd.to_numpy(bounds[0, 0])),
+            float(self._bkd.to_numpy(bounds[0, 1]))
+        )
+
+        return SquaredExponentialKernel(
+            lenscale=ls_dim,
+            lenscale_bounds=bounds_tuple,
+            nvars=1,
+            bkd=self._bkd,
+            fixed=self._log_lenscale.nactive_params() == 0
+        )
+
     def __repr__(self) -> str:
         return f"SquaredExponentialKernel({self._hyp_list}, bkd={self._bkd.__class__.__name__})"
 

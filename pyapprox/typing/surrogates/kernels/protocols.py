@@ -258,6 +258,50 @@ class KernelWithFullDerivativesProtocol(
     pass
 
 
+@runtime_checkable
+class SeparableKernelProtocol(Protocol, Generic[Array]):
+    """
+    Protocol for separable (product) kernels.
+
+    A separable kernel has the form:
+        k(x, y) = prod_d k_d(x_d, y_d)
+
+    where k_d is a 1D kernel operating on dimension d. This structure
+    enables efficient computation of multidimensional integrals as
+    products of 1D integrals.
+
+    Only kernels where the dimensions truly factor satisfy this protocol:
+    - SeparableProductKernel: Explicitly constructed from 1D kernels
+    - SquaredExponentialKernel: exp(-0.5 * sum_d ...) = prod_d exp(-0.5 * ...)
+
+    Note: Matern 3/2 and 5/2 kernels are NOT separable because they use
+    the combined Euclidean distance inside nonlinear polynomial terms.
+    """
+
+    def nvars(self) -> int:
+        """Return the number of input dimensions."""
+        ...
+
+    def get_kernel_1d(self, dim: int) -> "KernelProtocol[Array]":
+        """
+        Get the 1D kernel for a specific dimension.
+
+        Parameters
+        ----------
+        dim : int
+            Dimension index (0 to nvars-1).
+
+        Returns
+        -------
+        kernel_1d : KernelProtocol[Array]
+            The 1D kernel for dimension dim.
+            For SeparableProductKernel, returns the stored 1D kernel.
+            For SquaredExponentialKernel, returns a new 1D SE kernel
+            with that dimension's length scale.
+        """
+        ...
+
+
 class Kernel(ABC, Generic[Array]):
     """
     The base class for any kernel.

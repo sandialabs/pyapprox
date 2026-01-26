@@ -55,8 +55,10 @@ from pyapprox.typing.surrogates.gaussianprocess.statistics.integrals_1d import (
     compute_Gamma_1d,
     compute_conditional_P_1d,
 )
-from pyapprox.typing.surrogates.kernels.composition import SeparableProductKernel
-from pyapprox.typing.surrogates.kernels.protocols import KernelProtocol
+from pyapprox.typing.surrogates.kernels.protocols import (
+    KernelProtocol,
+    SeparableKernelProtocol,
+)
 from pyapprox.typing.surrogates.affine.protocols.quadrature import (
     QuadratureRuleStatefulProtocol,
 )
@@ -65,29 +67,36 @@ from pyapprox.typing.probability.protocols.distribution import MarginalProtocol
 
 def _extract_1d_kernels(kernel: KernelProtocol[Array]) -> List[KernelProtocol[Array]]:
     """
-    Extract 1D kernel components from a separable product kernel.
+    Extract 1D kernel components from a separable kernel.
 
     Parameters
     ----------
     kernel : KernelProtocol[Array]
-        The SeparableProductKernel or single 1D kernel.
+        A kernel satisfying SeparableKernelProtocol, or a single 1D kernel.
 
     Returns
     -------
     kernels : List[KernelProtocol[Array]]
-        List of 1D kernel components.
+        List of 1D kernel components, one per dimension.
+
+    Raises
+    ------
+    TypeError
+        If kernel does not satisfy SeparableKernelProtocol.
     """
-    if isinstance(kernel, SeparableProductKernel):
-        # Extract 1D kernels from SeparableProductKernel
+    # Check for SeparableKernelProtocol
+    if isinstance(kernel, SeparableKernelProtocol):
         return [kernel.get_kernel_1d(dim) for dim in range(kernel.nvars())]
-    elif kernel.nvars() == 1:
-        # Single 1D kernel
+
+    # Single 1D kernel
+    if kernel.nvars() == 1:
         return [kernel]
-    else:
-        raise TypeError(
-            f"Cannot extract 1D kernels from {type(kernel).__name__}. "
-            f"Use SeparableProductKernel for multi-dimensional inputs."
-        )
+
+    # Not separable
+    raise TypeError(
+        f"Cannot extract 1D kernels from {type(kernel).__name__}. "
+        f"Kernel must satisfy SeparableKernelProtocol (implement get_kernel_1d)."
+    )
 
 
 class SeparableKernelIntegralCalculator(Generic[Array]):

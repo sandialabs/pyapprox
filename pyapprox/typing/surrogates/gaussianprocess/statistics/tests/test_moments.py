@@ -14,7 +14,10 @@ from pyapprox.typing.util.backends.protocols import Backend, Array
 from pyapprox.typing.util.backends.numpy import NumpyBkd
 from pyapprox.typing.util.backends.torch import TorchBkd
 from pyapprox.typing.util.test_utils import load_tests, slow_test  # noqa: F401
-from pyapprox.typing.surrogates.kernels.matern import SquaredExponentialKernel
+from pyapprox.typing.surrogates.kernels.matern import (
+    SquaredExponentialKernel,
+    Matern52Kernel,
+)
 from pyapprox.typing.surrogates.kernels.composition import SeparableProductKernel
 from pyapprox.typing.surrogates.gaussianprocess import ExactGaussianProcess
 from pyapprox.typing.probability.univariate.uniform import UniformMarginal
@@ -963,8 +966,8 @@ class TestValidation(Generic[Array], unittest.TestCase):
 
     def test_non_separable_kernel_raises_error(self) -> None:
         """Test that non-separable kernel raises TypeError."""
-        # 2D kernel that is not a product kernel
-        kernel = SquaredExponentialKernel([1.0, 1.0], (0.1, 10.0), 2, self._bkd)
+        # Matern 5/2 is NOT separable (uses combined distance in polynomial)
+        kernel = Matern52Kernel([1.0, 1.0], (0.1, 10.0), 2, self._bkd)
 
         gp = ExactGaussianProcess(kernel, nvars=2, bkd=self._bkd)
         X = self._bkd.array(np.random.rand(2, 5))

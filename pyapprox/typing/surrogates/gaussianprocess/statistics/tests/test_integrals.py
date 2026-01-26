@@ -14,7 +14,10 @@ from pyapprox.typing.util.backends.protocols import Backend, Array
 from pyapprox.typing.util.backends.numpy import NumpyBkd
 from pyapprox.typing.util.backends.torch import TorchBkd
 from pyapprox.typing.util.test_utils import load_tests  # noqa: F401
-from pyapprox.typing.surrogates.kernels.matern import SquaredExponentialKernel
+from pyapprox.typing.surrogates.kernels.matern import (
+    SquaredExponentialKernel,
+    Matern52Kernel,
+)
 from pyapprox.typing.surrogates.kernels.composition import (
     ProductKernel,
     SeparableProductKernel,
@@ -585,14 +588,13 @@ class TestValidation(Generic[Array], unittest.TestCase):
 
     def test_validate_separable_kernel_non_separable_error(self) -> None:
         """Test that non-separable multi-D kernel raises TypeError."""
-        # 2D kernel that is not a ProductKernel
-        k2d = SquaredExponentialKernel([1.0, 1.0], (0.1, 10.0), 2, self._bkd)
+        # Matern 5/2 is NOT separable (uses combined distance in polynomial)
+        k2d = Matern52Kernel([1.0, 1.0], (0.1, 10.0), 2, self._bkd)
 
         with self.assertRaises(TypeError) as context:
             validate_separable_kernel(k2d)
 
         self.assertIn("separable", str(context.exception).lower())
-        self.assertIn("ProductKernel", str(context.exception))
 
     def test_validate_zero_mean_with_zero_mean(self) -> None:
         """Test that GP with ZeroMean passes validation."""
