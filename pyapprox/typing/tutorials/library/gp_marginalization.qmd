@@ -302,6 +302,47 @@ print(f"E[C̃*]: {E_var:.4f}")
 print(f"Main effect V_{active_dim}: {V_i:.4f}")
 ```
 
+## Using the MarginalizedGP Class
+
+The `MarginalizedGP` class in `pyapprox.typing.surrogates.gaussianprocess.statistics` implements the marginalization formulas derived above. It supports marginalizing to any number of dimensions via the `active_dims` parameter.
+
+```{python}
+#| eval: false
+from pyapprox.typing.surrogates.gaussianprocess.statistics import (
+    SeparableKernelIntegralCalculator,
+    MarginalizedGP,
+)
+
+# Assume gp is a fitted GP with separable kernel
+# and marginals is a list of marginal distributions for each dimension
+
+# Create the integral calculator
+calc = SeparableKernelIntegralCalculator(gp, bases, marginals, bkd=bkd)
+
+# Create 1D marginalized GP (keep only dimension 0)
+marg_gp_1d = MarginalizedGP(gp, calc, active_dims=[0])
+
+# Evaluate marginalized mean and variance
+z_test = bkd.array([[-0.5, 0.0, 0.5]])  # Shape (1, 3) for 1D
+mean = marg_gp_1d.predict_mean(z_test)
+var = marg_gp_1d.predict_variance(z_test)
+
+# Or compute both at once (more efficient)
+mean, var = marg_gp_1d.predict(z_test)
+
+# Create 2D marginalized GP (keep dimensions 0 and 2)
+marg_gp_2d = MarginalizedGP(gp, calc, active_dims=[0, 2])
+z_test_2d = bkd.array([[-0.5, 0.0], [0.5, 0.5]])  # Shape (2, 2)
+mean_2d, var_2d = marg_gp_2d.predict(z_test_2d)
+```
+
+Key API methods:
+- `predict_mean(z_p)`: Compute $\tilde{m}^*(z_p)$
+- `predict_variance(z_p)`: Compute $\tilde{C}^*(z_p, z_p)$
+- `predict(z_p)`: Compute both mean and variance efficiently
+- `u_not_p()`: Get $u_{\sim p}$ (prior variance scaling factor)
+- `tau_not_p()`: Get $\tau_{\sim p}$ (partial tau product)
+
 ## Summary of Key Formulas
 
 | Quantity | Formula | Meaning |

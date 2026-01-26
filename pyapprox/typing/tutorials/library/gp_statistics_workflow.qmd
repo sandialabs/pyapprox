@@ -384,6 +384,48 @@ plt.tight_layout()
 plt.show()
 ```
 
+## Using the Implementation Classes
+
+The `pyapprox.typing.surrogates.gaussianprocess.statistics` module provides classes that implement the formulas derived in this tutorial series. For production use, prefer these classes over manual implementation:
+
+```{python}
+#| eval: false
+from pyapprox.typing.surrogates.gaussianprocess.statistics import (
+    SeparableKernelIntegralCalculator,
+    GaussianProcessStatistics,
+    GaussianProcessSensitivity,
+    MarginalizedGP,
+)
+
+# Assume gp is a fitted GP with separable kernel,
+# and bases/marginals are defined for quadrature
+
+# Create the integral calculator (computes tau, P, u, etc.)
+calc = SeparableKernelIntegralCalculator(gp, bases, marginals, bkd=bkd)
+
+# Compute moments
+stats = GaussianProcessStatistics(gp, calc)
+eta = stats.mean_of_mean()           # E[μ_f]
+var_mu = stats.variance_of_mean()    # Var[μ_f]
+E_gamma = stats.mean_of_variance()   # E[γ_f]
+Var_gamma = stats.variance_of_variance()  # Var[γ_f]
+
+# Compute Sobol indices
+sens = GaussianProcessSensitivity(stats)
+main_effects = sens.main_effect_indices()    # {0: S_0, 1: S_1, ...}
+total_effects = sens.total_effect_indices()  # {0: T_0, 1: T_1, ...}
+
+# Create marginalized GP for visualization
+marg_gp = MarginalizedGP(gp, calc, active_dims=[0])  # Keep only dim 0
+mean, var = marg_gp.predict(z_test)
+```
+
+These classes:
+- Handle all the kernel integral computations internally
+- Support both NumPy and PyTorch backends
+- Cache intermediate results for efficiency
+- Validate inputs and provide informative error messages
+
 ## Key Takeaways
 
 - The **complete workflow** goes from GP fitting to Sobol indices in 4 stages
