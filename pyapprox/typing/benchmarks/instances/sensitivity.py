@@ -12,10 +12,11 @@ from pyapprox.typing.benchmarks.ground_truth import SensitivityGroundTruth
 from pyapprox.typing.benchmarks.registry import BenchmarkRegistry
 from pyapprox.typing.benchmarks.functions.algebraic.ishigami import (
     IshigamiFunction,
+    IshigamiSensitivityIndices,
 )
 from pyapprox.typing.benchmarks.functions.algebraic.sobol_g import (
     SobolGFunction,
-    sobol_g_indices,
+    SobolGSensitivityIndices,
 )
 from pyapprox.typing.probability.univariate.uniform import UniformMarginal
 from pyapprox.typing.probability.joint.independent import IndependentJoint
@@ -49,21 +50,22 @@ def ishigami_3d(
     a, b = 7.0, 0.1
     pi = math.pi
 
-    # Analytical ground truth (from Ishigami & Homma, 1990)
-    # Variance decomposition for f(x) = sin(x1) + a*sin^2(x2) + b*x3^4*sin(x1)
-    # with U[-pi, pi]^3 prior
-    variance = a**2 / 8 + b * pi**4 / 5 + b**2 * pi**8 / 18 + 0.5
-    D1 = b * pi**4 / 5 + b**2 * pi**8 / 50 + 0.5
-    D2 = a**2 / 8
-    D3 = 0.0
-    D13 = b**2 * pi**8 / 18 - b**2 * pi**8 / 50
+    # Analytical Sobol indices
+    indices = IshigamiSensitivityIndices(bkd, a=a, b=b)
+    mean_val = float(indices.mean()[0])
+    variance = float(indices.variance()[0])
+    main_effects = indices.main_effects()
+    total_effects = indices.total_effects()
+    sobol_all = indices.sobol_indices()
 
-    main_effects = bkd.array([[D1 / variance], [D2 / variance], [D3 / variance]])
-    total_effects = bkd.array([
-        [(D1 + D13) / variance],
-        [D2 / variance],
-        [D13 / variance],
-    ])
+    # Build Sobol indices dict
+    # Order from IshigamiSensitivityIndices: S_1, S_2, S_3, S_12, S_13, S_23, S_123
+    sobol_dict = {
+        (0,): float(sobol_all[0, 0]),
+        (1,): float(sobol_all[1, 0]),
+        (2,): float(sobol_all[2, 0]),
+        (0, 2): float(sobol_all[4, 0]),  # S_13 is at index 4
+    }
 
     # Standard uniform prior for sensitivity analysis
     prior = IndependentJoint(
@@ -83,16 +85,11 @@ def ishigami_3d(
             _bkd=bkd,
         ),
         _ground_truth=SensitivityGroundTruth(
-            mean=a / 2,
+            mean=mean_val,
             variance=variance,
             main_effects=main_effects,
             total_effects=total_effects,
-            sobol_indices={
-                (0,): D1 / variance,
-                (1,): D2 / variance,
-                (2,): D3 / variance,
-                (0, 2): D13 / variance,
-            },
+            sobol_indices=sobol_dict,
         ),
         _prior=prior,
         _description="Ishigami function - standard sensitivity analysis benchmark",
@@ -137,8 +134,11 @@ def sobol_g_6d(
     a = [0.0, 1.0, 4.5, 9.0, 99.0, 99.0]
     nvars = len(a)
 
-    # Analytical Sobol indices (returns backend arrays with shape (nvars, 1))
-    main_effects, total_effects, variance = sobol_g_indices(a, bkd)
+    # Analytical Sobol indices
+    indices = SobolGSensitivityIndices(bkd, a)
+    main_effects = indices.main_effects()
+    total_effects = indices.total_effects()
+    variance = float(indices.variance()[0])
 
     # Build Sobol indices dict for first-order
     sobol_dict = {(i,): float(main_effects[i, 0]) for i in range(nvars)}
@@ -158,7 +158,7 @@ def sobol_g_6d(
         ),
         _ground_truth=SensitivityGroundTruth(
             mean=1.0,  # Product of means, each g_i has mean 1
-            variance=float(variance),
+            variance=variance,
             main_effects=main_effects,
             total_effects=total_effects,
             sobol_indices=sobol_dict,
@@ -189,8 +189,11 @@ def sobol_g_4d(
     a = [0.0, 0.0, 0.0, 0.0]
     nvars = len(a)
 
-    # Analytical Sobol indices (returns backend arrays with shape (nvars, 1))
-    main_effects, total_effects, variance = sobol_g_indices(a, bkd)
+    # Analytical Sobol indices
+    indices = SobolGSensitivityIndices(bkd, a)
+    main_effects = indices.main_effects()
+    total_effects = indices.total_effects()
+    variance = float(indices.variance()[0])
 
     # Build Sobol indices dict for first-order
     sobol_dict = {(i,): float(main_effects[i, 0]) for i in range(nvars)}
@@ -210,7 +213,7 @@ def sobol_g_4d(
         ),
         _ground_truth=SensitivityGroundTruth(
             mean=1.0,
-            variance=float(variance),
+            variance=variance,
             main_effects=main_effects,
             total_effects=total_effects,
             sobol_indices=sobol_dict,

@@ -7,7 +7,7 @@ for computing statistics using the separable kernel approach.
 
 from pyapprox.typing.util.backends.protocols import Array
 from pyapprox.typing.surrogates.kernels.protocols import KernelProtocol
-from pyapprox.typing.surrogates.kernels.composition import ProductKernel
+from pyapprox.typing.surrogates.kernels.composition import SeparableProductKernel
 from pyapprox.typing.surrogates.gaussianprocess.protocols import (
     GaussianProcessProtocol,
 )
@@ -59,8 +59,8 @@ def validate_separable_kernel(kernel: KernelProtocol[Array]) -> None:
         ...
     TypeError: ...
     """
-    # Check if it's a ProductKernel
-    if isinstance(kernel, ProductKernel):
+    # Check if it's a SeparableProductKernel
+    if isinstance(kernel, SeparableProductKernel):
         return
 
     # For single-dimensional kernels, they are trivially separable
@@ -69,10 +69,11 @@ def validate_separable_kernel(kernel: KernelProtocol[Array]) -> None:
 
     # Otherwise, kernel is not separable
     raise TypeError(
-        f"Kernel must be separable (ProductKernel) for GP statistics "
+        f"Kernel must be separable (SeparableProductKernel) for GP statistics "
         f"computations, but got {type(kernel).__name__}. "
-        f"For multi-dimensional inputs, construct a product kernel: "
-        f"kernel = k1 * k2 * ... * kd where each ki is a 1D kernel."
+        f"For multi-dimensional inputs, construct a separable product kernel: "
+        f"kernel = SeparableProductKernel([k1, k2, ..., kd], bkd) where each "
+        f"ki is a 1D kernel."
     )
 
 

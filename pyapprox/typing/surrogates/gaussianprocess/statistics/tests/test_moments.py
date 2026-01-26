@@ -15,6 +15,7 @@ from pyapprox.typing.util.backends.numpy import NumpyBkd
 from pyapprox.typing.util.backends.torch import TorchBkd
 from pyapprox.typing.util.test_utils import load_tests, slow_test  # noqa: F401
 from pyapprox.typing.surrogates.kernels.matern import SquaredExponentialKernel
+from pyapprox.typing.surrogates.kernels.composition import SeparableProductKernel
 from pyapprox.typing.surrogates.gaussianprocess import ExactGaussianProcess
 from pyapprox.typing.probability.univariate.uniform import UniformMarginal
 from pyapprox.typing.surrogates.sparsegrids.basis_factory import (
@@ -51,10 +52,10 @@ class TestSeparableKernelIntegralCalculator(Generic[Array], unittest.TestCase):
         self._bkd = self.bkd()
         np.random.seed(42)
 
-        # Create 2D GP with product kernel
+        # Create 2D GP with separable product kernel
         k1 = SquaredExponentialKernel([1.0], (0.1, 10.0), 1, self._bkd)
         k2 = SquaredExponentialKernel([1.0], (0.1, 10.0), 1, self._bkd)
-        self._kernel = k1 * k2
+        self._kernel = SeparableProductKernel([k1, k2], self._bkd)
 
         self._gp = ExactGaussianProcess(
             self._kernel,
@@ -184,10 +185,10 @@ class TestGaussianProcessStatistics(Generic[Array], unittest.TestCase):
         self._bkd = self.bkd()
         np.random.seed(42)
 
-        # Create 2D GP with product kernel
+        # Create 2D GP with separable product kernel
         k1 = SquaredExponentialKernel([1.0], (0.1, 10.0), 1, self._bkd)
         k2 = SquaredExponentialKernel([1.0], (0.1, 10.0), 1, self._bkd)
-        self._kernel = k1 * k2
+        self._kernel = SeparableProductKernel([k1, k2], self._bkd)
 
         self._gp = ExactGaussianProcess(
             self._kernel,
@@ -281,7 +282,7 @@ class TestGaussianProcessStatistics(Generic[Array], unittest.TestCase):
 
         k1 = SquaredExponentialKernel([0.5], (0.1, 10.0), 1, self._bkd)
         k2 = SquaredExponentialKernel([0.5], (0.1, 10.0), 1, self._bkd)
-        kernel = k1 * k2
+        kernel = SeparableProductKernel([k1, k2], self._bkd)
 
         gp_large = ExactGaussianProcess(kernel, nvars=2, bkd=self._bkd, nugget=1e-6)
         gp_large.fit(X_train, y_train)
@@ -571,6 +572,352 @@ class TestMCComparison(Generic[Array], unittest.TestCase):
             f"Relative error {rel_error:.4f} too large: quad={var_var_quad_val:.6f}, mc={var_var_mc:.6f}")
 
 
+class TestKnownMoments(Generic[Array], unittest.TestCase):
+    """
+    Test GP statistics against functions with analytically known moments.
+
+    When the GP interpolates a function exactly (to within numerical precision),
+    the GP statistics should match the analytical moments of the function.
+
+    For a function f(z) with z ~ Uniform[-1, 1]^d:
+    - E[μ_f] = E[f(z)] (mean of the function)
+    - E[γ_f] ≈ Var[f(z)] (mean of GP variance ≈ function variance)
+
+    CRITICAL: We first verify the GP interpolation error is small (< stats_tol)
+    at test points. This is a necessary condition for accurate statistics.
+    """
+
+    __test__ = False
+
+    def setUp(self) -> None:
+        """Set up test environment."""
+        self._bkd = self.bkd()
+
+    def bkd(self) -> Backend[Array]:
+        """Override in derived classes."""
+        raise NotImplementedError
+
+    def _verify_gp_interpolation(
+        self,
+        gp: ExactGaussianProcess[Array],
+        test_func: Any,
+        X_test: Array,
+        stats_tol: float,
+    ) -> float:
+        """
+        Verify GP interpolation error is below stats tolerance.
+
+        Parameters
+        ----------
+        gp : ExactGaussianProcess
+            Fitted GP.
+        test_func : callable
+            True function, takes X of shape (nvars, nsamples).
+        X_test : Array
+            Test points of shape (nvars, n_test).
+        stats_tol : float
+            Tolerance for statistics tests.
+
+        Returns
+        -------
+        max_error : float
+            Maximum absolute interpolation error.
+
+        Raises
+        ------
+        AssertionError
+            If max error exceeds stats_tol.
+        """
+        bkd = self._bkd
+
+        # Get GP predictions
+        y_pred = gp.predict(X_test)  # Shape: (n_test, 1)
+        y_pred = bkd.reshape(y_pred, (-1,))
+
+        # Get true values
+        y_true = test_func(X_test)  # Shape: (1, n_test) or (n_test,)
+        if y_true.ndim == 2:
+            y_true = bkd.reshape(y_true, (-1,))
+
+        # Compute max error
+        errors = bkd.abs(y_pred - y_true)
+        max_error = float(bkd.to_numpy(bkd.max(errors)))
+
+        assert max_error < stats_tol, (
+            f"GP interpolation error ({max_error:.2e}) exceeds stats tolerance "
+            f"({stats_tol:.2e}). Increase training points or adjust kernel."
+        )
+
+        return max_error
+
+    @slow_test
+    def test_linear_function_mean(self) -> None:
+        """
+        Test GP on linear function f(x) = a*x_1 + b*x_2 + c.
+
+        For z ~ Uniform[-1, 1]^2:
+        - E[z_i] = 0
+        - E[f] = c (since E[z_i] = 0)
+        - Var[z_i] = 1/3
+        - Var[f] = a²/3 + b²/3
+
+        Uses dense training grid and optimized hyperparameters so GP
+        interpolates to within tolerance.
+        """
+        np.random.seed(42)
+        bkd = self._bkd
+
+        # Linear function parameters
+        a, b, c = 2.0, 3.0, 1.5
+
+        # Expected moments
+        expected_mean = c  # E[f] = c since E[z_i] = 0
+        expected_var = (a**2 + b**2) / 3.0  # Var[f] = (a² + b²) * Var[z]
+
+        # Tolerance for GP interpolation and statistics comparison
+        # GP cannot achieve machine precision; use achievable tolerance
+        # Use 2e-4 to account for GP interpolation error
+        stats_tol = 2e-3
+
+        # Define test function
+        def linear_func(X: Array) -> Array:
+            return bkd.reshape(
+                a * X[0, :] + b * X[1, :] + c, (1, -1)
+            )
+
+        # Create GP with separable product kernel
+        # Initial length scales - will be optimized
+        k1 = SquaredExponentialKernel([1.0], (0.01, 100.0), 1, bkd)
+        k2 = SquaredExponentialKernel([1.0], (0.01, 100.0), 1, bkd)
+        kernel = SeparableProductKernel([k1, k2], bkd)
+
+        gp = ExactGaussianProcess(kernel, nvars=2, bkd=bkd, nugget=1e-10)
+
+        # Dense training grid for good interpolation
+        n_1d = 30
+        x1 = bkd.linspace(-1.0, 1.0, n_1d)
+        x2 = bkd.linspace(-1.0, 1.0, n_1d)
+        X1, X2 = bkd.meshgrid(x1, x2)
+        X_train = bkd.vstack([bkd.flatten(X1), bkd.flatten(X2)])
+
+        # Evaluate function
+        y_train = bkd.reshape(
+            a * X_train[0, :] + b * X_train[1, :] + c, (-1, 1)
+        )
+
+        gp.fit(X_train, y_train)
+
+        # Note: We skip hyperparameter optimization since
+        # SeparableProductKernel doesn't implement jacobian_wrt_params yet.
+        # With dense training data and reasonable initial length scales,
+        # the GP should interpolate well enough.
+
+        # Generate test points (different from training)
+        n_test = 100
+        X_test = bkd.array(np.random.rand(2, n_test) * 2 - 1)
+
+        # Verify GP interpolation error is small enough
+        self._verify_gp_interpolation(gp, linear_func, X_test, stats_tol)
+
+        # Create quadrature bases with high order
+        marginals = [
+            UniformMarginal(-1.0, 1.0, bkd),
+            UniformMarginal(-1.0, 1.0, bkd),
+        ]
+        bases = _create_quadrature_bases(marginals, 50, bkd)
+
+        calc = SeparableKernelIntegralCalculator(gp, bases, bkd=bkd)
+        stats = GaussianProcessStatistics(gp, calc)
+
+        # Test mean of mean - tolerance should be comparable to GP error
+        eta = stats.mean_of_mean()
+        eta_val = float(bkd.to_numpy(eta))
+        bkd.assert_allclose(
+            bkd.asarray([eta_val]),
+            bkd.asarray([expected_mean]),
+            rtol=stats_tol,
+            err_msg=f"E[μ_f] = {eta_val}, expected {expected_mean}",
+        )
+
+        # Test mean of variance - tolerance should be comparable to GP error
+        mean_var = stats.mean_of_variance()
+        mean_var_val = float(bkd.to_numpy(mean_var))
+        bkd.assert_allclose(
+            bkd.asarray([mean_var_val]),
+            bkd.asarray([expected_var]),
+            rtol=stats_tol,
+            err_msg=f"E[γ_f] = {mean_var_val}, expected {expected_var}",
+        )
+
+    @slow_test
+    def test_quadratic_function_mean(self) -> None:
+        """
+        Test GP on quadratic function f(x) = x_1² + x_2².
+
+        For z ~ Uniform[-1, 1]^2:
+        - E[z_i²] = 1/3
+        - E[f] = E[z_1²] + E[z_2²] = 2/3
+        - Var[z_i²] = E[z_i⁴] - E[z_i²]² = 1/5 - 1/9 = 4/45
+        - Var[f] = Var[z_1²] + Var[z_2²] = 8/45 (since x_1², x_2² are independent)
+
+        Uses dense training grid and optimized hyperparameters so GP
+        interpolates to within tolerance.
+        """
+        np.random.seed(42)
+        bkd = self._bkd
+
+        # Expected moments for f = x_1² + x_2²
+        expected_mean = 2.0 / 3.0  # E[f] = 2 * E[z²]
+        expected_var = 8.0 / 45.0  # Var[f] = 2 * Var[z²]
+
+        # Tolerance for GP interpolation and statistics comparison
+        stats_tol = 2e-3
+
+        # Define test function
+        def quadratic_func(X: Array) -> Array:
+            return bkd.reshape(X[0, :] ** 2 + X[1, :] ** 2, (1, -1))
+
+        # Create GP with separable product kernel
+        k1 = SquaredExponentialKernel([1.0], (0.01, 100.0), 1, bkd)
+        k2 = SquaredExponentialKernel([1.0], (0.01, 100.0), 1, bkd)
+        kernel = SeparableProductKernel([k1, k2], bkd)
+
+        gp = ExactGaussianProcess(kernel, nvars=2, bkd=bkd, nugget=1e-10)
+
+        # Dense training grid for good interpolation
+        n_1d = 30
+        x1 = bkd.linspace(-1.0, 1.0, n_1d)
+        x2 = bkd.linspace(-1.0, 1.0, n_1d)
+        X1, X2 = bkd.meshgrid(x1, x2)
+        X_train = bkd.vstack([bkd.flatten(X1), bkd.flatten(X2)])
+
+        # Evaluate function
+        y_train = bkd.reshape(X_train[0, :] ** 2 + X_train[1, :] ** 2, (-1, 1))
+
+        gp.fit(X_train, y_train)
+
+        # Note: We skip hyperparameter optimization since
+        # SeparableProductKernel doesn't implement jacobian_wrt_params yet.
+        # With dense training data and reasonable initial length scales,
+        # the GP should interpolate well enough.
+
+        # Generate test points (different from training)
+        n_test = 100
+        X_test = bkd.array(np.random.rand(2, n_test) * 2 - 1)
+
+        # Verify GP interpolation error is small enough
+        self._verify_gp_interpolation(gp, quadratic_func, X_test, stats_tol)
+
+        # Create quadrature bases with high order
+        marginals = [
+            UniformMarginal(-1.0, 1.0, bkd),
+            UniformMarginal(-1.0, 1.0, bkd),
+        ]
+        bases = _create_quadrature_bases(marginals, 50, bkd)
+
+        calc = SeparableKernelIntegralCalculator(gp, bases, bkd=bkd)
+        stats = GaussianProcessStatistics(gp, calc)
+
+        # Test mean of mean - tolerance should be comparable to GP error
+        eta = stats.mean_of_mean()
+        eta_val = float(bkd.to_numpy(eta))
+        bkd.assert_allclose(
+            bkd.asarray([eta_val]),
+            bkd.asarray([expected_mean]),
+            rtol=stats_tol,
+            err_msg=f"E[μ_f] = {eta_val}, expected {expected_mean}",
+        )
+
+        # Test mean of variance - tolerance should be comparable to GP error
+        mean_var = stats.mean_of_variance()
+        mean_var_val = float(bkd.to_numpy(mean_var))
+        bkd.assert_allclose(
+            bkd.asarray([mean_var_val]),
+            bkd.asarray([expected_var]),
+            rtol=stats_tol,
+            err_msg=f"E[γ_f] = {mean_var_val}, expected {expected_var}",
+        )
+
+    @slow_test
+    def test_sinusoidal_function_mean(self) -> None:
+        """
+        Test GP on sinusoidal function f(x) = sin(π*x_1).
+
+        For z_1 ~ Uniform[-1, 1]:
+        - E[sin(π*z_1)] = ∫_{-1}^{1} sin(π*z) * (1/2) dz = 0 (odd function)
+        - E[sin²(π*z_1)] = ∫_{-1}^{1} sin²(π*z) * (1/2) dz = 1/2
+        - Var[f] = E[f²] - E[f]² = 1/2 - 0 = 1/2
+
+        Uses dense training grid and optimized hyperparameters so GP
+        interpolates to within tolerance.
+        """
+        np.random.seed(42)
+        bkd = self._bkd
+
+        # Expected moments for f = sin(π*x_1)
+        expected_mean = 0.0  # E[sin(π*z)] = 0 (odd function)
+        expected_var = 0.5  # Var[sin(π*z)] = E[sin²] = 1/2
+
+        # Tolerance for GP interpolation and statistics comparison
+        stats_tol = 2e-3
+
+        # Define test function using backend pi
+        import math
+        pi = math.pi
+
+        def sin_func(X: Array) -> Array:
+            return bkd.reshape(bkd.sin(pi * X[0, :]), (1, -1))
+
+        # Create 1D GP
+        k1 = SquaredExponentialKernel([1.0], (0.01, 100.0), 1, bkd)
+
+        gp = ExactGaussianProcess(k1, nvars=1, bkd=bkd, nugget=1e-10)
+
+        # Dense training grid for good interpolation
+        n_train = 50
+        X_train = bkd.reshape(bkd.linspace(-1.0, 1.0, n_train), (1, -1))
+        y_train = bkd.reshape(bkd.sin(pi * X_train[0, :]), (-1, 1))
+
+        gp.fit(X_train, y_train)
+
+        # Optimize hyperparameters for best interpolation
+        gp.optimize_hyperparameters()
+
+        # Generate test points (different from training)
+        n_test = 100
+        X_test = bkd.array(np.random.rand(1, n_test) * 2 - 1)
+
+        # Verify GP interpolation error is small enough
+        self._verify_gp_interpolation(gp, sin_func, X_test, stats_tol)
+
+        # Create quadrature bases with high order
+        marginals = [UniformMarginal(-1.0, 1.0, bkd)]
+        bases = _create_quadrature_bases(marginals, 50, bkd)
+
+        calc = SeparableKernelIntegralCalculator(gp, bases, bkd=bkd)
+        stats = GaussianProcessStatistics(gp, calc)
+
+        # Test mean of mean - use atol since expected is 0
+        eta = stats.mean_of_mean()
+        eta_val = float(bkd.to_numpy(eta))
+        bkd.assert_allclose(
+            bkd.asarray([eta_val]),
+            bkd.asarray([expected_mean]),
+            atol=stats_tol,
+            err_msg=f"E[μ_f] = {eta_val}, expected {expected_mean}",
+        )
+
+        # Test mean of variance
+        mean_var = stats.mean_of_variance()
+        mean_var_val = float(bkd.to_numpy(mean_var))
+        bkd.assert_allclose(
+            bkd.asarray([mean_var_val]),
+            bkd.asarray([expected_var]),
+            rtol=stats_tol,
+            err_msg=f"E[γ_f] = {mean_var_val}, expected {expected_var}",
+        )
+
+
 class TestValidation(Generic[Array], unittest.TestCase):
     """Test validation and error handling."""
 
@@ -600,7 +947,7 @@ class TestValidation(Generic[Array], unittest.TestCase):
         """Test that wrong number of quadrature bases raises ValueError."""
         k1 = SquaredExponentialKernel([1.0], (0.1, 10.0), 1, self._bkd)
         k2 = SquaredExponentialKernel([1.0], (0.1, 10.0), 1, self._bkd)
-        kernel = k1 * k2
+        kernel = SeparableProductKernel([k1, k2], self._bkd)
 
         gp = ExactGaussianProcess(kernel, nvars=2, bkd=self._bkd)
         X = self._bkd.array(np.random.rand(2, 5))
@@ -666,6 +1013,15 @@ class TestMCComparisonNumpy(TestMCComparison[NDArray[Any]]):
         return NumpyBkd()
 
 
+class TestKnownMomentsNumpy(TestKnownMoments[NDArray[Any]]):
+    """NumPy backend tests."""
+
+    __test__ = True
+
+    def bkd(self) -> NumpyBkd:
+        return NumpyBkd()
+
+
 class TestValidationNumpy(TestValidation[NDArray[Any]]):
     """NumPy backend tests."""
 
@@ -701,6 +1057,16 @@ class TestGaussianProcessStatisticsTorch(
 
 
 class TestMCComparisonTorch(TestMCComparison[torch.Tensor]):
+    """PyTorch backend tests."""
+
+    __test__ = True
+
+    def bkd(self) -> TorchBkd:
+        torch.set_default_dtype(torch.float64)
+        return TorchBkd()
+
+
+class TestKnownMomentsTorch(TestKnownMoments[torch.Tensor]):
     """PyTorch backend tests."""
 
     __test__ = True

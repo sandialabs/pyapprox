@@ -6,7 +6,8 @@ featuring non-monotonic behavior and variable interaction effects.
 Implements FunctionWithJacobianAndHVPProtocol directly (no inheritance).
 """
 
-from typing import Generic
+import math
+from typing import Generic, List
 
 from pyapprox.typing.util.backends.protocols import Array, Backend
 
@@ -176,3 +177,185 @@ class IshigamiFunction(Generic[Array]):
             ),
             (3, 1),
         )
+
+
+class IshigamiSensitivityIndices(Generic[Array]):
+    """Analytical sensitivity indices for the Ishigami function.
+
+    Computes exact Sobol indices for the Ishigami function:
+    f(x) = sin(x1) + a*sin^2(x2) + b*x3^4*sin(x1)
+
+    with x uniformly distributed on [-pi, pi]^3.
+
+    Parameters
+    ----------
+    bkd : Backend[Array]
+        Backend for array operations.
+    a : float, optional
+        First parameter (default 7.0).
+    b : float, optional
+        Second parameter (default 0.1).
+
+    References
+    ----------
+    Ishigami, T. and Homma, T. (1990). "An importance quantification technique
+    in uncertainty analysis for computer models."
+    """
+
+    def __init__(
+        self,
+        bkd: Backend[Array],
+        a: float = 7.0,
+        b: float = 0.1,
+    ) -> None:
+        self._bkd = bkd
+        self._a = a
+        self._b = b
+        self._compute_indices()
+
+    def bkd(self) -> Backend[Array]:
+        """Return the backend."""
+        return self._bkd
+
+    def nvars(self) -> int:
+        """Return number of input variables."""
+        return 3
+
+    def _compute_indices(self) -> None:
+        """Compute and cache all sensitivity indices."""
+        bkd = self._bkd
+        a = self._a
+        b = self._b
+        pi = math.pi
+
+        # Mean: E[f] = a/2 (since E[sin(x1)] = 0, E[sin^2(x2)] = 1/2)
+        self._mean = bkd.asarray([a / 2.0])
+
+        # Variance components (unnormalized Sobol indices)
+        # D_1 = Var(E[f|x1]) = b*pi^4/5 + b^2*pi^8/50 + 1/2
+        D_1 = b * pi**4 / 5 + b**2 * pi**8 / 50 + 0.5
+        # D_2 = Var(E[f|x2]) = a^2/8
+        D_2 = a**2 / 8
+        # D_3 = 0 (x3 has no main effect)
+        D_3 = 0.0
+        # D_12 = 0 (no interaction between x1 and x2)
+        D_12 = 0.0
+        # D_13 = b^2*pi^8*(1/18 - 1/50)
+        D_13 = b**2 * pi**8 * (1.0 / 18 - 1.0 / 50)
+        # D_23 = 0 (no interaction between x2 and x3)
+        D_23 = 0.0
+        # D_123 = 0 (no three-way interaction)
+        D_123 = 0.0
+
+        # Total variance
+        self._variance = bkd.asarray(
+            [D_1 + D_2 + D_3 + D_12 + D_13 + D_23 + D_123]
+        )
+        var = D_1 + D_2 + D_3 + D_12 + D_13 + D_23 + D_123
+
+        # Main effects (first-order Sobol indices): S_i = D_i / Var(f)
+        self._main_effects = bkd.asarray([[D_1 / var], [D_2 / var], [D_3 / var]])
+
+        # Total effects: ST_i = (D_i + sum of interactions involving i) / Var(f)
+        # ST_1 = (D_1 + D_12 + D_13 + D_123) / var
+        # ST_2 = (D_2 + D_12 + D_23 + D_123) / var
+        # ST_3 = (D_3 + D_13 + D_23 + D_123) / var
+        ST_1 = (D_1 + D_12 + D_13 + D_123) / var
+        ST_2 = (D_2 + D_12 + D_23 + D_123) / var
+        ST_3 = (D_3 + D_13 + D_23 + D_123) / var
+        self._total_effects = bkd.asarray([[ST_1], [ST_2], [ST_3]])
+
+        # All Sobol indices (main effects and interactions)
+        # Order: D_1, D_2, D_3, D_12, D_13, D_23, D_123
+        self._sobol_indices = bkd.asarray([
+            [D_1 / var],
+            [D_2 / var],
+            [D_3 / var],
+            [D_12 / var],
+            [D_13 / var],
+            [D_23 / var],
+            [D_123 / var],
+        ])
+
+        # Interaction indices (binary representation of which variables are involved)
+        # Shape: (nvars, nindices)
+        self._interaction_indices: List[List[int]] = [
+            [0],        # x1
+            [1],        # x2
+            [2],        # x3
+            [0, 1],     # x1, x2
+            [0, 2],     # x1, x3
+            [1, 2],     # x2, x3
+            [0, 1, 2],  # x1, x2, x3
+        ]
+
+    def mean(self) -> Array:
+        """Return the mean of the Ishigami function.
+
+        Returns
+        -------
+        Array
+            Mean value of shape (1,).
+        """
+        return self._mean
+
+    def variance(self) -> Array:
+        """Return the variance of the Ishigami function.
+
+        Returns
+        -------
+        Array
+            Variance of shape (1,).
+        """
+        return self._variance
+
+    def main_effects(self) -> Array:
+        """Return the main effects (first-order Sobol indices).
+
+        Returns
+        -------
+        Array
+            Main effects of shape (nvars, 1).
+        """
+        return self._main_effects
+
+    def total_effects(self) -> Array:
+        """Return the total effects (total Sobol indices).
+
+        Returns
+        -------
+        Array
+            Total effects of shape (nvars, 1).
+        """
+        return self._total_effects
+
+    def sobol_indices(self) -> Array:
+        """Return all Sobol indices (main effects and interactions).
+
+        Returns
+        -------
+        Array
+            Sobol indices of shape (nindices, 1) where nindices = 7
+            for the 3-variable Ishigami function.
+            Order: S_1, S_2, S_3, S_12, S_13, S_23, S_123.
+        """
+        return self._sobol_indices
+
+    def sobol_interaction_indices(self) -> Array:
+        """Return the interaction indices as a binary matrix.
+
+        Returns
+        -------
+        Array
+            Binary matrix of shape (nvars, nindices) where entry (i, j)
+            is 1 if variable i is involved in interaction j.
+        """
+        bkd = self._bkd
+        nvars = self.nvars()
+        nindices = len(self._interaction_indices)
+        # Build as list of columns, then stack
+        columns = []
+        for compressed_index in self._interaction_indices:
+            col = [1.0 if i in compressed_index else 0.0 for i in range(nvars)]
+            columns.append(bkd.asarray(col))
+        return bkd.stack(columns, axis=1)

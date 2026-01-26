@@ -22,7 +22,7 @@ from pyapprox.typing.interface.functions.derivative_checks.derivative_checker im
 )
 from pyapprox.typing.benchmarks.functions.algebraic.sobol_g import (
     SobolGFunction,
-    sobol_g_indices,
+    SobolGSensitivityIndices,
 )
 
 
@@ -161,8 +161,8 @@ class TestSobolGFunctionTorch(TestSobolGFunction[torch.Tensor]):
         return TorchBkd()
 
 
-class TestSobolGIndices(unittest.TestCase):
-    """Tests for sobol_g_indices helper function."""
+class TestSobolGSensitivityIndices(unittest.TestCase):
+    """Tests for SobolGSensitivityIndices class."""
 
     def setUp(self) -> None:
         self._bkd = NumpyBkd()
@@ -170,7 +170,10 @@ class TestSobolGIndices(unittest.TestCase):
     def test_standard_6d_indices(self) -> None:
         """Test analytical indices for standard 6D configuration."""
         a = [0, 1, 4.5, 9, 99, 99]
-        main, total, var = sobol_g_indices(a, self._bkd)
+        indices = SobolGSensitivityIndices(self._bkd, a)
+        main = indices.main_effects()
+        total = indices.total_effects()
+        var = indices.variance()
 
         # main and total have shape (nvars, 1)
         self.assertEqual(main.shape, (6, 1))
@@ -187,11 +190,15 @@ class TestSobolGIndices(unittest.TestCase):
         self.assertTrue(self._bkd.all_bool(main >= 0))
         self.assertTrue(self._bkd.all_bool(total >= 0))
 
+        # Check variance is positive
+        self.assertGreater(float(var[0]), 0)
+
     def test_single_important_variable(self) -> None:
         """Test with one important variable."""
         # a=0 means most important, a=99 means almost irrelevant
         a = [0, 99, 99]
-        main, total, var = sobol_g_indices(a, self._bkd)
+        indices = SobolGSensitivityIndices(self._bkd, a)
+        main = indices.main_effects()
 
         # main has shape (nvars, 1)
         self.assertEqual(main.shape, (3, 1))
@@ -200,6 +207,28 @@ class TestSobolGIndices(unittest.TestCase):
         self.assertGreater(float(main[0, 0]), 0.9)
         self.assertLess(float(main[1, 0]), 0.01)
         self.assertLess(float(main[2, 0]), 0.01)
+
+    def test_mean_is_one(self) -> None:
+        """Test that mean is always 1 for Sobol G function."""
+        a = [0, 1, 4.5]
+        indices = SobolGSensitivityIndices(self._bkd, a)
+        self._bkd.assert_allclose(indices.mean(), self._bkd.asarray([1.0]))
+
+    def test_sobol_indices_shape(self) -> None:
+        """Test that sobol_indices has correct shape (main + pairwise)."""
+        a = [0, 1, 4.5]  # 3 variables
+        indices = SobolGSensitivityIndices(self._bkd, a)
+        sobol = indices.sobol_indices()
+        # 3 main + 3 pairwise = 6
+        self.assertEqual(sobol.shape, (6, 1))
+
+    def test_interaction_indices_shape(self) -> None:
+        """Test that interaction indices matrix has correct shape."""
+        a = [0, 1, 4.5]  # 3 variables
+        indices = SobolGSensitivityIndices(self._bkd, a)
+        interaction = indices.sobol_interaction_indices()
+        # Shape: (nvars, nindices) = (3, 6)
+        self.assertEqual(interaction.shape, (3, 6))
 
 
 if __name__ == "__main__":

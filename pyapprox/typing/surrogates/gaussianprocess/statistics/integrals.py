@@ -55,7 +55,7 @@ from pyapprox.typing.surrogates.gaussianprocess.statistics.integrals_1d import (
     compute_Gamma_1d,
     compute_conditional_P_1d,
 )
-from pyapprox.typing.surrogates.kernels.composition import ProductKernel
+from pyapprox.typing.surrogates.kernels.composition import SeparableProductKernel
 from pyapprox.typing.surrogates.kernels.protocols import KernelProtocol
 from pyapprox.typing.surrogates.affine.protocols.quadrature import (
     QuadratureRuleStatefulProtocol,
@@ -64,31 +64,29 @@ from pyapprox.typing.surrogates.affine.protocols.quadrature import (
 
 def _extract_1d_kernels(kernel: KernelProtocol[Array]) -> List[KernelProtocol[Array]]:
     """
-    Extract 1D kernel components from a product kernel.
+    Extract 1D kernel components from a separable product kernel.
 
     Parameters
     ----------
     kernel : KernelProtocol[Array]
-        The product kernel or single 1D kernel.
+        The SeparableProductKernel or single 1D kernel.
 
     Returns
     -------
     kernels : List[KernelProtocol[Array]]
         List of 1D kernel components.
     """
-    kernels: List[KernelProtocol[Array]] = []
-
-    def _recurse(k: KernelProtocol[Array]) -> None:
-        if isinstance(k, ProductKernel):
-            # Recursively extract from nested product kernels
-            _recurse(k._kernel1)
-            _recurse(k._kernel2)
-        else:
-            # Base case: add the kernel to the list
-            kernels.append(k)
-
-    _recurse(kernel)
-    return kernels
+    if isinstance(kernel, SeparableProductKernel):
+        # Extract 1D kernels from SeparableProductKernel
+        return [kernel.get_kernel_1d(dim) for dim in range(kernel.nvars())]
+    elif kernel.nvars() == 1:
+        # Single 1D kernel
+        return [kernel]
+    else:
+        raise TypeError(
+            f"Cannot extract 1D kernels from {type(kernel).__name__}. "
+            f"Use SeparableProductKernel for multi-dimensional inputs."
+        )
 
 
 class SeparableKernelIntegralCalculator(Generic[Array]):

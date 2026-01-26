@@ -90,6 +90,7 @@ from .composition import (
     CompositionKernel,
     ProductKernel,
     SumKernel,
+    SeparableProductKernel,
 )
 from .iid_gaussian_noise import IIDGaussianNoise
 from .scalings import (
@@ -133,6 +134,7 @@ __all__ = [
     "CompositionKernel",
     "ProductKernel",
     "SumKernel",
+    "SeparableProductKernel",
     # Multi-output kernels
     "IndependentMultiOutputKernel",
     "LinearCoregionalizationKernel",

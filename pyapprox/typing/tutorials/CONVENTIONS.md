@@ -331,6 +331,15 @@ domain = benchmark.domain()
 gt = benchmark.ground_truth()
 ```
 
+Tutorial Naming
+No Numeric Prefixes
+Tutorial filenames must NOT include numeric prefixes or ordering identifiers:
+
+Correct: gp_integration_moments.qmd, gp_integration_sensitivity.qmd
+Incorrect: 01_gp_integration_moments.qmd, 02_gp_integration_sensitivity.qmd
+
+Rationale: Tutorial order may change as new material is added. Numeric prefixes create maintenance burden and misleading implied order. Use descriptive names only; ordering is controlled via _quarto.yml navigation configuration.
+
 ## File Organization
 
 ```

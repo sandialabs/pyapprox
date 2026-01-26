@@ -39,9 +39,10 @@ from pyapprox.typing.benchmarks.registry import BenchmarkRegistry
 # Functions
 from pyapprox.typing.benchmarks.functions.algebraic import (
     IshigamiFunction,
+    IshigamiSensitivityIndices,
     RosenbrockFunction,
     SobolGFunction,
-    sobol_g_indices,
+    SobolGSensitivityIndices,
     BraninFunction,
     BRANIN_GLOBAL_MINIMUM,
     BRANIN_MINIMIZERS,
@@ -110,9 +111,10 @@ __all__ = [
     "BenchmarkRegistry",
     # Functions - Algebraic
     "IshigamiFunction",
+    "IshigamiSensitivityIndices",
     "RosenbrockFunction",
     "SobolGFunction",
-    "sobol_g_indices",
+    "SobolGSensitivityIndices",
     "BraninFunction",
     "BRANIN_GLOBAL_MINIMUM",
     "BRANIN_MINIMIZERS",

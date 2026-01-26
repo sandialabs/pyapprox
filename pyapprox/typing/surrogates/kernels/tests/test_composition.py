@@ -11,8 +11,19 @@ from pyapprox.typing.util.backends.torch import TorchBkd
 from pyapprox.typing.surrogates.kernels.composition import (
     ProductKernel,
     SumKernel,
+    SeparableProductKernel,
 )
-from pyapprox.typing.surrogates.kernels.matern import Matern52Kernel, Matern32Kernel
+from pyapprox.typing.surrogates.kernels.matern import (
+    Matern52Kernel,
+    Matern32Kernel,
+    SquaredExponentialKernel,
+)
+from pyapprox.typing.interface.functions.derivative_checks.derivative_checker import (
+    DerivativeChecker,
+)
+from pyapprox.typing.interface.functions.fromcallable.hessian import (
+    FunctionWithJacobianFromCallable,
+)
 
 
 class TestProductKernel(Generic[Array], unittest.TestCase):
@@ -499,6 +510,193 @@ class TestNestedComposition(Generic[Array], unittest.TestCase):
         self.bkd().assert_allclose(K_nested, expected)
 
 
+class TestSeparableProductKernel(Generic[Array], unittest.TestCase):
+    """
+    Base test class for SeparableProductKernel.
+
+    Tests the separable product kernel where each 1D kernel operates
+    on a different dimension: k(x, y) = ∏_i k_i(x_i, y_i)
+    """
+
+    __test__ = False
+
+    def setUp(self) -> None:
+        """Set up test environment."""
+        np.random.seed(42)
+        self._bkd = self.bkd()
+
+    def bkd(self) -> Backend[Array]:
+        """Override in derived classes."""
+        raise NotImplementedError
+
+    def test_factorization(self) -> None:
+        """Verify k(x,y) = k1(x1,y1) * k2(x2,y2) for SeparableProductKernel."""
+        bkd = self._bkd
+
+        l1, l2 = 1.5, 2.0
+        k1 = SquaredExponentialKernel([l1], (0.01, 100.0), 1, bkd)
+        k2 = SquaredExponentialKernel([l2], (0.01, 100.0), 1, bkd)
+        kernel = SeparableProductKernel([k1, k2], bkd)
+
+        # Test points
+        x = bkd.array([[0.3], [0.7]])  # Point (0.3, 0.7)
+        y = bkd.array([[0.8], [0.2]])  # Point (0.8, 0.2)
+
+        # Full kernel evaluation
+        k_full = kernel(x, y)
+
+        # Factored evaluation
+        k1_val = k1(bkd.array([[0.3]]), bkd.array([[0.8]]))
+        k2_val = k2(bkd.array([[0.7]]), bkd.array([[0.2]]))
+        k_factored = k1_val * k2_val
+
+        bkd.assert_allclose(k_full, k_factored, rtol=1e-12)
+
+    def test_batch(self) -> None:
+        """Test SeparableProductKernel with batched inputs."""
+        bkd = self._bkd
+
+        k1 = SquaredExponentialKernel([1.0], (0.01, 100.0), 1, bkd)
+        k2 = SquaredExponentialKernel([2.0], (0.01, 100.0), 1, bkd)
+        kernel = SeparableProductKernel([k1, k2], bkd)
+
+        # Multiple test points
+        X1 = bkd.array([[0.1, 0.3, 0.5], [0.2, 0.4, 0.6]])  # 3 points in 2D
+        X2 = bkd.array([[0.7, 0.9], [0.8, 1.0]])  # 2 points in 2D
+
+        K = kernel(X1, X2)
+
+        # Should have shape (3, 2)
+        self.assertEqual(K.shape, (3, 2))
+
+        # Verify each element manually
+        for i in range(3):
+            for j in range(2):
+                k1_val = k1(
+                    bkd.array([[X1[0, i]]]),
+                    bkd.array([[X2[0, j]]])
+                )
+                k2_val = k2(
+                    bkd.array([[X1[1, i]]]),
+                    bkd.array([[X2[1, j]]])
+                )
+                expected = k1_val[0, 0] * k2_val[0, 0]
+                bkd.assert_allclose(
+                    bkd.asarray([K[i, j]]),
+                    bkd.asarray([expected]),
+                    rtol=1e-12
+                )
+
+    def test_nvars(self) -> None:
+        """Test nvars matches number of 1D kernels."""
+        bkd = self._bkd
+
+        k1 = SquaredExponentialKernel([1.0], (0.01, 100.0), 1, bkd)
+        k2 = SquaredExponentialKernel([2.0], (0.01, 100.0), 1, bkd)
+        k3 = SquaredExponentialKernel([0.5], (0.01, 100.0), 1, bkd)
+
+        kernel_2d = SeparableProductKernel([k1, k2], bkd)
+        kernel_3d = SeparableProductKernel([k1, k2, k3], bkd)
+
+        self.assertEqual(kernel_2d.nvars(), 2)
+        self.assertEqual(kernel_3d.nvars(), 3)
+
+    def test_get_kernel_1d(self) -> None:
+        """Test get_kernel_1d returns correct kernels."""
+        bkd = self._bkd
+
+        k1 = SquaredExponentialKernel([1.5], (0.01, 100.0), 1, bkd)
+        k2 = SquaredExponentialKernel([2.5], (0.01, 100.0), 1, bkd)
+        kernel = SeparableProductKernel([k1, k2], bkd)
+
+        self.assertIs(kernel.get_kernel_1d(0), k1)
+        self.assertIs(kernel.get_kernel_1d(1), k2)
+
+    def test_diag(self) -> None:
+        """Test diagonal computation."""
+        bkd = self._bkd
+
+        k1 = SquaredExponentialKernel([1.0], (0.01, 100.0), 1, bkd)
+        k2 = SquaredExponentialKernel([2.0], (0.01, 100.0), 1, bkd)
+        kernel = SeparableProductKernel([k1, k2], bkd)
+
+        X = bkd.array([[0.1, 0.3, 0.5], [0.2, 0.4, 0.6]])
+        diag = kernel.diag(X)
+
+        # Diagonal should be product of 1D diagonals
+        # For RBF kernels, diag = 1 for all points
+        expected = bkd.ones((3,))
+        bkd.assert_allclose(diag, expected, rtol=1e-12)
+
+    def test_jacobian_wrt_params(self) -> None:
+        """Test jacobian_wrt_params for SeparableProductKernel using DerivativeChecker."""
+        bkd = self._bkd
+
+        k1 = SquaredExponentialKernel([1.0], (0.01, 100.0), 1, bkd)
+        k2 = SquaredExponentialKernel([2.0], (0.01, 100.0), 1, bkd)
+        kernel = SeparableProductKernel([k1, k2], bkd)
+
+        # Test points
+        n = 5
+        samples = bkd.array(np.random.rand(2, n))
+
+        # Get jacobian and check shape/finiteness
+        jac = kernel.jacobian_wrt_params(samples)
+        nparams = kernel.hyp_list().nparams()
+        self.assertEqual(jac.shape, (n, n, nparams))
+        self.assertTrue(bkd.all_bool(bkd.isfinite(jac)))
+
+        # Verify using DerivativeChecker
+        vec = bkd.ones((n, 1))
+
+        def fun(p):
+            kernel.hyp_list().set_active_values(p[:, 0])
+            return kernel(samples, samples) @ vec
+
+        def jac_fn(p):
+            kernel.hyp_list().set_active_values(p[:, 0])
+            return bkd.einsum(
+                "ijk,jl->ik",
+                kernel.jacobian_wrt_params(samples),
+                vec,
+            )
+
+        function_object = FunctionWithJacobianFromCallable(
+            nqoi=n,
+            nvars=nparams,
+            fun=fun,
+            jacobian=jac_fn,
+            bkd=bkd,
+        )
+        checker = DerivativeChecker(function_object)
+        sample = kernel.hyp_list().get_active_values()[:, None]
+        errors = checker.check_derivatives(sample, verbosity=0)
+        self.assertLess(checker.error_ratio(errors[0]), 1e-6)
+
+    def test_hyperparameters_combined(self) -> None:
+        """Test hyperparameters are combined from all 1D kernels."""
+        bkd = self._bkd
+
+        k1 = SquaredExponentialKernel([1.0], (0.01, 100.0), 1, bkd)
+        k2 = SquaredExponentialKernel([2.0], (0.01, 100.0), 1, bkd)
+        kernel = SeparableProductKernel([k1, k2], bkd)
+
+        # Each RBF kernel has 1 length scale parameter
+        self.assertEqual(kernel.hyp_list().nparams(), 2)
+
+    def test_invalid_nvars_raises_error(self) -> None:
+        """Test that non-1D kernels raise ValueError."""
+        bkd = self._bkd
+
+        k1 = SquaredExponentialKernel([1.0], (0.01, 100.0), 1, bkd)
+        k2_invalid = SquaredExponentialKernel([1.0, 2.0], (0.01, 100.0), 2, bkd)
+
+        with self.assertRaises(ValueError) as context:
+            SeparableProductKernel([k1, k2_invalid], bkd)
+
+        self.assertIn("nvars=1", str(context.exception))
+
+
 # NumPy implementations
 class TestProductKernelNumpy(TestProductKernel[NDArray[Any]]):
     def setUp(self) -> None:
@@ -525,6 +723,11 @@ class TestNestedCompositionNumpy(TestNestedComposition[NDArray[Any]]):
 
     def bkd(self) -> NumpyBkd:
         return self._bkd
+
+
+class TestSeparableProductKernelNumpy(TestSeparableProductKernel[NDArray[Any]]):
+    def bkd(self) -> NumpyBkd:
+        return NumpyBkd()
 
 
 # PyTorch implementations
@@ -556,6 +759,12 @@ class TestNestedCompositionTorch(TestNestedComposition[torch.Tensor]):
 
     def bkd(self) -> TorchBkd:
         return self._bkd
+
+
+class TestSeparableProductKernelTorch(TestSeparableProductKernel[torch.Tensor]):
+    def bkd(self) -> TorchBkd:
+        torch.set_default_dtype(torch.float64)
+        return TorchBkd()
 
 
 from pyapprox.typing.util.test_utils import load_tests

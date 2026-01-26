@@ -638,3 +638,260 @@ class SumKernel(CompositionKernel):
         HK2_V = self._kernel2.hvp_wrt_x1(X1, X2, direction)
 
         return HK1_V + HK2_V
+
+
+class SeparableProductKernel(Kernel, Generic[Array]):
+    """
+    Product kernel constructed from 1D kernels, one per dimension.
+
+    For d-dimensional inputs, given 1D kernels k₁, k₂, ..., k_d:
+
+        k(x, y) = ∏ᵢ kᵢ(xᵢ, yᵢ)
+
+    where kᵢ operates only on dimension i.
+
+    This is the correct separable kernel structure required for
+    GP sensitivity analysis with the integral formulas in
+    SeparableKernelIntegralCalculator.
+
+    Parameters
+    ----------
+    kernels_1d : List[Kernel]
+        List of 1D kernels, one per dimension.
+        kernels_1d[i] is applied to dimension i.
+        Each kernel must have nvars=1.
+    bkd : Backend[Array]
+        Backend for array operations.
+
+    Examples
+    --------
+    >>> from pyapprox.typing.surrogates.kernels.matern import SquaredExponentialKernel
+    >>> from pyapprox.typing.util.backends.numpy import NumpyBkd
+    >>> bkd = NumpyBkd()
+    >>> k1 = SquaredExponentialKernel([1.0], (0.01, 100.0), nvars=1, bkd=bkd)
+    >>> k2 = SquaredExponentialKernel([2.0], (0.01, 100.0), nvars=1, bkd=bkd)
+    >>> kernel = SeparableProductKernel([k1, k2], bkd=bkd)
+    >>> # kernel(x, y) = k1(x[0], y[0]) * k2(x[1], y[1])
+    """
+
+    def __init__(
+        self,
+        kernels_1d: list,
+        bkd: Backend[Array],
+    ):
+        super().__init__(bkd)
+        self._kernels_1d = kernels_1d
+        self._nvars = len(kernels_1d)
+
+        # Validate each kernel is 1D
+        for i, k in enumerate(kernels_1d):
+            if k.nvars() != 1:
+                raise ValueError(
+                    f"Kernel {i} must have nvars=1, got {k.nvars()}"
+                )
+
+        # Combine hyperparameter lists from all kernels
+        hyp_lists = [k.hyp_list() for k in kernels_1d]
+        combined = hyp_lists[0]
+        for hl in hyp_lists[1:]:
+            combined = combined + hl
+        self._hyp_list = combined
+
+    def hyp_list(self) -> HyperParameterList:
+        """Return the combined hyperparameter list."""
+        return self._hyp_list
+
+    def nvars(self) -> int:
+        """Return the number of input dimensions."""
+        return self._nvars
+
+    def get_kernel_1d(self, dim: int) -> Kernel:
+        """
+        Get the 1D kernel for a specific dimension.
+
+        Parameters
+        ----------
+        dim : int
+            Dimension index.
+
+        Returns
+        -------
+        Kernel
+            The 1D kernel for dimension dim.
+        """
+        return self._kernels_1d[dim]
+
+    def __call__(self, X1: Array, X2: Array = None) -> Array:
+        """
+        Evaluate separable product kernel.
+
+        Parameters
+        ----------
+        X1 : Array
+            First set of points, shape (nvars, n1).
+        X2 : Array
+            Second set of points, shape (nvars, n2).
+            If None, uses X1.
+
+        Returns
+        -------
+        Array
+            Kernel matrix, shape (n1, n2).
+        """
+        if X2 is None:
+            X2 = X1
+
+        n1 = X1.shape[1]
+        n2 = X2.shape[1]
+
+        # Start with ones
+        K = self._bkd.ones((n1, n2))
+
+        # Multiply by each 1D kernel
+        for dim, kernel_1d in enumerate(self._kernels_1d):
+            # Extract dimension dim from each point set
+            X1_dim = self._bkd.reshape(X1[dim, :], (1, -1))  # (1, n1)
+            X2_dim = self._bkd.reshape(X2[dim, :], (1, -1))  # (1, n2)
+
+            # Evaluate 1D kernel
+            K_dim = kernel_1d(X1_dim, X2_dim)  # (n1, n2)
+
+            # Multiply into product
+            K = K * K_dim
+
+        return K
+
+    def diag(self, X1: Array) -> Array:
+        """
+        Compute diagonal of separable product kernel matrix.
+
+        Parameters
+        ----------
+        X1 : Array
+            Input data, shape (nvars, n).
+
+        Returns
+        -------
+        diag : Array
+            Diagonal elements, shape (n,).
+        """
+        n = X1.shape[1]
+        diag = self._bkd.ones((n,))
+
+        for dim, kernel_1d in enumerate(self._kernels_1d):
+            X1_dim = self._bkd.reshape(X1[dim, :], (1, -1))
+            diag_dim = kernel_1d.diag(X1_dim)
+            diag = diag * diag_dim
+
+        return diag
+
+    def jacobian(self, X1: Array, X2: Array) -> Array:
+        """
+        Compute Jacobian of separable product kernel w.r.t. first input.
+
+        Uses product rule across dimensions.
+
+        Parameters
+        ----------
+        X1 : Array
+            Input data, shape (nvars, n1).
+        X2 : Array
+            Input data, shape (nvars, n2).
+
+        Returns
+        -------
+        jac : Array
+            Jacobian, shape (n1, n2, nvars).
+        """
+        n1 = X1.shape[1]
+        n2 = X2.shape[1]
+        nvars = self._nvars
+
+        # Precompute all 1D kernel values and jacobians
+        K_1d = []
+        dK_1d = []
+        for dim, kernel_1d in enumerate(self._kernels_1d):
+            X1_dim = self._bkd.reshape(X1[dim, :], (1, -1))
+            X2_dim = self._bkd.reshape(X2[dim, :], (1, -1))
+            K_1d.append(kernel_1d(X1_dim, X2_dim))
+            if hasattr(kernel_1d, "jacobian"):
+                # jacobian returns shape (n1, n2, 1) for 1D kernel
+                jac = kernel_1d.jacobian(X1_dim, X2_dim)
+                dK_1d.append(jac[:, :, 0])  # (n1, n2)
+            else:
+                raise NotImplementedError(
+                    f"Kernel for dimension {dim} must implement jacobian()"
+                )
+
+        # Build jacobian: for each dimension d, derivative is
+        # dK/dx_d = (∏_{i≠d} K_i) * dK_d/dx_d
+        jac = self._bkd.zeros((n1, n2, nvars))
+        for d in range(nvars):
+            # Product of all K_i except dimension d
+            prod = self._bkd.ones((n1, n2))
+            for i in range(nvars):
+                if i != d:
+                    prod = prod * K_1d[i]
+            jac[:, :, d] = prod * dK_1d[d]
+
+        return jac
+
+    def jacobian_wrt_params(self, samples: Array) -> Array:
+        """
+        Compute Jacobian of separable product kernel w.r.t. hyperparameters.
+
+        For K = ∏ᵢ Kᵢ, the derivative with respect to parameters of kernel j is:
+        ∂K/∂θⱼ = (∏ᵢ≠ⱼ Kᵢ) * ∂Kⱼ/∂θⱼ
+
+        Parameters
+        ----------
+        samples : Array
+            Input data, shape (nvars, n).
+
+        Returns
+        -------
+        jac : Array
+            Jacobian, shape (n, n, nactive_params).
+        """
+        n = samples.shape[1]
+        nvars = self._nvars
+
+        # Precompute all 1D kernel matrices
+        K_1d = []
+        for dim, kernel_1d in enumerate(self._kernels_1d):
+            X_dim = self._bkd.reshape(samples[dim, :], (1, -1))
+            K_1d.append(kernel_1d(X_dim, X_dim))
+
+        # Compute product of all kernels (needed for efficiency)
+        K_all = self._bkd.ones((n, n))
+        for K_dim in K_1d:
+            K_all = K_all * K_dim
+
+        # Build list of jacobians for each 1D kernel
+        jac_parts = []
+        for dim, kernel_1d in enumerate(self._kernels_1d):
+            if not hasattr(kernel_1d, "jacobian_wrt_params"):
+                raise NotImplementedError(
+                    f"Kernel for dimension {dim} must implement jacobian_wrt_params()"
+                )
+            X_dim = self._bkd.reshape(samples[dim, :], (1, -1))
+            dK_dim = kernel_1d.jacobian_wrt_params(X_dim)  # (n, n, nparams_dim)
+
+            # Product of all K_i except dimension dim
+            # K_all / K_dim avoids recomputing product, but must handle zeros
+            # Use explicit product instead for numerical stability
+            prod_except_dim = self._bkd.ones((n, n))
+            for i in range(nvars):
+                if i != dim:
+                    prod_except_dim = prod_except_dim * K_1d[i]
+
+            # Scale each parameter derivative by the product of other kernels
+            nparams_dim = dK_dim.shape[2]
+            for p in range(nparams_dim):
+                jac_parts.append(prod_except_dim * dK_dim[:, :, p])
+
+        # Stack all jacobians along the parameter dimension
+        # Each element in jac_parts is (n, n), stack to get (n, n, total_nparams)
+        jac = self._bkd.stack(jac_parts, axis=2)
+
+        return jac

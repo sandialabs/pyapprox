@@ -8,6 +8,7 @@ with optional transformation to arbitrary distributions via inverse CDF.
 from typing import Generic, Optional, Tuple
 
 import numpy as np
+from scipy.stats import qmc
 
 from pyapprox.typing.util.backends.protocols import Array, Backend
 from pyapprox.typing.expdesign.quadrature.halton import DistributionWithInvCDF
@@ -85,8 +86,6 @@ class SobolSampler(Generic[Array]):
 
     def _reset_engine(self) -> None:
         """Create or reset the Sobol engine."""
-        from scipy.stats import qmc
-
         self._engine = qmc.Sobol(
             d=self._nvars, scramble=self._scramble, seed=self._seed
         )

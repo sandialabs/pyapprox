@@ -5,13 +5,14 @@ These functions implement FunctionWithJacobianAndHVPProtocol directly.
 
 from pyapprox.typing.benchmarks.functions.algebraic.ishigami import (
     IshigamiFunction,
+    IshigamiSensitivityIndices,
 )
 from pyapprox.typing.benchmarks.functions.algebraic.rosenbrock import (
     RosenbrockFunction,
 )
 from pyapprox.typing.benchmarks.functions.algebraic.sobol_g import (
     SobolGFunction,
-    sobol_g_indices,
+    SobolGSensitivityIndices,
 )
 from pyapprox.typing.benchmarks.functions.algebraic.branin import (
     BraninFunction,
@@ -21,9 +22,10 @@ from pyapprox.typing.benchmarks.functions.algebraic.branin import (
 
 __all__ = [
     "IshigamiFunction",
+    "IshigamiSensitivityIndices",
     "RosenbrockFunction",
     "SobolGFunction",
-    "sobol_g_indices",
+    "SobolGSensitivityIndices",
     "BraninFunction",
     "BRANIN_GLOBAL_MINIMUM",
     "BRANIN_MINIMIZERS",

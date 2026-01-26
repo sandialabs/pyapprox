@@ -6,7 +6,7 @@ with analytically known Sobol indices that depend on the importance parameters.
 Implements FunctionWithJacobianAndHVPProtocol directly (no inheritance).
 """
 
-from typing import Generic, Sequence
+from typing import Generic, List, Sequence
 
 from pyapprox.typing.util.backends.protocols import Array, Backend
 
@@ -215,43 +215,167 @@ class SobolGFunction(Generic[Array]):
         return bkd.reshape(bkd.stack(result_components), (n, 1))
 
 
-def sobol_g_indices(
-    a: Sequence[float],
-    bkd: Backend[Array],
-) -> tuple[Array, Array, float]:
-    """Compute analytical Sobol indices for Sobol G function.
+class SobolGSensitivityIndices(Generic[Array]):
+    """Analytical sensitivity indices for the Sobol G-function.
+
+    Computes exact Sobol indices for the Sobol G-function:
+    f(x) = prod_{i=1}^{d} g_i(x_i)
+    where g_i(x_i) = (|4*x_i - 2| + a_i) / (1 + a_i)
+
+    with x uniformly distributed on [0, 1]^d.
+
+    This class computes main effects, total effects, and all interaction
+    indices up to second order (pairwise interactions).
 
     Parameters
     ----------
-    a : Sequence[float]
-        Importance parameters.
     bkd : Backend[Array]
         Backend for array operations.
+    a : Sequence[float]
+        Importance parameters for each variable. Length determines nvars.
 
-    Returns
-    -------
-    tuple[Array, Array, float]
-        (main_effects, total_effects, variance) where main_effects and
-        total_effects have shape (nvars, 1).
+    References
+    ----------
+    Sobol, I.M. (1993). "Sensitivity analysis for non-linear mathematical
+    models."
     """
-    a_arr = bkd.asarray(a)
-    n = len(a)
 
-    # Variance of g_i: Var(g_i) = 1 / (3 * (1 + a_i)^2)
-    var_gi = 1.0 / (3.0 * (1 + a_arr) ** 2)
+    def __init__(
+        self,
+        bkd: Backend[Array],
+        a: Sequence[float],
+    ) -> None:
+        if len(a) < 1:
+            raise ValueError("Must have at least one variable")
+        self._bkd = bkd
+        self._a = list(a)
+        self._nvars = len(a)
+        self._compute_indices()
 
-    # Total variance: prod(1 + Var(g_i)) - 1
-    total_var = float(bkd.prod(1 + var_gi) - 1)
+    def bkd(self) -> Backend[Array]:
+        """Return the backend."""
+        return self._bkd
 
-    # First-order indices: S_i = Var(g_i) / total_var
-    main_effects = bkd.reshape(var_gi / total_var, (n, 1))
+    def nvars(self) -> int:
+        """Return number of input variables."""
+        return self._nvars
 
-    # Total indices: ST_i = 1 - prod_{j != i}(1 + Var(g_j)) / (1 + total_var)
-    total_list = []
-    for i in range(n):
-        other_indices = [j for j in range(n) if j != i]
-        other_product = bkd.prod(bkd.asarray([1 + var_gi[j] for j in other_indices]))
-        total_list.append(1 - (other_product - 1) / total_var)
-    total_effects = bkd.reshape(bkd.asarray(total_list), (n, 1))
+    def a(self) -> Sequence[float]:
+        """Return the importance parameters."""
+        return self._a
 
-    return main_effects, total_effects, total_var
+    def _compute_indices(self) -> None:
+        """Compute and cache all sensitivity indices."""
+        bkd = self._bkd
+        n = self._nvars
+        a_arr = bkd.asarray(self._a)
+
+        # Mean: E[f] = 1 (since E[g_i] = 1 for all i)
+        self._mean = bkd.asarray([1.0])
+
+        # Variance of each g_i: Var(g_i) = 1 / (3 * (1 + a_i)^2)
+        var_gi = 1.0 / (3.0 * (1 + a_arr) ** 2)
+
+        # Total variance: prod(1 + Var(g_i)) - 1
+        self._variance = bkd.asarray([bkd.prod(1 + var_gi) - 1])
+        var_total = float(self._variance[0])
+
+        # Main effects (first-order Sobol indices): S_i = Var(g_i) / Var(f)
+        self._main_effects = bkd.reshape(var_gi / var_total, (n, 1))
+
+        # Total effects: ST_i = Var(g_i) * prod_{j!=i}(1 + Var(g_j)) / Var(f)
+        total_product = bkd.prod(1 + var_gi)
+        self._total_effects = bkd.reshape(
+            var_gi * total_product / ((1 + var_gi) * var_total), (n, 1)
+        )
+
+        # Build interaction indices: main effects + pairwise interactions
+        self._interaction_indices: List[List[int]] = []
+
+        # Main effects
+        for ii in range(n):
+            self._interaction_indices.append([ii])
+
+        # Pairwise interactions
+        for ii in range(n):
+            for jj in range(ii + 1, n):
+                self._interaction_indices.append([ii, jj])
+
+        # Compute all Sobol indices (main + pairwise interactions)
+        sobol_list = []
+        for idx in self._interaction_indices:
+            # S_{idx} = prod_{i in idx} Var(g_i) / Var(f)
+            prod_var = bkd.prod(bkd.asarray([var_gi[i] for i in idx]))
+            sobol_list.append(prod_var / var_total)
+
+        self._sobol_indices = bkd.reshape(bkd.asarray(sobol_list), (-1, 1))
+
+    def mean(self) -> Array:
+        """Return the mean of the Sobol G-function.
+
+        Returns
+        -------
+        Array
+            Mean value of shape (1,).
+        """
+        return self._mean
+
+    def variance(self) -> Array:
+        """Return the variance of the Sobol G-function.
+
+        Returns
+        -------
+        Array
+            Variance of shape (1,).
+        """
+        return self._variance
+
+    def main_effects(self) -> Array:
+        """Return the main effects (first-order Sobol indices).
+
+        Returns
+        -------
+        Array
+            Main effects of shape (nvars, 1).
+        """
+        return self._main_effects
+
+    def total_effects(self) -> Array:
+        """Return the total effects (total Sobol indices).
+
+        Returns
+        -------
+        Array
+            Total effects of shape (nvars, 1).
+        """
+        return self._total_effects
+
+    def sobol_indices(self) -> Array:
+        """Return all Sobol indices (main effects and pairwise interactions).
+
+        Returns
+        -------
+        Array
+            Sobol indices of shape (nindices, 1) where
+            nindices = nvars + nvars*(nvars-1)/2 (main + pairwise).
+            Order: S_1, ..., S_n, S_12, S_13, ..., S_{n-1,n}.
+        """
+        return self._sobol_indices
+
+    def sobol_interaction_indices(self) -> Array:
+        """Return the interaction indices as a binary matrix.
+
+        Returns
+        -------
+        Array
+            Binary matrix of shape (nvars, nindices) where entry (i, j)
+            is 1 if variable i is involved in interaction j.
+        """
+        bkd = self._bkd
+        nvars = self._nvars
+        # Build as list of columns, then stack
+        columns = []
+        for compressed_index in self._interaction_indices:
+            col = [1.0 if i in compressed_index else 0.0 for i in range(nvars)]
+            columns.append(bkd.asarray(col))
+        return bkd.stack(columns, axis=1)
