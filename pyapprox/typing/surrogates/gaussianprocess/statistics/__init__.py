@@ -28,6 +28,9 @@ from pyapprox.typing.surrogates.gaussianprocess.statistics.integrals import (
 from pyapprox.typing.surrogates.gaussianprocess.statistics.moments import (
     GaussianProcessStatistics,
 )
+from pyapprox.typing.surrogates.gaussianprocess.statistics.sensitivity import (
+    GaussianProcessSensitivity,
+)
 
 __all__ = [
     "KernelIntegralCalculatorProtocol",
@@ -35,4 +38,5 @@ __all__ = [
     "validate_zero_mean",
     "SeparableKernelIntegralCalculator",
     "GaussianProcessStatistics",
+    "GaussianProcessSensitivity",
 ]
