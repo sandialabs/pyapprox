@@ -34,6 +34,9 @@ from pyapprox.typing.surrogates.gaussianprocess.statistics.sensitivity import (
 from pyapprox.typing.surrogates.gaussianprocess.statistics.ensemble import (
     GaussianProcessEnsemble,
 )
+from pyapprox.typing.surrogates.gaussianprocess.statistics.marginalization import (
+    MarginalizedGP,
+)
 
 __all__ = [
     "KernelIntegralCalculatorProtocol",
@@ -43,4 +46,5 @@ __all__ = [
     "GaussianProcessStatistics",
     "GaussianProcessSensitivity",
     "GaussianProcessEnsemble",
+    "MarginalizedGP",
 ]
