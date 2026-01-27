@@ -287,6 +287,9 @@ class TestTorchExactGaussianProcess(unittest.TestCase):
         torch_gp = TorchExactGaussianProcess(torch_kernel, nvars=1)
         ref_gp = ExactGaussianProcess(ref_kernel, nvars=1, bkd=bkd)
 
+        # Fix hyperparameters on ref_gp to match TorchExactGP (no optimization)
+        ref_gp.hyp_list().set_all_inactive()
+
         # Same training data
         X_train = torch.linspace(-2, 2, 15).reshape(1, -1)
         y_train = torch.sin(X_train[0])[None, :]  # Shape: (1, n_train)
@@ -322,6 +325,9 @@ class TestTorchExactGaussianProcess(unittest.TestCase):
 
         torch_gp = TorchExactGaussianProcess(torch_kernel, nvars=1)
         ref_gp = ExactGaussianProcess(ref_kernel, nvars=1, bkd=bkd)
+
+        # Fix hyperparameters on ref_gp to match TorchExactGP (no optimization)
+        ref_gp.hyp_list().set_all_inactive()
 
         # Same training data
         X_train = torch.linspace(-2, 2, 15).reshape(1, -1)

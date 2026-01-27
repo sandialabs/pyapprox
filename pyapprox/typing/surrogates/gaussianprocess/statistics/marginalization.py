@@ -425,11 +425,11 @@ class MarginalizedGP(Generic[Array]):
         # τ̃(z_p) shape: (n_test, N)
         tau_tilde = self._compute_tau_tilde(z_p)
 
-        # α = A^{-1} y, shape: (N, nqoi)
+        # α = A^{-1} y, shape: (nqoi, N) - need to transpose for multiplication
         alpha = self._gp.alpha()
 
-        # m̃* = τ̃ @ α, shape: (n_test, nqoi)
-        mean = tau_tilde @ alpha
+        # m̃* = τ̃ @ αᵀ, shape: (n_test, nqoi)
+        mean = tau_tilde @ alpha.T
 
         # Flatten if nqoi=1
         if mean.shape[1] == 1:
@@ -526,9 +526,9 @@ class MarginalizedGP(Generic[Array]):
         # Compute τ̃(z_p) once for both mean and variance
         tau_tilde = self._compute_tau_tilde(z_p)
 
-        # Mean: m̃* = τ̃ @ α
+        # Mean: m̃* = τ̃ @ αᵀ (alpha shape is (nqoi, N))
         alpha = self._gp.alpha()
-        mean = tau_tilde @ alpha
+        mean = tau_tilde @ alpha.T
         if mean.shape[1] == 1:
             mean = bkd.reshape(mean, (-1,))
 

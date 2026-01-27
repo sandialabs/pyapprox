@@ -16,6 +16,9 @@ from pyapprox.typing.surrogates.gaussianprocess.mean_functions import (
 )
 from pyapprox.typing.util.hyperparameter import HyperParameterList
 from pyapprox.typing.util.linalg.cholesky_factor import CholeskyFactor
+from pyapprox.typing.optimization.minimize.protocols import (
+    BindableOptimizerProtocol,
+)
 
 
 class ExactGaussianProcess(Generic[Array]):
@@ -61,11 +64,18 @@ class ExactGaussianProcess(Generic[Array]):
     >>>
     >>> X_train = bkd.array(np.random.randn(2, 10))
     >>> y_train = bkd.array(np.random.randn(1, 10))  # Shape: (nqoi, n_train)
-    >>> gp.fit(X_train, y_train)
+    >>> gp.fit(X_train, y_train)  # Fits data AND optimizes hyperparameters
     >>>
     >>> X_test = bkd.array(np.random.randn(2, 5))
     >>> mean = gp.predict(X_test)
     >>> std = gp.predict_std(X_test)
+
+    Hyperparameter optimization is controlled via:
+
+    1. **Default behavior**: Uses ScipyTrustConstrOptimizer with maxiter=1000
+    2. **Custom optimizer**: Call ``set_optimizer(optimizer)`` before ``fit()``
+    3. **Skip optimization**: Set all hyperparameters inactive via
+       ``gp.hyp_list().set_all_inactive()`` before ``fit()``
 
     Optional Methods
     ----------------
@@ -120,6 +130,9 @@ class ExactGaussianProcess(Generic[Array]):
         self._setup_derivative_methods()
 
         self._alpha: Optional[Array] = None
+
+        # Optimizer for hyperparameter tuning (None means use default)
+        self._optimizer: Optional[BindableOptimizerProtocol[Array]] = None
 
     def _setup_derivative_methods(self) -> None:
         """
@@ -243,13 +256,136 @@ class ExactGaussianProcess(Generic[Array]):
         all_hyps = kernel_hyps.hyperparameters() + mean_hyps.hyperparameters()
         return HyperParameterList(all_hyps)
 
-    def fit(self, X_train: Array, y_train: Array) -> None:
-        """
-        Fit the Gaussian Process to training data.
+    def set_optimizer(
+        self, optimizer: BindableOptimizerProtocol[Array]
+    ) -> None:
+        """Set the optimizer for hyperparameter optimization during fit().
 
-        This computes the Cholesky factorization of K + σ²I and
-        precomputes α = (K + σ²I)^{-1}(y - m(X)) for efficient
-        prediction.
+        Parameters
+        ----------
+        optimizer : BindableOptimizerProtocol[Array]
+            An optimizer configured with options but NOT bound to an objective.
+            During fit(), the optimizer will be cloned and bound to the
+            negative log marginal likelihood loss function.
+
+        Examples
+        --------
+        >>> from pyapprox.typing.optimization.minimize.scipy.trust_constr import (
+        ...     ScipyTrustConstrOptimizer
+        ... )
+        >>> optimizer = ScipyTrustConstrOptimizer(maxiter=500, gtol=1e-8)
+        >>> gp.set_optimizer(optimizer)
+        >>> gp.fit(X_train, y_train)
+        """
+        if not isinstance(optimizer, BindableOptimizerProtocol):
+            raise TypeError(
+                f"optimizer must satisfy BindableOptimizerProtocol, "
+                f"got {type(optimizer).__name__}"
+            )
+        self._optimizer = optimizer
+
+    def optimizer(self) -> Optional[BindableOptimizerProtocol[Array]]:
+        """Return the current optimizer (None means use default).
+
+        Returns
+        -------
+        Optional[BindableOptimizerProtocol[Array]]
+            The configured optimizer, or None if using the default
+            ScipyTrustConstrOptimizer.
+        """
+        return self._optimizer
+
+    def fit(self, X_train: Array, y_train: Array) -> None:
+        """Fit GP to data and optimize active hyperparameters.
+
+        This method:
+        1. Computes the Cholesky factorization and precomputes weights
+        2. If any hyperparameters are active, optimizes them by minimizing
+           the negative log marginal likelihood
+
+        If all hyperparameters are inactive (fixed), only step 1 is performed.
+
+        Parameters
+        ----------
+        X_train : Array
+            Training input data, shape (nvars, n_train).
+        y_train : Array
+            Training output data, shape (nqoi, n_train).
+
+        Raises
+        ------
+        ValueError
+            If data shapes are invalid.
+        RuntimeError
+            If Cholesky factorization fails (matrix not positive definite).
+
+        Examples
+        --------
+        >>> # Standard fit with optimization
+        >>> gp.fit(X_train, y_train)
+
+        >>> # Custom optimizer
+        >>> from pyapprox.typing.optimization.minimize.scipy.trust_constr import (
+        ...     ScipyTrustConstrOptimizer
+        ... )
+        >>> gp.set_optimizer(ScipyTrustConstrOptimizer(maxiter=500))
+        >>> gp.fit(X_train, y_train)
+
+        >>> # Skip optimization (fixed hyperparameters)
+        >>> gp.hyp_list().set_all_inactive()
+        >>> gp.fit(X_train, y_train)
+        """
+        # Initial fit
+        self._fit_internal(X_train, y_train)
+
+        # Check if optimization is needed
+        if self.hyp_list().nactive_params() == 0:
+            return  # All params fixed, nothing to optimize
+
+        # Create loss function
+        from pyapprox.typing.surrogates.gaussianprocess.gp_loss import (
+            GPNegativeLogMarginalLikelihoodLoss
+        )
+        loss = GPNegativeLogMarginalLikelihoodLoss(
+            self, (self._data.X(), self._data.y())
+        )
+
+        # Get bounds for active hyperparameters
+        bounds = self.hyp_list().get_active_bounds()
+
+        # Get optimizer (clone if user-provided to avoid shared state)
+        if self._optimizer is not None:
+            optimizer = self._optimizer.copy()
+        else:
+            from pyapprox.typing.optimization.minimize.scipy.trust_constr import (
+                ScipyTrustConstrOptimizer
+            )
+            optimizer = ScipyTrustConstrOptimizer(verbosity=0, maxiter=1000)
+
+        # Bind optimizer to loss and bounds
+        optimizer.bind(loss, bounds)
+
+        # Get initial guess from current hyperparameter values
+        init_guess = self.hyp_list().get_active_values()
+        if len(init_guess.shape) == 1:
+            init_guess = self._bkd.reshape(init_guess, (len(init_guess), 1))
+
+        # Run optimization
+        result = optimizer.minimize(init_guess)
+
+        # Update hyperparameters with optimal values
+        optimal_params = result.optima()
+        if len(optimal_params.shape) == 2:
+            optimal_params = optimal_params[:, 0]
+        self.hyp_list().set_active_values(optimal_params)
+
+        # Final refit with optimal hyperparameters
+        self._fit_internal(X_train, y_train)
+
+    def _fit_internal(self, X_train: Array, y_train: Array) -> None:
+        """Internal fit: store data, compute Cholesky, compute alpha.
+
+        This is the pure data-fitting method without optimization.
 
         Parameters
         ----------
@@ -746,104 +882,6 @@ class ExactGaussianProcess(Generic[Array]):
         nlml = 0.5 * (data_fit + log_det + constant)
 
         return nlml
-
-    def optimize_hyperparameters(
-        self,
-        optimizer: Optional[object] = None,
-        init_guess: Optional[Array] = None
-    ) -> None:
-        """
-        Optimize hyperparameters by minimizing negative log marginal likelihood.
-
-        Uses typing.optimization.minimize optimizers to find optimal hyperparameters
-        by minimizing the negative log marginal likelihood.
-
-        Parameters
-        ----------
-        optimizer : Optional[object]
-            Optimizer instance (e.g., ScipyTrustConstrOptimizer,
-            ScipyDifferentialEvolutionOptimizer). If None, uses
-            ScipyTrustConstrOptimizer with verbosity=0 and maxiter=1000.
-        init_guess : Optional[Array]
-            Initial guess for hyperparameters in optimization space.
-            If None, uses current hyperparameter values.
-
-        Raises
-        ------
-        RuntimeError
-            If the GP has not been fitted.
-
-        Examples
-        --------
-        >>> from pyapprox.typing.surrogates.kernels import MaternKernel
-        >>> from pyapprox.typing.util.backends.numpy import NumpyBkd
-        >>> import numpy as np
-        >>>
-        >>> bkd = NumpyBkd()
-        >>> kernel = MaternKernel(2.5, [1.0, 1.0], (0.1, 10.0), 2, bkd)
-        >>> gp = ExactGaussianProcess(kernel, 2, bkd, nugget=1e-10)
-        >>>
-        >>> X_train = bkd.array(np.random.randn(2, 20))
-        >>> y_train = bkd.array(np.random.randn(1, 20))  # Shape: (nqoi, n_train)
-        >>> gp.fit(X_train, y_train)
-        >>>
-        >>> # Optimize hyperparameters using default optimizer
-        >>> gp.optimize_hyperparameters()
-        """
-        if not self.is_fitted():
-            raise RuntimeError(
-                "GP must be fitted before optimizing hyperparameters"
-            )
-
-        # Handle edge case: no active parameters to optimize
-        if self.hyp_list().nactive_params() == 0:
-            # Nothing to optimize - all parameters are fixed
-            return
-
-        from pyapprox.typing.surrogates.gaussianprocess.gp_loss import (
-            GPNegativeLogMarginalLikelihoodLoss
-        )
-
-        # Create loss function
-        loss = GPNegativeLogMarginalLikelihoodLoss(
-            self, (self._data.X(), self._data.y())
-        )
-
-        # Get bounds for active hyperparameters only
-        bounds = self.hyp_list().get_active_bounds()
-
-        # Get initial guess
-        if init_guess is None:
-            init_guess = self.hyp_list().get_active_values()
-
-        # Reshape init_guess to (n, 1) if it's 1D
-        if len(init_guess.shape) == 1:
-            init_guess = self._bkd.reshape(init_guess, (len(init_guess), 1))
-
-        # Create optimizer if not provided
-        if optimizer is None:
-            from pyapprox.typing.optimization.minimize.scipy.trust_constr import (
-                ScipyTrustConstrOptimizer
-            )
-            optimizer = ScipyTrustConstrOptimizer(
-                objective=loss,
-                bounds=bounds,
-                verbosity=0,
-                maxiter=1000
-            )
-
-        # Run optimization
-        result = optimizer.minimize(init_guess)
-
-        # Update hyperparameters with optimal values
-        # optima() returns shape (n, 1), flatten to 1D for set_active_values
-        optimal_params = result.optima()
-        if len(optimal_params.shape) == 2:
-            optimal_params = optimal_params[:, 0]
-        self.hyp_list().set_active_values(optimal_params)
-
-        # Refit with optimal hyperparameters
-        self.fit(self._data.X(), self._data.y())
 
     def __repr__(self) -> str:
         """Return string representation."""

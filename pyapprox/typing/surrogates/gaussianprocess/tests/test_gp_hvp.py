@@ -307,8 +307,9 @@ class TestGPHVPCompositionKernels(Generic[Array], unittest.TestCase):
         noise = IIDGaussianNoise(0.01, (0.001, 0.1), self._bkd)
         kernel = scaling * matern + noise
 
-        # Create and fit GP
+        # Create and fit GP (with fixed hyperparameters to skip optimization)
         gp = ExactGaussianProcess(kernel=kernel, nvars=self.nvars, bkd=self._bkd)
+        gp.hyp_list().set_all_inactive()  # Skip optimization for HVP test
         gp.fit(self.X_train, self.y_train)
 
         # Test point and direction

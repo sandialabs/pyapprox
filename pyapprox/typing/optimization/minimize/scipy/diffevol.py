@@ -1,4 +1,4 @@
-from typing import Generic, Union, Optional, Literal
+from typing import Generic, Union, Optional, Literal, Self, Tuple, cast
 
 import numpy as np
 from scipy.optimize import differential_evolution, Bounds
@@ -22,8 +22,11 @@ from pyapprox.typing.optimization.minimize.objective.validation import (
 from pyapprox.typing.optimization.minimize.scipy.scipy_constraint_factory import (
     convert_constraints,
 )
-from pyapprox.typing.interface.functions.numpy.numpy_function_factory import (
-    numpy_function_wrapper_factory,
+from pyapprox.typing.interface.functions.numpy.wrappers import (
+    NumpyFunctionWrapper,
+    NumpyFunctionWithJacobianWrapper,
+    NumpyFunctionWithJacobianAndHVPWrapper,
+    NumpyFunctionWithJacobianAndWHVPWrapper,
 )
 from pyapprox.typing.interface.functions.protocols.function import (
     FunctionProtocol,
@@ -45,38 +48,65 @@ StrategyType = Literal[
     "rand1bin",
 ]
 
+# Type alias for the wrapped objective returned by numpy_function_wrapper_factory
+_WrappedObjective = Union[
+    NumpyFunctionWrapper[Array],
+    NumpyFunctionWithJacobianWrapper[Array],
+    NumpyFunctionWithJacobianAndHVPWrapper[Array],
+    NumpyFunctionWithJacobianAndWHVPWrapper[Array],
+]
+
 
 class ScipyDifferentialEvolutionOptimizer(Generic[Array]):
-    """
-    Optimizer using SciPy's differential evolution method.
+    """Optimizer using SciPy's differential evolution method.
 
     This class wraps SciPy's differential evolution optimizer and integrates
     with PyApprox's function wrappers.
+
+    Supports two usage patterns:
+
+    1. Direct binding (original API):
+    ```python
+    optimizer = ScipyDifferentialEvolutionOptimizer(
+        objective=obj, bounds=bounds, maxiter=100
+    )
+    result = optimizer.minimize(init_guess)
+    ```
+
+    2. Deferred binding (new API):
+    ```python
+    optimizer = ScipyDifferentialEvolutionOptimizer(maxiter=100)
+    optimizer.bind(objective, bounds)
+    result = optimizer.minimize(init_guess)
+    ```
     """
 
     def __init__(
         self,
-        objective: FunctionProtocol[Array],
-        bounds: Array,
+        objective: Optional[FunctionProtocol[Array]] = None,
+        bounds: Optional[Array] = None,
         constraints: Optional[SequenceOfConstraintProtocols[Array]] = None,
         strategy: StrategyType = "best1bin",
         maxiter: int = 1000,
         popsize: int = 15,
         tol: float = 0.01,
-        mutation: Union[float, tuple] = (0.5, 1),
+        mutation: Union[float, Tuple[float, float]] = (0.5, 1),
         recombination: float = 0.7,
         seed: Optional[int] = None,
         disp: bool = False,
     ):
-        """
-        Initialize the optimizer.
+        """Initialize the optimizer.
 
         Parameters
         ----------
-        objective : FunctionProtocol[Array]
-            Objective function for the optimization problem.
-        bounds : Array
-            Bounds for the optimization variables.
+        objective : Optional[FunctionProtocol[Array]], optional
+            Objective function for the optimization problem. If None, must
+            call bind() before minimize(). Defaults to None.
+        bounds : Optional[Array], optional
+            Bounds for the optimization variables. Required if objective
+            is provided. Defaults to None.
+        constraints : Optional[SequenceOfConstraintProtocols[Array]], optional
+            Constraints for the optimization problem. Defaults to None.
         strategy : str, optional
             The differential evolution strategy to use. Defaults to "best1bin".
         maxiter : int, optional
@@ -94,21 +124,7 @@ class ScipyDifferentialEvolutionOptimizer(Generic[Array]):
         disp : bool, optional
             Whether to display convergence messages. Defaults to False.
         """
-        # Validate and wrap the objective using the factory
-        validate_objective(objective)
-        self._objective = numpy_function_wrapper_factory(objective)
-
-        # Validate and wrap the constraints using the factory if provided
-        if constraints:
-            validate_constraints(constraints)
-            self._constraints = convert_constraints(constraints)
-        else:
-            self._constraints = None
-
-        # Wrap the bounds
-        self._bounds = self._convert_bounds(bounds, self._objective.nvars())
-
-        # Store optimizer options
+        # Store options for copy()
         self._strategy = strategy
         self._maxiter = maxiter
         self._popsize = popsize
@@ -117,21 +133,115 @@ class ScipyDifferentialEvolutionOptimizer(Generic[Array]):
         self._recombination = recombination
         self._seed = seed
         self._disp = disp
+        self._init_constraints = constraints
+
+        # Initialize unbound state
+        self._objective: Optional[_WrappedObjective[Array]] = None
+        self._bounds: Optional[Bounds] = None
+        self._constraints: Optional[object] = None
+        self._is_bound = False
+
+        # Backward compatible: if objective/bounds provided, bind immediately
+        if objective is not None:
+            if bounds is None:
+                raise ValueError(
+                    "bounds must be provided when objective is provided"
+                )
+            self.bind(objective, bounds, constraints)
+
+    def bind(
+        self,
+        objective: FunctionProtocol[Array],
+        bounds: Array,
+        constraints: Optional[SequenceOfConstraintProtocols[Array]] = None,
+    ) -> Self:
+        """Bind objective, bounds, and constraints. Returns self for chaining.
+
+        Parameters
+        ----------
+        objective : FunctionProtocol[Array]
+            Objective function for the optimization problem.
+        bounds : Array
+            Bounds for the optimization variables, shape (nvars, 2).
+        constraints : Optional[SequenceOfConstraintProtocols[Array]], optional
+            Constraints for the optimization problem. Defaults to None.
+
+        Returns
+        -------
+        Self
+            Returns self to enable method chaining.
+        """
+        validate_objective(objective)
+        self._objective = numpy_function_wrapper_factory(objective)
+        # Use objective's backend directly since we're not fully bound yet
+        self._bounds = self._convert_bounds(
+            bounds, self._objective.nvars(), self._objective.bkd()
+        )
+        if constraints:
+            validate_constraints(constraints)
+            self._constraints = convert_constraints(constraints)
+        else:
+            self._constraints = None
+        self._is_bound = True
+        return self
+
+    def is_bound(self) -> bool:
+        """Return True if bound to an objective.
+
+        Returns
+        -------
+        bool
+            True if bind() has been called, False otherwise.
+        """
+        return self._is_bound
+
+    def copy(self) -> Self:
+        """Return an unbound copy with same options.
+
+        Returns
+        -------
+        Self
+            A new optimizer instance with the same options, unbound.
+        """
+        return cast(
+            Self,
+            ScipyDifferentialEvolutionOptimizer(
+                objective=None,
+                bounds=None,
+                constraints=self._init_constraints,
+                strategy=self._strategy,
+                maxiter=self._maxiter,
+                popsize=self._popsize,
+                tol=self._tol,
+                mutation=self._mutation,
+                recombination=self._recombination,
+                seed=self._seed,
+                disp=self._disp,
+            ),
+        )
 
     def bkd(self) -> Backend[Array]:
-        """
-        Get the backend used for computations.
+        """Get the backend used for computations.
 
         Returns
         -------
         Backend[Array]
             Backend used for computations.
+
+        Raises
+        ------
+        RuntimeError
+            If the optimizer has not been bound.
         """
+        if not self._is_bound:
+            raise RuntimeError("Optimizer not bound. Call bind() first.")
+        assert self._objective is not None
         return self._objective.bkd()
 
-    def _convert_bounds(self, bounds: Array, nvars: int) -> Bounds:
-        """
-        Convert bounds to a SciPy-compatible format.
+    def _convert_bounds(
+        self, bounds: Array, nvars: int, bkd: Backend[Array]
+    ) -> Bounds:
+        """Convert bounds to a SciPy-compatible format.
 
         Parameters
         ----------
@@ -139,11 +249,13 @@ class ScipyDifferentialEvolutionOptimizer(Generic[Array]):
             Bounds for the optimization variables.
         nvars : int
             Number of variables in the optimization problem.
+        bkd : Backend[Array]
+            Backend used for array conversions.
 
         Returns
         -------
-        list
-            List of tuples representing bounds for each variable.
+        Bounds
+            SciPy-compatible Bounds object.
         """
         if bounds is None:
             return Bounds(
@@ -151,18 +263,34 @@ class ScipyDifferentialEvolutionOptimizer(Generic[Array]):
                 np.full((nvars,), np.inf),
                 keep_feasible=True,
             )
-        np_bounds = self.bkd().to_numpy(bounds)
+        np_bounds = bkd.to_numpy(bounds)
         return Bounds(np_bounds[:, 0], np_bounds[:, 1], keep_feasible=True)
 
-    def minimize(self, init_guess: Array) -> ScipyOptimizerResultWrapper:
-        """
-        Perform the optimization.
+    def minimize(
+        self, init_guess: Array
+    ) -> ScipyOptimizerResultWrapper[Array]:
+        """Perform the optimization.
+
+        Parameters
+        ----------
+        init_guess : Array
+            Initial guess for the optimization variables.
 
         Returns
         -------
         ScipyOptimizerResultWrapper
             Wrapped optimization result.
+
+        Raises
+        ------
+        RuntimeError
+            If the optimizer has not been bound.
         """
+        if not self._is_bound:
+            raise RuntimeError("Optimizer not bound. Call bind() first.")
+        assert self._objective is not None
+        assert self._bounds is not None
+
         scipy_result = differential_evolution(
             func=lambda x: self._objective(x[:, None])[:, 0],
             bounds=self._bounds,

@@ -17,6 +17,9 @@ from pyapprox.typing.surrogates.kernels.multioutput import (
 from pyapprox.typing.surrogates.gaussianprocess.multioutput_data import (
     MultiOutputGPTrainingData
 )
+from pyapprox.typing.optimization.minimize.protocols import (
+    BindableOptimizerProtocol,
+)
 
 
 class MultiOutputGP(Generic[Array]):
@@ -83,11 +86,18 @@ class MultiOutputGP(Generic[Array]):
     >>> X_train = bkd.array(np.random.randn(1, 10))
     >>> y1 = bkd.reshape(bkd.sin(X_train[0, :]), (1, -1))  # Shape: (1, 10)
     >>> y2 = bkd.reshape(bkd.cos(X_train[0, :]), (1, -1))  # Shape: (1, 10)
-    >>> gp.fit([X_train, X_train], [y1, y2])
+    >>> gp.fit([X_train, X_train], [y1, y2])  # Fits data AND optimizes hyperparameters
     >>> # Predict
     >>> X_test = bkd.array(np.random.randn(1, 5))
     >>> mean_list = gp.predict([X_test, X_test])  # Returns list of (1, n_test) arrays
     >>> mean_list, std_list = gp.predict_with_uncertainty([X_test, X_test])
+
+    Hyperparameter optimization is controlled via:
+
+    1. **Default behavior**: Uses ScipyTrustConstrOptimizer with maxiter=1000
+    2. **Custom optimizer**: Call ``set_optimizer(optimizer)`` before ``fit()``
+    3. **Skip optimization**: Set all hyperparameters inactive via
+       ``gp.hyp_list().set_all_inactive()`` before ``fit()``
     """
 
     def __init__(
@@ -110,6 +120,9 @@ class MultiOutputGP(Generic[Array]):
         self._bkd = kernel.bkd()
         self._is_fitted = False
         self._data: Optional[MultiOutputGPTrainingData[Array]] = None
+
+        # Optimizer for hyperparameter tuning (None means use default)
+        self._optimizer: Optional[BindableOptimizerProtocol[Array]] = None
 
     def bkd(self) -> Backend[Array]:
         """
@@ -143,6 +156,45 @@ class MultiOutputGP(Generic[Array]):
             The hyperparameter list from the multi-output kernel.
         """
         return self._kernel.hyp_list()
+
+    def set_optimizer(
+        self, optimizer: BindableOptimizerProtocol[Array]
+    ) -> None:
+        """Set the optimizer for hyperparameter optimization during fit().
+
+        Parameters
+        ----------
+        optimizer : BindableOptimizerProtocol[Array]
+            An optimizer configured with options but NOT bound to an objective.
+            During fit(), the optimizer will be cloned and bound to the
+            negative log marginal likelihood loss function.
+
+        Examples
+        --------
+        >>> from pyapprox.typing.optimization.minimize.scipy.trust_constr import (
+        ...     ScipyTrustConstrOptimizer
+        ... )
+        >>> optimizer = ScipyTrustConstrOptimizer(maxiter=500, gtol=1e-8)
+        >>> gp.set_optimizer(optimizer)
+        >>> gp.fit(X_train_list, y_train_list)
+        """
+        if not isinstance(optimizer, BindableOptimizerProtocol):
+            raise TypeError(
+                f"optimizer must satisfy BindableOptimizerProtocol, "
+                f"got {type(optimizer).__name__}"
+            )
+        self._optimizer = optimizer
+
+    def optimizer(self) -> Optional[BindableOptimizerProtocol[Array]]:
+        """Return the current optimizer (None means use default).
+
+        Returns
+        -------
+        Optional[BindableOptimizerProtocol[Array]]
+            The configured optimizer, or None if using the default
+            ScipyTrustConstrOptimizer.
+        """
+        return self._optimizer
 
     def is_fitted(self) -> bool:
         """
@@ -214,8 +266,14 @@ class MultiOutputGP(Generic[Array]):
         X_train_list: List[Array],
         y_train: Union[List[Array], Array]
     ) -> None:
-        """
-        Fit the multi-output GP to training data.
+        """Fit GP to data and optimize active hyperparameters.
+
+        This method:
+        1. Stores data, computes Cholesky factorization and precomputed weights
+        2. If any hyperparameters are active, optimizes them by minimizing
+           the negative log marginal likelihood
+
+        If all hyperparameters are inactive (fixed), only step 1 is performed.
 
         Parameters
         ----------
@@ -228,6 +286,92 @@ class MultiOutputGP(Generic[Array]):
               This follows the standard convention where values are (nqoi, n_samples).
             - Stacked format (legacy): Single array with shape (sum(n_i), 1).
               Format: [y_0; y_1; ...; y_{M-1}] where y_i are outputs.
+
+        Raises
+        ------
+        ValueError
+            If lengths don't match or shapes are invalid.
+        RuntimeError
+            If Cholesky factorization fails (matrix not positive definite).
+
+        Examples
+        --------
+        >>> # Standard fit with optimization
+        >>> gp.fit(X_train_list, y_train_list)
+
+        >>> # Custom optimizer
+        >>> from pyapprox.typing.optimization.minimize.scipy.trust_constr import (
+        ...     ScipyTrustConstrOptimizer
+        ... )
+        >>> gp.set_optimizer(ScipyTrustConstrOptimizer(maxiter=500))
+        >>> gp.fit(X_train_list, y_train_list)
+
+        >>> # Skip optimization (fixed hyperparameters)
+        >>> gp.hyp_list().set_all_inactive()
+        >>> gp.fit(X_train_list, y_train_list)
+        """
+        # Initial fit
+        self._fit_internal(X_train_list, y_train)
+
+        # Check if optimization is needed
+        if self.hyp_list().nactive_params() == 0:
+            return  # All params fixed, nothing to optimize
+
+        # Create loss function
+        from pyapprox.typing.surrogates.gaussianprocess.gp_loss import (
+            GPNegativeLogMarginalLikelihoodLoss
+        )
+        loss = GPNegativeLogMarginalLikelihoodLoss(
+            self, (self._X_train_list, self._y_train_stacked)
+        )
+
+        # Get bounds for active hyperparameters
+        bounds = self.hyp_list().get_active_bounds()
+
+        # Get optimizer (clone if user-provided to avoid shared state)
+        if self._optimizer is not None:
+            optimizer = self._optimizer.copy()
+        else:
+            from pyapprox.typing.optimization.minimize.scipy.trust_constr import (
+                ScipyTrustConstrOptimizer
+            )
+            optimizer = ScipyTrustConstrOptimizer(verbosity=0, maxiter=1000)
+
+        # Bind optimizer to loss and bounds
+        optimizer.bind(loss, bounds)
+
+        # Get initial guess from current hyperparameter values
+        init_guess = self.hyp_list().get_active_values()
+        if len(init_guess.shape) == 1:
+            init_guess = self._bkd.reshape(init_guess, (len(init_guess), 1))
+
+        # Run optimization
+        result = optimizer.minimize(init_guess)
+
+        # Update hyperparameters with optimal values
+        optimal_params = result.optima()
+        if len(optimal_params.shape) == 2:
+            optimal_params = optimal_params[:, 0]
+        self.hyp_list().set_active_values(optimal_params)
+
+        # Final refit with optimal hyperparameters
+        self._fit_internal(X_train_list, y_train)
+
+    def _fit_internal(
+        self,
+        X_train_list: List[Array],
+        y_train: Union[List[Array], Array]
+    ) -> None:
+        """Internal fit: store data, compute Cholesky, compute alpha.
+
+        This is the pure data-fitting method without optimization.
+
+        Parameters
+        ----------
+        X_train_list : List[Array]
+            Training inputs for each output. Each array has shape (nvars, n_i).
+        y_train : Union[List[Array], Array]
+            Training outputs (list or stacked format).
 
         Raises
         ------
@@ -529,91 +673,6 @@ class MultiOutputGP(Generic[Array]):
         cov = K_star_star - v.T @ v
 
         return mean, cov
-
-    def optimize_hyperparameters(self, optimizer=None) -> None:
-        """
-        Optimize hyperparameters by minimizing negative log marginal likelihood.
-
-        Uses typing.optimization.minimize optimizers with analytical gradients
-        from the multi-output kernel's jacobian_wrt_params() method.
-
-        Parameters
-        ----------
-        optimizer : OptimizerProtocol, optional
-            Optimizer from typing.optimization.minimize.
-            If None, uses ScipyTrustConstrOptimizer with default settings.
-
-        Raises
-        ------
-        RuntimeError
-            If GP has not been fitted yet.
-
-        Examples
-        --------
-        >>> from pyapprox.typing.surrogates.kernels.matern import MaternKernel
-        >>> from pyapprox.typing.surrogates.kernels.multioutput import IndependentMultiOutputKernel
-        >>> from pyapprox.typing.util.backends.numpy import NumpyBkd
-        >>> import numpy as np
-        >>>
-        >>> bkd = NumpyBkd()
-        >>> k1 = MaternKernel(2.5, [1.0], (0.1, 10.0), 1, bkd)
-        >>> k2 = MaternKernel(2.5, [1.0], (0.1, 10.0), 1, bkd)
-        >>> mo_kernel = IndependentMultiOutputKernel([k1, k2])
-        >>> gp = MultiOutputGP(mo_kernel)
-        >>>
-        >>> X_train = bkd.array(np.random.randn(1, 20))
-        >>> y_stacked = bkd.array(np.random.randn(40, 1))
-        >>> gp.fit([X_train, X_train], y_stacked)
-        >>>
-        >>> # Optimize hyperparameters
-        >>> gp.optimize_hyperparameters()
-        """
-        if not self._is_fitted:
-            raise RuntimeError("GP must be fitted before optimization")
-
-        from pyapprox.typing.surrogates.gaussianprocess.gp_loss import (
-            GPNegativeLogMarginalLikelihoodLoss
-        )
-        from pyapprox.typing.optimization.minimize.scipy.trust_constr import (
-            ScipyTrustConstrOptimizer
-        )
-
-        # Create loss function
-        loss = GPNegativeLogMarginalLikelihoodLoss(
-            self, (self._X_train_list, self._y_train_stacked)
-        )
-
-        # Get bounds for active hyperparameters
-        bounds_tuple = self.hyp_list().get_bounds()
-        bounds = self._bkd.array([
-            [lb, ub] for lb, ub in bounds_tuple
-        ])
-
-        # Create optimizer if not provided
-        if optimizer is None:
-            optimizer = ScipyTrustConstrOptimizer(
-                objective=loss,
-                bounds=bounds,
-                verbosity=0
-            )
-
-        # Run optimization
-        init_guess = self.hyp_list().get_active_values()
-
-        # Reshape init_guess to (n, 1) if it's 1D
-        if len(init_guess.shape) == 1:
-            init_guess = self._bkd.reshape(init_guess, (len(init_guess), 1))
-
-        result = optimizer.minimize(init_guess)
-
-        # Update hyperparameters with optimal values
-        # optima() returns shape (n, 1), flatten to 1D for set_active_values
-        optimal_params = result.optima()
-        if len(optimal_params.shape) == 2:
-            optimal_params = optimal_params[:, 0]
-
-        self.hyp_list().set_active_values(optimal_params)
-        self.fit(self._X_train_list, self._y_train_stacked)
 
     def __repr__(self) -> str:
         """

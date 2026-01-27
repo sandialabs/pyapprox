@@ -95,8 +95,9 @@ class GPNegativeLogMarginalLikelihoodLoss(Generic[Array]):
         # Update hyperparameters
         self._hyp_list.set_active_values(params)
 
-        # Refit GP with new hyperparameters
-        self._gp.fit(*self._fit_args)
+        # Refit GP with new hyperparameters (use _fit_internal to avoid
+        # recursion, since fit() now calls optimize which calls this loss)
+        self._gp._fit_internal(*self._fit_args)
 
         # Compute NLL (same formula for both single and multi-output)
         nll = self._gp.neg_log_marginal_likelihood()
@@ -126,9 +127,9 @@ class GPNegativeLogMarginalLikelihoodLoss(Generic[Array]):
         if len(params.shape) == 2 and params.shape[1] == 1:
             params = params[:, 0]
 
-        # Update and refit
+        # Update and refit (use _fit_internal to avoid recursion)
         self._hyp_list.set_active_values(params)
-        self._gp.fit(*self._fit_args)
+        self._gp._fit_internal(*self._fit_args)
 
         # Get alpha and cholesky (common to all GPs)
         alpha = self._gp._alpha

@@ -1,7 +1,8 @@
 """
 Tests for ExactGaussianProcess hyperparameter optimization.
 
-Tests optimization functionality, convergence, and custom initial guesses.
+Tests that fit() performs hyperparameter optimization, custom optimizer
+configuration, and fixed hyperparameter handling.
 """
 import unittest
 from typing import Generic, Any
@@ -16,6 +17,9 @@ from pyapprox.typing.surrogates.kernels.matern import Matern52Kernel
 from pyapprox.typing.surrogates.gaussianprocess import (
     ExactGaussianProcess,
     ConstantMean
+)
+from pyapprox.typing.optimization.minimize.scipy.trust_constr import (
+    ScipyTrustConstrOptimizer
 )
 
 
@@ -37,7 +41,7 @@ class TestExactGPOptimization(Generic[Array], unittest.TestCase):
 
         # Create training data
         X_train_np = np.random.randn(self.nvars, self.n_train)
-        y_train_np = np.sin(X_train_np[0, :] + X_train_np[1, :])[None, :]  # Shape: (1, n_train)
+        y_train_np = np.sin(X_train_np[0, :] + X_train_np[1, :])[None, :]
 
         self.X_train = self.bkd().array(X_train_np)
         self.y_train = self.bkd().array(y_train_np)
@@ -50,11 +54,11 @@ class TestExactGPOptimization(Generic[Array], unittest.TestCase):
         """Override in derived classes."""
         raise NotImplementedError
 
-    def test_optimize_hyperparameters_basic(self) -> None:
-        """Test basic hyperparameter optimization."""
-        # Use longer length scales initially (suboptimal)
+    def test_fit_optimizes_hyperparameters(self) -> None:
+        """Test that fit() optimizes hyperparameters with default optimizer."""
+        # Use suboptimal long length scales initially
         kernel = Matern52Kernel(
-            [3.0, 3.0],  # Long length scales
+            [3.0, 3.0],
             (0.1, 10.0),
             self.nvars,
             self.bkd()
@@ -67,42 +71,30 @@ class TestExactGPOptimization(Generic[Array], unittest.TestCase):
             nugget=0.1
         )
 
-        # Fit with initial hyperparameters
+        # Store initial hyperparameters (before fit)
+        params_before = self.bkd().to_numpy(
+            gp.hyp_list().get_values()
+        ).copy()
+
+        # fit() should optimize hyperparameters automatically
         gp.fit(self.X_train, self.y_train)
-
-        # Get initial NLML
-        nlml_before = gp.neg_log_marginal_likelihood()
-
-        # Get initial hyperparameters (store as numpy to avoid copy issues)
-        params_before = self.bkd().to_numpy(gp.hyp_list().get_values()).copy()
-
-        # Optimize hyperparameters (uses default trust-constr)
-        gp.optimize_hyperparameters()
-
-        # Get final NLML
-        nlml_after = gp.neg_log_marginal_likelihood()
 
         # Get final hyperparameters
         params_after = self.bkd().to_numpy(gp.hyp_list().get_values())
 
-        # NLML should decrease (or stay same if already optimal)
-        self.assertLessEqual(nlml_after, nlml_before + 1e-6,
-                            f"NLML increased: {nlml_before} -> {nlml_after}")
-
         # Hyperparameters should have changed
         params_diff = np.abs(params_after - params_before)
         max_change = float(np.max(params_diff))
-        # At least one parameter should change (unless already at optimum)
-        # We allow for the case where we're already at optimum
-        self.assertGreaterEqual(max_change, 0.0)
+        self.assertGreater(max_change, 1e-6,
+                          "Hyperparameters should change during fit()")
 
         # GP should still make predictions
         mean = gp.predict(self.X_test)
         self.assertEqual(mean.shape, (1, self.n_test))
         self.assertTrue(self.bkd().all_bool(self.bkd().isfinite(mean)))
 
-    def test_optimize_hyperparameters_with_constant_mean(self) -> None:
-        """Test hyperparameter optimization with ConstantMean."""
+    def test_fit_with_constant_mean(self) -> None:
+        """Test fit() optimizes both kernel and mean hyperparameters."""
         kernel = Matern52Kernel(
             [2.0, 2.0],
             (0.1, 10.0),
@@ -121,29 +113,25 @@ class TestExactGPOptimization(Generic[Array], unittest.TestCase):
             nugget=0.1
         )
 
+        # fit() should optimize both kernel and mean parameters
         gp.fit(self.X_train, self.y_train)
-        nlml_before = gp.neg_log_marginal_likelihood()
-
-        # Optimize (should optimize both kernel and mean parameters)
-        gp.optimize_hyperparameters()
-
-        nlml_after = gp.neg_log_marginal_likelihood()
-
-        # NLML should not increase
-        self.assertLessEqual(nlml_after, nlml_before + 1e-6)
 
         # Should have 3 hyperparameters (2 length scales + 1 constant)
         self.assertEqual(gp.hyp_list().nparams(), 3)
 
-    def test_optimize_hyperparameters_improves_fit(self) -> None:
-        """Test that optimization improves prediction accuracy."""
+        # GP should make predictions
+        mean = gp.predict(self.X_test)
+        self.assertEqual(mean.shape, (1, self.n_test))
+
+    def test_fit_improves_predictions(self) -> None:
+        """Test that fit() optimization improves prediction accuracy."""
         # Create synthetic data with known length scales
         np.random.seed(123)
         X_train_np = np.random.uniform(-2, 2, (self.nvars, 30))
 
         # True function with characteristic length scale ~0.5
         y_train_np = np.sin(2 * X_train_np[0, :]) * np.cos(2 * X_train_np[1, :])
-        y_train_np = y_train_np[None, :]  # Shape: (1, n_train)
+        y_train_np = y_train_np[None, :]
 
         X_train = self.bkd().array(X_train_np)
         y_train = self.bkd().array(y_train_np)
@@ -151,7 +139,7 @@ class TestExactGPOptimization(Generic[Array], unittest.TestCase):
         # Test points
         X_test_np = np.random.uniform(-2, 2, (self.nvars, 10))
         y_test_np = np.sin(2 * X_test_np[0, :]) * np.cos(2 * X_test_np[1, :])
-        y_test_np = y_test_np[None, :]  # Shape: (1, n_test)
+        y_test_np = y_test_np[None, :]
 
         X_test = self.bkd().array(X_test_np)
         y_test = self.bkd().array(y_test_np)
@@ -171,31 +159,44 @@ class TestExactGPOptimization(Generic[Array], unittest.TestCase):
             nugget=0.01
         )
 
-        # Fit and predict before optimization
+        # First fit WITHOUT optimization to get baseline error
+        gp.hyp_list().set_all_inactive()
         gp.fit(X_train, y_train)
         mean_before = gp.predict(X_test)
         error_before = mean_before - y_test
         abs_error_before = self.bkd().abs(error_before)
-        mse_before = float(self.bkd().sum(abs_error_before ** 2) / abs_error_before.shape[1])
+        mse_before = float(
+            self.bkd().sum(abs_error_before ** 2) / abs_error_before.shape[1]
+        )
 
-        # Optimize hyperparameters
-        gp.optimize_hyperparameters()
+        # Reset hyperparameters and re-enable optimization
+        # Note: kernel uses LogHyperParameter, so set_values expects log-space
+        # values. log(5.0) = 1.609... which is within log-space bounds [-2.3, 2.3]
+        import math
+        kernel._hyp_list.set_values(
+            self.bkd().array([math.log(5.0), math.log(5.0)])
+        )
+        gp.hyp_list().set_all_active()
+
+        # Now fit WITH optimization
+        gp.fit(X_train, y_train)
 
         # Predict after optimization
         mean_after = gp.predict(X_test)
         error_after = mean_after - y_test
         abs_error_after = self.bkd().abs(error_after)
-        mse_after = float(self.bkd().sum(abs_error_after ** 2) / abs_error_after.shape[1])
+        mse_after = float(
+            self.bkd().sum(abs_error_after ** 2) / abs_error_after.shape[1]
+        )
 
-        # MSE should improve (or stay similar if already good)
-        # We allow some tolerance for cases where optimization doesn't help much
+        # MSE should improve
         self.assertLessEqual(mse_after, mse_before * 1.1,
                             f"MSE got worse: {mse_before} -> {mse_after}")
 
-    def test_optimize_hyperparameters_custom_initial_guess(self) -> None:
-        """Test optimization with custom initial guess."""
+    def test_fit_with_custom_optimizer(self) -> None:
+        """Test fit() with custom optimizer via set_optimizer()."""
         kernel = Matern52Kernel(
-            [1.0, 1.0],
+            [3.0, 3.0],
             (0.1, 10.0),
             self.nvars,
             self.bkd()
@@ -208,23 +209,26 @@ class TestExactGPOptimization(Generic[Array], unittest.TestCase):
             nugget=0.1
         )
 
+        # Set custom optimizer
+        custom_optimizer = ScipyTrustConstrOptimizer(
+            maxiter=500,
+            gtol=1e-8,
+            verbosity=0
+        )
+        gp.set_optimizer(custom_optimizer)
+
+        # Verify optimizer is set
+        self.assertIsNotNone(gp.optimizer())
+
+        # fit() should use the custom optimizer
         gp.fit(self.X_train, self.y_train)
-
-        # Create custom initial guess (in optimization space)
-        custom_guess = self.bkd().array([-1.0, -1.0])  # log-space values
-
-        # Optimize with custom guess
-        gp.optimize_hyperparameters(init_guess=custom_guess)
-
-        # Should complete without error
-        self.assertTrue(gp.is_fitted())
 
         # Should still make predictions
         mean = gp.predict(self.X_test)
         self.assertEqual(mean.shape, (1, self.n_test))
 
-    def test_optimize_hyperparameters_not_fitted_error(self) -> None:
-        """Test that optimization raises error if GP not fitted."""
+    def test_fit_skips_optimization_when_all_inactive(self) -> None:
+        """Test that fit() skips optimization when all hyperparameters are inactive."""
         kernel = Matern52Kernel(
             [1.0, 1.0],
             (0.1, 10.0),
@@ -239,9 +243,79 @@ class TestExactGPOptimization(Generic[Array], unittest.TestCase):
             nugget=0.1
         )
 
-        # Should raise RuntimeError before fitting
-        with self.assertRaises(RuntimeError):
-            gp.optimize_hyperparameters()
+        # Set all hyperparameters as inactive (fixed)
+        gp.hyp_list().set_all_inactive()
+
+        # Store initial values
+        params_before = self.bkd().to_numpy(
+            gp.hyp_list().get_values()
+        ).copy()
+
+        # fit() should only store data (no optimization)
+        gp.fit(self.X_train, self.y_train)
+
+        # Hyperparameters should NOT change
+        params_after = self.bkd().to_numpy(gp.hyp_list().get_values())
+        np.testing.assert_array_equal(
+            params_before, params_after,
+            "Hyperparameters should not change when all are inactive"
+        )
+
+        # GP should still make predictions
+        mean = gp.predict(self.X_test)
+        self.assertEqual(mean.shape, (1, self.n_test))
+
+    def test_shared_optimizer_is_cloned(self) -> None:
+        """Test that optimizer is cloned so shared optimizer is safe."""
+        # Create shared optimizer
+        shared_optimizer = ScipyTrustConstrOptimizer(
+            maxiter=500, verbosity=0
+        )
+
+        # Create two GPs with same optimizer
+        kernel1 = Matern52Kernel(
+            [2.0, 2.0], (0.1, 10.0), self.nvars, self.bkd()
+        )
+        gp1 = ExactGaussianProcess(
+            kernel1, self.nvars, self.bkd(), nugget=0.1
+        )
+        gp1.set_optimizer(shared_optimizer)
+
+        kernel2 = Matern52Kernel(
+            [2.0, 2.0], (0.1, 10.0), self.nvars, self.bkd()
+        )
+        gp2 = ExactGaussianProcess(
+            kernel2, self.nvars, self.bkd(), nugget=0.1
+        )
+        gp2.set_optimizer(shared_optimizer)
+
+        # Fitting gp1 should not affect gp2's optimizer
+        gp1.fit(self.X_train, self.y_train)
+
+        # The shared optimizer should still be unbound
+        self.assertFalse(shared_optimizer.is_bound())
+
+        # gp2 should also be able to fit
+        gp2.fit(self.X_train, self.y_train)
+
+        # Both should make predictions
+        mean1 = gp1.predict(self.X_test)
+        mean2 = gp2.predict(self.X_test)
+        self.assertEqual(mean1.shape, (1, self.n_test))
+        self.assertEqual(mean2.shape, (1, self.n_test))
+
+    def test_set_optimizer_validates_protocol(self) -> None:
+        """Test that set_optimizer validates the protocol."""
+        kernel = Matern52Kernel(
+            [1.0, 1.0], (0.1, 10.0), self.nvars, self.bkd()
+        )
+        gp = ExactGaussianProcess(
+            kernel, self.nvars, self.bkd(), nugget=0.1
+        )
+
+        # Should raise TypeError for invalid optimizer
+        with self.assertRaises(TypeError):
+            gp.set_optimizer("not an optimizer")  # type: ignore
 
 
 # NumPy implementation

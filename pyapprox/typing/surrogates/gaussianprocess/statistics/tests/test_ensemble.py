@@ -4,7 +4,7 @@ Tests for GP ensemble uncertainty quantification.
 Tests the GaussianProcessEnsemble class for sampling GP realizations and
 computing the distribution of Sobol sensitivity indices.
 """
-
+import math
 import unittest
 from typing import Generic, Any, List
 import numpy as np
@@ -69,17 +69,19 @@ class TestGaussianProcessEnsemble(Generic[Array], unittest.TestCase):
         self._gp = ExactGaussianProcess(
             self._kernel, nvars=2, bkd=self._bkd, nugget=1e-6
         )
+        # Skip hyperparameter optimization for these tests
+        self._gp.hyp_list().set_all_inactive()
 
         # Training data
         self._n_train = 15
         X_train_np = np.random.rand(2, self._n_train) * 2 - 1  # [-1, 1]^2
-        y_train_np = np.sin(np.pi * X_train_np[0, :]) * np.cos(
-            np.pi * X_train_np[1, :]
-        )
-        y_train_np = y_train_np.reshape(-1, 1)
-
         self._X_train = self._bkd.array(X_train_np)
-        self._y_train = self._bkd.array(y_train_np)
+        # Use backend math operations, shape: (nqoi, n_train)
+        self._y_train = self._bkd.reshape(
+            self._bkd.sin(math.pi * self._X_train[0, :]) *
+            self._bkd.cos(math.pi * self._X_train[1, :]),
+            (1, -1)
+        )
 
         self._gp.fit(self._X_train, self._y_train)
 
@@ -288,7 +290,8 @@ class TestZeroVarianceAtTraining(Generic[Array], unittest.TestCase):
 
         # Train on a few points
         X_train = bkd.array([[-0.5, 0.0, 0.5]])
-        y_train = bkd.array([[1.0], [0.0], [-1.0]])
+        y_train = bkd.array([[1.0, 0.0, -1.0]])
+        gp.hyp_list().set_all_inactive()
         gp.fit(X_train, y_train)
 
         # Predict at training points
@@ -347,17 +350,17 @@ class TestMCConvergence(Generic[Array], unittest.TestCase):
         kernel = SeparableProductKernel([k1, k2], bkd)
 
         gp = ExactGaussianProcess(kernel, nvars=2, bkd=bkd, nugget=1e-6)
+        # Skip hyperparameter optimization for this test
+        gp.hyp_list().set_all_inactive()
 
         # Additive function: f = x_1 + x_2
         n_1d = 8
-        x1 = np.linspace(-1, 1, n_1d)
-        x2 = np.linspace(-1, 1, n_1d)
-        X1, X2 = np.meshgrid(x1, x2)
-        X_train_np = np.vstack([X1.flatten(), X2.flatten()])
-        y_train_np = (X_train_np[0, :] + X_train_np[1, :]).reshape(-1, 1)
-
-        X_train = bkd.array(X_train_np)
-        y_train = bkd.array(y_train_np)
+        x1 = bkd.linspace(-1.0, 1.0, n_1d)
+        x2 = bkd.linspace(-1.0, 1.0, n_1d)
+        X1, X2 = bkd.meshgrid(x1, x2)
+        X_train = bkd.vstack([bkd.flatten(X1), bkd.flatten(X2)])
+        # Shape: (nqoi, n_train)
+        y_train = bkd.reshape(X_train[0, :] + X_train[1, :], (1, -1))
         gp.fit(X_train, y_train)
 
         # Create sensitivity objects

@@ -95,8 +95,9 @@ class TestMultiOutputGPWithIndependentKernel(Generic[Array], unittest.TestCase):
         # Create multi-output kernel
         mo_kernel = IndependentMultiOutputKernel(kernels)
 
-        # Create and fit GP
+        # Create and fit GP (with fixed hyperparameters for interpolation test)
         gp = MultiOutputGP(mo_kernel, nugget=1e-14)
+        gp.hyp_list().set_all_inactive()  # Skip optimization for interpolation test
         X_list = [X_train] * self.noutputs
         gp.fit(X_list, y_train_stacked)
 
@@ -338,8 +339,9 @@ class TestMultiOutputGPWithLMCKernel(Generic[Array], unittest.TestCase):
             self.noutputs
         )
 
-        # Create and fit GP
+        # Create and fit GP (with fixed hyperparameters for interpolation test)
         gp = MultiOutputGP(lmc_kernel, nugget=1e-14)
+        gp.hyp_list().set_all_inactive()  # Skip optimization for interpolation test
         X_list = [X_train] * self.noutputs
         gp.fit(X_list, y_train_stacked)
 

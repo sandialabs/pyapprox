@@ -428,7 +428,8 @@ class TestConditionalMethods(Generic[Array], unittest.TestCase):
         # Training data
         self._n_train = 6
         X_train = self._bkd.array(np.random.rand(2, self._n_train) * 2 - 1)
-        y_train = self._bkd.array(np.random.rand(self._n_train, 1))
+        y_train = self._bkd.array(np.random.rand(self._n_train).reshape(1, -1))
+        self._gp.hyp_list().set_all_inactive()
         self._gp.fit(X_train, y_train)
 
         # Create quadrature bases using sparse grid infrastructure

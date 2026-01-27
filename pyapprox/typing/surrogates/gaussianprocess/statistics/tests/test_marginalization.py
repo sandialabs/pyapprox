@@ -4,6 +4,7 @@ Tests for MarginalizedGP class.
 Tests the MarginalizedGP class for reducing GP dimensionality by integrating
 out selected variables. Includes tests for 1D and 2D marginalization cases.
 """
+import math
 import unittest
 from typing import Generic, Any, List
 import numpy as np
@@ -65,18 +66,19 @@ class TestMarginalizedGP1D(Generic[Array], unittest.TestCase):
             bkd=self._bkd,
             nugget=1e-6
         )
+        # Skip hyperparameter optimization for these tests
+        self._gp.hyp_list().set_all_inactive()
 
         # Training data
         self._n_train = 8
         X_train_np = np.random.rand(2, self._n_train) * 2 - 1  # [-1, 1]^2
-        y_train_np = (
-            np.sin(np.pi * X_train_np[0, :]) +
-            0.5 * np.cos(np.pi * X_train_np[1, :])
-        )
-        y_train_np = y_train_np.reshape(-1, 1)
-
         self._X_train = self._bkd.array(X_train_np)
-        self._y_train = self._bkd.array(y_train_np)
+        # Use backend math operations, shape: (nqoi, n_train)
+        self._y_train = self._bkd.reshape(
+            self._bkd.sin(math.pi * self._X_train[0, :]) +
+            0.5 * self._bkd.cos(math.pi * self._X_train[1, :]),
+            (1, -1)
+        )
 
         self._gp.fit(self._X_train, self._y_train)
 
@@ -230,19 +232,20 @@ class TestMarginalizedGP2D(Generic[Array], unittest.TestCase):
             bkd=self._bkd,
             nugget=1e-6
         )
+        # Skip hyperparameter optimization for these tests
+        self._gp.hyp_list().set_all_inactive()
 
         # Training data
         self._n_train = 15
         X_train_np = np.random.rand(3, self._n_train) * 2 - 1  # [-1, 1]^3
-        y_train_np = (
-            np.sin(np.pi * X_train_np[0, :]) +
-            0.5 * np.cos(np.pi * X_train_np[1, :]) +
-            0.3 * X_train_np[2, :]
-        )
-        y_train_np = y_train_np.reshape(-1, 1)
-
         self._X_train = self._bkd.array(X_train_np)
-        self._y_train = self._bkd.array(y_train_np)
+        # Use backend math operations, shape: (nqoi, n_train)
+        self._y_train = self._bkd.reshape(
+            self._bkd.sin(math.pi * self._X_train[0, :]) +
+            0.5 * self._bkd.cos(math.pi * self._X_train[1, :]) +
+            0.3 * self._X_train[2, :],
+            (1, -1)
+        )
 
         self._gp.fit(self._X_train, self._y_train)
 
@@ -385,11 +388,13 @@ class TestMarginalizedGPNumerical(Generic[Array], unittest.TestCase):
             [-0.8, -0.3, 0.0, 0.4, 0.9],
             [-0.5, 0.5, -0.2, 0.8, 0.0],
         ])
-        y_train_np = np.sin(np.pi * X_train_np[0, :]) + 0.5 * X_train_np[1, :]
-        y_train_np = y_train_np.reshape(-1, 1)
-
         self._X_train = self._bkd.array(X_train_np)
-        self._y_train = self._bkd.array(y_train_np)
+        # Use backend math operations, shape: (nqoi, n_train)
+        self._y_train = self._bkd.reshape(
+            self._bkd.sin(math.pi * self._X_train[0, :]) +
+            0.5 * self._X_train[1, :],
+            (1, -1)
+        )
 
         self._gp.fit(self._X_train, self._y_train)
 
@@ -516,7 +521,8 @@ class TestMarginalizedGPValidation(Generic[Array], unittest.TestCase):
         )
 
         X_train = self._bkd.array(np.random.rand(2, 5) * 2 - 1)
-        y_train = self._bkd.array(np.random.rand(5, 1))
+        y_train = self._bkd.array(np.random.rand(5).reshape(1, -1))
+        self._gp.hyp_list().set_all_inactive()
         self._gp.fit(X_train, y_train)
 
         self._marginals = [
@@ -615,7 +621,8 @@ class TestMarginalizedGP1DSpecialCases(Generic[Array], unittest.TestCase):
         gp = ExactGaussianProcess(kernel, nvars=1, bkd=bkd, nugget=1e-6)
 
         X_train = bkd.array([[-0.8, -0.3, 0.0, 0.4, 0.9]])
-        y_train = bkd.reshape(bkd.sin(3.14159 * X_train[0, :]), (-1, 1))
+        y_train = bkd.reshape(bkd.sin(3.14159 * X_train[0, :]), (1, -1))
+        gp.hyp_list().set_all_inactive()
         gp.fit(X_train, y_train)
 
         marginals = [UniformMarginal(-1.0, 1.0, bkd)]

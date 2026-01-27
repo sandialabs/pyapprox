@@ -4,6 +4,7 @@ Tests for GP statistics moments.
 Tests the SeparableKernelIntegralCalculator and GaussianProcessStatistics
 classes for computing statistical quantities from fitted GPs.
 """
+import math
 import unittest
 from typing import Generic, Any, List
 import numpy as np
@@ -66,15 +67,19 @@ class TestSeparableKernelIntegralCalculator(Generic[Array], unittest.TestCase):
             bkd=self._bkd,
             nugget=1e-6
         )
+        # Skip hyperparameter optimization for these tests
+        self._gp.hyp_list().set_all_inactive()
 
         # Training data
         self._n_train = 10
         X_train_np = np.random.rand(2, self._n_train) * 2 - 1  # [-1, 1]^2
-        y_train_np = np.sin(np.pi * X_train_np[0, :]) * np.cos(np.pi * X_train_np[1, :])
-        y_train_np = y_train_np.reshape(-1, 1)
-
         self._X_train = self._bkd.array(X_train_np)
-        self._y_train = self._bkd.array(y_train_np)
+        # Use backend math operations, shape: (nqoi, n_train)
+        self._y_train = self._bkd.reshape(
+            self._bkd.sin(math.pi * self._X_train[0, :]) *
+            self._bkd.cos(math.pi * self._X_train[1, :]),
+            (1, -1)
+        )
 
         self._gp.fit(self._X_train, self._y_train)
 
@@ -199,15 +204,19 @@ class TestGaussianProcessStatistics(Generic[Array], unittest.TestCase):
             bkd=self._bkd,
             nugget=1e-6
         )
+        # Skip hyperparameter optimization for these tests
+        self._gp.hyp_list().set_all_inactive()
 
         # Training data
         self._n_train = 10
         X_train_np = np.random.rand(2, self._n_train) * 2 - 1
-        y_train_np = np.sin(np.pi * X_train_np[0, :]) * np.cos(np.pi * X_train_np[1, :])
-        y_train_np = y_train_np.reshape(-1, 1)
-
         self._X_train = self._bkd.array(X_train_np)
-        self._y_train = self._bkd.array(y_train_np)
+        # Use backend math operations, shape: (nqoi, n_train)
+        self._y_train = self._bkd.reshape(
+            self._bkd.sin(math.pi * self._X_train[0, :]) *
+            self._bkd.cos(math.pi * self._X_train[1, :]),
+            (1, -1)
+        )
 
         self._gp.fit(self._X_train, self._y_train)
 
@@ -277,17 +286,21 @@ class TestGaussianProcessStatistics(Generic[Array], unittest.TestCase):
         # Create GP with more training points
         n_train_large = 100
         X_train_np = np.random.rand(2, n_train_large) * 2 - 1
-        y_train_np = np.sin(np.pi * X_train_np[0, :]) * np.cos(np.pi * X_train_np[1, :])
-        y_train_np = y_train_np.reshape(-1, 1)
-
         X_train = self._bkd.array(X_train_np)
-        y_train = self._bkd.array(y_train_np)
+        # Use backend math operations, shape: (nqoi, n_train)
+        y_train = self._bkd.reshape(
+            self._bkd.sin(math.pi * X_train[0, :]) *
+            self._bkd.cos(math.pi * X_train[1, :]),
+            (1, -1)
+        )
 
         k1 = SquaredExponentialKernel([0.5], (0.1, 10.0), 1, self._bkd)
         k2 = SquaredExponentialKernel([0.5], (0.1, 10.0), 1, self._bkd)
         kernel = SeparableProductKernel([k1, k2], self._bkd)
 
         gp_large = ExactGaussianProcess(kernel, nvars=2, bkd=self._bkd, nugget=1e-6)
+        # Skip hyperparameter optimization for this test
+        gp_large.hyp_list().set_all_inactive()
         gp_large.fit(X_train, y_train)
 
         # Create quadrature bases
@@ -343,6 +356,8 @@ class TestMCComparison(Generic[Array], unittest.TestCase):
             bkd=self._bkd,
             nugget=1e-6
         )
+        # Skip hyperparameter optimization for these tests
+        self._gp.hyp_list().set_all_inactive()
 
         # SPARSE training data - only 3 points at boundaries and center
         # With short length scale, regions between points have high uncertainty
@@ -695,6 +710,9 @@ class TestKnownMoments(Generic[Array], unittest.TestCase):
         kernel = SeparableProductKernel([k1, k2], bkd)
 
         gp = ExactGaussianProcess(kernel, nvars=2, bkd=bkd, nugget=1e-10)
+        # Skip hyperparameter optimization since SeparableProductKernel
+        # doesn't implement jacobian_wrt_params yet
+        gp.hyp_list().set_all_inactive()
 
         # Dense training grid for good interpolation
         n_1d = 30
@@ -709,11 +727,6 @@ class TestKnownMoments(Generic[Array], unittest.TestCase):
         )
 
         gp.fit(X_train, y_train)
-
-        # Note: We skip hyperparameter optimization since
-        # SeparableProductKernel doesn't implement jacobian_wrt_params yet.
-        # With dense training data and reasonable initial length scales,
-        # the GP should interpolate well enough.
 
         # Generate test points (different from training)
         n_test = 100
@@ -786,6 +799,9 @@ class TestKnownMoments(Generic[Array], unittest.TestCase):
         kernel = SeparableProductKernel([k1, k2], bkd)
 
         gp = ExactGaussianProcess(kernel, nvars=2, bkd=bkd, nugget=1e-10)
+        # Skip hyperparameter optimization since SeparableProductKernel
+        # doesn't implement jacobian_wrt_params yet
+        gp.hyp_list().set_all_inactive()
 
         # Dense training grid for good interpolation
         n_1d = 30
@@ -794,15 +810,10 @@ class TestKnownMoments(Generic[Array], unittest.TestCase):
         X1, X2 = bkd.meshgrid(x1, x2)
         X_train = bkd.vstack([bkd.flatten(X1), bkd.flatten(X2)])
 
-        # Evaluate function
-        y_train = bkd.reshape(X_train[0, :] ** 2 + X_train[1, :] ** 2, (-1, 1))
+        # Evaluate function - shape: (nqoi, n_train)
+        y_train = bkd.reshape(X_train[0, :] ** 2 + X_train[1, :] ** 2, (1, -1))
 
         gp.fit(X_train, y_train)
-
-        # Note: We skip hyperparameter optimization since
-        # SeparableProductKernel doesn't implement jacobian_wrt_params yet.
-        # With dense training data and reasonable initial length scales,
-        # the GP should interpolate well enough.
 
         # Generate test points (different from training)
         n_test = 100
@@ -879,12 +890,11 @@ class TestKnownMoments(Generic[Array], unittest.TestCase):
         # Dense training grid for good interpolation
         n_train = 50
         X_train = bkd.reshape(bkd.linspace(-1.0, 1.0, n_train), (1, -1))
-        y_train = bkd.reshape(bkd.sin(pi * X_train[0, :]), (-1, 1))
+        # Shape: (nqoi, n_train)
+        y_train = bkd.reshape(bkd.sin(pi * X_train[0, :]), (1, -1))
 
+        # fit() optimizes hyperparameters by default for best interpolation
         gp.fit(X_train, y_train)
-
-        # Optimize hyperparameters for best interpolation
-        gp.optimize_hyperparameters()
 
         # Generate test points (different from training)
         n_test = 100
@@ -953,8 +963,10 @@ class TestValidation(Generic[Array], unittest.TestCase):
         kernel = SeparableProductKernel([k1, k2], self._bkd)
 
         gp = ExactGaussianProcess(kernel, nvars=2, bkd=self._bkd)
+        # Skip hyperparameter optimization for this test
+        gp.hyp_list().set_all_inactive()
         X = self._bkd.array(np.random.rand(2, 5))
-        y = self._bkd.array(np.random.rand(5, 1))
+        y = self._bkd.array(np.random.rand(1, 5))  # Shape: (nqoi, n_train)
         gp.fit(X, y)
 
         # Only 1 basis for 2D GP
@@ -970,8 +982,10 @@ class TestValidation(Generic[Array], unittest.TestCase):
         kernel = Matern52Kernel([1.0, 1.0], (0.1, 10.0), 2, self._bkd)
 
         gp = ExactGaussianProcess(kernel, nvars=2, bkd=self._bkd)
+        # Skip hyperparameter optimization for this test
+        gp.hyp_list().set_all_inactive()
         X = self._bkd.array(np.random.rand(2, 5))
-        y = self._bkd.array(np.random.rand(5, 1))
+        y = self._bkd.array(np.random.rand(1, 5))  # Shape: (nqoi, n_train)
         gp.fit(X, y)
 
         marginals = [

@@ -208,8 +208,9 @@ class NegativeLogMarginalLikelihoodLoss(Generic[Array]):
         # Update hyperparameters
         self._hyp_list.set_active_values(params)
 
-        # Refit GP with new hyperparameters
-        self._gp.fit(self._X_train, self._y_train)
+        # Refit GP with new hyperparameters (use _fit_internal to avoid
+        # recursion since fit() now calls optimize which creates a loss)
+        self._gp._fit_internal(self._X_train, self._y_train)
 
         # Compute NLL
         nll = self._gp.neg_log_marginal_likelihood()
@@ -244,9 +245,9 @@ class NegativeLogMarginalLikelihoodLoss(Generic[Array]):
         if len(params.shape) == 2 and params.shape[1] == 1:
             params = params[:, 0]
 
-        # Update and refit
+        # Update and refit (use _fit_internal to avoid recursion)
         self._hyp_list.set_active_values(params)
-        self._gp.fit(self._X_train, self._y_train)
+        self._gp._fit_internal(self._X_train, self._y_train)
 
         # Get alpha and cholesky from GP
         alpha = self._gp._alpha  # Shape: (nqoi, n_train)
@@ -403,9 +404,9 @@ class NegativeLogMarginalLikelihoodLoss(Generic[Array]):
         # Fixed parameters get direction = 0 (no contribution to HVP)
         full_direction = self._hyp_list.expand_to_full(direction, fill_value=0.0)
 
-        # Update and refit
+        # Update and refit (use _fit_internal to avoid recursion)
         self._hyp_list.set_active_values(params)
-        self._gp.fit(self._X_train, self._y_train)
+        self._gp._fit_internal(self._X_train, self._y_train)
 
         # Get alpha and cholesky from GP
         alpha = self._gp._alpha  # Shape: (nqoi, n_train)

@@ -1,4 +1,4 @@
-from typing import Sequence, Any
+from typing import Sequence, Any, List
 
 from pyapprox.typing.optimization.minimize.constraints.protocols import (
     NonlinearConstraintProtocol,
@@ -8,6 +8,22 @@ from pyapprox.typing.optimization.minimize.constraints.protocols import (
 from pyapprox.typing.optimization.minimize.constraints.linear import (
     PyApproxLinearConstraint,
 )
+
+
+def _missing_protocol_methods(obj: object, protocol: type) -> List[str]:
+    """Return list of protocol methods not implemented by obj."""
+    missing = []
+    # Get protocol's required methods (excluding private/dunder methods except __call__)
+    for name in dir(protocol):
+        if name.startswith("_") and name != "__call__":
+            continue
+        if not hasattr(obj, name):
+            missing.append(name)
+        elif callable(getattr(protocol, name, None)) and not callable(
+            getattr(obj, name, None)
+        ):
+            missing.append(name)
+    return missing
 
 
 def validate_nonlinear_constraint(obj: object) -> None:
@@ -25,11 +41,12 @@ def validate_nonlinear_constraint(obj: object) -> None:
         If the object does not satisfy any of the nonlinear constraint protocols.
     """
     if not isinstance(obj, NonlinearConstraintProtocol):
+        missing = _missing_protocol_methods(obj, NonlinearConstraintProtocol)
         raise TypeError(
-            "The provided object must satisfy one of the following nonlinear "
-            "constraint protocols: "
-            "'NonlinearConstraintProtocol'. Got an object "
-            f"of type {type(obj).__name__}."
+            f"The provided object must satisfy NonlinearConstraintProtocol. "
+            f"Got an object of type {type(obj).__name__}. "
+            f"Missing or invalid methods: {missing}. "
+            f"Required methods: bkd(), nvars(), nqoi(), __call__(samples), lb(), ub()."
         )
 
 
@@ -74,9 +91,11 @@ def validate_constraints(constraints: Sequence[Any]) -> None:
             obj,
             (NonlinearConstraintProtocol, PyApproxLinearConstraint),
         ):
+            missing = _missing_protocol_methods(obj, NonlinearConstraintProtocol)
             raise TypeError(
-                f"The object at index {idx} must satisfy one of the "
-                "following protocols: "
-                "'NonlinearConstraintProtocol' or 'PyApproxLinearConstraint'. "
-                f"Got an object of type {type(obj).__name__}."
+                f"The constraint at index {idx} must satisfy either "
+                f"NonlinearConstraintProtocol or PyApproxLinearConstraint. "
+                f"Got an object of type {type(obj).__name__}. "
+                f"For NonlinearConstraintProtocol, missing methods: {missing}. "
+                f"Required methods: bkd(), nvars(), nqoi(), __call__(samples), lb(), ub()."
             )

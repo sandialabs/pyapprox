@@ -4,7 +4,7 @@ Tests for GP sensitivity analysis (Sobol indices).
 Tests the GaussianProcessSensitivity class for computing main effect and
 total effect Sobol indices from fitted GPs.
 """
-
+import math
 import unittest
 from typing import Generic, Any, List
 import numpy as np
@@ -66,17 +66,19 @@ class TestGaussianProcessSensitivity(Generic[Array], unittest.TestCase):
         self._gp = ExactGaussianProcess(
             self._kernel, nvars=2, bkd=self._bkd, nugget=1e-6
         )
+        # Skip hyperparameter optimization for these tests
+        self._gp.hyp_list().set_all_inactive()
 
         # Training data
         self._n_train = 15
         X_train_np = np.random.rand(2, self._n_train) * 2 - 1  # [-1, 1]^2
-        y_train_np = np.sin(np.pi * X_train_np[0, :]) * np.cos(
-            np.pi * X_train_np[1, :]
-        )
-        y_train_np = y_train_np.reshape(-1, 1)
-
         self._X_train = self._bkd.array(X_train_np)
-        self._y_train = self._bkd.array(y_train_np)
+        # Use backend math operations, shape: (nqoi, n_train)
+        self._y_train = self._bkd.reshape(
+            self._bkd.sin(math.pi * self._X_train[0, :]) *
+            self._bkd.cos(math.pi * self._X_train[1, :]),
+            (1, -1)
+        )
 
         self._gp.fit(self._X_train, self._y_train)
 
@@ -252,19 +254,19 @@ class TestKnownFunctions(Generic[Array], unittest.TestCase):
         kernel = SeparableProductKernel([k1, k2], self._bkd)
 
         gp = ExactGaussianProcess(kernel, nvars=2, bkd=self._bkd, nugget=1e-8)
+        # Skip hyperparameter optimization since SeparableProductKernel
+        # doesn't implement jacobian_wrt_params yet
+        gp.hyp_list().set_all_inactive()
 
         # Training data: dense grid
         n_1d = 10
-        x1 = np.linspace(-1, 1, n_1d)
-        x2 = np.linspace(-1, 1, n_1d)
-        X1, X2 = np.meshgrid(x1, x2)
-        X_train_np = np.vstack([X1.flatten(), X2.flatten()])
+        x1 = self._bkd.linspace(-1.0, 1.0, n_1d)
+        x2 = self._bkd.linspace(-1.0, 1.0, n_1d)
+        X1, X2 = self._bkd.meshgrid(x1, x2)
+        X_train = self._bkd.vstack([self._bkd.flatten(X1), self._bkd.flatten(X2)])
 
-        # Additive function: f = x_1 + x_2
-        y_train_np = (X_train_np[0, :] + X_train_np[1, :]).reshape(-1, 1)
-
-        X_train = self._bkd.array(X_train_np)
-        y_train = self._bkd.array(y_train_np)
+        # Additive function: f = x_1 + x_2, shape: (nqoi, n_train)
+        y_train = self._bkd.reshape(X_train[0, :] + X_train[1, :], (1, -1))
         gp.fit(X_train, y_train)
 
         # Create quadrature bases
@@ -333,19 +335,21 @@ class TestKnownFunctions(Generic[Array], unittest.TestCase):
         kernel = SeparableProductKernel([k1, k2], self._bkd)
 
         gp = ExactGaussianProcess(kernel, nvars=2, bkd=self._bkd, nugget=1e-8)
+        # Skip hyperparameter optimization since SeparableProductKernel
+        # doesn't implement jacobian_wrt_params yet
+        gp.hyp_list().set_all_inactive()
 
         # Training data: dense grid
         n_1d = 10
-        x1 = np.linspace(-1, 1, n_1d)
-        x2 = np.linspace(-1, 1, n_1d)
-        X1, X2 = np.meshgrid(x1, x2)
-        X_train_np = np.vstack([X1.flatten(), X2.flatten()])
+        x1 = self._bkd.linspace(-1.0, 1.0, n_1d)
+        x2 = self._bkd.linspace(-1.0, 1.0, n_1d)
+        X1, X2 = self._bkd.meshgrid(x1, x2)
+        X_train = self._bkd.vstack([self._bkd.flatten(X1), self._bkd.flatten(X2)])
 
-        # Single-variable function: f = sin(π x_1)
-        y_train_np = np.sin(np.pi * X_train_np[0, :]).reshape(-1, 1)
-
-        X_train = self._bkd.array(X_train_np)
-        y_train = self._bkd.array(y_train_np)
+        # Single-variable function: f = sin(π x_1), shape: (nqoi, n_train)
+        y_train = self._bkd.reshape(
+            self._bkd.sin(math.pi * X_train[0, :]), (1, -1)
+        )
         gp.fit(X_train, y_train)
 
         # Create quadrature bases
@@ -394,19 +398,19 @@ class TestKnownFunctions(Generic[Array], unittest.TestCase):
         kernel = SeparableProductKernel([k1, k2], self._bkd)
 
         gp = ExactGaussianProcess(kernel, nvars=2, bkd=self._bkd, nugget=1e-8)
+        # Skip hyperparameter optimization since SeparableProductKernel
+        # doesn't implement jacobian_wrt_params yet
+        gp.hyp_list().set_all_inactive()
 
         # Training data: dense grid
         n_1d = 10
-        x1 = np.linspace(-1, 1, n_1d)
-        x2 = np.linspace(-1, 1, n_1d)
-        X1, X2 = np.meshgrid(x1, x2)
-        X_train_np = np.vstack([X1.flatten(), X2.flatten()])
+        x1 = self._bkd.linspace(-1.0, 1.0, n_1d)
+        x2 = self._bkd.linspace(-1.0, 1.0, n_1d)
+        X1, X2 = self._bkd.meshgrid(x1, x2)
+        X_train = self._bkd.vstack([self._bkd.flatten(X1), self._bkd.flatten(X2)])
 
-        # Multiplicative function: f = x_1 * x_2
-        y_train_np = (X_train_np[0, :] * X_train_np[1, :]).reshape(-1, 1)
-
-        X_train = self._bkd.array(X_train_np)
-        y_train = self._bkd.array(y_train_np)
+        # Multiplicative function: f = x_1 * x_2, shape: (nqoi, n_train)
+        y_train = self._bkd.reshape(X_train[0, :] * X_train[1, :], (1, -1))
         gp.fit(X_train, y_train)
 
         # Create quadrature bases
@@ -579,6 +583,9 @@ class TestIshigamiBenchmark(Generic[Array], unittest.TestCase):
         kernel = SeparableProductKernel([k1, k2, k3], bkd)
 
         gp = ExactGaussianProcess(kernel, nvars=3, bkd=bkd, nugget=1e-10)
+        # Skip hyperparameter optimization since SeparableProductKernel
+        # doesn't implement jacobian_wrt_params yet
+        gp.hyp_list().set_all_inactive()
 
         # Create training data using Sobol sequence on [-pi, pi]^3
         marginals = [UniformMarginal(-pi, pi, bkd) for _ in range(3)]
@@ -590,7 +597,6 @@ class TestIshigamiBenchmark(Generic[Array], unittest.TestCase):
         # Evaluate Ishigami function
         y_train = ishigami(X_train).T  # Shape: (n_train, 1)
         gp.fit(X_train, y_train)
-        gp.optimize_hyperparameters()
 
         # Generate test points
         n_test = 100
@@ -680,10 +686,13 @@ class TestConditionalPAndU(Generic[Array], unittest.TestCase):
         kernel = SeparableProductKernel([k1, k2], self._bkd)
 
         gp = ExactGaussianProcess(kernel, nvars=2, bkd=self._bkd, nugget=1e-6)
+        # Skip hyperparameter optimization since SeparableProductKernel
+        # doesn't implement jacobian_wrt_params yet
+        gp.hyp_list().set_all_inactive()
 
         n_train = 10
         X_train = self._bkd.array(np.random.rand(2, n_train) * 2 - 1)
-        y_train = self._bkd.array(np.random.rand(n_train, 1))
+        y_train = self._bkd.array(np.random.rand(n_train).reshape(1, -1))
         gp.fit(X_train, y_train)
 
         marginals = [

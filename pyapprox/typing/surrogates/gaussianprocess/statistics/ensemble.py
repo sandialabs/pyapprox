@@ -222,9 +222,9 @@ class GaussianProcessEnsemble(Generic[Array]):
         )
 
         # Get posterior mean and covariance at sample points
-        # predict returns (n_sample_points, nqoi), we want (n_sample_points,)
-        mean = self._gp.predict(sample_points)  # Shape: (n_sample_points, nqoi)
-        if mean.shape[1] != 1:
+        # predict returns (nqoi, n_sample_points), we want (n_sample_points,)
+        mean = self._gp.predict(sample_points)  # Shape: (nqoi, n_sample_points)
+        if mean.shape[0] != 1:
             raise NotImplementedError(
                 "sample_realizations currently only supports single-output GPs (nqoi=1)"
             )

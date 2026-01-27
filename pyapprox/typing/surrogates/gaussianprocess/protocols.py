@@ -12,8 +12,9 @@ from pyapprox.typing.surrogates.kernels.protocols import Kernel
 from pyapprox.typing.util.hyperparameter import HyperParameterList
 from pyapprox.typing.surrogates.gaussianprocess.data import GPTrainingData
 from pyapprox.typing.util.linalg.cholesky_factor import CholeskyFactor
-from pyapprox.typing.surrogates.gaussianprocess.data import GPTrainingData
-from pyapprox.typing.util.linalg.cholesky_factor import CholeskyFactor
+from pyapprox.typing.optimization.minimize.protocols import (
+    BindableOptimizerProtocol,
+)
 
 
 @runtime_checkable
@@ -247,7 +248,12 @@ class TrainableGPProtocol(PredictiveGPProtocol[Array], Protocol):
 
     Extends PredictiveGPProtocol with methods for hyperparameter
     optimization, including access to the marginal likelihood and
-    automated optimization.
+    optimizer configuration.
+
+    Hyperparameter optimization is integrated into ``fit()``:
+    - By default, ``fit()`` optimizes active hyperparameters
+    - Use ``set_optimizer()`` to configure a custom optimizer
+    - Set all hyperparameters inactive to skip optimization
     """
 
     def hyp_list(self) -> HyperParameterList:
@@ -282,26 +288,39 @@ class TrainableGPProtocol(PredictiveGPProtocol[Array], Protocol):
         """
         ...
 
-    def optimize_hyperparameters(
+    def set_optimizer(
         self,
-        optimizer: Optional[object] = None
+        optimizer: BindableOptimizerProtocol[Array]
     ) -> None:
         """
-        Optimize hyperparameters by minimizing negative log marginal likelihood.
-
-        Uses an optimizer from pyapprox.typing.optimization.minimize to
-        find hyperparameters that maximize the marginal likelihood.
+        Set the optimizer for hyperparameter optimization during fit().
 
         Parameters
         ----------
-        optimizer : Optional[object]
-            Optimizer instance from typing.optimization.minimize.
-            If None, uses a default optimizer (typically
-            ScipyTrustConstrOptimizer).
+        optimizer : BindableOptimizerProtocol[Array]
+            An optimizer configured with options but NOT bound to an objective.
+            During fit(), the optimizer will be cloned and bound to the
+            negative log marginal likelihood loss function.
 
-        Raises
-        ------
-        RuntimeError
-            If the GP has not been fitted yet.
+        Examples
+        --------
+        >>> from pyapprox.typing.optimization.minimize.scipy.trust_constr import (
+        ...     ScipyTrustConstrOptimizer
+        ... )
+        >>> optimizer = ScipyTrustConstrOptimizer(maxiter=500, gtol=1e-8)
+        >>> gp.set_optimizer(optimizer)
+        >>> gp.fit(X_train, y_train)
+        """
+        ...
+
+    def optimizer(self) -> Optional[BindableOptimizerProtocol[Array]]:
+        """
+        Return the current optimizer (None means use default).
+
+        Returns
+        -------
+        Optional[BindableOptimizerProtocol[Array]]
+            The configured optimizer, or None if using the default
+            ScipyTrustConstrOptimizer.
         """
         ...

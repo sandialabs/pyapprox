@@ -1,8 +1,24 @@
-from typing import Any
+from typing import Any, List
 
 from pyapprox.typing.optimization.minimize.objective.protocols import (
     ObjectiveProtocol,
 )
+
+
+def _missing_protocol_methods(obj: object, protocol: type) -> List[str]:
+    """Return list of protocol methods not implemented by obj."""
+    missing = []
+    # Get protocol's required methods (excluding private/dunder methods except __call__)
+    for name in dir(protocol):
+        if name.startswith("_") and name != "__call__":
+            continue
+        if not hasattr(obj, name):
+            missing.append(name)
+        elif callable(getattr(protocol, name, None)) and not callable(
+            getattr(obj, name, None)
+        ):
+            missing.append(name)
+    return missing
 
 
 def validate_objective(objective: Any) -> None:
@@ -27,10 +43,12 @@ def validate_objective(objective: Any) -> None:
     """
     # Check the instance against the protocols in order from most complex to least complex
     if not isinstance(objective, ObjectiveProtocol):
+        missing = _missing_protocol_methods(objective, ObjectiveProtocol)
         raise TypeError(
-            "Invalid objective type: expected an object implementing one of "
-            "the protocols in UnionOfObjectiveProtocols, got "
-            f"{type(objective).__name__}."
+            f"Invalid objective type: expected an object implementing "
+            f"ObjectiveProtocol (FunctionProtocol), got {type(objective).__name__}. "
+            f"Missing or invalid methods: {missing}. "
+            f"Required methods: bkd(), nvars(), nqoi(), __call__(samples)."
         )
 
     # Check that the objective has exactly one quantity of interest
