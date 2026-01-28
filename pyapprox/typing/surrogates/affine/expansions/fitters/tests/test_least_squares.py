@@ -21,7 +21,7 @@ from pyapprox.typing.util.backends.torch import TorchBkd
 from pyapprox.typing.util.backends.protocols import Array, Backend
 from pyapprox.typing.util.test_utils import load_tests  # noqa: F401
 
-from pyapprox.typing.optimization.fitting import (
+from pyapprox.typing.surrogates.affine.expansions.fitters import (
     LeastSquaresFitter,
     DirectSolverResult,
 )

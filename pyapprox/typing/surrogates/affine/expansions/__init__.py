@@ -14,10 +14,23 @@ from pyapprox.typing.surrogates.affine.expansions.pce import (
 
 from pyapprox.typing.surrogates.affine.expansions import pce_statistics
 
-# Re-export solvers from solvers module for backward compatibility
-from pyapprox.typing.surrogates.affine.solvers import (
+# Re-export solvers from optimization.linear for backward compatibility
+from pyapprox.typing.optimization.linear import (
     LeastSquaresSolver,
     RidgeRegressionSolver,
+)
+
+# Export fitters
+from pyapprox.typing.surrogates.affine.expansions.fitters import (
+    LeastSquaresFitter,
+    DirectSolverResult,
+    BayesianConjugateFitter,
+    BayesianConjugateResult,
+)
+
+# Export losses
+from pyapprox.typing.surrogates.affine.expansions.losses import (
+    BasisExpansionMSELoss,
 )
 
 __all__ = [
@@ -30,6 +43,13 @@ __all__ = [
     # Solvers (re-exported for convenience)
     "LeastSquaresSolver",
     "RidgeRegressionSolver",
+    # Fitters
+    "LeastSquaresFitter",
+    "DirectSolverResult",
+    "BayesianConjugateFitter",
+    "BayesianConjugateResult",
+    # Losses
+    "BasisExpansionMSELoss",
     # Statistics module
     "pce_statistics",
 ]

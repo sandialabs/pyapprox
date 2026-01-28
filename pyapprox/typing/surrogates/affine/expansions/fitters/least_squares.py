@@ -5,7 +5,9 @@ from typing import Generic, Optional
 from pyapprox.typing.util.backends.protocols import Array, Backend
 from pyapprox.typing.optimization.linear import LeastSquaresSolver
 from pyapprox.typing.surrogates.affine.protocols import BasisExpansionProtocol
-from pyapprox.typing.optimization.fitting.results import DirectSolverResult
+from pyapprox.typing.surrogates.affine.expansions.fitters.results import (
+    DirectSolverResult,
+)
 
 
 class LeastSquaresFitter(Generic[Array]):

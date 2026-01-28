@@ -1,4 +1,4 @@
-"""Fitting framework for basis expansions.
+"""Fitters for basis expansions.
 
 This module provides fitters that separate surrogate representation from
 parameter estimation using a fitter-centric pattern:
@@ -10,12 +10,20 @@ The surrogate is not modified during fitting - instead, a new instance
 is returned with the fitted parameters (immutable pattern).
 """
 
-from pyapprox.typing.optimization.fitting.results import DirectSolverResult
-from pyapprox.typing.optimization.fitting.least_squares_fitter import (
+from pyapprox.typing.surrogates.affine.expansions.fitters.results import (
+    DirectSolverResult,
+)
+from pyapprox.typing.surrogates.affine.expansions.fitters.least_squares import (
     LeastSquaresFitter,
+)
+from pyapprox.typing.surrogates.affine.expansions.fitters.bayesian import (
+    BayesianConjugateFitter,
+    BayesianConjugateResult,
 )
 
 __all__ = [
     "DirectSolverResult",
     "LeastSquaresFitter",
+    "BayesianConjugateFitter",
+    "BayesianConjugateResult",
 ]
