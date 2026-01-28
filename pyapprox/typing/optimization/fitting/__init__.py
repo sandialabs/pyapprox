@@ -1,0 +1,21 @@
+"""Fitting framework for basis expansions.
+
+This module provides fitters that separate surrogate representation from
+parameter estimation using a fitter-centric pattern:
+
+    result = fitter.fit(expansion, samples, values)
+    fitted_expansion = result.surrogate()
+
+The surrogate is not modified during fitting - instead, a new instance
+is returned with the fitted parameters (immutable pattern).
+"""
+
+from pyapprox.typing.optimization.fitting.results import DirectSolverResult
+from pyapprox.typing.optimization.fitting.least_squares_fitter import (
+    LeastSquaresFitter,
+)
+
+__all__ = [
+    "DirectSolverResult",
+    "LeastSquaresFitter",
+]

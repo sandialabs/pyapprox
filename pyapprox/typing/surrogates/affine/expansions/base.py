@@ -4,7 +4,7 @@ A basis expansion represents a function as a linear combination of basis
 functions: f(x) = Σ_i c_i φ_i(x).
 """
 
-from typing import Generic, Optional, Union
+from typing import Generic, Optional, Self, Union
 
 from pyapprox.typing.util.backends.protocols import Array, Backend
 from pyapprox.typing.util.hyperparameter import (
@@ -124,6 +124,48 @@ class BasisExpansion(Generic[Array]):
     def get_basis(self) -> BasisProtocol[Array]:
         """Return the basis object."""
         return self._basis
+
+    def basis_matrix(self, samples: Array) -> Array:
+        """Compute basis matrix (design matrix) Phi(samples).
+
+        The expansion output is: Phi(samples) @ coefficients
+
+        Parameters
+        ----------
+        samples : Array
+            Input samples. Shape: (nvars, nsamples)
+
+        Returns
+        -------
+        Array
+            Basis matrix. Shape: (nsamples, nterms)
+        """
+        return self._basis(samples)
+
+    def with_params(self, params: Array) -> Self:
+        """Return NEW instance with parameters set. Original unchanged.
+
+        This is the immutable pattern. The original instance is not modified.
+
+        Parameters
+        ----------
+        params : Array
+            Coefficient values. Shape: (nterms, nqoi)
+
+        Returns
+        -------
+        Self
+            New BasisExpansion with coefficients set.
+        """
+        # Create new instance with same configuration
+        new_expansion = self.__class__(
+            basis=self._basis,
+            bkd=self._bkd,
+            nqoi=self._nqoi,
+            solver=self._solver,
+        )
+        new_expansion.set_coefficients(params)
+        return new_expansion
 
     def hyp_list(self) -> HyperParameterList:
         """Return the hyperparameter list for coefficient optimization.
@@ -443,9 +485,7 @@ class BasisExpansion(Generic[Array]):
         active_solver = solver if solver is not None else self._solver
         if active_solver is None:
             # Use default least squares
-            from pyapprox.typing.surrogates.affine.expansions.solvers import (
-                LeastSquaresSolver,
-            )
+            from pyapprox.typing.optimization.linear import LeastSquaresSolver
             active_solver = LeastSquaresSolver(self._bkd)
 
         # Evaluate basis at training samples

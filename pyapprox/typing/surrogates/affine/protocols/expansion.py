@@ -4,7 +4,7 @@ This module defines protocols for basis expansions that express functions
 as linear combinations of basis functions: f(x) ≈ Σ_i c_i φ_i(x).
 """
 
-from typing import Generic, Protocol, runtime_checkable
+from typing import Generic, Protocol, Self, runtime_checkable
 
 from pyapprox.typing.util.backends.protocols import Array, Backend
 
@@ -53,6 +53,36 @@ class BasisExpansionProtocol(Protocol, Generic[Array]):
         -------
         Array
             Values at samples. Shape: (nqoi, nsamples)
+        """
+        ...
+
+    def basis_matrix(self, samples: Array) -> Array:
+        """Compute basis matrix (design matrix) Phi(samples).
+
+        Parameters
+        ----------
+        samples : Array
+            Input samples. Shape: (nvars, nsamples)
+
+        Returns
+        -------
+        Array
+            Basis matrix. Shape: (nsamples, nterms)
+        """
+        ...
+
+    def with_params(self, params: Array) -> Self:
+        """Return NEW instance with parameters set. Original unchanged.
+
+        Parameters
+        ----------
+        params : Array
+            Coefficient values. Shape: (nterms, nqoi)
+
+        Returns
+        -------
+        Self
+            New expansion with coefficients set.
         """
         ...
 

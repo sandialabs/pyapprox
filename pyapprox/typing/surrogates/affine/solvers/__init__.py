@@ -1,44 +1,27 @@
 """Linear system solvers for basis expansion fitting.
 
-This module provides various solvers for finding coefficients
-that minimize different objectives involving basis expansions.
+DEPRECATED: Solvers have moved to pyapprox.typing.optimization.linear.
+This module re-exports for backward compatibility.
 
-Solver Categories
------------------
-Least Squares
-    - LeastSquaresSolver: Standard least squares
-    - RidgeRegressionSolver: L2 regularized (Tikhonov)
-    - LinearlyConstrainedLstSqSolver: With equality constraints
-
-Sparse
-    - OMPSolver: Orthogonal Matching Pursuit
-    - BasisPursuitSolver: L1 minimization
-    - BasisPursuitDenoisingSolver: LASSO / L1 regularized
-
-Quantile
-    - QuantileRegressionSolver: Quantile regression via LP
-    - ExpectileRegressionSolver: Expectile regression via IRLS
+Import from the new location instead:
+    from pyapprox.typing.optimization.linear import LeastSquaresSolver
 """
 
-from pyapprox.typing.surrogates.affine.solvers.base import (
+# Re-export from new location for backward compatibility
+from pyapprox.typing.optimization.linear import (
+    # Base
     LinearSystemSolver,
     SingleQoiSolverMixin,
-)
-
-from pyapprox.typing.surrogates.affine.solvers.least_squares import (
+    # Least squares
     LeastSquaresSolver,
     RidgeRegressionSolver,
     LinearlyConstrainedLstSqSolver,
-)
-
-from pyapprox.typing.surrogates.affine.solvers.sparse import (
+    # Sparse
     OMPSolver,
     OMPTerminationFlag,
     BasisPursuitSolver,
     BasisPursuitDenoisingSolver,
-)
-
-from pyapprox.typing.surrogates.affine.solvers.quantile import (
+    # Quantile
     QuantileRegressionSolver,
     ExpectileRegressionSolver,
 )

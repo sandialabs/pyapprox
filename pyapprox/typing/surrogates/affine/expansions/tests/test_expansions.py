@@ -156,6 +156,84 @@ class TestBasisExpansion(Generic[Array], unittest.TestCase):
         # hessian_batch method should not be bound for nqoi > 1
         self.assertFalse(hasattr(exp, "hessian_batch"))
 
+    def test_basis_matrix_shape(self):
+        """Test basis_matrix() returns correct shape."""
+        bkd = self._bkd
+        basis = self._create_basis(nvars=2, max_level=3)
+        exp = BasisExpansion(basis, bkd, nqoi=1)
+
+        nsamples = 20
+        samples = bkd.asarray(np.random.uniform(-1, 1, (2, nsamples)))
+
+        Phi = exp.basis_matrix(samples)
+
+        self.assertEqual(Phi.shape, (nsamples, exp.nterms()))
+
+    def test_basis_matrix_matches_basis_call(self):
+        """Test basis_matrix() returns same result as calling basis directly."""
+        bkd = self._bkd
+        basis = self._create_basis(nvars=2, max_level=3)
+        exp = BasisExpansion(basis, bkd, nqoi=1)
+
+        nsamples = 15
+        samples = bkd.asarray(np.random.uniform(-1, 1, (2, nsamples)))
+
+        Phi = exp.basis_matrix(samples)
+        expected = exp.get_basis()(samples)
+
+        bkd.assert_allclose(Phi, expected)
+
+    def test_with_params_creates_independent_copy(self):
+        """Test with_params() creates independent copy, original unchanged."""
+        bkd = self._bkd
+        basis = self._create_basis(nvars=2, max_level=3)
+        exp = BasisExpansion(basis, bkd, nqoi=1)
+
+        original_coef = bkd.copy(exp.get_coefficients())
+        new_coef = bkd.asarray(np.random.randn(exp.nterms(), 1))
+
+        new_exp = exp.with_params(new_coef)
+
+        # Different objects
+        self.assertIsNot(new_exp, exp)
+        # Original unchanged
+        bkd.assert_allclose(exp.get_coefficients(), original_coef)
+        # New has updated coefficients
+        bkd.assert_allclose(new_exp.get_coefficients(), new_coef)
+
+    def test_with_params_preserves_properties(self):
+        """Test with_params() preserves nvars, nterms, nqoi."""
+        bkd = self._bkd
+        basis = self._create_basis(nvars=2, max_level=3)
+        exp = BasisExpansion(basis, bkd, nqoi=2)
+
+        new_coef = bkd.asarray(np.random.randn(exp.nterms(), 2))
+        new_exp = exp.with_params(new_coef)
+
+        self.assertEqual(new_exp.nvars(), exp.nvars())
+        self.assertEqual(new_exp.nterms(), exp.nterms())
+        self.assertEqual(new_exp.nqoi(), exp.nqoi())
+
+    def test_with_params_evaluates_correctly(self):
+        """Test with_params() result evaluates correctly."""
+        bkd = self._bkd
+        basis = self._create_basis(nvars=2, max_level=3)
+        exp = BasisExpansion(basis, bkd, nqoi=1)
+
+        # Fit to known function
+        nsamples = 50
+        samples = bkd.asarray(np.random.uniform(-1, 1, (2, nsamples)))
+        x, y = samples[0, :], samples[1, :]
+        values = bkd.reshape(x + y, (1, -1))
+        exp.fit(samples, values)
+
+        # Create new expansion with same coefficients
+        new_exp = exp.with_params(exp.get_coefficients())
+
+        # Should evaluate identically
+        test_samples = bkd.asarray(np.random.uniform(-1, 1, (2, 20)))
+        bkd.assert_allclose(new_exp(test_samples), exp(test_samples))
+
     def test_jacobian_batch_finite_difference(self):
         """Test Jacobian accuracy via finite differences."""
         bkd = self._bkd
