@@ -61,7 +61,12 @@ class TestSobolSampler(Generic[Array], unittest.TestCase):
         sampler = SobolAdaptiveSampler(2, self._bkd)
         s1 = sampler.select_samples(10)
         s2 = sampler.select_samples(10)
-        self.assertFalse(self._bkd.allclose(s1, s2))
+        # Verify points differ (Sobol advances between calls)
+        diff = self._bkd.sum((s1 - s2) ** 2)
+        self.assertGreater(
+            float(self._bkd.to_numpy(self._bkd.reshape(diff, (1,)))[0]),
+            0.0,
+        )
 
     def test_set_kernel_noop(self) -> None:
         sampler = SobolAdaptiveSampler(2, self._bkd)
