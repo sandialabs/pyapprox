@@ -214,11 +214,20 @@ class TestAdaptiveGPBuilder(Generic[Array], unittest.TestCase):
         builder = AdaptiveGPBuilder(kernel, sampler, bkd, noise_variance=1e-6)
         fun = lambda s: _quadratic_function(s, bkd)
 
+        # Initial kernel params (before any fitting)
+        initial_params = bkd.to_numpy(kernel.hyp_list().get_values()).copy()
+
         # Step 1: select and fit
         _, gp1 = builder.step(fun, 5)
         kernel_params_1 = bkd.to_numpy(gp1.hyp_list().get_values()).copy()
 
-        # Step 2: HP optimization may change kernel
+        # Verify HP optimization changed kernel from initial
+        self.assertFalse(
+            np.allclose(initial_params, kernel_params_1),
+            "Kernel params should change after first step"
+        )
+
+        # Step 2: HP optimization may change kernel again
         _, gp2 = builder.step(fun, 5)
         kernel_params_2 = bkd.to_numpy(gp2.hyp_list().get_values()).copy()
 
@@ -270,13 +279,24 @@ class TestAdaptiveGPBuilder(Generic[Array], unittest.TestCase):
         value. Here we verify the workflow produces a fitted GP with
         the correct number of training samples and reasonable
         prediction accuracy.
+
+        Key setup to match legacy:
+        - Domain [-1, 1] (2 units wide)
+        - Lengthscale bounds [0.1, 1.0] to prevent very large lengthscales
+        - 2000 candidates (mix of Halton and random like legacy)
+        - Initial lengthscale 1.0
         """
         bkd = self._bkd
         np.random.seed(1)
+        # Match legacy: lengthscale bounds [0.1, 1.0], not [0.01, 10.0]
+        # This prevents the lengthscale from growing too large after
+        # HP optimization, which would make the kernel matrix low-rank
         kernel = SquaredExponentialKernel(
-            [1.0], (0.01, 10.0), 1, bkd
+            [1.0], (0.1, 1.0), 1, bkd
         )
-        candidates = bkd.asarray(np.random.rand(1, 100))
+        # Match legacy: domain [-1, 1] and 2000 candidates
+        # Legacy uses half Halton, half random - we use all random for simplicity
+        candidates = bkd.asarray(2.0 * np.random.rand(1, 2000) - 1.0)
         sampler = CholeskySampler(candidates, bkd)
         sampler.set_kernel(kernel)
         builder = AdaptiveGPBuilder(kernel, sampler, bkd, noise_variance=1e-6)
@@ -291,7 +311,7 @@ class TestAdaptiveGPBuilder(Generic[Array], unittest.TestCase):
         self.assertEqual(data[0].shape[1], 11)
 
         # Verify GP predicts reasonably at test points
-        test_X = bkd.asarray(np.linspace(0.0, 1.0, 20).reshape(1, -1))
+        test_X = bkd.asarray(np.linspace(-1.0, 1.0, 20).reshape(1, -1))
         test_y = _quadratic_function(test_X, bkd)
         pred = gp(test_X)
         max_err = float(
@@ -403,6 +423,87 @@ class TestAdaptiveGPBuilder(Generic[Array], unittest.TestCase):
             bkd.to_numpy(bkd.reshape(bkd.max(bkd.abs(pred - test_y)), (1,)))
         )
         self.assertLess(max_err, 0.5)
+
+    @slow_test
+    def test_statistics_with_returned_gp(self) -> None:
+        """Statistics work directly with returned GP, mean matches MC.
+
+        Verifies that GaussianProcessStatistics can be constructed from
+        the returned GP and produces mean values consistent with Monte Carlo.
+        """
+        bkd = self._bkd
+        from pyapprox.typing.surrogates.gaussianprocess.statistics import (
+            SeparableKernelIntegralCalculator,
+            GaussianProcessStatistics,
+        )
+        from pyapprox.typing.probability.univariate.uniform import UniformMarginal
+        from pyapprox.typing.surrogates.sparsegrids.basis_factory import (
+            create_basis_factories,
+        )
+
+        # Build GP on sin function in [0, 1]
+        kernel = self._make_kernel()
+        sampler = SobolAdaptiveSampler(1, bkd)
+        builder = AdaptiveGPBuilder(kernel, sampler, bkd, noise_variance=1e-6)
+
+        fun = lambda s: _sin_function(s, bkd)
+        schedule = ConstantSamplingSchedule(10, 30)
+        gp = builder.run(fun, schedule)
+
+        # Create statistics object with proper quadrature setup
+        marginals = [UniformMarginal(0.0, 1.0, bkd)]
+        basis_factories = create_basis_factories(marginals, bkd, "gauss")
+        bases = [f.create_basis() for f in basis_factories]
+        for b in bases:
+            b.set_nterms(30)
+        calc: SeparableKernelIntegralCalculator[Any] = (
+            SeparableKernelIntegralCalculator(gp, bases, marginals, bkd=bkd)
+        )
+        stats: GaussianProcessStatistics[Any] = GaussianProcessStatistics(
+            gp, calc
+        )
+
+        # Compute mean via statistics
+        gp_mean = stats.mean_of_mean()
+
+        # Compute MC estimate of mean
+        np.random.seed(123)
+        mc_samples = bkd.asarray(np.random.rand(1, 10000))
+        mc_values = gp(mc_samples)
+        mc_mean = float(bkd.to_numpy(bkd.mean(mc_values)))
+
+        # Should be close (within MC error)
+        bkd.assert_allclose(
+            bkd.asarray([gp_mean]), bkd.asarray([mc_mean]), rtol=0.1, atol=0.05
+        )
+
+    @slow_test
+    def test_jacobian_with_returned_gp(self) -> None:
+        """Jacobian works with returned GP via DerivativeChecker.
+
+        Verifies that the returned GP's jacobian method produces
+        derivatives consistent with finite difference approximation.
+        """
+        bkd = self._bkd
+        from pyapprox.typing.interface.functions.derivative_checks.derivative_checker import (
+            DerivativeChecker,
+        )
+
+        # Build GP on quadratic function
+        kernel = self._make_kernel()
+        sampler = SobolAdaptiveSampler(1, bkd)
+        builder = AdaptiveGPBuilder(kernel, sampler, bkd, noise_variance=1e-6)
+
+        fun = lambda s: _quadratic_function(s, bkd)
+        schedule = ConstantSamplingSchedule(10, 20)
+        gp = builder.run(fun, schedule)
+
+        # Use DerivativeChecker to verify jacobian
+        checker = DerivativeChecker(gp)
+        sample = bkd.asarray([[0.3]])
+        errors = checker.check_derivatives(sample, verbosity=0)
+        ratio = float(bkd.to_numpy(checker.error_ratio(errors[0])))
+        self.assertLessEqual(ratio, 1e-6)
 
 
 class TestAdaptiveGPBuilderNumpy(TestAdaptiveGPBuilder[NDArray[Any]]):
