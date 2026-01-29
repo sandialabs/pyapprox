@@ -82,18 +82,14 @@ class FunctionTrainCore(Generic[Array]):
         nsamples = sample_1d.shape[1]
         nqoi = self.nqoi()
 
-        values = []
+        # Pre-allocate result tensor to avoid list appending and stacking
+        result = self._bkd.zeros((self._r_left, self._r_right, nsamples, nqoi))
         for ii in range(self._r_left):
-            row_values = []
             for jj in range(self._r_right):
                 # BasisExpansion.__call__ returns (nqoi, nsamples)
                 # We want (nsamples, nqoi) for einsum compatibility
-                val = self._basisexps[ii][jj](sample_1d).T  # (nsamples, nqoi)
-                row_values.append(val)
-            # Stack along axis 0: (r_right, nsamples, nqoi)
-            values.append(self._bkd.stack(row_values, axis=0))
-        # Stack along axis 0: (r_left, r_right, nsamples, nqoi)
-        return self._bkd.stack(values, axis=0)
+                result[ii, jj] = self._basisexps[ii][jj](sample_1d).T
+        return result
 
     def basis_matrix(self, sample_1d: Array, ii: int, jj: int) -> Array:
         """Get basis matrix for a specific basis expansion.
@@ -446,9 +442,9 @@ class FunctionTrainCore(Generic[Array]):
         nsamples = sample_1d.shape[1]
         nqoi = self.nqoi()
 
-        values = []
+        # Pre-allocate result tensor to avoid list appending and stacking
+        result = self._bkd.zeros((self._r_left, self._r_right, nsamples, nqoi))
         for ii in range(self._r_left):
-            row_values = []
             for jj in range(self._r_right):
                 bexp = self._basisexps[ii][jj]
                 if not hasattr(bexp, "jacobian_batch"):
@@ -460,11 +456,8 @@ class FunctionTrainCore(Generic[Array]):
                 # jacobian_batch returns (nsamples, nqoi, nvars=1)
                 jac = bexp.jacobian_batch(sample_1d)
                 # Extract the single variable dimension: (nsamples, nqoi)
-                row_values.append(jac[:, :, 0])
-            # Stack along axis 0: (r_right, nsamples, nqoi)
-            values.append(self._bkd.stack(row_values, axis=0))
-        # Stack along axis 0: (r_left, r_right, nsamples, nqoi)
-        return self._bkd.stack(values, axis=0)
+                result[ii, jj] = jac[:, :, 0]
+        return result
 
     def __repr__(self) -> str:
         return f"FunctionTrainCore(ranks={self.ranks()})"

@@ -451,9 +451,8 @@ class FunctionTrain(Generic[Array]):
                 right_products[kk + 1],
             )
 
-        # 3. Assemble Jacobian: contribution from each core
+        # 3. Assemble Jacobian: contribution from each core (vectorized)
         jac_parts = []
-        param_offset = 0
 
         for kk in range(self.nvars()):
             core = self._cores[kk]
@@ -466,38 +465,34 @@ class FunctionTrain(Generic[Array]):
             core_jac = core.jacobian_wrt_params(samples[kk : kk + 1])
             r_left, r_right = core.ranks()
 
-            # Compute contribution: L_k * dF_k/dtheta * R_k
-            # Initialize contribution tensor
-            core_contribution = self._bkd.zeros((nsamples, nqoi, core_nparams))
+            # Compute weights vectorized: L[0, :, :, :] * R[:, 0, :, :]
+            # L_weight shape: (r_left, nsamples, nqoi)
+            # R_weight shape: (r_right, nsamples, nqoi)
+            if kk == 0:
+                L_weight = self._bkd.ones((r_left, nsamples, nqoi))
+            else:
+                # left_products[kk-1]: (1, r_left, nsamples, nqoi)
+                L_weight = left_products[kk - 1][0, :, :, :]
 
-            for ii in range(r_left):
-                for jj in range(r_right):
-                    # Get weight from left product
-                    if kk == 0:
-                        # No left product for first core
-                        L_weight = self._bkd.ones((nsamples, nqoi))
-                    else:
-                        # left_products[kk-1] is L_k: (1, r_left, nsamples, nqoi)
-                        L_weight = left_products[kk - 1][0, ii, :, :]
+            if kk == self.nvars() - 1:
+                R_weight = self._bkd.ones((r_right, nsamples, nqoi))
+            else:
+                # right_products[kk]: (r_right, 1, nsamples, nqoi)
+                R_weight = right_products[kk][:, 0, :, :]
 
-                    # Get weight from right product
-                    if kk == self.nvars() - 1:
-                        # No right product for last core
-                        R_weight = self._bkd.ones((nsamples, nqoi))
-                    else:
-                        # right_products[kk]: (r_right, 1, nsamples, nqoi)
-                        R_weight = right_products[kk][jj, 0, :, :]
+            # Combined weights: (r_left, r_right, nsamples, nqoi)
+            # Broadcasting: (r_left, 1, nsamples, nqoi) * (1, r_right, nsamples, nqoi)
+            weights = L_weight[:, None, :, :] * R_weight[None, :, :, :]
 
-                    # Combined weight: (nsamples, nqoi)
-                    weight = L_weight * R_weight
-
-                    # core_jac[ii, jj] has shape (nsamples, nqoi, core_nparams)
-                    # Multiply by weight and accumulate
-                    contribution = weight[:, :, None] * core_jac[ii, jj]
-                    core_contribution = core_contribution + contribution
+            # Vectorized contribution using einsum:
+            # weights: (r_left, r_right, nsamples, nqoi)
+            # core_jac: (r_left, r_right, nsamples, nqoi, core_nparams)
+            # result: (nsamples, nqoi, core_nparams)
+            core_contribution = self._bkd.einsum(
+                "ijkl,ijklm->klm", weights, core_jac
+            )
 
             jac_parts.append(core_contribution)
-            param_offset += core_nparams
 
         # Concatenate all core contributions along the parameter dimension
         return self._bkd.concatenate(jac_parts, axis=2)
