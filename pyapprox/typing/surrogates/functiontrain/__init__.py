@@ -15,6 +15,13 @@ from pyapprox.typing.surrogates.functiontrain.als_fitter import (
     ALSFitter,
     ALSFitterResult,
 )
+from pyapprox.typing.surrogates.functiontrain.losses import (
+    FunctionTrainMSELoss,
+)
+from pyapprox.typing.surrogates.functiontrain.fitters import (
+    MSEFitter,
+    MSEFitterResult,
+)
 
 __all__ = [
     "FunctionTrainCore",
@@ -23,4 +30,7 @@ __all__ = [
     "ConstantExpansion",
     "ALSFitter",
     "ALSFitterResult",
+    "FunctionTrainMSELoss",
+    "MSEFitter",
+    "MSEFitterResult",
 ]

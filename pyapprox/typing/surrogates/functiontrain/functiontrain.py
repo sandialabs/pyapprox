@@ -375,6 +375,133 @@ class FunctionTrain(Generic[Array]):
             jacs.append(self._bkd.hstack(jac_parts))
         return jacs
 
+    # =========================================================================
+    # Full Jacobian w.r.t. parameters for gradient-based optimization
+    # =========================================================================
+
+    def jacobian_wrt_params(self, samples: Array) -> Array:
+        """Compute Jacobian of output w.r.t. ALL trainable parameters.
+
+        This is used for gradient-based optimization (MSEFitter).
+        Uses the forward-backward sweep algorithm for efficiency.
+
+        Parameters
+        ----------
+        samples : Array
+            Input samples. Shape: (nvars, nsamples)
+
+        Returns
+        -------
+        Array
+            Jacobian. Shape: (nsamples, nqoi, nparams)
+
+        Notes
+        -----
+        The gradient computation uses:
+            df/d(theta_k) = F_{<k} * dF_k/d(theta) * F_{>k}
+
+        where F_{<k} is the left product and F_{>k} is the right product.
+        """
+        nsamples = samples.shape[1]
+        nparams = self.nparams()
+        nqoi = self.nqoi()
+
+        # Edge case: no trainable params
+        if nparams == 0:
+            return self._bkd.zeros((nsamples, nqoi, 0))
+
+        # Edge case: single variable FT (nvars=1)
+        if self.nvars() == 1:
+            # Only one core, no left/right products needed
+            core_jac = self._cores[0].jacobian_wrt_params(samples[0:1])
+            # core_jac shape: (r_left, r_right, nsamples, nqoi, core_nparams)
+            # For first/last core: r_left=1, r_right=1
+            return core_jac[0, 0]  # (nsamples, nqoi, nparams)
+
+        # Normal case: forward-backward sweep
+        # 1. Forward sweep: compute and cache left products L_k = F_0 * ... * F_{k-1}
+        left_products: List[Array] = []
+        # L_0 doesn't exist (no cores to the left of core 0)
+        # L_1 = F_0
+        left_products.append(self._cores[0](samples[:1]))
+        for kk in range(1, self.nvars() - 1):
+            # L_{k+1} = L_k * F_k
+            left_products.append(
+                self._bkd.einsum(
+                    "ijkl, jmkl->imkl",
+                    left_products[-1],
+                    self._cores[kk](samples[kk : kk + 1]),
+                )
+            )
+
+        # 2. Backward sweep: compute right products R_k = F_{k+1} * ... * F_{d-1}
+        # R_{d-1} doesn't exist (no cores to the right of last core)
+        # R_{d-2} = F_{d-1}
+        right_products: List[Array] = [
+            self._bkd.zeros((1,))
+        ] * self.nvars()  # placeholder
+        right_products[self.nvars() - 2] = self._cores[self.nvars() - 1](
+            samples[self.nvars() - 1 : self.nvars()]
+        )
+        for kk in range(self.nvars() - 3, -1, -1):
+            # R_k = F_{k+1} * R_{k+1}
+            right_products[kk] = self._bkd.einsum(
+                "ijkl, jmkl->imkl",
+                self._cores[kk + 1](samples[kk + 1 : kk + 2]),
+                right_products[kk + 1],
+            )
+
+        # 3. Assemble Jacobian: contribution from each core
+        jac_parts = []
+        param_offset = 0
+
+        for kk in range(self.nvars()):
+            core = self._cores[kk]
+            core_nparams = core.nparams()
+
+            if core_nparams == 0:
+                continue
+
+            # Get core Jacobian: (r_left, r_right, nsamples, nqoi, core_nparams)
+            core_jac = core.jacobian_wrt_params(samples[kk : kk + 1])
+            r_left, r_right = core.ranks()
+
+            # Compute contribution: L_k * dF_k/dtheta * R_k
+            # Initialize contribution tensor
+            core_contribution = self._bkd.zeros((nsamples, nqoi, core_nparams))
+
+            for ii in range(r_left):
+                for jj in range(r_right):
+                    # Get weight from left product
+                    if kk == 0:
+                        # No left product for first core
+                        L_weight = self._bkd.ones((nsamples, nqoi))
+                    else:
+                        # left_products[kk-1] is L_k: (1, r_left, nsamples, nqoi)
+                        L_weight = left_products[kk - 1][0, ii, :, :]
+
+                    # Get weight from right product
+                    if kk == self.nvars() - 1:
+                        # No right product for last core
+                        R_weight = self._bkd.ones((nsamples, nqoi))
+                    else:
+                        # right_products[kk]: (r_right, 1, nsamples, nqoi)
+                        R_weight = right_products[kk][jj, 0, :, :]
+
+                    # Combined weight: (nsamples, nqoi)
+                    weight = L_weight * R_weight
+
+                    # core_jac[ii, jj] has shape (nsamples, nqoi, core_nparams)
+                    # Multiply by weight and accumulate
+                    contribution = weight[:, :, None] * core_jac[ii, jj]
+                    core_contribution = core_contribution + contribution
+
+            jac_parts.append(core_contribution)
+            param_offset += core_nparams
+
+        # Concatenate all core contributions along the parameter dimension
+        return self._bkd.concatenate(jac_parts, axis=2)
+
     def __repr__(self) -> str:
         return (
             f"FunctionTrain(nvars={self.nvars()}, nqoi={self.nqoi()}, "

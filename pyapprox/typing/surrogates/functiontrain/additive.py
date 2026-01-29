@@ -95,6 +95,22 @@ class ConstantExpansion:
         """Return same constant (no parameters to change)."""
         return ConstantExpansion(self._value, self._bkd, self._nqoi)
 
+    def jacobian_wrt_params(self, samples: Array) -> Array:
+        """Jacobian w.r.t. parameters (empty since no trainable params).
+
+        Parameters
+        ----------
+        samples : Array
+            Input samples. Shape: (1, nsamples)
+
+        Returns
+        -------
+        Array
+            Empty Jacobian. Shape: (nsamples, nqoi, 0)
+        """
+        nsamples = samples.shape[1]
+        return self._bkd.zeros((nsamples, self._nqoi, 0))
+
 
 def create_additive_functiontrain(
     univariate_bases: List[BasisExpansionProtocol[Array]],

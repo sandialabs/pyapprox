@@ -244,5 +244,168 @@ class FunctionTrainCore(Generic[Array]):
             return self._bkd.zeros((0,))
         return self._bkd.hstack(params_list)
 
+    def jacobian_wrt_params(self, sample_1d: Array) -> Array:
+        """Jacobian of core output w.r.t. trainable parameters.
+
+        This is used for gradient-based optimization (MSEFitter).
+
+        Parameters
+        ----------
+        sample_1d : Array
+            Univariate samples. Shape: (1, nsamples)
+
+        Returns
+        -------
+        Array
+            Jacobian. Shape: (r_left, r_right, nsamples, nqoi, nparams_this_core)
+
+        Notes
+        -----
+        The Jacobian is sparse: d(core[i,j])/d(theta_k) is zero unless theta_k
+        belongs to the expansion at position (i,j).
+        """
+        nsamples = sample_1d.shape[1]
+        nparams = self.nparams()
+        nqoi = self.nqoi()
+
+        if nparams == 0:
+            return self._bkd.zeros(
+                (self._r_left, self._r_right, nsamples, nqoi, 0)
+            )
+
+        # Build Jacobian using list accumulation then stack
+        # We need shape (r_left, r_right, nsamples, nqoi, nparams)
+        jac_rows = []
+        for ii in range(self._r_left):
+            jac_cols = []
+            for jj in range(self._r_right):
+                # Each position (ii, jj) contributes to specific param indices
+                # Initialize a (nsamples, nqoi, nparams) array of zeros
+                # and fill in the part for this expansion
+                pos_jac = self._bkd.zeros((nsamples, nqoi, nparams))
+
+                bexp = self._basisexps[ii][jj]
+                bexp_nparams = bexp.nparams()
+
+                if bexp_nparams > 0:
+                    # Get jacobian for this expansion
+                    if hasattr(bexp, "jacobian_wrt_params"):
+                        bexp_jac = bexp.jacobian_wrt_params(sample_1d)
+                    else:
+                        bexp_jac = self._linear_jacobian_wrt_params(
+                            bexp, sample_1d
+                        )
+                    # bexp_jac has shape (nsamples, nqoi, bexp_nparams)
+
+                    # Find starting index for this expansion's params
+                    param_idx = self._get_param_start_index(ii, jj)
+
+                    # Build the full jacobian for this position by concatenation
+                    # Left padding: zeros of shape (nsamples, nqoi, param_idx)
+                    # Middle: bexp_jac of shape (nsamples, nqoi, bexp_nparams)
+                    # Right padding: zeros of shape (nsamples, nqoi, remaining)
+                    remaining = nparams - param_idx - bexp_nparams
+
+                    parts = []
+                    if param_idx > 0:
+                        parts.append(
+                            self._bkd.zeros((nsamples, nqoi, param_idx))
+                        )
+                    parts.append(bexp_jac)
+                    if remaining > 0:
+                        parts.append(
+                            self._bkd.zeros((nsamples, nqoi, remaining))
+                        )
+
+                    pos_jac = self._bkd.concatenate(parts, axis=2)
+
+                jac_cols.append(pos_jac)
+
+            # Stack along axis 0 to get (r_right, nsamples, nqoi, nparams)
+            jac_rows.append(self._bkd.stack(jac_cols, axis=0))
+
+        # Stack along axis 0 to get (r_left, r_right, nsamples, nqoi, nparams)
+        return self._bkd.stack(jac_rows, axis=0)
+
+    def _get_param_start_index(self, target_ii: int, target_jj: int) -> int:
+        """Get the starting parameter index for expansion at (target_ii, target_jj).
+
+        Parameters
+        ----------
+        target_ii : int
+            Left rank index.
+        target_jj : int
+            Right rank index.
+
+        Returns
+        -------
+        int
+            Starting index in the flattened parameter vector.
+        """
+        param_idx = 0
+        for ii in range(self._r_left):
+            for jj in range(self._r_right):
+                if ii == target_ii and jj == target_jj:
+                    return param_idx
+                bexp = self._basisexps[ii][jj]
+                param_idx += bexp.nparams()
+        return param_idx
+
+    def _linear_jacobian_wrt_params(
+        self, bexp: BasisExpansionProtocol[Array], sample_1d: Array
+    ) -> Array:
+        """Compute Jacobian for linear parameterization from basis matrix.
+
+        For f(x) = sum_l theta_{l,q} * phi_l(x), we have:
+            df_q/d(theta_{l,q'}) = phi_l(x) if q == q' else 0
+
+        Parameters
+        ----------
+        bexp : BasisExpansionProtocol
+            The basis expansion.
+        sample_1d : Array
+            Univariate samples. Shape: (1, nsamples)
+
+        Returns
+        -------
+        Array
+            Jacobian. Shape: (nsamples, nqoi, nparams)
+        """
+        phi = bexp.basis_matrix(sample_1d)  # (nsamples, nterms)
+        nsamples = phi.shape[0]
+        nterms = bexp.nterms()
+        nqoi = bexp.nqoi()
+        nparams = bexp.nparams()
+
+        # For linear, nparams = nterms * nqoi (row-major: all terms for q=0, then q=1, etc.)
+        # jac[s, q, l + q*nterms] = phi[s, l]
+        jac_parts = []
+        for qq in range(nqoi):
+            # For QoI qq, the jacobian w.r.t. its nterms params is phi
+            # But we need to place it in the right position in the nparams dimension
+            # Params for qq are at indices [qq*nterms : (qq+1)*nterms]
+            # Before: zeros of shape (nsamples, 1, qq*nterms)
+            # Middle: phi reshaped to (nsamples, 1, nterms)
+            # After: zeros of shape (nsamples, 1, (nqoi-qq-1)*nterms)
+            before = self._bkd.zeros((nsamples, 1, qq * nterms))
+            middle = self._bkd.reshape(phi, (nsamples, 1, nterms))
+            after = self._bkd.zeros((nsamples, 1, (nqoi - qq - 1) * nterms))
+
+            row_parts = []
+            if qq > 0:
+                row_parts.append(before)
+            row_parts.append(middle)
+            if qq < nqoi - 1:
+                row_parts.append(after)
+
+            if len(row_parts) == 1:
+                qoi_jac = row_parts[0]
+            else:
+                qoi_jac = self._bkd.concatenate(row_parts, axis=2)
+            jac_parts.append(qoi_jac)
+
+        # Stack along axis 1 to get (nsamples, nqoi, nparams)
+        return self._bkd.concatenate(jac_parts, axis=1)
+
     def __repr__(self) -> str:
         return f"FunctionTrainCore(ranks={self.ranks()})"
