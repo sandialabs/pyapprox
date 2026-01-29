@@ -91,6 +91,36 @@ class FunctionTrainCore(Generic[Array]):
                 result[ii, jj] = self._basisexps[ii][jj](sample_1d).T
         return result
 
+    def get_basisexp(self, ii: int, jj: int) -> BasisExpansionProtocol[Array]:
+        """Get univariate expansion at position (ii, jj).
+
+        Parameters
+        ----------
+        ii : int
+            Left rank index.
+        jj : int
+            Right rank index.
+
+        Returns
+        -------
+        BasisExpansionProtocol[Array]
+            The univariate basis expansion.
+
+        Raises
+        ------
+        IndexError
+            If indices are out of bounds.
+        """
+        if ii < 0 or ii >= self._r_left:
+            raise IndexError(
+                f"Left rank index {ii} out of bounds [0, {self._r_left})"
+            )
+        if jj < 0 or jj >= self._r_right:
+            raise IndexError(
+                f"Right rank index {jj} out of bounds [0, {self._r_right})"
+            )
+        return self._basisexps[ii][jj]
+
     def basis_matrix(self, sample_1d: Array, ii: int, jj: int) -> Array:
         """Get basis matrix for a specific basis expansion.
 

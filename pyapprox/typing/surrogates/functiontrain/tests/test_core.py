@@ -169,6 +169,71 @@ class TestFunctionTrainCore(Generic[Array], unittest.TestCase):
         self.assertEqual(basis_mat.shape[0], 5)
         self.assertEqual(basis_mat.shape[1], 3)  # max_level + 1
 
+    def test_get_basisexp(self) -> None:
+        """Test get_basisexp returns correct expansion."""
+        bkd = self._bkd
+        # Create distinct expansions for each position
+        basisexps = [
+            [self._create_univariate_expansion(2) for _ in range(3)],
+            [self._create_univariate_expansion(2) for _ in range(3)],
+        ]
+        core = FunctionTrainCore(basisexps, bkd)
+
+        # Verify each position returns the correct expansion
+        for ii in range(2):
+            for jj in range(3):
+                retrieved = core.get_basisexp(ii, jj)
+                # Check it's the same object reference
+                self.assertIs(retrieved, basisexps[ii][jj])
+
+    def test_get_basisexp_bounds_checking(self) -> None:
+        """Test get_basisexp raises IndexError for out-of-bounds indices."""
+        bkd = self._bkd
+        basisexps = [
+            [self._create_univariate_expansion(2) for _ in range(3)],
+            [self._create_univariate_expansion(2) for _ in range(3)],
+        ]
+        core = FunctionTrainCore(basisexps, bkd)
+
+        # Test left rank out of bounds
+        with self.assertRaises(IndexError) as ctx:
+            core.get_basisexp(2, 0)
+        self.assertIn("Left rank index", str(ctx.exception))
+
+        with self.assertRaises(IndexError) as ctx:
+            core.get_basisexp(-1, 0)
+        self.assertIn("Left rank index", str(ctx.exception))
+
+        # Test right rank out of bounds
+        with self.assertRaises(IndexError) as ctx:
+            core.get_basisexp(0, 3)
+        self.assertIn("Right rank index", str(ctx.exception))
+
+        with self.assertRaises(IndexError) as ctx:
+            core.get_basisexp(0, -1)
+        self.assertIn("Right rank index", str(ctx.exception))
+
+    def test_get_basisexp_interface(self) -> None:
+        """Test get_basisexp returns expansion with expected interface."""
+        bkd = self._bkd
+        basisexps = [[self._create_univariate_expansion(3, nqoi=2)]]
+        core = FunctionTrainCore(basisexps, bkd)
+
+        bexp = core.get_basisexp(0, 0)
+
+        # Verify expected interface methods exist and work
+        self.assertTrue(hasattr(bexp, "get_coefficients"))
+        self.assertTrue(hasattr(bexp, "nterms"))
+        self.assertTrue(hasattr(bexp, "nqoi"))
+
+        # Check values
+        self.assertEqual(bexp.nterms(), 4)  # max_level + 1 = 3 + 1
+        self.assertEqual(bexp.nqoi(), 2)
+
+        # get_coefficients should return shape (nterms, nqoi)
+        coef = bexp.get_coefficients()
+        self.assertEqual(coef.shape, (4, 2))
+
 
 class TestFunctionTrainCoreNumpy(TestFunctionTrainCore[NDArray[Any]]):
     """NumPy backend tests."""

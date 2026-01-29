@@ -7,6 +7,12 @@ expansions connected via tensor contractions.
 
 from pyapprox.typing.surrogates.functiontrain.core import FunctionTrainCore
 from pyapprox.typing.surrogates.functiontrain.functiontrain import FunctionTrain
+from pyapprox.typing.surrogates.functiontrain.pce_core import (
+    PCEFunctionTrainCore,
+)
+from pyapprox.typing.surrogates.functiontrain.pce_functiontrain import (
+    PCEFunctionTrain,
+)
 from pyapprox.typing.surrogates.functiontrain.additive import (
     create_additive_functiontrain,
     ConstantExpansion,
@@ -26,6 +32,8 @@ from pyapprox.typing.surrogates.functiontrain.fitters import (
 __all__ = [
     "FunctionTrainCore",
     "FunctionTrain",
+    "PCEFunctionTrainCore",
+    "PCEFunctionTrain",
     "create_additive_functiontrain",
     "ConstantExpansion",
     "ALSFitter",
