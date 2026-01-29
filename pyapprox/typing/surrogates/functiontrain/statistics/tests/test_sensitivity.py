@@ -1,5 +1,6 @@
 """Tests for FunctionTrainSensitivity."""
 
+import math
 import unittest
 from itertools import chain, combinations
 from typing import Any, Generic, List, Optional, Sequence
@@ -11,7 +12,7 @@ from numpy.typing import NDArray
 from pyapprox.typing.util.backends.numpy import NumpyBkd
 from pyapprox.typing.util.backends.torch import TorchBkd
 from pyapprox.typing.util.backends.protocols import Array, Backend
-from pyapprox.typing.util.test_utils import load_tests  # noqa: F401
+from pyapprox.typing.util.test_utils import load_tests, slow_test  # noqa: F401
 
 from pyapprox.typing.surrogates.affine.univariate import create_bases_1d
 from pyapprox.typing.surrogates.affine.indices import compute_hyperbolic_indices
@@ -23,10 +24,16 @@ from pyapprox.typing.surrogates.functiontrain.core import FunctionTrainCore
 from pyapprox.typing.surrogates.functiontrain import (
     FunctionTrain,
     PCEFunctionTrain,
+    ALSFitter,
+    create_uniform_pce_functiontrain,
 )
 from pyapprox.typing.surrogates.functiontrain.statistics import (
     FunctionTrainMoments,
     FunctionTrainSensitivity,
+)
+from pyapprox.typing.benchmarks.functions.algebraic.ishigami import (
+    IshigamiFunction,
+    IshigamiSensitivityIndices,
 )
 
 
@@ -318,6 +325,145 @@ class TestFunctionTrainSensitivity(Generic[Array], unittest.TestCase):
         self.assertEqual(sensitivity.sobol_index([0, 1]).shape, (1,))
 
 
+class TestIshigamiBenchmark(Generic[Array], unittest.TestCase):
+    """Test FT sensitivity indices against Ishigami function benchmark.
+
+    The Ishigami function is a standard benchmark for sensitivity analysis with
+    analytically known Sobol indices. It's defined on [-π, π]³:
+    f(x) = sin(x₁) + a·sin²(x₂) + b·x₃⁴·sin(x₁)
+
+    Standard parameters: a=7, b=0.1
+    """
+
+    __test__ = False
+
+    def bkd(self) -> Backend[Array]:
+        raise NotImplementedError
+
+    def setUp(self) -> None:
+        self._bkd = self.bkd()
+        np.random.seed(42)
+
+    def _create_uniform_pce_template(
+        self, max_level: int
+    ) -> BasisExpansion[Array]:
+        """Create univariate PCE template on [-π, π]."""
+        bkd = self._bkd
+        marginals = [UniformMarginal(-math.pi, math.pi, bkd)]
+        bases_1d = create_bases_1d(marginals, bkd)
+        indices = compute_hyperbolic_indices(1, max_level, 1.0, bkd)
+        basis = OrthonormalPolynomialBasis(bases_1d, bkd, indices)
+        return BasisExpansion(basis, bkd, nqoi=1)
+
+    @slow_test
+    def test_ishigami_sobol_indices(self) -> None:
+        """Test FT Sobol indices match Ishigami analytical values.
+
+        Fits a rank-3 FT to the Ishigami function and compares computed
+        Sobol indices against exact analytical values.
+
+        Targets:
+        - FT fit error < 1e-4
+        - Main effect error < 1e-4
+        - Total effect error < 1e-4
+        """
+        bkd = self._bkd
+        nvars = 3
+
+        # Standard Ishigami parameters
+        a, b = 7.0, 0.1
+        ishigami = IshigamiFunction(bkd, a=a, b=b)
+        exact_indices = IshigamiSensitivityIndices(bkd, a=a, b=b)
+
+        # Get exact Sobol indices
+        S_exact = [
+            float(exact_indices.main_effects()[i, 0]) for i in range(nvars)
+        ]
+        T_exact = [
+            float(exact_indices.total_effects()[i, 0]) for i in range(nvars)
+        ]
+
+        # Create rank-3 FT with degree 12 polynomials
+        max_level = 12
+        ranks = [3, 3]  # Interior ranks
+        pce_template = self._create_uniform_pce_template(max_level)
+        ft_init = create_uniform_pce_functiontrain(
+            pce_template, nvars, ranks, bkd
+        )
+
+        # Generate training samples on [-π, π]³
+        nsamples_train = 1500
+        train_samples = bkd.asarray(
+            np.random.uniform(-math.pi, math.pi, (nvars, nsamples_train))
+        )
+        train_values = ishigami(train_samples)
+
+        # Fit FT using ALS
+        fitter = ALSFitter(bkd, max_sweeps=50, tol=1e-14)
+        result = fitter.fit(ft_init, train_samples, train_values)
+        fitted_ft = result.surrogate()
+
+        # Verify fit error < 1e-4 on test samples
+        nsamples_test = 2000
+        test_samples = bkd.asarray(
+            np.random.uniform(-math.pi, math.pi, (nvars, nsamples_test))
+        )
+        test_values = ishigami(test_samples)
+        ft_predictions = fitted_ft(test_samples)
+        fit_error = bkd.sqrt(
+            bkd.mean((ft_predictions - test_values) ** 2)
+        ) / bkd.sqrt(bkd.mean(test_values ** 2))
+        self.assertTrue(
+            float(fit_error) < 1e-4,
+            f"FT fit error {float(fit_error):.2e} exceeds 1e-4"
+        )
+
+        # Wrap in PCEFunctionTrain and compute sensitivity indices
+        pce_ft = PCEFunctionTrain(fitted_ft)
+        moments = FunctionTrainMoments(pce_ft)
+        sensitivity = FunctionTrainSensitivity(moments)
+
+        # Get computed indices
+        S_computed = sensitivity.all_main_effects()
+        T_computed = sensitivity.all_total_effects()
+
+        # Verify main effect indices match analytical values
+        for i in range(nvars):
+            bkd.assert_allclose(
+                bkd.asarray([float(S_computed[i])]),
+                bkd.asarray([S_exact[i]]),
+                rtol=1e-4,
+                atol=1e-4,
+                err_msg=f"S_{i} = {float(S_computed[i]):.4f}, "
+                        f"expected {S_exact[i]:.4f}",
+            )
+
+        # Verify total effect indices match analytical values
+        for i in range(nvars):
+            bkd.assert_allclose(
+                bkd.asarray([float(T_computed[i])]),
+                bkd.asarray([T_exact[i]]),
+                rtol=1e-4,
+                atol=1e-4,
+                err_msg=f"T_{i} = {float(T_computed[i]):.4f}, "
+                        f"expected {T_exact[i]:.4f}",
+            )
+
+        # Verify interaction index S_13 (x₁-x₃ interaction)
+        # S_13 = T_1 - S_1 since x₁ only interacts with x₃
+        sobol_exact = exact_indices.sobol_indices()
+        S_13_exact = float(sobol_exact[4, 0])  # S_13 is index 4
+        S_13_computed = sensitivity.sobol_index([0, 2])
+        bkd.assert_allclose(
+            S_13_computed,
+            bkd.asarray([S_13_exact]),
+            rtol=1e-4,
+            atol=1e-4,
+            err_msg=f"S_13 = {float(S_13_computed[0]):.4f}, "
+                    f"expected {S_13_exact:.4f}",
+        )
+
+
 class TestFunctionTrainSensitivityNumpy(TestFunctionTrainSensitivity[NDArray[Any]]):
     """NumPy backend tests."""
 
@@ -329,6 +475,28 @@ class TestFunctionTrainSensitivityNumpy(TestFunctionTrainSensitivity[NDArray[Any
 
 class TestFunctionTrainSensitivityTorch(TestFunctionTrainSensitivity[torch.Tensor]):
     """PyTorch backend tests."""
+
+    __test__ = True
+
+    def bkd(self) -> TorchBkd:
+        return TorchBkd()
+
+    def setUp(self) -> None:
+        torch.set_default_dtype(torch.float64)
+        super().setUp()
+
+
+class TestIshigamiBenchmarkNumpy(TestIshigamiBenchmark[NDArray[Any]]):
+    """NumPy backend Ishigami benchmark tests."""
+
+    __test__ = True
+
+    def bkd(self) -> NumpyBkd:
+        return NumpyBkd()
+
+
+class TestIshigamiBenchmarkTorch(TestIshigamiBenchmark[torch.Tensor]):
+    """PyTorch backend Ishigami benchmark tests."""
 
     __test__ = True
 
