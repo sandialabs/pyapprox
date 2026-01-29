@@ -407,5 +407,64 @@ class FunctionTrainCore(Generic[Array]):
         # Stack along axis 1 to get (nsamples, nqoi, nparams)
         return self._bkd.concatenate(jac_parts, axis=1)
 
+    def supports_input_jacobian(self) -> bool:
+        """Check if all basis expansions support input Jacobian.
+
+        Returns
+        -------
+        bool
+            True if all expansions have jacobian_batch method.
+        """
+        for ii in range(self._r_left):
+            for jj in range(self._r_right):
+                if not hasattr(self._basisexps[ii][jj], "jacobian_batch"):
+                    return False
+        return True
+
+    def jacobian_wrt_input(self, sample_1d: Array) -> Array:
+        """Jacobian of core output w.r.t. univariate input.
+
+        This computes the derivative of each element in the core matrix
+        with respect to the univariate input x_k.
+
+        Parameters
+        ----------
+        sample_1d : Array
+            Univariate samples. Shape: (1, nsamples)
+
+        Returns
+        -------
+        Array
+            Jacobian. Shape: (r_left, r_right, nsamples, nqoi)
+            Same shape as __call__ output since each core is univariate.
+
+        Raises
+        ------
+        RuntimeError
+            If any basis expansion does not support jacobian_batch.
+        """
+        nsamples = sample_1d.shape[1]
+        nqoi = self.nqoi()
+
+        values = []
+        for ii in range(self._r_left):
+            row_values = []
+            for jj in range(self._r_right):
+                bexp = self._basisexps[ii][jj]
+                if not hasattr(bexp, "jacobian_batch"):
+                    raise RuntimeError(
+                        f"Basis expansion at ({ii}, {jj}) does not support "
+                        "jacobian_batch. Input Jacobian requires differentiable "
+                        "bases."
+                    )
+                # jacobian_batch returns (nsamples, nqoi, nvars=1)
+                jac = bexp.jacobian_batch(sample_1d)
+                # Extract the single variable dimension: (nsamples, nqoi)
+                row_values.append(jac[:, :, 0])
+            # Stack along axis 0: (r_right, nsamples, nqoi)
+            values.append(self._bkd.stack(row_values, axis=0))
+        # Stack along axis 0: (r_left, r_right, nsamples, nqoi)
+        return self._bkd.stack(values, axis=0)
+
     def __repr__(self) -> str:
         return f"FunctionTrainCore(ranks={self.ranks()})"

@@ -111,6 +111,39 @@ class ConstantExpansion:
         nsamples = samples.shape[1]
         return self._bkd.zeros((nsamples, self._nqoi, 0))
 
+    def jacobian_batch(self, samples: Array) -> Array:
+        """Jacobian w.r.t. inputs (zero since constant).
+
+        The derivative of a constant function is always zero.
+
+        Parameters
+        ----------
+        samples : Array
+            Input samples. Shape: (1, nsamples)
+
+        Returns
+        -------
+        Array
+            Zero Jacobians. Shape: (nsamples, nqoi, 1)
+        """
+        nsamples = samples.shape[1]
+        return self._bkd.zeros((nsamples, self._nqoi, 1))
+
+    def jacobian(self, sample: Array) -> Array:
+        """Jacobian w.r.t. input at a single sample (zero).
+
+        Parameters
+        ----------
+        sample : Array
+            Single sample point. Shape: (1, 1)
+
+        Returns
+        -------
+        Array
+            Zero Jacobian. Shape: (nqoi, 1)
+        """
+        return self._bkd.zeros((self._nqoi, 1))
+
 
 def create_additive_functiontrain(
     univariate_bases: List[BasisExpansionProtocol[Array]],
