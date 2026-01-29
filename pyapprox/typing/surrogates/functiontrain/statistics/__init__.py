@@ -21,10 +21,20 @@ from pyapprox.typing.surrogates.functiontrain.statistics.moments import (
 from pyapprox.typing.surrogates.functiontrain.statistics.sensitivity import (
     FunctionTrainSensitivity,
 )
+from pyapprox.typing.surrogates.functiontrain.statistics.marginalization import (
+    FunctionTrainMarginalization,
+    marginal_1d,
+    marginal_2d,
+    all_marginals_1d,
+)
 
 __all__ = [
     "PCEFunctionTrainCore",
     "PCEFunctionTrain",
     "FunctionTrainMoments",
     "FunctionTrainSensitivity",
+    "FunctionTrainMarginalization",
+    "marginal_1d",
+    "marginal_2d",
+    "all_marginals_1d",
 ]
