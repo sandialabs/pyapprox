@@ -18,9 +18,13 @@ from pyapprox.typing.surrogates.functiontrain.pce_functiontrain import (
 from pyapprox.typing.surrogates.functiontrain.statistics.moments import (
     FunctionTrainMoments,
 )
+from pyapprox.typing.surrogates.functiontrain.statistics.sensitivity import (
+    FunctionTrainSensitivity,
+)
 
 __all__ = [
     "PCEFunctionTrainCore",
     "PCEFunctionTrain",
     "FunctionTrainMoments",
+    "FunctionTrainSensitivity",
 ]

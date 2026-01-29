@@ -163,19 +163,76 @@ class GaussianPeakFunction(Generic[Array]):
         float
             The analytical integral value.
         """
+        return self._integrate_with_scale(1.0)
+
+    def _integrate_with_scale(self, scale: float) -> float:
+        """Compute integral of f^scale over [0, 1]^nvars.
+
+        For f(x) = exp(-Σ cᵢ² (xᵢ - wᵢ)²):
+        f^scale(x) = exp(-scale * Σ cᵢ² (xᵢ - wᵢ)²)
+
+        This is equivalent to a Gaussian Peak with c_eff = √scale * c.
+
+        Parameters
+        ----------
+        scale : float
+            Exponent scale factor. Use 1.0 for E[f], 2.0 for E[f²].
+
+        Returns
+        -------
+        float
+            The analytical integral value.
+        """
         bkd = self._bkd
         c = self._c[:, 0]
         w = self._w[:, 0]
-        # Integral = prod_i sqrt(pi)/(2*c_i) * (erf(c_i*w_i) + erf(c_i*(1-w_i)))
-        # Using scipy.special.erf via numpy conversion
         c_np = bkd.to_numpy(c)
         w_np = bkd.to_numpy(w)
         import scipy.special
 
-        erf_terms = scipy.special.erf(c_np * w_np) + scipy.special.erf(
-            c_np * (1.0 - w_np)
+        # Effective c for f^scale is sqrt(scale) * c
+        c_eff = math.sqrt(scale) * c_np
+
+        # Integral = prod_i sqrt(pi)/(2*c_eff_i) * (erf(c_eff_i*w_i) + erf(c_eff_i*(1-w_i)))
+        erf_terms = scipy.special.erf(c_eff * w_np) + scipy.special.erf(
+            c_eff * (1.0 - w_np)
         )
         integral = float(
-            (math.sqrt(math.pi) / (2.0 * c_np) * erf_terms).prod()
+            (math.sqrt(math.pi) / (2.0 * c_eff) * erf_terms).prod()
         )
         return integral
+
+    def mean(self) -> float:
+        """Compute analytical mean E[f] over uniform [0, 1]^nvars.
+
+        Returns
+        -------
+        float
+            The analytical mean value.
+        """
+        return self.integrate()
+
+    def second_moment(self) -> float:
+        """Compute analytical second moment E[f²] over uniform [0, 1]^nvars.
+
+        Since f²(x) = exp(-2 Σ cᵢ² (xᵢ - wᵢ)²), this is equivalent to
+        integrating a Gaussian Peak with c_eff = √2 * c.
+
+        Returns
+        -------
+        float
+            The analytical second moment.
+        """
+        return self._integrate_with_scale(2.0)
+
+    def variance(self) -> float:
+        """Compute analytical variance Var[f] over uniform [0, 1]^nvars.
+
+        Var[f] = E[f²] - E[f]²
+
+        Returns
+        -------
+        float
+            The analytical variance.
+        """
+        return self.second_moment() - self.mean() ** 2

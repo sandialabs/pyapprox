@@ -1,7 +1,7 @@
 """Tests for FunctionTrainMoments."""
 
 import unittest
-from typing import Any, Generic, List, Optional
+from typing import Any, Generic, List, Optional, Tuple
 
 import numpy as np
 import torch
@@ -22,10 +22,13 @@ from pyapprox.typing.surrogates.functiontrain.core import FunctionTrainCore
 from pyapprox.typing.surrogates.functiontrain import (
     FunctionTrain,
     PCEFunctionTrain,
+    ALSFitter,
+    create_uniform_pce_functiontrain,
 )
 from pyapprox.typing.surrogates.functiontrain.statistics import (
     FunctionTrainMoments,
 )
+from pyapprox.typing.benchmarks.functions.genz import GaussianPeakFunction
 
 
 class TestFunctionTrainMoments(Generic[Array], unittest.TestCase):
@@ -329,6 +332,93 @@ class TestFunctionTrainMoments(Generic[Array], unittest.TestCase):
         self.assertEqual(moments.second_moment().shape, (1,))
         self.assertEqual(moments.variance().shape, (1,))
         self.assertEqual(moments.std().shape, (1,))
+
+    def _create_uniform_pce_01(
+        self, max_level: int
+    ) -> BasisExpansion[Array]:
+        """Create univariate PCE on [0, 1] interval."""
+        bkd = self._bkd
+        marginals = [UniformMarginal(0.0, 1.0, bkd)]
+        bases_1d = create_bases_1d(marginals, bkd)
+        indices = compute_hyperbolic_indices(1, max_level, 1.0, bkd)
+        basis = OrthonormalPolynomialBasis(bases_1d, bkd, indices)
+        return BasisExpansion(basis, bkd, nqoi=1)
+
+    def test_genz_gaussian_peak_mean_variance(self) -> None:
+        """Test FT mean/variance against analytical for Genz Gaussian Peak.
+
+        Fits a rank-2 FT to the 3D Gaussian Peak function on [0,1]³ and
+        compares FT moments against exact analytical values.
+
+        Targets:
+        - FT fit error < 1e-6
+        - Mean relative error < 1e-8
+        - Variance relative error < 1e-5
+        """
+        bkd = self._bkd
+        np.random.seed(12345)
+
+        # Setup Genz Gaussian Peak function on [0,1]^3
+        # Use moderate c values for smooth but non-trivial function
+        nvars = 3
+        c_coeffs = [1.0, 1.2, 0.8]  # Width parameters
+        w_coeffs = [0.5, 0.5, 0.5]  # Peak centered at [0.5, 0.5, 0.5]
+        genz_func = GaussianPeakFunction(bkd, c_coeffs, w_coeffs)
+
+        # Get exact analytical moments
+        exact_mean = genz_func.mean()
+        exact_var = genz_func.variance()
+
+        # Create rank-2 FT with degree 8 polynomials
+        max_level = 8
+        ranks = [2, 2]  # Interior ranks for 3 variables
+        pce_template = self._create_uniform_pce_01(max_level)
+        ft_init = create_uniform_pce_functiontrain(pce_template, nvars, ranks, bkd)
+
+        # Generate training samples on [0, 1]^nvars
+        nsamples_train = 800
+        train_samples = bkd.asarray(np.random.uniform(0, 1, (nvars, nsamples_train)))
+        train_values = genz_func(train_samples)
+
+        # Fit FT using ALS
+        fitter = ALSFitter(bkd, max_sweeps=30, tol=1e-14)
+        result = fitter.fit(ft_init, train_samples, train_values)
+        fitted_ft = result.surrogate()
+
+        # Verify fit error < 1e-6 on test samples
+        nsamples_test = 2000
+        test_samples = bkd.asarray(np.random.uniform(0, 1, (nvars, nsamples_test)))
+        test_values = genz_func(test_samples)
+        ft_predictions = fitted_ft(test_samples)
+        fit_error = bkd.sqrt(
+            bkd.mean((ft_predictions - test_values) ** 2)
+        ) / bkd.sqrt(bkd.mean(test_values ** 2))
+        self.assertTrue(
+            float(fit_error) < 1e-6,
+            f"FT fit error {float(fit_error):.2e} exceeds 1e-6"
+        )
+
+        # Wrap in PCEFunctionTrain and compute moments
+        pce_ft = PCEFunctionTrain(fitted_ft)
+        moments = FunctionTrainMoments(pce_ft)
+
+        # Compare FT moments to exact analytical values
+        ft_mean = moments.mean()
+        ft_var = moments.variance()
+
+        # Mean error < 1e-8
+        mean_error = abs(float(ft_mean[0]) - exact_mean) / abs(exact_mean)
+        self.assertTrue(
+            mean_error < 1e-8,
+            f"Mean relative error {mean_error:.2e} exceeds 1e-8"
+        )
+
+        # Variance error < 1e-5
+        var_error = abs(float(ft_var[0]) - exact_var) / abs(exact_var)
+        self.assertTrue(
+            var_error < 1e-5,
+            f"Variance relative error {var_error:.2e} exceeds 1e-5"
+        )
 
 
 class TestFunctionTrainMomentsNumpy(TestFunctionTrainMoments[NDArray[Any]]):
