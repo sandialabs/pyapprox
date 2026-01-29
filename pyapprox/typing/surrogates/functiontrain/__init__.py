@@ -12,6 +12,7 @@ from pyapprox.typing.surrogates.functiontrain.pce_core import (
 )
 from pyapprox.typing.surrogates.functiontrain.pce_functiontrain import (
     PCEFunctionTrain,
+    create_pce_functiontrain,
     create_uniform_pce_functiontrain,
 )
 from pyapprox.typing.surrogates.functiontrain.additive import (
@@ -36,6 +37,7 @@ __all__ = [
     "PCEFunctionTrainCore",
     "PCEFunctionTrain",
     "create_additive_functiontrain",
+    "create_pce_functiontrain",
     "create_uniform_pce_functiontrain",
     "ConstantExpansion",
     "ALSFitter",

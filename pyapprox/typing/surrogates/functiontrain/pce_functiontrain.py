@@ -2,10 +2,11 @@
 
 This module provides:
 - PCEFunctionTrain: wrapper that validates orthonormal PCE structure
+- create_pce_functiontrain: factory for rank-r FT with per-core polynomial types
 - create_uniform_pce_functiontrain: factory for rank-r FT with uniform PCE cores
 """
 
-from typing import Generic, List, Sequence
+from typing import Generic, List, Sequence, Union
 
 from pyapprox.typing.util.backends.protocols import Array, Backend
 from pyapprox.typing.surrogates.affine.protocols import BasisExpansionProtocol
@@ -195,6 +196,134 @@ def create_uniform_pce_functiontrain(
                 else:
                     init_params = bkd.zeros((nterms,))
                 pce = univariate_expansion_factory.with_params(init_params)
+                row.append(pce)
+            basisexps.append(row)
+
+        core = FunctionTrainCore(basisexps, bkd)
+        cores.append(core)
+
+    return FunctionTrain(cores, bkd, nqoi=1)
+
+
+def create_pce_functiontrain(
+    marginals: Sequence,
+    max_level: Union[int, Sequence[int]],
+    ranks: Sequence[int],
+    bkd: Backend[Array],
+    init_scale: float = 0.1,
+) -> FunctionTrain[Array]:
+    """Create FunctionTrain with per-core polynomial types from marginals.
+
+    Creates a rank-r FT where each core uses the polynomial type determined
+    by its corresponding marginal distribution. All entries within a core
+    share the same univariate basis.
+
+    Parameters
+    ----------
+    marginals : Sequence[MarginalProtocol]
+        One marginal per variable. Determines polynomial type:
+        - UniformMarginal → Legendre
+        - GaussianMarginal → Hermite
+        - BetaMarginal → Jacobi
+        - GammaMarginal → Laguerre
+    max_level : int or Sequence[int]
+        Polynomial degree. If int, same for all cores.
+        If Sequence, per-core degrees (length must equal nvars).
+    ranks : Sequence[int]
+        Interior ranks [r_1, r_2, ..., r_{d-1}]. Length must be nvars - 1.
+        Boundary ranks are always 1.
+    bkd : Backend[Array]
+        Computational backend.
+    init_scale : float
+        Scale for random initialization of coefficients. Default 0.1.
+        Small non-zero values help ALS converge. Use 0.0 for zero init.
+
+    Returns
+    -------
+    FunctionTrain[Array]
+        FT with per-core PCE bases, compatible with PCEFunctionTrain.
+
+    Raises
+    ------
+    ValueError
+        If ranks has wrong length, marginals is empty, or max_level
+        sequence has wrong length.
+
+    Examples
+    --------
+    >>> from pyapprox.typing.probability import (
+    ...     UniformMarginal, GaussianMarginal, BetaMarginal
+    ... )
+    >>> marginals = [
+    ...     UniformMarginal(-1.0, 1.0, bkd),   # Legendre
+    ...     GaussianMarginal(0.0, 1.0, bkd),   # Hermite
+    ...     BetaMarginal(2.0, 5.0, bkd),       # Jacobi
+    ... ]
+    >>> ft = create_pce_functiontrain(marginals, max_level=5, ranks=[2, 2], bkd=bkd)
+
+    >>> # Per-core polynomial degrees
+    >>> ft = create_pce_functiontrain(marginals, max_level=[3, 5, 4], ranks=[2, 2], bkd=bkd)
+    """
+    import numpy as np
+
+    from pyapprox.typing.surrogates.affine.univariate import create_bases_1d
+    from pyapprox.typing.surrogates.affine.indices import (
+        compute_hyperbolic_indices,
+    )
+    from pyapprox.typing.surrogates.affine.basis import (
+        OrthonormalPolynomialBasis,
+    )
+    from pyapprox.typing.surrogates.affine.expansions import BasisExpansion
+
+    nvars = len(marginals)
+    if nvars == 0:
+        raise ValueError("marginals must not be empty")
+    if len(ranks) != nvars - 1:
+        raise ValueError(
+            f"ranks must have length nvars - 1 = {nvars - 1}, got {len(ranks)}"
+        )
+
+    # Normalize max_level to per-core list
+    if isinstance(max_level, int):
+        max_levels = [max_level] * nvars
+    else:
+        max_levels = list(max_level)
+        if len(max_levels) != nvars:
+            raise ValueError(
+                f"max_level sequence length {len(max_levels)} != nvars {nvars}"
+            )
+
+    # Create per-variable bases using existing infrastructure
+    bases_1d = create_bases_1d(list(marginals), bkd)
+
+    # Full ranks including boundaries
+    full_ranks = [1] + list(ranks) + [1]
+    cores: List[FunctionTrainCore[Array]] = []
+
+    for k in range(nvars):
+        r_left = full_ranks[k]
+        r_right = full_ranks[k + 1]
+
+        # Create univariate indices for this core's degree
+        indices = compute_hyperbolic_indices(1, max_levels[k], 1.0, bkd)
+
+        # Create univariate basis for this variable
+        basis = OrthonormalPolynomialBasis([bases_1d[k]], bkd, indices)
+        nterms = basis.nterms()
+
+        # Build 2D list of independent expansions
+        basisexps: List[List[BasisExpansionProtocol[Array]]] = []
+        for _ in range(r_left):
+            row: List[BasisExpansionProtocol[Array]] = []
+            for _ in range(r_right):
+                # Create fresh copy with small random coefficients
+                if init_scale > 0:
+                    init_params = bkd.asarray(
+                        np.random.randn(nterms) * init_scale
+                    )
+                else:
+                    init_params = bkd.zeros((nterms,))
+                pce = BasisExpansion(basis, bkd, nqoi=1).with_params(init_params)
                 row.append(pce)
             basisexps.append(row)
 

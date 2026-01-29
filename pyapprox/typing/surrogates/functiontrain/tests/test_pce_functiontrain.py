@@ -1,4 +1,4 @@
-"""Tests for PCEFunctionTrain."""
+"""Tests for PCEFunctionTrain and create_pce_functiontrain."""
 
 import unittest
 from typing import Any, Generic, List
@@ -16,13 +16,18 @@ from pyapprox.typing.surrogates.affine.univariate import create_bases_1d
 from pyapprox.typing.surrogates.affine.indices import compute_hyperbolic_indices
 from pyapprox.typing.surrogates.affine.basis import OrthonormalPolynomialBasis
 from pyapprox.typing.surrogates.affine.expansions import BasisExpansion
-from pyapprox.typing.probability import UniformMarginal
+from pyapprox.typing.probability import (
+    UniformMarginal,
+    GaussianMarginal,
+    BetaMarginal,
+)
 
 from pyapprox.typing.surrogates.functiontrain.core import FunctionTrainCore
 from pyapprox.typing.surrogates.functiontrain import (
     FunctionTrain,
     PCEFunctionTrain,
     PCEFunctionTrainCore,
+    create_pce_functiontrain,
 )
 
 
@@ -141,6 +146,132 @@ class TestPCEFunctionTrain(Generic[Array], unittest.TestCase):
         self.assertIn("nqoi=1", repr_str)
 
 
+class TestCreatePceFunctiontrain(Generic[Array], unittest.TestCase):
+    """Tests for create_pce_functiontrain factory."""
+
+    __test__ = False
+
+    def bkd(self) -> Backend[Array]:
+        raise NotImplementedError
+
+    def setUp(self) -> None:
+        self._bkd = self.bkd()
+        np.random.seed(42)
+
+    def test_uniform_marginals_construction(self) -> None:
+        """Test construction with uniform marginals (Legendre)."""
+        bkd = self._bkd
+        marginals = [UniformMarginal(-1.0, 1.0, bkd) for _ in range(3)]
+        ft = create_pce_functiontrain(marginals, max_level=5, ranks=[2, 2], bkd=bkd)
+
+        self.assertEqual(ft.nvars(), 3)
+        self.assertEqual(ft.nqoi(), 1)
+        # All cores should have nterms = max_level + 1 = 6 for each entry
+        for core in ft.cores():
+            self.assertEqual(core.get_nterms(0, 0), 6)
+
+    def test_mixed_marginals_construction(self) -> None:
+        """Test construction with mixed marginals (Legendre, Hermite, Jacobi)."""
+        bkd = self._bkd
+        marginals = [
+            UniformMarginal(-1.0, 1.0, bkd),   # Legendre
+            GaussianMarginal(0.0, 1.0, bkd),   # Hermite
+            BetaMarginal(2.0, 5.0, bkd),       # Jacobi
+        ]
+        ft = create_pce_functiontrain(marginals, max_level=5, ranks=[2, 2], bkd=bkd)
+
+        self.assertEqual(ft.nvars(), 3)
+        self.assertEqual(ft.nqoi(), 1)
+
+    def test_mixed_marginals_evaluation(self) -> None:
+        """Test FT with mixed marginals can be evaluated."""
+        bkd = self._bkd
+        marginals = [
+            UniformMarginal(-1.0, 1.0, bkd),
+            GaussianMarginal(0.0, 1.0, bkd),
+            BetaMarginal(2.0, 5.0, bkd),
+        ]
+        ft = create_pce_functiontrain(marginals, max_level=3, ranks=[2, 2], bkd=bkd)
+
+        # Create samples in each variable's domain
+        nsamples = 10
+        samples = bkd.vstack([
+            bkd.asarray(np.random.uniform(-1, 1, nsamples)),   # Uniform [-1, 1]
+            bkd.asarray(np.random.randn(nsamples)),           # Gaussian
+            bkd.asarray(np.random.beta(2.0, 5.0, nsamples)),  # Beta [0, 1]
+        ])
+
+        result = ft(samples)
+        self.assertEqual(result.shape, (1, nsamples))
+
+    def test_per_core_max_level(self) -> None:
+        """Test per-core polynomial degrees."""
+        bkd = self._bkd
+        marginals = [UniformMarginal(-1.0, 1.0, bkd) for _ in range(3)]
+        ft = create_pce_functiontrain(
+            marginals, max_level=[3, 5, 4], ranks=[2, 2], bkd=bkd
+        )
+
+        # Core 0: degree 3 → 4 terms
+        # Core 1: degree 5 → 6 terms
+        # Core 2: degree 4 → 5 terms
+        self.assertEqual(ft.cores()[0].get_nterms(0, 0), 4)
+        self.assertEqual(ft.cores()[1].get_nterms(0, 0), 6)
+        self.assertEqual(ft.cores()[2].get_nterms(0, 0), 5)
+
+    def test_pce_functiontrain_wrapping(self) -> None:
+        """Test FT from mixed marginals can be wrapped in PCEFunctionTrain."""
+        bkd = self._bkd
+        marginals = [
+            UniformMarginal(-1.0, 1.0, bkd),
+            GaussianMarginal(0.0, 1.0, bkd),
+        ]
+        ft = create_pce_functiontrain(marginals, max_level=4, ranks=[2], bkd=bkd)
+
+        # Should not raise
+        pce_ft = PCEFunctionTrain(ft)
+        self.assertEqual(pce_ft.nvars(), 2)
+        self.assertEqual(len(pce_ft.pce_cores()), 2)
+
+    def test_error_empty_marginals(self) -> None:
+        """Test error on empty marginals."""
+        bkd = self._bkd
+        with self.assertRaises(ValueError) as ctx:
+            create_pce_functiontrain([], max_level=3, ranks=[], bkd=bkd)
+        self.assertIn("empty", str(ctx.exception).lower())
+
+    def test_error_wrong_ranks_length(self) -> None:
+        """Test error on wrong ranks length."""
+        bkd = self._bkd
+        marginals = [UniformMarginal(-1.0, 1.0, bkd) for _ in range(3)]
+        with self.assertRaises(ValueError) as ctx:
+            create_pce_functiontrain(marginals, max_level=3, ranks=[2], bkd=bkd)
+        self.assertIn("ranks", str(ctx.exception).lower())
+
+    def test_error_wrong_max_level_length(self) -> None:
+        """Test error on wrong max_level sequence length."""
+        bkd = self._bkd
+        marginals = [UniformMarginal(-1.0, 1.0, bkd) for _ in range(3)]
+        with self.assertRaises(ValueError) as ctx:
+            create_pce_functiontrain(
+                marginals, max_level=[3, 4], ranks=[2, 2], bkd=bkd
+            )
+        self.assertIn("max_level", str(ctx.exception).lower())
+
+    def test_init_scale_zero(self) -> None:
+        """Test zero initialization."""
+        bkd = self._bkd
+        marginals = [UniformMarginal(-1.0, 1.0, bkd) for _ in range(2)]
+        ft = create_pce_functiontrain(
+            marginals, max_level=3, ranks=[2], bkd=bkd, init_scale=0.0
+        )
+
+        # With zero init, all coefficients should be zero
+        samples = bkd.asarray(np.random.uniform(-1, 1, (2, 5)))
+        result = ft(samples)
+        bkd.assert_allclose(result, bkd.zeros((1, 5)), atol=1e-12)
+
+
 class TestPCEFunctionTrainNumpy(TestPCEFunctionTrain[NDArray[Any]]):
     """NumPy backend tests."""
 
@@ -152,6 +283,28 @@ class TestPCEFunctionTrainNumpy(TestPCEFunctionTrain[NDArray[Any]]):
 
 class TestPCEFunctionTrainTorch(TestPCEFunctionTrain[torch.Tensor]):
     """PyTorch backend tests."""
+
+    __test__ = True
+
+    def bkd(self) -> TorchBkd:
+        return TorchBkd()
+
+    def setUp(self) -> None:
+        torch.set_default_dtype(torch.float64)
+        super().setUp()
+
+
+class TestCreatePceFunctiontrainNumpy(TestCreatePceFunctiontrain[NDArray[Any]]):
+    """NumPy backend tests for create_pce_functiontrain."""
+
+    __test__ = True
+
+    def bkd(self) -> NumpyBkd:
+        return NumpyBkd()
+
+
+class TestCreatePceFunctiontrainTorch(TestCreatePceFunctiontrain[torch.Tensor]):
+    """PyTorch backend tests for create_pce_functiontrain."""
 
     __test__ = True
 
