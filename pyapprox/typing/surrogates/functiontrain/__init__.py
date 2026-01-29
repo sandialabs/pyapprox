@@ -1,0 +1,26 @@
+"""FunctionTrain tensor decomposition module.
+
+This module provides FunctionTrain surrogates - tensor train decompositions
+that represent multivariate functions as sequences of univariate basis
+expansions connected via tensor contractions.
+"""
+
+from pyapprox.typing.surrogates.functiontrain.core import FunctionTrainCore
+from pyapprox.typing.surrogates.functiontrain.functiontrain import FunctionTrain
+from pyapprox.typing.surrogates.functiontrain.additive import (
+    create_additive_functiontrain,
+    ConstantExpansion,
+)
+from pyapprox.typing.surrogates.functiontrain.als_fitter import (
+    ALSFitter,
+    ALSFitterResult,
+)
+
+__all__ = [
+    "FunctionTrainCore",
+    "FunctionTrain",
+    "create_additive_functiontrain",
+    "ConstantExpansion",
+    "ALSFitter",
+    "ALSFitterResult",
+]
