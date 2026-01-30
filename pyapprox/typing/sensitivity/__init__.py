@@ -21,6 +21,7 @@ from pyapprox.typing.sensitivity.variance_based import (
     MonteCarloSensitivityAnalysis,
     SobolSequenceSensitivityAnalysis,
     HaltonSequenceSensitivityAnalysis,
+    BinBasedSensitivityAnalysis,
 )
 from pyapprox.typing.sensitivity.screening import MorrisSensitivityAnalysis
 from pyapprox.typing.sensitivity.plots import (
@@ -47,6 +48,8 @@ __all__ = [
     "MonteCarloSensitivityAnalysis",
     "SobolSequenceSensitivityAnalysis",
     "HaltonSequenceSensitivityAnalysis",
+    # Bin-based implementations
+    "BinBasedSensitivityAnalysis",
     # Screening methods
     "MorrisSensitivityAnalysis",
     # Plotting functions

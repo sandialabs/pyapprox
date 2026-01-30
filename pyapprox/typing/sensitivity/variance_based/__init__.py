@@ -23,6 +23,9 @@ from pyapprox.typing.sensitivity.variance_based.sample_based import (
     SobolSequenceSensitivityAnalysis,
     HaltonSequenceSensitivityAnalysis,
 )
+from pyapprox.typing.sensitivity.variance_based.bin_based import (
+    BinBasedSensitivityAnalysis,
+)
 
 __all__ = [
     "VarianceBasedSensitivityAnalysis",
@@ -32,4 +35,5 @@ __all__ = [
     "MonteCarloSensitivityAnalysis",
     "SobolSequenceSensitivityAnalysis",
     "HaltonSequenceSensitivityAnalysis",
+    "BinBasedSensitivityAnalysis",
 ]
