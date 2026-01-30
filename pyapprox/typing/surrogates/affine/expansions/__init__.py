@@ -25,8 +25,10 @@ from pyapprox.typing.surrogates.affine.expansions.fitters import (
     LeastSquaresFitter,
     RidgeFitter,
     BPDNFitter,
+    OMPFitter,
     DirectSolverResult,
     SparseResult,
+    OMPResult,
     BayesianConjugateFitter,
     BayesianConjugateResult,
 )
@@ -50,8 +52,10 @@ __all__ = [
     "LeastSquaresFitter",
     "RidgeFitter",
     "BPDNFitter",
+    "OMPFitter",
     "DirectSolverResult",
     "SparseResult",
+    "OMPResult",
     "BayesianConjugateFitter",
     "BayesianConjugateResult",
     # Losses

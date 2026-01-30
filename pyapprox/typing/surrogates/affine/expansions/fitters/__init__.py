@@ -13,6 +13,7 @@ is returned with the fitted parameters (immutable pattern).
 from pyapprox.typing.surrogates.affine.expansions.fitters.results import (
     DirectSolverResult,
     SparseResult,
+    OMPResult,
 )
 from pyapprox.typing.surrogates.affine.expansions.fitters.least_squares import (
     LeastSquaresFitter,
@@ -23,6 +24,9 @@ from pyapprox.typing.surrogates.affine.expansions.fitters.ridge import (
 from pyapprox.typing.surrogates.affine.expansions.fitters.bpdn import (
     BPDNFitter,
 )
+from pyapprox.typing.surrogates.affine.expansions.fitters.omp import (
+    OMPFitter,
+)
 from pyapprox.typing.surrogates.affine.expansions.fitters.bayesian import (
     BayesianConjugateFitter,
     BayesianConjugateResult,
@@ -31,9 +35,11 @@ from pyapprox.typing.surrogates.affine.expansions.fitters.bayesian import (
 __all__ = [
     "DirectSolverResult",
     "SparseResult",
+    "OMPResult",
     "LeastSquaresFitter",
     "RidgeFitter",
     "BPDNFitter",
+    "OMPFitter",
     "BayesianConjugateFitter",
     "BayesianConjugateResult",
 ]
