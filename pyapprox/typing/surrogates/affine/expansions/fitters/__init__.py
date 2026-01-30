@@ -48,6 +48,12 @@ from pyapprox.typing.surrogates.affine.expansions.fitters.conservative import (
     ConservativeLstSqFitter,
     ConservativeQuantileFitter,
 )
+from pyapprox.typing.surrogates.affine.expansions.fitters.stochastic_dominance import (
+    FSDObjective,
+    StochasticDominanceConstraint,
+    FSDFitter,
+    SSDFitter,
+)
 
 __all__ = [
     "DirectSolverResult",
@@ -66,4 +72,8 @@ __all__ = [
     "EntropicFitter",
     "ConservativeLstSqFitter",
     "ConservativeQuantileFitter",
+    "FSDObjective",
+    "StochasticDominanceConstraint",
+    "FSDFitter",
+    "SSDFitter",
 ]
