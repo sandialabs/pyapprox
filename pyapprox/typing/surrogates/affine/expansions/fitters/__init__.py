@@ -40,6 +40,10 @@ from pyapprox.typing.surrogates.affine.expansions.fitters.basis_pursuit import (
 from pyapprox.typing.surrogates.affine.expansions.fitters.gradient_enhanced import (
     GradientEnhancedPCEFitter,
 )
+from pyapprox.typing.surrogates.affine.expansions.fitters.entropic import (
+    EntropicLoss,
+    EntropicFitter,
+)
 
 __all__ = [
     "DirectSolverResult",
@@ -54,4 +58,6 @@ __all__ = [
     "QuantileFitter",
     "BasisPursuitFitter",
     "GradientEnhancedPCEFitter",
+    "EntropicLoss",
+    "EntropicFitter",
 ]
