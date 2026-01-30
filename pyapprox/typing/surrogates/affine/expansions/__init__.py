@@ -23,7 +23,10 @@ from pyapprox.typing.optimization.linear import (
 # Export fitters
 from pyapprox.typing.surrogates.affine.expansions.fitters import (
     LeastSquaresFitter,
+    RidgeFitter,
+    BPDNFitter,
     DirectSolverResult,
+    SparseResult,
     BayesianConjugateFitter,
     BayesianConjugateResult,
 )
@@ -45,7 +48,10 @@ __all__ = [
     "RidgeRegressionSolver",
     # Fitters
     "LeastSquaresFitter",
+    "RidgeFitter",
+    "BPDNFitter",
     "DirectSolverResult",
+    "SparseResult",
     "BayesianConjugateFitter",
     "BayesianConjugateResult",
     # Losses
