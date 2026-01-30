@@ -213,6 +213,184 @@ def get_recursion_index_mlmc(nmodels: int) -> np.ndarray:
     return np.arange(nmodels - 1, dtype=np.int64)
 
 
+def get_allocation_matrix_gis(
+    nmodels: int,
+    recursion_index: np.ndarray,
+    bkd: Backend[Array],
+) -> Array:
+    """Build GIS (Generalized Independent Samples) allocation matrix.
+
+    GIS differs from standard ACV allocation in step 3: it uses maximum()
+    to merge even columns (shared samples) with odd columns (all samples),
+    creating union semantics rather than hierarchical inclusion.
+
+    The allocation matrix has shape (nmodels, 2*nmodels) with:
+    - Column 2*i: shared samples for model i
+    - Column 2*i+1: all samples for model i (after merge)
+
+    Parameters
+    ----------
+    nmodels : int
+        Number of models.
+    recursion_index : ndarray
+        Recursion index. Shape: (nmodels-1,)
+        recursion_index[m] in [0, m] specifies which model m+1 is coupled with.
+    bkd : Backend
+        Computational backend.
+
+    Returns
+    -------
+    Array
+        Allocation matrix. Shape: (nmodels, 2*nmodels)
+        A[i, j] = 1 if model i is evaluated on partition j.
+
+    Examples
+    --------
+    >>> import numpy as np
+    >>> from pyapprox.typing.util.backends.numpy import NumpyBkd
+    >>> bkd = NumpyBkd()
+    >>> ridx = np.array([0, 0])  # MFMC-like coupling
+    >>> A = get_allocation_matrix_gis(3, ridx, bkd)
+    """
+    if len(recursion_index) != nmodels - 1:
+        raise ValueError(
+            f"recursion_index must have length nmodels-1={nmodels-1}, "
+            f"got {len(recursion_index)}"
+        )
+
+    # Validate recursion index values
+    for m, k in enumerate(recursion_index):
+        if k < 0 or k > m:
+            raise ValueError(
+                f"recursion_index[{m}] = {k} invalid. Must be in [0, {m}]"
+            )
+
+    # Build allocation matrix following legacy _get_allocation_matrix_acvis
+    mat = np.zeros((nmodels, 2 * nmodels))
+
+    # Step 1: Set diagonal for odd columns (all samples per model)
+    for ii in range(nmodels):
+        mat[ii, 2 * ii + 1] = 1
+
+    # Step 2: Set even columns from recursion (shared samples)
+    for ii in range(1, nmodels):
+        mat[:, 2 * ii] = mat[:, recursion_index[ii - 1] * 2 + 1]
+
+    # Step 3 (GIS-specific): Merge via maximum
+    for ii in range(1, nmodels):
+        mat[:, 2 * ii + 1] = np.maximum(mat[:, 2 * ii], mat[:, 2 * ii + 1])
+
+    return bkd.asarray(mat)
+
+
+def get_allocation_matrix_grd(
+    nmodels: int,
+    recursion_index: np.ndarray,
+    bkd: Backend[Array],
+) -> Array:
+    """Build GRD (Generalized Recursive Difference) allocation matrix.
+
+    GRD keeps even and odd columns separate (no merge step),
+    creating disjoint sample sets.
+
+    Parameters
+    ----------
+    nmodels : int
+        Number of models.
+    recursion_index : ndarray
+        Recursion index. Shape: (nmodels-1,)
+    bkd : Backend
+        Computational backend.
+
+    Returns
+    -------
+    Array
+        Allocation matrix. Shape: (nmodels, 2*nmodels)
+    """
+    if len(recursion_index) != nmodels - 1:
+        raise ValueError(
+            f"recursion_index must have length nmodels-1={nmodels-1}, "
+            f"got {len(recursion_index)}"
+        )
+
+    # Validate recursion index values
+    for m, k in enumerate(recursion_index):
+        if k < 0 or k > m:
+            raise ValueError(
+                f"recursion_index[{m}] = {k} invalid. Must be in [0, {m}]"
+            )
+
+    # Build allocation matrix following legacy _get_allocation_matrix_acvrd
+    mat = np.zeros((nmodels, 2 * nmodels))
+
+    # Step 1: Set diagonal for odd columns
+    for ii in range(nmodels):
+        mat[ii, 2 * ii + 1] = 1
+
+    # Step 2: Set even columns from recursion
+    for ii in range(1, nmodels):
+        mat[:, 2 * ii] = mat[:, recursion_index[ii - 1] * 2 + 1]
+
+    # No step 3 for GRD (no merge)
+
+    return bkd.asarray(mat)
+
+
+def get_allocation_matrix_gmf(
+    nmodels: int,
+    recursion_index: np.ndarray,
+    bkd: Backend[Array],
+) -> Array:
+    """Build GMF (Generalized Multifidelity) allocation matrix.
+
+    GMF fills rows below in even columns, creating hierarchical
+    inclusion (L-shaped pattern per model).
+
+    Parameters
+    ----------
+    nmodels : int
+        Number of models.
+    recursion_index : ndarray
+        Recursion index. Shape: (nmodels-1,)
+    bkd : Backend
+        Computational backend.
+
+    Returns
+    -------
+    Array
+        Allocation matrix. Shape: (nmodels, 2*nmodels)
+    """
+    if len(recursion_index) != nmodels - 1:
+        raise ValueError(
+            f"recursion_index must have length nmodels-1={nmodels-1}, "
+            f"got {len(recursion_index)}"
+        )
+
+    # Validate recursion index values
+    for m, k in enumerate(recursion_index):
+        if k < 0 or k > m:
+            raise ValueError(
+                f"recursion_index[{m}] = {k} invalid. Must be in [0, {m}]"
+            )
+
+    # Build allocation matrix following legacy _get_allocation_matrix_gmf
+    mat = np.zeros((nmodels, 2 * nmodels))
+
+    # Step 1: Set diagonal for odd columns
+    for ii in range(nmodels):
+        mat[ii, 2 * ii + 1] = 1
+
+    # Step 2: Set even columns from recursion
+    for ii in range(1, nmodels):
+        mat[:, 2 * ii] = mat[:, recursion_index[ii - 1] * 2 + 1]
+
+    # Step 3 (GMF-specific): Fill rows below
+    for ii in range(2, 2 * nmodels):
+        mat[:ii, ii] = 1
+
+    return bkd.asarray(mat)
+
+
 def allocation_matrix_to_string(allocation_mat: np.ndarray) -> str:
     """Convert allocation matrix to readable string.
 
