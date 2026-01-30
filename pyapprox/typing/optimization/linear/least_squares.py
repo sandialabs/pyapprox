@@ -103,8 +103,11 @@ class LinearlyConstrainedLstSqSolver(LinearSystemSolver[Array], Generic[Array]):
     Solves: min_c ||Φc - y||_2^2
             subject to: Cc = d
 
-    Uses the method of Lagrange multipliers:
-    x = (A^T A)^-1 (A^T y - C^T (C(A^T A)^-1 C^T)^-1 (C(A^T A)^-1 A^T y - d))
+    Uses the KKT system for numerical stability:
+    [A^T A,  C^T] [theta ]   [A^T y]
+    [C,      0  ] [lambda] = [d    ]
+
+    Solved via lstsq for robustness to near-singular cases.
 
     Parameters
     ----------
@@ -154,7 +157,7 @@ class LinearlyConstrainedLstSqSolver(LinearSystemSolver[Array], Generic[Array]):
             )
 
     def _solve(self, basis_matrix: Array, values: Array) -> Array:
-        """Solve constrained least squares problem.
+        """Solve constrained least squares problem via KKT system.
 
         Parameters
         ----------
@@ -172,29 +175,31 @@ class LinearlyConstrainedLstSqSolver(LinearSystemSolver[Array], Generic[Array]):
         d = self._constraint_vector
         A = basis_matrix
         y = values
+        bkd = self._bkd
 
-        # Compute (A^T A)^-1
-        ATA = self._bkd.dot(A.T, A)
-        ATA_inv = self._bkd.inv(ATA)
+        nterms = A.shape[1]
+        nconstraints = C.shape[0]
 
-        # Compute A^T y
-        ATy = self._bkd.dot(A.T, y)
+        # Build KKT matrix:
+        # [A^T A,  C^T] [theta ]   [A^T y]
+        # [C,      0  ] [lambda] = [d    ]
+        ATA = bkd.dot(A.T, A)
+        ATy = bkd.dot(A.T, y)
 
-        # Compute (A^T A)^-1 A^T y
-        ATA_inv_ATy = self._bkd.dot(ATA_inv, ATy)
+        zeros = bkd.zeros((nconstraints, nconstraints))
 
-        # Compute C (A^T A)^-1 C^T
-        C_ATA_inv = self._bkd.dot(C, ATA_inv)
-        C_ATA_inv_CT = self._bkd.dot(C_ATA_inv, C.T)
+        # Build augmented KKT matrix
+        top_row = bkd.concatenate([ATA, C.T], axis=1)
+        bottom_row = bkd.concatenate([C, zeros], axis=1)
+        KKT = bkd.concatenate([top_row, bottom_row], axis=0)
 
-        # Compute C (A^T A)^-1 A^T y - d
-        C_ATA_inv_ATy = self._bkd.dot(C, ATA_inv_ATy)
-        residual = C_ATA_inv_ATy - d
+        # Build augmented RHS
+        rhs = bkd.concatenate([ATy, d], axis=0)
 
-        # Solve for Lagrange multipliers
-        lagrange = self._bkd.solve(C_ATA_inv_CT, residual)
+        # Solve full system using lstsq for robustness
+        solution = bkd.lstsq(KKT, rhs, rcond=self._rcond)
 
-        # Compute solution
-        coef = ATA_inv_ATy - self._bkd.dot(C_ATA_inv.T, lagrange)
+        # Extract coefficients (first nterms rows)
+        coef = solution[:nterms, :]
 
         return coef

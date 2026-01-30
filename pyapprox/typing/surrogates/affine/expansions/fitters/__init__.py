@@ -31,6 +31,15 @@ from pyapprox.typing.surrogates.affine.expansions.fitters.bayesian import (
     BayesianConjugateFitter,
     BayesianConjugateResult,
 )
+from pyapprox.typing.surrogates.affine.expansions.fitters.quantile import (
+    QuantileFitter,
+)
+from pyapprox.typing.surrogates.affine.expansions.fitters.basis_pursuit import (
+    BasisPursuitFitter,
+)
+from pyapprox.typing.surrogates.affine.expansions.fitters.gradient_enhanced import (
+    GradientEnhancedPCEFitter,
+)
 
 __all__ = [
     "DirectSolverResult",
@@ -42,4 +51,7 @@ __all__ = [
     "OMPFitter",
     "BayesianConjugateFitter",
     "BayesianConjugateResult",
+    "QuantileFitter",
+    "BasisPursuitFitter",
+    "GradientEnhancedPCEFitter",
 ]
