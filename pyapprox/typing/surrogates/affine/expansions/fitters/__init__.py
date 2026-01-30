@@ -44,6 +44,10 @@ from pyapprox.typing.surrogates.affine.expansions.fitters.entropic import (
     EntropicLoss,
     EntropicFitter,
 )
+from pyapprox.typing.surrogates.affine.expansions.fitters.conservative import (
+    ConservativeLstSqFitter,
+    ConservativeQuantileFitter,
+)
 
 __all__ = [
     "DirectSolverResult",
@@ -60,4 +64,6 @@ __all__ = [
     "GradientEnhancedPCEFitter",
     "EntropicLoss",
     "EntropicFitter",
+    "ConservativeLstSqFitter",
+    "ConservativeQuantileFitter",
 ]

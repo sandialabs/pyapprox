@@ -218,6 +218,9 @@ class Backend(Protocol, Generic[Array]):
     ) -> Array: ...
 
     @staticmethod
+    def cumsum(array: Array, axis: Optional[int] = None) -> Array: ...
+
+    @staticmethod
     def sin(array: Array) -> Array: ...
 
     @staticmethod

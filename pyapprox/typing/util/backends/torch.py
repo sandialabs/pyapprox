@@ -154,6 +154,12 @@ class TorchBkd(Backend[torch.Tensor]):  # Specify torch.Tensor type
         return torch.sum(array, dim=axis, keepdim=keepdims)
 
     @staticmethod
+    def cumsum(array: torch.Tensor, axis: Optional[int] = None) -> torch.Tensor:
+        if axis is None:
+            return torch.cumsum(array.flatten(), dim=0)
+        return torch.cumsum(array, dim=axis)
+
+    @staticmethod
     def sin(array: torch.Tensor) -> torch.Tensor:
         return torch.sin(array)
 

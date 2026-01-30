@@ -1,24 +1,52 @@
 """
-Analytical risk measures for probability distributions.
+Risk measures for probability distributions.
 
-This module provides closed-form formulas for risk measures (mean, variance,
-AVaR, entropic risk, etc.) for specific probability distributions. These are
-useful for:
-- Testing and validating sample-based risk measure implementations
-- Computing exact values when analytical formulas exist
+This module provides:
+- Analytical (closed-form) risk measures for specific distributions
+- Sample-based risk measures computed from empirical distributions
+
+Analytical risk measures are useful for:
+- Testing and validating sample-based implementations
+- Computing exact values when closed-form formulas exist
 - Benchmark comparisons
 
-Currently supported distributions:
+Sample-based risk measures are useful for:
+- Computing risk of empirical distributions
+- Conservative surrogate fitting (adjusting constant term)
+- Risk-based optimization objectives
+
+Currently supported distributions for analytical measures:
 - Gaussian (normal)
 
-Future additions may include:
-- Beta
-- LogNormal
-- Chi-squared
+Sample-based risk measures:
+- SafetyMarginRiskMeasure: mean + strength * std
+- ValueAtRisk: empirical quantile
+- AverageValueAtRisk: CVaR / expected shortfall
+- EntropicRisk: exponential utility risk measure
+- UtilitySSD: utility form of second-order stochastic dominance
+- DisutilitySSD: disutility form of second-order stochastic dominance
 """
 
 from .gaussian import GaussianAnalyticalRiskMeasures
+from .measures import (
+    RiskMeasureProtocol,
+    RiskMeasureBase,
+    SafetyMarginRiskMeasure,
+    ValueAtRisk,
+    AverageValueAtRisk,
+    EntropicRisk,
+    UtilitySSD,
+    DisutilitySSD,
+)
 
 __all__ = [
     "GaussianAnalyticalRiskMeasures",
+    "RiskMeasureProtocol",
+    "RiskMeasureBase",
+    "SafetyMarginRiskMeasure",
+    "ValueAtRisk",
+    "AverageValueAtRisk",
+    "EntropicRisk",
+    "UtilitySSD",
+    "DisutilitySSD",
 ]

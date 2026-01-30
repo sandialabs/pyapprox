@@ -139,6 +139,10 @@ class NumpyBkd(Backend[NDArray[Any]]):  # Specify NDArray type
         return np.asarray(np.sum(array, axis=axis, keepdims=keepdims))
 
     @staticmethod
+    def cumsum(array: NDArray[Any], axis: Optional[int] = None) -> NDArray[Any]:
+        return np.cumsum(array, axis=axis)
+
+    @staticmethod
     def sin(array: NDArray[Any]) -> NDArray[Any]:
         return cast(NDArray[Any], np.sin(array))
 
