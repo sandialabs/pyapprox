@@ -1,0 +1,348 @@
+---
+title: "Introduction to FunctionTrain Decomposition"
+subtitle: "PyApprox Tutorial Library"
+description: "Tensor decomposition for high-dimensional function approximation"
+prerequisites:
+  - polynomial_chaos_expansion
+tags:
+  - surrogate
+  - tensor-decomposition
+format:
+  html:
+    code-fold: false
+    code-tools: true
+    toc: true
+execute:
+  echo: true
+  warning: false
+jupyter: python3
+---
+
+::: {.callout-tip collapse="true"}
+## Download Notebook
+[Download as Jupyter Notebook](notebooks/functiontrain_intro.ipynb)
+:::
+
+## Learning Objectives
+
+After completing this tutorial, you will be able to:
+
+- Explain the curse of dimensionality in function approximation
+- Describe the FunctionTrain tensor decomposition format
+- Understand ranks and cores in FunctionTrain structure
+- Construct and evaluate a basic FunctionTrain surrogate
+- Recognize when FunctionTrain is appropriate for a problem
+
+## Prerequisites
+
+Complete [Polynomial Chaos Expansion](polynomial_chaos_expansion.qmd) before this tutorial.
+
+## The Curse of Dimensionality
+
+When approximating high-dimensional functions, standard approaches face exponential scaling. Consider a polynomial expansion in $d$ variables with degree $p$:
+
+$$
+f(\vc{x}) = \sum_{\|\boldsymbol{\alpha}\|_1 \leq p} c_{\boldsymbol{\alpha}} \prod_{k=1}^{d} \psi_{\alpha_k}(x_k)
+$$
+
+The number of terms grows as $\binom{d+p}{d}$, which scales roughly as $O(d^p)$ for fixed $p$. For $d=10$ and $p=5$, this is already over 3000 terms.
+
+**FunctionTrain (FT)** addresses this by decomposing high-dimensional functions into a product of low-dimensional "cores":
+
+$$
+f(x_1, \ldots, x_d) = \mathcal{F}_1(x_1) \cdot \mathcal{F}_2(x_2) \cdot \ldots \cdot \mathcal{F}_d(x_d)
+$$
+
+where each $\mathcal{F}_k(x_k)$ is a matrix-valued function of a single variable. The storage scales as $O(d \cdot r^2 \cdot p)$ where $r$ is the "rank" - often much smaller than exponential.
+
+## FunctionTrain Structure
+
+### Cores and Ranks
+
+A FunctionTrain represents a scalar function $f: \mathbb{R}^d \to \mathbb{R}$ as:
+
+$$
+f(\vc{x}) = \mathcal{F}_1(x_1) \cdot \mathcal{F}_2(x_2) \cdot \ldots \cdot \mathcal{F}_d(x_d)
+$$
+
+Each **core** $\mathcal{F}_k(x_k)$ is a matrix of shape $(r_{k-1}, r_k)$ where the entries are univariate functions of $x_k$:
+
+$$
+\mathcal{F}_k(x_k) = \begin{pmatrix}
+F_{11}^{(k)}(x_k) & \cdots & F_{1,r_k}^{(k)}(x_k) \\
+\vdots & \ddots & \vdots \\
+F_{r_{k-1},1}^{(k)}(x_k) & \cdots & F_{r_{k-1},r_k}^{(k)}(x_k)
+\end{pmatrix}
+$$
+
+The **ranks** $r_0, r_1, \ldots, r_d$ control the approximation power:
+
+- **Boundary ranks**: $r_0 = r_d = 1$ (ensuring scalar output)
+- **Interior ranks**: $r_1, \ldots, r_{d-1}$ control expressiveness
+
+The product is:
+$$
+f(\vc{x}) = \underbrace{[1 \times r_1]}_{\mathcal{F}_1} \cdot \underbrace{[r_1 \times r_2]}_{\mathcal{F}_2} \cdot \ldots \cdot \underbrace{[r_{d-1} \times 1]}_{\mathcal{F}_d} = [1 \times 1] = \text{scalar}
+$$
+
+### Rank-1 Example (Separable Functions)
+
+The simplest case is **rank-1**: all interior ranks equal 1. Each core is a single univariate function:
+
+$$
+f(x_1, x_2, x_3) = g_1(x_1) \cdot g_2(x_2) \cdot g_3(x_3)
+$$
+
+This exactly represents separable functions (products of univariate functions).
+
+### Higher Ranks
+
+Higher ranks allow representing more complex functions. A rank-$r$ FT can approximate sums of rank-1 functions and their interactions.
+
+## Setup
+
+```{python}
+import numpy as np
+import matplotlib.pyplot as plt
+from pyapprox.typing.util.backends.numpy import NumpyBkd
+
+bkd = NumpyBkd()
+np.random.seed(42)
+```
+
+## Example: Building a Rank-1 FunctionTrain
+
+Let's build a rank-1 FT that represents:
+$$
+f(x_1, x_2) = (1 + 2x_1)(3 - x_2)
+$$
+
+This is a product of two univariate polynomials, so rank-1 is sufficient.
+
+### Step 1: Create Univariate Expansions
+
+Each core contains univariate basis expansions. We use Polynomial Chaos Expansion (PCE) with Legendre polynomials for uniform distributions on $[-1, 1]$:
+
+```{python}
+from pyapprox.typing.surrogates.affine.univariate import create_bases_1d
+from pyapprox.typing.surrogates.affine.indices import compute_hyperbolic_indices
+from pyapprox.typing.surrogates.affine.basis import OrthonormalPolynomialBasis
+from pyapprox.typing.surrogates.affine.expansions import BasisExpansion
+from pyapprox.typing.probability import UniformMarginal
+
+def create_univariate_pce(max_level: int) -> BasisExpansion:
+    """Create a univariate PCE on [-1, 1]."""
+    marginals = [UniformMarginal(-1.0, 1.0, bkd)]
+    bases_1d = create_bases_1d(marginals, bkd)
+    indices = compute_hyperbolic_indices(1, max_level, 1.0, bkd)
+    basis = OrthonormalPolynomialBasis(bases_1d, bkd, indices)
+    return BasisExpansion(basis, bkd, nqoi=1)
+
+# Create PCE templates
+pce_template = create_univariate_pce(max_level=2)
+print(f"Univariate expansion has {pce_template.nterms()} terms")
+```
+
+### Step 2: Set Coefficients
+
+For Legendre polynomials on $[-1, 1]$: $P_0(x) = 1$, $P_1(x) = \sqrt{3}x$ (normalized).
+
+To represent $g_1(x) = 1 + 2x$ in the orthonormal basis:
+- $1 + 2x = c_0 P_0(x) + c_1 P_1(x)$
+- $c_0 = 1$ (constant term)
+- $c_1 = 2/\sqrt{3}$ (linear term coefficient)
+
+```{python}
+# Coefficients for g1(x) = 1 + 2x
+c0_1, c1_1 = 1.0, 2.0 / np.sqrt(3)
+coef_1 = bkd.asarray([[c0_1], [c1_1], [0.0]])  # Shape: (3, 1)
+pce_1 = pce_template.with_params(coef_1)
+
+# Coefficients for g2(x) = 3 - x
+c0_2, c1_2 = 3.0, -1.0 / np.sqrt(3)
+coef_2 = bkd.asarray([[c0_2], [c1_2], [0.0]])
+pce_2 = pce_template.with_params(coef_2)
+
+# Verify the univariate functions
+x_test = bkd.asarray([[0.5]])
+g1_value = float(pce_1(x_test)[0, 0])
+g2_value = float(pce_2(x_test)[0, 0])
+print(f"g1(0.5) = {g1_value:.4f} (expected: {1 + 2*0.5:.4f})")
+print(f"g2(0.5) = {g2_value:.4f} (expected: {3 - 0.5:.4f})")
+```
+
+### Step 3: Create FunctionTrain Cores
+
+Each core wraps the univariate expansion. For rank-1, each core is a $1 \times 1$ "matrix" (a single function):
+
+```{python}
+from pyapprox.typing.surrogates.functiontrain.core import FunctionTrainCore
+from pyapprox.typing.surrogates.functiontrain import FunctionTrain
+
+# Core 1: [[pce_1]] - a 1x1 matrix of expansions
+core_1 = FunctionTrainCore([[pce_1]], bkd)
+print(f"Core 1 ranks: {core_1.ranks()}")
+
+# Core 2: [[pce_2]]
+core_2 = FunctionTrainCore([[pce_2]], bkd)
+print(f"Core 2 ranks: {core_2.ranks()}")
+```
+
+### Step 4: Assemble the FunctionTrain
+
+```{python}
+# Create the FunctionTrain
+ft = FunctionTrain([core_1, core_2], bkd, nqoi=1)
+
+print(f"FunctionTrain properties:")
+print(f"  Number of variables: {ft.nvars()}")
+print(f"  Number of QoIs: {ft.nqoi()}")
+```
+
+### Step 5: Evaluate and Verify
+
+```{python}
+def target_function(samples):
+    """True function: f(x1, x2) = (1 + 2*x1)(3 - x2)."""
+    x1, x2 = samples[0], samples[1]
+    return ((1 + 2*x1) * (3 - x2)).reshape(1, -1)
+
+# Test on a grid
+n_test = 50
+x1_vals = np.linspace(-1, 1, n_test)
+x2_vals = np.linspace(-1, 1, n_test)
+X1, X2 = np.meshgrid(x1_vals, x2_vals)
+samples = bkd.asarray(np.vstack([X1.ravel(), X2.ravel()]))
+
+# Evaluate
+true_values = target_function(samples).flatten()
+ft_values = bkd.to_numpy(ft(samples)).flatten()
+
+# Compare
+error = np.abs(true_values - ft_values)
+print(f"Max absolute error: {np.max(error):.2e}")
+print(f"Mean absolute error: {np.mean(error):.2e}")
+```
+
+### Visualization
+
+```{python}
+fig, axes = plt.subplots(1, 3, figsize=(14, 4))
+
+# True function
+ax = axes[0]
+Z_true = true_values.reshape(n_test, n_test)
+c = ax.contourf(X1, X2, Z_true, levels=20, cmap='viridis')
+plt.colorbar(c, ax=ax)
+ax.set_xlabel('$x_1$')
+ax.set_ylabel('$x_2$')
+ax.set_title('True: $(1 + 2x_1)(3 - x_2)$')
+
+# FT approximation
+ax = axes[1]
+Z_ft = ft_values.reshape(n_test, n_test)
+c = ax.contourf(X1, X2, Z_ft, levels=20, cmap='viridis')
+plt.colorbar(c, ax=ax)
+ax.set_xlabel('$x_1$')
+ax.set_ylabel('$x_2$')
+ax.set_title('FunctionTrain (rank-1)')
+
+# Error
+ax = axes[2]
+Z_error = error.reshape(n_test, n_test)
+c = ax.contourf(X1, X2, Z_error, levels=20, cmap='hot')
+plt.colorbar(c, ax=ax)
+ax.set_xlabel('$x_1$')
+ax.set_ylabel('$x_2$')
+ax.set_title('Absolute Error')
+
+plt.tight_layout()
+plt.show()
+```
+
+## Using Factory Functions
+
+For convenience, use `create_pce_functiontrain`:
+
+```{python}
+from pyapprox.typing.surrogates.functiontrain import create_pce_functiontrain
+
+# Create FT from marginals (initialized with small random coefficients)
+marginals = [
+    UniformMarginal(-1.0, 1.0, bkd),  # x1
+    UniformMarginal(-1.0, 1.0, bkd),  # x2
+    UniformMarginal(-1.0, 1.0, bkd),  # x3
+]
+
+ft_3d = create_pce_functiontrain(
+    marginals=marginals,
+    max_level=3,
+    ranks=[2, 2],  # Interior ranks
+    bkd=bkd,
+    init_scale=0.1,  # Small random initialization
+)
+
+print(f"Created 3D FunctionTrain:")
+print(f"  Variables: {ft_3d.nvars()}")
+print(f"  Interior ranks: [2, 2]")
+```
+
+## Storage Comparison
+
+```{python}
+def compare_storage(nvars: int, degree: int, rank: int) -> None:
+    """Compare FT vs full tensor storage."""
+    # Full tensor: product of univariate basis sizes
+    full_storage = (degree + 1) ** nvars
+
+    # FT storage: d cores, each with r^2 univariate expansions of size (degree+1)
+    ft_storage = nvars * rank**2 * (degree + 1)
+
+    print(f"nvars={nvars}, degree={degree}, rank={rank}:")
+    print(f"  Full tensor: {full_storage:,} coefficients")
+    print(f"  FunctionTrain: {ft_storage:,} coefficients")
+    print(f"  Compression ratio: {full_storage / ft_storage:.1f}x")
+
+# Compare for various dimensions
+for nvars in [5, 10, 20]:
+    compare_storage(nvars, degree=4, rank=3)
+    print()
+```
+
+## When to Use FunctionTrain
+
+**FunctionTrain is effective when:**
+
+- The function has low-rank structure (smooth, not too oscillatory)
+- Dimension $d$ is moderate to high (5-100+)
+- Separable or nearly separable structure exists
+- You need analytical statistics (mean, variance, Sobol indices)
+
+**FunctionTrain may struggle when:**
+
+- The function is highly irregular or discontinuous
+- Strong non-separable interactions exist across many variables
+- Very high accuracy is needed in low dimensions (use standard PCE instead)
+
+## Key Takeaways
+
+- **FunctionTrain** decomposes high-dimensional functions into products of matrix-valued univariate functions (cores)
+- **Ranks** control expressiveness: rank-1 represents separable functions, higher ranks capture interactions
+- **Storage** scales as $O(d \cdot r^2 \cdot p)$ instead of $O(p^d)$ - exponential savings for large $d$
+- **Boundary ranks** are always 1 (scalar input/output); interior ranks are problem-dependent
+- **PCE bases** enable analytical statistics computation (covered in later tutorials)
+
+## Exercises
+
+1. **(Easy)** Modify the rank-1 example to represent $f(x_1, x_2) = (2 - x_1^2)(1 + x_2)$. What polynomial degree is needed?
+
+2. **(Medium)** Create a rank-1 FT for a 4-variable separable function and verify it evaluates correctly. Compare storage with a full tensor expansion.
+
+3. **(Challenge)** The function $f(x_1, x_2) = x_1 + x_2$ is additive, not multiplicative. Can rank-1 FT represent it exactly? If not, what rank is needed?
+
+## Next Steps
+
+Continue with:
+
+- [FunctionTrain with PCE Bases](functiontrain_pce.qmd) - Using orthonormal polynomials for analytical statistics
+- [FunctionTrain Moments](functiontrain_moments.qmd) - Computing mean and variance analytically

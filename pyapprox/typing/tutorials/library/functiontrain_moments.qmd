@@ -1,0 +1,386 @@
+---
+title: "FunctionTrain Moments: Practical Usage"
+subtitle: "PyApprox Tutorial Library"
+description: "Computing mean and variance analytically with FunctionTrainMoments"
+prerequisites:
+  - functiontrain_moments_math
+tags:
+  - surrogate
+  - tensor-decomposition
+  - statistics
+format:
+  html:
+    code-fold: false
+    code-tools: true
+    toc: true
+execute:
+  echo: true
+  warning: false
+jupyter: python3
+---
+
+::: {.callout-tip collapse="true"}
+## Download Notebook
+[Download as Jupyter Notebook](notebooks/functiontrain_moments.ipynb)
+:::
+
+## Learning Objectives
+
+After completing this tutorial, you will be able to:
+
+- Use the `FunctionTrainMoments` class to compute analytical statistics
+- Verify FT statistics against Monte Carlo estimates
+- Understand the workflow from fitting to statistics computation
+- Apply FT moments to practical UQ problems
+
+## Prerequisites
+
+Complete [FunctionTrain Moments (Math)](functiontrain_moments_math.qmd) before this tutorial.
+
+## Setup
+
+```{python}
+import numpy as np
+import matplotlib.pyplot as plt
+from pyapprox.typing.util.backends.numpy import NumpyBkd
+
+bkd = NumpyBkd()
+np.random.seed(42)
+```
+
+## The FunctionTrainMoments Class
+
+`FunctionTrainMoments` computes analytical statistics from a PCE FunctionTrain:
+
+```{python}
+from pyapprox.typing.probability import UniformMarginal
+from pyapprox.typing.surrogates.functiontrain import (
+    create_pce_functiontrain,
+    PCEFunctionTrain,
+    ALSFitter,
+)
+from pyapprox.typing.surrogates.functiontrain.statistics import FunctionTrainMoments
+
+# Create a simple test FT
+marginals = [UniformMarginal(-1.0, 1.0, bkd) for _ in range(3)]
+ft = create_pce_functiontrain(marginals, max_level=2, ranks=[2, 2], bkd=bkd)
+
+# Wrap and compute moments
+pce_ft = PCEFunctionTrain(ft)
+moments = FunctionTrainMoments(pce_ft)
+
+print(f"FunctionTrainMoments API:")
+print(f"  mean() -> Array shape: {moments.mean().shape}")
+print(f"  variance() -> Array shape: {moments.variance().shape}")
+print(f"  std() -> Array shape: {moments.std().shape}")
+print(f"  second_moment() -> Array shape: {moments.second_moment().shape}")
+```
+
+## Complete Workflow Example
+
+Let's work through a complete example: approximating a test function and computing its statistics.
+
+### Step 1: Define the Target Function
+
+```{python}
+def genz_product(samples):
+    """Genz product function: prod_k (1 + a_k * x_k).
+
+    A classic test function with known separable structure.
+    For x_k ~ U[-1, 1], analytical mean and variance are available.
+    """
+    a = np.array([0.5, 1.0, 0.3, 0.8])  # Weights
+    nvars = samples.shape[0]
+    result = np.ones(samples.shape[1])
+    for k in range(nvars):
+        result *= (1 + a[k] * samples[k])
+    return result.reshape(1, -1)
+
+# Test the function
+test_samples = bkd.asarray(np.array([[0.0], [0.0], [0.0], [0.0]]))
+print(f"f(0, 0, 0, 0) = {genz_product(test_samples)[0, 0]:.4f} (expected: 1.0)")
+```
+
+### Step 2: Analytical Statistics (for Verification)
+
+For $f(\vc{x}) = \prod_{k=1}^d (1 + a_k x_k)$ with $x_k \sim U[-1, 1]$:
+
+$$
+\E[f] = \prod_{k=1}^d \E[1 + a_k x_k] = \prod_{k=1}^d 1 = 1
+$$
+
+$$
+\E[f^2] = \prod_{k=1}^d \E[(1 + a_k x_k)^2] = \prod_{k=1}^d \left(1 + \frac{a_k^2}{3}\right)
+$$
+
+```{python}
+a = np.array([0.5, 1.0, 0.3, 0.8])
+nvars = 4
+
+mean_exact = 1.0
+second_moment_exact = np.prod(1 + a**2 / 3)
+var_exact = second_moment_exact - mean_exact**2
+
+print(f"Exact statistics for Genz product:")
+print(f"  E[f] = {mean_exact:.6f}")
+print(f"  E[f²] = {second_moment_exact:.6f}")
+print(f"  Var[f] = {var_exact:.6f}")
+print(f"  σ[f] = {np.sqrt(var_exact):.6f}")
+```
+
+### Step 3: Create and Fit FunctionTrain
+
+```{python}
+# Create FT (this function is rank-1, but we use rank-2 for robustness)
+marginals = [UniformMarginal(-1.0, 1.0, bkd) for _ in range(nvars)]
+ft_init = create_pce_functiontrain(
+    marginals=marginals,
+    max_level=3,      # Degree 3 should capture linear terms exactly
+    ranks=[2, 2, 2],  # Rank-2 interior
+    bkd=bkd,
+    init_scale=0.1,
+)
+
+# Generate training data
+n_train = 300
+train_samples = bkd.asarray(2 * np.random.rand(nvars, n_train) - 1)
+train_values = bkd.asarray(genz_product(train_samples))
+
+# Fit
+fitter = ALSFitter(bkd, max_sweeps=50, tol=1e-14)
+result = fitter.fit(ft_init, train_samples, train_values)
+fitted_ft = result.surrogate()
+
+print(f"Fitting result:")
+print(f"  Sweeps: {result.num_sweeps()}")
+print(f"  Final residual: {result.final_residual():.2e}")
+```
+
+### Step 4: Compute Analytical Moments
+
+```{python}
+# Wrap and compute moments
+pce_ft = PCEFunctionTrain(fitted_ft)
+moments = FunctionTrainMoments(pce_ft)
+
+mean_ft = float(moments.mean()[0])
+var_ft = float(moments.variance()[0])
+std_ft = float(moments.std()[0])
+second_moment_ft = float(moments.second_moment()[0])
+
+print(f"\nFunctionTrain analytical statistics:")
+print(f"  E[f] = {mean_ft:.6f} (exact: {mean_exact:.6f})")
+print(f"  E[f²] = {second_moment_ft:.6f} (exact: {second_moment_exact:.6f})")
+print(f"  Var[f] = {var_ft:.6f} (exact: {var_exact:.6f})")
+print(f"  σ[f] = {std_ft:.6f} (exact: {np.sqrt(var_exact):.6f})")
+
+print(f"\nRelative errors:")
+print(f"  Mean: {abs(mean_ft - mean_exact) / abs(mean_exact):.2e}")
+print(f"  Variance: {abs(var_ft - var_exact) / abs(var_exact):.2e}")
+```
+
+### Step 5: Monte Carlo Verification
+
+```{python}
+# MC on the fitted surrogate
+n_mc = 100000
+mc_samples = bkd.asarray(2 * np.random.rand(nvars, n_mc) - 1)
+mc_values = bkd.to_numpy(fitted_ft(mc_samples)).flatten()
+
+print(f"Monte Carlo verification on surrogate (N={n_mc}):")
+print(f"  E[f] ≈ {np.mean(mc_values):.6f}")
+print(f"  Var[f] ≈ {np.var(mc_values):.6f}")
+print(f"  σ[f] ≈ {np.std(mc_values):.6f}")
+```
+
+## Visualizing the Comparison
+
+```{python}
+fig, axes = plt.subplots(1, 3, figsize=(14, 4))
+
+# Value distribution
+ax = axes[0]
+ax.hist(mc_values, bins=50, density=True, alpha=0.7, label='MC samples')
+ax.axvline(mean_ft, color='red', linestyle='--', linewidth=2, label=f'FT mean = {mean_ft:.3f}')
+ax.axvline(mean_exact, color='green', linestyle=':', linewidth=2, label=f'Exact mean = {mean_exact:.3f}')
+ax.set_xlabel('f(x)')
+ax.set_ylabel('Density')
+ax.set_title('Output Distribution')
+ax.legend()
+
+# Mean convergence with sample size
+ax = axes[1]
+sample_sizes = [100, 500, 1000, 5000, 10000, 50000, 100000]
+mc_means = []
+mc_stds = []
+for n in sample_sizes:
+    mc_vals = bkd.to_numpy(fitted_ft(bkd.asarray(2 * np.random.rand(nvars, n) - 1))).flatten()
+    mc_means.append(np.mean(mc_vals))
+    mc_stds.append(np.std(mc_vals) / np.sqrt(n))
+
+ax.errorbar(sample_sizes, mc_means, yerr=mc_stds, fmt='o-', label='MC estimate', capsize=3)
+ax.axhline(mean_ft, color='red', linestyle='--', label='FT analytical')
+ax.axhline(mean_exact, color='green', linestyle=':', label='Exact')
+ax.set_xscale('log')
+ax.set_xlabel('Sample size N')
+ax.set_ylabel('Mean estimate')
+ax.set_title('MC vs Analytical Mean')
+ax.legend()
+
+# Variance convergence
+ax = axes[2]
+mc_vars = []
+for n in sample_sizes:
+    mc_vals = bkd.to_numpy(fitted_ft(bkd.asarray(2 * np.random.rand(nvars, n) - 1))).flatten()
+    mc_vars.append(np.var(mc_vals))
+
+ax.semilogx(sample_sizes, mc_vars, 'o-', label='MC estimate')
+ax.axhline(var_ft, color='red', linestyle='--', label='FT analytical')
+ax.axhline(var_exact, color='green', linestyle=':', label='Exact')
+ax.set_xlabel('Sample size N')
+ax.set_ylabel('Variance estimate')
+ax.set_title('MC vs Analytical Variance')
+ax.legend()
+
+plt.tight_layout()
+plt.show()
+```
+
+## Practical Considerations
+
+### When to Use FT Moments
+
+**Advantages over Monte Carlo:**
+
+- **Exact** (up to fitting error) - no MC variance
+- **Instant** computation - no sampling required
+- **Reproducible** - same result every time
+
+**When MC may be preferred:**
+
+- Function not well-approximated by FT
+- Very high dimension with high-rank structure
+- Only rough estimates needed
+
+### Effect of Rank on Accuracy
+
+```{python}
+# Compare different ranks
+ranks_to_test = [[1, 1, 1], [2, 2, 2], [3, 3, 3], [4, 4, 4]]
+
+print(f"Effect of rank on statistics accuracy:")
+print(f"{'Rank':<10}{'Mean Error':<15}{'Var Error':<15}{'Residual':<15}")
+print("-" * 55)
+
+for ranks in ranks_to_test:
+    ft_test = create_pce_functiontrain(
+        marginals, max_level=3, ranks=ranks, bkd=bkd, init_scale=0.1
+    )
+    result = fitter.fit(ft_test, train_samples, train_values)
+    fitted = result.surrogate()
+
+    pce_test = PCEFunctionTrain(fitted)
+    moments_test = FunctionTrainMoments(pce_test)
+
+    mean_err = abs(float(moments_test.mean()[0]) - mean_exact)
+    var_err = abs(float(moments_test.variance()[0]) - var_exact)
+
+    print(f"{str(ranks):<10}{mean_err:<15.2e}{var_err:<15.2e}{result.final_residual():<15.2e}")
+```
+
+### Effect of Polynomial Degree
+
+```{python}
+# Compare different degrees
+degrees_to_test = [1, 2, 3, 4, 5]
+
+print(f"\nEffect of polynomial degree on statistics accuracy:")
+print(f"{'Degree':<10}{'Mean Error':<15}{'Var Error':<15}{'Residual':<15}")
+print("-" * 55)
+
+for deg in degrees_to_test:
+    ft_test = create_pce_functiontrain(
+        marginals, max_level=deg, ranks=[2, 2, 2], bkd=bkd, init_scale=0.1
+    )
+    result = fitter.fit(ft_test, train_samples, train_values)
+    fitted = result.surrogate()
+
+    pce_test = PCEFunctionTrain(fitted)
+    moments_test = FunctionTrainMoments(pce_test)
+
+    mean_err = abs(float(moments_test.mean()[0]) - mean_exact)
+    var_err = abs(float(moments_test.variance()[0]) - var_exact)
+
+    print(f"{deg:<10}{mean_err:<15.2e}{var_err:<15.2e}{result.final_residual():<15.2e}")
+```
+
+## Higher-Dimensional Example
+
+```{python}
+# 10D Genz product
+nvars_10d = 10
+a_10d = np.linspace(0.1, 1.0, nvars_10d)
+
+def genz_product_10d(samples):
+    result = np.ones(samples.shape[1])
+    for k in range(nvars_10d):
+        result *= (1 + a_10d[k] * samples[k])
+    return result.reshape(1, -1)
+
+# Exact statistics
+mean_exact_10d = 1.0
+second_moment_exact_10d = np.prod(1 + a_10d**2 / 3)
+var_exact_10d = second_moment_exact_10d - 1.0
+
+print(f"10D Genz product exact statistics:")
+print(f"  E[f] = {mean_exact_10d:.6f}")
+print(f"  Var[f] = {var_exact_10d:.6f}")
+
+# Create and fit FT
+marginals_10d = [UniformMarginal(-1.0, 1.0, bkd) for _ in range(nvars_10d)]
+ranks_10d = [2] * (nvars_10d - 1)
+
+ft_10d = create_pce_functiontrain(
+    marginals_10d, max_level=2, ranks=ranks_10d, bkd=bkd, init_scale=0.1
+)
+
+n_train_10d = 1000
+train_samples_10d = bkd.asarray(2 * np.random.rand(nvars_10d, n_train_10d) - 1)
+train_values_10d = bkd.asarray(genz_product_10d(train_samples_10d))
+
+fitter_10d = ALSFitter(bkd, max_sweeps=50, tol=1e-14)
+result_10d = fitter_10d.fit(ft_10d, train_samples_10d, train_values_10d)
+fitted_10d = result_10d.surrogate()
+
+# Compute statistics
+pce_10d = PCEFunctionTrain(fitted_10d)
+moments_10d = FunctionTrainMoments(pce_10d)
+
+print(f"\nFunctionTrain statistics (10D, rank-2, degree-2):")
+print(f"  E[f] = {float(moments_10d.mean()[0]):.6f} (error: {abs(float(moments_10d.mean()[0]) - 1.0):.2e})")
+print(f"  Var[f] = {float(moments_10d.variance()[0]):.6f} (error: {abs(float(moments_10d.variance()[0]) - var_exact_10d):.2e})")
+print(f"  Fit residual: {result_10d.final_residual():.2e}")
+```
+
+## Key Takeaways
+
+- **FunctionTrainMoments** provides `mean()`, `variance()`, `std()`, `second_moment()` methods
+- **Workflow**: Fit FT → wrap with `PCEFunctionTrain` → create `FunctionTrainMoments` → call statistics methods
+- **Accuracy** depends on both fitting quality (residual) and FT expressiveness (rank, degree)
+- **Analytical advantages**: Exact (no MC variance), instant, reproducible
+- **Scales well** to moderate-high dimensions when function has low-rank structure
+
+## Exercises
+
+1. **(Easy)** Modify the Genz product weights to $a_k = 0.1$ for all $k$. How does the variance change? Verify with FT moments.
+
+2. **(Medium)** For the 10D example, find the minimum rank that achieves mean error < 1e-4. How does training sample size affect this?
+
+3. **(Challenge)** Create a function that is NOT well-approximated by low-rank FT (e.g., with strong all-variable interactions). Compute FT moments and compare to Monte Carlo on the true function. What do you observe?
+
+## Next Steps
+
+Continue with:
+
+- [FunctionTrain Sensitivity (Math)](functiontrain_sensitivity_math.qmd) - Sobol index derivations
+- [FunctionTrain Sensitivity (Usage)](functiontrain_sensitivity.qmd) - Computing sensitivity indices

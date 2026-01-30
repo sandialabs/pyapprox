@@ -41,6 +41,14 @@ website:
           contents:
             - library/polynomial_chaos_expansion.qmd
             - library/gaussian_process_surrogates.qmd
+        - section: "FunctionTrain"
+          contents:
+            - library/functiontrain_intro.qmd
+            - library/functiontrain_pce.qmd
+            - library/functiontrain_moments_math.qmd
+            - library/functiontrain_moments.qmd
+            - library/functiontrain_sensitivity_math.qmd
+            - library/functiontrain_sensitivity.qmd
         - section: "Multifidelity"
           contents:
             - library/control_variates.qmd

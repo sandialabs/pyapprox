@@ -1,0 +1,399 @@
+---
+title: "FunctionTrain with PCE Bases"
+subtitle: "PyApprox Tutorial Library"
+description: "Using orthonormal polynomial bases for analytical FunctionTrain statistics"
+prerequisites:
+  - functiontrain_intro
+  - polynomial_chaos_expansion
+tags:
+  - surrogate
+  - tensor-decomposition
+  - pce
+format:
+  html:
+    code-fold: false
+    code-tools: true
+    toc: true
+execute:
+  echo: true
+  warning: false
+jupyter: python3
+---
+
+::: {.callout-tip collapse="true"}
+## Download Notebook
+[Download as Jupyter Notebook](notebooks/functiontrain_pce.ipynb)
+:::
+
+## Learning Objectives
+
+After completing this tutorial, you will be able to:
+
+- Explain why orthonormal PCE bases enable analytical statistics in FunctionTrain
+- Construct a FunctionTrain with PCE univariate expansions
+- Use the `PCEFunctionTrain` wrapper to validate PCE structure
+- Understand the coefficient matrix representation $\Theta_k^{(\ell)}$
+- Recognize the limitations and requirements for PCE-based FT statistics
+
+## Prerequisites
+
+Complete:
+
+- [Introduction to FunctionTrain](functiontrain_intro.qmd)
+- [Polynomial Chaos Expansion](polynomial_chaos_expansion.qmd)
+
+## Why PCE Bases?
+
+Standard FunctionTrain can use any univariate function representation. However, for **analytical statistics** (mean, variance, Sobol indices), we need special structure.
+
+**Polynomial Chaos Expansion (PCE)** with orthonormal bases provides exactly this:
+
+$$
+\E_{\params}[\psi_\ell(\theta)] = \delta_{\ell 0}, \quad \E_{\params}[\psi_\ell(\theta) \psi_m(\theta)] = \delta_{\ell m}
+$$
+
+This orthonormality allows computing expectations by simple coefficient extraction - no numerical integration needed.
+
+### From PCE to FunctionTrain
+
+Recall that a univariate PCE represents a function as:
+$$
+g(x) = \sum_{\ell=0}^{p-1} c_\ell \psi_\ell(x)
+$$
+
+In a FunctionTrain, each entry of a core matrix is such an expansion:
+$$
+F_{ij}^{(k)}(x_k) = \sum_{\ell=0}^{p-1} \Theta_k^{(\ell)}[i,j] \cdot \psi_\ell(x_k)
+$$
+
+where $\Theta_k^{(\ell)}[i,j]$ is the coefficient of basis term $\ell$ in the $(i,j)$ entry of core $k$.
+
+## Setup
+
+```{python}
+import numpy as np
+import matplotlib.pyplot as plt
+from pyapprox.typing.util.backends.numpy import NumpyBkd
+
+bkd = NumpyBkd()
+np.random.seed(42)
+```
+
+## Coefficient Matrix Structure
+
+### The $\Theta_k^{(\ell)}$ Matrices
+
+For core $k$ with ranks $(r_{k-1}, r_k)$ and $p$ basis terms, we can organize the coefficients into $p$ matrices:
+
+$$
+\Theta_k^{(\ell)} \in \mathbb{R}^{r_{k-1} \times r_k}, \quad \ell = 0, 1, \ldots, p-1
+$$
+
+where $\Theta_k^{(\ell)}[i,j]$ is the coefficient of $\psi_\ell$ in $F_{ij}^{(k)}$.
+
+The core can be written as:
+$$
+\mathcal{F}_k(x_k) = \sum_{\ell=0}^{p-1} \Theta_k^{(\ell)} \cdot \psi_\ell(x_k)
+$$
+
+This is a matrix-valued polynomial expansion!
+
+### Visual Representation
+
+For a rank-2 core with 3 basis terms:
+
+```
+                        Θ_k^(0)              Θ_k^(1)              Θ_k^(2)
+Core k:              (constant)            (linear)           (quadratic)
+       ┌────────┐   ┌────────┐           ┌────────┐           ┌────────┐
+       │F11 F12│   │θ00 θ01│           │θ10 θ11│           │θ20 θ21│
+       │F21 F22│ = │θ02 θ03│ · ψ_0(x) + │θ12 θ13│ · ψ_1(x) + │θ22 θ23│ · ψ_2(x)
+       └────────┘   └────────┘           └────────┘           └────────┘
+```
+
+## Creating a PCE FunctionTrain
+
+### Using the Factory Function
+
+```{python}
+from pyapprox.typing.probability import UniformMarginal
+from pyapprox.typing.surrogates.functiontrain import create_pce_functiontrain
+
+# Define marginal distributions for each variable
+marginals = [
+    UniformMarginal(-1.0, 1.0, bkd),  # x_0 ~ U[-1, 1] → Legendre
+    UniformMarginal(-1.0, 1.0, bkd),  # x_1 ~ U[-1, 1] → Legendre
+    UniformMarginal(-1.0, 1.0, bkd),  # x_2 ~ U[-1, 1] → Legendre
+]
+
+# Create FT with rank-2 interior and degree-3 polynomials
+ft = create_pce_functiontrain(
+    marginals=marginals,
+    max_level=3,      # Polynomial degree per core
+    ranks=[2, 2],     # Interior ranks: r_1=2, r_2=2
+    bkd=bkd,
+    init_scale=0.1,   # Small random initialization
+)
+
+print(f"FunctionTrain created:")
+print(f"  Variables: {ft.nvars()}")
+print(f"  Polynomial degree: 3 (4 terms per univariate expansion)")
+print(f"  Ranks: [1, 2, 2, 1] (boundary ranks are always 1)")
+```
+
+### Examining Core Structure
+
+```{python}
+# Access individual cores
+cores = ft.cores()
+print(f"Number of cores: {len(cores)}")
+
+for k, core in enumerate(cores):
+    r_left, r_right = core.ranks()
+    nterms = core.get_nterms(0, 0)  # All expansions have same nterms
+    print(f"\nCore {k}:")
+    print(f"  Ranks: ({r_left}, {r_right})")
+    print(f"  Terms per expansion: {nterms}")
+    print(f"  Number of univariate expansions: {r_left * r_right}")
+```
+
+## The PCEFunctionTrain Wrapper
+
+The `PCEFunctionTrain` class wraps a FunctionTrain and validates that all univariate expansions are compatible PCE:
+
+```{python}
+from pyapprox.typing.surrogates.functiontrain import PCEFunctionTrain
+
+# Wrap the FunctionTrain
+pce_ft = PCEFunctionTrain(ft)
+
+print(f"PCEFunctionTrain created:")
+print(f"  Variables: {pce_ft.nvars()}")
+print(f"  QoIs: {pce_ft.nqoi()}")
+```
+
+### Validation Checks
+
+`PCEFunctionTrain` validates:
+
+1. **nqoi = 1**: Multi-output not yet supported
+2. **Consistent nterms**: All expansions in a core have the same number of terms
+3. **Has coefficients**: All expansions support `get_coefficients()`
+
+```{python}
+# Example: validation rejects mixed structures
+from pyapprox.typing.surrogates.functiontrain.core import FunctionTrainCore
+from pyapprox.typing.surrogates.functiontrain import FunctionTrain
+from pyapprox.typing.surrogates.affine.univariate import create_bases_1d
+from pyapprox.typing.surrogates.affine.indices import compute_hyperbolic_indices
+from pyapprox.typing.surrogates.affine.basis import OrthonormalPolynomialBasis
+from pyapprox.typing.surrogates.affine.expansions import BasisExpansion
+
+def create_pce_expansion(degree: int):
+    """Create a single univariate PCE."""
+    marginals = [UniformMarginal(-1.0, 1.0, bkd)]
+    bases_1d = create_bases_1d(marginals, bkd)
+    indices = compute_hyperbolic_indices(1, degree, 1.0, bkd)
+    basis = OrthonormalPolynomialBasis(bases_1d, bkd, indices)
+    return BasisExpansion(basis, bkd, nqoi=1)
+
+# Create two expansions with DIFFERENT degrees
+pce_deg2 = create_pce_expansion(degree=2)
+pce_deg3 = create_pce_expansion(degree=3)
+
+# Try to mix them in one core (will fail validation)
+try:
+    # This creates a core with inconsistent nterms
+    bad_core = FunctionTrainCore([[pce_deg2], [pce_deg3]], bkd)
+    bad_ft = FunctionTrain([bad_core], bkd, nqoi=1)
+    pce_bad = PCEFunctionTrain(bad_ft)
+except ValueError as e:
+    print(f"Validation rejected: {e}")
+```
+
+## Accessing PCE Cores
+
+The PCE cores provide methods to extract coefficient matrices:
+
+```{python}
+pce_cores = pce_ft.pce_cores()
+core0 = pce_cores[0]
+
+print(f"PCE Core 0:")
+print(f"  nterms: {core0.nterms()}")
+print(f"  ranks: {core0.ranks()}")
+```
+
+### Extracting Coefficient Matrices
+
+```{python}
+# Get Θ_k^{(0)} - the constant term coefficients
+theta_0 = core0.coefficient_matrix(0)
+print(f"\nΘ_0^(0) (constant coefficients):")
+print(f"  Shape: {theta_0.shape}")
+print(f"  Values:\n{bkd.to_numpy(theta_0)}")
+
+# Get Θ_k^{(1)} - the linear term coefficients
+theta_1 = core0.coefficient_matrix(1)
+print(f"\nΘ_0^(1) (linear coefficients):")
+print(f"  Shape: {theta_1.shape}")
+print(f"  Values:\n{bkd.to_numpy(theta_1)}")
+```
+
+## Fitting a FunctionTrain
+
+FunctionTrains can be fitted to data using Alternating Least Squares (ALS):
+
+```{python}
+from pyapprox.typing.surrogates.functiontrain import ALSFitter
+
+# Target function: product with some interactions
+def target_function(samples):
+    x0, x1, x2 = samples[0], samples[1], samples[2]
+    return ((1 + x0) * (1 - 0.5*x1) * (2 + x2) + 0.3*x0*x2).reshape(1, -1)
+
+# Generate training data
+n_train = 200
+train_samples = bkd.asarray(2 * np.random.rand(3, n_train) - 1)
+train_values = bkd.asarray(target_function(train_samples))
+
+# Create fresh FT for fitting
+ft_to_fit = create_pce_functiontrain(
+    marginals=marginals,
+    max_level=3,
+    ranks=[2, 2],
+    bkd=bkd,
+    init_scale=0.1,
+)
+
+# Fit using ALS
+fitter = ALSFitter(bkd, max_sweeps=30, tol=1e-12)
+result = fitter.fit(ft_to_fit, train_samples, train_values)
+
+fitted_ft = result.surrogate()
+print(f"Fitting completed:")
+print(f"  Sweeps: {result.num_sweeps()}")
+print(f"  Final residual: {result.final_residual():.2e}")
+```
+
+### Verify Fit Quality
+
+```{python}
+# Test on new samples
+n_test = 500
+test_samples = bkd.asarray(2 * np.random.rand(3, n_test) - 1)
+test_values = target_function(test_samples).flatten()
+ft_predictions = bkd.to_numpy(fitted_ft(test_samples)).flatten()
+
+# Compute error
+error = np.abs(test_values - ft_predictions)
+print(f"Test error:")
+print(f"  Max: {np.max(error):.2e}")
+print(f"  Mean: {np.mean(error):.2e}")
+print(f"  RMSE: {np.sqrt(np.mean(error**2)):.2e}")
+```
+
+### Wrap Fitted FT for Statistics
+
+```{python}
+# Wrap the fitted FT
+pce_fitted = PCEFunctionTrain(fitted_ft)
+
+print(f"Fitted PCEFunctionTrain ready for statistics:")
+print(f"  Variables: {pce_fitted.nvars()}")
+
+# The pce_cores() method provides access to coefficient matrices
+pce_cores_fitted = pce_fitted.pce_cores()
+print(f"  Core 0 ranks: {pce_cores_fitted[0].ranks()}")
+print(f"  Core 0 nterms: {pce_cores_fitted[0].nterms()}")
+```
+
+## Limitations and Requirements
+
+### Uniform nterms Requirement
+
+All univariate expansions within a core must have the same number of terms. This excludes "additive" FT structures that mix constant and polynomial expansions:
+
+```{python}
+# This structure is NOT supported for PCE statistics:
+#
+# Additive FT: f(x,y) ≈ g(x) + h(y)
+#
+#              [g(x)]   [1  ]
+# Core 0:      [    ] · [h(y)]
+#              [1   ]   [    ]
+#
+# This has ConstantExpansion (nterms=1) mixed with PCE (nterms>1)
+# in the same core, which fails validation.
+
+print("Additive FT structure is NOT compatible with PCE statistics.")
+print("Use multiplicative structures (uniform PCE in all core positions).")
+```
+
+### Orthonormality Warning
+
+::: {.callout-warning}
+## Orthonormality Required
+
+All formulas for analytical statistics assume orthonormal polynomial bases with:
+
+$$
+\E[\psi_\ell] = \delta_{\ell 0}, \quad \E[\psi_\ell \psi_m] = \delta_{\ell m}
+$$
+
+Using non-orthonormal bases (e.g., raw monomials) will produce **mathematically incorrect** results. Always use `create_pce_functiontrain` with proper marginal distributions.
+:::
+
+### Supported Polynomial Types
+
+| Marginal Distribution | Polynomial Type | Support |
+|-----------------------|-----------------|---------|
+| `UniformMarginal` | Legendre | $[a, b]$ |
+| `GaussianMarginal` | Hermite | $(-\infty, \infty)$ |
+| `BetaMarginal` | Jacobi | $[0, 1]$ |
+| `GammaMarginal` | Laguerre | $[0, \infty)$ |
+
+```{python}
+from pyapprox.typing.probability import GaussianMarginal
+
+# Mixed marginal types
+mixed_marginals = [
+    UniformMarginal(-1.0, 1.0, bkd),   # Legendre
+    GaussianMarginal(0.0, 1.0, bkd),    # Hermite
+    UniformMarginal(0.0, 2.0, bkd),     # Legendre (shifted/scaled)
+]
+
+ft_mixed = create_pce_functiontrain(
+    marginals=mixed_marginals,
+    max_level=3,
+    ranks=[2, 2],
+    bkd=bkd,
+)
+
+print("FT with mixed polynomial types created successfully")
+print(f"Each core uses the polynomial type matching its marginal")
+```
+
+## Key Takeaways
+
+- **PCE bases** in FunctionTrain enable analytical statistics computation
+- **Coefficient matrices** $\Theta_k^{(\ell)}$ organize coefficients by basis index
+- **PCEFunctionTrain** validates the required structure for statistics
+- **Uniform nterms** is required: all expansions in a core must have the same degree
+- **Orthonormality** is assumed: use proper marginal distributions for correct bases
+- **Fitting** is done with ALS, then wrap with `PCEFunctionTrain` for statistics
+
+## Exercises
+
+1. **(Easy)** Create a 4-variable FT with different polynomial degrees per variable using the `max_level` sequence parameter. Verify each core has the expected nterms.
+
+2. **(Medium)** Fit a rank-3 FT to the function $f(x,y,z) = \sin(\pi x) \cos(\pi y) + xyz$. What training sample size gives good accuracy?
+
+3. **(Challenge)** Explain mathematically why mixing `ConstantExpansion` with PCE in the same core breaks the coefficient matrix extraction. What would $\Theta_k^{(\ell)}$ look like?
+
+## Next Steps
+
+Continue with:
+
+- [FunctionTrain Moments (Math)](functiontrain_moments_math.qmd) - Deriving mean and variance formulas
+- [FunctionTrain Moments (Usage)](functiontrain_moments.qmd) - Computing statistics in practice
