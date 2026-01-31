@@ -9,7 +9,6 @@ This module ports the tree enumeration logic from the legacy module
 
 from typing import Generic, Iterator, List, Optional, Union
 from itertools import product
-from functools import reduce
 
 import numpy as np
 

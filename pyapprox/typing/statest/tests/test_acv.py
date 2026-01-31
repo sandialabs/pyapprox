@@ -12,7 +12,6 @@ import unittest
 import numpy as np
 import torch
 
-from pyapprox.typing.util.backends.numpy import NumpyBkd
 from pyapprox.typing.util.backends.torch import TorchBkd
 from pyapprox.typing.util.test_utils import load_tests, slow_test  # noqa: F401
 
@@ -20,7 +19,6 @@ from pyapprox.typing.util.test_utils import load_tests, slow_test  # noqa: F401
 from pyapprox.util.backends.torch import TorchMixin as LegacyTorchBackend
 from pyapprox.multifidelity.factory import (
     get_estimator as legacy_get_estimator,
-    numerically_compute_estimator_variance,
     multioutput_stats as legacy_multioutput_stats,
 )
 from pyapprox.multifidelity.tests.test_stats import (

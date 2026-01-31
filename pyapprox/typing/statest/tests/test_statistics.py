@@ -22,8 +22,6 @@ from pyapprox.typing.statest.statistics import (
     MultiOutputMeanAndVariance,
     _get_nsamples_intersect,
     _get_nsamples_subset,
-    _get_acv_mean_discrepancy_covariances_multipliers,
-    _get_multioutput_acv_mean_discrepancy_covariances,
     _get_V_from_covariance,
     _covariance_of_variance_estimator,
     block_2x2,

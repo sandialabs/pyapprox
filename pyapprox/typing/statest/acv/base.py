@@ -6,16 +6,14 @@ optimization.
 """
 
 from abc import abstractmethod
-from typing import Callable, Generic, List, Tuple, Union
+from typing import Callable, Generic, List, Union
 
 import numpy as np
 
-from pyapprox.typing.util.backends.protocols import Array, Backend
+from pyapprox.typing.util.backends.protocols import Array
 
 from pyapprox.typing.statest.statistics import (
     MultiOutputStatistic,
-    MultiOutputVariance,
-    MultiOutputMeanAndVariance,
 )
 from pyapprox.typing.statest.cv_estimator import CVEstimator
 from pyapprox.typing.statest.acv.optimization import (

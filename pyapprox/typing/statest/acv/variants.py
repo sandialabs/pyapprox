@@ -292,9 +292,6 @@ def _allocate_samples_mlmc(
     # compute the number of samples needed for each discrepancy
     nsamples_per_delta = lagrange_multiplier * bkd.sqrt(var_cost_ratios)
 
-    # compute the ML estimator variance from the target cost
-    variance = bkd.sum(var_deltas / nsamples_per_delta)
-
     # compute the number of samples allocated to each model. For
     # all but the highest fidelity model we need to collect samples
     # from two discrepancies.

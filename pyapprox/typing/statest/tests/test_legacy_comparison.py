@@ -664,7 +664,6 @@ class TestLegacyComparisonGMFEstimator(unittest.TestCase):
     def test_allocate_samples(self) -> None:
         """Compare allocate_samples."""
         nqoi = 1
-        nmodels = 3
         # Create covariance with correlations
         cov = torch.tensor([
             [1.0, 0.9, 0.7],
@@ -719,7 +718,6 @@ class TestLegacyComparisonGISEstimator(unittest.TestCase):
     def test_allocate_samples(self) -> None:
         """Compare allocate_samples."""
         nqoi = 1
-        nmodels = 3
         cov = torch.tensor([
             [1.0, 0.9, 0.7],
             [0.9, 1.0, 0.8],
@@ -773,7 +771,6 @@ class TestLegacyComparisonGRDEstimator(unittest.TestCase):
     def test_allocate_samples(self) -> None:
         """Compare allocate_samples."""
         nqoi = 1
-        nmodels = 3
         cov = torch.tensor([
             [1.0, 0.9, 0.7],
             [0.9, 1.0, 0.8],
@@ -822,7 +819,6 @@ class TestLegacyComparisonMFMCEstimator(unittest.TestCase):
     def test_allocate_samples(self) -> None:
         """Compare allocate_samples."""
         nqoi = 1
-        nmodels = 3
         # Correlations must decrease monotonically for MFMC
         cov = np.array([
             [1.0, 0.9, 0.7],
@@ -868,7 +864,6 @@ class TestLegacyComparisonMLMCEstimator(unittest.TestCase):
     def test_allocate_samples(self) -> None:
         """Compare allocate_samples."""
         nqoi = 1
-        nmodels = 3
         # Costs must decrease monotonically for MLMC
         cov = np.array([
             [1.0, 0.9, 0.7],

@@ -266,7 +266,6 @@ class TestCVEstimator(Generic[Array], unittest.TestCase):
     def test_call(self) -> None:
         """Test __call__ computes CV estimate correctly."""
         nqoi = 1
-        nmodels = 2
         nsamples = 10
         stat = MultiOutputMean(nqoi, self._bkd)
         # Covariance with correlation between models

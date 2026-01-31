@@ -7,7 +7,6 @@ correct recursion indices for ACV estimators.
 from typing import Any, Generic
 import unittest
 
-import numpy as np
 from numpy.typing import NDArray
 import torch
 

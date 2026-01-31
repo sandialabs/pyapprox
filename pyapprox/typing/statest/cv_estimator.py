@@ -9,7 +9,7 @@ from typing import Callable, Generic, List, Tuple, Union
 
 import numpy as np
 
-from pyapprox.typing.util.backends.protocols import Array, Backend
+from pyapprox.typing.util.backends.protocols import Array
 
 from pyapprox.typing.statest.statistics import (
     MultiOutputStatistic,

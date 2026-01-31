@@ -21,7 +21,6 @@ from pyapprox.typing.statest.factory.best_estimator_factory import (
     BestEstimatorFactory,
 )
 from pyapprox.typing.statest.factory.registry import (
-    CandidateResult,
     compute_objective,
     register_estimator,
     get_registered_estimators,
