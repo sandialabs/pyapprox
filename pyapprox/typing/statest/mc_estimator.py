@@ -139,12 +139,13 @@ class MCEstimator(Generic[Array]):
         Parameters
         ----------
         values: Array
-            The values of each model output at the optimal number of samples
+            The values of each model output at the optimal number of samples.
+            Shape: (nqoi, nsamples)
 
         Return
         ------
         stat_value: Array
-            The value of the estimate statistic
+            The value of the estimate statistic. Shape: (nstats,)
         """
         if not isinstance(values, self._bkd.array_type()):
             raise ValueError(
@@ -153,11 +154,11 @@ class MCEstimator(Generic[Array]):
                 )
             )
         if (values.ndim != 2) or (
-            values.shape[0] != self._rounded_nsamples_per_model[0]
+            values.shape[1] != self._rounded_nsamples_per_model[0]
         ):
             msg = "values has the incorrect shape {0} expected {1}".format(
                 values.shape,
-                (self._rounded_nsamples_per_model[0], self._stat._nqoi),
+                (self._stat._nqoi, self._rounded_nsamples_per_model[0]),
             )
             raise ValueError(msg)
         return self._stat.sample_estimate(values)
@@ -173,7 +174,7 @@ class MCEstimator(Generic[Array]):
 
         Parameters
         ----------
-        values : [Array (nsamples, nqoi)]
+        values : [Array (nqoi, nsamples)]
             A single entry list containing the unique values of each model.
             The list is required to allow consistent interface with
             multi-fidelity estimators
@@ -191,7 +192,7 @@ class MCEstimator(Generic[Array]):
         """
         nbootstraps = int(nbootstraps)
         estimator_vals = self._bkd.empty((nbootstraps, self._stat._nqoi))
-        nsamples = values[0].shape[0]
+        nsamples = values[0].shape[1]
         indices = self._bkd.arange(nsamples, dtype=int)
         for kk in range(nbootstraps):
             bootstrapped_indices = self._bkd.array(
@@ -199,7 +200,7 @@ class MCEstimator(Generic[Array]):
                 dtype=int,
             )
             estimator_vals[kk] = self._stat.sample_estimate(
-                values[0][bootstrapped_indices]
+                values[0][:, bootstrapped_indices]
             )
             bootstrap_mean = estimator_vals.mean(axis=0)
             bootstrap_covar = self._bkd.cov(

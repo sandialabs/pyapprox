@@ -122,8 +122,8 @@ class TestMCEstimator(Generic[Array], unittest.TestCase):
         costs = self._bkd.array([1.0])
         est = MCEstimator(stat, costs)
         est.allocate_samples(10.0)  # 10 samples
-        # Create values with known mean
-        values = self._bkd.ones((10, nqoi)) * 3.0
+        # Create values with known mean, using typing convention (nqoi, nsamples)
+        values = self._bkd.ones((nqoi, 10)) * 3.0
         result = est(values)
         expected = self._bkd.ones((nqoi,)) * 3.0
         self._bkd.assert_allclose(result, expected, rtol=1e-12)
@@ -138,8 +138,8 @@ class TestMCEstimator(Generic[Array], unittest.TestCase):
         costs = self._bkd.array([1.0])
         est = MCEstimator(stat, costs)
         est.allocate_samples(10.0)  # 10 samples
-        # Wrong number of samples
-        values = self._bkd.ones((5, nqoi))
+        # Wrong number of samples, using typing convention (nqoi, nsamples)
+        values = self._bkd.ones((nqoi, 5))
         with self.assertRaises(ValueError):
             est(values)
 
@@ -278,9 +278,9 @@ class TestCVEstimator(Generic[Array], unittest.TestCase):
         est = CVEstimator(stat, costs, lowfi_stats)
         est.allocate_samples(float(nsamples) * costs.sum())
 
-        # Create values for both models
-        hf_values = self._bkd.ones((nsamples, nqoi)) * 2.0
-        lf_values = self._bkd.ones((nsamples, nqoi)) * 1.0
+        # Create values for both models using typing convention (nqoi, nsamples)
+        hf_values = self._bkd.ones((nqoi, nsamples)) * 2.0
+        lf_values = self._bkd.ones((nqoi, nsamples)) * 1.0
         values_per_model = [hf_values, lf_values]
 
         result = est(values_per_model)

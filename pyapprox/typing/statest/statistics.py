@@ -416,18 +416,35 @@ def _covariance_of_variance_estimator(
 def _W_entry(
     pilot_values_ii: Array, pilot_values_jj: Array, bkd: Backend[Array]
 ) -> Array:
-    nqoi = pilot_values_ii.shape[1]
-    npilot_samples = pilot_values_ii.shape[0]
-    assert pilot_values_jj.shape[0] == npilot_samples
-    means_ii = pilot_values_ii.mean(axis=0)
-    means_jj = pilot_values_jj.mean(axis=0)
+    """Compute W matrix entry for variance estimator covariance.
+
+    Parameters
+    ----------
+    pilot_values_ii : Array
+        Pilot values for model i. Shape: (nqoi, nsamples)
+    pilot_values_jj : Array
+        Pilot values for model j. Shape: (nqoi, nsamples)
+    bkd : Backend
+        Computational backend.
+
+    Returns
+    -------
+    Array
+        W matrix block. Shape: (nqoi^2, nqoi^2)
+    """
+    nqoi = pilot_values_ii.shape[0]
+    npilot_samples = pilot_values_ii.shape[1]
+    assert pilot_values_jj.shape[1] == npilot_samples
+    means_ii = pilot_values_ii.mean(axis=1, keepdims=True)
+    means_jj = pilot_values_jj.mean(axis=1, keepdims=True)
     centered_values_ii = pilot_values_ii - means_ii
     centered_values_jj = pilot_values_jj - means_jj
+    # einsum "kn,ln->nkl" for (nqoi, nsamples) -> (nsamples, nqoi, nqoi)
     centered_values_sq_ii = bkd.einsum(
-        "nk,nl->nkl", centered_values_ii, centered_values_ii
+        "kn,ln->nkl", centered_values_ii, centered_values_ii
     ).reshape(npilot_samples, -1)
     centered_values_sq_jj = bkd.einsum(
-        "nk,nl->nkl", centered_values_jj, centered_values_jj
+        "kn,ln->nkl", centered_values_jj, centered_values_jj
     ).reshape(npilot_samples, -1)
     centered_values_sq_ii_mean = centered_values_sq_ii.mean(axis=0)
     centered_values_sq_jj_mean = centered_values_sq_jj.mean(axis=0)
@@ -445,14 +462,30 @@ def _W_entry(
 def _get_W_from_pilot(
     pilot_values: Array, nmodels: int, bkd: Backend[Array]
 ) -> Array:
+    """Compute W matrix from pilot samples.
+
+    Parameters
+    ----------
+    pilot_values : Array
+        Stacked pilot values. Shape: (nqoi*nmodels, nsamples)
+    nmodels : int
+        Number of models.
+    bkd : Backend
+        Computational backend.
+
+    Returns
+    -------
+    Array
+        W matrix. Shape: (nqoi^2*nmodels, nqoi^2*nmodels)
+    """
     # for one model 1 qoi this is the kurtosis
-    nqoi = pilot_values.shape[1] // nmodels
+    nqoi = pilot_values.shape[0] // nmodels
     W = [[None for jj in range(nmodels)] for ii in range(nmodels)]
     for ii in range(nmodels):
-        pilot_values_ii = pilot_values[:, ii * nqoi : (ii + 1) * nqoi]
+        pilot_values_ii = pilot_values[ii * nqoi : (ii + 1) * nqoi, :]
         W[ii][ii] = _W_entry(pilot_values_ii, pilot_values_ii, bkd)
         for jj in range(ii + 1, nmodels):
-            pilot_values_jj = pilot_values[:, jj * nqoi : (jj + 1) * nqoi]
+            pilot_values_jj = pilot_values[jj * nqoi : (jj + 1) * nqoi, :]
             W[ii][jj] = _W_entry(pilot_values_ii, pilot_values_jj, bkd)
             W[jj][ii] = W[ii][jj].T
     return bkd.block(W)
@@ -461,18 +494,37 @@ def _get_W_from_pilot(
 def _B_entry(
     pilot_values_ii: Array, pilot_values_jj: Array, bkd: Backend[Array]
 ) -> Array:
-    nqoi = pilot_values_ii.shape[1]
-    npilot_samples = pilot_values_ii.shape[0]
-    assert pilot_values_jj.shape[0] == npilot_samples
-    means_jj = pilot_values_jj.mean(axis=0)
+    """Compute B matrix entry for mean-variance estimator covariance.
+
+    Parameters
+    ----------
+    pilot_values_ii : Array
+        Pilot values for model i. Shape: (nqoi, nsamples)
+    pilot_values_jj : Array
+        Pilot values for model j. Shape: (nqoi, nsamples)
+    bkd : Backend
+        Computational backend.
+
+    Returns
+    -------
+    Array
+        B matrix block. Shape: (nqoi, nqoi^2)
+    """
+    nqoi = pilot_values_ii.shape[0]
+    npilot_samples = pilot_values_ii.shape[1]
+    assert pilot_values_jj.shape[1] == npilot_samples
+    means_jj = pilot_values_jj.mean(axis=1, keepdims=True)
     centered_values_jj = pilot_values_jj - means_jj
+    # einsum "kn,ln->nkl" for (nqoi, nsamples) -> (nsamples, nqoi, nqoi)
     centered_values_sq_jj = bkd.einsum(
-        "nk,nl->nkl", centered_values_jj, centered_values_jj
+        "kn,ln->nkl", centered_values_jj, centered_values_jj
     ).reshape(npilot_samples, -1)
     centered_values_sq_jj_mean = centered_values_sq_jj.mean(axis=0)
+    # pilot_values_ii is (nqoi, nsamples), need (nsamples, nqoi) for einsum
+    pilot_values_ii_T = bkd.transpose(pilot_values_ii)
     centered_values_sq = bkd.einsum(
         "nk,nl->nkl",
-        pilot_values_ii,
+        pilot_values_ii_T,
         centered_values_sq_jj - centered_values_sq_jj_mean,
     ).reshape(npilot_samples, -1)
     mc_cov = centered_values_sq.sum(axis=0).reshape(nqoi, nqoi**2) / (
@@ -484,13 +536,29 @@ def _B_entry(
 def _get_B_from_pilot(
     pilot_values: Array, nmodels: int, bkd: Backend[Array]
 ) -> Array:
-    nqoi = pilot_values.shape[1] // nmodels
+    """Compute B matrix from pilot samples.
+
+    Parameters
+    ----------
+    pilot_values : Array
+        Stacked pilot values. Shape: (nqoi*nmodels, nsamples)
+    nmodels : int
+        Number of models.
+    bkd : Backend
+        Computational backend.
+
+    Returns
+    -------
+    Array
+        B matrix. Shape: (nqoi*nmodels, nqoi^2*nmodels)
+    """
+    nqoi = pilot_values.shape[0] // nmodels
     B = [[None for jj in range(nmodels)] for ii in range(nmodels)]
     for ii in range(nmodels):
-        pilot_values_ii = pilot_values[:, ii * nqoi : (ii + 1) * nqoi]
+        pilot_values_ii = pilot_values[ii * nqoi : (ii + 1) * nqoi, :]
         B[ii][ii] = _B_entry(pilot_values_ii, pilot_values_ii, bkd)
         for jj in range(ii + 1, nmodels):
-            pilot_values_jj = pilot_values[:, jj * nqoi : (jj + 1) * nqoi]
+            pilot_values_jj = pilot_values[jj * nqoi : (jj + 1) * nqoi, :]
             B[ii][jj] = _B_entry(pilot_values_ii, pilot_values_jj, bkd)
             B[jj][ii] = _B_entry(pilot_values_jj, pilot_values_ii, bkd)
     return bkd.block(B)
@@ -671,7 +739,19 @@ class MultiOutputMean(MultiOutputStatistic[Array]):
         return self.nqoi()
 
     def sample_estimate(self, values: Array) -> Array:
-        return self._bkd.mean(values, axis=0)
+        """Compute sample mean estimate.
+
+        Parameters
+        ----------
+        values : Array
+            Model outputs. Shape: (nqoi, nsamples)
+
+        Returns
+        -------
+        Array
+            Mean estimate. Shape: (nqoi,)
+        """
+        return self._bkd.mean(values, axis=1)
 
     def high_fidelity_estimator_covariance(self, nhf_samples: int) -> Array:
         return self._cov[: self._nqoi, : self._nqoi] / nhf_samples
@@ -679,9 +759,22 @@ class MultiOutputMean(MultiOutputStatistic[Array]):
     def compute_pilot_quantities(
         self, pilot_values: List[Array]
     ) -> Tuple[Array]:
+        """Compute covariance from pilot samples.
+
+        Parameters
+        ----------
+        pilot_values : List[Array]
+            Pilot samples for each model. Each array has shape (nqoi, nsamples).
+
+        Returns
+        -------
+        Tuple[Array]
+            Covariance matrix of shape (nqoi*nmodels, nqoi*nmodels).
+        """
         self._check_pilot_values(pilot_values)
-        pilot_values_stacked = self._bkd.hstack(pilot_values)
-        return (self._bkd.cov(pilot_values_stacked, rowvar=False, ddof=1),)
+        # Stack to (nqoi*nmodels, nsamples), then compute cov with rowvar=True
+        pilot_values_stacked = self._bkd.vstack(pilot_values)
+        return (self._bkd.cov(pilot_values_stacked, rowvar=True, ddof=1),)
 
     def set_pilot_quantities(self, cov: Array) -> None:
         self._cov = self._bkd.asarray(cov, dtype=self._bkd.double_dtype())
@@ -825,12 +918,24 @@ class MultiOutputVariance(MultiOutputStatistic[Array]):
         return self._tril_idx_flat.shape[0]  # self.nqoi() ** 2
 
     def sample_estimate(self, values: Array) -> Array:
-        nmodels_in_subset = values.shape[1] // self._nqoi
+        """Compute sample variance estimate.
+
+        Parameters
+        ----------
+        values : Array
+            Model outputs. Shape: (nqoi*nmodels_in_subset, nsamples)
+
+        Returns
+        -------
+        Array
+            Variance estimate (lower triangular entries). Shape: (nstats*nmodels_in_subset,)
+        """
+        nmodels_in_subset = values.shape[0] // self._nqoi
         flat_covs = [
             self._bkd.cov(
-                values[:, ii * self._nqoi : (ii + 1) * self._nqoi],
+                values[ii * self._nqoi : (ii + 1) * self._nqoi, :],
                 ddof=1,
-                rowvar=False,
+                rowvar=True,
             ).flatten()[self._tril_idx_flat]
             for ii in range(nmodels_in_subset)
         ]
@@ -847,10 +952,23 @@ class MultiOutputVariance(MultiOutputStatistic[Array]):
     def compute_pilot_quantities(
         self, pilot_values: List[Array]
     ) -> Tuple[Array, Array]:
+        """Compute covariance and W matrix from pilot samples.
+
+        Parameters
+        ----------
+        pilot_values : List[Array]
+            Pilot samples for each model. Each array has shape (nqoi, nsamples).
+
+        Returns
+        -------
+        Tuple[Array, Array]
+            Covariance matrix and W matrix.
+        """
         self._check_pilot_values(pilot_values)
         nmodels = len(pilot_values)
-        pilot_values_stacked = self._bkd.hstack(pilot_values)
-        cov = self._bkd.cov(pilot_values_stacked, rowvar=False, ddof=1)
+        # Stack to (nqoi*nmodels, nsamples)
+        pilot_values_stacked = self._bkd.vstack(pilot_values)
+        cov = self._bkd.cov(pilot_values_stacked, rowvar=True, ddof=1)
         return cov, _get_W_from_pilot(pilot_values_stacked, nmodels, self._bkd)
 
     def set_pilot_quantities(self, cov: Array, W: Array) -> None:
@@ -1036,10 +1154,22 @@ class MultiOutputMeanAndVariance(MultiOutputStatistic[Array]):
         return self.nqoi() + self._tril_idx_flat.shape[0]
 
     def sample_estimate(self, values: Array) -> Array:
+        """Compute sample mean and variance estimate.
+
+        Parameters
+        ----------
+        values : Array
+            Model outputs. Shape: (nqoi*nmodels_in_subset, nsamples)
+
+        Returns
+        -------
+        Array
+            Mean and variance estimate. Shape: (nstats*nmodels_in_subset,)
+        """
         # Note ordering of statistics must be consistent
         # with  _group_acv_sigma_block which uses all means in a group
         # and then all covariance entries
-        nmodels_in_subset = values.shape[1] // self._nqoi
+        nmodels_in_subset = values.shape[0] // self._nqoi
         # Need to compute covariances of each model in the subset
         # separately because we do not want to compute covariance of
         # entire values vector, i.e. off diagonal blocks containing covariance
@@ -1047,13 +1177,13 @@ class MultiOutputMeanAndVariance(MultiOutputStatistic[Array]):
         # blocks
         flat_covs = [
             self._bkd.cov(
-                values[:, ii * self._nqoi : (ii + 1) * self._nqoi],
+                values[ii * self._nqoi : (ii + 1) * self._nqoi, :],
                 ddof=1,
-                rowvar=False,
+                rowvar=True,
             ).flatten()[self._tril_idx_flat]
             for ii in range(nmodels_in_subset)
         ]
-        means = self._bkd.mean(values, axis=0)
+        means = self._bkd.mean(values, axis=1)
 
         return self._bkd.hstack(
             [
@@ -1086,10 +1216,23 @@ class MultiOutputMeanAndVariance(MultiOutputStatistic[Array]):
     def compute_pilot_quantities(
         self, pilot_values: List[Array]
     ) -> Tuple[Array, Array, Array]:
+        """Compute covariance, W, and B matrices from pilot samples.
+
+        Parameters
+        ----------
+        pilot_values : List[Array]
+            Pilot samples for each model. Each array has shape (nqoi, nsamples).
+
+        Returns
+        -------
+        Tuple[Array, Array, Array]
+            Covariance, W, and B matrices.
+        """
         self._check_pilot_values(pilot_values)
         nmodels = len(pilot_values)
-        pilot_values_stacked = self._bkd.hstack(pilot_values)
-        cov = self._bkd.cov(pilot_values_stacked, rowvar=False, ddof=1)
+        # Stack to (nqoi*nmodels, nsamples)
+        pilot_values_stacked = self._bkd.vstack(pilot_values)
+        cov = self._bkd.cov(pilot_values_stacked, rowvar=True, ddof=1)
         W = _get_W_from_pilot(pilot_values_stacked, nmodels, self._bkd)
         B = _get_B_from_pilot(pilot_values_stacked, nmodels, self._bkd)
         return cov, W, B

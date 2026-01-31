@@ -236,8 +236,20 @@ class ACVEstimator(CVEstimator[Array], Generic[Array]):
         self, values_per_model: List[Array], bootstrap: bool = False
     ) -> List[Array]:
         r"""
-        Seperate values per model into the acv subsets associated with
+        Separate values per model into the acv subsets associated with
         :math:`\mathcal{Z}_\alpha,\mathcal{Z}_\alpha^*`
+
+        Parameters
+        ----------
+        values_per_model : List[Array]
+            Model values. Each array has shape (nqoi, nsamples).
+        bootstrap : bool
+            Whether to use bootstrap resampling.
+
+        Returns
+        -------
+        List[Array]
+            ACV subset values. Each array has shape (nqoi, nsamples_subset).
         """
         if len(values_per_model) != self._nmodels:
             msg = "len(values_per_model) {0} != nmodels {1}".format(
@@ -246,12 +258,12 @@ class ACVEstimator(CVEstimator[Array], Generic[Array]):
             raise ValueError(msg)
         for ii in range(self._nmodels):
             if (
-                values_per_model[ii].shape[0]
+                values_per_model[ii].shape[1]
                 != self._rounded_nsamples_per_model[ii]
             ):
                 msg = "{0} != {1}".format(
-                    "len(values_per_model[{0}]): {1}".format(
-                        ii, values_per_model[ii].shape[0]
+                    "values_per_model[{0}].shape[1]: {1}".format(
+                        ii, values_per_model[ii].shape[1]
                     ),
                     "nsamples_per_model[ii]: {0}".format(
                         self._rounded_nsamples_per_model[ii]
@@ -263,13 +275,9 @@ class ACVEstimator(CVEstimator[Array], Generic[Array]):
             bootstrap
         )
         nacv_subsets = len(acv_partition_indices)
-        # atleast_2d is needed for when acv_partition_indices[ii].shape[0] == 1
-        # in this case python automatically reduces the values array from
-        # shape (1, N) to (N)
+        # Index along axis=1 (samples axis) for (nqoi, nsamples)
         acv_values = [
-            self._bkd.atleast_2d(
-                values_per_model[ii // 2][acv_partition_indices[ii]]
-            )
+            values_per_model[ii // 2][:, acv_partition_indices[ii]]
             for ii in range(nacv_subsets)
         ]
         return acv_values

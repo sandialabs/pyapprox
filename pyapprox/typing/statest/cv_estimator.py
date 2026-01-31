@@ -215,14 +215,30 @@ class CVEstimator(MCEstimator[Array], Generic[Array]):
         weights: Array,
         bootstrap: bool = False,
     ) -> Array:
+        """Compute CV estimate.
+
+        Parameters
+        ----------
+        values_per_model : List[Array]
+            Model values. Each array has shape (nqoi, nsamples).
+        weights : Array
+            Control variate weights.
+        bootstrap : bool
+            Whether to use bootstrap resampling.
+
+        Returns
+        -------
+        Array
+            Estimate. Shape: (nstats,)
+        """
         if len(values_per_model) != self._nmodels:
             print(len(self._lowfi_stats), self._nmodels)
             msg = "Must provide the values for each model."
             msg += " {0} != {1}".format(len(values_per_model), self._nmodels)
             raise ValueError(msg)
-        nsamples = values_per_model[0].shape[0]
+        nsamples = values_per_model[0].shape[1]
         for values in values_per_model[1:]:
-            if values.shape[0] != nsamples:
+            if values.shape[1] != nsamples:
                 msg = "Must provide the same number of samples for each model"
                 raise ValueError(msg)
             indices = self._bkd.arange(nsamples, dtype=int)
@@ -234,13 +250,13 @@ class CVEstimator(MCEstimator[Array], Generic[Array]):
 
         deltas = self._bkd.hstack(
             [
-                self._stat.sample_estimate(values_per_model[ii][indices])
+                self._stat.sample_estimate(values_per_model[ii][:, indices])
                 - self._lowfi_stats[ii - 1]
                 for ii in range(1, self._nmodels)
             ]
         )
         est = (
-            self._stat.sample_estimate(values_per_model[0][indices])
+            self._stat.sample_estimate(values_per_model[0][:, indices])
             + weights @ deltas
         )
         return est
@@ -252,13 +268,12 @@ class CVEstimator(MCEstimator[Array], Generic[Array]):
         Parameters
         ----------
         values_per_model : list (nmodels)
-            The unique values of each model
+            The unique values of each model. Each array has shape (nqoi, nsamples).
 
         Returns
         -------
-        est : Array (nqoi, nqoi)
-            The covariance of the estimator values for
-            each high-fidelity model QoI
+        est : Array (nstats,)
+            The estimator value.
         """
         for vals in values_per_model:
             if not isinstance(vals, self._bkd.array_type()):
@@ -273,8 +288,20 @@ class CVEstimator(MCEstimator[Array], Generic[Array]):
         self, pilot_values: List[Array], values_per_model: List[Array]
     ) -> List[Array]:
         """
-        Only add pilot values to the fist indepedent partition and thus
-        only to models that use that partition
+        Only add pilot values to the first independent partition and thus
+        only to models that use that partition.
+
+        Parameters
+        ----------
+        pilot_values : List[Array]
+            Pilot values for each model. Each array has shape (nqoi, npilot).
+        values_per_model : List[Array]
+            Model values. Each array has shape (nqoi, nsamples).
+
+        Returns
+        -------
+        List[Array]
+            Combined values. Each array has shape (nqoi, npilot + nsamples).
         """
         new_values_per_model = []
         for ii in range(self._nmodels):
@@ -282,11 +309,12 @@ class CVEstimator(MCEstimator[Array], Generic[Array]):
                 self._allocation_mat[0, 2 * ii + 1] == 1
             )
             if active_partition:
+                # hstack along axis=1 (samples axis) for (nqoi, nsamples)
                 new_values_per_model.append(
-                    self._bkd.vstack((pilot_values[ii], values_per_model[ii]))
+                    self._bkd.hstack((pilot_values[ii], values_per_model[ii]))
                 )
             else:
-                new_values_per_model.append(values_per_model[ii].copy())
+                new_values_per_model.append(self._bkd.copy(values_per_model[ii]))
         return new_values_per_model
 
     def __repr__(self):
@@ -309,6 +337,19 @@ class CVEstimator(MCEstimator[Array], Generic[Array]):
         mode: str = "values",
         pilot_values: List[Array] = None,
     ):
+        """Bootstrap variance estimation.
+
+        Parameters
+        ----------
+        values_per_model : List[Array]
+            Model values. Each array has shape (nqoi, nsamples).
+        nbootstraps : int
+            Number of bootstrap iterations.
+        mode : str
+            Bootstrap mode.
+        pilot_values : List[Array], optional
+            Pilot values. Each array has shape (nqoi, npilot).
+        """
         modes = ["values", "values_weights", "weights"]
         if mode not in modes:
             raise ValueError("mode must be in {0}".format(modes))
@@ -321,7 +362,7 @@ class CVEstimator(MCEstimator[Array], Generic[Array]):
         nbootstraps = int(nbootstraps)
         estimator_vals = []
         if bootstrap_weights:
-            npilot_samples = pilot_values[0].shape[0]
+            npilot_samples = pilot_values[0].shape[1]
             self_stat = copy.deepcopy(self._stat)
             weights_list = []
         for kk in range(nbootstraps):
@@ -335,7 +376,7 @@ class CVEstimator(MCEstimator[Array], Generic[Array]):
                     dtype=int,
                 )
                 boostrap_pilot_values = [
-                    vals[indices] for vals in pilot_values
+                    vals[:, indices] for vals in pilot_values
                 ]
                 self._stat.set_pilot_quantities(
                     *self._stat.compute_pilot_quantities(boostrap_pilot_values)

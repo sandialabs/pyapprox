@@ -138,9 +138,10 @@ class TestMultiOutputMean(Generic[Array], unittest.TestCase):
         nqoi = 2
         nsamples = 100
         stat = MultiOutputMean(nqoi, self._bkd)
-        values = self._bkd.asarray(np.random.randn(nsamples, nqoi))
+        # Use typing convention (nqoi, nsamples)
+        values = self._bkd.asarray(np.random.randn(nqoi, nsamples))
         estimate = stat.sample_estimate(values)
-        expected = self._bkd.mean(values, axis=0)
+        expected = self._bkd.mean(values, axis=1)
         self._bkd.assert_allclose(estimate, expected, rtol=1e-12)
 
     def test_set_pilot_quantities(self) -> None:
@@ -182,10 +183,10 @@ class TestMultiOutputMean(Generic[Array], unittest.TestCase):
         nqoi = 2
         nsamples = 1000
         stat = MultiOutputMean(nqoi, self._bkd)
-        # Create correlated data
-        values1 = self._bkd.asarray(np.random.randn(nsamples, nqoi))
+        # Create correlated data with typing convention (nqoi, nsamples)
+        values1 = self._bkd.asarray(np.random.randn(nqoi, nsamples))
         values2 = values1 + self._bkd.asarray(
-            np.random.randn(nsamples, nqoi) * 0.1
+            np.random.randn(nqoi, nsamples) * 0.1
         )
         pilot_values = [values1, values2]
         (cov,) = stat.compute_pilot_quantities(pilot_values)

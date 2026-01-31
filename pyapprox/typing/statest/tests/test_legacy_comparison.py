@@ -84,12 +84,14 @@ class TestLegacyComparisonMultiOutputMean(unittest.TestCase):
         """Compare sample_estimate."""
         nqoi = 2
         nsamples = 100
-        values = np.random.randn(nsamples, nqoi)
+        # Use typing convention (nqoi, nsamples)
+        values = np.random.randn(nqoi, nsamples)
 
         legacy_stat = LegacyMultiOutputMean(nqoi, self._legacy_bkd)
         typing_stat = TypingMultiOutputMean(nqoi, self._typing_bkd)
 
-        legacy_result = legacy_stat.sample_estimate(values)
+        # Legacy uses (nsamples, nqoi) convention
+        legacy_result = legacy_stat.sample_estimate(values.T)
         typing_result = typing_stat.sample_estimate(values)
         np.testing.assert_allclose(typing_result, legacy_result, rtol=1e-12)
 
@@ -114,14 +116,17 @@ class TestLegacyComparisonMultiOutputMean(unittest.TestCase):
         """Compare compute_pilot_quantities."""
         nqoi = 2
         nsamples = 500
-        values1 = np.random.randn(nsamples, nqoi)
-        values2 = values1 + np.random.randn(nsamples, nqoi) * 0.1
+        # Use typing convention (nqoi, nsamples)
+        values1 = np.random.randn(nqoi, nsamples)
+        values2 = values1 + np.random.randn(nqoi, nsamples) * 0.1
         pilot_values = [values1, values2]
 
         legacy_stat = LegacyMultiOutputMean(nqoi, self._legacy_bkd)
         typing_stat = TypingMultiOutputMean(nqoi, self._typing_bkd)
 
-        (legacy_cov,) = legacy_stat.compute_pilot_quantities(pilot_values)
+        # Legacy uses (nsamples, nqoi) convention
+        pilot_values_legacy = [v.T for v in pilot_values]
+        (legacy_cov,) = legacy_stat.compute_pilot_quantities(pilot_values_legacy)
         (typing_cov,) = typing_stat.compute_pilot_quantities(pilot_values)
         np.testing.assert_allclose(typing_cov, legacy_cov, rtol=1e-12)
 
@@ -174,7 +179,8 @@ class TestLegacyComparisonMultiOutputVariance(unittest.TestCase):
         nqoi = 2
         nmodels = 2
         nsamples = 100
-        values = np.random.randn(nsamples, nmodels * nqoi)
+        # Use typing convention (nqoi, nsamples)
+        values = np.random.randn(nqoi, nsamples)
         cov = np.eye(nmodels * nqoi)
         W = np.eye(nmodels * nqoi**2)
 
@@ -184,7 +190,8 @@ class TestLegacyComparisonMultiOutputVariance(unittest.TestCase):
         typing_stat = TypingMultiOutputVariance(nqoi, self._typing_bkd, tril=True)
         typing_stat.set_pilot_quantities(cov, W)
 
-        legacy_result = legacy_stat.sample_estimate(values)
+        # Legacy uses (nsamples, nqoi) convention
+        legacy_result = legacy_stat.sample_estimate(values.T)
         typing_result = typing_stat.sample_estimate(values)
         np.testing.assert_allclose(typing_result, legacy_result, rtol=1e-12)
 
@@ -221,7 +228,8 @@ class TestLegacyComparisonMultiOutputMeanAndVariance(unittest.TestCase):
         nqoi = 2
         nmodels = 2
         nsamples = 100
-        values = np.random.randn(nsamples, nmodels * nqoi)
+        # Use typing convention (nqoi, nsamples)
+        values = np.random.randn(nqoi, nsamples)
         cov = np.eye(nmodels * nqoi)
         V_shape = nmodels * nqoi**2
         W = np.eye(V_shape)
@@ -233,7 +241,8 @@ class TestLegacyComparisonMultiOutputMeanAndVariance(unittest.TestCase):
         typing_stat = TypingMultiOutputMeanAndVariance(nqoi, self._typing_bkd)
         typing_stat.set_pilot_quantities(cov, W, B)
 
-        legacy_result = legacy_stat.sample_estimate(values)
+        # Legacy uses (nsamples, nqoi) convention
+        legacy_result = legacy_stat.sample_estimate(values.T)
         typing_result = typing_stat.sample_estimate(values)
         np.testing.assert_allclose(typing_result, legacy_result, rtol=1e-12)
 
@@ -319,9 +328,10 @@ class TestLegacyComparisonMCEstimator(unittest.TestCase):
         typing_est = TypingMCEstimator(typing_stat, costs)
         typing_est.allocate_samples(target_cost)
 
-        # Use same values for both
-        values = np.random.randn(10, nqoi)
-        legacy_result = legacy_est(values)
+        # Use typing convention (nqoi, nsamples)
+        values = np.random.randn(nqoi, 10)
+        # Legacy uses (nsamples, nqoi) convention
+        legacy_result = legacy_est(values.T)
         typing_result = typing_est(values)
         np.testing.assert_allclose(typing_result, legacy_result, rtol=1e-12)
 
@@ -472,12 +482,14 @@ class TestLegacyComparisonCVEstimator(unittest.TestCase):
         typing_est = TypingCVEstimator(typing_stat, costs, lowfi_stats)
         typing_est.allocate_samples(target_cost)
 
-        # Use same values for both
-        hf_values = np.random.randn(nsamples, nqoi)
-        lf_values = np.random.randn(nsamples, nqoi)
+        # Use typing convention (nqoi, nsamples)
+        hf_values = np.random.randn(nqoi, nsamples)
+        lf_values = np.random.randn(nqoi, nsamples)
         values_per_model = [hf_values, lf_values]
 
-        legacy_result = legacy_est(values_per_model)
+        # Legacy uses (nsamples, nqoi) convention
+        values_per_model_legacy = [v.T for v in values_per_model]
+        legacy_result = legacy_est(values_per_model_legacy)
         typing_result = typing_est(values_per_model)
         np.testing.assert_allclose(typing_result, legacy_result, rtol=1e-12)
 
