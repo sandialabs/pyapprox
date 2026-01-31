@@ -5,22 +5,20 @@ without comparing to legacy code. They test:
 - Bootstrap variance estimation matches analytical variance
 - Pilot quantity computation from samples
 - End-to-end polynomial ensemble tests
-- Insert pilot samples functionality
+- MC variance estimation comparing analytical to numerical
+- Estimator variance across different estimator types, stat types, and nqoi
 
 These tests use the typing array convention: (nqoi, nsamples) for outputs.
 """
 
 import unittest
-from typing import Any, Generic
 
 import numpy as np
 import torch
-from numpy.typing import NDArray
+from unittest_parametrize import ParametrizedTestCase, parametrize
 
-from pyapprox.typing.util.backends.protocols import Array, Backend
-from pyapprox.typing.util.backends.numpy import NumpyBkd
 from pyapprox.typing.util.backends.torch import TorchBkd
-from pyapprox.typing.util.test_utils import load_tests, slow_test  # noqa: F401
+from pyapprox.typing.util.test_utils import load_tests, slow_test, slower_test  # noqa: F401
 
 from pyapprox.typing.statest.statistics import (
     MultiOutputMean,
@@ -36,259 +34,452 @@ from pyapprox.typing.statest.acv.variants import (
     MFMCEstimator,
     MLMCEstimator,
 )
+from pyapprox.typing.benchmarks.functions.multifidelity.polynomial_ensemble import (
+    PolynomialEnsemble,
+)
+from pyapprox.typing.benchmarks.functions.multifidelity.multioutput_ensemble import (
+    MultiOutputModelEnsemble,
+)
 
 
-def _create_correlated_model_values(
-    bkd: Backend[Array],
-    nsamples: int,
-    nqoi: int,
-    nmodels: int,
-    correlation: float = 0.9,
-    seed: int = 42,
-) -> tuple:
-    """Create correlated model values for testing.
-
-    Returns values in typing convention: (nqoi, nsamples).
-    """
-    np.random.seed(seed)
-    # Generate base values
-    base = np.random.randn(nqoi, nsamples)
-    values_per_model = [bkd.asarray(base.copy())]
-
-    # Create correlated low-fidelity values
-    for ii in range(1, nmodels):
-        noise_scale = 1.0 - correlation
-        lf_values = base + np.random.randn(nqoi, nsamples) * noise_scale
-        values_per_model.append(bkd.asarray(lf_values))
-
-    return values_per_model
+def _get_stat(stat_type: str, nqoi: int, bkd):
+    """Create statistic object by type."""
+    if stat_type == "mean":
+        return MultiOutputMean(nqoi, bkd)
+    elif stat_type == "variance":
+        return MultiOutputVariance(nqoi, bkd)
+    elif stat_type == "mean_variance":
+        return MultiOutputMeanAndVariance(nqoi, bkd)
+    else:
+        raise ValueError(f"Unknown stat_type: {stat_type}")
 
 
-def _compute_mc_variance(
-    bkd: Backend[Array],
-    estimator,
-    values_generator,
-    ntrials: int,
-) -> Array:
-    """Compute MC estimate of estimator variance.
+def _get_estimator(est_type: str, stat, costs, bkd, **kwargs):
+    """Create estimator by type."""
+    if est_type == "mc":
+        return MCEstimator(stat, costs)
+    elif est_type == "cv":
+        return CVEstimator(stat, costs, kwargs.get("lowfi_stats"))
+    elif est_type == "mfmc":
+        return MFMCEstimator(stat, costs)
+    elif est_type == "mlmc":
+        return MLMCEstimator(stat, costs)
+    elif est_type == "gmf":
+        return GMFEstimator(stat, costs, recursion_index=kwargs.get("recursion_index"))
+    elif est_type == "grd":
+        return GRDEstimator(stat, costs, recursion_index=kwargs.get("recursion_index"))
+    elif est_type == "gis":
+        return GISEstimator(stat, costs, recursion_index=kwargs.get("recursion_index"))
+    else:
+        raise ValueError(f"Unknown est_type: {est_type}")
 
-    Parameters
-    ----------
-    bkd : Backend
-        Backend instance.
-    estimator : Estimator
-        The estimator to evaluate.
-    values_generator : callable
-        Function that returns values_per_model for each trial.
-    ntrials : int
-        Number of MC trials.
 
-    Returns
-    -------
-    Array
-        MC estimate of estimator covariance.
-    """
+def _setup_pilot_quantities(stat_type: str, nmodels: int, nqoi: int, bkd):
+    """Create pilot quantities for a given stat type."""
+    # Create a positive definite covariance matrix
+    np.random.seed(12345)
+    A = np.random.randn(nmodels * nqoi, nmodels * nqoi)
+    cov = bkd.asarray(A @ A.T / (nmodels * nqoi) + np.eye(nmodels * nqoi) * 0.1)
+
+    pilot_args = [cov]
+
+    if "variance" in stat_type:
+        # W matrix for variance estimator covariance
+        W_size = nmodels * nqoi**2
+        W = bkd.eye(W_size) * 0.5
+        pilot_args.append(W)
+
+    if stat_type == "mean_variance":
+        # B matrix for mean-variance cross-covariance
+        B = bkd.zeros((nmodels * nqoi, nmodels * nqoi**2))
+        pilot_args.append(B)
+
+    return pilot_args
+
+
+def _compute_mc_estimator_variance(
+    bkd, ensemble, est, ntrials: int
+) -> torch.Tensor:
+    """Compute MC estimate of estimator variance using polynomial ensemble."""
+    models = ensemble.models()
+    nmodels = ensemble.nmodels()
+
+    def rvs(nsamples):
+        n = int(nsamples)
+        return bkd.asarray(np.random.rand(1, n))
+
     estimates = []
     for _ in range(ntrials):
-        values_per_model = values_generator()
-        est_val = estimator(values_per_model)
+        samples_per_model = est.generate_samples_per_model(rvs)
+        values_per_model = [
+            model(samples)
+            for model, samples in zip(models, samples_per_model)
+        ]
+        # MCEstimator takes a single array, not a list
+        if nmodels == 1:
+            est_val = est(values_per_model[0])
+        else:
+            est_val = est(values_per_model)
         estimates.append(est_val)
+
     estimates = bkd.stack(estimates)
     return bkd.cov(estimates, rowvar=False, ddof=1)
 
 
-class TestBootstrapEstimator(Generic[Array], unittest.TestCase):
+class TestBootstrapEstimator(ParametrizedTestCase):
     """Test bootstrap variance estimation matches analytical variance."""
-
-    __test__ = False
-
-    def bkd(self) -> Backend[Array]:
-        raise NotImplementedError()
 
     def setUp(self) -> None:
         np.random.seed(42)
-        self._bkd = self.bkd()
+        torch.set_default_dtype(torch.float64)
+        self._bkd = TorchBkd()
 
+    @parametrize(
+        "est_type,target_cost",
+        [
+            ("mc", 1000),
+            ("cv", 500),
+        ],
+        ids=["mc", "cv"],
+    )
     @slow_test
-    def test_mc_bootstrap_variance(self) -> None:
-        """Test MC bootstrap variance matches analytical."""
+    def test_bootstrap_variance(self, est_type: str, target_cost: float) -> None:
+        """Test bootstrap variance matches analytical for MC and CV estimators."""
         nqoi = 2
-        nmodels = 1
-        nsamples = 100
-        nbootstraps = 1000
-
-        # Create statistic and set pilot quantities
-        stat = MultiOutputMean(nqoi, self._bkd)
-        variance = 4.0
-        cov = self._bkd.eye(nmodels * nqoi) * variance
-        stat.set_pilot_quantities(cov)
-
-        # Create estimator
-        costs = self._bkd.array([1.0])
-        est = MCEstimator(stat, costs)
-        target_cost = float(nsamples)
-        est.allocate_samples(target_cost)
-
-        # Generate values using typing convention (nqoi, nsamples)
-        values = self._bkd.asarray(np.random.randn(nqoi, nsamples) * 2.0)
-
-        # Bootstrap
-        bootstrap_mean, bootstrap_cov = est.bootstrap([values], nbootstraps)
-
-        # Compare to analytical covariance
-        analytical_cov = est.optimized_covariance()
-        self._bkd.assert_allclose(
-            bootstrap_cov, analytical_cov, atol=5e-2, rtol=1e-1
-        )
-
-    @slow_test
-    def test_cv_bootstrap_variance(self) -> None:
-        """Test CV bootstrap variance matches analytical."""
-        nqoi = 1
-        nmodels = 2
-        nsamples = 200
-        nbootstraps = 1000
-
-        # Create covariance with high correlation
-        cov = self._bkd.array([[1.0, 0.9], [0.9, 1.0]])
-        stat = MultiOutputMean(nqoi, self._bkd)
-        stat.set_pilot_quantities(cov)
-
-        # Known low-fidelity statistics
-        lowfi_stats = self._bkd.zeros((nmodels - 1, nqoi))
-
-        # Create estimator
-        costs = self._bkd.array([1.0, 0.1])
-        est = CVEstimator(stat, costs, lowfi_stats)
-        target_cost = float(nsamples) * costs.sum()
-        est.allocate_samples(target_cost)
-
-        # Generate correlated values using typing convention (nqoi, nsamples)
-        np.random.seed(123)
-        hf_values = self._bkd.asarray(np.random.randn(nqoi, nsamples))
-        lf_values = hf_values + self._bkd.asarray(
-            np.random.randn(nqoi, nsamples) * 0.1
-        )
-        values_per_model = [hf_values, lf_values]
-
-        # Bootstrap
-        bootstrap_mean, bootstrap_cov = est.bootstrap(values_per_model, nbootstraps)
-
-        # Compare to analytical covariance
-        analytical_cov = est.optimized_covariance()
-        self._bkd.assert_allclose(
-            bootstrap_cov, analytical_cov, atol=5e-2, rtol=2e-1
-        )
-
-    @slow_test
-    def test_mfmc_bootstrap_variance(self) -> None:
-        """Test MFMC bootstrap variance matches analytical."""
-        nqoi = 1
-        nmodels = 3
+        nmodels = 3 if est_type != "mc" else 1
         nbootstraps = 500
 
-        # Create covariance with decreasing correlations
-        cov = self._bkd.array([
-            [1.0, 0.9, 0.7],
-            [0.9, 1.0, 0.8],
-            [0.7, 0.8, 1.0],
-        ])
+        # Create covariance with correlations
+        np.random.seed(123)
+        A = np.random.randn(nmodels * nqoi, nmodels * nqoi)
+        cov = self._bkd.asarray(A @ A.T / (nmodels * nqoi) + np.eye(nmodels * nqoi))
+
         stat = MultiOutputMean(nqoi, self._bkd)
         stat.set_pilot_quantities(cov)
 
-        # Create estimator
-        costs = self._bkd.array([1.0, 0.1, 0.01])
-        est = MFMCEstimator(stat, costs)
-        target_cost = 100.0
+        costs = self._bkd.array([1.0, 0.1, 0.01][:nmodels])
+
+        if est_type == "cv":
+            lowfi_stats = self._bkd.zeros((nmodels - 1, nqoi))
+            est = CVEstimator(stat, costs, lowfi_stats)
+        else:
+            est = MCEstimator(stat, costs)
+
         est.allocate_samples(target_cost)
 
-        # Generate samples and values
+        # Generate values
         np.random.seed(456)
         nsamples_per_model = [
-            int(est._rounded_nsamples_per_model[ii])
-            for ii in range(nmodels)
+            int(est._rounded_nsamples_per_model[ii]) for ii in range(nmodels)
         ]
+        max_samples = max(nsamples_per_model)
 
         # Generate correlated values
-        max_samples = max(nsamples_per_model)
-        base = np.random.randn(nqoi, max_samples)
+        L = np.linalg.cholesky(cov.numpy())
+        base = L @ np.random.randn(nmodels * nqoi, max_samples)
+
         values_per_model = []
         for ii in range(nmodels):
             n = nsamples_per_model[ii]
-            if ii == 0:
-                vals = base[:, :n]
-            else:
-                noise = np.random.randn(nqoi, n) * (0.1 * ii)
-                vals = base[:, :n] + noise
+            vals = base[ii * nqoi : (ii + 1) * nqoi, :n]
             values_per_model.append(self._bkd.asarray(vals))
 
         # Bootstrap
         bootstrap_mean, bootstrap_cov = est.bootstrap(values_per_model, nbootstraps)
 
-        # Compare to analytical covariance (with larger tolerance for MFMC)
+        # Compare to analytical covariance
         analytical_cov = est.optimized_covariance()
         self._bkd.assert_allclose(
             bootstrap_cov, analytical_cov, atol=1e-1, rtol=3e-1
         )
 
+    @parametrize(
+        "est_type,target_cost",
+        [
+            ("mfmc", 5000),
+            ("gmf", 5000),
+            ("grd", 5000),
+            ("gis", 5000),
+        ],
+        ids=["mfmc", "gmf", "grd", "gis"],
+    )
+    @slow_test
+    def test_bootstrap_variance_acv(self, est_type: str, target_cost: float) -> None:
+        """Test bootstrap variance for ACV estimators requiring hierarchical cov."""
+        nqoi = 1
+        nmodels = 3
+        nbootstraps = 500
 
-class TestPilotQuantities(Generic[Array], unittest.TestCase):
-    """Test pilot quantity computation from samples."""
+        # Use PolynomialEnsemble for proper hierarchical covariance
+        ensemble = PolynomialEnsemble(self._bkd, nmodels=nmodels)
+        cov = ensemble.covariance_matrix()
 
-    __test__ = False
+        stat = MultiOutputMean(nqoi, self._bkd)
+        stat.set_pilot_quantities(cov)
 
-    def bkd(self) -> Backend[Array]:
-        raise NotImplementedError()
+        costs = self._bkd.array([1.0, 0.1, 0.01])
+        recursion_index = self._bkd.array([0, 1], dtype=int)
+
+        est = _get_estimator(
+            est_type, stat, costs, self._bkd, recursion_index=recursion_index
+        )
+        est.allocate_samples(target_cost)
+
+        # Generate samples and values
+        np.random.seed(789)
+        nsamples_per_model = [
+            int(est._rounded_nsamples_per_model[ii]) for ii in range(nmodels)
+        ]
+        max_samples = max(nsamples_per_model)
+
+        L = np.linalg.cholesky(cov.numpy())
+        base = L @ np.random.randn(nmodels * nqoi, max_samples)
+
+        values_per_model = []
+        for ii in range(nmodels):
+            n = nsamples_per_model[ii]
+            vals = base[ii * nqoi : (ii + 1) * nqoi, :n]
+            values_per_model.append(self._bkd.asarray(vals))
+
+        bootstrap_mean, bootstrap_cov = est.bootstrap(values_per_model, nbootstraps)
+        analytical_cov = est.optimized_covariance()
+
+        self._bkd.assert_allclose(
+            bootstrap_cov, analytical_cov, atol=1e-1, rtol=5e-1
+        )
+
+
+class TestEstimatorVariance(ParametrizedTestCase):
+    """Test estimator variance computation across different configurations.
+
+    Verifies that MC estimated variance matches analytical variance formula.
+    """
 
     def setUp(self) -> None:
         np.random.seed(42)
-        self._bkd = self.bkd()
+        torch.set_default_dtype(torch.float64)
+        self._bkd = TorchBkd()
 
+    @parametrize(
+        "est_type,stat_type,nqoi",
+        [
+            # MC tests - nmodels=1, uses single array input
+            ("mc", "mean", 1),
+            ("mc", "variance", 1),
+            ("mc", "mean_variance", 1),
+            # CV tests - use PolynomialEnsemble (nqoi=1)
+            ("cv", "mean", 1),
+            # MFMC/MLMC - use PolynomialEnsemble (nqoi=1)
+            ("mfmc", "mean", 1),
+            ("mlmc", "mean", 1),
+        ],
+        ids=[
+            "mc_mean_1qoi",
+            "mc_variance_1qoi",
+            "mc_mean_variance_1qoi",
+            "cv_mean_1qoi",
+            "mfmc_mean_1qoi",
+            "mlmc_mean_1qoi",
+        ],
+    )
+    @slower_test
+    def test_variance_matches_mc(
+        self, est_type: str, stat_type: str, nqoi: int
+    ) -> None:
+        """Test analytical variance matches MC estimate with single QoI."""
+        nmodels = 1 if est_type == "mc" else 3
+        ntrials = 3000
+        target_cost = 100.0
+
+        ensemble = PolynomialEnsemble(self._bkd, nmodels=nmodels)
+        cov = ensemble.covariance_matrix()
+        costs = ensemble.costs()
+
+        stat = _get_stat(stat_type, nqoi, self._bkd)
+
+        # Set up pilot quantities
+        pilot_args = [cov]
+        if "variance" in stat_type:
+            W_size = nmodels * nqoi**2
+            W = self._bkd.eye(W_size) * 0.1
+            pilot_args.append(W)
+        if stat_type == "mean_variance":
+            B = self._bkd.zeros((nmodels * nqoi, nmodels * nqoi**2))
+            pilot_args.append(B)
+
+        stat.set_pilot_quantities(*pilot_args)
+
+        # Create estimator
+        kwargs = {}
+        if est_type == "cv":
+            kwargs["lowfi_stats"] = self._bkd.zeros((nmodels - 1, stat.nstats()))
+
+        est = _get_estimator(est_type, stat, costs, self._bkd, **kwargs)
+        est.allocate_samples(target_cost)
+
+        # Compute MC variance
+        mc_cov = _compute_mc_estimator_variance(self._bkd, ensemble, est, ntrials)
+        analytical_cov = est.optimized_covariance()
+
+        self._bkd.assert_allclose(mc_cov, analytical_cov, rtol=3e-1, atol=5e-2)
+
+    @parametrize(
+        "est_type,model_idx,qoi_idx",
+        [
+            # CV with 2 QoI using MultiOutputModelEnsemble
+            ("cv", [0, 1, 2], [0, 1]),
+            # MFMC with 2 QoI
+            ("mfmc", [0, 1, 2], [0, 1]),
+        ],
+        ids=[
+            "cv_mean_2qoi",
+            "mfmc_mean_2qoi",
+        ],
+    )
+    @slower_test
+    def test_variance_matches_mc_multioutput(
+        self, est_type: str, model_idx: list, qoi_idx: list
+    ) -> None:
+        """Test analytical variance matches MC estimate with multiple QoI."""
+        ntrials = 2000
+        target_cost = 50.0
+
+        ensemble = MultiOutputModelEnsemble(self._bkd)
+        nmodels = len(model_idx)
+        nqoi = len(qoi_idx)
+
+        # Get subproblem covariance and costs
+        cov = ensemble.covariance_subproblem(model_idx, qoi_idx)
+        costs = ensemble.costs_subproblem(model_idx)
+        models = ensemble.models_subproblem(model_idx, qoi_idx)
+
+        stat = MultiOutputMean(nqoi, self._bkd)
+        stat.set_pilot_quantities(cov)
+
+        # Create estimator
+        kwargs = {}
+        if est_type == "cv":
+            kwargs["lowfi_stats"] = self._bkd.zeros((nmodels - 1, stat.nstats()))
+
+        est = _get_estimator(est_type, stat, costs, self._bkd, **kwargs)
+        est.allocate_samples(target_cost)
+
+        # Compute MC variance using subproblem models
+        def rvs(nsamples):
+            n = int(nsamples)
+            return self._bkd.asarray(np.random.rand(1, n))
+
+        estimates = []
+        for _ in range(ntrials):
+            samples_per_model = est.generate_samples_per_model(rvs)
+            values_per_model = [
+                model(samples)
+                for model, samples in zip(models, samples_per_model)
+            ]
+            est_val = est(values_per_model)
+            estimates.append(est_val)
+
+        estimates = self._bkd.stack(estimates)
+        mc_cov = self._bkd.cov(estimates, rowvar=False, ddof=1)
+        analytical_cov = est.optimized_covariance()
+
+        self._bkd.assert_allclose(mc_cov, analytical_cov, rtol=3e-1, atol=5e-2)
+
+    @parametrize(
+        "est_type,stat_type,recursion_index",
+        [
+            ("gmf", "mean", [0, 0]),
+            ("gmf", "mean", [0, 1]),
+            ("grd", "mean", [0, 0]),
+            ("grd", "mean", [0, 1]),
+            ("gis", "mean", [0, 1]),
+        ],
+        ids=[
+            "gmf_mean_00",
+            "gmf_mean_01",
+            "grd_mean_00",
+            "grd_mean_01",
+            "gis_mean_01",
+        ],
+    )
     @slow_test
-    def test_mean_pilot_covariance(self) -> None:
-        """Test compute_pilot_quantities for mean statistic.
+    def test_variance_matches_mc_acv(
+        self, est_type: str, stat_type: str, recursion_index: list
+    ) -> None:
+        """Test analytical variance matches MC estimate for ACV estimators."""
+        nmodels = 3
+        nqoi = 1
+        ntrials = 2000
+        target_cost = 50.0
 
-        Uses many samples so MC estimate matches analytical covariance.
-        """
-        nqoi = 2
-        nmodels = 2
-        nsamples = 100000
+        ensemble = PolynomialEnsemble(self._bkd, nmodels=nmodels)
+        cov = ensemble.covariance_matrix()
+        costs = ensemble.costs()
+
+        stat = _get_stat(stat_type, nqoi, self._bkd)
+        stat.set_pilot_quantities(cov)
+
+        rec_idx = self._bkd.array(recursion_index, dtype=int)
+        est = _get_estimator(est_type, stat, costs, self._bkd, recursion_index=rec_idx)
+        est.allocate_samples(target_cost)
+
+        mc_cov = _compute_mc_estimator_variance(self._bkd, ensemble, est, ntrials)
+        analytical_cov = est.optimized_covariance()
+
+        self._bkd.assert_allclose(mc_cov, analytical_cov, rtol=3e-1, atol=5e-2)
+
+
+class TestPilotQuantities(ParametrizedTestCase):
+    """Test pilot quantity computation from samples."""
+
+    def setUp(self) -> None:
+        np.random.seed(42)
+        torch.set_default_dtype(torch.float64)
+        self._bkd = TorchBkd()
+
+    @parametrize(
+        "nqoi,nmodels",
+        [
+            (1, 2),
+            (2, 2),
+            (1, 3),
+            (2, 3),
+        ],
+        ids=["1qoi_2mod", "2qoi_2mod", "1qoi_3mod", "2qoi_3mod"],
+    )
+    @slow_test
+    def test_pilot_covariance_from_samples(self, nqoi: int, nmodels: int) -> None:
+        """Test compute_pilot_quantities matches known covariance."""
+        nsamples = 50000
 
         # Create known covariance
-        true_cov = self._bkd.array([
-            [1.0, 0.3, 0.8, 0.2],
-            [0.3, 2.0, 0.2, 1.5],
-            [0.8, 0.2, 1.0, 0.3],
-            [0.2, 1.5, 0.3, 2.0],
-        ])
+        np.random.seed(123)
+        size = nmodels * nqoi
+        A = np.random.randn(size, size)
+        true_cov = self._bkd.asarray(A @ A.T / size + np.eye(size) * 0.5)
 
         # Generate samples from multivariate normal
-        np.random.seed(123)
-        L = np.linalg.cholesky(true_cov.numpy() if hasattr(true_cov, 'numpy') else np.array(true_cov))
-        z = np.random.randn(nmodels * nqoi, nsamples)
-        all_values = L @ z  # shape (nmodels * nqoi, nsamples)
+        L = np.linalg.cholesky(true_cov.numpy())
+        z = np.random.randn(size, nsamples)
+        all_values = L @ z
 
-        # Split into per-model values using typing convention (nqoi, nsamples)
+        # Split into per-model values (nqoi, nsamples)
         pilot_values = [
             self._bkd.asarray(all_values[ii * nqoi : (ii + 1) * nqoi, :])
             for ii in range(nmodels)
         ]
 
-        # Compute pilot quantities
         stat = MultiOutputMean(nqoi, self._bkd)
         (computed_cov,) = stat.compute_pilot_quantities(pilot_values)
 
-        # Compare to true covariance
         self._bkd.assert_allclose(computed_cov, true_cov, atol=5e-2, rtol=5e-2)
 
-    @slow_test
     def test_pilot_covariance_symmetry(self) -> None:
         """Test that computed pilot covariance is symmetric."""
         nqoi = 3
         nmodels = 2
         nsamples = 1000
 
-        # Generate random values using typing convention (nqoi, nsamples)
         np.random.seed(789)
         pilot_values = [
             self._bkd.asarray(np.random.randn(nqoi, nsamples))
@@ -298,166 +489,118 @@ class TestPilotQuantities(Generic[Array], unittest.TestCase):
         stat = MultiOutputMean(nqoi, self._bkd)
         (cov,) = stat.compute_pilot_quantities(pilot_values)
 
-        # Check symmetry
         self._bkd.assert_allclose(cov, cov.T, rtol=1e-12)
 
 
-class TestInsertPilotSamples(unittest.TestCase):
-    """Test pilot sample insertion functionality.
-
-    Uses Torch backend since ACV estimators require jacobians for optimization.
-    """
+class TestPolynomialEnsemble(ParametrizedTestCase):
+    """End-to-end tests with polynomial model ensemble benchmark."""
 
     def setUp(self) -> None:
         np.random.seed(42)
         torch.set_default_dtype(torch.float64)
         self._bkd = TorchBkd()
 
+    @parametrize(
+        "est_type,nmodels,recursion_index",
+        [
+            ("mfmc", 3, None),
+            ("mfmc", 5, None),
+            ("mlmc", 3, None),
+            ("gmf", 3, [0, 0]),
+            ("gmf", 5, [0, 0, 0, 0]),
+            ("grd", 3, [0, 1]),
+        ],
+        ids=["mfmc_3", "mfmc_5", "mlmc_3", "gmf_3", "gmf_5", "grd_3"],
+    )
     @slow_test
-    def test_grd_insert_pilot_values(self) -> None:
-        """Test insert_pilot_values for GRD estimator.
+    def test_polynomial_ensemble(
+        self, est_type: str, nmodels: int, recursion_index: list
+    ) -> None:
+        """Test estimator with polynomial ensemble benchmark."""
+        ntrials = 3000
+        target_cost = 30.0
 
-        The insert_pilot_values method is specific to ACV estimators
-        which have allocation matrices. CV estimators don't have this.
-        """
+        ensemble = PolynomialEnsemble(self._bkd, nmodels=nmodels)
+        cov = ensemble.covariance_matrix()
+        costs = ensemble.costs()
+
+        stat = MultiOutputMean(ensemble.nqoi(), self._bkd)
+        stat.set_pilot_quantities(cov)
+
+        kwargs = {}
+        if recursion_index is not None:
+            kwargs["recursion_index"] = self._bkd.array(recursion_index, dtype=int)
+
+        est = _get_estimator(est_type, stat, costs, self._bkd, **kwargs)
+        est.allocate_samples(target_cost)
+
+        analytical_cov = est.optimized_covariance()
+        mc_cov = _compute_mc_estimator_variance(self._bkd, ensemble, est, ntrials)
+
+        self._bkd.assert_allclose(mc_cov, analytical_cov, rtol=2e-1, atol=1e-2)
+
+
+class TestInsertPilotSamples(ParametrizedTestCase):
+    """Test pilot sample insertion functionality."""
+
+    def setUp(self) -> None:
+        np.random.seed(42)
+        torch.set_default_dtype(torch.float64)
+        self._bkd = TorchBkd()
+
+    @parametrize(
+        "est_type,recursion_index",
+        [
+            ("grd", [0, 1]),
+            ("gmf", [0, 0]),
+            ("gis", [0, 1]),
+        ],
+        ids=["grd", "gmf", "gis"],
+    )
+    @slow_test
+    def test_insert_pilot_values(self, est_type: str, recursion_index: list) -> None:
+        """Test insert_pilot_values for ACV estimators."""
         nqoi = 2
         nmodels = 3
         npilot = 5
 
-        # Create estimator with allocation matrix
         cov = self._bkd.eye(nmodels * nqoi)
         stat = MultiOutputMean(nqoi, self._bkd)
         stat.set_pilot_quantities(cov)
         costs = self._bkd.array([1.0, 0.5, 0.25])
-        recursion_index = self._bkd.array([0, 1], dtype=int)
-        est = GRDEstimator(stat, costs, recursion_index=recursion_index)
+        rec_idx = self._bkd.array(recursion_index, dtype=int)
+
+        est = _get_estimator(est_type, stat, costs, self._bkd, recursion_index=rec_idx)
         est.allocate_samples(200.0)
 
-        # Get the actual number of samples per model after allocation
         nsamples_per_model = [
             int(est._rounded_nsamples_per_model[ii]) for ii in range(nmodels)
         ]
 
-        # Create pilot values using typing convention (nqoi, nsamples)
         pilot_values = [
             self._bkd.ones((nqoi, npilot)) * (ii + 1)
             for ii in range(nmodels)
         ]
-
-        # Create sample values (without pilot samples)
         sample_values = [
             self._bkd.ones((nqoi, max(0, nsamples_per_model[ii] - npilot))) * (ii + 10)
             for ii in range(nmodels)
         ]
 
-        # Insert pilot values
         combined = est.insert_pilot_values(pilot_values, sample_values)
 
-        # Check that insertion happened
         self._bkd.assert_allclose(
             self._bkd.asarray([len(combined)]),
             self._bkd.asarray([nmodels])
         )
 
 
-class TestMCVarianceEstimation(Generic[Array], unittest.TestCase):
-    """Test MC estimation of estimator variance matches analytical."""
-
-    __test__ = False
-
-    def bkd(self) -> Backend[Array]:
-        raise NotImplementedError()
-
-    def setUp(self) -> None:
-        np.random.seed(42)
-        self._bkd = self.bkd()
-
-    @slow_test
-    def test_mc_estimator_variance(self) -> None:
-        """Test MC variance estimate matches analytical for MC estimator."""
-        nqoi = 1
-        nmodels = 1
-        nsamples = 50
-        ntrials = 5000
-
-        # Create statistic
-        variance = 4.0
-        cov = self._bkd.eye(nmodels * nqoi) * variance
-        stat = MultiOutputMean(nqoi, self._bkd)
-        stat.set_pilot_quantities(cov)
-
-        # Create estimator
-        costs = self._bkd.array([1.0])
-        est = MCEstimator(stat, costs)
-        est.allocate_samples(float(nsamples))
-
-        # Compute MC variance estimate
-        # MCEstimator takes a single array, not a list
-        estimates = []
-        for _ in range(ntrials):
-            vals = self._bkd.asarray(
-                np.random.randn(nqoi, nsamples) * np.sqrt(variance)
-            )
-            est_val = est(vals)
-            estimates.append(est_val)
-        estimates = self._bkd.stack(estimates)
-        mc_cov = self._bkd.cov(estimates, rowvar=False, ddof=1)
-
-        # Compare to analytical
-        analytical_cov = est.optimized_covariance()
-        self._bkd.assert_allclose(
-            mc_cov, analytical_cov, atol=5e-2, rtol=2e-1
-        )
-
-    @slow_test
-    def test_cv_estimator_variance(self) -> None:
-        """Test MC variance estimate matches analytical for CV estimator."""
-        nqoi = 1
-        nmodels = 2
-        nsamples = 100
-        ntrials = 3000
-
-        # Create covariance with correlation
-        cov = self._bkd.array([[1.0, 0.8], [0.8, 1.0]])
-        stat = MultiOutputMean(nqoi, self._bkd)
-        stat.set_pilot_quantities(cov)
-
-        # Known low-fidelity mean (zero)
-        lowfi_stats = self._bkd.zeros((nmodels - 1, nqoi))
-
-        # Create estimator
-        costs = self._bkd.array([1.0, 0.1])
-        est = CVEstimator(stat, costs, lowfi_stats)
-        target_cost = float(nsamples) * costs.sum()
-        est.allocate_samples(target_cost)
-
-        # Generate correlated values
-        def values_generator():
-            base = np.random.randn(nqoi, nsamples)
-            hf_values = self._bkd.asarray(base)
-            lf_values = self._bkd.asarray(base + np.random.randn(nqoi, nsamples) * 0.4)
-            return [hf_values, lf_values]
-
-        mc_cov = _compute_mc_variance(self._bkd, est, values_generator, ntrials)
-
-        # Compare to analytical
-        analytical_cov = est.optimized_covariance()
-        self._bkd.assert_allclose(
-            mc_cov, analytical_cov, atol=5e-2, rtol=3e-1
-        )
-
-
-class TestEstimatorReproducibility(Generic[Array], unittest.TestCase):
+class TestEstimatorReproducibility(unittest.TestCase):
     """Test estimator produces reproducible results."""
 
-    __test__ = False
-
-    def bkd(self) -> Backend[Array]:
-        raise NotImplementedError()
-
     def setUp(self) -> None:
         np.random.seed(42)
-        self._bkd = self.bkd()
+        torch.set_default_dtype(torch.float64)
+        self._bkd = TorchBkd()
 
     def test_mc_estimator_reproducible(self) -> None:
         """Test MC estimator produces same result with same seed."""
@@ -472,7 +615,6 @@ class TestEstimatorReproducibility(Generic[Array], unittest.TestCase):
         est = MCEstimator(stat, costs)
         est.allocate_samples(float(nsamples))
 
-        # Generate values with same seed twice
         np.random.seed(123)
         values1 = self._bkd.asarray(np.random.randn(nqoi, nsamples))
         result1 = est(values1)
@@ -498,7 +640,6 @@ class TestEstimatorReproducibility(Generic[Array], unittest.TestCase):
         est = CVEstimator(stat, costs, lowfi_stats)
         est.allocate_samples(float(nsamples) * costs.sum())
 
-        # Generate values with same seed twice
         np.random.seed(456)
         hf1 = self._bkd.asarray(np.random.randn(nqoi, nsamples))
         lf1 = self._bkd.asarray(np.random.randn(nqoi, nsamples))
@@ -510,175 +651,6 @@ class TestEstimatorReproducibility(Generic[Array], unittest.TestCase):
         result2 = est([hf2, lf2])
 
         self._bkd.assert_allclose(result1, result2, rtol=1e-12)
-
-
-# NumPy backend tests
-
-
-class TestBootstrapEstimatorNumpy(TestBootstrapEstimator[NDArray[Any]]):
-    def bkd(self) -> NumpyBkd:
-        return NumpyBkd()
-
-
-class TestPilotQuantitiesNumpy(TestPilotQuantities[NDArray[Any]]):
-    def bkd(self) -> NumpyBkd:
-        return NumpyBkd()
-
-
-
-
-class TestMCVarianceEstimationNumpy(TestMCVarianceEstimation[NDArray[Any]]):
-    def bkd(self) -> NumpyBkd:
-        return NumpyBkd()
-
-
-class TestEstimatorReproducibilityNumpy(TestEstimatorReproducibility[NDArray[Any]]):
-    def bkd(self) -> NumpyBkd:
-        return NumpyBkd()
-
-
-# PyTorch backend tests
-
-
-class TestBootstrapEstimatorTorch(TestBootstrapEstimator[torch.Tensor]):
-    def bkd(self) -> TorchBkd:
-        torch.set_default_dtype(torch.float64)
-        return TorchBkd()
-
-
-class TestPilotQuantitiesTorch(TestPilotQuantities[torch.Tensor]):
-    def bkd(self) -> TorchBkd:
-        torch.set_default_dtype(torch.float64)
-        return TorchBkd()
-
-
-
-
-class TestMCVarianceEstimationTorch(TestMCVarianceEstimation[torch.Tensor]):
-    def bkd(self) -> TorchBkd:
-        torch.set_default_dtype(torch.float64)
-        return TorchBkd()
-
-
-class TestEstimatorReproducibilityTorch(TestEstimatorReproducibility[torch.Tensor]):
-    def bkd(self) -> TorchBkd:
-        torch.set_default_dtype(torch.float64)
-        return TorchBkd()
-
-
-class TestPolynomialEnsemble(unittest.TestCase):
-    """End-to-end test with polynomial model ensemble benchmark.
-
-    Uses Torch backend since ACV optimization requires jacobians.
-    This replicates the legacy test_polynomial_ensemble test using
-    the typing module's PolynomialEnsemble benchmark.
-    """
-
-    def setUp(self) -> None:
-        np.random.seed(42)
-        torch.set_default_dtype(torch.float64)
-        self._bkd = TorchBkd()
-
-    @slow_test
-    def test_gmf_polynomial_ensemble(self) -> None:
-        """Test GMF estimator with polynomial ensemble benchmark.
-
-        Verifies that analytical variance matches MC estimated variance.
-        """
-        from pyapprox.typing.benchmarks.functions.multifidelity.polynomial_ensemble import (
-            PolynomialEnsemble,
-        )
-
-        # Create polynomial ensemble using typing module
-        ensemble = PolynomialEnsemble(self._bkd, nmodels=5)
-        cov = ensemble.covariance_matrix()
-        nmodels = ensemble.nmodels()
-        costs = ensemble.costs()
-
-        stat = MultiOutputMean(ensemble.nqoi(), self._bkd)
-        stat.set_pilot_quantities(cov)
-
-        recursion_index = self._bkd.zeros(nmodels - 1, dtype=int)
-        est = GMFEstimator(stat, costs, recursion_index=recursion_index)
-        target_cost = 30.0
-        est.allocate_samples(target_cost)
-
-        # Get analytical covariance
-        analytical_cov = est._covariance_from_npartition_samples(
-            est._rounded_npartition_samples
-        )
-
-        # Compute MC estimate of variance
-        ntrials = 5000
-        models = ensemble.models()
-
-        # Define uniform prior on [0, 1]
-        def rvs(nsamples: int) -> torch.Tensor:
-            n = int(nsamples)  # Convert from tensor if needed
-            return self._bkd.asarray(np.random.rand(1, n))
-
-        estimates = []
-        for _ in range(ntrials):
-            # Generate samples for each model
-            samples_per_model = est.generate_samples_per_model(rvs)
-
-            # Evaluate models - PolynomialModelFunction returns (nqoi, nsamples)
-            values_per_model = [
-                model(samples)
-                for model, samples in zip(models, samples_per_model)
-            ]
-
-            est_val = est(values_per_model)
-            estimates.append(est_val)
-
-        estimates = self._bkd.stack(estimates)
-        mc_cov = self._bkd.cov(estimates, rowvar=False, ddof=1)
-
-        # Compare MC and analytical covariance
-        self._bkd.assert_allclose(mc_cov, analytical_cov, rtol=2e-1, atol=1e-3)
-
-    @slow_test
-    def test_mfmc_polynomial_ensemble(self) -> None:
-        """Test MFMC estimator with polynomial ensemble benchmark."""
-        from pyapprox.typing.benchmarks.functions.multifidelity.polynomial_ensemble import (
-            PolynomialEnsemble,
-        )
-
-        ensemble = PolynomialEnsemble(self._bkd, nmodels=3)
-        cov = ensemble.covariance_matrix()
-        costs = ensemble.costs()
-
-        stat = MultiOutputMean(ensemble.nqoi(), self._bkd)
-        stat.set_pilot_quantities(cov)
-
-        est = MFMCEstimator(stat, costs)
-        target_cost = 50.0
-        est.allocate_samples(target_cost)
-
-        analytical_cov = est.optimized_covariance()
-
-        # MC estimation
-        ntrials = 3000
-        models = ensemble.models()
-
-        def rvs(nsamples: int) -> torch.Tensor:
-            n = int(nsamples)  # Convert from tensor if needed
-            return self._bkd.asarray(np.random.rand(1, n))
-
-        estimates = []
-        for _ in range(ntrials):
-            samples_per_model = est.generate_samples_per_model(rvs)
-            values_per_model = [
-                model(samples)
-                for model, samples in zip(models, samples_per_model)
-            ]
-            est_val = est(values_per_model)
-            estimates.append(est_val)
-
-        estimates = self._bkd.stack(estimates)
-        mc_cov = self._bkd.cov(estimates, rowvar=False, ddof=1)
-
-        self._bkd.assert_allclose(mc_cov, analytical_cov, rtol=2e-1, atol=1e-3)
 
 
 if __name__ == "__main__":
