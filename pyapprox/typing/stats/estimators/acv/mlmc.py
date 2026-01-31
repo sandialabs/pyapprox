@@ -6,11 +6,10 @@ optimal allocation.
 
 from typing import Generic, List, Tuple
 
-import numpy as np
-
 from pyapprox.typing.util.backends.protocols import Array, Backend
 from pyapprox.typing.stats.protocols import StatisticWithDiscrepancyProtocol
 from pyapprox.typing.stats.estimators.acv.base import ACVEstimator
+from pyapprox.typing.stats.allocation.matrices import get_allocation_matrix_mlmc
 
 
 class MLMCEstimator(ACVEstimator[Array], Generic[Array]):
@@ -63,9 +62,25 @@ class MLMCEstimator(ACVEstimator[Array], Generic[Array]):
         bkd: Backend[Array],
     ):
         nmodels = costs.shape[0]
-        # MLMC uses successive coupling
-        recursion_index = np.arange(nmodels - 1, dtype=np.int64)
-        super().__init__(stat, costs, bkd, bkd.asarray(recursion_index))
+        # MLMC uses successive coupling: model m coupled with model m-1
+        recursion_index = bkd.arange(nmodels - 1)
+        super().__init__(stat, costs, bkd, recursion_index)
+
+    def get_allocation_matrix(self) -> Array:
+        """Return the MLMC allocation matrix.
+
+        MLMC uses a banded structure where adjacent levels share samples.
+
+        Returns
+        -------
+        Array
+            Allocation matrix. Shape: (nmodels, 2*nmodels)
+        """
+        if self._allocation_mat is None:
+            self._allocation_mat = get_allocation_matrix_mlmc(
+                self.nmodels(), self._bkd
+            )
+        return self._allocation_mat
 
     def _compute_level_variances(self) -> Array:
         """Compute variance of level differences for MLMC.

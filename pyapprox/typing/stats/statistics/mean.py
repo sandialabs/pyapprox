@@ -239,13 +239,20 @@ class MultiOutputMean(AbstractStatistic[Array], Generic[Array]):
         For ACV, we compute covariances between the high-fidelity estimator
         and control variate discrepancies based on the allocation matrix.
 
+        This implementation matches the legacy pyapprox.multifidelity.stats
+        computation using Gmat and gvec multipliers derived from sample
+        intersection counts.
+
         Parameters
         ----------
         allocation_mat : Array
-            Allocation matrix A. A[i,j] = 1 if model i is evaluated
-            on partition j. Shape: (nmodels, npartitions)
+            Allocation matrix A. Shape: (nmodels, 2*nmodels)
+            - Rows (k): independent partitions k = 0, ..., M-1
+            - Columns (j): sample sets Z₀*, Z₀, Z₁*, Z₁, ...
+              - Column 2m: Z_m* (starred set for model m)
+              - Column 2m+1: Z_m (unstarred set for model m)
         npartition_samples : Array
-            Number of samples in each partition. Shape: (npartitions,)
+            Number of samples in each partition. Shape: (nmodels,)
 
         Returns
         -------
@@ -263,72 +270,169 @@ class MultiOutputMean(AbstractStatistic[Array], Generic[Array]):
         nmodels = allocation_mat.shape[0]
         ncontrols = nmodels - 1
 
-        # Initialize output matrices
+        # Compute Gmat and gvec multipliers using legacy formula
+        Gmat, gvec = self._get_acv_mean_discrepancy_covariances_multipliers(
+            allocation_mat, npartition_samples
+        )
+
+        # Compute CF and cf using the multipliers
+        # For nqoi=1: CF[j-1] = Cov(Q_0, Q_j) * gvec[j-1]
+        #             cf[i-1, j-1] = Cov(Q_i, Q_j) * Gmat[i-1, j-1]
         CF = bkd.zeros((nqoi, nqoi * ncontrols))
         cf = bkd.zeros((nqoi * ncontrols, nqoi * ncontrols))
 
-        # Helper to extract covariance blocks
-        def get_cov_block(i: int, j: int) -> Array:
-            """Get Cov(Q_i, Q_j) block."""
-            return cov[i*nqoi:(i+1)*nqoi, j*nqoi:(j+1)*nqoi]
+        for j in range(1, nmodels):
+            # CF block for control j
+            C0j = cov[0*nqoi:(0+1)*nqoi, j*nqoi:(j+1)*nqoi]
+            CF[:, (j-1)*nqoi:j*nqoi] = C0j * gvec[j-1]
 
-        # For each control (model m > 0), compute covariances
-        # Control m uses: mu_m (estimated on partitions where only m is run)
-        #                 Q_m (estimated on partitions where 0 and m are run)
-
-        for m in range(1, nmodels):
-            # Masks for partitions where model m runs
-            m_runs = allocation_mat[m, :] == 1
-            hf_runs = allocation_mat[0, :] == 1
-
-            # mu_parts: m runs but not HF; q_parts: both run
-            mu_mask = m_runs & ~hf_runs
-            q_mask = m_runs & hf_runs
-
-            # Samples for each part using masked sum
-            n_q = bkd.sum(npartition_samples * q_mask)
-
-            if n_q == 0:
-                continue
-
-            # CF[m-1] = Cov[mean_0, Delta_m] where Delta_m = mu_m - Q_m
-            # = -Cov(Q_0, Q_m) / n_q (on shared samples)
-            C0m = get_cov_block(0, m)
-            CF[:, (m-1)*nqoi:m*nqoi] = -C0m / n_q
-
-        # cf: Covariance between control variates
-        for m in range(1, nmodels):
-            for k in range(1, nmodels):
-                Cmm = get_cov_block(m, m)
-                Cmk = get_cov_block(m, k)
-
-                # Mask for partitions where both m and k run
-                m_runs = allocation_mat[m, :] == 1
-                k_runs = allocation_mat[k, :] == 1
-                shared_mask = m_runs & k_runs
-                n_shared = bkd.sum(npartition_samples * shared_mask)
-
-                if n_shared > 0:
-                    if m == k:
-                        # Var[Delta_m] = Var[mu_m] + Var[Q_m]
-                        hf_runs = allocation_mat[0, :] == 1
-                        mu_mask = m_runs & ~hf_runs
-                        q_mask = m_runs & hf_runs
-
-                        n_mu_m = bkd.sum(npartition_samples * mu_mask)
-                        n_q_m = bkd.sum(npartition_samples * q_mask)
-
-                        # Use maximum to avoid division by zero
-                        n_mu_safe = bkd.maximum(n_mu_m, bkd.asarray(1.0))
-                        n_q_safe = bkd.maximum(n_q_m, bkd.asarray(1.0))
-
-                        var_mu = Cmm / n_mu_safe * (n_mu_m > 0)
-                        var_q = Cmm / n_q_safe * (n_q_m > 0)
-                        cf[(m-1)*nqoi:m*nqoi, (k-1)*nqoi:k*nqoi] = var_mu + var_q
-                    else:
-                        cf[(m-1)*nqoi:m*nqoi, (k-1)*nqoi:k*nqoi] = Cmk / n_shared
+        for i in range(1, nmodels):
+            for j in range(1, nmodels):
+                Cij = cov[i*nqoi:(i+1)*nqoi, j*nqoi:(j+1)*nqoi]
+                cf[(i-1)*nqoi:i*nqoi, (j-1)*nqoi:j*nqoi] = Cij * Gmat[i-1, j-1]
 
         return CF, cf
+
+    def _get_nsamples_intersect(
+        self, allocation_mat: Array, npartition_samples: Array
+    ) -> Array:
+        """Compute sample intersection counts between sets.
+
+        Returns
+        -------
+        nsamples_intersect : Array (2*nmodels, 2*nmodels)
+            The i,j entry contains:
+            - |Z_i* ∩ Z_j*| when i%2==0 and j%2==0
+            - |Z_i ∩ Z_j*| when i%2==1 and j%2==0
+            - |Z_i* ∩ Z_j| when i%2==0 and j%2==1
+            - |Z_i ∩ Z_j| when i%2==1 and j%2==1
+        """
+        bkd = self._bkd
+        nmodels = allocation_mat.shape[0]
+
+        # nsubset_samples[k, j] = p[k] * A[k, j]
+        nsubset_samples = bkd.reshape(npartition_samples, (-1, 1)) * allocation_mat
+
+        # Build intersection matrix row by row
+        rows = []
+        for ii in range(2 * nmodels):
+            # Find partitions where column ii is active
+            active_mask = allocation_mat[:, ii] == 1
+            # Sum contributions from those partitions for all columns
+            row_vals = []
+            for jj in range(2 * nmodels):
+                val = bkd.sum(bkd.where(active_mask, nsubset_samples[:, jj],
+                                        bkd.zeros_like(nsubset_samples[:, jj])))
+                row_vals.append(bkd.reshape(val, (1,)))
+            rows.append(bkd.concatenate(row_vals))
+
+        return bkd.stack(rows, axis=0)
+
+    def _get_nsamples_subset(
+        self, allocation_mat: Array, npartition_samples: Array
+    ) -> Array:
+        """Get the number of samples in each sample subset.
+
+        Returns
+        -------
+        nsamples_subset : Array (2*nmodels,)
+            The number of samples in Z_i* (even indices) and Z_i (odd indices)
+        """
+        bkd = self._bkd
+        # nsamples_subset[j] = sum_k p[k] * A[k, j]
+        return bkd.dot(allocation_mat.T, npartition_samples)
+
+    def _get_acv_mean_discrepancy_covariances_multipliers(
+        self, allocation_mat: Array, npartition_samples: Array
+    ) -> Tuple[Array, Array]:
+        """Compute Gmat and gvec multipliers for ACV discrepancy covariances.
+
+        This matches the legacy _get_acv_mean_discrepancy_covariances_multipliers
+        function from pyapprox.multifidelity.stats.
+
+        Parameters
+        ----------
+        allocation_mat : Array
+            Allocation matrix. Shape: (nmodels, 2*nmodels)
+        npartition_samples : Array
+            Number of samples in each partition. Shape: (nmodels,)
+
+        Returns
+        -------
+        Gmat : Array
+            Multiplier matrix for cf computation. Shape: (nmodels-1, nmodels-1)
+        gvec : Array
+            Multiplier vector for CF computation. Shape: (nmodels-1,)
+        """
+        bkd = self._bkd
+        nmodels = allocation_mat.shape[0]
+
+        if bkd.any_bool(npartition_samples < 0):
+            raise RuntimeError(
+                f"An entry in npartition_samples was negative: {npartition_samples}"
+            )
+
+        nsamples_intersect = self._get_nsamples_intersect(
+            allocation_mat, npartition_samples
+        )
+        nsamples_subset = self._get_nsamples_subset(
+            allocation_mat, npartition_samples
+        )
+
+        # Build gvec as a list then concatenate
+        gvec_list = []
+        # Build Gmat as a list of rows then stack
+        Gmat_rows = []
+
+        for ii in range(1, nmodels):
+            # gvec[ii-1] computation
+            # Term 1: n_intersect[2*ii, 1] / (n_subset[2*ii] * n_subset[1])
+            # Term 2: n_intersect[2*ii+1, 1] / (n_subset[2*ii+1] * n_subset[1])
+            denom1 = nsamples_subset[2 * ii] * nsamples_subset[1]
+            denom2 = nsamples_subset[2 * ii + 1] * nsamples_subset[1]
+
+            # Avoid division by zero
+            safe_denom1 = bkd.where(denom1 > 0, denom1, bkd.ones_like(denom1))
+            safe_denom2 = bkd.where(denom2 > 0, denom2, bkd.ones_like(denom2))
+
+            term1 = bkd.where(
+                denom1 > 0,
+                nsamples_intersect[2 * ii, 1] / safe_denom1,
+                bkd.zeros_like(denom1)
+            )
+            term2 = bkd.where(
+                denom2 > 0,
+                nsamples_intersect[2 * ii + 1, 1] / safe_denom2,
+                bkd.zeros_like(denom2)
+            )
+            gvec_list.append(bkd.reshape(term1 - term2, (1,)))
+
+            # Build Gmat row
+            Gmat_row = []
+            for jj in range(1, nmodels):
+                # Gmat[ii-1, jj-1] computation (4 terms)
+                d00 = nsamples_subset[2 * ii] * nsamples_subset[2 * jj]
+                d01 = nsamples_subset[2 * ii] * nsamples_subset[2 * jj + 1]
+                d10 = nsamples_subset[2 * ii + 1] * nsamples_subset[2 * jj]
+                d11 = nsamples_subset[2 * ii + 1] * nsamples_subset[2 * jj + 1]
+
+                safe_d00 = bkd.where(d00 > 0, d00, bkd.ones_like(d00))
+                safe_d01 = bkd.where(d01 > 0, d01, bkd.ones_like(d01))
+                safe_d10 = bkd.where(d10 > 0, d10, bkd.ones_like(d10))
+                safe_d11 = bkd.where(d11 > 0, d11, bkd.ones_like(d11))
+
+                t00 = bkd.where(d00 > 0, nsamples_intersect[2*ii, 2*jj] / safe_d00, bkd.zeros_like(d00))
+                t01 = bkd.where(d01 > 0, nsamples_intersect[2*ii, 2*jj+1] / safe_d01, bkd.zeros_like(d01))
+                t10 = bkd.where(d10 > 0, nsamples_intersect[2*ii+1, 2*jj] / safe_d10, bkd.zeros_like(d10))
+                t11 = bkd.where(d11 > 0, nsamples_intersect[2*ii+1, 2*jj+1] / safe_d11, bkd.zeros_like(d11))
+
+                Gmat_row.append(bkd.reshape(t00 - t01 - t10 + t11, (1,)))
+            Gmat_rows.append(bkd.concatenate(Gmat_row))
+
+        gvec = bkd.concatenate(gvec_list)
+        Gmat = bkd.stack(Gmat_rows, axis=0)
+
+        return Gmat, gvec
 
     def get_npartition_samples(
         self, allocation_mat: Array, nsamples_per_model: Array

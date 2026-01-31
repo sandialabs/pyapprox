@@ -6,18 +6,17 @@ based on model correlations and costs.
 
 from typing import Generic, Tuple
 
-import numpy as np
-
 from pyapprox.typing.util.backends.protocols import Array, Backend
 from pyapprox.typing.stats.protocols import StatisticWithDiscrepancyProtocol
 from pyapprox.typing.stats.estimators.acv.base import ACVEstimator
+from pyapprox.typing.stats.allocation.matrices import get_allocation_matrix_gmf
 
 
 class MFMCEstimator(ACVEstimator[Array], Generic[Array]):
     """Multifidelity Monte Carlo (MFMC) estimator.
 
-    MFMC uses the structure where all low-fidelity models are coupled
-    with the high-fidelity model, with analytical optimal allocation:
+    MFMC uses successive coupling where each model is coupled with
+    the previous model in a chain, with analytical optimal allocation:
         r_m = sqrt((c_0/c_m) * (rho_m^2 - rho_{m+1}^2) / (1 - rho_1^2))
 
     The estimator is:
@@ -61,9 +60,30 @@ class MFMCEstimator(ACVEstimator[Array], Generic[Array]):
         bkd: Backend[Array],
     ):
         nmodels = costs.shape[0]
-        # MFMC uses all-to-HF coupling
-        recursion_index = np.zeros(nmodels - 1, dtype=np.int64)
-        super().__init__(stat, costs, bkd, bkd.asarray(recursion_index))
+        # MFMC uses successive coupling: model m coupled with model m-1
+        # This gives nested sample sets where each model evaluates on
+        # all samples used by higher-fidelity models
+        # recursion_index = [0, 1, 2, ...] for nmodels-1 elements
+        recursion_index = bkd.arange(nmodels - 1)
+        super().__init__(stat, costs, bkd, recursion_index)
+
+    def get_allocation_matrix(self) -> Array:
+        """Return the MFMC allocation matrix.
+
+        MFMC uses the GMF allocation structure with successive coupling
+        (recursion_index = [0, 1, 2, ...]).
+
+        Returns
+        -------
+        Array
+            Allocation matrix. Shape: (nmodels, 2*nmodels)
+        """
+        if self._allocation_mat is None:
+            # MFMC uses GMF allocation with its recursion index
+            self._allocation_mat = get_allocation_matrix_gmf(
+                self.nmodels(), self._recursion_index, self._bkd
+            )
+        return self._allocation_mat
 
     def _compute_mfmc_ratios(self) -> Array:
         """Compute MFMC optimal sample ratios analytically.

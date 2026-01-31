@@ -215,7 +215,7 @@ def get_recursion_index_mlmc(nmodels: int) -> np.ndarray:
 
 def get_allocation_matrix_gis(
     nmodels: int,
-    recursion_index: np.ndarray,
+    recursion_index: Array,
     bkd: Backend[Array],
 ) -> Array:
     """Build GIS (Generalized Independent Samples) allocation matrix.
@@ -232,7 +232,7 @@ def get_allocation_matrix_gis(
     ----------
     nmodels : int
         Number of models.
-    recursion_index : ndarray
+    recursion_index : Array
         Recursion index. Shape: (nmodels-1,)
         recursion_index[m] in [0, m] specifies which model m+1 is coupled with.
     bkd : Backend
@@ -244,28 +244,36 @@ def get_allocation_matrix_gis(
         Allocation matrix. Shape: (nmodels, 2*nmodels)
         A[i, j] = 1 if model i is evaluated on partition j.
 
+    Notes
+    -----
+    Uses numpy internally for construction because allocation matrices are
+    static structures that don't participate in gradient computation. The
+    result is converted to the backend array type at the end.
+
     Examples
     --------
-    >>> import numpy as np
     >>> from pyapprox.typing.util.backends.numpy import NumpyBkd
     >>> bkd = NumpyBkd()
-    >>> ridx = np.array([0, 0])  # MFMC-like coupling
+    >>> ridx = bkd.asarray([0, 0])  # MFMC-like coupling
     >>> A = get_allocation_matrix_gis(3, ridx, bkd)
     """
-    if len(recursion_index) != nmodels - 1:
+    # Use numpy for construction - allocation matrices are static and don't
+    # need gradient tracking. Convert to backend at the end.
+    ridx = bkd.to_numpy(recursion_index).astype(int)
+    if len(ridx) != nmodels - 1:
         raise ValueError(
             f"recursion_index must have length nmodels-1={nmodels-1}, "
-            f"got {len(recursion_index)}"
+            f"got {len(ridx)}"
         )
 
-    # Validate recursion index values - must be valid model indices
-    for m, k in enumerate(recursion_index):
+    # Validate recursion index values
+    for m, k in enumerate(ridx):
         if k < 0 or k >= nmodels:
             raise ValueError(
                 f"recursion_index[{m}] = {k} invalid. Must be in [0, {nmodels-1}]"
             )
 
-    # Build allocation matrix following legacy _get_allocation_matrix_acvis
+    # Build allocation matrix using numpy
     mat = np.zeros((nmodels, 2 * nmodels))
 
     # Step 1: Set diagonal for odd columns (all samples per model)
@@ -274,7 +282,7 @@ def get_allocation_matrix_gis(
 
     # Step 2: Set even columns from recursion (shared samples)
     for ii in range(1, nmodels):
-        mat[:, 2 * ii] = mat[:, recursion_index[ii - 1] * 2 + 1]
+        mat[:, 2 * ii] = mat[:, ridx[ii - 1] * 2 + 1]
 
     # Step 3 (GIS-specific): Merge via maximum
     for ii in range(1, nmodels):
@@ -285,7 +293,7 @@ def get_allocation_matrix_gis(
 
 def get_allocation_matrix_grd(
     nmodels: int,
-    recursion_index: np.ndarray,
+    recursion_index: Array,
     bkd: Backend[Array],
 ) -> Array:
     """Build GRD (Generalized Recursive Difference) allocation matrix.
@@ -297,7 +305,7 @@ def get_allocation_matrix_grd(
     ----------
     nmodels : int
         Number of models.
-    recursion_index : ndarray
+    recursion_index : Array
         Recursion index. Shape: (nmodels-1,)
     bkd : Backend
         Computational backend.
@@ -306,21 +314,30 @@ def get_allocation_matrix_grd(
     -------
     Array
         Allocation matrix. Shape: (nmodels, 2*nmodels)
+
+    Notes
+    -----
+    Uses numpy internally for construction because allocation matrices are
+    static structures that don't participate in gradient computation. The
+    result is converted to the backend array type at the end.
     """
-    if len(recursion_index) != nmodels - 1:
+    # Use numpy for construction - allocation matrices are static and don't
+    # need gradient tracking. Convert to backend at the end.
+    ridx = bkd.to_numpy(recursion_index).astype(int)
+    if len(ridx) != nmodels - 1:
         raise ValueError(
             f"recursion_index must have length nmodels-1={nmodels-1}, "
-            f"got {len(recursion_index)}"
+            f"got {len(ridx)}"
         )
 
-    # Validate recursion index values - must be valid model indices
-    for m, k in enumerate(recursion_index):
+    # Validate recursion index values
+    for m, k in enumerate(ridx):
         if k < 0 or k >= nmodels:
             raise ValueError(
                 f"recursion_index[{m}] = {k} invalid. Must be in [0, {nmodels-1}]"
             )
 
-    # Build allocation matrix following legacy _get_allocation_matrix_acvrd
+    # Build allocation matrix using numpy
     mat = np.zeros((nmodels, 2 * nmodels))
 
     # Step 1: Set diagonal for odd columns
@@ -329,7 +346,7 @@ def get_allocation_matrix_grd(
 
     # Step 2: Set even columns from recursion
     for ii in range(1, nmodels):
-        mat[:, 2 * ii] = mat[:, recursion_index[ii - 1] * 2 + 1]
+        mat[:, 2 * ii] = mat[:, ridx[ii - 1] * 2 + 1]
 
     # No step 3 for GRD (no merge)
 
@@ -338,19 +355,19 @@ def get_allocation_matrix_grd(
 
 def get_allocation_matrix_gmf(
     nmodels: int,
-    recursion_index: np.ndarray,
+    recursion_index: Array,
     bkd: Backend[Array],
 ) -> Array:
     """Build GMF (Generalized Multifidelity) allocation matrix.
 
-    GMF fills rows below in even columns, creating hierarchical
+    GMF fills rows above last 1 in each column, creating hierarchical
     inclusion (L-shaped pattern per model).
 
     Parameters
     ----------
     nmodels : int
         Number of models.
-    recursion_index : ndarray
+    recursion_index : Array
         Recursion index. Shape: (nmodels-1,)
     bkd : Backend
         Computational backend.
@@ -359,21 +376,30 @@ def get_allocation_matrix_gmf(
     -------
     Array
         Allocation matrix. Shape: (nmodels, 2*nmodels)
+
+    Notes
+    -----
+    Uses numpy internally for construction because allocation matrices are
+    static structures that don't participate in gradient computation. The
+    result is converted to the backend array type at the end.
     """
-    if len(recursion_index) != nmodels - 1:
+    # Use numpy for construction - allocation matrices are static and don't
+    # need gradient tracking. Convert to backend at the end.
+    ridx = bkd.to_numpy(recursion_index).astype(int)
+    if len(ridx) != nmodels - 1:
         raise ValueError(
             f"recursion_index must have length nmodels-1={nmodels-1}, "
-            f"got {len(recursion_index)}"
+            f"got {len(ridx)}"
         )
 
-    # Validate recursion index values - must be valid model indices
-    for m, k in enumerate(recursion_index):
+    # Validate recursion index values
+    for m, k in enumerate(ridx):
         if k < 0 or k >= nmodels:
             raise ValueError(
                 f"recursion_index[{m}] = {k} invalid. Must be in [0, {nmodels-1}]"
             )
 
-    # Build allocation matrix following legacy _get_allocation_matrix_gmf
+    # Build allocation matrix using numpy
     mat = np.zeros((nmodels, 2 * nmodels))
 
     # Step 1: Set diagonal for odd columns
@@ -382,17 +408,143 @@ def get_allocation_matrix_gmf(
 
     # Step 2: Set even columns from recursion
     for ii in range(1, nmodels):
-        mat[:, 2 * ii] = mat[:, recursion_index[ii - 1] * 2 + 1]
+        mat[:, 2 * ii] = mat[:, ridx[ii - 1] * 2 + 1]
 
     # Step 3 (GMF-specific): Fill rows above last 1 in each column
     # This creates hierarchical inclusion (L-shaped pattern)
     for ii in range(2, 2 * nmodels):
-        # Find the last row with a 1 in this column
         rows_with_one = np.where(mat[:, ii] == 1)[0]
         if len(rows_with_one) > 0:
             last_row = rows_with_one[-1]
             mat[:last_row, ii] = 1.0
 
+    return bkd.asarray(mat)
+
+
+def compute_samples_per_model(
+    npartition_samples: Array,
+    allocation_matrix: Array,
+    bkd: Backend[Array],
+) -> Array:
+    """Compute total samples evaluated by each model.
+
+    Uses formula from tutorial: n_i = Σₖ p[k] · χ[A[k, 2i] + A[k, 2i+1]]
+    where χ[·] = 1 if argument > 0, else 0.
+
+    This is NOT simple matrix multiplication A @ p, because each model's
+    samples depend on whether it participates in either the starred OR
+    unstarred set for each partition.
+
+    Parameters
+    ----------
+    npartition_samples : Array
+        Samples in each partition. Shape: (nmodels,)
+    allocation_matrix : Array
+        Allocation matrix. Shape: (nmodels, 2*nmodels)
+    bkd : Backend
+        Computational backend.
+
+    Returns
+    -------
+    Array
+        Samples per model. Shape: (nmodels,)
+
+    Examples
+    --------
+    >>> # ACVMF with 4 models, p = [2, 3, 4, 5]
+    >>> # Model 0: active in partition 0 only -> n_0 = 2
+    >>> # Model 1: active in partitions 0, 1 -> n_1 = 2 + 3 = 5
+    >>> # Model 2: active in partitions 0, 1, 2 -> n_2 = 2 + 3 + 4 = 9
+    >>> # Model 3: active in all partitions -> n_3 = 2 + 3 + 4 + 5 = 14
+    """
+    nmodels = allocation_matrix.shape[0]
+    nsamples_list = []
+    for ii in range(nmodels):
+        # Find partitions where model ii is active (starred OR unstarred set)
+        # Column 2*ii is Z_ii* (starred), column 2*ii+1 is Z_ii (unstarred)
+        col_starred = 2 * ii
+        col_unstarred = 2 * ii + 1
+        if col_unstarred < allocation_matrix.shape[1]:
+            active = (
+                (allocation_matrix[:, col_starred] == 1) |
+                (allocation_matrix[:, col_unstarred] == 1)
+            )
+        else:
+            active = (allocation_matrix[:, col_starred] == 1)
+        # Sum partition samples where model is active
+        nsamples_ii = bkd.sum(bkd.where(active, npartition_samples, bkd.zeros_like(npartition_samples)))
+        nsamples_list.append(bkd.reshape(nsamples_ii, (1,)))
+    return bkd.concatenate(nsamples_list)
+
+
+def get_allocation_matrix_mfmc(nmodels: int, bkd: Backend[Array]) -> Array:
+    """Build MFMC allocation matrix (upper triangular structure).
+
+    MFMC uses nested sample sets where each model evaluates on all
+    samples used by higher-fidelity models plus its own.
+
+    Parameters
+    ----------
+    nmodels : int
+        Number of models.
+    bkd : Backend
+        Computational backend.
+
+    Returns
+    -------
+    Array
+        Allocation matrix. Shape: (nmodels, 2*nmodels)
+        - Rows: independent partitions k = 0, ..., M-1
+        - Columns: sample sets Z₀*, Z₀, Z₁*, Z₁, ...
+
+    Examples
+    --------
+    >>> # For 3 models, MFMC allocation:
+    >>> # Partition 0 (HF only): model 0 uses all columns except 0
+    >>> # Partition 1: models 1+ use columns from 2*1+1 onward
+    >>> # etc.
+    """
+    mat = np.zeros((nmodels, 2 * nmodels))
+    # Partition 0 (HF): uses all columns from 1 onward
+    mat[0, 1:] = 1
+    # Partitions 1 to M-1: LF model ii uses columns from 2*ii+1 onward
+    for ii in range(1, nmodels):
+        mat[ii, 2 * ii + 1:] = 1
+    return bkd.asarray(mat)
+
+
+def get_allocation_matrix_mlmc(nmodels: int, bkd: Backend[Array]) -> Array:
+    """Build MLMC allocation matrix (banded structure).
+
+    MLMC uses a telescoping structure where adjacent levels share samples.
+
+    Parameters
+    ----------
+    nmodels : int
+        Number of models.
+    bkd : Backend
+        Computational backend.
+
+    Returns
+    -------
+    Array
+        Allocation matrix. Shape: (nmodels, 2*nmodels)
+        - Rows: independent partitions k = 0, ..., M-1
+        - Columns: sample sets Z₀*, Z₀, Z₁*, Z₁, ...
+
+    Examples
+    --------
+    >>> # For 3 models (levels), MLMC allocation:
+    >>> # Partition 0: difference f_0 - f_1 -> columns 1, 2
+    >>> # Partition 1: difference f_1 - f_2 -> columns 3, 4
+    >>> # Partition 2: coarsest f_2 only -> column 5
+    """
+    mat = np.zeros((nmodels, 2 * nmodels))
+    # Partitions 0 to M-2: level differences
+    for ii in range(nmodels - 1):
+        mat[ii, 2 * ii + 1 : 2 * ii + 3] = 1
+    # Partition M-1: coarsest level only
+    mat[-1, -1] = 1
     return bkd.asarray(mat)
 
 

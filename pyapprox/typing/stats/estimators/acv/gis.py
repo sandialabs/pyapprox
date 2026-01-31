@@ -96,21 +96,14 @@ class GISEstimator(ACVEstimator[Array], Generic[Array]):
             )
         return self._allocation_mat
 
-    def npartitions(self) -> int:
-        """Return number of sample partitions.
-
-        GIS uses 2*nmodels partitions (different from standard ACV).
-        """
-        return 2 * self.nmodels()
-
     def _solve_partition_allocation(
         self, alloc_mat: Array, nsamples: Array
     ) -> Array:
         """Solve for partition samples from model samples.
 
-        For GIS, the partition structure is:
-        - Even columns (2*i): shared samples
-        - Odd columns (2*i+1): all samples for model i
+        For GIS, the partition structure follows the standard convention:
+        - Row k is an independent partition
+        - npartition_samples has shape (nmodels,)
 
         Parameters
         ----------
@@ -122,31 +115,21 @@ class GISEstimator(ACVEstimator[Array], Generic[Array]):
         Returns
         -------
         Array
-            Samples per partition. Shape: (2*nmodels,)
+            Samples per partition. Shape: (nmodels,)
         """
         bkd = self._bkd
         nmodels = self.nmodels()
 
-        # Build partition samples
-        # Column 0: unused (HF shared with itself = 0)
-        # Column 1: HF all samples = n_0
-        # Column 2*i: shared samples between model i and its recursion parent
-        # Column 2*i+1: all samples for model i
+        # For GIS with union semantics, partition k has samples equal to model k
+        # because the maximum merge ensures each model uses its own samples
+        # plus any shared samples
         parts = []
+        parts.append(bkd.reshape(nsamples[0], (1,)))  # Partition 0 = HF samples
 
-        # Columns 0-1 for HF
-        parts.append(bkd.asarray([0.0]))  # Column 0: unused
-        parts.append(bkd.reshape(nsamples[0], (1,)))  # Column 1: HF samples
-
-        # Columns for each LF model
-        for m in range(1, nmodels):
-            ridx = int(self._recursion_index[m - 1])
-            # Shared samples: min of model m and its parent
-            n_shared = bkd.minimum(nsamples[m], nsamples[ridx])
-            parts.append(bkd.reshape(n_shared, (1,)))  # Even column
-
-            # All samples for model m
-            parts.append(bkd.reshape(nsamples[m], (1,)))  # Odd column
+        for k in range(1, nmodels):
+            # Partition k: increment for model k beyond model k-1
+            diff = bkd.maximum(nsamples[k] - nsamples[k - 1], bkd.asarray(0.0))
+            parts.append(bkd.reshape(diff, (1,)))
 
         return bkd.concatenate(parts)
 

@@ -219,6 +219,14 @@ class ACVPartitionConstraint(Generic[Array]):
         """Return number of constraint outputs."""
         return self._est.npartitions()
 
+    def lb(self) -> Array:
+        """Lower bound: constraint >= 0 (non-negative samples)."""
+        return self._bkd.zeros((self.nqoi(),))
+
+    def ub(self) -> Array:
+        """Upper bound: no upper limit."""
+        return self._bkd.full((self.nqoi(),), float("inf"))
+
     def _eval_constraint(self, partition_ratios: Array) -> Array:
         """Evaluate constraint values.
 

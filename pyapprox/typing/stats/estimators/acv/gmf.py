@@ -1,31 +1,26 @@
 """Generalized Multifidelity (GMF) estimator.
 
-GMF uses the MFMC-style recursion where all low-fidelity models are coupled
-directly with the high-fidelity model.
+GMF uses a flexible recursion structure specified by recursion_index.
 """
 
 from typing import Generic, Optional
 
-import numpy as np
-
 from pyapprox.typing.util.backends.protocols import Array, Backend
 from pyapprox.typing.stats.protocols import StatisticWithDiscrepancyProtocol
 from pyapprox.typing.stats.estimators.acv.base import ACVEstimator
+from pyapprox.typing.stats.allocation.matrices import get_allocation_matrix_gmf
 
 
 class GMFEstimator(ACVEstimator[Array], Generic[Array]):
     """Generalized Multifidelity (GMF) estimator.
 
-    GMF uses the allocation structure where all low-fidelity models are
-    coupled with the high-fidelity model:
-        recursion_index = [0, 0, 0, ...]
-
-    This is equivalent to MFMC but with optimized weights.
+    GMF uses a flexible allocation structure specified by recursion_index.
+    Default is all LF models coupled with HF: recursion_index = [0, 0, 0, ...]
 
     The estimator is:
         Q_GMF = Q_0 + sum_m eta_m * (mu_m - Q_m)
 
-    where all Q_m use shared samples with Q_0.
+    where Q_m use shared samples based on the recursion structure.
 
     Parameters
     ----------
@@ -35,6 +30,9 @@ class GMFEstimator(ACVEstimator[Array], Generic[Array]):
         Cost per sample for each model. Shape: (nmodels,)
     bkd : Backend[Array]
         Computational backend.
+    recursion_index : Array, optional
+        Recursion index. Shape: (nmodels-1,)
+        If None, defaults to [0, 0, ...] (all coupled with HF).
 
     Examples
     --------
@@ -54,11 +52,29 @@ class GMFEstimator(ACVEstimator[Array], Generic[Array]):
         stat: StatisticWithDiscrepancyProtocol[Array],
         costs: Array,
         bkd: Backend[Array],
+        recursion_index: Optional[Array] = None,
     ):
         nmodels = costs.shape[0]
-        # GMF uses MFMC recursion: all LF coupled with HF
-        recursion_index = np.zeros(nmodels - 1, dtype=np.int64)
-        super().__init__(stat, costs, bkd, bkd.asarray(recursion_index))
+        # Default: all LF coupled with HF
+        if recursion_index is None:
+            recursion_index = bkd.zeros((nmodels - 1,))
+        super().__init__(stat, costs, bkd, recursion_index)
+
+    def get_allocation_matrix(self) -> Array:
+        """Return the GMF allocation matrix.
+
+        GMF uses hierarchical inclusion (L-shaped pattern per model).
+
+        Returns
+        -------
+        Array
+            Allocation matrix. Shape: (nmodels, 2*nmodels)
+        """
+        if self._allocation_mat is None:
+            self._allocation_mat = get_allocation_matrix_gmf(
+                self.nmodels(), self._recursion_index, self._bkd
+            )
+        return self._allocation_mat
 
     def __repr__(self) -> str:
         nsamples_str = "not allocated"
