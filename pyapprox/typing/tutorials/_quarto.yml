@@ -54,6 +54,13 @@ website:
           contents:
             - library/control_variates.qmd
             - library/multifidelity_monte_carlo.qmd
+            - library/acv_two_model.qmd
+            - library/acv_framework.qmd
+            - library/multioutput_statistics.qmd
+            - library/multioutput_statistics_usage.qmd
+            - library/pacv_estimators.qmd
+            - library/allocation_matrices.qmd
+            - library/pacv_recursion_analysis.qmd
         - section: "Advanced Topics"
           contents:
             - library/optimal_experimental_design.qmd

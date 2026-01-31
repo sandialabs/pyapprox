@@ -1,0 +1,204 @@
+---
+title: "PACV Estimators: GMF, GRD, and GIS"
+subtitle: "PyApprox Tutorial Library"
+description: "Parametrically defined ACV estimators with flexible recursion structures"
+tutorial_type: usage
+topic: multifidelity
+difficulty: intermediate
+estimated_time: 10
+extended_time_reason: "Essential API coverage for three PACV estimator families with necessary mathematical notation"
+prerequisites:
+  - acv_framework
+tags:
+  - multifidelity
+  - variance-reduction
+  - acv
+  - pacv
+format:
+  html:
+    code-fold: false
+    code-tools: true
+    toc: true
+execute:
+  echo: true
+  warning: false
+jupyter: python3
+---
+
+::: {.callout-tip collapse="true"}
+## Download Notebook
+[Download as Jupyter Notebook](notebooks/pacv_estimators.ipynb)
+:::
+
+## Learning Objectives
+
+After completing this tutorial, you will be able to:
+
+- Understand the three PACV estimator families: GMF, GRD, and GIS
+- Use recursion indices to define model coupling structures
+- Compare different PACV estimators for a given problem
+
+## Prerequisites
+
+Complete [ACV Framework](acv_framework.qmd) before this tutorial.
+
+## Parametrically Defined ACV (PACV)
+
+MLMC and MFMC are just two possible ACV estimators. Many other estimators can be constructed using different **allocation matrices**. Parametrically defined ACV (PACV) estimators provide a systematic way to enumerate and compare these alternatives.
+
+### The Recursion Index
+
+PACV estimators are defined by a **recursion index** $\boldsymbol{\gamma} = [\gamma_1, \ldots, \gamma_M]^\top$ that specifies a directed acyclic graph (DAG) controlling which models serve as control variates for others.
+
+If $\gamma_j = i$, then model $j$ acts as a control variate for model $i$, meaning $\mathcal{Z}_j^* = \mathcal{Z}_i$.
+
+| Estimator | Recursion Index | Coupling Structure |
+|-----------|----------------|----------|
+| MFMC | $[0, 1, 2, \ldots]$ | Chain: each model coupled to previous |
+| ACVMF | $[0, 0, 0, \ldots]$ | Star: all models coupled to HF |
+
+## Setup
+
+```{python}
+import numpy as np
+from pyapprox.typing.util.backends.numpy import NumpyBkd
+from pyapprox.typing.stats import (
+    MultiOutputMean,
+    GMFEstimator,
+    GRDEstimator,
+    GISEstimator,
+    get_estimator,
+)
+
+bkd = NumpyBkd()
+np.random.seed(42)
+```
+
+## Example: Four-Model Problem
+
+```{python}
+nmodels = 4
+
+# Covariance with decreasing correlation from HF
+cov = np.array([[1.0, 0.9, 0.8, 0.7],
+                [0.9, 1.0, 0.95, 0.85],
+                [0.8, 0.95, 1.0, 0.9],
+                [0.7, 0.85, 0.9, 1.0]])
+
+# Model costs (decreasing by factor of 10)
+costs = bkd.asarray([1000.0, 100.0, 10.0, 1.0])
+
+# Create statistic
+stat = MultiOutputMean(nqoi=1, bkd=bkd)
+stat.set_pilot_quantities(bkd.asarray(cov))
+```
+
+## The Three PACV Families
+
+### 1. Generalized Multifidelity (GMF)
+
+GMF estimators generalize MFMC. If $\gamma_j = i$, then:
+
+- $\mathcal{Z}_j^* = \mathcal{Z}_i$ (starred samples match parent)
+- $\mathcal{Z}_i \subset \mathcal{Z}_j$ (parent samples nested in child)
+
+**MFMC** is GMF with $\boldsymbol{\gamma} = [0, 1, 2, \ldots]$.
+**ACVMF** is GMF with $\boldsymbol{\gamma} = [0, 0, 0, \ldots]$.
+
+```{python}
+# GMF with MFMC recursion (chain structure)
+gmf_mfmc = GMFEstimator(
+    stat, costs, bkd,
+    recursion_index=bkd.asarray([0, 1, 2], dtype=int)
+)
+
+# GMF with ACVMF recursion (star structure)
+gmf_acvmf = GMFEstimator(
+    stat, costs, bkd,
+    recursion_index=bkd.asarray([0, 0, 0], dtype=int)
+)
+```
+
+### 2. Generalized Recursive Difference (GRD)
+
+GRD estimators generalize MLMC. If $\gamma_j = i$, then:
+
+- $\mathcal{Z}_j^* = \mathcal{Z}_i$ (starred samples match parent)
+- $\mathcal{Z}_i \cap \mathcal{Z}_j \neq \emptyset$ for $i \neq j$ (overlapping samples)
+
+**MLMC** is GRD with $\boldsymbol{\gamma} = [0, 1, 2, \ldots]$.
+
+```{python}
+# GRD with MLMC recursion
+grd_mlmc = GRDEstimator(
+    stat, costs, bkd,
+    recursion_index=bkd.asarray([0, 1, 2], dtype=int)
+)
+```
+
+### 3. Generalized Independent Sample (GIS)
+
+GIS estimators generalize ACVIS. If $\gamma_j = i$, then:
+
+- $\mathcal{Z}_j^* = \mathcal{Z}_i$ (starred samples match parent)
+- $\mathcal{Z}_i^* \subset \mathcal{Z}_i$ (starred subset of unstarred)
+
+**ACVIS** is GIS with $\boldsymbol{\gamma} = [0, 0, 0, \ldots]$.
+
+```{python}
+# GIS with ACVIS recursion
+gis_acvis = GISEstimator(
+    stat, costs, bkd,
+    recursion_index=bkd.asarray([0, 0, 0], dtype=int)
+)
+```
+
+## Comparing Estimators
+
+```{python}
+target_cost = 1e4
+estimators = [gmf_mfmc, gmf_acvmf, grd_mlmc, gis_acvis]
+labels = ['GMF (MFMC)', 'GMF (ACVMF)', 'GRD (MLMC)', 'GIS (ACVIS)']
+
+for est in estimators:
+    est.allocate_samples(target_cost)
+
+# Compare variances
+for est, label in zip(estimators, labels):
+    var = float(bkd.to_numpy(est.optimized_covariance())[0, 0])
+    print(f"{label}: variance = {var:.2e}")
+```
+
+## Using the Factory Function
+
+The `get_estimator()` factory simplifies creating PACV estimators.
+
+```{python}
+mlmc = get_estimator("mlmc", stat, costs)
+mfmc = get_estimator("mfmc", stat, costs)
+
+print(f"MLMC type: {type(mlmc).__name__}")
+print(f"MFMC type: {type(mfmc).__name__}")
+```
+
+## Key Takeaways
+
+- **PACV** provides three estimator families: GMF, GRD, and GIS
+- The **recursion index** $\boldsymbol{\gamma}$ defines model coupling structure via a DAG
+- **GMF** generalizes MFMC with hierarchical nesting
+- **GRD** generalizes MLMC with recursive differences
+- **GIS** generalizes ACVIS with independent samples
+- **No single estimator is universally best** - compare for each problem
+
+## Exercises
+
+1. **(Easy)** Create a GRD estimator with recursion index $[0, 0, 2]$ and compare its variance to MLMC.
+
+2. **(Medium)** For a 5-model problem, enumerate all possible recursion indices for GMF where each $\gamma_j < j$. How many configurations are there?
+
+## Next Steps
+
+Continue with:
+
+- [Allocation Matrices](allocation_matrices.qmd) - Theory of allocation matrix construction
+- [PACV Recursion Analysis](pacv_recursion_analysis.qmd) - Mathematical analysis of recursion impact

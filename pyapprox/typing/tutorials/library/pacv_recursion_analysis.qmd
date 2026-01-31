@@ -1,0 +1,195 @@
+---
+title: "PACV Recursion Analysis"
+subtitle: "PyApprox Tutorial Library"
+description: "Mathematical analysis of recursion index impact on variance reduction"
+tutorial_type: analysis
+topic: multifidelity
+difficulty: advanced
+estimated_time: 15
+extended_time_reason: "Asymptotic variance analysis requires mathematical derivations"
+prerequisites:
+  - pacv_estimators
+tags:
+  - multifidelity
+  - variance-reduction
+  - acv
+  - theory
+format:
+  html:
+    code-fold: false
+    code-tools: true
+    toc: true
+execute:
+  echo: true
+  warning: false
+jupyter: python3
+---
+
+::: {.callout-tip collapse="true"}
+## Download Notebook
+[Download as Jupyter Notebook](notebooks/pacv_recursion_analysis.ipynb)
+:::
+
+## Learning Objectives
+
+After completing this tutorial, you will be able to:
+
+- Understand how recursion indices define DAG structures
+- Analyze the impact of DAG topology on variance reduction
+- Compare ACVMF convergence to MFMC
+- Determine when different recursion structures are optimal
+
+## Prerequisites
+
+Complete [PACV Estimators](pacv_estimators.qmd) before this tutorial.
+
+## Recursion Index and DAG Structure
+
+The recursion index $\boldsymbol{\gamma} = [\gamma_1, \ldots, \gamma_M]^\top$ defines a **directed acyclic graph (DAG)** where:
+
+- Node 0 is the root (HF model)
+- Edge $(j, \gamma_j)$ indicates model $j$ is a control variate for model $\gamma_j$
+- The constraint $0 \leq \gamma_j < j$ ensures acyclicity
+
+### DAG Topology Types
+
+**Chain (MFMC-like):** $\gamma_j = j - 1$
+$$
+0 \leftarrow 1 \leftarrow 2 \leftarrow 3 \leftarrow \cdots
+$$
+
+**Star (ACVMF-like):** $\gamma_j = 0$ for all $j$
+$$
+0 \leftarrow 1, \quad 0 \leftarrow 2, \quad 0 \leftarrow 3, \quad \ldots
+$$
+
+## Setup
+
+```{python}
+import numpy as np
+from pyapprox.typing.util.backends.numpy import NumpyBkd
+from pyapprox.typing.stats import MultiOutputMean, GMFEstimator, get_estimator
+
+bkd = NumpyBkd()
+np.random.seed(42)
+```
+
+## Asymptotic Analysis
+
+### MFMC Asymptotic Limit
+
+As the number of LF samples increases ($N_m \to \infty$ for $m > 0$):
+
+$$
+\text{Var}(\hat{Q}^{\text{MFMC}}) \to \text{Var}(\hat{Q}_0)(1 - \rho_{01}^2)
+$$
+
+MFMC only achieves variance reduction from the **first control variate** asymptotically.
+
+### ACVMF Asymptotic Limit
+
+For ACVMF with all models coupled to HF:
+
+$$
+\text{Var}(\hat{Q}^{\text{ACVMF}}) \to \text{Var}(\hat{Q}_0)\left(1 - \mathbf{r}^\top \mathbf{C}^{-1} \mathbf{r}\right)
+$$
+
+where $\mathbf{r}$ is the vector of correlations with HF. ACVMF can achieve variance reduction from **all control variates**.
+
+## Numerical Demonstration
+
+```{python}
+nmodels = 5
+
+# Covariance with decaying correlations
+cov = np.array([[0.9**(abs(i-j)) for j in range(nmodels)] for i in range(nmodels)])
+costs = bkd.asarray([10**(4-i) for i in range(nmodels)], dtype=float)
+
+# Correlations with HF
+correlations = cov[0, :] / np.sqrt(cov[0, 0] * np.diag(cov))
+print("Correlations with HF:")
+for i, c in enumerate(correlations):
+    print(f"  Model {i}: rho = {c:.4f}")
+```
+
+```{python}
+stat = MultiOutputMean(nqoi=1, bkd=bkd)
+stat.set_pilot_quantities(bkd.asarray(cov))
+
+# MFMC (chain structure)
+mfmc = get_estimator("mfmc", stat, costs)
+
+# ACVMF (star structure)
+acvmf = GMFEstimator(stat, costs, bkd,
+    recursion_index=bkd.zeros(nmodels-1, dtype=int))
+```
+
+```{python}
+# Compare at high budget to see asymptotic behavior
+budget = 1e7
+mfmc.allocate_samples(budget)
+acvmf.allocate_samples(budget)
+
+var_mfmc = float(bkd.to_numpy(mfmc.optimized_covariance())[0, 0])
+var_acvmf = float(bkd.to_numpy(acvmf.optimized_covariance())[0, 0])
+
+print(f"MFMC variance:  {var_mfmc:.2e}")
+print(f"ACVMF variance: {var_acvmf:.2e}")
+print(f"ACVMF advantage: {var_mfmc/var_acvmf:.1f}x")
+```
+
+## When Does DAG Structure Matter?
+
+### High Budget Regime
+
+At high budgets, the DAG structure significantly affects achievable variance:
+
+- **ACVMF** achieves the theoretical minimum using all correlations
+- **MFMC** limited by first control variate only
+
+### Low Budget Regime
+
+At low budgets, both estimators are limited by HF sample count:
+
+- DAG structure has less impact
+- Sample allocation is more important
+
+## Enumeration of Recursion Indices
+
+For $M$ low-fidelity models, the number of valid recursion indices is:
+
+$$
+N_{\text{indices}} = \prod_{j=1}^{M} j = M!
+$$
+
+This factorial growth makes exhaustive enumeration expensive for large $M$.
+
+```{python}
+import math
+for M in range(1, 7):
+    print(f"M={M} low-fidelity models: {math.factorial(M)} recursion indices")
+```
+
+## Key Takeaways
+
+- The **recursion index** defines a DAG controlling model coupling
+- **Star structures** (ACVMF) achieve lower asymptotic variance using all correlations
+- **Chain structures** (MFMC) limited by first control variate asymptotically
+- **Optimal structure** depends on correlation, cost, and budget
+- **Enumeration** is practical for small $M$ (factorial growth)
+- At **high budgets**, DAG structure dominates; at **low budgets**, sample allocation matters more
+
+## Exercises
+
+1. **(Easy)** Verify that the number of valid recursion indices is $M!$ for $M$ low-fidelity models by counting for $M=3$.
+
+2. **(Medium)** For a 5-model problem with correlations $\rho_m = 0.9^m$, find the recursion index that minimizes variance at budget $10^6$.
+
+3. **(Challenge)** Derive the asymptotic variance formula for a general GMF estimator with recursion index $\boldsymbol{\gamma}$.
+
+## Next Steps
+
+Continue with:
+
+- [Pilot Studies](pilot_studies.qmd) - Estimating covariance from pilot samples
+- [Ensemble Selection](ensemble_selection.qmd) - Selecting optimal model subsets
