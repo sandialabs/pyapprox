@@ -4,7 +4,7 @@ MFMC is a specific ACV estimator with analytical optimal allocation
 based on model correlations and costs.
 """
 
-from typing import Generic
+from typing import Generic, Tuple
 
 import numpy as np
 
@@ -203,6 +203,124 @@ class MFMCEstimator(ACVEstimator[Array], Generic[Array]):
             weights = bkd.concatenate(weights_list)
 
         return weights
+
+    def _native_ratios_to_npartition_ratios(self, model_ratios: Array) -> Array:
+        """Convert MFMC model ratios to partition ratios.
+
+        Parameters
+        ----------
+        model_ratios : Array
+            Sample ratios [r_1, ..., r_{M-1}] where n_m = r_m * n_0.
+            Shape: (nmodels-1,)
+
+        Returns
+        -------
+        partition_ratios : Array
+            Partition ratios [r_1-1, r_2-r_1, ...]. Shape: (nmodels-1,)
+        """
+        bkd = self._bkd
+        # First partition ratio: r_1 - 1
+        first = bkd.reshape(model_ratios[0] - 1, (1,))
+        # Remaining partition ratios: differences
+        if model_ratios.shape[0] > 1:
+            rest = bkd.diff(model_ratios)
+            return bkd.concatenate([first, rest])
+        return first
+
+    def _get_rsquared_mfmc(self, nsample_ratios: Array) -> Array:
+        """Compute r^2 for MFMC variance reduction.
+
+        Matches legacy _get_rsquared_mfmc from _optim.py:64-101.
+
+        Parameters
+        ----------
+        nsample_ratios : Array
+            Sample ratios [r_1, ..., r_{M-1}] where n_m = r_m * n_0.
+            Shape: (nmodels-1,)
+
+        Returns
+        -------
+        rsquared : Array
+            The value r^2 for variance reduction.
+        """
+        bkd = self._bkd
+        cov = self._stat.cov()
+        nmodels = self.nmodels()
+
+        # First term: (r_1 - 1) / r_1 * cov[0,1]^2 / (cov[0,0] * cov[1,1])
+        rsquared = (
+            (nsample_ratios[0] - 1)
+            / nsample_ratios[0]
+            * cov[0, 1]
+            / (cov[0, 0] * cov[1, 1])
+            * cov[0, 1]
+        )
+
+        # Subsequent terms
+        for ii in range(1, nmodels - 1):
+            p1 = (nsample_ratios[ii] - nsample_ratios[ii - 1]) / (
+                nsample_ratios[ii] * nsample_ratios[ii - 1]
+            )
+            p1 = p1 * (
+                cov[0, ii + 1] / (cov[0, 0] * cov[ii + 1, ii + 1]) * cov[0, ii + 1]
+            )
+            rsquared = rsquared + p1
+
+        return rsquared
+
+    def allocate_samples_analytical(
+        self, target_cost: float
+    ) -> Tuple[Array, Array]:
+        """Compute MFMC allocation analytically, matching legacy exactly.
+
+        Implements Algorithm 2 from Peherstorfer et al. 2016.
+
+        Parameters
+        ----------
+        target_cost : float
+            Total computational budget.
+
+        Returns
+        -------
+        nsample_ratios : Array
+            Sample ratios n_m / n_0 for m = 1, ..., M-1. Shape: (nmodels-1,)
+        log_variance : Array
+            Log of estimator variance.
+        """
+        bkd = self._bkd
+        cov = self._stat.cov()
+        nmodels = self.nmodels()
+
+        # Convert covariance to correlation
+        variances = bkd.get_diagonal(cov)
+        std_devs = bkd.sqrt(variances)
+        corr = cov / bkd.outer(std_devs, std_devs)
+
+        # Compute sample ratios r_m for all models (including HF)
+        r_list = []
+        for ii in range(nmodels - 1):
+            # For models 0 to M-2: use difference of squared correlations
+            num = self._costs[0] * (corr[0, ii] ** 2 - corr[0, ii + 1] ** 2)
+            den = self._costs[ii] * (1 - corr[0, 1] ** 2)
+            r_list.append(bkd.sqrt(num / den))
+
+        # Last model: use rho_{M-1}^2 (no rho_{M})
+        num = self._costs[0] * corr[0, -1] ** 2
+        den = self._costs[-1] * (1 - corr[0, 1] ** 2)
+        r_list.append(bkd.sqrt(num / den))
+        r = bkd.stack(r_list)
+
+        # Compute nhf_samples
+        nhf_samples = target_cost / bkd.dot(self._costs, r)
+
+        # Model ratios (exclude HF model r_0)
+        nsample_ratios = r[1:]
+
+        # Compute variance reduction and log variance
+        gamma = 1 - self._get_rsquared_mfmc(nsample_ratios)
+        log_variance = bkd.log(gamma) + bkd.log(cov[0, 0]) - bkd.log(nhf_samples)
+
+        return nsample_ratios, log_variance
 
     def __repr__(self) -> str:
         nsamples_str = "not allocated"

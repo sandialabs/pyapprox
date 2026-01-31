@@ -4,7 +4,7 @@ MLMC uses a telescoping sum of level differences with analytical
 optimal allocation.
 """
 
-from typing import Generic, List
+from typing import Generic, List, Tuple
 
 import numpy as np
 
@@ -68,44 +68,28 @@ class MLMCEstimator(ACVEstimator[Array], Generic[Array]):
         super().__init__(stat, costs, bkd, bkd.asarray(recursion_index))
 
     def _compute_level_variances(self) -> Array:
-        """Compute variance of level differences Y_l = Q_l - Q_{l-1}.
+        """Compute variance of level differences for MLMC.
+
+        Following legacy convention (model 0 = HF, model M-1 = coarsest):
+        - var_deltas[l] = Var(f_l - f_{l+1}) for l = 0, ..., M-2
+        - var_deltas[M-1] = Var(f_{M-1}) (coarsest level, standalone)
 
         Returns
         -------
         variances : Array
-            Variance of Y_l for each level.
+            Variance of each level difference. Shape: (nmodels,)
         """
         bkd = self._bkd
         cov = self._stat.cov()
         nmodels = self.nmodels()
-        nqoi = self._stat.nqoi()
 
         var_list = []
-
-        for l in range(nmodels):
-            if nqoi == 1:
-                var_l = cov[l, l]
-                if l == 0:
-                    # Y_0 = Q_0
-                    var_list.append(bkd.reshape(var_l, (1,)))
-                else:
-                    # Y_l = Q_l - Q_{l-1}
-                    var_lm1 = cov[l - 1, l - 1]
-                    cov_l_lm1 = cov[l, l - 1]
-                    diff_var = var_l + var_lm1 - 2 * cov_l_lm1
-                    var_list.append(bkd.reshape(diff_var, (1,)))
-            else:
-                var_l = bkd.trace(cov[l * nqoi : (l + 1) * nqoi,
-                                      l * nqoi : (l + 1) * nqoi]) / nqoi
-                if l == 0:
-                    var_list.append(bkd.reshape(var_l, (1,)))
-                else:
-                    var_lm1 = bkd.trace(cov[(l - 1) * nqoi : l * nqoi,
-                                            (l - 1) * nqoi : l * nqoi]) / nqoi
-                    cov_l_lm1 = bkd.trace(cov[l * nqoi : (l + 1) * nqoi,
-                                              (l - 1) * nqoi : l * nqoi]) / nqoi
-                    diff_var = var_l + var_lm1 - 2 * cov_l_lm1
-                    var_list.append(bkd.reshape(diff_var, (1,)))
+        # Levels 0 to M-2: Var(f_l - f_{l+1})
+        for l in range(nmodels - 1):
+            diff_var = cov[l, l] + cov[l + 1, l + 1] - 2 * cov[l, l + 1]
+            var_list.append(bkd.reshape(diff_var, (1,)))
+        # Level M-1: Var(f_{M-1})
+        var_list.append(bkd.reshape(cov[-1, -1], (1,)))
 
         variances = bkd.concatenate(var_list)
 
@@ -114,22 +98,228 @@ class MLMCEstimator(ACVEstimator[Array], Generic[Array]):
 
         return variances
 
-    def _compute_sample_ratios(self) -> Array:
-        """Compute MLMC optimal sample ratios.
+    def _compute_cost_deltas(self) -> Array:
+        """Compute cost of each level difference for MLMC.
 
-        For MLMC: n_l propto sqrt(V_l / c_l)
+        Following legacy convention:
+        - cost_deltas[l] = cost[l] + cost[l+1] for l = 0, ..., M-2
+          (evaluating both f_l and f_{l+1} for the difference)
+        - cost_deltas[M-1] = cost[M-1] (just the coarsest model)
+
+        Returns
+        -------
+        cost_deltas : Array
+            Cost for each level difference. Shape: (nmodels,)
         """
         bkd = self._bkd
+        nmodels = self.nmodels()
+        cost_list = []
+        # Levels 0 to M-2: cost of evaluating both models
+        for l in range(nmodels - 1):
+            cost_list.append(bkd.reshape(self._costs[l] + self._costs[l + 1], (1,)))
+        # Level M-1: just the coarsest model
+        cost_list.append(bkd.reshape(self._costs[-1], (1,)))
+        return bkd.concatenate(cost_list)
 
+    def _compute_sample_ratios(self) -> Array:
+        """Compute MLMC optimal sample ratios using correct cost deltas.
+
+        For MLMC:
+        - n_l^delta = lambda * sqrt(V_l / c_l^delta)
+        - Model ratios: n_l = (n_{l-1}^delta + n_l^delta) / n_0 for l > 0
+
+        Returns model ratios n_m / n_0 for m = 1, ..., M-1.
+        """
+        bkd = self._bkd
         variances = self._compute_level_variances()
+        cost_deltas = self._compute_cost_deltas()
 
-        # Compute raw ratios: sqrt(V_l / c_l)
-        raw_ratios = bkd.sqrt(variances / self._costs)
+        # Compute optimal samples per delta (proportional)
+        var_cost_ratios = variances / cost_deltas
+        nsamples_per_delta_prop = bkd.sqrt(var_cost_ratios)
 
-        # Normalize to get n_l / n_0
-        ratios = raw_ratios / raw_ratios[0]
+        # Model ratios: for l > 0, n_l = (n_{l-1}^delta + n_l^delta) / n_0^delta
+        n0_delta = nsamples_per_delta_prop[0]
+        ratios_list = [bkd.asarray([1.0])]  # r_0 = 1
+        for l in range(1, self.nmodels()):
+            n_l = (
+                nsamples_per_delta_prop[l - 1] + nsamples_per_delta_prop[l]
+            ) / n0_delta
+            ratios_list.append(bkd.reshape(n_l, (1,)))
 
-        return ratios
+        return bkd.concatenate(ratios_list)
+
+    def _native_ratios_to_npartition_ratios(self, model_ratios: Array) -> Array:
+        """Convert MLMC model ratios to partition ratios.
+
+        Uses the MLMC-specific recurrence from the legacy implementation.
+
+        Parameters
+        ----------
+        model_ratios : Array
+            Sample ratios [r_1, ..., r_{M-1}] where n_l = r_l * n_0.
+            Shape: (nmodels-1,)
+
+        Returns
+        -------
+        partition_ratios : Array
+            Partition ratios using MLMC recurrence. Shape: (nmodels-1,)
+        """
+        bkd = self._bkd
+        nratios = model_ratios.shape[0]
+
+        # Build partition ratios using recurrence: p[0] = r_1 - 1, p[i] = r_{i+1} - p[i-1]
+        partition_list = []
+        prev_p = model_ratios[0] - 1
+        partition_list.append(bkd.reshape(prev_p, (1,)))
+        for ii in range(1, nratios):
+            curr_p = model_ratios[ii] - prev_p
+            partition_list.append(bkd.reshape(curr_p, (1,)))
+            prev_p = curr_p
+        return bkd.concatenate(partition_list)
+
+    def _get_rsquared_mlmc(self, nsample_ratios: Array) -> Array:
+        """Compute r^2 for MLMC variance reduction.
+
+        Matches legacy _get_rsquared_mlmc from _optim.py:179-218.
+
+        Parameters
+        ----------
+        nsample_ratios : Array
+            Sample ratios [r_1, ..., r_{M-1}] where n_l = r_l * n_0.
+            Shape: (nmodels-1,)
+
+        Returns
+        -------
+        rsquared : Array
+            The r^2 value for variance reduction computation.
+        """
+        bkd = self._bkd
+        cov = self._stat.cov()
+        nmodels = self.nmodels()
+
+        # Compute rhat: effective partition sample ratios
+        # rhat[0] = 1, rhat[ii] = nsample_ratios[ii-1] - rhat[ii-1]
+        rhat_list = [bkd.asarray([1.0])]
+        prev_rhat = bkd.asarray(1.0)
+        for ii in range(1, nmodels):
+            curr_rhat = nsample_ratios[ii - 1] - prev_rhat
+            rhat_list.append(bkd.reshape(curr_rhat, (1,)))
+            prev_rhat = curr_rhat
+        rhat = bkd.concatenate(rhat_list)
+
+        # Sum of vardelta / rhat for levels 0 to M-2
+        gamma = bkd.asarray(0.0)
+        for ii in range(nmodels - 1):
+            vardelta = cov[ii, ii] + cov[ii + 1, ii + 1] - 2 * cov[ii, ii + 1]
+            gamma = gamma + vardelta / rhat[ii]
+
+        # Add final level variance
+        v = cov[nmodels - 1, nmodels - 1]
+        gamma = gamma + v / rhat[-1]
+
+        # Normalize by HF variance
+        gamma = gamma / cov[0, 0]
+
+        return 1 - gamma
+
+    def allocate_samples_analytical(
+        self, target_cost: float
+    ) -> Tuple[Array, Array]:
+        """Compute MLMC allocation analytically (Direction 1: min variance s.t. cost).
+
+        Uses Lagrange multiplier method matching legacy _allocate_samples_mlmc.
+
+        Parameters
+        ----------
+        target_cost : float
+            Total computational budget.
+
+        Returns
+        -------
+        nsample_ratios : Array
+            Sample ratios n_m / n_0 for m = 1, ..., M-1.
+        log_variance : Array
+            Log of estimator variance.
+        """
+        bkd = self._bkd
+        cov = self._stat.cov()
+        variances = self._compute_level_variances()
+        cost_deltas = self._compute_cost_deltas()
+
+        # Lagrange multiplier
+        var_cost_prods = variances * cost_deltas
+        lagrange = target_cost / bkd.sum(bkd.sqrt(var_cost_prods))
+
+        # Samples per level difference
+        var_cost_ratios = variances / cost_deltas
+        nsamples_per_delta = lagrange * bkd.sqrt(var_cost_ratios)
+
+        # Model ratios
+        nhf = nsamples_per_delta[0]
+        ratio_list = []
+        for l in range(self.nmodels() - 1):
+            ratio = (nsamples_per_delta[l] + nsamples_per_delta[l + 1]) / nhf
+            ratio_list.append(bkd.reshape(ratio, (1,)))
+        nsample_ratios = bkd.concatenate(ratio_list)
+
+        # Variance reduction
+        gamma = 1 - self._get_rsquared_mlmc(nsample_ratios)
+        log_variance = bkd.log(gamma) + bkd.log(cov[0, 0]) - bkd.log(nhf)
+
+        return nsample_ratios, log_variance
+
+    def allocate_samples_for_variance(
+        self, target_variance: float
+    ) -> Tuple[Array, Array]:
+        """Compute MLMC allocation for target variance (Direction 2: min cost s.t. variance).
+
+        Minimizes cost subject to Var(Q_MLMC) = target_variance (denoted ε²).
+
+        Using Lagrange multiplier λ = ε⁻² * Σ sqrt(V_α * C_α):
+            N_α = λ * sqrt(V_α / C_α)
+                = (1/ε²) * sqrt(V_α / C_α) * Σ sqrt(V * C)
+
+        Total cost: C_tot = ε⁻² * (Σ sqrt(V_α * C_α))²
+
+        Parameters
+        ----------
+        target_variance : float
+            Target variance ε² for the estimator.
+
+        Returns
+        -------
+        nsamples : Array
+            Samples per model. Shape: (nmodels,)
+        total_cost : Array
+            Total computational cost (scalar).
+        """
+        bkd = self._bkd
+        variances = self._compute_level_variances()
+        cost_deltas = self._compute_cost_deltas()
+        target_var = bkd.asarray(target_variance)
+
+        # Compute optimal allocation using Lagrange multiplier
+        # From tutorial: N_α = λ * sqrt(V_α / C_α) where λ = ε⁻² * Σ sqrt(V*C)
+        # and ε² = target_variance
+        var_cost_ratios = variances / cost_deltas
+        var_cost_prods = variances * cost_deltas
+
+        # n_l^delta = (1/target_variance) * sqrt(V_l/c_l) * sum(sqrt(V*c))
+        sum_sqrt_vc = bkd.sum(bkd.sqrt(var_cost_prods))
+        nsamples_per_delta = (1 / target_var) * bkd.sqrt(var_cost_ratios) * sum_sqrt_vc
+
+        # Total cost
+        total_cost = bkd.sum(cost_deltas * nsamples_per_delta)
+
+        # Convert to samples per model
+        nsamples_list = [bkd.reshape(nsamples_per_delta[0], (1,))]
+        for l in range(1, self.nmodels()):
+            n_l = nsamples_per_delta[l - 1] + nsamples_per_delta[l]
+            nsamples_list.append(bkd.reshape(n_l, (1,)))
+        nsamples = bkd.concatenate(nsamples_list)
+
+        return nsamples, total_cost
 
     def __call__(self, values: List[Array]) -> Array:
         """Compute MLMC estimate.
