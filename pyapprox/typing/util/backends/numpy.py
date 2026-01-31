@@ -554,6 +554,16 @@ class NumpyBkd(Backend[NDArray[Any]]):  # Specify NDArray type
         return np.asarray(np.std(array, axis=axis, keepdims=keepdims, ddof=ddof))
 
     @staticmethod
+    def cov(
+        array: NDArray[Any],
+        rowvar: bool = True,
+        ddof: int = 1,
+    ) -> NDArray[Any]:
+        result = np.cov(array, rowvar=rowvar, ddof=ddof)
+        # Ensure result is always 2D (np.cov returns scalar for 1 variable)
+        return np.atleast_2d(np.asarray(result))
+
+    @staticmethod
     def maximum(x1: NDArray[Any], x2: NDArray[Any]) -> NDArray[Any]:
         return np.maximum(x1, x2)
 
@@ -566,6 +576,14 @@ class NumpyBkd(Backend[NDArray[Any]]):  # Specify NDArray type
         array: NDArray[Any], mode: str = "reduced"
     ) -> Tuple[NDArray[Any], NDArray[Any]]:
         return np.linalg.qr(array, mode=mode)
+
+    @staticmethod
+    def split(
+        array: NDArray[Any],
+        indices_or_sections: NDArray[Any],
+        axis: int = 0,
+    ) -> List[NDArray[Any]]:
+        return np.split(array, indices_or_sections, axis=axis)
 
     @staticmethod
     def lu(

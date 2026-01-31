@@ -10,6 +10,7 @@ from typing import (
     Callable,
 )
 
+import numpy as np
 import torch
 from numpy.typing import NDArray
 
@@ -119,6 +120,8 @@ class TorchBkd(Backend[torch.Tensor]):  # Specify torch.Tensor type
 
     @staticmethod
     def to_numpy(array: torch.Tensor) -> NDArray[Any]:
+        if isinstance(array, np.ndarray):
+            return array
         return array.detach().numpy()
 
     @staticmethod
@@ -597,8 +600,31 @@ class TorchBkd(Backend[torch.Tensor]):  # Specify torch.Tensor type
         return torch.std(array, dim=axis, keepdim=keepdims, correction=ddof)
 
     @staticmethod
+    def cov(
+        array: torch.Tensor,
+        rowvar: bool = True,
+        ddof: int = 1,
+    ) -> torch.Tensor:
+        # torch.cov expects rows as variables (like np.cov with rowvar=True)
+        # and uses correction instead of ddof
+        if not rowvar:
+            array = array.T
+        result = torch.cov(array, correction=ddof)
+        # Ensure result is always 2D (torch.cov returns scalar for 1 variable)
+        return torch.atleast_2d(result)
+
+    @staticmethod
     def eigh(array: torch.Tensor) -> Tuple[torch.Tensor, torch.Tensor]:
         return torch.linalg.eigh(array)
+
+    @staticmethod
+    def split(
+        array: torch.Tensor,
+        indices_or_sections: torch.Tensor,
+        axis: int = 0,
+    ) -> List[torch.Tensor]:
+        # torch.tensor_split takes indices directly
+        return list(torch.tensor_split(array, indices_or_sections, dim=axis))
 
     @staticmethod
     def where(

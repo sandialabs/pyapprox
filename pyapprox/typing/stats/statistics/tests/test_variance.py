@@ -80,15 +80,13 @@ class TestMultiOutputVariance(unittest.TestCase):
             self.bkd.asarray(model1.reshape(-1, 1)),
         ]
 
-        cov, means, variances, fourth_moments = stat.compute_pilot_quantities(
-            pilot_values
-        )
+        cov, W = stat.compute_pilot_quantities(pilot_values)
 
         # Check shapes
+        # cov shape: (nmodels*nqoi, nmodels*nqoi) = (2, 2)
         self.assertEqual(cov.shape, (2, 2))
-        self.assertEqual(means.shape, (2, 1))
-        self.assertEqual(variances.shape, (2, 1))
-        self.assertEqual(fourth_moments.shape, (2, 1))
+        # W shape: (nmodels*nqoi^2, nmodels*nqoi^2) = (2, 2) for nqoi=1
+        self.assertEqual(W.shape, (2, 2))
 
         # Check covariance is positive semi-definite
         cov_np = self.bkd.to_numpy(cov)

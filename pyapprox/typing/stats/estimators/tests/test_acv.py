@@ -1262,8 +1262,9 @@ class TestNumericalOptimizationRecursionIndices(Generic[Array], unittest.TestCas
                 self.assertTrue(bkd.all_bool(npart >= 0), "Partition samples should be non-negative")
 
                 # Verify weights are computed
+                # weights has shape (nqoi, nqoi*(nmodels-1)) = (1, nmodels-1) for nqoi=1
                 weights = gis.weights()
-                self.assertEqual(weights.shape[0], nmodels - 1)
+                self.assertEqual(weights.shape, (1, nmodels - 1))
 
     def test_grd_numerical_optimization(self):
         """Test GRD numerical optimization.

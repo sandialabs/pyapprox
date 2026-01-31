@@ -757,6 +757,32 @@ class Backend(Protocol, Generic[Array]):
         ...
 
     @staticmethod
+    def cov(
+        array: Array,
+        rowvar: bool = True,
+        ddof: int = 1,
+    ) -> Array:
+        """Estimate covariance matrix.
+
+        Parameters
+        ----------
+        array : Array
+            Input array containing observations.
+            If rowvar=True (default), rows are variables, columns are observations.
+            If rowvar=False, columns are variables, rows are observations.
+        rowvar : bool
+            If True, each row is a variable; if False, each column is a variable.
+        ddof : int
+            Delta degrees of freedom. Default: 1 (unbiased sample covariance).
+
+        Returns
+        -------
+        Array
+            Covariance matrix. Shape: (nvars, nvars), or scalar if 1D input.
+        """
+        ...
+
+    @staticmethod
     def maximum(x1: Array, x2: Array) -> Array:
         """Element-wise maximum of two arrays."""
         ...
@@ -764,6 +790,30 @@ class Backend(Protocol, Generic[Array]):
     @staticmethod
     def minimum(x1: Array, x2: Array) -> Array:
         """Element-wise minimum of two arrays."""
+        ...
+
+    @staticmethod
+    def split(
+        array: Array,
+        indices_or_sections: Array,
+        axis: int = 0,
+    ) -> List[Array]:
+        """Split array into multiple sub-arrays.
+
+        Parameters
+        ----------
+        array : Array
+            Array to split.
+        indices_or_sections : Array
+            Indices at which to split.
+        axis : int
+            Axis along which to split.
+
+        Returns
+        -------
+        List[Array]
+            List of sub-arrays.
+        """
         ...
 
     @staticmethod

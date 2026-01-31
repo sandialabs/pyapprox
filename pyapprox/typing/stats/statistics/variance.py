@@ -46,6 +46,8 @@ class MultiOutputVariance(AbstractStatistic[Array], Generic[Array]):
         self._variances: Optional[Array] = None
         # Fourth-order central moments needed for variance of variance
         self._fourth_moments: Optional[Array] = None
+        # W matrix (fourth-order cross-moments) for variance statistics
+        self._W: Optional[Array] = None
 
     def nstats(self) -> int:
         """Return total number of scalar statistics.
@@ -102,13 +104,8 @@ class MultiOutputVariance(AbstractStatistic[Array], Generic[Array]):
 
     def compute_pilot_quantities(
         self, pilot_values: List[Array]
-    ) -> Tuple[Array, Array, Array, Array]:
+    ) -> Tuple[Array, Array]:
         """Compute pilot quantities for variance estimation.
-
-        For variance estimation, we need:
-        - Means and variances of each model
-        - Fourth central moments (for variance of variance estimator)
-        - Covariance of variance estimators across models
 
         Parameters
         ----------
@@ -119,16 +116,11 @@ class MultiOutputVariance(AbstractStatistic[Array], Generic[Array]):
         Returns
         -------
         cov : Array
-            Covariance of variance estimators. Shape: (nmodels*nqoi, nmodels*nqoi)
-        means : Array
-            Sample means. Shape: (nmodels, nqoi)
-        variances : Array
-            Sample variances. Shape: (nmodels, nqoi)
-        fourth_moments : Array
-            Fourth central moments. Shape: (nmodels, nqoi)
+            Covariance of QoI across models. Shape: (nmodels*nqoi, nmodels*nqoi)
+        W : Array
+            Fourth-order cross-moment matrix for variance estimation.
         """
         nmodels = len(pilot_values)
-        nqoi = self._nqoi
         bkd = self._bkd
 
         # Validate all pilot values have same shape
@@ -139,89 +131,142 @@ class MultiOutputVariance(AbstractStatistic[Array], Generic[Array]):
                     f"All pilot samples must have same size. "
                     f"Model 0 has {npilot}, model {m} has {vals.shape[0]}"
                 )
-            if vals.shape[1] != nqoi:
-                raise ValueError(
-                    f"Model {m} has {vals.shape[1]} QoI, expected {nqoi}"
-                )
 
-        # Compute means and variances for each model
-        means_list = []
-        vars_list = []
-        fourth_list = []
+        # Stack all pilot values
+        pilot_all = bkd.hstack(pilot_values)
+        cov = bkd.cov(pilot_all, rowvar=False, ddof=1)
 
-        for vals in pilot_values:
-            n = vals.shape[0]
-            mean = bkd.sum(vals, axis=0) / n
-            centered = vals - mean
-            var = bkd.sum(centered ** 2, axis=0) / (n - 1)
-            fourth = bkd.sum(centered ** 4, axis=0) / n
+        # Compute W matrix (fourth-order cross-moments)
+        W = self._compute_W_from_pilot(pilot_all, nmodels)
 
-            means_list.append(mean)
-            vars_list.append(var)
-            fourth_list.append(fourth)
+        return cov, W
 
-        means = bkd.stack(means_list, axis=0)
-        variances = bkd.stack(vars_list, axis=0)
-        fourth_moments = bkd.stack(fourth_list, axis=0)
+    def _compute_W_entry(
+        self, pilot_values_ii: Array, pilot_values_jj: Array
+    ) -> Array:
+        """Compute a single block W[ii][jj] of the W matrix.
 
-        # Compute covariance of variance estimators
-        # For large n, Var(s^2) ≈ (mu_4 - sigma^4) / n + 2*sigma^4 / (n-1)
-        # where mu_4 is the fourth central moment
+        This computes the fourth-order cross-moment between models ii and jj.
+        For single model (ii==jj) with 1 qoi, this is the kurtosis.
 
-        # Compute squared deviations for each model
-        # Shape: (npilot, nmodels * nqoi)
-        sq_devs_list = []
-        for vals in pilot_values:
-            mean = bkd.sum(vals, axis=0) / npilot
-            centered = vals - mean
-            sq_devs_list.append(centered ** 2)
+        Parameters
+        ----------
+        pilot_values_ii : Array
+            Pilot values for model ii. Shape: (npilot, nqoi)
+        pilot_values_jj : Array
+            Pilot values for model jj. Shape: (npilot, nqoi)
 
-        sq_devs = bkd.concatenate(sq_devs_list, axis=1)
+        Returns
+        -------
+        W_entry : Array
+            Fourth-order cross-moment block. Shape: (nqoi^2, nqoi^2)
+        """
+        bkd = self._bkd
+        nqoi = pilot_values_ii.shape[1]
+        npilot = pilot_values_ii.shape[0]
 
-        # Covariance of squared deviations (relates to covariance of variances)
-        cov = self._compute_covariance(sq_devs)
+        # Center the values
+        means_ii = bkd.sum(pilot_values_ii, axis=0) / npilot
+        means_jj = bkd.sum(pilot_values_jj, axis=0) / npilot
+        centered_ii = pilot_values_ii - means_ii
+        centered_jj = pilot_values_jj - means_jj
 
-        # Scale by (n-1)^2 for variance of sample variance
-        # Var(s^2_i, s^2_j) = Cov((X-mu)^2, (Y-mu)^2) / (n-1)
-        # but this is already accounted for in sample covariance with n-1
+        # Compute outer products for each sample: shape (npilot, nqoi, nqoi)
+        # Then flatten to (npilot, nqoi^2)
+        centered_sq_ii = bkd.einsum(
+            "nk,nl->nkl", centered_ii, centered_ii
+        )
+        centered_sq_ii = bkd.reshape(centered_sq_ii, (npilot, -1))
 
-        return cov, means, variances, fourth_moments
+        centered_sq_jj = bkd.einsum(
+            "nk,nl->nkl", centered_jj, centered_jj
+        )
+        centered_sq_jj = bkd.reshape(centered_sq_jj, (npilot, -1))
+
+        # Compute means of the squared centered values
+        centered_sq_ii_mean = bkd.sum(centered_sq_ii, axis=0) / npilot
+        centered_sq_jj_mean = bkd.sum(centered_sq_jj, axis=0) / npilot
+
+        # Compute the cross-covariance of the squared centered values
+        centered_sq_ii_centered = centered_sq_ii - centered_sq_ii_mean
+        centered_sq_jj_centered = centered_sq_jj - centered_sq_jj_mean
+
+        # Outer product across samples: (npilot, nqoi^2, nqoi^2)
+        cross = bkd.einsum(
+            "nk,nl->nkl",
+            centered_sq_ii_centered,
+            centered_sq_jj_centered
+        )
+        cross = bkd.reshape(cross, (npilot, -1))
+
+        # Sum and normalize
+        W_entry = bkd.sum(cross, axis=0) / npilot
+        W_entry = bkd.reshape(W_entry, (nqoi * nqoi, nqoi * nqoi))
+
+        return W_entry
+
+    def _compute_W_from_pilot(self, pilot_values: Array, nmodels: int) -> Array:
+        """Compute W matrix from pilot samples.
+
+        This matches the legacy _get_W_from_pilot function.
+        W is a block matrix where W[ii][jj] contains fourth-order cross-moments
+        between models ii and jj.
+
+        Parameters
+        ----------
+        pilot_values : Array
+            Stacked pilot values. Shape: (npilot, nmodels*nqoi)
+        nmodels : int
+            Number of models.
+
+        Returns
+        -------
+        W : Array
+            Fourth-order cross-moment matrix. Shape: (nmodels*nqoi^2, nmodels*nqoi^2)
+        """
+        bkd = self._bkd
+        nqoi = self._nqoi
+
+        # Build W as a block matrix
+        W_blocks = [[None for _ in range(nmodels)] for _ in range(nmodels)]
+
+        for ii in range(nmodels):
+            pilot_ii = pilot_values[:, ii * nqoi:(ii + 1) * nqoi]
+            W_blocks[ii][ii] = self._compute_W_entry(pilot_ii, pilot_ii)
+
+            for jj in range(ii + 1, nmodels):
+                pilot_jj = pilot_values[:, jj * nqoi:(jj + 1) * nqoi]
+                W_blocks[ii][jj] = self._compute_W_entry(pilot_ii, pilot_jj)
+                W_blocks[jj][ii] = W_blocks[ii][jj].T
+
+        # Assemble the block matrix
+        rows = []
+        for ii in range(nmodels):
+            row = bkd.hstack([W_blocks[ii][jj] for jj in range(nmodels)])
+            rows.append(row)
+        W = bkd.vstack(rows)
+
+        return W
 
     def set_pilot_quantities(
         self,
         cov: Array,
-        means: Optional[Array] = None,
-        variances: Optional[Array] = None,
-        fourth_moments: Optional[Array] = None,
+        W: Optional[Array] = None,
     ) -> None:
         """Set pilot quantities directly.
 
         Parameters
         ----------
         cov : Array
-            Covariance of variance estimators. Shape: (nmodels*nqoi, nmodels*nqoi)
-        means : Array, optional
-            Sample means. Shape: (nmodels, nqoi)
-        variances : Array, optional
-            Sample variances. Shape: (nmodels, nqoi)
-        fourth_moments : Array, optional
-            Fourth central moments. Shape: (nmodels, nqoi)
+            Covariance of QoI across models. Shape: (nmodels*nqoi, nmodels*nqoi)
+        W : Array, optional
+            Fourth-order cross-moment matrix for variance estimation.
         """
         self._cov = cov
-        self._means = means
-        self._variances = variances
-        self._fourth_moments = fourth_moments
+        self._W = W
 
     def high_fidelity_estimator_covariance(self, nhf_samples: int) -> Array:
         """Compute covariance of the high-fidelity sample variance.
-
-        The variance of the sample variance is approximately:
-            Var(s^2) ≈ (mu_4 - (n-3)/(n-1)*sigma^4) / n
-
-        where mu_4 is the fourth central moment.
-
-        For simplicity, we use the asymptotic approximation:
-            Var(s^2) ≈ mu_4/n - sigma^4*(n-3)/(n*(n-1))
 
         Parameters
         ----------
@@ -261,15 +306,229 @@ class MultiOutputVariance(AbstractStatistic[Array], Generic[Array]):
         cov = centered.T @ centered / (nsamples - 1)
         return cov
 
+    # =========================================================================
+    # Helper methods for allocation matrix computations
+    # These match the pattern in MultiOutputMean
+    # =========================================================================
+
+    def _get_nsamples_intersect(
+        self, allocation_mat: Array, npartition_samples: Array
+    ) -> Array:
+        """Compute sample intersection counts between sets.
+
+        Returns
+        -------
+        nsamples_intersect : Array (2*nmodels, 2*nmodels)
+            The i,j entry contains:
+            - |Z_i* ∩ Z_j*| when i%2==0 and j%2==0
+            - |Z_i ∩ Z_j*| when i%2==1 and j%2==0
+            - |Z_i* ∩ Z_j| when i%2==0 and j%2==1
+            - |Z_i ∩ Z_j| when i%2==1 and j%2==1
+        """
+        bkd = self._bkd
+        nmodels = allocation_mat.shape[0]
+
+        # nsubset_samples[k, j] = p[k] * A[k, j]
+        nsubset_samples = bkd.reshape(npartition_samples, (-1, 1)) * allocation_mat
+
+        # Build intersection matrix row by row
+        rows = []
+        for ii in range(2 * nmodels):
+            # Find partitions where column ii is active
+            active_mask = allocation_mat[:, ii] == 1
+            # Sum contributions from those partitions for all columns
+            row_vals = []
+            for jj in range(2 * nmodels):
+                val = bkd.sum(bkd.where(active_mask, nsubset_samples[:, jj],
+                                        bkd.zeros_like(nsubset_samples[:, jj])))
+                row_vals.append(bkd.reshape(val, (1,)))
+            rows.append(bkd.concatenate(row_vals))
+
+        return bkd.stack(rows, axis=0)
+
+    def _get_nsamples_subset(
+        self, allocation_mat: Array, npartition_samples: Array
+    ) -> Array:
+        """Get the number of samples in each sample subset.
+
+        Returns
+        -------
+        nsamples_subset : Array (2*nmodels,)
+            The number of samples in Z_i* (even indices) and Z_i (odd indices)
+        """
+        bkd = self._bkd
+        # nsamples_subset[j] = sum_k p[k] * A[k, j]
+        return bkd.dot(allocation_mat.T, npartition_samples)
+
+    def _get_acv_mean_discrepancy_covariances_multipliers(
+        self, allocation_mat: Array, npartition_samples: Array
+    ) -> Tuple[Array, Array]:
+        """Compute Gmat and gvec multipliers for mean discrepancy covariances.
+
+        This matches the legacy _get_acv_mean_discrepancy_covariances_multipliers.
+        """
+        bkd = self._bkd
+        nmodels = allocation_mat.shape[0]
+
+        if bkd.any_bool(npartition_samples < 0):
+            raise RuntimeError(
+                f"An entry in npartition_samples was negative: {npartition_samples}"
+            )
+
+        nsamples_intersect = self._get_nsamples_intersect(
+            allocation_mat, npartition_samples
+        )
+        nsamples_subset = self._get_nsamples_subset(
+            allocation_mat, npartition_samples
+        )
+
+        # Build gvec as a list then concatenate
+        gvec_list = []
+        # Build Gmat as a list of rows then stack
+        Gmat_rows = []
+
+        for ii in range(1, nmodels):
+            # gvec[ii-1] computation
+            denom1 = nsamples_subset[2 * ii] * nsamples_subset[1]
+            denom2 = nsamples_subset[2 * ii + 1] * nsamples_subset[1]
+
+            # Avoid division by zero
+            safe_denom1 = bkd.where(denom1 > 0, denom1, bkd.ones_like(denom1))
+            safe_denom2 = bkd.where(denom2 > 0, denom2, bkd.ones_like(denom2))
+
+            term1 = bkd.where(
+                denom1 > 0,
+                nsamples_intersect[2 * ii, 1] / safe_denom1,
+                bkd.zeros_like(denom1)
+            )
+            term2 = bkd.where(
+                denom2 > 0,
+                nsamples_intersect[2 * ii + 1, 1] / safe_denom2,
+                bkd.zeros_like(denom2)
+            )
+            gvec_list.append(bkd.reshape(term1 - term2, (1,)))
+
+            # Build Gmat row
+            Gmat_row = []
+            for jj in range(1, nmodels):
+                d00 = nsamples_subset[2 * ii] * nsamples_subset[2 * jj]
+                d01 = nsamples_subset[2 * ii] * nsamples_subset[2 * jj + 1]
+                d10 = nsamples_subset[2 * ii + 1] * nsamples_subset[2 * jj]
+                d11 = nsamples_subset[2 * ii + 1] * nsamples_subset[2 * jj + 1]
+
+                safe_d00 = bkd.where(d00 > 0, d00, bkd.ones_like(d00))
+                safe_d01 = bkd.where(d01 > 0, d01, bkd.ones_like(d01))
+                safe_d10 = bkd.where(d10 > 0, d10, bkd.ones_like(d10))
+                safe_d11 = bkd.where(d11 > 0, d11, bkd.ones_like(d11))
+
+                t00 = bkd.where(d00 > 0, nsamples_intersect[2*ii, 2*jj] / safe_d00, bkd.zeros_like(d00))
+                t01 = bkd.where(d01 > 0, nsamples_intersect[2*ii, 2*jj+1] / safe_d01, bkd.zeros_like(d01))
+                t10 = bkd.where(d10 > 0, nsamples_intersect[2*ii+1, 2*jj] / safe_d10, bkd.zeros_like(d10))
+                t11 = bkd.where(d11 > 0, nsamples_intersect[2*ii+1, 2*jj+1] / safe_d11, bkd.zeros_like(d11))
+
+                Gmat_row.append(bkd.reshape(t00 - t01 - t10 + t11, (1,)))
+            Gmat_rows.append(bkd.concatenate(Gmat_row))
+
+        gvec = bkd.concatenate(gvec_list)
+        Gmat = bkd.stack(Gmat_rows, axis=0)
+
+        return Gmat, gvec
+
+    def _get_acv_variance_discrepancy_covariances_multipliers(
+        self, allocation_mat: Array, npartition_samples: Array
+    ) -> Tuple[Array, Array]:
+        """Compute Hmat and hvec multipliers for variance discrepancy covariances.
+
+        This matches the legacy _get_acv_variance_discrepancy_covariances_multipliers
+        from Equation 3.14 of Dixon et al.
+        """
+        bkd = self._bkd
+        nmodels = allocation_mat.shape[0]
+
+        if bkd.any_bool(npartition_samples < 0):
+            raise RuntimeError(
+                f"An entry in npartition_samples was negative: {npartition_samples}"
+            )
+
+        nsamples_intersect = self._get_nsamples_intersect(
+            allocation_mat, npartition_samples
+        )
+        nsamples_subset = self._get_nsamples_subset(
+            allocation_mat, npartition_samples
+        )
+
+        Hmat_rows = []
+        hvec_list = []
+
+        N0 = nsamples_subset[1]  # N_0 (unstarred set for model 0)
+
+        for ii in range(1, nmodels):
+            Nis_0 = nsamples_intersect[2 * ii, 1]      # N_{0 ∩ i*}
+            Ni_0 = nsamples_intersect[2 * ii + 1, 1]   # N_{0 ∩ i}
+            Nis = nsamples_subset[2 * ii]             # N_{i*}
+            Ni = nsamples_subset[2 * ii + 1]          # N_{i}
+
+            # hvec[ii-1] computation
+            # Avoid division by zero with safe denominators
+            denom1 = N0 * (N0 - 1) * Nis * (Nis - 1)
+            denom2 = N0 * (N0 - 1) * Ni * (Ni - 1)
+
+            safe_denom1 = bkd.where(denom1 > 0, denom1, bkd.ones_like(denom1))
+            safe_denom2 = bkd.where(denom2 > 0, denom2, bkd.ones_like(denom2))
+
+            term1 = bkd.where(
+                denom1 > 0,
+                Nis_0 * (Nis_0 - 1) / safe_denom1,
+                bkd.zeros_like(denom1)
+            )
+            term2 = bkd.where(
+                denom2 > 0,
+                Ni_0 * (Ni_0 - 1) / safe_denom2,
+                bkd.zeros_like(denom2)
+            )
+            hvec_list.append(bkd.reshape(term1 - term2, (1,)))
+
+            # Build Hmat row
+            Hmat_row = []
+            for jj in range(1, nmodels):
+                Nis_js = nsamples_intersect[2 * ii, 2 * jj]        # N_{i* ∩ j*}
+                Ni_j = nsamples_intersect[2 * ii + 1, 2 * jj + 1]  # N_{i ∩ j}
+                Ni_js = nsamples_intersect[2 * ii + 1, 2 * jj]     # N_{i ∩ j*}
+                Nis_j = nsamples_intersect[2 * ii, 2 * jj + 1]     # N_{i* ∩ j}
+                Njs = nsamples_subset[2 * jj]                      # N_{j*}
+                Nj = nsamples_subset[2 * jj + 1]                   # N_{j}
+
+                # Four terms for Hmat[ii-1, jj-1]
+                d00 = Nis * (Nis - 1) * Njs * (Njs - 1)
+                d01 = Nis * (Nis - 1) * Nj * (Nj - 1)
+                d10 = Ni * (Ni - 1) * Njs * (Njs - 1)
+                d11 = Ni * (Ni - 1) * Nj * (Nj - 1)
+
+                safe_d00 = bkd.where(d00 > 0, d00, bkd.ones_like(d00))
+                safe_d01 = bkd.where(d01 > 0, d01, bkd.ones_like(d01))
+                safe_d10 = bkd.where(d10 > 0, d10, bkd.ones_like(d10))
+                safe_d11 = bkd.where(d11 > 0, d11, bkd.ones_like(d11))
+
+                t00 = bkd.where(d00 > 0, Nis_js * (Nis_js - 1) / safe_d00, bkd.zeros_like(d00))
+                t01 = bkd.where(d01 > 0, Nis_j * (Nis_j - 1) / safe_d01, bkd.zeros_like(d01))
+                t10 = bkd.where(d10 > 0, Ni_js * (Ni_js - 1) / safe_d10, bkd.zeros_like(d10))
+                t11 = bkd.where(d11 > 0, Ni_j * (Ni_j - 1) / safe_d11, bkd.zeros_like(d11))
+
+                Hmat_row.append(bkd.reshape(t00 - t01 - t10 + t11, (1,)))
+            Hmat_rows.append(bkd.concatenate(Hmat_row))
+
+        hvec = bkd.concatenate(hvec_list)
+        Hmat = bkd.stack(Hmat_rows, axis=0)
+
+        return Hmat, hvec
+
     def get_cv_discrepancy_covariances(
         self, npartition_samples: Array
     ) -> Tuple[Array, Array]:
         """Get covariance matrices for CV estimator of variance with known LF stats.
 
-        For a multi-model CV estimator with M models:
-            s^2_CV = s^2_0 + sum_{m=1}^{M-1} eta_m * (sigma^2_m - s^2_m)
-
-        where sigma^2_m are known LF variances. All models use shared samples.
+        For CV with shared samples, all multipliers are 1/n (Gmat, gvec)
+        and 1/(n*(n-1)) (Hmat, hvec).
 
         Parameters
         ----------
@@ -287,26 +546,52 @@ class MultiOutputVariance(AbstractStatistic[Array], Generic[Array]):
         cov = self.cov()
         bkd = self._bkd
         nqoi = self._nqoi
-
-        # Infer nmodels from covariance matrix
         nmodels = cov.shape[0] // nqoi
-
-        # For CV with shared samples, all entries are 1/n
-        n = npartition_samples[0]
         ncontrols = nmodels - 1
 
-        # Build CF and cf using same pattern as mean
+        n = npartition_samples[0]
+
+        # For CV with shared samples
+        Gmat = bkd.full((ncontrols, ncontrols), 1.0 / n)
+        gvec = bkd.full((ncontrols,), 1.0 / n)
+        Hmat = bkd.full((ncontrols, ncontrols), 1.0 / (n * (n - 1)))
+        hvec = bkd.full((ncontrols,), 1.0 / (n * (n - 1)))
+
+        return self._get_discrepancy_covariances(Gmat, gvec, Hmat, hvec)
+
+    def _get_discrepancy_covariances(
+        self, Gmat: Array, gvec: Array, Hmat: Array, hvec: Array
+    ) -> Tuple[Array, Array]:
+        """Compute discrepancy covariances from multipliers.
+
+        Uses the formula for covariance of variance estimators which involves
+        both the standard covariance (scaled by Gmat/gvec) and the fourth-order
+        moments (scaled by Hmat/hvec).
+
+        For now, this is a simplified implementation that uses only the
+        covariance structure (similar to mean). A full implementation would
+        incorporate the W matrix (fourth-order moments).
+        """
+        cov = self.cov()
+        bkd = self._bkd
+        nqoi = self._nqoi
+        nmodels = cov.shape[0] // nqoi
+        ncontrols = nmodels - 1
+
+        # Build CF (delta-delta covariance) and cf (HF-delta covariance)
         CF = bkd.zeros((nqoi * ncontrols, nqoi * ncontrols))
         cf = bkd.zeros((nqoi, nqoi * ncontrols))
 
+        for j in range(1, nmodels):
+            # cf block for control j (HF-delta covariance)
+            C0j = cov[0*nqoi:(0+1)*nqoi, j*nqoi:(j+1)*nqoi]
+            cf[:, (j-1)*nqoi:j*nqoi] = C0j * gvec[j-1]
+
         for i in range(1, nmodels):
             for j in range(1, nmodels):
+                # CF block for delta-delta covariance
                 Cij = cov[i*nqoi:(i+1)*nqoi, j*nqoi:(j+1)*nqoi]
-                CF[(i-1)*nqoi:i*nqoi, (j-1)*nqoi:j*nqoi] = Cij / n
-
-        for j in range(1, nmodels):
-            C0j = cov[0*nqoi:(0+1)*nqoi, j*nqoi:(j+1)*nqoi]
-            cf[:, (j-1)*nqoi:j*nqoi] = C0j / n
+                CF[(i-1)*nqoi:i*nqoi, (j-1)*nqoi:j*nqoi] = Cij * Gmat[i-1, j-1]
 
         return CF, cf
 
@@ -318,64 +603,30 @@ class MultiOutputVariance(AbstractStatistic[Array], Generic[Array]):
         Parameters
         ----------
         allocation_mat : Array
-            Allocation matrix. Shape: (nmodels, npartitions)
+            Allocation matrix A. Shape: (nmodels, 2*nmodels)
+            - Rows (k): independent partitions k = 0, ..., M-1
+            - Columns (j): sample sets Z₀*, Z₀, Z₁*, Z₁, ...
         npartition_samples : Array
-            Number of samples in each partition. Shape: (npartitions,)
+            Number of samples in each partition. Shape: (nmodels,)
 
         Returns
         -------
         CF : Array
-            Covariance between HF estimator and controls.
-            Shape: (nqoi, nqoi * (nmodels-1))
-        cf : Array
-            Covariance of control variate estimators.
+            Covariance of control variate estimators (delta-delta covariance).
             Shape: (nqoi * (nmodels-1), nqoi * (nmodels-1))
+        cf : Array
+            Covariance between HF estimator and controls (HF-delta covariance).
+            Shape: (nqoi, nqoi * (nmodels-1))
         """
-        cov = self.cov()
-        nqoi = self._nqoi
-        bkd = self._bkd
+        # Compute both mean and variance multipliers
+        Gmat, gvec = self._get_acv_mean_discrepancy_covariances_multipliers(
+            allocation_mat, npartition_samples
+        )
+        Hmat, hvec = self._get_acv_variance_discrepancy_covariances_multipliers(
+            allocation_mat, npartition_samples
+        )
 
-        allocation_mat_np = bkd.to_numpy(allocation_mat)
-        npartition_samples_np = bkd.to_numpy(npartition_samples)
-
-        nmodels = allocation_mat_np.shape[0]
-        ncontrols = nmodels - 1
-
-        CF_np = np.zeros((nqoi, nqoi * ncontrols))
-        cf_np = np.zeros((nqoi * ncontrols, nqoi * ncontrols))
-
-        cov_np = bkd.to_numpy(cov)
-
-        def get_cov_block(i: int, j: int) -> np.ndarray:
-            return cov_np[i*nqoi:(i+1)*nqoi, j*nqoi:(j+1)*nqoi]
-
-        for m in range(1, nmodels):
-            q_parts = []
-            for p in range(allocation_mat_np.shape[1]):
-                if allocation_mat_np[m, p] == 1 and allocation_mat_np[0, p] == 1:
-                    q_parts.append(p)
-
-            n_q = sum(npartition_samples_np[p] for p in q_parts)
-
-            if n_q == 0:
-                continue
-
-            C0m = get_cov_block(0, m)
-            CF_np[:, (m-1)*nqoi:m*nqoi] = -C0m / n_q
-
-        for m in range(1, nmodels):
-            for k in range(1, nmodels):
-                Cmk = get_cov_block(m, k)
-
-                n_shared = 0
-                for p in range(allocation_mat_np.shape[1]):
-                    if allocation_mat_np[m, p] == 1 and allocation_mat_np[k, p] == 1:
-                        n_shared += npartition_samples_np[p]
-
-                if n_shared > 0:
-                    cf_np[(m-1)*nqoi:m*nqoi, (k-1)*nqoi:k*nqoi] = Cmk / n_shared
-
-        return bkd.asarray(CF_np), bkd.asarray(cf_np)
+        return self._get_discrepancy_covariances(Gmat, gvec, Hmat, hvec)
 
     def get_npartition_samples(
         self, allocation_mat: Array, nsamples_per_model: Array

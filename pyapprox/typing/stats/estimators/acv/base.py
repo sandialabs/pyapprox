@@ -163,20 +163,14 @@ class ACVEstimator(BootstrapMixin[Array], AbstractEstimator[Array], Generic[Arra
         nqoi = self._stat.nqoi()
         ncontrols = self.nmodels() - 1
 
-        # Solve for weights: eta = cf^{-1} @ CF^T
-        if nqoi == 1:
-            # Simple case: direct solution
-            cf_flat = bkd.flatten(cf)
-            CF_flat = bkd.flatten(CF)
-            if cf.shape == (1, 1):
-                cf_val = cf[0, 0]
-                # Avoid division by zero
-                eta = CF_flat / bkd.maximum(bkd.abs(cf_val), bkd.asarray(1e-14))
-            else:
-                eta = bkd.flatten(bkd.solve(cf, bkd.reshape(CF_flat, (-1, 1))))
-        else:
-            # Multi-QoI: block-wise solution
-            eta = bkd.solve(cf, CF.T)
+        # Compute optimal weights: eta = -CF^{-1} @ cf.T, then .T
+        # CF has shape (nqoi*(nmodels-1), nqoi*(nmodels-1)) - square
+        # cf has shape (nqoi, nqoi*(nmodels-1))
+        # Result eta has shape (nqoi, nqoi*(nmodels-1))
+        cf_T = cf.T  # shape (nqoi*(nmodels-1), nqoi)
+        # Solve CF @ x = cf.T where x has shape (nqoi*(nmodels-1), nqoi)
+        x = bkd.solve(CF, cf_T)  # shape (nqoi*(nmodels-1), nqoi)
+        eta = -x.T  # shape (nqoi, nqoi*(nmodels-1))
 
         return eta
 
@@ -695,9 +689,9 @@ class ACVEstimator(BootstrapMixin[Array], AbstractEstimator[Array], Generic[Arra
                 nqoi = values_per_model[model_idx].shape[1]
                 acv_values.append(bkd.zeros((0, nqoi)))
             else:
-                # atleast2d needed when indices.shape[0] == 1
+                # atleast_2d needed when indices.shape[0] == 1
                 acv_values.append(
-                    bkd.atleast2d(values_per_model[model_idx][indices])
+                    bkd.atleast_2d(values_per_model[model_idx][indices])
                 )
 
         return acv_values
@@ -824,38 +818,28 @@ class ACVEstimator(BootstrapMixin[Array], AbstractEstimator[Array], Generic[Arra
         alloc_mat = self.get_allocation_matrix()
 
         # Get discrepancy covariances
+        # CF: delta-delta covariance, shape (nqoi*(nmodels-1), nqoi*(nmodels-1))
+        # cf: HF-delta covariance, shape (nqoi, nqoi*(nmodels-1))
         CF, cf = self._stat.get_acv_discrepancy_covariances(alloc_mat, npartition_samples)
         nqoi = self._stat.nqoi()
-
-        # Compute weights from covariances: eta = cf^{-1} @ CF^T
-        if nqoi == 1:
-            # Scalar case
-            cf_flat = bkd.flatten(cf)
-            CF_flat = bkd.flatten(CF)
-            # Check if cf is essentially a scalar
-            if cf.shape == (1, 1):
-                cf_val = cf[0, 0]
-                # Avoid division by zero
-                eta = CF_flat / bkd.maximum(bkd.abs(cf_val), bkd.asarray(1e-14))
-            else:
-                # Solve linear system
-                eta = bkd.flatten(bkd.solve(cf, bkd.reshape(CF_flat, (-1, 1))))
-        else:
-            # Multi-QoI: use least squares
-            eta_sol, _, _, _ = bkd.lstsq(cf, CF.T)
-            eta = eta_sol.T
 
         # Compute HF covariance
         nhf = npartition_samples[0]
         hf_cov = self._stat.high_fidelity_estimator_covariance(nhf)
 
-        # Compute variance reduction
+        # Compute optimal weights: eta = -CF^{-1} @ cf.T
+        # Then variance: V(Q_ACV) = V(Q_0) + eta @ cf.T = V(Q_0) - cf @ CF^{-1} @ cf.T
+        # So we solve CF @ x = cf.T, then compute variance reduction = cf @ x
         if nqoi == 1:
-            # V(Q_ACV) = V(Q_0) - eta^T @ cf @ eta
-            eta_row = bkd.reshape(eta, (1, -1))
-            var_red = eta_row @ cf @ eta_row.T
+            # Scalar case: CF is (nmodels-1, nmodels-1), cf is (1, nmodels-1)
+            # Solve CF @ x = cf.T where x has shape (nmodels-1, 1)
+            cf_T = cf.T  # shape (nmodels-1, 1)
+            x = bkd.solve(CF, cf_T)  # shape (nmodels-1, 1)
+            # Variance reduction = cf @ x = cf @ CF^{-1} @ cf.T
+            var_red = cf @ x  # shape (1, 1)
             return hf_cov - bkd.reshape(var_red, hf_cov.shape)
         else:
+            # Multi-QoI case - just return HF covariance for now
             return hf_cov
 
     def _covariance_from_partition_ratios(
@@ -936,12 +920,20 @@ class ACVEstimator(BootstrapMixin[Array], AbstractEstimator[Array], Generic[Arra
             start = end
 
         # Collect samples for each model
+        # Allocation matrix: rows=partitions, cols=sample sets [Z_0*, Z_0, Z_1*, Z_1, ...]
+        # Model m uses partition p if alloc_mat[p, 2*m]==1 or alloc_mat[p, 2*m+1]==1
         model_samples: List[Array] = []
         for m in range(nmodels):
             model_samps: List[Array] = []
+            col_starred = 2 * m
+            col_unstarred = 2 * m + 1
             for p in range(npartitions):
                 count = int(npart[p].item())
-                if alloc_mat[m, p].item() == 1 and count > 0:
+                uses_partition = (
+                    alloc_mat[p, col_starred].item() == 1
+                    or alloc_mat[p, col_unstarred].item() == 1
+                )
+                if uses_partition and count > 0:
                     model_samps.append(partition_samples[p])
 
             if model_samps:
@@ -1037,9 +1029,13 @@ class ACVEstimator(BootstrapMixin[Array], AbstractEstimator[Array], Generic[Arra
             mu_m = bkd.sum(values[m], axis=0) / nlf
 
             # Weight for this control
-            eta_m = weights[m - 1] if weights.ndim == 1 else weights[m - 1, :]
+            # weights has shape (nqoi, nqoi*(nmodels-1))
+            # Extract block for control m-1: columns [(m-1)*nqoi : m*nqoi]
+            nqoi = self._stat.nqoi()
+            eta_m = weights[:, (m - 1) * nqoi:m * nqoi]
 
-            correction = correction + eta_m * (mu_m - Q_m)
+            # eta_m @ (mu_m - Q_m) gives shape (nqoi,)
+            correction = correction + bkd.dot(eta_m, mu_m - Q_m)
 
         return Q0 + correction
 
@@ -1145,9 +1141,13 @@ class ACVEstimator(BootstrapMixin[Array], AbstractEstimator[Array], Generic[Arra
             mu_m = bkd.sum(values_per_model[m], axis=0) / nlf
 
             # Weight for this control
-            eta_m = weights[m - 1] if weights.ndim == 1 else weights[m - 1, :]
+            # weights has shape (nqoi, nqoi*(nmodels-1))
+            # Extract block for control m-1: columns [(m-1)*nqoi : m*nqoi]
+            nqoi = self._stat.nqoi()
+            eta_m = weights[:, (m - 1) * nqoi:m * nqoi]
 
-            correction = correction + eta_m * (mu_m - Q_m)
+            # eta_m @ (mu_m - Q_m) gives shape (nqoi,)
+            correction = correction + bkd.dot(eta_m, mu_m - Q_m)
 
         return Q0 + correction
 

@@ -328,34 +328,213 @@ class MultiOutputMeanAndVariance(AbstractStatistic[Array], Generic[Array]):
         cov = centered.T @ centered / (nsamples - 1)
         return cov
 
-    def get_cv_discrepancy_covariances(
-        self, npartition_samples: Array
-    ) -> Tuple[Array, Array]:
-        """Get covariance matrices for CV estimator of mean+variance.
+    # =========================================================================
+    # Helper methods for allocation matrix computations
+    # These match the pattern in MultiOutputMean and MultiOutputVariance
+    # =========================================================================
 
-        For a multi-model CV estimator with M models, all using shared samples.
-
-        Parameters
-        ----------
-        npartition_samples : Array
-            Number of samples in the single shared partition. Shape: (1,)
+    def _get_nsamples_intersect(
+        self, allocation_mat: Array, npartition_samples: Array
+    ) -> Array:
+        """Compute sample intersection counts between sets.
 
         Returns
         -------
-        CF : Array
-            Covariance of discrepancies.
-            Shape: (2*nqoi*(nmodels-1), 2*nqoi*(nmodels-1))
-        cf : Array
-            Covariance between HF estimator and discrepancies.
-            Shape: (2*nqoi, 2*nqoi*(nmodels-1))
+        nsamples_intersect : Array (2*nmodels, 2*nmodels)
+            The i,j entry contains the sample count in the intersection of sets i and j.
+        """
+        bkd = self._bkd
+        nmodels = allocation_mat.shape[0]
+
+        # nsubset_samples[k, j] = p[k] * A[k, j]
+        nsubset_samples = bkd.reshape(npartition_samples, (-1, 1)) * allocation_mat
+
+        # Build intersection matrix row by row
+        rows = []
+        for ii in range(2 * nmodels):
+            # Find partitions where column ii is active
+            active_mask = allocation_mat[:, ii] == 1
+            # Sum contributions from those partitions for all columns
+            row_vals = []
+            for jj in range(2 * nmodels):
+                val = bkd.sum(bkd.where(active_mask, nsubset_samples[:, jj],
+                                        bkd.zeros_like(nsubset_samples[:, jj])))
+                row_vals.append(bkd.reshape(val, (1,)))
+            rows.append(bkd.concatenate(row_vals))
+
+        return bkd.stack(rows, axis=0)
+
+    def _get_nsamples_subset(
+        self, allocation_mat: Array, npartition_samples: Array
+    ) -> Array:
+        """Get the number of samples in each sample subset.
+
+        Returns
+        -------
+        nsamples_subset : Array (2*nmodels,)
+            The number of samples in Z_i* (even indices) and Z_i (odd indices)
+        """
+        bkd = self._bkd
+        # nsamples_subset[j] = sum_k p[k] * A[k, j]
+        return bkd.dot(allocation_mat.T, npartition_samples)
+
+    def _get_acv_mean_discrepancy_covariances_multipliers(
+        self, allocation_mat: Array, npartition_samples: Array
+    ) -> Tuple[Array, Array]:
+        """Compute Gmat and gvec multipliers for mean discrepancy covariances."""
+        bkd = self._bkd
+        nmodels = allocation_mat.shape[0]
+
+        if bkd.any_bool(npartition_samples < 0):
+            raise RuntimeError(
+                f"An entry in npartition_samples was negative: {npartition_samples}"
+            )
+
+        nsamples_intersect = self._get_nsamples_intersect(
+            allocation_mat, npartition_samples
+        )
+        nsamples_subset = self._get_nsamples_subset(
+            allocation_mat, npartition_samples
+        )
+
+        gvec_list = []
+        Gmat_rows = []
+
+        for ii in range(1, nmodels):
+            denom1 = nsamples_subset[2 * ii] * nsamples_subset[1]
+            denom2 = nsamples_subset[2 * ii + 1] * nsamples_subset[1]
+
+            safe_denom1 = bkd.where(denom1 > 0, denom1, bkd.ones_like(denom1))
+            safe_denom2 = bkd.where(denom2 > 0, denom2, bkd.ones_like(denom2))
+
+            term1 = bkd.where(
+                denom1 > 0,
+                nsamples_intersect[2 * ii, 1] / safe_denom1,
+                bkd.zeros_like(denom1)
+            )
+            term2 = bkd.where(
+                denom2 > 0,
+                nsamples_intersect[2 * ii + 1, 1] / safe_denom2,
+                bkd.zeros_like(denom2)
+            )
+            gvec_list.append(bkd.reshape(term1 - term2, (1,)))
+
+            Gmat_row = []
+            for jj in range(1, nmodels):
+                d00 = nsamples_subset[2 * ii] * nsamples_subset[2 * jj]
+                d01 = nsamples_subset[2 * ii] * nsamples_subset[2 * jj + 1]
+                d10 = nsamples_subset[2 * ii + 1] * nsamples_subset[2 * jj]
+                d11 = nsamples_subset[2 * ii + 1] * nsamples_subset[2 * jj + 1]
+
+                safe_d00 = bkd.where(d00 > 0, d00, bkd.ones_like(d00))
+                safe_d01 = bkd.where(d01 > 0, d01, bkd.ones_like(d01))
+                safe_d10 = bkd.where(d10 > 0, d10, bkd.ones_like(d10))
+                safe_d11 = bkd.where(d11 > 0, d11, bkd.ones_like(d11))
+
+                t00 = bkd.where(d00 > 0, nsamples_intersect[2*ii, 2*jj] / safe_d00, bkd.zeros_like(d00))
+                t01 = bkd.where(d01 > 0, nsamples_intersect[2*ii, 2*jj+1] / safe_d01, bkd.zeros_like(d01))
+                t10 = bkd.where(d10 > 0, nsamples_intersect[2*ii+1, 2*jj] / safe_d10, bkd.zeros_like(d10))
+                t11 = bkd.where(d11 > 0, nsamples_intersect[2*ii+1, 2*jj+1] / safe_d11, bkd.zeros_like(d11))
+
+                Gmat_row.append(bkd.reshape(t00 - t01 - t10 + t11, (1,)))
+            Gmat_rows.append(bkd.concatenate(Gmat_row))
+
+        gvec = bkd.concatenate(gvec_list)
+        Gmat = bkd.stack(Gmat_rows, axis=0)
+
+        return Gmat, gvec
+
+    def _get_acv_variance_discrepancy_covariances_multipliers(
+        self, allocation_mat: Array, npartition_samples: Array
+    ) -> Tuple[Array, Array]:
+        """Compute Hmat and hvec multipliers for variance discrepancy covariances."""
+        bkd = self._bkd
+        nmodels = allocation_mat.shape[0]
+
+        if bkd.any_bool(npartition_samples < 0):
+            raise RuntimeError(
+                f"An entry in npartition_samples was negative: {npartition_samples}"
+            )
+
+        nsamples_intersect = self._get_nsamples_intersect(
+            allocation_mat, npartition_samples
+        )
+        nsamples_subset = self._get_nsamples_subset(
+            allocation_mat, npartition_samples
+        )
+
+        Hmat_rows = []
+        hvec_list = []
+
+        N0 = nsamples_subset[1]  # N_0 (unstarred set for model 0)
+
+        for ii in range(1, nmodels):
+            Nis_0 = nsamples_intersect[2 * ii, 1]
+            Ni_0 = nsamples_intersect[2 * ii + 1, 1]
+            Nis = nsamples_subset[2 * ii]
+            Ni = nsamples_subset[2 * ii + 1]
+
+            denom1 = N0 * (N0 - 1) * Nis * (Nis - 1)
+            denom2 = N0 * (N0 - 1) * Ni * (Ni - 1)
+
+            safe_denom1 = bkd.where(denom1 > 0, denom1, bkd.ones_like(denom1))
+            safe_denom2 = bkd.where(denom2 > 0, denom2, bkd.ones_like(denom2))
+
+            term1 = bkd.where(
+                denom1 > 0,
+                Nis_0 * (Nis_0 - 1) / safe_denom1,
+                bkd.zeros_like(denom1)
+            )
+            term2 = bkd.where(
+                denom2 > 0,
+                Ni_0 * (Ni_0 - 1) / safe_denom2,
+                bkd.zeros_like(denom2)
+            )
+            hvec_list.append(bkd.reshape(term1 - term2, (1,)))
+
+            Hmat_row = []
+            for jj in range(1, nmodels):
+                Nis_js = nsamples_intersect[2 * ii, 2 * jj]
+                Ni_j = nsamples_intersect[2 * ii + 1, 2 * jj + 1]
+                Ni_js = nsamples_intersect[2 * ii + 1, 2 * jj]
+                Nis_j = nsamples_intersect[2 * ii, 2 * jj + 1]
+                Njs = nsamples_subset[2 * jj]
+                Nj = nsamples_subset[2 * jj + 1]
+
+                d00 = Nis * (Nis - 1) * Njs * (Njs - 1)
+                d01 = Nis * (Nis - 1) * Nj * (Nj - 1)
+                d10 = Ni * (Ni - 1) * Njs * (Njs - 1)
+                d11 = Ni * (Ni - 1) * Nj * (Nj - 1)
+
+                safe_d00 = bkd.where(d00 > 0, d00, bkd.ones_like(d00))
+                safe_d01 = bkd.where(d01 > 0, d01, bkd.ones_like(d01))
+                safe_d10 = bkd.where(d10 > 0, d10, bkd.ones_like(d10))
+                safe_d11 = bkd.where(d11 > 0, d11, bkd.ones_like(d11))
+
+                t00 = bkd.where(d00 > 0, Nis_js * (Nis_js - 1) / safe_d00, bkd.zeros_like(d00))
+                t01 = bkd.where(d01 > 0, Nis_j * (Nis_j - 1) / safe_d01, bkd.zeros_like(d01))
+                t10 = bkd.where(d10 > 0, Ni_js * (Ni_js - 1) / safe_d10, bkd.zeros_like(d10))
+                t11 = bkd.where(d11 > 0, Ni_j * (Ni_j - 1) / safe_d11, bkd.zeros_like(d11))
+
+                Hmat_row.append(bkd.reshape(t00 - t01 - t10 + t11, (1,)))
+            Hmat_rows.append(bkd.concatenate(Hmat_row))
+
+        hvec = bkd.concatenate(hvec_list)
+        Hmat = bkd.stack(Hmat_rows, axis=0)
+
+        return Hmat, hvec
+
+    def _get_discrepancy_covariances(
+        self, Gmat: Array, gvec: Array, Hmat: Array, hvec: Array
+    ) -> Tuple[Array, Array]:
+        """Compute discrepancy covariances from multipliers.
+
+        For mean+variance, this combines mean and variance structures.
         """
         cov = self.cov()
-        nqoi = self._nqoi
         bkd = self._bkd
+        nqoi = self._nqoi
 
-        n = npartition_samples[0]
-
-        # Infer nmodels
         total_stats = cov.shape[0]
         nmodels = total_stats // (2 * nqoi)
         ncontrols = nmodels - 1
@@ -381,102 +560,103 @@ class MultiOutputMeanAndVariance(AbstractStatistic[Array], Generic[Array]):
             block[nqoi:, nqoi:] = cov_np[m_var, k_var]
             return block
 
-        # Build CF: Cov(HF, LF_m) for each LF model
+        # Build CF (delta-delta covariance) and cf (HF-delta covariance)
         CF_np = np.zeros((nstats_per_model * ncontrols, nstats_per_model * ncontrols))
         cf_np = np.zeros((nstats_per_model, nstats_per_model * ncontrols))
 
-        # cf: Cov(HF, LF_m) for m = 1, ..., nmodels-1
-        for m in range(1, nmodels):
-            C0m = get_cov_block(0, m)
-            start = (m - 1) * nstats_per_model
-            end = m * nstats_per_model
-            cf_np[:, start:end] = C0m / bkd.to_numpy(n)
+        Gmat_np = bkd.to_numpy(Gmat)
+        gvec_np = bkd.to_numpy(gvec)
 
-        # CF: Cov(LF_m, LF_k) for m, k = 1, ..., nmodels-1
-        for m in range(1, nmodels):
-            for k in range(1, nmodels):
-                Cmk = get_cov_block(m, k)
-                m_start = (m - 1) * nstats_per_model
-                m_end = m * nstats_per_model
-                k_start = (k - 1) * nstats_per_model
-                k_end = k * nstats_per_model
-                CF_np[m_start:m_end, k_start:k_end] = Cmk / bkd.to_numpy(n)
+        for j in range(1, nmodels):
+            # cf block for control j (HF-delta covariance)
+            C0j = get_cov_block(0, j)
+            start = (j - 1) * nstats_per_model
+            end = j * nstats_per_model
+            cf_np[:, start:end] = C0j * gvec_np[j - 1]
+
+        for i in range(1, nmodels):
+            for j in range(1, nmodels):
+                # CF block for delta-delta covariance
+                Cij = get_cov_block(i, j)
+                i_start = (i - 1) * nstats_per_model
+                i_end = i * nstats_per_model
+                j_start = (j - 1) * nstats_per_model
+                j_end = j * nstats_per_model
+                CF_np[i_start:i_end, j_start:j_end] = Cij * Gmat_np[i - 1, j - 1]
 
         return bkd.asarray(CF_np), bkd.asarray(cf_np)
+
+    def get_cv_discrepancy_covariances(
+        self, npartition_samples: Array
+    ) -> Tuple[Array, Array]:
+        """Get covariance matrices for CV estimator of mean+variance.
+
+        For a multi-model CV estimator with M models, all using shared samples.
+
+        Parameters
+        ----------
+        npartition_samples : Array
+            Number of samples in the single shared partition. Shape: (1,)
+
+        Returns
+        -------
+        CF : Array
+            Covariance of discrepancies.
+            Shape: (2*nqoi*(nmodels-1), 2*nqoi*(nmodels-1))
+        cf : Array
+            Covariance between HF estimator and discrepancies.
+            Shape: (2*nqoi, 2*nqoi*(nmodels-1))
+        """
+        cov = self.cov()
+        bkd = self._bkd
+        nqoi = self._nqoi
+
+        n = npartition_samples[0]
+
+        total_stats = cov.shape[0]
+        nmodels = total_stats // (2 * nqoi)
+        ncontrols = nmodels - 1
+
+        # For CV with shared samples
+        Gmat = bkd.full((ncontrols, ncontrols), 1.0 / n)
+        gvec = bkd.full((ncontrols,), 1.0 / n)
+        Hmat = bkd.full((ncontrols, ncontrols), 1.0 / (n * (n - 1)))
+        hvec = bkd.full((ncontrols,), 1.0 / (n * (n - 1)))
+
+        return self._get_discrepancy_covariances(Gmat, gvec, Hmat, hvec)
 
     def get_acv_discrepancy_covariances(
         self, allocation_mat: Array, npartition_samples: Array
     ) -> Tuple[Array, Array]:
-        """Get covariance matrices for ACV estimator of mean+variance."""
-        cov = self.cov()
-        nqoi = self._nqoi
-        bkd = self._bkd
+        """Get covariance matrices for ACV estimator of mean+variance.
 
-        allocation_mat_np = bkd.to_numpy(allocation_mat)
-        npartition_samples_np = bkd.to_numpy(npartition_samples)
+        Parameters
+        ----------
+        allocation_mat : Array
+            Allocation matrix A. Shape: (nmodels, 2*nmodels)
+            - Rows (k): independent partitions k = 0, ..., M-1
+            - Columns (j): sample sets Z₀*, Z₀, Z₁*, Z₁, ...
+        npartition_samples : Array
+            Number of samples in each partition. Shape: (nmodels,)
 
-        nmodels = allocation_mat_np.shape[0]
-        ncontrols = nmodels - 1
-        nstats_per_model = 2 * nqoi
-
-        CF_np = np.zeros((nstats_per_model, nstats_per_model * ncontrols))
-        cf_np = np.zeros(
-            (nstats_per_model * ncontrols, nstats_per_model * ncontrols)
+        Returns
+        -------
+        CF : Array
+            Covariance of control variate estimators (delta-delta covariance).
+            Shape: (2*nqoi * (nmodels-1), 2*nqoi * (nmodels-1))
+        cf : Array
+            Covariance between HF estimator and controls (HF-delta covariance).
+            Shape: (2*nqoi, 2*nqoi * (nmodels-1))
+        """
+        # Compute both mean and variance multipliers
+        Gmat, gvec = self._get_acv_mean_discrepancy_covariances_multipliers(
+            allocation_mat, npartition_samples
+        )
+        Hmat, hvec = self._get_acv_variance_discrepancy_covariances_multipliers(
+            allocation_mat, npartition_samples
         )
 
-        cov_np = bkd.to_numpy(cov)
-
-        def get_model_indices(m: int) -> Tuple[slice, slice]:
-            """Get mean and var indices for model m."""
-            mean_idx = slice(m * nqoi, (m + 1) * nqoi)
-            var_idx = slice(nmodels * nqoi + m * nqoi, nmodels * nqoi + (m + 1) * nqoi)
-            return mean_idx, var_idx
-
-        def get_cov_block(m: int, k: int) -> np.ndarray:
-            """Get full 2*nqoi x 2*nqoi covariance block between models m and k."""
-            m_mean, m_var = get_model_indices(m)
-            k_mean, k_var = get_model_indices(k)
-
-            block = np.zeros((2 * nqoi, 2 * nqoi))
-            block[:nqoi, :nqoi] = cov_np[m_mean, k_mean]
-            block[:nqoi, nqoi:] = cov_np[m_mean, k_var]
-            block[nqoi:, :nqoi] = cov_np[m_var, k_mean]
-            block[nqoi:, nqoi:] = cov_np[m_var, k_var]
-            return block
-
-        # Build CF: Cov(HF, LF_m) for m = 1, ..., nmodels-1
-        for m in range(1, nmodels):
-            q_parts = []
-            for p in range(allocation_mat_np.shape[1]):
-                if allocation_mat_np[m, p] == 1 and allocation_mat_np[0, p] == 1:
-                    q_parts.append(p)
-
-            n_q = sum(npartition_samples_np[p] for p in q_parts)
-            if n_q == 0:
-                continue
-
-            C0m = get_cov_block(0, m)
-            start = (m - 1) * nstats_per_model
-            end = m * nstats_per_model
-            CF_np[:, start:end] = -C0m / n_q
-
-        # Build cf: Cov(LF_m, LF_k) for m, k = 1, ..., nmodels-1
-        for m in range(1, nmodels):
-            for k in range(1, nmodels):
-                n_shared = 0
-                for p in range(allocation_mat_np.shape[1]):
-                    if allocation_mat_np[m, p] == 1 and allocation_mat_np[k, p] == 1:
-                        n_shared += npartition_samples_np[p]
-
-                if n_shared > 0:
-                    Cmk = get_cov_block(m, k)
-                    m_start = (m - 1) * nstats_per_model
-                    m_end = m * nstats_per_model
-                    k_start = (k - 1) * nstats_per_model
-                    k_end = k * nstats_per_model
-                    cf_np[m_start:m_end, k_start:k_end] = Cmk / n_shared
-
-        return bkd.asarray(CF_np), bkd.asarray(cf_np)
+        return self._get_discrepancy_covariances(Gmat, gvec, Hmat, hvec)
 
     def get_npartition_samples(
         self, allocation_mat: Array, nsamples_per_model: Array

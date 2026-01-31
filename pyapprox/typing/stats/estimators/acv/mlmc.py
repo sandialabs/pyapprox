@@ -61,6 +61,12 @@ class MLMCEstimator(ACVEstimator[Array], Generic[Array]):
         costs: Array,
         bkd: Backend[Array],
     ):
+        # MLMC only supports single QoI
+        if stat.nqoi() != 1:
+            raise ValueError(
+                f"MLMCEstimator only supports nqoi=1, got nqoi={stat.nqoi()}"
+            )
+
         nmodels = costs.shape[0]
         # MLMC uses successive coupling: model m coupled with model m-1
         recursion_index = bkd.arange(nmodels - 1)
@@ -81,6 +87,22 @@ class MLMCEstimator(ACVEstimator[Array], Generic[Array]):
                 self.nmodels(), self._bkd
             )
         return self._allocation_mat
+
+    def _compute_optimal_weights(self) -> Array:
+        """Compute MLMC weights.
+
+        MLMC uses unit weights (all -1), not optimal weights.
+        This matches the legacy implementation.
+
+        Returns
+        -------
+        Array
+            Weight matrix of -1s. Shape: (1, nmodels-1) since MLMC requires nqoi=1.
+        """
+        bkd = self._bkd
+        ncontrols = self.nmodels() - 1
+        # MLMC uses unit weights: -1 for all controls
+        return -bkd.ones((1, ncontrols))
 
     def _compute_level_variances(self) -> Array:
         """Compute variance of level differences for MLMC.

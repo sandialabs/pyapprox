@@ -59,6 +59,12 @@ class MFMCEstimator(ACVEstimator[Array], Generic[Array]):
         costs: Array,
         bkd: Backend[Array],
     ):
+        # MFMC only supports single QoI
+        if stat.nqoi() != 1:
+            raise ValueError(
+                f"MFMCEstimator only supports nqoi=1, got nqoi={stat.nqoi()}"
+            )
+
         nmodels = costs.shape[0]
         # MFMC uses successive coupling: model m coupled with model m-1
         # This gives nested sample sets where each model evaluates on
@@ -179,49 +185,39 @@ class MFMCEstimator(ACVEstimator[Array], Generic[Array]):
         """Compute MFMC optimal weights.
 
         For MFMC: alpha_m = rho_0m * sigma_0 / sigma_m
+
+        Returns
+        -------
+        Array
+            Weight matrix. Shape: (1, nmodels-1) since MFMC requires nqoi=1.
         """
         bkd = self._bkd
         cov = self._stat.cov()
         nmodels = self.nmodels()
-        nqoi = self._stat.nqoi()
+        ncontrols = nmodels - 1
 
-        if nqoi == 1:
-            sigma0 = bkd.sqrt(cov[0, 0])
-            weights_list = []
+        sigma0 = bkd.sqrt(cov[0, 0])
 
-            for m in range(1, nmodels):
-                sigma_m = bkd.sqrt(cov[m, m])
-                rho_0m = cov[0, m] / (sigma0 * sigma_m)
-                weight = rho_0m * sigma0 / sigma_m
-                weights_list.append(bkd.reshape(weight, (1,)))
+        # Build weight matrix: shape (1, nmodels-1)
+        weights_list = []
+        for m in range(1, nmodels):
+            sigma_m = bkd.sqrt(cov[m, m])
+            cov_0m = cov[0, m]
 
-            weights = bkd.concatenate(weights_list)
-        else:
-            # Multi-QoI: diagonal weights
-            var0 = bkd.trace(cov[:nqoi, :nqoi]) / nqoi
-            sigma0 = bkd.sqrt(var0)
+            denom = sigma0 * sigma_m
+            rho_0m = bkd.where(
+                denom > 1e-14,
+                cov_0m / denom,
+                bkd.asarray(0.0)
+            )
+            weight_m = bkd.where(
+                sigma_m > 1e-14,
+                rho_0m * sigma0 / sigma_m,
+                bkd.asarray(0.0)
+            )
+            weights_list.append(bkd.reshape(weight_m, (1, 1)))
 
-            weights_list = []
-            for m in range(1, nmodels):
-                var_m = bkd.trace(cov[m * nqoi : (m + 1) * nqoi,
-                                      m * nqoi : (m + 1) * nqoi]) / nqoi
-                sigma_m = bkd.sqrt(var_m)
-                cov_0m = bkd.trace(cov[:nqoi, m * nqoi : (m + 1) * nqoi]) / nqoi
-                denom = sigma0 * sigma_m
-                rho_0m = bkd.where(
-                    denom > 1e-14,
-                    cov_0m / denom,
-                    bkd.asarray(0.0)
-                )
-                weight = bkd.where(
-                    sigma_m > 1e-14,
-                    rho_0m * sigma0 / sigma_m,
-                    bkd.asarray(0.0)
-                )
-                weights_list.append(bkd.reshape(weight, (1,)))
-
-            weights = bkd.concatenate(weights_list)
-
+        weights = bkd.hstack(weights_list)  # shape (1, nmodels-1)
         return weights
 
     def _native_ratios_to_npartition_ratios(self, model_ratios: Array) -> Array:

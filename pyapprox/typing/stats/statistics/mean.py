@@ -279,11 +279,11 @@ class MultiOutputMean(AbstractStatistic[Array], Generic[Array]):
         Returns
         -------
         CF : Array
-            Covariance between HF estimator and controls.
-            Shape: (nqoi, nqoi * (nmodels-1))
-        cf : Array
-            Covariance of control variate estimators.
+            Covariance of control variate estimators (delta-delta covariance).
             Shape: (nqoi * (nmodels-1), nqoi * (nmodels-1))
+        cf : Array
+            Covariance between HF estimator and controls (HF-delta covariance).
+            Shape: (nqoi, nqoi * (nmodels-1))
         """
         cov = self.cov()
         nqoi = self._nqoi
@@ -297,21 +297,23 @@ class MultiOutputMean(AbstractStatistic[Array], Generic[Array]):
             allocation_mat, npartition_samples
         )
 
-        # Compute CF and cf using the multipliers
-        # For nqoi=1: CF[j-1] = Cov(Q_0, Q_j) * gvec[j-1]
-        #             cf[i-1, j-1] = Cov(Q_i, Q_j) * Gmat[i-1, j-1]
-        CF = bkd.zeros((nqoi, nqoi * ncontrols))
-        cf = bkd.zeros((nqoi * ncontrols, nqoi * ncontrols))
+        # Compute CF (delta-delta covariance) and cf (HF-delta covariance)
+        # Following legacy convention from _get_multioutput_acv_mean_discrepancy_covariances:
+        # CF[i-1, j-1] = Cov(Q_i, Q_j) * Gmat[i-1, j-1]  (discp_cov)
+        # cf[j-1] = Cov(Q_0, Q_j) * gvec[j-1]           (discp_vec)
+        CF = bkd.zeros((nqoi * ncontrols, nqoi * ncontrols))
+        cf = bkd.zeros((nqoi, nqoi * ncontrols))
 
         for j in range(1, nmodels):
-            # CF block for control j
+            # cf block for control j (HF-delta covariance)
             C0j = cov[0*nqoi:(0+1)*nqoi, j*nqoi:(j+1)*nqoi]
-            CF[:, (j-1)*nqoi:j*nqoi] = C0j * gvec[j-1]
+            cf[:, (j-1)*nqoi:j*nqoi] = C0j * gvec[j-1]
 
         for i in range(1, nmodels):
             for j in range(1, nmodels):
+                # CF block for delta-delta covariance
                 Cij = cov[i*nqoi:(i+1)*nqoi, j*nqoi:(j+1)*nqoi]
-                cf[(i-1)*nqoi:i*nqoi, (j-1)*nqoi:j*nqoi] = Cij * Gmat[i-1, j-1]
+                CF[(i-1)*nqoi:i*nqoi, (j-1)*nqoi:j*nqoi] = Cij * Gmat[i-1, j-1]
 
         return CF, cf
 
