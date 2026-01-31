@@ -309,6 +309,14 @@ class TorchBkd(Backend[torch.Tensor]):  # Specify torch.Tensor type
         return torch.round(array)
 
     @staticmethod
+    def floor(array: torch.Tensor) -> torch.Tensor:
+        return torch.floor(array)
+
+    @staticmethod
+    def ceil(array: torch.Tensor) -> torch.Tensor:
+        return torch.ceil(array)
+
+    @staticmethod
     def sqrt(array: torch.Tensor) -> torch.Tensor:
         return torch.sqrt(array)
 

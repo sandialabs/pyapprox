@@ -60,6 +60,24 @@ class MultiOutputMeanAndVariance(AbstractStatistic[Array], Generic[Array]):
         """
         return 2 * self._nqoi
 
+    def nmodels(self) -> int:
+        """Return number of models from pilot covariance.
+
+        Returns
+        -------
+        int
+            Number of models inferred from covariance shape.
+
+        Raises
+        ------
+        ValueError
+            If pilot quantities have not been set.
+        """
+        if self._cov is None:
+            raise ValueError("Pilot quantities not set. Call set_pilot_quantities first.")
+        # For mean+variance, cov has shape (2*nmodels*nqoi, 2*nmodels*nqoi)
+        return self._cov.shape[0] // (2 * self._nqoi)
+
     def min_nsamples(self) -> int:
         """Return minimum number of samples needed.
 
@@ -315,55 +333,76 @@ class MultiOutputMeanAndVariance(AbstractStatistic[Array], Generic[Array]):
     ) -> Tuple[Array, Array]:
         """Get covariance matrices for CV estimator of mean+variance.
 
+        For a multi-model CV estimator with M models, all using shared samples.
+
         Parameters
         ----------
         npartition_samples : Array
-            Number of samples in each partition.
+            Number of samples in the single shared partition. Shape: (1,)
 
         Returns
         -------
         CF : Array
-            Shape: (2*nqoi, 2*nqoi)
+            Covariance of discrepancies.
+            Shape: (2*nqoi*(nmodels-1), 2*nqoi*(nmodels-1))
         cf : Array
-            Shape: (2*nqoi, 2*nqoi)
+            Covariance between HF estimator and discrepancies.
+            Shape: (2*nqoi, 2*nqoi*(nmodels-1))
         """
         cov = self.cov()
         nqoi = self._nqoi
         bkd = self._bkd
 
-        n1 = npartition_samples[1]
+        n = npartition_samples[0]
 
         # Infer nmodels
         total_stats = cov.shape[0]
         nmodels = total_stats // (2 * nqoi)
+        ncontrols = nmodels - 1
+        nstats_per_model = 2 * nqoi
 
         cov_np = bkd.to_numpy(cov)
 
-        # HF indices
-        hf_mean = slice(0, nqoi)
-        hf_var = slice(nmodels * nqoi, nmodels * nqoi + nqoi)
+        def get_model_indices(m: int) -> Tuple[slice, slice]:
+            """Get mean and var indices for model m."""
+            mean_idx = slice(m * nqoi, (m + 1) * nqoi)
+            var_idx = slice(nmodels * nqoi + m * nqoi, nmodels * nqoi + (m + 1) * nqoi)
+            return mean_idx, var_idx
 
-        # LF indices (model 1)
-        lf_mean = slice(nqoi, 2 * nqoi)
-        lf_var = slice(nmodels * nqoi + nqoi, nmodels * nqoi + 2 * nqoi)
+        def get_cov_block(m: int, k: int) -> np.ndarray:
+            """Get full 2*nqoi x 2*nqoi covariance block between models m and k."""
+            m_mean, m_var = get_model_indices(m)
+            k_mean, k_var = get_model_indices(k)
 
-        # Build CF and cf blocks
-        CF_np = np.zeros((2 * nqoi, 2 * nqoi))
-        cf_np = np.zeros((2 * nqoi, 2 * nqoi))
+            block = np.zeros((2 * nqoi, 2 * nqoi))
+            block[:nqoi, :nqoi] = cov_np[m_mean, k_mean]
+            block[:nqoi, nqoi:] = cov_np[m_mean, k_var]
+            block[nqoi:, :nqoi] = cov_np[m_var, k_mean]
+            block[nqoi:, nqoi:] = cov_np[m_var, k_var]
+            return block
 
-        # CF: Cov(HF, LF)
-        CF_np[:nqoi, :nqoi] = cov_np[hf_mean, lf_mean]
-        CF_np[:nqoi, nqoi:] = cov_np[hf_mean, lf_var]
-        CF_np[nqoi:, :nqoi] = cov_np[hf_var, lf_mean]
-        CF_np[nqoi:, nqoi:] = cov_np[hf_var, lf_var]
+        # Build CF: Cov(HF, LF_m) for each LF model
+        CF_np = np.zeros((nstats_per_model * ncontrols, nstats_per_model * ncontrols))
+        cf_np = np.zeros((nstats_per_model, nstats_per_model * ncontrols))
 
-        # cf: Cov(LF, LF)
-        cf_np[:nqoi, :nqoi] = cov_np[lf_mean, lf_mean]
-        cf_np[:nqoi, nqoi:] = cov_np[lf_mean, lf_var]
-        cf_np[nqoi:, :nqoi] = cov_np[lf_var, lf_mean]
-        cf_np[nqoi:, nqoi:] = cov_np[lf_var, lf_var]
+        # cf: Cov(HF, LF_m) for m = 1, ..., nmodels-1
+        for m in range(1, nmodels):
+            C0m = get_cov_block(0, m)
+            start = (m - 1) * nstats_per_model
+            end = m * nstats_per_model
+            cf_np[:, start:end] = C0m / bkd.to_numpy(n)
 
-        return bkd.asarray(CF_np / n1), bkd.asarray(cf_np / n1)
+        # CF: Cov(LF_m, LF_k) for m, k = 1, ..., nmodels-1
+        for m in range(1, nmodels):
+            for k in range(1, nmodels):
+                Cmk = get_cov_block(m, k)
+                m_start = (m - 1) * nstats_per_model
+                m_end = m * nstats_per_model
+                k_start = (k - 1) * nstats_per_model
+                k_end = k * nstats_per_model
+                CF_np[m_start:m_end, k_start:k_end] = Cmk / bkd.to_numpy(n)
+
+        return bkd.asarray(CF_np), bkd.asarray(cf_np)
 
     def get_acv_discrepancy_covariances(
         self, allocation_mat: Array, npartition_samples: Array

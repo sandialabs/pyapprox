@@ -73,6 +73,18 @@ class StatisticWithCovarianceProtocol(StatisticProtocol[Array], Protocol):
     of the statistic estimator, which is needed for optimal sample allocation.
     """
 
+    def nmodels(self) -> int:
+        """Return number of models in the covariance structure.
+
+        This is inferred from the pilot covariance matrix shape.
+
+        Returns
+        -------
+        int
+            Number of models.
+        """
+        ...
+
     def high_fidelity_estimator_covariance(self, nhf_samples: int) -> Array:
         """Compute covariance of the high-fidelity sample estimator.
 

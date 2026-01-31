@@ -163,19 +163,22 @@ class TestMultiOutputMean(unittest.TestCase):
         ])
         stat.set_pilot_quantities(cov)
 
-        # 2 partitions: HF only (10), shared (20)
-        npartition = self.bkd.asarray([10, 20])
+        # For CV with known LF stats, all samples are shared
+        # Single partition with 20 samples
+        npartition = self.bkd.asarray([20.0])
 
         CF, cf = stat.get_cv_discrepancy_covariances(npartition)
 
-        # CF = Cov(Q0, Q1) / n_shared
-        expected_CF = 0.8 / 20
+        # CF = Var(Q1) / n (covariance of discrepancies)
+        # For 2 models, CF is (1, 1) = Var(Q1) / n
+        expected_CF = 1.0 / 20
         np.testing.assert_allclose(
             self.bkd.to_numpy(CF)[0, 0], expected_CF, rtol=1e-10
         )
 
-        # cf = Var(Q1) / n_shared
-        expected_cf = 1.0 / 20
+        # cf = Cov(Q0, Q1) / n (covariance between HF and discrepancy)
+        # For 2 models, cf is (1, 1) = Cov(Q0, Q1) / n
+        expected_cf = 0.8 / 20
         np.testing.assert_allclose(
             self.bkd.to_numpy(cf)[0, 0], expected_cf, rtol=1e-10
         )

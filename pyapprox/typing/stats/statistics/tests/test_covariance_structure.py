@@ -18,7 +18,7 @@ import torch
 from pyapprox.typing.util.backends.numpy import NumpyBkd
 from pyapprox.typing.util.backends.torch import TorchBkd
 from pyapprox.typing.util.backends.protocols import Array
-from pyapprox.typing.util.test_utils import load_tests  # noqa: F401
+from pyapprox.typing.util.test_utils import load_tests, slower_test  # noqa: F401
 from pyapprox.typing.stats.statistics import (
     MultiOutputMeanAndVariance,
     compute_W_from_pilot,
@@ -187,12 +187,9 @@ class TestCovarianceStructure(Generic[Array], unittest.TestCase):
         )
         bkd.assert_allclose(B, B_exact_sub, atol=atol, rtol=rtol)
 
+    @slower_test
     def test_pilot_covariances(self):
-        """Test pilot covariances for various model/QoI subsets.
-
-        Replicates legacy test_pilot_covariances.
-        """
-        fast_test = True
+        """Test pilot covariances for various model/QoI subsets."""
         test_cases = [
             [[0], [0]],
             [[1], [0, 1]],
@@ -204,11 +201,10 @@ class TestCovarianceStructure(Generic[Array], unittest.TestCase):
             [[0, 1, 2], [0, 2]],
             [[0, 1, 2], [0, 1, 2]],
         ]
-        if fast_test:
-            test_cases = [test_cases[1], test_cases[-1]]
-        for test_case in test_cases:
-            np.random.seed(123)
-            self._check_pilot_covariances(*test_case)
+        for model_idx, qoi_idx in test_cases:
+            with self.subTest(model_idx=model_idx, qoi_idx=qoi_idx):
+                np.random.seed(123)
+                self._check_pilot_covariances(model_idx, qoi_idx)
 
     def _mean_variance_realizations(self, funs, variable, nsamples, ntrials):
         """Generate empirical mean and covariance realizations."""
@@ -292,12 +288,9 @@ class TestCovarianceStructure(Generic[Array], unittest.TestCase):
 
         bkd.assert_allclose(cov_var_exact, mc_cov_var, atol=atol, rtol=rtol)
 
+    @slower_test
     def test_mean_variance_covariances(self):
-        """Test mean/variance estimator covariance formulas.
-
-        Replicates legacy test_mean_variance_covariances.
-        """
-        fast_test = True
+        """Test mean/variance estimator covariance formulas."""
         test_cases = [
             [[0], [0]],
             [[1], [0, 1]],
@@ -309,11 +302,10 @@ class TestCovarianceStructure(Generic[Array], unittest.TestCase):
             [[0, 1, 2], [0, 1]],
             [[0, 1, 2], [0, 1, 2]],
         ]
-        if fast_test:
-            test_cases = [test_cases[0], test_cases[-1]]
-        for test_case in test_cases:
-            np.random.seed(123)
-            self._check_mean_variance_covariances(*test_case)
+        for model_idx, qoi_idx in test_cases:
+            with self.subTest(model_idx=model_idx, qoi_idx=qoi_idx):
+                np.random.seed(123)
+                self._check_mean_variance_covariances(model_idx, qoi_idx)
 
 
 class TestCovarianceStructureNumpy(TestCovarianceStructure[NDArray[Any]]):

@@ -501,6 +501,207 @@ class ACVEstimator(BootstrapMixin[Array], AbstractEstimator[Array], Generic[Arra
             raise ValueError("Samples not allocated.")
         return self._npartition_samples
 
+    def _get_partition_indices(self, npartition_samples: Array) -> List[Array]:
+        """Get indices into flattened array for each partition.
+
+        Parameters
+        ----------
+        npartition_samples : Array
+            Samples per partition. Shape: (npartitions,)
+
+        Returns
+        -------
+        List[Array]
+            Indices for each partition into flattened sample array.
+        """
+        bkd = self._bkd
+        ntotal = int(bkd.sum(npartition_samples).item())
+        total_indices = bkd.arange(ntotal, dtype=int)
+        # Round cumsum to avoid floating point issues (e.g., 3.999... -> 3)
+        cumsum = bkd.round(bkd.cumsum(npartition_samples[:-1]))
+        indices = bkd.split(total_indices, bkd.asarray(cumsum, dtype=int))
+        return [bkd.asarray(idx, dtype=int) for idx in indices]
+
+    def _get_partition_indices_per_acv_subset(
+        self, bootstrap: bool = False
+    ) -> List[Array]:
+        """Get indices for each ACV subset Z_m*, Z_m.
+
+        The ACV estimator uses paired sample sets for each model:
+        - Z_m* (starred): samples used in the high-order moment
+        - Z_m (unstarred): samples used in the low-order moment
+
+        Parameters
+        ----------
+        bootstrap : bool
+            If True, use bootstrap resampling indices.
+
+        Returns
+        -------
+        List[Array]
+            List of 2*nmodels arrays: [Z_0*, Z_0, Z_1*, Z_1, ...]
+            where Z_m* uses column 2*m and Z_m uses column 2*m+1
+            in the allocation matrix.
+        """
+        bkd = self._bkd
+        nmodels = self.nmodels()
+        partition_indices = self._get_partition_indices(self.npartition_samples())
+        alloc_mat = self.get_allocation_matrix()
+        npartitions = len(partition_indices)
+
+        # Initialize bootstrap tracking
+        random_partition_indices: List[Optional[Array]] = [None] * npartitions
+
+        # Handle first partition (HF samples)
+        if bootstrap:
+            n_first = partition_indices[0].shape[0]
+            random_partition_indices[0] = bkd.asarray(
+                np.random.choice(n_first, size=n_first, replace=True),
+                dtype=int,
+            )
+            partition_indices_per_acv_subset: List[Array] = [
+                bkd.asarray([], dtype=int),
+                partition_indices[0][random_partition_indices[0]],
+            ]
+        else:
+            partition_indices_per_acv_subset = [
+                bkd.asarray([], dtype=int),  # Z_0* (empty for HF)
+                partition_indices[0],  # Z_0 (HF samples)
+            ]
+
+        # Process low-fidelity models
+        for ii in range(1, nmodels):
+            col_starred = 2 * ii
+            col_unstarred = 2 * ii + 1
+
+            # Find partitions where model ii is active
+            active_partitions = bkd.where(
+                (alloc_mat[:, col_starred] == 1) | (alloc_mat[:, col_unstarred] == 1)
+            )[0]
+
+            # Build index mapping for this model's samples
+            subset_indices: List[Optional[Array]] = [None] * npartitions
+            lb, ub = 0, 0
+            for idx in active_partitions:
+                idx_int = int(idx.item()) if hasattr(idx, "item") else int(idx)
+                ub += partition_indices[idx_int].shape[0]
+                subset_indices[idx_int] = bkd.arange(lb, ub, dtype=int)
+
+                # Apply bootstrap resampling if needed
+                if bootstrap and random_partition_indices[idx_int] is None:
+                    n_part = ub - lb
+                    random_partition_indices[idx_int] = bkd.asarray(
+                        np.random.choice(n_part, size=n_part, replace=True),
+                        dtype=int,
+                    )
+                    subset_indices[idx_int] = subset_indices[idx_int][
+                        random_partition_indices[idx_int]
+                    ]
+                lb = ub
+
+            # Separate starred vs unstarred partitions
+            active_starred = bkd.where(alloc_mat[:, col_starred] == 1)[0]
+            active_unstarred = bkd.where(alloc_mat[:, col_unstarred] == 1)[0]
+
+            # Collect indices for starred partitions
+            starred_parts = []
+            for idx in active_starred:
+                idx_int = int(idx.item()) if hasattr(idx, "item") else int(idx)
+                if subset_indices[idx_int] is not None:
+                    starred_parts.append(subset_indices[idx_int])
+            indices_starred = (
+                bkd.hstack(starred_parts)
+                if starred_parts
+                else bkd.asarray([], dtype=int)
+            )
+
+            # Collect indices for unstarred partitions
+            unstarred_parts = []
+            for idx in active_unstarred:
+                idx_int = int(idx.item()) if hasattr(idx, "item") else int(idx)
+                if subset_indices[idx_int] is not None:
+                    unstarred_parts.append(subset_indices[idx_int])
+            indices_unstarred = (
+                bkd.hstack(unstarred_parts)
+                if unstarred_parts
+                else bkd.asarray([], dtype=int)
+            )
+
+            partition_indices_per_acv_subset.append(indices_starred)
+            partition_indices_per_acv_subset.append(indices_unstarred)
+
+        return partition_indices_per_acv_subset
+
+    def _separate_values_per_model(
+        self, values_per_model: List[Array], bootstrap: bool = False
+    ) -> List[Array]:
+        """Separate values into ACV subsets [Z_0*, Z_0, Z_1*, Z_1, ...].
+
+        This method separates model outputs into the paired sample sets
+        needed for ACV estimation. Each model m has two sets:
+        - Z_m*: values used for the starred term
+        - Z_m: values used for the unstarred term
+
+        Parameters
+        ----------
+        values_per_model : List[Array]
+            Model outputs. values_per_model[m] has shape (nsamples_m, nqoi)
+        bootstrap : bool
+            If True, use bootstrap resampling indices.
+
+        Returns
+        -------
+        List[Array]
+            List of 2*nmodels arrays containing the separated values.
+            Order: [Z_0*, Z_0, Z_1*, Z_1, ...]
+
+        Raises
+        ------
+        ValueError
+            If values_per_model has wrong length or sample counts don't match.
+        """
+        bkd = self._bkd
+        nmodels = self.nmodels()
+
+        # Validate input length
+        if len(values_per_model) != nmodels:
+            raise ValueError(
+                f"len(values_per_model) {len(values_per_model)} != nmodels {nmodels}"
+            )
+
+        # Validate sample counts
+        nsamples = self.nsamples_per_model()
+        for ii in range(nmodels):
+            expected = int(nsamples[ii].item())
+            actual = values_per_model[ii].shape[0]
+            if actual != expected:
+                raise ValueError(
+                    f"values_per_model[{ii}].shape[0] = {actual} != "
+                    f"nsamples_per_model[{ii}] = {expected}"
+                )
+
+        acv_partition_indices = self._get_partition_indices_per_acv_subset(bootstrap)
+        nacv_subsets = len(acv_partition_indices)
+
+        # Extract values for each ACV subset
+        # Index ii corresponds to model ii // 2
+        acv_values = []
+        for ii in range(nacv_subsets):
+            model_idx = ii // 2
+            indices = acv_partition_indices[ii]
+
+            if indices.shape[0] == 0:
+                # Empty subset - create empty array with correct nqoi
+                nqoi = values_per_model[model_idx].shape[1]
+                acv_values.append(bkd.zeros((0, nqoi)))
+            else:
+                # atleast2d needed when indices.shape[0] == 1
+                acv_values.append(
+                    bkd.atleast2d(values_per_model[model_idx][indices])
+                )
+
+        return acv_values
+
     def weights(self) -> Array:
         """Return optimal control variate weights."""
         if self._weights is None:

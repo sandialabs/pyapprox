@@ -54,6 +54,23 @@ class MultiOutputMean(AbstractStatistic[Array], Generic[Array]):
         """
         return self._nqoi
 
+    def nmodels(self) -> int:
+        """Return number of models from pilot covariance.
+
+        Returns
+        -------
+        int
+            Number of models inferred from covariance shape.
+
+        Raises
+        ------
+        ValueError
+            If pilot quantities have not been set.
+        """
+        if self._cov is None:
+            raise ValueError("Pilot quantities not set. Call set_pilot_quantities first.")
+        return self._cov.shape[0] // self._nqoi
+
     def min_nsamples(self) -> int:
         """Return minimum number of samples needed.
 
@@ -185,49 +202,54 @@ class MultiOutputMean(AbstractStatistic[Array], Generic[Array]):
     def get_cv_discrepancy_covariances(
         self, npartition_samples: Array
     ) -> Tuple[Array, Array]:
-        """Get covariance matrices for standard CV estimator.
+        """Get covariance matrices for CV estimator with known LF statistics.
 
-        For a 2-model CV estimator:
-            Q_CV = Q_0 + eta * (mu_1 - Q_1)
+        For a multi-model CV estimator with M models:
+            Q_CV = Q_0 + sum_{m=1}^{M-1} eta_m * (mu_m - Q_m)
 
-        We need:
-        - CF: Cov[Q_0, Q_1 - mu_1] = Cov[Q_0, Q_1]
-        - cf: Var[Q_1 - mu_1] = Var[Q_1] / n_shared + Var[mu_1] terms
+        where mu_m are known LF statistics. All models use shared samples.
+
+        This method constructs Gmat and gvec with all entries equal to 1/n
+        where n is the number of shared samples (npartition_samples[0]).
 
         Parameters
         ----------
         npartition_samples : Array
-            Number of samples in each partition. Shape: (npartitions,)
+            Number of samples in the single shared partition. Shape: (1,)
 
         Returns
         -------
         CF : Array
-            Covariance between HF estimator and LF control.
-            Shape: (nqoi, nqoi)
+            Covariance of discrepancies. Shape: (nqoi*(nmodels-1), nqoi*(nmodels-1))
         cf : Array
-            Variance of LF control variate estimator.
-            Shape: (nqoi, nqoi)
+            Covariance between HF estimator and discrepancies.
+            Shape: (nqoi, nqoi*(nmodels-1))
         """
         cov = self.cov()
+        bkd = self._bkd
         nqoi = self._nqoi
+        # Infer nmodels from covariance matrix shape
+        nmodels = cov.shape[0] // nqoi
 
-        # For 2-model CV: partitions are [HF only, HF+LF]
-        # n0 = HF only samples, n1 = shared samples
-        n0 = npartition_samples[0]
-        n1 = npartition_samples[1]
+        # For CV with shared samples, all Gmat and gvec entries are 1/n
+        n = npartition_samples[0]
+        ncontrols = nmodels - 1
 
-        # Extract covariance blocks
-        C00 = cov[:nqoi, :nqoi]  # Var(Q_0)
-        C01 = cov[:nqoi, nqoi:2*nqoi]  # Cov(Q_0, Q_1)
-        C11 = cov[nqoi:2*nqoi, nqoi:2*nqoi]  # Var(Q_1)
+        Gmat = bkd.full((ncontrols, ncontrols), 1.0 / n)
+        gvec = bkd.full((ncontrols,), 1.0 / n)
 
-        # CF = Cov[mean_0, mean_1] on shared samples
-        # Covariance of means is Cov/n
-        CF = C01 / n1
+        # Compute CF and cf using the multipliers (same pattern as ACV)
+        CF = bkd.zeros((nqoi * ncontrols, nqoi * ncontrols))
+        cf = bkd.zeros((nqoi, nqoi * ncontrols))
 
-        # cf = Var[mean_1] on LF samples
-        # LF samples = n1 (shared), so Var[mean_1] = C11/n1
-        cf = C11 / n1
+        for i in range(1, nmodels):
+            for j in range(1, nmodels):
+                Cij = cov[i*nqoi:(i+1)*nqoi, j*nqoi:(j+1)*nqoi]
+                CF[(i-1)*nqoi:i*nqoi, (j-1)*nqoi:j*nqoi] = Cij * Gmat[i-1, j-1]
+
+        for j in range(1, nmodels):
+            C0j = cov[0*nqoi:(0+1)*nqoi, j*nqoi:(j+1)*nqoi]
+            cf[:, (j-1)*nqoi:j*nqoi] = C0j * gvec[j-1]
 
         return CF, cf
 

@@ -574,6 +574,81 @@ class TestBootstrapEstimator(Generic[Array], unittest.TestCase):
         # Bootstrap variance should be positive
         self.assertTrue(float(self._bkd.to_numpy(boot_cov)[0]) > 0)
 
+    def _build_estimator_kwargs(
+        self, est_name: str, nmodels: int
+    ) -> dict:
+        """Build kwargs for estimator creation based on type."""
+        bkd = self._bkd
+        needs_recursion = est_name in ("gmf", "grd", "gis")
+        if needs_recursion:
+            return {"recursion_index": bkd.asarray([0.0] * (nmodels - 1))}
+        return {}
+
+    def test_bootstrap_all_estimator_types(self):
+        """Test bootstrap for all estimator types."""
+        from pyapprox.typing.stats.factory import get_estimator
+
+        bkd = self._bkd
+
+        # 3-model covariance matrix
+        cov_np = np.array([
+            [1.0, 0.95, 0.8],
+            [0.95, 1.0, 0.9],
+            [0.8, 0.9, 1.0],
+        ])
+        cov = bkd.asarray(cov_np)
+        costs = bkd.asarray([100.0, 10.0, 1.0])
+        nmodels = 3
+
+        test_cases = [
+            ("mc", 1000),
+            ("cv", 500),
+            ("mfmc", 10000),
+            ("gmf", 10000),
+            ("grd", 10000),
+            ("gis", 10000),
+        ]
+
+        for est_name, target_cost in test_cases:
+            with self.subTest(estimator=est_name, target_cost=target_cost):
+                np.random.seed(42)
+
+                # Create stat
+                stat = MultiOutputMean(nqoi=1, bkd=bkd)
+
+                # MC only uses 1 model
+                if est_name == "mc":
+                    stat.set_pilot_quantities(cov[:1, :1])
+                    costs_used = costs[:1]
+                    nmodels_used = 1
+                else:
+                    stat.set_pilot_quantities(cov)
+                    costs_used = costs
+                    nmodels_used = nmodels
+
+                # Build kwargs and create estimator
+                kwargs = self._build_estimator_kwargs(est_name, nmodels_used)
+                est = get_estimator(est_name, stat, costs_used, bkd=bkd, **kwargs)
+                est.allocate_samples(target_cost)
+
+                # Generate correlated values
+                nsamples = bkd.to_numpy(est.nsamples_per_model())
+                nsamples_list = [int(n) for n in nsamples]
+
+                if est_name == "mc":
+                    values = self._generate_correlated_values(
+                        nsamples_list, cov_np[:1, :1]
+                    )
+                else:
+                    values = self._generate_correlated_values(nsamples_list, cov_np)
+
+                # Bootstrap
+                boot_mean, boot_cov = est.bootstrap(values, nbootstraps=500)
+
+                # Verify results
+                self.assertEqual(boot_mean.shape, (1,))
+                self.assertTrue(float(bkd.to_numpy(boot_cov)[0]) > 0)
+
 
 class TestBootstrapEstimatorNumpy(TestBootstrapEstimator[NDArray[Any]]):
     def setUp(self) -> None:

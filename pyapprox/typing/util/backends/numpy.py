@@ -280,6 +280,14 @@ class NumpyBkd(Backend[NDArray[Any]]):  # Specify NDArray type
         return cast(NDArray[Any], np.round(array))
 
     @staticmethod
+    def floor(array: NDArray[Any]) -> NDArray[Any]:
+        return cast(NDArray[Any], np.floor(array))
+
+    @staticmethod
+    def ceil(array: NDArray[Any]) -> NDArray[Any]:
+        return cast(NDArray[Any], np.ceil(array))
+
+    @staticmethod
     def sqrt(array: NDArray[Any]) -> NDArray[Any]:
         return cast(NDArray[Any], np.sqrt(array))
 
