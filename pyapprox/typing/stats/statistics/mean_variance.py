@@ -10,6 +10,11 @@ import numpy as np
 
 from pyapprox.typing.util.backends.protocols import Array, Backend
 from pyapprox.typing.stats.statistics.base import AbstractStatistic
+from pyapprox.typing.stats.statistics.covariance_utils import (
+    compute_W_from_pilot,
+    compute_B_from_pilot,
+    compute_covariance_from_pilot,
+)
 
 
 class MultiOutputMeanAndVariance(AbstractStatistic[Array], Generic[Array]):
@@ -171,6 +176,59 @@ class MultiOutputMeanAndVariance(AbstractStatistic[Array], Generic[Array]):
         cov = self._compute_covariance(joint_stats)
 
         return cov, means, variances
+
+    def compute_pilot_quantities_with_covariance_matrices(
+        self, pilot_values: List[Array]
+    ) -> Tuple[Array, Array, Array]:
+        """Compute pilot quantities including W and B matrices.
+
+        This method returns quantities compatible with the legacy interface
+        for variance estimation requiring fourth-order moment structures.
+
+        The matrices returned are:
+        - cov: Cross-model covariance of outputs (nmodels*nqoi, nmodels*nqoi)
+        - W: Cov[(f-E[f])^{⊗2}, (g-E[g])^{⊗2}] (nmodels*nqoi^2, nmodels*nqoi^2)
+        - B: Cov[f, (g-E[g])^{⊗2}] (nmodels*nqoi, nmodels*nqoi^2)
+
+        Parameters
+        ----------
+        pilot_values : List[Array]
+            List of model outputs from pilot samples.
+            pilot_values[m] has shape (npilot, nqoi) for model m.
+
+        Returns
+        -------
+        cov : Array
+            Cross-model covariance. Shape: (nmodels*nqoi, nmodels*nqoi)
+        W : Array
+            Covariance of centered Kronecker products.
+            Shape: (nmodels*nqoi^2, nmodels*nqoi^2)
+        B : Array
+            Cross-covariance of means and variance estimators.
+            Shape: (nmodels*nqoi, nmodels*nqoi^2)
+        """
+        nqoi = self._nqoi
+        bkd = self._bkd
+
+        # Validate
+        npilot = pilot_values[0].shape[0]
+        for m, vals in enumerate(pilot_values):
+            if vals.shape[0] != npilot:
+                raise ValueError(
+                    f"All pilot samples must have same size. "
+                    f"Model 0 has {npilot}, model {m} has {vals.shape[0]}"
+                )
+            if vals.shape[1] != nqoi:
+                raise ValueError(
+                    f"Model {m} has {vals.shape[1]} QoI, expected {nqoi}"
+                )
+
+        # Compute using covariance_utils functions
+        cov = compute_covariance_from_pilot(pilot_values, bkd)
+        W = compute_W_from_pilot(pilot_values, bkd)
+        B = compute_B_from_pilot(pilot_values, bkd)
+
+        return cov, W, B
 
     def set_pilot_quantities(
         self,

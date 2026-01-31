@@ -181,6 +181,12 @@ class NumpyBkd(Backend[NDArray[Any]]):  # Specify NDArray type
         return np.ones(shape, dtype=dtype)
 
     @staticmethod
+    def empty(
+        shape: Tuple[int, ...], dtype: Optional[Any] = None
+    ) -> NDArray[Any]:
+        return np.empty(shape, dtype=dtype)
+
+    @staticmethod
     def arange(*args: Any, **kwargs: Any) -> NDArray[Any]:
         return np.arange(*args, **kwargs)
 

@@ -294,15 +294,16 @@ class TestMLMCEstimator(Generic[Array], unittest.TestCase):
     def test_mlmc_allocation(self):
         """Test MLMC sample allocation."""
         stat = self._create_stat()
-        costs = self._bkd.asarray([1.0, 10.0, 100.0])
+        # Model 0 = HF (most expensive), Model 2 = coarsest (cheapest)
+        costs = self._bkd.asarray([100.0, 10.0, 1.0])
         mlmc = MLMCEstimator(stat, costs, self._bkd)
         mlmc.allocate_samples(target_cost=1000.0)
 
         nsamples = mlmc.nsamples_per_model()
         nsamples_np = self._bkd.to_numpy(nsamples)
 
-        # Coarse levels should have more samples
-        self.assertGreater(nsamples_np[0], nsamples_np[2])
+        # Coarse levels should have more samples than HF
+        self.assertGreater(nsamples_np[2], nsamples_np[0])
 
 
 class TestMLMCEstimatorNumpy(TestMLMCEstimator[NDArray[Any]]):

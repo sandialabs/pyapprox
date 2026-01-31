@@ -248,6 +248,11 @@ class Backend(Protocol, Generic[Array]):
     @staticmethod
     def ones(shape: Tuple[int, ...], dtype: Optional[Any] = None) -> Array: ...
 
+    @staticmethod
+    def empty(
+        shape: Tuple[int, ...], dtype: Optional[Any] = None
+    ) -> Array: ...
+
     # @staticmethod
     # def arange(
     #     start: Union[int, float],

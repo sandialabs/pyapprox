@@ -198,6 +198,12 @@ class TorchBkd(Backend[torch.Tensor]):  # Specify torch.Tensor type
         return torch.ones(shape, dtype=dtype)
 
     @staticmethod
+    def empty(
+        shape: Tuple[int, ...], dtype: Optional[Any] = None
+    ) -> torch.Tensor:
+        return torch.empty(shape, dtype=dtype)
+
+    @staticmethod
     def arange(*args: Any, **kwargs: Any) -> torch.Tensor:
         return torch.arange(*args, **kwargs)
 
