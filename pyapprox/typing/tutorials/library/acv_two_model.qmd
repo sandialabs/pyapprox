@@ -1,0 +1,364 @@
+---
+title: "Approximate Control Variates: Two Models"
+subtitle: "PyApprox Tutorial Library"
+description: "Understanding ACV when the low-fidelity statistic is unknown"
+prerequisites:
+  - control_variates
+tags:
+  - multifidelity
+  - variance-reduction
+  - acv
+format:
+  html:
+    code-fold: false
+    code-tools: true
+    toc: true
+execute:
+  echo: true
+  warning: false
+jupyter: python3
+---
+
+::: {.callout-tip collapse="true"}
+## Download Notebook
+[Download as Jupyter Notebook](notebooks/acv_two_model.ipynb)
+:::
+
+## Learning Objectives
+
+After completing this tutorial, you will be able to:
+
+- Understand the difference between CV (known LF statistic) and ACV (unknown LF statistic)
+- Derive the ACV variance reduction formula for two models
+- Visualize the sample allocation between shared and LF-only samples
+- Analyze how the sample ratio $r$ affects variance reduction
+
+## Prerequisites
+
+Complete [Control Variates](control_variates.qmd) before this tutorial.
+
+## From CV to ACV
+
+The [Control Variates](control_variates.qmd) tutorial assumed we know the exact mean $\mu_1$ of the low-fidelity model. In practice, this is rarely true. **Approximate Control Variates (ACV)** addresses this by estimating $\mu_1$ from samples.
+
+### The Key Difference
+
+| Aspect | CV | ACV |
+|--------|-----|-----|
+| LF mean $\mu_1$ | Known exactly | Estimated from samples |
+| LF samples | Same as HF ($N$) | More than HF ($rN$, $r > 1$) |
+| Estimator | $\hat{Q}_0 + \eta(\mu_1 - \hat{Q}_1)$ | $\hat{Q}_0 + \eta(\hat{\mu}_1 - \hat{Q}_1)$ |
+
+## Mathematical Foundation
+
+### ACV Estimator
+
+The two-model ACV estimator is:
+
+$$
+\hat{Q}^{\text{ACV}} = \hat{Q}_0(\mathcal{Z}_N) + \eta \left[ \hat{Q}_1(\mathcal{Z}_N) - \hat{Q}_1(\mathcal{Z}_{rN}) \right]
+$$
+
+where:
+
+- $\mathcal{Z}_N$ = $N$ shared samples (both models evaluated)
+- $\mathcal{Z}_{rN}$ = $rN$ samples for LF model ($\mathcal{Z}_N \subset \mathcal{Z}_{rN}$)
+- $\hat{Q}_0(\mathcal{Z}_N)$ = HF mean on shared samples
+- $\hat{Q}_1(\mathcal{Z}_N)$ = LF mean on shared samples
+- $\hat{Q}_1(\mathcal{Z}_{rN})$ = LF mean on all samples (approximates $\mu_1$)
+
+### Unbiasedness
+
+The ACV estimator is unbiased because:
+
+$$
+\mathbb{E}[\hat{Q}^{\text{ACV}}] = \mathbb{E}[\hat{Q}_0] + \eta \left( \mathbb{E}[\hat{Q}_1(\mathcal{Z}_N)] - \mathbb{E}[\hat{Q}_1(\mathcal{Z}_{rN})] \right) = \mu_0
+$$
+
+### Variance Reduction
+
+With the sample structure $\mathcal{Z}_N \subset \mathcal{Z}_{rN}$, the variance reduction factor is:
+
+$$
+\gamma = 1 - \frac{r-1}{r} \rho^2
+$$
+
+where $\rho = \text{Corr}(f_0, f_1)$ is the model correlation.
+
+**Key insight**: As $r \to \infty$, we recover the CV variance reduction $\gamma \to 1 - \rho^2$.
+
+### Optimal Weight
+
+The optimal control variate weight is the same as for CV:
+
+$$
+\eta^* = -\frac{\text{Cov}(f_0, f_1)}{\text{Var}(f_1)}
+$$
+
+## Setup
+
+```{python}
+import numpy as np
+import matplotlib.pyplot as plt
+
+from pyapprox.typing.util.backends.numpy import NumpyBkd
+from pyapprox.typing.stats import MultiOutputMean, GISEstimator
+
+bkd = NumpyBkd()
+np.random.seed(42)
+```
+
+## Example: Two Correlated Models
+
+```{python}
+def high_fidelity(x):
+    """HF model: expensive, accurate."""
+    return np.sin(2 * np.pi * x) + 0.5 * x**2
+
+def low_fidelity(x):
+    """LF model: cheap, approximate."""
+    return 0.95 * np.sin(2 * np.pi * x) + 0.45 * x**2 + 0.02
+```
+
+```{python}
+# Visualize models
+x_plot = np.linspace(0, 1, 200)
+
+fig, ax = plt.subplots(figsize=(8, 5))
+ax.plot(x_plot, high_fidelity(x_plot), 'b-', linewidth=2, label='High-fidelity $f_0$')
+ax.plot(x_plot, low_fidelity(x_plot), 'r--', linewidth=2, label='Low-fidelity $f_1$')
+ax.set_xlabel('x')
+ax.set_ylabel('f(x)')
+ax.set_title('Two-Model Hierarchy')
+ax.legend()
+ax.grid(True, alpha=0.3)
+plt.tight_layout()
+plt.show()
+```
+
+## Estimating Model Correlation
+
+```{python}
+# Pilot samples to estimate covariance
+n_pilot = 200
+pilot_samples = np.random.uniform(0, 1, n_pilot)
+
+f0_pilot = high_fidelity(pilot_samples)
+f1_pilot = low_fidelity(pilot_samples)
+
+# Build 2x2 covariance matrix
+pilot_cov = np.cov(np.vstack([f0_pilot, f1_pilot]))
+rho = pilot_cov[0, 1] / np.sqrt(pilot_cov[0, 0] * pilot_cov[1, 1])
+
+print(f"Model correlation: rho = {rho:.4f}")
+print(f"CV variance reduction (r -> inf): {1/(1-rho**2):.2f}x")
+```
+
+## Visualizing Sample Allocation
+
+The key feature of ACV is that LF gets more samples than HF. Let's visualize this.
+
+```{python}
+# Create ACV estimator
+stat = MultiOutputMean(nqoi=1, bkd=bkd)
+stat.set_pilot_quantities(bkd.asarray(pilot_cov))
+
+# Model costs: HF is 10x more expensive
+costs = bkd.asarray([10.0, 1.0])
+
+# GIS estimator with 2 models is a two-model ACV
+acv = GISEstimator(stat, costs, bkd)
+
+# Allocate for a budget
+target_cost = 200.0
+acv.allocate_samples(target_cost)
+
+# Get sample counts
+nsamples = bkd.to_numpy(acv.nsamples_per_model())
+print(f"HF samples (N): {int(nsamples[0])}")
+print(f"LF samples (rN): {int(nsamples[1])}")
+print(f"Ratio r = {nsamples[1]/nsamples[0]:.1f}")
+```
+
+```{python}
+# Visualize the sample partitions
+nhf = int(nsamples[0])
+nlf = int(nsamples[1])
+
+# Generate samples
+all_samples = np.random.uniform(0, 1, nlf)
+shared_samples = all_samples[:nhf]
+lf_only_samples = all_samples[nhf:]
+
+fig, ax = plt.subplots(figsize=(10, 4))
+
+# Plot shared samples (both models)
+ax.scatter(shared_samples, np.ones(nhf) * 0.6, c='red', s=80,
+           label=f'Shared samples (N={nhf}): HF + LF', marker='o', zorder=3)
+
+# Plot LF-only samples
+ax.scatter(lf_only_samples, np.ones(len(lf_only_samples)) * 0.4, c='blue', s=60,
+           label=f'LF-only samples ({nlf-nhf}): LF only', marker='s', zorder=3)
+
+ax.set_xlim(-0.05, 1.05)
+ax.set_ylim(0, 1)
+ax.set_xlabel('Sample location x')
+ax.set_yticks([0.4, 0.6])
+ax.set_yticklabels(['LF only', 'HF + LF'])
+ax.set_title('ACV Sample Allocation')
+ax.legend(loc='upper right')
+ax.grid(True, alpha=0.3, axis='x')
+plt.tight_layout()
+plt.show()
+```
+
+## Variance Reduction vs Sample Ratio
+
+The ACV variance reduction depends on both correlation $\rho$ and sample ratio $r$.
+
+```{python}
+def acv_variance_reduction(rho, r):
+    """Compute ACV variance reduction factor."""
+    return 1 / (1 - (r - 1) / r * rho**2)
+
+# Plot variance reduction vs r for different correlations
+r_values = np.linspace(1.1, 50, 100)
+correlations = [0.7, 0.9, 0.95, 0.99]
+
+fig, ax = plt.subplots(figsize=(10, 6))
+for rho_val in correlations:
+    vr = [acv_variance_reduction(rho_val, r) for r in r_values]
+    cv_limit = 1 / (1 - rho_val**2)
+    ax.plot(r_values, vr, linewidth=2, label=f'$\\rho$ = {rho_val}')
+    ax.axhline(cv_limit, linestyle=':', alpha=0.5)
+
+ax.set_xlabel('Sample ratio r = LF samples / HF samples')
+ax.set_ylabel('Variance Reduction Factor')
+ax.set_title('ACV Variance Reduction vs Sample Ratio')
+ax.legend()
+ax.set_xlim(1, 50)
+ax.set_ylim(1, 60)
+ax.grid(True, alpha=0.3)
+plt.tight_layout()
+plt.show()
+```
+
+**Observations:**
+
+- Higher $r$ gives better variance reduction (approaches CV limit)
+- Diminishing returns: going from $r=10$ to $r=20$ helps less than $r=2$ to $r=10$
+- Higher correlation benefits more from increased $r$
+
+## Computing an ACV Estimate
+
+```{python}
+# Evaluate models
+hf_values = high_fidelity(shared_samples).reshape(-1, 1)
+lf_values = low_fidelity(all_samples).reshape(-1, 1)
+
+# Compute ACV estimate
+acv_estimate = acv([hf_values, lf_values])
+print(f"ACV estimate: {float(acv_estimate[0]):.6f}")
+
+# Compare to simple MC
+mc_estimate = np.mean(hf_values)
+print(f"MC estimate (same HF samples): {float(mc_estimate):.6f}")
+
+# Show optimal weight
+weights = acv.weights()
+print(f"Optimal weight eta: {float(weights[0]):.4f}")
+```
+
+## Comparing ACV to MC
+
+```{python}
+def run_estimator_trials(n_trials=500):
+    """Run multiple trials of MC and ACV."""
+    mc_estimates = []
+    acv_estimates = []
+
+    for _ in range(n_trials):
+        # Generate fresh samples
+        all_samp = np.random.uniform(0, 1, nlf)
+
+        # MC: only HF on N samples
+        hf_vals = high_fidelity(all_samp[:nhf])
+        mc_estimates.append(np.mean(hf_vals))
+
+        # ACV: HF on N, LF on rN
+        hf_vals_acv = hf_vals.reshape(-1, 1)
+        lf_vals_acv = low_fidelity(all_samp).reshape(-1, 1)
+        est = acv([hf_vals_acv, lf_vals_acv])
+        acv_estimates.append(float(est[0]))
+
+    return np.array(mc_estimates), np.array(acv_estimates)
+
+mc_ests, acv_ests = run_estimator_trials()
+
+mc_var = np.var(mc_ests)
+acv_var = np.var(acv_ests)
+
+print(f"MC variance:  {mc_var:.8f}")
+print(f"ACV variance: {acv_var:.8f}")
+print(f"Empirical variance reduction: {mc_var/acv_var:.2f}x")
+print(f"Theoretical variance reduction: {acv_variance_reduction(rho, nlf/nhf):.2f}x")
+```
+
+```{python}
+# Visualize distributions
+fig, ax = plt.subplots(figsize=(10, 5))
+ax.hist(mc_ests, bins=40, alpha=0.6, density=True, label=f'MC (var={mc_var:.6f})')
+ax.hist(acv_ests, bins=40, alpha=0.6, density=True, label=f'ACV (var={acv_var:.6f})')
+ax.axvline(np.mean(mc_ests), color='blue', linestyle='--', linewidth=2)
+ax.axvline(np.mean(acv_ests), color='orange', linestyle='--', linewidth=2)
+ax.set_xlabel('Estimate')
+ax.set_ylabel('Density')
+ax.set_title('Distribution of MC vs ACV Estimates')
+ax.legend()
+plt.tight_layout()
+plt.show()
+```
+
+## Cost Considerations
+
+The total cost of ACV is:
+
+$$
+C^{\text{ACV}} = N \cdot c_0 + rN \cdot c_1
+$$
+
+For a fixed budget, we must balance $N$ and $r$.
+
+```{python}
+# Cost breakdown
+c0, c1 = 10.0, 1.0
+total_cost = nhf * c0 + nlf * c1
+
+print(f"HF cost: {nhf} samples x {c0} = {nhf * c0}")
+print(f"LF cost: {nlf} samples x {c1} = {nlf * c1}")
+print(f"Total cost: {total_cost}")
+print(f"Equivalent MC samples at same cost: {int(total_cost / c0)}")
+```
+
+## Key Takeaways
+
+- **ACV** extends CV to the case where the LF mean is unknown
+- The LF model is evaluated on **more samples** than HF ($rN$ vs $N$)
+- **Variance reduction** is $(1 - \frac{r-1}{r}\rho^2)^{-1}$, approaching CV as $r \to \infty$
+- **Higher correlation** and **larger $r$** both improve variance reduction
+- The **optimal weight** is the same as for CV: $\eta = -\text{Cov}(f_0, f_1)/\text{Var}(f_1)$
+
+## Exercises
+
+1. **(Easy)** Verify that when $r = 2$, the ACV variance reduction is half of the CV variance reduction (in terms of $\rho^2$ contribution).
+
+2. **(Medium)** Find the value of $r$ needed to achieve 90% of the CV variance reduction for $\rho = 0.95$. Plot how this required $r$ varies with correlation.
+
+3. **(Challenge)** Derive the optimal allocation of $N$ and $r$ for a fixed budget $C = Nc_0 + rNc_1$ that minimizes ACV variance.
+
+## Next Steps
+
+Continue with:
+
+- [ACV Framework](acv_framework.qmd) - General ACV with multiple models
+- [Multifidelity Monte Carlo](multifidelity_monte_carlo.qmd) - MFMC and MLMC methods

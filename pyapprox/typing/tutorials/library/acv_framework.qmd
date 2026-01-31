@@ -1,0 +1,392 @@
+---
+title: "ACV Framework: Multiple Models"
+subtitle: "PyApprox Tutorial Library"
+description: "General framework for approximate control variates with M models"
+prerequisites:
+  - multifidelity_monte_carlo
+tags:
+  - multifidelity
+  - variance-reduction
+  - acv
+format:
+  html:
+    code-fold: false
+    code-tools: true
+    toc: true
+execute:
+  echo: true
+  warning: false
+jupyter: python3
+---
+
+::: {.callout-tip collapse="true"}
+## Download Notebook
+[Download as Jupyter Notebook](notebooks/acv_framework.ipynb)
+:::
+
+## Learning Objectives
+
+After completing this tutorial, you will be able to:
+
+- Understand the general ACV estimator formulation for $M$ models
+- Compute optimal control variate weights
+- Understand how allocation matrices define sample relationships
+- Compare different ACV estimator types (MLMC, MFMC, ACVMF)
+
+## Prerequisites
+
+Complete [Multifidelity Monte Carlo](multifidelity_monte_carlo.qmd) before this tutorial.
+
+## The General ACV Framework
+
+MLMC and MFMC are specific instances of a broader class of **Approximate Control Variate (ACV)** estimators. The general ACV framework provides:
+
+1. A unified mathematical formulation
+2. Optimal weight computation
+3. Flexible sample allocation strategies
+
+## Mathematical Formulation
+
+### Vector-Valued Notation
+
+For a statistic $\mathbf{Q}_0 \in \mathbb{R}^S$ estimated using $M$ lower-fidelity models:
+
+$$
+\hat{\mathbf{Q}}^{\text{ACV}} = \hat{\mathbf{Q}}_0 + \boldsymbol{\eta} \boldsymbol{\Delta}
+$$
+
+where:
+
+- $\hat{\mathbf{Q}}_0$ = high-fidelity estimator
+- $\boldsymbol{\Delta} = [\boldsymbol{\Delta}_1^\top, \ldots, \boldsymbol{\Delta}_M^\top]^\top \in \mathbb{R}^{SM}$
+- $\boldsymbol{\Delta}_m = \hat{\mathbf{Q}}_m(\mathcal{Z}_m^*) - \hat{\mathbf{Q}}_m(\mathcal{Z}_m)$ = control variate discrepancy
+- $\boldsymbol{\eta} \in \mathbb{R}^{S \times SM}$ = weight matrix
+
+### Sample Sets
+
+Each model $m$ is evaluated on two (potentially overlapping) sample sets:
+
+- $\mathcal{Z}_m^*$ = "starred" samples (for $\hat{\mathbf{Q}}_m(\mathcal{Z}_m^*)$)
+- $\mathcal{Z}_m$ = "unstarred" samples (for $\hat{\mathbf{Q}}_m(\mathcal{Z}_m)$)
+
+The relationship between these sets defines different ACV estimators.
+
+### Estimator Covariance
+
+The covariance of the ACV estimator is:
+
+$$
+\text{Cov}(\hat{\mathbf{Q}}^{\text{ACV}}) = \text{Cov}(\hat{\mathbf{Q}}_0) + \boldsymbol{\eta} \text{Cov}(\boldsymbol{\Delta}) \boldsymbol{\eta}^\top + \boldsymbol{\eta} \text{Cov}(\boldsymbol{\Delta}, \hat{\mathbf{Q}}_0) + \text{Cov}(\hat{\mathbf{Q}}_0, \boldsymbol{\Delta}) \boldsymbol{\eta}^\top
+$$
+
+### Optimal Weights
+
+The weights minimizing the determinant of the estimator covariance are:
+
+$$
+\boldsymbol{\eta}^* = -\text{Cov}(\boldsymbol{\Delta})^{-1} \text{Cov}(\boldsymbol{\Delta}, \hat{\mathbf{Q}}_0)
+$$
+
+With optimal weights:
+
+$$
+\text{Cov}(\hat{\mathbf{Q}}^{\text{ACV}}) = \text{Cov}(\hat{\mathbf{Q}}_0) - \text{Cov}(\hat{\mathbf{Q}}_0, \boldsymbol{\Delta}) \text{Cov}(\boldsymbol{\Delta})^{-1} \text{Cov}(\hat{\mathbf{Q}}_0, \boldsymbol{\Delta})^\top
+$$
+
+## Setup
+
+```{python}
+import numpy as np
+import matplotlib.pyplot as plt
+
+from pyapprox.typing.util.backends.numpy import NumpyBkd
+from pyapprox.typing.stats import (
+    MultiOutputMean,
+    MLMCEstimator,
+    MFMCEstimator,
+    GMFEstimator,
+    compare_estimators,
+)
+
+bkd = NumpyBkd()
+np.random.seed(42)
+```
+
+## Example: Five-Model Hierarchy
+
+```{python}
+def create_model_hierarchy(nmodels=5):
+    """Create polynomial models with decreasing accuracy."""
+    def model_factory(alpha):
+        def model(x):
+            # Higher alpha = lower fidelity
+            noise_scale = 0.1 * alpha
+            return np.sin(2 * np.pi * x) * np.exp(-x) + noise_scale * x
+        return model
+    return [model_factory(i) for i in range(nmodels)]
+
+models = create_model_hierarchy(5)
+```
+
+```{python}
+# Visualize model hierarchy
+x_plot = np.linspace(0, 1, 200)
+
+fig, ax = plt.subplots(figsize=(10, 6))
+colors = plt.cm.viridis(np.linspace(0, 0.8, 5))
+for i, (model, color) in enumerate(zip(models, colors)):
+    ax.plot(x_plot, model(x_plot), color=color, linewidth=2,
+            label=f'$f_{i}$ ({"HF" if i == 0 else "LF"})')
+ax.set_xlabel('x')
+ax.set_ylabel('f(x)')
+ax.set_title('Five-Model Hierarchy')
+ax.legend()
+ax.grid(True, alpha=0.3)
+plt.tight_layout()
+plt.show()
+```
+
+## Estimating Model Covariance
+
+```{python}
+# Pilot study
+n_pilot = 500
+pilot_samples = np.random.uniform(0, 1, n_pilot)
+
+# Evaluate all models
+pilot_values = np.vstack([model(pilot_samples) for model in models])
+pilot_cov = np.cov(pilot_values)
+
+# Display correlation matrix
+corr_matrix = pilot_cov / np.outer(np.sqrt(np.diag(pilot_cov)),
+                                    np.sqrt(np.diag(pilot_cov)))
+print("Correlation matrix:")
+print(np.round(corr_matrix, 3))
+```
+
+```{python}
+# Visualize correlation with HF
+fig, ax = plt.subplots(figsize=(8, 5))
+correlations = corr_matrix[0, :]
+ax.bar(range(5), correlations, color=colors)
+ax.set_xlabel('Model index')
+ax.set_ylabel('Correlation with HF ($f_0$)')
+ax.set_title('Model Correlations')
+ax.set_xticks(range(5))
+ax.set_xticklabels([f'$f_{i}$' for i in range(5)])
+ax.set_ylim(0, 1.1)
+for i, c in enumerate(correlations):
+    ax.text(i, c + 0.02, f'{c:.3f}', ha='center')
+ax.grid(True, alpha=0.3, axis='y')
+plt.tight_layout()
+plt.show()
+```
+
+## Creating ACV Estimators
+
+PyApprox provides several ACV estimator types. Each uses a different sample allocation strategy.
+
+```{python}
+# Model costs (decreasing by factor of 10)
+nmodels = 5
+costs = bkd.asarray([10**(4-i) for i in range(nmodels)], dtype=float)
+print("Model costs:", bkd.to_numpy(costs))
+
+# Create statistic
+stat = MultiOutputMean(nqoi=1, bkd=bkd)
+stat.set_pilot_quantities(bkd.asarray(pilot_cov))
+```
+
+```{python}
+# Create different ACV estimators
+mlmc = MLMCEstimator(stat, costs, bkd)
+mfmc = MFMCEstimator(stat, costs, bkd)
+
+# ACVMF: GMF with recursion_index = [0, 0, 0, 0]
+# All LF models coupled directly with HF
+recursion_index = bkd.zeros(nmodels - 1, dtype=int)
+acvmf = GMFEstimator(stat, costs, bkd, recursion_index=recursion_index)
+
+estimators = [mlmc, mfmc, acvmf]
+labels = ['MLMC', 'MFMC', 'ACVMF']
+```
+
+## Allocation Matrices
+
+Each estimator type uses a different **allocation matrix** $\mathbf{A}$ that encodes which models share samples.
+
+### MLMC Structure
+
+MLMC couples adjacent levels: model $m$ shares samples with model $m-1$.
+
+$$
+\text{Recursion index: } \gamma = [0, 1, 2, 3]
+$$
+
+### MFMC Structure
+
+MFMC couples all models with HF: model $m$ shares samples with model $0$.
+
+$$
+\text{Recursion index: } \gamma = [0, 0, 0, 0]
+$$
+
+### ACVMF Structure
+
+Same as MFMC but with a different allocation pattern (hierarchical inclusion).
+
+```{python}
+# Allocate samples for each estimator
+target_cost = 1e5
+
+for est, label in zip(estimators, labels):
+    est.allocate_samples(target_cost)
+    nsamples = bkd.to_numpy(est.nsamples_per_model())
+    print(f"\n{label} sample allocation:")
+    for m, n in enumerate(nsamples):
+        print(f"  Model {m}: {int(n):,} samples")
+```
+
+## Comparing Estimator Variances
+
+```{python}
+# Get estimator variances
+variances = []
+for est in estimators:
+    var = bkd.to_numpy(est.optimized_covariance())[0, 0]
+    variances.append(var)
+
+# MC baseline variance
+mc_var = pilot_cov[0, 0] / (target_cost / costs[0].item())
+
+print(f"\nMC variance (baseline): {mc_var:.2e}")
+for label, var in zip(labels, variances):
+    vr = mc_var / var
+    print(f"{label} variance: {var:.2e} ({vr:.1f}x reduction)")
+```
+
+```{python}
+# Visualize variance reduction
+fig, ax = plt.subplots(figsize=(10, 6))
+
+variance_reductions = [mc_var / v for v in variances]
+colors_bar = ['#2ecc71', '#3498db', '#9b59b6']
+
+bars = ax.bar(labels, variance_reductions, color=colors_bar)
+ax.axhline(1, color='red', linestyle='--', linewidth=2, label='MC baseline')
+
+ax.set_ylabel('Variance Reduction Factor')
+ax.set_title(f'ACV Estimator Comparison (Budget = {target_cost:.0e})')
+ax.legend()
+
+for bar, vr in zip(bars, variance_reductions):
+    ax.text(bar.get_x() + bar.get_width()/2, bar.get_height() + 0.5,
+            f'{vr:.1f}x', ha='center', fontsize=12)
+
+ax.grid(True, alpha=0.3, axis='y')
+plt.tight_layout()
+plt.show()
+```
+
+## Using the Factory Function
+
+PyApprox provides a convenient factory function for comparing estimators.
+
+```{python}
+from pyapprox.typing.stats import get_estimator
+
+# Create estimators using factory
+target_costs = bkd.asarray([1e4, 1e5, 1e6])
+
+results = compare_estimators(
+    target_costs,
+    [
+        get_estimator("mlmc", stat, costs),
+        get_estimator("mfmc", stat, costs),
+        get_estimator("gmf", stat, costs, recursion_index=recursion_index),
+    ],
+)
+```
+
+```{python}
+# Plot variance vs cost
+fig, ax = plt.subplots(figsize=(10, 6))
+
+target_costs_np = bkd.to_numpy(target_costs)
+for i, (label, color) in enumerate(zip(labels, colors_bar)):
+    vars_at_costs = [bkd.to_numpy(results[i][j].optimized_covariance())[0, 0]
+                     for j in range(len(target_costs_np))]
+    ax.loglog(target_costs_np, vars_at_costs, 'o-', color=color,
+              linewidth=2, markersize=8, label=label)
+
+# MC reference
+mc_vars = [pilot_cov[0, 0] / (c / costs[0].item()) for c in target_costs_np]
+ax.loglog(target_costs_np, mc_vars, 'r--', linewidth=2, label='MC')
+
+ax.set_xlabel('Computational Cost')
+ax.set_ylabel('Estimator Variance')
+ax.set_title('Variance Convergence: ACV Methods')
+ax.legend()
+ax.grid(True, alpha=0.3, which='both')
+plt.tight_layout()
+plt.show()
+```
+
+## Understanding the Allocation Matrix
+
+The allocation matrix $\mathbf{A}$ has shape (nmodels, npartitions) where:
+
+- Rows correspond to models
+- Columns correspond to independent sample partitions
+- $A_{ij} = 1$ means model $i$ is evaluated on partition $j$
+
+```{python}
+from pyapprox.typing.stats.allocation import get_allocation_matrix_from_recursion
+
+# MFMC allocation matrix for 4 models
+nmodels_small = 4
+recursion_mfmc = bkd.zeros(nmodels_small - 1, dtype=int)  # [0, 0, 0]
+A_mfmc = get_allocation_matrix_from_recursion(nmodels_small, recursion_mfmc, bkd)
+
+print("MFMC Allocation Matrix (4 models):")
+print(bkd.to_numpy(A_mfmc).astype(int))
+```
+
+```{python}
+# MLMC allocation matrix
+recursion_mlmc = bkd.arange(nmodels_small - 1, dtype=int)  # [0, 1, 2]
+A_mlmc = get_allocation_matrix_from_recursion(nmodels_small, recursion_mlmc, bkd)
+
+print("\nMLMC Allocation Matrix (4 models):")
+print(bkd.to_numpy(A_mlmc).astype(int))
+```
+
+**Reading the matrix:**
+
+- Column 0: HF-only partition
+- Odd columns: shared partitions ($\mathcal{Z}_m^*$)
+- Even columns (>0): model-specific partitions ($\mathcal{Z}_m$)
+
+## Key Takeaways
+
+- **ACV** provides a unified framework for multifidelity estimation
+- The estimator is $\hat{\mathbf{Q}}^{\text{ACV}} = \hat{\mathbf{Q}}_0 + \boldsymbol{\eta} \boldsymbol{\Delta}$
+- **Optimal weights** minimize the estimator covariance determinant
+- **Allocation matrices** encode sample relationships between models
+- Different estimator types (MLMC, MFMC, ACVMF) use different allocation strategies
+- **No single estimator is universally best** - compare multiple for each problem
+
+## Exercises
+
+1. **(Easy)** Compare the sample allocations of MLMC and MFMC. Which allocates more samples to the cheapest model? Why?
+
+2. **(Medium)** Modify the model correlations (e.g., make LF models less correlated with HF) and observe how relative estimator performance changes.
+
+3. **(Challenge)** For a 3-model hierarchy, enumerate all possible recursion indices and determine which gives the best variance reduction for a specific correlation structure.
+
+## Next Steps
+
+Continue with:
+
+- [PACV Estimators](pacv_estimators.qmd) - GMF, GRD, and GIS estimator families
+- [Allocation Matrices](allocation_matrices.qmd) - Deep dive into allocation theory

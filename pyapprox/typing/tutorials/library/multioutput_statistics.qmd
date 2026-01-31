@@ -1,0 +1,385 @@
+---
+title: "Multi-Output Statistics"
+subtitle: "PyApprox Tutorial Library"
+description: "Estimating vector-valued statistics: mean, variance, and covariance"
+prerequisites:
+  - monte_carlo_basics
+tags:
+  - statistics
+  - monte-carlo
+  - multioutput
+format:
+  html:
+    code-fold: false
+    code-tools: true
+    toc: true
+execute:
+  echo: true
+  warning: false
+jupyter: python3
+---
+
+::: {.callout-tip collapse="true"}
+## Download Notebook
+[Download as Jupyter Notebook](notebooks/multioutput_statistics.ipynb)
+:::
+
+## Learning Objectives
+
+After completing this tutorial, you will be able to:
+
+- Understand vector-valued statistics for multi-output functions
+- Estimate mean and covariance simultaneously
+- Compute the covariance of estimators for vector-valued statistics
+- Choose appropriate error metrics for multi-output estimation
+
+## Prerequisites
+
+Complete [Monte Carlo Basics](monte_carlo_basics.qmd) before this tutorial.
+
+## Beyond Scalar Statistics
+
+The [Monte Carlo Basics](monte_carlo_basics.qmd) tutorial focused on estimating the mean of a scalar function. Many applications require:
+
+1. **Multiple outputs**: Functions $f: \mathbb{R}^d \to \mathbb{R}^K$ with $K > 1$
+2. **Multiple statistics**: Estimating mean AND variance simultaneously
+3. **Both**: Multiple statistics of multiple outputs
+
+## Vector-Valued Statistics
+
+### General Formulation
+
+Consider a vector-valued function $f_\alpha: \mathbb{R}^d \to \mathbb{R}^K$. We define a vector-valued statistic:
+
+$$
+\mathbf{Q}_\alpha = [(Q_\alpha)_1, \ldots, (Q_\alpha)_S]^\top \in \mathbb{R}^S
+$$
+
+where $S$ is the total number of scalar statistics.
+
+### Mean of a Vector-Valued Function
+
+For $f_\alpha: \mathbb{R}^d \to \mathbb{R}^K$:
+
+$$
+(\mathbf{Q}_\alpha^\mu)_k = \mathbb{E}_\theta[f_{\alpha,k}(\theta)], \quad k = 1, \ldots, K
+$$
+
+**MC Estimator:**
+
+$$
+(\hat{Q}_\alpha^\mu)_k = \frac{1}{N} \sum_{n=1}^N f_{\alpha,k}(\theta^{(n)})
+$$
+
+### Covariance of a Vector-Valued Function
+
+$$
+(\mathbf{Q}_\alpha^\Sigma)_{jk} = \text{Cov}(f_{\alpha,j}, f_{\alpha,k}), \quad j, k = 1, \ldots, K
+$$
+
+**MC Estimator (unbiased):**
+
+$$
+(\hat{Q}_\alpha^\Sigma)_{jk} = \frac{1}{N-1} \sum_{n=1}^N \left(f_{\alpha,j}^{(n)} - (\hat{Q}_\alpha^\mu)_j\right)\left(f_{\alpha,k}^{(n)} - (\hat{Q}_\alpha^\mu)_k\right)
+$$
+
+### Combined Mean-Variance Statistic
+
+Estimating both mean and covariance:
+
+$$
+\mathbf{Q}_\alpha^{\mu,\Sigma} = [(\mathbf{Q}_\alpha^\mu)^\top, \text{flat}(\mathbf{Q}_\alpha^\Sigma)^\top]^\top \in \mathbb{R}^{K + K^2}
+$$
+
+where $\text{flat}(\cdot)$ vectorizes the covariance matrix.
+
+## Setup
+
+```{python}
+import numpy as np
+import matplotlib.pyplot as plt
+
+from pyapprox.typing.util.backends.numpy import NumpyBkd
+from pyapprox.typing.stats import (
+    MultiOutputMean,
+    MultiOutputVariance,
+    MultiOutputMeanAndVariance,
+)
+
+bkd = NumpyBkd()
+np.random.seed(42)
+```
+
+## Example: Three-Output Function
+
+```{python}
+def vector_function(x):
+    """
+    Vector-valued function f: R -> R^3.
+
+    Parameters
+    ----------
+    x : array, shape (1, nsamples)
+
+    Returns
+    -------
+    array, shape (3, nsamples)
+    """
+    x = x.flatten()
+    f1 = np.sqrt(11) * x**5
+    f2 = x**4
+    f3 = np.sin(2 * np.pi * x)
+    return np.vstack([f1, f2, f3])
+```
+
+```{python}
+# Visualize the outputs
+x_plot = np.linspace(0, 1, 200).reshape(1, -1)
+f_plot = vector_function(x_plot)
+
+fig, axes = plt.subplots(1, 3, figsize=(14, 4))
+labels = [r'$f_1(x) = \sqrt{11}x^5$', r'$f_2(x) = x^4$', r'$f_3(x) = \sin(2\pi x)$']
+
+for ax, f, label in zip(axes, f_plot, labels):
+    ax.plot(x_plot.flatten(), f, linewidth=2)
+    ax.set_xlabel('x')
+    ax.set_ylabel('f(x)')
+    ax.set_title(label)
+    ax.grid(True, alpha=0.3)
+
+plt.tight_layout()
+plt.show()
+```
+
+## Estimating the Mean Vector
+
+```{python}
+# Create mean statistic for 3 outputs
+nqoi = 3
+stat_mean = MultiOutputMean(nqoi=nqoi, bkd=bkd)
+
+print(f"Number of QoIs: {stat_mean.nqoi()}")
+print(f"Number of statistics: {stat_mean.nstats()}")
+print(f"Minimum samples required: {stat_mean.min_nsamples()}")
+```
+
+```{python}
+# Generate samples and evaluate
+n_samples = 1000
+samples = np.random.uniform(0, 1, (1, n_samples))
+values = vector_function(samples)
+
+# Compute MC estimate
+mean_estimate = stat_mean.sample_estimate(bkd.asarray(values))
+print(f"\nMean estimates: {bkd.to_numpy(mean_estimate)}")
+
+# Compare to analytical (uniform on [0,1])
+# E[x^n] = 1/(n+1) for uniform(0,1)
+analytical_means = np.array([
+    np.sqrt(11) / 6,  # E[sqrt(11)*x^5] = sqrt(11)/6
+    1 / 5,            # E[x^4] = 1/5
+    0.0               # E[sin(2*pi*x)] = 0
+])
+print(f"Analytical means: {analytical_means}")
+```
+
+## Estimating Variance
+
+```{python}
+# Create variance statistic
+stat_var = MultiOutputVariance(nqoi=nqoi, bkd=bkd)
+
+print(f"Number of variance statistics: {stat_var.nstats()}")
+# For variance of K outputs, we estimate K(K+1)/2 unique covariance entries
+# (lower triangular including diagonal)
+```
+
+```{python}
+# Compute variance estimate
+var_estimate = stat_var.sample_estimate(bkd.asarray(values))
+print(f"\nVariance estimate (lower triangular):")
+print(bkd.to_numpy(var_estimate))
+
+# Reconstruct full covariance matrix
+cov_flat = bkd.to_numpy(var_estimate)
+cov_matrix = np.zeros((nqoi, nqoi))
+cov_matrix[np.tril_indices(nqoi)] = cov_flat
+cov_matrix = cov_matrix + cov_matrix.T - np.diag(np.diag(cov_matrix))
+print(f"\nReconstructed covariance matrix:")
+print(cov_matrix)
+```
+
+## Combined Mean and Variance
+
+```{python}
+# Create combined statistic
+stat_combined = MultiOutputMeanAndVariance(nqoi=nqoi, bkd=bkd)
+
+print(f"Total statistics (mean + variance): {stat_combined.nstats()}")
+# K means + K(K+1)/2 covariance entries = 3 + 6 = 9
+```
+
+```{python}
+# Compute combined estimate
+combined_estimate = stat_combined.sample_estimate(bkd.asarray(values))
+combined_np = bkd.to_numpy(combined_estimate)
+
+print(f"\nCombined estimate:")
+print(f"  Means: {combined_np[:nqoi]}")
+print(f"  Covariance (flat): {combined_np[nqoi:]}")
+```
+
+## Estimator Covariance
+
+For vector-valued statistics, the error is characterized by the **estimator covariance** matrix, not just variance.
+
+### Covariance of Mean Estimator
+
+For two mean estimators sharing $P$ samples:
+
+$$
+\text{Cov}(\hat{\mathbf{Q}}_\alpha^\mu, \hat{\mathbf{Q}}_\beta^\mu) = \frac{P}{MN} \text{Cov}(f_\alpha, f_\beta)
+$$
+
+### Covariance of Variance Estimator
+
+The covariance between variance estimators involves higher-order moments:
+
+$$
+\text{Cov}(\hat{\mathbf{Q}}_\alpha^\Sigma, \hat{\mathbf{Q}}_\beta^\Sigma) = \frac{P(P-1)}{M(M-1)N(N-1)} \mathbf{V}_{\alpha\beta} + \frac{P}{MN} \mathbf{W}_{\alpha\beta}
+$$
+
+where:
+
+- $\mathbf{V}_{\alpha\beta}$ depends on second moments (covariances)
+- $\mathbf{W}_{\alpha\beta}$ depends on fourth moments
+
+```{python}
+# Compute pilot quantities for the combined statistic
+# This requires estimating W and B matrices from pilot samples
+
+n_pilot = 5000
+pilot_samples = np.random.uniform(0, 1, (1, n_pilot))
+pilot_values = vector_function(pilot_samples)
+
+# For demonstration, compute the pilot covariance
+pilot_cov = np.cov(pilot_values)
+print("Pilot covariance matrix:")
+print(pilot_cov.round(4))
+```
+
+## Error Metrics for Vector Statistics
+
+Since the estimator is multivariate, we need scalar error metrics.
+
+### Common Choices
+
+| Metric | Formula | Use Case |
+|--------|---------|----------|
+| Trace | $\text{tr}(\text{Cov})$ | Sum of individual variances |
+| Determinant | $\det(\text{Cov})$ | Volume of uncertainty ellipsoid |
+| Max eigenvalue | $\lambda_{\max}(\text{Cov})$ | Worst-case variance |
+
+```{python}
+# Demonstrate error metrics
+# Create a mock estimator covariance
+from pyapprox.typing.stats import MCEstimator
+
+stat_for_mc = MultiOutputMean(nqoi=nqoi, bkd=bkd)
+stat_for_mc.set_pilot_quantities(bkd.asarray(pilot_cov))
+
+costs = bkd.asarray([1.0])
+mc_est = MCEstimator(stat_for_mc, costs, bkd)
+mc_est.allocate_samples(100.0)
+
+est_cov = mc_est.optimized_covariance()
+est_cov_np = bkd.to_numpy(est_cov)
+
+print(f"Estimator covariance matrix:")
+print(est_cov_np.round(8))
+
+print(f"\nError metrics:")
+print(f"  Trace: {np.trace(est_cov_np):.6f}")
+print(f"  Determinant: {np.linalg.det(est_cov_np):.10f}")
+print(f"  Max eigenvalue: {np.max(np.linalg.eigvalsh(est_cov_np)):.6f}")
+```
+
+## Visualizing Estimator Uncertainty
+
+```{python}
+# Run multiple trials to visualize estimator distribution
+n_trials = 500
+n_samples_per_trial = 100
+
+mean_estimates = []
+for _ in range(n_trials):
+    samples = np.random.uniform(0, 1, (1, n_samples_per_trial))
+    values = vector_function(samples)
+    est = stat_mean.sample_estimate(bkd.asarray(values))
+    mean_estimates.append(bkd.to_numpy(est))
+
+mean_estimates = np.array(mean_estimates)
+```
+
+```{python}
+# Visualize marginal distributions
+fig, axes = plt.subplots(1, 3, figsize=(14, 4))
+
+for i, (ax, true_mean) in enumerate(zip(axes, analytical_means)):
+    ax.hist(mean_estimates[:, i], bins=30, density=True, alpha=0.7)
+    ax.axvline(true_mean, color='r', linestyle='--', linewidth=2,
+               label=f'True mean = {true_mean:.4f}')
+    ax.axvline(np.mean(mean_estimates[:, i]), color='orange', linestyle='-',
+               linewidth=2, label=f'Sample mean = {np.mean(mean_estimates[:, i]):.4f}')
+    ax.set_xlabel(f'$\\hat{{\\mu}}_{i+1}$')
+    ax.set_ylabel('Density')
+    ax.set_title(f'Mean Estimator for Output {i+1}')
+    ax.legend(fontsize=9)
+
+plt.tight_layout()
+plt.show()
+```
+
+```{python}
+# Visualize correlation between estimators
+empirical_cov = np.cov(mean_estimates.T)
+
+fig, ax = plt.subplots(figsize=(6, 5))
+im = ax.imshow(empirical_cov, cmap='coolwarm')
+ax.set_xticks(range(3))
+ax.set_yticks(range(3))
+ax.set_xticklabels([f'$\\hat{{\\mu}}_{i+1}$' for i in range(3)])
+ax.set_yticklabels([f'$\\hat{{\\mu}}_{i+1}$' for i in range(3)])
+ax.set_title('Empirical Estimator Covariance')
+
+for i in range(3):
+    for j in range(3):
+        ax.text(j, i, f'{empirical_cov[i,j]:.4f}', ha='center', va='center')
+
+plt.colorbar(im, ax=ax)
+plt.tight_layout()
+plt.show()
+```
+
+## Key Takeaways
+
+- **Vector-valued statistics** combine multiple statistics into a single estimation problem
+- Common statistics: **mean** ($K$ values), **variance** ($K(K+1)/2$ values), **mean+variance**
+- The **estimator covariance** characterizes uncertainty for vector statistics
+- **Error metrics** (trace, determinant) reduce the covariance matrix to a scalar
+- Statistics of **correlated outputs** lead to **correlated estimators**
+
+## Exercises
+
+1. **(Easy)** For a 4-output function, how many scalar statistics are estimated when computing mean+variance? Verify using `MultiOutputMeanAndVariance`.
+
+2. **(Medium)** Compare the trace and determinant of the estimator covariance as the number of samples increases. Do they decrease at the same rate?
+
+3. **(Challenge)** Generate a function where two outputs are highly correlated. Show that estimating both means together can be more efficient than estimating them separately.
+
+## Next Steps
+
+Continue with:
+
+- [Multi-Output Statistics Usage](multioutput_statistics_usage.qmd) - API patterns and workflows
+- [ACV Framework](acv_framework.qmd) - Multifidelity estimation
