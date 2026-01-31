@@ -68,6 +68,7 @@ class TestChainedOptimizer(Generic[Array], unittest.TestCase):
         global_optimizer = ScipyDifferentialEvolutionOptimizer(
             objective=objective,
             bounds=truncated_bounds,
+            constraints=[nonlinear_constraint, linear_con],
             strategy="best1bin",
             maxiter=100,
             popsize=15,
@@ -75,6 +76,7 @@ class TestChainedOptimizer(Generic[Array], unittest.TestCase):
             mutation=(0.5, 1),
             recombination=0.7,
             seed=42,
+            raise_on_failure=False,
         )
 
         # Initialize the local optimizer (Trust Constr)
@@ -153,6 +155,7 @@ class TestChainedOptimizer(Generic[Array], unittest.TestCase):
             mutation=(0.5, 1),
             recombination=0.7,
             seed=42,
+            raise_on_failure=False,
         )
 
         local_optimizer = ScipyTrustConstrOptimizer(
@@ -172,8 +175,10 @@ class TestChainedOptimizer(Generic[Array], unittest.TestCase):
         with self.assertRaises(RuntimeError):
             chained_optimizer.minimize(init_guess)
 
-        # Bind global with truncated bounds (required for diffevol)
-        global_optimizer.bind(objective, truncated_bounds)
+        # Bind global with truncated bounds and constraints
+        global_optimizer.bind(
+            objective, truncated_bounds, constraints=[nonlinear_constraint, linear_con]
+        )
         # Bind local with constraints
         local_optimizer.bind(
             objective, bounds, constraints=[nonlinear_constraint, linear_con]

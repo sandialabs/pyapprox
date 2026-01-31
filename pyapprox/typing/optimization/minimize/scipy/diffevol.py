@@ -319,6 +319,7 @@ class ScipyDifferentialEvolutionOptimizer(Generic[Array]):
             disp=self._disp,
             polish=self._polish,
             x0=init_guess[:, 0],
+            constraints=self._constraints if self._constraints is not None else (),
         )
 
         # Check for failure if raise_on_failure is True

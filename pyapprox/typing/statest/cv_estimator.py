@@ -1,0 +1,373 @@
+"""Control variate estimator for multi-fidelity estimation.
+
+This module provides the CVEstimator class for computing statistics
+using control variate sampling with known low-fidelity statistics.
+"""
+
+import copy
+from typing import Callable, Generic, List, Tuple, Union
+
+import numpy as np
+
+from pyapprox.typing.util.backends.protocols import Array, Backend
+
+from pyapprox.typing.statest.statistics import (
+    MultiOutputStatistic,
+    MultiOutputVariance,
+    MultiOutputMeanAndVariance,
+)
+from pyapprox.typing.statest.mc_estimator import MCEstimator
+
+
+class CVEstimator(MCEstimator[Array], Generic[Array]):
+    """Control variate estimator with known low-fidelity statistics."""
+
+    def __init__(
+        self,
+        stat: MultiOutputStatistic[Array],
+        costs: Union[List, Array],
+        lowfi_stats: Array = None,
+        opt_criteria: Callable = None,
+    ):
+        super().__init__(stat, costs, opt_criteria=opt_criteria)
+        if lowfi_stats is not None:
+            if lowfi_stats.shape != (self._nmodels - 1, self._stat.nstats()):
+                raise ValueError(
+                    "lowfi_stats must be a 2D Array with shape {0} "
+                    "but has shape {1}".format(
+                        (self._nmodels - 1, self._stat.nstats()),
+                        lowfi_stats.shape,
+                    )
+                )
+        self._lowfi_stats = lowfi_stats
+
+        self._optimized_CF = None
+        self._optimized_cf = None
+        self._optimized_weights = None
+
+        self._best_model_indices = self._bkd.arange(len(costs), dtype=int)
+
+    def _get_discrepancy_covariances(
+        self, npartition_samples: Array
+    ) -> Tuple[Array, Array]:
+        return self._stat._get_cv_discrepancy_covariances(npartition_samples)
+
+    def _covariance_from_npartition_samples(
+        self, npartition_samples: Array
+    ) -> Array:
+        CF, cf = self._get_discrepancy_covariances(npartition_samples)
+        weights = self._weights(CF, cf)
+        return self._stat.high_fidelity_estimator_covariance(
+            npartition_samples[0]
+        ) + self._bkd.multidot([weights, cf.T])
+
+    def _set_optimized_params_base(
+        self,
+        rounded_npartition_samples: Array,
+        rounded_nsamples_per_model: Array,
+        rounded_target_cost: float,
+    ):
+        r"""
+        Set the parameters needed to generate samples for evaluating the
+        estimator
+
+        Parameters
+        ----------
+        rounded_npartition_samples : Array (npartitions, dtype=int)
+            The number of samples in the independent sample partitions.
+
+        rounded_nsamples_per_model :  Array (nmodels)
+            The number of samples allocated to each model
+
+        rounded_target_cost : float
+            The cost of the new sample allocation
+
+        Sets attributes
+        ----------------
+        self._rounded_target_cost : float
+            The computational cost of the estimator using the rounded
+            npartition_samples
+
+        self._rounded_npartition_samples :  Array (npartitions)
+            The number of samples in each partition corresponding to the
+            rounded partition_ratios
+
+        self._rounded_nsamples_per_model :  Array (nmodels)
+            The number of samples allocated to each model
+
+        self._optimized_covariance : Array (nstats, nstats)
+            The optimal estimator covariance
+
+        self._optimized_criteria: float
+            The value of the sample allocation objective using the rounded
+            partition_ratios
+
+        self._rounded_nsamples_per_model : Array (nmodels)
+            The number of samples allocated to each model using the rounded
+            partition_ratios
+
+        self._optimized_CF : Array (nstats*(nmodels-1),nstats*(nmodels-1))
+            The covariance between :math:`\Delta_i`, :math:`\Delta_j`
+
+        self._optimized_cf : Array (nstats, nstats*(nmodels-1))
+            The covariance between :math:`Q_0`, :math:`\Delta_j`
+
+        self._optimized_weights : Array (nstats, nmodels-1)
+            The optimal control variate weights
+        """
+        self._rounded_npartition_samples = rounded_npartition_samples
+        self._rounded_nsamples_per_model = rounded_nsamples_per_model
+        self._rounded_target_cost = rounded_target_cost
+        self._optimized_covariance = self._covariance_from_npartition_samples(
+            self._rounded_npartition_samples
+        )
+        self._optimized_criteria = self._optimization_criteria(
+            self._optimized_covariance
+        )
+        self._optimized_CF, self._optimized_cf = (
+            self._get_discrepancy_covariances(self._rounded_npartition_samples)
+        )
+        self._optimized_weights = self._weights(
+            self._optimized_CF, self._optimized_cf
+        )
+
+    def _estimator_cost(self, npartition_samples: Array) -> float:
+        return (npartition_samples[0] * self._costs).sum()
+
+    def _set_optimized_params(self, rounded_npartition_samples: Array):
+        rounded_target_cost = self._estimator_cost(rounded_npartition_samples)
+        self._set_optimized_params_base(
+            rounded_npartition_samples,
+            rounded_npartition_samples,
+            rounded_target_cost,
+        )
+
+    def allocate_samples(self, target_cost: float):
+        npartition_samples = [target_cost / self._costs.sum()]
+        rounded_npartition_samples = [
+            int(self._bkd.floor(npartition_samples[0]))
+        ]
+        if isinstance(
+            self._stat, (MultiOutputVariance, MultiOutputMeanAndVariance)
+        ):
+            min_nhf_samples = 2
+        else:
+            min_nhf_samples = 1
+        if rounded_npartition_samples[0] < min_nhf_samples:
+            msg = "target_cost is to small. Not enough samples of each model"
+            msg += " can be taken {0} < {1}".format(
+                npartition_samples[0], min_nhf_samples
+            )
+            raise ValueError(msg)
+
+        rounded_nsamples_per_model = self._bkd.full(
+            (self._nmodels,), rounded_npartition_samples[0]
+        )
+        rounded_target_cost = (self._costs * rounded_nsamples_per_model).sum()
+        self._set_optimized_params_base(
+            rounded_npartition_samples,
+            rounded_nsamples_per_model,
+            rounded_target_cost,
+        )
+
+    def generate_samples_per_model(self, rvs: Callable) -> List[Array]:
+        """
+        Returns the samples needed to the model
+
+        Parameters
+        ----------
+        rvs : callable
+            Function with signature
+
+            `rvs(nsamples)->Array (nvars, nsamples)`
+
+        Returns
+        -------
+        samples_per_model : list[Array] (1)
+            List with one entry Array (nvars, nsamples_per_model[0])
+        """
+        samples = rvs(self._rounded_nsamples_per_model[0])
+        return [self._bkd.copy(samples) for ii in range(self._nmodels)]
+
+    def _weights(self, CF, cf):
+        # print(self._bkd.cond(CF), "ACV COND")
+        # return -self._bkd.multidot((self._bkd.pinv(CF), cf.T)).T
+        return -self._bkd.solve(CF, cf.T).T
+
+    def _covariance_non_optimal_weights(
+        self, hf_est_covar: Array, weights: Array, CF: Array, cf: Array
+    ) -> Array:
+        # The expression below, e.g. Equation 8
+        # from Dixon 2024, can be used for non optimal control variate weights
+        # Warning: Even though this function is general,
+        # it should only ever be used for MLMC, because
+        # expression for optimal weights is more efficient
+        return (
+            hf_est_covar
+            + self._bkd.multidot([weights, CF, weights.T])
+            + self._bkd.multidot([cf, weights.T])
+            + self._bkd.multidot([weights, cf.T])
+        )
+
+    def _estimate(
+        self,
+        values_per_model: List[Array],
+        weights: Array,
+        bootstrap: bool = False,
+    ) -> Array:
+        if len(values_per_model) != self._nmodels:
+            print(len(self._lowfi_stats), self._nmodels)
+            msg = "Must provide the values for each model."
+            msg += " {0} != {1}".format(len(values_per_model), self._nmodels)
+            raise ValueError(msg)
+        nsamples = values_per_model[0].shape[0]
+        for values in values_per_model[1:]:
+            if values.shape[0] != nsamples:
+                msg = "Must provide the same number of samples for each model"
+                raise ValueError(msg)
+            indices = self._bkd.arange(nsamples, dtype=int)
+        if bootstrap:
+            indices = self._bkd.array(
+                np.random.choice(indices, size=indices.shape[0], replace=True),
+                dtype=int,
+            )
+
+        deltas = self._bkd.hstack(
+            [
+                self._stat.sample_estimate(values_per_model[ii][indices])
+                - self._lowfi_stats[ii - 1]
+                for ii in range(1, self._nmodels)
+            ]
+        )
+        est = (
+            self._stat.sample_estimate(values_per_model[0][indices])
+            + weights @ deltas
+        )
+        return est
+
+    def __call__(self, values_per_model: List[Array]) -> Array:
+        r"""
+        Return the value of the Monte Carlo like estimator
+
+        Parameters
+        ----------
+        values_per_model : list (nmodels)
+            The unique values of each model
+
+        Returns
+        -------
+        est : Array (nqoi, nqoi)
+            The covariance of the estimator values for
+            each high-fidelity model QoI
+        """
+        for vals in values_per_model:
+            if not isinstance(vals, self._bkd.array_type()):
+                raise ValueError(
+                    "vals must be an instance of {0}".format(
+                        self._bkd.array_type()
+                    )
+                )
+        return self._estimate(values_per_model, self._optimized_weights)
+
+    def insert_pilot_values(
+        self, pilot_values: List[Array], values_per_model: List[Array]
+    ) -> List[Array]:
+        """
+        Only add pilot values to the fist indepedent partition and thus
+        only to models that use that partition
+        """
+        new_values_per_model = []
+        for ii in range(self._nmodels):
+            active_partition = (self._allocation_mat[0, 2 * ii] == 1) or (
+                self._allocation_mat[0, 2 * ii + 1] == 1
+            )
+            if active_partition:
+                new_values_per_model.append(
+                    self._bkd.vstack((pilot_values[ii], values_per_model[ii]))
+                )
+            else:
+                new_values_per_model.append(values_per_model[ii].copy())
+        return new_values_per_model
+
+    def __repr__(self):
+        if self._optimized_criteria is None:
+            return "{0}(stat={1}, recursion_index={2})".format(
+                self.__class__.__name__, self._stat, self._recursion_index
+            )
+        rep = "{0}(stat={1}, criteria={2:.3g}".format(
+            self.__class__.__name__, self._stat, self._optimized_criteria
+        )
+        rep += " target_cost={0:.5g}, nsamples={1})".format(
+            self._rounded_target_cost, self._rounded_nsamples_per_model[0]
+        )
+        return rep
+
+    def bootstrap(
+        self,
+        values_per_model: List[Array],
+        nbootstraps: int = 1000,
+        mode: str = "values",
+        pilot_values: List[Array] = None,
+    ):
+        modes = ["values", "values_weights", "weights"]
+        if mode not in modes:
+            raise ValueError("mode must be in {0}".format(modes))
+        if pilot_values is not None and mode not in modes[1:]:
+            raise ValueError(
+                "pilot_values given by mode not in {0}".format(modes[1:])
+            )
+        bootstrap_vals = mode in modes[:2]
+        bootstrap_weights = mode in modes[1:]
+        nbootstraps = int(nbootstraps)
+        estimator_vals = []
+        if bootstrap_weights:
+            npilot_samples = pilot_values[0].shape[0]
+            self_stat = copy.deepcopy(self._stat)
+            weights_list = []
+        for kk in range(nbootstraps):
+            if bootstrap_weights:
+                indices = self._bkd.array(
+                    np.random.choice(
+                        np.arange(npilot_samples, dtype=int),
+                        size=npilot_samples,
+                        replace=True,
+                    ),
+                    dtype=int,
+                )
+                boostrap_pilot_values = [
+                    vals[indices] for vals in pilot_values
+                ]
+                self._stat.set_pilot_quantities(
+                    *self._stat.compute_pilot_quantities(boostrap_pilot_values)
+                )
+                CF, cf = self._get_discrepancy_covariances(
+                    self._rounded_npartition_samples
+                )
+                weights = self._weights(CF, cf)
+                weights_list.append(weights.flatten())
+            else:
+                weights = self._optimized_weights
+            estimator_vals.append(
+                self._estimate(
+                    values_per_model, weights, bootstrap=bootstrap_vals
+                ).flatten()
+            )
+        estimator_vals = self._bkd.stack(estimator_vals)
+        bootstrap_values_mean = estimator_vals.mean(axis=0)
+        bootstrap_values_covar = self._bkd.cov(
+            estimator_vals, rowvar=False, ddof=1
+        )
+        if bootstrap_weights:
+            self._stat = self_stat
+            weights_list = self._bkd.stack(weights_list)
+            bootstrap_weights_mean = weights_list.mean(axis=0)
+            bootstrap_weights_covar = self._bkd.cov(
+                weights_list, rowvar=False, ddof=1
+            )
+            return (
+                bootstrap_values_mean,
+                bootstrap_values_covar,
+                bootstrap_weights_mean,
+                bootstrap_weights_covar,
+            )
+        return (bootstrap_values_mean, bootstrap_values_covar)
