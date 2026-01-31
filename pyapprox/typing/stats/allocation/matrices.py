@@ -258,11 +258,11 @@ def get_allocation_matrix_gis(
             f"got {len(recursion_index)}"
         )
 
-    # Validate recursion index values
+    # Validate recursion index values - must be valid model indices
     for m, k in enumerate(recursion_index):
-        if k < 0 or k > m:
+        if k < 0 or k >= nmodels:
             raise ValueError(
-                f"recursion_index[{m}] = {k} invalid. Must be in [0, {m}]"
+                f"recursion_index[{m}] = {k} invalid. Must be in [0, {nmodels-1}]"
             )
 
     # Build allocation matrix following legacy _get_allocation_matrix_acvis
@@ -313,11 +313,11 @@ def get_allocation_matrix_grd(
             f"got {len(recursion_index)}"
         )
 
-    # Validate recursion index values
+    # Validate recursion index values - must be valid model indices
     for m, k in enumerate(recursion_index):
-        if k < 0 or k > m:
+        if k < 0 or k >= nmodels:
             raise ValueError(
-                f"recursion_index[{m}] = {k} invalid. Must be in [0, {m}]"
+                f"recursion_index[{m}] = {k} invalid. Must be in [0, {nmodels-1}]"
             )
 
     # Build allocation matrix following legacy _get_allocation_matrix_acvrd
@@ -366,11 +366,11 @@ def get_allocation_matrix_gmf(
             f"got {len(recursion_index)}"
         )
 
-    # Validate recursion index values
+    # Validate recursion index values - must be valid model indices
     for m, k in enumerate(recursion_index):
-        if k < 0 or k > m:
+        if k < 0 or k >= nmodels:
             raise ValueError(
-                f"recursion_index[{m}] = {k} invalid. Must be in [0, {m}]"
+                f"recursion_index[{m}] = {k} invalid. Must be in [0, {nmodels-1}]"
             )
 
     # Build allocation matrix following legacy _get_allocation_matrix_gmf
@@ -384,9 +384,14 @@ def get_allocation_matrix_gmf(
     for ii in range(1, nmodels):
         mat[:, 2 * ii] = mat[:, recursion_index[ii - 1] * 2 + 1]
 
-    # Step 3 (GMF-specific): Fill rows below
+    # Step 3 (GMF-specific): Fill rows above last 1 in each column
+    # This creates hierarchical inclusion (L-shaped pattern)
     for ii in range(2, 2 * nmodels):
-        mat[:ii, ii] = 1
+        # Find the last row with a 1 in this column
+        rows_with_one = np.where(mat[:, ii] == 1)[0]
+        if len(rows_with_one) > 0:
+            last_row = rows_with_one[-1]
+            mat[:last_row, ii] = 1.0
 
     return bkd.asarray(mat)
 
