@@ -131,6 +131,23 @@ class CVEstimator(MCEstimator[Array], Generic[Array]):
             self._optimized_CF, self._optimized_cf
         )
 
+    def nsamples_per_model(self) -> Array:
+        """Return the number of samples allocated to each model.
+
+        Returns
+        -------
+        Array
+            Number of samples per model. Shape: (nmodels,)
+
+        Raises
+        ------
+        ValueError
+            If allocate_samples has not been called.
+        """
+        if not hasattr(self, "_rounded_nsamples_per_model"):
+            raise ValueError("Call allocate_samples first.")
+        return self._rounded_nsamples_per_model
+
     def _estimator_cost(self, npartition_samples: Array) -> float:
         return (npartition_samples[0] * self._costs).sum()
 

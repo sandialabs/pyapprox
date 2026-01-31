@@ -85,6 +85,10 @@ class EstimatorProtocol(Protocol, Generic[Array]):
         """Return the estimator covariance at optimal allocation."""
         ...
 
+    def nsamples_per_model(self) -> Array:
+        """Return the number of samples allocated to each model."""
+        ...
+
     def bootstrap(
         self, values: List[Array], nbootstraps: int
     ) -> Tuple[Array, Array]:
