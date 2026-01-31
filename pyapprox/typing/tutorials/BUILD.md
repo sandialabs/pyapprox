@@ -87,71 +87,126 @@ cd /Users/jdjakem/pyapprox/pyapprox/typing/tutorials
 quarto render
 ```
 
-Output is written to `_site/` directory with this structure:
-```
-_site/
-├── index.html              # Main landing page
-├── library/                # All tutorials
-│   ├── index.html
-│   ├── monte_carlo_basics.html
-│   └── ...
-└── workshops/              # Workshop landing pages
-    ├── index.html
-    └── intro_to_uq_2025/
-        └── index.html
-```
-
-### Preview Full Site
-
-Preview the complete site locally:
-
-```bash
-cd /Users/jdjakem/pyapprox/pyapprox/typing/tutorials
-quarto preview
-```
-
-Opens at http://localhost:4848 (or similar port).
+Output is written to `_site/` directory.
 
 ### Quick Build (Skip Execution)
 
 For content changes without re-running code:
 
 ```bash
-cd /Users/jdjakem/pyapprox/pyapprox/typing/tutorials
 quarto render --no-execute
 ```
 
-### Serve Built Site
+---
 
-After building, serve the site locally:
+## Tutorial Time Estimation
 
-```bash
-cd /Users/jdjakem/pyapprox/pyapprox/typing/tutorials/_site
-python -m http.server 8080
-```
+Before finalizing tutorials, check that they meet time and size guidelines from `CONVENTIONS.md`.
 
-Then open http://localhost:8080 in your browser.
-
-Or open HTML files directly in Safari:
+### Estimate Time for a Single Tutorial
 
 ```bash
-open /Users/jdjakem/pyapprox/pyapprox/typing/tutorials/_site/index.html
+python scripts/estimate_tutorial_time.py library/my_tutorial.qmd
 ```
 
-### Generate Downloadable Notebooks (Local)
-
-Each tutorial has a "Download Notebook" link. To make these work locally, generate the notebooks after building:
+### Estimate Time for All Tutorials
 
 ```bash
-cd /Users/jdjakem/pyapprox/pyapprox/typing/tutorials
-mkdir -p _site/library/notebooks
-for f in library/*.qmd; do
-  name=$(basename "${f%.qmd}")
-  quarto convert "$f" --output "_site/library/notebooks/${name}.ipynb"
-done
+python scripts/estimate_tutorial_time.py library/
 ```
 
-On GitHub Pages, notebooks are generated automatically by the deployment workflow.
+### Verbose Output (Show Breakdown)
+
+```bash
+python scripts/estimate_tutorial_time.py library/my_tutorial.qmd --verbose
+```
+
+### Check Against Limits (CI/Pre-commit)
+
+```bash
+# Exit code 1 if any tutorial exceeds limits
+python scripts/estimate_tutorial_time.py library/ --check
+```
+
+### JSON Output (Programmatic Use)
+
+```bash
+python scripts/estimate_tutorial_time.py library/ --json
+```
+
+### Check Multiple Specific Tutorials
+
+```bash
+# For workshop planning
+python scripts/estimate_tutorial_time.py \
+    library/sobol_indices_concept.qmd \
+    library/sobol_indices_usage.qmd \
+    library/sobol_estimator_analysis.qmd \
+    --summary-only
+```
+
+### Example Output
+
+```
+============================================================
+Tutorial: sobol_indices_concept.qmd
+Title: Sobol Sensitivity Indices
+============================================================
+Type: concept
+Difficulty: intermediate
+
+Estimated presentation time: 8.5 min
+Declared time in YAML: 10 min
+
+Limits (concept):
+  Target time: 10 min
+  Suggested limit: 15 min
+  Max lines: 150
+  Max visible code: 2
+  Max equations: 6
+  Max figures: 6
+```
+
+### Understanding Code Block Counts
+
+The script distinguishes:
+- **Visible code blocks**: Code shown to the reader (counts toward limit)
+- **Hidden code blocks**: Code with `#| echo: false` (doesn't count for concept tutorials)
+
+The summary table shows `Code` as `visible+hidden`, e.g., `2+5` means 2 visible, 5 hidden.
+
+---
+
+## Workshop Planning
+
+### Verify Workshop Timing
+
+When composing a workshop from tutorials, verify total time fits the session:
+
+```bash
+python scripts/estimate_tutorial_time.py \
+    library/variance_decomposition_concept.qmd \
+    library/sobol_indices_concept.qmd \
+    library/sobol_indices_usage.qmd \
+    --summary-only
+```
+
+### Workshop Session Guidelines
+
+From `CONVENTIONS.md`, tutorials target 5-10 minutes, allowing 6-8 per 90-minute block:
+
+```
+ 0:00 - 0:10   Concept 1                     10 min
+ 0:10 - 0:20   Concept 2                     10 min
+ 0:20 - 0:30   Usage 1                       10 min
+ 0:30 - 0:40   Hands-on exercises            10 min
+ 0:40 - 0:50   Break                         10 min
+ 0:50 - 1:00   Usage 2                       10 min
+ 1:00 - 1:20   Analysis (extended)           20 min
+ 1:20 - 1:30   Wrap-up / Q&A                 10 min
+```
+
+Analysis tutorials may exceed the 10-minute target when derivations cannot be meaningfully split.
 
 ---
 
@@ -165,21 +220,6 @@ The `_quarto.yml` has `freeze: auto` which caches executed code:
 2. **Subsequent renders**: Only re-executes if the `.qmd` source changed
 3. **Unchanged files**: Uses cached results (very fast)
 
-### The `_freeze/` Directory
-
-After building, cached execution results are stored in:
-
-```
-tutorials/
-├── _freeze/              # Cached execution results
-│   └── library/
-│       └── monte_carlo_basics/
-│           └── execute-results/
-└── _site/                # Rendered HTML output
-```
-
-You can optionally commit `_freeze/` to git to share cached results with collaborators.
-
 ### Development Workflow
 
 | Scenario | Command |
@@ -189,110 +229,19 @@ You can optionally commit `_freeze/` to git to share cached results with collabo
 | Force re-execute all code | `quarto render --execute` |
 | Live preview (auto-rebuild) | `quarto preview` |
 
-### Recommended Workflow
-
-1. **For text/math edits**: Use `quarto render --no-execute` (seconds)
-2. **For code changes**: Render single file `quarto render library/file.qmd`
-3. **For live editing**: Use `quarto preview` (watches files, auto-rebuilds)
-4. **Before deployment**: Full `quarto render` to ensure everything works
-
----
-
-## Build Options
-
-### Skip Code Execution (Fast Build)
-
-For quick iteration on content without re-running code:
-
-```bash
-quarto render --no-execute
-```
-
-### Freeze Execution Results
-
-Cache computation results between builds:
-
-```bash
-# First build: execute and freeze
-quarto render --execute
-
-# Subsequent builds: use frozen results
-quarto render
-```
-
-The `freeze: auto` setting in `_quarto.yml` handles this automatically.
-
-### Build Specific Format
-
-```bash
-# HTML only (default)
-quarto render --to html
-
-# PDF (requires LaTeX)
-quarto render --to pdf
-```
-
 ---
 
 ## GitHub Pages Deployment
 
-### Architecture Overview
-
-The tutorial system uses a **unified build** where:
-- Tutorials are authored ONCE in `library/`
-- Workshops are landing pages that LINK to library tutorials (no duplication)
-- Single Quarto project from `tutorials/` renders everything together
-
-### Option 1: Manual Deployment (Recommended for Testing)
-
-#### Step 1: Create a deployment branch
-
-```bash
-# From repository root
-git checkout --orphan gh-pages
-git reset --hard
-git commit --allow-empty -m "Initialize gh-pages branch"
-git push origin gh-pages
-git checkout linalg-refactor  # Return to your working branch
-```
-
-#### Step 2: Build documentation
+### Option 1: Manual Deployment
 
 ```bash
 cd /Users/jdjakem/pyapprox/pyapprox/typing/tutorials
 quarto render
-```
-
-#### Step 3: Deploy to gh-pages
-
-```bash
-# From tutorials directory
 quarto publish gh-pages --no-browser
 ```
 
-Or manually:
-
-```bash
-# Copy _site contents to gh-pages branch
-git worktree add ../gh-pages-deploy gh-pages
-cp -r _site/* ../gh-pages-deploy/
-cd ../gh-pages-deploy
-git add .
-git commit -m "Update documentation"
-git push origin gh-pages
-git worktree remove ../gh-pages-deploy
-```
-
-#### Step 4: Configure GitHub Pages
-
-1. Go to repository Settings → Pages
-2. Source: "Deploy from a branch"
-3. Branch: `gh-pages` / `/ (root)`
-4. Save
-
-Site will be available at: `https://sandialabs.github.io/pyapprox/tutorials/`
-
-### Option 2: Automated GitHub Actions (Recommended)
+### Option 2: GitHub Actions
 
 Create `.github/workflows/publish-tutorials.yml`:
 
@@ -329,6 +278,11 @@ jobs:
       - name: Setup Quarto
         uses: quarto-dev/quarto-actions/setup@v2
 
+      - name: Check tutorial time limits
+        run: |
+          cd pyapprox/typing/tutorials
+          python scripts/estimate_tutorial_time.py library/ --check
+
       - name: Render tutorials
         run: |
           cd pyapprox/typing/tutorials
@@ -343,11 +297,6 @@ jobs:
             quarto convert "$f" --output "_site/library/notebooks/${name}.ipynb"
           done
 
-      - name: Inject LaTeX macros into notebooks
-        run: |
-          cd pyapprox/typing/tutorials
-          python scripts/inject_notebook_macros.py _site/library/notebooks/
-
       - name: Deploy to GitHub Pages
         uses: peaceiris/actions-gh-pages@v3
         with:
@@ -356,154 +305,37 @@ jobs:
           destination_dir: tutorials
 ```
 
-This deploys to `https://sandialabs.github.io/pyapprox/tutorials/`
-
-Notebooks will be available at `https://sandialabs.github.io/pyapprox/tutorials/library/notebooks/`
-
-### Option 3: Separate Repository for Typing Docs
-
-For complete isolation:
-
-```bash
-# Create new repo: pyapprox-typing-docs
-
-# Build locally
-cd /Users/jdjakem/pyapprox/pyapprox/typing/tutorials
-quarto render
-
-# Push _site contents to new repo
-cd _site
-git init
-git add .
-git commit -m "Deploy typing module tutorials"
-git remote add origin https://github.com/YOUR_USERNAME/pyapprox-typing-docs.git
-git push -u origin main
-
-# Enable GitHub Pages on the new repo (Settings → Pages → main branch)
-```
-
 ---
 
 ## Directory Structure
 
 ```
 pyapprox/typing/tutorials/
-├── _quarto.yml                 # ROOT: Unified Quarto config
-├── index.qmd                   # ROOT: Main landing page
-├── build.sh                    # Build script (run with --help)
+├── _quarto.yml                 # Quarto config
+├── index.qmd                   # Main landing page
+├── build.sh                    # Build script
 ├── BUILD.md                    # This file
-├── CONVENTIONS.md              # Mathematical notation standards
+├── CONVENTIONS.md              # Style and structure conventions
 ├── _macros.tex                 # LaTeX macros (PDF)
 ├── _macros_html.tex            # MathJax macros (HTML)
 ├── _site/                      # Build output (git-ignored)
+├── _freeze/                    # Cached execution results
+│
+├── scripts/
+│   ├── estimate_tutorial_time.py   # Time estimation tool
+│   ├── generate_workshop_index.py
+│   └── inject_notebook_macros.py
 │
 ├── library/                    # Tutorial library
 │   ├── index.qmd               # Library catalog
 │   ├── styles.css              # Custom CSS
-│   └── *.qmd                   # 18 tutorial files
+│   ├── figures/                # Static images
+│   └── *.qmd                   # Tutorial files
 │
-├── workshops/                  # Workshop landing pages
-│   ├── index.qmd               # Workshop listing
-│   └── intro_to_uq_2025/       # Specific workshop
-│       ├── index.qmd           # Links to library tutorials
-│       └── workshop.yml        # Workshop metadata
-│
-└── scripts/
-    └── generate_workshop_index.py
+└── workshops/                  # Workshop landing pages
+    ├── index.qmd               # Workshop listing
+    └── */                      # Workshop directories
 ```
-
-**Key Points:**
-- Root `_quarto.yml` controls the unified build
-- Library tutorials are the single source of truth
-- Workshops are landing pages that LINK to library tutorials (no content duplication)
-- Build output goes to `tutorials/_site/` (not library/_site/)
-
----
-
-## Interactive Development & Debugging
-
-When developing tutorials, you often want to run and debug Python code without rendering the full document.
-
-### Option 1: VS Code + Quarto Extension (Recommended)
-
-The best interactive experience for editing `.qmd` files:
-
-1. Install [VS Code](https://code.visualstudio.com/)
-2. Install the [Quarto extension](https://marketplace.visualstudio.com/items?itemName=quarto.quarto)
-3. Open any `.qmd` file
-4. Run cells interactively with `Shift+Enter`
-
-This gives you a notebook-like experience directly in the `.qmd` file.
-
-### Option 2: Convert to Jupyter Notebook
-
-Convert a tutorial to a notebook for interactive exploration:
-
-```bash
-# Convert .qmd to .ipynb
-quarto convert tutorial.qmd --output tutorial.ipynb
-
-# Open in Jupyter
-jupyter lab tutorial.ipynb
-
-# When done, convert back (if needed)
-quarto convert tutorial.ipynb --output tutorial.qmd
-```
-
-### Option 3: JupyterLab with Jupytext
-
-JupyterLab can open `.qmd` files directly with the jupytext extension:
-
-```bash
-pip install jupytext
-
-# Open .qmd files directly in JupyterLab
-jupyter lab tutorial.qmd
-```
-
-### Option 4: Execute Without Rendering
-
-Run all code cells without generating HTML output:
-
-```bash
-quarto run tutorial.qmd
-```
-
-This executes the Python code but skips rendering, useful for checking if code runs correctly.
-
-### Option 5: Extract and Run Code Blocks
-
-For quick debugging, extract Python code to a standalone file:
-
-```bash
-# Extract Python code blocks
-grep -Pzo '```\{python\}[\s\S]*?```' tutorial.qmd | \
-    sed 's/```{python}//g' | sed 's/```//g' > debug.py
-
-# Run in Python
-python debug.py
-```
-
-Or manually copy code blocks into a Python REPL or script.
-
-### Option 6: IPython/Python REPL
-
-Start an interactive session with the same setup as tutorials:
-
-```bash
-cd /Users/jdjakem/pyapprox/pyapprox/typing/tutorials
-conda activate linalg
-ipython
-```
-
-Then copy-paste code blocks for testing.
-
-### Workflow Tips
-
-- **Rapid iteration**: Use VS Code + Quarto extension for cell-by-cell execution
-- **Full testing**: Use `quarto run tutorial.qmd` to verify all code executes
-- **Content changes**: Use `quarto render --no-execute` to preview text/math changes quickly
-- **Debugging errors**: Convert to `.ipynb` for full debugging with variable inspection
 
 ---
 
@@ -512,64 +344,39 @@ Then copy-paste code blocks for testing.
 ### "Jupyter kernel not found"
 
 ```bash
-# List available kernels
 jupyter kernelspec list
-
-# Install kernel for your environment
 python -m ipykernel install --user --name=linalg
 ```
 
-Then update `_quarto.yml`:
-```yaml
-jupyter: linalg  # Use your kernel name
-```
-
 ### "Module not found: pyapprox"
-
-Ensure PyApprox is installed in the active environment:
 
 ```bash
 conda activate linalg
 pip install -e /path/to/pyapprox
 ```
 
+### Tutorial exceeds time limits
+
+1. Run `python scripts/estimate_tutorial_time.py file.qmd --verbose` to see breakdown
+2. If > 10 min, consider splitting per `CONVENTIONS.md` guidelines
+3. Move derivations to Analysis tutorial
+4. Convert visible code to hidden code for illustrative figures
+5. If splitting isn't feasible (e.g., indivisible derivation), add `extended_time_reason` to YAML
+
 ### Slow builds
 
-Use execution caching:
-
 ```bash
-# Build once with execution
-quarto render --execute
+# Use caching
+quarto render --execute  # First time
+quarto render            # Uses cache
 
-# Subsequent builds use cache (freeze: auto in _quarto.yml)
-quarto render
-```
-
-Or skip execution entirely for content-only changes:
-
-```bash
+# Or skip execution for content-only changes
 quarto render --no-execute
-```
-
-### LaTeX/PDF errors
-
-For PDF output, install TinyTeX:
-
-```bash
-quarto install tinytex
-```
-
-### Port already in use
-
-```bash
-quarto preview --port 5555
 ```
 
 ---
 
 ## Quick Reference
-
-All commands run from `pyapprox/typing/tutorials/`:
 
 | Task | Command |
 |------|---------|
@@ -577,22 +384,14 @@ All commands run from `pyapprox/typing/tutorials/`:
 | Preview full site | `quarto preview` |
 | Build full site | `quarto render` |
 | Build without execution | `quarto render --no-execute` |
-| Execute without rendering | `quarto run library/file.qmd` |
-| Convert to notebook | `quarto convert library/file.qmd --output file.ipynb` |
+| Estimate tutorial time | `python scripts/estimate_tutorial_time.py library/file.qmd` |
+| Verbose time breakdown | `python scripts/estimate_tutorial_time.py library/file.qmd -v` |
+| Check all time limits | `python scripts/estimate_tutorial_time.py library/ --check` |
 | Publish to gh-pages | `quarto publish gh-pages` |
-| Serve built site | `cd _site && python -m http.server 8080` |
-| Check Quarto version | `quarto --version` |
-| List Jupyter kernels | `jupyter kernelspec list` |
 
 ---
 
-## Deployment Checklist
+## Related Documents
 
-- [ ] All tutorials render without errors
-- [ ] Code cells execute successfully
-- [ ] Navigation links work
-- [ ] Images and plots display correctly
-- [ ] MathJax equations render properly
-- [ ] gh-pages branch exists
-- [ ] GitHub Pages enabled in repository settings
-- [ ] Deployed site accessible at expected URL
+- `CONVENTIONS.md` - Tutorial structure, notation, and time guidelines
+- `scripts/estimate_tutorial_time.py` - Time estimation script (run with `--help` for options)
