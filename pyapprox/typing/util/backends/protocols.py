@@ -539,6 +539,9 @@ class Backend(Protocol, Generic[Array]):
     def isnan(array: Array) -> Array: ...
 
     @staticmethod
+    def isinf(array: Array) -> Array: ...
+
+    @staticmethod
     def get_diagonal(
         array: Array, offset: int = 0, axis1: int = 0, axis2: int = 1
     ) -> Array: ...
@@ -796,5 +799,32 @@ class Backend(Protocol, Generic[Array]):
             Lower triangular matrix with unit diagonal.
         U : Array
             Upper triangular matrix.
+        """
+        ...
+
+    @staticmethod
+    def index_update(
+        array: Array,
+        index: Union[int, Tuple[int, ...]],
+        value: Any,
+    ) -> Array:
+        """Return a copy of array with array[index] = value.
+
+        This provides a functional interface for array updates that
+        is compatible with autograd frameworks.
+
+        Parameters
+        ----------
+        array : Array
+            Array to update.
+        index : int or tuple of int
+            Index to update.
+        value : Any
+            Value to set at index.
+
+        Returns
+        -------
+        Array
+            Copy of array with updated value.
         """
         ...

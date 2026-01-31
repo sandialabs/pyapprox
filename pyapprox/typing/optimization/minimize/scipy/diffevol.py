@@ -94,6 +94,8 @@ class ScipyDifferentialEvolutionOptimizer(Generic[Array]):
         recombination: float = 0.7,
         seed: Optional[int] = None,
         disp: bool = False,
+        polish: bool = False,
+        raise_on_failure: bool = True,
     ):
         """Initialize the optimizer.
 
@@ -123,6 +125,14 @@ class ScipyDifferentialEvolutionOptimizer(Generic[Array]):
             Seed for random number generator. Defaults to None.
         disp : bool, optional
             Whether to display convergence messages. Defaults to False.
+        polish : bool, optional
+            Whether to use L-BFGS-B polishing on the best result.
+            Defaults to False.
+        raise_on_failure : bool, optional
+            Whether to raise an error if optimization fails to converge.
+            If False, returns the best result found even without convergence.
+            Useful when used as a global optimizer before local refinement.
+            Defaults to True.
         """
         # Store options for copy()
         self._strategy = strategy
@@ -133,6 +143,8 @@ class ScipyDifferentialEvolutionOptimizer(Generic[Array]):
         self._recombination = recombination
         self._seed = seed
         self._disp = disp
+        self._polish = polish
+        self._raise_on_failure = raise_on_failure
         self._init_constraints = constraints
 
         # Initialize unbound state
@@ -217,6 +229,8 @@ class ScipyDifferentialEvolutionOptimizer(Generic[Array]):
                 recombination=self._recombination,
                 seed=self._seed,
                 disp=self._disp,
+                polish=self._polish,
+                raise_on_failure=self._raise_on_failure,
             ),
         )
 
@@ -284,7 +298,8 @@ class ScipyDifferentialEvolutionOptimizer(Generic[Array]):
         Raises
         ------
         RuntimeError
-            If the optimizer has not been bound.
+            If the optimizer has not been bound, or if optimization fails
+            and raise_on_failure is True.
         """
         if not self._is_bound:
             raise RuntimeError("Optimizer not bound. Call bind() first.")
@@ -302,8 +317,15 @@ class ScipyDifferentialEvolutionOptimizer(Generic[Array]):
             recombination=self._recombination,
             seed=self._seed,
             disp=self._disp,
+            polish=self._polish,
             x0=init_guess[:, 0],
         )
+
+        # Check for failure if raise_on_failure is True
+        if self._raise_on_failure and not scipy_result.success:
+            raise RuntimeError(
+                f"Differential evolution optimization failed: {scipy_result.message}"
+            )
 
         # Wrap the SciPy result
         return ScipyOptimizerResultWrapper(scipy_result, self.bkd())

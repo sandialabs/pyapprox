@@ -495,6 +495,10 @@ class TorchBkd(Backend[torch.Tensor]):  # Specify torch.Tensor type
         return torch.isnan(array)
 
     @staticmethod
+    def isinf(array: torch.Tensor) -> torch.Tensor:
+        return torch.isinf(array)
+
+    @staticmethod
     def argmin(
         array: torch.Tensor, axis: Optional[int] = None
     ) -> torch.Tensor:
@@ -651,3 +655,32 @@ class TorchBkd(Backend[torch.Tensor]):  # Specify torch.Tensor type
             Upper triangular matrix.
         """
         return torch.linalg.lu(array)
+
+    @staticmethod
+    def index_update(
+        array: torch.Tensor,
+        index: Union[int, Tuple[int, ...]],
+        value: Any,
+    ) -> torch.Tensor:
+        """Return a copy of array with array[index] = value.
+
+        This provides a functional interface for array updates that
+        is compatible with autograd frameworks.
+
+        Parameters
+        ----------
+        array : torch.Tensor
+            Tensor to update.
+        index : int or tuple of int
+            Index to update.
+        value : Any
+            Value to set at index.
+
+        Returns
+        -------
+        torch.Tensor
+            Copy of tensor with updated value.
+        """
+        result = array.clone()
+        result[index] = value
+        return result

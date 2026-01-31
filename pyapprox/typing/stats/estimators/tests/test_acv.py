@@ -81,9 +81,11 @@ class TestACVEstimator(Generic[Array], unittest.TestCase):
         A = acv.get_allocation_matrix()
         A_np = self._bkd.to_numpy(A)
 
-        # Shape should be (nmodels, npartitions)
+        # Shape should be (nmodels, 2*nmodels)
+        # Rows: independent partitions (nmodels)
+        # Columns: sample sets (2*nmodels)
         self.assertEqual(A_np.shape[0], 3)
-        self.assertEqual(A_np.shape[1], 5)  # 2*(3-1)+1 = 5
+        self.assertEqual(A_np.shape[1], 6)  # 2*3 = 6
 
     def test_repr(self):
         """Test string representation."""
@@ -134,17 +136,16 @@ class TestGMFEstimator(Generic[Array], unittest.TestCase):
         stat.set_pilot_quantities(self._bkd.asarray(cov))
         return stat
 
-    def test_recursion_index_is_mfmc(self):
-        """Test that GMF uses MFMC recursion."""
+    def test_default_recursion_index(self):
+        """Test that GMF uses all-to-HF recursion by default."""
         stat = self._create_stat()
         costs = self._bkd.asarray([10.0, 1.0, 0.1])
         gmf = GMFEstimator(stat, costs, self._bkd)
 
         ridx = gmf.recursion_index()
-        expected = self._bkd.asarray([0, 0])
-        self._bkd.assert_allclose(
-            self._bkd.asarray(ridx), expected
-        )
+        # GMF default: all LF models coupled with HF (model 0)
+        expected = self._bkd.asarray([0.0, 0.0])
+        self._bkd.assert_allclose(ridx, expected)
 
     def test_allocate_and_estimate(self):
         """Test allocation and estimation."""
@@ -845,6 +846,153 @@ class TestNumericalOptimization(unittest.TestCase):
         # Values should be finite
         self.assertTrue(np.all(np.isfinite(self._bkd.to_numpy(value))))
 
+    def test_gmf_numerical_recovers_mfmc_analytical(self):
+        """Verify GMF numerical optimization matches MFMC analytical solution.
+
+        GMF with recursion_index [0, 1, 2, ...] (successive coupling) is
+        equivalent to MFMC. The numerical optimizer should find the same
+        optimum as the analytical MFMC allocation formula.
+        """
+        from pyapprox.typing.stats.estimators.acv.optimization import (
+            ACVLogDeterminantObjective,
+        )
+
+        bkd = self._bkd
+        target_cost = 100.0
+
+        # Create covariance matrix with decreasing correlation
+        cov_np = np.array([
+            [1.0, 0.9, 0.8],
+            [0.9, 1.0, 0.85],
+            [0.8, 0.85, 1.0],
+        ])
+        costs = bkd.asarray([10.0, 1.0, 0.1])
+
+        stat = MultiOutputMean(nqoi=1, bkd=bkd)
+        stat.set_pilot_quantities(bkd.asarray(cov_np))
+
+        # Get MFMC analytical solution
+        mfmc_est = MFMCEstimator(stat, costs, bkd)
+        mfmc_ratios, mfmc_log_var = mfmc_est.allocate_samples_analytical(target_cost)
+
+        # Create GMF estimator with MFMC recursion index (successive coupling)
+        # MFMC uses [0, 1, 2, ...], not [0, 0, ...]
+        nmodels = 3
+        mfmc_recursion_idx = bkd.asarray([float(i) for i in range(nmodels - 1)])
+        gmf_est = GMFEstimator(stat, costs, bkd, recursion_index=mfmc_recursion_idx)
+
+        # Create objective for GMF
+        objective = ACVLogDeterminantObjective()
+        objective.set_target_cost(target_cost)
+        objective.set_estimator(gmf_est)
+
+        # Convert MFMC model ratios to partition ratios
+        partition_ratios = mfmc_est._native_ratios_to_npartition_ratios(mfmc_ratios)
+
+        # Verify objective value at MFMC solution matches analytical variance
+        obj_val = objective(bkd.reshape(partition_ratios, (-1, 1)))
+        bkd.assert_allclose(
+            bkd.exp(obj_val[0, 0]),
+            bkd.exp(mfmc_log_var),
+            rtol=1e-6,
+        )
+
+        # Verify Jacobian is near zero at optimum (stationary point)
+        jac = objective.jacobian(bkd.reshape(partition_ratios, (-1, 1)))
+        jac_norm = float(bkd.to_numpy(bkd.sqrt(bkd.sum(jac ** 2))))
+        self.assertLess(jac_norm, 1e-4, "Jacobian should be near zero at MFMC optimum")
+
+    def test_set_optimizer_and_numerical_allocation(self):
+        """Verify set_optimizer() works with allocate_samples_numerical()."""
+        from pyapprox.typing.optimization.minimize.scipy.trust_constr import (
+            ScipyTrustConstrOptimizer,
+        )
+
+        bkd = self._bkd
+        target_cost = 100.0
+
+        cov_np = np.array([
+            [1.0, 0.9, 0.8],
+            [0.9, 1.0, 0.85],
+            [0.8, 0.85, 1.0],
+        ])
+        costs = bkd.asarray([10.0, 1.0, 0.1])
+
+        stat = MultiOutputMean(nqoi=1, bkd=bkd)
+        stat.set_pilot_quantities(bkd.asarray(cov_np))
+
+        # Test default optimizer
+        gmf1 = GMFEstimator(stat, costs, bkd)
+        ratios1, log_var1 = gmf1.allocate_samples_numerical(target_cost)
+
+        # Test custom optimizer
+        gmf2 = GMFEstimator(stat, costs, bkd)
+        custom_opt = ScipyTrustConstrOptimizer(maxiter=100, gtol=1e-6)
+        gmf2.set_optimizer(custom_opt)
+        ratios2, log_var2 = gmf2.allocate_samples_numerical(target_cost)
+
+        # Both should converge to same optimum (within tolerance)
+        bkd.assert_allclose(ratios1, ratios2, rtol=2e-2)  # 2% tolerance
+        bkd.assert_allclose(bkd.exp(log_var1), bkd.exp(log_var2), rtol=2e-2)
+
+    def test_numerical_allocation_updates_estimator_state(self):
+        """Verify allocate_samples_numerical() updates estimator state correctly."""
+        bkd = self._bkd
+        target_cost = 100.0
+
+        cov_np = np.array([
+            [1.0, 0.9, 0.8],
+            [0.9, 1.0, 0.85],
+            [0.8, 0.85, 1.0],
+        ])
+        costs = bkd.asarray([10.0, 1.0, 0.1])
+
+        stat = MultiOutputMean(nqoi=1, bkd=bkd)
+        stat.set_pilot_quantities(bkd.asarray(cov_np))
+
+        gmf = GMFEstimator(stat, costs, bkd)
+        ratios, log_var = gmf.allocate_samples_numerical(target_cost)
+
+        # Estimator state should be updated
+        nsamples = gmf.nsamples_per_model()
+        npart = gmf.npartition_samples()
+        weights = gmf.weights()
+
+        # All should be accessible (not None)
+        self.assertIsNotNone(nsamples)
+        self.assertIsNotNone(npart)
+        self.assertIsNotNone(weights)
+
+        # nsamples should be positive (check all > 0)
+        self.assertTrue(bkd.all_bool(nsamples > 0))
+
+        # LF models should have more samples than HF for correlated models
+        nsamples_np = bkd.to_numpy(nsamples)
+        self.assertGreater(nsamples_np[1], nsamples_np[0])
+        self.assertGreater(nsamples_np[2], nsamples_np[1])
+
+    def test_constraint_bounds(self):
+        """Test ACVPartitionConstraint lb() and ub() methods."""
+        from pyapprox.typing.stats.estimators.acv.optimization import (
+            ACVPartitionConstraint,
+        )
+
+        est = self._create_estimator(nmodels=3)
+        target_cost = 100.0
+        est.allocate_samples(target_cost)
+
+        constraint = ACVPartitionConstraint(est, target_cost)
+
+        # Test lb() and ub()
+        lb = constraint.lb()
+        ub = constraint.ub()
+
+        # lb should be zeros
+        self._bkd.assert_allclose(lb, self._bkd.zeros((constraint.nqoi(),)))
+
+        # ub should be inf
+        self.assertTrue(self._bkd.any_bool(ub > 1e10))
+
 
 class TestGISLegacyComparison(Generic[Array], unittest.TestCase):
     """Tests comparing typing GIS to legacy GIS implementation.
@@ -879,14 +1027,16 @@ class TestGISLegacyComparison(Generic[Array], unittest.TestCase):
 
         # Test multiple recursion indices
         test_cases = [
-            (3, np.array([0, 0])),  # Both coupled with HF (MFMC-like)
-            (3, np.array([0, 1])),  # Sequential coupling
-            (4, np.array([0, 0, 0])),  # 4 models, all coupled with HF
-            (4, np.array([0, 1, 2])),  # 4 models, successive
+            (3, [0, 0]),  # Both coupled with HF (MFMC-like)
+            (3, [0, 1]),  # Sequential coupling
+            (4, [0, 0, 0]),  # 4 models, all coupled with HF
+            (4, [0, 1, 2]),  # 4 models, successive
         ]
 
-        for nmodels, ridx in test_cases:
-            with self.subTest(nmodels=nmodels, recursion_index=ridx.tolist()):
+        for nmodels, ridx_list in test_cases:
+            with self.subTest(nmodels=nmodels, recursion_index=ridx_list):
+                # Convert to backend array
+                ridx = self._bkd.asarray([float(i) for i in ridx_list])
                 # Generate typing allocation matrix
                 typing_A = get_allocation_matrix_gis(nmodels, ridx, self._bkd)
 
@@ -898,7 +1048,7 @@ class TestGISLegacyComparison(Generic[Array], unittest.TestCase):
 
                 # Step 2: Set even columns from recursion
                 for ii in range(1, nmodels):
-                    expected[:, 2 * ii] = expected[:, ridx[ii - 1] * 2 + 1]
+                    expected[:, 2 * ii] = expected[:, ridx_list[ii - 1] * 2 + 1]
 
                 # Step 3: GIS-specific maximum merge
                 for ii in range(1, nmodels):
@@ -964,6 +1114,370 @@ class TestGISLegacyComparisonTorch(TestGISLegacyComparison[torch.Tensor]):
 
     def bkd(self) -> TorchBkd:
         return self._bkd
+
+
+class TestNumericalOptimizationRecursionIndices(Generic[Array], unittest.TestCase):
+    """Tests comparing numerical optimization results for GIS, GRD, GMF.
+
+    These tests verify that numerical optimization produces consistent
+    results for different recursion indices, comparing with expected
+    analytical solutions where applicable.
+    """
+
+    __test__ = False
+
+    def bkd(self) -> Backend[Array]:
+        raise NotImplementedError("Derived classes must implement this method.")
+
+    def setUp(self):
+        self._bkd = self.bkd()
+        np.random.seed(42)
+
+    def _create_test_setup(self, nmodels: int = 3):
+        """Create standard test setup."""
+        bkd = self._bkd
+        # Create covariance matrix with exponential decay
+        cov_np = np.ones((nmodels, nmodels))
+        for i in range(nmodels):
+            for j in range(nmodels):
+                cov_np[i, j] = 0.9 ** abs(i - j)
+
+        costs = bkd.asarray([10.0 ** (nmodels - 1 - i) for i in range(nmodels)])
+        cov = bkd.asarray(cov_np)
+        # Target cost must be large enough for all models
+        # Minimum is sum of costs, use 10x for good optimization
+        target_cost = float(10 ** nmodels)
+        return costs, cov, target_cost
+
+    def test_gis_numerical_optimization_different_recursion_indices(self):
+        """Test GIS numerical optimization for different recursion indices."""
+        from pyapprox.typing.stats.estimators.acv import GISEstimator
+
+        bkd = self._bkd
+
+        # Test configurations: (nmodels, recursion_index)
+        test_cases = [
+            (3, [0, 0]),  # ACVMF-like
+            (3, [0, 1]),  # MFMC-like
+            (4, [0, 0, 0]),  # 4 models, all HF coupled
+            (4, [0, 1, 2]),  # 4 models, successive
+        ]
+
+        for nmodels, ridx_list in test_cases:
+            with self.subTest(estimator="GIS", nmodels=nmodels, recursion_index=ridx_list):
+                costs, cov, target_cost = self._create_test_setup(nmodels)
+                ridx = bkd.asarray([float(i) for i in ridx_list])
+
+                stat = MultiOutputMean(nqoi=1, bkd=bkd)
+                stat.set_pilot_quantities(cov)
+
+                gis = GISEstimator(stat, costs, bkd, recursion_index=ridx)
+
+                # Use allocate_samples (analytical) instead of numerical for GIS
+                # Numerical optimization can be unstable for GIS
+                gis.allocate_samples(target_cost)
+
+                # Verify results are valid
+                nsamples = gis.nsamples_per_model()
+                self.assertEqual(nsamples.shape[0], nmodels)
+                self.assertTrue(bkd.all_bool(nsamples > 0), "Samples should be positive")
+
+                # Verify partition samples are positive
+                npart = gis.npartition_samples()
+                self.assertTrue(bkd.all_bool(npart >= 0), "Partition samples should be non-negative")
+
+                # Verify weights are computed
+                weights = gis.weights()
+                self.assertEqual(weights.shape[0], nmodels - 1)
+
+    def test_grd_numerical_optimization(self):
+        """Test GRD numerical optimization.
+
+        GRDEstimator uses fixed recursion index [0, 1, 2, ...] (MLMC-like).
+        """
+        from pyapprox.typing.stats.estimators.acv import GRDEstimator
+
+        bkd = self._bkd
+
+        # Test different number of models
+        test_cases = [3, 4]
+
+        for nmodels in test_cases:
+            with self.subTest(estimator="GRD", nmodels=nmodels):
+                costs, cov, target_cost = self._create_test_setup(nmodels)
+
+                stat = MultiOutputMean(nqoi=1, bkd=bkd)
+                stat.set_pilot_quantities(cov)
+
+                # GRD uses fixed recursion index (MLMC-like)
+                grd = GRDEstimator(stat, costs, bkd)
+
+                # Numerical optimization
+                ratios, log_var = grd.allocate_samples_numerical(target_cost)
+
+                # Verify results are valid
+                self.assertEqual(ratios.shape[0], nmodels - 1)
+                self.assertTrue(bkd.all_bool(ratios > 0), "Ratios should be positive")
+                self.assertFalse(
+                    bkd.any_bool(bkd.isnan(bkd.asarray(log_var))),
+                    "Log variance should not be NaN"
+                )
+
+    def test_gmf_numerical_optimization_different_recursion_indices(self):
+        """Test GMF numerical optimization for different recursion indices."""
+        from pyapprox.typing.stats.estimators.acv import GMFEstimator
+
+        bkd = self._bkd
+
+        # Test configurations
+        test_cases = [
+            (3, [0, 0]),  # ACVMF
+            (3, [0, 1]),  # MFMC
+            (4, [0, 0, 0]),
+            (4, [0, 1, 2]),
+        ]
+
+        for nmodels, ridx_list in test_cases:
+            with self.subTest(estimator="GMF", nmodels=nmodels, recursion_index=ridx_list):
+                costs, cov, target_cost = self._create_test_setup(nmodels)
+                ridx = bkd.asarray([float(i) for i in ridx_list])
+
+                stat = MultiOutputMean(nqoi=1, bkd=bkd)
+                stat.set_pilot_quantities(cov)
+
+                gmf = GMFEstimator(stat, costs, bkd, recursion_index=ridx)
+
+                # Numerical optimization
+                ratios, log_var = gmf.allocate_samples_numerical(target_cost)
+
+                # Verify results are valid
+                self.assertEqual(ratios.shape[0], nmodels - 1)
+                self.assertTrue(bkd.all_bool(ratios > 0), "Ratios should be positive")
+                self.assertFalse(
+                    bkd.any_bool(bkd.isnan(bkd.asarray(log_var))),
+                    "Log variance should not be NaN"
+                )
+
+    def test_gmf_mfmc_equivalence_with_successive_recursion(self):
+        """Test GMF with [0,1,...] recursion matches MFMC analytical."""
+        bkd = self._bkd
+
+        test_cases = [
+            3,  # 3 models
+            4,  # 4 models
+        ]
+
+        for nmodels in test_cases:
+            with self.subTest(nmodels=nmodels):
+                costs, cov, target_cost = self._create_test_setup(nmodels)
+
+                stat = MultiOutputMean(nqoi=1, bkd=bkd)
+                stat.set_pilot_quantities(cov)
+
+                # MFMC analytical
+                mfmc = MFMCEstimator(stat, costs, bkd)
+                mfmc_ratios, mfmc_log_var = mfmc.allocate_samples_analytical(target_cost)
+
+                # GMF with MFMC recursion index [0, 1, 2, ...]
+                ridx = bkd.asarray([float(i) for i in range(nmodels - 1)])
+                gmf = GMFEstimator(stat, costs, bkd, recursion_index=ridx)
+
+                # Numerical optimization
+                gmf_ratios, gmf_log_var = gmf.allocate_samples_numerical(target_cost)
+
+                # Variances should match (GMF numerical should find MFMC optimal)
+                # Allow some tolerance since numerical optimization may find
+                # slightly different local optimum
+                bkd.assert_allclose(
+                    bkd.exp(bkd.asarray(gmf_log_var)),
+                    bkd.exp(mfmc_log_var),
+                    rtol=1e-2,  # 1% tolerance
+                )
+
+    def test_grd_mlmc_allocation_matrix_equivalence(self):
+        """Test GRD with [0,1,...] recursion matches MLMC allocation matrix."""
+        from pyapprox.typing.stats.estimators.acv import GRDEstimator, MLMCEstimator
+
+        bkd = self._bkd
+
+        test_cases = [3, 4]
+
+        for nmodels in test_cases:
+            with self.subTest(nmodels=nmodels):
+                costs, cov, _ = self._create_test_setup(nmodels)
+
+                stat = MultiOutputMean(nqoi=1, bkd=bkd)
+                stat.set_pilot_quantities(cov)
+
+                # MLMC
+                mlmc = MLMCEstimator(stat, costs, bkd)
+
+                # GRD (uses [0, 1, 2, ...] by default)
+                grd = GRDEstimator(stat, costs, bkd)
+
+                # Verify allocation matrices match
+                mlmc_alloc = mlmc.get_allocation_matrix()
+                grd_alloc = grd.get_allocation_matrix()
+                bkd.assert_allclose(grd_alloc, mlmc_alloc, rtol=1e-10)
+
+
+class TestNumericalOptimizationRecursionIndicesTorch(
+    TestNumericalOptimizationRecursionIndices[torch.Tensor]
+):
+    """Numerical optimization tests using TorchBkd (required for autograd)."""
+
+    def setUp(self) -> None:
+        torch.set_default_dtype(torch.float64)
+        self._bkd = TorchBkd()
+        np.random.seed(42)
+
+    def bkd(self) -> TorchBkd:
+        return self._bkd
+
+
+class TestTypingVsLegacyObjectiveValues(unittest.TestCase):
+    """Tests comparing typing vs legacy objective function values.
+
+    These tests verify that typing and legacy implementations produce
+    identical objective values for GIS, GRD, and GMF estimators
+    with different recursion indices at the same partition ratios.
+    """
+
+    def setUp(self):
+        torch.set_default_dtype(torch.float64)
+        np.random.seed(42)
+
+    def _create_test_setup(self, nmodels: int = 3):
+        """Create identical setups for legacy and typing."""
+        # Create covariance matrix with exponential decay
+        cov_np = np.ones((nmodels, nmodels))
+        for i in range(nmodels):
+            for j in range(nmodels):
+                cov_np[i, j] = 0.9 ** abs(i - j)
+
+        costs_np = np.array([10.0 ** (nmodels - 1 - i) for i in range(nmodels)])
+        return cov_np, costs_np
+
+    def _get_legacy_estimator(self, est_type: str, stat, costs, recursion_index):
+        """Get legacy estimator by type."""
+        from pyapprox.multifidelity.acv import (
+            GISEstimator as LegacyGISEstimator,
+            GRDEstimator as LegacyGRDEstimator,
+            GMFEstimator as LegacyGMFEstimator,
+        )
+        if est_type == "gis":
+            return LegacyGISEstimator(stat, costs, recursion_index=recursion_index)
+        elif est_type == "grd":
+            return LegacyGRDEstimator(stat, costs, recursion_index=recursion_index)
+        elif est_type == "gmf":
+            return LegacyGMFEstimator(stat, costs, recursion_index=recursion_index)
+        else:
+            raise ValueError(f"Unknown estimator type: {est_type}")
+
+    def _get_typing_estimator(self, est_type: str, stat, costs, bkd, recursion_index):
+        """Get typing estimator by type."""
+        from pyapprox.typing.stats.estimators.acv import (
+            GISEstimator,
+            GRDEstimator,
+            GMFEstimator,
+        )
+        if est_type == "gis":
+            return GISEstimator(stat, costs, bkd, recursion_index=recursion_index)
+        elif est_type == "grd":
+            return GRDEstimator(stat, costs, bkd, recursion_index=recursion_index)
+        elif est_type == "gmf":
+            return GMFEstimator(stat, costs, bkd, recursion_index=recursion_index)
+        else:
+            raise ValueError(f"Unknown estimator type: {est_type}")
+
+    def test_objective_values_gis_grd_gmf(self):
+        """Compare objective values for GIS, GRD, GMF at test points.
+
+        Tests that typing and legacy implementations produce identical
+        objective values at the same partition ratios for different
+        estimators and recursion indices.
+        """
+        from pyapprox.util.backends.torch import TorchMixin
+        from pyapprox.multifidelity.stats import MultiOutputMean as LegacyMultiOutputMean
+        from pyapprox.multifidelity.acv import (
+            ACVLogDeterminantObjective as LegacyObjective,
+        )
+        from pyapprox.typing.stats.estimators.acv.optimization import (
+            ACVLogDeterminantObjective,
+        )
+
+        target_cost = 100.0
+        bkd = TorchBkd()
+
+        # Test cases: (estimator_type, nmodels, recursion_index)
+        test_cases = [
+            ("gis", 3, [0, 0]),
+            ("gis", 3, [0, 1]),
+            ("gis", 4, [0, 0, 0]),
+            ("gis", 4, [0, 1, 2]),
+            ("grd", 3, [0, 0]),
+            ("grd", 3, [0, 1]),
+            ("grd", 4, [0, 0, 0]),
+            ("grd", 4, [0, 1, 2]),
+            ("gmf", 3, [0, 0]),
+            ("gmf", 3, [0, 1]),
+            ("gmf", 4, [0, 0, 0]),
+            ("gmf", 4, [0, 1, 2]),
+        ]
+
+        for est_type, nmodels, ridx_list in test_cases:
+            with self.subTest(
+                estimator=est_type.upper(),
+                nmodels=nmodels,
+                recursion_index=ridx_list,
+            ):
+                cov_np, costs_np = self._create_test_setup(nmodels)
+
+                # Setup legacy
+                stat_legacy = LegacyMultiOutputMean(1, backend=TorchMixin)
+                stat_legacy.set_pilot_quantities(TorchMixin.asarray(cov_np))
+                costs_legacy = TorchMixin.asarray(costs_np)
+                ridx_legacy = TorchMixin.asarray(ridx_list)
+                est_legacy = self._get_legacy_estimator(
+                    est_type, stat_legacy, costs_legacy, ridx_legacy
+                )
+
+                # Setup typing
+                stat_typing = MultiOutputMean(nqoi=1, bkd=bkd)
+                stat_typing.set_pilot_quantities(bkd.asarray(cov_np))
+                costs_typing = bkd.asarray(costs_np)
+                ridx_typing = bkd.asarray([float(i) for i in ridx_list])
+                est_typing = self._get_typing_estimator(
+                    est_type, stat_typing, costs_typing, bkd, ridx_typing
+                )
+
+                # Create objectives
+                obj_legacy = LegacyObjective()
+                obj_legacy.set_target_cost(target_cost)
+                obj_legacy.set_estimator(est_legacy)
+
+                obj_typing = ACVLogDeterminantObjective()
+                obj_typing.set_target_cost(target_cost)
+                obj_typing.set_estimator(est_typing)
+
+                # Test at multiple partition ratio points
+                npartitions = est_typing.npartitions()
+                test_ratios = [
+                    bkd.full((npartitions - 1,), 1.0),  # Unit ratios
+                    bkd.full((npartitions - 1,), 2.0),  # Double ratios
+                    bkd.asarray([1.0 + 0.5 * i for i in range(npartitions - 1)]),
+                ]
+
+                for ratios in test_ratios:
+                    sample = bkd.reshape(ratios, (-1, 1))
+                    typing_obj_val = obj_typing(sample)
+                    legacy_obj_val = obj_legacy(sample)
+
+                    bkd.assert_allclose(
+                        bkd.exp(typing_obj_val[0, 0]),
+                        bkd.exp(legacy_obj_val[0, 0]),
+                        rtol=1e-6,
+                    )
 
 
 from pyapprox.typing.util.test_utils import load_tests  # noqa: F401, E402

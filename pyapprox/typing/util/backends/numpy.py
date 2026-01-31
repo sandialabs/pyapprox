@@ -413,6 +413,10 @@ class NumpyBkd(Backend[NDArray[Any]]):  # Specify NDArray type
         return np.isnan(array)
 
     @staticmethod
+    def isinf(array: NDArray[Any]) -> NDArray[Any]:
+        return np.isinf(array)
+
+    @staticmethod
     def get_diagonal(
         array: NDArray[Any], offset: int = 0, axis1: int = 0, axis2: int = 1
     ) -> NDArray[Any]:
@@ -578,3 +582,32 @@ class NumpyBkd(Backend[NDArray[Any]]):  # Specify NDArray type
             Upper triangular matrix.
         """
         return scipy.linalg.lu(array)
+
+    @staticmethod
+    def index_update(
+        array: NDArray[Any],
+        index: Union[int, Tuple[int, ...]],
+        value: Any,
+    ) -> NDArray[Any]:
+        """Return a copy of array with array[index] = value.
+
+        This provides a functional interface for array updates that
+        is compatible with autograd frameworks.
+
+        Parameters
+        ----------
+        array : NDArray
+            Array to update.
+        index : int or tuple of int
+            Index to update.
+        value : Any
+            Value to set at index.
+
+        Returns
+        -------
+        NDArray
+            Copy of array with updated value.
+        """
+        result = array.copy()
+        result[index] = value
+        return result

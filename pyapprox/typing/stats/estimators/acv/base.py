@@ -15,8 +15,22 @@ from pyapprox.typing.stats.estimators.base import AbstractEstimator
 from pyapprox.typing.stats.estimators.bootstrap import BootstrapMixin
 from pyapprox.typing.stats.allocation.matrices import (
     get_allocation_matrix_from_recursion,
+    get_allocation_matrix_gmf,
     get_nsamples_per_model,
     get_npartitions_from_nmodels,
+    compute_samples_per_model,
+)
+from pyapprox.typing.optimization.minimize.protocols import (
+    BindableOptimizerProtocol,
+)
+from pyapprox.typing.optimization.minimize.scipy.diffevol import (
+    ScipyDifferentialEvolutionOptimizer,
+)
+from pyapprox.typing.optimization.minimize.scipy.trust_constr import (
+    ScipyTrustConstrOptimizer,
+)
+from pyapprox.typing.optimization.minimize.chained.chained_optimizer import (
+    ChainedOptimizer,
 )
 
 
@@ -73,33 +87,32 @@ class ACVEstimator(BootstrapMixin[Array], AbstractEstimator[Array], Generic[Arra
         if nmodels < 2:
             raise ValueError("ACV requires at least 2 models")
 
-        # Set recursion index (default: MFMC)
+        # Set recursion index (default: all coupled to HF)
         if recursion_index is None:
-            self._recursion_index = np.zeros(nmodels - 1, dtype=np.int64)
+            self._recursion_index = bkd.zeros((nmodels - 1,))
         else:
-            ridx = bkd.to_numpy(recursion_index)
-            if len(ridx) != nmodels - 1:
+            if recursion_index.shape[0] != nmodels - 1:
                 raise ValueError(
-                    f"recursion_index must have length {nmodels-1}, got {len(ridx)}"
+                    f"recursion_index must have length {nmodels-1}, got {recursion_index.shape[0]}"
                 )
-            self._recursion_index = ridx.astype(np.int64)
+            self._recursion_index = recursion_index
 
         self._weights: Optional[Array] = None
         self._npartition_samples: Optional[Array] = None
         self._allocation_mat: Optional[Array] = None
+        self._optimizer: Optional[BindableOptimizerProtocol[Array]] = None
 
-    def recursion_index(self) -> np.ndarray:
+    def recursion_index(self) -> Array:
         """Return the recursion index."""
         return self._recursion_index
 
     def set_recursion_index(self, index: Array) -> None:
         """Set the recursion index."""
-        ridx = self._bkd.to_numpy(index)
-        if len(ridx) != self.nmodels() - 1:
+        if index.shape[0] != self.nmodels() - 1:
             raise ValueError(
                 f"recursion_index must have length {self.nmodels()-1}"
             )
-        self._recursion_index = ridx.astype(np.int64)
+        self._recursion_index = index
         # Invalidate cached values
         self._nsamples = None
         self._weights = None
@@ -107,16 +120,31 @@ class ACVEstimator(BootstrapMixin[Array], AbstractEstimator[Array], Generic[Arra
         self._allocation_mat = None
 
     def get_allocation_matrix(self) -> Array:
-        """Return the allocation matrix."""
+        """Return the allocation matrix.
+
+        The allocation matrix has shape (nmodels, 2*nmodels) where:
+        - Rows: independent partitions k = 0, ..., M-1
+        - Columns: sample sets Z₀*, Z₀, Z₁*, Z₁, ...
+          - Column 2m: Z_m* (starred set for model m)
+          - Column 2m+1: Z_m (unstarred set for model m)
+
+        Subclasses should override this to use their specific allocation
+        matrix function (get_allocation_matrix_gmf, get_allocation_matrix_mfmc, etc.)
+        """
         if self._allocation_mat is None:
-            self._allocation_mat = get_allocation_matrix_from_recursion(
+            # Default: use GMF-style allocation (hierarchical inclusion)
+            self._allocation_mat = get_allocation_matrix_gmf(
                 self.nmodels(), self._recursion_index, self._bkd
             )
         return self._allocation_mat
 
     def npartitions(self) -> int:
-        """Return number of sample partitions."""
-        return get_npartitions_from_nmodels(self.nmodels())
+        """Return number of independent partitions (rows in allocation matrix)."""
+        return self.nmodels()
+
+    def nsets(self) -> int:
+        """Return number of sample sets (columns in allocation matrix)."""
+        return 2 * self.nmodels()
 
     def _compute_optimal_weights(self) -> Array:
         """Compute optimal control variate weights.
@@ -250,33 +278,220 @@ class ACVEstimator(BootstrapMixin[Array], AbstractEstimator[Array], Generic[Arra
         # Compute optimal weights
         self._weights = self._compute_optimal_weights()
 
+    def set_optimizer(
+        self, optimizer: BindableOptimizerProtocol[Array]
+    ) -> None:
+        """Set the optimizer for sample allocation optimization.
+
+        Parameters
+        ----------
+        optimizer : BindableOptimizerProtocol[Array]
+            An optimizer configured with options but NOT bound to an objective.
+            During allocate_samples_numerical(), the optimizer will be cloned
+            and bound to the log-determinant objective and partition constraints.
+
+        Examples
+        --------
+        >>> from pyapprox.typing.optimization.minimize.scipy.trust_constr import (
+        ...     ScipyTrustConstrOptimizer
+        ... )
+        >>> optimizer = ScipyTrustConstrOptimizer(maxiter=500, gtol=1e-8)
+        >>> est.set_optimizer(optimizer)
+        >>> est.allocate_samples_numerical(target_cost=100.0)
+
+        >>> # Or use ChainedOptimizer for global + local search
+        >>> from pyapprox.typing.optimization.minimize.chained import ChainedOptimizer
+        >>> global_opt = ScipyTrustConstrOptimizer(maxiter=50, gtol=1e-4)
+        >>> local_opt = ScipyTrustConstrOptimizer(maxiter=500, gtol=1e-8)
+        >>> chained = ChainedOptimizer(global_opt, local_opt)
+        >>> est.set_optimizer(chained)
+        >>> est.allocate_samples_numerical(target_cost=100.0)
+        """
+        if not isinstance(optimizer, BindableOptimizerProtocol):
+            raise TypeError(
+                f"optimizer must satisfy BindableOptimizerProtocol, "
+                f"got {type(optimizer).__name__}"
+            )
+        self._optimizer = optimizer
+
+    def _get_default_optimizer(self) -> ChainedOptimizer[Array]:
+        """Create default optimizer for sample allocation.
+
+        Uses a chained optimizer: ScipyDifferentialEvolutionOptimizer for
+        global search followed by ScipyTrustConstrOptimizer for local
+        refinement. This provides robust convergence for the non-convex
+        ACV sample allocation problem.
+        """
+        global_opt = ScipyDifferentialEvolutionOptimizer(
+            maxiter=3,
+            raise_on_failure=False,  # Just need a good starting point
+        )
+        local_opt = ScipyTrustConstrOptimizer(
+            maxiter=500,
+            gtol=1e-8,
+            xtol=1e-10,
+        )
+        return ChainedOptimizer(global_opt, local_opt)
+
+    def allocate_samples_numerical(
+        self,
+        target_cost: float,
+        init_ratios: Optional[Array] = None,
+    ) -> Tuple[Array, Array]:
+        """Allocate samples using numerical optimization.
+
+        This method uses constrained optimization to find the partition
+        ratios that minimize the estimator variance for a given budget.
+
+        Parameters
+        ----------
+        target_cost : float
+            Total computational budget.
+        init_ratios : Array, optional
+            Initial partition ratios. If None, uses unit ratios.
+
+        Returns
+        -------
+        partition_ratios : Array
+            Optimal partition ratios. Shape: (npartitions-1,)
+        log_variance : Array
+            Log of estimator variance.
+
+        Raises
+        ------
+        RuntimeError
+            If optimization fails to converge or produces invalid results
+            (NaN/Inf in objective, negative partition samples).
+
+        Notes
+        -----
+        Use set_optimizer() before calling this method to use a custom
+        optimizer. If no optimizer is set, uses ScipyTrustConstrOptimizer
+        with default settings.
+
+        Examples
+        --------
+        >>> # Default optimization
+        >>> ratios, log_var = est.allocate_samples_numerical(target_cost=100.0)
+
+        >>> # Custom optimizer
+        >>> est.set_optimizer(ScipyTrustConstrOptimizer(maxiter=1000))
+        >>> ratios, log_var = est.allocate_samples_numerical(target_cost=100.0)
+        """
+        from .optimization import ACVLogDeterminantObjective, ACVPartitionConstraint
+
+        bkd = self._bkd
+
+        # Get or create optimizer
+        if self._optimizer is not None:
+            optimizer = self._optimizer.copy()
+        else:
+            optimizer = self._get_default_optimizer()
+
+        # Create objective
+        objective = ACVLogDeterminantObjective()
+        objective.set_target_cost(target_cost)
+        objective.set_estimator(self)
+
+        # Create constraint
+        constraint = ACVPartitionConstraint(self, target_cost)
+
+        # Get bounds for partition ratios
+        nvars = self.npartitions() - 1
+        lb = bkd.full((nvars,), 0.01)
+        ub = bkd.full((nvars,), 1000.0)
+        bounds = bkd.stack([lb, ub], axis=1)  # Shape: (nvars, 2)
+
+        # Initial guess
+        if init_ratios is not None:
+            if init_ratios.shape[0] != nvars:
+                raise ValueError(
+                    f"init_ratios must have shape ({nvars},), "
+                    f"got {init_ratios.shape}"
+                )
+            init_guess = bkd.reshape(init_ratios, (nvars, 1))
+        else:
+            init_guess = bkd.ones((nvars, 1))
+
+        # Bind and optimize
+        optimizer.bind(objective, bounds, [constraint])
+        result = optimizer.minimize(init_guess)
+
+        # Extract results
+        partition_ratios = result.optima()[:, 0]  # Shape: (nvars,)
+        log_variance = bkd.asarray(result.fun())  # Convert float to array
+
+        # Validate optimization result
+        if not result.success():
+            raise RuntimeError(
+                f"Sample allocation optimization failed: {result.message()}"
+            )
+
+        # Check for NaN/Inf in objective
+        log_var_arr = bkd.asarray(log_variance) if not hasattr(log_variance, 'shape') else log_variance
+        if bkd.any_bool(bkd.isnan(log_var_arr)) or bkd.any_bool(bkd.isinf(log_var_arr)):
+            raise RuntimeError(
+                "Optimization produced NaN/Inf objective value. "
+                "Try different initial ratios or optimizer settings."
+            )
+
+        # Update estimator state
+        npartition_samples = self._npartition_samples_from_partition_ratios(
+            target_cost, partition_ratios
+        )
+
+        # Check for negative partition samples (constraint violation)
+        if bkd.any_bool(npartition_samples < 0):
+            raise RuntimeError(
+                "Optimization produced negative partition samples. "
+                "Constraint violation detected. Try different initial ratios."
+            )
+
+        self._npartition_samples = npartition_samples
+
+        # Compute model samples from partition samples using correct formula
+        alloc_mat = self.get_allocation_matrix()
+        self._nsamples = compute_samples_per_model(
+            npartition_samples, alloc_mat, self._bkd
+        )
+
+        # Compute optimal weights
+        self._weights = self._compute_optimal_weights()
+
+        return partition_ratios, log_variance
+
     def _solve_partition_allocation(
         self, alloc_mat: Array, nsamples: Array
     ) -> Array:
         """Solve for partition samples from model samples.
 
-        Given A @ npart = nsamples, find non-negative npart.
+        Computes partition samples (shape: (nmodels,)) from model samples.
+        This is estimator-specific - subclasses may override.
+
+        Parameters
+        ----------
+        alloc_mat : Array
+            Allocation matrix. Shape: (nmodels, 2*nmodels)
+        nsamples : Array
+            Samples per model. Shape: (nmodels,)
+
+        Returns
+        -------
+        npartition_samples : Array
+            Samples per partition. Shape: (nmodels,)
         """
         bkd = self._bkd
         nmodels = alloc_mat.shape[0]
-        npartitions = alloc_mat.shape[1]
 
-        # For standard ACV structure, we can solve analytically
-        # Build partition samples as a list then stack
-        parts = []
+        # Simple approach: partition k gets samples from model differences
+        # Partition 0 = HF samples
+        # Partition k (k > 0) = increment for model k
+        parts = [bkd.reshape(nsamples[0], (1,))]
 
-        # Partition 0: HF only = 0 (all HF shared with some LF)
-        parts.append(bkd.asarray([0.0]))
-
-        # For each LF model, assign shared and only partitions
-        for m in range(1, nmodels):
-            # n_shared = min(n_0, n_m)
-            n_shared = bkd.minimum(nsamples[0], nsamples[m])
-            # n_only = max(n_m - n_shared, 0)
-            n_only = bkd.maximum(nsamples[m] - n_shared, bkd.asarray(0.0))
-
-            parts.append(bkd.reshape(n_shared, (1,)))
-            parts.append(bkd.reshape(n_only, (1,)))
+        for k in range(1, nmodels):
+            # Partition k: samples for model k beyond model k-1
+            diff = bkd.maximum(nsamples[k] - nsamples[k - 1], bkd.asarray(0.0))
+            parts.append(bkd.reshape(diff, (1,)))
 
         return bkd.concatenate(parts)
 
@@ -292,17 +507,64 @@ class ACVEstimator(BootstrapMixin[Array], AbstractEstimator[Array], Generic[Arra
             raise ValueError("Weights not computed.")
         return self._weights
 
+    def _partition_ratios_to_model_ratios(self, partition_ratios: Array) -> Array:
+        """Convert partition ratios to model sample ratios.
+
+        Computes model_ratios[m] = n_{m+1} / n_0 from partition_ratios.
+
+        Parameters
+        ----------
+        partition_ratios : Array
+            Shape: (nmodels-1,)
+
+        Returns
+        -------
+        model_ratios : Array
+            Shape: (nmodels-1,) where model_ratios[m] = n_{m+1} / n_0
+        """
+        bkd = self._bkd
+        alloc_mat = self.get_allocation_matrix()
+        nmodels = self.nmodels()
+
+        model_ratios_list = []
+        for ii in range(1, nmodels):
+            # Find active partitions for model ii (excluding partition 0)
+            # Model ii is active in partition k if A[k, 2*ii] or A[k, 2*ii+1] == 1
+            col_starred = 2 * ii
+            col_unstarred = 2 * ii + 1
+            active_in_partitions = (
+                (alloc_mat[1:, col_starred] == 1) |
+                (alloc_mat[1:, col_unstarred] == 1)
+            )
+            # Sum of partition_ratios where model is active (partitions 1 to M-1)
+            ratio = bkd.sum(bkd.where(
+                active_in_partitions,
+                partition_ratios,
+                bkd.zeros_like(partition_ratios)
+            ))
+
+            # Add 1 if model uses partition 0 (the HF partition)
+            if (alloc_mat[0, col_starred] == 1) or (alloc_mat[0, col_unstarred] == 1):
+                ratio = ratio + 1
+
+            model_ratios_list.append(bkd.reshape(ratio, (1,)))
+
+        return bkd.concatenate(model_ratios_list)
+
     def _get_nhf_samples_from_partition_ratios(
         self, target_cost: float, partition_ratios: Array
     ) -> Array:
         """Compute number of HF samples from partition ratios.
+
+        Uses model ratios for cost computation:
+        target_cost = n_0 * (c_0 + sum_m model_ratios[m] * c_{m+1})
 
         Parameters
         ----------
         target_cost : float
             Total computational budget.
         partition_ratios : Array
-            Partition sample ratios relative to first partition. Shape: (npartitions-1,)
+            Partition sample ratios relative to first partition. Shape: (nmodels-1,)
 
         Returns
         -------
@@ -310,16 +572,11 @@ class ACVEstimator(BootstrapMixin[Array], AbstractEstimator[Array], Generic[Arra
             Number of HF samples (scalar).
         """
         bkd = self._bkd
-        alloc_mat = self.get_allocation_matrix()
+        model_ratios = self._partition_ratios_to_model_ratios(partition_ratios)
 
-        # Cost per partition: sum of model costs for models in each partition
-        partition_costs = alloc_mat.T @ self._costs
-
-        # Total cost = nhf * (partition_costs[0] + sum_i partition_ratios[i] * partition_costs[i+1])
-        weighted_partition_cost = partition_costs[0] + bkd.sum(
-            partition_ratios * partition_costs[1:]
-        )
-        nhf = target_cost / weighted_partition_cost
+        # Cost formula: target_cost = n_0 * (c_0 + sum_m model_ratios[m] * c_{m+1})
+        weighted_cost = self._costs[0] + bkd.sum(model_ratios * self._costs[1:])
+        nhf = target_cost / weighted_cost
         return nhf
 
     def _npartition_samples_from_partition_ratios(

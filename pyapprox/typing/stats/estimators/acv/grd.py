@@ -4,21 +4,20 @@ GRD uses a telescoping structure where each model is coupled with the
 previous model in a chain.
 """
 
-from typing import Generic
-
-import numpy as np
+from typing import Generic, Optional
 
 from pyapprox.typing.util.backends.protocols import Array, Backend
 from pyapprox.typing.stats.protocols import StatisticWithDiscrepancyProtocol
 from pyapprox.typing.stats.estimators.acv.base import ACVEstimator
+from pyapprox.typing.stats.allocation.matrices import get_allocation_matrix_grd
 
 
 class GRDEstimator(ACVEstimator[Array], Generic[Array]):
     """Generalized Recursive Difference (GRD) estimator.
 
-    GRD uses the MLMC-style recursion where each model is coupled with
-    the previous model in a chain:
-        recursion_index = [0, 1, 2, ...]
+    GRD uses a telescoping structure where each model is coupled with
+    the previous model in a chain. By default, uses MLMC-style recursion
+    [0, 1, 2, ...] but can accept any valid recursion index.
 
     The estimator uses telescoping differences:
         Q_GRD = Q_M + sum_{m=0}^{M-1} (Q_m - Q_{m+1})
@@ -31,6 +30,10 @@ class GRDEstimator(ACVEstimator[Array], Generic[Array]):
         Cost per sample for each model. Shape: (nmodels,)
     bkd : Backend[Array]
         Computational backend.
+    recursion_index : Array, optional
+        The recursion index specifying which model each low-fidelity model
+        is coupled with. Shape: (nmodels-1,). If None, defaults to MLMC-style
+        recursion [0, 1, 2, ...].
 
     Examples
     --------
@@ -51,11 +54,30 @@ class GRDEstimator(ACVEstimator[Array], Generic[Array]):
         stat: StatisticWithDiscrepancyProtocol[Array],
         costs: Array,
         bkd: Backend[Array],
+        recursion_index: Optional[Array] = None,
     ):
         nmodels = costs.shape[0]
-        # GRD uses MLMC recursion: successive coupling
-        recursion_index = np.arange(nmodels - 1, dtype=np.int64)
-        super().__init__(stat, costs, bkd, bkd.asarray(recursion_index))
+        if recursion_index is None:
+            # Default: MLMC-style recursion (successive coupling)
+            recursion_index = bkd.arange(nmodels - 1)
+        super().__init__(stat, costs, bkd, recursion_index)
+
+    def get_allocation_matrix(self) -> Array:
+        """Return the GRD allocation matrix.
+
+        GRD keeps even and odd columns separate (no merge step),
+        creating disjoint sample sets.
+
+        Returns
+        -------
+        Array
+            Allocation matrix. Shape: (nmodels, 2*nmodels)
+        """
+        if self._allocation_mat is None:
+            self._allocation_mat = get_allocation_matrix_grd(
+                self.nmodels(), self._recursion_index, self._bkd
+            )
+        return self._allocation_mat
 
     def __repr__(self) -> str:
         nsamples_str = "not allocated"
