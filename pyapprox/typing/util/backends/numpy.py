@@ -15,6 +15,11 @@ class NumpyBkd(Backend[NDArray[Any]]):  # Specify NDArray type
         return np.asarray(np.dot(Amat, Bmat))
 
     @staticmethod
+    def multidot(arrays: List[NDArray[Any]]) -> NDArray[Any]:
+        """Compute the dot product of multiple matrices."""
+        return np.linalg.multi_dot(arrays)
+
+    @staticmethod
     def eye(
         nrows: int, ncols: Optional[int] = None, dtype: Optional[Any] = None
     ) -> NDArray[Any]:
@@ -637,3 +642,18 @@ class NumpyBkd(Backend[NDArray[Any]]):  # Specify NDArray type
         result = array.copy()
         result[index] = value
         return result
+
+    @staticmethod
+    def block(blocks: List[List[NDArray[Any]]]) -> NDArray[Any]:
+        """Create a block matrix from nested list of arrays."""
+        return np.block(blocks)
+
+    @staticmethod
+    def array_type() -> type:
+        """Return the array type class for this backend."""
+        return np.ndarray
+
+    @staticmethod
+    def tril_indices(n: int, k: int = 0) -> Tuple[NDArray[Any], NDArray[Any]]:
+        """Return indices for lower-triangular part of an (n, n) array."""
+        return np.tril_indices(n, k)

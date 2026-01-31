@@ -98,6 +98,11 @@ class Backend(Protocol, Generic[Array]):
     def dot(Amat: Array, Bmat: Array) -> Array: ...
 
     @staticmethod
+    def multidot(arrays: List[Array]) -> Array:
+        """Compute the dot product of multiple matrices."""
+        ...
+
+    @staticmethod
     def eye(
         nrows: int, ncols: Optional[int] = None, dtype: Optional[Any] = None
     ) -> Array: ...
@@ -882,5 +887,56 @@ class Backend(Protocol, Generic[Array]):
         -------
         Array
             Copy of array with updated value.
+        """
+        ...
+
+    @staticmethod
+    def block(blocks: List[List[Array]]) -> Array:
+        """Create a block matrix from nested list of arrays.
+
+        Assembles arrays from a nested list into a single array.
+        Equivalent to np.block.
+
+        Parameters
+        ----------
+        blocks : list of list of Array
+            Nested list of arrays. Each inner list forms a row of blocks.
+
+        Returns
+        -------
+        Array
+            Block matrix assembled from input arrays.
+        """
+        ...
+
+    @staticmethod
+    def array_type() -> type:
+        """Return the array type class for this backend.
+
+        Returns
+        -------
+        type
+            The array type class (e.g., np.ndarray for NumPy, torch.Tensor for PyTorch).
+        """
+        ...
+
+    @staticmethod
+    def tril_indices(n: int, k: int = 0) -> Tuple[Array, Array]:
+        """Return indices for lower-triangular part of an (n, n) array.
+
+        Parameters
+        ----------
+        n : int
+            Size of the arrays for which the indices are returned.
+        k : int, optional
+            Diagonal offset. k=0 (default) is the main diagonal,
+            k<0 is below it, and k>0 is above.
+
+        Returns
+        -------
+        rows : Array
+            Row indices of lower triangular elements.
+        cols : Array
+            Column indices of lower triangular elements.
         """
         ...

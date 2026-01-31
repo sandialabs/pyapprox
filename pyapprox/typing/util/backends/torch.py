@@ -495,7 +495,7 @@ class TorchBkd(Backend[torch.Tensor]):  # Specify torch.Tensor type
 
     @staticmethod
     def atleast_2d(array: torch.Tensor) -> torch.Tensor:
-        return torch.atleast_1d(array)
+        return torch.atleast_2d(array)
 
     @staticmethod
     def tile(array: torch.Tensor, reps: Tuple[int, ...]) -> torch.Tensor:
@@ -718,3 +718,24 @@ class TorchBkd(Backend[torch.Tensor]):  # Specify torch.Tensor type
         result = array.clone()
         result[index] = value
         return result
+
+    @staticmethod
+    def block(blocks: List[List[torch.Tensor]]) -> torch.Tensor:
+        """Create a block matrix from nested list of tensors."""
+        rows = [torch.hstack(row) for row in blocks]
+        return torch.vstack(rows)
+
+    @staticmethod
+    def array_type() -> type:
+        """Return the array type class for this backend."""
+        return torch.Tensor
+
+    @staticmethod
+    def tril_indices(n: int, k: int = 0) -> Tuple[torch.Tensor, torch.Tensor]:
+        """Return indices for lower-triangular part of an (n, n) array."""
+        return torch.tril_indices(n, n, offset=k)
+
+    @staticmethod
+    def multidot(arrays: List[torch.Tensor]) -> torch.Tensor:
+        """Compute the dot product of two or more arrays in a single call."""
+        return torch.linalg.multi_dot(arrays)

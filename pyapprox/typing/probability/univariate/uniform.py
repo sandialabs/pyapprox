@@ -275,6 +275,34 @@ class UniformMarginal(Generic[Array]):
         usamples = np.random.uniform(lower_val, upper_val, nsamples)
         return self._bkd.reshape(self._bkd.asarray(usamples), (1, nsamples))
 
+    def _rvs_given_random_states(
+        self, nsamples: int, random_states: Any
+    ) -> Array:
+        """
+        Generate random samples using provided random states.
+
+        This method is used for reproducible sampling in verification tests
+        where parallel execution requires independent random states per variable.
+
+        Parameters
+        ----------
+        nsamples : int
+            Number of samples to generate.
+        random_states : List[np.random.RandomState]
+            List of random states (one per variable dimension).
+
+        Returns
+        -------
+        Array
+            Random samples. Shape: (nvars, nsamples)
+        """
+        lower_val = self.lower()
+        upper_val = self.upper()
+        # For univariate, use the first (and only) random state
+        rs = random_states[0] if isinstance(random_states, list) else random_states
+        usamples = rs.uniform(lower_val, upper_val, nsamples)
+        return self._bkd.reshape(self._bkd.asarray(usamples), (1, nsamples))
+
     def mean_value(self) -> float:
         """
         Return the mean of the distribution.
