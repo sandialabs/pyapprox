@@ -13,9 +13,7 @@ on both shared samples (with its recursion parent) AND its own
 samples.
 """
 
-from typing import Generic, List, Callable, Optional
-
-import numpy as np
+from typing import Generic, Optional
 
 from pyapprox.typing.util.backends.protocols import Array, Backend
 from pyapprox.typing.stats.protocols import StatisticWithDiscrepancyProtocol
@@ -132,65 +130,6 @@ class GISEstimator(ACVEstimator[Array], Generic[Array]):
             parts.append(bkd.reshape(diff, (1,)))
 
         return bkd.concatenate(parts)
-
-    def __call__(self, values: List[Array]) -> Array:
-        """Compute GIS estimate.
-
-        Q_GIS = Q_0 + sum_m eta_m * (mu_m - Q_m)
-
-        where:
-        - Q_0 is the HF sample mean
-        - mu_m is the LF mean on all samples
-        - Q_m is the LF mean on shared samples with recursion parent
-
-        Parameters
-        ----------
-        values : List[Array]
-            Model outputs. values[m] has shape (nsamples_m, nqoi)
-
-        Returns
-        -------
-        Array
-            Estimated statistic. Shape: (nstats,)
-        """
-        if len(values) != self.nmodels():
-            raise ValueError(
-                f"Expected {self.nmodels()} model outputs, got {len(values)}"
-            )
-
-        bkd = self._bkd
-        nmodels = self.nmodels()
-        nsamples = self.nsamples_per_model()
-        weights = self.weights()
-
-        nhf = int(nsamples[0].item())
-
-        # Q_0: HF mean
-        Q0 = bkd.sum(values[0], axis=0) / nhf
-
-        # Control variate correction
-        correction = bkd.zeros((self._stat.nstats(),))
-
-        for m in range(1, nmodels):
-            nlf = int(nsamples[m].item())
-            ridx = int(self._recursion_index[m - 1])
-            n_parent = int(nsamples[ridx].item())
-
-            # Number of shared samples between model m and its parent
-            n_shared = min(nlf, n_parent)
-
-            # Q_m: LF mean on shared samples
-            Q_m = bkd.sum(values[m][:n_shared], axis=0) / n_shared
-
-            # mu_m: LF mean on all samples
-            mu_m = bkd.sum(values[m], axis=0) / nlf
-
-            # Weight for this control
-            eta_m = weights[m - 1] if weights.ndim == 1 else weights[m - 1, :]
-
-            correction = correction + eta_m * (mu_m - Q_m)
-
-        return Q0 + correction
 
     def __repr__(self) -> str:
         nsamples_str = "not allocated"

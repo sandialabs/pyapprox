@@ -4,7 +4,6 @@ This module provides functions to numerically verify that analytical
 estimator covariance formulas match Monte Carlo estimates.
 """
 from abc import ABC, abstractmethod
-from functools import partial
 from typing import Any, Callable, Generic, List, Tuple, Union
 
 import numpy as np
@@ -100,7 +99,7 @@ class MCComponentExtractor(EstimatorComponentExtractor[Array]):
         mc_est: Callable[[Array], Array],
     ) -> Tuple[Array, Array, Array]:
         """Extract components - MC has no control variates."""
-        est_val: Array = est(values_per_model[0])
+        est_val: Array = est([values_per_model[0]])
         Q: Array = mc_est(values_per_model[0])
         delta: Array = Q * 0
         return est_val, Q, delta
@@ -168,9 +167,13 @@ def _estimate_components(
         for jj in range(variable.nvars())
     ]
 
-    samples_per_model: List[Array] = est.generate_samples_per_model(
-        partial(variable._rvs_given_random_states, random_states=random_states)
-    )
+    # Wrap rvs to convert numpy output to backend array type
+    def rvs_bkd(nsamples: int) -> Array:
+        return bkd.asarray(
+            variable._rvs_given_random_states(nsamples, random_states=random_states)
+        )
+
+    samples_per_model: List[Array] = est.generate_samples_per_model(rvs_bkd)
     values_per_model: List[Array] = [
         bkd.asarray(fun(samples))
         for fun, samples in zip(funs, samples_per_model)
@@ -284,11 +287,20 @@ def numerically_compute_estimator_variance(
     )
 
     hf_covar_numer: Array = bkd.cov(Q0, ddof=1, rowvar=False)
-    hf_covar: Array = est._stat.high_fidelity_estimator_covariance(
-        est.npartition_samples()[0]
-    )
     covar_numer: Array = bkd.cov(est_vals, ddof=1, rowvar=False)
-    covar: Array = est._covariance_from_npartition_samples(est.npartition_samples())
+
+    # Get analytical covariances - handle MC estimator differently
+    if hasattr(est, 'npartition_samples'):
+        nhf = est.npartition_samples()[0]
+        hf_covar: Array = est._stat.high_fidelity_estimator_covariance(nhf)
+        covar: Array = est._covariance_from_npartition_samples(
+            est.npartition_samples()
+        )
+    else:
+        # MC estimator - use nsamples_per_model and optimized_covariance
+        nhf = est.nsamples_per_model()[0]
+        hf_covar = est._stat.high_fidelity_estimator_covariance(nhf)
+        covar = est.optimized_covariance()
 
     if not return_all:
         return hf_covar_numer, hf_covar, covar_numer, covar
