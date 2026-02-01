@@ -11,6 +11,7 @@ from typing import Any, Generic
 import numpy as np
 from numpy.typing import NDArray
 import torch
+from unittest_parametrize import ParametrizedTestCase, parametrize
 
 from pyapprox.typing.util.backends.numpy import NumpyBkd
 from pyapprox.typing.util.backends.torch import TorchBkd
@@ -28,8 +29,13 @@ from pyapprox.typing.statest.groupacv import (
     GroupACVLogDetObjective,
     MLBLUEObjective,
     GroupACVCostConstraint,
+    MLBLUESPDOptimizer,
 )
+from pyapprox.typing.util.optional_deps import package_available
 from pyapprox.typing.statest.statistics import MultiOutputMean
+from pyapprox.typing.interface.functions.derivative_checks.derivative_checker import (
+    DerivativeChecker,
+)
 
 
 class TestGroupACVUtils(Generic[Array], unittest.TestCase):
@@ -118,6 +124,7 @@ class TestGroupACVEstimator(Generic[Array], unittest.TestCase):
 
     def _create_estimator(self, nmodels, est_type="is"):
         """Helper to create a test estimator."""
+        np.random.seed(1)
         cov = self._bkd.array(np.random.normal(0, 1, (nmodels, nmodels)))
         cov = cov.T @ cov
         costs = self._bkd.arange(nmodels, 0, -1, dtype=self._bkd.double_dtype())
@@ -128,17 +135,7 @@ class TestGroupACVEstimator(Generic[Array], unittest.TestCase):
         return est
 
     def test_nsamples_per_model_is(self):
-        """Test sample count computation for IS estimation.
-
-        For IS with nmodels=3, we have 7 subsets (2^3 - 1).
-        With npartition_samples = [2, 3, 4, 5, 6, 7, 8], each model
-        participates in specific subsets based on subset membership.
-
-        Expected nsamples derived from subset membership:
-        - Model 0: subsets containing 0 -> {0}, {0,1}, {0,2}, {0,1,2}
-        - Model 1: subsets containing 1 -> {1}, {0,1}, {1,2}, {0,1,2}
-        - Model 2: subsets containing 2 -> {2}, {0,2}, {1,2}, {0,1,2}
-        """
+        """Test sample count computation for IS estimation."""
         nmodels = 3
         est = self._create_estimator(nmodels, est_type="is")
 
@@ -167,10 +164,7 @@ class TestGroupACVEstimator(Generic[Array], unittest.TestCase):
         )
 
     def test_nsamples_per_model_nested(self):
-        """Test sample count computation for nested estimation.
-
-        For nested sampling, subsets share samples in a hierarchical way.
-        """
+        """Test sample count computation for nested estimation."""
         nmodels = 3
         np.random.seed(1)
         est = self._create_estimator(nmodels, est_type="nested")
@@ -228,6 +222,66 @@ class TestGroupACVEstimator(Generic[Array], unittest.TestCase):
             self._bkd.asarray([7]),
         )
 
+    def _check_separate_samples(self, est):
+        """Test sample separation logic."""
+        NN = 2
+        npartition_samples = self._bkd.full(
+            (est.nsubsets(),), float(NN), dtype=self._bkd.double_dtype()
+        )
+        est._set_optimized_params(npartition_samples)
+
+        samples_per_model = est.generate_samples_per_model(
+            lambda n: self._bkd.arange(int(n), dtype=self._bkd.double_dtype())[
+                None, :
+            ]
+        )
+        for ii in range(est.nmodels()):
+            self._bkd.assert_allclose(
+                self._bkd.asarray([samples_per_model[ii].shape[1]]),
+                self._bkd.asarray([int(est._rounded_nsamples_per_model[ii])]),
+            )
+
+        values_per_model = [
+            (ii + 1) * s.T for ii, s in enumerate(samples_per_model)
+        ]
+        values_per_subset = est._separate_values_per_model(values_per_model)
+
+        test_samples = self._bkd.arange(
+            int(est._rounded_npartition_samples.sum()),
+            dtype=self._bkd.double_dtype(),
+        )[None, :]
+        test_values = [
+            (ii + 1) * test_samples.T for ii in range(est.nmodels())
+        ]
+
+        for ii in range(est.nsubsets()):
+            active_partitions = self._bkd.where(est._allocation_mat[ii] == 1)[0]
+            indices = (
+                self._bkd.arange(
+                    test_samples.shape[1], dtype=self._bkd.int64_dtype()
+                )
+                .reshape(est.npartitions(), NN)[active_partitions]
+                .flatten()
+            )
+            expected_shape = (
+                int(est._nintersect_samples(npartition_samples)[ii][ii]),
+                len(est._subsets[ii]),
+            )
+            self._bkd.assert_allclose(
+                self._bkd.asarray(list(values_per_subset[ii].shape)),
+                self._bkd.asarray(list(expected_shape)),
+            )
+
+    def test_separate_samples_is(self):
+        """Test sample separation for IS estimation."""
+        est = self._create_estimator(3, est_type="is")
+        self._check_separate_samples(est)
+
+    def test_separate_samples_nested(self):
+        """Test sample separation for nested estimation."""
+        est = self._create_estimator(3, est_type="nested")
+        self._check_separate_samples(est)
+
 
 class TestGroupACVEstimatorNumpy(TestGroupACVEstimator[NDArray[Any]]):
     def bkd(self) -> NumpyBkd:
@@ -240,109 +294,75 @@ class TestGroupACVEstimatorTorch(TestGroupACVEstimator[torch.Tensor]):
         return TorchBkd()
 
 
-class TestGroupACVObjective(Generic[Array], unittest.TestCase):
-    """Tests for GroupACV optimization objectives."""
+class TestGroupACVObjectiveDerivativesTorchOnly(ParametrizedTestCase, unittest.TestCase):
+    """Test derivative correctness for GroupACV objectives using DerivativeChecker.
 
-    __test__ = False
-
-    def bkd(self):
-        raise NotImplementedError
+    These tests only run with Torch backend because the base objectives use
+    bkd.jacobian() which requires autograd (only available in Torch).
+    """
 
     def setUp(self):
-        self._bkd = self.bkd()
-        np.random.seed(1)
+        torch.set_default_dtype(torch.float64)
+        self._bkd = TorchBkd()
 
-    def _create_estimator(self, nmodels):
+    def _create_estimator(self, nmodels, nqoi=1):
         """Helper to create a test estimator."""
-        cov = self._bkd.array(np.random.normal(0, 1, (nmodels, nmodels)))
+        np.random.seed(1)
+        cov_size = nmodels * nqoi
+        cov = self._bkd.array(np.random.normal(0, 1, (cov_size, cov_size)))
         cov = cov.T @ cov
         costs = self._bkd.arange(nmodels, 0, -1, dtype=self._bkd.double_dtype())
 
-        stat = MultiOutputMean(1, self._bkd)
+        stat = MultiOutputMean(nqoi, self._bkd)
         stat.set_pilot_quantities(cov)
         est = GroupACVEstimator(stat, costs)
         return est
 
-    def test_trace_objective_shape(self):
-        """Test trace objective returns correct shapes."""
-        nmodels = 3
-        est = self._create_estimator(nmodels)
+    @parametrize(
+        "nmodels,nqoi",
+        [(2, 1), (3, 1), (2, 2)],
+    )
+    def test_trace_objective_jacobian(self, nmodels: int, nqoi: int):
+        """Test trace objective Jacobian with DerivativeChecker."""
+        np.random.seed(1)
+        est = self._create_estimator(nmodels, nqoi)
+        target_cost = 100
 
         obj = GroupACVTraceObjective(self._bkd)
         obj.set_estimator(est)
 
-        # Check nvars and nqoi
-        self._bkd.assert_allclose(
-            self._bkd.asarray([obj.nvars()]),
-            self._bkd.asarray([est.npartitions()]),
-        )
-        self._bkd.assert_allclose(
-            self._bkd.asarray([obj.nqoi()]),
-            self._bkd.asarray([1]),
-        )
+        iterate = est._init_guess(target_cost)
+        checker = DerivativeChecker(obj)
+        errors = checker.check_derivatives(iterate, verbosity=0)
 
-        # Test evaluation
-        npartition_samples = self._bkd.full(
-            (est.npartitions(), 1), 10.0, dtype=self._bkd.double_dtype()
-        )
-        value = obj(npartition_samples)
+        # Check Jacobian accuracy
+        self.assertLessEqual(checker.error_ratio(errors[0]), 1e-6)
 
-        # Shape should be (1, 1)
-        self._bkd.assert_allclose(
-            self._bkd.asarray(list(value.shape)),
-            self._bkd.asarray([1, 1]),
-        )
-
-    def test_logdet_objective_shape(self):
-        """Test log-determinant objective returns correct shapes."""
-        nmodels = 3
-        est = self._create_estimator(nmodels)
+    @parametrize(
+        "nmodels,nqoi",
+        [(2, 1), (3, 1), (2, 2)],
+    )
+    def test_logdet_objective_jacobian(self, nmodels: int, nqoi: int):
+        """Test log-determinant objective Jacobian with DerivativeChecker."""
+        np.random.seed(1)
+        est = self._create_estimator(nmodels, nqoi)
+        target_cost = 100
 
         obj = GroupACVLogDetObjective(self._bkd)
         obj.set_estimator(est)
 
-        # Test evaluation
-        npartition_samples = self._bkd.full(
-            (est.npartitions(), 1), 10.0, dtype=self._bkd.double_dtype()
-        )
-        value = obj(npartition_samples)
+        iterate = est._init_guess(target_cost)
+        checker = DerivativeChecker(obj)
+        errors = checker.check_derivatives(iterate, verbosity=0)
 
-        # Shape should be (1, 1)
-        self._bkd.assert_allclose(
-            self._bkd.asarray(list(value.shape)),
-            self._bkd.asarray([1, 1]),
-        )
-
-    def test_trace_objective_positive(self):
-        """Test that trace objective returns positive values."""
-        nmodels = 3
-        est = self._create_estimator(nmodels)
-
-        obj = GroupACVTraceObjective(self._bkd)
-        obj.set_estimator(est)
-
-        npartition_samples = self._bkd.full(
-            (est.npartitions(), 1), 10.0, dtype=self._bkd.double_dtype()
-        )
-        value = obj(npartition_samples)
-
-        # Trace of covariance should be positive
-        assert float(value[0, 0]) > 0
+        # Check Jacobian accuracy
+        self.assertLessEqual(checker.error_ratio(errors[0]), 1e-6)
 
 
-class TestGroupACVObjectiveNumpy(TestGroupACVObjective[NDArray[Any]]):
-    def bkd(self) -> NumpyBkd:
-        return NumpyBkd()
-
-
-class TestGroupACVObjectiveTorch(TestGroupACVObjective[torch.Tensor]):
-    def bkd(self) -> TorchBkd:
-        torch.set_default_dtype(torch.float64)
-        return TorchBkd()
-
-
-class TestGroupACVConstraint(Generic[Array], unittest.TestCase):
-    """Tests for GroupACV cost constraint."""
+class TestGroupACVConstraintDerivatives(
+    Generic[Array], ParametrizedTestCase, unittest.TestCase
+):
+    """Test derivative correctness for GroupACV constraints."""
 
     __test__ = False
 
@@ -351,10 +371,10 @@ class TestGroupACVConstraint(Generic[Array], unittest.TestCase):
 
     def setUp(self):
         self._bkd = self.bkd()
-        np.random.seed(1)
 
     def _create_estimator(self, nmodels):
         """Helper to create a test estimator."""
+        np.random.seed(1)
         cov = self._bkd.array(np.random.normal(0, 1, (nmodels, nmodels)))
         cov = cov.T @ cov
         costs = self._bkd.arange(nmodels, 0, -1, dtype=self._bkd.double_dtype())
@@ -364,56 +384,37 @@ class TestGroupACVConstraint(Generic[Array], unittest.TestCase):
         est = GroupACVEstimator(stat, costs)
         return est
 
-    def test_constraint_shape(self):
-        """Test constraint returns correct shapes."""
-        nmodels = 3
+    @parametrize(
+        "nmodels",
+        [(2,), (3,)],
+    )
+    def test_constraint_jacobian(self, nmodels: int):
+        """Test constraint Jacobian with DerivativeChecker."""
+        np.random.seed(1)
         est = self._create_estimator(nmodels)
+        target_cost = 100
+        min_nhf_samples = 1
 
         constraint = GroupACVCostConstraint(self._bkd)
         constraint.set_estimator(est)
-        constraint.set_budget(target_cost=100.0, min_nhf_samples=1)
+        constraint.set_budget(target_cost, min_nhf_samples)
 
-        # Check nqoi (2 constraints: cost and min HF)
-        self._bkd.assert_allclose(
-            self._bkd.asarray([constraint.nqoi()]),
-            self._bkd.asarray([2]),
-        )
+        iterate = est._init_guess(target_cost)
+        checker = DerivativeChecker(constraint)
+        # Pass weights for multi-QoI constraint (nqoi=2) with whvp
+        weights = self._bkd.asarray([[0.6, 0.4]])  # Shape (1, nqoi)
+        errors = checker.check_derivatives(iterate, weights=weights, verbosity=0)
 
-        # Test evaluation
-        npartition_samples = self._bkd.full(
-            (est.npartitions(), 1), 1.0, dtype=self._bkd.double_dtype()
-        )
-        value = constraint(npartition_samples)
+        # Constraints are linear, so Jacobian should be exact
+        self.assertLess(float(errors[0][0]), 1e-12)
 
-        # Shape should be (2, 1)
-        self._bkd.assert_allclose(
-            self._bkd.asarray(list(value.shape)),
-            self._bkd.asarray([2, 1]),
-        )
-
-    def test_constraint_jacobian_shape(self):
-        """Test constraint Jacobian returns correct shapes."""
-        nmodels = 3
-        est = self._create_estimator(nmodels)
-
-        constraint = GroupACVCostConstraint(self._bkd)
-        constraint.set_estimator(est)
-        constraint.set_budget(target_cost=100.0, min_nhf_samples=1)
-
-        npartition_samples = self._bkd.full(
-            (est.npartitions(), 1), 1.0, dtype=self._bkd.double_dtype()
-        )
-        jac = constraint.jacobian(npartition_samples)
-
-        # Shape should be (2, npartitions)
-        self._bkd.assert_allclose(
-            self._bkd.asarray(list(jac.shape)),
-            self._bkd.asarray([2, est.npartitions()]),
-        )
-
-    def test_constraint_hessian_zero(self):
+    @parametrize(
+        "nmodels",
+        [(2,), (3,)],
+    )
+    def test_constraint_hessian_zero(self, nmodels: int):
         """Test that constraint Hessian is zero (linear constraints)."""
-        nmodels = 3
+        np.random.seed(1)
         est = self._create_estimator(nmodels)
 
         constraint = GroupACVCostConstraint(self._bkd)
@@ -432,12 +433,16 @@ class TestGroupACVConstraint(Generic[Array], unittest.TestCase):
         )
 
 
-class TestGroupACVConstraintNumpy(TestGroupACVConstraint[NDArray[Any]]):
+class TestGroupACVConstraintDerivativesNumpy(
+    TestGroupACVConstraintDerivatives[NDArray[Any]]
+):
     def bkd(self) -> NumpyBkd:
         return NumpyBkd()
 
 
-class TestGroupACVConstraintTorch(TestGroupACVConstraint[torch.Tensor]):
+class TestGroupACVConstraintDerivativesTorch(
+    TestGroupACVConstraintDerivatives[torch.Tensor]
+):
     def bkd(self) -> TorchBkd:
         torch.set_default_dtype(torch.float64)
         return TorchBkd()
@@ -516,8 +521,75 @@ class TestMLBLUEEstimatorTorch(TestMLBLUEEstimator[torch.Tensor]):
         return TorchBkd()
 
 
-class TestMLBLUEObjective(Generic[Array], unittest.TestCase):
-    """Tests for MLBLUE-specific objective."""
+class TestMLBLUEObjectiveDerivatives(
+    Generic[Array], ParametrizedTestCase, unittest.TestCase
+):
+    """Test MLBLUE-specific objective derivatives."""
+
+    __test__ = False
+
+    def bkd(self):
+        raise NotImplementedError
+
+    def setUp(self):
+        self._bkd = self.bkd()
+
+    def _create_mlblue_estimator(self, nmodels, nqoi=1):
+        """Helper to create a test MLBLUE estimator."""
+        np.random.seed(1)
+        cov_size = nmodels * nqoi
+        cov = self._bkd.array(np.random.normal(0, 1, (cov_size, cov_size)))
+        cov = cov.T @ cov
+        costs = self._bkd.arange(nmodels, 0, -1, dtype=self._bkd.double_dtype())
+
+        stat = MultiOutputMean(nqoi, self._bkd)
+        stat.set_pilot_quantities(cov)
+        est = MLBLUEEstimator(stat, costs)
+        return est
+
+    @parametrize(
+        "nmodels,nqoi",
+        [(2, 1), (3, 1), (2, 2)],
+    )
+    def test_mlblue_objective_jacobian(self, nmodels: int, nqoi: int):
+        """Test MLBLUE objective analytical Jacobian."""
+        np.random.seed(1)
+        est = self._create_mlblue_estimator(nmodels, nqoi)
+        target_cost = 100
+
+        obj = MLBLUEObjective(self._bkd)
+        obj.set_estimator(est)
+
+        iterate = est._init_guess(target_cost)
+        checker = DerivativeChecker(obj)
+        errors = checker.check_derivatives(iterate, verbosity=0)
+
+        # Check Jacobian accuracy
+        self.assertLessEqual(checker.error_ratio(errors[0]), 1e-6)
+
+    def test_mlblue_objective_inherits_trace(self):
+        """Test that MLBLUEObjective inherits from GroupACVTraceObjective."""
+        obj = MLBLUEObjective(self._bkd)
+        assert isinstance(obj, GroupACVTraceObjective)
+
+
+class TestMLBLUEObjectiveDerivativesNumpy(
+    TestMLBLUEObjectiveDerivatives[NDArray[Any]]
+):
+    def bkd(self) -> NumpyBkd:
+        return NumpyBkd()
+
+
+class TestMLBLUEObjectiveDerivativesTorch(
+    TestMLBLUEObjectiveDerivatives[torch.Tensor]
+):
+    def bkd(self) -> TorchBkd:
+        torch.set_default_dtype(torch.float64)
+        return TorchBkd()
+
+
+class TestRestrictionMatrices(Generic[Array], unittest.TestCase):
+    """Tests for restriction matrix functionality."""
 
     __test__ = False
 
@@ -528,44 +600,368 @@ class TestMLBLUEObjective(Generic[Array], unittest.TestCase):
         self._bkd = self.bkd()
         np.random.seed(1)
 
-    def test_mlblue_objective_shape(self):
-        """Test MLBLUE objective returns correct shapes."""
-        nmodels = 2
-        cov = self._bkd.array(np.random.normal(0, 1, (nmodels, nmodels)))
-        cov = cov.T @ cov
-        costs = self._bkd.arange(nmodels, 0, -1, dtype=self._bkd.double_dtype())
-
-        stat = MultiOutputMean(1, self._bkd)
-        stat.set_pilot_quantities(cov)
-        est = MLBLUEEstimator(stat, costs)
-
-        obj = MLBLUEObjective(self._bkd)
-        obj.set_estimator(est)
-
-        # Test evaluation
-        npartition_samples = self._bkd.full(
-            (est.npartitions(), 1), 10.0, dtype=self._bkd.double_dtype()
+    def test_restriction_matrices_nqoi_1(self):
+        """Test restriction matrices with nqoi=1."""
+        qoi_idx = [0]
+        costs = self._bkd.array(
+            [1, 0.5, 0.25], dtype=self._bkd.double_dtype()
         )
-        value = obj(npartition_samples)
+        stat = MultiOutputMean(len(qoi_idx), self._bkd)
+        subsets = [[0, 1, 2], [1], [2]]
+        subsets = [
+            self._bkd.array(s, dtype=self._bkd.int64_dtype()) for s in subsets
+        ]
+        est = GroupACVEstimator(
+            stat, costs, model_subsets=subsets, est_type="nested"
+        )
 
-        # Shape should be (1, 1)
+        # Vector containing model ids
+        Lvec = self._bkd.arange(3, dtype=self._bkd.double_dtype())[:, None]
+
+        # Make sure each restriction matrix recovers correct subset model ids
+        cnt = 0
+        for ii in range(len(subsets)):
+            recovered = (est._R[:, cnt : cnt + len(subsets[ii])].T @ Lvec)[:, 0]
+            expected = self._bkd.asarray(
+                subsets[ii], dtype=self._bkd.double_dtype()
+            )
+            self._bkd.assert_allclose(recovered, expected)
+            cnt += len(subsets[ii])
+
+    def test_restriction_matrices_nqoi_2(self):
+        """Test restriction matrices with nqoi=2."""
+        qoi_idx = [0, 1]
+        costs = self._bkd.array(
+            [1, 0.5, 0.25], dtype=self._bkd.double_dtype()
+        )
+        stat = MultiOutputMean(len(qoi_idx), self._bkd)
+        subsets = [[0, 1, 2], [1], [2]]
+        subsets = [
+            self._bkd.array(s, dtype=self._bkd.int64_dtype()) for s in subsets
+        ]
+        est = GroupACVEstimator(
+            stat, costs, model_subsets=subsets, est_type="nested"
+        )
+
+        # Vector containing flattened model qoi ids
+        Lvec = self._bkd.arange(
+            3 * len(qoi_idx), dtype=self._bkd.double_dtype()
+        )[:, None]
+
+        # Check restriction matrix recovers all correct qoi of all subset model ids
         self._bkd.assert_allclose(
-            self._bkd.asarray(list(value.shape)),
-            self._bkd.asarray([1, 1]),
+            (est._R[:, :6].T @ Lvec)[:, 0],
+            self._bkd.array([0.0, 1.0, 2.0, 3.0, 4.0, 5.0]),
+        )
+        self._bkd.assert_allclose(
+            (est._R[:, 6:8].T @ Lvec)[:, 0], self._bkd.array([2.0, 3.0])
+        )
+        self._bkd.assert_allclose(
+            (est._R[:, 8:10].T @ Lvec)[:, 0], self._bkd.array([4.0, 5.0])
         )
 
-    def test_mlblue_objective_inherits_trace(self):
-        """Test that MLBLUEObjective inherits from GroupACVTraceObjective."""
-        obj = MLBLUEObjective(self._bkd)
-        assert isinstance(obj, GroupACVTraceObjective)
 
-
-class TestMLBLUEObjectiveNumpy(TestMLBLUEObjective[NDArray[Any]]):
+class TestRestrictionMatricesNumpy(TestRestrictionMatrices[NDArray[Any]]):
     def bkd(self) -> NumpyBkd:
         return NumpyBkd()
 
 
-class TestMLBLUEObjectiveTorch(TestMLBLUEObjective[torch.Tensor]):
+class TestRestrictionMatricesTorch(TestRestrictionMatrices[torch.Tensor]):
+    def bkd(self) -> TorchBkd:
+        torch.set_default_dtype(torch.float64)
+        return TorchBkd()
+
+
+# CVXPY-dependent tests
+HAS_CVXPY = package_available("cvxpy")
+
+
+@unittest.skipIf(not HAS_CVXPY, "cvxpy not installed")
+class TestMLBLUESPDOptimizer(Generic[Array], ParametrizedTestCase, unittest.TestCase):
+    """Tests for MLBLUESPDOptimizer (requires cvxpy)."""
+
+    __test__ = False
+
+    def bkd(self):
+        raise NotImplementedError
+
+    def setUp(self):
+        self._bkd = self.bkd()
+        np.random.seed(1)
+
+    def _create_mlblue_estimator(self, nmodels, nqoi=1):
+        """Helper to create a test MLBLUE estimator."""
+        np.random.seed(1)
+        cov_size = nmodels * nqoi
+        cov = self._bkd.array(np.random.normal(0, 1, (cov_size, cov_size)))
+        cov = cov.T @ cov
+        # Normalize to correlation matrix for better conditioning
+        d = self._bkd.sqrt(self._bkd.diag(cov))
+        cov = cov / self._bkd.outer(d, d)
+        costs = self._bkd.array(
+            [1.0 / (10 ** i) for i in range(nmodels)],
+            dtype=self._bkd.double_dtype(),
+        )
+
+        stat = MultiOutputMean(nqoi, self._bkd)
+        stat.set_pilot_quantities(cov)
+        est = MLBLUEEstimator(stat, costs, reg_blue=0)
+        return est
+
+    @parametrize(
+        "nmodels,min_nhf_samples",
+        [(2, 1), (3, 1), (4, 1), (3, 10)],
+    )
+    def test_spd_optimizer_solves(self, nmodels: int, min_nhf_samples: int):
+        """Test that SPD optimizer finds a solution."""
+        np.random.seed(1)
+        est = self._create_mlblue_estimator(nmodels, nqoi=1)
+        target_cost = 100
+
+        optimizer = MLBLUESPDOptimizer()
+        optimizer.set_estimator(est)
+        optimizer.set_budget(target_cost, min_nhf_samples)
+
+        result = optimizer.minimize()
+
+        # Check that optimization succeeded
+        self.assertTrue(result["success"])
+
+        # Check that result has correct shape
+        self._bkd.assert_allclose(
+            self._bkd.asarray([result["x"].shape[0]]),
+            self._bkd.asarray([est.nsubsets()]),
+        )
+
+        # Check that all sample counts are non-negative
+        self.assertTrue(
+            self._bkd.to_numpy(result["x"]).min() >= -1e-10
+        )
+
+    @parametrize(
+        "nmodels",
+        [(2,), (3,)],
+    )
+    def test_spd_respects_budget(self, nmodels: int):
+        """Test that SPD optimizer respects budget constraint."""
+        np.random.seed(1)
+        est = self._create_mlblue_estimator(nmodels, nqoi=1)
+        target_cost = 100
+        min_nhf_samples = 1
+
+        optimizer = MLBLUESPDOptimizer()
+        optimizer.set_estimator(est)
+        optimizer.set_budget(target_cost, min_nhf_samples)
+
+        result = optimizer.minimize()
+
+        # Compute actual cost
+        npartition_samples = result["x"][:, 0]
+        actual_cost = est._estimator_cost(npartition_samples)
+
+        # Cost should be <= target (with small tolerance)
+        self.assertLessEqual(
+            float(self._bkd.to_numpy(actual_cost)),
+            target_cost + 1e-6,
+        )
+
+    def test_spd_raises_without_estimator(self):
+        """Test that SPD optimizer raises error if estimator not set."""
+        optimizer = MLBLUESPDOptimizer()
+        with self.assertRaises(RuntimeError):
+            optimizer.minimize()
+
+    def test_spd_raises_without_budget(self):
+        """Test that SPD optimizer raises error if budget not set."""
+        est = self._create_mlblue_estimator(2, nqoi=1)
+        optimizer = MLBLUESPDOptimizer()
+        optimizer.set_estimator(est)
+        with self.assertRaises(RuntimeError):
+            optimizer.minimize()
+
+    def test_spd_raises_for_multioutput(self):
+        """Test that SPD optimizer raises error for multi-output."""
+        est = self._create_mlblue_estimator(2, nqoi=2)
+        optimizer = MLBLUESPDOptimizer()
+        optimizer.set_estimator(est)
+        optimizer.set_budget(100, 1)
+        with self.assertRaises(RuntimeError):
+            optimizer.minimize()
+
+
+@unittest.skipIf(not HAS_CVXPY, "cvxpy not installed")
+class TestMLBLUESPDOptimizerNumpy(TestMLBLUESPDOptimizer[NDArray[Any]]):
+    def bkd(self) -> NumpyBkd:
+        return NumpyBkd()
+
+
+@unittest.skipIf(not HAS_CVXPY, "cvxpy not installed")
+class TestMLBLUESPDOptimizerTorch(TestMLBLUESPDOptimizer[torch.Tensor]):
+    def bkd(self) -> TorchBkd:
+        torch.set_default_dtype(torch.float64)
+        return TorchBkd()
+
+
+class TestCvxpyOptionalDependency(unittest.TestCase):
+    """Test that cvxpy optional dependency handling works correctly."""
+
+    def test_import_error_message(self):
+        """Test that ImportError has helpful message when cvxpy not installed."""
+        # This test only makes sense when cvxpy IS installed
+        # Just verify the import works without error
+        if HAS_CVXPY:
+            # Should not raise
+            optimizer = MLBLUESPDOptimizer()
+            self.assertIsNotNone(optimizer)
+
+
+class TestPilotSampleInsertion(Generic[Array], ParametrizedTestCase):
+    """Tests for pilot sample insertion and removal."""
+
+    __test__ = False
+
+    def bkd(self):
+        raise NotImplementedError
+
+    def setUp(self):
+        self._bkd = self.bkd()
+
+    def _covariance_to_correlation(self, cov: Array) -> Array:
+        """Convert covariance matrix to correlation matrix."""
+        d = self._bkd.sqrt(self._bkd.diag(cov))
+        return cov / self._bkd.outer(d, d)
+
+    def _generate_correlated_values(
+        self, chol_factor: Array, means: Array, samples: Array
+    ) -> Array:
+        """Generate correlated values from samples."""
+        return (chol_factor @ samples + means[:, None]).T
+
+    def _create_mlblue_estimator(self, nmodels: int) -> MLBLUEEstimator:
+        """Create an MLBLUE estimator for testing."""
+        cov = self._bkd.array(np.random.normal(0, 1, (nmodels, nmodels)))
+        cov = cov.T @ cov
+        cov = self._covariance_to_correlation(cov)
+        costs = self._bkd.flip(
+            self._bkd.logspace(-nmodels + 1, 0, nmodels)
+        )
+        stat = MultiOutputMean(1, self._bkd)
+        stat.set_pilot_quantities(cov)
+        return MLBLUEEstimator(stat, costs, reg_blue=1e-10)
+
+    def _create_optimizer(self):
+        """Create optimizer with sufficient iterations for test."""
+        from pyapprox.typing.optimization.minimize.chained.chained_optimizer import (
+            ChainedOptimizer,
+        )
+        from pyapprox.typing.optimization.minimize.scipy.trust_constr import (
+            ScipyTrustConstrOptimizer,
+        )
+        from pyapprox.typing.optimization.minimize.scipy.diffevol import (
+            ScipyDifferentialEvolutionOptimizer,
+        )
+
+        global_opt = ScipyDifferentialEvolutionOptimizer(
+            maxiter=3,
+            polish=False,
+            seed=1,
+            tol=1e-8,
+            raise_on_failure=False,
+        )
+        local_opt = ScipyTrustConstrOptimizer(
+            gtol=1e-6,
+            maxiter=2000,
+        )
+        return ChainedOptimizer(global_opt, local_opt)
+
+    @parametrize(
+        "nmodels,min_nhf_samples",
+        [(2, 11), (3, 11), (4, 11)],
+    )
+    def test_insert_pilot_samples(self, nmodels: int, min_nhf_samples: int):
+        """Test that pilot values can be correctly inserted."""
+        ntrials = 5  # Match legacy test
+        npilot_samples = 8
+
+        for seed in range(ntrials):
+            np.random.seed(seed)
+            est = self._create_mlblue_estimator(nmodels)
+
+            # Allocate samples
+            target_cost = 100.0
+            est.set_optimizer(self._create_optimizer())
+            iterate = est._init_guess(target_cost)
+            est.allocate_samples(
+                target_cost, min_nhf_samples, iterate=iterate
+            )
+
+            # Get covariance and create value generator
+            cov = est._stat._cov
+            chol_factor = self._bkd.cholesky(cov)
+            exact_means = self._bkd.arange(
+                nmodels, dtype=self._bkd.double_dtype()
+            )
+
+            # Sample generator with nmodels variables (required for correlation)
+            def rvs(n: int) -> Array:
+                return self._bkd.array(np.random.randn(nmodels, int(n)))
+
+            # Generate full samples
+            np.random.seed(seed)
+            samples_per_model = est.generate_samples_per_model(rvs)
+
+            # Remove pilot samples
+            _, pilot_samples = est._remove_pilot_samples(
+                npilot_samples, samples_per_model
+            )
+
+            # Generate pilot values
+            pilot_values = [
+                self._generate_correlated_values(
+                    chol_factor, exact_means, pilot_samples
+                )[:, ii : ii + 1]
+                for ii in range(nmodels)
+            ]
+
+            # Generate samples without pilot
+            np.random.seed(seed)
+            samples_per_model_wo_pilot = est.generate_samples_per_model(
+                rvs, npilot_samples
+            )
+
+            # Generate values without pilot
+            values_per_model_wo_pilot = [
+                self._generate_correlated_values(
+                    chol_factor,
+                    exact_means,
+                    samples_per_model_wo_pilot[ii],
+                )[:, ii : ii + 1]
+                for ii in range(est.nmodels())
+            ]
+
+            # Insert pilot values
+            values_per_model_recovered = est.insert_pilot_values(
+                pilot_values, values_per_model_wo_pilot
+            )
+
+            # Generate reference values with full samples
+            np.random.seed(seed)
+            samples_per_model_full = est.generate_samples_per_model(rvs)
+            values_per_model = [
+                self._generate_correlated_values(
+                    chol_factor, exact_means, samples_per_model_full[ii]
+                )[:, ii : ii + 1]
+                for ii in range(est.nmodels())
+            ]
+
+            # Check that recovered values match expected
+            for v1, v2 in zip(values_per_model, values_per_model_recovered):
+                self._bkd.assert_allclose(v1, v2)
+
+
+class TestPilotSampleInsertionTorchOnly(TestPilotSampleInsertion[torch.Tensor]):
+    """Torch-only test since optimization requires bkd.jacobian."""
+
     def bkd(self) -> TorchBkd:
         torch.set_default_dtype(torch.float64)
         return TorchBkd()

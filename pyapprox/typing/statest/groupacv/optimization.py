@@ -88,6 +88,12 @@ class GroupACVObjective(ABC, Generic[Array]):
         """
         return self._objective_value(npartition_samples)
 
+    def _scalar_objective_wrapper(self, npartition_samples_1d: Array) -> Array:
+        """Wrapper that returns scalar for bkd.jacobian compatibility."""
+        result = self._objective_wrapper(npartition_samples_1d)
+        # Flatten to scalar for jacobian computation
+        return result.flatten()[0]
+
     def jacobian(self, npartition_samples: Array) -> Array:
         """
         Compute the Jacobian of the objective.
@@ -102,28 +108,10 @@ class GroupACVObjective(ABC, Generic[Array]):
         Array (1, nvars)
             Jacobian row vector
         """
-        return self._bkd.jacobian(
-            self._objective_wrapper, npartition_samples[:, 0]
-        )[None, ...]
-
-    def hessian(self, npartition_samples: Array) -> Array:
-        """
-        Compute the Hessian of the objective.
-
-        Parameters
-        ----------
-        npartition_samples : Array (nvars, 1)
-            Partition sample counts as column vector
-
-        Returns
-        -------
-        Array (nvars, nvars)
-            Hessian matrix
-        """
-        return self._bkd.hessian(
-            self._objective_wrapper, npartition_samples[:, 0]
+        jac = self._bkd.jacobian(
+            self._scalar_objective_wrapper, npartition_samples[:, 0]
         )
-
+        return jac[None, ...]
 
 class GroupACVTraceObjective(GroupACVObjective[Array]):
     """Trace objective for GroupACV optimization.
@@ -252,6 +240,24 @@ class MLBLUEObjective(GroupACVTraceObjective):
                     hess[jj][ii] = hess[ii][jj]
         hess = self._bkd.vstack([self._bkd.hstack(row) for row in hess])
         return hess
+
+    def hvp(self, npartition_samples: Array, vec: Array) -> Array:
+        """Compute Hessian-vector product.
+
+        Parameters
+        ----------
+        npartition_samples : Array (nvars, 1)
+            Partition sample counts as column vector
+        vec : Array (nvars, 1)
+            Vector to multiply with Hessian
+
+        Returns
+        -------
+        Array (nvars, 1)
+            Hessian-vector product
+        """
+        hess = self.hessian(npartition_samples)
+        return hess @ vec
 
 
 class GroupACVCostConstraint(Generic[Array]):
@@ -408,3 +414,27 @@ class GroupACVCostConstraint(Generic[Array]):
                 npartition_samples.shape[0],
             )
         )
+
+    def whvp(
+        self, npartition_samples: Array, vec: Array, weights: Array
+    ) -> Array:
+        """
+        Compute weighted Hessian-vector product.
+
+        Returns zeros since constraints are linear (Hessian is zero).
+
+        Parameters
+        ----------
+        npartition_samples : Array (nvars, 1)
+            Partition sample counts as column vector
+        vec : Array (nvars, 1)
+            Vector to multiply with Hessian
+        weights : Array (nqoi, 1)
+            Weights for each constraint
+
+        Returns
+        -------
+        Array (nvars, 1)
+            Weighted Hessian-vector product (all zeros)
+        """
+        return self._bkd.zeros((npartition_samples.shape[0], 1))

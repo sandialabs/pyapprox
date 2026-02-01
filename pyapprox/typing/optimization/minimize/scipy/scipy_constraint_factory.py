@@ -83,7 +83,6 @@ def convert_constraints(
                 ),
                 keep_feasible=getattr(con, "_keep_feasible", False),
             )
-            print(scipy_con.hess)
 
             converted_nonlinear_constraints.append(scipy_con)
 

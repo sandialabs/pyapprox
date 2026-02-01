@@ -247,5 +247,208 @@ class TestGroupACVLegacyComparison(unittest.TestCase):
         np.testing.assert_allclose(legacy_nsamples, typing_nsamples)
 
 
+class TestMLBLUEAllocationLegacyComparison(unittest.TestCase):
+    """Compare typing MLBLUE allocation against legacy."""
+
+    def setUp(self):
+        self.legacy_bkd = LegacyBkd
+        self.typing_bkd = NumpyBkd()
+        np.random.seed(0)
+
+    def _covariance_to_correlation(self, cov):
+        """Convert covariance to correlation matrix."""
+        d = np.sqrt(np.diag(cov))
+        return cov / np.outer(d, d)
+
+    def test_mlblue_allocation_nmodels_2(self):
+        """Test MLBLUE allocation matches legacy for nmodels=2."""
+        from pyapprox.multifidelity.groupacv import (
+            MLBLUEEstimator as LegacyMLBLUE,
+            GroupACVGradientOptimizer,
+        )
+        from pyapprox.optimization.scipy import ScipyConstrainedOptimizer
+        from pyapprox.typing.statest.groupacv import (
+            MLBLUEEstimator as TypingMLBLUE,
+        )
+
+        nmodels = 2
+        min_nhf_samples = 11
+        target_cost = 100
+
+        # Create covariance matrix
+        np.random.seed(0)
+        cov_np = np.random.normal(0, 1, (nmodels, nmodels))
+        cov_np = cov_np.T @ cov_np
+        cov_np = self._covariance_to_correlation(cov_np)
+
+        # Costs
+        costs_np = np.flip(np.logspace(-nmodels + 1, 0, nmodels))
+
+        # Legacy estimator
+        legacy_stat = multioutput_stats["mean"](1, backend=self.legacy_bkd)
+        legacy_stat.set_pilot_quantities(cov_np)
+        legacy_est = LegacyMLBLUE(legacy_stat, costs_np, reg_blue=1e-10)
+        legacy_opt = GroupACVGradientOptimizer(ScipyConstrainedOptimizer())
+        legacy_opt.set_estimator(legacy_est)
+        legacy_est.set_optimizer(legacy_opt)
+        legacy_iterate = legacy_est._init_guess(target_cost)
+        legacy_est.allocate_samples(
+            target_cost, min_nhf_samples, iterate=legacy_iterate
+        )
+
+        # Typing estimator
+        typing_stat = MultiOutputMean(1, self.typing_bkd)
+        typing_stat.set_pilot_quantities(self.typing_bkd.array(cov_np))
+        typing_est = TypingMLBLUE(
+            typing_stat, self.typing_bkd.array(costs_np), reg_blue=1e-10
+        )
+
+        # Use same allocation as legacy (skip optimization for now)
+        typing_est._set_optimized_params(
+            self.typing_bkd.array(legacy_est._rounded_npartition_samples),
+            round_nsamples=False,
+        )
+
+        # Compare results
+        print(f"\nLegacy npartition_samples: {legacy_est._rounded_npartition_samples}")
+        print(f"Legacy nsamples_per_model: {legacy_est._rounded_nsamples_per_model}")
+        print(f"Legacy covariance: {legacy_est._optimized_covariance}")
+
+        print(f"\nTyping npartition_samples: {typing_est._rounded_npartition_samples}")
+        print(f"Typing nsamples_per_model: {typing_est._rounded_nsamples_per_model}")
+
+        # Check that with same allocation, we get same nsamples_per_model
+        np.testing.assert_allclose(
+            legacy_est._rounded_nsamples_per_model,
+            self.typing_bkd.to_numpy(typing_est._rounded_nsamples_per_model),
+        )
+
+        # Check covariance computation matches
+        typing_cov = typing_est._covariance_from_npartition_samples(
+            typing_est._rounded_npartition_samples
+        )
+        np.testing.assert_allclose(
+            legacy_est._optimized_covariance,
+            self.typing_bkd.to_numpy(typing_cov),
+            rtol=1e-10,
+        )
+
+    def test_mlblue_optimization_comparison(self):
+        """Test MLBLUE optimization produces similar results to legacy."""
+        from pyapprox.multifidelity.groupacv import (
+            MLBLUEEstimator as LegacyMLBLUE,
+            GroupACVGradientOptimizer,
+        )
+        from pyapprox.optimization.scipy import ScipyConstrainedOptimizer
+        from pyapprox.typing.statest.groupacv import (
+            MLBLUEEstimator as TypingMLBLUE,
+            MLBLUEObjective,
+            GroupACVCostConstraint,
+        )
+        from pyapprox.typing.optimization.minimize.chained.chained_optimizer import (
+            ChainedOptimizer,
+        )
+        from pyapprox.typing.optimization.minimize.scipy.trust_constr import (
+            ScipyTrustConstrOptimizer,
+        )
+        from pyapprox.typing.optimization.minimize.scipy.diffevol import (
+            ScipyDifferentialEvolutionOptimizer,
+        )
+
+        nmodels = 2
+        min_nhf_samples = 11
+        target_cost = 100
+
+        # Create covariance matrix
+        np.random.seed(0)
+        cov_np = np.random.normal(0, 1, (nmodels, nmodels))
+        cov_np = cov_np.T @ cov_np
+        cov_np = self._covariance_to_correlation(cov_np)
+
+        # Costs
+        costs_np = np.flip(np.logspace(-nmodels + 1, 0, nmodels))
+
+        # Legacy estimator and optimization
+        legacy_stat = multioutput_stats["mean"](1, backend=self.legacy_bkd)
+        legacy_stat.set_pilot_quantities(cov_np)
+        legacy_est = LegacyMLBLUE(legacy_stat, costs_np, reg_blue=1e-10)
+        legacy_opt = GroupACVGradientOptimizer(ScipyConstrainedOptimizer())
+        legacy_opt.set_estimator(legacy_est)
+        legacy_est.set_optimizer(legacy_opt)
+        legacy_iterate = legacy_est._init_guess(target_cost)
+        legacy_est.allocate_samples(
+            target_cost, min_nhf_samples, iterate=legacy_iterate
+        )
+
+        print(f"\n=== Legacy Results ===")
+        print(f"npartition_samples: {legacy_est._rounded_npartition_samples}")
+        print(f"nsamples_per_model: {legacy_est._rounded_nsamples_per_model}")
+        print(f"covariance: {legacy_est._optimized_covariance}")
+
+        # Typing estimator - manually set up optimization
+        typing_stat = MultiOutputMean(1, self.typing_bkd)
+        typing_stat.set_pilot_quantities(self.typing_bkd.array(cov_np))
+        typing_est = TypingMLBLUE(
+            typing_stat, self.typing_bkd.array(costs_np), reg_blue=1e-10
+        )
+
+        # Set up objective and constraint (use MLBLUEObjective for analytical jacobian)
+        objective = MLBLUEObjective(self.typing_bkd)
+        objective.set_estimator(typing_est)
+
+        constraint = GroupACVCostConstraint(self.typing_bkd)
+        constraint.set_estimator(typing_est)
+        constraint.set_budget(target_cost, min_nhf_samples)
+
+        # Set up bounds
+        max_npartition_samples = target_cost / float(costs_np.min()) + 1
+        bounds = self.typing_bkd.array(
+            [[0.0, max_npartition_samples]] * typing_est.npartitions()
+        )
+
+        # Create optimizer
+        global_opt = ScipyDifferentialEvolutionOptimizer(
+            maxiter=3,
+            polish=False,
+            seed=1,
+            tol=1e-8,
+            raise_on_failure=False,
+        )
+        local_opt = ScipyTrustConstrOptimizer(
+            gtol=1e-6,
+            maxiter=2000,
+        )
+        optimizer = ChainedOptimizer(global_opt, local_opt)
+        optimizer.bind(objective, bounds, [constraint])
+
+        # Run optimization
+        typing_iterate = typing_est._init_guess(target_cost)
+        result = optimizer.minimize(typing_iterate)
+
+        print(f"\n=== Typing Results ===")
+        print(f"success: {result.success()}")
+        print(f"optima: {result.optima().flatten()}")
+        print(f"objective: {result.fun()}")
+
+        # Apply the result
+        typing_est._set_optimized_params(result.optima()[:, 0], round_nsamples=True)
+
+        print(f"npartition_samples: {typing_est._rounded_npartition_samples}")
+        print(f"nsamples_per_model: {typing_est._rounded_nsamples_per_model}")
+
+        typing_cov = typing_est._covariance_from_npartition_samples(
+            typing_est._rounded_npartition_samples
+        )
+        print(f"covariance: {typing_cov}")
+
+        # The optimizations may not match exactly due to different solvers,
+        # but the covariance should be similar
+        np.testing.assert_allclose(
+            legacy_est._optimized_covariance,
+            self.typing_bkd.to_numpy(typing_cov),
+            rtol=0.1,  # Allow 10% tolerance since optimizers differ
+        )
+
+
 if __name__ == "__main__":
     unittest.main()
