@@ -18,6 +18,13 @@ from pyapprox.typing.benchmarks.functions.multifidelity.polynomial_ensemble impo
     PolynomialModelFunction,
     PolynomialEnsemble,
 )
+from pyapprox.typing.benchmarks.functions.multifidelity.multioutput_ensemble import (
+    MultiOutputModelEnsemble,
+    PSDMultiOutputModelEnsemble,
+)
+from pyapprox.typing.benchmarks.functions.multifidelity.statistics_mixin import (
+    MultifidelityStatisticsMixin,
+)
 from pyapprox.typing.benchmarks.instances.multifidelity import (
     polynomial_ensemble_5model,
     polynomial_ensemble_3model,
@@ -311,6 +318,214 @@ class TestMultifidelityBenchmarkInstances(Generic[Array], unittest.TestCase):
         self._bkd.assert_allclose(domain.bounds(), expected, rtol=1e-12)
 
 
+class TestMultiOutputModelEnsemble(Generic[Array], unittest.TestCase):
+    """Tests for MultiOutputModelEnsemble and statistics mixin."""
+
+    __test__ = False
+
+    def bkd(self) -> Backend[Array]:
+        raise NotImplementedError
+
+    def setUp(self) -> None:
+        self._bkd = self.bkd()
+
+    def test_nmodels(self) -> None:
+        """Test nmodels returns correct value."""
+        ensemble = MultiOutputModelEnsemble(self._bkd)
+        self.assertEqual(ensemble.nmodels(), 3)
+
+    def test_nqoi(self) -> None:
+        """Test nqoi returns correct value."""
+        ensemble = MultiOutputModelEnsemble(self._bkd)
+        self.assertEqual(ensemble.nqoi(), 3)
+
+    def test_nvars(self) -> None:
+        """Test nvars returns 1."""
+        ensemble = MultiOutputModelEnsemble(self._bkd)
+        self.assertEqual(ensemble.nvars(), 1)
+
+    def test_costs_shape(self) -> None:
+        """Test costs has correct shape."""
+        ensemble = MultiOutputModelEnsemble(self._bkd)
+        costs = ensemble.costs()
+        self.assertEqual(costs.shape, (3,))
+
+    def test_means_shape(self) -> None:
+        """Test means has correct shape."""
+        ensemble = MultiOutputModelEnsemble(self._bkd)
+        means = ensemble.means()
+        self.assertEqual(means.shape, (3, 3))
+
+    def test_covariance_matrix_shape(self) -> None:
+        """Test covariance matrix has correct shape."""
+        ensemble = MultiOutputModelEnsemble(self._bkd)
+        cov = ensemble.covariance_matrix()
+        self.assertEqual(cov.shape, (9, 9))
+
+    def test_covariance_matrix_symmetric(self) -> None:
+        """Test covariance matrix is symmetric."""
+        ensemble = MultiOutputModelEnsemble(self._bkd)
+        cov = ensemble.covariance_matrix()
+        self._bkd.assert_allclose(cov, cov.T, rtol=1e-12)
+
+    def test_analytical_vs_numerical_covariance(self) -> None:
+        """Test analytical covariance matches numerical quadrature."""
+        ensemble = MultiOutputModelEnsemble(self._bkd)
+        # Get analytical covariance (from override)
+        analytical_cov = ensemble.covariance_matrix()
+        # Get numerical covariance by calling mixin method directly
+        numerical_cov = MultifidelityStatisticsMixin.covariance_matrix(ensemble)
+        # Should match to high precision
+        self._bkd.assert_allclose(analytical_cov, numerical_cov, rtol=1e-6)
+
+    def test_analytical_vs_numerical_means(self) -> None:
+        """Test analytical means match numerical quadrature."""
+        ensemble = MultiOutputModelEnsemble(self._bkd)
+        # Get analytical means (from override)
+        analytical_means = ensemble.means()
+        # Get numerical means by calling mixin method directly
+        numerical_means = MultifidelityStatisticsMixin.means(ensemble)
+        # Should match to high precision
+        # atol needed for values that are analytically 0 but numerically ~1e-16
+        self._bkd.assert_allclose(
+            analytical_means, numerical_means, rtol=1e-6, atol=1e-14
+        )
+
+    def test_kronecker_product_covariance_shape(self) -> None:
+        """Test W matrix has correct shape."""
+        ensemble = MultiOutputModelEnsemble(self._bkd)
+        W = ensemble.covariance_of_centered_values_kronecker_product()
+        # Shape is (nmodels * nqoi^2, nmodels * nqoi^2) = (27, 27)
+        self.assertEqual(W.shape, (27, 27))
+
+    def test_kronecker_product_covariance_symmetric(self) -> None:
+        """Test W matrix is symmetric."""
+        ensemble = MultiOutputModelEnsemble(self._bkd)
+        W = ensemble.covariance_of_centered_values_kronecker_product()
+        self._bkd.assert_allclose(W, W.T, rtol=1e-10)
+
+    def test_mean_variance_covariance_shape(self) -> None:
+        """Test B matrix has correct shape."""
+        ensemble = MultiOutputModelEnsemble(self._bkd)
+        B = ensemble.covariance_of_mean_and_variance_estimators()
+        # Shape is (nmodels * nqoi, nmodels * nqoi^2) = (9, 27)
+        self.assertEqual(B.shape, (9, 27))
+
+    def test_covariance_subproblem_single_model_single_qoi(self) -> None:
+        """Test covariance subproblem for single model and QoI."""
+        ensemble = MultiOutputModelEnsemble(self._bkd)
+        full_cov = ensemble.covariance_matrix()
+        # Get subproblem for model 0, qoi 0
+        sub_cov = ensemble.covariance_subproblem([0], [0])
+        self.assertEqual(sub_cov.shape, (1, 1))
+        self._bkd.assert_allclose(sub_cov[0, 0], full_cov[0, 0], rtol=1e-12)
+
+    def test_covariance_subproblem_multiple(self) -> None:
+        """Test covariance subproblem for multiple models and QoI."""
+        ensemble = MultiOutputModelEnsemble(self._bkd)
+        full_cov = ensemble.covariance_matrix()
+        # Get subproblem for models [0, 1] and qoi [0, 2]
+        model_idx = [0, 1]
+        qoi_idx = [0, 2]
+        sub_cov = ensemble.covariance_subproblem(model_idx, qoi_idx)
+        # Shape should be (2*2, 2*2) = (4, 4)
+        self.assertEqual(sub_cov.shape, (4, 4))
+        # Check a few entries
+        # (0, 0) -> model 0 qoi 0 vs model 0 qoi 0 -> full[0, 0]
+        self._bkd.assert_allclose(sub_cov[0, 0], full_cov[0, 0], rtol=1e-12)
+        # (1, 1) -> model 0 qoi 2 vs model 0 qoi 2 -> full[2, 2]
+        self._bkd.assert_allclose(sub_cov[1, 1], full_cov[2, 2], rtol=1e-12)
+        # (2, 2) -> model 1 qoi 0 vs model 1 qoi 0 -> full[3, 3]
+        self._bkd.assert_allclose(sub_cov[2, 2], full_cov[3, 3], rtol=1e-12)
+
+    def test_kronecker_subproblem_matches_full(self) -> None:
+        """Test W subproblem extraction matches direct computation."""
+        ensemble = MultiOutputModelEnsemble(self._bkd)
+        model_idx = [0, 1]
+        qoi_idx = [0, 2]
+        # Get subproblem from full W matrix
+        W_sub = ensemble.covariance_of_centered_values_kronecker_product_subproblem(
+            model_idx, qoi_idx
+        )
+        # Shape: (nsub_models * nsub_qoi^2, nsub_models * nsub_qoi^2) = (2*4, 2*4) = (8, 8)
+        self.assertEqual(W_sub.shape, (8, 8))
+        # Verify symmetry
+        self._bkd.assert_allclose(W_sub, W_sub.T, rtol=1e-10)
+
+    def test_mean_variance_subproblem_matches_full(self) -> None:
+        """Test B subproblem extraction matches direct computation."""
+        ensemble = MultiOutputModelEnsemble(self._bkd)
+        model_idx = [0, 1]
+        qoi_idx = [0, 2]
+        # Get subproblem from full B matrix
+        B_sub = ensemble.covariance_of_mean_and_variance_estimators_subproblem(
+            model_idx, qoi_idx
+        )
+        # Shape: (nsub_models * nsub_qoi, nsub_models * nsub_qoi^2) = (2*2, 2*4) = (4, 8)
+        self.assertEqual(B_sub.shape, (4, 8))
+
+
+class TestPSDMultiOutputModelEnsemble(Generic[Array], unittest.TestCase):
+    """Tests for PSD variant of MultiOutputModelEnsemble."""
+
+    __test__ = False
+
+    def bkd(self) -> Backend[Array]:
+        raise NotImplementedError
+
+    def setUp(self) -> None:
+        self._bkd = self.bkd()
+
+    def test_covariance_matrix_shape(self) -> None:
+        """Test covariance matrix has correct shape."""
+        ensemble = PSDMultiOutputModelEnsemble(self._bkd)
+        cov = ensemble.covariance_matrix()
+        self.assertEqual(cov.shape, (9, 9))
+
+    def test_covariance_matrix_symmetric(self) -> None:
+        """Test covariance matrix is symmetric."""
+        ensemble = PSDMultiOutputModelEnsemble(self._bkd)
+        cov = ensemble.covariance_matrix()
+        self._bkd.assert_allclose(cov, cov.T, rtol=1e-10)
+
+    def test_covariance_matrix_positive_diagonal(self) -> None:
+        """Test covariance matrix has positive diagonal."""
+        ensemble = PSDMultiOutputModelEnsemble(self._bkd)
+        cov = ensemble.covariance_matrix()
+        for i in range(9):
+            self.assertGreater(cov[i, i], 0)
+
+    def test_means_shape(self) -> None:
+        """Test means has correct shape."""
+        ensemble = PSDMultiOutputModelEnsemble(self._bkd)
+        means = ensemble.means()
+        self.assertEqual(means.shape, (3, 3))
+
+    def test_kronecker_product_covariance_shape(self) -> None:
+        """Test W matrix has correct shape."""
+        ensemble = PSDMultiOutputModelEnsemble(self._bkd)
+        W = ensemble.covariance_of_centered_values_kronecker_product()
+        self.assertEqual(W.shape, (27, 27))
+
+    def test_mean_variance_covariance_shape(self) -> None:
+        """Test B matrix has correct shape."""
+        ensemble = PSDMultiOutputModelEnsemble(self._bkd)
+        B = ensemble.covariance_of_mean_and_variance_estimators()
+        self.assertEqual(B.shape, (9, 27))
+
+    def test_different_from_regular_ensemble(self) -> None:
+        """Test PSD ensemble has different covariance from regular."""
+        regular = MultiOutputModelEnsemble(self._bkd)
+        psd = PSDMultiOutputModelEnsemble(self._bkd)
+
+        regular_cov = regular.covariance_matrix()
+        psd_cov = psd.covariance_matrix()
+
+        # They should be different (PSD has perturbations)
+        diff = self._bkd.max(self._bkd.abs(regular_cov - psd_cov))
+        self.assertGreater(self._bkd.to_numpy(diff), 0.01)
+
+
 class TestBenchmarkRegistryMultifidelity(unittest.TestCase):
     """Tests for BenchmarkRegistry multifidelity category."""
 
@@ -378,6 +593,40 @@ class TestMultifidelityBenchmarkInstancesTorch(
     TestMultifidelityBenchmarkInstances[torch.Tensor]
 ):
     """PyTorch backend tests for multifidelity benchmark instances."""
+
+    def bkd(self) -> TorchBkd:
+        torch.set_default_dtype(torch.float64)
+        return TorchBkd()
+
+
+class TestMultiOutputModelEnsembleNumpy(TestMultiOutputModelEnsemble[NDArray[Any]]):
+    """NumPy backend tests for MultiOutputModelEnsemble."""
+
+    def bkd(self) -> NumpyBkd:
+        return NumpyBkd()
+
+
+class TestMultiOutputModelEnsembleTorch(TestMultiOutputModelEnsemble[torch.Tensor]):
+    """PyTorch backend tests for MultiOutputModelEnsemble."""
+
+    def bkd(self) -> TorchBkd:
+        torch.set_default_dtype(torch.float64)
+        return TorchBkd()
+
+
+class TestPSDMultiOutputModelEnsembleNumpy(
+    TestPSDMultiOutputModelEnsemble[NDArray[Any]]
+):
+    """NumPy backend tests for PSDMultiOutputModelEnsemble."""
+
+    def bkd(self) -> NumpyBkd:
+        return NumpyBkd()
+
+
+class TestPSDMultiOutputModelEnsembleTorch(
+    TestPSDMultiOutputModelEnsemble[torch.Tensor]
+):
+    """PyTorch backend tests for PSDMultiOutputModelEnsemble."""
 
     def bkd(self) -> TorchBkd:
         torch.set_default_dtype(torch.float64)
