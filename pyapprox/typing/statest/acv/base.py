@@ -607,6 +607,20 @@ class ACVEstimator(CVEstimator[Array], Generic[Array]):
         partition_ratios, obj_val = self._allocate_samples(target_cost)
         self._set_optimized_params(partition_ratios, target_cost)
 
+    def _get_optimizer_verbosity(self) -> int:
+        """Get verbosity level from the optimizer.
+
+        Returns
+        -------
+        int
+            Verbosity level, or 0 if optimizer doesn't support verbosity.
+        """
+        if hasattr(self._optimizer, "local_optimizer_verbosity"):
+            return self._optimizer.local_optimizer_verbosity()
+        if hasattr(self._optimizer, "_verbosity"):
+            return self._optimizer._verbosity
+        return 0
+
     def get_all_recursion_indices(self) -> List[Array]:
         from pyapprox.multifidelity._optim import _get_acv_recursion_indices
         return _get_acv_recursion_indices(self._nmodels, self._tree_depth)
@@ -622,9 +636,9 @@ class ACVEstimator(CVEstimator[Array], Generic[Array]):
                 if not self._allow_failures:
                     raise e
                 self._optimized_criteria = self._bkd.asarray(np.inf)
-                if self._optimizer._verbosity > 0:
+                if self._get_optimizer_verbosity() > 0:
                     print("Optimizer failed")
-            if self._optimizer._verbosity > 2:
+            if self._get_optimizer_verbosity() > 2:
                 msg = "\t\t Recursion: {0} Objective: best {1}, current {2}".format(
                     index,
                     best_criteria.item(),

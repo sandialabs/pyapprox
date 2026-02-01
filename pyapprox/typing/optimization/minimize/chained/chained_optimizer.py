@@ -171,3 +171,15 @@ class ChainedOptimizer(Generic[Array]):
         local_result = self._local_optimizer.minimize(global_result.optima())
 
         return local_result
+
+    def local_optimizer_verbosity(self) -> int:
+        """Return verbosity level from local optimizer.
+
+        Returns
+        -------
+        int
+            Verbosity level from the local optimizer, or 0 if not available.
+        """
+        if hasattr(self._local_optimizer, "_verbosity"):
+            return self._local_optimizer._verbosity
+        return 0
