@@ -30,6 +30,10 @@ class NumpyBkd(Backend[NDArray[Any]]):  # Specify NDArray type
         return np.linalg.inv(matrix)
 
     @staticmethod
+    def pinv(matrix: NDArray[Any]) -> NDArray[Any]:
+        return np.linalg.pinv(matrix)
+
+    @staticmethod
     def asarray(
         array: Union[Sequence[Any], NDArray[Any], float, int],
         dtype: Optional[Any] = None,

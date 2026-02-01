@@ -41,6 +41,14 @@ class TorchBkd(Backend[torch.Tensor]):  # Specify torch.Tensor type
         return result
 
     @staticmethod
+    def pinv(matrix: torch.Tensor) -> torch.Tensor:
+        result = torch.linalg.pinv(matrix)
+        assert isinstance(
+            result, torch.Tensor
+        ), "Expected torch.linalg.pinv to return a torch.Tensor"
+        return result
+
+    @staticmethod
     def array(
         array: Union[Sequence[Any], torch.Tensor, float, int],
         dtype: Optional[Any] = None,

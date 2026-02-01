@@ -32,6 +32,17 @@ from pyapprox.typing.statest.acv import (
     MFMCEstimator,
     MLMCEstimator,
 )
+from pyapprox.typing.statest.groupacv import (
+    GroupACVEstimator,
+    MLBLUEEstimator,
+    GroupACVObjective,
+    GroupACVTraceObjective,
+    GroupACVLogDetObjective,
+    MLBLUEObjective,
+    GroupACVCostConstraint,
+    get_model_subsets,
+    default_groupacv_optimizer,
+)
 
 __all__ = [
     "StatisticProtocol",
@@ -48,4 +59,14 @@ __all__ = [
     "GRDEstimator",
     "MFMCEstimator",
     "MLMCEstimator",
+    # GroupACV exports
+    "GroupACVEstimator",
+    "MLBLUEEstimator",
+    "GroupACVObjective",
+    "GroupACVTraceObjective",
+    "GroupACVLogDetObjective",
+    "MLBLUEObjective",
+    "GroupACVCostConstraint",
+    "get_model_subsets",
+    "default_groupacv_optimizer",
 ]

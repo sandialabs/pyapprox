@@ -111,6 +111,9 @@ class Backend(Protocol, Generic[Array]):
     def inv(matrix: Array) -> Array: ...
 
     @staticmethod
+    def pinv(matrix: Array) -> Array: ...
+
+    @staticmethod
     def asarray(
         array: Union[Sequence[Any], Array, float, int],
         dtype: Optional[Any] = None,

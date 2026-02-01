@@ -1,592 +1,110 @@
-from abc import abstractmethod
-from itertools import combinations
-from typing import List, Union
+"""Base GroupACV estimator implementation.
+
+This module provides the GroupACVEstimator class for Group Approximate
+Control Variate estimation.
+"""
+
+from typing import Generic, List, Union, TYPE_CHECKING
 
 import numpy as np
 
-from pyapprox.util.backends.template import Array, BackendMixin
-from pyapprox.multifidelity.stats import (
-    MultiOutputMean,
-    MultiOutputVariance,
-    MultiOutputMeanAndVariance,
-    MultiOutputStatistic,
+from pyapprox.typing.util.backends.protocols import Array, Backend
+
+from pyapprox.typing.statest.groupacv.utils import (
+    get_model_subsets,
+    _get_allocation_matrix_is,
+    _get_allocation_matrix_nested,
+    _nest_subsets,
+    _grouped_acv_sigma,
 )
-from pyapprox.interface.model import Model
-from pyapprox.optimization.scipy import (
-    ScipyConstrainedOptimizer,
-    ScipyConstrainedDifferentialEvolutionOptimizer,
+
+from pyapprox.typing.statest.groupacv.optimization import (
+    GroupACVObjective,
+    GroupACVLogDetObjective,
+    GroupACVCostConstraint,
 )
-from pyapprox.optimization.minimize import (
-    Constraint,
-    ConstrainedOptimizer,
-    OptimizationResult,
-    ChainedOptimizer,
-    Optimizer,
-)
+
+if TYPE_CHECKING:
+    from pyapprox.typing.statest.statistics import (
+        MultiOutputStatistic,
+        MultiOutputMean,
+        MultiOutputVariance,
+        MultiOutputMeanAndVariance,
+    )
+    from pyapprox.typing.optimization.minimize.chained.chained_optimizer import (
+        ChainedOptimizer,
+    )
+    from pyapprox.typing.optimization.minimize.scipy.trust_constr import (
+        ScipyTrustConstrOptimizer,
+    )
 
 
 def default_groupacv_optimizer():
-    opt1 = GroupACVGradientOptimizer(
-        ScipyConstrainedDifferentialEvolutionOptimizer(opts={"maxiter": 20})
-    )
-    local_opt = ScipyConstrainedOptimizer()
-    opt2 = GroupACVGradientOptimizer(local_opt)
+    """Create the default optimizer for GroupACV sample allocation.
 
-    return ChainedACVOptimizer(opt1, opt2)
-
-
-def get_model_subsets(
-    nmodels: int, bkd: BackendMixin, max_subset_nmodels: int = None
-):
+    Returns
+    -------
+    ChainedOptimizer
+        A chained optimizer with differential evolution followed by
+        trust-constr refinement.
     """
+    from pyapprox.typing.optimization.minimize.chained.chained_optimizer import (
+        ChainedOptimizer,
+    )
+    from pyapprox.typing.optimization.minimize.scipy.trust_constr import (
+        ScipyTrustConstrOptimizer,
+    )
+    from pyapprox.typing.optimization.minimize.scipy.diffevol import (
+        ScipyDifferentialEvolutionOptimizer,
+    )
+
+    global_opt = ScipyDifferentialEvolutionOptimizer(
+        maxiter=100,
+        polish=False,
+        seed=1,
+        tol=1e-8,
+        atol=1e-8,
+    )
+    local_opt = ScipyTrustConstrOptimizer(
+        gtol=1e-8,
+        xtol=1e-16,
+        maxiter=1000,
+    )
+    return ChainedOptimizer([global_opt, local_opt])
+
+
+class GroupACVEstimator(Generic[Array]):
+    """Group Approximate Control Variate estimator.
+
     Parameters
     ----------
-    nmodels : integer
-        The number of models
+    stat : MultiOutputStatistic
+        The statistic object containing covariance information
 
-    max_subset_nmodels : integer
-        The maximum number of in a subset.
+    costs : Array
+        The computational costs of each model
+
+    reg_blue : float, optional
+        Regularization parameter for BLUE. Default is 0.
+
+    model_subsets : List[Array], optional
+        List of model subsets. If None, all subsets are generated.
+
+    est_type : str, optional
+        Estimation type: "is" for independent sampling or "nested".
+        Default is "is".
+
+    asketch : Array, optional
+        Sketch matrix for extracting statistics. If None, identity-like
+        matrix extracting high-fidelity model statistics.
+
+    use_pseudo_inv : bool, optional
+        Whether to use pseudo-inverse. Default is True.
     """
-    if max_subset_nmodels is None:
-        max_subset_nmodels = nmodels
-    assert max_subset_nmodels > 0
-    assert max_subset_nmodels <= nmodels
-    subsets = []
-    model_indices = bkd.arange(nmodels)
-    for nsubset_lfmodels in range(1, max_subset_nmodels + 1):
-        for subset_indices in combinations(model_indices, nsubset_lfmodels):
-            idx = bkd.asarray(subset_indices, dtype=int)
-            subsets.append(idx)
-    return subsets
 
-
-def _get_allocation_matrix_is(subsets: Array, bkd: BackendMixin):
-    nsubsets = len(subsets)
-    npartitions = nsubsets
-    allocation_mat = bkd.full(
-        (nsubsets, npartitions), 0.0, dtype=bkd.double_type()
-    )
-    for ii, subset in enumerate(subsets):
-        allocation_mat[ii, ii] = 1.0
-    return allocation_mat
-
-
-def _get_allocation_matrix_nested(subsets: Array, bkd: BackendMixin):
-    # nest partitions according to order of subsets
-    nsubsets = len(subsets)
-    npartitions = nsubsets
-    allocation_mat = bkd.full(
-        (nsubsets, npartitions), 0.0, dtype=bkd.double_type()
-    )
-    for ii, subset in enumerate(subsets):
-        allocation_mat[ii, : ii + 1] = 1.0
-    return allocation_mat
-
-
-def _nest_subsets(subsets: Array, nmodels: int, bkd: BackendMixin):
-    for subset in subsets:
-        if np.allclose(subset, [0]):
-            raise ValueError("Cannot use subset [0]")
-    idx = sorted(
-        list(range(len(subsets))),
-        key=lambda ii: (len(subsets[ii]), tuple(nmodels - subsets[ii])),
-        reverse=True,
-    )
-    return [subsets[ii] for ii in idx], bkd.array(idx)
-
-
-def _grouped_acv_sigma_block(
-    subset0: Array,
-    subset1: Array,
-    nsamples_intersect: int,
-    nsamples_subset0: int,
-    nsamples_subset1: int,
-    stat,
-):
-    nsubset0 = len(subset0)
-    nsubset1 = len(subset1)
-    zero_block = stat._bkd.full((nsubset0, nsubset1), 0.0)
-    if (nsamples_subset0 * nsamples_subset1) == 0:
-        return zero_block
-    if (
-        nsamples_subset0 < stat.min_nsamples()
-        or nsamples_subset1 < stat.min_nsamples()
-    ):
-        return zero_block
-    block = stat._group_acv_sigma_block(
-        subset0,
-        subset1,
-        nsamples_intersect,
-        nsamples_subset0,
-        nsamples_subset1,
-    )
-    return block
-
-
-def _grouped_acv_sigma(
-    nmodels: int, nsamples_intersect: int, subsets: Array, stat
-):
-    nsubsets = len(subsets)
-    Sigma = [[None for jj in range(nsubsets)] for ii in range(nsubsets)]
-    for ii, subset0 in enumerate(subsets):
-        N_ii = nsamples_intersect[ii, ii]
-        Sigma[ii][ii] = _grouped_acv_sigma_block(
-            subset0, subset0, N_ii, N_ii, N_ii, stat
-        )
-        for jj, subset1 in enumerate(subsets[:ii]):
-            N_jj = nsamples_intersect[jj, jj]
-            Sigma[ii][jj] = _grouped_acv_sigma_block(
-                subset0, subset1, nsamples_intersect[ii, jj], N_ii, N_jj, stat
-            )
-            Sigma[jj][ii] = Sigma[ii][jj].T
-    return Sigma
-
-
-class GroupACVObjective(Model):
-    def __init__(self, backend: BackendMixin = None):
-        if backend is None:
-            from pyapprox.util.backends.numpy import NumpyMixin
-            backend = NumpyMixin
-        super().__init__(backend)
-        self._est = None
-
-    def nqoi(self) -> int:
-        return 1
-
-    def nvars(self) -> int:
-        return self._est.npartitions()
-
-    def set_estimator(self, estimator):
-        self._est = estimator
-        self._bkd = self._est._bkd
-
-    def jacobian_implemented(self) -> bool:
-        return self._bkd.jacobian_implemented()
-
-    def hessian_implemented(self) -> bool:
-        return self._bkd.hessian_implemented()
-
-    @abstractmethod
-    def _objective_wrapper(self, npartition_samples_1d: Array) -> Array:
-        raise NotImplementedError
-
-    def _values(self, npartition_samples: Array) -> Array:
-        return self._objective_wrapper(npartition_samples[:, 0])
-
-    def _jacobian(self, npartition_samples: Array) -> Array:
-        return self._bkd.grad(
-            self._objective_wrapper, npartition_samples[:, 0]
-        )[1][None, ...]
-
-    def _hessian(self, npartition_samples: Array) -> Array:
-        return self._bkd.hessian(
-            self._objective_wrapper, npartition_samples[:, 0]
-        )[None, ...]
-
-
-class GroupACVTraceObjective(GroupACVObjective):
-    def _objective_wrapper(self, npartition_samples_1d: Array) -> Array:
-        trace = self._bkd.trace(
-            self._est._covariance_from_npartition_samples(
-                npartition_samples_1d
-            )
-        )
-        # conversion below is necessary for torch
-        return self._bkd.hstack((trace,))[:, None]
-
-
-class GroupACVLogDetObjective(GroupACVObjective):
-    def _objective_wrapper(self, npartition_samples_1d: Array) -> Array:
-        cov = self._est._covariance_from_npartition_samples(
-            npartition_samples_1d
-        )
-        sign, logdet = self._bkd.slogdet(cov)
-        if logdet < -1e16:
-            # when cov is singular logdet returns np.inf
-            # make sure to return positive value to indicate
-            # to minimizer this is a bad point. Only really is
-            # an issue if starting from poor initial guess or using
-            # global optimizer
-            return self._bkd.asarray([[np.inf]])
-        # conversion below is necessary for torch
-        return self._bkd.hstack((logdet,))[:, None]
-
-
-class MLBLUEObjective(GroupACVTraceObjective):
-    def _jacobian(self, npartition_samples: Array):
-        # apply derivative of inverse matrix
-        # d_m X^{-1} = X^{-1} (d_mX) X^{-1}
-        # where X = psi_matrix and d_mX is RC_mR.T (not multiplied by nsamples)
-        # Objective is e^T X e so
-        # grad is e^T X^{-1} d_mX X^{-1} e = \gamma^T(d_mX)\gamma
-        # compute sigma blocks with npartition_samples = 1
-        Sigma_blocks = _grouped_acv_sigma(
-            self._est.nmodels(),
-            self._bkd.eye(npartition_samples.shape[0]),
-            # self._est._nintersect_samples(npartition_samples[:, 0]),
-            self._est._subsets,
-            self._est._stat,
-        )
-        # compute psi matrix with partition sizes
-        # todo cache psi_matrix when it is computed when evaluating objective
-        psi_matrix = self._est._psi_matrix(npartition_samples[:, 0])
-        psi_inv = self._est._inv(psi_matrix)
-        Rmats = self._est._restriction_matrices
-        jacobian = 0
-        for kk in range(self._est._stat.nstats()):
-            gamma = psi_inv @ self._est._asketch[kk : kk + 1].T
-            jacobian += self._bkd.hstack(
-                [
-                    self._bkd.multidot(
-                        (
-                            -gamma.T,
-                            Rmats[ii],
-                            self._est._inv(Sigma_blocks[ii][ii]),
-                            Rmats[ii].T,
-                            gamma,
-                        )
-                    )
-                    for ii in range(len(Sigma_blocks))
-                ]
-            )
-        return jacobian
-
-    def _hessian(self, npartition_samples: Array):
-        # apply derivative of inverse matrix twice
-        # d_m X^{-1} = X^{-1} (d_mX) X^{-1}
-        # where X = psi_matrix and d_mX is RC_mR.T (not multiplied by nsamples)
-        # Applying twice we have
-        # d_mn X^{-1} = d_n(X^{-1} (d_mX) X^{-1})
-        # = X^{-1}(d_nX)X^{-1}d_mX^{-1} + X^{-1}(d_mX)X^{-1}d_nX^{-1}
-        # So hessian is
-        # = \gamma^T(d_nX)X^{-1}d_m\gamma + \gamma^T(d_mX)X^{-1}d_nX^{-1}/gamma
-        # = \gamma^T(d_nX)\xi + \xi^Td_nX^{-1}/gamma
-        # = \eta^T + \eta, \eta = \xi^Td_nX^{-1}/gamma
-
-        Sigma_blocks = _grouped_acv_sigma(
-            self._est.nmodels(),
-            self._bkd.eye(npartition_samples.shape[0]),
-            self._est._subsets,
-            self._est._stat,
-        )
-        psi_matrix = self._est._psi_matrix(npartition_samples[:, 0])
-        psi_inv = self._est._inv(psi_matrix)
-        Rmats = self._est._restriction_matrices
-        hess = [
-            [0 for jj in range(len(Sigma_blocks))]
-            for ii in range(len(Sigma_blocks))
-        ]
-        sigma_invs = [
-            self._est._inv(Sigma_blocks[ii][ii])
-            for ii in range(len(Sigma_blocks))
-        ]
-        psi_derivs = [
-            self._bkd.multidot((Rmats[ii], sigma_invs[ii], Rmats[ii].T))
-            for ii in range(len(Sigma_blocks))
-        ]
-        for kk in range(self._est._stat.nstats()):
-            gamma = psi_inv @ self._est._asketch[kk : kk + 1].T
-            for ii in range(len(Sigma_blocks)):
-                xi = self._bkd.multidot((psi_inv, psi_derivs[ii], gamma))
-                for jj in range(ii, len(Sigma_blocks)):
-                    eta = self._bkd.multidot((xi.T, psi_derivs[jj], gamma))
-                    hess[ii][jj] += eta.T + eta
-                    hess[jj][ii] = hess[ii][jj]
-        hess = self._bkd.vstack([self._bkd.hstack(row) for row in hess])[
-            None, ...
-        ]
-        return hess
-
-
-class GroupACVConstraint(Constraint):
-    def __init__(self, bounds, keep_feasible=True):
-        super().__init__(bounds, keep_feasible)
-        self._est = None
-
-    def set_estimator(self, estimator):
-        self._est = estimator
-        self._bkd = self._est._bkd
-
-
-class GroupACVCostConstraint(GroupACVConstraint):
-    def __init__(self, bounds: Array, keep_feasible: bool = True):
-        if bounds.shape[0] != self.nqoi():
-            # the number of columns is checked with call to super().__init__
-            raise ValueError("Bounds must have shape (2, 2)")
-        super().__init__(bounds, keep_feasible)
-        self._target_cost = None
-        self._min_nhf_samples = None
-
-    def jacobian_implemented(self) -> bool:
-        return True
-
-    def hessian_implemented(self) -> bool:
-        return True
-
-    def nvars(self) -> int:
-        return self._est.npartitions()
-
-    def set_budget(self, target_cost: float, min_nhf_samples: int):
-        self._target_cost = target_cost
-        self._min_nhf_samples = min_nhf_samples
-        self._validate_target_cost_min_nhf_samples()
-
-    def _validate_target_cost_min_nhf_samples(self):
-        lb = self._min_nhf_samples * self._est._costs[0]
-        ub = self._target_cost
-        if ub < lb:
-            msg = "target_cost {0} & cost of min_nhf_samples {1} ".format(
-                self._target_cost, lb
-            )
-            msg += "are inconsistent"
-            raise ValueError(msg)
-
-    def nqoi(self) -> int:
-        return 2
-
-    def _values(self, npartition_samples: Array) -> Array:
-        return self._bkd.array(
-            [
-                self._target_cost
-                - self._est._estimator_cost(npartition_samples[:, 0]),
-                self._bkd.sum(
-                    self._est._partitions_per_model[0]
-                    * npartition_samples[:, 0]
-                )
-                - self._min_nhf_samples,
-            ]
-        )[None, :]
-
-    def _jacobian(self, npartition_samples: Array) -> Array:
-        return self._bkd.vstack(
-            (
-                -(self._est._costs[None, :] @ self._est._partitions_per_model),
-                self._est._partitions_per_model[0][None, :],
-            )
-        )
-
-    def _hessian(self, npartition_samples: Array) -> Array:
-        return self._bkd.zeros(
-            (
-                self.nqoi(),
-                npartition_samples.shape[0],
-                npartition_samples.shape[0],
-            )
-        )
-
-
-class GroupACVOptimizer(Optimizer):
-    def __init__(self):
-        super().__init__()
-        self._target_cost = None
-        self._min_nhf_samples = None
-        self._est = None
-
-    def set_budget(self, target_cost: float, min_nhf_samples: int = 1):
-        self._target_cost = target_cost
-        self._min_nhf_samples = min_nhf_samples
-
-    def set_estimator(self, est: "GroupACVEstimator"):
-        self._est = est
-        self._bkd = self._est._bkd
-
-    @abstractmethod
-    def _minimize(self, iterate: Array) -> OptimizationResult:
-        raise NotImplementedError
-
-    def minimize(self, iterate: Array) -> OptimizationResult:
-        result = self._minimize(iterate)
-        if not isinstance(result, OptimizationResult):
-            raise RuntimeError(
-                "{0}.minimize did not return OptimizationResult".format(self)
-            )
-        return result
-
-    def set_verbosity(self, verbosity: int):
-        super().set_verbosity(verbosity)
-        self._optimizer._verbosity = verbosity
-
-
-class GroupACVGradientOptimizer(GroupACVOptimizer):
-    def __init__(self, optimizer: ConstrainedOptimizer):
-        super().__init__()
-        if not isinstance(optimizer, ConstrainedOptimizer):
-            raise ValueError(
-                "optimizer must be an instance of ConstrainedOptimizer "
-                f"but was {type(optimizer)}"
-            )
-        self._optimizer = optimizer
-
-    def _minimize(self, iterate: Array) -> OptimizationResult:
-        return self._optimizer.minimize(iterate)
-
-    def set_budget(self, target_cost: float, min_nhf_samples: int = 1):
-        if not hasattr(self, "_constraint"):
-            raise RuntimeError(
-                "must call GroupACVGradientOptimizer.set_estimator()"
-            )
-        super().set_budget(target_cost, min_nhf_samples)
-        self._constraint.set_budget(target_cost, min_nhf_samples)
-        max_npartition_samples = (
-            self._target_cost // self._est._costs.min() + 1
-        )
-        for ii in range(self._optimizer._bounds.shape[0]):
-            self._optimizer._bounds[ii, 1] = max_npartition_samples
-
-    def get_objective(self):
-        if not hasattr(self._est, "_objective"):
-            return self._est.default_objective()
-        return self._est._objective
-
-    def set_estimator(self, est: "GroupACVEstimator"):
-        super().set_estimator(est)
-        objective = self.get_objective()
-        objective.set_estimator(self._est)
-        self._optimizer.set_objective_function(objective)
-        self._constraint = GroupACVCostConstraint(
-            bounds=self._bkd.array([[0, np.inf], [0, np.inf]])
-        )
-        self._constraint.set_estimator(self._est)
-        self._optimizer.set_constraints([self._constraint])
-        self._optimizer.set_bounds(
-            self._bkd.reshape(
-                self._bkd.tile(
-                    self._bkd.array([0, 1e12]), (self._est.npartitions(),)
-                ),
-                (self._est.npartitions(), 2),
-            )
-        )
-        self._objective = self._optimizer._objective
-
-    def __repr__(self) -> str:
-        return "{0}({1})".format(self.__class__.__name__, self._optimizer)
-
-
-class MLBLUEGradientOptimizer(GroupACVGradientOptimizer):
-    def get_objective(self) -> GroupACVObjective:
-        return MLBLUEObjective(self._bkd)
-
-
-class MLBLUESPDOptimizer(GroupACVOptimizer):
-    def __init__(self, solver_name: str = "CVXOPT"):
-        try:
-            import cvxpy
-        except ImportError:
-            raise ValueError(
-                "MLBLUESPDOptimizer can only be used when optional dependency"
-                " cvxpy is installed"
-            )
-        self._cvxpy = cvxpy
-
-        super().__init__()
-        self._min_nlf_samples = None
-        self._solver_name = solver_name
-
-    def set_estimator(
-        self, est: "GroupACVEstimator", objective=None
-    ):
-        super().set_estimator(est)
-        # used to compute objective at rounded_npartition_samples
-        # after optimization completes
-        if objective is None:
-            objective = MLBLUEObjective(est._bkd)
-        self._objective = objective
-        self._objective.set_estimator(est)
-
-    def _cvxpy_psi(self, nsps_cvxpy):
-        Psi = self._est._psi_blocks_flat @ nsps_cvxpy
-        Psi = self._cvxpy.reshape(
-            Psi, (self._est.nmodels(), self._est.nmodels()), order="F"
-        )
-        return Psi
-
-    def _cvxpy_spd_constraint(self, nsps_cvxpy, t_cvxpy):
-        Psi = self._cvxpy_psi(nsps_cvxpy)
-        mat = self._cvxpy.bmat(
-            [
-                [Psi, self._est._asketch.T],
-                [
-                    self._est._asketch,
-                    self._cvxpy.reshape(t_cvxpy, (1, 1), order="F"),
-                ],
-            ]
-        )
-        return mat
-
-    def _init_guess(self):
-        return None
-
-    def _minimize(self, iterate: Array) -> OptimizationResult:
-        if not isinstance(self._est._stat, MultiOutputMean):
-            raise RuntimeError(
-                "SPD solver only works whe estimating a single mean"
-            )
-        if self._est._stat.nstats() != 1:
-            raise RuntimeError("SPD solver only works for single outputs")
-        # if iterate is not None:
-        #     raise ValueError("iterate must be None")
-        t_cvxpy = self._cvxpy.Variable(nonneg=True)
-        nsps_cvxpy = self._cvxpy.Variable(self._est.nsubsets(), nonneg=True)
-        obj = self._cvxpy.Minimize(t_cvxpy)
-        subset_costs = self._est._get_model_subset_costs(
-            self._est._subsets, self._est._costs
-        )
-        constraints = [subset_costs @ nsps_cvxpy <= self._target_cost]
-        constraints += [
-            self._est._partitions_per_model[0] @ nsps_cvxpy
-            >= self._min_nhf_samples
-        ]
-        if self._min_nlf_samples is not None:
-            constraints += [
-                self._est._partitions_per_model[ii + 1] @ nsps_cvxpy
-                >= self._min_nlf_samples[ii]
-                for ii in range(self.nmodels() - 1)
-            ]
-        constraints += [self._cvxpy_spd_constraint(nsps_cvxpy, t_cvxpy) >> 0]
-        prob = self._cvxpy.Problem(obj, constraints)
-        # prob.solve(verbose=0, solver=self._solver_name)
-        prob.solve(solver=self._solver_name)
-        if t_cvxpy.value is None:
-            raise RuntimeError("solver did not converge")
-        result = OptimizationResult(
-            {
-                "x": self._bkd.array(nsps_cvxpy.value)[:, None],
-                "fun": t_cvxpy.value,
-                "success": True,
-            }
-        )
-        return result
-
-
-class ChainedACVOptimizer(ChainedOptimizer):
-    def __init__(self, optimizer1, optimizer2):
-        if not isinstance(optimizer1, GroupACVOptimizer):
-            raise ValueError(
-                "optimizer1 must be an instance of GroupACVOptimizer"
-            )
-        if not isinstance(optimizer2, GroupACVOptimizer):
-            raise ValueError(
-                "optimizer2 must be an instance of GroupACVOptimizer"
-            )
-        super().__init__(optimizer1, optimizer2)
-
-    def set_budget(self, target_cost, min_nhf_samples):
-        self._optimizer1.set_budget(target_cost, min_nhf_samples)
-        self._optimizer2.set_budget(target_cost, min_nhf_samples)
-
-    def set_estimator(self, est: "GroupACVEstimator"):
-        self._optimizer1.set_estimator(est)
-        self._optimizer2.set_estimator(est)
-        self._objective = self._optimizer2._objective
-
-
-# TODO to enable multioutput I changed to require asketch has a row for each output
-# this messesd up etc code. Consider requiring asketch to have a column for each
-# output. Then need to change transpose on asketch in this file.
-class GroupACVEstimator:
     def __init__(
         self,
-        stat: MultiOutputStatistic,
+        stat: "MultiOutputStatistic",
         costs: Array,
         reg_blue: float = 0,
         model_subsets: List[Array] = None,
@@ -594,9 +112,14 @@ class GroupACVEstimator:
         asketch: Array = None,
         use_pseudo_inv: bool = True,
     ):
-        self._bkd = stat._bkd
+        from pyapprox.typing.statest.statistics import (
+            MultiOutputMean,
+            MultiOutputVariance,
+            MultiOutputMeanAndVariance,
+        )
+
+        self._bkd = stat.bkd()
         self._use_pseudo_inv = use_pseudo_inv
-        # self._cov, self._costs = self._check_cov(stat._cov, costs)
         self._costs = self._bkd.array(costs)
         self._nmodels = len(costs)
         self._reg_blue = reg_blue
@@ -627,12 +150,15 @@ class GroupACVEstimator:
         self._asketch = self._validate_asketch(asketch)
 
     def nsubsets(self) -> int:
+        """Return the number of subsets."""
         return len(self._subsets)
 
     def npartitions(self) -> int:
+        """Return the number of partitions."""
         return self._npartitions
 
     def nmodels(self) -> int:
+        """Return the number of models."""
         return self._nmodels
 
     def _restriction_matrix(self, subset: Array) -> Array:
@@ -869,6 +395,7 @@ class GroupACVEstimator:
         )
 
     def optimized_covariance(self) -> Array:
+        """Return the optimized covariance matrix."""
         return self._optimized_covariance
 
     def _set_optimized_params(self, npartition_samples, round_nsamples=True):
@@ -915,23 +442,49 @@ class GroupACVEstimator:
         return asketch
 
     def default_objective(self) -> GroupACVObjective:
+        """Return the default objective function."""
         return GroupACVLogDetObjective(self._bkd)
 
     def set_objective(self, objective: GroupACVObjective):
+        """Set the objective function."""
         self._objective = objective
 
-    def get_default_optimizer(self) -> ChainedACVOptimizer:
+    def get_default_optimizer(self) -> "ChainedOptimizer":
+        """Return the default optimizer."""
         return default_groupacv_optimizer()
 
     def set_optimizer(
-        self, optimizer: Union[GroupACVOptimizer, ChainedACVOptimizer]
+        self,
+        optimizer: Union["ScipyTrustConstrOptimizer", "ChainedOptimizer"],
     ):
-        if not isinstance(optimizer, GroupACVOptimizer) and not isinstance(
-            optimizer, ChainedACVOptimizer
+        """Set the optimizer for sample allocation.
+
+        Parameters
+        ----------
+        optimizer : ScipyTrustConstrOptimizer or ChainedOptimizer
+            The optimizer to use for sample allocation optimization.
+        """
+        from pyapprox.typing.optimization.minimize.chained.chained_optimizer import (
+            ChainedOptimizer,
+        )
+        from pyapprox.typing.optimization.minimize.scipy.trust_constr import (
+            ScipyTrustConstrOptimizer,
+        )
+        from pyapprox.typing.optimization.minimize.scipy.diffevol import (
+            ScipyDifferentialEvolutionOptimizer,
+        )
+
+        if not isinstance(
+            optimizer,
+            (
+                ScipyTrustConstrOptimizer,
+                ScipyDifferentialEvolutionOptimizer,
+                ChainedOptimizer,
+            ),
         ):
             raise ValueError(
-                "optimizer must be instance of GroupACVOptimizer"
-                "or ChainedACVOptimizer"
+                "optimizer must be instance of ScipyTrustConstrOptimizer, "
+                "ScipyDifferentialEvolutionOptimizer, or ChainedOptimizer"
             )
         self._optimizer = optimizer
         self._optimizer.set_estimator(self)
@@ -1000,6 +553,21 @@ class GroupACVEstimator:
         return splits
 
     def generate_samples_per_model(self, rvs, npilot_samples=0):
+        """Generate samples for each model based on optimized allocation.
+
+        Parameters
+        ----------
+        rvs : callable
+            Function that generates random samples: rvs(nsamples) -> Array
+
+        npilot_samples : int, optional
+            Number of pilot samples to remove. Default is 0.
+
+        Returns
+        -------
+        samples_per_model : List[Array]
+            List of samples for each model
+        """
         ntotal_independent_samples = self._rounded_npartition_samples.sum()
         partition_splits = self._get_partition_splits(
             self._rounded_npartition_samples
@@ -1233,6 +801,19 @@ class GroupACVEstimator:
         )
 
     def __call__(self, values_per_model: List[Array]) -> Array:
+        """Compute the GroupACV estimate from model values.
+
+        Parameters
+        ----------
+        values_per_model : List[Array]
+            List of model evaluation values, one array per model.
+            Each array has shape (nsamples, nqoi).
+
+        Returns
+        -------
+        Array
+            The GroupACV estimate
+        """
         values_per_subset = self._separate_values_per_model(values_per_model)
         return self._estimate(values_per_subset)
 
@@ -1298,6 +879,21 @@ class GroupACVEstimator:
         return samples_per_model, removed_samples
 
     def insert_pilot_values(self, pilot_values, values_per_model):
+        """Insert pilot values into the model evaluation arrays.
+
+        Parameters
+        ----------
+        pilot_values : List[Array]
+            Pilot values for each model
+
+        values_per_model : List[Array]
+            Model evaluation values
+
+        Returns
+        -------
+        List[Array]
+            Updated values_per_model with pilot values inserted
+        """
         npilot_values = pilot_values[0].shape[0]
         if (
             self._partitions_per_model[0] * self._rounded_npartition_samples
@@ -1350,85 +946,3 @@ class GroupACVEstimator:
             self._rounded_target_cost, self._rounded_nsamples_per_model
         )
         return rep
-
-
-class MLBLUEEstimator(GroupACVEstimator):
-    def __init__(
-        self,
-        stat: MultiOutputStatistic,
-        costs: Array,
-        reg_blue: float = 0,
-        subsets: List[Array] = None,
-        asketch: Array = None,
-    ):
-        # Currently stats is ignored.
-        super().__init__(
-            stat,
-            costs,
-            reg_blue,
-            subsets,
-            est_type="is",
-            asketch=asketch,
-        )
-        self._best_model_indices = self._bkd.arange(len(costs))
-
-        # compute psi blocks once and store because they are independent
-        # of the number of samples per partition/subset
-        self._psi_blocks = self._compute_psi_blocks()
-        self._psi_blocks_flat = self._bkd.hstack(
-            [b.flatten()[:, None] for b in self._psi_blocks]
-        )
-
-        self._obj_jac = True
-
-    def _compute_psi_blocks(self):
-        submats = []
-        for ii, subset in enumerate(self._subsets):
-            R = self._restriction_matrix(subset)
-            submat = self._bkd.multidot(
-                (
-                    R.T,
-                    self._inv(self._stat._cov[np.ix_(subset, subset)]),
-                    R,
-                )
-            )
-            submats.append(submat)
-        return submats
-
-    def _psi_matrix(self, npartition_samples):
-        psi = (
-            self._bkd.eye(self.nmodels() * self._stat.nstats())
-            * self._reg_blue
-        )
-        psi += (self._psi_blocks_flat @ npartition_samples).reshape(
-            (
-                self.nmodels() * self._stat.nstats(),
-                self.nmodels() * self._stat.nstats(),
-            )
-        )
-        return psi
-
-    def estimate_all_means(self, values_per_subset):
-        asketch = self._bkd.copy(self._asketch)
-        means = self._bkd.empty(self.nmodels())
-        if self._stat.nstats() > 1:
-            raise NotImplementedError(
-                "Must adjust this function to work for multiple outputs"
-            )
-        for ii in range(self.nmodels()):
-            self._asketch = self._bkd.full((self.nmodels()), 0.0)
-            self._asketch[ii] = 1.0
-            means[ii] = self._estimate(values_per_subset)
-        self._asketch = asketch
-        return means
-
-
-# cvxpy requires cmake
-# on osx with M1 chip install via
-# arch -arm64 brew install cmake
-# must also install cvxopt via
-# pip install cvxopt
-# pip install cvxpy
-
-# alternative this seems to work
-# pip install "cvxpy[CVXOPT]"
