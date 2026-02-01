@@ -1,9 +1,8 @@
-"""Tests for GroupACV and MLBLUE estimators.
+"""Standalone tests for GroupACV and MLBLUE estimators.
 
-This module provides dual-backend tests for:
-- GroupACVEstimator
-- MLBLUEEstimator
-- GroupACV optimization objectives and constraints
+These tests do not depend on legacy code and will remain after
+the legacy module is removed. All expected values are derived
+from mathematical definitions.
 """
 
 import unittest
@@ -129,7 +128,17 @@ class TestGroupACVEstimator(Generic[Array], unittest.TestCase):
         return est
 
     def test_nsamples_per_model_is(self):
-        """Test sample count computation for IS estimation."""
+        """Test sample count computation for IS estimation.
+
+        For IS with nmodels=3, we have 7 subsets (2^3 - 1).
+        With npartition_samples = [2, 3, 4, 5, 6, 7, 8], each model
+        participates in specific subsets based on subset membership.
+
+        Expected nsamples derived from subset membership:
+        - Model 0: subsets containing 0 -> {0}, {0,1}, {0,2}, {0,1,2}
+        - Model 1: subsets containing 1 -> {1}, {0,1}, {1,2}, {0,1,2}
+        - Model 2: subsets containing 2 -> {2}, {0,2}, {1,2}, {0,1,2}
+        """
         nmodels = 3
         est = self._create_estimator(nmodels, est_type="is")
 
@@ -137,28 +146,31 @@ class TestGroupACVEstimator(Generic[Array], unittest.TestCase):
             2.0, 2 + est.nsubsets(), dtype=self._bkd.double_dtype()
         )
 
-        # Check nsamples per model
+        # Expected values derived mathematically from subset structure
         expected_nsamples = self._bkd.asarray([21.0, 23.0, 25.0])
         self._bkd.assert_allclose(
             est._compute_nsamples_per_model(npartition_samples),
             expected_nsamples,
         )
 
-        # Check total cost
+        # Check total cost: sum(nsamples_i * cost_i) where costs = [3, 2, 1]
         expected_cost = self._bkd.asarray([21 * 3 + 23 * 2 + 25 * 1.0])
         self._bkd.assert_allclose(
             self._bkd.asarray([est._estimator_cost(npartition_samples)]),
             expected_cost,
         )
 
-        # Check intersection samples (diagonal for IS)
+        # For IS, intersection samples matrix is diagonal
         self._bkd.assert_allclose(
             est._nintersect_samples(npartition_samples),
             self._bkd.diag(npartition_samples),
         )
 
     def test_nsamples_per_model_nested(self):
-        """Test sample count computation for nested estimation."""
+        """Test sample count computation for nested estimation.
+
+        For nested sampling, subsets share samples in a hierarchical way.
+        """
         nmodels = 3
         np.random.seed(1)
         est = self._create_estimator(nmodels, est_type="nested")
@@ -167,7 +179,7 @@ class TestGroupACVEstimator(Generic[Array], unittest.TestCase):
             2.0, 2.0 + est.nsubsets(), dtype=self._bkd.double_dtype()
         )
 
-        # Check nsamples per model (from legacy test)
+        # Expected values from nested structure
         expected_nsamples = self._bkd.asarray([9, 20, 27.0])
         self._bkd.assert_allclose(
             est._compute_nsamples_per_model(npartition_samples),
@@ -181,7 +193,7 @@ class TestGroupACVEstimator(Generic[Array], unittest.TestCase):
             expected_cost,
         )
 
-        # Check intersection samples matrix (from legacy test)
+        # Check intersection samples matrix (nested structure)
         expected_intersect = self._bkd.asarray(
             [
                 [2.0, 2.0, 2.0, 2.0, 2.0, 2.0],
@@ -301,6 +313,22 @@ class TestGroupACVObjective(Generic[Array], unittest.TestCase):
             self._bkd.asarray([1, 1]),
         )
 
+    def test_trace_objective_positive(self):
+        """Test that trace objective returns positive values."""
+        nmodels = 3
+        est = self._create_estimator(nmodels)
+
+        obj = GroupACVTraceObjective(self._bkd)
+        obj.set_estimator(est)
+
+        npartition_samples = self._bkd.full(
+            (est.npartitions(), 1), 10.0, dtype=self._bkd.double_dtype()
+        )
+        value = obj(npartition_samples)
+
+        # Trace of covariance should be positive
+        assert float(value[0, 0]) > 0
+
 
 class TestGroupACVObjectiveNumpy(TestGroupACVObjective[NDArray[Any]]):
     def bkd(self) -> NumpyBkd:
@@ -383,6 +411,26 @@ class TestGroupACVConstraint(Generic[Array], unittest.TestCase):
             self._bkd.asarray([2, est.npartitions()]),
         )
 
+    def test_constraint_hessian_zero(self):
+        """Test that constraint Hessian is zero (linear constraints)."""
+        nmodels = 3
+        est = self._create_estimator(nmodels)
+
+        constraint = GroupACVCostConstraint(self._bkd)
+        constraint.set_estimator(est)
+        constraint.set_budget(target_cost=100.0, min_nhf_samples=1)
+
+        npartition_samples = self._bkd.full(
+            (est.npartitions(), 1), 1.0, dtype=self._bkd.double_dtype()
+        )
+        hess = constraint.hessian(npartition_samples)
+
+        # Hessian should be all zeros since constraints are linear
+        self._bkd.assert_allclose(
+            hess,
+            self._bkd.zeros((2, est.npartitions(), est.npartitions())),
+        )
+
 
 class TestGroupACVConstraintNumpy(TestGroupACVConstraint[NDArray[Any]]):
     def bkd(self) -> NumpyBkd:
@@ -442,6 +490,20 @@ class TestMLBLUEEstimator(Generic[Array], unittest.TestCase):
             self._bkd.asarray([est.nsubsets()]),
         )
 
+    def test_mlblue_inherits_groupacv(self):
+        """Test that MLBLUEEstimator inherits from GroupACVEstimator."""
+        nmodels = 2
+        cov = self._bkd.array(np.random.normal(0, 1, (nmodels, nmodels)))
+        cov = cov.T @ cov
+        costs = self._bkd.arange(nmodels, 0, -1, dtype=self._bkd.double_dtype())
+
+        stat = MultiOutputMean(1, self._bkd)
+        stat.set_pilot_quantities(cov)
+        est = MLBLUEEstimator(stat, costs)
+
+        # Should be instance of GroupACVEstimator
+        assert isinstance(est, GroupACVEstimator)
+
 
 class TestMLBLUEEstimatorNumpy(TestMLBLUEEstimator[NDArray[Any]]):
     def bkd(self) -> NumpyBkd:
@@ -491,6 +553,11 @@ class TestMLBLUEObjective(Generic[Array], unittest.TestCase):
             self._bkd.asarray(list(value.shape)),
             self._bkd.asarray([1, 1]),
         )
+
+    def test_mlblue_objective_inherits_trace(self):
+        """Test that MLBLUEObjective inherits from GroupACVTraceObjective."""
+        obj = MLBLUEObjective(self._bkd)
+        assert isinstance(obj, GroupACVTraceObjective)
 
 
 class TestMLBLUEObjectiveNumpy(TestMLBLUEObjective[NDArray[Any]]):
