@@ -10,6 +10,9 @@ import math
 from typing import Callable, Generic, List, Sequence
 
 from pyapprox.typing.util.backends.protocols import Array, Backend
+from pyapprox.typing.benchmarks.functions.multifidelity.statistics_mixin import (
+    MultifidelityStatisticsMixin,
+)
 
 
 class MultiOutputModelFunction(Generic[Array]):
@@ -65,7 +68,7 @@ class MultiOutputModelFunction(Generic[Array]):
         return self._func(samples)
 
 
-class MultiOutputModelEnsemble(Generic[Array]):
+class MultiOutputModelEnsemble(MultifidelityStatisticsMixin[Array], Generic[Array]):
     """Ensemble of multi-output models for multifidelity testing.
 
     3 models with 3 QoI each:
@@ -73,7 +76,8 @@ class MultiOutputModelEnsemble(Generic[Array]):
     - f1: [sqrt(7)*x^3, sqrt(7)*x^2, cos(2*pi*x + pi/2)]
     - f2: [sqrt(3)/2*x^2, sqrt(3)/2*x, cos(2*pi*x + pi/4)]
 
-    Has analytical covariance matrix for U[0,1] input.
+    Has analytical covariance matrix for U[0,1] input. Overrides the
+    mixin's numerical implementations with analytical values for efficiency.
 
     Parameters
     ----------
@@ -408,3 +412,77 @@ class MultiOutputModelEnsemble(Generic[Array]):
             row = [float(all_means[m, q]) for q in qoi_idx]
             result.append(row)
         return self._bkd.array(result)
+
+
+class PSDMultiOutputModelEnsemble(MultiOutputModelEnsemble[Array]):
+    """Positive Semi-Definite variant of MultiOutputModelEnsemble.
+
+    This version adds small perturbation terms (eps) to the model functions
+    to ensure the resulting covariance matrices are better conditioned.
+    This is useful for testing optimization-based estimators where
+    ill-conditioned covariance matrices can cause numerical issues.
+
+    3 models with 3 QoI each (perturbed versions):
+    - f0: [sqrt(11)*x^5, x^4 + eps0*cos(2.2*pi*x), sin(2*pi*x)]
+    - f1: [sqrt(7)*x^3, sqrt(7)*x^2, cos((2+eps1)*pi*x + pi/2)]
+    - f2: [sqrt(3)/2*x^2 + x, sqrt(3)/2*x + eps2*cos(2*pi*x + 2.1), cos(2*pi*x + pi/4)]
+
+    Parameters
+    ----------
+    bkd : Backend[Array]
+        Backend for array operations.
+
+    Reference
+    ---------
+    Dixon et al. (2024), "Covariance Expressions for Multi-Fidelity Sampling
+    with Multi-Output, Multi-Statistic Estimators", SIAM/ASA JUQ.
+    """
+
+    def _create_models(self) -> List[MultiOutputModelFunction[Array]]:
+        """Create the PSD model functions with perturbation terms."""
+        eps0 = 1.0  # perturbation for f0 qoi 1
+        eps1 = 1e-1  # perturbation for f1 qoi 2
+        eps2 = 1e-2  # perturbation for f2 qoi 1
+
+        def f0(samples: Array) -> Array:
+            # samples: (1, nsamples), output: (3, nsamples)
+            x = samples[0, :]  # (nsamples,)
+            return self._bkd.vstack([
+                math.sqrt(11) * x**5,
+                x**4 + eps0 * self._bkd.cos(2.2 * math.pi * x),
+                self._bkd.sin(2 * math.pi * x),
+            ])
+
+        def f1(samples: Array) -> Array:
+            x = samples[0, :]
+            return self._bkd.vstack([
+                math.sqrt(7) * x**3,
+                math.sqrt(7) * x**2,
+                self._bkd.cos((2 + eps1) * math.pi * x + math.pi / 2),
+            ])
+
+        def f2(samples: Array) -> Array:
+            x = samples[0, :]
+            return self._bkd.vstack([
+                math.sqrt(3) / 2 * x**2 + x,
+                math.sqrt(3) / 2 * x
+                + self._bkd.cos(math.pi * x * 2.0 + 2.1) * eps2,
+                self._bkd.cos(2 * math.pi * x + math.pi / 4),
+            ])
+
+        return [
+            MultiOutputModelFunction(self._bkd, f0, self._nqoi),
+            MultiOutputModelFunction(self._bkd, f1, self._nqoi),
+            MultiOutputModelFunction(self._bkd, f2, self._nqoi),
+        ]
+
+    # Note: PSD version uses the mixin's numerical covariance_matrix() instead
+    # of the parent's analytical version. We need to explicitly skip the
+    # parent's analytical override by calling the mixin's method.
+    def covariance_matrix(self) -> Array:
+        """Use numerical quadrature since no analytical formula exists."""
+        return MultifidelityStatisticsMixin.covariance_matrix(self)
+
+    def means(self) -> Array:
+        """Use numerical quadrature since no analytical formula exists."""
+        return MultifidelityStatisticsMixin.means(self)

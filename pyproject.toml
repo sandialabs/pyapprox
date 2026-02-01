@@ -35,7 +35,6 @@ dependencies = [
     'numba',
     'scikit-fem',
     'umbridge',
-    'cvxpy',
 ]
 
 
@@ -46,10 +45,12 @@ docs = ['numpydoc', 'sphinx', 'sphinx_automodapi', 'sphinx_rtd_theme',
 lint = ["jedi", "black", "autopep8", "yapf==0.40.1", "flake8", "mypy"]
 gpu = ["torchaudio", "torchvision"]
 parallel = ["joblib", "mpire"]
+# cvxpy with CVXOPT solver for semidefinite programming optimization
+cvxpy = ["cvxpy", "cvxopt"]
 all = ['numpydoc', 'sphinx', 'sphinx_automodapi', 'sphinx_rtd_theme',
        'sphinx-gallery', 'jupyter', "jedi", "black", "autopep8",
        "yapf==0.40.1", "flake8", "torchaudio", "torchvision",
-       "joblib", "mpire"
+       "joblib", "mpire", "cvxpy", "cvxopt"
        ]
 
 # coverage must be run from the directory of this file

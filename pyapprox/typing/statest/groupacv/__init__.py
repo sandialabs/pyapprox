@@ -30,6 +30,10 @@ from pyapprox.typing.statest.groupacv.mlblue import (
     MLBLUEEstimator,
 )
 
+from pyapprox.typing.statest.groupacv.mlblue_optimizer import (
+    MLBLUESPDOptimizer,
+)
+
 __all__ = [
     # Utility functions
     "get_model_subsets",
@@ -44,6 +48,8 @@ __all__ = [
     "GroupACVLogDetObjective",
     "MLBLUEObjective",
     "GroupACVCostConstraint",
+    # Optimizer classes
+    "MLBLUESPDOptimizer",
     # Estimator classes
     "GroupACVEstimator",
     "default_groupacv_optimizer",

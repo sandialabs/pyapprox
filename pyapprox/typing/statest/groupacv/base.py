@@ -20,6 +20,7 @@ from pyapprox.typing.statest.groupacv.utils import (
 
 from pyapprox.typing.statest.groupacv.optimization import (
     GroupACVObjective,
+    GroupACVTraceObjective,
     GroupACVLogDetObjective,
     GroupACVCostConstraint,
 )
@@ -63,14 +64,13 @@ def default_groupacv_optimizer():
         polish=False,
         seed=1,
         tol=1e-8,
-        atol=1e-8,
+        raise_on_failure=False,
     )
     local_opt = ScipyTrustConstrOptimizer(
         gtol=1e-8,
-        xtol=1e-16,
         maxiter=1000,
     )
-    return ChainedOptimizer([global_opt, local_opt])
+    return ChainedOptimizer(global_opt, local_opt)
 
 
 class GroupACVEstimator(Generic[Array]):
@@ -387,12 +387,18 @@ class GroupACVEstimator(Generic[Array]):
         self._optimized_covariance = self._covariance_from_npartition_samples(
             self._rounded_npartition_samples
         )
-        if not hasattr(self, "_optimizer"):
-            self.set_optimizer(self.get_default_optimizer())
-            # raise RuntimeError("must call est.set_optimizer()")
-        self._optimized_criteria = self._optimizer._objective(
-            self._rounded_npartition_samples[:, None]
-        )
+        # Compute optimized criteria if objective is available
+        if hasattr(self, "_objective") and self._objective is not None:
+            self._optimized_criteria = self._objective(
+                self._rounded_npartition_samples[:, None]
+            )
+        else:
+            # Use default objective for criteria computation
+            obj = self.default_objective()
+            obj.set_estimator(self)
+            self._optimized_criteria = obj(
+                self._rounded_npartition_samples[:, None]
+            )
 
     def optimized_covariance(self) -> Array:
         """Return the optimized covariance matrix."""
@@ -463,6 +469,8 @@ class GroupACVEstimator(Generic[Array]):
         ----------
         optimizer : ScipyTrustConstrOptimizer or ChainedOptimizer
             The optimizer to use for sample allocation optimization.
+            The optimizer will be bound to the estimator's objective and
+            constraints when allocate_samples is called.
         """
         from pyapprox.typing.optimization.minimize.chained.chained_optimizer import (
             ChainedOptimizer,
@@ -487,7 +495,8 @@ class GroupACVEstimator(Generic[Array]):
                 "ScipyDifferentialEvolutionOptimizer, or ChainedOptimizer"
             )
         self._optimizer = optimizer
-        self._optimizer.set_estimator(self)
+        # Store the raw optimizer - binding happens in allocate_samples
+        # when target_cost and min_nhf_samples are known
 
     def allocate_samples(
         self,
@@ -525,29 +534,55 @@ class GroupACVEstimator(Generic[Array]):
         if not hasattr(self, "_optimizer"):
             # raise RuntimeError("must call set_optimizer")
             self.set_optimizer(self.get_default_optimizer())
-        self._optimizer.set_budget(
+
+        # Set up the objective and constraint
+        if hasattr(self, "_objective") and self._objective is not None:
+            objective = self._objective
+        else:
+            objective = self.default_objective()
+        objective.set_estimator(self)
+
+        constraint = GroupACVCostConstraint(self._bkd)
+        constraint.set_estimator(self)
+        constraint.set_budget(
             target_cost, max(self._stat.min_nsamples(), min_nhf_samples)
         )
+
+        # Set up bounds for optimization
+        max_npartition_samples = target_cost / float(self._costs.min()) + 1
+        bounds = self._bkd.array(
+            [[0.0, max_npartition_samples]] * self.npartitions()
+        )
+
+        # Bind the optimizer
+        self._optimizer.bind(objective, bounds, [constraint])
+
         if iterate is None:
             iterate = self._init_guess(target_cost)
         result = self._optimizer.minimize(iterate)
 
-        if not result.success or self._bkd.any(result.x < 0):
+        if not result.success() or self._bkd.any_bool(result.optima() < 0):
             print(result)
-            print(result.message)
+            print(result.message())
             raise RuntimeError("optimization not successful")
 
-        self._set_optimized_params(result.x[:, 0], round_nsamples)
+        self._set_optimized_params(result.optima()[:, 0], round_nsamples)
 
     def _get_partition_splits(self, npartition_samples):
         """
         Get the indices, into the flattened array of all samples/values,
         of each indpendent sample partition
         """
+        cumsum_vals = self._bkd.cumsum(npartition_samples)
+        # Convert to int64 - use backend array to handle type conversion
+        cumsum_int = self._bkd.array(
+            self._bkd.to_numpy(cumsum_vals).astype(int),
+            dtype=self._bkd.int64_dtype(),
+        )
         splits = self._bkd.hstack(
             (
-                self._bkd.zeros((1,), dtype=int),
-                self._bkd.cumsum(npartition_samples, dtype=int),
+                self._bkd.zeros((1,), dtype=self._bkd.int64_dtype()),
+                cumsum_int,
             )
         )
         return splits
@@ -631,19 +666,32 @@ class GroupACVEstimator(Generic[Array]):
         return splits_per_model
 
     def _separate_values_per_model(self, values_per_model):
+        """Separate values per model into values per subset.
+
+        Parameters
+        ----------
+        values_per_model : List[Array]
+            Values for each model. Each array has shape (nqoi, nsamples_for_model).
+
+        Returns
+        -------
+        List[Array]
+            Values for each subset. Each array has shape (nqoi*nmodels_in_subset, nsamples_in_subset).
+        """
         if len(values_per_model) != self.nmodels():
             msg = "len(values_per_model) {0} != nmodels {1}".format(
                 len(values_per_model), self.nmodels()
             )
             raise ValueError(msg)
         for ii in range(self.nmodels()):
+            # values shape is (nqoi, nsamples), so nsamples is shape[1]
             if (
-                values_per_model[ii].shape[0]
+                values_per_model[ii].shape[1]
                 != self._rounded_nsamples_per_model[ii]
             ):
                 msg = "{0} != {1}".format(
-                    "len(values_per_model[{0}]): {1}".format(
-                        ii, values_per_model[ii].shape[0]
+                    "values_per_model[{0}].shape[1]: {1}".format(
+                        ii, values_per_model[ii].shape[1]
                     ),
                     "nsamples_per_model[{0}]: {1}".format(
                         ii, self._rounded_nsamples_per_model[ii]
@@ -657,17 +705,19 @@ class GroupACVEstimator(Generic[Array]):
             active_partitions = self._bkd.where(self._allocation_mat[ii])[0]
             for model_id in model_subset:
                 splits = self._opt_sample_splits[model_id]
+                # values shape is (nqoi, nsamples), slice along columns
                 values.append(
-                    self._bkd.vstack(
+                    self._bkd.hstack(
                         [
                             values_per_model[model_id][
-                                splits[idx, 0] : splits[idx, 1], :
+                                :, splits[idx, 0] : splits[idx, 1]
                             ]
                             for idx in active_partitions
                         ]
                     )
                 )
-            values_per_subset.append(self._bkd.hstack(values))
+            # Stack models vertically: (nqoi*nmodels_in_subset, nsamples)
+            values_per_subset.append(self._bkd.vstack(values))
         return values_per_subset
 
     def _grouped_acv_beta(self, sigma: Array) -> Array:
@@ -693,7 +743,8 @@ class GroupACVEstimator(Generic[Array]):
         acv_stat = 0
         for kk in range(self.nsubsets()):
             mm += len(self._subsets[kk])
-            if values_per_subset[kk].shape[0] > 0:
+            # values shape is (nqoi*nmodels_in_subset, nsamples), check nsamples > 0
+            if values_per_subset[kk].shape[1] > 0:
                 subset_stat = self._stat.sample_estimate(values_per_subset[kk])
                 acv_stat += (beta[:, ll:mm]) @ subset_stat
             ll = mm
@@ -884,17 +935,19 @@ class GroupACVEstimator(Generic[Array]):
         Parameters
         ----------
         pilot_values : List[Array]
-            Pilot values for each model
+            Pilot values for each model. Shape: (nqoi, npilot_samples)
 
         values_per_model : List[Array]
-            Model evaluation values
+            Model evaluation values. Shape: (nqoi, nsamples_for_model)
 
         Returns
         -------
         List[Array]
-            Updated values_per_model with pilot values inserted
+            Updated values_per_model with pilot values inserted.
+            Shape: (nqoi, nsamples_for_model + npilot_samples)
         """
-        npilot_values = pilot_values[0].shape[0]
+        # nsamples is shape[1] for (nqoi, nsamples) convention
+        npilot_values = pilot_values[0].shape[1]
         if (
             self._partitions_per_model[0] * self._rounded_npartition_samples
         ).max() < npilot_values:
@@ -913,25 +966,26 @@ class GroupACVEstimator(Generic[Array]):
             )
         ]
         for model_id in self._subsets[partition_id]:
-            npilot_values = pilot_values[model_id].shape[0]
-            if npilot_values != pilot_values[0].shape[0]:
+            npilot_values = pilot_values[model_id].shape[1]
+            if npilot_values != pilot_values[0].shape[1]:
                 msg = "Must have the same number of pilot values "
                 msg += "for each model"
                 raise ValueError(msg)
             if npilot_values > self._rounded_npartition_samples[partition_id]:
                 raise ValueError(
                     "Too many pilot values {0}>{1}".format(
-                        npilot_values + values_per_model[model_id].shape[0],
+                        npilot_values + values_per_model[model_id].shape[1],
                         self._rounded_npartition_samples[partition_id],
                     )
                 )
             lb, ub = self._opt_sample_splits[model_id][partition_id]
             # Pilot samples become first samples of the chosen partition
-            new_values_per_model[model_id] = self._bkd.vstack(
+            # For (nqoi, nsamples) convention, concatenate along columns
+            new_values_per_model[model_id] = self._bkd.hstack(
                 (
-                    values_per_model[model_id][:lb],
+                    values_per_model[model_id][:, :lb],
                     pilot_values[model_id],
-                    values_per_model[model_id][lb:],
+                    values_per_model[model_id][:, lb:],
                 )
             )
         return new_values_per_model
