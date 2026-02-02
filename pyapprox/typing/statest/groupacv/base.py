@@ -562,9 +562,9 @@ class GroupACVEstimator(Generic[Array]):
         result = self._optimizer.minimize(iterate)
 
         if not result.success() or self._bkd.any_bool(result.optima() < 0):
-            print(result)
-            print(result.message())
-            raise RuntimeError("optimization not successful")
+            raise RuntimeError(
+                f"optimization not successful: {result.message()}"
+            )
 
         self._set_optimized_params(result.optima()[:, 0], round_nsamples)
 
@@ -603,7 +603,9 @@ class GroupACVEstimator(Generic[Array]):
         samples_per_model : List[Array]
             List of samples for each model
         """
-        ntotal_independent_samples = self._rounded_npartition_samples.sum()
+        # Convert to int for rvs call - this is at a boundary where we're
+        # generating samples, not computing gradients through rvs
+        ntotal_independent_samples = int(self._rounded_npartition_samples.sum())
         partition_splits = self._get_partition_splits(
             self._rounded_npartition_samples
         )

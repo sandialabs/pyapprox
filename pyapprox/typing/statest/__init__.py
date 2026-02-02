@@ -43,6 +43,7 @@ from pyapprox.typing.statest.groupacv import (
     get_model_subsets,
     default_groupacv_optimizer,
 )
+from pyapprox.typing.statest.aetc import AETC, AETCBLUE, AETCMC
 
 __all__ = [
     "StatisticProtocol",
@@ -69,4 +70,8 @@ __all__ = [
     "GroupACVCostConstraint",
     "get_model_subsets",
     "default_groupacv_optimizer",
+    # AETC exports
+    "AETC",
+    "AETCBLUE",
+    "AETCMC",
 ]

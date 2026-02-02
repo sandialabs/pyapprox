@@ -12,6 +12,10 @@ from pyapprox.typing.benchmarks.functions.multifidelity.multioutput_ensemble imp
     MultiOutputModelEnsemble,
     PSDMultiOutputModelEnsemble,
 )
+from pyapprox.typing.benchmarks.functions.multifidelity.tunable_ensemble import (
+    TunableModelFunction,
+    TunableModelEnsemble,
+)
 
 __all__ = [
     "MultifidelityStatisticsMixin",
@@ -20,4 +24,6 @@ __all__ = [
     "MultiOutputModelFunction",
     "MultiOutputModelEnsemble",
     "PSDMultiOutputModelEnsemble",
+    "TunableModelFunction",
+    "TunableModelEnsemble",
 ]

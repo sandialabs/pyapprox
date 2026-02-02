@@ -556,6 +556,22 @@ class Backend(Protocol, Generic[Array]):
     def isinf(array: Array) -> Array: ...
 
     @staticmethod
+    def unique(array: Array) -> Array:
+        """Find unique elements in array.
+
+        Parameters
+        ----------
+        array : Array
+            Input array.
+
+        Returns
+        -------
+        Array
+            Sorted unique elements.
+        """
+        ...
+
+    @staticmethod
     def get_diagonal(
         array: Array, offset: int = 0, axis1: int = 0, axis2: int = 1
     ) -> Array: ...

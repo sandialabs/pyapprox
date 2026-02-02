@@ -1,5 +1,9 @@
 """Linear algebra utilities for PyApprox typing module."""
 
+from pyapprox.typing.util.linalg.indexing import (
+    extract_submatrix,
+)
+
 from pyapprox.typing.util.linalg.cholesky_factor import (
     CholeskyFactor,
 )
@@ -35,6 +39,8 @@ from pyapprox.typing.util.linalg.randomized import (
 )
 
 __all__ = [
+    # Indexing
+    "extract_submatrix",
     # Cholesky
     "CholeskyFactor",
     # Protocols

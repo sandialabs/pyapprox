@@ -518,6 +518,10 @@ class TorchBkd(Backend[torch.Tensor]):  # Specify torch.Tensor type
         return torch.isinf(array)
 
     @staticmethod
+    def unique(array: torch.Tensor) -> torch.Tensor:
+        return torch.unique(array)
+
+    @staticmethod
     def argmin(
         array: torch.Tensor, axis: Optional[int] = None
     ) -> torch.Tensor:

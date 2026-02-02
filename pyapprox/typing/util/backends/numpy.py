@@ -434,6 +434,10 @@ class NumpyBkd(Backend[NDArray[Any]]):  # Specify NDArray type
         return np.isinf(array)
 
     @staticmethod
+    def unique(array: NDArray[Any]) -> NDArray[Any]:
+        return np.unique(array)
+
+    @staticmethod
     def get_diagonal(
         array: NDArray[Any], offset: int = 0, axis1: int = 0, axis2: int = 1
     ) -> NDArray[Any]:
