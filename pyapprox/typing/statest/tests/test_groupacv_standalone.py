@@ -29,7 +29,7 @@ from pyapprox.typing.statest.groupacv import (
     GroupACVLogDetObjective,
     MLBLUEObjective,
     GroupACVCostConstraint,
-    MLBLUESPDOptimizer,
+    MLBLUESPDAllocationOptimizer,
 )
 from pyapprox.typing.statest.acv import MFMCEstimator, GMFEstimator
 from pyapprox.typing.statest.acv.variants import _allocate_samples_mfmc
@@ -691,8 +691,10 @@ HAS_CVXPY = package_available("cvxpy")
 
 
 @unittest.skipIf(not HAS_CVXPY, "cvxpy not installed")
-class TestMLBLUESPDOptimizer(Generic[Array], ParametrizedTestCase, unittest.TestCase):
-    """Tests for MLBLUESPDOptimizer (requires cvxpy)."""
+class TestMLBLUESPDAllocationOptimizer(
+    Generic[Array], ParametrizedTestCase, unittest.TestCase
+):
+    """Tests for MLBLUESPDAllocationOptimizer (requires cvxpy)."""
 
     __test__ = False
 
@@ -726,30 +728,27 @@ class TestMLBLUESPDOptimizer(Generic[Array], ParametrizedTestCase, unittest.Test
         "nmodels,min_nhf_samples",
         [(2, 1), (3, 1), (4, 1), (3, 10)],
     )
-    def test_spd_optimizer_solves(self, nmodels: int, min_nhf_samples: int):
-        """Test that SPD optimizer finds a solution."""
+    def test_spd_allocator_solves(self, nmodels: int, min_nhf_samples: int):
+        """Test that SPD allocator finds a solution."""
         np.random.seed(1)
         est = self._create_mlblue_estimator(nmodels, nqoi=1)
         target_cost = 100
 
-        optimizer = MLBLUESPDOptimizer()
-        optimizer.set_estimator(est)
-        optimizer.set_budget(target_cost, min_nhf_samples)
-
-        result = optimizer.minimize()
+        allocator = MLBLUESPDAllocationOptimizer(est)
+        result = allocator.optimize(target_cost, min_nhf_samples)
 
         # Check that optimization succeeded
-        self.assertTrue(result["success"])
+        self.assertTrue(result.success)
 
         # Check that result has correct shape
         self._bkd.assert_allclose(
-            self._bkd.asarray([result["x"].shape[0]]),
+            self._bkd.asarray([result.npartition_samples.shape[0]]),
             self._bkd.asarray([est.nsubsets()]),
         )
 
         # Check that all sample counts are non-negative
         self.assertTrue(
-            self._bkd.to_numpy(result["x"]).min() >= -1e-10
+            float(self._bkd.min(result.npartition_samples)) >= -1e-10
         )
 
     @parametrize(
@@ -757,21 +756,17 @@ class TestMLBLUESPDOptimizer(Generic[Array], ParametrizedTestCase, unittest.Test
         [(2,), (3,)],
     )
     def test_spd_respects_budget(self, nmodels: int):
-        """Test that SPD optimizer respects budget constraint."""
+        """Test that SPD allocator respects budget constraint."""
         np.random.seed(1)
         est = self._create_mlblue_estimator(nmodels, nqoi=1)
         target_cost = 100
         min_nhf_samples = 1
 
-        optimizer = MLBLUESPDOptimizer()
-        optimizer.set_estimator(est)
-        optimizer.set_budget(target_cost, min_nhf_samples)
-
-        result = optimizer.minimize()
+        allocator = MLBLUESPDAllocationOptimizer(est)
+        result = allocator.optimize(target_cost, min_nhf_samples)
 
         # Compute actual cost
-        npartition_samples = result["x"][:, 0]
-        actual_cost = est._estimator_cost(npartition_samples)
+        actual_cost = est._estimator_cost(result.npartition_samples)
 
         # Cost should be <= target (with small tolerance)
         self.assertLessEqual(
@@ -779,54 +774,29 @@ class TestMLBLUESPDOptimizer(Generic[Array], ParametrizedTestCase, unittest.Test
             target_cost + 1e-6,
         )
 
-    def test_spd_raises_without_estimator(self):
-        """Test that SPD optimizer raises error if estimator not set."""
-        optimizer = MLBLUESPDOptimizer()
-        with self.assertRaises(RuntimeError):
-            optimizer.minimize()
-
-    def test_spd_raises_without_budget(self):
-        """Test that SPD optimizer raises error if budget not set."""
-        est = self._create_mlblue_estimator(2, nqoi=1)
-        optimizer = MLBLUESPDOptimizer()
-        optimizer.set_estimator(est)
-        with self.assertRaises(RuntimeError):
-            optimizer.minimize()
-
     def test_spd_raises_for_multioutput(self):
-        """Test that SPD optimizer raises error for multi-output."""
+        """Test that SPD allocator raises error for multi-output."""
         est = self._create_mlblue_estimator(2, nqoi=2)
-        optimizer = MLBLUESPDOptimizer()
-        optimizer.set_estimator(est)
-        optimizer.set_budget(100, 1)
+        allocator = MLBLUESPDAllocationOptimizer(est)
         with self.assertRaises(RuntimeError):
-            optimizer.minimize()
+            allocator.optimize(100, 1)
 
 
 @unittest.skipIf(not HAS_CVXPY, "cvxpy not installed")
-class TestMLBLUESPDOptimizerNumpy(TestMLBLUESPDOptimizer[NDArray[Any]]):
+class TestMLBLUESPDAllocationOptimizerNumpy(
+    TestMLBLUESPDAllocationOptimizer[NDArray[Any]]
+):
     def bkd(self) -> NumpyBkd:
         return NumpyBkd()
 
 
 @unittest.skipIf(not HAS_CVXPY, "cvxpy not installed")
-class TestMLBLUESPDOptimizerTorch(TestMLBLUESPDOptimizer[torch.Tensor]):
+class TestMLBLUESPDAllocationOptimizerTorch(
+    TestMLBLUESPDAllocationOptimizer[torch.Tensor]
+):
     def bkd(self) -> TorchBkd:
         torch.set_default_dtype(torch.float64)
         return TorchBkd()
-
-
-class TestCvxpyOptionalDependency(unittest.TestCase):
-    """Test that cvxpy optional dependency handling works correctly."""
-
-    def test_import_error_message(self):
-        """Test that ImportError has helpful message when cvxpy not installed."""
-        # This test only makes sense when cvxpy IS installed
-        # Just verify the import works without error
-        if HAS_CVXPY:
-            # Should not raise
-            optimizer = MLBLUESPDOptimizer()
-            self.assertIsNotNone(optimizer)
 
 
 class TestPilotSampleInsertion(Generic[Array], ParametrizedTestCase):
@@ -1946,13 +1916,13 @@ class TestGroupACVRecoversMLBLUE(
         )
 
         # MLBLUE with SPD optimization (convex, finds global optimum)
-        spd_optimizer = MLBLUESPDOptimizer()
-        spd_optimizer.set_estimator(mlblue_est)
-        spd_optimizer.set_budget(target_cost, min_nhf_samples=1)
-        spd_result = spd_optimizer.minimize()
+        spd_allocator = MLBLUESPDAllocationOptimizer(mlblue_est)
+        spd_result = spd_allocator.optimize(
+            target_cost, min_nhf_samples=1, round_nsamples=False
+        )
 
         # SPD finds optimal variance (trace of covariance)
-        spd_allocation = spd_result["x"][:, 0]
+        spd_allocation = spd_result.npartition_samples
         spd_cov = mlblue_est._covariance_from_npartition_samples(spd_allocation)
         spd_trace = self._bkd.trace(spd_cov)
 

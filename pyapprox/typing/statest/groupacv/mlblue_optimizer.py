@@ -1,24 +1,25 @@
-"""MLBLUE-specific optimizers.
+"""MLBLUE-specific allocation optimizers.
 
-This module provides optimizers specialized for MLBLUE sample allocation,
+This module provides allocation optimizers specialized for MLBLUE,
 including the semidefinite programming (SPD) optimizer that uses cvxpy.
 """
 
 from typing import Generic, Optional, TYPE_CHECKING
 
-from pyapprox.typing.util.backends.protocols import Array, Backend
+from pyapprox.typing.util.backends.protocols import Array
 from pyapprox.typing.util.optional_deps import import_optional_dependency
 
 from pyapprox.typing.statest.groupacv.optimization import (
     MLBLUEObjective,
 )
+from pyapprox.typing.statest.groupacv.allocation import AllocationResult
 
 if TYPE_CHECKING:
     from pyapprox.typing.statest.groupacv.mlblue import MLBLUEEstimator
 
 
-class MLBLUESPDOptimizer(Generic[Array]):
-    """Semidefinite programming optimizer for MLBLUE sample allocation.
+class MLBLUESPDAllocationOptimizer(Generic[Array]):
+    """Semidefinite programming allocation optimizer for MLBLUE.
 
     Uses cvxpy to solve the MLBLUE sample allocation problem as a
     semidefinite program (SDP). This approach is particularly effective
@@ -26,10 +27,14 @@ class MLBLUESPDOptimizer(Generic[Array]):
 
     Parameters
     ----------
+    estimator : MLBLUEEstimator
+        The MLBLUE estimator to optimize allocation for.
     solver_name : str, optional
         Name of the cvxpy solver to use. Default is "CLARABEL" which is
         bundled with cvxpy and works reliably across platforms.
         Other options include "CVXOPT", "SCS", "MOSEK" (requires license).
+    objective : MLBLUEObjective, optional
+        Custom objective function. If None, uses default MLBLUEObjective.
 
     Raises
     ------
@@ -65,36 +70,43 @@ class MLBLUESPDOptimizer(Generic[Array]):
     Examples
     --------
     >>> from pyapprox.typing.statest.groupacv import MLBLUEEstimator
-    >>> from pyapprox.typing.statest.groupacv.mlblue_optimizer import (
-    ...     MLBLUESPDOptimizer,
+    >>> from pyapprox.typing.statest.groupacv import (
+    ...     MLBLUESPDAllocationOptimizer,
     ... )
     >>> # Create estimator
     >>> est = MLBLUEEstimator(stat, costs)
-    >>> # Create SPD optimizer (uses CLARABEL by default)
-    >>> optimizer = MLBLUESPDOptimizer()
-    >>> # Allocate samples
-    >>> optimizer.set_estimator(est)
-    >>> optimizer.set_budget(target_cost=100, min_nhf_samples=10)
-    >>> result = optimizer.minimize()
+    >>> # Create allocator and optimize
+    >>> allocator = MLBLUESPDAllocationOptimizer(est)
+    >>> result = allocator.optimize(target_cost=100, min_nhf_samples=10)
+    >>> est.set_npartition_samples(result.npartition_samples)
     """
 
-    def __init__(self, solver_name: Optional[str] = None):
+    def __init__(
+        self,
+        estimator: "MLBLUEEstimator[Array]",
+        solver_name: Optional[str] = None,
+        objective: Optional[MLBLUEObjective] = None,
+    ):
         # Import cvxpy with helpful error message if not installed
         self._cvxpy = import_optional_dependency(
             "cvxpy",
-            feature_name="MLBLUESPDOptimizer",
+            feature_name="MLBLUESPDAllocationOptimizer",
             extra_name="cvxpy",
         )
+
+        self._est = estimator
+        self._bkd = estimator._bkd
+
         # Auto-detect solver if not specified
         if solver_name is None:
             solver_name = self._get_default_solver()
         self._solver_name = solver_name
-        self._est: Optional["MLBLUEEstimator"] = None
-        self._target_cost: Optional[float] = None
-        self._min_nhf_samples: Optional[int] = None
-        self._min_nlf_samples: Optional[Array] = None
-        self._objective: Optional[MLBLUEObjective] = None
-        self._bkd: Optional[Backend[Array]] = None
+
+        # Set up objective
+        if objective is None:
+            objective = MLBLUEObjective(estimator._bkd)
+        self._objective = objective
+        self._objective.set_estimator(estimator)
 
     def _get_default_solver(self) -> str:
         """Get the best available SDP solver.
@@ -114,52 +126,6 @@ class MLBLUESPDOptimizer(Generic[Array]):
             return "SCS"
         # Fallback
         return "CLARABEL"
-
-    def set_estimator(
-        self,
-        est: "MLBLUEEstimator",
-        objective: Optional[MLBLUEObjective] = None,
-    ) -> None:
-        """Set the estimator and optionally a custom objective.
-
-        Parameters
-        ----------
-        est : MLBLUEEstimator
-            The MLBLUE estimator to optimize.
-
-        objective : MLBLUEObjective, optional
-            Custom objective function. If None, uses default MLBLUEObjective.
-        """
-        self._est = est
-        self._bkd = est._bkd
-        if objective is None:
-            objective = MLBLUEObjective(est._bkd)
-        self._objective = objective
-        self._objective.set_estimator(est)
-
-    def set_budget(
-        self,
-        target_cost: float,
-        min_nhf_samples: int = 1,
-        min_nlf_samples: Optional[Array] = None,
-    ) -> None:
-        """Set the budget constraints.
-
-        Parameters
-        ----------
-        target_cost : float
-            Maximum total computational cost.
-
-        min_nhf_samples : int, optional
-            Minimum number of high-fidelity samples. Default is 1.
-
-        min_nlf_samples : Array, optional
-            Minimum number of samples for each low-fidelity model.
-            Shape: (nmodels - 1,). If None, no minimum is enforced.
-        """
-        self._target_cost = target_cost
-        self._min_nhf_samples = min_nhf_samples
-        self._min_nlf_samples = min_nlf_samples
 
     def _cvxpy_psi(self, nsps_cvxpy):
         """Construct the psi matrix as a cvxpy expression."""
@@ -185,36 +151,40 @@ class MLBLUESPDOptimizer(Generic[Array]):
         )
         return mat
 
-    def minimize(self, iterate: Optional[Array] = None) -> dict:
-        """Solve the MLBLUE sample allocation problem using SDP.
+    def optimize(
+        self,
+        target_cost: float,
+        min_nhf_samples: int = 1,
+        min_nlf_samples: Optional[Array] = None,
+        init_guess: Optional[Array] = None,
+        round_nsamples: bool = True,
+    ) -> AllocationResult[Array]:
+        """Find optimal sample allocation using SDP.
 
         Parameters
         ----------
-        iterate : Array, optional
-            Initial guess (ignored for SPD solver).
+        target_cost : float
+            Maximum computational budget.
+        min_nhf_samples : int, optional
+            Minimum number of high-fidelity samples. Default is 1.
+        min_nlf_samples : Array, optional
+            Minimum number of samples for each low-fidelity model.
+            Shape: (nmodels - 1,). If None, no minimum is enforced.
+        init_guess : Array, optional
+            Ignored for SDP solver (convex problem finds global optimum).
+        round_nsamples : bool, optional
+            Whether to round result to integers. Default is True.
 
         Returns
         -------
-        dict
-            Optimization result with keys:
-            - 'x': Optimal partition sample counts, shape (nsubsets, 1)
-            - 'fun': Optimal objective value
-            - 'success': Whether optimization succeeded
+        AllocationResult
+            Optimization result with npartition_samples.
 
         Raises
         ------
         RuntimeError
-            If the estimator has not been set, budget not set,
-            statistics has multiple outputs, or solver fails.
+            If statistics has multiple outputs or solver fails.
         """
-        if self._est is None:
-            raise RuntimeError(
-                "Must call set_estimator() before minimize()"
-            )
-        if self._target_cost is None:
-            raise RuntimeError(
-                "Must call set_budget() before minimize()"
-            )
         if self._est._stat.nstats() != 1:
             raise RuntimeError(
                 "SPD solver only works for single outputs (nstats=1)"
@@ -234,17 +204,17 @@ class MLBLUESPDOptimizer(Generic[Array]):
 
         # Build constraints
         constraints = [
-            subset_costs @ nsps_cvxpy <= self._target_cost,
+            subset_costs @ nsps_cvxpy <= target_cost,
             self._est._partitions_per_model[0] @ nsps_cvxpy
-            >= self._min_nhf_samples,
+            >= min_nhf_samples,
         ]
 
         # Optional low-fidelity sample constraints
-        if self._min_nlf_samples is not None:
+        if min_nlf_samples is not None:
             for ii in range(self._est.nmodels() - 1):
                 constraints.append(
                     self._est._partitions_per_model[ii + 1] @ nsps_cvxpy
-                    >= self._min_nlf_samples[ii]
+                    >= min_nlf_samples[ii]
                 )
 
         # SPD constraint: the Schur complement matrix must be positive semidefinite
@@ -257,13 +227,27 @@ class MLBLUESPDOptimizer(Generic[Array]):
         prob.solve(solver=self._solver_name)
 
         if t_cvxpy.value is None:
-            raise RuntimeError(
-                f"SPD solver ({self._solver_name}) did not converge. "
-                "Try a different solver or check problem formulation."
+            return AllocationResult(
+                npartition_samples=self._bkd.zeros((self._est.nsubsets(),)),
+                objective_value=self._bkd.array([float("inf")]),
+                success=False,
+                message=(
+                    f"SPD solver ({self._solver_name}) did not converge. "
+                    "Try a different solver or check problem formulation."
+                ),
             )
 
-        return {
-            "x": self._bkd.array(nsps_cvxpy.value)[:, None],
-            "fun": float(t_cvxpy.value),
-            "success": True,
-        }
+        npartition_samples = self._bkd.flatten(self._bkd.array(nsps_cvxpy.value))
+
+        # Round if requested
+        if round_nsamples:
+            npartition_samples = self._bkd.floor(npartition_samples + 1e-4)
+
+        obj_value = self._bkd.array([float(t_cvxpy.value)])
+
+        return AllocationResult(
+            npartition_samples=npartition_samples,
+            objective_value=obj_value,
+            success=True,
+            message="",
+        )

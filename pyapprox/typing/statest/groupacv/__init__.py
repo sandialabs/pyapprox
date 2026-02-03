@@ -36,7 +36,7 @@ from pyapprox.typing.statest.groupacv.mlblue import (
 )
 
 from pyapprox.typing.statest.groupacv.mlblue_optimizer import (
-    MLBLUESPDOptimizer,
+    MLBLUESPDAllocationOptimizer,
 )
 
 __all__ = [
@@ -57,8 +57,7 @@ __all__ = [
     "AllocationResult",
     "GroupACVAllocationOptimizer",
     "default_groupacv_optimizer",
-    # Optimizer classes
-    "MLBLUESPDOptimizer",
+    "MLBLUESPDAllocationOptimizer",
     # Estimator classes
     "GroupACVEstimator",
     "MLBLUEEstimator",
