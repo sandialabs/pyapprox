@@ -16,7 +16,8 @@ from pyapprox.typing.util.test_utils import load_tests  # noqa: F401
 
 # Typing imports
 from pyapprox.typing.statest.groupacv import (
-    GroupACVEstimator as TypingGroupACV,
+    GroupACVEstimatorIS as TypingGroupACVIS,
+    GroupACVEstimatorNested as TypingGroupACVNested,
     get_model_subsets as typing_get_subsets,
 )
 from pyapprox.typing.statest.statistics import MultiOutputMean
@@ -62,7 +63,7 @@ class TestGroupACVLegacyComparison(unittest.TestCase):
 
         typing_stat = MultiOutputMean(1, self.typing_bkd)
         typing_stat.set_pilot_quantities(self.typing_bkd.array(cov))
-        typing_est = TypingGroupACV(
+        typing_est = TypingGroupACVIS(
             typing_stat, self.typing_bkd.array(costs)
         )
 
@@ -83,7 +84,7 @@ class TestGroupACVLegacyComparison(unittest.TestCase):
 
         typing_stat = MultiOutputMean(1, self.typing_bkd)
         typing_stat.set_pilot_quantities(self.typing_bkd.array(cov))
-        typing_est = TypingGroupACV(
+        typing_est = TypingGroupACVIS(
             typing_stat, self.typing_bkd.array(costs)
         )
 
@@ -114,7 +115,7 @@ class TestGroupACVLegacyComparison(unittest.TestCase):
 
         typing_stat = MultiOutputMean(1, self.typing_bkd)
         typing_stat.set_pilot_quantities(self.typing_bkd.array(cov))
-        typing_est = TypingGroupACV(
+        typing_est = TypingGroupACVIS(
             typing_stat, self.typing_bkd.array(costs)
         )
 
@@ -141,7 +142,7 @@ class TestGroupACVLegacyComparison(unittest.TestCase):
 
         typing_stat = MultiOutputMean(1, self.typing_bkd)
         typing_stat.set_pilot_quantities(self.typing_bkd.array(cov))
-        typing_est = TypingGroupACV(
+        typing_est = TypingGroupACVIS(
             typing_stat, self.typing_bkd.array(costs)
         )
 
@@ -168,7 +169,7 @@ class TestGroupACVLegacyComparison(unittest.TestCase):
 
         typing_stat = MultiOutputMean(1, self.typing_bkd)
         typing_stat.set_pilot_quantities(self.typing_bkd.array(cov))
-        typing_est = TypingGroupACV(
+        typing_est = TypingGroupACVIS(
             typing_stat, self.typing_bkd.array(costs)
         )
 
@@ -195,7 +196,7 @@ class TestGroupACVLegacyComparison(unittest.TestCase):
 
         typing_stat = MultiOutputMean(1, self.typing_bkd)
         typing_stat.set_pilot_quantities(self.typing_bkd.array(cov))
-        typing_est = TypingGroupACV(
+        typing_est = TypingGroupACVIS(
             typing_stat, self.typing_bkd.array(costs)
         )
 
@@ -227,8 +228,8 @@ class TestGroupACVLegacyComparison(unittest.TestCase):
 
         typing_stat = MultiOutputMean(1, self.typing_bkd)
         typing_stat.set_pilot_quantities(self.typing_bkd.array(cov))
-        typing_est = TypingGroupACV(
-            typing_stat, self.typing_bkd.array(costs), est_type="nested"
+        typing_est = TypingGroupACVNested(
+            typing_stat, self.typing_bkd.array(costs)
         )
 
         self.assertEqual(legacy_est.nsubsets(), typing_est.nsubsets())

@@ -10,14 +10,14 @@ import numpy as np
 
 from pyapprox.typing.util.backends.protocols import Array
 
-from pyapprox.typing.statest.groupacv.base import GroupACVEstimator
+from pyapprox.typing.statest.groupacv.variants import GroupACVEstimatorIS
 from pyapprox.typing.statest.groupacv.optimization import MLBLUEObjective
 
 if TYPE_CHECKING:
     from pyapprox.typing.statest.statistics import MultiOutputStatistic
 
 
-class MLBLUEEstimator(GroupACVEstimator[Array]):
+class MLBLUEEstimator(GroupACVEstimatorIS[Array]):
     """Multi-Level Best Linear Unbiased Estimator.
 
     A specialized GroupACV estimator that uses independent sampling
@@ -40,6 +40,9 @@ class MLBLUEEstimator(GroupACVEstimator[Array]):
     asketch : Array, optional
         Sketch matrix for extracting statistics. If None, identity-like
         matrix extracting high-fidelity model statistics.
+
+    use_pseudo_inv : bool, optional
+        Whether to use pseudo-inverse. Default is True.
     """
 
     def __init__(
@@ -49,15 +52,15 @@ class MLBLUEEstimator(GroupACVEstimator[Array]):
         reg_blue: float = 0,
         subsets: List[Array] = None,
         asketch: Array = None,
+        use_pseudo_inv: bool = True,
     ):
-        # Currently stats is ignored.
         super().__init__(
             stat,
             costs,
             reg_blue,
             subsets,
-            est_type="is",
             asketch=asketch,
+            use_pseudo_inv=use_pseudo_inv,
         )
         self._best_model_indices = self._bkd.arange(len(costs))
 

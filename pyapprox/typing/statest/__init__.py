@@ -33,7 +33,9 @@ from pyapprox.typing.statest.acv import (
     MLMCEstimator,
 )
 from pyapprox.typing.statest.groupacv import (
-    GroupACVEstimator,
+    BaseGroupACVEstimator,
+    GroupACVEstimatorIS,
+    GroupACVEstimatorNested,
     MLBLUEEstimator,
     GroupACVObjective,
     GroupACVTraceObjective,
@@ -61,7 +63,9 @@ __all__ = [
     "MFMCEstimator",
     "MLMCEstimator",
     # GroupACV exports
-    "GroupACVEstimator",
+    "BaseGroupACVEstimator",
+    "GroupACVEstimatorIS",
+    "GroupACVEstimatorNested",
     "MLBLUEEstimator",
     "GroupACVObjective",
     "GroupACVTraceObjective",

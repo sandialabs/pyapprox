@@ -23,7 +23,8 @@ from pyapprox.typing.statest.groupacv import (
     _get_allocation_matrix_is,
     _get_allocation_matrix_nested,
     _nest_subsets,
-    GroupACVEstimator,
+    GroupACVEstimatorIS,
+    GroupACVEstimatorNested,
     MLBLUEEstimator,
     GroupACVTraceObjective,
     GroupACVLogDetObjective,
@@ -133,7 +134,7 @@ class TestGroupACVEstimator(Generic[Array], unittest.TestCase):
         self._bkd = self.bkd()
         np.random.seed(1)
 
-    def _create_estimator(self, nmodels, est_type="is"):
+    def _create_estimator(self, nmodels, estimator_cls=GroupACVEstimatorIS):
         """Helper to create a test estimator."""
         np.random.seed(1)
         cov = self._bkd.array(np.random.normal(0, 1, (nmodels, nmodels)))
@@ -142,13 +143,13 @@ class TestGroupACVEstimator(Generic[Array], unittest.TestCase):
 
         stat = MultiOutputMean(1, self._bkd)
         stat.set_pilot_quantities(cov)
-        est = GroupACVEstimator(stat, costs, est_type=est_type)
+        est = estimator_cls(stat, costs)
         return est
 
     def test_nsamples_per_model_is(self):
         """Test sample count computation for IS estimation."""
         nmodels = 3
-        est = self._create_estimator(nmodels, est_type="is")
+        est = self._create_estimator(nmodels, estimator_cls=GroupACVEstimatorIS)
 
         npartition_samples = self._bkd.arange(
             2.0, 2 + est.nsubsets(), dtype=self._bkd.double_dtype()
@@ -178,7 +179,7 @@ class TestGroupACVEstimator(Generic[Array], unittest.TestCase):
         """Test sample count computation for nested estimation."""
         nmodels = 3
         np.random.seed(1)
-        est = self._create_estimator(nmodels, est_type="nested")
+        est = self._create_estimator(nmodels, estimator_cls=GroupACVEstimatorNested)
 
         npartition_samples = self._bkd.arange(
             2.0, 2.0 + est.nsubsets(), dtype=self._bkd.double_dtype()
@@ -288,12 +289,12 @@ class TestGroupACVEstimator(Generic[Array], unittest.TestCase):
 
     def test_separate_samples_is(self):
         """Test sample separation for IS estimation."""
-        est = self._create_estimator(3, est_type="is")
+        est = self._create_estimator(3, estimator_cls=GroupACVEstimatorIS)
         self._check_separate_samples(est)
 
     def test_separate_samples_nested(self):
         """Test sample separation for nested estimation."""
-        est = self._create_estimator(3, est_type="nested")
+        est = self._create_estimator(3, estimator_cls=GroupACVEstimatorNested)
         self._check_separate_samples(est)
 
 
@@ -329,7 +330,7 @@ class TestGroupACVObjectiveDerivativesTorchOnly(ParametrizedTestCase, unittest.T
 
         stat = MultiOutputMean(nqoi, self._bkd)
         stat.set_pilot_quantities(cov)
-        est = GroupACVEstimator(stat, costs)
+        est = GroupACVEstimatorIS(stat, costs)
         return est
 
     @parametrize(
@@ -395,7 +396,7 @@ class TestGroupACVConstraintDerivatives(
 
         stat = MultiOutputMean(1, self._bkd)
         stat.set_pilot_quantities(cov)
-        est = GroupACVEstimator(stat, costs)
+        est = GroupACVEstimatorIS(stat, costs)
         return est
 
     @parametrize(
@@ -510,7 +511,7 @@ class TestMLBLUEEstimator(Generic[Array], unittest.TestCase):
         )
 
     def test_mlblue_inherits_groupacv(self):
-        """Test that MLBLUEEstimator inherits from GroupACVEstimator."""
+        """Test that MLBLUEEstimator inherits from GroupACVEstimatorIS."""
         nmodels = 2
         cov = self._bkd.array(np.random.normal(0, 1, (nmodels, nmodels)))
         cov = cov.T @ cov
@@ -520,8 +521,8 @@ class TestMLBLUEEstimator(Generic[Array], unittest.TestCase):
         stat.set_pilot_quantities(cov)
         est = MLBLUEEstimator(stat, costs)
 
-        # Should be instance of GroupACVEstimator
-        assert isinstance(est, GroupACVEstimator)
+        # Should be instance of GroupACVEstimatorIS
+        assert isinstance(est, GroupACVEstimatorIS)
 
 
 class TestMLBLUEEstimatorNumpy(TestMLBLUEEstimator[NDArray[Any]]):
@@ -625,9 +626,7 @@ class TestRestrictionMatrices(Generic[Array], unittest.TestCase):
         subsets = [
             self._bkd.array(s, dtype=self._bkd.int64_dtype()) for s in subsets
         ]
-        est = GroupACVEstimator(
-            stat, costs, model_subsets=subsets, est_type="nested"
-        )
+        est = GroupACVEstimatorNested(stat, costs, model_subsets=subsets)
 
         # Vector containing model ids
         Lvec = self._bkd.arange(3, dtype=self._bkd.double_dtype())[:, None]
@@ -653,9 +652,7 @@ class TestRestrictionMatrices(Generic[Array], unittest.TestCase):
         subsets = [
             self._bkd.array(s, dtype=self._bkd.int64_dtype()) for s in subsets
         ]
-        est = GroupACVEstimator(
-            stat, costs, model_subsets=subsets, est_type="nested"
-        )
+        est = GroupACVEstimatorNested(stat, costs, model_subsets=subsets)
 
         # Vector containing flattened model qoi ids
         Lvec = self._bkd.arange(
@@ -1000,12 +997,11 @@ class TestGroupACVRecoversMFMC(Generic[Array], unittest.TestCase):
         stat.set_pilot_quantities(cov)
 
         # Create GroupACV estimator with MFMC subsets
-        groupacv_est = GroupACVEstimator(
+        groupacv_est = GroupACVEstimatorNested(
             stat,
             costs,
             reg_blue=1e-8,
             model_subsets=subsets,
-            est_type="nested",
         )
 
         # Get MFMC sample allocation
@@ -1148,11 +1144,10 @@ class TestMFMCNestedEstimation(Generic[Array], ParametrizedTestCase):
         subsets = [self._bkd.asarray(s, dtype=int) for s in subsets]
 
         # Create GroupACV estimator with MFMC subsets
-        groupacv_est = GroupACVEstimator(
+        groupacv_est = GroupACVEstimatorNested(
             stat,
             costs,
             model_subsets=subsets,
-            est_type="nested",
             reg_blue=0,
             use_pseudo_inv=False,
         )
@@ -1355,11 +1350,17 @@ class TestSigmaMatrixMonteCarlo(Generic[Array], ParametrizedTestCase):
         else:
             model_subsets = None
 
+        # Select estimator class based on group_type
+        estimator_classes = {
+            "is": GroupACVEstimatorIS,
+            "nested": GroupACVEstimatorNested,
+        }
+        estimator_cls = estimator_classes[group_type]
+
         # Create estimator
-        est = GroupACVEstimator(
+        est = estimator_cls(
             stat,
             costs,
-            est_type=group_type,
             asketch=asketch,
             reg_blue=0,
             model_subsets=model_subsets,
@@ -1494,7 +1495,7 @@ class TestGradientOptimization(Generic[Array], ParametrizedTestCase):
         # Create GroupACV estimator
         stat_g = MultiOutputMean(nqoi, self._bkd)
         stat_g.set_pilot_quantities(cov)
-        gest = GroupACVEstimator(stat_g, costs, reg_blue=0)
+        gest = GroupACVEstimatorIS(stat_g, costs, reg_blue=0)
 
         # Create MLBLUE estimator
         stat_m = MultiOutputMean(nqoi, self._bkd)
@@ -1600,7 +1601,7 @@ class TestGroupACVAllocationOptimizer(
 
         stat = MultiOutputMean(nqoi, self._bkd)
         stat.set_pilot_quantities(cov)
-        return GroupACVEstimator(stat, costs)
+        return GroupACVEstimatorIS(stat, costs)
 
     def test_allocator_produces_valid_result(self):
         """Test that allocator returns valid AllocationResult."""
@@ -1811,7 +1812,7 @@ class TestGroupACVRecoversMLBLUE(
         # Create GroupACV estimator (uses IS partitions like MLBLUE)
         stat_g = MultiOutputMean(1, self._bkd)
         stat_g.set_pilot_quantities(cov)
-        groupacv_est = GroupACVEstimator(stat_g, costs, reg_blue=0)
+        groupacv_est = GroupACVEstimatorIS(stat_g, costs, reg_blue=0)
 
         # Create MLBLUE estimator
         stat_m = MultiOutputMean(1, self._bkd)
@@ -1897,7 +1898,7 @@ class TestGroupACVRecoversMLBLUE(
         # Create GroupACV estimator
         stat_g = MultiOutputMean(1, self._bkd)
         stat_g.set_pilot_quantities(cov)
-        groupacv_est = GroupACVEstimator(stat_g, costs, reg_blue=0)
+        groupacv_est = GroupACVEstimatorIS(stat_g, costs, reg_blue=0)
 
         # Create MLBLUE estimator for SPD
         stat_m = MultiOutputMean(1, self._bkd)

@@ -1,9 +1,14 @@
 """Base GroupACV estimator implementation.
 
-This module provides the GroupACVEstimator class for Group Approximate
-Control Variate estimation.
+This module provides the BaseGroupACVEstimator abstract class for Group
+Approximate Control Variate estimation using the Template Method pattern.
+
+Concrete implementations are in variants.py:
+    - GroupACVEstimatorIS (independent sampling)
+    - GroupACVEstimatorNested (nested sampling)
 """
 
+from abc import ABC, abstractmethod
 from typing import Generic, List, TYPE_CHECKING
 
 import numpy as np
@@ -12,9 +17,6 @@ from pyapprox.typing.util.backends.protocols import Array, Backend
 
 from pyapprox.typing.statest.groupacv.utils import (
     get_model_subsets,
-    _get_allocation_matrix_is,
-    _get_allocation_matrix_nested,
-    _nest_subsets,
     _grouped_acv_sigma,
 )
 
@@ -34,8 +36,11 @@ if TYPE_CHECKING:
     )
 
 
-class GroupACVEstimator(Generic[Array]):
-    """Group Approximate Control Variate estimator.
+class BaseGroupACVEstimator(ABC, Generic[Array]):
+    """Abstract base class for Group Approximate Control Variate estimators.
+
+    This class uses the Template Method pattern to allow subclasses to
+    customize subset preprocessing and allocation matrix generation.
 
     Parameters
     ----------
@@ -51,10 +56,6 @@ class GroupACVEstimator(Generic[Array]):
     model_subsets : List[Array], optional
         List of model subsets. If None, all subsets are generated.
 
-    est_type : str, optional
-        Estimation type: "is" for independent sampling or "nested".
-        Default is "is".
-
     asketch : Array, optional
         Sketch matrix for extracting statistics. If None, identity-like
         matrix extracting high-fidelity model statistics.
@@ -69,7 +70,6 @@ class GroupACVEstimator(Generic[Array]):
         costs: Array,
         reg_blue: float = 0,
         model_subsets: List[Array] = None,
-        est_type: str = "is",
         asketch: Array = None,
         use_pseudo_inv: bool = True,
     ):
@@ -94,7 +94,7 @@ class GroupACVEstimator(Generic[Array]):
         self._stat = stat
 
         self._model_subsets, self._subsets, self._allocation_mat = (
-            self._set_subsets(model_subsets, est_type)
+            self._set_subsets(model_subsets)
         )
         self._npartitions = self._allocation_mat.shape[1]
         self._partitions_per_model = self._get_partitions_per_model()
@@ -137,32 +137,64 @@ class GroupACVEstimator(Generic[Array]):
             raise ValueError("cov and costs are inconsistent")
         return cov, self._bkd.asarray(costs)
 
-    def _set_subsets(self, model_subsets: Array, est_type: str):
+    def _preprocess_model_subsets(
+        self, model_subsets: List[Array]
+    ) -> List[Array]:
+        """Hook for preprocessing model subsets. Default returns input unchanged.
+
+        Subclasses can override this method to customize subset preprocessing.
+
+        Parameters
+        ----------
+        model_subsets : List[Array]
+            List of model subsets
+
+        Returns
+        -------
+        List[Array]
+            Preprocessed model subsets
+        """
+        return model_subsets
+
+    @abstractmethod
+    def _get_allocation_matrix(self, subsets: List[Array]) -> Array:
+        """Abstract method to get allocation matrix. Must be overridden.
+
+        Parameters
+        ----------
+        subsets : List[Array]
+            List of subsets expanded to stat indices
+
+        Returns
+        -------
+        Array
+            Allocation matrix of shape (nsubsets, npartitions)
+        """
+        pass
+
+    def _set_subsets(self, model_subsets: List[Array]):
+        """Template method for subset setup - DO NOT override in subclasses.
+
+        This method orchestrates the subset setup process by calling hook
+        methods that subclasses can customize.
+
+        Parameters
+        ----------
+        model_subsets : List[Array]
+            List of model subsets, or None to generate all subsets
+
+        Returns
+        -------
+        Tuple[List[Array], List[Array], Array]
+            model_subsets, subsets (expanded to stat indices), allocation_mat
+        """
         if model_subsets is None:
             model_subsets = get_model_subsets(self.nmodels(), self._bkd)
-        if est_type == "is":
-            get_allocation_mat = _get_allocation_matrix_is
-        elif est_type == "nested":
-            zero = self._bkd.zeros((1,), dtype=int)
-            for ii, subset in enumerate(model_subsets):
-                if not isinstance(subset, self._bkd.array_type()):
-                    raise ValueError(
-                        "subset must be an instance of {0}".format(
-                            self._bkd.array_type()
-                        )
-                    )
-                if self._bkd.allclose(subset, zero):
-                    del model_subsets[ii]
-                    break
-            model_subsets = _nest_subsets(
-                model_subsets, self.nmodels(), self._bkd
-            )[0]
-            get_allocation_mat = _get_allocation_matrix_nested
-        else:
-            raise ValueError(
-                "incorrect est_type {0} specified".format(est_type)
-            )
-        # amend subsets to include indices into each statistic
+
+        # Hook 1: preprocessing (subclasses override)
+        model_subsets = self._preprocess_model_subsets(model_subsets)
+
+        # Common: expand to stat indices
         # stats ordered by all stats model 0, all stats model 1 and so on
         # ordering of statistics for a given model is determined by
         # the stat class
@@ -180,7 +212,11 @@ class GroupACVEstimator(Generic[Array]):
                     ]
                 )
             )
-        return model_subsets, subsets, get_allocation_mat(subsets, self._bkd)
+
+        # Hook 2: allocation matrix (subclasses override)
+        allocation_mat = self._get_allocation_matrix(subsets)
+
+        return model_subsets, subsets, allocation_mat
 
     def _get_partitions_per_model(self):
         # assume npartitions = nsubsets
