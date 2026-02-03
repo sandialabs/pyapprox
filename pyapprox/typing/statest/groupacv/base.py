@@ -4,7 +4,7 @@ This module provides the GroupACVEstimator class for Group Approximate
 Control Variate estimation.
 """
 
-from typing import Generic, List, Union, TYPE_CHECKING
+from typing import Generic, List, TYPE_CHECKING
 
 import numpy as np
 
@@ -32,45 +32,6 @@ if TYPE_CHECKING:
         MultiOutputVariance,
         MultiOutputMeanAndVariance,
     )
-    from pyapprox.typing.optimization.minimize.chained.chained_optimizer import (
-        ChainedOptimizer,
-    )
-    from pyapprox.typing.optimization.minimize.scipy.trust_constr import (
-        ScipyTrustConstrOptimizer,
-    )
-
-
-def default_groupacv_optimizer():
-    """Create the default optimizer for GroupACV sample allocation.
-
-    Returns
-    -------
-    ChainedOptimizer
-        A chained optimizer with differential evolution followed by
-        trust-constr refinement.
-    """
-    from pyapprox.typing.optimization.minimize.chained.chained_optimizer import (
-        ChainedOptimizer,
-    )
-    from pyapprox.typing.optimization.minimize.scipy.trust_constr import (
-        ScipyTrustConstrOptimizer,
-    )
-    from pyapprox.typing.optimization.minimize.scipy.diffevol import (
-        ScipyDifferentialEvolutionOptimizer,
-    )
-
-    global_opt = ScipyDifferentialEvolutionOptimizer(
-        maxiter=100,
-        polish=False,
-        seed=1,
-        tol=1e-8,
-        raise_on_failure=False,
-    )
-    local_opt = ScipyTrustConstrOptimizer(
-        gtol=1e-8,
-        maxiter=1000,
-    )
-    return ChainedOptimizer(global_opt, local_opt)
 
 
 class GroupACVEstimator(Generic[Array]):
@@ -404,6 +365,49 @@ class GroupACVEstimator(Generic[Array]):
         """Return the optimized covariance matrix."""
         return self._optimized_covariance
 
+    def set_npartition_samples(self, npartition_samples: Array) -> None:
+        """Set the sample allocation for estimation.
+
+        Parameters
+        ----------
+        npartition_samples : Array
+            Number of samples in each partition. Shape (npartitions,).
+        """
+        self._set_optimized_params(npartition_samples)
+
+    def npartition_samples(self) -> Array:
+        """Get current allocation.
+
+        Returns
+        -------
+        Array
+            Number of samples in each partition. Shape (npartitions,).
+
+        Raises
+        ------
+        RuntimeError
+            If allocation has not been set.
+        """
+        if (
+            not hasattr(self, "_rounded_npartition_samples")
+            or self._rounded_npartition_samples is None
+        ):
+            raise RuntimeError(
+                "Allocation not set. Call set_npartition_samples() or use "
+                "GroupACVAllocationOptimizer."
+            )
+        return self._rounded_npartition_samples
+
+    def covariance(self) -> Array:
+        """Compute covariance using stored allocation.
+
+        Returns
+        -------
+        Array
+            Covariance matrix of the estimator.
+        """
+        return self._covariance_from_npartition_samples(self.npartition_samples())
+
     def _set_optimized_params(self, npartition_samples, round_nsamples=True):
         # expected scalar type Double but found Float error can occur
         # with torch if npartition samples is not torch.double need to
@@ -454,119 +458,6 @@ class GroupACVEstimator(Generic[Array]):
     def set_objective(self, objective: GroupACVObjective):
         """Set the objective function."""
         self._objective = objective
-
-    def get_default_optimizer(self) -> "ChainedOptimizer":
-        """Return the default optimizer."""
-        return default_groupacv_optimizer()
-
-    def set_optimizer(
-        self,
-        optimizer: Union["ScipyTrustConstrOptimizer", "ChainedOptimizer"],
-    ):
-        """Set the optimizer for sample allocation.
-
-        Parameters
-        ----------
-        optimizer : ScipyTrustConstrOptimizer or ChainedOptimizer
-            The optimizer to use for sample allocation optimization.
-            The optimizer will be bound to the estimator's objective and
-            constraints when allocate_samples is called.
-        """
-        from pyapprox.typing.optimization.minimize.chained.chained_optimizer import (
-            ChainedOptimizer,
-        )
-        from pyapprox.typing.optimization.minimize.scipy.trust_constr import (
-            ScipyTrustConstrOptimizer,
-        )
-        from pyapprox.typing.optimization.minimize.scipy.diffevol import (
-            ScipyDifferentialEvolutionOptimizer,
-        )
-
-        if not isinstance(
-            optimizer,
-            (
-                ScipyTrustConstrOptimizer,
-                ScipyDifferentialEvolutionOptimizer,
-                ChainedOptimizer,
-            ),
-        ):
-            raise ValueError(
-                "optimizer must be instance of ScipyTrustConstrOptimizer, "
-                "ScipyDifferentialEvolutionOptimizer, or ChainedOptimizer"
-            )
-        self._optimizer = optimizer
-        # Store the raw optimizer - binding happens in allocate_samples
-        # when target_cost and min_nhf_samples are known
-
-    def allocate_samples(
-        self,
-        target_cost: float,
-        min_nhf_samples: int = 1,
-        round_nsamples: bool = True,
-        iterate: Array = None,
-    ):
-        """
-        Optimize the sample allocation.
-
-        Parameters
-        ----------
-        target_cost : float
-            The computational budget used to compute the estimator.
-
-        min_nhf_samples : float
-            The minimum number of high-fidelity samples before rounding.
-            Unforunately, there is no way to enforce that the min_nhf_samples
-            is met after rounding. As the differentiable constraint
-            enforces that the sum of the nsamples in each partition involving
-            the high-fidelity model is zero. But when each partition nsample
-            is rounded the rounded nhf_samples may be less than desired. It
-            will be close though
-
-        round_nsamples: bool
-            True - round the optimal number of samples allocated to each model
-                   down to the nearest integer
-            False - do not round
-
-        iterate: Array
-            The initial guess of the optimal sample allocation passed to the
-            optimizer. If None a default initial iterate is used.
-        """
-        if not hasattr(self, "_optimizer"):
-            # raise RuntimeError("must call set_optimizer")
-            self.set_optimizer(self.get_default_optimizer())
-
-        # Set up the objective and constraint
-        if hasattr(self, "_objective") and self._objective is not None:
-            objective = self._objective
-        else:
-            objective = self.default_objective()
-        objective.set_estimator(self)
-
-        constraint = GroupACVCostConstraint(self._bkd)
-        constraint.set_estimator(self)
-        constraint.set_budget(
-            target_cost, max(self._stat.min_nsamples(), min_nhf_samples)
-        )
-
-        # Set up bounds for optimization
-        max_npartition_samples = target_cost / float(self._costs.min()) + 1
-        bounds = self._bkd.array(
-            [[0.0, max_npartition_samples]] * self.npartitions()
-        )
-
-        # Bind the optimizer
-        self._optimizer.bind(objective, bounds, [constraint])
-
-        if iterate is None:
-            iterate = self._init_guess(target_cost)
-        result = self._optimizer.minimize(iterate)
-
-        if not result.success() or self._bkd.any_bool(result.optima() < 0):
-            raise RuntimeError(
-                f"optimization not successful: {result.message()}"
-            )
-
-        self._set_optimized_params(result.optima()[:, 0], round_nsamples)
 
     def _get_partition_splits(self, npartition_samples):
         """

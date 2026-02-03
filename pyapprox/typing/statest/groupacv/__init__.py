@@ -23,6 +23,11 @@ from pyapprox.typing.statest.groupacv.optimization import (
 
 from pyapprox.typing.statest.groupacv.base import (
     GroupACVEstimator,
+)
+
+from pyapprox.typing.statest.groupacv.allocation import (
+    AllocationResult,
+    GroupACVAllocationOptimizer,
     default_groupacv_optimizer,
 )
 
@@ -48,10 +53,13 @@ __all__ = [
     "GroupACVLogDetObjective",
     "MLBLUEObjective",
     "GroupACVCostConstraint",
+    # Allocation classes
+    "AllocationResult",
+    "GroupACVAllocationOptimizer",
+    "default_groupacv_optimizer",
     # Optimizer classes
     "MLBLUESPDOptimizer",
     # Estimator classes
     "GroupACVEstimator",
-    "default_groupacv_optimizer",
     "MLBLUEEstimator",
 ]

@@ -894,6 +894,10 @@ class TestPilotSampleInsertion(Generic[Array], ParametrizedTestCase):
     )
     def test_insert_pilot_samples(self, nmodels: int, min_nhf_samples: int):
         """Test that pilot values can be correctly inserted."""
+        from pyapprox.typing.statest.groupacv.allocation import (
+            GroupACVAllocationOptimizer,
+        )
+
         ntrials = 5  # Match legacy test
         npilot_samples = 8
 
@@ -901,13 +905,16 @@ class TestPilotSampleInsertion(Generic[Array], ParametrizedTestCase):
             np.random.seed(seed)
             est = self._create_mlblue_estimator(nmodels)
 
-            # Allocate samples
+            # Allocate samples using new API
             target_cost = 100.0
-            est.set_optimizer(self._create_optimizer())
             iterate = est._init_guess(target_cost)
-            est.allocate_samples(
-                target_cost, min_nhf_samples, iterate=iterate
+            allocator = GroupACVAllocationOptimizer(
+                est, optimizer=self._create_optimizer()
             )
+            result = allocator.optimize(
+                target_cost, min_nhf_samples, init_guess=iterate
+            )
+            est.set_npartition_samples(result.npartition_samples)
 
             # Get covariance and create value generator
             cov = est._stat._cov
@@ -1216,11 +1223,7 @@ class TestMFMCNestedEstimation(Generic[Array], ParametrizedTestCase):
         gmf_est_val = gmf_est(values_per_model)
 
         # Apply GMF sample allocation to GroupACV
-        groupacv_est.set_optimizer(groupacv_est.get_default_optimizer())
-        groupacv_est._set_optimized_params(
-            gmf_est._rounded_npartition_samples,
-            round_nsamples=False,
-        )
+        groupacv_est.set_npartition_samples(gmf_est._rounded_npartition_samples)
 
         # Compute GroupACV estimate (now expects samples in columns like other typing code)
         groupacv_est_val = groupacv_est(values_per_model)
@@ -1440,7 +1443,7 @@ class TestSigmaMatrixMonteCarloTorch(TestSigmaMatrixMonteCarlo[torch.Tensor]):
 
 
 class TestGradientOptimization(Generic[Array], ParametrizedTestCase):
-    """Test full optimization loop with allocate_samples.
+    """Test full optimization loop with GroupACVAllocationOptimizer.
 
     Validates that:
     1. GroupACV and MLBLUE produce equivalent results for single QoI
@@ -1514,6 +1517,10 @@ class TestGradientOptimization(Generic[Array], ParametrizedTestCase):
             self._bkd.logspace(-nmodels + 1, 0, nmodels)
         )
 
+        from pyapprox.typing.statest.groupacv.allocation import (
+            GroupACVAllocationOptimizer,
+        )
+
         # Create GroupACV estimator
         stat_g = MultiOutputMean(nqoi, self._bkd)
         stat_g.set_pilot_quantities(cov)
@@ -1524,16 +1531,25 @@ class TestGradientOptimization(Generic[Array], ParametrizedTestCase):
         stat_m.set_pilot_quantities(cov)
         mlest = MLBLUEEstimator(stat_m, costs, reg_blue=0)
 
-        # Set up optimizers
-        gest.set_optimizer(self._create_optimizer())
-        mlest.set_optimizer(self._create_optimizer())
-
         # Get initial guess
         iterate = gest._init_guess(target_cost)
 
-        # Allocate samples
-        gest.allocate_samples(target_cost, min_nhf_samples, iterate=iterate)
-        mlest.allocate_samples(target_cost, min_nhf_samples, iterate=iterate)
+        # Allocate samples using new API
+        gest_allocator = GroupACVAllocationOptimizer(
+            gest, optimizer=self._create_optimizer()
+        )
+        gest_result = gest_allocator.optimize(
+            target_cost, min_nhf_samples, init_guess=iterate
+        )
+        gest.set_npartition_samples(gest_result.npartition_samples)
+
+        mlest_allocator = GroupACVAllocationOptimizer(
+            mlest, optimizer=self._create_optimizer()
+        )
+        mlest_result = mlest_allocator.optimize(
+            target_cost, min_nhf_samples, init_guess=iterate
+        )
+        mlest.set_npartition_samples(mlest_result.npartition_samples)
 
         # Check that both estimators produce identical covariance matrices
         # when using the same partition samples (GroupACV allocation)
@@ -1575,7 +1591,7 @@ class TestGradientOptimization(Generic[Array], ParametrizedTestCase):
     def test_gradient_optimization(
         self, nmodels: int, min_nhf_samples: int, nqoi: int
     ):
-        """Test full optimization loop with allocate_samples."""
+        """Test full optimization loop with GroupACVAllocationOptimizer."""
         np.random.seed(1)
         self._check_gradient_optimization(nmodels, min_nhf_samples, nqoi)
 
@@ -1584,6 +1600,381 @@ class TestGradientOptimizationTorchOnly(
     TestGradientOptimization[torch.Tensor]
 ):
     """Torch-only test since optimization requires bkd.jacobian."""
+
+    def bkd(self) -> TorchBkd:
+        torch.set_default_dtype(torch.float64)
+        return TorchBkd()
+
+
+class TestGroupACVAllocationOptimizer(
+    Generic[Array], ParametrizedTestCase, unittest.TestCase
+):
+    """Tests for the new allocation optimizer."""
+
+    __test__ = False
+
+    def bkd(self):
+        raise NotImplementedError
+
+    def setUp(self):
+        self._bkd = self.bkd()
+        np.random.seed(1)
+
+    def _create_estimator(self, nmodels, nqoi=1):
+        """Helper to create a test estimator."""
+        np.random.seed(1)
+        cov_size = nmodels * nqoi
+        cov = self._bkd.array(np.random.normal(0, 1, (cov_size, cov_size)))
+        cov = cov.T @ cov
+        costs = self._bkd.arange(nmodels, 0, -1, dtype=self._bkd.double_dtype())
+
+        stat = MultiOutputMean(nqoi, self._bkd)
+        stat.set_pilot_quantities(cov)
+        return GroupACVEstimator(stat, costs)
+
+    def test_allocator_produces_valid_result(self):
+        """Test that allocator returns valid AllocationResult."""
+        from pyapprox.typing.statest.groupacv.allocation import (
+            GroupACVAllocationOptimizer,
+            AllocationResult,
+        )
+
+        est = self._create_estimator(3)
+        allocator = GroupACVAllocationOptimizer(est)
+        result = allocator.optimize(target_cost=100, min_nhf_samples=1)
+
+        self.assertIsInstance(result, AllocationResult)
+        self.assertTrue(result.success)
+        self.assertTrue(
+            float(self._bkd.min(result.npartition_samples)) >= 0
+        )
+
+    def test_allocator_with_custom_optimizer(self):
+        """Test that custom optimizer is used."""
+        from pyapprox.typing.optimization.minimize.scipy.trust_constr import (
+            ScipyTrustConstrOptimizer,
+        )
+        from pyapprox.typing.statest.groupacv.allocation import (
+            GroupACVAllocationOptimizer,
+        )
+
+        est = self._create_estimator(3)
+        opt = ScipyTrustConstrOptimizer(gtol=1e-6, maxiter=500)
+        allocator = GroupACVAllocationOptimizer(est, optimizer=opt)
+        result = allocator.optimize(target_cost=100, min_nhf_samples=1)
+
+        self.assertTrue(result.success)
+
+    def test_allocator_respects_budget(self):
+        """Test that allocator respects budget constraint."""
+        from pyapprox.typing.statest.groupacv.allocation import (
+            GroupACVAllocationOptimizer,
+        )
+
+        est = self._create_estimator(3)
+        target_cost = 100.0
+        allocator = GroupACVAllocationOptimizer(est)
+        result = allocator.optimize(target_cost=target_cost, min_nhf_samples=1)
+
+        actual_cost = est._estimator_cost(result.npartition_samples)
+        self.assertLessEqual(
+            float(self._bkd.to_numpy(actual_cost)), target_cost + 1e-6
+        )
+
+    def test_allocator_with_mlblue_objective(self):
+        """Test allocator with MLBLUEObjective for analytical derivatives."""
+        from pyapprox.typing.statest.groupacv.allocation import (
+            GroupACVAllocationOptimizer,
+        )
+
+        np.random.seed(1)
+        cov = self._bkd.array(np.random.normal(0, 1, (3, 3)))
+        cov = cov.T @ cov
+        costs = self._bkd.arange(3, 0, -1, dtype=self._bkd.double_dtype())
+
+        stat = MultiOutputMean(1, self._bkd)
+        stat.set_pilot_quantities(cov)
+        est = MLBLUEEstimator(stat, costs)
+
+        # Use MLBLUE's default objective (has analytical derivatives)
+        obj = est.default_objective()
+        allocator = GroupACVAllocationOptimizer(est, objective=obj)
+        result = allocator.optimize(target_cost=100, min_nhf_samples=1)
+
+        self.assertTrue(result.success)
+
+    def test_allocator_set_npartition_samples_integration(self):
+        """Test that allocator result can be used with estimator setter."""
+        from pyapprox.typing.statest.groupacv.allocation import (
+            GroupACVAllocationOptimizer,
+        )
+
+        est = self._create_estimator(3)
+        allocator = GroupACVAllocationOptimizer(est)
+        result = allocator.optimize(target_cost=100, min_nhf_samples=1)
+
+        # Use new setter API
+        est.set_npartition_samples(result.npartition_samples)
+
+        # Verify allocation is stored
+        self._bkd.assert_allclose(
+            est.npartition_samples(), result.npartition_samples
+        )
+
+        # Verify covariance can be computed
+        cov = est.covariance()
+        self.assertEqual(cov.shape[0], est._stat.nstats())
+        self.assertEqual(cov.shape[1], est._stat.nstats())
+
+    @parametrize(
+        "nmodels,nqoi",
+        [(2, 1), (3, 1), (2, 2)],
+    )
+    def test_allocator_various_configurations(self, nmodels: int, nqoi: int):
+        """Test allocator with various model/qoi configurations."""
+        from pyapprox.typing.statest.groupacv.allocation import (
+            GroupACVAllocationOptimizer,
+        )
+
+        np.random.seed(1)
+        est = self._create_estimator(nmodels, nqoi)
+        allocator = GroupACVAllocationOptimizer(est)
+        result = allocator.optimize(target_cost=100, min_nhf_samples=1)
+
+        self.assertTrue(result.success)
+        self.assertEqual(
+            result.npartition_samples.shape[0], est.npartitions()
+        )
+
+
+class TestGroupACVAllocationOptimizerTorchOnly(
+    TestGroupACVAllocationOptimizer[torch.Tensor]
+):
+    """Torch-only test since optimization requires bkd.jacobian."""
+
+    def bkd(self) -> TorchBkd:
+        torch.set_default_dtype(torch.float64)
+        return TorchBkd()
+
+
+class TestGroupACVRecoversMLBLUE(
+    Generic[Array], ParametrizedTestCase, unittest.TestCase
+):
+    """Test that GroupACV with IS partitions recovers MLBLUE results.
+
+    This test validates that the new separation of allocation optimization
+    allows us to verify:
+    1. GroupACV with IS partitions and torch autograd optimization matches
+       MLBLUE with analytical jacobian/hessian
+    2. Both gradient-based approaches match MLBLUE SPD optimization
+
+    This is an important validation because MLBLUE is a special case of
+    GroupACV with independent sampling (IS) partitions.
+    """
+
+    __test__ = False
+
+    def bkd(self):
+        raise NotImplementedError
+
+    def setUp(self):
+        self._bkd = self.bkd()
+        np.random.seed(1)
+
+    def _covariance_to_correlation(self, cov: Array) -> Array:
+        """Convert covariance matrix to correlation matrix."""
+        d = self._bkd.sqrt(self._bkd.diag(cov))
+        return cov / self._bkd.outer(d, d)
+
+    def _create_optimizer(self):
+        """Create the chained optimizer for sample allocation."""
+        from pyapprox.typing.optimization.minimize.chained.chained_optimizer import (
+            ChainedOptimizer,
+        )
+        from pyapprox.typing.optimization.minimize.scipy.trust_constr import (
+            ScipyTrustConstrOptimizer,
+        )
+        from pyapprox.typing.optimization.minimize.scipy.diffevol import (
+            ScipyDifferentialEvolutionOptimizer,
+        )
+
+        global_opt = ScipyDifferentialEvolutionOptimizer(
+            maxiter=10,
+            polish=False,
+            seed=1,
+            tol=1e-8,
+            raise_on_failure=False,
+        )
+        local_opt = ScipyTrustConstrOptimizer(
+            gtol=1e-8,
+            maxiter=2000,
+        )
+        return ChainedOptimizer(global_opt, local_opt)
+
+    @parametrize(
+        "nmodels",
+        [(2,), (3,), (4,)],
+    )
+    def test_groupacv_autograd_recovers_mlblue_analytical(self, nmodels: int):
+        """Test GroupACV with autograd jacobian matches MLBLUE analytical jacobian.
+
+        This verifies that:
+        1. GroupACV with IS partitions using torch autograd (default jacobian)
+           produces the same allocation as MLBLUE with analytical jacobian
+        2. The estimator covariances are identical for the same allocation
+        """
+        from pyapprox.typing.statest.groupacv.allocation import (
+            GroupACVAllocationOptimizer,
+        )
+
+        np.random.seed(42)
+        cov_size = nmodels
+        cov = self._bkd.array(np.random.normal(0, 1, (cov_size, cov_size)))
+        cov = cov.T @ cov
+        cov = self._covariance_to_correlation(cov)
+
+        target_cost = 100.0
+        costs = self._bkd.flip(
+            self._bkd.logspace(-nmodels + 1, 0, nmodels)
+        )
+
+        # Create GroupACV estimator (uses IS partitions like MLBLUE)
+        stat_g = MultiOutputMean(1, self._bkd)
+        stat_g.set_pilot_quantities(cov)
+        groupacv_est = GroupACVEstimator(stat_g, costs, reg_blue=0)
+
+        # Create MLBLUE estimator
+        stat_m = MultiOutputMean(1, self._bkd)
+        stat_m.set_pilot_quantities(cov)
+        mlblue_est = MLBLUEEstimator(stat_m, costs, reg_blue=0)
+
+        # Get initial guess (same for both)
+        iterate = groupacv_est._init_guess(target_cost)
+
+        # GroupACV with autograd jacobian (via GroupACVTraceObjective)
+        groupacv_obj = GroupACVTraceObjective(self._bkd)
+        groupacv_allocator = GroupACVAllocationOptimizer(
+            groupacv_est,
+            optimizer=self._create_optimizer(),
+            objective=groupacv_obj,
+        )
+        groupacv_result = groupacv_allocator.optimize(
+            target_cost, min_nhf_samples=1, init_guess=iterate
+        )
+        groupacv_est.set_npartition_samples(groupacv_result.npartition_samples)
+
+        # MLBLUE with analytical jacobian (via MLBLUEObjective)
+        mlblue_obj = MLBLUEObjective(self._bkd)
+        mlblue_allocator = GroupACVAllocationOptimizer(
+            mlblue_est,
+            optimizer=self._create_optimizer(),
+            objective=mlblue_obj,
+        )
+        mlblue_result = mlblue_allocator.optimize(
+            target_cost, min_nhf_samples=1, init_guess=iterate
+        )
+        mlblue_est.set_npartition_samples(mlblue_result.npartition_samples)
+
+        # Both should have same number of partitions (IS uses 2^nmodels - 1)
+        self.assertEqual(
+            groupacv_est.npartitions(), mlblue_est.npartitions()
+        )
+
+        # Covariances at same allocation should match
+        groupacv_cov = groupacv_est._covariance_from_npartition_samples(
+            groupacv_result.npartition_samples
+        )
+        mlblue_cov = mlblue_est._covariance_from_npartition_samples(
+            groupacv_result.npartition_samples
+        )
+        self._bkd.assert_allclose(groupacv_cov, mlblue_cov, rtol=1e-10)
+
+        # Objective values should be close (both minimize trace)
+        self._bkd.assert_allclose(
+            groupacv_result.objective_value,
+            mlblue_result.objective_value,
+            rtol=1e-2,  # Allow some tolerance due to optimization
+        )
+
+    @unittest.skipIf(not HAS_CVXPY, "cvxpy not installed")
+    @parametrize(
+        "nmodels",
+        [(2,), (3,)],
+    )
+    def test_groupacv_autograd_recovers_mlblue_spd(self, nmodels: int):
+        """Test GroupACV with autograd matches MLBLUE SPD optimization.
+
+        This verifies that:
+        1. GroupACV with IS partitions using gradient-based optimization
+           produces similar results to MLBLUE SPD (convex) optimization
+        2. SPD should find global optimum, gradient-based should be close
+        """
+        from pyapprox.typing.statest.groupacv.allocation import (
+            GroupACVAllocationOptimizer,
+        )
+
+        np.random.seed(42)
+        cov_size = nmodels
+        cov = self._bkd.array(np.random.normal(0, 1, (cov_size, cov_size)))
+        cov = cov.T @ cov
+        cov = self._covariance_to_correlation(cov)
+
+        target_cost = 100.0
+        costs = self._bkd.flip(
+            self._bkd.logspace(-nmodels + 1, 0, nmodels)
+        )
+
+        # Create GroupACV estimator
+        stat_g = MultiOutputMean(1, self._bkd)
+        stat_g.set_pilot_quantities(cov)
+        groupacv_est = GroupACVEstimator(stat_g, costs, reg_blue=0)
+
+        # Create MLBLUE estimator for SPD
+        stat_m = MultiOutputMean(1, self._bkd)
+        stat_m.set_pilot_quantities(cov)
+        mlblue_est = MLBLUEEstimator(stat_m, costs, reg_blue=0)
+
+        # GroupACV with gradient-based optimization
+        groupacv_obj = GroupACVTraceObjective(self._bkd)
+        groupacv_allocator = GroupACVAllocationOptimizer(
+            groupacv_est,
+            optimizer=self._create_optimizer(),
+            objective=groupacv_obj,
+        )
+        groupacv_result = groupacv_allocator.optimize(
+            target_cost, min_nhf_samples=1, round_nsamples=False
+        )
+
+        # MLBLUE with SPD optimization (convex, finds global optimum)
+        spd_optimizer = MLBLUESPDOptimizer()
+        spd_optimizer.set_estimator(mlblue_est)
+        spd_optimizer.set_budget(target_cost, min_nhf_samples=1)
+        spd_result = spd_optimizer.minimize()
+
+        # SPD finds optimal variance (trace of covariance)
+        spd_allocation = spd_result["x"][:, 0]
+        spd_cov = mlblue_est._covariance_from_npartition_samples(spd_allocation)
+        spd_trace = self._bkd.trace(spd_cov)
+
+        # Gradient-based should find similar variance
+        groupacv_cov = groupacv_est._covariance_from_npartition_samples(
+            groupacv_result.npartition_samples
+        )
+        groupacv_trace = self._bkd.trace(groupacv_cov)
+
+        # Gradient-based should be close to SPD optimum (within 5%)
+        # SPD is convex so it finds global optimum
+        self._bkd.assert_allclose(
+            groupacv_trace,
+            spd_trace,
+            rtol=0.05,
+        )
+
+
+class TestGroupACVRecoversMLBLUETorchOnly(
+    TestGroupACVRecoversMLBLUE[torch.Tensor]
+):
+    """Torch-only test since autograd optimization requires torch."""
 
     def bkd(self) -> TorchBkd:
         torch.set_default_dtype(torch.float64)
