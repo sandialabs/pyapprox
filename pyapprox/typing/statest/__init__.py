@@ -58,6 +58,11 @@ from pyapprox.typing.statest.groupacv import (
     default_groupacv_optimizer,
 )
 from pyapprox.typing.statest.aetc import AETC, AETCBLUE, AETCMC
+from pyapprox.typing.statest.search import (
+    EstimatorFamily,
+    UnifiedSearchResult,
+    unified_search,
+)
 
 __all__ = [
     "StatisticProtocol",
@@ -101,4 +106,8 @@ __all__ = [
     "AETC",
     "AETCBLUE",
     "AETCMC",
+    # Unified search
+    "EstimatorFamily",
+    "UnifiedSearchResult",
+    "unified_search",
 ]

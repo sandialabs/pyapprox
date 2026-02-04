@@ -1,8 +1,7 @@
-"""Unified search for optimal ACV estimator configurations."""
+"""Search for optimal GroupACV estimator configurations."""
 
 from dataclasses import dataclass
 from typing import (
-    Callable,
     Generic,
     Iterator,
     List,
@@ -12,39 +11,25 @@ from typing import (
     TYPE_CHECKING,
 )
 
-if TYPE_CHECKING:
-    from pyapprox.typing.statest.acv.base import ACVEstimator
-
 from pyapprox.typing.util.backends.protocols import Array, Backend
-from pyapprox.typing.statest.statistics import MultiOutputStatistic
-from pyapprox.typing.statest.acv.allocation import (
-    Allocator,
-    AllocationResult,
-    default_allocator_factory,
-)
-from pyapprox.typing.statest.acv.strategies import (
-    RecursionIndexStrategy,
-    DefaultRecursionStrategy,
-)
-from pyapprox.typing.statest.strategies import (
-    ModelSubsetStrategy,
-    AllModelsStrategy,
-    QoISubsetStrategy,
-    AllQoIStrategy,
-)
+from pyapprox.typing.statest.strategies import ModelSubsetStrategy, QoISubsetStrategy
+
+if TYPE_CHECKING:
+    from pyapprox.typing.statest.groupacv.base import BaseGroupACVEstimator
+    from pyapprox.typing.statest.groupacv.allocation import AllocationResult
+    from pyapprox.typing.statest.statistics import MultiOutputStatistic
 
 
 @dataclass
-class SearchResult(Generic[Array]):
-    """Result of estimator configuration search."""
+class GroupACVSearchResult(Generic[Array]):
+    """Result of GroupACV estimator configuration search."""
 
-    estimator: "ACVEstimator[Array]"
-    allocation: AllocationResult[Array]
-    all_allocations: List[Tuple["ACVEstimator[Array]", AllocationResult[Array]]]
+    estimator: "BaseGroupACVEstimator[Array]"
+    allocation: "AllocationResult[Array]"
+    all_allocations: List[Tuple["BaseGroupACVEstimator[Array]", "AllocationResult[Array]"]]
 
-    # Strategies and config used (for traceability)
-    estimator_classes: List[Type["ACVEstimator[Array]"]]
-    recursion_strategy: RecursionIndexStrategy
+    # Search configuration
+    estimator_classes: List[Type["BaseGroupACVEstimator[Array]"]]
     model_strategy: ModelSubsetStrategy
     qoi_strategy: QoISubsetStrategy
 
@@ -58,7 +43,7 @@ class SearchResult(Generic[Array]):
 
     def successful_allocations(
         self,
-    ) -> List[Tuple["ACVEstimator[Array]", AllocationResult[Array]]]:
+    ) -> List[Tuple["BaseGroupACVEstimator[Array]", "AllocationResult[Array]"]]:
         """Return list of (estimator, allocation) pairs for successful allocations."""
         return [(est, alloc) for est, alloc in self.all_allocations if alloc.success]
 
@@ -68,21 +53,17 @@ class SearchResult(Generic[Array]):
         return (
             f"Estimators: {est_names}; "
             f"Models: {self.model_strategy.description()}; "
-            f"QoI: {self.qoi_strategy.description()}; "
-            f"Recursion: {self.recursion_strategy.description()}"
+            f"QoI: {self.qoi_strategy.description()}"
         )
 
 
-class ACVSearch(Generic[Array]):
-    """Unified search over all ACV configuration dimensions.
+class GroupACVSearch(Generic[Array]):
+    """Search over GroupACV estimator configurations.
 
     Searches the Cartesian product of:
-    - Estimator types
-    - Model subsets
-    - QoI subsets
-    - Recursion indices
-
-    Unprovided strategies default to "no search" (single configuration).
+    - Estimator types (MLBLUE, GroupACVIS, GroupACVNested)
+    - Model subsets (which models to include)
+    - QoI subsets (which quantities to estimate)
 
     Parameters
     ----------
@@ -90,42 +71,41 @@ class ACVSearch(Generic[Array]):
         The statistic containing pilot quantities.
     costs : Array
         Model costs, shape (nmodels,).
-    estimator_classes : List[Type[ACVEstimator]], optional
-        Estimator classes to search. Defaults to [GMFEstimator].
+    estimator_classes : List[Type[BaseGroupACVEstimator]], optional
+        Estimator classes to search. Defaults to [MLBLUEEstimator].
     model_strategy : ModelSubsetStrategy, optional
         Strategy for model subset search. Defaults to AllModelsStrategy.
     qoi_strategy : QoISubsetStrategy, optional
         Strategy for QoI subset search. Defaults to AllQoIStrategy.
-    recursion_strategy : RecursionIndexStrategy, optional
-        Strategy for recursion index search. Defaults to DefaultRecursionStrategy.
-    allocator_factory : Callable, optional
-        Factory for creating allocators. Defaults to default_allocator_factory.
+    optimizer : optional
+        Optimizer for allocation.
+    objective : optional
+        Objective for allocation.
     """
 
     def __init__(
         self,
-        stat: MultiOutputStatistic[Array],
+        stat: "MultiOutputStatistic[Array]",
         costs: Array,
-        estimator_classes: Optional[List[Type["ACVEstimator[Array]"]]] = None,
+        estimator_classes: Optional[List[Type["BaseGroupACVEstimator[Array]"]]] = None,
         model_strategy: Optional[ModelSubsetStrategy] = None,
         qoi_strategy: Optional[QoISubsetStrategy] = None,
-        recursion_strategy: Optional[RecursionIndexStrategy] = None,
-        allocator_factory: Optional[
-            Callable[["ACVEstimator[Array]"], Allocator[Array]]
-        ] = None,
+        optimizer: Optional[object] = None,
+        objective: Optional[object] = None,
     ) -> None:
-        from pyapprox.typing.statest.acv.variants import GMFEstimator
+        from pyapprox.typing.statest.strategies import AllModelsStrategy, AllQoIStrategy
+        from pyapprox.typing.statest.groupacv.mlblue import MLBLUEEstimator
 
         self._stat = stat
         self._costs = costs
         self._bkd: Backend[Array] = stat.bkd()
         self._nmodels = len(costs)
         self._nqoi = stat.nqoi()
-        self._estimator_classes = estimator_classes or [GMFEstimator]
+        self._estimator_classes = estimator_classes or [MLBLUEEstimator]
         self._model_strategy = model_strategy or AllModelsStrategy()
         self._qoi_strategy = qoi_strategy or AllQoIStrategy()
-        self._recursion_strategy = recursion_strategy or DefaultRecursionStrategy()
-        self._allocator_factory = allocator_factory or default_allocator_factory
+        self._optimizer = optimizer
+        self._objective = objective
 
     def bkd(self) -> Backend[Array]:
         """Return the backend."""
@@ -133,35 +113,30 @@ class ACVSearch(Generic[Array]):
 
     def _iter_configs(
         self,
-    ) -> Iterator[Tuple[Type["ACVEstimator[Array]"], List[int], List[int], Array]]:
-        """Yield all (est_class, model_indices, qoi_indices, recursion_idx) tuples."""
+    ) -> Iterator[Tuple[Type["BaseGroupACVEstimator[Array]"], List[int], List[int]]]:
+        """Yield all (est_class, model_indices, qoi_indices) tuples."""
         for est_class in self._estimator_classes:
             for model_indices in self._model_strategy.subsets(self._nmodels):
-                subset_nmodels = len(model_indices)
                 for qoi_indices in self._qoi_strategy.subsets(self._nqoi):
-                    for recursion_idx in self._recursion_strategy.indices(
-                        subset_nmodels, self._bkd
-                    ):
-                        yield est_class, model_indices, qoi_indices, recursion_idx
+                    yield est_class, model_indices, qoi_indices
 
     def _create_estimator(
         self,
-        est_class: Type["ACVEstimator[Array]"],
+        est_class: Type["BaseGroupACVEstimator[Array]"],
         model_indices: List[int],
         qoi_indices: List[int],
-        recursion_idx: Array,
-    ) -> "ACVEstimator[Array]":
+    ) -> "BaseGroupACVEstimator[Array]":
         """Create estimator from config."""
         subset_stat = self._stat.subset(model_indices, qoi_indices)
         costs_np = self._bkd.to_numpy(self._costs)
         subset_costs = self._bkd.array([costs_np[i] for i in model_indices])
-        return est_class(subset_stat, subset_costs, recursion_index=recursion_idx)
+        return est_class(subset_stat, subset_costs, model_subsets=None)
 
     def search(
         self,
         target_cost: float,
         allow_failures: bool = False,
-    ) -> SearchResult[Array]:
+    ) -> GroupACVSearchResult[Array]:
         """Search all configuration dimensions.
 
         Parameters
@@ -170,29 +145,28 @@ class ACVSearch(Generic[Array]):
             The computational budget.
         allow_failures : bool
             If True, continue searching even when allocations fail.
-            If False (default), raise RuntimeError on first failure.
 
         Returns
         -------
-        SearchResult
+        GroupACVSearchResult
             Contains the best estimator/allocation and all candidates.
-
-        Raises
-        ------
-        RuntimeError
-            If allow_failures is False and any allocation fails, or if no
-            successful allocations are found.
         """
+        from pyapprox.typing.statest.groupacv.allocation import (
+            GroupACVAllocationOptimizer,
+        )
+
         all_allocations: List[
-            Tuple["ACVEstimator[Array]", AllocationResult[Array]]
+            Tuple["BaseGroupACVEstimator[Array]", "AllocationResult[Array]"]
         ] = []
 
-        for est_class, model_indices, qoi_indices, recursion_idx in self._iter_configs():
-            estimator = self._create_estimator(
-                est_class, model_indices, qoi_indices, recursion_idx
+        for est_class, model_indices, qoi_indices in self._iter_configs():
+            estimator = self._create_estimator(est_class, model_indices, qoi_indices)
+            allocator = GroupACVAllocationOptimizer(
+                estimator,
+                optimizer=self._optimizer,
+                objective=self._objective,
             )
-            allocator = self._allocator_factory(estimator)
-            result = allocator.allocate(target_cost)
+            result = allocator.optimize(target_cost)
             all_allocations.append((estimator, result))
 
             if not result.success and not allow_failures:
@@ -206,9 +180,9 @@ class ACVSearch(Generic[Array]):
     def _build_search_result(
         self,
         all_allocations: List[
-            Tuple["ACVEstimator[Array]", AllocationResult[Array]]
+            Tuple["BaseGroupACVEstimator[Array]", "AllocationResult[Array]"]
         ],
-    ) -> SearchResult[Array]:
+    ) -> GroupACVSearchResult[Array]:
         """Build result, selecting best allocation."""
         sorted_allocs = sorted(
             all_allocations,
@@ -221,13 +195,12 @@ class ACVSearch(Generic[Array]):
 
         for estimator, allocation in sorted_allocs:
             if allocation.success:
-                estimator.set_allocation(allocation)
-                return SearchResult(
+                estimator.set_npartition_samples(allocation.npartition_samples)
+                return GroupACVSearchResult(
                     estimator=estimator,
                     allocation=allocation,
                     all_allocations=sorted_allocs,
                     estimator_classes=self._estimator_classes,
-                    recursion_strategy=self._recursion_strategy,
                     model_strategy=self._model_strategy,
                     qoi_strategy=self._qoi_strategy,
                 )

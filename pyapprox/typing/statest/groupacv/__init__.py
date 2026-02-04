@@ -44,6 +44,11 @@ from pyapprox.typing.statest.groupacv.mlblue_optimizer import (
     MLBLUESPDAllocationOptimizer,
 )
 
+from pyapprox.typing.statest.groupacv.search import (
+    GroupACVSearch,
+    GroupACVSearchResult,
+)
+
 __all__ = [
     # Utility functions
     "get_model_subsets",
@@ -68,4 +73,7 @@ __all__ = [
     "GroupACVEstimatorIS",
     "GroupACVEstimatorNested",
     "MLBLUEEstimator",
+    # Search classes
+    "GroupACVSearch",
+    "GroupACVSearchResult",
 ]

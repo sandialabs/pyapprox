@@ -34,7 +34,7 @@ class MLBLUEEstimator(GroupACVEstimatorIS[Array]):
     reg_blue : float, optional
         Regularization parameter for BLUE. Default is 0.
 
-    subsets : List[Array], optional
+    model_subsets : List[Array], optional
         List of model subsets. If None, all subsets are generated.
 
     asketch : Array, optional
@@ -50,7 +50,7 @@ class MLBLUEEstimator(GroupACVEstimatorIS[Array]):
         stat: "MultiOutputStatistic",
         costs: Array,
         reg_blue: float = 0,
-        subsets: List[Array] = None,
+        model_subsets: List[Array] = None,
         asketch: Array = None,
         use_pseudo_inv: bool = True,
     ):
@@ -58,7 +58,7 @@ class MLBLUEEstimator(GroupACVEstimatorIS[Array]):
             stat,
             costs,
             reg_blue,
-            subsets,
+            model_subsets,
             asketch=asketch,
             use_pseudo_inv=use_pseudo_inv,
         )
