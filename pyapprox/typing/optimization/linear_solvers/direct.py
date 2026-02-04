@@ -1,6 +1,6 @@
-"""Direct linear solver for spectral collocation methods.
+"""Direct linear solver.
 
-Wraps backend solve function for direct solution of linear systems.
+Wraps backend solve function for direct solution of linear systems Ax = b.
 """
 
 from typing import Generic

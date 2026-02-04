@@ -1,13 +1,15 @@
-"""Preconditioned Conjugate Gradient solver for spectral collocation methods.
+"""Preconditioned Conjugate Gradient solver.
 
 Implements PCG algorithm for symmetric positive definite systems with
 optional preconditioning.
 """
 
-from typing import Generic, Optional, Tuple, Callable, Union
+from typing import Generic, Optional, Tuple, Callable
 
 from pyapprox.typing.util.backends.protocols import Array, Backend
-from pyapprox.typing.pde.collocation.protocols import PreconditionerProtocol
+from pyapprox.typing.optimization.linear_solvers.protocols import (
+    PreconditionerProtocol,
+)
 
 
 class PreconditionedConjugateGradient(Generic[Array]):

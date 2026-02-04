@@ -1,6 +1,6 @@
-"""Conjugate Gradient solver for spectral collocation methods.
+"""Conjugate Gradient solver for symmetric positive definite systems.
 
-Implements the standard CG algorithm for symmetric positive definite systems.
+Implements the standard CG algorithm for solving Ax = b where A is SPD.
 """
 
 from typing import Generic, Optional, Tuple, Callable

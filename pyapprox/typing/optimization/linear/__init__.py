@@ -3,6 +3,11 @@
 This module provides various solvers for finding coefficients
 that minimize different objectives involving basis matrices.
 
+.. note::
+    This module may be renamed to ``regression`` in a future release
+    to better describe its purpose and distinguish it from
+    ``linear_solvers/`` (exact Ax=b solvers).
+
 Solver Categories
 -----------------
 Least Squares
@@ -19,6 +24,9 @@ Quantile
     - QuantileRegressionSolver: Quantile regression via LP
     - ExpectileRegressionSolver: Expectile regression via IRLS
 """
+
+# TODO: Consider renaming this module to 'regression' to distinguish from
+# 'linear_solvers/' which handles exact Ax=b.
 
 from pyapprox.typing.optimization.linear.base import (
     LinearSystemSolver,

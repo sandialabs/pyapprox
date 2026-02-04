@@ -1,10 +1,12 @@
-"""Iterative solvers for spectral collocation methods."""
+"""Iterative solvers for spectral collocation methods.
 
-from pyapprox.typing.pde.collocation.solvers.iterative.cg import (
+DEPRECATED: Moved to pyapprox.typing.optimization.linear_solvers.iterative.
+"""
+
+# Re-export from new location for backward compatibility
+from pyapprox.typing.optimization.linear_solvers.iterative import (
     ConjugateGradient,
     cg_solve,
-)
-from pyapprox.typing.pde.collocation.solvers.iterative.pcg import (
     PreconditionedConjugateGradient,
     pcg_solve,
 )

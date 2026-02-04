@@ -1,10 +1,6 @@
-"""Preconditioners for iterative solvers.
+"""Preconditioners for iterative solvers."""
 
-DEPRECATED: Moved to pyapprox.typing.optimization.linear_solvers.preconditioners.
-"""
-
-# Re-export from new location for backward compatibility
-from pyapprox.typing.optimization.linear_solvers.preconditioners import (
+from pyapprox.typing.optimization.linear_solvers.preconditioners.jacobi import (
     JacobiPreconditioner,
     BlockJacobiPreconditioner,
     jacobi_preconditioner,

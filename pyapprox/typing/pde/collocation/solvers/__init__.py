@@ -1,16 +1,21 @@
-"""Solvers module for spectral collocation methods."""
+"""Solvers for spectral collocation methods.
 
-from pyapprox.typing.pde.collocation.solvers.direct import (
+DEPRECATED: Solvers have moved to pyapprox.typing.optimization.linear_solvers.
+This module re-exports for backward compatibility.
+
+Import from the new location instead::
+
+    from pyapprox.typing.optimization.linear_solvers import DirectSolver
+"""
+
+# Re-export from new location for backward compatibility
+from pyapprox.typing.optimization.linear_solvers import (
     DirectSolver,
     direct_solve,
-)
-from pyapprox.typing.pde.collocation.solvers.iterative import (
     ConjugateGradient,
     cg_solve,
     PreconditionedConjugateGradient,
     pcg_solve,
-)
-from pyapprox.typing.pde.collocation.solvers.preconditioners import (
     JacobiPreconditioner,
     BlockJacobiPreconditioner,
     jacobi_preconditioner,

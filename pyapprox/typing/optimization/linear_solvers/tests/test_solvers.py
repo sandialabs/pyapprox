@@ -1,7 +1,4 @@
-"""Tests for linear solvers (backward compatibility).
-
-Tests that the collocation module re-exports work correctly.
-"""
+"""Tests for linear solvers."""
 
 import unittest
 from typing import Generic
@@ -9,15 +6,19 @@ from typing import Generic
 from pyapprox.typing.util.backends.protocols import Array, Backend
 from pyapprox.typing.util.backends.numpy import NumpyBkd
 from pyapprox.typing.util.test_utils import load_tests  # noqa: F401
-
-# Import via backward-compatible re-exports
-from pyapprox.typing.pde.collocation.solvers import (
+from pyapprox.typing.optimization.linear_solvers.direct import (
     DirectSolver,
     direct_solve,
+)
+from pyapprox.typing.optimization.linear_solvers.iterative.cg import (
     ConjugateGradient,
     cg_solve,
+)
+from pyapprox.typing.optimization.linear_solvers.iterative.pcg import (
     PreconditionedConjugateGradient,
     pcg_solve,
+)
+from pyapprox.typing.optimization.linear_solvers.preconditioners.jacobi import (
     JacobiPreconditioner,
     BlockJacobiPreconditioner,
     jacobi_preconditioner,
