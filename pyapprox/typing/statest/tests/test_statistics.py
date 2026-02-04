@@ -176,6 +176,60 @@ class TestMultiOutputMean(Generic[Array], unittest.TestCase):
             self._bkd.asarray([1])
         )
 
+    def test_subset_creates_valid_statistic(self) -> None:
+        """Test subset creates a valid statistic for model subset."""
+        nqoi = 2
+        nmodels = 4
+        stat = MultiOutputMean(nqoi, self._bkd)
+        # Create a covariance matrix
+        cov = self._bkd.eye(nmodels * nqoi) * 2.0
+        stat.set_pilot_quantities(cov)
+
+        # Create subset with models 0, 1, 3
+        subset_stat = stat.subset([0, 1, 3])
+
+        # Check nmodels is updated
+        self._bkd.assert_allclose(
+            self._bkd.asarray([subset_stat._nmodels]),
+            self._bkd.asarray([3])
+        )
+        # Check nqoi is preserved
+        self._bkd.assert_allclose(
+            self._bkd.asarray([subset_stat._nqoi]),
+            self._bkd.asarray([nqoi])
+        )
+
+    def test_subset_requires_model_zero(self) -> None:
+        """Test subset raises ValueError if 0 not in model_indices."""
+        nqoi = 2
+        nmodels = 3
+        stat = MultiOutputMean(nqoi, self._bkd)
+        cov = self._bkd.eye(nmodels * nqoi)
+        stat.set_pilot_quantities(cov)
+
+        with self.assertRaises(ValueError) as ctx:
+            stat.subset([1, 2])
+        self.assertIn("must include 0", str(ctx.exception))
+
+    def test_subset_covariance_shape(self) -> None:
+        """Test subset statistic has correct covariance shape."""
+        nqoi = 2
+        nmodels = 4
+        stat = MultiOutputMean(nqoi, self._bkd)
+        # Create a covariance matrix with distinct values
+        cov = self._bkd.asarray(np.random.randn(nmodels * nqoi, nmodels * nqoi))
+        cov = cov @ cov.T  # Make positive definite
+        stat.set_pilot_quantities(cov)
+
+        # Create subset with models 0, 2
+        subset_stat = stat.subset([0, 2])
+
+        # Expected shape: (2*nqoi, 2*nqoi) = (4, 4)
+        self._bkd.assert_allclose(
+            self._bkd.asarray([subset_stat._cov.shape[0], subset_stat._cov.shape[1]]),
+            self._bkd.asarray([2 * nqoi, 2 * nqoi])
+        )
+
     def test_compute_pilot_quantities(self) -> None:
         """Test compute_pilot_quantities computes covariance."""
         nqoi = 2
@@ -232,6 +286,69 @@ class TestMultiOutputVariance(Generic[Array], unittest.TestCase):
             self._bkd.asarray([1])
         )
 
+    def test_subset_creates_valid_statistic(self) -> None:
+        """Test subset creates a valid statistic for model subset."""
+        nqoi = 2
+        nmodels = 4
+        stat = MultiOutputVariance(nqoi, self._bkd)
+        # Create pilot quantities
+        cov = self._bkd.eye(nmodels * nqoi) * 2.0
+        W = self._bkd.eye(nmodels * nqoi**2)
+        stat.set_pilot_quantities(cov, W)
+
+        # Create subset with models 0, 1, 3
+        subset_stat = stat.subset([0, 1, 3])
+
+        # Check nmodels is updated
+        self._bkd.assert_allclose(
+            self._bkd.asarray([subset_stat._nmodels]),
+            self._bkd.asarray([3])
+        )
+        # Check nqoi is preserved
+        self._bkd.assert_allclose(
+            self._bkd.asarray([subset_stat._nqoi]),
+            self._bkd.asarray([nqoi])
+        )
+        # Check tril is preserved
+        self.assertEqual(subset_stat._tril, stat._tril)
+
+    def test_subset_requires_model_zero(self) -> None:
+        """Test subset raises ValueError if 0 not in model_indices."""
+        nqoi = 2
+        nmodels = 3
+        stat = MultiOutputVariance(nqoi, self._bkd)
+        cov = self._bkd.eye(nmodels * nqoi)
+        W = self._bkd.eye(nmodels * nqoi**2)
+        stat.set_pilot_quantities(cov, W)
+
+        with self.assertRaises(ValueError) as ctx:
+            stat.subset([1, 2])
+        self.assertIn("must include 0", str(ctx.exception))
+
+    def test_subset_pilot_quantities_shapes(self) -> None:
+        """Test subset statistic has correct pilot quantities shapes."""
+        nqoi = 2
+        nmodels = 4
+        stat = MultiOutputVariance(nqoi, self._bkd)
+        cov = self._bkd.eye(nmodels * nqoi) * 2.0
+        W = self._bkd.eye(nmodels * nqoi**2)
+        stat.set_pilot_quantities(cov, W)
+
+        # Create subset with models 0, 2
+        subset_stat = stat.subset([0, 2])
+        nsub = 2
+
+        # Expected cov shape: (nsub*nqoi, nsub*nqoi)
+        self._bkd.assert_allclose(
+            self._bkd.asarray([subset_stat._cov.shape[0], subset_stat._cov.shape[1]]),
+            self._bkd.asarray([nsub * nqoi, nsub * nqoi])
+        )
+        # Expected W shape: (nsub*nqoi^2, nsub*nqoi^2)
+        self._bkd.assert_allclose(
+            self._bkd.asarray([subset_stat._W.shape[0], subset_stat._W.shape[1]]),
+            self._bkd.asarray([nsub * nqoi**2, nsub * nqoi**2])
+        )
+
 
 class TestMultiOutputMeanAndVariance(Generic[Array], unittest.TestCase):
     """Test MultiOutputMeanAndVariance class."""
@@ -281,6 +398,77 @@ class TestMultiOutputMeanAndVariance(Generic[Array], unittest.TestCase):
         B = self._bkd.zeros((nmodels * nqoi, nmodels * nqoi**2))
         with self.assertRaises(ValueError):
             stat.set_pilot_quantities(cov, W_wrong, B)
+
+    def test_subset_creates_valid_statistic(self) -> None:
+        """Test subset creates a valid statistic for model subset."""
+        nqoi = 2
+        nmodels = 4
+        stat = MultiOutputMeanAndVariance(nqoi, self._bkd)
+        # Create pilot quantities
+        cov = self._bkd.eye(nmodels * nqoi) * 2.0
+        W = self._bkd.eye(nmodels * nqoi**2)
+        B = self._bkd.zeros((nmodels * nqoi, nmodels * nqoi**2))
+        stat.set_pilot_quantities(cov, W, B)
+
+        # Create subset with models 0, 1, 3
+        subset_stat = stat.subset([0, 1, 3])
+
+        # Check nmodels is updated
+        self._bkd.assert_allclose(
+            self._bkd.asarray([subset_stat._nmodels]),
+            self._bkd.asarray([3])
+        )
+        # Check nqoi is preserved
+        self._bkd.assert_allclose(
+            self._bkd.asarray([subset_stat._nqoi]),
+            self._bkd.asarray([nqoi])
+        )
+        # Check tril is preserved
+        self.assertEqual(subset_stat._tril, stat._tril)
+
+    def test_subset_requires_model_zero(self) -> None:
+        """Test subset raises ValueError if 0 not in model_indices."""
+        nqoi = 2
+        nmodels = 3
+        stat = MultiOutputMeanAndVariance(nqoi, self._bkd)
+        cov = self._bkd.eye(nmodels * nqoi)
+        W = self._bkd.eye(nmodels * nqoi**2)
+        B = self._bkd.zeros((nmodels * nqoi, nmodels * nqoi**2))
+        stat.set_pilot_quantities(cov, W, B)
+
+        with self.assertRaises(ValueError) as ctx:
+            stat.subset([1, 2])
+        self.assertIn("must include 0", str(ctx.exception))
+
+    def test_subset_pilot_quantities_shapes(self) -> None:
+        """Test subset statistic has correct pilot quantities shapes."""
+        nqoi = 2
+        nmodels = 4
+        stat = MultiOutputMeanAndVariance(nqoi, self._bkd)
+        cov = self._bkd.eye(nmodels * nqoi) * 2.0
+        W = self._bkd.eye(nmodels * nqoi**2)
+        B = self._bkd.zeros((nmodels * nqoi, nmodels * nqoi**2))
+        stat.set_pilot_quantities(cov, W, B)
+
+        # Create subset with models 0, 2
+        subset_stat = stat.subset([0, 2])
+        nsub = 2
+
+        # Expected cov shape: (nsub*nqoi, nsub*nqoi)
+        self._bkd.assert_allclose(
+            self._bkd.asarray([subset_stat._cov.shape[0], subset_stat._cov.shape[1]]),
+            self._bkd.asarray([nsub * nqoi, nsub * nqoi])
+        )
+        # Expected W shape: (nsub*nqoi^2, nsub*nqoi^2)
+        self._bkd.assert_allclose(
+            self._bkd.asarray([subset_stat._W.shape[0], subset_stat._W.shape[1]]),
+            self._bkd.asarray([nsub * nqoi**2, nsub * nqoi**2])
+        )
+        # Expected B shape: (nsub*nqoi, nsub*nqoi^2)
+        self._bkd.assert_allclose(
+            self._bkd.asarray([subset_stat._B.shape[0], subset_stat._B.shape[1]]),
+            self._bkd.asarray([nsub * nqoi, nsub * nqoi**2])
+        )
 
 
 # NumPy backend tests

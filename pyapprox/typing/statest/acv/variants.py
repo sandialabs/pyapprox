@@ -425,6 +425,30 @@ class MFMCEstimator(GMFEstimator[Array], Generic[Array]):
         )
         return nsample_ratios, val
 
+    def _allocate_samples_analytical(self, target_cost: float):
+        """Analytical allocation for MFMC.
+
+        Returns partition_ratios and objective_value as Arrays to support
+        the AnalyticalAllocator interface. This is a wrapper around
+        _allocate_samples() that ensures the objective_value has shape (1,).
+
+        Parameters
+        ----------
+        target_cost : float
+            The total computational budget.
+
+        Returns
+        -------
+        partition_ratios : Array, shape (nmodels-1,)
+            The partition ratios for sample allocation.
+        objective_value : Array, shape (1,)
+            The log-variance of the estimator.
+        """
+        partition_ratios, log_variance = self._allocate_samples(target_cost)
+        # Ensure objective_value is Array with shape (1,)
+        objective_value = self._bkd.atleast_1d(log_variance)
+        return partition_ratios, objective_value
+
     def _native_ratios_to_npartition_ratios(self, ratios: Array):
         partition_ratios = self._bkd.hstack(
             (ratios[0] - 1, self._bkd.diff(ratios))
@@ -494,6 +518,30 @@ class MLMCEstimator(GRDEstimator[Array], Generic[Array]):
             self._bkd,
         )
         return self._bkd.asarray(nsample_ratios), val
+
+    def _allocate_samples_analytical(self, target_cost: float):
+        """Analytical allocation for MLMC.
+
+        Returns partition_ratios and objective_value as Arrays to support
+        the AnalyticalAllocator interface. This is a wrapper around
+        _allocate_samples() that ensures the objective_value has shape (1,).
+
+        Parameters
+        ----------
+        target_cost : float
+            The total computational budget.
+
+        Returns
+        -------
+        partition_ratios : Array, shape (nmodels-1,)
+            The partition ratios for sample allocation.
+        objective_value : Array, shape (1,)
+            The log-variance of the estimator.
+        """
+        partition_ratios, log_variance = self._allocate_samples(target_cost)
+        # Ensure objective_value is Array with shape (1,)
+        objective_value = self._bkd.atleast_1d(log_variance)
+        return partition_ratios, objective_value
 
     def _create_allocation_matrix(self, dummy: Array) -> Array:
         self._allocation_mat = _get_sample_allocation_matrix_mlmc(

@@ -693,6 +693,27 @@ class MultiOutputStatistic(ABC, Generic[Array]):
     ) -> Tuple:
         raise NotImplementedError
 
+    @abstractmethod
+    def subset(self, model_indices: List[int]) -> "MultiOutputStatistic[Array]":
+        """Create statistic for a subset of models.
+
+        Parameters
+        ----------
+        model_indices : List[int]
+            Indices of models to include. Must include 0 (high-fidelity model).
+
+        Returns
+        -------
+        MultiOutputStatistic
+            New statistic instance for the model subset.
+
+        Raises
+        ------
+        ValueError
+            If model_indices does not include 0.
+        """
+        raise NotImplementedError
+
     def __repr__(self) -> str:
         return "{0}(nmodels={1}, nqoi={2}, nstats={3})".format(
             self.__class__.__name__, self._nmodels, self._nqoi, self.nstats()
@@ -819,6 +840,36 @@ class MultiOutputMean(MultiOutputStatistic[Array]):
             self._cov, nmodels, nqoi, model_idx, qoi_idx, self._bkd
         )
         return (cov_sub,)
+
+    def subset(self, model_indices: List[int]) -> "MultiOutputMean[Array]":
+        """Create statistic for a subset of models.
+
+        Parameters
+        ----------
+        model_indices : List[int]
+            Indices of models to include. Must include 0 (high-fidelity model).
+
+        Returns
+        -------
+        MultiOutputMean
+            New statistic instance for the model subset.
+
+        Raises
+        ------
+        ValueError
+            If model_indices does not include 0.
+        """
+        if 0 not in model_indices:
+            raise ValueError("model_indices must include 0 (high-fidelity)")
+
+        model_idx = self._bkd.array(model_indices, dtype=int)
+        (cov_sub,) = self.get_pilot_quantities_subset(
+            self._nmodels, self._nqoi, model_idx
+        )
+
+        new_stat: MultiOutputMean[Array] = MultiOutputMean(self._nqoi, self._bkd)
+        new_stat.set_pilot_quantities(cov_sub)
+        return new_stat
 
     def min_nsamples(self) -> int:
         return 1
@@ -1046,6 +1097,38 @@ class MultiOutputVariance(MultiOutputStatistic[Array]):
             self._W, nmodels, nqoi, model_idx, qoi_idx, self._bkd
         )
         return cov_sub, W_sub
+
+    def subset(self, model_indices: List[int]) -> "MultiOutputVariance[Array]":
+        """Create statistic for a subset of models.
+
+        Parameters
+        ----------
+        model_indices : List[int]
+            Indices of models to include. Must include 0 (high-fidelity model).
+
+        Returns
+        -------
+        MultiOutputVariance
+            New statistic instance for the model subset.
+
+        Raises
+        ------
+        ValueError
+            If model_indices does not include 0.
+        """
+        if 0 not in model_indices:
+            raise ValueError("model_indices must include 0 (high-fidelity)")
+
+        model_idx = self._bkd.array(model_indices, dtype=int)
+        cov_sub, W_sub = self.get_pilot_quantities_subset(
+            self._nmodels, self._nqoi, model_idx
+        )
+
+        new_stat: MultiOutputVariance[Array] = MultiOutputVariance(
+            self._nqoi, self._bkd, tril=self._tril
+        )
+        new_stat.set_pilot_quantities(cov_sub, W_sub)
+        return new_stat
 
     def min_nsamples(self) -> int:
         return 1
@@ -1334,6 +1417,40 @@ class MultiOutputMeanAndVariance(MultiOutputStatistic[Array]):
             self._B, nmodels, nqoi, model_idx, qoi_idx, self._bkd
         )
         return cov_sub, W_sub, B_sub
+
+    def subset(
+        self, model_indices: List[int]
+    ) -> "MultiOutputMeanAndVariance[Array]":
+        """Create statistic for a subset of models.
+
+        Parameters
+        ----------
+        model_indices : List[int]
+            Indices of models to include. Must include 0 (high-fidelity model).
+
+        Returns
+        -------
+        MultiOutputMeanAndVariance
+            New statistic instance for the model subset.
+
+        Raises
+        ------
+        ValueError
+            If model_indices does not include 0.
+        """
+        if 0 not in model_indices:
+            raise ValueError("model_indices must include 0 (high-fidelity)")
+
+        model_idx = self._bkd.array(model_indices, dtype=int)
+        cov_sub, W_sub, B_sub = self.get_pilot_quantities_subset(
+            self._nmodels, self._nqoi, model_idx
+        )
+
+        new_stat: MultiOutputMeanAndVariance[Array] = MultiOutputMeanAndVariance(
+            self._nqoi, self._bkd, tril=self._tril
+        )
+        new_stat.set_pilot_quantities(cov_sub, W_sub, B_sub)
+        return new_stat
 
     def min_nsamples(self) -> int:
         return 1
