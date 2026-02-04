@@ -13,6 +13,7 @@ from pyapprox.typing.util.backends.numpy import NumpyBkd
 from pyapprox.typing.util.backends.torch import TorchBkd
 from pyapprox.typing.util.backends.protocols import Array
 from pyapprox.typing.util.cartesian import (
+    cartesian_product,
     cartesian_product_indices,
     cartesian_product_samples,
     outer_product_weights,
@@ -238,6 +239,219 @@ class TestOuterProductWeightsNumpy(TestOuterProductWeights[NDArray[Any]]):
 
 class TestOuterProductWeightsTorch(TestOuterProductWeights[torch.Tensor]):
     """PyTorch backend tests for outer_product_weights."""
+
+    def bkd(self) -> TorchBkd:
+        return TorchBkd()
+
+    def setUp(self):
+        torch.set_default_dtype(torch.float64)
+        self._bkd = self.bkd()
+
+
+class TestFirstDimFastest(Generic[Array], unittest.TestCase):
+    """Base tests for first_dim_fastest ordering option.
+
+    These tests verify that the first_dim_fastest option produces Fortran-order
+    (column-major) iteration where the first dimension varies fastest. This
+    matches Kronecker product conventions used in spectral methods.
+    """
+
+    __test__ = False
+
+    def bkd(self):
+        raise NotImplementedError
+
+    def setUp(self):
+        self._bkd = self.bkd()
+
+    def test_cartesian_product_default_ordering(self):
+        """Test default ordering: last dimension varies fastest (C-order)."""
+        x = self._bkd.asarray([0, 1])
+        y = self._bkd.asarray([0, 1, 2])
+        result = cartesian_product(self._bkd, [x, y], first_dim_fastest=False)
+        # Last dim (y) varies fastest: (0,0), (0,1), (0,2), (1,0), (1,1), (1,2)
+        expected = self._bkd.asarray([
+            [0, 0, 0, 1, 1, 1],
+            [0, 1, 2, 0, 1, 2],
+        ])
+        self._bkd.assert_allclose(result, expected)
+
+    def test_cartesian_product_first_dim_fastest(self):
+        """Test first_dim_fastest: first dimension varies fastest (Fortran-order)."""
+        x = self._bkd.asarray([0, 1])
+        y = self._bkd.asarray([0, 1, 2])
+        result = cartesian_product(self._bkd, [x, y], first_dim_fastest=True)
+        # First dim (x) varies fastest: (0,0), (1,0), (0,1), (1,1), (0,2), (1,2)
+        expected = self._bkd.asarray([
+            [0, 1, 0, 1, 0, 1],
+            [0, 0, 1, 1, 2, 2],
+        ])
+        self._bkd.assert_allclose(result, expected)
+
+    def test_cartesian_product_indices_first_dim_fastest(self):
+        """Test cartesian_product_indices with first_dim_fastest."""
+        indices = cartesian_product_indices([2, 3], self._bkd, first_dim_fastest=True)
+        # First dim varies fastest
+        expected = self._bkd.asarray([
+            [0, 1, 0, 1, 0, 1],
+            [0, 0, 1, 1, 2, 2],
+        ])
+        self._bkd.assert_allclose(indices, expected)
+
+    def test_cartesian_product_samples_first_dim_fastest(self):
+        """Test cartesian_product_samples with first_dim_fastest."""
+        x = self._bkd.asarray([0.0, 1.0])
+        y = self._bkd.asarray([0.0, 0.5, 1.0])
+        samples = cartesian_product_samples([x, y], self._bkd, first_dim_fastest=True)
+        # First dim (x) varies fastest
+        expected = self._bkd.asarray([
+            [0.0, 1.0, 0.0, 1.0, 0.0, 1.0],
+            [0.0, 0.0, 0.5, 0.5, 1.0, 1.0],
+        ])
+        self._bkd.assert_allclose(samples, expected)
+
+    def test_3d_first_dim_fastest(self):
+        """Test 3D cartesian product with first_dim_fastest.
+
+        For 3 dimensions [x, y, z] with first_dim_fastest=True:
+        - x (dim 0) varies fastest
+        - y (dim 1) varies next
+        - z (dim 2) varies slowest
+        """
+        x = self._bkd.asarray([0, 1])
+        y = self._bkd.asarray([0, 1])
+        z = self._bkd.asarray([0, 1])
+        result = cartesian_product(self._bkd, [x, y, z], first_dim_fastest=True)
+
+        # Expected ordering with first_dim_fastest:
+        # (x,y,z): (0,0,0), (1,0,0), (0,1,0), (1,1,0), (0,0,1), (1,0,1), (0,1,1), (1,1,1)
+        expected = self._bkd.asarray([
+            [0, 1, 0, 1, 0, 1, 0, 1],  # x varies fastest
+            [0, 0, 1, 1, 0, 0, 1, 1],  # y varies next
+            [0, 0, 0, 0, 1, 1, 1, 1],  # z varies slowest
+        ])
+        self._bkd.assert_allclose(result, expected)
+
+    def test_kronecker_product_consistency(self):
+        """Test that first_dim_fastest matches Kronecker product ordering.
+
+        In Kronecker products: A ⊗ B has A varying slowest and B varying fastest.
+        So for tensor product of 1D bases, the first dimension should vary fastest
+        to match the standard Kronecker ordering used in spectral methods.
+        """
+        # Simulate 1D basis nodes
+        nodes_x = self._bkd.asarray([-1.0, 0.0, 1.0])  # 3 points
+        nodes_y = self._bkd.asarray([-1.0, 1.0])       # 2 points
+
+        # With first_dim_fastest, should match kron(I_y, I_x) ordering
+        samples = cartesian_product_samples(
+            [nodes_x, nodes_y], self._bkd, first_dim_fastest=True
+        )
+
+        # Expected: x varies fastest (cycles through -1, 0, 1 twice)
+        # For each y value, we get all x values
+        expected_x = self._bkd.asarray([-1.0, 0.0, 1.0, -1.0, 0.0, 1.0])
+        expected_y = self._bkd.asarray([-1.0, -1.0, -1.0, 1.0, 1.0, 1.0])
+
+        self._bkd.assert_allclose(samples[0, :], expected_x)
+        self._bkd.assert_allclose(samples[1, :], expected_y)
+
+    def test_1d_case_unaffected(self):
+        """Test that 1D case is unaffected by first_dim_fastest."""
+        x = self._bkd.asarray([0.0, 0.5, 1.0])
+        samples_default = cartesian_product_samples([x], self._bkd)
+        samples_first = cartesian_product_samples(
+            [x], self._bkd, first_dim_fastest=True
+        )
+        self._bkd.assert_allclose(samples_default, samples_first)
+
+    def test_outer_product_first_dim_fastest(self):
+        """Test outer_product with first_dim_fastest."""
+        from pyapprox.typing.util.cartesian import outer_product
+
+        x = self._bkd.asarray([1.0, 2.0])
+        y = self._bkd.asarray([3.0, 4.0, 5.0])
+
+        # Default: shape (2, 3), last dim varies fastest when flattened
+        result_default = outer_product(self._bkd, [x, y])
+        self.assertEqual(result_default.shape, (2, 3))
+        # Flattened: (1*3, 1*4, 1*5, 2*3, 2*4, 2*5) = (3, 4, 5, 6, 8, 10)
+        expected_flat_default = self._bkd.asarray([3.0, 4.0, 5.0, 6.0, 8.0, 10.0])
+        self._bkd.assert_allclose(self._bkd.ravel(result_default), expected_flat_default)
+
+        # first_dim_fastest: shape (3, 2), first dim varies fastest when flattened
+        result_first = outer_product(self._bkd, [x, y], first_dim_fastest=True)
+        self.assertEqual(result_first.shape, (3, 2))
+        # Flattened: (1*3, 2*3, 1*4, 2*4, 1*5, 2*5) = (3, 6, 4, 8, 5, 10)
+        expected_flat_first = self._bkd.asarray([3.0, 6.0, 4.0, 8.0, 5.0, 10.0])
+        self._bkd.assert_allclose(self._bkd.ravel(result_first), expected_flat_first)
+
+    def test_outer_product_weights_first_dim_fastest(self):
+        """Test outer_product_weights with first_dim_fastest."""
+        wx = self._bkd.asarray([1.0, 2.0])
+        wy = self._bkd.asarray([3.0, 4.0, 5.0])
+
+        # Default: last dim varies fastest
+        weights_default = outer_product_weights([wx, wy], self._bkd)
+        expected_default = self._bkd.asarray([3.0, 4.0, 5.0, 6.0, 8.0, 10.0])
+        self._bkd.assert_allclose(weights_default, expected_default)
+
+        # first_dim_fastest: first dim varies fastest
+        weights_first = outer_product_weights(
+            [wx, wy], self._bkd, first_dim_fastest=True
+        )
+        expected_first = self._bkd.asarray([3.0, 6.0, 4.0, 8.0, 5.0, 10.0])
+        self._bkd.assert_allclose(weights_first, expected_first)
+
+    def test_samples_weights_consistency(self):
+        """Test that samples and weights use consistent ordering.
+
+        This is the key property: weight[i] should be the weight for sample[:, i].
+        """
+        x_pts = self._bkd.asarray([0.0, 1.0])
+        y_pts = self._bkd.asarray([0.0, 0.5, 1.0])
+        x_wts = self._bkd.asarray([0.5, 0.5])
+        y_wts = self._bkd.asarray([1.0, 2.0, 3.0])
+
+        # With first_dim_fastest=True, both should have x varying fastest
+        samples = cartesian_product_samples(
+            [x_pts, y_pts], self._bkd, first_dim_fastest=True
+        )
+        weights = outer_product_weights(
+            [x_wts, y_wts], self._bkd, first_dim_fastest=True
+        )
+
+        # Check that the ordering is consistent
+        # At point (x=0, y=0), weight should be 0.5 * 1.0 = 0.5
+        # At point (x=1, y=0), weight should be 0.5 * 1.0 = 0.5
+        # At point (x=0, y=0.5), weight should be 0.5 * 2.0 = 1.0
+        # etc.
+
+        # Find which column has x=0, y=0 (should be column 0 with first_dim_fastest)
+        self._bkd.assert_allclose(samples[0, 0:1], self._bkd.asarray([0.0]))
+        self._bkd.assert_allclose(samples[1, 0:1], self._bkd.asarray([0.0]))
+        self._bkd.assert_allclose(weights[0:1], self._bkd.asarray([0.5]))
+
+        # Find which column has x=1, y=0 (should be column 1 with first_dim_fastest)
+        self._bkd.assert_allclose(samples[0, 1:2], self._bkd.asarray([1.0]))
+        self._bkd.assert_allclose(samples[1, 1:2], self._bkd.asarray([0.0]))
+        self._bkd.assert_allclose(weights[1:2], self._bkd.asarray([0.5]))
+
+        # Find which column has x=0, y=0.5 (should be column 2 with first_dim_fastest)
+        self._bkd.assert_allclose(samples[0, 2:3], self._bkd.asarray([0.0]))
+        self._bkd.assert_allclose(samples[1, 2:3], self._bkd.asarray([0.5]))
+        self._bkd.assert_allclose(weights[2:3], self._bkd.asarray([1.0]))
+
+
+class TestFirstDimFastestNumpy(TestFirstDimFastest):
+    """NumPy backend tests for first_dim_fastest."""
+
+    def bkd(self) -> NumpyBkd:
+        return NumpyBkd()
+
+
+class TestFirstDimFastestTorch(TestFirstDimFastest[torch.Tensor]):
+    """PyTorch backend tests for first_dim_fastest."""
 
     def bkd(self) -> TorchBkd:
         return TorchBkd()

@@ -23,7 +23,11 @@ from typing import List
 from pyapprox.typing.util.backends.protocols import Array, Backend
 
 
-def cartesian_product(bkd: Backend[Array], vectors: List[Array]) -> Array:
+def cartesian_product(
+    bkd: Backend[Array],
+    vectors: List[Array],
+    first_dim_fastest: bool = False,
+) -> Array:
     """Compute cartesian product of 1D vectors using meshgrid.
 
     Parameters
@@ -32,12 +36,15 @@ def cartesian_product(bkd: Backend[Array], vectors: List[Array]) -> Array:
         Computational backend (numpy or torch).
     vectors : List[Array]
         List of 1D arrays (at least 2 required).
+    first_dim_fastest : bool, optional
+        If False (default), last vector varies fastest (C-order).
+        If True, first vector varies fastest (Fortran-order), which
+        matches Kronecker product conventions used in spectral methods.
 
     Returns
     -------
     Array
         Cartesian product with shape (ndim, prod(lens)).
-        Last vector in input list varies fastest (C-order).
 
     Raises
     ------
@@ -50,9 +57,12 @@ def cartesian_product(bkd: Backend[Array], vectors: List[Array]) -> Array:
     >>> bkd = NumpyBkd()
     >>> x = bkd.asarray([0, 1])
     >>> y = bkd.asarray([0, 1, 2])
-    >>> cartesian_product(bkd, [x, y])
+    >>> cartesian_product(bkd, [x, y])  # last (y) varies fastest
     array([[0, 0, 0, 1, 1, 1],
            [0, 1, 2, 0, 1, 2]])
+    >>> cartesian_product(bkd, [x, y], first_dim_fastest=True)  # first (x) varies fastest
+    array([[0, 1, 0, 1, 0, 1],
+           [0, 0, 1, 1, 2, 2]])
     """
     if len(vectors) < 2:
         raise ValueError(
@@ -65,13 +75,24 @@ def cartesian_product(bkd: Backend[Array], vectors: List[Array]) -> Array:
     # Use meshgrid with indexing='ij' for C-order (last dim varies fastest)
     grids = bkd.meshgrid(*flat_vectors, indexing="ij")
 
+    if first_dim_fastest:
+        # Reverse the axis order so first dim varies fastest when flattened
+        # For ndim dimensions, transpose axes to (ndim-1, ndim-2, ..., 0)
+        ndim = len(vectors)
+        axes = tuple(range(ndim - 1, -1, -1))
+        grids = [bkd.transpose(g, axes) for g in grids]
+
     # Stack raveled grids: each grid flattened becomes a row
     # Result shape: (ndim, prod(lens))
     stacked = bkd.stack([bkd.ravel(g) for g in grids], axis=0)
     return stacked
 
 
-def outer_product(bkd: Backend[Array], vectors: List[Array]) -> Array:
+def outer_product(
+    bkd: Backend[Array],
+    vectors: List[Array],
+    first_dim_fastest: bool = False,
+) -> Array:
     """Compute outer product of 1D vectors using einsum.
 
     Parameters
@@ -80,11 +101,18 @@ def outer_product(bkd: Backend[Array], vectors: List[Array]) -> Array:
         Computational backend (numpy or torch).
     vectors : List[Array]
         List of 1D arrays (at least 2 required, max 26).
+    first_dim_fastest : bool, optional
+        If False (default), result has shape (len(v1), len(v2), ...) where
+        the last axis corresponds to the last vector (C-order).
+        If True, result is transposed so that when flattened, the first
+        dimension varies fastest (Fortran-order), matching Kronecker product
+        conventions used in spectral methods.
 
     Returns
     -------
     Array
-        Outer product with shape (len(v1), len(v2), ...).
+        Outer product with shape (len(v1), len(v2), ...) if first_dim_fastest=False,
+        or shape (len(vn), ..., len(v2), len(v1)) if first_dim_fastest=True.
 
     Raises
     ------
@@ -100,6 +128,8 @@ def outer_product(bkd: Backend[Array], vectors: List[Array]) -> Array:
     >>> outer_product(bkd, [x, y])
     array([[ 3.,  4.,  5.],
            [ 6.,  8., 10.]])
+    >>> outer_product(bkd, [x, y], first_dim_fastest=True).ravel()
+    array([ 3.,  6.,  4.,  8.,  5., 10.])
     """
     if len(vectors) < 2:
         raise ValueError(
@@ -117,15 +147,26 @@ def outer_product(bkd: Backend[Array], vectors: List[Array]) -> Array:
     subscripts = f"{inputs}->{output}"
 
     flat_vectors = [bkd.ravel(v) for v in vectors]
-    return bkd.einsum(subscripts, *flat_vectors)
+    result = bkd.einsum(subscripts, *flat_vectors)
+
+    if first_dim_fastest:
+        # Transpose so first dim varies fastest when flattened
+        ndim = len(vectors)
+        axes = tuple(range(ndim - 1, -1, -1))
+        result = bkd.transpose(result, axes)
+
+    return result
 
 
-def cartesian_product_indices(dims: List[int], bkd: Backend[Array]) -> Array:
+def cartesian_product_indices(
+    dims: List[int],
+    bkd: Backend[Array],
+    first_dim_fastest: bool = False,
+) -> Array:
     """Generate multi-indices for a full tensor product grid.
 
     Creates an array where each column represents a multi-index identifying
-    a point in the tensor product grid. The ordering has the last dimension
-    varying fastest (C-order / row-major).
+    a point in the tensor product grid.
 
     Parameters
     ----------
@@ -133,6 +174,9 @@ def cartesian_product_indices(dims: List[int], bkd: Backend[Array]) -> Array:
         Number of points in each dimension.
     bkd : Backend[Array]
         Computational backend.
+    first_dim_fastest : bool, optional
+        If False (default), last dimension varies fastest (C-order).
+        If True, first dimension varies fastest (Fortran-order).
 
     Returns
     -------
@@ -150,8 +194,9 @@ def cartesian_product_indices(dims: List[int], bkd: Backend[Array]) -> Array:
 
     Notes
     -----
-    The ordering convention (last dimension varies fastest) matches NumPy's
-    default array ordering and is consistent with sparse grid conventions.
+    The default ordering convention (last dimension varies fastest) matches
+    NumPy's default array ordering and is consistent with sparse grid
+    conventions. Use first_dim_fastest=True for Kronecker product conventions.
     """
     if len(dims) < 2:
         # Handle 1D case directly
@@ -162,16 +207,18 @@ def cartesian_product_indices(dims: List[int], bkd: Backend[Array]) -> Array:
         raise ValueError("dims must have at least 1 element")
 
     vectors = [bkd.arange(d, dtype=bkd.int64_dtype()) for d in dims]
-    return cartesian_product(bkd, vectors)
+    return cartesian_product(bkd, vectors, first_dim_fastest=first_dim_fastest)
 
 
 def cartesian_product_samples(
-    samples_1d: List[Array], bkd: Backend[Array]
+    samples_1d: List[Array],
+    bkd: Backend[Array],
+    first_dim_fastest: bool = False,
 ) -> Array:
     """Build tensor product of 1D sample locations.
 
     Creates a 2D array where each column represents a point in the tensor
-    product grid. The ordering has the last dimension varying fastest.
+    product grid.
 
     Parameters
     ----------
@@ -180,6 +227,9 @@ def cartesian_product_samples(
         shape (npts,) or 2D with shape (1, npts).
     bkd : Backend[Array]
         Computational backend.
+    first_dim_fastest : bool, optional
+        If False (default), last dimension varies fastest (C-order).
+        If True, first dimension varies fastest (Fortran-order).
 
     Returns
     -------
@@ -209,11 +259,13 @@ def cartesian_product_samples(
         raise ValueError("samples_1d must have at least 1 element")
 
     # cartesian_product already flattens inputs
-    return cartesian_product(bkd, samples_1d)
+    return cartesian_product(bkd, samples_1d, first_dim_fastest=first_dim_fastest)
 
 
 def outer_product_weights(
-    weights_1d: List[Array], bkd: Backend[Array]
+    weights_1d: List[Array],
+    bkd: Backend[Array],
+    first_dim_fastest: bool = False,
 ) -> Array:
     """Compute tensor product of 1D quadrature weights.
 
@@ -228,6 +280,10 @@ def outer_product_weights(
         shape (npts,) or 2D with shape (npts, 1) or (1, npts).
     bkd : Backend[Array]
         Computational backend.
+    first_dim_fastest : bool, optional
+        If False (default), last dimension varies fastest (C-order).
+        If True, first dimension varies fastest (Fortran-order), matching
+        Kronecker product conventions used in spectral methods.
 
     Returns
     -------
@@ -258,4 +314,4 @@ def outer_product_weights(
         raise ValueError("weights_1d must have at least 1 element")
 
     # outer_product returns shape (n1, n2, ...), flatten to 1D
-    return bkd.ravel(outer_product(bkd, weights_1d))
+    return bkd.ravel(outer_product(bkd, weights_1d, first_dim_fastest))

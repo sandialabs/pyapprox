@@ -8,6 +8,7 @@ from dataclasses import dataclass
 from typing import Generic, Tuple, List
 
 from pyapprox.typing.util.backends.protocols import Array, Backend
+from pyapprox.typing.util.cartesian import cartesian_product_samples
 
 
 @dataclass
@@ -113,37 +114,13 @@ def compute_cartesian_product(
     Array
         Cartesian product. Shape: (ndim, prod(npts_i))
         Points are ordered with first dimension varying fastest.
+
+    Notes
+    -----
+    This function uses first_dim_fastest=True ordering which matches
+    Kronecker product conventions used in spectral methods.
     """
-    ndim = len(arrays_1d)
-    npts_per_dim = tuple(arr.shape[0] for arr in arrays_1d)
-    total_pts = 1
-    for n in npts_per_dim:
-        total_pts *= n
-
-    # Build indices for each dimension
-    result = bkd.zeros((ndim, total_pts))
-
-    # Compute strides: dimension 0 varies fastest
-    stride = 1
-    for dim in range(ndim):
-        npts_dim = npts_per_dim[dim]
-        pts_1d = arrays_1d[dim]
-
-        # Repeat pattern for this dimension
-        # Each value repeats 'stride' times, pattern repeats total_pts/(stride*npts_dim) times
-        pattern_length = stride * npts_dim
-        num_patterns = total_pts // pattern_length
-
-        idx = 0
-        for _ in range(num_patterns):
-            for pt_idx in range(npts_dim):
-                for _ in range(stride):
-                    result[dim, idx] = pts_1d[pt_idx]
-                    idx += 1
-
-        stride *= npts_dim
-
-    return result
+    return cartesian_product_samples(arrays_1d, bkd, first_dim_fastest=True)
 
 
 def compute_boundary_indices_1d(npts: int, bkd: Backend[Array]) -> List[Array]:
