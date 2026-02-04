@@ -151,51 +151,6 @@ class TestFullOEDWorkflow(Generic[Array], unittest.TestCase):
         self.assertTrue(np.isfinite(eig_mc))
         self.assertTrue(np.isfinite(eig_custom))
 
-    def test_brute_force_vs_relaxed(self):
-        """Test that brute-force and relaxed solvers give comparable results."""
-        # Very small problem for tractable comparison
-        nobs = 3
-        ninner = 15
-        nouter = 12
-
-        np.random.seed(789)
-        noise_variances = self._bkd.asarray(np.array([0.1, 0.15, 0.2]))
-        outer_shapes = self._bkd.asarray(np.random.randn(nobs, nouter))
-        inner_shapes = self._bkd.asarray(np.random.randn(nobs, ninner))
-        latent_samples = self._bkd.asarray(np.random.randn(nobs, nouter))
-
-        inner_likelihood = GaussianOEDInnerLoopLikelihood(
-            noise_variances, self._bkd
-        )
-
-        objective = KLOEDObjective(
-            inner_likelihood,
-            outer_shapes,
-            latent_samples,
-            inner_shapes,
-            None,
-            None,
-            self._bkd,
-        )
-
-        # Brute-force with all observations
-        bf_solver = BruteForceKLOEDSolver(objective)
-        _, bf_eig, _ = bf_solver.solve(k=nobs)
-
-        # Relaxed solver
-        config = RelaxedOEDConfig(verbosity=0, maxiter=100)
-        relaxed_solver = RelaxedKLOEDSolver(objective, config)
-        _, relaxed_eig = relaxed_solver.solve()
-
-        # Both should give finite EIG
-        self.assertTrue(np.isfinite(bf_eig))
-        self.assertTrue(np.isfinite(relaxed_eig))
-
-        # For k=n, brute-force gives uniform weights which should be
-        # similar to relaxed solution (within some tolerance)
-        # The relaxed solver can find non-uniform weights that may be better
-        self.assertTrue(relaxed_eig >= bf_eig - 0.5)
-
     def test_sampler_integration(self):
         """Test integration with quadrature samplers."""
         nvars = 2

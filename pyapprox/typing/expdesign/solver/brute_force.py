@@ -30,6 +30,8 @@ class BruteForceKLOEDSolver(Generic[Array]):
         self._objective = objective
         self._bkd = objective.bkd()
         self._nobs = objective.nobs()
+        self._all_indices: List[Tuple[int, ...]] = []
+        self._all_eigs: List[float] = []
 
     def bkd(self) -> Backend[Array]:
         """Get the backend."""
@@ -56,22 +58,26 @@ class BruteForceKLOEDSolver(Generic[Array]):
         -------
         Array
             Design weights. Shape: (nobs, 1)
-            Selected indices have weight 1/k, others have weight eps.
+            Selected indices have weight 1.0, others have weight eps.
         """
-        k = len(indices)
         # Use small positive weight for unselected to avoid divide by zero
         weights = self._bkd.ones((self._nobs, 1)) * eps
         for idx in indices:
-            weights[idx, 0] = 1.0 / k
+            weights[idx, 0] = 1.0
         return weights
 
-    def solve(self, k: int) -> Tuple[Array, float, List[int]]:
+    def solve(
+        self, k: int, store_all: bool = False
+    ) -> Tuple[Array, float, List[int]]:
         """Find the optimal k-subset design.
 
         Parameters
         ----------
         k : int
             Number of observations to select.
+        store_all : bool, optional
+            If True, store all evaluated indices and EIG values for later
+            inspection via all_indices() and all_eigs(). Default False.
 
         Returns
         -------
@@ -98,10 +104,18 @@ class BruteForceKLOEDSolver(Generic[Array]):
         best_eig = -np.inf
         best_indices: List[int] = []
 
+        if store_all:
+            self._all_indices = []
+            self._all_eigs = []
+
         # Enumerate all k-subsets
         for indices in combinations(range(self._nobs), k):
             weights = self._indices_to_weights(indices)
             eig = self._objective.expected_information_gain(weights)
+
+            if store_all:
+                self._all_indices.append(indices)
+                self._all_eigs.append(eig)
 
             if eig > best_eig:
                 best_eig = eig
@@ -157,3 +171,28 @@ class BruteForceKLOEDSolver(Generic[Array]):
         """
         from math import comb
         return comb(self._nobs, k)
+
+    def all_indices(self) -> List[Tuple[int, ...]]:
+        """Get all evaluated design indices.
+
+        Only populated after solve() is called with store_all=True.
+
+        Returns
+        -------
+        List[Tuple[int, ...]]
+            List of index tuples for all evaluated designs.
+        """
+        return self._all_indices
+
+    def all_eigs(self) -> List[float]:
+        """Get all evaluated EIG values.
+
+        Only populated after solve() is called with store_all=True.
+
+        Returns
+        -------
+        List[float]
+            List of EIG values for all evaluated designs, in same order
+            as all_indices().
+        """
+        return self._all_eigs

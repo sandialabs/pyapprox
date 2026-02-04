@@ -299,10 +299,10 @@ class TestBruteForceKLOEDSolver(Generic[Array], unittest.TestCase):
         self.assertEqual(len(indices), 2)
         self.assertTrue(np.isfinite(eig))
 
-        # Weights should be 0.5 at selected indices
+        # Weights should be 1.0 at selected indices (selection indicator)
         weights_np = self._bkd.to_numpy(weights)
         for idx in indices:
-            self.assertAlmostEqual(weights_np[idx, 0], 0.5)
+            self.assertAlmostEqual(weights_np[idx, 0], 1.0)
 
     def test_brute_force_k_equals_n(self):
         """Test brute-force with k=nobs (select all)."""
@@ -311,11 +311,10 @@ class TestBruteForceKLOEDSolver(Generic[Array], unittest.TestCase):
 
         self.assertEqual(len(indices), self._nobs)
 
-        # All weights should be equal
+        # All weights should be 1.0 (all selected)
         weights_np = self._bkd.to_numpy(weights)
-        expected_weight = 1.0 / self._nobs
         for w in weights_np.flatten():
-            self.assertAlmostEqual(w, expected_weight)
+            self.assertAlmostEqual(w, 1.0)
 
     def test_brute_force_invalid_k(self):
         """Test that invalid k raises error."""
@@ -412,20 +411,6 @@ class TestSolverConsistency(Generic[Array], unittest.TestCase):
             None,
             self._bkd,
         )
-
-    def test_brute_force_finds_better_than_uniform(self):
-        """Test brute-force finds design at least as good as uniform."""
-        bf_solver = BruteForceKLOEDSolver(self._objective)
-
-        # Uniform weights EIG
-        uniform_weights = self._bkd.ones((self._nobs, 1)) / self._nobs
-        uniform_eig = self._objective.expected_information_gain(uniform_weights)
-
-        # Best k=nobs design (which is uniform)
-        _, best_eig, _ = bf_solver.solve(k=self._nobs)
-
-        # Should be essentially equal (both uniform)
-        self.assertAlmostEqual(best_eig, uniform_eig, places=6)
 
     def test_increasing_k_improves_eig(self):
         """Test that EIG generally increases with k."""

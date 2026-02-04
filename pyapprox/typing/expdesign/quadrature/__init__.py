@@ -11,6 +11,16 @@ from .halton import HaltonSampler
 from .sobol import SobolSampler
 from .gaussian import GaussianQuadratureSampler
 from .oed import OEDQuadratureSampler
+from .strategies import (
+    SamplerStrategy,
+    GaussStrategy,
+    MCStrategy,
+    HaltonStrategy,
+    SobolStrategy,
+    register_sampler,
+    get_sampler,
+    list_samplers,
+)
 
 __all__ = [
     "MonteCarloSampler",
@@ -18,4 +28,13 @@ __all__ = [
     "SobolSampler",
     "GaussianQuadratureSampler",
     "OEDQuadratureSampler",
+    # Sampler strategies
+    "SamplerStrategy",
+    "GaussStrategy",
+    "MCStrategy",
+    "HaltonStrategy",
+    "SobolStrategy",
+    "register_sampler",
+    "get_sampler",
+    "list_samplers",
 ]
