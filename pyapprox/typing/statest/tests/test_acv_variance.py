@@ -39,6 +39,8 @@ from pyapprox.typing.statest.acv.variants import (
     MLMCEstimator,
     ACVEstimator,
 )
+from pyapprox.typing.statest.acv.search import ACVSearch
+from pyapprox.typing.statest.acv.strategies import TreeDepthRecursionStrategy
 from pyapprox.typing.benchmarks.functions.multifidelity.multioutput_ensemble import (
     MultiOutputModelEnsemble,
 )
@@ -376,10 +378,9 @@ class TestEstimatorVariances(ParametrizedTestCase):
         pilot_args = [cov]
         kwargs: Dict[str, Any] = {}
 
+        # For ACV estimators, handle recursion_index (tree_depth handled via ACVSearch)
         if est_type in ("gmf", "grd", "gis"):
-            if tree_depth is not None:
-                kwargs["tree_depth"] = tree_depth
-            elif recursion_index is not None:
+            if recursion_index is not None:
                 kwargs["recursion_index"] = bkd.asarray(recursion_index)
 
         if stat_type == "mean":
@@ -430,27 +431,39 @@ class TestEstimatorVariances(ParametrizedTestCase):
         stat.set_pilot_quantities(*pilot_args)
         idx = stat.nstats()
 
-        est = get_estimator(est_type, stat, costs, max_nmodels=max_nmodels, **kwargs)
+        # Use ACVSearch when tree_depth is specified for ACV estimators
+        if tree_depth is not None and est_type in ("gmf", "grd", "gis"):
+            est_class_map = {"gmf": GMFEstimator, "grd": GRDEstimator, "gis": GISEstimator}
+            search = ACVSearch(
+                stat,
+                costs,
+                estimator_classes=[est_class_map[est_type]],
+                recursion_strategy=TreeDepthRecursionStrategy(max_depth=tree_depth),
+            )
+            result = search.search(target_cost=target_cost, allow_failures=True)
+            est = result.estimator
+        else:
+            est = get_estimator(est_type, stat, costs, max_nmodels=max_nmodels, **kwargs)
 
-        # Configure optimizer with higher maxiter for convergence (matches legacy)
-        if hasattr(est, "get_default_optimizer"):
-            from pyapprox.typing.optimization.minimize.scipy.diffevol import (
-                ScipyDifferentialEvolutionOptimizer,
-            )
-            from pyapprox.typing.optimization.minimize.scipy.trust_constr import (
-                ScipyTrustConstrOptimizer,
-            )
-            from pyapprox.typing.optimization.minimize.chained.chained_optimizer import (
-                ChainedOptimizer,
-            )
-            global_optimizer = ScipyDifferentialEvolutionOptimizer(
-                maxiter=3, raise_on_failure=False
-            )
-            local_optimizer = ScipyTrustConstrOptimizer(maxiter=1000)
-            optimizer = ChainedOptimizer(global_optimizer, local_optimizer)
-            est.set_optimizer(optimizer)
+            # Configure optimizer with higher maxiter for convergence (matches legacy)
+            if hasattr(est, "get_default_optimizer"):
+                from pyapprox.typing.optimization.minimize.scipy.diffevol import (
+                    ScipyDifferentialEvolutionOptimizer,
+                )
+                from pyapprox.typing.optimization.minimize.scipy.trust_constr import (
+                    ScipyTrustConstrOptimizer,
+                )
+                from pyapprox.typing.optimization.minimize.chained.chained_optimizer import (
+                    ChainedOptimizer,
+                )
+                global_optimizer = ScipyDifferentialEvolutionOptimizer(
+                    maxiter=3, raise_on_failure=False
+                )
+                local_optimizer = ScipyTrustConstrOptimizer(maxiter=1000)
+                optimizer = ChainedOptimizer(global_optimizer, local_optimizer)
+                est.set_optimizer(optimizer)
 
-        allocate_with_allocator(est, target_cost)
+            allocate_with_allocator(est, target_cost)
 
         hfcovar_mc, hfcovar, covar_mc, covar, est_vals, Q, delta = (
             numerically_compute_estimator_variance(funs, est, ntrials, bkd, True)

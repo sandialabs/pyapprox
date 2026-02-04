@@ -2,13 +2,14 @@
 
 This module provides strategy classes for:
 - RecursionIndexStrategy: Generates recursion indices to search
-- ModelSubsetStrategy: Generates model subsets to search
+
+For model subset strategies, see pyapprox.typing.statest.strategies.
 """
 
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
-from itertools import combinations, permutations
-from typing import Generic, List, Optional
+from itertools import permutations
+from typing import Generic, List
 
 from pyapprox.typing.util.backends.protocols import Array, Backend
 from pyapprox.typing.statest.factory.tree_enumeration import (
@@ -114,103 +115,3 @@ class HierarchicalPermutationRecursionStrategy(RecursionIndexStrategy):
 
     def description(self) -> str:
         return "all permutations of hierarchical recursion indices"
-
-
-# === Model Subset Strategies ===
-
-
-class ModelSubsetStrategy(ABC):
-    """Strategy for generating model subsets to search."""
-
-    @abstractmethod
-    def subsets(self, nmodels: int) -> List[List[int]]:
-        """Generate model subsets to search.
-
-        Parameters
-        ----------
-        nmodels : int
-            Total number of models available.
-
-        Returns
-        -------
-        List[List[int]]
-            List of model index lists. Each list must include 0
-            (the high-fidelity model).
-        """
-        raise NotImplementedError
-
-    @abstractmethod
-    def description(self) -> str:
-        """Human-readable description of this strategy."""
-        raise NotImplementedError
-
-
-@dataclass(frozen=True)
-class AllModelsStrategy(ModelSubsetStrategy):
-    """Use all available models (no subset search)."""
-
-    def subsets(self, nmodels: int) -> List[List[int]]:
-        return [list(range(nmodels))]
-
-    def description(self) -> str:
-        return "all models (no subset search)"
-
-
-@dataclass(frozen=True)
-class FixedSubsetStrategy(ModelSubsetStrategy):
-    """Use a single fixed model subset."""
-
-    model_indices: tuple
-
-    def __post_init__(self):
-        if 0 not in self.model_indices:
-            raise ValueError("model_indices must include 0 (high-fidelity)")
-
-    def subsets(self, nmodels: int) -> List[List[int]]:
-        return [list(self.model_indices)]
-
-    def description(self) -> str:
-        return f"fixed model subset {self.model_indices}"
-
-
-@dataclass(frozen=True)
-class AllSubsetsStrategy(ModelSubsetStrategy):
-    """Generate all model subsets up to max_models."""
-
-    min_models: int = 2
-    max_models: Optional[int] = None
-
-    def subsets(self, nmodels: int) -> List[List[int]]:
-        max_size = self.max_models if self.max_models is not None else nmodels
-        max_size = min(max_size, nmodels)
-
-        result = []
-        other_models = list(range(1, nmodels))
-
-        for size in range(self.min_models, max_size + 1):
-            for combo in combinations(other_models, size - 1):
-                result.append([0] + list(combo))
-
-        return result
-
-    def description(self) -> str:
-        max_str = str(self.max_models) if self.max_models else "all"
-        return f"all subsets with {self.min_models} to {max_str} models"
-
-
-@dataclass(frozen=True)
-class ListSubsetStrategy(ModelSubsetStrategy):
-    """Use a custom list of model subsets."""
-
-    model_subsets: tuple  # tuple of tuples for hashability
-
-    def __post_init__(self):
-        for subset in self.model_subsets:
-            if 0 not in subset:
-                raise ValueError(f"All subsets must include 0: {subset}")
-
-    def subsets(self, nmodels: int) -> List[List[int]]:
-        return [list(subset) for subset in self.model_subsets]
-
-    def description(self) -> str:
-        return f"custom list of {len(self.model_subsets)} model subsets"

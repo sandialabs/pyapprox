@@ -5,7 +5,7 @@ combined mean+variance from model evaluations.
 """
 
 from abc import ABC, abstractmethod
-from typing import Generic, List, Tuple
+from typing import Generic, List, Optional, Tuple
 
 from pyapprox.typing.util.backends.protocols import Array, Backend
 
@@ -694,18 +694,24 @@ class MultiOutputStatistic(ABC, Generic[Array]):
         raise NotImplementedError
 
     @abstractmethod
-    def subset(self, model_indices: List[int]) -> "MultiOutputStatistic[Array]":
-        """Create statistic for a subset of models.
+    def subset(
+        self,
+        model_indices: List[int],
+        qoi_indices: Optional[List[int]] = None,
+    ) -> "MultiOutputStatistic[Array]":
+        """Create statistic for a subset of models and/or QoI.
 
         Parameters
         ----------
         model_indices : List[int]
             Indices of models to include. Must include 0 (high-fidelity model).
+        qoi_indices : List[int], optional
+            Indices of QoI to include. If None, uses all QoI.
 
         Returns
         -------
         MultiOutputStatistic
-            New statistic instance for the model subset.
+            New statistic instance for the subset.
 
         Raises
         ------
@@ -841,18 +847,24 @@ class MultiOutputMean(MultiOutputStatistic[Array]):
         )
         return (cov_sub,)
 
-    def subset(self, model_indices: List[int]) -> "MultiOutputMean[Array]":
-        """Create statistic for a subset of models.
+    def subset(
+        self,
+        model_indices: List[int],
+        qoi_indices: Optional[List[int]] = None,
+    ) -> "MultiOutputMean[Array]":
+        """Create statistic for a subset of models and/or QoI.
 
         Parameters
         ----------
         model_indices : List[int]
             Indices of models to include. Must include 0 (high-fidelity model).
+        qoi_indices : List[int], optional
+            Indices of QoI to include. If None, uses all QoI.
 
         Returns
         -------
         MultiOutputMean
-            New statistic instance for the model subset.
+            New statistic instance for the subset.
 
         Raises
         ------
@@ -863,11 +875,19 @@ class MultiOutputMean(MultiOutputStatistic[Array]):
             raise ValueError("model_indices must include 0 (high-fidelity)")
 
         model_idx = self._bkd.array(model_indices, dtype=int)
+
+        if qoi_indices is None:
+            qoi_idx = None
+            new_nqoi = self._nqoi
+        else:
+            qoi_idx = self._bkd.array(qoi_indices, dtype=int)
+            new_nqoi = len(qoi_indices)
+
         (cov_sub,) = self.get_pilot_quantities_subset(
-            self._nmodels, self._nqoi, model_idx
+            self._nmodels, self._nqoi, model_idx, qoi_idx
         )
 
-        new_stat: MultiOutputMean[Array] = MultiOutputMean(self._nqoi, self._bkd)
+        new_stat: MultiOutputMean[Array] = MultiOutputMean(new_nqoi, self._bkd)
         new_stat.set_pilot_quantities(cov_sub)
         return new_stat
 
@@ -1098,18 +1118,24 @@ class MultiOutputVariance(MultiOutputStatistic[Array]):
         )
         return cov_sub, W_sub
 
-    def subset(self, model_indices: List[int]) -> "MultiOutputVariance[Array]":
-        """Create statistic for a subset of models.
+    def subset(
+        self,
+        model_indices: List[int],
+        qoi_indices: Optional[List[int]] = None,
+    ) -> "MultiOutputVariance[Array]":
+        """Create statistic for a subset of models and/or QoI.
 
         Parameters
         ----------
         model_indices : List[int]
             Indices of models to include. Must include 0 (high-fidelity model).
+        qoi_indices : List[int], optional
+            Indices of QoI to include. If None, uses all QoI.
 
         Returns
         -------
         MultiOutputVariance
-            New statistic instance for the model subset.
+            New statistic instance for the subset.
 
         Raises
         ------
@@ -1120,12 +1146,20 @@ class MultiOutputVariance(MultiOutputStatistic[Array]):
             raise ValueError("model_indices must include 0 (high-fidelity)")
 
         model_idx = self._bkd.array(model_indices, dtype=int)
+
+        if qoi_indices is None:
+            qoi_idx = None
+            new_nqoi = self._nqoi
+        else:
+            qoi_idx = self._bkd.array(qoi_indices, dtype=int)
+            new_nqoi = len(qoi_indices)
+
         cov_sub, W_sub = self.get_pilot_quantities_subset(
-            self._nmodels, self._nqoi, model_idx
+            self._nmodels, self._nqoi, model_idx, qoi_idx
         )
 
         new_stat: MultiOutputVariance[Array] = MultiOutputVariance(
-            self._nqoi, self._bkd, tril=self._tril
+            new_nqoi, self._bkd, tril=self._tril
         )
         new_stat.set_pilot_quantities(cov_sub, W_sub)
         return new_stat
@@ -1419,19 +1453,23 @@ class MultiOutputMeanAndVariance(MultiOutputStatistic[Array]):
         return cov_sub, W_sub, B_sub
 
     def subset(
-        self, model_indices: List[int]
+        self,
+        model_indices: List[int],
+        qoi_indices: Optional[List[int]] = None,
     ) -> "MultiOutputMeanAndVariance[Array]":
-        """Create statistic for a subset of models.
+        """Create statistic for a subset of models and/or QoI.
 
         Parameters
         ----------
         model_indices : List[int]
             Indices of models to include. Must include 0 (high-fidelity model).
+        qoi_indices : List[int], optional
+            Indices of QoI to include. If None, uses all QoI.
 
         Returns
         -------
         MultiOutputMeanAndVariance
-            New statistic instance for the model subset.
+            New statistic instance for the subset.
 
         Raises
         ------
@@ -1442,12 +1480,20 @@ class MultiOutputMeanAndVariance(MultiOutputStatistic[Array]):
             raise ValueError("model_indices must include 0 (high-fidelity)")
 
         model_idx = self._bkd.array(model_indices, dtype=int)
+
+        if qoi_indices is None:
+            qoi_idx = None
+            new_nqoi = self._nqoi
+        else:
+            qoi_idx = self._bkd.array(qoi_indices, dtype=int)
+            new_nqoi = len(qoi_indices)
+
         cov_sub, W_sub, B_sub = self.get_pilot_quantities_subset(
-            self._nmodels, self._nqoi, model_idx
+            self._nmodels, self._nqoi, model_idx, qoi_idx
         )
 
         new_stat: MultiOutputMeanAndVariance[Array] = MultiOutputMeanAndVariance(
-            self._nqoi, self._bkd, tril=self._tril
+            new_nqoi, self._bkd, tril=self._tril
         )
         new_stat.set_pilot_quantities(cov_sub, W_sub, B_sub)
         return new_stat

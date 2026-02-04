@@ -18,6 +18,25 @@ from pyapprox.typing.statest.acv.variants import (
     MFMCEstimator,
     MLMCEstimator,
 )
+from pyapprox.typing.statest.acv.allocation import (
+    AllocationResult,
+    Allocator,
+    ACVAllocator,
+    AnalyticalAllocator,
+    default_allocator_factory,
+)
+from pyapprox.typing.statest.acv.strategies import (
+    RecursionIndexStrategy,
+    DefaultRecursionStrategy,
+    FixedRecursionStrategy,
+    ListRecursionStrategy,
+    TreeDepthRecursionStrategy,
+    HierarchicalPermutationRecursionStrategy,
+)
+from pyapprox.typing.statest.acv.search import (
+    SearchResult,
+    ACVSearch,
+)
 
 __all__ = [
     "_combine_acv_values",
@@ -34,4 +53,20 @@ __all__ = [
     "GRDEstimator",
     "MFMCEstimator",
     "MLMCEstimator",
+    # Allocation
+    "AllocationResult",
+    "Allocator",
+    "ACVAllocator",
+    "AnalyticalAllocator",
+    "default_allocator_factory",
+    # Strategies
+    "RecursionIndexStrategy",
+    "DefaultRecursionStrategy",
+    "FixedRecursionStrategy",
+    "ListRecursionStrategy",
+    "TreeDepthRecursionStrategy",
+    "HierarchicalPermutationRecursionStrategy",
+    # Search
+    "SearchResult",
+    "ACVSearch",
 ]

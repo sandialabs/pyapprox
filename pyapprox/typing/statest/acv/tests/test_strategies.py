@@ -18,6 +18,8 @@ from pyapprox.typing.statest.acv.strategies import (
     ListRecursionStrategy,
     TreeDepthRecursionStrategy,
     HierarchicalPermutationRecursionStrategy,
+)
+from pyapprox.typing.statest.strategies import (
     ModelSubsetStrategy,
     AllModelsStrategy,
     FixedSubsetStrategy,

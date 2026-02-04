@@ -22,6 +22,18 @@ from pyapprox.typing.statest.statistics import (
     MultiOutputVariance,
     MultiOutputMeanAndVariance,
 )
+from pyapprox.typing.statest.strategies import (
+    ModelSubsetStrategy,
+    AllModelsStrategy,
+    FixedSubsetStrategy,
+    AllSubsetsStrategy,
+    ListSubsetStrategy,
+    QoISubsetStrategy,
+    AllQoIStrategy,
+    FixedQoIStrategy,
+    AllQoISubsetsStrategy,
+    ListQoIStrategy,
+)
 from pyapprox.typing.statest.mc_estimator import MCEstimator
 from pyapprox.typing.statest.cv_estimator import CVEstimator
 from pyapprox.typing.statest.acv import (
@@ -62,6 +74,17 @@ __all__ = [
     "GRDEstimator",
     "MFMCEstimator",
     "MLMCEstimator",
+    # Shared strategies
+    "ModelSubsetStrategy",
+    "AllModelsStrategy",
+    "FixedSubsetStrategy",
+    "AllSubsetsStrategy",
+    "ListSubsetStrategy",
+    "QoISubsetStrategy",
+    "AllQoIStrategy",
+    "FixedQoIStrategy",
+    "AllQoISubsetsStrategy",
+    "ListQoIStrategy",
     # GroupACV exports
     "BaseGroupACVEstimator",
     "GroupACVEstimatorIS",
