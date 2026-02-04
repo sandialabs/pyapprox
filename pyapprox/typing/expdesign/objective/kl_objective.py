@@ -36,6 +36,24 @@ class KLOEDObjective(Generic[Array]):
         Model outputs for outer samples (shapes/means). Shape: (nobs, nouter)
     latent_samples : Array
         Latent noise samples for reparameterization. Shape: (nobs, nouter)
+
+        IMPORTANT: For accurate integration, outer_shapes and latent_samples
+        must be jointly sampled from a (nparams + nobs)-dimensional distribution.
+        This means both arrays must have the same number of columns (nouter),
+        where each column corresponds to a single joint sample from both the
+        prior (nparams dimensions) and the observation noise (nobs dimensions).
+
+        Correct approach:
+        1. Sample jointly from standard normal: joint_samples ~ N(0, I),
+           shape: (nparams + nobs, nouter)
+        2. Split: theta_std = joint_samples[:nparams, :]
+                 latent_samples = joint_samples[nparams:, :]
+        3. Transform: theta_outer = prior_std * theta_std
+                      outer_shapes = design_matrix @ theta_outer
+
+        Incorrect approach (will produce wrong results):
+        - Sampling theta and latent independently with different sample counts
+
     inner_shapes : Array
         Model outputs for inner samples. Shape: (nobs, ninner)
     outer_quad_weights : Array, optional
@@ -44,6 +62,12 @@ class KLOEDObjective(Generic[Array]):
         Quadrature weights for evidence integration. Shape: (ninner,)
     bkd : Backend[Array]
         Computational backend.
+
+    Raises
+    ------
+    ValueError
+        If array shapes are inconsistent (e.g., outer_shapes and latent_samples
+        have different column counts).
     """
 
     def __init__(
@@ -63,6 +87,28 @@ class KLOEDObjective(Generic[Array]):
         self._nobs = inner_likelihood.nobs()
         self._nouter = outer_shapes.shape[1]
         self._ninner = inner_shapes.shape[1]
+
+        # Validate shapes
+        if outer_shapes.shape[0] != self._nobs:
+            raise ValueError(
+                f"outer_shapes first dimension ({outer_shapes.shape[0]}) must match "
+                f"nobs ({self._nobs})"
+            )
+        if latent_samples.shape[0] != self._nobs:
+            raise ValueError(
+                f"latent_samples first dimension ({latent_samples.shape[0]}) must "
+                f"match nobs ({self._nobs})"
+            )
+        if latent_samples.shape[1] != self._nouter:
+            raise ValueError(
+                f"latent_samples second dimension ({latent_samples.shape[1]}) must "
+                f"match outer_shapes second dimension ({self._nouter})"
+            )
+        if inner_shapes.shape[0] != self._nobs:
+            raise ValueError(
+                f"inner_shapes first dimension ({inner_shapes.shape[0]}) must match "
+                f"nobs ({self._nobs})"
+            )
 
         # Store shapes
         self._outer_shapes = outer_shapes
