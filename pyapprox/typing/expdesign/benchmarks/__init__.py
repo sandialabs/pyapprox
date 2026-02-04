@@ -6,7 +6,9 @@ for validating OED implementations.
 """
 
 from .linear_gaussian import LinearGaussianOEDBenchmark
+from .nonlinear_gaussian import NonLinearGaussianOEDBenchmark
 
 __all__ = [
     "LinearGaussianOEDBenchmark",
+    "NonLinearGaussianOEDBenchmark",
 ]

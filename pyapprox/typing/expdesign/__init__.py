@@ -128,9 +128,15 @@ from .prediction import (
     create_prediction_oed_objective,
 )
 # Benchmarks
-from .benchmarks import LinearGaussianOEDBenchmark
+from .benchmarks import LinearGaussianOEDBenchmark, NonLinearGaussianOEDBenchmark
 # Diagnostics
-from .diagnostics import KLOEDDiagnostics
+from .diagnostics import (
+    KLOEDDiagnostics,
+    PredictionOEDDiagnostics,
+    create_prediction_oed_diagnostics,
+    register_exact_utility,
+    get_registered_utility_types,
+)
 # Analytical utilities (conjugate priors)
 from .analytical import (
     ConjugateGaussianOEDExpectedStdDev,
@@ -265,8 +271,13 @@ __all__ = [
     "DOptimalLinearModelObjective",
     # Benchmarks
     "LinearGaussianOEDBenchmark",
+    "NonLinearGaussianOEDBenchmark",
     # Diagnostics
     "KLOEDDiagnostics",
+    "PredictionOEDDiagnostics",
+    "create_prediction_oed_diagnostics",
+    "register_exact_utility",
+    "get_registered_utility_types",
     # Analytical utilities (conjugate priors)
     "ConjugateGaussianOEDExpectedStdDev",
     "ConjugateGaussianOEDExpectedEntropicDev",

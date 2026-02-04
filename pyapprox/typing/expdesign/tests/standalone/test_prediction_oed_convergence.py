@@ -7,10 +7,11 @@ Tests verify:
 - Prediction OED objective converges with increasing samples
 - Different deviation measures show expected convergence behavior
 - Convergence rate analysis for linear models
+- Nonlinear (lognormal) prediction OED convergence with exact utilities
 """
 
 import unittest
-from typing import Any, Generic
+from typing import Any, Generic, List
 
 import numpy as np
 import torch
@@ -19,16 +20,23 @@ from numpy.typing import NDArray
 from pyapprox.typing.util.backends.numpy import NumpyBkd
 from pyapprox.typing.util.backends.torch import TorchBkd
 from pyapprox.typing.util.backends.protocols import Array, Backend
-from pyapprox.typing.util.test_utils import load_tests, slow_test  # noqa: F401
+from pyapprox.typing.util.test_utils import (
+    load_tests,  # noqa: F401
+    slow_test,
+    slower_test,
+)
 
 from pyapprox.typing.expdesign import (
     create_prediction_oed_objective,
     LinearGaussianOEDBenchmark,
+    NonLinearGaussianOEDBenchmark,
     GaussianOEDInnerLoopLikelihood,
     PredictionOEDObjective,
     StandardDeviationMeasure,
     EntropicDeviationMeasure,
     SampleAverageMean,
+    create_prediction_oed_diagnostics,
+    PredictionOEDDiagnostics,
 )
 
 
@@ -320,6 +328,264 @@ class TestPredictionOEDConvergenceStandalone(Generic[Array], unittest.TestCase):
         self.assertEqual(y_np.shape, (benchmark.nobs(), nsamples))
 
 
+class TestNonLinearPredictionOEDConvergence(Generic[Array], unittest.TestCase):
+    """
+    Tests for nonlinear (lognormal) prediction OED convergence.
+
+    These tests verify that numerical estimates converge to exact analytical
+    values computed using conjugate Gaussian formulas for lognormal QoI.
+
+    Replicates test_prediction_OED_values_nonlinear_problem from legacy
+    test_bayesoed.py:1024-1137.
+    """
+
+    __test__ = False
+
+    def bkd(self) -> Backend[Array]:
+        raise NotImplementedError
+
+    def setUp(self) -> None:
+        self._bkd = self.bkd()
+        np.random.seed(1)
+
+    def _create_benchmark(self) -> NonLinearGaussianOEDBenchmark[Array]:
+        """Create standard nonlinear benchmark for convergence tests."""
+        return NonLinearGaussianOEDBenchmark(
+            nobs=2,
+            degree=3,
+            noise_std=0.125 * 4,  # 0.5
+            prior_std=0.5,
+            bkd=self._bkd,
+            npred=1,
+            min_degree=0,
+        )
+
+    def test_nonlinear_benchmark_setup(self) -> None:
+        """Test nonlinear benchmark is correctly configured."""
+        benchmark = self._create_benchmark()
+
+        self.assertEqual(benchmark.nobs(), 2)
+        self.assertEqual(benchmark.nparams(), 4)
+        self.assertEqual(benchmark.npred(), 1)
+        self.assertAlmostEqual(benchmark.noise_std(), 0.5, places=10)
+        self.assertAlmostEqual(benchmark.prior_std(), 0.5, places=10)
+
+        # Design matrix should be polynomial basis
+        design_mat = benchmark.design_matrix()
+        self.assertEqual(design_mat.shape, (2, 4))
+
+        # QoI matrix should be polynomial basis at prediction location
+        qoi_mat = benchmark.qoi_matrix()
+        self.assertEqual(qoi_mat.shape, (1, 4))
+
+    def test_exact_stdev_utility_positive(self) -> None:
+        """Test exact lognormal expected std dev utility is positive."""
+        benchmark = self._create_benchmark()
+        diagnostics = create_prediction_oed_diagnostics(benchmark, "stdev")
+
+        weights = self._bkd.ones((2, 1)) / 2
+        exact = diagnostics.exact_utility(weights)
+
+        self.assertGreater(exact, 0.0)
+        self.assertTrue(np.isfinite(exact))
+
+    def test_exact_avar_stdev_utility_positive(self) -> None:
+        """Test exact lognormal AVaR std dev utility is positive."""
+        benchmark = self._create_benchmark()
+        diagnostics = create_prediction_oed_diagnostics(
+            benchmark, "avar_stdev", beta=0.5
+        )
+
+        weights = self._bkd.ones((2, 1)) / 2
+        exact = diagnostics.exact_utility(weights)
+
+        self.assertGreater(exact, 0.0)
+        self.assertTrue(np.isfinite(exact))
+
+    def test_exact_avar_stdev_increases_with_beta(self) -> None:
+        """Test AVaR std dev increases with higher beta (more risk averse)."""
+        benchmark = self._create_benchmark()
+
+        diag_low = create_prediction_oed_diagnostics(
+            benchmark, "avar_stdev", beta=0.3
+        )
+        diag_high = create_prediction_oed_diagnostics(
+            benchmark, "avar_stdev", beta=0.7
+        )
+
+        weights = self._bkd.ones((2, 1)) / 2
+
+        exact_low = diag_low.exact_utility(weights)
+        exact_high = diag_high.exact_utility(weights)
+
+        self.assertGreater(exact_high, exact_low)
+
+    def test_numerical_stdev_close_to_exact(self) -> None:
+        """Test numerical stdev estimate is reasonably close to exact."""
+        benchmark = self._create_benchmark()
+        diagnostics = create_prediction_oed_diagnostics(benchmark, "stdev")
+
+        weights = self._bkd.ones((2, 1)) / 2
+
+        exact = diagnostics.exact_utility(weights)
+        numerical = diagnostics.compute_numerical_utility(
+            nouter=500, ninner=500, design_weights=weights, seed=42
+        )
+
+        # Should be within 20% of exact (MC has variance)
+        relative_error = abs(numerical - exact) / exact
+        self.assertLess(relative_error, 0.2)
+
+    @slow_test
+    def test_stdev_mse_decreases_with_samples(self) -> None:
+        """Test MSE decreases with increasing inner loop samples."""
+        benchmark = self._create_benchmark()
+        diagnostics = create_prediction_oed_diagnostics(benchmark, "stdev")
+
+        weights = self._bkd.ones((2, 1)) / 2
+
+        inner_counts = [200, 500, 1000]
+        mse_values: List[float] = []
+
+        for ninner in inner_counts:
+            _, _, mse = diagnostics.compute_mse(
+                nouter=500,
+                ninner=ninner,
+                nrealizations=10,
+                design_weights=weights,
+                base_seed=42,
+            )
+            mse_values.append(mse)
+
+        # MSE should generally decrease with more samples
+        # Check that the best MSE (most samples) is less than worst (fewest)
+        self.assertLess(mse_values[-1], mse_values[0])
+
+    @slower_test
+    def test_stdev_convergence_rate(self) -> None:
+        """
+        Test expected stdev convergence rate with Monte Carlo.
+
+        For MC integration, MSE ~ O(1/N), so convergence rate should be ~1.0.
+        Legacy test required rate >= 0.95.
+        """
+        benchmark = self._create_benchmark()
+        diagnostics = create_prediction_oed_diagnostics(benchmark, "stdev")
+
+        weights = self._bkd.ones((2, 1)) / 2
+
+        inner_counts = [500, 1000, 2000, 5000]
+        mse_values: List[float] = []
+
+        for ninner in inner_counts:
+            _, _, mse = diagnostics.compute_mse(
+                nouter=10000,
+                ninner=ninner,
+                nrealizations=100,
+                design_weights=weights,
+                base_seed=1,
+            )
+            mse_values.append(mse)
+
+        # Compute convergence rate
+        rate = PredictionOEDDiagnostics.compute_convergence_rate(
+            inner_counts, mse_values
+        )
+
+        # Legacy test required rate >= 0.95
+        # MC should give rate ~1.0
+        self.assertGreaterEqual(rate, 0.95)
+
+    @slower_test
+    def test_stdev_final_mse_small(self) -> None:
+        """Test final MSE with many samples is sufficiently small."""
+        benchmark = self._create_benchmark()
+        diagnostics = create_prediction_oed_diagnostics(benchmark, "stdev")
+
+        weights = self._bkd.ones((2, 1)) / 2
+
+        _, _, mse = diagnostics.compute_mse(
+            nouter=10000,
+            ninner=5000,
+            nrealizations=100,
+            design_weights=weights,
+            base_seed=1,
+        )
+
+        # Legacy test required MSE <= 1e-2
+        self.assertLessEqual(mse, 1e-2)
+
+    @slower_test
+    def test_avar_stdev_convergence_rate(self) -> None:
+        """
+        Test AVaR stdev convergence rate with Monte Carlo.
+
+        Legacy test required rate >= 0.95.
+        """
+        benchmark = self._create_benchmark()
+        diagnostics = create_prediction_oed_diagnostics(
+            benchmark, "avar_stdev", beta=0.5
+        )
+
+        weights = self._bkd.ones((2, 1)) / 2
+
+        inner_counts = [500, 1000, 2000, 5000]
+        mse_values: List[float] = []
+
+        for ninner in inner_counts:
+            _, _, mse = diagnostics.compute_mse(
+                nouter=10000,
+                ninner=ninner,
+                nrealizations=100,
+                design_weights=weights,
+                base_seed=1,
+            )
+            mse_values.append(mse)
+
+        # Compute convergence rate
+        rate = PredictionOEDDiagnostics.compute_convergence_rate(
+            inner_counts, mse_values
+        )
+
+        # Legacy test required rate >= 0.95
+        self.assertGreaterEqual(rate, 0.95)
+
+    @slower_test
+    def test_avar_stdev_final_mse_small(self) -> None:
+        """Test final AVaR MSE with many samples is sufficiently small."""
+        benchmark = self._create_benchmark()
+        diagnostics = create_prediction_oed_diagnostics(
+            benchmark, "avar_stdev", beta=0.5
+        )
+
+        weights = self._bkd.ones((2, 1)) / 2
+
+        _, _, mse = diagnostics.compute_mse(
+            nouter=10000,
+            ninner=5000,
+            nrealizations=100,
+            design_weights=weights,
+            base_seed=1,
+        )
+
+        # Legacy test required MSE <= 1e-2
+        self.assertLessEqual(mse, 1e-2)
+
+    def test_weights_affect_exact_utility(self) -> None:
+        """Test that different weights give different exact utilities."""
+        benchmark = self._create_benchmark()
+        diagnostics = create_prediction_oed_diagnostics(benchmark, "stdev")
+
+        weights_uniform = self._bkd.ones((2, 1)) / 2
+        weights_high = self._bkd.ones((2, 1)) * 2.0
+
+        exact_uniform = diagnostics.exact_utility(weights_uniform)
+        exact_high = diagnostics.exact_utility(weights_high)
+
+        # Higher weights should reduce expected deviation (more information)
+        self.assertLess(exact_high, exact_uniform)
+
+
 class TestPredictionOEDConvergenceStandaloneNumpy(
     TestPredictionOEDConvergenceStandalone[NDArray[Any]]
 ):
@@ -335,6 +601,29 @@ class TestPredictionOEDConvergenceStandaloneTorch(
     TestPredictionOEDConvergenceStandalone[torch.Tensor]
 ):
     """PyTorch backend tests."""
+
+    __test__ = True
+
+    def bkd(self) -> TorchBkd:
+        torch.set_default_dtype(torch.float64)
+        return TorchBkd()
+
+
+class TestNonLinearPredictionOEDConvergenceNumpy(
+    TestNonLinearPredictionOEDConvergence[NDArray[Any]]
+):
+    """NumPy backend tests for nonlinear prediction OED."""
+
+    __test__ = True
+
+    def bkd(self) -> NumpyBkd:
+        return NumpyBkd()
+
+
+class TestNonLinearPredictionOEDConvergenceTorch(
+    TestNonLinearPredictionOEDConvergence[torch.Tensor]
+):
+    """PyTorch backend tests for nonlinear prediction OED."""
 
     __test__ = True
 

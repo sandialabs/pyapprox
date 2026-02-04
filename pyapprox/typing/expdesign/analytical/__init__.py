@@ -6,6 +6,7 @@ in prediction OED when using linear Gaussian models with conjugate priors.
 """
 
 from .conjugate_gaussian import (
+    ConjugateGaussianOEDPredictionUtilityBase,
     ConjugateGaussianOEDExpectedStdDev,
     ConjugateGaussianOEDExpectedEntropicDev,
     ConjugateGaussianOEDExpectedAVaRDev,
@@ -15,6 +16,7 @@ from .conjugate_gaussian import (
 )
 
 __all__ = [
+    "ConjugateGaussianOEDPredictionUtilityBase",
     "ConjugateGaussianOEDExpectedStdDev",
     "ConjugateGaussianOEDExpectedEntropicDev",
     "ConjugateGaussianOEDExpectedAVaRDev",
