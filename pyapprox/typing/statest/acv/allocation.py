@@ -1,0 +1,384 @@
+"""Sample allocation optimization for ACV estimators.
+
+This module separates allocation optimization from estimation, providing:
+- AllocationResult: Dataclass for allocation results
+- Allocator: Abstract base for allocation strategies
+- ACVAllocator: Optimization-based allocator
+- AnalyticalAllocator: Closed-form allocator for MFMC/MLMC
+"""
+
+from abc import ABC, abstractmethod
+from dataclasses import dataclass
+from typing import Any, Generic, List, Optional, TYPE_CHECKING
+
+from pyapprox.typing.util.backends.protocols import Array, Backend
+
+if TYPE_CHECKING:
+    from pyapprox.typing.statest.acv.base import ACVEstimator
+    from pyapprox.typing.optimization.minimize.protocols import (
+        BindableOptimizerProtocol,
+    )
+    from pyapprox.typing.statest.acv.optimization import (
+        ACVObjective,
+        ACVPartitionConstraint,
+    )
+
+
+@dataclass(frozen=True)
+class AllocationResult(Generic[Array]):
+    """Result of allocation optimization for a single estimator configuration.
+
+    Continuous Attributes (Optimization)
+    -------------------------------------
+    partition_ratios : Array, shape (nmodels-1,)
+        Continuous ratios from optimization. Used for covariance computation
+        during optimization where gradients are required.
+
+    continuous_npartition_samples : Array, shape (npartitions,)
+        Continuous sample counts. For reference/analysis only.
+
+    objective_value : Array, shape (1,)
+        Optimal objective function value (e.g., log-determinant of covariance).
+        Kept as Array to preserve autograd computation graph.
+
+    Discrete Attributes (Evaluation)
+    --------------------------------
+    npartition_samples : Array, shape (npartitions,), dtype=int
+        Integer sample counts per partition. Use for sample generation.
+
+    nsamples_per_model : Array, shape (nmodels,), dtype=int
+        Integer sample counts per model.
+
+    Metadata
+    --------
+    target_cost : float
+        Requested computational budget.
+
+    actual_cost : float
+        Actual cost after rounding to integers.
+
+    success : bool
+        Whether allocation succeeded.
+
+    message : str
+        Status message or error description.
+    """
+
+    # Continuous (optimization)
+    partition_ratios: Array
+    continuous_npartition_samples: Array
+    objective_value: Array  # Shape (1,) - keeps autograd graph
+
+    # Discrete (evaluation)
+    npartition_samples: Array
+    nsamples_per_model: Array
+
+    # Metadata
+    target_cost: float
+    actual_cost: float
+    success: bool
+    message: str = ""
+
+
+class Allocator(ABC, Generic[Array]):
+    """Abstract base for sample allocation strategies."""
+
+    @abstractmethod
+    def allocate(self, target_cost: float) -> AllocationResult[Array]:
+        """Allocate samples for the estimator.
+
+        Parameters
+        ----------
+        target_cost : float
+            The total computational budget.
+
+        Returns
+        -------
+        AllocationResult
+            The allocation result containing partition ratios, sample counts,
+            and metadata.
+        """
+        raise NotImplementedError
+
+
+class ACVAllocator(Allocator[Array]):
+    """Optimization-based allocator for ACV estimators.
+
+    Parameters
+    ----------
+    estimator : ACVEstimator
+        The estimator to optimize allocation for.
+    optimizer : optional
+        Optimizer to use. If None, uses default chained optimizer.
+    objective : optional
+        Objective function. If None, uses ACVLogDeterminantObjective.
+    """
+
+    def __init__(
+        self,
+        estimator: "ACVEstimator[Array]",
+        optimizer: Optional["BindableOptimizerProtocol[Array]"] = None,
+        objective: Optional["ACVObjective[Array]"] = None,
+    ) -> None:
+        self._est = estimator
+        self._bkd: Backend[Array] = estimator._bkd
+        self._optimizer = optimizer
+        self._objective = objective
+
+    def _get_optimizer(self) -> Any:
+        if self._optimizer is not None:
+            return self._optimizer
+        return self._default_optimizer()
+
+    def _default_optimizer(self) -> Any:
+        from pyapprox.typing.optimization.minimize.scipy.diffevol import (
+            ScipyDifferentialEvolutionOptimizer,
+        )
+        from pyapprox.typing.optimization.minimize.scipy.trust_constr import (
+            ScipyTrustConstrOptimizer,
+        )
+        from pyapprox.typing.optimization.minimize.chained.chained_optimizer import (
+            ChainedOptimizer,
+        )
+
+        return ChainedOptimizer(
+            ScipyDifferentialEvolutionOptimizer(maxiter=3, raise_on_failure=False),
+            ScipyTrustConstrOptimizer(),
+        )
+
+    def _get_objective(self, optimizer: Any) -> "ACVObjective[Array]":
+        from pyapprox.typing.statest.acv.optimization import (
+            ACVLogDeterminantObjective,
+        )
+
+        if self._objective is not None:
+            obj = self._objective
+        else:
+            scaling = getattr(optimizer, "_scaling", 1)
+            obj = ACVLogDeterminantObjective(scaling=scaling, bkd=self._bkd)
+        obj.set_estimator(self._est)
+        return obj
+
+    def allocate(self, target_cost: float) -> AllocationResult[Array]:
+        """Allocate samples using optimization.
+
+        Parameters
+        ----------
+        target_cost : float
+            The total computational budget.
+
+        Returns
+        -------
+        AllocationResult
+            The allocation result. Check `success` field for status.
+        """
+        if target_cost < float(self._bkd.to_numpy(self._bkd.sum(self._est._costs))):
+            return self._failure_result(
+                target_cost, "Budget too small for one sample per model"
+            )
+
+        optimizer = self._get_optimizer()
+        objective = self._get_objective(optimizer)
+
+        try:
+            opt_result = self._run_optimization(target_cost, optimizer, objective)
+        except Exception as e:
+            return self._failure_result(target_cost, str(e))
+
+        if not opt_result.success():
+            return self._failure_result(target_cost, opt_result.message())
+
+        partition_ratios = opt_result.optima()[:, 0]
+        # Optimizer returns float, wrap in Array to preserve interface
+        objective_value = self._bkd.array([opt_result.fun()])
+
+        return self._build_result(target_cost, partition_ratios, objective_value)
+
+    def _run_optimization(
+        self, target_cost: float, optimizer: Any, objective: "ACVObjective[Array]"
+    ) -> Any:
+        from pyapprox.typing.statest.acv.optimization import ACVPartitionConstraint
+
+        objective.set_target_cost(target_cost)
+        constraints: List["ACVPartitionConstraint[Array]"] = [
+            ACVPartitionConstraint(self._est, target_cost)
+        ]
+        bounds = self._est.get_npartition_bounds(target_cost)
+        optimizer.bind(objective, bounds, constraints)
+        init_iterate = self._bkd.full((self._est._nmodels - 1, 1), 1.0)
+        return optimizer.minimize(init_iterate)
+
+    def _build_result(
+        self,
+        target_cost: float,
+        partition_ratios: Array,
+        objective_value: Array,
+    ) -> AllocationResult[Array]:
+        continuous = self._est._npartition_samples_from_partition_ratios(
+            target_cost, partition_ratios
+        )
+
+        if float(self._bkd.to_numpy(continuous[0])) < 1 - 1e-8:
+            return self._failure_result(
+                target_cost,
+                f"Would give {float(continuous[0]):.2f} HF samples",
+            )
+
+        npartition_samples = self._bkd.asarray(
+            self._bkd.floor(continuous + 1e-8), dtype=int
+        )
+        nsamples_per_model = self._bkd.asarray(
+            self._est._compute_nsamples_per_model(npartition_samples), dtype=int
+        )
+        actual_cost = float(
+            self._bkd.to_numpy(self._bkd.sum(nsamples_per_model * self._est._costs))
+        )
+
+        return AllocationResult(
+            partition_ratios=partition_ratios,
+            continuous_npartition_samples=continuous,
+            objective_value=objective_value,
+            npartition_samples=npartition_samples,
+            nsamples_per_model=nsamples_per_model,
+            target_cost=target_cost,
+            actual_cost=actual_cost,
+            success=True,
+            message="",
+        )
+
+    def _failure_result(
+        self, target_cost: float, message: str
+    ) -> AllocationResult[Array]:
+        nmodels = self._est._nmodels
+        npartitions = self._est._npartitions
+        return AllocationResult(
+            partition_ratios=self._bkd.zeros((nmodels - 1,)),
+            continuous_npartition_samples=self._bkd.zeros((npartitions,)),
+            objective_value=self._bkd.array([float("inf")]),
+            npartition_samples=self._bkd.zeros((npartitions,), dtype=int),
+            nsamples_per_model=self._bkd.zeros((nmodels,), dtype=int),
+            target_cost=target_cost,
+            actual_cost=0.0,
+            success=False,
+            message=message,
+        )
+
+
+class AnalyticalAllocator(Allocator[Array]):
+    """Analytical (closed-form) allocator for MFMC/MLMC.
+
+    Uses the estimator's `_allocate_samples_analytical` method for
+    closed-form allocation formulas.
+
+    Parameters
+    ----------
+    estimator : ACVEstimator
+        The estimator to allocate for. Must have `_allocate_samples_analytical`.
+    """
+
+    def __init__(self, estimator: "ACVEstimator[Array]"):
+        self._est = estimator
+        self._bkd: Backend[Array] = estimator._bkd
+
+    def allocate(self, target_cost: float) -> AllocationResult[Array]:
+        """Allocate samples using analytical formula.
+
+        Parameters
+        ----------
+        target_cost : float
+            The total computational budget.
+
+        Returns
+        -------
+        AllocationResult
+            The allocation result. Check `success` field for status.
+        """
+        if target_cost < float(self._bkd.to_numpy(self._bkd.sum(self._est._costs))):
+            return self._failure_result(
+                target_cost, "Budget too small for one sample per model"
+            )
+
+        try:
+            partition_ratios, objective_value = self._est._allocate_samples_analytical(
+                target_cost
+            )
+        except Exception as e:
+            return self._failure_result(target_cost, str(e))
+
+        return self._build_result(target_cost, partition_ratios, objective_value)
+
+    def _build_result(
+        self,
+        target_cost: float,
+        partition_ratios: Array,
+        objective_value: Array,
+    ) -> AllocationResult[Array]:
+        continuous = self._est._npartition_samples_from_partition_ratios(
+            target_cost, partition_ratios
+        )
+
+        if float(self._bkd.to_numpy(continuous[0])) < 1 - 1e-8:
+            return self._failure_result(
+                target_cost,
+                f"Would give {float(continuous[0]):.2f} HF samples",
+            )
+
+        npartition_samples = self._bkd.asarray(
+            self._bkd.floor(continuous + 1e-8), dtype=int
+        )
+        nsamples_per_model = self._bkd.asarray(
+            self._est._compute_nsamples_per_model(npartition_samples), dtype=int
+        )
+        actual_cost = float(
+            self._bkd.to_numpy(self._bkd.sum(nsamples_per_model * self._est._costs))
+        )
+
+        return AllocationResult(
+            partition_ratios=partition_ratios,
+            continuous_npartition_samples=continuous,
+            objective_value=objective_value,
+            npartition_samples=npartition_samples,
+            nsamples_per_model=nsamples_per_model,
+            target_cost=target_cost,
+            actual_cost=actual_cost,
+            success=True,
+            message="",
+        )
+
+    def _failure_result(
+        self, target_cost: float, message: str
+    ) -> AllocationResult[Array]:
+        nmodels = self._est._nmodels
+        npartitions = self._est._npartitions
+        return AllocationResult(
+            partition_ratios=self._bkd.zeros((nmodels - 1,)),
+            continuous_npartition_samples=self._bkd.zeros((npartitions,)),
+            objective_value=self._bkd.array([float("inf")]),
+            npartition_samples=self._bkd.zeros((npartitions,), dtype=int),
+            nsamples_per_model=self._bkd.zeros((nmodels,), dtype=int),
+            target_cost=target_cost,
+            actual_cost=0.0,
+            success=False,
+            message=message,
+        )
+
+
+def default_allocator_factory(
+    estimator: "ACVEstimator[Array]",
+) -> Allocator[Array]:
+    """Create appropriate allocator for estimator type.
+
+    Parameters
+    ----------
+    estimator : ACVEstimator
+        The estimator to create an allocator for.
+
+    Returns
+    -------
+    Allocator
+        AnalyticalAllocator if estimator has `_allocate_samples_analytical`,
+        otherwise ACVAllocator.
+    """
+    if hasattr(estimator, "_allocate_samples_analytical"):
+        return AnalyticalAllocator(estimator)
+    return ACVAllocator(estimator)
