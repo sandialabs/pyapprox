@@ -94,7 +94,7 @@ from .likelihood import (
     GaussianOEDInnerLoopLikelihood,
 )
 from .evidence import Evidence, LogEvidence
-from .objective import KLOEDObjective, PredictionOEDObjective
+from .objective import KLOEDObjective, PredictionOEDObjective, DOptimalLinearModelObjective
 from .deviation import (
     DeviationMeasure,
     StandardDeviationMeasure,
@@ -126,6 +126,19 @@ from .prediction import (
     create_deviation_measure,
     create_risk_measure,
     create_prediction_oed_objective,
+)
+# Benchmarks
+from .benchmarks import LinearGaussianOEDBenchmark
+# Diagnostics
+from .diagnostics import KLOEDDiagnostics
+# Analytical utilities (conjugate priors)
+from .analytical import (
+    ConjugateGaussianOEDExpectedStdDev,
+    ConjugateGaussianOEDExpectedEntropicDev,
+    ConjugateGaussianOEDExpectedAVaRDev,
+    ConjugateGaussianOEDExpectedKLDivergence,
+    ConjugateGaussianOEDForLogNormalExpectedStdDev,
+    ConjugateGaussianOEDForLogNormalAVaRStdDev,
 )
 # Local OED (linear regression design)
 from .local import (
@@ -249,6 +262,18 @@ __all__ = [
     # Objectives
     "KLOEDObjective",
     "PredictionOEDObjective",
+    "DOptimalLinearModelObjective",
+    # Benchmarks
+    "LinearGaussianOEDBenchmark",
+    # Diagnostics
+    "KLOEDDiagnostics",
+    # Analytical utilities (conjugate priors)
+    "ConjugateGaussianOEDExpectedStdDev",
+    "ConjugateGaussianOEDExpectedEntropicDev",
+    "ConjugateGaussianOEDExpectedAVaRDev",
+    "ConjugateGaussianOEDExpectedKLDivergence",
+    "ConjugateGaussianOEDForLogNormalExpectedStdDev",
+    "ConjugateGaussianOEDForLogNormalAVaRStdDev",
     # Deviation measures
     "DeviationMeasure",
     "StandardDeviationMeasure",

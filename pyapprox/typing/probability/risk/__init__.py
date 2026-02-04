@@ -17,6 +17,7 @@ Sample-based risk measures are useful for:
 
 Currently supported distributions for analytical measures:
 - Gaussian (normal)
+- LogNormal
 
 Sample-based risk measures:
 - SafetyMarginRiskMeasure: mean + strength * std
@@ -28,6 +29,7 @@ Sample-based risk measures:
 """
 
 from .gaussian import GaussianAnalyticalRiskMeasures
+from .lognormal import LogNormalAnalyticalRiskMeasures
 from .measures import (
     RiskMeasureProtocol,
     RiskMeasureBase,
@@ -41,6 +43,7 @@ from .measures import (
 
 __all__ = [
     "GaussianAnalyticalRiskMeasures",
+    "LogNormalAnalyticalRiskMeasures",
     "RiskMeasureProtocol",
     "RiskMeasureBase",
     "SafetyMarginRiskMeasure",
