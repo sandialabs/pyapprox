@@ -59,7 +59,10 @@ from pyapprox.typing.statest.acv.variants import (
     MFMCEstimator as TypingMFMCEstimator,
     MLMCEstimator as TypingMLMCEstimator,
 )
-from pyapprox.typing.util.test_utils import slow_test
+from pyapprox.typing.util.test_utils import (
+    slow_test,
+    allocate_with_allocator,
+)
 
 
 class TestLegacyComparisonMultiOutputMean(unittest.TestCase):
@@ -273,7 +276,7 @@ class TestLegacyComparisonMCEstimator(unittest.TestCase):
         typing_stat = TypingMultiOutputMean(nqoi, self._typing_bkd)
         typing_stat.set_pilot_quantities(cov)
         typing_est = TypingMCEstimator(typing_stat, costs)
-        typing_est.allocate_samples(target_cost)
+        allocate_with_allocator(typing_est, target_cost)
 
         np.testing.assert_allclose(
             typing_est._rounded_nsamples_per_model,
@@ -302,7 +305,7 @@ class TestLegacyComparisonMCEstimator(unittest.TestCase):
         typing_stat = TypingMultiOutputMean(nqoi, self._typing_bkd)
         typing_stat.set_pilot_quantities(cov)
         typing_est = TypingMCEstimator(typing_stat, costs)
-        typing_est.allocate_samples(target_cost)
+        allocate_with_allocator(typing_est, target_cost)
 
         np.testing.assert_allclose(
             typing_est.optimized_covariance(),
@@ -326,7 +329,7 @@ class TestLegacyComparisonMCEstimator(unittest.TestCase):
         typing_stat = TypingMultiOutputMean(nqoi, self._typing_bkd)
         typing_stat.set_pilot_quantities(cov)
         typing_est = TypingMCEstimator(typing_stat, costs)
-        typing_est.allocate_samples(target_cost)
+        allocate_with_allocator(typing_est, target_cost)
 
         # Use typing convention (nqoi, nsamples)
         values = np.random.randn(nqoi, 10)
@@ -352,7 +355,7 @@ class TestLegacyComparisonMCEstimator(unittest.TestCase):
         typing_stat = TypingMultiOutputMean(nqoi, self._typing_bkd)
         typing_stat.set_pilot_quantities(cov)
         typing_est = TypingMCEstimator(typing_stat, costs)
-        typing_est.allocate_samples(target_cost)
+        allocate_with_allocator(typing_est, target_cost)
 
         # Use same seed for rvs
         def rvs(n):
@@ -398,7 +401,7 @@ class TestLegacyComparisonCVEstimator(unittest.TestCase):
         typing_stat = TypingMultiOutputMean(nqoi, self._typing_bkd)
         typing_stat.set_pilot_quantities(cov)
         typing_est = TypingCVEstimator(typing_stat, costs, lowfi_stats)
-        typing_est.allocate_samples(target_cost)
+        allocate_with_allocator(typing_est, target_cost)
 
         np.testing.assert_allclose(
             typing_est._rounded_npartition_samples,
@@ -429,7 +432,7 @@ class TestLegacyComparisonCVEstimator(unittest.TestCase):
         typing_stat = TypingMultiOutputMean(nqoi, self._typing_bkd)
         typing_stat.set_pilot_quantities(cov)
         typing_est = TypingCVEstimator(typing_stat, costs, lowfi_stats)
-        typing_est.allocate_samples(target_cost)
+        allocate_with_allocator(typing_est, target_cost)
 
         np.testing.assert_allclose(
             typing_est.optimized_covariance(),
@@ -454,7 +457,7 @@ class TestLegacyComparisonCVEstimator(unittest.TestCase):
         typing_stat = TypingMultiOutputMean(nqoi, self._typing_bkd)
         typing_stat.set_pilot_quantities(cov)
         typing_est = TypingCVEstimator(typing_stat, costs, lowfi_stats)
-        typing_est.allocate_samples(target_cost)
+        allocate_with_allocator(typing_est, target_cost)
 
         np.testing.assert_allclose(
             typing_est._optimized_weights,
@@ -480,7 +483,7 @@ class TestLegacyComparisonCVEstimator(unittest.TestCase):
         typing_stat = TypingMultiOutputMean(nqoi, self._typing_bkd)
         typing_stat.set_pilot_quantities(cov)
         typing_est = TypingCVEstimator(typing_stat, costs, lowfi_stats)
-        typing_est.allocate_samples(target_cost)
+        allocate_with_allocator(typing_est, target_cost)
 
         # Use typing convention (nqoi, nsamples)
         hf_values = np.random.randn(nqoi, nsamples)
@@ -511,7 +514,7 @@ class TestLegacyComparisonCVEstimator(unittest.TestCase):
         typing_stat = TypingMultiOutputMean(nqoi, self._typing_bkd)
         typing_stat.set_pilot_quantities(cov)
         typing_est = TypingCVEstimator(typing_stat, costs, lowfi_stats)
-        typing_est.allocate_samples(target_cost)
+        allocate_with_allocator(typing_est, target_cost)
 
         def rvs(n):
             return np.random.randn(nvars, n)
@@ -545,7 +548,7 @@ class TestLegacyComparisonCVEstimator(unittest.TestCase):
         typing_stat = TypingMultiOutputMean(nqoi, self._typing_bkd)
         typing_stat.set_pilot_quantities(cov)
         typing_est = TypingCVEstimator(typing_stat, costs, lowfi_stats)
-        typing_est.allocate_samples(target_cost)
+        allocate_with_allocator(typing_est, target_cost)
 
         np.testing.assert_allclose(
             typing_est._optimized_CF,
@@ -686,7 +689,7 @@ class TestLegacyComparisonGMFEstimator(unittest.TestCase):
         typing_est = TypingGMFEstimator(
             typing_stat, costs, recursion_index=recursion_index
         )
-        typing_est.allocate_samples(target_cost)
+        allocate_with_allocator(typing_est, target_cost)
 
         np.testing.assert_allclose(
             typing_est._rounded_npartition_samples.numpy(),
@@ -739,7 +742,7 @@ class TestLegacyComparisonGISEstimator(unittest.TestCase):
         typing_est = TypingGISEstimator(
             typing_stat, costs, recursion_index=recursion_index
         )
-        typing_est.allocate_samples(target_cost)
+        allocate_with_allocator(typing_est, target_cost)
 
         np.testing.assert_allclose(
             typing_est._rounded_npartition_samples.numpy(),
@@ -792,7 +795,7 @@ class TestLegacyComparisonGRDEstimator(unittest.TestCase):
         typing_est = TypingGRDEstimator(
             typing_stat, costs, recursion_index=recursion_index
         )
-        typing_est.allocate_samples(target_cost)
+        allocate_with_allocator(typing_est, target_cost)
 
         np.testing.assert_allclose(
             typing_est._rounded_npartition_samples.numpy(),
@@ -837,7 +840,7 @@ class TestLegacyComparisonMFMCEstimator(unittest.TestCase):
         typing_stat = TypingMultiOutputMean(nqoi, self._typing_bkd)
         typing_stat.set_pilot_quantities(cov)
         typing_est = TypingMFMCEstimator(typing_stat, costs)
-        typing_est.allocate_samples(target_cost)
+        allocate_with_allocator(typing_est, target_cost)
 
         np.testing.assert_allclose(
             typing_est._rounded_npartition_samples,
@@ -881,7 +884,7 @@ class TestLegacyComparisonMLMCEstimator(unittest.TestCase):
         typing_stat = TypingMultiOutputMean(nqoi, self._typing_bkd)
         typing_stat.set_pilot_quantities(cov)
         typing_est = TypingMLMCEstimator(typing_stat, costs)
-        typing_est.allocate_samples(target_cost)
+        allocate_with_allocator(typing_est, target_cost)
 
         np.testing.assert_allclose(
             typing_est._rounded_npartition_samples,

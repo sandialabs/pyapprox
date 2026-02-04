@@ -19,7 +19,12 @@ import torch
 from unittest_parametrize import ParametrizedTestCase, parametrize
 
 from pyapprox.typing.util.backends.torch import TorchBkd
-from pyapprox.typing.util.test_utils import load_tests, slow_test, slower_test  # noqa: F401
+from pyapprox.typing.util.test_utils import (
+    load_tests,  # noqa: F401
+    slow_test,
+    slower_test,
+    allocate_with_allocator,
+)
 
 from pyapprox.typing.statest.statistics import (
     MultiOutputMean,
@@ -169,7 +174,7 @@ class TestBootstrapEstimator(ParametrizedTestCase):
         else:
             est = MCEstimator(stat, costs)
 
-        est.allocate_samples(target_cost)
+        allocate_with_allocator(est, target_cost)
 
         # Generate values
         np.random.seed(456)
@@ -227,7 +232,7 @@ class TestBootstrapEstimator(ParametrizedTestCase):
         est = _get_estimator(
             est_type, stat, costs, self._bkd, recursion_index=recursion_index
         )
-        est.allocate_samples(target_cost)
+        allocate_with_allocator(est, target_cost)
 
         # Generate samples and values
         np.random.seed(789)
@@ -319,7 +324,7 @@ class TestEstimatorVariance(ParametrizedTestCase):
             kwargs["lowfi_stats"] = self._bkd.zeros((nmodels - 1, stat.nstats()))
 
         est = _get_estimator(est_type, stat, costs, self._bkd, **kwargs)
-        est.allocate_samples(target_cost)
+        allocate_with_allocator(est, target_cost)
 
         # Compute MC variance
         mc_cov = _compute_mc_estimator_variance(self._bkd, ensemble, est, ntrials)
@@ -366,7 +371,7 @@ class TestEstimatorVariance(ParametrizedTestCase):
             kwargs["lowfi_stats"] = self._bkd.zeros((nmodels - 1, stat.nstats()))
 
         est = _get_estimator(est_type, stat, costs, self._bkd, **kwargs)
-        est.allocate_samples(target_cost)
+        allocate_with_allocator(est, target_cost)
 
         # Compute MC variance using subproblem models
         def rvs(nsamples):
@@ -425,7 +430,7 @@ class TestEstimatorVariance(ParametrizedTestCase):
 
         rec_idx = self._bkd.array(recursion_index, dtype=int)
         est = _get_estimator(est_type, stat, costs, self._bkd, recursion_index=rec_idx)
-        est.allocate_samples(target_cost)
+        allocate_with_allocator(est, target_cost)
 
         mc_cov = _compute_mc_estimator_variance(self._bkd, ensemble, est, ntrials)
         analytical_cov = est.optimized_covariance()
@@ -536,7 +541,7 @@ class TestPolynomialEnsemble(ParametrizedTestCase):
             kwargs["recursion_index"] = self._bkd.array(recursion_index, dtype=int)
 
         est = _get_estimator(est_type, stat, costs, self._bkd, **kwargs)
-        est.allocate_samples(target_cost)
+        allocate_with_allocator(est, target_cost)
 
         analytical_cov = est.optimized_covariance()
         mc_cov = _compute_mc_estimator_variance(self._bkd, ensemble, est, ntrials)
@@ -575,7 +580,7 @@ class TestInsertPilotSamples(ParametrizedTestCase):
         rec_idx = self._bkd.array(recursion_index, dtype=int)
 
         est = _get_estimator(est_type, stat, costs, self._bkd, recursion_index=rec_idx)
-        est.allocate_samples(200.0)
+        allocate_with_allocator(est, 200.0)
 
         nsamples_per_model = [
             int(est._rounded_nsamples_per_model[ii]) for ii in range(nmodels)
@@ -617,7 +622,7 @@ class TestEstimatorReproducibility(unittest.TestCase):
 
         costs = self._bkd.array([1.0])
         est = MCEstimator(stat, costs)
-        est.allocate_samples(float(nsamples))
+        allocate_with_allocator(est, float(nsamples))
 
         np.random.seed(123)
         values1 = self._bkd.asarray(np.random.randn(nqoi, nsamples))
@@ -642,7 +647,7 @@ class TestEstimatorReproducibility(unittest.TestCase):
         lowfi_stats = self._bkd.zeros((nmodels - 1, nqoi))
         costs = self._bkd.array([1.0, 0.5])
         est = CVEstimator(stat, costs, lowfi_stats)
-        est.allocate_samples(float(nsamples) * costs.sum())
+        allocate_with_allocator(est, float(nsamples) * costs.sum())
 
         np.random.seed(456)
         hf1 = self._bkd.asarray(np.random.randn(nqoi, nsamples))
@@ -695,7 +700,7 @@ class TestBestEstimatorFactory(ParametrizedTestCase):
             save_candidates=True,
             verbosity=0,
         )
-        factory.allocate_samples(target_cost)
+        allocate_with_allocator(factory, target_cost)
 
         # Get all successful candidate results
         candidates = factory.candidate_results()
@@ -756,7 +761,7 @@ class TestBestEstimatorFactory(ParametrizedTestCase):
             max_nmodels=nmodels,
             verbosity=0,
         )
-        factory.allocate_samples(target_cost)
+        allocate_with_allocator(factory, target_cost)
 
         # Generate samples and compute estimate via factory
         def rvs(n: int):

@@ -14,7 +14,10 @@ import torch
 from pyapprox.typing.util.backends.numpy import NumpyBkd
 from pyapprox.typing.util.backends.torch import TorchBkd
 from pyapprox.typing.util.backends.protocols import Array
-from pyapprox.typing.util.test_utils import load_tests  # noqa: F401
+from pyapprox.typing.util.test_utils import (
+    load_tests,  # noqa: F401
+    allocate_with_allocator,
+)
 
 from pyapprox.typing.statest.statistics import MultiOutputMean
 from pyapprox.typing.statest.factory.best_estimator_factory import (
@@ -111,7 +114,7 @@ class TestBestEstimatorFactory(Generic[Array], unittest.TestCase):
             max_depth=2,
             max_nmodels=3,
         )
-        factory.allocate_samples(target_cost=100.0)
+        allocate_with_allocator(factory, target_cost=100.0)
 
         # Should find a valid estimator
         best_est = factory.best_estimator()
@@ -132,7 +135,7 @@ class TestBestEstimatorFactory(Generic[Array], unittest.TestCase):
             max_depth=2,
             max_nmodels=3,
         )
-        factory.allocate_samples(target_cost=100.0)
+        allocate_with_allocator(factory, target_cost=100.0)
 
         # Best type should be one of the searched types
         self.assertIn(factory.best_type(), ["gmf", "gis", "grd"])
@@ -153,7 +156,7 @@ class TestBestEstimatorFactory(Generic[Array], unittest.TestCase):
             min_nmodels=2,
             save_candidates=True,
         )
-        factory.allocate_samples(target_cost=1000.0)
+        allocate_with_allocator(factory, target_cost=1000.0)
 
         # Should have searched multiple subsets
         subsets_searched = set()
@@ -177,7 +180,7 @@ class TestBestEstimatorFactory(Generic[Array], unittest.TestCase):
             max_nmodels=4,
             save_candidates=True,
         )
-        factory1.allocate_samples(target_cost=1000.0)
+        allocate_with_allocator(factory1, target_cost=1000.0)
 
         # Search with depth=3 (more tree structures)
         factory2 = BestEstimatorFactory(
@@ -189,7 +192,7 @@ class TestBestEstimatorFactory(Generic[Array], unittest.TestCase):
             max_nmodels=4,
             save_candidates=True,
         )
-        factory2.allocate_samples(target_cost=1000.0)
+        allocate_with_allocator(factory2, target_cost=1000.0)
 
         # More depth should mean more candidates searched
         stats1 = factory1.search_stats()
@@ -211,7 +214,7 @@ class TestBestEstimatorFactory(Generic[Array], unittest.TestCase):
             max_nmodels=3,
             save_candidates=True,
         )
-        factory.allocate_samples(target_cost=100.0)
+        allocate_with_allocator(factory, target_cost=100.0)
 
         # Best objective should be smallest among successful candidates
         best_obj = factory.best_objective_value()
@@ -228,7 +231,7 @@ class TestBestEstimatorFactory(Generic[Array], unittest.TestCase):
         factory = BestEstimatorFactory(
             stat, costs, bkd, estimator_types=["gmf"], max_depth=2
         )
-        factory.allocate_samples(target_cost=100.0)
+        allocate_with_allocator(factory, target_cost=100.0)
 
         # Objective should equal log-det of optimized_covariance
         cov = factory.optimized_covariance()
@@ -258,7 +261,7 @@ class TestBestEstimatorFactory(Generic[Array], unittest.TestCase):
             allow_failures=True,
         )
         # Should not raise even if some candidates fail
-        factory.allocate_samples(target_cost=100.0)
+        allocate_with_allocator(factory, target_cost=100.0)
 
     def test_require_hf(self):
         """Test that require_hf ensures model 0 is always included."""
@@ -275,7 +278,7 @@ class TestBestEstimatorFactory(Generic[Array], unittest.TestCase):
             require_hf=True,
             save_candidates=True,
         )
-        factory.allocate_samples(target_cost=1000.0)
+        allocate_with_allocator(factory, target_cost=1000.0)
 
         # All subsets should include model 0
         for result in factory.candidate_results():
@@ -288,7 +291,7 @@ class TestBestEstimatorFactory(Generic[Array], unittest.TestCase):
         costs = bkd.asarray([10.0, 1.0, 0.1])
 
         factory = BestEstimatorFactory(stat, costs, bkd, estimator_types=["gmf"])
-        factory.allocate_samples(target_cost=100.0)
+        allocate_with_allocator(factory, target_cost=100.0)
 
         nsamples = factory.nsamples_per_model()
         # Should have positive samples for each model in best subset
@@ -308,7 +311,7 @@ class TestBestEstimatorFactory(Generic[Array], unittest.TestCase):
         self.assertIn("not searched", repr(factory))
 
         # After search
-        factory.allocate_samples(target_cost=100.0)
+        allocate_with_allocator(factory, target_cost=100.0)
         self.assertIn("BestEstimatorFactory", repr(factory))
         self.assertIn(factory.best_type(), repr(factory))
 
@@ -354,7 +357,7 @@ class TestMultiQoI(Generic[Array], unittest.TestCase):
         factory = BestEstimatorFactory(
             stat, costs, bkd, estimator_types=["gmf"], max_depth=2
         )
-        factory.allocate_samples(target_cost=100.0)
+        allocate_with_allocator(factory, target_cost=100.0)
 
         # Should work with multi-QoI
         self.assertIsNotNone(factory.best_estimator())

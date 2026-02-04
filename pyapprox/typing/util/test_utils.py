@@ -84,6 +84,47 @@ def slowest_test(func_or_class: _T) -> _T:
     return func_or_class
 
 
+def allocate_with_allocator(est, target_cost: float):
+    """Allocate samples using the new allocator API.
+
+    This function replaces `est.allocate_samples(target_cost)` for all
+    estimators. For ACV estimators, it uses the new allocator/estimator
+    split pattern. For MC/CV estimators (which don't have allocators),
+    it falls back to the direct `allocate_samples()` method.
+
+    Parameters
+    ----------
+    est : Estimator
+        The estimator to allocate samples for.
+    target_cost : float
+        The total computational budget.
+
+    Returns
+    -------
+    AllocationResult or None
+        The allocation result for ACV estimators, None for MC/CV.
+
+    Raises
+    ------
+    RuntimeError
+        If allocation fails.
+    """
+    # Check if this is an ACV estimator (has set_allocation method)
+    if hasattr(est, "set_allocation"):
+        from pyapprox.typing.statest.acv.allocation import default_allocator_factory
+
+        allocator = default_allocator_factory(est)
+        result = allocator.allocate(target_cost)
+        if not result.success:
+            raise RuntimeError(f"Allocation failed: {result.message}")
+        est.set_allocation(result)
+        return result
+    else:
+        # MC/CV estimators - use direct method
+        est.allocate_samples(target_cost)
+        return None
+
+
 def load_tests(
     loader: unittest.TestLoader,
     tests: unittest.TestSuite,

@@ -47,7 +47,7 @@ from pyapprox.typing.statest.statistics import MultiOutputMean
 from pyapprox.typing.interface.functions.derivative_checks.derivative_checker import (
     DerivativeChecker,
 )
-from pyapprox.typing.util.test_utils import slower_test
+from pyapprox.typing.util.test_utils import slower_test, allocate_with_allocator
 
 
 class TestGroupACVUtils(Generic[Array], unittest.TestCase):
@@ -1171,7 +1171,7 @@ class TestMFMCNestedEstimation(Generic[Array], ParametrizedTestCase):
             gmf_stat.set_pilot_quantities(cov, W, B)
 
         gmf_est = GMFEstimator(gmf_stat, costs, recursion_index=recursion_index)
-        gmf_est.allocate_samples(target_cost)
+        allocate_with_allocator(gmf_est, target_cost)
 
         # Generate samples and values using GMF allocation
         def rvs(n: int) -> Array:

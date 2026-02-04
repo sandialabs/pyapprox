@@ -21,6 +21,7 @@ from pyapprox.typing.util.test_utils import (
     load_tests,  # noqa: F401
     slow_test,
     slower_test,
+    allocate_with_allocator,
 )
 
 from pyapprox.typing.statest.statistics import (
@@ -449,7 +450,7 @@ class TestEstimatorVariances(ParametrizedTestCase):
             optimizer = ChainedOptimizer(global_optimizer, local_optimizer)
             est.set_optimizer(optimizer)
 
-        est.allocate_samples(target_cost)
+        allocate_with_allocator(est, target_cost)
 
         hfcovar_mc, hfcovar, covar_mc, covar, est_vals, Q, delta = (
             numerically_compute_estimator_variance(funs, est, ntrials, bkd, True)
@@ -535,7 +536,7 @@ class TestDiscrepancyCovariances(ParametrizedTestCase):
             kwargs["recursion_index"] = self._bkd.array(recursion_index, dtype=int)
 
         est = get_estimator(est_type, stat, costs, **kwargs)
-        est.allocate_samples(target_cost)
+        allocate_with_allocator(est, target_cost)
 
         Q_list = []
         delta_list = []

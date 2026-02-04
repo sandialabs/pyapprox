@@ -6,7 +6,7 @@ optimization.
 """
 
 from abc import abstractmethod
-from typing import Callable, Generic, List, Union
+from typing import Callable, Generic, List, Optional, TYPE_CHECKING, Union
 
 import numpy as np
 
@@ -22,6 +22,9 @@ from pyapprox.typing.statest.acv.optimization import (
     ACVLogDeterminantObjective,
     ACVPartitionConstraint,
 )
+
+if TYPE_CHECKING:
+    from pyapprox.typing.statest.acv.allocation import AllocationResult
 
 
 class ACVEstimator(CVEstimator[Array], Generic[Array]):
@@ -78,6 +81,133 @@ class ACVEstimator(CVEstimator[Array], Generic[Array]):
         self._npartitions = self._nmodels
         self._optimizer = None
         self._npartitions_lower_bound = npartitions_lower_bound
+        self._allocation: Optional["AllocationResult[Array]"] = None
+
+    # === Allocation management (new API) ===
+
+    def set_allocation(self, allocation: "AllocationResult[Array]") -> None:
+        """Set allocation from allocator result.
+
+        Parameters
+        ----------
+        allocation : AllocationResult
+            The allocation result from an Allocator. Must have success=True.
+
+        Raises
+        ------
+        ValueError
+            If allocation.success is False.
+        """
+        if not allocation.success:
+            raise ValueError(f"Cannot set failed allocation: {allocation.message}")
+        self._allocation = allocation
+        # Update internal state for backward compatibility
+        self._rounded_partition_ratios = allocation.partition_ratios
+        # TODO: Instead of using _set_optimized_params_base to cache weights,
+        # covariance, and criteria, these should be computed lazily by accessing
+        # the allocation directly when needed. This would simplify state management
+        # and avoid redundant storage.
+        self._set_optimized_params_base(
+            allocation.npartition_samples,
+            allocation.nsamples_per_model,
+            allocation.actual_cost,
+        )
+
+    def allocation(self) -> "AllocationResult[Array]":
+        """Get current allocation.
+
+        Returns
+        -------
+        AllocationResult
+            The current allocation.
+
+        Raises
+        ------
+        RuntimeError
+            If no allocation has been set.
+        """
+        if self._allocation is None:
+            raise RuntimeError(
+                "No allocation set. Call allocate_samples() or set_allocation() first."
+            )
+        return self._allocation
+
+    def has_allocation(self) -> bool:
+        """Check if allocation has been set.
+
+        Returns
+        -------
+        bool
+            True if an allocation has been set, False otherwise.
+        """
+        return self._allocation is not None
+
+    # === Optimization mode (continuous, stateless) ===
+
+    def covariance_from_ratios(
+        self, target_cost: float, partition_ratios: Array
+    ) -> Array:
+        """Compute estimator covariance from continuous partition ratios.
+
+        For use during optimization. Supports autodiff gradients.
+
+        Parameters
+        ----------
+        target_cost : float
+            The target computational budget.
+        partition_ratios : Array
+            Continuous partition ratios from optimization.
+
+        Returns
+        -------
+        Array
+            The estimator covariance matrix.
+        """
+        return self._covariance_from_partition_ratios(target_cost, partition_ratios)
+
+    def npartition_samples_from_ratios(
+        self, target_cost: float, partition_ratios: Array
+    ) -> Array:
+        """Compute continuous npartition_samples from partition ratios.
+
+        For use during optimization. Supports autodiff gradients.
+
+        Parameters
+        ----------
+        target_cost : float
+            The target computational budget.
+        partition_ratios : Array
+            Continuous partition ratios from optimization.
+
+        Returns
+        -------
+        Array
+            Continuous sample counts per partition.
+        """
+        return self._npartition_samples_from_partition_ratios(
+            target_cost, partition_ratios
+        )
+
+    # === Evaluation mode (discrete, stateful) ===
+
+    def covariance(self) -> Array:
+        """Compute estimator covariance using stored discrete allocation.
+
+        Returns
+        -------
+        Array
+            The estimator covariance matrix.
+
+        Raises
+        ------
+        RuntimeError
+            If no allocation has been set.
+        """
+        return self._covariance_from_npartition_samples(
+            self.allocation().npartition_samples
+        )
+
+    # === End of new allocation API ===
 
     def _get_discrepancy_covariances(self, npartition_samples: Array) -> Array:
         return self._stat._get_acv_discrepancy_covariances(

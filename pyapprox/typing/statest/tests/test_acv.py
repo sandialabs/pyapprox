@@ -13,7 +13,11 @@ import numpy as np
 import torch
 
 from pyapprox.typing.util.backends.torch import TorchBkd
-from pyapprox.typing.util.test_utils import load_tests, slow_test  # noqa: F401
+from pyapprox.typing.util.test_utils import (
+    load_tests,  # noqa: F401
+    slow_test,
+    allocate_with_allocator,
+)
 
 # Legacy imports
 from pyapprox.util.backends.torch import TorchMixin as LegacyTorchBackend
@@ -285,7 +289,7 @@ class TestLegacyComparisonSampleAllocation(unittest.TestCase):
         typing_est = _get_typing_estimator(
             est_type, typing_stat, costs, self._typing_bkd, **typing_kwargs
         )
-        typing_est.allocate_samples(target_cost)
+        allocate_with_allocator(typing_est, target_cost)
 
         # Compare results
         np.testing.assert_allclose(
@@ -471,7 +475,7 @@ class TestLegacyComparisonEstimatorVariance(unittest.TestCase):
         typing_est = _get_typing_estimator(
             est_type, typing_stat, costs, self._typing_bkd, **typing_kwargs
         )
-        typing_est.allocate_samples(target_cost)
+        allocate_with_allocator(typing_est, target_cost)
 
         # Get discrepancy covariances
         if est_type not in ["mc"]:
