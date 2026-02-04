@@ -13,6 +13,8 @@ where:
 
 from typing import Generic, Optional, Callable, Union, Tuple
 
+import sympy as sp
+
 from pyapprox.typing.util.backends.protocols import Array, Backend
 from pyapprox.typing.pde.collocation.protocols.basis import (
     TensorProductBasisProtocol,
@@ -66,8 +68,45 @@ class ReactionProtocol(Generic[Array]):
         ...
 
 
+class SymbolicReactionProtocol(ReactionProtocol[Array], Generic[Array]):
+    """Protocol for reactions with symbolic support.
+
+    Reactions implementing this protocol can be used with manufactured
+    solutions for automatic forcing computation. The same reaction object
+    can be passed to both physics and manufactured solution classes.
+
+    Subclasses must implement:
+    - __call__: Numeric evaluation (from ReactionProtocol)
+    - jacobian: Numeric Jacobian (from ReactionProtocol)
+    - sympy_expressions: Symbolic evaluation for manufactured solutions
+    """
+
+    def sympy_expressions(
+        self, u0_expr: sp.Expr, u1_expr: sp.Expr
+    ) -> Tuple[sp.Expr, sp.Expr]:
+        """Return symbolic reaction expressions.
+
+        Parameters
+        ----------
+        u0_expr : sp.Expr
+            Sympy expression for species 0 (the manufactured solution).
+        u1_expr : sp.Expr
+            Sympy expression for species 1 (the manufactured solution).
+
+        Returns
+        -------
+        Tuple[sp.Expr, sp.Expr]
+            (R0_expr, R1_expr) symbolic reaction expressions with
+            u0_expr and u1_expr substituted.
+        """
+        raise NotImplementedError
+
+
 class LinearReaction(Generic[Array]):
-    """Linear reaction: R0 = a00*u0 + a01*u1, R1 = a10*u0 + a11*u1."""
+    """Linear reaction: R0 = a00*u0 + a01*u1, R1 = a10*u0 + a11*u1.
+
+    Implements SymbolicReactionProtocol for use with manufactured solutions.
+    """
 
     def __init__(
         self,
@@ -116,6 +155,30 @@ class LinearReaction(Generic[Array]):
             dR1_du1 = self._a11
 
         return dR0_du0, dR0_du1, dR1_du0, dR1_du1
+
+    def sympy_expressions(
+        self, u0_expr: sp.Expr, u1_expr: sp.Expr
+    ) -> Tuple[sp.Expr, sp.Expr]:
+        """Return symbolic linear reaction expressions.
+
+        For linear reaction: R0 = a00*u0 + a01*u1, R1 = a10*u0 + a11*u1
+        with u0, u1 substituted with the given expressions.
+
+        Note: Spatially-varying coefficients (arrays) are not supported
+        for symbolic expressions. Only scalar coefficients work.
+        """
+        # Validate that coefficients are scalar for symbolic use
+        for name, coef in [("a00", self._a00), ("a01", self._a01),
+                           ("a10", self._a10), ("a11", self._a11)]:
+            if not isinstance(coef, (int, float)):
+                raise ValueError(
+                    f"Spatially-varying coefficient {name} not supported "
+                    "for symbolic expressions. Use scalar coefficients."
+                )
+
+        R0_expr = self._a00 * u0_expr + self._a01 * u1_expr
+        R1_expr = self._a10 * u0_expr + self._a11 * u1_expr
+        return R0_expr, R1_expr
 
 
 class FitzHughNagumoReaction(Generic[Array]):
@@ -194,6 +257,18 @@ class FitzHughNagumoReaction(Generic[Array]):
         dR1_du1 = bkd.full((npts,), -eps * gamma)
 
         return dR0_du0, dR0_du1, dR1_du0, dR1_du1
+
+    def sympy_expressions(
+        self, u0_expr: sp.Expr, u1_expr: sp.Expr
+    ) -> Tuple[sp.Expr, sp.Expr]:
+        """Return symbolic FitzHugh-Nagumo reaction expressions.
+
+        R0 = u0 * (1 - u0) * (u0 - alpha) - u1
+        R1 = eps * (beta * u0 - gamma * u1)
+        """
+        R0_expr = u0_expr * (1 - u0_expr) * (u0_expr - self._alpha) - u1_expr
+        R1_expr = self._eps * (self._beta * u0_expr - self._gamma * u1_expr)
+        return R0_expr, R1_expr
 
 
 class TwoSpeciesReactionDiffusionPhysics(AbstractVectorPhysics[Array]):

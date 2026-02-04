@@ -28,6 +28,8 @@ from pyapprox.typing.pde.collocation.physics.shallow_ice import (
     create_shallow_ice,
 )
 from pyapprox.typing.pde.collocation.physics.reaction_diffusion import (
+    ReactionProtocol,
+    SymbolicReactionProtocol,
     TwoSpeciesReactionDiffusionPhysics,
     LinearReaction,
     FitzHughNagumoReaction,
@@ -71,6 +73,8 @@ __all__ = [
     "ShallowIcePhysics",
     "create_shallow_ice",
     # Reaction-Diffusion
+    "ReactionProtocol",
+    "SymbolicReactionProtocol",
     "TwoSpeciesReactionDiffusionPhysics",
     "LinearReaction",
     "FitzHughNagumoReaction",

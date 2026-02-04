@@ -1,15 +1,19 @@
 """Manufactured solutions for two-species reaction-diffusion systems.
 
 Two-species reaction-diffusion system:
-    du0/dt = div(D0 * grad(u0)) - R0(u0, u1) + f0
-    du1/dt = div(D1 * grad(u1)) - R1(u0, u1) + f1
+    du0/dt = div(D0 * grad(u0)) + R0(u0, u1) + f0
+    du1/dt = div(D1 * grad(u1)) + R1(u0, u1) + f1
 
 where:
-    R0(u0, u1) = c0*u0^p0 - u1  (production of u0, consumption by u1)
-    R1(u0, u1) = c1*u1^p1 + u0  (production of u1, coupling to u0)
+    R0(u0, u1), R1(u0, u1) = reaction terms (functions of both species)
+    D0, D1 = diffusion coefficients
+    f0, f1 = forcing/source terms
+
+The reaction is provided via a SymbolicReactionProtocol object that can be
+shared between the manufactured solution and the physics class.
 """
 
-from typing import Generic, List, Tuple, Any, Dict, Callable
+from typing import Generic, List, Tuple, Any, Dict, Callable, TYPE_CHECKING
 
 import sympy as sp
 
@@ -20,21 +24,26 @@ from pyapprox.typing.pde.collocation.manufactured_solutions.base import (
 )
 from pyapprox.typing.pde.collocation.manufactured_solutions.mixins import (
     DiffusionMixin,
-    ReactionMixin,
 )
+
+if TYPE_CHECKING:
+    from pyapprox.typing.pde.collocation.physics.reaction_diffusion import (
+        SymbolicReactionProtocol,
+    )
 
 
 class ManufacturedTwoSpeciesReactionDiffusion(
     VectorSolutionMixin,
     DiffusionMixin,
-    ReactionMixin,
     ManufacturedSolution[Array],
     Generic[Array],
 ):
     """Manufactured solution for two-species reaction-diffusion system.
 
-    Reaction Vector: R(u0, u1) = [c0*u0^p0 - u1, c1*u1^p1 + u0]
-    for coefficients c0, c1 and powers p0 and p1.
+    The reaction term is provided via a SymbolicReactionProtocol object,
+    allowing the same reaction definition to be used by both the manufactured
+    solution (for forcing computation) and the physics class (for residual
+    evaluation).
 
     Parameters
     ----------
@@ -44,9 +53,9 @@ class ManufacturedTwoSpeciesReactionDiffusion(
         Number of spatial dimensions.
     diff_strs : List[str]
         String representations of diffusion coefficients [D0, D1].
-    react_strs : List[str]
-        String representations of reaction terms [c0*u^p0, c1*u^p1].
-        Note: The 'u' in react_strs[i] refers to u_i.
+    reaction : SymbolicReactionProtocol
+        Reaction object providing sympy_expressions() method.
+        The same object should be passed to TwoSpeciesReactionDiffusionPhysics.
     bkd : Backend
         Computational backend.
     oned : bool
@@ -55,13 +64,16 @@ class ManufacturedTwoSpeciesReactionDiffusion(
     Examples
     --------
     >>> from pyapprox.typing.util.backends.numpy import NumpyBkd
+    >>> from pyapprox.typing.pde.collocation.physics import LinearReaction
     >>> bkd = NumpyBkd()
-    >>> # Create 2D two-species system
+    >>> # Create reaction object (shared between manufactured and physics)
+    >>> reaction = LinearReaction(a00=1.0, a01=-1.0, a10=1.0, a11=-0.5, bkd=bkd)
+    >>> # Create manufactured solution
     >>> man_sol = ManufacturedTwoSpeciesReactionDiffusion(
     ...     sol_strs=["sin(pi*x)*sin(pi*y)", "cos(pi*x)*cos(pi*y)"],
     ...     nvars=2,
     ...     diff_strs=["1.0", "0.5"],
-    ...     react_strs=["u**2", "u"],
+    ...     reaction=reaction,
     ...     bkd=bkd,
     ... )
     """
@@ -71,7 +83,7 @@ class ManufacturedTwoSpeciesReactionDiffusion(
         sol_strs: List[str],
         nvars: int,
         diff_strs: List[str],
-        react_strs: List[str],
+        reaction: "SymbolicReactionProtocol[Array]",
         bkd: Backend[Array],
         oned: bool = False,
     ):
@@ -79,11 +91,14 @@ class ManufacturedTwoSpeciesReactionDiffusion(
             raise ValueError("TwoSpeciesReactionDiffusion requires 2 species")
         if len(diff_strs) != 2:
             raise ValueError("Expected 2 diffusion coefficients")
-        if len(react_strs) != 2:
-            raise ValueError("Expected 2 reaction terms")
+        if not hasattr(reaction, 'sympy_expressions'):
+            raise TypeError(
+                "reaction must implement SymbolicReactionProtocol "
+                "(must have sympy_expressions method)"
+            )
 
         self._diff_strs = diff_strs
-        self._react_strs = react_strs
+        self._reaction = reaction
         super().__init__(sol_strs, nvars, bkd, oned)
 
     def sympy_diffusion_expressions(self) -> None:
@@ -108,32 +123,29 @@ class ManufacturedTwoSpeciesReactionDiffusion(
         ]
 
     def sympy_reaction_expressions(self) -> None:
-        """Build reaction expressions for the coupled system.
+        """Build reaction expressions using the SymbolicReactionProtocol.
 
-        Reaction terms:
-        R0 = c0*u0^p0 - u1  (reaction of species 0 minus consumption by species 1)
-        R1 = c1*u1^p1 + u0  (reaction of species 1 plus production from species 0)
+        The reaction object provides sympy_expressions(u0_expr, u1_expr)
+        which returns (R0_expr, R1_expr) evaluated at the manufactured
+        solution expressions.
         """
-        # Parse base reaction terms (substituting 'u' with actual solution)
-        react_str0, react_expr0 = self._sympy_reaction_expressions(
-            self._react_strs[0], self._sol_strs[0]
-        )
-        react_str1, react_expr1 = self._sympy_reaction_expressions(
-            self._react_strs[1], self._sol_strs[1]
-        )
+        u0_expr = self._expressions["solution"][0]
+        u1_expr = self._expressions["solution"][1]
 
-        # Full reaction terms with cross-species coupling
-        # R0 = c0*u0^p0 - u1, R1 = c1*u1^p1 + u0
-        react_exprs = [
-            react_expr0 - self._expressions["solution"][1],
-            react_expr1 + self._expressions["solution"][0],
-        ]
+        # Get symbolic reaction expressions from the reaction object
+        R0_expr, R1_expr = self._reaction.sympy_expressions(u0_expr, u1_expr)
+        react_exprs = [R0_expr, R1_expr]
 
-        self._set_expression("reaction", react_exprs, self._react_strs[0])
+        self._set_expression("reaction", react_exprs, "reaction(u0, u1)")
 
-        # Subtract reaction from forcing (standard ADR convention)
+        # Physics computes: du/dt = diffusion + reaction + forcing
+        # Manufactured solution: du/dt = 0 (steady state)
+        # So: 0 = diffusion + reaction + forcing
+        # => forcing = -diffusion - reaction
+        # But diffusion forcing was already added as +div(D*grad(u)) which
+        # equals -diffusion term, so we need forcing -= reaction
         self._expressions["forcing"] = [
-            f - g for f, g in zip(self._expressions["forcing"], react_exprs)
+            f - r for f, r in zip(self._expressions["forcing"], react_exprs)
         ]
 
     def sympy_expressions(self) -> None:

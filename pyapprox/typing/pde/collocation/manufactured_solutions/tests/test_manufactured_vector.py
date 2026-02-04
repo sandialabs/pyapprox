@@ -14,17 +14,60 @@ These tests verify:
 """
 
 import unittest
-from typing import Generic
-import math
+from typing import Generic, Tuple
+
+import sympy as sp
 
 from pyapprox.typing.util.backends.protocols import Array, Backend
 from pyapprox.typing.util.backends.numpy import NumpyBkd
+from pyapprox.typing.util.test_utils import load_tests  # noqa: F401
 from pyapprox.typing.pde.collocation.manufactured_solutions import (
     ManufacturedShallowWave,
     ManufacturedTwoSpeciesReactionDiffusion,
     ManufacturedShallowShelfVelocityEquations,
     ManufacturedStokes,
 )
+
+
+class QuadraticLinearCoupledReaction(Generic[Array]):
+    """Test reaction: R0 = u0² - u1, R1 = u1 + u0.
+
+    This is a simple test reaction with known symbolic form for
+    testing manufactured solutions. The cross-species coupling
+    (- u1 in R0, + u0 in R1) provides non-trivial behavior.
+
+    Implements SymbolicReactionProtocol for use with
+    ManufacturedTwoSpeciesReactionDiffusion.
+    """
+
+    def __init__(self, bkd: Backend[Array]):
+        self._bkd = bkd
+
+    def __call__(self, u0: Array, u1: Array) -> Tuple[Array, Array]:
+        """Evaluate reaction: R0 = u0² - u1, R1 = u1 + u0."""
+        R0 = u0**2 - u1
+        R1 = u1 + u0
+        return R0, R1
+
+    def jacobian(
+        self, u0: Array, u1: Array
+    ) -> Tuple[Array, Array, Array, Array]:
+        """Compute Jacobian of reaction."""
+        bkd = self._bkd
+        npts = u0.shape[0]
+        dR0_du0 = 2 * u0          # d(u0²)/du0
+        dR0_du1 = bkd.full((npts,), -1.0)  # d(-u1)/du1
+        dR1_du0 = bkd.full((npts,), 1.0)   # d(u0)/du0
+        dR1_du1 = bkd.full((npts,), 1.0)   # d(u1)/du1
+        return dR0_du0, dR0_du1, dR1_du0, dR1_du1
+
+    def sympy_expressions(
+        self, u0_expr: sp.Expr, u1_expr: sp.Expr
+    ) -> Tuple[sp.Expr, sp.Expr]:
+        """Return symbolic reaction expressions."""
+        R0_expr = u0_expr**2 - u1_expr
+        R1_expr = u1_expr + u0_expr
+        return R0_expr, R1_expr
 
 
 class TestManufacturedShallowWave(Generic[Array], unittest.TestCase):
@@ -161,11 +204,12 @@ class TestManufacturedTwoSpeciesReactionDiffusion(Generic[Array], unittest.TestC
     def test_reaction_diffusion_creation(self):
         """Test two-species reaction-diffusion creation."""
         bkd = self.bkd()
+        reaction = QuadraticLinearCoupledReaction(bkd)
         man_sol = ManufacturedTwoSpeciesReactionDiffusion(
             sol_strs=["(1 - x**2)*(1 - y**2)", "(1 - x**2)*(1 - y**2)*0.5"],
             nvars=2,
             diff_strs=["1.0", "0.5"],
-            react_strs=["u**2", "u"],
+            reaction=reaction,
             bkd=bkd,
         )
         self.assertEqual(man_sol.ncomponents(), 2)
@@ -174,11 +218,12 @@ class TestManufacturedTwoSpeciesReactionDiffusion(Generic[Array], unittest.TestC
     def test_reaction_diffusion_functions_exist(self):
         """Test that all expected functions are created."""
         bkd = self.bkd()
+        reaction = QuadraticLinearCoupledReaction(bkd)
         man_sol = ManufacturedTwoSpeciesReactionDiffusion(
             sol_strs=["(1 - x**2)", "(1 - x**2)*0.5"],
             nvars=1,
             diff_strs=["1.0", "0.5"],
-            react_strs=["u**2", "u"],
+            reaction=reaction,
             bkd=bkd,
         )
         self.assertIn("solution", man_sol.functions)
@@ -190,11 +235,12 @@ class TestManufacturedTwoSpeciesReactionDiffusion(Generic[Array], unittest.TestC
     def test_reaction_diffusion_evaluation_1d(self):
         """Test 1D two-species reaction-diffusion evaluation."""
         bkd = self.bkd()
+        reaction = QuadraticLinearCoupledReaction(bkd)
         man_sol = ManufacturedTwoSpeciesReactionDiffusion(
             sol_strs=["(1 - x**2)", "(1 - x**2)*0.5"],
             nvars=1,
             diff_strs=["1.0", "0.5"],
-            react_strs=["u**2", "u"],
+            reaction=reaction,
             bkd=bkd,
             oned=True,
         )
@@ -215,11 +261,12 @@ class TestManufacturedTwoSpeciesReactionDiffusion(Generic[Array], unittest.TestC
     def test_reaction_diffusion_evaluation_2d(self):
         """Test 2D two-species reaction-diffusion evaluation."""
         bkd = self.bkd()
+        reaction = QuadraticLinearCoupledReaction(bkd)
         man_sol = ManufacturedTwoSpeciesReactionDiffusion(
             sol_strs=["(1 - x**2)*(1 - y**2)", "(1 - x**2)*(1 - y**2)*0.5"],
             nvars=2,
             diff_strs=["1.0", "0.5"],
-            react_strs=["u**2", "u"],
+            reaction=reaction,
             bkd=bkd,
             oned=True,
         )
