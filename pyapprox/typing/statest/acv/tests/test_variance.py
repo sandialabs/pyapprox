@@ -49,120 +49,7 @@ from pyapprox.typing.benchmarks.functions.multifidelity.polynomial_ensemble impo
 )
 
 
-# Helper functions matching legacy _setup_multioutput_model_subproblem
-
-
-def _single_qoi(qoi_idx: int, fun, samples: Array) -> Array:
-    """Wrap function to return single QoI. Output shape: (1, nsamples)."""
-    return fun(samples)[qoi_idx : qoi_idx + 1, :]
-
-
-def _two_qoi(qoi_idx0: int, qoi_idx1: int, fun, samples: Array) -> Array:
-    """Wrap function to return two QoI. Output shape: (2, nsamples)."""
-    vals = fun(samples)
-    return vals[[qoi_idx0, qoi_idx1], :]
-
-
-def _three_qoi(qoi_idx0: int, qoi_idx1: int, qoi_idx2: int, fun, samples: Array) -> Array:
-    """Wrap function to return three QoI. Output shape: (3, nsamples)."""
-    vals = fun(samples)
-    return vals[[qoi_idx0, qoi_idx1, qoi_idx2], :]
-
-
-def _setup_multioutput_model_subproblem(
-    model_idx: List[int], qoi_idx: List[int], bkd: Backend[Array]
-):
-    """Set up model ensemble subproblem matching legacy test setup (psd=False)."""
-    benchmark = MultiOutputModelEnsemble(bkd)
-    cov = benchmark.covariance_matrix()
-    all_models = benchmark.models()
-
-    # Get models for the subproblem
-    funs = [all_models[ii] for ii in model_idx]
-
-    # Wrap functions to return only selected QoI
-    if len(qoi_idx) == 1:
-        funs = [partial(_single_qoi, qoi_idx[0], f) for f in funs]
-    elif len(qoi_idx) == 2:
-        funs = [partial(_two_qoi, qoi_idx[0], qoi_idx[1], f) for f in funs]
-    elif len(qoi_idx) == 3:
-        funs = [partial(_three_qoi, qoi_idx[0], qoi_idx[1], qoi_idx[2], f) for f in funs]
-
-    # Extract covariance submatrix
-    # Legacy indexing: cov has shape (nmodels*nqoi, nmodels*nqoi)
-    # where model ii, qoi jj is at index ii*nqoi + jj
-    nqoi_full = benchmark.nqoi()
-    flat_idx = []
-    for m in model_idx:
-        for q in qoi_idx:
-            flat_idx.append(m * nqoi_full + q)
-    idx_arr = np.array(flat_idx)
-    cov = cov[np.ix_(idx_arr, idx_arr)]
-
-    costs = benchmark.costs()[model_idx]
-    means = benchmark.means()[np.ix_(model_idx, qoi_idx)]
-
-    return funs, cov, costs, benchmark, means
-
-
-def _nqoisq_nqoisq_subproblem(
-    W: Array,
-    nmodels_full: int,
-    nqoi_full: int,
-    model_idx: List[int],
-    qoi_idx: List[int],
-    bkd: Backend[Array],
-) -> Array:
-    """Extract subproblem W matrix."""
-    nsub_models = len(model_idx)
-    nsub_qoi = len(qoi_idx)
-    n = nsub_models * nsub_qoi**2
-    W_new = bkd.zeros((n, n))
-
-    cnt1 = 0
-    for jj1 in model_idx:
-        for kk1 in qoi_idx:
-            for ll1 in qoi_idx:
-                cnt2 = 0
-                idx1 = jj1 * nqoi_full**2 + kk1 * nqoi_full + ll1
-                for jj2 in model_idx:
-                    for kk2 in qoi_idx:
-                        for ll2 in qoi_idx:
-                            idx2 = jj2 * nqoi_full**2 + kk2 * nqoi_full + ll2
-                            W_new[cnt1, cnt2] = W[idx1, idx2]
-                            cnt2 += 1
-                cnt1 += 1
-    return W_new
-
-
-def _nqoi_nqoisq_subproblem(
-    B: Array,
-    nmodels_full: int,
-    nqoi_full: int,
-    model_idx: List[int],
-    qoi_idx: List[int],
-    bkd: Backend[Array],
-) -> Array:
-    """Extract subproblem B matrix."""
-    nsub_models = len(model_idx)
-    nsub_qoi = len(qoi_idx)
-    n_mean = nsub_models * nsub_qoi
-    n_var = nsub_models * nsub_qoi**2
-    B_new = bkd.zeros((n_mean, n_var))
-
-    cnt1 = 0
-    for jj1 in model_idx:
-        for kk1 in qoi_idx:
-            cnt2 = 0
-            idx1 = jj1 * nqoi_full + kk1
-            for jj2 in model_idx:
-                for kk2 in qoi_idx:
-                    for ll2 in qoi_idx:
-                        idx2 = jj2 * nqoi_full**2 + kk2 * nqoi_full + ll2
-                        B_new[cnt1, cnt2] = B[idx1, idx2]
-                        cnt2 += 1
-            cnt1 += 1
-    return B_new
+# Helper functions for setting up test subproblems
 
 
 multioutput_stats = {
@@ -170,6 +57,103 @@ multioutput_stats = {
     "variance": MultiOutputVariance,
     "mean_variance": MultiOutputMeanAndVariance,
 }
+
+
+def _get_pilot_quantities_for_stat_type(
+    benchmark: "MultiOutputModelEnsemble",
+    stat_type: str,
+    model_idx: List[int],
+    qoi_idx: List[int],
+):
+    """Get pilot quantities for the given statistic type.
+
+    Parameters
+    ----------
+    benchmark : MultiOutputModelEnsemble
+        The benchmark providing covariance data.
+    stat_type : str
+        One of "mean", "variance", "mean_variance".
+    model_idx : List[int]
+        Indices of models to include.
+    qoi_idx : List[int]
+        Indices of QoI to include.
+
+    Returns
+    -------
+    Tuple[Array, ...]
+        Pilot quantities for set_pilot_quantities().
+    """
+    cov = benchmark.covariance_subproblem(model_idx, qoi_idx)
+    if stat_type == "mean":
+        return (cov,)
+    elif stat_type == "variance":
+        W = benchmark.covariance_of_centered_values_kronecker_product_subproblem(
+            model_idx, qoi_idx
+        )
+        return (cov, W)
+    elif stat_type == "mean_variance":
+        W = benchmark.covariance_of_centered_values_kronecker_product_subproblem(
+            model_idx, qoi_idx
+        )
+        B = benchmark.covariance_of_mean_and_variance_estimators_subproblem(
+            model_idx, qoi_idx
+        )
+        return (cov, W, B)
+    else:
+        raise ValueError(f"Unknown stat_type: {stat_type}")
+
+
+def _setup_multioutput_model_subproblem(
+    model_idx: List[int],
+    qoi_idx: List[int],
+    stat_type: str,
+    bkd: Backend[Array],
+):
+    """Set up model ensemble subproblem using benchmark subproblem methods.
+
+    Parameters
+    ----------
+    model_idx : List[int]
+        Indices of models to include.
+    qoi_idx : List[int]
+        Indices of QoI to include.
+    stat_type : str
+        Type of statistic ("mean", "variance", "mean_variance").
+    bkd : Backend
+        Backend for array operations.
+
+    Returns
+    -------
+    funs : List[Callable]
+        Wrapped model functions for selected QoI.
+    stat : MultiOutputStatistic
+        Statistic for the subproblem with pilot quantities set.
+    costs : Array
+        Costs for selected models.
+    benchmark : MultiOutputModelEnsemble
+        Full benchmark object.
+    means : Array
+        Means for the subproblem.
+    """
+    benchmark = MultiOutputModelEnsemble(bkd)
+
+    # Get wrapped functions for the subproblem
+    funs = benchmark.models_subproblem(model_idx, qoi_idx)
+
+    # Get pilot quantities directly for subproblem
+    pilot_quantities = _get_pilot_quantities_for_stat_type(
+        benchmark, stat_type, model_idx, qoi_idx
+    )
+
+    # Create statistic and set pilot quantities
+    nqoi = len(qoi_idx)
+    stat = multioutput_stats[stat_type](nqoi, bkd)
+    stat.set_pilot_quantities(*pilot_quantities)
+
+    costs = benchmark.costs_subproblem(model_idx)
+    means = benchmark.means_subproblem(model_idx, qoi_idx)
+
+    return funs, stat, costs, benchmark, means
 
 
 def get_estimator(
@@ -365,8 +349,8 @@ class TestEstimatorVariances(ParametrizedTestCase):
         bkd = self._bkd
         rtol, atol = 4.6e-2, 1.01e-3
 
-        funs, cov, costs, benchmark, means = _setup_multioutput_model_subproblem(
-            model_idx, qoi_idx, bkd
+        funs, stat, costs, benchmark, means = _setup_multioutput_model_subproblem(
+            model_idx, qoi_idx, stat_type, bkd
         )
 
         # Change costs to reduce samples (match legacy)
@@ -374,8 +358,8 @@ class TestEstimatorVariances(ParametrizedTestCase):
 
         nqoi = len(qoi_idx)
         nmodels = len(model_idx)
+        idx = stat.nstats()
 
-        pilot_args = [cov]
         kwargs: Dict[str, Any] = {}
 
         # For ACV estimators, handle recursion_index (tree_depth handled via ACVSearch)
@@ -383,12 +367,12 @@ class TestEstimatorVariances(ParametrizedTestCase):
             if recursion_index is not None:
                 kwargs["recursion_index"] = bkd.asarray(recursion_index)
 
-        if stat_type == "mean":
-            if est_type == "cv":
+        # CV estimator needs lowfi_stats computed from covariance and means
+        if est_type == "cv":
+            cov = benchmark.covariance_subproblem(model_idx, qoi_idx)
+            if stat_type == "mean":
                 kwargs["lowfi_stats"] = bkd.stack([m for m in means[1:]], axis=0)
-
-        if "variance" in stat_type:
-            if est_type == "cv":
+            elif stat_type == "variance":
                 lfcovs = []
                 for ii in range(1, nmodels):
                     lb = ii * nqoi
@@ -398,15 +382,7 @@ class TestEstimatorVariances(ParametrizedTestCase):
                 kwargs["lowfi_stats"] = bkd.stack(
                     [c[tril_idx[0], tril_idx[1]].flatten() for c in lfcovs]
                 )
-
-            W = benchmark.covariance_of_centered_values_kronecker_product()
-            W = _nqoisq_nqoisq_subproblem(
-                W, benchmark.nmodels(), benchmark.nqoi(), model_idx, qoi_idx, bkd
-            )
-            pilot_args.append(W)
-
-        if stat_type == "mean_variance":
-            if est_type == "cv":
+            elif stat_type == "mean_variance":
                 lfcovs = []
                 for ii in range(1, nmodels):
                     lb = ii * nqoi
@@ -420,16 +396,6 @@ class TestEstimatorVariances(ParametrizedTestCase):
                     ],
                     axis=0,
                 )
-
-            B = benchmark.covariance_of_mean_and_variance_estimators()
-            B = _nqoi_nqoisq_subproblem(
-                B, benchmark.nmodels(), benchmark.nqoi(), model_idx, qoi_idx, bkd
-            )
-            pilot_args.append(B)
-
-        stat = multioutput_stats[stat_type](nqoi, bkd)
-        stat.set_pilot_quantities(*pilot_args)
-        idx = stat.nstats()
 
         # Use ACVSearch when tree_depth is specified for ACV estimators
         if tree_depth is not None and est_type in ("gmf", "grd", "gis"):
