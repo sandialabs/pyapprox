@@ -11,8 +11,15 @@ from pyapprox.typing.pde.collocation.mesh.transforms.polar import (
 from pyapprox.typing.pde.collocation.mesh.transforms.spherical import (
     SphericalTransform,
 )
+from pyapprox.typing.pde.collocation.mesh.transforms.elliptical import (
+    EllipticalTransform,
+)
 from pyapprox.typing.pde.collocation.mesh.transforms.chained import (
     ChainedTransform,
+)
+from pyapprox.typing.pde.collocation.mesh.transforms.sympy_transform import (
+    SympyTransform2D,
+    SympyTransform3D,
 )
 
 __all__ = [
@@ -23,6 +30,10 @@ __all__ = [
     # Curvilinear transforms
     "PolarTransform",
     "SphericalTransform",
+    "EllipticalTransform",
+    # User-defined transforms
+    "SympyTransform2D",
+    "SympyTransform3D",
     # Composition
     "ChainedTransform",
 ]
