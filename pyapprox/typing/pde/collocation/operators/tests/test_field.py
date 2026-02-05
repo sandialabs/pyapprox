@@ -5,7 +5,11 @@ from typing import Generic
 
 from pyapprox.typing.util.backends.protocols import Array, Backend
 from pyapprox.typing.util.backends.numpy import NumpyBkd
+from pyapprox.typing.util.test_utils import load_tests  # noqa: F401
 from pyapprox.typing.pde.collocation.basis import ChebyshevBasis1D
+from pyapprox.typing.pde.collocation.mesh import (
+    TransformedMesh1D,
+)
 from pyapprox.typing.pde.collocation.operators import (
     Field,
     scalar_field,
@@ -26,7 +30,9 @@ class TestField(Generic[Array], unittest.TestCase):
     def test_field_scalar_creation(self):
         """Test scalar field creation with shape (1, npts)."""
         bkd = self.bkd()
-        basis = ChebyshevBasis1D(5, bkd)
+        mesh = TransformedMesh1D(5, bkd)
+
+        basis = ChebyshevBasis1D(mesh, bkd)
         npts = basis.npts()
 
         values = bkd.reshape(bkd.ones((npts,)), (1, npts))
@@ -38,7 +44,9 @@ class TestField(Generic[Array], unittest.TestCase):
     def test_field_vector_creation(self):
         """Test vector field creation with shape (ncomponents, npts)."""
         bkd = self.bkd()
-        basis = ChebyshevBasis1D(5, bkd)
+        mesh = TransformedMesh1D(5, bkd)
+
+        basis = ChebyshevBasis1D(mesh, bkd)
         npts = basis.npts()
 
         values = bkd.ones((2, npts))
@@ -50,7 +58,9 @@ class TestField(Generic[Array], unittest.TestCase):
     def test_field_component_extraction(self):
         """Test extracting a component from a vector field."""
         bkd = self.bkd()
-        basis = ChebyshevBasis1D(5, bkd)
+        mesh = TransformedMesh1D(5, bkd)
+
+        basis = ChebyshevBasis1D(mesh, bkd)
         npts = basis.npts()
 
         values = bkd.zeros((2, npts))
@@ -78,7 +88,9 @@ class TestScalarFieldFactories(Generic[Array], unittest.TestCase):
     def test_scalar_field_creation(self):
         """Test scalar_field factory function."""
         bkd = self.bkd()
-        basis = ChebyshevBasis1D(5, bkd)
+        mesh = TransformedMesh1D(5, bkd)
+
+        basis = ChebyshevBasis1D(mesh, bkd)
         npts = basis.npts()
 
         values = bkd.ones((npts,))
@@ -92,7 +104,9 @@ class TestScalarFieldFactories(Generic[Array], unittest.TestCase):
     def test_constant_field(self):
         """Test constant_field factory function."""
         bkd = self.bkd()
-        basis = ChebyshevBasis1D(5, bkd)
+        mesh = TransformedMesh1D(5, bkd)
+
+        basis = ChebyshevBasis1D(mesh, bkd)
         npts = basis.npts()
 
         field = constant_field(basis, bkd, 3.0)
@@ -103,7 +117,9 @@ class TestScalarFieldFactories(Generic[Array], unittest.TestCase):
     def test_zero_field(self):
         """Test zero_field factory function."""
         bkd = self.bkd()
-        basis = ChebyshevBasis1D(5, bkd)
+        mesh = TransformedMesh1D(5, bkd)
+
+        basis = ChebyshevBasis1D(mesh, bkd)
         npts = basis.npts()
 
         field = zero_field(basis, bkd)
@@ -113,7 +129,9 @@ class TestScalarFieldFactories(Generic[Array], unittest.TestCase):
     def test_input_field_jacobian(self):
         """Test input_field creates correct diagonal Jacobian."""
         bkd = self.bkd()
-        basis = ChebyshevBasis1D(5, bkd)
+        mesh = TransformedMesh1D(5, bkd)
+
+        basis = ChebyshevBasis1D(mesh, bkd)
         npts = basis.npts()
 
         values = bkd.linspace(0.0, 1.0, npts)
@@ -126,7 +144,9 @@ class TestScalarFieldFactories(Generic[Array], unittest.TestCase):
     def test_input_field_multi_input(self):
         """Test input_field with multiple inputs."""
         bkd = self.bkd()
-        basis = ChebyshevBasis1D(5, bkd)
+        mesh = TransformedMesh1D(5, bkd)
+
+        basis = ChebyshevBasis1D(mesh, bkd)
         npts = basis.npts()
 
         values = bkd.linspace(0.0, 1.0, npts)
@@ -152,7 +172,9 @@ class TestFieldArithmetic(Generic[Array], unittest.TestCase):
     def test_addition(self):
         """Test field addition."""
         bkd = self.bkd()
-        basis = ChebyshevBasis1D(5, bkd)
+        mesh = TransformedMesh1D(5, bkd)
+
+        basis = ChebyshevBasis1D(mesh, bkd)
         npts = basis.npts()
 
         f1 = input_field(basis, bkd, bkd.ones((npts,)) * 2.0)
@@ -165,7 +187,9 @@ class TestFieldArithmetic(Generic[Array], unittest.TestCase):
     def test_addition_scalar(self):
         """Test field + scalar."""
         bkd = self.bkd()
-        basis = ChebyshevBasis1D(5, bkd)
+        mesh = TransformedMesh1D(5, bkd)
+
+        basis = ChebyshevBasis1D(mesh, bkd)
         npts = basis.npts()
 
         f = input_field(basis, bkd, bkd.ones((npts,)) * 2.0)
@@ -176,7 +200,9 @@ class TestFieldArithmetic(Generic[Array], unittest.TestCase):
     def test_subtraction(self):
         """Test field subtraction."""
         bkd = self.bkd()
-        basis = ChebyshevBasis1D(5, bkd)
+        mesh = TransformedMesh1D(5, bkd)
+
+        basis = ChebyshevBasis1D(mesh, bkd)
         npts = basis.npts()
 
         f1 = input_field(basis, bkd, bkd.ones((npts,)) * 5.0)
@@ -189,7 +215,9 @@ class TestFieldArithmetic(Generic[Array], unittest.TestCase):
     def test_multiplication(self):
         """Test field multiplication with product rule."""
         bkd = self.bkd()
-        basis = ChebyshevBasis1D(5, bkd)
+        mesh = TransformedMesh1D(5, bkd)
+
+        basis = ChebyshevBasis1D(mesh, bkd)
         npts = basis.npts()
 
         f1 = input_field(basis, bkd, bkd.ones((npts,)) * 2.0)
@@ -202,7 +230,9 @@ class TestFieldArithmetic(Generic[Array], unittest.TestCase):
     def test_multiplication_scalar(self):
         """Test field * scalar."""
         bkd = self.bkd()
-        basis = ChebyshevBasis1D(5, bkd)
+        mesh = TransformedMesh1D(5, bkd)
+
+        basis = ChebyshevBasis1D(mesh, bkd)
         npts = basis.npts()
 
         f = input_field(basis, bkd, bkd.ones((npts,)) * 2.0)
@@ -213,7 +243,9 @@ class TestFieldArithmetic(Generic[Array], unittest.TestCase):
     def test_division(self):
         """Test field division."""
         bkd = self.bkd()
-        basis = ChebyshevBasis1D(5, bkd)
+        mesh = TransformedMesh1D(5, bkd)
+
+        basis = ChebyshevBasis1D(mesh, bkd)
         npts = basis.npts()
 
         f1 = input_field(basis, bkd, bkd.ones((npts,)) * 6.0)
@@ -226,7 +258,9 @@ class TestFieldArithmetic(Generic[Array], unittest.TestCase):
     def test_power(self):
         """Test field power."""
         bkd = self.bkd()
-        basis = ChebyshevBasis1D(5, bkd)
+        mesh = TransformedMesh1D(5, bkd)
+
+        basis = ChebyshevBasis1D(mesh, bkd)
         npts = basis.npts()
 
         f = input_field(basis, bkd, bkd.ones((npts,)) * 2.0)
@@ -237,7 +271,9 @@ class TestFieldArithmetic(Generic[Array], unittest.TestCase):
     def test_negation(self):
         """Test field negation."""
         bkd = self.bkd()
-        basis = ChebyshevBasis1D(5, bkd)
+        mesh = TransformedMesh1D(5, bkd)
+
+        basis = ChebyshevBasis1D(mesh, bkd)
         npts = basis.npts()
 
         f = input_field(basis, bkd, bkd.ones((npts,)) * 3.0)
@@ -257,7 +293,9 @@ class TestFieldJacobian(Generic[Array], unittest.TestCase):
     def test_addition_jacobian(self):
         """Test Jacobian of f + g = df + dg."""
         bkd = self.bkd()
-        basis = ChebyshevBasis1D(5, bkd)
+        mesh = TransformedMesh1D(5, bkd)
+
+        basis = ChebyshevBasis1D(mesh, bkd)
         npts = basis.npts()
 
         f = input_field(basis, bkd, bkd.linspace(1.0, 2.0, npts))
@@ -272,7 +310,9 @@ class TestFieldJacobian(Generic[Array], unittest.TestCase):
     def test_multiplication_jacobian(self):
         """Test Jacobian of f * g = g*df + f*dg (product rule)."""
         bkd = self.bkd()
-        basis = ChebyshevBasis1D(5, bkd)
+        mesh = TransformedMesh1D(5, bkd)
+
+        basis = ChebyshevBasis1D(mesh, bkd)
         npts = basis.npts()
 
         f = input_field(basis, bkd, bkd.ones((npts,)) * 2.0)
@@ -287,7 +327,9 @@ class TestFieldJacobian(Generic[Array], unittest.TestCase):
     def test_power_jacobian(self):
         """Test Jacobian of f^n = n * f^(n-1) * df."""
         bkd = self.bkd()
-        basis = ChebyshevBasis1D(5, bkd)
+        mesh = TransformedMesh1D(5, bkd)
+
+        basis = ChebyshevBasis1D(mesh, bkd)
         npts = basis.npts()
 
         f = input_field(basis, bkd, bkd.ones((npts,)) * 2.0)

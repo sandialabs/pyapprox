@@ -5,8 +5,12 @@ from typing import Generic
 
 from pyapprox.typing.util.backends.protocols import Array, Backend
 from pyapprox.typing.util.backends.numpy import NumpyBkd
+from pyapprox.typing.util.test_utils import load_tests  # noqa: F401
 from pyapprox.typing.pde.collocation.basis import ChebyshevBasis1D
-from pyapprox.typing.pde.collocation.mesh import create_uniform_mesh_1d
+from pyapprox.typing.pde.collocation.mesh import (
+    create_uniform_mesh_1d,
+    TransformedMesh1D,
+)
 from pyapprox.typing.pde.collocation.boundary import (
     DirichletBC,
     NeumannBC,
@@ -31,7 +35,9 @@ class TestDirichletBC(Generic[Array], unittest.TestCase):
         """Test constant Dirichlet BC."""
         bkd = self.bkd()
         npts = 5
-        basis = ChebyshevBasis1D(npts, bkd)
+        mesh = TransformedMesh1D(npts, bkd)
+
+        basis = ChebyshevBasis1D(mesh, bkd)
         mesh = create_uniform_mesh_1d(npts, (-1.0, 1.0), bkd)
 
         # Left boundary: u = 2.0
@@ -108,7 +114,9 @@ class TestNeumannBC(Generic[Array], unittest.TestCase):
         """Test zero Neumann BC (du/dn = 0)."""
         bkd = self.bkd()
         npts = 5
-        basis = ChebyshevBasis1D(npts, bkd)
+        mesh = TransformedMesh1D(npts, bkd)
+
+        basis = ChebyshevBasis1D(mesh, bkd)
         mesh = create_uniform_mesh_1d(npts, (-1.0, 1.0), bkd)
 
         # Left boundary: du/dn = 0
@@ -134,7 +142,9 @@ class TestNeumannBC(Generic[Array], unittest.TestCase):
         """Test Neumann BC Jacobian."""
         bkd = self.bkd()
         npts = 5
-        basis = ChebyshevBasis1D(npts, bkd)
+        mesh = TransformedMesh1D(npts, bkd)
+
+        basis = ChebyshevBasis1D(mesh, bkd)
         mesh = create_uniform_mesh_1d(npts, (-1.0, 1.0), bkd)
 
         left_idx = mesh.boundary_indices(0)
@@ -164,7 +174,9 @@ class TestRobinBC(Generic[Array], unittest.TestCase):
         """Test Robin BC with alpha=1, beta=0 reduces to Dirichlet."""
         bkd = self.bkd()
         npts = 5
-        basis = ChebyshevBasis1D(npts, bkd)
+        mesh = TransformedMesh1D(npts, bkd)
+
+        basis = ChebyshevBasis1D(mesh, bkd)
         mesh = create_uniform_mesh_1d(npts, (-1.0, 1.0), bkd)
 
         left_idx = mesh.boundary_indices(0)
@@ -195,7 +207,9 @@ class TestRobinBC(Generic[Array], unittest.TestCase):
         """Test homogeneous Robin BC."""
         bkd = self.bkd()
         npts = 5
-        basis = ChebyshevBasis1D(npts, bkd)
+        mesh = TransformedMesh1D(npts, bkd)
+
+        basis = ChebyshevBasis1D(mesh, bkd)
         mesh = create_uniform_mesh_1d(npts, (-1.0, 1.0), bkd)
 
         left_idx = mesh.boundary_indices(0)

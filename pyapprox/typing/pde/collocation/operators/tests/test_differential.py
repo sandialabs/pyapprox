@@ -5,9 +5,14 @@ from typing import Generic
 
 from pyapprox.typing.util.backends.protocols import Array, Backend
 from pyapprox.typing.util.backends.numpy import NumpyBkd
+from pyapprox.typing.util.test_utils import load_tests  # noqa: F401
 from pyapprox.typing.pde.collocation.basis import (
     ChebyshevBasis1D,
     ChebyshevBasis2D,
+)
+from pyapprox.typing.pde.collocation.mesh import (
+    TransformedMesh1D,
+    TransformedMesh2D,
 )
 from pyapprox.typing.pde.collocation.operators import (
     input_field,
@@ -31,7 +36,9 @@ class TestGradient(Generic[Array], unittest.TestCase):
     def test_gradient_1d_linear(self):
         """Test gradient of linear function f(x) = x."""
         bkd = self.bkd()
-        basis = ChebyshevBasis1D(10, bkd)
+        mesh = TransformedMesh1D(10, bkd)
+
+        basis = ChebyshevBasis1D(mesh, bkd)
         npts = basis.npts()
 
         # f(x) = x, df/dx = 1
@@ -47,7 +54,9 @@ class TestGradient(Generic[Array], unittest.TestCase):
     def test_gradient_1d_quadratic(self):
         """Test gradient of quadratic function f(x) = x^2."""
         bkd = self.bkd()
-        basis = ChebyshevBasis1D(10, bkd)
+        mesh = TransformedMesh1D(10, bkd)
+
+        basis = ChebyshevBasis1D(mesh, bkd)
 
         # f(x) = x^2, df/dx = 2x
         nodes = basis.nodes()
@@ -61,7 +70,9 @@ class TestGradient(Generic[Array], unittest.TestCase):
     def test_gradient_2d_separable(self):
         """Test gradient of separable function f(x,y) = x^2 + y^2."""
         bkd = self.bkd()
-        basis = ChebyshevBasis2D(6, 6, bkd)
+        mesh = TransformedMesh2D(6, 6, bkd)
+
+        basis = ChebyshevBasis2D(mesh, bkd)
 
         # Create mesh coordinates
         x = basis.nodes_x()
@@ -94,7 +105,9 @@ class TestDivergence(Generic[Array], unittest.TestCase):
     def test_divergence_2d_linear(self):
         """Test divergence of vector field v = (x, y)."""
         bkd = self.bkd()
-        basis = ChebyshevBasis2D(6, 6, bkd)
+        mesh = TransformedMesh2D(6, 6, bkd)
+
+        basis = ChebyshevBasis2D(mesh, bkd)
         npts = basis.npts()
 
         # Create mesh coordinates
@@ -117,7 +130,9 @@ class TestDivergence(Generic[Array], unittest.TestCase):
     def test_divergence_2d_nonlinear(self):
         """Test divergence of vector field v = (x^2, y^2)."""
         bkd = self.bkd()
-        basis = ChebyshevBasis2D(6, 6, bkd)
+        mesh = TransformedMesh2D(6, 6, bkd)
+
+        basis = ChebyshevBasis2D(mesh, bkd)
 
         # Create mesh coordinates
         x = basis.nodes_x()
@@ -148,7 +163,9 @@ class TestLaplacian(Generic[Array], unittest.TestCase):
     def test_laplacian_1d_quadratic(self):
         """Test Laplacian of quadratic function f(x) = x^2."""
         bkd = self.bkd()
-        basis = ChebyshevBasis1D(10, bkd)
+        mesh = TransformedMesh1D(10, bkd)
+
+        basis = ChebyshevBasis1D(mesh, bkd)
         npts = basis.npts()
 
         # f(x) = x^2, nabla^2 f = 2
@@ -163,7 +180,9 @@ class TestLaplacian(Generic[Array], unittest.TestCase):
     def test_laplacian_1d_cubic(self):
         """Test Laplacian of cubic function f(x) = x^3."""
         bkd = self.bkd()
-        basis = ChebyshevBasis1D(10, bkd)
+        mesh = TransformedMesh1D(10, bkd)
+
+        basis = ChebyshevBasis1D(mesh, bkd)
 
         # f(x) = x^3, nabla^2 f = 6x
         nodes = basis.nodes()
@@ -177,7 +196,9 @@ class TestLaplacian(Generic[Array], unittest.TestCase):
     def test_laplacian_2d_separable(self):
         """Test Laplacian of separable function f(x,y) = x^2 + y^2."""
         bkd = self.bkd()
-        basis = ChebyshevBasis2D(6, 6, bkd)
+        mesh = TransformedMesh2D(6, 6, bkd)
+
+        basis = ChebyshevBasis2D(mesh, bkd)
         npts = basis.npts()
 
         # Create mesh coordinates
@@ -200,7 +221,9 @@ class TestLaplacian(Generic[Array], unittest.TestCase):
     def test_laplacian_2d_mixed(self):
         """Test Laplacian of mixed function f(x,y) = x^2*y^2."""
         bkd = self.bkd()
-        basis = ChebyshevBasis2D(8, 8, bkd)
+        mesh = TransformedMesh2D(8, 8, bkd)
+
+        basis = ChebyshevBasis2D(mesh, bkd)
 
         # Create mesh coordinates
         x = basis.nodes_x()
@@ -234,7 +257,9 @@ class TestOperatorClasses(Generic[Array], unittest.TestCase):
     def test_gradient_class_vs_function(self):
         """Test Gradient class gives same result as gradient function."""
         bkd = self.bkd()
-        basis = ChebyshevBasis1D(10, bkd)
+        mesh = TransformedMesh1D(10, bkd)
+
+        basis = ChebyshevBasis1D(mesh, bkd)
         nodes = basis.nodes()
         f = input_field(basis, bkd, nodes ** 2)
 
@@ -252,7 +277,9 @@ class TestOperatorClasses(Generic[Array], unittest.TestCase):
     def test_laplacian_class_vs_function(self):
         """Test Laplacian class gives same result as laplacian function."""
         bkd = self.bkd()
-        basis = ChebyshevBasis1D(10, bkd)
+        mesh = TransformedMesh1D(10, bkd)
+
+        basis = ChebyshevBasis1D(mesh, bkd)
         nodes = basis.nodes()
         f = input_field(basis, bkd, nodes ** 3)
 
