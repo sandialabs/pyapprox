@@ -226,3 +226,40 @@ class MeshWithTransformProtocol(Protocol, Generic[Array]):
             Jacobian determinants. Shape: (npts,)
         """
         ...
+
+    def gradient_factors(self) -> Array:
+        """Return gradient factors for converting reference to physical derivatives.
+
+        The gradient factors G are used to compute physical derivatives from
+        reference derivatives:
+            d/dx_phys[d] = sum_j G[:, d, j] * d/d_xi_ref[j]
+
+        For Cartesian (untransformed) meshes, this is the identity matrix.
+        For affine transforms, it's diagonal with 1/scale entries.
+        For curvilinear transforms, it's the inverse of the metric tensor.
+
+        Returns
+        -------
+        Array
+            Gradient factors. Shape: (npts, ndim, ndim)
+        """
+        ...
+
+    def reference_nodes_1d(self, dim: int) -> Array:
+        """Return 1D reference nodes for specified dimension.
+
+        For tensor product meshes, the full reference coordinates are the
+        Cartesian product of 1D reference nodes. This method returns the
+        1D nodes for a single dimension.
+
+        Parameters
+        ----------
+        dim : int
+            Dimension index (0 for x, 1 for y, 2 for z).
+
+        Returns
+        -------
+        Array
+            1D reference nodes. Shape: (npts_dim,)
+        """
+        ...

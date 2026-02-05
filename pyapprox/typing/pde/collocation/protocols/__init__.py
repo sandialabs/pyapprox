@@ -26,7 +26,7 @@ from pyapprox.typing.pde.collocation.protocols.physics import (
     PhysicsWithParamJacobianProtocol,
     PhysicsWithHVPProtocol,
 )
-from pyapprox.typing.pde.collocation.protocols.solvers import (
+from pyapprox.typing.optimization.linear_solvers.protocols import (
     LinearSolverProtocol,
     IterativeSolverProtocol,
     MatrixFreeSolverProtocol,
