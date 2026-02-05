@@ -7,7 +7,6 @@ without comparing to legacy code. They test:
 - End-to-end polynomial ensemble tests
 - MC variance estimation comparing analytical to numerical
 - Estimator variance across different estimator types, stat types, and nqoi
-- BestEstimatorFactory selection procedure
 
 These tests use the typing array convention: (nqoi, nsamples) for outputs.
 """
@@ -45,9 +44,6 @@ from pyapprox.typing.benchmarks.functions.multifidelity.polynomial_ensemble impo
 )
 from pyapprox.typing.benchmarks.functions.multifidelity.multioutput_ensemble import (
     MultiOutputModelEnsemble,
-)
-from pyapprox.typing.statest.factory.best_estimator_factory import (
-    BestEstimatorFactory,
 )
 
 
@@ -660,126 +656,6 @@ class TestEstimatorReproducibility(unittest.TestCase):
         result2 = est([hf2, lf2])
 
         self._bkd.assert_allclose(result1, result2, rtol=1e-12)
-
-
-class TestBestEstimatorFactory(ParametrizedTestCase):
-    """Test BestEstimatorFactory selects optimal estimator configuration.
-
-    Focus: Test selection procedure correctness, not individual estimator
-    correctness (already tested elsewhere).
-    """
-
-    def setUp(self) -> None:
-        np.random.seed(42)
-        torch.set_default_dtype(torch.float64)
-        self._bkd = TorchBkd()
-
-    @slow_test
-    def test_best_estimator_selection(self) -> None:
-        """Test that BestEstimatorFactory selects the best configuration."""
-        bkd = self._bkd
-
-        # Use polynomial ensemble for clean analytical covariance
-        nmodels = 3
-        ensemble = PolynomialEnsemble(bkd, nmodels=nmodels)
-        cov = ensemble.covariance_matrix()
-        costs = ensemble.costs()
-
-        stat = MultiOutputMean(ensemble.nqoi(), bkd)
-        stat.set_pilot_quantities(cov)
-
-        target_cost = 50.0
-
-        # Create BestEstimatorFactory with save_candidates=True
-        factory = BestEstimatorFactory(
-            stat,
-            costs,
-            bkd,
-            estimator_types=["gmf", "gis", "grd"],
-            max_nmodels=nmodels,
-            save_candidates=True,
-            verbosity=0,
-        )
-        allocate_with_allocator(factory, target_cost)
-
-        # Get all successful candidate results
-        candidates = factory.candidate_results()
-        successful = [c for c in candidates if c.success]
-        self.assertGreater(len(successful), 0)
-
-        # Verify best has minimum objective value
-        best_obj = factory.best_objective_value()
-        all_objectives = [c.objective_value for c in successful]
-        self._bkd.assert_allclose(
-            self._bkd.asarray([best_obj]),
-            self._bkd.asarray([min(all_objectives)]),
-            rtol=1e-10,
-        )
-
-        # Verify best estimator is returned and is valid
-        best_est = factory.best_estimator()
-        self.assertIsNotNone(best_est)
-        self.assertIsNotNone(factory.best_type())
-        self.assertIsNotNone(factory.best_models())
-
-    def test_best_estimator_requires_allocate(self) -> None:
-        """Test that best_estimator raises before allocate_samples."""
-        bkd = self._bkd
-        ensemble = PolynomialEnsemble(bkd, nmodels=3)
-        cov = ensemble.covariance_matrix()
-        costs = ensemble.costs()
-
-        stat = MultiOutputMean(ensemble.nqoi(), bkd)
-        stat.set_pilot_quantities(cov)
-
-        factory = BestEstimatorFactory(stat, costs, bkd)
-
-        with self.assertRaises(ValueError):
-            factory.best_estimator()
-
-    @slow_test
-    def test_best_estimator_callable(self) -> None:
-        """Test that BestEstimatorFactory can be called like an estimator."""
-        bkd = self._bkd
-
-        nmodels = 3
-        ensemble = PolynomialEnsemble(bkd, nmodels=nmodels)
-        cov = ensemble.covariance_matrix()
-        costs = ensemble.costs()
-        models = ensemble.models()
-
-        stat = MultiOutputMean(ensemble.nqoi(), bkd)
-        stat.set_pilot_quantities(cov)
-
-        target_cost = 50.0
-
-        factory = BestEstimatorFactory(
-            stat,
-            costs,
-            bkd,
-            estimator_types=["gmf"],
-            max_nmodels=nmodels,
-            verbosity=0,
-        )
-        allocate_with_allocator(factory, target_cost)
-
-        # Generate samples and compute estimate via factory
-        def rvs(n: int):
-            return bkd.asarray(np.random.rand(1, int(n)))
-
-        best_est = factory.best_estimator()
-        samples_per_model = best_est.generate_samples_per_model(rvs)
-
-        # Only use models in best_models
-        best_models = factory.best_models()
-        values_per_model = [
-            models[idx](samples_per_model[ii])
-            for ii, idx in enumerate(best_models)
-        ]
-
-        # Call via factory
-        result = factory(values_per_model)
-        self.assertEqual(result.shape[0], stat.nstats())
 
 
 if __name__ == "__main__":

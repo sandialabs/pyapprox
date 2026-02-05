@@ -12,7 +12,7 @@ from pyapprox.typing.util.optional_deps import import_optional_dependency
 from pyapprox.typing.statest.groupacv.optimization import (
     MLBLUEObjective,
 )
-from pyapprox.typing.statest.groupacv.allocation import AllocationResult
+from pyapprox.typing.statest.groupacv.allocation import GroupACVAllocationResult
 
 if TYPE_CHECKING:
     from pyapprox.typing.statest.groupacv.mlblue import MLBLUEEstimator
@@ -78,7 +78,7 @@ class MLBLUESPDAllocationOptimizer(Generic[Array]):
     >>> # Create allocator and optimize
     >>> allocator = MLBLUESPDAllocationOptimizer(est)
     >>> result = allocator.optimize(target_cost=100, min_nhf_samples=10)
-    >>> est.set_npartition_samples(result.npartition_samples)
+    >>> est.set_allocation(result)
     """
 
     def __init__(
@@ -158,7 +158,7 @@ class MLBLUESPDAllocationOptimizer(Generic[Array]):
         min_nlf_samples: Optional[Array] = None,
         init_guess: Optional[Array] = None,
         round_nsamples: bool = True,
-    ) -> AllocationResult[Array]:
+    ) -> GroupACVAllocationResult[Array]:
         """Find optimal sample allocation using SDP.
 
         Parameters
@@ -177,7 +177,7 @@ class MLBLUESPDAllocationOptimizer(Generic[Array]):
 
         Returns
         -------
-        AllocationResult
+        GroupACVAllocationResult
             Optimization result with npartition_samples.
 
         Raises
@@ -227,8 +227,10 @@ class MLBLUESPDAllocationOptimizer(Generic[Array]):
         prob.solve(solver=self._solver_name)
 
         if t_cvxpy.value is None:
-            return AllocationResult(
+            return GroupACVAllocationResult(
                 npartition_samples=self._bkd.zeros((self._est.nsubsets(),)),
+                nsamples_per_model=self._bkd.zeros((self._est.nmodels(),)),
+                actual_cost=0.0,
                 objective_value=self._bkd.array([float("inf")]),
                 success=False,
                 message=(
@@ -243,10 +245,15 @@ class MLBLUESPDAllocationOptimizer(Generic[Array]):
         if round_nsamples:
             npartition_samples = self._bkd.floor(npartition_samples + 1e-4)
 
+        # Compute derived quantities
+        nsamples_per_model = self._est._compute_nsamples_per_model(npartition_samples)
+        actual_cost = float(self._est._estimator_cost(npartition_samples))
         obj_value = self._bkd.array([float(t_cvxpy.value)])
 
-        return AllocationResult(
+        return GroupACVAllocationResult(
             npartition_samples=npartition_samples,
+            nsamples_per_model=nsamples_per_model,
+            actual_cost=actual_cost,
             objective_value=obj_value,
             success=True,
             message="",

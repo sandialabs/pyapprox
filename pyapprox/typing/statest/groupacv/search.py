@@ -16,7 +16,7 @@ from pyapprox.typing.statest.strategies import ModelSubsetStrategy, QoISubsetStr
 
 if TYPE_CHECKING:
     from pyapprox.typing.statest.groupacv.base import BaseGroupACVEstimator
-    from pyapprox.typing.statest.groupacv.allocation import AllocationResult
+    from pyapprox.typing.statest.groupacv.allocation import GroupACVAllocationResult
     from pyapprox.typing.statest.statistics import MultiOutputStatistic
 
 
@@ -25,8 +25,8 @@ class GroupACVSearchResult(Generic[Array]):
     """Result of GroupACV estimator configuration search."""
 
     estimator: "BaseGroupACVEstimator[Array]"
-    allocation: "AllocationResult[Array]"
-    all_allocations: List[Tuple["BaseGroupACVEstimator[Array]", "AllocationResult[Array]"]]
+    allocation: "GroupACVAllocationResult[Array]"
+    all_allocations: List[Tuple["BaseGroupACVEstimator[Array]", "GroupACVAllocationResult[Array]"]]
 
     # Search configuration
     estimator_classes: List[Type["BaseGroupACVEstimator[Array]"]]
@@ -43,7 +43,7 @@ class GroupACVSearchResult(Generic[Array]):
 
     def successful_allocations(
         self,
-    ) -> List[Tuple["BaseGroupACVEstimator[Array]", "AllocationResult[Array]"]]:
+    ) -> List[Tuple["BaseGroupACVEstimator[Array]", "GroupACVAllocationResult[Array]"]]:
         """Return list of (estimator, allocation) pairs for successful allocations."""
         return [(est, alloc) for est, alloc in self.all_allocations if alloc.success]
 
@@ -156,7 +156,7 @@ class GroupACVSearch(Generic[Array]):
         )
 
         all_allocations: List[
-            Tuple["BaseGroupACVEstimator[Array]", "AllocationResult[Array]"]
+            Tuple["BaseGroupACVEstimator[Array]", "GroupACVAllocationResult[Array]"]
         ] = []
 
         for est_class, model_indices, qoi_indices in self._iter_configs():
@@ -180,7 +180,7 @@ class GroupACVSearch(Generic[Array]):
     def _build_search_result(
         self,
         all_allocations: List[
-            Tuple["BaseGroupACVEstimator[Array]", "AllocationResult[Array]"]
+            Tuple["BaseGroupACVEstimator[Array]", "GroupACVAllocationResult[Array]"]
         ],
     ) -> GroupACVSearchResult[Array]:
         """Build result, selecting best allocation."""
@@ -195,7 +195,7 @@ class GroupACVSearch(Generic[Array]):
 
         for estimator, allocation in sorted_allocs:
             if allocation.success:
-                estimator.set_npartition_samples(allocation.npartition_samples)
+                estimator.set_allocation(allocation)
                 return GroupACVSearchResult(
                     estimator=estimator,
                     allocation=allocation,

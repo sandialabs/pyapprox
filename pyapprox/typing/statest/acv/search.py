@@ -19,7 +19,7 @@ from pyapprox.typing.util.backends.protocols import Array, Backend
 from pyapprox.typing.statest.statistics import MultiOutputStatistic
 from pyapprox.typing.statest.acv.allocation import (
     Allocator,
-    AllocationResult,
+    ACVAllocationResult,
     default_allocator_factory,
 )
 from pyapprox.typing.statest.acv.strategies import (
@@ -39,8 +39,8 @@ class SearchResult(Generic[Array]):
     """Result of estimator configuration search."""
 
     estimator: "ACVEstimator[Array]"
-    allocation: AllocationResult[Array]
-    all_allocations: List[Tuple["ACVEstimator[Array]", AllocationResult[Array]]]
+    allocation: ACVAllocationResult[Array]
+    all_allocations: List[Tuple["ACVEstimator[Array]", ACVAllocationResult[Array]]]
 
     # Strategies and config used (for traceability)
     estimator_classes: List[Type["ACVEstimator[Array]"]]
@@ -58,7 +58,7 @@ class SearchResult(Generic[Array]):
 
     def successful_allocations(
         self,
-    ) -> List[Tuple["ACVEstimator[Array]", AllocationResult[Array]]]:
+    ) -> List[Tuple["ACVEstimator[Array]", ACVAllocationResult[Array]]]:
         """Return list of (estimator, allocation) pairs for successful allocations."""
         return [(est, alloc) for est, alloc in self.all_allocations if alloc.success]
 
@@ -184,7 +184,7 @@ class ACVSearch(Generic[Array]):
             successful allocations are found.
         """
         all_allocations: List[
-            Tuple["ACVEstimator[Array]", AllocationResult[Array]]
+            Tuple["ACVEstimator[Array]", ACVAllocationResult[Array]]
         ] = []
 
         for est_class, model_indices, qoi_indices, recursion_idx in self._iter_configs():
@@ -206,7 +206,7 @@ class ACVSearch(Generic[Array]):
     def _build_search_result(
         self,
         all_allocations: List[
-            Tuple["ACVEstimator[Array]", AllocationResult[Array]]
+            Tuple["ACVEstimator[Array]", ACVAllocationResult[Array]]
         ],
     ) -> SearchResult[Array]:
         """Build result, selecting best allocation."""

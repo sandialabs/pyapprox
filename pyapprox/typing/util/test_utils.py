@@ -109,8 +109,11 @@ def allocate_with_allocator(est, target_cost: float):
     RuntimeError
         If allocation fails.
     """
-    # Check if this is an ACV estimator (has set_allocation method)
-    if hasattr(est, "set_allocation"):
+    # Check if this is an ACV estimator (has _recursion_index attribute)
+    # This distinguishes ACVEstimator from CVEstimator/MCEstimator
+    from pyapprox.typing.statest.acv.base import ACVEstimator
+
+    if isinstance(est, ACVEstimator):
         from pyapprox.typing.statest.acv.allocation import default_allocator_factory
 
         allocator = default_allocator_factory(est)

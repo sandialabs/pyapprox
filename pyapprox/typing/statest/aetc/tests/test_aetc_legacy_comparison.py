@@ -1101,7 +1101,10 @@ class TestAETCStepByStepLegacyComparison(unittest.TestCase):
         # Create MLBLUEEstimator directly and check both values
         from pyapprox.multifidelity.groupacv import MLBLUEEstimator as LegacyMLBLUE
         from pyapprox.multifidelity.factory import multioutput_stats
-        from pyapprox.typing.statest.groupacv import MLBLUEEstimator as TypingMLBLUE
+        from pyapprox.typing.statest.groupacv import (
+            MLBLUEEstimator as TypingMLBLUE,
+            GroupACVAllocationOptimizer,
+        )
         from pyapprox.typing.statest.statistics import MultiOutputMean
 
         # Use same Sigma_S, beta_Sp, costs_S from the explore
@@ -1160,19 +1163,22 @@ class TestAETCStepByStepLegacyComparison(unittest.TestCase):
             typing_stat, self._typing_bkd.asarray(costs_subset),
             asketch=self._typing_bkd.asarray(asketch), reg_blue=0
         )
-        typing_mlblue.allocate_samples(target_cost_test, round_nsamples=False, min_nhf_samples=0)
+        # Use new allocation API
+        allocator = GroupACVAllocationOptimizer(typing_mlblue)
+        result = allocator.optimize(target_cost_test, min_nhf_samples=0, round_nsamples=False)
+        typing_mlblue.set_allocation(result)
 
         print(f"\nTyping MLBLUE:")
-        print(f"  _optimized_criteria = {typing_mlblue._optimized_criteria}")
-        print(f"  _rounded_npartition_samples = {typing_mlblue._rounded_npartition_samples}")
+        print(f"  optimized_criteria = {typing_mlblue.optimized_criteria()}")
+        print(f"  npartition_samples = {typing_mlblue.npartition_samples()}")
 
         # Compute logdet manually
         typing_opt_cov = typing_mlblue._covariance_from_npartition_samples(
-            typing_mlblue._rounded_npartition_samples
+            typing_mlblue.npartition_samples()
         )
         typing_sign, typing_logdet = self._typing_bkd.slogdet(typing_opt_cov)
         print(f"  logdet of optimized_cov = {typing_logdet}")
-        print(f"  _optimized_criteria matches logdet? {np.allclose(self._typing_bkd.to_numpy(typing_mlblue._optimized_criteria), self._typing_bkd.to_numpy(typing_logdet))}")
+        print(f"  optimized_criteria matches logdet? {np.allclose(self._typing_bkd.to_numpy(typing_mlblue.optimized_criteria()), self._typing_bkd.to_numpy(typing_logdet))}")
 
         # Temporarily patch legacy AETCBLUE to fix the reg_blue bug
         # The bug is that legacy passes Sigma_best_S as reg_blue (3rd positional arg)

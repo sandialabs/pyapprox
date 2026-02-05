@@ -12,6 +12,8 @@ from pyapprox.typing.statest.aetc.base import AETC
 from pyapprox.typing.statest.statistics import MultiOutputMean
 from pyapprox.typing.statest.groupacv import (
     MLBLUEEstimator,
+    GroupACVAllocationOptimizer,
+    GroupACVAllocationResult,
     default_groupacv_optimizer,
 )
 
@@ -112,24 +114,25 @@ class AETCBLUE(AETC[Array]):
             asketch=asketch,
         )
 
-        # Set target cost and allocate samples
-        target_cost = 10 * costs_S[0]
-        est.set_optimizer(self._optimizer)
-        est.allocate_samples(
-            target_cost, round_nsamples=round_nsamples, min_nhf_samples=0
+        # Set target cost and allocate samples using new API
+        target_cost = 10 * float(bkd.to_numpy(costs_S[0]))
+        allocator = GroupACVAllocationOptimizer(est, optimizer=self._optimizer)
+        result = allocator.optimize(
+            target_cost, min_nhf_samples=0, round_nsamples=round_nsamples
         )
+        est.set_allocation(result)
 
         # Get allocation and scale by target cost
         nsamples_per_subset = bkd.maximum(
-            bkd.zeros(est._rounded_npartition_samples.shape),
-            est._rounded_npartition_samples,
+            bkd.zeros(est.npartition_samples().shape),
+            est.npartition_samples(),
         )
 
         # Get k2 from the estimator's optimized criteria (same as legacy)
-        # Note: _optimized_criteria is the objective value from the optimizer,
+        # Note: optimized_criteria is the objective value from the optimizer,
         # which is NOT the same as logdet(covariance). Legacy uses
-        # k2 = est._optimized_criteria.squeeze() * target_cost
-        criteria = est._optimized_criteria
+        # k2 = est.optimized_criteria().squeeze() * target_cost
+        criteria = est.optimized_criteria()
         if hasattr(criteria, 'squeeze'):
             criteria = criteria.squeeze()
         elif criteria.ndim > 0:
@@ -169,7 +172,20 @@ class AETCBLUE(AETC[Array]):
             asketch=beta_best_S.T,
             reg_blue=self._reg_blue,
         )
-        est._set_optimized_params(rounded_nsamples_per_subset)
+        # Create allocation result and set it
+        nsamples_per_model = est._compute_nsamples_per_model(
+            rounded_nsamples_per_subset
+        )
+        actual_cost = float(est._estimator_cost(rounded_nsamples_per_subset))
+        allocation = GroupACVAllocationResult(
+            npartition_samples=rounded_nsamples_per_subset,
+            nsamples_per_model=nsamples_per_model,
+            actual_cost=actual_cost,
+            objective_value=bkd.array([0.0]),  # Placeholder
+            success=True,
+            message="",
+        )
+        est.set_allocation(allocation)
         return est
 
     def get_exploit_samples(

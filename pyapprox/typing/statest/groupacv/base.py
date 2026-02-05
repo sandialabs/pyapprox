@@ -9,7 +9,7 @@ Concrete implementations are in variants.py:
 """
 
 from abc import ABC, abstractmethod
-from typing import Generic, List, TYPE_CHECKING
+from typing import Generic, List, Optional, TYPE_CHECKING
 
 import numpy as np
 
@@ -33,6 +33,9 @@ if TYPE_CHECKING:
         MultiOutputMean,
         MultiOutputVariance,
         MultiOutputMeanAndVariance,
+    )
+    from pyapprox.typing.statest.groupacv.allocation import (
+        GroupACVAllocationResult,
     )
 
 
@@ -107,8 +110,24 @@ class BaseGroupACVEstimator(ABC, Generic[Array]):
         # set npatition_samples above small constant,
         # otherwise gradient will not be defined.
         self._npartition_samples_lb = 0  # 1e-5
-        self._optimized_criteria = None
         self._asketch = self._validate_asketch(asketch)
+
+        # Source of truth attributes (None until allocation is set)
+        self._allocation: Optional["GroupACVAllocationResult[Array]"] = None
+        self._npartition_samples: Optional[Array] = None
+        self._nsamples_per_model: Optional[Array] = None
+        self._target_cost: Optional[float] = None
+        self._objective: Optional[GroupACVObjective[Array]] = None
+
+        # Cached computed values (lazily computed, invalidated on allocation change)
+        self._cached_sigma: Optional[Array] = None
+        self._cached_covariance: Optional[Array] = None
+        self._cached_criteria: Optional[Array] = None
+        self._cached_sample_splits: Optional[List[Array]] = None
+
+    def bkd(self) -> Backend[Array]:
+        """Return the backend."""
+        return self._bkd
 
     def nsubsets(self) -> int:
         """Return the number of subsets."""
@@ -117,6 +136,41 @@ class BaseGroupACVEstimator(ABC, Generic[Array]):
     def npartitions(self) -> int:
         """Return the number of partitions."""
         return self._npartitions
+
+    def _invalidate_cache(self) -> None:
+        """Invalidate all cached computed values."""
+        self._cached_sigma = None
+        self._cached_covariance = None
+        self._cached_criteria = None
+        self._cached_sample_splits = None
+
+    def _ensure_allocation(self) -> None:
+        """Raise if allocation has not been set."""
+        if self._npartition_samples is None:
+            raise RuntimeError(
+                "Allocation not set. Call set_allocation() first."
+            )
+
+    @property
+    def has_allocation(self) -> bool:
+        """Return True if allocation has been set."""
+        return self._npartition_samples is not None
+
+    def set_allocation(
+        self, result: "GroupACVAllocationResult[Array]"
+    ) -> None:
+        """Set sample allocation from optimization result.
+
+        Parameters
+        ----------
+        result : GroupACVAllocationResult
+            Allocation result from GroupACVAllocationOptimizer.
+        """
+        self._allocation = result
+        self._npartition_samples = result.npartition_samples
+        self._nsamples_per_model = result.nsamples_per_model
+        self._target_cost = result.actual_cost
+        self._invalidate_cache()
 
     def nmodels(self) -> int:
         """Return the number of models."""
@@ -370,49 +424,87 @@ class BaseGroupACVEstimator(ABC, Generic[Array]):
             (self.npartitions(),), self._bkd.floor(target_cost / cost)
         )[:, None]
 
-    def _set_optimized_params_base(
-        self,
-        rounded_npartition_samples,
-        rounded_nsamples_per_model,
-        rounded_target_cost,
-    ):
-        self._rounded_npartition_samples = rounded_npartition_samples
-        self._rounded_nsamples_per_model = rounded_nsamples_per_model
-        self._rounded_target_cost = rounded_target_cost
-        self._opt_sample_splits = self._sample_splits_per_model()
-        self._optimized_sigma = self._sigma(self._rounded_npartition_samples)
-        self._optimized_covariance = self._covariance_from_npartition_samples(
-            self._rounded_npartition_samples
-        )
-        # Compute optimized criteria if objective is available
-        if hasattr(self, "_objective") and self._objective is not None:
-            self._optimized_criteria = self._objective(
-                self._rounded_npartition_samples[:, None]
-            )
-        else:
-            # Use default objective for criteria computation
-            obj = self.default_objective()
-            obj.set_estimator(self)
-            self._optimized_criteria = obj(
-                self._rounded_npartition_samples[:, None]
-            )
+    def optimized_sigma(self) -> Array:
+        """Return the optimized sigma matrix (lazily computed).
+
+        Returns
+        -------
+        Array
+            The sigma matrix for the current allocation.
+
+        Raises
+        ------
+        RuntimeError
+            If allocation has not been set.
+        """
+        self._ensure_allocation()
+        if self._cached_sigma is None:
+            self._cached_sigma = self._sigma(self._npartition_samples)
+        return self._cached_sigma
 
     def optimized_covariance(self) -> Array:
-        """Return the optimized covariance matrix."""
-        return self._optimized_covariance
+        """Return the optimized covariance matrix (lazily computed).
 
-    def set_npartition_samples(self, npartition_samples: Array) -> None:
-        """Set the sample allocation for estimation.
+        Returns
+        -------
+        Array
+            Covariance matrix of the estimator.
 
-        Parameters
-        ----------
-        npartition_samples : Array
-            Number of samples in each partition. Shape (npartitions,).
+        Raises
+        ------
+        RuntimeError
+            If allocation has not been set.
         """
-        self._set_optimized_params(npartition_samples)
+        self._ensure_allocation()
+        if self._cached_covariance is None:
+            self._cached_covariance = self._covariance_from_npartition_samples(
+                self._npartition_samples
+            )
+        return self._cached_covariance
+
+    def optimized_criteria(self) -> Array:
+        """Return the optimized criteria value (lazily computed).
+
+        Returns
+        -------
+        Array
+            The objective function value at the current allocation.
+
+        Raises
+        ------
+        RuntimeError
+            If allocation has not been set.
+        """
+        self._ensure_allocation()
+        if self._cached_criteria is None:
+            if self._objective is not None:
+                obj = self._objective
+            else:
+                obj = self.default_objective()
+            obj.set_estimator(self)
+            self._cached_criteria = obj(self._npartition_samples[:, None])
+        return self._cached_criteria
+
+    def sample_splits(self) -> List[Array]:
+        """Return sample splits per model (lazily computed).
+
+        Returns
+        -------
+        List[Array]
+            Sample splits for each model.
+
+        Raises
+        ------
+        RuntimeError
+            If allocation has not been set.
+        """
+        self._ensure_allocation()
+        if self._cached_sample_splits is None:
+            self._cached_sample_splits = self._sample_splits_per_model()
+        return self._cached_sample_splits
 
     def npartition_samples(self) -> Array:
-        """Get current allocation.
+        """Get current partition sample allocation.
 
         Returns
         -------
@@ -424,15 +516,8 @@ class BaseGroupACVEstimator(ABC, Generic[Array]):
         RuntimeError
             If allocation has not been set.
         """
-        if (
-            not hasattr(self, "_rounded_npartition_samples")
-            or self._rounded_npartition_samples is None
-        ):
-            raise RuntimeError(
-                "Allocation not set. Call set_npartition_samples() or use "
-                "GroupACVAllocationOptimizer."
-            )
-        return self._rounded_npartition_samples
+        self._ensure_allocation()
+        return self._npartition_samples
 
     def covariance(self) -> Array:
         """Compute covariance using stored allocation.
@@ -442,26 +527,7 @@ class BaseGroupACVEstimator(ABC, Generic[Array]):
         Array
             Covariance matrix of the estimator.
         """
-        return self._covariance_from_npartition_samples(self.npartition_samples())
-
-    def _set_optimized_params(self, npartition_samples, round_nsamples=True):
-        # expected scalar type Double but found Float error can occur
-        # with torch if npartition samples is not torch.double need to
-        # think of a check that works for all backends
-        if round_nsamples:
-            # add 1e-4 to avoid rounding down value that is at the constraint
-            # boundary but has numerical noise. Best value depends on
-            # constraint satisfaction tolerance
-            rounded_npartition_samples = self._bkd.floor(
-                npartition_samples + 1e-4
-            )
-        else:
-            rounded_npartition_samples = npartition_samples
-        self._set_optimized_params_base(
-            rounded_npartition_samples,
-            self._compute_nsamples_per_model(rounded_npartition_samples),
-            self._estimator_cost(rounded_npartition_samples),
-        )
+        return self.optimized_covariance()
 
     def _validate_asketch(self, asketch):
         if asketch is None:
@@ -530,11 +596,12 @@ class BaseGroupACVEstimator(ABC, Generic[Array]):
         samples_per_model : List[Array]
             List of samples for each model
         """
+        self._ensure_allocation()
         # Convert to int for rvs call - this is at a boundary where we're
         # generating samples, not computing gradients through rvs
-        ntotal_independent_samples = int(self._rounded_npartition_samples.sum())
+        ntotal_independent_samples = int(self._npartition_samples.sum())
         partition_splits = self._get_partition_splits(
-            self._rounded_npartition_samples
+            self._npartition_samples
         )
         samples = rvs(ntotal_independent_samples)
         samples_per_model = []
@@ -557,7 +624,7 @@ class BaseGroupACVEstimator(ABC, Generic[Array]):
             return samples_per_model
 
         if (
-            self._partitions_per_model[0] * self._rounded_npartition_samples
+            self._partitions_per_model[0] * self._npartition_samples
         ).max() < npilot_samples:
             msg = "Insert pilot samples currently only supported when only"
             msg += " the largest subset of those containing the "
@@ -566,7 +633,7 @@ class BaseGroupACVEstimator(ABC, Generic[Array]):
                 npilot_samples,
                 (
                     self._partitions_per_model[0]
-                    * self._rounded_npartition_samples
+                    * self._npartition_samples
                 ).max(),
             )
             raise ValueError(msg)
@@ -578,7 +645,7 @@ class BaseGroupACVEstimator(ABC, Generic[Array]):
         # If the model is not evaluated for a partition, then
         # the splits will be [-1, -1]
         partition_splits = self._get_partition_splits(
-            self._rounded_npartition_samples
+            self._npartition_samples
         )
         splits_per_model = []
         for ii in range(self.nmodels()):
@@ -616,24 +683,25 @@ class BaseGroupACVEstimator(ABC, Generic[Array]):
             # values shape is (nqoi, nsamples), so nsamples is shape[1]
             if (
                 values_per_model[ii].shape[1]
-                != self._rounded_nsamples_per_model[ii]
+                != self._nsamples_per_model[ii]
             ):
                 msg = "{0} != {1}".format(
                     "values_per_model[{0}].shape[1]: {1}".format(
                         ii, values_per_model[ii].shape[1]
                     ),
                     "nsamples_per_model[{0}]: {1}".format(
-                        ii, self._rounded_nsamples_per_model[ii]
+                        ii, self._nsamples_per_model[ii]
                     ),
                 )
                 raise ValueError(msg)
 
+        splits_per_model = self.sample_splits()
         values_per_subset = []
         for ii, model_subset in enumerate(self._model_subsets):
             values = []
             active_partitions = self._bkd.where(self._allocation_mat[ii])[0]
             for model_id in model_subset:
-                splits = self._opt_sample_splits[model_id]
+                splits = splits_per_model[model_id]
                 # values shape is (nqoi, nsamples), slice along columns
                 values.append(
                     self._bkd.hstack(
@@ -667,7 +735,7 @@ class BaseGroupACVEstimator(ABC, Generic[Array]):
         return beta
 
     def _estimate(self, values_per_subset: List[Array]) -> Array:
-        beta = self._grouped_acv_beta(self._optimized_sigma)
+        beta = self._grouped_acv_beta(self.optimized_sigma())
         ll, mm = 0, 0
         acv_stat = 0
         for kk in range(self.nsubsets()):
@@ -680,7 +748,7 @@ class BaseGroupACVEstimator(ABC, Generic[Array]):
         return acv_stat
 
     def _traditional_acv_weights(self) -> Array:
-        beta = self._grouped_acv_beta(self._optimized_sigma)
+        beta = self._grouped_acv_beta(self.optimized_sigma())
         assert self._bkd.allclose(
             beta.sum(axis=1), self._bkd.ones(beta.shape[0])
         ), beta.sum(axis=1)
@@ -718,7 +786,7 @@ class BaseGroupACVEstimator(ABC, Generic[Array]):
     def _group_to_traditional_estimators_from_alpha(
         self, subset_ests: List[Array], alpha: Array
     ) -> Array:
-        beta = self._grouped_acv_beta(self._optimized_sigma)
+        beta = self._grouped_acv_beta(self.optimized_sigma())
         # beta shape (nstats, sum_s\insubsets nstats * nmodels_in_subset(s)
         Q0 = self._bkd.zeros((self._stat.nstats(),))
         Qe = self._bkd.zeros((self._stat.nstats(), (self._nmodels - 1)))
@@ -802,8 +870,9 @@ class BaseGroupACVEstimator(ABC, Generic[Array]):
     ):
         """return splits that occur when removing N samples of
         a partition of a given model"""
-        lb, ub = self._opt_sample_splits[model_id][partition_id]
-        sample_splits = self._bkd.copy(self._opt_sample_splits[model_id])
+        splits_per_model = self.sample_splits()
+        lb, ub = splits_per_model[model_id][partition_id]
+        sample_splits = self._bkd.copy(splits_per_model[model_id])
         sample_splits[partition_id][0] = lb + nsamples_to_reduce
         removed_split = lb, lb + nsamples_to_reduce
         return sample_splits, removed_split
@@ -814,20 +883,20 @@ class BaseGroupACVEstimator(ABC, Generic[Array]):
         )[0]
         partition_id = active_hf_subsets[
             self._bkd.argmax(
-                self._rounded_npartition_samples[active_hf_subsets]
+                self._npartition_samples[active_hf_subsets]
             )
         ]
         removed_samples = None
         for model_id in self._subsets[partition_id]:
-            if npilot_samples > self._rounded_npartition_samples[partition_id]:
+            if npilot_samples > self._npartition_samples[partition_id]:
                 msg = "Too many pilot values {0}+>{1}".format(
                     npilot_samples,
-                    self._rounded_npartition_samples[partition_id],
+                    self._npartition_samples[partition_id],
                 )
                 raise ValueError(msg)
             if (
                 samples_per_model[model_id].shape[1]
-                != self._rounded_nsamples_per_model[model_id]
+                != self._nsamples_per_model[model_id]
             ):
                 raise ValueError("samples per model has the wrong size")
             splits, removed_split = self._reduce_model_sample_splits(
@@ -875,10 +944,11 @@ class BaseGroupACVEstimator(ABC, Generic[Array]):
             Updated values_per_model with pilot values inserted.
             Shape: (nqoi, nsamples_for_model + npilot_samples)
         """
+        self._ensure_allocation()
         # nsamples is shape[1] for (nqoi, nsamples) convention
         npilot_values = pilot_values[0].shape[1]
         if (
-            self._partitions_per_model[0] * self._rounded_npartition_samples
+            self._partitions_per_model[0] * self._npartition_samples
         ).max() < npilot_values:
             msg = "Insert pilot samples currently only supported when only"
             msg += " the largest subset of those containing the "
@@ -891,23 +961,24 @@ class BaseGroupACVEstimator(ABC, Generic[Array]):
         )[0]
         partition_id = active_hf_subsets[
             self._bkd.argmax(
-                self._rounded_npartition_samples[active_hf_subsets]
+                self._npartition_samples[active_hf_subsets]
             )
         ]
+        splits_per_model = self.sample_splits()
         for model_id in self._subsets[partition_id]:
             npilot_values = pilot_values[model_id].shape[1]
             if npilot_values != pilot_values[0].shape[1]:
                 msg = "Must have the same number of pilot values "
                 msg += "for each model"
                 raise ValueError(msg)
-            if npilot_values > self._rounded_npartition_samples[partition_id]:
+            if npilot_values > self._npartition_samples[partition_id]:
                 raise ValueError(
                     "Too many pilot values {0}>{1}".format(
                         npilot_values + values_per_model[model_id].shape[1],
-                        self._rounded_npartition_samples[partition_id],
+                        self._npartition_samples[partition_id],
                     )
                 )
-            lb, ub = self._opt_sample_splits[model_id][partition_id]
+            lb, ub = splits_per_model[model_id][partition_id]
             # Pilot samples become first samples of the chosen partition
             # For (nqoi, nsamples) convention, concatenate along columns
             new_values_per_model[model_id] = self._bkd.hstack(
@@ -920,12 +991,14 @@ class BaseGroupACVEstimator(ABC, Generic[Array]):
         return new_values_per_model
 
     def __repr__(self):
-        if self._optimized_criteria is None:
+        if not self.has_allocation:
             return "{0}()".format(self.__class__.__name__)
+        criteria = self.optimized_criteria()
+        criteria_val = float(self._bkd.to_numpy(criteria.flatten())[0])
         rep = "{0}(criteria={1:.3g}".format(
-            self.__class__.__name__, self._optimized_criteria
+            self.__class__.__name__, criteria_val
         )
         rep += " target_cost={0:.5g}, nsamples={1})".format(
-            self._rounded_target_cost, self._rounded_nsamples_per_model
+            self._target_cost, self._nsamples_per_model
         )
         return rep

@@ -23,6 +23,22 @@ from pyapprox.typing.util.test_utils import (
 from pyapprox.typing.statest.aetc.base import AETC
 from pyapprox.typing.statest.aetc.aetcblue import AETCBLUE
 from pyapprox.typing.statest.aetc.aetcmc import AETCMC
+from pyapprox.typing.statest.groupacv import GroupACVAllocationResult
+
+
+def _make_groupacv_allocation(est, npartition_samples):
+    """Helper to create GroupACVAllocationResult from npartition_samples."""
+    bkd = est.bkd()
+    nsamples_per_model = est._compute_nsamples_per_model(npartition_samples)
+    actual_cost = float(est._estimator_cost(npartition_samples))
+    return GroupACVAllocationResult(
+        npartition_samples=npartition_samples,
+        nsamples_per_model=nsamples_per_model,
+        actual_cost=actual_cost,
+        objective_value=bkd.array([0.0]),
+        success=True,
+        message="",
+    )
 
 
 class TestLeastSquares(Generic[Array], unittest.TestCase):
@@ -738,8 +754,9 @@ class TestAETCBLUEExploitation(Generic[Array], unittest.TestCase):
         est = MLBLUEEstimator(
             stat, costs_best_S, asketch=beta_Sp[1:].T, reg_blue=1e-15
         )
-        est._set_optimized_params(rounded_nsamples_per_subset)
-        nsamples_per_model = est._rounded_nsamples_per_model
+        allocation = _make_groupacv_allocation(est, rounded_nsamples_per_subset)
+        est.set_allocation(allocation)
+        nsamples_per_model = allocation.nsamples_per_model
 
         # Create mock values with shape (nqoi, nsamples)
         np.random.seed(123)

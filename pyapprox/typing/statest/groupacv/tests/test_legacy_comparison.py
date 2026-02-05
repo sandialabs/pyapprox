@@ -18,10 +18,33 @@ from pyapprox.typing.util.test_utils import load_tests  # noqa: F401
 from pyapprox.typing.statest.groupacv import (
     GroupACVEstimatorIS as TypingGroupACVIS,
     GroupACVEstimatorNested as TypingGroupACVNested,
+    GroupACVAllocationResult,
     get_model_subsets as typing_get_subsets,
 )
 from pyapprox.typing.statest.statistics import MultiOutputMean
 from pyapprox.typing.util.backends.numpy import NumpyBkd
+
+
+def _make_groupacv_allocation(est, npartition_samples, round_nsamples=True):
+    """Helper to create GroupACVAllocationResult from npartition_samples.
+
+    Rounds the samples and computes derived quantities.
+    """
+    bkd = est.bkd()
+    if round_nsamples:
+        rounded = bkd.floor(npartition_samples + 1e-4)
+    else:
+        rounded = npartition_samples
+    nsamples_per_model = est._compute_nsamples_per_model(rounded)
+    actual_cost = float(est._estimator_cost(rounded))
+    return GroupACVAllocationResult(
+        npartition_samples=rounded,
+        nsamples_per_model=nsamples_per_model,
+        actual_cost=actual_cost,
+        objective_value=bkd.array([0.0]),  # Placeholder
+        success=True,
+        message="",
+    )
 
 # Legacy imports
 from pyapprox.multifidelity.groupacv import (
@@ -305,28 +328,30 @@ class TestMLBLUEAllocationLegacyComparison(unittest.TestCase):
         )
 
         # Use same allocation as legacy (skip optimization for now)
-        typing_est._set_optimized_params(
+        allocation = _make_groupacv_allocation(
+            typing_est,
             self.typing_bkd.array(legacy_est._rounded_npartition_samples),
             round_nsamples=False,
         )
+        typing_est.set_allocation(allocation)
 
         # Compare results
         print(f"\nLegacy npartition_samples: {legacy_est._rounded_npartition_samples}")
         print(f"Legacy nsamples_per_model: {legacy_est._rounded_nsamples_per_model}")
         print(f"Legacy covariance: {legacy_est._optimized_covariance}")
 
-        print(f"\nTyping npartition_samples: {typing_est._rounded_npartition_samples}")
-        print(f"Typing nsamples_per_model: {typing_est._rounded_nsamples_per_model}")
+        print(f"\nTyping npartition_samples: {typing_est.npartition_samples()}")
+        print(f"Typing nsamples_per_model: {typing_est._allocation.nsamples_per_model}")
 
         # Check that with same allocation, we get same nsamples_per_model
         np.testing.assert_allclose(
             legacy_est._rounded_nsamples_per_model,
-            self.typing_bkd.to_numpy(typing_est._rounded_nsamples_per_model),
+            self.typing_bkd.to_numpy(typing_est._allocation.nsamples_per_model),
         )
 
         # Check covariance computation matches
         typing_cov = typing_est._covariance_from_npartition_samples(
-            typing_est._rounded_npartition_samples
+            typing_est.npartition_samples()
         )
         np.testing.assert_allclose(
             legacy_est._optimized_covariance,
@@ -431,14 +456,19 @@ class TestMLBLUEAllocationLegacyComparison(unittest.TestCase):
         print(f"optima: {result.optima().flatten()}")
         print(f"objective: {result.fun()}")
 
-        # Apply the result
-        typing_est._set_optimized_params(result.optima()[:, 0], round_nsamples=True)
+        # Apply the result using set_allocation
+        allocation = _make_groupacv_allocation(
+            typing_est,
+            result.optima()[:, 0],
+            round_nsamples=True,
+        )
+        typing_est.set_allocation(allocation)
 
-        print(f"npartition_samples: {typing_est._rounded_npartition_samples}")
-        print(f"nsamples_per_model: {typing_est._rounded_nsamples_per_model}")
+        print(f"npartition_samples: {typing_est.npartition_samples()}")
+        print(f"nsamples_per_model: {typing_est._allocation.nsamples_per_model}")
 
         typing_cov = typing_est._covariance_from_npartition_samples(
-            typing_est._rounded_npartition_samples
+            typing_est.npartition_samples()
         )
         print(f"covariance: {typing_cov}")
 

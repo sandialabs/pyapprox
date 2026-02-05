@@ -53,22 +53,28 @@ def default_groupacv_optimizer() -> "ChainedOptimizer":
 
 
 @dataclass
-class AllocationResult(Generic[Array]):
-    """Result of sample allocation optimization.
+class GroupACVAllocationResult(Generic[Array]):
+    """Allocation result for GroupACV estimators.
 
     Attributes
     ----------
     npartition_samples : Array
-        Optimal partition sample counts. Shape (npartitions,).
+        Partition sample counts. Shape (npartitions,).
+    nsamples_per_model : Array
+        Sample counts per model. Shape (nmodels,).
+    actual_cost : float
+        Actual computational cost.
     objective_value : Array
-        Objective value at solution. Shape (1,). Kept as Array for autograd.
+        Objective value. Shape (1,).
     success : bool
-        Whether optimization succeeded.
+        Whether allocation succeeded.
     message : str
-        Optional message from optimizer.
+        Status message.
     """
 
     npartition_samples: Array
+    nsamples_per_model: Array
+    actual_cost: float
     objective_value: Array  # Shape (1,) - keeps autograd graph
     success: bool
     message: str = ""
@@ -99,7 +105,7 @@ class GroupACVAllocationOptimizer(Generic[Array]):
     >>> # With default optimizer
     >>> allocator = GroupACVAllocationOptimizer(est)
     >>> result = allocator.optimize(target_cost=1000, min_nhf_samples=10)
-    >>> est.set_npartition_samples(result.npartition_samples)
+    >>> est.set_allocation(result)
 
     >>> # With custom optimizer
     >>> from pyapprox.typing.optimization.minimize.scipy.trust_constr import (
@@ -108,6 +114,7 @@ class GroupACVAllocationOptimizer(Generic[Array]):
     >>> optimizer = ScipyTrustConstrOptimizer(gtol=1e-8, maxiter=1000)
     >>> allocator = GroupACVAllocationOptimizer(est, optimizer=optimizer)
     >>> result = allocator.optimize(target_cost=1000, min_nhf_samples=10)
+    >>> est.set_allocation(result)
     """
 
     def __init__(
@@ -147,7 +154,7 @@ class GroupACVAllocationOptimizer(Generic[Array]):
         min_nhf_samples: int = 1,
         init_guess: Optional[Array] = None,
         round_nsamples: bool = True,
-    ) -> AllocationResult[Array]:
+    ) -> GroupACVAllocationResult[Array]:
         """Find optimal sample allocation.
 
         Parameters
@@ -164,7 +171,7 @@ class GroupACVAllocationOptimizer(Generic[Array]):
 
         Returns
         -------
-        AllocationResult
+        GroupACVAllocationResult
             Optimization result with npartition_samples.
 
         Raises
@@ -193,8 +200,13 @@ class GroupACVAllocationOptimizer(Generic[Array]):
         result = self._optimizer.minimize(init_guess)
 
         if not result.success() or self._bkd.any_bool(result.optima() < 0):
-            return AllocationResult(
+            nsamples_per_model = self._est._compute_nsamples_per_model(
+                init_guess[:, 0]
+            )
+            return GroupACVAllocationResult(
                 npartition_samples=init_guess[:, 0],
+                nsamples_per_model=nsamples_per_model,
+                actual_cost=float(self._est._estimator_cost(init_guess[:, 0])),
                 objective_value=self._bkd.array([float("inf")]),
                 success=False,
                 message=f"Optimization failed: {result.message()}",
@@ -207,12 +219,20 @@ class GroupACVAllocationOptimizer(Generic[Array]):
         if round_nsamples:
             npartition_samples = self._bkd.floor(npartition_samples + 1e-4)
 
+        # Compute nsamples_per_model and actual_cost
+        nsamples_per_model = self._est._compute_nsamples_per_model(
+            npartition_samples
+        )
+        actual_cost = float(self._est._estimator_cost(npartition_samples))
+
         # Compute objective at solution
         # Pass as (nvars, 1) as expected by objective
         obj_value = self._objective(npartition_samples[:, None])
 
-        return AllocationResult(
+        return GroupACVAllocationResult(
             npartition_samples=npartition_samples,
+            nsamples_per_model=nsamples_per_model,
+            actual_cost=actual_cost,
             objective_value=obj_value.flatten(),  # Shape (1,)
             success=True,
             message="",

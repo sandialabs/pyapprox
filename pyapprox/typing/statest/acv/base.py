@@ -6,7 +6,7 @@ optimization.
 """
 
 from abc import abstractmethod
-from typing import Callable, Generic, List, Optional, TYPE_CHECKING, Union
+from typing import Callable, Generic, List, Optional, Tuple, TYPE_CHECKING, Union
 
 import numpy as np
 
@@ -24,7 +24,7 @@ from pyapprox.typing.statest.acv.optimization import (
 )
 
 if TYPE_CHECKING:
-    from pyapprox.typing.statest.acv.allocation import AllocationResult
+    from pyapprox.typing.statest.acv.allocation import ACVAllocationResult
 
 
 class ACVEstimator(CVEstimator[Array], Generic[Array]):
@@ -81,17 +81,20 @@ class ACVEstimator(CVEstimator[Array], Generic[Array]):
         self._npartitions = self._nmodels
         self._optimizer = None
         self._npartitions_lower_bound = npartitions_lower_bound
-        self._allocation: Optional["AllocationResult[Array]"] = None
+
+        # ACV-specific source of truth
+        self._partition_ratios: Optional[Array] = None
+        self._npartition_samples: Optional[Array] = None
 
     # === Allocation management (new API) ===
 
-    def set_allocation(self, allocation: "AllocationResult[Array]") -> None:
-        """Set allocation from allocator result.
+    def set_allocation(self, allocation: "ACVAllocationResult[Array]") -> None:
+        """Set allocation from ACVAllocationResult.
 
         Parameters
         ----------
-        allocation : AllocationResult
-            The allocation result from an Allocator. Must have success=True.
+        allocation : ACVAllocationResult
+            The allocation result. Must have success=True.
 
         Raises
         ------
@@ -101,24 +104,37 @@ class ACVEstimator(CVEstimator[Array], Generic[Array]):
         if not allocation.success:
             raise ValueError(f"Cannot set failed allocation: {allocation.message}")
         self._allocation = allocation
-        # Update internal state for backward compatibility
+        self._partition_ratios = allocation.partition_ratios
+        self._npartition_samples = allocation.npartition_samples
+        self._nsamples_per_model = allocation.nsamples_per_model
+        self._target_cost = allocation.actual_cost
+        self._invalidate_cache()
+
+        # Update legacy attributes for backward compatibility
         self._rounded_partition_ratios = allocation.partition_ratios
-        # TODO: Instead of using _set_optimized_params_base to cache weights,
-        # covariance, and criteria, these should be computed lazily by accessing
-        # the allocation directly when needed. This would simplify state management
-        # and avoid redundant storage.
-        self._set_optimized_params_base(
-            allocation.npartition_samples,
-            allocation.nsamples_per_model,
-            allocation.actual_cost,
+        self._rounded_npartition_samples = allocation.npartition_samples
+        self._rounded_nsamples_per_model = allocation.nsamples_per_model
+        self._rounded_target_cost = allocation.actual_cost
+        # Pre-compute legacy attributes for backward compatibility
+        self._optimized_covariance = self._covariance_from_npartition_samples(
+            allocation.npartition_samples
+        )
+        self._optimized_criteria = self._optimization_criteria(
+            self._optimized_covariance
+        )
+        self._optimized_CF, self._optimized_cf = (
+            self._get_discrepancy_covariances(allocation.npartition_samples)
+        )
+        self._optimized_weights = self._weights(
+            self._optimized_CF, self._optimized_cf
         )
 
-    def allocation(self) -> "AllocationResult[Array]":
+    def allocation(self) -> "ACVAllocationResult[Array]":
         """Get current allocation.
 
         Returns
         -------
-        AllocationResult
+        ACVAllocationResult
             The current allocation.
 
         Raises
@@ -132,6 +148,7 @@ class ACVEstimator(CVEstimator[Array], Generic[Array]):
             )
         return self._allocation
 
+    @property
     def has_allocation(self) -> bool:
         """Check if allocation has been set.
 
@@ -141,6 +158,40 @@ class ACVEstimator(CVEstimator[Array], Generic[Array]):
             True if an allocation has been set, False otherwise.
         """
         return self._allocation is not None
+
+    def _compute_discrepancy_covariances(self) -> Tuple[Array, Array]:
+        """Compute and cache CF, cf discrepancy covariances for ACV."""
+        self._ensure_allocation()
+        if self._cached_discrepancy_covariances is None:
+            self._cached_discrepancy_covariances = self._get_discrepancy_covariances(
+                self._npartition_samples
+            )
+        return self._cached_discrepancy_covariances
+
+    def optimized_covariance(self) -> Array:
+        """Lazily compute and return optimized covariance for ACV."""
+        self._ensure_allocation()
+        if self._cached_covariance is None:
+            self._cached_covariance = self._covariance_from_npartition_samples(
+                self._npartition_samples
+            )
+        return self._cached_covariance
+
+    def npartition_samples(self) -> Array:
+        """Get current partition sample allocation.
+
+        Returns
+        -------
+        Array
+            Number of samples in each partition. Shape (npartitions,).
+
+        Raises
+        ------
+        RuntimeError
+            If allocation has not been set.
+        """
+        self._ensure_allocation()
+        return self._npartition_samples
 
     # === Optimization mode (continuous, stateless) ===
 

@@ -32,6 +32,7 @@ from pyapprox.typing.statest.groupacv import (
     GroupACVCostConstraint,
     MLBLUESPDAllocationOptimizer,
 )
+from pyapprox.typing.statest.groupacv.allocation import GroupACVAllocationResult
 from pyapprox.typing.statest.acv import MFMCEstimator, GMFEstimator
 from pyapprox.typing.statest.acv.variants import _allocate_samples_mfmc
 from pyapprox.typing.benchmarks.functions.multifidelity.multioutput_ensemble import (
@@ -48,6 +49,25 @@ from pyapprox.typing.interface.functions.derivative_checks.derivative_checker im
     DerivativeChecker,
 )
 from pyapprox.typing.util.test_utils import slower_test, allocate_with_allocator
+
+
+def _make_groupacv_allocation(est, npartition_samples):
+    """Helper to create GroupACVAllocationResult from npartition_samples.
+
+    Rounds the samples and computes derived quantities.
+    """
+    bkd = est.bkd()
+    rounded = bkd.floor(npartition_samples + 1e-4)
+    nsamples_per_model = est._compute_nsamples_per_model(rounded)
+    actual_cost = float(est._estimator_cost(rounded))
+    return GroupACVAllocationResult(
+        npartition_samples=rounded,
+        nsamples_per_model=nsamples_per_model,
+        actual_cost=actual_cost,
+        objective_value=bkd.array([0.0]),  # Placeholder
+        success=True,
+        message="",
+    )
 
 
 class TestGroupACVUtils(Generic[Array], unittest.TestCase):
@@ -240,7 +260,8 @@ class TestGroupACVEstimator(Generic[Array], unittest.TestCase):
         npartition_samples = self._bkd.full(
             (est.nsubsets(),), float(NN), dtype=self._bkd.double_dtype()
         )
-        est._set_optimized_params(npartition_samples)
+        allocation = _make_groupacv_allocation(est, npartition_samples)
+        est.set_allocation(allocation)
 
         samples_per_model = est.generate_samples_per_model(
             lambda n: self._bkd.arange(int(n), dtype=self._bkd.double_dtype())[
@@ -250,7 +271,7 @@ class TestGroupACVEstimator(Generic[Array], unittest.TestCase):
         for ii in range(est.nmodels()):
             self._bkd.assert_allclose(
                 self._bkd.asarray([samples_per_model[ii].shape[1]]),
-                self._bkd.asarray([int(est._rounded_nsamples_per_model[ii])]),
+                self._bkd.asarray([int(allocation.nsamples_per_model[ii])]),
             )
 
         # values shape is (nqoi, nsamples) - same as samples but with nqoi rows
@@ -260,7 +281,7 @@ class TestGroupACVEstimator(Generic[Array], unittest.TestCase):
         values_per_subset = est._separate_values_per_model(values_per_model)
 
         test_samples = self._bkd.arange(
-            int(est._rounded_npartition_samples.sum()),
+            int(est.npartition_samples().sum()),
             dtype=self._bkd.double_dtype(),
         )[None, :]
         # test_values shape is (nqoi, nsamples)
@@ -881,7 +902,7 @@ class TestPilotSampleInsertion(Generic[Array], ParametrizedTestCase):
             result = allocator.optimize(
                 target_cost, min_nhf_samples, init_guess=iterate
             )
-            est.set_npartition_samples(result.npartition_samples)
+            est.set_allocation(result)
 
             # Get covariance and create value generator
             cov = est._stat._cov
@@ -1188,15 +1209,20 @@ class TestMFMCNestedEstimation(Generic[Array], ParametrizedTestCase):
         gmf_est_val = gmf_est(values_per_model)
 
         # Apply GMF sample allocation to GroupACV
-        groupacv_est.set_npartition_samples(gmf_est._rounded_npartition_samples)
+        # Create GroupACV allocation from GMF allocation
+        gmf_npartition = gmf_est.npartition_samples()
+        groupacv_allocation = _make_groupacv_allocation(
+            groupacv_est, gmf_npartition
+        )
+        groupacv_est.set_allocation(groupacv_allocation)
 
         # Compute GroupACV estimate (now expects samples in columns like other typing code)
         groupacv_est_val = groupacv_est(values_per_model)
 
         # Check covariances match (use default bkd.allclose tolerances)
         self._bkd.assert_allclose(
-            groupacv_est._optimized_covariance,
-            gmf_est._optimized_covariance,
+            groupacv_est.optimized_covariance(),
+            gmf_est.optimized_covariance(),
             rtol=1e-05,
             atol=1e-08,
         )
@@ -1264,9 +1290,9 @@ class TestSigmaMatrixMonteCarlo(Generic[Array], ParametrizedTestCase):
         """
         # Get analytical values
         est_var = est._covariance_from_npartition_samples(
-            est._rounded_npartition_samples
+            est.npartition_samples()
         )
-        Sigma = est._sigma(est._rounded_npartition_samples)
+        Sigma = est._sigma(est.npartition_samples())
 
         subset_vars_list = []
         acv_ests_list = []
@@ -1370,7 +1396,8 @@ class TestSigmaMatrixMonteCarlo(Generic[Array], ParametrizedTestCase):
         npartition_samples = self._bkd.arange(
             2.0, 2 + est.nsubsets(), dtype=self._bkd.double_dtype()
         )
-        est._set_optimized_params(npartition_samples)
+        allocation = _make_groupacv_allocation(est, npartition_samples)
+        est.set_allocation(allocation)
 
         # Run Monte Carlo check
         self._check_sigma_matrix_of_estimator(est, ntrials, models)
@@ -1512,7 +1539,7 @@ class TestGradientOptimization(Generic[Array], ParametrizedTestCase):
         gest_result = gest_allocator.optimize(
             target_cost, min_nhf_samples, init_guess=iterate
         )
-        gest.set_npartition_samples(gest_result.npartition_samples)
+        gest.set_allocation(gest_result)
 
         mlest_allocator = GroupACVAllocationOptimizer(
             mlest, optimizer=self._create_optimizer()
@@ -1520,16 +1547,16 @@ class TestGradientOptimization(Generic[Array], ParametrizedTestCase):
         mlest_result = mlest_allocator.optimize(
             target_cost, min_nhf_samples, init_guess=iterate
         )
-        mlest.set_npartition_samples(mlest_result.npartition_samples)
+        mlest.set_allocation(mlest_result)
 
         # Check that both estimators produce identical covariance matrices
         # when using the same partition samples (GroupACV allocation)
         # This is the key test from legacy: given same samples, both should agree
         groupacv_cov = gest._covariance_from_npartition_samples(
-            gest._rounded_npartition_samples
+            gest.npartition_samples()
         )
         mlblue_cov_at_groupacv = mlest._covariance_from_npartition_samples(
-            gest._rounded_npartition_samples
+            gest.npartition_samples()
         )
         self._bkd.assert_allclose(
             groupacv_cov,
@@ -1538,15 +1565,15 @@ class TestGradientOptimization(Generic[Array], ParametrizedTestCase):
 
         # Check that sample counts are valid (non-negative)
         self.assertTrue(
-            float(self._bkd.min(gest._rounded_npartition_samples)) >= 0
+            float(self._bkd.min(gest.npartition_samples())) >= 0
         )
         self.assertTrue(
-            float(self._bkd.min(mlest._rounded_npartition_samples)) >= 0
+            float(self._bkd.min(mlest.npartition_samples())) >= 0
         )
 
         # Check cost constraint is satisfied
-        gest_cost = gest._estimator_cost(gest._rounded_npartition_samples)
-        mlest_cost = mlest._estimator_cost(mlest._rounded_npartition_samples)
+        gest_cost = gest._estimator_cost(gest.npartition_samples())
+        mlest_cost = mlest._estimator_cost(mlest.npartition_samples())
         self.assertTrue(float(gest_cost) <= target_cost * 1.01)  # Allow 1% tolerance
         self.assertTrue(float(mlest_cost) <= target_cost * 1.01)
 
@@ -1604,17 +1631,16 @@ class TestGroupACVAllocationOptimizer(
         return GroupACVEstimatorIS(stat, costs)
 
     def test_allocator_produces_valid_result(self):
-        """Test that allocator returns valid AllocationResult."""
+        """Test that allocator returns valid GroupACVAllocationResult."""
         from pyapprox.typing.statest.groupacv.allocation import (
             GroupACVAllocationOptimizer,
-            AllocationResult,
         )
 
         est = self._create_estimator(3)
         allocator = GroupACVAllocationOptimizer(est)
         result = allocator.optimize(target_cost=100, min_nhf_samples=1)
 
-        self.assertIsInstance(result, AllocationResult)
+        self.assertIsInstance(result, GroupACVAllocationResult)
         self.assertTrue(result.success)
         self.assertTrue(
             float(self._bkd.min(result.npartition_samples)) >= 0
@@ -1674,7 +1700,7 @@ class TestGroupACVAllocationOptimizer(
 
         self.assertTrue(result.success)
 
-    def test_allocator_set_npartition_samples_integration(self):
+    def test_allocator_set_allocation_integration(self):
         """Test that allocator result can be used with estimator setter."""
         from pyapprox.typing.statest.groupacv.allocation import (
             GroupACVAllocationOptimizer,
@@ -1685,7 +1711,7 @@ class TestGroupACVAllocationOptimizer(
         result = allocator.optimize(target_cost=100, min_nhf_samples=1)
 
         # Use new setter API
-        est.set_npartition_samples(result.npartition_samples)
+        est.set_allocation(result)
 
         # Verify allocation is stored
         self._bkd.assert_allclose(
@@ -1832,7 +1858,7 @@ class TestGroupACVRecoversMLBLUE(
         groupacv_result = groupacv_allocator.optimize(
             target_cost, min_nhf_samples=1, init_guess=iterate
         )
-        groupacv_est.set_npartition_samples(groupacv_result.npartition_samples)
+        groupacv_est.set_allocation(groupacv_result)
 
         # MLBLUE with analytical jacobian (via MLBLUEObjective)
         mlblue_obj = MLBLUEObjective(self._bkd)
@@ -1844,7 +1870,7 @@ class TestGroupACVRecoversMLBLUE(
         mlblue_result = mlblue_allocator.optimize(
             target_cost, min_nhf_samples=1, init_guess=iterate
         )
-        mlblue_est.set_npartition_samples(mlblue_result.npartition_samples)
+        mlblue_est.set_allocation(mlblue_result)
 
         # Both should have same number of partitions (IS uses 2^nmodels - 1)
         self.assertEqual(

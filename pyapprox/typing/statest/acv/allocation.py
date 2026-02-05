@@ -25,7 +25,7 @@ if TYPE_CHECKING:
 
 
 @dataclass(frozen=True)
-class AllocationResult(Generic[Array]):
+class ACVAllocationResult(Generic[Array]):
     """Result of allocation optimization for a single estimator configuration.
 
     Continuous Attributes (Optimization)
@@ -84,7 +84,7 @@ class Allocator(ABC, Generic[Array]):
     """Abstract base for sample allocation strategies."""
 
     @abstractmethod
-    def allocate(self, target_cost: float) -> AllocationResult[Array]:
+    def allocate(self, target_cost: float) -> ACVAllocationResult[Array]:
         """Allocate samples for the estimator.
 
         Parameters
@@ -159,7 +159,7 @@ class ACVAllocator(Allocator[Array]):
         obj.set_estimator(self._est)
         return obj
 
-    def allocate(self, target_cost: float) -> AllocationResult[Array]:
+    def allocate(self, target_cost: float) -> ACVAllocationResult[Array]:
         """Allocate samples using optimization.
 
         Parameters
@@ -213,7 +213,7 @@ class ACVAllocator(Allocator[Array]):
         target_cost: float,
         partition_ratios: Array,
         objective_value: Array,
-    ) -> AllocationResult[Array]:
+    ) -> ACVAllocationResult[Array]:
         continuous = self._est._npartition_samples_from_partition_ratios(
             target_cost, partition_ratios
         )
@@ -234,7 +234,7 @@ class ACVAllocator(Allocator[Array]):
             self._bkd.to_numpy(self._bkd.sum(nsamples_per_model * self._est._costs))
         )
 
-        return AllocationResult(
+        return ACVAllocationResult(
             partition_ratios=partition_ratios,
             continuous_npartition_samples=continuous,
             objective_value=objective_value,
@@ -248,10 +248,10 @@ class ACVAllocator(Allocator[Array]):
 
     def _failure_result(
         self, target_cost: float, message: str
-    ) -> AllocationResult[Array]:
+    ) -> ACVAllocationResult[Array]:
         nmodels = self._est._nmodels
         npartitions = self._est._npartitions
-        return AllocationResult(
+        return ACVAllocationResult(
             partition_ratios=self._bkd.zeros((nmodels - 1,)),
             continuous_npartition_samples=self._bkd.zeros((npartitions,)),
             objective_value=self._bkd.array([float("inf")]),
@@ -280,7 +280,7 @@ class AnalyticalAllocator(Allocator[Array]):
         self._est = estimator
         self._bkd: Backend[Array] = estimator._bkd
 
-    def allocate(self, target_cost: float) -> AllocationResult[Array]:
+    def allocate(self, target_cost: float) -> ACVAllocationResult[Array]:
         """Allocate samples using analytical formula.
 
         Parameters
@@ -312,7 +312,7 @@ class AnalyticalAllocator(Allocator[Array]):
         target_cost: float,
         partition_ratios: Array,
         objective_value: Array,
-    ) -> AllocationResult[Array]:
+    ) -> ACVAllocationResult[Array]:
         continuous = self._est._npartition_samples_from_partition_ratios(
             target_cost, partition_ratios
         )
@@ -333,7 +333,7 @@ class AnalyticalAllocator(Allocator[Array]):
             self._bkd.to_numpy(self._bkd.sum(nsamples_per_model * self._est._costs))
         )
 
-        return AllocationResult(
+        return ACVAllocationResult(
             partition_ratios=partition_ratios,
             continuous_npartition_samples=continuous,
             objective_value=objective_value,
@@ -347,10 +347,10 @@ class AnalyticalAllocator(Allocator[Array]):
 
     def _failure_result(
         self, target_cost: float, message: str
-    ) -> AllocationResult[Array]:
+    ) -> ACVAllocationResult[Array]:
         nmodels = self._est._nmodels
         npartitions = self._est._npartitions
-        return AllocationResult(
+        return ACVAllocationResult(
             partition_ratios=self._bkd.zeros((nmodels - 1,)),
             continuous_npartition_samples=self._bkd.zeros((npartitions,)),
             objective_value=self._bkd.array([float("inf")]),

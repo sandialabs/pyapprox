@@ -31,7 +31,7 @@ from pyapprox.typing.statest.groupacv.variants import (
 )
 
 from pyapprox.typing.statest.groupacv.allocation import (
-    AllocationResult,
+    GroupACVAllocationResult,
     GroupACVAllocationOptimizer,
     default_groupacv_optimizer,
 )
@@ -64,7 +64,7 @@ __all__ = [
     "MLBLUEObjective",
     "GroupACVCostConstraint",
     # Allocation classes
-    "AllocationResult",
+    "GroupACVAllocationResult",
     "GroupACVAllocationOptimizer",
     "default_groupacv_optimizer",
     "MLBLUESPDAllocationOptimizer",

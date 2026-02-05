@@ -233,7 +233,7 @@ class TestACVSearch(Generic[Array], unittest.TestCase):
         result = search.search(target_cost=1000.0)
 
         # The estimator should have its allocation set
-        self.assertTrue(result.estimator.has_allocation())
+        self.assertTrue(result.estimator.has_allocation)
 
 
 # Note: NumPy backend does not yet support gradient-based optimization

@@ -19,7 +19,7 @@ from pyapprox.typing.statest.acv.variants import (
     MLMCEstimator,
 )
 from pyapprox.typing.statest.acv.allocation import (
-    AllocationResult,
+    ACVAllocationResult,
     Allocator,
     ACVAllocator,
     AnalyticalAllocator,
@@ -54,7 +54,7 @@ __all__ = [
     "MFMCEstimator",
     "MLMCEstimator",
     # Allocation
-    "AllocationResult",
+    "ACVAllocationResult",
     "Allocator",
     "ACVAllocator",
     "AnalyticalAllocator",

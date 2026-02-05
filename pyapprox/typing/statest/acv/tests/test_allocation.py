@@ -13,7 +13,7 @@ from pyapprox.typing.util.backends.torch import TorchBkd
 from pyapprox.typing.util.test_utils import load_tests  # noqa: F401
 
 from pyapprox.typing.statest.acv.allocation import (
-    AllocationResult,
+    ACVAllocationResult,
     ACVAllocator,
     AnalyticalAllocator,
     default_allocator_factory,
@@ -26,8 +26,8 @@ from pyapprox.typing.statest.acv.variants import (
 )
 
 
-class TestAllocationResult(Generic[Array], unittest.TestCase):
-    """Tests for AllocationResult dataclass."""
+class TestACVAllocationResult(Generic[Array], unittest.TestCase):
+    """Tests for ACVAllocationResult dataclass."""
 
     __test__ = False
 
@@ -39,7 +39,7 @@ class TestAllocationResult(Generic[Array], unittest.TestCase):
 
     def test_allocation_result_creation(self):
         """Test dataclass instantiation."""
-        result = AllocationResult(
+        result = ACVAllocationResult(
             partition_ratios=self._bkd.array([1.0, 2.0]),
             continuous_npartition_samples=self._bkd.array([10.0, 10.0, 20.0]),
             objective_value=self._bkd.array([-5.0]),
@@ -58,7 +58,7 @@ class TestAllocationResult(Generic[Array], unittest.TestCase):
 
     def test_allocation_result_frozen(self):
         """Test immutability."""
-        result = AllocationResult(
+        result = ACVAllocationResult(
             partition_ratios=self._bkd.array([1.0, 2.0]),
             continuous_npartition_samples=self._bkd.array([10.0, 10.0, 20.0]),
             objective_value=self._bkd.array([-5.0]),
@@ -74,7 +74,7 @@ class TestAllocationResult(Generic[Array], unittest.TestCase):
 
     def test_allocation_result_objective_value_is_array(self):
         """Test that objective_value is an Array, not float."""
-        result = AllocationResult(
+        result = ACVAllocationResult(
             partition_ratios=self._bkd.array([1.0, 2.0]),
             continuous_npartition_samples=self._bkd.array([10.0, 10.0, 20.0]),
             objective_value=self._bkd.array([-5.0]),
@@ -90,12 +90,12 @@ class TestAllocationResult(Generic[Array], unittest.TestCase):
         self._bkd.assert_allclose(result.objective_value, self._bkd.array([-5.0]))
 
 
-class TestAllocationResultNumpy(TestAllocationResult[NDArray[Any]]):
+class TestACVAllocationResultNumpy(TestACVAllocationResult[NDArray[Any]]):
     def bkd(self) -> NumpyBkd:
         return NumpyBkd()
 
 
-class TestAllocationResultTorch(TestAllocationResult[torch.Tensor]):
+class TestACVAllocationResultTorch(TestACVAllocationResult[torch.Tensor]):
     def bkd(self) -> TorchBkd:
         torch.set_default_dtype(torch.float64)
         return TorchBkd()
@@ -378,11 +378,11 @@ class TestEstimatorAllocationAPI(unittest.TestCase):
         return stat, costs
 
     def test_estimator_has_allocation_initially_false(self):
-        """has_allocation() returns False before allocation is set."""
+        """has_allocation returns False before allocation is set."""
         stat, costs = self._create_stat_and_costs()
         recursion_index = self._bkd.array([0, 1], dtype=int)
         est = GMFEstimator(stat, costs, recursion_index=recursion_index)
-        self.assertFalse(est.has_allocation())
+        self.assertFalse(est.has_allocation)
 
     def test_estimator_allocation_not_set_raises(self):
         """allocation() raises RuntimeError when not set."""
@@ -408,7 +408,7 @@ class TestEstimatorAllocationAPI(unittest.TestCase):
         est.set_allocation(result)
 
         # Verify has_allocation
-        self.assertTrue(est.has_allocation())
+        self.assertTrue(est.has_allocation)
 
         # Verify allocation() returns same object
         self.assertIs(est.allocation(), result)
