@@ -5,7 +5,7 @@ Provides tools for computing bias, variance, and MSE of numerical
 prediction OED estimates compared to exact analytical values.
 """
 
-from typing import Generic, List, Dict, Tuple, Type, Callable, Any
+from typing import Generic, List, Dict, Tuple, Type, Callable, Any, Optional
 
 import numpy as np
 
@@ -16,6 +16,8 @@ from pyapprox.typing.expdesign.likelihood import GaussianOEDInnerLoopLikelihood
 from pyapprox.typing.expdesign.objective import PredictionOEDObjective
 from pyapprox.typing.expdesign.deviation import StandardDeviationMeasure
 from pyapprox.typing.expdesign.statistics import SampleAverageMean
+from pyapprox.typing.expdesign.statistics.avar import SampleAverageSmoothedAVaR
+from pyapprox.typing.expdesign.statistics.base import SampleStatistic
 from pyapprox.typing.expdesign.analytical import (
     ConjugateGaussianOEDPredictionUtilityBase,
     ConjugateGaussianOEDForLogNormalExpectedStdDev,
@@ -23,25 +25,31 @@ from pyapprox.typing.expdesign.analytical import (
 )
 
 
-# Registry for exact utility factories
-# Maps utility_type -> factory function that returns (cls, args)
-_EXACT_UTILITY_REGISTRY: Dict[
-    str,
-    Callable[..., Tuple[Type[ConjugateGaussianOEDPredictionUtilityBase[Any]], tuple]]
-] = {}
+# Type alias for utility factory return type
+UtilityFactoryResult = Tuple[
+    Type[ConjugateGaussianOEDPredictionUtilityBase[Any]],
+    Tuple[Any, ...],
+    Callable[[Backend[Any]], SampleStatistic[Any]],
+]
+
+# Registry for utility factories
+# Maps utility_type -> factory function that returns (exact_cls, exact_args, noise_stat_factory)
+_UTILITY_REGISTRY: Dict[str, Callable[..., UtilityFactoryResult]] = {}
 
 
-def register_exact_utility(
+def register_utility(
     name: str,
 ) -> Callable[
-    [Callable[..., Tuple[Type[ConjugateGaussianOEDPredictionUtilityBase[Any]], tuple]]],
-    Callable[..., Tuple[Type[ConjugateGaussianOEDPredictionUtilityBase[Any]], tuple]],
+    [Callable[..., UtilityFactoryResult]],
+    Callable[..., UtilityFactoryResult],
 ]:
     """
-    Decorator to register an exact utility factory.
+    Decorator to register a utility factory.
 
-    The factory function should accept keyword arguments and return
-    (utility_class, utility_args) tuple.
+    The factory function should accept keyword arguments and return a tuple:
+    (exact_utility_class, exact_utility_args, noise_stat_factory)
+
+    where noise_stat_factory is a callable: Backend -> SampleStatistic
 
     Parameters
     ----------
@@ -50,43 +58,61 @@ def register_exact_utility(
 
     Example
     -------
-    >>> @register_exact_utility("my_utility")
+    >>> @register_utility("my_utility")
     ... def _create_my_utility(**kwargs):
-    ...     return MyUtilityClass, (kwargs.get("param", 1.0),)
+    ...     param = kwargs.get("param", 1.0)
+    ...     def noise_stat_factory(bkd):
+    ...         return SampleAverageMean(bkd)
+    ...     return MyUtilityClass, (param,), noise_stat_factory
     """
     def decorator(
-        func: Callable[
-            ..., Tuple[Type[ConjugateGaussianOEDPredictionUtilityBase[Any]], tuple]
-        ]
-    ) -> Callable[
-        ..., Tuple[Type[ConjugateGaussianOEDPredictionUtilityBase[Any]], tuple]
-    ]:
-        _EXACT_UTILITY_REGISTRY[name] = func
+        func: Callable[..., UtilityFactoryResult]
+    ) -> Callable[..., UtilityFactoryResult]:
+        _UTILITY_REGISTRY[name] = func
         return func
     return decorator
 
 
 def get_registered_utility_types() -> List[str]:
     """Get list of registered utility type names."""
-    return list(_EXACT_UTILITY_REGISTRY.keys())
+    return list(_UTILITY_REGISTRY.keys())
+
+
+def _mean_noise_stat_factory(bkd: Backend[Any]) -> SampleStatistic[Any]:
+    """Factory for SampleAverageMean noise statistic."""
+    return SampleAverageMean(bkd)
+
+
+def _avar_noise_stat_factory(
+    beta: float, delta: float = 100000
+) -> Callable[[Backend[Any]], SampleStatistic[Any]]:
+    """Factory for SampleAverageSmoothedAVaR noise statistic."""
+    def factory(bkd: Backend[Any]) -> SampleStatistic[Any]:
+        return SampleAverageSmoothedAVaR(beta, bkd, delta=delta)
+    return factory
 
 
 # Register built-in utility types
-@register_exact_utility("stdev")
-def _create_stdev_utility(
-    **kwargs: Any,
-) -> Tuple[Type[ConjugateGaussianOEDPredictionUtilityBase[Any]], tuple]:
-    """Create lognormal expected std dev utility."""
-    return ConjugateGaussianOEDForLogNormalExpectedStdDev, ()
+@register_utility("stdev")
+def _create_stdev_utility(**kwargs: Any) -> UtilityFactoryResult:
+    """Create lognormal expected std dev utility with mean noise statistic."""
+    return (
+        ConjugateGaussianOEDForLogNormalExpectedStdDev,
+        (),
+        _mean_noise_stat_factory,
+    )
 
 
-@register_exact_utility("avar_stdev")
-def _create_avar_stdev_utility(
-    **kwargs: Any,
-) -> Tuple[Type[ConjugateGaussianOEDPredictionUtilityBase[Any]], tuple]:
-    """Create lognormal AVaR std dev utility."""
+@register_utility("avar_stdev")
+def _create_avar_stdev_utility(**kwargs: Any) -> UtilityFactoryResult:
+    """Create lognormal AVaR std dev utility with AVaR noise statistic."""
     beta = kwargs.get("beta", 0.5)
-    return ConjugateGaussianOEDForLogNormalAVaRStdDev, (beta,)
+    delta = kwargs.get("delta", 100000)
+    return (
+        ConjugateGaussianOEDForLogNormalAVaRStdDev,
+        (beta,),
+        _avar_noise_stat_factory(beta, delta),
+    )
 
 
 class PredictionOEDDiagnostics(Generic[Array]):
@@ -137,12 +163,14 @@ class PredictionOEDDiagnostics(Generic[Array]):
         self,
         benchmark: NonLinearGaussianOEDBenchmark[Array],
         exact_utility_cls: Type[ConjugateGaussianOEDPredictionUtilityBase[Array]],
-        exact_utility_args: tuple = (),
+        exact_utility_args: Tuple[Any, ...],
+        noise_stat_factory: Callable[[Backend[Array]], SampleStatistic[Array]],
     ) -> None:
         self._benchmark = benchmark
         self._bkd = benchmark.bkd()
         self._exact_utility_cls = exact_utility_cls
         self._exact_utility_args = exact_utility_args
+        self._noise_stat_factory = noise_stat_factory
 
     def bkd(self) -> Backend[Array]:
         """Get the computational backend."""
@@ -163,8 +191,9 @@ class PredictionOEDDiagnostics(Generic[Array]):
             Exact expected utility value.
         """
         # Create exact utility object
+        # Note: Subclasses may have additional arguments beyond the base class signature
         if self._exact_utility_args:
-            utility = self._exact_utility_cls(
+            utility = self._exact_utility_cls(  # type: ignore[call-arg]
                 self._benchmark.prior_mean(),
                 self._benchmark.prior_covariance(),
                 self._benchmark.qoi_matrix(),
@@ -247,7 +276,7 @@ class PredictionOEDDiagnostics(Generic[Array]):
             self._benchmark.npred(), self._bkd
         )
         risk_measure = SampleAverageMean(self._bkd)
-        noise_stat = SampleAverageMean(self._bkd)
+        noise_stat = self._noise_stat_factory(self._bkd)
 
         # Create objective
         objective = PredictionOEDObjective(
@@ -405,7 +434,7 @@ class PredictionOEDDiagnostics(Generic[Array]):
         slope, _ = np.polyfit(log_n, log_vals, 1)
 
         # Rate is negative slope (since MSE decreases with n)
-        return -slope
+        return float(-slope)
 
 
 def create_prediction_oed_diagnostics(
@@ -416,7 +445,8 @@ def create_prediction_oed_diagnostics(
     """
     Factory function to create PredictionOEDDiagnostics.
 
-    Uses the registry to look up the appropriate exact utility class.
+    Uses the registry to look up the appropriate exact utility class and
+    noise statistic factory.
 
     Parameters
     ----------
@@ -458,14 +488,16 @@ def create_prediction_oed_diagnostics(
     ...     benchmark, "avar_stdev", beta=0.75
     ... )
     """
-    if utility_type not in _EXACT_UTILITY_REGISTRY:
+    if utility_type not in _UTILITY_REGISTRY:
         available = get_registered_utility_types()
         raise ValueError(
             f"Unknown utility_type: {utility_type}. "
             f"Available types: {available}"
         )
 
-    factory = _EXACT_UTILITY_REGISTRY[utility_type]
-    exact_cls, exact_args = factory(**kwargs)
+    factory = _UTILITY_REGISTRY[utility_type]
+    exact_cls, exact_args, noise_stat_factory = factory(**kwargs)
 
-    return PredictionOEDDiagnostics(benchmark, exact_cls, exact_args)
+    return PredictionOEDDiagnostics(
+        benchmark, exact_cls, exact_args, noise_stat_factory
+    )
