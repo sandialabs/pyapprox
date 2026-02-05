@@ -82,7 +82,7 @@ class AETC:
         cov, means = oracle_stats[:2]
         Sigma_S = cov[np.ix_(covariate_subset + 1, covariate_subset + 1)]
         Sp_subset = self._bkd.hstack(
-            [self._bkd.zeros(1), covariate_subset + 1]
+            [self._bkd.zeros(1, dtype=int), covariate_subset + 1]
         )
         x_Sp = self._bkd.vstack(
             (self._bkd.ones(1), means[covariate_subset + 1])
