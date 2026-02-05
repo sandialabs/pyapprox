@@ -191,6 +191,30 @@ class TorchBkd(Backend[torch.Tensor]):  # Specify torch.Tensor type
         return torch.arctan2(y, x)
 
     @staticmethod
+    def sinh(array: torch.Tensor) -> torch.Tensor:
+        return torch.sinh(array)
+
+    @staticmethod
+    def cosh(array: torch.Tensor) -> torch.Tensor:
+        return torch.cosh(array)
+
+    @staticmethod
+    def tanh(array: torch.Tensor) -> torch.Tensor:
+        return torch.tanh(array)
+
+    @staticmethod
+    def arcsinh(array: torch.Tensor) -> torch.Tensor:
+        return torch.asinh(array)
+
+    @staticmethod
+    def arccosh(array: torch.Tensor) -> torch.Tensor:
+        return torch.acosh(array)
+
+    @staticmethod
+    def arctanh(array: torch.Tensor) -> torch.Tensor:
+        return torch.atanh(array)
+
+    @staticmethod
     def full(
         shape: Tuple[int, ...], fill_value: float, dtype: Optional[Any] = None
     ) -> torch.Tensor:

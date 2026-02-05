@@ -172,6 +172,30 @@ class NumpyBkd(Backend[NDArray[Any]]):  # Specify NDArray type
         return cast(NDArray[Any], np.arctan2(y, x))
 
     @staticmethod
+    def sinh(array: NDArray[Any]) -> NDArray[Any]:
+        return cast(NDArray[Any], np.sinh(array))
+
+    @staticmethod
+    def cosh(array: NDArray[Any]) -> NDArray[Any]:
+        return cast(NDArray[Any], np.cosh(array))
+
+    @staticmethod
+    def tanh(array: NDArray[Any]) -> NDArray[Any]:
+        return cast(NDArray[Any], np.tanh(array))
+
+    @staticmethod
+    def arcsinh(array: NDArray[Any]) -> NDArray[Any]:
+        return cast(NDArray[Any], np.arcsinh(array))
+
+    @staticmethod
+    def arccosh(array: NDArray[Any]) -> NDArray[Any]:
+        return cast(NDArray[Any], np.arccosh(array))
+
+    @staticmethod
+    def arctanh(array: NDArray[Any]) -> NDArray[Any]:
+        return cast(NDArray[Any], np.arctanh(array))
+
+    @staticmethod
     def full(
         shape: Tuple[int, ...], fill_value: float, dtype: Optional[Any] = None
     ) -> NDArray[Any]:
