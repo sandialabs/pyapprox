@@ -5,8 +5,12 @@ import math
 import numpy as np
 
 from pyapprox.typing.util.backends.numpy import NumpyBkd
+from pyapprox.typing.util.test_utils import load_tests  # noqa: F401
 from pyapprox.typing.pde.collocation.basis import ChebyshevBasis1D
-from pyapprox.typing.pde.collocation.mesh import create_uniform_mesh_1d
+from pyapprox.typing.pde.collocation.mesh import (
+    create_uniform_mesh_1d,
+    TransformedMesh1D,
+)
 from pyapprox.typing.pde.collocation.boundary import (
     zero_dirichlet_bc,
 )
@@ -37,7 +41,9 @@ class TestHelmholtzPhysics(PhysicsTestBase):
         """Test Jacobian matches finite differences using DerivativeChecker."""
         bkd = self.bkd()
         npts = 15
-        basis = ChebyshevBasis1D(npts, bkd)
+        mesh = TransformedMesh1D(npts, bkd)
+
+        basis = ChebyshevBasis1D(mesh, bkd)
 
         physics = HelmholtzPhysics(basis, bkd, wave_number_sq=2.0)
 
@@ -50,7 +56,9 @@ class TestHelmholtzPhysics(PhysicsTestBase):
         """Test Jacobian with non-zero forcing."""
         bkd = self.bkd()
         npts = 12
-        basis = ChebyshevBasis1D(npts, bkd)
+        mesh = TransformedMesh1D(npts, bkd)
+
+        basis = ChebyshevBasis1D(mesh, bkd)
         nodes = basis.nodes()
 
         # Add forcing term
@@ -68,7 +76,9 @@ class TestHelmholtzPhysics(PhysicsTestBase):
         """BEFORE: Verify residual = 0 at manufactured solution (no BCs)."""
         bkd = self.bkd()
         npts = 20
-        basis = ChebyshevBasis1D(npts, bkd)
+        mesh = TransformedMesh1D(npts, bkd)
+
+        basis = ChebyshevBasis1D(mesh, bkd)
 
         # Manufactured solution for 1D Helmholtz
         # Helmholtz PDE: -u'' + k^2*u = f
@@ -97,7 +107,9 @@ class TestHelmholtzPhysics(PhysicsTestBase):
         """AFTER: Verify convergence to exact solution from wrong guess."""
         bkd = self.bkd()
         npts = 20
-        basis = ChebyshevBasis1D(npts, bkd)
+        mesh = TransformedMesh1D(npts, bkd)
+
+        basis = ChebyshevBasis1D(mesh, bkd)
         mesh = create_uniform_mesh_1d(npts, (-1.0, 1.0), bkd)
 
         # Manufactured solution: u = (1 - x^2), satisfies u(-1) = u(1) = 0
@@ -134,7 +146,9 @@ class TestHelmholtzPhysics(PhysicsTestBase):
         """Test create_helmholtz factory function."""
         bkd = self.bkd()
         npts = 10
-        basis = ChebyshevBasis1D(npts, bkd)
+        mesh = TransformedMesh1D(npts, bkd)
+
+        basis = ChebyshevBasis1D(mesh, bkd)
 
         physics = create_helmholtz(basis, bkd, wave_number_sq=2.0)
 
@@ -152,7 +166,9 @@ class TestHelmholtzPhysics(PhysicsTestBase):
         """
         bkd = self.bkd()
         npts = 20
-        basis = ChebyshevBasis1D(npts, bkd)
+        mesh = TransformedMesh1D(npts, bkd)
+
+        basis = ChebyshevBasis1D(mesh, bkd)
         mesh = create_uniform_mesh_1d(npts, (-1.0, 1.0), bkd)
         nodes = basis.nodes()
 

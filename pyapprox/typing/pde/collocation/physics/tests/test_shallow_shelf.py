@@ -5,7 +5,11 @@ import math
 import numpy as np
 
 from pyapprox.typing.util.backends.numpy import NumpyBkd
+from pyapprox.typing.util.test_utils import load_tests  # noqa: F401
 from pyapprox.typing.pde.collocation.basis import ChebyshevBasis1D, ChebyshevBasis2D
+from pyapprox.typing.pde.collocation.mesh import (
+    TransformedMesh1D, TransformedMesh2D,
+)
 from pyapprox.typing.pde.collocation.physics.shallow_shelf import (
     ShallowShelfVelocityPhysics,
     ShallowShelfDepthPhysics,
@@ -36,7 +40,9 @@ class TestShallowShelfVelocityPhysics(PhysicsTestBase):
         """Test Jacobian matches finite differences."""
         bkd = self.bkd()
         npts_1d = 6
-        basis = ChebyshevBasis2D(npts_1d, npts_1d, bkd)
+        mesh = TransformedMesh2D(npts_1d, npts_1d, bkd)
+
+        basis = ChebyshevBasis2D(mesh, bkd)
         npts = basis.npts()
 
         # Uniform depth and flat bed
@@ -58,7 +64,9 @@ class TestShallowShelfVelocityPhysics(PhysicsTestBase):
         """Test Jacobian with sloped bed topography."""
         bkd = self.bkd()
         npts_1d = 5
-        basis = ChebyshevBasis2D(npts_1d, npts_1d, bkd)
+        mesh = TransformedMesh2D(npts_1d, npts_1d, bkd)
+
+        basis = ChebyshevBasis2D(mesh, bkd)
         npts = basis.npts()
 
         # Create 2D bed slope (tile 1D nodes along y)
@@ -81,7 +89,9 @@ class TestShallowShelfVelocityPhysics(PhysicsTestBase):
         """Test number of components."""
         bkd = self.bkd()
         npts_1d = 5
-        basis = ChebyshevBasis2D(npts_1d, npts_1d, bkd)
+        mesh = TransformedMesh2D(npts_1d, npts_1d, bkd)
+
+        basis = ChebyshevBasis2D(mesh, bkd)
         npts = basis.npts()
 
         depth = bkd.full((npts,), 1000.0)
@@ -100,7 +110,9 @@ class TestShallowShelfVelocityPhysics(PhysicsTestBase):
         """Test that 1D basis raises error."""
         bkd = self.bkd()
         npts = 10
-        basis = ChebyshevBasis1D(npts, bkd)
+        mesh = TransformedMesh1D(npts, bkd)
+
+        basis = ChebyshevBasis1D(mesh, bkd)
 
         depth = bkd.full((npts,), 1000.0)
         bed = bkd.zeros((npts,))
@@ -115,7 +127,9 @@ class TestShallowShelfVelocityPhysics(PhysicsTestBase):
         """Test create_shallow_shelf_velocity factory."""
         bkd = self.bkd()
         npts_1d = 5
-        basis = ChebyshevBasis2D(npts_1d, npts_1d, bkd)
+        mesh = TransformedMesh2D(npts_1d, npts_1d, bkd)
+
+        basis = ChebyshevBasis2D(mesh, bkd)
         npts = basis.npts()
 
         depth = bkd.full((npts,), 1000.0)
@@ -132,7 +146,9 @@ class TestShallowShelfVelocityPhysics(PhysicsTestBase):
         """Test updating depth."""
         bkd = self.bkd()
         npts_1d = 5
-        basis = ChebyshevBasis2D(npts_1d, npts_1d, bkd)
+        mesh = TransformedMesh2D(npts_1d, npts_1d, bkd)
+
+        basis = ChebyshevBasis2D(mesh, bkd)
         npts = basis.npts()
 
         depth = bkd.full((npts,), 1000.0)
@@ -168,7 +184,9 @@ class TestShallowShelfVelocityPhysics(PhysicsTestBase):
         """
         bkd = self.bkd()
         npts_1d = 50  # Need many points for nonlinear SSA
-        basis = ChebyshevBasis2D(npts_1d, npts_1d, bkd)
+        mesh = TransformedMesh2D(npts_1d, npts_1d, bkd)
+
+        basis = ChebyshevBasis2D(mesh, bkd)
         npts = basis.npts()
 
         # Manufactured solution parameters
@@ -246,7 +264,9 @@ class TestShallowShelfDepthPhysics(PhysicsTestBase):
         """Test Jacobian with constant velocity field."""
         bkd = self.bkd()
         npts_1d = 6
-        basis = ChebyshevBasis2D(npts_1d, npts_1d, bkd)
+        mesh = TransformedMesh2D(npts_1d, npts_1d, bkd)
+
+        basis = ChebyshevBasis2D(mesh, bkd)
         npts = basis.npts()
 
         physics = ShallowShelfDepthPhysics(basis, bkd)
@@ -269,7 +289,9 @@ class TestShallowShelfDepthPhysics(PhysicsTestBase):
         """Test Jacobian for 2D depth evolution."""
         bkd = self.bkd()
         npts_1d = 6
-        basis = ChebyshevBasis2D(npts_1d, npts_1d, bkd)
+        mesh = TransformedMesh2D(npts_1d, npts_1d, bkd)
+
+        basis = ChebyshevBasis2D(mesh, bkd)
         npts = basis.npts()
 
         physics = ShallowShelfDepthPhysics(basis, bkd)
@@ -292,7 +314,9 @@ class TestShallowShelfDepthPhysics(PhysicsTestBase):
         """Test residual is zero for uniform depth and divergence-free velocity."""
         bkd = self.bkd()
         npts_1d = 8
-        basis = ChebyshevBasis2D(npts_1d, npts_1d, bkd)
+        mesh = TransformedMesh2D(npts_1d, npts_1d, bkd)
+
+        basis = ChebyshevBasis2D(mesh, bkd)
         npts = basis.npts()
 
         physics = ShallowShelfDepthPhysics(basis, bkd)
@@ -317,7 +341,9 @@ class TestShallowShelfDepthPhysics(PhysicsTestBase):
         """Test number of components."""
         bkd = self.bkd()
         npts_1d = 5
-        basis = ChebyshevBasis2D(npts_1d, npts_1d, bkd)
+        mesh = TransformedMesh2D(npts_1d, npts_1d, bkd)
+
+        basis = ChebyshevBasis2D(mesh, bkd)
         npts = basis.npts()
 
         physics = ShallowShelfDepthPhysics(basis, bkd)
@@ -329,7 +355,9 @@ class TestShallowShelfDepthPhysics(PhysicsTestBase):
         """Test that residual requires velocities to be set."""
         bkd = self.bkd()
         npts_1d = 5
-        basis = ChebyshevBasis2D(npts_1d, npts_1d, bkd)
+        mesh = TransformedMesh2D(npts_1d, npts_1d, bkd)
+
+        basis = ChebyshevBasis2D(mesh, bkd)
         npts = basis.npts()
 
         physics = ShallowShelfDepthPhysics(basis, bkd)
@@ -342,7 +370,9 @@ class TestShallowShelfDepthPhysics(PhysicsTestBase):
         """Test that 1D basis raises error."""
         bkd = self.bkd()
         npts = 10
-        basis = ChebyshevBasis1D(npts, bkd)
+        mesh = TransformedMesh1D(npts, bkd)
+
+        basis = ChebyshevBasis1D(mesh, bkd)
 
         with self.assertRaises(ValueError):
             ShallowShelfDepthPhysics(basis, bkd)
@@ -351,7 +381,9 @@ class TestShallowShelfDepthPhysics(PhysicsTestBase):
         """Test create_shallow_shelf_depth factory."""
         bkd = self.bkd()
         npts_1d = 5
-        basis = ChebyshevBasis2D(npts_1d, npts_1d, bkd)
+        mesh = TransformedMesh2D(npts_1d, npts_1d, bkd)
+
+        basis = ChebyshevBasis2D(mesh, bkd)
         npts = basis.npts()
 
         physics = create_shallow_shelf_depth(basis, bkd)
@@ -369,7 +401,9 @@ class TestShallowShelfDepthPhysics(PhysicsTestBase):
         """
         bkd = self.bkd()
         npts_1d = 8
-        basis = ChebyshevBasis2D(npts_1d, npts_1d, bkd)
+        mesh = TransformedMesh2D(npts_1d, npts_1d, bkd)
+
+        basis = ChebyshevBasis2D(mesh, bkd)
         npts = basis.npts()
 
         physics = ShallowShelfDepthPhysics(basis, bkd)
@@ -414,7 +448,9 @@ class TestShallowShelfDepthPhysics(PhysicsTestBase):
         """
         bkd = self.bkd()
         npts_1d = 8
-        basis = ChebyshevBasis2D(npts_1d, npts_1d, bkd)
+        mesh = TransformedMesh2D(npts_1d, npts_1d, bkd)
+
+        basis = ChebyshevBasis2D(mesh, bkd)
         npts = basis.npts()
 
         # Constant accumulation rate

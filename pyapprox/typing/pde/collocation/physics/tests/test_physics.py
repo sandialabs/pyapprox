@@ -6,8 +6,12 @@ import math
 
 from pyapprox.typing.util.backends.protocols import Array, Backend
 from pyapprox.typing.util.backends.numpy import NumpyBkd
+from pyapprox.typing.util.test_utils import load_tests  # noqa: F401
 from pyapprox.typing.pde.collocation.basis import ChebyshevBasis1D
-from pyapprox.typing.pde.collocation.mesh import create_uniform_mesh_1d
+from pyapprox.typing.pde.collocation.mesh import (
+    create_uniform_mesh_1d,
+    TransformedMesh1D,
+)
 from pyapprox.typing.pde.collocation.boundary import (
     constant_dirichlet_bc,
     zero_dirichlet_bc,
@@ -37,7 +41,8 @@ class TestAdvectionDiffusionReaction(Generic[Array], unittest.TestCase):
         """
         bkd = self.bkd()
         npts = 10
-        basis = ChebyshevBasis1D(npts, bkd)
+        mesh = TransformedMesh1D(npts, bkd)
+        basis = ChebyshevBasis1D(mesh, bkd)
 
         physics = AdvectionDiffusionReaction(basis, bkd, diffusion=1.0)
 
@@ -55,7 +60,8 @@ class TestAdvectionDiffusionReaction(Generic[Array], unittest.TestCase):
         """Test diffusion Jacobian via finite differences."""
         bkd = self.bkd()
         npts = 8
-        basis = ChebyshevBasis1D(npts, bkd)
+        mesh = TransformedMesh1D(npts, bkd)
+        basis = ChebyshevBasis1D(mesh, bkd)
 
         physics = AdvectionDiffusionReaction(basis, bkd, diffusion=1.0)
 
@@ -88,7 +94,8 @@ class TestAdvectionDiffusionReaction(Generic[Array], unittest.TestCase):
         """
         bkd = self.bkd()
         npts = 20
-        basis = ChebyshevBasis1D(npts, bkd)
+        mesh = TransformedMesh1D(npts, bkd)
+        basis = ChebyshevBasis1D(mesh, bkd)
 
         # Velocity = 1
         velocity = [bkd.ones((npts,))]
@@ -107,7 +114,8 @@ class TestAdvectionDiffusionReaction(Generic[Array], unittest.TestCase):
         """Test advection Jacobian via finite differences."""
         bkd = self.bkd()
         npts = 10
-        basis = ChebyshevBasis1D(npts, bkd)
+        mesh = TransformedMesh1D(npts, bkd)
+        basis = ChebyshevBasis1D(mesh, bkd)
 
         velocity = [bkd.full((npts,), 2.0)]  # v = 2
         physics = AdvectionDiffusionReaction(basis, bkd, velocity=velocity)
@@ -138,7 +146,8 @@ class TestAdvectionDiffusionReaction(Generic[Array], unittest.TestCase):
         """
         bkd = self.bkd()
         npts = 8
-        basis = ChebyshevBasis1D(npts, bkd)
+        mesh = TransformedMesh1D(npts, bkd)
+        basis = ChebyshevBasis1D(mesh, bkd)
 
         physics = AdvectionDiffusionReaction(basis, bkd, reaction=2.0)
 
@@ -153,7 +162,8 @@ class TestAdvectionDiffusionReaction(Generic[Array], unittest.TestCase):
         """Test forcing term."""
         bkd = self.bkd()
         npts = 8
-        basis = ChebyshevBasis1D(npts, bkd)
+        mesh = TransformedMesh1D(npts, bkd)
+        basis = ChebyshevBasis1D(mesh, bkd)
 
         forcing = bkd.ones((npts,)) * 3.0
         physics = AdvectionDiffusionReaction(
@@ -171,7 +181,8 @@ class TestAdvectionDiffusionReaction(Generic[Array], unittest.TestCase):
         """Test combined ADR physics."""
         bkd = self.bkd()
         npts = 15
-        basis = ChebyshevBasis1D(npts, bkd)
+        mesh = TransformedMesh1D(npts, bkd)
+        basis = ChebyshevBasis1D(mesh, bkd)
 
         D = 0.1
         v = bkd.full((npts,), 1.0)
@@ -204,7 +215,8 @@ class TestAdvectionDiffusionReaction(Generic[Array], unittest.TestCase):
         """Test applying boundary conditions."""
         bkd = self.bkd()
         npts = 10
-        basis = ChebyshevBasis1D(npts, bkd)
+        mesh = TransformedMesh1D(npts, bkd)
+        basis = ChebyshevBasis1D(mesh, bkd)
         mesh = create_uniform_mesh_1d(npts, (-1.0, 1.0), bkd)
 
         physics = AdvectionDiffusionReaction(basis, bkd, diffusion=1.0)
@@ -244,7 +256,8 @@ class TestAdvectionDiffusionReactionWithParam(Generic[Array], unittest.TestCase)
         """Test parameter Jacobian via finite differences."""
         bkd = self.bkd()
         npts = 10
-        basis = ChebyshevBasis1D(npts, bkd)
+        mesh = TransformedMesh1D(npts, bkd)
+        basis = ChebyshevBasis1D(mesh, bkd)
 
         # Parameterized diffusion: D = 1 + p0 * phi0 + p1 * phi1
         # where phi0 = 1 (constant), phi1 = x
@@ -294,7 +307,8 @@ class TestAdvectionDiffusionReactionWithParam(Generic[Array], unittest.TestCase)
         """Test nparams method."""
         bkd = self.bkd()
         npts = 8
-        basis = ChebyshevBasis1D(npts, bkd)
+        mesh = TransformedMesh1D(npts, bkd)
+        basis = ChebyshevBasis1D(mesh, bkd)
 
         phi0 = bkd.ones((npts,))
         phi1 = basis.nodes()
@@ -312,7 +326,8 @@ class TestAdvectionDiffusionReactionWithParam(Generic[Array], unittest.TestCase)
         """Test initial param Jacobian is zero when no IC function."""
         bkd = self.bkd()
         npts = 8
-        basis = ChebyshevBasis1D(npts, bkd)
+        mesh = TransformedMesh1D(npts, bkd)
+        basis = ChebyshevBasis1D(mesh, bkd)
 
         phi0 = bkd.ones((npts,))
 
@@ -340,7 +355,8 @@ class TestFactoryFunctions(Generic[Array], unittest.TestCase):
         """Test create_steady_diffusion factory."""
         bkd = self.bkd()
         npts = 8
-        basis = ChebyshevBasis1D(npts, bkd)
+        mesh = TransformedMesh1D(npts, bkd)
+        basis = ChebyshevBasis1D(mesh, bkd)
 
         physics = create_steady_diffusion(basis, bkd, diffusion=2.0)
 
@@ -351,7 +367,8 @@ class TestFactoryFunctions(Generic[Array], unittest.TestCase):
         """Test create_advection_diffusion factory."""
         bkd = self.bkd()
         npts = 8
-        basis = ChebyshevBasis1D(npts, bkd)
+        mesh = TransformedMesh1D(npts, bkd)
+        basis = ChebyshevBasis1D(mesh, bkd)
 
         velocity = [bkd.ones((npts,))]
         physics = create_advection_diffusion(

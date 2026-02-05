@@ -5,8 +5,12 @@ import math
 import numpy as np
 
 from pyapprox.typing.util.backends.numpy import NumpyBkd
+from pyapprox.typing.util.test_utils import load_tests  # noqa: F401
 from pyapprox.typing.pde.collocation.basis import ChebyshevBasis1D
-from pyapprox.typing.pde.collocation.mesh import create_uniform_mesh_1d
+from pyapprox.typing.pde.collocation.mesh import (
+    create_uniform_mesh_1d,
+    TransformedMesh1D,
+)
 from pyapprox.typing.pde.collocation.boundary import (
     zero_dirichlet_bc,
     constant_dirichlet_bc,
@@ -44,7 +48,9 @@ class TestTwoSpeciesReactionDiffusion(PhysicsTestBase):
         """Test Jacobian with linear reaction."""
         bkd = self.bkd()
         npts = 12
-        basis = ChebyshevBasis1D(npts, bkd)
+        mesh = TransformedMesh1D(npts, bkd)
+
+        basis = ChebyshevBasis1D(mesh, bkd)
 
         # Linear reaction: R0 = -u0 + 0.5*u1, R1 = 0.5*u0 - u1
         reaction = LinearReaction(-1.0, 0.5, 0.5, -1.0, bkd)
@@ -62,7 +68,9 @@ class TestTwoSpeciesReactionDiffusion(PhysicsTestBase):
         """Test Jacobian with FitzHugh-Nagumo reaction."""
         bkd = self.bkd()
         npts = 12
-        basis = ChebyshevBasis1D(npts, bkd)
+        mesh = TransformedMesh1D(npts, bkd)
+
+        basis = ChebyshevBasis1D(mesh, bkd)
 
         reaction = FitzHughNagumoReaction(
             alpha=0.1, eps=0.01, beta=0.5, gamma=1.0, bkd=bkd
@@ -81,7 +89,9 @@ class TestTwoSpeciesReactionDiffusion(PhysicsTestBase):
         """Test Jacobian with forcing terms."""
         bkd = self.bkd()
         npts = 12
-        basis = ChebyshevBasis1D(npts, bkd)
+        mesh = TransformedMesh1D(npts, bkd)
+
+        basis = ChebyshevBasis1D(mesh, bkd)
         nodes = basis.nodes()
 
         reaction = LinearReaction(0.0, 0.0, 0.0, 0.0, bkd)
@@ -104,7 +114,9 @@ class TestTwoSpeciesReactionDiffusion(PhysicsTestBase):
         """BEFORE: Verify residual = 0 at manufactured solution."""
         bkd = self.bkd()
         npts = 20
-        basis = ChebyshevBasis1D(npts, bkd)
+        mesh = TransformedMesh1D(npts, bkd)
+
+        basis = ChebyshevBasis1D(mesh, bkd)
         nodes = basis.nodes()
 
         # Manufactured solution: u0 = sin(pi*x), u1 = cos(pi*x)
@@ -139,7 +151,9 @@ class TestTwoSpeciesReactionDiffusion(PhysicsTestBase):
         """AFTER: Verify convergence for linear reaction-diffusion."""
         bkd = self.bkd()
         npts = 15
-        basis = ChebyshevBasis1D(npts, bkd)
+        mesh = TransformedMesh1D(npts, bkd)
+
+        basis = ChebyshevBasis1D(mesh, bkd)
         mesh = create_uniform_mesh_1d(npts, (-1.0, 1.0), bkd)
         nodes = basis.nodes()
 
@@ -196,7 +210,9 @@ class TestTwoSpeciesReactionDiffusion(PhysicsTestBase):
         """Test create_two_species_reaction_diffusion factory."""
         bkd = self.bkd()
         npts = 10
-        basis = ChebyshevBasis1D(npts, bkd)
+        mesh = TransformedMesh1D(npts, bkd)
+
+        basis = ChebyshevBasis1D(mesh, bkd)
 
         reaction = LinearReaction(0.0, 0.0, 0.0, 0.0, bkd)
 
@@ -218,7 +234,9 @@ class TestTwoSpeciesReactionDiffusion(PhysicsTestBase):
         """
         bkd = self.bkd()
         npts = 20
-        basis = ChebyshevBasis1D(npts, bkd)
+        mesh = TransformedMesh1D(npts, bkd)
+
+        basis = ChebyshevBasis1D(mesh, bkd)
         mesh = create_uniform_mesh_1d(npts, (-1.0, 1.0), bkd)
         nodes = basis.nodes()
 
@@ -275,7 +293,9 @@ class TestFitzHughNagumoPhysics(PhysicsTestBase):
         """Test Jacobian matches finite differences."""
         bkd = self.bkd()
         npts = 12
-        basis = ChebyshevBasis1D(npts, bkd)
+        mesh = TransformedMesh1D(npts, bkd)
+
+        basis = ChebyshevBasis1D(mesh, bkd)
 
         physics = FitzHughNagumoPhysics(
             basis, bkd, diffusion_v=1e-3,
@@ -292,7 +312,9 @@ class TestFitzHughNagumoPhysics(PhysicsTestBase):
         """Test Jacobian with different FHN parameters."""
         bkd = self.bkd()
         npts = 12
-        basis = ChebyshevBasis1D(npts, bkd)
+        mesh = TransformedMesh1D(npts, bkd)
+
+        basis = ChebyshevBasis1D(mesh, bkd)
 
         # Different parameter values
         physics = FitzHughNagumoPhysics(
@@ -309,7 +331,9 @@ class TestFitzHughNagumoPhysics(PhysicsTestBase):
         """Test parameter accessor methods."""
         bkd = self.bkd()
         npts = 10
-        basis = ChebyshevBasis1D(npts, bkd)
+        mesh = TransformedMesh1D(npts, bkd)
+
+        basis = ChebyshevBasis1D(mesh, bkd)
 
         physics = FitzHughNagumoPhysics(
             basis, bkd,
@@ -325,7 +349,9 @@ class TestFitzHughNagumoPhysics(PhysicsTestBase):
         """Test updating FHN parameters."""
         bkd = self.bkd()
         npts = 10
-        basis = ChebyshevBasis1D(npts, bkd)
+        mesh = TransformedMesh1D(npts, bkd)
+
+        basis = ChebyshevBasis1D(mesh, bkd)
 
         physics = FitzHughNagumoPhysics(basis, bkd)
 
@@ -342,7 +368,9 @@ class TestFitzHughNagumoPhysics(PhysicsTestBase):
         """Test create_fitzhugh_nagumo factory."""
         bkd = self.bkd()
         npts = 10
-        basis = ChebyshevBasis1D(npts, bkd)
+        mesh = TransformedMesh1D(npts, bkd)
+
+        basis = ChebyshevBasis1D(mesh, bkd)
 
         physics = create_fitzhugh_nagumo(
             basis, bkd, diffusion_v=1e-3,
@@ -357,7 +385,9 @@ class TestFitzHughNagumoPhysics(PhysicsTestBase):
         """Verify recovery variable has zero diffusion."""
         bkd = self.bkd()
         npts = 10
-        basis = ChebyshevBasis1D(npts, bkd)
+        mesh = TransformedMesh1D(npts, bkd)
+
+        basis = ChebyshevBasis1D(mesh, bkd)
 
         physics = FitzHughNagumoPhysics(basis, bkd, diffusion_v=1e-3)
 
@@ -374,7 +404,9 @@ class TestFitzHughNagumoPhysics(PhysicsTestBase):
         """
         bkd = self.bkd()
         npts = 25
-        basis = ChebyshevBasis1D(npts, bkd)
+        mesh = TransformedMesh1D(npts, bkd)
+
+        basis = ChebyshevBasis1D(mesh, bkd)
         nodes = basis.nodes()
 
         physics = FitzHughNagumoPhysics(

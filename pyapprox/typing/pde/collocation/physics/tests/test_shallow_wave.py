@@ -5,8 +5,12 @@ import math
 import numpy as np
 
 from pyapprox.typing.util.backends.numpy import NumpyBkd
+from pyapprox.typing.util.test_utils import load_tests  # noqa: F401
 from pyapprox.typing.pde.collocation.basis import ChebyshevBasis1D
-from pyapprox.typing.pde.collocation.mesh import create_uniform_mesh_1d
+from pyapprox.typing.pde.collocation.mesh import (
+    create_uniform_mesh_1d,
+    TransformedMesh1D,
+)
 from pyapprox.typing.pde.collocation.physics.shallow_wave import (
     ShallowWavePhysics,
     create_shallow_wave,
@@ -32,7 +36,9 @@ class TestShallowWavePhysics(PhysicsTestBase):
         """Test Jacobian matches finite differences with flat bed."""
         bkd = self.bkd()
         npts = 12
-        basis = ChebyshevBasis1D(npts, bkd)
+        mesh = TransformedMesh1D(npts, bkd)
+
+        basis = ChebyshevBasis1D(mesh, bkd)
 
         # Flat bed
         bed = bkd.zeros((npts,))
@@ -52,7 +58,9 @@ class TestShallowWavePhysics(PhysicsTestBase):
         """Test Jacobian with sloped bed."""
         bkd = self.bkd()
         npts = 12
-        basis = ChebyshevBasis1D(npts, bkd)
+        mesh = TransformedMesh1D(npts, bkd)
+
+        basis = ChebyshevBasis1D(mesh, bkd)
         nodes = basis.nodes()
 
         # Sloped bed
@@ -71,7 +79,9 @@ class TestShallowWavePhysics(PhysicsTestBase):
         """Test Jacobian with momentum forcing."""
         bkd = self.bkd()
         npts = 12
-        basis = ChebyshevBasis1D(npts, bkd)
+        mesh = TransformedMesh1D(npts, bkd)
+
+        basis = ChebyshevBasis1D(mesh, bkd)
         nodes = basis.nodes()
 
         bed = bkd.zeros((npts,))
@@ -92,7 +102,9 @@ class TestShallowWavePhysics(PhysicsTestBase):
         """Test residual is zero for quiescent state (h+b=const, u=0)."""
         bkd = self.bkd()
         npts = 20
-        basis = ChebyshevBasis1D(npts, bkd)
+        mesh = TransformedMesh1D(npts, bkd)
+
+        basis = ChebyshevBasis1D(mesh, bkd)
         nodes = basis.nodes()
 
         # Sloped bed with constant surface elevation
@@ -120,7 +132,9 @@ class TestShallowWavePhysics(PhysicsTestBase):
         """Test residual for uniform flow on flat bed."""
         bkd = self.bkd()
         npts = 20
-        basis = ChebyshevBasis1D(npts, bkd)
+        mesh = TransformedMesh1D(npts, bkd)
+
+        basis = ChebyshevBasis1D(mesh, bkd)
 
         # Flat bed, uniform depth and velocity
         bed = bkd.zeros((npts,))
@@ -141,7 +155,9 @@ class TestShallowWavePhysics(PhysicsTestBase):
         """Test number of components for 1D case."""
         bkd = self.bkd()
         npts = 10
-        basis = ChebyshevBasis1D(npts, bkd)
+        mesh = TransformedMesh1D(npts, bkd)
+
+        basis = ChebyshevBasis1D(mesh, bkd)
         bed = bkd.zeros((npts,))
 
         physics = ShallowWavePhysics(basis, bkd, bed=bed)
@@ -154,7 +170,9 @@ class TestShallowWavePhysics(PhysicsTestBase):
         """Test create_shallow_wave factory function."""
         bkd = self.bkd()
         npts = 10
-        basis = ChebyshevBasis1D(npts, bkd)
+        mesh = TransformedMesh1D(npts, bkd)
+
+        basis = ChebyshevBasis1D(mesh, bkd)
         bed = bkd.zeros((npts,))
 
         physics = create_shallow_wave(basis, bkd, bed=bed, g=10.0)
@@ -166,7 +184,9 @@ class TestShallowWavePhysics(PhysicsTestBase):
         """Test accessor methods."""
         bkd = self.bkd()
         npts = 10
-        basis = ChebyshevBasis1D(npts, bkd)
+        mesh = TransformedMesh1D(npts, bkd)
+
+        basis = ChebyshevBasis1D(mesh, bkd)
         nodes = basis.nodes()
         bed = 0.1 * nodes
 
@@ -187,7 +207,9 @@ class TestShallowWavePhysics(PhysicsTestBase):
         """
         bkd = self.bkd()
         npts = 20
-        basis = ChebyshevBasis1D(npts, bkd)
+        mesh = TransformedMesh1D(npts, bkd)
+
+        basis = ChebyshevBasis1D(mesh, bkd)
         nodes = basis.nodes()
 
         # Flat bed, quiescent state (uniform depth, zero velocity)

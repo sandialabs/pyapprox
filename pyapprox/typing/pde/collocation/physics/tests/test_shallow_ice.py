@@ -5,8 +5,12 @@ import math
 import numpy as np
 
 from pyapprox.typing.util.backends.numpy import NumpyBkd
+from pyapprox.typing.util.test_utils import load_tests  # noqa: F401
 from pyapprox.typing.pde.collocation.basis import ChebyshevBasis1D
-from pyapprox.typing.pde.collocation.mesh import create_uniform_mesh_1d
+from pyapprox.typing.pde.collocation.mesh import (
+    create_uniform_mesh_1d,
+    TransformedMesh1D,
+)
 from pyapprox.typing.pde.collocation.boundary import (
     constant_dirichlet_bc,
 )
@@ -40,7 +44,9 @@ class TestShallowIcePhysics(PhysicsTestBase):
         """Test Jacobian matches finite differences using DerivativeChecker."""
         bkd = self.bkd()
         npts = 12
-        basis = ChebyshevBasis1D(npts, bkd)
+        mesh = TransformedMesh1D(npts, bkd)
+
+        basis = ChebyshevBasis1D(mesh, bkd)
         nodes = basis.nodes()
 
         # Flat bed
@@ -59,7 +65,9 @@ class TestShallowIcePhysics(PhysicsTestBase):
         """Test Jacobian with sloped bed topography."""
         bkd = self.bkd()
         npts = 12
-        basis = ChebyshevBasis1D(npts, bkd)
+        mesh = TransformedMesh1D(npts, bkd)
+
+        basis = ChebyshevBasis1D(mesh, bkd)
         nodes = basis.nodes()
 
         # Sloped bed
@@ -84,7 +92,9 @@ class TestShallowIcePhysics(PhysicsTestBase):
         """
         bkd = self.bkd()
         npts = 20
-        basis = ChebyshevBasis1D(npts, bkd)
+        mesh = TransformedMesh1D(npts, bkd)
+
+        basis = ChebyshevBasis1D(mesh, bkd)
         nodes = basis.nodes()
 
         # Normalized parameters for numerical stability
@@ -138,7 +148,9 @@ class TestShallowIcePhysics(PhysicsTestBase):
         """
         bkd = self.bkd()
         npts = 20
-        basis = ChebyshevBasis1D(npts, bkd)
+        mesh = TransformedMesh1D(npts, bkd)
+
+        basis = ChebyshevBasis1D(mesh, bkd)
         mesh = create_uniform_mesh_1d(npts, (-1.0, 1.0), bkd)
         nodes = basis.nodes()
 
@@ -202,7 +214,9 @@ class TestShallowIcePhysics(PhysicsTestBase):
         """Test create_shallow_ice factory function."""
         bkd = self.bkd()
         npts = 10
-        basis = ChebyshevBasis1D(npts, bkd)
+        mesh = TransformedMesh1D(npts, bkd)
+
+        basis = ChebyshevBasis1D(mesh, bkd)
         bed = bkd.zeros((npts,))
 
         physics = create_shallow_ice(
@@ -220,7 +234,9 @@ class TestShallowIcePhysics(PhysicsTestBase):
         """
         bkd = self.bkd()
         npts = 15
-        basis = ChebyshevBasis1D(npts, bkd)
+        mesh = TransformedMesh1D(npts, bkd)
+
+        basis = ChebyshevBasis1D(mesh, bkd)
         nodes = basis.nodes()
 
         # Flat bed
