@@ -69,8 +69,9 @@ class CollocationModel(Generic[Array]):
 
     Examples
     --------
-    >>> # Create physics and basis
-    >>> basis = ChebyshevBasis1D(20, bkd)
+    >>> # Create mesh and basis
+    >>> mesh = TransformedMesh1D(20, bkd)
+    >>> basis = ChebyshevBasis1D(mesh, bkd)
     >>> physics = AdvectionDiffusionReaction(basis, bkd, diffusion=0.1)
     >>> physics.set_boundary_conditions([bc_left, bc_right])
     >>>

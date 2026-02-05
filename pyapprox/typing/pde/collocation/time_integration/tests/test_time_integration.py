@@ -6,8 +6,12 @@ from typing import Generic
 
 from pyapprox.typing.util.backends.protocols import Array, Backend
 from pyapprox.typing.util.backends.numpy import NumpyBkd
+from pyapprox.typing.util.test_utils import load_tests  # noqa: F401
 from pyapprox.typing.pde.collocation.basis import ChebyshevBasis1D
-from pyapprox.typing.pde.collocation.mesh import create_uniform_mesh_1d
+from pyapprox.typing.pde.collocation.mesh import (
+    create_uniform_mesh_1d,
+    TransformedMesh1D,
+)
 from pyapprox.typing.pde.collocation.boundary import (
     constant_dirichlet_bc,
     zero_dirichlet_bc,
@@ -35,7 +39,9 @@ class TestPhysicsToODEResidualAdapter(Generic[Array], unittest.TestCase):
         """Test that adapter provides ODEResidual interface."""
         bkd = self.bkd()
         npts = 10
-        basis = ChebyshevBasis1D(npts, bkd)
+        mesh = TransformedMesh1D(npts, bkd)
+
+        basis = ChebyshevBasis1D(mesh, bkd)
 
         physics = AdvectionDiffusionReaction(basis, bkd, diffusion=1.0)
         adapter = PhysicsToODEResidualAdapter(physics, bkd)
@@ -56,7 +62,9 @@ class TestPhysicsToODEResidualAdapter(Generic[Array], unittest.TestCase):
         """Test that adapter residual matches physics residual."""
         bkd = self.bkd()
         npts = 10
-        basis = ChebyshevBasis1D(npts, bkd)
+        mesh = TransformedMesh1D(npts, bkd)
+
+        basis = ChebyshevBasis1D(mesh, bkd)
 
         physics = AdvectionDiffusionReaction(basis, bkd, diffusion=1.0)
         adapter = PhysicsToODEResidualAdapter(physics, bkd)
@@ -79,7 +87,9 @@ class TestPhysicsToODEResidualAdapter(Generic[Array], unittest.TestCase):
         """Test that adapter Jacobian matches physics Jacobian."""
         bkd = self.bkd()
         npts = 10
-        basis = ChebyshevBasis1D(npts, bkd)
+        mesh = TransformedMesh1D(npts, bkd)
+
+        basis = ChebyshevBasis1D(mesh, bkd)
 
         physics = AdvectionDiffusionReaction(basis, bkd, diffusion=1.0)
         adapter = PhysicsToODEResidualAdapter(physics, bkd)
@@ -101,7 +111,9 @@ class TestPhysicsToODEResidualAdapter(Generic[Array], unittest.TestCase):
         """Test that adapter returns identity mass matrix."""
         bkd = self.bkd()
         npts = 10
-        basis = ChebyshevBasis1D(npts, bkd)
+        mesh = TransformedMesh1D(npts, bkd)
+
+        basis = ChebyshevBasis1D(mesh, bkd)
 
         physics = AdvectionDiffusionReaction(basis, bkd, diffusion=1.0)
         adapter = PhysicsToODEResidualAdapter(physics, bkd)
@@ -115,7 +127,9 @@ class TestPhysicsToODEResidualAdapter(Generic[Array], unittest.TestCase):
         """Test adapter applies boundary conditions."""
         bkd = self.bkd()
         npts = 10
-        basis = ChebyshevBasis1D(npts, bkd)
+        mesh = TransformedMesh1D(npts, bkd)
+
+        basis = ChebyshevBasis1D(mesh, bkd)
         mesh = create_uniform_mesh_1d(npts, (-1.0, 1.0), bkd)
 
         physics = AdvectionDiffusionReaction(basis, bkd, diffusion=1.0)
@@ -144,7 +158,9 @@ class TestPhysicsToODEResidualAdapter(Generic[Array], unittest.TestCase):
         """Test that param_jacobian is available for parameterized physics."""
         bkd = self.bkd()
         npts = 10
-        basis = ChebyshevBasis1D(npts, bkd)
+        mesh = TransformedMesh1D(npts, bkd)
+
+        basis = ChebyshevBasis1D(mesh, bkd)
 
         phi0 = bkd.ones((npts,))
         physics = AdvectionDiffusionReactionWithParam(
@@ -173,7 +189,9 @@ class TestPhysicsToODEResidualAdapter(Generic[Array], unittest.TestCase):
         """Test that basic physics does not have param_jacobian."""
         bkd = self.bkd()
         npts = 10
-        basis = ChebyshevBasis1D(npts, bkd)
+        mesh = TransformedMesh1D(npts, bkd)
+
+        basis = ChebyshevBasis1D(mesh, bkd)
 
         physics = AdvectionDiffusionReaction(basis, bkd, diffusion=1.0)
         adapter = PhysicsToODEResidualAdapter(physics, bkd)
@@ -195,7 +213,9 @@ class TestCollocationModel(Generic[Array], unittest.TestCase):
         """Test basic model creation."""
         bkd = self.bkd()
         npts = 10
-        basis = ChebyshevBasis1D(npts, bkd)
+        mesh = TransformedMesh1D(npts, bkd)
+
+        basis = ChebyshevBasis1D(mesh, bkd)
 
         physics = AdvectionDiffusionReaction(basis, bkd, diffusion=1.0)
         model = CollocationModel(physics, bkd)
@@ -215,7 +235,9 @@ class TestCollocationModel(Generic[Array], unittest.TestCase):
         """
         bkd = self.bkd()
         npts = 20
-        basis = ChebyshevBasis1D(npts, bkd)
+        mesh = TransformedMesh1D(npts, bkd)
+
+        basis = ChebyshevBasis1D(mesh, bkd)
         mesh = create_uniform_mesh_1d(npts, (-1.0, 1.0), bkd)
 
         D = 1.0
@@ -257,7 +279,9 @@ class TestCollocationModel(Generic[Array], unittest.TestCase):
         """
         bkd = self.bkd()
         npts = 5
-        basis = ChebyshevBasis1D(npts, bkd)
+        mesh = TransformedMesh1D(npts, bkd)
+
+        basis = ChebyshevBasis1D(mesh, bkd)
 
         r = 2.0
         physics = AdvectionDiffusionReaction(basis, bkd, reaction=-r)
@@ -286,7 +310,9 @@ class TestCollocationModel(Generic[Array], unittest.TestCase):
         """Test Forward Euler time stepping."""
         bkd = self.bkd()
         npts = 5
-        basis = ChebyshevBasis1D(npts, bkd)
+        mesh = TransformedMesh1D(npts, bkd)
+
+        basis = ChebyshevBasis1D(mesh, bkd)
 
         r = 1.0
         physics = AdvectionDiffusionReaction(basis, bkd, reaction=-r)
@@ -308,7 +334,9 @@ class TestCollocationModel(Generic[Array], unittest.TestCase):
         """Test Heun's method (RK2) time stepping."""
         bkd = self.bkd()
         npts = 5
-        basis = ChebyshevBasis1D(npts, bkd)
+        mesh = TransformedMesh1D(npts, bkd)
+
+        basis = ChebyshevBasis1D(mesh, bkd)
 
         r = 1.0
         physics = AdvectionDiffusionReaction(basis, bkd, reaction=-r)
@@ -331,7 +359,9 @@ class TestCollocationModel(Generic[Array], unittest.TestCase):
         """Test Crank-Nicolson time stepping."""
         bkd = self.bkd()
         npts = 5
-        basis = ChebyshevBasis1D(npts, bkd)
+        mesh = TransformedMesh1D(npts, bkd)
+
+        basis = ChebyshevBasis1D(mesh, bkd)
 
         r = 1.0
         physics = AdvectionDiffusionReaction(basis, bkd, reaction=-r)
@@ -356,7 +386,9 @@ class TestCollocationModel(Generic[Array], unittest.TestCase):
         """
         bkd = self.bkd()
         npts = 20
-        basis = ChebyshevBasis1D(npts, bkd)
+        mesh = TransformedMesh1D(npts, bkd)
+
+        basis = ChebyshevBasis1D(mesh, bkd)
         mesh = create_uniform_mesh_1d(npts, (-1.0, 1.0), bkd)
 
         D = 0.1
@@ -394,7 +426,9 @@ class TestCollocationModel(Generic[Array], unittest.TestCase):
         """Test that output shapes are correct."""
         bkd = self.bkd()
         npts = 10
-        basis = ChebyshevBasis1D(npts, bkd)
+        mesh = TransformedMesh1D(npts, bkd)
+
+        basis = ChebyshevBasis1D(mesh, bkd)
 
         physics = AdvectionDiffusionReaction(basis, bkd, diffusion=1.0)
         model = CollocationModel(physics, bkd)
