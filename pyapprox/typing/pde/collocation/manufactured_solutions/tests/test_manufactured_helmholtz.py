@@ -37,7 +37,8 @@ from pyapprox.typing.pde.collocation.basis import (
 from pyapprox.typing.pde.collocation.mesh import (
     create_uniform_mesh_1d,
     create_uniform_mesh_2d,
-)
+
+    TransformedMesh1D, TransformedMesh2D,)
 from pyapprox.typing.pde.collocation.boundary import (
     zero_dirichlet_bc,
 )
@@ -105,7 +106,9 @@ class TestManufacturedHelmholtz1D(Generic[Array], unittest.TestCase):
         """Test steady Helmholtz residual with polynomial solution."""
         bkd = self.bkd()
         npts = 12
-        basis = ChebyshevBasis1D(npts, bkd)
+        mesh = TransformedMesh1D(npts, bkd)
+
+        basis = ChebyshevBasis1D(mesh, bkd)
         mesh = create_uniform_mesh_1d(npts, (-1.0, 1.0), bkd)
 
         # Polynomial solution: u = (1 - x^2)
@@ -151,7 +154,9 @@ class TestManufacturedHelmholtz1D(Generic[Array], unittest.TestCase):
         """Test Helmholtz Jacobian via derivative checker."""
         bkd = self.bkd()
         npts = 10
-        basis = ChebyshevBasis1D(npts, bkd)
+        mesh = TransformedMesh1D(npts, bkd)
+
+        basis = ChebyshevBasis1D(mesh, bkd)
         mesh = create_uniform_mesh_1d(npts, (-1.0, 1.0), bkd)
 
         k2 = 1.5
@@ -197,7 +202,9 @@ class TestManufacturedHelmholtz2D(Generic[Array], unittest.TestCase):
         """Test 2D steady Helmholtz residual."""
         bkd = self.bkd()
         npts_x, npts_y = 10, 10
-        basis = ChebyshevBasis2D(npts_x, npts_y, bkd)
+        mesh = TransformedMesh2D(npts_x, npts_y, bkd)
+
+        basis = ChebyshevBasis2D(mesh, bkd)
         mesh = create_uniform_mesh_2d(
             (npts_x, npts_y), (-1.0, 1.0, -1.0, 1.0), bkd
         )
@@ -269,7 +276,9 @@ class TestHelmholtz1DParameterized(ParametrizedTestCase):
     def test_helmholtz_1d_residual(self, name, sol_str, k2, npts):
         """Test 1D Helmholtz residual for parameterized cases."""
         bkd = self.bkd()
-        basis = ChebyshevBasis1D(npts, bkd)
+        mesh = TransformedMesh1D(npts, bkd)
+
+        basis = ChebyshevBasis1D(mesh, bkd)
         mesh = create_uniform_mesh_1d(npts, (-1.0, 1.0), bkd)
 
         man_sol = ManufacturedHelmholtz(
@@ -327,7 +336,9 @@ class TestHelmholtz2DParameterized(ParametrizedTestCase):
     def test_helmholtz_2d_residual(self, name, sol_str, k2, npts_x, npts_y):
         """Test 2D Helmholtz residual for parameterized cases."""
         bkd = self.bkd()
-        basis = ChebyshevBasis2D(npts_x, npts_y, bkd)
+        mesh = TransformedMesh2D(npts_x, npts_y, bkd)
+
+        basis = ChebyshevBasis2D(mesh, bkd)
         mesh = create_uniform_mesh_2d(
             (npts_x, npts_y), (-1.0, 1.0, -1.0, 1.0), bkd
         )

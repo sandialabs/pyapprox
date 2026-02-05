@@ -35,6 +35,9 @@ from pyapprox.typing.util.backends.numpy import NumpyBkd
 from pyapprox.typing.util.backends.torch import TorchBkd
 from pyapprox.typing.util.test_utils import load_tests  # noqa: F401
 from pyapprox.typing.pde.collocation.basis import ChebyshevBasis2D
+from pyapprox.typing.pde.collocation.mesh import (
+    TransformedMesh2D,
+)
 from pyapprox.typing.pde.collocation.physics import ShallowShelfVelocityPhysics
 from pyapprox.typing.pde.collocation.manufactured_solutions import (
     ManufacturedShallowShelfVelocityEquations,
@@ -99,7 +102,9 @@ class TestManufacturedShallowShelf2D(Generic[Array], unittest.TestCase):
         """Test steady shallow shelf residual with manufactured solution."""
         bkd = self.bkd()
         npts_1d = 40  # Need many points for nonlinear SSA
-        basis = ChebyshevBasis2D(npts_1d, npts_1d, bkd)
+        mesh = TransformedMesh2D(npts_1d, npts_1d, bkd)
+
+        basis = ChebyshevBasis2D(mesh, bkd)
         npts = basis.npts()
 
         # Normalized parameters for numerical stability
@@ -164,7 +169,9 @@ class TestManufacturedShallowShelf2D(Generic[Array], unittest.TestCase):
         """Test Shallow Shelf Jacobian via derivative checker."""
         bkd = self.bkd()
         npts_1d = 6  # Smaller for Jacobian test
-        basis = ChebyshevBasis2D(npts_1d, npts_1d, bkd)
+        mesh = TransformedMesh2D(npts_1d, npts_1d, bkd)
+
+        basis = ChebyshevBasis2D(mesh, bkd)
         npts = basis.npts()
 
         # Normalized parameters
@@ -216,7 +223,9 @@ class TestManufacturedShallowShelf2D(Generic[Array], unittest.TestCase):
         """Test with sloped bed topography."""
         bkd = self.bkd()
         npts_1d = 40
-        basis = ChebyshevBasis2D(npts_1d, npts_1d, bkd)
+        mesh = TransformedMesh2D(npts_1d, npts_1d, bkd)
+
+        basis = ChebyshevBasis2D(mesh, bkd)
 
         A = 1.0
         rho = 1.0
@@ -284,7 +293,9 @@ class TestShallowShelf2DParameterized(ParametrizedTestCase):
     ):
         """Test 2D Shallow Shelf residual for parameterized cases."""
         bkd = self.bkd()
-        basis = ChebyshevBasis2D(npts_1d, npts_1d, bkd)
+        mesh = TransformedMesh2D(npts_1d, npts_1d, bkd)
+
+        basis = ChebyshevBasis2D(mesh, bkd)
 
         A = 1.0
         rho = 1.0
@@ -353,7 +364,9 @@ class TestShallowShelf2DParameterized(ParametrizedTestCase):
     def test_shallow_shelf_2d_jacobian(self, name, u_str, v_str, npts_1d):
         """Test 2D Shallow Shelf Jacobian via DerivativeChecker."""
         bkd = self.bkd()
-        basis = ChebyshevBasis2D(npts_1d, npts_1d, bkd)
+        mesh = TransformedMesh2D(npts_1d, npts_1d, bkd)
+
+        basis = ChebyshevBasis2D(mesh, bkd)
 
         A = 1.0
         rho = 1.0

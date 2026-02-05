@@ -37,7 +37,10 @@ from pyapprox.typing.util.backends.numpy import NumpyBkd
 from pyapprox.typing.util.backends.torch import TorchBkd
 from pyapprox.typing.util.test_utils import load_tests  # noqa: F401
 from pyapprox.typing.pde.collocation.basis import ChebyshevBasis1D
-from pyapprox.typing.pde.collocation.mesh import create_uniform_mesh_1d
+from pyapprox.typing.pde.collocation.mesh import (
+    create_uniform_mesh_1d,
+    TransformedMesh1D,
+)
 from pyapprox.typing.pde.collocation.boundary import zero_dirichlet_bc
 from pyapprox.typing.pde.collocation.physics import BurgersPhysics1D
 from pyapprox.typing.pde.collocation.manufactured_solutions import (
@@ -103,7 +106,9 @@ class TestManufacturedBurgers1D(Generic[Array], unittest.TestCase):
         """Test steady Burgers residual with quadratic solution u = 1 - x²."""
         bkd = self.bkd()
         npts = 15
-        basis = ChebyshevBasis1D(npts, bkd)
+        mesh = TransformedMesh1D(npts, bkd)
+
+        basis = ChebyshevBasis1D(mesh, bkd)
         mesh = create_uniform_mesh_1d(npts, (-1.0, 1.0), bkd)
 
         # Polynomial solution: u = (1 - x²)
@@ -146,7 +151,9 @@ class TestManufacturedBurgers1D(Generic[Array], unittest.TestCase):
         """Test Burgers Jacobian via derivative checker."""
         bkd = self.bkd()
         npts = 12
-        basis = ChebyshevBasis1D(npts, bkd)
+        mesh = TransformedMesh1D(npts, bkd)
+
+        basis = ChebyshevBasis1D(mesh, bkd)
         mesh = create_uniform_mesh_1d(npts, (-1.0, 1.0), bkd)
 
         nu = 0.1
@@ -181,7 +188,9 @@ class TestManufacturedBurgers1D(Generic[Array], unittest.TestCase):
         """Test with high viscosity (diffusion-dominated)."""
         bkd = self.bkd()
         npts = 15
-        basis = ChebyshevBasis1D(npts, bkd)
+        mesh = TransformedMesh1D(npts, bkd)
+
+        basis = ChebyshevBasis1D(mesh, bkd)
         mesh = create_uniform_mesh_1d(npts, (-1.0, 1.0), bkd)
 
         # High viscosity makes the equation more diffusion-dominated
@@ -223,7 +232,9 @@ class TestManufacturedBurgers1D(Generic[Array], unittest.TestCase):
         """Test non-conservative form of Burgers equation."""
         bkd = self.bkd()
         npts = 15
-        basis = ChebyshevBasis1D(npts, bkd)
+        mesh = TransformedMesh1D(npts, bkd)
+
+        basis = ChebyshevBasis1D(mesh, bkd)
         mesh = create_uniform_mesh_1d(npts, (-1.0, 1.0), bkd)
 
         nu = 0.1
@@ -284,7 +295,9 @@ class TestBurgers1DParameterized(ParametrizedTestCase):
     def test_burgers_1d_residual(self, name, sol_str, viscosity, npts):
         """Test 1D Burgers residual for parameterized cases."""
         bkd = self.bkd()
-        basis = ChebyshevBasis1D(npts, bkd)
+        mesh = TransformedMesh1D(npts, bkd)
+
+        basis = ChebyshevBasis1D(mesh, bkd)
         mesh = create_uniform_mesh_1d(npts, (-1.0, 1.0), bkd)
 
         man_sol = ManufacturedBurgers1D(
@@ -333,7 +346,9 @@ class TestBurgers1DParameterized(ParametrizedTestCase):
     def test_burgers_1d_jacobian(self, name, sol_str, viscosity, npts):
         """Test 1D Burgers Jacobian via DerivativeChecker."""
         bkd = self.bkd()
-        basis = ChebyshevBasis1D(npts, bkd)
+        mesh = TransformedMesh1D(npts, bkd)
+
+        basis = ChebyshevBasis1D(mesh, bkd)
         mesh = create_uniform_mesh_1d(npts, (-1.0, 1.0), bkd)
 
         man_sol = ManufacturedBurgers1D(

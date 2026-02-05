@@ -38,7 +38,10 @@ from pyapprox.typing.util.backends.numpy import NumpyBkd
 from pyapprox.typing.util.backends.torch import TorchBkd
 from pyapprox.typing.util.test_utils import load_tests  # noqa: F401
 from pyapprox.typing.pde.collocation.basis import ChebyshevBasis1D
-from pyapprox.typing.pde.collocation.mesh import create_uniform_mesh_1d
+from pyapprox.typing.pde.collocation.mesh import (
+    create_uniform_mesh_1d,
+    TransformedMesh1D,
+)
 from pyapprox.typing.pde.collocation.boundary import constant_dirichlet_bc
 from pyapprox.typing.pde.collocation.physics import ShallowWavePhysics
 from pyapprox.typing.pde.collocation.manufactured_solutions import (
@@ -104,7 +107,9 @@ class TestManufacturedShallowWave1D(Generic[Array], unittest.TestCase):
         """Test steady shallow wave residual with manufactured solution."""
         bkd = self.bkd()
         npts = 20
-        basis = ChebyshevBasis1D(npts, bkd)
+        mesh = TransformedMesh1D(npts, bkd)
+
+        basis = ChebyshevBasis1D(mesh, bkd)
         mesh = create_uniform_mesh_1d(npts, (-1.0, 1.0), bkd)
         nodes = basis.nodes()
 
@@ -190,7 +195,9 @@ class TestManufacturedShallowWave1D(Generic[Array], unittest.TestCase):
         """Test Shallow Wave Jacobian via derivative checker."""
         bkd = self.bkd()
         npts = 12
-        basis = ChebyshevBasis1D(npts, bkd)
+        mesh = TransformedMesh1D(npts, bkd)
+
+        basis = ChebyshevBasis1D(mesh, bkd)
         nodes = basis.nodes()
 
         man_sol = ManufacturedShallowWave(
@@ -221,7 +228,9 @@ class TestManufacturedShallowWave1D(Generic[Array], unittest.TestCase):
         """Test with flat bed topography."""
         bkd = self.bkd()
         npts = 20
-        basis = ChebyshevBasis1D(npts, bkd)
+        mesh = TransformedMesh1D(npts, bkd)
+
+        basis = ChebyshevBasis1D(mesh, bkd)
         mesh = create_uniform_mesh_1d(npts, (-1.0, 1.0), bkd)
         nodes = basis.nodes()
 
@@ -273,7 +282,9 @@ class TestManufacturedShallowWave1D(Generic[Array], unittest.TestCase):
         """Test quiescent state: h + b = const, u = 0 gives zero residual."""
         bkd = self.bkd()
         npts = 20
-        basis = ChebyshevBasis1D(npts, bkd)
+        mesh = TransformedMesh1D(npts, bkd)
+
+        basis = ChebyshevBasis1D(mesh, bkd)
         nodes = basis.nodes()
 
         # Quiescent state: h + b = constant, u = 0
@@ -313,7 +324,9 @@ class TestShallowWave1DParameterized(ParametrizedTestCase):
     ):
         """Test 1D Shallow Wave momentum residual for parameterized cases."""
         bkd = self.bkd()
-        basis = ChebyshevBasis1D(npts, bkd)
+        mesh = TransformedMesh1D(npts, bkd)
+
+        basis = ChebyshevBasis1D(mesh, bkd)
         mesh = create_uniform_mesh_1d(npts, (-1.0, 1.0), bkd)
         nodes = basis.nodes()
 
@@ -374,7 +387,9 @@ class TestShallowWave1DParameterized(ParametrizedTestCase):
     def test_shallow_wave_1d_jacobian(self, name, depth_str, mom_str, bed_str, npts):
         """Test 1D Shallow Wave Jacobian via DerivativeChecker."""
         bkd = self.bkd()
-        basis = ChebyshevBasis1D(npts, bkd)
+        mesh = TransformedMesh1D(npts, bkd)
+
+        basis = ChebyshevBasis1D(mesh, bkd)
         nodes = basis.nodes()
 
         man_sol = ManufacturedShallowWave(

@@ -17,6 +17,7 @@ from typing import Generic
 
 from pyapprox.typing.util.backends.protocols import Array, Backend
 from pyapprox.typing.util.backends.numpy import NumpyBkd
+from pyapprox.typing.util.test_utils import load_tests  # noqa: F401
 from pyapprox.typing.pde.collocation.basis import (
     ChebyshevBasis1D,
     ChebyshevBasis2D,
@@ -26,6 +27,10 @@ from pyapprox.typing.pde.collocation.mesh import (
     create_uniform_mesh_1d,
     create_uniform_mesh_2d,
     create_uniform_mesh_3d,
+    AffineTransform1D,
+    TransformedMesh1D,
+    TransformedMesh2D,
+    TransformedMesh3D,
 )
 from pyapprox.typing.pde.collocation.boundary import (
     DirichletBC,
@@ -114,7 +119,9 @@ class TestManufacturedADR1D(Generic[Array], unittest.TestCase):
         """
         bkd = self.bkd()
         npts = 10
-        basis = ChebyshevBasis1D(npts, bkd)
+        mesh = TransformedMesh1D(npts, bkd)
+
+        basis = ChebyshevBasis1D(mesh, bkd)
         mesh = create_uniform_mesh_1d(npts, (-1.0, 1.0), bkd)
 
         # Polynomial manufactured solution: u = (1-x**2)*x = x - x**3
@@ -161,7 +168,9 @@ class TestManufacturedADR1D(Generic[Array], unittest.TestCase):
         """Test Jacobian correctness via DerivativeChecker."""
         bkd = self.bkd()
         npts = 15
-        basis = ChebyshevBasis1D(npts, bkd)
+        mesh = TransformedMesh1D(npts, bkd)
+
+        basis = ChebyshevBasis1D(mesh, bkd)
 
         # Simple diffusion problem
         physics = AdvectionDiffusionReaction(basis, bkd, diffusion=1.0)
@@ -184,7 +193,9 @@ class TestManufacturedADR1D(Generic[Array], unittest.TestCase):
         """Test numerical solution matches manufactured solution."""
         bkd = self.bkd()
         npts = 10
-        basis = ChebyshevBasis1D(npts, bkd)
+        mesh = TransformedMesh1D(npts, bkd)
+
+        basis = ChebyshevBasis1D(mesh, bkd)
         mesh = create_uniform_mesh_1d(npts, (-1.0, 1.0), bkd)
 
         # Polynomial manufactured solution
@@ -228,7 +239,9 @@ class TestManufacturedADR1D(Generic[Array], unittest.TestCase):
         """
         bkd = self.bkd()
         npts = 10
-        basis = ChebyshevBasis1D(npts, bkd)
+        mesh = TransformedMesh1D(npts, bkd)
+
+        basis = ChebyshevBasis1D(mesh, bkd)
         mesh = create_uniform_mesh_1d(npts, (-1.0, 1.0), bkd)
 
         # Polynomial manufactured solution with advection
@@ -269,7 +282,9 @@ class TestManufacturedADR1D(Generic[Array], unittest.TestCase):
         """Test Jacobian for advection-diffusion problem."""
         bkd = self.bkd()
         npts = 15
-        basis = ChebyshevBasis1D(npts, bkd)
+        mesh = TransformedMesh1D(npts, bkd)
+
+        basis = ChebyshevBasis1D(mesh, bkd)
 
         velocity = [bkd.ones((npts,))]
         physics = AdvectionDiffusionReaction(
@@ -292,7 +307,9 @@ class TestManufacturedADR1D(Generic[Array], unittest.TestCase):
         """
         bkd = self.bkd()
         npts = 10
-        basis = ChebyshevBasis1D(npts, bkd)
+        mesh = TransformedMesh1D(npts, bkd)
+
+        basis = ChebyshevBasis1D(mesh, bkd)
         mesh = create_uniform_mesh_1d(npts, (-1.0, 1.0), bkd)
 
         # Polynomial manufactured solution with reaction
@@ -331,7 +348,9 @@ class TestManufacturedADR1D(Generic[Array], unittest.TestCase):
         """Test Jacobian for reaction-diffusion problem."""
         bkd = self.bkd()
         npts = 15
-        basis = ChebyshevBasis1D(npts, bkd)
+        mesh = TransformedMesh1D(npts, bkd)
+
+        basis = ChebyshevBasis1D(mesh, bkd)
 
         physics = AdvectionDiffusionReaction(
             basis, bkd, diffusion=1.0, reaction=-1.0
@@ -353,7 +372,9 @@ class TestManufacturedADR1D(Generic[Array], unittest.TestCase):
         """
         bkd = self.bkd()
         npts = 10
-        basis = ChebyshevBasis1D(npts, bkd)
+        mesh = TransformedMesh1D(npts, bkd)
+
+        basis = ChebyshevBasis1D(mesh, bkd)
         mesh = create_uniform_mesh_1d(npts, (-1.0, 1.0), bkd)
 
         # Full ADR with polynomial manufactured solution
@@ -397,7 +418,9 @@ class TestManufacturedADR1D(Generic[Array], unittest.TestCase):
         """Test numerical solution for full ADR problem."""
         bkd = self.bkd()
         npts = 10
-        basis = ChebyshevBasis1D(npts, bkd)
+        mesh = TransformedMesh1D(npts, bkd)
+
+        basis = ChebyshevBasis1D(mesh, bkd)
         mesh = create_uniform_mesh_1d(npts, (-1.0, 1.0), bkd)
 
         man_sol = ManufacturedAdvectionDiffusionReaction(
@@ -459,7 +482,9 @@ class TestManufacturedADR2D(Generic[Array], unittest.TestCase):
         """
         bkd = self.bkd()
         npts_x, npts_y = 8, 8
-        basis = ChebyshevBasis2D(npts_x, npts_y, bkd)
+        mesh = TransformedMesh2D(npts_x, npts_y, bkd)
+
+        basis = ChebyshevBasis2D(mesh, bkd)
         mesh = create_uniform_mesh_2d((npts_x, npts_y), (-1.0, 1.0, -1.0, 1.0), bkd)
 
         # Polynomial manufactured solution: u = (1-x**2)*(1-y**2)
@@ -517,7 +542,9 @@ class TestManufacturedADR2D(Generic[Array], unittest.TestCase):
         """Test Jacobian for 2D diffusion."""
         bkd = self.bkd()
         npts_x, npts_y = 8, 8
-        basis = ChebyshevBasis2D(npts_x, npts_y, bkd)
+        mesh = TransformedMesh2D(npts_x, npts_y, bkd)
+
+        basis = ChebyshevBasis2D(mesh, bkd)
 
         physics = AdvectionDiffusionReaction(basis, bkd, diffusion=1.0)
 
@@ -535,7 +562,9 @@ class TestManufacturedADR2D(Generic[Array], unittest.TestCase):
         """Test numerical solution matches manufactured solution in 2D."""
         bkd = self.bkd()
         npts_x, npts_y = 10, 10
-        basis = ChebyshevBasis2D(npts_x, npts_y, bkd)
+        mesh = TransformedMesh2D(npts_x, npts_y, bkd)
+
+        basis = ChebyshevBasis2D(mesh, bkd)
         mesh = create_uniform_mesh_2d((npts_x, npts_y), (-1.0, 1.0, -1.0, 1.0), bkd)
 
         man_sol = ManufacturedAdvectionDiffusionReaction(
@@ -579,7 +608,9 @@ class TestManufacturedADR2D(Generic[Array], unittest.TestCase):
         """
         bkd = self.bkd()
         npts_x, npts_y = 10, 10
-        basis = ChebyshevBasis2D(npts_x, npts_y, bkd)
+        mesh = TransformedMesh2D(npts_x, npts_y, bkd)
+
+        basis = ChebyshevBasis2D(mesh, bkd)
         mesh = create_uniform_mesh_2d((npts_x, npts_y), (-1.0, 1.0, -1.0, 1.0), bkd)
 
         # Polynomial with advection: degree 3 in x, degree 2 in y
@@ -656,7 +687,9 @@ class TestManufacturedADRTransient(Generic[Array], unittest.TestCase):
         """
         bkd = self.bkd()
         npts = 10
-        basis = ChebyshevBasis1D(npts, bkd)
+        mesh = TransformedMesh1D(npts, bkd)
+
+        basis = ChebyshevBasis1D(mesh, bkd)
         mesh = create_uniform_mesh_1d(npts, (-1.0, 1.0), bkd)
 
         # Transient polynomial solution: u = (1 - 0.5*T)*(1-x**2)*x
@@ -705,7 +738,9 @@ class TestManufacturedADRTransient(Generic[Array], unittest.TestCase):
         """
         bkd = self.bkd()
         npts = 10
-        basis = ChebyshevBasis1D(npts, bkd)
+        mesh = TransformedMesh1D(npts, bkd)
+
+        basis = ChebyshevBasis1D(mesh, bkd)
         mesh = create_uniform_mesh_1d(npts, (-1.0, 1.0), bkd)
 
         # Polynomial transient solution
@@ -787,9 +822,6 @@ class TestManufacturedADRTransientNumpy(TestManufacturedADRTransient):
 from unittest_parametrize import ParametrizedTestCase, parametrize
 
 # ADR 1D test cases matching legacy itertools.product combinations
-# NOTE: Non-standard domain cases (domain_01, domain_02) are commented out
-# until domain transformation is implemented in the basis layer.
-# See: plans/domain-transformation-implementation.md
 ADR_1D_STEADY_CASES = [
     # (name, sol_str, diff, vel, react, npts, domain)
     ("diffusion_only", "(1 - x**2)*x", 1.0, [0.0], 0.0, 10, (-1.0, 1.0)),
@@ -797,9 +829,9 @@ ADR_1D_STEADY_CASES = [
     ("with_advection", "(1 - x**2)*(1 + x)", 0.1, [1.0], 0.0, 15, (-1.0, 1.0)),
     ("with_reaction", "(1 - x**2)*x", 1.0, [0.0], -1.0, 10, (-1.0, 1.0)),
     ("full_adr", "(1 - x**2)*(1 + 2*x)", 0.1, [1.0], -0.5, 15, (-1.0, 1.0)),
-    # TODO: Re-enable after implementing domain transformation
-    # ("domain_01", "x*(1-x)", 1.0, [0.0], 0.0, 10, (0.0, 1.0)),
-    # ("domain_02", "x*(2-x)", 1.0, [0.0], 0.0, 10, (0.0, 2.0)),
+    # Non-identity domain transforms
+    ("domain_01", "x*(1-x)", 1.0, [0.0], 0.0, 10, (0.0, 1.0)),
+    ("domain_02", "x*(2-x)", 1.0, [0.0], 0.0, 10, (0.0, 2.0)),
 ]
 
 
@@ -816,8 +848,17 @@ class TestADR1DParameterized(ParametrizedTestCase):
     def test_steady_adr_1d_residual(self, name, sol_str, diff, vel, react, npts, domain):
         """Test residual = 0 at manufactured solution for various configurations."""
         bkd = self.bkd()
-        basis = ChebyshevBasis1D(npts, bkd)
-        mesh = create_uniform_mesh_1d(npts, domain, bkd)
+
+        # Create transform if domain != [-1, 1]
+        lb, ub = domain
+        if lb == -1.0 and ub == 1.0:
+            transform = None
+        else:
+            transform = AffineTransform1D((lb, ub), bkd)
+
+        # Create mesh with optional transform
+        mesh = TransformedMesh1D(npts, bkd, transform)
+        basis = ChebyshevBasis1D(mesh, bkd)
 
         man_sol = ManufacturedAdvectionDiffusionReaction(
             sol_str=sol_str,
@@ -829,14 +870,11 @@ class TestADR1DParameterized(ParametrizedTestCase):
             oned=True,
         )
 
-        # Map nodes to domain
-        nodes_ref = basis.nodes()  # in [-1, 1]
-        lb, ub = domain
-        nodes = lb + (nodes_ref + 1.0) / 2.0 * (ub - lb)
-        nodes_2d = nodes.reshape(1, -1)
+        # Get physical coordinates from mesh: shape (1, npts)
+        physical_pts = mesh.points()
 
-        u_exact = man_sol.functions["solution"](nodes_2d)
-        forcing = man_sol.functions["forcing"](nodes_2d)
+        u_exact = man_sol.functions["solution"](physical_pts)
+        forcing = man_sol.functions["forcing"](physical_pts)
 
         # Create physics with velocity array
         velocity = [vel[0] * bkd.ones((npts,))] if vel[0] != 0 else None
@@ -871,8 +909,17 @@ class TestADR1DParameterized(ParametrizedTestCase):
     def test_steady_adr_1d_solve(self, name, sol_str, diff, vel, react, npts, domain):
         """Test numerical solution matches manufactured solution for various configs."""
         bkd = self.bkd()
-        basis = ChebyshevBasis1D(npts, bkd)
-        mesh = create_uniform_mesh_1d(npts, domain, bkd)
+
+        # Create transform if domain != [-1, 1]
+        lb, ub = domain
+        if lb == -1.0 and ub == 1.0:
+            transform = None
+        else:
+            transform = AffineTransform1D((lb, ub), bkd)
+
+        # Create mesh with optional transform
+        mesh = TransformedMesh1D(npts, bkd, transform)
+        basis = ChebyshevBasis1D(mesh, bkd)
 
         man_sol = ManufacturedAdvectionDiffusionReaction(
             sol_str=sol_str,
@@ -884,14 +931,11 @@ class TestADR1DParameterized(ParametrizedTestCase):
             oned=True,
         )
 
-        # Map nodes to domain
-        nodes_ref = basis.nodes()
-        lb, ub = domain
-        nodes = lb + (nodes_ref + 1.0) / 2.0 * (ub - lb)
-        nodes_2d = nodes.reshape(1, -1)
+        # Get physical coordinates from mesh: shape (1, npts)
+        physical_pts = mesh.points()
 
-        u_exact = man_sol.functions["solution"](nodes_2d)
-        forcing = man_sol.functions["forcing"](nodes_2d)
+        u_exact = man_sol.functions["solution"](physical_pts)
+        forcing = man_sol.functions["forcing"](physical_pts)
 
         velocity = [vel[0] * bkd.ones((npts,))] if vel[0] != 0 else None
         physics = AdvectionDiffusionReaction(
@@ -937,7 +981,9 @@ class TestADR2DParameterized(ParametrizedTestCase):
         """Test 2D residual = 0 at manufactured solution."""
         bkd = self.bkd()
         npts_x, npts_y = npts
-        basis = ChebyshevBasis2D(npts_x, npts_y, bkd)
+        mesh = TransformedMesh2D(npts_x, npts_y, bkd)
+
+        basis = ChebyshevBasis2D(mesh, bkd)
         mesh = create_uniform_mesh_2d(npts, (-1.0, 1.0, -1.0, 1.0), bkd)
 
         man_sol = ManufacturedAdvectionDiffusionReaction(
@@ -1023,7 +1069,9 @@ class TestManufacturedADR3D(Generic[Array], unittest.TestCase):
         """
         bkd = self.bkd()
         npts_x, npts_y, npts_z = 6, 6, 6
-        basis = ChebyshevBasis3D(npts_x, npts_y, npts_z, bkd)
+        mesh = TransformedMesh3D(npts_x, npts_y, npts_z, bkd)
+
+        basis = ChebyshevBasis3D(mesh, bkd)
         mesh = create_uniform_mesh_3d((npts_x, npts_y, npts_z), (-1.0, 1.0, -1.0, 1.0, -1.0, 1.0), bkd)
 
         # Polynomial manufactured solution: u = (1-x**2)*(1-y**2)*(1-z**2)
@@ -1079,7 +1127,9 @@ class TestManufacturedADR3D(Generic[Array], unittest.TestCase):
         """Test Jacobian for 3D diffusion."""
         bkd = self.bkd()
         npts_x, npts_y, npts_z = 5, 5, 5
-        basis = ChebyshevBasis3D(npts_x, npts_y, npts_z, bkd)
+        mesh = TransformedMesh3D(npts_x, npts_y, npts_z, bkd)
+
+        basis = ChebyshevBasis3D(mesh, bkd)
 
         physics = AdvectionDiffusionReaction(basis, bkd, diffusion=1.0)
 
@@ -1100,7 +1150,9 @@ class TestManufacturedADR3D(Generic[Array], unittest.TestCase):
         """
         bkd = self.bkd()
         npts_x, npts_y, npts_z = 8, 6, 6
-        basis = ChebyshevBasis3D(npts_x, npts_y, npts_z, bkd)
+        mesh = TransformedMesh3D(npts_x, npts_y, npts_z, bkd)
+
+        basis = ChebyshevBasis3D(mesh, bkd)
         mesh = create_uniform_mesh_3d((npts_x, npts_y, npts_z), (-1.0, 1.0, -1.0, 1.0, -1.0, 1.0), bkd)
 
         # Polynomial with advection: degree 3 in x, degree 2 in y,z
@@ -1184,7 +1236,9 @@ class TestADR3DParameterized(ParametrizedTestCase):
         """Test 3D residual = 0 at manufactured solution."""
         bkd = self.bkd()
         npts_x, npts_y, npts_z = npts
-        basis = ChebyshevBasis3D(npts_x, npts_y, npts_z, bkd)
+        mesh = TransformedMesh3D(npts_x, npts_y, npts_z, bkd)
+
+        basis = ChebyshevBasis3D(mesh, bkd)
         mesh = create_uniform_mesh_3d(npts, (-1.0, 1.0, -1.0, 1.0, -1.0, 1.0), bkd)
 
         man_sol = ManufacturedAdvectionDiffusionReaction(

@@ -24,7 +24,10 @@ from pyapprox.typing.util.backends.numpy import NumpyBkd
 from pyapprox.typing.util.backends.torch import TorchBkd
 from pyapprox.typing.util.test_utils import load_tests  # noqa: F401
 from pyapprox.typing.pde.collocation.basis import ChebyshevBasis2D
-from pyapprox.typing.pde.collocation.mesh import create_uniform_mesh_2d
+from pyapprox.typing.pde.collocation.mesh import (
+    create_uniform_mesh_2d,
+    TransformedMesh2D,
+)
 from pyapprox.typing.pde.collocation.boundary import zero_dirichlet_bc
 from pyapprox.typing.pde.collocation.physics import LinearElasticityPhysics
 from pyapprox.typing.pde.collocation.time_integration import CollocationModel
@@ -91,7 +94,9 @@ class TestManufacturedLinearElasticity2D(Generic[Array], unittest.TestCase):
         """Test residual = 0 at exact polynomial solution."""
         bkd = self.bkd()
         npts_x, npts_y = 10, 10
-        basis = ChebyshevBasis2D(npts_x, npts_y, bkd)
+        mesh = TransformedMesh2D(npts_x, npts_y, bkd)
+
+        basis = ChebyshevBasis2D(mesh, bkd)
         mesh = create_uniform_mesh_2d((npts_x, npts_y), (-1.0, 1.0, -1.0, 1.0), bkd)
 
         # Polynomial manufactured solution
@@ -162,7 +167,9 @@ class TestManufacturedLinearElasticity2D(Generic[Array], unittest.TestCase):
         """Test Jacobian correctness via DerivativeChecker."""
         bkd = self.bkd()
         npts_x, npts_y = 6, 6
-        basis = ChebyshevBasis2D(npts_x, npts_y, bkd)
+        mesh = TransformedMesh2D(npts_x, npts_y, bkd)
+
+        basis = ChebyshevBasis2D(mesh, bkd)
 
         physics = LinearElasticityPhysics(basis, bkd, lamda=1.0, mu=1.0)
 
@@ -178,7 +185,9 @@ class TestManufacturedLinearElasticity2D(Generic[Array], unittest.TestCase):
         """Test with different Lamé parameters."""
         bkd = self.bkd()
         npts_x, npts_y = 10, 10
-        basis = ChebyshevBasis2D(npts_x, npts_y, bkd)
+        mesh = TransformedMesh2D(npts_x, npts_y, bkd)
+
+        basis = ChebyshevBasis2D(mesh, bkd)
         mesh = create_uniform_mesh_2d((npts_x, npts_y), (-1.0, 1.0, -1.0, 1.0), bkd)
 
         # Different Lamé parameters
@@ -244,7 +253,9 @@ class TestManufacturedLinearElasticity2D(Generic[Array], unittest.TestCase):
         """Test numerical solution matches manufactured solution."""
         bkd = self.bkd()
         npts_x, npts_y = 10, 10
-        basis = ChebyshevBasis2D(npts_x, npts_y, bkd)
+        mesh = TransformedMesh2D(npts_x, npts_y, bkd)
+
+        basis = ChebyshevBasis2D(mesh, bkd)
         mesh = create_uniform_mesh_2d((npts_x, npts_y), (-1.0, 1.0, -1.0, 1.0), bkd)
 
         man_sol = ManufacturedLinearElasticityEquations(
@@ -314,7 +325,9 @@ class TestLinearElasticity2DParameterized(ParametrizedTestCase):
         """Test 2D Linear Elasticity residual for parameterized cases."""
         bkd = self.bkd()
         npts_x, npts_y = npts_1d, npts_1d
-        basis = ChebyshevBasis2D(npts_x, npts_y, bkd)
+        mesh = TransformedMesh2D(npts_x, npts_y, bkd)
+
+        basis = ChebyshevBasis2D(mesh, bkd)
         mesh = create_uniform_mesh_2d((npts_x, npts_y), (-1.0, 1.0, -1.0, 1.0), bkd)
 
         man_sol = ManufacturedLinearElasticityEquations(
@@ -390,7 +403,9 @@ class TestLinearElasticity2DParameterized(ParametrizedTestCase):
         """Test 2D Linear Elasticity Jacobian via DerivativeChecker."""
         bkd = self.bkd()
         npts_x, npts_y = npts_1d, npts_1d
-        basis = ChebyshevBasis2D(npts_x, npts_y, bkd)
+        mesh = TransformedMesh2D(npts_x, npts_y, bkd)
+
+        basis = ChebyshevBasis2D(mesh, bkd)
 
         lamda = float(lambda_str)
         mu = float(mu_str)

@@ -33,7 +33,10 @@ from pyapprox.typing.util.backends.numpy import NumpyBkd
 from pyapprox.typing.util.backends.torch import TorchBkd
 from pyapprox.typing.util.test_utils import load_tests  # noqa: F401
 from pyapprox.typing.pde.collocation.basis import ChebyshevBasis1D
-from pyapprox.typing.pde.collocation.mesh import create_uniform_mesh_1d
+from pyapprox.typing.pde.collocation.mesh import (
+    create_uniform_mesh_1d,
+    TransformedMesh1D,
+)
 from pyapprox.typing.pde.collocation.boundary import constant_dirichlet_bc
 from pyapprox.typing.pde.collocation.physics import ShallowIcePhysics
 from pyapprox.typing.pde.collocation.manufactured_solutions import (
@@ -99,7 +102,9 @@ class TestManufacturedShallowIce1D(Generic[Array], unittest.TestCase):
         """Test steady Shallow Ice residual with manufactured solution."""
         bkd = self.bkd()
         npts = 20
-        basis = ChebyshevBasis1D(npts, bkd)
+        mesh = TransformedMesh1D(npts, bkd)
+
+        basis = ChebyshevBasis1D(mesh, bkd)
         mesh = create_uniform_mesh_1d(npts, (-1.0, 1.0), bkd)
         nodes = basis.nodes()
 
@@ -157,7 +162,9 @@ class TestManufacturedShallowIce1D(Generic[Array], unittest.TestCase):
         """Test Shallow Ice Jacobian via derivative checker."""
         bkd = self.bkd()
         npts = 15
-        basis = ChebyshevBasis1D(npts, bkd)
+        mesh = TransformedMesh1D(npts, bkd)
+
+        basis = ChebyshevBasis1D(mesh, bkd)
         nodes = basis.nodes()
 
         # Normalized parameters
@@ -194,7 +201,9 @@ class TestManufacturedShallowIce1D(Generic[Array], unittest.TestCase):
         """Test with flat bed topography."""
         bkd = self.bkd()
         npts = 20
-        basis = ChebyshevBasis1D(npts, bkd)
+        mesh = TransformedMesh1D(npts, bkd)
+
+        basis = ChebyshevBasis1D(mesh, bkd)
         mesh = create_uniform_mesh_1d(npts, (-1.0, 1.0), bkd)
         nodes = basis.nodes()
 
@@ -266,7 +275,9 @@ class TestShallowIce1DParameterized(ParametrizedTestCase):
     ):
         """Test 1D Shallow Ice residual for parameterized cases."""
         bkd = self.bkd()
-        basis = ChebyshevBasis1D(npts, bkd)
+        mesh = TransformedMesh1D(npts, bkd)
+
+        basis = ChebyshevBasis1D(mesh, bkd)
         mesh = create_uniform_mesh_1d(npts, (-1.0, 1.0), bkd)
         nodes = basis.nodes()
 
@@ -330,7 +341,9 @@ class TestShallowIce1DParameterized(ParametrizedTestCase):
     def test_shallow_ice_1d_jacobian(self, name, sol_str, bed_str, npts):
         """Test 1D Shallow Ice Jacobian via DerivativeChecker."""
         bkd = self.bkd()
-        basis = ChebyshevBasis1D(npts, bkd)
+        mesh = TransformedMesh1D(npts, bkd)
+
+        basis = ChebyshevBasis1D(mesh, bkd)
         nodes = basis.nodes()
 
         # Normalized parameters
