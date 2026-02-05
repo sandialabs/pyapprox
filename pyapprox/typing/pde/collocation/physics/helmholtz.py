@@ -51,7 +51,8 @@ class HelmholtzPhysics(AdvectionDiffusionReaction[Array]):
     Examples
     --------
     >>> bkd = NumpyBkd()
-    >>> basis = ChebyshevBasis1D(20, bkd)
+    >>> mesh = TransformedMesh1D(20, bkd)
+    >>> basis = ChebyshevBasis1D(mesh, bkd)
     >>> physics = HelmholtzPhysics(basis, bkd, wave_number_sq=1.0)
     >>> physics.set_boundary_conditions([bc_left, bc_right])
     """

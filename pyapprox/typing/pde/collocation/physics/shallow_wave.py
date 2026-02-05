@@ -51,7 +51,8 @@ class ShallowWavePhysics(AbstractVectorPhysics[Array]):
     Examples
     --------
     >>> bkd = NumpyBkd()
-    >>> basis = ChebyshevBasis1D(30, bkd)
+    >>> mesh = TransformedMesh1D(30, bkd)
+    >>> basis = ChebyshevBasis1D(mesh, bkd)
     >>> bed = bkd.zeros((30,))  # Flat bottom
     >>> physics = ShallowWavePhysics(basis, bkd, bed=bed)
     """

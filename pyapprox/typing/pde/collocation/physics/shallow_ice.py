@@ -59,7 +59,8 @@ class ShallowIcePhysics(AbstractScalarPhysics[Array]):
     Examples
     --------
     >>> bkd = NumpyBkd()
-    >>> basis = ChebyshevBasis1D(30, bkd)
+    >>> mesh = TransformedMesh1D(30, bkd)
+    >>> basis = ChebyshevBasis1D(mesh, bkd)
     >>> bed = 0.1 * basis.nodes()  # Sloped bed
     >>> physics = ShallowIcePhysics(
     ...     basis, bkd, bed=bed, friction=1e6, A=1e-16, rho=917.0

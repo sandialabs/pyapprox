@@ -43,7 +43,8 @@ class BurgersPhysics1D(AbstractScalarPhysics[Array]):
     Examples
     --------
     >>> bkd = NumpyBkd()
-    >>> basis = ChebyshevBasis1D(30, bkd)
+    >>> mesh = TransformedMesh1D(30, bkd)
+    >>> basis = ChebyshevBasis1D(mesh, bkd)
     >>> physics = BurgersPhysics1D(basis, bkd, viscosity=0.01)
     >>> physics.set_boundary_conditions([bc_left, bc_right])
     """

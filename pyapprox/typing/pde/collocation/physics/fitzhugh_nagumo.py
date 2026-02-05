@@ -57,7 +57,8 @@ class FitzHughNagumoPhysics(TwoSpeciesReactionDiffusionPhysics[Array]):
     Examples
     --------
     >>> bkd = NumpyBkd()
-    >>> basis = ChebyshevBasis1D(30, bkd)
+    >>> mesh = TransformedMesh1D(30, bkd)
+    >>> basis = ChebyshevBasis1D(mesh, bkd)
     >>> physics = FitzHughNagumoPhysics(basis, bkd, diffusion_v=1e-3)
     """
 

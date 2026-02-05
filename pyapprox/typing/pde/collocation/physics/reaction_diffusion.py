@@ -298,7 +298,8 @@ class TwoSpeciesReactionDiffusionPhysics(AbstractVectorPhysics[Array]):
     Examples
     --------
     >>> bkd = NumpyBkd()
-    >>> basis = ChebyshevBasis1D(30, bkd)
+    >>> mesh = TransformedMesh1D(30, bkd)
+    >>> basis = ChebyshevBasis1D(mesh, bkd)
     >>> reaction = FitzHughNagumoReaction(0.1, 0.01, 0.5, 1.0, bkd)
     >>> physics = TwoSpeciesReactionDiffusionPhysics(
     ...     basis, bkd, diffusion0=1e-3, diffusion1=0.0, reaction=reaction
