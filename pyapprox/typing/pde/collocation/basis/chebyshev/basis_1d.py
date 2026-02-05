@@ -4,18 +4,19 @@ Convenience wrapper combining Chebyshev nodes and derivative matrices
 with the tensor product basis infrastructure.
 """
 
-from typing import Generic, Tuple
+from typing import Generic, Optional, Tuple
 
 from pyapprox.typing.util.backends.protocols import Array, Backend
 from pyapprox.typing.pde.collocation.basis.tensor_product import (
     TensorProductBasis,
 )
-from pyapprox.typing.pde.collocation.basis.chebyshev.nodes import (
-    ChebyshevGaussLobattoNodes1D,
-)
 from pyapprox.typing.pde.collocation.basis.chebyshev.derivative import (
     ChebyshevDerivativeMatrix1D,
 )
+from pyapprox.typing.pde.collocation.protocols.mesh import (
+    MeshWithTransformProtocol,
+)
+from pyapprox.typing.pde.collocation.mesh.transformed import TransformedMesh1D
 
 
 class ChebyshevBasis1D(Generic[Array]):
@@ -25,24 +26,39 @@ class ChebyshevBasis1D(Generic[Array]):
 
     Parameters
     ----------
-    npts : int
-        Number of collocation points.
+    mesh : MeshWithTransformProtocol
+        Mesh providing reference nodes, physical nodes, and gradient factors.
+        Use TransformedMesh1D with an optional transform.
     bkd : Backend
         Computational backend.
+
+    Examples
+    --------
+    Reference domain [-1, 1]:
+
+    >>> mesh = TransformedMesh1D(10, bkd)
+    >>> basis = ChebyshevBasis1D(mesh, bkd)
+
+    Physical domain [0, 1] with affine transform:
+
+    >>> transform = AffineTransform1D((0.0, 1.0), bkd)
+    >>> mesh = TransformedMesh1D(10, bkd, transform)
+    >>> basis = ChebyshevBasis1D(mesh, bkd)
     """
 
-    def __init__(self, npts: int, bkd: Backend[Array]):
+    def __init__(
+        self,
+        mesh: MeshWithTransformProtocol[Array],
+        bkd: Backend[Array],
+    ):
         self._bkd = bkd
-        self._npts = npts
+        self._mesh = mesh
 
-        # Create 1D components
-        nodes_gen = ChebyshevGaussLobattoNodes1D(bkd)
+        # Create derivative matrix computer
         deriv_computer = ChebyshevDerivativeMatrix1D(bkd)
 
-        # Build tensor product basis (1D is just a special case)
-        self._tensor_basis = TensorProductBasis(
-            [nodes_gen], [deriv_computer], (npts,), bkd
-        )
+        # Build tensor product basis with mesh
+        self._tensor_basis = TensorProductBasis(mesh, deriv_computer, bkd)
 
     def bkd(self) -> Backend[Array]:
         """Return the computational backend."""
@@ -52,16 +68,16 @@ class ChebyshevBasis1D(Generic[Array]):
         """Return the number of spatial dimensions."""
         return 1
 
-    def npts_per_dim(self) -> Tuple[int]:
+    def npts_per_dim(self) -> Tuple[int, ...]:
         """Return number of points per dimension."""
-        return (self._npts,)
+        return self._mesh.npts_per_dim()
 
     def npts(self) -> int:
         """Return total number of points."""
-        return self._npts
+        return self._mesh.npts()
 
     def nodes(self) -> Array:
-        """Return collocation nodes.
+        """Return 1D reference collocation nodes.
 
         Returns
         -------
@@ -70,8 +86,12 @@ class ChebyshevBasis1D(Generic[Array]):
         """
         return self._tensor_basis.nodes_1d(0)
 
+    def mesh(self) -> MeshWithTransformProtocol[Array]:
+        """Return the underlying mesh."""
+        return self._mesh
+
     def derivative_matrix(self, order: int = 1, dim: int = 0) -> Array:
-        """Return derivative matrix.
+        """Return physical derivative matrix.
 
         Parameters
         ----------
@@ -83,8 +103,27 @@ class ChebyshevBasis1D(Generic[Array]):
         Returns
         -------
         Array
-            Derivative matrix. Shape: (npts, npts)
+            Derivative matrix in physical coordinates. Shape: (npts, npts)
         """
         if dim != 0:
             raise ValueError(f"dim must be 0 for 1D basis, got {dim}")
         return self._tensor_basis.derivative_matrix(order, dim=0)
+
+    def reference_derivative_matrix(self, order: int = 1, dim: int = 0) -> Array:
+        """Return reference derivative matrix.
+
+        Parameters
+        ----------
+        order : int, optional
+            Derivative order. Default is 1.
+        dim : int, optional
+            Spatial dimension. Must be 0 for 1D. Default is 0.
+
+        Returns
+        -------
+        Array
+            Derivative matrix in reference coordinates. Shape: (npts, npts)
+        """
+        if dim != 0:
+            raise ValueError(f"dim must be 0 for 1D basis, got {dim}")
+        return self._tensor_basis.reference_derivative_matrix(order, dim=0)

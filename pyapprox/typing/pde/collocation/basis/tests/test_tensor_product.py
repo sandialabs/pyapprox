@@ -5,13 +5,18 @@ from typing import Generic
 
 from pyapprox.typing.util.backends.protocols import Array, Backend
 from pyapprox.typing.util.backends.numpy import NumpyBkd
+from pyapprox.typing.util.test_utils import load_tests  # noqa: F401
 from pyapprox.typing.pde.collocation.basis import (
     TensorProductBasis,
-    ChebyshevGaussLobattoNodes1D,
     ChebyshevDerivativeMatrix1D,
     ChebyshevBasis1D,
     ChebyshevBasis2D,
     ChebyshevBasis3D,
+)
+from pyapprox.typing.pde.collocation.mesh import (
+    TransformedMesh1D,
+    TransformedMesh2D,
+    TransformedMesh3D,
 )
 
 
@@ -27,9 +32,9 @@ class TestTensorProductBasis(Generic[Array], unittest.TestCase):
         """Test 1D tensor product basis properties."""
         bkd = self.bkd()
         npts = 5
-        nodes_gen = ChebyshevGaussLobattoNodes1D(bkd)
+        mesh = TransformedMesh1D(npts, bkd)
         deriv_comp = ChebyshevDerivativeMatrix1D(bkd)
-        basis = TensorProductBasis([nodes_gen], [deriv_comp], (npts,), bkd)
+        basis = TensorProductBasis(mesh, deriv_comp, bkd)
 
         self.assertEqual(basis.ndim(), 1)
         self.assertEqual(basis.npts_per_dim(), (npts,))
@@ -41,14 +46,9 @@ class TestTensorProductBasis(Generic[Array], unittest.TestCase):
         """Test 2D tensor product basis properties."""
         bkd = self.bkd()
         npts_x, npts_y = 4, 5
-        nodes_gen = ChebyshevGaussLobattoNodes1D(bkd)
+        mesh = TransformedMesh2D(npts_x, npts_y, bkd)
         deriv_comp = ChebyshevDerivativeMatrix1D(bkd)
-        basis = TensorProductBasis(
-            [nodes_gen, nodes_gen],
-            [deriv_comp, deriv_comp],
-            (npts_x, npts_y),
-            bkd,
-        )
+        basis = TensorProductBasis(mesh, deriv_comp, bkd)
 
         self.assertEqual(basis.ndim(), 2)
         self.assertEqual(basis.npts_per_dim(), (npts_x, npts_y))
@@ -58,14 +58,9 @@ class TestTensorProductBasis(Generic[Array], unittest.TestCase):
         """Test 3D tensor product basis properties."""
         bkd = self.bkd()
         npts_x, npts_y, npts_z = 3, 4, 5
-        nodes_gen = ChebyshevGaussLobattoNodes1D(bkd)
+        mesh = TransformedMesh3D(npts_x, npts_y, npts_z, bkd)
         deriv_comp = ChebyshevDerivativeMatrix1D(bkd)
-        basis = TensorProductBasis(
-            [nodes_gen, nodes_gen, nodes_gen],
-            [deriv_comp, deriv_comp, deriv_comp],
-            (npts_x, npts_y, npts_z),
-            bkd,
-        )
+        basis = TensorProductBasis(mesh, deriv_comp, bkd)
 
         self.assertEqual(basis.ndim(), 3)
         self.assertEqual(basis.npts_per_dim(), (npts_x, npts_y, npts_z))
@@ -75,9 +70,9 @@ class TestTensorProductBasis(Generic[Array], unittest.TestCase):
         """Test 1D derivative matrix shape."""
         bkd = self.bkd()
         npts = 5
-        nodes_gen = ChebyshevGaussLobattoNodes1D(bkd)
+        mesh = TransformedMesh1D(npts, bkd)
         deriv_comp = ChebyshevDerivativeMatrix1D(bkd)
-        basis = TensorProductBasis([nodes_gen], [deriv_comp], (npts,), bkd)
+        basis = TensorProductBasis(mesh, deriv_comp, bkd)
 
         D = basis.derivative_matrix(1, 0)
         self.assertEqual(D.shape, (npts, npts))
@@ -87,14 +82,9 @@ class TestTensorProductBasis(Generic[Array], unittest.TestCase):
         bkd = self.bkd()
         npts_x, npts_y = 4, 5
         npts = npts_x * npts_y
-        nodes_gen = ChebyshevGaussLobattoNodes1D(bkd)
+        mesh = TransformedMesh2D(npts_x, npts_y, bkd)
         deriv_comp = ChebyshevDerivativeMatrix1D(bkd)
-        basis = TensorProductBasis(
-            [nodes_gen, nodes_gen],
-            [deriv_comp, deriv_comp],
-            (npts_x, npts_y),
-            bkd,
-        )
+        basis = TensorProductBasis(mesh, deriv_comp, bkd)
 
         Dx = basis.derivative_matrix(1, 0)
         Dy = basis.derivative_matrix(1, 1)
@@ -106,14 +96,9 @@ class TestTensorProductBasis(Generic[Array], unittest.TestCase):
         bkd = self.bkd()
         npts_x, npts_y, npts_z = 3, 4, 5
         npts = npts_x * npts_y * npts_z
-        nodes_gen = ChebyshevGaussLobattoNodes1D(bkd)
+        mesh = TransformedMesh3D(npts_x, npts_y, npts_z, bkd)
         deriv_comp = ChebyshevDerivativeMatrix1D(bkd)
-        basis = TensorProductBasis(
-            [nodes_gen, nodes_gen, nodes_gen],
-            [deriv_comp, deriv_comp, deriv_comp],
-            (npts_x, npts_y, npts_z),
-            bkd,
-        )
+        basis = TensorProductBasis(mesh, deriv_comp, bkd)
 
         Dx = basis.derivative_matrix(1, 0)
         Dy = basis.derivative_matrix(1, 1)
@@ -126,18 +111,13 @@ class TestTensorProductBasis(Generic[Array], unittest.TestCase):
         """Test 2D derivative matrices have correct Kronecker structure."""
         bkd = self.bkd()
         npts_x, npts_y = 4, 5
-        nodes_gen = ChebyshevGaussLobattoNodes1D(bkd)
+        mesh = TransformedMesh2D(npts_x, npts_y, bkd)
         deriv_comp = ChebyshevDerivativeMatrix1D(bkd)
-        basis = TensorProductBasis(
-            [nodes_gen, nodes_gen],
-            [deriv_comp, deriv_comp],
-            (npts_x, npts_y),
-            bkd,
-        )
+        basis = TensorProductBasis(mesh, deriv_comp, bkd)
 
-        # Get full matrices
-        Dx = basis.derivative_matrix(1, 0)
-        Dy = basis.derivative_matrix(1, 1)
+        # Get full reference matrices (for identity transform, physical = reference)
+        Dx = basis.reference_derivative_matrix(1, 0)
+        Dy = basis.reference_derivative_matrix(1, 1)
 
         # Get 1D matrices
         Dx_1d = basis.derivative_matrix_1d(0)
@@ -156,14 +136,9 @@ class TestTensorProductBasis(Generic[Array], unittest.TestCase):
         """Test 3D derivative matrices have correct Kronecker structure."""
         bkd = self.bkd()
         npts_x, npts_y, npts_z = 3, 4, 3
-        nodes_gen = ChebyshevGaussLobattoNodes1D(bkd)
+        mesh = TransformedMesh3D(npts_x, npts_y, npts_z, bkd)
         deriv_comp = ChebyshevDerivativeMatrix1D(bkd)
-        basis = TensorProductBasis(
-            [nodes_gen, nodes_gen, nodes_gen],
-            [deriv_comp, deriv_comp, deriv_comp],
-            (npts_x, npts_y, npts_z),
-            bkd,
-        )
+        basis = TensorProductBasis(mesh, deriv_comp, bkd)
 
         # Get 1D matrices
         Dx_1d = basis.derivative_matrix_1d(0)
@@ -180,9 +155,10 @@ class TestTensorProductBasis(Generic[Array], unittest.TestCase):
         Dy_expected = bkd.kron(Iz, bkd.kron(Dy_1d, Ix))
         Dz_expected = bkd.kron(Dz_1d, bkd.kron(Iy, Ix))
 
-        Dx = basis.derivative_matrix(1, 0)
-        Dy = basis.derivative_matrix(1, 1)
-        Dz = basis.derivative_matrix(1, 2)
+        # Use reference derivative matrices for identity transform
+        Dx = basis.reference_derivative_matrix(1, 0)
+        Dy = basis.reference_derivative_matrix(1, 1)
+        Dz = basis.reference_derivative_matrix(1, 2)
 
         bkd.assert_allclose(Dx, Dx_expected, atol=1e-14)
         bkd.assert_allclose(Dy, Dy_expected, atol=1e-14)
@@ -192,9 +168,9 @@ class TestTensorProductBasis(Generic[Array], unittest.TestCase):
         """Test second order derivative equals D @ D."""
         bkd = self.bkd()
         npts = 5
-        nodes_gen = ChebyshevGaussLobattoNodes1D(bkd)
+        mesh = TransformedMesh1D(npts, bkd)
         deriv_comp = ChebyshevDerivativeMatrix1D(bkd)
-        basis = TensorProductBasis([nodes_gen], [deriv_comp], (npts,), bkd)
+        basis = TensorProductBasis(mesh, deriv_comp, bkd)
 
         D1 = basis.derivative_matrix(1, 0)
         D2 = basis.derivative_matrix(2, 0)
@@ -205,15 +181,29 @@ class TestTensorProductBasis(Generic[Array], unittest.TestCase):
         """Test derivative matrices are cached."""
         bkd = self.bkd()
         npts = 5
-        nodes_gen = ChebyshevGaussLobattoNodes1D(bkd)
+        mesh = TransformedMesh1D(npts, bkd)
         deriv_comp = ChebyshevDerivativeMatrix1D(bkd)
-        basis = TensorProductBasis([nodes_gen], [deriv_comp], (npts,), bkd)
+        basis = TensorProductBasis(mesh, deriv_comp, bkd)
 
         D1 = basis.derivative_matrix(1, 0)
         D2 = basis.derivative_matrix(1, 0)
 
         # Should be the same object (cached)
         self.assertIs(D1, D2)
+
+    def test_reference_vs_physical_identity_transform(self):
+        """Test reference and physical derivatives match for identity transform."""
+        bkd = self.bkd()
+        npts = 5
+        mesh = TransformedMesh1D(npts, bkd)
+        deriv_comp = ChebyshevDerivativeMatrix1D(bkd)
+        basis = TensorProductBasis(mesh, deriv_comp, bkd)
+
+        D_ref = basis.reference_derivative_matrix(1, 0)
+        D_phys = basis.derivative_matrix(1, 0)
+
+        # For identity transform, they should be equal
+        bkd.assert_allclose(D_ref, D_phys, atol=1e-14)
 
 
 class TestChebyshevBasisWrappers(Generic[Array], unittest.TestCase):
@@ -228,7 +218,8 @@ class TestChebyshevBasisWrappers(Generic[Array], unittest.TestCase):
         """Test ChebyshevBasis1D wrapper."""
         bkd = self.bkd()
         npts = 5
-        basis = ChebyshevBasis1D(npts, bkd)
+        mesh = TransformedMesh1D(npts, bkd)
+        basis = ChebyshevBasis1D(mesh, bkd)
 
         self.assertEqual(basis.ndim(), 1)
         self.assertEqual(basis.npts(), npts)
@@ -241,7 +232,8 @@ class TestChebyshevBasisWrappers(Generic[Array], unittest.TestCase):
         bkd = self.bkd()
         npts_x, npts_y = 4, 5
         npts = npts_x * npts_y
-        basis = ChebyshevBasis2D(npts_x, npts_y, bkd)
+        mesh = TransformedMesh2D(npts_x, npts_y, bkd)
+        basis = ChebyshevBasis2D(mesh, bkd)
 
         self.assertEqual(basis.ndim(), 2)
         self.assertEqual(basis.npts(), npts)
@@ -256,7 +248,8 @@ class TestChebyshevBasisWrappers(Generic[Array], unittest.TestCase):
         bkd = self.bkd()
         npts_x, npts_y, npts_z = 3, 4, 5
         npts = npts_x * npts_y * npts_z
-        basis = ChebyshevBasis3D(npts_x, npts_y, npts_z, bkd)
+        mesh = TransformedMesh3D(npts_x, npts_y, npts_z, bkd)
+        basis = ChebyshevBasis3D(mesh, bkd)
 
         self.assertEqual(basis.ndim(), 3)
         self.assertEqual(basis.npts(), npts)
@@ -272,7 +265,8 @@ class TestChebyshevBasisWrappers(Generic[Array], unittest.TestCase):
         """Test 2D derivatives on a separable function."""
         bkd = self.bkd()
         npts_x, npts_y = 6, 6
-        basis = ChebyshevBasis2D(npts_x, npts_y, bkd)
+        mesh = TransformedMesh2D(npts_x, npts_y, bkd)
+        basis = ChebyshevBasis2D(mesh, bkd)
 
         # Create mesh of points
         x = basis.nodes_x()

@@ -10,11 +10,11 @@ from pyapprox.typing.util.backends.protocols import Array, Backend
 from pyapprox.typing.pde.collocation.basis.tensor_product import (
     TensorProductBasis,
 )
-from pyapprox.typing.pde.collocation.basis.chebyshev.nodes import (
-    ChebyshevGaussLobattoNodes1D,
-)
 from pyapprox.typing.pde.collocation.basis.chebyshev.derivative import (
     ChebyshevDerivativeMatrix1D,
+)
+from pyapprox.typing.pde.collocation.protocols.mesh import (
+    MeshWithTransformProtocol,
 )
 
 
@@ -26,31 +26,39 @@ class ChebyshevBasis2D(Generic[Array]):
 
     Parameters
     ----------
-    npts_x : int
-        Number of collocation points in x direction.
-    npts_y : int
-        Number of collocation points in y direction.
+    mesh : MeshWithTransformProtocol
+        Mesh providing reference nodes, physical nodes, and gradient factors.
+        Use TransformedMesh2D with an optional transform.
     bkd : Backend
         Computational backend.
+
+    Examples
+    --------
+    Reference domain [-1, 1]^2:
+
+    >>> mesh = TransformedMesh2D(10, 10, bkd)
+    >>> basis = ChebyshevBasis2D(mesh, bkd)
+
+    Physical domain [0, 1] x [0, 2] with affine transform:
+
+    >>> transform = AffineTransform2D((0.0, 1.0, 0.0, 2.0), bkd)
+    >>> mesh = TransformedMesh2D(10, 10, bkd, transform)
+    >>> basis = ChebyshevBasis2D(mesh, bkd)
     """
 
-    def __init__(self, npts_x: int, npts_y: int, bkd: Backend[Array]):
+    def __init__(
+        self,
+        mesh: MeshWithTransformProtocol[Array],
+        bkd: Backend[Array],
+    ):
         self._bkd = bkd
-        self._npts_per_dim = (npts_x, npts_y)
+        self._mesh = mesh
 
-        # Create 1D components for each dimension
-        nodes_gen_x = ChebyshevGaussLobattoNodes1D(bkd)
-        nodes_gen_y = ChebyshevGaussLobattoNodes1D(bkd)
-        deriv_computer_x = ChebyshevDerivativeMatrix1D(bkd)
-        deriv_computer_y = ChebyshevDerivativeMatrix1D(bkd)
+        # Create derivative matrix computer
+        deriv_computer = ChebyshevDerivativeMatrix1D(bkd)
 
-        # Build tensor product basis
-        self._tensor_basis = TensorProductBasis(
-            [nodes_gen_x, nodes_gen_y],
-            [deriv_computer_x, deriv_computer_y],
-            (npts_x, npts_y),
-            bkd,
-        )
+        # Build tensor product basis with mesh
+        self._tensor_basis = TensorProductBasis(mesh, deriv_computer, bkd)
 
     def bkd(self) -> Backend[Array]:
         """Return the computational backend."""
@@ -60,16 +68,16 @@ class ChebyshevBasis2D(Generic[Array]):
         """Return the number of spatial dimensions."""
         return 2
 
-    def npts_per_dim(self) -> Tuple[int, int]:
+    def npts_per_dim(self) -> Tuple[int, ...]:
         """Return number of points per dimension."""
-        return self._npts_per_dim
+        return self._mesh.npts_per_dim()
 
     def npts(self) -> int:
         """Return total number of points."""
-        return self._npts_per_dim[0] * self._npts_per_dim[1]
+        return self._mesh.npts()
 
     def nodes_x(self) -> Array:
-        """Return 1D collocation nodes in x direction.
+        """Return 1D reference collocation nodes in x direction.
 
         Returns
         -------
@@ -79,7 +87,7 @@ class ChebyshevBasis2D(Generic[Array]):
         return self._tensor_basis.nodes_1d(0)
 
     def nodes_y(self) -> Array:
-        """Return 1D collocation nodes in y direction.
+        """Return 1D reference collocation nodes in y direction.
 
         Returns
         -------
@@ -88,8 +96,12 @@ class ChebyshevBasis2D(Generic[Array]):
         """
         return self._tensor_basis.nodes_1d(1)
 
+    def mesh(self) -> MeshWithTransformProtocol[Array]:
+        """Return the underlying mesh."""
+        return self._mesh
+
     def derivative_matrix(self, order: int, dim: int) -> Array:
-        """Return derivative matrix for specified order and dimension.
+        """Return physical derivative matrix for specified order and dimension.
 
         Parameters
         ----------
@@ -101,12 +113,12 @@ class ChebyshevBasis2D(Generic[Array]):
         Returns
         -------
         Array
-            Full derivative matrix. Shape: (npts, npts)
+            Derivative matrix in physical coordinates. Shape: (npts, npts)
         """
         return self._tensor_basis.derivative_matrix(order, dim)
 
     def derivative_matrix_x(self, order: int = 1) -> Array:
-        """Return derivative matrix in x direction.
+        """Return physical derivative matrix in x direction.
 
         Parameters
         ----------
@@ -116,12 +128,12 @@ class ChebyshevBasis2D(Generic[Array]):
         Returns
         -------
         Array
-            Derivative matrix. Shape: (npts, npts)
+            Derivative matrix in physical coordinates. Shape: (npts, npts)
         """
         return self._tensor_basis.derivative_matrix(order, dim=0)
 
     def derivative_matrix_y(self, order: int = 1) -> Array:
-        """Return derivative matrix in y direction.
+        """Return physical derivative matrix in y direction.
 
         Parameters
         ----------
@@ -131,6 +143,23 @@ class ChebyshevBasis2D(Generic[Array]):
         Returns
         -------
         Array
-            Derivative matrix. Shape: (npts, npts)
+            Derivative matrix in physical coordinates. Shape: (npts, npts)
         """
         return self._tensor_basis.derivative_matrix(order, dim=1)
+
+    def reference_derivative_matrix(self, order: int, dim: int) -> Array:
+        """Return reference derivative matrix for specified order and dimension.
+
+        Parameters
+        ----------
+        order : int
+            Derivative order (1 for first derivative, 2 for second, etc.)
+        dim : int
+            Spatial dimension (0 for x, 1 for y).
+
+        Returns
+        -------
+        Array
+            Derivative matrix in reference coordinates. Shape: (npts, npts)
+        """
+        return self._tensor_basis.reference_derivative_matrix(order, dim)

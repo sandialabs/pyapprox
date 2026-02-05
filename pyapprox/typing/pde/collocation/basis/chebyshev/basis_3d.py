@@ -10,11 +10,11 @@ from pyapprox.typing.util.backends.protocols import Array, Backend
 from pyapprox.typing.pde.collocation.basis.tensor_product import (
     TensorProductBasis,
 )
-from pyapprox.typing.pde.collocation.basis.chebyshev.nodes import (
-    ChebyshevGaussLobattoNodes1D,
-)
 from pyapprox.typing.pde.collocation.basis.chebyshev.derivative import (
     ChebyshevDerivativeMatrix1D,
+)
+from pyapprox.typing.pde.collocation.protocols.mesh import (
+    MeshWithTransformProtocol,
 )
 
 
@@ -26,41 +26,39 @@ class ChebyshevBasis3D(Generic[Array]):
 
     Parameters
     ----------
-    npts_x : int
-        Number of collocation points in x direction.
-    npts_y : int
-        Number of collocation points in y direction.
-    npts_z : int
-        Number of collocation points in z direction.
+    mesh : MeshWithTransformProtocol
+        Mesh providing reference nodes, physical nodes, and gradient factors.
+        Use TransformedMesh3D with an optional transform.
     bkd : Backend
         Computational backend.
+
+    Examples
+    --------
+    Reference domain [-1, 1]^3:
+
+    >>> mesh = TransformedMesh3D(10, 10, 10, bkd)
+    >>> basis = ChebyshevBasis3D(mesh, bkd)
+
+    Physical domain [0, 1]^3 with affine transform:
+
+    >>> transform = AffineTransform3D((0.0, 1.0, 0.0, 1.0, 0.0, 1.0), bkd)
+    >>> mesh = TransformedMesh3D(10, 10, 10, bkd, transform)
+    >>> basis = ChebyshevBasis3D(mesh, bkd)
     """
 
     def __init__(
         self,
-        npts_x: int,
-        npts_y: int,
-        npts_z: int,
+        mesh: MeshWithTransformProtocol[Array],
         bkd: Backend[Array],
     ):
         self._bkd = bkd
-        self._npts_per_dim = (npts_x, npts_y, npts_z)
+        self._mesh = mesh
 
-        # Create 1D components for each dimension
-        nodes_gen_x = ChebyshevGaussLobattoNodes1D(bkd)
-        nodes_gen_y = ChebyshevGaussLobattoNodes1D(bkd)
-        nodes_gen_z = ChebyshevGaussLobattoNodes1D(bkd)
-        deriv_computer_x = ChebyshevDerivativeMatrix1D(bkd)
-        deriv_computer_y = ChebyshevDerivativeMatrix1D(bkd)
-        deriv_computer_z = ChebyshevDerivativeMatrix1D(bkd)
+        # Create derivative matrix computer
+        deriv_computer = ChebyshevDerivativeMatrix1D(bkd)
 
-        # Build tensor product basis
-        self._tensor_basis = TensorProductBasis(
-            [nodes_gen_x, nodes_gen_y, nodes_gen_z],
-            [deriv_computer_x, deriv_computer_y, deriv_computer_z],
-            (npts_x, npts_y, npts_z),
-            bkd,
-        )
+        # Build tensor product basis with mesh
+        self._tensor_basis = TensorProductBasis(mesh, deriv_computer, bkd)
 
     def bkd(self) -> Backend[Array]:
         """Return the computational backend."""
@@ -70,32 +68,32 @@ class ChebyshevBasis3D(Generic[Array]):
         """Return the number of spatial dimensions."""
         return 3
 
-    def npts_per_dim(self) -> Tuple[int, int, int]:
+    def npts_per_dim(self) -> Tuple[int, ...]:
         """Return number of points per dimension."""
-        return self._npts_per_dim
+        return self._mesh.npts_per_dim()
 
     def npts(self) -> int:
         """Return total number of points."""
-        return (
-            self._npts_per_dim[0]
-            * self._npts_per_dim[1]
-            * self._npts_per_dim[2]
-        )
+        return self._mesh.npts()
 
     def nodes_x(self) -> Array:
-        """Return 1D collocation nodes in x direction."""
+        """Return 1D reference collocation nodes in x direction."""
         return self._tensor_basis.nodes_1d(0)
 
     def nodes_y(self) -> Array:
-        """Return 1D collocation nodes in y direction."""
+        """Return 1D reference collocation nodes in y direction."""
         return self._tensor_basis.nodes_1d(1)
 
     def nodes_z(self) -> Array:
-        """Return 1D collocation nodes in z direction."""
+        """Return 1D reference collocation nodes in z direction."""
         return self._tensor_basis.nodes_1d(2)
 
+    def mesh(self) -> MeshWithTransformProtocol[Array]:
+        """Return the underlying mesh."""
+        return self._mesh
+
     def derivative_matrix(self, order: int, dim: int) -> Array:
-        """Return derivative matrix for specified order and dimension.
+        """Return physical derivative matrix for specified order and dimension.
 
         Parameters
         ----------
@@ -107,18 +105,35 @@ class ChebyshevBasis3D(Generic[Array]):
         Returns
         -------
         Array
-            Full derivative matrix. Shape: (npts, npts)
+            Derivative matrix in physical coordinates. Shape: (npts, npts)
         """
         return self._tensor_basis.derivative_matrix(order, dim)
 
     def derivative_matrix_x(self, order: int = 1) -> Array:
-        """Return derivative matrix in x direction."""
+        """Return physical derivative matrix in x direction."""
         return self._tensor_basis.derivative_matrix(order, dim=0)
 
     def derivative_matrix_y(self, order: int = 1) -> Array:
-        """Return derivative matrix in y direction."""
+        """Return physical derivative matrix in y direction."""
         return self._tensor_basis.derivative_matrix(order, dim=1)
 
     def derivative_matrix_z(self, order: int = 1) -> Array:
-        """Return derivative matrix in z direction."""
+        """Return physical derivative matrix in z direction."""
         return self._tensor_basis.derivative_matrix(order, dim=2)
+
+    def reference_derivative_matrix(self, order: int, dim: int) -> Array:
+        """Return reference derivative matrix for specified order and dimension.
+
+        Parameters
+        ----------
+        order : int
+            Derivative order (1 for first derivative, 2 for second, etc.)
+        dim : int
+            Spatial dimension (0 for x, 1 for y, 2 for z).
+
+        Returns
+        -------
+        Array
+            Derivative matrix in reference coordinates. Shape: (npts, npts)
+        """
+        return self._tensor_basis.reference_derivative_matrix(order, dim)

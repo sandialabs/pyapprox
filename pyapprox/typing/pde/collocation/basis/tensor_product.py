@@ -3,25 +3,31 @@
 Constructs multi-D derivative matrices from 1D components using
 Kronecker products. This is the standard approach for tensor-product
 grids (Cartesian meshes with tensor-product node distributions).
+
+Supports coordinate transformations via mesh gradient factors. When a
+mesh provides non-identity gradient_factors(), physical derivative matrices
+are computed by applying gradient factors to scale reference derivatives.
 """
 
 from typing import Generic, List, Tuple, Optional, Dict
 
 from pyapprox.typing.util.backends.protocols import Array, Backend
 from pyapprox.typing.pde.collocation.protocols.basis import (
-    NodesGenerator1DProtocol,
     DerivativeMatrix1DProtocol,
+)
+from pyapprox.typing.pde.collocation.protocols.mesh import (
+    MeshWithTransformProtocol,
 )
 
 
 class TensorProductBasis(Generic[Array]):
     """Tensor product basis assembling 1D components via Kronecker products.
 
-    Given 1D node generators and derivative matrix computers for each
-    dimension, this class constructs:
-    - 1D nodes for each dimension
-    - 1D derivative matrices for each dimension
-    - Full multi-D derivative matrices via Kronecker products
+    Given a mesh (with reference nodes and gradient factors) and a derivative
+    matrix computer, this class constructs:
+    - 1D reference derivative matrices for each dimension
+    - Full multi-D reference derivative matrices via Kronecker products
+    - Physical derivative matrices scaled by gradient factors
 
     The Kronecker product structure is:
     - 1D: D_x
@@ -30,56 +36,51 @@ class TensorProductBasis(Generic[Array]):
 
     Parameters
     ----------
-    nodes_generators : List[NodesGenerator1DProtocol]
-        1D node generators for each dimension.
-    deriv_matrix_computers : List[DerivativeMatrix1DProtocol]
-        1D derivative matrix computers for each dimension.
-    npts_per_dim : Tuple[int, ...]
-        Number of nodes in each dimension.
+    mesh : MeshWithTransformProtocol
+        Mesh providing reference nodes, physical nodes, and gradient factors.
+    deriv_matrix_computer : DerivativeMatrix1DProtocol
+        Computer for 1D derivative matrices (same for all dimensions).
     bkd : Backend
         Computational backend.
     """
 
     def __init__(
         self,
-        nodes_generators: List[NodesGenerator1DProtocol[Array]],
-        deriv_matrix_computers: List[DerivativeMatrix1DProtocol[Array]],
-        npts_per_dim: Tuple[int, ...],
+        mesh: MeshWithTransformProtocol[Array],
+        deriv_matrix_computer: DerivativeMatrix1DProtocol[Array],
         bkd: Backend[Array],
     ):
-        ndim = len(npts_per_dim)
-        if len(nodes_generators) != ndim:
-            raise ValueError(
-                f"Expected {ndim} node generators, got {len(nodes_generators)}"
-            )
-        if len(deriv_matrix_computers) != ndim:
-            raise ValueError(
-                f"Expected {ndim} deriv matrix computers, "
-                f"got {len(deriv_matrix_computers)}"
-            )
-
         self._bkd = bkd
-        self._npts_per_dim = npts_per_dim
-        self._ndim = ndim
+        self._mesh = mesh
+        self._npts_per_dim = mesh.npts_per_dim()
+        self._ndim = mesh.ndim()
 
-        # Generate 1D nodes for each dimension
-        self._nodes_1d: List[Array] = []
-        for dim, (gen, n) in enumerate(zip(nodes_generators, npts_per_dim)):
-            self._nodes_1d.append(gen.generate(n))
+        # Get 1D reference nodes from mesh
+        self._nodes_1d: List[Array] = [
+            mesh.reference_nodes_1d(d) for d in range(self._ndim)
+        ]
 
         # Compute 1D derivative matrices for each dimension
         self._deriv_matrices_1d: List[Array] = []
-        for dim, (comp, nodes) in enumerate(
-            zip(deriv_matrix_computers, self._nodes_1d)
-        ):
-            self._deriv_matrices_1d.append(comp.compute(nodes))
+        for nodes in self._nodes_1d:
+            self._deriv_matrices_1d.append(deriv_matrix_computer.compute(nodes))
 
-        # Cache for full derivative matrices (order, dim) -> matrix
-        self._deriv_cache: Dict[Tuple[int, int], Array] = {}
+        # Get gradient factors from mesh
+        self._gradient_factors = mesh.gradient_factors()
+
+        # Cache for reference derivative matrices (order, dim) -> matrix
+        self._ref_deriv_cache: Dict[Tuple[int, int], Array] = {}
+
+        # Cache for physical derivative matrices (order, dim) -> matrix
+        self._phys_deriv_cache: Dict[Tuple[int, int], Array] = {}
 
     def bkd(self) -> Backend[Array]:
         """Return the computational backend."""
         return self._bkd
+
+    def mesh(self) -> MeshWithTransformProtocol[Array]:
+        """Return the mesh."""
+        return self._mesh
 
     def ndim(self) -> int:
         """Return the number of spatial dimensions."""
@@ -97,7 +98,7 @@ class TensorProductBasis(Generic[Array]):
         return total
 
     def nodes_1d(self, dim: int) -> Array:
-        """Return 1D nodes for specified dimension.
+        """Return 1D reference nodes for specified dimension.
 
         Parameters
         ----------
@@ -114,7 +115,7 @@ class TensorProductBasis(Generic[Array]):
         return self._nodes_1d[dim]
 
     def derivative_matrix_1d(self, dim: int) -> Array:
-        """Return 1D derivative matrix for specified dimension.
+        """Return 1D reference derivative matrix for specified dimension.
 
         Parameters
         ----------
@@ -130,25 +131,18 @@ class TensorProductBasis(Generic[Array]):
             raise ValueError(f"dim must be in [0, {self._ndim}), got {dim}")
         return self._deriv_matrices_1d[dim]
 
-    def derivative_matrix(self, order: int, dim: int) -> Array:
-        """Return full derivative matrix via Kronecker product.
+    def reference_derivative_matrix(self, order: int, dim: int) -> Array:
+        """Return full reference derivative matrix via Kronecker product.
 
-        For a tensor product basis, derivatives in different directions
-        use the Kronecker product structure. For example, in 2D with
-        n_x nodes in x and n_y nodes in y (total n = n_x * n_y):
-
-        - D_x has shape (n, n) = kron(I_{n_y}, D_x^{1D})
-        - D_y has shape (n, n) = kron(D_y^{1D}, I_{n_x})
-
-        Higher order derivatives are computed by matrix powers of the
-        first derivative.
+        This is the derivative matrix in reference coordinates (before
+        applying gradient factors for coordinate transformation).
 
         Parameters
         ----------
         order : int
             Derivative order (1 for first derivative, 2 for second, etc.)
         dim : int
-            Spatial dimension (0 for x, 1 for y, 2 for z).
+            Reference dimension (0, 1, or 2).
 
         Returns
         -------
@@ -160,17 +154,16 @@ class TensorProductBasis(Generic[Array]):
         if dim < 0 or dim >= self._ndim:
             raise ValueError(f"dim must be in [0, {self._ndim}), got {dim}")
 
-        # Check cache
         cache_key = (order, dim)
-        if cache_key in self._deriv_cache:
-            return self._deriv_cache[cache_key]
+        if cache_key in self._ref_deriv_cache:
+            return self._ref_deriv_cache[cache_key]
 
         # Build first-order derivative matrix if not cached
-        if (1, dim) not in self._deriv_cache:
+        if (1, dim) not in self._ref_deriv_cache:
             D_full = self._build_kronecker_derivative(dim)
-            self._deriv_cache[(1, dim)] = D_full
+            self._ref_deriv_cache[(1, dim)] = D_full
         else:
-            D_full = self._deriv_cache[(1, dim)]
+            D_full = self._ref_deriv_cache[(1, dim)]
 
         # For higher orders, compute matrix power
         if order == 1:
@@ -179,12 +172,64 @@ class TensorProductBasis(Generic[Array]):
             result = D_full
             for _ in range(order - 1):
                 result = result @ D_full
-            self._deriv_cache[cache_key] = result
+            self._ref_deriv_cache[cache_key] = result
 
         return result
 
+    def derivative_matrix(self, order: int, dim: int) -> Array:
+        """Return full physical derivative matrix.
+
+        Computes the derivative matrix in physical coordinates by applying
+        gradient factors to the reference derivative matrices:
+
+            D_phys[d] = sum_j G[:, d, j] * D_ref[j]
+
+        where G is the gradient factors matrix from the mesh.
+
+        For identity transforms (Cartesian meshes on [-1,1]^d), this equals
+        the reference derivative matrix.
+
+        Parameters
+        ----------
+        order : int
+            Derivative order (1 for first derivative, 2 for second, etc.)
+        dim : int
+            Physical dimension (0 for x, 1 for y, 2 for z).
+
+        Returns
+        -------
+        Array
+            Full physical derivative matrix. Shape: (npts, npts)
+        """
+        if order < 1:
+            raise ValueError(f"order must be >= 1, got {order}")
+        if dim < 0 or dim >= self._ndim:
+            raise ValueError(f"dim must be in [0, {self._ndim}), got {dim}")
+
+        # For first order, apply gradient factors
+        if order == 1:
+            cache_key = (1, dim)
+            if cache_key in self._phys_deriv_cache:
+                return self._phys_deriv_cache[cache_key]
+
+            D_phys = self._build_physical_derivative(dim)
+            self._phys_deriv_cache[cache_key] = D_phys
+            return D_phys
+
+        # For higher orders, compose first-order physical derivatives
+        cache_key = (order, dim)
+        if cache_key in self._phys_deriv_cache:
+            return self._phys_deriv_cache[cache_key]
+
+        D1 = self.derivative_matrix(1, dim)
+        result = D1
+        for _ in range(order - 1):
+            result = result @ D1
+        self._phys_deriv_cache[cache_key] = result
+        return result
+
     def _build_kronecker_derivative(self, dim: int) -> Array:
-        """Build full derivative matrix using Kronecker products.
+        """Build full reference derivative matrix using Kronecker products.
 
         For dimension `dim`, we place the 1D derivative matrix in position
         `dim` and identity matrices elsewhere.
@@ -214,8 +259,33 @@ class TensorProductBasis(Generic[Array]):
             if result is None:
                 result = factor
             else:
-                # kron(new_factor, existing_result)
-                # We build from right to left: result = kron(factor, result)
                 result = bkd.kron(factor, result)
 
         return result
+
+    def _build_physical_derivative(self, dim: int) -> Array:
+        """Build physical derivative matrix by applying gradient factors.
+
+        Physical derivative in direction `dim` is:
+            D_phys[dim] = sum_j G[:, dim, j] * D_ref[j]
+
+        where G[:, dim, j] is the gradient factor for converting reference
+        derivative j to physical derivative dim.
+        """
+        bkd = self._bkd
+        npts = self.npts()
+
+        D_phys = bkd.zeros((npts, npts))
+        for ref_dim in range(self._ndim):
+            # Get gradient factor for this reference -> physical mapping
+            # Shape: (npts,)
+            g = self._gradient_factors[:, dim, ref_dim]
+
+            # Get reference derivative matrix
+            D_ref = self.reference_derivative_matrix(1, ref_dim)
+
+            # Add contribution: diag(g) @ D_ref
+            # This scales each row of D_ref by the corresponding g value
+            D_phys = D_phys + bkd.diag(g) @ D_ref
+
+        return D_phys
