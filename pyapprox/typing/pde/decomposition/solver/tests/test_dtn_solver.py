@@ -16,10 +16,16 @@ from typing import Generic
 
 from pyapprox.typing.util.backends.protocols import Array, Backend
 from pyapprox.typing.util.backends.numpy import NumpyBkd
+from pyapprox.typing.util.test_utils import load_tests  # noqa: F401
 from pyapprox.typing.pde.collocation.basis import (
     ChebyshevBasis1D,
     ChebyshevBasis2D,
     ChebyshevBasis3D,
+)
+from pyapprox.typing.pde.collocation.mesh import (
+    TransformedMesh1D,
+    TransformedMesh2D,
+    TransformedMesh3D,
 )
 from pyapprox.typing.pde.collocation.boundary import (
     DirichletBC,
@@ -166,7 +172,8 @@ class TestDtNSolver1DSimple(unittest.TestCase):
         # and just have Dirichlet BCs at the boundaries
 
         # Subdomain 0: Use full Chebyshev grid, but set u(-1)=0 and u(0)=lambda
-        basis0 = ChebyshevBasis1D(npts, bkd)
+        mesh0 = TransformedMesh1D(npts, bkd)
+        basis0 = ChebyshevBasis1D(mesh0, bkd)
         nodes0 = basis0.nodes()  # x=1 at index 0, x=-1 at index npts-1
 
         # Forcing: f = 2 (constant)
@@ -250,7 +257,8 @@ class TestDtNSolver1DSimple(unittest.TestCase):
         wrapper0.set_interface_boundary_indices(0, bkd.asarray([0]))
 
         # Subdomain 1
-        basis1 = ChebyshevBasis1D(npts, bkd)
+        mesh1 = TransformedMesh1D(npts, bkd)
+        basis1 = ChebyshevBasis1D(mesh1, bkd)
         forcing1 = bkd.zeros((npts,))
         physics1 = create_steady_diffusion(
             basis1, bkd, diffusion=1.0, forcing=lambda t: forcing1
@@ -380,7 +388,8 @@ class TestDtNSolver1DWithForcing(unittest.TestCase):
         )
 
         # Subdomain 0: -u'' = 2, u(-1) = 0, u(1) = lambda
-        basis0 = ChebyshevBasis1D(npts, bkd)
+        mesh0 = TransformedMesh1D(npts, bkd)
+        basis0 = ChebyshevBasis1D(mesh0, bkd)
         forcing0 = bkd.full((npts,), 2.0)
         physics0 = create_steady_diffusion(
             basis0, bkd, diffusion=1.0, forcing=lambda t: forcing0
@@ -394,7 +403,8 @@ class TestDtNSolver1DWithForcing(unittest.TestCase):
         wrapper0.set_interface_boundary_indices(0, bkd.asarray([0]))  # interface at x=1
 
         # Subdomain 1: -u'' = 2, u(-1) = lambda, u(1) = 0
-        basis1 = ChebyshevBasis1D(npts, bkd)
+        mesh1 = TransformedMesh1D(npts, bkd)
+        basis1 = ChebyshevBasis1D(mesh1, bkd)
         forcing1 = bkd.full((npts,), 2.0)
         physics1 = create_steady_diffusion(
             basis1, bkd, diffusion=1.0, forcing=lambda t: forcing1
@@ -511,7 +521,8 @@ class TestDtNSolverThreeSubdomains(unittest.TestCase):
                                  interface_point=0.0)
 
         # Subdomain 0
-        basis0 = ChebyshevBasis1D(npts, bkd)
+        mesh0 = TransformedMesh1D(npts, bkd)
+        basis0 = ChebyshevBasis1D(mesh0, bkd)
         forcing0 = bkd.zeros((npts,))
         physics0 = create_steady_diffusion(basis0, bkd, diffusion=1.0,
                                            forcing=lambda t: forcing0)
@@ -524,7 +535,8 @@ class TestDtNSolverThreeSubdomains(unittest.TestCase):
         wrapper0.set_interface_boundary_indices(0, bkd.asarray([0]))
 
         # Subdomain 1 (no external BCs)
-        basis1 = ChebyshevBasis1D(npts, bkd)
+        mesh1 = TransformedMesh1D(npts, bkd)
+        basis1 = ChebyshevBasis1D(mesh1, bkd)
         forcing1 = bkd.zeros((npts,))
         physics1 = create_steady_diffusion(basis1, bkd, diffusion=1.0,
                                            forcing=lambda t: forcing1)
@@ -537,7 +549,8 @@ class TestDtNSolverThreeSubdomains(unittest.TestCase):
         wrapper1.set_interface_boundary_indices(1, bkd.asarray([0]))
 
         # Subdomain 2
-        basis2 = ChebyshevBasis1D(npts, bkd)
+        mesh2 = TransformedMesh1D(npts, bkd)
+        basis2 = ChebyshevBasis1D(mesh2, bkd)
         forcing2 = bkd.zeros((npts,))
         physics2 = create_steady_diffusion(basis2, bkd, diffusion=1.0,
                                            forcing=lambda t: forcing2)
@@ -623,7 +636,8 @@ class TestDtNJacobian(unittest.TestCase):
         interface = Interface1D(bkd, interface_id=0, subdomain_ids=(0, 1),
                                 interface_point=0.0)
 
-        basis0 = ChebyshevBasis1D(npts, bkd)
+        mesh0 = TransformedMesh1D(npts, bkd)
+        basis0 = ChebyshevBasis1D(mesh0, bkd)
         forcing0 = bkd.full((npts,), forcing_value)
         physics0 = create_steady_diffusion(basis0, bkd, diffusion=1.0,
                                            forcing=lambda t: forcing0)
@@ -634,7 +648,8 @@ class TestDtNJacobian(unittest.TestCase):
                                     external_bcs=[left_bc0])
         wrapper0.set_interface_boundary_indices(0, bkd.asarray([0]))
 
-        basis1 = ChebyshevBasis1D(npts, bkd)
+        mesh1 = TransformedMesh1D(npts, bkd)
+        basis1 = ChebyshevBasis1D(mesh1, bkd)
         forcing1 = bkd.full((npts,), forcing_value)
         physics1 = create_steady_diffusion(basis1, bkd, diffusion=1.0,
                                            forcing=lambda t: forcing1)
@@ -668,7 +683,8 @@ class TestDtNJacobian(unittest.TestCase):
                                  interface_point=0.0)
 
         # Subdomain 0
-        basis0 = ChebyshevBasis1D(npts, bkd)
+        mesh0 = TransformedMesh1D(npts, bkd)
+        basis0 = ChebyshevBasis1D(mesh0, bkd)
         forcing0 = bkd.zeros((npts,))
         physics0 = create_steady_diffusion(basis0, bkd, diffusion=1.0,
                                            forcing=lambda t: forcing0)
@@ -680,7 +696,8 @@ class TestDtNJacobian(unittest.TestCase):
         wrapper0.set_interface_boundary_indices(0, bkd.asarray([0]))
 
         # Subdomain 1 (middle, no external BCs)
-        basis1 = ChebyshevBasis1D(npts, bkd)
+        mesh1 = TransformedMesh1D(npts, bkd)
+        basis1 = ChebyshevBasis1D(mesh1, bkd)
         forcing1 = bkd.zeros((npts,))
         physics1 = create_steady_diffusion(basis1, bkd, diffusion=1.0,
                                            forcing=lambda t: forcing1)
@@ -692,7 +709,8 @@ class TestDtNJacobian(unittest.TestCase):
         wrapper1.set_interface_boundary_indices(1, bkd.asarray([0]))
 
         # Subdomain 2
-        basis2 = ChebyshevBasis1D(npts, bkd)
+        mesh2 = TransformedMesh1D(npts, bkd)
+        basis2 = ChebyshevBasis1D(mesh2, bkd)
         forcing2 = bkd.zeros((npts,))
         physics2 = create_steady_diffusion(basis2, bkd, diffusion=1.0,
                                            forcing=lambda t: forcing2)
@@ -866,7 +884,8 @@ class TestDtNSolver2D(unittest.TestCase):
 
         # Left subdomain: physical [-1, 0] mapped to reference [-1, 1]
         # x_phys = 0.5 * (x_ref - 1) => at x_ref=-1, x_phys=-1; at x_ref=1, x_phys=0
-        basis0 = ChebyshevBasis2D(npts_x, npts_y, bkd)
+        mesh0 = TransformedMesh2D(npts_x, npts_y, bkd)
+        basis0 = ChebyshevBasis2D(mesh0, bkd)
         forcing0 = bkd.zeros((basis0.npts(),))
         physics0 = create_steady_diffusion(basis0, bkd, diffusion=1.0,
                                            forcing=lambda t: forcing0)
@@ -892,7 +911,8 @@ class TestDtNSolver2D(unittest.TestCase):
 
         # Right subdomain: physical [0, 1] mapped to reference [-1, 1]
         # x_phys = 0.5 * (x_ref + 1) => at x_ref=-1, x_phys=0; at x_ref=1, x_phys=1
-        basis1 = ChebyshevBasis2D(npts_x, npts_y, bkd)
+        mesh1 = TransformedMesh2D(npts_x, npts_y, bkd)
+        basis1 = ChebyshevBasis2D(mesh1, bkd)
         forcing1 = bkd.zeros((basis1.npts(),))
         physics1 = create_steady_diffusion(basis1, bkd, diffusion=1.0,
                                            forcing=lambda t: forcing1)
@@ -1108,7 +1128,8 @@ class TestDtNSolver3D(unittest.TestCase):
 
         # Left subdomain: physical [-1, 0] in x
         # x_phys = 0.5 * (x_ref - 1)
-        basis0 = ChebyshevBasis3D(npts_x, npts_y, npts_z, bkd)
+        mesh0 = TransformedMesh3D(npts_x, npts_y, npts_z, bkd)
+        basis0 = ChebyshevBasis3D(mesh0, bkd)
         forcing0 = bkd.zeros((basis0.npts(),))
         physics0 = create_steady_diffusion(basis0, bkd, diffusion=1.0,
                                            forcing=lambda t: forcing0)
@@ -1164,7 +1185,8 @@ class TestDtNSolver3D(unittest.TestCase):
 
         # Right subdomain: physical [0, 1] in x
         # x_phys = 0.5 * (x_ref + 1)
-        basis1 = ChebyshevBasis3D(npts_x, npts_y, npts_z, bkd)
+        mesh1 = TransformedMesh3D(npts_x, npts_y, npts_z, bkd)
+        basis1 = ChebyshevBasis3D(mesh1, bkd)
         forcing1 = bkd.zeros((basis1.npts(),))
         physics1 = create_steady_diffusion(basis1, bkd, diffusion=1.0,
                                            forcing=lambda t: forcing1)
@@ -1301,7 +1323,8 @@ class TestVectorPhysicsFlux(unittest.TestCase):
             AdvectionDiffusionReaction,
         )
 
-        basis = ChebyshevBasis1D(npts, bkd)
+        mesh = TransformedMesh1D(npts, bkd)
+        basis = ChebyshevBasis1D(mesh, bkd)
         physics = AdvectionDiffusionReaction(
             basis, bkd, diffusion=1.0, velocity=None, reaction=None
         )
@@ -1333,7 +1356,8 @@ class TestVectorPhysicsFlux(unittest.TestCase):
             LinearReaction,
         )
 
-        basis = ChebyshevBasis1D(npts, bkd)
+        mesh = TransformedMesh1D(npts, bkd)
+        basis = ChebyshevBasis1D(mesh, bkd)
         reaction = LinearReaction(0.0, 0.0, 0.0, 0.0, bkd)  # No reaction
 
         physics = TwoSpeciesReactionDiffusionPhysics(
@@ -1368,7 +1392,8 @@ class TestVectorPhysicsFlux(unittest.TestCase):
             LinearElasticityPhysics,
         )
 
-        basis = ChebyshevBasis2D(npts, npts, bkd)
+        mesh = TransformedMesh2D(npts, npts, bkd)
+        basis = ChebyshevBasis2D(mesh, bkd)
         lamda = 1.0
         mu = 1.0
         physics = LinearElasticityPhysics(basis, bkd, lamda, mu)

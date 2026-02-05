@@ -17,6 +17,7 @@ from typing import Tuple, Dict
 
 from pyapprox.typing.util.backends.numpy import NumpyBkd
 from pyapprox.typing.pde.collocation.basis import ChebyshevBasis1D
+from pyapprox.typing.pde.collocation.mesh import TransformedMesh1D
 from pyapprox.typing.pde.collocation.boundary import (
     DirichletBC,
     zero_dirichlet_bc,
@@ -71,7 +72,8 @@ def create_poisson_1d_problem(npts_per_subdomain: int = 10):
 
     # Create subdomain 0: [0, 1]
     # Chebyshev nodes on [-1, 1], mapped to [0, 1]
-    basis0 = ChebyshevBasis1D(npts_per_subdomain, bkd)
+    mesh0 = TransformedMesh1D(npts_per_subdomain, bkd)
+    basis0 = ChebyshevBasis1D(mesh0, bkd)
     nodes0 = basis0.nodes()
     # Map to [0, 1]: x = 0.5 * (nodes + 1)
     physical_nodes0 = 0.5 * (nodes0 + 1.0)
@@ -87,7 +89,8 @@ def create_poisson_1d_problem(npts_per_subdomain: int = 10):
     left_bc0 = zero_dirichlet_bc(bkd, bkd.asarray([npts_per_subdomain - 1]))
 
     # Create subdomain 1: [1, 2]
-    basis1 = ChebyshevBasis1D(npts_per_subdomain, bkd)
+    mesh1 = TransformedMesh1D(npts_per_subdomain, bkd)
+    basis1 = ChebyshevBasis1D(mesh1, bkd)
     nodes1 = basis1.nodes()
     # Map to [1, 2]: x = 0.5 * (nodes + 1) + 1 = 0.5 * nodes + 1.5
     physical_nodes1 = 0.5 * nodes1 + 1.5

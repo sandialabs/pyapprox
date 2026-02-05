@@ -4,7 +4,9 @@ import unittest
 import math
 
 from pyapprox.typing.util.backends.numpy import NumpyBkd
+from pyapprox.typing.util.test_utils import load_tests  # noqa: F401
 from pyapprox.typing.pde.collocation.basis import ChebyshevBasis1D
+from pyapprox.typing.pde.collocation.mesh import TransformedMesh1D
 from pyapprox.typing.pde.collocation.boundary import (
     constant_dirichlet_bc,
     DirichletBC,
@@ -33,7 +35,8 @@ class TestSubdomainWrapperBasic(unittest.TestCase):
         """Test basic initialization."""
         bkd = self.bkd
         npts = 10
-        basis = ChebyshevBasis1D(npts, bkd)
+        mesh = TransformedMesh1D(npts, bkd)
+        basis = ChebyshevBasis1D(mesh, bkd)
         physics = create_steady_diffusion(basis, bkd, diffusion=1.0)
 
         # Create a 1D interface at x=0.5
@@ -55,7 +58,8 @@ class TestSubdomainWrapperBasic(unittest.TestCase):
         """Test setting interface boundary indices."""
         bkd = self.bkd
         npts = 10
-        basis = ChebyshevBasis1D(npts, bkd)
+        mesh = TransformedMesh1D(npts, bkd)
+        basis = ChebyshevBasis1D(mesh, bkd)
         physics = create_steady_diffusion(basis, bkd, diffusion=1.0)
 
         interface = Interface1D(bkd, interface_id=0, subdomain_ids=(0, 1),
@@ -78,7 +82,8 @@ class TestSubdomainWrapperBasic(unittest.TestCase):
         """Test error handling for invalid interface ID."""
         bkd = self.bkd
         npts = 10
-        basis = ChebyshevBasis1D(npts, bkd)
+        mesh = TransformedMesh1D(npts, bkd)
+        basis = ChebyshevBasis1D(mesh, bkd)
         physics = create_steady_diffusion(basis, bkd, diffusion=1.0)
 
         interface = Interface1D(bkd, interface_id=0, subdomain_ids=(0, 1),
@@ -102,7 +107,8 @@ class TestFluxComputer(unittest.TestCase):
         """Test gradient computation for polynomial."""
         bkd = self.bkd
         npts = 10
-        basis = ChebyshevBasis1D(npts, bkd)
+        mesh = TransformedMesh1D(npts, bkd)
+        basis = ChebyshevBasis1D(mesh, bkd)
 
         flux_computer = FluxComputer(bkd, basis, diffusion=1.0)
 
@@ -123,7 +129,8 @@ class TestFluxComputer(unittest.TestCase):
         """Test flux computation at boundary points."""
         bkd = self.bkd
         npts = 10
-        basis = ChebyshevBasis1D(npts, bkd)
+        mesh = TransformedMesh1D(npts, bkd)
+        basis = ChebyshevBasis1D(mesh, bkd)
 
         flux_computer = FluxComputer(bkd, basis, diffusion=1.0)
 
@@ -131,10 +138,10 @@ class TestFluxComputer(unittest.TestCase):
         nodes = basis.nodes()
         u = nodes ** 2
 
-        # Chebyshev nodes are ordered from x=1 (index 0) to x=-1 (index npts-1)
-        # Compute flux at right boundary x=1 (index = 0)
+        # Chebyshev nodes are ordered from x=-1 (index 0) to x=1 (index npts-1)
+        # Compute flux at right boundary x=1 (index = npts-1)
         # Normal pointing right: n = [1]
-        indices = bkd.asarray([0])
+        indices = bkd.asarray([npts - 1])
         normal = bkd.asarray([1.0])
 
         flux = flux_computer.compute_flux_at_indices(u, indices, normal)

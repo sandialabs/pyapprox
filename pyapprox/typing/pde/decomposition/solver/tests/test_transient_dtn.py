@@ -23,9 +23,15 @@ from typing import Callable, Tuple
 
 from pyapprox.typing.util.backends.protocols import Array, Backend
 from pyapprox.typing.util.backends.numpy import NumpyBkd
+from pyapprox.typing.util.test_utils import load_tests  # noqa: F401
 from pyapprox.typing.pde.collocation.basis import (
     ChebyshevBasis1D,
     ChebyshevBasis2D,
+)
+from pyapprox.typing.pde.collocation.mesh import (
+    TransformedMesh1D,
+    TransformedMesh2D,
+    TransformedMesh3D,
 )
 from pyapprox.typing.pde.collocation.boundary import (
     DirichletBC,
@@ -337,7 +343,8 @@ class TestTransientDtN1DSimple(unittest.TestCase):
         )
 
         # Subdomain 0: [-1, 1] with external BC at x=-1, interface at x=1
-        basis0 = ChebyshevBasis1D(npts, bkd)
+        mesh0 = TransformedMesh1D(npts, bkd)
+        basis0 = ChebyshevBasis1D(mesh0, bkd)
         nodes0 = basis0.nodes()
 
         def forcing0(t):
@@ -347,18 +354,19 @@ class TestTransientDtN1DSimple(unittest.TestCase):
             basis0, bkd, diffusion=D, forcing=forcing0
         )
 
-        # External BC at x=-1 (index npts-1): u = 0
-        left_bc0 = zero_dirichlet_bc(bkd, bkd.asarray([npts - 1]))
+        # External BC at x=-1 (index 0): u = 0
+        left_bc0 = zero_dirichlet_bc(bkd, bkd.asarray([0]))
 
         wrapper0 = SubdomainWrapper(
             bkd, subdomain_id=0, physics=physics0,
             interfaces={0: interface}, external_bcs=[left_bc0]
         )
-        # Interface at x=1 (index 0)
-        wrapper0.set_interface_boundary_indices(0, bkd.asarray([0]))
+        # Interface at x=1 (index npts-1)
+        wrapper0.set_interface_boundary_indices(0, bkd.asarray([npts - 1]))
 
         # Subdomain 1: [-1, 1] with interface at x=-1, external BC at x=1
-        basis1 = ChebyshevBasis1D(npts, bkd)
+        mesh1 = TransformedMesh1D(npts, bkd)
+        basis1 = ChebyshevBasis1D(mesh1, bkd)
         nodes1 = basis1.nodes()
 
         def forcing1(t):
@@ -368,15 +376,15 @@ class TestTransientDtN1DSimple(unittest.TestCase):
             basis1, bkd, diffusion=D, forcing=forcing1
         )
 
-        # External BC at x=1 (index 0): u = 0
-        right_bc1 = zero_dirichlet_bc(bkd, bkd.asarray([0]))
+        # External BC at x=1 (index npts-1): u = 0
+        right_bc1 = zero_dirichlet_bc(bkd, bkd.asarray([npts - 1]))
 
         wrapper1 = SubdomainWrapper(
             bkd, subdomain_id=1, physics=physics1,
             interfaces={0: interface}, external_bcs=[right_bc1]
         )
-        # Interface at x=-1 (index npts-1)
-        wrapper1.set_interface_boundary_indices(0, bkd.asarray([npts - 1]))
+        # Interface at x=-1 (index 0)
+        wrapper1.set_interface_boundary_indices(0, bkd.asarray([0]))
 
         # Setup interface interpolation
         interface.set_subdomain_boundary_points(0, bkd.asarray([1.0]))
@@ -499,15 +507,15 @@ class TestDtN2DWithForcing(unittest.TestCase):
         self.exact_lambda = 5.0  # Exact interface value
 
     def _compute_boundary_indices_2d(self, npts_x, npts_y):
-        """Compute 2D boundary indices (x varies fastest in Chebyshev ordering)."""
+        """Compute 2D boundary indices (x varies fastest in tensor product ordering)."""
         bkd = self.bkd
-        # Left: x=npts_x-1 (x_ref=-1), all y
-        left = bkd.asarray([j * npts_x + (npts_x - 1) for j in range(npts_y)])
-        # Right: x=0 (x_ref=1), all y
-        right = bkd.asarray([j * npts_x for j in range(npts_y)])
-        # Bottom: y=0 (y_ref=1), all x
+        # Left: x-index=0 (x_ref=-1), all y
+        left = bkd.asarray([j * npts_x for j in range(npts_y)])
+        # Right: x-index=npts_x-1 (x_ref=+1), all y
+        right = bkd.asarray([j * npts_x + (npts_x - 1) for j in range(npts_y)])
+        # Bottom: y-index=0 (y_ref=-1), all x
         bottom = bkd.asarray(list(range(npts_x)))
-        # Top: y=npts_y-1 (y_ref=-1), all x
+        # Top: y-index=npts_y-1 (y_ref=+1), all x
         top = bkd.asarray([(npts_y - 1) * npts_x + i for i in range(npts_x)])
         return {"left": left, "right": right, "bottom": bottom, "top": top}
 
@@ -551,7 +559,8 @@ class TestDtN2DWithForcing(unittest.TestCase):
         )
 
         # Subdomain 0
-        basis0 = ChebyshevBasis2D(npts, npts, bkd)
+        mesh0 = TransformedMesh2D(npts, npts, bkd)
+        basis0 = ChebyshevBasis2D(mesh0, bkd)
         nodes_x0 = basis0.nodes_x()
         nodes_y0 = basis0.nodes_y()
         npts_total = basis0.npts()
@@ -580,7 +589,8 @@ class TestDtN2DWithForcing(unittest.TestCase):
         wrapper0.set_interface_boundary_indices(0, bounds0["right"])
 
         # Subdomain 1
-        basis1 = ChebyshevBasis2D(npts, npts, bkd)
+        mesh1 = TransformedMesh2D(npts, npts, bkd)
+        basis1 = ChebyshevBasis2D(mesh1, bkd)
         forcing1 = bkd.full((npts_total,), forcing_val)
         physics1 = AdvectionDiffusionReaction(
             basis1, bkd, diffusion=D, forcing=lambda t: forcing1
@@ -648,7 +658,8 @@ class TestDtN2DWithForcing(unittest.TestCase):
             basis=interface_basis, normal_direction=0, ambient_dim=2
         )
 
-        basis0 = ChebyshevBasis2D(npts, npts, bkd)
+        mesh0 = TransformedMesh2D(npts, npts, bkd)
+        basis0 = ChebyshevBasis2D(mesh0, bkd)
         nodes_x0 = basis0.nodes_x()
         nodes_y0 = basis0.nodes_y()
         npts_total = basis0.npts()
@@ -673,7 +684,8 @@ class TestDtN2DWithForcing(unittest.TestCase):
         )
         wrapper0.set_interface_boundary_indices(0, bounds0["right"])
 
-        basis1 = ChebyshevBasis2D(npts, npts, bkd)
+        mesh1 = TransformedMesh2D(npts, npts, bkd)
+        basis1 = ChebyshevBasis2D(mesh1, bkd)
         forcing1 = bkd.full((npts_total,), forcing_val)
         physics1 = AdvectionDiffusionReaction(
             basis1, bkd, diffusion=D, forcing=lambda t: forcing1
@@ -756,7 +768,8 @@ class TestTransientDtNTwoSpecies(unittest.TestCase):
         )
 
         # Subdomain 0: [-1, 1] with external BC at x=-1, interface at x=1
-        basis0 = ChebyshevBasis1D(npts, bkd)
+        mesh0 = TransformedMesh1D(npts, bkd)
+        basis0 = ChebyshevBasis1D(mesh0, bkd)
         nodes0 = basis0.nodes()
 
         def forcing0_0(t):
@@ -773,9 +786,9 @@ class TestTransientDtNTwoSpecies(unittest.TestCase):
             reaction=reaction0, forcing0=forcing0_0, forcing1=forcing0_1
         )
 
-        # External BC at x=-1 (index npts-1): u0 = u1 = 0
+        # External BC at x=-1 (index 0): u0 = u1 = 0
         # Component-stacked: [u0 indices, u1 indices]
-        left_indices = bkd.asarray([npts - 1, 2 * npts - 1])
+        left_indices = bkd.asarray([0, npts])
         left_vals = bkd.asarray([0.0, 0.0])
         left_bc0 = DirichletBC(bkd, left_indices, left_vals)
 
@@ -783,11 +796,12 @@ class TestTransientDtNTwoSpecies(unittest.TestCase):
             bkd, subdomain_id=0, physics=physics0,
             interfaces={0: interface}, external_bcs=[left_bc0]
         )
-        # Interface at x=1 (index 0)
-        wrapper0.set_interface_boundary_indices(0, bkd.asarray([0]))
+        # Interface at x=1 (index npts-1)
+        wrapper0.set_interface_boundary_indices(0, bkd.asarray([npts - 1]))
 
         # Subdomain 1: [-1, 1] with interface at x=-1, external BC at x=1
-        basis1 = ChebyshevBasis1D(npts, bkd)
+        mesh1 = TransformedMesh1D(npts, bkd)
+        basis1 = ChebyshevBasis1D(mesh1, bkd)
         nodes1 = basis1.nodes()
 
         def forcing1_0(t):
@@ -803,8 +817,8 @@ class TestTransientDtNTwoSpecies(unittest.TestCase):
             reaction=reaction1, forcing0=forcing1_0, forcing1=forcing1_1
         )
 
-        # External BC at x=1 (index 0): u0 = u1 = 0
-        right_indices = bkd.asarray([0, npts])
+        # External BC at x=1 (index npts-1): u0 = u1 = 0
+        right_indices = bkd.asarray([npts - 1, 2 * npts - 1])
         right_vals = bkd.asarray([0.0, 0.0])
         right_bc1 = DirichletBC(bkd, right_indices, right_vals)
 
@@ -812,8 +826,8 @@ class TestTransientDtNTwoSpecies(unittest.TestCase):
             bkd, subdomain_id=1, physics=physics1,
             interfaces={0: interface}, external_bcs=[right_bc1]
         )
-        # Interface at x=-1 (index npts-1)
-        wrapper1.set_interface_boundary_indices(0, bkd.asarray([npts - 1]))
+        # Interface at x=-1 (index 0)
+        wrapper1.set_interface_boundary_indices(0, bkd.asarray([0]))
 
         # Setup interface
         interface.set_subdomain_boundary_points(0, bkd.asarray([1.0]))
@@ -973,11 +987,15 @@ class TestDtN2DVariableDiffusion(unittest.TestCase):
         self.exact_lambda = (1.0 - self.alpha) * self.g / 2.0  # = 0.7
 
     def _compute_boundary_indices_2d(self, npts_x, npts_y):
-        """Compute 2D boundary indices (x varies fastest in Chebyshev ordering)."""
+        """Compute 2D boundary indices (x varies fastest in tensor product ordering)."""
         bkd = self.bkd
-        left = bkd.asarray([j * npts_x + (npts_x - 1) for j in range(npts_y)])
-        right = bkd.asarray([j * npts_x for j in range(npts_y)])
+        # Left: x-index=0 (x_ref=-1), all y
+        left = bkd.asarray([j * npts_x for j in range(npts_y)])
+        # Right: x-index=npts_x-1 (x_ref=+1), all y
+        right = bkd.asarray([j * npts_x + (npts_x - 1) for j in range(npts_y)])
+        # Bottom: y-index=0 (y_ref=-1), all x
         bottom = bkd.asarray(list(range(npts_x)))
+        # Top: y-index=npts_y-1 (y_ref=+1), all x
         top = bkd.asarray([(npts_y - 1) * npts_x + i for i in range(npts_x)])
         return {"left": left, "right": right, "bottom": bottom, "top": top}
 
@@ -1037,8 +1055,10 @@ class TestDtN2DVariableDiffusion(unittest.TestCase):
             basis=interface_basis, normal_direction=0, ambient_dim=2
         )
 
-        basis0 = ChebyshevBasis2D(npts, npts, bkd)
-        basis1 = ChebyshevBasis2D(npts, npts, bkd)
+        mesh0 = TransformedMesh2D(npts, npts, bkd)
+        basis0 = ChebyshevBasis2D(mesh0, bkd)
+        mesh1 = TransformedMesh2D(npts, npts, bkd)
+        basis1 = ChebyshevBasis2D(mesh1, bkd)
         nodes_x0 = basis0.nodes_x()
         nodes_y0 = basis0.nodes_y()
         npts_total = basis0.npts()
@@ -1122,8 +1142,10 @@ class TestDtN2DVariableDiffusion(unittest.TestCase):
             basis=interface_basis, normal_direction=0, ambient_dim=2
         )
 
-        basis0 = ChebyshevBasis2D(npts, npts, bkd)
-        basis1 = ChebyshevBasis2D(npts, npts, bkd)
+        mesh0 = TransformedMesh2D(npts, npts, bkd)
+        basis0 = ChebyshevBasis2D(mesh0, bkd)
+        mesh1 = TransformedMesh2D(npts, npts, bkd)
+        basis1 = ChebyshevBasis2D(mesh1, bkd)
         nodes_x0 = basis0.nodes_x()
         nodes_y0 = basis0.nodes_y()
 
@@ -1230,42 +1252,42 @@ class TestDtN3DScalar(unittest.TestCase):
         bkd = self.bkd
         npts_xy = npts_x * npts_y
 
-        # Left: x=npts_x-1 (x=-1 in Chebyshev ordering)
+        # Left: x-index=0 (x=-1), all y and z
         left = []
         for k in range(npts_z):
             for j in range(npts_y):
-                left.append(k * npts_xy + j * npts_x + (npts_x - 1))
+                left.append(k * npts_xy + j * npts_x)
         left = bkd.asarray(left)
 
-        # Right: x=0 (x=+1 in Chebyshev ordering)
+        # Right: x-index=npts_x-1 (x=+1), all y and z
         right = []
         for k in range(npts_z):
             for j in range(npts_y):
-                right.append(k * npts_xy + j * npts_x)
+                right.append(k * npts_xy + j * npts_x + (npts_x - 1))
         right = bkd.asarray(right)
 
-        # Bottom: y=0 (y=+1 in Chebyshev ordering)
+        # Bottom: y-index=0 (y=-1), all x and z
         bottom = []
         for k in range(npts_z):
             for i in range(npts_x):
                 bottom.append(k * npts_xy + i)
         bottom = bkd.asarray(bottom)
 
-        # Top: y=npts_y-1 (y=-1 in Chebyshev ordering)
+        # Top: y-index=npts_y-1 (y=+1), all x and z
         top = []
         for k in range(npts_z):
             for i in range(npts_x):
                 top.append(k * npts_xy + (npts_y - 1) * npts_x + i)
         top = bkd.asarray(top)
 
-        # Front: z=0 (z=+1 in Chebyshev ordering)
+        # Front: z-index=0 (z=-1), all x and y
         front = []
         for j in range(npts_y):
             for i in range(npts_x):
                 front.append(j * npts_x + i)
         front = bkd.asarray(front)
 
-        # Back: z=npts_z-1 (z=-1 in Chebyshev ordering)
+        # Back: z-index=npts_z-1 (z=+1), all x and y
         back = []
         for j in range(npts_y):
             for i in range(npts_x):
@@ -1304,8 +1326,10 @@ class TestDtN3DScalar(unittest.TestCase):
             basis=interface_basis, normal_direction=0
         )
 
-        basis0 = ChebyshevBasis3D(npts, npts, npts, bkd)
-        basis1 = ChebyshevBasis3D(npts, npts, npts, bkd)
+        mesh0 = TransformedMesh3D(npts, npts, npts, bkd)
+        basis0 = ChebyshevBasis3D(mesh0, bkd)
+        mesh1 = TransformedMesh3D(npts, npts, npts, bkd)
+        basis1 = ChebyshevBasis3D(mesh1, bkd)
         nodes_x0 = basis0.nodes_x()
         nodes_y0 = basis0.nodes_y()
         nodes_z0 = basis0.nodes_z()
@@ -1420,8 +1444,10 @@ class TestDtN3DScalar(unittest.TestCase):
             basis=interface_basis, normal_direction=0
         )
 
-        basis0 = ChebyshevBasis3D(npts, npts, npts, bkd)
-        basis1 = ChebyshevBasis3D(npts, npts, npts, bkd)
+        mesh0 = TransformedMesh3D(npts, npts, npts, bkd)
+        basis0 = ChebyshevBasis3D(mesh0, bkd)
+        mesh1 = TransformedMesh3D(npts, npts, npts, bkd)
+        basis1 = ChebyshevBasis3D(mesh1, bkd)
         nodes_x0 = basis0.nodes_x()
         nodes_y0 = basis0.nodes_y()
         nodes_z0 = basis0.nodes_z()
@@ -1550,13 +1576,16 @@ class TestDtN2DVector(unittest.TestCase):
         self.g = 2.0      # External BC on sub 1
 
     def _compute_boundary_indices_2d(self, npts_x, npts_y):
-        """Compute 2D boundary indices."""
+        """Compute 2D boundary indices (x varies fastest in tensor product ordering)."""
         bkd = self.bkd
-        # x varies fastest in Chebyshev ordering, x=+1 at index 0
-        left = bkd.asarray([j * npts_x + (npts_x - 1) for j in range(npts_y)])  # x=-1
-        right = bkd.asarray([j * npts_x for j in range(npts_y)])  # x=+1
-        bottom = bkd.asarray(list(range(npts_x)))  # y=+1
-        top = bkd.asarray([(npts_y - 1) * npts_x + i for i in range(npts_x)])  # y=-1
+        # Left: x-index=0 (x_ref=-1), all y
+        left = bkd.asarray([j * npts_x for j in range(npts_y)])
+        # Right: x-index=npts_x-1 (x_ref=+1), all y
+        right = bkd.asarray([j * npts_x + (npts_x - 1) for j in range(npts_y)])
+        # Bottom: y-index=0 (y_ref=-1), all x
+        bottom = bkd.asarray(list(range(npts_x)))
+        # Top: y-index=npts_y-1 (y_ref=+1), all x
+        top = bkd.asarray([(npts_y - 1) * npts_x + i for i in range(npts_x)])
         return {"left": left, "right": right, "bottom": bottom, "top": top}
 
     def _exact_ux_sub0(self, x):
@@ -1587,8 +1616,10 @@ class TestDtN2DVector(unittest.TestCase):
             ncomponents=2  # Vector-valued
         )
 
-        basis0 = ChebyshevBasis2D(npts, npts, bkd)
-        basis1 = ChebyshevBasis2D(npts, npts, bkd)
+        mesh0 = TransformedMesh2D(npts, npts, bkd)
+        basis0 = ChebyshevBasis2D(mesh0, bkd)
+        mesh1 = TransformedMesh2D(npts, npts, bkd)
+        basis1 = ChebyshevBasis2D(mesh1, bkd)
         nodes_x0 = basis0.nodes_x()
         nodes_y0 = basis0.nodes_y()
         npts_total = basis0.npts()
@@ -1687,8 +1718,10 @@ class TestDtN2DVector(unittest.TestCase):
             ncomponents=2
         )
 
-        basis0 = ChebyshevBasis2D(npts, npts, bkd)
-        basis1 = ChebyshevBasis2D(npts, npts, bkd)
+        mesh0 = TransformedMesh2D(npts, npts, bkd)
+        basis0 = ChebyshevBasis2D(mesh0, bkd)
+        mesh1 = TransformedMesh2D(npts, npts, bkd)
+        basis1 = ChebyshevBasis2D(mesh1, bkd)
         nodes_x0 = basis0.nodes_x()
         nodes_y0 = basis0.nodes_y()
         npts_total = basis0.npts()
@@ -1805,40 +1838,46 @@ class TestDtN3DWithForcing(unittest.TestCase):
         self.exact_lambda = (self.g + 8.0) / 2.0  # = 5.0
 
     def _compute_boundary_indices_3d(self, npts_x, npts_y, npts_z):
-        """Compute 3D boundary indices."""
+        """Compute 3D boundary indices (x varies fastest, then y, then z)."""
         bkd = self.bkd
         npts_xy = npts_x * npts_y
 
+        # Left: x-index=0 (x=-1), all y and z
         left = []
         for k in range(npts_z):
             for j in range(npts_y):
-                left.append(k * npts_xy + j * npts_x + (npts_x - 1))
+                left.append(k * npts_xy + j * npts_x)
         left = bkd.asarray(left)
 
+        # Right: x-index=npts_x-1 (x=+1), all y and z
         right = []
         for k in range(npts_z):
             for j in range(npts_y):
-                right.append(k * npts_xy + j * npts_x)
+                right.append(k * npts_xy + j * npts_x + (npts_x - 1))
         right = bkd.asarray(right)
 
+        # Bottom: y-index=0 (y=-1), all x and z
         bottom = []
         for k in range(npts_z):
             for i in range(npts_x):
                 bottom.append(k * npts_xy + i)
         bottom = bkd.asarray(bottom)
 
+        # Top: y-index=npts_y-1 (y=+1), all x and z
         top = []
         for k in range(npts_z):
             for i in range(npts_x):
                 top.append(k * npts_xy + (npts_y - 1) * npts_x + i)
         top = bkd.asarray(top)
 
+        # Front: z-index=0 (z=-1), all x and y
         front = []
         for j in range(npts_y):
             for i in range(npts_x):
                 front.append(j * npts_x + i)
         front = bkd.asarray(front)
 
+        # Back: z-index=npts_z-1 (z=+1), all x and y
         back = []
         for j in range(npts_y):
             for i in range(npts_x):
@@ -1896,8 +1935,10 @@ class TestDtN3DWithForcing(unittest.TestCase):
             basis=interface_basis, normal_direction=0
         )
 
-        basis0 = ChebyshevBasis3D(npts, npts, npts, bkd)
-        basis1 = ChebyshevBasis3D(npts, npts, npts, bkd)
+        mesh0 = TransformedMesh3D(npts, npts, npts, bkd)
+        basis0 = ChebyshevBasis3D(mesh0, bkd)
+        mesh1 = TransformedMesh3D(npts, npts, npts, bkd)
+        basis1 = ChebyshevBasis3D(mesh1, bkd)
         nodes_x0 = basis0.nodes_x()
         nodes_y0 = basis0.nodes_y()
         nodes_z0 = basis0.nodes_z()
@@ -2010,8 +2051,10 @@ class TestDtN3DWithForcing(unittest.TestCase):
             basis=interface_basis, normal_direction=0
         )
 
-        basis0 = ChebyshevBasis3D(npts, npts, npts, bkd)
-        basis1 = ChebyshevBasis3D(npts, npts, npts, bkd)
+        mesh0 = TransformedMesh3D(npts, npts, npts, bkd)
+        basis0 = ChebyshevBasis3D(mesh0, bkd)
+        mesh1 = TransformedMesh3D(npts, npts, npts, bkd)
+        basis1 = ChebyshevBasis3D(mesh1, bkd)
         nodes_x0 = basis0.nodes_x()
         nodes_y0 = basis0.nodes_y()
         nodes_z0 = basis0.nodes_z()
@@ -2148,7 +2191,8 @@ class TestTimeSteppingDtN1D(unittest.TestCase):
         )
 
         # Subdomain 0
-        basis0 = ChebyshevBasis1D(npts, bkd)
+        mesh0 = TransformedMesh1D(npts, bkd)
+        basis0 = ChebyshevBasis1D(mesh0, bkd)
         nodes0 = basis0.nodes()
 
         def forcing0(t):
@@ -2157,16 +2201,19 @@ class TestTimeSteppingDtN1D(unittest.TestCase):
         physics0 = AdvectionDiffusionReaction(
             basis0, bkd, diffusion=D, forcing=forcing0
         )
-        left_bc0 = zero_dirichlet_bc(bkd, bkd.asarray([npts - 1]))
+        # External BC at x=-1 (index 0)
+        left_bc0 = zero_dirichlet_bc(bkd, bkd.asarray([0]))
 
         wrapper0 = SubdomainWrapper(
             bkd, subdomain_id=0, physics=physics0,
             interfaces={0: interface}, external_bcs=[left_bc0]
         )
-        wrapper0.set_interface_boundary_indices(0, bkd.asarray([0]))
+        # Interface at x=1 (index npts-1)
+        wrapper0.set_interface_boundary_indices(0, bkd.asarray([npts - 1]))
 
         # Subdomain 1
-        basis1 = ChebyshevBasis1D(npts, bkd)
+        mesh1 = TransformedMesh1D(npts, bkd)
+        basis1 = ChebyshevBasis1D(mesh1, bkd)
         nodes1 = basis1.nodes()
 
         def forcing1(t):
@@ -2175,13 +2222,15 @@ class TestTimeSteppingDtN1D(unittest.TestCase):
         physics1 = AdvectionDiffusionReaction(
             basis1, bkd, diffusion=D, forcing=forcing1
         )
-        right_bc1 = zero_dirichlet_bc(bkd, bkd.asarray([0]))
+        # External BC at x=1 (index npts-1)
+        right_bc1 = zero_dirichlet_bc(bkd, bkd.asarray([npts - 1]))
 
         wrapper1 = SubdomainWrapper(
             bkd, subdomain_id=1, physics=physics1,
             interfaces={0: interface}, external_bcs=[right_bc1]
         )
-        wrapper1.set_interface_boundary_indices(0, bkd.asarray([npts - 1]))
+        # Interface at x=-1 (index 0)
+        wrapper1.set_interface_boundary_indices(0, bkd.asarray([0]))
 
         # Setup interface interpolation
         interface.set_subdomain_boundary_points(0, bkd.asarray([1.0]))
