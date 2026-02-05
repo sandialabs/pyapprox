@@ -25,6 +25,11 @@ from pyapprox.typing.pde.collocation.mesh.transforms import (
     AffineTransform2D,
     AffineTransform3D,
 )
+from pyapprox.typing.pde.collocation.mesh.transformed import (
+    TransformedMesh1D,
+    TransformedMesh2D,
+    TransformedMesh3D,
+)
 
 __all__ = [
     # Data structures
@@ -47,4 +52,8 @@ __all__ = [
     "AffineTransform1D",
     "AffineTransform2D",
     "AffineTransform3D",
+    # Transformed meshes
+    "TransformedMesh1D",
+    "TransformedMesh2D",
+    "TransformedMesh3D",
 ]
