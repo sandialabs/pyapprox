@@ -89,4 +89,8 @@ class ManufacturedBurgers1D(
 
         self._set_expression("viscosity", visc_expr, self._visc_str)
         self._set_expression("flux", flux_exprs, self._sol_str)
+        # Store diffusive flux separately (just -ν*du/dx) for Galerkin
+        # natural BCs, which only involve the diffusive part.
+        diff_flux_expr = -visc_expr * sol_expr.diff(x)
+        self._set_expression("diffusive_flux", [diff_flux_expr], self._sol_str)
         self._expressions["forcing"] += forc_expr
