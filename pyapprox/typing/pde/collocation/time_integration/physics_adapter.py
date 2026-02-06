@@ -93,7 +93,9 @@ class PhysicsToODEResidualAdapter(Generic[Array]):
     def __call__(self, state: Array) -> Array:
         """Evaluate the ODE residual f(y, t).
 
-        Computes the physics residual and applies boundary conditions.
+        Returns the physics residual WITHOUT boundary conditions applied.
+        For transient problems, boundary conditions should be applied to the
+        Newton residual by the time integrator, not to the physics residual.
 
         Parameters
         ----------
@@ -103,22 +105,17 @@ class PhysicsToODEResidualAdapter(Generic[Array]):
         Returns
         -------
         Array
-            Residual with boundary conditions applied. Shape: (nstates,)
+            Physics residual. Shape: (nstates,)
         """
-        residual = self._physics.residual(state, self._time)
-
-        # Apply boundary conditions
-        if self._physics.boundary_conditions():
-            jacobian = self._physics.jacobian(state, self._time)
-            residual, _ = self._physics.apply_boundary_conditions(
-                residual, jacobian, state, self._time
-            )
-
-        return residual
+        return self._physics.residual(state, self._time)
 
     def jacobian(self, state: Array) -> Array:
         """Compute the state Jacobian df/dy.
 
+        Returns the physics Jacobian WITHOUT boundary conditions applied.
+        For transient problems, boundary conditions should be applied to the
+        Newton Jacobian by the time integrator.
+
         Parameters
         ----------
         state : Array
@@ -127,18 +124,9 @@ class PhysicsToODEResidualAdapter(Generic[Array]):
         Returns
         -------
         Array
-            Jacobian with boundary conditions applied. Shape: (nstates, nstates)
+            Physics Jacobian. Shape: (nstates, nstates)
         """
-        jacobian = self._physics.jacobian(state, self._time)
-
-        # Apply boundary conditions
-        if self._physics.boundary_conditions():
-            residual = self._physics.residual(state, self._time)
-            _, jacobian = self._physics.apply_boundary_conditions(
-                residual, jacobian, state, self._time
-            )
-
-        return jacobian
+        return self._physics.jacobian(state, self._time)
 
     def mass_matrix(self, nstates: int) -> Array:
         """Return the mass matrix.

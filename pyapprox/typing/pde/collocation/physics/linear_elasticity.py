@@ -90,7 +90,9 @@ class LinearElasticityPhysics(AbstractVectorPhysics[Array], Generic[Array]):
         self._Dy = basis.derivative_matrix(1, 1)  # d/dy
         self._Dxx = basis.derivative_matrix(2, 0)  # d²/dx²
         self._Dyy = basis.derivative_matrix(2, 1)  # d²/dy²
-        self._Dxy = self._Dx @ self._Dy  # d²/dxdy (mixed derivative)
+        # Mixed derivatives: Dx@Dy != Dy@Dx on curvilinear domains
+        self._DxDy = self._Dx @ self._Dy  # Dx applied after Dy
+        self._DyDx = self._Dy @ self._Dx  # Dy applied after Dx
 
     def _get_forcing(self, time: float) -> Array:
         """Get forcing array at given time."""
@@ -217,18 +219,21 @@ class LinearElasticityPhysics(AbstractVectorPhysics[Array], Generic[Array]):
             lam = self._lambda_value
             mu = self._mu_value
 
-            # Block Jacobians
-            # J_uu: d(res_u)/du = (λ + 2μ)*D²_x + μ*D²_y
+            # Block Jacobians derived from residual:
+            #   res_u = Dx @ sigma_xx + Dy @ sigma_xy + fx
+            #   res_v = Dx @ sigma_xy + Dy @ sigma_yy + fy
+            #
+            # J_uu: d(res_u)/du = (λ+2μ)*Dxx + μ*Dyy
             J_uu = (lam + 2.0 * mu) * self._Dxx + mu * self._Dyy
 
-            # J_uv: d(res_u)/dv = (λ + μ)*D_x @ D_y
-            J_uv = (lam + mu) * self._Dxy
+            # J_uv: d(res_u)/dv = λ*(Dx@Dy) + μ*(Dy@Dx)
+            # Note: Dx@Dy != Dy@Dx on curvilinear domains
+            J_uv = lam * self._DxDy + mu * self._DyDx
 
-            # J_vu: d(res_v)/du = (λ + μ)*D_y @ D_x
-            # Note: D_y @ D_x = D_x @ D_y for smooth functions (mixed partials commute)
-            J_vu = (lam + mu) * self._Dxy
+            # J_vu: d(res_v)/du = μ*(Dx@Dy) + λ*(Dy@Dx)
+            J_vu = mu * self._DxDy + lam * self._DyDx
 
-            # J_vv: d(res_v)/dv = μ*D²_x + (λ + 2μ)*D²_y
+            # J_vv: d(res_v)/dv = μ*Dxx + (λ+2μ)*Dyy
             J_vv = mu * self._Dxx + (lam + 2.0 * mu) * self._Dyy
         else:
             # Variable Lamé parameters - more complex Jacobian

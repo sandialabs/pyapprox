@@ -31,7 +31,7 @@ class TestEllipticalTransform(Generic[Array], unittest.TestCase):
         bkd = self.bkd()
         a = 2.0
         transform = EllipticalTransform(
-            (0.5, 3.0), (0.0, math.pi), a, bkd
+            (0.5, 3.0), (0.0, math.pi), a, bkd, from_reference=False
         )
 
         # Test specific points
@@ -54,7 +54,7 @@ class TestEllipticalTransform(Generic[Array], unittest.TestCase):
         bkd = self.bkd()
         a = 1.5
         transform = EllipticalTransform(
-            (0.3, 2.0), (0.1, math.pi - 0.1), a, bkd
+            (0.3, 2.0), (0.1, math.pi - 0.1), a, bkd, from_reference=False
         )
 
         # Test points avoiding singularities
@@ -67,12 +67,46 @@ class TestEllipticalTransform(Generic[Array], unittest.TestCase):
 
         bkd.assert_allclose(ref_pts_back, ref_pts, atol=1e-12)
 
+    def test_elliptical_from_reference_mapping(self):
+        """Test from_reference=True mode with affine mapping."""
+        bkd = self.bkd()
+        a = 2.0
+        u_bounds = (0.5, 2.5)
+        v_bounds = (0.1, math.pi - 0.1)
+
+        # Create transform with from_reference=True (default)
+        transform = EllipticalTransform(u_bounds, v_bounds, a, bkd)
+
+        # Reference points in [-1, 1]^2
+        ref_pts = bkd.asarray([[-1.0, 0.0, 1.0], [-1.0, 0.0, 1.0]])
+
+        # Expected elliptical coordinates after affine mapping
+        # u = u_scale * xi + u_shift = (u_max - u_min)/2 * xi + (u_max + u_min)/2
+        # At xi=-1: u = u_min = 0.5
+        # At xi=0: u = (u_max + u_min)/2 = 1.5
+        # At xi=1: u = u_max = 2.5
+        u_expected = np.array([0.5, 1.5, 2.5])
+        v_expected = np.array([0.1, (math.pi - 0.1 + 0.1) / 2, math.pi - 0.1])
+
+        # Expected physical points
+        x_expected = a * np.cosh(u_expected) * np.cos(v_expected)
+        y_expected = a * np.sinh(u_expected) * np.sin(v_expected)
+
+        phys_pts = transform.map_to_physical(ref_pts)
+
+        bkd.assert_allclose(phys_pts[0, :], bkd.asarray(x_expected), atol=1e-12)
+        bkd.assert_allclose(phys_pts[1, :], bkd.asarray(y_expected), atol=1e-12)
+
+        # Test inverse: physical -> reference should give back original ref_pts
+        ref_pts_back = transform.map_to_reference(phys_pts)
+        bkd.assert_allclose(ref_pts_back, ref_pts, atol=1e-12)
+
     def test_elliptical_jacobian_determinant(self):
         """Test Jacobian determinant formula: a^2 * (sinh^2(u) + sin^2(v))."""
         bkd = self.bkd()
         a = 2.0
         transform = EllipticalTransform(
-            (0.5, 3.0), (0.0, math.pi), a, bkd
+            (0.5, 3.0), (0.0, math.pi), a, bkd, from_reference=False
         )
 
         ref_pts = bkd.asarray([[0.5, 1.0, 2.0], [0.3, 1.0, 2.5]])
@@ -89,7 +123,7 @@ class TestEllipticalTransform(Generic[Array], unittest.TestCase):
         bkd = self.bkd()
         a = 1.0
         transform = EllipticalTransform(
-            (0.3, 2.0), (0.1, math.pi - 0.1), a, bkd
+            (0.3, 2.0), (0.1, math.pi - 0.1), a, bkd, from_reference=False
         )
 
         ref_pts = bkd.asarray([[0.5, 1.0, 1.5], [0.5, 1.5, 2.0]])
@@ -108,7 +142,7 @@ class TestEllipticalTransform(Generic[Array], unittest.TestCase):
         bkd = self.bkd()
         a = 2.0
         transform = EllipticalTransform(
-            (0.5, 3.0), (0.0, math.pi), a, bkd
+            (0.5, 3.0), (0.0, math.pi), a, bkd, from_reference=False
         )
 
         ref_pts = bkd.asarray([[0.5, 1.0, 2.0], [0.3, 1.0, 2.5]])
@@ -129,7 +163,7 @@ class TestEllipticalTransform(Generic[Array], unittest.TestCase):
         bkd = self.bkd()
         a = 1.5
         transform = EllipticalTransform(
-            (0.3, 2.0), (0.1, math.pi - 0.1), a, bkd
+            (0.3, 2.0), (0.1, math.pi - 0.1), a, bkd, from_reference=False
         )
 
         ref_pts = bkd.asarray([[0.5, 1.0, 1.5], [0.5, 1.0, 2.0]])
@@ -154,7 +188,7 @@ class TestEllipticalTransform(Generic[Array], unittest.TestCase):
         bkd = self.bkd()
         a = 2.0
         transform = EllipticalTransform(
-            (0.5, 3.0), (0.0, math.pi), a, bkd
+            (0.5, 3.0), (0.0, math.pi), a, bkd, from_reference=False
         )
 
         ref_pts = bkd.asarray([[0.5, 1.0], [0.5, 1.5]])
@@ -205,7 +239,7 @@ class TestEllipticalTransform(Generic[Array], unittest.TestCase):
         a = 1.0
         u_val = 1.0
         transform = EllipticalTransform(
-            (0.5, 2.0), (0.0, 2 * math.pi - 0.01), a, bkd
+            (0.5, 2.0), (0.0, 2 * math.pi - 0.01), a, bkd, from_reference=False
         )
 
         # Sample many v values at constant u
@@ -235,7 +269,7 @@ class TestEllipticalTransform(Generic[Array], unittest.TestCase):
         bkd = self.bkd()
         a = 2.0
         transform = EllipticalTransform(
-            (0.5, 3.0), (0.1, math.pi - 0.1), a, bkd
+            (0.5, 3.0), (0.1, math.pi - 0.1), a, bkd, from_reference=False
         )
 
         # Test at a single point

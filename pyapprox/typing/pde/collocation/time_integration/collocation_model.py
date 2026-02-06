@@ -113,6 +113,36 @@ class CollocationModel(Generic[Array]):
         """Return number of states."""
         return self._physics.nstates()
 
+    def _apply_boundary_conditions(
+        self, residual: Array, jacobian: Array, state: Array, time: float
+    ) -> Tuple[Array, Array]:
+        """Apply boundary conditions to residual and Jacobian.
+
+        This method applies boundary conditions directly to the Newton residual
+        for transient problems, enforcing u[boundary] = g(t) at boundaries.
+
+        Parameters
+        ----------
+        residual : Array
+            Newton residual. Shape: (nstates,)
+        jacobian : Array
+            Physics Jacobian (not the Newton Jacobian). Shape: (nstates, nstates)
+        state : Array
+            Current state. Shape: (nstates,)
+        time : float
+            Current time.
+
+        Returns
+        -------
+        Tuple[Array, Array]
+            Modified residual and Jacobian with boundary conditions applied.
+        """
+        if self._physics.boundary_conditions():
+            residual, jacobian = self._physics.apply_boundary_conditions(
+                residual, jacobian, state, time
+            )
+        return residual, jacobian
+
     def solve_steady(
         self,
         initial_guess: Array,
@@ -156,6 +186,11 @@ class CollocationModel(Generic[Array]):
             # Compute residual and Jacobian
             residual = self._adapter(state)
             jacobian = self._adapter.jacobian(state)
+
+            # Apply boundary conditions
+            residual, jacobian = self._apply_boundary_conditions(
+                residual, jacobian, state, 0.0
+            )
 
             # Check convergence
             res_norm = float(bkd.norm(residual))
@@ -316,6 +351,10 @@ class CollocationModel(Generic[Array]):
         """Backward Euler: y_{n+1} = y_n + dt * f(y_{n+1}, t_{n+1}).
 
         Requires Newton iteration.
+
+        For transient Dirichlet BCs, boundary conditions are applied to the
+        Newton residual (not the physics residual), enforcing y[boundary] = g(t)
+        directly rather than integrating du/dt at boundaries.
         """
         bkd = self._bkd
         t_np1 = time + deltat
@@ -326,15 +365,22 @@ class CollocationModel(Generic[Array]):
 
         for _ in range(config.newton_maxiter):
             # Residual: R = y - y_n - dt * f(y)
+            # Note: adapter returns physics residual WITHOUT BC modifications
             f_y = self._adapter(y)
             residual = y - state - deltat * f_y
+
+            # Apply boundary conditions to Newton residual
+            # This enforces y[boundary] = g(t_{n+1}) at boundaries
+            jac_f = self._adapter.jacobian(y)
+            residual, jac_f = self._apply_boundary_conditions(
+                residual, jac_f, y, t_np1
+            )
 
             # Check convergence
             if float(bkd.norm(residual)) < config.newton_tol:
                 return y
 
             # Jacobian: dR/dy = I - dt * df/dy
-            jac_f = self._adapter.jacobian(y)
             jac_R = bkd.eye(self.nstates()) - deltat * jac_f
 
             # Newton update
@@ -353,6 +399,10 @@ class CollocationModel(Generic[Array]):
         """Crank-Nicolson: y_{n+1} = y_n + dt/2 * (f(y_n) + f(y_{n+1})).
 
         Requires Newton iteration.
+
+        For transient Dirichlet BCs, boundary conditions are applied to the
+        Newton residual (not the physics residual), enforcing y[boundary] = g(t)
+        directly rather than integrating du/dt at boundaries.
         """
         bkd = self._bkd
         t_n = time
@@ -368,15 +418,22 @@ class CollocationModel(Generic[Array]):
 
         for _ in range(config.newton_maxiter):
             # Residual: R = y - y_n - dt/2 * (f_n + f(y))
+            # Note: adapter returns physics residual WITHOUT BC modifications
             f_y = self._adapter(y)
             residual = y - state - 0.5 * deltat * (f_n + f_y)
+
+            # Apply boundary conditions to Newton residual
+            # This enforces y[boundary] = g(t_{n+1}) at boundaries
+            jac_f = self._adapter.jacobian(y)
+            residual, jac_f = self._apply_boundary_conditions(
+                residual, jac_f, y, t_np1
+            )
 
             # Check convergence
             if float(bkd.norm(residual)) < config.newton_tol:
                 return y
 
             # Jacobian: dR/dy = I - dt/2 * df/dy
-            jac_f = self._adapter.jacobian(y)
             jac_R = bkd.eye(self.nstates()) - 0.5 * deltat * jac_f
 
             # Newton update

@@ -124,7 +124,12 @@ class TestPhysicsToODEResidualAdapter(Generic[Array], unittest.TestCase):
         bkd.assert_allclose(mass, expected, atol=1e-14)
 
     def test_adapter_with_boundary_conditions(self):
-        """Test adapter applies boundary conditions."""
+        """Test that BCs are applied via physics.apply_boundary_conditions.
+
+        The adapter returns the raw physics Jacobian. Boundary conditions
+        are applied by CollocationModel._apply_boundary_conditions, which
+        calls physics.apply_boundary_conditions on the Newton system.
+        """
         bkd = self.bkd()
         npts = 10
         mesh = TransformedMesh1D(npts, bkd)
@@ -141,18 +146,24 @@ class TestPhysicsToODEResidualAdapter(Generic[Array], unittest.TestCase):
         bc_right = constant_dirichlet_bc(bkd, right_idx, 1.0)
         physics.set_boundary_conditions([bc_left, bc_right])
 
-        adapter = PhysicsToODEResidualAdapter(physics, bkd)
-
         # State that satisfies BCs
         nodes = basis.nodes()
         state = 0.5 * (nodes + 1.0)  # Linear from 0 to 1
 
-        adapter.set_time(0.0)
-        jacobian = adapter.jacobian(state)
+        # Get raw Jacobian from physics, then apply BCs
+        residual = physics.residual(state, 0.0)
+        jacobian = physics.jacobian(state, 0.0)
+        _, jacobian_with_bc = physics.apply_boundary_conditions(
+            residual, jacobian, state, 0.0
+        )
 
-        # Boundary rows should be identity-like
-        bkd.assert_allclose(jacobian[0, :], bkd.eye(npts)[0, :], atol=1e-14)
-        bkd.assert_allclose(jacobian[-1, :], bkd.eye(npts)[-1, :], atol=1e-14)
+        # Boundary rows should be identity-like after applying BCs
+        bkd.assert_allclose(
+            jacobian_with_bc[0, :], bkd.eye(npts)[0, :], atol=1e-14
+        )
+        bkd.assert_allclose(
+            jacobian_with_bc[-1, :], bkd.eye(npts)[-1, :], atol=1e-14
+        )
 
     def test_adapter_param_jacobian_available(self):
         """Test that param_jacobian is available for parameterized physics."""

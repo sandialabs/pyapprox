@@ -26,9 +26,11 @@ class TestPolarTransform(Generic[Array], unittest.TestCase):
         raise NotImplementedError
 
     def test_polar_basic_mapping(self):
-        """Test basic polar to Cartesian mapping."""
+        """Test basic polar to Cartesian mapping (direct polar input)."""
         bkd = self.bkd()
-        transform = PolarTransform((0.0, 2.0), (-math.pi, math.pi), bkd)
+        transform = PolarTransform(
+            (0.0, 2.0), (-math.pi, math.pi), bkd, from_reference=False
+        )
 
         # r=1, theta=0 -> (1, 0)
         # r=1, theta=pi/2 -> (0, 1)
@@ -42,18 +44,32 @@ class TestPolarTransform(Generic[Array], unittest.TestCase):
     def test_polar_inverse_mapping(self):
         """Test inverse mapping recovers original points."""
         bkd = self.bkd()
-        transform = PolarTransform((0.1, 5.0), (-math.pi / 2, math.pi / 2), bkd)
+        # Test both modes
 
+        # With from_reference=False (direct polar coords)
+        transform = PolarTransform(
+            (0.1, 5.0), (-math.pi / 2, math.pi / 2), bkd, from_reference=False
+        )
         ref_pts = bkd.asarray([[1.0, 2.0, 3.0], [0.0, math.pi / 4, -math.pi / 4]])
         phys_pts = transform.map_to_physical(ref_pts)
         ref_pts_back = transform.map_to_reference(phys_pts)
-
         bkd.assert_allclose(ref_pts_back, ref_pts, atol=1e-14)
 
+        # With from_reference=True ([-1,1]^2 input)
+        transform_ref = PolarTransform(
+            (0.1, 5.0), (-math.pi / 2, math.pi / 2), bkd, from_reference=True
+        )
+        ref_pts_std = bkd.asarray([[-0.5, 0.0, 0.5], [-0.5, 0.0, 0.5]])
+        phys_pts = transform_ref.map_to_physical(ref_pts_std)
+        ref_pts_back = transform_ref.map_to_reference(phys_pts)
+        bkd.assert_allclose(ref_pts_back, ref_pts_std, atol=1e-14)
+
     def test_polar_jacobian_determinant(self):
-        """Test Jacobian determinant equals r."""
+        """Test Jacobian determinant equals r (for direct polar input)."""
         bkd = self.bkd()
-        transform = PolarTransform((0.0, 10.0), (-math.pi, math.pi), bkd)
+        transform = PolarTransform(
+            (0.0, 10.0), (-math.pi, math.pi), bkd, from_reference=False
+        )
 
         ref_pts = bkd.asarray([[1.0, 2.0, 5.0], [0.0, math.pi / 4, math.pi / 2]])
         jac_det = transform.jacobian_determinant(ref_pts)
@@ -65,13 +81,28 @@ class TestPolarTransform(Generic[Array], unittest.TestCase):
     def test_polar_jacobian_matrix_consistency(self):
         """Test Jacobian matrix determinant matches jacobian_determinant."""
         bkd = self.bkd()
-        transform = PolarTransform((0.1, 5.0), (-math.pi, math.pi), bkd)
+        # Test both modes
 
+        # from_reference=False (direct polar)
+        transform = PolarTransform(
+            (0.1, 5.0), (-math.pi, math.pi), bkd, from_reference=False
+        )
         ref_pts = bkd.asarray([[1.0, 2.0, 3.0], [0.0, math.pi / 4, -math.pi / 3]])
         jac_mat = transform.jacobian_matrix(ref_pts)
         jac_det = transform.jacobian_determinant(ref_pts)
+        det_from_mat = (
+            jac_mat[:, 0, 0] * jac_mat[:, 1, 1]
+            - jac_mat[:, 0, 1] * jac_mat[:, 1, 0]
+        )
+        bkd.assert_allclose(det_from_mat, jac_det, atol=1e-14)
 
-        # Compute determinant from matrix: ad - bc
+        # from_reference=True (standard domain)
+        transform_ref = PolarTransform(
+            (0.1, 5.0), (-math.pi, math.pi), bkd, from_reference=True
+        )
+        ref_pts_std = bkd.asarray([[-0.5, 0.0, 0.5], [-0.5, 0.0, 0.5]])
+        jac_mat = transform_ref.jacobian_matrix(ref_pts_std)
+        jac_det = transform_ref.jacobian_determinant(ref_pts_std)
         det_from_mat = (
             jac_mat[:, 0, 0] * jac_mat[:, 1, 1]
             - jac_mat[:, 0, 1] * jac_mat[:, 1, 0]
@@ -79,9 +110,11 @@ class TestPolarTransform(Generic[Array], unittest.TestCase):
         bkd.assert_allclose(det_from_mat, jac_det, atol=1e-14)
 
     def test_polar_scale_factors(self):
-        """Test scale factors h_r=1, h_theta=r."""
+        """Test scale factors h_r=1, h_theta=r (for direct polar input)."""
         bkd = self.bkd()
-        transform = PolarTransform((0.0, 10.0), (-math.pi, math.pi), bkd)
+        transform = PolarTransform(
+            (0.0, 10.0), (-math.pi, math.pi), bkd, from_reference=False
+        )
 
         ref_pts = bkd.asarray([[1.0, 2.0, 5.0], [0.0, math.pi / 4, math.pi / 2]])
         scale = transform.scale_factors(ref_pts)
@@ -94,7 +127,10 @@ class TestPolarTransform(Generic[Array], unittest.TestCase):
     def test_polar_unit_basis_orthogonality(self):
         """Test unit curvilinear basis vectors are orthonormal."""
         bkd = self.bkd()
-        transform = PolarTransform((0.0, 5.0), (-math.pi, math.pi), bkd)
+        # Unit basis doesn't depend on scale, so both modes should give same result
+        transform = PolarTransform(
+            (0.0, 5.0), (-math.pi, math.pi), bkd, from_reference=False
+        )
 
         ref_pts = bkd.asarray([[1.0, 2.0], [0.0, math.pi / 3]])
         basis = transform.unit_curvilinear_basis(ref_pts)
@@ -123,13 +159,45 @@ class TestPolarTransform(Generic[Array], unittest.TestCase):
         with self.assertRaises(ValueError):
             PolarTransform((2.0, 1.0), (0.0, math.pi), bkd)
 
-        # theta out of [-pi, pi]
+        # theta out of [-2*pi, 2*pi]
         with self.assertRaises(ValueError):
-            PolarTransform((0.0, 1.0), (-math.pi - 0.1, math.pi), bkd)
+            PolarTransform((0.0, 1.0), (-2 * math.pi - 0.1, math.pi), bkd)
 
         # theta_max <= theta_min
         with self.assertRaises(ValueError):
             PolarTransform((0.0, 1.0), (1.0, 0.0), bkd)
+
+    def test_polar_from_reference_mapping(self):
+        """Test mapping from [-1,1]^2 reference domain."""
+        bkd = self.bkd()
+        r_min, r_max = 1.0, 2.0
+        theta_min, theta_max = 0.0, math.pi / 2
+
+        transform = PolarTransform(
+            (r_min, r_max), (theta_min, theta_max), bkd, from_reference=True
+        )
+
+        # (-1, -1) -> (r_min, theta_min) -> (r_min * cos(theta_min), ...)
+        # (1, 1) -> (r_max, theta_max) -> (r_max * cos(theta_max), ...)
+        # (0, 0) -> midpoint in polar
+        ref_pts = bkd.asarray([[-1.0, 1.0, 0.0], [-1.0, 1.0, 0.0]])
+        phys_pts = transform.map_to_physical(ref_pts)
+
+        r_mid = (r_min + r_max) / 2
+        theta_mid = (theta_min + theta_max) / 2
+
+        expected_x = bkd.asarray([
+            r_min * math.cos(theta_min),
+            r_max * math.cos(theta_max),
+            r_mid * math.cos(theta_mid),
+        ])
+        expected_y = bkd.asarray([
+            r_min * math.sin(theta_min),
+            r_max * math.sin(theta_max),
+            r_mid * math.sin(theta_mid),
+        ])
+        bkd.assert_allclose(phys_pts[0, :], expected_x, atol=1e-14)
+        bkd.assert_allclose(phys_pts[1, :], expected_y, atol=1e-14)
 
 
 class TestSphericalTransform(Generic[Array], unittest.TestCase):
@@ -337,9 +405,10 @@ class TestChainedTransform(Generic[Array], unittest.TestCase):
         """Test chaining polar transform with affine scaling."""
         bkd = self.bkd()
 
-        # First map [-1,1]^2 to polar coords [0.5, 2] x [-pi/2, pi/2]
-        # Then apply polar transform
-        polar = PolarTransform((0.5, 2.0), (-math.pi / 2, math.pi / 2), bkd)
+        # Test with from_reference=False (direct polar coords)
+        polar = PolarTransform(
+            (0.5, 2.0), (-math.pi / 2, math.pi / 2), bkd, from_reference=False
+        )
 
         ref_pts = bkd.asarray([[1.0, 1.5], [0.0, math.pi / 4]])
         phys_pts = polar.map_to_physical(ref_pts)

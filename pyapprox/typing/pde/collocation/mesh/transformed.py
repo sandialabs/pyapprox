@@ -146,6 +146,27 @@ class TransformedMesh1D(Generic[Array]):
         """Return gradient factors. Shape: (npts, 1, 1)"""
         return self._gradient_factors
 
+    def boundary_normals(self, boundary_id: int) -> Array:
+        """Return outward unit normal vectors at boundary points.
+
+        For 1D, normals are simply -1 (left) or +1 (right).
+
+        Parameters
+        ----------
+        boundary_id : int
+            Boundary identifier: 0 = left (x=-1), 1 = right (x=+1)
+
+        Returns
+        -------
+        Array
+            Unit normal vectors. Shape: (1, 1)
+        """
+        if boundary_id == 0:
+            return self._bkd.asarray([[-1.0]])  # left: -x direction
+        elif boundary_id == 1:
+            return self._bkd.asarray([[1.0]])   # right: +x direction
+        raise ValueError(f"boundary_id must be 0 or 1 for 1D mesh, got {boundary_id}")
+
 
 class TransformedMesh2D(Generic[Array]):
     """2D mesh with coordinate transformation.
@@ -264,6 +285,81 @@ class TransformedMesh2D(Generic[Array]):
     def gradient_factors(self) -> Array:
         """Return gradient factors. Shape: (npts, 2, 2)"""
         return self._gradient_factors
+
+    def boundary_normals(self, boundary_id: int) -> Array:
+        """Return outward unit normal vectors at boundary points.
+
+        For curvilinear meshes, normals vary along the boundary and are
+        computed from the Jacobian matrix: n = J^{-T} @ n_ref / |J^{-T} @ n_ref|
+        where n_ref is the constant normal in reference coordinates.
+
+        Parameters
+        ----------
+        boundary_id : int
+            Boundary identifier:
+            0 = left (x=-1 in ref coords), outward normal points -x
+            1 = right (x=+1 in ref coords), outward normal points +x
+            2 = bottom (y=-1 in ref coords), outward normal points -y
+            3 = top (y=+1 in ref coords), outward normal points +y
+
+        Returns
+        -------
+        Array
+            Unit normal vectors in physical (Cartesian) coordinates.
+            Shape: (nboundary_pts, 2)
+        """
+        # Reference normals (outward pointing in reference domain)
+        # Boundaries: 0=left(-x), 1=right(+x), 2=bottom(-y), 3=top(+y)
+        ref_normals = {
+            0: self._bkd.asarray([-1.0, 0.0]),  # left: -x direction
+            1: self._bkd.asarray([1.0, 0.0]),   # right: +x direction
+            2: self._bkd.asarray([0.0, -1.0]),  # bottom: -y direction
+            3: self._bkd.asarray([0.0, 1.0]),   # top: +y direction
+        }
+        n_ref = ref_normals[boundary_id]
+
+        # Get boundary point indices
+        boundary_idx = self._boundary_indices[boundary_id]
+        nboundary = boundary_idx.shape[0]
+
+        if self._transform is None:
+            # Identity transform: normals are constant
+            return self._bkd.broadcast_to(
+                n_ref.reshape(1, 2), (nboundary, 2)
+            )
+
+        # For curvilinear transforms, compute n = J^{-T} @ n_ref / |...|
+        # at each boundary point
+        # J^{-T} = (J^{-1})^T
+        # For 2x2 matrix J, J^{-1} = (1/det(J)) * [[d, -b], [-c, a]]
+        # where J = [[a, b], [c, d]]
+
+        # Get Jacobian matrices at boundary points
+        jac_all = self._jacobian_matrix  # Shape: (npts, 2, 2)
+        det_all = self._jacobian_determinant  # Shape: (npts,)
+
+        # Extract boundary values
+        normals = self._bkd.zeros((nboundary, 2))
+        for i in range(nboundary):
+            idx = int(self._bkd.to_numpy(boundary_idx[i]))
+            J = jac_all[idx]  # (2, 2)
+            det = det_all[idx]
+
+            # J^{-1} = (1/det) * [[J[1,1], -J[0,1]], [-J[1,0], J[0,0]]]
+            # J^{-T} = (1/det) * [[J[1,1], -J[1,0]], [-J[0,1], J[0,0]]]
+            J_inv_T = self._bkd.asarray([
+                [J[1, 1] / det, -J[1, 0] / det],
+                [-J[0, 1] / det, J[0, 0] / det]
+            ])
+
+            # n = J^{-T} @ n_ref
+            n_phys = J_inv_T @ n_ref
+
+            # Normalize
+            norm = self._bkd.sqrt(self._bkd.sum(n_phys**2))
+            normals[i, :] = n_phys / norm
+
+        return normals
 
 
 class TransformedMesh3D(Generic[Array]):
@@ -395,3 +491,57 @@ class TransformedMesh3D(Generic[Array]):
     def gradient_factors(self) -> Array:
         """Return gradient factors. Shape: (npts, 3, 3)"""
         return self._gradient_factors
+
+    def boundary_normals(self, boundary_id: int) -> Array:
+        """Return outward unit normal vectors at boundary points.
+
+        For curvilinear 3D meshes, normals are computed from the Jacobian.
+
+        Parameters
+        ----------
+        boundary_id : int
+            Boundary identifier:
+            0 = x=-1 face, 1 = x=+1 face
+            2 = y=-1 face, 3 = y=+1 face
+            4 = z=-1 face, 5 = z=+1 face
+
+        Returns
+        -------
+        Array
+            Unit normal vectors. Shape: (nboundary_pts, 3)
+        """
+        # Reference normals (outward pointing)
+        ref_normals = {
+            0: self._bkd.asarray([-1.0, 0.0, 0.0]),
+            1: self._bkd.asarray([1.0, 0.0, 0.0]),
+            2: self._bkd.asarray([0.0, -1.0, 0.0]),
+            3: self._bkd.asarray([0.0, 1.0, 0.0]),
+            4: self._bkd.asarray([0.0, 0.0, -1.0]),
+            5: self._bkd.asarray([0.0, 0.0, 1.0]),
+        }
+        n_ref = ref_normals[boundary_id]
+
+        boundary_idx = self._boundary_indices[boundary_id]
+        nboundary = boundary_idx.shape[0]
+
+        if self._transform is None:
+            return self._bkd.broadcast_to(
+                n_ref.reshape(1, 3), (nboundary, 3)
+            )
+
+        # For curvilinear: n = J^{-T} @ n_ref / |...|
+        normals = self._bkd.zeros((nboundary, 3))
+        for i in range(nboundary):
+            idx = int(self._bkd.to_numpy(boundary_idx[i]))
+            J = self._jacobian_matrix[idx]  # (3, 3)
+
+            # Compute J^{-T} using adjugate/det
+            # For 3x3, use explicit formula or numerical inverse
+            J_inv = self._bkd.inverse(J.reshape(1, 3, 3))[0]
+            J_inv_T = self._bkd.transpose(J_inv)
+
+            n_phys = J_inv_T @ n_ref
+            norm = self._bkd.sqrt(self._bkd.sum(n_phys**2))
+            normals[i, :] = n_phys / norm
+
+        return normals

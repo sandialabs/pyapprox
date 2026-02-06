@@ -25,8 +25,15 @@ from pyapprox.typing.util.backends.protocols import Array, Backend
 class EllipticalTransform(Generic[Array]):
     """Transform from elliptical (u, v) to Cartesian (x, y) coordinates.
 
-    Reference domain: (u, v) where u in [u_min, u_max], v in [v_min, v_max]
-    Physical domain: (x, y) in Cartesian coordinates
+    When `from_reference=True` (default), the transform maps from the
+    reference domain [-1, 1]^2 to Cartesian coordinates via internal
+    affine mapping to elliptical coordinates:
+        [-1, 1] -> [u_min, u_max]   (first coordinate)
+        [-1, 1] -> [v_min, v_max]   (second coordinate)
+        Then elliptical to Cartesian.
+
+    When `from_reference=False`, the transform expects input in elliptical
+    coordinates directly (legacy behavior for testing/debugging).
 
     Parameters
     ----------
@@ -39,6 +46,9 @@ class EllipticalTransform(Generic[Array]):
         Semi-focal distance. The foci are at (±a, 0).
     bkd : Backend
         Computational backend.
+    from_reference : bool, optional
+        If True (default), input is in [-1, 1]^2 reference domain.
+        If False, input is in (u, v) elliptical coordinates directly.
 
     Notes
     -----
@@ -64,6 +74,7 @@ class EllipticalTransform(Generic[Array]):
         v_bounds: Tuple[float, float],
         a: float,
         bkd: Backend[Array],
+        from_reference: bool = True,
     ):
         if u_bounds[0] <= 0:
             raise ValueError("u_min must be > 0 to avoid focal point singularity")
@@ -80,6 +91,30 @@ class EllipticalTransform(Generic[Array]):
         self._u_min, self._u_max = u_bounds
         self._v_min, self._v_max = v_bounds
         self._a = a
+        self._from_reference = from_reference
+
+        # Affine mapping coefficients: ellip = scale * ref + shift where ref in [-1, 1]
+        # ellip = (ellip_max - ellip_min)/2 * ref + (ellip_max + ellip_min)/2
+        self._u_scale = (self._u_max - self._u_min) / 2.0
+        self._u_shift = (self._u_max + self._u_min) / 2.0
+        self._v_scale = (self._v_max - self._v_min) / 2.0
+        self._v_shift = (self._v_max + self._v_min) / 2.0
+
+    def _ref_to_elliptical(self, reference_pts: Array) -> Array:
+        """Map from [-1, 1]^2 to (u, v) elliptical coordinates."""
+        xi = reference_pts[0, :]
+        eta = reference_pts[1, :]
+        u = self._u_scale * xi + self._u_shift
+        v = self._v_scale * eta + self._v_shift
+        return self._bkd.stack([u, v], axis=0)
+
+    def _elliptical_to_ref(self, elliptical_pts: Array) -> Array:
+        """Map from (u, v) to [-1, 1]^2 reference coordinates."""
+        u = elliptical_pts[0, :]
+        v = elliptical_pts[1, :]
+        xi = (u - self._u_shift) / self._u_scale
+        eta = (v - self._v_shift) / self._v_scale
+        return self._bkd.stack([xi, eta], axis=0)
 
     def bkd(self) -> Backend[Array]:
         """Return the computational backend."""
@@ -101,23 +136,30 @@ class EllipticalTransform(Generic[Array]):
         """Return semi-focal distance."""
         return self._a
 
+    def from_reference(self) -> bool:
+        """Return whether the transform expects reference domain input."""
+        return self._from_reference
+
     def map_to_physical(self, reference_pts: Array) -> Array:
-        """Map from elliptical (u, v) to Cartesian (x, y).
+        """Map from reference/elliptical coordinates to Cartesian (x, y).
 
         Parameters
         ----------
         reference_pts : Array
-            Elliptical coordinates. Shape: (2, npts)
-            First row: u values
-            Second row: v values
+            If from_reference=True: Reference coordinates in [-1, 1]^2. Shape: (2, npts)
+            If from_reference=False: Elliptical coordinates (u, v). Shape: (2, npts)
 
         Returns
         -------
         Array
             Cartesian coordinates. Shape: (2, npts)
         """
-        u = reference_pts[0, :]
-        v = reference_pts[1, :]
+        if self._from_reference:
+            elliptical_pts = self._ref_to_elliptical(reference_pts)
+        else:
+            elliptical_pts = reference_pts
+        u = elliptical_pts[0, :]
+        v = elliptical_pts[1, :]
         a = self._a
 
         x = a * self._bkd.cosh(u) * self._bkd.cos(v)
@@ -126,7 +168,7 @@ class EllipticalTransform(Generic[Array]):
         return self._bkd.stack([x, y], axis=0)
 
     def map_to_reference(self, physical_pts: Array) -> Array:
-        """Map from Cartesian (x, y) to elliptical (u, v).
+        """Map from Cartesian (x, y) to reference/elliptical coordinates.
 
         Parameters
         ----------
@@ -136,7 +178,8 @@ class EllipticalTransform(Generic[Array]):
         Returns
         -------
         Array
-            Elliptical coordinates. Shape: (2, npts)
+            If from_reference=True: Reference coordinates in [-1, 1]^2. Shape: (2, npts)
+            If from_reference=False: Elliptical coordinates (u, v). Shape: (2, npts)
 
         Notes
         -----
@@ -166,7 +209,10 @@ class EllipticalTransform(Generic[Array]):
         sinh_u = self._bkd.sinh(u)
         v = self._bkd.arctan2(y * cosh_u, x * sinh_u)
 
-        return self._bkd.stack([u, v], axis=0)
+        elliptical_pts = self._bkd.stack([u, v], axis=0)
+        if self._from_reference:
+            return self._elliptical_to_ref(elliptical_pts)
+        return elliptical_pts
 
     def jacobian_matrix(self, reference_pts: Array) -> Array:
         """Compute Jacobian matrix of the mapping.
@@ -176,20 +222,23 @@ class EllipticalTransform(Generic[Array]):
         Parameters
         ----------
         reference_pts : Array
-            Elliptical coordinates. Shape: (2, npts)
+            If from_reference=True: Reference coordinates in [-1, 1]^2. Shape: (2, npts)
+            If from_reference=False: Elliptical coordinates. Shape: (2, npts)
 
         Returns
         -------
         Array
             Jacobian matrices. Shape: (npts, 2, 2)
-            J[:, 0, 0] = dx/du = a*sinh(u)*cos(v)
-            J[:, 0, 1] = dx/dv = -a*cosh(u)*sin(v)
-            J[:, 1, 0] = dy/du = a*cosh(u)*sin(v)
-            J[:, 1, 1] = dy/dv = a*sinh(u)*cos(v)
         """
         npts = reference_pts.shape[1]
-        u = reference_pts[0, :]
-        v = reference_pts[1, :]
+
+        if self._from_reference:
+            elliptical_pts = self._ref_to_elliptical(reference_pts)
+        else:
+            elliptical_pts = reference_pts
+
+        u = elliptical_pts[0, :]
+        v = elliptical_pts[1, :]
         a = self._a
 
         sinh_u = self._bkd.sinh(u)
@@ -197,37 +246,63 @@ class EllipticalTransform(Generic[Array]):
         cos_v = self._bkd.cos(v)
         sin_v = self._bkd.sin(v)
 
-        jac = self._bkd.zeros((npts, 2, 2))
-        jac[:, 0, 0] = a * sinh_u * cos_v   # dx/du
-        jac[:, 0, 1] = -a * cosh_u * sin_v  # dx/dv
-        jac[:, 1, 0] = a * cosh_u * sin_v   # dy/du
-        jac[:, 1, 1] = a * sinh_u * cos_v   # dy/dv
+        # Jacobian of elliptical-to-Cartesian: J_ellip
+        # dx/du = a*sinh(u)*cos(v), dx/dv = -a*cosh(u)*sin(v)
+        # dy/du = a*cosh(u)*sin(v), dy/dv = a*sinh(u)*cos(v)
+        jac_ellip = self._bkd.zeros((npts, 2, 2))
+        jac_ellip[:, 0, 0] = a * sinh_u * cos_v   # dx/du
+        jac_ellip[:, 0, 1] = -a * cosh_u * sin_v  # dx/dv
+        jac_ellip[:, 1, 0] = a * cosh_u * sin_v   # dy/du
+        jac_ellip[:, 1, 1] = a * sinh_u * cos_v   # dy/dv
 
-        return jac
+        if self._from_reference:
+            # Chain rule: J_total = J_ellip @ J_affine
+            # J_affine = diag(u_scale, v_scale)
+            # So J_total[:, :, 0] = J_ellip[:, :, 0] * u_scale
+            #    J_total[:, :, 1] = J_ellip[:, :, 1] * v_scale
+            jac = self._bkd.zeros((npts, 2, 2))
+            jac[:, 0, 0] = jac_ellip[:, 0, 0] * self._u_scale
+            jac[:, 0, 1] = jac_ellip[:, 0, 1] * self._v_scale
+            jac[:, 1, 0] = jac_ellip[:, 1, 0] * self._u_scale
+            jac[:, 1, 1] = jac_ellip[:, 1, 1] * self._v_scale
+            return jac
+        else:
+            return jac_ellip
 
     def jacobian_determinant(self, reference_pts: Array) -> Array:
         """Compute Jacobian determinant.
 
-        det(J) = a^2 * (sinh^2(u) + sin^2(v))
+        For elliptical transform: det(J_ellip) = a^2 * (sinh^2(u) + sin^2(v))
+        With affine: det(J_total) = det(J_ellip) * u_scale * v_scale
 
         Parameters
         ----------
         reference_pts : Array
-            Elliptical coordinates. Shape: (2, npts)
+            If from_reference=True: Reference coordinates in [-1, 1]^2. Shape: (2, npts)
+            If from_reference=False: Elliptical coordinates. Shape: (2, npts)
 
         Returns
         -------
         Array
             Jacobian determinants. Shape: (npts,)
         """
-        u = reference_pts[0, :]
-        v = reference_pts[1, :]
+        if self._from_reference:
+            elliptical_pts = self._ref_to_elliptical(reference_pts)
+        else:
+            elliptical_pts = reference_pts
+
+        u = elliptical_pts[0, :]
+        v = elliptical_pts[1, :]
         a = self._a
 
         sinh_u = self._bkd.sinh(u)
         sin_v = self._bkd.sin(v)
 
-        return a**2 * (sinh_u**2 + sin_v**2)
+        det_ellip = a**2 * (sinh_u**2 + sin_v**2)
+
+        if self._from_reference:
+            return det_ellip * self._u_scale * self._v_scale
+        return det_ellip
 
     def scale_factors(self, reference_pts: Array) -> Array:
         """Compute scale factors for curvilinear coordinates.
@@ -236,11 +311,13 @@ class EllipticalTransform(Generic[Array]):
             ds_i = h_i * dq_i
 
         For elliptical: h_u = h_v = a * sqrt(sinh^2(u) + sin^2(v))
+        With affine: h_u = h_ellip * u_scale, h_v = h_ellip * v_scale
 
         Parameters
         ----------
         reference_pts : Array
-            Elliptical coordinates. Shape: (2, npts)
+            If from_reference=True: Reference coordinates in [-1, 1]^2. Shape: (2, npts)
+            If from_reference=False: Elliptical coordinates. Shape: (2, npts)
 
         Returns
         -------
@@ -249,16 +326,28 @@ class EllipticalTransform(Generic[Array]):
             Column 0: h_u
             Column 1: h_v
         """
-        u = reference_pts[0, :]
-        v = reference_pts[1, :]
+        npts = reference_pts.shape[1]
+
+        if self._from_reference:
+            elliptical_pts = self._ref_to_elliptical(reference_pts)
+        else:
+            elliptical_pts = reference_pts
+
+        u = elliptical_pts[0, :]
+        v = elliptical_pts[1, :]
         a = self._a
 
         sinh_u = self._bkd.sinh(u)
         sin_v = self._bkd.sin(v)
 
-        h = a * self._bkd.sqrt(sinh_u**2 + sin_v**2)
+        h_ellip = a * self._bkd.sqrt(sinh_u**2 + sin_v**2)
 
-        return self._bkd.stack([h, h], axis=1)
+        if self._from_reference:
+            h_u = h_ellip * self._u_scale
+            h_v = h_ellip * self._v_scale
+            return self._bkd.stack([h_u, h_v], axis=1)
+        else:
+            return self._bkd.stack([h_ellip, h_ellip], axis=1)
 
     def unit_curvilinear_basis(self, reference_pts: Array) -> Array:
         """Compute unit vectors in curvilinear coordinates.
@@ -270,7 +359,8 @@ class EllipticalTransform(Generic[Array]):
         Parameters
         ----------
         reference_pts : Array
-            Elliptical coordinates. Shape: (2, npts)
+            If from_reference=True: Reference coordinates in [-1, 1]^2. Shape: (2, npts)
+            If from_reference=False: Elliptical coordinates. Shape: (2, npts)
 
         Returns
         -------
@@ -279,8 +369,13 @@ class EllipticalTransform(Generic[Array]):
             result[:, :, 0] = e_u (u direction)
             result[:, :, 1] = e_v (v direction)
         """
-        u = reference_pts[0, :]
-        v = reference_pts[1, :]
+        if self._from_reference:
+            elliptical_pts = self._ref_to_elliptical(reference_pts)
+        else:
+            elliptical_pts = reference_pts
+
+        u = elliptical_pts[0, :]
+        v = elliptical_pts[1, :]
 
         sinh_u = self._bkd.sinh(u)
         cosh_u = self._bkd.cosh(u)

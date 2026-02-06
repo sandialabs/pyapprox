@@ -50,9 +50,9 @@ class TestSympyTransform2D(Generic[Array], unittest.TestCase):
             y_inv_expr="atan2(y, x)",
         )
 
-        # Native polar transform
+        # Native polar transform (use from_reference=False to match SympyTransform)
         polar_tf = PolarTransform(
-            (0.5, 2.0), (-math.pi / 2, math.pi / 2), bkd
+            (0.5, 2.0), (-math.pi / 2, math.pi / 2), bkd, from_reference=False
         )
 
         # Test points
@@ -127,9 +127,10 @@ class TestSympyTransform2D(Generic[Array], unittest.TestCase):
             validate=True,  # Will validate orthogonality
         )
 
-        # Native elliptical
+        # Native elliptical (use from_reference=False since sympy expects
+        # direct elliptical coordinates, not reference domain [-1,1]^2)
         ellip_tf = EllipticalTransform(
-            (0.5, 2.0), (0.1, math.pi - 0.1), a, bkd
+            (0.5, 2.0), (0.1, math.pi - 0.1), a, bkd, from_reference=False
         )
 
         ref_pts = bkd.asarray([[0.7, 1.0, 1.5], [0.5, 1.0, 2.0]])

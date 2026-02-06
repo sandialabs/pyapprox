@@ -1,9 +1,17 @@
 """Neumann boundary conditions for spectral collocation methods.
 
 Enforces du/dn = g(x, t) on the boundary, where n is the outward normal.
+
+Conventions:
+- "gradient": g represents the normal derivative du/dn
+- "flux": g represents the diffusive flux -D*du/dn (requires diffusivity)
+
+Note: Both conventions use the same implementation. The convention parameter
+is primarily for documentation and to compute appropriate g values from
+manufactured solutions.
 """
 
-from typing import Generic, Callable, Union
+from typing import Generic, Callable, Optional, Union
 
 from pyapprox.typing.util.backends.protocols import Array, Backend
 
@@ -13,6 +21,14 @@ class NeumannBC(Generic[Array]):
 
     Enforces du/dn = g on the boundary, where n is the outward normal
     and g can be a constant, array, or time-dependent function.
+
+    Two conventions are supported:
+    - "gradient" (default): g = du/dn (normal derivative)
+    - "flux": g = -D*du/dn (diffusive flux, requires diffusivity)
+
+    For gradient convention, the BC enforces: du/dn = g
+    For flux convention with diffusivity D, the BC enforces: du/dn = -g/D
+    (the diffusivity scaling is handled by passing scaled values)
 
     Parameters
     ----------
@@ -27,10 +43,16 @@ class NeumannBC(Generic[Array]):
         Sign of the outward normal (+1 or -1). For 1D left boundary,
         normal points left so sign is -1. For right boundary, +1.
     values : float, Array, or Callable
-        Boundary flux values. Can be:
+        Boundary values. Can be:
         - float: constant value for all boundary points
         - Array: values at each boundary point, shape (nboundary_pts,)
         - Callable[[float], Array]: time-dependent function
+    convention : str, optional
+        Boundary condition convention: "gradient" (default) or "flux".
+        This affects how the values are interpreted (see class docstring).
+    diffusivity : float or Array, optional
+        Diffusivity for flux convention. Required if convention="flux".
+        Scalar or shape (nboundary_pts,).
     """
 
     def __init__(
@@ -40,6 +62,8 @@ class NeumannBC(Generic[Array]):
         derivative_matrix: Array,
         normal_sign: float,
         values: Union[float, Array, Callable[[float], Array]],
+        convention: str = "gradient",
+        diffusivity: Optional[Union[float, Array]] = None,
     ):
         self._bkd = bkd
         self._boundary_indices = boundary_indices
