@@ -7,7 +7,11 @@ to be used with the time steppers in typing.pde.time.
 from pyapprox.typing.pde.galerkin.time_integration.physics_adapter import (
     GalerkinPhysicsODEAdapter,
 )
+from pyapprox.typing.pde.galerkin.time_integration.stokes_time_stepper import (
+    StokesTimeStepResidual,
+)
 
 __all__ = [
     "GalerkinPhysicsODEAdapter",
+    "StokesTimeStepResidual",
 ]

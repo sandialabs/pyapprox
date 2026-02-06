@@ -7,6 +7,7 @@ from pyapprox.typing.pde.galerkin.physics.advection_diffusion import (
 )
 from pyapprox.typing.pde.galerkin.physics.helmholtz import Helmholtz
 from pyapprox.typing.pde.galerkin.physics.linear_elasticity import LinearElasticity
+from pyapprox.typing.pde.galerkin.physics.stokes import StokesPhysics
 
 __all__ = [
     "AbstractGalerkinPhysics",
@@ -14,4 +15,5 @@ __all__ = [
     "LinearAdvectionDiffusionReaction",
     "Helmholtz",
     "LinearElasticity",
+    "StokesPhysics",
 ]

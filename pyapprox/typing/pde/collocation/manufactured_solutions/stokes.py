@@ -15,6 +15,7 @@ where:
     p = pressure
 """
 
+import copy
 from typing import Generic, List
 
 import sympy as sp
@@ -33,16 +34,16 @@ class ManufacturedStokes(
 ):
     """Manufactured solution for Stokes/Navier-Stokes equations.
 
-    Solution components: [u, v, p] for 2D or [u, v, w, p] for 3D
-    where (u, v, w) is velocity and p is pressure.
+    Solution components: [u, p] for 1D, [u, v, p] for 2D, or
+    [u, v, w, p] for 3D, where (u, v, w) is velocity and p is pressure.
 
     Parameters
     ----------
     sol_strs : List[str]
         String representations of solution components.
-        2D: [u, v, p], 3D: [u, v, w, p]
+        1D: [u, p], 2D: [u, v, p], 3D: [u, v, w, p]
     nvars : int
-        Number of spatial dimensions (2 or 3).
+        Number of spatial dimensions (1, 2, or 3).
     navier_stokes : bool
         If True, include convective (nonlinear) terms.
         If False, solve linear Stokes equations.
@@ -72,8 +73,8 @@ class ManufacturedStokes(
         bkd: Backend[Array],
         oned: bool = False,
     ):
-        if nvars not in (2, 3):
-            raise ValueError("Stokes requires nvars=2 or nvars=3")
+        if nvars not in (1, 2, 3):
+            raise ValueError("Stokes requires nvars=1, 2, or 3")
         if len(sol_strs) != nvars + 1:
             raise ValueError(f"Expected {nvars + 1} solution components (velocity + pressure)")
 
@@ -129,3 +130,22 @@ class ManufacturedStokes(
         self._expressions["forcing"] = [
             f + g for f, g in zip(self._expressions["forcing"], forc_exprs)
         ]
+
+    def sympy_temporal_derivative_expression(self) -> None:
+        """Add temporal derivatives to forcing for transient problems.
+
+        Overrides the base VectorSolutionMixin to only add du/dT for
+        velocity components (indices 0..nvars-1). The pressure component
+        (continuity equation div(u)=0) has no temporal derivative.
+        """
+        if self.is_transient():
+            self._set_expression(
+                "forcing_without_time_deriv",
+                copy.deepcopy(self._expressions["forcing"]),
+                self._sol_strs[0],
+            )
+            # Only add temporal derivative for velocity, NOT pressure
+            for ii in range(self._nvars):
+                self._expressions["forcing"][ii] += self._expressions[
+                    "solution"
+                ][ii].diff(self.time_symbol()[0])
