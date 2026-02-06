@@ -172,24 +172,8 @@ class RobinBCProtocol(Protocol, Generic[Array]):
         self, jacobian: Array, state: Array, time: float
     ) -> Array: ...
 
-    def alpha(self) -> Array:
-        """Return coefficient for u term.
-
-        Returns
-        -------
-        Array
-            Coefficient. Shape: (nboundary_dofs,) or scalar.
-        """
-        ...
-
-    def beta(self) -> Array:
-        """Return coefficient for flux term.
-
-        Returns
-        -------
-        Array
-            Coefficient. Shape: (nboundary_dofs,) or scalar.
-        """
+    def alpha(self) -> float:
+        """Return coefficient for u term."""
         ...
 
     def boundary_values(self, time: float) -> Array:
@@ -199,5 +183,43 @@ class RobinBCProtocol(Protocol, Generic[Array]):
         -------
         Array
             Boundary values. Shape: (nboundary_dofs,)
+        """
+        ...
+
+    def apply_to_stiffness(self, stiffness: Array, time: float) -> Array:
+        """Apply Robin BC contribution to stiffness matrix.
+
+        Adds: alpha * integral_{Gamma} u * phi ds
+
+        Parameters
+        ----------
+        stiffness : Array
+            Stiffness matrix. Shape: (nstates, nstates)
+        time : float
+            Current time.
+
+        Returns
+        -------
+        Array
+            Modified stiffness matrix.
+        """
+        ...
+
+    def apply_to_load(self, load: Array, time: float) -> Array:
+        """Apply Robin BC contribution to load vector.
+
+        Adds: integral_{Gamma} g * phi ds
+
+        Parameters
+        ----------
+        load : Array
+            Load vector. Shape: (nstates,)
+        time : float
+            Current time.
+
+        Returns
+        -------
+        Array
+            Modified load vector.
         """
         ...

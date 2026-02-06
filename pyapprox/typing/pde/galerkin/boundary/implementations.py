@@ -293,14 +293,16 @@ class NeumannBC(Generic[Array]):
 
         def neumann_form(v, w):
             # Evaluate flux at quadrature points
-            x_shape = w.x.shape
+            # Note: w.x may be a DiscreteField, so convert to ndarray
+            x_np = np.asarray(w.x)
+            x_shape = x_np.shape
             if len(x_shape) == 3:
                 ndim, nelem, nquad = x_shape
-                x_flat = w.x.reshape(ndim, -1)
+                x_flat = x_np.reshape(ndim, -1)
                 flux_flat = flux_func(x_flat, current_time)
                 flux = flux_flat.reshape(nelem, nquad)
             else:
-                flux = flux_func(w.x, current_time)
+                flux = flux_func(x_np, current_time)
             return flux * v
 
         contribution = asm(LinearForm(neumann_form), bndry_basis)
@@ -453,14 +455,16 @@ class RobinBC(Generic[Array]):
         current_time = time
 
         def robin_linear(v, w):
-            x_shape = w.x.shape
+            # Note: w.x may be a DiscreteField, so convert to ndarray
+            x_np = np.asarray(w.x)
+            x_shape = x_np.shape
             if len(x_shape) == 3:
                 ndim, nelem, nquad = x_shape
-                x_flat = w.x.reshape(ndim, -1)
+                x_flat = x_np.reshape(ndim, -1)
                 vals_flat = value_func(x_flat, current_time)
                 vals = vals_flat.reshape(nelem, nquad)
             else:
-                vals = value_func(w.x, current_time)
+                vals = value_func(x_np, current_time)
             return vals * v
 
         contribution = asm(LinearForm(robin_linear), bndry_basis)
@@ -509,14 +513,16 @@ class RobinBC(Generic[Array]):
 
         # Subtract g * phi contribution
         def robin_residual_g(v, w):
-            x_shape = w.x.shape
+            # Note: w.x may be a DiscreteField, so convert to ndarray
+            x_np = np.asarray(w.x)
+            x_shape = x_np.shape
             if len(x_shape) == 3:
                 ndim, nelem, nquad = x_shape
-                x_flat = w.x.reshape(ndim, -1)
+                x_flat = x_np.reshape(ndim, -1)
                 vals_flat = value_func(x_flat, current_time)
                 vals = vals_flat.reshape(nelem, nquad)
             else:
-                vals = value_func(w.x, current_time)
+                vals = value_func(x_np, current_time)
             return vals * v
 
         contribution_g = asm(LinearForm(robin_residual_g), bndry_basis)
@@ -586,6 +592,20 @@ class BoundaryConditionSet(Generic[Array]):
     def nrobin(self) -> int:
         """Return number of Robin BCs."""
         return len(self._robin_bcs)
+
+    def all_conditions(self) -> List[Union[DirichletBC[Array], NeumannBC[Array], RobinBC[Array]]]:
+        """Return all boundary conditions as a flat list.
+
+        The order is: Dirichlet, then Neumann, then Robin.
+        This can be passed directly to physics classes that accept
+        a list of BoundaryConditionProtocol objects.
+
+        Returns
+        -------
+        List
+            All boundary conditions.
+        """
+        return self._dirichlet_bcs + self._neumann_bcs + self._robin_bcs
 
     def dirichlet_dofs(self) -> Array:
         """Return all Dirichlet DOF indices."""

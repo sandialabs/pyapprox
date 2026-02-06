@@ -239,24 +239,30 @@ class TestLinearADRBase(Generic[Array], unittest.TestCase):
         """Test convergence using manufactured solution in 1D.
 
         Use u_exact = cos(pi*x), which satisfies zero Neumann BCs at x=0,1.
-        For diffusion-reaction: -D*u'' + r*u = f
-        u'' = -pi^2 * cos(pi*x)
-        f = D*pi^2*cos(pi*x) + r*cos(pi*x) = (D*pi^2 + r)*cos(pi*x)
+        Uses ManufacturedAdvectionDiffusionReaction for consistent forcing.
         """
         D = 1.0
         r = 1.0
+        bounds = [0.0, 1.0]
 
-        def u_exact(x: NDArray[Any]) -> NDArray[Any]:
-            return np.cos(np.pi * x[0])
-
-        def forcing(x: NDArray[Any]) -> NDArray[Any]:
-            return (D * np.pi**2 + r) * np.cos(np.pi * x[0])
+        # Create manufactured solution (always use NumpyBkd for skfem compatibility)
+        numpy_bkd = NumpyBkd()
+        functions, _ = create_adr_manufactured_test(
+            bounds=bounds,
+            sol_str="cos(pi*x)",
+            diff_str=str(D),
+            react_str=f"{r}*u",
+            vel_strs=["0"],
+            bkd=numpy_bkd,
+        )
+        u_exact = functions["solution"]
+        forcing = functions["forcing"]
 
         errors: List[float] = []
         mesh_sizes = [10, 20, 40]
 
         for nx in mesh_sizes:
-            mesh = StructuredMesh1D(nx=nx, bounds=(0.0, 1.0), bkd=self.bkd_inst)
+            mesh = StructuredMesh1D(nx=nx, bounds=(bounds[0], bounds[1]), bkd=self.bkd_inst)
             basis = LagrangeBasis(mesh, degree=1)
 
             physics = LinearAdvectionDiffusionReaction(
@@ -288,17 +294,24 @@ class TestLinearADRBase(Generic[Array], unittest.TestCase):
         """Test convergence using manufactured solution in 2D.
 
         Use u_exact = cos(pi*x)*cos(pi*y), which satisfies zero Neumann BCs.
-        Laplacian: -2*pi^2*cos(pi*x)*cos(pi*y)
-        f = (2*D*pi^2 + r)*cos(pi*x)*cos(pi*y)
+        Uses ManufacturedAdvectionDiffusionReaction for consistent forcing.
         """
         D = 1.0
         r = 1.0
+        bounds = [0.0, 1.0, 0.0, 1.0]
 
-        def u_exact(x: NDArray[Any]) -> NDArray[Any]:
-            return np.cos(np.pi * x[0]) * np.cos(np.pi * x[1])
-
-        def forcing(x: NDArray[Any]) -> NDArray[Any]:
-            return (2 * D * np.pi**2 + r) * np.cos(np.pi * x[0]) * np.cos(np.pi * x[1])
+        # Create manufactured solution (always use NumpyBkd for skfem compatibility)
+        numpy_bkd = NumpyBkd()
+        functions, _ = create_adr_manufactured_test(
+            bounds=bounds,
+            sol_str="cos(pi*x)*cos(pi*y)",
+            diff_str=str(D),
+            react_str=f"{r}*u",
+            vel_strs=["0", "0"],
+            bkd=numpy_bkd,
+        )
+        u_exact = functions["solution"]
+        forcing = functions["forcing"]
 
         errors: List[float] = []
         mesh_sizes = [5, 10, 20]
@@ -340,22 +353,24 @@ class TestLinearADRBase(Generic[Array], unittest.TestCase):
         """Test convergence using manufactured solution in 3D.
 
         Use u_exact = cos(pi*x)*cos(pi*y)*cos(pi*z), which satisfies zero Neumann BCs.
-        Laplacian: -3*pi^2*cos(pi*x)*cos(pi*y)*cos(pi*z)
-        f = (3*D*pi^2 + r)*cos(pi*x)*cos(pi*y)*cos(pi*z)
+        Uses ManufacturedAdvectionDiffusionReaction for consistent forcing.
         """
         D = 1.0
         r = 1.0
+        bounds = [0.0, 1.0, 0.0, 1.0, 0.0, 1.0]
 
-        def u_exact(x: NDArray[Any]) -> NDArray[Any]:
-            return np.cos(np.pi * x[0]) * np.cos(np.pi * x[1]) * np.cos(np.pi * x[2])
-
-        def forcing(x: NDArray[Any]) -> NDArray[Any]:
-            return (
-                (3 * D * np.pi**2 + r)
-                * np.cos(np.pi * x[0])
-                * np.cos(np.pi * x[1])
-                * np.cos(np.pi * x[2])
-            )
+        # Create manufactured solution (always use NumpyBkd for skfem compatibility)
+        numpy_bkd = NumpyBkd()
+        functions, _ = create_adr_manufactured_test(
+            bounds=bounds,
+            sol_str="cos(pi*x)*cos(pi*y)*cos(pi*z)",
+            diff_str=str(D),
+            react_str=f"{r}*u",
+            vel_strs=["0", "0", "0"],
+            bkd=numpy_bkd,
+        )
+        u_exact = functions["solution"]
+        forcing = functions["forcing"]
 
         errors: List[float] = []
         mesh_sizes = [3, 5, 8]
@@ -473,31 +488,31 @@ class TestParametrizedADR1DConvergence(ParametrizedTestCase):
         k = wavenumber
         D = diffusivity
         r = reaction
+        bounds = [0.0, 1.0]
 
-        # Exact solution: u(x) = cos(k*pi*x)
-        # This satisfies zero Neumann BCs at x=0, x=1 naturally
-        def u_exact(x: NDArray[Any]) -> NDArray[Any]:
-            return np.cos(k * np.pi * x[0])
+        # Build solution string: cos(k*pi*x)
+        sol_str = f"cos({k}*pi*x)"
 
-        # u'' = -k^2 * pi^2 * cos(k*pi*x)
-        # Forcing for -D*u'' + r*u = f (no advection)
-        # f = D*k^2*pi^2*cos(k*pi*x) + r*cos(k*pi*x)
+        # Build velocity string
         if has_advection:
-            # With advection v*u' where v = 0.1
-            # u' = -k*pi*sin(k*pi*x)
             v_coef = 0.1
-
-            def forcing(x: NDArray[Any]) -> NDArray[Any]:
-                return (
-                    (D * (k * np.pi)**2 + r) * np.cos(k * np.pi * x[0])
-                    - v_coef * k * np.pi * np.sin(k * np.pi * x[0])
-                )
+            vel_strs = [str(v_coef)]
             velocity = bkd.asarray(np.array([v_coef]))
         else:
-
-            def forcing(x: NDArray[Any]) -> NDArray[Any]:
-                return (D * (k * np.pi)**2 + r) * np.cos(k * np.pi * x[0])
+            vel_strs = ["0"]
             velocity = None
+
+        # Create manufactured solution using the infrastructure
+        functions, _ = create_adr_manufactured_test(
+            bounds=bounds,
+            sol_str=sol_str,
+            diff_str=str(D),
+            react_str=f"{r}*u",
+            vel_strs=vel_strs,
+            bkd=bkd,
+        )
+        u_exact = functions["solution"]
+        forcing = functions["forcing"]
 
         for nx in mesh_sizes:
             mesh = StructuredMesh1D(nx=nx, bounds=(0.0, 1.0), bkd=bkd)
@@ -567,37 +582,31 @@ class TestParametrizedADR2DConvergence(ParametrizedTestCase):
         kx, ky = wavenumber_x, wavenumber_y
         D = diffusivity
         r = reaction
+        bounds = [0.0, 1.0, 0.0, 1.0]
 
-        # Exact solution: u(x,y) = cos(kx*pi*x)*cos(ky*pi*y)
-        # This satisfies zero Neumann BCs on [0,1]^2 naturally
-        def u_exact(x: NDArray[Any]) -> NDArray[Any]:
-            return np.cos(kx * np.pi * x[0]) * np.cos(ky * np.pi * x[1])
+        # Build solution string: cos(kx*pi*x)*cos(ky*pi*y)
+        sol_str = f"cos({kx}*pi*x)*cos({ky}*pi*y)"
 
-        # Laplacian = -(kx^2 + ky^2)*pi^2*cos(kx*pi*x)*cos(ky*pi*y)
-        # Forcing for -D*Laplacian + r*u = f
-        # f = D*(kx^2 + ky^2)*pi^2*u + r*u = (D*(kx^2+ky^2)*pi^2 + r)*u
-        k_sq = kx**2 + ky**2
+        # Build velocity strings
         if has_advection:
-            # With advection v.grad(u) where v = [0.1, 0.1]
-            # du/dx = -kx*pi*sin(kx*pi*x)*cos(ky*pi*y)
-            # du/dy = -ky*pi*cos(kx*pi*x)*sin(ky*pi*y)
             vx, vy = 0.1, 0.1
-
-            def forcing(x: NDArray[Any]) -> NDArray[Any]:
-                u_val = np.cos(kx * np.pi * x[0]) * np.cos(ky * np.pi * x[1])
-                dudx = -kx * np.pi * np.sin(kx * np.pi * x[0]) * np.cos(ky * np.pi * x[1])
-                dudy = -ky * np.pi * np.cos(kx * np.pi * x[0]) * np.sin(ky * np.pi * x[1])
-                return (
-                    (D * k_sq * np.pi**2 + r) * u_val
-                    + vx * dudx + vy * dudy
-                )
+            vel_strs = [str(vx), str(vy)]
             velocity = bkd.asarray(np.array([vx, vy]))
         else:
-
-            def forcing(x: NDArray[Any]) -> NDArray[Any]:
-                u_val = np.cos(kx * np.pi * x[0]) * np.cos(ky * np.pi * x[1])
-                return (D * k_sq * np.pi**2 + r) * u_val
+            vel_strs = ["0", "0"]
             velocity = None
+
+        # Create manufactured solution using the infrastructure
+        functions, _ = create_adr_manufactured_test(
+            bounds=bounds,
+            sol_str=sol_str,
+            diff_str=str(D),
+            react_str=f"{r}*u",
+            vel_strs=vel_strs,
+            bkd=bkd,
+        )
+        u_exact = functions["solution"]
+        forcing = functions["forcing"]
 
         for n in mesh_sizes:
             mesh = StructuredMesh2D(
@@ -671,6 +680,306 @@ try:
 
 except ImportError:
     pass
+
+
+# =============================================================================
+# Parametrized ADR Exact Reproduction Tests with P2 Elements and BCs
+# =============================================================================
+#
+# These tests verify exact reproduction for linear/quadratic solutions with
+# P2 elements and various boundary conditions (Dirichlet, Neumann, Robin).
+# They are inspired by pyapprox/pde/galerkin/tests/test_finite_elements.py
+# test_advection_diffusion_reaction (lines 617-765).
+#
+# With P2 (quadratic) elements:
+# - Linear solutions (e.g., "x", "x+2*y") should be reproduced exactly
+# - Quadratic solutions (e.g., "x**2", "x**2*y**2") should be reproduced exactly
+# - Expected relative error: < 1e-8
+#
+# 1D cases (24 total):
+#   - bounds: [0, 1] or [0, 1.1]
+#   - bndry_types: ["D", "N"], ["R", "D"], ["R", "R"]
+#   - velocity: none or advective
+#   - reaction: 0 or linear
+#
+# 2D cases (9 total):
+#   - Various BC combinations
+#   - Linear and quadratic solutions
+# =============================================================================
+
+# Import manufactured solution infrastructure
+from pyapprox.typing.pde.galerkin.manufactured import (
+    GalerkinManufacturedSolutionAdapter,
+    create_adr_manufactured_test,
+)
+
+# 1D exact reproduction test cases with various BCs
+# Format: (name, bounds, bndry_types, sol_str, diffusivity, vel_str, reaction)
+# vel_str: velocity string for manufactured solution ("1e-16*x" = no advection)
+# reaction: reaction coefficient (0.0 = no reaction, positive = source)
+#
+# 24 cases from itertools.product:
+#   bounds: [0, 1], [0, 1.1]                          (2)
+#   bndry_types: ["D", "N"], ["R", "D"], ["R", "R"]   (3)
+#   vel_str: "1e-16*x" (none), "(1+x)/10" (advective) (2)
+#   reaction: 0.0, 2.0                                 (2)
+# Total: 2 × 3 × 2 × 2 = 24
+ADR_1D_EXACT_CASES: List[Tuple[str, List[float], List[str], str, float, str, float]] = [
+    # --- Domain [0, 1], no advection, no reaction ---
+    ("1d_b01_DN_nov_nor", [0.0, 1.0], ["D", "N"], "x", 4.0, "1e-16*x", 0.0),
+    ("1d_b01_RD_nov_nor", [0.0, 1.0], ["R", "D"], "x", 4.0, "1e-16*x", 0.0),
+    ("1d_b01_RR_nov_nor", [0.0, 1.0], ["R", "R"], "x", 4.0, "1e-16*x", 0.0),
+    # --- Domain [0, 1], no advection, reaction=2.0 ---
+    ("1d_b01_DN_nov_r2", [0.0, 1.0], ["D", "N"], "x", 4.0, "1e-16*x", 2.0),
+    ("1d_b01_RD_nov_r2", [0.0, 1.0], ["R", "D"], "x", 4.0, "1e-16*x", 2.0),
+    ("1d_b01_RR_nov_r2", [0.0, 1.0], ["R", "R"], "x", 4.0, "1e-16*x", 2.0),
+    # --- Domain [0, 1], advection=(1+x)/10, no reaction ---
+    ("1d_b01_DN_vel_nor", [0.0, 1.0], ["D", "N"], "x", 4.0, "(1+x)/10", 0.0),
+    ("1d_b01_RD_vel_nor", [0.0, 1.0], ["R", "D"], "x", 4.0, "(1+x)/10", 0.0),
+    ("1d_b01_RR_vel_nor", [0.0, 1.0], ["R", "R"], "x", 4.0, "(1+x)/10", 0.0),
+    # --- Domain [0, 1], advection=(1+x)/10, reaction=2.0 ---
+    ("1d_b01_DN_vel_r2", [0.0, 1.0], ["D", "N"], "x", 4.0, "(1+x)/10", 2.0),
+    ("1d_b01_RD_vel_r2", [0.0, 1.0], ["R", "D"], "x", 4.0, "(1+x)/10", 2.0),
+    ("1d_b01_RR_vel_r2", [0.0, 1.0], ["R", "R"], "x", 4.0, "(1+x)/10", 2.0),
+    # --- Domain [0, 1.1], no advection, no reaction ---
+    ("1d_b011_DN_nov_nor", [0.0, 1.1], ["D", "N"], "x", 4.0, "1e-16*x", 0.0),
+    ("1d_b011_RD_nov_nor", [0.0, 1.1], ["R", "D"], "x", 4.0, "1e-16*x", 0.0),
+    ("1d_b011_RR_nov_nor", [0.0, 1.1], ["R", "R"], "x", 4.0, "1e-16*x", 0.0),
+    # --- Domain [0, 1.1], no advection, reaction=2.0 ---
+    ("1d_b011_DN_nov_r2", [0.0, 1.1], ["D", "N"], "x", 4.0, "1e-16*x", 2.0),
+    ("1d_b011_RD_nov_r2", [0.0, 1.1], ["R", "D"], "x", 4.0, "1e-16*x", 2.0),
+    ("1d_b011_RR_nov_r2", [0.0, 1.1], ["R", "R"], "x", 4.0, "1e-16*x", 2.0),
+    # --- Domain [0, 1.1], advection=(1+x)/10, no reaction ---
+    ("1d_b011_DN_vel_nor", [0.0, 1.1], ["D", "N"], "x", 4.0, "(1+x)/10", 0.0),
+    ("1d_b011_RD_vel_nor", [0.0, 1.1], ["R", "D"], "x", 4.0, "(1+x)/10", 0.0),
+    ("1d_b011_RR_vel_nor", [0.0, 1.1], ["R", "R"], "x", 4.0, "(1+x)/10", 0.0),
+    # --- Domain [0, 1.1], advection=(1+x)/10, reaction=2.0 ---
+    ("1d_b011_DN_vel_r2", [0.0, 1.1], ["D", "N"], "x", 4.0, "(1+x)/10", 2.0),
+    ("1d_b011_RD_vel_r2", [0.0, 1.1], ["R", "D"], "x", 4.0, "(1+x)/10", 2.0),
+    ("1d_b011_RR_vel_r2", [0.0, 1.1], ["R", "R"], "x", 4.0, "(1+x)/10", 2.0),
+]
+
+# 2D exact reproduction test cases with various BCs
+# Format: (name, bounds, bndry_types, sol_str, diffusivity, vel_strs, reaction)
+# vel_strs: velocity strings for manufactured solution (["1e-16*x", "1e-16*y"] = no advection)
+# reaction: reaction coefficient (0.0 = no reaction, positive = source)
+ADR_2D_EXACT_CASES: List[Tuple[str, List[float], List[str], str, float, List[str], float]] = [
+    # Linear solution, all Dirichlet
+    ("2d_lin_DDDD", [0.0, 1.0, 0.0, 1.0], ["D", "D", "D", "D"], "x+2*y", 4.0, ["1e-16*x", "1e-16*y"], 0.0),
+    # Linear solution, mixed BCs
+    ("2d_lin_DRDN", [0.0, 1.0, 0.0, 1.0], ["D", "R", "D", "N"], "x+2*y", 4.0, ["1e-16*x", "1e-16*y"], 0.0),
+    ("2d_lin_NRDR", [0.0, 1.0, 0.0, 1.0], ["N", "R", "D", "R"], "x+2*y", 4.0, ["1e-16*x", "1e-16*y"], 0.0),
+    # Quadratic solution x*y
+    ("2d_xy_DDDD", [0.0, 1.0, 0.0, 1.0], ["D", "D", "D", "D"], "x*y", 4.0, ["1e-16*x", "1e-16*y"], 0.0),
+    ("2d_xy_DRDD", [0.0, 1.0, 0.0, 1.0], ["D", "R", "D", "D"], "x*y", 4.0, ["1e-16*x", "1e-16*y"], 0.0),
+    # Quadratic solution x^2 + y^2
+    ("2d_quad_DDDD", [0.0, 1.0, 0.0, 1.0], ["D", "D", "D", "D"], "x**2+y**2", 4.0, ["1e-16*x", "1e-16*y"], 0.0),
+    ("2d_quad_DRDN", [0.0, 1.0, 0.0, 1.0], ["D", "R", "D", "N"], "x**2+y**2", 4.0, ["1e-16*x", "1e-16*y"], 0.0),
+    # Higher-order quadratic x^2*y^2
+    ("2d_x2y2_DDDD", [0.0, 1.0, 0.0, 1.0], ["D", "D", "D", "D"], "x**2*y**2", 1.0, ["1e-16*x", "1e-16*y"], 0.0),
+    ("2d_x2y2_DRDD", [0.0, 1.0, 0.0, 1.0], ["D", "R", "D", "D"], "x**2*y**2", 1.0, ["1e-16*x", "1e-16*y"], 0.0),
+]
+
+
+class TestParametrizedADR1DExact(ParametrizedTestCase):
+    """Parametrized 1D ADR exact reproduction tests with P2 elements.
+
+    Uses P2 (quadratic) Lagrange elements with linear solutions and various
+    boundary conditions. With linear solutions, P2 elements should reproduce
+    the exact solution to near machine precision.
+
+    These tests are inspired by the 1D test cases from legacy
+    test_finite_elements.py lines 636-694.
+    """
+
+    @parametrize(
+        "name,bounds,bndry_types,sol_str,diffusivity,vel_str,reaction",
+        ADR_1D_EXACT_CASES,
+    )
+    def test_exact_reproduction(
+        self,
+        name: str,
+        bounds: List[float],
+        bndry_types: List[str],
+        sol_str: str,
+        diffusivity: float,
+        vel_str: str,
+        reaction: float,
+    ) -> None:
+        """Test exact reproduction for linear solution with P2 elements."""
+        bkd = NumpyBkd()
+        nx = 10  # Mesh size
+
+        # Create mesh and basis
+        mesh = StructuredMesh1D(
+            nx=nx,
+            bounds=(bounds[0], bounds[1]),
+            bkd=bkd,
+        )
+        basis = LagrangeBasis(mesh, degree=2)  # P2 elements
+
+        # Create manufactured solution functions
+        # Note: for linear reaction, use react_str = "r*u" format
+        react_str = f"{reaction}*u" if reaction != 0 else "0*u"
+        functions, _ = create_adr_manufactured_test(
+            bounds=bounds,
+            sol_str=sol_str,
+            diff_str=f"{diffusivity}+1e-16*x",
+            react_str=react_str,
+            vel_strs=[vel_str],
+            bkd=bkd,
+        )
+
+        # Create adapter and boundary conditions
+        adapter = GalerkinManufacturedSolutionAdapter(basis, functions, bkd)
+        bc_set = adapter.create_boundary_conditions(bndry_types, robin_alpha=1.0)
+
+        # Get exact solution and forcing
+        exact_sol_func = adapter.solution_function()
+        forcing_func = adapter.forcing_for_galerkin()
+
+        # Get velocity function adapted for Galerkin (skfem) shape convention
+        if "1e-16" in vel_str:
+            velocity = None
+        else:
+            velocity = adapter.velocity_for_galerkin()
+
+        # Create physics with boundary conditions
+        physics = LinearAdvectionDiffusionReaction(
+            basis=basis,
+            diffusivity=diffusivity,
+            velocity=velocity,
+            reaction=reaction,
+            forcing=forcing_func,
+            boundary_conditions=bc_set.all_conditions(),
+            bkd=bkd,
+        )
+
+        # Solve
+        solver = SteadyStateSolver(physics, tol=1e-12)
+        result = solver.solve_linear()
+
+        # Compute error
+        dof_coords = bkd.to_numpy(basis.dof_coordinates())
+        u_num = bkd.to_numpy(result.solution)
+        u_exact = exact_sol_func(dof_coords)
+        if u_exact.ndim > 1:
+            u_exact = u_exact[:, 0] if u_exact.shape[1] == 1 else u_exact.flatten()
+
+        # Compute relative error (handle near-zero solutions)
+        u_norm = np.linalg.norm(u_exact)
+        if u_norm > 1e-10:
+            rel_error = np.linalg.norm(u_num - u_exact) / u_norm
+        else:
+            rel_error = np.linalg.norm(u_num - u_exact)
+
+        # P2 elements should exactly reproduce linear solutions
+        self.assertLess(
+            rel_error, 1e-8,
+            f"Test {name}: rel_error={rel_error:.2e} should be < 1e-8"
+        )
+
+
+class TestParametrizedADR2DExact(ParametrizedTestCase):
+    """Parametrized 2D ADR exact reproduction tests with P2 elements.
+
+    Uses P2 (quadratic) Lagrange elements with linear/quadratic solutions
+    and various boundary conditions. P2 elements should reproduce solutions
+    up to degree 2 exactly.
+
+    These tests are inspired by the 2D test cases from legacy
+    test_finite_elements.py lines 617-729.
+    """
+
+    @parametrize(
+        "name,bounds,bndry_types,sol_str,diffusivity,vel_strs,reaction",
+        ADR_2D_EXACT_CASES,
+    )
+    def test_exact_reproduction(
+        self,
+        name: str,
+        bounds: List[float],
+        bndry_types: List[str],
+        sol_str: str,
+        diffusivity: float,
+        vel_strs: List[str],
+        reaction: float,
+    ) -> None:
+        """Test exact reproduction for linear/quadratic solution with P2 elements."""
+        bkd = NumpyBkd()
+        nx, ny = 5, 5  # Mesh size
+
+        # Create mesh and basis
+        mesh = StructuredMesh2D(
+            nx=nx, ny=ny,
+            bounds=[
+                (bounds[0], bounds[1]),
+                (bounds[2], bounds[3]),
+            ],
+            bkd=bkd,
+        )
+        basis = LagrangeBasis(mesh, degree=2)  # P2 elements
+
+        # Create manufactured solution functions
+        react_str = f"{reaction}*u" if reaction != 0 else "0*u"
+        functions, _ = create_adr_manufactured_test(
+            bounds=bounds,
+            sol_str=sol_str,
+            diff_str=f"{diffusivity}+1e-16*x+1e-16*y",
+            react_str=react_str,
+            vel_strs=vel_strs,
+            bkd=bkd,
+        )
+
+        # Create adapter and boundary conditions
+        adapter = GalerkinManufacturedSolutionAdapter(basis, functions, bkd)
+        bc_set = adapter.create_boundary_conditions(bndry_types, robin_alpha=1.0)
+
+        # Get exact solution and forcing
+        exact_sol_func = adapter.solution_function()
+        forcing_func = adapter.forcing_for_galerkin()
+
+        # Parse velocity (check if effectively zero)
+        has_velocity = any("1e-16" not in v for v in vel_strs)
+        if has_velocity:
+            velocity = bkd.asarray(np.array([0.1, 0.1]))
+        else:
+            velocity = None
+
+        # Create physics with boundary conditions
+        physics = LinearAdvectionDiffusionReaction(
+            basis=basis,
+            diffusivity=diffusivity,
+            velocity=velocity,
+            reaction=reaction,
+            forcing=forcing_func,
+            boundary_conditions=bc_set.all_conditions(),
+            bkd=bkd,
+        )
+
+        # Solve
+        solver = SteadyStateSolver(physics, tol=1e-12)
+        result = solver.solve_linear()
+
+        # Compute error
+        dof_coords = bkd.to_numpy(basis.dof_coordinates())
+        u_num = bkd.to_numpy(result.solution)
+        u_exact = exact_sol_func(dof_coords)
+        if u_exact.ndim > 1:
+            u_exact = u_exact[:, 0] if u_exact.shape[1] == 1 else u_exact.flatten()
+
+        # Compute relative error
+        u_norm = np.linalg.norm(u_exact)
+        if u_norm > 1e-10:
+            rel_error = np.linalg.norm(u_num - u_exact) / u_norm
+        else:
+            rel_error = np.linalg.norm(u_num - u_exact)
+
+        # P2 elements should exactly reproduce quadratic solutions
+        self.assertLess(
+            rel_error, 1e-8,
+            f"Test {name}: rel_error={rel_error:.2e} should be < 1e-8"
+        )
 
 
 from pyapprox.typing.util.test_utils import load_tests  # noqa: F401

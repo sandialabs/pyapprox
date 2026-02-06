@@ -157,7 +157,7 @@ class AbstractGalerkinPhysics(ABC, Generic[Array]):
             Modified stiffness matrix.
         """
         for bc in self._boundary_conditions:
-            if isinstance(bc, RobinBCProtocol) and hasattr(bc, 'apply_to_stiffness'):
+            if isinstance(bc, RobinBCProtocol):
                 stiffness = bc.apply_to_stiffness(stiffness, time)
         return stiffness
 
@@ -179,9 +179,9 @@ class AbstractGalerkinPhysics(ABC, Generic[Array]):
             Modified load vector.
         """
         for bc in self._boundary_conditions:
-            if isinstance(bc, NeumannBCProtocol) and hasattr(bc, 'apply_to_load'):
+            if isinstance(bc, NeumannBCProtocol):
                 load = bc.apply_to_load(load, time)
-            elif isinstance(bc, RobinBCProtocol) and hasattr(bc, 'apply_to_load'):
+            elif isinstance(bc, RobinBCProtocol):
                 load = bc.apply_to_load(load, time)
         return load
 
@@ -218,7 +218,10 @@ class AbstractGalerkinPhysics(ABC, Generic[Array]):
         residual = load - stiffness @ state
 
         # Apply Dirichlet BCs: replace residual rows with constraint violation
+        # Check Robin first since RobinBC also satisfies DirichletBCProtocol
         for bc in self._boundary_conditions:
+            if isinstance(bc, RobinBCProtocol):
+                continue
             if isinstance(bc, DirichletBCProtocol):
                 residual = bc.apply_to_residual(residual, state, time)
 
@@ -255,7 +258,10 @@ class AbstractGalerkinPhysics(ABC, Generic[Array]):
         jacobian = -stiffness
 
         # Apply Dirichlet BCs: replace Jacobian rows with identity
+        # Skip Robin BCs since they also satisfy DirichletBCProtocol
         for bc in self._boundary_conditions:
+            if isinstance(bc, RobinBCProtocol):
+                continue
             if isinstance(bc, DirichletBCProtocol):
                 jacobian = bc.apply_to_jacobian(jacobian, state, time)
 
@@ -300,13 +306,16 @@ class AbstractGalerkinPhysics(ABC, Generic[Array]):
         for bc in self._boundary_conditions:
             # Robin BCs (modify interior first)
             if isinstance(bc, RobinBCProtocol):
-                if res is not None and hasattr(bc, 'apply_to_residual'):
+                if res is not None:
                     res = bc.apply_to_residual(res, state, time)
-                if jac is not None and hasattr(bc, 'apply_to_jacobian'):
+                if jac is not None:
                     jac = bc.apply_to_jacobian(jac, state, time)
 
         for bc in self._boundary_conditions:
             # Dirichlet BCs (replace rows last)
+            # Skip Robin BCs since they also satisfy DirichletBCProtocol
+            if isinstance(bc, RobinBCProtocol):
+                continue
             if isinstance(bc, DirichletBCProtocol):
                 if res is not None:
                     res = bc.apply_to_residual(res, state, time)
