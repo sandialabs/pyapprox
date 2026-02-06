@@ -52,10 +52,15 @@ class StructuredMesh1D(Generic[Array]):
         self._nx = nx
         self._bounds_tuple = bounds
 
-        # Create skfem mesh
+        # Create skfem mesh with named boundaries
         xmin, xmax = bounds
         nodes = np.linspace(xmin, xmax, nx + 1)
-        self._skfem_mesh = MeshLine(nodes)
+        self._skfem_mesh = MeshLine(nodes).with_boundaries(
+            {
+                "left": lambda x: np.abs(x[0] - xmin) < 1e-12,
+                "right": lambda x: np.abs(x[0] - xmax) < 1e-12,
+            }
+        )
 
         # Cache nodes as backend array
         self._nodes = bkd.asarray(self._skfem_mesh.p.astype(np.float64))
@@ -193,17 +198,27 @@ class StructuredMesh2D(Generic[Array]):
         xmin, xmax = bounds[0]
         ymin, ymax = bounds[1]
 
+        # Define boundary functions
+        boundary_defs = {
+            "left": lambda x: np.abs(x[0] - xmin) < 1e-12,
+            "right": lambda x: np.abs(x[0] - xmax) < 1e-12,
+            "bottom": lambda x: np.abs(x[1] - ymin) < 1e-12,
+            "top": lambda x: np.abs(x[1] - ymax) < 1e-12,
+        }
+
         if element_type == "quad":
             self._skfem_mesh = MeshQuad.init_tensor(
                 np.linspace(xmin, xmax, nx + 1),
                 np.linspace(ymin, ymax, ny + 1),
-            )
+            ).with_boundaries(boundary_defs)
         elif element_type == "tri":
             quad_mesh = MeshQuad.init_tensor(
                 np.linspace(xmin, xmax, nx + 1),
                 np.linspace(ymin, ymax, ny + 1),
             )
-            self._skfem_mesh = quad_mesh.to_meshtri()
+            self._skfem_mesh = quad_mesh.to_meshtri().with_boundaries(
+                boundary_defs
+            )
         else:
             raise ValueError(
                 f"Unknown element_type '{element_type}'. "
@@ -367,19 +382,31 @@ class StructuredMesh3D(Generic[Array]):
         ymin, ymax = bounds[1]
         zmin, zmax = bounds[2]
 
+        # Define boundary functions
+        boundary_defs = {
+            "left": lambda x: np.abs(x[0] - xmin) < 1e-12,
+            "right": lambda x: np.abs(x[0] - xmax) < 1e-12,
+            "bottom": lambda x: np.abs(x[1] - ymin) < 1e-12,
+            "top": lambda x: np.abs(x[1] - ymax) < 1e-12,
+            "front": lambda x: np.abs(x[2] - zmin) < 1e-12,
+            "back": lambda x: np.abs(x[2] - zmax) < 1e-12,
+        }
+
         if element_type == "hex":
             self._skfem_mesh = MeshHex.init_tensor(
                 np.linspace(xmin, xmax, nx + 1),
                 np.linspace(ymin, ymax, ny + 1),
                 np.linspace(zmin, zmax, nz + 1),
-            )
+            ).with_boundaries(boundary_defs)
         elif element_type == "tet":
             hex_mesh = MeshHex.init_tensor(
                 np.linspace(xmin, xmax, nx + 1),
                 np.linspace(ymin, ymax, ny + 1),
                 np.linspace(zmin, zmax, nz + 1),
             )
-            self._skfem_mesh = hex_mesh.to_meshtet()
+            self._skfem_mesh = hex_mesh.to_meshtet().with_boundaries(
+                boundary_defs
+            )
         else:
             raise ValueError(
                 f"Unknown element_type '{element_type}'. "
