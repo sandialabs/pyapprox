@@ -249,15 +249,18 @@ class TestPeriodicBC(Generic[Array], unittest.TestCase):
         raise NotImplementedError
 
     def test_periodic_residual(self):
-        """Test periodic BC residual."""
+        """Test periodic BC residual: value and derivative matching."""
         bkd = self.bkd()
         npts = 5
-        mesh = create_uniform_mesh_1d(npts, (-1.0, 1.0), bkd)
+        mesh = TransformedMesh1D(npts, bkd)
+        basis = ChebyshevBasis1D(mesh, bkd)
+        umesh = create_uniform_mesh_1d(npts, (-1.0, 1.0), bkd)
 
-        left_idx = mesh.boundary_indices(0)
-        right_idx = mesh.boundary_indices(1)
+        left_idx = umesh.boundary_indices(0)
+        right_idx = umesh.boundary_indices(1)
+        D = basis.derivative_matrix()
 
-        bc = PeriodicBC(bkd, left_idx, right_idx)
+        bc = PeriodicBC(bkd, left_idx, right_idx, D)
 
         # State with different values at boundaries
         state = bkd.linspace(0.0, 4.0, npts)  # [0, 1, 2, 3, 4]
@@ -265,30 +268,44 @@ class TestPeriodicBC(Generic[Array], unittest.TestCase):
         residual = bkd.zeros((npts,))
         residual = bc.apply_to_residual(residual, state, 0.0)
 
-        # res[0] = u[0] - u[4] = 0 - 4 = -4
+        # Value matching: res[0] = u[0] - u[4] = 0 - 4 = -4
         self.assertAlmostEqual(float(residual[0]), -4.0, places=12)
 
+        # Derivative matching: res[4] = D[0,:] @ u - D[4,:] @ u
+        du_left = float(bkd.dot(D[0, :], state))
+        du_right = float(bkd.dot(D[4, :], state))
+        self.assertAlmostEqual(
+            float(residual[4]), du_left - du_right, places=12
+        )
+
     def test_periodic_jacobian(self):
-        """Test periodic BC Jacobian."""
+        """Test periodic BC Jacobian: value and derivative rows."""
         bkd = self.bkd()
         npts = 5
-        mesh = create_uniform_mesh_1d(npts, (-1.0, 1.0), bkd)
+        mesh = TransformedMesh1D(npts, bkd)
+        basis = ChebyshevBasis1D(mesh, bkd)
+        umesh = create_uniform_mesh_1d(npts, (-1.0, 1.0), bkd)
 
-        left_idx = mesh.boundary_indices(0)
-        right_idx = mesh.boundary_indices(1)
+        left_idx = umesh.boundary_indices(0)
+        right_idx = umesh.boundary_indices(1)
+        D = basis.derivative_matrix()
 
-        bc = PeriodicBC(bkd, left_idx, right_idx)
+        bc = PeriodicBC(bkd, left_idx, right_idx, D)
 
         state = bkd.ones((npts,))
         jacobian = bkd.zeros((npts, npts))
         jacobian = bc.apply_to_jacobian(jacobian, state, 0.0)
 
-        # Row 0 should be [1, 0, 0, 0, -1]
-        expected = bkd.zeros((npts,))
-        expected = bkd.copy(expected)
-        expected[0] = 1.0
-        expected[4] = -1.0
-        bkd.assert_allclose(jacobian[0, :], expected, atol=1e-14)
+        # Row 0 (value matching): [1, 0, 0, 0, -1]
+        expected_val = bkd.zeros((npts,))
+        expected_val = bkd.copy(expected_val)
+        expected_val[0] = 1.0
+        expected_val[4] = -1.0
+        bkd.assert_allclose(jacobian[0, :], expected_val, atol=1e-14)
+
+        # Row 4 (derivative matching): D[0, :] - D[4, :]
+        expected_deriv = D[0, :] - D[4, :]
+        bkd.assert_allclose(jacobian[4, :], expected_deriv, atol=1e-14)
 
 
 class TestGradientRobinBC(Generic[Array], unittest.TestCase):

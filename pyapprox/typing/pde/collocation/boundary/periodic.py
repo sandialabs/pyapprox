@@ -1,6 +1,13 @@
 """Periodic boundary conditions for spectral collocation methods.
 
-Enforces u(x_left) = u(x_right) on paired boundaries.
+Enforces u(left) = u(right) AND u'(left) = u'(right) on paired boundaries.
+
+For a second-order PDE with N collocation points, the PDE provides N-2
+interior equations. Two boundary equations are needed to close the system:
+  - Value matching: u(left) = u(right)    [replaces primary boundary row]
+  - Derivative matching: u'(left) = u'(right) [replaces partner boundary row]
+
+The derivative matrix D for the periodic direction must be supplied.
 """
 
 from typing import Generic
@@ -9,10 +16,14 @@ from pyapprox.typing.util.backends.protocols import Array, Backend
 
 
 class PeriodicBC(Generic[Array]):
-    """Periodic boundary condition.
+    """Periodic boundary condition with value and derivative matching.
 
-    Enforces that solution values match at paired boundary points.
-    Typically used to enforce u(x_left) = u(x_right).
+    For second-order PDEs, enforces both:
+      u(primary) = u(partner)       at primary boundary rows
+      u'(primary) = u'(partner)     at partner boundary rows
+
+    The derivative matrix for the periodic direction is required to compute
+    the derivative matching condition.
 
     Parameters
     ----------
@@ -25,6 +36,10 @@ class PeriodicBC(Generic[Array]):
         Indices of mesh points on the partner boundary (e.g., right).
         Shape: (nboundary_pts,)
         Must have same length as boundary_indices.
+    derivative_matrix : Array
+        Derivative matrix for the periodic direction.
+        Shape: (nstates, nstates). For 1D this is D; for 2D periodic
+        in x use D_x, for periodic in y use D_y.
     """
 
     def __init__(
@@ -32,10 +47,12 @@ class PeriodicBC(Generic[Array]):
         bkd: Backend[Array],
         boundary_indices: Array,
         partner_indices: Array,
+        derivative_matrix: Array,
     ):
         self._bkd = bkd
         self._boundary_indices = boundary_indices
         self._partner_indices = partner_indices
+        self._D = derivative_matrix
         self._nboundary_pts = boundary_indices.shape[0]
 
         if partner_indices.shape[0] != self._nboundary_pts:
@@ -61,8 +78,8 @@ class PeriodicBC(Generic[Array]):
     ) -> Array:
         """Apply periodic BC to residual.
 
-        Sets residual at primary boundary points to:
-        u(primary) - u(partner)
+        Primary boundary rows: u(primary) - u(partner)
+        Partner boundary rows: D[primary, :] @ u - D[partner, :] @ u
 
         Parameters
         ----------
@@ -80,10 +97,16 @@ class PeriodicBC(Generic[Array]):
         """
         idx1 = self._boundary_indices
         idx2 = self._partner_indices
+        D = self._D
         residual = self._bkd.copy(residual)
 
         for i in range(self._nboundary_pts):
+            # Value matching at primary boundary
             residual[idx1[i]] = state[idx1[i]] - state[idx2[i]]
+            # Derivative matching at partner boundary
+            du_primary = self._bkd.dot(D[idx1[i], :], state)
+            du_partner = self._bkd.dot(D[idx2[i], :], state)
+            residual[idx2[i]] = du_primary - du_partner
         return residual
 
     def apply_to_jacobian(
@@ -91,8 +114,8 @@ class PeriodicBC(Generic[Array]):
     ) -> Array:
         """Apply periodic BC to Jacobian.
 
-        Sets Jacobian rows at primary boundary:
-        J[idx1, idx1] = 1, J[idx1, idx2] = -1, rest = 0
+        Primary boundary rows: J[idx1, idx1] = 1, J[idx1, idx2] = -1
+        Partner boundary rows: J[idx2, :] = D[idx1, :] - D[idx2, :]
 
         Parameters
         ----------
@@ -110,16 +133,20 @@ class PeriodicBC(Generic[Array]):
         """
         idx1 = self._boundary_indices
         idx2 = self._partner_indices
+        D = self._D
         jacobian = self._bkd.copy(jacobian)
         nstates = jacobian.shape[0]
 
         for i in range(self._nboundary_pts):
-            # Zero out row
+            # Value matching row (primary boundary)
             for j in range(nstates):
                 jacobian[idx1[i], j] = 0.0
-            # Set coefficients
             jacobian[idx1[i], idx1[i]] = 1.0
             jacobian[idx1[i], idx2[i]] = -1.0
+
+            # Derivative matching row (partner boundary)
+            for j in range(nstates):
+                jacobian[idx2[i], j] = D[idx1[i], j] - D[idx2[i], j]
         return jacobian
 
     def apply_to_param_jacobian(
@@ -127,7 +154,8 @@ class PeriodicBC(Generic[Array]):
     ) -> Array:
         """Apply periodic BC to parameter Jacobian.
 
-        Sets parameter Jacobian rows at primary boundary to zero.
+        Sets parameter Jacobian rows at both primary and partner
+        boundaries to zero (BCs do not depend on parameters).
 
         Parameters
         ----------
@@ -144,9 +172,11 @@ class PeriodicBC(Generic[Array]):
             Modified parameter Jacobian. Shape: (nstates, nparams)
         """
         idx1 = self._boundary_indices
+        idx2 = self._partner_indices
         param_jacobian = self._bkd.copy(param_jacobian)
         nparams = param_jacobian.shape[1]
         for i in range(self._nboundary_pts):
             for j in range(nparams):
                 param_jacobian[idx1[i], j] = 0.0
+                param_jacobian[idx2[i], j] = 0.0
         return param_jacobian
