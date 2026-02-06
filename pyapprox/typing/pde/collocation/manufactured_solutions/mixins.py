@@ -63,6 +63,9 @@ class DiffusionMixin:
         )
         self._set_expression("diffusion", diff_expr, self._diff_str)
         self._set_expression("flux", flux_exprs, self._sol_str)
+        # Store diffusive flux separately so it remains available even when
+        # the composite "flux" is later augmented by advective contributions.
+        self._set_expression("diffusive_flux", list(flux_exprs), self._sol_str)
         self._expressions["forcing"] += forc_expr
 
 
@@ -112,10 +115,12 @@ class ReactionMixin:
 
 
 class AdvectionMixin:
-    """Mixin for advection terms: v . grad(u).
+    """Mixin for advection terms.
 
     Adds advection-related sympy expressions to a manufactured solution.
-    The forcing term contribution is: v . grad(u).
+
+    Non-conservative form: forcing += v . grad(u)
+    Conservative form: forcing += div(v * u) = v . grad(u) + u * div(v)
     """
 
     _vel_strs: List[str]
@@ -129,17 +134,26 @@ class AdvectionMixin:
         """Build and store advection sympy expressions."""
         cartesian_symbs = self.cartesian_symbols()
         vel_exprs = [sp.sympify(vel_str) for vel_str in self._vel_strs]
-        # Advection = v . grad(u)
-        advection_expr = sum(
-            vel_expr * self._expressions["solution"].diff(symb, 1)
-            for vel_expr, symb in zip(vel_exprs, cartesian_symbs)
-        )
+        sol_expr = self._expressions["solution"]
+
         self._set_expression("velocity", vel_exprs, ", ".join(self._vel_strs))
-        self._expressions["forcing"] += advection_expr
+
         if self._conservative:
-            # Conservative form: flux = v * u
+            # Conservative: forcing += div(v * u)
+            advection_expr = sum(
+                (vel_expr * sol_expr).diff(symb, 1)
+                for vel_expr, symb in zip(vel_exprs, cartesian_symbs)
+            )
+            self._expressions["forcing"] += advection_expr
+            # Conservative flux = v * u
             flux_exprs = [
-                vel_expr * self._expressions["solution"]
-                for vel_expr in vel_exprs
+                vel_expr * sol_expr for vel_expr in vel_exprs
             ]
             self._set_expression("flux", flux_exprs, self._sol_str)
+        else:
+            # Non-conservative: forcing += v . grad(u)
+            advection_expr = sum(
+                vel_expr * sol_expr.diff(symb, 1)
+                for vel_expr, symb in zip(vel_exprs, cartesian_symbs)
+            )
+            self._expressions["forcing"] += advection_expr

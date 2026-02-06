@@ -1,7 +1,16 @@
 """Advection-diffusion-reaction physics for Galerkin FEM.
 
-Solves the equation:
+Supports two advection forms:
+
+Non-conservative (default):
     du/dt + v . grad(u) = div(D * grad(u)) + R(u) + f
+  Weak form:
+    (w, v.grad(u)) + (grad(w), D*grad(u)) - (w, R(u)) = (w, f)
+
+Conservative:
+    du/dt + div(v * u) = div(D * grad(u)) + R(u) + f
+  Weak form (after integration by parts of div(v*u)):
+    -(v*u, grad(w)) + (grad(w), D*grad(u)) - (w, R(u)) = (w, f)
 
 where:
     D = diffusivity (scalar or function of x)
@@ -9,12 +18,6 @@ where:
     R(u) = reaction term (general nonlinear function of u)
            Positive R(u) = source/production (standard physics convention)
     f = forcing/source term
-
-In weak form, multiply by test function w and integrate by parts:
-    (w, du/dt) + (w, v.grad(u)) + (grad(w), D*grad(u)) = (w, R(u)) + (w, f)
-
-For steady state: find u such that
-    (w, v.grad(u)) + (grad(w), D*grad(u)) - (w, R(u)) = (w, f)
 """
 
 from typing import Generic, Optional, Callable, List, Union, Tuple
@@ -89,6 +92,10 @@ class AdvectionDiffusionReaction(AbstractGalerkinPhysics[Array]):
         For time-dependent problems, takes (coordinates, time).
     boundary_conditions : List[BoundaryConditionProtocol], optional
         List of boundary conditions.
+    conservative : bool, default=False
+        If True, use conservative advection form div(v*u) with weak form
+        bilinear term -(v*u, grad(w)). If False, use non-conservative
+        form v.grad(u) with weak form bilinear term (w, v.grad(u)).
 
     Examples
     --------
@@ -126,6 +133,7 @@ class AdvectionDiffusionReaction(AbstractGalerkinPhysics[Array]):
         reaction: Optional[Union[float, Callable, Tuple[Callable, Callable]]] = None,
         forcing: Optional[Callable] = None,
         boundary_conditions: Optional[List[BoundaryConditionProtocol[Array]]] = None,
+        conservative: bool = False,
     ):
         super().__init__(basis, boundary_conditions)
         self._bkd = bkd
@@ -134,6 +142,7 @@ class AdvectionDiffusionReaction(AbstractGalerkinPhysics[Array]):
         self._diffusivity = diffusivity
         self._velocity = velocity
         self._forcing = forcing
+        self._conservative = conservative
 
         # Parse reaction term
         self._reaction_func: Optional[ReactionFunc] = None
@@ -248,14 +257,19 @@ class AdvectionDiffusionReaction(AbstractGalerkinPhysics[Array]):
         if self._velocity is not None:
             vel_np = self._bkd.to_numpy(self._velocity) if not callable(self._velocity) else None
 
+            conservative = self._conservative
+
             def advection_form(u, v, w):
                 if vel_np is not None:
-                    # Constant velocity
                     vel = vel_np
                 else:
                     vel = self._velocity(np.asarray(w.x))
-                # Advection term: (w, v.grad(u)) contributes v.grad(u) * w
-                return dot(vel, grad(u)) * v
+                if conservative:
+                    # Conservative: -(v*u, grad(w)) from div(v*u)
+                    return -u * dot(vel, grad(v))
+                else:
+                    # Non-conservative: (w, v.grad(u))
+                    return dot(vel, grad(u)) * v
 
             advection_np = asm(
                 BilinearForm(advection_form), skfem_basis

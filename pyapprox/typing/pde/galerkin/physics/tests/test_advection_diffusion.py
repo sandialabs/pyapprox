@@ -880,6 +880,103 @@ class TestParametrizedADR1DExact(ParametrizedTestCase):
         )
 
 
+# 1D conservative advection exact reproduction test cases
+# Only cases with velocity are meaningful (conservative = non-conservative without advection)
+# Format: (name, bounds, bndry_types, sol_str, diffusivity, vel_str, reaction)
+ADR_1D_CONSERVATIVE_CASES: List[Tuple[str, List[float], List[str], str, float, str, float]] = [
+    ("1d_cons_DN_vel_nor", [0.0, 1.0], ["D", "N"], "x", 4.0, "(1+x)/10", 0.0),
+    ("1d_cons_RD_vel_r2", [0.0, 1.0], ["R", "D"], "x", 4.0, "(1+x)/10", 2.0),
+    ("1d_cons_RR_vel_nor", [0.0, 1.0], ["R", "R"], "x", 4.0, "(1+x)/10", 0.0),
+    ("1d_cons_RR_vel_r2", [0.0, 1.0], ["R", "R"], "x", 4.0, "(1+x)/10", 2.0),
+]
+
+
+class TestParametrizedADR1DConservative(ParametrizedTestCase):
+    """Parametrized 1D ADR exact reproduction tests with conservative advection.
+
+    Uses P2 elements with linear solutions and conservative advection form
+    div(v*u). The manufactured solution is created with conservative=True to
+    match the PDE. The adapter uses only the diffusive flux for BCs because
+    the Galerkin weak form drops the advective boundary term from IBP.
+    """
+
+    @parametrize(
+        "name,bounds,bndry_types,sol_str,diffusivity,vel_str,reaction",
+        ADR_1D_CONSERVATIVE_CASES,
+    )
+    def test_exact_reproduction(
+        self,
+        name: str,
+        bounds: List[float],
+        bndry_types: List[str],
+        sol_str: str,
+        diffusivity: float,
+        vel_str: str,
+        reaction: float,
+    ) -> None:
+        """Test exact reproduction with conservative advection and P2 elements."""
+        bkd = NumpyBkd()
+        nx = 10
+
+        mesh = StructuredMesh1D(
+            nx=nx,
+            bounds=(bounds[0], bounds[1]),
+            bkd=bkd,
+        )
+        basis = LagrangeBasis(mesh, degree=2)
+
+        react_str = f"{reaction}*u" if reaction != 0 else "0*u"
+        functions, _ = create_adr_manufactured_test(
+            bounds=bounds,
+            sol_str=sol_str,
+            diff_str=f"{diffusivity}+1e-16*x",
+            react_str=react_str,
+            vel_strs=[vel_str],
+            bkd=bkd,
+            conservative=True,
+        )
+
+        adapter = GalerkinManufacturedSolutionAdapter(
+            basis, functions, bkd, conservative=True,
+        )
+        bc_set = adapter.create_boundary_conditions(bndry_types, robin_alpha=1.0)
+
+        exact_sol_func = adapter.solution_function()
+        forcing_func = adapter.forcing_for_galerkin()
+        velocity = adapter.velocity_for_galerkin()
+
+        physics = LinearAdvectionDiffusionReaction(
+            basis=basis,
+            diffusivity=diffusivity,
+            velocity=velocity,
+            reaction=reaction,
+            forcing=forcing_func,
+            boundary_conditions=bc_set.all_conditions(),
+            bkd=bkd,
+            conservative=True,
+        )
+
+        solver = SteadyStateSolver(physics, tol=1e-12)
+        result = solver.solve_linear()
+
+        dof_coords = bkd.to_numpy(basis.dof_coordinates())
+        u_num = bkd.to_numpy(result.solution)
+        u_exact = exact_sol_func(dof_coords)
+        if u_exact.ndim > 1:
+            u_exact = u_exact[:, 0] if u_exact.shape[1] == 1 else u_exact.flatten()
+
+        u_norm = np.linalg.norm(u_exact)
+        if u_norm > 1e-10:
+            rel_error = np.linalg.norm(u_num - u_exact) / u_norm
+        else:
+            rel_error = np.linalg.norm(u_num - u_exact)
+
+        self.assertLess(
+            rel_error, 1e-8,
+            f"Test {name}: rel_error={rel_error:.2e} should be < 1e-8"
+        )
+
+
 class TestParametrizedADR2DExact(ParametrizedTestCase):
     """Parametrized 2D ADR exact reproduction tests with P2 elements.
 

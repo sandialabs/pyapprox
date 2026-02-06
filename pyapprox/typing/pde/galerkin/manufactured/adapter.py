@@ -75,11 +75,13 @@ class GalerkinManufacturedSolutionAdapter(Generic[Array]):
         functions: Dict[str, Callable],
         bkd: Backend[Array],
         time_dependent: bool = False,
+        conservative: bool = False,
     ):
         self._basis = basis
         self._functions = functions
         self._bkd = bkd
         self._time_dependent = time_dependent
+        self._conservative = conservative
         self._ndim = basis.mesh().ndim()
 
         # Validate required functions
@@ -186,17 +188,42 @@ class GalerkinManufacturedSolutionAdapter(Generic[Array]):
 
         return adapted_forcing
 
-    def _compute_normal_flux(
+    def _eval_flux(
+        self,
+        flux_func: Callable,
+        coords: np.ndarray,
+        time: Optional[float] = None,
+    ) -> np.ndarray:
+        """Evaluate a flux function and return shape (ndim, npts)."""
+        if self._time_dependent and time is not None:
+            flux = flux_func(coords, time)
+        else:
+            flux = flux_func(coords)
+
+        if flux.ndim == 2:
+            # flux shape: (npts, ndim) - need to transpose
+            if flux.shape[0] == coords.shape[1]:
+                flux = flux.T
+            # flux shape should now be (ndim, npts)
+        return flux
+
+    def _compute_natural_bc_value(
         self,
         boundary_index: int,
         coords: np.ndarray,
         time: Optional[float] = None,
     ) -> np.ndarray:
-        """Compute D * grad(u) · n at boundary coordinates.
+        """Compute the natural BC value at boundary coordinates.
 
-        The manufactured solution's flux function returns -D * grad(u)
-        (physical diffusive flux convention). The Neumann and Robin BCs
-        in Galerkin FEM use D * grad(u) · n, so we negate the result.
+        Returns the quantity that appears as the natural boundary condition
+        in the Galerkin weak form after integration by parts.
+
+        Non-conservative form:
+            Natural BC = D * grad(u) · n
+
+        Conservative form:
+            Natural BC = D * grad(u) · n - v * u · n
+            (includes the advective boundary term from IBP of div(v*u))
 
         Parameters
         ----------
@@ -210,33 +237,45 @@ class GalerkinManufacturedSolutionAdapter(Generic[Array]):
         Returns
         -------
         np.ndarray
-            Conormal derivative D * grad(u) · n. Shape: (npts,).
+            Natural BC value. Shape: (npts,).
         """
-        flux_func = self._functions.get("flux")
+        # Use diffusive_flux (pure -D*grad(u)) if available
+        flux_func = self._functions.get("diffusive_flux")
+        if flux_func is None:
+            flux_func = self._functions.get("flux")
         if flux_func is None:
             raise ValueError(
-                "Manufactured solution must provide 'flux' function "
-                "to create Neumann or Robin boundary conditions"
+                "Manufactured solution must provide 'diffusive_flux' or "
+                "'flux' function to create Neumann or Robin boundary "
+                "conditions"
             )
 
-        # Compute normal
         normal = canonical_boundary_normal(boundary_index, coords)
+        diff_flux = self._eval_flux(flux_func, coords, time)
 
-        # Compute flux from manufactured solution (returns -D * grad(u))
-        if self._time_dependent and time is not None:
-            flux = flux_func(coords, time)
-        else:
-            flux = flux_func(coords)
+        # D * grad(u) · n  (negate because diffusive flux = -D * grad(u))
+        result = -np.sum(diff_flux * normal, axis=0)
 
-        # Handle different output formats from manufactured solutions
-        if flux.ndim == 2:
-            # flux shape: (npts, ndim) - need to transpose
-            if flux.shape[0] == coords.shape[1]:
-                flux = flux.T
-            # flux shape should now be (ndim, npts)
+        if self._conservative:
+            # Subtract advective boundary term: v * u · n
+            vel_func = self._functions.get("velocity")
+            sol_func = self._functions["solution"]
+            if vel_func is not None:
+                vel = self._eval_flux(vel_func, coords, time)
+                if self._time_dependent and time is not None:
+                    u_vals = sol_func(coords, time)
+                else:
+                    u_vals = sol_func(coords)
+                if u_vals.ndim > 1:
+                    u_vals = (
+                        u_vals[:, 0] if u_vals.shape[1] == 1
+                        else u_vals.flatten()
+                    )
+                # v * u · n
+                advective_flux_dot_n = np.sum(vel * u_vals * normal, axis=0)
+                result -= advective_flux_dot_n
 
-        # Negate because flux = -D * grad(u), and we want D * grad(u) · n
-        return -np.sum(flux * normal, axis=0)
+        return result
 
     def _create_dirichlet_bc(
         self, boundary_name: str, boundary_index: int
@@ -271,10 +310,10 @@ class GalerkinManufacturedSolutionAdapter(Generic[Array]):
 
         if self._time_dependent:
             def neumann_value(x, t):
-                return self._compute_normal_flux(boundary_index, x, t)
+                return self._compute_natural_bc_value(boundary_index, x, t)
         else:
             def neumann_value(x, t=None):
-                return self._compute_normal_flux(boundary_index, x)
+                return self._compute_natural_bc_value(boundary_index, x)
 
         return NeumannBC(
             basis=self._basis,
@@ -288,8 +327,10 @@ class GalerkinManufacturedSolutionAdapter(Generic[Array]):
     ) -> RobinBC[Array]:
         """Create a Robin BC from the manufactured solution.
 
-        Robin BC weak form: D*grad(u).n = g - alpha*u
-        So g = alpha * u + D * grad(u) . n
+        Robin BC weak form: natural_bc = g - alpha*u
+        So g = alpha * u + natural_bc
+        where natural_bc is D*grad(u)·n for non-conservative, or
+        D*grad(u)·n - v*u·n for conservative advection.
         """
         sol_func = self._functions["solution"]
 
@@ -298,15 +339,15 @@ class GalerkinManufacturedSolutionAdapter(Generic[Array]):
                 u_vals = sol_func(x, t)
                 if hasattr(u_vals, "shape") and u_vals.ndim > 1:
                     u_vals = u_vals[:, 0] if u_vals.shape[1] == 1 else u_vals
-                flux_dot_n = self._compute_normal_flux(boundary_index, x, t)
-                return alpha * u_vals + flux_dot_n
+                nat_bc = self._compute_natural_bc_value(boundary_index, x, t)
+                return alpha * u_vals + nat_bc
         else:
             def robin_value(x, t=None):
                 u_vals = sol_func(x)
                 if hasattr(u_vals, "shape") and u_vals.ndim > 1:
                     u_vals = u_vals[:, 0] if u_vals.shape[1] == 1 else u_vals
-                flux_dot_n = self._compute_normal_flux(boundary_index, x)
-                return alpha * u_vals + flux_dot_n
+                nat_bc = self._compute_natural_bc_value(boundary_index, x)
+                return alpha * u_vals + nat_bc
 
         return RobinBC(
             basis=self._basis,
