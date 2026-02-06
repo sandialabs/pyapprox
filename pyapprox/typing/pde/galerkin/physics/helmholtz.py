@@ -4,14 +4,14 @@ Solves the Helmholtz equation:
     -div(grad(u)) + k^2 * u = f
 
 where:
-    k = wavenumber
+    k = wavenumber (scalar or spatially-varying)
     f = source term
 
 This is a frequency-domain wave equation that arises in acoustics,
 electromagnetics, and other wave phenomena.
 """
 
-from typing import Generic, Optional, Callable, List
+from typing import Generic, Optional, Callable, List, Union
 
 import numpy as np
 
@@ -41,8 +41,8 @@ class Helmholtz(AbstractGalerkinPhysics[Array]):
         integral(grad(u) . grad(v)) + k^2 * integral(u * v) = integral(f * v)
 
     The stiffness matrix is:
-        K_ij = integral(grad(phi_j) . grad(phi_i)) + k^2 * integral(phi_j * phi_i)
-             = K_laplacian + k^2 * M
+        K_ij = integral(grad(phi_j) . grad(phi_i)) + k^2(x) * integral(phi_j * phi_i)
+             = K_laplacian + k^2(x) * M
 
     The load vector is:
         b_i = integral(f * phi_i)
@@ -51,9 +51,11 @@ class Helmholtz(AbstractGalerkinPhysics[Array]):
     ----------
     basis : GalerkinBasisProtocol
         Finite element basis.
-    wavenumber : float
-        Wavenumber k. For acoustics, k = omega/c where omega is angular
-        frequency and c is sound speed.
+    wavenumber : float or Callable
+        Wavenumber k. If float, k is constant and k^2 is used in the
+        bilinear form. If callable, it is interpreted as the **squared
+        wavenumber** k^2(x): takes coordinates (ndim, npts) and returns
+        (npts,) values of k^2.
     bkd : Backend
         Computational backend.
     forcing : Callable, optional
@@ -80,7 +82,7 @@ class Helmholtz(AbstractGalerkinPhysics[Array]):
     def __init__(
         self,
         basis: GalerkinBasisProtocol[Array],
-        wavenumber: float,
+        wavenumber: Union[float, Callable],
         bkd: Backend[Array],
         forcing: Optional[Callable] = None,
         boundary_conditions: Optional[List[BoundaryConditionProtocol[Array]]] = None,
@@ -90,6 +92,7 @@ class Helmholtz(AbstractGalerkinPhysics[Array]):
 
         # Store wavenumber
         self._wavenumber = wavenumber
+        self._wavenumber_is_callable = callable(wavenumber)
 
         # Store forcing
         self._forcing = forcing
@@ -99,8 +102,8 @@ class Helmholtz(AbstractGalerkinPhysics[Array]):
         self._load_cached: Optional[Array] = None
 
     @property
-    def wavenumber(self) -> float:
-        """Return the wavenumber k."""
+    def wavenumber(self) -> Union[float, Callable]:
+        """Return the wavenumber k (scalar) or k^2(x) (callable)."""
         return self._wavenumber
 
     def _assemble_stiffness(self, state: Array, time: float) -> Array:
@@ -109,29 +112,47 @@ class Helmholtz(AbstractGalerkinPhysics[Array]):
         K = K_laplacian + k^2 * M
         where:
             K_laplacian_ij = integral(grad(phi_j) . grad(phi_i))
-            M_ij = integral(phi_j * phi_i)
+            M_ij = integral(k^2(x) * phi_j * phi_i)
         """
         if self._stiffness_cached is not None:
             return self._stiffness_cached
 
         skfem_basis = self._basis.skfem_basis()
-        k = self._wavenumber
 
         # Laplacian stiffness
         def laplacian_form(u, v, w):
             return dot(grad(u), grad(v))
 
-        # Mass-like term (k^2 * u * v)
-        def mass_form(u, v, w):
-            return k * k * u * v
-
         laplacian_np = asm(BilinearForm(laplacian_form), skfem_basis).toarray()
+
+        # Mass-like term with k^2
+        if self._wavenumber_is_callable:
+            sqwavenum_func = self._wavenumber
+
+            def mass_form(u, v, w):
+                x_np = np.asarray(w.x)
+                x_shape = x_np.shape
+                if len(x_shape) == 3:
+                    ndim, nelem, nquad = x_shape
+                    x_flat = x_np.reshape(ndim, -1)
+                    k2_flat = sqwavenum_func(x_flat)
+                    k2 = k2_flat.reshape(nelem, nquad)
+                else:
+                    k2 = sqwavenum_func(x_np)
+                return k2 * u * v
+        else:
+            k = self._wavenumber
+
+            def mass_form(u, v, w):
+                return k * k * u * v
+
         mass_np = asm(BilinearForm(mass_form), skfem_basis).toarray()
 
         stiffness_np = laplacian_np + mass_np
         stiffness = self._bkd.asarray(stiffness_np.astype(np.float64))
 
-        # Cache since coefficients are constant
+        # Cache since coefficients are constant (even callable ones are
+        # spatially varying but not state-dependent)
         self._stiffness_cached = stiffness
 
         return stiffness
@@ -167,9 +188,8 @@ class Helmholtz(AbstractGalerkinPhysics[Array]):
 
         load = self._bkd.asarray(load_np.astype(np.float64))
 
-        # Cache if forcing is None (constant)
-        if self._forcing is None:
-            self._load_cached = load
+        # Cache since forcing is not state-dependent
+        self._load_cached = load
 
         return load
 
