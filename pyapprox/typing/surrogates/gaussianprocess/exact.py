@@ -5,6 +5,7 @@ This module provides the ExactGaussianProcess class which performs
 full GP regression using Cholesky factorization for numerical stability.
 """
 
+import copy
 import math
 
 import numpy as np
@@ -183,6 +184,50 @@ class ExactGaussianProcess(Generic[Array]):
         # Optimizer for hyperparameter tuning (None means use default)
         self._optimizer: Optional[BindableOptimizerProtocol[Array]] = None
 
+    def _clone_unfitted(self) -> "ExactGaussianProcess[Array]":
+        """Return a deep copy of this GP with fitted state cleared.
+
+        Creates an independent copy with deep-copied kernel and mean
+        function (to isolate hyperparameter modifications), but no
+        fitted state (data, cholesky, alpha).
+
+        Returns
+        -------
+        ExactGaussianProcess[Array]
+            An unfitted copy with the same configuration.
+        """
+        clone = copy.deepcopy(self)
+        clone._data = None
+        clone._cholesky = None
+        clone._alpha = None
+        return clone
+
+    def _copy_fitted_state_from(
+        self, other: "ExactGaussianProcess[Array]"
+    ) -> None:
+        """Copy all fitted state from another GP into self.
+
+        Centralizes state transfer so future fitted-state additions
+        only need updating in this one method.
+
+        Parameters
+        ----------
+        other : ExactGaussianProcess[Array]
+            The source GP to copy fitted state from.
+        """
+        self._data = other._data
+        self._cholesky = other._cholesky
+        self._alpha = other._alpha
+        self._output_transform = other._output_transform
+        self._input_transform = other._input_transform
+        # Copy optimized hyperparameters
+        self._kernel.hyp_list().set_values(
+            other._kernel.hyp_list().get_values()
+        )
+        self._mean.hyp_list().set_values(
+            other._mean.hyp_list().get_values()
+        )
+
     def _setup_derivative_methods(self) -> None:
         """
         Conditionally add hvp/hvp_batch methods based on kernel capabilities.
@@ -328,6 +373,10 @@ class ExactGaussianProcess(Generic[Array]):
     ) -> None:
         """Set the optimizer for hyperparameter optimization during fit().
 
+        .. deprecated::
+            Pass optimizer to ``GPMaximumLikelihoodFitter`` constructor
+            instead.
+
         Parameters
         ----------
         optimizer : BindableOptimizerProtocol[Array]
@@ -375,12 +424,20 @@ class ExactGaussianProcess(Generic[Array]):
     ) -> None:
         """Fit GP to data and optimize active hyperparameters.
 
-        This method:
-        1. Computes the Cholesky factorization and precomputes weights
-        2. If any hyperparameters are active, optimizes them by minimizing
-           the negative log marginal likelihood
+        This is a convenience method that delegates to
+        ``GPMaximumLikelihoodFitter``. For cleaner separation of concerns,
+        prefer using the fitter directly::
 
-        If all hyperparameters are inactive (fixed), only step 1 is performed.
+            from pyapprox.typing.surrogates.gaussianprocess.fitters import (
+                GPMaximumLikelihoodFitter,
+            )
+            fitter = GPMaximumLikelihoodFitter(bkd, optimizer=...)
+            result = fitter.fit(gp, X_train, y_train)
+            fitted_gp = result.surrogate()
+
+        .. deprecated::
+            Use ``GPMaximumLikelihoodFitter`` or
+            ``GPFixedHyperparameterFitter`` directly.
 
         Parameters
         ----------
@@ -403,94 +460,18 @@ class ExactGaussianProcess(Generic[Array]):
             If data shapes are invalid.
         RuntimeError
             If Cholesky factorization fails (matrix not positive definite).
-
-        Examples
-        --------
-        >>> # Standard fit with optimization
-        >>> gp.fit(X_train, y_train)
-
-        >>> # Fit with output scaling
-        >>> from pyapprox.typing.surrogates.gaussianprocess.output_transform import (
-        ...     OutputStandardScaler,
-        ... )
-        >>> scaler = OutputStandardScaler.from_data(y_train, bkd)
-        >>> gp.fit(X_train, y_train, output_transform=scaler)
-
-        >>> # Fit with input scaling
-        >>> from pyapprox.typing.surrogates.gaussianprocess.input_transform import (
-        ...     InputStandardScaler,
-        ... )
-        >>> input_scaler = InputStandardScaler.from_data(X_train, bkd)
-        >>> gp.fit(X_train, y_train, input_transform=input_scaler)
-
-        >>> # Skip optimization (fixed hyperparameters)
-        >>> gp.hyp_list().set_all_inactive()
-        >>> gp.fit(X_train, y_train)
         """
-        self._output_transform = output_transform
-
-        # Store input transform (identity if not provided)
-        if input_transform is not None:
-            self._input_transform = input_transform
-        else:
-            self._input_transform = IdentityInputTransform(
-                self._nvars, self._bkd
-            )
-
-        # Scale X if transform provided
-        X_train = self._input_transform.transform(X_train)
-
-        # Scale y if transform provided
-        if output_transform is not None:
-            y_train = output_transform.inverse_transform(y_train)
-
-        # Initial fit
-        self._fit_internal(X_train, y_train)
-
-        # Check if optimization is needed
-        if self.hyp_list().nactive_params() == 0:
-            return  # All params fixed, nothing to optimize
-
-        # Create loss function
-        from pyapprox.typing.surrogates.gaussianprocess.gp_loss import (
-            GPNegativeLogMarginalLikelihoodLoss
+        from pyapprox.typing.surrogates.gaussianprocess.fitters.maximum_likelihood_fitter import (
+            GPMaximumLikelihoodFitter,
         )
-        loss = GPNegativeLogMarginalLikelihoodLoss(
-            self, (self._data.X(), self._data.y())
+        fitter = GPMaximumLikelihoodFitter(
+            bkd=self._bkd,
+            optimizer=self._optimizer,
+            output_transform=output_transform,
+            input_transform=input_transform,
         )
-        self._configure_loss(loss)
-
-        # Get bounds for active hyperparameters
-        bounds = self.hyp_list().get_active_bounds()
-
-        # Get optimizer (clone if user-provided to avoid shared state)
-        if self._optimizer is not None:
-            optimizer = self._optimizer.copy()
-        else:
-            from pyapprox.typing.optimization.minimize.scipy.trust_constr import (
-                ScipyTrustConstrOptimizer
-            )
-            optimizer = ScipyTrustConstrOptimizer(verbosity=0, maxiter=1000)
-
-        # Bind optimizer to loss and bounds
-        optimizer.bind(loss, bounds)
-
-        # Get initial guess from current hyperparameter values
-        init_guess = self.hyp_list().get_active_values()
-        if len(init_guess.shape) == 1:
-            init_guess = self._bkd.reshape(init_guess, (len(init_guess), 1))
-
-        # Run optimization
-        result = optimizer.minimize(init_guess)
-
-        # Update hyperparameters with optimal values
-        optimal_params = result.optima()
-        if len(optimal_params.shape) == 2:
-            optimal_params = optimal_params[:, 0]
-        self.hyp_list().set_active_values(optimal_params)
-
-        # Final refit with optimal hyperparameters
-        self._fit_internal(X_train, y_train)
+        result = fitter.fit(self, X_train, y_train)
+        self._copy_fitted_state_from(result.surrogate())
 
     def _configure_loss(self, loss) -> None:
         """Configure loss function after creation.
