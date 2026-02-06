@@ -24,7 +24,7 @@ class DiffusionMixin:
 
     def _sympy_diffusion_expressions(
         self, diff_str: str, sol_expr: sp.Expr
-    ) -> Tuple[sp.Expr, List[sp.Expr], sp.Expr]:
+    ) -> Tuple[sp.Expr, List[sp.Expr], List[sp.Expr], sp.Expr]:
         """Compute sympy expressions for diffusion terms.
 
         Parameters
@@ -38,6 +38,8 @@ class DiffusionMixin:
         -------
         diff_expr : sp.Expr
             Diffusion coefficient expression.
+        gradient_exprs : List[sp.Expr]
+            Gradient components: du/dx_i for each dimension.
         flux_exprs : List[sp.Expr]
             Flux components: -D * du/dx_i for each dimension.
         forc_expr : sp.Expr
@@ -45,23 +47,30 @@ class DiffusionMixin:
         """
         cartesian_symbs = self.cartesian_symbols()
         diff_expr = sp.sympify(diff_str)
+        # Gradient = grad(u)
+        gradient_exprs = [
+            sol_expr.diff(symb, 1) for symb in cartesian_symbs
+        ]
         # Flux = -D * grad(u)
         flux_exprs = [
-            -diff_expr * sol_expr.diff(symb, 1) for symb in cartesian_symbs
+            -diff_expr * g for g in gradient_exprs
         ]
         # Forcing = div(flux) = sum(d/dx_i(-D * du/dx_i))
         forc_expr = sum(
             flux.diff(symb, 1)
             for flux, symb in zip(flux_exprs, cartesian_symbs)
         )
-        return diff_expr, flux_exprs, forc_expr
+        return diff_expr, gradient_exprs, flux_exprs, forc_expr
 
     def sympy_diffusion_expressions(self) -> None:
         """Build and store diffusion sympy expressions."""
-        diff_expr, flux_exprs, forc_expr = self._sympy_diffusion_expressions(
-            self._diff_str, self._expressions["solution"]
+        diff_expr, gradient_exprs, flux_exprs, forc_expr = (
+            self._sympy_diffusion_expressions(
+                self._diff_str, self._expressions["solution"]
+            )
         )
         self._set_expression("diffusion", diff_expr, self._diff_str)
+        self._set_expression("gradient", gradient_exprs, self._sol_str)
         self._set_expression("flux", flux_exprs, self._sol_str)
         # Store diffusive flux separately so it remains available even when
         # the composite "flux" is later augmented by advective contributions.

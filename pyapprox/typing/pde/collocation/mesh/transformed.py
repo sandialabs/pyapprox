@@ -324,8 +324,8 @@ class TransformedMesh2D(Generic[Array]):
 
         if self._transform is None:
             # Identity transform: normals are constant
-            return self._bkd.broadcast_to(
-                n_ref.reshape(1, 2), (nboundary, 2)
+            return self._bkd.tile(
+                n_ref.reshape(1, 2), (nboundary, 1)
             )
 
         # For curvilinear transforms, compute n = J^{-T} @ n_ref / |...|
@@ -525,8 +525,8 @@ class TransformedMesh3D(Generic[Array]):
         nboundary = boundary_idx.shape[0]
 
         if self._transform is None:
-            return self._bkd.broadcast_to(
-                n_ref.reshape(1, 3), (nboundary, 3)
+            return self._bkd.tile(
+                n_ref.reshape(1, 3), (nboundary, 1)
             )
 
         # For curvilinear: n = J^{-T} @ n_ref / |...|

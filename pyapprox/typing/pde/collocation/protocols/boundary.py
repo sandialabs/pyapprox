@@ -4,7 +4,7 @@ Defines interfaces for boundary conditions that modify PDE residuals
 and Jacobians.
 """
 
-from typing import Protocol, Generic, runtime_checkable, Tuple
+from typing import Protocol, Generic, List, runtime_checkable, Tuple
 
 from pyapprox.typing.util.backends.protocols import Array, Backend
 
@@ -192,5 +192,93 @@ class RobinBCProtocol(Protocol, Generic[Array]):
         -------
         Array
             Boundary values. Shape: (nboundary_pts,)
+        """
+        ...
+
+
+@runtime_checkable
+class NormalOperatorProtocol(Protocol, Generic[Array]):
+    """Protocol for computing a normal-direction term at boundary points.
+
+    Encapsulates the computation of the normal term in Robin/Neumann BCs.
+    Two conventions:
+    - Gradient: grad(u) . n  (uses derivative matrices + normals)
+    - Flux: flux(u) . n  (uses physics flux provider + normals)
+    """
+
+    def __call__(self, state: Array) -> Array:
+        """Compute the normal operation on the given state.
+
+        Parameters
+        ----------
+        state : Array
+            Full solution vector. Shape: (npts,)
+
+        Returns
+        -------
+        Array
+            Result at boundary points. Shape: (nboundary_pts,)
+        """
+        ...
+
+    def jacobian(self, state: Array) -> Array:
+        """Return the Jacobian of the normal operation w.r.t. state.
+
+        Parameters
+        ----------
+        state : Array
+            Full solution vector. Shape: (npts,)
+
+        Returns
+        -------
+        Array
+            Jacobian rows at boundary points. Shape: (nboundary_pts, npts)
+        """
+        ...
+
+
+@runtime_checkable
+class FluxProviderProtocol(Protocol, Generic[Array]):
+    """Protocol for physics that can provide a flux vector field.
+
+    Flux is the total conservative flux (diffusive + advective).
+    For pure diffusion: flux_d = -D * du/dx_d
+    For ADR: flux_d = -D * du/dx_d + v_d * u
+
+    Note: No time parameter. Currently flux depends only on state,
+    matching the existing compute_interface_flux convention. If
+    time-dependent coefficients (D(t), v(t)) are needed, add a
+    time parameter to both methods.
+    """
+
+    def compute_flux(self, state: Array) -> List[Array]:
+        """Compute flux vector field at all mesh points.
+
+        Parameters
+        ----------
+        state : Array
+            Solution state. Shape: (npts,)
+
+        Returns
+        -------
+        List[Array]
+            Flux components, one per spatial dimension.
+            Each shape: (npts,)
+        """
+        ...
+
+    def compute_flux_jacobian(self, state: Array) -> List[Array]:
+        """Compute Jacobian of each flux component w.r.t. state.
+
+        Parameters
+        ----------
+        state : Array
+            Solution state. Shape: (npts,)
+
+        Returns
+        -------
+        List[Array]
+            Jacobian of each flux component.
+            Each shape: (npts, npts)
         """
         ...

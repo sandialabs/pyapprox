@@ -233,6 +233,70 @@ class AdvectionDiffusionReaction(AbstractScalarPhysics[Array]):
 
         return jacobian
 
+    def compute_flux(self, state: Array) -> list:
+        """Compute total conservative flux at all mesh points.
+
+        Returns the sum of diffusive and advective flux:
+          flux_d = -D * du/dx_d + v_d * u  (for each dimension d)
+
+        For pure diffusion (no velocity): flux_d = -D * du/dx_d
+
+        Parameters
+        ----------
+        state : Array
+            Solution state. Shape: (npts,)
+
+        Returns
+        -------
+        List[Array]
+            Flux components, one per dimension. Each shape: (npts,)
+        """
+        ndim = self._basis.ndim()
+        flux = []
+        for dim in range(ndim):
+            D_dim = self._D_matrices[dim]
+            grad_u_dim = D_dim @ state
+            # Diffusive flux: -D * du/dx_d
+            if self._is_variable_diffusion:
+                flux_dim = -self._diffusion_array * grad_u_dim
+            else:
+                flux_dim = -float(self._diffusion_value) * grad_u_dim
+            # Advective flux: v_d * u
+            if self._velocity is not None:
+                flux_dim = flux_dim + self._velocity[dim] * state
+            flux.append(flux_dim)
+        return flux
+
+    def compute_flux_jacobian(self, state: Array) -> list:
+        """Compute Jacobian of total conservative flux w.r.t. state.
+
+        d(flux_d)/du = -D * D_d + diag(v_d)
+        For variable D: -diag(D) @ D_d + diag(v_d)
+
+        Parameters
+        ----------
+        state : Array
+            Solution state. Shape: (npts,)
+
+        Returns
+        -------
+        List[Array]
+            Jacobian of each flux component. Each shape: (npts, npts)
+        """
+        bkd = self._bkd
+        ndim = self._basis.ndim()
+        flux_jacs = []
+        for dim in range(ndim):
+            D_dim = self._D_matrices[dim]
+            if self._is_variable_diffusion:
+                jac_dim = -bkd.diag(self._diffusion_array) @ D_dim
+            else:
+                jac_dim = -float(self._diffusion_value) * D_dim
+            if self._velocity is not None:
+                jac_dim = jac_dim + bkd.diag(self._velocity[dim])
+            flux_jacs.append(jac_dim)
+        return flux_jacs
+
     def compute_interface_flux(
         self, state: Array, boundary_indices: Array, normal: Array
     ) -> Array:

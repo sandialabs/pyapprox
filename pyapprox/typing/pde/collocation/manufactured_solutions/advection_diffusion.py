@@ -3,7 +3,7 @@
 Provides manufactured solution classes for verifying ADR physics implementations.
 """
 
-from typing import Generic, List
+from typing import Generic, List, Optional
 
 from pyapprox.typing.util.backends.protocols import Array, Backend
 from pyapprox.typing.pde.collocation.manufactured_solutions.base import (
@@ -93,3 +93,86 @@ class ManufacturedAdvectionDiffusionReaction(
         self.sympy_diffusion_expressions()
         self.sympy_reaction_expressions()
         self.sympy_advection_expressions()
+
+    def neumann_values(
+        self,
+        pts: Array,
+        normals: Array,
+        time: Optional[float] = None,
+        convention: str = "gradient",
+    ) -> Array:
+        """Compute Neumann boundary values at given points.
+
+        Parameters
+        ----------
+        pts : Array
+            Physical coordinates. Shape: (ndim, npts)
+        normals : Array
+            Outward unit normals. Shape: (npts, ndim)
+        time : float, optional
+            Time for transient problems.
+        convention : str
+            "gradient": returns grad(u) . n
+            "flux": returns flux . n = (-D*grad(u) + v*u) . n
+
+        Returns
+        -------
+        Array
+            Neumann values at each point. Shape: (npts,)
+        """
+        bkd = self._bkd
+        if convention == "gradient":
+            if self.is_transient():
+                vals = self.functions["gradient"](pts, time)
+            else:
+                vals = self.functions["gradient"](pts)
+        elif convention == "flux":
+            if self.is_transient():
+                vals = self.functions["flux"](pts, time)
+            else:
+                vals = self.functions["flux"](pts)
+        else:
+            raise ValueError(
+                f"convention must be 'gradient' or 'flux', got '{convention}'"
+            )
+        # vals shape: (npts, ndim), normals shape: (npts, ndim)
+        return bkd.sum(vals * normals, axis=1)
+
+    def robin_values(
+        self,
+        pts: Array,
+        normals: Array,
+        alpha: float,
+        beta: float,
+        time: Optional[float] = None,
+        convention: str = "gradient",
+    ) -> Array:
+        """Compute Robin boundary values g = alpha*u + beta*N(u).
+
+        Parameters
+        ----------
+        pts : Array
+            Physical coordinates. Shape: (ndim, npts)
+        normals : Array
+            Outward unit normals. Shape: (npts, ndim)
+        alpha : float
+            Coefficient for u term.
+        beta : float
+            Coefficient for normal term.
+        time : float, optional
+            Time for transient problems.
+        convention : str
+            "gradient": N(u) = grad(u) . n
+            "flux": N(u) = flux . n = (-D*grad(u) + v*u) . n
+
+        Returns
+        -------
+        Array
+            Robin values at each point. Shape: (npts,)
+        """
+        if self.is_transient():
+            u_vals = self.functions["solution"](pts, time).flatten()
+        else:
+            u_vals = self.functions["solution"](pts).flatten()
+        normal_term = self.neumann_values(pts, normals, time, convention)
+        return alpha * u_vals + beta * normal_term

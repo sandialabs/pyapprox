@@ -9,9 +9,17 @@ from pyapprox.typing.pde.collocation.boundary.neumann import (
     NeumannBC,
     zero_neumann_bc,
 )
+from pyapprox.typing.pde.collocation.boundary.normal_operators import (
+    GradientNormalOperator,
+    FluxNormalOperator,
+)
 from pyapprox.typing.pde.collocation.boundary.robin import (
     RobinBC,
     homogeneous_robin_bc,
+    gradient_robin_bc,
+    flux_robin_bc,
+    gradient_neumann_bc,
+    flux_neumann_bc,
 )
 from pyapprox.typing.pde.collocation.boundary.periodic import (
     PeriodicBC,
@@ -22,12 +30,20 @@ __all__ = [
     "DirichletBC",
     "constant_dirichlet_bc",
     "zero_dirichlet_bc",
-    # Neumann
+    # Neumann (legacy)
     "NeumannBC",
     "zero_neumann_bc",
     # Robin
     "RobinBC",
     "homogeneous_robin_bc",
+    # Normal operators
+    "GradientNormalOperator",
+    "FluxNormalOperator",
+    # Factory functions (new API)
+    "gradient_robin_bc",
+    "flux_robin_bc",
+    "gradient_neumann_bc",
+    "flux_neumann_bc",
     # Periodic
     "PeriodicBC",
 ]

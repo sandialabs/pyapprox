@@ -1,21 +1,39 @@
 """Robin boundary conditions for spectral collocation methods.
 
-Enforces alpha * u + beta * du/dn = g(x, t) on the boundary.
+Enforces alpha * u + beta * N(u) = g(x, t) on the boundary,
+where N(u) is a normal operator (gradient or flux convention).
 
 Special cases:
 - alpha=1, beta=0: Dirichlet (u = g)
-- alpha=0, beta=1: Neumann (du/dn = g)
+- alpha=0, beta=1: Neumann (N(u) = g)
+
+Factory functions:
+- gradient_robin_bc: N(u) = grad(u) . n
+- flux_robin_bc: N(u) = flux(u) . n (total conservative flux)
+- gradient_neumann_bc: grad(u) . n = g
+- flux_neumann_bc: flux(u) . n = g
+- homogeneous_robin_bc: backward-compatible API
 """
 
-from typing import Generic, Callable, Union
+from typing import Generic, Callable, List, Union
 
 from pyapprox.typing.util.backends.protocols import Array, Backend
+from pyapprox.typing.pde.collocation.protocols.boundary import (
+    NormalOperatorProtocol,
+    FluxProviderProtocol,
+)
+from pyapprox.typing.pde.collocation.boundary.normal_operators import (
+    GradientNormalOperator,
+    FluxNormalOperator,
+    _LegacyNormalOperator,
+)
 
 
 class RobinBC(Generic[Array]):
     """Robin boundary condition.
 
-    Enforces alpha * u + beta * du/dn = g on the boundary.
+    Enforces alpha * u + beta * N(u) = g on the boundary,
+    where N(u) is a normal operator providing the boundary normal term.
 
     Parameters
     ----------
@@ -23,15 +41,12 @@ class RobinBC(Generic[Array]):
         Computational backend.
     boundary_indices : Array
         Indices of mesh points on this boundary. Shape: (nboundary_pts,)
-    derivative_matrix : Array
-        Derivative matrix for computing du/dn at boundary points.
-        Shape: (nboundary_pts, npts)
-    normal_sign : float
-        Sign of the outward normal (+1 or -1).
+    normal_operator : NormalOperatorProtocol
+        Operator computing the normal term N(u) at boundary points.
     alpha : float or Array
         Coefficient for u term. Scalar or shape (nboundary_pts,).
     beta : float or Array
-        Coefficient for du/dn term. Scalar or shape (nboundary_pts,).
+        Coefficient for N(u) term. Scalar or shape (nboundary_pts,).
     values : float, Array, or Callable
         Boundary values g. Can be:
         - float: constant value for all boundary points
@@ -43,16 +58,14 @@ class RobinBC(Generic[Array]):
         self,
         bkd: Backend[Array],
         boundary_indices: Array,
-        derivative_matrix: Array,
-        normal_sign: float,
+        normal_operator: NormalOperatorProtocol[Array],
         alpha: Union[float, Array],
         beta: Union[float, Array],
         values: Union[float, Array, Callable[[float], Array]],
     ):
         self._bkd = bkd
         self._boundary_indices = boundary_indices
-        self._derivative_matrix = derivative_matrix
-        self._normal_sign = normal_sign
+        self._normal_operator = normal_operator
         self._nboundary_pts = boundary_indices.shape[0]
 
         # Normalize alpha and beta to arrays
@@ -95,7 +108,7 @@ class RobinBC(Generic[Array]):
         return self._alpha
 
     def beta(self) -> Array:
-        """Return coefficient for du/dn term."""
+        """Return coefficient for N(u) term."""
         return self._beta
 
     def boundary_values(self, time: float) -> Array:
@@ -121,7 +134,7 @@ class RobinBC(Generic[Array]):
         """Apply Robin BC to residual.
 
         Sets residual at boundary points to:
-        alpha * u + beta * (normal_sign * D @ u) - g
+        alpha * u + beta * N(u) - g
 
         Parameters
         ----------
@@ -141,13 +154,13 @@ class RobinBC(Generic[Array]):
         g = self.boundary_values(time)
         residual = self._bkd.copy(residual)
 
-        # Compute du/dn = normal_sign * D @ u
-        flux = self._normal_sign * (self._derivative_matrix @ state)
+        # Compute normal term: N(u) at boundary points
+        normal_term = self._normal_operator(state)
 
         for i in range(self._nboundary_pts):
             u_bndry = state[idx[i]]
             residual[idx[i]] = (
-                self._alpha[i] * u_bndry + self._beta[i] * flux[i] - g[i]
+                self._alpha[i] * u_bndry + self._beta[i] * normal_term[i] - g[i]
             )
         return residual
 
@@ -157,7 +170,7 @@ class RobinBC(Generic[Array]):
         """Apply Robin BC to Jacobian.
 
         Sets Jacobian rows at boundary points to:
-        alpha * I_row + beta * normal_sign * D_row
+        alpha * I_row + beta * N_jacobian_row
 
         Parameters
         ----------
@@ -177,12 +190,13 @@ class RobinBC(Generic[Array]):
         jacobian = self._bkd.copy(jacobian)
         nstates = jacobian.shape[0]
 
+        # Get Jacobian of the normal operator
+        normal_jac = self._normal_operator.jacobian(state)
+
         for i in range(self._nboundary_pts):
             row_idx = idx[i]
             for j in range(nstates):
-                # beta * normal_sign * D[i, j]
-                jac_val = self._beta[i] * self._normal_sign * self._derivative_matrix[i, j]
-                # Add alpha contribution only on diagonal
+                jac_val = self._beta[i] * normal_jac[i, j]
                 if j == row_idx:
                     jac_val = jac_val + self._alpha[i]
                 jacobian[row_idx, j] = jac_val
@@ -218,6 +232,151 @@ class RobinBC(Generic[Array]):
         return param_jacobian
 
 
+def gradient_robin_bc(
+    bkd: Backend[Array],
+    boundary_indices: Array,
+    normals: Array,
+    derivative_matrices: List[Array],
+    alpha: Union[float, Array],
+    beta: Union[float, Array],
+    values: Union[float, Array, Callable[[float], Array]],
+) -> RobinBC[Array]:
+    """Create Robin BC using gradient convention: alpha*u + beta*grad(u).n = g.
+
+    Parameters
+    ----------
+    bkd : Backend
+        Computational backend.
+    boundary_indices : Array
+        Indices of mesh points on this boundary. Shape: (nboundary_pts,)
+    normals : Array
+        Outward unit normals at boundary points. Shape: (nboundary_pts, ndim)
+    derivative_matrices : List[Array]
+        Physical derivative matrices (d/dx_d), one per dimension.
+        Each shape: (npts, npts)
+    alpha : float or Array
+        Coefficient for u term.
+    beta : float or Array
+        Coefficient for grad(u).n term.
+    values : float, Array, or Callable
+        Boundary values g.
+
+    Returns
+    -------
+    RobinBC
+        Robin boundary condition with gradient normal operator.
+    """
+    normal_op = GradientNormalOperator(
+        bkd, boundary_indices, normals, derivative_matrices
+    )
+    return RobinBC(bkd, boundary_indices, normal_op, alpha, beta, values)
+
+
+def flux_robin_bc(
+    bkd: Backend[Array],
+    boundary_indices: Array,
+    normals: Array,
+    flux_provider: FluxProviderProtocol[Array],
+    alpha: Union[float, Array],
+    beta: Union[float, Array],
+    values: Union[float, Array, Callable[[float], Array]],
+) -> RobinBC[Array]:
+    """Create Robin BC using flux convention: alpha*u + beta*flux(u).n = g.
+
+    Flux is the total conservative flux (diffusive + advective).
+
+    Parameters
+    ----------
+    bkd : Backend
+        Computational backend.
+    boundary_indices : Array
+        Indices of mesh points on this boundary. Shape: (nboundary_pts,)
+    normals : Array
+        Outward unit normals at boundary points. Shape: (nboundary_pts, ndim)
+    flux_provider : FluxProviderProtocol
+        Physics providing compute_flux() and compute_flux_jacobian().
+    alpha : float or Array
+        Coefficient for u term.
+    beta : float or Array
+        Coefficient for flux(u).n term.
+    values : float, Array, or Callable
+        Boundary values g.
+
+    Returns
+    -------
+    RobinBC
+        Robin boundary condition with flux normal operator.
+    """
+    normal_op = FluxNormalOperator(
+        bkd, boundary_indices, normals, flux_provider
+    )
+    return RobinBC(bkd, boundary_indices, normal_op, alpha, beta, values)
+
+
+def gradient_neumann_bc(
+    bkd: Backend[Array],
+    boundary_indices: Array,
+    normals: Array,
+    derivative_matrices: List[Array],
+    values: Union[float, Array, Callable[[float], Array]] = 0.0,
+) -> RobinBC[Array]:
+    """Create Neumann BC using gradient convention: grad(u).n = g.
+
+    Parameters
+    ----------
+    bkd : Backend
+        Computational backend.
+    boundary_indices : Array
+        Indices of mesh points on this boundary. Shape: (nboundary_pts,)
+    normals : Array
+        Outward unit normals. Shape: (nboundary_pts, ndim)
+    derivative_matrices : List[Array]
+        Physical derivative matrices, one per dimension.
+    values : float, Array, or Callable
+        Boundary values g. Default: 0.0 (homogeneous).
+
+    Returns
+    -------
+    RobinBC
+        Neumann BC as Robin with alpha=0, beta=1.
+    """
+    return gradient_robin_bc(
+        bkd, boundary_indices, normals, derivative_matrices, 0.0, 1.0, values
+    )
+
+
+def flux_neumann_bc(
+    bkd: Backend[Array],
+    boundary_indices: Array,
+    normals: Array,
+    flux_provider: FluxProviderProtocol[Array],
+    values: Union[float, Array, Callable[[float], Array]] = 0.0,
+) -> RobinBC[Array]:
+    """Create Neumann BC using flux convention: flux(u).n = g.
+
+    Parameters
+    ----------
+    bkd : Backend
+        Computational backend.
+    boundary_indices : Array
+        Indices of mesh points on this boundary. Shape: (nboundary_pts,)
+    normals : Array
+        Outward unit normals. Shape: (nboundary_pts, ndim)
+    flux_provider : FluxProviderProtocol
+        Physics providing compute_flux() and compute_flux_jacobian().
+    values : float, Array, or Callable
+        Boundary values g. Default: 0.0 (homogeneous).
+
+    Returns
+    -------
+    RobinBC
+        Neumann BC as Robin with alpha=0, beta=1.
+    """
+    return flux_robin_bc(
+        bkd, boundary_indices, normals, flux_provider, 0.0, 1.0, values
+    )
+
+
 def homogeneous_robin_bc(
     bkd: Backend[Array],
     boundary_indices: Array,
@@ -226,7 +385,9 @@ def homogeneous_robin_bc(
     alpha: Union[float, Array],
     beta: Union[float, Array],
 ) -> RobinBC[Array]:
-    """Create a homogeneous Robin BC (alpha * u + beta * du/dn = 0).
+    """Create a homogeneous Robin BC using legacy (derivative_matrix, normal_sign) API.
+
+    Enforces alpha * u + beta * (normal_sign * D @ u) = 0.
 
     Parameters
     ----------
@@ -235,7 +396,7 @@ def homogeneous_robin_bc(
     boundary_indices : Array
         Indices of mesh points on this boundary.
     derivative_matrix : Array
-        Derivative matrix for computing du/dn.
+        Boundary-extracted derivative matrix rows. Shape: (nboundary_pts, npts)
     normal_sign : float
         Sign of outward normal (+1 or -1).
     alpha : float or Array
@@ -248,6 +409,5 @@ def homogeneous_robin_bc(
     RobinBC
         Homogeneous Robin boundary condition.
     """
-    return RobinBC(
-        bkd, boundary_indices, derivative_matrix, normal_sign, alpha, beta, 0.0
-    )
+    normal_op = _LegacyNormalOperator(bkd, derivative_matrix, normal_sign)
+    return RobinBC(bkd, boundary_indices, normal_op, alpha, beta, 0.0)

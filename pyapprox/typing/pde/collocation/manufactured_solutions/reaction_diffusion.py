@@ -104,12 +104,16 @@ class ManufacturedTwoSpeciesReactionDiffusion(
     def sympy_diffusion_expressions(self) -> None:
         """Build diffusion expressions for both species."""
         # Diffusion for species 0
-        diff_expr0, flux_exprs0, forc_expr0 = self._sympy_diffusion_expressions(
-            self._diff_strs[0], self._expressions["solution"][0]
+        diff_expr0, _, flux_exprs0, forc_expr0 = (
+            self._sympy_diffusion_expressions(
+                self._diff_strs[0], self._expressions["solution"][0]
+            )
         )
         # Diffusion for species 1
-        diff_expr1, flux_exprs1, forc_expr1 = self._sympy_diffusion_expressions(
-            self._diff_strs[1], self._expressions["solution"][1]
+        diff_expr1, _, flux_exprs1, forc_expr1 = (
+            self._sympy_diffusion_expressions(
+                self._diff_strs[1], self._expressions["solution"][1]
+            )
         )
 
         forc_exprs = [forc_expr0, forc_expr1]

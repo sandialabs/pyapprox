@@ -38,6 +38,8 @@ from pyapprox.typing.pde.collocation.protocols.boundary import (
     BoundaryConditionWithParamJacobianProtocol,
     DirichletBCProtocol,
     RobinBCProtocol,
+    NormalOperatorProtocol,
+    FluxProviderProtocol,
 )
 
 __all__ = [
@@ -71,4 +73,6 @@ __all__ = [
     "BoundaryConditionWithParamJacobianProtocol",
     "DirichletBCProtocol",
     "RobinBCProtocol",
+    "NormalOperatorProtocol",
+    "FluxProviderProtocol",
 ]
