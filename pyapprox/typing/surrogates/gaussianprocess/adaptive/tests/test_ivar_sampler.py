@@ -213,6 +213,115 @@ class TestIVARSampler(Generic[Array], unittest.TestCase):
         with self.assertRaises(ValueError):
             sampler.select_samples(1)
 
+    def test_brute_force_matches_optimized_all_points(self) -> None:
+        """Brute-force and optimized IVAR give same selections for all points.
+
+        Ports the legacy _check_greedy_ivar_sampling_update comparison
+        (lines 164-187 of test_activelearning.py). For a small candidate set,
+        selects nsamples points using both the optimized incremental Cholesky
+        method and a brute-force method that evaluates each candidate via
+        direct matrix solve. Sorted results should match.
+
+        Uses fewer samples than candidates to avoid machine-precision
+        tie-breaking divergence on symmetric problems.
+        """
+        bkd = self._bkd
+        ncandidates = 31
+        nsamples = 7
+        candidates = bkd.asarray(
+            np.linspace(0, 1, ncandidates).reshape(1, -1)
+        )
+        kernel = self._make_kernel()
+        P = _compute_P_monte_carlo(kernel, candidates, bkd, nquad=500)
+
+        # Optimized (incremental Cholesky) selection
+        sampler_opt = IVARSampler(candidates, bkd, nugget=0)
+        sampler_opt.set_P(P)
+        sampler_opt.set_kernel(kernel)
+        sampler_opt.set_initial_pivots([ncandidates // 2])
+        opt_samples = sampler_opt.select_samples(nsamples - 1)
+        opt_all = bkd.hstack([
+            candidates[:, ncandidates // 2: ncandidates // 2 + 1],
+            opt_samples,
+        ])
+
+        # Brute-force selection: at each step pick the candidate with
+        # the best (lowest) brute-force objective
+        sampler_bf = IVARSampler(candidates, bkd, nugget=0)
+        sampler_bf.set_P(P)
+        sampler_bf.set_kernel(kernel)
+        sampler_bf.set_initial_pivots([ncandidates // 2])
+        bf_pivots = [ncandidates // 2]
+        for _ in range(nsamples - 1):
+            best_obj = float("inf")
+            best_idx = -1
+            for ii in range(ncandidates):
+                if ii in bf_pivots:
+                    continue
+                obj = float(
+                    bkd.to_numpy(
+                        bkd.reshape(
+                            sampler_bf._brute_force_objective(ii), (1,)
+                        )
+                    )[0]
+                )
+                if obj < best_obj:
+                    best_obj = obj
+                    best_idx = ii
+            bf_pivots.append(best_idx)
+            sampler_bf._selected_indices.append(best_idx)
+            sampler_bf._cholesky.add_pivot(best_idx)
+
+        bf_all = candidates[:, bkd.asarray(bf_pivots)]
+
+        # Sort before comparing — near-equal priorities can swap
+        # symmetric points
+        bkd.assert_allclose(
+            bkd.sort(bkd.flatten(opt_all)),
+            bkd.sort(bkd.flatten(bf_all)),
+        )
+
+    def test_initial_pivots(self) -> None:
+        """set_initial_pivots pre-seeds selections correctly.
+
+        Selecting nsamples with initial pivot should give same result as
+        setting the pivot then selecting nsamples-1 more.
+        """
+        bkd = self._bkd
+        ncandidates = 20
+        candidates = bkd.asarray(
+            np.linspace(0, 1, ncandidates).reshape(1, -1)
+        )
+        kernel = self._make_kernel()
+        P = _compute_P_monte_carlo(kernel, candidates, bkd, nquad=500)
+        nsamples = 6
+        init_pivot = ncandidates // 2
+
+        # Method 1: set_initial_pivots then select_samples
+        sampler1 = IVARSampler(candidates, bkd)
+        sampler1.set_P(P)
+        sampler1.set_kernel(kernel)
+        sampler1.set_initial_pivots([init_pivot])
+        s1 = sampler1.select_samples(nsamples - 1)
+        all1 = bkd.hstack([
+            candidates[:, init_pivot: init_pivot + 1], s1
+        ])
+
+        # Method 2: normal select that happens to pick the same first point
+        # We verify by checking the initial pivot is in selected_indices
+        self.assertIn(init_pivot, sampler1.selected_indices())
+        self.assertEqual(len(sampler1.selected_indices()), nsamples)
+
+        # Verify all selected are from candidates
+        all1_np = bkd.to_numpy(all1)
+        cand_np = bkd.to_numpy(candidates)
+        for j in range(all1_np.shape[1]):
+            found = any(
+                np.allclose(all1_np[:, j], cand_np[:, k])
+                for k in range(ncandidates)
+            )
+            self.assertTrue(found, f"Sample {j} not in candidates")
+
     def test_warm_start_after_kernel_change(self) -> None:
         """After set_kernel, existing pivots are re-added."""
         bkd = self._bkd

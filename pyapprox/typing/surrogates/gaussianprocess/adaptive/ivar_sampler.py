@@ -50,6 +50,7 @@ class IVARSampler(Generic[Array]):
         self._integral_calc: KernelIntegralCalculatorProtocol[Array] | None = (
             None
         )
+        self._best_obj_vals: list[float] = []
 
     def bkd(self) -> Backend[Array]:
         """Return the backend."""
@@ -143,10 +144,25 @@ class IVARSampler(Generic[Array]):
         bkd = self._bkd
         new_pivots: list[int] = []
 
+        # If initial pivots were set but no objective has been tracked yet,
+        # compute the objective for the current selected set by direct
+        # matrix solve: -trace(K[sel]^{-1} P[sel]).
+        if self._selected_indices and not self._best_obj_vals:
+            idx = bkd.asarray(self._selected_indices)
+            Kmat = self._K[idx, :][:, idx]
+            Pmat = self._P[idx, :][:, idx]
+            obj = -bkd.trace(bkd.solve(Kmat, Pmat))
+            self._best_obj_vals.append(
+                float(bkd.to_numpy(bkd.reshape(obj, (1,)))[0])
+            )
+
         for _ in range(nsamples):
             obj_vals = self._compute_objective()
             # Select candidate with minimum objective (best variance reduction)
             best = int(bkd.to_numpy(bkd.reshape(bkd.argmin(obj_vals), (1,)))[0])
+            self._best_obj_vals.append(
+                float(bkd.to_numpy(bkd.reshape(obj_vals[best], (1,)))[0])
+            )
             new_pivots.append(best)
             self._selected_indices.append(best)
             self._cholesky.add_pivot(best)
@@ -157,8 +173,13 @@ class IVARSampler(Generic[Array]):
     def _compute_objective(self) -> Array:
         """Compute IVAR objective for all candidates.
 
-        Returns array of shape (ncandidates,) where lower is better.
-        Already-selected candidates get inf.
+        Returns the absolute integrated variance for each candidate if it
+        were added to the selected set. Lower is better. Already-selected
+        candidates get inf.
+
+        When pivots exist, includes the running baseline
+        (``_best_obj_vals[-1]``) so that the returned values represent
+        absolute integrated variance, matching the legacy convention.
         """
         bkd = self._bkd
         assert self._K is not None
@@ -231,13 +252,64 @@ class IVARSampler(Generic[Array]):
         # C = -(L_12 / L_22)^T @ L_inv, shape (n_valid, n)
         C = -((L_12_valid / L_22).T @ L_inv)
 
-        # IVAR objective
+        # Incremental IVAR terms
         term1 = bkd.sum(C.T * (P_11 @ C.T), axis=0)
         term2 = 2.0 * bkd.sum(C.T / L_22 * P_12, axis=0)
         term3 = P_22 / L_22 ** 2
 
-        vals[valid_arr] = -(term1 + term2 + term3)
+        # Absolute objective: matches legacy formula
+        # vals = -(-baseline + term1 + term2 + term3)
+        #       = baseline - term1 - term2 - term3
+        baseline = self._best_obj_vals[-1] if self._best_obj_vals else 0.0
+        vals[valid_arr] = -(-baseline + term1 + term2 + term3)
         return vals
+
+    def set_initial_pivots(self, pivot_indices: list[int]) -> None:
+        """Pre-seed selected indices before greedy selection.
+
+        Used to initialize the sampler with known starting points,
+        e.g., the midpoint of the highest-fidelity output in
+        multioutput IVAR.
+
+        Parameters
+        ----------
+        pivot_indices : list[int]
+            Indices into the candidate array to pre-select.
+        """
+        for idx in pivot_indices:
+            self._selected_indices.append(idx)
+            if self._cholesky is not None:
+                self._cholesky.add_pivot(idx)
+
+    def _brute_force_objective(self, new_idx: int) -> Array:
+        """Compute objective by direct matrix solve for testing.
+
+        Computes -trace(solve(K[sel+new, sel+new], P[sel+new, sel+new]))
+        where sel are the currently selected indices and new is the
+        candidate being evaluated.
+
+        Parameters
+        ----------
+        new_idx : int
+            Index of the candidate to evaluate.
+
+        Returns
+        -------
+        obj : Array
+            Scalar objective value.
+        """
+        assert self._K is not None
+        assert self._P is not None
+        bkd = self._bkd
+        indices = self._selected_indices + [new_idx]
+        idx = bkd.asarray(indices)
+        Kmat = self._K[idx, :][:, idx]
+        Pmat = self._P[idx, :][:, idx]
+        return -bkd.trace(bkd.solve(Kmat, Pmat))
+
+    def selected_indices(self) -> list[int]:
+        """Return the list of selected candidate indices."""
+        return list(self._selected_indices)
 
     def add_additional_training_samples(
         self, new_samples: Array

@@ -16,6 +16,9 @@ from pyapprox.typing.surrogates.gaussianprocess.adaptive.cholesky_sampler import
 from pyapprox.typing.surrogates.gaussianprocess.adaptive.ivar_sampler import (
     IVARSampler,
 )
+from pyapprox.typing.surrogates.gaussianprocess.adaptive.multioutput_ivar_sampler import (
+    MultiOutputIVARSampler,
+)
 from pyapprox.typing.surrogates.gaussianprocess.adaptive.protocols import (
     AdaptiveSamplerProtocol,
     CandidateGeneratorProtocol,
@@ -37,6 +40,7 @@ __all__ = [
     "ConstantSamplingSchedule",
     "HybridSobolRandomCandidateGenerator",
     "IVARSampler",
+    "MultiOutputIVARSampler",
     "ListSamplingSchedule",
     "SamplingScheduleProtocol",
     "SobolAdaptiveSampler",
