@@ -3,7 +3,7 @@
 Provides common infrastructure for PDE physics implementations.
 """
 
-from typing import Generic, Tuple, List, Optional, Callable
+from typing import Generic, Tuple, List, Optional, Callable, Union
 from abc import ABC, abstractmethod
 
 import numpy as np
@@ -13,6 +13,8 @@ from pyapprox.typing.pde.galerkin.protocols.basis import GalerkinBasisProtocol
 from pyapprox.typing.pde.galerkin.protocols.boundary import (
     BoundaryConditionProtocol,
     DirichletBCProtocol,
+    NeumannBCProtocol,
+    RobinBCProtocol,
 )
 
 # Import skfem for assembly
@@ -137,11 +139,61 @@ class AbstractGalerkinPhysics(ABC, Generic[Array]):
         """
         ...
 
+    def _apply_bc_to_stiffness(self, stiffness: Array, time: float) -> Array:
+        """Apply boundary conditions that modify stiffness matrix.
+
+        Robin BCs add boundary mass terms to the stiffness matrix.
+
+        Parameters
+        ----------
+        stiffness : Array
+            Stiffness matrix. Shape: (nstates, nstates)
+        time : float
+            Current time.
+
+        Returns
+        -------
+        Array
+            Modified stiffness matrix.
+        """
+        for bc in self._boundary_conditions:
+            if isinstance(bc, RobinBCProtocol) and hasattr(bc, 'apply_to_stiffness'):
+                stiffness = bc.apply_to_stiffness(stiffness, time)
+        return stiffness
+
+    def _apply_bc_to_load(self, load: Array, time: float) -> Array:
+        """Apply boundary conditions that modify load vector.
+
+        Neumann and Robin BCs add boundary integral contributions to load.
+
+        Parameters
+        ----------
+        load : Array
+            Load vector. Shape: (nstates,)
+        time : float
+            Current time.
+
+        Returns
+        -------
+        Array
+            Modified load vector.
+        """
+        for bc in self._boundary_conditions:
+            if isinstance(bc, NeumannBCProtocol) and hasattr(bc, 'apply_to_load'):
+                load = bc.apply_to_load(load, time)
+            elif isinstance(bc, RobinBCProtocol) and hasattr(bc, 'apply_to_load'):
+                load = bc.apply_to_load(load, time)
+        return load
+
     def residual(self, state: Array, time: float) -> Array:
         """Compute spatial residual F(u, t).
 
         For transient problems: M * du/dt = F(u, t)
         The residual is: F = b - K*u
+
+        Boundary conditions are applied:
+        - Robin/Neumann BCs modify stiffness and load during assembly
+        - Dirichlet BCs replace residual rows with constraint violation
 
         Parameters
         ----------
@@ -158,8 +210,17 @@ class AbstractGalerkinPhysics(ABC, Generic[Array]):
         stiffness = self._assemble_stiffness(state, time)
         load = self._assemble_load(state, time)
 
+        # Apply Robin BC contributions to stiffness and load
+        stiffness = self._apply_bc_to_stiffness(stiffness, time)
+        load = self._apply_bc_to_load(load, time)
+
         # F = b - K*u
         residual = load - stiffness @ state
+
+        # Apply Dirichlet BCs: replace residual rows with constraint violation
+        for bc in self._boundary_conditions:
+            if isinstance(bc, DirichletBCProtocol):
+                residual = bc.apply_to_residual(residual, state, time)
 
         return residual
 
@@ -168,6 +229,10 @@ class AbstractGalerkinPhysics(ABC, Generic[Array]):
 
         For linear problems: dF/du = -K
         For nonlinear problems: includes derivative of K w.r.t. u
+
+        Boundary conditions are applied:
+        - Robin BCs modify stiffness (add boundary mass)
+        - Dirichlet BCs replace Jacobian rows with identity
 
         Parameters
         ----------
@@ -181,52 +246,74 @@ class AbstractGalerkinPhysics(ABC, Generic[Array]):
         Array
             Jacobian matrix. Shape: (nstates, nstates)
         """
-        # For linear problems, Jacobian is -K
         stiffness = self._assemble_stiffness(state, time)
-        return -stiffness
+
+        # Apply Robin BC contributions to stiffness
+        stiffness = self._apply_bc_to_stiffness(stiffness, time)
+
+        # For linear problems, Jacobian is -K
+        jacobian = -stiffness
+
+        # Apply Dirichlet BCs: replace Jacobian rows with identity
+        for bc in self._boundary_conditions:
+            if isinstance(bc, DirichletBCProtocol):
+                jacobian = bc.apply_to_jacobian(jacobian, state, time)
+
+        return jacobian
 
     def apply_boundary_conditions(
-        self, residual: Array, jacobian: Array, state: Array
-    ) -> Tuple[Array, Array]:
-        """Apply boundary conditions to residual and Jacobian.
+        self,
+        residual: Optional[Array],
+        jacobian: Optional[Array],
+        state: Array,
+        time: float = 0.0,
+    ) -> Tuple[Optional[Array], Optional[Array]]:
+        """Apply boundary conditions to residual and/or Jacobian.
+
+        This method applies all boundary conditions in the correct order:
+        1. Robin BCs (modify interior of matrices)
+        2. Dirichlet BCs (replace rows)
+
+        Note: This method is provided for explicit control. The residual()
+        and jacobian() methods already apply BCs automatically.
 
         Parameters
         ----------
-        residual : Array
-            Residual vector. Shape: (nstates,)
-        jacobian : Array
-            Jacobian matrix. Shape: (nstates, nstates)
+        residual : Array or None
+            Residual vector. Shape: (nstates,). None to skip.
+        jacobian : Array or None
+            Jacobian matrix. Shape: (nstates, nstates). None to skip.
         state : Array
             Current state. Shape: (nstates,)
+        time : float
+            Current time.
 
         Returns
         -------
-        Tuple[Array, Array]
+        Tuple[Optional[Array], Optional[Array]]
             Modified (residual, jacobian).
         """
-        # Convert to numpy for modification
-        res_np = self._bkd.to_numpy(residual).copy()
-        jac_np = self._bkd.to_numpy(jacobian).copy()
-        state_np = self._bkd.to_numpy(state)
+        res = residual
+        jac = jacobian
+
+        # Apply BCs using the BC objects' methods
+        for bc in self._boundary_conditions:
+            # Robin BCs (modify interior first)
+            if isinstance(bc, RobinBCProtocol):
+                if res is not None and hasattr(bc, 'apply_to_residual'):
+                    res = bc.apply_to_residual(res, state, time)
+                if jac is not None and hasattr(bc, 'apply_to_jacobian'):
+                    jac = bc.apply_to_jacobian(jac, state, time)
 
         for bc in self._boundary_conditions:
-            bc_dofs = self._bkd.to_numpy(bc.boundary_dofs())
-
-            # For Dirichlet BCs, enforce u = g
+            # Dirichlet BCs (replace rows last)
             if isinstance(bc, DirichletBCProtocol):
-                # This is a simplified implementation
-                # Full implementation would handle time-dependent BCs
-                for dof in bc_dofs:
-                    # Set residual row to enforce constraint
-                    res_np[dof] = 0.0  # Will be set properly during solve
-                    # Set Jacobian row to identity
-                    jac_np[dof, :] = 0.0
-                    jac_np[dof, dof] = 1.0
+                if res is not None:
+                    res = bc.apply_to_residual(res, state, time)
+                if jac is not None:
+                    jac = bc.apply_to_jacobian(jac, state, time)
 
-        return (
-            self._bkd.asarray(res_np),
-            self._bkd.asarray(jac_np),
-        )
+        return res, jac
 
     def __repr__(self) -> str:
         return f"{self.__class__.__name__}(nstates={self.nstates()})"
