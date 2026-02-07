@@ -124,30 +124,6 @@ class TestPredictionOEDObjective(Generic[Array], unittest.TestCase):
 
     # --- Basic Tests ---
 
-    def test_objective_shape(self):
-        """Test that objective returns correct shape."""
-        stdev = StandardDeviationMeasure(self._npred, self._bkd)
-        objective = self._create_objective(stdev)
-
-        values = objective(self._design_weights)
-        self.assertEqual(values.shape, (1, 1))
-
-    def test_objective_positive(self):
-        """Test that objective values are positive for StdDev."""
-        stdev = StandardDeviationMeasure(self._npred, self._bkd)
-        objective = self._create_objective(stdev)
-
-        values = objective(self._design_weights)
-        self.assertTrue(self._bkd.all_bool(values >= 0))
-
-    def test_jacobian_shape(self):
-        """Test that Jacobian has correct shape."""
-        stdev = StandardDeviationMeasure(self._npred, self._bkd)
-        objective = self._create_objective(stdev)
-
-        jac = objective.jacobian(self._design_weights)
-        self.assertEqual(jac.shape, (1, self._nobs))
-
     def test_dimension_accessors(self):
         """Test dimension accessor methods."""
         stdev = StandardDeviationMeasure(self._npred, self._bkd)

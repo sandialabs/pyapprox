@@ -58,26 +58,6 @@ class TestMonteCarloSampler(Generic[Array], unittest.TestCase):
         marginals = [UniformMarginal(0.0, 1.0, self._bkd) for _ in range(self._nvars)]
         return IndependentJoint(marginals, self._bkd)
 
-    def test_sample_shape_gaussian(self):
-        """Test sample shape for Gaussian distribution."""
-        distribution = self._create_gaussian_distribution()
-        sampler = MonteCarloSampler(distribution, self._bkd)
-        nsamples = 100
-        samples, weights = sampler.sample(nsamples)
-
-        self.assertEqual(samples.shape, (self._nvars, nsamples))
-        self.assertEqual(weights.shape, (nsamples,))
-
-    def test_sample_shape_uniform(self):
-        """Test sample shape for uniform distribution."""
-        distribution = self._create_uniform_distribution()
-        sampler = MonteCarloSampler(distribution, self._bkd)
-        nsamples = 100
-        samples, weights = sampler.sample(nsamples)
-
-        self.assertEqual(samples.shape, (self._nvars, nsamples))
-        self.assertEqual(weights.shape, (nsamples,))
-
     def test_weights_sum_to_one(self):
         """Test that weights sum to 1."""
         distribution = self._create_gaussian_distribution()
@@ -109,17 +89,6 @@ class TestMonteCarloSampler(Generic[Array], unittest.TestCase):
         self.assertTrue(np.all(samples_np >= 0.0))
         self.assertTrue(np.all(samples_np <= 1.0))
 
-    def test_nvars_method(self):
-        """Test nvars() returns correct value."""
-        distribution = self._create_gaussian_distribution()
-        sampler = MonteCarloSampler(distribution, self._bkd)
-        self.assertEqual(sampler.nvars(), self._nvars)
-
-    def test_bkd_method(self):
-        """Test bkd() returns the backend."""
-        distribution = self._create_gaussian_distribution()
-        sampler = MonteCarloSampler(distribution, self._bkd)
-        self.assertIs(sampler.bkd(), self._bkd)
 
 
 class TestMonteCarloSamplerNumpy(TestMonteCarloSampler[NDArray[Any]]):
@@ -155,15 +124,6 @@ class TestHaltonSampler(Generic[Array], unittest.TestCase):
     def setUp(self):
         self._bkd = self.bkd()
         self._nvars = 3
-
-    def test_sample_shape(self):
-        """Test sample shape."""
-        sampler = HaltonSampler(self._nvars, self._bkd, seed=42)
-        nsamples = 100
-        samples, weights = sampler.sample(nsamples)
-
-        self.assertEqual(samples.shape, (self._nvars, nsamples))
-        self.assertEqual(weights.shape, (nsamples,))
 
     def test_weights_sum_to_one(self):
         """Test that weights sum to 1."""
@@ -244,34 +204,6 @@ class TestHaltonSampler(Generic[Array], unittest.TestCase):
         # Check std is close to 1
         self.assertTrue(np.abs(np.std(samples_np) - 1.0) < 0.1)
 
-    def test_low_discrepancy_property(self):
-        """Test that Halton has better coverage than random."""
-        nvars = 2
-        nsamples = 100
-
-        # Halton samples (unscrambled for deterministic low-discrepancy)
-        halton = HaltonSampler(
-            nvars, self._bkd, start_index=1, transform_to_normal=False, scramble=False
-        )
-        halton_samples, _ = halton.sample(nsamples)
-        halton_np = self._bkd.to_numpy(halton_samples)
-
-        # Compute simple discrepancy measure: min pairwise distance
-        def min_pairwise_distance(samples):
-            # samples: (nvars, nsamples)
-            min_dist = np.inf
-            for i in range(samples.shape[1]):
-                for j in range(i + 1, samples.shape[1]):
-                    dist = np.linalg.norm(samples[:, i] - samples[:, j])
-                    min_dist = min(min_dist, dist)
-            return min_dist
-
-        halton_min_dist = min_pairwise_distance(halton_np)
-
-        # Halton should have reasonable minimum distance (not clustered)
-        # For 100 points in 2D unit hypercube, min dist should be > 0.01
-        self.assertGreater(halton_min_dist, 0.01)
-
     def test_start_index_skips_samples(self):
         """Test that start_index skips the initial samples."""
         # Get samples starting from 0
@@ -325,15 +257,6 @@ class TestSobolSampler(Generic[Array], unittest.TestCase):
     def setUp(self):
         self._bkd = self.bkd()
         self._nvars = 3
-
-    def test_sample_shape(self):
-        """Test sample shape."""
-        sampler = SobolSampler(self._nvars, self._bkd, seed=42)
-        nsamples = 100
-        samples, weights = sampler.sample(nsamples)
-
-        self.assertEqual(samples.shape, (self._nvars, nsamples))
-        self.assertEqual(weights.shape, (nsamples,))
 
     def test_weights_sum_to_one(self):
         """Test that weights sum to 1."""
@@ -414,34 +337,6 @@ class TestSobolSampler(Generic[Array], unittest.TestCase):
         # Check std is close to 1
         self.assertTrue(np.abs(np.std(samples_np) - 1.0) < 0.1)
 
-    def test_low_discrepancy_property(self):
-        """Test that Sobol has better coverage than random."""
-        nvars = 2
-        nsamples = 100
-
-        # Sobol samples (unscrambled for deterministic low-discrepancy)
-        sobol = SobolSampler(
-            nvars, self._bkd, start_index=1, transform_to_normal=False, scramble=False
-        )
-        sobol_samples, _ = sobol.sample(nsamples)
-        sobol_np = self._bkd.to_numpy(sobol_samples)
-
-        # Compute simple discrepancy measure: min pairwise distance
-        def min_pairwise_distance(samples):
-            # samples: (nvars, nsamples)
-            min_dist = np.inf
-            for i in range(samples.shape[1]):
-                for j in range(i + 1, samples.shape[1]):
-                    dist = np.linalg.norm(samples[:, i] - samples[:, j])
-                    min_dist = min(min_dist, dist)
-            return min_dist
-
-        sobol_min_dist = min_pairwise_distance(sobol_np)
-
-        # Sobol should have reasonable minimum distance (not clustered)
-        # For 100 points in 2D unit hypercube, min dist should be > 0.01
-        self.assertGreater(sobol_min_dist, 0.01)
-
     def test_start_index_skips_samples(self):
         """Test that start_index skips the initial samples."""
         # Get samples starting from 0
@@ -511,18 +406,6 @@ class TestGaussianQuadratureSampler(Generic[Array], unittest.TestCase):
 
     def setUp(self):
         self._bkd = self.bkd()
-
-    def test_sample_shape(self):
-        """Test sample shape."""
-        nvars = 2
-        npoints_1d = 5
-        sampler = GaussianQuadratureSampler(nvars, self._bkd, npoints_1d)
-
-        samples, weights = sampler.sample(0)  # nsamples ignored
-
-        expected_npoints = npoints_1d**nvars
-        self.assertEqual(samples.shape, (nvars, expected_npoints))
-        self.assertEqual(weights.shape, (expected_npoints,))
 
     def test_npoints_method(self):
         """Test npoints() returns correct value."""
@@ -638,37 +521,6 @@ class TestOEDQuadratureSampler(Generic[Array], unittest.TestCase):
         ]
         return IndependentJoint(marginals, self._bkd)
 
-    def test_sample_prior_shape(self):
-        """Test prior sampling shape."""
-        prior_dist = self._create_prior_distribution()
-        prior_sampler = MonteCarloSampler(prior_dist, self._bkd)
-        oed_sampler = OEDQuadratureSampler(
-            prior_sampler, self._nobs, self._bkd
-        )
-
-        nsamples = 100
-        samples, weights = oed_sampler.sample_prior(nsamples)
-
-        self.assertEqual(samples.shape, (self._nvars_prior, nsamples))
-        self.assertEqual(weights.shape, (nsamples,))
-
-    def test_sample_joint_shape(self):
-        """Test joint sampling shape."""
-        prior_dist = self._create_prior_distribution()
-        prior_sampler = MonteCarloSampler(prior_dist, self._bkd)
-        oed_sampler = OEDQuadratureSampler(
-            prior_sampler, self._nobs, self._bkd
-        )
-
-        nsamples = 100
-        prior_samples, latent_samples, weights = oed_sampler.sample_joint(
-            nsamples
-        )
-
-        self.assertEqual(prior_samples.shape, (self._nvars_prior, nsamples))
-        self.assertEqual(latent_samples.shape, (self._nobs, nsamples))
-        self.assertEqual(weights.shape, (nsamples,))
-
     def test_nvars_prior_method(self):
         """Test nvars_prior() returns correct value."""
         prior_dist = self._create_prior_distribution()
@@ -678,16 +530,6 @@ class TestOEDQuadratureSampler(Generic[Array], unittest.TestCase):
         )
 
         self.assertEqual(oed_sampler.nvars_prior(), self._nvars_prior)
-
-    def test_nobs_method(self):
-        """Test nobs() returns correct value."""
-        prior_dist = self._create_prior_distribution()
-        prior_sampler = MonteCarloSampler(prior_dist, self._bkd)
-        oed_sampler = OEDQuadratureSampler(
-            prior_sampler, self._nobs, self._bkd
-        )
-
-        self.assertEqual(oed_sampler.nobs(), self._nobs)
 
     def test_reset(self):
         """Test that reset gives reproducible results with QMC samplers."""

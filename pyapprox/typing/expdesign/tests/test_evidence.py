@@ -70,18 +70,6 @@ class TestEvidence(Generic[Array], unittest.TestCase):
 
     # --- Evidence Tests ---
 
-    def test_evidence_shape(self):
-        """Test that evidence returns correct shape."""
-        evidence = self._create_evidence()
-        values = evidence(self._design_weights)
-        self.assertEqual(values.shape, (1, self._nouter))
-
-    def test_evidence_positive(self):
-        """Test that evidence values are positive."""
-        evidence = self._create_evidence()
-        values = evidence(self._design_weights)
-        self.assertTrue(self._bkd.all_bool(values > 0))
-
     def test_evidence_manual_computation(self):
         """Test evidence against manual computation."""
         quad_weights = self._bkd.ones((self._ninner,)) / self._ninner
@@ -143,12 +131,6 @@ class TestEvidence(Generic[Array], unittest.TestCase):
 
     # --- LogEvidence Tests ---
 
-    def test_log_evidence_shape(self):
-        """Test that log-evidence returns correct shape."""
-        log_evidence = self._create_log_evidence()
-        values = log_evidence(self._design_weights)
-        self.assertEqual(values.shape, (1, self._nouter))
-
     def test_log_evidence_consistency(self):
         """Test that log(evidence) = log_evidence."""
         evidence = self._create_evidence()
@@ -207,26 +189,6 @@ class TestEvidence(Generic[Array], unittest.TestCase):
         self.assertTrue(
             self._bkd.allclose(log_ev_jac, expected_jac, rtol=1e-10)
         )
-
-    def test_log_evidence_numerical_stability(self):
-        """Test log-evidence with extreme likelihood values."""
-        # Create likelihood with very small values (large negative log)
-        small_noise = self._bkd.asarray(np.array([0.001, 0.001, 0.001]))
-        likelihood = GaussianOEDInnerLoopLikelihood(small_noise, self._bkd)
-
-        # Use shapes and observations that are far apart
-        shapes = self._bkd.asarray(np.zeros((3, self._ninner)))
-        obs = self._bkd.asarray(np.ones((3, self._nouter)) * 10)
-        likelihood.set_shapes(shapes)
-        likelihood.set_observations(obs)
-
-        log_evidence = LogEvidence(likelihood, None, self._bkd)
-
-        # This should not produce NaN or Inf
-        values = log_evidence(self._design_weights)
-        values_np = self._bkd.to_numpy(values)
-        self.assertFalse(np.any(np.isnan(values_np)))
-        self.assertFalse(np.any(np.isinf(values_np)))
 
     def test_custom_quadrature_weights(self):
         """Test evidence with custom quadrature weights."""

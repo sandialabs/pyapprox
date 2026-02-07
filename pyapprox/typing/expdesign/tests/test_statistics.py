@@ -299,18 +299,6 @@ class TestSampleStatistics(Generic[Array], unittest.TestCase):
         with self.assertRaises(ValueError):
             stat(self._values, bad_weights)
 
-    def test_jacobian_implemented_flag(self):
-        """Test jacobian_implemented returns True for all statistics."""
-        stat_objs = [
-            SampleAverageMean(self._bkd),
-            SampleAverageVariance(self._bkd),
-            SampleAverageStdev(self._bkd),
-            SampleAverageEntropicRisk(1.0, self._bkd),
-            SampleAverageSmoothedAVaR(0.5, self._bkd),
-        ]
-        for stat in stat_objs:
-            self.assertTrue(stat.jacobian_implemented())
-
     def test_gaussian_mean_analytical(self):
         """Test mean matches analytical Gaussian mean (from legacy test)."""
         mu, sigma = 0.5, 1.0

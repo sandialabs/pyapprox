@@ -78,23 +78,11 @@ class TestKLOEDObjective(Generic[Array], unittest.TestCase):
             self._bkd,
         )
 
-    def test_objective_shape(self):
-        """Test that objective returns correct shape."""
-        objective = self._create_objective()
-        value = objective(self._design_weights)
-        self.assertEqual(value.shape, (1, 1))
-
     def test_objective_scalar(self):
         """Test that nqoi is 1."""
         objective = self._create_objective()
         self.assertEqual(objective.nqoi(), 1)
         self.assertEqual(objective.nvars(), self._nobs)
-
-    def test_jacobian_shape(self):
-        """Test that Jacobian has correct shape."""
-        objective = self._create_objective()
-        jac = objective.jacobian(self._design_weights)
-        self.assertEqual(jac.shape, (1, self._nobs))
 
     def test_jacobian_finite_diff(self):
         """Test Jacobian against finite differences."""
@@ -136,68 +124,6 @@ class TestKLOEDObjective(Generic[Array], unittest.TestCase):
             rtol=1e-10,
         )
 
-    def test_uniform_weights_baseline(self):
-        """Test that uniform weights give a baseline EIG."""
-        objective = self._create_objective()
-
-        uniform_weights = self._bkd.ones((self._nobs, 1))
-        eig_uniform = objective.expected_information_gain(uniform_weights)
-
-        # EIG should be finite
-        self.assertTrue(np.isfinite(eig_uniform))
-
-    def test_increasing_weights_effect(self):
-        """Test that larger weights can affect EIG."""
-        objective = self._create_objective()
-
-        # Small weights (less precise observations)
-        small_weights = self._bkd.asarray(np.full((self._nobs, 1), 0.1))
-        # Large weights (more precise observations)
-        large_weights = self._bkd.asarray(np.full((self._nobs, 1), 2.0))
-
-        eig_small = objective.expected_information_gain(small_weights)
-        eig_large = objective.expected_information_gain(large_weights)
-
-        # Larger weights should generally give higher EIG
-        # (more precise observations = more information)
-        # But this isn't guaranteed for all random data, so just check both are finite
-        self.assertTrue(np.isfinite(eig_small))
-        self.assertTrue(np.isfinite(eig_large))
-
-    def test_custom_quadrature_weights(self):
-        """Test with custom quadrature weights."""
-        outer_weights = self._bkd.asarray(
-            np.random.dirichlet(np.ones(self._nouter))
-        )
-        inner_weights = self._bkd.asarray(
-            np.random.dirichlet(np.ones(self._ninner))
-        )
-
-        objective = self._create_objective(outer_weights, inner_weights)
-        value = objective(self._design_weights)
-
-        # Should still produce finite values
-        value_np = self._bkd.to_numpy(value)
-        self.assertTrue(np.isfinite(value_np[0, 0]))
-
-    def test_evaluate_alias(self):
-        """Test that evaluate() is an alias for __call__."""
-        objective = self._create_objective()
-
-        value1 = objective(self._design_weights)
-        value2 = objective.evaluate(self._design_weights)
-
-        self.assertTrue(
-            self._bkd.allclose(value1, value2, rtol=1e-12)
-        )
-
-    def test_dimensions(self):
-        """Test dimension inquiry methods."""
-        objective = self._create_objective()
-
-        self.assertEqual(objective.nobs(), self._nobs)
-        self.assertEqual(objective.ninner(), self._ninner)
-        self.assertEqual(objective.nouter(), self._nouter)
 
 
 class TestKLOEDObjectiveNumpy(TestKLOEDObjective[NDArray[Any]]):

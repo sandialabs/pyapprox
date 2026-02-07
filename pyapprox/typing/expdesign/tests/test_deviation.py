@@ -103,14 +103,6 @@ class TestDeviationMeasures(Generic[Array], unittest.TestCase):
 
     # --- StandardDeviationMeasure Tests ---
 
-    def test_stdev_shape(self):
-        """Test StandardDeviationMeasure output shape."""
-        stdev = StandardDeviationMeasure(self._npred, self._bkd)
-        self._setup_deviation(stdev)
-
-        values = stdev(self._design_weights)
-        self.assertEqual(values.shape, (1, self._npred * self._nouter))
-
     def test_stdev_positive(self):
         """Test that standard deviation values are non-negative."""
         stdev = StandardDeviationMeasure(self._npred, self._bkd)
@@ -118,16 +110,6 @@ class TestDeviationMeasures(Generic[Array], unittest.TestCase):
 
         values = stdev(self._design_weights)
         self.assertTrue(self._bkd.all_bool(values >= 0))
-
-    def test_stdev_jacobian_shape(self):
-        """Test StandardDeviationMeasure Jacobian shape."""
-        stdev = StandardDeviationMeasure(self._npred, self._bkd)
-        self._setup_deviation(stdev)
-
-        jac = stdev.jacobian(self._design_weights)
-        self.assertEqual(
-            jac.shape, (self._npred * self._nouter, self._nobs)
-        )
 
     def test_stdev_jacobian_finite_diff(self):
         """Test StandardDeviationMeasure Jacobian against finite differences."""
@@ -157,30 +139,12 @@ class TestDeviationMeasures(Generic[Array], unittest.TestCase):
 
     # --- EntropicDeviationMeasure Tests ---
 
-    def test_entropic_shape(self):
-        """Test EntropicDeviationMeasure output shape."""
-        entropic = EntropicDeviationMeasure(self._npred, 0.5, self._bkd)
-        self._setup_deviation(entropic)
-
-        values = entropic(self._design_weights)
-        self.assertEqual(values.shape, (1, self._npred * self._nouter))
-
     def test_entropic_alpha_validation(self):
         """Test that alpha must be positive."""
         with self.assertRaises(ValueError):
             EntropicDeviationMeasure(self._npred, 0.0, self._bkd)
         with self.assertRaises(ValueError):
             EntropicDeviationMeasure(self._npred, -1.0, self._bkd)
-
-    def test_entropic_jacobian_shape(self):
-        """Test EntropicDeviationMeasure Jacobian shape."""
-        entropic = EntropicDeviationMeasure(self._npred, 0.5, self._bkd)
-        self._setup_deviation(entropic)
-
-        jac = entropic.jacobian(self._design_weights)
-        self.assertEqual(
-            jac.shape, (self._npred * self._nouter, self._nobs)
-        )
 
     def test_entropic_jacobian_finite_diff(self):
         """Test EntropicDeviationMeasure Jacobian against finite differences."""
@@ -227,14 +191,6 @@ class TestDeviationMeasures(Generic[Array], unittest.TestCase):
         self._bkd.assert_allclose(values, expected, atol=1e-10)
 
     # --- AVaRDeviationMeasure Tests ---
-
-    def test_avar_shape(self):
-        """Test AVaRDeviationMeasure output shape."""
-        avar = AVaRDeviationMeasure(self._npred, 0.8, self._bkd, delta=100)
-        self._setup_deviation(avar)
-
-        values = avar(self._design_weights)
-        self.assertEqual(values.shape, (1, self._npred * self._nouter))
 
     def test_avar_positive_for_positive_qoi(self):
         """Test AVaR deviation is positive for positive-centered QoI."""

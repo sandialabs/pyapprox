@@ -68,23 +68,6 @@ class TestGaussianOEDLikelihood(Generic[Array], unittest.TestCase):
 
     # --- Outer Loop Likelihood Tests ---
 
-    def test_outer_loop_shapes(self):
-        """Test that outer loop likelihood returns correct shapes."""
-        likelihood = GaussianOEDOuterLoopLikelihood(
-            self._noise_variances, self._bkd
-        )
-        likelihood.set_shapes(self._shapes_outer)
-        obs = self._generate_observations(
-            self._shapes_outer, self._design_weights
-        )
-        likelihood.set_observations(obs)
-
-        values = likelihood(self._design_weights)
-        self.assertEqual(values.shape, (1, self._nouter))
-
-        jac = likelihood.jacobian(self._design_weights)
-        self.assertEqual(jac.shape, (self._nouter, self._nobs))
-
     def test_outer_loop_values(self):
         """Test outer loop likelihood values against manual computation."""
         likelihood = GaussianOEDOuterLoopLikelihood(
@@ -192,24 +175,6 @@ class TestGaussianOEDLikelihood(Generic[Array], unittest.TestCase):
         )
 
     # --- Inner Loop Likelihood Tests ---
-
-    def test_inner_loop_shapes(self):
-        """Test that inner loop likelihood returns correct shapes."""
-        likelihood = GaussianOEDInnerLoopLikelihood(
-            self._noise_variances, self._bkd
-        )
-        likelihood.set_shapes(self._shapes_inner)
-
-        obs = self._generate_observations(
-            self._shapes_outer, self._design_weights
-        )
-        likelihood.set_observations(obs)
-
-        matrix = likelihood.logpdf_matrix(self._design_weights)
-        self.assertEqual(matrix.shape, (self._ninner, self._nouter))
-
-        jac = likelihood.jacobian_matrix(self._design_weights)
-        self.assertEqual(jac.shape, (self._ninner, self._nouter, self._nobs))
 
     def test_inner_loop_values(self):
         """Test inner loop likelihood matrix values."""

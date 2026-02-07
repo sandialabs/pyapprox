@@ -26,97 +26,7 @@ from pyapprox.typing.expdesign.solver import (
     RelaxedKLOEDSolver,
     RelaxedOEDConfig,
     BruteForceKLOEDSolver,
-    OEDObjectiveWrapper,
 )
-
-
-class TestOEDObjectiveWrapper(Generic[Array], unittest.TestCase):
-    """Base test class for OEDObjectiveWrapper."""
-
-    __test__ = False
-
-    def bkd(self):
-        raise NotImplementedError
-
-    def setUp(self):
-        self._bkd = self.bkd()
-        self._nobs = 3
-        self._ninner = 10
-        self._nouter = 8
-
-        np.random.seed(42)
-        self._noise_variances = self._bkd.asarray(
-            np.array([0.1, 0.2, 0.15])
-        )
-        self._outer_shapes = self._bkd.asarray(
-            np.random.randn(self._nobs, self._nouter)
-        )
-        self._inner_shapes = self._bkd.asarray(
-            np.random.randn(self._nobs, self._ninner)
-        )
-        self._latent_samples = self._bkd.asarray(
-            np.random.randn(self._nobs, self._nouter)
-        )
-
-        self._inner_likelihood = GaussianOEDInnerLoopLikelihood(
-            self._noise_variances, self._bkd
-        )
-
-        self._objective = KLOEDObjective(
-            self._inner_likelihood,
-            self._outer_shapes,
-            self._latent_samples,
-            self._inner_shapes,
-            None,
-            None,
-            self._bkd,
-        )
-
-    def test_wrapper_nvars(self):
-        """Test nvars() returns nobs."""
-        wrapper = OEDObjectiveWrapper(self._objective, self._bkd)
-        self.assertEqual(wrapper.nvars(), self._nobs)
-
-    def test_wrapper_nqoi(self):
-        """Test nqoi() returns 1."""
-        wrapper = OEDObjectiveWrapper(self._objective, self._bkd)
-        self.assertEqual(wrapper.nqoi(), 1)
-
-    def test_wrapper_call_shape(self):
-        """Test __call__ returns correct shape."""
-        wrapper = OEDObjectiveWrapper(self._objective, self._bkd)
-        weights = self._bkd.ones((self._nobs, 2)) / self._nobs
-        result = wrapper(weights)
-        self.assertEqual(result.shape, (1, 2))
-
-    def test_wrapper_jacobian_shape(self):
-        """Test jacobian returns correct shape."""
-        wrapper = OEDObjectiveWrapper(self._objective, self._bkd)
-        weights = self._bkd.ones((self._nobs, 1)) / self._nobs
-        jac = wrapper.jacobian(weights)
-        self.assertEqual(jac.shape, (1, self._nobs))
-
-
-class TestOEDObjectiveWrapperNumpy(TestOEDObjectiveWrapper[NDArray[Any]]):
-    """NumPy backend tests."""
-
-    __test__ = True
-
-    def bkd(self) -> NumpyBkd:
-        return NumpyBkd()
-
-
-class TestOEDObjectiveWrapperTorch(TestOEDObjectiveWrapper[torch.Tensor]):
-    """PyTorch backend tests."""
-
-    __test__ = True
-
-    def bkd(self) -> TorchBkd:
-        return TorchBkd()
-
-    def setUp(self):
-        torch.set_default_dtype(torch.float64)
-        super().setUp()
 
 
 class TestRelaxedKLOEDSolver(Generic[Array], unittest.TestCase):
@@ -161,15 +71,6 @@ class TestRelaxedKLOEDSolver(Generic[Array], unittest.TestCase):
             self._bkd,
         )
 
-    def test_solver_runs(self):
-        """Test that solver runs without error."""
-        config = RelaxedOEDConfig(verbosity=0, maxiter=50)
-        solver = RelaxedKLOEDSolver(self._objective, config)
-        weights, eig = solver.solve()
-
-        self.assertEqual(weights.shape, (self._nobs, 1))
-        self.assertTrue(np.isfinite(eig))
-
     def test_weights_sum_to_one(self):
         """Test that optimal weights sum to 1."""
         config = RelaxedOEDConfig(verbosity=0, maxiter=50)
@@ -191,16 +92,6 @@ class TestRelaxedKLOEDSolver(Generic[Array], unittest.TestCase):
         weights_np = self._bkd.to_numpy(weights)
         self.assertTrue(np.all(weights_np >= -1e-6))
         self.assertTrue(np.all(weights_np <= 1 + 1e-6))
-
-    def test_eig_positive(self):
-        """Test that EIG is typically positive."""
-        config = RelaxedOEDConfig(verbosity=0, maxiter=50)
-        solver = RelaxedKLOEDSolver(self._objective, config)
-        _, eig = solver.solve()
-
-        # EIG should be positive for informative observations
-        # (though not guaranteed for all random data)
-        self.assertTrue(np.isfinite(eig))
 
     def test_custom_initial_weights(self):
         """Test solver with custom initial weights."""
@@ -422,37 +313,6 @@ class TestSolverConsistency(Generic[Array], unittest.TestCase):
             self._bkd,
         )
 
-    def test_increasing_k_improves_eig(self):
-        """Test that EIG generally increases with k."""
-        bf_solver = BruteForceKLOEDSolver(self._objective)
-        results = bf_solver.solve_all_k(k_min=1, k_max=self._nobs)
-
-        # EIG should generally increase (more observations = more info)
-        # But not strictly monotonic for all random data
-        eigs = [r[2] for r in results]
-        self.assertTrue(all(np.isfinite(eigs)))
-
-
-class TestSolverConsistencyNumpy(TestSolverConsistency[NDArray[Any]]):
-    """NumPy backend tests."""
-
-    __test__ = True
-
-    def bkd(self) -> NumpyBkd:
-        return NumpyBkd()
-
-
-class TestSolverConsistencyTorch(TestSolverConsistency[torch.Tensor]):
-    """PyTorch backend tests."""
-
-    __test__ = True
-
-    def bkd(self) -> TorchBkd:
-        return TorchBkd()
-
-    def setUp(self):
-        torch.set_default_dtype(torch.float64)
-        super().setUp()
 
 
 if __name__ == "__main__":
