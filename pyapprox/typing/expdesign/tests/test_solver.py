@@ -178,7 +178,9 @@ class TestRelaxedKLOEDSolver(Generic[Array], unittest.TestCase):
 
         weight_sum = self._bkd.sum(weights)
         expected = self._bkd.asarray(1.0)
-        self.assertTrue(self._bkd.allclose(weight_sum, expected, rtol=1e-4))
+        self._bkd.assert_allclose(
+            weight_sum.reshape(-1), expected.reshape(-1), rtol=1e-4
+        )
 
     def test_weights_in_bounds(self):
         """Test that weights are in [0, 1]."""
@@ -288,7 +290,11 @@ class TestBruteForceKLOEDSolver(Generic[Array], unittest.TestCase):
 
         # Weight should be 1 at selected index
         weights_np = self._bkd.to_numpy(weights)
-        self.assertAlmostEqual(weights_np[indices[0], 0], 1.0)
+        self._bkd.assert_allclose(
+            self._bkd.asarray([weights_np[indices[0], 0]]),
+            self._bkd.asarray([1.0]),
+            rtol=1e-7,
+        )
 
     def test_brute_force_k2(self):
         """Test brute-force with k=2."""
@@ -302,7 +308,11 @@ class TestBruteForceKLOEDSolver(Generic[Array], unittest.TestCase):
         # Weights should be 1.0 at selected indices (selection indicator)
         weights_np = self._bkd.to_numpy(weights)
         for idx in indices:
-            self.assertAlmostEqual(weights_np[idx, 0], 1.0)
+            self._bkd.assert_allclose(
+                self._bkd.asarray([weights_np[idx, 0]]),
+                self._bkd.asarray([1.0]),
+                rtol=1e-7,
+            )
 
     def test_brute_force_k_equals_n(self):
         """Test brute-force with k=nobs (select all)."""
@@ -312,9 +322,9 @@ class TestBruteForceKLOEDSolver(Generic[Array], unittest.TestCase):
         self.assertEqual(len(indices), self._nobs)
 
         # All weights should be 1.0 (all selected)
-        weights_np = self._bkd.to_numpy(weights)
-        for w in weights_np.flatten():
-            self.assertAlmostEqual(w, 1.0)
+        self._bkd.assert_allclose(
+            weights, self._bkd.ones((self._nobs, 1)), rtol=1e-7
+        )
 
     def test_brute_force_invalid_k(self):
         """Test that invalid k raises error."""

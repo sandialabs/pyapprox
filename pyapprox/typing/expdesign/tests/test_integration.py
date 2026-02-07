@@ -92,7 +92,9 @@ class TestFullOEDWorkflow(Generic[Array], unittest.TestCase):
         # Weights should sum to 1
         weight_sum = self._bkd.sum(optimal_weights)
         expected = self._bkd.asarray(1.0)
-        self.assertTrue(self._bkd.allclose(weight_sum, expected, rtol=1e-4))
+        self._bkd.assert_allclose(
+            weight_sum.reshape(-1), expected.reshape(-1), rtol=1e-4
+        )
 
         # Weights should be non-negative
         weights_np = self._bkd.to_numpy(optimal_weights)
@@ -338,7 +340,11 @@ class TestLinearGaussianOED(Generic[Array], unittest.TestCase):
         # (observation 0 has lowest noise variance)
         # This is a soft check - with random data, exact behavior varies
         self.assertTrue(np.isfinite(weights_np).all())
-        self.assertAlmostEqual(weights_np.sum(), 1.0, places=3)
+        self._bkd.assert_allclose(
+            self._bkd.asarray([weights_np.sum()]),
+            self._bkd.asarray([1.0]),
+            rtol=1e-3,
+        )
 
 
 class TestLinearGaussianOEDNumpy(TestLinearGaussianOED[NDArray[Any]]):

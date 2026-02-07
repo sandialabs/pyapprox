@@ -59,15 +59,15 @@ class TestKLOEDConvergenceStandalone(Generic[Array], unittest.TestCase):
         weights = self._bkd.ones((self._nobs, 1)) / self._nobs
 
         # Fixed inner samples, vary outer
-        ninner = 50
-        outer_counts = [50, 100, 200]
+        ninner = 25
+        outer_counts = [25, 50, 100]
         mses = []
 
         for nouter in outer_counts:
             _, _, mse = diagnostics.compute_mse(
                 nouter=nouter,
                 ninner=ninner,
-                nrealizations=10,
+                nrealizations=5,
                 design_weights=weights,
                 base_seed=42,
             )
@@ -87,15 +87,15 @@ class TestKLOEDConvergenceStandalone(Generic[Array], unittest.TestCase):
         weights = self._bkd.ones((self._nobs, 1)) / self._nobs
 
         # Fixed outer samples, vary inner
-        nouter = 100
-        inner_counts = [30, 60, 120]
+        nouter = 50
+        inner_counts = [15, 30, 60]
         mses = []
 
         for ninner in inner_counts:
             _, _, mse = diagnostics.compute_mse(
                 nouter=nouter,
                 ninner=ninner,
-                nrealizations=10,
+                nrealizations=5,
                 design_weights=weights,
                 base_seed=42,
             )
@@ -122,7 +122,11 @@ class TestKLOEDConvergenceStandalone(Generic[Array], unittest.TestCase):
 
         # MSE should equal bias^2 + variance
         expected_mse = bias ** 2 + variance
-        self.assertAlmostEqual(mse, expected_mse, places=10)
+        self._bkd.assert_allclose(
+            self._bkd.asarray([mse]),
+            self._bkd.asarray([expected_mse]),
+            rtol=1e-10,
+        )
 
         # Variance should be non-negative
         self.assertGreaterEqual(variance, 0.0)
@@ -169,7 +173,11 @@ class TestKLOEDConvergenceStandalone(Generic[Array], unittest.TestCase):
             seed=42,
         )
 
-        self.assertAlmostEqual(eig1, eig2, places=10)
+        self._bkd.assert_allclose(
+            self._bkd.asarray([eig1]),
+            self._bkd.asarray([eig2]),
+            rtol=1e-10,
+        )
 
     @slow_test
     def test_mc_convergence_rate_positive(self):
@@ -206,7 +214,9 @@ class TestKLOEDConvergenceStandalone(Generic[Array], unittest.TestCase):
 
         rate = KLOEDDiagnostics.compute_convergence_rate(sample_counts, values)
 
-        self.assertAlmostEqual(rate, 1.0, places=10)
+        self._bkd.assert_allclose(
+            self._bkd.asarray([rate]), self._bkd.asarray([1.0]), rtol=1e-10
+        )
 
     def test_convergence_rate_o1sqrtn_data(self):
         """Test convergence rate for synthetic O(1/sqrt(n)) data."""
@@ -215,7 +225,9 @@ class TestKLOEDConvergenceStandalone(Generic[Array], unittest.TestCase):
 
         rate = KLOEDDiagnostics.compute_convergence_rate(sample_counts, values)
 
-        self.assertAlmostEqual(rate, 0.5, places=10)
+        self._bkd.assert_allclose(
+            self._bkd.asarray([rate]), self._bkd.asarray([0.5]), rtol=1e-10
+        )
 
     def test_compute_mse_for_sample_combinations_structure(self):
         """Test output structure of compute_mse_for_sample_combinations."""

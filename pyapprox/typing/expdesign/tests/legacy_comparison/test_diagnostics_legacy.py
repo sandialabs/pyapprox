@@ -17,6 +17,10 @@ from pyapprox.util.backends.numpy import NumpyMixin
 class TestDiagnosticsLegacyComparison(unittest.TestCase):
     """Verify typing KLOEDDiagnostics produces consistent results with legacy."""
 
+    def setUp(self):
+        from pyapprox.typing.util.backends.numpy import NumpyBkd
+        self._bkd = NumpyBkd()
+
     def test_exact_eig_matches_legacy(self):
         """Test exact EIG matches legacy benchmark."""
         nobs = 5
@@ -50,34 +54,42 @@ class TestDiagnosticsLegacyComparison(unittest.TestCase):
         typing_diagnostic = KLOEDDiagnostics(typing_benchmark)
         typing_exact = typing_diagnostic.exact_eig(bkd.asarray(weights))
 
-        np.testing.assert_allclose(typing_exact, legacy_exact, rtol=1e-12)
+        self._bkd.assert_allclose(
+            self._bkd.asarray([typing_exact]),
+            self._bkd.asarray([legacy_exact]),
+            rtol=1e-12,
+        )
 
     def test_convergence_rate_computation(self):
         """Test convergence rate computation matches legacy."""
+        from pyapprox.expdesign.bayesoed_benchmarks import (
+            LinearGaussianBayesianOEDBenchmark,
+            BayesianKLOEDDiagnostics,
+        )
+        from pyapprox.typing.expdesign.diagnostics import KLOEDDiagnostics
+
         sample_counts = [10, 20, 40, 80, 160]
-        # Simulate O(1/n) convergence
         values = [1.0 / n for n in sample_counts]
 
         # Legacy
-        from pyapprox.expdesign.bayesoed_benchmarks import BayesianOEDDiagnostics
-
-        # BayesianOEDDiagnostics.compute_convergence_rate is a method that
-        # can be called with any instance, but we need the static functionality
-        # Use numpy directly for this simple computation
-        log_n = np.log(np.array(sample_counts))
-        log_vals = np.log(np.array(values))
-        legacy_slope = np.polyfit(log_n, log_vals, 1)[0]
-        legacy_rate = -legacy_slope
+        legacy_problem = LinearGaussianBayesianOEDBenchmark(
+            3, 0, 2, 0.5, 0.5, backend=NumpyMixin
+        )
+        legacy_diagnostic = BayesianKLOEDDiagnostics(legacy_problem)
+        legacy_rate = legacy_diagnostic.compute_convergence_rate(
+            sample_counts, values
+        )
 
         # Typing
-        from pyapprox.typing.expdesign.diagnostics import KLOEDDiagnostics
+        typing_rate = KLOEDDiagnostics.compute_convergence_rate(
+            sample_counts, values
+        )
 
-        typing_rate = KLOEDDiagnostics.compute_convergence_rate(sample_counts, values)
-
-        np.testing.assert_allclose(typing_rate, legacy_rate, rtol=1e-12)
-
-        # For O(1/n) data, rate should be approximately 1.0
-        self.assertAlmostEqual(typing_rate, 1.0, places=10)
+        self._bkd.assert_allclose(
+            self._bkd.asarray([typing_rate]),
+            self._bkd.asarray([legacy_rate]),
+            rtol=1e-12,
+        )
 
 
 if __name__ == "__main__":

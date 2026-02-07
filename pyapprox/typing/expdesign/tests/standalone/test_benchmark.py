@@ -101,7 +101,11 @@ class TestLinearGaussianBenchmarkStandalone(Generic[Array], unittest.TestCase):
             xi = float(self._bkd.to_numpy(x)[i])
             expected_row = [xi ** p for p in range(self._min_degree, self._degree + 1)]
             actual_row = self._bkd.to_numpy(A)[i, :]
-            np.testing.assert_allclose(actual_row, expected_row, rtol=1e-12)
+            self._bkd.assert_allclose(
+                self._bkd.asarray(actual_row),
+                self._bkd.asarray(expected_row),
+                rtol=1e-12,
+            )
 
     def test_nobs_nparams_accessors(self):
         """Test accessors return correct values."""
@@ -113,8 +117,16 @@ class TestLinearGaussianBenchmarkStandalone(Generic[Array], unittest.TestCase):
     def test_noise_prior_var_accessors(self):
         """Test noise and prior variance accessors."""
         benchmark = self._create_benchmark()
-        self.assertAlmostEqual(benchmark.noise_var(), self._noise_std ** 2)
-        self.assertAlmostEqual(benchmark.prior_var(), self._prior_std ** 2)
+        self._bkd.assert_allclose(
+            self._bkd.asarray([benchmark.noise_var()]),
+            self._bkd.asarray([self._noise_std ** 2]),
+            rtol=1e-12,
+        )
+        self._bkd.assert_allclose(
+            self._bkd.asarray([benchmark.prior_var()]),
+            self._bkd.asarray([self._prior_std ** 2]),
+            rtol=1e-12,
+        )
 
     # ==========================================================================
     # Exact EIG tests (replicates test_doptimal_oed_gradients scenario)
@@ -159,7 +171,11 @@ class TestLinearGaussianBenchmarkStandalone(Generic[Array], unittest.TestCase):
         eig = benchmark.exact_eig(weights)
         d_opt = benchmark.d_optimal_objective(weights)
 
-        self.assertAlmostEqual(d_opt, -eig, places=12)
+        self._bkd.assert_allclose(
+            self._bkd.asarray([d_opt]),
+            self._bkd.asarray([-eig]),
+            rtol=1e-12,
+        )
 
     # ==========================================================================
     # D-optimal objective relationship tests
@@ -193,7 +209,11 @@ class TestLinearGaussianBenchmarkStandalone(Generic[Array], unittest.TestCase):
         # EIG is 1/2 * log(det(Y))
         # So d_opt_val = -eig
         d_opt_scalar = float(self._bkd.to_numpy(d_opt_val)[0, 0])
-        self.assertAlmostEqual(d_opt_scalar, -eig, places=10)
+        self._bkd.assert_allclose(
+            self._bkd.asarray([d_opt_scalar]),
+            self._bkd.asarray([-eig]),
+            rtol=1e-10,
+        )
 
     def test_d_optimal_gradient_check(self):
         """Test D-optimal gradients using DerivativeChecker.

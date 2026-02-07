@@ -58,10 +58,7 @@ class TestSampleStatisticsLegacyComparison(unittest.TestCase):
         new_result = new_mean(self._values, self._weights)
         legacy_result = legacy_mean(self._values, self._weights)
 
-        new_np = self._bkd.to_numpy(new_result)
-        legacy_np = self._legacy_bkd.to_numpy(legacy_result)
-
-        np.testing.assert_allclose(new_np, legacy_np, rtol=1e-12)
+        self._bkd.assert_allclose(new_result, legacy_result, rtol=1e-12)
 
     def test_variance_matches_legacy(self):
         """Test that SampleAverageVariance matches legacy."""
@@ -71,10 +68,7 @@ class TestSampleStatisticsLegacyComparison(unittest.TestCase):
         new_result = new_var(self._values, self._weights)
         legacy_result = legacy_var(self._values, self._weights)
 
-        new_np = self._bkd.to_numpy(new_result)
-        legacy_np = self._legacy_bkd.to_numpy(legacy_result)
-
-        np.testing.assert_allclose(new_np, legacy_np, rtol=1e-12)
+        self._bkd.assert_allclose(new_result, legacy_result, rtol=1e-12)
 
     def test_mean_jacobian_matches_legacy(self):
         """Test that Mean Jacobian matches legacy."""
@@ -91,10 +85,7 @@ class TestSampleStatisticsLegacyComparison(unittest.TestCase):
             self._values, jac_values, self._weights
         )
 
-        new_np = self._bkd.to_numpy(new_result)
-        legacy_np = self._legacy_bkd.to_numpy(legacy_result)
-
-        np.testing.assert_allclose(new_np, legacy_np, rtol=1e-12)
+        self._bkd.assert_allclose(new_result, legacy_result, rtol=1e-12)
 
     def test_variance_jacobian_matches_legacy(self):
         """Test that Variance Jacobian matches legacy."""
@@ -111,10 +102,7 @@ class TestSampleStatisticsLegacyComparison(unittest.TestCase):
             self._values, jac_values, self._weights
         )
 
-        new_np = self._bkd.to_numpy(new_result)
-        legacy_np = self._legacy_bkd.to_numpy(legacy_result)
-
-        np.testing.assert_allclose(new_np, legacy_np, rtol=1e-12)
+        self._bkd.assert_allclose(new_result, legacy_result, rtol=1e-12)
 
 
 # NOTE: The legacy deviation measures (OEDStandardDeviationMeasure, etc.)

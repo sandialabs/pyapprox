@@ -130,7 +130,11 @@ class TestKLOEDObjective(Generic[Array], unittest.TestCase):
         # EIG should be positive for meaningful designs
         # (though not guaranteed for all random data)
         expected_eig = -float(self._bkd.to_numpy(neg_eig)[0, 0])
-        self.assertAlmostEqual(eig, expected_eig, places=10)
+        self._bkd.assert_allclose(
+            self._bkd.asarray([eig]),
+            self._bkd.asarray([expected_eig]),
+            rtol=1e-10,
+        )
 
     def test_uniform_weights_baseline(self):
         """Test that uniform weights give a baseline EIG."""

@@ -108,7 +108,11 @@ class TestConjugateGaussianOEDStandalone(Generic[Array], unittest.TestCase):
         value2 = utility2.value()
 
         # Entropic dev = lamda * variance / 2, so should scale linearly
-        self.assertAlmostEqual(value2 / value1, lamda2 / lamda1, places=10)
+        self._bkd.assert_allclose(
+            self._bkd.asarray([value2 / value1]),
+            self._bkd.asarray([lamda2 / lamda1]),
+            rtol=1e-10,
+        )
 
     def test_expected_avar_dev_positive(self):
         """Test expected AVaR deviation is positive."""

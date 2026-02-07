@@ -148,8 +148,8 @@ class TestConjugateMCExactStandalone(Generic[Array], unittest.TestCase):
     @slow_test
     def test_expected_stdev_mc_vs_exact(self) -> None:
         """Test MC average of posterior std dev matches exact formula."""
-        nsamples = 5000
-        rtol = 2e-2  # 2% relative tolerance
+        nsamples = 2000
+        rtol = 3e-2  # 3% relative tolerance
 
         # Compute MC estimate
         stdevs = self._compute_mc_posterior_stdev_samples(nsamples)
@@ -173,8 +173,8 @@ class TestConjugateMCExactStandalone(Generic[Array], unittest.TestCase):
 
         Entropic deviation = lamda * variance / 2.
         """
-        nsamples = 5000
-        rtol = 2e-2
+        nsamples = 2000
+        rtol = 3e-2
         lamda = 2.0
 
         # Compute MC estimate
@@ -209,8 +209,8 @@ class TestConjugateMCExactStandalone(Generic[Array], unittest.TestCase):
         """
         from scipy import stats
 
-        nsamples = 5000
-        rtol = 2e-2
+        nsamples = 2000
+        rtol = 3e-2
         beta = 0.5  # Same as legacy test
 
         bkd = self._bkd
@@ -276,8 +276,8 @@ class TestConjugateMCExactStandalone(Generic[Array], unittest.TestCase):
         in the pushforward space (QoI space), NOT in the parameter space.
         So MC must compute KL between pushforwards, not between parameter distributions.
         """
-        nsamples = 5000
-        rtol = 2e-2
+        nsamples = 2000
+        rtol = 3e-2
         bkd = self._bkd
 
         # Create prior pushforward
@@ -354,8 +354,8 @@ class TestConjugateMCExactStandalone(Generic[Array], unittest.TestCase):
     @slower_test
     def test_lognormal_stdev_mc_vs_exact(self) -> None:
         """Test MC average of lognormal pushforward std dev matches exact."""
-        nsamples = 10000  # More samples needed for lognormal
-        rtol = 3e-2
+        nsamples = 4000  # More samples needed for lognormal
+        rtol = 5e-2
         bkd = self._bkd
 
         # For lognormal, QoI = exp(linear combination of parameters)

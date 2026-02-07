@@ -21,6 +21,10 @@ from pyapprox.typing.util.test_utils import load_tests, slow_test  # noqa: F401
 class TestBruteForceLegacyComparison(unittest.TestCase):
     """Compare brute-force OED results with legacy implementation."""
 
+    def setUp(self):
+        from pyapprox.typing.util.backends.numpy import NumpyBkd
+        self._bkd = NumpyBkd()
+
     @slow_test
     def test_brute_force_utility_symmetry(self):
         """Test that symmetric design pairs have equal utility values.
@@ -44,9 +48,11 @@ class TestBruteForceLegacyComparison(unittest.TestCase):
         prior_std = 0.5
 
         outerloop_quadtype = "gauss"
-        nouterloop_samples = 100000
+        # Structural properties (symmetry, optimal design) hold regardless of
+        # quadrature accuracy; modest sample counts suffice for equivalence.
+        nouterloop_samples = 1000
         innerloop_quadtype = "gauss"
-        ninnerloop_samples = 1000
+        ninnerloop_samples = 100
 
         # Initialize problem
         problem = LinearGaussianBayesianDOptimalOEDBenchmark(
@@ -111,8 +117,11 @@ class TestBruteForceLegacyComparison(unittest.TestCase):
             )
 
         # Check optimal design is [0, 2, 4]
-        np.testing.assert_array_equal(
-            np.asarray(opt_design), np.array([0, 2, 4])
+        self._bkd.assert_allclose(
+            self._bkd.asarray(opt_design),
+            self._bkd.asarray([0, 2, 4]),
+            rtol=0,
+            atol=0,
         )
 
     @slow_test
@@ -138,9 +147,11 @@ class TestBruteForceLegacyComparison(unittest.TestCase):
         prior_std = 0.5
 
         outerloop_quadtype = "gauss"
-        nouterloop_samples = 100000
+        # Structural properties (symmetry, optimal design) hold regardless of
+        # quadrature accuracy; modest sample counts suffice for equivalence.
+        nouterloop_samples = 1000
         innerloop_quadtype = "gauss"
-        ninnerloop_samples = 1000
+        ninnerloop_samples = 100
 
         # Initialize problem
         problem = LinearGaussianBayesianDOptimalOEDBenchmark(
@@ -180,8 +191,11 @@ class TestBruteForceLegacyComparison(unittest.TestCase):
         opt_design = brute_oed.compute(3)
 
         # Check optimal design is [0, 2, 4]
-        np.testing.assert_array_equal(
-            np.asarray(opt_design), np.array([0, 2, 4])
+        self._bkd.assert_allclose(
+            self._bkd.asarray(opt_design),
+            self._bkd.asarray([0, 2, 4]),
+            rtol=0,
+            atol=0,
         )
 
 

@@ -88,7 +88,11 @@ class TestNonlinearPredictionOEDLegacyComparison(
         legacy_design = NumpyMixin.to_numpy(legacy.get_observation_model().matrix())
         typing_design = NumpyBkd().to_numpy(typing.design_matrix())
 
-        np.testing.assert_allclose(typing_design, legacy_design, rtol=1e-12)
+        self._bkd.assert_allclose(
+            self._bkd.asarray(typing_design),
+            self._bkd.asarray(legacy_design),
+            rtol=1e-12,
+        )
 
     def test_benchmark_qoi_matrices_match(self) -> None:
         """Test that benchmark QoI matrices match legacy."""
@@ -99,7 +103,11 @@ class TestNonlinearPredictionOEDLegacyComparison(
         legacy_qoi = NumpyMixin.to_numpy(legacy.get_qoi_model().matrix())
         typing_qoi = NumpyBkd().to_numpy(typing.qoi_matrix())
 
-        np.testing.assert_allclose(typing_qoi, legacy_qoi, rtol=1e-12)
+        self._bkd.assert_allclose(
+            self._bkd.asarray(typing_qoi),
+            self._bkd.asarray(legacy_qoi),
+            rtol=1e-12,
+        )
 
     def test_exact_stdev_utility_matches_legacy(self) -> None:
         """Test exact stdev utility matches legacy."""
@@ -147,7 +155,11 @@ class TestNonlinearPredictionOEDLegacyComparison(
         typing_utility.set_noise_covariance(bkd.diag(typing_noise_cov_diag))
         typing_exact = typing_utility.value()
 
-        np.testing.assert_allclose(typing_exact, legacy_exact, rtol=1e-12)
+        self._bkd.assert_allclose(
+            self._bkd.asarray(typing_exact).reshape(-1),
+            self._bkd.asarray(legacy_exact).reshape(-1),
+            rtol=1e-12,
+        )
 
     def test_exact_avar_stdev_utility_matches_legacy(self) -> None:
         """Test exact AVaR stdev utility matches legacy."""
@@ -197,7 +209,11 @@ class TestNonlinearPredictionOEDLegacyComparison(
         typing_utility.set_noise_covariance(bkd.diag(typing_noise_cov_diag))
         typing_exact = typing_utility.value()
 
-        np.testing.assert_allclose(typing_exact, legacy_exact, rtol=1e-12)
+        self._bkd.assert_allclose(
+            self._bkd.asarray(typing_exact).reshape(-1),
+            self._bkd.asarray(legacy_exact).reshape(-1),
+            rtol=1e-12,
+        )
 
 
 

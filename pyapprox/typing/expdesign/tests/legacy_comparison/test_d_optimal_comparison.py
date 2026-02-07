@@ -17,6 +17,10 @@ from pyapprox.util.backends.numpy import NumpyMixin
 class TestDOptimalLegacyComparison(unittest.TestCase):
     """Verify typing DOptimalLinearModelObjective matches legacy."""
 
+    def setUp(self):
+        from pyapprox.typing.util.backends.numpy import NumpyBkd
+        self._bkd = NumpyBkd()
+
     def test_objective_matches_legacy(self):
         """Test objective value matches legacy implementation."""
         np.random.seed(42)
@@ -55,9 +59,9 @@ class TestDOptimalLegacyComparison(unittest.TestCase):
         )
         typing_result = typing_obj(bkd.asarray(weights))
 
-        np.testing.assert_allclose(
-            bkd.to_numpy(typing_result),
-            NumpyMixin.to_numpy(legacy_result),
+        self._bkd.assert_allclose(
+            typing_result,
+            self._bkd.asarray(NumpyMixin.to_numpy(legacy_result)),
             rtol=1e-12,
         )
 
@@ -98,9 +102,9 @@ class TestDOptimalLegacyComparison(unittest.TestCase):
         )
         typing_jac = typing_obj.jacobian(bkd.asarray(weights))
 
-        np.testing.assert_allclose(
-            bkd.to_numpy(typing_jac),
-            NumpyMixin.to_numpy(legacy_jac),
+        self._bkd.assert_allclose(
+            typing_jac,
+            self._bkd.asarray(NumpyMixin.to_numpy(legacy_jac)),
             rtol=1e-12,
         )
 
@@ -141,9 +145,9 @@ class TestDOptimalLegacyComparison(unittest.TestCase):
         )
         typing_hess = typing_obj.hessian(bkd.asarray(weights))
 
-        np.testing.assert_allclose(
-            bkd.to_numpy(typing_hess),
-            NumpyMixin.to_numpy(legacy_hess),
+        self._bkd.assert_allclose(
+            typing_hess,
+            self._bkd.asarray(NumpyMixin.to_numpy(legacy_hess)),
             rtol=1e-12,
         )
 
@@ -186,17 +190,16 @@ class TestDOptimalLegacyComparison(unittest.TestCase):
         typing_result = typing_obj(bkd.asarray(weights))
         typing_jac = typing_obj.jacobian(bkd.asarray(weights))
 
-        np.testing.assert_allclose(
-            bkd.to_numpy(typing_result),
-            NumpyMixin.to_numpy(legacy_result),
+        self._bkd.assert_allclose(
+            typing_result,
+            self._bkd.asarray(NumpyMixin.to_numpy(legacy_result)),
             rtol=1e-12,
         )
-        np.testing.assert_allclose(
-            bkd.to_numpy(typing_jac),
-            NumpyMixin.to_numpy(legacy_jac),
+        self._bkd.assert_allclose(
+            typing_jac,
+            self._bkd.asarray(NumpyMixin.to_numpy(legacy_jac)),
             rtol=1e-12,
         )
-
 
     def test_hvp_matches_legacy_hessian(self):
         """Test HVP matches legacy Hessian @ vec."""
@@ -239,9 +242,9 @@ class TestDOptimalLegacyComparison(unittest.TestCase):
         typing_hvp = typing_obj.hvp(bkd.asarray(weights), bkd.asarray(vec))
 
         # HVP returns (1, nobs), need to reshape for comparison
-        np.testing.assert_allclose(
-            bkd.to_numpy(typing_hvp).T,
-            legacy_hvp,
+        self._bkd.assert_allclose(
+            typing_hvp.T,
+            self._bkd.asarray(legacy_hvp),
             rtol=1e-12,
         )
 

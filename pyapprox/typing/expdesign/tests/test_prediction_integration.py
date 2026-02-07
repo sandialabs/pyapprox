@@ -410,6 +410,10 @@ class TestPredictionOEDAnalyticalTorch(
 class TestGaussianRiskMeasuresIntegration(unittest.TestCase):
     """Test that GaussianAnalyticalRiskMeasures can be used for validation."""
 
+    def setUp(self):
+        from pyapprox.typing.util.backends.numpy import NumpyBkd
+        self._bkd = NumpyBkd()
+
     def test_gaussian_stdev(self):
         """Test Gaussian analytical stdev."""
         mu, sigma = 1.0, 2.0
@@ -427,7 +431,11 @@ class TestGaussianRiskMeasuresIntegration(unittest.TestCase):
         alpha = 0.5
         # Entropic for Gaussian: mu + alpha * sigma^2 / 2
         expected = mu + alpha * sigma ** 2 / 2.0
-        self.assertAlmostEqual(risk.entropic(alpha), expected)
+        self._bkd.assert_allclose(
+            self._bkd.asarray([risk.entropic(alpha)]),
+            self._bkd.asarray([expected]),
+            rtol=1e-7,
+        )
 
     def test_gaussian_avar(self):
         """Test Gaussian analytical AVaR."""
@@ -438,7 +446,11 @@ class TestGaussianRiskMeasuresIntegration(unittest.TestCase):
         # where phi(0) = 1/sqrt(2*pi) ≈ 0.3989
         avar = risk.AVaR(0.5)
         self.assertTrue(avar > 0)
-        self.assertAlmostEqual(avar, 0.7978845608, places=5)
+        self._bkd.assert_allclose(
+            self._bkd.asarray([avar]),
+            self._bkd.asarray([0.7978845608]),
+            rtol=1e-5,
+        )
 
 
 if __name__ == "__main__":

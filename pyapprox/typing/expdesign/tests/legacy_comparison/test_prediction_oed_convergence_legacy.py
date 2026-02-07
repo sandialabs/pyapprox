@@ -19,6 +19,10 @@ from pyapprox.typing.util.test_utils import load_tests, slow_test  # noqa: F401
 class TestPredictionOEDConvergenceLegacyComparison(ParametrizedTestCase):
     """Compare typing prediction OED convergence with legacy."""
 
+    def setUp(self):
+        from pyapprox.typing.util.backends.numpy import NumpyBkd
+        self._bkd = NumpyBkd()
+
     @parametrize(
         "utility_cls_name",
         [
@@ -106,7 +110,11 @@ class TestPredictionOEDConvergenceLegacyComparison(ParametrizedTestCase):
         typing_utility.set_noise_covariance(bkd.asarray(noise_cov))
         typing_result = typing_utility.value()
 
-        np.testing.assert_allclose(typing_result, legacy_result, rtol=1e-12)
+        self._bkd.assert_allclose(
+            self._bkd.asarray(typing_result).reshape(-1),
+            self._bkd.asarray(legacy_result).reshape(-1),
+            rtol=1e-12,
+        )
 
     @parametrize(
         "utility_cls_name",
@@ -175,7 +183,11 @@ class TestPredictionOEDConvergenceLegacyComparison(ParametrizedTestCase):
         typing_utility.set_noise_covariance(bkd.asarray(noise_cov))
         typing_result = typing_utility.value()
 
-        np.testing.assert_allclose(typing_result, legacy_result, rtol=1e-12)
+        self._bkd.assert_allclose(
+            self._bkd.asarray(typing_result).reshape(-1),
+            self._bkd.asarray(legacy_result).reshape(-1),
+            rtol=1e-12,
+        )
 
     @slow_test
     def test_linear_benchmark_setup_matches_legacy(self):
@@ -210,7 +222,11 @@ class TestPredictionOEDConvergenceLegacyComparison(ParametrizedTestCase):
         typing_obs_mat = bkd.to_numpy(typing_benchmark.design_matrix())
 
         # Design matrices should match
-        np.testing.assert_allclose(typing_obs_mat, legacy_obs_mat, rtol=1e-12)
+        self._bkd.assert_allclose(
+            self._bkd.asarray(typing_obs_mat),
+            self._bkd.asarray(legacy_obs_mat),
+            rtol=1e-12,
+        )
 
     @slow_test
     def test_sample_statistics_mean_matches_legacy(self):
@@ -246,7 +262,11 @@ class TestPredictionOEDConvergenceLegacyComparison(ParametrizedTestCase):
         typing_mean = SampleAverageMean(bkd)
         typing_result = bkd.to_numpy(typing_mean(typing_values, typing_weights))
 
-        np.testing.assert_allclose(typing_result, legacy_result, rtol=1e-12)
+        self._bkd.assert_allclose(
+            self._bkd.asarray(typing_result).reshape(-1),
+            self._bkd.asarray(legacy_result).reshape(-1),
+            rtol=1e-12,
+        )
 
     @slow_test
     def test_sample_statistics_variance_matches_legacy(self):
@@ -282,7 +302,11 @@ class TestPredictionOEDConvergenceLegacyComparison(ParametrizedTestCase):
         typing_var = SampleAverageVariance(bkd)
         typing_result = bkd.to_numpy(typing_var(typing_values, typing_weights))
 
-        np.testing.assert_allclose(typing_result, legacy_result, rtol=1e-12)
+        self._bkd.assert_allclose(
+            self._bkd.asarray(typing_result).reshape(-1),
+            self._bkd.asarray(legacy_result).reshape(-1),
+            rtol=1e-12,
+        )
 
 
 if __name__ == "__main__":

@@ -17,6 +17,10 @@ from pyapprox.util.backends.numpy import NumpyMixin
 class TestConjugateOEDLegacyComparison(unittest.TestCase):
     """Verify typing conjugate OED utilities match legacy."""
 
+    def setUp(self):
+        from pyapprox.typing.util.backends.numpy import NumpyBkd
+        self._bkd = NumpyBkd()
+
     def test_expected_stdev_matches_legacy(self):
         """Test expected std dev matches legacy."""
         np.random.seed(42)
@@ -64,7 +68,11 @@ class TestConjugateOEDLegacyComparison(unittest.TestCase):
         typing_utility.set_noise_covariance(bkd.asarray(noise_cov))
         typing_result = typing_utility.value()
 
-        np.testing.assert_allclose(typing_result, legacy_result, rtol=1e-12)
+        self._bkd.assert_allclose(
+            self._bkd.asarray(typing_result).reshape(-1),
+            self._bkd.asarray(legacy_result).reshape(-1),
+            rtol=1e-12,
+        )
 
     def test_expected_entropic_dev_matches_legacy(self):
         """Test expected entropic deviation matches legacy."""
@@ -115,7 +123,11 @@ class TestConjugateOEDLegacyComparison(unittest.TestCase):
         typing_utility.set_noise_covariance(bkd.asarray(noise_cov))
         typing_result = typing_utility.value()
 
-        np.testing.assert_allclose(typing_result, legacy_result, rtol=1e-12)
+        self._bkd.assert_allclose(
+            self._bkd.asarray(typing_result).reshape(-1),
+            self._bkd.asarray(legacy_result).reshape(-1),
+            rtol=1e-12,
+        )
 
     def test_expected_avar_dev_matches_legacy(self):
         """Test expected AVaR deviation matches legacy."""
@@ -166,7 +178,11 @@ class TestConjugateOEDLegacyComparison(unittest.TestCase):
         typing_utility.set_noise_covariance(bkd.asarray(noise_cov))
         typing_result = typing_utility.value()
 
-        np.testing.assert_allclose(typing_result, legacy_result, rtol=1e-12)
+        self._bkd.assert_allclose(
+            self._bkd.asarray(typing_result).reshape(-1),
+            self._bkd.asarray(legacy_result).reshape(-1),
+            rtol=1e-12,
+        )
 
     def test_expected_kl_divergence_matches_legacy(self):
         """Test expected KL divergence matches legacy."""
@@ -215,7 +231,11 @@ class TestConjugateOEDLegacyComparison(unittest.TestCase):
         typing_utility.set_noise_covariance(bkd.asarray(noise_cov))
         typing_result = typing_utility.value()
 
-        np.testing.assert_allclose(typing_result, legacy_result, rtol=1e-12)
+        self._bkd.assert_allclose(
+            self._bkd.asarray(typing_result).reshape(-1),
+            self._bkd.asarray(legacy_result).reshape(-1),
+            rtol=1e-12,
+        )
 
     def test_lognormal_expected_stdev_matches_legacy(self):
         """Test lognormal expected std dev matches legacy."""
@@ -264,7 +284,11 @@ class TestConjugateOEDLegacyComparison(unittest.TestCase):
         typing_utility.set_noise_covariance(bkd.asarray(noise_cov))
         typing_result = typing_utility.value()
 
-        np.testing.assert_allclose(typing_result, legacy_result, rtol=1e-12)
+        self._bkd.assert_allclose(
+            self._bkd.asarray(typing_result).reshape(-1),
+            self._bkd.asarray(legacy_result).reshape(-1),
+            rtol=1e-12,
+        )
 
     def test_lognormal_avar_stdev_matches_legacy(self):
         """Test lognormal AVaR std dev matches legacy."""
@@ -315,7 +339,11 @@ class TestConjugateOEDLegacyComparison(unittest.TestCase):
         typing_utility.set_noise_covariance(bkd.asarray(noise_cov))
         typing_result = typing_utility.value()
 
-        np.testing.assert_allclose(typing_result, legacy_result, rtol=1e-12)
+        self._bkd.assert_allclose(
+            self._bkd.asarray(typing_result).reshape(-1),
+            self._bkd.asarray(legacy_result).reshape(-1),
+            rtol=1e-12,
+        )
 
 
 if __name__ == "__main__":

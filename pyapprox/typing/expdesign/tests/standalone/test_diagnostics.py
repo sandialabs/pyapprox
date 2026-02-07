@@ -65,7 +65,11 @@ class TestKLOEDDiagnosticsStandalone(Generic[Array], unittest.TestCase):
         eig_diag = diagnostics.exact_eig(weights)
         eig_bench = benchmark.exact_eig(weights)
 
-        self.assertAlmostEqual(eig_diag, eig_bench, places=12)
+        self._bkd.assert_allclose(
+            self._bkd.asarray([eig_diag]),
+            self._bkd.asarray([eig_bench]),
+            rtol=1e-12,
+        )
 
     def test_numerical_eig_finite(self):
         """Test numerical EIG is finite."""
@@ -90,7 +94,11 @@ class TestKLOEDDiagnosticsStandalone(Generic[Array], unittest.TestCase):
             nouter=50, ninner=30, design_weights=weights, seed=42
         )
 
-        self.assertAlmostEqual(eig1, eig2, places=12)
+        self._bkd.assert_allclose(
+            self._bkd.asarray([eig1]),
+            self._bkd.asarray([eig2]),
+            rtol=1e-12,
+        )
 
     def test_numerical_eig_varies_with_seed(self):
         """Test numerical EIG varies with different seeds."""
@@ -128,7 +136,11 @@ class TestKLOEDDiagnosticsStandalone(Generic[Array], unittest.TestCase):
 
         # MSE = bias^2 + variance
         expected_mse = bias ** 2 + variance
-        self.assertAlmostEqual(mse, expected_mse, places=10)
+        self._bkd.assert_allclose(
+            self._bkd.asarray([mse]),
+            self._bkd.asarray([expected_mse]),
+            rtol=1e-10,
+        )
 
     def test_mse_decreases_with_samples(self):
         """Test MSE generally decreases with more samples."""
@@ -158,7 +170,9 @@ class TestKLOEDDiagnosticsStandalone(Generic[Array], unittest.TestCase):
 
         rate = KLOEDDiagnostics.compute_convergence_rate(sample_counts, values)
 
-        self.assertAlmostEqual(rate, 1.0, places=10)
+        self._bkd.assert_allclose(
+            self._bkd.asarray([rate]), self._bkd.asarray([1.0]), rtol=1e-10
+        )
 
     def test_convergence_rate_o1n2(self):
         """Test convergence rate for O(1/n^2) data is approximately 2."""
@@ -167,7 +181,9 @@ class TestKLOEDDiagnosticsStandalone(Generic[Array], unittest.TestCase):
 
         rate = KLOEDDiagnostics.compute_convergence_rate(sample_counts, values)
 
-        self.assertAlmostEqual(rate, 2.0, places=10)
+        self._bkd.assert_allclose(
+            self._bkd.asarray([rate]), self._bkd.asarray([2.0]), rtol=1e-10
+        )
 
     def test_convergence_rate_o1sqrtn(self):
         """Test convergence rate for O(1/sqrt(n)) data is approximately 0.5."""
@@ -176,7 +192,9 @@ class TestKLOEDDiagnosticsStandalone(Generic[Array], unittest.TestCase):
 
         rate = KLOEDDiagnostics.compute_convergence_rate(sample_counts, values)
 
-        self.assertAlmostEqual(rate, 0.5, places=10)
+        self._bkd.assert_allclose(
+            self._bkd.asarray([rate]), self._bkd.asarray([0.5]), rtol=1e-10
+        )
 
     def test_compute_mse_for_sample_combinations_structure(self):
         """Test compute_mse_for_sample_combinations returns correct structure."""

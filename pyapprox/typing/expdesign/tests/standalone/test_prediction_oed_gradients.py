@@ -281,13 +281,8 @@ class TestPredictionOEDGradientsStandalone(Generic[Array], ParametrizedTestCase)
         jac1 = objective.jacobian(weights)
         jac2 = objective.jacobian(weights)
 
-        val1_np = self._bkd.to_numpy(val1)
-        val2_np = self._bkd.to_numpy(val2)
-        jac1_np = self._bkd.to_numpy(jac1)
-        jac2_np = self._bkd.to_numpy(jac2)
-
-        np.testing.assert_allclose(val1_np, val2_np, rtol=1e-12)
-        np.testing.assert_allclose(jac1_np, jac2_np, rtol=1e-12)
+        self._bkd.assert_allclose(val1, val2, rtol=1e-12)
+        self._bkd.assert_allclose(jac1, jac2, rtol=1e-12)
 
 
 class TestPredictionOEDGradientsStandaloneNumpy(

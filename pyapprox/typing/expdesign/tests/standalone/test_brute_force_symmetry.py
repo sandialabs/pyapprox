@@ -149,9 +149,10 @@ class TestBruteForceSymmetryStandalone(
             nobs, degree, noise_std, prior_std, self._bkd, min_degree=min_degree
         )
 
-        # Legacy used gauss quadrature with 100000 outer, 1000 inner samples
-        nouter = 100000
-        ninner = 1000
+        # Gauss quadrature: symmetry is a structural property that holds
+        # regardless of quadrature accuracy, so modest sample counts suffice.
+        nouter = 1000
+        ninner = 100
 
         objective = create_kl_oed_objective_from_benchmark(
             benchmark, self._bkd,
@@ -227,9 +228,10 @@ class TestBruteForceSymmetryStandalone(
             nobs, degree, noise_std, prior_std, self._bkd, min_degree=min_degree
         )
 
-        # Legacy used gauss quadrature with 100000 outer, 1000 inner samples
-        nouter = 100000
-        ninner = 1000
+        # Gauss quadrature: optimal design is a structural property that holds
+        # regardless of quadrature accuracy, so modest sample counts suffice.
+        nouter = 1000
+        ninner = 100
 
         objective = create_kl_oed_objective_from_benchmark(
             benchmark, self._bkd,

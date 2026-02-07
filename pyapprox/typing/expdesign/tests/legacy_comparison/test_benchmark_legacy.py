@@ -17,6 +17,10 @@ from pyapprox.util.backends.numpy import NumpyMixin
 class TestBenchmarkLegacyComparison(unittest.TestCase):
     """Verify typing LinearGaussianOEDBenchmark matches legacy."""
 
+    def setUp(self):
+        from pyapprox.typing.util.backends.numpy import NumpyBkd
+        self._bkd = NumpyBkd()
+
     def test_exact_eig_matches_legacy(self):
         """Test exact EIG matches legacy implementation."""
         nobs = 5
@@ -48,7 +52,11 @@ class TestBenchmarkLegacyComparison(unittest.TestCase):
         )
         typing_eig = typing_problem.exact_eig(bkd.asarray(weights))
 
-        np.testing.assert_allclose(typing_eig, legacy_eig, rtol=1e-12)
+        self._bkd.assert_allclose(
+            self._bkd.asarray([typing_eig]),
+            self._bkd.asarray([legacy_eig]),
+            rtol=1e-12,
+        )
 
     def test_exact_eig_different_weights(self):
         """Test exact EIG with non-uniform weights."""
@@ -82,7 +90,11 @@ class TestBenchmarkLegacyComparison(unittest.TestCase):
         )
         typing_eig = typing_problem.exact_eig(bkd.asarray(weights))
 
-        np.testing.assert_allclose(typing_eig, legacy_eig, rtol=1e-12)
+        self._bkd.assert_allclose(
+            self._bkd.asarray([typing_eig]),
+            self._bkd.asarray([legacy_eig]),
+            rtol=1e-12,
+        )
 
     def test_design_matrix_matches_legacy(self):
         """Test design matrix matches legacy."""
@@ -114,9 +126,9 @@ class TestBenchmarkLegacyComparison(unittest.TestCase):
         )
         typing_matrix = typing_problem.design_matrix()
 
-        np.testing.assert_allclose(
-            bkd.to_numpy(typing_matrix),
-            NumpyMixin.to_numpy(legacy_matrix),
+        self._bkd.assert_allclose(
+            typing_matrix,
+            self._bkd.asarray(NumpyMixin.to_numpy(legacy_matrix)),
             rtol=1e-12,
         )
 

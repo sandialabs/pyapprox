@@ -29,6 +29,10 @@ class TestPredictionOEDValuesLegacyComparison(ParametrizedTestCase):
     problem setup and data, then verify the objective values match.
     """
 
+    def setUp(self):
+        from pyapprox.typing.util.backends.torch import TorchBkd
+        self._bkd = TorchBkd()
+
     @parametrize(
         "deviation_type",
         [
@@ -195,10 +199,10 @@ class TestPredictionOEDValuesLegacyComparison(ParametrizedTestCase):
         self.assertTrue(np.isfinite(typing_value_np))
 
         # Values should match
-        np.testing.assert_allclose(
-            typing_value_np, legacy_value_np, rtol=1e-10,
-            err_msg=f"Typing ({typing_value_np}) != Legacy ({legacy_value_np}) "
-                    f"for deviation_type={deviation_type}"
+        self._bkd.assert_allclose(
+            self._bkd.asarray([typing_value_np]),
+            self._bkd.asarray([legacy_value_np]),
+            rtol=1e-10,
         )
 
     @slow_test
@@ -241,8 +245,16 @@ class TestPredictionOEDValuesLegacyComparison(ParametrizedTestCase):
         typing_var_result = typing_bkd.to_numpy(typing_var(typing_values, typing_weights))
 
         # Should match exactly
-        np.testing.assert_allclose(typing_mean_result, legacy_mean_result, rtol=1e-12)
-        np.testing.assert_allclose(typing_var_result, legacy_var_result, rtol=1e-12)
+        self._bkd.assert_allclose(
+            self._bkd.asarray(typing_mean_result),
+            self._bkd.asarray(legacy_mean_result),
+            rtol=1e-12,
+        )
+        self._bkd.assert_allclose(
+            self._bkd.asarray(typing_var_result),
+            self._bkd.asarray(legacy_var_result),
+            rtol=1e-12,
+        )
 
     @slow_test
     def test_sample_statistics_jacobian_match_legacy(self):
@@ -296,8 +308,16 @@ class TestPredictionOEDValuesLegacyComparison(ParametrizedTestCase):
         )
 
         # Should match exactly
-        np.testing.assert_allclose(typing_mean_jac, legacy_mean_jac, rtol=1e-12)
-        np.testing.assert_allclose(typing_var_jac, legacy_var_jac, rtol=1e-12)
+        self._bkd.assert_allclose(
+            self._bkd.asarray(typing_mean_jac),
+            self._bkd.asarray(legacy_mean_jac),
+            rtol=1e-12,
+        )
+        self._bkd.assert_allclose(
+            self._bkd.asarray(typing_var_jac),
+            self._bkd.asarray(legacy_var_jac),
+            rtol=1e-12,
+        )
 
 
 if __name__ == "__main__":

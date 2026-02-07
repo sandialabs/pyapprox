@@ -289,9 +289,7 @@ class TestHaltonSampler(Generic[Array], unittest.TestCase):
         samples_skip, _ = sampler2.sample(8)
 
         # Samples starting from 2 should match samples[2:] from full
-        samples_full_np = self._bkd.to_numpy(samples_full)
-        samples_skip_np = self._bkd.to_numpy(samples_skip)
-        self.assertTrue(np.allclose(samples_full_np[:, 2:], samples_skip_np))
+        self._bkd.assert_allclose(samples_full[:, 2:], samples_skip, rtol=1e-12)
 
 
 class TestHaltonSamplerNumpy(TestHaltonSampler[NDArray[Any]]):
@@ -461,9 +459,7 @@ class TestSobolSampler(Generic[Array], unittest.TestCase):
         samples_skip, _ = sampler2.sample(8)
 
         # Samples starting from 2 should match samples[2:] from full
-        samples_full_np = self._bkd.to_numpy(samples_full)
-        samples_skip_np = self._bkd.to_numpy(samples_skip)
-        self.assertTrue(np.allclose(samples_full_np[:, 2:], samples_skip_np))
+        self._bkd.assert_allclose(samples_full[:, 2:], samples_skip, rtol=1e-12)
 
     def test_sobol_known_values(self):
         """Test Sobol sequence against known values."""
@@ -476,11 +472,11 @@ class TestSobolSampler(Generic[Array], unittest.TestCase):
 
         # Known Sobol sequence values (first 4 points in 2D)
         # [0, 0], [0.5, 0.5], [0.75, 0.25], [0.25, 0.75]
-        expected = np.array([
+        expected = self._bkd.asarray([
             [0.0, 0.5, 0.75, 0.25],
             [0.0, 0.5, 0.25, 0.75],
         ])
-        self.assertTrue(np.allclose(samples_np, expected, rtol=1e-10))
+        self._bkd.assert_allclose(samples, expected, rtol=1e-10)
 
 
 class TestSobolSamplerNumpy(TestSobolSampler[NDArray[Any]]):
