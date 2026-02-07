@@ -3,7 +3,7 @@ Forward Euler time stepping residual with adjoint support.
 
 The Forward Euler method is a first-order explicit time integrator:
 
-    y_n = y_{n-1} + Δt·f(y_{n-1}, t_{n-1})
+    M·(y_n - y_{n-1}) - Δt·f(y_{n-1}, t_{n-1}) = 0
 
 This module provides full adjoint support for gradient computation dQ/dp
 via the adjoint method.
@@ -22,7 +22,7 @@ class ForwardEulerResidual(TimeSteppingResidualBase[Array]):
     """
     Forward Euler time stepping residual.
 
-    Residual: R(y_n) = y_n - y_{n-1} - Δt·f(y_{n-1}, t_{n-1}) = 0
+    Residual: R(y_n) = M·(y_n - y_{n-1}) - Δt·f(y_{n-1}, t_{n-1}) = 0
 
     This is a first-order explicit method. The residual is linear in y_n
     and can be solved without Newton iteration.
@@ -46,7 +46,7 @@ class ForwardEulerResidual(TimeSteppingResidualBase[Array]):
         """
         Evaluate the Forward Euler residual.
 
-        R(y_n) = y_n - y_{n-1} - Δt·f(y_{n-1}, t_{n-1})
+        R(y_n) = M·(y_n - y_{n-1}) - Δt·f(y_{n-1}, t_{n-1})
 
         Parameters
         ----------
@@ -60,8 +60,7 @@ class ForwardEulerResidual(TimeSteppingResidualBase[Array]):
         """
         self._residual.set_time(self._time)
         return (
-            state
-            - self._prev_state
+            self._residual.apply_mass_matrix(state - self._prev_state)
             - self._deltat * self._residual(self._prev_state)
         )
 

@@ -185,6 +185,29 @@ class AbstractGalerkinPhysics(ABC, Generic[Array]):
                 load = bc.apply_to_load(load, time)
         return load
 
+    def spatial_jacobian(self, state: Array, time: float) -> Array:
+        """Compute state Jacobian dF/du without Dirichlet enforcement.
+
+        Default implementation returns -K with Robin BC stiffness
+        contributions but no Dirichlet row replacement. Override in
+        subclasses with nonlinear terms (e.g., reaction Jacobian).
+
+        Parameters
+        ----------
+        state : Array
+            Solution state. Shape: (nstates,)
+        time : float
+            Current time.
+
+        Returns
+        -------
+        Array
+            Jacobian dF/du. Shape: (nstates, nstates)
+        """
+        stiffness = self._assemble_stiffness(state, time)
+        stiffness = self._apply_bc_to_stiffness(stiffness, time)
+        return -stiffness
+
     def spatial_residual(self, state: Array, time: float) -> Array:
         """Compute spatial residual without Dirichlet enforcement.
 

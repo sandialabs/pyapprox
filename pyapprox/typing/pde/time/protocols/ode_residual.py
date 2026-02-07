@@ -106,6 +106,26 @@ class ODEResidualProtocol(Protocol, Generic[Array]):
         """
         ...
 
+    def apply_mass_matrix(self, vec: Array) -> Array:
+        """
+        Apply mass matrix to a vector: M @ vec.
+
+        Default implementations should return mass_matrix(len(vec)) @ vec.
+        Override for custom mass matrix application (e.g., sparse,
+        block-diagonal, or singular mass matrices).
+
+        Parameters
+        ----------
+        vec : Array
+            Vector to multiply. Shape: (nstates,)
+
+        Returns
+        -------
+        Array
+            Result M @ vec. Shape: (nstates,)
+        """
+        ...
+
 
 @runtime_checkable
 class ODEResidualWithParamJacobianProtocol(Protocol, Generic[Array]):
@@ -140,6 +160,9 @@ class ODEResidualWithParamJacobianProtocol(Protocol, Generic[Array]):
         ...
 
     def mass_matrix(self, nstates: int) -> Array:
+        ...
+
+    def apply_mass_matrix(self, vec: Array) -> Array:
         ...
 
     def nparams(self) -> int:
@@ -231,6 +254,9 @@ class ODEResidualWithHVPProtocol(Protocol, Generic[Array]):
         ...
 
     def mass_matrix(self, nstates: int) -> Array:
+        ...
+
+    def apply_mass_matrix(self, vec: Array) -> Array:
         ...
 
     def nparams(self) -> int:

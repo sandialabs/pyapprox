@@ -122,6 +122,10 @@ class LinearODEResidual(Generic[Array]):
         """
         return self._bkd.eye(nstates)
 
+    def apply_mass_matrix(self, vec: Array) -> Array:
+        """Apply mass matrix to a vector (identity, returns vec)."""
+        return vec
+
     def param_jacobian(self, state: Array) -> Array:
         """
         Compute df/dp = B.
@@ -296,6 +300,10 @@ class QuadraticODEResidual(Generic[Array]):
     def mass_matrix(self, nstates: int) -> Array:
         """Return the identity mass matrix."""
         return self._bkd.eye(nstates)
+
+    def apply_mass_matrix(self, vec: Array) -> Array:
+        """Apply mass matrix to a vector (identity, returns vec)."""
+        return vec
 
     def param_jacobian(self, state: Array) -> Array:
         """

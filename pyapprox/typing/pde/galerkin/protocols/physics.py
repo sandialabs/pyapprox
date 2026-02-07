@@ -93,6 +93,26 @@ class GalerkinPhysicsProtocol(Protocol, Generic[Array]):
         """
         ...
 
+    def spatial_jacobian(self, state: Array, time: float) -> Array:
+        """Compute state Jacobian dF/du without Dirichlet enforcement.
+
+        Returns the Jacobian with Robin/Neumann BC contributions but
+        no Dirichlet row replacement.
+
+        Parameters
+        ----------
+        state : Array
+            Solution state. Shape: (nstates,)
+        time : float
+            Current time.
+
+        Returns
+        -------
+        Array
+            Jacobian dF/du. Shape: (nstates, nstates)
+        """
+        ...
+
     def jacobian(self, state: Array, time: float) -> Array:
         """Compute state Jacobian dF/du.
 
@@ -149,6 +169,7 @@ class GalerkinPhysicsWithParamJacobianProtocol(Protocol, Generic[Array]):
     def mass_matrix(self) -> Array: ...
     def mass_solve(self, rhs: Array) -> Array: ...
     def residual(self, state: Array, time: float) -> Array: ...
+    def spatial_jacobian(self, state: Array, time: float) -> Array: ...
     def jacobian(self, state: Array, time: float) -> Array: ...
     def apply_boundary_conditions(
         self, residual: Array, jacobian: Array, state: Array
@@ -212,6 +233,7 @@ class GalerkinPhysicsWithHVPProtocol(Protocol, Generic[Array]):
     def mass_matrix(self) -> Array: ...
     def mass_solve(self, rhs: Array) -> Array: ...
     def residual(self, state: Array, time: float) -> Array: ...
+    def spatial_jacobian(self, state: Array, time: float) -> Array: ...
     def jacobian(self, state: Array, time: float) -> Array: ...
     def apply_boundary_conditions(
         self, residual: Array, jacobian: Array, state: Array

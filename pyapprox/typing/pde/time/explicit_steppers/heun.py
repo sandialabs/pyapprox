@@ -5,7 +5,7 @@ Heun's method is a second-order explicit Runge-Kutta method:
 
     k1 = f(y_{n-1}, t_{n-1})
     k2 = f(y_{n-1} + Δt·k1, t_n)
-    y_n = y_{n-1} + (Δt/2)·(k1 + k2)
+    M·(y_n - y_{n-1}) = (Δt/2)·(k1 + k2)
 
 This is also known as the explicit trapezoidal method or improved Euler method.
 
@@ -32,7 +32,7 @@ class HeunResidual(TimeSteppingResidualBase[Array]):
         k2 = f(y_{n-1} + Δt·k1, t_n)
         y_n = y_{n-1} + (Δt/2)·(k1 + k2)
 
-    Residual: R(y_n) = y_n - y_{n-1} - (Δt/2)·(k1 + k2) = 0
+    Residual: R(y_n) = M·(y_n - y_{n-1}) - (Δt/2)·(k1 + k2) = 0
 
     Optional Methods
     ----------------
@@ -49,7 +49,7 @@ class HeunResidual(TimeSteppingResidualBase[Array]):
         """
         Evaluate the Heun residual.
 
-        R(y_n) = y_n - y_{n-1} - (Δt/2)·(k1 + k2)
+        R(y_n) = M·(y_n - y_{n-1}) - (Δt/2)·(k1 + k2)
 
         where:
             k1 = f(y_{n-1}, t_{n-1})
@@ -74,7 +74,10 @@ class HeunResidual(TimeSteppingResidualBase[Array]):
         self._residual.set_time(self._time + self._deltat)
         k2 = self._residual(next_state)
 
-        return state - self._prev_state - 0.5 * self._deltat * (k1 + k2)
+        return (
+            self._residual.apply_mass_matrix(state - self._prev_state)
+            - 0.5 * self._deltat * (k1 + k2)
+        )
 
     def jacobian(self, state: Array) -> Array:
         """

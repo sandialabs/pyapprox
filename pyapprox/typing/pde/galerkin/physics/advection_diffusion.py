@@ -402,6 +402,30 @@ class AdvectionDiffusionReaction(AbstractGalerkinPhysics[Array]):
 
         return self._bkd.asarray(jac_np.astype(np.float64))
 
+    def spatial_jacobian(self, state: Array, time: float) -> Array:
+        """Compute dF/du without Dirichlet enforcement.
+
+        Includes nonlinear reaction Jacobian if applicable.
+
+        Parameters
+        ----------
+        state : Array
+            Solution state. Shape: (nstates,)
+        time : float
+            Current time.
+
+        Returns
+        -------
+        Array
+            Jacobian dF/du. Shape: (nstates, nstates)
+        """
+        stiffness = self._assemble_stiffness(state, time)
+        stiffness = self._apply_bc_to_stiffness(stiffness, time)
+        jacobian = -stiffness
+        if not self._reaction_is_linear and self._reaction_deriv is not None:
+            jacobian = jacobian + self._assemble_reaction_jacobian(state, time)
+        return jacobian
+
     def jacobian(self, state: Array, time: float) -> Array:
         """Compute state Jacobian dF/du.
 

@@ -198,6 +198,28 @@ class BurgersPhysics(AbstractGalerkinPhysics[Array], Generic[Array]):
 
         return load - bc_stiffness @ state
 
+    def spatial_jacobian(self, state: Array, time: float) -> Array:
+        """Compute dR/du without Dirichlet enforcement.
+
+        For Burgers, the Jacobian is -K where K is the Newton-linearized
+        stiffness (bilinear form) evaluated at the current state.
+
+        Parameters
+        ----------
+        state : Array
+            Solution state. Shape: (nstates,)
+        time : float
+            Current time.
+
+        Returns
+        -------
+        Array
+            Jacobian dR/du. Shape: (nstates, nstates)
+        """
+        stiffness = self._assemble_stiffness(state, time)
+        stiffness = self._apply_bc_to_stiffness(stiffness, time)
+        return -stiffness
+
     def residual(self, state: Array, time: float) -> Array:
         """Compute nonlinear spatial residual R(u, t) with Dirichlet BCs.
 

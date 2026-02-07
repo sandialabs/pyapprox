@@ -3,7 +3,7 @@ Crank-Nicolson time stepping residual with adjoint support.
 
 The Crank-Nicolson method is a second-order implicit time integrator:
 
-    y_n - y_{n-1} - (Δt/2)·[f(y_{n-1}, t_{n-1}) + f(y_n, t_n)] = 0
+    M·(y_n - y_{n-1}) - (Δt/2)·[f(y_{n-1}, t_{n-1}) + f(y_n, t_n)] = 0
 
 This is also known as the trapezoidal rule or implicit midpoint method.
 
@@ -24,7 +24,7 @@ class CrankNicolsonResidual(TimeSteppingResidualBase[Array]):
     """
     Crank-Nicolson time stepping residual.
 
-    Residual: R(y_n) = y_n - y_{n-1} - (Δt/2)·[f(y_{n-1}, t_{n-1}) + f(y_n, t_n)] = 0
+    Residual: R(y_n) = M·(y_n - y_{n-1}) - (Δt/2)·[f(y_{n-1}, t_{n-1}) + f(y_n, t_n)] = 0
 
     This is a second-order implicit method (A-stable).
 
@@ -43,7 +43,7 @@ class CrankNicolsonResidual(TimeSteppingResidualBase[Array]):
         """
         Evaluate the Crank-Nicolson residual.
 
-        R(y_n) = y_n - y_{n-1} - (Δt/2)·[f(y_{n-1}, t_{n-1}) + f(y_n, t_n)]
+        R(y_n) = M·(y_n - y_{n-1}) - (Δt/2)·[f(y_{n-1}, t_{n-1}) + f(y_n, t_n)]
 
         Parameters
         ----------
@@ -64,8 +64,7 @@ class CrankNicolsonResidual(TimeSteppingResidualBase[Array]):
         next_res = self._residual(state)
 
         return (
-            state
-            - self._prev_state
+            self._residual.apply_mass_matrix(state - self._prev_state)
             - 0.5 * self._deltat * (current_res + next_res)
         )
 

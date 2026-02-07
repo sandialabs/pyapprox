@@ -121,6 +121,10 @@ class CoupledSpringsResidual(Generic[Array]):
         """Return the identity mass matrix."""
         return self._bkd.eye(nstates)
 
+    def apply_mass_matrix(self, vec: Array) -> Array:
+        """Apply mass matrix to a vector (identity, returns vec)."""
+        return vec
+
     def param_jacobian(self, state: Array) -> Array:
         """
         Compute the parameter Jacobian df/dp.

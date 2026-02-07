@@ -183,6 +183,10 @@ class GalerkinExplicitODEAdapter(Generic[Array]):
             self._identity_cached = self._bkd.eye(nstates)
         return self._identity_cached
 
+    def apply_mass_matrix(self, vec: Array) -> Array:
+        """Apply mass matrix to a vector (identity since M absorbed into f)."""
+        return vec
+
     def __repr__(self) -> str:
         return (
             f"GalerkinExplicitODEAdapter("

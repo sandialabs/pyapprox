@@ -30,11 +30,13 @@ from pyapprox.typing.pde.collocation.manufactured_solutions.burgers import (
 )
 from pyapprox.typing.pde.galerkin.time_integration import (
     GalerkinPhysicsODEAdapter,
+    ConstrainedTimeStepResidual,
 )
 from pyapprox.typing.pde.time.implicit_steppers import (
     BackwardEulerResidual,
     CrankNicolsonResidual,
 )
+from pyapprox.typing.optimization.rootfinding.newton import NewtonSolver
 
 
 # =========================================================================
@@ -338,12 +340,16 @@ class TestParametrizedBurgersTransient(ParametrizedTestCase):
             boundary_conditions=bc_set.all_conditions(),
         )
 
-        # Create ODE adapter and time stepper
+        # Create ODE adapter and time stepper with constrained wrapper
         ode_adapter = GalerkinPhysicsODEAdapter(physics)
         if method == "backward_euler":
             stepper = BackwardEulerResidual(ode_adapter)
         else:
             stepper = CrankNicolsonResidual(ode_adapter)
+        constrained = ConstrainedTimeStepResidual(stepper, ode_adapter)
+
+        newton = NewtonSolver(constrained)
+        newton.set_options(maxiters=20, atol=1e-10, rtol=0.0)
 
         # Initial condition from exact solution at t=0
         exact_sol_func = adapter.solution_function()
@@ -363,21 +369,21 @@ class TestParametrizedBurgersTransient(ParametrizedTestCase):
         t = 0.0
 
         for step in range(nsteps):
+            t_np1 = t + dt
             stepper.set_time(t, dt, y)
+            constrained.set_bc_time(t_np1)
 
-            # Newton iteration for this time step
-            y_new = bkd.copy(y)
-            for newton_iter in range(5):
-                res = stepper(y_new)
-                res_norm = float(np.linalg.norm(bkd.to_numpy(res)))
-                if res_norm < 1e-10:
-                    break
-                jac = stepper.jacobian(y_new)
-                dy = bkd.solve(jac, -res)
-                y_new = y_new + dy
+            # Inject Dirichlet values into initial guess
+            d_dofs, d_vals = ode_adapter.dirichlet_dof_info(t_np1)
+            d_dofs_np = bkd.to_numpy(d_dofs).astype(np.intp)
+            guess = bkd.copy(y)
+            if len(d_dofs_np) > 0:
+                guess_np = bkd.to_numpy(guess).copy()
+                guess_np[d_dofs_np] = bkd.to_numpy(d_vals)
+                guess = bkd.asarray(guess_np.astype(np.float64))
 
-            y = y_new
-            t += dt
+            y = newton.solve(guess)
+            t = t_np1
 
         # Compare to exact at final time
         u_exact_final = exact_at_time(t)

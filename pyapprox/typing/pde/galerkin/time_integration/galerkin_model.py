@@ -20,6 +20,9 @@ from pyapprox.typing.pde.galerkin.time_integration.physics_adapter import (
 from pyapprox.typing.pde.galerkin.time_integration.explicit_adapter import (
     GalerkinExplicitODEAdapter,
 )
+from pyapprox.typing.pde.galerkin.time_integration.constrained_residual import (
+    ConstrainedTimeStepResidual,
+)
 from pyapprox.typing.pde.galerkin.solvers.steady_state import SteadyStateSolver
 from pyapprox.typing.pde.time.config import TimeIntegrationConfig
 from pyapprox.typing.pde.time.explicit_steppers import (
@@ -141,7 +144,8 @@ class GalerkinModel(Generic[Array]):
         For explicit methods, uses GalerkinExplicitODEAdapter which provides
         BC-clean f(y,t) = M_bc^{-1} * spatial_residual. Dirichlet values are
         injected after each step. For implicit methods, uses the standard
-        GalerkinPhysicsODEAdapter with Newton solver.
+        GalerkinPhysicsODEAdapter with ConstrainedTimeStepResidual wrapper
+        for Dirichlet BC enforcement via Newton solver.
 
         Parameters
         ----------
@@ -160,7 +164,7 @@ class GalerkinModel(Generic[Array]):
         """
         bkd = self._bkd
 
-        stepper, is_explicit = self._create_stepper(config)
+        stepper, constrained, is_explicit = self._create_stepper(config)
 
         # Build time grid
         times_list = [config.init_time]
@@ -181,7 +185,7 @@ class GalerkinModel(Generic[Array]):
 
         # Setup Newton solver for implicit methods
         if not is_explicit:
-            newton = NewtonSolver(stepper)
+            newton = NewtonSolver(constrained)
             newton.set_options(
                 maxiters=config.newton_maxiter,
                 atol=config.newton_tol,
@@ -192,9 +196,8 @@ class GalerkinModel(Generic[Array]):
             t_n = float(times[ii])
             dt = float(times[ii + 1] - times[ii])
 
-            stepper.set_time(t_n, dt, state)
-
             if is_explicit:
+                stepper.set_time(t_n, dt, state)
                 state = state - stepper(state)
                 # Inject Dirichlet values at t_{n+1}
                 t_np1 = t_n + dt
@@ -208,7 +211,15 @@ class GalerkinModel(Generic[Array]):
                         state_np.astype(np.float64)
                     )
             else:
-                state = newton.solve(state)
+                t_np1 = t_n + dt
+                # Set stepper with unmodified prev_state (has g(t_n)
+                # from converged previous step or initial condition)
+                stepper.set_time(t_n, dt, state)
+                # Set constraint time for Dirichlet enforcement
+                constrained.set_bc_time(t_np1)
+                # Only the initial guess gets g(t_{n+1})
+                guess = self._inject_dirichlet(state, t_np1)
+                state = newton.solve(guess)
 
             solutions[:, ii + 1] = state
 
@@ -217,11 +228,37 @@ class GalerkinModel(Generic[Array]):
 
         return solutions, times
 
+    def _inject_dirichlet(self, state: Array, time: float) -> Array:
+        """Inject Dirichlet boundary values into state at given time.
+
+        Parameters
+        ----------
+        state : Array
+            State vector. Shape: (nstates,)
+        time : float
+            Time at which to evaluate Dirichlet BCs.
+
+        Returns
+        -------
+        Array
+            State with Dirichlet DOFs set to g(time).
+        """
+        bkd = self._bkd
+        d_dofs, d_vals = self._physics.dirichlet_dof_info(time)
+        d_dofs_np = bkd.to_numpy(d_dofs).astype(np.intp)
+        if len(d_dofs_np) > 0:
+            state_np = bkd.to_numpy(state).copy()
+            d_vals_np = bkd.to_numpy(d_vals)
+            state_np[d_dofs_np] = d_vals_np
+            state = bkd.asarray(state_np.astype(np.float64))
+        return state
+
     def _create_stepper(self, config: TimeIntegrationConfig):
         """Create a time stepping residual for the given method.
 
         For explicit methods, uses GalerkinExplicitODEAdapter (BC-clean).
-        For implicit methods, uses GalerkinPhysicsODEAdapter (standard).
+        For implicit methods, uses GalerkinPhysicsODEAdapter (raw) with
+        ConstrainedTimeStepResidual wrapper for Dirichlet enforcement.
 
         Parameters
         ----------
@@ -230,9 +267,11 @@ class GalerkinModel(Generic[Array]):
 
         Returns
         -------
-        Tuple[TimeSteppingResidualBase, bool]
+        Tuple[TimeSteppingResidualBase, ConstrainedTimeStepResidual or None, bool]
             stepper : TimeSteppingResidualBase
                 The time stepping residual.
+            constrained : ConstrainedTimeStepResidual or None
+                The constrained wrapper (None for explicit).
             is_explicit : bool
                 Whether the method is explicit.
         """
@@ -251,10 +290,13 @@ class GalerkinModel(Generic[Array]):
             adapter = GalerkinExplicitODEAdapter(
                 self._physics, lumped_mass=lumped
             )
+            return stepper_cls(adapter), None, is_explicit
         else:
-            adapter = self._adapter
-
-        return stepper_cls(adapter), is_explicit
+            stepper = stepper_cls(self._adapter)
+            constrained = ConstrainedTimeStepResidual(
+                stepper, self._adapter
+            )
+            return stepper, constrained, is_explicit
 
     def __repr__(self) -> str:
         return (

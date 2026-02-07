@@ -152,3 +152,7 @@ class NonLinearDecoupledODE(
             Mass matrix.
         """
         return self._bkd.eye(nvars, dtype=self._bkd.double_dtype())
+
+    def apply_mass_matrix(self, vec: Array) -> Array:
+        """Apply mass matrix to a vector (identity, returns vec)."""
+        return vec

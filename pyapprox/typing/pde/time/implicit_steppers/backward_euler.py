@@ -3,7 +3,7 @@ Backward Euler time stepping residual with adjoint support.
 
 The Backward Euler method is a first-order implicit time integrator:
 
-    y_n - y_{n-1} - Δt·f(y_n, t_n) = 0
+    M·(y_n - y_{n-1}) - Δt·f(y_n, t_n) = 0
 
 This module provides full adjoint support for gradient computation dQ/dp
 via the adjoint method.
@@ -22,7 +22,7 @@ class BackwardEulerResidual(TimeSteppingResidualBase[Array]):
     """
     Backward Euler time stepping residual.
 
-    Residual: R(y_n) = y_n - y_{n-1} - Δt·f(y_n, t_n) = 0
+    Residual: R(y_n) = M·(y_n - y_{n-1}) - Δt·f(y_n, t_n) = 0
 
     This is a first-order implicit method (A-stable).
 
@@ -41,7 +41,7 @@ class BackwardEulerResidual(TimeSteppingResidualBase[Array]):
         """
         Evaluate the Backward Euler residual.
 
-        R(y_n) = y_n - y_{n-1} - Δt·f(y_n, t_n)
+        R(y_n) = M·(y_n - y_{n-1}) - Δt·f(y_n, t_n)
 
         Parameters
         ----------
@@ -54,7 +54,10 @@ class BackwardEulerResidual(TimeSteppingResidualBase[Array]):
             Residual value. Shape: (nstates,)
         """
         self._residual.set_time(self._time + self._deltat)
-        return state - self._prev_state - self._deltat * self._residual(state)
+        return (
+            self._residual.apply_mass_matrix(state - self._prev_state)
+            - self._deltat * self._residual(state)
+        )
 
     def jacobian(self, state: Array) -> Array:
         """

@@ -1,13 +1,22 @@
 """Adapter to use Galerkin physics with time integration from typing.pde.time.
 
-The time module expects ODEResidualProtocol: dy/dt = f(y, t)
+The time module expects ODEResidualProtocol: M * dy/dt = f(y, t)
 Galerkin physics provides: M * du/dt = F(u, t)
 
-This adapter translates between the two interfaces, properly handling
-the mass matrix in the time integration.
+This adapter returns raw (unmodified) quantities:
+  f(y, t) = spatial_residual(y, t)   (no Dirichlet row zeroing)
+  jacobian = spatial_jacobian(y, t)  (no Dirichlet row replacement)
+  mass_matrix = M                    (raw FEM mass matrix)
+  apply_mass_matrix(v) = M @ v
+
+Dirichlet BCs are enforced by ConstrainedTimeStepResidual, which wraps
+the stepper and applies R[d] = y[d] - g(t), J[d,:] = e_d after the
+stepper assembles the full Newton system.
 """
 
-from typing import Generic, Optional
+from typing import Generic, Tuple
+
+import numpy as np
 
 from pyapprox.typing.util.backends.protocols import Array, Backend
 from pyapprox.typing.pde.galerkin.protocols.physics import (
@@ -20,50 +29,49 @@ from pyapprox.typing.pde.galerkin.protocols.physics import (
 class GalerkinPhysicsODEAdapter(Generic[Array]):
     """Adapter from GalerkinPhysics to ODEResidualProtocol.
 
-    The time steppers in typing.pde.time expect the standard ODE form:
-        du/dt = f(u, t)
+    Returns raw M, F, J_F — no BC modifications:
+    - f(y) = spatial_residual(y, t) (unmodified)
+    - jacobian(y) = spatial_jacobian(y, t) (unmodified)
+    - mass_matrix = M (raw FEM mass matrix)
+    - apply_mass_matrix(v) = M @ v
 
-    Galerkin physics provides the weak form:
-        M * du/dt = F(u, t)
-
-    This adapter transforms F to f by solving: f = M^{-1} * F
-    Similarly, the Jacobian becomes: df/du = M^{-1} * dF/du
-
-    The mass matrix method returns the identity since the transformation
-    absorbs M into the residual/jacobian.
+    Dirichlet BCs are applied externally by ConstrainedTimeStepResidual.
 
     Parameters
     ----------
     physics : GalerkinPhysicsProtocol
-        The Galerkin physics to adapt.
+        The Galerkin physics to adapt. Must have spatial_residual(),
+        spatial_jacobian(), and dirichlet_dof_info() methods.
 
     Examples
     --------
-    >>> from pyapprox.typing.pde.galerkin import (
-    ...     StructuredMesh1D, LagrangeBasis, LinearAdvectionDiffusionReaction
-    ... )
-    >>> from pyapprox.typing.pde.galerkin.time_integration import (
-    ...     GalerkinPhysicsODEAdapter
-    ... )
-    >>> from pyapprox.typing.pde.time.implicit_steppers import BackwardEulerResidual
-    >>> # Setup physics
-    >>> mesh = StructuredMesh1D(nx=10, bounds=(0.0, 1.0), bkd=bkd)
-    >>> basis = LagrangeBasis(mesh, degree=1)
-    >>> physics = LinearAdvectionDiffusionReaction(
-    ...     basis=basis, diffusivity=0.01, bkd=bkd
-    ... )
-    >>> # Create adapter and time stepper
     >>> ode_residual = GalerkinPhysicsODEAdapter(physics)
     >>> time_stepper = BackwardEulerResidual(ode_residual)
     """
 
     def __init__(self, physics: GalerkinPhysicsProtocol[Array]):
+        if not hasattr(physics, "spatial_residual"):
+            raise TypeError(
+                f"{type(physics).__name__} does not have spatial_residual(). "
+                "The implicit adapter requires this method."
+            )
+        if not hasattr(physics, "spatial_jacobian"):
+            raise TypeError(
+                f"{type(physics).__name__} does not have spatial_jacobian(). "
+                "The implicit adapter requires this method."
+            )
+        if not hasattr(physics, "dirichlet_dof_info"):
+            raise TypeError(
+                f"{type(physics).__name__} does not have dirichlet_dof_info(). "
+                "The implicit adapter requires this method."
+            )
+
         self._physics = physics
         self._bkd = physics.bkd()
         self._time: float = 0.0
 
-        # Cache identity matrix for mass_matrix method
-        self._identity_cached: Optional[Array] = None
+        # Cache raw mass matrix
+        self._mass_cached = physics.mass_matrix()
 
         # Setup optional methods based on physics capabilities
         self._setup_optional_methods()
@@ -99,13 +107,7 @@ class GalerkinPhysicsODEAdapter(Generic[Array]):
         self._time = time
 
     def __call__(self, state: Array) -> Array:
-        """Evaluate the ODE residual f(u, t) = M^{-1} * F(u, t).
-
-        For Galerkin with M * du/dt = F(u, t), we transform to standard form
-        du/dt = f(u, t) by solving f = M^{-1} * F.
-
-        Uses the physics.mass_solve() method which can be overridden to
-        exploit mass matrix structure (e.g., lumped/diagonal mass).
+        """Evaluate spatial residual F(y, t) (unmodified).
 
         Parameters
         ----------
@@ -115,16 +117,12 @@ class GalerkinPhysicsODEAdapter(Generic[Array]):
         Returns
         -------
         Array
-            Residual f(u, t) = M^{-1} * F(u, t). Shape: (nstates,)
+            Spatial residual. Shape: (nstates,)
         """
-        F = self._physics.residual(state, self._time)
-        return self._physics.mass_solve(F)
+        return self._physics.spatial_residual(state, self._time)
 
     def jacobian(self, state: Array) -> Array:
-        """Compute the Jacobian df/du = M^{-1} * dF/du.
-
-        Uses the physics.mass_solve() method which can be overridden to
-        exploit mass matrix structure.
+        """Compute spatial Jacobian dF/du (unmodified).
 
         Parameters
         ----------
@@ -134,17 +132,12 @@ class GalerkinPhysicsODEAdapter(Generic[Array]):
         Returns
         -------
         Array
-            Jacobian df/du. Shape: (nstates, nstates)
+            Jacobian dF/du. Shape: (nstates, nstates)
         """
-        J_F = self._physics.jacobian(state, self._time)
-        # Solve M * J = J_F for each column of J
-        return self._physics.mass_solve(J_F)
+        return self._physics.spatial_jacobian(state, self._time)
 
     def mass_matrix(self, nstates: int) -> Array:
-        """Return the identity matrix.
-
-        Since we transform the Galerkin system M * du/dt = F to standard form
-        du/dt = f = M^{-1} * F, the effective mass matrix is now identity.
+        """Return the raw FEM mass matrix.
 
         Parameters
         ----------
@@ -154,11 +147,42 @@ class GalerkinPhysicsODEAdapter(Generic[Array]):
         Returns
         -------
         Array
-            Identity matrix. Shape: (nstates, nstates)
+            Mass matrix M. Shape: (nstates, nstates)
         """
-        if self._identity_cached is None:
-            self._identity_cached = self._bkd.eye(nstates)
-        return self._identity_cached
+        return self._mass_cached
+
+    def apply_mass_matrix(self, vec: Array) -> Array:
+        """Apply mass matrix to a vector: M @ vec.
+
+        Parameters
+        ----------
+        vec : Array
+            Vector to multiply. Shape: (nstates,)
+
+        Returns
+        -------
+        Array
+            M @ vec. Shape: (nstates,)
+        """
+        return self._bkd.dot(self._mass_cached, vec)
+
+    def dirichlet_dof_info(self, time: float) -> Tuple[Array, Array]:
+        """Return Dirichlet DOF indices and values at given time.
+
+        Parameters
+        ----------
+        time : float
+            Time at which to evaluate Dirichlet BCs.
+
+        Returns
+        -------
+        Tuple[Array, Array]
+            dof_indices : Array
+                Global DOF indices. Shape: (ndirichlet,)
+            dof_values : Array
+                Exact Dirichlet values. Shape: (ndirichlet,)
+        """
+        return self._physics.dirichlet_dof_info(time)
 
     # =========================================================================
     # Parameter Jacobian Methods (optional)

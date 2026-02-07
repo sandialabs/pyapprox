@@ -10,6 +10,9 @@ from pyapprox.typing.pde.galerkin.time_integration.physics_adapter import (
 from pyapprox.typing.pde.galerkin.time_integration.explicit_adapter import (
     GalerkinExplicitODEAdapter,
 )
+from pyapprox.typing.pde.galerkin.time_integration.constrained_residual import (
+    ConstrainedTimeStepResidual,
+)
 from pyapprox.typing.pde.galerkin.time_integration.stokes_time_stepper import (
     StokesTimeStepResidual,
 )
@@ -21,6 +24,7 @@ from pyapprox.typing.pde.time.config import TimeIntegrationConfig
 __all__ = [
     "GalerkinPhysicsODEAdapter",
     "GalerkinExplicitODEAdapter",
+    "ConstrainedTimeStepResidual",
     "StokesTimeStepResidual",
     "GalerkinModel",
     "TimeIntegrationConfig",

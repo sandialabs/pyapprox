@@ -351,6 +351,25 @@ class LinearElasticity(Generic[Array]):
 
         return residual
 
+    def spatial_jacobian(self, state: Array, time: float) -> Array:
+        """Compute dF/du without Dirichlet enforcement.
+
+        For linear elasticity, dF/du = -K (constant).
+
+        Parameters
+        ----------
+        state : Array
+            Displacement state. Shape: (nstates,)
+        time : float
+            Current time.
+
+        Returns
+        -------
+        Array
+            Jacobian matrix. Shape: (nstates, nstates)
+        """
+        return -self.stiffness_matrix()
+
     def jacobian(self, state: Array, time: float) -> Array:
         """Compute state Jacobian dF/du = -K with BCs applied.
 
