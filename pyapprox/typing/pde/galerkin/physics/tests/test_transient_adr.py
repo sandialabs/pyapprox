@@ -25,7 +25,10 @@ from pyapprox.typing.pde.galerkin.manufactured.adapter import (
 from pyapprox.typing.pde.galerkin.time_integration import (
     GalerkinPhysicsODEAdapter,
 )
-from pyapprox.typing.pde.time.implicit_steppers import BackwardEulerResidual
+from pyapprox.typing.pde.time.implicit_steppers import (
+    BackwardEulerResidual,
+    CrankNicolsonResidual,
+)
 
 
 # =========================================================================
@@ -301,6 +304,240 @@ class TestTransientADR2D(ParametrizedTestCase):
             t += dt
 
         # Compare to exact at final time
+        u_exact_final = exact_at_time(t)
+        u_num = bkd.to_numpy(y)
+
+        u_norm = np.linalg.norm(u_exact_final)
+        if u_norm > 1e-10:
+            rel_error = np.linalg.norm(u_num - u_exact_final) / u_norm
+        else:
+            rel_error = np.linalg.norm(u_num - u_exact_final)
+
+        self.assertLess(
+            rel_error, 1e-6,
+            f"Test {name}: rel_error={rel_error:.2e} at t={t} "
+            f"should be < 1e-6",
+        )
+
+
+# =========================================================================
+# 1D Transient ADR with Crank-Nicolson
+# =========================================================================
+
+TRANSIENT_ADR_1D_CN_CASES: List[
+    Tuple[str, List[str], List[str], str]
+] = [
+    ("1d_DD_noV_noR_CN", ["D", "D"], ["0+1e-16*x"], "0*u"),
+    ("1d_DD_V_noR_CN", ["D", "D"], ["(1+x)/10"], "0*u"),
+]
+
+
+class TestTransientADR1D_CN(ParametrizedTestCase):
+    """1D transient ADR tests with P2 + Crank-Nicolson."""
+
+    @parametrize(
+        "name,bndry_types,vel_strs,react_str",
+        TRANSIENT_ADR_1D_CN_CASES,
+    )
+    def test_transient_adr_1d_cn(
+        self,
+        name: str,
+        bndry_types: List[str],
+        vel_strs: List[str],
+        react_str: str,
+    ) -> None:
+        bkd = NumpyBkd()
+        bounds = [0.0, 1.0]
+        sol_str = "(1-x)*x*(1+T)"
+        diff_str = "4+1e-16*x"
+        nx = 32
+
+        functions, _ = create_adr_manufactured_test(
+            bounds=bounds,
+            sol_str=sol_str,
+            diff_str=diff_str,
+            react_str=react_str,
+            vel_strs=vel_strs,
+            bkd=bkd,
+            time_dependent=True,
+        )
+
+        mesh = StructuredMesh1D(
+            nx=nx, bounds=(bounds[0], bounds[1]), bkd=bkd
+        )
+        basis = LagrangeBasis(mesh, degree=2)
+
+        adapter = GalerkinManufacturedSolutionAdapter(
+            basis, functions, bkd, time_dependent=True
+        )
+        bc_set = adapter.create_boundary_conditions(
+            bndry_types, robin_alpha=1.0
+        )
+
+        velocity = (
+            adapter.velocity_for_galerkin()
+            if _has_velocity(vel_strs)
+            else None
+        )
+        reaction = _parse_reaction(react_str)
+
+        physics = AdvectionDiffusionReaction(
+            basis=basis,
+            diffusivity=4.0,
+            bkd=bkd,
+            velocity=velocity,
+            reaction=reaction,
+            forcing=adapter.forcing_for_galerkin(),
+            boundary_conditions=bc_set.all_conditions(),
+        )
+
+        ode_adapter = GalerkinPhysicsODEAdapter(physics)
+        stepper = CrankNicolsonResidual(ode_adapter)
+
+        exact_sol_func = adapter.solution_function()
+        dof_coords = bkd.to_numpy(basis.dof_coordinates())
+
+        def exact_at_time(t):
+            u = exact_sol_func(dof_coords, t)
+            if hasattr(u, "shape") and u.ndim > 1:
+                return u[:, 0] if u.shape[1] == 1 else u.flatten()
+            return u
+
+        y = bkd.asarray(exact_at_time(0.0))
+        dt = 1.0
+        nsteps = 5
+        t = 0.0
+
+        for step in range(nsteps):
+            stepper.set_time(t, dt, y)
+            y_new = bkd.copy(y)
+            for newton_iter in range(10):
+                res = stepper(y_new)
+                res_norm = float(np.linalg.norm(bkd.to_numpy(res)))
+                if res_norm < 1e-10:
+                    break
+                jac = stepper.jacobian(y_new)
+                dy = bkd.solve(jac, -res)
+                y_new = y_new + dy
+            y = y_new
+            t += dt
+
+        u_exact_final = exact_at_time(t)
+        u_num = bkd.to_numpy(y)
+
+        u_norm = np.linalg.norm(u_exact_final)
+        if u_norm > 1e-10:
+            rel_error = np.linalg.norm(u_num - u_exact_final) / u_norm
+        else:
+            rel_error = np.linalg.norm(u_num - u_exact_final)
+
+        self.assertLess(
+            rel_error, 1e-6,
+            f"Test {name}: rel_error={rel_error:.2e} at t={t} "
+            f"should be < 1e-6",
+        )
+
+
+# =========================================================================
+# 2D Transient ADR with Crank-Nicolson
+# =========================================================================
+
+TRANSIENT_ADR_2D_CN_CASES: List[
+    Tuple[str, List[str], List[str]]
+] = [
+    ("2d_DDDD_noV_CN", ["D", "D", "D", "D"], ["0+1e-16*x", "0+1e-16*y"]),
+]
+
+
+class TestTransientADR2D_CN(ParametrizedTestCase):
+    """2D transient ADR tests with P2 + Crank-Nicolson."""
+
+    @parametrize(
+        "name,bndry_types,vel_strs",
+        TRANSIENT_ADR_2D_CN_CASES,
+    )
+    def test_transient_adr_2d_cn(
+        self,
+        name: str,
+        bndry_types: List[str],
+        vel_strs: List[str],
+    ) -> None:
+        bkd = NumpyBkd()
+        bounds = [0.0, 1.0, 0.0, 1.0]
+        sol_str = "(1-x)*x*(1-y)*y*(1+T)"
+        diff_str = "4+1e-16*x+1e-16*y"
+        react_str = "0*u"
+
+        functions, _ = create_adr_manufactured_test(
+            bounds=bounds,
+            sol_str=sol_str,
+            diff_str=diff_str,
+            react_str=react_str,
+            vel_strs=vel_strs,
+            bkd=bkd,
+            time_dependent=True,
+        )
+
+        mesh = StructuredMesh2D(
+            nx=16, ny=16,
+            bounds=[(bounds[0], bounds[1]), (bounds[2], bounds[3])],
+            bkd=bkd,
+        )
+        basis = LagrangeBasis(mesh, degree=2)
+
+        adapter = GalerkinManufacturedSolutionAdapter(
+            basis, functions, bkd, time_dependent=True
+        )
+        bc_set = adapter.create_boundary_conditions(
+            bndry_types, robin_alpha=1.0
+        )
+
+        velocity = (
+            adapter.velocity_for_galerkin()
+            if _has_velocity(vel_strs)
+            else None
+        )
+
+        physics = AdvectionDiffusionReaction(
+            basis=basis,
+            diffusivity=4.0,
+            bkd=bkd,
+            velocity=velocity,
+            forcing=adapter.forcing_for_galerkin(),
+            boundary_conditions=bc_set.all_conditions(),
+        )
+
+        ode_adapter = GalerkinPhysicsODEAdapter(physics)
+        stepper = CrankNicolsonResidual(ode_adapter)
+
+        exact_sol_func = adapter.solution_function()
+        dof_coords = bkd.to_numpy(basis.dof_coordinates())
+
+        def exact_at_time(t):
+            u = exact_sol_func(dof_coords, t)
+            if hasattr(u, "shape") and u.ndim > 1:
+                return u[:, 0] if u.shape[1] == 1 else u.flatten()
+            return u
+
+        y = bkd.asarray(exact_at_time(0.0))
+        dt = 1.0
+        nsteps = 5
+        t = 0.0
+
+        for step in range(nsteps):
+            stepper.set_time(t, dt, y)
+            y_new = bkd.copy(y)
+            for newton_iter in range(10):
+                res = stepper(y_new)
+                res_norm = float(np.linalg.norm(bkd.to_numpy(res)))
+                if res_norm < 1e-10:
+                    break
+                jac = stepper.jacobian(y_new)
+                dy = bkd.solve(jac, -res)
+                y_new = y_new + dy
+            y = y_new
+            t += dt
+
         u_exact_final = exact_at_time(t)
         u_num = bkd.to_numpy(y)
 

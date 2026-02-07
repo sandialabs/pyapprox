@@ -22,6 +22,9 @@ from pyapprox.typing.pde.collocation.manufactured_solutions import (
     ManufacturedAdvectionDiffusionReaction,
     ManufacturedHelmholtz,
 )
+from pyapprox.typing.pde.collocation.manufactured_solutions.linear_elasticity import (
+    ManufacturedLinearElasticityEquations,
+)
 
 
 class GalerkinManufacturedSolutionAdapter(Generic[Array]):
@@ -508,6 +511,50 @@ def create_helmholtz_manufactured_test(
         sqwavenum_str=sqwavenum_str,
         bkd=bkd,
         oned=True,  # Return 1D arrays for Galerkin
+    )
+
+    return man_sol.functions, nvars
+
+
+def create_elasticity_manufactured_test(
+    bounds: List[float],
+    sol_strs: List[str],
+    lambda_str: str,
+    mu_str: str,
+    bkd: Backend[Array],
+) -> Tuple[Dict[str, Callable], int]:
+    """Create linear elasticity manufactured solution functions for Galerkin tests.
+
+    Parameters
+    ----------
+    bounds : List[float]
+        Domain bounds [xmin, xmax, ymin, ymax].
+    sol_strs : List[str]
+        Displacement component strings [u_x, u_y].
+        May contain 'x', 'y' for coords and 'T' for time.
+    lambda_str : str
+        Lame first parameter string.
+    mu_str : str
+        Shear modulus string.
+    bkd : Backend
+        Computational backend.
+
+    Returns
+    -------
+    functions : Dict[str, Callable]
+        Dictionary containing solution, forcing, flux, etc.
+    nvars : int
+        Number of spatial dimensions.
+    """
+    nvars = len(bounds) // 2
+
+    man_sol = ManufacturedLinearElasticityEquations(
+        sol_strs=sol_strs,
+        nvars=nvars,
+        lambda_str=lambda_str,
+        mu_str=mu_str,
+        bkd=bkd,
+        oned=True,
     )
 
     return man_sol.functions, nvars

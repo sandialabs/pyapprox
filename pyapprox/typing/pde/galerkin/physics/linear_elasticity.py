@@ -15,12 +15,16 @@ and Poisson's ratio nu by:
     mu = E / (2 * (1 + nu))
 """
 
-from typing import Generic, Optional, Callable, List
+from typing import Generic, Optional, Callable, List, Tuple
 
 import numpy as np
 
 from pyapprox.typing.util.backends.protocols import Array, Backend
-from pyapprox.typing.pde.galerkin.protocols.boundary import BoundaryConditionProtocol
+from pyapprox.typing.pde.galerkin.protocols.boundary import (
+    BoundaryConditionProtocol,
+    DirichletBCProtocol,
+    RobinBCProtocol,
+)
 from pyapprox.typing.pde.galerkin.basis.vector_lagrange import VectorLagrangeBasis
 
 # Import skfem for assembly
@@ -58,10 +62,13 @@ class LinearElasticity(Generic[Array]):
     bkd : Backend
         Computational backend.
     body_force : Callable, optional
-        Body force per unit volume. Takes coordinates (ndim, npts)
-        and returns (ndim, npts).
-    boundary_conditions : List[BoundaryConditionProtocol], optional
-        List of boundary conditions.
+        Body force per unit volume. Takes coordinates (ndim, npts) and
+        time (float), returns (ndim, npts). For static forces, use
+        ``lambda x, t: f(x)``.
+    dirichlet_bcs : list of (str, Callable), optional
+        Dirichlet BCs as (boundary_name, value_func) pairs.
+        value_func(coords, time) takes (ndim, npts) coords and float time,
+        returns (npts, ncomponents) displacement values.
 
     Examples
     --------
@@ -113,7 +120,6 @@ class LinearElasticity(Generic[Array]):
         # Cache assembled matrices
         self._stiffness_cached: Optional[Array] = None
         self._mass_cached: Optional[Array] = None
-        self._load_cached: Optional[Array] = None
 
     @property
     def youngs_modulus(self) -> float:
@@ -213,19 +219,21 @@ class LinearElasticity(Generic[Array]):
 
         return self._stiffness_cached
 
-    def load_vector(self) -> Array:
+    def load_vector(self, time: float = 0.0) -> Array:
         """Return the load vector from body forces.
 
         b_i = integral(f . phi_i)
+
+        Parameters
+        ----------
+        time : float, default=0.0
+            Current time. Passed to body_force(x, time).
 
         Returns
         -------
         Array
             Load vector. Shape: (nstates,)
         """
-        if self._load_cached is not None:
-            return self._load_cached
-
         skfem_basis = self._basis.skfem_basis()
         ndim = self._basis.ncomponents()
 
@@ -233,6 +241,7 @@ class LinearElasticity(Generic[Array]):
             load_np = np.zeros(self.nstates())
         else:
             body_force_func = self._body_force
+            current_time = time
 
             def linear_form(v, w):
                 # w.x shape: (ndim, nelem, nquad) or (ndim, npts)
@@ -242,51 +251,117 @@ class LinearElasticity(Generic[Array]):
                 if len(x_shape) == 3:
                     n, nelem, nquad = x_shape
                     x_flat = x.reshape(n, -1)
-                    force_flat = body_force_func(x_flat)  # (ndim, npts)
+                    force_flat = body_force_func(x_flat, current_time)
                     force = force_flat.reshape(ndim, nelem, nquad)
                 else:
-                    force = body_force_func(x)
+                    force = body_force_func(x, current_time)
 
                 # Sum over components: f . v
                 return sum(force[i] * v[i] for i in range(ndim))
 
             load_np = asm(LinearForm(linear_form), skfem_basis)
 
-        self._load_cached = self._bkd.asarray(load_np.astype(np.float64))
+        return self._bkd.asarray(load_np.astype(np.float64))
 
-        return self._load_cached
+    def spatial_residual(self, state: Array, time: float) -> Array:
+        """Compute spatial residual without Dirichlet enforcement.
 
-    def residual(self, state: Array, time: float) -> Array:
-        """Compute spatial residual F(u, t) = b - K*u.
+        Computes F = b(t) - K*u. Dirichlet BCs are NOT applied.
 
         Parameters
         ----------
         state : Array
             Displacement state. Shape: (nstates,)
         time : float
-            Current time (unused for static elasticity).
+            Current time.
+
+        Returns
+        -------
+        Array
+            Spatial residual. Shape: (nstates,)
+        """
+        K = self.stiffness_matrix()
+        b = self.load_vector(time)
+        return b - K @ state
+
+    def dirichlet_dof_info(self, time: float) -> Tuple[Array, Array]:
+        """Return Dirichlet DOF indices and their exact values.
+
+        Parameters
+        ----------
+        time : float
+            Current time.
+
+        Returns
+        -------
+        Tuple[Array, Array]
+            dof_indices : Array
+                DOF indices. Shape: (ndirichlet,)
+            dof_values : Array
+                Exact values. Shape: (ndirichlet,)
+        """
+        all_dofs = []
+        all_vals = []
+        for bc in self._boundary_conditions:
+            if isinstance(bc, RobinBCProtocol):
+                continue
+            if isinstance(bc, DirichletBCProtocol):
+                dofs_np = self._bkd.to_numpy(bc.boundary_dofs())
+                vals_np = self._bkd.to_numpy(bc.boundary_values(time))
+                all_dofs.append(dofs_np)
+                all_vals.append(vals_np)
+        if all_dofs:
+            return (
+                self._bkd.asarray(
+                    np.concatenate(all_dofs).astype(np.int64)
+                ),
+                self._bkd.asarray(
+                    np.concatenate(all_vals).astype(np.float64)
+                ),
+            )
+        return (
+            self._bkd.asarray(np.array([], dtype=np.int64)),
+            self._bkd.asarray(np.array([], dtype=np.float64)),
+        )
+
+    def residual(self, state: Array, time: float) -> Array:
+        """Compute spatial residual F(u, t) = b(t) - K*u with BCs applied.
+
+        Dirichlet BCs replace residual rows with state[dof] - g(x, t).
+
+        Parameters
+        ----------
+        state : Array
+            Displacement state. Shape: (nstates,)
+        time : float
+            Current time.
 
         Returns
         -------
         Array
             Residual. Shape: (nstates,)
         """
-        K = self.stiffness_matrix()
-        b = self.load_vector()
+        residual = self.spatial_residual(state, time)
 
-        return b - K @ state
+        for bc in self._boundary_conditions:
+            if isinstance(bc, RobinBCProtocol):
+                continue
+            if isinstance(bc, DirichletBCProtocol):
+                residual = bc.apply_to_residual(residual, state, time)
+
+        return residual
 
     def jacobian(self, state: Array, time: float) -> Array:
-        """Compute state Jacobian dF/du = -K.
+        """Compute state Jacobian dF/du = -K with BCs applied.
 
-        For linear elasticity, the Jacobian is constant.
+        Dirichlet BCs replace Jacobian rows with identity.
 
         Parameters
         ----------
         state : Array
             Displacement state. Shape: (nstates,)
         time : float
-            Current time (unused).
+            Current time.
 
         Returns
         -------
@@ -294,7 +369,15 @@ class LinearElasticity(Generic[Array]):
             Jacobian matrix. Shape: (nstates, nstates)
         """
         K = self.stiffness_matrix()
-        return -K
+        jac = -K
+
+        for bc in self._boundary_conditions:
+            if isinstance(bc, RobinBCProtocol):
+                continue
+            if isinstance(bc, DirichletBCProtocol):
+                jac = bc.apply_to_jacobian(jac, state, time)
+
+        return jac
 
     def initial_condition(self, func: Callable) -> Array:
         """Create initial condition by interpolating a displacement field.

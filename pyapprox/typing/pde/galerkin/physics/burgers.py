@@ -180,10 +180,8 @@ class BurgersPhysics(AbstractGalerkinPhysics[Array], Generic[Array]):
         )
         return self._bkd.asarray(load_np.astype(np.float64))
 
-    def residual(self, state: Array, time: float) -> Array:
-        """Compute nonlinear spatial residual R(u, t).
-
-        For transient problems: M * du/dt = R(u, t)
+    def spatial_residual(self, state: Array, time: float) -> Array:
+        """Compute Burgers spatial residual without Dirichlet enforcement.
 
         The load (linear form) already evaluates the full nonlinear interior
         residual at the current state. The Newton-linearized stiffness is NOT
@@ -193,12 +191,19 @@ class BurgersPhysics(AbstractGalerkinPhysics[Array], Generic[Array]):
         load = self._assemble_load(state, time)
         load = self._apply_bc_to_load(load, time)
 
-        # Zero stiffness — only BC contributions (Robin α*M_bnd) matter here
+        # Zero stiffness — only BC contributions (Robin alpha*M_bnd) matter
         n = self.nstates()
         bc_stiffness = self._bkd.asarray(np.zeros((n, n)))
         bc_stiffness = self._apply_bc_to_stiffness(bc_stiffness, time)
 
-        residual = load - bc_stiffness @ state
+        return load - bc_stiffness @ state
+
+    def residual(self, state: Array, time: float) -> Array:
+        """Compute nonlinear spatial residual R(u, t) with Dirichlet BCs.
+
+        For transient problems: M * du/dt = R(u, t)
+        """
+        residual = self.spatial_residual(state, time)
 
         for bc in self._boundary_conditions:
             if isinstance(bc, RobinBCProtocol):

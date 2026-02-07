@@ -185,14 +185,86 @@ class AbstractGalerkinPhysics(ABC, Generic[Array]):
                 load = bc.apply_to_load(load, time)
         return load
 
+    def spatial_residual(self, state: Array, time: float) -> Array:
+        """Compute spatial residual without Dirichlet enforcement.
+
+        Computes F = b - K*u where:
+        - K includes Robin BC contributions to stiffness
+        - b includes Neumann and Robin BC contributions to load
+        - Dirichlet BCs are NOT applied (no row replacement)
+
+        This is used by explicit time steppers that handle Dirichlet
+        DOFs separately to avoid M^{-1} contamination.
+
+        Parameters
+        ----------
+        state : Array
+            Solution state. Shape: (nstates,)
+        time : float
+            Current time.
+
+        Returns
+        -------
+        Array
+            Spatial residual. Shape: (nstates,)
+        """
+        stiffness = self._assemble_stiffness(state, time)
+        load = self._assemble_load(state, time)
+        stiffness = self._apply_bc_to_stiffness(stiffness, time)
+        load = self._apply_bc_to_load(load, time)
+        return load - stiffness @ state
+
+    def dirichlet_dof_info(self, time: float) -> Tuple[Array, Array]:
+        """Return Dirichlet DOF indices and their exact values.
+
+        Collects information from all Dirichlet boundary conditions
+        (excluding Robin BCs which also satisfy DirichletBCProtocol).
+
+        Parameters
+        ----------
+        time : float
+            Current time.
+
+        Returns
+        -------
+        Tuple[Array, Array]
+            dof_indices : Array
+                Global DOF indices for all Dirichlet BCs. Shape: (ndirichlet,)
+            dof_values : Array
+                Exact Dirichlet values at those DOFs. Shape: (ndirichlet,)
+        """
+        all_dofs = []
+        all_vals = []
+        for bc in self._boundary_conditions:
+            if isinstance(bc, RobinBCProtocol):
+                continue
+            if isinstance(bc, DirichletBCProtocol):
+                dofs_np = self._bkd.to_numpy(bc.boundary_dofs())
+                vals_np = self._bkd.to_numpy(bc.boundary_values(time))
+                all_dofs.append(dofs_np)
+                all_vals.append(vals_np)
+        if all_dofs:
+            return (
+                self._bkd.asarray(
+                    np.concatenate(all_dofs).astype(np.int64)
+                ),
+                self._bkd.asarray(
+                    np.concatenate(all_vals).astype(np.float64)
+                ),
+            )
+        return (
+            self._bkd.asarray(np.array([], dtype=np.int64)),
+            self._bkd.asarray(np.array([], dtype=np.float64)),
+        )
+
     def residual(self, state: Array, time: float) -> Array:
-        """Compute spatial residual F(u, t).
+        """Compute spatial residual F(u, t) with Dirichlet BCs applied.
 
         For transient problems: M * du/dt = F(u, t)
         The residual is: F = b - K*u
 
         Boundary conditions are applied:
-        - Robin/Neumann BCs modify stiffness and load during assembly
+        - Robin/Neumann BCs modify stiffness and load (via spatial_residual)
         - Dirichlet BCs replace residual rows with constraint violation
 
         Parameters
@@ -207,15 +279,7 @@ class AbstractGalerkinPhysics(ABC, Generic[Array]):
         Array
             Residual. Shape: (nstates,)
         """
-        stiffness = self._assemble_stiffness(state, time)
-        load = self._assemble_load(state, time)
-
-        # Apply Robin BC contributions to stiffness and load
-        stiffness = self._apply_bc_to_stiffness(stiffness, time)
-        load = self._apply_bc_to_load(load, time)
-
-        # F = b - K*u
-        residual = load - stiffness @ state
+        residual = self.spatial_residual(state, time)
 
         # Apply Dirichlet BCs: replace residual rows with constraint violation
         # Check Robin first since RobinBC also satisfies DirichletBCProtocol

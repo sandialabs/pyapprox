@@ -194,6 +194,34 @@ class VectorLagrangeBasis(Generic[Array]):
 
         return self._dof_locs
 
+    def get_dofs(self, boundary_name: str) -> Array:
+        """Return all DOF indices on a named boundary.
+
+        For vector elements, returns DOFs for ALL components on the boundary.
+
+        Parameters
+        ----------
+        boundary_name : str
+            Name of the boundary (e.g., "left", "right", "bottom", "top").
+
+        Returns
+        -------
+        Array
+            DOF indices on this boundary (all components).
+        """
+        ndim = self._ndim
+        all_dofs = []
+        dofnames = self._skfem_basis.get_dofs().obj.element.dofnames
+        for idx in range(ndim):
+            skip = dofnames[ndim - idx - 1]
+            component_dofs = self._skfem_basis.get_dofs(
+                boundary_name, skip=skip
+            )
+            all_dofs.append(np.asarray(component_dofs).flatten())
+        combined = np.concatenate(all_dofs)
+        combined.sort()
+        return self._bkd.asarray(combined)
+
     def get_component_dofs(self, component: int) -> Array:
         """Return DOF indices for a specific component.
 

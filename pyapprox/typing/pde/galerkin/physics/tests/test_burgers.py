@@ -31,7 +31,10 @@ from pyapprox.typing.pde.collocation.manufactured_solutions.burgers import (
 from pyapprox.typing.pde.galerkin.time_integration import (
     GalerkinPhysicsODEAdapter,
 )
-from pyapprox.typing.pde.time.implicit_steppers import BackwardEulerResidual
+from pyapprox.typing.pde.time.implicit_steppers import (
+    BackwardEulerResidual,
+    CrankNicolsonResidual,
+)
 
 
 # =========================================================================
@@ -257,7 +260,7 @@ class TestParametrizedBurgersSteady(ParametrizedTestCase):
 
 # Format: (name, bounds, bndry_types, sol_str, visc_str)
 BURGERS_TRANSIENT_CASES: List[
-    Tuple[str, List[float], List[str], str, str]
+    Tuple[str, List[float], List[str], str, str, str]
 ] = [
     (
         "DD_BE",
@@ -265,6 +268,15 @@ BURGERS_TRANSIENT_CASES: List[
         ["D", "D"],
         "x*(1.0-x)*(1+T)",
         "10+1e-16*x",
+        "backward_euler",
+    ),
+    (
+        "DD_CN",
+        [0.0, 1.0],
+        ["D", "D"],
+        "x*(1.0-x)*(1+T)",
+        "10+1e-16*x",
+        "crank_nicolson",
     ),
 ]
 
@@ -278,7 +290,7 @@ class TestParametrizedBurgersTransient(ParametrizedTestCase):
     """
 
     @parametrize(
-        "name,bounds,bndry_types,sol_str,visc_str",
+        "name,bounds,bndry_types,sol_str,visc_str,method",
         BURGERS_TRANSIENT_CASES,
     )
     def test_transient_burgers(
@@ -288,6 +300,7 @@ class TestParametrizedBurgersTransient(ParametrizedTestCase):
         bndry_types: List[str],
         sol_str: str,
         visc_str: str,
+        method: str,
     ) -> None:
         """Test transient Burgers with manufactured solution."""
         bkd = NumpyBkd()
@@ -327,7 +340,10 @@ class TestParametrizedBurgersTransient(ParametrizedTestCase):
 
         # Create ODE adapter and time stepper
         ode_adapter = GalerkinPhysicsODEAdapter(physics)
-        stepper = BackwardEulerResidual(ode_adapter)
+        if method == "backward_euler":
+            stepper = BackwardEulerResidual(ode_adapter)
+        else:
+            stepper = CrankNicolsonResidual(ode_adapter)
 
         # Initial condition from exact solution at t=0
         exact_sol_func = adapter.solution_function()

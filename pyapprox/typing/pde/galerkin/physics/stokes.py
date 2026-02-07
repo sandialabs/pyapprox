@@ -405,14 +405,14 @@ class StokesPhysics(Generic[Array]):
     # Physics protocol methods
     # ------------------------------------------------------------------
 
-    def residual(self, state: Array, time: float) -> Array:
-        """Compute residual F(u, t) = load - K*u with BCs applied.
+    def spatial_residual(self, state: Array, time: float) -> Array:
+        """Compute spatial residual without Dirichlet enforcement.
 
-        For the Newton solver, the residual is:
+        Computes the block assembly:
             F_vel = vel_load - A*vel - B^T*pres [- NS_nonlinear_term]
             F_pres = pres_load - B*vel
 
-        Dirichlet BCs replace rows with: state[dof] - exact_value.
+        Dirichlet BCs are NOT applied.
 
         Parameters
         ----------
@@ -424,7 +424,7 @@ class StokesPhysics(Generic[Array]):
         Returns
         -------
         Array
-            Residual vector. Shape: (nstates,)
+            Spatial residual. Shape: (nstates,)
         """
         state_np = self._bkd.to_numpy(state)
         vel_state = state_np[:self.vel_ndofs()]
@@ -448,6 +448,59 @@ class StokesPhysics(Generic[Array]):
             b_vel -= ns_residual
 
         residual_np = load + np.concatenate([b_vel, b_pres])
+
+        return self._bkd.asarray(residual_np.astype(np.float64))
+
+    def dirichlet_dof_info(self, time: float) -> Tuple[Array, Array]:
+        """Return Dirichlet DOF indices and their exact values.
+
+        Wraps the existing _get_dirichlet_dofs_and_values method.
+
+        Parameters
+        ----------
+        time : float
+            Current time.
+
+        Returns
+        -------
+        Tuple[Array, Array]
+            dof_indices : Array
+                DOF indices. Shape: (ndirichlet,)
+            dof_values : Array
+                Exact values at those DOFs. Shape: (ndirichlet,)
+        """
+        D_dofs, D_vals = self._get_dirichlet_dofs_and_values(time)
+        if len(D_dofs) > 0:
+            return (
+                self._bkd.asarray(D_dofs.astype(np.int64)),
+                self._bkd.asarray(D_vals[D_dofs].astype(np.float64)),
+            )
+        return (
+            self._bkd.asarray(np.array([], dtype=np.int64)),
+            self._bkd.asarray(np.array([], dtype=np.float64)),
+        )
+
+    def residual(self, state: Array, time: float) -> Array:
+        """Compute residual F(u, t) = load - K*u with BCs applied.
+
+        Dirichlet BCs replace rows with: state[dof] - exact_value.
+
+        Parameters
+        ----------
+        state : Array
+            Solution state [vel_dofs | pres_dofs]. Shape: (nstates,)
+        time : float
+            Current time.
+
+        Returns
+        -------
+        Array
+            Residual vector. Shape: (nstates,)
+        """
+        residual_np = self._bkd.to_numpy(
+            self.spatial_residual(state, time)
+        ).copy()
+        state_np = self._bkd.to_numpy(state)
 
         # Apply Dirichlet BCs
         D_dofs, D_vals = self._get_dirichlet_dofs_and_values(time)

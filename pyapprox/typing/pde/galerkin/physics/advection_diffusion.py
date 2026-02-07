@@ -402,45 +402,6 @@ class AdvectionDiffusionReaction(AbstractGalerkinPhysics[Array]):
 
         return self._bkd.asarray(jac_np.astype(np.float64))
 
-    def residual(self, state: Array, time: float) -> Array:
-        """Compute spatial residual F(u, t).
-
-        For transient problems: M * du/dt = F(u, t)
-
-        The residual is:
-            F = b - K*u
-        where b includes forcing and nonlinear reaction terms,
-        and K includes diffusion, advection, and linear reaction.
-
-        For the PDE du/dt + v.grad(u) = div(D*grad(u)) + R(u) + f:
-            F = (w, f) + (w, R(u)) - (grad(w), D*grad(u)) - (w, v.grad(u))
-
-        Boundary conditions are applied:
-        - Robin/Neumann BCs modify stiffness and load during assembly
-        - Dirichlet BCs replace residual rows with constraint violation
-        """
-        stiffness = self._assemble_stiffness(state, time)
-        load = self._assemble_load(state, time)
-
-        # Apply BC contributions to stiffness and load
-        stiffness = self._apply_bc_to_stiffness(stiffness, time)
-        load = self._apply_bc_to_load(load, time)
-
-        # F = b - K*u
-        residual = load - stiffness @ state
-
-        # Apply Dirichlet BCs (skip Robin which also satisfies DirichletBCProtocol)
-        from pyapprox.typing.pde.galerkin.protocols.boundary import (
-            DirichletBCProtocol, RobinBCProtocol,
-        )
-        for bc in self._boundary_conditions:
-            if isinstance(bc, RobinBCProtocol):
-                continue
-            if isinstance(bc, DirichletBCProtocol):
-                residual = bc.apply_to_residual(residual, state, time)
-
-        return residual
-
     def jacobian(self, state: Array, time: float) -> Array:
         """Compute state Jacobian dF/du.
 

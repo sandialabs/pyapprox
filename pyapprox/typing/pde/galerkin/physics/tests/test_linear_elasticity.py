@@ -197,7 +197,7 @@ class TestLinearElasticityBase(Generic[Array], unittest.TestCase):
         )
         basis = VectorLagrangeBasis(mesh, degree=1)
 
-        def body_force(x):
+        def body_force(x, time):
             # Constant gravity-like force in y direction
             f = np.zeros_like(x)
             f[1, :] = -1.0
@@ -227,7 +227,7 @@ class TestLinearElasticityBase(Generic[Array], unittest.TestCase):
         )
         basis = VectorLagrangeBasis(mesh, degree=1)
 
-        def body_force(x):
+        def body_force(x, time):
             # Constant gravity-like force in z direction
             f = np.zeros_like(x)
             f[2, :] = -1.0
