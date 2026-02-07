@@ -142,16 +142,20 @@ class GaussianOEDOuterLoopLikelihood(Generic[Array]):
         # inv_effective_var = weights / base_var
         return self._design_weights[:, 0] / self._base_variances
 
-    def _compute_log_normalization(self) -> float:
-        """Compute log normalization constant with current weights."""
+    def _compute_log_normalization(self) -> Array:
+        """Compute log normalization constant with current weights.
+
+        Returns a scalar Array to preserve the PyTorch autograd computation graph.
+        """
         if self._design_weights is None:
             raise ValueError("Must call set_design_weights first")
         # log|Cov| = sum(log(base_var / weights)) = sum(log(base_var)) - sum(log(weights))
-        log_det = float(
+        log_det = (
             self._bkd.sum(self._bkd.log(self._base_variances))
             - self._bkd.sum(self._bkd.log(self._design_weights))
         )
-        return float(-0.5 * self._nobs * math.log(2 * math.pi) - 0.5 * log_det)
+        const = self._bkd.asarray(-0.5 * self._nobs * math.log(2 * math.pi))
+        return const - 0.5 * log_det
 
     def __call__(self, design_weights: Array) -> Array:
         """
@@ -259,17 +263,23 @@ class GaussianOEDInnerLoopLikelihood(Generic[Array]):
         noise_variances: Array,
         bkd: Backend[Array],
         use_numba: bool = True,
+        use_torch_compile: bool = False,
     ):
         self._bkd = bkd
         self._base_variances = noise_variances
         self._nobs = noise_variances.shape[0]
         self._use_numba = use_numba
+        self._use_torch_compile = use_torch_compile
 
         # Dispatch implementations
-        self._logpdf_impl = get_logpdf_matrix_impl(bkd, use_numba)
-        self._jacobian_impl = get_jacobian_matrix_impl(bkd, use_numba)
+        self._logpdf_impl = get_logpdf_matrix_impl(
+            bkd, use_numba, use_torch_compile,
+        )
+        self._jacobian_impl = get_jacobian_matrix_impl(
+            bkd, use_numba, use_torch_compile,
+        )
         self._evidence_jacobian_impl = get_evidence_jacobian_impl(
-            bkd, use_numba
+            bkd, use_numba, use_torch_compile,
         )
 
         # State
@@ -285,6 +295,10 @@ class GaussianOEDInnerLoopLikelihood(Generic[Array]):
     def use_numba(self) -> bool:
         """Whether Numba acceleration is active."""
         return self._use_numba
+
+    def use_torch_compile(self) -> bool:
+        """Whether torch.compile acceleration is active."""
+        return self._use_torch_compile
 
     def nobs(self) -> int:
         """Number of observation locations."""

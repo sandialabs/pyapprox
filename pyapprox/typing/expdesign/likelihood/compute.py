@@ -19,13 +19,17 @@ def compute_log_normalization(
     design_weights: Array,
     nobs: int,
     bkd: Backend[Array],
-) -> float:
-    """Compute log normalization constant for Gaussian likelihood."""
-    log_det = float(
+) -> Array:
+    """Compute log normalization constant for Gaussian likelihood.
+
+    Returns a scalar Array to preserve the PyTorch autograd computation graph.
+    """
+    log_det = (
         bkd.sum(bkd.log(base_variances))
         - bkd.sum(bkd.log(design_weights))
     )
-    return float(-0.5 * nobs * math.log(2 * math.pi) - 0.5 * log_det)
+    const = bkd.asarray(-0.5 * nobs * math.log(2 * math.pi))
+    return const - 0.5 * log_det
 
 
 def logpdf_matrix_vectorized(
