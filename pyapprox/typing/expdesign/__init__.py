@@ -85,16 +85,21 @@ local
     Local OED for linear regression (D, A, C, I, G, R-optimal criteria).
 """
 
-from typing import Optional, Tuple
-
-from pyapprox.typing.util.backends.protocols import Array, Backend
-
 from .likelihood import (
     GaussianOEDOuterLoopLikelihood,
     GaussianOEDInnerLoopLikelihood,
 )
 from .evidence import Evidence, LogEvidence
-from .objective import KLOEDObjective, PredictionOEDObjective, DOptimalLinearModelObjective
+from .objective import (
+    KLOEDObjective,
+    PredictionOEDObjective,
+    DOptimalLinearModelObjective,
+    create_kl_oed_objective,
+    create_kl_oed_objective_from_data,
+    create_deviation_measure,
+    create_risk_measure,
+    create_prediction_oed_objective,
+)
 from .deviation import (
     DeviationMeasure,
     StandardDeviationMeasure,
@@ -121,11 +126,7 @@ from .solver import (
     RelaxedKLOEDSolver,
     RelaxedOEDConfig,
     BruteForceKLOEDSolver,
-)
-from .prediction import (
-    create_deviation_measure,
-    create_risk_measure,
-    create_prediction_oed_objective,
+    solve_kl_oed,
 )
 # Benchmarks
 from .benchmarks import LinearGaussianOEDBenchmark, NonLinearGaussianOEDBenchmark
@@ -167,95 +168,6 @@ from .local import (
     create_criterion,
     create_solver,
 )
-
-
-def create_kl_oed_objective(
-    noise_variances: Array,
-    outer_shapes: Array,
-    inner_shapes: Array,
-    latent_samples: Array,
-    bkd: Backend[Array],
-    outer_quad_weights: Optional[Array] = None,
-    inner_quad_weights: Optional[Array] = None,
-) -> KLOEDObjective[Array]:
-    """Create a KL-OED objective from data arrays.
-
-    Convenience factory function that creates the likelihood and objective
-    in one step.
-
-    Parameters
-    ----------
-    noise_variances : Array
-        Base noise variances. Shape: (nobs,)
-    outer_shapes : Array
-        Model outputs for outer samples. Shape: (nobs, nouter)
-    inner_shapes : Array
-        Model outputs for inner samples. Shape: (nobs, ninner)
-    latent_samples : Array
-        Latent noise samples. Shape: (nobs, nouter)
-    bkd : Backend[Array]
-        Computational backend.
-    outer_quad_weights : Array, optional
-        Quadrature weights for outer expectation. Shape: (nouter,)
-    inner_quad_weights : Array, optional
-        Quadrature weights for evidence integration. Shape: (ninner,)
-
-    Returns
-    -------
-    KLOEDObjective[Array]
-        The configured objective function.
-    """
-    inner_likelihood = GaussianOEDInnerLoopLikelihood(noise_variances, bkd)
-    return KLOEDObjective(
-        inner_likelihood,
-        outer_shapes,
-        latent_samples,
-        inner_shapes,
-        outer_quad_weights,
-        inner_quad_weights,
-        bkd,
-    )
-
-
-def solve_kl_oed(
-    noise_variances: Array,
-    outer_shapes: Array,
-    inner_shapes: Array,
-    latent_samples: Array,
-    bkd: Backend[Array],
-    config: Optional[RelaxedOEDConfig] = None,
-) -> Tuple[Array, float]:
-    """Solve KL-OED problem in one function call.
-
-    Convenience function that creates objective and solves in one step.
-
-    Parameters
-    ----------
-    noise_variances : Array
-        Base noise variances. Shape: (nobs,)
-    outer_shapes : Array
-        Model outputs for outer samples. Shape: (nobs, nouter)
-    inner_shapes : Array
-        Model outputs for inner samples. Shape: (nobs, ninner)
-    latent_samples : Array
-        Latent noise samples. Shape: (nobs, nouter)
-    bkd : Backend[Array]
-        Computational backend.
-    config : RelaxedOEDConfig, optional
-        Solver configuration.
-
-    Returns
-    -------
-    optimal_weights : Array
-        Optimal design weights. Shape: (nobs, 1)
-    optimal_eig : float
-        Expected information gain at optimal design.
-    """
-    objective = create_kl_oed_objective(
-        noise_variances, outer_shapes, inner_shapes, latent_samples, bkd
-    )
-    solver = RelaxedKLOEDSolver(objective, config)
-    return solver.solve()
 
 
 __all__ = [
@@ -310,6 +222,7 @@ __all__ = [
     "BruteForceKLOEDSolver",
     # KL-OED convenience functions
     "create_kl_oed_objective",
+    "create_kl_oed_objective_from_data",
     "solve_kl_oed",
     # Prediction OED convenience functions
     "create_deviation_measure",

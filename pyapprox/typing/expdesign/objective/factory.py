@@ -134,3 +134,53 @@ def create_kl_oed_objective(
         inner_weights,
         bkd,
     )
+
+
+def create_kl_oed_objective_from_data(
+    noise_variances: Array,
+    outer_shapes: Array,
+    inner_shapes: Array,
+    latent_samples: Array,
+    bkd: Backend[Array],
+    outer_quad_weights: Optional[Array] = None,
+    inner_quad_weights: Optional[Array] = None,
+) -> KLOEDObjective[Array]:
+    """Create a KL-OED objective from data arrays.
+
+    Convenience factory function that creates the likelihood and objective
+    in one step from pre-computed model outputs.
+
+    Parameters
+    ----------
+    noise_variances : Array
+        Base noise variances. Shape: (nobs,)
+    outer_shapes : Array
+        Model outputs for outer samples. Shape: (nobs, nouter)
+    inner_shapes : Array
+        Model outputs for inner samples. Shape: (nobs, ninner)
+    latent_samples : Array
+        Latent noise samples. Shape: (nobs, nouter)
+    bkd : Backend[Array]
+        Computational backend.
+    outer_quad_weights : Array, optional
+        Quadrature weights for outer expectation. Shape: (nouter,)
+    inner_quad_weights : Array, optional
+        Quadrature weights for evidence integration. Shape: (ninner,)
+
+    Returns
+    -------
+    KLOEDObjective[Array]
+        The configured objective function.
+    """
+    inner_likelihood = GaussianOEDInnerLoopLikelihood(noise_variances, bkd)
+    return KLOEDObjective(
+        inner_likelihood,
+        outer_shapes,
+        latent_samples,
+        inner_shapes,
+        outer_quad_weights,
+        inner_quad_weights,
+        bkd,
+    )
+
+

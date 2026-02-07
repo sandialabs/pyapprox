@@ -5,19 +5,19 @@ Provides convenience functions for creating prediction OED objectives
 with different deviation measures (StdDev, Entropic, AVaR).
 """
 
-from typing import Generic, Literal, Optional, Union
+from typing import Literal, Optional
 
 from pyapprox.typing.util.backends.protocols import Array, Backend
 
-from .likelihood import GaussianOEDInnerLoopLikelihood
-from .objective import PredictionOEDObjective
-from .deviation import (
+from ..likelihood import GaussianOEDInnerLoopLikelihood
+from .prediction_objective import PredictionOEDObjective
+from ..deviation import (
     DeviationMeasure,
     StandardDeviationMeasure,
     EntropicDeviationMeasure,
     AVaRDeviationMeasure,
 )
-from .statistics import (
+from ..statistics import (
     SampleStatistic,
     SampleAverageMean,
     SampleAverageVariance,
