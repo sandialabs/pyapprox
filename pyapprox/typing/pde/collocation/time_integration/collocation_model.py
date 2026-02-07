@@ -113,6 +113,18 @@ class CollocationModel(Generic[Array]):
         """Return number of states."""
         return self._physics.nstates()
 
+    def _apply_bc_to_residual(
+        self, residual: Array, state: Array, time: float
+    ) -> Array:
+        """Apply boundary conditions to residual only.
+
+        Used by the line search where the Jacobian is not needed.
+        """
+        if self._physics.boundary_conditions():
+            for bc in self._physics.boundary_conditions():
+                residual = bc.apply_to_residual(residual, state, time)
+        return residual
+
     def _apply_boundary_conditions(
         self, residual: Array, jacobian: Array, state: Array, time: float
     ) -> Tuple[Array, Array]:
@@ -210,6 +222,9 @@ class CollocationModel(Generic[Array]):
             for _ in range(10):
                 state_new = state + alpha * delta
                 res_new = self._adapter(state_new)
+                res_new = self._apply_bc_to_residual(
+                    res_new, state_new, 0.0
+                )
                 if float(bkd.norm(res_new)) < res_norm:
                     break
                 alpha *= 0.5
@@ -369,19 +384,19 @@ class CollocationModel(Generic[Array]):
             f_y = self._adapter(y)
             residual = y - state - deltat * f_y
 
-            # Apply boundary conditions to Newton residual
-            # This enforces y[boundary] = g(t_{n+1}) at boundaries
+            # Jacobian: dR/dy = I - dt * df/dy (formed BEFORE BC application)
             jac_f = self._adapter.jacobian(y)
-            residual, jac_f = self._apply_boundary_conditions(
-                residual, jac_f, y, t_np1
+            jac_R = bkd.eye(self.nstates()) - deltat * jac_f
+
+            # Apply boundary conditions to Newton residual and Jacobian
+            # This enforces the BC equation directly at boundary rows
+            residual, jac_R = self._apply_boundary_conditions(
+                residual, jac_R, y, t_np1
             )
 
             # Check convergence
             if float(bkd.norm(residual)) < config.newton_tol:
                 return y
-
-            # Jacobian: dR/dy = I - dt * df/dy
-            jac_R = bkd.eye(self.nstates()) - deltat * jac_f
 
             # Newton update
             delta = bkd.solve(jac_R, -residual)
@@ -422,19 +437,19 @@ class CollocationModel(Generic[Array]):
             f_y = self._adapter(y)
             residual = y - state - 0.5 * deltat * (f_n + f_y)
 
-            # Apply boundary conditions to Newton residual
-            # This enforces y[boundary] = g(t_{n+1}) at boundaries
+            # Jacobian: dR/dy = I - dt/2 * df/dy (formed BEFORE BC application)
             jac_f = self._adapter.jacobian(y)
-            residual, jac_f = self._apply_boundary_conditions(
-                residual, jac_f, y, t_np1
+            jac_R = bkd.eye(self.nstates()) - 0.5 * deltat * jac_f
+
+            # Apply boundary conditions to Newton residual and Jacobian
+            # This enforces the BC equation directly at boundary rows
+            residual, jac_R = self._apply_boundary_conditions(
+                residual, jac_R, y, t_np1
             )
 
             # Check convergence
             if float(bkd.norm(residual)) < config.newton_tol:
                 return y
-
-            # Jacobian: dR/dy = I - dt/2 * df/dy
-            jac_R = bkd.eye(self.nstates()) - 0.5 * deltat * jac_f
 
             # Newton update
             delta = bkd.solve(jac_R, -residual)
