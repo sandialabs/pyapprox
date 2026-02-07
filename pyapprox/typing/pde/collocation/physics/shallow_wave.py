@@ -45,6 +45,9 @@ class ShallowWavePhysics(AbstractVectorPhysics[Array]):
     g : float
         Gravitational acceleration (default: 9.81).
     forcing : Callable[[float], Array], optional
+        Forcing term for all components. If callable, takes time and returns
+        array of shape (ncomponents * npts,) as [f_h, f_hu] (1D) or
+        [f_h, f_hu, f_hv] (2D).
         Forcing term for momentum equations. For 1D, returns shape (npts,).
         For 2D, returns shape (2*npts,) as [f_u, f_v].
 
@@ -90,13 +93,17 @@ class ShallowWavePhysics(AbstractVectorPhysics[Array]):
         return self._bed
 
     def _get_forcing(self, time: float) -> Array:
-        """Get forcing array at given time."""
+        """Get forcing array at given time.
+
+        Returns array of shape (ncomponents * npts,) with forcing for
+        all components: [f_h, f_hu] (1D) or [f_h, f_hu, f_hv] (2D).
+        """
         npts = self.npts()
         bkd = self._bkd
-        ndim = self._basis.ndim()
+        ncomponents = self.ncomponents()
 
         if self._forcing_func is None:
-            return bkd.zeros((ndim * npts,))
+            return bkd.zeros((ncomponents * npts,))
         if callable(self._forcing_func):
             return self._forcing_func(time)
         return self._forcing_func
@@ -174,16 +181,17 @@ class ShallowWavePhysics(AbstractVectorPhysics[Array]):
         # Compute velocity
         u = hu / h
 
-        # Continuity: dh/dt = -d(hu)/dx
+        # Continuity: dh/dt = -d(hu)/dx + f_h
         res_h = -D @ hu
 
-        # Momentum: d(hu)/dt = -d(hu^2 + 0.5*g*h^2)/dx - g*h*db/dx
+        # Momentum: d(hu)/dt = -d(hu^2 + 0.5*g*h^2)/dx - g*h*db/dx + f_hu
         flux_u = hu * u + 0.5 * g * h ** 2
         res_hu = -D @ flux_u - g * h * self._bed_gradient[0]
 
-        # Add forcing
+        # Add forcing to all components
         forcing = self._get_forcing(time)
-        res_hu = res_hu + forcing[:npts]
+        res_h = res_h + forcing[:npts]
+        res_hu = res_hu + forcing[npts:2*npts]
 
         return self._combine_state(res_h, res_hu)
 
@@ -218,10 +226,11 @@ class ShallowWavePhysics(AbstractVectorPhysics[Array]):
         flux_vv = hv * v + g_hsq
         res_hv = -Dx @ flux_vu - Dy @ flux_vv - g * h * self._bed_gradient[1]
 
-        # Add forcing
+        # Add forcing to all components
         forcing = self._get_forcing(time)
-        res_hu = res_hu + forcing[:npts]
-        res_hv = res_hv + forcing[npts:2*npts]
+        res_h = res_h + forcing[:npts]
+        res_hu = res_hu + forcing[npts:2*npts]
+        res_hv = res_hv + forcing[2*npts:3*npts]
 
         return self._combine_state(res_h, res_hu, res_hv)
 
@@ -444,7 +453,7 @@ def create_shallow_wave(
     g : float
         Gravitational acceleration (default: 9.81).
     forcing : Callable, optional
-        Forcing for momentum equations.
+        Forcing for all components [f_h, f_hu] (1D) or [f_h, f_hu, f_hv] (2D).
 
     Returns
     -------

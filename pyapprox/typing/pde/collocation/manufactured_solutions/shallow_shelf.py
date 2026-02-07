@@ -99,8 +99,8 @@ class ManufacturedShallowShelfVelocityEquations(
     ):
         if nvars != 2:
             raise ValueError("ShallowShelfVelocityEquations requires nvars=2")
-        if len(sol_strs) != 2:
-            raise ValueError("Expected 2 velocity components [u, v]")
+        if len(sol_strs) < 2:
+            raise ValueError("Expected at least 2 velocity components [u, v]")
 
         self._bed_str = bed_str
         self._depth_str = depth_str
@@ -296,7 +296,11 @@ class ManufacturedShallowShelfVelocityAndDepthEquations(
         self._set_expression("flux", flux, self._sol_strs[0])
 
     def sympy_temporal_derivative_expression(self) -> None:
-        """Add temporal derivative for mass conservation (depth only)."""
+        """Add temporal derivative for mass conservation (depth only).
+
+        Only the depth equation is time-dependent (dH/dt + div(H*vel) = f_H).
+        The velocity equations are elliptic (no du/dt or dv/dt).
+        """
         if not self.is_transient():
             raise ValueError("VelocityAndDepth equations must be transient")
 
@@ -307,6 +311,8 @@ class ManufacturedShallowShelfVelocityAndDepthEquations(
             self._sol_strs[0],
         )
 
-        # Add dH/dt to depth forcing
+        # Add dH/dt to depth forcing and to forcing[0]
         time_symb = self.time_symbol()[0]
-        self._expressions["depth_forcing"] += self._expressions["solution"][0].diff(time_symb)
+        dH_dt = self._expressions["solution"][0].diff(time_symb)
+        self._expressions["depth_forcing"] += dH_dt
+        self._expressions["forcing"][0] += dH_dt

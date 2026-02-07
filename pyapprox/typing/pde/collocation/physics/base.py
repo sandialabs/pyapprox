@@ -154,6 +154,24 @@ class AbstractPhysics(ABC, Generic[Array]):
         """
         return self._bkd.eye(self.nstates())
 
+    def apply_mass_matrix(self, vec: Array) -> Array:
+        """Apply mass matrix to a vector.
+
+        Default is identity (returns vec unchanged). Subclasses with
+        non-identity mass matrices should override for efficiency.
+
+        Parameters
+        ----------
+        vec : Array
+            Vector to multiply. Shape: (nstates,)
+
+        Returns
+        -------
+        Array
+            M @ vec. Shape: (nstates,)
+        """
+        return vec
+
 
 class AbstractScalarPhysics(AbstractPhysics[Array]):
     """Abstract base class for scalar (single component) PDE physics."""

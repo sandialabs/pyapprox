@@ -15,12 +15,20 @@ from pyapprox.typing.pde.collocation.mesh import (
 from pyapprox.typing.pde.collocation.boundary import (
     constant_dirichlet_bc,
     zero_dirichlet_bc,
+    DirichletBC,
 )
 from pyapprox.typing.pde.collocation.physics.advection_diffusion import (
     AdvectionDiffusionReaction,
     AdvectionDiffusionReactionWithParam,
     create_steady_diffusion,
     create_advection_diffusion,
+)
+from pyapprox.typing.pde.collocation.time_integration import (
+    CollocationModel,
+    TimeIntegrationConfig,
+)
+from pyapprox.typing.pde.collocation.manufactured_solutions import (
+    ManufacturedAdvectionDiffusionReaction,
 )
 
 
@@ -378,6 +386,91 @@ class TestFactoryFunctions(Generic[Array], unittest.TestCase):
         self.assertEqual(physics.ncomponents(), 1)
 
 
+class TestADRTransient(Generic[Array], unittest.TestCase):
+    """Test transient ADR with manufactured solutions.
+
+    Uses quadratic-in-time manufactured solution so CN (2nd order) is
+    exact while BE (1st order) has O(dt) temporal error.
+    Solution: u = sin(pi*x)*(1 + T + T**2), homogeneous Dirichlet BCs.
+    """
+
+    __test__ = False
+
+    def bkd(self) -> Backend[Array]:
+        raise NotImplementedError
+
+    def _setup_transient_adr(self):
+        """Create ADR physics with quadratic-in-time manufactured solution."""
+        bkd = self.bkd()
+        npts = 20
+        mesh = TransformedMesh1D(npts, bkd)
+        basis = ChebyshevBasis1D(mesh, bkd)
+        mesh_obj = create_uniform_mesh_1d(npts, (-1.0, 1.0), bkd)
+        nodes = basis.nodes()
+
+        man_sol = ManufacturedAdvectionDiffusionReaction(
+            sol_str="sin(pi*x)*(1 + T + T**2)",
+            nvars=1,
+            diff_str="0.1",
+            react_str="0",
+            vel_strs=["0"],
+            bkd=bkd,
+            oned=True,
+        )
+
+        def forcing_fn(t):
+            return man_sol.functions["forcing"](nodes[None, :], t)
+
+        physics = AdvectionDiffusionReaction(
+            basis, bkd, diffusion=0.1, forcing=forcing_fn
+        )
+
+        # Homogeneous Dirichlet BCs (sin(pi*x) = 0 at x = +-1)
+        left_idx = mesh_obj.boundary_indices(0)
+        right_idx = mesh_obj.boundary_indices(1)
+        bc_left = zero_dirichlet_bc(bkd, left_idx)
+        bc_right = zero_dirichlet_bc(bkd, right_idx)
+        physics.set_boundary_conditions([bc_left, bc_right])
+
+        return physics, man_sol, nodes, bkd
+
+    def _run_transient_adr(self, method, atol):
+        physics, man_sol, nodes, bkd = self._setup_transient_adr()
+        model = CollocationModel(physics, bkd)
+
+        u0 = man_sol.functions["solution"](nodes[None, :], 0.0)
+
+        final_time = 0.1
+        config = TimeIntegrationConfig(
+            method=method,
+            init_time=0.0,
+            final_time=final_time,
+            deltat=0.005,
+        )
+
+        solutions, times = model.solve_transient(u0, config)
+        t_final = float(bkd.to_numpy(times[-1]))
+        u_exact = man_sol.functions["solution"](nodes[None, :], t_final)
+
+        bkd.assert_allclose(solutions[:, -1], u_exact, atol=atol)
+
+    def test_transient_backward_euler(self):
+        """Test transient ADR with backward Euler.
+
+        BE is 1st order in time, so with dt=0.005 and quadratic-in-time
+        solution there is O(dt) temporal error.
+        """
+        self._run_transient_adr("backward_euler", atol=0.01)
+
+    def test_transient_crank_nicolson(self):
+        """Test transient ADR with Crank-Nicolson.
+
+        CN is 2nd order in time. For quadratic-in-time solution,
+        CN integrates the time derivative exactly.
+        """
+        self._run_transient_adr("crank_nicolson", atol=1e-8)
+
+
 # NumPy backend tests
 class TestAdvectionDiffusionReactionNumpy(TestAdvectionDiffusionReaction):
     __test__ = True
@@ -396,6 +489,13 @@ class TestAdvectionDiffusionReactionWithParamNumpy(
 
 
 class TestFactoryFunctionsNumpy(TestFactoryFunctions):
+    __test__ = True
+
+    def bkd(self) -> Backend[Array]:
+        return NumpyBkd()
+
+
+class TestADRTransientNumpy(TestADRTransient):
     __test__ = True
 
     def bkd(self) -> Backend[Array]:

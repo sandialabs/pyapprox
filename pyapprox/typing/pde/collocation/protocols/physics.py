@@ -112,6 +112,24 @@ class PhysicsProtocol(Protocol, Generic[Array]):
         """
         ...
 
+    def apply_mass_matrix(self, vec: Array) -> Array:
+        """Apply mass matrix to a vector.
+
+        Default is identity (returns vec unchanged). Overridden for
+        non-identity mass matrices (e.g., split physics).
+
+        Parameters
+        ----------
+        vec : Array
+            Vector to multiply. Shape: (nstates,)
+
+        Returns
+        -------
+        Array
+            M @ vec. Shape: (nstates,)
+        """
+        ...
+
 
 @runtime_checkable
 class PhysicsWithParamJacobianProtocol(Protocol, Generic[Array]):

@@ -13,6 +13,7 @@ from pyapprox.typing.pde.collocation.mesh import (
 from pyapprox.typing.pde.collocation.physics.shallow_shelf import (
     ShallowShelfVelocityPhysics,
     ShallowShelfDepthPhysics,
+    ShallowShelfDepthVelocityPhysics,
     create_shallow_shelf_velocity,
     create_shallow_shelf_depth,
 )
@@ -23,8 +24,11 @@ from pyapprox.typing.pde.collocation.time_integration import (
     CollocationModel,
     TimeIntegrationConfig,
 )
+from pyapprox.typing.pde.collocation.boundary import constant_dirichlet_bc
+from pyapprox.typing.pde.collocation.boundary.dirichlet import DirichletBC
 from pyapprox.typing.pde.collocation.manufactured_solutions.shallow_shelf import (
     ManufacturedShallowShelfVelocityEquations,
+    ManufacturedShallowShelfVelocityAndDepthEquations,
 )
 
 
@@ -489,6 +493,337 @@ class TestShallowShelfDepthPhysics(PhysicsTestBase):
         # Expected: H(t) = H0 + f*t
         H_expected = H0 + f_val * final_time
         bkd.assert_allclose(H_final, H_expected, rtol=0.01, atol=1e-6)
+
+    def _setup_transient_depth_manufactured(self):
+        """Set up transient depth with manufactured solution.
+
+        Uses ManufacturedShallowShelfVelocityAndDepthEquations with:
+        - Steady velocities u=x^2+y, v=x+y^2 (nonzero strain rate everywhere)
+        - Time-dependent depth H = 2 + 0.3*(1-x^2)*(1-y^2)*(1+T+T^2)
+          Boundaries constant: H(boundary,t) = 2
+        - Quadratic-in-time for CN exactness
+
+        Only depth forcing is used; velocity equations are not solved.
+        """
+        bkd = self.bkd()
+        npts_1d = 10
+        mesh = TransformedMesh2D(npts_1d, npts_1d, bkd)
+        basis = ChebyshevBasis2D(mesh, bkd)
+        npts = basis.npts()
+        nodes = mesh.points()  # (2, npts)
+
+        man_sol = ManufacturedShallowShelfVelocityAndDepthEquations(
+            vel_strs=["x**2 + y", "x + y**2"],
+            nvars=2,
+            bed_str="0.0",
+            depth_str="2 + 0.3*(1 - x**2)*(1 - y**2)*(1 + T + T**2)",
+            friction_str="1.0",
+            A=1.0,
+            rho=1.0,
+            bkd=bkd,
+            oned=False,
+        )
+
+        def forcing_fn(t):
+            # depth_forcing includes dH/dt: f = dH/dt + div(H*vel)
+            # Physics: R(H) = -div(H*vel) + f => dH/dt = R(H) = dH/dt ✓
+            df = man_sol.functions["depth_forcing"](nodes, t)
+            return df[:, 0] if df.ndim == 2 else df
+
+        physics = ShallowShelfDepthPhysics(
+            basis, bkd, forcing=forcing_fn
+        )
+
+        # Set prescribed velocity (steady)
+        vel_vals = man_sol.functions["solution"](nodes, 0.0)
+        u_vals = vel_vals[:, 1]  # component 1 = u
+        v_vals = vel_vals[:, 2]  # component 2 = v
+        velocity = bkd.hstack([u_vals, v_vals])
+        physics.set_velocities(velocity)
+
+        # Dirichlet BCs on all boundaries: H = 2 (constant)
+        bc_list = []
+        for bnd_id in range(mesh.nboundaries()):
+            bnd_idx = mesh.boundary_indices(bnd_id)
+            bc = constant_dirichlet_bc(bkd, bnd_idx, 2.0)
+            bc_list.append(bc)
+        physics.set_boundary_conditions(bc_list)
+
+        return bkd, npts, nodes, man_sol, physics
+
+    def _run_transient_depth_manufactured(self, method, atol):
+        """Run transient depth test with given method and tolerance."""
+        bkd, npts, nodes, man_sol, physics = (
+            self._setup_transient_depth_manufactured()
+        )
+        model = CollocationModel(physics, bkd)
+
+        # Initial condition: H(x,y,0)
+        sol0 = man_sol.functions["solution"](nodes, 0.0)
+        state0 = sol0[:, 0]  # depth is component 0
+
+        final_time = 0.1
+        config = TimeIntegrationConfig(
+            method=method,
+            init_time=0.0,
+            final_time=final_time,
+            deltat=0.01,
+        )
+
+        solutions, times = model.solve_transient(state0, config)
+        t_final = float(bkd.to_numpy(times[-1]))
+
+        exact_final = man_sol.functions["solution"](nodes, t_final)[:, 0]
+        bkd.assert_allclose(solutions[:, -1], exact_final, atol=atol)
+
+    def test_transient_depth_manufactured_backward_euler(self):
+        """Test transient depth with backward Euler and manufactured solution."""
+        self._run_transient_depth_manufactured("backward_euler", atol=0.5)
+
+    def test_transient_depth_manufactured_crank_nicolson(self):
+        """Test transient depth with Crank-Nicolson and manufactured solution.
+
+        Uses polynomial-in-space and quadratic-in-time manufactured solution.
+        CN integrates quadratic-in-time exactly, so only spatial error remains.
+        """
+        self._run_transient_depth_manufactured("crank_nicolson", atol=1e-8)
+
+
+class TestShallowShelfDepthVelocityPhysics(PhysicsTestBase):
+    """Tests for coupled ShallowShelfDepthVelocityPhysics."""
+
+    __test__ = True
+
+    def bkd(self):
+        return NumpyBkd()
+
+    def _create_coupled_physics(self, npts_1d=6):
+        """Create coupled depth-velocity physics for testing."""
+        bkd = self.bkd()
+        mesh = TransformedMesh2D(npts_1d, npts_1d, bkd)
+        basis = ChebyshevBasis2D(mesh, bkd)
+        npts = basis.npts()
+
+        bed = bkd.zeros((npts,))
+        physics = ShallowShelfDepthVelocityPhysics(
+            basis, bkd, bed=bed, friction=1.0, A=1.0, rho=1.0
+        )
+        return bkd, mesh, basis, npts, physics
+
+    def test_ncomponents(self):
+        """Test number of components is 3 (H, u, v)."""
+        bkd, mesh, basis, npts, physics = self._create_coupled_physics()
+        self.assertEqual(physics.ncomponents(), 3)
+        self.assertEqual(physics.nstates(), 3 * npts)
+
+    def test_mass_matrix_structure(self):
+        """Test mass matrix is [[I, 0], [0, 0]]."""
+        bkd, mesh, basis, npts, physics = self._create_coupled_physics()
+        M = physics.mass_matrix()
+
+        self.assertEqual(M.shape, (3 * npts, 3 * npts))
+
+        # Top-left block should be identity
+        bkd.assert_allclose(
+            M[:npts, :npts], bkd.eye(npts), atol=1e-15
+        )
+        # Remaining blocks should be zero
+        bkd.assert_allclose(
+            M[:npts, npts:], bkd.zeros((npts, 2 * npts)), atol=1e-15
+        )
+        bkd.assert_allclose(
+            M[npts:, :], bkd.zeros((2 * npts, 3 * npts)), atol=1e-15
+        )
+
+    def test_apply_mass_matrix(self):
+        """Test apply_mass_matrix zeros velocity components."""
+        bkd, mesh, basis, npts, physics = self._create_coupled_physics()
+
+        vec = bkd.array(np.ones(3 * npts))
+        result = physics.apply_mass_matrix(vec)
+
+        # Depth part kept
+        bkd.assert_allclose(result[:npts], bkd.ones((npts,)), atol=1e-15)
+        # Velocity parts zeroed
+        bkd.assert_allclose(
+            result[npts:], bkd.zeros((2 * npts,)), atol=1e-15
+        )
+
+    def test_jacobian_derivative_checker(self):
+        """Test Jacobian matches finite differences."""
+        bkd, mesh, basis, npts, physics = self._create_coupled_physics()
+
+        # State with positive depth and small velocities
+        np.random.seed(42)
+        H = 1.0 + 0.1 * np.random.randn(npts)
+        u = 0.1 * np.random.randn(npts)
+        v = 0.1 * np.random.randn(npts)
+        state = bkd.array(np.concatenate([H, u, v]))
+
+        self.check_jacobian(physics, state, time=0.0)
+
+    def test_requires_2d_basis(self):
+        """Test that 1D basis raises error."""
+        bkd = self.bkd()
+        mesh = TransformedMesh1D(10, bkd)
+        basis = ChebyshevBasis1D(mesh, bkd)
+
+        with self.assertRaises(ValueError):
+            ShallowShelfDepthVelocityPhysics(
+                basis, bkd, bed=bkd.zeros((10,)),
+                friction=1.0, A=1.0, rho=1.0
+            )
+
+    def _setup_transient_coupled_manufactured(self):
+        """Set up transient coupled depth+velocity manufactured solution.
+
+        Uses ManufacturedShallowShelfVelocityAndDepthEquations matching
+        the legacy test pattern:
+        - vel: u=(x+1)^2*(1+y)*(1+T), v=y^2 (nonzero strain rate)
+        - depth: H = 0.1*(T+1) (time-dependent, uniform in space)
+        - bed: s0 - alpha*x^2 - H0  (sloped)
+        - friction=10, A=1, rho=1
+        - Domain [0,1]^2 via AffineTransform2D
+        """
+        from pyapprox.typing.pde.collocation.mesh import AffineTransform2D
+
+        bkd = self.bkd()
+        npts_1d = 8
+
+        # Domain [0,1]^2
+        transform = AffineTransform2D((0.0, 1.0, 0.0, 1.0), bkd)
+        mesh = TransformedMesh2D(npts_1d, npts_1d, bkd, transform=transform)
+        basis = ChebyshevBasis2D(mesh, bkd)
+        npts = basis.npts()
+        nodes = mesh.points()  # (2, npts)
+
+        s0, depth_val, alpha = 2, 0.1, 1e-1
+        depth_str = f"{depth_val}*(T+1)"
+        bed_str = f"{s0}-{alpha}*x**2-{depth_val}"
+        vel_strs = ["(x+1)**2*(1+y)*(1+T)", "(y+1)**2"]
+        friction_str = "10"
+        A = 1
+        rho = 1
+
+        man_sol = ManufacturedShallowShelfVelocityAndDepthEquations(
+            vel_strs=vel_strs,
+            nvars=2,
+            bed_str=bed_str,
+            depth_str=depth_str,
+            friction_str=friction_str,
+            A=A,
+            rho=rho,
+            bkd=bkd,
+            oned=False,
+        )
+
+        # Get bed at nodes
+        bed_vals = man_sol.functions["bed"](nodes).flatten()
+        friction_vals = man_sol.functions["friction"](nodes).flatten()
+
+        def depth_forcing_fn(t):
+            # depth_forcing includes dH/dt: f = dH/dt + div(H*vel)
+            # Physics residual: R(H) = -div(H*vel) + f = dH/dt
+            # Time integrator: M*(y-yn) - dt*R = M*(y-yn) - dt*dH/dt ≈ 0
+            df = man_sol.functions["depth_forcing"](nodes, t)
+            return df[:, 0] if df.ndim == 2 else df
+
+        def velocity_forcing_fn(t):
+            vf = man_sol.functions["velocity_forcing"](nodes, t)
+            if vf.ndim == 2:
+                return bkd.hstack([vf[:, 0], vf[:, 1]])
+            return vf
+
+        physics = ShallowShelfDepthVelocityPhysics(
+            basis, bkd,
+            bed=bed_vals,
+            friction=friction_vals,
+            A=A,
+            rho=rho,
+            g=9.81,
+            depth_forcing=depth_forcing_fn,
+            velocity_forcing=velocity_forcing_fn,
+        )
+
+        # Set Dirichlet BCs on all boundaries for all 3 components
+        bc_list = []
+        for bnd_id in range(mesh.nboundaries()):
+            bnd_idx = mesh.boundary_indices(bnd_id)
+
+            # Depth BC (component 0): H(boundary, t)
+            def make_depth_bc_fn(idx, ms=man_sol, nd=nodes):
+                def fn(t):
+                    vals = ms.functions["solution"](nd, t)
+                    return vals[idx, 0]  # depth is component 0
+                return fn
+            bc_H = DirichletBC(bkd, bnd_idx, make_depth_bc_fn(bnd_idx))
+            bc_list.append(bc_H)
+
+            # u-velocity BC (component 1): offset by npts
+            u_idx = bnd_idx + npts
+            def make_u_bc_fn(idx, ms=man_sol, nd=nodes):
+                def fn(t):
+                    vals = ms.functions["solution"](nd, t)
+                    return vals[idx, 1]  # u is component 1
+                return fn
+            bc_u = DirichletBC(bkd, u_idx, make_u_bc_fn(bnd_idx))
+            bc_list.append(bc_u)
+
+            # v-velocity BC (component 2): offset by 2*npts
+            v_idx = bnd_idx + 2 * npts
+            def make_v_bc_fn(idx, ms=man_sol, nd=nodes):
+                def fn(t):
+                    vals = ms.functions["solution"](nd, t)
+                    return vals[idx, 2]  # v is component 2
+                return fn
+            bc_v = DirichletBC(bkd, v_idx, make_v_bc_fn(bnd_idx))
+            bc_list.append(bc_v)
+
+        physics.set_boundary_conditions(bc_list)
+
+        return bkd, npts, nodes, man_sol, physics
+
+    def _run_transient_coupled_manufactured(self, method, rtol):
+        """Run transient coupled test with given method and tolerance."""
+        bkd, npts, nodes, man_sol, physics = (
+            self._setup_transient_coupled_manufactured()
+        )
+        model = CollocationModel(physics, bkd)
+
+        # Initial condition: [H(0), u(0), v(0)]
+        sol0 = man_sol.functions["solution"](nodes, 0.0)
+        H0 = sol0[:, 0]
+        u0 = sol0[:, 1]
+        v0 = sol0[:, 2]
+        state0 = bkd.hstack([H0, u0, v0])
+
+        final_time = 0.1
+        config = TimeIntegrationConfig(
+            method=method,
+            init_time=0.0,
+            final_time=final_time,
+            deltat=0.1,
+            newton_maxiter=50,
+        )
+
+        solutions, times = model.solve_transient(state0, config)
+        t_final = float(bkd.to_numpy(times[-1]))
+
+        exact_final = man_sol.functions["solution"](nodes, t_final)
+        H_exact = exact_final[:, 0]
+        u_exact = exact_final[:, 1]
+        v_exact = exact_final[:, 2]
+        exact_state = bkd.hstack([H_exact, u_exact, v_exact])
+
+        bkd.assert_allclose(solutions[:, -1], exact_state, rtol=rtol)
+
+    def test_transient_coupled_backward_euler(self):
+        """Test transient coupled depth+velocity with backward Euler."""
+        self._run_transient_coupled_manufactured("backward_euler", rtol=1e-5)
+
+    def test_transient_coupled_crank_nicolson(self):
+        """Test transient coupled depth+velocity with Crank-Nicolson."""
+        self._run_transient_coupled_manufactured("crank_nicolson", rtol=1e-5)
 
 
 if __name__ == "__main__":

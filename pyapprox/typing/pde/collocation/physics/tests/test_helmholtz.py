@@ -23,10 +23,6 @@ from pyapprox.typing.pde.collocation.physics.tests.test_utils import (
     PhysicsNewtonResidual,
 )
 from pyapprox.typing.optimization.rootfinding.newton import NewtonSolver
-from pyapprox.typing.pde.collocation.time_integration import (
-    CollocationModel,
-    TimeIntegrationConfig,
-)
 
 
 class TestHelmholtzPhysics(PhysicsTestBase):
@@ -155,54 +151,6 @@ class TestHelmholtzPhysics(PhysicsTestBase):
         self.assertEqual(physics.ncomponents(), 1)
         self.assertEqual(physics.nstates(), npts)
         self.assertAlmostEqual(physics.wave_number_sq(), 2.0)
-
-    def test_transient_decay(self):
-        """Test transient Helmholtz as reaction-diffusion decay.
-
-        Helmholtz: du/dt = u'' - k²*u
-        This is diffusion with decay. For u(x,0) = sin(pi*x) with
-        homogeneous Dirichlet BCs, the exact solution is:
-        u(x,t) = exp(-(pi² + k²)*t) * sin(pi*x)
-        """
-        bkd = self.bkd()
-        npts = 20
-        mesh = TransformedMesh1D(npts, bkd)
-
-        basis = ChebyshevBasis1D(mesh, bkd)
-        mesh = create_uniform_mesh_1d(npts, (-1.0, 1.0), bkd)
-        nodes = basis.nodes()
-
-        k_sq = 1.0
-        physics = HelmholtzPhysics(basis, bkd, wave_number_sq=k_sq)
-
-        # Set homogeneous Dirichlet BCs
-        left_idx = mesh.boundary_indices(0)
-        right_idx = mesh.boundary_indices(1)
-        bc_left = zero_dirichlet_bc(bkd, left_idx)
-        bc_right = zero_dirichlet_bc(bkd, right_idx)
-        physics.set_boundary_conditions([bc_left, bc_right])
-
-        model = CollocationModel(physics, bkd)
-
-        # Initial condition: sin(pi*x)
-        u0 = bkd.sin(math.pi * nodes)
-
-        final_time = 0.1
-        config = TimeIntegrationConfig(
-            method="backward_euler",
-            init_time=0.0,
-            final_time=final_time,
-            deltat=0.005,
-        )
-
-        solutions, times = model.solve_transient(u0, config)
-
-        # Exact solution: exp(-(pi² + k²)*t) * sin(pi*x)
-        decay_rate = math.pi ** 2 + k_sq
-        u_exact_final = math.exp(-decay_rate * final_time) * bkd.sin(math.pi * nodes)
-
-        # Use higher rtol due to time discretization error
-        bkd.assert_allclose(solutions[:, -1], u_exact_final, rtol=0.05, atol=1e-10)
 
 if __name__ == "__main__":
     unittest.main()

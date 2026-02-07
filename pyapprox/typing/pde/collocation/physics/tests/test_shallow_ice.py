@@ -274,6 +274,94 @@ class TestShallowIcePhysics(PhysicsTestBase):
         mean_final = float(np.mean(np.asarray(H_final)))
         self.assertGreater(mean_final, mean_initial)
 
+    def _setup_transient_shallow_ice(self):
+        """Set up transient shallow ice with manufactured solution.
+
+        Uses polynomial-in-space (exact for Chebyshev) and quadratic-in-time
+        (exact for CN). Boundary values are constant: H(±1,t)=2.
+        Normalized parameters (A=1, rho=1) for numerical stability.
+        """
+        bkd = self.bkd()
+        npts = 15
+        mesh = TransformedMesh1D(npts, bkd)
+        basis = ChebyshevBasis1D(mesh, bkd)
+        bc_mesh = create_uniform_mesh_1d(npts, (-1.0, 1.0), bkd)
+        nodes = basis.nodes()
+
+        A = 1.0
+        rho = 1.0
+
+        man_sol = ManufacturedShallowIce(
+            sol_str="2 + 0.5*(1 - x**2)*(1 + T + T**2)",
+            nvars=1,
+            bed_str="0.1*x",
+            friction_str="1.0",
+            A=A,
+            rho=rho,
+            bkd=bkd,
+            oned=True,
+        )
+
+        def forcing_fn(t):
+            return man_sol.functions["forcing"](nodes[None, :], t)
+
+        bed = man_sol.functions["bed"](nodes[None, :])
+        if bed.ndim == 2:
+            bed = bed[:, 0]
+
+        physics = ShallowIcePhysics(
+            basis, bkd, bed=bed, friction=1.0, A=A, rho=rho,
+            forcing=forcing_fn
+        )
+
+        exact_at_0 = man_sol.functions["solution"](nodes[None, :], 0.0)
+        left_idx = bc_mesh.boundary_indices(0)
+        right_idx = bc_mesh.boundary_indices(1)
+        bc_left = constant_dirichlet_bc(
+            bkd, left_idx, float(exact_at_0[int(left_idx)])
+        )
+        bc_right = constant_dirichlet_bc(
+            bkd, right_idx, float(exact_at_0[int(right_idx)])
+        )
+        physics.set_boundary_conditions([bc_left, bc_right])
+
+        return bkd, npts, nodes, man_sol, physics
+
+    def _run_transient_shallow_ice(self, method, atol):
+        """Run transient shallow ice test with given method and tolerance."""
+        bkd, npts, nodes, man_sol, physics = (
+            self._setup_transient_shallow_ice()
+        )
+        model = CollocationModel(physics, bkd)
+
+        state0 = man_sol.functions["solution"](nodes[None, :], 0.0)
+
+        final_time = 0.1
+        config = TimeIntegrationConfig(
+            method=method,
+            init_time=0.0,
+            final_time=final_time,
+            deltat=0.01,
+        )
+
+        solutions, times = model.solve_transient(state0, config)
+        t_final = float(bkd.to_numpy(times[-1]))
+        exact_final = man_sol.functions["solution"](nodes[None, :], t_final)
+
+        bkd.assert_allclose(solutions[:, -1], exact_final, atol=atol)
+
+    def test_transient_manufactured_backward_euler(self):
+        """Test transient shallow ice with backward Euler."""
+        self._run_transient_shallow_ice("backward_euler", atol=0.1)
+
+    def test_transient_manufactured_crank_nicolson(self):
+        """Test transient shallow ice with Crank-Nicolson.
+
+        Uses polynomial-in-space and quadratic-in-time manufactured solution.
+        CN integrates quadratic-in-time exactly, so only spatial error remains.
+        """
+        self._run_transient_shallow_ice("crank_nicolson", atol=1e-8)
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -96,6 +96,7 @@ class CollocationModel(Generic[Array]):
         self._physics = physics
         self._bkd = bkd
         self._adapter = PhysicsToODEResidualAdapter(physics, bkd)
+        self._mass_matrix = physics.mass_matrix()
 
     def bkd(self) -> Backend[Array]:
         """Return the computational backend."""
@@ -363,9 +364,11 @@ class CollocationModel(Generic[Array]):
         deltat: float,
         config: TimeIntegrationConfig,
     ) -> Array:
-        """Backward Euler: y_{n+1} = y_n + dt * f(y_{n+1}, t_{n+1}).
+        """Backward Euler: M*(y_{n+1} - y_n) = dt * f(y_{n+1}, t_{n+1}).
 
-        Requires Newton iteration.
+        Requires Newton iteration. M is the mass matrix from
+        physics.apply_mass_matrix (identity for standard collocation,
+        singular for split physics like SSA depth+velocity).
 
         For transient Dirichlet BCs, boundary conditions are applied to the
         Newton residual (not the physics residual), enforcing y[boundary] = g(t)
@@ -379,14 +382,14 @@ class CollocationModel(Generic[Array]):
         y = bkd.copy(state)  # Initial guess
 
         for _ in range(config.newton_maxiter):
-            # Residual: R = y - y_n - dt * f(y)
-            # Note: adapter returns physics residual WITHOUT BC modifications
+            # Residual: R = M*(y - y_n) - dt * f(y)
+            # apply_mass_matrix is identity for standard collocation (no-op)
             f_y = self._adapter(y)
-            residual = y - state - deltat * f_y
+            residual = self._physics.apply_mass_matrix(y - state) - deltat * f_y
 
-            # Jacobian: dR/dy = I - dt * df/dy (formed BEFORE BC application)
+            # Jacobian: dR/dy = M - dt * df/dy (formed BEFORE BC application)
             jac_f = self._adapter.jacobian(y)
-            jac_R = bkd.eye(self.nstates()) - deltat * jac_f
+            jac_R = self._mass_matrix - deltat * jac_f
 
             # Apply boundary conditions to Newton residual and Jacobian
             # This enforces the BC equation directly at boundary rows
@@ -411,9 +414,11 @@ class CollocationModel(Generic[Array]):
         deltat: float,
         config: TimeIntegrationConfig,
     ) -> Array:
-        """Crank-Nicolson: y_{n+1} = y_n + dt/2 * (f(y_n) + f(y_{n+1})).
+        """Crank-Nicolson: M*(y_{n+1} - y_n) = dt/2 * (f(y_n) + f(y_{n+1})).
 
-        Requires Newton iteration.
+        Requires Newton iteration. M is the mass matrix from
+        physics.apply_mass_matrix (identity for standard collocation,
+        singular for split physics like SSA depth+velocity).
 
         For transient Dirichlet BCs, boundary conditions are applied to the
         Newton residual (not the physics residual), enforcing y[boundary] = g(t)
@@ -432,14 +437,17 @@ class CollocationModel(Generic[Array]):
         y = bkd.copy(state)  # Initial guess
 
         for _ in range(config.newton_maxiter):
-            # Residual: R = y - y_n - dt/2 * (f_n + f(y))
-            # Note: adapter returns physics residual WITHOUT BC modifications
+            # Residual: R = M*(y - y_n) - dt/2 * (f_n + f(y))
+            # apply_mass_matrix is identity for standard collocation (no-op)
             f_y = self._adapter(y)
-            residual = y - state - 0.5 * deltat * (f_n + f_y)
+            residual = (
+                self._physics.apply_mass_matrix(y - state)
+                - 0.5 * deltat * (f_n + f_y)
+            )
 
-            # Jacobian: dR/dy = I - dt/2 * df/dy (formed BEFORE BC application)
+            # Jacobian: dR/dy = M - dt/2 * df/dy (formed BEFORE BC application)
             jac_f = self._adapter.jacobian(y)
-            jac_R = bkd.eye(self.nstates()) - 0.5 * deltat * jac_f
+            jac_R = self._mass_matrix - 0.5 * deltat * jac_f
 
             # Apply boundary conditions to Newton residual and Jacobian
             # This enforces the BC equation directly at boundary rows

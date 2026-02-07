@@ -132,14 +132,12 @@ class TestManufacturedShallowWave1D(Generic[Array], unittest.TestCase):
 
         h_exact = sol[:, 0]
         hu_exact = sol[:, 1]
-        forcing_h = forcing[:, 0]
-        forcing_hu = forcing[:, 1]
 
-        # Create physics with manufactured forcing
-        # Note: shallow wave physics takes bed and momentum forcing
+        # Create physics with manufactured forcing for all components
+        all_forcing = bkd.hstack([forcing[:, 0], forcing[:, 1]])
         physics = ShallowWavePhysics(
             basis, bkd, bed=bed.flatten(), g=9.81,
-            forcing=lambda t: forcing_hu
+            forcing=lambda t: all_forcing
         )
 
         # Set Dirichlet BCs at boundaries for both h and hu
@@ -164,31 +162,19 @@ class TestManufacturedShallowWave1D(Generic[Array], unittest.TestCase):
         state_exact = bkd.hstack([h_exact, hu_exact])
         residual = physics.residual(state_exact, 0.0)
 
-        # The continuity equation residual also needs forcing
-        # But the manufactured solution forcing includes both equations
-        # The physics only takes momentum forcing, so continuity residual won't be zero
-        # We need to add continuity forcing manually or check only momentum residual
-
-        # For a proper test, check that with the correct forcing, we get zero residual
-        # The physics residual for continuity is: -d(hu)/dx
-        # The manufactured forcing for continuity is: d(hu)/dx
-        # So we need to add forcing_h to the continuity residual
-
         # Apply BCs
         jac = physics.jacobian(state_exact, 0.0)
         residual_with_bc, _ = physics.apply_boundary_conditions(
             residual, jac, state_exact, 0.0
         )
 
-        # Check interior momentum residual only
-        # Continuity equation doesn't have forcing in the physics, so we skip it
+        # Check all interior residuals (both continuity and momentum)
         boundary_indices = {0, npts - 1, npts, 2 * npts - 1}
-        # Check momentum equation (indices npts to 2*npts-1), excluding boundaries
-        momentum_interior = [i for i in range(npts, 2 * npts) if i not in boundary_indices]
-        momentum_residual = bkd.asarray([residual_with_bc[i] for i in momentum_interior])
+        interior = [i for i in range(2 * npts) if i not in boundary_indices]
+        interior_residual = bkd.asarray([residual_with_bc[i] for i in interior])
 
         bkd.assert_allclose(
-            momentum_residual, bkd.zeros(momentum_residual.shape), atol=1e-8
+            interior_residual, bkd.zeros(interior_residual.shape), atol=1e-8
         )
 
     def test_steady_shallow_wave_jacobian(self):
@@ -213,9 +199,10 @@ class TestManufacturedShallowWave1D(Generic[Array], unittest.TestCase):
         forcing = man_sol.functions["forcing"](nodes.reshape(1, -1))
         bed = man_sol.functions["bed"](nodes.reshape(1, -1))
 
+        all_forcing = bkd.hstack([forcing[:, 0], forcing[:, 1]])
         physics = ShallowWavePhysics(
             basis, bkd, bed=bed.flatten(), g=9.81,
-            forcing=lambda t: forcing[:, 1]
+            forcing=lambda t: all_forcing
         )
 
         state_exact = bkd.hstack([sol[:, 0], sol[:, 1]])
@@ -250,9 +237,10 @@ class TestManufacturedShallowWave1D(Generic[Array], unittest.TestCase):
         h_exact = sol[:, 0]
         hu_exact = sol[:, 1]
 
+        all_forcing = bkd.hstack([forcing[:, 0], forcing[:, 1]])
         physics = ShallowWavePhysics(
             basis, bkd, bed=bed.flatten(), g=9.81,
-            forcing=lambda t: forcing[:, 1]
+            forcing=lambda t: all_forcing
         )
 
         left_idx = mesh.boundary_indices(0)
@@ -270,12 +258,13 @@ class TestManufacturedShallowWave1D(Generic[Array], unittest.TestCase):
             residual, jac, state_exact, 0.0
         )
 
+        # Check all interior residuals (both continuity and momentum)
         boundary_indices = {0, npts - 1, npts, 2 * npts - 1}
-        momentum_interior = [i for i in range(npts, 2 * npts) if i not in boundary_indices]
-        momentum_residual = bkd.asarray([residual_with_bc[i] for i in momentum_interior])
+        interior = [i for i in range(2 * npts) if i not in boundary_indices]
+        interior_residual = bkd.asarray([residual_with_bc[i] for i in interior])
 
         bkd.assert_allclose(
-            momentum_residual, bkd.zeros(momentum_residual.shape), atol=1e-8
+            interior_residual, bkd.zeros(interior_residual.shape), atol=1e-8
         )
 
     def test_quiescent_state(self):
@@ -346,9 +335,10 @@ class TestShallowWave1DParameterized(ParametrizedTestCase):
         h_exact = sol[:, 0]
         hu_exact = sol[:, 1]
 
+        all_forcing = bkd.hstack([forcing[:, 0], forcing[:, 1]])
         physics = ShallowWavePhysics(
             basis, bkd, bed=bed.flatten(), g=9.81,
-            forcing=lambda t: forcing[:, 1]
+            forcing=lambda t: all_forcing
         )
 
         left_idx = mesh.boundary_indices(0)
@@ -366,13 +356,14 @@ class TestShallowWave1DParameterized(ParametrizedTestCase):
             residual, jac, state_exact, 0.0
         )
 
+        # Check all interior residuals (both continuity and momentum)
         boundary_indices = {0, npts - 1, npts, 2 * npts - 1}
-        momentum_interior = [i for i in range(npts, 2 * npts) if i not in boundary_indices]
-        momentum_residual = bkd.asarray([residual_with_bc[i] for i in momentum_interior])
+        interior = [i for i in range(2 * npts) if i not in boundary_indices]
+        interior_residual = bkd.asarray([residual_with_bc[i] for i in interior])
 
         bkd.assert_allclose(
-            momentum_residual,
-            bkd.zeros(momentum_residual.shape),
+            interior_residual,
+            bkd.zeros(interior_residual.shape),
             atol=1e-7,
         )
 
@@ -405,9 +396,10 @@ class TestShallowWave1DParameterized(ParametrizedTestCase):
         forcing = man_sol.functions["forcing"](nodes.reshape(1, -1))
         bed = man_sol.functions["bed"](nodes.reshape(1, -1))
 
+        all_forcing = bkd.hstack([forcing[:, 0], forcing[:, 1]])
         physics = ShallowWavePhysics(
             basis, bkd, bed=bed.flatten(), g=9.81,
-            forcing=lambda t: forcing[:, 1]
+            forcing=lambda t: all_forcing
         )
 
         state_exact = bkd.hstack([sol[:, 0], sol[:, 1]])

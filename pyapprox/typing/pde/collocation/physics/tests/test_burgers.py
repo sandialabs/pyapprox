@@ -285,6 +285,62 @@ class TestBurgersPhysics(PhysicsTestBase):
         # Use atol for boundary points near zero
         bkd.assert_allclose(solutions[:, -1], u_exact_final, rtol=0.05, atol=1e-10)
 
+    def test_transient_manufactured_solution_crank_nicolson(self):
+        """Test transient Burgers with Crank-Nicolson and manufactured solution.
+
+        Uses polynomial-in-space (exact for Chebyshev basis) and
+        quadratic-in-time (exact for CN): u = (1-x^2)^2 * (1+T+T^2).
+        With manufactured forcing, only spatial discretization error remains.
+        """
+        bkd = self.bkd()
+        npts = 15
+        mesh = TransformedMesh1D(npts, bkd)
+
+        basis = ChebyshevBasis1D(mesh, bkd)
+        mesh = create_uniform_mesh_1d(npts, (-1.0, 1.0), bkd)
+        nodes = basis.nodes()
+
+        nu = 0.1
+
+        man_sol = ManufacturedBurgers1D(
+            sol_str="(1 - x**2)**2*(1 + T + T**2)",
+            visc_str=str(nu),
+            bkd=bkd,
+            oned=True,
+        )
+
+        def get_forcing(t):
+            forcing_2d = man_sol.functions["forcing"](nodes[None, :], t)
+            return forcing_2d[:, 0] if forcing_2d.ndim == 2 else forcing_2d
+
+        physics = BurgersPhysics1D(
+            basis, bkd, viscosity=nu, forcing=get_forcing
+        )
+
+        left_idx = mesh.boundary_indices(0)
+        right_idx = mesh.boundary_indices(1)
+        bc_left = zero_dirichlet_bc(bkd, left_idx)
+        bc_right = zero_dirichlet_bc(bkd, right_idx)
+        physics.set_boundary_conditions([bc_left, bc_right])
+
+        model = CollocationModel(physics, bkd)
+
+        u0 = man_sol.functions["solution"](nodes[None, :], 0.0)
+
+        final_time = 0.1
+        config = TimeIntegrationConfig(
+            method="crank_nicolson",
+            init_time=0.0,
+            final_time=final_time,
+            deltat=0.01,
+        )
+
+        solutions, times = model.solve_transient(u0, config)
+        t_final = float(bkd.to_numpy(times[-1]))
+        u_exact = man_sol.functions["solution"](nodes[None, :], t_final)
+
+        bkd.assert_allclose(solutions[:, -1], u_exact, atol=1e-8)
+
     def test_transient_diffusion_dominated(self):
         """Test transient Burgers with high viscosity (diffusion dominated).
 

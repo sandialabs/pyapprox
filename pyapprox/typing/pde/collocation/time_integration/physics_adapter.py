@@ -146,6 +146,10 @@ class PhysicsToODEResidualAdapter(Generic[Array]):
         """
         return self._physics.mass_matrix()
 
+    def apply_mass_matrix(self, vec: Array) -> Array:
+        """Apply mass matrix to a vector. Identity for standard collocation."""
+        return self._physics.apply_mass_matrix(vec)
+
     # =========================================================================
     # Optional methods (dynamically bound if physics supports them)
     # =========================================================================

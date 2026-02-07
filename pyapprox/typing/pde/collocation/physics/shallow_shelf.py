@@ -342,6 +342,168 @@ class ShallowShelfDepthPhysics(AbstractPhysics[Array]):
         return jacobian
 
 
+class ShallowShelfDepthVelocityPhysics(AbstractVectorPhysics[Array]):
+    """Coupled shallow shelf depth and velocity physics.
+
+    Combines the depth equation (mass conservation, transient) with the
+    velocity equations (momentum balance, steady/elliptic) into a single
+    coupled system suitable for implicit time integration.
+
+    State vector: [H, u, v] with shape (3*npts,)
+    - H: ice thickness (transient: dH/dt + div(H*vel) = f_H)
+    - u, v: ice velocity (steady: div(stress) - friction - driving = f_vel)
+
+    The mass matrix is block-diagonal [[I, 0], [0, 0]] reflecting that
+    only depth has a time derivative. The velocity equations are algebraic
+    constraints solved simultaneously via Newton iteration.
+
+    Parameters
+    ----------
+    basis : TensorProductBasisProtocol
+        2D collocation basis.
+    bkd : Backend
+        Computational backend.
+    bed : Array
+        Bed elevation b. Shape: (npts,)
+    friction : float or Array
+        Friction coefficient C.
+    A : float
+        Rate factor in Glen's flow law.
+    rho : float
+        Ice density (kg/m^3).
+    g : float
+        Gravitational acceleration (default: 9.81).
+    depth_forcing : Callable[[float], Array], optional
+        Forcing for depth equation. Shape: (npts,)
+    velocity_forcing : Callable[[float], Array], optional
+        Forcing for velocity equations. Shape: (2*npts,)
+    eps : float
+        Regularization for strain rate (default: 1e-12).
+    """
+
+    def __init__(
+        self,
+        basis: TensorProductBasisProtocol[Array],
+        bkd: Backend[Array],
+        bed: Array,
+        friction: Union[float, Array],
+        A: float,
+        rho: float,
+        g: float = 9.81,
+        depth_forcing: Optional[Callable[[float], Array]] = None,
+        velocity_forcing: Optional[Callable[[float], Array]] = None,
+        eps: float = 1e-12,
+    ):
+        if basis.ndim() != 2:
+            raise ValueError(
+                "ShallowShelfDepthVelocityPhysics requires a 2D basis"
+            )
+
+        super().__init__(basis, bkd, ncomponents=3)
+
+        npts = basis.npts()
+
+        # Initialize depth to zero; will be set from state in residual
+        initial_depth = bkd.zeros((npts,))
+
+        self._depth_physics = ShallowShelfDepthPhysics(
+            basis, bkd, forcing=depth_forcing
+        )
+        self._velocity_physics = ShallowShelfVelocityPhysics(
+            basis, bkd,
+            depth=initial_depth,
+            bed=bed,
+            friction=friction,
+            A=A,
+            rho=rho,
+            g=g,
+            forcing=velocity_forcing,
+            eps=eps,
+        )
+
+        # Cache mass matrix
+        self._cached_mass_matrix = bkd.zeros((3 * npts, 3 * npts))
+        for i in range(npts):
+            self._cached_mass_matrix[i, i] = 1.0
+
+    def _split_state(self, state: Array) -> Tuple[Array, Array, Array]:
+        """Split state [H, u, v] into components."""
+        npts = self.npts()
+        H = state[:npts]
+        u = state[npts:2 * npts]
+        v = state[2 * npts:]
+        return H, u, v
+
+    def _update_cross_dependencies(self, H: Array, u: Array, v: Array) -> None:
+        """Update cross-physics dependencies.
+
+        Depth physics needs current velocity for flux computation.
+        Velocity physics needs current depth for stress computation.
+        """
+        npts = self.npts()
+        self._depth_physics.set_velocities(self._bkd.hstack([u, v]))
+        self._velocity_physics.set_depth(H)
+
+    def residual(self, state: Array, time: float) -> Array:
+        """Compute coupled residual [R_H, R_u, R_v].
+
+        R_H = -div(H*vel) + f_H  (depth: transient)
+        R_u, R_v = SSA momentum   (velocity: steady/algebraic)
+        """
+        H, u, v = self._split_state(state)
+        self._update_cross_dependencies(H, u, v)
+
+        depth_res = self._depth_physics.residual(H, time)
+        vel_state = self._bkd.hstack([u, v])
+        vel_res = self._velocity_physics.residual(vel_state, time)
+
+        return self._bkd.hstack([depth_res, vel_res])
+
+    def jacobian(self, state: Array, time: float) -> Array:
+        """Compute full coupled Jacobian via finite differences.
+
+        The Jacobian is a 3x3 block matrix with cross-coupling terms
+        (depth depends on velocity through div(H*vel), velocity depends
+        on depth through surface gradient and stress).
+        """
+        bkd = self._bkd
+        nstates = self.nstates()
+        eps = 1e-7
+
+        jacobian = bkd.zeros((nstates, nstates))
+
+        for j in range(nstates):
+            state_plus = bkd.copy(state)
+            state_plus[j] = state_plus[j] + eps
+            state_minus = bkd.copy(state)
+            state_minus[j] = state_minus[j] - eps
+
+            res_plus = self.residual(state_plus, time)
+            res_minus = self.residual(state_minus, time)
+
+            jacobian[:, j] = (res_plus - res_minus) / (2 * eps)
+
+        return jacobian
+
+    def mass_matrix(self) -> Array:
+        """Return mass matrix [[I, 0], [0, 0]].
+
+        Only depth has a time derivative. Velocity equations are
+        algebraic (steady).
+        """
+        return self._cached_mass_matrix
+
+    def apply_mass_matrix(self, vec: Array) -> Array:
+        """Apply mass matrix: keep depth component, zero velocity components.
+
+        For state [H, u, v], returns [H, 0, 0].
+        """
+        npts = self.npts()
+        result = self._bkd.copy(vec)
+        result[npts:] = 0.0
+        return result
+
+
 def create_shallow_shelf_velocity(
     basis: TensorProductBasisProtocol[Array],
     bkd: Backend[Array],
@@ -423,4 +585,60 @@ def create_shallow_shelf_depth(
         basis=basis,
         bkd=bkd,
         forcing=forcing,
+    )
+
+
+def create_shallow_shelf_depth_velocity(
+    basis: TensorProductBasisProtocol[Array],
+    bkd: Backend[Array],
+    bed: Array,
+    friction: Union[float, Array],
+    A: float = 1e-16,
+    rho: float = 917.0,
+    g: float = 9.81,
+    depth_forcing: Optional[Callable[[float], Array]] = None,
+    velocity_forcing: Optional[Callable[[float], Array]] = None,
+    eps: float = 1e-12,
+) -> ShallowShelfDepthVelocityPhysics[Array]:
+    """Create coupled shallow shelf depth-velocity physics.
+
+    Parameters
+    ----------
+    basis : TensorProductBasisProtocol
+        2D collocation basis.
+    bkd : Backend
+        Computational backend.
+    bed : Array
+        Bed elevation.
+    friction : float or Array
+        Friction coefficient.
+    A : float
+        Rate factor (default: 1e-16).
+    rho : float
+        Ice density (default: 917.0).
+    g : float
+        Gravitational acceleration (default: 9.81).
+    depth_forcing : Callable, optional
+        Forcing for depth equation.
+    velocity_forcing : Callable, optional
+        Forcing for velocity equations.
+    eps : float
+        Strain rate regularization.
+
+    Returns
+    -------
+    ShallowShelfDepthVelocityPhysics
+        Coupled depth-velocity physics.
+    """
+    return ShallowShelfDepthVelocityPhysics(
+        basis=basis,
+        bkd=bkd,
+        bed=bed,
+        friction=friction,
+        A=A,
+        rho=rho,
+        g=g,
+        depth_forcing=depth_forcing,
+        velocity_forcing=velocity_forcing,
+        eps=eps,
     )

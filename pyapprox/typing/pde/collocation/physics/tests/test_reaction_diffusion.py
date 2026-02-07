@@ -34,6 +34,9 @@ from pyapprox.typing.pde.collocation.time_integration import (
     CollocationModel,
     TimeIntegrationConfig,
 )
+from pyapprox.typing.pde.collocation.manufactured_solutions import (
+    ManufacturedTwoSpeciesReactionDiffusion,
+)
 
 
 class TestTwoSpeciesReactionDiffusion(PhysicsTestBase):
@@ -279,6 +282,81 @@ class TestTwoSpeciesReactionDiffusion(PhysicsTestBase):
         exact_final = bkd.hstack([u0_exact, u1_exact])
 
         bkd.assert_allclose(solutions[:, -1], exact_final, rtol=0.02, atol=1e-10)
+
+    def test_transient_diffusion_only_crank_nicolson(self):
+        """Test transient reaction-diffusion with CN and manufactured solution.
+
+        Uses polynomial-in-space (exact for Chebyshev) and quadratic-in-time
+        (exact for CN) with zero reaction. Tight tolerance since both spatial
+        and temporal discretization errors are near machine precision.
+        """
+        bkd = self.bkd()
+        npts = 15
+        mesh = TransformedMesh1D(npts, bkd)
+
+        basis = ChebyshevBasis1D(mesh, bkd)
+        mesh = create_uniform_mesh_1d(npts, (-1.0, 1.0), bkd)
+        nodes = basis.nodes()
+
+        D0, D1 = 0.1, 0.05
+        reaction = LinearReaction(0.0, 0.0, 0.0, 0.0, bkd)
+
+        man_sol = ManufacturedTwoSpeciesReactionDiffusion(
+            sol_strs=[
+                "(1 - x**2)**2*(1 + T + T**2)",
+                "(1 - x**2)**2*x*(1 + T + T**2)",
+            ],
+            nvars=1,
+            diff_strs=[str(D0), str(D1)],
+            reaction=reaction,
+            bkd=bkd,
+            oned=True,
+        )
+
+        def forcing0_fn(t):
+            forcing = man_sol.functions["forcing"](nodes[None, :], t)
+            return forcing[:, 0]
+
+        def forcing1_fn(t):
+            forcing = man_sol.functions["forcing"](nodes[None, :], t)
+            return forcing[:, 1]
+
+        physics = TwoSpeciesReactionDiffusionPhysics(
+            basis, bkd, diffusion0=D0, diffusion1=D1,
+            reaction=reaction, forcing0=forcing0_fn, forcing1=forcing1_fn
+        )
+
+        left_idx = mesh.boundary_indices(0)
+        right_idx = mesh.boundary_indices(1)
+        bc_u0_left = zero_dirichlet_bc(bkd, bkd.array([left_idx]))
+        bc_u0_right = zero_dirichlet_bc(bkd, bkd.array([right_idx]))
+        bc_u1_left = zero_dirichlet_bc(bkd, bkd.array([npts + left_idx]))
+        bc_u1_right = zero_dirichlet_bc(bkd, bkd.array([npts + right_idx]))
+        physics.set_boundary_conditions(
+            [bc_u0_left, bc_u0_right, bc_u1_left, bc_u1_right]
+        )
+
+        model = CollocationModel(physics, bkd)
+
+        u_exact_0 = man_sol.functions["solution"](nodes[None, :], 0.0)
+        state0 = bkd.concatenate([u_exact_0[:, 0], u_exact_0[:, 1]])
+
+        final_time = 0.1
+        config = TimeIntegrationConfig(
+            method="crank_nicolson",
+            init_time=0.0,
+            final_time=final_time,
+            deltat=0.01,
+        )
+
+        solutions, times = model.solve_transient(state0, config)
+        t_final = float(bkd.to_numpy(times[-1]))
+        u_exact_final = man_sol.functions["solution"](nodes[None, :], t_final)
+        exact_final = bkd.concatenate(
+            [u_exact_final[:, 0], u_exact_final[:, 1]]
+        )
+
+        bkd.assert_allclose(solutions[:, -1], exact_final, atol=1e-8)
 
 
 class TestFitzHughNagumoPhysics(PhysicsTestBase):
