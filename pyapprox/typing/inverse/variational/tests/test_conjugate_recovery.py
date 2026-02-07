@@ -62,12 +62,13 @@ class TestGaussianConjugateRecoveryBase(
         nobs = obs_matrix.shape[0]
 
         # Exact conjugate posterior
+        prior_mean_arr = bkd.reshape(
+            bkd.asarray(prior_mean_vals), (nvars, 1)
+        )
+        prior_cov_arr = bkd.diag(bkd.asarray(prior_var_vals))
+        noise_cov_arr = noise_var * bkd.eye(nobs)
         conjugate = DenseGaussianConjugatePosterior(
-            obs_matrix,
-            bkd.asarray(np.array(prior_mean_vals).reshape(-1, 1)),
-            bkd.asarray(np.diag(prior_var_vals)),
-            bkd.asarray(noise_var * np.eye(nobs)),
-            bkd,
+            obs_matrix, prior_mean_arr, prior_cov_arr, noise_cov_arr, bkd,
         )
         conjugate.compute(observations)
         exact_mean = conjugate.posterior_mean()
@@ -76,12 +77,10 @@ class TestGaussianConjugateRecoveryBase(
         # VI setup
         family = GaussianVariationalFamily(nvars, bkd)
         prior = DiagonalMultivariateGaussian(
-            bkd.asarray(np.array(prior_mean_vals).reshape(-1, 1)),
-            bkd.asarray(prior_var_vals),
-            bkd,
+            prior_mean_arr, bkd.asarray(prior_var_vals), bkd,
         )
 
-        noise_cov_inv = bkd.asarray(np.eye(nobs) / noise_var)
+        noise_cov_inv = bkd.eye(nobs) / noise_var
 
         def log_likelihood_fn(z: Array) -> Array:
             # z: (nvars, N), obs: (nobs, nexperiments)
@@ -129,8 +128,8 @@ class TestGaussianConjugateRecoveryBase(
     def test_gaussian_1d_conjugate(self) -> None:
         """1D linear model: A=[[1]], prior N(0,1), noise_var=0.5, obs=[2.0]."""
         bkd = self._bkd
-        obs_matrix = bkd.asarray(np.array([[1.0]]))
-        observations = bkd.asarray(np.array([[2.0]]))
+        obs_matrix = bkd.asarray([[1.0]])
+        observations = bkd.asarray([[2.0]])
 
         vi_mean, vi_var, exact_mean, exact_cov = self._run_vi_recovery(
             nvars=1,
@@ -143,28 +142,18 @@ class TestGaussianConjugateRecoveryBase(
             maxiter=300,
         )
 
-        exact_mean_np = bkd.to_numpy(exact_mean).flatten()
-        exact_var_np = np.diag(bkd.to_numpy(exact_cov))
-        vi_mean_np = bkd.to_numpy(vi_mean).flatten()
-        vi_var_np = bkd.to_numpy(vi_var).flatten()
+        exact_mean_flat = bkd.flatten(exact_mean)
+        exact_var_diag = bkd.diag(exact_cov)
 
-        bkd.assert_allclose(
-            bkd.asarray(vi_mean_np),
-            bkd.asarray(exact_mean_np),
-            atol=0.15,
-        )
-        bkd.assert_allclose(
-            bkd.asarray(vi_var_np),
-            bkd.asarray(exact_var_np),
-            rtol=0.3,
-        )
+        bkd.assert_allclose(vi_mean, exact_mean_flat, atol=0.15)
+        bkd.assert_allclose(vi_var, exact_var_diag, rtol=0.3)
 
     @slow_test
     def test_gaussian_2d_conjugate(self) -> None:
         """2D linear model: A=[[1,0],[0,1]], prior N(0,I), noise_var=0.5."""
         bkd = self._bkd
-        obs_matrix = bkd.asarray(np.eye(2))
-        observations = bkd.asarray(np.array([[1.5], [2.5]]))
+        obs_matrix = bkd.eye(2)
+        observations = bkd.asarray([[1.5], [2.5]])
 
         vi_mean, vi_var, exact_mean, exact_cov = self._run_vi_recovery(
             nvars=2,
@@ -177,30 +166,20 @@ class TestGaussianConjugateRecoveryBase(
             maxiter=300,
         )
 
-        exact_mean_np = bkd.to_numpy(exact_mean).flatten()
-        exact_var_np = np.diag(bkd.to_numpy(exact_cov))
-        vi_mean_np = bkd.to_numpy(vi_mean).flatten()
-        vi_var_np = bkd.to_numpy(vi_var).flatten()
+        exact_mean_flat = bkd.flatten(exact_mean)
+        exact_var_diag = bkd.diag(exact_cov)
 
-        bkd.assert_allclose(
-            bkd.asarray(vi_mean_np),
-            bkd.asarray(exact_mean_np),
-            atol=0.15,
-        )
-        bkd.assert_allclose(
-            bkd.asarray(vi_var_np),
-            bkd.asarray(exact_var_np),
-            rtol=0.3,
-        )
+        bkd.assert_allclose(vi_mean, exact_mean_flat, atol=0.15)
+        bkd.assert_allclose(vi_var, exact_var_diag, rtol=0.3)
 
     @slow_test
     def test_gaussian_more_data_closer(self) -> None:
         """More observations should make VI closer to exact posterior."""
         bkd = self._bkd
-        obs_matrix = bkd.asarray(np.array([[1.0]]))
+        obs_matrix = bkd.asarray([[1.0]])
 
         # Few observations
-        obs_few = bkd.asarray(np.array([[2.0]]))
+        obs_few = bkd.asarray([[2.0]])
         vi_mean_few, vi_var_few, exact_mean_few, exact_cov_few = (
             self._run_vi_recovery(
                 nvars=1,
@@ -215,7 +194,7 @@ class TestGaussianConjugateRecoveryBase(
         )
 
         # Many observations (3 experiments)
-        obs_many = bkd.asarray(np.array([[2.0, 1.8, 2.2]]))
+        obs_many = bkd.asarray([[2.0, 1.8, 2.2]])
         vi_mean_many, vi_var_many, exact_mean_many, exact_cov_many = (
             self._run_vi_recovery(
                 nvars=1,
@@ -230,13 +209,13 @@ class TestGaussianConjugateRecoveryBase(
         )
 
         # More data → smaller posterior variance
-        exact_var_few = float(bkd.to_numpy(exact_cov_few)[0, 0])
-        exact_var_many = float(bkd.to_numpy(exact_cov_many)[0, 0])
-        self.assertLess(exact_var_many, exact_var_few)
+        exact_var_few = exact_cov_few[0, 0]
+        exact_var_many = exact_cov_many[0, 0]
+        self.assertLess(float(bkd.flatten(exact_var_many)[0]),
+                        float(bkd.flatten(exact_var_few)[0]))
 
-        vi_var_many_val = float(bkd.to_numpy(vi_var_many)[0])
-        vi_var_few_val = float(bkd.to_numpy(vi_var_few)[0])
-        self.assertLess(vi_var_many_val, vi_var_few_val)
+        self.assertLess(float(bkd.flatten(vi_var_many)[0]),
+                        float(bkd.flatten(vi_var_few)[0]))
 
 
 class TestGaussianConjugateRecoveryNumpy(

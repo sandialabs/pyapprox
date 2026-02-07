@@ -169,8 +169,10 @@ class TestELBOTorch(TestELBOBase[torch.Tensor], unittest.TestCase):
         checker = DerivativeChecker(elbo)
         sample = self._bkd.zeros((elbo.nvars(), 1))
         errors = checker.check_derivatives(sample, verbosity=0)
-        ratio = float(self._bkd.to_numpy(checker.error_ratio(errors[0])))
-        self.assertLessEqual(ratio, 1e-5)
+        ratio = checker.error_ratio(errors[0])
+        self.assertLessEqual(
+            float(self._bkd.flatten(ratio)[0]), 1e-5
+        )
 
 
 from pyapprox.typing.util.test_utils import load_tests  # noqa: F401

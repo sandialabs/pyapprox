@@ -70,15 +70,16 @@ class TestGaussianVariationalFamilyBase(Generic[Array], unittest.TestCase):
             np.random.normal(0, 1, (3, 10000))
         )
         z = family.reparameterize(base_samples)
-        z_np = self._bkd.to_numpy(z)
         for i in range(3):
+            row_mean = self._bkd.mean(z[i:i+1, :])
+            row_std = self._bkd.std(z[i:i+1, :])
             self._bkd.assert_allclose(
-                self._bkd.asarray([np.mean(z_np[i])]),
+                self._bkd.reshape(row_mean, (1,)),
                 self._bkd.asarray([mean_vals[i]]),
                 rtol=0.05,
             )
             self._bkd.assert_allclose(
-                self._bkd.asarray([np.std(z_np[i])]),
+                self._bkd.reshape(row_std, (1,)),
                 self._bkd.asarray([stdev_vals[i]]),
                 rtol=0.05,
             )
@@ -177,9 +178,12 @@ class TestGaussianVariationalFamilyBase(Generic[Array], unittest.TestCase):
         z2 = family.reparameterize(base_samples)
 
         # z2 should have much larger values than z1
-        z1_mean = float(self._bkd.to_numpy(self._bkd.mean(z1)))
-        z2_mean = float(self._bkd.to_numpy(self._bkd.mean(z2)))
-        self.assertGreater(z2_mean, z1_mean + 5.0)
+        z1_mean = self._bkd.mean(z1)
+        z2_mean = self._bkd.mean(z2)
+        # z2_mean - z1_mean > 5.0
+        self.assertGreater(
+            float(self._bkd.flatten(z2_mean - z1_mean)[0]), 5.0
+        )
 
     def test_reparameterize_per_sample_params(self) -> None:
         family = GaussianVariationalFamily(self._nvars, self._bkd)
@@ -190,24 +194,24 @@ class TestGaussianVariationalFamilyBase(Generic[Array], unittest.TestCase):
 
         # Per-sample params: (6, 10) — means then log-stdevs
         # Make sample 0 have mean [10, 20, 30], sample 1 have mean [0, 0, 0]
-        params = self._bkd.zeros((6, 10))
-        # Set means for column 0
-        params_np = self._bkd.to_numpy(params).copy()
-        params_np[0, 0] = 10.0
-        params_np[1, 0] = 20.0
-        params_np[2, 0] = 30.0
-        params = self._bkd.asarray(params_np)
+        # Build params using asarray from a known numpy array
+        params_data = np.zeros((6, 10))
+        params_data[0, 0] = 10.0
+        params_data[1, 0] = 20.0
+        params_data[2, 0] = 30.0
+        params = self._bkd.asarray(params_data)
 
         z = family.reparameterize(base_samples, params)
-        z_np = self._bkd.to_numpy(z)
 
         # Sample 0 should be near [10, 20, 30] + noise
-        self.assertGreater(z_np[0, 0], 5.0)
-        self.assertGreater(z_np[1, 0], 15.0)
-        self.assertGreater(z_np[2, 0], 25.0)
+        self.assertGreater(float(self._bkd.flatten(z[0:1, 0:1])[0]), 5.0)
+        self.assertGreater(float(self._bkd.flatten(z[1:2, 0:1])[0]), 15.0)
+        self.assertGreater(float(self._bkd.flatten(z[2:3, 0:1])[0]), 25.0)
 
         # Sample 1 should be near [0, 0, 0] + noise
-        self.assertLess(abs(z_np[0, 1]), 5.0)
+        self.assertLess(
+            float(self._bkd.flatten(self._bkd.abs(z[0:1, 1:2]))[0]), 5.0
+        )
 
     def test_logpdf_per_sample_params(self) -> None:
         family = GaussianVariationalFamily(self._nvars, self._bkd)
@@ -238,12 +242,12 @@ class TestGaussianVariationalFamilyBase(Generic[Array], unittest.TestCase):
             mean_init=[1.0, 2.0, 3.0],
             stdev_init=[0.1, 0.2, 0.3],
         )
-        vals = self._bkd.to_numpy(family.hyp_list().get_active_values())
+        vals = family.hyp_list().get_active_values()
         # Active values are in unconstrained space
         # For mean: unconstrained = value
         # For log-stdev: unconstrained = log(value)
         self._bkd.assert_allclose(
-            self._bkd.asarray(vals[:3]),
+            vals[:3],
             self._bkd.asarray([1.0, 2.0, 3.0]),
             rtol=1e-12,
         )
