@@ -140,3 +140,53 @@ class ManufacturedLinearElasticityEquations(
         self._expressions["forcing"] = [
             f + g for f, g in zip(self._expressions["forcing"], forc_exprs)
         ]
+
+    def traction_values(self, pts: Array, normals: Array) -> Array:
+        """Compute exact traction t = σ·n at given points.
+
+        Parameters
+        ----------
+        pts : Array
+            Physical coordinates. Shape: (2, npts)
+        normals : Array
+            Outward unit normals. Shape: (npts, 2)
+
+        Returns
+        -------
+        Array
+            Traction components [t_x, t_y]. Shape: (npts, 2)
+        """
+        bkd = self._bkd
+        # flux shape: (2, npts, 2) from list-of-lists expression
+        # sigma[row, pt, col]: row 0 = [σ_xx, σ_xy], row 1 = [σ_xy, σ_yy]
+        sigma = self.functions["flux"](pts)
+        # t_x = σ_xx * nx + σ_xy * ny
+        t_x = sigma[0, :, 0] * normals[:, 0] + sigma[0, :, 1] * normals[:, 1]
+        # t_y = σ_xy * nx + σ_yy * ny
+        t_y = sigma[1, :, 0] * normals[:, 0] + sigma[1, :, 1] * normals[:, 1]
+        return bkd.hstack([t_x[:, None], t_y[:, None]])
+
+    def robin_values(
+        self, pts: Array, normals: Array, alpha: float, beta: float
+    ) -> Array:
+        """Compute vector Robin BC values g = α*u + β*(σ·n).
+
+        Parameters
+        ----------
+        pts : Array
+            Physical coordinates. Shape: (2, npts)
+        normals : Array
+            Outward unit normals. Shape: (npts, 2)
+        alpha : float
+            Coefficient for displacement term.
+        beta : float
+            Coefficient for traction term.
+
+        Returns
+        -------
+        Array
+            Robin values [g_x, g_y]. Shape: (npts, 2)
+        """
+        u = self.functions["solution"](pts)  # (npts, 2)
+        traction = self.traction_values(pts, normals)  # (npts, 2)
+        return alpha * u + beta * traction

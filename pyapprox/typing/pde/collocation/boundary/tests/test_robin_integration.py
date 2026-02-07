@@ -32,15 +32,24 @@ from pyapprox.typing.pde.collocation.boundary import (
     gradient_robin_bc,
     flux_neumann_bc,
     flux_robin_bc,
+    traction_robin_bc,
+    traction_neumann_bc,
 )
 from pyapprox.typing.pde.collocation.mesh.transforms.polar import PolarTransform
+from pyapprox.typing.pde.collocation.mesh import create_uniform_mesh_2d
 from pyapprox.typing.pde.collocation.physics import AdvectionDiffusionReaction
+from pyapprox.typing.pde.collocation.physics.linear_elasticity import (
+    LinearElasticityPhysics,
+)
 from pyapprox.typing.pde.collocation.time_integration import (
     CollocationModel,
     TimeIntegrationConfig,
 )
 from pyapprox.typing.pde.collocation.manufactured_solutions import (
     ManufacturedAdvectionDiffusionReaction,
+)
+from pyapprox.typing.pde.collocation.manufactured_solutions.linear_elasticity import (
+    ManufacturedLinearElasticityEquations,
 )
 
 
@@ -755,6 +764,156 @@ class TestCurvilinearRobinSolve(Generic[Array], unittest.TestCase):
         bkd.assert_allclose(u_numerical, u_exact, atol=1e-6)
 
 
+class TestElasticityTractionBC(Generic[Array], unittest.TestCase):
+    """Integration tests for elasticity traction Robin/Neumann BCs."""
+
+    __test__ = False
+
+    def bkd(self) -> Backend[Array]:
+        raise NotImplementedError
+
+    def _setup_elasticity_problem(self):
+        """Set up 2D elasticity problem with solution nonzero on left boundary.
+
+        Solution: u = [x^2*(1-y^2), x*y*(1-y^2)]
+        At x=-1 (left): u_x = 1-y^2, u_y = -y*(1-y^2) -- nonzero
+        At y=+/-1 (top/bottom): u = 0 -- simplifies Dirichlet
+        """
+        bkd = self.bkd()
+        npts = 10
+        tmesh = TransformedMesh2D(npts, npts, bkd)
+        basis = ChebyshevBasis2D(tmesh, bkd)
+        umesh = create_uniform_mesh_2d(
+            (npts, npts), (-1.0, 1.0, -1.0, 1.0), bkd
+        )
+
+        lamda, mu = 1.0, 1.0
+        man_sol = ManufacturedLinearElasticityEquations(
+            sol_strs=["x**2*(1 - y**2)", "x*y*(1 - y**2)"],
+            nvars=2,
+            lambda_str=str(lamda),
+            mu_str=str(mu),
+            bkd=bkd,
+            oned=True,
+        )
+
+        pts = tmesh.points()
+        u_exact = man_sol.functions["solution"](pts)  # (npts_total, 2)
+        forcing = man_sol.functions["forcing"](pts)    # (npts_total, 2)
+        npts_total = basis.npts()
+        u_exact_flat = bkd.concatenate([u_exact[:, 0], u_exact[:, 1]])
+        forcing_flat = bkd.concatenate([forcing[:, 0], forcing[:, 1]])
+
+        physics = LinearElasticityPhysics(
+            basis, bkd, lamda=lamda, mu=mu, forcing=lambda t: forcing_flat
+        )
+
+        Dx = basis.derivative_matrix(1, 0)
+        Dy = basis.derivative_matrix(1, 1)
+
+        return {
+            "bkd": bkd, "tmesh": tmesh, "basis": basis, "umesh": umesh,
+            "man_sol": man_sol, "pts": pts, "u_exact_flat": u_exact_flat,
+            "physics": physics, "npts_total": npts_total,
+            "lamda": lamda, "mu": mu, "D_list": [Dx, Dy],
+        }
+
+    def _dirichlet_bcs_for_elasticity(self, umesh, u_exact_flat, npts, sides):
+        """Create Dirichlet BCs for both components on given sides."""
+        bkd = self.bkd()
+        bcs = []
+        for side in sides:
+            boundary_idx = umesh.boundary_indices(side)
+            # u-component
+            vals_u = u_exact_flat[boundary_idx]
+            bcs.append(DirichletBC(bkd, boundary_idx, vals_u))
+            # v-component (offset by npts)
+            boundary_idx_v = boundary_idx + npts
+            vals_v = u_exact_flat[boundary_idx_v]
+            bcs.append(DirichletBC(bkd, boundary_idx_v, vals_v))
+        return bcs
+
+    def test_elasticity_traction_neumann(self):
+        """Traction Neumann on left, Dirichlet on other 3 sides.
+
+        Tests pure traction (alpha=0, beta=1) with nonzero displacement
+        at the Robin boundary.
+        """
+        s = self._setup_elasticity_problem()
+        bkd = s["bkd"]
+
+        left_idx = s["umesh"].boundary_indices(0)
+        left_normals = s["tmesh"].boundary_normals(0)
+        left_pts = s["pts"][:, left_idx]
+
+        # Exact traction values at left boundary
+        traction_vals = s["man_sol"].traction_values(left_pts, left_normals)
+
+        # Traction Neumann for each component
+        bc_tx = traction_neumann_bc(
+            bkd, left_idx, left_normals, s["D_list"],
+            s["lamda"], s["mu"], s["npts_total"], 0, traction_vals[:, 0]
+        )
+        bc_ty = traction_neumann_bc(
+            bkd, left_idx, left_normals, s["D_list"],
+            s["lamda"], s["mu"], s["npts_total"], 1, traction_vals[:, 1]
+        )
+
+        # Dirichlet on sides 1, 2, 3
+        bcs = [bc_tx, bc_ty] + self._dirichlet_bcs_for_elasticity(
+            s["umesh"], s["u_exact_flat"], s["npts_total"], [1, 2, 3]
+        )
+        s["physics"].set_boundary_conditions(bcs)
+
+        model = CollocationModel(s["physics"], bkd)
+        u_numerical = model.solve_steady(
+            bkd.zeros((2 * s["npts_total"],)), tol=1e-10, maxiter=50
+        )
+        bkd.assert_allclose(u_numerical, s["u_exact_flat"], atol=1e-8)
+
+    def test_elasticity_traction_robin(self):
+        """Traction Robin (alpha=1, beta=1) on left, Dirichlet on other 3.
+
+        Tests full Robin with nonzero alpha*u contribution at boundary.
+        """
+        s = self._setup_elasticity_problem()
+        bkd = s["bkd"]
+
+        alpha, beta = 1.0, 1.0
+        left_idx = s["umesh"].boundary_indices(0)
+        left_normals = s["tmesh"].boundary_normals(0)
+        left_pts = s["pts"][:, left_idx]
+
+        # Exact Robin values at left boundary
+        robin_vals = s["man_sol"].robin_values(
+            left_pts, left_normals, alpha, beta
+        )
+
+        # Traction Robin for each component
+        bc_rx = traction_robin_bc(
+            bkd, left_idx, left_normals, s["D_list"],
+            s["lamda"], s["mu"], s["npts_total"], 0,
+            alpha, beta, robin_vals[:, 0]
+        )
+        bc_ry = traction_robin_bc(
+            bkd, left_idx, left_normals, s["D_list"],
+            s["lamda"], s["mu"], s["npts_total"], 1,
+            alpha, beta, robin_vals[:, 1]
+        )
+
+        # Dirichlet on sides 1, 2, 3
+        bcs = [bc_rx, bc_ry] + self._dirichlet_bcs_for_elasticity(
+            s["umesh"], s["u_exact_flat"], s["npts_total"], [1, 2, 3]
+        )
+        s["physics"].set_boundary_conditions(bcs)
+
+        model = CollocationModel(s["physics"], bkd)
+        u_numerical = model.solve_steady(
+            bkd.zeros((2 * s["npts_total"],)), tol=1e-10, maxiter=50
+        )
+        bkd.assert_allclose(u_numerical, s["u_exact_flat"], atol=1e-8)
+
+
 # NumPy backend
 class TestGradientNeumannSolveNumpy(TestGradientNeumannSolve[NDArray[Any]]):
     __test__ = True
@@ -793,6 +952,12 @@ class TestTransientRobinSolveNumpy(TestTransientRobinSolve[NDArray[Any]]):
 
 
 class TestCurvilinearRobinSolveNumpy(TestCurvilinearRobinSolve[NDArray[Any]]):
+    __test__ = True
+    def bkd(self) -> NumpyBkd:
+        return NumpyBkd()
+
+
+class TestElasticityTractionBCNumpy(TestElasticityTractionBC[NDArray[Any]]):
     __test__ = True
     def bkd(self) -> NumpyBkd:
         return NumpyBkd()
@@ -854,6 +1019,15 @@ class TestTransientRobinSolveTorch(TestTransientRobinSolve[torch.Tensor]):
 
 
 class TestCurvilinearRobinSolveTorch(TestCurvilinearRobinSolve[torch.Tensor]):
+    __test__ = True
+    def bkd(self) -> TorchBkd:
+        return TorchBkd()
+    def setUp(self):
+        torch.set_default_dtype(torch.float64)
+        self._bkd = self.bkd()
+
+
+class TestElasticityTractionBCTorch(TestElasticityTractionBC[torch.Tensor]):
     __test__ = True
     def bkd(self) -> TorchBkd:
         return TorchBkd()

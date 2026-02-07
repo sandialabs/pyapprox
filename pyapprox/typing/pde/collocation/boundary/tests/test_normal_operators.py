@@ -23,6 +23,7 @@ from pyapprox.typing.pde.collocation.mesh import (
 from pyapprox.typing.pde.collocation.boundary.normal_operators import (
     GradientNormalOperator,
     FluxNormalOperator,
+    TractionNormalOperator,
     _LegacyNormalOperator,
 )
 from pyapprox.typing.pde.collocation.physics.advection_diffusion import (
@@ -271,6 +272,132 @@ class TestLegacyNormalOperator(Generic[Array], unittest.TestCase):
         bkd.assert_allclose(jac, expected_jac, atol=1e-14)
 
 
+class TestTractionNormalOperator(Generic[Array], unittest.TestCase):
+    """Base test class for TractionNormalOperator."""
+
+    __test__ = False
+
+    def bkd(self) -> Backend[Array]:
+        raise NotImplementedError
+
+    def test_traction_at_boundary(self):
+        """Test traction at left boundary for known polynomial displacement."""
+        bkd = self.bkd()
+        npts_x, npts_y = 8, 8
+        npts = npts_x * npts_y
+        mesh = TransformedMesh2D(npts_x, npts_y, bkd)
+        basis = ChebyshevBasis2D(mesh, bkd)
+
+        Dx = basis.derivative_matrix(1, 0)
+        Dy = basis.derivative_matrix(1, 1)
+
+        lamda, mu = 1.0, 1.0
+
+        # Left boundary (x = -1), normal = [-1, 0]
+        left_idx = mesh.boundary_indices(0)
+        nboundary = left_idx.shape[0]
+        normals = bkd.zeros((nboundary, 2))
+        normals = bkd.copy(normals)
+        for i in range(nboundary):
+            normals[i, 0] = -1.0
+
+        traction_op_x = TractionNormalOperator(
+            bkd, left_idx, normals, [Dx, Dy], lamda, mu, 0, npts
+        )
+        traction_op_y = TractionNormalOperator(
+            bkd, left_idx, normals, [Dx, Dy], lamda, mu, 1, npts
+        )
+
+        # u_x = x^2, u_y = x*y
+        pts = mesh.points()
+        x_phys = pts[0, :]
+        y_phys = pts[1, :]
+        u = x_phys * x_phys
+        v = x_phys * y_phys
+        state = bkd.concatenate([u, v])
+
+        # Strain: exx = 2x, exy = 0.5*(0 + y) = 0.5*y, eyy = x
+        # At left (x=-1): exx=-2, exy=0.5*y, eyy=-1
+        # σ_xx = λ*(exx+eyy) + 2μ*exx = 1*(-3) + 2*(-2) = -7
+        # σ_xy = 2μ*exy = 2*0.5*y = y
+        # t_x = σ_xx*nx + σ_xy*ny = (-7)*(-1) + y*0 = 7
+        # t_y = σ_xy*nx + σ_yy*ny = y*(-1) + 0 = -y
+        result_x = traction_op_x(state)
+        result_y = traction_op_y(state)
+
+        expected_x = bkd.full((nboundary,), 7.0)
+        expected_y = -y_phys[left_idx]
+        bkd.assert_allclose(result_x, expected_x, atol=1e-10)
+        bkd.assert_allclose(result_y, expected_y, atol=1e-10)
+
+    def test_jacobian_consistency(self):
+        """Test traction operator Jacobian via finite differences."""
+        bkd = self.bkd()
+        npts_x, npts_y = 6, 6
+        npts = npts_x * npts_y
+        mesh = TransformedMesh2D(npts_x, npts_y, bkd)
+        basis = ChebyshevBasis2D(mesh, bkd)
+
+        Dx = basis.derivative_matrix(1, 0)
+        Dy = basis.derivative_matrix(1, 1)
+
+        left_idx = mesh.boundary_indices(0)
+        nboundary = left_idx.shape[0]
+        normals = bkd.zeros((nboundary, 2))
+        normals = bkd.copy(normals)
+        for i in range(nboundary):
+            normals[i, 0] = -1.0
+
+        for component in [0, 1]:
+            traction_op = TractionNormalOperator(
+                bkd, left_idx, normals, [Dx, Dy], 2.0, 0.5, component, npts
+            )
+
+            np.random.seed(42)
+            state = bkd.asarray(np.random.randn(2 * npts))
+            jac = traction_op.jacobian(state)
+
+            # Finite difference check
+            eps = 1e-7
+            f0 = traction_op(state)
+            for j in range(2 * npts):
+                state_pert = bkd.copy(state)
+                state_pert[j] = state_pert[j] + eps
+                f1 = traction_op(state_pert)
+                fd_col = (f1 - f0) / eps
+                bkd.assert_allclose(
+                    bkd.reshape(jac[:, j], fd_col.shape), fd_col, atol=1e-5
+                )
+
+    def test_jacobian_is_constant(self):
+        """Test that traction Jacobian is state-independent."""
+        bkd = self.bkd()
+        npts_x, npts_y = 6, 6
+        npts = npts_x * npts_y
+        mesh = TransformedMesh2D(npts_x, npts_y, bkd)
+        basis = ChebyshevBasis2D(mesh, bkd)
+
+        Dx = basis.derivative_matrix(1, 0)
+        Dy = basis.derivative_matrix(1, 1)
+
+        left_idx = mesh.boundary_indices(0)
+        nboundary = left_idx.shape[0]
+        normals = bkd.zeros((nboundary, 2))
+        normals = bkd.copy(normals)
+        for i in range(nboundary):
+            normals[i, 0] = -1.0
+
+        traction_op = TractionNormalOperator(
+            bkd, left_idx, normals, [Dx, Dy], 1.0, 1.0, 0, npts
+        )
+
+        state1 = bkd.ones((2 * npts,))
+        state2 = bkd.ones((2 * npts,)) * 5.0
+        jac1 = traction_op.jacobian(state1)
+        jac2 = traction_op.jacobian(state2)
+        bkd.assert_allclose(jac1, jac2, atol=1e-14)
+
+
 # NumPy backend
 class TestGradientNormalOperatorNumpy(TestGradientNormalOperator[NDArray[Any]]):
     __test__ = True
@@ -279,6 +406,12 @@ class TestGradientNormalOperatorNumpy(TestGradientNormalOperator[NDArray[Any]]):
 
 
 class TestFluxNormalOperatorNumpy(TestFluxNormalOperator[NDArray[Any]]):
+    __test__ = True
+    def bkd(self) -> NumpyBkd:
+        return NumpyBkd()
+
+
+class TestTractionNormalOperatorNumpy(TestTractionNormalOperator[NDArray[Any]]):
     __test__ = True
     def bkd(self) -> NumpyBkd:
         return NumpyBkd()
@@ -301,6 +434,15 @@ class TestGradientNormalOperatorTorch(TestGradientNormalOperator[torch.Tensor]):
 
 
 class TestFluxNormalOperatorTorch(TestFluxNormalOperator[torch.Tensor]):
+    __test__ = True
+    def bkd(self) -> TorchBkd:
+        return TorchBkd()
+    def setUp(self):
+        torch.set_default_dtype(torch.float64)
+        self._bkd = self.bkd()
+
+
+class TestTractionNormalOperatorTorch(TestTractionNormalOperator[torch.Tensor]):
     __test__ = True
     def bkd(self) -> TorchBkd:
         return TorchBkd()

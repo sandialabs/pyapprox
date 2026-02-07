@@ -25,6 +25,7 @@ from pyapprox.typing.pde.collocation.protocols.boundary import (
 from pyapprox.typing.pde.collocation.boundary.normal_operators import (
     GradientNormalOperator,
     FluxNormalOperator,
+    TractionNormalOperator,
     _LegacyNormalOperator,
 )
 
@@ -411,3 +412,108 @@ def homogeneous_robin_bc(
     """
     normal_op = _LegacyNormalOperator(bkd, derivative_matrix, normal_sign)
     return RobinBC(bkd, boundary_indices, normal_op, alpha, beta, 0.0)
+
+
+def traction_robin_bc(
+    bkd: Backend[Array],
+    mesh_boundary_indices: Array,
+    normals: Array,
+    derivative_matrices: List[Array],
+    lamda: float,
+    mu: float,
+    npts: int,
+    component: int,
+    alpha: Union[float, Array],
+    beta: Union[float, Array],
+    values: Union[float, Array, Callable[[float], Array]],
+) -> RobinBC[Array]:
+    """Create Robin BC for one component of 2D elasticity traction.
+
+    Enforces alpha * u_comp + beta * t_comp = g_comp at boundary,
+    where t = σ·n is the traction vector.
+
+    Parameters
+    ----------
+    bkd : Backend
+        Computational backend.
+    mesh_boundary_indices : Array
+        Mesh point indices (0..npts-1) on this boundary. Shape: (nboundary,)
+    normals : Array
+        Outward unit normals at boundary points. Shape: (nboundary, 2)
+    derivative_matrices : List[Array]
+        [Dx, Dy], each shape (npts, npts). Physical derivative matrices.
+    lamda : float
+        Lamé's first parameter λ.
+    mu : float
+        Shear modulus μ.
+    npts : int
+        Number of mesh points (state length = 2*npts).
+    component : int
+        0 for u_x (state indices = mesh_boundary_indices),
+        1 for u_y (state indices = mesh_boundary_indices + npts).
+    alpha : float or Array
+        Coefficient for u_comp term.
+    beta : float or Array
+        Coefficient for t_comp term.
+    values : float, Array, or Callable
+        Boundary values g_comp.
+
+    Returns
+    -------
+    RobinBC
+        Robin BC for one displacement component with traction normal operator.
+    """
+    normal_op = TractionNormalOperator(
+        bkd, mesh_boundary_indices, normals, derivative_matrices,
+        lamda, mu, component, npts
+    )
+    # State indices for this component: offset by component * npts
+    state_indices = mesh_boundary_indices + component * npts
+    return RobinBC(bkd, state_indices, normal_op, alpha, beta, values)
+
+
+def traction_neumann_bc(
+    bkd: Backend[Array],
+    mesh_boundary_indices: Array,
+    normals: Array,
+    derivative_matrices: List[Array],
+    lamda: float,
+    mu: float,
+    npts: int,
+    component: int,
+    values: Union[float, Array, Callable[[float], Array]] = 0.0,
+) -> RobinBC[Array]:
+    """Create Neumann BC for one component of 2D elasticity traction.
+
+    Enforces t_comp = g_comp at boundary, where t = σ·n.
+
+    Parameters
+    ----------
+    bkd : Backend
+        Computational backend.
+    mesh_boundary_indices : Array
+        Mesh point indices (0..npts-1). Shape: (nboundary,)
+    normals : Array
+        Outward unit normals. Shape: (nboundary, 2)
+    derivative_matrices : List[Array]
+        [Dx, Dy], each shape (npts, npts).
+    lamda : float
+        Lamé's first parameter λ.
+    mu : float
+        Shear modulus μ.
+    npts : int
+        Number of mesh points.
+    component : int
+        0 for t_x, 1 for t_y.
+    values : float, Array, or Callable
+        Traction values g_comp. Default: 0.0 (homogeneous).
+
+    Returns
+    -------
+    RobinBC
+        Traction Neumann BC as Robin with alpha=0, beta=1.
+    """
+    return traction_robin_bc(
+        bkd, mesh_boundary_indices, normals, derivative_matrices,
+        lamda, mu, npts, component, 0.0, 1.0, values
+    )
