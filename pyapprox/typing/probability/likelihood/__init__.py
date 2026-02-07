@@ -10,15 +10,22 @@ GaussianLogLikelihood
     Gaussian likelihood with noise covariance operator.
 DiagonalGaussianLogLikelihood
     Gaussian likelihood with diagonal (independent) noise.
+MultiExperimentLogLikelihood
+    Sum of log-likelihoods across multiple experiments.
 ParallelDiagonalGaussianLogLikelihood
     Parallel version with support for multi-process evaluation.
 """
 
-from .gaussian import GaussianLogLikelihood, DiagonalGaussianLogLikelihood
+from .gaussian import (
+    GaussianLogLikelihood,
+    DiagonalGaussianLogLikelihood,
+    MultiExperimentLogLikelihood,
+)
 from .parallel_diagonal_gaussian import ParallelDiagonalGaussianLogLikelihood
 
 __all__ = [
     "GaussianLogLikelihood",
     "DiagonalGaussianLogLikelihood",
+    "MultiExperimentLogLikelihood",
     "ParallelDiagonalGaussianLogLikelihood",
 ]

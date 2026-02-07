@@ -515,8 +515,149 @@ class DiagonalGaussianLogLikelihood(Generic[Array]):
         residuals = self._observations - model_outputs
         return self._inv_var[:, None] * residuals
 
+    def logpdf_vectorized(
+        self, model_outputs: Array, observations: Array
+    ) -> Array:
+        """
+        Batched log-likelihood evaluation.
+
+        Computes log p(obs | model) for all combinations.
+
+        Parameters
+        ----------
+        model_outputs : Array
+            Model predictions. Shape: (nobs, n_model_samples) - must be 2D
+        observations : Array
+            Observed data. Shape: (nobs, n_obs_samples) - must be 2D
+
+        Returns
+        -------
+        Array
+            Log-likelihood matrix. Shape: (n_model_samples, n_obs_samples)
+
+        Raises
+        ------
+        ValueError
+            If inputs are not 2D
+        """
+        self._validate_model_outputs(model_outputs)
+        if observations.ndim != 2:
+            raise ValueError(
+                f"Expected 2D observations array, got {observations.ndim}D"
+            )
+
+        # Residuals for all (model, obs) combinations via broadcasting
+        # model_outputs: (nobs, n_model, 1), observations: (nobs, 1, n_obs)
+        # residuals: (nobs, n_model, n_obs)
+        residuals = observations[:, None, :] - model_outputs[:, :, None]
+
+        if self._design_weights is not None:
+            weighted_inv_var = self._inv_var * self._design_weights**2
+            sqrt_w = self._bkd.sqrt(weighted_inv_var)
+        else:
+            sqrt_w = self._bkd.sqrt(self._inv_var)
+
+        scaled = sqrt_w[:, None, None] * residuals
+        squared_dist = self._bkd.einsum("ijk,ijk->jk", scaled, scaled)
+
+        return self._log_norm_const - 0.5 * squared_dist
+
     def __repr__(self) -> str:
         """Return string representation."""
         return f"DiagonalGaussianLogLikelihood(nobs={self._nobs})"
 
+
+class MultiExperimentLogLikelihood(Generic[Array]):
+    """
+    Sum of log-likelihoods across multiple experiments.
+
+    Wraps a likelihood that supports ``logpdf_vectorized()`` and evaluates
+    ``sum_j log p(obs_j | model)`` for each model sample in one vectorized
+    call.
+
+    This class assumes a **shared forward model** across all experiments:
+    the same model predictions are evaluated against each observation set.
+    It operates on model outputs (predictions), not latent variables.
+    Callers map latent variables to predictions themselves, e.g.
+    ``multi_lik.logpdf(obs_matrix @ z)``.
+
+    For per-experiment experimental conditions (different forward models
+    per experiment), use amortized VI with separate log-likelihood
+    callables per group instead.
+
+    Parameters
+    ----------
+    base_likelihood : VectorizedLogLikelihoodProtocol[Array]
+        Likelihood with ``logpdf_vectorized(model_outputs, observations)``.
+    observations : Array
+        Multiple observation datasets. Shape: ``(nobs, nexperiments)``
+    bkd : Backend[Array]
+        Computational backend.
+    """
+
+    def __init__(
+        self,
+        base_likelihood: "VectorizedLogLikelihoodProtocol[Array]",
+        observations: Array,
+        bkd: Backend[Array],
+    ) -> None:
+        from pyapprox.typing.probability.protocols.likelihood import (
+            VectorizedLogLikelihoodProtocol,
+        )
+
+        if not isinstance(base_likelihood, VectorizedLogLikelihoodProtocol):
+            raise TypeError(
+                "base_likelihood must satisfy VectorizedLogLikelihoodProtocol, "
+                f"got {type(base_likelihood).__name__}"
+            )
+        if observations.ndim != 2:
+            raise ValueError(
+                f"observations must be 2D (nobs, nexperiments), "
+                f"got {observations.ndim}D"
+            )
+        self._base = base_likelihood
+        self._observations = observations
+        self._bkd = bkd
+
+    def bkd(self) -> Backend[Array]:
+        """Get the backend used for computations."""
+        return self._bkd
+
+    def nobs(self) -> int:
+        """Return the number of observations per experiment."""
+        return self._observations.shape[0]
+
+    def nexperiments(self) -> int:
+        """Return the number of experiments."""
+        return self._observations.shape[1]
+
+    def logpdf(self, model_outputs: Array) -> Array:
+        """
+        Evaluate summed log-likelihood across all experiments.
+
+        Parameters
+        ----------
+        model_outputs : Array
+            Model predictions. Shape: ``(nobs, nsamples)``
+
+        Returns
+        -------
+        Array
+            Total log-likelihood per sample. Shape: ``(1, nsamples)``
+        """
+        # (nsamples, nexperiments)
+        matrix = self._base.logpdf_vectorized(
+            model_outputs, self._observations
+        )
+        # Sum across experiments → (nsamples,) → (1, nsamples)
+        return self._bkd.reshape(
+            self._bkd.sum(matrix, axis=1), (1, -1)
+        )
+
+    def __repr__(self) -> str:
+        """Return string representation."""
+        return (
+            f"MultiExperimentLogLikelihood("
+            f"nobs={self.nobs()}, nexperiments={self.nexperiments()})"
+        )
 

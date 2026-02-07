@@ -19,6 +19,10 @@ from pyapprox.typing.util.test_utils import slow_test
 from pyapprox.typing.probability.gaussian.diagonal import (
     DiagonalMultivariateGaussian,
 )
+from pyapprox.typing.probability.likelihood.gaussian import (
+    DiagonalGaussianLogLikelihood,
+    MultiExperimentLogLikelihood,
+)
 from pyapprox.typing.inverse.conjugate.gaussian import (
     DenseGaussianConjugatePosterior,
 )
@@ -80,21 +84,15 @@ class TestGaussianConjugateRecoveryBase(
             prior_mean_arr, bkd.asarray(prior_var_vals), bkd,
         )
 
-        noise_cov_inv = bkd.eye(nobs) / noise_var
+        # Build log-likelihood using MultiExperimentLogLikelihood
+        noise_variances = bkd.full((nobs,), noise_var)
+        base_lik = DiagonalGaussianLogLikelihood(noise_variances, bkd)
+        multi_lik = MultiExperimentLogLikelihood(
+            base_lik, observations, bkd,
+        )
 
         def log_likelihood_fn(z: Array) -> Array:
-            # z: (nvars, N), obs: (nobs, nexperiments)
-            # log p(obs | z) = sum_i -0.5 (obs_i - A@z)^T Sigma^{-1} (obs_i - A@z)
-            pred = obs_matrix @ z  # (nobs, N)
-            nexperiments = observations.shape[1]
-            log_lik = bkd.zeros((1, z.shape[1]))
-            for i in range(nexperiments):
-                diff = pred - observations[:, i:i+1]  # (nobs, N)
-                quad = bkd.sum(
-                    diff * (noise_cov_inv @ diff), axis=0
-                )  # (N,)
-                log_lik = log_lik - 0.5 * bkd.reshape(quad, (1, z.shape[1]))
-            return log_lik
+            return multi_lik.logpdf(obs_matrix @ z)
 
         np.random.seed(42)
         base_samples = bkd.asarray(

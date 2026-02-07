@@ -113,27 +113,8 @@ class ParallelDiagonalGaussianLogLikelihood(
     def _logpdf_vectorized_serial(
         self, model_outputs: Array, observations: Array
     ) -> Array:
-        """Serial implementation of vectorized log-likelihood."""
-        n_model = model_outputs.shape[1]
-        n_obs = observations.shape[1]
-
-        # Compute residuals for all (model, obs) combinations
-        # model_outputs: (nobs, n_model) -> (nobs, n_model, 1)
-        # observations: (nobs, n_obs) -> (nobs, 1, n_obs)
-        # residuals: (nobs, n_model, n_obs)
-        residuals = observations[:, None, :] - model_outputs[:, :, None]
-
-        if self._design_weights is not None:
-            weighted_inv_var = self._inv_var * self._design_weights**2
-            squared_dist = self._bkd.sum(
-                residuals**2 * weighted_inv_var[:, None, None], axis=0
-            )
-        else:
-            squared_dist = self._bkd.sum(
-                residuals**2 * self._inv_var[:, None, None], axis=0
-            )
-
-        return self._log_norm_const - 0.5 * squared_dist
+        """Serial implementation — delegates to base class."""
+        return super().logpdf_vectorized(model_outputs, observations)
 
     def _logpdf_vectorized_parallel(
         self, model_outputs: Array, observations: Array

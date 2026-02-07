@@ -290,6 +290,54 @@ class TestDiagonalGaussianLogLikelihood(Generic[Array], unittest.TestCase):
 
         self.assertEqual(grad.shape, (3, 1))
 
+    def test_logpdf_vectorized_shape(self) -> None:
+        """Test vectorized logpdf returns correct shape."""
+        model = self._bkd.asarray(
+            [[1.0, 1.1, 1.2], [2.0, 2.1, 2.2], [3.0, 3.1, 3.2]]
+        )
+        obs = self._bkd.asarray(
+            [[1.0, 1.5], [2.0, 2.5], [3.0, 3.5]]
+        )
+        logpdf = self.likelihood.logpdf_vectorized(model, obs)
+        self.assertEqual(logpdf.shape, (3, 2))
+
+    def test_logpdf_vectorized_matches_loop(self) -> None:
+        """Test vectorized matches sequential set_observations + logpdf."""
+        model = self._bkd.asarray(
+            [[1.0, 1.1], [2.0, 2.1], [3.0, 3.1]]
+        )
+        obs = self._bkd.asarray(
+            [[1.0, 1.2], [2.0, 2.2], [3.0, 3.2]]
+        )
+        logpdf_vec = self.likelihood.logpdf_vectorized(model, obs)
+
+        for j in range(obs.shape[1]):
+            self.likelihood.set_observations(obs[:, j:j+1])
+            logpdf_seq = self.likelihood.logpdf(model)
+            self._bkd.assert_allclose(
+                self._bkd.reshape(logpdf_vec[:, j], (1, -1)),
+                logpdf_seq,
+                rtol=1e-12,
+            )
+
+    def test_logpdf_vectorized_matches_full(self) -> None:
+        """Test diagonal vectorized matches full GaussianLogLikelihood."""
+        noise_cov = self._bkd.diag(self._bkd.asarray(self.noise_var))
+        noise_op = DenseCholeskyCovarianceOperator(noise_cov, self._bkd)
+        full_lik = GaussianLogLikelihood(noise_op, self._bkd)
+
+        model = self._bkd.asarray(
+            [[1.0, 1.1], [2.0, 2.1], [3.0, 3.1]]
+        )
+        obs = self._bkd.asarray(
+            [[1.0, 1.2], [2.0, 2.2], [3.0, 3.2]]
+        )
+
+        logpdf_diag = self.likelihood.logpdf_vectorized(model, obs)
+        logpdf_full = full_lik.logpdf_vectorized(model, obs)
+
+        self._bkd.assert_allclose(logpdf_diag, logpdf_full, rtol=1e-12)
+
 
 class TestDiagonalGaussianLogLikelihoodNumpy(
     TestDiagonalGaussianLogLikelihood[NDArray[Any]]
@@ -541,6 +589,141 @@ class TestParallelDiagonalGaussianLogLikelihoodTorch(
     TestParallelDiagonalGaussianLogLikelihood[torch.Tensor]
 ):
     """PyTorch backend tests for ParallelDiagonalGaussianLogLikelihood."""
+
+    def bkd(self) -> TorchBkd:
+        return TorchBkd()
+
+    def setUp(self) -> None:
+        torch.set_default_dtype(torch.float64)
+        super().setUp()
+
+
+class TestMultiExperimentLogLikelihood(Generic[Array], unittest.TestCase):
+    """Tests for MultiExperimentLogLikelihood."""
+
+    __test__ = False
+
+    def bkd(self) -> Backend[Array]:
+        raise NotImplementedError("Derived classes must implement this method.")
+
+    def setUp(self) -> None:
+        self._bkd = self.bkd()
+        self.noise_var = np.array([0.01, 0.02, 0.01])
+
+    def test_logpdf_shape(self) -> None:
+        """Test logpdf returns (1, nsamples)."""
+        from pyapprox.typing.probability.likelihood import (
+            MultiExperimentLogLikelihood,
+        )
+
+        lik = DiagonalGaussianLogLikelihood(
+            self._bkd.asarray(self.noise_var), self._bkd
+        )
+        obs = self._bkd.asarray(
+            [[1.0, 1.2, 1.1], [2.0, 2.2, 2.1], [3.0, 3.2, 3.1]]
+        )
+        multi = MultiExperimentLogLikelihood(lik, obs, self._bkd)
+
+        model = self._bkd.asarray(
+            [[1.0, 1.1], [2.0, 2.1], [3.0, 3.1]]
+        )
+        result = multi.logpdf(model)
+        self.assertEqual(result.shape, (1, 2))
+
+    def test_single_experiment_matches_base(self) -> None:
+        """Test nexperiments=1 matches base logpdf."""
+        from pyapprox.typing.probability.likelihood import (
+            MultiExperimentLogLikelihood,
+        )
+
+        lik = DiagonalGaussianLogLikelihood(
+            self._bkd.asarray(self.noise_var), self._bkd
+        )
+        obs = self._bkd.asarray([[1.0], [2.0], [3.0]])
+        multi = MultiExperimentLogLikelihood(lik, obs, self._bkd)
+
+        model = self._bkd.asarray(
+            [[1.0, 1.1, 1.2], [2.0, 2.1, 2.2], [3.0, 3.1, 3.2]]
+        )
+        result_multi = multi.logpdf(model)
+
+        lik.set_observations(obs)
+        result_base = lik.logpdf(model)
+
+        self._bkd.assert_allclose(result_multi, result_base, rtol=1e-12)
+
+    def test_multi_experiment_matches_loop(self) -> None:
+        """Test sum matches iterating over experiments."""
+        from pyapprox.typing.probability.likelihood import (
+            MultiExperimentLogLikelihood,
+        )
+
+        lik = DiagonalGaussianLogLikelihood(
+            self._bkd.asarray(self.noise_var), self._bkd
+        )
+        obs = self._bkd.asarray(
+            [[1.0, 1.2, 1.1], [2.0, 2.2, 2.1], [3.0, 3.2, 3.1]]
+        )
+        multi = MultiExperimentLogLikelihood(lik, obs, self._bkd)
+
+        model = self._bkd.asarray(
+            [[1.0, 1.1], [2.0, 2.1], [3.0, 3.1]]
+        )
+        result_multi = multi.logpdf(model)
+
+        # Manual loop
+        total = self._bkd.zeros((1, 2))
+        for j in range(obs.shape[1]):
+            lik.set_observations(obs[:, j:j+1])
+            total = total + lik.logpdf(model)
+
+        self._bkd.assert_allclose(result_multi, total, rtol=1e-12)
+
+    def test_nobs_nexperiments(self) -> None:
+        """Test accessor methods."""
+        from pyapprox.typing.probability.likelihood import (
+            MultiExperimentLogLikelihood,
+        )
+
+        lik = DiagonalGaussianLogLikelihood(
+            self._bkd.asarray(self.noise_var), self._bkd
+        )
+        obs = self._bkd.asarray(
+            [[1.0, 1.2], [2.0, 2.2], [3.0, 3.2]]
+        )
+        multi = MultiExperimentLogLikelihood(lik, obs, self._bkd)
+
+        self.assertEqual(multi.nobs(), 3)
+        self.assertEqual(multi.nexperiments(), 2)
+
+    def test_invalid_base_raises(self) -> None:
+        """Test protocol check fires for invalid base."""
+        from pyapprox.typing.probability.likelihood import (
+            MultiExperimentLogLikelihood,
+        )
+
+        obs = self._bkd.asarray([[1.0], [2.0], [3.0]])
+
+        class FakeLikelihood:
+            pass
+
+        with self.assertRaises(TypeError):
+            MultiExperimentLogLikelihood(FakeLikelihood(), obs, self._bkd)
+
+
+class TestMultiExperimentLogLikelihoodNumpy(
+    TestMultiExperimentLogLikelihood[NDArray[Any]]
+):
+    """NumPy backend tests for MultiExperimentLogLikelihood."""
+
+    def bkd(self) -> NumpyBkd:
+        return NumpyBkd()
+
+
+class TestMultiExperimentLogLikelihoodTorch(
+    TestMultiExperimentLogLikelihood[torch.Tensor]
+):
+    """PyTorch backend tests for MultiExperimentLogLikelihood."""
 
     def bkd(self) -> TorchBkd:
         return TorchBkd()
