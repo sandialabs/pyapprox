@@ -46,6 +46,9 @@ class Evidence(Generic[Array]):
     ):
         self._bkd = bkd
         self._loglike = inner_likelihood
+        self._has_fused_evidence_jacobian = hasattr(
+            inner_likelihood, "evidence_jacobian"
+        )
         self._ninner = inner_likelihood.ninner()
         self._nouter = inner_likelihood.nouter()
 
@@ -126,18 +129,18 @@ class Evidence(Generic[Array]):
         """
         self._compute_likelihood_matrix(design_weights)
 
-        # Get jacobian of log-likelihood matrix
-        # Shape: (ninner, nouter, nobs)
-        loglike_jac = self._loglike.jacobian_matrix(design_weights)
-
-        # d/dw evidence[j] = sum_i quad_weights[i] * like[i,j] * loglike_jac[i,j,k]
-        # Use einsum to avoid large intermediate arrays
         quad_weighted_like = self._quad_weights[:, None] * self._cached_like_matrix
-        evidence_jac = self._bkd.einsum(
+
+        if self._has_fused_evidence_jacobian:
+            return self._loglike.evidence_jacobian(
+                design_weights, quad_weighted_like,
+            )
+
+        # Fallback: separate jacobian_matrix + einsum
+        loglike_jac = self._loglike.jacobian_matrix(design_weights)
+        return self._bkd.einsum(
             "io,iok->ok", quad_weighted_like, loglike_jac
         )
-
-        return evidence_jac
 
     @property
     def quad_weighted_like_vals(self) -> Array:
@@ -249,6 +252,9 @@ class LogEvidence(Generic[Array]):
     ):
         self._bkd = bkd
         self._loglike = inner_likelihood
+        self._has_fused_evidence_jacobian = hasattr(
+            inner_likelihood, "evidence_jacobian"
+        )
         self._ninner = inner_likelihood.ninner()
         self._nouter = inner_likelihood.nouter()
 
@@ -336,17 +342,19 @@ class LogEvidence(Generic[Array]):
         # Compute likelihood matrix for jacobian
         like_matrix = self._bkd.exp(self._cached_loglike_matrix)  # (ninner, nouter)
 
-        # Get jacobian of log-likelihood matrix
-        loglike_jac = self._loglike.jacobian_matrix(design_weights)  # (ninner, nouter, nobs)
-
-        # d/dw evidence[j] = sum_i quad_weights[i] * like[i,j] * loglike_jac[i,j,k]
-        # Use einsum to avoid large intermediate arrays
         # quad_weighted_like: (ninner, nouter) = quad_weights[i] * like[i, j]
         quad_weighted_like = self._quad_weights[:, None] * like_matrix
-        # evidence_jac[j, k] = sum_i quad_weighted_like[i, j] * loglike_jac[i, j, k]
-        evidence_jac = self._bkd.einsum(
-            "io,iok->ok", quad_weighted_like, loglike_jac
-        )
+
+        if self._has_fused_evidence_jacobian:
+            evidence_jac = self._loglike.evidence_jacobian(
+                design_weights, quad_weighted_like,
+            )
+        else:
+            # Fallback: separate jacobian_matrix + einsum
+            loglike_jac = self._loglike.jacobian_matrix(design_weights)
+            evidence_jac = self._bkd.einsum(
+                "io,iok->ok", quad_weighted_like, loglike_jac
+            )
 
         # d/dw log(evidence) = (1/evidence) * d/dw evidence
         log_evidence_jac = evidence_jac / evidence[:, None]

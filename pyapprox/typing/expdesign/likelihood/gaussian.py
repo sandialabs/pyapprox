@@ -5,10 +5,15 @@ Provides OED-specific likelihood wrappers for Gaussian noise models,
 including vectorized evaluation and Jacobians w.r.t. design weights.
 """
 
-from typing import Generic, Optional
 import math
+from typing import Generic, Optional
 
 from pyapprox.typing.util.backends.protocols import Array, Backend
+from pyapprox.typing.expdesign.likelihood.dispatch import (
+    get_logpdf_matrix_impl,
+    get_jacobian_matrix_impl,
+    get_evidence_jacobian_impl,
+)
 
 
 class GaussianOEDOuterLoopLikelihood(Generic[Array]):
@@ -253,21 +258,33 @@ class GaussianOEDInnerLoopLikelihood(Generic[Array]):
         self,
         noise_variances: Array,
         bkd: Backend[Array],
+        use_numba: bool = True,
     ):
         self._bkd = bkd
         self._base_variances = noise_variances
         self._nobs = noise_variances.shape[0]
+        self._use_numba = use_numba
+
+        # Dispatch implementations
+        self._logpdf_impl = get_logpdf_matrix_impl(bkd, use_numba)
+        self._jacobian_impl = get_jacobian_matrix_impl(bkd, use_numba)
+        self._evidence_jacobian_impl = get_evidence_jacobian_impl(
+            bkd, use_numba
+        )
 
         # State
         self._shapes: Optional[Array] = None  # (nobs, ninner)
         self._observations: Optional[Array] = None  # (nobs, nouter)
         self._latent_samples: Optional[Array] = None  # (nobs, nouter)
         self._design_weights: Optional[Array] = None  # (nobs, 1)
-        self._residuals: Optional[Array] = None  # (nobs, ninner, nouter)
 
     def bkd(self) -> Backend[Array]:
         """Get the backend."""
         return self._bkd
+
+    def use_numba(self) -> bool:
+        """Whether Numba acceleration is active."""
+        return self._use_numba
 
     def nobs(self) -> int:
         """Number of observation locations."""
@@ -302,7 +319,6 @@ class GaussianOEDInnerLoopLikelihood(Generic[Array]):
                 f"expected {self._nobs}, got {shapes.shape[0]}"
             )
         self._shapes = shapes
-        self._residuals = None  # Invalidate cached residuals
 
     def set_observations(self, obs: Array) -> None:
         """
@@ -321,7 +337,6 @@ class GaussianOEDInnerLoopLikelihood(Generic[Array]):
                 f"expected {self._nobs}, got {obs.shape[0]}"
             )
         self._observations = obs
-        self._residuals = None  # Invalidate cached residuals
 
     def set_latent_samples(self, latent_samples: Array) -> None:
         """
@@ -356,30 +371,6 @@ class GaussianOEDInnerLoopLikelihood(Generic[Array]):
             )
         self._design_weights = weights
 
-    def _compute_residuals(self) -> None:
-        """Compute residuals tensor: obs[..., None] - shapes[:, None, :]."""
-        if self._shapes is None or self._observations is None:
-            raise ValueError("Must call set_shapes and set_observations first")
-        # residuals[k, i, j] = obs[k, j] - shapes[k, i]
-        # Shape: (nobs, ninner, nouter)
-        self._residuals = self._observations[:, None, :] - self._shapes[:, :, None]
-
-    def _compute_weighted_inv_variance(self) -> Array:
-        """Compute inverse of weighted variance: weights / base_variance."""
-        if self._design_weights is None:
-            raise ValueError("Must call set_design_weights first")
-        return self._design_weights[:, 0] / self._base_variances
-
-    def _compute_log_normalization(self) -> float:
-        """Compute log normalization constant with current weights."""
-        if self._design_weights is None:
-            raise ValueError("Must call set_design_weights first")
-        log_det = float(
-            self._bkd.sum(self._bkd.log(self._base_variances))
-            - self._bkd.sum(self._bkd.log(self._design_weights))
-        )
-        return float(-0.5 * self._nobs * math.log(2 * math.pi) - 0.5 * log_det)
-
     def logpdf_matrix(self, design_weights: Array) -> Array:
         """
         Compute full log-likelihood matrix.
@@ -395,23 +386,13 @@ class GaussianOEDInnerLoopLikelihood(Generic[Array]):
             Log-likelihood matrix. Shape: (ninner, nouter)
         """
         self.set_design_weights(design_weights)
+        if self._shapes is None or self._observations is None:
+            raise ValueError("Must call set_shapes and set_observations first")
 
-        if self._residuals is None:
-            self._compute_residuals()
-
-        inv_var = self._compute_weighted_inv_variance()
-        log_norm = self._compute_log_normalization()
-
-        # Squared Mahalanobis: sum over obs of (residual^2 * inv_var)
-        # residuals: (nobs, ninner, nouter), inv_var: (nobs,)
-        # Use einsum for efficiency - avoids large intermediate array
-        # Scale residuals by sqrt(inv_var), then compute squared norm
-        sqrt_inv_var = self._bkd.sqrt(inv_var)
-        scaled_res = sqrt_inv_var[:, None, None] * self._residuals
-        # ijk,ijk->jk computes element-wise product and sums over first axis
-        squared_dist = self._bkd.einsum("ijk,ijk->jk", scaled_res, scaled_res)
-
-        return log_norm - 0.5 * squared_dist
+        return self._logpdf_impl(
+            self._shapes, self._observations, self._base_variances,
+            design_weights, self._bkd,
+        )
 
     def jacobian_matrix(self, design_weights: Array) -> Array:
         """
@@ -428,36 +409,47 @@ class GaussianOEDInnerLoopLikelihood(Generic[Array]):
             Jacobian tensor. Shape: (ninner, nouter, nobs)
         """
         self.set_design_weights(design_weights)
+        if self._shapes is None or self._observations is None:
+            raise ValueError("Must call set_shapes and set_observations first")
 
-        if self._residuals is None:
-            self._compute_residuals()
+        return self._jacobian_impl(
+            self._shapes, self._observations, self._latent_samples,
+            self._base_variances, design_weights, self._bkd,
+        )
 
-        # Component 1: Quadratic term
-        # d/dw_k logpdf = -0.5 * residual_k^2 / var_k
-        # Shape: (nobs, ninner, nouter) -> (ninner, nouter, nobs)
-        jac = -0.5 * self._residuals**2 / self._base_variances[:, None, None]
+    def evidence_jacobian(
+        self,
+        design_weights: Array,
+        quad_weighted_like: Array,
+    ) -> Array:
+        """
+        Compute fused evidence jacobian.
 
-        # Component 2: Determinant term
-        # d/dw_k (-0.5 * log|Cov|) = 0.5 / w_k
-        # Add to jac which has shape (nobs, ninner, nouter)
-        # det_term has shape (nobs, 1, 1) to broadcast correctly
-        det_term = 0.5 / design_weights[:, :, None]  # (nobs, 1, 1)
-        jac = jac + det_term
+        When Numba is active, this avoids materializing the full
+        (ninner, nouter, nobs) jacobian tensor by fusing the jacobian
+        computation with the einsum contraction.
 
-        # Component 3: Reparameterization term
-        if self._latent_samples is not None:
-            # latent_samples: (nobs, nouter)
-            # residuals: (nobs, ninner, nouter)
-            reparam_term = 0.5 * (
-                self._residuals
-                * self._latent_samples[:, None, :]
-                / (self._bkd.sqrt(self._base_variances[:, None, None])
-                   * self._bkd.sqrt(design_weights[:, :, None]))
-            )
-            jac = jac + reparam_term
+        Parameters
+        ----------
+        design_weights : Array
+            Design weights. Shape: (nobs, 1)
+        quad_weighted_like : Array
+            Quadrature-weighted likelihoods. Shape: (ninner, nouter)
 
-        # Transpose from (nobs, ninner, nouter) to (ninner, nouter, nobs)
-        return self._bkd.transpose(jac, (1, 2, 0))
+        Returns
+        -------
+        Array
+            Evidence jacobian. Shape: (nouter, nobs)
+        """
+        self.set_design_weights(design_weights)
+        if self._shapes is None or self._observations is None:
+            raise ValueError("Must call set_shapes and set_observations first")
+
+        return self._evidence_jacobian_impl(
+            self._shapes, self._observations, self._latent_samples,
+            self._base_variances, design_weights, quad_weighted_like,
+            self._bkd,
+        )
 
     def create_outer_loop_likelihood(self) -> GaussianOEDOuterLoopLikelihood[Array]:
         """
