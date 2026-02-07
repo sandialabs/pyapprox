@@ -2,9 +2,21 @@
 Variational inference module for pyapprox.
 
 This module provides variational inference tools including:
-- Variational families (Gaussian, Beta, Gaussian copula)
 - ELBO objective with joint quadrature design
-- Amortization functions (Constant, Polynomial)
-- Covariance parameterizations (FullRankCholesky, LowRankPlusDiagonal)
-- Variational fitter for end-to-end optimization
+- Covariance parameterization protocol (for Gaussian copula)
+
+Variational distributions are conditional distributions from
+``pyapprox.typing.probability.conditional`` (e.g., ConditionalGaussian,
+ConditionalBeta, ConditionalIndependentJoint) with BasisExpansion
+parameter functions.
 """
+
+from pyapprox.typing.inverse.variational.elbo import (
+    ELBOObjective,
+    make_single_problem_elbo,
+)
+
+__all__ = [
+    "ELBOObjective",
+    "make_single_problem_elbo",
+]

@@ -1,9 +1,8 @@
 """
 ELBO objective for variational inference.
 
-Provides ELBOObjective that uses conditional distributions directly
-(no VariationalFamilyProtocol wrappers), plus convenience constructors
-for common VI setups.
+Provides ELBOObjective that uses conditional distributions directly,
+plus convenience constructors for common VI setups.
 """
 
 from typing import Any, Callable, Generic
