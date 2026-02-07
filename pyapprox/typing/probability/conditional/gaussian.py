@@ -107,6 +107,22 @@ class ConditionalGaussian(Generic[Array]):
             self._log_stdev_func, "jacobian_wrt_params"
         ):
             self.logpdf_jacobian_wrt_params = self._logpdf_jacobian_wrt_params
+            self.reparameterize_jacobian_wrt_params = (
+                self._reparameterize_jacobian_wrt_params
+            )
+
+    def _sync_param_funcs(self) -> None:
+        """Sync parameter functions from hyp_list values.
+
+        BasisExpansion.__call__ does not call _sync_from_hyp_list, so if
+        hyp_list values have been updated (e.g., by an optimizer), the
+        coefficients used by __call__ may be stale.  This method ensures
+        consistency before every evaluation.
+        """
+        if hasattr(self._mean_func, "_sync_from_hyp_list"):
+            self._mean_func._sync_from_hyp_list()
+        if hasattr(self._log_stdev_func, "_sync_from_hyp_list"):
+            self._log_stdev_func._sync_from_hyp_list()
 
     def _get_hyp_list(self) -> HyperParameterList:
         """Return the combined hyperparameter list."""
@@ -163,6 +179,7 @@ class ConditionalGaussian(Generic[Array]):
             Log PDF values. Shape: (1, nsamples)
         """
         self._validate_inputs(x, y)
+        self._sync_param_funcs()
 
         mean = self._mean_func(x)  # (1, nsamples)
         log_stdev = self._log_stdev_func(x)  # (1, nsamples)
@@ -193,13 +210,8 @@ class ConditionalGaussian(Generic[Array]):
             )
 
         nsamples = x.shape[1]
-        mean = self._mean_func(x)  # (1, nsamples)
-        stdev = self._bkd.exp(self._log_stdev_func(x))  # (1, nsamples)
-
-        # Generate standard normal samples
-        z = self._bkd.asarray(np.random.randn(1, nsamples))
-
-        return mean + stdev * z
+        base = self._bkd.asarray(np.random.randn(1, nsamples))
+        return self.reparameterize(x, base)
 
     def _logpdf_jacobian_wrt_x(self, x: Array, y: Array) -> Array:
         """
@@ -312,6 +324,104 @@ class ConditionalGaussian(Generic[Array]):
         jac_stdev = jac_stdev_params[:, 0, :]  # (nsamples, n_stdev_params)
 
         return self._bkd.hstack([jac_mean, jac_stdev])  # (nsamples, nparams)
+
+    def reparameterize(self, x: Array, base_samples: Array) -> Array:
+        """Transform N(0,1) base samples to N(mean(x), stdev(x)^2).
+
+        Parameters
+        ----------
+        x : Array
+            Conditioning variable values. Shape: (nvars, nsamples)
+        base_samples : Array
+            Standard normal samples. Shape: (1, nsamples)
+
+        Returns
+        -------
+        Array
+            Reparameterized samples. Shape: (1, nsamples)
+        """
+        self._sync_param_funcs()
+        mean = self._mean_func(x)  # (1, nsamples)
+        log_s = self._log_stdev_func(x)  # (1, nsamples)
+        return mean + self._bkd.exp(log_s) * base_samples
+
+    def kl_divergence(self, x: Array, prior: "GaussianMarginal") -> Array:
+        """Compute KL(q(.|x) || prior) per sample.
+
+        Parameters
+        ----------
+        x : Array
+            Conditioning variable values. Shape: (nvars, nsamples)
+        prior : GaussianMarginal
+            Prior distribution (unconditional).
+
+        Returns
+        -------
+        Array
+            Per-sample KL divergence. Shape: (1, nsamples)
+        """
+        self._sync_param_funcs()
+        mean_q = self._mean_func(x)  # (1, nsamples)
+        log_s_q = self._log_stdev_func(x)  # (1, nsamples)
+        s_q = self._bkd.exp(log_s_q)
+        m_p = prior.mean_value()  # float
+        s_p = prior.std()  # float
+        return (
+            math.log(s_p) - log_s_q
+            + (s_q ** 2 + (mean_q - m_p) ** 2) / (2.0 * s_p ** 2)
+            - 0.5
+        )
+
+    def base_distribution(self) -> "GaussianMarginal":
+        """Return the base distribution for reparameterization (standard normal)."""
+        from pyapprox.typing.probability.univariate.gaussian import (
+            GaussianMarginal,
+        )
+        return GaussianMarginal(0.0, 1.0, self._bkd)
+
+    def _reparameterize_jacobian_wrt_params(
+        self, x: Array, base_samples: Array
+    ) -> Array:
+        """Compute Jacobian of reparameterize w.r.t. active parameters.
+
+        Uses chain rule:
+        z = mean_func(x) + exp(log_stdev_func(x)) * base_samples
+        dz/d(mean_params) = d(mean_func)/d(params)
+        dz/d(log_stdev_params) = exp(log_stdev) * base * d(log_stdev_func)/d(params)
+
+        Parameters
+        ----------
+        x : Array
+            Conditioning variable values. Shape: (nvars, nsamples)
+        base_samples : Array
+            Standard normal samples. Shape: (1, nsamples)
+
+        Returns
+        -------
+        Array
+            Jacobian. Shape: (nsamples, 1, nactive_params)
+        """
+        self._sync_param_funcs()
+        nsamples = x.shape[1]
+        log_s = self._log_stdev_func(x)  # (1, nsamples)
+        stdev = self._bkd.exp(log_s)  # (1, nsamples)
+
+        # d(mean_func)/d(params): (nsamples, 1, n_mean_params)
+        dmean_dparams = self._mean_func.jacobian_wrt_params(x)
+
+        # d(log_stdev_func)/d(params): (nsamples, 1, n_stdev_params)
+        dlogstdev_dparams = self._log_stdev_func.jacobian_wrt_params(x)
+
+        # dz/d(log_stdev_params) = stdev * base * d(log_stdev)/d(params)
+        # stdev * base: (1, nsamples) -> (nsamples, 1, 1)
+        scale = self._bkd.reshape(
+            (stdev * base_samples).T, (nsamples, 1, 1)
+        )
+        jac_stdev_params = scale * dlogstdev_dparams
+
+        return self._bkd.concatenate(
+            [dmean_dparams, jac_stdev_params], axis=2
+        )
 
     def __repr__(self) -> str:
         """Return string representation."""

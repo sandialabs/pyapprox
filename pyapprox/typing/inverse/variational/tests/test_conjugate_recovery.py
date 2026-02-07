@@ -1,10 +1,12 @@
 """
 Tests for recovering conjugate posteriors via variational inference.
 
-These tests verify that optimizing the ELBO with a Gaussian variational
-family recovers the exact Gaussian conjugate posterior for linear models.
+These tests verify that optimizing the ELBO with conditional distributions
+(ConditionalGaussian, ConditionalBeta, ConditionalIndependentJoint)
+recovers the exact conjugate posterior.
 """
 
+import math
 import unittest
 from typing import Any, Generic
 
@@ -16,9 +18,10 @@ from pyapprox.typing.util.backends.protocols import Array, Backend
 from pyapprox.typing.util.backends.numpy import NumpyBkd
 from pyapprox.typing.util.backends.torch import TorchBkd
 from pyapprox.typing.util.test_utils import slow_test
-from pyapprox.typing.probability.gaussian.diagonal import (
-    DiagonalMultivariateGaussian,
-)
+from pyapprox.typing.probability.univariate import UniformMarginal
+from pyapprox.typing.probability.univariate.gaussian import GaussianMarginal
+from pyapprox.typing.probability.univariate.beta import BetaMarginal
+from pyapprox.typing.probability.joint.independent import IndependentJoint
 from pyapprox.typing.probability.likelihood.gaussian import (
     DiagonalGaussianLogLikelihood,
     MultiExperimentLogLikelihood,
@@ -26,15 +29,85 @@ from pyapprox.typing.probability.likelihood.gaussian import (
 from pyapprox.typing.inverse.conjugate.gaussian import (
     DenseGaussianConjugatePosterior,
 )
-from pyapprox.typing.inverse.variational.gaussian_family import (
-    GaussianVariationalFamily,
+from pyapprox.typing.inverse.conjugate.beta import BetaConjugatePosterior
+from pyapprox.typing.probability.conditional.gaussian import (
+    ConditionalGaussian,
 )
+from pyapprox.typing.probability.conditional.beta import ConditionalBeta
+from pyapprox.typing.probability.conditional.joint import (
+    ConditionalIndependentJoint,
+)
+from pyapprox.typing.surrogates.affine.univariate import create_bases_1d
+from pyapprox.typing.surrogates.affine.indices import (
+    compute_hyperbolic_indices,
+)
+from pyapprox.typing.surrogates.affine.basis import OrthonormalPolynomialBasis
+from pyapprox.typing.surrogates.affine.expansions import BasisExpansion
 from pyapprox.typing.inverse.variational.elbo import (
     make_single_problem_elbo,
 )
 from pyapprox.typing.optimization.minimize.scipy.trust_constr import (
     ScipyTrustConstrOptimizer,
 )
+
+
+def _make_degree0_expansion(
+    bkd: Backend, coeff: float = 0.0
+) -> BasisExpansion:
+    """Create a degree-0 BasisExpansion (constant function).
+
+    Returns a function f(x) = coeff for any x, with 1 conditioning variable
+    and 1 tunable coefficient.
+    """
+    marginals = [UniformMarginal(-1.0, 1.0, bkd)]
+    bases_1d = create_bases_1d(marginals, bkd)
+    indices = compute_hyperbolic_indices(1, 0, 1.0, bkd)
+    basis = OrthonormalPolynomialBasis(bases_1d, bkd, indices)
+    exp = BasisExpansion(basis, bkd, nqoi=1)
+    exp.set_coefficients(bkd.asarray([[coeff]]))
+    return exp
+
+
+def _make_cond_gaussian(
+    bkd: Backend, mean: float = 0.0, log_stdev: float = 0.0
+) -> ConditionalGaussian:
+    """Create a ConditionalGaussian with constant mean and log_stdev."""
+    mean_func = _make_degree0_expansion(bkd, mean)
+    log_stdev_func = _make_degree0_expansion(bkd, log_stdev)
+    return ConditionalGaussian(mean_func, log_stdev_func, bkd)
+
+
+def _make_cond_beta(
+    bkd: Backend, log_alpha: float = 0.0, log_beta: float = 0.0
+) -> ConditionalBeta:
+    """Create a ConditionalBeta with constant log_alpha and log_beta."""
+    log_alpha_func = _make_degree0_expansion(bkd, log_alpha)
+    log_beta_func = _make_degree0_expansion(bkd, log_beta)
+    return ConditionalBeta(log_alpha_func, log_beta_func, bkd)
+
+
+def _extract_gaussian_params(
+    cond: ConditionalGaussian, bkd: Backend
+) -> tuple:
+    """Extract (mean, stdev) from a fitted ConditionalGaussian.
+
+    For degree-0 expansions, the param functions are constant so
+    the conditioning input value doesn't matter.
+    """
+    dummy_x = bkd.zeros((cond.nvars(), 1))
+    mean = cond._mean_func(dummy_x)[0, 0]
+    log_stdev = cond._log_stdev_func(dummy_x)[0, 0]
+    return mean, bkd.exp(log_stdev)
+
+
+def _extract_beta_params(
+    cond: ConditionalBeta, bkd: Backend
+) -> tuple:
+    """Extract (alpha, beta) from a fitted ConditionalBeta."""
+    dummy_x = bkd.zeros((cond.nvars(), 1))
+    log_alpha = cond._log_alpha_func(dummy_x)[0, 0]
+    log_beta = cond._log_beta_func(dummy_x)[0, 0]
+    return bkd.exp(log_alpha), bkd.exp(log_beta)
 
 
 class TestGaussianConjugateRecoveryBase(
@@ -49,6 +122,17 @@ class TestGaussianConjugateRecoveryBase(
 
     def setUp(self) -> None:
         self._bkd = self.bkd()
+
+    def _make_cond_gaussian_joint(
+        self, nvars: int
+    ) -> ConditionalIndependentJoint:
+        """Create a variational distribution for nvars dimensions.
+
+        Always returns a ConditionalIndependentJoint, even for nvars=1.
+        """
+        bkd = self._bkd
+        conditionals = [_make_cond_gaussian(bkd) for _ in range(nvars)]
+        return ConditionalIndependentJoint(conditionals, bkd)
 
     def _run_vi_recovery(
         self,
@@ -78,11 +162,15 @@ class TestGaussianConjugateRecoveryBase(
         exact_mean = conjugate.posterior_mean()
         exact_cov = conjugate.posterior_covariance()
 
-        # VI setup
-        family = GaussianVariationalFamily(nvars, bkd)
-        prior = DiagonalMultivariateGaussian(
-            prior_mean_arr, bkd.asarray(prior_var_vals), bkd,
-        )
+        # VI setup using conditional distributions
+        var_dist = self._make_cond_gaussian_joint(nvars)
+
+        # Prior: IndependentJoint of GaussianMarginals
+        prior_marginals = [
+            GaussianMarginal(m, math.sqrt(v), bkd)
+            for m, v in zip(prior_mean_vals, prior_var_vals)
+        ]
+        prior = IndependentJoint(prior_marginals, bkd)
 
         # Build log-likelihood using MultiExperimentLogLikelihood
         noise_variances = bkd.full((nobs,), noise_var)
@@ -101,7 +189,8 @@ class TestGaussianConjugateRecoveryBase(
         weights = bkd.full((1, nsamples), 1.0 / nsamples)
 
         elbo = make_single_problem_elbo(
-            family, log_likelihood_fn, prior, base_samples, weights, bkd,
+            var_dist, log_likelihood_fn, prior,
+            base_samples, weights, bkd,
         )
 
         # Use wide bounds for unconstrained optimization
@@ -114,11 +203,18 @@ class TestGaussianConjugateRecoveryBase(
         init_guess = bkd.zeros((elbo.nvars(), 1))
         result = optimizer.minimize(init_guess)
 
-        # Push fitted params back to family so it's the source of truth
+        # Push fitted params into the conditional distribution
         elbo(result.optima())
-        elbo.push_params_to_family()
-        vi_mean, vi_stdev = family._get_mean_stdev()
-        vi_var = vi_stdev ** 2
+
+        # Extract recovered mean and variance from each conditional
+        means = []
+        variances = []
+        for cond in var_dist._conditionals:
+            m, s = _extract_gaussian_params(cond, bkd)
+            means.append(m)
+            variances.append(s ** 2)
+        vi_mean = bkd.asarray(means)
+        vi_var = bkd.asarray(variances)
 
         return vi_mean, vi_var, exact_mean, exact_cov
 
@@ -206,7 +302,7 @@ class TestGaussianConjugateRecoveryBase(
             )
         )
 
-        # More data → smaller posterior variance
+        # More data -> smaller posterior variance
         exact_var_few = exact_cov_few[0, 0]
         exact_var_many = exact_cov_many[0, 0]
         self.assertLess(float(bkd.flatten(exact_var_many)[0]),
@@ -225,6 +321,247 @@ class TestGaussianConjugateRecoveryNumpy(
 
 class TestGaussianConjugateRecoveryTorch(
     TestGaussianConjugateRecoveryBase[torch.Tensor], unittest.TestCase
+):
+    def bkd(self) -> TorchBkd:
+        torch.set_default_dtype(torch.float64)
+        return TorchBkd()
+
+
+class TestBetaBernoulliRecoveryBase(Generic[Array], unittest.TestCase):
+    """Test recovering Beta-Bernoulli conjugate posterior via VI."""
+
+    __test__ = False
+
+    def bkd(self) -> Backend[Array]:
+        raise NotImplementedError
+
+    def setUp(self) -> None:
+        self._bkd = self.bkd()
+
+    @slow_test
+    def test_beta_bernoulli_conjugate(self) -> None:
+        """Prior Beta(2,2), obs=[1,1,0,1,0] -> exact Beta(5,4)."""
+        bkd = self._bkd
+        prior_alpha, prior_beta = 2.0, 2.0
+        obs_list = [1.0, 1.0, 0.0, 1.0, 0.0]
+
+        # Exact conjugate posterior
+        conjugate = BetaConjugatePosterior(prior_alpha, prior_beta, bkd)
+        conjugate.compute(bkd.asarray([obs_list]))
+        exact_mean = conjugate.posterior_mean()
+
+        # VI setup using ConditionalBeta with degree-0 expansion
+        # Initialize log_alpha = log(prior_alpha), log_beta = log(prior_beta)
+        cond_beta = _make_cond_beta(
+            bkd,
+            log_alpha=math.log(prior_alpha),
+            log_beta=math.log(prior_beta),
+        )
+
+        # Prior distribution for ELBO
+        prior_marginal = BetaMarginal(prior_alpha, prior_beta, bkd)
+        prior = prior_marginal
+
+        # Bernoulli log-likelihood: sum_i obs_i*log(p) + (1-obs_i)*log(1-p)
+        obs = bkd.asarray([obs_list])  # (1, 5)
+
+        def log_likelihood_fn(z: Array) -> Array:
+            # z: (1, N) -- probability values in (0, 1)
+            p = bkd.clip(z, 1e-8, 1.0 - 1e-8)
+            log_p = bkd.log(p)  # (1, N)
+            log_1mp = bkd.log(1.0 - p)  # (1, N)
+            n_success = bkd.sum(obs)
+            n_fail = obs.shape[1] - n_success
+            result = n_success * log_p + n_fail * log_1mp
+            return result  # (1, N)
+
+        nsamples = 2000
+        np.random.seed(42)
+        base_samples = bkd.asarray(
+            np.random.uniform(0.01, 0.99, (1, nsamples))
+        )
+        weights = bkd.full((1, nsamples), 1.0 / nsamples)
+
+        elbo = make_single_problem_elbo(
+            cond_beta, log_likelihood_fn, prior,
+            base_samples, weights, bkd,
+        )
+
+        bounds = bkd.asarray([[-10.0, 10.0]] * elbo.nvars())
+        optimizer = ScipyTrustConstrOptimizer(
+            objective=elbo, bounds=bounds, maxiter=500, gtol=1e-8,
+        )
+        init_guess = bkd.zeros((elbo.nvars(), 1))
+        result = optimizer.minimize(init_guess)
+
+        # Push fitted params into the conditional distribution
+        elbo(result.optima())
+
+        # Extract recovered alpha/beta
+        recovered_alpha, recovered_beta = _extract_beta_params(
+            cond_beta, bkd
+        )
+        recovered_mean = recovered_alpha / (recovered_alpha + recovered_beta)
+
+        # Posterior mean should match
+        bkd.assert_allclose(
+            bkd.asarray([recovered_mean]),
+            bkd.asarray([exact_mean]),
+            rtol=0.15,
+        )
+
+
+class TestBetaBernoulliRecoveryNumpy(
+    TestBetaBernoulliRecoveryBase[NDArray[Any]], unittest.TestCase
+):
+    def bkd(self) -> NumpyBkd:
+        return NumpyBkd()
+
+
+class TestBetaBernoulliRecoveryTorch(
+    TestBetaBernoulliRecoveryBase[torch.Tensor], unittest.TestCase
+):
+    def bkd(self) -> TorchBkd:
+        torch.set_default_dtype(torch.float64)
+        return TorchBkd()
+
+
+class TestGaussianEquivalenceBase(Generic[Array], unittest.TestCase):
+    """Test that ConditionalIndependentJoint with a single ConditionalGaussian
+    produces identical results to a standalone ConditionalGaussian.
+
+    Both parameterise the same diagonal Gaussian and both have analytical KL,
+    so the ELBO objectives are functionally identical and converged optima
+    should agree to near machine precision.
+    """
+
+    __test__ = False
+
+    def bkd(self) -> Backend[Array]:
+        raise NotImplementedError
+
+    def setUp(self) -> None:
+        self._bkd = self.bkd()
+
+    def test_logpdf_equivalence(self) -> None:
+        """logpdf from single vs joint-wrapped conditional agrees."""
+        bkd = self._bkd
+
+        # Single ConditionalGaussian
+        cond_single = _make_cond_gaussian(bkd, mean=1.0, log_stdev=math.log(0.5))
+
+        # ConditionalIndependentJoint wrapping one ConditionalGaussian
+        cond_inner = _make_cond_gaussian(bkd, mean=1.0, log_stdev=math.log(0.5))
+        cond_joint = ConditionalIndependentJoint([cond_inner], bkd)
+
+        x = bkd.zeros((1, 4))  # dummy conditioning
+        y = bkd.asarray([[-1.0, 0.0, 1.0, 2.0]])
+
+        logp_single = cond_single.logpdf(x, y)
+        logp_joint = cond_joint.logpdf(x, y)
+        bkd.assert_allclose(logp_single, logp_joint, rtol=1e-12)
+
+    def test_reparameterize_equivalence(self) -> None:
+        """reparameterize from single vs joint-wrapped conditional agrees."""
+        bkd = self._bkd
+
+        cond_single = _make_cond_gaussian(bkd, mean=1.0, log_stdev=math.log(0.5))
+
+        cond_inner = _make_cond_gaussian(bkd, mean=1.0, log_stdev=math.log(0.5))
+        cond_joint = ConditionalIndependentJoint([cond_inner], bkd)
+
+        x = bkd.zeros((1, 50))  # dummy conditioning
+        np.random.seed(42)
+        base = bkd.asarray(np.random.randn(1, 50))
+
+        z_single = cond_single.reparameterize(x, base)
+        z_joint = cond_joint.reparameterize(x, base)
+        bkd.assert_allclose(z_single, z_joint, rtol=1e-12)
+
+    @slow_test
+    def test_converged_optima_equivalence(self) -> None:
+        """Single conditional and joint-wrapped conditional converge to same result."""
+        bkd = self._bkd
+        obs_matrix = bkd.asarray([[1.0]])
+        observations = bkd.asarray([[2.0]])
+        noise_var = 0.5
+        nsamples = 1000
+
+        noise_variances = bkd.full((1,), noise_var)
+        base_lik = DiagonalGaussianLogLikelihood(noise_variances, bkd)
+        multi_lik = MultiExperimentLogLikelihood(
+            base_lik, observations, bkd,
+        )
+
+        def log_likelihood_fn(z: Array) -> Array:
+            return multi_lik.logpdf(obs_matrix @ z)
+
+        np.random.seed(42)
+        base_samples = bkd.asarray(np.random.normal(0, 1, (1, nsamples)))
+        weights = bkd.full((1, nsamples), 1.0 / nsamples)
+
+        # --- Single ConditionalGaussian ---
+        cond_single = _make_cond_gaussian(bkd)
+        prior_single = GaussianMarginal(0.0, 1.0, bkd)
+        elbo_single = make_single_problem_elbo(
+            cond_single, log_likelihood_fn, prior_single,
+            base_samples, weights, bkd,
+        )
+        bounds = bkd.asarray([[-1e6, 1e6]] * elbo_single.nvars())
+        opt_single = ScipyTrustConstrOptimizer(
+            objective=elbo_single, bounds=bounds, maxiter=300, gtol=1e-8,
+        )
+        result_single = opt_single.minimize(
+            bkd.zeros((elbo_single.nvars(), 1))
+        )
+        elbo_single(result_single.optima())
+        single_mean, single_stdev = _extract_gaussian_params(
+            cond_single, bkd
+        )
+
+        # --- ConditionalIndependentJoint([ConditionalGaussian]) ---
+        cond_inner = _make_cond_gaussian(bkd)
+        cond_joint = ConditionalIndependentJoint([cond_inner], bkd)
+        prior_joint = IndependentJoint(
+            [GaussianMarginal(0.0, 1.0, bkd)], bkd,
+        )
+        elbo_joint = make_single_problem_elbo(
+            cond_joint, log_likelihood_fn, prior_joint,
+            base_samples, weights, bkd,
+        )
+        bounds_joint = bkd.asarray([[-1e6, 1e6]] * elbo_joint.nvars())
+        opt_joint = ScipyTrustConstrOptimizer(
+            objective=elbo_joint, bounds=bounds_joint,
+            maxiter=300, gtol=1e-8,
+        )
+        result_joint = opt_joint.minimize(
+            bkd.zeros((elbo_joint.nvars(), 1))
+        )
+        elbo_joint(result_joint.optima())
+        joint_mean, joint_stdev = _extract_gaussian_params(
+            cond_inner, bkd
+        )
+
+        # Both optimised the same objective -> tight tolerance
+        bkd.assert_allclose(
+            bkd.asarray([single_mean]), bkd.asarray([joint_mean]),
+            rtol=1e-8,
+        )
+        bkd.assert_allclose(
+            bkd.asarray([single_stdev]), bkd.asarray([joint_stdev]),
+            rtol=1e-8,
+        )
+
+
+class TestGaussianEquivalenceNumpy(
+    TestGaussianEquivalenceBase[NDArray[Any]], unittest.TestCase
+):
+    def bkd(self) -> NumpyBkd:
+        return NumpyBkd()
+
+
+class TestGaussianEquivalenceTorch(
+    TestGaussianEquivalenceBase[torch.Tensor], unittest.TestCase
 ):
     def bkd(self) -> TorchBkd:
         torch.set_default_dtype(torch.float64)

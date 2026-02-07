@@ -32,6 +32,8 @@ from pyapprox.typing.interface.functions.derivative_checks.derivative_checker im
 from pyapprox.typing.interface.functions.fromcallable.jacobian import (
     FunctionWithJacobianFromCallable,
 )
+from pyapprox.typing.probability.univariate.gaussian import GaussianMarginal
+from pyapprox.typing.probability.joint.independent import IndependentJoint
 
 
 class TestConditionalIndependentJoint(Generic[Array], unittest.TestCase):
@@ -143,39 +145,37 @@ class TestConditionalIndependentJoint(Generic[Array], unittest.TestCase):
         samples = joint.rvs(x)
         self.assertEqual(samples.shape, (3, nsamples))  # nqoi=3
 
-    def test_rvs_returns_stacked_samples(self):
-        """Test rvs returns stacked samples from each conditional."""
+    def test_reparameterize_stacks_components(self):
+        """Test reparameterize returns stacked output from each conditional."""
         bkd = self._bkd
 
-        # Create constant-parameter conditionals for reproducibility
+        # Create constant-parameter conditionals for deterministic result
         mean1_func = self._create_basis_expansion(nvars=1, max_level=0, nqoi=1)
         log_stdev1_func = self._create_basis_expansion(nvars=1, max_level=0, nqoi=1)
-        mean1_func.set_coefficients(bkd.asarray([[0.0]]))
-        log_stdev1_func.set_coefficients(bkd.asarray([[np.log(1.0)]]))
+        mean1_func.set_coefficients(bkd.asarray([[2.0]]))
+        log_stdev1_func.set_coefficients(bkd.asarray([[np.log(0.5)]]))
         cond1 = ConditionalGaussian(mean1_func, log_stdev1_func, bkd)
 
         mean2_func = self._create_basis_expansion(nvars=1, max_level=0, nqoi=1)
         log_stdev2_func = self._create_basis_expansion(nvars=1, max_level=0, nqoi=1)
-        mean2_func.set_coefficients(bkd.asarray([[5.0]]))  # Different mean
-        log_stdev2_func.set_coefficients(bkd.asarray([[np.log(0.5)]]))
+        mean2_func.set_coefficients(bkd.asarray([[5.0]]))
+        log_stdev2_func.set_coefficients(bkd.asarray([[np.log(1.5)]]))
         cond2 = ConditionalGaussian(mean2_func, log_stdev2_func, bkd)
 
         joint = ConditionalIndependentJoint([cond1, cond2], bkd)
 
-        # Generate many samples
-        nsamples = 5000
-        x = bkd.zeros((1, nsamples))
+        x = bkd.asarray([[0.0, 0.0, 0.0]])
+        base = bkd.asarray([[1.0, -1.0, 0.5], [0.0, 2.0, -0.5]])
 
-        np.random.seed(42)
-        samples = joint.rvs(x)
+        z = joint.reparameterize(x, base)
+        self.assertEqual(z.shape, (2, 3))
 
-        # First component should have mean ~0
-        sample_mean1 = float(bkd.to_numpy(bkd.mean(samples[0, :])))
-        # Second component should have mean ~5
-        sample_mean2 = float(bkd.to_numpy(bkd.mean(samples[1, :])))
+        # Compute expected values manually: mean + exp(log_s) * base
+        z1_expected = bkd.asarray([[2.0 + 0.5 * 1.0, 2.0 + 0.5 * (-1.0), 2.0 + 0.5 * 0.5]])
+        z2_expected = bkd.asarray([[5.0 + 1.5 * 0.0, 5.0 + 1.5 * 2.0, 5.0 + 1.5 * (-0.5)]])
+        expected = bkd.vstack([z1_expected, z2_expected])
 
-        self.assertAlmostEqual(sample_mean1, 0.0, delta=0.1)
-        self.assertAlmostEqual(sample_mean2, 5.0, delta=0.1)
+        bkd.assert_allclose(z, expected, rtol=1e-12)
 
     def test_hyp_list_combines_correctly(self):
         """Test hyp_list combines all component hyp_lists."""
@@ -294,6 +294,61 @@ class TestConditionalIndependentJoint(Generic[Array], unittest.TestCase):
         expected_jac = bkd.hstack([jac1, jac2])
 
         bkd.assert_allclose(joint_jac, expected_jac, rtol=1e-10)
+
+    def test_reparameterize_shape(self):
+        """Test reparameterize output shape matches (total_nqoi, N)."""
+        bkd = self._bkd
+        joint = self._create_joint(nvars=2, nconditionals=3)
+
+        nsamples = 5
+        np.random.seed(42)
+        x = bkd.asarray(np.random.uniform(-0.9, 0.9, (2, nsamples)))
+        base = bkd.asarray(np.random.randn(3, nsamples))
+
+        z = joint.reparameterize(x, base)
+        self.assertEqual(z.shape, (3, nsamples))
+
+    def test_kl_divergence_is_sum_of_components(self):
+        """Test KL divergence equals sum of component KL divergences."""
+        bkd = self._bkd
+
+        # Create constant-param conditionals
+        mean1 = self._create_basis_expansion(nvars=1, max_level=0, nqoi=1)
+        ls1 = self._create_basis_expansion(nvars=1, max_level=0, nqoi=1)
+        mean1.set_coefficients(bkd.asarray([[1.5]]))
+        ls1.set_coefficients(bkd.asarray([[np.log(0.8)]]))
+        cond1 = ConditionalGaussian(mean1, ls1, bkd)
+
+        mean2 = self._create_basis_expansion(nvars=1, max_level=0, nqoi=1)
+        ls2 = self._create_basis_expansion(nvars=1, max_level=0, nqoi=1)
+        mean2.set_coefficients(bkd.asarray([[2.0]]))
+        ls2.set_coefficients(bkd.asarray([[np.log(1.2)]]))
+        cond2 = ConditionalGaussian(mean2, ls2, bkd)
+
+        joint = ConditionalIndependentJoint([cond1, cond2], bkd)
+
+        prior1 = GaussianMarginal(0.0, 1.0, bkd)
+        prior2 = GaussianMarginal(0.0, 1.0, bkd)
+        prior_joint = IndependentJoint([prior1, prior2], bkd)
+
+        x = bkd.asarray([[0.0, 0.5]])
+        kl_joint = joint.kl_divergence(x, prior_joint)
+
+        kl1 = cond1.kl_divergence(x, prior1)
+        kl2 = cond2.kl_divergence(x, prior2)
+        expected = kl1 + kl2
+
+        bkd.assert_allclose(kl_joint, expected, rtol=1e-12)
+
+    def test_base_distribution_is_independent_joint(self):
+        """Test base_distribution returns IndependentJoint."""
+        bkd = self._bkd
+        joint = self._create_joint(nvars=2, nconditionals=2)
+
+        base = joint.base_distribution()
+        self.assertIsInstance(base, IndependentJoint)
+        # Should have 2 marginals (one per conditional)
+        self.assertEqual(len(base.marginals()), 2)
 
     def test_validation_errors(self):
         """Test input validation raises appropriate errors."""

@@ -34,6 +34,7 @@ from pyapprox.typing.interface.functions.derivative_checks.derivative_checker im
 from pyapprox.typing.interface.functions.fromcallable.jacobian import (
     FunctionWithJacobianFromCallable,
 )
+from pyapprox.typing.probability.univariate.beta import BetaMarginal
 
 # Test configurations for bounds: (name, lb, ub)
 COND_BETA_BOUNDS_CONFIGS = [
@@ -181,10 +182,11 @@ class TestConditionalBeta(Generic[Array], unittest.TestCase):
         np.random.seed(42)
         samples = cond.rvs(x)
 
-        sample_mean = float(bkd.to_numpy(bkd.mean(samples)))
-        expected_mean = alpha_val / (alpha_val + beta_val)
-
-        self.assertAlmostEqual(sample_mean, expected_mean, delta=0.02)
+        bkd.assert_allclose(
+            bkd.asarray([bkd.mean(samples)]),
+            bkd.asarray([alpha_val / (alpha_val + beta_val)]),
+            atol=0.02,
+        )
 
     def test_logpdf_jacobian_wrt_x_derivative_checker(self):
         """Test logpdf_jacobian_wrt_x using DerivativeChecker."""
@@ -260,6 +262,93 @@ class TestConditionalBeta(Generic[Array], unittest.TestCase):
         jac_error = checker.error_ratio(errors[0])
         self.assertLess(float(jac_error), 1e-6)
 
+    def test_reparameterize_shape(self):
+        """Test reparameterize output shape."""
+        bkd = self._bkd
+        cond = self._create_conditional_beta(nvars=2)
+
+        nsamples = 5
+        np.random.seed(42)
+        x = bkd.asarray(np.random.uniform(-0.9, 0.9, (2, nsamples)))
+        base = bkd.asarray(np.random.uniform(0.0, 1.0, (1, nsamples)))
+
+        z = cond.reparameterize(x, base)
+        self.assertEqual(z.shape, (1, nsamples))
+
+    def test_reparameterize_in_bounds(self):
+        """Test reparameterize produces samples in [lb, ub]."""
+        bkd = self._bkd
+        cond = self._create_conditional_beta(nvars=2)
+
+        nsamples = 100
+        np.random.seed(42)
+        x = bkd.asarray(np.random.uniform(-0.9, 0.9, (2, nsamples)))
+        base = bkd.asarray(np.random.uniform(0.01, 0.99, (1, nsamples)))
+
+        z = cond.reparameterize(x, base)
+        z_np = bkd.to_numpy(z)
+        self.assertTrue(np.all(z_np >= cond.lower()))
+        self.assertTrue(np.all(z_np <= cond.upper()))
+
+    def test_kl_divergence_vs_analytical(self):
+        """Test KL matches BetaMarginal.kl_divergence for constant params."""
+        bkd = self._bkd
+
+        alpha_val, beta_val = 2.5, 3.0
+        log_alpha_func = self._create_basis_expansion(
+            nvars=1, max_level=0, nqoi=1
+        )
+        log_beta_func = self._create_basis_expansion(
+            nvars=1, max_level=0, nqoi=1
+        )
+        log_alpha_func.set_coefficients(bkd.asarray([[np.log(alpha_val)]]))
+        log_beta_func.set_coefficients(bkd.asarray([[np.log(beta_val)]]))
+        cond = ConditionalBeta(log_alpha_func, log_beta_func, bkd)
+
+        prior = BetaMarginal(1.0, 1.0, bkd)  # Uniform prior
+        x = bkd.asarray([[0.0, 0.5, -0.5]])
+        kl = cond.kl_divergence(x, prior)
+        self.assertEqual(kl.shape, (1, 3))
+
+        # Reference: BetaMarginal KL
+        q = BetaMarginal(alpha_val, beta_val, bkd)
+        kl_ref = q.kl_divergence(prior)
+        kl_ref_val = float(bkd.to_numpy(bkd.atleast_1d(kl_ref))[0])
+        bkd.assert_allclose(
+            kl,
+            bkd.reshape(bkd.asarray([kl_ref_val]), (1, 1))
+            * bkd.ones((1, 3)),
+            rtol=1e-10,
+        )
+
+    def test_kl_self_is_zero(self):
+        """KL(q || q) = 0 when params match the prior."""
+        bkd = self._bkd
+
+        alpha_val, beta_val = 2.0, 5.0
+        log_alpha_func = self._create_basis_expansion(
+            nvars=1, max_level=0, nqoi=1
+        )
+        log_beta_func = self._create_basis_expansion(
+            nvars=1, max_level=0, nqoi=1
+        )
+        log_alpha_func.set_coefficients(bkd.asarray([[np.log(alpha_val)]]))
+        log_beta_func.set_coefficients(bkd.asarray([[np.log(beta_val)]]))
+        cond = ConditionalBeta(log_alpha_func, log_beta_func, bkd)
+
+        prior = BetaMarginal(alpha_val, beta_val, bkd)
+        x = bkd.asarray([[0.0, 0.5]])
+        kl = cond.kl_divergence(x, prior)
+        bkd.assert_allclose(kl, bkd.zeros((1, 2)), atol=1e-12)
+
+    def test_base_distribution_is_uniform(self):
+        """base_distribution returns U(0, 1)."""
+        bkd = self._bkd
+        cond = self._create_conditional_beta(nvars=1)
+
+        base = cond.base_distribution()
+        self.assertIsInstance(base, UniformMarginal)
+
     def test_validation_errors(self):
         """Test input validation raises appropriate errors."""
         bkd = self._bkd
@@ -332,6 +421,27 @@ class TestConditionalBetaTorch(TestConditionalBeta[torch.Tensor]):
         # autograd_jac shape: (nsamples, nactive)
 
         bkd.assert_allclose(analytical_jac, autograd_jac, rtol=1e-10)
+
+    def test_reparameterize_differentiable(self):
+        """Verify torch.autograd can compute gradients through reparameterize."""
+        bkd = self._bkd
+        cond = self._create_conditional_beta(nvars=1, max_level=0)
+
+        np.random.seed(42)
+        x = bkd.asarray(np.random.uniform(-0.9, 0.9, (1, 5)))
+        base = bkd.asarray(np.random.uniform(0.1, 0.9, (1, 5)))
+
+        def reparam_from_params(params: torch.Tensor) -> torch.Tensor:
+            cond.hyp_list().set_active_values(params)
+            cond._log_alpha_func._sync_from_hyp_list()
+            cond._log_beta_func._sync_from_hyp_list()
+            return cond.reparameterize(x, base).flatten()
+
+        params = cond.hyp_list().get_active_values()
+        from torch.autograd.functional import jacobian as torch_jacobian
+        jac = torch_jacobian(reparam_from_params, params)
+        # Should have non-zero gradients
+        self.assertGreater(float(torch.abs(jac).max()), 1e-8)
 
 
 class TestConditionalBetaBounded(
@@ -462,11 +572,12 @@ class TestConditionalBetaBounded(
         np.random.seed(42)
         samples = cond.rvs(x)
 
-        sample_mean = float(bkd.to_numpy(bkd.mean(samples)))
-        # Expected mean on [lb, ub]: lb + scale * E[Y] where Y ~ Beta on [0, 1]
         expected_mean = lb + scale * alpha_val / (alpha_val + beta_val)
-
-        self.assertAlmostEqual(sample_mean, expected_mean, delta=0.05 * scale)
+        bkd.assert_allclose(
+            bkd.asarray([bkd.mean(samples)]),
+            bkd.asarray([expected_mean]),
+            atol=0.05 * scale,
+        )
 
     @parametrize("name,lb,ub", COND_BETA_BOUNDS_CONFIGS)
     def test_logpdf_jacobian_wrt_x_bounded(

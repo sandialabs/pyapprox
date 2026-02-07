@@ -1,43 +1,38 @@
 """
 ELBO objective for variational inference.
 
-Provides a single unified ELBOObjective class that uses joint (label, base)
-quadrature nodes, plus convenience constructors for common VI setups.
+Provides ELBOObjective that uses conditional distributions directly
+(no VariationalFamilyProtocol wrappers), plus convenience constructors
+for common VI setups.
 """
 
-from typing import Any, Callable, Generic, Optional
+from typing import Any, Callable, Generic
 
 from pyapprox.typing.util.backends.protocols import Array, Backend
-from pyapprox.typing.inverse.variational.protocols import (
-    VariationalFamilyProtocol,
-    AmortizationFunctionProtocol,
-)
-from pyapprox.typing.inverse.variational.amortization import (
-    ConstantAmortization,
-)
 
 
 class ELBOObjective(Generic[Array]):
     """Negative ELBO for minimization. Satisfies FunctionProtocol.
 
-    Uses joint (label, base) quadrature nodes and an amortization function
-    to compute the ELBO in a single weighted sum.
+    Uses a conditional distribution (with ``reparameterize`` and
+    ``kl_divergence``) as the variational distribution. The distribution's
+    ``hyp_list()`` holds the optimization parameters (e.g., BasisExpansion
+    coefficients).
 
     Parameters
     ----------
-    variational_family : VariationalFamilyProtocol
-        The variational distribution family.
+    var_distribution : object
+        Conditional distribution with ``reparameterize(x, base_samples)``,
+        ``kl_divergence(x, prior)``, and ``hyp_list()``.
     log_likelihood_fn : callable
         ``log_likelihood_fn(z, labels) -> (1, N)`` where z is
-        ``(nvars, N)`` and labels is ``(nlabel_dims, N)``.
+        ``(nqoi, N)`` and labels is ``(nlabel_dims, N)``.
     prior : object
-        Prior distribution with ``logpdf(z) -> (1, N)``.
+        Prior distribution (marginal or IndependentJoint).
     joint_nodes : Array
         Joint quadrature nodes, shape ``(nlabel_dims + nbase_dims, N)``.
     joint_weights : Array
         Quadrature weights, shape ``(1, N)``.
-    amortization_fn : AmortizationFunctionProtocol
-        Maps labels to per-sample variational parameters.
     nlabel_dims : int
         Number of label dimensions in joint_nodes.
     bkd : Backend[Array]
@@ -46,21 +41,19 @@ class ELBOObjective(Generic[Array]):
 
     def __init__(
         self,
-        variational_family: VariationalFamilyProtocol,
+        var_distribution: Any,
         log_likelihood_fn: Callable,
         prior: Any,
         joint_nodes: Array,
         joint_weights: Array,
-        amortization_fn: AmortizationFunctionProtocol,
         nlabel_dims: int,
         bkd: Backend[Array],
     ) -> None:
-        self._family = variational_family
+        self._var_dist = var_distribution
         self._log_lik_fn = log_likelihood_fn
         self._prior = prior
         self._joint_nodes = joint_nodes
         self._joint_weights = joint_weights
-        self._amort = amortization_fn
         self._nlabel_dims = nlabel_dims
         self._bkd = bkd
         self._setup_derivative_methods()
@@ -73,7 +66,7 @@ class ELBOObjective(Generic[Array]):
         return self._bkd
 
     def nvars(self) -> int:
-        return self._amort.hyp_list().nactive_params()
+        return self._var_dist.hyp_list().nactive_params()
 
     def nqoi(self) -> int:
         return 1
@@ -84,7 +77,7 @@ class ELBOObjective(Generic[Array]):
         Parameters
         ----------
         params : Array
-            Amortization parameters, shape ``(nvars, 1)`` per
+            Variational parameters, shape ``(nparams, 1)`` per
             FunctionProtocol convention.
 
         Returns
@@ -92,46 +85,26 @@ class ELBOObjective(Generic[Array]):
         Array
             Negative ELBO, shape ``(1, 1)``.
         """
-        self._amort.hyp_list().set_active_values(params[:, 0])
+        self._var_dist.hyp_list().set_active_values(params[:, 0])
 
         label_nodes = self._joint_nodes[:self._nlabel_dims, :]
         base_nodes = self._joint_nodes[self._nlabel_dims:, :]
 
-        var_params = self._amort(label_nodes)
-        z = self._family.reparameterize(base_nodes, var_params)
+        z = self._var_dist.reparameterize(label_nodes, base_nodes)
         log_lik = self._log_lik_fn(z, label_nodes)
 
-        try:
-            kl_terms = self._family.kl_divergence(
-                self._prior, var_params
+        if hasattr(self._var_dist, 'kl_divergence'):
+            kl_terms = self._var_dist.kl_divergence(
+                label_nodes, self._prior
             )
-        except NotImplementedError:
-            log_q = self._family.logpdf(z, var_params)
+        else:
+            # MC fallback
+            log_q = self._var_dist.logpdf(label_nodes, z)
             log_prior = self._prior.logpdf(z)
             kl_terms = log_q - log_prior
 
         elbo = self._bkd.sum(self._joint_weights * (log_lik - kl_terms))
         return self._bkd.reshape(-elbo, (1, 1))
-
-    def push_params_to_family(self) -> None:
-        """Push current amortization params back to the variational family.
-
-        After optimization, the fitted params live in the amortization's
-        hyp_list. This method evaluates the amortization at a dummy label
-        to get the variational params and sets them on the family's
-        hyp_list, making the family the source of truth.
-
-        For ConstantAmortization (single-problem VI), this copies the
-        optimized params to the family. For non-constant amortization
-        (amortized VI), this sets the family to the params at a zero label
-        — the amortization function remains the primary output for
-        label-dependent params.
-        """
-        dummy_label = self._bkd.zeros((max(self._nlabel_dims, 1), 1))
-        if self._nlabel_dims == 0:
-            dummy_label = self._bkd.zeros((1, 1))
-        var_params = self._amort(dummy_label)  # (nactive, 1)
-        self._family.hyp_list().set_active_values(var_params[:, 0])
 
     def _jacobian_autograd(self, params: Array) -> Array:
         """Compute Jacobian via autograd.
@@ -159,26 +132,32 @@ class ELBOObjective(Generic[Array]):
 
 
 def make_single_problem_elbo(
-    family: VariationalFamilyProtocol,
+    var_distribution: Any,
     log_likelihood_fn: Callable,
     prior: Any,
-    base_samples: Array,
-    weights: Array,
+    base_nodes: Array,
+    base_weights: Array,
     bkd: Backend,
 ) -> ELBOObjective:
     """Create ELBO for single-problem VI (no labels).
 
+    For conditional distributions that require a conditioning input x
+    (e.g., ConditionalGaussian with BasisExpansion), dummy zero-valued
+    label rows are prepended to the joint nodes. The degree-0 expansion
+    ignores the input value but needs the correct shape.
+
     Parameters
     ----------
-    family : VariationalFamilyProtocol
-        Variational distribution family.
+    var_distribution : object
+        Conditional distribution with ``reparameterize``, ``kl_divergence``,
+        ``hyp_list()``, and ``nvars()``.
     log_likelihood_fn : callable
         ``log_likelihood_fn(z) -> (1, N)``.
     prior : object
         Prior distribution.
-    base_samples : Array
+    base_nodes : Array
         Base samples, shape ``(nbase, nsamples)``.
-    weights : Array
+    base_weights : Array
         Quadrature weights, shape ``(1, nsamples)``.
     bkd : Backend
         Computational backend.
@@ -187,19 +166,17 @@ def make_single_problem_elbo(
     -------
     ELBOObjective
     """
-    amort = ConstantAmortization(
-        family.hyp_list().nactive_params(), bkd,
-        init_values=list(
-            bkd.to_numpy(family.hyp_list().get_active_values())
-        ),
-    )
-
     def wrapped_log_lik(z: Array, labels: Array) -> Array:
         return log_likelihood_fn(z)
 
-    # nlabel_dims=0: joint_nodes = base_samples
+    # Conditional distributions need a conditioning input x of shape
+    # (nvars_cond, nsamples). For single-problem VI we use dummy zeros.
+    nlabel_dims = var_distribution.nvars()
+    nsamples = base_nodes.shape[1]
+    dummy_labels = bkd.zeros((nlabel_dims, nsamples))
+    joint_nodes = bkd.concatenate([dummy_labels, base_nodes], axis=0)
+
     return ELBOObjective(
-        family, wrapped_log_lik, prior,
-        base_samples, weights, amort,
-        nlabel_dims=0, bkd=bkd,
+        var_distribution, wrapped_log_lik, prior,
+        joint_nodes, base_weights, nlabel_dims=nlabel_dims, bkd=bkd,
     )

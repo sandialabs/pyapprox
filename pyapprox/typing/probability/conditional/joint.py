@@ -5,6 +5,8 @@ Provides a joint distribution of independent conditionals that all share
 the same conditioning variable.
 """
 
+import functools
+import operator
 from typing import Generic, List
 
 from pyapprox.typing.util.backends.protocols import Array, Backend
@@ -250,6 +252,61 @@ class ConditionalIndependentJoint(Generic[Array]):
 
         # Concatenate along parameter axis
         return self._bkd.hstack(jacs)  # (nsamples, total_nparams)
+
+    def reparameterize(self, x: Array, base_samples: Array) -> Array:
+        """Transform base samples through each conditional's reparameterize.
+
+        Parameters
+        ----------
+        x : Array
+            Conditioning variable values. Shape: (nvars, nsamples)
+        base_samples : Array
+            Base samples. Shape: (total_nqoi, nsamples)
+            Rows are sliced per conditional according to nqoi.
+
+        Returns
+        -------
+        Array
+            Reparameterized samples. Shape: (total_nqoi, nsamples)
+        """
+        parts = []
+        offset = 0
+        for c in self._conditionals:
+            nq = c.nqoi()
+            base_slice = base_samples[offset:offset + nq, :]
+            parts.append(c.reparameterize(x, base_slice))
+            offset += nq
+        return self._bkd.vstack(parts)
+
+    def kl_divergence(self, x: Array, prior) -> Array:
+        """Compute sum of per-component KL divergences.
+
+        Parameters
+        ----------
+        x : Array
+            Conditioning variable values. Shape: (nvars, nsamples)
+        prior : joint distribution
+            Must have ``marginals()`` returning list of marginals.
+
+        Returns
+        -------
+        Array
+            Per-sample KL divergence. Shape: (1, nsamples)
+        """
+        prior_marginals = prior.marginals()
+        parts = [
+            c.kl_divergence(x, p_m)
+            for c, p_m in zip(self._conditionals, prior_marginals)
+        ]
+        return functools.reduce(operator.add, parts)
+
+    def base_distribution(self):
+        """Return IndependentJoint of component base distributions."""
+        from pyapprox.typing.probability.joint.independent import (
+            IndependentJoint,
+        )
+        bases = [c.base_distribution() for c in self._conditionals]
+        return IndependentJoint(bases, self._bkd)
 
     def __repr__(self) -> str:
         """Return string representation."""

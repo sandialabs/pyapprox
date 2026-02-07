@@ -811,6 +811,51 @@ class BetaMarginal(Generic[Array]):
         # Stack columns: shape (nsamples, 2)
         return self._bkd.stack([d_log_alpha, d_log_beta], axis=1)
 
+    def base_distribution(self) -> Any:
+        """Return the base distribution for reparameterization (Uniform(0,1))."""
+        from pyapprox.typing.probability.univariate.uniform import UniformMarginal
+        return UniformMarginal(0.0, 1.0, self._bkd)
+
+    def reparameterize(self, base_samples: Array) -> Array:
+        """Transform Uniform(0,1) base samples to samples from this distribution.
+
+        Parameters
+        ----------
+        base_samples : Array
+            Samples from U(0,1), shape ``(1, nsamples)``.
+
+        Returns
+        -------
+        Array
+            Samples from this distribution, shape ``(1, nsamples)``.
+        """
+        return self.invcdf(base_samples)
+
+    def kl_divergence(self, other: "BetaMarginal[Array]") -> Array:
+        """Compute KL(self || other) for two Beta distributions.
+
+        KL(Beta(a1,b1) || Beta(a2,b2))
+            = log B(a2,b2) - log B(a1,b1)
+              + (a1-a2)*psi(a1) + (b1-b2)*psi(b1)
+              + (a2-a1+b2-b1)*psi(a1+b1)
+
+        Returns a scalar Array (preserves autograd graph).
+        """
+        a1 = self._get_alpha()
+        b1 = self._get_beta()
+        a2 = other._get_alpha()
+        b2 = other._get_beta()
+        bkd = self._bkd
+        log_B = lambda a, b: (  # noqa: E731
+            bkd.gammaln(a) + bkd.gammaln(b) - bkd.gammaln(a + b)
+        )
+        return (
+            log_B(a2, b2) - log_B(a1, b1)
+            + (a1 - a2) * bkd.digamma(a1)
+            + (b1 - b2) * bkd.digamma(b1)
+            + (a2 - a1 + b2 - b1) * bkd.digamma(a1 + b1)
+        )
+
     def __eq__(self, other: Any) -> bool:
         """Check equality with another BetaMarginal."""
         if not isinstance(other, BetaMarginal):

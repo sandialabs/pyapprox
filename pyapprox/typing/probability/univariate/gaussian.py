@@ -416,6 +416,49 @@ class GaussianMarginal(Generic[Array]):
         # Stack columns: shape (nsamples, 2)
         return self._bkd.stack([d_mean, d_log_stdev], axis=1)
 
+    def base_distribution(self) -> "GaussianMarginal[Array]":
+        """Return the base distribution for reparameterization (standard normal)."""
+        return GaussianMarginal(0.0, 1.0, self._bkd)
+
+    def reparameterize(self, base_samples: Array) -> Array:
+        """Transform standard normal base samples to samples from this distribution.
+
+        Parameters
+        ----------
+        base_samples : Array
+            Samples from N(0,1), shape ``(1, nsamples)``.
+
+        Returns
+        -------
+        Array
+            Samples from this distribution, shape ``(1, nsamples)``.
+        """
+        samples_1d = self._validate_input(base_samples)
+        mean = self._get_mean()
+        stdev = self._get_stdev()
+        result = mean + stdev * samples_1d
+        return self._bkd.reshape(result, (1, -1))
+
+    def kl_divergence(self, other: "GaussianMarginal[Array]") -> Array:
+        """Compute KL(self || other) for two univariate Gaussians.
+
+        KL(N(m1,s1^2) || N(m2,s2^2))
+            = log(s2/s1) + (s1^2 + (m1-m2)^2)/(2*s2^2) - 1/2
+
+        Returns a scalar Array (preserves autograd graph).
+        """
+        m1 = self._get_mean()
+        s1 = self._get_stdev()
+        m2 = other._get_mean()
+        s2 = other._get_stdev()
+        v1 = s1 * s1
+        v2 = s2 * s2
+        return (
+            self._bkd.log(s2) - self._bkd.log(s1)
+            + (v1 + (m1 - m2) ** 2) / (2.0 * v2)
+            - 0.5
+        )
+
     def __eq__(self, other: Any) -> bool:
         """Check equality with another GaussianMarginal."""
         if not isinstance(other, GaussianMarginal):

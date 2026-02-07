@@ -45,6 +45,16 @@ class ConditionalDistributionProtocol(Protocol, Generic[Array]):
     - logpdf_jacobian_wrt_x(x, y) -> Array: Gradient w.r.t. conditioning variable
     - logpdf_jacobian_wrt_params(x, y) -> Array: Gradient w.r.t. parameters
 
+    Optional VI (variational inference) capabilities (checked via hasattr):
+    - reparameterize(x, base_samples) -> Array: Transform base samples to
+      distribution samples. Differentiable w.r.t. distribution parameters.
+    - kl_divergence(x, prior) -> Array: Analytical KL(q(.|x) || prior),
+      shape (1, nsamples).
+    - base_distribution() -> marginal/joint: The base sampling distribution
+      (e.g., N(0,1) for Gaussian, U(0,1) for Beta).
+    - reparameterize_jacobian_wrt_params(x, base_samples) -> Array: Jacobian
+      of reparameterize w.r.t. active parameters.
+
     The rvs(x) method returns one y sample per column of x. For multiple
     samples per conditioning point, the caller should repeat x:
         rvs(bkd.repeat(x, n, axis=1))

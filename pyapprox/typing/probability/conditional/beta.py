@@ -63,6 +63,7 @@ class ConditionalBeta(Generic[Array]):
         bkd: Backend[Array],
         lb: float = 0.0,
         ub: float = 1.0,
+        nquad_samples: int = 50,
     ):
         self._log_alpha_func = log_alpha_func
         self._log_beta_func = log_beta_func
@@ -92,8 +93,24 @@ class ConditionalBeta(Generic[Array]):
                 f"got {log_alpha_func.nvars()} and {log_beta_func.nvars()}"
             )
 
+        # Setup Gauss-Legendre quadrature on [0, 1] for reparameterize
+        self._setup_quadrature(nquad_samples)
+
         # Setup optional methods based on capabilities
         self._setup_methods()
+
+    def _setup_quadrature(self, nquad_samples: int) -> None:
+        """Setup Gauss-Legendre quadrature on [0, 1] for reparameterize."""
+        from scipy.special import roots_legendre
+
+        points_11, weights_11 = roots_legendre(nquad_samples)
+        # Transform from [-1, 1] to [0, 1]
+        self._quadx_01 = self._bkd.asarray(
+            ((points_11 + 1.0) / 2.0).tolist()
+        )
+        self._quadw_01 = self._bkd.asarray(
+            (weights_11 / 2.0).tolist()
+        )
 
     def _setup_methods(self) -> None:
         """Bind optional methods based on component capabilities."""
@@ -126,6 +143,13 @@ class ConditionalBeta(Generic[Array]):
     def _get_nparams(self) -> int:
         """Return the total number of parameters."""
         return self._hyp_list.nparams()
+
+    def _sync_param_funcs(self) -> None:
+        """Sync parameter functions from hyp_list values."""
+        if hasattr(self._log_alpha_func, "_sync_from_hyp_list"):
+            self._log_alpha_func._sync_from_hyp_list()
+        if hasattr(self._log_beta_func, "_sync_from_hyp_list"):
+            self._log_beta_func._sync_from_hyp_list()
 
     def bkd(self) -> Backend[Array]:
         """Return the computational backend."""
@@ -189,6 +213,7 @@ class ConditionalBeta(Generic[Array]):
             Log PDF values. Shape: (1, nsamples)
         """
         self._validate_inputs(x, y)
+        self._sync_param_funcs()
 
         # Transform y from [lb, ub] to [0, 1]
         y_01 = (y - self._lb) / self._scale
@@ -237,17 +262,11 @@ class ConditionalBeta(Generic[Array]):
                 f"x first dimension must be {self.nvars()}, got {x.shape[0]}"
             )
 
-        alpha = self._bkd.to_numpy(
-            self._bkd.exp(self._log_alpha_func(x))
-        ).flatten()
-        beta = self._bkd.to_numpy(
-            self._bkd.exp(self._log_beta_func(x))
-        ).flatten()
-
-        # Generate samples on [0, 1] and transform to [lb, ub]
-        samples_01 = np.random.beta(alpha, beta)
-        samples = self._lb + samples_01 * self._scale
-        return self._bkd.reshape(self._bkd.asarray(samples), (1, -1))
+        nsamples = x.shape[1]
+        base = self._bkd.asarray(
+            np.random.uniform(0.0, 1.0, (1, nsamples))
+        )
+        return self.reparameterize(x, base)
 
     def _logpdf_jacobian_wrt_x(self, x: Array, y: Array) -> Array:
         """
@@ -379,6 +398,159 @@ class ConditionalBeta(Generic[Array]):
         jac_beta = jac_beta_params[:, 0, :]  # (nsamples, n_beta_params)
 
         return self._bkd.hstack([jac_alpha, jac_beta])  # (nsamples, nparams)
+
+    def _betainc_array(
+        self, samples_1d: Array, alpha: Array, beta_v: Array
+    ) -> Array:
+        """Regularized incomplete beta function with array-valued params.
+
+        Computes I_x(a, b) via Gauss-Legendre quadrature. All operations
+        are elementwise backend ops that broadcast over (N,) arrays.
+
+        Parameters
+        ----------
+        samples_1d : Array
+            1D array of sample points in (0, 1), shape (N,).
+        alpha : Array
+            Shape parameter alpha, shape (N,).
+        beta_v : Array
+            Shape parameter beta, shape (N,).
+
+        Returns
+        -------
+        Array
+            Regularized incomplete beta values, shape (N,).
+        """
+        # Transform integral_0^x to integral_0^1 with substitution t = x*u
+        # quadx_01: (Q,), samples_1d: (N,) -> quadx: (N, Q)
+        quadx = samples_1d[:, None] * self._quadx_01[None, :]
+        quadw = samples_1d[:, None] * self._quadw_01[None, :]
+
+        # Integrand: t^{a-1} (1-t)^{b-1}, alpha/beta: (N,) -> (N, 1)
+        integrand_vals = (
+            quadx ** (alpha[:, None] - 1.0)
+            * (1.0 - quadx) ** (beta_v[:, None] - 1.0)
+        )
+        integral = self._bkd.sum(integrand_vals * quadw, axis=1)  # (N,)
+
+        # Normalize by B(a, b)
+        log_beta_func = (
+            self._bkd.gammaln(alpha)
+            + self._bkd.gammaln(beta_v)
+            - self._bkd.gammaln(alpha + beta_v)
+        )
+        return integral / self._bkd.exp(log_beta_func)
+
+    def _beta_pdf_array(
+        self, samples_1d: Array, alpha: Array, beta_v: Array
+    ) -> Array:
+        """Beta PDF with array-valued parameters.
+
+        Parameters
+        ----------
+        samples_1d : Array
+            1D array of sample points in (0, 1), shape (N,).
+        alpha : Array
+            Shape parameter alpha, shape (N,).
+        beta_v : Array
+            Shape parameter beta, shape (N,).
+
+        Returns
+        -------
+        Array
+            PDF values, shape (N,).
+        """
+        log_pdf = (
+            (alpha - 1.0) * self._bkd.log(samples_1d)
+            + (beta_v - 1.0) * self._bkd.log(1.0 - samples_1d)
+            - self._bkd.gammaln(alpha)
+            - self._bkd.gammaln(beta_v)
+            + self._bkd.gammaln(alpha + beta_v)
+        )
+        return self._bkd.exp(log_pdf)
+
+    def reparameterize(self, x: Array, base_samples: Array) -> Array:
+        """Transform U(0,1) base samples via differentiable inverse CDF.
+
+        Uses one Newton step seeded by scipy.ppf, following the BetaMarginal
+        pattern but with per-sample shape parameters from the conditioning
+        variable x.
+
+        Parameters
+        ----------
+        x : Array
+            Conditioning variable values. Shape: (nvars, nsamples)
+        base_samples : Array
+            Uniform(0, 1) samples. Shape: (1, nsamples)
+
+        Returns
+        -------
+        Array
+            Reparameterized samples in [lb, ub]. Shape: (1, nsamples)
+        """
+        from scipy.stats import beta as beta_dist
+
+        self._sync_param_funcs()
+        alpha = self._bkd.exp(self._log_alpha_func(x))  # (1, N)
+        beta_v = self._bkd.exp(self._log_beta_func(x))  # (1, N)
+        u = base_samples[0]  # (N,)
+
+        # --- Scipy initial guess (detached from autograd) ---
+        alpha_np = self._bkd.to_numpy(alpha[0])
+        beta_np = self._bkd.to_numpy(beta_v[0])
+        u_np = self._bkd.to_numpy(u)
+        x0_np = beta_dist.ppf(u_np, alpha_np, beta_np)
+        x0_np = np.clip(x0_np, 1e-8, 1.0 - 1e-8)
+        x0 = self._bkd.asarray(x0_np)  # (N,) — no grad
+
+        # --- One Newton step (differentiable through alpha, beta) ---
+        cdf_x0 = self._betainc_array(x0, alpha[0], beta_v[0])
+        pdf_x0 = self._beta_pdf_array(x0, alpha[0], beta_v[0])
+        x1 = x0 - (cdf_x0 - u) / pdf_x0
+
+        # Clamp to (0, 1) to stay in valid range
+        x1 = self._bkd.clip(x1, 1e-8, 1.0 - 1e-8)
+
+        # Scale from [0, 1] to [lb, ub]
+        return self._bkd.reshape(self._lb + x1 * self._scale, (1, -1))
+
+    def kl_divergence(self, x: Array, prior: "BetaMarginal") -> Array:
+        """Compute KL(q(.|x) || prior) per sample.
+
+        Parameters
+        ----------
+        x : Array
+            Conditioning variable values. Shape: (nvars, nsamples)
+        prior : BetaMarginal
+            Prior distribution (unconditional).
+
+        Returns
+        -------
+        Array
+            Per-sample KL divergence. Shape: (1, nsamples)
+        """
+        self._sync_param_funcs()
+        a1 = self._bkd.exp(self._log_alpha_func(x))  # (1, N)
+        b1 = self._bkd.exp(self._log_beta_func(x))  # (1, N)
+        a2 = self._bkd.asarray([prior.alpha()])  # (1,)
+        b2 = self._bkd.asarray([prior.beta()])  # (1,)
+        log_B = lambda a, b: (  # noqa: E731
+            self._bkd.gammaln(a) + self._bkd.gammaln(b)
+            - self._bkd.gammaln(a + b)
+        )
+        return (
+            log_B(a2, b2) - log_B(a1, b1)
+            + (a1 - a2) * self._bkd.digamma(a1)
+            + (b1 - b2) * self._bkd.digamma(b1)
+            + (a2 - a1 + b2 - b1) * self._bkd.digamma(a1 + b1)
+        )
+
+    def base_distribution(self):
+        """Return the base distribution for reparameterization (Uniform(0,1))."""
+        from pyapprox.typing.probability.univariate.uniform import (
+            UniformMarginal,
+        )
+        return UniformMarginal(0.0, 1.0, self._bkd)
 
     def __repr__(self) -> str:
         """Return string representation."""

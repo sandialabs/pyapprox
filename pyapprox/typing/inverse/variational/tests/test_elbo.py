@@ -1,5 +1,8 @@
 """
 Tests for ELBOObjective and make_single_problem_elbo.
+
+Uses ConditionalGaussian with degree-0 BasisExpansion as the variational
+distribution (constant parameters = single-problem VI).
 """
 
 import unittest
@@ -12,22 +15,31 @@ import torch
 from pyapprox.typing.util.backends.protocols import Array, Backend
 from pyapprox.typing.util.backends.numpy import NumpyBkd
 from pyapprox.typing.util.backends.torch import TorchBkd
-from pyapprox.typing.probability.gaussian.diagonal import (
-    DiagonalMultivariateGaussian,
-)
+from pyapprox.typing.probability.univariate import UniformMarginal
+from pyapprox.typing.probability.univariate.gaussian import GaussianMarginal
+from pyapprox.typing.probability.conditional.gaussian import ConditionalGaussian
+from pyapprox.typing.surrogates.affine.univariate import create_bases_1d
+from pyapprox.typing.surrogates.affine.indices import compute_hyperbolic_indices
+from pyapprox.typing.surrogates.affine.basis import OrthonormalPolynomialBasis
+from pyapprox.typing.surrogates.affine.expansions import BasisExpansion
 from pyapprox.typing.interface.functions.protocols.function import (
     FunctionProtocol,
-)
-from pyapprox.typing.inverse.variational.gaussian_family import (
-    GaussianVariationalFamily,
 )
 from pyapprox.typing.inverse.variational.elbo import (
     ELBOObjective,
     make_single_problem_elbo,
 )
-from pyapprox.typing.inverse.variational.amortization import (
-    ConstantAmortization,
-)
+
+
+def _make_degree0_expansion(bkd: Backend, coeff: float = 0.0) -> BasisExpansion:
+    """Create a degree-0 BasisExpansion (constant function)."""
+    marginals = [UniformMarginal(-1.0, 1.0, bkd)]
+    bases_1d = create_bases_1d(marginals, bkd)
+    indices = compute_hyperbolic_indices(1, 0, 1.0, bkd)
+    basis = OrthonormalPolynomialBasis(bases_1d, bkd, indices)
+    exp = BasisExpansion(basis, bkd, nqoi=1)
+    exp.set_coefficients(bkd.asarray([[coeff]]))
+    return exp
 
 
 class TestELBOBase(Generic[Array], unittest.TestCase):
@@ -40,39 +52,34 @@ class TestELBOBase(Generic[Array], unittest.TestCase):
 
     def setUp(self) -> None:
         self._bkd = self.bkd()
-        self._nvars = 2
+
+    def _make_cond_gaussian(
+        self, mean: float = 0.0, log_stdev: float = 0.0
+    ) -> ConditionalGaussian:
+        """Create a ConditionalGaussian with constant mean and log_stdev."""
+        bkd = self._bkd
+        mean_func = _make_degree0_expansion(bkd, mean)
+        log_stdev_func = _make_degree0_expansion(bkd, log_stdev)
+        return ConditionalGaussian(mean_func, log_stdev_func, bkd)
 
     def _make_simple_elbo(self) -> ELBOObjective:
-        """Create a simple ELBO for testing.
-
-        Uses a Gaussian variational family with a Gaussian prior
-        and a simple log-likelihood.
-        """
+        """Create a simple ELBO for testing."""
         bkd = self._bkd
-        family = GaussianVariationalFamily(self._nvars, bkd)
-        prior = DiagonalMultivariateGaussian(
-            bkd.zeros((self._nvars, 1)),
-            bkd.ones((self._nvars,)),
-            bkd,
-        )
+        cond = self._make_cond_gaussian()
+        prior = GaussianMarginal(0.0, 1.0, bkd)
 
         def log_likelihood_fn(z: Array) -> Array:
-            # Simple: log p(obs | z) = -0.5 * ||z - obs||^2
-            obs = bkd.ones((self._nvars, 1))
+            obs = bkd.ones((1, 1))
             diff = z - obs
-            return bkd.reshape(
-                -0.5 * bkd.sum(diff ** 2, axis=0), (1, z.shape[1])
-            )
+            return -0.5 * diff ** 2
 
         np.random.seed(42)
         nsamples = 50
-        base_samples = bkd.asarray(
-            np.random.normal(0, 1, (self._nvars, nsamples))
-        )
+        base_samples = bkd.asarray(np.random.normal(0, 1, (1, nsamples)))
         weights = bkd.full((1, nsamples), 1.0 / nsamples)
 
         return make_single_problem_elbo(
-            family, log_likelihood_fn, prior, base_samples, weights, bkd,
+            cond, log_likelihood_fn, prior, base_samples, weights, bkd,
         )
 
     def test_elbo_returns_correct_shape(self) -> None:
@@ -91,53 +98,17 @@ class TestELBOBase(Generic[Array], unittest.TestCase):
 
     def test_elbo_nvars(self) -> None:
         elbo = self._make_simple_elbo()
-        # 2 means + 2 log-stdevs = 4 params for ConstantAmortization
-        self.assertEqual(elbo.nvars(), 4)
+        # degree-0 expansion: 1 coeff for mean + 1 coeff for log_stdev = 2
+        self.assertEqual(elbo.nvars(), 2)
 
-    def test_elbo_shared_vs_per_sample_equivalence(self) -> None:
-        """Verify ConstantAmortization per-sample path matches shared path.
-
-        make_single_problem_elbo uses ConstantAmortization which broadcasts
-        the same params to all samples. The ELBO value should match what
-        we'd get calling the family directly with params=None.
-        """
+    def test_elbo_deterministic(self) -> None:
+        """Calling ELBO twice with same params gives same result."""
         bkd = self._bkd
-        family = GaussianVariationalFamily(self._nvars, bkd)
-        prior = DiagonalMultivariateGaussian(
-            bkd.zeros((self._nvars, 1)),
-            bkd.ones((self._nvars,)),
-            bkd,
-        )
-
-        def log_likelihood_fn(z: Array) -> Array:
-            obs = bkd.ones((self._nvars, 1))
-            diff = z - obs
-            return bkd.reshape(
-                -0.5 * bkd.sum(diff ** 2, axis=0), (1, z.shape[1])
-            )
-
-        np.random.seed(42)
-        nsamples = 50
-        base_samples = bkd.asarray(
-            np.random.normal(0, 1, (self._nvars, nsamples))
-        )
-        weights = bkd.full((1, nsamples), 1.0 / nsamples)
-
-        # ELBO via make_single_problem_elbo
-        elbo = make_single_problem_elbo(
-            family, log_likelihood_fn, prior, base_samples, weights, bkd,
-        )
-        params = family.hyp_list().get_active_values()
-        elbo_val = elbo(bkd.reshape(params, (len(params), 1)))
-
-        # Manual ELBO with shared params (params=None)
-        z = family.reparameterize(base_samples)
-        log_lik = log_likelihood_fn(z)
-        kl = family.kl_divergence(prior)
-        manual_elbo = bkd.sum(weights * log_lik) - kl
-        manual_neg_elbo = bkd.reshape(-manual_elbo, (1, 1))
-
-        bkd.assert_allclose(elbo_val, manual_neg_elbo, rtol=1e-10)
+        elbo = self._make_simple_elbo()
+        params = bkd.zeros((elbo.nvars(), 1))
+        v1 = elbo(params)
+        v2 = elbo(params)
+        bkd.assert_allclose(v1, v2, rtol=1e-12)
 
 
 class TestELBONumpy(TestELBOBase[NDArray[Any]], unittest.TestCase):

@@ -665,6 +665,26 @@ class GammaMarginal(Generic[Array]):
         # Stack columns: shape (nsamples, 2)
         return self._bkd.stack([d_log_shape, d_log_scale], axis=1)
 
+    def base_distribution(self) -> Any:
+        """Return the base distribution for reparameterization (Uniform(0,1))."""
+        from pyapprox.typing.probability.univariate.uniform import UniformMarginal
+        return UniformMarginal(0.0, 1.0, self._bkd)
+
+    def reparameterize(self, base_samples: Array) -> Array:
+        """Transform Uniform(0,1) base samples to samples from this distribution.
+
+        Parameters
+        ----------
+        base_samples : Array
+            Samples from U(0,1), shape ``(1, nsamples)``.
+
+        Returns
+        -------
+        Array
+            Samples from this distribution, shape ``(1, nsamples)``.
+        """
+        return self.invcdf(base_samples)
+
     def __eq__(self, other: Any) -> bool:
         """Check equality with another GammaMarginal."""
         if not isinstance(other, GammaMarginal):

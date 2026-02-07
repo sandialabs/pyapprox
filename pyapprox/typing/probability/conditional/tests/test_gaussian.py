@@ -32,6 +32,7 @@ from pyapprox.typing.interface.functions.derivative_checks.derivative_checker im
 from pyapprox.typing.interface.functions.fromcallable.jacobian import (
     FunctionWithJacobianFromCallable,
 )
+from pyapprox.typing.probability.univariate.gaussian import GaussianMarginal
 
 
 class TestConditionalGaussian(Generic[Array], unittest.TestCase):
@@ -164,11 +165,16 @@ class TestConditionalGaussian(Generic[Array], unittest.TestCase):
         np.random.seed(42)
         samples = cond.rvs(x)
 
-        sample_mean = float(bkd.to_numpy(bkd.mean(samples)))
-        sample_std = float(bkd.to_numpy(bkd.std(samples)))
-
-        self.assertAlmostEqual(sample_mean, mean_val, delta=0.05)
-        self.assertAlmostEqual(sample_std, stdev_val, delta=0.05)
+        bkd.assert_allclose(
+            bkd.asarray([bkd.mean(samples)]),
+            bkd.asarray([mean_val]),
+            atol=0.05,
+        )
+        bkd.assert_allclose(
+            bkd.asarray([bkd.std(samples)]),
+            bkd.asarray([stdev_val]),
+            atol=0.05,
+        )
 
     def test_logpdf_jacobian_wrt_x_derivative_checker(self):
         """Test logpdf_jacobian_wrt_x using DerivativeChecker."""
@@ -243,6 +249,148 @@ class TestConditionalGaussian(Generic[Array], unittest.TestCase):
 
         jac_error = checker.error_ratio(errors[0])
         self.assertLess(float(jac_error), 1e-6)
+
+    def test_reparameterize_shape(self):
+        """Test reparameterize output shape."""
+        bkd = self._bkd
+        cond = self._create_conditional_gaussian(nvars=2)
+
+        nsamples = 5
+        np.random.seed(42)
+        x = bkd.asarray(np.random.uniform(-0.9, 0.9, (2, nsamples)))
+        base = bkd.asarray(np.random.randn(1, nsamples))
+
+        z = cond.reparameterize(x, base)
+        self.assertEqual(z.shape, (1, nsamples))
+
+    def test_reparameterize_matches_manual(self):
+        """Test reparameterize matches mean + exp(log_s) * base_samples."""
+        bkd = self._bkd
+
+        mean_func = self._create_basis_expansion(nvars=1, max_level=0, nqoi=1)
+        log_stdev_func = self._create_basis_expansion(nvars=1, max_level=0, nqoi=1)
+
+        mean_val = 1.5
+        log_stdev_val = np.log(0.8)
+        mean_func.set_coefficients(bkd.asarray([[mean_val]]))
+        log_stdev_func.set_coefficients(bkd.asarray([[log_stdev_val]]))
+        cond = ConditionalGaussian(mean_func, log_stdev_func, bkd)
+
+        np.random.seed(42)
+        x = bkd.asarray(np.random.uniform(-0.9, 0.9, (1, 10)))
+        base = bkd.asarray(np.random.randn(1, 10))
+
+        z = cond.reparameterize(x, base)
+        expected = mean_val + np.exp(log_stdev_val) * bkd.to_numpy(base)
+        bkd.assert_allclose(z, bkd.asarray(expected), rtol=1e-12)
+
+    def test_kl_divergence_vs_analytical(self):
+        """Test KL matches GaussianMarginal.kl_divergence for constant params."""
+        bkd = self._bkd
+
+        mean_val, stdev_val = 1.5, 0.8
+        mean_func = self._create_basis_expansion(nvars=1, max_level=0, nqoi=1)
+        log_stdev_func = self._create_basis_expansion(nvars=1, max_level=0, nqoi=1)
+        mean_func.set_coefficients(bkd.asarray([[mean_val]]))
+        log_stdev_func.set_coefficients(bkd.asarray([[np.log(stdev_val)]]))
+        cond = ConditionalGaussian(mean_func, log_stdev_func, bkd)
+
+        prior = GaussianMarginal(0.0, 1.0, bkd)
+        x = bkd.asarray([[0.0, 0.5, -0.5]])  # x doesn't matter for degree-0
+        kl = cond.kl_divergence(x, prior)
+        self.assertEqual(kl.shape, (1, 3))
+
+        # Reference: GaussianMarginal KL
+        q = GaussianMarginal(mean_val, stdev_val, bkd)
+        kl_ref = q.kl_divergence(prior)
+        # All samples should give same KL since params are constant
+        bkd.assert_allclose(
+            kl, bkd.reshape(bkd.asarray([float(bkd.to_numpy(kl_ref))]), (1, 1))
+            * bkd.ones((1, 3)),
+            rtol=1e-12,
+        )
+
+    def test_kl_self_is_zero(self):
+        """KL(q || q) = 0 when params match the prior."""
+        bkd = self._bkd
+
+        mean_val, stdev_val = 2.0, 1.5
+        mean_func = self._create_basis_expansion(nvars=1, max_level=0, nqoi=1)
+        log_stdev_func = self._create_basis_expansion(nvars=1, max_level=0, nqoi=1)
+        mean_func.set_coefficients(bkd.asarray([[mean_val]]))
+        log_stdev_func.set_coefficients(bkd.asarray([[np.log(stdev_val)]]))
+        cond = ConditionalGaussian(mean_func, log_stdev_func, bkd)
+
+        prior = GaussianMarginal(mean_val, stdev_val, bkd)
+        x = bkd.asarray([[0.0, 0.5]])
+        kl = cond.kl_divergence(x, prior)
+        bkd.assert_allclose(kl, bkd.zeros((1, 2)), atol=1e-12)
+
+    def test_base_distribution_is_standard_normal(self):
+        """base_distribution returns N(0, 1)."""
+        bkd = self._bkd
+        cond = self._create_conditional_gaussian(nvars=1)
+
+        base = cond.base_distribution()
+        self.assertIsInstance(base, GaussianMarginal)
+        self.assertEqual(base.mean_value(), 0.0)
+        self.assertEqual(base.std(), 1.0)
+
+    def test_reparameterize_jacobian_wrt_params(self):
+        """Test reparameterize_jacobian_wrt_params using DerivativeChecker."""
+        bkd = self._bkd
+        cond = self._create_conditional_gaussian(nvars=2, max_level=2)
+
+        np.random.seed(42)
+        x = bkd.asarray(np.random.uniform(-0.9, 0.9, (2, 1)))
+        base = bkd.asarray(np.random.randn(1, 1))
+
+        nactive = cond.nparams()
+
+        def fun(params: Array) -> Array:
+            cond.hyp_list().set_active_values(params[:, 0])
+            return cond.reparameterize(x, base).T  # (1, 1)
+
+        def jacobian_func(params: Array) -> Array:
+            cond.hyp_list().set_active_values(params[:, 0])
+            jac = cond.reparameterize_jacobian_wrt_params(x, base)
+            return jac[0]  # (1, nactive)
+
+        function_obj = FunctionWithJacobianFromCallable(
+            nqoi=1,
+            nvars=nactive,
+            fun=fun,
+            jacobian=jacobian_func,
+            bkd=bkd,
+        )
+
+        checker = DerivativeChecker(function_obj)
+        params = cond.hyp_list().get_active_values()
+        sample_params = bkd.reshape(params, (nactive, 1))
+        errors = checker.check_derivatives(sample_params, verbosity=0)
+        jac_error = checker.error_ratio(errors[0])
+        self.assertLess(float(jac_error), 1e-6)
+
+    def test_logpdf_after_set_active_values(self):
+        """logpdf uses updated values after hyp_list().set_active_values()."""
+        bkd = self._bkd
+        cond = self._create_conditional_gaussian(nvars=1, max_level=0)
+
+        x = bkd.asarray([[0.0]])
+        y = bkd.asarray([[1.0]])
+
+        logp1 = cond.logpdf(x, y)
+
+        # Change mean coefficient to shift the distribution
+        old_values = cond.hyp_list().get_active_values()
+        new_values = bkd.asarray([5.0, old_values[1]])
+        cond.hyp_list().set_active_values(new_values)
+
+        logp2 = cond.logpdf(x, y)
+
+        # logpdf should change because mean changed — verify they differ
+        diff = bkd.abs(logp2 - logp1)
+        self.assertGreater(float(bkd.to_numpy(diff[0, 0])), 0.1)
 
     def test_validation_errors(self):
         """Test input validation raises appropriate errors."""
