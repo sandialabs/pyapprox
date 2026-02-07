@@ -207,6 +207,67 @@ class TestEvidence(Generic[Array], unittest.TestCase):
         )
 
 
+    def test_evidence_jacobian_non_fused_matches_fused(self):
+        """Test non-fused jacobian path matches fused path."""
+        # Fused path (default, uses evidence_jacobian if available)
+        quad_weights = self._bkd.ones((self._ninner,)) / self._ninner
+        evidence_fused = Evidence(self._likelihood, quad_weights, self._bkd)
+        jac_fused = evidence_fused.jacobian(self._design_weights)
+
+        # Non-fused path: create likelihood without fused kernel
+        likelihood_nf = GaussianOEDInnerLoopLikelihood(
+            self._noise_variances, self._bkd, use_numba=False
+        )
+        likelihood_nf.set_shapes(self._shapes_inner)
+        likelihood_nf.set_observations(self._observations)
+        likelihood_nf.set_latent_samples(
+            self._bkd.zeros((self._nobs, self._nouter))
+        )
+        evidence_nf = Evidence(likelihood_nf, quad_weights, self._bkd)
+
+        jac_non_fused = evidence_nf.jacobian(self._design_weights)
+
+        # Both paths must produce the same result
+        self._bkd.assert_allclose(jac_fused, jac_non_fused, rtol=1e-10)
+
+    def test_log_evidence_jacobian_non_fused_matches_fused(self):
+        """Test non-fused log-evidence jacobian matches fused path."""
+        quad_weights = self._bkd.ones((self._ninner,)) / self._ninner
+        log_ev_fused = LogEvidence(
+            self._likelihood, quad_weights, self._bkd
+        )
+        jac_fused = log_ev_fused.jacobian(self._design_weights)
+
+        # Non-fused path
+        likelihood_nf = GaussianOEDInnerLoopLikelihood(
+            self._noise_variances, self._bkd, use_numba=False
+        )
+        likelihood_nf.set_shapes(self._shapes_inner)
+        likelihood_nf.set_observations(self._observations)
+        likelihood_nf.set_latent_samples(
+            self._bkd.zeros((self._nobs, self._nouter))
+        )
+        log_ev_nf = LogEvidence(likelihood_nf, quad_weights, self._bkd)
+
+        jac_non_fused = log_ev_nf.jacobian(self._design_weights)
+
+        self._bkd.assert_allclose(jac_fused, jac_non_fused, rtol=1e-10)
+
+    def test_evidence_accessors(self):
+        """Test bkd(), ninner(), nouter() accessors."""
+        evidence = self._create_evidence()
+        self.assertIsNotNone(evidence.bkd())
+        self.assertEqual(evidence.ninner(), self._ninner)
+        self.assertEqual(evidence.nouter(), self._nouter)
+
+    def test_log_evidence_accessors(self):
+        """Test bkd(), ninner(), nouter() accessors on LogEvidence."""
+        log_evidence = self._create_log_evidence()
+        self.assertIsNotNone(log_evidence.bkd())
+        self.assertEqual(log_evidence.ninner(), self._ninner)
+        self.assertEqual(log_evidence.nouter(), self._nouter)
+
+
 class TestEvidenceNumpy(TestEvidence[NDArray[Any]]):
     """NumPy backend tests."""
 

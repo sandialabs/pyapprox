@@ -227,6 +227,74 @@ class TestDispatch(unittest.TestCase):
         self.assertIsNot(impl_numba, impl_vec)
 
 
+class TestDispatchBranches(unittest.TestCase):
+    """Test all dispatch branches produce correct results."""
+
+    def setUp(self):
+        self._bkd_np = NumpyBkd()
+        self._bkd_torch = TorchBkd()
+        np.random.seed(42)
+        nobs, ninner, nouter = 5, 20, 15
+        self._shapes = np.random.randn(nobs, ninner)
+        self._obs = np.random.randn(nobs, nouter)
+        self._bv = np.abs(np.random.randn(nobs)) + 0.1
+        self._dw = np.random.uniform(0.5, 2.0, (nobs, 1))
+        self._latent = np.random.randn(nobs, nouter)
+
+    def test_logpdf_numba_disabled_matches_vectorized(self):
+        """use_numba=False dispatch returns vectorized for logpdf."""
+        impl = get_logpdf_matrix_impl(self._bkd_np, use_numba=False)
+        self.assertIs(impl, logpdf_matrix_vectorized)
+
+    def test_jacobian_numba_disabled_matches_vectorized(self):
+        """use_numba=False dispatch returns vectorized for jacobian."""
+        impl = get_jacobian_matrix_impl(self._bkd_np, use_numba=False)
+        self.assertIs(impl, jacobian_matrix_vectorized)
+
+    def test_evidence_jac_numba_disabled_produces_correct_result(self):
+        """use_numba=False evidence_jacobian matches numba-enabled."""
+        impl_no_numba = get_evidence_jacobian_impl(
+            self._bkd_np, use_numba=False
+        )
+        impl_numba = get_evidence_jacobian_impl(
+            self._bkd_np, use_numba=True
+        )
+
+        # Compute quad_weighted_like
+        loglike = logpdf_matrix_numba(
+            self._shapes, self._obs, self._bv, self._dw
+        )
+        like = np.exp(loglike)
+        ninner = self._shapes.shape[1]
+        qw = np.ones(ninner) / ninner
+        qwl = qw[:, None] * like
+
+        result_no = impl_no_numba(
+            self._shapes, self._obs, self._latent,
+            self._bv, self._dw, qwl, self._bkd_np,
+        )
+        result_yes = impl_numba(
+            self._shapes, self._obs, self._latent,
+            self._bv, self._dw, qwl, self._bkd_np,
+        )
+
+        self._bkd_np.assert_allclose(result_no, result_yes, rtol=1e-12)
+
+    def test_torch_bkd_no_compile_gets_vectorized(self):
+        """TorchBkd without compile falls back to vectorized for logpdf."""
+        impl = get_logpdf_matrix_impl(
+            self._bkd_torch, use_numba=True, use_torch_compile=False
+        )
+        self.assertIs(impl, logpdf_matrix_vectorized)
+
+    def test_torch_bkd_jacobian_no_compile_gets_vectorized(self):
+        """TorchBkd without compile falls back to vectorized for jacobian."""
+        impl = get_jacobian_matrix_impl(
+            self._bkd_torch, use_numba=True, use_torch_compile=False
+        )
+        self.assertIs(impl, jacobian_matrix_vectorized)
+
+
 class TestNumbaIntegration(Generic[Array], unittest.TestCase):
     """Test Numba integration at the class level (objective pipeline)."""
 

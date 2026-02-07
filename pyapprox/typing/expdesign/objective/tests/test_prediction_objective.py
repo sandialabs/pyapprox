@@ -251,6 +251,38 @@ class TestPredictionOEDObjective(Generic[Array], unittest.TestCase):
         )
 
 
+    def test_avar_factory_creates_working_objective(self):
+        """Test create_prediction_oed_objective with avar deviation."""
+        from pyapprox.typing.expdesign.objective import (
+            create_prediction_oed_objective,
+        )
+        from pyapprox.typing.expdesign.deviation import AVaRDeviationMeasure
+
+        objective = create_prediction_oed_objective(
+            self._noise_variances,
+            self._outer_shapes,
+            self._inner_shapes,
+            self._latent_samples,
+            self._qoi_vals,
+            self._bkd,
+            deviation_type="avar",
+            risk_type="mean",
+            alpha=0.8,
+            delta=100,
+        )
+        # Evaluate — verifies the factory created a fully wired objective
+        val = objective(self._design_weights)
+        self.assertEqual(val.shape, (1, 1))
+
+        # Compare against manually constructed AVaR objective
+        avar = AVaRDeviationMeasure(
+            self._npred, 0.8, self._bkd, delta=100
+        )
+        manual_obj = self._create_objective(avar)
+        val_manual = manual_obj(self._design_weights)
+        self._bkd.assert_allclose(val, val_manual)
+
+
 class TestPredictionOEDObjectiveNumpy(
     TestPredictionOEDObjective[NDArray[Any]]
 ):

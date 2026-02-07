@@ -59,6 +59,17 @@ all = ['numpydoc', 'sphinx', 'sphinx_automodapi', 'sphinx_rtd_theme',
 [tool.coverage.run]
 omit = [
     '__init__.py',
+    # Numba @njit and torch.compile function bodies are invisible to
+    # coverage.py — the JIT compiler executes native code that the
+    # tracer cannot instrument.  Correctness is verified by
+    # test_numba_kernels.py and test_torch_compile.py which compare
+    # kernel outputs against the vectorized reference implementation.
+    '*/expdesign/likelihood/compute_numba.py',
+    '*/expdesign/likelihood/compute_torch.py',
+    # Multiprocessing modules spawn subprocesses whose coverage is not
+    # collected by the parent pytest process.
+    '*/expdesign/likelihood/parallel_gaussian.py',
+    '*/expdesign/objective/parallel_kl_objective.py',
 ]
 
 [tool.coverage.report]

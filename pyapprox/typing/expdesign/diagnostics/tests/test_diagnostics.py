@@ -229,6 +229,17 @@ class TestKLOEDDiagnosticsStandalone(Generic[Array], unittest.TestCase):
         self.assertEqual(diagnostics.bkd(), self._bkd)
 
 
+    def test_unknown_utility_type_raises(self):
+        """Test create_prediction_oed_diagnostics with unknown type."""
+        from pyapprox.typing.expdesign.diagnostics import (
+            create_prediction_oed_diagnostics,
+        )
+
+        benchmark = self._create_benchmark()
+        with self.assertRaises(ValueError):
+            create_prediction_oed_diagnostics(benchmark, "nonexistent_type")
+
+
 class TestKLOEDDiagnosticsStandaloneNumpy(
     TestKLOEDDiagnosticsStandalone[NDArray[Any]]
 ):

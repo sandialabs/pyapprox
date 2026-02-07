@@ -605,5 +605,76 @@ class TestOEDQuadratureSamplerTorch(TestOEDQuadratureSampler[torch.Tensor]):
         super().setUp()
 
 
+class TestQuadratureStrategies(unittest.TestCase):
+    """Test quadrature strategy dispatch and registry."""
+
+    def _make_gaussian_joint(self, nvars, bkd):
+        """Helper: create IndependentJoint with standard Gaussian marginals."""
+        marginals = [
+            GaussianMarginal(0.0, 1.0, bkd) for _ in range(nvars)
+        ]
+        return IndependentJoint(marginals, bkd)
+
+    def test_halton_strategy_matches_sampler(self):
+        """Test HaltonStrategy.sample() matches direct HaltonSampler."""
+        from pyapprox.typing.expdesign.quadrature.strategies import (
+            HaltonStrategy,
+        )
+
+        bkd = NumpyBkd()
+        dist = self._make_gaussian_joint(nvars=2, bkd=bkd)
+
+        # Via strategy
+        strategy = HaltonStrategy()
+        samples_s, weights_s = strategy.sample(dist, 100, bkd, seed=42)
+
+        # Via sampler directly
+        sampler = HaltonSampler(2, bkd, distribution=dist, seed=42)
+        samples_d, weights_d = sampler.sample(100)
+
+        bkd.assert_allclose(samples_s, samples_d)
+        bkd.assert_allclose(weights_s, weights_d)
+
+    def test_sobol_strategy_matches_sampler(self):
+        """Test SobolStrategy.sample() matches direct SobolSampler."""
+        from pyapprox.typing.expdesign.quadrature.strategies import (
+            SobolStrategy,
+        )
+
+        bkd = NumpyBkd()
+        dist = self._make_gaussian_joint(nvars=2, bkd=bkd)
+
+        # Via strategy
+        strategy = SobolStrategy()
+        samples_s, weights_s = strategy.sample(dist, 100, bkd, seed=42)
+
+        # Via sampler directly
+        sampler = SobolSampler(2, bkd, distribution=dist, seed=42)
+        samples_d, weights_d = sampler.sample(100)
+
+        bkd.assert_allclose(samples_s, samples_d)
+        bkd.assert_allclose(weights_s, weights_d)
+
+    def test_get_sampler_unknown_raises(self):
+        """Test get_sampler with unknown name raises ValueError."""
+        from pyapprox.typing.expdesign.quadrature.strategies import (
+            get_sampler,
+        )
+
+        with self.assertRaises(ValueError):
+            get_sampler("nonexistent")
+
+    def test_list_samplers(self):
+        """Test list_samplers returns all 4 registered names."""
+        from pyapprox.typing.expdesign.quadrature.strategies import (
+            list_samplers,
+        )
+
+        names = list_samplers()
+        self.assertEqual(
+            set(names), {"gauss", "mc", "halton", "sobol"}
+        )
+
+
 if __name__ == "__main__":
     unittest.main()
