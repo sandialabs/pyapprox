@@ -14,6 +14,10 @@ from pyapprox.typing.probability.conditional.gamma import ConditionalGamma
 from pyapprox.typing.probability.conditional.joint import (
     ConditionalIndependentJoint,
 )
+from pyapprox.typing.probability.conditional.multivariate_gaussian import (
+    ConditionalDenseCholGaussian,
+    ConditionalLowRankCholGaussian,
+)
 
 __all__ = [
     "ConditionalDistributionProtocol",
@@ -21,4 +25,6 @@ __all__ = [
     "ConditionalBeta",
     "ConditionalGamma",
     "ConditionalIndependentJoint",
+    "ConditionalDenseCholGaussian",
+    "ConditionalLowRankCholGaussian",
 ]

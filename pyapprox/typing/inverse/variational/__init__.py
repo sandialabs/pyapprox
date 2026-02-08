@@ -14,9 +14,11 @@ parameter functions.
 from pyapprox.typing.inverse.variational.elbo import (
     ELBOObjective,
     make_single_problem_elbo,
+    make_discrete_group_elbo,
 )
 
 __all__ = [
     "ELBOObjective",
     "make_single_problem_elbo",
+    "make_discrete_group_elbo",
 ]

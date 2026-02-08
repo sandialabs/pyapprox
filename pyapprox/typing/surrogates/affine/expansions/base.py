@@ -120,6 +120,8 @@ class BasisExpansion(Generic[Array]):
                 f"got {coef.shape}"
             )
         self._coef = coef
+        if self._hyp_list is not None:
+            self._hyp_list.set_values(self._bkd.flatten(coef))
 
     def get_basis(self) -> BasisProtocol[Array]:
         """Return the basis object."""

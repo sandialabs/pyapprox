@@ -5,7 +5,7 @@ Provides ELBOObjective that uses conditional distributions directly,
 plus convenience constructors for common VI setups.
 """
 
-from typing import Any, Callable, Generic
+from typing import Any, Callable, Generic, List
 
 from pyapprox.typing.util.backends.protocols import Array, Backend
 
@@ -36,6 +36,20 @@ class ELBOObjective(Generic[Array]):
         Number of label dimensions in joint_nodes.
     bkd : Backend[Array]
         Computational backend.
+
+    Optional Methods
+    ----------------
+    The following methods are conditionally available:
+
+    - ``jacobian(params)``: Available when backend supports autograd
+      (i.e., ``hasattr(bkd, 'jacobian')`` is True, e.g., TorchBkd).
+
+    Check availability with ``hasattr(elbo, 'jacobian')``.
+
+    Notes
+    -----
+    This class follows the dynamic binding pattern for optional methods.
+    See docs/OPTIONAL_METHODS_CONVENTION.md for details.
     """
 
     def __init__(
@@ -178,4 +192,83 @@ def make_single_problem_elbo(
     return ELBOObjective(
         var_distribution, wrapped_log_lik, prior,
         joint_nodes, base_weights, nlabel_dims=nlabel_dims, bkd=bkd,
+    )
+
+
+def make_discrete_group_elbo(
+    var_distribution: Any,
+    log_likelihood_fns: List[Callable],
+    prior: Any,
+    labels: Array,
+    base_nodes: Array,
+    base_weights: Array,
+    bkd: Backend,
+) -> ELBOObjective:
+    """Create ELBO for discrete-group amortized VI.
+
+    Builds joint quadrature as a product of point-mass over groups and
+    base quadrature. Each group is identified by a column of ``labels``
+    and has its own log-likelihood callable.
+
+    The joint nodes are laid out as K contiguous blocks of M points:
+    ``[group_0 x M, group_1 x M, ..., group_{K-1} x M]``, so the
+    joint log-likelihood evaluates each group's callable on its
+    contiguous slice and concatenates — fully vectorized per group.
+
+    Parameters
+    ----------
+    var_distribution : object
+        Conditional distribution with ``reparameterize``,
+        ``kl_divergence``, ``hyp_list()``, and ``nvars()``.
+    log_likelihood_fns : list of callables
+        One per group. Each callable has signature
+        ``log_lik_fn(z) -> (1, N)`` where z is ``(nqoi, N)``.
+    prior : object
+        Prior distribution.
+    labels : Array
+        Group label coordinates, shape ``(nlabel_dims, K)``.
+    base_nodes : Array
+        Base quadrature nodes, shape ``(nbase, M)``.
+    base_weights : Array
+        Base quadrature weights, shape ``(1, M)``.
+    bkd : Backend
+        Computational backend.
+
+    Returns
+    -------
+    ELBOObjective
+    """
+    K = labels.shape[1]
+    M = base_nodes.shape[1]
+    nlabel_dims = labels.shape[0]
+
+    if len(log_likelihood_fns) != K:
+        raise ValueError(
+            f"Expected {K} log-likelihood functions (one per group), "
+            f"got {len(log_likelihood_fns)}"
+        )
+
+    # Build joint nodes: tile labels M times and base_nodes K times
+    # Layout: [group_0 x M, group_1 x M, ...]
+    # labels_tiled: repeat each column M times -> (nlabel_dims, K*M)
+    # For label k, columns k*M through (k+1)*M are all label_k
+    labels_tiled = bkd.repeat(labels, M, axis=1)
+    # base_tiled: tile entire base_nodes K times -> (nbase, K*M)
+    base_tiled = bkd.tile(base_nodes, (1, K))
+    joint_nodes = bkd.concatenate([labels_tiled, base_tiled], axis=0)
+
+    # Joint weights: (1/K) * tiled base_weights
+    joint_weights = bkd.tile(base_weights, (1, K)) / K
+
+    # Joint log-likelihood: dispatch to per-group callables by slice
+    def joint_log_lik(z: Array, label_nodes: Array) -> Array:
+        parts = []
+        for k in range(K):
+            z_k = z[:, k * M:(k + 1) * M]
+            parts.append(log_likelihood_fns[k](z_k))
+        return bkd.concatenate(parts, axis=1)
+
+    return ELBOObjective(
+        var_distribution, joint_log_lik, prior,
+        joint_nodes, joint_weights, nlabel_dims=nlabel_dims, bkd=bkd,
     )

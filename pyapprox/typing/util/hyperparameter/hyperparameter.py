@@ -262,6 +262,19 @@ class HyperParameter(Generic[Array]):
         """
         return self._bounds
 
+    def set_bounds(self, bounds: "Union[Tuple[float, float], Array]") -> None:
+        """
+        Set the bounds for the hyperparameter values.
+
+        Parameters
+        ----------
+        bounds : Union[Tuple[float, float], Array]
+            Bounds for the hyperparameter values. Either a tuple
+            (lower, upper) applied to all parameters, or an array
+            of shape (nparams, 2).
+        """
+        self._bounds = self._parse_bounds(bounds)
+
     def get_active_bounds(self) -> Array:
         """
         Get the bounds of the active parameters.
