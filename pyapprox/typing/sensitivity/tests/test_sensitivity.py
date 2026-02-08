@@ -14,7 +14,7 @@ from numpy.typing import NDArray
 from pyapprox.typing.util.backends.numpy import NumpyBkd
 from pyapprox.typing.util.backends.torch import TorchBkd
 from pyapprox.typing.util.backends.protocols import Array
-from pyapprox.typing.util.test_utils import load_tests
+from pyapprox.typing.util.test_utils import load_tests  # noqa: F401
 
 from pyapprox.typing.benchmarks.instances.sensitivity import (
     ishigami_3d,
@@ -136,8 +136,6 @@ class TestMorrisScreening(Generic[Array], unittest.TestCase):
         benchmark = ishigami_3d(self._bkd)
         func = benchmark.function()
         prior = benchmark.prior()
-        gt = benchmark.ground_truth()
-
         # Create Morris analysis
         morris = MorrisSensitivityAnalysis(prior, nlevels=4, bkd=self._bkd)
 
@@ -179,7 +177,7 @@ class TestMorrisScreening(Generic[Array], unittest.TestCase):
         morris.compute(values)
 
         mu_star = morris.mu_star()
-        sigma = morris.sigma()
+        _ = morris.sigma()
 
         # For equal importance Sobol G, all mu_star should be similar
         mu_star_np = self._bkd.to_numpy(mu_star).flatten()

@@ -51,6 +51,11 @@ class SparseGridSensitivityAnalysis(Generic[Array]):
         sparse_grid: CombinationSparseGrid[Array],
         orthonormal_bases_1d: Sequence[OrthonormalPolynomial1D[Array]],
     ) -> None:
+        if not isinstance(sparse_grid, CombinationSparseGrid):
+            raise TypeError(
+                "sparse_grid must be a CombinationSparseGrid, "
+                f"got {type(sparse_grid).__name__}"
+            )
         self._bkd = sparse_grid.bkd()
         self._sparse_grid = sparse_grid
         self._orthonormal_bases_1d = list(orthonormal_bases_1d)

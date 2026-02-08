@@ -70,6 +70,11 @@ class SampleBasedSensitivityAnalysis(
         distribution: DistributionWithInvCDF[Array],
         bkd: Backend[Array],
     ) -> None:
+        if not isinstance(distribution, DistributionWithInvCDF):
+            raise TypeError(
+                "distribution must satisfy DistributionWithInvCDF, "
+                f"got {type(distribution).__name__}"
+            )
         super().__init__(distribution.nvars(), bkd)
         self._distribution = distribution
         self._samplesA: Optional[Array] = None

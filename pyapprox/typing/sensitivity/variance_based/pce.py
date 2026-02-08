@@ -7,7 +7,7 @@ analytically from the expansion coefficients.
 
 from typing import Generic, List, Tuple
 
-from pyapprox.typing.util.backends.protocols import Array, Backend
+from pyapprox.typing.util.backends.protocols import Array
 from pyapprox.typing.surrogates.affine.protocols import PCEStatisticsProtocol
 from pyapprox.typing.surrogates.affine.expansions.pce_statistics import (
     mean as pce_mean,
@@ -52,6 +52,11 @@ class PolynomialChaosSensitivityAnalysis(
         pce : PCEStatisticsProtocol[Array]
             A fitted PCE object with orthonormal basis.
         """
+        if not isinstance(pce, PCEStatisticsProtocol):
+            raise TypeError(
+                "pce must satisfy PCEStatisticsProtocol, "
+                f"got {type(pce).__name__}"
+            )
         super().__init__(pce.nvars(), pce.bkd())
         self._pce = pce
         self._main_effects: Array | None = None

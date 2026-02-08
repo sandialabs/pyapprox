@@ -81,6 +81,11 @@ class BinBasedSensitivityAnalysis(
         eps: float = 0.0,
         clip_negative: bool = True,
     ) -> None:
+        if not isinstance(distribution, JointDistributionProtocol):
+            raise TypeError(
+                "distribution must satisfy JointDistributionProtocol, "
+                f"got {type(distribution).__name__}"
+            )
         super().__init__(distribution.nvars(), bkd)
         self._distribution = distribution
         self._nbins = nbins
@@ -503,8 +508,6 @@ class BinBasedSensitivityAnalysis(
             np.random.seed(seed)
 
         nsamples = samples.shape[1]
-        nvars = self.nvars()
-        nqoi = values.shape[0]
 
         # Compute original indices
         self.compute(samples, values)

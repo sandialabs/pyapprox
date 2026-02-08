@@ -90,6 +90,11 @@ class MorrisSensitivityAnalysis(Generic[Array]):
         bkd: Backend[Array],
         eps: float = 0.0,
     ) -> None:
+        if not isinstance(distribution, DistributionWithMarginals):
+            raise TypeError(
+                "distribution must satisfy DistributionWithMarginals, "
+                f"got {type(distribution).__name__}"
+            )
         if nlevels % 2 != 0:
             raise ValueError("nlevels must be an even integer")
         self._distribution = distribution

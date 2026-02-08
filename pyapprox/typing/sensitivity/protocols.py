@@ -4,7 +4,7 @@ This module defines protocols for sensitivity analysis classes, enabling
 duck typing with runtime type checking.
 """
 
-from typing import Protocol, Generic, runtime_checkable, Dict, Tuple
+from typing import Protocol, Generic, runtime_checkable
 
 from pyapprox.typing.util.backends.protocols import Array, Backend
 
