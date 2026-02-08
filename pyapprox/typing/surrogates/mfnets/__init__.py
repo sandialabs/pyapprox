@@ -28,11 +28,25 @@ from pyapprox.typing.surrogates.mfnets.registry import (
     list_node_models,
     register_node_model,
 )
+from pyapprox.typing.surrogates.mfnets.builders import (
+    build_chain_mfnet,
+    build_dag_mfnet,
+)
+from pyapprox.typing.surrogates.mfnets.helpers import (
+    generate_synthetic_data,
+    randomize_coefficients,
+)
+from pyapprox.typing.surrogates.mfnets.fitters.composite_fitter import (
+    MFNetCompositeFitResult,
+    MFNetCompositeFitter,
+)
 
 __all__ = [
     "LinearNodeModelProtocol",
     "LeafMFNetNode",
     "MFNet",
+    "MFNetCompositeFitResult",
+    "MFNetCompositeFitter",
     "MFNetEdge",
     "MFNetNegLogLikelihoodLoss",
     "MFNetNode",
@@ -40,7 +54,11 @@ __all__ = [
     "NodeModelProtocol",
     "NodeModelWithParamJacobianProtocol",
     "RootMFNetNode",
+    "build_chain_mfnet",
+    "build_dag_mfnet",
     "create_node_model",
+    "generate_synthetic_data",
     "list_node_models",
+    "randomize_coefficients",
     "register_node_model",
 ]
