@@ -3,7 +3,7 @@
 All attributes accessed via methods per CLAUDE.md conventions.
 """
 
-from typing import Generic, Optional, Protocol, TypeVar, runtime_checkable
+from typing import Any, Generic, List, Optional, Protocol, TypeVar, runtime_checkable
 
 from pyapprox.typing.util.backends.protocols import Array, Backend
 from pyapprox.typing.optimization.linear.sparse import OMPTerminationFlag
@@ -262,4 +262,104 @@ class OMPResult(Generic[Array, S]):
             f"OMPResult(params_shape={self._params.shape}, "
             f"n_nonzero={self._n_nonzero}, "
             f"termination={flag_name})"
+        )
+
+
+class CVSelectionResult(Generic[Array, S]):
+    """Result from cross-validation-based model selection.
+
+    Wraps the best fit result plus CV diagnostics for all candidates.
+
+    All attributes are accessed via methods per CLAUDE.md convention.
+
+    Parameters
+    ----------
+    surrogate : S
+        The fitted surrogate using the best candidate parameters.
+    params : Array
+        Fitted coefficients for the best candidate. Shape: (nterms, nqoi)
+    cv_scores : Array
+        CV scores for each candidate. Shape: (ncandidates,)
+    candidate_labels : list
+        Labels for each candidate (e.g., degrees [1,2,3] or nterms [5,10,20]).
+    best_index : int
+        Index into candidate_labels of the best candidate.
+    best_label : Any
+        Label of the best candidate (e.g., the selected degree or nterms).
+    all_params : list[Array]
+        Fitted coefficients for each candidate. Each has shape (nterms_i, nqoi).
+    """
+
+    def __init__(
+        self,
+        surrogate: S,
+        params: Array,
+        cv_scores: Array,
+        candidate_labels: List[Any],
+        best_index: int,
+        best_label: Any,
+        all_params: List[Array],
+    ):
+        self._surrogate = surrogate
+        self._params = params
+        self._cv_scores = cv_scores
+        self._candidate_labels = candidate_labels
+        self._best_index = best_index
+        self._best_label = best_label
+        self._all_params = all_params
+
+    def surrogate(self) -> S:
+        """Return the fitted surrogate for the best candidate."""
+        return self._surrogate
+
+    def params(self) -> Array:
+        """Return fitted parameters for the best candidate. Shape: (nterms, nqoi)"""
+        return self._params
+
+    def bkd(self) -> Backend[Array]:
+        """Return backend from surrogate."""
+        return self._surrogate.bkd()
+
+    def cv_scores(self) -> Array:
+        """Return CV scores for all candidates. Shape: (ncandidates,)"""
+        return self._cv_scores
+
+    def candidate_labels(self) -> List[Any]:
+        """Return labels for each candidate."""
+        return self._candidate_labels
+
+    def best_index(self) -> int:
+        """Return index of the best candidate."""
+        return self._best_index
+
+    def best_label(self) -> Any:
+        """Return label of the best candidate."""
+        return self._best_label
+
+    def all_params(self) -> List[Array]:
+        """Return fitted coefficients for each candidate."""
+        return self._all_params
+
+    def __call__(self, samples: Array) -> Array:
+        """Evaluate fitted surrogate at samples.
+
+        Parameters
+        ----------
+        samples : Array
+            Input samples. Shape: (nvars, nsamples)
+
+        Returns
+        -------
+        Array
+            Values at samples. Shape: (nqoi, nsamples)
+        """
+        result: Array = self._surrogate(samples)
+        return result
+
+    def __repr__(self) -> str:
+        return (
+            f"CVSelectionResult(best_label={self._best_label}, "
+            f"best_index={self._best_index}, "
+            f"ncandidates={len(self._candidate_labels)}, "
+            f"params_shape={self._params.shape})"
         )

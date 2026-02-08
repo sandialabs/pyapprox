@@ -30,8 +30,19 @@ from pyapprox.typing.surrogates.affine.expansions.fitters import (
     DirectSolverResult,
     SparseResult,
     OMPResult,
+    CVSelectionResult,
     BayesianConjugateFitter,
     BayesianConjugateResult,
+    PCEDegreeSelectionFitter,
+    OMPCVFitter,
+)
+
+# Export cross-validation functions
+from pyapprox.typing.surrogates.affine.expansions.crossvalidation import (
+    leave_one_out_lsq_cross_validation,
+    leave_many_out_lsq_cross_validation,
+    get_random_k_fold_sample_indices,
+    get_cross_validation_rsquared,
 )
 
 # Export losses
@@ -59,6 +70,14 @@ __all__ = [
     "OMPResult",
     "BayesianConjugateFitter",
     "BayesianConjugateResult",
+    "CVSelectionResult",
+    "PCEDegreeSelectionFitter",
+    "OMPCVFitter",
+    # Cross-validation functions
+    "leave_one_out_lsq_cross_validation",
+    "leave_many_out_lsq_cross_validation",
+    "get_random_k_fold_sample_indices",
+    "get_cross_validation_rsquared",
     # Losses
     "BasisExpansionMSELoss",
     # Statistics module

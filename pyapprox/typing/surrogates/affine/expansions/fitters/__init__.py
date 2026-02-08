@@ -14,6 +14,7 @@ from pyapprox.typing.surrogates.affine.expansions.fitters.results import (
     DirectSolverResult,
     SparseResult,
     OMPResult,
+    CVSelectionResult,
 )
 from pyapprox.typing.surrogates.affine.expansions.fitters.least_squares import (
     LeastSquaresFitter,
@@ -54,6 +55,12 @@ from pyapprox.typing.surrogates.affine.expansions.fitters.stochastic_dominance i
     FSDFitter,
     SSDFitter,
 )
+from pyapprox.typing.surrogates.affine.expansions.fitters.pce_cv import (
+    PCEDegreeSelectionFitter,
+)
+from pyapprox.typing.surrogates.affine.expansions.fitters.omp_cv import (
+    OMPCVFitter,
+)
 
 __all__ = [
     "DirectSolverResult",
@@ -76,4 +83,7 @@ __all__ = [
     "StochasticDominanceConstraint",
     "FSDFitter",
     "SSDFitter",
+    "CVSelectionResult",
+    "PCEDegreeSelectionFitter",
+    "OMPCVFitter",
 ]
