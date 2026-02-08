@@ -67,6 +67,7 @@ from pyapprox.typing.inverse.variational.elbo import (
 from pyapprox.typing.interface.functions.protocols.function import (
     FunctionProtocol,
 )
+from pyapprox.typing.inverse.variational.fitter import VariationalFitter
 from pyapprox.typing.optimization.minimize.scipy.trust_constr import (
     ScipyTrustConstrOptimizer,
 )
@@ -447,17 +448,13 @@ class TestAmortizedTorch(TestAmortizedBase[torch.Tensor], unittest.TestCase):
             train_labels, base_nodes, base_weights, bkd,
         )
 
-        # --- Optimize (bounds from hyp_list) ---
-        bounds = var_dist.hyp_list().get_active_bounds()
-        optimizer = ScipyTrustConstrOptimizer(
-            objective=elbo, bounds=bounds, maxiter=500, gtol=1e-8,
-        )
+        # --- Optimize ---
+        fitter = VariationalFitter(bkd)
         np.random.seed(0)
         init_guess = bkd.asarray(
             np.random.randn(elbo.nvars(), 1) * 0.01,
         )
-        result = optimizer.minimize(init_guess)
-        elbo(result.optima())
+        fitter.fit(elbo, init_guess=init_guess)
 
         # --- Verify at unseen test data ---
         np.random.seed(123)

@@ -16,9 +16,15 @@ from pyapprox.typing.inverse.variational.elbo import (
     make_single_problem_elbo,
     make_discrete_group_elbo,
 )
+from pyapprox.typing.inverse.variational.fitter import (
+    VIFitResult,
+    VariationalFitter,
+)
 
 __all__ = [
     "ELBOObjective",
     "make_single_problem_elbo",
     "make_discrete_group_elbo",
+    "VIFitResult",
+    "VariationalFitter",
 ]

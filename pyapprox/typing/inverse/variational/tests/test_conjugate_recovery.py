@@ -46,6 +46,7 @@ from pyapprox.typing.surrogates.affine.expansions import BasisExpansion
 from pyapprox.typing.inverse.variational.elbo import (
     make_single_problem_elbo,
 )
+from pyapprox.typing.inverse.variational.fitter import VariationalFitter
 from pyapprox.typing.optimization.minimize.scipy.trust_constr import (
     ScipyTrustConstrOptimizer,
 )
@@ -193,18 +194,9 @@ class TestGaussianConjugateRecoveryBase(
             base_samples, weights, bkd,
         )
 
-        # Use wide bounds for unconstrained optimization
-        bounds = bkd.asarray(
-            [[-1e6, 1e6]] * elbo.nvars()
-        )
-        optimizer = ScipyTrustConstrOptimizer(
-            objective=elbo, bounds=bounds, maxiter=maxiter, gtol=1e-8,
-        )
-        init_guess = bkd.zeros((elbo.nvars(), 1))
-        result = optimizer.minimize(init_guess)
-
-        # Push fitted params into the conditional distribution
-        elbo(result.optima())
+        optimizer = ScipyTrustConstrOptimizer(maxiter=maxiter, gtol=1e-8)
+        fitter = VariationalFitter(bkd, optimizer=optimizer)
+        fitter.fit(elbo)
 
         # Extract recovered mean and variance from each conditional
         means = []
@@ -387,15 +379,8 @@ class TestBetaBernoulliRecoveryBase(Generic[Array], unittest.TestCase):
             base_samples, weights, bkd,
         )
 
-        bounds = bkd.asarray([[-10.0, 10.0]] * elbo.nvars())
-        optimizer = ScipyTrustConstrOptimizer(
-            objective=elbo, bounds=bounds, maxiter=500, gtol=1e-8,
-        )
-        init_guess = bkd.zeros((elbo.nvars(), 1))
-        result = optimizer.minimize(init_guess)
-
-        # Push fitted params into the conditional distribution
-        elbo(result.optima())
+        fitter = VariationalFitter(bkd)
+        fitter.fit(elbo)
 
         # Extract recovered alpha/beta
         recovered_alpha, recovered_beta = _extract_beta_params(
@@ -507,14 +492,9 @@ class TestGaussianEquivalenceBase(Generic[Array], unittest.TestCase):
             cond_single, log_likelihood_fn, prior_single,
             base_samples, weights, bkd,
         )
-        bounds = bkd.asarray([[-1e6, 1e6]] * elbo_single.nvars())
-        opt_single = ScipyTrustConstrOptimizer(
-            objective=elbo_single, bounds=bounds, maxiter=300, gtol=1e-8,
-        )
-        result_single = opt_single.minimize(
-            bkd.zeros((elbo_single.nvars(), 1))
-        )
-        elbo_single(result_single.optima())
+        optimizer = ScipyTrustConstrOptimizer(maxiter=300, gtol=1e-8)
+        fitter_single = VariationalFitter(bkd, optimizer=optimizer)
+        fitter_single.fit(elbo_single)
         single_mean, single_stdev = _extract_gaussian_params(
             cond_single, bkd
         )
@@ -529,15 +509,8 @@ class TestGaussianEquivalenceBase(Generic[Array], unittest.TestCase):
             cond_joint, log_likelihood_fn, prior_joint,
             base_samples, weights, bkd,
         )
-        bounds_joint = bkd.asarray([[-1e6, 1e6]] * elbo_joint.nvars())
-        opt_joint = ScipyTrustConstrOptimizer(
-            objective=elbo_joint, bounds=bounds_joint,
-            maxiter=300, gtol=1e-8,
-        )
-        result_joint = opt_joint.minimize(
-            bkd.zeros((elbo_joint.nvars(), 1))
-        )
-        elbo_joint(result_joint.optima())
+        fitter_joint = VariationalFitter(bkd, optimizer=optimizer)
+        fitter_joint.fit(elbo_joint)
         joint_mean, joint_stdev = _extract_gaussian_params(
             cond_inner, bkd
         )

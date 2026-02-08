@@ -84,6 +84,16 @@ class ELBOObjective(Generic[Array]):
     def nqoi(self) -> int:
         return 1
 
+    def bounds(self) -> Array:
+        """Return optimization bounds from the variational distribution.
+
+        Returns
+        -------
+        Array
+            Active parameter bounds, shape ``(nactive_params, 2)``.
+        """
+        return self._var_dist.hyp_list().get_active_bounds()
+
     def __call__(self, params: Array) -> Array:
         """Evaluate negative ELBO.
 
