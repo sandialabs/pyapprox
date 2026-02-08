@@ -5,7 +5,7 @@ polynomial basis functions: f(x) ≈ Σ_i c_i ψ_i(x), where ψ_i are
 orthonormal with respect to the input probability measure.
 """
 
-from typing import Generic, List, Optional, Tuple, Union
+from typing import Generic, List, Optional, Union
 
 from pyapprox.typing.util.backends.protocols import Array, Backend
 from pyapprox.typing.surrogates.affine.protocols import (
@@ -25,6 +25,13 @@ from pyapprox.typing.surrogates.affine.univariate.factory import (
 from pyapprox.typing.surrogates.affine.univariate.transformed import (
     TransformedBasis1D,
     NativeBasis1D,
+)
+from pyapprox.typing.surrogates.affine.expansions.pce_arithmetic import (
+    add_pce,
+    add_constant_to_pce,
+    multiply_pce,
+    multiply_pce_by_constant,
+    pce_power,
 )
 
 
@@ -271,6 +278,58 @@ class PolynomialChaosExpansion(BasisExpansion[Array], Generic[Array]):
         weighted_values = values.T * self._bkd.reshape(quad_weights, (-1, 1))
         coef = basis_vals.T @ weighted_values  # (nterms, nqoi)
         self.set_coefficients(coef)
+
+    # ------------------------------------------------------------------
+    # Arithmetic operators
+    # ------------------------------------------------------------------
+
+    def __add__(
+        self, other: Union["PolynomialChaosExpansion[Array]", float, int]
+    ) -> "PolynomialChaosExpansion[Array]":
+        if isinstance(other, (float, int)):
+            return add_constant_to_pce(self, float(other))
+        if isinstance(other, PolynomialChaosExpansion):
+            return add_pce(self, other, sign=1.0)
+        return NotImplemented
+
+    def __radd__(
+        self, other: Union["PolynomialChaosExpansion[Array]", float, int]
+    ) -> "PolynomialChaosExpansion[Array]":
+        return self.__add__(other)
+
+    def __sub__(
+        self, other: Union["PolynomialChaosExpansion[Array]", float, int]
+    ) -> "PolynomialChaosExpansion[Array]":
+        if isinstance(other, (float, int)):
+            return add_constant_to_pce(self, -float(other))
+        if isinstance(other, PolynomialChaosExpansion):
+            return add_pce(self, other, sign=-1.0)
+        return NotImplemented
+
+    def __rsub__(
+        self, other: Union[float, int]
+    ) -> "PolynomialChaosExpansion[Array]":
+        if isinstance(other, (float, int)):
+            result = multiply_pce_by_constant(self, -1.0)
+            return add_constant_to_pce(result, float(other))
+        return NotImplemented
+
+    def __mul__(
+        self, other: Union["PolynomialChaosExpansion[Array]", float, int]
+    ) -> "PolynomialChaosExpansion[Array]":
+        if isinstance(other, (float, int)):
+            return multiply_pce_by_constant(self, float(other))
+        if isinstance(other, PolynomialChaosExpansion):
+            return multiply_pce(self, other)
+        return NotImplemented
+
+    def __rmul__(
+        self, other: Union["PolynomialChaosExpansion[Array]", float, int]
+    ) -> "PolynomialChaosExpansion[Array]":
+        return self.__mul__(other)
+
+    def __pow__(self, order: int) -> "PolynomialChaosExpansion[Array]":
+        return pce_power(self, order)
 
     def __repr__(self) -> str:
         return (

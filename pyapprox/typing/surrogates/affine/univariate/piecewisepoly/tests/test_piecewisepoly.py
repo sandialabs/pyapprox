@@ -402,9 +402,10 @@ class TestDynamicPiecewiseBasis(Generic[Array], unittest.TestCase):
         self.assertEqual(basis.nterms(), 5)
 
         # Check quadrature rule has correct size
+        # quadrature_rule returns (1, nterms) points and (nterms, 1) weights
         pts, wts = basis.quadrature_rule()
-        self.assertEqual(pts.shape[0], 5)
-        self.assertEqual(wts.shape[0], 5)
+        self.assertEqual(pts.shape, (1, 5))
+        self.assertEqual(wts.shape, (5, 1))
 
     def test_dynamic_piecewise_basis_evaluation(self) -> None:
         """Test DynamicPiecewiseBasis evaluation after set_nterms."""
@@ -412,8 +413,10 @@ class TestDynamicPiecewiseBasis(Generic[Array], unittest.TestCase):
         basis = DynamicPiecewiseBasis(self._bkd, PiecewiseLinear, node_gen)
         basis.set_nterms(5)
 
-        # Evaluate at test points
-        samples = self._bkd.asarray([0.0, 0.25, 0.5, 0.75, 1.0])
+        # Evaluate at test points - samples shape (1, nsamples)
+        samples = self._bkd.reshape(
+            self._bkd.asarray([0.0, 0.25, 0.5, 0.75, 1.0]), (1, 5)
+        )
         values = basis(samples)
 
         # Linear basis at nodes should give identity matrix
@@ -426,9 +429,9 @@ class TestDynamicPiecewiseBasis(Generic[Array], unittest.TestCase):
         node_gen = EquidistantNodeGenerator(self._bkd, (-1.0, 1.0))
         basis = DynamicPiecewiseBasis(self._bkd, PiecewiseQuadratic, node_gen)
 
-        # Should raise ValueError on call
+        # Should raise ValueError on call - samples shape (1, nsamples)
         with self.assertRaises(ValueError):
-            basis(self._bkd.asarray([0.0]))
+            basis(self._bkd.reshape(self._bkd.asarray([0.0]), (1, 1)))
 
         # Should raise ValueError on quadrature_rule
         with self.assertRaises(ValueError):
@@ -443,19 +446,21 @@ class TestDynamicPiecewiseBasis(Generic[Array], unittest.TestCase):
         # Target function: f(x) = x^2
         target = lambda x: x ** 2
 
-        # Get quadrature points and evaluate target
+        # Get quadrature points (1, nterms) and evaluate target on 1D points
         pts, _ = basis.quadrature_rule()
-        target_vals = target(pts)
+        pts_1d = pts[0]
+        target_vals = target(pts_1d)
 
-        # Evaluate basis at test points
-        test_pts = self._bkd.linspace(0.0, 1.0, 50)
+        # Evaluate basis at test points - shape (1, nsamples)
+        test_pts_1d = self._bkd.linspace(0.0, 1.0, 50)
+        test_pts = self._bkd.reshape(test_pts_1d, (1, 50))
         basis_vals = basis(test_pts)
 
         # Interpolate
         interp_vals = basis_vals @ target_vals
 
         # Should match target function
-        expected = target(test_pts)
+        expected = target(test_pts_1d)
         self._bkd.assert_allclose(interp_vals, expected, atol=1e-10)
 
     def test_dynamic_piecewise_basis_quadrature_integration(self) -> None:
@@ -465,9 +470,12 @@ class TestDynamicPiecewiseBasis(Generic[Array], unittest.TestCase):
         basis.set_nterms(5)
 
         # Quadrature for integral of x^2 on [0, 1]
+        # pts shape (1, nterms), wts shape (nterms, 1)
         pts, wts = basis.quadrature_rule()
+        pts_1d = pts[0]
+        wts_1d = wts[:, 0]
         target = lambda x: x ** 2
-        integral = wts @ target(pts)
+        integral = wts_1d @ target(pts_1d)
 
         # Integral of x^2 on [0, 1] = 1/3
         expected = self._bkd.asarray([1.0 / 3.0])
@@ -490,13 +498,13 @@ class TestDynamicPiecewiseBasis(Generic[Array], unittest.TestCase):
         basis.set_nterms(3)
         self.assertEqual(basis.nterms(), 3)
         pts3, _ = basis.quadrature_rule()
-        self.assertEqual(pts3.shape[0], 3)
+        self.assertEqual(pts3.shape, (1, 3))
 
         # Reset to 7 terms
         basis.set_nterms(7)
         self.assertEqual(basis.nterms(), 7)
         pts7, _ = basis.quadrature_rule()
-        self.assertEqual(pts7.shape[0], 7)
+        self.assertEqual(pts7.shape, (1, 7))
 
 
 class TestDynamicPiecewiseBasisNumpy(TestDynamicPiecewiseBasis[NDArray[Any]]):

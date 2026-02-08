@@ -13,6 +13,7 @@ from pyapprox.typing.surrogates.affine.expansions.pce import (
 )
 
 from pyapprox.typing.surrogates.affine.expansions import pce_statistics
+from pyapprox.typing.surrogates.affine.expansions import pce_arithmetic
 
 # Re-export solvers from optimization.linear for backward compatibility
 from pyapprox.typing.optimization.linear import (
@@ -62,4 +63,6 @@ __all__ = [
     "BasisExpansionMSELoss",
     # Statistics module
     "pce_statistics",
+    # Arithmetic module
+    "pce_arithmetic",
 ]
