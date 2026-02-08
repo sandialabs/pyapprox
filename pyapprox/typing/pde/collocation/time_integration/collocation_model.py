@@ -11,7 +11,32 @@ from pyapprox.typing.pde.collocation.protocols import PhysicsProtocol
 from pyapprox.typing.pde.collocation.time_integration.physics_adapter import (
     PhysicsToODEResidualAdapter,
 )
+from pyapprox.typing.pde.collocation.time_integration.bc_time_residual_adapter import (
+    BCEnforcingTimeResidual,
+)
 from pyapprox.typing.pde.time.config import TimeIntegrationConfig
+from pyapprox.typing.pde.time.implicit_steppers.backward_euler import (
+    BackwardEulerResidual,
+)
+from pyapprox.typing.pde.time.implicit_steppers.crank_nicolson import (
+    CrankNicolsonResidual,
+)
+from pyapprox.typing.pde.time.explicit_steppers.forward_euler import (
+    ForwardEulerResidual,
+)
+from pyapprox.typing.pde.time.explicit_steppers.heun import HeunResidual
+from pyapprox.typing.pde.time.implicit_steppers.integrator import (
+    TimeIntegrator,
+)
+from pyapprox.typing.optimization.rootfinding.newton import NewtonSolver
+
+
+_STEPPER_REGISTRY = {
+    "backward_euler": BackwardEulerResidual,
+    "crank_nicolson": CrankNicolsonResidual,
+    "forward_euler": ForwardEulerResidual,
+    "heun": HeunResidual,
+}
 
 
 class CollocationModel(Generic[Array]):
@@ -60,6 +85,7 @@ class CollocationModel(Generic[Array]):
         self._bkd = bkd
         self._adapter = PhysicsToODEResidualAdapter(physics, bkd)
         self._mass_matrix = physics.mass_matrix()
+        self._last_integrator = None
 
     def bkd(self) -> Backend[Array]:
         """Return the computational backend."""
@@ -76,6 +102,25 @@ class CollocationModel(Generic[Array]):
     def nstates(self) -> int:
         """Return number of states."""
         return self._physics.nstates()
+
+    def last_integrator(self) -> TimeIntegrator[Array]:
+        """Return the integrator from the most recent solve_transient call.
+
+        Returns
+        -------
+        TimeIntegrator
+            The time integrator (with adjoint support).
+
+        Raises
+        ------
+        RuntimeError
+            If solve_transient has not been called.
+        """
+        if self._last_integrator is None:
+            raise RuntimeError(
+                "solve_transient() must be called before last_integrator()"
+            )
+        return self._last_integrator
 
     def _apply_bc_to_residual(
         self, residual: Array, state: Array, time: float
@@ -210,7 +255,8 @@ class CollocationModel(Generic[Array]):
     ) -> Tuple[Array, Array]:
         """Solve the time-dependent problem.
 
-        Integrates du/dt = f(u, t) from init_time to final_time.
+        Integrates du/dt = f(u, t) from init_time to final_time using the
+        TimeIntegrator framework with BC enforcement.
 
         Parameters
         ----------
@@ -226,207 +272,42 @@ class CollocationModel(Generic[Array]):
                 Solution trajectory. Shape: (nstates, ntimes)
             times : Array
                 Time points. Shape: (ntimes,)
+
+        Raises
+        ------
+        ValueError
+            If config.method is not a recognized time integration method.
         """
-        bkd = self._bkd
+        if config.method not in _STEPPER_REGISTRY:
+            raise ValueError(
+                f"Unknown time integration method: '{config.method}'. "
+                f"Available: {list(_STEPPER_REGISTRY.keys())}"
+            )
 
-        # Build time grid
-        times = [config.init_time]
-        t = config.init_time
-        while t < config.final_time - 1e-12:
-            dt = min(config.deltat, config.final_time - t)
-            t += dt
-            times.append(t)
-        times = bkd.asarray(times)
-        ntimes = len(times)
+        # Build pipeline: adapter → stepper → BC residual → Newton → integrator
+        stepper_cls = _STEPPER_REGISTRY[config.method]
+        stepper = stepper_cls(self._adapter)
+        bc_residual = BCEnforcingTimeResidual(
+            stepper, self._physics, self._bkd
+        )
+        newton = NewtonSolver(bc_residual)
+        newton.set_options(
+            maxiters=config.newton_maxiter,
+            atol=config.newton_tol,
+            rtol=1e-8,
+            verbosity=max(0, config.verbosity - 1),
+        )
+        integrator = TimeIntegrator(
+            config.init_time,
+            config.final_time,
+            config.deltat,
+            newton,
+            verbosity=config.verbosity,
+        )
 
-        # Allocate solution storage
-        solutions = bkd.zeros((self.nstates(), ntimes))
-        solutions = bkd.copy(solutions)
-        solutions[:, 0] = initial_condition
-
-        # Time stepping
-        state = bkd.copy(initial_condition)
-
-        for ii in range(ntimes - 1):
-            t_n = float(times[ii])
-            dt = float(times[ii + 1] - times[ii])
-
-            state = self._time_step(state, t_n, dt, config)
-            solutions[:, ii + 1] = state
-
-            if config.verbosity >= 1:
-                print(f"Time {float(times[ii + 1]):.4f}")
-
+        solutions, times = integrator.solve(initial_condition)
+        self._last_integrator = integrator
         return solutions, times
-
-    def _time_step(
-        self,
-        state: Array,
-        time: float,
-        deltat: float,
-        config: TimeIntegrationConfig,
-    ) -> Array:
-        """Perform a single time step.
-
-        Parameters
-        ----------
-        state : Array
-            Current state. Shape: (nstates,)
-        time : float
-            Current time.
-        deltat : float
-            Time step size.
-        config : TimeIntegrationConfig
-            Time integration configuration.
-
-        Returns
-        -------
-        Array
-            State at next time. Shape: (nstates,)
-        """
-        method = config.method
-
-        if method == "forward_euler":
-            return self._forward_euler_step(state, time, deltat)
-        elif method == "heun":
-            return self._heun_step(state, time, deltat)
-        elif method == "backward_euler":
-            return self._backward_euler_step(state, time, deltat, config)
-        elif method == "crank_nicolson":
-            return self._crank_nicolson_step(state, time, deltat, config)
-        else:
-            raise ValueError(f"Unknown time integration method: {method}")
-
-    def _forward_euler_step(
-        self, state: Array, time: float, deltat: float
-    ) -> Array:
-        """Forward Euler: y_{n+1} = y_n + dt * f(y_n, t_n)."""
-        self._adapter.set_time(time)
-        f_n = self._adapter(state)
-        return state + deltat * f_n
-
-    def _heun_step(self, state: Array, time: float, deltat: float) -> Array:
-        """Heun's method (RK2): predictor-corrector."""
-        bkd = self._bkd
-
-        # Predictor (Forward Euler)
-        self._adapter.set_time(time)
-        k1 = self._adapter(state)
-        y_pred = state + deltat * k1
-
-        # Corrector
-        self._adapter.set_time(time + deltat)
-        k2 = self._adapter(y_pred)
-
-        return state + 0.5 * deltat * (k1 + k2)
-
-    def _backward_euler_step(
-        self,
-        state: Array,
-        time: float,
-        deltat: float,
-        config: TimeIntegrationConfig,
-    ) -> Array:
-        """Backward Euler: M*(y_{n+1} - y_n) = dt * f(y_{n+1}, t_{n+1}).
-
-        Requires Newton iteration. M is the mass matrix from
-        physics.apply_mass_matrix (identity for standard collocation,
-        singular for split physics like SSA depth+velocity).
-
-        For transient Dirichlet BCs, boundary conditions are applied to the
-        Newton residual (not the physics residual), enforcing y[boundary] = g(t)
-        directly rather than integrating du/dt at boundaries.
-        """
-        bkd = self._bkd
-        t_np1 = time + deltat
-        self._adapter.set_time(t_np1)
-
-        # Newton iteration
-        y = bkd.copy(state)  # Initial guess
-
-        for _ in range(config.newton_maxiter):
-            # Residual: R = M*(y - y_n) - dt * f(y)
-            # apply_mass_matrix is identity for standard collocation (no-op)
-            f_y = self._adapter(y)
-            residual = self._physics.apply_mass_matrix(y - state) - deltat * f_y
-
-            # Jacobian: dR/dy = M - dt * df/dy (formed BEFORE BC application)
-            jac_f = self._adapter.jacobian(y)
-            jac_R = self._mass_matrix - deltat * jac_f
-
-            # Apply boundary conditions to Newton residual and Jacobian
-            # This enforces the BC equation directly at boundary rows
-            residual, jac_R = self._apply_boundary_conditions(
-                residual, jac_R, y, t_np1
-            )
-
-            # Check convergence
-            if float(bkd.norm(residual)) < config.newton_tol:
-                return y
-
-            # Newton update
-            delta = bkd.solve(jac_R, -residual)
-            y = y + delta
-
-        return y
-
-    def _crank_nicolson_step(
-        self,
-        state: Array,
-        time: float,
-        deltat: float,
-        config: TimeIntegrationConfig,
-    ) -> Array:
-        """Crank-Nicolson: M*(y_{n+1} - y_n) = dt/2 * (f(y_n) + f(y_{n+1})).
-
-        Requires Newton iteration. M is the mass matrix from
-        physics.apply_mass_matrix (identity for standard collocation,
-        singular for split physics like SSA depth+velocity).
-
-        For transient Dirichlet BCs, boundary conditions are applied to the
-        Newton residual (not the physics residual), enforcing y[boundary] = g(t)
-        directly rather than integrating du/dt at boundaries.
-        """
-        bkd = self._bkd
-        t_n = time
-        t_np1 = time + deltat
-
-        # f(y_n, t_n)
-        self._adapter.set_time(t_n)
-        f_n = self._adapter(state)
-
-        # Newton iteration
-        self._adapter.set_time(t_np1)
-        y = bkd.copy(state)  # Initial guess
-
-        for _ in range(config.newton_maxiter):
-            # Residual: R = M*(y - y_n) - dt/2 * (f_n + f(y))
-            # apply_mass_matrix is identity for standard collocation (no-op)
-            f_y = self._adapter(y)
-            residual = (
-                self._physics.apply_mass_matrix(y - state)
-                - 0.5 * deltat * (f_n + f_y)
-            )
-
-            # Jacobian: dR/dy = M - dt/2 * df/dy (formed BEFORE BC application)
-            jac_f = self._adapter.jacobian(y)
-            jac_R = self._mass_matrix - 0.5 * deltat * jac_f
-
-            # Apply boundary conditions to Newton residual and Jacobian
-            # This enforces the BC equation directly at boundary rows
-            residual, jac_R = self._apply_boundary_conditions(
-                residual, jac_R, y, t_np1
-            )
-
-            # Check convergence
-            if float(bkd.norm(residual)) < config.newton_tol:
-                return y
-
-            # Newton update
-            delta = bkd.solve(jac_R, -residual)
-            y = y + delta
-
-        return y
 
     def __repr__(self) -> str:
         return (

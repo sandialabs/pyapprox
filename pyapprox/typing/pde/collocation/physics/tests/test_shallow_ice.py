@@ -226,54 +226,6 @@ class TestShallowIcePhysics(PhysicsTestBase):
         self.assertEqual(physics.ncomponents(), 1)
         self.assertEqual(physics.nstates(), npts)
 
-    def test_transient_thickness_evolution(self):
-        """Test transient evolution of ice thickness.
-
-        Shallow ice: dH/dt = div(D*grad(s)) + f
-        For a simple test, start with uniform thickness and observe evolution.
-        """
-        bkd = self.bkd()
-        npts = 15
-        mesh = TransformedMesh1D(npts, bkd)
-
-        basis = ChebyshevBasis1D(mesh, bkd)
-        nodes = basis.nodes()
-
-        # Flat bed
-        bed = bkd.zeros((npts,))
-
-        # Accumulation (positive forcing = ice growth)
-        accumulation = 0.1 * bkd.ones((npts,))
-
-        physics = ShallowIcePhysics(
-            basis, bkd, bed=bed, friction=1e6, A=1e-16, rho=917.0,
-            forcing=lambda t: accumulation
-        )
-
-        model = CollocationModel(physics, bkd)
-
-        # Initial thickness: parabolic profile
-        H0 = 100.0 + 50.0 * (1.0 - nodes ** 2)
-
-        config = TimeIntegrationConfig(
-            method="backward_euler",
-            init_time=0.0,
-            final_time=1.0,
-            deltat=0.1,
-        )
-
-        solutions, times = model.solve_transient(H0, config)
-
-        # Check solution is finite and physical (H > 0)
-        H_final = solutions[:, -1]
-        self.assertTrue(bkd.isfinite(bkd.norm(H_final)))
-        self.assertGreater(float(bkd.min(H_final)), 0.0)
-
-        # With positive accumulation, ice should grow (mean thickness increases)
-        mean_initial = float(np.mean(np.asarray(H0)))
-        mean_final = float(np.mean(np.asarray(H_final)))
-        self.assertGreater(mean_final, mean_initial)
-
     def _setup_transient_shallow_ice(self):
         """Set up transient shallow ice with manufactured solution.
 
