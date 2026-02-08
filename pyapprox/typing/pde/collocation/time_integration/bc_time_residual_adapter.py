@@ -154,10 +154,24 @@ class BCEnforcingTimeResidual(Generic[Array]):
         dqdu_0: Array,
         deltat_1: float,
     ) -> Array:
-        """Compute adjoint at initial time (final backward step)."""
-        return self._inner.adjoint_final_solution(
-            fsol_0, asol_1, dqdu_0, deltat_1
+        """Compute adjoint at initial time using BC-enforced mass matrix.
+
+        The inner adjoint_final_solution uses the raw mass matrix without
+        BC enforcement. We must apply BC rows/cols to the mass matrix
+        and zero dqdu at BC DOFs.
+        """
+        dqdu_0 = self.zero_adjoint_rhs(dqdu_0)
+        # Mass matrix with BC enforcement: identity at BC rows/cols
+        mass = self._inner._residual.mass_matrix(fsol_0.shape[0]).T
+        mass = self._bkd.copy(mass)
+        for idx in self._bc_indices:
+            mass[idx, :] = 0.0
+            mass[:, idx] = 0.0
+            mass[idx, idx] = 1.0
+        drduT_offdiag = self._adjoint_off_diag_jacobian_impl(
+            fsol_0, deltat_1
         )
+        return self._bkd.solve(mass, -drduT_offdiag @ asol_1 - dqdu_0)
 
     def quadrature_samples_weights(
         self, times: Array
@@ -166,7 +180,7 @@ class BCEnforcingTimeResidual(Generic[Array]):
         return self._inner.quadrature_samples_weights(times)
 
     # =========================================================================
-    # BC zeroing helper
+    # BC zeroing helpers
     # =========================================================================
 
     def _zero_bc_rows(self, matrix: Array) -> Array:
@@ -178,6 +192,29 @@ class BCEnforcingTimeResidual(Generic[Array]):
             else:
                 matrix[idx, :] = 0.0
         return matrix
+
+    def zero_adjoint_rhs(self, dqdu: Array) -> Array:
+        """Zero BC DOFs in adjoint RHS to enforce lambda[bc] = 0.
+
+        Without this, the adjoint equation at BC DOFs becomes
+        ``1 * lambda[bc] = -dqdu[bc]`` instead of ``lambda[bc] = 0``,
+        contaminating the gradient at all DOFs.
+
+        Parameters
+        ----------
+        dqdu : Array
+            Functional derivative dQ/dy at a single time step.
+            Shape: (nstates,).
+
+        Returns
+        -------
+        Array
+            Copy with BC DOFs zeroed. Shape: (nstates,).
+        """
+        dqdu = self._bkd.copy(dqdu)
+        for idx in self._bc_indices:
+            dqdu[idx] = 0.0
+        return dqdu
 
     # =========================================================================
     # Adjoint methods (conditionally bound)
@@ -210,14 +247,15 @@ class BCEnforcingTimeResidual(Generic[Array]):
     def _adjoint_initial_condition_impl(
         self, final_fwd_sol: Array, final_dqdu: Array
     ) -> Array:
-        """Compute adjoint IC with BC DOFs zeroed."""
-        result = self._inner.adjoint_initial_condition(
-            final_fwd_sol, final_dqdu
-        )
-        result = self._bkd.copy(result)
-        for idx in self._bc_indices:
-            result[idx] = 0.0
-        return result
+        """Compute adjoint IC using BC-enforced Jacobian.
+
+        The inner adjoint_initial_condition uses the inner Jacobian
+        (without BC enforcement), giving wrong lambda at ALL DOFs.
+        We must solve with the BC-wrapped adjoint_diag_jacobian instead.
+        """
+        final_dqdu = self.zero_adjoint_rhs(final_dqdu)
+        drduT_diag = self._adjoint_diag_jacobian_impl(final_fwd_sol)
+        return self._bkd.solve(drduT_diag, -final_dqdu)
 
     def _initial_param_jacobian_impl(self) -> Array:
         """Compute initial condition param Jacobian with BC rows zeroed."""

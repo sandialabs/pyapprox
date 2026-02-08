@@ -214,6 +214,12 @@ class TimeIntegrator(Generic[Array]):
         # Compute dQ/dy at all time steps
         dqdu = self._functional.state_jacobian(fwd_sols, param)
 
+        # Zero BC DOFs in dQ/dy if the time residual supports it
+        # (required for collocation BCs to enforce lambda[bc] = 0)
+        _has_bc_zeroing = hasattr(
+            self._time_residual, "zero_adjoint_rhs"
+        )
+
         adj_sols = self._bkd.zeros(fwd_sols.shape)
 
         # Initial condition for adjoint at final time
@@ -222,9 +228,13 @@ class TimeIntegrator(Generic[Array]):
         deltat_n = float(times[-1] - times[-2])
         self._time_residual.set_time(self._time, deltat_n, fwd_sols[:, -2])
 
+        dqdu_final = dqdu[:, -1]
+        if _has_bc_zeroing:
+            dqdu_final = self._time_residual.zero_adjoint_rhs(dqdu_final)
+
         adj_sols = self._bkd.copy(adj_sols)
         adj_sols[:, -1] = self._time_residual.adjoint_initial_condition(
-            fwd_sols[:, -1], dqdu[:, -1]
+            fwd_sols[:, -1], dqdu_final
         )
 
         # Backward sweep from N-2 to 1
@@ -232,10 +242,14 @@ class TimeIntegrator(Generic[Array]):
             deltat_np1 = deltat_n
             deltat_n = float(times[nn] - times[nn - 1])
 
+            dqdu_n = dqdu[:, nn]
+            if _has_bc_zeroing:
+                dqdu_n = self._time_residual.zero_adjoint_rhs(dqdu_n)
+
             adj_sols[:, nn] = self.adjoint_step(
                 fwd_sols[:, nn],
                 adj_sols[:, nn + 1],
-                dqdu[:, nn],
+                dqdu_n,
                 deltat_n,
                 deltat_np1,
                 float(times[nn]),
@@ -247,10 +261,14 @@ class TimeIntegrator(Generic[Array]):
         self._time = float(times[0])
         self._time_residual.set_time(self._time, deltat_n, fwd_sols[:, 0])
 
+        dqdu_0 = dqdu[:, 0]
+        if _has_bc_zeroing:
+            dqdu_0 = self._time_residual.zero_adjoint_rhs(dqdu_0)
+
         adj_sols[:, 0] = self._time_residual.adjoint_final_solution(
             fwd_sols[:, 0],
             adj_sols[:, 1],
-            dqdu[:, 0],
+            dqdu_0,
             deltat_np1,
         )
 
