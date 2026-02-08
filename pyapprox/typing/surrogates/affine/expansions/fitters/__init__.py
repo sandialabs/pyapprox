@@ -61,6 +61,10 @@ from pyapprox.typing.surrogates.affine.expansions.fitters.pce_cv import (
 from pyapprox.typing.surrogates.affine.expansions.fitters.omp_cv import (
     OMPCVFitter,
 )
+from pyapprox.typing.surrogates.affine.expansions.fitters.adaptive_pce import (
+    AdaptivePCEFitter,
+    AdaptivePCEResult,
+)
 
 __all__ = [
     "DirectSolverResult",
@@ -86,4 +90,6 @@ __all__ = [
     "CVSelectionResult",
     "PCEDegreeSelectionFitter",
     "OMPCVFitter",
+    "AdaptivePCEFitter",
+    "AdaptivePCEResult",
 ]

@@ -35,6 +35,8 @@ from pyapprox.typing.surrogates.affine.expansions.fitters import (
     BayesianConjugateResult,
     PCEDegreeSelectionFitter,
     OMPCVFitter,
+    AdaptivePCEFitter,
+    AdaptivePCEResult,
 )
 
 # Export cross-validation functions
@@ -73,6 +75,8 @@ __all__ = [
     "CVSelectionResult",
     "PCEDegreeSelectionFitter",
     "OMPCVFitter",
+    "AdaptivePCEFitter",
+    "AdaptivePCEResult",
     # Cross-validation functions
     "leave_one_out_lsq_cross_validation",
     "leave_many_out_lsq_cross_validation",
