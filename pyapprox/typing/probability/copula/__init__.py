@@ -20,6 +20,16 @@ from pyapprox.typing.probability.copula.distribution import CopulaDistribution
 from pyapprox.typing.probability.copula.kl_divergence import (
     gaussian_copula_kl_divergence,
 )
+from pyapprox.typing.probability.copula.bivariate import (
+    BivariateCopulaProtocol,
+    BivariateGaussianCopula,
+    ClaytonCopula,
+    FrankCopula,
+    GumbelCopula,
+    create_bivariate_copula,
+    register_bivariate_copula,
+    list_bivariate_copulas,
+)
 
 __all__ = [
     "CopulaProtocol",
@@ -29,4 +39,12 @@ __all__ = [
     "GaussianCopula",
     "CopulaDistribution",
     "gaussian_copula_kl_divergence",
+    "BivariateCopulaProtocol",
+    "BivariateGaussianCopula",
+    "ClaytonCopula",
+    "FrankCopula",
+    "GumbelCopula",
+    "create_bivariate_copula",
+    "register_bivariate_copula",
+    "list_bivariate_copulas",
 ]

@@ -235,6 +235,9 @@ class Backend(Protocol, Generic[Array]):
     def cos(array: Array) -> Array: ...
 
     @staticmethod
+    def arcsin(array: Array) -> Array: ...
+
+    @staticmethod
     def arccos(array: Array) -> Array: ...
 
     @staticmethod

@@ -179,6 +179,10 @@ class TorchBkd(Backend[torch.Tensor]):  # Specify torch.Tensor type
         return torch.cos(array)
 
     @staticmethod
+    def arcsin(array: torch.Tensor) -> torch.Tensor:
+        return torch.arcsin(array)
+
+    @staticmethod
     def arccos(array: torch.Tensor) -> torch.Tensor:
         return torch.arccos(array)
 

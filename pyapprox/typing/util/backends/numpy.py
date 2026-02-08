@@ -160,6 +160,10 @@ class NumpyBkd(Backend[NDArray[Any]]):  # Specify NDArray type
         return cast(NDArray[Any], np.cos(array))
 
     @staticmethod
+    def arcsin(array: NDArray[Any]) -> NDArray[Any]:
+        return cast(NDArray[Any], np.arcsin(array))
+
+    @staticmethod
     def arccos(array: NDArray[Any]) -> NDArray[Any]:
         return cast(NDArray[Any], np.arccos(array))
 
