@@ -69,5 +69,6 @@ class SubsetOfStatesAdjointFunctional(Generic[Array]):
 
     def state_jacobian(self, state: Array, param: Array) -> Array:
         jac = self._bkd.zeros((self.nqoi(), self.nstates()))
-        jac[self._subset, self._subset] = 1.0
+        row_idx = self._bkd.arange(self.nqoi())
+        jac[row_idx, self._subset] = 1.0
         return jac
