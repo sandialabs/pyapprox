@@ -11,9 +11,13 @@ from pyapprox.typing.probability.copula.vine.helpers import (
     compute_dvine_partial_correlations,
     correlation_from_partial_correlations,
 )
+from pyapprox.typing.probability.copula.vine.gaussian_network_factory import (
+    dvine_from_gaussian_network,
+)
 
 __all__ = [
     "DVineCopula",
+    "dvine_from_gaussian_network",
     "precision_bandwidth",
     "compute_dvine_partial_correlations",
     "correlation_from_partial_correlations",

@@ -30,6 +30,13 @@ from pyapprox.typing.probability.copula.bivariate import (
     register_bivariate_copula,
     list_bivariate_copulas,
 )
+from pyapprox.typing.probability.copula.vine import (
+    DVineCopula,
+    dvine_from_gaussian_network,
+    precision_bandwidth,
+    compute_dvine_partial_correlations,
+    correlation_from_partial_correlations,
+)
 
 __all__ = [
     "CopulaProtocol",
@@ -47,4 +54,9 @@ __all__ = [
     "create_bivariate_copula",
     "register_bivariate_copula",
     "list_bivariate_copulas",
+    "DVineCopula",
+    "dvine_from_gaussian_network",
+    "precision_bandwidth",
+    "compute_dvine_partial_correlations",
+    "correlation_from_partial_correlations",
 ]

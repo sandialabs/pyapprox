@@ -162,6 +162,67 @@ class GaussianNetwork(Generic[Array]):
         """Check if node is a root (no parents)."""
         return self._node_data[node_id]["is_root"]
 
+    def get_prior_cov(self, node_id: int) -> Array:
+        """Get the prior covariance for a root node.
+
+        Parameters
+        ----------
+        node_id : int
+            A root node ID.
+
+        Returns
+        -------
+        Array
+            Prior covariance matrix. Shape: (nvars, nvars)
+        """
+        data = self._node_data[node_id]
+        if not data["is_root"]:
+            raise ValueError(
+                f"Node {node_id} is not a root node"
+            )
+        return data["prior_cov"]
+
+    def get_cpd_coefficients(self, node_id: int) -> List[Array]:
+        """Get the CPD coefficient matrices for a non-root node.
+
+        Parameters
+        ----------
+        node_id : int
+            A non-root node ID.
+
+        Returns
+        -------
+        List[Array]
+            Coefficient matrices, one per parent.
+            cpd_coefficients[i] has shape (nvars_child, nvars_parent_i)
+        """
+        data = self._node_data[node_id]
+        if data["is_root"]:
+            raise ValueError(
+                f"Node {node_id} is a root node (no CPD)"
+            )
+        return data["cpd_coefficients"]
+
+    def get_cpd_noise_cov(self, node_id: int) -> Array:
+        """Get the CPD noise covariance for a non-root node.
+
+        Parameters
+        ----------
+        node_id : int
+            A non-root node ID.
+
+        Returns
+        -------
+        Array
+            Noise covariance matrix. Shape: (nvars, nvars)
+        """
+        data = self._node_data[node_id]
+        if data["is_root"]:
+            raise ValueError(
+                f"Node {node_id} is a root node (no CPD)"
+            )
+        return data["cpd_noise_cov"]
+
     def nodes(self) -> List[int]:
         """Get all node IDs."""
         return list(self._graph.nodes())
