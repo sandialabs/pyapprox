@@ -42,6 +42,9 @@ from pyapprox.typing.pde.collocation.manufactured_solutions.shallow_shelf import
 from pyapprox.typing.pde.collocation.manufactured_solutions.stokes import (
     ManufacturedStokes,
 )
+from pyapprox.typing.pde.collocation.manufactured_solutions.hyperelasticity import (
+    ManufacturedHyperelasticityEquations,
+)
 
 __all__ = [
     # Base classes
@@ -64,4 +67,6 @@ __all__ = [
     "ManufacturedShallowShelfVelocityEquations",
     "ManufacturedShallowShelfVelocityAndDepthEquations",
     "ManufacturedStokes",
+    # Hyperelasticity
+    "ManufacturedHyperelasticityEquations",
 ]

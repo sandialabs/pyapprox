@@ -49,6 +49,19 @@ from pyapprox.typing.pde.collocation.physics.shallow_shelf import (
     create_shallow_shelf_velocity,
     create_shallow_shelf_depth,
 )
+from pyapprox.typing.pde.collocation.physics.hyperelasticity import (
+    HyperelasticityPhysics,
+    create_hyperelasticity,
+)
+from pyapprox.typing.pde.collocation.physics.stress_models import (
+    StressModelProtocol,
+    StressModelWithTangentProtocol,
+    SymbolicStressModelProtocol,
+    NeoHookeanStress,
+    register_stress_model,
+    create_stress_model,
+    list_stress_models,
+)
 
 __all__ = [
     # Base classes
@@ -90,4 +103,15 @@ __all__ = [
     "ShallowShelfDepthPhysics",
     "create_shallow_shelf_velocity",
     "create_shallow_shelf_depth",
+    # Hyperelasticity
+    "HyperelasticityPhysics",
+    "create_hyperelasticity",
+    # Stress models
+    "StressModelProtocol",
+    "StressModelWithTangentProtocol",
+    "SymbolicStressModelProtocol",
+    "NeoHookeanStress",
+    "register_stress_model",
+    "create_stress_model",
+    "list_stress_models",
 ]
