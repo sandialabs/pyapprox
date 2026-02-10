@@ -44,6 +44,9 @@ from pyapprox.typing.surrogates.sparsegrids.tests.test_helpers import (
     compute_required_sg_subspaces,
     GROWTH_RULES,
 )
+from pyapprox.typing.surrogates.sparsegrids.refinement import (
+    VarianceRefinementCriteria,
+)
 from pyapprox.typing.probability import UniformMarginal
 from pyapprox.typing.surrogates.affine.indices import (
     LinearGrowthRule,
@@ -219,6 +222,73 @@ class TestAdaptiveSparseGrid(Generic[Array], unittest.TestCase):
         expected = linear_func(test_pts)
 
         self._bkd.assert_allclose(result, expected, rtol=1e-10)
+
+    def _build_adaptive_grid_on_pce(
+        self,
+        joint_config: str,
+        max_level: int,
+        nqoi: int,
+    ) -> tuple:
+        """Build adaptive SG fully converged on a PCE target.
+
+        Returns (grid, pce) tuple.
+        """
+        joint = create_test_joint(joint_config, self._bkd)
+        pce = create_test_pce(joint, max_level, nqoi=nqoi, bkd=self._bkd)
+
+        factories = create_basis_factories(
+            joint.marginals(), self._bkd, "gauss"
+        )
+        growth = LinearGrowthRule(scale=1, shift=1)
+        admis = MaxLevelCriteria(
+            max_level=max_level, pnorm=1.0, bkd=self._bkd
+        )
+
+        grid = AdaptiveCombinationSparseGrid(
+            self._bkd, factories, growth, admis
+        )
+
+        for _ in range(50):
+            samples = grid.step_samples()
+            if samples is None:
+                break
+            values = pce(samples)
+            grid.step_values(values)
+
+        return grid, pce
+
+    def test_adaptive_mean_matches_pce(self) -> None:
+        """Test adaptive SG mean matches PCE mean for nqoi=2."""
+        grid, pce = self._build_adaptive_grid_on_pce(
+            "2d_uniform", max_level=3, nqoi=2
+        )
+
+        sg_mean = grid.mean()
+        pce_mean = pce.mean()
+
+        self._bkd.assert_allclose(sg_mean, pce_mean, rtol=1e-8)
+
+    def test_adaptive_variance_matches_pce(self) -> None:
+        """Test adaptive SG variance matches PCE variance for nqoi=2."""
+        grid, pce = self._build_adaptive_grid_on_pce(
+            "2d_uniform", max_level=3, nqoi=2
+        )
+
+        sg_var = grid.variance()
+        pce_var = pce.variance()
+
+        self._bkd.assert_allclose(sg_var, pce_var, rtol=1e-8)
+
+    def test_subspace_indices_within_max_level_bound(self) -> None:
+        """Test selected subspace indices don't exceed max_level + 1."""
+        max_level = 3
+        grid, _ = self._build_adaptive_grid_on_pce(
+            "2d_uniform", max_level=max_level, nqoi=1
+        )
+
+        selected = grid.get_selected_subspace_indices()
+        max_idx = int(self._bkd.to_numpy(self._bkd.max(selected)))
+        self.assertLessEqual(max_idx, max_level + 1)
 
 
 # NumPy backend tests
@@ -636,6 +706,106 @@ class TestAdaptiveAdditiveRecovery(
                     f"Multi-dim subspace {self._bkd.to_numpy(idx)} has levels > 1, "
                     "indicating over-refinement of cross-terms",
                 )
+
+
+# =============================================================================
+# Variance Refinement End-to-End Tests
+# =============================================================================
+
+
+class TestAdaptiveVarianceRefinement(Generic[Array], unittest.TestCase):
+    """End-to-end tests for adaptive SG with VarianceRefinementCriteria."""
+
+    __test__ = False
+
+    def bkd(self) -> Backend[Array]:
+        raise NotImplementedError
+
+    def setUp(self) -> None:
+        self._bkd = self.bkd()
+
+    def test_adaptive_with_variance_refinement(self) -> None:
+        """Test adaptive SG converges using VarianceRefinementCriteria."""
+        joint = create_test_joint("2d_uniform", self._bkd)
+        pce = create_test_pce(joint, level=3, nqoi=1, bkd=self._bkd)
+
+        factories = create_basis_factories(
+            joint.marginals(), self._bkd, "gauss"
+        )
+        growth = LinearGrowthRule(scale=1, shift=1)
+        admis = MaxLevelCriteria(max_level=4, pnorm=1.0, bkd=self._bkd)
+        criteria = VarianceRefinementCriteria(self._bkd)
+
+        grid = AdaptiveCombinationSparseGrid(
+            self._bkd, factories, growth, admis,
+            refinement_priority=criteria,
+        )
+
+        for _ in range(50):
+            samples = grid.step_samples()
+            if samples is None:
+                break
+            values = pce(samples)
+            grid.step_values(values)
+
+        # Verify interpolation accuracy
+        np.random.seed(123)
+        test_pts = joint.rvs(20)
+        self._bkd.assert_allclose(grid(test_pts), pce(test_pts), rtol=1e-8)
+
+        # Verify mean and variance match PCE
+        self._bkd.assert_allclose(grid.mean(), pce.mean(), rtol=1e-8)
+        self._bkd.assert_allclose(grid.variance(), pce.variance(), rtol=1e-6)
+
+    def test_variance_refinement_multi_qoi(self) -> None:
+        """Test variance refinement with multiple QoIs."""
+        joint = create_test_joint("2d_uniform", self._bkd)
+        pce = create_test_pce(joint, level=3, nqoi=2, bkd=self._bkd)
+
+        factories = create_basis_factories(
+            joint.marginals(), self._bkd, "gauss"
+        )
+        growth = LinearGrowthRule(scale=1, shift=1)
+        admis = MaxLevelCriteria(max_level=4, pnorm=1.0, bkd=self._bkd)
+        criteria = VarianceRefinementCriteria(self._bkd)
+
+        grid = AdaptiveCombinationSparseGrid(
+            self._bkd, factories, growth, admis,
+            refinement_priority=criteria,
+        )
+
+        for _ in range(50):
+            samples = grid.step_samples()
+            if samples is None:
+                break
+            values = pce(samples)
+            grid.step_values(values)
+
+        np.random.seed(123)
+        test_pts = joint.rvs(20)
+        self._bkd.assert_allclose(grid(test_pts), pce(test_pts), rtol=1e-8)
+
+
+class TestAdaptiveVarianceRefinementNumpy(
+    TestAdaptiveVarianceRefinement[NDArray[Any]]
+):
+    """NumPy backend tests."""
+
+    def bkd(self) -> NumpyBkd:
+        return NumpyBkd()
+
+
+class TestAdaptiveVarianceRefinementTorch(
+    TestAdaptiveVarianceRefinement[torch.Tensor]
+):
+    """PyTorch backend tests."""
+
+    def setUp(self) -> None:
+        torch.set_default_dtype(torch.float64)
+        super().setUp()
+
+    def bkd(self) -> TorchBkd:
+        return TorchBkd()
 
 
 class TestAdaptiveSparseGridProtocolValidation(Generic[Array], unittest.TestCase):

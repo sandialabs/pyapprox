@@ -250,6 +250,70 @@ class TestSparseGridDerivatives(Generic[Array], unittest.TestCase):
 
         self._bkd.assert_allclose(whvp, expected_whvp, rtol=1e-6)
 
+    def test_hessian_via_derivative_checker(self) -> None:
+        """Test Hessian via DerivativeChecker errors[1] for nqoi=1."""
+        nvars = 2
+        level = 3
+
+        marginal = UniformMarginal(-1.0, 1.0, self._bkd)
+        factories: List[BasisFactoryProtocol[Array]] = [
+            GaussLagrangeFactory(marginal, self._bkd) for _ in range(nvars)
+        ]
+        growth = LinearGrowthRule(scale=1, shift=1)
+
+        grid = IsotropicCombinationSparseGrid(
+            self._bkd, factories, growth, level
+        )
+
+        # f(x, y) = x^2 + x*y + y^2 (quadratic with cross-term)
+        samples = grid.get_samples()
+        x, y = samples[0, :], samples[1, :]
+        values = self._bkd.reshape(x ** 2 + x * y + y ** 2, (1, -1))
+        grid.set_values(values)
+
+        test_pt = self._bkd.asarray([[0.3], [0.4]])
+        checker = DerivativeChecker(grid)
+        errors = checker.check_derivatives(test_pt, verbosity=0)
+
+        # errors[0] = Jacobian errors, errors[1] = Hessian errors
+        self.assertEqual(len(errors), 2)
+        hessian_error = float(checker.error_ratio(errors[1]).item())
+        self.assertLess(hessian_error, 1e-6)
+
+    def test_whvp_via_derivative_checker(self) -> None:
+        """Test WHVP via DerivativeChecker for nqoi=2 with weights."""
+        nvars = 2
+        level = 3
+
+        marginal = UniformMarginal(-1.0, 1.0, self._bkd)
+        factories: List[BasisFactoryProtocol[Array]] = [
+            GaussLagrangeFactory(marginal, self._bkd) for _ in range(nvars)
+        ]
+        growth = LinearGrowthRule(scale=1, shift=1)
+
+        grid = IsotropicCombinationSparseGrid(
+            self._bkd, factories, growth, level
+        )
+
+        # Two QoIs: f1 = x^2 + y, f2 = x*y
+        samples = grid.get_samples()
+        x, y = samples[0, :], samples[1, :]
+        values = self._bkd.stack([x ** 2 + y, x * y], axis=0)
+        grid.set_values(values)
+
+        test_pt = self._bkd.asarray([[0.3], [0.4]])
+        weights = self._bkd.asarray([[0.6, 0.4]])  # Shape (1, nqoi)
+
+        checker = DerivativeChecker(grid)
+        errors = checker.check_derivatives(
+            test_pt, verbosity=0, weights=weights
+        )
+
+        # errors[1] = weighted Hessian errors
+        self.assertEqual(len(errors), 2)
+        whvp_error = float(checker.error_ratio(errors[1]).item())
+        self.assertLess(whvp_error, 1e-6)
+
 
 # NumPy backend tests
 class TestSparseGridDerivativesNumpy(TestSparseGridDerivatives[NDArray[Any]]):

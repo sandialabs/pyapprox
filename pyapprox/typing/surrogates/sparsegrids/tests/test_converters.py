@@ -6,6 +6,7 @@ Tests run on both NumPy and PyTorch backends using the base class pattern.
 import unittest
 from typing import Any, Generic, List
 
+import numpy as np
 import torch
 from numpy.typing import NDArray
 
@@ -15,18 +16,27 @@ from pyapprox.typing.util.backends.protocols import Array, Backend
 from pyapprox.typing.util.test_utils import load_tests  # noqa: F401
 
 from pyapprox.typing.surrogates.sparsegrids import (
+    AdaptiveCombinationSparseGrid,
     IsotropicCombinationSparseGrid,
     SparseGridToPCEConverter,
     TensorProductSubspaceToPCEConverter,
     TensorProductSubspace,
+    create_basis_factories,
 )
 from pyapprox.typing.surrogates.sparsegrids.basis_factory import (
     BasisFactoryProtocol,
     GaussLagrangeFactory,
 )
+from pyapprox.typing.surrogates.sparsegrids.tests.test_helpers import (
+    create_test_joint,
+    create_test_pce,
+)
 from pyapprox.typing.surrogates.affine.univariate import create_bases_1d
 from pyapprox.typing.probability import UniformMarginal
-from pyapprox.typing.surrogates.affine.indices import LinearGrowthRule
+from pyapprox.typing.surrogates.affine.indices import (
+    LinearGrowthRule,
+    MaxLevelCriteria,
+)
 
 
 class TestSparseGridToPCEConverter(Generic[Array], unittest.TestCase):
@@ -348,6 +358,108 @@ class TestTensorProductSubspaceToPCEConverter(Generic[Array], unittest.TestCase)
         self.assertEqual(indices.shape[1], coefficients.shape[1])
 
 
+class TestAdaptiveSGToPCEConverter(Generic[Array], unittest.TestCase):
+    """Tests for converting adaptive sparse grids to PCE - dual backend."""
+
+    __test__ = False
+
+    def bkd(self) -> Backend[Array]:
+        raise NotImplementedError
+
+    def setUp(self) -> None:
+        self._bkd = self.bkd()
+
+    def test_adaptive_sg_to_pce_evaluation(self) -> None:
+        """Test adaptive SG → PCE conversion preserves evaluation."""
+        joint = create_test_joint("2d_uniform", self._bkd)
+        pce_target = create_test_pce(joint, level=3, nqoi=1, bkd=self._bkd)
+
+        factories = create_basis_factories(
+            joint.marginals(), self._bkd, "gauss"
+        )
+        growth = LinearGrowthRule(scale=1, shift=1)
+        admis = MaxLevelCriteria(max_level=3, pnorm=1.0, bkd=self._bkd)
+
+        grid = AdaptiveCombinationSparseGrid(
+            self._bkd, factories, growth, admis
+        )
+
+        for _ in range(50):
+            samples = grid.step_samples()
+            if samples is None:
+                break
+            values = pce_target(samples)
+            grid.step_values(values)
+
+        # Convert to PCE
+        pce_bases_1d = create_bases_1d(joint.marginals(), self._bkd)
+        converter = SparseGridToPCEConverter(self._bkd, pce_bases_1d)
+        pce = converter.convert(grid)
+
+        # Verify evaluation matches
+        np.random.seed(123)
+        test_pts = joint.rvs(20)
+        self._bkd.assert_allclose(pce(test_pts), grid(test_pts), rtol=1e-10)
+
+    def test_adaptive_sg_to_pce_mean(self) -> None:
+        """Test adaptive SG → PCE conversion preserves mean."""
+        joint = create_test_joint("2d_uniform", self._bkd)
+        pce_target = create_test_pce(joint, level=3, nqoi=1, bkd=self._bkd)
+
+        factories = create_basis_factories(
+            joint.marginals(), self._bkd, "gauss"
+        )
+        growth = LinearGrowthRule(scale=1, shift=1)
+        admis = MaxLevelCriteria(max_level=3, pnorm=1.0, bkd=self._bkd)
+
+        grid = AdaptiveCombinationSparseGrid(
+            self._bkd, factories, growth, admis
+        )
+
+        for _ in range(50):
+            samples = grid.step_samples()
+            if samples is None:
+                break
+            values = pce_target(samples)
+            grid.step_values(values)
+
+        pce_bases_1d = create_bases_1d(joint.marginals(), self._bkd)
+        converter = SparseGridToPCEConverter(self._bkd, pce_bases_1d)
+        pce = converter.convert(grid)
+
+        self._bkd.assert_allclose(pce.mean(), grid.mean(), rtol=1e-10)
+
+    def test_adaptive_sg_to_pce_variance(self) -> None:
+        """Test adaptive SG → PCE conversion preserves variance."""
+        joint = create_test_joint("2d_uniform", self._bkd)
+        pce_target = create_test_pce(joint, level=3, nqoi=1, bkd=self._bkd)
+
+        factories = create_basis_factories(
+            joint.marginals(), self._bkd, "gauss"
+        )
+        growth = LinearGrowthRule(scale=1, shift=1)
+        admis = MaxLevelCriteria(max_level=3, pnorm=1.0, bkd=self._bkd)
+
+        grid = AdaptiveCombinationSparseGrid(
+            self._bkd, factories, growth, admis
+        )
+
+        for _ in range(50):
+            samples = grid.step_samples()
+            if samples is None:
+                break
+            values = pce_target(samples)
+            grid.step_values(values)
+
+        pce_bases_1d = create_bases_1d(joint.marginals(), self._bkd)
+        converter = SparseGridToPCEConverter(self._bkd, pce_bases_1d)
+        pce = converter.convert(grid)
+
+        self._bkd.assert_allclose(
+            pce.variance(), grid.variance(), rtol=1e-10
+        )
+
+
 # NumPy backend tests
 class TestSparseGridToPCEConverterNumpy(
     TestSparseGridToPCEConverter[NDArray[Any]]
@@ -362,6 +474,15 @@ class TestTensorProductSubspaceToPCEConverterNumpy(
     TestTensorProductSubspaceToPCEConverter[NDArray[Any]]
 ):
     """NumPy backend tests for TensorProductSubspaceToPCEConverter."""
+
+    def bkd(self) -> NumpyBkd:
+        return NumpyBkd()
+
+
+class TestAdaptiveSGToPCEConverterNumpy(
+    TestAdaptiveSGToPCEConverter[NDArray[Any]]
+):
+    """NumPy backend tests for adaptive SG → PCE converter."""
 
     def bkd(self) -> NumpyBkd:
         return NumpyBkd()
@@ -385,6 +506,19 @@ class TestTensorProductSubspaceToPCEConverterTorch(
     TestTensorProductSubspaceToPCEConverter[torch.Tensor]
 ):
     """PyTorch backend tests for TensorProductSubspaceToPCEConverter."""
+
+    def setUp(self) -> None:
+        torch.set_default_dtype(torch.float64)
+        super().setUp()
+
+    def bkd(self) -> TorchBkd:
+        return TorchBkd()
+
+
+class TestAdaptiveSGToPCEConverterTorch(
+    TestAdaptiveSGToPCEConverter[torch.Tensor]
+):
+    """PyTorch backend tests for adaptive SG → PCE converter."""
 
     def setUp(self) -> None:
         torch.set_default_dtype(torch.float64)
