@@ -9,6 +9,12 @@ Selects between three acceleration strategies:
 Each dispatch function returns a callable with a uniform signature so that
 the calling class (GaussianOEDInnerLoopLikelihood) is unaware of which
 strategy is active.
+
+TODO: Refactor to match tensorproduct/dispatch.py pattern:
+  - Remove use_numba/use_torch_compile flags; auto-dispatch from bkd type
+  - Make numba/torch top-level imports (both are required dependencies)
+  - Remove try/except guards for numba and TorchBkd imports
+  - Update gaussian.py __init__ and tests accordingly
 """
 
 from typing import Callable, Optional

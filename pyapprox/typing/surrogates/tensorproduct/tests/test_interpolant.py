@@ -60,9 +60,10 @@ class TestTensorProductInterpolant(Generic[Array], unittest.TestCase):
 
     def test_init_asymmetric(self) -> None:
         """Test initialization with different nterms per dimension."""
-        basis = self._make_basis()
+        basis0 = self._make_basis()
+        basis1 = self._make_basis()
         interp = TensorProductInterpolant(
-            self._bkd, [basis, basis], [3, 4]
+            self._bkd, [basis0, basis1], [3, 4]
         )
         self.assertEqual(interp.nvars(), 2)
         self.assertEqual(interp.nsamples(), 12)  # 3 * 4

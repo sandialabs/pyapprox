@@ -17,6 +17,9 @@ from pyapprox.typing.surrogates.tensorproduct.protocols import (
     Basis1DHasJacobianProtocol,
     Basis1DHasHessianProtocol,
 )
+from pyapprox.typing.surrogates.tensorproduct.dispatch import (
+    get_tp_eval_impl,
+)
 
 
 class TensorProductInterpolant(Generic[Array]):
@@ -78,6 +81,18 @@ class TensorProductInterpolant(Generic[Array]):
                     f"Use LagrangeBasis1D or another interpolation basis."
                 )
 
+        # Reject shared basis objects with different nterms (set_nterms on
+        # a shared object causes silent corruption of earlier dimensions)
+        unique_ids = {id(b) for b in bases_1d}
+        if len(unique_ids) < len(bases_1d):
+            nterms_set = set(nterms_1d)
+            if len(nterms_set) > 1:
+                raise ValueError(
+                    "Same basis object passed for multiple dimensions with "
+                    "different nterms_1d values. Use separate basis instances "
+                    "per dimension when nterms_1d differ."
+                )
+
         self._bkd = bkd
         self._bases_1d = bases_1d
         self._nterms_1d = list(nterms_1d)
@@ -107,6 +122,9 @@ class TensorProductInterpolant(Generic[Array]):
         self._hessian_supported = all(
             isinstance(b, Basis1DHasHessianProtocol) for b in self._bases_1d
         )
+
+        # Select accelerated evaluation strategy based on backend
+        self._tp_eval_impl = get_tp_eval_impl(bkd)
 
     def bkd(self) -> Backend[Array]:
         """Return the computational backend."""
@@ -217,19 +235,10 @@ class TensorProductInterpolant(Generic[Array]):
         if self._values is None:
             raise ValueError("Values not set. Call set_values() first.")
 
-        # Evaluate all 1D bases at samples (vectorized)
-        # Each element has shape (npoints, nterms_1d[d])
         basis_vals_1d = self._basis_vals_1d(samples)
-
-        # Build interpolation matrix via tensor product using fancy indexing
-        # interp_mat[s, i] = prod_d basis_vals_1d[d][s, indices[d, i]]
-        interp_mat = basis_vals_1d[0][:, self._tp_indices[0, :]]
-
-        for dd in range(1, self.nvars()):
-            interp_mat = interp_mat * basis_vals_1d[dd][:, self._tp_indices[dd, :]]
-
-        # Apply to values: (nqoi, nsamples) @ (nsamples, npoints) = (nqoi, npoints)
-        return self._bkd.dot(self._values, interp_mat.T)
+        return self._tp_eval_impl(
+            basis_vals_1d, self._values, self._nterms_1d, self._bkd,
+        )
 
     # Derivative support methods
 
