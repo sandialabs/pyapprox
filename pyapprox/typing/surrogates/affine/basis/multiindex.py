@@ -19,6 +19,11 @@ from pyapprox.typing.surrogates.affine.protocols import (
     Basis1DHasJacobianProtocol,
     Basis1DHasHessianProtocol,
 )
+from pyapprox.typing.surrogates.affine.basis.dispatch import (
+    get_basis_eval_impl,
+    get_basis_jacobian_impl,
+    get_basis_hessian_impl,
+)
 
 
 class MultiIndexBasis(ABC, Generic[Array]):
@@ -54,6 +59,17 @@ class MultiIndexBasis(ABC, Generic[Array]):
         )
         self._hessian_supported = all(
             isinstance(b, Basis1DHasHessianProtocol) for b in bases_1d
+        )
+
+        # Resolve dispatch at init time based on backend type
+        self._eval_impl = get_basis_eval_impl(bkd)
+        self._jacobian_impl = (
+            get_basis_jacobian_impl(bkd)
+            if self._jacobian_supported else None
+        )
+        self._hessian_impl = (
+            get_basis_hessian_impl(bkd)
+            if self._hessian_supported else None
         )
 
         if indices is not None:
@@ -220,18 +236,10 @@ class MultiIndexBasis(ABC, Generic[Array]):
         if self._indices is None:
             raise ValueError("Indices have not been set")
 
-        # Get univariate basis values
         basis_vals_1d = self._basis_vals_1d(samples)
-
-        # Build tensor product by selecting appropriate univariate values
-        # Start with first dimension
-        basis_matrix = basis_vals_1d[0][:, self._indices[0, :]]
-
-        # Multiply by remaining dimensions
-        for dd in range(1, self.nvars()):
-            basis_matrix = basis_matrix * basis_vals_1d[dd][:, self._indices[dd, :]]
-
-        return basis_matrix
+        return self._eval_impl(
+            basis_vals_1d, self._indices, self.nvars(), self._bkd,
+        )
 
     def jacobian_batch(self, samples: Array) -> Array:
         """Compute Jacobians of basis functions.
@@ -261,22 +269,10 @@ class MultiIndexBasis(ABC, Generic[Array]):
 
         basis_vals_1d = self._basis_vals_1d(samples)
         basis_derivs_1d = self._basis_jacobians_1d(samples)
-
-        jac_list = []
-        for dd in range(self.nvars()):
-            # Start with derivative in dimension dd
-            jac_dd = basis_derivs_1d[dd][:, self._indices[dd, :]]
-
-            # Multiply by values in other dimensions
-            for kk in range(self.nvars()):
-                if kk != dd:
-                    jac_dd = jac_dd * basis_vals_1d[kk][:, self._indices[kk, :]]
-
-            jac_list.append(jac_dd)
-
-        # Stack and move dimension axis to last position
-        # From list of (nsamples, nterms) to (nsamples, nterms, nvars)
-        return self._bkd.moveaxis(self._bkd.stack(jac_list, axis=0), 0, -1)
+        return self._jacobian_impl(
+            basis_vals_1d, basis_derivs_1d,
+            self._indices, self.nvars(), self._bkd,
+        )
 
     def hessian_batch(self, samples: Array) -> Array:
         """Compute Hessians of basis functions.
@@ -311,35 +307,10 @@ class MultiIndexBasis(ABC, Generic[Array]):
         basis_derivs_1d = self._basis_jacobians_1d(samples)
         basis_hess_1d = self._basis_hessians_1d(samples)
 
-        nsamples = samples.shape[1]
-        nterms = self.nterms()
-        nvars = self.nvars()
-
-        # Initialize Hessian array
-        hess = self._bkd.zeros((nsamples, nterms, nvars, nvars))
-
-        for dd in range(nvars):
-            for kk in range(dd, nvars):
-                if dd == kk:
-                    # Diagonal: second derivative in dimension dd
-                    hess_dk = basis_hess_1d[dd][:, self._indices[dd, :]]
-                else:
-                    # Off-diagonal: first derivatives in both dimensions
-                    hess_dk = (
-                        basis_derivs_1d[dd][:, self._indices[dd, :]]
-                        * basis_derivs_1d[kk][:, self._indices[kk, :]]
-                    )
-
-                # Multiply by values in remaining dimensions
-                for ll in range(nvars):
-                    if ll != dd and ll != kk:
-                        hess_dk = hess_dk * basis_vals_1d[ll][:, self._indices[ll, :]]
-
-                hess[:, :, dd, kk] = hess_dk
-                if dd != kk:
-                    hess[:, :, kk, dd] = hess_dk  # Symmetry
-
-        return hess
+        return self._hessian_impl(
+            basis_vals_1d, basis_derivs_1d, basis_hess_1d,
+            self._indices, self.nvars(), self._bkd,
+        )
 
     def __repr__(self) -> str:
         return (
