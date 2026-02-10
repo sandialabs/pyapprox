@@ -16,6 +16,8 @@ The coefficients are computed using:
 
 from typing import Set, Tuple
 
+import numpy as np
+
 from pyapprox.typing.util.backends.protocols import Array, Backend
 
 
@@ -85,51 +87,39 @@ def compute_smolyak_coefficients(
     """
     nvars = subspace_indices.shape[0]
     nsubspaces = subspace_indices.shape[1]
-    nshifts = 2**nvars
+
+    # Work in numpy for fast tuple hashing and integer arithmetic
+    np_indices = np.asarray(
+        bkd.to_numpy(subspace_indices), dtype=np.int64
+    )  # (nvars, nsubspaces)
 
     # Build set of index tuples for fast O(1) lookup
-    index_set: Set[Tuple[int, ...]] = set()
+    # Use bytes view for O(1) hashing instead of per-element tuple creation
+    index_set: Set[bytes] = set()
     for j in range(nsubspaces):
-        index_set.add(_index_to_tuple(subspace_indices[:, j]))
+        index_set.add(np_indices[:, j].tobytes())
 
-    # Precompute all 2^nvars shift vectors and their signs
-    # shifts: shape (nvars, nshifts) - each column is a binary shift vector
-    # signs: shape (nshifts,) - (-1)^|shift| for each shift
-    shifts = bkd.zeros((nvars, nshifts), dtype=bkd.int64_dtype())
-    signs = bkd.zeros((nshifts,))
+    # Precompute all 2^nvars shift vectors and their signs using numpy
+    nshifts = 2**nvars
+    shift_ints = np.arange(nshifts, dtype=np.int64)
+    # Each row d of np_shifts is bit d of the shift integer
+    np_shifts = np.array(
+        [((shift_ints >> d) & 1) for d in range(nvars)], dtype=np.int64
+    )  # (nvars, nshifts)
+    parities = np_shifts.sum(axis=0)  # (nshifts,)
+    np_signs = (-1.0) ** parities  # (nshifts,)
 
-    for shift_int in range(nshifts):
-        temp = shift_int
-        parity = 0
-        for dim in range(nvars):
-            bit = temp % 2
-            shifts[dim, shift_int] = bit
-            parity += bit
-            temp //= 2
-        signs[shift_int] = (-1.0) ** parity
+    # Compute coefficients: for each shift, check membership of shifted indices
+    np_coefs = np.zeros(nsubspaces, dtype=np.float64)
 
-    # Vectorized coefficient computation
-    # For each shift, compute all shifted indices at once and check membership
-    # shifted_indices: shape (nvars, nsubspaces) for each shift
-    coefficients = bkd.zeros((nsubspaces,))
-
-    for shift_idx in range(nshifts):
-        shift = shifts[:, shift_idx]  # shape (nvars,)
-        sign = signs[shift_idx]
-
-        # Compute shifted indices for all subspaces at once
-        # shift needs to be reshaped to (nvars, 1) for broadcasting
-        shift_col = bkd.reshape(shift, (nvars, 1))
-        shifted = subspace_indices + shift_col  # shape (nvars, nsubspaces)
-
-        # Check membership for each shifted index
-        # This loop is O(nsubspaces) but uses fast set lookup
+    for s in range(nshifts):
+        sign = np_signs[s]
+        shifted = np_indices + np_shifts[:, s : s + 1]  # (nvars, nsubspaces)
         for j in range(nsubspaces):
-            shifted_tuple = _index_to_tuple(shifted[:, j])
-            if shifted_tuple in index_set:
-                coefficients[j] = coefficients[j] + sign
+            if shifted[:, j].tobytes() in index_set:
+                np_coefs[j] += sign
 
-    return coefficients
+    return bkd.asarray(np_coefs)
 
 
 def is_downward_closed(subspace_indices: Array, bkd: Backend[Array]) -> bool:
