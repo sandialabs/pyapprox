@@ -545,3 +545,117 @@ class Matern32Kernel(MaternKernel):
 
     def __repr__(self) -> str:
         return f"Matern32Kernel({self._hyp_list}, bkd={self._bkd.__class__.__name__})"
+
+
+class ExponentialKernel(MaternKernel):
+    """
+    Exponential kernel (Matern with nu=1/2, Ornstein-Uhlenbeck).
+
+    K(x, x') = exp(-r)
+
+    where r = ||x - x'||_ℓ (scaled Euclidean distance).
+
+    This kernel produces continuous but non-differentiable sample paths.
+
+    Parameters
+    ----------
+    lenscale : Array
+        Length scale parameters.
+    lenscale_bounds : Tuple[float, float]
+        Bounds for length scale parameters.
+    nvars : int
+        Number of input dimensions.
+    bkd : Backend
+        Backend for computations.
+    fixed : bool, optional
+        Whether hyperparameters are fixed.
+    """
+
+    @property
+    def nu(self) -> float:
+        return 0.5
+
+    def _eval_distance_form(self, distances: Array) -> Array:
+        return self._bkd.exp(-distances)
+
+    def jacobian(self, X1: Array, X2: Array) -> Array:
+        """Compute Jacobian w.r.t. first input."""
+        lenscale = self._log_lenscale.exp_values()
+        distances = self._bkd.cdist(X1.T / lenscale, X2.T / lenscale)
+        K = self._bkd.exp(-distances)
+        r_safe = distances + 1e-12
+
+        tmp2 = (X1.T[:, None, :] - X2.T[None, :, :]) / lenscale**2
+        return -K[..., None] * tmp2 / r_safe[..., None]
+
+    def jacobian_wrt_params(self, X1: Array) -> Array:
+        """Compute Jacobian w.r.t. log-length scale parameters."""
+        lenscale = self._log_lenscale.exp_values()
+        distances = self._bkd.cdist(X1.T / lenscale, X1.T / lenscale)
+        K = self._bkd.exp(-distances)
+        r_safe = distances + 1e-12
+
+        tmp2 = ((X1.T[:, None, :] - X1.T[None, :, :]) / lenscale**2) ** 2
+        jac = tmp2 * K[..., None] / r_safe[..., None]
+        jac *= lenscale**2
+        return jac
+
+    def hvp_wrt_params(self, X1: Array, direction: Array) -> Array:
+        """
+        Compute Hessian-vector product w.r.t. log-length scale parameters.
+
+        HVP[i] = Σ_j H[i,j] * v[j]
+               = K*s_i²*(g² - g'/r)*(s²·v) - 2*K*g*s_i²*v_i
+
+        where g(r) = 1/r and K = exp(-r).
+        """
+        lenscale = self._log_lenscale.exp_values()
+
+        # Compute scaled differences
+        diffs = X1[:, :, None] - X1[:, None, :]  # (nvars, n, n)
+        s_sq = (diffs / lenscale[:, None, None])**2  # (nvars, n, n)
+
+        # Compute r
+        r_sq = self._bkd.sum(s_sq, axis=0)  # (n, n)
+        r = self._bkd.sqrt(r_sq + 1e-12)
+
+        K = self._bkd.exp(-r)
+
+        # g(r) = 1/r for exponential kernel
+        r_safe = r + 1e-12
+        g = 1.0 / r_safe
+
+        # g'(r) = -1/r²
+        g_prime = -1.0 / (r_safe**2)
+
+        # s_sq transposed: (n, n, nvars)
+        s_sq_T = self._bkd.transpose(s_sq, (1, 2, 0))
+
+        # Compute s²·v = Σ_j s_j² * v_j
+        s_sq_dot_v = self._bkd.einsum(
+            'ijd,d->ij', s_sq_T, direction
+        )  # (n, n)
+
+        # Coefficient: g² - g'/r
+        coeff = g**2 - g_prime / r_safe  # (n, n)
+
+        # HVP = K*s_i²*coeff*(s²·v) - 2*K*g*s_i²*v_i
+        first_factor = K * coeff * s_sq_dot_v  # (n, n)
+        term1 = first_factor[:, :, None] * s_sq_T  # (n, n, nvars)
+
+        Kg = K * g  # (n, n)
+        term2 = (
+            -2.0 * Kg[:, :, None] * s_sq_T * direction[None, None, :]
+        )  # (n, n, nvars)
+
+        return term1 + term2
+
+    def radial_derivatives(self, r: Array) -> Tuple[Array, Array]:
+        """Compute φ'(r) and φ''(r) for exponential kernel."""
+        exp_term = self._bkd.exp(-r)
+        phi_prime = -exp_term
+        phi_double_prime = exp_term
+        return phi_prime, phi_double_prime
+
+    def __repr__(self) -> str:
+        return f"ExponentialKernel({self._hyp_list}, bkd={self._bkd.__class__.__name__})"

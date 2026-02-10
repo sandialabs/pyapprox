@@ -86,6 +86,7 @@ from .matern import (
     SquaredExponentialKernel,
     Matern52Kernel,
     Matern32Kernel,
+    ExponentialKernel,
 )
 from .composition import (
     CompositionKernel,
@@ -129,6 +130,7 @@ __all__ = [
     "SquaredExponentialKernel",
     "Matern52Kernel",
     "Matern32Kernel",
+    "ExponentialKernel",
     "IIDGaussianNoise",
     # Scaling functions
     "PolynomialScaling",

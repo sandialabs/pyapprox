@@ -658,6 +658,16 @@ class TorchBkd(Backend[torch.Tensor]):  # Specify torch.Tensor type
         return torch.linalg.eigh(array)
 
     @staticmethod
+    def svd(
+        array: torch.Tensor, full_matrices: bool = True
+    ) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
+        return torch.linalg.svd(array, full_matrices=full_matrices)
+
+    @staticmethod
+    def rank(array: torch.Tensor) -> int:
+        return int(torch.linalg.matrix_rank(array))
+
+    @staticmethod
     def split(
         array: torch.Tensor,
         indices_or_sections: torch.Tensor,

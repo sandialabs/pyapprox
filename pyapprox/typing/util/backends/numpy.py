@@ -506,6 +506,18 @@ class NumpyBkd(Backend[NDArray[Any]]):  # Specify NDArray type
         return np.linalg.eigh(array)
 
     @staticmethod
+    def svd(
+        array: NDArray[Any], full_matrices: bool = True
+    ) -> Tuple[NDArray[Any], NDArray[Any], NDArray[Any]]:
+        return np.linalg.svd(
+            array, compute_uv=True, full_matrices=full_matrices
+        )
+
+    @staticmethod
+    def rank(array: NDArray[Any]) -> int:
+        return int(np.linalg.matrix_rank(array))
+
+    @staticmethod
     def gammaln(array: NDArray[Any]) -> NDArray[Any]:
         return scipy.special.gammaln(array)
 

@@ -612,6 +612,18 @@ class Backend(Protocol, Generic[Array]):
         ...
 
     @staticmethod
+    def svd(
+        array: Array, full_matrices: bool = True
+    ) -> Tuple[Array, Array, Array]:
+        """Compute singular value decomposition: U, S, Vh = svd(A)."""
+        ...
+
+    @staticmethod
+    def rank(array: Array) -> int:
+        """Compute matrix rank."""
+        ...
+
+    @staticmethod
     def gammaln(array: Array) -> Array:
         """Compute log of gamma function."""
         ...

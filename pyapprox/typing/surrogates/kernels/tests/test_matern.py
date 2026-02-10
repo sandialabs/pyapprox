@@ -13,6 +13,7 @@ from pyapprox.typing.surrogates.kernels.matern import (
     SquaredExponentialKernel,
     Matern52Kernel,
     Matern32Kernel,
+    ExponentialKernel,
 )
 from pyapprox.typing.interface.functions.derivative_checks.derivative_checker import (
     DerivativeChecker,
@@ -31,6 +32,8 @@ def create_matern_kernel(nu, lenscale, lenscale_bounds, nvars, bkd, fixed=False)
         return Matern52Kernel(lenscale, lenscale_bounds, nvars, bkd, fixed)
     elif nu == 1.5 or nu == 3/2:
         return Matern32Kernel(lenscale, lenscale_bounds, nvars, bkd, fixed)
+    elif nu == 0.5 or nu == 1/2:
+        return ExponentialKernel(lenscale, lenscale_bounds, nvars, bkd, fixed)
     else:
         raise ValueError(f"Unsupported nu value: {nu}")
 
@@ -52,7 +55,11 @@ class TestMaternKernel(Generic[Array], unittest.TestCase):
         Set up the test environment for MaternKernel.
         """
         np.random.seed(1)
-        self.nu_values = [np.inf, 5 / 2, 3 / 2]
+        self.nu_values = [np.inf, 5 / 2, 3 / 2, 1 / 2]
+        # Separate test points for nu=0.5 (exponential kernel) to avoid
+        # coincident X1/X2 points where the gradient is undefined
+        self.X1_exp = self.bkd().array([[0.1, 0.4, 0.9], [0.15, 0.35, 0.65]])
+        self.X2_exp = self.bkd().array([[0.0, 0.5, 1.0], [0.0, 0.25, 0.75]])
         self.lenscale = self.bkd().array(
             [1.0, 2.0]
         )  # Vector-valued length scale
@@ -110,28 +117,36 @@ class TestMaternKernel(Generic[Array], unittest.TestCase):
                 nvars=self.nvars,
                 bkd=self.bkd(),
             )
-            jacobian = kernel.jacobian(self.X1, self.X2)
+            # Use non-coincident points for nu=0.5 (exponential kernel)
+            # because the gradient is undefined at r=0 (kink)
+            if nu == 0.5 or nu == 1 / 2:
+                X1 = self.X1_exp
+                X2 = self.X2_exp
+            else:
+                X1 = self.X1
+                X2 = self.X2
+            jacobian = kernel.jacobian(X1, X2)
             self.assertEqual(
                 jacobian.shape,
-                (self.X1.shape[1], self.X2.shape[1], self.nvars),
+                (X1.shape[1], X2.shape[1], self.nvars),
             )
             self.assertTrue(
                 self.bkd().all_bool(self.bkd().isfinite(jacobian))
             )  # Jacobian values must be finite
 
             # Wrap the function using FunctionWithJacobianFromCallable
-            vec = self.bkd().ones((self.X2.shape[1], 1))
+            vec = self.bkd().ones((X2.shape[1], 1))
             function_object = FunctionWithJacobianFromCallable(
                 nqoi=1,  # just computing jacobian for one sample
                 nvars=self.nvars,
-                fun=lambda x: kernel(
-                    self.bkd().reshape(x, (self.nvars, -1)), self.X2
+                fun=lambda x, _X2=X2: kernel(
+                    self.bkd().reshape(x, (self.nvars, -1)), _X2
                 )
                 @ vec,
-                jacobian=lambda x: self.bkd().einsum(
+                jacobian=lambda x, _X2=X2: self.bkd().einsum(
                     "ijk,jl->ik",
                     kernel.jacobian(
-                        self.bkd().reshape(x, (self.nvars, -1)), self.X2
+                        self.bkd().reshape(x, (self.nvars, -1)), _X2
                     ),
                     vec,
                 ),
@@ -140,7 +155,7 @@ class TestMaternKernel(Generic[Array], unittest.TestCase):
             # Initialize DerivativeChecker
             checker = DerivativeChecker(function_object)
             # Check derivatives
-            sample = self.bkd().flatten(self.X1[:, :1])[:, None]
+            sample = self.bkd().flatten(X1[:, :1])[:, None]
             errors = checker.check_derivatives(sample)
 
             # Assert that the gradient errors are below a tolerance
@@ -239,45 +254,54 @@ class TestMaternKernel(Generic[Array], unittest.TestCase):
                     bkd=self.bkd(),
                 )
 
+                # Use non-coincident points for nu=0.5 (exponential kernel)
+                # because the gradient is undefined at r=0 (kink)
+                if nu == 0.5 or nu == 1 / 2:
+                    X1 = self.X1_exp
+                    X2 = self.X2_exp
+                else:
+                    X1 = self.X1
+                    X2 = self.X2
+
                 # Test point and direction
-                x_test = self.X1[:, :1]  # Shape (nvars, 1)
+                x_test = X1[:, :1]  # Shape (nvars, 1)
                 direction = self.bkd().array(np.random.randn(self.nvars, 1))
                 direction = direction / self.bkd().norm(direction)
                 direction_flat = self.bkd().flatten(direction)  # Shape (nvars,)
 
                 # Compute kernel value and derivatives for verification
-                K = kernel(x_test, self.X2)  # Shape (1, n2)
-                jac = kernel.jacobian(x_test, self.X2)  # Shape (1, n2, nvars)
-                hvp = kernel.hvp_wrt_x1(x_test, self.X2, direction_flat)  # Shape (1, n2, nvars)
+                K = kernel(x_test, X2)  # Shape (1, n2)
+                jac = kernel.jacobian(x_test, X2)  # Shape (1, n2, nvars)
+                hvp = kernel.hvp_wrt_x1(x_test, X2, direction_flat)  # Shape (1, n2, nvars)
 
                 # Verify shapes
-                self.assertEqual(K.shape, (1, self.X2.shape[1]))
-                self.assertEqual(jac.shape, (1, self.X2.shape[1], self.nvars))
-                self.assertEqual(hvp.shape, (1, self.X2.shape[1], self.nvars))
+                self.assertEqual(K.shape, (1, X2.shape[1]))
+                self.assertEqual(jac.shape, (1, X2.shape[1], self.nvars))
+                self.assertEqual(hvp.shape, (1, X2.shape[1], self.nvars))
 
                 # Verify HVP using derivative checker
                 # We need a scalar function for the checker, so we contract with a vector
-                vec = self.bkd().ones((self.X2.shape[1], 1))
+                vec = self.bkd().ones((X2.shape[1], 1))
 
-                def kernel_func(x_shaped):
+                def kernel_func(x_shaped, _X2=X2):
                     """Kernel function contracted with vec: R^nvars -> R."""
                     x_reshaped = self.bkd().reshape(x_shaped, (self.nvars, 1))
-                    K_val = kernel(x_reshaped, self.X2)  # Shape (1, n2)
+                    K_val = kernel(x_reshaped, _X2)  # Shape (1, n2)
                     return K_val @ vec  # Shape (1, 1)
 
-                def jacobian_func(x_shaped):
+                def jacobian_func(x_shaped, _X2=X2):
                     """Jacobian contracted with vec: R^nvars -> R^nvars."""
                     x_reshaped = self.bkd().reshape(x_shaped, (self.nvars, 1))
-                    jac_val = kernel.jacobian(x_reshaped, self.X2)  # Shape (1, n2, nvars)
+                    jac_val = kernel.jacobian(x_reshaped, _X2)  # Shape (1, n2, nvars)
                     # Contract: (1, n2, nvars) with (n2, 1) -> (1, nvars)
                     result = self.bkd().einsum('ijk,jl->ik', jac_val, vec)
                     return result  # Shape (1, nvars)
 
-                def hvp_func(x_shaped, v_shaped):
+                def hvp_func(x_shaped, v_shaped, _X2=X2):
                     """HVP contracted with vec: R^nvars x R^nvars -> R^nvars."""
                     x_reshaped = self.bkd().reshape(x_shaped, (self.nvars, 1))
                     v_flat = self.bkd().flatten(v_shaped)  # Shape (nvars,)
-                    hvp_val = kernel.hvp_wrt_x1(x_reshaped, self.X2, v_flat)  # Shape (1, n2, nvars)
+                    hvp_val = kernel.hvp_wrt_x1(x_reshaped, _X2, v_flat)  # Shape (1, n2, nvars)
                     # Contract: (1, n2, nvars) with (n2, 1) -> (nvars, 1)
                     # einsum 'ijk,jl->ki' gives (nvars, 1) not (1, nvars)
                     result = self.bkd().einsum('ijk,jl->ki', hvp_val, vec)
