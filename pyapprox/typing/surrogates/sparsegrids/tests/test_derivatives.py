@@ -213,7 +213,7 @@ class TestSparseGridDerivatives(Generic[Array], unittest.TestCase):
         # HVP with [1, 0] should give [2, 0]
         expected_hvp = self._bkd.asarray([[2.0], [0.0]])
 
-        self._bkd.assert_allclose(hvp, expected_hvp, rtol=1e-6)
+        self._bkd.assert_allclose(hvp, expected_hvp, rtol=1e-6, atol=1e-14)
 
     def test_weighted_hvp(self) -> None:
         """Test weighted HVP computation."""

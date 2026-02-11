@@ -21,7 +21,11 @@ from typing import Callable, Generic, Optional, Tuple
 from pyapprox.typing.util.backends.protocols import Array, Backend
 from pyapprox.typing.surrogates.affine.univariate.lagrange_dispatch import (
     get_lagrange_eval_impl,
+    get_lagrange_jacobian_impl,
+    get_lagrange_hessian_impl,
     _generic_lagrange_eval,
+    _generic_lagrange_jacobian,
+    _generic_lagrange_hessian,
 )
 
 
@@ -85,9 +89,14 @@ def univariate_lagrange_polynomial(
 
 
 def univariate_lagrange_first_derivative(
-    abscissa: Array, samples: Array, bkd: Backend[Array]
+    abscissa: Array,
+    samples: Array,
+    bkd: Backend[Array],
+    bary_weights: Optional[Array] = None,
 ) -> Array:
     """Evaluate first derivatives of Lagrange basis polynomials.
+
+    Uses the vectorized identity L'_j(x) = L_j(x) * sum_{k!=j} 1/(x-x_k).
 
     Parameters
     ----------
@@ -97,40 +106,29 @@ def univariate_lagrange_first_derivative(
         Evaluation points. Shape: (nsamples,)
     bkd : Backend[Array]
         Computational backend.
+    bary_weights : Array, optional
+        Precomputed barycentric weights. If None, computed on the fly.
 
     Returns
     -------
     Array
         First derivatives. Shape: (nsamples, nabscissa)
     """
-    nsamples = samples.shape[0]
-    nabscissa = abscissa.shape[0]
-    denoms = abscissa[:, None] - abscissa[None, :]
-    numers = samples[:, None] - abscissa[None, :]
-    derivs = bkd.zeros((nsamples, nabscissa))
-
-    for ii in range(nabscissa):
-        denom = bkd.prod(denoms[ii, :ii]) * bkd.prod(denoms[ii, ii + 1 :])
-        # Product rule for the jth 1D basis function
-        numer_deriv = bkd.zeros((nsamples,))
-        for jj in range(nabscissa):
-            # Compute derivative of kth component of product rule sum
-            if ii != jj:
-                # Product over all k != ii, k != jj
-                term = bkd.ones((nsamples,))
-                for kk in range(nabscissa):
-                    if kk != ii and kk != jj:
-                        term = term * numers[:, kk]
-                numer_deriv = numer_deriv + term
-        derivs[:, ii] = numer_deriv / denom
-
-    return derivs
+    if bary_weights is None:
+        bary_weights = compute_barycentric_weights(abscissa, bkd)
+    return _generic_lagrange_jacobian(abscissa, samples, bary_weights, bkd)
 
 
 def univariate_lagrange_second_derivative(
-    abscissa: Array, samples: Array, bkd: Backend[Array]
+    abscissa: Array,
+    samples: Array,
+    bkd: Backend[Array],
+    bary_weights: Optional[Array] = None,
 ) -> Array:
     """Evaluate second derivatives of Lagrange basis polynomials.
+
+    Uses L''_j(x) = L_j(x) * (S_j^2 - T_j) where
+    S_j = sum_{k!=j} 1/(x-x_k), T_j = sum_{k!=j} 1/(x-x_k)^2.
 
     Parameters
     ----------
@@ -140,33 +138,17 @@ def univariate_lagrange_second_derivative(
         Evaluation points. Shape: (nsamples,)
     bkd : Backend[Array]
         Computational backend.
+    bary_weights : Array, optional
+        Precomputed barycentric weights. If None, computed on the fly.
 
     Returns
     -------
     Array
         Second derivatives. Shape: (nsamples, nabscissa)
     """
-    nsamples = samples.shape[0]
-    nabscissa = abscissa.shape[0]
-    denoms = abscissa[:, None] - abscissa[None, :]
-    numers = samples[:, None] - abscissa[None, :]
-    derivs = bkd.zeros((nsamples, nabscissa))
-
-    for ii in range(nabscissa):
-        denom = bkd.prod(denoms[ii, :ii]) * bkd.prod(denoms[ii, ii + 1 :])
-        numer_deriv = bkd.zeros((nsamples,))
-        for jj in range(nabscissa):
-            for kk in range(nabscissa):
-                if ii != jj and ii != kk and jj != kk:
-                    # Product over all m != ii, m != jj, m != kk
-                    term = bkd.ones((nsamples,))
-                    for mm in range(nabscissa):
-                        if mm != ii and mm != jj and mm != kk:
-                            term = term * numers[:, mm]
-                    numer_deriv = numer_deriv + term
-        derivs[:, ii] = numer_deriv / denom
-
-    return derivs
+    if bary_weights is None:
+        bary_weights = compute_barycentric_weights(abscissa, bkd)
+    return _generic_lagrange_hessian(abscissa, samples, bary_weights, bkd)
 
 
 class LagrangeBasis1D(Generic[Array]):
@@ -227,6 +209,8 @@ class LagrangeBasis1D(Generic[Array]):
         self._weights: Optional[Array] = None
         self._bary_weights: Optional[Array] = None
         self._eval_impl = get_lagrange_eval_impl(bkd)
+        self._jac_impl = get_lagrange_jacobian_impl(bkd)
+        self._hess_impl = get_lagrange_hessian_impl(bkd)
 
     def bkd(self) -> Backend[Array]:
         """Return the computational backend."""
@@ -294,8 +278,8 @@ class LagrangeBasis1D(Generic[Array]):
         """
         if self._abscissa is None:
             raise ValueError("Must call set_nterms before evaluation")
-        return univariate_lagrange_first_derivative(
-            self._abscissa, samples[0], self._bkd
+        return self._jac_impl(
+            self._abscissa, samples[0], self._bary_weights, self._bkd
         )
 
     def hessian_batch(self, samples: Array) -> Array:
@@ -318,8 +302,8 @@ class LagrangeBasis1D(Generic[Array]):
         """
         if self._abscissa is None:
             raise ValueError("Must call set_nterms before evaluation")
-        return univariate_lagrange_second_derivative(
-            self._abscissa, samples[0], self._bkd
+        return self._hess_impl(
+            self._abscissa, samples[0], self._bary_weights, self._bkd
         )
 
     def derivatives(self, samples: Array, order: int) -> Array:
