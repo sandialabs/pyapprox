@@ -19,6 +19,9 @@ from typing import Set, Tuple
 import numpy as np
 
 from pyapprox.typing.util.backends.protocols import Array, Backend
+from pyapprox.typing.surrogates.sparsegrids.smolyak_dispatch import (
+    get_smolyak_impl,
+)
 
 
 def _index_to_tuple(index: Array) -> Tuple[int, ...]:
@@ -93,12 +96,6 @@ def compute_smolyak_coefficients(
         bkd.to_numpy(subspace_indices), dtype=np.int64
     )  # (nvars, nsubspaces)
 
-    # Build set of index tuples for fast O(1) lookup
-    # Use bytes view for O(1) hashing instead of per-element tuple creation
-    index_set: Set[bytes] = set()
-    for j in range(nsubspaces):
-        index_set.add(np_indices[:, j].tobytes())
-
     # Precompute all 2^nvars shift vectors and their signs using numpy
     nshifts = 2**nvars
     shift_ints = np.arange(nshifts, dtype=np.int64)
@@ -109,15 +106,11 @@ def compute_smolyak_coefficients(
     parities = np_shifts.sum(axis=0)  # (nshifts,)
     np_signs = (-1.0) ** parities  # (nshifts,)
 
-    # Compute coefficients: for each shift, check membership of shifted indices
-    np_coefs = np.zeros(nsubspaces, dtype=np.float64)
-
-    for s in range(nshifts):
-        sign = np_signs[s]
-        shifted = np_indices + np_shifts[:, s : s + 1]  # (nvars, nsubspaces)
-        for j in range(nsubspaces):
-            if shifted[:, j].tobytes() in index_set:
-                np_coefs[j] += sign
+    # Dispatch to best available implementation
+    impl = get_smolyak_impl()
+    np_coefs = impl(
+        np_indices, np_shifts, np_signs, nvars, nsubspaces, nshifts
+    )
 
     return bkd.asarray(np_coefs)
 

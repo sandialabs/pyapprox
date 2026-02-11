@@ -19,12 +19,49 @@ Example with Leja sequence:
 from typing import Callable, Generic, Optional, Tuple
 
 from pyapprox.typing.util.backends.protocols import Array, Backend
+from pyapprox.typing.surrogates.affine.univariate.lagrange_dispatch import (
+    get_lagrange_eval_impl,
+    _generic_lagrange_eval,
+)
+
+
+def compute_barycentric_weights(
+    abscissa: Array, bkd: Backend[Array]
+) -> Array:
+    """Compute barycentric weights for Lagrange interpolation.
+
+    Parameters
+    ----------
+    abscissa : Array
+        Interpolation nodes. Shape: (nabscissa,)
+    bkd : Backend[Array]
+        Computational backend.
+
+    Returns
+    -------
+    Array
+        Barycentric weights w_j = 1/prod_{i!=j}(x_j - x_i).
+        Shape: (nabscissa,)
+    """
+    nabscissa = abscissa.shape[0]
+    if nabscissa == 1:
+        return bkd.ones((1,))
+    denoms = abscissa[:, None] - abscissa[None, :]
+    # Set diagonal to 1.0 so prod gives product over i != j
+    denoms = denoms + bkd.eye(nabscissa)
+    return 1.0 / bkd.prod(denoms, axis=1)
 
 
 def univariate_lagrange_polynomial(
-    abscissa: Array, samples: Array, bkd: Backend[Array]
+    abscissa: Array,
+    samples: Array,
+    bkd: Backend[Array],
+    bary_weights: Optional[Array] = None,
 ) -> Array:
     """Evaluate Lagrange basis polynomials at sample points.
+
+    Uses the barycentric formula L_j(x) = w_j * P(x) / (x - x_j) where
+    P(x) = prod_i(x - x_i) and w_j are barycentric weights.
 
     Parameters
     ----------
@@ -34,24 +71,17 @@ def univariate_lagrange_polynomial(
         Evaluation points. Shape: (nsamples,)
     bkd : Backend[Array]
         Computational backend.
+    bary_weights : Array, optional
+        Precomputed barycentric weights. If None, computed on the fly.
 
     Returns
     -------
     Array
         Lagrange basis values. Shape: (nsamples, nabscissa)
     """
-    nabscissa = abscissa.shape[0]
-    denoms = abscissa[:, None] - abscissa[None, :]
-    numers = samples[:, None] - abscissa[None, :]
-    values = []
-    for ii in range(nabscissa):
-        # l_j(x) = prod_{i!=j} (x-x_i)/(x_j-x_i)
-        denom = bkd.prod(denoms[ii, :ii]) * bkd.prod(denoms[ii, ii + 1 :])
-        numer = bkd.prod(numers[:, :ii], axis=1) * bkd.prod(
-            numers[:, ii + 1 :], axis=1
-        )
-        values.append(numer / denom)
-    return bkd.stack(values, axis=1)
+    if bary_weights is None:
+        bary_weights = compute_barycentric_weights(abscissa, bkd)
+    return _generic_lagrange_eval(abscissa, samples, bary_weights, bkd)
 
 
 def univariate_lagrange_first_derivative(
@@ -195,6 +225,8 @@ class LagrangeBasis1D(Generic[Array]):
         self._nterms: int = 0
         self._abscissa: Optional[Array] = None
         self._weights: Optional[Array] = None
+        self._bary_weights: Optional[Array] = None
+        self._eval_impl = get_lagrange_eval_impl(bkd)
 
     def bkd(self) -> Backend[Array]:
         """Return the computational backend."""
@@ -215,6 +247,9 @@ class LagrangeBasis1D(Generic[Array]):
         samples, weights = self._quadrature_rule(nterms)
         self._abscissa = samples.flatten()
         self._weights = weights
+        self._bary_weights = compute_barycentric_weights(
+            self._abscissa, self._bkd
+        )
 
     def nterms(self) -> int:
         """Return the number of basis terms."""
@@ -235,8 +270,8 @@ class LagrangeBasis1D(Generic[Array]):
         """
         if self._abscissa is None:
             raise ValueError("Must call set_nterms before evaluation")
-        return univariate_lagrange_polynomial(
-            self._abscissa, samples[0], self._bkd
+        return self._eval_impl(
+            self._abscissa, samples[0], self._bary_weights, self._bkd
         )
 
     def jacobian_batch(self, samples: Array) -> Array:
