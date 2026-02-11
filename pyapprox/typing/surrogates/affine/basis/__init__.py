@@ -18,10 +18,15 @@ from pyapprox.typing.surrogates.affine.basis.quadrature_rules import (
     FixedTensorProductQuadratureRule,
 )
 
+from pyapprox.typing.surrogates.affine.basis.kernel_basis import (
+    KernelBasis,
+)
+
 __all__ = [
     # Core basis classes
     "MultiIndexBasis",
     "OrthonormalPolynomialBasis",
+    "KernelBasis",
     # Quadrature rules
     "QuadratureRule",
     "TensorProductQuadratureRule",

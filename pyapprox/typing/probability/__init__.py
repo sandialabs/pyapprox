@@ -119,6 +119,19 @@ from .risk import (
     GaussianAnalyticalRiskMeasures,
 )
 
+# Density estimation
+from .density import (
+    DensityBasisProtocol,
+    DensityFitterProtocol,
+    PiecewiseDensityBasis,
+    KernelDensityBasis,
+    LinearDensityFitter,
+    KDEFitter,
+    ProjectionDensityFitter,
+    ISEOptimizingFitter,
+    PushforwardDensity,
+)
+
 __all__ = [
     # Protocols
     "DistributionProtocol",
@@ -167,4 +180,14 @@ __all__ = [
     "DiagonalGaussianLogLikelihood",
     # Risk measures
     "GaussianAnalyticalRiskMeasures",
+    # Density estimation
+    "DensityBasisProtocol",
+    "DensityFitterProtocol",
+    "PiecewiseDensityBasis",
+    "KernelDensityBasis",
+    "LinearDensityFitter",
+    "KDEFitter",
+    "ProjectionDensityFitter",
+    "ISEOptimizingFitter",
+    "PushforwardDensity",
 ]
