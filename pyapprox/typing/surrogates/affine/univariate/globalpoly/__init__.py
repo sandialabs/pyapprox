@@ -76,6 +76,10 @@ from pyapprox.typing.surrogates.affine.univariate.globalpoly.quadrature import (
     ClenshawCurtisQuadratureRule,
 )
 
+from pyapprox.typing.surrogates.affine.univariate.globalpoly.monomial_conversion import (
+    convert_orthonormal_to_monomials_1d,
+)
+
 __all__ = [
     # Base class and functions
     "OrthonormalPolynomial1D",
@@ -116,4 +120,6 @@ __all__ = [
     "GaussQuadratureRule",
     "GaussLobattoQuadratureRule",
     "ClenshawCurtisQuadratureRule",
+    # Monomial conversion
+    "convert_orthonormal_to_monomials_1d",
 ]

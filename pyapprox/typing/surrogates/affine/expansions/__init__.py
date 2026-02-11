@@ -52,6 +52,12 @@ from pyapprox.typing.surrogates.affine.expansions.losses import (
     BasisExpansionMSELoss,
 )
 
+# PCE density estimation
+from pyapprox.typing.surrogates.affine.expansions.pce_density import (
+    UnivariatePCEDensity,
+    composite_gauss_legendre,
+)
+
 __all__ = [
     # Base classes
     "BasisExpansion",
@@ -84,6 +90,9 @@ __all__ = [
     "get_cross_validation_rsquared",
     # Losses
     "BasisExpansionMSELoss",
+    # PCE density
+    "UnivariatePCEDensity",
+    "composite_gauss_legendre",
     # Statistics module
     "pce_statistics",
     # Arithmetic module
