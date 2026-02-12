@@ -1,9 +1,13 @@
 """Loss functions for FunctionTrain fitting."""
 
-from typing import Generic
+from typing import Generic, Optional
 
 from pyapprox.typing.util.backends.protocols import Array, Backend
 from pyapprox.typing.surrogates.functiontrain.functiontrain import FunctionTrain
+from pyapprox.typing.surrogates.functiontrain.compute import (
+    cache_basis_matrices,
+    BasisCache,
+)
 
 
 class FunctionTrainMSELoss(Generic[Array]):
@@ -13,6 +17,10 @@ class FunctionTrainMSELoss(Generic[Array]):
 
     Provides analytical jacobian for efficient optimization.
     Conforms to ObjectiveProtocol for use with ScipyTrustConstrOptimizer.
+
+    Caches basis matrices at construction time since training samples are
+    fixed. Also caches the with_params result between __call__ and jacobian
+    since scipy calls both with the same params.
 
     Naming convention (to avoid confusion with FunctionTrain's samples):
     - self._train_samples: training input data (nvars, nsamples)
@@ -45,6 +53,45 @@ class FunctionTrainMSELoss(Generic[Array]):
         self._nsamples = train_samples.shape[1]
         self._nqoi = surrogate.nqoi()
 
+        # Cache basis matrices (samples are fixed during training)
+        self._basis_cache: BasisCache = cache_basis_matrices(
+            surrogate.cores(), train_samples, bkd
+        )
+
+        # Param-caching: scipy calls fun(x) then jac(x) with same x
+        self._cached_params: Optional[Array] = None
+        self._cached_ft: Optional[FunctionTrain[Array]] = None
+        self._cached_pred: Optional[Array] = None
+
+    def _ensure_cached(self, params_flat: Array) -> None:
+        """Ensure cached FT and predictions are up-to-date for params.
+
+        Uses value-based caching: if params match the cached values, reuse
+        the cached FT and predictions. This avoids redundant work when scipy
+        calls fun(x) then jac(x) with the same x.
+
+        Caching is skipped when params require gradients (torch autograd)
+        since the computation graph must flow through the current params.
+        """
+        # Skip cache when autograd is active (requires_grad tensors)
+        requires_grad = getattr(params_flat, "requires_grad", False)
+        if not requires_grad and (
+            self._cached_params is not None
+            and self._bkd.allclose(
+                params_flat, self._cached_params, rtol=0.0, atol=0.0
+            )
+        ):
+            return
+
+        if not requires_grad:
+            self._cached_params = self._bkd.copy(params_flat)
+        else:
+            self._cached_params = None
+        self._cached_ft = self._surrogate.with_params(params_flat)
+        self._cached_pred = self._cached_ft.eval_cached(
+            self._train_samples, self._basis_cache
+        )
+
     def bkd(self) -> Backend[Array]:
         """Return computational backend."""
         return self._bkd
@@ -70,15 +117,11 @@ class FunctionTrainMSELoss(Generic[Array]):
         Array
             Loss value. Shape: (1, 1)
         """
-        # Flatten params if needed
         params_flat = self._bkd.flatten(params)
-
-        # Create FT with new params and evaluate
-        ft = self._surrogate.with_params(params_flat)
-        pred = ft(self._train_samples)  # (nqoi, nsamples)
+        self._ensure_cached(params_flat)
 
         # Compute MSE: (1/2n) ||pred - values||^2
-        residual = pred - self._train_values  # (nqoi, nsamples)
+        residual = self._cached_pred - self._train_values
         mse = 0.5 * self._bkd.sum(residual ** 2) / self._nsamples
         return self._bkd.reshape(mse, (1, 1))
 
@@ -97,24 +140,18 @@ class FunctionTrainMSELoss(Generic[Array]):
         Array
             Gradient. Shape: (1, nvars)
         """
-        # Flatten params if needed
         params_flat = self._bkd.flatten(params)
+        self._ensure_cached(params_flat)
 
-        # Create FT with new params
-        ft = self._surrogate.with_params(params_flat)
+        # Compute residuals
+        residual = self._cached_pred - self._train_values
 
-        # Compute predictions and residuals
-        pred = ft(self._train_samples)  # (nqoi, nsamples)
-        residual = pred - self._train_values  # (nqoi, nsamples)
+        # Compute Jacobian using cached basis matrices
+        jac = self._cached_ft.jacobian_wrt_params_cached(
+            self._train_samples, self._basis_cache
+        )
 
-        # Compute Jacobian of FT output w.r.t. params
-        # Shape: (nsamples, nqoi, nparams)
-        jac = ft.jacobian_wrt_params(self._train_samples)
-
-        # Compute gradient using chain rule:
-        # grad = (1/n) sum_s sum_q residual[q,s] * jac[s,q,:]
-        # Using einsum: "qs, sqp -> p" where residual is (nqoi, nsamples)
-        # residual.T gives (nsamples, nqoi)
+        # Chain rule: grad = (1/n) sum_s sum_q residual[q,s] * jac[s,q,:]
         grad = self._bkd.einsum("sq, sqp -> p", residual.T, jac)
         grad = grad / self._nsamples
 

@@ -1,6 +1,6 @@
 """FunctionTrain - tensor train decomposition surrogate."""
 
-from typing import Generic, List, Self
+from typing import Dict, Generic, List, Self
 
 from pyapprox.typing.util.backends.protocols import Array, Backend
 from pyapprox.typing.surrogates.functiontrain.core import FunctionTrainCore
@@ -632,6 +632,54 @@ class FunctionTrain(Generic[Array]):
         """
         jac_batch = self.jacobian_batch(sample)  # (1, nqoi, nvars)
         return jac_batch[0, :, :]  # (nqoi, nvars)
+
+    def eval_cached(
+        self, samples: Array, cache: Dict[int, Array]
+    ) -> Array:
+        """Evaluate using cached basis matrices.
+
+        Parameters
+        ----------
+        samples : Array
+            Input samples. Shape: (nvars, nsamples)
+        cache : Dict[int, Array]
+            Pre-computed basis matrices from cache_basis_matrices.
+
+        Returns
+        -------
+        Array
+            Values at samples. Shape: (nqoi, nsamples)
+        """
+        from pyapprox.typing.surrogates.functiontrain.compute import (
+            ft_eval_cached,
+        )
+
+        return ft_eval_cached(self._cores, samples, cache, self._bkd)
+
+    def jacobian_wrt_params_cached(
+        self, samples: Array, cache: Dict[int, Array]
+    ) -> Array:
+        """Compute Jacobian w.r.t. params using cached basis matrices.
+
+        Parameters
+        ----------
+        samples : Array
+            Input samples. Shape: (nvars, nsamples)
+        cache : Dict[int, Array]
+            Pre-computed basis matrices from cache_basis_matrices.
+
+        Returns
+        -------
+        Array
+            Jacobian. Shape: (nsamples, nqoi, nparams)
+        """
+        from pyapprox.typing.surrogates.functiontrain.compute import (
+            ft_jacobian_wrt_params_cached,
+        )
+
+        return ft_jacobian_wrt_params_cached(
+            self._cores, samples, cache, self._bkd
+        )
 
     def __repr__(self) -> str:
         return (

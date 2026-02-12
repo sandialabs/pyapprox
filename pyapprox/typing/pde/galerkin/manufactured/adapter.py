@@ -750,6 +750,9 @@ class GalerkinHyperelasticityAdapter(Generic[Array]):
             P = flux_func(coords, time)
         else:
             P = flux_func(coords)
+        # P may be a backend array (e.g. torch tensor); convert to numpy
+        # since this is called inside skfem assembly which is numpy-based
+        P = self._bkd.to_numpy(P)
         # P shape: (ncomponents, npts, ncomponents) = (ndim, npts, ndim)
         # P[i, :, j] = P_{ij} at each point
 
@@ -768,28 +771,18 @@ class GalerkinHyperelasticityAdapter(Generic[Array]):
         """Create a Neumann BC for vector-valued traction.
 
         The Neumann flux for hyperelasticity is the traction: t = P.n.
-        For vector elements, the NeumannBC flux_func must return scalar
-        values compatible with the scalar NeumannBC form (flux * v).
-
-        Since NeumannBC uses scalar LinearForm, we need a vector-aware
-        approach. We compute the interleaved DOF contribution:
-        each DOF j gets traction component j % ndim.
+        Returns (ndim, npts) traction at spatial coordinates for
+        quadrature-point assembly in the NeumannBC LinearForm.
         """
-        ndim = self._ndim
         time_dep = self._time_dependent
+        bndry_idx = boundary_index
 
         def neumann_flux(coords, time=0.0):
-            # coords: (ndim, nbndry_dofs) from DOF coordinates
-            nbndry_dofs = coords.shape[1]
+            # coords: (ndim, npts) — quadrature point coordinates
             traction = self._compute_traction(
-                boundary_index, coords, time if time_dep else None
+                bndry_idx, coords, time if time_dep else None
             )
-            # traction: (ndim, npts) but we need to return (nbndry_dofs,)
-            # For interleaved DOFs: DOF j gets component j % ndim
-            result = np.zeros(nbndry_dofs)
-            for j in range(nbndry_dofs):
-                result[j] = traction[j % ndim, j // ndim]
-            return result
+            return traction  # (ndim, npts)
 
         return NeumannBC(
             basis=self._basis,
@@ -804,33 +797,32 @@ class GalerkinHyperelasticityAdapter(Generic[Array]):
         """Create a Robin BC: alpha * u + P.n = g.
 
         The Robin value g = alpha * u + t where t = P.n (traction).
+        Returns (ndim, npts) at spatial coordinates for
+        quadrature-point assembly in the RobinBC LinearForm.
         """
         sol_func = self._functions["solution"]
-        ndim = self._ndim
         time_dep = self._time_dependent
+        bndry_idx = boundary_index
+        alpha_val = alpha
 
         def robin_value(coords, time=0.0):
-            # coords: (ndim, nbndry_dofs) from DOF coordinates
-            nbndry_dofs = coords.shape[1]
+            # coords: (ndim, npts)
             traction = self._compute_traction(
-                boundary_index, coords, time if time_dep else None
+                bndry_idx, coords, time if time_dep else None
             )
             if time_dep:
                 u_vals = sol_func(coords, time)  # (npts, ncomponents)
             else:
                 u_vals = sol_func(coords)  # (npts, ncomponents)
-            # Interleaved: DOF j -> component j % ndim
-            result = np.zeros(nbndry_dofs)
-            for j in range(nbndry_dofs):
-                comp = j % ndim
-                pt = j // ndim
-                result[j] = alpha * u_vals[pt, comp] + traction[comp, pt]
-            return result
+            # Convert to numpy since this runs inside skfem assembly
+            u_vals = self._bkd.to_numpy(u_vals)
+            # u_vals: (npts, ndim) → transpose to (ndim, npts)
+            return alpha_val * u_vals.T + traction  # (ndim, npts)
 
         return RobinBC(
             basis=self._basis,
             boundary_name=boundary_name,
-            alpha=alpha,
+            alpha=alpha_val,
             value_func=robin_value,
             bkd=self._bkd,
         )

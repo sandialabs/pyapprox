@@ -270,7 +270,11 @@ class NeumannBC(Generic[Array]):
     def apply_to_load(self, load: Array, time: float) -> Array:
         """Apply Neumann BC contribution to load vector.
 
-        Adds boundary integral: integral_{Gamma} g * phi ds
+        Adds boundary integral: integral_{Gamma} g . phi ds
+
+        For scalar elements, flux_func returns (npts,).
+        For vector elements, flux_func returns (ndim, npts) and the
+        form computes sum_i(flux_i * v_i).
 
         Parameters
         ----------
@@ -292,18 +296,26 @@ class NeumannBC(Generic[Array]):
         current_time = time
 
         def neumann_form(v, w):
-            # Evaluate flux at quadrature points
-            # Note: w.x may be a DiscreteField, so convert to ndarray
             x_np = np.asarray(w.x)
             x_shape = x_np.shape
             if len(x_shape) == 3:
                 ndim, nelem, nquad = x_shape
                 x_flat = x_np.reshape(ndim, -1)
-                flux_flat = flux_func(x_flat, current_time)
-                flux = flux_flat.reshape(nelem, nquad)
+                flux_flat = np.asarray(flux_func(x_flat, current_time))
+                # Detect vector flux: shape (ndim, npts) vs scalar (npts,)
+                if flux_flat.ndim == 2 and flux_flat.shape[0] == ndim:
+                    # Vector: flux_flat is (ndim, npts)
+                    flux = flux_flat.reshape(ndim, nelem, nquad)
+                    return sum(flux[i] * v[i] for i in range(ndim))
+                else:
+                    flux = flux_flat.reshape(nelem, nquad)
+                    return flux * v
             else:
-                flux = flux_func(x_np, current_time)
-            return flux * v
+                flux = np.asarray(flux_func(x_np, current_time))
+                if flux.ndim == 2:
+                    ndim = flux.shape[0]
+                    return sum(flux[i] * v[i] for i in range(ndim))
+                return flux * v
 
         contribution = asm(LinearForm(neumann_form), bndry_basis)
         load_np += contribution
@@ -406,7 +418,9 @@ class RobinBC(Generic[Array]):
     def apply_to_stiffness(self, stiffness: Array, time: float) -> Array:
         """Apply Robin BC contribution to stiffness matrix.
 
-        Adds: alpha * integral_{Gamma} u * phi ds
+        Adds: alpha * integral_{Gamma} u . phi ds
+
+        For vector elements uses sum_i(u_i * v_i); for scalar uses u * v.
 
         Parameters
         ----------
@@ -423,9 +437,14 @@ class RobinBC(Generic[Array]):
         stiff_np = self._bkd.to_numpy(stiffness).copy()
         bndry_basis = self._get_boundary_basis()
         alpha = self._alpha
+        ncomps = getattr(self._basis, 'ncomponents', lambda: 1)()
 
-        def robin_bilinear(u, v, w):
-            return alpha * u * v
+        if ncomps > 1:
+            def robin_bilinear(u, v, w):
+                return alpha * sum(u[i] * v[i] for i in range(ncomps))
+        else:
+            def robin_bilinear(u, v, w):
+                return alpha * u * v
 
         contribution = asm(BilinearForm(robin_bilinear), bndry_basis).toarray()
         stiff_np += contribution
@@ -435,7 +454,10 @@ class RobinBC(Generic[Array]):
     def apply_to_load(self, load: Array, time: float) -> Array:
         """Apply Robin BC contribution to load vector.
 
-        Adds: integral_{Gamma} g * phi ds
+        Adds: integral_{Gamma} g . phi ds
+
+        For vector elements, value_func returns (ndim, npts) and the
+        form computes sum_i(g_i * v_i). For scalar, returns (npts,).
 
         Parameters
         ----------
@@ -455,17 +477,24 @@ class RobinBC(Generic[Array]):
         current_time = time
 
         def robin_linear(v, w):
-            # Note: w.x may be a DiscreteField, so convert to ndarray
             x_np = np.asarray(w.x)
             x_shape = x_np.shape
             if len(x_shape) == 3:
                 ndim, nelem, nquad = x_shape
                 x_flat = x_np.reshape(ndim, -1)
-                vals_flat = value_func(x_flat, current_time)
-                vals = vals_flat.reshape(nelem, nquad)
+                vals_flat = np.asarray(value_func(x_flat, current_time))
+                if vals_flat.ndim == 2 and vals_flat.shape[0] == ndim:
+                    vals = vals_flat.reshape(ndim, nelem, nquad)
+                    return sum(vals[i] * v[i] for i in range(ndim))
+                else:
+                    vals = vals_flat.reshape(nelem, nquad)
+                    return vals * v
             else:
-                vals = value_func(x_np, current_time)
-            return vals * v
+                vals = np.asarray(value_func(x_np, current_time))
+                if vals.ndim == 2:
+                    ndim = vals.shape[0]
+                    return sum(vals[i] * v[i] for i in range(ndim))
+                return vals * v
 
         contribution = asm(LinearForm(robin_linear), bndry_basis)
         load_np += contribution
