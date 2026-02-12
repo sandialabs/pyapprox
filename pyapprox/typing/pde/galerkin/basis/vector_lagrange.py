@@ -210,15 +210,22 @@ class VectorLagrangeBasis(Generic[Array]):
             DOF indices on this boundary (all components).
         """
         ndim = self._ndim
-        all_dofs = []
-        dofnames = self._skfem_basis.get_dofs().obj.element.dofnames
-        for idx in range(ndim):
-            skip = dofnames[ndim - idx - 1]
-            component_dofs = self._skfem_basis.get_dofs(
-                boundary_name, skip=skip
-            )
-            all_dofs.append(np.asarray(component_dofs).flatten())
-        combined = np.concatenate(all_dofs)
+        if ndim == 1:
+            # In 1D there is only one component — skip logic would skip it,
+            # so get all boundary DOFs directly.
+            combined = np.asarray(
+                self._skfem_basis.get_dofs(boundary_name)
+            ).flatten()
+        else:
+            all_dofs = []
+            dofnames = self._skfem_basis.get_dofs().obj.element.dofnames
+            for idx in range(ndim):
+                skip = dofnames[ndim - idx - 1]
+                component_dofs = self._skfem_basis.get_dofs(
+                    boundary_name, skip=skip
+                )
+                all_dofs.append(np.asarray(component_dofs).flatten())
+            combined = np.concatenate(all_dofs)
         combined.sort()
         return self._bkd.asarray(combined)
 

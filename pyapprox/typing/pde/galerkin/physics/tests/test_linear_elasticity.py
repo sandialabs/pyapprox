@@ -9,6 +9,7 @@ from numpy.typing import NDArray
 from pyapprox.typing.util.backends.protocols import Array, Backend
 from pyapprox.typing.util.backends.numpy import NumpyBkd
 from pyapprox.typing.pde.galerkin.mesh import (
+    StructuredMesh1D,
     StructuredMesh2D,
     StructuredMesh3D,
 )
@@ -27,6 +28,141 @@ class TestLinearElasticityBase(Generic[Array], unittest.TestCase):
 
     def setUp(self) -> None:
         self.bkd_inst = self.bkd()
+
+    def test_1d_stiffness_symmetric(self) -> None:
+        """Test stiffness matrix is symmetric in 1D."""
+        mesh = StructuredMesh1D(
+            nx=5, bounds=(0.0, 1.0), bkd=self.bkd_inst,
+        )
+        basis = VectorLagrangeBasis(mesh, degree=1)
+        physics = LinearElasticity(
+            basis=basis,
+            youngs_modulus=1.0,
+            poisson_ratio=0.3,
+            bkd=self.bkd_inst,
+        )
+        K = physics.stiffness_matrix()
+        K_np = self.bkd_inst.to_numpy(K)
+        np.testing.assert_array_almost_equal(K_np, K_np.T)
+
+    def test_1d_residual_shape(self) -> None:
+        """Test residual has correct shape in 1D."""
+        mesh = StructuredMesh1D(
+            nx=5, bounds=(0.0, 1.0), bkd=self.bkd_inst,
+        )
+        basis = VectorLagrangeBasis(mesh, degree=1)
+        physics = LinearElasticity(
+            basis=basis,
+            youngs_modulus=1.0,
+            poisson_ratio=0.3,
+            bkd=self.bkd_inst,
+        )
+        u0 = self.bkd_inst.asarray(np.zeros(physics.nstates()))
+        res = physics.residual(u0, 0.0)
+        self.assertEqual(res.shape, (physics.nstates(),))
+
+    def test_1d_rigid_body_motion(self) -> None:
+        """Test that constant displacement gives zero stiffness action in 1D."""
+        mesh = StructuredMesh1D(
+            nx=5, bounds=(0.0, 1.0), bkd=self.bkd_inst,
+        )
+        basis = VectorLagrangeBasis(mesh, degree=1)
+        physics = LinearElasticity(
+            basis=basis,
+            youngs_modulus=1.0,
+            poisson_ratio=0.3,
+            bkd=self.bkd_inst,
+        )
+        u = self.bkd_inst.asarray(np.ones(physics.nstates()))
+        K = physics.stiffness_matrix()
+        Ku = self.bkd_inst.to_numpy(K) @ self.bkd_inst.to_numpy(u)
+        self.assertLess(np.linalg.norm(Ku), 1e-10)
+
+    def test_1d_manufactured_solution(self) -> None:
+        """1D solve recovers manufactured solution with non-zero BCs.
+
+        Uses create_elasticity_manufactured_test for MMS forcing.
+        u(x) = 0.1*x*(1-x) + 0.2 (degree-2, non-zero at boundaries).
+        With degree-2 elements the FEM solution is exact.
+
+        Exercises VectorLagrangeBasis.get_dofs() in 1D — regression test
+        for a bug where 1D DOFs were returned empty.
+        """
+        from skfem.models.elasticity import lame_parameters as _lame
+        from pyapprox.typing.pde.galerkin.boundary.implementations import (
+            DirichletBC,
+        )
+        from pyapprox.typing.pde.galerkin.manufactured.adapter import (
+            create_elasticity_manufactured_test,
+        )
+
+        E, nu = 1.0, 0.3
+        lam, mu = _lame(E, nu)
+
+        functions, nvars = create_elasticity_manufactured_test(
+            bounds=[0.0, 1.0],
+            sol_strs=["0.1*x*(1-x) + 0.2"],
+            lambda_str=str(lam),
+            mu_str=str(mu),
+            bkd=self.bkd_inst,
+        )
+
+        mesh = StructuredMesh1D(
+            nx=10, bounds=(0.0, 1.0), bkd=self.bkd_inst,
+        )
+        basis = VectorLagrangeBasis(mesh, degree=2)
+
+        sol_func = functions["solution"]
+        forcing_func = functions["forcing"]
+
+        def body_force(x, time):
+            vals = forcing_func(x)  # (npts, 1)
+            return vals.T  # (1, npts) = (ndim, npts)
+
+        def dirichlet_value(coords, time=0.0):
+            vals = sol_func(coords)  # (nbndry_dofs, 1)
+            nbndry_dofs = coords.shape[1]
+            result = np.zeros(nbndry_dofs)
+            for j in range(nbndry_dofs):
+                result[j] = vals[j, j % nvars]
+            return result
+
+        bc_list = [
+            DirichletBC(basis, "left", dirichlet_value, self.bkd_inst),
+            DirichletBC(basis, "right", dirichlet_value, self.bkd_inst),
+        ]
+        physics = LinearElasticity(
+            basis=basis,
+            youngs_modulus=E,
+            poisson_ratio=nu,
+            body_force=body_force,
+            boundary_conditions=bc_list,
+            bkd=self.bkd_inst,
+        )
+
+        solver = SteadyStateSolver(
+            physics, tol=1e-12, max_iter=5, line_search=False
+        )
+        u0 = self.bkd_inst.asarray(np.zeros(physics.nstates()))
+        result = solver.solve(u0)
+
+        self.assertTrue(
+            result.converged,
+            f"1D did not converge: {result.residual_norm}",
+        )
+
+        u_np = self.bkd_inst.to_numpy(result.solution)
+        dof_coords = self.bkd_inst.to_numpy(basis.dof_coordinates())
+        sol_vals = functions["solution"](dof_coords)  # (ndofs, 1)
+        n_dofs = basis.ndofs()
+        exact = np.zeros(n_dofs)
+        for i in range(n_dofs):
+            exact[i] = sol_vals[i, i % nvars]
+        rel_error = np.linalg.norm(u_np - exact) / np.linalg.norm(exact)
+        self.assertLess(
+            rel_error, 1e-8,
+            f"1D manufactured solution rel error: {rel_error:.2e}",
+        )
 
     def test_2d_stiffness_symmetric(self) -> None:
         """Test stiffness matrix is symmetric in 2D."""

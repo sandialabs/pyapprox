@@ -83,17 +83,57 @@ class ManufacturedLinearElasticityEquations(
         bkd: Backend[Array],
         oned: bool = False,
     ):
-        if nvars != 2:
-            raise ValueError("Linear elasticity requires nvars=2")
-        if len(sol_strs) != 2:
-            raise ValueError("Linear elasticity requires 2 solution components [u, v]")
+        if nvars not in (1, 2):
+            raise ValueError(
+                f"Linear elasticity requires nvars in (1, 2), got {nvars}"
+            )
+        if len(sol_strs) != nvars:
+            raise ValueError(
+                f"Linear elasticity requires {nvars} solution components, "
+                f"got {len(sol_strs)}"
+            )
 
         self._lambda_str = lambda_str
         self._mu_str = mu_str
+        self._nvars_el = nvars
         super().__init__(sol_strs, nvars, bkd, oned)
 
     def sympy_expressions(self) -> None:
         """Build sympy expressions for linear elasticity equation."""
+        if self._nvars_el == 1:
+            self._sympy_expressions_1d()
+        else:
+            self._sympy_expressions_2d()
+
+    def _sympy_expressions_1d(self) -> None:
+        """Build sympy expressions for 1D linear elasticity.
+
+        σ = (λ + 2μ) * du/dx,  -dσ/dx = f.
+        """
+        cartesian_symbs = self.cartesian_symbols()
+        x = cartesian_symbs[0]
+
+        lambda_expr = sp.sympify(self._lambda_str)
+        mu_expr = sp.sympify(self._mu_str)
+
+        self._set_expression("lambda", lambda_expr, self._lambda_str)
+        self._set_expression("mu", mu_expr, self._mu_str)
+
+        u_expr = self._expressions["solution"][0]
+        E_eff = lambda_expr + 2 * mu_expr
+        sigma_xx = E_eff * u_expr.diff(x)
+
+        self._set_expression("flux", [[sigma_xx]], self._sol_strs[0])
+
+        div_sigma = sigma_xx.diff(x)
+        forc_exprs = [-div_sigma]
+
+        self._expressions["forcing"] = [
+            f + g for f, g in zip(self._expressions["forcing"], forc_exprs)
+        ]
+
+    def _sympy_expressions_2d(self) -> None:
+        """Build sympy expressions for 2D linear elasticity."""
         cartesian_symbs = self.cartesian_symbols()
         x, y = cartesian_symbs[0], cartesian_symbs[1]
 

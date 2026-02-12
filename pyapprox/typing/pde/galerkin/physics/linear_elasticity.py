@@ -251,10 +251,12 @@ class LinearElasticity(Generic[Array]):
                 if len(x_shape) == 3:
                     n, nelem, nquad = x_shape
                     x_flat = x.reshape(n, -1)
-                    force_flat = body_force_func(x_flat, current_time)
+                    force_flat = np.asarray(
+                        body_force_func(x_flat, current_time)
+                    )
                     force = force_flat.reshape(ndim, nelem, nquad)
                 else:
-                    force = body_force_func(x, current_time)
+                    force = np.asarray(body_force_func(x, current_time))
 
                 # Sum over components: f . v
                 return sum(force[i] * v[i] for i in range(ndim))

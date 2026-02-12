@@ -25,6 +25,12 @@ from pyapprox.typing.pde.collocation.manufactured_solutions import (
 from pyapprox.typing.pde.collocation.manufactured_solutions.linear_elasticity import (
     ManufacturedLinearElasticityEquations,
 )
+from pyapprox.typing.pde.collocation.manufactured_solutions.hyperelasticity import (
+    ManufacturedHyperelasticityEquations,
+)
+from pyapprox.typing.pde.collocation.physics.stress_models.protocols import (
+    SymbolicStressModelProtocol,
+)
 
 
 class GalerkinManufacturedSolutionAdapter(Generic[Array]):
@@ -558,3 +564,326 @@ def create_elasticity_manufactured_test(
     )
 
     return man_sol.functions, nvars
+
+
+def create_hyperelasticity_manufactured_test(
+    bounds: List[float],
+    sol_strs: List[str],
+    stress_model: SymbolicStressModelProtocol,
+    bkd: Backend[Array],
+) -> Tuple[Dict[str, Callable], int]:
+    """Create hyperelasticity manufactured solution functions for Galerkin tests.
+
+    Parameters
+    ----------
+    bounds : List[float]
+        Domain bounds [xmin, xmax] or [xmin, xmax, ymin, ymax] etc.
+    sol_strs : List[str]
+        Displacement component expressions. Length must equal nvars.
+        May contain 'x', 'y', 'z' for coords and 'T' for time.
+    stress_model : SymbolicStressModelProtocol
+        Stress model with sympy expression support (e.g., NeoHookeanStress).
+    bkd : Backend
+        Computational backend.
+
+    Returns
+    -------
+    functions : Dict[str, Callable]
+        Dictionary containing solution, forcing, flux functions.
+        - solution(x): (npts, ncomponents) exact displacement
+        - forcing(x): (npts, ncomponents) body force
+        - flux(x): (ncomponents, npts, ncomponents) PK1 stress tensor
+    nvars : int
+        Number of spatial dimensions.
+    """
+    nvars = len(bounds) // 2
+
+    man_sol = ManufacturedHyperelasticityEquations(
+        sol_strs=sol_strs,
+        nvars=nvars,
+        stress_model=stress_model,
+        bkd=bkd,
+        oned=True,
+    )
+
+    return man_sol.functions, nvars
+
+
+class GalerkinHyperelasticityAdapter(Generic[Array]):
+    """Adapter for vector-valued hyperelasticity manufactured solutions.
+
+    Provides methods to create boundary conditions and forcing functions
+    for hyperelasticity Galerkin tests. Handles the interleaved DOF
+    ordering of VectorLagrangeBasis and vector-valued BC values.
+
+    Parameters
+    ----------
+    basis : GalerkinBasisProtocol[Array]
+        Vector finite element basis (VectorLagrangeBasis).
+    functions : Dict[str, Callable]
+        Manufactured solution functions from
+        ``create_hyperelasticity_manufactured_test()``.
+    bkd : Backend[Array]
+        Computational backend.
+    time_dependent : bool, default=False
+        Whether the solution is time-dependent.
+    """
+
+    def __init__(
+        self,
+        basis: GalerkinBasisProtocol[Array],
+        functions: Dict[str, Callable],
+        bkd: Backend[Array],
+        time_dependent: bool = False,
+    ):
+        self._basis = basis
+        self._functions = functions
+        self._bkd = bkd
+        self._time_dependent = time_dependent
+        self._ndim = basis.mesh().ndim()
+
+    def _get_boundary_names(self) -> List[str]:
+        """Get ordered list of boundary names for this mesh dimension."""
+        if self._ndim == 1:
+            return ["left", "right"]
+        elif self._ndim == 2:
+            return ["left", "right", "bottom", "top"]
+        elif self._ndim == 3:
+            return ["left", "right", "bottom", "top", "front", "back"]
+        else:
+            raise ValueError(f"Unsupported dimension: {self._ndim}")
+
+    def solution_function(self) -> Callable:
+        """Return the exact solution function."""
+        return self._functions["solution"]
+
+    def forcing_for_galerkin(self) -> Callable:
+        """Return body force adapted for Galerkin physics.
+
+        The manufactured solution returns forcing as (npts, ncomponents).
+        Galerkin physics expects body_force(x, time) returning (ndim, npts).
+
+        Returns
+        -------
+        Callable
+            body_force(x, time) -> (ndim, npts)
+        """
+        forcing_func = self._functions["forcing"]
+        time_dep = self._time_dependent
+
+        if time_dep:
+            def adapted_forcing(x, time):
+                vals = forcing_func(x, time)  # (npts, ncomponents)
+                return vals.T  # (ncomponents, npts) = (ndim, npts)
+        else:
+            def adapted_forcing(x, time=0.0):
+                vals = forcing_func(x)  # (npts, ncomponents)
+                return vals.T  # (ncomponents, npts) = (ndim, npts)
+
+        return adapted_forcing
+
+    def _create_dirichlet_bc(
+        self, boundary_name: str
+    ) -> DirichletBC[Array]:
+        """Create a Dirichlet BC for vector-valued displacement.
+
+        Handles the interleaved DOF ordering: DOF j corresponds to
+        component j % ndim.
+        """
+        sol_func = self._functions["solution"]
+        ndim = self._ndim
+        time_dep = self._time_dependent
+
+        def value_func(coords, time=0.0):
+            # coords: (ndim, nbndry_dofs) from dof_coordinates
+            nbndry_dofs = coords.shape[1]
+            if time_dep:
+                vals = sol_func(coords, time)  # (nbndry_dofs, ncomponents)
+            else:
+                vals = sol_func(coords)  # (nbndry_dofs, ncomponents)
+            # Extract correct component for each interleaved DOF
+            result = np.zeros(nbndry_dofs)
+            for j in range(nbndry_dofs):
+                result[j] = vals[j, j % ndim]
+            return result
+
+        return DirichletBC(
+            basis=self._basis,
+            boundary_name=boundary_name,
+            value_func=value_func,
+            bkd=self._bkd,
+        )
+
+    def _compute_traction(
+        self,
+        boundary_index: int,
+        coords: np.ndarray,
+        time: Optional[float] = None,
+    ) -> np.ndarray:
+        """Compute traction t = P.n at boundary coordinates.
+
+        Parameters
+        ----------
+        boundary_index : int
+            Boundary index (0=left, 1=right, 2=bottom, etc.).
+        coords : np.ndarray
+            Boundary coordinates. Shape: (ndim, npts).
+        time : float, optional
+            Time for transient problems.
+
+        Returns
+        -------
+        np.ndarray
+            Traction components. Shape: (ndim, npts).
+        """
+        flux_func = self._functions.get("flux")
+        if flux_func is None:
+            raise ValueError(
+                "Manufactured solution must provide 'flux' function "
+                "(PK1 stress tensor) for Neumann/Robin BCs."
+            )
+
+        normal = canonical_boundary_normal(boundary_index, coords)
+        ndim = self._ndim
+
+        if self._time_dependent and time is not None:
+            P = flux_func(coords, time)
+        else:
+            P = flux_func(coords)
+        # P shape: (ncomponents, npts, ncomponents) = (ndim, npts, ndim)
+        # P[i, :, j] = P_{ij} at each point
+
+        # Traction: t_i = sum_j P_{ij} * n_j
+        npts = coords.shape[1]
+        traction = np.zeros((ndim, npts))
+        for i in range(ndim):
+            for j in range(ndim):
+                traction[i] += P[i, :, j] * normal[j]
+
+        return traction
+
+    def _create_neumann_bc(
+        self, boundary_name: str, boundary_index: int
+    ) -> NeumannBC[Array]:
+        """Create a Neumann BC for vector-valued traction.
+
+        The Neumann flux for hyperelasticity is the traction: t = P.n.
+        For vector elements, the NeumannBC flux_func must return scalar
+        values compatible with the scalar NeumannBC form (flux * v).
+
+        Since NeumannBC uses scalar LinearForm, we need a vector-aware
+        approach. We compute the interleaved DOF contribution:
+        each DOF j gets traction component j % ndim.
+        """
+        ndim = self._ndim
+        time_dep = self._time_dependent
+
+        def neumann_flux(coords, time=0.0):
+            # coords: (ndim, nbndry_dofs) from DOF coordinates
+            nbndry_dofs = coords.shape[1]
+            traction = self._compute_traction(
+                boundary_index, coords, time if time_dep else None
+            )
+            # traction: (ndim, npts) but we need to return (nbndry_dofs,)
+            # For interleaved DOFs: DOF j gets component j % ndim
+            result = np.zeros(nbndry_dofs)
+            for j in range(nbndry_dofs):
+                result[j] = traction[j % ndim, j // ndim]
+            return result
+
+        return NeumannBC(
+            basis=self._basis,
+            boundary_name=boundary_name,
+            flux_func=neumann_flux,
+            bkd=self._bkd,
+        )
+
+    def _create_robin_bc(
+        self, boundary_name: str, boundary_index: int, alpha: float = 1.0
+    ) -> RobinBC[Array]:
+        """Create a Robin BC: alpha * u + P.n = g.
+
+        The Robin value g = alpha * u + t where t = P.n (traction).
+        """
+        sol_func = self._functions["solution"]
+        ndim = self._ndim
+        time_dep = self._time_dependent
+
+        def robin_value(coords, time=0.0):
+            # coords: (ndim, nbndry_dofs) from DOF coordinates
+            nbndry_dofs = coords.shape[1]
+            traction = self._compute_traction(
+                boundary_index, coords, time if time_dep else None
+            )
+            if time_dep:
+                u_vals = sol_func(coords, time)  # (npts, ncomponents)
+            else:
+                u_vals = sol_func(coords)  # (npts, ncomponents)
+            # Interleaved: DOF j -> component j % ndim
+            result = np.zeros(nbndry_dofs)
+            for j in range(nbndry_dofs):
+                comp = j % ndim
+                pt = j // ndim
+                result[j] = alpha * u_vals[pt, comp] + traction[comp, pt]
+            return result
+
+        return RobinBC(
+            basis=self._basis,
+            boundary_name=boundary_name,
+            alpha=alpha,
+            value_func=robin_value,
+            bkd=self._bkd,
+        )
+
+    def create_boundary_conditions(
+        self, bc_types: List[str], robin_alpha: float = 1.0
+    ) -> BoundaryConditionSet[Array]:
+        """Create boundary condition set from type specification.
+
+        Parameters
+        ----------
+        bc_types : List[str]
+            List of BC types in order [left, right, ...].
+            "D" for Dirichlet, "N" for Neumann, "R" for Robin.
+        robin_alpha : float, default=1.0
+            Coefficient for Robin BCs.
+
+        Returns
+        -------
+        BoundaryConditionSet[Array]
+        """
+        boundary_names = self._get_boundary_names()
+
+        if len(bc_types) != len(boundary_names):
+            raise ValueError(
+                f"Expected {len(boundary_names)} BC types for "
+                f"{self._ndim}D problem, got {len(bc_types)}"
+            )
+
+        bc_set = BoundaryConditionSet(self._bkd)
+
+        for i, (bc_type, boundary_name) in enumerate(
+            zip(bc_types, boundary_names)
+        ):
+            if bc_type == "D":
+                bc = self._create_dirichlet_bc(boundary_name)
+                bc_set.add_dirichlet(bc)
+            elif bc_type == "N":
+                bc = self._create_neumann_bc(boundary_name, i)
+                bc_set.add_neumann(bc)
+            elif bc_type == "R":
+                bc = self._create_robin_bc(boundary_name, i, robin_alpha)
+                bc_set.add_robin(bc)
+            else:
+                raise ValueError(
+                    f"Unknown BC type '{bc_type}'. "
+                    "Valid types: 'D', 'N', 'R'"
+                )
+
+        return bc_set
+
+    def __repr__(self) -> str:
+        return (
+            f"GalerkinHyperelasticityAdapter(ndim={self._ndim}, "
+            f"time_dependent={self._time_dependent})"
+        )
