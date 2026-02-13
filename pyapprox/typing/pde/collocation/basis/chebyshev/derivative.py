@@ -60,8 +60,9 @@ class ChebyshevDerivativeMatrix1D(Generic[Array]):
         c[npts - 1] = 2.0
 
         # Alternating sign: multiply by (-1)^i
+        # Use where to avoid numpy roundtrip and preserve backend dtype
         idx = bkd.arange(npts)
-        signs = bkd.asarray((-1.0) ** bkd.to_numpy(idx))
+        signs = bkd.where(idx % 2 == 0, bkd.ones(npts), -bkd.ones(npts))
         c = c * signs
 
         # Compute D[i,j] = (c_i/c_j) / (x_i - x_j) for i != j

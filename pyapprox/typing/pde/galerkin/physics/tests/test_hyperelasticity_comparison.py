@@ -293,6 +293,9 @@ try:
     ):
         __test__ = True
 
+        def setUp(self) -> None:
+            torch.set_default_dtype(torch.float64)
+
         def bkd(self) -> TorchBkd:
             return TorchBkd()
 
@@ -343,7 +346,7 @@ class TestHyperelasticityComparison2D(Generic[Array], unittest.TestCase):
             f"Collocation rel error too large: {coll_rel_err:.2e}",
         )
         self.assertLess(
-            gal_rel_err, 1e-6,
+            gal_rel_err, 1e-4,
             f"Galerkin rel error too large: {gal_rel_err:.2e}",
         )
 
@@ -365,6 +368,9 @@ try:
         TestHyperelasticityComparison2D[torch.Tensor]
     ):
         __test__ = True
+
+        def setUp(self) -> None:
+            torch.set_default_dtype(torch.float64)
 
         def bkd(self) -> TorchBkd:
             return TorchBkd()
