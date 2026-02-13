@@ -117,6 +117,17 @@ class LinearElasticity(Generic[Array]):
         # Store body force
         self._body_force = body_force
 
+        # Pre-compute decomposed stiffness: K = lambda*K_lambda + mu*K_mu
+        skfem_basis = self._basis.skfem_basis()
+        K_lambda_np = asm(
+            linear_elasticity(1.0, 0.0), skfem_basis
+        ).toarray().astype(np.float64)
+        K_mu_np = asm(
+            linear_elasticity(0.0, 1.0), skfem_basis
+        ).toarray().astype(np.float64)
+        self._K_lambda = self._bkd.asarray(K_lambda_np)
+        self._K_mu = self._bkd.asarray(K_mu_np)
+
         # Cache assembled matrices
         self._stiffness_cached: Optional[Array] = None
         self._mass_cached: Optional[Array] = None
@@ -195,10 +206,14 @@ class LinearElasticity(Generic[Array]):
         M = self.mass_matrix()
         return self._bkd.solve(M, rhs)
 
+    def basis(self) -> VectorLagrangeBasis[Array]:
+        """Return the vector finite element basis."""
+        return self._basis
+
     def stiffness_matrix(self) -> Array:
         """Return the elasticity stiffness matrix.
 
-        K_ij = integral(sigma(phi_j) : epsilon(phi_i))
+        Reconstructed from decomposition: K = lambda * K_lambda + mu * K_mu.
 
         Returns
         -------
@@ -208,15 +223,9 @@ class LinearElasticity(Generic[Array]):
         if self._stiffness_cached is not None:
             return self._stiffness_cached
 
-        skfem_basis = self._basis.skfem_basis()
-
-        # Use skfem's linear_elasticity
-        stiffness_np = asm(
-            linear_elasticity(self._lambda, self._mu), skfem_basis
-        ).toarray()
-
-        self._stiffness_cached = self._bkd.asarray(stiffness_np.astype(np.float64))
-
+        self._stiffness_cached = (
+            self._lambda * self._K_lambda + self._mu * self._K_mu
+        )
         return self._stiffness_cached
 
     def load_vector(self, time: float = 0.0) -> Array:
@@ -415,6 +424,98 @@ class LinearElasticity(Generic[Array]):
             DOF values. Shape: (nstates,)
         """
         return self._basis.interpolate(func)
+
+    # -----------------------------------------------------------------
+    # Parameter sensitivity methods (E, nu)
+    # -----------------------------------------------------------------
+
+    def nparams(self) -> int:
+        """Return number of material parameters (E, nu)."""
+        return 2
+
+    def set_param(self, param: Array) -> None:
+        """Update material parameters and invalidate stiffness cache.
+
+        Parameters
+        ----------
+        param : Array
+            Parameter vector [E, nu]. Shape: (2,)
+        """
+        param_np = self._bkd.to_numpy(param)
+        E = float(param_np[0])
+        nu = float(param_np[1])
+
+        if not (-1.0 < nu < 0.5):
+            raise ValueError(
+                f"Poisson ratio must satisfy -1 < nu < 0.5, got {nu}"
+            )
+
+        self._youngs_modulus = E
+        self._poisson_ratio = nu
+        self._lambda, self._mu = lame_parameters(E, nu)
+        self._stiffness_cached = None
+
+    def param_jacobian(self, state: Array, time: float) -> Array:
+        """Compute parameter Jacobian dF/dp where F = b - K*u.
+
+        Since body force does not depend on (E, nu):
+            dF/dp = -dK/dp @ u
+
+        Chain rule through Lame parameters:
+            dK/dE  = (dLambda/dE) * K_lambda + (dMu/dE) * K_mu
+            dK/dnu = (dLambda/dnu) * K_lambda + (dMu/dnu) * K_mu
+
+        Parameters
+        ----------
+        state : Array
+            Displacement state. Shape: (nstates,)
+        time : float
+            Current time.
+
+        Returns
+        -------
+        Array
+            Parameter Jacobian. Shape: (nstates, 2)
+        """
+        E = self._youngs_modulus
+        nu = self._poisson_ratio
+
+        # Derivatives of Lame parameters w.r.t. E
+        denom1 = (1.0 + nu) * (1.0 - 2.0 * nu)
+        dLambda_dE = nu / denom1
+        dMu_dE = 1.0 / (2.0 * (1.0 + nu))
+
+        # Derivatives of Lame parameters w.r.t. nu
+        # Lambda = E*nu / ((1+nu)*(1-2nu))
+        # dLambda/dnu = E*(1 + 2*nu^2) / ((1+nu)*(1-2nu))^2
+        dLambda_dnu = E * (1.0 + 2.0 * nu**2) / denom1**2
+
+        # Mu = E / (2*(1+nu))
+        # dMu/dnu = -E / (2*(1+nu)^2)
+        dMu_dnu = -E / (2.0 * (1.0 + nu)**2)
+
+        # dK/dp @ u
+        K_lambda_u = self._K_lambda @ state
+        K_mu_u = self._K_mu @ state
+
+        # dF/dE = -(dLambda/dE * K_lambda + dMu/dE * K_mu) @ u
+        col_E = -(dLambda_dE * K_lambda_u + dMu_dE * K_mu_u)
+
+        # dF/dnu = -(dLambda/dnu * K_lambda + dMu/dnu * K_mu) @ u
+        col_nu = -(dLambda_dnu * K_lambda_u + dMu_dnu * K_mu_u)
+
+        return self._bkd.stack([col_E, col_nu], axis=1)
+
+    def initial_param_jacobian(self) -> Array:
+        """Return d(u_0)/dp = 0 (initial condition does not depend on E, nu).
+
+        Returns
+        -------
+        Array
+            Zero matrix. Shape: (nstates, 2)
+        """
+        n = self.nstates()
+        return self._bkd.asarray(np.zeros((n, 2)))
 
     def __repr__(self) -> str:
         return (
