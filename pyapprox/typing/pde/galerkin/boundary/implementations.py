@@ -177,6 +177,34 @@ class DirichletBC(Generic[Array]):
 
         return self._bkd.asarray(jac_np)
 
+    def apply_to_param_jacobian(
+        self, param_jacobian: Array, state: Array, time: float,
+    ) -> Array:
+        """Apply Dirichlet BC to parameter Jacobian.
+
+        Dirichlet constraint u = g(x, t) does not depend on material
+        parameters, so the parameter Jacobian rows at boundary DOFs
+        are set to zero.
+
+        Parameters
+        ----------
+        param_jacobian : Array
+            Parameter Jacobian. Shape: (nstates, nparams)
+        state : Array
+            Current solution. Shape: (nstates,)
+        time : float
+            Current time.
+
+        Returns
+        -------
+        Array
+            Modified parameter Jacobian. Shape: (nstates, nparams)
+        """
+        pj_np = self._bkd.to_numpy(param_jacobian).copy()
+        bndry_dofs_np = self._bkd.to_numpy(self._boundary_dofs)
+        pj_np[bndry_dofs_np, :] = 0.0
+        return self._bkd.asarray(pj_np)
+
     def __repr__(self) -> str:
         return (
             f"DirichletBC(boundary='{self._boundary_name}', "

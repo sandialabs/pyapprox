@@ -409,6 +409,34 @@ class LinearElasticity(Generic[Array]):
 
         return jac
 
+    def apply_boundary_conditions(
+        self, residual: Array, jacobian: Array, state: Array
+    ) -> Tuple[Array, Array]:
+        """Apply boundary conditions to residual and Jacobian.
+
+        Parameters
+        ----------
+        residual : Array
+            Residual vector. Shape: (nstates,)
+        jacobian : Array
+            Jacobian matrix. Shape: (nstates, nstates)
+        state : Array
+            Current state. Shape: (nstates,)
+
+        Returns
+        -------
+        Tuple[Array, Array]
+            Modified (residual, jacobian).
+        """
+        for bc in self._boundary_conditions:
+            if isinstance(bc, DirichletBCProtocol):
+                residual = bc.apply_to_residual(residual, state, 0.0)
+                jacobian = bc.apply_to_jacobian(jacobian, state, 0.0)
+            elif isinstance(bc, RobinBCProtocol):
+                residual = bc.apply_to_residual(residual, state, 0.0)
+                jacobian = bc.apply_to_jacobian(jacobian, state, 0.0)
+        return residual, jacobian
+
     def initial_condition(self, func: Callable) -> Array:
         """Create initial condition by interpolating a displacement field.
 
@@ -504,7 +532,14 @@ class LinearElasticity(Generic[Array]):
         # dF/dnu = -(dLambda/dnu * K_lambda + dMu/dnu * K_mu) @ u
         col_nu = -(dLambda_dnu * K_lambda_u + dMu_dnu * K_mu_u)
 
-        return self._bkd.stack([col_E, col_nu], axis=1)
+        pjac = self._bkd.stack([col_E, col_nu], axis=1)
+
+        # Apply BC corrections: each BC zeros or modifies its rows
+        for bc in self._boundary_conditions:
+            if hasattr(bc, "apply_to_param_jacobian"):
+                pjac = bc.apply_to_param_jacobian(pjac, state, time)
+
+        return pjac
 
     def initial_param_jacobian(self) -> Array:
         """Return d(u_0)/dp = 0 (initial condition does not depend on E, nu).
