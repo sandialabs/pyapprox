@@ -74,6 +74,44 @@ class HyperelasticityPhysics(AbstractVectorPhysics[Array], Generic[Array]):
         """Return the stress model."""
         return self._stress_model
 
+    # ------------------------------------------------------------------
+    # Material property setters
+    # ------------------------------------------------------------------
+
+    def set_mu(self, mu_values) -> None:
+        """Set shear modulus (scalar or per-point array).
+
+        Parameters
+        ----------
+        mu_values : float or Array
+            Shear modulus values. Must be positive.
+        """
+        min_val = float(self._bkd.min(
+            self._bkd.asarray(mu_values).ravel()
+        ))
+        if min_val <= 0.0:
+            raise ValueError(
+                f"mu must be positive; found min {min_val:.2e}"
+            )
+        self._stress_model.set_mu(mu_values)
+
+    def set_lamda(self, lamda_values) -> None:
+        """Set Lame's first parameter (scalar or per-point array).
+
+        Parameters
+        ----------
+        lamda_values : float or Array
+            Lame's first parameter values. Must be non-negative.
+        """
+        min_val = float(self._bkd.min(
+            self._bkd.asarray(lamda_values).ravel()
+        ))
+        if min_val < 0.0:
+            raise ValueError(
+                f"lamda must be non-negative; found min {min_val:.2e}"
+            )
+        self._stress_model.set_lamda(lamda_values)
+
     def _get_forcing(self, time: float) -> Array:
         """Get forcing array at given time."""
         nstates = self.nstates()
@@ -102,6 +140,191 @@ class HyperelasticityPhysics(AbstractVectorPhysics[Array], Generic[Array]):
         return tuple(
             state[i * npts : (i + 1) * npts] for i in range(self._ndim)
         )
+
+    # ------------------------------------------------------------------
+    # Flux computation (PK1 stress)
+    # ------------------------------------------------------------------
+
+    def compute_flux(self, state: Array):
+        """Compute PK1 stress as flux.
+
+        Parameters
+        ----------
+        state : Array
+            Displacement field. Shape: (nstates,).
+
+        Returns
+        -------
+        1D: List[Array] — [P], each shape (npts,).
+        2D: List[List[Array]] — [[P11,P12],[P21,P22]], each shape (npts,).
+        """
+        if self._ndim == 1:
+            Dx = self._D[0]
+            F = 1.0 + Dx @ state
+            P = self._stress_model.compute_stress_1d(F, self._bkd)
+            return [P]
+        elif self._ndim == 2:
+            bkd = self._bkd
+            Dx, Dy = self._D
+            u, v = self._extract_components(state)
+            F11 = 1.0 + Dx @ u
+            F12 = Dy @ u
+            F21 = Dx @ v
+            F22 = 1.0 + Dy @ v
+            P11, P12, P21, P22 = self._stress_model.compute_stress_2d(
+                F11, F12, F21, F22, bkd
+            )
+            return [[P11, P12], [P21, P22]]
+        else:
+            raise NotImplementedError(
+                "compute_flux only implemented for 1D and 2D"
+            )
+
+    def compute_flux_jacobian(self, state: Array):
+        """Compute d(flux)/d(state).
+
+        Parameters
+        ----------
+        state : Array
+            Displacement field. Shape: (nstates,).
+
+        Returns
+        -------
+        1D: List[Array] — each shape (npts, npts).
+        2D: List[List[Array]] — each shape (npts, 2*npts).
+        """
+        if self._ndim == 1:
+            Dx = self._D[0]
+            F = 1.0 + Dx @ state
+            A = self._stress_model.compute_tangent_1d(F, self._bkd)
+            return [self._bkd.diag(A) @ Dx]
+        elif self._ndim == 2:
+            bkd = self._bkd
+            npts = self.npts()
+            Dx, Dy = self._D
+            u, v = self._extract_components(state)
+            F11 = 1.0 + Dx @ u
+            F12 = Dy @ u
+            F21 = Dx @ v
+            F22 = 1.0 + Dy @ v
+            A = self._stress_model.compute_tangent_2d(
+                F11, F12, F21, F22, bkd
+            )
+            D = [Dx, Dy]
+            result = []
+            for i in range(2):
+                row = []
+                for jj in range(2):
+                    jac = bkd.zeros((npts, 2 * npts))
+                    jac = bkd.copy(jac)
+                    for k in range(2):
+                        for ll in range(2):
+                            key = f"A_{i+1}{jj+1}{k+1}{ll+1}"
+                            contrib = bkd.diag(A[key]) @ D[ll]
+                            jac[:, k * npts:(k + 1) * npts] = (
+                                jac[:, k * npts:(k + 1) * npts] + contrib
+                            )
+                    row.append(jac)
+                result.append(row)
+            return result
+        else:
+            raise NotImplementedError(
+                "compute_flux_jacobian only implemented for 1D and 2D"
+            )
+
+    # ------------------------------------------------------------------
+    # Residual sensitivity to material parameters
+    # ------------------------------------------------------------------
+
+    def residual_mu_sensitivity(
+        self, state: Array, time: float, delta_mu: Array
+    ) -> Array:
+        """Compute d(residual)/d(mu_field) * delta_mu.
+
+        Parameters
+        ----------
+        state : Array
+            Displacement field. Shape: (nstates,).
+        time : float
+            Current time.
+        delta_mu : Array
+            Perturbation in mu field. Shape: (npts,).
+
+        Returns
+        -------
+        Array
+            Residual sensitivity. Shape: (nstates,).
+        """
+        bkd = self._bkd
+        if self._ndim == 1:
+            Dx = self._D[0]
+            F = 1.0 + Dx @ state
+            dP_dmu = self._stress_model.stress_sensitivity_mu_1d(F, bkd)
+            return Dx @ (dP_dmu * delta_mu)
+        elif self._ndim == 2:
+            Dx, Dy = self._D
+            u, v = self._extract_components(state)
+            F11 = 1.0 + Dx @ u
+            F12 = Dy @ u
+            F21 = Dx @ v
+            F22 = 1.0 + Dy @ v
+            dP11, dP12, dP21, dP22 = (
+                self._stress_model.stress_sensitivity_mu_2d(
+                    F11, F12, F21, F22, bkd
+                )
+            )
+            sens_u = Dx @ (dP11 * delta_mu) + Dy @ (dP12 * delta_mu)
+            sens_v = Dx @ (dP21 * delta_mu) + Dy @ (dP22 * delta_mu)
+            return bkd.concatenate([sens_u, sens_v])
+        else:
+            raise NotImplementedError(
+                "residual_mu_sensitivity only implemented for 1D and 2D"
+            )
+
+    def residual_lamda_sensitivity(
+        self, state: Array, time: float, delta_lam: Array
+    ) -> Array:
+        """Compute d(residual)/d(lamda_field) * delta_lam.
+
+        Parameters
+        ----------
+        state : Array
+            Displacement field. Shape: (nstates,).
+        time : float
+            Current time.
+        delta_lam : Array
+            Perturbation in lambda field. Shape: (npts,).
+
+        Returns
+        -------
+        Array
+            Residual sensitivity. Shape: (nstates,).
+        """
+        bkd = self._bkd
+        if self._ndim == 1:
+            Dx = self._D[0]
+            F = 1.0 + Dx @ state
+            dP_dlam = self._stress_model.stress_sensitivity_lamda_1d(F, bkd)
+            return Dx @ (dP_dlam * delta_lam)
+        elif self._ndim == 2:
+            Dx, Dy = self._D
+            u, v = self._extract_components(state)
+            F11 = 1.0 + Dx @ u
+            F12 = Dy @ u
+            F21 = Dx @ v
+            F22 = 1.0 + Dy @ v
+            dP11, dP12, dP21, dP22 = (
+                self._stress_model.stress_sensitivity_lamda_2d(
+                    F11, F12, F21, F22, bkd
+                )
+            )
+            sens_u = Dx @ (dP11 * delta_lam) + Dy @ (dP12 * delta_lam)
+            sens_v = Dx @ (dP21 * delta_lam) + Dy @ (dP22 * delta_lam)
+            return bkd.concatenate([sens_u, sens_v])
+        else:
+            raise NotImplementedError(
+                "residual_lamda_sensitivity only implemented for 1D and 2D"
+            )
 
     # ------------------------------------------------------------------
     # Residual computation

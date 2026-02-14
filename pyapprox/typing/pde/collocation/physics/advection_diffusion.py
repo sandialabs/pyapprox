@@ -10,18 +10,13 @@ where:
 - f: forcing/source term (field)
 """
 
-from typing import Generic, List, Optional, Callable, Tuple
+from typing import List, Optional, Callable
 
 from pyapprox.typing.util.backends.protocols import Array, Backend
 from pyapprox.typing.pde.collocation.protocols.basis import (
     TensorProductBasisProtocol,
 )
 from pyapprox.typing.pde.collocation.physics.base import AbstractScalarPhysics
-from pyapprox.typing.pde.collocation.operators.field import (
-    Field,
-    input_field,
-    constant_field,
-)
 from pyapprox.typing.pde.collocation.operators.differential import (
     Laplacian,
     Gradient,
@@ -82,6 +77,7 @@ class AdvectionDiffusionReaction(AbstractScalarPhysics[Array]):
         else:
             self._diffusion_array = self._diffusion_value
             self._has_diffusion = True  # Assume variable diffusion is non-zero
+        self._diffusion_func: Optional[Callable[[float], Array]] = None
 
         # Store velocity field
         if velocity is not None:
@@ -99,6 +95,11 @@ class AdvectionDiffusionReaction(AbstractScalarPhysics[Array]):
             self._reaction_array = bkd.full((npts,), float(self._reaction_value))
         else:
             self._reaction_array = self._reaction_value
+        self._has_reaction = (
+            reaction is not None
+            and not (isinstance(reaction, (int, float)) and reaction == 0.0)
+        )
+        self._reaction_func: Optional[Callable[[float], Array]] = None
 
         # Store forcing function
         self._forcing_func = forcing
@@ -127,6 +128,86 @@ class AdvectionDiffusionReaction(AbstractScalarPhysics[Array]):
             return self._forcing_func(time)
         return self._forcing_func
 
+    def set_diffusion(self, func: Callable[[float], Array]) -> None:
+        """Set diffusion coefficient as time-dependent callable."""
+        self._diffusion_func = func
+        self._is_variable_diffusion = True
+        self._has_diffusion = True
+
+    def set_forcing(self, func: Callable[[float], Array]) -> None:
+        """Set forcing term as time-dependent callable."""
+        self._forcing_func = func
+
+    def set_reaction(self, func: Callable[[float], Array]) -> None:
+        """Set reaction coefficient as time-dependent callable."""
+        self._reaction_func = func
+        self._has_reaction = True
+
+    def _get_diffusion(self, time: float) -> Array:
+        """Get diffusion array at given time."""
+        if self._diffusion_func is not None:
+            self._diffusion_array = self._diffusion_func(time)
+        return self._diffusion_array
+
+    def _get_reaction(self, time: float) -> Array:
+        """Get reaction array at given time."""
+        if self._reaction_func is not None:
+            self._reaction_array = self._reaction_func(time)
+        return self._reaction_array
+
+    def residual_diffusion_sensitivity(
+        self,
+        state: Array,
+        time: float,
+        delta_D: Array,
+        grad_delta_D: List[Array],
+    ) -> Array:
+        """Compute d(residual)/d(D_field) applied to perturbation delta_D.
+
+        Returns delta_D * laplacian(u) + grad(delta_D) . grad(u).
+
+        Parameters
+        ----------
+        state : Array
+            Solution state. Shape: (npts,)
+        time : float
+            Current time.
+        delta_D : Array
+            Perturbation of diffusion field. Shape: (npts,)
+        grad_delta_D : List[Array]
+            Gradient of perturbation, one per dimension. Each shape: (npts,)
+
+        Returns
+        -------
+        Array
+            Sensitivity. Shape: (npts,)
+        """
+        lap_u = self._D2_matrix @ state
+        result = delta_D * lap_u
+        for dim in range(self._basis.ndim()):
+            grad_u_dim = self._D_matrices[dim] @ state
+            result = result + grad_delta_D[dim] * grad_u_dim
+        return result
+
+    def residual_reaction_sensitivity(
+        self, state: Array, time: float
+    ) -> Array:
+        """Compute d(residual)/d(r_field) pointwise = state.
+
+        Parameters
+        ----------
+        state : Array
+            Solution state. Shape: (npts,)
+        time : float
+            Current time.
+
+        Returns
+        -------
+        Array
+            Sensitivity. Shape: (npts,)
+        """
+        return state
+
     def residual(self, state: Array, time: float) -> Array:
         """Compute spatial residual f(u, t).
 
@@ -153,6 +234,7 @@ class AdvectionDiffusionReaction(AbstractScalarPhysics[Array]):
         # Diffusion term: div(D * grad(u)) = D * laplacian(u) for constant D
         # For variable D: div(D * grad(u))
         if self._has_diffusion:
+            diff_array = self._get_diffusion(time)
             if not self._is_variable_diffusion:
                 # Constant diffusion: D * laplacian(u)
                 D2_u = self._D2_matrix @ state
@@ -161,11 +243,11 @@ class AdvectionDiffusionReaction(AbstractScalarPhysics[Array]):
                 # Variable diffusion: div(D * grad(u))
                 # = D * laplacian(u) + grad(D) . grad(u)
                 D2_u = self._D2_matrix @ state
-                residual = residual + self._diffusion_array * D2_u
+                residual = residual + diff_array * D2_u
                 # Add grad(D) . grad(u) term
                 for dim in range(self._basis.ndim()):
                     D_dim = self._D_matrices[dim]
-                    grad_D_dim = D_dim @ self._diffusion_array
+                    grad_D_dim = D_dim @ diff_array
                     grad_u_dim = D_dim @ state
                     residual = residual + grad_D_dim * grad_u_dim
 
@@ -177,8 +259,9 @@ class AdvectionDiffusionReaction(AbstractScalarPhysics[Array]):
                 residual = residual - self._velocity[dim] * grad_u_dim
 
         # Reaction term: r * u
-        if self._reaction_value != 0.0:
-            residual = residual + self._reaction_array * state
+        if self._has_reaction:
+            react_array = self._get_reaction(time)
+            residual = residual + react_array * state
 
         # Forcing term
         residual = residual + self._get_forcing(time)
@@ -208,16 +291,17 @@ class AdvectionDiffusionReaction(AbstractScalarPhysics[Array]):
 
         # Diffusion term Jacobian: d/du[D * laplacian(u)] = D * laplacian
         if self._has_diffusion:
+            diff_array = self._get_diffusion(time)
             if not self._is_variable_diffusion:
                 jacobian = jacobian + float(self._diffusion_value) * self._D2_matrix
             else:
                 # Variable diffusion: diag(D) @ laplacian + grad(D) terms
-                D_diag = bkd.diag(self._diffusion_array)
+                D_diag = bkd.diag(diff_array)
                 jacobian = jacobian + D_diag @ self._D2_matrix
                 # Add grad(D) . grad term: sum_i diag(grad_D_i) @ D_i
                 for dim in range(self._basis.ndim()):
                     D_dim = self._D_matrices[dim]
-                    grad_D_dim = D_dim @ self._diffusion_array
+                    grad_D_dim = D_dim @ diff_array
                     jacobian = jacobian + bkd.diag(grad_D_dim) @ D_dim
 
         # Advection term Jacobian: d/du[-v . grad(u)] = -sum_i diag(v_i) @ D_i
@@ -228,8 +312,9 @@ class AdvectionDiffusionReaction(AbstractScalarPhysics[Array]):
                 jacobian = jacobian - v_diag @ D_dim
 
         # Reaction term Jacobian: d/du[r * u] = diag(r)
-        if self._reaction_value != 0.0:
-            jacobian = jacobian + bkd.diag(self._reaction_array)
+        if self._has_reaction:
+            react_array = self._get_reaction(time)
+            jacobian = jacobian + bkd.diag(react_array)
 
         return jacobian
 
@@ -337,158 +422,6 @@ class AdvectionDiffusionReaction(AbstractScalarPhysics[Array]):
             flux = float(self._diffusion_value) * flux
 
         return flux
-
-
-class AdvectionDiffusionReactionWithParam(AdvectionDiffusionReaction[Array]):
-    """ADR physics with parameterized diffusion coefficient.
-
-    The diffusion coefficient is parameterized as:
-        D(x) = D_base + sum_i param_i * basis_i(x)
-
-    This enables adjoint-based sensitivity analysis and optimization.
-
-    Parameters
-    ----------
-    basis : TensorProductBasisProtocol
-        Collocation basis.
-    bkd : Backend
-        Computational backend.
-    diffusion_base : float
-        Base diffusion coefficient.
-    diffusion_basis_funs : List[Array]
-        Basis functions for parameterized diffusion. Each has shape: (npts,)
-    velocity : List[Array], optional
-        Velocity field components.
-    reaction : float or Array, optional
-        Reaction coefficient.
-    forcing : Callable[[float], Array] or Array, optional
-        Forcing term.
-    initial_condition : Callable[[Array], Array], optional
-        Function that takes parameters and returns initial condition.
-        If None, initial condition has zero parameter Jacobian.
-    """
-
-    def __init__(
-        self,
-        basis: TensorProductBasisProtocol[Array],
-        bkd: Backend[Array],
-        diffusion_base: float,
-        diffusion_basis_funs: List[Array],
-        velocity: Optional[List[Array]] = None,
-        reaction: Optional[float] = None,
-        forcing: Optional[Callable[[float], Array]] = None,
-        initial_condition: Optional[Callable[[Array], Tuple[Array, Array]]] = None,
-    ):
-        # Initialize with base diffusion
-        super().__init__(basis, bkd, diffusion_base, velocity, reaction, forcing)
-
-        self._diffusion_base = diffusion_base
-        self._diffusion_basis_funs = diffusion_basis_funs
-        self._nparams = len(diffusion_basis_funs)
-        self._param = bkd.zeros((self._nparams,))
-        self._initial_condition_func = initial_condition
-
-        # Precompute gradient of basis functions
-        self._grad_basis_funs = []
-        for basis_fun in diffusion_basis_funs:
-            grad_basis = []
-            for dim in range(basis.ndim()):
-                grad_basis.append(self._D_matrices[dim] @ basis_fun)
-            self._grad_basis_funs.append(grad_basis)
-
-    def nparams(self) -> int:
-        """Return number of parameters."""
-        return self._nparams
-
-    def set_param(self, param: Array) -> None:
-        """Set parameter values.
-
-        Parameters
-        ----------
-        param : Array
-            Parameter vector. Shape: (nparams,)
-        """
-        bkd = self._bkd
-        if param.shape[0] != self._nparams:
-            raise ValueError(
-                f"param length {param.shape[0]} != nparams {self._nparams}"
-            )
-        self._param = param
-
-        # Update diffusion array: D = D_base + sum_i param_i * basis_i
-        npts = self.npts()
-        self._diffusion_array = bkd.full((npts,), self._diffusion_base)
-        for i in range(self._nparams):
-            self._diffusion_array = (
-                self._diffusion_array + float(param[i]) * self._diffusion_basis_funs[i]
-            )
-        # Use variable diffusion path
-        self._is_variable_diffusion = True
-        self._has_diffusion = True
-
-    def param_jacobian(self, state: Array, time: float) -> Array:
-        """Compute parameter Jacobian df/dp.
-
-        Parameters
-        ----------
-        state : Array
-            Solution state. Shape: (npts,)
-        time : float
-            Current time.
-
-        Returns
-        -------
-        Array
-            Parameter Jacobian. Shape: (npts, nparams)
-        """
-        bkd = self._bkd
-        npts = self.npts()
-
-        # Parameter Jacobian: df/dp_i where D = D_base + sum_j p_j * phi_j
-        # Diffusion residual: div(D * grad(u))
-        # For constant basis functions:
-        #   d/dp_i[div(D * grad(u))] = div(phi_i * grad(u))
-        #                            = phi_i * laplacian(u) + grad(phi_i) . grad(u)
-
-        param_jac = bkd.zeros((npts, self._nparams))
-
-        laplacian_u = self._D2_matrix @ state
-        grad_u = [self._D_matrices[dim] @ state for dim in range(self._basis.ndim())]
-
-        for i in range(self._nparams):
-            phi_i = self._diffusion_basis_funs[i]
-            # phi_i * laplacian(u)
-            term1 = phi_i * laplacian_u
-            # grad(phi_i) . grad(u)
-            term2 = bkd.zeros((npts,))
-            for dim in range(self._basis.ndim()):
-                grad_phi_i_dim = self._grad_basis_funs[i][dim]
-                term2 = term2 + grad_phi_i_dim * grad_u[dim]
-
-            col = term1 + term2
-            for j in range(npts):
-                param_jac[j, i] = col[j]
-
-        return param_jac
-
-    def initial_param_jacobian(self) -> Array:
-        """Compute initial condition parameter Jacobian d(u_0)/dp.
-
-        Returns
-        -------
-        Array
-            Initial condition Jacobian. Shape: (npts, nparams)
-        """
-        bkd = self._bkd
-        npts = self.npts()
-
-        if self._initial_condition_func is None:
-            # Initial condition does not depend on parameters
-            return bkd.zeros((npts, self._nparams))
-
-        # Get initial condition and its Jacobian
-        _, ic_jac = self._initial_condition_func(self._param)
-        return ic_jac
 
 
 def create_steady_diffusion(

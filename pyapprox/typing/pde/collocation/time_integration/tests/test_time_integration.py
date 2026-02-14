@@ -18,7 +18,12 @@ from pyapprox.typing.pde.collocation.boundary import (
 )
 from pyapprox.typing.pde.collocation.physics import (
     AdvectionDiffusionReaction,
-    AdvectionDiffusionReactionWithParam,
+)
+from pyapprox.typing.forward_models.field_maps.basis_expansion import (
+    BasisExpansion,
+)
+from pyapprox.typing.forward_models.parameterizations.diffusion import (
+    create_diffusion_parameterization,
 )
 from pyapprox.typing.pde.collocation.time_integration import (
     PhysicsToODEResidualAdapter,
@@ -166,7 +171,7 @@ class TestPhysicsToODEResidualAdapter(Generic[Array], unittest.TestCase):
         )
 
     def test_adapter_param_jacobian_available(self):
-        """Test that param_jacobian is available for parameterized physics."""
+        """Test that param_jacobian is available via parameterization."""
         bkd = self.bkd()
         npts = 10
         mesh = TransformedMesh1D(npts, bkd)
@@ -174,13 +179,14 @@ class TestPhysicsToODEResidualAdapter(Generic[Array], unittest.TestCase):
         basis = ChebyshevBasis1D(mesh, bkd)
 
         phi0 = bkd.ones((npts,))
-        physics = AdvectionDiffusionReactionWithParam(
-            basis, bkd,
-            diffusion_base=1.0,
-            diffusion_basis_funs=[phi0],
-        )
+        physics = AdvectionDiffusionReaction(basis, bkd, diffusion=1.0)
 
-        adapter = PhysicsToODEResidualAdapter(physics, bkd)
+        fm = BasisExpansion(bkd, 1.0, [phi0])
+        param = create_diffusion_parameterization(bkd, basis, fm)
+
+        adapter = PhysicsToODEResidualAdapter(
+            physics, bkd, parameterization=param
+        )
 
         # Should have param_jacobian
         self.assertTrue(hasattr(adapter, "param_jacobian"))

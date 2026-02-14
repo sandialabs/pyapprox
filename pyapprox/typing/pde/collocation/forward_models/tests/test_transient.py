@@ -23,7 +23,13 @@ from pyapprox.typing.pde.collocation.boundary import (
     gradient_robin_bc,
 )
 from pyapprox.typing.pde.collocation.physics.advection_diffusion import (
-    AdvectionDiffusionReactionWithParam,
+    AdvectionDiffusionReaction,
+)
+from pyapprox.typing.forward_models.field_maps.basis_expansion import (
+    BasisExpansion,
+)
+from pyapprox.typing.forward_models.parameterizations.diffusion import (
+    create_diffusion_parameterization,
 )
 from pyapprox.typing.pde.collocation.time_integration.collocation_model import (
     CollocationModel,
@@ -39,15 +45,25 @@ from pyapprox.typing.interface.functions.derivative_checks.derivative_checker im
 from pyapprox.typing.interface.functions.fromcallable.jacobian import (
     FunctionWithJacobianFromCallable,
 )
+from pyapprox.typing.interface.functions.protocols import (
+    FunctionProtocol,
+    FunctionWithJacobianProtocol,
+)
 
 
 def _create_parameterized_transient_diffusion_problem(bkd, npts=15):
     """Create a parameterized transient diffusion problem for testing.
 
+    Uses base AdvectionDiffusionReaction + DiffusionParameterization.
+
     Problem: du/dt = div(D(x) * grad(u)) with u(-1) = 0, u(1) = 0
     D(x) = D_base + p0 * phi0(x) + p1 * phi1(x)
     phi0(x) = 1 (constant), phi1(x) = x (linear)
     IC: u(x, 0) = sin(pi*x)
+
+    Returns
+    -------
+    physics, parameterization, init_state, time_config
     """
     mesh = TransformedMesh1D(npts, bkd)
     basis = ChebyshevBasis1D(mesh, bkd)
@@ -57,10 +73,8 @@ def _create_parameterized_transient_diffusion_problem(bkd, npts=15):
     phi0 = bkd.ones((npts,))
     phi1 = nodes
 
-    physics = AdvectionDiffusionReactionWithParam(
-        basis, bkd,
-        diffusion_base=0.5,
-        diffusion_basis_funs=[phi0, phi1],
+    physics = AdvectionDiffusionReaction(
+        basis, bkd, diffusion=2.0,
     )
 
     left_idx = mesh_obj.boundary_indices(0)
@@ -68,6 +82,9 @@ def _create_parameterized_transient_diffusion_problem(bkd, npts=15):
     bc_left = zero_dirichlet_bc(bkd, left_idx)
     bc_right = zero_dirichlet_bc(bkd, right_idx)
     physics.set_boundary_conditions([bc_left, bc_right])
+
+    fm = BasisExpansion(bkd, 2.0, [phi0, phi1])
+    param = create_diffusion_parameterization(bkd, basis, fm)
 
     init_state = bkd.sin(math.pi * nodes)
 
@@ -80,7 +97,7 @@ def _create_parameterized_transient_diffusion_problem(bkd, npts=15):
         newton_maxiter=20,
     )
 
-    return physics, init_state, time_config
+    return physics, param, init_state, time_config
 
 
 class TestTransientForwardModel(Generic[Array], unittest.TestCase):
@@ -95,20 +112,20 @@ class TestTransientForwardModel(Generic[Array], unittest.TestCase):
     def test_call_matches_direct_solve(self):
         """__call__ with default functional matches solve_transient result."""
         bkd = self._bkd
-        physics, init_state, time_config = (
+        physics, param, init_state, time_config = (
             _create_parameterized_transient_diffusion_problem(bkd)
         )
 
         forward_model = TransientForwardModel(
-            physics, bkd, init_state, time_config
+            physics, bkd, init_state, time_config, parameterization=param
         )
 
         param_1d = bkd.array([0.3, 0.1])
         samples = param_1d[:, None]
 
         # Direct solve
-        physics.set_param(param_1d)
-        model = CollocationModel(physics, bkd)
+        param.apply(physics, param_1d)
+        model = CollocationModel(physics, bkd, parameterization=param)
         solutions, times = model.solve_transient(init_state, time_config)
 
         # Forward model
@@ -120,12 +137,12 @@ class TestTransientForwardModel(Generic[Array], unittest.TestCase):
     def test_call_multiple_samples(self):
         """__call__ handles multiple parameter samples correctly."""
         bkd = self._bkd
-        physics, init_state, time_config = (
+        physics, param, init_state, time_config = (
             _create_parameterized_transient_diffusion_problem(bkd)
         )
 
         forward_model = TransientForwardModel(
-            physics, bkd, init_state, time_config
+            physics, bkd, init_state, time_config, parameterization=param
         )
 
         np.random.seed(42)
@@ -147,12 +164,12 @@ class TestTransientForwardModel(Generic[Array], unittest.TestCase):
     def test_nvars_nqoi(self):
         """nvars and nqoi are correct for default functional."""
         bkd = self._bkd
-        physics, init_state, time_config = (
+        physics, param, init_state, time_config = (
             _create_parameterized_transient_diffusion_problem(bkd)
         )
 
         forward_model = TransientForwardModel(
-            physics, bkd, init_state, time_config
+            physics, bkd, init_state, time_config, parameterization=param
         )
 
         self.assertEqual(forward_model.nvars(), 2)
@@ -161,12 +178,12 @@ class TestTransientForwardModel(Generic[Array], unittest.TestCase):
     def test_jacobian_vector_qoi_derivative_checker(self):
         """Jacobian with default functional (vector QoI) passes DerivativeChecker."""
         bkd = self._bkd
-        physics, init_state, time_config = (
+        physics, param, init_state, time_config = (
             _create_parameterized_transient_diffusion_problem(bkd)
         )
 
         forward_model = TransientForwardModel(
-            physics, bkd, init_state, time_config
+            physics, bkd, init_state, time_config, parameterization=param
         )
 
         param_2d = bkd.array([0.3, 0.1])[:, None]
@@ -189,17 +206,18 @@ class TestTransientForwardModel(Generic[Array], unittest.TestCase):
     def test_jacobian_scalar_qoi_endpoint(self):
         """Jacobian with EndpointFunctional (scalar QoI) passes DerivativeChecker."""
         bkd = self._bkd
-        physics, init_state, time_config = (
+        physics, param, init_state, time_config = (
             _create_parameterized_transient_diffusion_problem(bkd)
         )
         nstates = physics.nstates()
-        nparams = physics.nparams()
+        nparams = param.nparams()
 
         state_idx = nstates // 2
         functional = EndpointFunctional(state_idx, nstates, nparams, bkd)
 
         forward_model = TransientForwardModel(
-            physics, bkd, init_state, time_config, functional=functional
+            physics, bkd, init_state, time_config,
+            functional=functional, parameterization=param,
         )
         self.assertEqual(forward_model.nqoi(), 1)
 
@@ -223,17 +241,17 @@ class TestTransientForwardModel(Generic[Array], unittest.TestCase):
     def test_scalar_qoi_matches_vector_qoi_row(self):
         """Scalar QoI Jacobian matches corresponding row of vector QoI Jacobian."""
         bkd = self._bkd
-        physics, init_state, time_config = (
+        physics, param, init_state, time_config = (
             _create_parameterized_transient_diffusion_problem(bkd)
         )
         nstates = physics.nstates()
-        nparams = physics.nparams()
+        nparams = param.nparams()
 
         param_2d = bkd.array([0.3, 0.1])[:, None]
 
         # Vector QoI (default: all states at final time)
         fwd_vector = TransientForwardModel(
-            physics, bkd, init_state, time_config
+            physics, bkd, init_state, time_config, parameterization=param
         )
         jac_vector = fwd_vector.jacobian(param_2d)
 
@@ -241,7 +259,8 @@ class TestTransientForwardModel(Generic[Array], unittest.TestCase):
         state_idx = nstates // 2
         functional = EndpointFunctional(state_idx, nstates, nparams, bkd)
         fwd_scalar = TransientForwardModel(
-            physics, bkd, init_state, time_config, functional=functional
+            physics, bkd, init_state, time_config,
+            functional=functional, parameterization=param,
         )
         jac_scalar = fwd_scalar.jacobian(param_2d)
 
@@ -250,9 +269,23 @@ class TestTransientForwardModel(Generic[Array], unittest.TestCase):
             jac_vector[state_idx:state_idx+1, :], jac_scalar, rtol=1e-8
         )
 
+    def test_protocol_isinstance(self):
+        """Protocol isinstance checks with parameterization path."""
+        bkd = self._bkd
+        physics, param, init_state, tc = (
+            _create_parameterized_transient_diffusion_problem(bkd)
+        )
+        fwd = TransientForwardModel(
+            physics, bkd, init_state, tc, parameterization=param
+        )
+        self.assertTrue(isinstance(fwd, FunctionProtocol))
+        self.assertTrue(isinstance(fwd, FunctionWithJacobianProtocol))
+
 
 def _create_robin_transient_problem(bkd, npts=15):
     """Create a parameterized transient diffusion problem with Robin BCs.
+
+    Uses base AdvectionDiffusionReaction + DiffusionParameterization.
 
     Same PDE as the Dirichlet test but with gradient Robin BCs on both
     boundaries:
@@ -260,6 +293,10 @@ def _create_robin_transient_problem(bkd, npts=15):
       right: 2*u + 1*grad(u).n = 0
 
     Asymmetric alpha tests that Robin coupling is handled correctly.
+
+    Returns
+    -------
+    physics, parameterization, init_state, time_config
     """
     mesh = TransformedMesh1D(npts, bkd)
     basis = ChebyshevBasis1D(mesh, bkd)
@@ -268,10 +305,8 @@ def _create_robin_transient_problem(bkd, npts=15):
     phi0 = bkd.ones((npts,))
     phi1 = nodes
 
-    physics = AdvectionDiffusionReactionWithParam(
-        basis, bkd,
-        diffusion_base=0.5,
-        diffusion_basis_funs=[phi0, phi1],
+    physics = AdvectionDiffusionReaction(
+        basis, bkd, diffusion=2.0,
     )
 
     left_idx = mesh.boundary_indices(0)
@@ -288,6 +323,9 @@ def _create_robin_transient_problem(bkd, npts=15):
     )
     physics.set_boundary_conditions([bc_left, bc_right])
 
+    fm = BasisExpansion(bkd, 2.0, [phi0, phi1])
+    param = create_diffusion_parameterization(bkd, basis, fm)
+
     init_state = bkd.sin(math.pi * nodes)
 
     time_config = TimeIntegrationConfig(
@@ -299,14 +337,20 @@ def _create_robin_transient_problem(bkd, npts=15):
         newton_maxiter=20,
     )
 
-    return physics, init_state, time_config
+    return physics, param, init_state, time_config
 
 
 def _create_mixed_bc_transient_problem(bkd, npts=15):
     """Create a parameterized transient diffusion problem with mixed BCs.
 
+    Uses base AdvectionDiffusionReaction + DiffusionParameterization.
+
     Left: Robin (alpha=1, beta=1, g=0)
     Right: Dirichlet (u = 0)
+
+    Returns
+    -------
+    physics, parameterization, init_state, time_config
     """
     mesh = TransformedMesh1D(npts, bkd)
     basis = ChebyshevBasis1D(mesh, bkd)
@@ -315,10 +359,8 @@ def _create_mixed_bc_transient_problem(bkd, npts=15):
     phi0 = bkd.ones((npts,))
     phi1 = nodes
 
-    physics = AdvectionDiffusionReactionWithParam(
-        basis, bkd,
-        diffusion_base=0.5,
-        diffusion_basis_funs=[phi0, phi1],
+    physics = AdvectionDiffusionReaction(
+        basis, bkd, diffusion=2.0,
     )
 
     left_idx = mesh.boundary_indices(0)
@@ -332,6 +374,9 @@ def _create_mixed_bc_transient_problem(bkd, npts=15):
     bc_right = zero_dirichlet_bc(bkd, right_idx)
     physics.set_boundary_conditions([bc_left, bc_right])
 
+    fm = BasisExpansion(bkd, 2.0, [phi0, phi1])
+    param = create_diffusion_parameterization(bkd, basis, fm)
+
     init_state = bkd.sin(math.pi * nodes)
 
     time_config = TimeIntegrationConfig(
@@ -343,7 +388,7 @@ def _create_mixed_bc_transient_problem(bkd, npts=15):
         newton_maxiter=20,
     )
 
-    return physics, init_state, time_config
+    return physics, param, init_state, time_config
 
 
 class TestTransientRobinBC(Generic[Array], unittest.TestCase):
@@ -359,10 +404,10 @@ class TestTransientRobinBC(Generic[Array], unittest.TestCase):
     def test_vector_qoi_derivative_checker(self):
         """Forward sensitivity Jacobian passes DerivativeChecker with Robin BCs."""
         bkd = self._bkd
-        physics, init_state, time_config = _create_robin_transient_problem(bkd)
+        physics, param, init_state, tc = _create_robin_transient_problem(bkd)
 
         forward_model = TransientForwardModel(
-            physics, bkd, init_state, time_config
+            physics, bkd, init_state, tc, parameterization=param
         )
 
         param_2d = bkd.array([0.3, 0.1])[:, None]
@@ -385,15 +430,16 @@ class TestTransientRobinBC(Generic[Array], unittest.TestCase):
     def test_scalar_qoi_adjoint_derivative_checker(self):
         """Adjoint gradient passes DerivativeChecker with Robin BCs."""
         bkd = self._bkd
-        physics, init_state, time_config = _create_robin_transient_problem(bkd)
+        physics, param, init_state, tc = _create_robin_transient_problem(bkd)
         nstates = physics.nstates()
-        nparams = physics.nparams()
+        nparams = param.nparams()
 
         state_idx = nstates // 2
         functional = EndpointFunctional(state_idx, nstates, nparams, bkd)
 
         forward_model = TransientForwardModel(
-            physics, bkd, init_state, time_config, functional=functional
+            physics, bkd, init_state, tc,
+            functional=functional, parameterization=param,
         )
         self.assertEqual(forward_model.nqoi(), 1)
 
@@ -417,21 +463,22 @@ class TestTransientRobinBC(Generic[Array], unittest.TestCase):
     def test_scalar_matches_vector_row(self):
         """Scalar QoI adjoint Jacobian matches vector QoI forward sensitivity row."""
         bkd = self._bkd
-        physics, init_state, time_config = _create_robin_transient_problem(bkd)
+        physics, param, init_state, tc = _create_robin_transient_problem(bkd)
         nstates = physics.nstates()
-        nparams = physics.nparams()
+        nparams = param.nparams()
 
         param_2d = bkd.array([0.3, 0.1])[:, None]
 
         fwd_vector = TransientForwardModel(
-            physics, bkd, init_state, time_config
+            physics, bkd, init_state, tc, parameterization=param
         )
         jac_vector = fwd_vector.jacobian(param_2d)
 
         state_idx = nstates // 2
         functional = EndpointFunctional(state_idx, nstates, nparams, bkd)
         fwd_scalar = TransientForwardModel(
-            physics, bkd, init_state, time_config, functional=functional
+            physics, bkd, init_state, tc,
+            functional=functional, parameterization=param,
         )
         jac_scalar = fwd_scalar.jacobian(param_2d)
 
@@ -453,12 +500,12 @@ class TestTransientMixedBC(Generic[Array], unittest.TestCase):
     def test_vector_qoi_derivative_checker(self):
         """Forward sensitivity Jacobian passes DerivativeChecker with mixed BCs."""
         bkd = self._bkd
-        physics, init_state, time_config = (
+        physics, param, init_state, tc = (
             _create_mixed_bc_transient_problem(bkd)
         )
 
         forward_model = TransientForwardModel(
-            physics, bkd, init_state, time_config
+            physics, bkd, init_state, tc, parameterization=param
         )
 
         param_2d = bkd.array([0.3, 0.1])[:, None]
@@ -481,17 +528,18 @@ class TestTransientMixedBC(Generic[Array], unittest.TestCase):
     def test_scalar_qoi_adjoint_derivative_checker(self):
         """Adjoint gradient passes DerivativeChecker with mixed BCs."""
         bkd = self._bkd
-        physics, init_state, time_config = (
+        physics, param, init_state, tc = (
             _create_mixed_bc_transient_problem(bkd)
         )
         nstates = physics.nstates()
-        nparams = physics.nparams()
+        nparams = param.nparams()
 
         state_idx = nstates // 2
         functional = EndpointFunctional(state_idx, nstates, nparams, bkd)
 
         forward_model = TransientForwardModel(
-            physics, bkd, init_state, time_config, functional=functional
+            physics, bkd, init_state, tc,
+            functional=functional, parameterization=param,
         )
         self.assertEqual(forward_model.nqoi(), 1)
 
@@ -515,23 +563,24 @@ class TestTransientMixedBC(Generic[Array], unittest.TestCase):
     def test_scalar_matches_vector_row(self):
         """Scalar QoI adjoint Jacobian matches vector QoI forward sensitivity row."""
         bkd = self._bkd
-        physics, init_state, time_config = (
+        physics, param, init_state, tc = (
             _create_mixed_bc_transient_problem(bkd)
         )
         nstates = physics.nstates()
-        nparams = physics.nparams()
+        nparams = param.nparams()
 
         param_2d = bkd.array([0.3, 0.1])[:, None]
 
         fwd_vector = TransientForwardModel(
-            physics, bkd, init_state, time_config
+            physics, bkd, init_state, tc, parameterization=param
         )
         jac_vector = fwd_vector.jacobian(param_2d)
 
         state_idx = nstates // 2
         functional = EndpointFunctional(state_idx, nstates, nparams, bkd)
         fwd_scalar = TransientForwardModel(
-            physics, bkd, init_state, time_config, functional=functional
+            physics, bkd, init_state, tc,
+            functional=functional, parameterization=param,
         )
         jac_scalar = fwd_scalar.jacobian(param_2d)
 
@@ -553,6 +602,24 @@ class TestTransientForwardModelTorch(
     def bkd(self) -> TorchBkd:
         torch.set_default_dtype(torch.float64)
         return TorchBkd()
+
+    def test_torch_autograd_jacobian(self):
+        """Torch autograd.functional.jacobian matches fwd.jacobian."""
+        bkd = self._bkd
+        physics, param, init_state, tc = (
+            _create_parameterized_transient_diffusion_problem(bkd)
+        )
+        fwd = TransientForwardModel(
+            physics, bkd, init_state, tc, parameterization=param
+        )
+        sample = torch.tensor([0.3, 0.1], dtype=torch.float64)
+
+        def fwd_call(p):
+            return fwd(p[:, None])[:, 0]
+
+        autograd_jac = torch.autograd.functional.jacobian(fwd_call, sample)
+        analytical_jac = fwd.jacobian(sample[:, None])
+        bkd.assert_allclose(analytical_jac, autograd_jac, rtol=1e-6)
 
 
 class TestTransientRobinBCNumpy(

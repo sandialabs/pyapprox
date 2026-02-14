@@ -21,7 +21,14 @@ from pyapprox.typing.pde.collocation.boundary import (
     zero_dirichlet_bc,
 )
 from pyapprox.typing.pde.collocation.physics.advection_diffusion import (
-    AdvectionDiffusionReactionWithParam,
+    AdvectionDiffusionReaction,
+)
+from pyapprox.typing.forward_models.field_maps.basis_expansion import (
+    BasisExpansion,
+)
+from pyapprox.typing.forward_models.parameterizations.diffusion import (
+    DiffusionParameterization,
+    create_diffusion_parameterization,
 )
 from pyapprox.typing.pde.collocation.time_integration.collocation_model import (
     CollocationModel,
@@ -45,14 +52,25 @@ from pyapprox.typing.interface.functions.derivative_checks.derivative_checker im
 from pyapprox.typing.interface.functions.fromcallable.jacobian import (
     FunctionWithJacobianFromCallable,
 )
+from pyapprox.typing.interface.functions.protocols import (
+    FunctionProtocol,
+    FunctionWithJacobianProtocol,
+    FunctionWithJacobianAndHVPProtocol,
+)
 
 
 def _create_parameterized_diffusion_problem(bkd, npts=20):
     """Create a parameterized diffusion problem for testing.
 
+    Uses base AdvectionDiffusionReaction + DiffusionParameterization.
+
     Problem: -div(D(x) * grad(u)) = f with u(-1) = 0, u(1) = 0
     D(x) = D_base + p0 * phi0(x) + p1 * phi1(x)
     phi0(x) = 1 (constant), phi1(x) = x (linear)
+
+    Returns
+    -------
+    physics, parameterization, init_state
     """
     mesh = TransformedMesh1D(npts, bkd)
     basis = ChebyshevBasis1D(mesh, bkd)
@@ -64,11 +82,8 @@ def _create_parameterized_diffusion_problem(bkd, npts=20):
 
     forcing = lambda t: (math.pi ** 2) * bkd.sin(math.pi * nodes)
 
-    physics = AdvectionDiffusionReactionWithParam(
-        basis, bkd,
-        diffusion_base=1.0,
-        diffusion_basis_funs=[phi0, phi1],
-        forcing=forcing,
+    physics = AdvectionDiffusionReaction(
+        basis, bkd, diffusion=2.0, forcing=forcing,
     )
 
     left_idx = mesh_obj.boundary_indices(0)
@@ -77,9 +92,10 @@ def _create_parameterized_diffusion_problem(bkd, npts=20):
     bc_right = zero_dirichlet_bc(bkd, right_idx)
     physics.set_boundary_conditions([bc_left, bc_right])
 
+    fm = BasisExpansion(bkd, 2.0, [phi0, phi1])
+    param = create_diffusion_parameterization(bkd, basis, fm)
     init_state = bkd.zeros((npts,))
-
-    return physics, init_state
+    return physics, param, init_state
 
 
 class TestCollocationStateEquationAdapter(Generic[Array], unittest.TestCase):
@@ -94,17 +110,21 @@ class TestCollocationStateEquationAdapter(Generic[Array], unittest.TestCase):
     def test_solve_matches_collocation_model(self):
         """Adapter solve matches direct CollocationModel.solve_steady."""
         bkd = self._bkd
-        physics, init_state_1d = _create_parameterized_diffusion_problem(bkd)
+        physics, param, init_state_1d = (
+            _create_parameterized_diffusion_problem(bkd)
+        )
 
-        model = CollocationModel(physics, bkd)
-        adapter = CollocationStateEquationAdapter(model, bkd)
+        model = CollocationModel(physics, bkd, parameterization=param)
+        adapter = CollocationStateEquationAdapter(
+            model, bkd, parameterization=param
+        )
 
         param_1d = bkd.array([0.5, 0.1])
         param_2d = param_1d[:, None]
         init_state_2d = init_state_1d[:, None]
 
         # Direct solve
-        physics.set_param(param_1d)
+        param.apply(physics, param_1d)
         u_direct = model.solve_steady(init_state_1d)
 
         # Adapter solve
@@ -115,10 +135,14 @@ class TestCollocationStateEquationAdapter(Generic[Array], unittest.TestCase):
     def test_residual_at_solution_is_zero(self):
         """Residual should be near-zero at the converged solution."""
         bkd = self._bkd
-        physics, init_state_1d = _create_parameterized_diffusion_problem(bkd)
+        physics, param, init_state_1d = (
+            _create_parameterized_diffusion_problem(bkd)
+        )
 
-        model = CollocationModel(physics, bkd)
-        adapter = CollocationStateEquationAdapter(model, bkd)
+        model = CollocationModel(physics, bkd, parameterization=param)
+        adapter = CollocationStateEquationAdapter(
+            model, bkd, parameterization=param
+        )
 
         param_2d = bkd.array([0.3, -0.1])[:, None]
         init_state_2d = init_state_1d[:, None]
@@ -133,10 +157,14 @@ class TestCollocationStateEquationAdapter(Generic[Array], unittest.TestCase):
     def test_derivative_checker_state_jacobian(self):
         """DerivativeChecker validates state Jacobian via FD."""
         bkd = self._bkd
-        physics, init_state_1d = _create_parameterized_diffusion_problem(bkd)
+        physics, param, init_state_1d = (
+            _create_parameterized_diffusion_problem(bkd)
+        )
 
-        model = CollocationModel(physics, bkd)
-        adapter = CollocationStateEquationAdapter(model, bkd)
+        model = CollocationModel(physics, bkd, parameterization=param)
+        adapter = CollocationStateEquationAdapter(
+            model, bkd, parameterization=param
+        )
 
         param_2d = bkd.array([0.3, 0.1])[:, None]
         init_state_2d = init_state_1d[:, None]
@@ -164,10 +192,14 @@ class TestCollocationStateEquationAdapter(Generic[Array], unittest.TestCase):
     def test_derivative_checker_param_jacobian(self):
         """DerivativeChecker validates parameter Jacobian via FD."""
         bkd = self._bkd
-        physics, init_state_1d = _create_parameterized_diffusion_problem(bkd)
+        physics, param, init_state_1d = (
+            _create_parameterized_diffusion_problem(bkd)
+        )
 
-        model = CollocationModel(physics, bkd)
-        adapter = CollocationStateEquationAdapter(model, bkd)
+        model = CollocationModel(physics, bkd, parameterization=param)
+        adapter = CollocationStateEquationAdapter(
+            model, bkd, parameterization=param
+        )
 
         param_2d = bkd.array([0.3, 0.1])[:, None]
         init_state_2d = init_state_1d[:, None]
@@ -177,8 +209,8 @@ class TestCollocationStateEquationAdapter(Generic[Array], unittest.TestCase):
         wrapper = FunctionWithJacobianFromCallable(
             nqoi=adapter.nstates(),
             nvars=adapter.nparams(),
-            fun=lambda param: adapter(sol, param),
-            jacobian=lambda param: adapter.param_jacobian(sol, param),
+            fun=lambda p: adapter(sol, p),
+            jacobian=lambda p: adapter.param_jacobian(sol, p),
             bkd=bkd,
         )
         checker = DerivativeChecker(wrapper)
@@ -192,10 +224,14 @@ class TestCollocationStateEquationAdapter(Generic[Array], unittest.TestCase):
     def test_param_jacobian_bc_rows_zeroed(self):
         """Boundary rows of param_jacobian should be zero."""
         bkd = self._bkd
-        physics, init_state_1d = _create_parameterized_diffusion_problem(bkd)
+        physics, param, init_state_1d = (
+            _create_parameterized_diffusion_problem(bkd)
+        )
 
-        model = CollocationModel(physics, bkd)
-        adapter = CollocationStateEquationAdapter(model, bkd)
+        model = CollocationModel(physics, bkd, parameterization=param)
+        adapter = CollocationStateEquationAdapter(
+            model, bkd, parameterization=param
+        )
 
         param_2d = bkd.array([0.3, 0.1])[:, None]
         sol = adapter.solve(init_state_1d[:, None], param_2d)
@@ -238,16 +274,20 @@ class TestSteadyForwardModel(Generic[Array], unittest.TestCase):
     def test_call_matches_direct_solve(self):
         """__call__ with identity functional matches solve_steady result."""
         bkd = self._bkd
-        physics, init_state = _create_parameterized_diffusion_problem(bkd)
+        physics, param, init_state = (
+            _create_parameterized_diffusion_problem(bkd)
+        )
 
-        forward_model = SteadyForwardModel(physics, bkd, init_state)
+        forward_model = SteadyForwardModel(
+            physics, bkd, init_state, parameterization=param
+        )
 
         param_1d = bkd.array([0.3, 0.1])
         samples = param_1d[:, None]  # (nvars, 1)
 
         # Direct solve
-        physics.set_param(param_1d)
-        model = CollocationModel(physics, bkd)
+        param.apply(physics, param_1d)
+        model = CollocationModel(physics, bkd, parameterization=param)
         u_direct = model.solve_steady(init_state)
 
         # Forward model
@@ -256,12 +296,30 @@ class TestSteadyForwardModel(Generic[Array], unittest.TestCase):
         # With identity functional, QoI = full solution
         bkd.assert_allclose(qoi[:, 0], u_direct, rtol=1e-8)
 
+    def test_call_works(self):
+        """SteadyForwardModel __call__ works."""
+        bkd = self._bkd
+        physics, param, init_state = (
+            _create_parameterized_diffusion_problem(bkd)
+        )
+        fwd = SteadyForwardModel(
+            physics, bkd, init_state, parameterization=param
+        )
+        samples = bkd.array([0.3, 0.1])[:, None]
+        result = fwd(samples)
+        self.assertEqual(result.shape[0], fwd.nqoi())
+        self.assertEqual(result.shape[1], 1)
+
     def test_call_multiple_samples(self):
         """__call__ handles multiple parameter samples correctly."""
         bkd = self._bkd
-        physics, init_state = _create_parameterized_diffusion_problem(bkd)
+        physics, param, init_state = (
+            _create_parameterized_diffusion_problem(bkd)
+        )
 
-        forward_model = SteadyForwardModel(physics, bkd, init_state)
+        forward_model = SteadyForwardModel(
+            physics, bkd, init_state, parameterization=param
+        )
 
         np.random.seed(42)
         nsamples = 3
@@ -282,19 +340,41 @@ class TestSteadyForwardModel(Generic[Array], unittest.TestCase):
     def test_nvars_nqoi(self):
         """nvars and nqoi are correct for default functional."""
         bkd = self._bkd
-        physics, init_state = _create_parameterized_diffusion_problem(bkd)
+        physics, param, init_state = (
+            _create_parameterized_diffusion_problem(bkd)
+        )
 
-        forward_model = SteadyForwardModel(physics, bkd, init_state)
+        forward_model = SteadyForwardModel(
+            physics, bkd, init_state, parameterization=param
+        )
 
         self.assertEqual(forward_model.nvars(), 2)  # 2 diffusion params
         self.assertEqual(forward_model.nqoi(), physics.nstates())
 
+    def test_jacobian_works(self):
+        """SteadyForwardModel jacobian works."""
+        bkd = self._bkd
+        physics, param, init_state = (
+            _create_parameterized_diffusion_problem(bkd)
+        )
+        fwd = SteadyForwardModel(
+            physics, bkd, init_state, parameterization=param
+        )
+        self.assertTrue(hasattr(fwd, "jacobian"))
+        sample = bkd.array([0.3, 0.1])[:, None]
+        jac = fwd.jacobian(sample)
+        self.assertEqual(jac.shape, (fwd.nqoi(), fwd.nvars()))
+
     def test_jacobian_with_identity_functional(self):
         """Jacobian with identity functional passes DerivativeChecker."""
         bkd = self._bkd
-        physics, init_state = _create_parameterized_diffusion_problem(bkd)
+        physics, param, init_state = (
+            _create_parameterized_diffusion_problem(bkd)
+        )
 
-        forward_model = SteadyForwardModel(physics, bkd, init_state)
+        forward_model = SteadyForwardModel(
+            physics, bkd, init_state, parameterization=param
+        )
 
         param_2d = bkd.array([0.3, 0.1])[:, None]
 
@@ -316,9 +396,11 @@ class TestSteadyForwardModel(Generic[Array], unittest.TestCase):
     def test_jacobian_with_subset_functional(self):
         """Jacobian with subset functional (2 of nstates) via DerivativeChecker."""
         bkd = self._bkd
-        physics, init_state = _create_parameterized_diffusion_problem(bkd)
+        physics, param, init_state = (
+            _create_parameterized_diffusion_problem(bkd)
+        )
         nstates = physics.nstates()
-        nparams = physics.nparams()
+        nparams = param.nparams()
 
         # Pick 3 interior indices as QoI
         subset = bkd.asarray(np.array([3, 7, 12]))
@@ -327,7 +409,8 @@ class TestSteadyForwardModel(Generic[Array], unittest.TestCase):
         )
 
         forward_model = SteadyForwardModel(
-            physics, bkd, init_state, functional=functional
+            physics, bkd, init_state,
+            functional=functional, parameterization=param,
         )
         self.assertEqual(forward_model.nqoi(), 3)
 
@@ -351,17 +434,21 @@ class TestSteadyForwardModel(Generic[Array], unittest.TestCase):
     def test_implicit_function_derivative_checker(self):
         """Full ImplicitFunctionDerivativeChecker validates all derivatives."""
         bkd = self._bkd
-        physics, init_state = _create_parameterized_diffusion_problem(bkd)
+        physics, param, init_state = (
+            _create_parameterized_diffusion_problem(bkd)
+        )
         nstates = physics.nstates()
-        nparams = physics.nparams()
+        nparams = param.nparams()
 
         subset = bkd.asarray(np.array([3, 7, 12]))
         functional = SubsetOfStatesAdjointFunctional(
             nstates, nparams, subset, bkd
         )
 
-        model = CollocationModel(physics, bkd)
-        state_eq = CollocationStateEquationAdapter(model, bkd)
+        model = CollocationModel(physics, bkd, parameterization=param)
+        state_eq = CollocationStateEquationAdapter(
+            model, bkd, parameterization=param
+        )
         adjoint_op = VectorAdjointOperatorWithJacobian(state_eq, functional)
 
         init_state_2d = init_state[:, None]
@@ -373,6 +460,109 @@ class TestSteadyForwardModel(Generic[Array], unittest.TestCase):
         derivative_checker.check_derivatives(
             init_state_2d, param_2d, tols, fd_eps=fd_eps, verbosity=0
         )
+
+    def test_no_jacobian_with_eval_only_param(self):
+        """Eval-only field map -> hasattr(fwd, 'jacobian') is False."""
+        bkd = self._bkd
+        npts = 20
+        mesh = TransformedMesh1D(npts, bkd)
+        basis = ChebyshevBasis1D(mesh, bkd)
+        mesh_obj = create_uniform_mesh_1d(npts, (-1.0, 1.0), bkd)
+        nodes = basis.nodes()
+        forcing = lambda t: (math.pi ** 2) * bkd.sin(math.pi * nodes)
+        physics = AdvectionDiffusionReaction(
+            basis, bkd, diffusion=1.0, forcing=forcing,
+        )
+        left_idx = mesh_obj.boundary_indices(0)
+        right_idx = mesh_obj.boundary_indices(1)
+        physics.set_boundary_conditions([
+            zero_dirichlet_bc(bkd, left_idx),
+            zero_dirichlet_bc(bkd, right_idx),
+        ])
+
+        class EvalOnlyFieldMap:
+            def nvars(self):
+                return 2
+
+            def __call__(self, params_1d):
+                phi0 = bkd.ones((npts,))
+                return bkd.full((npts,), 1.0) + params_1d[0] * phi0 + params_1d[1] * nodes
+
+        D_mats = [basis.derivative_matrix()]
+        fm = EvalOnlyFieldMap()
+        dp = DiffusionParameterization(fm, D_mats, bkd)
+
+        init_state = bkd.zeros((npts,))
+        fwd = SteadyForwardModel(
+            physics, bkd, init_state, parameterization=dp
+        )
+        self.assertFalse(hasattr(fwd, "jacobian"))
+        # __call__ still works
+        samples = bkd.array([0.3, 0.1])[:, None]
+        result = fwd(samples)
+        self.assertEqual(result.shape[0], fwd.nqoi())
+        self.assertEqual(result.shape[1], 1)
+
+    def test_no_hvp_with_linear_param(self):
+        """Linear BasisExpansion has no HVP -> hasattr(fwd, 'hvp') is False."""
+        bkd = self._bkd
+        physics, param, init_state = (
+            _create_parameterized_diffusion_problem(bkd)
+        )
+        fwd = SteadyForwardModel(
+            physics, bkd, init_state, parameterization=param
+        )
+        self.assertFalse(hasattr(fwd, "hvp"))
+
+    def test_protocol_isinstance_with_jacobian(self):
+        """Forward model with jacobian satisfies FunctionWithJacobianProtocol."""
+        bkd = self._bkd
+        physics, param, init_state = (
+            _create_parameterized_diffusion_problem(bkd)
+        )
+        fwd = SteadyForwardModel(
+            physics, bkd, init_state, parameterization=param
+        )
+        self.assertTrue(isinstance(fwd, FunctionProtocol))
+        self.assertTrue(isinstance(fwd, FunctionWithJacobianProtocol))
+        self.assertFalse(isinstance(fwd, FunctionWithJacobianAndHVPProtocol))
+
+    def test_protocol_isinstance_eval_only(self):
+        """Eval-only forward model satisfies only FunctionProtocol."""
+        bkd = self._bkd
+        npts = 20
+        mesh = TransformedMesh1D(npts, bkd)
+        basis = ChebyshevBasis1D(mesh, bkd)
+        mesh_obj = create_uniform_mesh_1d(npts, (-1.0, 1.0), bkd)
+        nodes = basis.nodes()
+        forcing = lambda t: (math.pi ** 2) * bkd.sin(math.pi * nodes)
+        physics = AdvectionDiffusionReaction(
+            basis, bkd, diffusion=1.0, forcing=forcing,
+        )
+        left_idx = mesh_obj.boundary_indices(0)
+        right_idx = mesh_obj.boundary_indices(1)
+        physics.set_boundary_conditions([
+            zero_dirichlet_bc(bkd, left_idx),
+            zero_dirichlet_bc(bkd, right_idx),
+        ])
+
+        class EvalOnlyFieldMap:
+            def nvars(self):
+                return 1
+
+            def __call__(self, params_1d):
+                return bkd.full((npts,), 1.0) + params_1d[0] * bkd.ones((npts,))
+
+        D_mats = [basis.derivative_matrix()]
+        fm = EvalOnlyFieldMap()
+        dp = DiffusionParameterization(fm, D_mats, bkd)
+
+        init_state = bkd.zeros((npts,))
+        fwd = SteadyForwardModel(
+            physics, bkd, init_state, parameterization=dp
+        )
+        self.assertTrue(isinstance(fwd, FunctionProtocol))
+        self.assertFalse(isinstance(fwd, FunctionWithJacobianProtocol))
 
 
 class TestSteadyForwardModelNumpy(
@@ -388,6 +578,24 @@ class TestSteadyForwardModelTorch(
     def bkd(self) -> TorchBkd:
         torch.set_default_dtype(torch.float64)
         return TorchBkd()
+
+    def test_torch_autograd_jacobian(self):
+        """Torch autograd.functional.jacobian matches fwd.jacobian."""
+        bkd = self._bkd
+        physics, param, init_state = (
+            _create_parameterized_diffusion_problem(bkd)
+        )
+        fwd = SteadyForwardModel(
+            physics, bkd, init_state, parameterization=param
+        )
+        sample = torch.tensor([0.3, 0.1], dtype=torch.float64)
+
+        def fwd_call(p):
+            return fwd(p[:, None])[:, 0]
+
+        autograd_jac = torch.autograd.functional.jacobian(fwd_call, sample)
+        analytical_jac = fwd.jacobian(sample[:, None])
+        bkd.assert_allclose(analytical_jac, autograd_jac, rtol=1e-8)
 
 
 def load_tests(

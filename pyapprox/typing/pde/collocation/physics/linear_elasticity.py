@@ -94,6 +94,56 @@ class LinearElasticityPhysics(AbstractVectorPhysics[Array], Generic[Array]):
         self._DxDy = self._Dx @ self._Dy  # Dx applied after Dy
         self._DyDx = self._Dy @ self._Dx  # Dy applied after Dx
 
+    # ------------------------------------------------------------------
+    # Material property setters
+    # ------------------------------------------------------------------
+
+    def set_mu(self, mu_values) -> None:
+        """Set shear modulus (scalar or per-point array).
+
+        Parameters
+        ----------
+        mu_values : float or Array
+            Shear modulus values. Must be positive.
+        """
+        min_val = float(self._bkd.min(
+            self._bkd.asarray(mu_values).ravel()
+        ))
+        if min_val <= 0.0:
+            raise ValueError(
+                f"mu must be positive; found min {min_val:.2e}"
+            )
+        if isinstance(mu_values, (int, float)):
+            npts = self.npts()
+            self._mu_array = self._bkd.full((npts,), float(mu_values))
+            self._mu_value = float(mu_values)
+        else:
+            self._mu_array = mu_values
+            self._mu_value = None
+
+    def set_lamda(self, lamda_values) -> None:
+        """Set Lame's first parameter (scalar or per-point array).
+
+        Parameters
+        ----------
+        lamda_values : float or Array
+            Lame's first parameter values. Must be non-negative.
+        """
+        min_val = float(self._bkd.min(
+            self._bkd.asarray(lamda_values).ravel()
+        ))
+        if min_val < 0.0:
+            raise ValueError(
+                f"lamda must be non-negative; found min {min_val:.2e}"
+            )
+        if isinstance(lamda_values, (int, float)):
+            npts = self.npts()
+            self._lambda_array = self._bkd.full((npts,), float(lamda_values))
+            self._lambda_value = float(lamda_values)
+        else:
+            self._lambda_array = lamda_values
+            self._lambda_value = None
+
     def _get_forcing(self, time: float) -> Array:
         """Get forcing array at given time."""
         nstates = self.nstates()
@@ -236,10 +286,21 @@ class LinearElasticityPhysics(AbstractVectorPhysics[Array], Generic[Array]):
             # J_vv: d(res_v)/dv = μ*Dxx + (λ+2μ)*Dyy
             J_vv = mu * self._Dxx + (lam + 2.0 * mu) * self._Dyy
         else:
-            # Variable Lamé parameters - more complex Jacobian
-            raise NotImplementedError(
-                "Variable Lamé parameters not yet implemented"
-            )
+            # Variable Lamé parameters: use Dx @ diag(coeff) @ Dx form
+            # which automatically handles the product rule
+            # d/dx(coeff * du/dx) = coeff * d²u/dx² + dcoeff/dx * du/dx
+            lam = self._lambda_array
+            mu = self._mu_array
+            Dx, Dy = self._Dx, self._Dy
+
+            diag_lam_2mu = bkd.diag(lam + 2.0 * mu)
+            diag_lam = bkd.diag(lam)
+            diag_mu = bkd.diag(mu)
+
+            J_uu = Dx @ diag_lam_2mu @ Dx + Dy @ diag_mu @ Dy
+            J_uv = Dx @ diag_lam @ Dy + Dy @ diag_mu @ Dx
+            J_vu = Dx @ diag_mu @ Dy + Dy @ diag_lam @ Dx
+            J_vv = Dx @ diag_mu @ Dx + Dy @ diag_lam_2mu @ Dy
 
         # Assemble block Jacobian
         # [[J_uu, J_uv], [J_vu, J_vv]]
@@ -248,6 +309,91 @@ class LinearElasticityPhysics(AbstractVectorPhysics[Array], Generic[Array]):
         jacobian = bkd.concatenate([top_row, bottom_row], axis=0)
 
         return jacobian
+
+    # ------------------------------------------------------------------
+    # Residual sensitivity to material parameters (2D)
+    # ------------------------------------------------------------------
+
+    def residual_mu_sensitivity(
+        self, state: Array, time: float, delta_mu: Array
+    ) -> Array:
+        """Compute d(residual)/d(mu_field) * delta_mu.
+
+        For linear elasticity sigma = lam*tr(eps)*I + 2*mu*eps,
+        d(sigma)/d(mu) = 2*eps, so:
+            d(res_u)/d(mu)*delta_mu = Dx@(delta_mu*2*exx) + Dy@(delta_mu*2*exy)
+            d(res_v)/d(mu)*delta_mu = Dx@(delta_mu*2*exy) + Dy@(delta_mu*2*eyy)
+
+        Parameters
+        ----------
+        state : Array
+            Displacement state [u, v]. Shape: (2*npts,)
+        time : float
+            Current time.
+        delta_mu : Array
+            Perturbation in mu field. Shape: (npts,)
+
+        Returns
+        -------
+        Array
+            Residual sensitivity. Shape: (2*npts,)
+        """
+        bkd = self._bkd
+        u, v = self._extract_components(state)
+
+        ux = self._Dx @ u
+        uy = self._Dy @ u
+        vx = self._Dx @ v
+        vy = self._Dy @ v
+
+        exx = ux
+        exy = 0.5 * (uy + vx)
+        eyy = vy
+
+        sens_u = (
+            self._Dx @ (delta_mu * 2.0 * exx)
+            + self._Dy @ (delta_mu * 2.0 * exy)
+        )
+        sens_v = (
+            self._Dx @ (delta_mu * 2.0 * exy)
+            + self._Dy @ (delta_mu * 2.0 * eyy)
+        )
+        return bkd.concatenate([sens_u, sens_v])
+
+    def residual_lamda_sensitivity(
+        self, state: Array, time: float, delta_lam: Array
+    ) -> Array:
+        """Compute d(residual)/d(lamda_field) * delta_lam.
+
+        For linear elasticity sigma = lam*tr(eps)*I + 2*mu*eps,
+        d(sigma)/d(lam) = tr(eps)*I, so:
+            d(res_u)/d(lam)*delta_lam = Dx@(delta_lam * trace_e)
+            d(res_v)/d(lam)*delta_lam = Dy@(delta_lam * trace_e)
+
+        Parameters
+        ----------
+        state : Array
+            Displacement state [u, v]. Shape: (2*npts,)
+        time : float
+            Current time.
+        delta_lam : Array
+            Perturbation in lambda field. Shape: (npts,)
+
+        Returns
+        -------
+        Array
+            Residual sensitivity. Shape: (2*npts,)
+        """
+        bkd = self._bkd
+        u, v = self._extract_components(state)
+
+        ux = self._Dx @ u
+        vy = self._Dy @ v
+        trace_e = ux + vy
+
+        sens_u = self._Dx @ (delta_lam * trace_e)
+        sens_v = self._Dy @ (delta_lam * trace_e)
+        return bkd.concatenate([sens_u, sens_v])
 
     def compute_interface_flux(
         self, state: Array, boundary_indices: Array, normal: Array

@@ -15,6 +15,9 @@ from typing import Generic, Optional
 
 from pyapprox.typing.util.backends.protocols import Array, Backend
 from pyapprox.typing.pde.collocation.protocols import PhysicsProtocol
+from pyapprox.typing.forward_models.parameterizations.protocol import (
+    ParameterizationProtocol,
+)
 
 
 class PhysicsToODEResidualAdapter(Generic[Array]):
@@ -49,32 +52,67 @@ class PhysicsToODEResidualAdapter(Generic[Array]):
         self,
         physics: PhysicsProtocol[Array],
         bkd: Backend[Array],
+        parameterization: Optional[ParameterizationProtocol[Array]] = None,
     ):
+        if parameterization is not None and not isinstance(
+            parameterization, ParameterizationProtocol
+        ):
+            raise TypeError(
+                f"parameterization must satisfy ParameterizationProtocol, "
+                f"got {type(parameterization).__name__}"
+            )
         self._physics = physics
         self._bkd = bkd
         self._time = 0.0
+        self._parameterization = parameterization
+        self._current_params_1d: Optional[Array] = None
         self._setup_derivative_methods()
 
     def _setup_derivative_methods(self) -> None:
-        """Expose optional methods based on physics capabilities.
+        """Expose optional methods based on physics/parameterization capabilities.
 
+        Parameterization path takes priority over legacy physics path.
         Uses dynamic binding to add param_jacobian, initial_param_jacobian,
-        and HVP methods only if the underlying physics implements them.
+        and HVP methods only if the underlying source supports them.
         """
-        # Check for parameter Jacobian support
-        if hasattr(self._physics, "param_jacobian"):
-            # Bind the wrapper methods
+        if self._parameterization is not None:
+            # Parameterization path
+            self.nparams = self._parameterization.nparams
+            self.set_param = self._set_param_via_parameterization
+            if hasattr(self._parameterization, "param_jacobian"):
+                self.param_jacobian = self._param_jacobian_via_parameterization
+            if hasattr(self._parameterization, "initial_param_jacobian"):
+                self.initial_param_jacobian = (
+                    self._initial_param_jacobian_via_parameterization
+                )
+            if hasattr(self._parameterization, "param_param_hvp"):
+                self.param_param_hvp = (
+                    self._param_param_hvp_via_parameterization
+                )
+            if hasattr(self._parameterization, "state_param_hvp"):
+                self.state_param_hvp = (
+                    self._state_param_hvp_via_parameterization
+                )
+            if hasattr(self._parameterization, "param_state_hvp"):
+                self.param_state_hvp = (
+                    self._param_state_hvp_via_parameterization
+                )
+            # state_state_hvp stays from physics (unchanged)
+            if hasattr(self._physics, "state_state_hvp"):
+                self.state_state_hvp = self._state_state_hvp_impl
+        elif hasattr(self._physics, "param_jacobian"):
+            # Legacy path (unchanged)
             self.nparams = self._physics.nparams
             self.set_param = self._physics.set_param
             self.param_jacobian = self._param_jacobian_impl
             self.initial_param_jacobian = self._physics.initial_param_jacobian
 
-        # Check for HVP support
-        if hasattr(self._physics, "state_state_hvp"):
-            self.state_state_hvp = self._state_state_hvp_impl
-            self.state_param_hvp = self._state_param_hvp_impl
-            self.param_state_hvp = self._param_state_hvp_impl
-            self.param_param_hvp = self._param_param_hvp_impl
+            # Check for HVP support
+            if hasattr(self._physics, "state_state_hvp"):
+                self.state_state_hvp = self._state_state_hvp_impl
+                self.state_param_hvp = self._state_param_hvp_impl
+                self.param_state_hvp = self._param_state_hvp_impl
+                self.param_param_hvp = self._param_param_hvp_impl
 
     def bkd(self) -> Backend[Array]:
         """Return the computational backend."""
@@ -252,6 +290,70 @@ class PhysicsToODEResidualAdapter(Generic[Array]):
             HVP result. Shape: (nparams,)
         """
         return self._physics.param_param_hvp(state, adj_state, vvec, self._time)
+
+    # =========================================================================
+    # Parameterization delegation methods
+    # =========================================================================
+
+    def _set_param_via_parameterization(self, param: Array) -> None:
+        """Set parameter via parameterization."""
+        self._current_params_1d = param
+        self._parameterization.apply(self._physics, param)
+
+    def _param_jacobian_via_parameterization(self, state: Array) -> Array:
+        """Compute param Jacobian via parameterization."""
+        return self._parameterization.param_jacobian(
+            self._physics, state, self._time, self._current_params_1d
+        )
+
+    def _initial_param_jacobian_via_parameterization(self) -> Array:
+        """Compute initial param Jacobian via parameterization."""
+        return self._parameterization.initial_param_jacobian(
+            self._physics, self._current_params_1d
+        )
+
+    def _param_param_hvp_via_parameterization(
+        self, state: Array, adj_state: Array, vvec: Array
+    ) -> Array:
+        """Compute param-param HVP via parameterization."""
+        return self._parameterization.param_param_hvp(
+            self._physics, state, self._time,
+            self._current_params_1d, adj_state, vvec
+        )
+
+    def _state_param_hvp_via_parameterization(
+        self, state: Array, adj_state: Array, vvec: Array
+    ) -> Array:
+        """Compute state-param HVP via parameterization."""
+        return self._parameterization.state_param_hvp(
+            self._physics, state, self._time,
+            self._current_params_1d, adj_state, vvec
+        )
+
+    def _param_state_hvp_via_parameterization(
+        self, state: Array, adj_state: Array, wvec: Array
+    ) -> Array:
+        """Compute param-state HVP via parameterization."""
+        return self._parameterization.param_state_hvp(
+            self._physics, state, self._time,
+            self._current_params_1d, adj_state, wvec
+        )
+
+    def bc_flux_param_sensitivity(
+        self, state: Array, time: float,
+        bc_indices: Array, normals: Array,
+    ):
+        """Compute d(flux·n)/dp at boundary nodes, or None."""
+        if (self._parameterization is not None
+                and hasattr(
+                    self._parameterization, "bc_flux_param_sensitivity"
+                )
+                and self._current_params_1d is not None):
+            return self._parameterization.bc_flux_param_sensitivity(
+                self._physics, state, time,
+                self._current_params_1d, bc_indices, normals,
+            )
+        return None
 
     def __repr__(self) -> str:
         has_param_jac = hasattr(self, "param_jacobian")

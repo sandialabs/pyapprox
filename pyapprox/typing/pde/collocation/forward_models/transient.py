@@ -18,6 +18,9 @@ from pyapprox.typing.pde.time.operator.time_adjoint_hvp import (
 from pyapprox.typing.pde.time.functionals.all_states_endpoint import (
     AllStatesEndpointFunctional,
 )
+from pyapprox.typing.forward_models.parameterizations.protocol import (
+    ParameterizationProtocol,
+)
 
 
 class TransientForwardModel(Generic[Array]):
@@ -51,18 +54,41 @@ class TransientForwardModel(Generic[Array]):
         init_state: Array,
         time_config: TimeIntegrationConfig,
         functional=None,
+        parameterization: Optional[ParameterizationProtocol[Array]] = None,
     ):
+        if parameterization is not None and not isinstance(
+            parameterization, ParameterizationProtocol
+        ):
+            raise TypeError(
+                f"parameterization must satisfy ParameterizationProtocol, "
+                f"got {type(parameterization).__name__}"
+            )
         self._bkd = bkd
         self._physics = physics
         self._init_state = init_state
         self._time_config = time_config
-        self._nparams = physics.nparams()
+        self._parameterization = parameterization
+
+        if parameterization is not None:
+            self._nparams = parameterization.nparams()
+        else:
+            self._nparams = physics.nparams()
 
         if functional is None:
             functional = AllStatesEndpointFunctional(
                 physics.nstates(), self._nparams, bkd
             )
         self._functional = functional
+
+        # Dynamic binding for jacobian
+        has_param_jac = (
+            (parameterization is not None
+             and hasattr(parameterization, "param_jacobian"))
+            or (parameterization is None
+                and hasattr(physics, "param_jacobian"))
+        )
+        if has_param_jac:
+            self.jacobian = self._jacobian_dispatch
 
     def bkd(self) -> Backend[Array]:
         """Return the computational backend."""
@@ -95,8 +121,16 @@ class TransientForwardModel(Generic[Array]):
         times : Array
             Time points. Shape: (ntimes,).
         """
-        self._physics.set_param(param_2d[:, 0])
-        model = CollocationModel(self._physics, self._bkd)
+        if self._parameterization is not None:
+            self._parameterization.apply(self._physics, param_2d[:, 0])
+        else:
+            self._physics.set_param(param_2d[:, 0])
+        model = CollocationModel(
+            self._physics, self._bkd,
+            parameterization=self._parameterization,
+        )
+        # Store params on adapter so param_jacobian can access them
+        model.adapter().set_param(param_2d[:, 0])
         solutions, times = model.solve_transient(
             self._init_state, self._time_config
         )
@@ -130,7 +164,7 @@ class TransientForwardModel(Generic[Array]):
                 result[:, ii] = qoi
         return result
 
-    def jacobian(self, sample: Array) -> Array:
+    def _jacobian_dispatch(self, sample: Array) -> Array:
         """Compute Jacobian of QoI w.r.t. parameters.
 
         For scalar QoI (nqoi == 1), uses the adjoint method via

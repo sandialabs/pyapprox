@@ -28,6 +28,9 @@ from pyapprox.typing.benchmarks.instances.ode import (
     hastings_ecology_3species,
     chemical_reaction_surface,
 )
+from pyapprox.typing.benchmarks.instances.pde import (
+    elastic_bar_1d,
+)
 
 __all__ = [
     "ishigami_3d",
@@ -48,4 +51,5 @@ __all__ = [
     "coupled_springs_2mass",
     "hastings_ecology_3species",
     "chemical_reaction_surface",
+    "elastic_bar_1d",
 ]

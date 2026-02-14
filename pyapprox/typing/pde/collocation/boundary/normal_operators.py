@@ -66,6 +66,14 @@ class GradientNormalOperator(Generic[Array]):
                 )
         self._normal_deriv_matrix = normal_deriv_matrix
 
+    def normals(self) -> Array:
+        """Return outward unit normals. Shape: (nboundary_pts, ndim)."""
+        return self._normals
+
+    def has_coefficient_dependence(self) -> bool:
+        """Return False: grad(u)·n does not depend on a parameterized coefficient."""
+        return False
+
     def __call__(self, state: Array) -> Array:
         """Compute grad(u) . n at boundary points.
 
@@ -131,6 +139,14 @@ class FluxNormalOperator(Generic[Array]):
         self._normals = normals
         self._flux_provider = flux_provider
         self._nboundary_pts = boundary_indices.shape[0]
+
+    def normals(self) -> Array:
+        """Return outward unit normals. Shape: (nboundary_pts, ndim)."""
+        return self._normals
+
+    def has_coefficient_dependence(self) -> bool:
+        """Return True: flux = -D·grad(u) depends on parameterized D."""
+        return True
 
     def __call__(self, state: Array) -> Array:
         """Compute flux(u) . n at boundary points.
@@ -279,6 +295,10 @@ class TractionNormalOperator(Generic[Array]):
 
         self._jacobian = jac
 
+    def has_coefficient_dependence(self) -> bool:
+        """Return False: traction uses fixed material constants."""
+        return False
+
     def __call__(self, state: Array) -> Array:
         """Compute one component of traction t = σ·n at boundary points.
 
@@ -338,6 +358,10 @@ class _LegacyNormalOperator(Generic[Array]):
         self._bkd = bkd
         self._derivative_matrix = derivative_matrix
         self._normal_sign = normal_sign
+
+    def has_coefficient_dependence(self) -> bool:
+        """Return False: legacy operator does not track coefficient dependence."""
+        return False
 
     def __call__(self, state: Array) -> Array:
         """Compute normal_sign * D @ state.

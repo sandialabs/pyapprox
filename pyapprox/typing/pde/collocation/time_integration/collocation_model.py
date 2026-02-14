@@ -11,6 +11,9 @@ from pyapprox.typing.pde.collocation.protocols import PhysicsProtocol
 from pyapprox.typing.pde.collocation.time_integration.physics_adapter import (
     PhysicsToODEResidualAdapter,
 )
+from pyapprox.typing.forward_models.parameterizations.protocol import (
+    ParameterizationProtocol,
+)
 from pyapprox.typing.pde.collocation.time_integration.bc_time_residual_adapter import (
     BCEnforcingTimeResidual,
 )
@@ -80,10 +83,20 @@ class CollocationModel(Generic[Array]):
         self,
         physics: PhysicsProtocol[Array],
         bkd: Backend[Array],
+        parameterization: Optional[ParameterizationProtocol[Array]] = None,
     ):
+        if parameterization is not None and not isinstance(
+            parameterization, ParameterizationProtocol
+        ):
+            raise TypeError(
+                f"parameterization must satisfy ParameterizationProtocol, "
+                f"got {type(parameterization).__name__}"
+            )
         self._physics = physics
         self._bkd = bkd
-        self._adapter = PhysicsToODEResidualAdapter(physics, bkd)
+        self._adapter = PhysicsToODEResidualAdapter(
+            physics, bkd, parameterization=parameterization
+        )
         self._mass_matrix = physics.mass_matrix()
         self._last_integrator = None
 

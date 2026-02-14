@@ -145,7 +145,8 @@ class DirichletBC(Generic[Array]):
         return jacobian
 
     def apply_to_param_jacobian(
-        self, param_jacobian: Array, state: Array, time: float
+        self, param_jacobian: Array, state: Array, time: float,
+        physical_sensitivities=None,
     ) -> Array:
         """Apply Dirichlet BC to parameter Jacobian.
 

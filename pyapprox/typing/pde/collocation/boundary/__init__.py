@@ -14,6 +14,11 @@ from pyapprox.typing.pde.collocation.boundary.normal_operators import (
     FluxNormalOperator,
     TractionNormalOperator,
 )
+from pyapprox.typing.pde.collocation.boundary.hyperelastic_traction import (
+    HyperelasticTractionNormalOperator,
+    hyperelastic_traction_neumann_bc,
+    hyperelastic_traction_robin_bc,
+)
 from pyapprox.typing.pde.collocation.boundary.robin import (
     RobinBC,
     homogeneous_robin_bc,
@@ -50,6 +55,10 @@ __all__ = [
     "flux_neumann_bc",
     "traction_robin_bc",
     "traction_neumann_bc",
+    # Hyperelastic traction
+    "HyperelasticTractionNormalOperator",
+    "hyperelastic_traction_neumann_bc",
+    "hyperelastic_traction_robin_bc",
     # Periodic
     "PeriodicBC",
 ]

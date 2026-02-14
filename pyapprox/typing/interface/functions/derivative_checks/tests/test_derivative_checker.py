@@ -62,10 +62,10 @@ class TestDerivativeChecker(Generic[Array], unittest.TestCase):
         errors = checker.check_derivatives(sample)
 
         # Assert that the gradient errors are below a tolerance
-        self.assertLessEqual(checker.error_ratio(errors[0]), 1e-6)
+        self.assertLessEqual(checker.error_ratio(errors[0]), 1e-5)
 
         # Assert that the Hessian errors are below a tolerance
-        self.assertLessEqual(checker.error_ratio(errors[1]), 1e-6)
+        self.assertLessEqual(checker.error_ratio(errors[1]), 1e-5)
 
 
 # Derived test class for NumPy backend

@@ -19,7 +19,6 @@ from pyapprox.typing.pde.collocation.boundary import (
 )
 from pyapprox.typing.pde.collocation.physics.advection_diffusion import (
     AdvectionDiffusionReaction,
-    AdvectionDiffusionReactionWithParam,
     create_steady_diffusion,
     create_advection_diffusion,
 )
@@ -29,6 +28,12 @@ from pyapprox.typing.pde.collocation.time_integration import (
 )
 from pyapprox.typing.pde.collocation.manufactured_solutions import (
     ManufacturedAdvectionDiffusionReaction,
+)
+from pyapprox.typing.forward_models.field_maps.basis_expansion import (
+    BasisExpansion,
+)
+from pyapprox.typing.forward_models.parameterizations.diffusion import (
+    create_diffusion_parameterization,
 )
 
 
@@ -252,8 +257,13 @@ class TestAdvectionDiffusionReaction(Generic[Array], unittest.TestCase):
         bkd.assert_allclose(jacobian[-1, :], bkd.eye(npts)[-1, :], atol=1e-14)
 
 
-class TestAdvectionDiffusionReactionWithParam(Generic[Array], unittest.TestCase):
-    """Base test class for parameterized ADR physics."""
+class TestDiffusionParameterization(Generic[Array], unittest.TestCase):
+    """Test parameterized diffusion via DiffusionParameterization.
+
+    Validates param_jacobian, nparams, and initial_param_jacobian using
+    BasisExpansion + DiffusionParameterization (replaces the former
+    TestAdvectionDiffusionReactionWithParam tests).
+    """
 
     __test__ = False
 
@@ -273,21 +283,20 @@ class TestAdvectionDiffusionReactionWithParam(Generic[Array], unittest.TestCase)
         phi0 = bkd.ones((npts,))
         phi1 = nodes
 
-        physics = AdvectionDiffusionReactionWithParam(
-            basis, bkd,
-            diffusion_base=1.0,
-            diffusion_basis_funs=[phi0, phi1],
-        )
+        physics = AdvectionDiffusionReaction(basis, bkd, diffusion=1.0)
+
+        fm = BasisExpansion(bkd, 1.0, [phi0, phi1])
+        dp = create_diffusion_parameterization(bkd, basis, fm)
 
         # Set parameters
         param = bkd.array([0.5, 0.2])
-        physics.set_param(param)
+        dp.apply(physics, param)
 
         # State
         u = bkd.sin(math.pi * nodes)
 
         # Analytical parameter Jacobian
-        param_jac = physics.param_jacobian(u, time=0.0)
+        param_jac = dp.param_jacobian(physics, u, 0.0, param)
 
         # Verify via finite differences
         eps = 1e-7
@@ -298,16 +307,16 @@ class TestAdvectionDiffusionReactionWithParam(Generic[Array], unittest.TestCase)
             param_minus = bkd.copy(param)
             param_minus[j] = param_minus[j] - eps
 
-            physics.set_param(param_plus)
+            dp.apply(physics, param_plus)
             res_plus = physics.residual(u, 0.0)
-            physics.set_param(param_minus)
+            dp.apply(physics, param_minus)
             res_minus = physics.residual(u, 0.0)
 
             for i in range(npts):
                 param_jac_fd[i, j] = (res_plus[i] - res_minus[i]) / (2 * eps)
 
         # Reset to original
-        physics.set_param(param)
+        dp.apply(physics, param)
 
         bkd.assert_allclose(param_jac, param_jac_fd, atol=1e-5)
 
@@ -322,16 +331,13 @@ class TestAdvectionDiffusionReactionWithParam(Generic[Array], unittest.TestCase)
         phi1 = basis.nodes()
         phi2 = basis.nodes() ** 2
 
-        physics = AdvectionDiffusionReactionWithParam(
-            basis, bkd,
-            diffusion_base=1.0,
-            diffusion_basis_funs=[phi0, phi1, phi2],
-        )
+        fm = BasisExpansion(bkd, 1.0, [phi0, phi1, phi2])
+        dp = create_diffusion_parameterization(bkd, basis, fm)
 
-        self.assertEqual(physics.nparams(), 3)
+        self.assertEqual(dp.nparams(), 3)
 
     def test_initial_param_jacobian_zero(self):
-        """Test initial param Jacobian is zero when no IC function."""
+        """Test initial param Jacobian is zero (IC does not depend on params)."""
         bkd = self.bkd()
         npts = 8
         mesh = TransformedMesh1D(npts, bkd)
@@ -339,13 +345,13 @@ class TestAdvectionDiffusionReactionWithParam(Generic[Array], unittest.TestCase)
 
         phi0 = bkd.ones((npts,))
 
-        physics = AdvectionDiffusionReactionWithParam(
-            basis, bkd,
-            diffusion_base=1.0,
-            diffusion_basis_funs=[phi0],
-        )
+        physics = AdvectionDiffusionReaction(basis, bkd, diffusion=1.0)
 
-        ic_jac = physics.initial_param_jacobian()
+        fm = BasisExpansion(bkd, 1.0, [phi0])
+        dp = create_diffusion_parameterization(bkd, basis, fm)
+
+        param = bkd.array([0.5])
+        ic_jac = dp.initial_param_jacobian(physics, param)
 
         expected = bkd.zeros((npts, 1))
         bkd.assert_allclose(ic_jac, expected, atol=1e-14)
@@ -479,8 +485,8 @@ class TestAdvectionDiffusionReactionNumpy(TestAdvectionDiffusionReaction):
         return NumpyBkd()
 
 
-class TestAdvectionDiffusionReactionWithParamNumpy(
-    TestAdvectionDiffusionReactionWithParam
+class TestDiffusionParameterizationNumpy(
+    TestDiffusionParameterization
 ):
     __test__ = True
 

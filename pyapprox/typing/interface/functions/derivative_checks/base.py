@@ -37,7 +37,7 @@ class JVPChecker(Generic[Array]):
         self._bkd = function.bkd()
 
         if fd_eps is None:
-            fd_eps = self._bkd.flip(self._bkd.logspace(-13, 0, 14))
+            fd_eps = self._bkd.flip(self._bkd.logspace(-13, -1, 13))
         if direction is None:
             nvars = self._fun.nvars()
             direction = self._bkd.asarray(np.random.normal(0, 1, (nvars, 1)))

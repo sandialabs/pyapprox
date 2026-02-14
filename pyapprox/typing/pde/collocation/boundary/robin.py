@@ -207,12 +207,19 @@ class RobinBC(Generic[Array]):
                 jacobian[row_idx, j] = jac_val
         return jacobian
 
+    def normal_operator(self) -> NormalOperatorProtocol[Array]:
+        """Return the normal operator for this Robin BC."""
+        return self._normal_operator
+
     def apply_to_param_jacobian(
-        self, param_jacobian: Array, state: Array, time: float
+        self, param_jacobian: Array, state: Array, time: float,
+        physical_sensitivities=None,
     ) -> Array:
         """Apply Robin BC to parameter Jacobian.
 
-        Sets parameter Jacobian rows at boundary points to zero.
+        If physical_sensitivities provides "dflux_n_dp", applies the
+        unified BC sensitivity formula for any physics type (diffusion,
+        hyperelastic, etc.).
 
         Parameters
         ----------
@@ -222,6 +229,9 @@ class RobinBC(Generic[Array]):
             Current solution. Shape: (nstates,)
         time : float
             Current time.
+        physical_sensitivities : dict, optional
+            Dict with key "dflux_n_dp" of shape (nbnd, nparams) —
+            sensitivity of the normal operator's output to parameters.
 
         Returns
         -------
@@ -230,10 +240,16 @@ class RobinBC(Generic[Array]):
         """
         idx = self._boundary_indices
         param_jacobian = self._bkd.copy(param_jacobian)
-        nparams = param_jacobian.shape[1]
-        for i in range(self._nboundary_pts):
-            for j in range(nparams):
-                param_jacobian[idx[i], j] = 0.0
+
+        dflux_n_dp = None
+        if physical_sensitivities is not None:
+            dflux_n_dp = physical_sensitivities.get("dflux_n_dp")
+
+        if dflux_n_dp is not None:
+            param_jacobian[idx, :] = self._beta[:, None] * dflux_n_dp
+        else:
+            param_jacobian[idx, :] = 0.0
+
         return param_jacobian
 
 

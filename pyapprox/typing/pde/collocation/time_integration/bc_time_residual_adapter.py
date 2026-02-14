@@ -239,9 +239,45 @@ class BCEnforcingTimeResidual(Generic[Array]):
     def _param_jacobian_impl(
         self, fsol_nm1: Array, fsol_n: Array
     ) -> Array:
-        """Compute parameter Jacobian dR/dp with BC rows zeroed."""
+        """Compute parameter Jacobian dR/dp with BC corrections."""
         result = self._inner.param_jacobian(fsol_nm1, fsol_n)
-        return self._zero_bc_rows(result)
+        if hasattr(self._physics, "boundary_conditions"):
+            for bc in self._physics.boundary_conditions():
+                phys_sens = self._build_bc_physical_sensitivities(
+                    bc, fsol_n, self._t_np1
+                )
+                result = bc.apply_to_param_jacobian(
+                    result, fsol_n, self._t_np1,
+                    physical_sensitivities=phys_sens,
+                )
+        else:
+            result = self._zero_bc_rows(result)
+        return result
+
+    def _build_bc_physical_sensitivities(self, bc, state_1d, time):
+        """Build physical sensitivities dict for one BC's param_jacobian.
+
+        Delegates d(flux·n)/dp computation to the ODE residual adapter via
+        bc_flux_param_sensitivity. Only applies to BCs whose normal operator
+        has coefficient dependence (e.g., flux Neumann with parameterized D).
+        """
+        native = self._inner.native_residual
+        if not hasattr(native, "bc_flux_param_sensitivity"):
+            return None
+        if not hasattr(bc, "normal_operator"):
+            return None
+        normal_op = bc.normal_operator()
+        if not (hasattr(normal_op, "has_coefficient_dependence")
+                and normal_op.has_coefficient_dependence()):
+            return None
+        bc_idx = bc.boundary_indices()
+        normals = normal_op.normals()
+        dflux_n_dp = native.bc_flux_param_sensitivity(
+            state_1d, time, bc_idx, normals
+        )
+        if dflux_n_dp is None:
+            return None
+        return {"dflux_n_dp": dflux_n_dp}
 
     def _adjoint_diag_jacobian_impl(self, fsol_n: Array) -> Array:
         """Adjoint diagonal block: transpose of BC-enforced forward Jacobian.

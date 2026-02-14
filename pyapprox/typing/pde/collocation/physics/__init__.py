@@ -7,7 +7,6 @@ from pyapprox.typing.pde.collocation.physics.base import (
 )
 from pyapprox.typing.pde.collocation.physics.advection_diffusion import (
     AdvectionDiffusionReaction,
-    AdvectionDiffusionReactionWithParam,
     create_steady_diffusion,
     create_advection_diffusion,
 )
@@ -70,7 +69,6 @@ __all__ = [
     "AbstractVectorPhysics",
     # Advection-Diffusion-Reaction
     "AdvectionDiffusionReaction",
-    "AdvectionDiffusionReactionWithParam",
     "create_steady_diffusion",
     "create_advection_diffusion",
     # Linear Elasticity

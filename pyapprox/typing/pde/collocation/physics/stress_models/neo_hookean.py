@@ -38,6 +38,14 @@ class NeoHookeanStress(Generic[Array]):
         self._lamda = lamda
         self._mu = mu
 
+    def set_mu(self, mu) -> None:
+        """Set shear modulus (scalar or per-point array)."""
+        self._mu = mu
+
+    def set_lamda(self, lamda) -> None:
+        """Set Lame's first parameter (scalar or per-point array)."""
+        self._lamda = lamda
+
     # ------------------------------------------------------------------
     # Numerical stress computation (StressModelProtocol)
     # ------------------------------------------------------------------
@@ -158,6 +166,113 @@ class NeoHookeanStress(Generic[Array]):
         return self._mu + (
             self._mu + self._lamda * (1.0 - ln_J)
         ) / (J ** 2)
+
+    # ------------------------------------------------------------------
+    # Material parameter sensitivities (1D)
+    # ------------------------------------------------------------------
+
+    def stress_sensitivity_mu_1d(
+        self, F: Array, bkd: Backend[Array]
+    ) -> Array:
+        """Compute dP/dmu in 1D.
+
+        From P = mu*F + (lamda*ln(J) - mu)/J:
+            dP/dmu = F - 1/J = F - 1/F
+        """
+        return F - 1.0 / F
+
+    def stress_sensitivity_lamda_1d(
+        self, F: Array, bkd: Backend[Array]
+    ) -> Array:
+        """Compute dP/dlambda in 1D.
+
+        From P = mu*F + (lamda*ln(J) - mu)/J:
+            dP/dlambda = ln(J)/J = ln(F)/F
+        """
+        return bkd.log(F) / F
+
+    # ------------------------------------------------------------------
+    # Material parameter sensitivities (2D)
+    # ------------------------------------------------------------------
+
+    def stress_sensitivity_mu_2d(
+        self,
+        F11: Array,
+        F12: Array,
+        F21: Array,
+        F22: Array,
+        bkd: Backend[Array],
+    ) -> Tuple[Array, Array, Array, Array]:
+        """Compute dP/dmu in 2D for each stress component.
+
+        From P_iJ = mu * F_iJ + (lambda * ln(J) - mu) * F^{-T}_iJ:
+            dP_iJ/dmu = F_iJ - F^{-T}_iJ
+
+        Parameters
+        ----------
+        F11, F12, F21, F22 : Array
+            Deformation gradient components. Each shape: (npts,).
+        bkd : Backend
+            Computational backend.
+
+        Returns
+        -------
+        Tuple[Array, Array, Array, Array]
+            (dP11/dmu, dP12/dmu, dP21/dmu, dP22/dmu). Each shape: (npts,).
+        """
+        J = F11 * F22 - F12 * F21
+        # F^{-T} components
+        Finv_T_11 = F22 / J
+        Finv_T_12 = -F21 / J
+        Finv_T_21 = -F12 / J
+        Finv_T_22 = F11 / J
+
+        return (
+            F11 - Finv_T_11,
+            F12 - Finv_T_12,
+            F21 - Finv_T_21,
+            F22 - Finv_T_22,
+        )
+
+    def stress_sensitivity_lamda_2d(
+        self,
+        F11: Array,
+        F12: Array,
+        F21: Array,
+        F22: Array,
+        bkd: Backend[Array],
+    ) -> Tuple[Array, Array, Array, Array]:
+        """Compute dP/dlambda in 2D for each stress component.
+
+        From P_iJ = mu * F_iJ + (lambda * ln(J) - mu) * F^{-T}_iJ:
+            dP_iJ/dlambda = ln(J) * F^{-T}_iJ
+
+        Parameters
+        ----------
+        F11, F12, F21, F22 : Array
+            Deformation gradient components. Each shape: (npts,).
+        bkd : Backend
+            Computational backend.
+
+        Returns
+        -------
+        Tuple[Array, Array, Array, Array]
+            (dP11/dlam, dP12/dlam, dP21/dlam, dP22/dlam). Each shape: (npts,).
+        """
+        J = F11 * F22 - F12 * F21
+        ln_J = bkd.log(J)
+        # F^{-T} components
+        Finv_T_11 = F22 / J
+        Finv_T_12 = -F21 / J
+        Finv_T_21 = -F12 / J
+        Finv_T_22 = F11 / J
+
+        return (
+            ln_J * Finv_T_11,
+            ln_J * Finv_T_12,
+            ln_J * Finv_T_21,
+            ln_J * Finv_T_22,
+        )
 
     def compute_tangent_2d(
         self,
