@@ -6,15 +6,16 @@ are reused from pyapprox.typing.interface.functions.protocols.
 Protocols are organized in two groups:
 
 **Capability protocols** — what the benchmark can do:
-    HasForwardModel, HasPrior, HasJacobian, HasMultipleFidelities,
-    HasResidual, HasSmoothness, HasEstimatedEvaluationCost
+    HasForwardModel, HasPrior, HasJacobian, HasEnsembleModels,
+    HasModelCosts, HasResidual, HasSmoothness, HasEstimatedEvaluationCost
 
 **Reference data protocols** — what known answers exist:
     HasReferenceMean, HasReferenceVariance, HasMainEffects,
-    HasTotalEffects, HasGlobalMinimum, HasReferenceIntegral
+    HasTotalEffects, HasGlobalMinimum, HasReferenceIntegral,
+    HasEnsembleMeans, HasEnsembleCovariance
 """
 
-from typing import Protocol, runtime_checkable, Generic, Sequence, Any
+from typing import Protocol, runtime_checkable, Generic, List, Sequence, Any
 
 from pyapprox.typing.util.backends.protocols import Array, Backend
 from pyapprox.typing.interface.functions.protocols.function import (
@@ -178,11 +179,27 @@ class HasJacobian(Protocol, Generic[Array]):
 
 
 @runtime_checkable
-class HasMultipleFidelities(Protocol, Generic[Array]):
-    """Benchmark provides a model ensemble (multifidelity)."""
+class HasEnsembleModels(Protocol, Generic[Array]):
+    """Benchmark provides an ensemble of models at different fidelities.
 
-    def ensemble(self) -> Any:
-        """Return the model ensemble."""
+    Each model in the list satisfies ``FunctionProtocol[Array]``.
+    """
+
+    def models(self) -> List[FunctionProtocol[Array]]:
+        """Return list of model objects, each satisfying FunctionProtocol."""
+        ...
+
+    def nmodels(self) -> int:
+        """Return number of models in the ensemble."""
+        ...
+
+
+@runtime_checkable
+class HasModelCosts(Protocol, Generic[Array]):
+    """Benchmark provides per-model evaluation costs."""
+
+    def costs(self) -> Array:
+        """Return per-model costs of shape (nmodels,)."""
         ...
 
 
@@ -276,4 +293,34 @@ class HasReferenceIntegral(Protocol):
 
     def reference_integral(self) -> float:
         """Return the reference integral value."""
+        ...
+
+
+# ---------------------------------------------------------------------------
+# Ensemble reference data protocols — per-model statistics
+# ---------------------------------------------------------------------------
+
+
+@runtime_checkable
+class HasEnsembleMeans(Protocol, Generic[Array]):
+    """Benchmark has known per-model means.
+
+    Returns array of shape ``(nmodels, nqoi)``.
+    """
+
+    def ensemble_means(self) -> Array:
+        """Return per-model means."""
+        ...
+
+
+@runtime_checkable
+class HasEnsembleCovariance(Protocol, Generic[Array]):
+    """Benchmark has known cross-model covariance.
+
+    Returns array of shape ``(nmodels, nmodels)`` for scalar QoI,
+    or block structure for vector QoI.
+    """
+
+    def ensemble_covariance(self) -> Array:
+        """Return cross-model covariance matrix."""
         ...

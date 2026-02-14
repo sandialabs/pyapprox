@@ -185,13 +185,13 @@ class TestBenchmarkRegistrySensitivity(unittest.TestCase):
         benchmark = BenchmarkRegistry.get("ishigami_3d", bkd)
         self.assertEqual(benchmark.name(), "ishigami_3d")
 
-    def test_ishigami_in_sensitivity_category(self) -> None:
-        """Test ishigami_3d is in sensitivity category."""
-        from pyapprox.typing.benchmarks.instances import sensitivity  # noqa: F401
+    def test_ishigami_in_analytic_category(self) -> None:
+        """Test ishigami_3d is in analytic category."""
+        from pyapprox.typing.benchmarks.instances import analytic  # noqa: F401
 
         self.assertIn(
             "ishigami_3d",
-            BenchmarkRegistry.list_category("sensitivity")
+            BenchmarkRegistry.list_category("analytic")
         )
 
 

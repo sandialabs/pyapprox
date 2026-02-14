@@ -29,10 +29,10 @@ from pyapprox.typing.pde.collocation.time_integration import (
 from pyapprox.typing.pde.collocation.manufactured_solutions import (
     ManufacturedAdvectionDiffusionReaction,
 )
-from pyapprox.typing.forward_models.field_maps.basis_expansion import (
+from pyapprox.typing.pde.field_maps.basis_expansion import (
     BasisExpansion,
 )
-from pyapprox.typing.forward_models.parameterizations.diffusion import (
+from pyapprox.typing.pde.parameterizations.diffusion import (
     create_diffusion_parameterization,
 )
 

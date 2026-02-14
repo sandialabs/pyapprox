@@ -11,7 +11,7 @@ from pyapprox.typing.pde.collocation.protocols import PhysicsProtocol
 from pyapprox.typing.pde.collocation.time_integration.physics_adapter import (
     PhysicsToODEResidualAdapter,
 )
-from pyapprox.typing.forward_models.parameterizations.protocol import (
+from pyapprox.typing.pde.parameterizations.protocol import (
     ParameterizationProtocol,
 )
 from pyapprox.typing.pde.collocation.time_integration.bc_time_residual_adapter import (

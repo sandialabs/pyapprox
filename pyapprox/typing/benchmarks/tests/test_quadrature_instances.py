@@ -241,13 +241,13 @@ class TestBenchmarkRegistryQuadrature(unittest.TestCase):
         """Test genz_gaussian_peak_2d is registered."""
         self.assertIn("genz_gaussian_peak_2d", BenchmarkRegistry.list_all())
 
-    def test_quadrature_category(self) -> None:
-        """Test benchmarks are in quadrature category."""
-        quadrature = BenchmarkRegistry.list_category("quadrature")
-        self.assertIn("genz_oscillatory_2d", quadrature)
-        self.assertIn("genz_product_peak_2d", quadrature)
-        self.assertIn("genz_corner_peak_2d", quadrature)
-        self.assertIn("genz_gaussian_peak_2d", quadrature)
+    def test_analytic_category(self) -> None:
+        """Test Genz benchmarks are in analytic category."""
+        analytic = BenchmarkRegistry.list_category("analytic")
+        self.assertIn("genz_oscillatory_2d", analytic)
+        self.assertIn("genz_product_peak_2d", analytic)
+        self.assertIn("genz_corner_peak_2d", analytic)
+        self.assertIn("genz_gaussian_peak_2d", analytic)
 
 
 # NumPy backend tests

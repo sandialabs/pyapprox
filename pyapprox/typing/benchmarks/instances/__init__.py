@@ -1,16 +1,12 @@
 """Fixed benchmark instances with known ground truth."""
 
-from pyapprox.typing.benchmarks.instances.sensitivity import (
+from pyapprox.typing.benchmarks.instances.analytic import (
     ishigami_3d,
     sobol_g_6d,
     sobol_g_4d,
-)
-from pyapprox.typing.benchmarks.instances.optimization import (
     rosenbrock_2d,
     rosenbrock_10d,
     branin_2d,
-)
-from pyapprox.typing.benchmarks.instances.quadrature import (
     genz_oscillatory_2d,
     genz_product_peak_2d,
     genz_corner_peak_2d,
@@ -21,6 +17,9 @@ from pyapprox.typing.benchmarks.instances.quadrature import (
 from pyapprox.typing.benchmarks.instances.multifidelity import (
     polynomial_ensemble_5model,
     polynomial_ensemble_3model,
+    multioutput_ensemble_3x3,
+    psd_multioutput_ensemble_3x3,
+    tunable_ensemble_3model,
 )
 from pyapprox.typing.benchmarks.instances.ode import (
     lotka_volterra_3species,
@@ -47,6 +46,9 @@ __all__ = [
     "genz_gaussian_peak_5d",
     "polynomial_ensemble_5model",
     "polynomial_ensemble_3model",
+    "multioutput_ensemble_3x3",
+    "psd_multioutput_ensemble_3x3",
+    "tunable_ensemble_3model",
     "lotka_volterra_3species",
     "coupled_springs_2mass",
     "hastings_ecology_3species",

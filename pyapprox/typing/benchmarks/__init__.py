@@ -81,6 +81,9 @@ from pyapprox.typing.benchmarks.instances import (
     genz_gaussian_peak_5d,
     polynomial_ensemble_5model,
     polynomial_ensemble_3model,
+    multioutput_ensemble_3x3,
+    psd_multioutput_ensemble_3x3,
+    tunable_ensemble_3model,
     lotka_volterra_3species,
     coupled_springs_2mass,
     hastings_ecology_3species,
@@ -148,6 +151,9 @@ __all__ = [
     # Instances - Multifidelity
     "polynomial_ensemble_5model",
     "polynomial_ensemble_3model",
+    "multioutput_ensemble_3x3",
+    "psd_multioutput_ensemble_3x3",
+    "tunable_ensemble_3model",
     # Instances - ODE
     "lotka_volterra_3species",
     "coupled_springs_2mass",

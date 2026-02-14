@@ -25,9 +25,24 @@ from pyapprox.typing.benchmarks.functions.multifidelity.multioutput_ensemble imp
 from pyapprox.typing.benchmarks.functions.multifidelity.statistics_mixin import (
     MultifidelityStatisticsMixin,
 )
+from pyapprox.typing.benchmarks.functions.multifidelity.tunable_ensemble import (
+    TunableModelEnsemble,
+)
 from pyapprox.typing.benchmarks.instances.multifidelity import (
     polynomial_ensemble_5model,
     polynomial_ensemble_3model,
+    multioutput_ensemble_3x3,
+    psd_multioutput_ensemble_3x3,
+    tunable_ensemble_3model,
+)
+from pyapprox.typing.benchmarks.protocols import (
+    HasEnsembleModels,
+    HasModelCosts,
+    HasPrior,
+    HasEnsembleMeans,
+    HasEnsembleCovariance,
+    HasSmoothness,
+    HasEstimatedEvaluationCost,
 )
 from pyapprox.typing.benchmarks.registry import BenchmarkRegistry
 
@@ -277,28 +292,26 @@ class TestMultifidelityBenchmarkInstances(Generic[Array], unittest.TestCase):
     def test_5model_nmodels(self) -> None:
         """Test 5-model benchmark has 5 models."""
         benchmark = polynomial_ensemble_5model(self._bkd)
-        self.assertEqual(benchmark.ensemble().nmodels(), 5)
+        self.assertEqual(benchmark.nmodels(), 5)
 
-    def test_5model_ground_truth_mean(self) -> None:
-        """Test 5-model ground truth mean."""
+    def test_5model_ensemble_means(self) -> None:
+        """Test 5-model ensemble means shape and high-fidelity value."""
         benchmark = polynomial_ensemble_5model(self._bkd)
-        gt = benchmark.ground_truth()
+        means = benchmark.ensemble_means()  # (nmodels, 1)
+        self.assertEqual(means.shape, (5, 1))
         # High fidelity mean is E[x^5] = 1/6
         self._bkd.assert_allclose(
-            self._bkd.asarray([gt.high_fidelity_mean]),
-            self._bkd.asarray([1/6]),
+            means[0:1, 0:1],
+            self._bkd.asarray([[1/6]]),
             rtol=1e-12,
         )
 
-    def test_5model_ground_truth_available(self) -> None:
-        """Test 5-model ground truth has expected values."""
+    def test_5model_ensemble_covariance(self) -> None:
+        """Test 5-model ensemble covariance shape and symmetry."""
         benchmark = polynomial_ensemble_5model(self._bkd)
-        gt = benchmark.ground_truth()
-        available = gt.available()
-        self.assertIn("high_fidelity_mean", available)
-        self.assertIn("high_fidelity_variance", available)
-        self.assertIn("model_correlations", available)
-        self.assertIn("model_costs", available)
+        cov = benchmark.ensemble_covariance()  # (nmodels, nmodels)
+        self.assertEqual(cov.shape, (5, 5))
+        self._bkd.assert_allclose(cov, cov.T, rtol=1e-12)
 
     def test_3model_name(self) -> None:
         """Test 3-model benchmark name."""
@@ -308,7 +321,7 @@ class TestMultifidelityBenchmarkInstances(Generic[Array], unittest.TestCase):
     def test_3model_nmodels(self) -> None:
         """Test 3-model benchmark has 3 models."""
         benchmark = polynomial_ensemble_3model(self._bkd)
-        self.assertEqual(benchmark.ensemble().nmodels(), 3)
+        self.assertEqual(benchmark.nmodels(), 3)
 
     def test_domain_bounds(self) -> None:
         """Test domain bounds are [0, 1]."""
@@ -526,6 +539,292 @@ class TestPSDMultiOutputModelEnsemble(Generic[Array], unittest.TestCase):
         self.assertGreater(self._bkd.to_numpy(diff), 0.01)
 
 
+class TestTunableModelEnsemble(Generic[Array], unittest.TestCase):
+    """Tests for TunableModelEnsemble."""
+
+    __test__ = False
+
+    def bkd(self) -> Backend[Array]:
+        raise NotImplementedError
+
+    def setUp(self) -> None:
+        self._bkd = self.bkd()
+
+    def test_nmodels(self) -> None:
+        """Test nmodels returns 3."""
+        ensemble = TunableModelEnsemble(theta1=1.0, bkd=self._bkd)
+        self.assertEqual(ensemble.nmodels(), 3)
+
+    def test_nvars(self) -> None:
+        """Test nvars returns 2."""
+        ensemble = TunableModelEnsemble(theta1=1.0, bkd=self._bkd)
+        self.assertEqual(ensemble.nvars(), 2)
+
+    def test_nqoi(self) -> None:
+        """Test nqoi returns 1."""
+        ensemble = TunableModelEnsemble(theta1=1.0, bkd=self._bkd)
+        self.assertEqual(ensemble.nqoi(), 1)
+
+    def test_costs_shape(self) -> None:
+        """Test costs has correct shape."""
+        ensemble = TunableModelEnsemble(theta1=1.0, bkd=self._bkd)
+        costs = ensemble.costs()
+        self.assertEqual(costs.shape, (3,))
+
+    def test_means_shape(self) -> None:
+        """Test means has correct shape."""
+        ensemble = TunableModelEnsemble(theta1=1.0, bkd=self._bkd)
+        means = ensemble.means()
+        self.assertEqual(means.shape, (3, 1))
+
+    def test_means_zero_no_shifts(self) -> None:
+        """Test means are zero when no shifts applied."""
+        ensemble = TunableModelEnsemble(theta1=1.0, bkd=self._bkd)
+        means = ensemble.means()
+        self._bkd.assert_allclose(
+            means, self._bkd.zeros((3, 1)), atol=1e-14
+        )
+
+    def test_covariance_shape(self) -> None:
+        """Test covariance has correct shape."""
+        ensemble = TunableModelEnsemble(theta1=1.0, bkd=self._bkd)
+        cov = ensemble.covariance()
+        self.assertEqual(cov.shape, (3, 3))
+
+    def test_covariance_symmetric(self) -> None:
+        """Test covariance matrix is symmetric."""
+        ensemble = TunableModelEnsemble(theta1=1.0, bkd=self._bkd)
+        cov = ensemble.covariance()
+        self._bkd.assert_allclose(cov, cov.T, rtol=1e-12)
+
+    def test_covariance_unit_diagonal(self) -> None:
+        """Test covariance has unit diagonal (models have unit variance)."""
+        ensemble = TunableModelEnsemble(theta1=1.0, bkd=self._bkd)
+        cov = ensemble.covariance()
+        for i in range(3):
+            self._bkd.assert_allclose(
+                self._bkd.asarray([cov[i, i]]),
+                self._bkd.asarray([1.0]),
+                rtol=1e-12,
+            )
+
+    def test_model_evaluation(self) -> None:
+        """Test model evaluation shape."""
+        ensemble = TunableModelEnsemble(theta1=1.0, bkd=self._bkd)
+        samples = self._bkd.array([[0.5, -0.3], [0.1, 0.7]])  # (2, 2)
+        for model in ensemble.models():
+            result = model(samples)
+            self.assertEqual(result.shape, (1, 2))
+
+    def test_covariance_vs_numerical(self) -> None:
+        """Test analytical covariance matches numerical estimate."""
+        import numpy as np
+        ensemble = TunableModelEnsemble(theta1=1.0, bkd=self._bkd)
+        np.random.seed(42)
+        nsamples = 100000
+        samples = self._bkd.asarray(
+            np.random.uniform(-1, 1, (2, nsamples))
+        )
+        vals = []
+        for model in ensemble.models():
+            vals.append(model(samples)[0, :])  # (nsamples,)
+        vals_array = self._bkd.vstack(vals)  # (3, nsamples)
+        numerical_cov = self._bkd.zeros((3, 3))
+        means = self._bkd.mean(vals_array, axis=1)
+        for i in range(3):
+            for j in range(3):
+                numerical_cov[i, j] = self._bkd.mean(
+                    (vals_array[i, :] - means[i])
+                    * (vals_array[j, :] - means[j])
+                )
+        self._bkd.assert_allclose(
+            ensemble.covariance(), numerical_cov, rtol=5e-2
+        )
+
+
+class TestMultiOutputEnsembleInstance(Generic[Array], unittest.TestCase):
+    """Tests for multioutput_ensemble_3x3 benchmark instance."""
+
+    __test__ = False
+
+    def bkd(self) -> Backend[Array]:
+        raise NotImplementedError
+
+    def setUp(self) -> None:
+        self._bkd = self.bkd()
+
+    def test_name(self) -> None:
+        """Test benchmark name."""
+        bm = multioutput_ensemble_3x3(self._bkd)
+        self.assertEqual(bm.name(), "multioutput_ensemble_3x3")
+
+    def test_nmodels(self) -> None:
+        """Test nmodels returns 3."""
+        bm = multioutput_ensemble_3x3(self._bkd)
+        self.assertEqual(bm.nmodels(), 3)
+
+    def test_models_count(self) -> None:
+        """Test models list has 3 entries."""
+        bm = multioutput_ensemble_3x3(self._bkd)
+        self.assertEqual(len(bm.models()), 3)
+
+    def test_ensemble_means_shape(self) -> None:
+        """Test ensemble_means returns (nmodels, nqoi) = (3, 3)."""
+        bm = multioutput_ensemble_3x3(self._bkd)
+        means = bm.ensemble_means()
+        self.assertEqual(means.shape, (3, 3))
+
+    def test_ensemble_covariance_shape(self) -> None:
+        """Test ensemble_covariance returns (9, 9) block structure."""
+        bm = multioutput_ensemble_3x3(self._bkd)
+        cov = bm.ensemble_covariance()
+        self.assertEqual(cov.shape, (9, 9))
+
+    def test_ensemble_covariance_symmetric(self) -> None:
+        """Test covariance matrix is symmetric."""
+        bm = multioutput_ensemble_3x3(self._bkd)
+        cov = bm.ensemble_covariance()
+        self._bkd.assert_allclose(cov, cov.T, rtol=1e-12)
+
+    def test_costs_shape(self) -> None:
+        """Test costs shape."""
+        bm = multioutput_ensemble_3x3(self._bkd)
+        costs = bm.costs()
+        self.assertEqual(costs.shape, (3,))
+
+    def test_domain_bounds(self) -> None:
+        """Test domain bounds are [0, 1]."""
+        bm = multioutput_ensemble_3x3(self._bkd)
+        expected = self._bkd.array([[0.0, 1.0]])
+        self._bkd.assert_allclose(bm.domain().bounds(), expected, rtol=1e-12)
+
+    def test_protocol_compliance(self) -> None:
+        """Test benchmark satisfies expected protocols."""
+        bm = multioutput_ensemble_3x3(self._bkd)
+        self.assertIsInstance(bm, HasEnsembleModels)
+        self.assertIsInstance(bm, HasModelCosts)
+        self.assertIsInstance(bm, HasPrior)
+        self.assertIsInstance(bm, HasEnsembleMeans)
+        self.assertIsInstance(bm, HasEnsembleCovariance)
+        self.assertIsInstance(bm, HasSmoothness)
+        self.assertIsInstance(bm, HasEstimatedEvaluationCost)
+
+
+class TestPSDMultiOutputEnsembleInstance(Generic[Array], unittest.TestCase):
+    """Tests for psd_multioutput_ensemble_3x3 benchmark instance."""
+
+    __test__ = False
+
+    def bkd(self) -> Backend[Array]:
+        raise NotImplementedError
+
+    def setUp(self) -> None:
+        self._bkd = self.bkd()
+
+    def test_name(self) -> None:
+        """Test benchmark name."""
+        bm = psd_multioutput_ensemble_3x3(self._bkd)
+        self.assertEqual(bm.name(), "psd_multioutput_ensemble_3x3")
+
+    def test_nmodels(self) -> None:
+        """Test nmodels returns 3."""
+        bm = psd_multioutput_ensemble_3x3(self._bkd)
+        self.assertEqual(bm.nmodels(), 3)
+
+    def test_ensemble_means_shape(self) -> None:
+        """Test ensemble_means returns (3, 3)."""
+        bm = psd_multioutput_ensemble_3x3(self._bkd)
+        means = bm.ensemble_means()
+        self.assertEqual(means.shape, (3, 3))
+
+    def test_ensemble_covariance_shape(self) -> None:
+        """Test ensemble_covariance returns (9, 9)."""
+        bm = psd_multioutput_ensemble_3x3(self._bkd)
+        cov = bm.ensemble_covariance()
+        self.assertEqual(cov.shape, (9, 9))
+
+    def test_ensemble_covariance_symmetric(self) -> None:
+        """Test covariance matrix is symmetric."""
+        bm = psd_multioutput_ensemble_3x3(self._bkd)
+        cov = bm.ensemble_covariance()
+        self._bkd.assert_allclose(cov, cov.T, rtol=1e-10)
+
+    def test_protocol_compliance(self) -> None:
+        """Test benchmark satisfies expected protocols."""
+        bm = psd_multioutput_ensemble_3x3(self._bkd)
+        self.assertIsInstance(bm, HasEnsembleModels)
+        self.assertIsInstance(bm, HasEnsembleMeans)
+        self.assertIsInstance(bm, HasEnsembleCovariance)
+
+
+class TestTunableEnsembleInstance(Generic[Array], unittest.TestCase):
+    """Tests for tunable_ensemble_3model benchmark instance."""
+
+    __test__ = False
+
+    def bkd(self) -> Backend[Array]:
+        raise NotImplementedError
+
+    def setUp(self) -> None:
+        self._bkd = self.bkd()
+
+    def test_name(self) -> None:
+        """Test benchmark name."""
+        bm = tunable_ensemble_3model(self._bkd)
+        self.assertEqual(bm.name(), "tunable_ensemble_3model")
+
+    def test_nmodels(self) -> None:
+        """Test nmodels returns 3."""
+        bm = tunable_ensemble_3model(self._bkd)
+        self.assertEqual(bm.nmodels(), 3)
+
+    def test_models_count(self) -> None:
+        """Test models list has 3 entries."""
+        bm = tunable_ensemble_3model(self._bkd)
+        self.assertEqual(len(bm.models()), 3)
+
+    def test_ensemble_means_shape(self) -> None:
+        """Test ensemble_means returns (3, 1)."""
+        bm = tunable_ensemble_3model(self._bkd)
+        means = bm.ensemble_means()
+        self.assertEqual(means.shape, (3, 1))
+
+    def test_ensemble_covariance_shape(self) -> None:
+        """Test ensemble_covariance returns (3, 3)."""
+        bm = tunable_ensemble_3model(self._bkd)
+        cov = bm.ensemble_covariance()
+        self.assertEqual(cov.shape, (3, 3))
+
+    def test_ensemble_covariance_symmetric(self) -> None:
+        """Test covariance matrix is symmetric."""
+        bm = tunable_ensemble_3model(self._bkd)
+        cov = bm.ensemble_covariance()
+        self._bkd.assert_allclose(cov, cov.T, rtol=1e-12)
+
+    def test_domain_bounds(self) -> None:
+        """Test domain bounds are [-1, 1]^2."""
+        bm = tunable_ensemble_3model(self._bkd)
+        expected = self._bkd.array([[-1.0, 1.0], [-1.0, 1.0]])
+        self._bkd.assert_allclose(bm.domain().bounds(), expected, rtol=1e-12)
+
+    def test_costs_shape(self) -> None:
+        """Test costs shape."""
+        bm = tunable_ensemble_3model(self._bkd)
+        costs = bm.costs()
+        self.assertEqual(costs.shape, (3,))
+
+    def test_protocol_compliance(self) -> None:
+        """Test benchmark satisfies expected protocols."""
+        bm = tunable_ensemble_3model(self._bkd)
+        self.assertIsInstance(bm, HasEnsembleModels)
+        self.assertIsInstance(bm, HasModelCosts)
+        self.assertIsInstance(bm, HasPrior)
+        self.assertIsInstance(bm, HasEnsembleMeans)
+        self.assertIsInstance(bm, HasEnsembleCovariance)
+        self.assertIsInstance(bm, HasSmoothness)
+        self.assertIsInstance(bm, HasEstimatedEvaluationCost)
+
+
 class TestBenchmarkRegistryMultifidelity(unittest.TestCase):
     """Tests for BenchmarkRegistry multifidelity category."""
 
@@ -543,11 +842,35 @@ class TestBenchmarkRegistryMultifidelity(unittest.TestCase):
             BenchmarkRegistry.list_all(),
         )
 
+    def test_multioutput_registered(self) -> None:
+        """Test multioutput_ensemble_3x3 is registered."""
+        self.assertIn(
+            "multioutput_ensemble_3x3",
+            BenchmarkRegistry.list_all(),
+        )
+
+    def test_psd_multioutput_registered(self) -> None:
+        """Test psd_multioutput_ensemble_3x3 is registered."""
+        self.assertIn(
+            "psd_multioutput_ensemble_3x3",
+            BenchmarkRegistry.list_all(),
+        )
+
+    def test_tunable_registered(self) -> None:
+        """Test tunable_ensemble_3model is registered."""
+        self.assertIn(
+            "tunable_ensemble_3model",
+            BenchmarkRegistry.list_all(),
+        )
+
     def test_multifidelity_category(self) -> None:
         """Test benchmarks are in multifidelity category."""
         mf_benchmarks = BenchmarkRegistry.list_category("multifidelity")
         self.assertIn("polynomial_ensemble_5model", mf_benchmarks)
         self.assertIn("polynomial_ensemble_3model", mf_benchmarks)
+        self.assertIn("multioutput_ensemble_3x3", mf_benchmarks)
+        self.assertIn("psd_multioutput_ensemble_3x3", mf_benchmarks)
+        self.assertIn("tunable_ensemble_3model", mf_benchmarks)
 
 
 class TestPolynomialModelFunctionNumpy(TestPolynomialModelFunction[NDArray[Any]]):
@@ -627,6 +950,78 @@ class TestPSDMultiOutputModelEnsembleTorch(
     TestPSDMultiOutputModelEnsemble[torch.Tensor]
 ):
     """PyTorch backend tests for PSDMultiOutputModelEnsemble."""
+
+    def bkd(self) -> TorchBkd:
+        torch.set_default_dtype(torch.float64)
+        return TorchBkd()
+
+
+class TestTunableModelEnsembleNumpy(TestTunableModelEnsemble[NDArray[Any]]):
+    """NumPy backend tests for TunableModelEnsemble."""
+
+    def bkd(self) -> NumpyBkd:
+        return NumpyBkd()
+
+
+class TestTunableModelEnsembleTorch(TestTunableModelEnsemble[torch.Tensor]):
+    """PyTorch backend tests for TunableModelEnsemble."""
+
+    def bkd(self) -> TorchBkd:
+        torch.set_default_dtype(torch.float64)
+        return TorchBkd()
+
+
+class TestMultiOutputEnsembleInstanceNumpy(
+    TestMultiOutputEnsembleInstance[NDArray[Any]]
+):
+    """NumPy backend tests for multioutput_ensemble_3x3 instance."""
+
+    def bkd(self) -> NumpyBkd:
+        return NumpyBkd()
+
+
+class TestMultiOutputEnsembleInstanceTorch(
+    TestMultiOutputEnsembleInstance[torch.Tensor]
+):
+    """PyTorch backend tests for multioutput_ensemble_3x3 instance."""
+
+    def bkd(self) -> TorchBkd:
+        torch.set_default_dtype(torch.float64)
+        return TorchBkd()
+
+
+class TestPSDMultiOutputEnsembleInstanceNumpy(
+    TestPSDMultiOutputEnsembleInstance[NDArray[Any]]
+):
+    """NumPy backend tests for psd_multioutput_ensemble_3x3 instance."""
+
+    def bkd(self) -> NumpyBkd:
+        return NumpyBkd()
+
+
+class TestPSDMultiOutputEnsembleInstanceTorch(
+    TestPSDMultiOutputEnsembleInstance[torch.Tensor]
+):
+    """PyTorch backend tests for psd_multioutput_ensemble_3x3 instance."""
+
+    def bkd(self) -> TorchBkd:
+        torch.set_default_dtype(torch.float64)
+        return TorchBkd()
+
+
+class TestTunableEnsembleInstanceNumpy(
+    TestTunableEnsembleInstance[NDArray[Any]]
+):
+    """NumPy backend tests for tunable_ensemble_3model instance."""
+
+    def bkd(self) -> NumpyBkd:
+        return NumpyBkd()
+
+
+class TestTunableEnsembleInstanceTorch(
+    TestTunableEnsembleInstance[torch.Tensor]
+):
+    """PyTorch backend tests for tunable_ensemble_3model instance."""
 
     def bkd(self) -> TorchBkd:
         torch.set_default_dtype(torch.float64)

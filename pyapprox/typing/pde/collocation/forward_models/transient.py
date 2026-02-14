@@ -18,7 +18,7 @@ from pyapprox.typing.pde.time.operator.time_adjoint_hvp import (
 from pyapprox.typing.pde.time.functionals.all_states_endpoint import (
     AllStatesEndpointFunctional,
 )
-from pyapprox.typing.forward_models.parameterizations.protocol import (
+from pyapprox.typing.pde.parameterizations.protocol import (
     ParameterizationProtocol,
 )
 

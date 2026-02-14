@@ -29,14 +29,17 @@ from pyapprox.typing.pde.collocation.physics import LinearElasticityPhysics
 from pyapprox.typing.pde.collocation.physics.stress_models import (
     NeoHookeanStress,
 )
-from pyapprox.typing.forward_models.field_maps.kle_factory import (
+from pyapprox.typing.pde.field_maps.kle_factory import (
     create_lognormal_kle_field_map,
 )
-from pyapprox.typing.forward_models.zoo.pressurized_cylinder_2d import (
+from pyapprox.typing.pde.zoo.pressurized_cylinder_2d import (
     create_linear_pressurized_cylinder_2d,
 )
-from pyapprox.typing.forward_models.zoo.hyperelastic_cylinder_2d import (
+from pyapprox.typing.pde.zoo.hyperelastic_cylinder_2d import (
     create_hyperelastic_pressurized_cylinder_2d,
+)
+from pyapprox.typing.benchmarks.instances.pde.elastic_bar import (
+    PDEBenchmarkWrapper,
 )
 from pyapprox.typing.optimization.implicitfunction.functionals.elasticity_2d import (
     OuterWallRadialDisplacementFunctional,
@@ -305,7 +308,7 @@ def pressurized_cylinder_2d(
         f"{num_kle_terms} KLE terms"
     )
 
-    return BenchmarkWithPrior(
+    inner = BenchmarkWithPrior(
         _name=name,
         _function=fwd,
         _domain=domain,
@@ -313,6 +316,7 @@ def pressurized_cylinder_2d(
         _prior=prior,
         _description=description,
     )
+    return PDEBenchmarkWrapper(inner, estimated_cost=3.6e-02)
 
 
 @BenchmarkRegistry.register(
@@ -325,7 +329,7 @@ def pressurized_cylinder_2d(
 )
 def _pressurized_cylinder_2d_linear_factory(
     bkd: Backend[Array],
-) -> BenchmarkWithPrior[Array, SensitivityGroundTruth]:
+) -> PDEBenchmarkWrapper:
     return pressurized_cylinder_2d(bkd)
 
 
@@ -440,7 +444,7 @@ def hyperelastic_pressurized_cylinder_2d(
         f"{num_kle_terms} KLE terms"
     )
 
-    return BenchmarkWithPrior(
+    inner = BenchmarkWithPrior(
         _name=name,
         _function=fwd,
         _domain=domain,
@@ -448,6 +452,7 @@ def hyperelastic_pressurized_cylinder_2d(
         _prior=prior,
         _description=description,
     )
+    return PDEBenchmarkWrapper(inner, estimated_cost=4.0e-01)
 
 
 @BenchmarkRegistry.register(
@@ -460,5 +465,5 @@ def hyperelastic_pressurized_cylinder_2d(
 )
 def _pressurized_cylinder_2d_hyperelastic_factory(
     bkd: Backend[Array],
-) -> BenchmarkWithPrior[Array, SensitivityGroundTruth]:
+) -> PDEBenchmarkWrapper:
     return hyperelastic_pressurized_cylinder_2d(bkd)

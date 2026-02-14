@@ -4,7 +4,7 @@ Wraps the zoo factories (linear and hyperelastic 1D bar) into benchmark
 instances with standard normal KLE priors and configurable QoI functionals.
 """
 
-from typing import Tuple
+from typing import Any, Tuple
 
 from pyapprox.typing.util.backends.protocols import Array, Backend
 from pyapprox.typing.benchmarks.benchmark import BenchmarkWithPrior, BoxDomain
@@ -17,13 +17,13 @@ from pyapprox.typing.pde.collocation.mesh import (
     AffineTransform1D,
     TransformedMesh1D,
 )
-from pyapprox.typing.forward_models.field_maps.kle_factory import (
+from pyapprox.typing.pde.field_maps.kle_factory import (
     create_lognormal_kle_field_map,
 )
-from pyapprox.typing.forward_models.zoo.elastic_bar_1d import (
+from pyapprox.typing.pde.zoo.elastic_bar_1d import (
     create_linear_elastic_bar_1d,
 )
-from pyapprox.typing.forward_models.zoo.hyperelastic_bar_1d import (
+from pyapprox.typing.pde.zoo.hyperelastic_bar_1d import (
     create_hyperelastic_bar_1d,
 )
 from pyapprox.typing.optimization.implicitfunction.functionals.point_evaluation import (
@@ -40,6 +40,42 @@ from pyapprox.typing.optimization.implicitfunction.functionals.strain_energy_1d 
 from pyapprox.typing.pde.collocation.physics.stress_models.neo_hookean import (
     NeoHookeanStress,
 )
+
+
+class PDEBenchmarkWrapper:
+    """PDE benchmark wrapper.
+
+    Satisfies: HasForwardModel, HasPrior, HasEstimatedEvaluationCost.
+    Conditionally satisfies HasJacobian if the forward model exposes
+    a jacobian method.
+    """
+
+    def __init__(self, inner: Any, estimated_cost: float) -> None:
+        self._inner = inner
+        self._estimated_cost = estimated_cost
+        if hasattr(inner.function(), "jacobian"):
+            self.jacobian = self._jacobian
+
+    def name(self) -> str:
+        return self._inner.name()
+
+    def function(self) -> Any:
+        return self._inner.function()
+
+    def domain(self) -> Any:
+        return self._inner.domain()
+
+    def prior(self) -> Any:
+        return self._inner.prior()
+
+    def ground_truth(self) -> Any:
+        return self._inner.ground_truth()
+
+    def estimated_evaluation_cost(self) -> float:
+        return self._estimated_cost
+
+    def _jacobian(self, sample: Any) -> Any:
+        return self._inner.function().jacobian(sample)
 
 
 def _make_kle_field_map(
@@ -288,7 +324,7 @@ def elastic_bar_1d(
         f"npts={npts}, {num_kle_terms} KLE terms"
     )
 
-    return BenchmarkWithPrior(
+    inner = BenchmarkWithPrior(
         _name=name,
         _function=fwd,
         _domain=domain,
@@ -296,6 +332,10 @@ def elastic_bar_1d(
         _prior=prior,
         _description=description,
     )
+    estimated_cost = (
+        2.4e-04 if constitutive == "linear" else 1.1e-03
+    )
+    return PDEBenchmarkWrapper(inner, estimated_cost=estimated_cost)
 
 
 @BenchmarkRegistry.register(
@@ -305,7 +345,7 @@ def elastic_bar_1d(
 )
 def _elastic_bar_1d_linear_factory(
     bkd: Backend[Array],
-) -> BenchmarkWithPrior[Array, SensitivityGroundTruth]:
+) -> PDEBenchmarkWrapper:
     return elastic_bar_1d(bkd, constitutive="linear")
 
 
@@ -319,5 +359,5 @@ def _elastic_bar_1d_linear_factory(
 )
 def _elastic_bar_1d_hyperelastic_factory(
     bkd: Backend[Array],
-) -> BenchmarkWithPrior[Array, SensitivityGroundTruth]:
+) -> PDEBenchmarkWrapper:
     return elastic_bar_1d(bkd, constitutive="hyperelastic")

@@ -23,7 +23,7 @@ from pyapprox.typing.optimization.implicitfunction.functionals.subset_of_states 
 from pyapprox.typing.optimization.implicitfunction.functionals.protocols import (
     ParameterizedFunctionalWithJacobianProtocol,
 )
-from pyapprox.typing.forward_models.parameterizations.protocol import (
+from pyapprox.typing.pde.parameterizations.protocol import (
     ParameterizationProtocol,
 )
 

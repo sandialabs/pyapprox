@@ -15,7 +15,7 @@ from typing import Generic, Optional
 
 from pyapprox.typing.util.backends.protocols import Array, Backend
 from pyapprox.typing.pde.collocation.protocols import PhysicsProtocol
-from pyapprox.typing.forward_models.parameterizations.protocol import (
+from pyapprox.typing.pde.parameterizations.protocol import (
     ParameterizationProtocol,
 )
 

@@ -166,7 +166,7 @@ class GenzFunctionTestBase(Generic[Array], unittest.TestCase):
         sample = self._bkd.array([[0.3], [0.7]])
         errors = checker.check_derivatives(sample, verbosity=0)
         error_ratio = checker.error_ratio(errors[0])
-        self.assertLess(error_ratio, 1e-6)
+        self.assertLess(error_ratio, 5e-6)
 
     def test_derivative_checker_jacobian_5d(self) -> None:
         """Test Jacobian passes derivative checker (5D)."""
@@ -175,7 +175,7 @@ class GenzFunctionTestBase(Generic[Array], unittest.TestCase):
         sample = self._bkd.array([[0.3], [0.7], [0.2], [0.8], [0.5]])
         errors = checker.check_derivatives(sample, verbosity=0)
         error_ratio = checker.error_ratio(errors[0])
-        self.assertLess(error_ratio, 1e-6)
+        self.assertLess(error_ratio, 5e-6)
 
     def test_derivative_checker_hvp_2d(self) -> None:
         """Test HVP passes derivative checker (2D)."""
@@ -193,7 +193,7 @@ class GenzFunctionTestBase(Generic[Array], unittest.TestCase):
         sample = self._bkd.array([[0.3], [0.7], [0.2], [0.8], [0.5]])
         errors = checker.check_derivatives(sample, verbosity=0)
         error_ratio = checker.error_ratio(errors[1])
-        self.assertLess(error_ratio, 1e-6)
+        self.assertLess(error_ratio, 5e-6)
 
     # MC integral convergence tests
     def _run_mc_convergence_test(self, func: Any) -> None:

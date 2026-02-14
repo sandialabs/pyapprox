@@ -182,13 +182,14 @@ class TestBenchmarkRegistryOptimization(unittest.TestCase):
         benchmark = BenchmarkRegistry.get("rosenbrock_10d", bkd)
         self.assertEqual(benchmark.name(), "rosenbrock_10d")
 
-    def test_benchmarks_in_optimization_category(self) -> None:
-        """Test benchmarks are in optimization category."""
-        from pyapprox.typing.benchmarks.instances import optimization  # noqa: F401
+    def test_benchmarks_in_analytic_category(self) -> None:
+        """Test optimization benchmarks are in analytic category."""
+        from pyapprox.typing.benchmarks.instances import analytic  # noqa: F401
 
-        opt_benchmarks = BenchmarkRegistry.list_category("optimization")
-        self.assertIn("rosenbrock_2d", opt_benchmarks)
-        self.assertIn("rosenbrock_10d", opt_benchmarks)
+        analytic_benchmarks = BenchmarkRegistry.list_category("analytic")
+        self.assertIn("rosenbrock_2d", analytic_benchmarks)
+        self.assertIn("rosenbrock_10d", analytic_benchmarks)
+        self.assertIn("branin_2d", analytic_benchmarks)
 
 
 if __name__ == "__main__":
