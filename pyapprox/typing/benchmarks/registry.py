@@ -113,6 +113,56 @@ class BenchmarkRegistry(Generic[Array]):
         return cls._descriptions.get(name, "")
 
     @classmethod
+    def satisfying(
+        cls, *protocols: type, bkd: Backend[Array],
+    ) -> List[Any]:
+        """Return benchmark instances satisfying all given protocols.
+
+        Parameters
+        ----------
+        *protocols
+            One or more ``@runtime_checkable`` protocol classes.
+        bkd
+            Backend for instantiation.
+
+        Returns
+        -------
+        List[Any]
+            Benchmark instances that satisfy every protocol.
+        """
+        results: List[Any] = []
+        for name in cls._benchmarks:
+            bm = cls._benchmarks[name](bkd)
+            if all(isinstance(bm, p) for p in protocols):
+                results.append(bm)
+        return results
+
+    @classmethod
+    def names_satisfying(
+        cls, *protocols: type, bkd: Backend[Array],
+    ) -> List[str]:
+        """Return names of benchmarks satisfying all given protocols.
+
+        Parameters
+        ----------
+        *protocols
+            One or more ``@runtime_checkable`` protocol classes.
+        bkd
+            Backend for instantiation.
+
+        Returns
+        -------
+        List[str]
+            Names of matching benchmarks.
+        """
+        names: List[str] = []
+        for name in cls._benchmarks:
+            bm = cls._benchmarks[name](bkd)
+            if all(isinstance(bm, p) for p in protocols):
+                names.append(name)
+        return names
+
+    @classmethod
     def clear(cls) -> None:
         """Clear all registered benchmarks (for testing)."""
         cls._benchmarks.clear()
