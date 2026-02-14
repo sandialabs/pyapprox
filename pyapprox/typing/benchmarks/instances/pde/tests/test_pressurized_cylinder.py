@@ -23,6 +23,7 @@ from pyapprox.typing.interface.functions.fromcallable.jacobian import (
 )
 from pyapprox.typing.benchmarks.protocols import BenchmarkWithPriorProtocol
 from pyapprox.typing.benchmarks.instances.pde.pressurized_cylinder import (
+    hyperelastic_pressurized_cylinder_2d,
     pressurized_cylinder_2d,
 )
 from pyapprox.typing.benchmarks.registry import BenchmarkRegistry
@@ -223,6 +224,162 @@ class TestPressurizedCylinder2DBenchmarkNumpy(
 
 class TestPressurizedCylinder2DBenchmarkTorch(
     TestPressurizedCylinder2DBenchmark[torch.Tensor],
+):
+    def bkd(self) -> TorchBkd:
+        torch.set_default_dtype(torch.float64)
+        return TorchBkd()
+
+
+# ======================================================================
+# Hyperelastic benchmark tests
+# ======================================================================
+
+def _make_hyperelastic_benchmark(
+    bkd, qoi="outer_radial_displacement",
+    npts_r=10, npts_theta=10, num_kle_terms=2,
+    inner_pressure=1.0,
+):
+    """Helper for creating hyperelastic benchmarks with small defaults."""
+    return hyperelastic_pressurized_cylinder_2d(
+        bkd, qoi=qoi,
+        npts_r=npts_r, npts_theta=npts_theta,
+        r_inner=1.0, r_outer=2.0,
+        E_mean=1.0, poisson_ratio=0.3,
+        inner_pressure=inner_pressure,
+        num_kle_terms=num_kle_terms, sigma=0.3,
+        weld_r_fraction=0.25,
+    )
+
+
+def _check_hyperelastic_jacobian(test_case, bkd, fwd, num_kle_terms=2):
+    """Helper: run DerivativeChecker on a hyperelastic forward model."""
+    wrapper = FunctionWithJacobianFromCallable(
+        nqoi=fwd.nqoi(),
+        nvars=fwd.nvars(),
+        fun=fwd,
+        jacobian=fwd.jacobian,
+        bkd=bkd,
+    )
+    checker = DerivativeChecker(wrapper)
+    np.random.seed(42)
+    sample = bkd.array([0.1, -0.1][:num_kle_terms])[:, None]
+    errors = checker.check_derivatives(sample, relative=True)[0]
+    ratio = float(bkd.min(errors) / bkd.max(errors))
+    test_case.assertLessEqual(ratio, 1e-5)
+
+
+class TestHyperelasticPressurizedCylinder2D(
+    Generic[Array], unittest.TestCase,
+):
+    __test__ = False
+
+    def bkd(self) -> Backend[Array]:
+        raise NotImplementedError
+
+    def setUp(self):
+        self._bkd = self.bkd()
+
+    # --- Evaluation ---
+
+    def test_benchmark_hyperelastic_evaluate(self):
+        """Hyperelastic benchmark: evaluate at theta=0, check shape (1,1)."""
+        bkd = self._bkd
+        bm = _make_hyperelastic_benchmark(bkd)
+        fwd = bm.function()
+        sample = bkd.zeros((2, 1))
+        result = fwd(sample)
+        self.assertEqual(result.shape, (1, 1))
+        self.assertGreater(float(result[0, 0]), 0.0)
+
+    # --- Jacobian ---
+
+    def test_benchmark_hyperelastic_jacobian(self):
+        """DerivativeChecker on hyperelastic outer radial displacement."""
+        bkd = self._bkd
+        bm = _make_hyperelastic_benchmark(bkd)
+        _check_hyperelastic_jacobian(self, bkd, bm.function())
+
+    # --- Linear vs hyperelastic at low pressure ---
+
+    def test_linear_vs_hyperelastic(self):
+        """At low pressure, linear and hyperelastic produce similar QoI."""
+        bkd = self._bkd
+        sample = bkd.zeros((2, 1))
+        bm_linear = _make_benchmark(
+            bkd, "outer_radial_displacement",
+            npts_r=10, npts_theta=10,
+        )
+        bm_hyper = _make_hyperelastic_benchmark(
+            bkd, "outer_radial_displacement",
+            npts_r=10, npts_theta=10,
+            inner_pressure=1e-3,
+        )
+        # Also need low pressure for linear
+        bm_linear_low = pressurized_cylinder_2d(
+            bkd, qoi="outer_radial_displacement",
+            npts_r=10, npts_theta=10,
+            r_inner=1.0, r_outer=2.0,
+            E_mean=1.0, poisson_ratio=0.3,
+            inner_pressure=1e-3,
+            num_kle_terms=2, sigma=0.3,
+        )
+        val_linear = bm_linear_low.function()(sample)
+        val_hyper = bm_hyper.function()(sample)
+        bkd.assert_allclose(val_hyper, val_linear, rtol=1e-2)
+
+    # --- All three QoIs ---
+
+    def test_all_three_qois_hyperelastic(self):
+        """Each QoI produces scalar (1,1) with working Jacobian."""
+        bkd = self._bkd
+        sample = bkd.zeros((2, 1))
+        for qoi in ["outer_radial_displacement",
+                     "average_hoop_stress", "strain_energy"]:
+            bm = _make_hyperelastic_benchmark(bkd, qoi)
+            fwd = bm.function()
+            self.assertEqual(fwd.nqoi(), 1, f"Failed for qoi={qoi}")
+            result = fwd(sample)
+            self.assertEqual(result.shape, (1, 1), f"Failed for qoi={qoi}")
+            _check_hyperelastic_jacobian(self, bkd, fwd)
+
+    # --- Convergence ---
+
+    def test_convergence_reference_hyperelastic(self):
+        """Finer mesh resolution produces closer values (convergence)."""
+        bkd = self._bkd
+        sample = bkd.zeros((2, 1))
+        bm_coarse = _make_hyperelastic_benchmark(
+            bkd, "outer_radial_displacement", npts_r=8, npts_theta=8,
+        )
+        bm_fine = _make_hyperelastic_benchmark(
+            bkd, "outer_radial_displacement", npts_r=14, npts_theta=14,
+        )
+        val_coarse = bm_coarse.function()(sample)
+        val_fine = bm_fine.function()(sample)
+        bkd.assert_allclose(val_coarse, val_fine, rtol=1e-2)
+
+    # --- Registry access ---
+
+    def test_registry_hyperelastic(self):
+        """BenchmarkRegistry.get works for hyperelastic cylinder."""
+        bkd = self._bkd
+        bm = BenchmarkRegistry.get(
+            "pressurized_cylinder_2d_hyperelastic", bkd,
+        )
+        fwd = bm.function()
+        result = fwd(bkd.zeros((2, 1)))
+        self.assertEqual(result.shape, (1, 1))
+
+
+class TestHyperelasticPressurizedCylinder2DNumpy(
+    TestHyperelasticPressurizedCylinder2D[NDArray[Any]],
+):
+    def bkd(self) -> NumpyBkd:
+        return NumpyBkd()
+
+
+class TestHyperelasticPressurizedCylinder2DTorch(
+    TestHyperelasticPressurizedCylinder2D[torch.Tensor],
 ):
     def bkd(self) -> TorchBkd:
         torch.set_default_dtype(torch.float64)
