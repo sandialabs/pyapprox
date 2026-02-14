@@ -149,10 +149,10 @@ plt.show()
 
 ### Figure Organization
 
-Store static images in `library/figures/`:
+Store static images in a `figures/` subdirectory alongside the tutorial files:
 
 ```
-library/
+in_progress/           # or library/ for validated tutorials
 ├── figures/
 │   ├── anova_decomposition.png
 │   ├── sobol_variance_partition.svg
@@ -622,13 +622,16 @@ Ordering is controlled via `_quarto.yml` navigation configuration.
 pyapprox/typing/tutorials/
 ├── CONVENTIONS.md           # This file
 ├── BUILD.md                 # Build and deployment guide
+├── _quarto.yml              # Quarto site configuration
 ├── _macros.tex              # LaTeX macros for PDF
 ├── _macros_html.tex         # MathJax macros for HTML
 ├── scripts/
 │   ├── estimate_tutorial_time.py   # Time estimation tool
 │   └── generate_workshop_index.py
-├── library/
-│   ├── _quarto.yml
+├── library/                 # Validated tutorials (promoted from in_progress/)
+│   ├── index.qmd
+│   └── *.qmd                # Validated tutorial files
+├── in_progress/             # Unvalidated tutorials under review
 │   ├── index.qmd
 │   ├── figures/             # Static images
 │   └── *.qmd                # Tutorial files

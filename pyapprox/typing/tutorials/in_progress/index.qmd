@@ -1,0 +1,150 @@
+---
+title: "In-Progress Tutorials"
+subtitle: "Unvalidated tutorials awaiting review"
+---
+
+## Overview
+
+These tutorials have not yet been validated. They may contain errors, incomplete code, or broken dependencies. Once validated, they will be promoted to the [Tutorial Library](../library/index.qmd).
+
+**Primary Example:** Tutorials use the Lotka-Volterra 3-species ODE system as a running example, demonstrating UQ methods on a realistic ecological model.
+
+## Validation Process
+
+To promote a tutorial from `in_progress/` to `library/`:
+
+1. **Run end-to-end**: `quarto render in_progress/tutorial_name.qmd` and verify all cells execute without errors
+2. **Review content**: Check against [CONVENTIONS.md](../CONVENTIONS.md) for notation, structure, and time limits
+3. **Check prerequisites**: Verify all prerequisite tutorials listed in YAML frontmatter are either already validated or not required
+4. **Move the file**: `git mv in_progress/tutorial_name.qmd library/tutorial_name.qmd`
+5. **Move assets**: `git mv in_progress/tutorial_name_files/ library/tutorial_name_files/` (if the directory exists)
+6. **Update `_quarto.yml`**: Add the tutorial to the validated library sidebar section and remove it from the in-progress section
+7. **Update `library/index.qmd`**: Add the tutorial to the validated catalog
+8. **Commit**
+
+## Tutorial Catalog
+
+### Getting Started
+
+| Tutorial | Description | Prerequisites |
+|----------|-------------|---------------|
+| [Setup Environment](setup_environment.qmd) | Configure Python environment for PyApprox | None |
+| [UQ Problem Framing](uq_problem_framing.qmd) | Core concepts of uncertainty quantification | Setup |
+
+### Forward UQ
+
+| Tutorial | Description | Prerequisites |
+|----------|-------------|---------------|
+| [Forward Model Definition](forward_model_definition.qmd) | Define and evaluate forward models | Setup |
+| [ODE Integration Infrastructure](ode_integration.qmd) | ODE solvers and time stepping methods | Forward Model |
+| [Random Variables & Distributions](random_variables_distributions.qmd) | Probability distributions for uncertain inputs | Setup |
+| [Quantities of Interest](quantities_of_interest.qmd) | Extract meaningful outputs from models | Forward Model |
+| [Monte Carlo Basics](monte_carlo_basics.qmd) | Sampling-based uncertainty propagation | Distributions |
+
+### Sensitivity Analysis
+
+| Tutorial | Description | Prerequisites |
+|----------|-------------|---------------|
+| [Sobol Sensitivity Analysis](sobol_sensitivity_analysis.qmd) | Variance-based sensitivity indices | MC Basics |
+
+### Inverse Problems
+
+| Tutorial | Description | Prerequisites |
+|----------|-------------|---------------|
+| [Bayesian Calibration Intro](bayesian_calibration_intro.qmd) | Parameter inference from data | MC Basics |
+| [Hamiltonian MCMC](hamiltonian_mcmc.qmd) | Advanced MCMC sampling | Bayesian Calibration |
+
+### Surrogates
+
+| Tutorial | Description | Prerequisites |
+|----------|-------------|---------------|
+| [Polynomial Chaos Expansion](polynomial_chaos_expansion.qmd) | Spectral surrogate models | MC Basics |
+| [Introduction to Sparse Grids](sparse_grid_intro.qmd) | Smolyak combination technique | PCE |
+| [Adaptive Sparse Grids](adaptive_sparse_grid.qmd) | Goal-oriented sparse grid refinement | Sparse Grids |
+| [Gaussian Process Surrogates](gaussian_process_surrogates.qmd) | Kriging/GP regression | MC Basics |
+
+### Multifidelity Methods
+
+| Tutorial | Description | Prerequisites |
+|----------|-------------|---------------|
+| [Control Variates](control_variates.qmd) | Variance reduction fundamentals | MC Basics |
+| [Multifidelity Monte Carlo](multifidelity_monte_carlo.qmd) | Combining models of varying fidelity | Control Variates |
+
+### Advanced Topics
+
+| Tutorial | Description | Prerequisites |
+|----------|-------------|---------------|
+| [Optimal Experimental Design](optimal_experimental_design.qmd) | Information-theoretic design | GP Surrogates |
+| [Optimization Under Uncertainty](optimization_under_uncertainty.qmd) | Risk-aware optimization | MC Basics |
+| [Backend Alternatives](backend_alternatives.qmd) | Using PyTorch backend | Setup |
+| [Benchmark Setup](benchmark_setup.qmd) | Creating custom UQ benchmarks | Forward Model |
+
+## Learning Paths
+
+### Path 1: UQ Fundamentals (4 hours)
+
+Recommended for newcomers to uncertainty quantification:
+
+1. Setup Environment
+2. UQ Problem Framing
+3. Forward Model Definition
+4. Random Variables & Distributions
+5. Quantities of Interest
+6. Monte Carlo Basics
+7. Sobol Sensitivity Analysis
+8. Bayesian Calibration Intro
+
+### Path 2: Surrogate Modeling (3 hours)
+
+For users interested in building surrogate models:
+
+1. Monte Carlo Basics (prerequisite)
+2. Polynomial Chaos Expansion
+3. Introduction to Sparse Grids
+4. Adaptive Sparse Grids
+5. Gaussian Process Surrogates
+
+### Path 3: Multifidelity Methods (2 hours)
+
+For users working with multi-resolution models:
+
+1. Monte Carlo Basics (prerequisite)
+2. Control Variates
+3. Multifidelity Monte Carlo
+
+## Tags Index
+
+### By Topic
+
+- **setup**: Setup Environment
+- **concepts**: UQ Problem Framing
+- **forward-uq**: Forward Model Definition, ODE Integration, QoI, Monte Carlo Basics
+- **probability**: Random Variables & Distributions
+- **sampling**: Monte Carlo Basics, Hamiltonian MCMC
+- **sensitivity**: Sobol Sensitivity Analysis
+- **inference**: Bayesian Calibration, Hamiltonian MCMC
+- **surrogate**: PCE, Sparse Grids, Adaptive Sparse Grids, Gaussian Process
+- **multifidelity**: Control Variates, MFMC
+- **design**: Optimal Experimental Design
+- **optimization**: Optimization Under Uncertainty
+- **advanced**: Backend Alternatives, Benchmark Setup
+
+### By Difficulty
+
+- **Beginner**: Setup, UQ Problem Framing, Forward Model
+- **Intermediate**: Monte Carlo, Sobol SA, Bayesian Calibration
+- **Advanced**: HMC, Multifidelity, OED, OUU
+
+## Conventions
+
+All tutorials follow consistent notation and coding standards:
+
+- **Mathematical notation**: See [CONVENTIONS.md](../CONVENTIONS.md)
+- **Array shapes**: Samples as columns `(nvars, nsamples)`
+- **Backend**: NumPy by default; PyTorch covered in Backend Alternatives
+
+## Getting Help
+
+- [PyApprox Documentation](https://pyapprox.readthedocs.io)
+- [GitHub Issues](https://github.com/sandialabs/pyapprox/issues)
+- [Discussion Forum](https://github.com/sandialabs/pyapprox/discussions)
