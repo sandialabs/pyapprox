@@ -11,6 +11,9 @@ from pyapprox.typing.pde.galerkin.physics.helmholtz import Helmholtz
 from pyapprox.typing.pde.galerkin.physics.hyperelasticity import (
     HyperelasticityPhysics,
 )
+from pyapprox.typing.pde.galerkin.physics.composite_hyperelasticity import (
+    CompositeHyperelasticityPhysics,
+)
 from pyapprox.typing.pde.galerkin.physics.composite_linear_elasticity import (
     CompositeLinearElasticity,
 )
@@ -31,6 +34,7 @@ __all__ = [
     "HyperelasticityPhysics",
     "LinearAdvectionDiffusionReaction",
     "Helmholtz",
+    "CompositeHyperelasticityPhysics",
     "CompositeLinearElasticity",
     "EulerBernoulliBeamAnalytical",
     "EulerBernoulliBeamFEM",
