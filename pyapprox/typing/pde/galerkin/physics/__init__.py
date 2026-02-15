@@ -11,7 +11,12 @@ from pyapprox.typing.pde.galerkin.physics.helmholtz import Helmholtz
 from pyapprox.typing.pde.galerkin.physics.hyperelasticity import (
     HyperelasticityPhysics,
 )
-from pyapprox.typing.pde.galerkin.physics.linear_elasticity import LinearElasticity
+from pyapprox.typing.pde.galerkin.physics.composite_linear_elasticity import (
+    CompositeLinearElasticity,
+)
+
+# Backward-compatible alias
+LinearElasticity = CompositeLinearElasticity
 from pyapprox.typing.pde.galerkin.physics.stokes import StokesPhysics
 
 __all__ = [
@@ -22,6 +27,7 @@ __all__ = [
     "HyperelasticityPhysics",
     "LinearAdvectionDiffusionReaction",
     "Helmholtz",
+    "CompositeLinearElasticity",
     "LinearElasticity",
     "StokesPhysics",
 ]

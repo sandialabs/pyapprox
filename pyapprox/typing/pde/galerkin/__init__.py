@@ -34,6 +34,7 @@ from pyapprox.typing.pde.galerkin.mesh import (
     StructuredMesh1D,
     StructuredMesh2D,
     StructuredMesh3D,
+    UnstructuredMesh2D,
 )
 
 from pyapprox.typing.pde.galerkin.basis import (
@@ -43,6 +44,7 @@ from pyapprox.typing.pde.galerkin.basis import (
 
 from pyapprox.typing.pde.galerkin.physics import (
     AbstractGalerkinPhysics,
+    CompositeLinearElasticity,
     LinearAdvectionDiffusionReaction,
     Helmholtz,
     LinearElasticity,
@@ -76,6 +78,7 @@ __all__ = [
     "StructuredMesh1D",
     "StructuredMesh2D",
     "StructuredMesh3D",
+    "UnstructuredMesh2D",
     # Basis implementations
     "LagrangeBasis",
     "VectorLagrangeBasis",
@@ -83,6 +86,7 @@ __all__ = [
     "AbstractGalerkinPhysics",
     "LinearAdvectionDiffusionReaction",
     "Helmholtz",
+    "CompositeLinearElasticity",
     "LinearElasticity",
     # Time integration adapter
     "GalerkinPhysicsODEAdapter",

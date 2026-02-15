@@ -13,7 +13,9 @@ from unittest_parametrize import ParametrizedTestCase, parametrize
 from pyapprox.typing.util.backends.numpy import NumpyBkd
 from pyapprox.typing.pde.galerkin.mesh import StructuredMesh2D
 from pyapprox.typing.pde.galerkin.basis import VectorLagrangeBasis
-from pyapprox.typing.pde.galerkin.physics import LinearElasticity
+from pyapprox.typing.pde.galerkin.physics.composite_linear_elasticity import (
+    CompositeLinearElasticity as LinearElasticity,
+)
 from pyapprox.typing.pde.galerkin.boundary import DirichletBC
 from pyapprox.typing.pde.galerkin.manufactured.adapter import (
     create_elasticity_manufactured_test,
@@ -158,7 +160,7 @@ class TestTransientElasticity2D(ParametrizedTestCase):
             bc_list.append(bc)
 
         # Create physics
-        physics = LinearElasticity(
+        physics = LinearElasticity.from_uniform(
             basis=basis,
             youngs_modulus=2.5,  # E computed from lambda=1, mu=1
             poisson_ratio=0.25,  # nu computed from lambda=1, mu=1

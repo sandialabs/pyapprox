@@ -10,7 +10,9 @@ from pyapprox.typing.util.backends.protocols import Array, Backend
 from pyapprox.typing.util.backends.numpy import NumpyBkd
 from pyapprox.typing.pde.galerkin.mesh import StructuredMesh2D
 from pyapprox.typing.pde.galerkin.basis import VectorLagrangeBasis
-from pyapprox.typing.pde.galerkin.physics import LinearElasticity
+from pyapprox.typing.pde.galerkin.physics.composite_linear_elasticity import (
+    CompositeLinearElasticity as LinearElasticity,
+)
 from pyapprox.typing.pde.galerkin.solvers import SteadyStateSolver
 from pyapprox.typing.pde.galerkin.boundary.implementations import DirichletBC
 from pyapprox.typing.pde.galerkin.protocols.physics import (
@@ -29,7 +31,7 @@ def _make_physics(
     E: float = 1.0,
     nu: float = 0.3,
     with_bcs: bool = True,
-) -> LinearElasticity[Array]:
+) -> "LinearElasticity[Array]":
     """Create a 2D LinearElasticity with constant body force and all-Dirichlet BCs."""
     mesh = StructuredMesh2D(
         nx=5, ny=5,
@@ -54,7 +56,7 @@ def _make_physics(
     else:
         bc_list = []
 
-    return LinearElasticity(
+    return LinearElasticity.from_uniform(
         basis=basis,
         youngs_modulus=E,
         poisson_ratio=nu,
