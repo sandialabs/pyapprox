@@ -14,6 +14,10 @@ from pyapprox.typing.pde.galerkin.physics.hyperelasticity import (
 from pyapprox.typing.pde.galerkin.physics.composite_linear_elasticity import (
     CompositeLinearElasticity,
 )
+from pyapprox.typing.pde.galerkin.physics.euler_bernoulli import (
+    EulerBernoulliBeamAnalytical,
+    EulerBernoulliBeamFEM,
+)
 
 # Backward-compatible alias
 LinearElasticity = CompositeLinearElasticity
@@ -28,6 +32,8 @@ __all__ = [
     "LinearAdvectionDiffusionReaction",
     "Helmholtz",
     "CompositeLinearElasticity",
+    "EulerBernoulliBeamAnalytical",
+    "EulerBernoulliBeamFEM",
     "LinearElasticity",
     "StokesPhysics",
 ]
