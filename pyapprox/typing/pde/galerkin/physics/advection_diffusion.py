@@ -23,6 +23,7 @@ where:
 from typing import Generic, Optional, Callable, List, Union, Tuple
 
 import numpy as np
+from scipy.sparse import csr_matrix
 
 from pyapprox.typing.util.backends.protocols import Array, Backend
 from pyapprox.typing.pde.galerkin.protocols.basis import GalerkinBasisProtocol
@@ -249,9 +250,7 @@ class AdvectionDiffusionReaction(AbstractGalerkinPhysics[Array]):
 
             return result
 
-        stiffness_np = asm(
-            BilinearForm(bilinear_form), skfem_basis
-        ).toarray()
+        stiffness = asm(BilinearForm(bilinear_form), skfem_basis)
 
         # Add advection if present
         if self._velocity is not None:
@@ -271,18 +270,15 @@ class AdvectionDiffusionReaction(AbstractGalerkinPhysics[Array]):
                     # Non-conservative: (w, v.grad(u))
                     return dot(vel, grad(u)) * v
 
-            advection_np = asm(
-                BilinearForm(advection_form), skfem_basis
-            ).toarray()
-            stiffness_np = stiffness_np + advection_np
-
-        stiffness = self._bkd.asarray(stiffness_np.astype(np.float64))
+            advection = asm(BilinearForm(advection_form), skfem_basis)
+            stiffness = stiffness + advection
 
         # Cache if linear problem with constant coefficients
         if self.is_linear() and not callable(self._diffusivity) and not callable(self._velocity):
             self._stiffness_cached = stiffness
 
         return stiffness
+
 
     def _assemble_load(self, state: Array, time: float) -> Array:
         """Assemble load vector b.
@@ -370,7 +366,7 @@ class AdvectionDiffusionReaction(AbstractGalerkinPhysics[Array]):
         """
         if self._reaction_deriv is None or self._reaction_is_linear:
             # No nonlinear reaction or linear reaction (already in stiffness)
-            return self._bkd.asarray(np.zeros((self.nstates(), self.nstates())))
+            return csr_matrix((self.nstates(), self.nstates()))
 
         skfem_basis = self._basis.skfem_basis()
         state_np = self._bkd.to_numpy(state)
@@ -396,11 +392,9 @@ class AdvectionDiffusionReaction(AbstractGalerkinPhysics[Array]):
             # Negative because moved to LHS: -(w, R'(u)*du)
             return -react_deriv * u * v
 
-        jac_np = asm(
+        return asm(
             BilinearForm(reaction_jacobian_form), skfem_basis, u_prev=state_interp
-        ).toarray()
-
-        return self._bkd.asarray(jac_np.astype(np.float64))
+        )
 
     def spatial_jacobian(self, state: Array, time: float) -> Array:
         """Compute dF/du without Dirichlet enforcement.

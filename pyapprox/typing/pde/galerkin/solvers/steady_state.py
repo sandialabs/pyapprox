@@ -11,9 +11,11 @@ from typing import Generic, Optional, Tuple, Callable
 from dataclasses import dataclass
 
 import numpy as np
+from scipy.sparse import issparse
 
 from pyapprox.typing.util.backends.protocols import Array, Backend
 from pyapprox.typing.pde.galerkin.protocols.physics import GalerkinPhysicsProtocol
+from pyapprox.typing.pde.sparse_utils import galerkin_solve
 
 
 @dataclass
@@ -124,7 +126,11 @@ class SteadyStateSolver(Generic[Array]):
 
             # Compute Jacobian and Newton direction
             jacobian = self._physics.jacobian(u, time)
-            delta_u = self._bkd.solve(jacobian, -residual)
+            if issparse(jacobian):
+                delta_u_np = galerkin_solve(jacobian, -residual_np)
+                delta_u = self._bkd.asarray(delta_u_np)
+            else:
+                delta_u = self._bkd.solve(jacobian, -residual)
 
             # Line search for robustness
             if self._line_search:
@@ -239,7 +245,11 @@ class SteadyStateSolver(Generic[Array]):
         K = -jacobian  # K = -dF/du
 
         # Solve K*u = b
-        u = self._bkd.solve(K, b)
+        if issparse(K):
+            b_np = self._bkd.to_numpy(b)
+            u = self._bkd.asarray(galerkin_solve(K, b_np))
+        else:
+            u = self._bkd.solve(K, b)
 
         # Verify
         residual = self._physics.residual(u, time)

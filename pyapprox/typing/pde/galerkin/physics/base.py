@@ -65,7 +65,7 @@ class AbstractGalerkinPhysics(ABC, Generic[Array]):
         """Return total number of DOFs."""
         return self._basis.ndofs()
 
-    def mass_matrix(self) -> Array:
+    def mass_matrix(self):
         """Return the mass matrix from weak form.
 
         For Galerkin FEM with Lagrange elements:
@@ -73,15 +73,12 @@ class AbstractGalerkinPhysics(ABC, Generic[Array]):
 
         Returns
         -------
-        Array
-            Mass matrix. Shape: (nstates, nstates)
+        sparse matrix
+            Mass matrix in CSR format. Shape: (nstates, nstates)
         """
         if self._mass_matrix_cached is None:
             skfem_basis = self._basis.skfem_basis()
-            mass_np = asm(mass, skfem_basis).toarray()
-            self._mass_matrix_cached = self._bkd.asarray(
-                mass_np.astype(np.float64)
-            )
+            self._mass_matrix_cached = asm(mass, skfem_basis)
         return self._mass_matrix_cached
 
     def mass_solve(self, rhs: Array) -> Array:
@@ -100,8 +97,11 @@ class AbstractGalerkinPhysics(ABC, Generic[Array]):
         Array
             Solution x = M^{-1} * rhs. Same shape as rhs.
         """
+        from pyapprox.typing.pde.sparse_utils import galerkin_solve
+
         M = self.mass_matrix()
-        return self._bkd.solve(M, rhs)
+        rhs_np = self._bkd.to_numpy(rhs)
+        return self._bkd.asarray(galerkin_solve(M, rhs_np))
 
     @abstractmethod
     def _assemble_stiffness(self, state: Array, time: float) -> Array:

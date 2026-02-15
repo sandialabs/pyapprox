@@ -13,6 +13,7 @@ from typing import Generic, Any, List, Tuple
 
 import numpy as np
 from numpy.typing import NDArray
+from scipy.sparse import issparse
 from unittest_parametrize import ParametrizedTestCase, parametrize
 
 from pyapprox.typing.util.backends.protocols import Array, Backend
@@ -38,6 +39,12 @@ class TestLinearADRBase(Generic[Array], unittest.TestCase):
     def setUp(self) -> None:
         self.bkd_inst = self.bkd()
 
+    def _to_dense(self, matrix):
+        """Convert sparse or backend matrix to dense numpy array."""
+        if issparse(matrix):
+            return matrix.toarray()
+        return self.bkd_inst.to_numpy(matrix)
+
     def test_1d_mass_matrix_symmetric(self) -> None:
         """Test mass matrix is symmetric in 1D."""
         mesh = StructuredMesh1D(nx=10, bounds=(0.0, 1.0), bkd=self.bkd_inst)
@@ -47,7 +54,7 @@ class TestLinearADRBase(Generic[Array], unittest.TestCase):
         )
 
         M = physics.mass_matrix()
-        M_np = self.bkd_inst.to_numpy(M)
+        M_np = self._to_dense(M)
 
         np.testing.assert_array_almost_equal(M_np, M_np.T)
 
@@ -60,7 +67,7 @@ class TestLinearADRBase(Generic[Array], unittest.TestCase):
         )
 
         M = physics.mass_matrix()
-        M_np = self.bkd_inst.to_numpy(M)
+        M_np = self._to_dense(M)
 
         eigenvalues = np.linalg.eigvalsh(M_np)
         self.assertTrue(np.all(eigenvalues > 0))
@@ -75,7 +82,7 @@ class TestLinearADRBase(Generic[Array], unittest.TestCase):
 
         u0 = self.bkd_inst.asarray(np.zeros(physics.nstates()))
         jac = physics.jacobian(u0, 0.0)
-        jac_np = self.bkd_inst.to_numpy(jac)
+        jac_np = self._to_dense(jac)
 
         # For pure diffusion (no reaction), -jacobian should be the
         # stiffness matrix, which should be symmetric
@@ -187,7 +194,7 @@ class TestLinearADRBase(Generic[Array], unittest.TestCase):
         )
 
         M = physics.mass_matrix()
-        M_np = self.bkd_inst.to_numpy(M)
+        M_np = self._to_dense(M)
 
         np.testing.assert_array_almost_equal(M_np, M_np.T)
 
@@ -205,7 +212,7 @@ class TestLinearADRBase(Generic[Array], unittest.TestCase):
 
         u0 = self.bkd_inst.asarray(np.zeros(physics.nstates()))
         jac = physics.jacobian(u0, 0.0)
-        jac_np = self.bkd_inst.to_numpy(jac)
+        jac_np = self._to_dense(jac)
 
         # For pure diffusion, -jacobian = stiffness matrix should be symmetric
         K = -jac_np

@@ -7,9 +7,11 @@ that integrate with scikit-fem for assembly.
 from typing import Generic, List, Optional, Callable, Union
 
 import numpy as np
+from scipy.sparse import issparse
 
 from pyapprox.typing.util.backends.protocols import Array, Backend
 from pyapprox.typing.pde.galerkin.protocols.basis import GalerkinBasisProtocol
+from pyapprox.typing.pde.sparse_utils import apply_dirichlet_rows
 
 try:
     from skfem import asm, LinearForm, BilinearForm, Basis
@@ -168,10 +170,6 @@ class DirichletBC(Generic[Array]):
         sparse matrix or Array
             Modified Jacobian (same type as input).
         """
-        from scipy.sparse import issparse
-
-        from pyapprox.typing.pde.sparse_utils import apply_dirichlet_rows
-
         bndry_dofs_np = self._bkd.to_numpy(self._boundary_dofs)
 
         if issparse(jacobian):
@@ -469,8 +467,6 @@ class RobinBC(Generic[Array]):
         sparse matrix or Array
             Modified stiffness matrix (same type as input).
         """
-        from scipy.sparse import issparse
-
         bndry_basis = self._get_boundary_basis()
         alpha = self._alpha
         ncomps = getattr(self._basis, 'ncomponents', lambda: 1)()
