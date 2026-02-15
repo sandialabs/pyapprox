@@ -147,15 +147,16 @@ class DirichletBC(Generic[Array]):
         return self._bkd.asarray(res_np)
 
     def apply_to_jacobian(
-        self, jacobian: Array, state: Array, time: float
-    ) -> Array:
+        self, jacobian, state: Array, time: float
+    ):
         """Apply Dirichlet BC to Jacobian.
 
         Sets Jacobian rows to identity for boundary DOFs.
+        Accepts both sparse matrices and dense arrays.
 
         Parameters
         ----------
-        jacobian : Array
+        jacobian : sparse matrix or Array
             Jacobian matrix. Shape: (nstates, nstates)
         state : Array
             Current solution. Shape: (nstates,)
@@ -164,18 +165,23 @@ class DirichletBC(Generic[Array]):
 
         Returns
         -------
-        Array
-            Modified Jacobian. Shape: (nstates, nstates)
+        sparse matrix or Array
+            Modified Jacobian (same type as input).
         """
-        jac_np = self._bkd.to_numpy(jacobian).copy()
+        from scipy.sparse import issparse
+
+        from pyapprox.typing.pde.sparse_utils import apply_dirichlet_rows
+
         bndry_dofs_np = self._bkd.to_numpy(self._boundary_dofs)
 
-        # Set Jacobian rows to identity for boundary DOFs
-        for dof in bndry_dofs_np:
-            jac_np[dof, :] = 0.0
-            jac_np[dof, dof] = 1.0
-
-        return self._bkd.asarray(jac_np)
+        if issparse(jacobian):
+            return apply_dirichlet_rows(jacobian, bndry_dofs_np)
+        else:
+            jac_np = self._bkd.to_numpy(jacobian).copy()
+            for dof in bndry_dofs_np:
+                jac_np[dof, :] = 0.0
+                jac_np[dof, dof] = 1.0
+            return self._bkd.asarray(jac_np)
 
     def apply_to_param_jacobian(
         self, param_jacobian: Array, state: Array, time: float,
@@ -443,26 +449,28 @@ class RobinBC(Generic[Array]):
             self._boundary_basis = skfem_basis.boundary(self._boundary_name)
         return self._boundary_basis
 
-    def apply_to_stiffness(self, stiffness: Array, time: float) -> Array:
+    def apply_to_stiffness(self, stiffness, time: float):
         """Apply Robin BC contribution to stiffness matrix.
 
         Adds: alpha * integral_{Gamma} u . phi ds
 
         For vector elements uses sum_i(u_i * v_i); for scalar uses u * v.
+        Accepts both sparse matrices and dense arrays.
 
         Parameters
         ----------
-        stiffness : Array
+        stiffness : sparse matrix or Array
             Stiffness matrix. Shape: (nstates, nstates)
         time : float
             Current time.
 
         Returns
         -------
-        Array
-            Modified stiffness matrix.
+        sparse matrix or Array
+            Modified stiffness matrix (same type as input).
         """
-        stiff_np = self._bkd.to_numpy(stiffness).copy()
+        from scipy.sparse import issparse
+
         bndry_basis = self._get_boundary_basis()
         alpha = self._alpha
         ncomps = getattr(self._basis, 'ncomponents', lambda: 1)()
@@ -474,8 +482,13 @@ class RobinBC(Generic[Array]):
             def robin_bilinear(u, v, w):
                 return alpha * u * v
 
-        contribution = asm(BilinearForm(robin_bilinear), bndry_basis).toarray()
-        stiff_np += contribution
+        contribution_sparse = asm(BilinearForm(robin_bilinear), bndry_basis)
+
+        if issparse(stiffness):
+            return stiffness + contribution_sparse
+        else:
+            stiff_np = self._bkd.to_numpy(stiffness).copy()
+            stiff_np += contribution_sparse.toarray()
 
         return self._bkd.asarray(stiff_np.astype(np.float64))
 
