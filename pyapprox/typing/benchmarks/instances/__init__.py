@@ -29,6 +29,9 @@ from pyapprox.typing.benchmarks.instances.ode import (
 )
 from pyapprox.typing.benchmarks.instances.pde import (
     elastic_bar_1d,
+    cantilever_beam_1d,
+    cantilever_beam_2d_linear,
+    cantilever_beam_2d_neohookean,
 )
 
 __all__ = [
@@ -54,4 +57,7 @@ __all__ = [
     "hastings_ecology_3species",
     "chemical_reaction_surface",
     "elastic_bar_1d",
+    "cantilever_beam_1d",
+    "cantilever_beam_2d_linear",
+    "cantilever_beam_2d_neohookean",
 ]
