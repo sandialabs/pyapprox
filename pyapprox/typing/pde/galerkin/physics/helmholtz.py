@@ -102,7 +102,6 @@ class Helmholtz(GalerkinPhysicsBase[Array]):
         self._stiffness_cached: Optional[Array] = None
         self._load_cached: Optional[Array] = None
 
-    @property
     def wavenumber(self) -> Union[float, Callable]:
         """Return the wavenumber k (scalar) or k^2(x) (callable)."""
         return self._wavenumber

@@ -170,8 +170,8 @@ class TestTransientElasticity2D(ParametrizedTestCase):
         )
 
         # Verify Lame parameters match
-        assert abs(physics.lame_lambda - 1.0) < 1e-10
-        assert abs(physics.lame_mu - 1.0) < 1e-10
+        assert abs(physics.lame_lambda() - 1.0) < 1e-10
+        assert abs(physics.lame_mu() - 1.0) < 1e-10
 
         # Time stepping with constrained wrapper
         ode_adapter = GalerkinPhysicsODEAdapter(physics)

@@ -201,7 +201,7 @@ class TestHelmholtzBase(Generic[Array], unittest.TestCase):
         k = 3.5
         physics = Helmholtz(basis=basis, wavenumber=k, bkd=self.bkd_inst)
 
-        self.assertEqual(physics.wavenumber, k)
+        self.assertEqual(physics.wavenumber(), k)
 
     def test_steady_state_solve(self) -> None:
         """Test solving steady-state Helmholtz with forcing."""

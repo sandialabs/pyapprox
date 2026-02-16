@@ -533,7 +533,6 @@ class CompositeHyperelasticityPhysics(GalerkinPhysicsBase[Array]):
     # Convenience properties for uniform-material access
     # -----------------------------------------------------------------
 
-    @property
     def youngs_modulus(self) -> float:
         if self._nmaterials != 1:
             raise AttributeError(
@@ -541,7 +540,6 @@ class CompositeHyperelasticityPhysics(GalerkinPhysicsBase[Array]):
             )
         return self._material_map[self._material_names[0]][0]
 
-    @property
     def poisson_ratio(self) -> float:
         if self._nmaterials != 1:
             raise AttributeError(
@@ -549,7 +547,6 @@ class CompositeHyperelasticityPhysics(GalerkinPhysicsBase[Array]):
             )
         return self._material_map[self._material_names[0]][1]
 
-    @property
     def lame_lambda(self) -> float:
         if self._nmaterials != 1:
             raise AttributeError(
@@ -558,7 +555,6 @@ class CompositeHyperelasticityPhysics(GalerkinPhysicsBase[Array]):
         E, nu = self._material_map[self._material_names[0]]
         return lame_parameters(E, nu)[0]
 
-    @property
     def lame_mu(self) -> float:
         if self._nmaterials != 1:
             raise AttributeError(

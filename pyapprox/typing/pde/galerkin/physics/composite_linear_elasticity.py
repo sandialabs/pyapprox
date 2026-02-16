@@ -369,7 +369,6 @@ class CompositeLinearElasticity(GalerkinPhysicsBase[Array]):
     # Convenience properties for uniform-material access
     # -----------------------------------------------------------------
 
-    @property
     def youngs_modulus(self) -> float:
         """Return Young's modulus (only valid for single-material)."""
         if self._nmaterials != 1:
@@ -379,7 +378,6 @@ class CompositeLinearElasticity(GalerkinPhysicsBase[Array]):
             )
         return self._material_map[self._material_names[0]][0]
 
-    @property
     def poisson_ratio(self) -> float:
         """Return Poisson's ratio (only valid for single-material)."""
         if self._nmaterials != 1:
@@ -389,7 +387,6 @@ class CompositeLinearElasticity(GalerkinPhysicsBase[Array]):
             )
         return self._material_map[self._material_names[0]][1]
 
-    @property
     def lame_lambda(self) -> float:
         """Return first Lame parameter (only valid for single-material)."""
         if self._nmaterials != 1:
@@ -400,7 +397,6 @@ class CompositeLinearElasticity(GalerkinPhysicsBase[Array]):
         E, nu = self._material_map[self._material_names[0]]
         return lame_parameters(E, nu)[0]
 
-    @property
     def lame_mu(self) -> float:
         """Return second Lame parameter (only valid for single-material)."""
         if self._nmaterials != 1:

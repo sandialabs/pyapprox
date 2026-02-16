@@ -313,9 +313,9 @@ class TestCompositeLinearElasticityBase(
         expected_lambda = E * nu / ((1 + nu) * (1 - 2 * nu))
         expected_mu = E / (2 * (1 + nu))
         self.assertAlmostEqual(
-            physics.lame_lambda, expected_lambda, places=10
+            physics.lame_lambda(), expected_lambda, places=10
         )
-        self.assertAlmostEqual(physics.lame_mu, expected_mu, places=10)
+        self.assertAlmostEqual(physics.lame_mu(), expected_mu, places=10)
 
     def test_poisson_ratio_validation(self) -> None:
         mesh = StructuredMesh2D(

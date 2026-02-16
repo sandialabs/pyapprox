@@ -46,10 +46,24 @@ from pyapprox.typing.pde.galerkin.physics import (
     GalerkinBCMixin,
     GalerkinPhysicsBase,
     ScalarMassAssembler,
-    CompositeLinearElasticity,
+    AdvectionDiffusionReaction,
     LinearAdvectionDiffusionReaction,
+    BurgersPhysics,
     Helmholtz,
+    CompositeLinearElasticity,
     LinearElasticity,
+    HyperelasticityPhysics,
+    CompositeHyperelasticityPhysics,
+    EulerBernoulliBeamAnalytical,
+    EulerBernoulliBeamFEM,
+    StokesPhysics,
+)
+
+from pyapprox.typing.pde.galerkin.bilaplacian import BiLaplacianPrior
+
+from pyapprox.typing.pde.galerkin.boundary import (
+    DirectDirichletBC,
+    CallableDirichletBC,
 )
 
 from pyapprox.typing.pde.galerkin.time_integration import (
@@ -84,14 +98,26 @@ __all__ = [
     # Basis implementations
     "LagrangeBasis",
     "VectorLagrangeBasis",
-    # Physics implementations
+    # Physics infrastructure
     "GalerkinBCMixin",
     "GalerkinPhysicsBase",
     "ScalarMassAssembler",
+    # Physics implementations
+    "AdvectionDiffusionReaction",
     "LinearAdvectionDiffusionReaction",
+    "BurgersPhysics",
     "Helmholtz",
     "CompositeLinearElasticity",
     "LinearElasticity",
+    "HyperelasticityPhysics",
+    "CompositeHyperelasticityPhysics",
+    "EulerBernoulliBeamAnalytical",
+    "EulerBernoulliBeamFEM",
+    "StokesPhysics",
+    "BiLaplacianPrior",
+    # Boundary condition implementations
+    "DirectDirichletBC",
+    "CallableDirichletBC",
     # Time integration adapter
     "GalerkinPhysicsODEAdapter",
     # Solvers
