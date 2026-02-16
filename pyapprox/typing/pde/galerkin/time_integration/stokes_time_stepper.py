@@ -80,7 +80,8 @@ class StokesTimeStepResidual(Generic[Array]):
         else:
             M = self._bkd.copy(M_orig)
 
-        D_dofs, _ = self._physics._get_dirichlet_dofs_and_values(time)
+        D_dofs_arr, _ = self._physics.dirichlet_dof_info(time)
+        D_dofs = self._bkd.to_numpy(D_dofs_arr)
         if len(D_dofs) > 0:
             if issparse(M):
                 # Zero rows in CSR format

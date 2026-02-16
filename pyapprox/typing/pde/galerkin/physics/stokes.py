@@ -18,14 +18,15 @@ import numpy as np
 from scipy.sparse import block_diag as sp_block_diag, csr_matrix
 
 from pyapprox.typing.util.backends.protocols import Array, Backend
-from pyapprox.typing.pde.sparse_utils import (
-    apply_dirichlet_rows,
-    solve_maybe_sparse,
-)
+from pyapprox.typing.pde.sparse_utils import solve_maybe_sparse
 from pyapprox.typing.pde.galerkin.basis.vector_lagrange import (
     VectorLagrangeBasis,
 )
 from pyapprox.typing.pde.galerkin.basis.lagrange import LagrangeBasis
+from pyapprox.typing.pde.galerkin.physics.bc_mixin import GalerkinBCMixin
+from pyapprox.typing.pde.galerkin.boundary.implementations import (
+    CallableDirichletBC,
+)
 
 try:
     from skfem import asm, LinearForm, BilinearForm, Basis, bmat
@@ -38,7 +39,7 @@ except ImportError:
     )
 
 
-class StokesPhysics(Generic[Array]):
+class StokesPhysics(GalerkinBCMixin[Array], Generic[Array]):
     """Stokes/Navier-Stokes physics for Galerkin FEM.
 
     Solves the Stokes equations:
@@ -118,6 +119,73 @@ class StokesPhysics(Generic[Array]):
         self._B_cached = None  # divergence operator (sparse)
         self._vel_mass_cached: Optional[Array] = None
         self._mass_cached: Optional[Array] = None
+
+        # Convert tuple BCs to CallableDirichletBC objects for mixin
+        self._boundary_conditions = self._build_boundary_conditions()
+
+    def _build_boundary_conditions(self) -> List:
+        """Convert tuple-based BCs to CallableDirichletBC objects."""
+        bcs = []
+        nvars = self._ndim
+
+        for bndry_name, bndry_func in self._vel_dirichlet_bcs:
+            for idx in range(nvars):
+                # Extract DOF indices for this component
+                if nvars >= 2:
+                    dofnames = (
+                        self._vel_skfem_basis.get_dofs().obj.element.dofnames
+                    )
+                    skip = dofnames[nvars - idx - 1]
+                    bndry_dofs = self._vel_skfem_basis.get_dofs(
+                        bndry_name, skip=skip
+                    )
+                else:
+                    bndry_dofs = self._vel_skfem_basis.get_dofs(bndry_name)
+
+                dof_arr = np.asarray(bndry_dofs).flatten()
+                coords = self._vel_skfem_basis.doflocs[:, dof_arr]
+
+                def _make_vel_value_func(func, crds, comp_idx):
+                    def value_func(time):
+                        try:
+                            vals = func(crds, time)
+                        except TypeError:
+                            vals = func(crds)
+                        if vals.ndim == 2:
+                            return vals[:, comp_idx]
+                        return vals
+                    return value_func
+
+                bcs.append(CallableDirichletBC(
+                    dof_arr,
+                    _make_vel_value_func(bndry_func, coords, idx),
+                    self._bkd,
+                ))
+
+        for bndry_name, bndry_func in self._pres_dirichlet_bcs:
+            p_dofs = self._pres_skfem_basis.get_dofs(bndry_name)
+            p_dofs_arr = np.asarray(p_dofs).flatten()
+            shifted_p_dofs = p_dofs_arr + self.vel_ndofs()
+            coords = self._pres_skfem_basis.doflocs[:, p_dofs_arr]
+
+            def _make_pres_value_func(func, crds):
+                def value_func(time):
+                    try:
+                        vals = func(crds, time)
+                    except TypeError:
+                        vals = func(crds)
+                    if vals.ndim == 2:
+                        return vals.flatten()
+                    return vals
+                return value_func
+
+            bcs.append(CallableDirichletBC(
+                shifted_p_dofs,
+                _make_pres_value_func(bndry_func, coords),
+                self._bkd,
+            ))
+
+        return bcs
 
     def bkd(self) -> Backend[Array]:
         """Return the computational backend."""
@@ -318,94 +386,6 @@ class StokesPhysics(Generic[Array]):
         raise NotImplementedError("Only 1D and 2D Navier-Stokes supported")
 
     # ------------------------------------------------------------------
-    # Boundary conditions
-    # ------------------------------------------------------------------
-
-    def _get_dirichlet_dofs_and_values(
-        self, time: float
-    ) -> Tuple[np.ndarray, np.ndarray]:
-        """Compute global DOF indices and values for all Dirichlet BCs.
-
-        Returns
-        -------
-        dof_indices : np.ndarray
-            Global DOF indices in the combined [vel | pres] vector.
-        dof_values : np.ndarray
-            Corresponding exact values.
-        """
-        nvars = self._ndim
-        vel_D_dofs = []
-        D_vals = np.concatenate([
-            np.zeros(self.vel_ndofs()),
-            np.zeros(self.pres_ndofs()),
-        ])
-
-        # Velocity Dirichlet BCs
-        for bndry_name, bndry_func in self._vel_dirichlet_bcs:
-            for idx in range(nvars):
-                if nvars >= 2:
-                    dofnames = (
-                        self._vel_skfem_basis.get_dofs().obj.element.dofnames
-                    )
-                    skip = dofnames[nvars - idx - 1]
-                    bndry_dofs = self._vel_skfem_basis.get_dofs(
-                        bndry_name, skip=skip
-                    )
-                else:
-                    bndry_dofs = self._vel_skfem_basis.get_dofs(bndry_name)
-
-                bndry_dofs_arr = np.asarray(bndry_dofs).flatten()
-                vel_D_dofs.append(bndry_dofs_arr)
-
-                # Evaluate BC function at DOF locations
-                coords = self._vel_skfem_basis.doflocs[:, bndry_dofs_arr]
-                try:
-                    vals = bndry_func(coords, time)
-                except TypeError:
-                    vals = bndry_func(coords)
-
-                # vals shape: (npts, nvars) — extract component idx
-                if vals.ndim == 2:
-                    D_vals[bndry_dofs_arr] = vals[:, idx]
-                else:
-                    D_vals[bndry_dofs_arr] = vals
-
-        # Pressure Dirichlet BCs
-        pres_D_dofs = []
-        for bndry_name, bndry_func in self._pres_dirichlet_bcs:
-            p_dofs = self._pres_skfem_basis.get_dofs(bndry_name)
-            p_dofs_arr = np.asarray(p_dofs).flatten()
-            shifted_p_dofs = p_dofs_arr + self.vel_ndofs()
-            pres_D_dofs.append(shifted_p_dofs)
-
-            coords = self._pres_skfem_basis.doflocs[:, p_dofs_arr]
-            try:
-                vals = bndry_func(coords, time)
-            except TypeError:
-                vals = bndry_func(coords)
-
-            if vals.ndim == 2:
-                vals = vals.flatten()
-            D_vals[shifted_p_dofs] = vals
-
-        # Combine all Dirichlet DOFs
-        all_dofs = []
-        if vel_D_dofs:
-            all_dofs.append(np.unique(np.concatenate(vel_D_dofs)))
-        if pres_D_dofs:
-            all_dofs.append(np.concatenate(pres_D_dofs))
-
-        if all_dofs:
-            D_dofs = np.union1d(
-                all_dofs[0] if len(all_dofs) > 0 else np.array([], dtype=int),
-                all_dofs[1] if len(all_dofs) > 1 else np.array([], dtype=int),
-            ).astype(int)
-        else:
-            D_dofs = np.array([], dtype=int)
-
-        return D_dofs, D_vals
-
-    # ------------------------------------------------------------------
     # Physics protocol methods
     # ------------------------------------------------------------------
 
@@ -455,34 +435,24 @@ class StokesPhysics(Generic[Array]):
 
         return self._bkd.asarray(residual_np.astype(np.float64))
 
-    def dirichlet_dof_info(self, time: float) -> Tuple[Array, Array]:
-        """Return Dirichlet DOF indices and their exact values.
-
-        Wraps the existing _get_dirichlet_dofs_and_values method.
+    def spatial_jacobian(self, state: Array, time: float) -> Array:
+        """Compute Jacobian dF/du = -K without Dirichlet enforcement.
 
         Parameters
         ----------
+        state : Array
+            Solution state [vel_dofs | pres_dofs]. Shape: (nstates,)
         time : float
             Current time.
 
         Returns
         -------
-        Tuple[Array, Array]
-            dof_indices : Array
-                DOF indices. Shape: (ndirichlet,)
-            dof_values : Array
-                Exact values at those DOFs. Shape: (ndirichlet,)
+        Array
+            Jacobian matrix. Shape: (nstates, nstates)
         """
-        D_dofs, D_vals = self._get_dirichlet_dofs_and_values(time)
-        if len(D_dofs) > 0:
-            return (
-                self._bkd.asarray(D_dofs.astype(np.int64)),
-                self._bkd.asarray(D_vals[D_dofs].astype(np.float64)),
-            )
-        return (
-            self._bkd.asarray(np.array([], dtype=np.int64)),
-            self._bkd.asarray(np.array([], dtype=np.float64)),
-        )
+        state_np = self._bkd.to_numpy(state)
+        K = self._assemble_block_stiffness(state_np)
+        return -K
 
     def residual(self, state: Array, time: float) -> Array:
         """Compute residual F(u, t) = load - K*u with BCs applied.
@@ -501,17 +471,8 @@ class StokesPhysics(Generic[Array]):
         Array
             Residual vector. Shape: (nstates,)
         """
-        residual_np = self._bkd.to_numpy(
-            self.spatial_residual(state, time)
-        ).copy()
-        state_np = self._bkd.to_numpy(state)
-
-        # Apply Dirichlet BCs
-        D_dofs, D_vals = self._get_dirichlet_dofs_and_values(time)
-        if len(D_dofs) > 0:
-            residual_np[D_dofs] = state_np[D_dofs] - D_vals[D_dofs]
-
-        return self._bkd.asarray(residual_np.astype(np.float64))
+        res = self.spatial_residual(state, time)
+        return self._apply_dirichlet_to_residual(res, state, time)
 
     def jacobian(self, state: Array, time: float) -> Array:
         """Compute Jacobian dF/du = -K with BCs applied.
@@ -530,16 +491,8 @@ class StokesPhysics(Generic[Array]):
         Array
             Jacobian matrix. Shape: (nstates, nstates)
         """
-        state_np = self._bkd.to_numpy(state)
-        K = self._assemble_block_stiffness(state_np)
-        jac = -K  # sparse negation
-
-        # Apply Dirichlet BCs: set rows to identity
-        D_dofs, _ = self._get_dirichlet_dofs_and_values(time)
-        if len(D_dofs) > 0:
-            jac = apply_dirichlet_rows(jac, D_dofs)
-
-        return jac
+        jac = self.spatial_jacobian(state, time)
+        return self._apply_dirichlet_to_jacobian(jac, state, time)
 
     def vel_mass_matrix(self) -> Array:
         """Return velocity mass matrix M_vel.

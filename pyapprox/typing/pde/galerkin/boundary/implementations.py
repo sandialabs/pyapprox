@@ -848,3 +848,84 @@ class DirectDirichletBC(Generic[Array]):
     def __repr__(self) -> str:
         n = len(self._bkd.to_numpy(self._dof_indices))
         return f"DirectDirichletBC(ndofs={n})"
+
+
+class CallableDirichletBC(Generic[Array]):
+    """Dirichlet BC with time-dependent values from a callable.
+
+    Like ``DirectDirichletBC`` but the values are recomputed at each
+    time step via a user-supplied callable.
+
+    Satisfies ``DirichletBCProtocol``.
+
+    Parameters
+    ----------
+    dof_indices : array-like
+        Global DOF indices. Shape: (nboundary_dofs,)
+    value_func : Callable[[float], np.ndarray]
+        Function that takes time and returns values at the DOFs.
+        Must return array of shape (nboundary_dofs,).
+    bkd : Backend[Array]
+        Computational backend.
+    """
+
+    def __init__(
+        self,
+        dof_indices,
+        value_func: Callable[[float], np.ndarray],
+        bkd: Backend[Array],
+    ):
+        self._bkd = bkd
+        self._dof_indices = bkd.asarray(
+            np.asarray(dof_indices, dtype=np.int64)
+        )
+        self._value_func = value_func
+
+    def bkd(self) -> Backend[Array]:
+        """Return the computational backend."""
+        return self._bkd
+
+    def boundary_dofs(self) -> Array:
+        """Return indices of DOFs on this boundary."""
+        return self._dof_indices
+
+    def boundary_values(self, time: float = 0.0) -> Array:
+        """Return Dirichlet values at given time."""
+        vals = self._value_func(time)
+        return self._bkd.asarray(np.asarray(vals, dtype=np.float64))
+
+    def apply_to_residual(
+        self, residual: Array, state: Array, time: float
+    ) -> Array:
+        """Apply Dirichlet BC to residual.
+
+        Sets residual[dof] = state[dof] - value(time) for boundary DOFs.
+        """
+        res_np = self._bkd.to_numpy(residual).copy()
+        state_np = self._bkd.to_numpy(state)
+        dofs_np = self._bkd.to_numpy(self._dof_indices)
+        vals_np = np.asarray(self._value_func(time), dtype=np.float64)
+        res_np[dofs_np] = state_np[dofs_np] - vals_np
+        return self._bkd.asarray(res_np)
+
+    def apply_to_jacobian(
+        self, jacobian, state: Array, time: float
+    ):
+        """Apply Dirichlet BC to Jacobian.
+
+        Sets Jacobian rows to identity for boundary DOFs.
+        Accepts both sparse matrices and dense arrays.
+        """
+        dofs_np = self._bkd.to_numpy(self._dof_indices)
+        if issparse(jacobian):
+            return apply_dirichlet_rows(jacobian, dofs_np)
+        else:
+            jac_np = self._bkd.to_numpy(jacobian).copy()
+            for dof in dofs_np:
+                jac_np[dof, :] = 0.0
+                jac_np[dof, dof] = 1.0
+            return self._bkd.asarray(jac_np)
+
+    def __repr__(self) -> str:
+        n = len(self._bkd.to_numpy(self._dof_indices))
+        return f"CallableDirichletBC(ndofs={n})"

@@ -5,6 +5,7 @@ that satisfy the protocols defined in protocols.boundary.
 """
 
 from pyapprox.typing.pde.galerkin.boundary.implementations import (
+    CallableDirichletBC,
     DirichletBC,
     DirectDirichletBC,
     NeumannBC,
@@ -17,6 +18,7 @@ from pyapprox.typing.pde.galerkin.boundary.manufactured import (
 )
 
 __all__ = [
+    "CallableDirichletBC",
     "DirichletBC",
     "DirectDirichletBC",
     "NeumannBC",
