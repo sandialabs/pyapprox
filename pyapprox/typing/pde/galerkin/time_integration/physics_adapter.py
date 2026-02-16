@@ -51,22 +51,6 @@ class GalerkinPhysicsODEAdapter(Generic[Array]):
     """
 
     def __init__(self, physics: GalerkinPhysicsProtocol[Array]):
-        if not hasattr(physics, "spatial_residual"):
-            raise TypeError(
-                f"{type(physics).__name__} does not have spatial_residual(). "
-                "The implicit adapter requires this method."
-            )
-        if not hasattr(physics, "spatial_jacobian"):
-            raise TypeError(
-                f"{type(physics).__name__} does not have spatial_jacobian(). "
-                "The implicit adapter requires this method."
-            )
-        if not hasattr(physics, "dirichlet_dof_info"):
-            raise TypeError(
-                f"{type(physics).__name__} does not have dirichlet_dof_info(). "
-                "The implicit adapter requires this method."
-            )
-
         self._physics = physics
         self._bkd = physics.bkd()
         self._time: float = 0.0

@@ -16,7 +16,7 @@ from pyapprox.typing.pde.galerkin.mesh.structured import (
 )
 from pyapprox.typing.pde.galerkin.basis.lagrange import LagrangeBasis
 from pyapprox.typing.pde.galerkin.boundary.implementations import RobinBC
-from pyapprox.typing.pde.galerkin.physics.bilaplacian import BiLaplacianPrior
+from pyapprox.typing.pde.galerkin.bilaplacian import BiLaplacianPrior
 
 from pyapprox.typing.util.test_utils import load_tests  # noqa: F401
 

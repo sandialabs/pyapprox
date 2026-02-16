@@ -537,7 +537,7 @@ class TestSPDEMaternKLE(unittest.TestCase):
         from skfem import asm
         from skfem.models.poisson import mass
 
-        from pyapprox.typing.pde.galerkin.physics.bilaplacian import (
+        from pyapprox.typing.pde.galerkin.bilaplacian import (
             BiLaplacianPrior,
         )
         from pyapprox.typing.pde.field_maps.kle_factory import (

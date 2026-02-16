@@ -7,7 +7,6 @@ from pyapprox.typing.pde.galerkin.physics.advection_diffusion import (
     AdvectionDiffusionReaction,
     LinearAdvectionDiffusionReaction,
 )
-from pyapprox.typing.pde.galerkin.physics.bilaplacian import BiLaplacianPrior
 from pyapprox.typing.pde.galerkin.physics.burgers import BurgersPhysics
 from pyapprox.typing.pde.galerkin.physics.helmholtz import Helmholtz
 from pyapprox.typing.pde.galerkin.physics.hyperelasticity import (
@@ -33,7 +32,6 @@ __all__ = [
     "GalerkinPhysicsBase",
     "ScalarMassAssembler",
     "AdvectionDiffusionReaction",
-    "BiLaplacianPrior",
     "BurgersPhysics",
     "HyperelasticityPhysics",
     "LinearAdvectionDiffusionReaction",

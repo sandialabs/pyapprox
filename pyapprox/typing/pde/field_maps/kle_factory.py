@@ -418,7 +418,7 @@ def create_spde_matern_kle(
     from skfem import asm
     from skfem.models.poisson import mass
 
-    from pyapprox.typing.pde.galerkin.physics.bilaplacian import (
+    from pyapprox.typing.pde.galerkin.bilaplacian import (
         BiLaplacianPrior,
     )
     from pyapprox.typing.surrogates.kle.utils import (

@@ -46,17 +46,6 @@ class GalerkinExplicitODEAdapter(Generic[Array]):
     """
 
     def __init__(self, physics, lumped_mass: bool = False):
-        if not hasattr(physics, "spatial_residual"):
-            raise TypeError(
-                f"{type(physics).__name__} does not have spatial_residual(). "
-                "Explicit time stepping requires this method."
-            )
-        if not hasattr(physics, "dirichlet_dof_info"):
-            raise TypeError(
-                f"{type(physics).__name__} does not have dirichlet_dof_info(). "
-                "Explicit time stepping requires this method."
-            )
-
         self._physics = physics
         self._bkd = physics.bkd()
         self._time: float = 0.0
