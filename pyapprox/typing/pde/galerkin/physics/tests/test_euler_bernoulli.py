@@ -392,7 +392,7 @@ class TestEulerBernoulliFEM(Generic[Array], unittest.TestCase):
         jac = beam.jacobian(state)
         jac_np = _to_dense(jac)
 
-        dof_indices, _ = beam.dirichlet_dof_info()
+        dof_indices, _ = beam.dirichlet_dof_info(0.0)
         dof_indices_np = self._bkd.to_numpy(dof_indices)
 
         for dof in dof_indices_np:

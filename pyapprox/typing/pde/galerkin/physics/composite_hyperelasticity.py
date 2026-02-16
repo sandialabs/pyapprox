@@ -14,7 +14,7 @@ When used with a single material covering all elements, this class is
 functionally equivalent to the legacy HyperelasticityPhysics class.
 """
 
-from typing import Callable, Dict, Generic, List, Optional, Tuple
+from typing import Callable, Dict, List, Optional, Tuple
 
 import numpy as np
 from scipy.sparse import csr_matrix
@@ -24,13 +24,11 @@ from pyapprox.typing.util.backends.numpy import NumpyBkd
 from pyapprox.typing.pde.sparse_utils import solve_maybe_sparse
 from pyapprox.typing.pde.galerkin.protocols.boundary import (
     BoundaryConditionProtocol,
-    DirichletBCProtocol,
-    NeumannBCProtocol,
-    RobinBCProtocol,
 )
 from pyapprox.typing.pde.galerkin.basis.vector_lagrange import (
     VectorLagrangeBasis,
 )
+from pyapprox.typing.pde.galerkin.physics.galerkin_base import GalerkinPhysicsBase
 from pyapprox.typing.pde.collocation.physics.stress_models.neo_hookean import (
     NeoHookeanStress,
 )
@@ -45,7 +43,7 @@ except ImportError:
     )
 
 
-class CompositeHyperelasticityPhysics(Generic[Array]):
+class CompositeHyperelasticityPhysics(GalerkinPhysicsBase[Array]):
     """Nonlinear hyperelasticity with per-element material properties.
 
     Supports multi-material composites where each subdomain has its own
@@ -124,9 +122,7 @@ class CompositeHyperelasticityPhysics(Generic[Array]):
             List[BoundaryConditionProtocol[Array]]
         ] = None,
     ):
-        self._basis = basis
-        self._bkd = bkd
-        self._boundary_conditions = boundary_conditions or []
+        super().__init__(basis, bkd, boundary_conditions)
         self._body_force = body_force
         self._material_map = dict(material_map)
         self._element_materials = {
@@ -175,15 +171,6 @@ class CompositeHyperelasticityPhysics(Generic[Array]):
         lam = self._lam_per_elem[:, np.newaxis] * np.ones(nquad)
         mu = self._mu_per_elem[:, np.newaxis] * np.ones(nquad)
         return lam, mu
-
-    def bkd(self) -> Backend[Array]:
-        return self._bkd
-
-    def basis(self) -> VectorLagrangeBasis[Array]:
-        return self._basis
-
-    def nstates(self) -> int:
-        return self._basis.ndofs()
 
     def ndim(self) -> int:
         return self._basis.ncomponents()
@@ -469,83 +456,20 @@ class CompositeHyperelasticityPhysics(Generic[Array]):
         """Compute R = load - internal_force without Dirichlet enforcement."""
         internal_force = self._assemble_internal_force(state, time)
         load = self._assemble_load(time)
-
-        # Apply Neumann/Robin BC contributions to load
-        for bc in self._boundary_conditions:
-            if isinstance(bc, RobinBCProtocol):
-                load = bc.apply_to_load(load, time)
-            elif isinstance(bc, NeumannBCProtocol):
-                load = bc.apply_to_load(load, time)
+        load = self._apply_bc_to_load(load, time)
 
         # Robin stiffness contribution
         n = self.nstates()
         bc_stiffness = csr_matrix((n, n))
-        for bc in self._boundary_conditions:
-            if isinstance(bc, RobinBCProtocol):
-                bc_stiffness = bc.apply_to_stiffness(bc_stiffness, time)
+        bc_stiffness = self._apply_bc_to_stiffness(bc_stiffness, time)
 
         return load - internal_force - bc_stiffness @ state
 
     def spatial_jacobian(self, state: Array, time: float) -> Array:
         """Compute dR/du without Dirichlet enforcement."""
         stiffness = self._assemble_tangent_stiffness(state, time)
-
-        # Robin stiffness contribution
-        for bc in self._boundary_conditions:
-            if isinstance(bc, RobinBCProtocol):
-                stiffness = bc.apply_to_stiffness(stiffness, time)
-
+        stiffness = self._apply_bc_to_stiffness(stiffness, time)
         return -stiffness
-
-    def dirichlet_dof_info(self, time: float) -> Tuple[Array, Array]:
-        """Return Dirichlet DOF indices and values."""
-        all_dofs = []
-        all_vals = []
-        for bc in self._boundary_conditions:
-            if isinstance(bc, RobinBCProtocol):
-                continue
-            if isinstance(bc, DirichletBCProtocol):
-                dofs_np = self._bkd.to_numpy(bc.boundary_dofs())
-                vals_np = self._bkd.to_numpy(bc.boundary_values(time))
-                all_dofs.append(dofs_np)
-                all_vals.append(vals_np)
-        if all_dofs:
-            return (
-                self._bkd.asarray(
-                    np.concatenate(all_dofs).astype(np.int64)
-                ),
-                self._bkd.asarray(
-                    np.concatenate(all_vals).astype(np.float64)
-                ),
-            )
-        return (
-            self._bkd.asarray(np.array([], dtype=np.int64)),
-            self._bkd.asarray(np.array([], dtype=np.float64)),
-        )
-
-    def residual(self, state: Array, time: float) -> Array:
-        """Compute residual with Dirichlet BCs enforced."""
-        residual = self.spatial_residual(state, time)
-
-        for bc in self._boundary_conditions:
-            if isinstance(bc, RobinBCProtocol):
-                continue
-            if isinstance(bc, DirichletBCProtocol):
-                residual = bc.apply_to_residual(residual, state, time)
-
-        return residual
-
-    def jacobian(self, state: Array, time: float) -> Array:
-        """Compute Jacobian with Dirichlet BCs enforced."""
-        jac = self.spatial_jacobian(state, time)
-
-        for bc in self._boundary_conditions:
-            if isinstance(bc, RobinBCProtocol):
-                continue
-            if isinstance(bc, DirichletBCProtocol):
-                jac = bc.apply_to_jacobian(jac, state, time)
-
-        return jac
 
     def initial_condition(self, func: Callable) -> Array:
         """Create initial condition by interpolating a displacement field."""

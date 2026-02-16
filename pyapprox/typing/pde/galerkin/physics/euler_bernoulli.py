@@ -15,12 +15,13 @@ The FEM formulation uses cubic Hermite (C1) elements with DOFs
 for all test functions v in the Hermite finite element space.
 """
 
-from typing import Callable, Generic, List, Optional, Tuple
+from typing import Callable, Generic, List, Optional
 
 import numpy as np
 
 from pyapprox.typing.util.backends.protocols import Array, Backend
-from pyapprox.typing.pde.sparse_utils import apply_dirichlet_rows
+from pyapprox.typing.pde.galerkin.physics.bc_mixin import GalerkinBCMixin
+from pyapprox.typing.pde.galerkin.boundary.implementations import DirectDirichletBC
 
 try:
     from skfem import Basis, BilinearForm, LinearForm, asm
@@ -163,7 +164,7 @@ class EulerBernoulliBeamAnalytical(Generic[Array]):
             return 11.0 * q0 * L**4 / (120.0 * EI)
 
 
-class EulerBernoulliBeamFEM(Generic[Array]):
+class EulerBernoulliBeamFEM(GalerkinBCMixin[Array], Generic[Array]):
     """FEM solution for Euler-Bernoulli beam using Hermite elements.
 
     Uses cubic Hermite (C1) elements with DOFs [w, dw/dx] at each node.
@@ -227,8 +228,8 @@ class EulerBernoulliBeamFEM(Generic[Array]):
 
         # Dirichlet DOFs
         if dirichlet_dofs is not None:
-            self._dirichlet_dofs = np.array(dirichlet_dofs, dtype=np.int64)
-            self._dirichlet_values = np.array(
+            dof_indices = np.array(dirichlet_dofs, dtype=np.int64)
+            dof_values = np.array(
                 dirichlet_values if dirichlet_values is not None
                 else [0.0] * len(dirichlet_dofs),
                 dtype=np.float64,
@@ -236,10 +237,12 @@ class EulerBernoulliBeamFEM(Generic[Array]):
         else:
             # Default: clamped left end (w=0, dw/dx=0)
             left_dof_indices = self._skfem_basis.get_dofs("left").flatten()
-            self._dirichlet_dofs = left_dof_indices.astype(np.int64)
-            self._dirichlet_values = np.zeros(
-                len(self._dirichlet_dofs), dtype=np.float64
-            )
+            dof_indices = left_dof_indices.astype(np.int64)
+            dof_values = np.zeros(len(dof_indices), dtype=np.float64)
+
+        self._boundary_conditions = [
+            DirectDirichletBC(dof_indices, dof_values, bkd)
+        ]
 
         # Assembly caches
         self._stiffness: Optional[Array] = None
@@ -323,26 +326,6 @@ class EulerBernoulliBeamFEM(Generic[Array]):
         f = asm(beam_load_form, self._skfem_basis)
         return self._bkd.asarray(f.astype(np.float64))
 
-    def dirichlet_dof_info(
-        self, time: float = 0.0
-    ) -> Tuple[Array, Array]:
-        """Return Dirichlet DOF indices and values.
-
-        Parameters
-        ----------
-        time : float
-            Current time (unused for static beam).
-
-        Returns
-        -------
-        Tuple[Array, Array]
-            (dof_indices, dof_values)
-        """
-        return (
-            self._bkd.asarray(self._dirichlet_dofs),
-            self._bkd.asarray(self._dirichlet_values),
-        )
-
     def spatial_residual(self, state: Array, time: float = 0.0) -> Array:
         """Compute F = b - K*u without BC enforcement.
 
@@ -380,13 +363,7 @@ class EulerBernoulliBeamFEM(Generic[Array]):
             Residual. Shape: (ndofs,)
         """
         res = self.spatial_residual(state, time)
-        res_np = self._bkd.to_numpy(res).copy()
-        state_np = self._bkd.to_numpy(state)
-
-        for i, dof in enumerate(self._dirichlet_dofs):
-            res_np[dof] = state_np[dof] - self._dirichlet_values[i]
-
-        return self._bkd.asarray(res_np)
+        return self._apply_dirichlet_to_residual(res, state, time)
 
     def spatial_jacobian(self, state: Array, time: float = 0.0) -> Array:
         """Compute dF/du = -K without BC enforcement.
@@ -422,8 +399,8 @@ class EulerBernoulliBeamFEM(Generic[Array]):
         Array
             Jacobian. Shape: (ndofs, ndofs)
         """
-        jac = -self.stiffness_matrix()
-        return apply_dirichlet_rows(jac, self._dirichlet_dofs)
+        jac = self.spatial_jacobian(state, time)
+        return self._apply_dirichlet_to_jacobian(jac, state, time)
 
     def interpolate_manufactured(
         self,

@@ -17,7 +17,7 @@ When used with a single material covering all elements, this class
 is functionally equivalent to the legacy LinearElasticity class.
 """
 
-from typing import Callable, Dict, Generic, List, Optional, Tuple
+from typing import Callable, Dict, List, Optional, Tuple
 
 import numpy as np
 
@@ -25,11 +25,9 @@ from pyapprox.typing.util.backends.protocols import Array, Backend
 from pyapprox.typing.pde.sparse_utils import solve_maybe_sparse
 from pyapprox.typing.pde.galerkin.protocols.boundary import (
     BoundaryConditionProtocol,
-    DirichletBCProtocol,
-    NeumannBCProtocol,
-    RobinBCProtocol,
 )
 from pyapprox.typing.pde.galerkin.basis.vector_lagrange import VectorLagrangeBasis
+from pyapprox.typing.pde.galerkin.physics.galerkin_base import GalerkinPhysicsBase
 
 try:
     from skfem import asm, LinearForm, BilinearForm
@@ -56,7 +54,7 @@ def _elastic_form(u, v, w):
     )
 
 
-class CompositeLinearElasticity(Generic[Array]):
+class CompositeLinearElasticity(GalerkinPhysicsBase[Array]):
     """Linear elasticity with per-element material properties.
 
     Supports multi-material composites where each subdomain has its own
@@ -150,9 +148,7 @@ class CompositeLinearElasticity(Generic[Array]):
             List[BoundaryConditionProtocol[Array]]
         ] = None,
     ):
-        self._basis = basis
-        self._bkd = bkd
-        self._boundary_conditions = boundary_conditions or []
+        super().__init__(basis, bkd, boundary_conditions)
         self._body_force = body_force
         self._material_map = dict(material_map)
         self._element_materials = {
@@ -226,21 +222,9 @@ class CompositeLinearElasticity(Generic[Array]):
         mu = self._mu_per_elem[:, np.newaxis] * np.ones(nquad)
         return lam, mu
 
-    def bkd(self) -> Backend[Array]:
-        """Return the computational backend."""
-        return self._bkd
-
-    def nstates(self) -> int:
-        """Return total number of DOFs."""
-        return self._basis.ndofs()
-
     def ndim(self) -> int:
         """Return spatial dimension."""
         return self._basis.ncomponents()
-
-    def basis(self) -> VectorLagrangeBasis[Array]:
-        """Return the vector finite element basis."""
-        return self._basis
 
     def mass_matrix(self) -> Array:
         """Return the vector mass matrix.
@@ -328,15 +312,7 @@ class CompositeLinearElasticity(Generic[Array]):
             load_np = asm(LinearForm(linear_form), skfem_basis)
 
         load = self._bkd.asarray(load_np.astype(np.float64))
-
-        # Apply Neumann and Robin BC contributions to load
-        for bc in self._boundary_conditions:
-            if isinstance(bc, RobinBCProtocol):
-                load = bc.apply_to_load(load, time)
-            elif isinstance(bc, NeumannBCProtocol):
-                load = bc.apply_to_load(load, time)
-
-        return load
+        return self._apply_bc_to_load(load, time)
 
     def spatial_residual(self, state: Array, time: float) -> Array:
         """Compute spatial residual F = b(t) - K*u without BC enforcement.
@@ -357,70 +333,6 @@ class CompositeLinearElasticity(Generic[Array]):
         b = self.load_vector(time)
         return b - K @ state
 
-    def dirichlet_dof_info(self, time: float) -> Tuple[Array, Array]:
-        """Return Dirichlet DOF indices and their exact values.
-
-        Parameters
-        ----------
-        time : float
-            Current time.
-
-        Returns
-        -------
-        Tuple[Array, Array]
-            dof_indices and dof_values.
-        """
-        all_dofs = []
-        all_vals = []
-        for bc in self._boundary_conditions:
-            if isinstance(bc, RobinBCProtocol):
-                continue
-            if isinstance(bc, DirichletBCProtocol):
-                dofs_np = self._bkd.to_numpy(bc.boundary_dofs())
-                vals_np = self._bkd.to_numpy(bc.boundary_values(time))
-                all_dofs.append(dofs_np)
-                all_vals.append(vals_np)
-        if all_dofs:
-            return (
-                self._bkd.asarray(
-                    np.concatenate(all_dofs).astype(np.int64)
-                ),
-                self._bkd.asarray(
-                    np.concatenate(all_vals).astype(np.float64)
-                ),
-            )
-        return (
-            self._bkd.asarray(np.array([], dtype=np.int64)),
-            self._bkd.asarray(np.array([], dtype=np.float64)),
-        )
-
-    def residual(self, state: Array, time: float) -> Array:
-        """Compute residual F(u, t) = b(t) - K*u with BCs applied.
-
-        Dirichlet BCs replace residual rows with state[dof] - g(x, t).
-
-        Parameters
-        ----------
-        state : Array
-            Displacement state. Shape: (nstates,)
-        time : float
-            Current time.
-
-        Returns
-        -------
-        Array
-            Residual. Shape: (nstates,)
-        """
-        residual = self.spatial_residual(state, time)
-
-        for bc in self._boundary_conditions:
-            if isinstance(bc, RobinBCProtocol):
-                continue
-            if isinstance(bc, DirichletBCProtocol):
-                residual = bc.apply_to_residual(residual, state, time)
-
-        return residual
-
     def spatial_jacobian(self, state: Array, time: float) -> Array:
         """Compute dF/du = -K without BC enforcement.
 
@@ -437,44 +349,6 @@ class CompositeLinearElasticity(Generic[Array]):
             Jacobian matrix. Shape: (nstates, nstates)
         """
         return -self.stiffness_matrix()
-
-    def jacobian(self, state: Array, time: float) -> Array:
-        """Compute state Jacobian dF/du = -K with BCs applied.
-
-        Parameters
-        ----------
-        state : Array
-            Displacement state. Shape: (nstates,)
-        time : float
-            Current time.
-
-        Returns
-        -------
-        Array
-            Jacobian matrix. Shape: (nstates, nstates)
-        """
-        jac = -self.stiffness_matrix()
-
-        for bc in self._boundary_conditions:
-            if isinstance(bc, RobinBCProtocol):
-                continue
-            if isinstance(bc, DirichletBCProtocol):
-                jac = bc.apply_to_jacobian(jac, state, time)
-
-        return jac
-
-    def apply_boundary_conditions(
-        self, residual: Array, jacobian: Array, state: Array
-    ) -> Tuple[Array, Array]:
-        """Apply boundary conditions to residual and Jacobian."""
-        for bc in self._boundary_conditions:
-            if isinstance(bc, DirichletBCProtocol):
-                residual = bc.apply_to_residual(residual, state, 0.0)
-                jacobian = bc.apply_to_jacobian(jacobian, state, 0.0)
-            elif isinstance(bc, RobinBCProtocol):
-                residual = bc.apply_to_residual(residual, state, 0.0)
-                jacobian = bc.apply_to_jacobian(jacobian, state, 0.0)
-        return residual, jacobian
 
     def initial_condition(self, func: Callable) -> Array:
         """Create initial condition by interpolating a displacement field.
@@ -634,12 +508,7 @@ class CompositeLinearElasticity(Generic[Array]):
             cols.extend([col_E, col_nu])
 
         pjac = self._bkd.stack(cols, axis=1)
-
-        for bc in self._boundary_conditions:
-            if hasattr(bc, "apply_to_param_jacobian"):
-                pjac = bc.apply_to_param_jacobian(pjac, state, time)
-
-        return pjac
+        return self._apply_dirichlet_to_param_jacobian(pjac, state, time)
 
     def initial_param_jacobian(self) -> Array:
         """Return d(u_0)/dp = 0 (IC does not depend on material params).

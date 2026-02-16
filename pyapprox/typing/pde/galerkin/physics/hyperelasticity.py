@@ -21,7 +21,7 @@ Uses the NeoHookeanStress model from the collocation module for stress
 and tangent computation at quadrature points.
 """
 
-from typing import Generic, Optional, Callable, List, Tuple
+from typing import Optional, Callable, List
 
 import numpy as np
 from scipy.sparse import csr_matrix
@@ -31,13 +31,11 @@ from pyapprox.typing.util.backends.numpy import NumpyBkd
 from pyapprox.typing.pde.sparse_utils import solve_maybe_sparse
 from pyapprox.typing.pde.galerkin.protocols.boundary import (
     BoundaryConditionProtocol,
-    DirichletBCProtocol,
-    NeumannBCProtocol,
-    RobinBCProtocol,
 )
 from pyapprox.typing.pde.galerkin.basis.vector_lagrange import (
     VectorLagrangeBasis,
 )
+from pyapprox.typing.pde.galerkin.physics.galerkin_base import GalerkinPhysicsBase
 from pyapprox.typing.pde.collocation.physics.stress_models.protocols import (
     StressModelProtocol,
     StressModelWithTangentProtocol,
@@ -52,7 +50,7 @@ except ImportError:
     )
 
 
-class HyperelasticityPhysics(Generic[Array]):
+class HyperelasticityPhysics(GalerkinPhysicsBase[Array]):
     """Nonlinear hyperelasticity physics for Galerkin FEM.
 
     Solves the quasi-static balance of linear momentum:
@@ -89,27 +87,13 @@ class HyperelasticityPhysics(Generic[Array]):
             List[BoundaryConditionProtocol[Array]]
         ] = None,
     ):
-        self._basis = basis
+        super().__init__(basis, bkd, boundary_conditions)
         self._stress_model = stress_model
-        self._bkd = bkd
         self._body_force = body_force
-        self._boundary_conditions = boundary_conditions or []
         self._numpy_bkd = NumpyBkd()
 
         # Cache mass matrix
         self._mass_cached: Optional[Array] = None
-
-    def bkd(self) -> Backend[Array]:
-        """Return the computational backend."""
-        return self._bkd
-
-    def basis(self) -> VectorLagrangeBasis[Array]:
-        """Return the vector finite element basis."""
-        return self._basis
-
-    def nstates(self) -> int:
-        """Return total number of DOFs."""
-        return self._basis.ndofs()
 
     def ndim(self) -> int:
         """Return spatial dimension."""
@@ -268,24 +252,6 @@ class HyperelasticityPhysics(Generic[Array]):
         load_np = asm(LinearForm(load_form), skfem_basis)
         return self._bkd.asarray(load_np.astype(np.float64))
 
-    def _apply_bc_to_load(self, load: Array, time: float) -> Array:
-        """Apply Neumann and Robin BC contributions to load vector."""
-        for bc in self._boundary_conditions:
-            if isinstance(bc, NeumannBCProtocol):
-                load = bc.apply_to_load(load, time)
-            elif isinstance(bc, RobinBCProtocol):
-                load = bc.apply_to_load(load, time)
-        return load
-
-    def _apply_bc_to_stiffness(
-        self, stiffness: Array, time: float
-    ) -> Array:
-        """Apply Robin BC contributions to stiffness matrix."""
-        for bc in self._boundary_conditions:
-            if isinstance(bc, RobinBCProtocol):
-                stiffness = bc.apply_to_stiffness(stiffness, time)
-        return stiffness
-
     def spatial_residual(self, state: Array, time: float) -> Array:
         """Compute spatial residual without Dirichlet enforcement.
 
@@ -413,97 +379,6 @@ class HyperelasticityPhysics(Generic[Array]):
         stiffness = self._assemble_tangent_stiffness(state, time)
         stiffness = self._apply_bc_to_stiffness(stiffness, time)
         return -stiffness
-
-    def dirichlet_dof_info(self, time: float) -> Tuple[Array, Array]:
-        """Return Dirichlet DOF indices and their exact values.
-
-        Parameters
-        ----------
-        time : float
-            Current time.
-
-        Returns
-        -------
-        Tuple[Array, Array]
-            dof_indices, dof_values
-        """
-        all_dofs = []
-        all_vals = []
-        for bc in self._boundary_conditions:
-            if isinstance(bc, RobinBCProtocol):
-                continue
-            if isinstance(bc, DirichletBCProtocol):
-                dofs_np = self._bkd.to_numpy(bc.boundary_dofs())
-                vals_np = self._bkd.to_numpy(bc.boundary_values(time))
-                all_dofs.append(dofs_np)
-                all_vals.append(vals_np)
-        if all_dofs:
-            return (
-                self._bkd.asarray(
-                    np.concatenate(all_dofs).astype(np.int64)
-                ),
-                self._bkd.asarray(
-                    np.concatenate(all_vals).astype(np.float64)
-                ),
-            )
-        return (
-            self._bkd.asarray(np.array([], dtype=np.int64)),
-            self._bkd.asarray(np.array([], dtype=np.float64)),
-        )
-
-    def residual(self, state: Array, time: float) -> Array:
-        """Compute spatial residual with Dirichlet BCs applied.
-
-        Dirichlet BCs replace residual rows with state[dof] - g(x, t).
-
-        Parameters
-        ----------
-        state : Array
-            Displacement state. Shape: (nstates,)
-        time : float
-            Current time.
-
-        Returns
-        -------
-        Array
-            Residual. Shape: (nstates,)
-        """
-        residual = self.spatial_residual(state, time)
-
-        for bc in self._boundary_conditions:
-            if isinstance(bc, RobinBCProtocol):
-                continue
-            if isinstance(bc, DirichletBCProtocol):
-                residual = bc.apply_to_residual(residual, state, time)
-
-        return residual
-
-    def jacobian(self, state: Array, time: float) -> Array:
-        """Compute state Jacobian dR/du with Dirichlet BCs applied.
-
-        Dirichlet BCs replace Jacobian rows with identity.
-
-        Parameters
-        ----------
-        state : Array
-            Displacement state. Shape: (nstates,)
-        time : float
-            Current time.
-
-        Returns
-        -------
-        Array
-            Jacobian matrix. Shape: (nstates, nstates)
-        """
-        jac = self.spatial_jacobian(state, time)
-
-        for bc in self._boundary_conditions:
-            if isinstance(bc, RobinBCProtocol):
-                continue
-            if isinstance(bc, DirichletBCProtocol):
-                jac = bc.apply_to_jacobian(jac, state, time)
-
-        return jac
 
     def initial_condition(self, func: Callable) -> Array:
         """Create initial condition by interpolating a displacement field.
