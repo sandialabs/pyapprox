@@ -34,6 +34,7 @@ from .utils import (
     sort_eigenpairs,
 )
 from .mesh_kle import MeshKLE
+from .galerkin_kle import GalerkinKLE
 from .data_driven_kle import DataDrivenKLE
 from .pca import PrincipalComponentAnalysis
 from .analytical import AnalyticalExponentialKLE1D
@@ -45,6 +46,7 @@ __all__ = [
     "ReducibleKLEProtocol",
     # Core
     "MeshKLE",
+    "GalerkinKLE",
     "DataDrivenKLE",
     "PrincipalComponentAnalysis",
     # Periodic random fields

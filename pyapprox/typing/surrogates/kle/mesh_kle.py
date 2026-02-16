@@ -21,6 +21,30 @@ class MeshKLE(Generic[Array]):
     The expansion is:
         f(x) = mean(x) + sigma * sum_{i=1}^{nterms} sqrt(lambda_i) * phi_i(x) * z_i
 
+    Memory
+    ------
+    The kernel matrix is dense with shape ``(ncoords, ncoords)``.
+    For large meshes this can be the dominant memory cost.  A mesh
+    with N = 10,000 coordinates produces a 10K x 10K matrix (~800 MB
+    in float64); N = 40,000 (e.g. all quadrature points of a 10K-
+    element mesh) requires ~12 GB.  Prefer using mesh nodes or element
+    centroids as collocation points and interpolating to quadrature
+    points afterwards. See ``pde.field_maps.kle_factory`` for
+    memory-efficient FEM-aware constructors.
+
+    Quadrature weights
+    ------------------
+    Quadrature weights (or lumped-mass row sums) must be included when
+    discretizing the Fredholm eigenvalue problem; omitting them yields
+    eigenvalues that lack physical variance units and eigenvectors
+    biased toward regions of mesh refinement.  The symmetric weighting
+    trick
+
+        C_tilde_{ij} = sqrt(w_i) * C(x_i, x_j) * sqrt(w_j)
+
+    reduces the generalized eigenproblem to a standard one while
+    preserving correct L^2 orthogonality.
+
     Parameters
     ----------
     mesh_coords : Array, shape (nphys_vars, ncoords)
@@ -36,9 +60,16 @@ class MeshKLE(Generic[Array]):
         If True, return exp(mean + basis @ coef) instead of
         mean + basis @ coef.
     nterms : int or None
-        Number of KLE terms. None uses all mesh points.
+        Number of KLE terms. None uses all mesh points. When
+        nterms < ncoords, a partial eigensolve (scipy eigsh) is used
+        for O(N*k) cost instead of O(N^3). This converts to NumPy
+        internally, so the Torch autograd graph is not preserved
+        through the eigendecomposition. This is acceptable because
+        KLE basis construction is a one-time setup cost.
     quad_weights : Array or None, shape (ncoords,)
-        Quadrature weights for weighted eigendecomposition.
+        Quadrature weights for weighted eigendecomposition.  Should be
+        provided whenever the collocation points come from a
+        non-uniform discretization (FEM nodes, quadrature points, etc.).
     bkd : Backend[Array]
         Computational backend.
     """

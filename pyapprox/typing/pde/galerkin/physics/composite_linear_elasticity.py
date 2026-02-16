@@ -218,6 +218,8 @@ class CompositeLinearElasticity(Generic[Array]):
 
     def _lame_data(self) -> Tuple[np.ndarray, np.ndarray]:
         """Return (nelem, nquad) Lame parameter arrays for assembly."""
+        if self._lam_per_elem.ndim == 2:
+            return self._lam_per_elem, self._mu_per_elem
         skfem_basis = self._basis.skfem_basis()
         nquad = skfem_basis.X.shape[1]
         lam = self._lam_per_elem[:, np.newaxis] * np.ones(nquad)
@@ -547,12 +549,14 @@ class CompositeLinearElasticity(Generic[Array]):
         Parameters
         ----------
         lam_per_elem : np.ndarray
-            First Lame parameter per element. Shape: (nelems,)
+            First Lame parameter per element. Shape: ``(nelems,)`` for
+            constant-per-element or ``(nelems, nquad)`` for per-quadrature-
+            point values.
         mu_per_elem : np.ndarray
-            Shear modulus per element. Shape: (nelems,)
+            Shear modulus per element. Same shape as ``lam_per_elem``.
         """
-        self._lam_per_elem[:] = lam_per_elem
-        self._mu_per_elem[:] = mu_per_elem
+        self._lam_per_elem = np.asarray(lam_per_elem)
+        self._mu_per_elem = np.asarray(mu_per_elem)
         self._stiffness_cached = None
 
     def nparams(self) -> int:

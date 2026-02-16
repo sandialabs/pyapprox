@@ -33,6 +33,12 @@ from pyapprox.typing.benchmarks.ground_truth import SensitivityGroundTruth
 from pyapprox.typing.benchmarks.registry import BenchmarkRegistry
 from pyapprox.typing.probability.univariate.gaussian import GaussianMarginal
 from pyapprox.typing.probability.joint.independent import IndependentJoint
+from pyapprox.typing.surrogates.kernels.matern import (
+    SquaredExponentialKernel,
+)
+from pyapprox.typing.surrogates.kle.mesh_kle import MeshKLE
+from pyapprox.typing.pde.field_maps.mesh_kle_field_map import MeshKLEFieldMap
+from pyapprox.typing.pde.field_maps.transformed import TransformedFieldMap
 from pyapprox.typing.pde.field_maps.kle_factory import (
     create_lognormal_kle_field_map,
 )
@@ -54,20 +60,8 @@ except ImportError:
 # =========================================================================
 
 
-def _element_centroids(mesh) -> np.ndarray:
-    """Compute element centroids from an skfem mesh.
-
-    Returns
-    -------
-    np.ndarray
-        Centroid coordinates. Shape: (ndim, nelems)
-    """
-    # mesh.p: (ndim, nnodes), mesh.t: (nnodes_per_elem, nelems)
-    return mesh.p[:, mesh.t].mean(axis=1)
-
-
 def _create_subdomain_kle_field_maps(
-    mesh,
+    skfem_mesh,
     subdomain_elements: Dict[str, np.ndarray],
     subdomain_names: List[str],
     bkd,
@@ -76,12 +70,22 @@ def _create_subdomain_kle_field_maps(
     correlation_length: float,
     mean_log_E: float,
 ):
-    """Create a lognormal KLE field map for each subdomain.
+    """Create a lognormal KLE field map per subdomain at mesh nodes.
+
+    Uses the Nystrom method at FEM mesh nodes (not quadrature points)
+    to avoid allocating dense kernel matrices proportional to
+    ``(nelems * nquad)^2``. For large meshes the quadrature-point
+    approach can require tens of gigabytes; the nodal approach reduces
+    memory by a factor of ``nquad^2`` (typically 9-16x for 2D quads).
+
+    Eigenvectors live at the subdomain's unique mesh nodes. To obtain
+    values at quadrature points, use ``skfem_basis.interpolate()``
+    after scattering subdomain node values into a global nodal array.
 
     Parameters
     ----------
-    mesh : skfem mesh
-        The underlying skfem mesh.
+    skfem_mesh : skfem Mesh
+        The FEM mesh (provides node coordinates and connectivity).
     subdomain_elements : dict
         Mapping from subdomain name to element index arrays.
     subdomain_names : list of str
@@ -100,79 +104,134 @@ def _create_subdomain_kle_field_maps(
     Returns
     -------
     field_maps : list of TransformedFieldMap
-        One per subdomain.
+        One per subdomain. Each maps ``(nterms,)`` -> ``(n_sub_nodes,)``.
+    subdomain_node_indices : list of np.ndarray
+        Global node indices for each subdomain (for scattering into
+        a global nodal array before interpolation).
     """
-    centroids = _element_centroids(mesh)  # (ndim, nelems)
+    ndim = skfem_mesh.p.shape[0]
+    lenscale = bkd.full((ndim,), correlation_length)
+    kernel = SquaredExponentialKernel(
+        lenscale, (0.01, 10.0), ndim, bkd,
+    )
+
     field_maps = []
+    subdomain_node_indices = []
     for name in subdomain_names:
         elem_idx = subdomain_elements[name]
-        coords = centroids[:, elem_idx]  # (ndim, n_sub_elems)
-        n_sub = coords.shape[1]
-        mean_log = bkd.full((n_sub,), mean_log_E)
-        fm = create_lognormal_kle_field_map(
-            mesh_coords=bkd.asarray(coords),
-            mean_log_field=mean_log,
+        # Unique global node indices in this subdomain
+        global_nodes = np.unique(skfem_mesh.t[:, elem_idx].ravel())
+        subdomain_node_indices.append(global_nodes)
+
+        # Node coordinates for this subdomain
+        coords_sub = skfem_mesh.p[:, global_nodes]  # (ndim, n_nodes)
+        n_nodes = len(global_nodes)
+
+        # Lumped mass weights: distribute element areas to nodes
+        nverts = skfem_mesh.t.shape[0]
+        sub_w = np.zeros(n_nodes)
+        node_to_local = {int(n): i for i, n in enumerate(global_nodes)}
+        for e in elem_idx:
+            verts = skfem_mesh.p[:, skfem_mesh.t[:, e]]
+            x, y = verts[0], verts[1]
+            area = 0.5 * abs(sum(
+                x[i] * y[(i + 1) % nverts] - x[(i + 1) % nverts] * y[i]
+                for i in range(nverts)
+            ))
+            for n in skfem_mesh.t[:, e]:
+                sub_w[node_to_local[int(n)]] += area / nverts
+
+        mean_log = bkd.full((n_nodes,), mean_log_E)
+
+        mesh_kle = MeshKLE(
+            bkd.asarray(coords_sub), kernel,
+            sigma=sigma, mean_field=0.0,
+            nterms=num_kle_terms,
+            quad_weights=bkd.asarray(sub_w),
             bkd=bkd,
-            num_kle_terms=num_kle_terms,
-            sigma=sigma,
-            correlation_length=correlation_length,
+        )
+
+        inner = MeshKLEFieldMap(
+            bkd, mean_log, mesh_kle.weighted_eigenvectors(),
+        )
+        fm = TransformedFieldMap(
+            inner,
+            transform=lambda x: bkd.exp(x),
+            transform_deriv=lambda x: bkd.exp(x),
+            bkd=bkd,
+            transform_deriv2=lambda x: bkd.exp(x),
         )
         field_maps.append(fm)
-    return field_maps
+    return field_maps, subdomain_node_indices
 
 
 def _kle_to_lame_arrays(
     kle_params_1d: np.ndarray,
     field_maps,
+    subdomain_node_indices: List[np.ndarray],
     subdomain_elements: Dict[str, np.ndarray],
     subdomain_names: List[str],
     poisson_ratios: Dict[str, float],
-    nelems: int,
+    scalar_skfem_basis,
     num_kle_terms: int,
     bkd,
 ) -> Tuple[np.ndarray, np.ndarray]:
     """Map concatenated KLE coefficients to per-element Lame parameter arrays.
+
+    Field maps produce Young's modulus values at subdomain mesh nodes.
+    These are scattered into a global nodal array and interpolated to
+    quadrature points via ``scalar_skfem_basis.interpolate()``, then
+    converted to Lame parameters using per-subdomain Poisson ratios.
 
     Parameters
     ----------
     kle_params_1d : np.ndarray
         Concatenated KLE coefficients. Shape: (n_subdomains * num_kle_terms,)
     field_maps : list
-        Per-subdomain KLE field maps.
+        Per-subdomain KLE field maps (values at subdomain nodes).
+    subdomain_node_indices : list of np.ndarray
+        Global node indices for each subdomain.
     subdomain_elements : dict
         Name to element index arrays.
     subdomain_names : list of str
         Ordered subdomain names.
     poisson_ratios : dict
         Name to Poisson ratio per subdomain.
-    nelems : int
-        Total number of elements.
+    scalar_skfem_basis : skfem CellBasis
+        Scalar FEM basis for interpolation from nodes to quad points.
     num_kle_terms : int
         KLE terms per subdomain.
     bkd : Backend
 
     Returns
     -------
-    lam_per_elem : np.ndarray, shape (nelems,)
-    mu_per_elem : np.ndarray, shape (nelems,)
+    lam_arr : np.ndarray, shape (nelems, nquad)
+    mu_arr : np.ndarray, shape (nelems, nquad)
     """
-    lam_arr = np.zeros(nelems)
-    mu_arr = np.zeros(nelems)
+    nnodes = scalar_skfem_basis.mesh.p.shape[1]
+    E_nodal = np.zeros(nnodes)
 
     offset = 0
     for i, name in enumerate(subdomain_names):
         xi = kle_params_1d[offset:offset + num_kle_terms]
-        E_field = bkd.to_numpy(field_maps[i](bkd.asarray(xi)))
-        nu = poisson_ratios[name]
-
-        elem_idx = subdomain_elements[name]
-        # Vectorized Lame parameter conversion
-        mu_vals = E_field / (2.0 * (1.0 + nu))
-        lam_vals = E_field * nu / ((1.0 + nu) * (1.0 - 2.0 * nu))
-        lam_arr[elem_idx] = lam_vals
-        mu_arr[elem_idx] = mu_vals
-
+        E_sub = bkd.to_numpy(field_maps[i](bkd.asarray(xi)))
+        E_nodal[subdomain_node_indices[i]] = E_sub
         offset += num_kle_terms
+
+    # Interpolate nodal E to quadrature points: (nelems, nquad)
+    E_at_quads = scalar_skfem_basis.interpolate(E_nodal).value
+
+    nelems = scalar_skfem_basis.mesh.nelements
+    nquad = scalar_skfem_basis.dx.shape[1]
+    lam_arr = np.zeros((nelems, nquad))
+    mu_arr = np.zeros((nelems, nquad))
+
+    for name in subdomain_names:
+        elem_idx = subdomain_elements[name]
+        nu = poisson_ratios[name]
+        E_sub = E_at_quads[elem_idx, :]
+        mu_arr[elem_idx, :] = E_sub / (2.0 * (1.0 + nu))
+        lam_arr[elem_idx, :] = E_sub * nu / ((1.0 + nu) * (1.0 - 2.0 * nu))
 
     return lam_arr, mu_arr
 
@@ -194,23 +253,26 @@ class CantileverBeam2DForwardModel(Generic[Array]):
         physics,
         solver,
         field_maps,
+        subdomain_node_indices: List[np.ndarray],
         subdomain_elements: Dict[str, np.ndarray],
         subdomain_names: List[str],
         poisson_ratios: Dict[str, float],
         num_kle_terms: int,
+        scalar_skfem_basis,
         tip_dof_index: int,
         bkd: Backend[Array],
     ):
         self._physics = physics
         self._solver = solver
         self._field_maps = field_maps
+        self._subdomain_node_indices = subdomain_node_indices
         self._subdomain_elements = subdomain_elements
         self._subdomain_names = subdomain_names
         self._poisson_ratios = poisson_ratios
         self._num_kle_terms = num_kle_terms
+        self._scalar_skfem_basis = scalar_skfem_basis
         self._tip_dof_index = tip_dof_index
         self._bkd = bkd
-        self._nelems = physics.basis().skfem_basis().mesh.nelements
         self._nvars = len(subdomain_names) * num_kle_terms
 
     def bkd(self) -> Backend[Array]:
@@ -244,10 +306,11 @@ class CantileverBeam2DForwardModel(Generic[Array]):
             xi = samples_np[:, ii]
             lam_arr, mu_arr = _kle_to_lame_arrays(
                 xi, self._field_maps,
+                self._subdomain_node_indices,
                 self._subdomain_elements,
                 self._subdomain_names,
                 self._poisson_ratios,
-                self._nelems,
+                self._scalar_skfem_basis,
                 self._num_kle_terms,
                 bkd,
             )
@@ -384,6 +447,7 @@ def cantilever_beam_1d(
     mesh_coords_norm = mesh_coords / length
     mean_log = bkd.full((nx,), float(np.log(EI_mean)))
 
+    elem_lengths = bkd.full((nx,), 1.0 / nx)  # normalized element lengths
     field_map = create_lognormal_kle_field_map(
         mesh_coords=mesh_coords_norm,
         mean_log_field=mean_log,
@@ -391,6 +455,7 @@ def cantilever_beam_1d(
         num_kle_terms=num_kle_terms,
         sigma=sigma,
         correlation_length=correlation_length,
+        quad_weights=elem_lengths,
     )
 
     load_func = lambda x: q0 * x / length  # noqa: E731
@@ -485,6 +550,7 @@ def cantilever_beam_2d_linear(
     correlation_length : float
         Correlation length for KLE kernel (in normalized coordinates).
     """
+    from skfem import Basis as SkfemBasis
     from pyapprox.typing.pde.galerkin.mesh import UnstructuredMesh2D
     from pyapprox.typing.pde.galerkin.basis import VectorLagrangeBasis
     from pyapprox.typing.pde.galerkin.physics import CompositeLinearElasticity
@@ -502,14 +568,17 @@ def cantilever_beam_2d_linear(
     subdomain_elements = {
         name: mesh.subdomain_elements(name) for name in subdomain_names
     }
-    nelems = mesh.nelements()
+
+    # Scalar basis for quadrature point access (KLE)
+    scalar_element = basis.scalar_basis().skfem_basis().elem
+    scalar_skfem_basis = SkfemBasis(skfem_mesh, scalar_element)
 
     # Poisson ratio per subdomain (same for all)
     poisson_ratios = {name: poisson_ratio for name in subdomain_names}
 
-    # KLE field maps per subdomain
+    # KLE field maps per subdomain (at mesh nodes)
     mean_log_E = float(np.log(E_mean))
-    field_maps = _create_subdomain_kle_field_maps(
+    field_maps, subdomain_node_indices = _create_subdomain_kle_field_maps(
         skfem_mesh, subdomain_elements, subdomain_names, bkd,
         num_kle_terms, sigma, correlation_length, mean_log_E,
     )
@@ -548,10 +617,12 @@ def cantilever_beam_2d_linear(
         physics=physics,
         solver=solver,
         field_maps=field_maps,
+        subdomain_node_indices=subdomain_node_indices,
         subdomain_elements=subdomain_elements,
         subdomain_names=subdomain_names,
         poisson_ratios=poisson_ratios,
         num_kle_terms=num_kle_terms,
+        scalar_skfem_basis=scalar_skfem_basis,
         tip_dof_index=tip_dof,
         bkd=bkd,
     )
@@ -618,6 +689,7 @@ def cantilever_beam_2d_neohookean(
     correlation_length : float
         Correlation length for KLE kernel (in normalized coordinates).
     """
+    from skfem import Basis as SkfemBasis
     from pyapprox.typing.pde.galerkin.mesh import UnstructuredMesh2D
     from pyapprox.typing.pde.galerkin.basis import VectorLagrangeBasis
     from pyapprox.typing.pde.galerkin.physics import (
@@ -638,10 +710,14 @@ def cantilever_beam_2d_neohookean(
         name: mesh.subdomain_elements(name) for name in subdomain_names
     }
 
+    # Scalar basis for quadrature point access (KLE)
+    scalar_element = basis.scalar_basis().skfem_basis().elem
+    scalar_skfem_basis = SkfemBasis(skfem_mesh, scalar_element)
+
     poisson_ratios = {name: poisson_ratio for name in subdomain_names}
 
     mean_log_E = float(np.log(E_mean))
-    field_maps = _create_subdomain_kle_field_maps(
+    field_maps, subdomain_node_indices = _create_subdomain_kle_field_maps(
         skfem_mesh, subdomain_elements, subdomain_names, bkd,
         num_kle_terms, sigma, correlation_length, mean_log_E,
     )
@@ -680,10 +756,12 @@ def cantilever_beam_2d_neohookean(
         physics=physics,
         solver=solver,
         field_maps=field_maps,
+        subdomain_node_indices=subdomain_node_indices,
         subdomain_elements=subdomain_elements,
         subdomain_names=subdomain_names,
         poisson_ratios=poisson_ratios,
         num_kle_terms=num_kle_terms,
+        scalar_skfem_basis=scalar_skfem_basis,
         tip_dof_index=tip_dof,
         bkd=bkd,
     )

@@ -26,13 +26,16 @@ from pyapprox.typing.benchmarks.registry import BenchmarkRegistry
 
 class TestCantileverBeam1D(unittest.TestCase):
 
-    def setUp(self):
-        self._bkd = NumpyBkd()
+    @classmethod
+    def setUpClass(cls):
+        cls._bkd = NumpyBkd()
+        cls._bm = cantilever_beam_1d(cls._bkd, nx=20, num_kle_terms=2)
+        cls._bm3 = cantilever_beam_1d(cls._bkd, num_kle_terms=3)
+        cls._bm1 = cantilever_beam_1d(cls._bkd, nx=20, num_kle_terms=1)
 
     def test_evaluate_at_zero(self):
         bkd = self._bkd
-        bm = cantilever_beam_1d(bkd, nx=20, num_kle_terms=2)
-        fwd = bm.function()
+        fwd = self._bm.function()
         self.assertEqual(fwd.nvars(), 2)
         self.assertEqual(fwd.nqoi(), 1)
         result = fwd(bkd.zeros((2, 1)))
@@ -41,8 +44,7 @@ class TestCantileverBeam1D(unittest.TestCase):
 
     def test_different_params_give_different_output(self):
         bkd = self._bkd
-        bm = cantilever_beam_1d(bkd, nx=20, num_kle_terms=2)
-        fwd = bm.function()
+        fwd = self._bm.function()
         r1 = fwd(bkd.zeros((2, 1)))
         r2 = fwd(bkd.array([[1.0], [0.0]]))
         self.assertFalse(
@@ -52,15 +54,14 @@ class TestCantileverBeam1D(unittest.TestCase):
 
     def test_batch_evaluation(self):
         bkd = self._bkd
-        bm = cantilever_beam_1d(bkd, nx=20, num_kle_terms=2)
-        fwd = bm.function()
+        fwd = self._bm.function()
         samples = bkd.array([[0.0, 0.5, -0.5], [0.0, 0.3, -0.3]])
         result = fwd(samples)
         self.assertEqual(result.shape, (1, 3))
 
     def test_prior_and_domain(self):
         bkd = self._bkd
-        bm = cantilever_beam_1d(bkd, num_kle_terms=3)
+        bm = self._bm3
         np.random.seed(42)
         samples = bm.prior().rvs(5)
         self.assertEqual(samples.shape, (3, 5))
@@ -68,10 +69,8 @@ class TestCantileverBeam1D(unittest.TestCase):
         self.assertEqual(bounds.shape, (3, 2))
 
     def test_protocol_compliance(self):
-        bkd = self._bkd
-        bm = cantilever_beam_1d(bkd, nx=10, num_kle_terms=1)
-        self.assertTrue(isinstance(bm, BenchmarkWithPriorProtocol))
-        self.assertTrue(isinstance(bm.function(), FunctionProtocol))
+        self.assertTrue(isinstance(self._bm1, BenchmarkWithPriorProtocol))
+        self.assertTrue(isinstance(self._bm1.function(), FunctionProtocol))
 
     def test_registry_access(self):
         bkd = self._bkd
@@ -83,8 +82,7 @@ class TestCantileverBeam1D(unittest.TestCase):
     def test_one_kle_term_recovers_constant(self):
         """With 1 KLE term at params=0, result is deterministic baseline."""
         bkd = self._bkd
-        bm = cantilever_beam_1d(bkd, nx=20, num_kle_terms=1)
-        fwd = bm.function()
+        fwd = self._bm1.function()
         r1 = fwd(bkd.zeros((1, 1)))
         r2 = fwd(bkd.zeros((1, 1)))
         bkd.assert_allclose(r1, r2)
@@ -97,13 +95,15 @@ class TestCantileverBeam1D(unittest.TestCase):
 
 class TestCantileverBeam2DLinear(unittest.TestCase):
 
-    def setUp(self):
-        self._bkd = NumpyBkd()
+    @classmethod
+    def setUpClass(cls):
+        cls._bkd = NumpyBkd()
+        cls._bm1 = cantilever_beam_2d_linear(cls._bkd, num_kle_terms=1)
+        cls._bm3 = cantilever_beam_2d_linear(cls._bkd, num_kle_terms=3)
 
     def test_evaluate_at_zero(self):
         bkd = self._bkd
-        bm = cantilever_beam_2d_linear(bkd, num_kle_terms=1)
-        fwd = bm.function()
+        fwd = self._bm1.function()
         self.assertEqual(fwd.nqoi(), 1)
         result = fwd(bkd.zeros((fwd.nvars(), 1)))
         self.assertEqual(result.shape, (1, 1))
@@ -112,8 +112,7 @@ class TestCantileverBeam2DLinear(unittest.TestCase):
 
     def test_different_params_give_different_output(self):
         bkd = self._bkd
-        bm = cantilever_beam_2d_linear(bkd, num_kle_terms=1)
-        fwd = bm.function()
+        fwd = self._bm1.function()
         nvars = fwd.nvars()
         r1 = fwd(bkd.zeros((nvars, 1)))
         r2 = fwd(bkd.ones((nvars, 1)))
@@ -122,10 +121,8 @@ class TestCantileverBeam2DLinear(unittest.TestCase):
         )
 
     def test_protocol_compliance(self):
-        bkd = self._bkd
-        bm = cantilever_beam_2d_linear(bkd, num_kle_terms=1)
-        self.assertTrue(isinstance(bm, BenchmarkWithPriorProtocol))
-        self.assertTrue(isinstance(bm.function(), FunctionProtocol))
+        self.assertTrue(isinstance(self._bm1, BenchmarkWithPriorProtocol))
+        self.assertTrue(isinstance(self._bm1.function(), FunctionProtocol))
 
     def test_registry_access(self):
         bkd = self._bkd
@@ -135,9 +132,7 @@ class TestCantileverBeam2DLinear(unittest.TestCase):
         self.assertEqual(result.shape, (1, 1))
 
     def test_nvars_matches_subdomains_times_kle(self):
-        bkd = self._bkd
-        bm = cantilever_beam_2d_linear(bkd, num_kle_terms=3)
-        fwd = bm.function()
+        fwd = self._bm3.function()
         # Should be 3 subdomains * 3 KLE terms = 9
         self.assertEqual(fwd.nvars(), 9)
 
@@ -149,13 +144,20 @@ class TestCantileverBeam2DLinear(unittest.TestCase):
 
 class TestCantileverBeam2DNeoHookean(unittest.TestCase):
 
-    def setUp(self):
-        self._bkd = NumpyBkd()
+    @classmethod
+    def setUpClass(cls):
+        cls._bkd = NumpyBkd()
+        cls._bm1 = cantilever_beam_2d_neohookean(cls._bkd, num_kle_terms=1)
+        cls._bm_lin_small = cantilever_beam_2d_linear(
+            cls._bkd, num_kle_terms=1, q0=0.1,
+        )
+        cls._bm_neo_small = cantilever_beam_2d_neohookean(
+            cls._bkd, num_kle_terms=1, q0=0.1,
+        )
 
     def test_evaluate_at_zero(self):
         bkd = self._bkd
-        bm = cantilever_beam_2d_neohookean(bkd, num_kle_terms=1)
-        fwd = bm.function()
+        fwd = self._bm1.function()
         self.assertEqual(fwd.nqoi(), 1)
         result = fwd(bkd.zeros((fwd.nvars(), 1)))
         self.assertEqual(result.shape, (1, 1))
@@ -164,23 +166,15 @@ class TestCantileverBeam2DNeoHookean(unittest.TestCase):
     def test_close_to_linear_at_small_load(self):
         """Neo-Hookean and linear should give similar results for small load."""
         bkd = self._bkd
-        bm_lin = cantilever_beam_2d_linear(
-            bkd, num_kle_terms=1, q0=0.1,
-        )
-        bm_neo = cantilever_beam_2d_neohookean(
-            bkd, num_kle_terms=1, q0=0.1,
-        )
-        sample = bkd.zeros((bm_lin.function().nvars(), 1))
-        r_lin = float(bm_lin.function()(sample)[0, 0])
-        r_neo = float(bm_neo.function()(sample)[0, 0])
+        sample = bkd.zeros((self._bm_lin_small.function().nvars(), 1))
+        r_lin = float(self._bm_lin_small.function()(sample)[0, 0])
+        r_neo = float(self._bm_neo_small.function()(sample)[0, 0])
         rel_diff = abs(r_lin - r_neo) / abs(r_lin)
         self.assertLess(rel_diff, 0.05)
 
     def test_protocol_compliance(self):
-        bkd = self._bkd
-        bm = cantilever_beam_2d_neohookean(bkd, num_kle_terms=1)
-        self.assertTrue(isinstance(bm, BenchmarkWithPriorProtocol))
-        self.assertTrue(isinstance(bm.function(), FunctionProtocol))
+        self.assertTrue(isinstance(self._bm1, BenchmarkWithPriorProtocol))
+        self.assertTrue(isinstance(self._bm1.function(), FunctionProtocol))
 
     def test_registry_access(self):
         bkd = self._bkd
