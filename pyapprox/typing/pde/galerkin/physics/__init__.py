@@ -1,6 +1,8 @@
 """Physics implementations for Galerkin finite element methods."""
 
-from pyapprox.typing.pde.galerkin.physics.base import AbstractGalerkinPhysics
+from pyapprox.typing.pde.galerkin.physics.bc_mixin import GalerkinBCMixin
+from pyapprox.typing.pde.galerkin.physics.galerkin_base import GalerkinPhysicsBase
+from pyapprox.typing.pde.galerkin.physics.helpers import ScalarMassAssembler
 from pyapprox.typing.pde.galerkin.physics.advection_diffusion import (
     AdvectionDiffusionReaction,
     LinearAdvectionDiffusionReaction,
@@ -27,7 +29,9 @@ LinearElasticity = CompositeLinearElasticity
 from pyapprox.typing.pde.galerkin.physics.stokes import StokesPhysics
 
 __all__ = [
-    "AbstractGalerkinPhysics",
+    "GalerkinBCMixin",
+    "GalerkinPhysicsBase",
+    "ScalarMassAssembler",
     "AdvectionDiffusionReaction",
     "BiLaplacianPrior",
     "BurgersPhysics",

@@ -28,7 +28,8 @@ from scipy.sparse import csr_matrix
 from pyapprox.typing.util.backends.protocols import Array, Backend
 from pyapprox.typing.pde.galerkin.protocols.basis import GalerkinBasisProtocol
 from pyapprox.typing.pde.galerkin.protocols.boundary import BoundaryConditionProtocol
-from pyapprox.typing.pde.galerkin.physics.base import AbstractGalerkinPhysics
+from pyapprox.typing.pde.galerkin.physics.galerkin_base import GalerkinPhysicsBase
+from pyapprox.typing.pde.galerkin.physics.helpers import ScalarMassAssembler
 
 # Import skfem for assembly
 try:
@@ -48,7 +49,7 @@ ReactionFunc = Callable[[np.ndarray, np.ndarray], np.ndarray]
 ReactionDerivFunc = Callable[[np.ndarray, np.ndarray], np.ndarray]
 
 
-class AdvectionDiffusionReaction(AbstractGalerkinPhysics[Array]):
+class AdvectionDiffusionReaction(GalerkinPhysicsBase[Array]):
     """Advection-diffusion-reaction physics with general reaction term.
 
     Solves:
@@ -136,8 +137,8 @@ class AdvectionDiffusionReaction(AbstractGalerkinPhysics[Array]):
         boundary_conditions: Optional[List[BoundaryConditionProtocol[Array]]] = None,
         conservative: bool = False,
     ):
-        super().__init__(basis, boundary_conditions)
-        self._bkd = bkd
+        super().__init__(basis, bkd, boundary_conditions)
+        self._mass = ScalarMassAssembler(basis, bkd)
 
         # Store coefficients
         self._diffusivity = diffusivity
@@ -396,6 +397,35 @@ class AdvectionDiffusionReaction(AbstractGalerkinPhysics[Array]):
             BilinearForm(reaction_jacobian_form), skfem_basis, u_prev=state_interp
         )
 
+    def mass_matrix(self):
+        """Return the scalar mass matrix."""
+        return self._mass.mass_matrix()
+
+    def mass_solve(self, rhs: Array) -> Array:
+        """Solve M * x = rhs for x."""
+        return self._mass.mass_solve(rhs)
+
+    def spatial_residual(self, state: Array, time: float) -> Array:
+        """Compute spatial residual F = b - K*u without Dirichlet enforcement.
+
+        Parameters
+        ----------
+        state : Array
+            Solution state. Shape: (nstates,)
+        time : float
+            Current time.
+
+        Returns
+        -------
+        Array
+            Spatial residual. Shape: (nstates,)
+        """
+        stiffness = self._assemble_stiffness(state, time)
+        load = self._assemble_load(state, time)
+        stiffness = self._apply_bc_to_stiffness(stiffness, time)
+        load = self._apply_bc_to_load(load, time)
+        return load - stiffness @ state
+
     def spatial_jacobian(self, state: Array, time: float) -> Array:
         """Compute dF/du without Dirichlet enforcement.
 
@@ -418,42 +448,6 @@ class AdvectionDiffusionReaction(AbstractGalerkinPhysics[Array]):
         jacobian = -stiffness
         if not self._reaction_is_linear and self._reaction_deriv is not None:
             jacobian = jacobian + self._assemble_reaction_jacobian(state, time)
-        return jacobian
-
-    def jacobian(self, state: Array, time: float) -> Array:
-        """Compute state Jacobian dF/du.
-
-        For linear problems: dF/du = -K
-        For nonlinear problems: dF/du = -K + J_R
-        where J_R is the Jacobian of the nonlinear reaction term.
-
-        Boundary conditions are applied:
-        - Robin BCs modify stiffness (add boundary mass)
-        - Dirichlet BCs replace Jacobian rows with identity
-        """
-        stiffness = self._assemble_stiffness(state, time)
-
-        # Apply BC contributions to stiffness
-        stiffness = self._apply_bc_to_stiffness(stiffness, time)
-
-        # Base Jacobian is -K
-        jacobian = -stiffness
-
-        # Add nonlinear reaction Jacobian if applicable
-        if not self._reaction_is_linear and self._reaction_deriv is not None:
-            react_jac = self._assemble_reaction_jacobian(state, time)
-            jacobian = jacobian + react_jac
-
-        # Apply Dirichlet BCs (skip Robin which also satisfies DirichletBCProtocol)
-        from pyapprox.typing.pde.galerkin.protocols.boundary import (
-            DirichletBCProtocol, RobinBCProtocol,
-        )
-        for bc in self._boundary_conditions:
-            if isinstance(bc, RobinBCProtocol):
-                continue
-            if isinstance(bc, DirichletBCProtocol):
-                jacobian = bc.apply_to_jacobian(jacobian, state, time)
-
         return jacobian
 
     def initial_condition(self, func: Callable) -> Array:

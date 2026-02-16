@@ -9,7 +9,7 @@ The key difference from collocation is that Galerkin uses weak formulation
 with mass matrices: M*du/dt = F(u,t) instead of du/dt = f(u,t).
 """
 
-from typing import Protocol, Generic, runtime_checkable, Tuple, Any
+from typing import Protocol, Generic, runtime_checkable, Tuple, Optional, Any
 
 from pyapprox.typing.util.backends.protocols import Array, Backend
 
@@ -71,13 +71,10 @@ class GalerkinPhysicsProtocol(Protocol, Generic[Array]):
         ...
 
     def residual(self, state: Array, time: float) -> Array:
-        """Compute spatial residual F(u, t).
+        """Compute residual F(u, t) with Dirichlet BCs applied.
 
         For transient problems: M * du/dt = residual(u, t)
         For steady problems: solve residual(u) = 0
-
-        This is the right-hand side of the weak form after
-        assembly: F = b - K*u where K is the stiffness matrix.
 
         Parameters
         ----------
@@ -90,6 +87,26 @@ class GalerkinPhysicsProtocol(Protocol, Generic[Array]):
         -------
         Array
             Residual. Shape: (nstates,)
+        """
+        ...
+
+    def spatial_residual(self, state: Array, time: float) -> Array:
+        """Compute spatial residual without Dirichlet enforcement.
+
+        Returns F = b - K*u (or equivalent) with Robin/Neumann BC
+        contributions but no Dirichlet row replacement.
+
+        Parameters
+        ----------
+        state : Array
+            Solution state. Shape: (nstates,)
+        time : float
+            Current time.
+
+        Returns
+        -------
+        Array
+            Spatial residual. Shape: (nstates,)
         """
         ...
 
@@ -114,7 +131,7 @@ class GalerkinPhysicsProtocol(Protocol, Generic[Array]):
         ...
 
     def jacobian(self, state: Array, time: float) -> Array:
-        """Compute state Jacobian dF/du.
+        """Compute state Jacobian dF/du with Dirichlet BCs applied.
 
         Parameters
         ----------
@@ -130,52 +147,63 @@ class GalerkinPhysicsProtocol(Protocol, Generic[Array]):
         """
         ...
 
-    def apply_boundary_conditions(
-        self, residual: Array, jacobian: Array, state: Array
+    def dirichlet_dof_info(
+        self, time: float
     ) -> Tuple[Array, Array]:
-        """Apply boundary conditions to residual and Jacobian.
-
-        Modifies rows corresponding to boundary DOFs to enforce BCs.
+        """Return Dirichlet DOF indices and their exact values.
 
         Parameters
         ----------
-        residual : Array
-            Residual vector. Shape: (nstates,)
-        jacobian : Array
-            Jacobian matrix. Shape: (nstates, nstates)
-        state : Array
-            Current state. Shape: (nstates,)
+        time : float
+            Current time.
 
         Returns
         -------
         Tuple[Array, Array]
+            (dof_indices, dof_values) — shapes (ndirichlet,) each.
+        """
+        ...
+
+    def apply_boundary_conditions(
+        self,
+        residual: Optional[Array],
+        jacobian: Optional[Array],
+        state: Array,
+        time: float = 0.0,
+    ) -> Tuple[Optional[Array], Optional[Array]]:
+        """Apply boundary conditions to residual and Jacobian.
+
+        Applies in correct order: Robin first, then Dirichlet.
+
+        Parameters
+        ----------
+        residual : Array or None
+            Residual vector. Shape: (nstates,). None to skip.
+        jacobian : Array or None
+            Jacobian matrix. Shape: (nstates, nstates). None to skip.
+        state : Array
+            Current state. Shape: (nstates,)
+        time : float
+            Current time.
+
+        Returns
+        -------
+        Tuple[Optional[Array], Optional[Array]]
             Modified (residual, jacobian).
         """
         ...
 
 
 @runtime_checkable
-class GalerkinPhysicsWithParamJacobianProtocol(Protocol, Generic[Array]):
+class GalerkinPhysicsWithParamJacobianProtocol(
+    GalerkinPhysicsProtocol[Array], Protocol, Generic[Array]
+):
     """Protocol for Galerkin physics with parameter sensitivity (Level 2).
 
     Extends GalerkinPhysicsProtocol with parameter Jacobian for adjoint
     sensitivity analysis.
     """
 
-    # --- All GalerkinPhysicsProtocol methods ---
-    def bkd(self) -> Backend[Array]: ...
-    def basis(self) -> Any: ...
-    def nstates(self) -> int: ...
-    def mass_matrix(self) -> Array: ...
-    def mass_solve(self, rhs: Array) -> Array: ...
-    def residual(self, state: Array, time: float) -> Array: ...
-    def spatial_jacobian(self, state: Array, time: float) -> Array: ...
-    def jacobian(self, state: Array, time: float) -> Array: ...
-    def apply_boundary_conditions(
-        self, residual: Array, jacobian: Array, state: Array
-    ) -> Tuple[Array, Array]: ...
-
-    # --- Additional parameter methods ---
     def nparams(self) -> int:
         """Return number of parameters."""
         ...
@@ -219,31 +247,15 @@ class GalerkinPhysicsWithParamJacobianProtocol(Protocol, Generic[Array]):
 
 
 @runtime_checkable
-class GalerkinPhysicsWithHVPProtocol(Protocol, Generic[Array]):
+class GalerkinPhysicsWithHVPProtocol(
+    GalerkinPhysicsWithParamJacobianProtocol[Array], Protocol, Generic[Array]
+):
     """Protocol for Galerkin physics with Hessian-vector products (Level 3).
 
     Extends GalerkinPhysicsWithParamJacobianProtocol with HVP methods for
     second-order optimization (Newton methods, Gauss-Newton, etc.).
     """
 
-    # --- All GalerkinPhysicsWithParamJacobianProtocol methods ---
-    def bkd(self) -> Backend[Array]: ...
-    def basis(self) -> Any: ...
-    def nstates(self) -> int: ...
-    def mass_matrix(self) -> Array: ...
-    def mass_solve(self, rhs: Array) -> Array: ...
-    def residual(self, state: Array, time: float) -> Array: ...
-    def spatial_jacobian(self, state: Array, time: float) -> Array: ...
-    def jacobian(self, state: Array, time: float) -> Array: ...
-    def apply_boundary_conditions(
-        self, residual: Array, jacobian: Array, state: Array
-    ) -> Tuple[Array, Array]: ...
-    def nparams(self) -> int: ...
-    def set_param(self, param: Array) -> None: ...
-    def param_jacobian(self, state: Array, time: float) -> Array: ...
-    def initial_param_jacobian(self) -> Array: ...
-
-    # --- HVP methods ---
     def state_state_hvp(
         self, state: Array, adj_state: Array, wvec: Array, time: float
     ) -> Array:

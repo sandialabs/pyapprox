@@ -24,10 +24,9 @@ from pyapprox.typing.util.backends.protocols import Array, Backend
 from pyapprox.typing.pde.galerkin.protocols.basis import GalerkinBasisProtocol
 from pyapprox.typing.pde.galerkin.protocols.boundary import (
     BoundaryConditionProtocol,
-    DirichletBCProtocol,
-    RobinBCProtocol,
 )
-from pyapprox.typing.pde.galerkin.physics.base import AbstractGalerkinPhysics
+from pyapprox.typing.pde.galerkin.physics.galerkin_base import GalerkinPhysicsBase
+from pyapprox.typing.pde.galerkin.physics.helpers import ScalarMassAssembler
 
 try:
     from skfem import asm, LinearForm, BilinearForm
@@ -39,7 +38,7 @@ except ImportError:
     )
 
 
-class BurgersPhysics(AbstractGalerkinPhysics[Array], Generic[Array]):
+class BurgersPhysics(GalerkinPhysicsBase[Array], Generic[Array]):
     """Viscous Burgers equation physics for Galerkin FEM.
 
     Solves:
@@ -77,8 +76,8 @@ class BurgersPhysics(AbstractGalerkinPhysics[Array], Generic[Array]):
             List[BoundaryConditionProtocol[Array]]
         ] = None,
     ):
-        super().__init__(basis, boundary_conditions)
-        self._bkd = bkd
+        super().__init__(basis, bkd, boundary_conditions)
+        self._mass = ScalarMassAssembler(basis, bkd)
         self._viscosity = viscosity
         self._forcing = forcing
 
@@ -103,6 +102,14 @@ class BurgersPhysics(AbstractGalerkinPhysics[Array], Generic[Array]):
             return self._forcing(coords, time)
         except TypeError:
             return self._forcing(coords)
+
+    def mass_matrix(self):
+        """Return the scalar mass matrix."""
+        return self._mass.mass_matrix()
+
+    def mass_solve(self, rhs: Array) -> Array:
+        """Solve M * x = rhs for x."""
+        return self._mass.mass_solve(rhs)
 
     def _assemble_stiffness(self, state: Array, time: float) -> Array:
         """Assemble Newton-linearized stiffness matrix.
@@ -219,39 +226,6 @@ class BurgersPhysics(AbstractGalerkinPhysics[Array], Generic[Array]):
         stiffness = self._assemble_stiffness(state, time)
         stiffness = self._apply_bc_to_stiffness(stiffness, time)
         return -stiffness
-
-    def residual(self, state: Array, time: float) -> Array:
-        """Compute nonlinear spatial residual R(u, t) with Dirichlet BCs.
-
-        For transient problems: M * du/dt = R(u, t)
-        """
-        residual = self.spatial_residual(state, time)
-
-        for bc in self._boundary_conditions:
-            if isinstance(bc, RobinBCProtocol):
-                continue
-            if isinstance(bc, DirichletBCProtocol):
-                residual = bc.apply_to_residual(residual, state, time)
-
-        return residual
-
-    def jacobian(self, state: Array, time: float) -> Array:
-        """Compute state Jacobian dR/du.
-
-        For Burgers, the Jacobian is -K where K is the Newton-linearized
-        stiffness matrix (bilinear form) evaluated at the current state.
-        """
-        stiffness = self._assemble_stiffness(state, time)
-        stiffness = self._apply_bc_to_stiffness(stiffness, time)
-        jacobian = -stiffness
-
-        for bc in self._boundary_conditions:
-            if isinstance(bc, RobinBCProtocol):
-                continue
-            if isinstance(bc, DirichletBCProtocol):
-                jacobian = bc.apply_to_jacobian(jacobian, state, time)
-
-        return jacobian
 
     def initial_condition(self, func: Callable) -> Array:
         """Create initial condition by interpolating a function.

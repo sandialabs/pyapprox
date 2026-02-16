@@ -43,7 +43,9 @@ from pyapprox.typing.pde.galerkin.basis import (
 )
 
 from pyapprox.typing.pde.galerkin.physics import (
-    AbstractGalerkinPhysics,
+    GalerkinBCMixin,
+    GalerkinPhysicsBase,
+    ScalarMassAssembler,
     CompositeLinearElasticity,
     LinearAdvectionDiffusionReaction,
     Helmholtz,
@@ -83,7 +85,9 @@ __all__ = [
     "LagrangeBasis",
     "VectorLagrangeBasis",
     # Physics implementations
-    "AbstractGalerkinPhysics",
+    "GalerkinBCMixin",
+    "GalerkinPhysicsBase",
+    "ScalarMassAssembler",
     "LinearAdvectionDiffusionReaction",
     "Helmholtz",
     "CompositeLinearElasticity",

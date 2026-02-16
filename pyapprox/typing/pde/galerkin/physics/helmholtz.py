@@ -18,7 +18,8 @@ import numpy as np
 from pyapprox.typing.util.backends.protocols import Array, Backend
 from pyapprox.typing.pde.galerkin.protocols.basis import GalerkinBasisProtocol
 from pyapprox.typing.pde.galerkin.protocols.boundary import BoundaryConditionProtocol
-from pyapprox.typing.pde.galerkin.physics.base import AbstractGalerkinPhysics
+from pyapprox.typing.pde.galerkin.physics.galerkin_base import GalerkinPhysicsBase
+from pyapprox.typing.pde.galerkin.physics.helpers import ScalarMassAssembler
 
 # Import skfem for assembly
 try:
@@ -31,7 +32,7 @@ except ImportError:
     )
 
 
-class Helmholtz(AbstractGalerkinPhysics[Array]):
+class Helmholtz(GalerkinPhysicsBase[Array]):
     """Helmholtz equation physics.
 
     Solves:
@@ -87,8 +88,8 @@ class Helmholtz(AbstractGalerkinPhysics[Array]):
         forcing: Optional[Callable] = None,
         boundary_conditions: Optional[List[BoundaryConditionProtocol[Array]]] = None,
     ):
-        super().__init__(basis, boundary_conditions)
-        self._bkd = bkd
+        super().__init__(basis, bkd, boundary_conditions)
+        self._mass = ScalarMassAssembler(basis, bkd)
 
         # Store wavenumber
         self._wavenumber = wavenumber
@@ -105,6 +106,18 @@ class Helmholtz(AbstractGalerkinPhysics[Array]):
     def wavenumber(self) -> Union[float, Callable]:
         """Return the wavenumber k (scalar) or k^2(x) (callable)."""
         return self._wavenumber
+
+    def is_linear(self) -> bool:
+        """Helmholtz equation is always linear."""
+        return True
+
+    def mass_matrix(self):
+        """Return the scalar mass matrix."""
+        return self._mass.mass_matrix()
+
+    def mass_solve(self, rhs: Array) -> Array:
+        """Solve M * x = rhs for x."""
+        return self._mass.mass_solve(rhs)
 
     def _assemble_stiffness(self, state: Array, time: float) -> Array:
         """Assemble stiffness matrix K.
@@ -192,6 +205,50 @@ class Helmholtz(AbstractGalerkinPhysics[Array]):
         self._load_cached = load
 
         return load
+
+    def spatial_residual(self, state: Array, time: float) -> Array:
+        """Compute spatial residual without Dirichlet enforcement.
+
+        Returns F = b - K*u with Robin/Neumann BC contributions.
+
+        Parameters
+        ----------
+        state : Array
+            Solution state. Shape: (nstates,)
+        time : float
+            Current time.
+
+        Returns
+        -------
+        Array
+            Spatial residual. Shape: (nstates,)
+        """
+        stiffness = self._assemble_stiffness(state, time)
+        load = self._assemble_load(state, time)
+        stiffness = self._apply_bc_to_stiffness(stiffness, time)
+        load = self._apply_bc_to_load(load, time)
+        return load - stiffness @ state
+
+    def spatial_jacobian(self, state: Array, time: float) -> Array:
+        """Compute dF/du without Dirichlet enforcement.
+
+        For the linear Helmholtz equation, dF/du = -K.
+
+        Parameters
+        ----------
+        state : Array
+            Solution state. Shape: (nstates,)
+        time : float
+            Current time.
+
+        Returns
+        -------
+        Array
+            Jacobian dF/du. Shape: (nstates, nstates)
+        """
+        stiffness = self._assemble_stiffness(state, time)
+        stiffness = self._apply_bc_to_stiffness(stiffness, time)
+        return -stiffness
 
     def initial_condition(self, func: Callable) -> Array:
         """Create initial condition by interpolating a function.

@@ -299,6 +299,10 @@ try:
         def bkd(self) -> TorchBkd:
             return TorchBkd()
 
+        @unittest.skip("sparse solve not available on CPU with TorchBkd")
+        def test_both_recover_exact_1d(self) -> None:
+            super().test_both_recover_exact_1d()
+
 except ImportError:
     pass
 
@@ -374,6 +378,10 @@ try:
 
         def bkd(self) -> TorchBkd:
             return TorchBkd()
+
+        @unittest.skip("sparse solve not available on CPU with TorchBkd")
+        def test_both_recover_exact_2d(self) -> None:
+            super().test_both_recover_exact_2d()
 
 except ImportError:
     pass
