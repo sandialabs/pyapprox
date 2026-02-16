@@ -12,6 +12,8 @@ Key Protocols
 Key Classes
 -----------
 - MeshKLE: Kernel-based KLE computed from mesh coordinates and a kernel
+- GalerkinKLE: KLE via Galerkin projection (generalized eigenproblem)
+- SPDEMaternKLE: SPDE-based KLE for Matern fields (sparse, O(N) memory)
 - DataDrivenKLE: SVD-based KLE computed from field samples
 - PrincipalComponentAnalysis: PCA for dimensionality reduction
 
@@ -35,6 +37,7 @@ from .utils import (
 )
 from .mesh_kle import MeshKLE
 from .galerkin_kle import GalerkinKLE
+from .spde_kle import SPDEMaternKLE
 from .data_driven_kle import DataDrivenKLE
 from .pca import PrincipalComponentAnalysis
 from .analytical import AnalyticalExponentialKLE1D
@@ -47,6 +50,7 @@ __all__ = [
     # Core
     "MeshKLE",
     "GalerkinKLE",
+    "SPDEMaternKLE",
     "DataDrivenKLE",
     "PrincipalComponentAnalysis",
     # Periodic random fields
