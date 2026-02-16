@@ -1,4 +1,4 @@
-"""Tests for SPDEMaternKLE and SPDE factory functions.
+r"""Tests for SPDEMaternKLE and SPDE factory functions.
 
 NumPy-only tests (eigensolve is scipy-based; skfem is a dependency).
 Uses small meshes (10x10 or 20-element 1D) to keep tests fast and
@@ -7,6 +7,190 @@ memory-light.
 These tests live in pde/field_maps/tests/ (not surrogates/kle/tests/)
 because the factory functions depend on skfem, which is a PDE-layer
 dependency.
+
+Math Behind the Three Cross-Method Tests
+=========================================
+
+All three tests verify a single underlying mathematical object: the
+Karhunen-Loeve Expansion (KLE) of a random field.  They approach it
+from three completely different discretization strategies and check
+that the eigenvalues agree.
+
+Background: The Continuous KLE
+------------------------------
+
+A zero-mean Gaussian random field u(x) with covariance kernel C(x,y)
+on domain D has the expansion::
+
+    u(x) = sigma * sum_k sqrt(lambda_k) * phi_k(x) * z_k,
+    z_k ~ N(0,1)
+
+where (lambda_k, phi_k) are eigenpairs of the Fredholm integral
+equation::
+
+    integral_D C(x,y) phi_k(y) dy = lambda_k phi_k(x)
+
+The three methods discretize this integral equation differently.
+
+Test 3: Nystrom vs Galerkin (test_nystrom_vs_galerkin_1d_matern32)
+------------------------------------------------------------------
+
+**What it tests:** Two independent kernel-based discretizations of the
+same Fredholm equation produce the same eigenvalues.
+
+**Nystrom method** (MeshKLE / ``create_fem_nystrom_nodes_kle``):
+
+Collocates at mesh nodes {x_i} with lumped-mass quadrature weights
+{w_i}.  The integral becomes a matrix eigenvalue problem::
+
+    sum_j w_j C(x_i, x_j) phi_k(x_j) = lambda_k phi_k(x_i)
+
+Using the symmetrization trick
+:math:`\tilde{C}_{ij} = \sqrt{w_i}\,C(x_i, x_j)\,\sqrt{w_j}`,
+this becomes a standard symmetric eigenproblem on
+:math:`\tilde{C}`.
+
+**Galerkin method** (GalerkinKLE / ``create_fem_galerkin_kle``):
+
+Projects through the FEM basis.  Let :math:`\Phi_{qj}` be the value
+of basis function j at quadrature point q, and :math:`\mathrm{dx}_q`
+the quadrature weight.  The projected covariance is::
+
+    C_h = Phi^T diag(dx) K_q diag(dx) Phi
+
+where :math:`K_q` is the kernel evaluated at all quadrature points.
+The generalized eigenproblem is::
+
+    C_h v_k = lambda_k M v_k
+
+where M is the FEM mass matrix.
+
+**Why they should agree:** Both discretize the same continuous operator
+C on the same mesh.  The Nystrom method with lumped-mass weights is
+mathematically equivalent to mass-lumped Galerkin.  The residual
+``rtol=5e-3`` comes from:
+
+- Nystrom uses point evaluation at nodes with lumped weights
+  (row sums of M)
+- Galerkin uses full quadrature and the consistent mass matrix
+
+The test uses gamma=4, delta=1, giving kappa = sqrt(1/4) = 0.5,
+nu=3/2, and Matern-3/2 range parameter
+rho = sqrt(2*nu)/kappa = sqrt(3)/0.5 = 3.46.
+
+Test 1: SPDE Internal Consistency (test_spde_internal_consistency)
+------------------------------------------------------------------
+
+**What it tests:** The closed-form eigenvalue formula
+:math:`\lambda_k = \gamma^2 / (\tau^2 \mu_k^2)` is algebraically
+correct.
+
+**The SPDE approach:**
+
+A Matern field can be defined as the solution of the stochastic PDE::
+
+    L u = tau^{-1} W(x)
+
+where W is white noise, :math:`L = \kappa^2 - \nabla^2` is the
+differential operator, and :math:`\kappa = \sqrt{\delta/\gamma}`.
+For the bilaplacian prior (alpha=2), the FEM discretization assembles::
+
+    A = gamma K_stiff + delta M + xi M_boundary
+
+The key relationship is :math:`A = \gamma L_h` where :math:`L_h` is
+the discretized SPDE operator (this holds exactly when
+:math:`\xi/\gamma = \kappa^2`; for independently chosen :math:`\xi`
+the boundary mass is a lower-order correction).  Therefore
+:math:`L_h^{-1} = \gamma A^{-1}`.
+
+**Deriving the covariance:**
+
+The SPDE solution covariance is
+:math:`C = \tau^{-2} L_h^{-1} M L_h^{-T}` (the M appears because
+the white noise inner product in the FEM basis is
+:math:`\langle W, \phi_i \rangle \sim N(0, M)`).  Since
+:math:`L_h^{-1} = \gamma A^{-1}`::
+
+    Sigma = (gamma^2 / tau^2) A^{-1} M A^{-1}
+
+**The eigenvalue problem:**
+
+The factory solves :math:`A \phi_k = \mu_k M \phi_k`.  This means
+:math:`A^{-1} M \phi_k = (1/\mu_k) \phi_k`.  Substituting into
+:math:`\Sigma M`::
+
+    Sigma M phi_k = (gamma^2/tau^2) A^{-1} M A^{-1} M phi_k
+                  = (gamma^2/tau^2) A^{-1} M (1/mu_k) phi_k
+                  = (gamma^2/tau^2) (1/mu_k^2) phi_k
+
+So the eigenvalues of :math:`\Sigma M` are exactly
+:math:`\gamma^2 / (\tau^2 \mu_k^2)`.
+
+**What tau^2 is:**
+
+The SPDE-Matern variance formula determines tau so the marginal
+variance equals :math:`\sigma^2`::
+
+    sigma^2 = Gamma(nu) / (Gamma(nu + d/2) * (4*pi)^{d/2}
+              * kappa^{2*nu} * tau^2)
+
+**The test:** Forms :math:`A^{-1}` explicitly (small mesh, nx=50),
+computes :math:`\Sigma = (\gamma^2/\tau^2) A^{-1} M A^{-1}`, gets
+eigenvalues of :math:`\Sigma M` via ``numpy.linalg.eigvals``, and
+checks they match the formula to ``rtol=1e-10``.  This is a pure
+algebraic identity -- no approximation is involved -- so machine
+precision is expected.
+
+Test 2: Asymptotic Convergence
+(test_spde_asymptotic_convergence_to_stationary)
+------------------------------------------------------------------
+
+**What it tests:** The SPDE eigenvalues converge toward the stationary
+Matern kernel eigenvalues as the domain grows.
+
+**Why they differ on a bounded domain:**
+
+The SPDE with Robin boundary conditions
+:math:`\gamma\,\partial u/\partial n + \xi\,u = 0` on
+:math:`\partial D` produces a *modified* Green's function that differs
+from the stationary Matern kernel C(x,y).  The SPDE covariance
+satisfies the boundary conditions; the stationary kernel does not.
+This is not a bug -- it's a fundamental mathematical difference.
+
+However, as :math:`L \to \infty`, the boundary effects become
+negligible because:
+
+1. The Matern kernel decays exponentially:
+   :math:`C(r) \sim \exp(-\kappa r)` for large r
+2. The SPDE Green's function and the stationary kernel differ
+   primarily near boundaries
+3. The leading eigenfunctions are concentrated in the interior,
+   far from boundaries
+
+So on [0, L], the relative eigenvalue error
+:math:`|\lambda_k^{\mathrm{SPDE}} - \lambda_k^{\mathrm{Nystrom}}|
+/ \lambda_k^{\mathrm{Nystrom}}` decreases as L grows.
+
+**The test:** Runs SPDE and Nystrom on the same domain for
+L = 10, 20, 40, 80 with fixed resolution h = 1/10.  Checks:
+
+1. The max relative error over the first 5 modes decreases
+   monotonically with L
+2. At L = 40, the error is below 5%
+
+This is a *trend test* -- it doesn't require exact agreement, only
+convergence toward it.
+
+Summary
+-------
+
+=========================  =============================================  ====================  ====================  ===========================================================
+Test                       Compares                                       Type                  Tolerance             What it validates
+=========================  =============================================  ====================  ====================  ===========================================================
+Internal consistency       SPDE formula vs dense covariance eigenvalues   Algebraic identity    1e-10                 Eigenvalue formula gamma^2/(tau^2 mu_k^2) is correct
+Asymptotic convergence     SPDE vs Nystrom on growing domains             Trend                 5% at L=40, monotone  SPDE Green's function approaches stationary kernel
+Nystrom vs Galerkin        Two kernel discretizations                     Cross-validation      5e-3                  Kernel parameterization and both discretizations are correct
+=========================  =============================================  ====================  ====================  ===========================================================
 """
 
 import unittest

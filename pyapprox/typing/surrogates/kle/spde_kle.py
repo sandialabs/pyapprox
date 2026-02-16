@@ -44,6 +44,25 @@ formula:
 with :math:`\kappa = \sqrt{\delta/\gamma}` and :math:`\nu = \alpha - d/2`.
 This ensures the eigenvalues match kernel-based KLE methods mode-by-mode
 (up to discretization and boundary effects).
+
+The SPDE, Nystrom, and Galerkin methods all discretize the same continuous
+Fredholm eigenvalue problem but differ in how they represent the covariance
+operator: Nystrom evaluates the kernel at discrete points with quadrature
+weights, Galerkin projects the kernel onto the FE basis via double
+integration, and the SPDE replaces the dense kernel matrix with a sparse
+differential operator whose Green's function is the Matern covariance.
+On a bounded domain the SPDE covariance differs from the stationary kernel
+due to boundary conditions, but all three methods converge to the same
+eigenvalues in the infinite-domain limit; on any fixed domain Nystrom and
+Galerkin agree to :math:`O(h^2)` while SPDE agrees to within a
+boundary-dominated error that decreases as the domain grows relative to
+the correlation length.
+
+Note on the :math:`A = \gamma L_h` factorization: this holds exactly only
+when the Robin coefficient satisfies :math:`\xi/\gamma = \kappa^2`.  For
+independently chosen :math:`\xi` the factorization is approximate, but
+the boundary mass :math:`M_\partial` is a lower-order correction that does
+not affect the interior eigenvalues at leading order.
 """
 
 from typing import Generic, Optional, Union

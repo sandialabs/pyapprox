@@ -41,7 +41,9 @@ from pyapprox.typing.pde.field_maps.mesh_kle_field_map import MeshKLEFieldMap
 from pyapprox.typing.pde.field_maps.transformed import TransformedFieldMap
 from pyapprox.typing.pde.field_maps.kle_factory import (
     create_lognormal_kle_field_map,
+    create_spde_lognormal_kle_field_map,
 )
+from pyapprox.typing.pde.galerkin.basis.lagrange import LagrangeBasis
 from pyapprox.typing.benchmarks.instances.pde.elastic_bar import (
     PDEBenchmarkWrapper,
 )
@@ -160,6 +162,134 @@ def _create_subdomain_kle_field_maps(
             transform_deriv=lambda x: bkd.exp(x),
             bkd=bkd,
             transform_deriv2=lambda x: bkd.exp(x),
+        )
+        field_maps.append(fm)
+    return field_maps, subdomain_node_indices
+
+
+class _SkfemSubmesh(Generic[Array]):
+    """Lightweight mesh wrapper for a skfem submesh.
+
+    Wraps the result of ``skfem_mesh.restrict(elem_indices)`` so it
+    satisfies ``GalerkinMeshProtocol`` and can be passed to
+    ``LagrangeBasis``.
+    """
+
+    def __init__(self, skfem_submesh, bkd: Backend[Array]):
+        self._skfem_mesh = skfem_submesh
+        self._bkd = bkd
+        self._nodes = bkd.asarray(
+            skfem_submesh.p.astype(np.float64),
+        )
+
+    def bkd(self) -> Backend[Array]:
+        return self._bkd
+
+    def ndim(self) -> int:
+        return self._skfem_mesh.p.shape[0]
+
+    def nelements(self) -> int:
+        return self._skfem_mesh.nelements
+
+    def nnodes(self) -> int:
+        return self._skfem_mesh.nvertices
+
+    def nodes(self) -> Array:
+        return self._nodes
+
+    def elements(self) -> Array:
+        return self._bkd.asarray(
+            self._skfem_mesh.t.astype(np.int64),
+        )
+
+    def skfem_mesh(self):
+        return self._skfem_mesh
+
+    def boundary_nodes(self, boundary_id: str) -> Array:
+        bndries = self._skfem_mesh.boundaries or {}
+        if boundary_id not in bndries:
+            raise ValueError(
+                f"Unknown boundary '{boundary_id}'. "
+                f"Available: {list(bndries.keys())}"
+            )
+        facet_idx = bndries[boundary_id]
+        node_idx = np.unique(self._skfem_mesh.facets[:, facet_idx])
+        return self._bkd.asarray(node_idx.astype(np.int64))
+
+
+def _create_subdomain_spde_kle_field_maps(
+    skfem_mesh,
+    subdomain_elements: Dict[str, np.ndarray],
+    subdomain_names: List[str],
+    bkd,
+    num_kle_terms: int,
+    sigma: float,
+    correlation_length: float,
+    mean_log_E: float,
+):
+    """Create a lognormal SPDE KLE field map per subdomain.
+
+    For each subdomain, extracts a submesh via
+    ``skfem_mesh.restrict(elem_indices)`` and runs the SPDE eigensolve
+    on the submesh.  Uses sparse matrices and a partial eigensolve,
+    giving O(N) memory per subdomain instead of the O(N^2) dense kernel
+    matrices used by ``_create_subdomain_kle_field_maps``.
+
+    The SPDE parameters ``gamma`` and ``delta`` are computed from the
+    desired correlation length: ``gamma = correlation_length^2``,
+    ``delta = 1``, giving ``l_c = sqrt(gamma/delta) = correlation_length``.
+
+    Parameters
+    ----------
+    skfem_mesh : skfem Mesh
+        The FEM mesh (provides node coordinates and connectivity).
+    subdomain_elements : dict
+        Mapping from subdomain name to element index arrays.
+    subdomain_names : list of str
+        Ordered list of subdomain names.
+    bkd : Backend
+        Computational backend.
+    num_kle_terms : int
+        Number of KLE terms per subdomain.
+    sigma : float
+        Standard deviation of the log-field.
+    correlation_length : float
+        Correlation length for the SPDE Matern field.
+    mean_log_E : float
+        Mean of the log-field (log(E_mean) at KLE params=0).
+
+    Returns
+    -------
+    field_maps : list of TransformedFieldMap
+        One per subdomain. Each maps ``(nterms,)`` -> ``(n_sub_nodes,)``.
+    subdomain_node_indices : list of np.ndarray
+        Global node indices for each subdomain (for scattering into
+        a global nodal array before interpolation).
+    """
+    # SPDE params: l_c = sqrt(gamma/delta)
+    gamma = correlation_length ** 2
+    delta = 1.0
+
+    field_maps = []
+    subdomain_node_indices = []
+    for name in subdomain_names:
+        elem_idx = subdomain_elements[name]
+        # Global node indices for this subdomain
+        global_nodes = np.unique(skfem_mesh.t[:, elem_idx].ravel())
+        subdomain_node_indices.append(global_nodes)
+        n_nodes = len(global_nodes)
+
+        # Build submesh and basis
+        submesh_skfem = skfem_mesh.restrict(elem_idx)
+        submesh = _SkfemSubmesh(submesh_skfem, bkd)
+        basis = LagrangeBasis(submesh, degree=1)
+
+        mean_log = bkd.full((n_nodes,), mean_log_E)
+
+        fm = create_spde_lognormal_kle_field_map(
+            basis, mean_log, bkd,
+            n_modes=num_kle_terms, gamma=gamma, delta=delta,
+            sigma=sigma,
         )
         field_maps.append(fm)
     return field_maps, subdomain_node_indices
@@ -789,6 +919,362 @@ def cantilever_beam_2d_neohookean(
 
 
 # =========================================================================
+# SPDE-based variants (Matern KLE via sparse eigensolve)
+# =========================================================================
+
+
+def cantilever_beam_1d_spde(
+    bkd: Backend[Array],
+    nx: int = 40,
+    length: float = 100.0,
+    EI_mean: float = 1e6,
+    q0: float = 1.0,
+    num_kle_terms: int = 2,
+    sigma: float = 0.3,
+    correlation_length: float = 0.3,
+) -> PDEBenchmarkWrapper:
+    """Create a 1D Euler-Bernoulli cantilever beam benchmark (SPDE KLE).
+
+    Same as :func:`cantilever_beam_1d` but uses the sparse SPDE-based
+    Matern KLE instead of the dense Nystrom squared-exponential KLE.
+
+    Parameters
+    ----------
+    bkd : Backend
+        Computational backend.
+    nx : int
+        Number of beam elements.
+    length : float
+        Beam length.
+    EI_mean : float
+        Mean bending stiffness.
+    q0 : float
+        Load magnitude for linearly increasing load q(x) = q0*x/L.
+    num_kle_terms : int
+        Number of KLE terms for EI(x).
+    sigma : float
+        Standard deviation of log(EI) field.
+    correlation_length : float
+        Correlation length for the SPDE Matern field.
+    """
+    from pyapprox.typing.pde.galerkin.mesh.structured import StructuredMesh1D
+
+    mesh = StructuredMesh1D(nx=nx, bounds=(0.0, 1.0), bkd=bkd)
+    basis = LagrangeBasis(mesh, degree=1)
+
+    gamma = correlation_length ** 2
+    delta = 1.0
+    mean_log = bkd.full((basis.ndofs(),), float(np.log(EI_mean)))
+
+    field_map = create_spde_lognormal_kle_field_map(
+        basis, mean_log, bkd,
+        n_modes=num_kle_terms, gamma=gamma, delta=delta, sigma=sigma,
+    )
+
+    load_func = lambda x: q0 * x / length  # noqa: E731
+
+    fwd = CantileverBeam1DForwardModel(
+        nx=nx, length=length, EI_mean=EI_mean,
+        load_func=load_func, field_map=field_map, bkd=bkd,
+    )
+
+    prior = IndependentJoint(
+        [GaussianMarginal(0.0, 1.0, bkd) for _ in range(num_kle_terms)],
+        bkd,
+    )
+    bounds = bkd.array([[-4.0, 4.0]] * num_kle_terms)
+    domain = BoxDomain(_bounds=bounds, _bkd=bkd)
+
+    inner = BenchmarkWithPrior(
+        _name="cantilever_beam_1d_spde_tip_displacement",
+        _function=fwd,
+        _domain=domain,
+        _ground_truth=SensitivityGroundTruth(),
+        _prior=prior,
+        _description=(
+            f"1D Euler-Bernoulli cantilever beam (SPDE Matern KLE), "
+            f"nx={nx}, {num_kle_terms} KLE terms for EI(x)"
+        ),
+    )
+    return PDEBenchmarkWrapper(inner, estimated_cost=1e-03)
+
+
+def cantilever_beam_2d_linear_spde(
+    bkd: Backend[Array],
+    mesh_path: str = _DEFAULT_MESH_PATH,
+    length: float = 100.0,
+    height: float = 30.0,
+    E_mean: float = 1e4,
+    poisson_ratio: float = 0.3,
+    q0: float = 1.0,
+    num_kle_terms: int = 2,
+    sigma: float = 0.3,
+    correlation_length: float = 0.3,
+) -> PDEBenchmarkWrapper:
+    """Create a 2D linear elastic cantilever beam benchmark (SPDE KLE).
+
+    Same as :func:`cantilever_beam_2d_linear` but uses the sparse
+    SPDE-based Matern KLE instead of the dense Nystrom
+    squared-exponential KLE.  Per-subdomain KLEs are built on submeshes
+    extracted via ``skfem_mesh.restrict()``.
+
+    Parameters
+    ----------
+    bkd : Backend
+        Computational backend.
+    mesh_path : str
+        Path to JSON mesh file with boundaries and subdomains.
+    length : float
+        Beam length (after rescaling).
+    height : float
+        Beam height (after rescaling).
+    E_mean : float
+        Mean Young's modulus for all subdomains.
+    poisson_ratio : float
+        Poisson ratio (same for all subdomains).
+    q0 : float
+        Load magnitude for linearly increasing traction on top surface.
+    num_kle_terms : int
+        Number of KLE terms per subdomain.
+    sigma : float
+        Standard deviation of log(E) field.
+    correlation_length : float
+        Correlation length for the SPDE Matern field.
+    """
+    from skfem import Basis as SkfemBasis
+    from pyapprox.typing.pde.galerkin.mesh import UnstructuredMesh2D
+    from pyapprox.typing.pde.galerkin.basis import VectorLagrangeBasis
+    from pyapprox.typing.pde.galerkin.physics import CompositeLinearElasticity
+    from pyapprox.typing.pde.galerkin.boundary.implementations import (
+        DirichletBC, NeumannBC,
+    )
+    from pyapprox.typing.pde.galerkin.solvers.steady_state import (
+        SteadyStateSolver,
+    )
+
+    mesh = UnstructuredMesh2D(mesh_path, bkd, rescale_origin=(0.0, 0.0))
+    basis = VectorLagrangeBasis(mesh, degree=1)
+    skfem_mesh = mesh.skfem_mesh()
+    subdomain_names = mesh.subdomain_names()
+    subdomain_elements = {
+        name: mesh.subdomain_elements(name) for name in subdomain_names
+    }
+
+    scalar_element = basis.scalar_basis().skfem_basis().elem
+    scalar_skfem_basis = SkfemBasis(skfem_mesh, scalar_element)
+
+    poisson_ratios = {name: poisson_ratio for name in subdomain_names}
+
+    mean_log_E = float(np.log(E_mean))
+    field_maps, subdomain_node_indices = _create_subdomain_spde_kle_field_maps(
+        skfem_mesh, subdomain_elements, subdomain_names, bkd,
+        num_kle_terms, sigma, correlation_length, mean_log_E,
+    )
+
+    def zero_dirichlet(coords, time=0.0):
+        return np.zeros(coords.shape[1])
+
+    bc_left = DirichletBC(basis, "left_edge", zero_dirichlet, bkd)
+
+    def top_traction(coords, time=0.0):
+        x = coords[0]
+        npts = coords.shape[1]
+        traction = np.zeros((2, npts))
+        traction[1, :] = -q0 * x / length
+        return traction
+
+    bc_top = NeumannBC(basis, "top_edge", top_traction, bkd)
+
+    material_map = {name: (E_mean, poisson_ratio) for name in subdomain_names}
+
+    physics = CompositeLinearElasticity(
+        basis=basis,
+        material_map=material_map,
+        element_materials=subdomain_elements,
+        bkd=bkd,
+        boundary_conditions=[bc_left, bc_top],
+    )
+
+    solver = SteadyStateSolver(physics, tol=1e-10, max_iter=1)
+    tip_dof = _find_tip_dof(basis, length, height, bkd)
+
+    nvars = len(subdomain_names) * num_kle_terms
+    fwd = CantileverBeam2DForwardModel(
+        physics=physics,
+        solver=solver,
+        field_maps=field_maps,
+        subdomain_node_indices=subdomain_node_indices,
+        subdomain_elements=subdomain_elements,
+        subdomain_names=subdomain_names,
+        poisson_ratios=poisson_ratios,
+        num_kle_terms=num_kle_terms,
+        scalar_skfem_basis=scalar_skfem_basis,
+        tip_dof_index=tip_dof,
+        bkd=bkd,
+    )
+
+    prior = IndependentJoint(
+        [GaussianMarginal(0.0, 1.0, bkd) for _ in range(nvars)],
+        bkd,
+    )
+    bounds = bkd.array([[-4.0, 4.0]] * nvars)
+    domain = BoxDomain(_bounds=bounds, _bkd=bkd)
+
+    inner = BenchmarkWithPrior(
+        _name="cantilever_beam_2d_linear_spde_tip_displacement",
+        _function=fwd,
+        _domain=domain,
+        _ground_truth=SensitivityGroundTruth(),
+        _prior=prior,
+        _description=(
+            f"2D linear elastic cantilever beam (SPDE Matern KLE), "
+            f"{num_kle_terms} KLE terms per subdomain, "
+            f"{len(subdomain_names)} subdomains"
+        ),
+    )
+    return PDEBenchmarkWrapper(inner, estimated_cost=1.0)
+
+
+def cantilever_beam_2d_neohookean_spde(
+    bkd: Backend[Array],
+    mesh_path: str = _DEFAULT_MESH_PATH,
+    length: float = 100.0,
+    height: float = 30.0,
+    E_mean: float = 1e4,
+    poisson_ratio: float = 0.3,
+    q0: float = 1.0,
+    num_kle_terms: int = 2,
+    sigma: float = 0.3,
+    correlation_length: float = 0.3,
+) -> PDEBenchmarkWrapper:
+    """Create a 2D Neo-Hookean cantilever beam benchmark (SPDE KLE).
+
+    Same as :func:`cantilever_beam_2d_neohookean` but uses the sparse
+    SPDE-based Matern KLE instead of the dense Nystrom
+    squared-exponential KLE.
+
+    Parameters
+    ----------
+    bkd : Backend
+        Computational backend.
+    mesh_path : str
+        Path to JSON mesh file with boundaries and subdomains.
+    length : float
+        Beam length (after rescaling).
+    height : float
+        Beam height (after rescaling).
+    E_mean : float
+        Mean Young's modulus for all subdomains.
+    poisson_ratio : float
+        Poisson ratio (same for all subdomains).
+    q0 : float
+        Load magnitude for linearly increasing traction on top surface.
+    num_kle_terms : int
+        Number of KLE terms per subdomain.
+    sigma : float
+        Standard deviation of log(E) field.
+    correlation_length : float
+        Correlation length for the SPDE Matern field.
+    """
+    from skfem import Basis as SkfemBasis
+    from pyapprox.typing.pde.galerkin.mesh import UnstructuredMesh2D
+    from pyapprox.typing.pde.galerkin.basis import VectorLagrangeBasis
+    from pyapprox.typing.pde.galerkin.physics import (
+        CompositeHyperelasticityPhysics,
+    )
+    from pyapprox.typing.pde.galerkin.boundary.implementations import (
+        DirichletBC, NeumannBC,
+    )
+    from pyapprox.typing.pde.galerkin.solvers.steady_state import (
+        SteadyStateSolver,
+    )
+
+    mesh = UnstructuredMesh2D(mesh_path, bkd, rescale_origin=(0.0, 0.0))
+    basis = VectorLagrangeBasis(mesh, degree=1)
+    skfem_mesh = mesh.skfem_mesh()
+    subdomain_names = mesh.subdomain_names()
+    subdomain_elements = {
+        name: mesh.subdomain_elements(name) for name in subdomain_names
+    }
+
+    scalar_element = basis.scalar_basis().skfem_basis().elem
+    scalar_skfem_basis = SkfemBasis(skfem_mesh, scalar_element)
+
+    poisson_ratios = {name: poisson_ratio for name in subdomain_names}
+
+    mean_log_E = float(np.log(E_mean))
+    field_maps, subdomain_node_indices = _create_subdomain_spde_kle_field_maps(
+        skfem_mesh, subdomain_elements, subdomain_names, bkd,
+        num_kle_terms, sigma, correlation_length, mean_log_E,
+    )
+
+    def zero_dirichlet(coords, time=0.0):
+        return np.zeros(coords.shape[1])
+
+    bc_left = DirichletBC(basis, "left_edge", zero_dirichlet, bkd)
+
+    def top_traction(coords, time=0.0):
+        x = coords[0]
+        npts = coords.shape[1]
+        traction = np.zeros((2, npts))
+        traction[1, :] = -q0 * x / length
+        return traction
+
+    bc_top = NeumannBC(basis, "top_edge", top_traction, bkd)
+
+    material_map = {name: (E_mean, poisson_ratio) for name in subdomain_names}
+
+    physics = CompositeHyperelasticityPhysics(
+        basis=basis,
+        material_map=material_map,
+        element_materials=subdomain_elements,
+        bkd=bkd,
+        boundary_conditions=[bc_left, bc_top],
+    )
+
+    solver = SteadyStateSolver(
+        physics, tol=1e-10, max_iter=50, line_search=True,
+    )
+    tip_dof = _find_tip_dof(basis, length, height, bkd)
+
+    nvars = len(subdomain_names) * num_kle_terms
+    fwd = CantileverBeam2DForwardModel(
+        physics=physics,
+        solver=solver,
+        field_maps=field_maps,
+        subdomain_node_indices=subdomain_node_indices,
+        subdomain_elements=subdomain_elements,
+        subdomain_names=subdomain_names,
+        poisson_ratios=poisson_ratios,
+        num_kle_terms=num_kle_terms,
+        scalar_skfem_basis=scalar_skfem_basis,
+        tip_dof_index=tip_dof,
+        bkd=bkd,
+    )
+
+    prior = IndependentJoint(
+        [GaussianMarginal(0.0, 1.0, bkd) for _ in range(nvars)],
+        bkd,
+    )
+    bounds = bkd.array([[-4.0, 4.0]] * nvars)
+    domain = BoxDomain(_bounds=bounds, _bkd=bkd)
+
+    inner = BenchmarkWithPrior(
+        _name="cantilever_beam_2d_neohookean_spde_tip_displacement",
+        _function=fwd,
+        _domain=domain,
+        _ground_truth=SensitivityGroundTruth(),
+        _prior=prior,
+        _description=(
+            f"2D Neo-Hookean cantilever beam (SPDE Matern KLE), "
+            f"{num_kle_terms} KLE terms per subdomain, "
+            f"{len(subdomain_names)} subdomains"
+        ),
+    )
+    return PDEBenchmarkWrapper(inner, estimated_cost=5.0)
+
+
+# =========================================================================
 # Registry
 # =========================================================================
 
@@ -828,3 +1314,45 @@ def _cantilever_beam_2d_neohookean_factory(
     bkd: Backend[Array],
 ) -> PDEBenchmarkWrapper:
     return cantilever_beam_2d_neohookean(bkd)
+
+
+@BenchmarkRegistry.register(
+    "cantilever_beam_1d_spde",
+    category="pde",
+    description=(
+        "1D Euler-Bernoulli cantilever beam with SPDE Matern KLE "
+        "bending stiffness"
+    ),
+)
+def _cantilever_beam_1d_spde_factory(
+    bkd: Backend[Array],
+) -> PDEBenchmarkWrapper:
+    return cantilever_beam_1d_spde(bkd)
+
+
+@BenchmarkRegistry.register(
+    "cantilever_beam_2d_linear_spde",
+    category="pde",
+    description=(
+        "2D linear elastic cantilever beam with per-subdomain SPDE "
+        "Matern KLE Young's modulus"
+    ),
+)
+def _cantilever_beam_2d_linear_spde_factory(
+    bkd: Backend[Array],
+) -> PDEBenchmarkWrapper:
+    return cantilever_beam_2d_linear_spde(bkd)
+
+
+@BenchmarkRegistry.register(
+    "cantilever_beam_2d_neohookean_spde",
+    category="pde",
+    description=(
+        "2D Neo-Hookean cantilever beam with per-subdomain SPDE "
+        "Matern KLE Young's modulus"
+    ),
+)
+def _cantilever_beam_2d_neohookean_spde_factory(
+    bkd: Backend[Array],
+) -> PDEBenchmarkWrapper:
+    return cantilever_beam_2d_neohookean_spde(bkd)
