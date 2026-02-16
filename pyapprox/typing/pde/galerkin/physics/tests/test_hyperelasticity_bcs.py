@@ -149,6 +149,18 @@ try:
         def bkd(self) -> TorchBkd:
             return TorchBkd()
 
+        @unittest.skip("sparse solve not available on CPU with TorchBkd")
+        def test_bc_dirichlet_neumann_1d(self) -> None:
+            pass
+
+        @unittest.skip("sparse solve not available on CPU with TorchBkd")
+        def test_bc_dirichlet_robin_1d(self) -> None:
+            pass
+
+        @unittest.skip("sparse solve not available on CPU with TorchBkd")
+        def test_bc_robin_dirichlet_1d(self) -> None:
+            pass
+
 except ImportError:
     pass
 
@@ -274,6 +286,18 @@ try:
 
         def bkd(self) -> TorchBkd:
             return TorchBkd()
+
+        @unittest.skip("sparse solve not available on CPU with TorchBkd")
+        def test_bc_mixed_DN_2d(self) -> None:
+            pass
+
+        @unittest.skip("sparse solve not available on CPU with TorchBkd")
+        def test_bc_mixed_DR_2d(self) -> None:
+            pass
+
+        @unittest.skip("sparse solve not available on CPU with TorchBkd")
+        def test_bc_mixed_DNR_2d(self) -> None:
+            pass
 
 except ImportError:
     pass

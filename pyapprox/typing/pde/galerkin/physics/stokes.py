@@ -15,9 +15,13 @@ State vector layout: [vel_dofs | pres_dofs].
 from typing import Generic, Optional, Callable, List, Tuple
 
 import numpy as np
-from scipy.sparse import block_diag as sp_block_diag
+from scipy.sparse import block_diag as sp_block_diag, csr_matrix
 
 from pyapprox.typing.util.backends.protocols import Array, Backend
+from pyapprox.typing.pde.sparse_utils import (
+    apply_dirichlet_rows,
+    solve_maybe_sparse,
+)
 from pyapprox.typing.pde.galerkin.basis.vector_lagrange import (
     VectorLagrangeBasis,
 )
@@ -528,16 +532,14 @@ class StokesPhysics(Generic[Array]):
         """
         state_np = self._bkd.to_numpy(state)
         K = self._assemble_block_stiffness(state_np)
-        jac_np = -K.toarray().astype(np.float64)
+        jac = -K  # sparse negation
 
         # Apply Dirichlet BCs: set rows to identity
         D_dofs, _ = self._get_dirichlet_dofs_and_values(time)
         if len(D_dofs) > 0:
-            for dof in D_dofs:
-                jac_np[dof, :] = 0.0
-                jac_np[dof, dof] = 1.0
+            jac = apply_dirichlet_rows(jac, D_dofs)
 
-        return self._bkd.asarray(jac_np)
+        return jac
 
     def vel_mass_matrix(self) -> Array:
         """Return velocity mass matrix M_vel.
@@ -553,10 +555,9 @@ class StokesPhysics(Generic[Array]):
         def vector_mass_form(u, v, w):
             return sum(u[i] * v[i] for i in range(len(u)))
 
-        mass_np = asm(
+        self._vel_mass_cached = asm(
             BilinearForm(vector_mass_form), self._vel_skfem_basis
-        ).toarray()
-        self._vel_mass_cached = self._bkd.asarray(mass_np.astype(np.float64))
+        )
         return self._vel_mass_cached
 
     def mass_matrix(self) -> Array:
@@ -572,10 +573,9 @@ class StokesPhysics(Generic[Array]):
         if self._mass_cached is not None:
             return self._mass_cached
 
-        M_vel = self._bkd.to_numpy(self.vel_mass_matrix())
-        M_pres = np.zeros((self.pres_ndofs(), self.pres_ndofs()))
-        M_full = sp_block_diag([M_vel, M_pres]).toarray().astype(np.float64)
-        self._mass_cached = self._bkd.asarray(M_full)
+        M_vel = self.vel_mass_matrix()
+        M_pres = csr_matrix((self.pres_ndofs(), self.pres_ndofs()))
+        self._mass_cached = sp_block_diag([M_vel, M_pres], format="csr")
         return self._mass_cached
 
     def mass_solve(self, rhs: Array) -> Array:
@@ -595,16 +595,20 @@ class StokesPhysics(Generic[Array]):
             Solution. Same shape as rhs.
         """
         rhs_np = self._bkd.to_numpy(rhs)
-        M_vel = self._bkd.to_numpy(self.vel_mass_matrix())
+        M_vel = self.vel_mass_matrix()
         n_vel = self.vel_ndofs()
 
         if rhs_np.ndim == 1:
             result = np.zeros_like(rhs_np)
-            result[:n_vel] = np.linalg.solve(M_vel, rhs_np[:n_vel])
+            result[:n_vel] = solve_maybe_sparse(
+                self._bkd, M_vel, rhs_np[:n_vel]
+            )
             result[n_vel:] = rhs_np[n_vel:]
         else:
             result = np.zeros_like(rhs_np)
-            result[:n_vel, :] = np.linalg.solve(M_vel, rhs_np[:n_vel, :])
+            result[:n_vel, :] = np.linalg.solve(
+                M_vel.toarray(), rhs_np[:n_vel, :]
+            )
             result[n_vel:, :] = rhs_np[n_vel:, :]
 
         return self._bkd.asarray(result.astype(np.float64))

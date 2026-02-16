@@ -685,6 +685,22 @@ try:
         def bkd(self) -> Backend[torch.Tensor]:
             return self._bkd
 
+        @unittest.skip("sparse solve not available on CPU with TorchBkd")
+        def test_manufactured_solution_1d(self) -> None:
+            pass
+
+        @unittest.skip("sparse solve not available on CPU with TorchBkd")
+        def test_manufactured_solution_2d(self) -> None:
+            pass
+
+        @unittest.skip("sparse solve not available on CPU with TorchBkd")
+        def test_manufactured_solution_3d(self) -> None:
+            pass
+
+        @unittest.skip("sparse solve not available on CPU with TorchBkd")
+        def test_3d_steady_state_solve(self) -> None:
+            pass
+
 except ImportError:
     pass
 

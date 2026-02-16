@@ -20,6 +20,7 @@ from typing import Generic, Any, List, Tuple, Callable, Dict
 
 import numpy as np
 from numpy.typing import NDArray
+from scipy.sparse import issparse
 from unittest_parametrize import ParametrizedTestCase, parametrize
 
 from pyapprox.typing.util.backends.protocols import Array, Backend
@@ -42,6 +43,14 @@ from pyapprox.typing.pde.collocation.manufactured_solutions.stokes import (
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
+
+
+def _to_dense(mat):
+    """Convert sparse matrix to dense numpy array if needed."""
+    if issparse(mat):
+        return mat.toarray()
+    return np.asarray(mat)
+
 
 def _boundary_names(nvars: int) -> List[str]:
     """Return boundary names for the given number of spatial dimensions."""
@@ -273,7 +282,7 @@ class TestStokesBase(Generic[Array], unittest.TestCase):
         physics = StokesPhysics(
             vel_basis=vel_basis, pres_basis=pres_basis, bkd=self.bkd_inst
         )
-        M = self.bkd_inst.to_numpy(physics.mass_matrix())
+        M = _to_dense(physics.mass_matrix())
         n_vel = physics.vel_ndofs()
 
         # Pressure block should be zero

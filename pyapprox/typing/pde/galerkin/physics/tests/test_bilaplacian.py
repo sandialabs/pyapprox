@@ -6,6 +6,7 @@ import unittest
 
 import numpy as np
 from numpy.typing import NDArray
+from scipy.sparse import issparse
 
 from pyapprox.typing.util.backends.numpy import NumpyBkd
 from pyapprox.typing.util.backends.protocols import Array, Backend
@@ -178,7 +179,8 @@ class TestBiLaplacianPrior(unittest.TestCase):
         prior = BiLaplacianPrior.with_uniform_robin(
             basis, gamma=1.0, delta=0.5, bkd=self._bkd
         )
-        K = self._bkd.to_numpy(prior.stiffness_matrix())
+        K_raw = prior.stiffness_matrix()
+        K = K_raw.toarray() if issparse(K_raw) else self._bkd.to_numpy(K_raw)
         # Check symmetry
         self._bkd.assert_allclose(
             self._bkd.asarray(K),
@@ -196,7 +198,8 @@ class TestBiLaplacianPrior(unittest.TestCase):
         prior = BiLaplacianPrior.with_uniform_robin(
             basis, gamma=1.0, delta=0.5, bkd=self._bkd
         )
-        K = self._bkd.to_numpy(prior.stiffness_matrix())
+        K_raw = prior.stiffness_matrix()
+        K = K_raw.toarray() if issparse(K_raw) else self._bkd.to_numpy(K_raw)
         self._bkd.assert_allclose(
             self._bkd.asarray(K),
             self._bkd.asarray(K.T),

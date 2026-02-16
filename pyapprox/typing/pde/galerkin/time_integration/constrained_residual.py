@@ -10,13 +10,18 @@ residual and Jacobian:
 This is the standard FEM approach: physics computes physics, BCs are
 enforced at the linear algebra level. The wrapper satisfies
 NewtonSolverResidualProtocol so Newton sees it directly.
+
+TODO: Consider letting the residual specify its required solve type
+(sparse vs dense) so callers don't need if/else dispatch on issparse.
 """
 
 from typing import Generic
 
 import numpy as np
+from scipy.sparse import issparse
 
 from pyapprox.typing.util.backends.protocols import Array, Backend
+from pyapprox.typing.pde.sparse_utils import apply_dirichlet_rows, solve_maybe_sparse
 
 
 class ConstrainedTimeStepResidual(Generic[Array]):
@@ -113,11 +118,14 @@ class ConstrainedTimeStepResidual(Generic[Array]):
         d_dofs, _ = self._adapter.dirichlet_dof_info(self._bc_time)
         d_dofs_np = self._bkd.to_numpy(d_dofs).astype(np.intp)
         if len(d_dofs_np) > 0:
-            J_np = self._bkd.to_numpy(J).copy()
-            J_np[d_dofs_np, :] = 0.0
-            J_np[d_dofs_np, d_dofs_np] = 1.0
-            J = self._bkd.asarray(J_np.astype(np.float64))
-        return self._bkd.solve(J, residual)
+            if issparse(J):
+                J = apply_dirichlet_rows(J, d_dofs_np)
+            else:
+                J_np = self._bkd.to_numpy(J).copy()
+                J_np[d_dofs_np, :] = 0.0
+                J_np[d_dofs_np, d_dofs_np] = 1.0
+                J = self._bkd.asarray(J_np.astype(np.float64))
+        return solve_maybe_sparse(self._bkd, J, residual)
 
     def __repr__(self) -> str:
         return (

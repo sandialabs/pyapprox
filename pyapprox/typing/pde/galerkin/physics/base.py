@@ -9,6 +9,7 @@ from abc import ABC, abstractmethod
 import numpy as np
 
 from pyapprox.typing.util.backends.protocols import Array, Backend
+from pyapprox.typing.pde.sparse_utils import solve_maybe_sparse
 from pyapprox.typing.pde.galerkin.protocols.basis import GalerkinBasisProtocol
 from pyapprox.typing.pde.galerkin.protocols.boundary import (
     BoundaryConditionProtocol,
@@ -97,11 +98,7 @@ class AbstractGalerkinPhysics(ABC, Generic[Array]):
         Array
             Solution x = M^{-1} * rhs. Same shape as rhs.
         """
-        from pyapprox.typing.pde.sparse_utils import galerkin_solve
-
-        M = self.mass_matrix()
-        rhs_np = self._bkd.to_numpy(rhs)
-        return self._bkd.asarray(galerkin_solve(M, rhs_np))
+        return solve_maybe_sparse(self._bkd, self.mass_matrix(), rhs)
 
     @abstractmethod
     def _assemble_stiffness(self, state: Array, time: float) -> Array:
@@ -235,6 +232,7 @@ class AbstractGalerkinPhysics(ABC, Generic[Array]):
         load = self._assemble_load(state, time)
         stiffness = self._apply_bc_to_stiffness(stiffness, time)
         load = self._apply_bc_to_load(load, time)
+        # Use @ operator (not bkd methods) because stiffness may be sparse
         return load - stiffness @ state
 
     def dirichlet_dof_info(self, time: float) -> Tuple[Array, Array]:

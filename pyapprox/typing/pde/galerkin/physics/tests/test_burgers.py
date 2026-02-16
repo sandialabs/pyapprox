@@ -14,6 +14,7 @@ from typing import Generic, Any, List, Tuple
 
 import numpy as np
 from numpy.typing import NDArray
+from scipy.sparse import issparse
 from unittest_parametrize import ParametrizedTestCase, parametrize
 
 from pyapprox.typing.util.backends.protocols import Array, Backend
@@ -90,12 +91,14 @@ class TestBurgersBase(Generic[Array], unittest.TestCase):
 
     def test_mass_matrix_symmetric(self) -> None:
         """Test mass matrix is symmetric."""
-        M = self.bkd_inst.to_numpy(self.physics.mass_matrix())
+        M_raw = self.physics.mass_matrix()
+        M = M_raw.toarray() if issparse(M_raw) else self.bkd_inst.to_numpy(M_raw)
         np.testing.assert_allclose(M, M.T, atol=1e-14)
 
     def test_mass_matrix_positive_definite(self) -> None:
         """Test mass matrix is positive definite."""
-        M = self.bkd_inst.to_numpy(self.physics.mass_matrix())
+        M_raw = self.physics.mass_matrix()
+        M = M_raw.toarray() if issparse(M_raw) else self.bkd_inst.to_numpy(M_raw)
         eigvals = np.linalg.eigvalsh(M)
         self.assertTrue(np.all(eigvals > 0))
 

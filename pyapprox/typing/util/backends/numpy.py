@@ -3,6 +3,8 @@ from typing import Any, Optional, Union, Sequence, List, Tuple, overload, cast
 from numpy.typing import NDArray
 import numpy as np
 import scipy
+from scipy.sparse import csc_matrix
+from scipy.sparse.linalg import spsolve
 
 from pyapprox.typing.util.backends.protocols import Backend
 
@@ -331,6 +333,19 @@ class NumpyBkd(Backend[NDArray[Any]]):  # Specify NDArray type
     @staticmethod
     def solve(Amat: NDArray[Any], Bmat: NDArray[Any]) -> NDArray[Any]:
         return np.linalg.solve(Amat, Bmat)
+
+    @staticmethod
+    def solve_sparse(Amat, bvec: NDArray[Any]) -> NDArray[Any]:
+        """Solve A @ x = b where A is a scipy sparse matrix."""
+        from scipy.sparse import issparse as _issparse
+
+        if not _issparse(Amat):
+            raise TypeError(
+                f"solve_sparse requires a scipy sparse matrix, got {type(Amat).__name__}. "
+                "Use solve() for dense matrices."
+            )
+        A_csc = csc_matrix(Amat) if Amat.format != "csc" else Amat
+        return spsolve(A_csc, bvec)
 
     @staticmethod
     def flip(

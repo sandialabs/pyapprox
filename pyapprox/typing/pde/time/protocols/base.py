@@ -9,6 +9,7 @@ from typing import Generic, Tuple
 from abc import ABC, abstractmethod
 
 from pyapprox.typing.util.backends.protocols import Array, Backend
+from pyapprox.typing.pde.sparse_utils import solve_maybe_sparse
 from .ode_residual import ODEResidualProtocol
 
 
@@ -71,7 +72,7 @@ class TimeSteppingResidualBase(ABC, Generic[Array]):
 
     def linsolve(self, state: Array, residual: Array) -> Array:
         """Solve the linear system J dy = residual."""
-        return self._bkd.solve(self.jacobian(state), residual)
+        return solve_maybe_sparse(self._bkd, self.jacobian(state), residual)
 
     def _setup_derivative_methods(self) -> None:
         """
@@ -179,7 +180,8 @@ class TimeSteppingResidualBase(ABC, Generic[Array]):
         """
         drduT_diag = self._residual.mass_matrix(fsol_0.shape[0]).T
         drduT_offdiag = self.adjoint_off_diag_jacobian(fsol_0, deltat_1)
-        return self._bkd.solve(drduT_diag, -drduT_offdiag @ asol_1 - dqdu_0)
+        rhs = -drduT_offdiag @ asol_1 - dqdu_0
+        return solve_maybe_sparse(self._bkd, drduT_diag, rhs)
 
     def quadrature_samples_weights(self, times: Array) -> Tuple[Array, Array]:
         """

@@ -12,6 +12,7 @@ from typing import Any, Generic
 
 import numpy as np
 from numpy.typing import NDArray
+from scipy.sparse import issparse
 import torch
 import unittest
 
@@ -23,6 +24,15 @@ from pyapprox.typing.pde.galerkin.physics.euler_bernoulli import (
     EulerBernoulliBeamAnalytical,
     EulerBernoulliBeamFEM,
 )
+
+
+def _to_dense(mat):
+    """Convert sparse matrix to dense numpy array if needed."""
+    if issparse(mat):
+        return mat.toarray()
+    if hasattr(mat, 'detach'):
+        return mat.detach().numpy()
+    return np.asarray(mat)
 
 
 class TestEulerBernoulliAnalytical(Generic[Array], unittest.TestCase):
@@ -150,7 +160,7 @@ class TestEulerBernoulliFEM(Generic[Array], unittest.TestCase):
             bkd=self._bkd,
         )
         K = beam.stiffness_matrix()
-        K_np = self._bkd.to_numpy(K)
+        K_np = _to_dense(K)
         self._bkd.assert_allclose(
             self._bkd.asarray(K_np),
             self._bkd.asarray(K_np.T),
@@ -164,7 +174,7 @@ class TestEulerBernoulliFEM(Generic[Array], unittest.TestCase):
             bkd=self._bkd,
         )
         M = beam.mass_matrix()
-        M_np = self._bkd.to_numpy(M)
+        M_np = _to_dense(M)
         self._bkd.assert_allclose(
             self._bkd.asarray(M_np),
             self._bkd.asarray(M_np.T),
@@ -195,7 +205,7 @@ class TestEulerBernoulliFEM(Generic[Array], unittest.TestCase):
         ndofs = beam.nstates()
         state = self._bkd.asarray(np.zeros(ndofs))
         jac = beam.jacobian(state)
-        jac_np = self._bkd.to_numpy(jac)
+        jac_np = _to_dense(jac)
         self.assertEqual(jac_np.shape, (ndofs, ndofs))
 
     # ------------------------------------------------------------------
@@ -343,7 +353,7 @@ class TestEulerBernoulliFEM(Generic[Array], unittest.TestCase):
         state = self._bkd.asarray(np.random.randn(ndofs) * 0.01)
 
         jac = beam.jacobian(state)
-        jac_np = self._bkd.to_numpy(jac)
+        jac_np = _to_dense(jac)
 
         eps = 1e-7
         state_np = self._bkd.to_numpy(state)
@@ -380,7 +390,7 @@ class TestEulerBernoulliFEM(Generic[Array], unittest.TestCase):
         )
         state = self._bkd.asarray(np.zeros(beam.nstates()))
         jac = beam.jacobian(state)
-        jac_np = self._bkd.to_numpy(jac)
+        jac_np = _to_dense(jac)
 
         dof_indices, _ = beam.dirichlet_dof_info()
         dof_indices_np = self._bkd.to_numpy(dof_indices)

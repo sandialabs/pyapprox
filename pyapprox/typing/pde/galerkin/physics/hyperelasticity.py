@@ -24,9 +24,11 @@ and tangent computation at quadrature points.
 from typing import Generic, Optional, Callable, List, Tuple
 
 import numpy as np
+from scipy.sparse import csr_matrix
 
 from pyapprox.typing.util.backends.protocols import Array, Backend
 from pyapprox.typing.util.backends.numpy import NumpyBkd
+from pyapprox.typing.pde.sparse_utils import solve_maybe_sparse
 from pyapprox.typing.pde.galerkin.protocols.boundary import (
     BoundaryConditionProtocol,
     DirichletBCProtocol,
@@ -132,14 +134,12 @@ class HyperelasticityPhysics(Generic[Array]):
         def mass_form(u, v, w):
             return sum(u[i] * v[i] for i in range(ndim))
 
-        mass_np = asm(BilinearForm(mass_form), skfem_basis).toarray()
-        self._mass_cached = self._bkd.asarray(mass_np.astype(np.float64))
+        self._mass_cached = asm(BilinearForm(mass_form), skfem_basis)
         return self._mass_cached
 
     def mass_solve(self, rhs: Array) -> Array:
         """Solve M * x = rhs for x."""
-        M = self.mass_matrix()
-        return self._bkd.solve(M, rhs)
+        return solve_maybe_sparse(self._bkd, self.mass_matrix(), rhs)
 
     def _interpolate_state(self, state: Array):
         """Interpolate state onto the skfem basis for use in forms.
@@ -309,7 +309,7 @@ class HyperelasticityPhysics(Generic[Array]):
 
         # Robin BC stiffness contribution
         n = self.nstates()
-        bc_stiffness = self._bkd.asarray(np.zeros((n, n)))
+        bc_stiffness = csr_matrix((n, n))
         bc_stiffness = self._apply_bc_to_stiffness(bc_stiffness, time)
 
         return load - internal_force - bc_stiffness @ state
@@ -352,7 +352,7 @@ class HyperelasticityPhysics(Generic[Array]):
                 BilinearForm(tangent_1d),
                 skfem_basis,
                 u_prev=state_interp,
-            ).toarray()
+            )
 
         elif ndim == 2:
 
@@ -383,7 +383,7 @@ class HyperelasticityPhysics(Generic[Array]):
                 BilinearForm(tangent_2d),
                 skfem_basis,
                 u_prev=state_interp,
-            ).toarray()
+            )
 
         else:
             raise NotImplementedError(
@@ -391,7 +391,7 @@ class HyperelasticityPhysics(Generic[Array]):
                 "The stress model does not provide compute_tangent_3d."
             )
 
-        return self._bkd.asarray(K_np.astype(np.float64))
+        return K_np
 
     def spatial_jacobian(self, state: Array, time: float) -> Array:
         """Compute dR/du without Dirichlet enforcement.

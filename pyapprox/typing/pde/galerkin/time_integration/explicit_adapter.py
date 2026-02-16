@@ -21,6 +21,7 @@ from typing import Generic, Optional
 
 import numpy as np
 import scipy.linalg
+from scipy.sparse import issparse
 
 from pyapprox.typing.util.backends.protocols import Array, Backend
 
@@ -73,7 +74,8 @@ class GalerkinExplicitODEAdapter(Generic[Array]):
 
     def _setup_mass(self, physics) -> None:
         """Build and factor the BC-modified mass matrix."""
-        M_np = self._bkd.to_numpy(physics.mass_matrix()).copy()
+        M_raw = physics.mass_matrix()
+        M_np = M_raw.toarray().copy() if issparse(M_raw) else self._bkd.to_numpy(M_raw).copy()
         d_dofs = self._d_dof_indices_np
 
         if len(d_dofs) > 0:
@@ -154,7 +156,7 @@ class GalerkinExplicitODEAdapter(Generic[Array]):
             Jacobian. Shape: (nstates, nstates)
         """
         J_F = self._physics.jacobian(state, self._time)
-        J_np = self._bkd.to_numpy(J_F).copy()
+        J_np = J_F.toarray().copy() if issparse(J_F) else self._bkd.to_numpy(J_F).copy()
 
         if self._lumped_mass:
             result_np = J_np / self._m_diag_np[:, None]

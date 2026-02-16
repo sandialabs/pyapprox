@@ -444,6 +444,24 @@ class Backend(Protocol, Generic[Array]):
     def solve(Amat: Array, Bmat: Array) -> Array: ...
 
     @staticmethod
+    def solve_sparse(Amat, bvec: Array) -> Array:
+        """Solve A @ x = b where A is a sparse matrix.
+
+        Parameters
+        ----------
+        Amat : sparse matrix
+            Sparse system matrix (scipy CSR/CSC or torch sparse CSR).
+        bvec : Array
+            Right-hand side vector. Shape: (n,).
+
+        Returns
+        -------
+        Array
+            Solution vector. Shape: (n,).
+        """
+        ...
+
+    @staticmethod
     def flip(array: Array, axis: Optional[Tuple[int]] = None) -> Array: ...
 
     @staticmethod

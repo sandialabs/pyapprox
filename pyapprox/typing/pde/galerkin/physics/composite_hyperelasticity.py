@@ -17,9 +17,11 @@ functionally equivalent to the legacy HyperelasticityPhysics class.
 from typing import Callable, Dict, Generic, List, Optional, Tuple
 
 import numpy as np
+from scipy.sparse import csr_matrix
 
 from pyapprox.typing.util.backends.protocols import Array, Backend
 from pyapprox.typing.util.backends.numpy import NumpyBkd
+from pyapprox.typing.pde.sparse_utils import solve_maybe_sparse
 from pyapprox.typing.pde.galerkin.protocols.boundary import (
     BoundaryConditionProtocol,
     DirichletBCProtocol,
@@ -195,13 +197,11 @@ class CompositeHyperelasticityPhysics(Generic[Array]):
         def mass_form(u, v, w):
             return sum(u[i] * v[i] for i in range(ndim))
 
-        mass_np = asm(BilinearForm(mass_form), skfem_basis).toarray()
-        self._mass_cached = self._bkd.asarray(mass_np.astype(np.float64))
+        self._mass_cached = asm(BilinearForm(mass_form), skfem_basis)
         return self._mass_cached
 
     def mass_solve(self, rhs: Array) -> Array:
-        M = self.mass_matrix()
-        return self._bkd.solve(M, rhs)
+        return solve_maybe_sparse(self._bkd, self.mass_matrix(), rhs)
 
     def _interpolate_state(self, state: Array):
         skfem_basis = self._basis.skfem_basis()
@@ -397,7 +397,7 @@ class CompositeHyperelasticityPhysics(Generic[Array]):
                 u_prev=state_interp,
                 lam=lam_qp,
                 mu=mu_qp,
-            ).toarray()
+            )
 
         elif ndim == 2:
 
@@ -454,14 +454,14 @@ class CompositeHyperelasticityPhysics(Generic[Array]):
                 u_prev=state_interp,
                 lam=lam_qp,
                 mu=mu_qp,
-            ).toarray()
+            )
 
         else:
             raise NotImplementedError(
                 f"Tangent stiffness not available for {ndim}D."
             )
 
-        return self._bkd.asarray(K_np.astype(np.float64))
+        return K_np
 
     def spatial_residual(self, state: Array, time: float) -> Array:
         """Compute R = load - internal_force without Dirichlet enforcement."""
@@ -477,7 +477,7 @@ class CompositeHyperelasticityPhysics(Generic[Array]):
 
         # Robin stiffness contribution
         n = self.nstates()
-        bc_stiffness = self._bkd.asarray(np.zeros((n, n)))
+        bc_stiffness = csr_matrix((n, n))
         for bc in self._boundary_conditions:
             if isinstance(bc, RobinBCProtocol):
                 bc_stiffness = bc.apply_to_stiffness(bc_stiffness, time)
@@ -550,8 +550,23 @@ class CompositeHyperelasticityPhysics(Generic[Array]):
         return self._basis.interpolate(func)
 
     # -----------------------------------------------------------------
-    # Parameter sensitivity methods
+    # Parameter update methods
     # -----------------------------------------------------------------
+
+    def set_lame_parameters(
+        self, lam_per_elem: np.ndarray, mu_per_elem: np.ndarray,
+    ) -> None:
+        """Set per-element Lame parameters directly.
+
+        Parameters
+        ----------
+        lam_per_elem : np.ndarray
+            First Lame parameter per element. Shape: (nelems,)
+        mu_per_elem : np.ndarray
+            Shear modulus per element. Shape: (nelems,)
+        """
+        self._lam_per_elem[:] = lam_per_elem
+        self._mu_per_elem[:] = mu_per_elem
 
     def nparams(self) -> int:
         """Return number of material parameters (2 per material: E, nu)."""

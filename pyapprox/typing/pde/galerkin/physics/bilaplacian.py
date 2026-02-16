@@ -212,7 +212,7 @@ class BiLaplacianPrior(Generic[Array]):
             Stiffness matrix. Shape: ``(ndofs, ndofs)``.
         """
         self._assemble_system()
-        return self._bkd.asarray(self._stiffness.toarray().astype(np.float64))
+        return self._stiffness
 
     def lumped_mass(self) -> Array:
         """Return the lumped mass vector.

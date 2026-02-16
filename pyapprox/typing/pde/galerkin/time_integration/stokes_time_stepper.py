@@ -20,8 +20,10 @@ DOFs reduces to the physics BC equation state[dof] - exact_value = 0.
 from typing import Generic, Optional
 
 import numpy as np
+from scipy.sparse import issparse
 
 from pyapprox.typing.util.backends.protocols import Array, Backend
+from pyapprox.typing.pde.sparse_utils import solve_maybe_sparse
 
 
 class StokesTimeStepResidual(Generic[Array]):
@@ -59,7 +61,7 @@ class StokesTimeStepResidual(Generic[Array]):
         """Return the computational backend."""
         return self._bkd
 
-    def _bc_modified_mass(self, time: float) -> Array:
+    def _bc_modified_mass(self, time: float):
         """Return mass matrix with Dirichlet rows zeroed.
 
         Parameters
@@ -69,17 +71,28 @@ class StokesTimeStepResidual(Generic[Array]):
 
         Returns
         -------
-        Array
+        sparse or Array
             Modified mass matrix. Shape: (nstates, nstates)
         """
-        M = self._bkd.copy(self._physics.mass_matrix())
-        M_np = self._bkd.to_numpy(M)
+        M_orig = self._physics.mass_matrix()
+        if issparse(M_orig):
+            M = M_orig.copy()
+        else:
+            M = self._bkd.copy(M_orig)
 
         D_dofs, _ = self._physics._get_dirichlet_dofs_and_values(time)
         if len(D_dofs) > 0:
-            M_np[D_dofs, :] = 0.0
+            if issparse(M):
+                # Zero rows in CSR format
+                for dof in D_dofs:
+                    M[dof, :] = 0.0
+                M.eliminate_zeros()
+            else:
+                M_np = self._bkd.to_numpy(M)
+                M_np[D_dofs, :] = 0.0
+                M = self._bkd.asarray(M_np.astype(np.float64))
 
-        return self._bkd.asarray(M_np.astype(np.float64))
+        return M
 
     def set_time(
         self, time: float, deltat: float, prev_state: Array
@@ -128,7 +141,11 @@ class StokesTimeStepResidual(Generic[Array]):
         M = self._bc_modified_mass(t_n)
 
         diff = state - self._prev_state
-        M_diff = self._bkd.dot(M, diff)
+        if issparse(M):
+            M_diff = np.asarray(M @ diff).ravel()
+            M_diff = self._bkd.asarray(M_diff)
+        else:
+            M_diff = self._bkd.dot(M, diff)
 
         F_n = self._physics.residual(state, t_n)
 
@@ -195,7 +212,7 @@ class StokesTimeStepResidual(Generic[Array]):
                 return y
 
             J = self.jacobian(y)
-            dy = self._bkd.solve(J, -R)
+            dy = solve_maybe_sparse(self._bkd, J, -R)
             y = y + dy
 
         return y

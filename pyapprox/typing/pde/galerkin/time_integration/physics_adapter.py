@@ -17,6 +17,7 @@ stepper assembles the full Newton system.
 from typing import Generic, Tuple
 
 import numpy as np
+from scipy.sparse import issparse
 
 from pyapprox.typing.util.backends.protocols import Array, Backend
 from pyapprox.typing.pde.galerkin.protocols.physics import (
@@ -164,6 +165,11 @@ class GalerkinPhysicsODEAdapter(Generic[Array]):
         Array
             M @ vec. Shape: (nstates,)
         """
+        # Use @ with to_numpy because mass matrix may be sparse (scipy).
+        # Cannot use bkd.dot() — it doesn't handle sparse matrices.
+        if issparse(self._mass_cached):
+            vec_np = self._bkd.to_numpy(vec)
+            return self._bkd.asarray(self._mass_cached @ vec_np)
         return self._bkd.dot(self._mass_cached, vec)
 
     def dirichlet_dof_info(self, time: float) -> Tuple[Array, Array]:

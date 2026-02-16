@@ -12,6 +12,7 @@ via the adjoint method.
 from typing import Tuple
 
 from pyapprox.typing.util.backends.protocols import Array
+from pyapprox.typing.pde.sparse_utils import solve_maybe_sparse
 from pyapprox.typing.pde.time.protocols import (
     TimeSteppingResidualBase,
     ODEResidualProtocol,
@@ -212,7 +213,7 @@ class BackwardEulerResidual(TimeSteppingResidualBase[Array]):
             Adjoint solution at final time λ_N. Shape: (nstates,)
         """
         drdu = self.jacobian(final_fwd_sol)
-        return self._bkd.solve(drdu.T, -final_dqdu)
+        return solve_maybe_sparse(self._bkd, drdu.T, -final_dqdu)
 
     def _get_quadrature_class(self):
         """Return quadrature class for Backward Euler (right-constant)."""

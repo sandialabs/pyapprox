@@ -12,8 +12,11 @@ from scipy.sparse import issparse, csc_matrix
 from scipy.sparse.linalg import spsolve
 
 
-def galerkin_solve(A, b):
+def sparse_or_dense_solve(A, b):
     """Solve A @ x = b, dispatching to spsolve when A is sparse.
+
+    Low-level function operating on numpy arrays. For backend-aware
+    solving, use ``solve_maybe_sparse`` instead.
 
     Parameters
     ----------
@@ -41,6 +44,40 @@ def galerkin_solve(A, b):
             )
         return spsolve(A_csc, b)
     return np.linalg.solve(A, b)
+
+
+def solve_maybe_sparse(bkd, A, b):
+    """Backend-aware solve that handles both sparse and dense matrices.
+
+    If A is a scipy sparse matrix, delegates to ``bkd.solve_sparse(A, b)``.
+    If A is dense, delegates to ``bkd.solve(A, b)``.
+
+    Parameters
+    ----------
+    bkd : Backend
+        Computational backend.
+    A : sparse matrix or Array
+        System matrix. Must be 2D with shape (n, n).
+    b : Array
+        Right-hand side vector. Shape: (n,).
+
+    Returns
+    -------
+    Array
+        Solution vector in backend format. Shape: (n,).
+
+    Raises
+    ------
+    ValueError
+        If A is not 2D or b is not 1D, or dimensions are incompatible.
+    """
+    if A.shape[0] != A.shape[1]:
+        raise ValueError(
+            f"A must be square, got shape {A.shape}"
+        )
+    if issparse(A):
+        return bkd.solve_sparse(A, b)
+    return bkd.solve(A, b)
 
 
 def apply_dirichlet_rows(matrix, dof_indices):

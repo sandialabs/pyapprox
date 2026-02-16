@@ -18,6 +18,7 @@ Linear form (residual/load):
 from typing import Generic, Optional, Callable, List, Union
 
 import numpy as np
+from scipy.sparse import csr_matrix
 
 from pyapprox.typing.util.backends.protocols import Array, Backend
 from pyapprox.typing.pde.galerkin.protocols.basis import GalerkinBasisProtocol
@@ -130,10 +131,9 @@ class BurgersPhysics(AbstractGalerkinPhysics[Array], Generic[Array]):
                 + v * u * w.u_prev.grad[0]
             )
 
-        K_np = asm(
+        return asm(
             BilinearForm(bilinear_form), skfem_basis, u_prev=state_interp
-        ).toarray()
-        return self._bkd.asarray(K_np.astype(np.float64))
+        )
 
     def _assemble_load(self, state: Array, time: float) -> Array:
         """Assemble Newton-linearized load vector.
@@ -193,7 +193,7 @@ class BurgersPhysics(AbstractGalerkinPhysics[Array], Generic[Array]):
 
         # Zero stiffness — only BC contributions (Robin alpha*M_bnd) matter
         n = self.nstates()
-        bc_stiffness = self._bkd.asarray(np.zeros((n, n)))
+        bc_stiffness = csr_matrix((n, n))
         bc_stiffness = self._apply_bc_to_stiffness(bc_stiffness, time)
 
         return load - bc_stiffness @ state

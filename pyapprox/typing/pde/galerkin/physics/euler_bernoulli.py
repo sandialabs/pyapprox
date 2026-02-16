@@ -20,6 +20,7 @@ from typing import Callable, Generic, List, Optional, Tuple
 import numpy as np
 
 from pyapprox.typing.util.backends.protocols import Array, Backend
+from pyapprox.typing.pde.sparse_utils import apply_dirichlet_rows
 
 try:
     from skfem import Basis, BilinearForm, LinearForm, asm
@@ -283,10 +284,7 @@ class EulerBernoulliBeamFEM(Generic[Array]):
         def beam_stiffness_form(u, v, w):
             return EI_val * u.hess[0, 0] * v.hess[0, 0]
 
-        K_sp = asm(beam_stiffness_form, self._skfem_basis)
-        self._stiffness = self._bkd.asarray(
-            K_sp.toarray().astype(np.float64)
-        )
+        self._stiffness = asm(beam_stiffness_form, self._skfem_basis)
         return self._stiffness
 
     def mass_matrix(self) -> Array:
@@ -304,8 +302,7 @@ class EulerBernoulliBeamFEM(Generic[Array]):
         def beam_mass_form(u, v, w):
             return u.value * v.value
 
-        M_sp = asm(beam_mass_form, self._skfem_basis)
-        self._mass = self._bkd.asarray(M_sp.toarray().astype(np.float64))
+        self._mass = asm(beam_mass_form, self._skfem_basis)
         return self._mass
 
     def load_vector(self) -> Array:
@@ -426,13 +423,7 @@ class EulerBernoulliBeamFEM(Generic[Array]):
             Jacobian. Shape: (ndofs, ndofs)
         """
         jac = -self.stiffness_matrix()
-        jac_np = self._bkd.to_numpy(jac).copy()
-
-        for dof in self._dirichlet_dofs:
-            jac_np[dof, :] = 0.0
-            jac_np[dof, dof] = 1.0
-
-        return self._bkd.asarray(jac_np)
+        return apply_dirichlet_rows(jac, self._dirichlet_dofs)
 
     def interpolate_manufactured(
         self,

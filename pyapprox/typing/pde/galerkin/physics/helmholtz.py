@@ -123,7 +123,7 @@ class Helmholtz(AbstractGalerkinPhysics[Array]):
         def laplacian_form(u, v, w):
             return dot(grad(u), grad(v))
 
-        laplacian_np = asm(BilinearForm(laplacian_form), skfem_basis).toarray()
+        laplacian_np = asm(BilinearForm(laplacian_form), skfem_basis)
 
         # Mass-like term with k^2
         if self._wavenumber_is_callable:
@@ -146,10 +146,10 @@ class Helmholtz(AbstractGalerkinPhysics[Array]):
             def mass_form(u, v, w):
                 return k * k * u * v
 
-        mass_np = asm(BilinearForm(mass_form), skfem_basis).toarray()
+        mass_np = asm(BilinearForm(mass_form), skfem_basis)
 
-        stiffness_np = laplacian_np + mass_np
-        stiffness = self._bkd.asarray(stiffness_np.astype(np.float64))
+        # sparse + sparse = sparse
+        stiffness = laplacian_np + mass_np
 
         # Cache since coefficients are constant (even callable ones are
         # spatially varying but not state-dependent)

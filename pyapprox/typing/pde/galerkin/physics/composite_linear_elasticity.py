@@ -22,6 +22,7 @@ from typing import Callable, Dict, Generic, List, Optional, Tuple
 import numpy as np
 
 from pyapprox.typing.util.backends.protocols import Array, Backend
+from pyapprox.typing.pde.sparse_utils import solve_maybe_sparse
 from pyapprox.typing.pde.galerkin.protocols.boundary import (
     BoundaryConditionProtocol,
     DirichletBCProtocol,
@@ -203,8 +204,8 @@ class CompositeLinearElasticity(Generic[Array]):
             K_lam_i = asm(
                 _elastic_form, skfem_basis,
                 lam=lam_i, mu=np.zeros((nelems, nquad)),
-            ).toarray().astype(np.float64)
-            self._K_lam_per_material.append(self._bkd.asarray(K_lam_i))
+            )
+            self._K_lam_per_material.append(K_lam_i)
 
             # Mu contribution for this material only
             mu_i = np.zeros((nelems, nquad))
@@ -212,8 +213,8 @@ class CompositeLinearElasticity(Generic[Array]):
             K_mu_i = asm(
                 _elastic_form, skfem_basis,
                 lam=np.zeros((nelems, nquad)), mu=mu_i,
-            ).toarray().astype(np.float64)
-            self._K_mu_per_material.append(self._bkd.asarray(K_mu_i))
+            )
+            self._K_mu_per_material.append(K_mu_i)
 
     def _lame_data(self) -> Tuple[np.ndarray, np.ndarray]:
         """Return (nelem, nquad) Lame parameter arrays for assembly."""
@@ -257,14 +258,12 @@ class CompositeLinearElasticity(Generic[Array]):
         def mass_form(u, v, w):
             return sum(u[i] * v[i] for i in range(len(u)))
 
-        mass_np = asm(BilinearForm(mass_form), skfem_basis).toarray()
-        self._mass_cached = self._bkd.asarray(mass_np.astype(np.float64))
+        self._mass_cached = asm(BilinearForm(mass_form), skfem_basis)
         return self._mass_cached
 
     def mass_solve(self, rhs: Array) -> Array:
         """Solve M * x = rhs for x."""
-        M = self.mass_matrix()
-        return self._bkd.solve(M, rhs)
+        return solve_maybe_sparse(self._bkd, self.mass_matrix(), rhs)
 
     def stiffness_matrix(self) -> Array:
         """Return the elasticity stiffness matrix.
@@ -281,10 +280,9 @@ class CompositeLinearElasticity(Generic[Array]):
 
         skfem_basis = self._basis.skfem_basis()
         lam, mu = self._lame_data()
-        K_np = asm(
+        self._stiffness_cached = asm(
             _elastic_form, skfem_basis, lam=lam, mu=mu,
-        ).toarray().astype(np.float64)
-        self._stiffness_cached = self._bkd.asarray(K_np)
+        )
         return self._stiffness_cached
 
     def load_vector(self, time: float = 0.0) -> Array:
@@ -538,8 +536,24 @@ class CompositeLinearElasticity(Generic[Array]):
         return lame_parameters(E, nu)[1]
 
     # -----------------------------------------------------------------
-    # Parameter sensitivity methods
+    # Parameter update methods
     # -----------------------------------------------------------------
+
+    def set_lame_parameters(
+        self, lam_per_elem: np.ndarray, mu_per_elem: np.ndarray,
+    ) -> None:
+        """Set per-element Lame parameters directly and invalidate cache.
+
+        Parameters
+        ----------
+        lam_per_elem : np.ndarray
+            First Lame parameter per element. Shape: (nelems,)
+        mu_per_elem : np.ndarray
+            Shear modulus per element. Shape: (nelems,)
+        """
+        self._lam_per_elem[:] = lam_per_elem
+        self._mu_per_elem[:] = mu_per_elem
+        self._stiffness_cached = None
 
     def nparams(self) -> int:
         """Return number of material parameters (2 per material: E, nu)."""
@@ -554,7 +568,6 @@ class CompositeLinearElasticity(Generic[Array]):
             Parameter vector [E1, nu1, E2, nu2, ...]. Shape: (2*nmaterials,)
         """
         param_np = self._bkd.to_numpy(param)
-        nelems = self._basis.skfem_basis().mesh.nelements
 
         for i, name in enumerate(self._material_names):
             E = float(param_np[2 * i])

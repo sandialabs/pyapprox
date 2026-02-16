@@ -8,6 +8,7 @@ the discrete adjoint method.
 from typing import Generic, Tuple
 
 from pyapprox.typing.util.backends.protocols import Array
+from pyapprox.typing.pde.sparse_utils import solve_maybe_sparse
 from pyapprox.typing.optimization.rootfinding.newton import NewtonSolver
 from pyapprox.typing.pde.time.protocols import (
     AdjointEnabledTimeSteppingResidualProtocol,
@@ -178,10 +179,8 @@ class TimeIntegrator(Generic[Array]):
             fsol_n, deltat_np1
         )
 
-        asol_n = self._bkd.solve(
-            drduT_diag, -drduT_offdiag @ asol_np1 - dqdu_n
-        )
-        return asol_n
+        rhs = -drduT_offdiag @ asol_np1 - dqdu_n
+        return solve_maybe_sparse(self._bkd, drduT_diag, rhs)
 
     def solve_adjoint(
         self, fwd_sols: Array, times: Array, param: Array

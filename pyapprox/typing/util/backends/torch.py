@@ -13,6 +13,7 @@ from typing import (
 import numpy as np
 import torch
 from numpy.typing import NDArray
+from scipy.sparse import issparse as _scipy_issparse
 
 from pyapprox.typing.util.backends.protocols import Backend
 
@@ -362,6 +363,26 @@ class TorchBkd(Backend[torch.Tensor]):  # Specify torch.Tensor type
     @staticmethod
     def solve(Amat: torch.Tensor, Bmat: torch.Tensor) -> torch.Tensor:
         return cast(torch.Tensor, torch.linalg.solve(Amat, Bmat))
+
+    @staticmethod
+    def solve_sparse(Amat, bvec: torch.Tensor) -> torch.Tensor:
+        """Solve A @ x = b where A is a sparse matrix.
+
+        Raises
+        ------
+        NotImplementedError
+            Always — sparse solves are not supported with TorchBkd.
+            torch.sparse.spsolve requires MPS/CUDA (not available on CPU),
+            and falling back to scipy would silently break the autograd
+            computation graph.
+        """
+        raise NotImplementedError(
+            "TorchBkd.solve_sparse() is not supported. "
+            "torch.sparse.spsolve requires MPS/CUDA and is not available "
+            "on CPU. Falling back to scipy would silently break the "
+            "autograd computation graph. Use NumpyBkd for sparse solves "
+            "or convert to dense with .toarray() first."
+        )
 
     @staticmethod
     def lstsq(
