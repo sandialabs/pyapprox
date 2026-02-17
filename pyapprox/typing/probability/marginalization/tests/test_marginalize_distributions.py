@@ -22,12 +22,6 @@ from pyapprox.typing.interface.functions.marginalize import (
 from pyapprox.typing.surrogates.quadrature.tensor_product_factory import (
     TensorProductQuadratureFactory,
 )
-from pyapprox.typing.surrogates.affine.univariate.globalpoly.jacobi import (
-    JacobiPolynomial1D,
-)
-from pyapprox.typing.surrogates.affine.univariate.globalpoly.quadrature import (
-    GaussQuadratureRule,
-)
 from pyapprox.typing.probability.univariate.beta import BetaMarginal
 from pyapprox.typing.probability.joint.independent import IndependentJoint
 from pyapprox.typing.probability.copula.distribution import (
@@ -65,10 +59,8 @@ def _make_3d_copula_distribution(bkd):
 def _make_quadrature_factory(domain, bkd, npoints=20):
     """Create a Gauss-Legendre factory for the given domain."""
     nvars = domain.shape[0]
-    legendre = JacobiPolynomial1D(0.0, 0.0, bkd)
-    rule = GaussQuadratureRule(legendre)
     return TensorProductQuadratureFactory(
-        [rule] * nvars, [npoints] * nvars, domain, bkd
+        [npoints] * nvars, domain, bkd
     )
 
 

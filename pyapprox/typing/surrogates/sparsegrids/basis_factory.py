@@ -161,8 +161,9 @@ class BasisFactoryProtocol(Protocol, Generic[Array]):
 class GaussLagrangeFactory(Generic[Array]):
     """Factory that creates Lagrange basis with Gauss quadrature from marginal.
 
-    Uses the orthonormal polynomial for the marginal's measure to compute
-    Gauss quadrature points, then transforms them to the user's domain.
+    Uses :func:`~pyapprox.typing.surrogates.quadrature.gauss_quadrature_rule`
+    to compute distribution-specific Gauss quadrature points in the
+    marginal's physical domain with probability-measure weights.
 
     Parameters
     ----------
@@ -187,33 +188,10 @@ class GaussLagrangeFactory(Generic[Array]):
     def __init__(self, marginal: MarginalProtocol[Array], bkd: Backend[Array]) -> None:
         self._marginal = marginal
         self._bkd = bkd
-        # Polynomial must provide gauss_quadrature_rule, nterms, set_nterms
-        # OrthonormalPolynomial1DProtocol extends Basis1DProtocol and adds gauss_quadrature_rule
-        self._poly: Optional[OrthonormalPolynomial1DProtocol[Array]] = None
-        self._transform: Optional[Univariate1DTransformProtocol[Array]] = None
 
     def bkd(self) -> Backend[Array]:
         """Return the computational backend."""
         return self._bkd
-
-    def _setup(self) -> None:
-        """Initialize polynomial and transform (lazy initialization)."""
-        if self._poly is None:
-            # Use registry to get polynomial for the marginal
-            entry = _lookup_analytical(self._marginal)
-            if entry is not None:
-                self._poly = entry.polynomial_factory(self._marginal, self._bkd)
-            else:
-                # Fallback for custom marginals
-                from pyapprox.typing.surrogates.affine.univariate.globalpoly.continuous_numeric import (
-                    ContinuousNumericOrthonormalPolynomial1D,
-                )
-                self._poly = ContinuousNumericOrthonormalPolynomial1D(
-                    self._marginal, self._bkd
-                )
-            self._transform = get_transform_from_marginal(
-                self._marginal, self._bkd
-            )
 
     def create_basis(self) -> LagrangeBasis1D[Array]:
         """Create a Lagrange basis with user-domain Gauss quadrature.
@@ -223,30 +201,16 @@ class GaussLagrangeFactory(Generic[Array]):
         LagrangeBasis1D[Array]
             Lagrange basis with quadrature points in user domain.
         """
-        self._setup()
+        from pyapprox.typing.surrogates.quadrature import (
+            gauss_quadrature_rule,
+        )
 
-        # Capture references for closure (raise if _setup failed)
-        poly = self._poly
-        transform = self._transform
-        if poly is None:
-            raise RuntimeError("_setup() failed to initialize polynomial")
-        if transform is None:
-            raise RuntimeError("_setup() failed to initialize transform")
+        marginal = self._marginal
         bkd = self._bkd
 
         def user_domain_quad_rule(npoints: int) -> Tuple[Array, Array]:
             """Quadrature rule that returns user-domain points."""
-            # Ensure polynomial has enough terms
-            if poly.nterms() < npoints:
-                poly.set_nterms(npoints)
-
-            # Get canonical domain quadrature
-            canonical_pts, weights = poly.gauss_quadrature_rule(npoints)
-
-            # Transform to user domain (weights unchanged per legacy behavior)
-            user_pts = transform.map_from_canonical(canonical_pts)
-
-            return user_pts, weights
+            return gauss_quadrature_rule(marginal, npoints, bkd)
 
         return LagrangeBasis1D(bkd, user_domain_quad_rule)
 

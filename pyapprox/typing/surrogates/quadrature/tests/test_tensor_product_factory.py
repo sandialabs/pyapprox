@@ -14,12 +14,6 @@ from pyapprox.typing.util.test_utils import load_tests  # noqa: F401
 from pyapprox.typing.surrogates.quadrature.tensor_product_factory import (
     TensorProductQuadratureFactory,
 )
-from pyapprox.typing.surrogates.affine.univariate.globalpoly.jacobi import (
-    JacobiPolynomial1D,
-)
-from pyapprox.typing.surrogates.affine.univariate.globalpoly.quadrature import (
-    GaussQuadratureRule,
-)
 
 
 class TestTensorProductQuadratureFactory(
@@ -33,17 +27,12 @@ class TestTensorProductQuadratureFactory(
     def setUp(self) -> None:
         self._bkd = self.bkd()
 
-    def _make_legendre_rule(self) -> GaussQuadratureRule[Array]:
-        legendre = JacobiPolynomial1D(0.0, 0.0, self._bkd)
-        return GaussQuadratureRule(legendre)
-
     def test_affine_mapping_points_in_range(self) -> None:
         """Verify mapped points lie within [lb, ub]."""
         bkd = self._bkd
-        rule = self._make_legendre_rule()
         domain = bkd.asarray([[2.0, 5.0], [10.0, 20.0]])
         factory = TensorProductQuadratureFactory(
-            [rule, rule], [5, 5], domain, bkd
+            [5, 5], domain, bkd
         )
         quad = factory([0, 1])
         samples, weights = quad()
@@ -57,10 +46,9 @@ class TestTensorProductQuadratureFactory(
     def test_integrate_constant_gives_volume(self) -> None:
         """Integral of 1 over [a,b] should give b-a."""
         bkd = self._bkd
-        rule = self._make_legendre_rule()
         domain = bkd.asarray([[2.0, 5.0]])
         factory = TensorProductQuadratureFactory(
-            [rule], [5], domain, bkd
+            [5], domain, bkd
         )
         quad = factory([0])
         samples, weights = quad()
@@ -72,10 +60,9 @@ class TestTensorProductQuadratureFactory(
     def test_integrate_constant_2d(self) -> None:
         """Integral of 1 over [2,5] x [10,20] = 3 * 10 = 30."""
         bkd = self._bkd
-        rule = self._make_legendre_rule()
         domain = bkd.asarray([[2.0, 5.0], [10.0, 20.0]])
         factory = TensorProductQuadratureFactory(
-            [rule, rule], [3, 3], domain, bkd
+            [3, 3], domain, bkd
         )
         quad = factory([0, 1])
         _, weights = quad()
@@ -87,10 +74,9 @@ class TestTensorProductQuadratureFactory(
     def test_subset_selection(self) -> None:
         """3-variable factory, call with [1] -> 1D rule for var 1."""
         bkd = self._bkd
-        rule = self._make_legendre_rule()
         domain = bkd.asarray([[0.0, 1.0], [2.0, 4.0], [5.0, 10.0]])
         factory = TensorProductQuadratureFactory(
-            [rule, rule, rule], [3, 5, 7], domain, bkd
+            [3, 5, 7], domain, bkd
         )
         quad = factory([1])
         samples, weights = quad()
@@ -109,10 +95,9 @@ class TestTensorProductQuadratureFactory(
     def test_polynomial_integration(self) -> None:
         """Integrate x^2 on [0, 3] exactly."""
         bkd = self._bkd
-        rule = self._make_legendre_rule()
         domain = bkd.asarray([[0.0, 3.0]])
         factory = TensorProductQuadratureFactory(
-            [rule], [5], domain, bkd
+            [5], domain, bkd
         )
         quad = factory([0])
         samples, weights = quad()
@@ -126,10 +111,9 @@ class TestTensorProductQuadratureFactory(
     def test_integrate_method(self) -> None:
         """Test the integrate() method of _AffinelyMappedQuadratureRule."""
         bkd = self._bkd
-        rule = self._make_legendre_rule()
         domain = bkd.asarray([[0.0, 2.0], [0.0, 3.0]])
         factory = TensorProductQuadratureFactory(
-            [rule, rule], [5, 5], domain, bkd
+            [5, 5], domain, bkd
         )
         quad = factory([0, 1])
 

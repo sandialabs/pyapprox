@@ -1,38 +1,38 @@
-"""Tensor product quadrature factory for function marginalization.
+"""Tensor product quadrature factory for Lebesgue-measure integration.
 
 Provides a factory that builds tensor product quadrature rules for
-arbitrary subsets of variables, with affine mapping from [-1, 1] to
+arbitrary subsets of variables, using Gauss-Legendre rules mapped to
 the domain of each variable.
+
+This factory is designed for **Lebesgue-measure integration** (e.g.,
+function marginalization), NOT for computing expectations E[f(X)]
+w.r.t. probability distributions. For the latter, use
+:func:`~pyapprox.typing.surrogates.quadrature.gauss_quadrature_rule`
+with :class:`~pyapprox.typing.surrogates.quadrature.TensorProductQuadratureRule`.
 """
 
 from typing import Callable, Generic, List, Tuple
 
 from pyapprox.typing.util.backends.protocols import Array, Backend
-from pyapprox.typing.surrogates.quadrature.protocols import (
-    UnivariateQuadratureRuleProtocol,
-)
 from pyapprox.typing.surrogates.quadrature.tensor_product import (
     TensorProductQuadratureRule,
 )
 
 
-class _AffinelyMappedQuadratureRule(Generic[Array]):
-    """Wraps a [-1,1] tensor product rule with affine domain mapping.
+class _LebesgueMappedQuadratureRule(Generic[Array]):
+    """Tensor product rule with Lebesgue-measure weights.
 
-    Satisfies MultivariateQuadratureRuleProtocol.
-
-    Gauss-Legendre weights integrate the probability measure (1/2)dx
-    on [-1,1], so weights sum to 1. For Lebesgue integration on
-    [lb, ub], the scaling factor per dimension is (ub - lb).
+    Uses :func:`gauss_quadrature_rule` with uniform marginals to produce
+    quadrature points in the physical domain, then scales weights by the
+    domain volume so that they integrate against the Lebesgue measure.
 
     Parameters
     ----------
     tp_rule : TensorProductQuadratureRule[Array]
-        Tensor product rule with samples on [-1, 1]^d.
-    lb : Array
-        Lower bounds, shape (nvars,).
-    ub : Array
-        Upper bounds, shape (nvars,).
+        Tensor product rule with samples in physical domain and
+        probability-measure weights (summing to 1).
+    volume : float
+        Domain volume = prod(ub_i - lb_i).
     bkd : Backend[Array]
         Computational backend.
     """
@@ -40,24 +40,14 @@ class _AffinelyMappedQuadratureRule(Generic[Array]):
     def __init__(
         self,
         tp_rule: TensorProductQuadratureRule[Array],
-        lb: Array,
-        ub: Array,
+        volume: float,
         bkd: Backend[Array],
     ):
         self._bkd = bkd
-        raw_samples, raw_weights = tp_rule()
-        self._nvars = raw_samples.shape[0]
-
-        # Affine map: x_i = (ub_i - lb_i)/2 * t_i + (ub_i + lb_i)/2
-        half_width = (ub - lb) / 2.0
-        center = (ub + lb) / 2.0
-        self._samples = half_width[:, None] * raw_samples + center[:, None]
-
-        # Legendre probability-measure weights sum to 1 per dimension.
-        # Lebesgue integral: int_{lb}^{ub} f(x)dx = prod(ub-lb) * sum(w_i f(x_i))
-        width = ub - lb
-        weight_scale = bkd.prod(width)
-        self._weights = raw_weights * weight_scale
+        samples, weights = tp_rule()
+        self._nvars = samples.shape[0]
+        self._samples = samples
+        self._weights = weights * volume
 
     def bkd(self) -> Backend[Array]:
         """Return the computational backend."""
@@ -99,17 +89,23 @@ class _AffinelyMappedQuadratureRule(Generic[Array]):
 
 
 class TensorProductQuadratureFactory(Generic[Array]):
-    """Factory building tensor product quadrature rules for variable subsets.
+    """Factory building Lebesgue-measure quadrature rules for variable subsets.
 
-    Accepts univariate quadrature rules on [-1, 1] and a domain
-    specification. When called with a list of variable indices, builds
-    a tensor product rule for those variables, affinely mapped from
-    [-1, 1] to the specified domain.
+    Uses Gauss-Legendre rules mapped to the domain of each variable via
+    uniform marginals. The resulting weights are scaled by the domain
+    volume so that they integrate against the Lebesgue measure.
+
+    This factory is intended for **function marginalization**, where one
+    integrates out a subset of variables with respect to the Lebesgue
+    measure. For computing expectations E[f(X)] w.r.t. probability
+    distributions, use
+    :func:`~pyapprox.typing.surrogates.quadrature.gauss_quadrature_rule`
+    with
+    :class:`~pyapprox.typing.surrogates.quadrature.TensorProductQuadratureRule`
+    instead.
 
     Parameters
     ----------
-    univariate_rules : List[UnivariateQuadratureRuleProtocol[Array]]
-        One univariate quadrature rule per variable, on [-1, 1].
     npoints_1d : List[int]
         Number of quadrature points per variable.
     domain : Array
@@ -120,17 +116,10 @@ class TensorProductQuadratureFactory(Generic[Array]):
 
     def __init__(
         self,
-        univariate_rules: List[UnivariateQuadratureRuleProtocol[Array]],
         npoints_1d: List[int],
         domain: Array,
         bkd: Backend[Array],
     ):
-        if len(univariate_rules) != len(npoints_1d):
-            raise ValueError(
-                f"univariate_rules has {len(univariate_rules)} entries "
-                f"but npoints_1d has {len(npoints_1d)}"
-            )
-        self._univariate_rules = univariate_rules
         self._npoints_1d = npoints_1d
         self._domain = domain
         self._bkd = bkd
@@ -141,7 +130,7 @@ class TensorProductQuadratureFactory(Generic[Array]):
 
     def __call__(
         self, integrate_indices: List[int]
-    ) -> _AffinelyMappedQuadratureRule[Array]:
+    ) -> _LebesgueMappedQuadratureRule[Array]:
         """Build a quadrature rule for the specified variable indices.
 
         Parameters
@@ -151,18 +140,31 @@ class TensorProductQuadratureFactory(Generic[Array]):
 
         Returns
         -------
-        _AffinelyMappedQuadratureRule[Array]
-            Quadrature rule with samples on the domain of the
-            specified variables.
+        _LebesgueMappedQuadratureRule[Array]
+            Quadrature rule with Lebesgue-measure weights on the domain
+            of the specified variables.
         """
-        rules = [self._univariate_rules[i] for i in integrate_indices]
-        npts = [self._npoints_1d[i] for i in integrate_indices]
-        tp = TensorProductQuadratureRule(self._bkd, rules, npts)
+        from pyapprox.typing.probability.univariate.uniform import (
+            UniformMarginal,
+        )
+        from pyapprox.typing.surrogates.quadrature import (
+            gauss_quadrature_rule,
+        )
 
-        lb = self._bkd.asarray(
-            [float(self._domain[i, 0]) for i in integrate_indices]
-        )
-        ub = self._bkd.asarray(
-            [float(self._domain[i, 1]) for i in integrate_indices]
-        )
-        return _AffinelyMappedQuadratureRule(tp, lb, ub, self._bkd)
+        bkd = self._bkd
+        npts = [self._npoints_1d[i] for i in integrate_indices]
+
+        # Build uniform marginals for each dimension
+        rules = []
+        volume = 1.0
+        for i in integrate_indices:
+            lb_i = float(self._domain[i, 0])
+            ub_i = float(self._domain[i, 1])
+            marginal = UniformMarginal(lower=lb_i, upper=ub_i, bkd=bkd)
+            rules.append(
+                lambda n, m=marginal: gauss_quadrature_rule(m, n, bkd)
+            )
+            volume *= (ub_i - lb_i)
+
+        tp = TensorProductQuadratureRule(bkd, rules, npts)
+        return _LebesgueMappedQuadratureRule(tp, volume, bkd)

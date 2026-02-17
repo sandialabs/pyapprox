@@ -20,6 +20,12 @@ class TensorProductQuadratureRule(Generic[Array]):
     Creates a multivariate quadrature rule by taking the tensor product
     of univariate rules with specified numbers of points per dimension.
 
+    This is the recommended way to build quadrature rules for computing
+    expectations E[f(X)] w.r.t. probability distributions. Use
+    :func:`~pyapprox.typing.surrogates.quadrature.gauss_quadrature_rule`
+    to create distribution-specific univariate rules that return
+    physical-domain points with probability-measure weights.
+
     Parameters
     ----------
     bkd : Backend[Array]
@@ -32,14 +38,14 @@ class TensorProductQuadratureRule(Generic[Array]):
     Examples
     --------
     >>> from pyapprox.typing.util.backends.numpy import NumpyBkd
-    >>> from pyapprox.typing.surrogates.affine.univariate import LegendrePolynomial1D
+    >>> from pyapprox.typing.probability.univariate.beta import BetaMarginal
+    >>> from pyapprox.typing.surrogates.quadrature import gauss_quadrature_rule
     >>> bkd = NumpyBkd()
-    >>> basis = LegendrePolynomial1D(bkd)
-    >>> basis.set_nterms(5)
+    >>> marginal = BetaMarginal(2.0, 5.0, bkd, lb=0.0, ub=1.0)
     >>> rule = TensorProductQuadratureRule(
     ...     bkd,
-    ...     [lambda n: basis.gauss_quadrature_rule(n)] * 2,
-    ...     [3, 3]
+    ...     [lambda n: gauss_quadrature_rule(marginal, n, bkd)] * 2,
+    ...     [5, 5]
     ... )
     """
 

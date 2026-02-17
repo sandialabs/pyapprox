@@ -23,12 +23,6 @@ from pyapprox.typing.interface.functions.plot.pair_plot import PairPlotter
 from pyapprox.typing.surrogates.quadrature.tensor_product_factory import (
     TensorProductQuadratureFactory,
 )
-from pyapprox.typing.surrogates.affine.univariate.globalpoly.jacobi import (
-    JacobiPolynomial1D,
-)
-from pyapprox.typing.surrogates.affine.univariate.globalpoly.quadrature import (
-    GaussQuadratureRule,
-)
 
 
 def _make_polynomial_3d(bkd: Backend[Array]):
@@ -54,10 +48,8 @@ def _make_polynomial_3d(bkd: Backend[Array]):
 
 def _make_factory(domain, bkd, npoints=5):
     nvars = domain.shape[0]
-    legendre = JacobiPolynomial1D(0.0, 0.0, bkd)
-    rule = GaussQuadratureRule(legendre)
     return TensorProductQuadratureFactory(
-        [rule] * nvars, [npoints] * nvars, domain, bkd
+        [npoints] * nvars, domain, bkd
     )
 
 
