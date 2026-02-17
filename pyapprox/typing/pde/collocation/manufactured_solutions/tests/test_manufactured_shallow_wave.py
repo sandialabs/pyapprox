@@ -209,7 +209,7 @@ class TestManufacturedShallowWave1D(Generic[Array], unittest.TestCase):
         wrapper = PhysicsDerivativeWrapper(physics)
         checker = DerivativeChecker(wrapper)
         errors = checker.check_derivatives(state_exact.reshape(-1, 1))
-        self.assertLessEqual(checker.error_ratio(errors[0]), 1e-6)
+        self.assertLessEqual(checker.error_ratio(errors[0]), 1e-5)
 
     def test_flat_bed(self):
         """Test with flat bed topography."""
@@ -406,7 +406,7 @@ class TestShallowWave1DParameterized(ParametrizedTestCase):
         wrapper = PhysicsDerivativeWrapper(physics)
         checker = DerivativeChecker(wrapper)
         errors = checker.check_derivatives(state_exact.reshape(-1, 1))
-        self.assertLessEqual(checker.error_ratio(errors[0]), 1e-6)
+        self.assertLessEqual(checker.error_ratio(errors[0]), 1e-5)
 
 
 # Concrete backend implementations

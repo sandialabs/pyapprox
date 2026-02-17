@@ -476,6 +476,31 @@ class CompositeHyperelasticityPhysics(GalerkinPhysicsBase[Array]):
         return self._basis.interpolate(func)
 
     # -----------------------------------------------------------------
+    # Material accessors
+    # -----------------------------------------------------------------
+
+    def nmaterials(self) -> int:
+        """Return the number of distinct materials."""
+        return self._nmaterials
+
+    def material_names(self) -> List[str]:
+        """Return ordered list of material names."""
+        return list(self._material_names)
+
+    def material_params(self, name: str) -> Tuple[float, float]:
+        """Return configured (E, nu) for the named material.
+
+        Returns the values from the material map, not reverse-computed
+        from current Lame parameters. May be stale if
+        ``set_lame_parameters()`` was called directly.
+        """
+        return self._material_map[name]
+
+    def element_materials(self) -> Dict[str, np.ndarray]:
+        """Return element-to-material mapping {name: element_indices}."""
+        return dict(self._element_materials)
+
+    # -----------------------------------------------------------------
     # Parameter update methods
     # -----------------------------------------------------------------
 
@@ -495,39 +520,6 @@ class CompositeHyperelasticityPhysics(GalerkinPhysicsBase[Array]):
         """
         self._lam_per_elem = np.asarray(lam_per_elem)
         self._mu_per_elem = np.asarray(mu_per_elem)
-
-    def nparams(self) -> int:
-        """Return number of material parameters (2 per material: E, nu)."""
-        return 2 * self._nmaterials
-
-    def set_param(self, param: Array) -> None:
-        """Update material parameters.
-
-        Parameters
-        ----------
-        param : Array
-            [E1, nu1, E2, nu2, ...]. Shape: (2*nmaterials,)
-        """
-        param_np = self._bkd.to_numpy(param)
-
-        for i, name in enumerate(self._material_names):
-            E = float(param_np[2 * i])
-            nu = float(param_np[2 * i + 1])
-            if not (-1.0 < nu < 0.5):
-                raise ValueError(
-                    f"Poisson ratio for material '{name}' must satisfy "
-                    f"-1 < nu < 0.5, got {nu}"
-                )
-            self._material_map[name] = (E, nu)
-            lam, mu = lame_parameters(E, nu)
-            elem_idx = self._element_materials[name]
-            self._lam_per_elem[elem_idx] = lam
-            self._mu_per_elem[elem_idx] = mu
-
-    def initial_param_jacobian(self) -> Array:
-        """Return d(u_0)/dp = 0."""
-        n = self.nstates()
-        return self._bkd.asarray(np.zeros((n, self.nparams())))
 
     # -----------------------------------------------------------------
     # Convenience properties for uniform-material access

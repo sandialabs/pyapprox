@@ -408,6 +408,81 @@ class CompositeLinearElasticity(GalerkinPhysicsBase[Array]):
         return lame_parameters(E, nu)[1]
 
     # -----------------------------------------------------------------
+    # Material accessors
+    # -----------------------------------------------------------------
+
+    def nmaterials(self) -> int:
+        """Return the number of distinct materials."""
+        return self._nmaterials
+
+    def material_names(self) -> List[str]:
+        """Return ordered list of material names."""
+        return list(self._material_names)
+
+    def material_params(self, name: str) -> Tuple[float, float]:
+        """Return configured (E, nu) for the named material.
+
+        Returns the values from the material map, not reverse-computed
+        from current Lame parameters. May be stale if
+        ``set_lame_parameters()`` was called directly.
+        """
+        return self._material_map[name]
+
+    def element_materials(self) -> Dict[str, np.ndarray]:
+        """Return element-to-material mapping {name: element_indices}."""
+        return dict(self._element_materials)
+
+    # -----------------------------------------------------------------
+    # Sensitivity methods
+    # -----------------------------------------------------------------
+
+    def residual_lam_sensitivity(
+        self, state: Array, material_idx: int,
+    ) -> Array:
+        """Sensitivity of spatial residual w.r.t. lambda for a material.
+
+        Returns dF/d(lambda_i) evaluated at the current state, where
+        F = b - K*u. This equals ``-K_lam_i @ state``, where K_lam_i is
+        the unit-lambda stiffness contribution for material *material_idx*.
+
+        Parameters
+        ----------
+        state : Array
+            Current displacement. Shape: ``(nstates,)``.
+        material_idx : int
+            Material index (0-based).
+
+        Returns
+        -------
+        Array
+            Sensitivity vector. Shape: ``(nstates,)``.
+        """
+        return -(self._K_lam_per_material[material_idx] @ state)
+
+    def residual_mu_sensitivity(
+        self, state: Array, material_idx: int,
+    ) -> Array:
+        """Sensitivity of spatial residual w.r.t. mu for a material.
+
+        Returns dF/d(mu_i) evaluated at the current state, where
+        F = b - K*u. This equals ``-K_mu_i @ state``, where K_mu_i is
+        the unit-mu stiffness contribution for material *material_idx*.
+
+        Parameters
+        ----------
+        state : Array
+            Current displacement. Shape: ``(nstates,)``.
+        material_idx : int
+            Material index (0-based).
+
+        Returns
+        -------
+        Array
+            Sensitivity vector. Shape: ``(nstates,)``.
+        """
+        return -(self._K_mu_per_material[material_idx] @ state)
+
+    # -----------------------------------------------------------------
     # Parameter update methods
     # -----------------------------------------------------------------
 
@@ -428,94 +503,6 @@ class CompositeLinearElasticity(GalerkinPhysicsBase[Array]):
         self._lam_per_elem = np.asarray(lam_per_elem)
         self._mu_per_elem = np.asarray(mu_per_elem)
         self._stiffness_cached = None
-
-    def nparams(self) -> int:
-        """Return number of material parameters (2 per material: E, nu)."""
-        return 2 * self._nmaterials
-
-    def set_param(self, param: Array) -> None:
-        """Update material parameters and invalidate stiffness cache.
-
-        Parameters
-        ----------
-        param : Array
-            Parameter vector [E1, nu1, E2, nu2, ...]. Shape: (2*nmaterials,)
-        """
-        param_np = self._bkd.to_numpy(param)
-
-        for i, name in enumerate(self._material_names):
-            E = float(param_np[2 * i])
-            nu = float(param_np[2 * i + 1])
-            if not (-1.0 < nu < 0.5):
-                raise ValueError(
-                    f"Poisson ratio for material '{name}' must satisfy "
-                    f"-1 < nu < 0.5, got {nu}"
-                )
-            self._material_map[name] = (E, nu)
-            lam, mu = lame_parameters(E, nu)
-            elem_idx = self._element_materials[name]
-            self._lam_per_elem[elem_idx] = lam
-            self._mu_per_elem[elem_idx] = mu
-
-        self._stiffness_cached = None
-
-    def param_jacobian(self, state: Array, time: float) -> Array:
-        """Compute parameter Jacobian dF/dp where F = b - K*u.
-
-        Parameters are [E1, nu1, E2, nu2, ...] for each material.
-        Uses chain rule through Lame parameters.
-
-        Parameters
-        ----------
-        state : Array
-            Displacement state. Shape: (nstates,)
-        time : float
-            Current time.
-
-        Returns
-        -------
-        Array
-            Parameter Jacobian. Shape: (nstates, 2*nmaterials)
-        """
-        nparams = self.nparams()
-        n = self.nstates()
-        cols = []
-
-        for i, name in enumerate(self._material_names):
-            E, nu = self._material_map[name]
-            denom1 = (1.0 + nu) * (1.0 - 2.0 * nu)
-
-            # dLambda/dE, dMu/dE
-            dLambda_dE = nu / denom1
-            dMu_dE = 1.0 / (2.0 * (1.0 + nu))
-
-            # dLambda/dnu, dMu/dnu
-            dLambda_dnu = E * (1.0 + 2.0 * nu**2) / denom1**2
-            dMu_dnu = -E / (2.0 * (1.0 + nu) ** 2)
-
-            K_lam_u = self._K_lam_per_material[i] @ state
-            K_mu_u = self._K_mu_per_material[i] @ state
-
-            # dF/dE_i = -(dLambda/dE * K_lam_i + dMu/dE * K_mu_i) @ u
-            col_E = -(dLambda_dE * K_lam_u + dMu_dE * K_mu_u)
-            # dF/dnu_i
-            col_nu = -(dLambda_dnu * K_lam_u + dMu_dnu * K_mu_u)
-
-            cols.extend([col_E, col_nu])
-
-        pjac = self._bkd.stack(cols, axis=1)
-        return self._apply_dirichlet_to_param_jacobian(pjac, state, time)
-
-    def initial_param_jacobian(self) -> Array:
-        """Return d(u_0)/dp = 0 (IC does not depend on material params).
-
-        Returns
-        -------
-        Array
-            Zero matrix. Shape: (nstates, 2*nmaterials)
-        """
-        n = self.nstates()
-        return self._bkd.asarray(np.zeros((n, self.nparams())))
 
     def __repr__(self) -> str:
         materials_str = ", ".join(

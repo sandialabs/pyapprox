@@ -1,12 +1,7 @@
-"""Tests for LinearElasticity parameter sensitivity via parameterization.
-
-Tests parameter sensitivity through GalerkinLameParameterization, which
-maps (E, nu) to Lame parameters and computes chain-rule Jacobians via
-physics.residual_lam_sensitivity() and residual_mu_sensitivity().
-"""
+"""Tests for GalerkinLameParameterization."""
 
 import unittest
-from typing import Generic, Any
+from typing import Any, Generic
 
 import numpy as np
 from numpy.typing import NDArray
@@ -14,17 +9,21 @@ from scipy.sparse import issparse
 
 from pyapprox.typing.util.backends.protocols import Array, Backend
 from pyapprox.typing.util.backends.numpy import NumpyBkd
-from pyapprox.typing.pde.galerkin.mesh import StructuredMesh2D
-from pyapprox.typing.pde.galerkin.basis import VectorLagrangeBasis
-from pyapprox.typing.pde.galerkin.physics.composite_linear_elasticity import (
-    CompositeLinearElasticity as LinearElasticity,
+from pyapprox.typing.util.test_utils import load_tests  # noqa: F401
+from pyapprox.typing.pde.parameterizations.protocol import (
+    ParameterizationProtocol,
 )
-from pyapprox.typing.pde.galerkin.solvers import SteadyStateSolver
-from pyapprox.typing.pde.galerkin.boundary.implementations import DirichletBC
 from pyapprox.typing.pde.parameterizations.galerkin_lame import (
     GalerkinLameParameterization,
     create_galerkin_lame_parameterization,
 )
+from pyapprox.typing.pde.galerkin.mesh import StructuredMesh2D
+from pyapprox.typing.pde.galerkin.basis import VectorLagrangeBasis
+from pyapprox.typing.pde.galerkin.physics.composite_linear_elasticity import (
+    CompositeLinearElasticity,
+)
+from pyapprox.typing.pde.galerkin.solvers import SteadyStateSolver
+from pyapprox.typing.pde.galerkin.boundary.implementations import DirichletBC
 from pyapprox.typing.interface.functions.derivative_checks.derivative_checker import (
     DerivativeChecker,
 )
@@ -40,13 +39,8 @@ def _to_dense(mat):
     return np.asarray(mat)
 
 
-def _make_physics(
-    bkd: Backend[Array],
-    E: float = 1.0,
-    nu: float = 0.3,
-    with_bcs: bool = True,
-) -> "LinearElasticity[Array]":
-    """Create a 2D LinearElasticity with constant body force and all-Dirichlet BCs."""
+def _make_physics(bkd, E=1.0, nu=0.3, with_bcs=True):
+    """Create a 2D uniform CompositeLinearElasticity."""
     mesh = StructuredMesh2D(
         nx=5, ny=5,
         bounds=[[0.0, 1.0], [0.0, 1.0]],
@@ -70,7 +64,7 @@ def _make_physics(
     else:
         bc_list = []
 
-    return LinearElasticity.from_uniform(
+    return CompositeLinearElasticity.from_uniform(
         basis=basis,
         youngs_modulus=E,
         poisson_ratio=nu,
@@ -80,10 +74,54 @@ def _make_physics(
     )
 
 
-class TestLinearElasticityAdjointBase(Generic[Array], unittest.TestCase):
-    """Base test class for LinearElasticity parameter sensitivity
-    via GalerkinLameParameterization."""
+def _make_multi_material_physics(bkd, with_bcs=True):
+    """Create a 2-material CompositeLinearElasticity."""
+    mesh = StructuredMesh2D(
+        nx=10, ny=5,
+        bounds=[[0.0, 2.0], [0.0, 1.0]],
+        bkd=bkd,
+    )
+    basis = VectorLagrangeBasis(mesh, degree=1)
+    nelems = basis.skfem_basis().mesh.nelements
 
+    left_elems = np.arange(nelems // 2)
+    right_elems = np.arange(nelems // 2, nelems)
+
+    def body_force(x, time):
+        f = np.zeros_like(x)
+        f[0, :] = 1.0
+        f[1, :] = -2.0
+        return f
+
+    if with_bcs:
+        bc_list = [
+            DirichletBC(basis, "left", 0.0, bkd),
+            DirichletBC(basis, "right", 0.0, bkd),
+            DirichletBC(basis, "bottom", 0.0, bkd),
+            DirichletBC(basis, "top", 0.0, bkd),
+        ]
+    else:
+        bc_list = []
+
+    return CompositeLinearElasticity(
+        basis=basis,
+        material_map={
+            "left": (1.0, 0.3),
+            "right": (5.0, 0.2),
+        },
+        element_materials={
+            "left": left_elems,
+            "right": right_elems,
+        },
+        bkd=bkd,
+        body_force=body_force,
+        boundary_conditions=bc_list,
+    )
+
+
+class TestGalerkinLameParameterizationBase(
+    Generic[Array], unittest.TestCase
+):
     __test__ = False
 
     def bkd(self) -> Backend[Array]:
@@ -92,47 +130,35 @@ class TestLinearElasticityAdjointBase(Generic[Array], unittest.TestCase):
     def setUp(self) -> None:
         self.bkd_inst = self.bkd()
 
+    def test_protocol_conformance(self) -> None:
+        """GalerkinLameParameterization satisfies ParameterizationProtocol."""
+        physics = _make_physics(self.bkd_inst)
+        param = create_galerkin_lame_parameterization(
+            physics, self.bkd_inst
+        )
+        self.assertIsInstance(param, ParameterizationProtocol)
+
     def test_nparams(self) -> None:
-        """Parameterization nparams() returns 2 (E, nu) for single material."""
+        """nparams returns 2 * nmaterials."""
         physics = _make_physics(self.bkd_inst)
         param = create_galerkin_lame_parameterization(
             physics, self.bkd_inst
         )
         self.assertEqual(param.nparams(), 2)
 
-    def test_param_jacobian_shape(self) -> None:
-        """param_jacobian returns shape (nstates, 2)."""
-        physics = _make_physics(self.bkd_inst)
-        param = create_galerkin_lame_parameterization(
-            physics, self.bkd_inst
+        physics_multi = _make_multi_material_physics(self.bkd_inst)
+        param_multi = create_galerkin_lame_parameterization(
+            physics_multi, self.bkd_inst
         )
-        n = physics.nstates()
-        u = self.bkd_inst.asarray(np.ones(n) * 0.01)
-        params_1d = self.bkd_inst.asarray(np.array([1.0, 0.3]))
-        param.apply(physics, params_1d)
-        pj = param.param_jacobian(physics, u, 0.0, params_1d)
-        self.assertEqual(pj.shape, (n, 2))
-
-    def test_initial_param_jacobian_is_zero(self) -> None:
-        """initial_param_jacobian returns all zeros."""
-        physics = _make_physics(self.bkd_inst)
-        param = create_galerkin_lame_parameterization(
-            physics, self.bkd_inst
-        )
-        params_1d = self.bkd_inst.asarray(np.array([1.0, 0.3]))
-        ipj = param.initial_param_jacobian(physics, params_1d)
-        ipj_np = self.bkd_inst.to_numpy(ipj)
-        self.bkd_inst.assert_allclose(
-            self.bkd_inst.asarray(ipj_np),
-            self.bkd_inst.asarray(np.zeros_like(ipj_np)),
-        )
+        self.assertEqual(param_multi.nparams(), 4)
 
     def test_apply_changes_stiffness(self) -> None:
-        """Stiffness matrix changes after parameterization.apply() with new (E, nu)."""
+        """apply() modifies the physics stiffness matrix."""
         physics = _make_physics(self.bkd_inst, E=1.0, nu=0.3)
         param = create_galerkin_lame_parameterization(
             physics, self.bkd_inst
         )
+
         K1 = _to_dense(physics.stiffness_matrix()).copy()
 
         param.apply(
@@ -143,25 +169,27 @@ class TestLinearElasticityAdjointBase(Generic[Array], unittest.TestCase):
         diff = np.linalg.norm(K2 - K1)
         self.assertGreater(diff, 1e-10)
 
-    def test_param_jacobian_fd_validation(self) -> None:
-        """DerivativeChecker validation of parameterization param_jacobian.
-
-        Wraps residual(p) and param_jacobian as a FunctionWithJacobian,
-        then verifies error_ratio <= 1e-6.
-        """
-        bkd = self.bkd_inst
-        E0, nu0 = 1.0, 0.3
-        physics = _make_physics(bkd, E=E0, nu=nu0)
-        param = create_galerkin_lame_parameterization(physics, bkd)
-
-        # Solve for the state at base parameters
-        solver = SteadyStateSolver(
-            physics, tol=1e-12, max_iter=5, line_search=False,
+    def test_apply_poisson_validation(self) -> None:
+        """apply() raises for invalid Poisson ratio."""
+        physics = _make_physics(self.bkd_inst)
+        param = create_galerkin_lame_parameterization(
+            physics, self.bkd_inst
         )
-        result = solver.solve_linear()
-        self.assertTrue(result.converged)
-        u = result.solution
+        with self.assertRaises(ValueError):
+            param.apply(
+                physics, self.bkd_inst.asarray(np.array([1.0, 0.5]))
+            )
+
+    def test_param_jacobian_fd_validation(self) -> None:
+        """FD validation of param_jacobian via DerivativeChecker."""
+        bkd = self.bkd_inst
+        E0, nu0 = 2.0, 0.3
+        physics = _make_physics(bkd, E=E0, nu=nu0, with_bcs=False)
+        param = create_galerkin_lame_parameterization(physics, bkd)
         nstates = physics.nstates()
+
+        rng = np.random.RandomState(42)
+        u = bkd.asarray(rng.randn(nstates))
 
         def residual_of_params(params: Array) -> Array:
             nsamples = params.shape[1]
@@ -169,7 +197,7 @@ class TestLinearElasticityAdjointBase(Generic[Array], unittest.TestCase):
             for ii in range(nsamples):
                 p = params[:, ii]
                 param.apply(physics, p)
-                res = physics.residual(u, 0.0)
+                res = physics.spatial_residual(u, 0.0)
                 results.append(bkd.reshape(res, (nstates, 1)))
             param.apply(physics, bkd.asarray(np.array([E0, nu0])))
             return bkd.hstack(results)
@@ -177,12 +205,7 @@ class TestLinearElasticityAdjointBase(Generic[Array], unittest.TestCase):
         def jacobian_of_params(params: Array) -> Array:
             p = params[:, 0]
             param.apply(physics, p)
-            # Raw param_jacobian (no BC enforcement)
-            pj_raw = param.param_jacobian(physics, u, 0.0, p)
-            # Apply BC enforcement
-            pj = physics._apply_dirichlet_to_param_jacobian(
-                pj_raw, u, 0.0
-            )
+            pj = param.param_jacobian(physics, u, 0.0, p)
             param.apply(physics, bkd.asarray(np.array([E0, nu0])))
             return pj
 
@@ -199,25 +222,69 @@ class TestLinearElasticityAdjointBase(Generic[Array], unittest.TestCase):
         ratio = float(bkd.to_numpy(checker.error_ratio(errors)))
         self.assertLessEqual(ratio, 1e-6)
 
-    def test_adjoint_gradient_steady(self) -> None:
-        """DerivativeChecker validation of adjoint gradient via parameterization.
+    def test_param_jacobian_multi_material_fd(self) -> None:
+        """FD validation for multi-material param_jacobian."""
+        bkd = self.bkd_inst
+        physics = _make_multi_material_physics(bkd, with_bcs=False)
+        param = create_galerkin_lame_parameterization(physics, bkd)
+        nstates = physics.nstates()
+
+        rng = np.random.RandomState(42)
+        u = bkd.asarray(rng.randn(nstates))
+        p0 = np.array([1.0, 0.3, 5.0, 0.2])
+
+        def residual_of_params(params: Array) -> Array:
+            nsamples = params.shape[1]
+            results = []
+            for ii in range(nsamples):
+                p = params[:, ii]
+                param.apply(physics, p)
+                res = physics.spatial_residual(u, 0.0)
+                results.append(bkd.reshape(res, (nstates, 1)))
+            param.apply(physics, bkd.asarray(p0))
+            return bkd.hstack(results)
+
+        def jacobian_of_params(params: Array) -> Array:
+            p = params[:, 0]
+            param.apply(physics, p)
+            pj = param.param_jacobian(physics, u, 0.0, p)
+            param.apply(physics, bkd.asarray(p0))
+            return pj
+
+        wrapper = FunctionWithJacobianFromCallable(
+            nqoi=nstates,
+            nvars=4,
+            fun=residual_of_params,
+            jacobian=jacobian_of_params,
+            bkd=bkd,
+        )
+        checker = DerivativeChecker(wrapper)
+        sample = bkd.asarray(p0.reshape(-1, 1))
+        errors = checker.check_derivatives(sample, relative=True)[0]
+        ratio = float(bkd.to_numpy(checker.error_ratio(errors)))
+        self.assertLessEqual(ratio, 1e-6)
+
+    def test_initial_param_jacobian_is_zero(self) -> None:
+        """initial_param_jacobian returns all zeros."""
+        bkd = self.bkd_inst
+        physics = _make_physics(bkd)
+        param = create_galerkin_lame_parameterization(physics, bkd)
+        p = bkd.asarray(np.array([1.0, 0.3]))
+        ipj = param.initial_param_jacobian(physics, p)
+        ipj_np = bkd.to_numpy(ipj)
+        np.testing.assert_array_equal(ipj_np, 0.0)
+
+    def test_adjoint_gradient_steady_integration(self) -> None:
+        """Full steady-state solve + adjoint gradient through parameterization.
 
         QoI: Q(u(p)) = c^T u(p) where u(p) solves K(p)*u = b.
         Adjoint gradient: dQ/dp = (dF/dp)^T lambda, with J^T lambda = -c.
         """
         bkd = self.bkd_inst
         E0, nu0 = 1.0, 0.3
-        physics = _make_physics(bkd, E=E0, nu=nu0)
+        physics = _make_physics(bkd, E=E0, nu=nu0, with_bcs=True)
         param = create_galerkin_lame_parameterization(physics, bkd)
 
-        # Solve forward problem at base params
-        solver = SteadyStateSolver(
-            physics, tol=1e-12, max_iter=5, line_search=False,
-        )
-        result = solver.solve_linear()
-        self.assertTrue(result.converged)
-
-        # Random QoI direction
         np.random.seed(42)
         n = physics.nstates()
         c_np = np.random.randn(n)
@@ -235,7 +302,9 @@ class TestLinearElasticityAdjointBase(Generic[Array], unittest.TestCase):
                 Q = c_np @ u_np
                 results.append(Q)
             param.apply(physics, bkd.asarray(np.array([E0, nu0])))
-            return bkd.reshape(bkd.asarray(np.array(results)), (1, nsamples))
+            return bkd.reshape(
+                bkd.asarray(np.array(results)), (1, nsamples)
+            )
 
         def adjoint_gradient(params: Array) -> Array:
             p = params[:, 0]
@@ -249,10 +318,12 @@ class TestLinearElasticityAdjointBase(Generic[Array], unittest.TestCase):
             J_np = _to_dense(physics.jacobian(u_sol, 0.0))
             lam_np = np.linalg.solve(J_np.T, -c_np)
 
-            # Parameterization param_jacobian (raw) + BC enforcement
+            # Use parameterization param_jacobian (raw, no BC enforcement)
             dF_dp_raw = bkd.to_numpy(
                 param.param_jacobian(physics, u_sol, 0.0, p)
             )
+
+            # Apply BC enforcement for steady-state
             dF_dp = bkd.to_numpy(
                 physics._apply_dirichlet_to_param_jacobian(
                     bkd.asarray(dF_dp_raw), u_sol, 0.0
@@ -277,11 +348,9 @@ class TestLinearElasticityAdjointBase(Generic[Array], unittest.TestCase):
         self.assertLessEqual(ratio, 1e-6)
 
 
-class TestLinearElasticityAdjointNumpy(
-    TestLinearElasticityAdjointBase[NDArray[Any]]
+class TestGalerkinLameParameterizationNumpy(
+    TestGalerkinLameParameterizationBase[NDArray[Any]]
 ):
-    """NumPy backend tests."""
-
     __test__ = True
 
     def setUp(self) -> None:
@@ -296,11 +365,9 @@ try:
     import torch
     from pyapprox.typing.util.backends.torch import TorchBkd
 
-    class TestLinearElasticityAdjointTorch(
-        TestLinearElasticityAdjointBase[torch.Tensor]
+    class TestGalerkinLameParameterizationTorch(
+        TestGalerkinLameParameterizationBase[torch.Tensor]
     ):
-        """PyTorch backend tests."""
-
         __test__ = True
 
         def setUp(self) -> None:
@@ -311,27 +378,26 @@ try:
         def bkd(self) -> Backend[torch.Tensor]:
             return self._bkd
 
-        @unittest.skip("sparse solve not available on CPU with TorchBkd")
-        def test_param_jacobian_shape(self) -> None:
+        @unittest.skip(
+            "sparse solve not available on CPU with TorchBkd"
+        )
+        def test_adjoint_gradient_steady_integration(self) -> None:
             pass
 
-        @unittest.skip("sparse solve not available on CPU with TorchBkd")
+        @unittest.skip(
+            "sparse @ torch returns numpy — pre-existing issue"
+        )
         def test_param_jacobian_fd_validation(self) -> None:
             pass
 
-        @unittest.skip("sparse solve not available on CPU with TorchBkd")
-        def test_apply_changes_stiffness(self) -> None:
-            pass
-
-        @unittest.skip("sparse solve not available on CPU with TorchBkd")
-        def test_adjoint_gradient_steady(self) -> None:
+        @unittest.skip(
+            "sparse @ torch returns numpy — pre-existing issue"
+        )
+        def test_param_jacobian_multi_material_fd(self) -> None:
             pass
 
 except ImportError:
     pass
-
-
-from pyapprox.typing.util.test_utils import load_tests  # noqa: F401
 
 
 if __name__ == "__main__":

@@ -14,8 +14,6 @@ from pyapprox.typing.pde.galerkin.protocols.basis import (
 )
 from pyapprox.typing.pde.galerkin.protocols.physics import (
     GalerkinPhysicsProtocol,
-    GalerkinPhysicsWithParamJacobianProtocol,
-    GalerkinPhysicsWithHVPProtocol,
 )
 from pyapprox.typing.pde.galerkin.protocols.boundary import (
     BoundaryConditionProtocol,
@@ -31,10 +29,8 @@ __all__ = [
     # Basis protocols
     "GalerkinBasisProtocol",
     "VectorBasisProtocol",
-    # Physics protocols (3-level hierarchy)
+    # Physics protocols
     "GalerkinPhysicsProtocol",
-    "GalerkinPhysicsWithParamJacobianProtocol",
-    "GalerkinPhysicsWithHVPProtocol",
     # Boundary condition protocols
     "BoundaryConditionProtocol",
     "DirichletBCProtocol",

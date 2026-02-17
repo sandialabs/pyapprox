@@ -22,6 +22,10 @@ from pyapprox.typing.pde.parameterizations.lame import (
     YoungModulusParameterization,
     create_youngs_modulus_parameterization,
 )
+from pyapprox.typing.pde.parameterizations.galerkin_lame import (
+    GalerkinLameParameterization,
+    create_galerkin_lame_parameterization,
+)
 
 __all__ = [
     "ParameterizationProtocol",
@@ -34,4 +38,6 @@ __all__ = [
     "create_hyperelastic_youngs_modulus_parameterization",
     "YoungModulusParameterization",
     "create_youngs_modulus_parameterization",
+    "GalerkinLameParameterization",
+    "create_galerkin_lame_parameterization",
 ]

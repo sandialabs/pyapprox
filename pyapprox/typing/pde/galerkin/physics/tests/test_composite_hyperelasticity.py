@@ -39,6 +39,9 @@ from pyapprox.typing.pde.galerkin.manufactured.adapter import (
 from pyapprox.typing.pde.collocation.physics.stress_models.neo_hookean import (
     NeoHookeanStress,
 )
+from pyapprox.typing.pde.parameterizations.galerkin_lame import (
+    create_galerkin_lame_parameterization,
+)
 from skfem.models.elasticity import lame_parameters
 
 
@@ -561,7 +564,7 @@ class TestCompositeMultiMaterial(unittest.TestCase):
             bkd.asarray(res_hyper), bkd.asarray(res_linear), rtol=2e-3,
         )
 
-    def test_nparams(self) -> None:
+    def test_nparams_via_parameterization(self) -> None:
         bkd = NumpyBkd()
         mesh = StructuredMesh1D(nx=4, bounds=(0.0, 1.0), bkd=bkd)
         basis = VectorLagrangeBasis(mesh, degree=1)
@@ -576,9 +579,10 @@ class TestCompositeMultiMaterial(unittest.TestCase):
             },
             bkd=bkd,
         )
-        self.assertEqual(physics.nparams(), 4)
+        param = create_galerkin_lame_parameterization(physics, bkd)
+        self.assertEqual(param.nparams(), 4)
 
-    def test_set_param_changes_residual(self) -> None:
+    def test_apply_changes_residual(self) -> None:
         bkd = NumpyBkd()
         mesh = StructuredMesh1D(nx=4, bounds=(0.0, 1.0), bkd=bkd)
         basis = VectorLagrangeBasis(mesh, degree=1)
@@ -586,14 +590,15 @@ class TestCompositeMultiMaterial(unittest.TestCase):
         physics = CompositeHyperelasticityPhysics.from_uniform(
             basis=basis, youngs_modulus=1.0, poisson_ratio=0.3, bkd=bkd,
         )
+        param = create_galerkin_lame_parameterization(physics, bkd)
 
         np.random.seed(42)
         n = physics.nstates()
         state = bkd.asarray(0.01 * np.random.randn(n))
         res1 = bkd.to_numpy(physics.residual(state, 0.0)).copy()
 
-        # Change parameters
-        physics.set_param(bkd.asarray(np.array([5.0, 0.2])))
+        # Change parameters via parameterization
+        param.apply(physics, bkd.asarray(np.array([5.0, 0.2])))
         res2 = bkd.to_numpy(physics.residual(state, 0.0))
 
         self.assertFalse(np.allclose(res1, res2))

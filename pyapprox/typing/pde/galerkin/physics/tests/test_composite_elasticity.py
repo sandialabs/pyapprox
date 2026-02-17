@@ -19,6 +19,9 @@ from pyapprox.typing.pde.galerkin.physics.composite_linear_elasticity import (
     CompositeLinearElasticity,
 )
 from pyapprox.typing.pde.galerkin.solvers import SteadyStateSolver
+from pyapprox.typing.pde.parameterizations.galerkin_lame import (
+    create_galerkin_lame_parameterization,
+)
 from pyapprox.typing.util.test_utils import load_tests  # noqa: F401
 
 
@@ -460,7 +463,7 @@ class TestCompositeLinearElasticityBase(
         # But both should be symmetric
         np.testing.assert_allclose(K_comp, K_comp.T, atol=1e-12)
 
-    def test_set_param_invalidates_cache(self) -> None:
+    def test_apply_invalidates_cache(self) -> None:
         mesh = StructuredMesh2D(
             nx=5, ny=5,
             bounds=[[0.0, 1.0], [0.0, 1.0]],
@@ -468,10 +471,13 @@ class TestCompositeLinearElasticityBase(
         )
         basis = VectorLagrangeBasis(mesh, degree=1)
         physics = _uniform_material(basis, 1.0, 0.3, self.bkd_inst)
+        param = create_galerkin_lame_parameterization(
+            physics, self.bkd_inst
+        )
 
         K1 = _to_dense(physics.stiffness_matrix(), self.bkd_inst)
-        physics.set_param(
-            self.bkd_inst.asarray(np.array([2.0, 0.25]))
+        param.apply(
+            physics, self.bkd_inst.asarray(np.array([2.0, 0.25]))
         )
         K2 = _to_dense(physics.stiffness_matrix(), self.bkd_inst)
         self.assertTrue(np.linalg.norm(K1 - K2) > 1e-6)
@@ -499,10 +505,38 @@ class TestCompositeLinearElasticityBase(
             },
             bkd=self.bkd_inst,
         )
-        self.assertEqual(physics.nparams(), 6)
+        param = create_galerkin_lame_parameterization(
+            physics, self.bkd_inst
+        )
+        self.assertEqual(param.nparams(), 6)
 
-    def test_param_jacobian_fd_check(self) -> None:
-        """Finite difference check for param_jacobian."""
+    # ---- Sensitivity method tests ----
+
+    def test_sensitivity_shape(self) -> None:
+        """residual_lam/mu_sensitivity return correct shapes."""
+        mesh = StructuredMesh2D(
+            nx=5, ny=5,
+            bounds=[[0.0, 1.0], [0.0, 1.0]],
+            bkd=self.bkd_inst,
+        )
+        basis = VectorLagrangeBasis(mesh, degree=1)
+        physics = _uniform_material(basis, 1.0, 0.3, self.bkd_inst)
+        n = physics.nstates()
+        rng = np.random.RandomState(42)
+        u = self.bkd_inst.asarray(rng.randn(n))
+
+        lam_sens = physics.residual_lam_sensitivity(u, 0)
+        mu_sens = physics.residual_mu_sensitivity(u, 0)
+        self.assertEqual(lam_sens.shape, (n,))
+        self.assertEqual(mu_sens.shape, (n,))
+
+    def test_sensitivity_cross_validate_parameterization(self) -> None:
+        """Sensitivity methods reproduce parameterization columns via chain rule.
+
+        For material i with params (E, nu):
+          col_E  = dlam/dE * lam_sens(i) + dmu/dE * mu_sens(i)
+          col_nu = dlam/dnu * lam_sens(i) + dmu/dnu * mu_sens(i)
+        """
         mesh = StructuredMesh2D(
             nx=5, ny=5,
             bounds=[[0.0, 1.0], [0.0, 1.0]],
@@ -510,12 +544,168 @@ class TestCompositeLinearElasticityBase(
         )
         basis = VectorLagrangeBasis(mesh, degree=1)
         physics = _uniform_material(basis, 2.0, 0.3, self.bkd_inst)
+        param = create_galerkin_lame_parameterization(
+            physics, self.bkd_inst
+        )
+
+        rng = np.random.RandomState(42)
+        u = self.bkd_inst.asarray(rng.randn(physics.nstates()))
+        params_1d = self.bkd_inst.asarray(np.array([2.0, 0.3]))
+
+        # Get param_jacobian via parameterization
+        pjac = self.bkd_inst.to_numpy(
+            param.param_jacobian(physics, u, 0.0, params_1d)
+        )
+
+        E, nu = 2.0, 0.3
+        denom = (1.0 + nu) * (1.0 - 2.0 * nu)
+
+        dLambda_dE = nu / denom
+        dMu_dE = 1.0 / (2.0 * (1.0 + nu))
+        dLambda_dnu = E * (1.0 + 2.0 * nu**2) / denom**2
+        dMu_dnu = -E / (2.0 * (1.0 + nu) ** 2)
+
+        lam_sens = self.bkd_inst.to_numpy(
+            physics.residual_lam_sensitivity(u, 0)
+        )
+        mu_sens = self.bkd_inst.to_numpy(
+            physics.residual_mu_sensitivity(u, 0)
+        )
+
+        col_E = dLambda_dE * lam_sens + dMu_dE * mu_sens
+        col_nu = dLambda_dnu * lam_sens + dMu_dnu * mu_sens
+
+        np.testing.assert_allclose(
+            pjac[:, 0], col_E, rtol=1e-12,
+            err_msg="Sensitivity cross-validation failed for E column",
+        )
+        np.testing.assert_allclose(
+            pjac[:, 1], col_nu, rtol=1e-12,
+            err_msg="Sensitivity cross-validation failed for nu column",
+        )
+
+    def test_sensitivity_multi_material(self) -> None:
+        """Cross-validate sensitivities for multi-material setup."""
+        mesh = StructuredMesh2D(
+            nx=10, ny=5,
+            bounds=[[0.0, 2.0], [0.0, 1.0]],
+            bkd=self.bkd_inst,
+        )
+        basis = VectorLagrangeBasis(mesh, degree=1)
+        nelems = basis.skfem_basis().mesh.nelements
+
+        E_vals = [1.0, 5.0]
+        nu_vals = [0.3, 0.2]
+        left_elems = np.arange(nelems // 2)
+        right_elems = np.arange(nelems // 2, nelems)
+
+        physics = CompositeLinearElasticity(
+            basis=basis,
+            material_map={
+                "left": (E_vals[0], nu_vals[0]),
+                "right": (E_vals[1], nu_vals[1]),
+            },
+            element_materials={
+                "left": left_elems,
+                "right": right_elems,
+            },
+            bkd=self.bkd_inst,
+        )
+        param = create_galerkin_lame_parameterization(
+            physics, self.bkd_inst
+        )
+
+        rng = np.random.RandomState(42)
+        u = self.bkd_inst.asarray(rng.randn(physics.nstates()))
+        params_1d = self.bkd_inst.asarray(
+            np.array([E_vals[0], nu_vals[0], E_vals[1], nu_vals[1]])
+        )
+        pjac = self.bkd_inst.to_numpy(
+            param.param_jacobian(physics, u, 0.0, params_1d)
+        )
+
+        for i, (E, nu) in enumerate(zip(E_vals, nu_vals)):
+            denom = (1.0 + nu) * (1.0 - 2.0 * nu)
+            dLambda_dE = nu / denom
+            dMu_dE = 1.0 / (2.0 * (1.0 + nu))
+            dLambda_dnu = E * (1.0 + 2.0 * nu**2) / denom**2
+            dMu_dnu = -E / (2.0 * (1.0 + nu) ** 2)
+
+            lam_sens = self.bkd_inst.to_numpy(
+                physics.residual_lam_sensitivity(u, i)
+            )
+            mu_sens = self.bkd_inst.to_numpy(
+                physics.residual_mu_sensitivity(u, i)
+            )
+
+            col_E = dLambda_dE * lam_sens + dMu_dE * mu_sens
+            col_nu = dLambda_dnu * lam_sens + dMu_dnu * mu_sens
+
+            np.testing.assert_allclose(
+                pjac[:, 2 * i], col_E, rtol=1e-12,
+                err_msg=f"E column mismatch for material {i}",
+            )
+            np.testing.assert_allclose(
+                pjac[:, 2 * i + 1], col_nu, rtol=1e-12,
+                err_msg=f"nu column mismatch for material {i}",
+            )
+
+    # ---- Accessor method tests ----
+
+    def test_accessor_methods(self) -> None:
+        """Test nmaterials, material_names, material_params, element_materials."""
+        mesh = StructuredMesh2D(
+            nx=10, ny=5,
+            bounds=[[0.0, 2.0], [0.0, 1.0]],
+            bkd=self.bkd_inst,
+        )
+        basis = VectorLagrangeBasis(mesh, degree=1)
+        nelems = basis.skfem_basis().mesh.nelements
+        left_elems = np.arange(nelems // 2)
+        right_elems = np.arange(nelems // 2, nelems)
+
+        physics = CompositeLinearElasticity(
+            basis=basis,
+            material_map={
+                "left": (1.0, 0.3),
+                "right": (5.0, 0.2),
+            },
+            element_materials={
+                "left": left_elems,
+                "right": right_elems,
+            },
+            bkd=self.bkd_inst,
+        )
+
+        self.assertEqual(physics.nmaterials(), 2)
+        self.assertEqual(physics.material_names(), ["left", "right"])
+        self.assertEqual(physics.material_params("left"), (1.0, 0.3))
+        self.assertEqual(physics.material_params("right"), (5.0, 0.2))
+        elem_mats = physics.element_materials()
+        np.testing.assert_array_equal(elem_mats["left"], left_elems)
+        np.testing.assert_array_equal(elem_mats["right"], right_elems)
+
+    def test_param_jacobian_fd_check(self) -> None:
+        """Finite difference check for parameterization param_jacobian."""
+        mesh = StructuredMesh2D(
+            nx=5, ny=5,
+            bounds=[[0.0, 1.0], [0.0, 1.0]],
+            bkd=self.bkd_inst,
+        )
+        basis = VectorLagrangeBasis(mesh, degree=1)
+        physics = _uniform_material(basis, 2.0, 0.3, self.bkd_inst)
+        parameterization = create_galerkin_lame_parameterization(
+            physics, self.bkd_inst
+        )
 
         rng = np.random.RandomState(42)
         u0 = self.bkd_inst.asarray(rng.randn(physics.nstates()))
         p0 = np.array([2.0, 0.3])
+        p0_arr = self.bkd_inst.asarray(p0)
 
-        pjac = self.bkd_inst.to_numpy(physics.param_jacobian(u0, 0.0))
+        pjac = self.bkd_inst.to_numpy(
+            parameterization.param_jacobian(physics, u0, 0.0, p0_arr)
+        )
 
         # FD check
         eps = 1e-7
@@ -525,11 +715,15 @@ class TestCompositeLinearElasticityBase(
             p_minus = p0.copy()
             p_minus[j] -= eps
 
-            physics.set_param(self.bkd_inst.asarray(p_plus))
+            parameterization.apply(
+                physics, self.bkd_inst.asarray(p_plus)
+            )
             res_plus = self.bkd_inst.to_numpy(
                 physics.spatial_residual(u0, 0.0)
             )
-            physics.set_param(self.bkd_inst.asarray(p_minus))
+            parameterization.apply(
+                physics, self.bkd_inst.asarray(p_minus)
+            )
             res_minus = self.bkd_inst.to_numpy(
                 physics.spatial_residual(u0, 0.0)
             )
@@ -541,7 +735,7 @@ class TestCompositeLinearElasticityBase(
             )
 
         # Restore
-        physics.set_param(self.bkd_inst.asarray(p0))
+        parameterization.apply(physics, p0_arr)
 
 
 class TestCompositeLinearElasticityNumpy(
@@ -583,6 +777,18 @@ try:
             "sparse solve not available on CPU with TorchBkd"
         )
         def test_param_jacobian_fd_check(self) -> None:
+            pass
+
+        @unittest.skip(
+            "scipy sparse @ torch tensor returns numpy in sensitivity"
+        )
+        def test_sensitivity_cross_validate_parameterization(self) -> None:
+            pass
+
+        @unittest.skip(
+            "scipy sparse @ torch tensor returns numpy in sensitivity"
+        )
+        def test_sensitivity_multi_material(self) -> None:
             pass
 
 except ImportError:

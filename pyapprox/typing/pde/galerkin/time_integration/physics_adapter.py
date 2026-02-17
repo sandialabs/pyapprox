@@ -12,9 +12,13 @@ This adapter returns raw (unmodified) quantities:
 Dirichlet BCs are enforced by ConstrainedTimeStepResidual, which wraps
 the stepper and applies R[d] = y[d] - g(t), J[d,:] = e_d after the
 stepper assembles the full Newton system.
+
+Parameter sensitivity is provided through an optional
+``ParameterizationProtocol`` object, which maps parameter vectors to
+physics coefficients and computes chain-rule Jacobians.
 """
 
-from typing import Generic, Tuple
+from typing import Generic, Optional, Tuple
 
 import numpy as np
 from scipy.sparse import issparse
@@ -22,15 +26,16 @@ from scipy.sparse import issparse
 from pyapprox.typing.util.backends.protocols import Array, Backend
 from pyapprox.typing.pde.galerkin.protocols.physics import (
     GalerkinPhysicsProtocol,
-    GalerkinPhysicsWithParamJacobianProtocol,
-    GalerkinPhysicsWithHVPProtocol,
+)
+from pyapprox.typing.pde.parameterizations.protocol import (
+    ParameterizationProtocol,
 )
 
 
 class GalerkinPhysicsODEAdapter(Generic[Array]):
     """Adapter from GalerkinPhysics to ODEResidualProtocol.
 
-    Returns raw M, F, J_F — no BC modifications:
+    Returns raw M, F, J_F -- no BC modifications:
     - f(y) = spatial_residual(y, t) (unmodified)
     - jacobian(y) = spatial_jacobian(y, t) (unmodified)
     - mass_matrix = M (raw FEM mass matrix)
@@ -43,39 +48,79 @@ class GalerkinPhysicsODEAdapter(Generic[Array]):
     physics : GalerkinPhysicsProtocol
         The Galerkin physics to adapt. Must have spatial_residual(),
         spatial_jacobian(), and dirichlet_dof_info() methods.
+    parameterization : ParameterizationProtocol, optional
+        Optional parameterization mapping parameter vectors to physics
+        coefficients. When provided, ``nparams``, ``set_param``,
+        ``param_jacobian``, and ``initial_param_jacobian`` methods are
+        exposed (if the parameterization supports them).
 
     Examples
     --------
     >>> ode_residual = GalerkinPhysicsODEAdapter(physics)
     >>> time_stepper = BackwardEulerResidual(ode_residual)
+
+    With parameterization:
+
+    >>> param = GalerkinLameParameterization(...)
+    >>> ode_residual = GalerkinPhysicsODEAdapter(physics, param)
+    >>> ode_residual.set_param(param_vector)
     """
 
-    def __init__(self, physics: GalerkinPhysicsProtocol[Array]):
+    def __init__(
+        self,
+        physics: GalerkinPhysicsProtocol[Array],
+        parameterization: Optional[ParameterizationProtocol[Array]] = None,
+    ):
+        if parameterization is not None:
+            if not isinstance(parameterization, ParameterizationProtocol):
+                raise TypeError(
+                    f"parameterization must satisfy "
+                    f"ParameterizationProtocol, "
+                    f"got {type(parameterization).__name__}"
+                )
         self._physics = physics
         self._bkd = physics.bkd()
         self._time: float = 0.0
+        self._parameterization = parameterization
+        self._current_params_1d: Optional[Array] = None
 
         # Cache raw mass matrix
         self._mass_cached = physics.mass_matrix()
 
-        # Setup optional methods based on physics capabilities
+        # Setup optional methods based on parameterization capabilities
         self._setup_optional_methods()
 
     def _setup_optional_methods(self) -> None:
-        """Conditionally expose methods based on physics capabilities."""
-        # Check for parameter Jacobian support
-        if isinstance(self._physics, GalerkinPhysicsWithParamJacobianProtocol):
-            self.nparams = self._nparams
-            self.set_param = self._set_param
-            self.param_jacobian = self._param_jacobian
-            self.initial_param_jacobian = self._initial_param_jacobian
-
-        # Check for HVP support
-        if isinstance(self._physics, GalerkinPhysicsWithHVPProtocol):
-            self.state_state_hvp = self._state_state_hvp
-            self.state_param_hvp = self._state_param_hvp
-            self.param_state_hvp = self._param_state_hvp
-            self.param_param_hvp = self._param_param_hvp
+        """Conditionally expose methods based on parameterization."""
+        if self._parameterization is not None:
+            # Parameterization path
+            self.nparams = self._parameterization.nparams
+            self.set_param = self._set_param_via_parameterization
+            if hasattr(self._parameterization, "param_jacobian"):
+                self.param_jacobian = (
+                    self._param_jacobian_via_parameterization
+                )
+            if hasattr(self._parameterization, "initial_param_jacobian"):
+                self.initial_param_jacobian = (
+                    self._initial_param_jacobian_via_parameterization
+                )
+            # HVP methods from parameterization if available
+            for method_name in (
+                "param_param_hvp",
+                "state_param_hvp",
+                "param_state_hvp",
+            ):
+                if hasattr(self._parameterization, method_name):
+                    hvp_impl = getattr(
+                        self,
+                        f"_{method_name}_via_parameterization",
+                        None,
+                    )
+                    if hvp_impl is not None:
+                        setattr(self, method_name, hvp_impl)
+            # state_state_hvp stays from physics
+            if hasattr(self._physics, "state_state_hvp"):
+                self.state_state_hvp = self._state_state_hvp
 
     def bkd(self) -> Backend[Array]:
         """Get the computational backend."""
@@ -175,57 +220,58 @@ class GalerkinPhysicsODEAdapter(Generic[Array]):
         return self._physics.dirichlet_dof_info(time)
 
     # =========================================================================
-    # Parameter Jacobian Methods (optional)
+    # Parameterization delegation methods
     # =========================================================================
 
-    def _nparams(self) -> int:
-        """Get the number of parameters."""
-        return self._physics.nparams()
+    def _set_param_via_parameterization(self, param: Array) -> None:
+        """Set parameter values through parameterization."""
+        self._current_params_1d = param
+        self._parameterization.apply(self._physics, param)
 
-    def _set_param(self, param: Array) -> None:
-        """Set the parameter values."""
-        self._physics.set_param(param)
+    def _param_jacobian_via_parameterization(
+        self, state: Array,
+    ) -> Array:
+        """Compute parameter Jacobian through parameterization."""
+        if self._current_params_1d is None:
+            raise RuntimeError(
+                "set_param() must be called before param_jacobian()"
+            )
+        return self._parameterization.param_jacobian(
+            self._physics, state, self._time, self._current_params_1d
+        )
 
-    def _param_jacobian(self, state: Array) -> Array:
-        """Compute the parameter Jacobian dF/dp."""
-        return self._physics.param_jacobian(state, self._time)
-
-    def _initial_param_jacobian(self) -> Array:
-        """Get Jacobian of initial condition w.r.t. parameters."""
-        return self._physics.initial_param_jacobian()
+    def _initial_param_jacobian_via_parameterization(self) -> Array:
+        """Get initial condition Jacobian through parameterization."""
+        if self._current_params_1d is None:
+            raise RuntimeError(
+                "set_param() must be called before "
+                "initial_param_jacobian()"
+            )
+        return self._parameterization.initial_param_jacobian(
+            self._physics, self._current_params_1d
+        )
 
     # =========================================================================
-    # HVP Methods (optional)
+    # HVP Methods (optional, from physics or parameterization)
     # =========================================================================
 
     def _state_state_hvp(
         self, state: Array, adj_state: Array, wvec: Array
     ) -> Array:
         """Compute (d^2F/du^2)w contracted with adjoint."""
-        return self._physics.state_state_hvp(state, self._time, adj_state, wvec)
-
-    def _state_param_hvp(
-        self, state: Array, adj_state: Array, vvec: Array
-    ) -> Array:
-        """Compute (d^2F/dudp)v contracted with adjoint."""
-        return self._physics.state_param_hvp(state, self._time, adj_state, vvec)
-
-    def _param_state_hvp(
-        self, state: Array, adj_state: Array, wvec: Array
-    ) -> Array:
-        """Compute (d^2F/dpdu)w contracted with adjoint."""
-        return self._physics.param_state_hvp(state, self._time, adj_state, wvec)
-
-    def _param_param_hvp(
-        self, state: Array, adj_state: Array, vvec: Array
-    ) -> Array:
-        """Compute (d^2F/dp^2)v contracted with adjoint."""
-        return self._physics.param_param_hvp(state, self._time, adj_state, vvec)
+        return self._physics.state_state_hvp(
+            state, adj_state, wvec, self._time
+        )
 
     def __repr__(self) -> str:
-        return (
+        parts = [
             f"GalerkinPhysicsODEAdapter(\n"
             f"  physics={self._physics!r},\n"
             f"  time={self._time},\n"
-            f")"
-        )
+        ]
+        if self._parameterization is not None:
+            parts.append(
+                f"  parameterization={self._parameterization!r},\n"
+            )
+        parts.append(")")
+        return "".join(parts)

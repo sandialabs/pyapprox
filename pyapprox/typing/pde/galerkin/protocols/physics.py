@@ -1,15 +1,16 @@
 """Physics protocols for Galerkin finite element methods.
 
-Defines a 3-level protocol hierarchy for PDE physics:
-1. GalerkinPhysicsProtocol - basic residual and Jacobian
-2. GalerkinPhysicsWithParamJacobianProtocol - adds parameter sensitivity
-3. GalerkinPhysicsWithHVPProtocol - adds Hessian-vector products
+Defines the core protocol for PDE physics:
+- GalerkinPhysicsProtocol - basic residual, Jacobian, mass matrix
+
+Parameter sensitivity (param_jacobian, HVP) is handled by the separate
+ParameterizationProtocol layer, not embedded in physics.
 
 The key difference from collocation is that Galerkin uses weak formulation
 with mass matrices: M*du/dt = F(u,t) instead of du/dt = f(u,t).
 """
 
-from typing import Protocol, Generic, runtime_checkable, Tuple, Optional, Any
+from typing import Protocol, Generic, runtime_checkable, Tuple, Optional, Any  # noqa: F401
 
 from pyapprox.typing.util.backends.protocols import Array, Backend
 
@@ -194,156 +195,3 @@ class GalerkinPhysicsProtocol(Protocol, Generic[Array]):
         ...
 
 
-@runtime_checkable
-class GalerkinPhysicsWithParamJacobianProtocol(
-    GalerkinPhysicsProtocol[Array], Protocol, Generic[Array]
-):
-    """Protocol for Galerkin physics with parameter sensitivity (Level 2).
-
-    Extends GalerkinPhysicsProtocol with parameter Jacobian for adjoint
-    sensitivity analysis.
-    """
-
-    def nparams(self) -> int:
-        """Return number of parameters."""
-        ...
-
-    def set_param(self, param: Array) -> None:
-        """Set parameter values.
-
-        Parameters
-        ----------
-        param : Array
-            Parameter vector. Shape: (nparams,) or (nparams, 1)
-        """
-        ...
-
-    def param_jacobian(self, state: Array, time: float) -> Array:
-        """Compute parameter Jacobian dF/dp.
-
-        Parameters
-        ----------
-        state : Array
-            Solution state. Shape: (nstates,)
-        time : float
-            Current time.
-
-        Returns
-        -------
-        Array
-            Parameter Jacobian. Shape: (nstates, nparams)
-        """
-        ...
-
-    def initial_param_jacobian(self) -> Array:
-        """Compute initial condition parameter Jacobian d(u_0)/dp.
-
-        Returns
-        -------
-        Array
-            Initial condition Jacobian. Shape: (nstates, nparams)
-        """
-        ...
-
-
-@runtime_checkable
-class GalerkinPhysicsWithHVPProtocol(
-    GalerkinPhysicsWithParamJacobianProtocol[Array], Protocol, Generic[Array]
-):
-    """Protocol for Galerkin physics with Hessian-vector products (Level 3).
-
-    Extends GalerkinPhysicsWithParamJacobianProtocol with HVP methods for
-    second-order optimization (Newton methods, Gauss-Newton, etc.).
-    """
-
-    def state_state_hvp(
-        self, state: Array, adj_state: Array, wvec: Array, time: float
-    ) -> Array:
-        """Compute lambda^T * (d^2F/du^2) * w.
-
-        Parameters
-        ----------
-        state : Array
-            Solution state. Shape: (nstates,)
-        adj_state : Array
-            Adjoint variable. Shape: (nstates,)
-        wvec : Array
-            Direction vector. Shape: (nstates,)
-        time : float
-            Current time.
-
-        Returns
-        -------
-        Array
-            HVP result. Shape: (nstates,)
-        """
-        ...
-
-    def state_param_hvp(
-        self, state: Array, adj_state: Array, vvec: Array, time: float
-    ) -> Array:
-        """Compute lambda^T * (d^2F/dudp) * v.
-
-        Parameters
-        ----------
-        state : Array
-            Solution state. Shape: (nstates,)
-        adj_state : Array
-            Adjoint variable. Shape: (nstates,)
-        vvec : Array
-            Parameter direction. Shape: (nparams,)
-        time : float
-            Current time.
-
-        Returns
-        -------
-        Array
-            HVP result. Shape: (nstates,)
-        """
-        ...
-
-    def param_state_hvp(
-        self, state: Array, adj_state: Array, wvec: Array, time: float
-    ) -> Array:
-        """Compute lambda^T * (d^2F/dpdu) * w.
-
-        Parameters
-        ----------
-        state : Array
-            Solution state. Shape: (nstates,)
-        adj_state : Array
-            Adjoint variable. Shape: (nstates,)
-        wvec : Array
-            State direction. Shape: (nstates,)
-        time : float
-            Current time.
-
-        Returns
-        -------
-        Array
-            HVP result. Shape: (nparams,)
-        """
-        ...
-
-    def param_param_hvp(
-        self, state: Array, adj_state: Array, vvec: Array, time: float
-    ) -> Array:
-        """Compute lambda^T * (d^2F/dp^2) * v.
-
-        Parameters
-        ----------
-        state : Array
-            Solution state. Shape: (nstates,)
-        adj_state : Array
-            Adjoint variable. Shape: (nstates,)
-        vvec : Array
-            Parameter direction. Shape: (nparams,)
-        time : float
-            Current time.
-
-        Returns
-        -------
-        Array
-            HVP result. Shape: (nparams,)
-        """
-        ...

@@ -160,9 +160,12 @@ class TestSteadyDiffusionZoo(Generic[Array], unittest.TestCase):
         fwd_zoo = self._create_model()
 
         samples = bkd.zeros((2, 1))
-        bkd.assert_allclose(fwd_zoo(samples), fwd_manual(samples), rtol=1e-10)
         bkd.assert_allclose(
-            fwd_zoo.jacobian(samples), fwd_manual.jacobian(samples), rtol=1e-10
+            fwd_zoo(samples), fwd_manual(samples), rtol=1e-10, atol=1e-14
+        )
+        bkd.assert_allclose(
+            fwd_zoo.jacobian(samples), fwd_manual.jacobian(samples),
+            rtol=1e-10, atol=1e-14,
         )
 
     def test_cannot_specify_both_field_map_and_basis_funs(self):
