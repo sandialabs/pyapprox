@@ -7,7 +7,7 @@ Composes a copula with marginal distributions to form a joint distribution:
 where u_i = F_i(x_i) is the probability integral transform.
 """
 
-from typing import Generic, List, Sequence
+from typing import Generic, List, Optional, Sequence, Union
 
 import numpy as np
 
@@ -15,6 +15,10 @@ from pyapprox.typing.util.backends.protocols import Array, Backend
 from pyapprox.typing.util.hyperparameter import HyperParameterList
 from pyapprox.typing.probability.copula.protocols import CopulaProtocol
 from pyapprox.typing.probability.protocols import MarginalProtocol
+from pyapprox.typing.interface.functions.plot.plot1d import Plotter1D
+from pyapprox.typing.interface.functions.plot.plot2d_rectangular import (
+    Plotter2DRectangularDomain,
+)
 
 
 class CopulaDistribution(Generic[Array]):
@@ -169,6 +173,162 @@ class CopulaDistribution(Generic[Array]):
             x[i] = marginal.invcdf(u_row)[0]
 
         return x
+
+    def nqoi(self) -> int:
+        """Return the number of quantities of interest (always 1 for PDF)."""
+        return 1
+
+    def pdf(self, samples: Array) -> Array:
+        """
+        Evaluate the joint probability density function.
+
+        Parameters
+        ----------
+        samples : Array
+            Sample points. Shape: (nvars, nsamples) - must be 2D
+
+        Returns
+        -------
+        Array
+            PDF values. Shape: (1, nsamples)
+        """
+        return self._bkd.exp(self.logpdf(samples))
+
+    def __call__(self, samples: Array) -> Array:
+        """
+        Evaluate the joint probability density function.
+
+        Alias for ``pdf()`` to satisfy ``FunctionProtocol``.
+
+        Parameters
+        ----------
+        samples : Array
+            Sample points. Shape: (nvars, nsamples) - must be 2D
+
+        Returns
+        -------
+        Array
+            PDF values. Shape: (1, nsamples)
+        """
+        return self.pdf(samples)
+
+    def is_bounded(self) -> bool:
+        """
+        Check if all marginals have bounded support.
+
+        Returns
+        -------
+        bool
+            True if all marginals are bounded.
+        """
+        for marginal in self._marginals:
+            if hasattr(marginal, "is_bounded"):
+                if not marginal.is_bounded():
+                    return False
+            else:
+                return False
+        return True
+
+    def domain(self) -> Array:
+        """
+        Return the domain of the joint distribution.
+
+        Returns
+        -------
+        Array
+            Domain bounds. Shape: (nvars, 2).
+        """
+        domain_list = []
+        for marginal in self._marginals:
+            if hasattr(marginal, "is_bounded") and marginal.is_bounded():
+                if hasattr(marginal, "interval"):
+                    interval = marginal.interval(1.0)
+                    domain_list.append(self._bkd.flatten(interval))
+                else:
+                    domain_list.append(self._bkd.asarray([-np.inf, np.inf]))
+            else:
+                domain_list.append(self._bkd.asarray([-np.inf, np.inf]))
+        return self._bkd.stack(domain_list, axis=0)
+
+    def plotter(
+        self,
+        plot_limits: Optional[Array] = None,
+        reducer: Optional[object] = None,
+        quad_factory: Optional[object] = None,
+        variable_names: Optional[List[str]] = None,
+    ) -> object:
+        """
+        Create a plotter for visualizing the joint PDF.
+
+        For ``nvars <= 2``, returns a ``Plotter1D`` or
+        ``Plotter2DRectangularDomain``.  For ``nvars > 2``, returns a
+        ``PairPlotter``.
+
+        Either *reducer* or *quad_factory* must be provided for
+        ``nvars > 2``.  If *quad_factory* is given, a
+        ``FunctionMarginalizer`` is built from it.  If *reducer* is
+        given it is used directly (e.g. a ``CrossSectionReducer``).
+
+        Parameters
+        ----------
+        plot_limits : Optional[Array]
+            Plot limits.  For 1D: ``[xmin, xmax]``; for 2D:
+            ``[xmin, xmax, ymin, ymax]``; for nvars > 2: shape
+            ``(nvars, 2)`` with ``[lb, ub]`` per variable.
+            Required if the distribution is unbounded.
+        reducer : Optional[DimensionReducerProtocol[Array]]
+            Dimension reducer for pair-plot panels.  Takes priority
+            over *quad_factory*.
+        quad_factory : Optional[QuadratureFactoryProtocol[Array]]
+            Quadrature factory for marginalizing the joint PDF.
+            Ignored if *reducer* is provided.
+        variable_names : Optional[List[str]]
+            Axis labels for the pair plot.
+
+        Returns
+        -------
+        Union[Plotter1D, Plotter2DRectangularDomain, PairPlotter]
+            A plotter object.
+
+        Raises
+        ------
+        ValueError
+            If ``nvars > 2`` and neither *reducer* nor *quad_factory*
+            is provided, or if the distribution is unbounded and
+            *plot_limits* is not given.
+        """
+        if not self.is_bounded() and plot_limits is None:
+            raise ValueError(
+                "Must provide plot_limits because distribution is unbounded"
+            )
+        if self._nvars <= 2:
+            if plot_limits is None:
+                plot_limits = self._bkd.flatten(self.domain())
+            if self._nvars == 1:
+                return Plotter1D(self, plot_limits)
+            return Plotter2DRectangularDomain(self, plot_limits)
+
+        # Lazy imports to avoid circular dependency
+        from pyapprox.typing.interface.functions.marginalize import (
+            FunctionMarginalizer,
+        )
+        from pyapprox.typing.interface.functions.plot.pair_plot import (
+            PairPlotter,
+        )
+
+        # nvars > 2
+        if plot_limits is None:
+            plot_limits = self.domain()
+        if reducer is not None:
+            return PairPlotter(reducer, plot_limits, self._bkd, variable_names)
+        if quad_factory is not None:
+            marginalizer = FunctionMarginalizer(self, quad_factory, self._bkd)
+            return PairPlotter(
+                marginalizer, plot_limits, self._bkd, variable_names
+            )
+        raise ValueError(
+            "For nvars > 2, provide either 'reducer' or 'quad_factory'"
+        )
 
     def __repr__(self) -> str:
         """Return string representation."""

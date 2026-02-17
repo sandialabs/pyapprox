@@ -510,40 +510,100 @@ class IndependentJoint(Generic[Array]):
         return self._bkd.stack(domain_list, axis=0)
 
     def plotter(
-        self, plot_limits: Optional[Array] = None
-    ) -> Union[Plotter1D[Array], Plotter2DRectangularDomain[Array]]:
+        self,
+        plot_limits: Optional[Array] = None,
+        reducer: Optional[object] = None,
+        variable_names: Optional[List[str]] = None,
+    ) -> object:
         """
         Create a plotter for visualizing the joint PDF.
+
+        For ``nvars <= 2``, returns a ``Plotter1D`` or
+        ``Plotter2DRectangularDomain``.  For ``nvars > 2``, returns a
+        ``PairPlotter`` using independent marginals directly (no
+        quadrature needed).  An optional *reducer* overrides the
+        default independent-marginal construction.
 
         Parameters
         ----------
         plot_limits : Optional[Array]
-            Plot limits as [xmin, xmax] for 1D or [xmin, xmax, ymin, ymax] for 2D.
+            Plot limits.  For 1D: ``[xmin, xmax]``; for 2D:
+            ``[xmin, xmax, ymin, ymax]``; for nvars > 2: shape
+            ``(nvars, 2)`` with ``[lb, ub]`` per variable.
             Required if the distribution is unbounded.
+        reducer : Optional[DimensionReducerProtocol[Array]]
+            Dimension reducer for building pair-plot panels.  If *None*
+            and ``nvars > 2``, independent marginals are used (no
+            quadrature).
+        variable_names : Optional[List[str]]
+            Axis labels for the pair plot.
 
         Returns
         -------
-        Union[Plotter1D, Plotter2DRectangularDomain]
-            A plotter object for 1D or 2D visualization.
+        Union[Plotter1D, Plotter2DRectangularDomain, PairPlotter]
+            A plotter object.
 
         Raises
         ------
-        NotImplementedError
-            If nvars > 2.
         ValueError
             If distribution is unbounded and plot_limits is not provided.
         """
-        if self._nvars > 2:
-            raise NotImplementedError("Only 1D and 2D distributions can be plotted")
         if not self.is_bounded() and plot_limits is None:
             raise ValueError(
                 "Must provide plot_limits because distribution is unbounded"
             )
+        if self._nvars <= 2:
+            if plot_limits is None:
+                plot_limits = self._bkd.flatten(self.domain())
+            if self._nvars == 1:
+                return Plotter1D(self, plot_limits)
+            return Plotter2DRectangularDomain(self, plot_limits)
+
+        # Lazy imports to avoid circular dependency
+        from pyapprox.typing.interface.functions.marginalize import (
+            ReducedFunction,
+        )
+        from pyapprox.typing.interface.functions.plot.pair_plot import (
+            PairPlotter,
+        )
+
+        # nvars > 2
         if plot_limits is None:
-            plot_limits = self._bkd.flatten(self.domain())
-        if self._nvars == 1:
-            return Plotter1D(self, plot_limits)
-        return Plotter2DRectangularDomain(self, plot_limits)
+            plot_limits = self.domain()
+        if reducer is not None:
+            return PairPlotter(reducer, plot_limits, self._bkd, variable_names)
+
+        # Build PairPlotter from independent marginals (no quadrature)
+        bkd = self._bkd
+
+        def _make_1d_fn(idx: int) -> ReducedFunction[Array]:
+            marginal = self._marginals[idx]
+
+            def fn(samples: Array) -> Array:
+                return marginal.pdf(samples)
+
+            return ReducedFunction(1, 1, fn, bkd)
+
+        def _make_2d_fn(
+            row_idx: int, col_idx: int
+        ) -> ReducedFunction[Array]:
+            marg_row = self._marginals[row_idx]
+            marg_col = self._marginals[col_idx]
+
+            def fn(samples: Array) -> Array:
+                return marg_col.pdf(samples[0:1]) * marg_row.pdf(samples[1:2])
+
+            return ReducedFunction(2, 1, fn, bkd)
+
+        functions_1d = [_make_1d_fn(i) for i in range(self._nvars)]
+        functions_2d = {
+            (i, j): _make_2d_fn(i, j)
+            for i in range(self._nvars)
+            for j in range(i)
+        }
+        return PairPlotter.from_functions(
+            functions_1d, functions_2d, plot_limits, bkd, variable_names
+        )
 
     def _logpdf_jacobian(self, sample: Array) -> Array:
         """

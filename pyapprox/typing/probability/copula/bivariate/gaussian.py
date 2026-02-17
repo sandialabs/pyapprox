@@ -59,6 +59,10 @@ class BivariateGaussianCopula(Generic[Array]):
         """Get the backend used for computations."""
         return self._bkd
 
+    def nvars(self) -> int:
+        """Return the number of variables (always 2 for bivariate)."""
+        return 2
+
     def nparams(self) -> int:
         """Return the number of free parameters."""
         return 1
