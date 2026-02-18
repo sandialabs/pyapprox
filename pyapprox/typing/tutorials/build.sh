@@ -1,20 +1,30 @@
 #!/bin/bash
 # Build script for PyApprox UQ Tutorials
-# Usage: ./build.sh [options]
+# Usage: ./build.sh [site] [options]
+#
+# Sites:
+#   library         Build the validated tutorial library (default)
+#   in_progress     Build the in-progress tutorial site
 #
 # Options:
 #   --no-execute    Skip code execution (use cached results)
 #   --execute       Force re-execute all code
-#   --notebooks     Generate downloadable notebooks
+#   --notebooks     Generate downloadable notebooks (library only)
 #   --serve         Start local server after build
 #   --help          Show this help message
 
 set -e
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-cd "$SCRIPT_DIR"
 
-# Parse arguments
+# Parse site argument
+SITE="library"
+if [ "$1" = "library" ] || [ "$1" = "in_progress" ]; then
+    SITE="$1"
+    shift
+fi
+
+# Parse options
 NO_EXECUTE=""
 FORCE_EXECUTE=""
 GEN_NOTEBOOKS=""
@@ -35,7 +45,7 @@ for arg in "$@"; do
             SERVE="yes"
             ;;
         --help)
-            head -12 "$0" | tail -11
+            head -16 "$0" | tail -15
             exit 0
             ;;
         *)
@@ -45,9 +55,19 @@ for arg in "$@"; do
     esac
 done
 
-echo "=== Building PyApprox UQ Tutorials ==="
-echo "Working directory: $SCRIPT_DIR"
+if [ "$SITE" = "library" ]; then
+    BUILD_DIR="$SCRIPT_DIR/library"
+    SITE_LABEL="Tutorial Library"
+else
+    BUILD_DIR="$SCRIPT_DIR/in_progress"
+    SITE_LABEL="In-Progress Tutorials"
+fi
+
+echo "=== Building PyApprox $SITE_LABEL ==="
+echo "Working directory: $BUILD_DIR"
 echo ""
+
+cd "$BUILD_DIR"
 
 # Clean old build
 if [ -d "_site" ]; then
@@ -68,8 +88,8 @@ else
     quarto render
 fi
 
-# Generate notebooks
-if [ -n "$GEN_NOTEBOOKS" ]; then
+# Generate notebooks (library only)
+if [ -n "$GEN_NOTEBOOKS" ] && [ "$SITE" = "library" ]; then
     echo ""
     echo "Generating Jupyter notebooks..."
     mkdir -p _site/library/notebooks
@@ -91,10 +111,10 @@ fi
 
 echo ""
 echo "=== Build complete ==="
-echo "Output: $SCRIPT_DIR/_site/"
+echo "Output: $BUILD_DIR/_site/"
 echo ""
 echo "To view locally:"
-echo "  open _site/index.html"
+echo "  open $BUILD_DIR/_site/index.html"
 echo ""
 
 # Start server if requested

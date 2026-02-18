@@ -3,12 +3,9 @@ title: "PyApprox Tutorial Library"
 subtitle: "Validated tutorials for uncertainty quantification"
 ---
 
-## Status
+## Getting Started
 
-The tutorial library is currently being validated. Tutorials are reviewed and promoted here as they are verified to run correctly and meet quality standards.
-
-No tutorials have been validated yet. See the [in-progress tutorials](../in_progress/index.qmd) for the full set of drafts.
-
-## Validated Tutorials
-
-*None yet. Tutorials will appear here as they are validated.*
+| Tutorial | Description |
+|----------|-------------|
+| [Setup Environment](setup_environment.qmd) | Install PyApprox and verify your setup |
+| [From Models to Decisions Under Uncertainty](models_decisions_uncertainty.qmd) | Why computational models need UQ, grounded in a composite cantilever beam |

@@ -1,0 +1,49 @@
+project:
+  type: website
+  output-dir: _site
+
+website:
+  title: "PyApprox UQ Tutorials"
+  navbar:
+    left:
+      - text: "Home"
+        href: index.qmd
+    right:
+      - icon: github
+        href: https://github.com/sandialabs/pyapprox
+  sidebar:
+    - title: "Tutorials"
+      style: "docked"
+      search: true
+      contents:
+        - section: "Getting Started"
+          contents:
+            - setup_environment.qmd
+            - models_decisions_uncertainty.qmd
+        - section: "Forward UQ"
+          contents:
+            - forward_uq.qmd
+            - random_variables_distributions.qmd
+            - monte_carlo_sampling.qmd
+
+format:
+  html:
+    theme: cosmo
+    css: styles.css
+    toc: true
+    toc-depth: 3
+    code-fold: false
+    code-tools: true
+    code-copy: true
+    code-overflow: wrap
+    include-in-header:
+      - file: ../_macros_html.tex
+
+execute:
+  echo: true
+  warning: false
+  freeze: auto
+
+jupyter: python3
+
+notebook-links: true

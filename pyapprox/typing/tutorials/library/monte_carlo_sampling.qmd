@@ -1,0 +1,481 @@
+---
+title: "Monte Carlo Sampling"
+subtitle: "PyApprox Tutorial Library"
+description: "Estimating QoI statistics by random sampling: variability, sample size effects, and multi-output covariance."
+tutorial_type: concept
+topic: uncertainty_quantification
+difficulty: beginner
+estimated_time: 5
+prerequisites:
+  - forward_uq
+  - random_variables_distributions
+tags:
+  - uq
+  - beam
+  - monte-carlo
+  - sampling
+format:
+  html:
+    code-fold: false
+    code-tools: true
+    toc: true
+execute:
+  echo: true
+  warning: false
+jupyter: python3
+---
+
+::: {.callout-tip collapse="true"}
+## Download Notebook
+[Download as Jupyter Notebook](notebooks/monte_carlo_sampling.ipynb)
+:::
+
+## Learning Objectives
+
+After completing this tutorial, you will be able to:
+
+- Estimate the mean and variance of a QoI using Monte Carlo sampling
+- Explain why Monte Carlo estimates are **random** and vary from one set of samples to the next
+- Observe that **more samples reduce spread** and that some statistics are harder to estimate than others
+- Extend Monte Carlo estimation to **multiple QoIs**, including covariance estimation
+- Wrap a model for **parallel evaluation** using `make_parallel`
+
+## Prerequisites
+
+Complete [Random Variables & Distributions](random_variables_distributions.qmd) before this tutorial.
+
+
+## Setup: The Beam Model and Prior
+
+We reuse the composite cantilever beam from the [distributions tutorial](random_variables_distributions.qmd): two uncertain parameters --- the skin modulus $E_1$ and the core modulus $E_2$ --- with Beta marginals on $\pm 10\%$ of their nominal values. The QoI is the tip deflection $\delta_{\text{tip}} = f(E_1, E_2)$.
+
+```{python}
+import numpy as np
+import matplotlib.pyplot as plt
+from pyapprox.typing.util.backends.numpy import NumpyBkd
+from pyapprox.typing.probability.univariate.beta import BetaMarginal
+from pyapprox.typing.probability.joint.independent import IndependentJoint
+from pyapprox.typing.benchmarks.instances.pde.cantilever_beam import (
+    CompositeBeam1DForwardModel,
+)
+
+bkd = NumpyBkd()
+
+# Beam geometry and loading
+L, H, q0 = 100.0, 30.0, 10.0
+skin_thickness = 5.0   # each skin layer thickness
+
+# Beta marginals on +/- 10% of nominal values
+E1_nom, E2_nom = 20_000, 5_000
+beta_E1 = BetaMarginal(2.0, 6.0, bkd, lb=0.9 * E1_nom, ub=1.1 * E1_nom)
+beta_E2 = BetaMarginal(6.0, 2.0, bkd, lb=0.9 * E2_nom, ub=1.1 * E2_nom)
+variable = IndependentJoint([beta_E1, beta_E2], bkd)
+
+# Forward model: (E1, E2) -> tip deflection
+model = CompositeBeam1DForwardModel(
+    nx=25, length=L, height=H, skin_thickness=skin_thickness,
+    load_func=lambda x: q0 * x / L, bkd=bkd,
+)
+```
+
+
+## Sampling the Prior and Evaluating the Model
+
+The Monte Carlo idea is direct: draw $M$ independent samples $\boldsymbol{\theta}^{(1)}, \dots, \boldsymbol{\theta}^{(M)}$ from the prior $\pi(\boldsymbol{\theta})$, evaluate the model at each, and use the results to estimate statistics of the QoI.
+
+```{python}
+np.random.seed(42)
+M = 50
+samples = variable.rvs(M)                          # shape: (2, M)
+qoi_values = bkd.flatten(model(samples))            # shape: (M,)
+
+print(f"Samples shape: {samples.shape}")
+print(f"QoI values shape: {qoi_values.shape}")
+print(f"Sample mean of tip deflection: "
+      f"{bkd.to_float(bkd.mean(qoi_values)):.6f}")
+```
+
+@fig-samples-and-surface shows the samples in input space (left) and the model response surface with the corresponding QoI values overlaid (right). Each point in input space maps to a single value of $\delta_{\text{tip}}$ on the surface.
+
+```{python}
+#| echo: false
+#| fig-cap: "Left: $M = 50$ samples drawn from the prior in $(E_1, E_2)$ space. Right: the model response surface $\\delta_{\\text{tip}} = f(E_1, E_2)$ with sample QoI values overlaid as colored points."
+#| label: fig-samples-and-surface
+
+samples_np = bkd.to_numpy(samples)
+qoi_np = bkd.to_numpy(qoi_values)
+domain = variable.domain()
+
+fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(12, 4.5))
+
+# Left: samples in input space
+ax1.scatter(samples_np[0], samples_np[1], c=qoi_np, cmap="viridis",
+            s=30, edgecolors="k", lw=0.3, zorder=3)
+ax1.set_xlabel(r"$E_1$", fontsize=12)
+ax1.set_ylabel(r"$E_2$", fontsize=12)
+ax1.set_title("Samples in input space", fontsize=11)
+cbar1 = fig.colorbar(ax1.collections[0], ax=ax1, shrink=0.8)
+cbar1.set_label(r"$\delta_{\mathrm{tip}}$")
+ax1.grid(True, alpha=0.2)
+
+# Right: response surface with samples overlaid
+n_grid = 40
+E1_grid = bkd.linspace(bkd.to_float(domain[0, 0]),
+                        bkd.to_float(domain[0, 1]), n_grid)
+E2_grid = bkd.linspace(bkd.to_float(domain[1, 0]),
+                        bkd.to_float(domain[1, 1]), n_grid)
+E1_mesh, E2_mesh = bkd.meshgrid(E1_grid, E2_grid)
+grid_pts = bkd.vstack([bkd.flatten(E1_mesh), bkd.flatten(E2_mesh)])
+qoi_grid = bkd.to_numpy(model(grid_pts)).reshape(n_grid, n_grid)
+
+E1_mesh_np = bkd.to_numpy(E1_mesh)
+E2_mesh_np = bkd.to_numpy(E2_mesh)
+cs = ax2.contourf(E1_mesh_np, E2_mesh_np, qoi_grid,
+                   levels=20, cmap="viridis", alpha=0.8)
+ax2.scatter(samples_np[0], samples_np[1], c=qoi_np, cmap="viridis",
+            s=30, edgecolors="k", lw=0.5, zorder=3)
+ax2.set_xlabel(r"$E_1$", fontsize=12)
+ax2.set_ylabel(r"$E_2$", fontsize=12)
+ax2.set_title("Response surface with samples", fontsize=11)
+cbar2 = fig.colorbar(cs, ax=ax2, shrink=0.8)
+cbar2.set_label(r"$\delta_{\mathrm{tip}}$")
+
+plt.tight_layout()
+plt.show()
+```
+
+
+## Accelerating Evaluation with `make_parallel`
+
+Each call to the beam model solves a separate FEM problem. When $M$ is large, these independent solves can run in parallel across CPU cores. PyApprox's `make_parallel` wraps any model satisfying `FunctionProtocol` with a parallel backend:
+
+```{python}
+from pyapprox.typing.interface.parallel import make_parallel
+
+model = make_parallel(model, backend="joblib_processes", n_jobs=-1)
+
+print(f"Backend: {model.parallel_backend()}")
+print(f"Workers: {model.n_workers()}")
+```
+
+The wrapped model has the same interface --- `model(samples)` returns the same results --- but distributes the work across available CPU cores. We reassign `model` so that all subsequent calls automatically benefit from parallelism. For the lightweight 1D beam used here, the speedup is modest; for expensive 2D or 3D FEM solves, it can be substantial.
+
+::: {.callout-note}
+## When to parallelize
+Parallelization has overhead from spawning workers, serializing data, and collecting results. For models that evaluate in milliseconds (like this 1D beam), the overhead can exceed the computation time. Use `make_parallel` when individual model evaluations take at least tens of milliseconds --- for example, 2D finite-element solves, expensive surrogate evaluations, or models calling external simulation codes.
+:::
+
+
+## Monte Carlo Estimators
+
+Given $M$ samples with QoI values $q^{(1)}, \dots, q^{(M)}$, the **Monte Carlo estimator** of the mean is:
+
+$$
+\hat{\mu}_M = \frac{1}{M} \sum_{i=1}^{M} q^{(i)}
+$$
+
+and the estimator of the variance is:
+
+$$
+\hat{\sigma}^2_M = \frac{1}{M-1} \sum_{i=1}^{M} \left(q^{(i)} - \hat{\mu}_M\right)^2
+$$
+
+```{python}
+mc_mean = bkd.to_float(bkd.mean(qoi_values))
+mc_var = bkd.to_float(bkd.var(qoi_values, ddof=1))
+
+print(f"MC mean estimate (M={M}):     {mc_mean:.6f}")
+print(f"MC variance estimate (M={M}): {mc_var:.6f}")
+```
+
+These formulas look familiar --- they are just the sample mean and sample variance from introductory statistics. The key question for UQ is: **how accurate are these estimates?**
+
+
+## Estimates Are Random
+
+To judge the accuracy of Monte Carlo, we need a reference answer. We compute the true mean and variance of the QoI using a high-accuracy deterministic method (quadrature rules are covered in a later tutorial).
+
+```{python}
+#| echo: false
+from pyapprox.typing.surrogates.quadrature import (
+    TensorProductQuadratureRule,
+    gauss_quadrature_rule,
+)
+
+nquad = 20
+quad_E1 = lambda n: gauss_quadrature_rule(beta_E1, n, bkd)
+quad_E2 = lambda n: gauss_quadrature_rule(beta_E2, n, bkd)
+
+quad_rule = TensorProductQuadratureRule(bkd, [quad_E1, quad_E2], [nquad, nquad])
+quad_pts, quad_wts = quad_rule()
+
+qoi_quad = bkd.flatten(model(quad_pts))
+
+true_mean = bkd.to_float(bkd.dot(quad_wts, qoi_quad))
+true_var = bkd.to_float(
+    bkd.dot(quad_wts, (qoi_quad - true_mean) ** 2)
+)
+
+print(f"True mean (quadrature):     {true_mean:.6f}")
+print(f"True variance (quadrature): {true_var:.10f}")
+```
+
+Because the samples are random, the estimates $\hat{\mu}_M$ and $\hat{\sigma}^2_M$ are themselves **random variables**. A different draw of $M$ samples gives a different estimate. @fig-mc-variability-small demonstrates this: we repeat the Monte Carlo experiment 200 times, each with $M = 10$ samples, and collect the resulting mean estimates into a histogram.
+
+```{python}
+#| fig-cap: "Variability of the Monte Carlo mean estimate. Each of 200 independent experiments draws $M = 10$ samples and computes $\\hat{\\mu}_{10}$. The histogram shows substantial spread around the true mean (red dashed line)."
+#| label: fig-mc-variability-small
+
+# TODO: increase n_reps to 200 and M_large to 1000 for final version
+n_reps = 20
+M_small = 10
+means_small = np.empty(n_reps)
+for i in range(n_reps):
+    np.random.seed(i)
+    s = variable.rvs(M_small)
+    q = bkd.flatten(model(s))
+    means_small[i] = bkd.to_float(bkd.mean(q))
+
+fig, ax = plt.subplots(figsize=(7, 3.5))
+ax.hist(means_small, bins=30, density=True, color="#2C7FB8", alpha=0.7,
+        edgecolor="k", lw=0.3)
+ax.axvline(true_mean, color="#C0392B", ls="--", lw=2,
+           label=f"True mean = {true_mean:.6f}")
+ax.axvline(np.mean(means_small), color="#27AE60", ls="-", lw=2,
+           label=f"Mean of estimates = {np.mean(means_small):.6f}")
+ax.set_xlabel(r"$\hat{\mu}_{10}$", fontsize=12)
+ax.set_ylabel("Density", fontsize=12)
+ax.set_title(f"Distribution of MC mean estimate ($M = {M_small}$, {n_reps} repetitions)",
+             fontsize=11)
+ax.legend(fontsize=9)
+ax.grid(True, alpha=0.2)
+plt.tight_layout()
+plt.show()
+```
+
+Notice two things. First, the individual estimates are scattered --- some overestimate, some underestimate. Second, the **average of the estimates** (green line) is very close to the true mean (red dashed line). This is not a coincidence.
+
+
+## More Samples, Less Spread
+
+@fig-mc-variability-large repeats the experiment with $M = 1{,}000$ samples per repetition. The histogram is dramatically narrower: more samples produce more precise estimates.
+
+```{python}
+#| fig-cap: "Same experiment with $M = 1{,}000$. The histogram is much narrower: increasing the number of samples reduces the variability of the estimate. The mean of the estimates still matches the true mean."
+#| label: fig-mc-variability-large
+
+M_large = 50
+means_large = np.empty(n_reps)
+for i in range(n_reps):
+    np.random.seed(i + 10000)
+    s = variable.rvs(M_large)
+    q = bkd.flatten(model(s))
+    means_large[i] = bkd.to_float(bkd.mean(q))
+
+fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(12, 3.5), sharey=True)
+
+# M = 10
+ax1.hist(means_small, bins=30, density=True, color="#2C7FB8", alpha=0.7,
+         edgecolor="k", lw=0.3)
+ax1.axvline(true_mean, color="#C0392B", ls="--", lw=2)
+ax1.axvline(np.mean(means_small), color="#27AE60", ls="-", lw=1.5)
+ax1.set_xlabel(r"$\hat{\mu}_M$", fontsize=12)
+ax1.set_ylabel("Density", fontsize=12)
+ax1.set_title(f"$M = {M_small}$", fontsize=11)
+ax1.grid(True, alpha=0.2)
+
+# M = 1000
+ax2.hist(means_large, bins=30, density=True, color="#E67E22", alpha=0.7,
+         edgecolor="k", lw=0.3)
+ax2.axvline(true_mean, color="#C0392B", ls="--", lw=2, label="True mean")
+ax2.axvline(np.mean(means_large), color="#27AE60", ls="-", lw=1.5,
+            label="Mean of estimates")
+ax2.set_xlabel(r"$\hat{\mu}_M$", fontsize=12)
+ax2.set_title(f"$M = {M_large}$", fontsize=11)
+ax2.legend(fontsize=9)
+ax2.grid(True, alpha=0.2)
+
+plt.tight_layout()
+plt.show()
+
+print(f"True mean (quadrature):            {true_mean:.6f}")
+print(f"Mean of MC estimates (M={M_small:>4d}):  {np.mean(means_small):.6f}")
+print(f"Mean of MC estimates (M={M_large:>4d}): {np.mean(means_large):.6f}")
+```
+
+In both cases the average of the estimates matches the true mean. This property has a name: the Monte Carlo mean estimator is **unbiased**.
+
+
+## Not All Statistics Are Equally Easy to Estimate
+
+The mean is one statistic; the variance is another. Are they equally easy to estimate with $M$ samples? @fig-mean-vs-variance compares the histograms of $\hat{\mu}_M$ and $\hat{\sigma}^2_M$ for the same sample size. The variance estimator has noticeably more spread.
+
+```{python}
+#| fig-cap: "Mean vs. variance estimator variability at the same sample size ($M = 50$, 200 repetitions). The variance estimator (right) has substantially more spread than the mean estimator (left), even though both are unbiased."
+#| label: fig-mean-vs-variance
+
+M_compare = 20
+means_compare = np.empty(n_reps)
+vars_compare = np.empty(n_reps)
+for i in range(n_reps):
+    np.random.seed(i + 20000)
+    s = variable.rvs(M_compare)
+    q = bkd.flatten(model(s))
+    means_compare[i] = bkd.to_float(bkd.mean(q))
+    vars_compare[i] = bkd.to_float(bkd.var(q, ddof=1))
+
+fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(12, 3.5))
+
+# Mean estimator
+ax1.hist(means_compare, bins=30, density=True, color="#2C7FB8", alpha=0.7,
+         edgecolor="k", lw=0.3)
+ax1.axvline(true_mean, color="#C0392B", ls="--", lw=2, label="True value")
+ax1.axvline(np.mean(means_compare), color="#27AE60", ls="-", lw=1.5,
+            label="Mean of estimates")
+ax1.set_xlabel(r"$\hat{\mu}_M$", fontsize=12)
+ax1.set_ylabel("Density", fontsize=12)
+ax1.set_title(f"Mean estimator ($M = {M_compare}$)", fontsize=11)
+ax1.legend(fontsize=9)
+ax1.grid(True, alpha=0.2)
+
+# Variance estimator
+ax2.hist(vars_compare, bins=30, density=True, color="#E67E22", alpha=0.7,
+         edgecolor="k", lw=0.3)
+ax2.axvline(true_var, color="#C0392B", ls="--", lw=2, label="True value")
+ax2.axvline(np.mean(vars_compare), color="#27AE60", ls="-", lw=1.5,
+            label="Mean of estimates")
+ax2.set_xlabel(r"$\hat{\sigma}^2_M$", fontsize=12)
+ax2.set_ylabel("Density", fontsize=12)
+ax2.set_title(f"Variance estimator ($M = {M_compare}$)", fontsize=11)
+ax2.legend(fontsize=9)
+ax2.grid(True, alpha=0.2)
+
+plt.tight_layout()
+plt.show()
+
+print(f"Std of mean estimates:     {np.std(means_compare):.6f}")
+print(f"Std of variance estimates: {np.std(vars_compare):.6f}")
+```
+
+Both estimators are unbiased --- their histograms are centered on the true values. But the variance estimator is **noisier**: it requires more samples to achieve the same precision. This is a general phenomenon: higher-order statistics (variance, skewness, tail probabilities) are harder to estimate than the mean.
+
+::: {.callout-note}
+## Why don't the lines match exactly?
+
+The solid green line (mean of estimates) may not land exactly on the dashed red line (true value). This is expected: we are using a finite number of trials to *estimate* the expected value of each estimator, so the average across trials is itself a random variable with its own variance. With more trials the solid line would converge to the dashed line, but any finite number of repetitions leaves some residual noise.
+:::
+
+
+## Multiple QoIs and Covariance
+
+So far we have tracked a single QoI --- the tip deflection. In practice, a model often produces **several** quantities of interest simultaneously. For the cantilever beam, a natural second QoI is the tip slope $\theta_{\text{tip}} = w'(L)$, which measures how much the beam rotates at its free end.
+
+```{python}
+from pyapprox.typing.interface.functions.fromcallable.function import (
+    FunctionFromCallable,
+)
+
+def beam_deflection_and_slope(samples):
+    """Return tip deflection and tip slope. Shape: (2, nsamples)."""
+    bkd = model.bkd()
+    samples_np = bkd.to_numpy(samples)
+    nsamples = samples_np.shape[1]
+    results = np.empty((2, nsamples))
+    for ii in range(nsamples):
+        E_eff = (
+            (model._A_skin * samples_np[0, ii]
+             + model._A_core * samples_np[1, ii])
+            / (model._A_skin + model._A_core)
+        )
+        EI = E_eff * model._I_rect
+        model._beam.set_EI(EI)
+        sol = model._beam.solve()
+        sol_np = bkd.to_numpy(sol)
+        results[0, ii] = sol_np[-2]   # tip deflection w(L)
+        results[1, ii] = sol_np[-1]   # tip slope w'(L)
+    return bkd.asarray(results)
+
+multi_model = FunctionFromCallable(2, 2, beam_deflection_and_slope, bkd)
+```
+
+Drawing samples from the prior and evaluating both QoIs simultaneously:
+
+```{python}
+np.random.seed(42)
+M_multi = 50
+samples_multi = variable.rvs(M_multi)
+qoi_multi = multi_model(samples_multi)           # shape: (2, M)
+
+print(f"QoI matrix shape: {qoi_multi.shape}")
+print(f"Mean tip deflection: {bkd.to_float(bkd.mean(qoi_multi[0])):.6f}")
+print(f"Mean tip slope:      {bkd.to_float(bkd.mean(qoi_multi[1])):.6f}")
+```
+
+@fig-multi-qoi-scatter shows the joint scatter of the two QoIs across the $M$ samples. The strong correlation is expected: a beam that deflects more also rotates more at the tip.
+
+```{python}
+#| fig-cap: "Joint scatter of tip deflection and tip slope across $M = 50$ samples. The two QoIs are strongly correlated because both increase with decreasing stiffness."
+#| label: fig-multi-qoi-scatter
+
+qoi_multi_np = bkd.to_numpy(qoi_multi)
+
+fig, ax = plt.subplots(figsize=(6, 4.5))
+sc = ax.scatter(qoi_multi_np[0], qoi_multi_np[1], c=np.arange(M_multi),
+                cmap="viridis", s=30, edgecolors="k", lw=0.3)
+ax.set_xlabel(r"Tip deflection $\delta_{\mathrm{tip}}$", fontsize=12)
+ax.set_ylabel(r"Tip slope $\theta_{\mathrm{tip}}$", fontsize=12)
+ax.set_title("Joint QoI scatter", fontsize=11)
+ax.grid(True, alpha=0.2)
+plt.tight_layout()
+plt.show()
+```
+
+When multiple QoIs are present, the **covariance matrix** captures how they co-vary:
+
+$$
+\hat{\Sigma}_M = \frac{1}{M-1} \sum_{i=1}^{M}
+\left(\mathbf{q}^{(i)} - \hat{\boldsymbol{\mu}}_M\right)
+\left(\mathbf{q}^{(i)} - \hat{\boldsymbol{\mu}}_M\right)^{\!\top}
+$$
+
+where $\mathbf{q}^{(i)} \in \mathbb{R}^{n_{\text{qoi}}}$ and $\hat{\boldsymbol{\mu}}_M$ is the sample mean vector. The diagonal entries are the marginal variances; the off-diagonal entries measure linear dependence between QoIs.
+
+```{python}
+cov_matrix = np.cov(qoi_multi_np)
+print("Sample covariance matrix:")
+print(cov_matrix)
+print(f"\nCorrelation between QoIs: "
+      f"{cov_matrix[0, 1] / np.sqrt(cov_matrix[0, 0] * cov_matrix[1, 1]):.4f}")
+```
+
+The near-perfect correlation confirms what the scatter plot suggests: for this beam, knowing the tip deflection essentially determines the tip slope. This is a structural property of the model, not a sampling artifact.
+
+
+## What Determines Estimation Accuracy?
+
+This tutorial demonstrated three empirical observations:
+
+1. **Monte Carlo estimates are random** --- different samples give different answers
+
+2. **More samples produce more precise estimates** --- the histograms narrowed from $M = {M_small}$ to $M = {M_large}$
+
+3. **Not all statistics are equally easy** --- the variance estimator was noisier than the mean estimator at the same sample size, and covariance adds further cost
+
+But we have not yet explained *how fast* the estimates improve, *why* some statistics are harder, or how to predict the number of samples needed for a given accuracy. These questions require a formal notion of estimator error --- the subject of the next tutorial.
+
+
+## Exercises
+
+1. Repeat the histogram experiment from @fig-mean-vs-variance but for the **95th percentile** of the QoI instead of the variance. Is it easier or harder to estimate than the variance?
+
+2. Add a third QoI --- the deflection at the beam midpoint $w(L/2)$ --- and compute the $3 \times 3$ sample covariance matrix. Which pair of QoIs has the strongest correlation?
+
+3. **(Challenge)** Using the multi-output model, repeat the $M = 10$ vs. $M = {M_large}$ histogram comparison for the off-diagonal covariance entry $\hat{\Sigma}_{12}$. How does its variability compare to the variance estimator?
+
+
+## Next Steps
+
+Continue with:
+
+- [Surrogate Models](surrogate_models.qmd) --- Replacing the expensive model with a cheap approximation
+- [Sensitivity Analysis](sensitivity_analysis.qmd) --- Identifying which parameters drive output uncertainty
