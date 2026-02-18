@@ -9,6 +9,7 @@ This module provides:
 - ParallelHVPMixin: Mixin for adding parallel hvp_batch
 - ParallelWHVPMixin: Mixin for adding parallel whvp_batch
 - JoblibBackend: Parallel backend using joblib
+- FuturesBackend: Parallel backend using concurrent.futures (stdlib)
 - MpireBackend: Parallel backend using mpire
 - SequentialBackend: Non-parallel backend for debugging
 - ParallelBackendProtocol: Protocol for parallel backends
@@ -19,7 +20,7 @@ Examples
 --------
 >>> from pyapprox.typing.interface.parallel import make_parallel
 >>> # Wrap a function with parallel support
->>> parallel_func = make_parallel(my_func, backend="joblib", n_jobs=4)
+>>> parallel_func = make_parallel(my_func, backend="joblib_processes", n_jobs=4)
 >>> jacobians = parallel_func.jacobian_batch(samples)
 
 >>> # Or use mixins for class-based control
@@ -50,6 +51,7 @@ from pyapprox.typing.interface.parallel.function_protocols import (
     ParallelFunctionWithJacobianProtocol,
     ParallelFunctionWithWHVPProtocol,
 )
+from pyapprox.typing.interface.parallel.futures_backend import FuturesBackend
 from pyapprox.typing.interface.parallel.joblib_backend import JoblibBackend
 from pyapprox.typing.interface.parallel.mixins import (
     ParallelHessianMixin,
@@ -75,6 +77,7 @@ __all__ = [
     "ParallelHVPMixin",
     "ParallelWHVPMixin",
     # Backends
+    "FuturesBackend",
     "JoblibBackend",
     "MpireBackend",
     "SequentialBackend",

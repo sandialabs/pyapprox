@@ -119,7 +119,7 @@ def run_processor_scaling(
     ninner: int,
     nouter: int,
     n_jobs_list: List[int],
-    backend: str = "joblib",
+    backend: str = "joblib_processes",
 ) -> List[dict]:
     """Run scaling tests with different processor counts."""
     noise_var, outer_shapes, inner_shapes, latent_samples = setup_data(
@@ -170,7 +170,7 @@ def run_processor_scaling(
 def run_size_scaling(
     sizes: List[Tuple[int, int, int]],
     n_jobs: int,
-    backend: str = "joblib",
+    backend: str = "joblib_processes",
 ) -> List[dict]:
     """Run scaling tests with different problem sizes."""
     results = []

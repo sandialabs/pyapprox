@@ -166,7 +166,7 @@ class TestParallelMixins(Generic[Array], unittest.TestCase):
 
         func = JacobianMixinFunction(self._bkd)
         func.set_parallel_config(
-            ParallelConfig(backend="joblib", n_jobs=2)
+            ParallelConfig(backend="joblib_processes", n_jobs=2)
         )
 
         samples = self._bkd.asarray([[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]])
@@ -200,7 +200,7 @@ class TestParallelMixins(Generic[Array], unittest.TestCase):
 
         func = HVPMixinFunction(self._bkd)
         func.set_parallel_config(
-            ParallelConfig(backend="joblib", n_jobs=2)
+            ParallelConfig(backend="joblib_processes", n_jobs=2)
         )
 
         samples = self._bkd.asarray([[1.0, 2.0], [3.0, 4.0]])

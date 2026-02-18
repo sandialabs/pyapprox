@@ -18,29 +18,31 @@ class ParallelConfig:
 
     Parameters
     ----------
-    backend : {"joblib", "mpire", "sequential"}
+    backend : {"joblib_processes", "joblib_threads", "futures", "mpire", "sequential"}
         Parallel execution backend to use.
-        - "joblib": Good numpy serialization, caching support
+        - "joblib_processes": Joblib with process-based parallelism (default)
+        - "joblib_threads": Joblib with thread-based parallelism
+        - "futures": stdlib concurrent.futures (no extra dependencies)
         - "mpire": Progress bars, better worker management
         - "sequential": No parallelism (for debugging)
     n_jobs : int
         Number of parallel workers. -1 means use all CPUs.
     chunk_size : int, optional
         Number of samples per chunk. If None, auto-determined.
-    prefer : {"processes", "threads"}
-        For joblib: prefer processes or threads.
 
     Examples
     --------
-    >>> config = ParallelConfig(backend="joblib", n_jobs=4)
+    >>> config = ParallelConfig(backend="joblib_processes", n_jobs=4)
     >>> backend = config.get_parallel_backend()
     >>> results = backend.map(my_func, items)
     """
 
-    backend: Literal["joblib", "mpire", "sequential"] = "joblib"
+    backend: Literal[
+        "joblib_processes", "joblib_threads", "futures",
+        "mpire", "sequential",
+    ] = "joblib_processes"
     n_jobs: int = -1
     chunk_size: Optional[int] = None
-    prefer: Literal["processes", "threads"] = "processes"
 
     def get_parallel_backend(
         self,
@@ -57,15 +59,26 @@ class ParallelConfig:
         ValueError
             If backend is unknown.
         """
-        if self.backend == "joblib":
+        if self.backend in ("joblib_processes", "joblib_threads"):
             from pyapprox.typing.interface.parallel.joblib_backend import (
                 JoblibBackend,
             )
 
+            prefer = (
+                "threads"
+                if self.backend == "joblib_threads"
+                else "processes"
+            )
             return JoblibBackend(
                 n_jobs=self.n_jobs,
-                prefer=self.prefer,
+                prefer=prefer,
             )
+        elif self.backend == "futures":
+            from pyapprox.typing.interface.parallel.futures_backend import (
+                FuturesBackend,
+            )
+
+            return FuturesBackend(n_jobs=self.n_jobs)
         elif self.backend == "mpire":
             from pyapprox.typing.interface.parallel.mpire_backend import (
                 MpireBackend,

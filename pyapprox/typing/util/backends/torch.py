@@ -134,6 +134,14 @@ class TorchBkd(Backend[torch.Tensor]):  # Specify torch.Tensor type
         return array.detach().numpy()
 
     @staticmethod
+    def to_float(array: torch.Tensor) -> float:
+        if array.numel() != 1:
+            raise ValueError(
+                f"to_float requires a single-element tensor, got shape {tuple(array.shape)}"
+            )
+        return array.detach().item()
+
+    @staticmethod
     def flatten(array: torch.Tensor) -> torch.Tensor:
         return array.flatten()
 

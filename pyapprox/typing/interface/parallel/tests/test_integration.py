@@ -96,7 +96,7 @@ class TestIntegration(Generic[Array], unittest.TestCase):
 
         func = QuadraticFunction(self._bkd, nvars=3)
         seq_func = make_parallel(func, backend="sequential")
-        par_func = make_parallel(func, backend="joblib", n_jobs=2)
+        par_func = make_parallel(func, backend="joblib_processes", n_jobs=2)
 
         samples = self._bkd.asarray([
             [1.0, 2.0, 3.0, 4.0],
@@ -116,7 +116,7 @@ class TestIntegration(Generic[Array], unittest.TestCase):
 
         func = QuadraticFunction(self._bkd, nvars=2)
         seq_func = make_parallel(func, backend="sequential")
-        par_func = make_parallel(func, backend="joblib", n_jobs=2)
+        par_func = make_parallel(func, backend="joblib_processes", n_jobs=2)
 
         samples = self._bkd.asarray([[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]])
 
@@ -132,7 +132,7 @@ class TestIntegration(Generic[Array], unittest.TestCase):
 
         func = QuadraticFunction(self._bkd, nvars=2)
         seq_func = make_parallel(func, backend="sequential")
-        par_func = make_parallel(func, backend="joblib", n_jobs=2)
+        par_func = make_parallel(func, backend="joblib_processes", n_jobs=2)
 
         samples = self._bkd.asarray([[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]])
         vecs = self._bkd.asarray([[1.0, 0.0, 0.5], [0.0, 1.0, 0.5]])
@@ -148,7 +148,7 @@ class TestIntegration(Generic[Array], unittest.TestCase):
         from pyapprox.typing.interface.parallel import make_parallel
 
         func = RosenbrockFunction(self._bkd)
-        parallel_func = make_parallel(func, backend="joblib", n_jobs=2)
+        parallel_func = make_parallel(func, backend="joblib_processes", n_jobs=2)
 
         samples = self._bkd.asarray([[0.5, 1.0], [0.5, 1.0]])
         jacobians = parallel_func.jacobian_batch(samples)
@@ -183,8 +183,15 @@ class TestIntegration(Generic[Array], unittest.TestCase):
 
         samples = self._bkd.asarray([[1.0, 2.0], [3.0, 4.0]])
 
-        joblib_func = make_parallel(func, backend="joblib", n_jobs=2)
+        joblib_func = make_parallel(func, backend="joblib_processes", n_jobs=2)
         joblib_jac = joblib_func.jacobian_batch(samples)
+
+        futures_func = make_parallel(func, backend="futures", n_jobs=2)
+        futures_jac = futures_func.jacobian_batch(samples)
+
+        self.assertTrue(
+            self._bkd.allclose(joblib_jac, futures_jac, rtol=1e-12)
+        )
 
         try:
             import mpire
@@ -206,7 +213,7 @@ class TestIntegration(Generic[Array], unittest.TestCase):
         )
 
         func = QuadraticFunction(self._bkd, nvars=2)
-        config = ParallelConfig(backend="joblib", n_jobs=2)
+        config = ParallelConfig(backend="joblib_processes", n_jobs=2)
         wrapper = ParallelFunctionWrapper(func, config)
 
         samples = self._bkd.asarray([[1.0, 2.0], [3.0, 4.0]])
@@ -226,6 +233,44 @@ class TestIntegration(Generic[Array], unittest.TestCase):
         recombined = splitter.combine_outputs(chunks, axis=1)
 
         self.assertTrue(self._bkd.allclose(original, recombined))
+
+    def test_parallel_call_matches_unwrapped(self):
+        """Test parallel __call__ matches unwrapped function."""
+        from pyapprox.typing.interface.parallel import make_parallel
+
+        func = QuadraticFunction(self._bkd, nvars=3)
+        par_func = make_parallel(
+            func, backend="joblib_processes", n_jobs=2
+        )
+
+        samples = self._bkd.asarray([
+            [1.0, 2.0, 3.0, 4.0],
+            [5.0, 6.0, 7.0, 8.0],
+            [9.0, 10.0, 11.0, 12.0],
+        ])
+
+        expected = func(samples)
+        par_result = par_func(samples)
+
+        self.assertEqual(expected.shape, par_result.shape)
+        self._bkd.assert_allclose(par_result, expected, rtol=1e-12)
+
+    def test_parallel_call_rosenbrock(self):
+        """Test parallel __call__ for Rosenbrock function."""
+        from pyapprox.typing.interface.parallel import make_parallel
+
+        func = RosenbrockFunction(self._bkd)
+        par_func = make_parallel(
+            func, backend="joblib_processes", n_jobs=2
+        )
+
+        samples = self._bkd.asarray(
+            [[0.5, 1.0, -0.5], [0.5, 1.0, -0.5]]
+        )
+        par_result = par_func(samples)
+        seq_result = func(samples)
+
+        self._bkd.assert_allclose(par_result, seq_result, rtol=1e-12)
 
 
 class TestIntegrationNumpy(TestIntegration[NDArray[Any]]):

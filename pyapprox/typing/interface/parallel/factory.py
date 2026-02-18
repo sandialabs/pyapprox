@@ -37,7 +37,7 @@ class ParallelFunctionWrapper(Generic[Array]):
     --------
     >>> from pyapprox.typing.interface.parallel import make_parallel
     >>> # Wrap a GP with parallel support
-    >>> parallel_gp = make_parallel(gp, backend="joblib", n_jobs=4)
+    >>> parallel_gp = make_parallel(gp, backend="joblib_processes", n_jobs=4)
     >>> jacobians = parallel_gp.jacobian_batch(samples)
     """
 
@@ -81,7 +81,11 @@ class ParallelFunctionWrapper(Generic[Array]):
         return self._function.nqoi()  # type: ignore
 
     def __call__(self, samples: Array) -> Array:
-        """Evaluate function at samples.
+        """Evaluate function at samples, optionally in parallel.
+
+        Splits samples into chunks, dispatches each chunk to the
+        wrapped function's __call__ (preserving vectorization within
+        each chunk), and combines results.
 
         Parameters
         ----------
@@ -93,7 +97,34 @@ class ParallelFunctionWrapper(Generic[Array]):
         Array
             Function values, shape (nqoi, nsamples).
         """
-        return self._function(samples)  # type: ignore
+        nsamples = samples.shape[1]
+        n_workers = self._effective_n_workers()
+
+        # Short-circuit: no parallelism needed
+        if n_workers <= 1 or nsamples <= 1:
+            return self._function(samples)  # type: ignore
+
+        bkd = self.bkd()
+        splitter = BatchSplitter(bkd)
+        transfer = TensorTransfer(bkd)
+
+        n_chunks = min(n_workers, nsamples)
+        chunks = splitter.split_samples(samples, n_chunks)
+
+        # Wrap __call__ for numpy conversion (multiprocessing serialization)
+        wrapped_call = transfer.wrap_function(
+            self._function.__call__  # type: ignore
+        )
+
+        # Convert chunks to numpy for parallel execution
+        chunks_np = [transfer.to_numpy(chunk) for chunk in chunks]
+
+        # Execute in parallel
+        results_np = self._backend.map(wrapped_call, chunks_np)
+
+        # Convert back and combine along samples axis
+        results = [transfer.from_numpy(r) for r in results_np]
+        return splitter.combine_outputs(results, axis=1)
 
     def parallel_backend(self) -> Optional[str]:
         """Return name of parallel backend, or None if sequential."""
@@ -102,6 +133,24 @@ class ParallelFunctionWrapper(Generic[Array]):
     def n_workers(self) -> int:
         """Return number of parallel workers."""
         return self._config.n_jobs
+
+    def _effective_n_workers(self) -> int:
+        """Resolve the effective number of workers.
+
+        Returns
+        -------
+        int
+            Resolved worker count. Returns 1 for SequentialBackend.
+            For -1, resolves to os.cpu_count().
+        """
+        if isinstance(self._backend, SequentialBackend):
+            return 1
+        n = self._config.n_jobs
+        if n == -1:
+            import os
+
+            return os.cpu_count() or 1
+        return n
 
     def _jacobian_batch(self, samples: Array) -> Array:
         """Compute jacobians at multiple samples in parallel.
@@ -253,9 +302,8 @@ class ParallelFunctionWrapper(Generic[Array]):
 
 def make_parallel(
     function: object,
-    backend: str = "joblib",
+    backend: str = "joblib_processes",
     n_jobs: int = -1,
-    prefer: str = "processes",
 ) -> ParallelFunctionWrapper:
     """Create parallel wrapper for a function.
 
@@ -266,12 +314,10 @@ def make_parallel(
     function : object
         Function object with bkd(), nvars(), nqoi(), __call__().
         May optionally have jacobian(), hvp(), whvp() methods.
-    backend : {"joblib", "mpire", "sequential"}
+    backend : {"joblib_processes", "joblib_threads", "futures", "mpire", "sequential"}
         Parallel execution backend.
     n_jobs : int
         Number of parallel workers. -1 means use all CPUs.
-    prefer : {"processes", "threads"}
-        For joblib: prefer processes or threads.
 
     Returns
     -------
@@ -281,7 +327,7 @@ def make_parallel(
     Examples
     --------
     >>> from pyapprox.typing.interface.parallel import make_parallel
-    >>> parallel_gp = make_parallel(gp, backend="joblib", n_jobs=4)
+    >>> parallel_gp = make_parallel(gp, backend="joblib_processes", n_jobs=4)
     >>> jacobians = parallel_gp.jacobian_batch(samples)
 
     >>> # Or with mpire for progress bars
@@ -290,6 +336,5 @@ def make_parallel(
     config = ParallelConfig(
         backend=backend,  # type: ignore
         n_jobs=n_jobs,
-        prefer=prefer,  # type: ignore
     )
     return ParallelFunctionWrapper(function, config)

@@ -174,6 +174,27 @@ class Backend(Protocol, Generic[Array]):
     def to_numpy(array: Array) -> NDArray[Any]: ...
 
     @staticmethod
+    def to_float(array: Array) -> float:
+        """Convert a scalar array to a Python float.
+
+        Parameters
+        ----------
+        array : Array
+            A scalar or single-element array.
+
+        Returns
+        -------
+        float
+            The scalar value.
+
+        Raises
+        ------
+        ValueError
+            If the array has more than one element.
+        """
+        ...
+
+    @staticmethod
     def flatten(array: Array) -> Array: ...
 
     @staticmethod

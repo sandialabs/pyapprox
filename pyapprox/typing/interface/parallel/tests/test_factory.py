@@ -240,7 +240,7 @@ class TestParallelFunctionWrapper(Generic[Array], unittest.TestCase):
         seq_func = make_parallel(func, backend="sequential")
         self.assertEqual(seq_func.parallel_backend(), "sequential")
 
-        joblib_func = make_parallel(func, backend="joblib", n_jobs=4)
+        joblib_func = make_parallel(func, backend="joblib_processes", n_jobs=4)
         self.assertIn("joblib", joblib_func.parallel_backend())
         self.assertEqual(joblib_func.n_workers(), 4)
 
@@ -249,7 +249,7 @@ class TestParallelFunctionWrapper(Generic[Array], unittest.TestCase):
         from pyapprox.typing.interface.parallel.factory import make_parallel
 
         func = MockFunction(self._bkd)
-        parallel_func = make_parallel(func, backend="joblib", n_jobs=2)
+        parallel_func = make_parallel(func, backend="joblib_processes", n_jobs=2)
 
         samples = self._bkd.asarray([[1.0, 2.0, 3.0, 4.0], [5.0, 6.0, 7.0, 8.0]])
         jacobians = parallel_func.jacobian_batch(samples)
@@ -280,6 +280,75 @@ class TestParallelFunctionWrapper(Generic[Array], unittest.TestCase):
         seq_jacobians = seq_func.jacobian_batch(samples)
 
         self.assertTrue(self._bkd.allclose(jacobians, seq_jacobians))
+
+    def test_parallel_call_matches_sequential(self):
+        """Test that parallel __call__ matches sequential __call__."""
+        from pyapprox.typing.interface.parallel.factory import make_parallel
+
+        func = MockFunction(self._bkd)
+        parallel_func = make_parallel(
+            func, backend="joblib_processes", n_jobs=2
+        )
+
+        samples = self._bkd.asarray(
+            [
+                [1.0, 2.0, 3.0, 4.0, 5.0, 6.0],
+                [7.0, 8.0, 9.0, 10.0, 11.0, 12.0],
+            ]
+        )
+
+        par_result = parallel_func(samples)
+        seq_result = func(samples)
+
+        self.assertEqual(par_result.shape, seq_result.shape)
+        self._bkd.assert_allclose(par_result, seq_result, rtol=1e-12)
+
+    def test_parallel_call_single_sample(self):
+        """Test that single-sample call skips parallelism."""
+        from pyapprox.typing.interface.parallel.factory import make_parallel
+
+        func = MockFunction(self._bkd)
+        parallel_func = make_parallel(
+            func, backend="joblib_processes", n_jobs=4
+        )
+
+        sample = self._bkd.asarray([[1.0], [2.0]])
+        result = parallel_func(sample)
+        expected = func(sample)
+
+        self._bkd.assert_allclose(result, expected)
+
+    def test_parallel_call_sequential_backend(self):
+        """Test __call__ with sequential backend delegates directly."""
+        from pyapprox.typing.interface.parallel.factory import make_parallel
+
+        func = MockFunction(self._bkd)
+        parallel_func = make_parallel(func, backend="sequential")
+
+        samples = self._bkd.asarray([[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]])
+        result = parallel_func(samples)
+        expected = func(samples)
+
+        self._bkd.assert_allclose(result, expected)
+
+    def test_parallel_call_multi_output(self):
+        """Test parallel __call__ with multi-output function."""
+        from pyapprox.typing.interface.parallel.factory import make_parallel
+
+        func = MockMultiOutputFunction(self._bkd)
+        parallel_func = make_parallel(
+            func, backend="joblib_processes", n_jobs=2
+        )
+
+        samples = self._bkd.asarray(
+            [[1.0, 2.0, 3.0, 4.0], [5.0, 6.0, 7.0, 8.0]]
+        )
+
+        par_result = parallel_func(samples)
+        seq_result = func(samples)
+
+        self.assertEqual(par_result.shape, (2, 4))
+        self._bkd.assert_allclose(par_result, seq_result, rtol=1e-12)
 
 
 class TestParallelFunctionWrapperNumpy(TestParallelFunctionWrapper[NDArray[Any]]):

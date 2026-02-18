@@ -72,6 +72,12 @@ from pyapprox.typing.pde.galerkin.solvers import (
     SteadyStateSolver,
 )
 
+from pyapprox.typing.pde.galerkin.postprocessing import (
+    von_mises_stress_2d,
+    strain_from_displacement_2d,
+    stress_from_strain_2d,
+)
+
 __all__ = [
     # Mesh protocols
     "GalerkinMeshProtocol",
@@ -118,4 +124,8 @@ __all__ = [
     "GalerkinPhysicsODEAdapter",
     # Solvers
     "SteadyStateSolver",
+    # Postprocessing
+    "von_mises_stress_2d",
+    "strain_from_displacement_2d",
+    "stress_from_strain_2d",
 ]

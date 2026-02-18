@@ -142,6 +142,65 @@ class TestMpireBackend(unittest.TestCase):
         self.assertEqual(list(result), [1, 4, 9, 16])
 
 
+class TestFuturesBackend(unittest.TestCase):
+    """Tests for FuturesBackend."""
+
+    def test_map_basic(self):
+        """Test basic map functionality."""
+        from pyapprox.typing.interface.parallel.futures_backend import (
+            FuturesBackend,
+        )
+
+        backend = FuturesBackend(n_jobs=2)
+        items = [1, 2, 3, 4]
+        result = backend.map(_square, items)
+        self.assertEqual(list(result), [1, 4, 9, 16])
+
+    def test_map_empty(self):
+        """Test map with empty input."""
+        from pyapprox.typing.interface.parallel.futures_backend import (
+            FuturesBackend,
+        )
+
+        backend = FuturesBackend(n_jobs=2)
+        result = backend.map(_square, [])
+        self.assertEqual(list(result), [])
+
+    def test_starmap_basic(self):
+        """Test basic starmap functionality."""
+        from pyapprox.typing.interface.parallel.futures_backend import (
+            FuturesBackend,
+        )
+
+        backend = FuturesBackend(n_jobs=2)
+        items = [(1, 2), (3, 4), (5, 6)]
+        result = backend.starmap(_add, items)
+        self.assertEqual(list(result), [3, 7, 11])
+
+    def test_backend_name(self):
+        """Test backend name string."""
+        from pyapprox.typing.interface.parallel.futures_backend import (
+            FuturesBackend,
+        )
+
+        backend = FuturesBackend(n_jobs=4)
+        name = backend.backend_name()
+        self.assertIn("futures", name)
+        self.assertIn("4", name)
+
+    def test_override_n_jobs(self):
+        """Test overriding n_jobs in method call."""
+        from pyapprox.typing.interface.parallel.futures_backend import (
+            FuturesBackend,
+        )
+
+        backend = FuturesBackend(n_jobs=4)
+        items = [1, 2, 3, 4]
+        # Override with n_jobs=2
+        result = backend.map(_square, items, n_jobs=2)
+        self.assertEqual(list(result), [1, 4, 9, 16])
+
+
 class TestProtocolCompliance(unittest.TestCase):
     """Test that backends comply with ParallelBackendProtocol."""
 
@@ -168,6 +227,19 @@ class TestProtocolCompliance(unittest.TestCase):
         )
 
         backend = MpireBackend(n_jobs=2)
+        self.assertTrue(isinstance(backend, ParallelBackendProtocol))
+
+
+    def test_futures_protocol(self):
+        """Test FuturesBackend implements protocol."""
+        from pyapprox.typing.interface.parallel.protocols import (
+            ParallelBackendProtocol,
+        )
+        from pyapprox.typing.interface.parallel.futures_backend import (
+            FuturesBackend,
+        )
+
+        backend = FuturesBackend(n_jobs=2)
         self.assertTrue(isinstance(backend, ParallelBackendProtocol))
 
 
