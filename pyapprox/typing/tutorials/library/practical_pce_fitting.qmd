@@ -1,0 +1,472 @@
+---
+title: "Practical PCE Fitting"
+subtitle: "PyApprox Tutorial Library"
+description: "Truncation error, cross-validation, and sparse fitters for polynomial chaos."
+tutorial_type: hands-on
+topic: uncertainty_quantification
+difficulty: intermediate
+estimated_time: 10
+prerequisites:
+  - polynomial_chaos_surrogates
+tags:
+  - uq
+  - beam
+  - surrogate
+  - polynomial-chaos
+  - cross-validation
+format:
+  html:
+    code-fold: false
+    code-tools: true
+    toc: true
+execute:
+  echo: true
+  warning: false
+jupyter: python3
+---
+
+::: {.callout-tip collapse="true"}
+## Download Notebook
+[Download as Jupyter Notebook](notebooks/practical_pce_fitting.ipynb)
+:::
+
+## Learning Objectives
+
+After completing this tutorial, you will be able to:
+
+- Explain truncation error and recognize the degree-dependent accuracy floor
+- Identify overfitting when too many polynomial terms are used with too few samples
+- Use cross-validation to select the polynomial degree automatically
+- Apply sparse fitters (OMP, BPDN/LASSO) for high-dimensional problems
+- Apply practical rules for sample-size selection and surrogate diagnostics
+
+## Prerequisites
+
+Complete [Surrogate Models with Polynomial Chaos](polynomial_chaos_surrogates.qmd) before this tutorial.
+
+
+## Setup
+
+We use the same 2D cantilever beam benchmark with $d = 3$ uncertain parameters and $K = 2$ QoIs.
+
+```{python}
+import numpy as np
+import matplotlib.pyplot as plt
+from pyapprox.typing.util.backends.numpy import NumpyBkd
+from pyapprox.typing.benchmarks.instances import cantilever_beam_2d_linear
+from pyapprox.typing.surrogates.affine.indices import (
+    compute_hyperbolic_indices,
+)
+from pyapprox.typing.surrogates.affine.expansions.pce import (
+    create_pce_from_marginals,
+)
+from pyapprox.typing.surrogates.affine.expansions.fitters.least_squares import (
+    LeastSquaresFitter,
+)
+from pyapprox.typing.benchmarks.instances.pde.cantilever_beam import MESH_PATHS
+
+bkd = NumpyBkd()
+ls_fitter = LeastSquaresFitter(bkd)
+
+benchmark = cantilever_beam_2d_linear(bkd, num_kle_terms=1, mesh_path=MESH_PATHS[4])
+model = benchmark.function()
+prior = benchmark.prior()
+marginals = prior.marginals()
+nvars = model.nvars()
+nqoi = model.nqoi()
+
+qoi_labels = [r"$\delta_{\mathrm{tip}}$", r"$\sigma_{\mathrm{tot}}$"]
+```
+
+We generate a fixed test set for evaluating all surrogates built in this tutorial:
+
+```{python}
+N_test = 500
+np.random.seed(123)
+samples_test = prior.rvs(N_test)
+values_test = model(samples_test)
+vals_np = bkd.to_numpy(values_test)
+```
+
+
+## Truncation Error
+
+Even with unlimited training data, a polynomial of fixed degree $p$ cannot represent an arbitrary function exactly. The residual is called the **truncation error**:
+
+$$
+f(\boldsymbol{\theta}) = \underbrace{\sum_{j \in \Lambda_p} c_j\, \Psi_j(\boldsymbol{\theta})}_{\text{PCE approximation}} + \underbrace{\sum_{j \notin \Lambda_p} c_j\, \Psi_j(\boldsymbol{\theta})}_{\text{truncation error}}
+$$
+
+A higher degree $p$ includes more basis terms and reduces the truncation error, but increases the number of coefficients that must be estimated --- requiring more training data to avoid overfitting.
+
+@fig-truncation-error demonstrates this trade-off. We fit PCEs at degrees 2, 3, and 4, each with increasing numbers of training samples, and plot the test-set $L_2$ error. For each configuration, we repeat the experiment with different random training sets.
+
+```{python}
+#| echo: false
+#| fig-cap: "Truncation error. Each curve shows the test-set $L_2$ error vs. number of training samples for a fixed polynomial degree. The error plateaus at a floor determined by the truncation error --- higher degrees reach lower floors but need more data. Bands show min/max over repetitions; lines show the mean."
+#| label: fig-truncation-error
+
+degrees_to_test = [2, 3, 4]
+N_train_values = [20, 30, 50, 75, 100, 150, 200]
+n_reps = 5
+colors_deg = ["#2C7FB8", "#E67E22", "#C0392B"]
+
+fig, axes = plt.subplots(1, nqoi, figsize=(12, 4.5))
+
+for qoi_idx, ax in enumerate(axes):
+    for deg, color in zip(degrees_to_test, colors_deg):
+        indices_deg = compute_hyperbolic_indices(nvars, deg, 1.0, bkd)
+        nterms = indices_deg.shape[1]
+        mean_errors = []
+        min_errors = []
+        max_errors = []
+        valid_N = []
+
+        for N_tr in N_train_values:
+            if N_tr <= nterms + 2:
+                continue
+            valid_N.append(N_tr)
+            rep_errors = []
+            for rep in range(n_reps):
+                np.random.seed(2000 + N_tr * 100 + rep)
+                s_tr = prior.rvs(N_tr)
+                v_tr = model(s_tr)
+
+                pce_rep = create_pce_from_marginals(
+                    marginals, deg, bkd, nqoi=nqoi
+                )
+                fitted_rep = ls_fitter.fit(pce_rep, s_tr, v_tr).surrogate()
+
+                preds = bkd.to_numpy(fitted_rep(samples_test))
+                l2_err = np.linalg.norm(vals_np[qoi_idx, :] - preds[qoi_idx, :])
+                l2_ref = np.linalg.norm(vals_np[qoi_idx, :])
+                rep_errors.append(l2_err / l2_ref)
+
+            mean_errors.append(np.mean(rep_errors))
+            min_errors.append(np.min(rep_errors))
+            max_errors.append(np.max(rep_errors))
+
+        ax.fill_between(valid_N, min_errors, max_errors, alpha=0.15,
+                        color=color)
+        ax.semilogy(valid_N, mean_errors, "o-", ms=5, color=color, lw=1.5,
+                    label=f"Degree {deg} ({nterms} terms)")
+
+    ax.set_xlabel("Number of training samples $N$", fontsize=11)
+    ax.set_ylabel("Relative $L_2$ error", fontsize=11)
+    ax.set_title(f"{qoi_labels[qoi_idx]}", fontsize=11)
+    ax.legend(fontsize=9)
+    ax.grid(True, alpha=0.2, which="both")
+
+plt.tight_layout()
+plt.show()
+```
+
+The key observation: **each degree-$p$ curve flattens at a floor** that shrinks as $p$ increases. Below the floor, adding more training data does not help --- the limitation is the truncation error, not the fitting error. Above the floor (small $N$), the dominant error is from having too few samples to estimate the coefficients reliably.
+
+
+## Overfitting
+
+The flip side of truncation error is **overfitting**: using a polynomial degree that is too high for the available data. When the number of basis terms $P$ approaches the number of training samples $N$, the least-squares system becomes under-determined and the fit interpolates noise.
+
+```{python}
+#| fig-cap: "Overfitting demonstration. Training-set error (solid) vs. test-set error (dashed) for increasing polynomial degree with a fixed training set of N=50 samples. The training error always decreases, but the test error increases sharply at high degree --- the hallmark of overfitting."
+#| label: fig-overfitting
+
+N_train_fixed = 50
+np.random.seed(77)
+samples_train = prior.rvs(N_train_fixed)
+values_train = model(samples_train)
+vals_train_np = bkd.to_numpy(values_train)
+
+degrees_sweep = [1, 2, 3, 4, 5]
+train_errors = []
+test_errors = []
+
+for deg in degrees_sweep:
+    nterms = compute_hyperbolic_indices(nvars, deg, 1.0, bkd).shape[1]
+    if nterms >= N_train_fixed:
+        train_errors.append(np.nan)
+        test_errors.append(np.nan)
+        continue
+
+    pce_ov = create_pce_from_marginals(marginals, deg, bkd, nqoi=nqoi)
+    pce_ov = ls_fitter.fit(pce_ov, samples_train, values_train).surrogate()
+
+    # Training error
+    preds_train = bkd.to_numpy(pce_ov(samples_train))
+    l2_train = np.linalg.norm(vals_train_np[0, :] - preds_train[0, :])
+    l2_ref_train = np.linalg.norm(vals_train_np[0, :])
+    train_errors.append(l2_train / l2_ref_train)
+
+    # Test error
+    preds_test = bkd.to_numpy(pce_ov(samples_test))
+    l2_test = np.linalg.norm(vals_np[0, :] - preds_test[0, :])
+    l2_ref_test = np.linalg.norm(vals_np[0, :])
+    test_errors.append(l2_test / l2_ref_test)
+
+fig, ax = plt.subplots(figsize=(7, 4.5))
+nterms_list = [compute_hyperbolic_indices(nvars, d, 1.0, bkd).shape[1]
+               for d in degrees_sweep]
+ax.semilogy(degrees_sweep, train_errors, "o-", ms=7, lw=2, color="#2C7FB8",
+            label="Training error")
+ax.semilogy(degrees_sweep, test_errors, "s--", ms=7, lw=2, color="#C0392B",
+            label="Test error")
+
+for i, (d, nt) in enumerate(zip(degrees_sweep, nterms_list)):
+    if not np.isnan(train_errors[i]):
+        ax.annotate(f"{nt} terms", (d, test_errors[i]),
+                    textcoords="offset points", xytext=(8, 5), fontsize=8)
+
+ax.axhline(y=1.0, color="gray", ls=":", lw=1, alpha=0.5)
+ax.set_xlabel("Polynomial degree", fontsize=12)
+ax.set_ylabel(f"Relative $L_2$ error ({qoi_labels[0]})", fontsize=12)
+ax.set_title(f"Overfitting: N = {N_train_fixed} training samples", fontsize=11)
+ax.legend(fontsize=10)
+ax.grid(True, alpha=0.2, which="both")
+plt.tight_layout()
+plt.show()
+```
+
+::: {.callout-warning}
+## When oversampling ratio drops below ~2
+A useful rule of thumb: the **oversampling ratio** $N/P$ (training samples per basis term) should be at least 2. Below this, the least-squares fit becomes unreliable and overfitting is likely.
+:::
+
+
+## Cross-Validation for Degree Selection
+
+In practice, we don't know the right polynomial degree in advance. Too low, and the truncation error dominates. Too high, and we overfit. **Cross-validation (CV)** provides a data-driven way to select the degree.
+
+The `PCEDegreeSelectionFitter` evaluates the leave-one-out (LOO) cross-validation score for each candidate degree and selects the one with the smallest score. The LOO score is computed efficiently via an algebraic formula --- no re-fitting required.
+
+```{python}
+from pyapprox.typing.surrogates.affine.expansions.fitters.pce_cv import (
+    PCEDegreeSelectionFitter,
+)
+
+N_train_cv = 100
+np.random.seed(42)
+samples_cv = prior.rvs(N_train_cv)
+values_cv = model(samples_cv)
+
+fitter = PCEDegreeSelectionFitter(
+    bkd,
+    degrees=[1, 2, 3, 4, 5],
+    pnorm=1.0,
+    alpha=0.0,      # no ridge regularization
+    nfolds=None,     # LOO cross-validation
+)
+
+pce_base = create_pce_from_marginals(marginals, max_level=5, bkd=bkd, nqoi=nqoi)
+cv_result = fitter.fit(pce_base, samples_cv, values_cv)
+
+print(f"CV scores by degree: {bkd.to_numpy(cv_result.cv_scores())}")
+print(f"Best degree: {cv_result.best_label()}")
+```
+
+@fig-cv-scores shows the CV score as a function of polynomial degree.
+
+```{python}
+#| fig-cap: "LOO cross-validation score vs. polynomial degree. The optimal degree minimizes the CV score, balancing truncation error against overfitting."
+#| label: fig-cv-scores
+
+cv_scores_np = bkd.to_numpy(cv_result.cv_scores())
+
+fig, ax = plt.subplots(figsize=(7, 4))
+ax.semilogy(fitter.degrees(), cv_scores_np, "o-", ms=8, lw=2, color="#2C7FB8")
+best_idx = cv_result.best_index()
+ax.plot(cv_result.best_label(), cv_scores_np[best_idx], "s", ms=14,
+        color="#C0392B", zorder=5,
+        label=f"Best: degree {cv_result.best_label()}")
+ax.set_xlabel("Polynomial degree", fontsize=12)
+ax.set_ylabel("LOO CV score (mean across QoIs)", fontsize=12)
+ax.set_title("Degree selection via cross-validation", fontsize=11)
+ax.legend(fontsize=10)
+ax.grid(True, alpha=0.2, which="both")
+plt.tight_layout()
+plt.show()
+```
+
+The fitted surrogate from CV can be used exactly like a manually fitted PCE:
+
+```{python}
+best_pce = cv_result.surrogate()
+preds_cv = bkd.to_numpy(best_pce(samples_test))
+
+for k in range(nqoi):
+    l2_err = np.linalg.norm(vals_np[k, :] - preds_cv[k, :])
+    l2_ref = np.linalg.norm(vals_np[k, :])
+    print(f"QoI {k+1} ({qoi_labels[k]}): relative L2 error (CV) = {l2_err / l2_ref:.4e}")
+```
+
+### LOO vs. K-Fold CV
+
+LOO is the most common choice because it uses all but one sample for fitting, maximizing the effective training size. K-fold CV is faster but noisier. You can switch to 5-fold CV by setting `nfolds=5`:
+
+```{python}
+fitter_kfold = PCEDegreeSelectionFitter(
+    bkd,
+    degrees=[1, 2, 3, 4, 5],
+    pnorm=1.0,
+    nfolds=5,
+)
+
+np.random.seed(42)
+cv_result_kfold = fitter_kfold.fit(pce_base, samples_cv, values_cv)
+
+print(f"5-fold CV best degree: {cv_result_kfold.best_label()}")
+print(f"LOO CV best degree:    {cv_result.best_label()}")
+```
+
+
+## Alternative Fitters: Sparse Recovery
+
+For high-dimensional problems ($d \gg 3$), the number of polynomial basis terms $P$ grows rapidly, but many coefficients may be negligibly small. **Sparse recovery** methods exploit this by fitting only the most important terms.
+
+::: {.callout-note}
+## nqoi restriction
+The sparse fitters (`OMPFitter`, `BPDNFitter`) currently support only nqoi=1. For multi-QoI problems, fit each QoI separately.
+:::
+
+### Orthogonal Matching Pursuit (OMP)
+
+OMP is a greedy algorithm: at each iteration, it selects the basis term most correlated with the current residual and adds it to the active set. It stops when the residual is small enough or the maximum number of non-zero coefficients is reached.
+
+```{python}
+from pyapprox.typing.surrogates.affine.expansions.fitters.omp import OMPFitter
+
+# Use a larger index set than needed --- OMP will select sparse terms
+degree_large = 5
+pce_omp = create_pce_from_marginals(marginals, degree_large, bkd, nqoi=1)
+nterms_large = pce_omp.nterms()
+
+omp_fitter = OMPFitter(bkd, max_nonzeros=15, rtol=1e-4)
+
+# Fit first QoI (tip deflection)
+omp_result = omp_fitter.fit(
+    pce_omp, samples_cv, values_cv[0:1, :]
+)
+
+print(f"OMP selected {omp_result.n_nonzero()} / {nterms_large} terms")
+print(f"Termination: {omp_result.termination_flag()}")
+```
+
+### Basis Pursuit Denoising (BPDN / LASSO)
+
+BPDN solves the L1-regularized least squares problem:
+
+$$
+\hat{\mathbf{c}} = \arg\min_{\mathbf{c}} \frac{1}{2}\|\boldsymbol{\Phi}\mathbf{c} - \mathbf{y}\|_2^2 + \lambda \|\mathbf{c}\|_1
+$$
+
+The L1 penalty encourages sparsity by driving small coefficients to exactly zero. The regularization strength $\lambda$ controls the trade-off between fit quality and sparsity.
+
+```{python}
+from pyapprox.typing.surrogates.affine.expansions.fitters.bpdn import BPDNFitter
+
+pce_bpdn = create_pce_from_marginals(marginals, degree_large, bkd, nqoi=1)
+
+bpdn_fitter = BPDNFitter(bkd, penalty=0.01)
+bpdn_result = bpdn_fitter.fit(
+    pce_bpdn, samples_cv, values_cv[0:1, :]
+)
+
+print(f"BPDN: {bpdn_result.n_nonzero()} / {nterms_large} non-zero coefficients")
+```
+
+### Comparing Coefficient Sparsity
+
+```{python}
+#| fig-cap: "Coefficient magnitudes for the first QoI (tip deflection) using least squares, OMP, and BPDN fitters. OMP and BPDN produce sparser solutions, zeroing out unimportant terms."
+#| label: fig-sparse-coefficients
+
+# Least squares fit for comparison
+pce_ls = create_pce_from_marginals(marginals, degree_large, bkd, nqoi=1)
+ls_result = ls_fitter.fit(pce_ls, samples_cv, values_cv[0:1, :])
+
+fig, axes = plt.subplots(1, 3, figsize=(15, 4), sharey=True)
+fitter_names = ["Least Squares", "OMP", "BPDN"]
+results = [ls_result, omp_result, bpdn_result]
+colors = ["#2C7FB8", "#E67E22", "#C0392B"]
+
+for ax, name, result, color in zip(axes, fitter_names, results, colors):
+    coef = bkd.to_numpy(result.params())[:, 0]
+    ax.bar(range(len(coef)), np.abs(coef), color=color, alpha=0.7, width=1.0)
+    ax.set_yscale("log")
+    ax.set_xlabel("Basis term index", fontsize=11)
+    ax.set_title(f"{name}", fontsize=11)
+    n_nz = np.sum(np.abs(coef) > 1e-12)
+    ax.annotate(f"{n_nz} non-zero", xy=(0.95, 0.95), xycoords="axes fraction",
+                ha="right", va="top", fontsize=10,
+                bbox=dict(boxstyle="round,pad=0.3", fc="white", ec="gray"))
+
+axes[0].set_ylabel("|Coefficient|", fontsize=11)
+plt.tight_layout()
+plt.show()
+```
+
+```{python}
+# Compare test-set errors
+print("Test-set relative L2 error (QoI 1, tip deflection):")
+
+for name, result in zip(fitter_names, results):
+    preds = bkd.to_numpy(result.surrogate()(samples_test))
+    l2_err = np.linalg.norm(vals_np[0, :] - preds[0, :])
+    l2_ref = np.linalg.norm(vals_np[0, :])
+    print(f"  {name}: {l2_err / l2_ref:.4e}")
+```
+
+
+## Practical Guidance
+
+### How Many Samples Per Term?
+
+A widely used rule of thumb is the **oversampling ratio**:
+
+$$
+\text{oversampling ratio} = \frac{N}{P} \geq 2
+$$
+
+where $N$ is the number of training samples and $P$ is the number of basis terms. Values below 2 risk overfitting; values of 3--5 provide a comfortable margin.
+
+```{python}
+print(f"{'Degree':<8} {'Terms P':<10} {'Min N (ratio 2)':<18} {'Comfortable (ratio 3)'}")
+print("-" * 55)
+for deg in range(1, 7):
+    nterms = compute_hyperbolic_indices(nvars, deg, 1.0, bkd).shape[1]
+    print(f"{deg:<8} {nterms:<10} {2 * nterms:<18} {3 * nterms}")
+```
+
+### When to Suspect the Surrogate is Bad
+
+- **LOO CV score is large**: the CV score estimates the expected prediction error on unseen data. If it is much larger than the training-set error, the model is overfitting.
+- **Test-set error differs from CV score**: a large discrepancy suggests the CV score is unreliable (e.g., due to non-representative folds).
+- **Coefficients grow with degree**: if increasing the degree causes coefficient magnitudes to blow up, the least-squares system is ill-conditioned.
+- **Predicted-vs-true plot shows structure**: systematic deviations from the diagonal indicate missing model structure, not just noise.
+
+
+## Key Takeaways
+
+- **Truncation error** sets a floor on accuracy for any fixed polynomial degree --- higher degrees reduce the floor but require more training data
+- **Overfitting** occurs when the oversampling ratio drops below ~2; more terms than data leads to noise fitting
+- **Cross-validation** provides a data-driven way to select the polynomial degree, balancing truncation error against overfitting
+- **Sparse fitters** (OMP, BPDN) are valuable for high-dimensional problems where most coefficients are negligible
+- **Oversampling ratio** $\geq 2$ is a practical minimum; 3--5 is more comfortable
+
+
+## Exercises
+
+1. Run the truncation error experiment (@fig-truncation-error) for degree 5. How many training samples are needed before the error curve flattens?
+
+2. Change the CV fitter to use 5-fold CV instead of LOO. Does the selected degree change? Is the fit quality similar?
+
+3. Try different L1 penalty values for BPDN (e.g., 0.001, 0.01, 0.1, 1.0). How does the penalty affect the number of non-zero coefficients and the test-set error?
+
+4. **(Challenge)** Fit OMP with the degree-5 basis on each QoI separately. Compare the support sets --- do both QoIs select the same basis terms?
+
+
+## Next Steps
+
+Continue with:
+
+- [Sensitivity Analysis](sobol_sensitivity_analysis.qmd) --- Using PCE coefficients for Sobol indices

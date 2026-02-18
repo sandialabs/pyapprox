@@ -1,0 +1,382 @@
+---
+title: "UQ with Polynomial Chaos"
+subtitle: "PyApprox Tutorial Library"
+description: "Extract analytical moments, marginal densities, and convergence comparisons from a fitted PCE."
+tutorial_type: hands-on
+topic: uncertainty_quantification
+difficulty: intermediate
+estimated_time: 10
+prerequisites:
+  - polynomial_chaos_surrogates
+tags:
+  - uq
+  - polynomial-chaos
+  - moments
+  - beam
+format:
+  html:
+    code-fold: false
+    code-tools: true
+    toc: true
+execute:
+  echo: true
+  warning: false
+jupyter: python3
+---
+
+::: {.callout-tip collapse="true"}
+## Download Notebook
+[Download as Jupyter Notebook](notebooks/uq_with_pce.ipynb)
+:::
+
+## Learning Objectives
+
+After completing this tutorial, you will be able to:
+
+- Compute the mean, variance, and covariance of QoIs analytically from PCE coefficients
+- Explain why orthonormality makes these moment formulas exact
+- Sample a fitted surrogate to estimate marginal densities of the QoIs
+- Compare PCE-based and Monte Carlo moment estimates at the same computational budget
+
+
+## Prerequisites
+
+Complete [Building a Polynomial Chaos Surrogate](polynomial_chaos_surrogates.qmd) before this tutorial.
+
+
+## Setup: Fit a PCE
+
+We rebuild the same degree-3 PCE from Tutorial 1. This code is identical to the previous tutorial --- we need a fitted surrogate to work with.
+
+```{python}
+import numpy as np
+import matplotlib.pyplot as plt
+from pyapprox.typing.util.backends.numpy import NumpyBkd
+from pyapprox.typing.benchmarks.instances import cantilever_beam_2d_linear
+from pyapprox.typing.benchmarks.instances.pde.cantilever_beam import MESH_PATHS
+from pyapprox.typing.surrogates.affine.expansions.pce import (
+    create_pce_from_marginals,
+)
+from pyapprox.typing.surrogates.affine.expansions.fitters.least_squares import (
+    LeastSquaresFitter,
+)
+
+bkd = NumpyBkd()
+
+benchmark = cantilever_beam_2d_linear(bkd, num_kle_terms=1, mesh_path=MESH_PATHS[4])
+model = benchmark.function()
+prior = benchmark.prior()
+marginals = prior.marginals()
+nvars = model.nvars()
+nqoi = model.nqoi()
+
+qoi_labels = [r"$\delta_{\mathrm{tip}}$", r"$\sigma_{\mathrm{tot}}$"]
+
+# Training data
+N_train = 100
+np.random.seed(42)
+samples_train = prior.rvs(N_train)
+values_train = model(samples_train)
+
+# Fit degree-3 PCE
+degree = 3
+pce = create_pce_from_marginals(marginals, degree, bkd, nqoi=nqoi)
+ls_fitter = LeastSquaresFitter(bkd)
+pce = ls_fitter.fit(pce, samples_train, values_train).surrogate()
+
+print(f"Fitted PCE: {pce.nterms()} terms, degree {degree}")
+```
+
+
+## Analytical Moments from PCE Coefficients
+
+The orthonormality of the PCE basis,
+
+$$
+\mathbb{E}[\Psi_i(\boldsymbol{\theta})\, \Psi_j(\boldsymbol{\theta})] = \delta_{ij},
+$$
+
+gives us the mean, variance, and covariance of the QoIs **for free** --- no additional model evaluations, no sampling, no numerical integration:
+
+$$
+\mathbb{E}[f_k] = c_{0,k}, \qquad
+\text{Var}[f_k] = \sum_{j=1}^{P-1} c_{j,k}^2, \qquad
+\text{Cov}[f_j, f_k] = \sum_{i=1}^{P-1} c_{i,j}\, c_{i,k}
+$$
+
+The mean is the zeroth coefficient (constant term), and the variance is the sum of squares of all other coefficients. Once the PCE is fitted, moment computation is instantaneous.
+
+```{python}
+pce_mean = bkd.to_numpy(pce.mean())           # (nqoi,)
+pce_var = bkd.to_numpy(pce.variance())         # (nqoi,)
+pce_cov = bkd.to_numpy(pce.covariance())       # (nqoi, nqoi)
+
+print("PCE analytical moments:")
+for k in range(nqoi):
+    print(f"  {qoi_labels[k]}: mean = {pce_mean[k]:.6f},  std = {np.sqrt(pce_var[k]):.6f}")
+
+print(f"\nCovariance matrix:\n{pce_cov}")
+
+corr = pce_cov[0, 1] / np.sqrt(pce_cov[0, 0] * pce_cov[1, 1])
+print(f"\nCorrelation between QoIs: {corr:.4f}")
+```
+
+::: {.callout-important}
+## Why are these exact?
+These formulas are not approximations --- they are *exact* for the fitted PCE. They compute the moments of the surrogate $\hat{f}$, not of the true model $f$. The only source of error is the surrogate approximation itself.
+:::
+
+
+## Marginal Densities via Surrogate Sampling
+
+Because the PCE is cheap to evaluate, we can draw a very large sample to produce smooth density estimates of the QoI distributions --- something impractical with the expensive model.
+
+```{python}
+#| fig-cap: "Marginal density estimates for each QoI. The PCE-based estimates (orange, 50,000 samples) are much smoother than the Monte Carlo reference (blue, 500 model evaluations)."
+#| label: fig-marginal-densities
+
+# Large PCE sample
+N_pce_sample = 50_000
+np.random.seed(99)
+samples_pce_large = prior.rvs(N_pce_sample)
+preds_pce_large = bkd.to_numpy(pce(samples_pce_large))  # (nqoi, N_pce)
+
+# MC reference
+N_mc = 500
+np.random.seed(123)
+samples_mc = prior.rvs(N_mc)
+vals_mc = bkd.to_numpy(model(samples_mc))  # (nqoi, N_mc)
+
+fig, axes = plt.subplots(1, nqoi, figsize=(11, 4))
+
+for k, ax in enumerate(axes):
+    ax.hist(vals_mc[k, :], bins=40, density=True, alpha=0.5,
+            color="#2C7FB8", edgecolor="k", lw=0.2, label=f"MC ({N_mc} evals)")
+    ax.hist(preds_pce_large[k, :], bins=80, density=True, alpha=0.4,
+            color="#E67E22", edgecolor="k", lw=0.1, label=f"PCE ({N_train} evals)")
+    ax.set_xlabel(qoi_labels[k], fontsize=11)
+    ax.set_ylabel("Density", fontsize=11)
+    ax.legend(fontsize=8)
+    ax.grid(True, alpha=0.2)
+
+plt.tight_layout()
+plt.show()
+```
+
+The PCE produces smooth density estimates using only 100 model evaluations (for training), while the direct MC histogram from 500 evaluations is still noisy. This is the fundamental advantage of surrogate-based UQ: a small upfront investment in training yields arbitrarily many cheap evaluations.
+
+
+## Pair Plot with Covariance Ellipse
+
+@fig-pce-pairplot shows the joint distribution of the two QoIs. The diagonal panels show marginal densities; the off-diagonal panels show the joint scatter with a 95% covariance ellipse computed from the PCE's analytical covariance matrix.
+
+```{python}
+#| fig-cap: "Pair plot of the two QoIs. Diagonal: marginal densities (PCE in orange, MC in blue). Off-diagonal: joint scatter with 95% covariance ellipse from the PCE analytical covariance."
+#| label: fig-pce-pairplot
+
+from matplotlib.patches import Ellipse
+
+def _cov_ellipse(mean, cov, ax, n_std=2.0, **kwargs):
+    """Draw a covariance ellipse at n_std standard deviations."""
+    eigvals, eigvecs = np.linalg.eigh(cov)
+    angle = np.degrees(np.arctan2(eigvecs[1, 0], eigvecs[0, 0]))
+    w, h = 2 * n_std * np.sqrt(eigvals)
+    ell = Ellipse(xy=mean, width=w, height=h, angle=angle, **kwargs)
+    ax.add_patch(ell)
+    return ell
+
+fig, axes = plt.subplots(2, 2, figsize=(8, 8))
+
+# Diagonal: marginal densities
+for k in range(nqoi):
+    ax = axes[k, k]
+    ax.hist(vals_mc[k, :], bins=40, density=True, alpha=0.5,
+            color="#2C7FB8", edgecolor="k", lw=0.2, label="MC")
+    ax.hist(preds_pce_large[k, :], bins=80, density=True, alpha=0.4,
+            color="#E67E22", edgecolor="k", lw=0.1, label="PCE")
+    ax.axvline(pce_mean[k], color="#C0392B", ls="--", lw=1.5,
+               label=f"PCE mean")
+    ax.set_xlabel(qoi_labels[k], fontsize=11)
+    ax.set_ylabel("Density", fontsize=11)
+    ax.legend(fontsize=8)
+    ax.grid(True, alpha=0.2)
+
+# Off-diagonal: joint scatter + covariance ellipse
+for (i, j) in [(0, 1), (1, 0)]:
+    ax = axes[i, j]
+    ax.scatter(preds_pce_large[j, :], preds_pce_large[i, :], s=1,
+               alpha=0.05, color="#E67E22", rasterized=True)
+    ax.scatter(vals_mc[j, :], vals_mc[i, :], s=8,
+               alpha=0.4, color="#2C7FB8", edgecolors="k", lw=0.2)
+    # Covariance ellipse
+    sub_mean = pce_mean[[j, i]]
+    sub_cov = pce_cov[np.ix_([j, i], [j, i])]
+    _cov_ellipse(sub_mean, sub_cov, ax, n_std=2.0,
+                 fill=False, edgecolor="#C0392B", lw=2, ls="--",
+                 label="95% cov. ellipse")
+    ax.set_xlabel(qoi_labels[j], fontsize=11)
+    ax.set_ylabel(qoi_labels[i], fontsize=11)
+    ax.legend(fontsize=8, loc="upper left")
+    ax.grid(True, alpha=0.2)
+
+plt.tight_layout()
+plt.show()
+```
+
+
+## PCE vs. Monte Carlo: Efficiency Comparison
+
+We now compare the efficiency of PCE-based moment estimation against direct Monte Carlo. The question is: **for a fixed budget of $N$ model evaluations, which approach gives more accurate estimates of the mean and variance?**
+
+For Monte Carlo, we use all $N$ samples directly. For PCE, we increase the polynomial degree with the budget, keeping an oversampling ratio of 2 (twice as many samples as basis terms). This lets the PCE error decay as the budget grows, since higher-degree expansions capture more of the model's structure.
+
+@fig-pce-vs-mc repeats each experiment 20 times with different random seeds and plots the median error with 10th/90th percentile envelopes.
+
+```{python}
+#| echo: false
+#| fig-cap: "PCE vs. Monte Carlo efficiency. Relative error in the mean (left) and variance (right) of tip deflection as a function of the number of model evaluations. For PCE, the degree increases with the budget (oversampling ratio = 2). Lines show median over 20 repetitions; bands show 10th--90th percentiles."
+#| label: fig-pce-vs-mc
+
+from pyapprox.typing.surrogates.affine.indices import compute_hyperbolic_indices
+from pyapprox.typing.surrogates.quadrature import (
+    TensorProductQuadratureRule,
+    gauss_quadrature_rule,
+)
+
+# True moments via tensor-product Gauss quadrature (exact for polynomials
+# of degree <= 2*nquad-1; highly accurate for the smooth beam model)
+nquad = 20
+quad_rules = [lambda n, m=m: gauss_quadrature_rule(m, n, bkd) for m in marginals]
+quad_rule = TensorProductQuadratureRule(bkd, quad_rules, [nquad] * nvars)
+quad_pts, quad_wts = quad_rule()
+qoi_quad = model(quad_pts)                        # (nqoi, nquad^nvars)
+qoi_quad_np = bkd.to_numpy(qoi_quad)
+quad_wts_np = bkd.to_numpy(quad_wts)
+qoi_plot = 0  # tip deflection
+true_mean = float(quad_wts_np @ qoi_quad_np[qoi_plot])
+true_var = float(quad_wts_np @ (qoi_quad_np[qoi_plot] - true_mean) ** 2)
+
+# Build (degree, N_budget) pairs with oversampling ratio = 2
+oversampling = 2
+degrees = [1, 2, 3, 4, 5]
+budget_degree_pairs = []
+for deg in degrees:
+    nterms = compute_hyperbolic_indices(nvars, deg, 1.0, bkd).shape[1]
+    N_bud = oversampling * nterms
+    budget_degree_pairs.append((N_bud, deg))
+
+N_budget_values = [pair[0] for pair in budget_degree_pairs]
+n_reps = 20
+
+mc_mean_errors = {N: [] for N in N_budget_values}
+mc_var_errors = {N: [] for N in N_budget_values}
+pce_mean_errors = {N: [] for N in N_budget_values}
+pce_var_errors = {N: [] for N in N_budget_values}
+
+for N_bud, deg in budget_degree_pairs:
+    for rep in range(n_reps):
+        np.random.seed(1000 * N_bud + rep)
+        s = prior.rvs(N_bud)
+        v = bkd.to_numpy(model(s))   # (nqoi, N_bud)
+
+        # MC estimates
+        mc_mu = np.mean(v[qoi_plot, :])
+        mc_va = np.var(v[qoi_plot, :], ddof=1)
+        mc_mean_errors[N_bud].append(
+            abs(mc_mu - true_mean) / abs(true_mean)
+        )
+        mc_var_errors[N_bud].append(
+            abs(mc_va - true_var) / abs(true_var)
+        )
+
+        # PCE: fit with matching degree and extract moments
+        pce_rep = create_pce_from_marginals(marginals, deg, bkd, nqoi=nqoi)
+        try:
+            rep_result = ls_fitter.fit(pce_rep, s, bkd.asarray(v))
+            fitted_rep = rep_result.surrogate()
+            pce_mu = bkd.to_numpy(fitted_rep.mean())[qoi_plot]
+            pce_va = bkd.to_numpy(fitted_rep.variance())[qoi_plot]
+            pce_mean_errors[N_bud].append(
+                abs(pce_mu - true_mean) / abs(true_mean)
+            )
+            pce_var_errors[N_bud].append(
+                abs(pce_va - true_var) / abs(true_var)
+            )
+        except Exception:
+            pce_mean_errors[N_bud].append(np.nan)
+            pce_var_errors[N_bud].append(np.nan)
+
+
+def _plot_convergence(ax, N_vals, mc_errs, pce_errs, ylabel, title,
+                      deg_labels):
+    mc_med = [np.nanmedian(mc_errs[N]) for N in N_vals]
+    mc_lo = [np.nanpercentile(mc_errs[N], 10) for N in N_vals]
+    mc_hi = [np.nanpercentile(mc_errs[N], 90) for N in N_vals]
+    pce_med = [np.nanmedian(pce_errs[N]) for N in N_vals]
+    pce_lo = [np.nanpercentile(pce_errs[N], 10) for N in N_vals]
+    pce_hi = [np.nanpercentile(pce_errs[N], 90) for N in N_vals]
+
+    ax.fill_between(N_vals, mc_lo, mc_hi, alpha=0.15, color="#2C7FB8")
+    ax.semilogy(N_vals, mc_med, "o-", ms=5, color="#2C7FB8", lw=1.5,
+                label="Monte Carlo")
+    ax.fill_between(N_vals, pce_lo, pce_hi, alpha=0.15, color="#E67E22")
+    ax.semilogy(N_vals, pce_med, "s-", ms=5, color="#E67E22", lw=1.5,
+                label="PCE")
+    # Annotate PCE degree at each point
+    for N, deg_lbl in zip(N_vals, deg_labels):
+        idx = N_vals.index(N)
+        ax.annotate(f"p={deg_lbl}", (N, pce_med[idx]),
+                    textcoords="offset points", xytext=(6, -12),
+                    fontsize=7, color="#E67E22")
+    ax.set_xlabel("Number of model evaluations $N$", fontsize=11)
+    ax.set_ylabel(ylabel, fontsize=11)
+    ax.set_title(title, fontsize=11)
+    ax.legend(fontsize=9)
+    ax.grid(True, alpha=0.2, which="both")
+
+
+deg_labels = [str(d) for _, d in budget_degree_pairs]
+fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(12, 4.5))
+_plot_convergence(
+    ax1, N_budget_values, mc_mean_errors, pce_mean_errors,
+    "Relative error in mean",
+    f"Mean of {qoi_labels[qoi_plot]}",
+    deg_labels,
+)
+_plot_convergence(
+    ax2, N_budget_values, mc_var_errors, pce_var_errors,
+    "Relative error in variance",
+    f"Variance of {qoi_labels[qoi_plot]}",
+    deg_labels,
+)
+plt.tight_layout()
+plt.show()
+```
+
+The PCE achieves lower error than Monte Carlo for the same computational budget because:
+
+- Monte Carlo converges at rate $1/\sqrt{N}$, regardless of the function's smoothness.
+- PCE converges at a rate determined by the smoothness of $f$ --- for smooth functions (like the beam model), polynomial convergence is much faster.
+- By increasing the polynomial degree with the budget, the PCE error continues to decay, while MC progress is slow and steady.
+
+
+## Key Takeaways
+
+- The orthonormality of the PCE basis gives **analytical formulas** for mean, variance, and covariance --- no sampling required
+- A cheap surrogate enables **smooth density estimation** from very large samples, which would be impractical with the expensive model
+- The **covariance matrix** from `pce.covariance()` captures the linear relationship between QoIs
+- For smooth models, PCE-based moment estimation outperforms Monte Carlo at the same computational budget
+
+
+## Exercises
+
+1. Compare the PCE-estimated correlation $\text{Corr}[\delta_{\text{tip}}, \sigma_{\text{tot}}]$ against a Monte Carlo estimate using 500 and 2000 model evaluations. How many MC samples are needed to match the PCE estimate?
+
+2. Extract Sobol sensitivity indices via `pce.total_sobol_indices()` and `pce.main_effect_sobol_indices()`. Which input variable contributes most to the variance of each QoI?
+
+3. In the convergence comparison (@fig-pce-vs-mc), change the oversampling ratio from 2 to 3. How does this affect the PCE error, especially at lower degrees?
+
+
+## Next Steps
+
+- [Practical PCE Fitting](practical_pce_fitting.qmd) --- Truncation error, cross-validation, sparse fitters

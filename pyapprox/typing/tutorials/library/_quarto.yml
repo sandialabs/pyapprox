@@ -25,6 +25,11 @@ website:
             - forward_uq.qmd
             - random_variables_distributions.qmd
             - monte_carlo_sampling.qmd
+        - section: "Surrogate Modeling"
+          contents:
+            - polynomial_chaos_surrogates.qmd
+            - practical_pce_fitting.qmd
+            - uq_with_pce.qmd
 
 format:
   html:
