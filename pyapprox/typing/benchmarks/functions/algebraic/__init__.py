@@ -19,6 +19,12 @@ from pyapprox.typing.benchmarks.functions.algebraic.branin import (
     BRANIN_GLOBAL_MINIMUM,
     BRANIN_MINIMIZERS,
 )
+from pyapprox.typing.benchmarks.functions.algebraic.cantilever_beam import (
+    CantileverBeam1DAnalytical,
+)
+from pyapprox.typing.benchmarks.functions.algebraic.cantilever_beam_2d import (
+    CantileverBeam2DAnalytical,
+)
 
 __all__ = [
     "IshigamiFunction",
@@ -29,4 +35,6 @@ __all__ = [
     "BraninFunction",
     "BRANIN_GLOBAL_MINIMUM",
     "BRANIN_MINIMIZERS",
+    "CantileverBeam1DAnalytical",
+    "CantileverBeam2DAnalytical",
 ]

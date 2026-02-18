@@ -18,6 +18,12 @@ from pyapprox.typing.benchmarks.instances.analytic.genz import (
     genz_oscillatory_5d,
     genz_gaussian_peak_5d,
 )
+from pyapprox.typing.benchmarks.instances.analytic.cantilever_beam import (
+    cantilever_beam_1d_analytical,
+)
+from pyapprox.typing.benchmarks.instances.analytic.cantilever_beam_2d import (
+    cantilever_beam_2d_analytical,
+)
 
 __all__ = [
     "ishigami_3d",
@@ -32,4 +38,6 @@ __all__ = [
     "genz_gaussian_peak_2d",
     "genz_oscillatory_5d",
     "genz_gaussian_peak_5d",
+    "cantilever_beam_1d_analytical",
+    "cantilever_beam_2d_analytical",
 ]

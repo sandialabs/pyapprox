@@ -13,6 +13,8 @@ from pyapprox.typing.benchmarks.instances.analytic import (
     genz_gaussian_peak_2d,
     genz_oscillatory_5d,
     genz_gaussian_peak_5d,
+    cantilever_beam_1d_analytical,
+    cantilever_beam_2d_analytical,
 )
 from pyapprox.typing.benchmarks.instances.multifidelity import (
     polynomial_ensemble_5model,
@@ -60,4 +62,6 @@ __all__ = [
     "cantilever_beam_1d",
     "cantilever_beam_2d_linear",
     "cantilever_beam_2d_neohookean",
+    "cantilever_beam_1d_analytical",
+    "cantilever_beam_2d_analytical",
 ]

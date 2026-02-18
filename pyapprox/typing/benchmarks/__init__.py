@@ -46,6 +46,8 @@ from pyapprox.typing.benchmarks.functions.algebraic import (
     BraninFunction,
     BRANIN_GLOBAL_MINIMUM,
     BRANIN_MINIMIZERS,
+    CantileverBeam1DAnalytical,
+    CantileverBeam2DAnalytical,
 )
 from pyapprox.typing.benchmarks.functions.genz import (
     OscillatoryFunction,
@@ -88,6 +90,12 @@ from pyapprox.typing.benchmarks.instances import (
     coupled_springs_2mass,
     hastings_ecology_3species,
     chemical_reaction_surface,
+    elastic_bar_1d,
+    cantilever_beam_1d,
+    cantilever_beam_2d_linear,
+    cantilever_beam_2d_neohookean,
+    cantilever_beam_1d_analytical,
+    cantilever_beam_2d_analytical,
 )
 
 __all__ = [
@@ -121,6 +129,8 @@ __all__ = [
     "BraninFunction",
     "BRANIN_GLOBAL_MINIMUM",
     "BRANIN_MINIMIZERS",
+    "CantileverBeam1DAnalytical",
+    "CantileverBeam2DAnalytical",
     # Functions - Genz
     "OscillatoryFunction",
     "ProductPeakFunction",
@@ -159,4 +169,11 @@ __all__ = [
     "coupled_springs_2mass",
     "hastings_ecology_3species",
     "chemical_reaction_surface",
+    # Instances - PDE
+    "elastic_bar_1d",
+    "cantilever_beam_1d",
+    "cantilever_beam_2d_linear",
+    "cantilever_beam_2d_neohookean",
+    "cantilever_beam_1d_analytical",
+    "cantilever_beam_2d_analytical",
 ]
