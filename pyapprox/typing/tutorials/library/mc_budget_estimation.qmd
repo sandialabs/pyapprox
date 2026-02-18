@@ -1,0 +1,518 @@
+---
+title: "Monte Carlo Budget Estimation"
+subtitle: "PyApprox Tutorial Library"
+description: "Using pilot samples and the PyApprox estimator API to predict the number of samples needed for a target accuracy."
+tutorial_type: hands-on
+topic: uncertainty_quantification
+difficulty: intermediate
+estimated_time: 15
+prerequisites:
+  - estimator_accuracy_mse
+tags:
+  - uq
+  - monte-carlo
+  - budget
+  - estimator-api
+format:
+  html:
+    code-fold: false
+    code-tools: true
+    toc: true
+execute:
+  echo: true
+  warning: false
+jupyter: python3
+---
+
+::: {.callout-tip collapse="true"}
+## Download Notebook
+[Download as Jupyter Notebook](notebooks/mc_budget_estimation.ipynb)
+:::
+
+## Learning Objectives
+
+After completing this tutorial, you will be able to:
+
+- Explain why the MSE formulas from the previous tutorial cannot be evaluated directly in practice
+- Use **pilot samples** to estimate the moments ($\boldsymbol{\Sigma}$, $\mathbf{W}$, $\mathbf{B}$) that appear in the MSE formulas
+- Use the PyApprox estimator API (`MultiOutputMeanAndVariance`, `MCEstimator`, `allocate_samples`) to compute the sample budget for a target accuracy
+- Recognize that the budget estimate is itself uncertain and understand how pilot sample size affects its reliability
+
+## Prerequisites
+
+Complete [Estimator Accuracy and Mean Squared Error](estimator_accuracy_mse.qmd) before this tutorial.
+
+
+## The Practical Catch
+
+The [previous tutorial](estimator_accuracy_mse.qmd) derived that the estimator covariance for simultaneously estimating the mean and covariance of $K$ QoIs is:
+
+$$
+\text{Cov}[\hat{\mathbf{Q}}_M] = \begin{bmatrix}
+\frac{1}{M}\boldsymbol{\Sigma} & \frac{1}{M}\mathbf{B} \\[4pt]
+\frac{1}{M}\mathbf{B}^\top & \frac{1}{M(M-1)}\mathbf{V} + \frac{1}{M}\mathbf{W}
+\end{bmatrix}
+$$
+
+To use this formula --- for example, to determine how many samples $M$ we need so that the estimator variance drops below a target --- we need to know $\boldsymbol{\Sigma}$, $\mathbf{W}$, and $\mathbf{B}$. But these are properties of the QoI distribution, which is exactly what we are trying to characterize. We don't know them yet.
+
+This is the bootstrapping problem: **to plan a Monte Carlo experiment, we need information that only the experiment itself can provide.**
+
+The standard solution is a two-stage approach:
+
+1. **Pilot stage**: run a small, cheap Monte Carlo experiment to estimate $\boldsymbol{\Sigma}$, $\mathbf{W}$, and $\mathbf{B}$.
+2. **Budget stage**: plug these estimates into the MSE formulas to determine the total number of samples $M$ needed for a target accuracy.
+
+
+## Setup
+
+::: {.callout-tip}
+## Simplified model for comparison
+As in the [previous tutorial](estimator_accuracy_mse.qmd), we use a lightweight analytical model with $K = 3$ QoIs so that exact moments are available for verification. The same workflow applies to any model, including expensive PDE solvers.
+
+$$
+\mathbf{q}(x) = \begin{bmatrix} \sqrt{11}\, x^5 \\[4pt] x^4 + \cos(2.2\pi x) \\[4pt] \sin(2\pi x) \end{bmatrix}, \quad x \sim U[0,1]
+$$
+:::
+
+```{python}
+import numpy as np
+import matplotlib.pyplot as plt
+from pyapprox.typing.util.backends.numpy import NumpyBkd
+from pyapprox.typing.benchmarks.instances.multifidelity.multioutput_ensemble import (
+    psd_multioutput_ensemble_3x3,
+)
+from pyapprox.typing.statest.statistics import (
+    MultiOutputMean,
+    MultiOutputVariance,
+    MultiOutputMeanAndVariance,
+)
+from pyapprox.typing.statest.mc_estimator import MCEstimator
+
+bkd = NumpyBkd()
+bm = psd_multioutput_ensemble_3x3(bkd)
+model = bm.models()[0]       # highest-fidelity model
+variable = bm.prior()
+
+nqoi = model.nqoi()          # 3 QoIs
+cost_per_eval = 2.1
+
+print(f"QoIs: {nqoi}")
+print(f"Cost per evaluation: {cost_per_eval}")
+```
+
+
+## Stage 1: Pilot Samples
+
+We draw a modest number of pilot samples $M_{\text{pilot}}$, evaluate the model, and estimate the three moment quantities from the resulting QoI values.
+
+```{python}
+M_pilot = 50
+np.random.seed(42)
+samples_pilot = variable.rvs(M_pilot)
+values_pilot = model(samples_pilot)  # shape (nqoi, M_pilot)
+
+print(f"Pilot samples: {M_pilot}")
+print(f"Values shape: {values_pilot.shape}")
+```
+
+### Estimating $\boldsymbol{\Sigma}$, $\mathbf{W}$, and $\mathbf{B}$
+
+From the pilot QoI values, we compute:
+
+- $\hat{\boldsymbol{\Sigma}}$: the sample covariance of the QoI values ($K \times K$)
+- $\hat{\mathbf{W}}$: the sample covariance of the centered outer products $(\mathbf{q}^{(i)} - \hat{\boldsymbol{\mu}})^{\otimes 2}$ ($K^2 \times K^2$)
+- $\hat{\mathbf{B}}$: the sample covariance between the QoI values and their centered outer products ($K \times K^2$)
+
+The `MultiOutputMeanAndVariance` statistic class provides `compute_pilot_quantities` to compute all three from raw model evaluations:
+
+```{python}
+stat_mv = MultiOutputMeanAndVariance(nqoi, bkd)
+cov_pilot, W_pilot, B_pilot = stat_mv.compute_pilot_quantities([values_pilot])
+
+print("Pilot estimate of Sigma:")
+print(cov_pilot)
+print(f"\nW shape: {W_pilot.shape}")
+print(f"B shape: {B_pilot.shape}")
+```
+
+::: {.callout-note}
+## What are we estimating?
+- $\hat{\boldsymbol{\Sigma}}$ captures how the three QoIs co-vary --- needed for the mean--mean block of the estimator covariance.
+- $\hat{\mathbf{W}}$ captures the fourth-order moment structure --- needed for the variance--variance block.
+- $\hat{\mathbf{B}}$ captures the third-order (skewness-like) structure --- needed for the mean--variance cross block.
+
+With only $M_{\text{pilot}} = 50$ samples, these estimates are rough. The fourth-order moments in $\hat{\mathbf{W}}$ are particularly noisy because they depend on tail behavior that a small sample may not capture.
+:::
+
+
+## Stage 2: Budget Computation with the PyApprox API
+
+PyApprox provides an estimator API that encapsulates the MSE formulas and budget computation. The workflow is:
+
+1. Create a **stat** object that defines which statistics we want to estimate.
+2. Set the pilot moment estimates on the stat object.
+3. Create an **estimator** (here, `MCEstimator`).
+4. Call `allocate_samples` with a target computational cost to determine the optimal number of samples.
+
+```{python}
+# Step 1-2: Create stat and set pilot quantities
+stat = MultiOutputMeanAndVariance(nqoi, bkd)
+stat.set_pilot_quantities(cov_pilot, W_pilot, B_pilot)
+
+# Step 3: Create the MC estimator
+est = MCEstimator(stat, cost_per_eval)
+
+# Step 4: Allocate samples for a target cost
+target_cost = 500.0
+est.allocate_samples(target_cost)
+print(f"Target cost: {target_cost}")
+print(f"Allocated samples: {est._rounded_nsamples_per_model}")
+print(f"Actual cost: {float(est._rounded_nsamples_per_model[0]) * cost_per_eval:.1f}")
+```
+
+### Understanding the Output
+
+The `allocate_samples` call determines how many model evaluations to run. For single-model Monte Carlo, this is simply $M = \lfloor \text{target\_cost} / \text{cost\_per\_eval} \rfloor$. Because the number of samples must be an integer, the actual cost is generally less than the target --- no partial evaluations are allowed. The power of this API becomes apparent with multi-fidelity methods (covered in later tutorials), where it optimally distributes samples across models of different cost and accuracy.
+
+We can also inspect the **predicted estimator covariance** at this allocation:
+
+```{python}
+predicted_est_cov = est.optimized_covariance()
+nstats = stat.nstats()
+print(f"Number of statistics: {nstats}")
+print(f"Predicted estimator covariance shape: {predicted_est_cov.shape}")
+print(f"\nDiagonal (individual estimator variances):")
+print(bkd.diag(predicted_est_cov))
+```
+
+
+## Running the Allocated Experiment
+
+With the budget determined, we generate samples, evaluate the model, and compute the statistics:
+
+```{python}
+# Generate samples according to the allocation
+np.random.seed(123)
+samples_allocated = est.generate_samples_per_model(variable.rvs)[0]
+values_allocated = model(samples_allocated)
+
+# Compute the statistics
+result = est(values_allocated)
+mean_est = result[:nqoi]
+cov_entries = result[nqoi:]  # lower-triangle entries of covariance
+
+print(f"Estimated mean vector: {mean_est}")
+print(f"Estimated covariance entries (lower triangle): {cov_entries}")
+```
+
+
+## Verifying the Predicted Accuracy
+
+The predicted estimator covariance tells us how precise we *expect* the estimates to be. We can verify this empirically by repeating the experiment many times and checking that the actual spread matches the prediction.
+
+@fig-budget-verification runs 200 independent experiments at the allocated budget and compares the empirical estimator covariance with the prediction.
+
+```{python}
+#| echo: false
+#| fig-cap: "Verification of the budget prediction. Histograms of mean estimates from 200 independent experiments at the allocated budget, with the predicted standard deviation (red dashed) and empirical standard deviation (green) overlaid."
+#| label: fig-budget-verification
+
+n_reps = 200
+M_alloc = int(est._rounded_nsamples_per_model[0])
+all_means = np.empty((n_reps, nqoi))
+
+for i in range(n_reps):
+    np.random.seed(i + 300000)
+    s = variable.rvs(M_alloc)
+    q = model(s)
+    all_means[i] = bkd.to_numpy(bkd.mean(q, axis=1))
+
+fig, axes = plt.subplots(1, nqoi, figsize=(4 * nqoi, 4))
+qoi_labels = [rf"$\hat{{\mu}}_{{{k+1}}}$" for k in range(nqoi)]
+colors = ["#2C7FB8", "#E67E22", "#27AE60"]
+
+predicted_est_cov_np = bkd.to_numpy(predicted_est_cov)
+
+from scipy.stats import norm
+
+for col, ax in enumerate(axes):
+    ax.hist(all_means[:, col], bins=30, density=True, color=colors[col],
+            alpha=0.7, edgecolor="k", lw=0.3)
+
+    pred_std = np.sqrt(predicted_est_cov_np[col, col])
+    emp_mean = np.mean(all_means[:, col])
+    emp_std = np.std(all_means[:, col])
+
+    x_grid = np.linspace(all_means[:, col].min(), all_means[:, col].max(), 200)
+    ax.plot(x_grid, norm.pdf(x_grid, emp_mean, pred_std), "r--", lw=2,
+            label=f"Predicted σ = {pred_std:.4f}")
+    ax.axvline(emp_mean, color="#27AE60", ls="-", lw=1.5,
+               label=f"Empirical σ = {emp_std:.4f}")
+
+    ax.set_xlabel(qoi_labels[col], fontsize=12)
+    ax.set_ylabel("Density", fontsize=12)
+    ax.set_title(f"Mean estimator, $M = {M_alloc}$", fontsize=11)
+    ax.legend(fontsize=8)
+    ax.grid(True, alpha=0.2)
+
+plt.tight_layout()
+plt.show()
+```
+
+
+## The Budget Depends on the Target Statistic
+
+The estimator covariance depends on which statistics we estimate. Estimating the mean alone is cheaper than estimating the mean and covariance simultaneously, because the latter requires accurate fourth-order moments.
+
+@fig-budget-vs-statistic shows the predicted trace of the estimator covariance as a function of the computational budget for three choices: mean only, variance only, and mean + variance.
+
+```{python}
+#| echo: false
+#| fig-cap: "Predicted estimation error (trace of estimator covariance) vs. computational budget for three statistic choices. Estimating the variance requires a larger budget than the mean for the same accuracy, and estimating both simultaneously is the most expensive."
+#| label: fig-budget-vs-statistic
+
+# Create stat objects and set pilot quantities
+stat_mean = MultiOutputMean(nqoi, bkd)
+(cov_m,) = stat_mean.compute_pilot_quantities([values_pilot])
+stat_mean.set_pilot_quantities(cov_m)
+
+stat_var = MultiOutputVariance(nqoi, bkd)
+cov_v, W_v = stat_var.compute_pilot_quantities([values_pilot])
+stat_var.set_pilot_quantities(cov_v, W_v)
+
+stat_mv2 = MultiOutputMeanAndVariance(nqoi, bkd)
+stat_mv2.set_pilot_quantities(cov_pilot, W_pilot, B_pilot)
+
+stat_configs = {
+    "Mean only": stat_mean,
+    "Variance only": stat_var,
+    "Mean + Variance": stat_mv2,
+}
+
+budget_values = np.logspace(1, 3.5, 30)
+colors_stat = ["#2C7FB8", "#E67E22", "#C0392B"]
+
+fig, ax = plt.subplots(figsize=(8, 5))
+
+for (name, stat_obj), color in zip(stat_configs.items(), colors_stat):
+    traces = []
+    for budget in budget_values:
+        est_temp = MCEstimator(stat_obj, cost_per_eval)
+        est_temp.allocate_samples(float(budget))
+        est_cov = est_temp.optimized_covariance()
+        traces.append(float(bkd.trace(est_cov)))
+    ax.loglog(budget_values, traces, "-o", ms=4, color=color, label=name)
+
+ax.set_xlabel("Computational budget (model evaluations)", fontsize=12)
+ax.set_ylabel("tr(Cov[$\\hat{\\mathbf{Q}}_M$])", fontsize=12)
+ax.set_title("Estimation error vs. budget by statistic", fontsize=11)
+ax.legend(fontsize=10)
+ax.grid(True, alpha=0.2, which="both")
+plt.tight_layout()
+plt.show()
+```
+
+
+## Pilot Size Matters
+
+The budget estimate is only as good as the pilot estimates of $\boldsymbol{\Sigma}$, $\mathbf{W}$, and $\mathbf{B}$. A small pilot produces noisy moment estimates, which in turn produce unreliable budget predictions.
+
+@fig-pilot-sensitivity demonstrates this. We repeat the entire two-stage workflow 100 times, each with a fresh pilot of size $M_{\text{pilot}}$, and record the predicted estimator standard deviation for $\hat{\mu}_1$. With $M_{\text{pilot}} = 20$, the predictions scatter widely; with $M_{\text{pilot}} = 200$, they concentrate near the true value.
+
+```{python}
+#| echo: false
+#| fig-cap: "Sensitivity of the budget prediction to pilot size. Each point is the predicted standard deviation of $\\hat{\\mu}_1$ from an independent pilot experiment. Small pilots ($M_{\\text{pilot}} = 20$) produce highly variable predictions; larger pilots ($M_{\\text{pilot}} = 200$) are much more stable. The true value (from the benchmark's exact moments) is shown as a dashed red line."
+#| label: fig-pilot-sensitivity
+
+pilot_sizes = [20, 50, 100, 200]
+n_pilot_reps = 100
+target_for_test = 500.0
+
+# Reference: exact moments from the benchmark
+ensemble = bm._ensemble
+cov_true = ensemble.covariance_matrix()[:nqoi, :nqoi]
+W_true = ensemble.covariance_of_centered_values_kronecker_product_subproblem(
+    [0], list(range(nqoi))
+)
+B_true = ensemble.covariance_of_mean_and_variance_estimators_subproblem(
+    [0], list(range(nqoi))
+)
+stat_ref = MultiOutputMeanAndVariance(nqoi, bkd)
+stat_ref.set_pilot_quantities(cov_true, W_true, B_true)
+est_ref = MCEstimator(stat_ref, cost_per_eval)
+est_ref.allocate_samples(target_for_test)
+true_pred_std = float(bkd.sqrt(est_ref.optimized_covariance()[0, 0]))
+
+# Collect all predicted stds first to determine shared x range
+all_pred_stds = {}
+for M_p in pilot_sizes:
+    pred_stds = np.empty(n_pilot_reps)
+    for i in range(n_pilot_reps):
+        np.random.seed(i + 400000 + M_p * 1000)
+        s_p = variable.rvs(M_p)
+        v_p = model(s_p)
+
+        stat_p = MultiOutputMeanAndVariance(nqoi, bkd)
+        cov_p, W_p, B_p = stat_p.compute_pilot_quantities([v_p])
+        stat_p.set_pilot_quantities(cov_p, W_p, B_p)
+        est_p = MCEstimator(stat_p, cost_per_eval)
+        est_p.allocate_samples(target_for_test)
+        pred_stds[i] = float(bkd.sqrt(est_p.optimized_covariance()[0, 0]))
+    all_pred_stds[M_p] = pred_stds
+
+# Shared x limits across all panels
+all_vals = np.concatenate(list(all_pred_stds.values()))
+x_pad = 0.05 * (all_vals.max() - all_vals.min())
+xlim = (all_vals.min() - x_pad, all_vals.max() + x_pad)
+
+fig, axes = plt.subplots(1, len(pilot_sizes), figsize=(14, 3.5), sharey=True)
+
+for ax, M_p in zip(axes, pilot_sizes):
+    ax.hist(all_pred_stds[M_p], bins=25, density=True, color="#2C7FB8",
+            alpha=0.7, edgecolor="k", lw=0.3)
+    ax.axvline(true_pred_std, color="#C0392B", ls="--", lw=2)
+    ax.set_xlim(xlim)
+    ax.set_xlabel("Predicted σ", fontsize=10)
+    ax.set_title(f"$M_{{\\text{{pilot}}}} = {M_p}$", fontsize=11)
+    ax.grid(True, alpha=0.2)
+
+axes[0].set_ylabel("Density", fontsize=11)
+fig.suptitle(
+    "Predicted std of $\\hat{\\mu}_1$ at budget = "
+    f"{int(target_for_test)}, across {n_pilot_reps} independent pilots",
+    fontsize=11, y=1.02,
+)
+plt.tight_layout()
+plt.show()
+```
+
+::: {.callout-important}
+## Practical guidance on pilot size
+There is no universal rule for $M_{\text{pilot}}$, but some heuristics:
+
+- **For the mean only**: the pilot needs to estimate $\boldsymbol{\Sigma}$ (second moments). A pilot of $M_{\text{pilot}} \approx 30\text{--}50$ is often adequate.
+- **For the variance**: the pilot needs to estimate $\mathbf{W}$ (fourth moments), which converges more slowly. A pilot of $M_{\text{pilot}} \approx 100\text{--}200$ is safer.
+- **When in doubt**: use the pilot samples as the first batch of the final experiment. The total budget is $M_{\text{pilot}} + M_{\text{additional}}$, so pilot samples are never wasted.
+:::
+
+
+## The Complete Two-Stage Workflow
+
+Putting it all together, the practical MC workflow for a target accuracy is:
+
+```{python}
+# --- Full workflow ---
+
+# 1. Choose target accuracy and statistic
+target_cost = 1000.0
+stat_full = MultiOutputMeanAndVariance(nqoi, bkd)
+
+# 2. Run pilot
+M_pilot_full = 100
+np.random.seed(999)
+samples_pilot_full = variable.rvs(M_pilot_full)
+values_pilot_full = model(samples_pilot_full)
+
+# 3. Estimate moments from pilot
+cov_hat, W_hat, B_hat = stat_full.compute_pilot_quantities([values_pilot_full])
+stat_full.set_pilot_quantities(cov_hat, W_hat, B_hat)
+
+# 4. Create estimator and allocate budget
+est_full = MCEstimator(stat_full, cost_per_eval)
+est_full.allocate_samples(target_cost)
+print(f"Allocated samples: {est_full._rounded_nsamples_per_model}")
+print(f"Actual cost: {float(est_full._rounded_nsamples_per_model[0]) * cost_per_eval:.1f} "
+      f"(target: {target_cost})")
+
+# 5. Generate samples and evaluate model
+np.random.seed(1000)
+samples_final = est_full.generate_samples_per_model(variable.rvs)[0]
+values_final = model(samples_final)
+
+# 6. Compute statistics
+result_full = est_full(values_final)
+mean_final = result_full[:nqoi]
+cov_entries_final = result_full[nqoi:]
+
+print(f"\nEstimated mean:  {mean_final}")
+print(f"Estimated covariance (lower triangle): {cov_entries_final}")
+
+# 7. Report predicted accuracy
+pred_cov_full = est_full.optimized_covariance()
+for k in range(nqoi):
+    print(f"Predicted std of mean(q_{k+1}): {float(bkd.sqrt(pred_cov_full[k,k])):.6f}")
+```
+
+### Visualizing the Estimator Covariance
+
+The estimator covariance matrix at the allocated budget shows the block structure derived in the previous tutorial.
+
+```{python}
+#| fig-cap: "Estimator covariance matrix for simultaneous mean and covariance estimation at the allocated budget. The block structure from the previous tutorial is visible: mean-mean (top-left), mean-variance (off-diagonal), variance-variance (bottom-right)."
+#| label: fig-est-cov-final
+
+# Build labels for the 9 statistics: 3 means + 6 lower-triangle covariance
+stat_labels = [rf"$\hat{{\mu}}_{{{k+1}}}$" for k in range(nqoi)]
+for j in range(nqoi):
+    for k in range(j + 1):
+        stat_labels.append(rf"$\hat{{\Sigma}}_{{{j+1}{k+1}}}$")
+
+# Convert to numpy for plotting
+pred_cov_plot = bkd.to_numpy(pred_cov_full)
+
+fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(14, 5))
+
+vmin = pred_cov_plot.min()
+vmax = pred_cov_plot.max()
+
+im1 = ax1.imshow(pred_cov_plot, cmap="RdBu_r", aspect="equal",
+                 vmin=vmin, vmax=vmax)
+ax1.set_xticks(range(nstats))
+ax1.set_xticklabels(stat_labels, fontsize=7, rotation=45)
+ax1.set_yticks(range(nstats))
+ax1.set_yticklabels(stat_labels, fontsize=7)
+ax1.set_title(f"Estimator covariance (target_cost = {target_cost:.0f})", fontsize=11)
+fig.colorbar(im1, ax=ax1, shrink=0.7)
+
+# Bar chart of diagonal
+diag_vals = np.diag(pred_cov_plot)
+colors_bar = ["#2C7FB8"] * nqoi + ["#E67E22"] * (nstats - nqoi)
+ax2.bar(range(nstats), diag_vals, color=colors_bar, edgecolor="k", lw=0.3)
+ax2.set_xticks(range(nstats))
+ax2.set_xticklabels(stat_labels, fontsize=8, rotation=45)
+ax2.set_ylabel("Estimator variance", fontsize=12)
+ax2.set_title("Individual estimator variances (diagonal)", fontsize=11)
+ax2.grid(True, alpha=0.2, axis="y")
+
+plt.tight_layout()
+plt.show()
+```
+
+
+## Key Takeaways
+
+- The MSE formulas require knowledge of the QoI moments ($\boldsymbol{\Sigma}$, $\mathbf{W}$, $\mathbf{B}$), which must be **estimated from pilot samples**
+- The PyApprox estimator API encapsulates this workflow: define the statistic → set pilot quantities → allocate budget → generate samples → compute estimates
+- The **pilot size matters**: small pilots produce noisy moment estimates, leading to unreliable budget predictions --- especially for variance estimation, which depends on fourth-order moments
+- Pilot samples can be reused as part of the final experiment, so they are never wasted
+- The predicted estimator covariance matrix provides a pre-computation accuracy forecast that can be verified empirically
+
+
+## Exercises
+
+1. Run the complete two-stage workflow with `target_cost = 100` and `target_cost = 10000`. Compare the predicted estimator standard deviations. Does the improvement match the expected $1/\sqrt{M}$ scaling?
+
+2. Modify the workflow to estimate the **mean only** (not mean + variance). How does the required budget compare for the same target accuracy? Why is it cheaper?
+
+3. In @fig-pilot-sensitivity, the histograms for small pilots are wide and sometimes produce budget predictions that are far too optimistic. Explain why an underestimate of $\mathbf{W}$ leads to an overly optimistic (too small) budget for variance estimation.
+
+4. **(Challenge)** Implement a simple adaptive scheme: start with $M_{\text{pilot}} = 30$, estimate the budget, run the experiment, then use all samples as a new pilot and re-estimate the budget. Does the budget estimate stabilize after one or two iterations?
+
+
+## Next Steps
+
+Continue with:
+
+- [Multi-Fidelity Monte Carlo](multi_fidelity.qmd) --- Using cheap surrogate models to reduce the constant in the $1/M$ rate
+- [Surrogate Models](surrogate_models.qmd) --- Replacing the expensive model with a polynomial or Gaussian process approximation

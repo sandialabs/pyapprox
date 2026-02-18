@@ -1,0 +1,537 @@
+---
+title: "Estimator Accuracy and Mean Squared Error"
+subtitle: "PyApprox Tutorial Library"
+description: "Bias, variance, and MSE of Monte Carlo estimators for scalar and vector-valued statistics."
+tutorial_type: concept
+topic: uncertainty_quantification
+difficulty: intermediate
+estimated_time: 15
+prerequisites:
+  - monte_carlo_sampling
+tags:
+  - uq
+  - monte-carlo
+  - mse
+  - estimator-theory
+format:
+  html:
+    code-fold: false
+    code-tools: true
+    toc: true
+execute:
+  echo: true
+  warning: false
+jupyter: python3
+---
+
+::: {.callout-tip collapse="true"}
+## Download Notebook
+[Download as Jupyter Notebook](notebooks/estimator_accuracy_mse.ipynb)
+:::
+
+## Learning Objectives
+
+After completing this tutorial, you will be able to:
+
+- Define the bias, variance, and mean squared error (MSE) of an estimator
+- State the MSE of the Monte Carlo mean and variance estimators and explain their $1/M$ convergence
+- Write the estimator covariance matrix for simultaneous estimation of mean and covariance of a vector-valued QoI
+- Identify the role of higher-order moments ($\mathbf{W}$, $\mathbf{B}$ matrices) in controlling estimator accuracy
+
+## Prerequisites
+
+Complete [Monte Carlo Sampling](monte_carlo_sampling.qmd) before this tutorial.
+
+
+## Formalizing What We Observed
+
+The [previous tutorial](monte_carlo_sampling.qmd) made three empirical observations:
+
+1. Monte Carlo estimates are random --- different samples give different answers.
+2. More samples produce more precise estimates.
+3. Some statistics (variance, covariance) are harder to estimate than others (mean).
+
+This tutorial provides the mathematical framework that explains all three observations and makes them quantitative.
+
+
+## Bias, Variance, and MSE of a Scalar Estimator
+
+Let $s$ be a true quantity we want to compute (e.g., the mean of the QoI), and let $\hat{s}_M$ be an estimator of $s$ based on $M$ samples. Because the samples are random, $\hat{s}_M$ is itself a random variable. We measure its quality with three quantities.
+
+**Bias** --- systematic error:
+
+$$
+\text{Bias}[\hat{s}_M] = \mathbb{E}[\hat{s}_M] - s
+$$
+
+An estimator with $\text{Bias} = 0$ is called **unbiased**: on average, it hits the true value.
+
+**Variance** --- random spread:
+
+$$
+\text{Var}[\hat{s}_M] = \mathbb{E}\!\left[(\hat{s}_M - \mathbb{E}[\hat{s}_M])^2\right]
+$$
+
+This is the width of the histogram we saw in the previous tutorial.
+
+**Mean Squared Error** --- total error:
+
+$$
+\text{MSE}[\hat{s}_M] = \mathbb{E}\!\left[(\hat{s}_M - s)^2\right] = \text{Bias}[\hat{s}_M]^2 + \text{Var}[\hat{s}_M]
+$$
+
+For an unbiased estimator, $\text{MSE} = \text{Var}$.
+
+
+## MSE of the Mean Estimator
+
+The Monte Carlo estimator of the mean of a scalar QoI $q = f(\boldsymbol{\theta})$ is:
+
+$$
+\hat{\mu}_M = \frac{1}{M}\sum_{i=1}^M q^{(i)}
+$$
+
+This estimator is **unbiased**: $\mathbb{E}[\hat{\mu}_M] = \mu$. Its variance is:
+
+$$
+\text{Var}[\hat{\mu}_M] = \frac{\sigma^2}{M}
+$$ {#eq-mean-var}
+
+where $\sigma^2 = \text{Var}[q]$ is the true variance of the QoI. Therefore $\text{MSE}[\hat{\mu}_M] = \sigma^2 / M$.
+
+This is the **fundamental convergence rate** of Monte Carlo: the error decreases as $1/M$. To halve the standard error, we need $4\times$ the samples.
+
+::: {.callout-tip}
+## Simplified model for comparison
+This tutorial uses a lightweight analytical model with $K = 3$ QoIs so that (i) the true moments are available to high accuracy via quadrature, enabling precise comparison between empirical and theoretical estimator covariances, and (ii) the MC experiments run fast enough to use large repetition counts. The same theory applies to any model, including expensive PDE solvers.
+
+The model maps a single uniform input $x \sim U[0,1]$ to three QoIs:
+
+$$
+\mathbf{q}(x) = \begin{bmatrix} \sqrt{11}\, x^5 \\[4pt] x^4 + \cos(2.2\pi x) \\[4pt] \sin(2\pi x) \end{bmatrix}
+$$
+:::
+
+@fig-mean-mse-convergence verifies this empirically. At each sample size $M$, we run 500 independent MC experiments and compute the empirical variance of the resulting mean estimates. The points follow the theoretical $\sigma^2/M$ line.
+
+```{python}
+#| echo: false
+import numpy as np
+import matplotlib.pyplot as plt
+from pyapprox.typing.util.backends.numpy import NumpyBkd
+from pyapprox.typing.benchmarks.instances.multifidelity.multioutput_ensemble import (
+    psd_multioutput_ensemble_3x3,
+)
+
+bkd = NumpyBkd()
+bm = psd_multioutput_ensemble_3x3(bkd)
+model = bm.models()[0]       # highest-fidelity model
+variable = bm.prior()
+K = model.nqoi()              # 3 QoIs
+
+# --- True moments from the benchmark (high-accuracy quadrature) ---
+ensemble = bm._ensemble
+true_mean = bkd.to_numpy(ensemble.means())[0]          # (K,) model 0 means
+cov_full = bkd.to_numpy(ensemble.covariance_matrix())
+true_cov = cov_full[:K, :K]                             # (K, K) model 0 block
+
+# Scalar moments for QoI 0
+true_var = true_cov[0, 0]
+# W_true[0,0] = Var[(q0-mu0)^2] so kappa4 = W[0,0] + sigma^4
+W_true = bkd.to_numpy(
+    ensemble.covariance_of_centered_values_kronecker_product_subproblem(
+        [0], list(range(K))
+    )
+)
+true_kappa4 = W_true[0, 0] + true_var**2
+
+# B matrix: Cov[q, (q-mu)^{otimes 2}]
+B_true = bkd.to_numpy(
+    ensemble.covariance_of_mean_and_variance_estimators_subproblem(
+        [0], list(range(K))
+    )
+)
+```
+
+```{python}
+#| echo: false
+#| fig-cap: "Convergence of the MC mean estimator. Empirical variance of $\\hat{\\mu}_M$ (dots) versus sample size $M$, compared with the theoretical rate $\\sigma^2/M$ (dashed line). The true variance $\\sigma^2$ is computed via Gaussian quadrature."
+#| label: fig-mean-mse-convergence
+
+n_reps = 500
+M_values = [10, 20, 50, 100, 200, 500, 1000]
+
+empirical_var_of_mean = np.empty(len(M_values))
+for j, M in enumerate(M_values):
+    means = np.empty(n_reps)
+    for i in range(n_reps):
+        np.random.seed(i + j * n_reps)
+        s = variable.rvs(M)
+        means[i] = np.mean(bkd.to_numpy(model(s))[0])
+    empirical_var_of_mean[j] = np.var(means)
+
+fig, ax = plt.subplots(figsize=(7, 4.5))
+ax.loglog(M_values, empirical_var_of_mean, "o", ms=7, color="#2C7FB8",
+          label="Empirical Var[$\\hat{\\mu}_M$]", zorder=3)
+M_theory = np.array([5, 2000])
+ax.loglog(M_theory, true_var / M_theory, "--", color="#C0392B", lw=1.5,
+          label=r"$\sigma^2 / M$")
+ax.set_xlabel("$M$ (number of samples)", fontsize=12)
+ax.set_ylabel("Var[$\\hat{\\mu}_M$]", fontsize=12)
+ax.set_title("Convergence of the MC mean estimator", fontsize=11)
+ax.legend(fontsize=10)
+ax.grid(True, alpha=0.2, which="both")
+plt.tight_layout()
+plt.show()
+```
+
+
+## MSE of the Variance Estimator
+
+The MC estimator of the variance is:
+
+$$
+\hat{\sigma}^2_M = \frac{1}{M-1}\sum_{i=1}^M (q^{(i)} - \hat{\mu}_M)^2
+$$
+
+This estimator is also **unbiased** (the $M-1$ denominator ensures this). Its variance is:
+
+$$
+\text{Var}[\hat{\sigma}^2_M] = \frac{1}{M}\left(\kappa_4 - \frac{M-3}{M-1}\sigma^4\right)
+$$ {#eq-var-var}
+
+where $\kappa_4 = \mathbb{E}[(q - \mu)^4]$ is the **fourth central moment** (related to kurtosis) of the QoI. For large $M$ this simplifies to:
+
+$$
+\text{Var}[\hat{\sigma}^2_M] \approx \frac{\kappa_4 - \sigma^4}{M}
+$$
+
+The key observation: **the variance estimator also converges at rate $1/M$**, but the constant $\kappa_4 - \sigma^4$ is typically much larger than $\sigma^2$. This is why the variance histogram was wider than the mean histogram in the previous tutorial.
+
+@fig-mean-vs-var-convergence confirms this: both estimators converge at rate $1/M$ on the log-log plot (parallel lines), but the variance estimator curve sits higher.
+
+```{python}
+#| echo: false
+#| fig-cap: "Convergence comparison: MC mean estimator vs. MC variance estimator. Both converge at rate $1/M$ (parallel lines on log-log), but the variance estimator has a larger constant, confirming that it requires more samples for the same precision."
+#| label: fig-mean-vs-var-convergence
+
+empirical_var_of_var = np.empty(len(M_values))
+for j, M in enumerate(M_values):
+    variances = np.empty(n_reps)
+    for i in range(n_reps):
+        np.random.seed(i + j * n_reps + 100000)
+        s = variable.rvs(M)
+        q = bkd.to_numpy(model(s))[0]
+        variances[i] = np.var(q, ddof=1)
+    empirical_var_of_var[j] = np.var(variances)
+
+fig, ax = plt.subplots(figsize=(7, 4.5))
+ax.loglog(M_values, empirical_var_of_mean, "o", ms=7, color="#2C7FB8",
+          label="Var[$\\hat{\\mu}_M$] (empirical)", zorder=3)
+ax.loglog(M_theory, true_var / M_theory, "--", color="#2C7FB8", lw=1.5,
+          label=r"$\sigma^2 / M$")
+ax.loglog(M_values, empirical_var_of_var, "s", ms=7, color="#E67E22",
+          label="Var[$\\hat{\\sigma}^2_M$] (empirical)", zorder=3)
+ax.loglog(M_theory, (true_kappa4 - true_var**2) / M_theory, "--",
+          color="#E67E22", lw=1.5,
+          label=r"$(\kappa_4 - \sigma^4) / M$")
+ax.set_xlabel("$M$ (number of samples)", fontsize=12)
+ax.set_ylabel("Estimator variance", fontsize=12)
+ax.set_title("Mean vs. variance estimator convergence", fontsize=11)
+ax.legend(fontsize=10)
+ax.grid(True, alpha=0.2, which="both")
+plt.tight_layout()
+plt.show()
+```
+
+
+## Vector-Valued Statistics
+
+Our model returns $K = 3$ QoIs: $\mathbf{q} = (q_1, q_2, q_3)^\top$. We want to simultaneously estimate the **mean vector** and the **covariance matrix**:
+
+$$
+(\hat{\boldsymbol{\mu}}_M)_k = \frac{1}{M}\sum_{i=1}^M q_k^{(i)}, \qquad k = 1, \ldots, K
+$$
+
+$$
+(\hat{\boldsymbol{\Sigma}}_M)_{jk} = \frac{1}{M-1}\sum_{i=1}^M \left(q_j^{(i)} - (\hat{\boldsymbol{\mu}}_M)_j\right)\left(q_k^{(i)} - (\hat{\boldsymbol{\mu}}_M)_k\right), \qquad j, k = 1, \ldots, K
+$$
+
+We can stack these into a single vector-valued statistic:
+
+$$
+\hat{\mathbf{Q}}_M = \begin{bmatrix} \hat{\boldsymbol{\mu}}_M \\ \text{flat}(\hat{\boldsymbol{\Sigma}}_M) \end{bmatrix} \in \mathbb{R}^{K + K^2}
+$$
+
+where $\text{flat}(\mathbf{X})$ vectorizes a matrix row by row.
+
+Because $\hat{\mathbf{Q}}_M$ is a random vector, its accuracy is characterized not by a scalar variance but by an **estimator covariance matrix**:
+
+$$
+\text{Cov}[\hat{\mathbf{Q}}_M] = \mathbb{E}\!\left[(\hat{\mathbf{Q}}_M - \mathbb{E}[\hat{\mathbf{Q}}_M])(\hat{\mathbf{Q}}_M - \mathbb{E}[\hat{\mathbf{Q}}_M])^\top\right] \in \mathbb{R}^{(K+K^2) \times (K+K^2)}
+$$
+
+This matrix has block structure:
+
+$$
+\text{Cov}[\hat{\mathbf{Q}}_M] = \begin{bmatrix}
+\text{Cov}[\hat{\boldsymbol{\mu}}_M, \hat{\boldsymbol{\mu}}_M] & \text{Cov}[\hat{\boldsymbol{\mu}}_M, \hat{\boldsymbol{\Sigma}}_M] \\
+\text{Cov}[\hat{\boldsymbol{\Sigma}}_M, \hat{\boldsymbol{\mu}}_M] & \text{Cov}[\hat{\boldsymbol{\Sigma}}_M, \hat{\boldsymbol{\Sigma}}_M]
+\end{bmatrix}
+$$
+
+The following subsections give the form of each block.
+
+### Mean--Mean Block
+
+The covariance between estimates of the mean vector is:
+
+$$
+\text{Cov}[\hat{\boldsymbol{\mu}}_M, \hat{\boldsymbol{\mu}}_M] = \frac{1}{M}\boldsymbol{\Sigma} \quad \in \mathbb{R}^{K \times K}
+$$ {#eq-mean-cov}
+
+This is the multivariate generalization of @eq-mean-var: the estimator covariance is proportional to the QoI covariance, scaled by $1/M$.
+
+### Variance--Variance Block
+
+The covariance between estimates of the covariance matrix entries is:
+
+$$
+\text{Cov}[\hat{\boldsymbol{\Sigma}}_M, \hat{\boldsymbol{\Sigma}}_M] = \frac{1}{M(M-1)}\mathbf{V} + \frac{1}{M}\mathbf{W} \quad \in \mathbb{R}^{K^2 \times K^2}
+$$ {#eq-var-cov}
+
+where
+
+$$
+\mathbf{V} = \boldsymbol{\Sigma}^{\otimes 2} + (\mathbf{1}_K^\top \otimes \boldsymbol{\Sigma} \otimes \mathbf{1}_K) \circ (\mathbf{1}_K \otimes \boldsymbol{\Sigma} \otimes \mathbf{1}_K^\top) \quad \in \mathbb{R}^{K^2 \times K^2}
+$$
+
+$$
+\mathbf{W} = \text{Cov}\!\left[(\mathbf{q} - \boldsymbol{\mu})^{\otimes 2},\; (\mathbf{q} - \boldsymbol{\mu})^{\otimes 2}\right] \quad \in \mathbb{R}^{K^2 \times K^2}
+$$
+
+Here we use the notation:
+
+- $\mathbf{X} \otimes \mathbf{Y} = \text{flat}(\mathbf{X}\mathbf{Y}^\top)$ is the flattened outer product
+- $\mathbf{X}^{\otimes 2} = \mathbf{X} \otimes \mathbf{X}$
+- $\mathbf{X} \circ \mathbf{Y}$ is the element-wise (Hadamard) product
+
+The $\mathbf{V}$ term involves only the QoI covariance $\boldsymbol{\Sigma}$ and vanishes relative to $\mathbf{W}$ as $M$ grows. The $\mathbf{W}$ term involves **fourth-order centered moments** of the QoI --- the multivariate generalization of $\kappa_4$ from the scalar case. This is what makes variance estimation fundamentally harder than mean estimation: it depends on the tail behavior of the QoI distribution.
+
+### Mean--Variance Cross Block
+
+The covariance between the mean and variance estimators is:
+
+$$
+\text{Cov}[\hat{\boldsymbol{\mu}}_M, \hat{\boldsymbol{\Sigma}}_M] = \frac{1}{M}\mathbf{B} \quad \in \mathbb{R}^{K \times K^2}
+$$ {#eq-mean-var-cov}
+
+where
+
+$$
+\mathbf{B} = \text{Cov}\!\left[\mathbf{q},\; (\mathbf{q} - \boldsymbol{\mu})^{\otimes 2}\right] \quad \in \mathbb{R}^{K \times K^2}
+$$
+
+This block involves **third-order centered moments** of the QoI. It is zero when the QoI distribution is symmetric (since odd central moments vanish), but nonzero for skewed distributions. Our model's nonlinear QoIs produce a skewed output distribution, so we expect $\mathbf{B} \neq 0$.
+
+::: {.callout-note}
+## Summary of moment requirements
+Each block of the estimator covariance depends on progressively higher-order moments of the QoI:
+
+| Block | Estimator pair | Moment order required |
+|-------|---------------|----------------------|
+| $\text{Cov}[\hat{\boldsymbol{\mu}}, \hat{\boldsymbol{\mu}}]$ | mean--mean | 2nd (covariance $\boldsymbol{\Sigma}$) |
+| $\text{Cov}[\hat{\boldsymbol{\mu}}, \hat{\boldsymbol{\Sigma}}]$ | mean--variance | 3rd (skewness-like, $\mathbf{B}$) |
+| $\text{Cov}[\hat{\boldsymbol{\Sigma}}, \hat{\boldsymbol{\Sigma}}]$ | variance--variance | 4th (kurtosis-like, $\mathbf{W}$) |
+:::
+
+
+## Empirical Verification
+
+@fig-estimator-covariance-empirical verifies the block structure empirically. We run 500 independent MC experiments with $M = 100$ samples each, compute $\hat{\mathbf{Q}}_M$ for each, and estimate the covariance of the resulting 500 estimates. The left panel shows this empirical estimator covariance; the right panel shows the theoretical prediction from the formulas above.
+
+```{python}
+#| echo: false
+#| fig-cap: "Estimator covariance matrix for simultaneous mean and covariance estimation ($K = 3$ QoIs, $M = 100$). Left: empirical covariance from 500 independent MC experiments. Right: theoretical prediction. The block structure --- mean-mean (top-left), mean-variance (off-diagonal), variance-variance (bottom-right) --- is clearly visible."
+#| label: fig-estimator-covariance-empirical
+
+n_reps_est = 500
+M_est = 100
+
+n_stats = K + K**2  # 3 + 9 = 12
+all_stats = np.empty((n_reps_est, n_stats))
+
+for i in range(n_reps_est):
+    np.random.seed(i + 200000)
+    s = variable.rvs(M_est)
+    q = bkd.to_numpy(model(s))           # (K, M_est)
+    mu_hat = np.mean(q, axis=1)           # (K,)
+    Sigma_hat = np.cov(q, ddof=1)         # (K, K), rowvar=True (default)
+    all_stats[i, :K] = mu_hat
+    all_stats[i, K:] = Sigma_hat.ravel()
+
+# Empirical estimator covariance
+empirical_est_cov = np.cov(all_stats, rowvar=False)
+
+# Theoretical estimator covariance
+# V[(jk),(lm)] = Sigma[j,l]*Sigma[k,m] + Sigma[j,m]*Sigma[k,l]
+Sig = true_cov
+V_true = np.zeros((K**2, K**2))
+for j in range(K):
+    for k in range(K):
+        for l in range(K):
+            for m in range(K):
+                V_true[j * K + k, l * K + m] = (
+                    Sig[j, l] * Sig[k, m] + Sig[j, m] * Sig[k, l]
+                )
+
+block_mm = true_cov / M_est                                        # (K, K)
+block_vv = V_true / (M_est * (M_est - 1)) + W_true / M_est        # (K^2, K^2)
+block_mv = B_true / M_est                                          # (K, K^2)
+
+theoretical_est_cov = np.block([
+    [block_mm,    block_mv],
+    [block_mv.T,  block_vv],
+])
+
+fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(14, 6))
+
+labels = (
+    [rf"$\hat{{\mu}}_{{{k+1}}}$" for k in range(K)]
+    + [rf"$\hat{{\Sigma}}_{{{j+1}{k+1}}}$"
+       for j in range(K) for k in range(K)]
+)
+
+vmin = min(empirical_est_cov.min(), theoretical_est_cov.min())
+vmax = max(empirical_est_cov.max(), theoretical_est_cov.max())
+
+im1 = ax1.imshow(empirical_est_cov, cmap="RdBu_r", aspect="equal",
+                 vmin=vmin, vmax=vmax)
+ax1.set_xticks(range(n_stats))
+ax1.set_xticklabels(labels, fontsize=7, rotation=45)
+ax1.set_yticks(range(n_stats))
+ax1.set_yticklabels(labels, fontsize=7)
+ax1.set_title("Empirical", fontsize=11)
+fig.colorbar(im1, ax=ax1, shrink=0.7)
+
+im2 = ax2.imshow(theoretical_est_cov, cmap="RdBu_r", aspect="equal",
+                 vmin=vmin, vmax=vmax)
+ax2.set_xticks(range(n_stats))
+ax2.set_xticklabels(labels, fontsize=7, rotation=45)
+ax2.set_yticks(range(n_stats))
+ax2.set_yticklabels(labels, fontsize=7)
+ax2.set_title("Theoretical", fontsize=11)
+fig.colorbar(im2, ax=ax2, shrink=0.7)
+
+plt.tight_layout()
+plt.show()
+```
+
+@fig-diagonal-variances extracts the diagonal entries --- the individual estimator variances --- and shows them as a bar chart. The variance-of-covariance entries are substantially larger than the variance-of-mean entries, confirming the pattern we observed in the [previous tutorial](monte_carlo_sampling.qmd).
+
+```{python}
+#| echo: false
+#| fig-cap: "Diagonal of the estimator covariance matrix: individual estimator variances. The covariance entries ($\\hat{\\Sigma}_{jk}$) have much larger estimator variance than the mean entries ($\\hat{\\mu}_k$), confirming that higher-order statistics are harder to estimate."
+#| label: fig-diagonal-variances
+
+fig, ax = plt.subplots(figsize=(12, 4))
+
+empirical_diag = np.diag(empirical_est_cov)
+theoretical_diag = np.diag(theoretical_est_cov)
+
+x = np.arange(n_stats)
+width = 0.35
+ax.bar(x - width/2, empirical_diag, width, color="#2C7FB8", alpha=0.7,
+       label="Empirical", edgecolor="k", lw=0.3)
+ax.bar(x + width/2, theoretical_diag, width, color="#E67E22", alpha=0.7,
+       label="Theoretical", edgecolor="k", lw=0.3)
+ax.set_xticks(x)
+ax.set_xticklabels(labels, fontsize=10)
+ax.set_ylabel("Estimator variance", fontsize=12)
+ax.set_title("Individual estimator variances (diagonal of Cov[$\\hat{\\mathbf{Q}}_M$])",
+             fontsize=11)
+ax.legend(fontsize=10)
+ax.grid(True, alpha=0.2, axis="y")
+plt.tight_layout()
+plt.show()
+```
+
+
+## Scalar MSE for Vector-Valued Statistics
+
+When the estimator is a vector, we need a scalar measure of total error. Two standard choices reduce the estimator covariance matrix to a single number:
+
+**Trace** (sum of diagonal variances):
+
+$$
+\text{MSE}_{\text{tr}} = \text{tr}\!\left(\text{Cov}[\hat{\mathbf{Q}}_M]\right) = \sum_{i=1}^{S} \text{Var}[\hat{Q}_{M,i}]
+$$
+
+This treats each component independently and sums their variances. It is the total variance across all statistics.
+
+**Determinant** (volume of the uncertainty ellipsoid):
+
+$$
+\text{MSE}_{\text{det}} = \det\!\left(\text{Cov}[\hat{\mathbf{Q}}_M]\right)
+$$
+
+This captures the joint uncertainty, including correlations between estimator errors. A large off-diagonal entry in the estimator covariance (e.g., the mean--variance cross block $\mathbf{B}$) inflates the determinant even if the individual variances are modest.
+
+Both measures decay as $O(1/M^S)$ for $S$ statistics, but the constants differ depending on the higher-order moments $\mathbf{W}$ and $\mathbf{B}$.
+
+
+## The $1/M$ Bottleneck
+
+Every estimator variance in this tutorial has the form:
+
+$$
+\text{Var}[\hat{s}_M] = \frac{C}{M}
+$$
+
+where $C$ is a constant that depends on the statistic being estimated and the moments of the QoI. The rate $1/M$ is universal:
+
+- It is **dimension-independent**: the same rate holds whether $\boldsymbol{\theta}$ has 2 parameters or 200.
+- It is **slow**: reducing the standard error by a factor of 10 requires $100\times$ more model evaluations.
+
+When each evaluation is an expensive simulation (e.g., a FEM solve), this becomes the central computational bottleneck of UQ. The subsequent tutorials introduce methods that break this bottleneck: surrogate models that replace $f$ with a cheap approximation, and multi-fidelity methods that combine cheap and expensive models to reduce the constant $C$.
+
+::: {.callout-note}
+## A practical catch
+The MSE formulas above assume we know the true moments --- $\boldsymbol{\Sigma}$ for the mean estimator, $\mathbf{W}$ and $\mathbf{B}$ for the variance and cross terms. In practice, these must themselves be estimated from samples, introducing a bootstrapping problem. A [subsequent tutorial](mc_budget_estimation.qmd) addresses how to estimate the sample budget needed for a target accuracy using pilot samples.
+:::
+
+
+## Key Takeaways
+
+- The **MSE** of an estimator decomposes as $\text{Bias}^2 + \text{Variance}$; for unbiased MC estimators, $\text{MSE} = \text{Variance}$
+- The MC mean estimator has variance $\sigma^2/M$; the MC variance estimator has variance $(\kappa_4 - \sigma^4)/M$ --- same rate, larger constant
+- For **vector-valued statistics** (mean + covariance of $K$ QoIs), the estimator error is a covariance matrix with block structure involving $\boldsymbol{\Sigma}$ (2nd moments), $\mathbf{B}$ (3rd moments), and $\mathbf{W}$ (4th moments)
+- The trace or determinant of the estimator covariance reduces the matrix to a scalar MSE
+- All MC estimators converge at rate $1/M$, independent of parameter dimension --- but the constants grow with the order of the statistic
+
+
+## Exercises
+
+1. Use the empirical data from @fig-mean-mse-convergence to estimate the slope of the log-log convergence plot. Verify that it is $-1$ (corresponding to the $1/M$ rate).
+
+2. In the scalar case, show algebraically that $\text{Var}[\hat{\sigma}^2_M] \to (\kappa_4 - \sigma^4)/M$ as $M \to \infty$ starting from @eq-var-var.
+
+3. For the model's three QoIs, examine $\text{Cov}[\hat{\mu}_1, \hat{\mu}_3]$ from the empirical estimator covariance matrix. Is it positive or negative? What does its sign imply about the off-diagonal of $\boldsymbol{\Sigma}$?
+
+4. **(Challenge)** If the QoI distribution is symmetric (zero skewness), what happens to the $\mathbf{B}$ matrix? What does this imply about the correlation between the mean and variance estimators? Verify empirically using a model with a symmetric output distribution.
+
+
+## Next Steps
+
+Continue with:
+
+- [Monte Carlo Budget Estimation](mc_budget_estimation.qmd) --- Estimating how many samples you need in practice
+- [Surrogate Models](surrogate_models.qmd) --- Replacing the expensive model with a cheap approximation
+- [Multi-Fidelity Methods](multi_fidelity.qmd) --- Combining models of different cost and accuracy
+
+
+## References
+
+- [DWBG2024] T. Dixon et al. *Covariance Expressions for Multi-Fidelity Sampling with Multi-Output, Multi-Statistic Estimators: Application to Approximate Control Variates.* SIAM/ASA Journal on Uncertainty Quantification, 12(3):1005--1049, 2024. [DOI](https://doi.org/10.1137/23M1607994)
+
+- [QPOVW2018] E. Qian et al. *Multifidelity Monte Carlo Estimation of Variance and Sensitivity Indices.* SIAM/ASA Journal on Uncertainty Quantification, 6(2):683--706, 2018. [DOI](https://doi.org/10.1137/17M1151006)
