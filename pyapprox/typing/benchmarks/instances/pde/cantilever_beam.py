@@ -27,6 +27,14 @@ _DEFAULT_MESH_PATH = os.path.normpath(
     os.path.join(_DATA_DIR, "cantilever_beam_2d_with_holes.json")
 )
 
+# Mesh paths by refinement level (h = characteristic element size)
+MESH_PATHS = {
+    0.5: _DEFAULT_MESH_PATH,
+    1: os.path.normpath(os.path.join(_DATA_DIR, "cantilever_beam_2d_h1.json")),
+    2: os.path.normpath(os.path.join(_DATA_DIR, "cantilever_beam_2d_h2.json")),
+    4: os.path.normpath(os.path.join(_DATA_DIR, "cantilever_beam_2d_h4.json")),
+}
+
 from pyapprox.typing.util.backends.protocols import Array, Backend
 from pyapprox.typing.benchmarks.benchmark import BenchmarkWithPrior, BoxDomain
 from pyapprox.typing.benchmarks.ground_truth import SensitivityGroundTruth
@@ -372,10 +380,13 @@ def _kle_to_lame_arrays(
 
 
 class CantileverBeam2DForwardModel(Generic[Array]):
-    """Forward model: KLE coefficients -> tip displacement for 2D beam.
+    """Forward model: KLE coefficients -> [tip displacement, total VM stress].
 
     Wraps CompositeLinearElasticity or CompositeHyperelasticityPhysics
     with per-subdomain KLE field maps for Young's modulus.
+
+    QoI 0: vertical tip displacement u_y(L, H/2)
+    QoI 1: total (area-integrated) von Mises stress over the domain
     """
 
     def __init__(
@@ -405,6 +416,32 @@ class CantileverBeam2DForwardModel(Generic[Array]):
         self._bkd = bkd
         self._nvars = len(subdomain_names) * num_kle_terms
 
+        # Cache mesh data for von Mises post-processing
+        skfem_mesh = physics._basis.skfem_basis().mesh
+        self._coordx = skfem_mesh.p[0]
+        self._coordy = skfem_mesh.p[1]
+        self._connectivity = skfem_mesh.t.T
+
+        # Precompute element areas for area-weighted integration
+        self._element_areas = self._compute_element_areas()
+
+    def _compute_element_areas(self) -> np.ndarray:
+        """Compute area of each element using the shoelace formula."""
+        conn = self._connectivity
+        x, y = self._coordx, self._coordy
+        nelems = conn.shape[0]
+        areas = np.empty(nelems)
+        for ie in range(nelems):
+            nodes = conn[ie]
+            xe, ye = x[nodes], y[nodes]
+            n = len(nodes)
+            # Shoelace formula (works for triangles and quads)
+            area = 0.0
+            for j in range(n):
+                area += xe[j] * ye[(j + 1) % n] - xe[(j + 1) % n] * ye[j]
+            areas[ie] = abs(area) / 2.0
+        return areas
+
     def bkd(self) -> Backend[Array]:
         return self._bkd
 
@@ -412,10 +449,10 @@ class CantileverBeam2DForwardModel(Generic[Array]):
         return self._nvars
 
     def nqoi(self) -> int:
-        return 1
+        return 2
 
     def __call__(self, samples: Array) -> Array:
-        """Evaluate: KLE coefficients -> tip displacement.
+        """Evaluate: KLE coefficients -> [tip displacement, total VM stress].
 
         Parameters
         ----------
@@ -425,12 +462,18 @@ class CantileverBeam2DForwardModel(Generic[Array]):
         Returns
         -------
         Array
-            Tip displacement. Shape: (1, nsamples)
+            QoIs. Shape: (2, nsamples).
+            Row 0: tip displacement.
+            Row 1: total (area-integrated) von Mises stress.
         """
+        from pyapprox.typing.pde.galerkin.postprocessing import (
+            von_mises_stress_2d,
+        )
+
         bkd = self._bkd
         samples_np = bkd.to_numpy(samples)
         nsamples = samples_np.shape[1]
-        results = np.zeros((1, nsamples))
+        results = np.zeros((2, nsamples))
 
         for ii in range(nsamples):
             xi = samples_np[:, ii]
@@ -448,21 +491,143 @@ class CantileverBeam2DForwardModel(Generic[Array]):
             init = bkd.asarray(np.zeros(self._physics.nstates()))
             result = self._solver.solve(init)
             sol_np = bkd.to_numpy(result.solution)
+
+            # QoI 0: tip displacement
             results[0, ii] = sol_np[self._tip_dof_index]
+
+            # QoI 1: total (area-integrated) von Mises stress
+            ux = sol_np[0::2]
+            uy = sol_np[1::2]
+            # Average Lame params across quad points for element values
+            lam_elem = np.mean(lam_arr, axis=1)
+            mu_elem = np.mean(mu_arr, axis=1)
+            vm = von_mises_stress_2d(
+                self._coordx, self._coordy, self._connectivity,
+                ux, uy, lam_elem, mu_elem,
+            )
+            results[1, ii] = np.sum(vm * self._element_areas)
 
         return bkd.asarray(results)
 
 
 # =========================================================================
-# 1D forward model (Euler-Bernoulli beam)
+# 1D forward models (Euler-Bernoulli beam)
 # =========================================================================
 
 
-class CantileverBeam1DForwardModel(Generic[Array]):
-    """Forward model: KLE coefficients -> tip displacement for 1D beam.
+class CompositeBeam1DForwardModel(Generic[Array]):
+    """Forward model: physical (E1, E2) -> [tip deflection, max curvature].
+
+    Wraps EulerBernoulliBeamFEM for a composite cantilever beam with
+    two material subdomains (skin and core). The bending stiffness is
+    computed from the rule-of-mixtures effective modulus:
+
+        E_eff = (A_skin * E1 + A_core * E2) / (A_skin + A_core)
+        EI = E_eff * I
+
+    where I = h^3/12 is the second moment of area for a rectangular
+    cross-section of height h.
+
+    The mesh, basis, and load vector are built once. Each evaluation
+    updates EI via ``set_EI`` and solves.
+
+    QoI 0: tip deflection w(L)
+    QoI 1: max absolute curvature max|d^2w/dx^2|
+
+    Parameters
+    ----------
+    nx : int
+        Number of beam elements.
+    length : float
+        Beam length.
+    height : float
+        Total beam cross-section height.
+    skin_thickness : float
+        Thickness of each skin layer (two symmetric skins).
+    load_func : Callable
+        Load distribution function q(x).
+    bkd : Backend[Array]
+        Computational backend.
+    """
+
+    def __init__(
+        self,
+        nx: int,
+        length: float,
+        height: float,
+        skin_thickness: float,
+        load_func: Callable,
+        bkd: Backend[Array],
+    ):
+        from pyapprox.typing.pde.galerkin.physics.euler_bernoulli import (
+            EulerBernoulliBeamFEM,
+        )
+
+        self._bkd = bkd
+
+        # Cross-section geometry
+        self._A_skin = 2 * skin_thickness * 1.0
+        self._A_core = (height - 2 * skin_thickness) * 1.0
+        self._I_rect = height**3 / 12.0
+
+        # Build beam once; set_EI updates stiffness per sample
+        self._beam = EulerBernoulliBeamFEM(
+            nx=nx, length=length, EI=1.0,
+            load_func=load_func, bkd=bkd,
+        )
+
+    def bkd(self) -> Backend[Array]:
+        return self._bkd
+
+    def nvars(self) -> int:
+        return 2
+
+    def nqoi(self) -> int:
+        return 2
+
+    def __call__(self, samples: Array) -> Array:
+        """Evaluate: (E1, E2) -> [tip deflection, max curvature].
+
+        Parameters
+        ----------
+        samples : Array
+            Shape (2, nsamples). Row 0: skin modulus E1,
+            Row 1: core modulus E2.
+
+        Returns
+        -------
+        Array
+            QoIs. Shape: (2, nsamples).
+            Row 0: tip deflection.
+            Row 1: max absolute curvature.
+        """
+        bkd = self._bkd
+        samples_np = bkd.to_numpy(samples)
+        nsamples = samples_np.shape[1]
+        results = np.empty((2, nsamples))
+
+        for ii in range(nsamples):
+            E_eff = (
+                (self._A_skin * samples_np[0, ii]
+                 + self._A_core * samples_np[1, ii])
+                / (self._A_skin + self._A_core)
+            )
+            EI = E_eff * self._I_rect
+            self._beam.set_EI(EI)
+            results[0, ii] = self._beam.tip_deflection()
+            results[1, ii] = self._beam.max_curvature()
+
+        return bkd.asarray(results)
+
+
+class CantileverBeam1DKLEForwardModel(Generic[Array]):
+    """Forward model: KLE coefficients -> [tip deflection, max curvature].
 
     Wraps EulerBernoulliBeamFEM with a KLE field map for bending stiffness
     EI(x). The KLE parameterizes log(EI) on the 1D mesh.
+
+    QoI 0: tip deflection w(L)
+    QoI 1: max absolute curvature max|d^2w/dx^2|
     """
 
     def __init__(
@@ -474,12 +639,18 @@ class CantileverBeam1DForwardModel(Generic[Array]):
         field_map,
         bkd: Backend[Array],
     ):
-        self._nx = nx
-        self._length = length
-        self._EI_mean = EI_mean
-        self._load_func = load_func
+        from pyapprox.typing.pde.galerkin.physics.euler_bernoulli import (
+            EulerBernoulliBeamFEM,
+        )
+
         self._field_map = field_map
         self._bkd = bkd
+
+        # Build beam once; set_EI updates stiffness per sample
+        self._beam = EulerBernoulliBeamFEM(
+            nx=nx, length=length, EI=EI_mean,
+            load_func=load_func, bkd=bkd,
+        )
 
     def bkd(self) -> Backend[Array]:
         return self._bkd
@@ -488,10 +659,10 @@ class CantileverBeam1DForwardModel(Generic[Array]):
         return self._field_map.nvars()
 
     def nqoi(self) -> int:
-        return 1
+        return 2
 
     def __call__(self, samples: Array) -> Array:
-        """Evaluate: KLE coefficients -> tip displacement.
+        """Evaluate: KLE coefficients -> [tip deflection, max curvature].
 
         Parameters
         ----------
@@ -501,33 +672,23 @@ class CantileverBeam1DForwardModel(Generic[Array]):
         Returns
         -------
         Array
-            Tip displacement. Shape: (1, nsamples)
+            QoIs. Shape: (2, nsamples).
+            Row 0: tip deflection.
+            Row 1: max absolute curvature.
         """
-        from pyapprox.typing.pde.galerkin.physics.euler_bernoulli import (
-            EulerBernoulliBeamFEM,
-        )
         bkd = self._bkd
         samples_np = bkd.to_numpy(samples)
         nsamples = samples_np.shape[1]
-        results = np.zeros((1, nsamples))
+        results = np.zeros((2, nsamples))
 
         for ii in range(nsamples):
             xi = samples_np[:, ii]
-            # EI field at element midpoints
             EI_field = bkd.to_numpy(
                 self._field_map(bkd.asarray(xi))
             )
-            # Use mean EI for now (1-term KLE gives constant)
-            EI_avg = float(np.mean(EI_field))
-
-            beam = EulerBernoulliBeamFEM(
-                nx=self._nx,
-                length=self._length,
-                EI=EI_avg,
-                load_func=self._load_func,
-                bkd=bkd,
-            )
-            results[0, ii] = beam.tip_deflection()
+            self._beam.set_EI(EI_field)
+            results[0, ii] = self._beam.tip_deflection()
+            results[1, ii] = self._beam.max_curvature()
 
         return bkd.asarray(results)
 
@@ -590,7 +751,7 @@ def cantilever_beam_1d(
 
     load_func = lambda x: q0 * x / length  # noqa: E731
 
-    fwd = CantileverBeam1DForwardModel(
+    fwd = CantileverBeam1DKLEForwardModel(
         nx=nx, length=length, EI_mean=EI_mean,
         load_func=load_func, field_map=field_map, bkd=bkd,
     )
@@ -765,7 +926,7 @@ def cantilever_beam_2d_linear(
     domain = BoxDomain(_bounds=bounds, _bkd=bkd)
 
     inner = BenchmarkWithPrior(
-        _name="cantilever_beam_2d_linear_tip_displacement",
+        _name="cantilever_beam_2d_linear",
         _function=fwd,
         _domain=domain,
         _ground_truth=SensitivityGroundTruth(),
@@ -904,7 +1065,7 @@ def cantilever_beam_2d_neohookean(
     domain = BoxDomain(_bounds=bounds, _bkd=bkd)
 
     inner = BenchmarkWithPrior(
-        _name="cantilever_beam_2d_neohookean_tip_displacement",
+        _name="cantilever_beam_2d_neohookean",
         _function=fwd,
         _domain=domain,
         _ground_truth=SensitivityGroundTruth(),
@@ -973,7 +1134,7 @@ def cantilever_beam_1d_spde(
 
     load_func = lambda x: q0 * x / length  # noqa: E731
 
-    fwd = CantileverBeam1DForwardModel(
+    fwd = CantileverBeam1DKLEForwardModel(
         nx=nx, length=length, EI_mean=EI_mean,
         load_func=load_func, field_map=field_map, bkd=bkd,
     )
@@ -1121,7 +1282,7 @@ def cantilever_beam_2d_linear_spde(
     domain = BoxDomain(_bounds=bounds, _bkd=bkd)
 
     inner = BenchmarkWithPrior(
-        _name="cantilever_beam_2d_linear_spde_tip_displacement",
+        _name="cantilever_beam_2d_linear_spde",
         _function=fwd,
         _domain=domain,
         _ground_truth=SensitivityGroundTruth(),
@@ -1260,7 +1421,7 @@ def cantilever_beam_2d_neohookean_spde(
     domain = BoxDomain(_bounds=bounds, _bkd=bkd)
 
     inner = BenchmarkWithPrior(
-        _name="cantilever_beam_2d_neohookean_spde_tip_displacement",
+        _name="cantilever_beam_2d_neohookean_spde",
         _function=fwd,
         _domain=domain,
         _ground_truth=SensitivityGroundTruth(),

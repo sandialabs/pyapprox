@@ -579,5 +579,231 @@ class TestEulerBernoulliFEMTorch(TestEulerBernoulliFEM[torch.Tensor]):
         return TorchBkd()
 
 
+# ======================================================================
+# Spatially-varying EI tests
+# ======================================================================
+
+
+def _smooth_EI_field(x_nodes: np.ndarray, EI_mean: float) -> np.ndarray:
+    """Smooth spatially-varying EI: EI(x) = EI_mean * (1 + 0.5*sin(pi*x/L)).
+
+    Returns per-element EI evaluated at element midpoints.
+    """
+    midpoints = 0.5 * (x_nodes[:-1] + x_nodes[1:])
+    L = x_nodes[-1]
+    return EI_mean * (1.0 + 0.5 * np.sin(np.pi * midpoints / L))
+
+
+class TestEulerBernoulliVaryingEI(Generic[Array], unittest.TestCase):
+    """Tests for Euler-Bernoulli beam with spatially-varying EI(x)."""
+
+    __test__ = False
+
+    def bkd(self):
+        raise NotImplementedError
+
+    def setUp(self):
+        self._bkd = self.bkd()
+
+    def _make_beam(
+        self, nx: int = 10, L: float = 1.0, EI_mean: float = 1.0,
+    ) -> EulerBernoulliBeamFEM:
+        """Create beam with spatially-varying EI from smooth field."""
+        beam = EulerBernoulliBeamFEM(
+            nx=nx, length=L, EI=1.0,
+            load_func=lambda x: np.ones_like(x),
+            bkd=self._bkd,
+        )
+        EI_field = _smooth_EI_field(beam.node_coordinates(), EI_mean)
+        beam.set_EI(EI_field)
+        return beam
+
+    # ------------------------------------------------------------------
+    # Residual at exact solution is zero
+    # ------------------------------------------------------------------
+
+    def test_residual_zero_at_solution(self) -> None:
+        """Residual at the FEM solution should be zero for varying EI."""
+        beam = self._make_beam(nx=10, L=1.0, EI_mean=2.0)
+        sol = beam.solve()
+        res = beam.residual(sol)
+        self._bkd.assert_allclose(
+            res,
+            self._bkd.asarray(np.zeros(beam.nstates())),
+            atol=1e-10,
+        )
+
+    # ------------------------------------------------------------------
+    # Jacobian via DerivativeChecker
+    # ------------------------------------------------------------------
+
+    def test_jacobian_derivative_checker(self) -> None:
+        """Verify Jacobian of residual using DerivativeChecker."""
+        from pyapprox.typing.interface.functions.derivative_checks.derivative_checker import (
+            DerivativeChecker,
+        )
+        from pyapprox.typing.interface.functions.fromcallable.jacobian import (
+            FunctionWithJacobianFromCallable,
+        )
+
+        beam = self._make_beam(nx=6, L=1.0, EI_mean=2.0)
+        ndofs = beam.nstates()
+        bkd = self._bkd
+
+        def residual_func(samples: Array) -> Array:
+            state = samples[:, 0]
+            res = beam.residual(state)
+            return bkd.reshape(res, (ndofs, 1))
+
+        def jacobian_func(sample: Array) -> Array:
+            state = sample[:, 0]
+            jac = beam.jacobian(state)
+            return bkd.asarray(_to_dense(jac))
+
+        wrapper = FunctionWithJacobianFromCallable(
+            nqoi=ndofs, nvars=ndofs,
+            fun=residual_func, jacobian=jacobian_func,
+            bkd=bkd,
+        )
+
+        np.random.seed(42)
+        sample = bkd.asarray(np.random.randn(ndofs, 1) * 0.01)
+        checker = DerivativeChecker(wrapper)
+        errors = checker.check_derivatives(sample, relative=True)[0]
+        ratio = float(bkd.to_numpy(checker.error_ratio(errors)))
+        self.assertLessEqual(ratio, 1e-6)
+
+    # ------------------------------------------------------------------
+    # Stiffness matrix symmetry with varying EI
+    # ------------------------------------------------------------------
+
+    def test_stiffness_symmetric_varying_EI(self) -> None:
+        """Stiffness matrix with element-wise EI is still symmetric."""
+        beam = self._make_beam(nx=8, L=1.0, EI_mean=3.0)
+        K = beam.stiffness_matrix()
+        K_np = _to_dense(K)
+        self._bkd.assert_allclose(
+            self._bkd.asarray(K_np),
+            self._bkd.asarray(K_np.T),
+            atol=1e-12,
+        )
+
+    # ------------------------------------------------------------------
+    # Recovery of exact solution under mesh refinement (convergence)
+    # ------------------------------------------------------------------
+
+    def test_convergence_varying_EI(self) -> None:
+        """FEM with varying EI converges under mesh refinement.
+
+        Uses the same beam problem with increasing nx and verifies
+        that the tip deflection converges (successive differences shrink).
+        The piecewise-constant EI approximation converges as O(h^2).
+        """
+        L, EI_mean = 1.0, 2.0
+        tip_vals = []
+        nx_values = [8, 16, 32, 64, 128, 256]
+        for nx in nx_values:
+            beam = EulerBernoulliBeamFEM(
+                nx=nx, length=L, EI=1.0,
+                load_func=lambda x: np.ones_like(x),
+                bkd=self._bkd,
+            )
+            EI_field = _smooth_EI_field(beam.node_coordinates(), EI_mean)
+            beam.set_EI(EI_field)
+            tip_vals.append(beam.tip_deflection())
+
+        # Check convergence: successive differences should decrease
+        diffs = [abs(tip_vals[i+1] - tip_vals[i]) for i in range(len(tip_vals)-1)]
+        for i in range(len(diffs) - 1):
+            self.assertLess(
+                diffs[i + 1], diffs[i],
+                f"Not converging: diff[{i+1}]={diffs[i+1]:.2e} >= diff[{i}]={diffs[i]:.2e}",
+            )
+        # Final refinement difference should be small (O(h^2) convergence)
+        self.assertLess(diffs[-1], 5e-6)
+
+    # ------------------------------------------------------------------
+    # Varying EI reduces to uniform when constant
+    # ------------------------------------------------------------------
+
+    def test_constant_field_matches_scalar(self) -> None:
+        """Element-wise EI array with constant value gives same result as scalar."""
+        nx = 10
+        L, EI_val = 1.0, 3.0
+
+        beam_scalar = EulerBernoulliBeamFEM(
+            nx=nx, length=L, EI=EI_val,
+            load_func=lambda x: np.ones_like(x),
+            bkd=self._bkd,
+        )
+
+        beam_array = EulerBernoulliBeamFEM(
+            nx=nx, length=L, EI=np.full(nx, EI_val),
+            load_func=lambda x: np.ones_like(x),
+            bkd=self._bkd,
+        )
+
+        self._bkd.assert_allclose(
+            self._bkd.asarray([beam_array.tip_deflection()]),
+            self._bkd.asarray([beam_scalar.tip_deflection()]),
+            rtol=1e-12,
+        )
+
+        # Deflections at all nodes should match
+        self._bkd.assert_allclose(
+            beam_array.deflection_at_nodes(),
+            beam_scalar.deflection_at_nodes(),
+            rtol=1e-12,
+        )
+
+    # ------------------------------------------------------------------
+    # Max curvature
+    # ------------------------------------------------------------------
+
+    def test_max_curvature_positive(self) -> None:
+        """Max curvature with varying EI should be positive."""
+        beam = self._make_beam(nx=20, L=1.0, EI_mean=1.0)
+        curv = beam.max_curvature()
+        self.assertGreater(curv, 0.0)
+
+    def test_max_curvature_scales_with_EI(self) -> None:
+        """Doubling uniform EI halves max curvature (for constant field)."""
+        nx, L = 20, 1.0
+
+        beam1 = EulerBernoulliBeamFEM(
+            nx=nx, length=L, EI=1.0,
+            load_func=lambda x: np.ones_like(x),
+            bkd=self._bkd,
+        )
+        beam2 = EulerBernoulliBeamFEM(
+            nx=nx, length=L, EI=2.0,
+            load_func=lambda x: np.ones_like(x),
+            bkd=self._bkd,
+        )
+
+        curv1 = beam1.max_curvature()
+        curv2 = beam2.max_curvature()
+        self._bkd.assert_allclose(
+            self._bkd.asarray([curv1]),
+            self._bkd.asarray([2.0 * curv2]),
+            rtol=1e-8,
+        )
+
+
+class TestEulerBernoulliVaryingEINumpy(
+    TestEulerBernoulliVaryingEI[NDArray[Any]]
+):
+    def bkd(self) -> NumpyBkd:
+        return NumpyBkd()
+
+
+class TestEulerBernoulliVaryingEITorch(
+    TestEulerBernoulliVaryingEI[torch.Tensor]
+):
+    def bkd(self) -> TorchBkd:
+        torch.set_default_dtype(torch.float64)
+        return TorchBkd()
+
+
 if __name__ == "__main__":
     unittest.main()

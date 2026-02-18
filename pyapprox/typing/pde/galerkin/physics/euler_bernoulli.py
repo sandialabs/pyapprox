@@ -15,7 +15,7 @@ The FEM formulation uses cubic Hermite (C1) elements with DOFs
 for all test functions v in the Hermite finite element space.
 """
 
-from typing import Callable, Generic, List, Optional
+from typing import Callable, Generic, List, Optional, Union
 
 import numpy as np
 
@@ -181,8 +181,9 @@ class EulerBernoulliBeamFEM(GalerkinBCMixin[Array], Generic[Array]):
         Number of elements.
     length : float
         Beam length L.
-    EI : float
-        Bending stiffness.
+    EI : Union[float, np.ndarray]
+        Bending stiffness. Scalar for uniform EI, or array of length
+        ``nx`` for per-element EI.
     load_func : Callable
         Distributed load function q(x). Takes numpy array of x-coordinates
         and returns array of load values.
@@ -198,7 +199,7 @@ class EulerBernoulliBeamFEM(GalerkinBCMixin[Array], Generic[Array]):
         self,
         nx: int,
         length: float,
-        EI: float,
+        EI: Union[float, np.ndarray],
         load_func: Callable,
         bkd: Backend[Array],
         dirichlet_dofs: Optional[List[int]] = None,
@@ -263,8 +264,19 @@ class EulerBernoulliBeamFEM(GalerkinBCMixin[Array], Generic[Array]):
     def length(self) -> float:
         return self._length
 
-    def EI(self) -> float:
+    def EI(self) -> Union[float, np.ndarray]:
         return self._EI
+
+    def set_EI(self, EI: Union[float, np.ndarray]) -> None:
+        """Update bending stiffness and invalidate cached matrices/solution."""
+        self._EI = EI
+        self._stiffness = None
+        self._solution = None
+
+    def set_load_func(self, load_func: Callable) -> None:
+        """Update load function and invalidate cached solution."""
+        self._load_func = load_func
+        self._solution = None
 
     def node_coordinates(self) -> np.ndarray:
         """Return node x-coordinates. Shape: (nnodes,)"""
@@ -283,9 +295,21 @@ class EulerBernoulliBeamFEM(GalerkinBCMixin[Array], Generic[Array]):
 
         EI_val = self._EI
 
-        @BilinearForm
-        def beam_stiffness_form(u, v, w):
-            return EI_val * u.hess[0, 0] * v.hess[0, 0]
+        if isinstance(EI_val, np.ndarray):
+            x_nodes = self.node_coordinates()
+            ei_array = EI_val
+
+            @BilinearForm
+            def beam_stiffness_form(u, v, w):
+                x = w.x[0]
+                elem_idx = np.clip(
+                    np.searchsorted(x_nodes[1:], x), 0, len(ei_array) - 1
+                )
+                return ei_array[elem_idx] * u.hess[0, 0] * v.hess[0, 0]
+        else:
+            @BilinearForm
+            def beam_stiffness_form(u, v, w):
+                return EI_val * u.hess[0, 0] * v.hess[0, 0]
 
         self._stiffness = asm(beam_stiffness_form, self._skfem_basis)
         return self._stiffness
@@ -443,16 +467,9 @@ class EulerBernoulliBeamFEM(GalerkinBCMixin[Array], Generic[Array]):
         if self._solution is not None:
             return self._solution
 
-        # Use sparse solve with condensation for efficiency
-        K_sp = asm(
-            BilinearForm(
-                lambda u, v, w: self._EI * u.hess[0, 0] * v.hess[0, 0]
-            ),
-            self._skfem_basis,
-        )
+        K_sp = self.stiffness_matrix()
         f_np = self._bkd.to_numpy(self.load_vector())
 
-        # Build DOF index array for condense
         dof_set = self._skfem_basis.get_dofs("left")
         u = skfem_solve(*condense(K_sp, f_np, D=dof_set))
         self._solution = self._bkd.asarray(u.astype(np.float64))
@@ -495,3 +512,18 @@ class EulerBernoulliBeamFEM(GalerkinBCMixin[Array], Generic[Array]):
         sol = self.solve()
         sol_np = self._bkd.to_numpy(sol)
         return float(sol_np[-2])
+
+    def max_curvature(self) -> float:
+        """Compute max absolute curvature max|d^2w/dx^2|.
+
+        Approximated by finite-differencing nodal slopes dw/dx.
+
+        Returns
+        -------
+        float
+            Maximum absolute curvature.
+        """
+        slopes = self._bkd.to_numpy(self.slope_at_nodes())
+        x_nodes = self.node_coordinates()
+        d2w_dx2 = np.diff(slopes) / np.diff(x_nodes)
+        return float(np.max(np.abs(d2w_dx2)))
