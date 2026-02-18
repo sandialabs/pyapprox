@@ -566,9 +566,11 @@ class CompositeBeam1DForwardModel(Generic[Array]):
         self._bkd = bkd
 
         # Cross-section geometry
+        self._height = height
         self._A_skin = 2 * skin_thickness * 1.0
         self._A_core = (height - 2 * skin_thickness) * 1.0
         self._I_rect = height**3 / 12.0
+        self._stress_coeff = 6.0 / height**2  # EI*kappa * 6/H^2 = sigma
 
         # Build beam once; set_EI updates stiffness per sample
         self._beam = EulerBernoulliBeamFEM(
@@ -583,10 +585,10 @@ class CompositeBeam1DForwardModel(Generic[Array]):
         return 2
 
     def nqoi(self) -> int:
-        return 2
+        return 3
 
     def __call__(self, samples: Array) -> Array:
-        """Evaluate: (E1, E2) -> [tip deflection, max curvature].
+        """Evaluate: (E1, E2) -> [tip deflection, integrated stress, max curvature].
 
         Parameters
         ----------
@@ -597,14 +599,16 @@ class CompositeBeam1DForwardModel(Generic[Array]):
         Returns
         -------
         Array
-            QoIs. Shape: (2, nsamples).
+            QoIs. Shape: (3, nsamples).
             Row 0: tip deflection.
-            Row 1: max absolute curvature.
+            Row 1: integrated bending stress over beam length.
+            Row 2: max absolute curvature.
         """
         bkd = self._bkd
         samples_np = bkd.to_numpy(samples)
         nsamples = samples_np.shape[1]
-        results = np.empty((2, nsamples))
+        results = np.empty((3, nsamples))
+        le = self._beam.length() / (self._beam.nnodes() - 1)
 
         for ii in range(nsamples):
             E_eff = (
@@ -615,25 +619,29 @@ class CompositeBeam1DForwardModel(Generic[Array]):
             EI = E_eff * self._I_rect
             self._beam.set_EI(EI)
             results[0, ii] = self._beam.tip_deflection()
-            results[1, ii] = self._beam.max_curvature()
+            curv = self._beam.curvature_at_elements()
+            results[1, ii] = np.sum(EI * curv * self._stress_coeff * le)
+            results[2, ii] = float(np.max(curv))
 
         return bkd.asarray(results)
 
 
 class CantileverBeam1DKLEForwardModel(Generic[Array]):
-    """Forward model: KLE coefficients -> [tip deflection, max curvature].
+    """Forward model: KLE coefficients -> [tip deflection, integrated stress, max curvature].
 
     Wraps EulerBernoulliBeamFEM with a KLE field map for bending stiffness
     EI(x). The KLE parameterizes log(EI) on the 1D mesh.
 
     QoI 0: tip deflection w(L)
-    QoI 1: max absolute curvature max|d^2w/dx^2|
+    QoI 1: integrated bending stress over beam length
+    QoI 2: max absolute curvature max|d^2w/dx^2|
     """
 
     def __init__(
         self,
         nx: int,
         length: float,
+        height: float,
         EI_mean: float,
         load_func: Callable,
         field_map,
@@ -645,6 +653,7 @@ class CantileverBeam1DKLEForwardModel(Generic[Array]):
 
         self._field_map = field_map
         self._bkd = bkd
+        self._stress_coeff = 6.0 / height**2  # EI*kappa * 6/H^2 = sigma
 
         # Build beam once; set_EI updates stiffness per sample
         self._beam = EulerBernoulliBeamFEM(
@@ -659,10 +668,10 @@ class CantileverBeam1DKLEForwardModel(Generic[Array]):
         return self._field_map.nvars()
 
     def nqoi(self) -> int:
-        return 2
+        return 3
 
     def __call__(self, samples: Array) -> Array:
-        """Evaluate: KLE coefficients -> [tip deflection, max curvature].
+        """Evaluate: KLE coefficients -> [tip deflection, integrated stress, max curvature].
 
         Parameters
         ----------
@@ -672,14 +681,18 @@ class CantileverBeam1DKLEForwardModel(Generic[Array]):
         Returns
         -------
         Array
-            QoIs. Shape: (2, nsamples).
+            QoIs. Shape: (3, nsamples).
             Row 0: tip deflection.
-            Row 1: max absolute curvature.
+            Row 1: integrated bending stress over beam length.
+            Row 2: max absolute curvature.
         """
         bkd = self._bkd
         samples_np = bkd.to_numpy(samples)
         nsamples = samples_np.shape[1]
-        results = np.zeros((2, nsamples))
+        results = np.zeros((3, nsamples))
+        le = self._beam.length() / (self._beam.nnodes() - 1)
+
+        nelem = self._beam.nnodes() - 1
 
         for ii in range(nsamples):
             xi = samples_np[:, ii]
@@ -688,7 +701,16 @@ class CantileverBeam1DKLEForwardModel(Generic[Array]):
             )
             self._beam.set_EI(EI_field)
             results[0, ii] = self._beam.tip_deflection()
-            results[1, ii] = self._beam.max_curvature()
+            curv = self._beam.curvature_at_elements()
+            # EI_field may be nodal (nx+1) or elemental (nx)
+            if len(EI_field) == nelem + 1:
+                EI_elem = 0.5 * (EI_field[:-1] + EI_field[1:])
+            else:
+                EI_elem = EI_field
+            results[1, ii] = np.sum(
+                EI_elem * curv * self._stress_coeff * le
+            )
+            results[2, ii] = float(np.max(curv))
 
         return bkd.asarray(results)
 
@@ -702,6 +724,7 @@ def cantilever_beam_1d(
     bkd: Backend[Array],
     nx: int = 40,
     length: float = 100.0,
+    height: float = 30.0,
     EI_mean: float = 1e6,
     q0: float = 1.0,
     num_kle_terms: int = 2,
@@ -718,6 +741,8 @@ def cantilever_beam_1d(
         Number of beam elements.
     length : float
         Beam length.
+    height : float
+        Cross-section height (for stress computation).
     EI_mean : float
         Mean bending stiffness.
     q0 : float
@@ -752,7 +777,7 @@ def cantilever_beam_1d(
     load_func = lambda x: q0 * x / length  # noqa: E731
 
     fwd = CantileverBeam1DKLEForwardModel(
-        nx=nx, length=length, EI_mean=EI_mean,
+        nx=nx, length=length, height=height, EI_mean=EI_mean,
         load_func=load_func, field_map=field_map, bkd=bkd,
     )
 
@@ -1088,6 +1113,7 @@ def cantilever_beam_1d_spde(
     bkd: Backend[Array],
     nx: int = 40,
     length: float = 100.0,
+    height: float = 30.0,
     EI_mean: float = 1e6,
     q0: float = 1.0,
     num_kle_terms: int = 2,
@@ -1107,6 +1133,8 @@ def cantilever_beam_1d_spde(
         Number of beam elements.
     length : float
         Beam length.
+    height : float
+        Cross-section height (for stress computation).
     EI_mean : float
         Mean bending stiffness.
     q0 : float
@@ -1135,7 +1163,7 @@ def cantilever_beam_1d_spde(
     load_func = lambda x: q0 * x / length  # noqa: E731
 
     fwd = CantileverBeam1DKLEForwardModel(
-        nx=nx, length=length, EI_mean=EI_mean,
+        nx=nx, length=length, height=height, EI_mean=EI_mean,
         load_func=load_func, field_map=field_map, bkd=bkd,
     )
 

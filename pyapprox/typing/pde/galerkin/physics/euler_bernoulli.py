@@ -513,17 +513,26 @@ class EulerBernoulliBeamFEM(GalerkinBCMixin[Array], Generic[Array]):
         sol_np = self._bkd.to_numpy(sol)
         return float(sol_np[-2])
 
-    def max_curvature(self) -> float:
-        """Compute max absolute curvature max|d^2w/dx^2|.
+    def curvature_at_elements(self) -> np.ndarray:
+        """Element-wise absolute curvature |d^2w/dx^2|.
 
         Approximated by finite-differencing nodal slopes dw/dx.
+
+        Returns
+        -------
+        np.ndarray
+            Absolute curvature per element, shape (nelements,).
+        """
+        slopes = self._bkd.to_numpy(self.slope_at_nodes())
+        x_nodes = self.node_coordinates()
+        return np.abs(np.diff(slopes) / np.diff(x_nodes))
+
+    def max_curvature(self) -> float:
+        """Compute max absolute curvature max|d^2w/dx^2|.
 
         Returns
         -------
         float
             Maximum absolute curvature.
         """
-        slopes = self._bkd.to_numpy(self.slope_at_nodes())
-        x_nodes = self.node_coordinates()
-        d2w_dx2 = np.diff(slopes) / np.diff(x_nodes)
-        return float(np.max(np.abs(d2w_dx2)))
+        return float(np.max(self.curvature_at_elements()))

@@ -44,13 +44,15 @@ class TestCantileverBeam1D(unittest.TestCase):
         bkd = self._bkd
         fwd = self._bm.function()
         self.assertEqual(fwd.nvars(), 2)
-        self.assertEqual(fwd.nqoi(), 2)
+        self.assertEqual(fwd.nqoi(), 3)
         result = fwd(bkd.zeros((2, 1)))
-        self.assertEqual(result.shape, (2, 1))
+        self.assertEqual(result.shape, (3, 1))
         # QoI 0: tip deflection should be positive
         self.assertGreater(float(result[0, 0]), 0.0)
-        # QoI 1: max curvature should be positive
+        # QoI 1: integrated stress should be positive
         self.assertGreater(float(result[1, 0]), 0.0)
+        # QoI 2: max curvature should be positive
+        self.assertGreater(float(result[2, 0]), 0.0)
 
     def test_different_params_give_different_output(self):
         bkd = self._bkd
@@ -67,7 +69,7 @@ class TestCantileverBeam1D(unittest.TestCase):
         fwd = self._bm.function()
         samples = bkd.array([[0.0, 0.5, -0.5], [0.0, 0.3, -0.3]])
         result = fwd(samples)
-        self.assertEqual(result.shape, (2, 3))
+        self.assertEqual(result.shape, (3, 3))
 
     def test_prior_and_domain(self):
         bkd = self._bkd
@@ -87,7 +89,7 @@ class TestCantileverBeam1D(unittest.TestCase):
         bm = BenchmarkRegistry.get("cantilever_beam_1d", bkd)
         fwd = bm.function()
         result = fwd(bkd.zeros((fwd.nvars(), 1)))
-        self.assertEqual(result.shape, (2, 1))
+        self.assertEqual(result.shape, (3, 1))
 
     def test_one_kle_term_recovers_constant(self):
         """With 1 KLE term at params=0, result is deterministic baseline."""
@@ -221,11 +223,12 @@ class TestCantileverBeam1DSPDE(unittest.TestCase):
         bkd = self._bkd
         fwd = self._bm.function()
         self.assertEqual(fwd.nvars(), 2)
-        self.assertEqual(fwd.nqoi(), 2)
+        self.assertEqual(fwd.nqoi(), 3)
         result = fwd(bkd.zeros((2, 1)))
-        self.assertEqual(result.shape, (2, 1))
+        self.assertEqual(result.shape, (3, 1))
         self.assertGreater(float(result[0, 0]), 0.0)
         self.assertGreater(float(result[1, 0]), 0.0)
+        self.assertGreater(float(result[2, 0]), 0.0)
 
     def test_different_params_give_different_output(self):
         bkd = self._bkd
@@ -242,7 +245,7 @@ class TestCantileverBeam1DSPDE(unittest.TestCase):
         fwd = self._bm.function()
         samples = bkd.array([[0.0, 0.5, -0.5], [0.0, 0.3, -0.3]])
         result = fwd(samples)
-        self.assertEqual(result.shape, (2, 3))
+        self.assertEqual(result.shape, (3, 3))
 
     def test_prior_and_domain(self):
         bkd = self._bkd
@@ -262,7 +265,7 @@ class TestCantileverBeam1DSPDE(unittest.TestCase):
         bm = BenchmarkRegistry.get("cantilever_beam_1d_spde", bkd)
         fwd = bm.function()
         result = fwd(bkd.zeros((fwd.nvars(), 1)))
-        self.assertEqual(result.shape, (2, 1))
+        self.assertEqual(result.shape, (3, 1))
 
     def test_one_kle_term_recovers_constant(self):
         """With 1 KLE term at params=0, result is deterministic baseline."""
@@ -413,8 +416,10 @@ class TestFEMvsAnalytical(unittest.TestCase):
 
         # Tip deflection: FEM should match analytical closely with nx=100
         bkd.assert_allclose(fem_result[0:1, :], ana_result[0:1, :], rtol=1e-4)
+        # Integrated stress: constant for uniform EI (independent of E1, E2)
+        bkd.assert_allclose(fem_result[1:2, :], ana_result[1:2, :], rtol=1e-4)
         # Max curvature: FEM finite differences are less accurate
-        bkd.assert_allclose(fem_result[1:2, :], ana_result[1:2, :], rtol=1e-2)
+        bkd.assert_allclose(fem_result[2:3, :], ana_result[2:3, :], rtol=1e-2)
 
     def test_analytical_jacobian(self):
         """Verify analytical Jacobian via DerivativeChecker."""
@@ -433,7 +438,7 @@ class TestFEMvsAnalytical(unittest.TestCase):
 
         sample = bkd.asarray([[20000.0], [5000.0]])
         jac = model.jacobian(sample)
-        self.assertEqual(jac.shape, (2, 2))
+        self.assertEqual(jac.shape, (3, 2))
 
         checker = DerivativeChecker(model)
         errors = checker.check_derivatives(sample, relative=True)[0]
@@ -446,11 +451,12 @@ class TestFEMvsAnalytical(unittest.TestCase):
         bm = BenchmarkRegistry.get("cantilever_beam_1d_analytical", bkd)
         fwd = bm.function()
         self.assertEqual(fwd.nvars(), 2)
-        self.assertEqual(fwd.nqoi(), 2)
+        self.assertEqual(fwd.nqoi(), 3)
         result = fwd(bkd.asarray([[20000.0], [5000.0]]))
-        self.assertEqual(result.shape, (2, 1))
+        self.assertEqual(result.shape, (3, 1))
         self.assertGreater(float(result[0, 0]), 0.0)
         self.assertGreater(float(result[1, 0]), 0.0)
+        self.assertGreater(float(result[2, 0]), 0.0)
 
 
 if __name__ == "__main__":
