@@ -29,5 +29,6 @@ subtitle: "Validated tutorials for uncertainty quantification"
 | Tutorial | Description |
 |----------|-------------|
 | [Building a Polynomial Chaos Surrogate](polynomial_chaos_surrogates.qmd) | Approximate an expensive model with a polynomial chaos expansion |
-| [Practical PCE Fitting](practical_pce_fitting.qmd) | Truncation error, cross-validation, and sparse fitters for polynomial chaos |
+| [Overfitting and Cross-Validation](practical_pce_fitting.qmd) | Choose the polynomial degree using LOO cross-validation |
+| [Sparse Polynomial Approximation](sparse_pce_fitting.qmd) | OMP and BPDN/LASSO for high-dimensional polynomial chaos |
 | [UQ with Polynomial Chaos](uq_with_pce.qmd) | Extract analytical moments, marginal densities, and convergence comparisons from a fitted PCE |

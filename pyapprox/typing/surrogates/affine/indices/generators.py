@@ -11,15 +11,19 @@ IterativeIndexGenerator
     Base class for iterative/adaptive index generation.
 HyperbolicIndexGenerator
     Generator for hyperbolic cross index sets.
+IsotropicSparseGridBasisIndexGenerator
+    Generator for sparse-grid-style polynomial index sets.
 """
 
 from abc import ABC, abstractmethod
-from typing import Generic, Optional, Dict
+from typing import Generic, List, Optional, Dict, Union
 
 from pyapprox.typing.util.backends.protocols import Array, Backend
 from pyapprox.typing.surrogates.affine.indices.utils import (
+    compute_hyperbolic_indices,
     hash_index,
     indices_pnorm,
+    sort_indices_lexiographically,
 )
 from pyapprox.typing.surrogates.affine.indices.admissibility import (
     AdmissibilityCriteria,
@@ -27,6 +31,119 @@ from pyapprox.typing.surrogates.affine.indices.admissibility import (
     Max1DLevelsCriteria,
     CompositeCriteria,
 )
+from pyapprox.typing.surrogates.affine.indices.growth_rules import (
+    IndexGrowthRule,
+    LinearGrowthRule,
+)
+from pyapprox.typing.util.cartesian import cartesian_product_indices
+
+
+class HyperbolicIndexSequence(Generic[Array]):
+    """Index sequence producing hyperbolic cross index sets.
+
+    Maps an integer level to the hyperbolic cross index set
+    ``compute_hyperbolic_indices(nvars, level, pnorm, bkd)``.
+
+    Parameters
+    ----------
+    nvars : int
+        Number of variables.
+    pnorm : float
+        p-norm exponent (1.0 = total degree).
+    bkd : Backend[Array]
+        Computational backend.
+    """
+
+    def __init__(self, nvars: int, pnorm: float, bkd: Backend[Array]):
+        self._nvars = nvars
+        self._pnorm = pnorm
+        self._bkd = bkd
+
+    def __call__(self, level: int) -> Array:
+        """Return hyperbolic cross indices for the given level.
+
+        Parameters
+        ----------
+        level : int
+            Maximum hyperbolic level.
+
+        Returns
+        -------
+        Array
+            Multi-indices. Shape: (nvars, nterms)
+        """
+        return compute_hyperbolic_indices(
+            self._nvars, level, self._pnorm, self._bkd
+        )
+
+    def nvars(self) -> int:
+        """Return the number of variables."""
+        return self._nvars
+
+    def pnorm(self) -> float:
+        """Return the p-norm exponent."""
+        return self._pnorm
+
+    def bkd(self) -> Backend[Array]:
+        """Return the computational backend."""
+        return self._bkd
+
+
+class SparseGridIndexSequence(Generic[Array]):
+    """Index sequence producing sparse grid index sets.
+
+    Maps an integer level to the index set produced by
+    ``IsotropicSparseGridBasisIndexGenerator(nvars, level, bkd,
+    growth_rules).get_indices()``.
+
+    Parameters
+    ----------
+    nvars : int
+        Number of variables.
+    bkd : Backend[Array]
+        Computational backend.
+    growth_rules : IndexGrowthRule or list of IndexGrowthRule, optional
+        Growth rule(s) mapping subspace level to number of basis functions.
+        Default: LinearGrowthRule(scale=2, shift=1).
+    """
+
+    def __init__(
+        self,
+        nvars: int,
+        bkd: Backend[Array],
+        growth_rules: Optional[
+            Union[IndexGrowthRule, List[IndexGrowthRule]]
+        ] = None,
+    ):
+        self._nvars = nvars
+        self._bkd = bkd
+        self._growth_rules = growth_rules
+
+    def __call__(self, level: int) -> Array:
+        """Return sparse grid indices for the given level.
+
+        Parameters
+        ----------
+        level : int
+            Maximum sparse grid level.
+
+        Returns
+        -------
+        Array
+            Multi-indices. Shape: (nvars, nterms)
+        """
+        gen = IsotropicSparseGridBasisIndexGenerator(
+            self._nvars, level, self._bkd, self._growth_rules
+        )
+        return gen.get_indices()
+
+    def nvars(self) -> int:
+        """Return the number of variables."""
+        return self._nvars
+
+    def bkd(self) -> Backend[Array]:
+        """Return the computational backend."""
+        return self._bkd
 
 
 class IndexGenerator(ABC, Generic[Array]):
@@ -420,6 +537,118 @@ class HyperbolicIndexGenerator(IterativeIndexGenerator[Array], Generic[Array]):
         self._level_criteria.max_level += 1
         super().step()
         self._compute_indices()
+
+    def _get_indices(self) -> Array:
+        return self._indices
+
+
+class IsotropicSparseGridBasisIndexGenerator(
+    IndexGenerator[Array], Generic[Array]
+):
+    """Generator for sparse-grid-style polynomial index sets.
+
+    Computes isotropic sparse grid subspace indices {k : ||k||_1 <= max_level},
+    maps each subspace to polynomial degrees via growth rules, takes the
+    tensor product within each subspace, and returns the union (which is
+    downward closed by construction).
+
+    This produces index sets that grow at an intermediate rate between
+    hyperbolic cross (too aggressive pruning) and total degree (too many
+    terms), making them well suited for moderate-dimensional problems
+    where cross-terms matter.
+
+    Parameters
+    ----------
+    nvars : int
+        Number of variables.
+    max_level : int
+        Maximum sparse grid level (controls ||k||_1 <= max_level).
+    bkd : Backend[Array]
+        Computational backend.
+    growth_rules : IndexGrowthRule or list of IndexGrowthRule, optional
+        Growth rule(s) mapping subspace level to number of basis functions.
+        A single rule is applied to all dimensions; a list specifies one
+        per dimension. Default: LinearGrowthRule(scale=2, shift=1).
+    """
+
+    def __init__(
+        self,
+        nvars: int,
+        max_level: int,
+        bkd: Backend[Array],
+        growth_rules: Optional[
+            Union[IndexGrowthRule, List[IndexGrowthRule]]
+        ] = None,
+    ):
+        super().__init__(nvars, bkd)
+        self._max_level = max_level
+
+        if growth_rules is None:
+            self._growth_rules: List[IndexGrowthRule] = [
+                LinearGrowthRule(scale=2, shift=1) for _ in range(nvars)
+            ]
+        elif isinstance(growth_rules, list):
+            if len(growth_rules) != nvars:
+                raise ValueError(
+                    f"Expected {nvars} growth rules, got {len(growth_rules)}"
+                )
+            self._growth_rules = growth_rules
+        else:
+            self._growth_rules = [growth_rules for _ in range(nvars)]
+
+        self._indices = self._compute_indices()
+
+    def _compute_indices(self) -> Array:
+        """Compute the sparse-grid polynomial index set."""
+        nvars = self._nvars
+        bkd = self._bkd
+
+        # Isotropic subspace indices: {k : ||k||_1 <= max_level}
+        subspace_indices = compute_hyperbolic_indices(
+            nvars, self._max_level, 1.0, bkd
+        )
+
+        # Union of tensor products for each subspace
+        index_set: set[tuple[int, ...]] = set()
+        for j in range(subspace_indices.shape[1]):
+            k = subspace_indices[:, j]
+            dims = [
+                self._growth_rules[i](int(bkd.to_numpy(k[i])))
+                for i in range(nvars)
+            ]
+            if all(d > 0 for d in dims):
+                if nvars == 1:
+                    for deg in range(dims[0]):
+                        index_set.add((deg,))
+                else:
+                    tp = cartesian_product_indices(dims, bkd)
+                    for col_idx in range(tp.shape[1]):
+                        index_set.add(
+                            tuple(
+                                int(x)
+                                for x in bkd.to_numpy(tp[:, col_idx])
+                            )
+                        )
+
+        # Convert to sorted array (nvars, nterms)
+        nclosure = len(index_set)
+        if nclosure == 0:
+            return bkd.zeros((nvars, 0), dtype=bkd.int64_dtype())
+
+        result = bkd.zeros((nvars, nclosure), dtype=bkd.int64_dtype())
+        for j, idx in enumerate(index_set):
+            for i in range(nvars):
+                result[i, j] = idx[i]
+
+        return sort_indices_lexiographically(result, bkd)
+
+    def max_level(self) -> int:
+        """Return the maximum sparse grid level."""
+        return self._max_level
+
+    def growth_rules(self) -> List[IndexGrowthRule]:
+        """Return the growth rules."""
+        return self._growth_rules
 
     def _get_indices(self) -> Array:
         return self._indices

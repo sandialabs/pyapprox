@@ -141,7 +141,7 @@ print(f"Training values:  {values_train.shape}")
 
 ::: {.callout-note}
 ## Better sampling strategies exist
-Random sampling from the prior is the simplest approach, but not the most efficient. The accuracy of a least-squares fit depends on the sample locations relative to the polynomial basis. **Induced sampling** draws samples from a distribution weighted by the basis functions, producing better-conditioned design matrices and more accurate surrogates for the same number of samples. This is covered in [Practical PCE Fitting](practical_pce_fitting.qmd).
+Random sampling from the prior is the simplest approach, but not the most efficient. The accuracy of a least-squares fit depends on the sample locations relative to the polynomial basis. **Induced sampling** draws samples from a distribution weighted by the basis functions, producing better-conditioned design matrices and more accurate surrogates for the same number of samples. Choosing the right number of samples and polynomial degree is covered in [Overfitting and Cross-Validation](practical_pce_fitting.qmd).
 :::
 
 We also set aside an independent **test set** to evaluate surrogate accuracy:
@@ -201,7 +201,7 @@ print(f"Coefficient matrix shape: {pce.get_coefficients().shape}  (nterms x nqoi
 
 ::: {.callout-note}
 ## Alternative fitters
-Least squares is the simplest fitting method, but others exist. For high-dimensional problems where most coefficients are near zero, **Orthogonal Matching Pursuit (OMP)** or **BPDN** (L1-regularized least squares) exploit sparsity by selecting only the most important basis terms. These are covered in [Practical PCE Fitting](practical_pce_fitting.qmd).
+Least squares is the simplest fitting method, but others exist. For high-dimensional problems where most coefficients are near zero, **Orthogonal Matching Pursuit (OMP)** or **BPDN** (L1-regularized least squares) exploit sparsity by selecting only the most important basis terms. These are covered in [Sparse Polynomial Approximation](sparse_pce_fitting.qmd).
 :::
 
 
@@ -306,4 +306,5 @@ These plots reveal how each input affects tip deflection and where interactions 
 ## Next Steps
 
 - [UQ with Polynomial Chaos](uq_with_pce.qmd) --- Use the fitted PCE to compute moments, marginal densities, and compare to Monte Carlo
-- [Practical PCE Fitting](practical_pce_fitting.qmd) --- Truncation error, cross-validation, sparse fitters
+- [Overfitting and Cross-Validation](practical_pce_fitting.qmd) --- Choose the polynomial degree using LOO cross-validation
+- [Sparse Polynomial Approximation](sparse_pce_fitting.qmd) --- OMP and BPDN/LASSO for high-dimensional polynomial chaos

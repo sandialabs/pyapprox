@@ -1,0 +1,342 @@
+---
+title: "Sparse Polynomial Approximation"
+subtitle: "PyApprox Tutorial Library"
+description: "OMP and BPDN/LASSO for high-dimensional polynomial chaos."
+tutorial_type: hands-on
+topic: uncertainty_quantification
+difficulty: intermediate
+estimated_time: 8
+prerequisites:
+  - polynomial_chaos_surrogates
+  - practical_pce_fitting
+tags:
+  - uq
+  - beam
+  - surrogate
+  - polynomial-chaos
+  - sparse
+  - omp
+  - bpdn
+format:
+  html:
+    code-fold: false
+    code-tools: true
+    toc: true
+execute:
+  echo: true
+  warning: false
+jupyter: python3
+---
+
+::: {.callout-tip collapse="true"}
+## Download Notebook
+[Download as Jupyter Notebook](notebooks/sparse_pce_fitting.ipynb)
+:::
+
+## Learning Objectives
+
+After completing this tutorial, you will be able to:
+
+- Explain why sparsity matters in high-dimensional polynomial expansions
+- Apply Orthogonal Matching Pursuit (OMP) to select important basis terms
+- Apply BPDN/LASSO (L1-regularized least squares) for sparse coefficient recovery
+- Compare the accuracy and sparsity of least-squares, OMP, and BPDN fitters
+- Choose between sparse and dense fitters based on problem dimensionality
+
+## Prerequisites
+
+Complete [Building a Polynomial Chaos Surrogate](polynomial_chaos_surrogates.qmd) and [Overfitting and Cross-Validation](practical_pce_fitting.qmd) before this tutorial.
+
+
+## Setup
+
+We use the same 2D cantilever beam benchmark with $d = 3$ uncertain parameters. Because the sparse fitters currently support only a single QoI, we work with just the first QoI (tip deflection) throughout this tutorial.
+
+```{python}
+import numpy as np
+import matplotlib.pyplot as plt
+from pyapprox.typing.util.backends.numpy import NumpyBkd
+from pyapprox.typing.benchmarks.instances import cantilever_beam_2d_linear
+from pyapprox.typing.surrogates.affine.indices import (
+    compute_hyperbolic_indices,
+)
+from pyapprox.typing.surrogates.affine.expansions.pce import (
+    create_pce_from_marginals,
+)
+from pyapprox.typing.surrogates.affine.expansions.fitters.least_squares import (
+    LeastSquaresFitter,
+)
+from pyapprox.typing.benchmarks.instances.pde.cantilever_beam import MESH_PATHS
+
+bkd = NumpyBkd()
+ls_fitter = LeastSquaresFitter(bkd)
+
+benchmark = cantilever_beam_2d_linear(bkd, num_kle_terms=1, mesh_path=MESH_PATHS[4])
+model = benchmark.function()
+prior = benchmark.prior()
+marginals = prior.marginals()
+nvars = model.nvars()
+nqoi_full = model.nqoi()
+
+qoi_labels = [r"$\delta_{\mathrm{tip}}$", r"$\sigma_{\mathrm{tot}}$"]
+```
+
+```{python}
+# Training data
+N_train = 100
+np.random.seed(42)
+samples_train = prior.rvs(N_train)
+values_full = model(samples_train)          # (nqoi, N_train)
+values_train = values_full[0:1, :]          # (1, N_train) --- tip deflection only
+
+# Test data
+N_test = 500
+np.random.seed(123)
+samples_test = prior.rvs(N_test)
+values_test_full = model(samples_test)
+values_test = values_test_full[0:1, :]      # (1, N_test)
+vals_test_np = bkd.to_numpy(values_test)
+```
+
+::: {.callout-note}
+## nqoi restriction
+The sparse fitters (`OMPFitter`, `BPDNFitter`) currently support only nqoi=1. For multi-QoI problems, fit each QoI separately.
+:::
+
+
+## Why Sparsity Matters
+
+For a total-degree polynomial basis in $d$ variables at degree $p$, the number of terms grows as $\binom{d + p}{p}$. This combinatorial explosion makes standard least-squares fitting infeasible in high dimensions:
+
+```{python}
+print(f"{'d (vars)':<10} {'Degree 3':<12} {'Degree 5':<12} {'Degree 7':<12}")
+print("-" * 46)
+for d in [3, 5, 10, 20]:
+    terms = []
+    for p in [3, 5, 7]:
+        n = compute_hyperbolic_indices(d, p, 1.0, bkd).shape[1]
+        terms.append(n)
+    print(f"{d:<10} {terms[0]:<12} {terms[1]:<12} {terms[2]:<12}")
+```
+
+For $d = 10$ at degree 5, a standard least-squares fit would require at least $2 \times 3003 = 6006$ training samples. But in many applications, the true model depends primarily on a small subset of the basis terms --- most coefficients are negligibly small. **Sparse recovery** methods exploit this structure to produce accurate approximations with far fewer samples.
+
+
+## Coefficient Magnitudes of a Fitted PCE
+
+To see sparsity in action, let's fit a least-squares PCE at degree 5 and examine the coefficient magnitudes:
+
+```{python}
+#| fig-cap: "Sorted coefficient magnitudes (descending, log scale) for a degree-5 least-squares PCE fitted with N = 100 samples. Most coefficients are orders of magnitude smaller than the leading terms, suggesting the expansion is approximately sparse."
+#| label: fig-coefficient-decay
+
+degree_large = 5
+pce_ls = create_pce_from_marginals(marginals, degree_large, bkd, nqoi=1)
+nterms_large = pce_ls.nterms()
+ls_result = ls_fitter.fit(pce_ls, samples_train, values_train)
+
+coef_ls = bkd.to_numpy(ls_result.params())[:, 0]
+sorted_abs = np.sort(np.abs(coef_ls))[::-1]
+
+fig, ax = plt.subplots(figsize=(8, 4))
+ax.bar(range(len(sorted_abs)), sorted_abs, color="#2C7FB8", alpha=0.7, width=1.0)
+ax.set_yscale("log")
+ax.set_xlabel("Rank (sorted by magnitude)", fontsize=11)
+ax.set_ylabel("|Coefficient|", fontsize=11)
+ax.set_title(f"Degree-{degree_large} LS PCE: {nterms_large} terms, "
+             f"N = {N_train} samples", fontsize=11)
+ax.grid(True, alpha=0.2, which="both")
+plt.tight_layout()
+plt.show()
+
+n_significant = np.sum(np.abs(coef_ls) > 0.01 * np.max(np.abs(coef_ls)))
+print(f"Terms with |c| > 1% of max: {n_significant} / {nterms_large}")
+```
+
+The rapid decay in coefficient magnitudes shows that only a handful of terms carry most of the information. This motivates sparse fitters that identify and retain only the important terms.
+
+
+## Orthogonal Matching Pursuit (OMP)
+
+OMP is a greedy algorithm that builds the active set one term at a time:
+
+1. Find the basis term most correlated with the current residual
+2. Add it to the active set
+3. Re-solve the least-squares problem restricted to the active set
+4. Repeat until the residual is small enough or the maximum number of terms is reached
+
+```{python}
+from pyapprox.typing.surrogates.affine.expansions.fitters.omp import OMPFitter
+
+pce_omp = create_pce_from_marginals(marginals, degree_large, bkd, nqoi=1)
+
+omp_fitter = OMPFitter(bkd, max_nonzeros=15, rtol=1e-4)
+omp_result = omp_fitter.fit(pce_omp, samples_train, values_train)
+
+print(f"OMP selected {omp_result.n_nonzero()} / {nterms_large} terms")
+print(f"Termination: {omp_result.termination_flag()}")
+```
+
+The residual history shows how the fit improves as terms are added:
+
+```{python}
+#| fig-cap: "OMP residual history. The residual norm decreases as each new basis term is added to the active set."
+#| label: fig-omp-residual
+
+res_hist = bkd.to_numpy(omp_result.residual_history())
+
+fig, ax = plt.subplots(figsize=(7, 4))
+ax.semilogy(range(1, len(res_hist) + 1), res_hist, "o-", ms=6, lw=1.5,
+            color="#E67E22")
+ax.set_xlabel("Number of selected terms", fontsize=11)
+ax.set_ylabel("Residual norm", fontsize=11)
+ax.set_title("OMP residual history", fontsize=11)
+ax.grid(True, alpha=0.2, which="both")
+plt.tight_layout()
+plt.show()
+```
+
+
+## Basis Pursuit Denoising (BPDN / LASSO)
+
+BPDN solves the L1-regularized least-squares problem:
+
+$$
+\hat{\mathbf{c}} = \arg\min_{\mathbf{c}} \frac{1}{2}\|\boldsymbol{\Phi}\mathbf{c} - \mathbf{y}\|_2^2 + \lambda \|\mathbf{c}\|_1
+$$
+
+The L1 penalty encourages sparsity by driving small coefficients to exactly zero. The regularization strength $\lambda$ controls the trade-off between fit quality and sparsity.
+
+```{python}
+from pyapprox.typing.surrogates.affine.expansions.fitters.bpdn import BPDNFitter
+
+pce_bpdn = create_pce_from_marginals(marginals, degree_large, bkd, nqoi=1)
+
+bpdn_fitter = BPDNFitter(bkd, penalty=0.01)
+bpdn_result = bpdn_fitter.fit(pce_bpdn, samples_train, values_train)
+
+print(f"BPDN: {bpdn_result.n_nonzero()} / {nterms_large} non-zero coefficients")
+```
+
+
+## Comparing Coefficient Sparsity
+
+@fig-sparse-coefficients compares the coefficient magnitudes from least squares, OMP, and BPDN. The sparse fitters zero out unimportant terms while retaining the dominant ones.
+
+```{python}
+#| fig-cap: "Coefficient magnitudes for tip deflection using least squares, OMP, and BPDN fitters. OMP and BPDN produce sparser solutions, zeroing out unimportant terms."
+#| label: fig-sparse-coefficients
+
+fig, axes = plt.subplots(1, 3, figsize=(15, 4), sharey=True)
+fitter_names = ["Least Squares", "OMP", "BPDN"]
+results = [ls_result, omp_result, bpdn_result]
+colors = ["#2C7FB8", "#E67E22", "#C0392B"]
+
+for ax, name, result, color in zip(axes, fitter_names, results, colors):
+    coef = bkd.to_numpy(result.params())[:, 0]
+    ax.bar(range(len(coef)), np.abs(coef), color=color, alpha=0.7, width=1.0)
+    ax.set_yscale("log")
+    ax.set_xlabel("Basis term index", fontsize=11)
+    ax.set_title(f"{name}", fontsize=11)
+    n_nz = np.sum(np.abs(coef) > 1e-12)
+    ax.annotate(f"{n_nz} non-zero", xy=(0.95, 0.95), xycoords="axes fraction",
+                ha="right", va="top", fontsize=10,
+                bbox=dict(boxstyle="round,pad=0.3", fc="white", ec="gray"))
+
+axes[0].set_ylabel("|Coefficient|", fontsize=11)
+plt.tight_layout()
+plt.show()
+```
+
+
+## Accuracy Comparison
+
+Despite using far fewer coefficients, the sparse fitters can match or beat the full least-squares fit:
+
+```{python}
+print("Test-set relative L2 error (tip deflection):")
+print(f"{'Fitter':<18} {'Non-zero':<12} {'Rel. L2 error'}")
+print("-" * 45)
+
+for name, result in zip(fitter_names, results):
+    preds = bkd.to_numpy(result.surrogate()(samples_test))
+    l2_err = np.linalg.norm(vals_test_np[0, :] - preds[0, :])
+    l2_ref = np.linalg.norm(vals_test_np[0, :])
+    n_nz = np.sum(np.abs(bkd.to_numpy(result.params())[:, 0]) > 1e-12)
+    print(f"  {name:<16} {n_nz:<12} {l2_err / l2_ref:.4e}")
+```
+
+The advantage of sparse methods becomes more pronounced when the training budget is limited relative to the number of basis terms. @fig-accuracy-vs-n compares a standard degree-3 least-squares fit (10 terms, safe oversampling) against a degree-5 OMP fit (many candidate terms but sparse selection) as the training size increases:
+
+```{python}
+#| fig-cap: "Test-set error vs. training size for least-squares degree-3 and OMP degree-5. The sparse OMP fit can exploit higher-order terms when enough data is available, eventually surpassing the lower-degree dense fit."
+#| label: fig-accuracy-vs-n
+
+N_values = [30, 50, 75, 100, 150]
+ls3_errors = []
+omp5_errors = []
+
+for N_tr in N_values:
+    np.random.seed(500 + N_tr)
+    s_tr = prior.rvs(N_tr)
+    v_tr = model(s_tr)[0:1, :]
+
+    # LS degree-3
+    pce3 = create_pce_from_marginals(marginals, 3, bkd, nqoi=1)
+    nterms3 = pce3.nterms()
+    if N_tr > nterms3:
+        ls3 = ls_fitter.fit(pce3, s_tr, v_tr).surrogate()
+        p3 = bkd.to_numpy(ls3(samples_test))
+        e3 = np.linalg.norm(vals_test_np[0] - p3[0]) / np.linalg.norm(vals_test_np[0])
+    else:
+        e3 = np.nan
+    ls3_errors.append(e3)
+
+    # OMP degree-5
+    pce5 = create_pce_from_marginals(marginals, 5, bkd, nqoi=1)
+    omp5 = OMPFitter(bkd, max_nonzeros=15, rtol=1e-4)
+    omp5_res = omp5.fit(pce5, s_tr, v_tr).surrogate()
+    p5 = bkd.to_numpy(omp5_res(samples_test))
+    e5 = np.linalg.norm(vals_test_np[0] - p5[0]) / np.linalg.norm(vals_test_np[0])
+    omp5_errors.append(e5)
+
+fig, ax = plt.subplots(figsize=(7, 4.5))
+ax.semilogy(N_values, ls3_errors, "o-", ms=7, lw=2, color="#2C7FB8",
+            label="LS degree-3 (10 terms)")
+ax.semilogy(N_values, omp5_errors, "s--", ms=7, lw=2, color="#E67E22",
+            label="OMP degree-5 (sparse)")
+ax.set_xlabel("Number of training samples $N$", fontsize=12)
+ax.set_ylabel("Relative $L_2$ test error", fontsize=12)
+ax.set_title("Dense vs. sparse fitting", fontsize=11)
+ax.legend(fontsize=10)
+ax.grid(True, alpha=0.2, which="both")
+plt.tight_layout()
+plt.show()
+```
+
+
+## Key Takeaways
+
+- In high dimensions, the number of polynomial basis terms grows combinatorially, but many coefficients are negligibly small --- the expansion is **approximately sparse**
+- **OMP** greedily selects the most important terms one at a time; it is simple, interpretable, and requires no tuning of a regularization parameter (only `max_nonzeros` and `rtol`)
+- **BPDN/LASSO** solves an L1-regularized least-squares problem; the penalty $\lambda$ trades off fit quality and sparsity
+- Sparse fitters can use **high-degree basis sets** (many candidate terms) without needing a correspondingly large training set
+- When most coefficients are near zero, sparse methods achieve **better accuracy with fewer samples** than dense least-squares at the same degree
+
+
+## Exercises
+
+1. Sweep the OMP `max_nonzeros` parameter from 5 to 25. Plot the test-set error vs. number of selected terms. At what point do additional terms stop helping?
+
+2. Try different L1 penalty values for BPDN (e.g., 0.001, 0.01, 0.1, 1.0). How does the penalty affect the number of non-zero coefficients and the test-set error?
+
+3. Fit OMP on each QoI separately (tip deflection and total stress). Compare the support sets --- do both QoIs select the same basis terms?
+
+4. **(Challenge)** Increase the problem dimension by using `num_kle_terms=3` in the benchmark (giving $d = 9$ variables). Fit a degree-5 PCE with OMP and compare to least-squares degree-3. How does the advantage of sparsity change in higher dimensions?
+
+
+## Next Steps
+
+Continue with:
+
+- [UQ with Polynomial Chaos](uq_with_pce.qmd) --- Using the fitted PCE to compute moments and marginal densities

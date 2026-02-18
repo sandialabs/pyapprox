@@ -34,6 +34,7 @@ from pyapprox.typing.surrogates.sparsegrids.tests.test_helpers import (
 from pyapprox.typing.surrogates.affine.univariate import create_bases_1d
 from pyapprox.typing.probability import UniformMarginal
 from pyapprox.typing.surrogates.affine.indices import (
+    IsotropicSparseGridBasisIndexGenerator,
     LinearGrowthRule,
     MaxLevelCriteria,
 )
@@ -280,6 +281,74 @@ class TestSparseGridToPCEConverter(Generic[Array], unittest.TestCase):
         pce_vals = pce(test_pts)
 
         self._bkd.assert_allclose(grid_vals, pce_vals, rtol=1e-10, atol=1e-14)
+
+    def test_pce_indices_match_sparse_grid_index_generator(self) -> None:
+        """Test that converted PCE index set matches IsotropicSparseGridBasisIndexGenerator."""
+        for nvars, level in [(2, 3), (3, 2)]:
+            growth = LinearGrowthRule(scale=2, shift=1)
+            marginals = [
+                UniformMarginal(-1.0, 1.0, self._bkd) for _ in range(nvars)
+            ]
+            factories: List[BasisFactoryProtocol[Array]] = [
+                GaussLagrangeFactory(m, self._bkd) for m in marginals
+            ]
+            grid = IsotropicCombinationSparseGrid(
+                self._bkd, factories, growth, level
+            )
+
+            # Use a simple polynomial so all subspace conversions are valid
+            samples = grid.get_samples()
+            values = self._bkd.reshape(
+                self._bkd.sum(samples, axis=0), (1, -1)
+            )
+            grid.set_values(values)
+
+            pce_bases_1d = create_bases_1d(marginals, self._bkd)
+            converter = SparseGridToPCEConverter(self._bkd, pce_bases_1d)
+            pce = converter.convert(grid)
+
+            # Get PCE index set as set of tuples
+            pce_indices = pce.get_indices()
+            pce_set = set()
+            for j in range(pce_indices.shape[1]):
+                pce_set.add(
+                    tuple(
+                        int(self._bkd.to_numpy(pce_indices[i, j]))
+                        for i in range(nvars)
+                    )
+                )
+
+            # Get index set from IsotropicSparseGridBasisIndexGenerator
+            gen = IsotropicSparseGridBasisIndexGenerator(
+                nvars, level, self._bkd, growth_rules=growth,
+            )
+            gen_indices = gen.get_indices()
+            gen_set = set()
+            for j in range(gen_indices.shape[1]):
+                gen_set.add(
+                    tuple(
+                        int(self._bkd.to_numpy(gen_indices[i, j]))
+                        for i in range(nvars)
+                    )
+                )
+
+            # The PCE index set should be a subset of the generator's set.
+            # The generator produces the full downward-closed set; the PCE
+            # converter may drop terms with zero coefficients, but all PCE
+            # terms must be in the generator's set.
+            self.assertTrue(
+                pce_set.issubset(gen_set),
+                f"nvars={nvars}, level={level}: PCE has indices not in "
+                f"generator set. Extra: {pce_set - gen_set}",
+            )
+            # The generator's set should also be a subset of the PCE set
+            # (both should produce the same index set).
+            self.assertEqual(
+                pce_set, gen_set,
+                f"nvars={nvars}, level={level}: index sets differ. "
+                f"In gen but not PCE: {gen_set - pce_set}. "
+                f"In PCE but not gen: {pce_set - gen_set}",
+            )
 
     def test_multi_qoi_conversion(self) -> None:
         """Test conversion with multiple quantities of interest."""

@@ -32,6 +32,9 @@ from pyapprox.typing.surrogates.affine.indices.generators import (
     IndexGenerator,
     IterativeIndexGenerator,
     HyperbolicIndexGenerator,
+    IsotropicSparseGridBasisIndexGenerator,
+    HyperbolicIndexSequence,
+    SparseGridIndexSequence,
 )
 
 from pyapprox.typing.surrogates.affine.indices.priority_queue import (
@@ -83,6 +86,10 @@ __all__ = [
     "IndexGenerator",
     "IterativeIndexGenerator",
     "HyperbolicIndexGenerator",
+    "IsotropicSparseGridBasisIndexGenerator",
+    # Index sequences
+    "HyperbolicIndexSequence",
+    "SparseGridIndexSequence",
     # Priority queue
     "PriorityQueue",
     # Refinement

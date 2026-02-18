@@ -30,6 +30,7 @@ from pyapprox.typing.surrogates.affine.protocols.index import (
     IterativeIndexGeneratorProtocol,
     AdmissibilityCriteriaProtocol,
     IndexGrowthRuleProtocol,
+    IndexSequenceProtocol,
     CompositeAdmissibilityCriteriaProtocol,
 )
 
@@ -93,6 +94,7 @@ __all__ = [
     "IterativeIndexGeneratorProtocol",
     "AdmissibilityCriteriaProtocol",
     "IndexGrowthRuleProtocol",
+    "IndexSequenceProtocol",
     "CompositeAdmissibilityCriteriaProtocol",
     # Expansion protocols
     "BasisExpansionProtocol",

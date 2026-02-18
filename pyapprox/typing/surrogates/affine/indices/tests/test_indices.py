@@ -32,7 +32,13 @@ from pyapprox.typing.surrogates.affine.indices.growth_rules import (
 )
 from pyapprox.typing.surrogates.affine.indices.generators import (
     HyperbolicIndexGenerator,
+    IsotropicSparseGridBasisIndexGenerator,
     IterativeIndexGenerator,
+    HyperbolicIndexSequence,
+    SparseGridIndexSequence,
+)
+from pyapprox.typing.surrogates.affine.protocols.index import (
+    IndexSequenceProtocol,
 )
 
 
@@ -616,6 +622,251 @@ class TestComputeDownwardClosure(_BaseIndexTest, unittest.TestCase):
                         closure_set,
                         f"Index {idx} missing predecessor in dim {dim}",
                     )
+
+
+class TestIsotropicSparseGridBasisIndexGenerator(
+    _BaseIndexTest, unittest.TestCase
+):
+    """Test IsotropicSparseGridBasisIndexGenerator."""
+
+    __test__ = True
+
+    def test_linear_11_matches_total_degree(self):
+        """LinearGrowthRule(1,1) should produce same indices as total degree."""
+        bkd = self.bkd
+        rule = LinearGrowthRule(scale=1, shift=1)
+        for nvars in [2, 3]:
+            for max_level in [2, 3, 4]:
+                gen = IsotropicSparseGridBasisIndexGenerator(
+                    nvars, max_level, bkd, growth_rules=rule,
+                )
+                sg_indices = gen.get_indices()
+                td_indices = compute_hyperbolic_indices(
+                    nvars, max_level, 1.0, bkd,
+                )
+                self.assertEqual(
+                    sg_indices.shape[1],
+                    td_indices.shape[1],
+                    f"nvars={nvars}, max_level={max_level}: "
+                    f"sg={sg_indices.shape[1]} != td={td_indices.shape[1]}",
+                )
+
+    def test_linear_21_has_cross_terms(self):
+        """LinearGrowthRule(2,1) should include cross-terms like (1,1,0)."""
+        bkd = self.bkd
+        rule = LinearGrowthRule(scale=2, shift=1)
+        gen = IsotropicSparseGridBasisIndexGenerator(
+            3, 2, bkd, growth_rules=rule,
+        )
+        indices = gen.get_indices()
+
+        # Build set of tuples for easy checking
+        idx_set = set()
+        for j in range(indices.shape[1]):
+            idx_set.add(
+                tuple(int(bkd.to_numpy(indices[i, j])) for i in range(3))
+            )
+
+        # (1,1,0) should be present (from subspace (1,1,0) with
+        # growth_rule(1)=3, so max_degree=2 in each active dim)
+        self.assertIn((1, 1, 0), idx_set)
+        self.assertIn((2, 0, 0), idx_set)
+        self.assertIn((0, 2, 0), idx_set)
+        self.assertIn((0, 0, 2), idx_set)
+
+    def test_intermediate_growth_rate(self):
+        """Sparse grid indices should be between hyperbolic cross and TD."""
+        bkd = self.bkd
+        nvars = 3
+        max_level = 3
+
+        # Hyperbolic cross (pnorm=0.5)
+        hc_indices = compute_hyperbolic_indices(nvars, max_level, 0.5, bkd)
+        n_hc = hc_indices.shape[1]
+
+        # Total degree (pnorm=1.0)
+        td_indices = compute_hyperbolic_indices(nvars, max_level, 1.0, bkd)
+        n_td = td_indices.shape[1]
+
+        # Sparse grid with default growth rule (scale=2, shift=1)
+        gen = IsotropicSparseGridBasisIndexGenerator(nvars, max_level, bkd)
+        n_sg = gen.get_indices().shape[1]
+
+        # SG should have more terms than hyperbolic cross but can differ
+        # from total degree. For nvars=3, max_level=3 with (2,1) growth,
+        # it should include cross-terms that HC prunes.
+        self.assertGreater(n_sg, n_hc)
+        # With (2,1) growth and level 3, we expect more terms than TD
+        # because max degree per dim can be 2*3=6
+        self.assertGreater(n_sg, n_td)
+
+    def test_downward_closed(self):
+        """Generated indices should be downward closed."""
+        bkd = self.bkd
+        gen = IsotropicSparseGridBasisIndexGenerator(3, 3, bkd)
+        indices = gen.get_indices()
+
+        idx_set = set()
+        for j in range(indices.shape[1]):
+            idx_set.add(
+                tuple(int(bkd.to_numpy(indices[i, j])) for i in range(3))
+            )
+
+        for idx in idx_set:
+            for dim in range(3):
+                if idx[dim] > 0:
+                    predecessor = list(idx)
+                    predecessor[dim] -= 1
+                    self.assertIn(
+                        tuple(predecessor),
+                        idx_set,
+                        f"Index {idx} missing predecessor in dim {dim}",
+                    )
+
+    def test_per_dimension_growth_rules(self):
+        """Per-dimension growth rules should work correctly."""
+        bkd = self.bkd
+        rules = [
+            LinearGrowthRule(scale=1, shift=1),
+            LinearGrowthRule(scale=2, shift=1),
+        ]
+        gen = IsotropicSparseGridBasisIndexGenerator(
+            2, 2, bkd, growth_rules=rules,
+        )
+        indices = gen.get_indices()
+
+        # Check that max degree in dim 0 <= max_level (scale=1)
+        max_deg_0 = int(bkd.to_numpy(bkd.max(indices[0, :])))
+        # Dim 0 uses LinearGrowthRule(1,1): at level l, n=l+1, max_deg=l
+        # Max subspace level per dim is max_level=2, so max_deg_0 <= 2
+        self.assertLessEqual(max_deg_0, 2)
+
+        # Dim 1 uses LinearGrowthRule(2,1): at level l, n=2l+1, max_deg=2l
+        # Max subspace level per dim is max_level=2, so max_deg_1 <= 4
+        max_deg_1 = int(bkd.to_numpy(bkd.max(indices[1, :])))
+        self.assertLessEqual(max_deg_1, 4)
+
+        # With the faster growth in dim 1, should have higher degrees there
+        self.assertGreater(max_deg_1, max_deg_0)
+
+    def test_wrong_number_growth_rules_raises(self):
+        """Mismatched number of growth rules should raise ValueError."""
+        bkd = self.bkd
+        rules = [LinearGrowthRule(1, 1), LinearGrowthRule(2, 1)]
+        with self.assertRaises(ValueError):
+            IsotropicSparseGridBasisIndexGenerator(3, 2, bkd, growth_rules=rules)
+
+    def test_level_zero(self):
+        """Level 0 should produce just the zero index."""
+        bkd = self.bkd
+        gen = IsotropicSparseGridBasisIndexGenerator(3, 0, bkd)
+        indices = gen.get_indices()
+        self.assertEqual(indices.shape[1], 1)
+        expected = bkd.zeros((3, 1), dtype=bkd.int64_dtype())
+        bkd.assert_allclose(indices, expected)
+
+    def test_repr(self):
+        """Test repr contains class name."""
+        bkd = self.bkd
+        gen = IsotropicSparseGridBasisIndexGenerator(2, 2, bkd)
+        r = repr(gen)
+        self.assertIn("IsotropicSparseGridBasisIndexGenerator", r)
+
+
+class TestHyperbolicIndexSequence(_BaseIndexTest, unittest.TestCase):
+    """Test HyperbolicIndexSequence."""
+
+    __test__ = True
+
+    def test_matches_compute_hyperbolic_indices(self):
+        """Output matches compute_hyperbolic_indices for several configs."""
+        bkd = self.bkd
+        for nvars in [1, 2, 3]:
+            for level in [0, 1, 2, 3]:
+                for pnorm in [0.5, 1.0]:
+                    seq = HyperbolicIndexSequence(nvars, pnorm, bkd)
+                    result = seq(level)
+                    expected = compute_hyperbolic_indices(
+                        nvars, level, pnorm, bkd
+                    )
+                    bkd.assert_allclose(result, expected)
+
+    def test_accessors(self):
+        """Test nvars, pnorm, bkd accessors."""
+        bkd = self.bkd
+        seq = HyperbolicIndexSequence(3, 0.5, bkd)
+        self.assertEqual(seq.nvars(), 3)
+        self.assertAlmostEqual(seq.pnorm(), 0.5)
+        self.assertIs(seq.bkd(), bkd)
+
+    def test_satisfies_protocol(self):
+        """HyperbolicIndexSequence satisfies IndexSequenceProtocol."""
+        bkd = self.bkd
+        seq = HyperbolicIndexSequence(2, 1.0, bkd)
+        self.assertIsInstance(seq, IndexSequenceProtocol)
+
+
+class TestSparseGridIndexSequence(_BaseIndexTest, unittest.TestCase):
+    """Test SparseGridIndexSequence."""
+
+    __test__ = True
+
+    def test_matches_generator(self):
+        """Output matches IsotropicSparseGridBasisIndexGenerator."""
+        bkd = self.bkd
+        for nvars in [2, 3]:
+            for level in [0, 1, 2, 3]:
+                seq = SparseGridIndexSequence(nvars, bkd)
+                result = seq(level)
+                gen = IsotropicSparseGridBasisIndexGenerator(
+                    nvars, level, bkd
+                )
+                expected = gen.get_indices()
+                bkd.assert_allclose(result, expected)
+
+    def test_with_custom_growth_rule(self):
+        """Output matches generator with custom growth rule."""
+        bkd = self.bkd
+        rule = LinearGrowthRule(scale=1, shift=1)
+        nvars = 2
+        level = 3
+        seq = SparseGridIndexSequence(nvars, bkd, growth_rules=rule)
+        result = seq(level)
+        gen = IsotropicSparseGridBasisIndexGenerator(
+            nvars, level, bkd, growth_rules=rule
+        )
+        expected = gen.get_indices()
+        bkd.assert_allclose(result, expected)
+
+    def test_accessors(self):
+        """Test nvars and bkd accessors."""
+        bkd = self.bkd
+        seq = SparseGridIndexSequence(3, bkd)
+        self.assertEqual(seq.nvars(), 3)
+        self.assertIs(seq.bkd(), bkd)
+
+    def test_satisfies_protocol(self):
+        """SparseGridIndexSequence satisfies IndexSequenceProtocol."""
+        bkd = self.bkd
+        seq = SparseGridIndexSequence(2, bkd)
+        self.assertIsInstance(seq, IndexSequenceProtocol)
+
+
+class TestIndexSequenceProtocolCheckable(unittest.TestCase):
+    """Test that IndexSequenceProtocol is runtime checkable."""
+
+    def test_non_conforming_object_fails(self):
+        """An object without __call__ does not satisfy the protocol."""
+        self.assertNotIsInstance("hello", IndexSequenceProtocol)
+
+    def test_callable_without_correct_signature_passes_runtime_check(self):
+        """A callable object passes runtime isinstance check."""
+        # Note: runtime_checkable only checks method existence, not signature
+        class DummySeq:
+            def __call__(self, level):
+                return None
+
+        self.assertIsInstance(DummySeq(), IndexSequenceProtocol)
 
 
 if __name__ == "__main__":

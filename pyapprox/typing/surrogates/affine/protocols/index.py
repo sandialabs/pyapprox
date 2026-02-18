@@ -195,6 +195,36 @@ class IndexGrowthRuleProtocol(Protocol):
 
 
 @runtime_checkable
+class IndexSequenceProtocol(Protocol, Generic[Array]):
+    """Maps an integer level to a multi-index set.
+
+    Implementations produce index sets of shape ``(nvars, nterms)`` for
+    a given level, suitable for sweeping over candidate index sets in
+    cross-validation or model selection.
+
+    Methods
+    -------
+    __call__(level: int) -> Array
+        Return the multi-index set for the given level.
+    """
+
+    def __call__(self, level: int) -> Array:
+        """Return the multi-index set for the given level.
+
+        Parameters
+        ----------
+        level : int
+            Integer level controlling the size of the index set.
+
+        Returns
+        -------
+        Array
+            Multi-indices. Shape: (nvars, nterms)
+        """
+        ...
+
+
+@runtime_checkable
 class CompositeAdmissibilityCriteriaProtocol(Protocol, Generic[Array]):
     """Protocol for composite admissibility criteria.
 
