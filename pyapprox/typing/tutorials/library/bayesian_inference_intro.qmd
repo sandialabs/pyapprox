@@ -1,0 +1,741 @@
+---
+title: "From Data to Parameters: Introduction to Bayesian Inference"
+subtitle: "PyApprox Tutorial Library"
+description: "Using experimental measurements to update our beliefs about uncertain model parameters."
+tutorial_type: concept
+topic: uncertainty_quantification
+difficulty: beginner
+estimated_time: 15
+prerequisites:
+  - forward_uq
+tags:
+  - uq
+  - beam
+  - bayesian-inference
+  - inverse-problem
+format:
+  html:
+    code-fold: false
+    code-tools: true
+    toc: true
+execute:
+  echo: true
+  warning: false
+jupyter: python3
+---
+
+::: {.callout-tip collapse="true"}
+## Download Notebook
+[Download as Jupyter Notebook](notebooks/bayesian_inference_intro.ipynb)
+:::
+
+## Learning Objectives
+
+After completing this tutorial, you will be able to:
+
+- Explain why observed data motivates updating a prior distribution
+- State Bayes' theorem and identify the role of the prior, likelihood, and posterior
+- Construct a likelihood function from a model and noisy observations
+- Compute a posterior distribution on a grid for a one-parameter problem
+- Describe how additional observations narrow the posterior
+- Recognize the computational challenges that motivate MCMC and surrogate-based inference
+
+## Prerequisites
+
+Complete [Forward Uncertainty Quantification](forward_uq.qmd) before this tutorial.
+
+
+## Flipping the Arrow
+
+The [forward UQ tutorial](forward_uq.qmd) solved this problem: given a distribution over the Young's modulus $E$, propagate it through the beam model to get a distribution over the tip deflection $\delta_{\text{tip}}$. The arrow pointed from parameters to predictions:
+
+$$
+\text{prior on } E \;\xrightarrow{\;f\;}\; \text{distribution on } \delta_{\text{tip}}
+$$
+
+But now suppose we go to the lab and **measure** the tip deflection. We observe a value $y_{\text{obs}}$. This measurement contains information about $E$ --- after all, a stiffer beam deflects less. Can we use this data to sharpen our knowledge of $E$?
+
+This is the **inverse problem**: the arrow points backwards, from observations to parameters:
+
+$$
+\text{observation } y_{\text{obs}} \;\xrightarrow{\;?\;}\; \text{updated belief about } E
+$$
+
+Bayesian inference provides the mathematical framework for flipping this arrow. @fig-forward-inverse-schematic contrasts the two directions.
+
+```{python}
+#| echo: false
+#| fig-cap: "Forward UQ (top, faded) propagates a prior distribution through the model to predict the QoI. Bayesian inference (bottom, vivid) reverses the arrow: a single observation is combined with the model via Bayes' theorem to produce an updated posterior distribution over the parameter."
+#| label: fig-forward-inverse-schematic
+import numpy as np
+import matplotlib.pyplot as plt
+from matplotlib.patches import FancyBboxPatch
+from scipy.stats import norm
+
+fig, axes = plt.subplots(
+    2, 3, figsize=(11, 6),
+    gridspec_kw={"width_ratios": [1, 0.5, 1], "height_ratios": [1, 1],
+                 "hspace": 0.35, "wspace": 0.25},
+)
+
+# --- Shared data for the schematic ---
+E_grid_s = np.linspace(6_000, 18_000, 300)
+mu_s, sig_s = 12_000, 2_000
+prior_s = norm.pdf(E_grid_s, mu_s, sig_s)
+
+# Push-forward: use the beam formula directly for the schematic
+q_grid = np.linspace(-1, 5, 300)
+pdf_out = 0.7 * norm.pdf(q_grid, 1.5, 0.8) + 0.3 * norm.pdf(q_grid, 3.0, 0.5)
+
+# Posterior (narrower, shifted toward E_true = 10000)
+mu_post, sig_post = 10_200, 800
+posterior_s = norm.pdf(E_grid_s, mu_post, sig_post)
+
+# =====================================================================
+# TOP ROW: Forward UQ (faded)
+# =====================================================================
+fade = 0.35
+
+# Top-left: prior p(E)
+ax = axes[0, 0]
+ax.fill_between(E_grid_s, prior_s, alpha=0.15, color="#2C7FB8")
+ax.plot(E_grid_s, prior_s, color="#2C7FB8", lw=2, alpha=fade)
+ax.set_xlabel(r"$E$", fontsize=11, alpha=fade)
+ax.set_ylabel("Density", fontsize=11, alpha=fade)
+ax.set_title(r"Prior $p(E)$", fontsize=11, alpha=fade)
+ax.set_yticks([])
+ax.grid(True, alpha=0.1)
+ax.tick_params(colors=(0, 0, 0, fade))
+for spine in ax.spines.values():
+    spine.set_alpha(fade)
+
+# Top-center: model box with right arrow
+ax = axes[0, 1]
+ax.axis("off")
+box = FancyBboxPatch((0.15, 0.35), 0.7, 0.3, boxstyle="round,pad=0.05",
+                      facecolor="#F0F0F0", edgecolor="gray", linewidth=1.5,
+                      alpha=fade)
+ax.add_patch(box)
+ax.text(0.5, 0.5, r"$f(E)$", ha="center", va="center",
+        fontsize=14, color="gray", alpha=fade, transform=ax.transAxes)
+ax.annotate("", xy=(0.12, 0.5), xytext=(-0.15, 0.5),
+            xycoords="axes fraction", textcoords="axes fraction",
+            arrowprops=dict(arrowstyle="->", lw=2, color="#2C7FB8", alpha=fade))
+ax.annotate("", xy=(1.15, 0.5), xytext=(0.88, 0.5),
+            xycoords="axes fraction", textcoords="axes fraction",
+            arrowprops=dict(arrowstyle="->", lw=2, color="#2C7FB8", alpha=fade))
+
+# Top-right: push-forward distribution
+ax = axes[0, 2]
+ax.fill_between(q_grid, pdf_out, alpha=0.1, color="#E67E22")
+ax.plot(q_grid, pdf_out, color="#E67E22", lw=2, alpha=fade)
+ax.set_xlabel(r"$\delta_{\mathrm{tip}}$", fontsize=11, alpha=fade)
+ax.set_ylabel("Density", fontsize=11, alpha=fade)
+ax.set_title("Push-forward distribution", fontsize=11, alpha=fade)
+ax.set_yticks([])
+ax.grid(True, alpha=0.1)
+ax.tick_params(colors=(0, 0, 0, fade))
+for spine in ax.spines.values():
+    spine.set_alpha(fade)
+
+# =====================================================================
+# BOTTOM ROW: Bayesian inference (vivid)
+# =====================================================================
+
+# Bottom-left: posterior overlaid on faded prior
+ax = axes[1, 0]
+ax.fill_between(E_grid_s, prior_s, alpha=0.12, color="#2C7FB8")
+ax.plot(E_grid_s, prior_s, color="#2C7FB8", lw=1.5, alpha=0.3,
+        label="Prior (faded)")
+ax.fill_between(E_grid_s, posterior_s, alpha=0.3, color="#E67E22")
+ax.plot(E_grid_s, posterior_s, color="#E67E22", lw=2.5,
+        label=r"Posterior $p(E \mid y_{\mathrm{obs}})$")
+ax.set_xlabel(r"$E$", fontsize=11)
+ax.set_ylabel("Density", fontsize=11)
+ax.set_title("Updated belief", fontsize=11)
+ax.legend(fontsize=8, loc="upper right")
+ax.set_yticks([])
+ax.grid(True, alpha=0.2)
+
+# Bottom-center: model box with LEFT arrow + "Bayes' theorem"
+ax = axes[1, 1]
+ax.axis("off")
+box = FancyBboxPatch((0.15, 0.35), 0.7, 0.3, boxstyle="round,pad=0.05",
+                      facecolor="#F0F0F0", edgecolor="k", linewidth=1.5)
+ax.add_patch(box)
+ax.text(0.5, 0.5, r"$f(E)$", ha="center", va="center",
+        fontsize=14, transform=ax.transAxes)
+# Left-pointing arrows (reversed)
+ax.annotate("", xy=(-0.15, 0.5), xytext=(0.12, 0.5),
+            xycoords="axes fraction", textcoords="axes fraction",
+            arrowprops=dict(arrowstyle="->", lw=2, color="#E67E22"))
+ax.annotate("", xy=(0.88, 0.5), xytext=(1.15, 0.5),
+            xycoords="axes fraction", textcoords="axes fraction",
+            arrowprops=dict(arrowstyle="->", lw=2, color="#C0392B"))
+ax.text(0.5, 0.15, "Bayes' theorem", ha="center", va="center",
+        fontsize=10, fontstyle="italic", color="#333",
+        transform=ax.transAxes)
+
+# Bottom-right: observation with noise bell
+ax = axes[1, 2]
+y_obs_s = 2.0  # schematic observation point on same q_grid scale
+noise_std_s = 0.25
+obs_bell = norm.pdf(q_grid, y_obs_s, noise_std_s)
+obs_bell_scaled = obs_bell / obs_bell.max() * 0.8
+ax.fill_between(q_grid, obs_bell_scaled, alpha=0.2, color="#C0392B")
+ax.plot(q_grid, obs_bell_scaled, color="#C0392B", lw=1.5, ls="--",
+        label="Noise model")
+ax.plot(y_obs_s, 0, "o", color="#C0392B", ms=10, zorder=5,
+        label=r"$y_{\mathrm{obs}}$", clip_on=False)
+ax.set_xlabel(r"$\delta_{\mathrm{tip}}$", fontsize=11)
+ax.set_ylabel("")
+ax.set_title("Observed data", fontsize=11)
+ax.legend(fontsize=8, loc="upper right")
+ax.set_yticks([])
+ax.set_xlim(q_grid[0], q_grid[-1])
+ax.grid(True, alpha=0.2)
+
+# =====================================================================
+# Connecting element: dashed line from top-right to bottom-right
+# =====================================================================
+# Use figure-level coordinates via fig.transFigure
+from matplotlib.patches import ConnectionPatch
+con = ConnectionPatch(
+    xyA=(y_obs_s, 0), coordsA=axes[0, 2].transData,
+    xyB=(y_obs_s, obs_bell_scaled.max()), coordsB=axes[1, 2].transData,
+    color="gray", ls="--", lw=1.5, alpha=0.6,
+)
+fig.add_artist(con)
+# Annotation near the connecting line
+mid_fig_y = 0.5 * (axes[0, 2].get_position().y0 + axes[1, 2].get_position().y1)
+fig.text(0.92, mid_fig_y, "observe", ha="center", va="center",
+         fontsize=9, color="gray", fontstyle="italic", rotation=90)
+
+plt.show()
+```
+
+
+## Setup: The Beam Model
+
+We use the same Euler-Bernoulli beam from the forward UQ tutorial. The tip deflection under a linearly increasing distributed load is:
+
+$$
+\delta_{\text{tip}} = f(E) = \frac{11\, q_0\, L^4}{120\, E\, I}
+$$
+
+with fixed values $q_0 = 10$, $L = 100$, $I = H^3/12$, $H = 30$. The only uncertain parameter is $E$.
+
+```{python}
+#| echo: false
+import numpy as np
+import matplotlib.pyplot as plt
+from scipy.stats import norm
+rng = np.random.default_rng(42)
+```
+
+```{python}
+from pyapprox.typing.util.backends.numpy import NumpyBkd
+from pyapprox.typing.benchmarks.functions.algebraic.cantilever_beam import (
+    HomogeneousBeam1DAnalytical,
+)
+
+bkd = NumpyBkd()
+
+# Beam parameters (matching forward UQ tutorial)
+L, H, q0 = 100.0, 30.0, 10.0
+
+beam_model = HomogeneousBeam1DAnalytical(
+    length=L, height=H, q0=q0, bkd=bkd,
+)
+```
+
+Our **prior** belief about $E$ is a Gaussian, encoding what we know from the manufacturer's data sheet before any testing:
+
+$$
+E \sim \mathcal{N}(\mu_{\text{prior}},\, \sigma_{\text{prior}}^2) = \mathcal{N}(12{,}000,\; 2{,}000^2)
+$$
+
+```{python}
+from pyapprox.typing.probability.univariate.gaussian import GaussianMarginal
+
+mu_prior = 12_000
+sigma_prior = 2_000
+prior = GaussianMarginal(mean=mu_prior, stdev=sigma_prior, bkd=bkd)
+```
+
+
+## Generating Synthetic Data
+
+To see Bayesian inference in action, we create a controlled experiment. We pick a "true" parameter value, run the model, and add measurement noise to produce a synthetic observation --- mimicking what would happen in a real experiment.
+
+```{python}
+from pyapprox.typing.probability.likelihood import (
+    DiagonalGaussianLogLikelihood,
+    ModelBasedLogLikelihood,
+)
+from pyapprox.typing.interface.functions.fromcallable.function import (
+    FunctionFromCallable,
+)
+
+# The "true" parameter (unknown in practice)
+E_true = 10_000
+
+# True (noise-free) tip deflection
+delta_true = float(beam_model(bkd.asarray([[E_true]]))[0, 0])
+print(f"True E:              {E_true}")
+print(f"True tip deflection: {delta_true:.6f}")
+
+# Measurement noise: Gaussian with known standard deviation
+sigma_noise = 0.4
+noise_variances = bkd.asarray([sigma_noise**2])
+noise_likelihood = DiagonalGaussianLogLikelihood(noise_variances, bkd)
+
+# Wrap beam model to output only tip deflection (1 QoI out of 3)
+tip_model = FunctionFromCallable(
+    nqoi=1, nvars=1,
+    fun=lambda E: beam_model(E)[0:1, :],
+    bkd=bkd,
+)
+
+# Compose model + noise into a single parameter-to-likelihood object
+model_likelihood = ModelBasedLogLikelihood(tip_model, noise_likelihood, bkd)
+
+# Generate a synthetic observation by sampling from the likelihood
+np.random.seed(42)
+y_obs = float(model_likelihood.rvs(bkd.asarray([[E_true]])))
+print(f"Observed deflection: {y_obs:.6f}")
+print(f"Noise std dev:       {sigma_noise}")
+```
+
+::: {.callout-note}
+## Inverse crime
+We generated the data from the same model we will use for inference. In a real problem, the model is only an approximation of reality, so the "true" data-generating process differs from the model. Using the same model for both is called an **inverse crime** --- it makes inference look easier than it really is. We use it here for pedagogical clarity, and address model discrepancy in a [later tutorial](model_discrepancy.qmd).
+:::
+
+
+## Why Not Just Invert the Model?
+
+With one parameter and one measurement, it is tempting to simply solve for $E$:
+
+$$
+E = \frac{11\, q_0\, L^4}{120\, y_{\text{obs}}\, I}
+$$
+
+```{python}
+I_rect = H**3 / 12.0
+E_point_estimate = (11 * q0 * L**4) / (120 * y_obs * I_rect)
+print(f"Point estimate of E: {E_point_estimate:.1f}")
+print(f"True E:              {E_true}")
+```
+
+This gives a single number --- a **point estimate**. But it ignores two important facts:
+
+1. The measurement is noisy: a different experiment would give a different $y_{\text{obs}}$ and therefore a different $E$.
+2. We had prior information about $E$ before the experiment. The point estimate throws this away.
+
+What we want is not a single number, but an **updated distribution** over $E$ that combines what we knew before (the prior) with what the data tells us (the likelihood). @fig-point-estimate-problem illustrates why a point estimate is insufficient.
+
+```{python}
+#| echo: false
+#| fig-cap: "A point estimate (red dashed line) gives a single value, but ignores measurement noise and prior information. Multiple noisy measurements of the same beam would give different point estimates (gray lines), showing the inherent uncertainty in the inversion."
+#| label: fig-point-estimate-problem
+
+# Generate several noisy observations to show spread
+n_repeat = 20
+y_repeats = model_likelihood.rvs(np.full((1, n_repeat), E_true))[0, :]
+E_repeats = (11 * q0 * L**4) / (120 * y_repeats * I_rect)
+
+E_grid = np.linspace(6_000, 18_000, 500)
+prior_pdf = prior.pdf(E_grid[np.newaxis, :])[0, :]
+
+fig, ax = plt.subplots(figsize=(8, 4))
+ax.plot(E_grid, prior_pdf, color="#2C7FB8", lw=2, label="Prior")
+ax.axvline(E_true, color="#27AE60", ls="-", lw=2, label=f"True $E$ = {E_true}")
+ax.axvline(E_point_estimate, color="#C0392B", ls="--", lw=2,
+           label=f"Point estimate = {E_point_estimate:.0f}")
+for i, E_r in enumerate(E_repeats):
+    ax.axvline(E_r, color="#8E44AD", ls="-", lw=1, alpha=0.4,
+               label="Repeat estimates" if i == 0 else None)
+
+ax.set_xlabel(r"$E$", fontsize=12)
+ax.set_ylabel("Density", fontsize=12)
+ax.set_title("Point estimates from repeated experiments", fontsize=11)
+ax.legend(fontsize=9)
+ax.grid(True, alpha=0.1)
+plt.tight_layout()
+plt.show()
+```
+
+
+## The Likelihood Function
+
+The measurement model is:
+
+$$
+y_{\text{obs}} = f(E) + \varepsilon, \qquad \varepsilon \sim \mathcal{N}(0, \sigma_{\text{noise}}^2)
+$$
+
+For a given $E$, the probability of observing $y_{\text{obs}}$ is:
+
+$$
+\mathcal{L}(E) = p(y_{\text{obs}} \mid E) = \frac{1}{\sqrt{2\pi}\,\sigma_{\text{noise}}} \exp\!\left(-\frac{(y_{\text{obs}} - f(E))^2}{2\,\sigma_{\text{noise}}^2}\right)
+$$
+
+This is called the **likelihood function**. It is *not* a probability distribution over $E$ --- it is the probability of the data, evaluated as a function of $E$. It peaks at the value of $E$ that makes the model prediction closest to the observation.
+
+@fig-likelihood shows the likelihood alongside the prior. The likelihood is concentrated near $E \approx 10{,}000$ (where $f(E) \approx y_{\text{obs}}$), while the prior is centered at $E = 12{,}000$. The data is pulling us away from our prior belief.
+
+```{python}
+#| echo: false
+#| fig-cap: "The prior distribution (blue) encodes our belief before seeing data. The likelihood function (red) peaks where the model prediction matches the observation. The two disagree: the data suggests $E$ is lower than the prior mean."
+#| label: fig-likelihood
+
+# Evaluate likelihood on grid using the composed model+likelihood object
+obs_col = np.array([[y_obs]])                          # shape (1, 1)
+log_lik_grid = model_likelihood.logpdf_vectorized(
+    E_grid[np.newaxis, :], obs_col,
+)  # (ngrid, 1)
+lik_grid = np.exp(log_lik_grid[:, 0])                  # shape (ngrid,)
+
+# Normalize for visual comparison (likelihood is not a density over E)
+lik_grid_scaled = lik_grid / lik_grid.max() * prior_pdf.max()
+
+fig, ax = plt.subplots(figsize=(8, 4))
+ax.plot(E_grid, prior_pdf, color="#2C7FB8", lw=2, label="Prior $p(E)$")
+ax.plot(E_grid, lik_grid_scaled, color="#C0392B", lw=2,
+        label="Likelihood $\\mathcal{L}(E)$ (scaled)")
+ax.axvline(E_true, color="#27AE60", ls="--", lw=1.5, alpha=0.7,
+           label=f"True $E$ = {E_true}")
+ax.set_xlabel(r"$E$", fontsize=12)
+ax.set_ylabel("Density / scaled likelihood", fontsize=12)
+ax.set_title("Prior vs. likelihood", fontsize=11)
+ax.legend(fontsize=10)
+ax.grid(True, alpha=0.2)
+plt.tight_layout()
+plt.show()
+```
+
+
+## Bayes' Theorem
+
+Bayes' theorem tells us how to combine the prior and the likelihood into an **updated distribution** --- the posterior:
+
+$$
+\underbrace{p(E \mid y_{\text{obs}})}_{\text{posterior}} = \frac{\overbrace{\mathcal{L}(E)}^{\text{likelihood}} \;\times\; \overbrace{p(E)}^{\text{prior}}}{\underbrace{p(y_{\text{obs}})}_{\text{evidence}}}
+$$ {#eq-bayes}
+
+The **evidence** $p(y_{\text{obs}}) = \int \mathcal{L}(E)\, p(E)\, dE$ is a normalizing constant that ensures the posterior integrates to one. Because this integral is an expectation with respect to the prior, we can evaluate it accurately with Gauss quadrature: a small set of carefully chosen points and weights that exactly integrate polynomials of high degree.
+
+The intuition is simple: **the posterior is high where both the prior and the likelihood are high**. Where the prior thinks $E$ is plausible *and* the data agrees, we have high posterior probability.
+
+```{python}
+from pyapprox.typing.surrogates.quadrature import gauss_quadrature_rule
+
+# Gauss quadrature rule for the prior: points and probability-measure weights
+nquad = 50
+quad_points, quad_weights = gauss_quadrature_rule(prior, nquad, bkd)
+# quad_points: (1, nquad), quad_weights: (nquad, 1)
+
+# Evaluate likelihood at quadrature points
+log_lik_quad = model_likelihood.logpdf_vectorized(
+    quad_points, np.array([[y_obs]]),
+)  # shape (nquad, 1)
+lik_quad = np.exp(log_lik_quad[:, 0])   # shape (nquad,)
+
+# Evidence = sum of weights * likelihood (prior is absorbed in the weights)
+evidence = float(lik_quad @ quad_weights[:, 0])
+
+# Evaluate posterior on a fine grid for plotting
+E_grid = np.linspace(6_000, 18_000, 500)
+prior_vals = prior.pdf(E_grid[np.newaxis, :])[0, :]
+log_lik_vals = model_likelihood.logpdf_vectorized(
+    E_grid[np.newaxis, :], np.array([[y_obs]]),
+)  # shape (ngrid, 1)
+likelihood_vals = np.exp(log_lik_vals[:, 0])
+posterior_vals = likelihood_vals * prior_vals / evidence
+
+print(f"Evidence (normalizing constant): {evidence:.6e}")
+```
+
+@fig-bayes-update shows the result: the posterior sits between the prior and the likelihood, shifted toward the data but tempered by the prior.
+
+```{python}
+#| echo: false
+#| fig-cap: "Bayes' theorem in action. The posterior (orange) combines the prior (blue) and the likelihood (red, scaled). It sits between the two, shifted toward the data-consistent region but shaped by the prior. The true parameter value (green dashed) falls within the posterior's support."
+#| label: fig-bayes-update
+
+fig, ax = plt.subplots(figsize=(9, 4.5))
+
+# Prior
+ax.plot(E_grid, prior_vals, color="#2C7FB8", lw=2, label="Prior $p(E)$")
+ax.fill_between(E_grid, prior_vals, alpha=0.1, color="#2C7FB8")
+
+# Likelihood (scaled to same visual height as posterior)
+lik_scaled = likelihood_vals / likelihood_vals.max() * posterior_vals.max() * 0.9
+ax.plot(E_grid, lik_scaled, color="#C0392B", lw=1.5, ls="--",
+        label="Likelihood (scaled)")
+
+# Posterior
+ax.plot(E_grid, posterior_vals, color="#E67E22", lw=2.5,
+        label="Posterior $p(E \\mid y_{\\mathrm{obs}})$")
+ax.fill_between(E_grid, posterior_vals, alpha=0.2, color="#E67E22")
+
+# True value
+ax.axvline(E_true, color="#27AE60", ls="--", lw=1.5, alpha=0.8,
+           label=f"True $E$ = {E_true}")
+
+ax.set_xlabel(r"$E$", fontsize=12)
+ax.set_ylabel("Density", fontsize=12)
+ax.set_title("Bayesian update: prior → posterior", fontsize=11)
+ax.legend(fontsize=10)
+ax.grid(True, alpha=0.2)
+plt.tight_layout()
+plt.show()
+```
+
+Several things to notice:
+
+- The **posterior is narrower** than the prior: the data has reduced our uncertainty about $E$.
+- The **posterior mean is shifted** from the prior mean ($12{,}000$) toward the data-consistent value ($\approx 10{,}000$): the observation has updated our belief.
+- The **true value** falls within the posterior's support: the inference is working correctly.
+
+```{python}
+# Posterior summary statistics via quadrature
+# E[E | y] = sum_i w_i * E_i * L(E_i) / evidence
+posterior_mean = float(
+    (quad_points[0, :] * lik_quad) @ quad_weights[:, 0] / evidence
+)
+posterior_var = float(
+    ((quad_points[0, :] - posterior_mean)**2 * lik_quad)
+    @ quad_weights[:, 0] / evidence
+)
+posterior_std = np.sqrt(posterior_var)
+
+print(f"Prior:     mean = {mu_prior},  std = {sigma_prior}")
+print(f"Posterior: mean = {posterior_mean:.0f},  std = {posterior_std:.0f}")
+print(f"True E:    {E_true}")
+```
+
+
+## The Roles of Prior, Likelihood, and Noise
+
+To build intuition, @fig-prior-likelihood-balance shows how the posterior changes as we vary the relative strength of the prior and the data.
+
+```{python}
+#| echo: false
+#| fig-cap: "The balance between prior and data. Left: a vague prior (large $\\sigma_{\\text{prior}}$) lets the data dominate --- the posterior nearly coincides with the likelihood. Right: a tight prior (small $\\sigma_{\\text{prior}}$) resists the data --- the posterior stays close to the prior even though the data disagrees."
+#| label: fig-prior-likelihood-balance
+
+fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(12, 4))
+
+for ax, sig_p, title in [
+    (ax1, 5_000, "Vague prior ($\\sigma_{\\text{prior}} = 5{,}000$)"),
+    (ax2, 500, "Tight prior ($\\sigma_{\\text{prior}} = 500$)"),
+]:
+    prior_v = norm.pdf(E_grid, mu_prior, sig_p)
+    post_unnorm = likelihood_vals * prior_v
+    post_v = post_unnorm / np.trapz(post_unnorm, E_grid)
+
+    ax.plot(E_grid, prior_v / prior_v.max() * post_v.max(),
+            color="#2C7FB8", lw=1.5, ls=":", label="Prior (scaled)")
+    lik_sc = likelihood_vals / likelihood_vals.max() * post_v.max() * 0.9
+    ax.plot(E_grid, lik_sc, color="#C0392B", lw=1.5, ls="--",
+            label="Likelihood (scaled)")
+    ax.plot(E_grid, post_v, color="#E67E22", lw=2.5, label="Posterior")
+    ax.fill_between(E_grid, post_v, alpha=0.15, color="#E67E22")
+    ax.axvline(E_true, color="#27AE60", ls="--", lw=1.5, alpha=0.7)
+    ax.set_xlabel(r"$E$", fontsize=11)
+    ax.set_ylabel("Density", fontsize=11)
+    ax.set_title(title, fontsize=10)
+    ax.legend(fontsize=8)
+    ax.grid(True, alpha=0.2)
+
+plt.tight_layout()
+plt.show()
+```
+
+This illustrates a fundamental property of Bayesian inference: **the posterior is a compromise between the prior and the data**, weighted by their relative precision. When the data is informative (low noise, strong likelihood), the posterior follows the data. When the prior is informative (low $\sigma_{\text{prior}}$), the posterior resists the data. In the limit of infinite data or zero noise, the prior becomes irrelevant and the posterior converges to the truth.
+
+
+## More Data, Narrower Posterior
+
+So far we used a single observation. What happens when we collect more measurements? Each observation contributes its own likelihood. For independent observations, the joint likelihood is the product:
+
+$$
+\mathcal{L}(E \mid y_1, y_2) = p(y_1 \mid E) \cdot p(y_2 \mid E)
+$$
+
+@fig-multiple-observations shows the posterior after one and two observations. The second observation further narrows the posterior and shifts it closer to the true value.
+
+```{python}
+#| echo: false
+#| fig-cap: "More data narrows the posterior. Blue: prior. Light orange: posterior after one observation. Dark orange: posterior after two independent observations. Each observation provides additional information, reducing the remaining uncertainty about $E$."
+#| label: fig-multiple-observations
+
+# Posterior after one observation (already computed)
+post_1 = posterior_vals
+
+# Generate additional observations from the composed model+likelihood
+y_obs_2 = float(model_likelihood.rvs(bkd.asarray([[E_true]])))
+
+# Joint likelihood from two observations via logpdf_vectorized
+obs_2 = np.array([[y_obs, y_obs_2]])                  # shape (1, 2)
+
+# Evidence for 2 observations (quadrature)
+log_lik_2q = model_likelihood.logpdf_vectorized(quad_points, obs_2)  # (nquad, 2)
+lik_joint_q = np.exp(log_lik_2q[:, 0] + log_lik_2q[:, 1])
+evidence_2 = float(lik_joint_q @ quad_weights[:, 0])
+
+# Posterior on fine grid
+log_lik_2g = model_likelihood.logpdf_vectorized(
+    E_grid[np.newaxis, :], obs_2,
+)  # (ngrid, 2)
+lik_joint_g = np.exp(log_lik_2g[:, 0] + log_lik_2g[:, 1])
+post_2 = lik_joint_g * prior_vals / evidence_2
+
+# Also try 5 observations (3 more sampled from the model+likelihood)
+n_extra = 3
+y_extra = model_likelihood.rvs(
+    np.full((1, n_extra), E_true),
+)[0, :]
+all_obs = np.concatenate([[y_obs, y_obs_2], y_extra])
+obs_5 = all_obs[np.newaxis, :]                         # shape (1, 5)
+
+# Evidence for 5 observations (quadrature)
+log_lik_5q = model_likelihood.logpdf_vectorized(quad_points, obs_5)  # (nquad, 5)
+lik_5_q = np.exp(log_lik_5q.sum(axis=1))
+evidence_5 = float(lik_5_q @ quad_weights[:, 0])
+
+# Posterior on fine grid
+log_lik_5g = model_likelihood.logpdf_vectorized(
+    E_grid[np.newaxis, :], obs_5,
+)  # (ngrid, 5)
+lik_5_g = np.exp(log_lik_5g.sum(axis=1))
+post_5 = lik_5_g * prior_vals / evidence_5
+
+fig, ax = plt.subplots(figsize=(9, 4.5))
+ax.plot(E_grid, prior_vals, color="#2C7FB8", lw=2, label="Prior")
+ax.fill_between(E_grid, prior_vals, alpha=0.08, color="#2C7FB8")
+ax.plot(E_grid, post_1, color="#F5B041", lw=2, label="Posterior (1 obs.)")
+ax.fill_between(E_grid, post_1, alpha=0.15, color="#F5B041")
+ax.plot(E_grid, post_2, color="#E67E22", lw=2, label="Posterior (2 obs.)")
+ax.fill_between(E_grid, post_2, alpha=0.15, color="#E67E22")
+ax.plot(E_grid, post_5, color="#C0392B", lw=2.5, label="Posterior (5 obs.)")
+ax.fill_between(E_grid, post_5, alpha=0.15, color="#C0392B")
+ax.axvline(E_true, color="#27AE60", ls="--", lw=1.5, alpha=0.8,
+           label=f"True $E$ = {E_true}")
+
+ax.set_xlabel(r"$E$", fontsize=12)
+ax.set_ylabel("Density", fontsize=12)
+ax.set_title("Sequential Bayesian update with increasing data", fontsize=11)
+ax.legend(fontsize=9)
+ax.grid(True, alpha=0.2)
+plt.tight_layout()
+plt.show()
+```
+
+With each new observation, the posterior concentrates further around the true value. This is the Bayesian learning loop: data → update → reduced uncertainty → more data → further update.
+
+
+## From Posterior to Forward UQ
+
+Once we have a posterior distribution, we can propagate it forward through the model --- exactly as in the [forward UQ tutorial](forward_uq.qmd), but now using the posterior instead of the prior. @fig-posterior-pushforward compares the push-forward distributions under the prior and the posterior.
+
+```{python}
+#| echo: false
+#| fig-cap: "Push-forward distributions using the prior (blue) and the posterior after 5 observations (orange). The posterior-based push-forward is much narrower and centered closer to the true tip deflection, because the data has reduced parameter uncertainty."
+#| label: fig-posterior-pushforward
+
+nsamples = 10_000
+
+# Sample from prior
+np.random.seed(0)
+E_prior_samples = prior.rvs(nsamples)[0, :]  # shape (nsamples,)
+E_prior_samples = E_prior_samples[E_prior_samples > 0]
+delta_prior = beam_model(E_prior_samples[np.newaxis, :])[0, :]
+
+# Sample from posterior (via inverse CDF on grid)
+post_cdf = np.cumsum(post_5) * (E_grid[1] - E_grid[0])
+post_cdf = post_cdf / post_cdf[-1]
+u_samples = rng.uniform(size=nsamples)
+E_post_samples = np.interp(u_samples, post_cdf, E_grid)
+delta_post = beam_model(E_post_samples[np.newaxis, :])[0, :]
+
+fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(12, 4))
+
+# Parameter distributions
+ax1.hist(E_prior_samples, bins=60, density=True, color="#2C7FB8", alpha=0.4,
+         edgecolor="none", label="Prior")
+ax1.hist(E_post_samples, bins=60, density=True, color="#E67E22", alpha=0.5,
+         edgecolor="none", label="Posterior (5 obs.)")
+ax1.axvline(E_true, color="#27AE60", ls="--", lw=1.5)
+ax1.set_xlabel(r"$E$", fontsize=12)
+ax1.set_ylabel("Density", fontsize=12)
+ax1.set_title("Parameter distributions", fontsize=11)
+ax1.legend(fontsize=9)
+ax1.grid(True, alpha=0.2)
+
+# Push-forward distributions
+ax2.hist(delta_prior, bins=60, density=True, color="#2C7FB8", alpha=0.4,
+         edgecolor="none", label="Prior push-forward")
+ax2.hist(delta_post, bins=60, density=True, color="#E67E22", alpha=0.5,
+         edgecolor="none", label="Posterior push-forward")
+ax2.axvline(delta_true, color="#27AE60", ls="--", lw=1.5,
+            label=f"True $\\delta_{{\\text{{tip}}}}$")
+ax2.set_xlabel(r"$\delta_{\mathrm{tip}}$", fontsize=12)
+ax2.set_ylabel("Density", fontsize=12)
+ax2.set_title("Push-forward distributions", fontsize=11)
+ax2.legend(fontsize=9)
+ax2.grid(True, alpha=0.2)
+
+plt.tight_layout()
+plt.show()
+```
+
+The posterior push-forward is dramatically narrower: the data has reduced our uncertainty about $E$, which propagates to reduced uncertainty about the QoI. This is the payoff of Bayesian inference for engineering: **better predictions from data-informed parameter distributions**.
+
+
+## What We Defer
+
+This tutorial used a 1D grid to compute the posterior exactly. This was possible because we had a single parameter. With two or more parameters, the grid approach becomes impractical: a grid with 500 points per dimension requires $500^d$ model evaluations, which is infeasible even for $d = 3$.
+
+The subsequent tutorials introduce methods that scale to higher dimensions:
+
+- **Markov chain Monte Carlo (MCMC)**: generates samples from the posterior without evaluating it on a grid
+- **Surrogate-accelerated inference**: replaces the expensive model $f(E)$ with a cheap PCE approximation, making each likelihood evaluation nearly free
+- **Model discrepancy**: accounts for the fact that the real data-generating process differs from the model
+
+::: {.callout-note}
+## The grid approach was exact
+For one parameter, grid evaluation with trapezoidal integration gives the exact posterior (up to discretization). Everything we showed in this tutorial --- the prior, the likelihood, the posterior, the sequential update --- is the real Bayesian posterior, not an approximation. MCMC is needed only because the grid approach does not scale, not because it is conceptually different.
+:::
+
+
+## Key Takeaways
+
+- **Bayesian inference** updates a prior distribution using observed data to produce a posterior distribution via Bayes' theorem: posterior $\propto$ likelihood $\times$ prior
+- The **likelihood function** $\mathcal{L}(E) = p(y_{\text{obs}} \mid E)$ measures how well each parameter value explains the data
+- The **posterior** is a compromise between prior and data, weighted by their relative precision
+- **More observations** narrow the posterior and push it toward the truth
+- The posterior can be **propagated forward** through the model to produce data-informed predictions with reduced uncertainty
+- Grid evaluation is exact but limited to low-dimensional problems; higher dimensions require MCMC or surrogate-based methods
+
+
+## Exercises
+
+1. Change the true parameter to $E_{\text{true}} = 14{,}000$ (above the prior mean instead of below). How does the posterior change? Is the posterior mean above or below the prior mean?
+
+2. Increase the noise standard deviation to $\sigma_{\text{noise}} = 4.0$ (10× larger). How does this affect the posterior after one observation? After five? How many observations are needed to recover the same posterior width as the low-noise case?
+
+3. Replace the Gaussian prior with a uniform prior on $[5{,}000,\; 20{,}000]$. Compute the posterior on a grid. How does the shape differ from the Gaussian prior case? What happens in the tails?
+
+4. **(Challenge)** With two observations $y_1, y_2$, show that updating sequentially (prior → posterior after $y_1$ → posterior after $y_2$) gives the same result as updating with both observations at once (prior → posterior after $\{y_1, y_2\}$). This is the **sequential property** of Bayesian inference.
+
+
+## Next Steps
+
+Continue with:
+
+- [Markov Chain Monte Carlo](mcmc_sampling.qmd) --- Sampling the posterior in higher dimensions
+- [Surrogate-Accelerated Inference](surrogate_inference.qmd) --- Using PCE to make likelihood evaluations cheap
+- [Model Discrepancy](model_discrepancy.qmd) --- What happens when the model is wrong

@@ -21,11 +21,13 @@ from .gaussian import (
     DiagonalGaussianLogLikelihood,
     MultiExperimentLogLikelihood,
 )
+from .model_based import ModelBasedLogLikelihood
 from .parallel_diagonal_gaussian import ParallelDiagonalGaussianLogLikelihood
 
 __all__ = [
     "GaussianLogLikelihood",
     "DiagonalGaussianLogLikelihood",
     "MultiExperimentLogLikelihood",
+    "ModelBasedLogLikelihood",
     "ParallelDiagonalGaussianLogLikelihood",
 ]

@@ -48,6 +48,7 @@ from pyapprox.typing.benchmarks.functions.algebraic import (
     BRANIN_MINIMIZERS,
     CantileverBeam1DAnalytical,
     CantileverBeam2DAnalytical,
+    HomogeneousBeam1DAnalytical,
 )
 from pyapprox.typing.benchmarks.functions.genz import (
     OscillatoryFunction,
@@ -131,6 +132,7 @@ __all__ = [
     "BRANIN_MINIMIZERS",
     "CantileverBeam1DAnalytical",
     "CantileverBeam2DAnalytical",
+    "HomogeneousBeam1DAnalytical",
     # Functions - Genz
     "OscillatoryFunction",
     "ProductPeakFunction",

@@ -25,6 +25,9 @@ website:
             - forward_uq.qmd
             - random_variables_distributions.qmd
             - monte_carlo_sampling.qmd
+        - section: "Inverse UQ"
+          contents:
+            - bayesian_inference_intro.qmd
         - section: "Surrogate Modeling"
           contents:
             - polynomial_chaos_surrogates.qmd

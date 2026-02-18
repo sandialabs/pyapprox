@@ -21,6 +21,7 @@ from pyapprox.typing.benchmarks.functions.algebraic.branin import (
 )
 from pyapprox.typing.benchmarks.functions.algebraic.cantilever_beam import (
     CantileverBeam1DAnalytical,
+    HomogeneousBeam1DAnalytical,
 )
 from pyapprox.typing.benchmarks.functions.algebraic.cantilever_beam_2d import (
     CantileverBeam2DAnalytical,
@@ -37,4 +38,5 @@ __all__ = [
     "BRANIN_MINIMIZERS",
     "CantileverBeam1DAnalytical",
     "CantileverBeam2DAnalytical",
+    "HomogeneousBeam1DAnalytical",
 ]

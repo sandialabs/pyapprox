@@ -18,6 +18,12 @@ subtitle: "Validated tutorials for uncertainty quantification"
 | [Random Variables and Distributions](random_variables_distributions.qmd) | Specifying parameter uncertainty with independent and copula-based distributions |
 | [Monte Carlo Sampling](monte_carlo_sampling.qmd) | Estimating QoI statistics by random sampling: variability, sample size effects, and multi-output covariance |
 
+## Inverse UQ
+
+| Tutorial | Description |
+|----------|-------------|
+| [Introduction to Bayesian Inference](bayesian_inference_intro.qmd) | From data to parameters: updating beliefs using Bayes' theorem |
+
 ## Surrogate Modeling
 
 | Tutorial | Description |

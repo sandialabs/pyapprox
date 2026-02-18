@@ -112,6 +112,7 @@ from .transforms import (
 from .likelihood import (
     GaussianLogLikelihood,
     DiagonalGaussianLogLikelihood,
+    ModelBasedLogLikelihood,
 )
 
 # Risk measures
@@ -178,6 +179,7 @@ __all__ = [
     # Likelihood
     "GaussianLogLikelihood",
     "DiagonalGaussianLogLikelihood",
+    "ModelBasedLogLikelihood",
     # Risk measures
     "GaussianAnalyticalRiskMeasures",
     # Density estimation
