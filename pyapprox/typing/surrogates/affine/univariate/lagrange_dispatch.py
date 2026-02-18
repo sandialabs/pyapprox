@@ -13,6 +13,9 @@ import numpy as np
 from pyapprox.typing.util.backends.protocols import Array, Backend
 from pyapprox.typing.util.backends.numpy import NumpyBkd
 from pyapprox.typing.util.backends.torch import TorchBkd
+from pyapprox.typing.util.optional_deps import package_available
+
+_HAS_NUMBA = package_available("numba")
 
 
 # Uniform signature: (abscissa, samples, bary_weights, bkd) -> values
@@ -145,7 +148,7 @@ def get_lagrange_eval_impl(bkd: Backend[Array]) -> LagrangeEvalImpl:
         Implementation with signature:
         (abscissa, samples, bary_weights, bkd) -> Array
     """
-    if isinstance(bkd, NumpyBkd):
+    if isinstance(bkd, NumpyBkd) and _HAS_NUMBA:
         return _make_numba_lagrange_eval()
     if isinstance(bkd, TorchBkd):
         return _make_compiled_lagrange_eval()
@@ -294,7 +297,7 @@ def get_lagrange_jacobian_impl(bkd: Backend[Array]) -> LagrangeDerivImpl:
         Implementation with signature:
         (abscissa, samples, bary_weights, bkd) -> Array
     """
-    if isinstance(bkd, NumpyBkd):
+    if isinstance(bkd, NumpyBkd) and _HAS_NUMBA:
         return _make_numba_lagrange_jacobian()
     if isinstance(bkd, TorchBkd):
         return _make_compiled_lagrange_jacobian()
@@ -448,7 +451,7 @@ def get_lagrange_hessian_impl(bkd: Backend[Array]) -> LagrangeDerivImpl:
         Implementation with signature:
         (abscissa, samples, bary_weights, bkd) -> Array
     """
-    if isinstance(bkd, NumpyBkd):
+    if isinstance(bkd, NumpyBkd) and _HAS_NUMBA:
         return _make_numba_lagrange_hessian()
     if isinstance(bkd, TorchBkd):
         return _make_compiled_lagrange_hessian()

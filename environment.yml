@@ -17,7 +17,7 @@ dependencies:
   - sympy
   - networkx
   - pytorch>=2.5
-  - numba
+  # - numba  # optional: accelerates NumPy dispatch, requires numpy < 2.3
   - cvxpy
   # make html in docs folder
   - sphinx

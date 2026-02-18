@@ -13,6 +13,10 @@ from typing import Callable
 
 import numpy as np
 
+from pyapprox.typing.util.optional_deps import package_available
+
+_HAS_NUMBA = package_available("numba")
+
 
 # Type alias: (np_indices, np_shifts, np_signs, nvars, nsubspaces, nshifts) -> np_coefs
 SmolyakImpl = Callable[
@@ -76,7 +80,6 @@ def get_smolyak_impl() -> SmolyakImpl:
 
     Returns numba kernel if available, otherwise vectorized numpy fallback.
     """
-    try:
+    if _HAS_NUMBA:
         return _make_numba_smolyak()
-    except ImportError:
-        return _generic_smolyak
+    return _generic_smolyak

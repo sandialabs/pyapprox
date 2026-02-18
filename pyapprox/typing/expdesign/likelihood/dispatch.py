@@ -30,15 +30,15 @@ from pyapprox.typing.expdesign.likelihood.compute import (
     evidence_jacobian_vectorized,
 )
 
-try:
+from pyapprox.typing.util.optional_deps import package_available
+
+HAS_NUMBA = package_available("numba")
+if HAS_NUMBA:
     from pyapprox.typing.expdesign.likelihood.compute_numba import (
         logpdf_matrix_numba,
         jacobian_matrix_numba,
         fused_evidence_jacobian_numba,
     )
-    HAS_NUMBA = True
-except ImportError:
-    HAS_NUMBA = False
 
 
 LogpdfMatrixImpl = Callable[

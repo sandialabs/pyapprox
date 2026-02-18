@@ -17,6 +17,9 @@ import numpy as np
 from pyapprox.typing.util.backends.protocols import Array, Backend
 from pyapprox.typing.util.backends.numpy import NumpyBkd
 from pyapprox.typing.util.backends.torch import TorchBkd
+from pyapprox.typing.util.optional_deps import package_available
+
+_HAS_NUMBA = package_available("numba")
 
 from pyapprox.typing.surrogates.affine.basis.compute import (
     basis_eval_vectorized,
@@ -90,7 +93,7 @@ def get_basis_eval_impl(bkd: Backend[Array]) -> BasisEvalImpl:
         Implementation with signature:
         (vals_1d, indices, nvars, bkd) -> Array
     """
-    if _is_numpy(bkd):
+    if _is_numpy(bkd) and _HAS_NUMBA:
         from pyapprox.typing.surrogates.affine.basis.compute_numba import (
             basis_eval_numba,
         )
@@ -130,7 +133,7 @@ def get_basis_jacobian_impl(bkd: Backend[Array]) -> BasisJacobianImpl:
         Implementation with signature:
         (vals_1d, derivs_1d, indices, nvars, bkd) -> Array
     """
-    if _is_numpy(bkd):
+    if _is_numpy(bkd) and _HAS_NUMBA:
         from pyapprox.typing.surrogates.affine.basis.compute_numba import (
             basis_jacobian_numba,
         )
@@ -173,7 +176,7 @@ def get_basis_hessian_impl(bkd: Backend[Array]) -> BasisHessianImpl:
         Implementation with signature:
         (vals_1d, derivs_1d, hess_1d, indices, nvars, bkd) -> Array
     """
-    if _is_numpy(bkd):
+    if _is_numpy(bkd) and _HAS_NUMBA:
         from pyapprox.typing.surrogates.affine.basis.compute_numba import (
             basis_hessian_numba,
         )

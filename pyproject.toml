@@ -3,7 +3,7 @@
 requires = [
     "setuptools",
     "wheel",
-    "numpy>=1.20",
+    "numpy>=2.0",
     "scipy>=1.0.0",
 ]
 
@@ -32,7 +32,6 @@ dependencies = [
     'pytest-cov',
     'pytest>=4.6',
     'networkx',
-    'numba',
     'scikit-fem',
     'umbridge',
 ]
@@ -44,13 +43,16 @@ docs = ['numpydoc', 'sphinx', 'sphinx_automodapi', 'sphinx_rtd_theme',
 # yapf 0.40.2 has bug that prevents its use with elpy
 lint = ["jedi", "black", "autopep8", "yapf==0.40.1", "flake8", "mypy"]
 gpu = ["torchaudio", "torchvision"]
+# numba accelerates NumPy dispatch but requires numpy < 2.3
+numba = ["numba", "numpy < 2.3"]
 parallel = ["joblib", "mpire"]
 # cvxpy with CVXOPT solver for semidefinite programming optimization
 cvxpy = ["cvxpy", "cvxopt"]
 all = ['numpydoc', 'sphinx', 'sphinx_automodapi', 'sphinx_rtd_theme',
        'sphinx-gallery', 'jupyter', "jedi", "black", "autopep8",
        "yapf==0.40.1", "flake8", "torchaudio", "torchvision",
-       "joblib", "mpire", "cvxpy", "cvxopt"
+       "joblib", "mpire", "cvxpy", "cvxopt",
+       "numba", "numpy < 2.3"
        ]
 
 # coverage must be run from the directory of this file

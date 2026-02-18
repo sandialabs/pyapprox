@@ -24,9 +24,9 @@ from pyapprox.typing.surrogates.tensorproduct.compute import (
 from pyapprox.typing.surrogates.tensorproduct.compute_torch import (
     tp_eval_torch,
 )
-from pyapprox.typing.surrogates.tensorproduct.compute_numba import (
-    tp_eval_numba,
-)
+from pyapprox.typing.util.optional_deps import package_available
+
+_HAS_NUMBA = package_available("numba")
 
 
 TpEvalImpl = Callable[
@@ -40,6 +40,10 @@ def _make_numba_tp_eval() -> TpEvalImpl:
     Wraps the raw Numba kernel by converting List[Array] to padded
     (nvars, npoints, max_n1d) array before calling the kernel.
     """
+    from pyapprox.typing.surrogates.tensorproduct.compute_numba import (
+        tp_eval_numba,
+    )
+
     def impl(
         basis_vals_1d: List[Array],
         values: Array,
@@ -109,7 +113,7 @@ def get_tp_eval_impl(bkd: Backend[Array]) -> TpEvalImpl:
         Implementation with signature:
         (basis_vals_1d, values, nterms_1d, bkd) -> Array
     """
-    if isinstance(bkd, NumpyBkd):
+    if isinstance(bkd, NumpyBkd) and _HAS_NUMBA:
         return _make_numba_tp_eval()
     if isinstance(bkd, TorchBkd):
         return _make_compiled_tp_eval()
