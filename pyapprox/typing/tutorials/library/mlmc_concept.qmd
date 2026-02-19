@@ -1,0 +1,346 @@
+---
+title: "Multi-Level Monte Carlo"
+subtitle: "PyApprox Tutorial Library"
+description: "Estimating high-fidelity model statistics using a hierarchy of models by accumulating corrections between consecutive levels."
+tutorial_type: concept
+topic: multi_fidelity
+difficulty: beginner
+estimated_time: 7
+prerequisites:
+  - acv_concept
+tags:
+  - multi-fidelity
+  - multi-level
+  - variance-reduction
+  - monte-carlo
+format:
+  html:
+    code-fold: false
+    code-tools: true
+    toc: true
+execute:
+  echo: true
+  warning: false
+jupyter: python3
+---
+
+::: {.callout-tip collapse="true"}
+## Download Notebook
+[Download as Jupyter Notebook](notebooks/mlmc_concept.ipynb)
+:::
+
+## Learning Objectives
+
+After completing this tutorial, you will be able to:
+
+- Explain the telescoping identity that underpins the MLMC estimator
+- Describe why estimating level differences rather than model outputs directly reduces variance
+- State why MLMC sample sets are kept independent across levels
+- Identify when MLMC is a good fit and when the level-difference variances will be small
+
+## Prerequisites
+
+Complete [Approximate Control Variates](acv_concept.qmd) before this tutorial.
+
+
+## Motivation: Many Cheap Models, One Expensive Truth
+
+The ACV tutorial showed how a single cheap model can reduce the variance of a HF MC
+estimator. What if we have not one but many models arranged in a **hierarchy** of
+increasing fidelity and cost? Multi-Level Monte Carlo (MLMC) [GOR2008] exploits such
+a hierarchy differently from ACV: rather than correcting the HF estimate, it
+**decomposes the HF mean into a sum of level-wise corrections** and estimates each
+correction cheaply at the level where it is cheapest to do so.
+
+MLMC was originally developed for finite-element models where the levels correspond to
+successively refined meshes. The same idea applies to any sequence of models ordered
+by accuracy and cost.
+
+
+## The Telescoping Identity
+
+Let $f_0, f_1, \ldots, f_M$ be a hierarchy of models ordered by **decreasing** fidelity
+and cost ($f_0$ is the expensive high-fidelity model, $f_M$ is the cheapest). Define
+$f_{M+1} \equiv 0$. Then
+
+$$
+\mathbb{E}[f_0] = \sum_{\ell=0}^{M} \mathbb{E}[f_\ell - f_{\ell+1}]
+$$ {#eq-telescoping}
+
+because the sum telescopes: all intermediate expectations cancel, leaving only
+$\mathbb{E}[f_0] - \mathbb{E}[f_{M+1}] = \mathbb{E}[f_0]$.
+
+Each term $\mathbb{E}[f_\ell - f_{\ell+1}]$ is the expected **correction** from level
+$\ell+1$ to level $\ell$. This is the quantity MLMC estimates at each level.
+
+
+## Why Differences Have Small Variance
+
+The variance of a correction $f_\ell - f_{\ell+1}$ is small whenever $f_\ell \approx f_{\ell+1}$
+— that is, whenever consecutive models in the hierarchy are similar to each other. This is
+exactly what we expect from a well-designed model sequence: a fine mesh and the next-finer
+mesh produce nearly identical outputs, so their difference varies little across samples.
+
+@fig-level-variances makes this concrete for a five-level polynomial hierarchy
+$f_\ell(z) = z^{5-\ell}$, $z \sim \mathcal{U}[0,1]$. The variance of each level's
+correction $Y_\ell = f_\ell - f_{\ell+1}$ decreases rapidly as $\ell$ increases (moving
+toward cheaper models), while the cost per sample also decreases. The cheap levels
+concentrate most of the correction work at negligible expense.
+
+```{python}
+#| echo: false
+#| fig-cap: "Variance of the level corrections $Y_\\ell = f_\\ell - f_{\\ell+1}$ (blue bars, left axis) and cost per sample (red line, right axis) for the five-level polynomial hierarchy. The variance of each correction is much smaller than the variance of the corresponding model, and it decreases rapidly toward cheaper levels."
+#| label: fig-level-variances
+
+import numpy as np
+import matplotlib.pyplot as plt
+from pyapprox.typing.util.backends.numpy import NumpyBkd
+from pyapprox.typing.benchmarks.instances.multifidelity.polynomial_ensemble import (
+    polynomial_ensemble_5model,
+)
+
+bkd = NumpyBkd()
+benchmark = polynomial_ensemble_5model(bkd)
+variable  = benchmark.prior()
+models    = benchmark.models()
+costs     = bkd.to_numpy(benchmark.costs())
+M         = len(models) - 1   # 4: levels 0..4, with f_5 = 0
+
+np.random.seed(0)
+N_est = 50000
+samples = variable.rvs(N_est)
+values  = [bkd.to_numpy(m(samples)).ravel() for m in models]
+
+# Variance of each model
+model_vars = [np.var(v) for v in values]
+# Variance of each correction Y_ell = f_ell - f_{ell+1}  (f_{M+1} = 0)
+diff_vars = []
+for ell in range(M):
+    diff_vars.append(np.var(values[ell] - values[ell + 1]))
+diff_vars.append(np.var(values[M]))   # Y_M = f_M - 0
+
+level_labels = [rf"$Y_{{\ell={ell}}}$" for ell in range(M + 1)]
+x = np.arange(M + 1)
+
+fig, ax1 = plt.subplots(figsize=(9, 4.5))
+
+bars = ax1.bar(x, diff_vars, color="#2C7FB8", alpha=0.75, width=0.5,
+               edgecolor="k", lw=0.5, label=r"$\mathrm{Var}[Y_\ell]$")
+ax1.set_xticks(x)
+ax1.set_xticklabels(level_labels, fontsize=12)
+ax1.set_ylabel(r"Variance of correction $\mathrm{Var}[Y_\ell]$", fontsize=11,
+               color="#2C7FB8")
+ax1.tick_params(axis="y", labelcolor="#2C7FB8")
+ax1.set_yscale("log")
+ax1.set_xlabel("Level $\\ell$  (0 = HF, 4 = cheapest)", fontsize=12)
+
+ax2 = ax1.twinx()
+ax2.plot(x, costs, "o-", color="#C0392B", lw=2, ms=8,
+         label="Cost per sample $C_\\ell$")
+ax2.set_ylabel("Cost per sample $C_\\ell$", fontsize=11, color="#C0392B")
+ax2.tick_params(axis="y", labelcolor="#C0392B")
+ax2.set_yscale("log")
+
+lines1, labels1 = ax1.get_legend_handles_labels()
+lines2, labels2 = ax2.get_legend_handles_labels()
+ax1.legend(lines1 + lines2, labels1 + labels2, fontsize=10, loc="upper right")
+ax1.set_title("Level correction variances vs cost per sample", fontsize=11)
+ax1.grid(True, alpha=0.2, axis="y")
+plt.tight_layout()
+plt.show()
+```
+
+
+## The MLMC Estimator
+
+MLMC estimates each term in @eq-telescoping using its own **independent** sample set
+$\mathcal{Z}_\ell$ of size $N_\ell$:
+
+$$
+\hat{\mu}_0^{\text{ML}} = \sum_{\ell=0}^{M} \hat{Y}_\ell, \qquad
+\hat{Y}_\ell = \frac{1}{N_\ell} \sum_{k=1}^{N_\ell}
+  \bigl(f_\ell(\boldsymbol{\theta}^{(k)}) - f_{\ell+1}(\boldsymbol{\theta}^{(k)})\bigr).
+$$ {#eq-mlmc}
+
+Because the sample sets are independent across levels, the estimator variance is simply
+
+$$
+\mathbb{V}[\hat{\mu}_0^{\text{ML}}] = \sum_{\ell=0}^{M} \frac{\mathbb{V}[Y_\ell]}{N_\ell}.
+$$ {#eq-mlmc-var}
+
+We can make each term small by choosing $N_\ell$ large, but $N_\ell$ only needs to be
+large when $\mathbb{V}[Y_\ell]$ is large — which is exactly at the expensive levels near
+$\ell = 0$. The cheap levels ($\ell$ near $M$) have small $\mathbb{V}[Y_\ell]$, so they
+need few samples even though they are evaluated many times.
+
+
+## What MLMC Looks Like in Practice
+
+@fig-mlmc-vs-mc shows histograms of MC and MLMC mean estimates at equal total cost for
+the five-level polynomial hierarchy. MLMC is dramatically more concentrated around the
+true mean: the same budget buys far more accuracy by spreading samples intelligently
+across the hierarchy.
+
+```{python}
+#| echo: false
+#| fig-cap: "Distribution of 1000 MC and MLMC estimates of $\\mathbb{E}[f_0]$ at equal total cost. MLMC concentrates its budget where each level correction is cheapest to estimate, producing a much narrower distribution."
+#| label: fig-mlmc-vs-mc
+
+import numpy as np
+import matplotlib.pyplot as plt
+from pyapprox.typing.util.backends.numpy import NumpyBkd
+from pyapprox.typing.benchmarks.instances.multifidelity.polynomial_ensemble import (
+    polynomial_ensemble_5model,
+)
+from pyapprox.typing.statest.statistics import MultiOutputMean
+from pyapprox.typing.statest import MLMCEstimator
+from pyapprox.typing.statest.mc_estimator import MCEstimator
+
+bkd = NumpyBkd()
+np.random.seed(0)
+
+benchmark = polynomial_ensemble_5model(bkd)
+variable  = benchmark.prior()
+models    = benchmark.models()
+costs     = benchmark.costs()
+nqoi      = models[0].nqoi()
+
+# True mean via quadrature
+true_mean = bkd.to_float(benchmark.ensemble_means()[0, 0])
+
+# Pilot to estimate covariance
+N_pilot  = 500
+s_pilot  = variable.rvs(N_pilot)
+vals_pilot = [m(s_pilot) for m in models]
+stat = MultiOutputMean(nqoi, bkd)
+cov_pilot, = stat.compute_pilot_quantities(vals_pilot)
+stat.set_pilot_quantities(cov_pilot)
+
+target_cost = 50.0
+n_trials = 1000
+
+# --- MC ---
+mc_stat = MultiOutputMean(nqoi, bkd)
+mc_stat.set_pilot_quantities(cov_pilot[0:1, 0:1])
+mc_est = MCEstimator(mc_stat, costs[0:1])
+mc_est.allocate_samples(target_cost)
+mc_means = np.empty(n_trials)
+for i in range(n_trials):
+    np.random.seed(i)
+    s = variable.rvs(mc_est._rounded_nsamples_per_model[0])
+    mc_means[i] = float(bkd.mean(models[0](s)[0]))
+
+# --- MLMC ---
+mlmc_est = MLMCEstimator(stat, costs)
+mlmc_est.allocate_samples(target_cost)
+mlmc_means = np.empty(n_trials)
+for i in range(n_trials):
+    np.random.seed(i + 10000)
+    samples_per_model = mlmc_est.generate_samples_per_model(
+        lambda n: variable.rvs(int(n))
+    )
+    vals = [models[ell](samples_per_model[ell]) for ell in range(len(models))]
+    mlmc_means[i] = float(mlmc_est(vals))
+
+all_vals = np.concatenate([mc_means, mlmc_means])
+pad  = 0.04 * (all_vals.max() - all_vals.min())
+xlim = (all_vals.min() - pad, all_vals.max() + pad)
+
+fig, axes = plt.subplots(1, 2, figsize=(12, 4), sharey=True)
+for ax, ests, color, label in zip(
+    axes,
+    [mc_means, mlmc_means],
+    ["#2C7FB8", "#E67E22"],
+    [f"MC\n(N = {mc_est._rounded_nsamples_per_model[0]})",
+     "MLMC\n(optimal allocation)"],
+):
+    ax.hist(ests, bins=50, density=True, color=color, alpha=0.75,
+            edgecolor="k", lw=0.2)
+    ax.axvline(true_mean, color="#C0392B", ls="--", lw=2, label="True mean")
+    ax.set_xlabel(r"Estimate of $\mathbb{E}[f_0]$", fontsize=11)
+    ax.set_title(f"{label}\nStd = {ests.std():.4f}", fontsize=10)
+    ax.set_xlim(xlim)
+    ax.legend(fontsize=9)
+    ax.grid(True, alpha=0.2)
+
+axes[0].set_ylabel("Density", fontsize=11)
+fig.suptitle(f"Equal total cost = {target_cost}  |  {n_trials} trials", fontsize=11)
+plt.tight_layout()
+plt.show()
+```
+
+
+## MLMC vs ACV: Same Idea, Different Structure
+
+MLMC is a special case of ACV. To see this, note that for two models the MLMC estimator is
+
+$$
+\hat{\mu}_0^{\text{ML}}
+= \hat{Y}_0 + \hat{Y}_1
+= \hat{\mu}_0(\mathcal{Z}_0) - \hat{\mu}_1(\mathcal{Z}_0) + \hat{\mu}_1(\mathcal{Z}_1)
+= \hat{\mu}_0(\mathcal{Z}_0) - \bigl(\hat{\mu}_1(\mathcal{Z}_0) - \hat{\mu}_1(\mathcal{Z}_1)\bigr)
+$$
+
+which is exactly the ACV estimator with $\eta = -1$ fixed. MLMC does not optimise $\eta$;
+instead it relies on the hierarchy structure to ensure that $\eta = -1$ is approximately
+optimal when consecutive model differences are small. The
+[MLMC Analysis](mlmc_analysis.qmd) tutorial explores the conditions under which this
+fixed-$\eta$ structure is efficient.
+
+
+## When Is MLMC a Good Choice?
+
+MLMC thrives when:
+
+- Models form a **natural hierarchy** where each level is a systematic refinement of the next
+  (mesh refinement, time-step reduction, polynomial order)
+- **Consecutive corrections are small**: $\mathbb{V}[Y_\ell]$ decreases rapidly toward
+  cheaper levels
+- The **cost ratio** between adjacent levels is large, so cheap levels can absorb many
+  samples
+
+MLMC is less suited when models are not naturally ordered (unrelated surrogates, black-box
+codes) or when the variance of level corrections does not decrease fast enough to offset
+the cost of extra model evaluations.
+
+
+## Key Takeaways
+
+- MLMC decomposes $\mathbb{E}[f_0]$ via a telescoping sum; each term is a level correction
+  $\mathbb{E}[f_\ell - f_{\ell+1}]$ estimated on an independent sample set
+- The estimator variance splits additively: $\sum_\ell \mathbb{V}[Y_\ell]/N_\ell$
+- Small correction variances at cheap levels allow large $N_\ell$ at low cost, driving
+  overall variance down
+- MLMC is a special case of ACV with $\eta = -1$ fixed
+
+
+## Exercises
+
+1. For the identity @eq-telescoping to hold, $f_{M+1}$ must equal zero. What would change
+   if we set $f_{M+1}$ to a non-zero constant instead?
+
+2. Suppose $\mathbb{V}[Y_\ell] = V_0 \cdot 4^{-\ell}$ and $C_\ell = C_0 \cdot 4^{-\ell}$.
+   Sketch how $N_\ell$ should grow or shrink with $\ell$ to keep each term in @eq-mlmc-var equal.
+
+3. MLMC uses **independent** sample sets across levels. What would go wrong if the same
+   samples were used at every level?
+
+
+## Next Steps
+
+- [MLMC Analysis](mlmc_analysis.qmd) --- Derive optimal sample allocation and the MLMC
+  complexity theorem
+- [MLMC Usage](mlmc_usage.qmd) --- Run MLMC with the PyApprox API
+- [Multi-Fidelity Monte Carlo](mfmc_concept.qmd) --- An alternative hierarchy estimator
+  with a different sample-sharing structure
+
+
+## References
+
+- [GOR2008] M.B. Giles. *Multilevel Monte Carlo path simulation.* Operations Research,
+  56(3):607--617, 2008. [DOI](https://doi.org/10.1287/opre.1070.0496)
+
+- [CGSTCVS2011] K.A. Cliffe, M.B. Giles, R. Scheichl, A.L. Teckentrup. *Multilevel Monte
+  Carlo methods and applications to elliptic PDEs with random coefficients.* Computing and
+  Visualization in Science, 14:3--15, 2011.
+  [DOI](https://doi.org/10.1007/s00791-011-0160-x)
