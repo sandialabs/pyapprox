@@ -161,7 +161,7 @@ def create_prediction_oed_objective(
     inner_quad_weights : Array, optional
         Quadrature weights for evidence integration. Shape: (ninner,)
     qoi_quad_weights : Array, optional
-        Quadrature weights for prediction aggregation. Shape: (npred, 1)
+        Quadrature weights for prediction aggregation. Shape: (1, npred)
 
     Returns
     -------

@@ -37,17 +37,17 @@ class SampleAverageVariance(SampleStatistic[Array], Generic[Array]):
         Parameters
         ----------
         values : Array
-            Sample values. Shape: (nsamples, nqoi)
+            Sample values. Shape: (nqoi, nsamples)
         weights : Array
-            Quadrature weights. Shape: (nsamples, 1)
+            Quadrature weights. Shape: (1, nsamples)
 
         Returns
         -------
         Array
             Deviations. Shape: (nqoi, nsamples)
         """
-        mean = self._mean_stat(values, weights).T  # (nqoi, 1)
-        return (values - mean[:, 0]).T  # (nqoi, nsamples)
+        mean = self._mean_stat(values, weights)  # (nqoi, 1)
+        return values - mean  # (nqoi, nsamples)
 
     def _values(self, values: Array, weights: Array) -> Array:
         """
@@ -56,17 +56,18 @@ class SampleAverageVariance(SampleStatistic[Array], Generic[Array]):
         Parameters
         ----------
         values : Array
-            Sample values. Shape: (nsamples, nqoi)
+            Sample values. Shape: (nqoi, nsamples)
         weights : Array
-            Quadrature weights. Shape: (nsamples, 1)
+            Quadrature weights. Shape: (1, nsamples)
 
         Returns
         -------
         Array
-            Variance values. Shape: (1, nqoi)
+            Variance values. Shape: (nqoi, 1)
         """
         diff = self._diff(values, weights)  # (nqoi, nsamples)
-        return (diff**2 @ weights).T  # (1, nqoi)
+        # (diff**2) * weights -> (nqoi, nsamples), sum over samples
+        return (diff**2) @ weights.T  # (nqoi, 1)
 
     def _jacobian(
         self, values: Array, jac_values: Array, weights: Array
@@ -79,11 +80,11 @@ class SampleAverageVariance(SampleStatistic[Array], Generic[Array]):
         Parameters
         ----------
         values : Array
-            Sample values. Shape: (nsamples, nqoi)
+            Sample values. Shape: (nqoi, nsamples)
         jac_values : Array
-            Jacobians at samples. Shape: (nsamples, nqoi, nvars)
+            Jacobians at samples. Shape: (nqoi, nsamples, nvars)
         weights : Array
-            Quadrature weights. Shape: (nsamples, 1)
+            Quadrature weights. Shape: (1, nsamples)
 
         Returns
         -------
@@ -92,21 +93,21 @@ class SampleAverageVariance(SampleStatistic[Array], Generic[Array]):
         """
         # Compute mean jacobian: (nqoi, nvars)
         mean_jac = self._mean_stat.jacobian(values, jac_values, weights)
-        # Expand for broadcasting: (1, nqoi, nvars)
-        mean_jac_expanded = mean_jac[None, :, :]
+        # Expand for broadcasting: (nqoi, 1, nvars)
+        mean_jac_expanded = mean_jac[:, None, :]
 
         # Deviation from mean: (nqoi, nsamples)
         diff = self._diff(values, weights)
 
-        # jac_values - mean_jac: (nsamples, nqoi, nvars)
+        # jac_values - mean_jac: (nqoi, nsamples, nvars)
         jac_diff = jac_values - mean_jac_expanded
 
         # 2 * diff * jac_diff weighted by weights
-        # diff.T: (nsamples, nqoi)
-        tmp = 2 * diff.T[..., None] * jac_diff  # (nsamples, nqoi, nvars)
+        # diff[..., None]: (nqoi, nsamples, 1)
+        tmp = 2 * diff[..., None] * jac_diff  # (nqoi, nsamples, nvars)
 
         # Weighted sum over samples
-        return self._bkd.einsum("ijk,i->jk", tmp, weights[:, 0])
+        return self._bkd.einsum("ijk,j->ik", tmp, weights[0, :])
 
     def __repr__(self) -> str:
         return "SampleAverageVariance()"
@@ -136,14 +137,14 @@ class SampleAverageStdev(SampleAverageVariance, Generic[Array]):
         Parameters
         ----------
         values : Array
-            Sample values. Shape: (nsamples, nqoi)
+            Sample values. Shape: (nqoi, nsamples)
         weights : Array
-            Quadrature weights. Shape: (nsamples, 1)
+            Quadrature weights. Shape: (1, nsamples)
 
         Returns
         -------
         Array
-            Standard deviation values. Shape: (1, nqoi)
+            Standard deviation values. Shape: (nqoi, 1)
         """
         return self._bkd.sqrt(super()._values(values, weights))
 
@@ -158,11 +159,11 @@ class SampleAverageStdev(SampleAverageVariance, Generic[Array]):
         Parameters
         ----------
         values : Array
-            Sample values. Shape: (nsamples, nqoi)
+            Sample values. Shape: (nqoi, nsamples)
         jac_values : Array
-            Jacobians at samples. Shape: (nsamples, nqoi, nvars)
+            Jacobians at samples. Shape: (nqoi, nsamples, nvars)
         weights : Array
-            Quadrature weights. Shape: (nsamples, 1)
+            Quadrature weights. Shape: (1, nsamples)
 
         Returns
         -------
@@ -170,11 +171,11 @@ class SampleAverageStdev(SampleAverageVariance, Generic[Array]):
             Jacobian. Shape: (nqoi, nvars)
         """
         # d/dx sqrt(y) = 1/(2*sqrt(y)) * dy/dx
-        variance = super()._values(values, weights)  # (1, nqoi)
+        variance = super()._values(values, weights)  # (nqoi, 1)
         variance_jac = super()._jacobian(values, jac_values, weights)  # (nqoi, nvars)
 
         # 1/(2*sqrt(variance)) factor: (nqoi, 1)
-        factor = 1.0 / (2.0 * self._bkd.sqrt(variance.T))
+        factor = 1.0 / (2.0 * self._bkd.sqrt(variance))
 
         return factor * variance_jac
 

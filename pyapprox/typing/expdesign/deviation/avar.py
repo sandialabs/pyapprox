@@ -85,8 +85,9 @@ class AVaRDeviationMeasure(DeviationMeasure[Array], Generic[Array]):
             outer_vals = []
             for oo in range(nouter):
                 # Get posterior weights for this outer sample
-                weights = normalized_like[:, oo:oo + 1]  # (ninner, 1)
-                values = self._qoi_vals[:, qq:qq + 1]  # (ninner, 1)
+                # _evaluate_single expects (1, nsamples) for both
+                weights = normalized_like[:, oo:oo + 1].T  # (1, ninner)
+                values = self._qoi_vals[:, qq:qq + 1].T  # (1, ninner)
 
                 # Compute AVaR using smoothed estimator
                 avar = self._smoothed_avar._evaluate_single(values, weights)

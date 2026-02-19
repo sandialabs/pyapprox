@@ -36,24 +36,24 @@ class SampleStatistic(ABC, Generic[Array]):
 
     def _check_weights(self, values: Array, weights: Array) -> None:
         """Validate weights shape matches values."""
-        nsamples = values.shape[0]
-        if weights.shape != (nsamples, 1):
+        nsamples = values.shape[1]
+        if weights.shape != (1, nsamples):
             raise ValueError(
-                f"weights has shape {weights.shape}, expected ({nsamples}, 1)"
+                f"weights has shape {weights.shape}, expected (1, {nsamples})"
             )
 
     def _check_jac_values_shape(self, values: Array, jac_values: Array) -> None:
         """Validate jac_values shape matches values."""
-        nsamples, nqoi = values.shape
-        if jac_values.shape[0] != nsamples:
+        nqoi, nsamples = values.shape
+        if jac_values.shape[0] != nqoi:
             raise ValueError(
                 f"jac_values first dimension {jac_values.shape[0]} "
-                f"must match values first dimension {nsamples}"
+                f"must match values first dimension {nqoi}"
             )
-        if jac_values.shape[1] != nqoi:
+        if jac_values.shape[1] != nsamples:
             raise ValueError(
                 f"jac_values second dimension {jac_values.shape[1]} "
-                f"must match values second dimension {nqoi}"
+                f"must match values second dimension {nsamples}"
             )
 
     @abstractmethod
@@ -64,14 +64,14 @@ class SampleStatistic(ABC, Generic[Array]):
         Parameters
         ----------
         values : Array
-            Sample values. Shape: (nsamples, nqoi)
+            Sample values. Shape: (nqoi, nsamples)
         weights : Array
-            Quadrature weights. Shape: (nsamples, 1)
+            Quadrature weights. Shape: (1, nsamples)
 
         Returns
         -------
         Array
-            Statistic value. Shape: (1, nqoi)
+            Statistic value. Shape: (nqoi, 1)
         """
         raise NotImplementedError
 
@@ -82,21 +82,21 @@ class SampleStatistic(ABC, Generic[Array]):
         Parameters
         ----------
         values : Array
-            Sample values. Shape: (nsamples, nqoi)
+            Sample values. Shape: (nqoi, nsamples)
         weights : Array
-            Quadrature weights. Shape: (nsamples, 1)
+            Quadrature weights. Shape: (1, nsamples)
 
         Returns
         -------
         Array
-            Statistic value. Shape: (1, nqoi)
+            Statistic value. Shape: (nqoi, 1)
         """
-        nqoi = values.shape[1]
+        nqoi = values.shape[0]
         self._check_weights(values, weights)
         result = self._values(values, weights)
-        if result.shape != (1, nqoi):
+        if result.shape != (nqoi, 1):
             raise ValueError(
-                f"_values returned shape {result.shape}, expected (1, {nqoi})"
+                f"_values returned shape {result.shape}, expected ({nqoi}, 1)"
             )
         return result
 
@@ -109,11 +109,11 @@ class SampleStatistic(ABC, Generic[Array]):
         Parameters
         ----------
         values : Array
-            Sample values. Shape: (nsamples, nqoi)
+            Sample values. Shape: (nqoi, nsamples)
         jac_values : Array
-            Jacobians at samples. Shape: (nsamples, nqoi, nvars)
+            Jacobians at samples. Shape: (nqoi, nsamples, nvars)
         weights : Array
-            Quadrature weights. Shape: (nsamples, 1)
+            Quadrature weights. Shape: (1, nsamples)
 
         Returns
         -------
@@ -133,18 +133,18 @@ class SampleStatistic(ABC, Generic[Array]):
         Parameters
         ----------
         values : Array
-            Sample values. Shape: (nsamples, nqoi)
+            Sample values. Shape: (nqoi, nsamples)
         jac_values : Array
-            Jacobians at samples. Shape: (nsamples, nqoi, nvars)
+            Jacobians at samples. Shape: (nqoi, nsamples, nvars)
         weights : Array
-            Quadrature weights. Shape: (nsamples, 1)
+            Quadrature weights. Shape: (1, nsamples)
 
         Returns
         -------
         Array
             Jacobian. Shape: (nqoi, nvars)
         """
-        nqoi = values.shape[1]
+        nqoi = values.shape[0]
         nvars = jac_values.shape[2]
         self._check_weights(values, weights)
         self._check_jac_values_shape(values, jac_values)

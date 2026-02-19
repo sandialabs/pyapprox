@@ -34,17 +34,17 @@ class SampleAverageMean(SampleStatistic[Array], Generic[Array]):
         Parameters
         ----------
         values : Array
-            Sample values. Shape: (nsamples, nqoi)
+            Sample values. Shape: (nqoi, nsamples)
         weights : Array
-            Quadrature weights. Shape: (nsamples, 1)
+            Quadrature weights. Shape: (1, nsamples)
 
         Returns
         -------
         Array
-            Mean values. Shape: (1, nqoi)
+            Mean values. Shape: (nqoi, 1)
         """
-        # values.T @ weights gives (nqoi, 1), transpose to (1, nqoi)
-        return (values.T @ weights).T
+        # values @ weights.T gives (nqoi, 1)
+        return values @ weights.T
 
     def _jacobian(
         self, values: Array, jac_values: Array, weights: Array
@@ -57,20 +57,20 @@ class SampleAverageMean(SampleStatistic[Array], Generic[Array]):
         Parameters
         ----------
         values : Array
-            Sample values. Shape: (nsamples, nqoi)
+            Sample values. Shape: (nqoi, nsamples)
         jac_values : Array
-            Jacobians at samples. Shape: (nsamples, nqoi, nvars)
+            Jacobians at samples. Shape: (nqoi, nsamples, nvars)
         weights : Array
-            Quadrature weights. Shape: (nsamples, 1)
+            Quadrature weights. Shape: (1, nsamples)
 
         Returns
         -------
         Array
             Jacobian. Shape: (nqoi, nvars)
         """
-        # einsum: sum over samples (i) weighted by weights
-        # jac_values[i, j, k] -> result[j, k]
-        return self._bkd.einsum("ijk,i->jk", jac_values, weights[:, 0])
+        # einsum: sum over samples (j) weighted by weights
+        # jac_values[i, j, k] * weights[j] -> result[i, k]
+        return self._bkd.einsum("ijk,j->ik", jac_values, weights[0, :])
 
     def __repr__(self) -> str:
         return "SampleAverageMean()"

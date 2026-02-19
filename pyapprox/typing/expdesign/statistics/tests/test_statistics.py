@@ -46,28 +46,26 @@ class TestSampleStatistics(Generic[Array], unittest.TestCase):
         self._nqoi = 3
         self._nvars = 4
 
-        # Create test data
+        # Create test data: (nqoi, nsamples)
         self._values = self._bkd.asarray(
-            np.random.randn(self._nsamples, self._nqoi)
+            np.random.randn(self._nqoi, self._nsamples)
         )
-        # Uniform weights summing to 1
+        # Uniform weights summing to 1: (1, nsamples)
         self._weights = self._bkd.asarray(
-            np.full((self._nsamples, 1), 1.0 / self._nsamples)
+            np.full((1, self._nsamples), 1.0 / self._nsamples)
         )
-        # Random jacobians
+        # Random jacobians: (nqoi, nsamples, nvars)
         self._jac_values = self._bkd.asarray(
-            np.random.randn(self._nsamples, self._nqoi, self._nvars)
+            np.random.randn(self._nqoi, self._nsamples, self._nvars)
         )
 
     def _finite_diff_jacobian(
         self, stat, values, weights, eps=1e-6, jac_values=None
     ):
         """Compute Jacobian via finite differences."""
-        # For mean, this directly perturbs values
-        # But we need to verify via chain rule with jac_values
         if jac_values is None:
             jac_values = self._jac_values
-        nqoi = values.shape[1]
+        nqoi = values.shape[0]
         nvars = jac_values.shape[2]
         jac_fd = self._bkd.zeros((nqoi, nvars))
 
@@ -79,7 +77,7 @@ class TestSampleStatistics(Generic[Array], unittest.TestCase):
             stat_plus = stat(values_plus, weights)
             stat_minus = stat(values_minus, weights)
 
-            jac_fd[:, k] = (stat_plus[0] - stat_minus[0]) / (2 * eps)
+            jac_fd[:, k] = (stat_plus[:, 0] - stat_minus[:, 0]) / (2 * eps)
 
         return jac_fd
 
@@ -91,9 +89,9 @@ class TestSampleStatistics(Generic[Array], unittest.TestCase):
         # Expected: weighted mean
         values_np = self._bkd.to_numpy(self._values)
         weights_np = self._bkd.to_numpy(self._weights)
-        expected = np.sum(values_np * weights_np, axis=0, keepdims=True)
+        expected = np.sum(values_np * weights_np, axis=1, keepdims=True)
 
-        self.assertEqual(result.shape, (1, self._nqoi))
+        self.assertEqual(result.shape, (self._nqoi, 1))
         self.assertTrue(
             self._bkd.allclose(
                 result, self._bkd.asarray(expected), rtol=1e-12
@@ -124,11 +122,11 @@ class TestSampleStatistics(Generic[Array], unittest.TestCase):
         # Expected: weighted variance
         values_np = self._bkd.to_numpy(self._values)
         weights_np = self._bkd.to_numpy(self._weights)
-        mean = np.sum(values_np * weights_np, axis=0)
+        mean = np.sum(values_np * weights_np, axis=1, keepdims=True)
         diff = values_np - mean
-        expected = np.sum(diff**2 * weights_np, axis=0, keepdims=True)
+        expected = np.sum(diff**2 * weights_np, axis=1, keepdims=True)
 
-        self.assertEqual(result.shape, (1, self._nqoi))
+        self.assertEqual(result.shape, (self._nqoi, 1))
         self.assertTrue(
             self._bkd.allclose(
                 result, self._bkd.asarray(expected), rtol=1e-12
@@ -159,7 +157,7 @@ class TestSampleStatistics(Generic[Array], unittest.TestCase):
         variance = var_stat(self._values, self._weights)
         stdev = std_stat(self._values, self._weights)
 
-        self.assertEqual(stdev.shape, (1, self._nqoi))
+        self.assertEqual(stdev.shape, (self._nqoi, 1))
         self.assertTrue(
             self._bkd.allclose(stdev, self._bkd.sqrt(variance), rtol=1e-12)
         )
@@ -190,12 +188,12 @@ class TestSampleStatistics(Generic[Array], unittest.TestCase):
         values_np = self._bkd.to_numpy(self._values)
         weights_np = self._bkd.to_numpy(self._weights)
         exp_vals = np.exp(alpha * values_np)
-        expected = np.log(np.sum(exp_vals * weights_np, axis=0)) / alpha
+        expected = np.log(np.sum(exp_vals * weights_np, axis=1)) / alpha
 
-        self.assertEqual(result.shape, (1, self._nqoi))
+        self.assertEqual(result.shape, (self._nqoi, 1))
         self.assertTrue(
             self._bkd.allclose(
-                result, self._bkd.asarray(expected[None, :]), rtol=1e-10
+                result, self._bkd.asarray(expected[:, None]), rtol=1e-10
             )
         )
 
@@ -228,8 +226,8 @@ class TestSampleStatistics(Generic[Array], unittest.TestCase):
         alpha = 0.5
         stat = SampleAverageSmoothedAVaR(alpha, self._bkd)
 
-        # Use single QoI with uniform weights
-        values_single = self._values[:, 0:1]
+        # Use single QoI with uniform weights: (1, nsamples)
+        values_single = self._values[0:1, :]
         result = stat(values_single, self._weights)
 
         # AVaR should be between mean and max
@@ -252,9 +250,9 @@ class TestSampleStatistics(Generic[Array], unittest.TestCase):
         alpha = 0.5
         stat = SampleAverageSmoothedAVaR(alpha, self._bkd)
 
-        # Use single QoI
-        values_single = self._values[:, 0:1]
-        jac_single = self._jac_values[:, 0:1, :]
+        # Use single QoI: (1, nsamples)
+        values_single = self._values[0:1, :]
+        jac_single = self._jac_values[0:1, :, :]
 
         jac_analytical = stat.jacobian(
             values_single, jac_single, self._weights
@@ -279,7 +277,7 @@ class TestSampleStatistics(Generic[Array], unittest.TestCase):
         stat = SampleAverageSmoothedAVaR(alpha, self._bkd, delta=1000)
         mean_stat = SampleAverageMean(self._bkd)
 
-        values_single = self._values[:, 0:1]
+        values_single = self._values[0:1, :]
         avar_val = stat(values_single, self._weights)
         mean_val = mean_stat(values_single, self._weights)
 
@@ -294,7 +292,7 @@ class TestSampleStatistics(Generic[Array], unittest.TestCase):
 
         # Wrong weights shape
         bad_weights = self._bkd.asarray(
-            np.full((self._nsamples, 2), 1.0 / self._nsamples)
+            np.full((2, self._nsamples), 1.0 / self._nsamples)
         )
         with self.assertRaises(ValueError):
             stat(self._values, bad_weights)
@@ -307,8 +305,8 @@ class TestSampleStatistics(Generic[Array], unittest.TestCase):
 
         rv = stats.norm(mu, sigma)
         nsamples = int(1e6)
-        values = self._bkd.asarray(rv.rvs(nsamples))[:, None]
-        weights = self._bkd.full((nsamples, 1), 1.0 / nsamples)
+        values = self._bkd.asarray(rv.rvs(nsamples))[None, :]  # (1, nsamples)
+        weights = self._bkd.full((1, nsamples), 1.0 / nsamples)
 
         stat = SampleAverageMean(self._bkd)
         estimate = stat(values, weights)
@@ -325,8 +323,8 @@ class TestSampleStatistics(Generic[Array], unittest.TestCase):
 
         rv = stats.norm(mu, sigma)
         nsamples = int(1e6)
-        values = self._bkd.asarray(rv.rvs(nsamples))[:, None]
-        weights = self._bkd.full((nsamples, 1), 1.0 / nsamples)
+        values = self._bkd.asarray(rv.rvs(nsamples))[None, :]  # (1, nsamples)
+        weights = self._bkd.full((1, nsamples), 1.0 / nsamples)
 
         stat = SampleAverageVariance(self._bkd)
         estimate = stat(values, weights)
@@ -343,8 +341,8 @@ class TestSampleStatistics(Generic[Array], unittest.TestCase):
 
         rv = stats.norm(mu, sigma)
         nsamples = int(1e6)
-        values = self._bkd.asarray(rv.rvs(nsamples))[:, None]
-        weights = self._bkd.full((nsamples, 1), 1.0 / nsamples)
+        values = self._bkd.asarray(rv.rvs(nsamples))[None, :]  # (1, nsamples)
+        weights = self._bkd.full((1, nsamples), 1.0 / nsamples)
 
         stat = SampleAverageStdev(self._bkd)
         estimate = stat(values, weights)
@@ -362,8 +360,8 @@ class TestSampleStatistics(Generic[Array], unittest.TestCase):
 
         rv = stats.norm(mu, sigma)
         nsamples = int(1e6)
-        values = self._bkd.asarray(rv.rvs(nsamples))[:, None]
-        weights = self._bkd.full((nsamples, 1), 1.0 / nsamples)
+        values = self._bkd.asarray(rv.rvs(nsamples))[None, :]  # (1, nsamples)
+        weights = self._bkd.full((1, nsamples), 1.0 / nsamples)
 
         stat = SampleAverageEntropicRisk(alpha, self._bkd)
         estimate = stat(values, weights)
@@ -385,8 +383,8 @@ class TestSampleStatistics(Generic[Array], unittest.TestCase):
         nsamples = int(1e6)
         # Use equidistant points for higher accuracy (like legacy)
         samples_np = rv.ppf(np.linspace(1e-6, 1 - 1e-6, nsamples))
-        values = self._bkd.asarray(samples_np)[:, None]
-        weights = self._bkd.full((nsamples, 1), 1.0 / nsamples)
+        values = self._bkd.asarray(samples_np)[None, :]  # (1, nsamples)
+        weights = self._bkd.full((1, nsamples), 1.0 / nsamples)
 
         stat = SampleAverageSmoothedAVaR(beta, self._bkd, delta=100000)
         estimate = stat(values, weights)
@@ -404,15 +402,15 @@ class TestSampleStatistics(Generic[Array], unittest.TestCase):
         rv = stats.norm(mu, sigma)
         nsamples = int(1e6)
         samples_np = rv.ppf(np.linspace(1e-6, 1 - 1e-6, nsamples))
-        values1 = self._bkd.asarray(samples_np)[:, None]
+        values1 = self._bkd.asarray(samples_np)[None, :]  # (1, nsamples)
         values2 = 2 * values1
-        values = self._bkd.hstack([values1, values2])
-        weights = self._bkd.full((nsamples, 1), 1.0 / nsamples)
+        values = self._bkd.vstack([values1, values2])  # (2, nsamples)
+        weights = self._bkd.full((1, nsamples), 1.0 / nsamples)
 
         stat = SampleAverageSmoothedAVaR(beta, self._bkd, delta=100000)
         estimate = stat(values, weights)
 
-        expected = self._bkd.asarray([[exact_avar, 2 * exact_avar]])
+        expected = self._bkd.asarray([[exact_avar], [2 * exact_avar]])
         self.assertTrue(
             self._bkd.allclose(estimate, expected, rtol=2e-5)
         )

@@ -151,3 +151,137 @@ class CantileverBeam2DAnalytical(Generic[Array]):
         row0 = bkd.asarray([ds_dX, ds_dY, ds_dE, ds_dR, ds_dw, ds_dt])
         row1 = bkd.asarray([dd_dX, dd_dY, dd_dE, dd_dR, dd_dw, dd_dt])
         return bkd.stack([row0, row1], axis=0)
+
+
+class CantileverBeam2DConstraints(Generic[Array]):
+    """Safety margin constraints: [1 - stress/R, 1 - disp/D0].
+
+    Wraps CantileverBeam2DAnalytical and returns constraint values that
+    should be >= 0 for feasibility.
+
+    Parameters
+    ----------
+    beam : CantileverBeam2DAnalytical[Array]
+        The analytical beam model.
+    yield_stress : float
+        Yield stress threshold R.
+    max_displacement : float
+        Maximum allowable displacement D0.
+    """
+
+    def __init__(
+        self,
+        beam: CantileverBeam2DAnalytical[Array],
+        yield_stress: float,
+        max_displacement: float,
+    ):
+        self._beam = beam
+        self._bkd = beam.bkd()
+        self._R = yield_stress
+        self._D0 = max_displacement
+
+    def bkd(self) -> Backend[Array]:
+        return self._bkd
+
+    def nvars(self) -> int:
+        return self._beam.nvars()
+
+    def nqoi(self) -> int:
+        return 2
+
+    def __call__(self, samples: Array) -> Array:
+        """Evaluate constraints: [1 - stress/R, 1 - disp/D0].
+
+        Parameters
+        ----------
+        samples : Array
+            Shape (6, nsamples).
+
+        Returns
+        -------
+        Array
+            Shape (2, nsamples). Values >= 0 means feasible.
+        """
+        qoi = self._beam(samples)  # (2, nsamples)
+        stress = qoi[0:1, :]
+        disp = qoi[1:2, :]
+        c1 = 1.0 - stress / self._R
+        c2 = 1.0 - disp / self._D0
+        return self._bkd.concatenate([c1, c2], axis=0)
+
+    def jacobian(self, sample: Array) -> Array:
+        """Jacobian d(constraints)/d(vars).
+
+        Parameters
+        ----------
+        sample : Array
+            Shape (6, 1).
+
+        Returns
+        -------
+        Array
+            Shape (2, 6).
+        """
+        jac_beam = self._beam.jacobian(sample)  # (2, 6)
+        jac_stress = jac_beam[0:1, :]  # (1, 6)
+        jac_disp = jac_beam[1:2, :]  # (1, 6)
+        return self._bkd.concatenate(
+            [-jac_stress / self._R, -jac_disp / self._D0], axis=0
+        )
+
+
+class CantileverBeam2DObjective(Generic[Array]):
+    """Cross-sectional area objective: w * t.
+
+    Parameters
+    ----------
+    bkd : Backend[Array]
+        Computational backend.
+    """
+
+    def __init__(self, bkd: Backend[Array]) -> None:
+        self._bkd = bkd
+
+    def bkd(self) -> Backend[Array]:
+        return self._bkd
+
+    def nvars(self) -> int:
+        return 6
+
+    def nqoi(self) -> int:
+        return 1
+
+    def __call__(self, samples: Array) -> Array:
+        """Evaluate area = w * t.
+
+        Parameters
+        ----------
+        samples : Array
+            Shape (6, nsamples).
+
+        Returns
+        -------
+        Array
+            Shape (1, nsamples).
+        """
+        w = samples[4:5, :]
+        t = samples[5:6, :]
+        return w * t
+
+    def jacobian(self, sample: Array) -> Array:
+        """Jacobian d(area)/d(X,Y,E,R,w,t).
+
+        Parameters
+        ----------
+        sample : Array
+            Shape (6, 1).
+
+        Returns
+        -------
+        Array
+            Shape (1, 6).
+        """
+        w = sample[4, 0]
+        t = sample[5, 0]
+        zero = 0.0 * w  # keep as array for autograd
+        return self._bkd.asarray([[zero, zero, zero, zero, t, w]])

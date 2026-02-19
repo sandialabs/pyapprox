@@ -10,6 +10,7 @@ from .mean import SampleAverageMean
 from .variance import SampleAverageVariance, SampleAverageStdev
 from .entropic_risk import SampleAverageEntropicRisk
 from .avar import SampleAverageSmoothedAVaR
+from .mean_plus_stdev import SampleAverageMeanPlusStdev
 
 __all__ = [
     "SampleStatistic",
@@ -18,4 +19,5 @@ __all__ = [
     "SampleAverageStdev",
     "SampleAverageEntropicRisk",
     "SampleAverageSmoothedAVaR",
+    "SampleAverageMeanPlusStdev",
 ]

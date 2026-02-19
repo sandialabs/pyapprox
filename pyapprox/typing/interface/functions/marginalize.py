@@ -15,7 +15,7 @@ Both satisfy ``DimensionReducerProtocol``, so higher-level tools such as
 ``PairPlotter`` can accept either interchangeably.
 """
 
-from typing import Callable, Generic, List, Protocol, runtime_checkable
+from typing import Callable, Generic, List, Optional, Protocol, runtime_checkable
 
 from pyapprox.typing.util.backends.protocols import Array, Backend
 from pyapprox.typing.surrogates.quadrature.protocols import (
@@ -33,7 +33,8 @@ class QuadratureFactoryProtocol(Protocol, Generic[Array]):
 
     Given a list of variable indices to integrate out, returns a
     MultivariateQuadratureRuleProtocol with samples on the correct
-    domain and weights for Lebesgue-measure integration.
+    domain and appropriate weights. The measure (Lebesgue, probability,
+    etc.) depends on the factory implementation.
 
     This protocol enables extensibility: users can implement factories
     for tensor product quadrature, Monte Carlo, Sobol sequences, sparse
@@ -58,7 +59,7 @@ class QuadratureFactoryProtocol(Protocol, Generic[Array]):
         -------
         MultivariateQuadratureRuleProtocol[Array]
             Quadrature rule with samples on the domain of the
-            specified variables and weights for Lebesgue integration.
+            specified variables.
         """
         ...
 
@@ -378,3 +379,161 @@ class CrossSectionReducer(Generic[Array]):
         return ReducedFunction(
             len(keep_indices), nqoi, eval_fn, bkd
         )
+
+
+class ActiveSetFunction(Generic[Array]):
+    """Fix a subset of variables at nominal values, expose only kept variables.
+
+    Unlike CrossSectionReducer which returns ReducedFunction (evaluation only),
+    ActiveSetFunction dynamically propagates jacobian/hvp/whvp from the
+    wrapped model, making it suitable for optimization.
+
+    TODO: Consider consolidating with CrossSectionReducer by adding dynamic
+    derivative binding to ReducedFunction or the reducer itself.
+
+    Parameters
+    ----------
+    function : object
+        A function satisfying FunctionProtocol. May also have
+        jacobian(), hvp(), whvp() methods.
+    nominal_values : Array
+        Shape (nvars,). Nominal values for ALL variables.
+    keep_indices : List[int]
+        Indices of variables to keep (expose to the optimizer).
+    bkd : Backend[Array]
+        Computational backend.
+    """
+
+    def __init__(
+        self,
+        function: object,
+        nominal_values: Array,
+        keep_indices: List[int],
+        bkd: Backend[Array],
+    ) -> None:
+        self._function = function
+        self._nominal_values = nominal_values
+        self._keep_indices = keep_indices
+        self._bkd = bkd
+        self._nvars_full: int = function.nvars()  # type: ignore[union-attr]
+        self._nqoi: int = function.nqoi()  # type: ignore[union-attr]
+
+        # Dynamic binding of derivative methods
+        if hasattr(function, "jacobian"):
+            self.jacobian = self._jacobian
+        if hasattr(function, "hvp"):
+            self.hvp = self._hvp
+        if hasattr(function, "whvp"):
+            self.whvp = self._whvp
+
+    def bkd(self) -> Backend[Array]:
+        return self._bkd
+
+    def nvars(self) -> int:
+        return len(self._keep_indices)
+
+    def nqoi(self) -> int:
+        return self._nqoi
+
+    def _assemble(self, samples: Array) -> Array:
+        """Assemble full-dimensional samples from kept variables.
+
+        Parameters
+        ----------
+        samples : Array
+            Shape (n_keep, nsamples).
+
+        Returns
+        -------
+        Array
+            Shape (nvars_full, nsamples).
+        """
+        bkd = self._bkd
+        nsamples = samples.shape[1]
+        full = bkd.repeat(
+            self._nominal_values[:, None], nsamples, axis=1
+        )
+        for kk, idx in enumerate(self._keep_indices):
+            full[idx] = samples[kk]
+        return full
+
+    def __call__(self, samples: Array) -> Array:
+        """Evaluate the function at kept variables with fixed nominal values.
+
+        Parameters
+        ----------
+        samples : Array
+            Shape (n_keep, nsamples).
+
+        Returns
+        -------
+        Array
+            Shape (nqoi, nsamples).
+        """
+        full = self._assemble(samples)
+        return self._function(full)  # type: ignore[operator]
+
+    def _jacobian(self, sample: Array) -> Array:
+        """Jacobian w.r.t. kept variables only.
+
+        Parameters
+        ----------
+        sample : Array
+            Shape (n_keep, 1).
+
+        Returns
+        -------
+        Array
+            Shape (nqoi, n_keep).
+        """
+        full = self._assemble(sample)
+        jac_full = self._function.jacobian(full)  # type: ignore[union-attr]
+        return jac_full[:, self._keep_indices]
+
+    def _hvp(self, sample: Array, vec: Array) -> Array:
+        """Hessian-vector product w.r.t. kept variables only.
+
+        Parameters
+        ----------
+        sample : Array
+            Shape (n_keep, 1).
+        vec : Array
+            Shape (n_keep, 1).
+
+        Returns
+        -------
+        Array
+            Shape (n_keep, 1).
+        """
+        bkd = self._bkd
+        full_sample = self._assemble(sample)
+        full_vec = bkd.zeros((self._nvars_full, 1))
+        for kk, idx in enumerate(self._keep_indices):
+            full_vec[idx] = vec[kk]
+        result_full = self._function.hvp(full_sample, full_vec)  # type: ignore[union-attr]
+        return result_full[self._keep_indices, :]
+
+    def _whvp(self, sample: Array, vec: Array, weights: Array) -> Array:
+        """Weighted Hessian-vector product w.r.t. kept variables only.
+
+        Parameters
+        ----------
+        sample : Array
+            Shape (n_keep, 1).
+        vec : Array
+            Shape (n_keep, 1).
+        weights : Array
+            Shape (nqoi, 1).
+
+        Returns
+        -------
+        Array
+            Shape (n_keep, 1).
+        """
+        bkd = self._bkd
+        full_sample = self._assemble(sample)
+        full_vec = bkd.zeros((self._nvars_full, 1))
+        for kk, idx in enumerate(self._keep_indices):
+            full_vec[idx] = vec[kk]
+        result_full = self._function.whvp(full_sample, full_vec, weights)  # type: ignore[union-attr]
+        return result_full[self._keep_indices, :]

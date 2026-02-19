@@ -173,6 +173,11 @@ class TestPredictionOEDValuesLegacyComparison(ParametrizedTestCase):
             typing_deviation = "entropic"
             typing_extra = {"alpha": 1.0}
 
+        # qoi_quad_weights: legacy uses (nqoi, 1), typing uses (1, npred)
+        typing_qoi_quad_weights = typing_bkd.asarray(
+            bkd.to_numpy(qoi_quad_weights).T
+        )
+
         typing_objective = create_prediction_oed_objective(
             noise_variances,
             outer_shapes,
@@ -185,7 +190,7 @@ class TestPredictionOEDValuesLegacyComparison(ParametrizedTestCase):
             noise_stat_type="mean",
             outer_quad_weights=typing_bkd.asarray(outer_quad_weights_np),
             inner_quad_weights=typing_bkd.asarray(inner_quad_weights_np),
-            qoi_quad_weights=typing_bkd.asarray(bkd.to_numpy(qoi_quad_weights)),
+            qoi_quad_weights=typing_qoi_quad_weights,
             **typing_extra,
         )
 
@@ -212,6 +217,7 @@ class TestPredictionOEDValuesLegacyComparison(ParametrizedTestCase):
         nsamples = 20
         nqoi = 3
 
+        # Legacy uses (nsamples, nqoi) convention
         values_np = np.random.randn(nsamples, nqoi)
         weights_np = np.random.dirichlet(np.ones(nsamples))[:, None]
 
@@ -230,19 +236,20 @@ class TestPredictionOEDValuesLegacyComparison(ParametrizedTestCase):
         legacy_mean_result = TorchMixin.to_numpy(legacy_mean(legacy_values, legacy_weights))
         legacy_var_result = TorchMixin.to_numpy(legacy_var(legacy_values, legacy_weights))
 
-        # Typing
+        # Typing — transpose to (nqoi, nsamples) convention
         from pyapprox.typing.util.backends.torch import TorchBkd
         from pyapprox.typing.expdesign import SampleAverageMean, SampleAverageVariance
 
         typing_bkd = TorchBkd()
-        typing_values = typing_bkd.asarray(values_np)
-        typing_weights = typing_bkd.asarray(weights_np)
+        typing_values = typing_bkd.asarray(values_np.T)  # (nqoi, nsamples)
+        typing_weights = typing_bkd.asarray(weights_np.T)  # (1, nsamples)
 
         typing_mean = SampleAverageMean(typing_bkd)
         typing_var = SampleAverageVariance(typing_bkd)
 
-        typing_mean_result = typing_bkd.to_numpy(typing_mean(typing_values, typing_weights))
-        typing_var_result = typing_bkd.to_numpy(typing_var(typing_values, typing_weights))
+        # Typing returns (nqoi, 1), legacy returns (1, nqoi) — transpose for comparison
+        typing_mean_result = typing_bkd.to_numpy(typing_mean(typing_values, typing_weights)).T
+        typing_var_result = typing_bkd.to_numpy(typing_var(typing_values, typing_weights)).T
 
         # Should match exactly
         self._bkd.assert_allclose(
@@ -264,6 +271,7 @@ class TestPredictionOEDValuesLegacyComparison(ParametrizedTestCase):
         nqoi = 3
         nvars = 4
 
+        # Legacy uses (nsamples, nqoi) convention
         values_np = np.random.randn(nsamples, nqoi)
         weights_np = np.random.dirichlet(np.ones(nsamples))[:, None]
         jac_values_np = np.random.randn(nsamples, nqoi, nvars)
@@ -288,18 +296,22 @@ class TestPredictionOEDValuesLegacyComparison(ParametrizedTestCase):
             legacy_var.jacobian(legacy_values, legacy_jac_values, legacy_weights)
         )
 
-        # Typing
+        # Typing — transpose to (nqoi, nsamples) convention
         from pyapprox.typing.util.backends.torch import TorchBkd
         from pyapprox.typing.expdesign import SampleAverageMean, SampleAverageVariance
 
         typing_bkd = TorchBkd()
-        typing_values = typing_bkd.asarray(values_np)
-        typing_weights = typing_bkd.asarray(weights_np)
-        typing_jac_values = typing_bkd.asarray(jac_values_np)
+        typing_values = typing_bkd.asarray(values_np.T)  # (nqoi, nsamples)
+        typing_weights = typing_bkd.asarray(weights_np.T)  # (1, nsamples)
+        # jac_values: (nsamples, nqoi, nvars) -> (nqoi, nsamples, nvars)
+        typing_jac_values = typing_bkd.asarray(
+            np.transpose(jac_values_np, (1, 0, 2))
+        )
 
         typing_mean = SampleAverageMean(typing_bkd)
         typing_var = SampleAverageVariance(typing_bkd)
 
+        # Jacobian shape (nqoi, nvars) is same for both conventions
         typing_mean_jac = typing_bkd.to_numpy(
             typing_mean.jacobian(typing_values, typing_jac_values, typing_weights)
         )

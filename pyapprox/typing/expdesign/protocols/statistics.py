@@ -54,14 +54,14 @@ class SampleStatisticProtocol(Protocol, Generic[Array]):
         Parameters
         ----------
         values : Array
-            Sample values. Shape: (nsamples, nqoi)
+            Sample values. Shape: (nqoi, nsamples)
         weights : Array
-            Quadrature weights. Shape: (nsamples, 1)
+            Quadrature weights. Shape: (1, nsamples)
 
         Returns
         -------
         Array
-            Statistic value. Shape: (1, nqoi)
+            Statistic value. Shape: (nqoi, 1)
         """
         ...
 
@@ -76,12 +76,12 @@ class SampleStatisticProtocol(Protocol, Generic[Array]):
         Parameters
         ----------
         values : Array
-            Sample values. Shape: (nsamples, nqoi)
+            Sample values. Shape: (nqoi, nsamples)
         jac_values : Array
             Jacobians of values w.r.t. upstream variables.
-            Shape: (nsamples, nqoi, nvars)
+            Shape: (nqoi, nsamples, nvars)
         weights : Array
-            Quadrature weights. Shape: (nsamples, 1)
+            Quadrature weights. Shape: (1, nsamples)
 
         Returns
         -------

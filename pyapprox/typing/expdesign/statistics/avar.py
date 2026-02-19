@@ -135,8 +135,8 @@ class SampleAverageSmoothedAVaR(SampleStatistic[Array], Generic[Array]):
         self, values: Array, weights: Array
     ) -> None:
         """Validate values and weights for single QoI."""
-        if values.ndim != 2 or values.shape[1] != 1:
-            raise ValueError("values must be a 2D array with single column")
+        if values.ndim != 2 or values.shape[0] != 1:
+            raise ValueError("values must be a 2D array with single row")
         if values.shape != weights.shape:
             raise ValueError(
                 f"values shape {values.shape} must match weights shape "
@@ -155,9 +155,9 @@ class SampleAverageSmoothedAVaR(SampleStatistic[Array], Generic[Array]):
         Parameters
         ----------
         values : Array
-            Sample values. Shape: (nsamples, 1)
+            Sample values. Shape: (1, nsamples)
         weights : Array
-            Quadrature weights. Shape: (nsamples, 1)
+            Quadrature weights. Shape: (1, nsamples)
 
         Returns
         -------
@@ -167,14 +167,14 @@ class SampleAverageSmoothedAVaR(SampleStatistic[Array], Generic[Array]):
         self._check_values_weights_single(values, weights)
 
         # Scale values and project
-        scaled = weights[:, 0] * values[:, 0] * self._delta + self._lambda
-        proj = self._project(scaled, weights[:, 0])
+        scaled = weights[0, :] * values[0, :] * self._delta + self._lambda
+        proj = self._project(scaled, weights[0, :])
 
         # Compute smoothed AVaR
-        term1 = self._bkd.sum(proj * values[:, 0])
+        term1 = self._bkd.sum(proj * values[0, :])
         term2 = (
             1.0 / (2.0 * self._delta)
-            * ((proj - self._lambda) / weights[:, 0])
+            * ((proj - self._lambda) / weights[0, :])
             @ (proj - self._lambda)
         )
         return term1 - term2
@@ -186,23 +186,23 @@ class SampleAverageSmoothedAVaR(SampleStatistic[Array], Generic[Array]):
         Parameters
         ----------
         values : Array
-            Sample values. Shape: (nsamples, nqoi)
+            Sample values. Shape: (nqoi, nsamples)
         weights : Array
-            Quadrature weights. Shape: (nsamples, 1)
+            Quadrature weights. Shape: (1, nsamples)
 
         Returns
         -------
         Array
-            AVaR values. Shape: (1, nqoi)
+            AVaR values. Shape: (nqoi, 1)
         """
-        nqoi = values.shape[1]
+        nqoi = values.shape[0]
         result = self._bkd.stack(
             [
-                self._evaluate_single(values[:, ii:ii + 1], weights)
+                self._evaluate_single(values[ii:ii + 1, :], weights)
                 for ii in range(nqoi)
             ]
         )
-        return result[None, :]
+        return result[:, None]
 
     def _jacobian_single(
         self, values: Array, jac_values: Array, weights: Array
@@ -213,19 +213,19 @@ class SampleAverageSmoothedAVaR(SampleStatistic[Array], Generic[Array]):
         Parameters
         ----------
         values : Array
-            Sample values. Shape: (nsamples, 1)
+            Sample values. Shape: (1, nsamples)
         jac_values : Array
             Jacobians. Shape: (nsamples, nvars)
         weights : Array
-            Quadrature weights. Shape: (nsamples, 1)
+            Quadrature weights. Shape: (1, nsamples)
 
         Returns
         -------
         Array
             Jacobian. Shape: (nvars,)
         """
-        scaled = weights[:, 0] * values[:, 0] * self._delta + self._lambda
-        proj = self._project(scaled, weights[:, 0])
+        scaled = weights[0, :] * values[0, :] * self._delta + self._lambda
+        proj = self._project(scaled, weights[0, :])
         return self._bkd.einsum("i,ij->j", proj, jac_values)
 
     def _jacobian(
@@ -237,23 +237,23 @@ class SampleAverageSmoothedAVaR(SampleStatistic[Array], Generic[Array]):
         Parameters
         ----------
         values : Array
-            Sample values. Shape: (nsamples, nqoi)
+            Sample values. Shape: (nqoi, nsamples)
         jac_values : Array
-            Jacobians at samples. Shape: (nsamples, nqoi, nvars)
+            Jacobians at samples. Shape: (nqoi, nsamples, nvars)
         weights : Array
-            Quadrature weights. Shape: (nsamples, 1)
+            Quadrature weights. Shape: (1, nsamples)
 
         Returns
         -------
         Array
             Jacobian. Shape: (nqoi, nvars)
         """
-        nqoi = values.shape[1]
+        nqoi = values.shape[0]
         return self._bkd.stack(
             [
                 self._jacobian_single(
-                    values[:, ii:ii + 1],
-                    jac_values[:, ii, :],
+                    values[ii:ii + 1, :],
+                    jac_values[ii, :, :],
                     weights,
                 )
                 for ii in range(nqoi)

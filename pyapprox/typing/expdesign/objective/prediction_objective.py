@@ -51,7 +51,7 @@ class PredictionOEDObjective(Generic[Array]):
     inner_quad_weights : Array, optional
         Quadrature weights for evidence integration. Shape: (ninner,)
     qoi_quad_weights : Array, optional
-        Quadrature weights for prediction aggregation. Shape: (npred, 1)
+        Quadrature weights for prediction aggregation. Shape: (1, npred)
     bkd : Backend[Array]
         Computational backend.
     """
@@ -101,7 +101,7 @@ class PredictionOEDObjective(Generic[Array]):
         if inner_quad_weights is None:
             inner_quad_weights = bkd.ones((self._ninner,)) / self._ninner
         if qoi_quad_weights is None:
-            qoi_quad_weights = bkd.ones((self._npred, 1)) / self._npred
+            qoi_quad_weights = bkd.ones((1, self._npred)) / self._npred
 
         self._outer_quad_weights = outer_quad_weights
         self._inner_quad_weights = inner_quad_weights
@@ -208,19 +208,20 @@ class PredictionOEDObjective(Generic[Array]):
             deviations_flat, (self._npred, self._nouter)
         )
 
-        # Apply risk measure over predictions: Shape (1, nouter)
-        # risk_measure expects (nsamples, nqoi) with weights (nsamples, 1)
-        # Here: samples = npred (prediction locations), qoi = nouter (outer samples)
-        # deviations shape: (npred, nouter), qoi_quad_weights shape: (npred, 1)
-        risk_values = self._risk_measure(deviations, self._qoi_quad_weights)
-        # risk_values shape: (1, nouter)
+        # Apply risk measure over predictions
+        # risk_measure expects (nqoi, nsamples) with weights (1, nsamples)
+        # Here: nqoi = nouter (outer samples), nsamples = npred (predictions)
+        # deviations shape: (npred, nouter) -> transpose to (nouter, npred)
+        # qoi_quad_weights shape: (1, npred)
+        risk_values = self._risk_measure(deviations.T, self._qoi_quad_weights)
+        # risk_values shape: (nouter, 1)
 
-        # Apply noise stat over data realizations: Shape (1, 1)
-        # noise_stat expects (nsamples, nqoi) with weights (nsamples, 1)
-        # Here: samples = nouter, qoi = 1
-        # risk_values.T shape: (nouter, 1), outer_weights shape: (nouter, 1)
+        # Apply noise stat over data realizations
+        # noise_stat expects (nqoi, nsamples) with weights (1, nsamples)
+        # Here: nqoi = 1, nsamples = nouter
+        # risk_values.T shape: (1, nouter), outer_weights shape: (1, nouter)
         outer_weights = self._bkd.reshape(
-            self._outer_quad_weights, (self._nouter, 1)
+            self._outer_quad_weights, (1, self._nouter)
         )
         objective = self._noise_stat(risk_values.T, outer_weights)
 
@@ -258,26 +259,35 @@ class PredictionOEDObjective(Generic[Array]):
         )
 
         # Apply risk measure over predictions
-        # risk_measure expects (nsamples, nqoi) with weights (nsamples, 1)
-        # Here: samples = npred, qoi = nouter
-        # deviations shape: (npred, nouter), deviation_jac shape: (npred, nouter, nobs)
-        risk_values = self._risk_measure(deviations, self._qoi_quad_weights)
-        # risk_values shape: (1, nouter)
+        # risk_measure expects (nqoi, nsamples) with weights (1, nsamples)
+        # nqoi = nouter, nsamples = npred
+        # deviations.T: (nouter, npred), qoi_quad_weights: (1, npred)
+        risk_values = self._risk_measure(deviations.T, self._qoi_quad_weights)
+        # risk_values shape: (nouter, 1)
 
-        # For jacobian: need (nsamples, nqoi, nvars) = (npred, nouter, nobs)
+        # For jacobian: need (nqoi, nsamples, nvars) = (nouter, npred, nobs)
+        # deviation_jac shape: (npred, nouter, nobs)
+        # transpose to (nouter, npred, nobs)
+        deviation_jac_transposed = self._bkd.einsum(
+            "ijk->jik", deviation_jac
+        )
         risk_jac = self._risk_measure.jacobian(
-            deviations, deviation_jac, self._qoi_quad_weights
+            deviations.T, deviation_jac_transposed, self._qoi_quad_weights
         )
         # risk_jac shape: (nouter, nobs)
 
         # Apply noise stat over data realizations
+        # noise_stat expects (nqoi, nsamples) with weights (1, nsamples)
+        # nqoi = 1, nsamples = nouter
         outer_weights = self._bkd.reshape(
-            self._outer_quad_weights, (self._nouter, 1)
+            self._outer_quad_weights, (1, self._nouter)
         )
-        # For noise_stat jacobian: values (nouter, 1), jac (nouter, 1, nobs)
+        # For noise_stat jacobian: values (1, nouter), jac (1, nouter, nobs)
         risk_jac_3d = self._bkd.reshape(
             risk_jac, (self._nouter, 1, self._nobs)
         )
+        # transpose to (nqoi=1, nsamples=nouter, nvars=nobs)
+        risk_jac_3d = self._bkd.einsum("ijk->jik", risk_jac_3d)
         objective_jac = self._noise_stat.jacobian(
             risk_values.T, risk_jac_3d, outer_weights
         )

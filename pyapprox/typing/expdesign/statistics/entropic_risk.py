@@ -41,19 +41,19 @@ class SampleAverageEntropicRisk(SampleStatistic[Array], Generic[Array]):
         Parameters
         ----------
         values : Array
-            Sample values. Shape: (nsamples, nqoi)
+            Sample values. Shape: (nqoi, nsamples)
         weights : Array
-            Quadrature weights. Shape: (nsamples, 1)
+            Quadrature weights. Shape: (1, nsamples)
 
         Returns
         -------
         Array
-            Entropic risk values. Shape: (1, nqoi)
+            Entropic risk values. Shape: (nqoi, 1)
         """
-        # exp(alpha * values): (nsamples, nqoi)
-        # exp(alpha * values).T @ weights: (nqoi, 1)
+        # exp(alpha * values): (nqoi, nsamples)
+        # exp(alpha * values) @ weights.T: (nqoi, 1)
         exp_vals = self._bkd.exp(self._alpha * values)
-        return (self._bkd.log(exp_vals.T @ weights).T / self._alpha)
+        return self._bkd.log(exp_vals @ weights.T) / self._alpha
 
     def _jacobian(
         self, values: Array, jac_values: Array, weights: Array
@@ -68,29 +68,29 @@ class SampleAverageEntropicRisk(SampleStatistic[Array], Generic[Array]):
         Parameters
         ----------
         values : Array
-            Sample values. Shape: (nsamples, nqoi)
+            Sample values. Shape: (nqoi, nsamples)
         jac_values : Array
-            Jacobians at samples. Shape: (nsamples, nqoi, nvars)
+            Jacobians at samples. Shape: (nqoi, nsamples, nvars)
         weights : Array
-            Quadrature weights. Shape: (nsamples, 1)
+            Quadrature weights. Shape: (1, nsamples)
 
         Returns
         -------
         Array
             Jacobian. Shape: (nqoi, nvars)
         """
-        # exp(alpha * values): (nsamples, nqoi)
+        # exp(alpha * values): (nqoi, nsamples)
         exp_vals = self._bkd.exp(self._alpha * values)
 
         # E[exp(alpha*f)]: (nqoi, 1)
-        exp_mean = exp_vals.T @ weights
+        exp_mean = exp_vals @ weights.T
 
-        # alpha * exp(alpha*f) * jac_values: (nsamples, nqoi, nvars)
-        # Weighted sum: (nqoi, nvars)
+        # alpha * exp(alpha*f) * jac_values: (nqoi, nsamples, nvars)
+        # Weighted sum over samples: (nqoi, nvars)
         weighted_jac = self._bkd.einsum(
-            "ijk,i->jk",
+            "ijk,j->ik",
             self._alpha * exp_vals[..., None] * jac_values,
-            weights[:, 0],
+            weights[0, :],
         )
 
         # Divide by alpha * E[exp(alpha*f)]
