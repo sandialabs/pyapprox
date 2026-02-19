@@ -37,6 +37,10 @@ from .tensor_product import (
     ParameterizedTensorProductQuadratureRule,
 )
 
+from .probability_measure_factory import (
+    ProbabilityMeasureQuadratureFactory,
+)
+
 from .cubature import (
     StroudCdD2,
     StroudCdD3,
@@ -94,6 +98,8 @@ __all__ = [
     "StroudCdD2",
     "StroudCdD3",
     "StroudCdD5",
+    # Factories
+    "ProbabilityMeasureQuadratureFactory",
     # Helpers
     "gauss_quadrature_rule",
 ]

@@ -15,6 +15,10 @@ from pyapprox.typing.surrogates.affine.expansions.pce import (
 from pyapprox.typing.surrogates.affine.expansions import pce_statistics
 from pyapprox.typing.surrogates.affine.expansions import pce_arithmetic
 
+from pyapprox.typing.surrogates.affine.expansions.pce_marginalize import (
+    PCEDimensionReducer,
+)
+
 # Re-export solvers from optimization.linear for backward compatibility
 from pyapprox.typing.optimization.linear import (
     LeastSquaresSolver,
@@ -93,6 +97,8 @@ __all__ = [
     # PCE density
     "UnivariatePCEDensity",
     "composite_gauss_legendre",
+    # Marginalization
+    "PCEDimensionReducer",
     # Statistics module
     "pce_statistics",
     # Arithmetic module
