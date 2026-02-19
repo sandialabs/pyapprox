@@ -25,15 +25,28 @@ website:
             - forward_uq.qmd
             - random_variables_distributions.qmd
             - monte_carlo_sampling.qmd
+            - estimator_accuracy_mse.qmd
+            - mc_budget_estimation.qmd
+            - control_variate_concept.qmd
+            - control_variate_analysis.qmd
+            - control_variate_usage.qmd
         - section: "Inverse UQ"
           contents:
             - bayesian_inference_intro.qmd
+            - mcmc_sampling.qmd
+            - dram_mcmc.qmd
+        - section: "Experimental Design"
+          contents:
+            - experimental_design_intro.qmd
         - section: "Surrogate Modeling"
           contents:
             - polynomial_chaos_surrogates.qmd
             - practical_pce_fitting.qmd
             - sparse_pce_fitting.qmd
             - uq_with_pce.qmd
+        - section: "Optimization Under Uncertainty"
+          contents:
+            - design_under_uncertainty.qmd
 
 format:
   html:

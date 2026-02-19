@@ -17,12 +17,25 @@ subtitle: "Validated tutorials for uncertainty quantification"
 | [Forward Uncertainty Quantification](forward_uq.qmd) | The forward UQ problem: propagating input uncertainty through a model to characterize output uncertainty |
 | [Random Variables and Distributions](random_variables_distributions.qmd) | Specifying parameter uncertainty with independent and copula-based distributions |
 | [Monte Carlo Sampling](monte_carlo_sampling.qmd) | Estimating QoI statistics by random sampling: variability, sample size effects, and multi-output covariance |
+| [Estimator Accuracy and MSE](estimator_accuracy_mse.qmd) | Bias, variance, and MSE of Monte Carlo estimators for scalar and vector-valued statistics |
+| [Monte Carlo Budget Estimation](mc_budget_estimation.qmd) | Using pilot samples and the estimator API to predict the number of samples needed for a target accuracy |
+| [Control Variates: Concept](control_variate_concept.qmd) | The idea behind control variates: using a correlated, cheap model to reduce estimator variance |
+| [Control Variates: Analysis](control_variate_analysis.qmd) | Analyzing variance reduction, optimal weights, and the role of correlation in control variate estimators |
+| [Control Variates: Usage](control_variate_usage.qmd) | Applying control variate estimators to multi-fidelity problems with the PyApprox API |
 
 ## Inverse UQ
 
 | Tutorial | Description |
 |----------|-------------|
 | [Introduction to Bayesian Inference](bayesian_inference_intro.qmd) | From data to parameters: updating beliefs using Bayes' theorem |
+| [Sampling the Posterior with MCMC](mcmc_sampling.qmd) | Using Markov chain Monte Carlo to generate posterior samples when grid evaluation is infeasible |
+| [Practical MCMC: MH and DRAM](dram_mcmc.qmd) | Tuning proposal distributions, adaptive methods, and convergence diagnostics for MCMC |
+
+## Experimental Design
+
+| Tutorial | Description |
+|----------|-------------|
+| [Introduction to Experimental Design](experimental_design_intro.qmd) | Choosing where to sample: space-filling designs, optimality criteria, and sequential strategies |
 
 ## Surrogate Modeling
 
@@ -32,3 +45,9 @@ subtitle: "Validated tutorials for uncertainty quantification"
 | [Overfitting and Cross-Validation](practical_pce_fitting.qmd) | Choose the polynomial degree using LOO cross-validation |
 | [Sparse Polynomial Approximation](sparse_pce_fitting.qmd) | OMP and BPDN/LASSO for high-dimensional polynomial chaos |
 | [UQ with Polynomial Chaos](uq_with_pce.qmd) | Extract analytical moments, marginal densities, and convergence comparisons from a fitted PCE |
+
+## Optimization Under Uncertainty
+
+| Tutorial | Description |
+|----------|-------------|
+| [Design Under Uncertainty](design_under_uncertainty.qmd) | Optimizing system design when model inputs are uncertain |
