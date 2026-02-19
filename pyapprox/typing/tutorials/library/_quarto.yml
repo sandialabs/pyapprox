@@ -27,6 +27,8 @@ website:
             - monte_carlo_sampling.qmd
             - estimator_accuracy_mse.qmd
             - mc_budget_estimation.qmd
+        - section: "Multifidelity Estimation"
+          contents:
             - control_variate_concept.qmd
             - control_variate_analysis.qmd
             - control_variate_usage.qmd

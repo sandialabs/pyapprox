@@ -19,9 +19,14 @@ subtitle: "Validated tutorials for uncertainty quantification"
 | [Monte Carlo Sampling](monte_carlo_sampling.qmd) | Estimating QoI statistics by random sampling: variability, sample size effects, and multi-output covariance |
 | [Estimator Accuracy and MSE](estimator_accuracy_mse.qmd) | Bias, variance, and MSE of Monte Carlo estimators for scalar and vector-valued statistics |
 | [Monte Carlo Budget Estimation](mc_budget_estimation.qmd) | Using pilot samples and the estimator API to predict the number of samples needed for a target accuracy |
-| [Control Variates: Concept](control_variate_concept.qmd) | The idea behind control variates: using a correlated, cheap model to reduce estimator variance |
-| [Control Variates: Analysis](control_variate_analysis.qmd) | Analyzing variance reduction, optimal weights, and the role of correlation in control variate estimators |
-| [Control Variates: Usage](control_variate_usage.qmd) | Applying control variate estimators to multi-fidelity problems with the PyApprox API |
+
+## Multifidelity Estimation
+
+| Tutorial | Description |
+|----------|-------------|
+| [Control Variate Monte Carlo](control_variate_concept.qmd) | Reducing MC estimator variance using a correlated low-fidelity model with a known statistic |
+| [Control Variate Analysis](control_variate_analysis.qmd) | Deriving the optimal control variate weight, variance reduction formula, and unbiasedness |
+| [Control Variate Usage](control_variate_usage.qmd) | Using the PyApprox CVMC API to reduce estimator variance with a correlated low-fidelity model |
 
 ## Inverse UQ
 

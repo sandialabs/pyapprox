@@ -1,0 +1,333 @@
+---
+title: "Control Variate Monte Carlo: Usage"
+subtitle: "PyApprox Tutorial Library"
+description: "Using the PyApprox CVMC API to reduce estimator variance with a correlated low-fidelity model."
+tutorial_type: usage
+topic: multi_fidelity
+difficulty: intermediate
+estimated_time: 10
+prerequisites:
+  - control_variate_concept
+tags:
+  - multi-fidelity
+  - control-variate
+  - variance-reduction
+  - api
+format:
+  html:
+    code-fold: false
+    code-tools: true
+    toc: true
+execute:
+  echo: true
+  warning: false
+jupyter: python3
+---
+
+::: {.callout-tip collapse="true"}
+## Download Notebook
+[Download as Jupyter Notebook](notebooks/control_variate_usage.ipynb)
+:::
+
+## Learning Objectives
+
+After completing this tutorial, you will be able to:
+
+- Set up a CVMC estimator using `CVEstimator` and `MultiOutputMean`
+- Use the pilot-then-allocate workflow to determine the sample budget
+- Retrieve and interpret the predicted and empirical estimator variance
+- Compare CVMC variance reduction to plain MC on the same model pair
+
+## Prerequisites
+
+Complete [Control Variate Concept](control_variate_concept.qmd) before this tutorial.
+The [Control Variate Analysis](control_variate_analysis.qmd) tutorial is recommended but not required.
+
+
+## Quick Recap
+
+The CVMC estimator of $\mu_\alpha = \mathbb{E}_\theta[f_\alpha(\boldsymbol{\theta})]$ is
+
+$$
+\hat{\mu}_\alpha^{\text{CV}} = \hat{\mu}_\alpha + \eta^* \left(\hat{\mu}_\kappa - \mu_\kappa\right)
+$$
+
+where $\mu_\kappa$ is the **known** low-fidelity mean and $\eta^* = -\mathrm{Cov}(f_\alpha, f_\kappa) / \mathbb{V}[f_\kappa]$.
+The estimator variance is $(\sigma^2_\alpha / N)(1 - \rho^2_{\alpha\kappa})$ --- the reduction
+depends entirely on the correlation $\rho_{\alpha\kappa}$ between models.
+
+
+## Setup
+
+```{python}
+import numpy as np
+import matplotlib.pyplot as plt
+from pyapprox.typing.util.backends.numpy import NumpyBkd
+from pyapprox.typing.benchmarks.instances.multifidelity.tunable_ensemble import (
+    tunable_ensemble_3model,
+)
+from pyapprox.typing.statest.statistics import MultiOutputMean
+from pyapprox.typing.statest.cv_estimator import CVEstimator
+
+bkd = NumpyBkd()
+np.random.seed(42)
+```
+
+We use the tunable two-model ensemble benchmark. The parameter `theta1` controls the
+correlation between the high-fidelity model $f_\alpha$ (model 0) and the low-fidelity
+model $f_\kappa$ (model 1). Smaller `theta1` gives higher correlation.
+
+```{python}
+benchmark = tunable_ensemble_3model(bkd, theta1=np.pi / 2 * 0.95)
+
+hf_model = benchmark.models()[0]   # f_alpha: high-fidelity, expensive
+lf_model = benchmark.models()[1]   # f_kappa: low-fidelity, cheap
+variable = benchmark.prior()
+
+# Cost ratio: lf_model costs 10x less per evaluation
+cost_hf = 10.0
+cost_lf = 1.0
+
+nqoi = hf_model.nqoi()
+print(f"QoIs: {nqoi}")
+print(f"HF cost per eval: {cost_hf}")
+print(f"LF cost per eval: {cost_lf}")
+```
+
+The true low-fidelity mean $\mu_\kappa$ is available from the benchmark (in practice it would
+be computed analytically or via a very long separate run).
+
+```{python}
+means = benchmark.ensemble_means()   # shape (nmodels, 1)
+mu_kappa_true = bkd.to_numpy(means[1:2, :])   # shape (1, 1)
+print(f"Known low-fidelity mean: {mu_kappa_true}")
+```
+
+
+## Stage 1: Pilot Samples
+
+We draw a small pilot to estimate the cross-covariance $C_{\alpha\kappa}$ and $\sigma^2_\kappa$
+needed to compute $\eta^*$ and predict the estimator variance.
+
+```{python}
+N_pilot = 50
+samples_pilot = variable.rvs(N_pilot)
+values_hf_pilot = hf_model(samples_pilot)   # shape (nqoi, N_pilot)
+values_lf_pilot = lf_model(samples_pilot)   # shape (nqoi, N_pilot)
+
+print(f"Pilot HF values shape: {values_hf_pilot.shape}")
+print(f"Pilot LF values shape: {values_lf_pilot.shape}")
+```
+
+The `MultiOutputMean` statistic class computes the pilot quantities (cross-covariances) from
+the stacked pilot evaluations.
+
+```{python}
+stat = MultiOutputMean(nqoi, bkd)
+# compute_pilot_quantities expects a list with one entry per model
+stat.set_pilot_quantities(
+    *stat.compute_pilot_quantities([values_hf_pilot, values_lf_pilot])
+)
+
+print("Pilot cross-covariance matrix (HF + LF blocks):")
+print(bkd.to_numpy(stat._cov))
+```
+
+
+## Stage 2: Build the CVMC Estimator and Allocate Budget
+
+```{python}
+lowfi_stats = bkd.asarray(mu_kappa_true)   # shape (nmodels-1, nstats)
+est = CVEstimator(
+    stat,
+    costs=[cost_hf, cost_lf],
+    lowfi_stats=lowfi_stats,
+)
+
+target_cost = 500.0
+est.allocate_samples(target_cost)
+
+n_hf, n_lf = est.nsamples_per_model()
+print(f"Target cost:    {target_cost}")
+print(f"HF samples:     {n_hf}")
+print(f"LF samples:     {n_lf}")
+print(f"Actual cost:    {n_hf * cost_hf + n_lf * cost_lf:.1f}")
+```
+
+::: {.callout-note}
+## Why the same N for both models?
+In CVMC, $\hat{\mu}_\alpha$ and $\hat{\mu}_\kappa$ are evaluated on the **same** $N$ samples.
+This is what creates the correlation between the estimators that enables variance cancellation.
+`allocate_samples` simply sets $N = \lfloor\text{target\_cost} / (\text{cost\_hf} + \text{cost\_lf})\rfloor$.
+:::
+
+Inspect the predicted estimator standard deviation before running the experiment:
+
+```{python}
+pred_cov = est.optimized_covariance()
+pred_std = float(bkd.sqrt(pred_cov[0, 0]))
+print(f"Predicted estimator std (CVMC): {pred_std:.6f}")
+
+# For comparison: plain MC at the same total cost would use N_mc = target_cost / cost_hf
+N_mc_equiv = int(target_cost / cost_hf)
+true_var_hf = float(benchmark.ensemble_covariance()[0, 0])
+mc_std_equiv = float(np.sqrt(true_var_hf / N_mc_equiv))
+print(f"Equivalent MC std (N={N_mc_equiv}):    {mc_std_equiv:.6f}")
+print(f"Predicted variance reduction:   {(pred_std / mc_std_equiv)**2:.3f}")
+```
+
+
+## Stage 3: Generate Samples and Compute the Estimate
+
+```{python}
+samples_hf, samples_lf = est.generate_samples_per_model(variable.rvs)
+
+values_hf = hf_model(samples_hf)
+values_lf = lf_model(samples_lf)
+
+result = est([values_hf, values_lf])
+print(f"CVMC estimate of mean: {bkd.to_numpy(result)}")
+print(f"True mean:             {bkd.to_numpy(benchmark.ensemble_means()[0:1, :])}")
+```
+
+
+## Comparing MC and CVMC Variance Empirically
+
+Run 500 independent trials of both MC and CVMC at the same total cost to measure the
+actual variance reduction.
+
+```{python}
+n_trials = 500
+mc_estimates = np.empty(n_trials)
+cv_estimates = np.empty(n_trials)
+
+cov_mat = bkd.to_numpy(benchmark.ensemble_covariance()[:2, :2])
+eta_opt = -cov_mat[0, 1] / cov_mat[1, 1]
+mu_kappa_float = float(mu_kappa_true[0, 0])
+
+for i in range(n_trials):
+    np.random.seed(i + 1000)
+    # MC: spend entire budget on HF
+    s_mc = variable.rvs(N_mc_equiv)
+    mc_estimates[i] = float(bkd.mean(hf_model(s_mc)[0]))
+
+    # CVMC: split budget equally between HF and LF
+    s = variable.rvs(n_hf)
+    v_hf = bkd.to_numpy(hf_model(s)).ravel()
+    v_lf = bkd.to_numpy(lf_model(s)).ravel()
+    cv_estimates[i] = v_hf.mean() + eta_opt * (v_lf.mean() - mu_kappa_float)
+
+mc_std_emp = np.std(mc_estimates)
+cv_std_emp = np.std(cv_estimates)
+print(f"Empirical MC std:   {mc_std_emp:.6f}")
+print(f"Empirical CVMC std: {cv_std_emp:.6f}")
+print(f"Empirical variance reduction: {(cv_std_emp / mc_std_emp)**2:.3f}")
+print(f"Predicted variance reduction: {(pred_std / mc_std_equiv)**2:.3f}")
+```
+
+```{python}
+#| fig-cap: "Distribution of 500 MC and CVMC mean estimates at equal total cost. Both are centered on the true mean (black dashed line). The CVMC histogram is narrower by a factor consistent with the theoretical $1 - \\rho^2$ prediction."
+#| label: fig-mc-vs-cvmc
+
+true_mean = float(benchmark.ensemble_means()[0, 0])
+xlim = (
+    min(mc_estimates.min(), cv_estimates.min()),
+    max(mc_estimates.max(), cv_estimates.max()),
+)
+pad = 0.05 * (xlim[1] - xlim[0])
+xlim = (xlim[0] - pad, xlim[1] + pad)
+
+fig, axes = plt.subplots(1, 2, figsize=(12, 4), sharey=True)
+
+for ax, vals, color, label, std in zip(
+    axes,
+    [mc_estimates, cv_estimates],
+    ["#2C7FB8", "#E67E22"],
+    [f"MC  (N = {N_mc_equiv})", f"CVMC  (N = {n_hf} per model)"],
+    [mc_std_emp, cv_std_emp],
+):
+    ax.hist(vals, bins=40, density=True, color=color, alpha=0.7,
+            edgecolor="k", lw=0.3)
+    ax.axvline(true_mean, color="k", ls="--", lw=2, label="True mean")
+    ax.set_xlabel(r"Estimate of $\mu_\alpha$", fontsize=11)
+    ax.set_title(f"{label}\nStd = {std:.4f}", fontsize=10)
+    ax.set_xlim(xlim)
+    ax.legend(fontsize=9)
+    ax.grid(True, alpha=0.2)
+
+axes[0].set_ylabel("Density", fontsize=11)
+fig.suptitle(
+    f"Equal total cost = {target_cost:.0f}  |  "
+    rf"Theoretical reduction = {1 - cov_mat[0,1]**2 / (cov_mat[0,0]*cov_mat[1,1]):.2f}",
+    fontsize=11,
+)
+plt.tight_layout()
+plt.show()
+```
+
+
+## Interpretation
+
+A few things to notice in the output:
+
+**Allocation:** CVMC uses the same $N$ samples for both models because the correlation is
+created by evaluating both models at **identical** inputs. The cost saving comes from the
+variance reduction, not from evaluating fewer samples.
+
+**Predicted vs empirical reduction:** The prediction from `optimized_covariance()` uses the
+pilot cross-covariance estimate, so there is some discrepancy from the true theoretical value.
+A larger pilot reduces this discrepancy.
+
+**Cost comparison:** At equal total cost, MC spends all samples on $f_\alpha$; CVMC splits
+the budget but gains through variance cancellation. Whether CVMC wins depends on the
+cost ratio and the correlation — high correlation with a cheap low-fidelity model is the
+sweet spot.
+
+
+## Common Errors
+
+**Wrong shape for `lowfi_stats`:** `CVEstimator` expects `lowfi_stats` as a 2-D array of shape
+`(nmodels-1, nstats)`. Passing a scalar or a 1-D array will raise a shape error.
+
+**Pilot values in wrong order:** `compute_pilot_quantities` expects `[hf_values, lf_values]`
+in the same order as `models()`. Swapping them will produce a cross-covariance with the wrong
+sign and a negative variance prediction.
+
+**Unknown $\mu_\kappa$:** If the low-fidelity mean is not available analytically, use
+[Approximate Control Variates](acv_usage.qmd) instead, which estimates $\mu_\kappa$ from
+additional samples.
+
+
+## Key Takeaways
+
+- The CVMC workflow is: pilot → `compute_pilot_quantities` → `set_pilot_quantities` →
+  `allocate_samples` → generate samples → evaluate → call estimator
+- `optimized_covariance()` provides a pre-experiment accuracy forecast based on pilot data
+- At equal total cost, CVMC beats MC when the correlation is high and the low-fidelity
+  model is cheap
+- $\mu_\kappa$ must be provided; if it is unknown, switch to `ACVEstimator`
+
+
+## Exercises
+
+1. Vary `theta1` from `0.1` to `np.pi/2 * 0.99` and plot the empirical variance reduction
+   as a function of the resulting $\rho_{\alpha\kappa}$. Does the empirical curve follow
+   $1 - \rho^2$?
+
+2. Change `cost_lf` to `5.0` (same cost as HF). Explain why the CVMC advantage shrinks.
+   At what cost ratio does CVMC stop outperforming plain MC for this correlation?
+
+3. Set `N_pilot = 10` and rerun the workflow. Compare the predicted estimator std to
+   the empirical one. Why is the prediction less reliable with fewer pilot samples?
+
+4. **(Challenge)** Replace `MultiOutputMean` with `MultiOutputMeanAndVariance` and rerun
+   the allocation. How does the sample budget change when we ask for both mean and variance
+   simultaneously?
+
+
+## Next Steps
+
+- [Approximate Control Variates](acv_concept.qmd) --- CVMC when $\mu_\kappa$ is not known
+- [Multi-Level Monte Carlo](mlmc_concept.qmd) --- Hierarchical models with differences
+  rather than corrections
+- [General ACV](acv_many_models_concept.qmd) --- Extending to many low-fidelity models
