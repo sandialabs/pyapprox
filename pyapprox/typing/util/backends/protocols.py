@@ -770,6 +770,22 @@ class Backend(Protocol, Generic[Array]):
         ...
 
     @staticmethod
+    def det(array: Array) -> Array:
+        """Compute determinant of a matrix.
+
+        Parameters
+        ----------
+        array : Array
+            Square matrix. Shape: (n, n)
+
+        Returns
+        -------
+        det : Array
+            Determinant (scalar array).
+        """
+        ...
+
+    @staticmethod
     def mean(
         array: Array,
         axis: Optional[Union[int, Tuple[int, ...]]] = None,

@@ -604,6 +604,10 @@ class NumpyBkd(Backend[NDArray[Any]]):  # Specify NDArray type
         return np.linalg.slogdet(array)
 
     @staticmethod
+    def det(array: NDArray[Any]) -> NDArray[Any]:
+        return np.linalg.det(array)
+
+    @staticmethod
     def mean(
         array: NDArray[Any],
         axis: Optional[Union[int, Tuple[int, ...]]] = None,

@@ -92,6 +92,7 @@ from .gaussian import (
     OperatorBasedMultivariateGaussian,
     GaussianCanonicalForm,
     compute_normalization,
+    plot_gaussian_2d_contour,
 )
 
 # Joint distributions
@@ -168,6 +169,7 @@ __all__ = [
     "OperatorBasedMultivariateGaussian",
     "GaussianCanonicalForm",
     "compute_normalization",
+    "plot_gaussian_2d_contour",
     # Joint distributions
     "IndependentJoint",
     # Transforms

@@ -24,15 +24,15 @@ _DATA_DIR = os.path.join(
     os.path.dirname(__file__), os.pardir, os.pardir, "data",
 )
 _DEFAULT_MESH_PATH = os.path.normpath(
-    os.path.join(_DATA_DIR, "cantilever_beam_2d_with_holes.json")
+    os.path.join(_DATA_DIR, "cantilever_beam_2d_with_holes_h_0_5.json")
 )
 
 # Mesh paths by refinement level (h = characteristic element size)
 MESH_PATHS = {
     0.5: _DEFAULT_MESH_PATH,
-    1: os.path.normpath(os.path.join(_DATA_DIR, "cantilever_beam_2d_h1.json")),
-    2: os.path.normpath(os.path.join(_DATA_DIR, "cantilever_beam_2d_h2.json")),
-    4: os.path.normpath(os.path.join(_DATA_DIR, "cantilever_beam_2d_h4.json")),
+    1: os.path.normpath(os.path.join(_DATA_DIR, "cantilever_beam_2d_with_holes_h_1.json")),
+    2: os.path.normpath(os.path.join(_DATA_DIR, "cantilever_beam_2d_with_holes_h_2.json")),
+    4: os.path.normpath(os.path.join(_DATA_DIR, "cantilever_beam_2d_with_holes_h_4.json")),
 }
 
 from pyapprox.typing.util.backends.protocols import Array, Backend
@@ -802,31 +802,52 @@ def cantilever_beam_1d(
     return PDEBenchmarkWrapper(inner, estimated_cost=1e-03)
 
 
+def _find_dof(basis, target_x, target_y, comp, bkd):
+    """Find DOF index closest to (target_x, target_y) for component comp.
+
+    Parameters
+    ----------
+    basis : VectorLagrangeBasis
+        FEM vector basis with interleaved DOFs.
+    target_x : float
+        Target x-coordinate.
+    target_y : float
+        Target y-coordinate.
+    comp : int
+        Component index (0 = x-displacement, 1 = y-displacement).
+    bkd : Backend
+        Computational backend.
+
+    Returns
+    -------
+    int
+        Global DOF index for the closest node's requested component.
+    """
+    dof_coords = bkd.to_numpy(basis.dof_coordinates())
+    ndim = basis.ncomponents()
+    n_dofs = basis.ndofs()
+
+    best_dof = -1
+    best_dist = np.inf
+    for i in range(n_dofs):
+        if i % ndim != comp:
+            continue
+        x_coord = dof_coords[0, i]
+        y_coord = dof_coords[1, i]
+        dist = (x_coord - target_x)**2 + (y_coord - target_y)**2
+        if dist < best_dist:
+            best_dist = dist
+            best_dof = i
+    return best_dof
+
+
 def _find_tip_dof(basis, length, height, bkd):
     """Find the vertical displacement DOF closest to the beam tip.
 
     The tip is at (x=length, y=height/2). For interleaved DOFs
     [ux_0, uy_0, ux_1, uy_1, ...], the y-displacement DOF is 2*node+1.
     """
-    dof_coords = bkd.to_numpy(basis.dof_coordinates())
-    ndim = basis.ncomponents()
-    n_dofs = basis.ndofs()
-    tip_x, tip_y = length, height / 2.0
-
-    best_dof = -1
-    best_dist = np.inf
-    for i in range(n_dofs):
-        comp = i % ndim
-        if comp != 1:  # only y-displacement
-            continue
-        node_idx = i // ndim
-        x_coord = dof_coords[0, i]
-        y_coord = dof_coords[1, i]
-        dist = (x_coord - tip_x)**2 + (y_coord - tip_y)**2
-        if dist < best_dist:
-            best_dist = dist
-            best_dof = i
-    return best_dof
+    return _find_dof(basis, length, height / 2.0, 1, bkd)
 
 
 def cantilever_beam_2d_linear(
@@ -1461,6 +1482,266 @@ def cantilever_beam_2d_neohookean_spde(
         ),
     )
     return PDEBenchmarkWrapper(inner, estimated_cost=5.0)
+
+
+# =========================================================================
+# OED benchmark: 2D load identification via superposition
+# =========================================================================
+
+
+class CantileverBeam2DLoadOEDBenchmark(Generic[Array]):
+    """OED benchmark for identifying two load parameters on a 2D cantilever beam.
+
+    The beam is subjected to a distributed surface traction on the top edge:
+
+        t_y(x) = theta_1 * (-1) + theta_2 * (-x / L)
+
+    where theta_1 is the constant load amplitude and theta_2 is the slope
+    load amplitude. The unknowns are theta = [theta_1, theta_2].
+
+    By linearity of the FEM, the y-displacement at any sensor location is:
+
+        u_y(x_sensor) = A_1(x_sensor) * theta_1 + A_2(x_sensor) * theta_2
+
+    where A_1 and A_2 are the displacements due to unit constant and unit
+    slope tractions respectively. The design matrix A (nobs, 2) is built
+    by solving two FEM problems at construction time.
+
+    Observations are:
+        y = A @ theta + noise,  noise ~ N(0, noise_cov)
+
+    This class uses composition with ``LinearGaussianOEDModel`` for all
+    shared OED logic (exact EIG, data generation, etc.).
+
+    Parameters
+    ----------
+    bkd : Backend[Array]
+        Computational backend.
+    mesh_path : str
+        Path to JSON mesh file (must have boundaries and subdomains).
+    length : float
+        Beam length.
+    height : float
+        Beam height.
+    E_mean : float
+        Young's modulus (uniform, deterministic).
+    poisson_ratio : float
+        Poisson ratio (uniform).
+    prior_mean : Array or None
+        Prior mean for theta. Shape (2, 1). Default: zeros.
+    prior_covariance : Array or None
+        Prior covariance. Shape (2, 2). Default: eye(2).
+    noise_std : float
+        Observation noise standard deviation (isotropic). Default: 0.01.
+    sensor_xs : Array or None
+        x-coordinates for y-displacement sensors along mid-height.
+        Shape (nobs,). Default: 5 equally spaced in [length/5, length].
+    """
+
+    def __init__(
+        self,
+        bkd: Backend[Array],
+        mesh_path: str = _DEFAULT_MESH_PATH,
+        length: float = 100.0,
+        height: float = 30.0,
+        E_mean: float = 1e4,
+        poisson_ratio: float = 0.3,
+        prior_mean: Optional[Array] = None,
+        prior_covariance: Optional[Array] = None,
+        noise_std: float = 0.01,
+        sensor_xs: Optional[Array] = None,
+    ) -> None:
+        from skfem import Basis as SkfemBasis
+        from pyapprox.typing.pde.galerkin.mesh import UnstructuredMesh2D
+        from pyapprox.typing.pde.galerkin.basis import VectorLagrangeBasis
+        from pyapprox.typing.pde.galerkin.physics import (
+            CompositeLinearElasticity,
+        )
+        from pyapprox.typing.pde.galerkin.boundary.implementations import (
+            DirichletBC, NeumannBC,
+        )
+        from pyapprox.typing.pde.galerkin.solvers.steady_state import (
+            SteadyStateSolver,
+        )
+        from pyapprox.typing.expdesign.benchmarks.linear_gaussian_model import (
+            LinearGaussianOEDModel,
+        )
+
+        self._bkd = bkd
+        self._length = length
+        self._height = height
+        self._noise_std = noise_std
+
+        # ---- Build FEM ----
+        mesh = UnstructuredMesh2D(
+            mesh_path, bkd, rescale_origin=(0.0, 0.0),
+        )
+        basis = VectorLagrangeBasis(mesh, degree=1)
+        skfem_mesh = mesh.skfem_mesh()
+        subdomain_names = mesh.subdomain_names()
+        subdomain_elements = {
+            name: mesh.subdomain_elements(name) for name in subdomain_names
+        }
+
+        def zero_dirichlet(coords, time=0.0):
+            return np.zeros(coords.shape[1])
+
+        bc_left = DirichletBC(basis, "left_edge", zero_dirichlet, bkd)
+
+        material_map = {
+            name: (E_mean, poisson_ratio) for name in subdomain_names
+        }
+
+        # ---- Solve two unit load cases ----
+        def _make_traction(traction_func):
+            bc_top = NeumannBC(basis, "top_edge", traction_func, bkd)
+            physics = CompositeLinearElasticity(
+                basis=basis,
+                material_map=material_map,
+                element_materials=subdomain_elements,
+                bkd=bkd,
+                boundary_conditions=[bc_left, bc_top],
+            )
+            solver = SteadyStateSolver(physics, tol=1e-10, max_iter=1)
+            init = bkd.asarray(np.zeros(physics.nstates()))
+            result = solver.solve(init)
+            return bkd.to_numpy(result.solution)
+
+        # Case 1: constant load t_y = -1
+        def const_traction(coords, time=0.0):
+            npts = coords.shape[1]
+            traction = np.zeros((2, npts))
+            traction[1, :] = -1.0
+            return traction
+
+        sol_const = _make_traction(const_traction)
+
+        # Case 2: slope load t_y = -x/L
+        def slope_traction(coords, time=0.0):
+            x = coords[0]
+            npts = coords.shape[1]
+            traction = np.zeros((2, npts))
+            traction[1, :] = -x / length
+            return traction
+
+        sol_slope = _make_traction(slope_traction)
+
+        # ---- Set up sensor locations ----
+        if sensor_xs is None:
+            sensor_xs = bkd.linspace(length / 5.0, length, 5)
+        self._sensor_xs = sensor_xs
+        nobs = sensor_xs.shape[0]
+        sensor_xs_np = bkd.to_numpy(sensor_xs)
+
+        # ---- Build design matrix A (nobs, 2) ----
+        # For each sensor at (x_sensor, height/2), extract y-displacement
+        # from each unit solution
+        A_np = np.zeros((nobs, 2))
+        for i, sx in enumerate(sensor_xs_np):
+            dof_idx = _find_dof(basis, float(sx), height / 2.0, 1, bkd)
+            A_np[i, 0] = sol_const[dof_idx]
+            A_np[i, 1] = sol_slope[dof_idx]
+        A = bkd.asarray(A_np)
+
+        # ---- Prior and noise ----
+        nparams = 2
+        if prior_mean is None:
+            prior_mean = bkd.zeros((nparams, 1))
+        if prior_covariance is None:
+            prior_covariance = bkd.eye(nparams)
+        noise_cov = bkd.eye(nobs) * noise_std ** 2
+
+        # ---- Create LinearGaussianOEDModel ----
+        self._model = LinearGaussianOEDModel(
+            A, prior_mean, prior_covariance, noise_cov, bkd, sensor_xs,
+        )
+        self._basis = basis
+
+    def bkd(self) -> Backend[Array]:
+        """Get the computational backend."""
+        return self._bkd
+
+    def model(self) -> "LinearGaussianOEDModel[Array]":
+        """Get the underlying LinearGaussianOEDModel."""
+        return self._model
+
+    def nobs(self) -> int:
+        """Number of sensor locations."""
+        return self._model.nobs()
+
+    def nparams(self) -> int:
+        """Number of load parameters (always 2)."""
+        return self._model.nparams()
+
+    def design_matrix(self) -> Array:
+        """Get the design matrix A. Shape: (nobs, 2)"""
+        return self._model.design_matrix()
+
+    def design_locations(self) -> Array:
+        """Get sensor x-coordinates. Shape: (nobs,)"""
+        loc = self._model.design_locations()
+        assert loc is not None
+        return loc
+
+    def sensor_xs(self) -> Array:
+        """Get sensor x-coordinates. Shape: (nobs,)"""
+        return self._sensor_xs
+
+    def prior_mean(self) -> Array:
+        """Get prior mean. Shape: (nparams, 1)"""
+        return self._model.prior_mean()
+
+    def prior_covariance(self) -> Array:
+        """Get prior covariance. Shape: (nparams, nparams)"""
+        return self._model.prior_covariance()
+
+    def noise_covariance(self) -> Array:
+        """Get noise covariance. Shape: (nobs, nobs)"""
+        return self._model.noise_covariance()
+
+    def noise_variances(self) -> Array:
+        """Get noise variances. Shape: (nobs,)"""
+        return self._model.noise_variances()
+
+    def noise_std(self) -> float:
+        """Noise standard deviation."""
+        return self._noise_std
+
+    def prior(self):
+        """Return the prior as a Gaussian distribution."""
+        return self._model.prior()
+
+    def exact_eig(self, weights: Array) -> float:
+        """Compute exact expected information gain."""
+        return self._model.exact_eig(weights)
+
+    def d_optimal_objective(self, weights: Array) -> float:
+        """Compute D-optimal objective (negative EIG)."""
+        return self._model.d_optimal_objective(weights)
+
+    def generate_observation_data(
+        self, nsamples: int, seed: int = 42,
+    ) -> tuple[Array, Array]:
+        """Generate noiseless observations."""
+        return self._model.generate_observation_data(nsamples, seed)
+
+    def generate_noisy_observations(
+        self, nsamples: int, seed: int = 42,
+    ) -> tuple[Array, Array, Array]:
+        """Generate noisy observations."""
+        return self._model.generate_noisy_observations(nsamples, seed)
+
+    def generate_parameter_samples(
+        self, nsamples: int, seed: int = 42,
+    ) -> Array:
+        """Generate parameter samples from the prior."""
+        return self._model.generate_parameter_samples(nsamples, seed)
+
+    def generate_latent_samples(
+        self, nsamples: int, seed: int = 42,
+    ) -> Array:
+        """Generate latent noise samples for reparameterization."""
+        return self._model.generate_latent_samples(nsamples, seed)
 
 
 # =========================================================================

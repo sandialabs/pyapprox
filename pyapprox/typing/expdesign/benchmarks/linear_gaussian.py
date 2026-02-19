@@ -23,11 +23,44 @@ Bayesian Linear Inverse Problems"
 SIAM Journal on Scientific Computing 2018 40:5, A2956-A2985
 """
 
-from typing import Generic
-
-import numpy as np
+from typing import Generic, Optional
 
 from pyapprox.typing.util.backends.protocols import Array, Backend
+
+from .linear_gaussian_model import LinearGaussianOEDModel
+
+
+def _build_vandermonde(
+    locations: Array,
+    min_degree: int,
+    degree: int,
+    bkd: Backend[Array],
+) -> Array:
+    """
+    Build polynomial Vandermonde matrix.
+
+    Parameters
+    ----------
+    locations : Array
+        Evaluation points. Shape: (n,)
+    min_degree : int
+        Minimum polynomial degree.
+    degree : int
+        Maximum polynomial degree.
+    bkd : Backend[Array]
+        Computational backend.
+
+    Returns
+    -------
+    A : Array
+        Vandermonde matrix. Shape: (n, degree - min_degree + 1)
+        A[i, j] = locations[i]^(j + min_degree)
+    """
+    n = locations.shape[0]
+    powers = bkd.arange(min_degree, degree + 1)
+    x_col = bkd.reshape(locations, (n, 1))
+    powers_row = bkd.reshape(powers, (1, len(powers)))
+    return x_col ** powers_row
 
 
 class LinearGaussianOEDBenchmark(Generic[Array]):
@@ -38,6 +71,8 @@ class LinearGaussianOEDBenchmark(Generic[Array]):
     - Design locations are in [-1, 1]
     - Forward model is polynomial basis evaluation
     - Prior and noise are isotropic Gaussian
+
+    Uses composition with LinearGaussianOEDModel for shared logic.
 
     Parameters
     ----------
@@ -80,10 +115,20 @@ class LinearGaussianOEDBenchmark(Generic[Array]):
         self._noise_std = noise_std
         self._prior_std = prior_std
 
-        # Setup problem components
-        self._design_locations = self._setup_design_locations()
-        self._design_matrix = self._setup_design_matrix()
-        self._nparams = self._design_matrix.shape[1]
+        # Build Vandermonde design matrix
+        locations = bkd.linspace(-1.0, 1.0, nobs)
+        A = _build_vandermonde(locations, min_degree, degree, bkd)
+        nparams = A.shape[1]
+
+        # Build isotropic prior and noise
+        prior_mean = bkd.zeros((nparams, 1))
+        prior_cov = bkd.eye(nparams) * prior_std ** 2
+        noise_cov = bkd.eye(nobs) * noise_std ** 2
+
+        # Create general model
+        self._model = LinearGaussianOEDModel(
+            A, prior_mean, prior_cov, noise_cov, bkd, locations,
+        )
 
     def bkd(self) -> Backend[Array]:
         """Get the computational backend."""
@@ -91,11 +136,11 @@ class LinearGaussianOEDBenchmark(Generic[Array]):
 
     def nobs(self) -> int:
         """Number of observations."""
-        return self._nobs
+        return self._model.nobs()
 
     def nparams(self) -> int:
         """Number of model parameters."""
-        return self._nparams
+        return self._model.nparams()
 
     def noise_var(self) -> float:
         """Noise variance."""
@@ -105,35 +150,27 @@ class LinearGaussianOEDBenchmark(Generic[Array]):
         """Prior variance."""
         return self._prior_std ** 2
 
+    def noise_std(self) -> float:
+        """Noise standard deviation."""
+        return self._noise_std
+
+    def prior_std(self) -> float:
+        """Prior standard deviation."""
+        return self._prior_std
+
     def design_matrix(self) -> Array:
         """Get the design matrix A. Shape: (nobs, nparams)"""
-        return self._design_matrix
+        return self._model.design_matrix()
 
     def design_locations(self) -> Array:
         """Get design locations. Shape: (nobs,)"""
-        return self._design_locations
+        loc = self._model.design_locations()
+        assert loc is not None
+        return loc
 
-    def _setup_design_locations(self) -> Array:
-        """Set up observation locations in [-1, 1]."""
-        return self._bkd.linspace(-1.0, 1.0, self._nobs)
-
-    def _setup_design_matrix(self) -> Array:
-        """
-        Set up polynomial design matrix.
-
-        Returns
-        -------
-        A : Array
-            Design matrix. Shape: (nobs, nparams)
-            A[i, j] = x_i^(j + min_degree)
-        """
-        x = self._design_locations
-        powers = self._bkd.arange(self._min_degree, self._degree + 1)
-        # Vandermonde-like matrix: each row is [x^0, x^1, ..., x^degree]
-        # Use broadcasting: x[:, None] ** powers[None, :]
-        x_col = self._bkd.reshape(x, (self._nobs, 1))
-        powers_row = self._bkd.reshape(powers, (1, len(powers)))
-        return x_col ** powers_row
+    def model(self) -> LinearGaussianOEDModel[Array]:
+        """Get the underlying LinearGaussianOEDModel."""
+        return self._model
 
     def exact_eig(self, weights: Array) -> float:
         """
@@ -152,20 +189,7 @@ class LinearGaussianOEDBenchmark(Generic[Array]):
         eig : float
             Exact expected information gain.
         """
-        A = self._design_matrix
-        ratio = self._prior_std ** 2 / self._noise_std ** 2
-
-        # Compute A^T @ diag(w) @ A
-        # = A^T @ (w * A) where w is broadcast
-        w = self._bkd.reshape(weights, (self._nobs,))
-        AtWA = self._bkd.dot(A.T, w[:, None] * A)
-
-        # Y = I + AtWA * ratio
-        Y = self._bkd.eye(self._nparams) + AtWA * ratio
-
-        # EIG = 1/2 * log(det(Y))
-        sign, logdet = self._bkd.slogdet(Y)
-        return 0.5 * float(self._bkd.to_numpy(logdet))
+        return self._model.exact_eig(weights)
 
     def d_optimal_objective(self, weights: Array) -> float:
         """
@@ -181,7 +205,27 @@ class LinearGaussianOEDBenchmark(Generic[Array]):
         obj : float
             D-optimal objective = -EIG
         """
-        return -self.exact_eig(weights)
+        return self._model.d_optimal_objective(weights)
+
+    def prior_mean(self) -> Array:
+        """Get prior mean (zero vector). Shape: (nparams, 1)"""
+        return self._model.prior_mean()
+
+    def prior_covariance(self) -> Array:
+        """Get prior covariance (isotropic). Shape: (nparams, nparams)"""
+        return self._model.prior_covariance()
+
+    def noise_covariance(self) -> Array:
+        """Get noise covariance (isotropic). Shape: (nobs, nobs)"""
+        return self._model.noise_covariance()
+
+    def noise_variances(self) -> Array:
+        """Get noise variances for all observations. Shape: (nobs,)"""
+        return self._model.noise_variances()
+
+    def prior(self):
+        """Return the prior as a Gaussian distribution."""
+        return self._model.prior()
 
     def generate_data(
         self,
@@ -205,16 +249,7 @@ class LinearGaussianOEDBenchmark(Generic[Array]):
         y_samples : Array
             Observations (noiseless). Shape: (nobs, nsamples)
         """
-        np.random.seed(seed)
-
-        # Sample from prior: theta ~ N(0, prior_var * I)
-        theta_np = self._prior_std * np.random.randn(self._nparams, nsamples)
-        theta_samples = self._bkd.asarray(theta_np)
-
-        # Forward model: y = A @ theta
-        y_samples = self._bkd.dot(self._design_matrix, theta_samples)
-
-        return theta_samples, y_samples
+        return self._model.generate_observation_data(nsamples, seed)
 
     def generate_noisy_data(
         self,
@@ -240,12 +275,26 @@ class LinearGaussianOEDBenchmark(Generic[Array]):
         y_noisy : Array
             Noisy observations. Shape: (nobs, nsamples)
         """
-        theta_samples, y_clean = self.generate_data(nsamples, seed)
+        return self._model.generate_noisy_observations(nsamples, seed)
 
-        # Add noise
-        np.random.seed(seed + 1000)  # Different seed for noise
-        noise_np = self._noise_std * np.random.randn(self._nobs, nsamples)
-        noise = self._bkd.asarray(noise_np)
-        y_noisy = y_clean + noise
+    def generate_latent_samples(
+        self,
+        nsamples: int,
+        seed: int = 42,
+    ) -> Array:
+        """
+        Generate latent noise samples for reparameterization trick.
 
-        return theta_samples, y_clean, y_noisy
+        Parameters
+        ----------
+        nsamples : int
+            Number of samples.
+        seed : int
+            Random seed.
+
+        Returns
+        -------
+        latent : Array
+            Standard normal samples. Shape: (nobs, nsamples)
+        """
+        return self._model.generate_latent_samples(nsamples, seed)

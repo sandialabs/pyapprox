@@ -100,10 +100,8 @@ class KLOEDDiagnostics(Generic[Array]):
         _, outer_shapes = self._benchmark.generate_data(nouter, seed=seed)
         _, inner_shapes = self._benchmark.generate_data(ninner, seed=seed + 1000)
 
-        # Generate latent samples for reparameterization
-        latent_samples = self._bkd.asarray(
-            self._benchmark._noise_std * np.random.randn(self._benchmark.nobs(), nouter)
-        )
+        # Generate latent samples for reparameterization (standard normal)
+        latent_samples = self._benchmark.generate_latent_samples(nouter, seed=seed)
 
         # Create noise variances
         noise_variances = self._bkd.full(

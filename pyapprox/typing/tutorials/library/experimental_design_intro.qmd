@@ -1,0 +1,623 @@
+---
+title: "Not All Experiments Are Equal: Introduction to Experimental Design"
+subtitle: "PyApprox Tutorial Library"
+description: "How sensor placement affects what we learn about uncertain parameters."
+tutorial_type: concept
+topic: uncertainty_quantification
+difficulty: beginner
+estimated_time: 15
+prerequisites:
+  - bayesian_inference_intro
+tags:
+  - uq
+  - beam
+  - experimental-design
+  - bayesian-inference
+  - sensor-placement
+format:
+  html:
+    code-fold: false
+    code-tools: true
+    toc: true
+execute:
+  echo: true
+  warning: false
+jupyter: python3
+---
+
+::: {.callout-tip collapse="true"}
+## Download Notebook
+[Download as Jupyter Notebook](notebooks/experimental_design_intro.ipynb)
+:::
+
+## Learning Objectives
+
+After completing this tutorial, you will be able to:
+
+- Explain why different sensor placements produce different posterior distributions
+- Connect the sensitivity structure of the model to the direction of posterior uncertainty reduction
+- Compare experimental designs by their posterior covariance
+- Define Expected Information Gain (EIG) and compute it for linear Gaussian problems
+- Identify optimal single-sensor and two-sensor placements for the cantilever beam
+
+## Prerequisites
+
+Complete [From Data to Parameters: Introduction to Bayesian Inference](bayesian_inference_intro.qmd) before this tutorial.
+
+
+## The Setup: Uncertain Loading on a Known Beam
+
+We return to the composite cantilever beam from the [opening tutorial](models_decisions_uncertainty.qmd), but now the material properties are known and the **applied load** is uncertain. The traction on the top surface is:
+
+$$
+t_y(x;\, \theta_1, \theta_2) = -(\theta_1 + \theta_2\, x / L)
+$$
+
+where $\theta_1$ is the constant component and $\theta_2$ controls the slope. We want to learn $(\theta_1, \theta_2)$ from deflection measurements. The question is: **where on the beam should we place a sensor?**
+
+```{python}
+#| echo: false
+import numpy as np
+import matplotlib.pyplot as plt
+from pyapprox.typing.util.backends.numpy import NumpyBkd
+
+bkd = NumpyBkd()
+rng = np.random.default_rng(42)
+```
+
+@fig-beam-setup shows the physical setup: the composite beam clamped at the left, with the uncertain distributed load on top and two candidate sensor locations.
+
+```{python}
+#| echo: false
+#| fig-cap: "Composite cantilever beam with uncertain loading $t_y(x) = -(\\theta_1 + \\theta_2\\, x/L)$. The beam has stiff skins (blue) and a compliant core (orange) with five circular holes. Two candidate sensor locations are marked: tip (green) and midpoint (purple). Both measure the vertical deflection at their location."
+#| label: fig-beam-setup
+import matplotlib.patches as mpatches
+
+fig, ax = plt.subplots(figsize=(11, 4.5))
+
+L, H, t_s = 100.0, 30.0, 5.0
+hole_centers = [16.5, 33.5, 50.0, 66.5, 83.5]
+r_hole = 5.0
+
+# Material layers
+ax.add_patch(mpatches.Rectangle((0, 0), L, t_s,
+             fc="#8FBCDB", ec="none", alpha=0.8))
+ax.add_patch(mpatches.Rectangle((0, t_s), L, H - 2*t_s,
+             fc="#F4C2A1", ec="none", alpha=0.6))
+ax.add_patch(mpatches.Rectangle((0, H - t_s), L, t_s,
+             fc="#8FBCDB", ec="none", alpha=0.8))
+
+# Beam outline
+ax.add_patch(mpatches.Rectangle((0, 0), L, H,
+             fill=False, ec="k", lw=1.5))
+
+# Holes
+for cx in hole_centers:
+    ax.add_patch(mpatches.Circle((cx, H / 2), r_hole,
+                 fc="white", ec="k", lw=1.0, zorder=3))
+
+# Clamped left edge
+for yy in np.linspace(0, H, 12):
+    ax.plot([-3, 0], [yy, yy - 1.5], "k-", lw=0.7)
+ax.plot([0, 0], [-1.5, H + 1.5], "k-", lw=2)
+
+# Load arrows (varying magnitude: constant + slope)
+x_arrows = np.linspace(8, 95, 9)
+for xa in x_arrows:
+    mag = 3 + 6 * xa / L
+    ax.annotate("", xy=(xa, H), xytext=(xa, H + mag + 1),
+                arrowprops=dict(arrowstyle="->", lw=1.5, color="#C0392B"))
+ax.text(L/2, H + 13, r"$t_y(x) = -(\theta_1 + \theta_2\, x/L)$",
+        ha="center", fontsize=11, color="#C0392B")
+
+# Sensor locations
+sensor_tip_x = L - 1
+sensor_mid_x = L / 2
+ms = 14
+
+ax.plot(sensor_tip_x, 0, "v", ms=ms, color="#27AE60", markeredgecolor="k",
+        markeredgewidth=1.2, zorder=5)
+ax.text(sensor_tip_x, -6, "Tip sensor", ha="center", fontsize=9,
+        color="#27AE60", fontweight="bold")
+
+ax.plot(sensor_mid_x, 0, "v", ms=ms, color="#8E44AD", markeredgecolor="k",
+        markeredgewidth=1.2, zorder=5)
+ax.text(sensor_mid_x, -6, "Mid sensor", ha="center", fontsize=9,
+        color="#8E44AD", fontweight="bold")
+
+# Material labels
+ax.text(85, 2.5, r"Skin ($E_1$)", ha="center", va="center",
+        fontsize=9, color="#1A5276")
+ax.text(85, 27.5, r"Skin ($E_1$)", ha="center", va="center",
+        fontsize=9, color="#1A5276")
+ax.text(85, 8.5, r"Core ($E_2$)", ha="center", va="center",
+        fontsize=9, color="#A04000")
+
+ax.set_xlim(-8, L + 5)
+ax.set_ylim(-10, H + 18)
+ax.set_aspect("equal")
+ax.axis("off")
+plt.tight_layout()
+plt.show()
+```
+
+
+## Same Budget, Different Answers
+
+Suppose we have budget for exactly one deflection measurement. We can place the sensor at the **tip** or at the **midpoint**. Both cost the same. Both produce a single number. But they lead to different conclusions about $(\theta_1, \theta_2)$.
+
+To see this, we set up the problem and compute the exact posterior for each sensor placement.
+
+```{python}
+#| echo: false
+
+# =========================================================
+# Build the OED benchmark using CantileverBeam2DLoadOEDBenchmark
+# =========================================================
+from pyapprox.typing.benchmarks.instances.pde.cantilever_beam import (
+    CantileverBeam2DLoadOEDBenchmark, MESH_PATHS, _find_dof,
+)
+from pyapprox.typing.inverse.conjugate.gaussian import (
+    DenseGaussianConjugatePosterior,
+)
+from pyapprox.typing.probability.gaussian import plot_gaussian_2d_contour
+
+# Prior and noise
+theta_true = np.array([5.0, 10.0])
+prior_mean = bkd.asarray([[6.0], [8.0]])
+prior_cov = bkd.asarray([[9.0, 0.0],
+                          [0.0, 25.0]])
+sigma_noise = 0.375  # ~5% of tip deflection at theta_true
+
+# Create benchmark with many sensors so we can extract individual rows
+all_sensor_xs = bkd.linspace(1.0, L, 200)
+bench_all = CantileverBeam2DLoadOEDBenchmark(
+    bkd, mesh_path=MESH_PATHS[2],
+    prior_mean=prior_mean,
+    prior_covariance=prior_cov,
+    noise_std=sigma_noise,
+    sensor_xs=all_sensor_xs,
+)
+A_all = bench_all.design_matrix()  # (200, 2)
+prior_dist = bench_all.prior()
+
+# Helper: extract observation row for a single sensor location
+def observation_row(x_sensor):
+    """Return the observation vector [a1, a2] for sensor at x_sensor."""
+    idx = int(bkd.to_numpy(bkd.argmin(bkd.abs(all_sensor_xs - x_sensor))))
+    return bkd.to_numpy(A_all[idx, :])
+
+a_tip = observation_row(L)
+
+# =========================================================
+# Compute posteriors using DenseGaussianConjugatePosterior
+# =========================================================
+def compute_posterior(A_design, y_obs):
+    """Compute conjugate Gaussian posterior, return posterior distribution."""
+    nobs = A_design.shape[0]
+    noise_cov = bkd.eye(nobs) * sigma_noise**2
+    post = DenseGaussianConjugatePosterior(
+        bkd.asarray(A_design),
+        prior_mean,
+        prior_cov,
+        noise_cov,
+        bkd,
+    )
+    post.compute(bkd.asarray(y_obs[:, None]))
+    return post.posterior_variable()
+
+# Tip sensor
+y_tip = a_tip @ theta_true + rng.normal(0, sigma_noise)
+post_tip = compute_posterior(a_tip.reshape(1, -1), np.array([y_tip]))
+
+# Midpoint sensor
+a_mid = observation_row(L / 2)
+y_mid = a_mid @ theta_true + rng.normal(0, sigma_noise)
+post_mid = compute_posterior(a_mid.reshape(1, -1), np.array([y_mid]))
+```
+
+@fig-two-posteriors shows the result. The prior is the same broad ellipse in both cases, but the two sensors produce posteriors that are elongated in **different directions**.
+
+```{python}
+#| echo: false
+#| fig-cap: "Same prior, same budget, different posteriors. The tip sensor (green) and midpoint sensor (purple) each constrain a different combination of $(\\theta_1, \\theta_2)$. The posterior ellipses are elongated in different directions --- each sensor leaves a different parameter combination unresolved."
+#| label: fig-two-posteriors
+
+fig, ax = plt.subplots(figsize=(8, 7))
+
+# Prior
+plot_gaussian_2d_contour(prior_dist, ax, n_std=2,
+                         facecolor="none", edgecolor="#2C7FB8", lw=2.5,
+                         ls="--", label=r"Prior ($2\sigma$)")
+
+# Posterior — tip
+plot_gaussian_2d_contour(post_tip, ax, n_std=2,
+                         facecolor="#27AE60", edgecolor="#27AE60", lw=2,
+                         alpha=0.15, label="Posterior --- tip sensor")
+plot_gaussian_2d_contour(post_tip, ax, n_std=2,
+                         facecolor="none", edgecolor="#27AE60", lw=2)
+
+# Posterior — midpoint
+plot_gaussian_2d_contour(post_mid, ax, n_std=2,
+                         facecolor="#8E44AD", edgecolor="#8E44AD", lw=2,
+                         alpha=0.15, label="Posterior --- mid sensor")
+plot_gaussian_2d_contour(post_mid, ax, n_std=2,
+                         facecolor="none", edgecolor="#8E44AD", lw=2)
+
+# True parameters
+ax.plot(*theta_true, "x", ms=14, mew=3, color="#C0392B", zorder=5,
+        label=rf"True $\boldsymbol{{\theta}}$ = ({theta_true[0]}, {theta_true[1]})")
+
+ax.set_xlabel(r"$\theta_1$ (constant load)", fontsize=12)
+ax.set_ylabel(r"$\theta_2$ (slope)", fontsize=12)
+ax.set_title("Two sensors, two posteriors", fontsize=11)
+ax.legend(fontsize=10, loc="upper left")
+ax.grid(True, alpha=0.2)
+ax.set_aspect("equal")
+plt.tight_layout()
+plt.show()
+```
+
+This is the key observation: **the same data budget produces different posteriors depending on where we measure.** Each sensor constrains a different combination of $\theta_1$ and $\theta_2$, leaving a different direction unresolved. The choice of experiment determines what we learn.
+
+
+## Why Are They Different?
+
+The answer lies in the **sensitivity** of each measurement to the two parameters. The deflection at any location $x_s$ is a linear function of $(\theta_1, \theta_2)$:
+
+$$
+\delta(x_s) = a_1(x_s)\, \theta_1 + a_2(x_s)\, \theta_2
+$$
+
+The coefficients $a_1$ and $a_2$ encode how strongly the measurement at $x_s$ responds to each parameter. @fig-response-surfaces shows the deflection as a function of $(\theta_1, \theta_2)$ for the two sensor locations. The **contour orientation** determines which parameter direction the measurement constrains.
+
+```{python}
+#| echo: false
+#| fig-cap: "Response surfaces for the two sensor locations. Contours show deflection as a function of $(\\theta_1, \\theta_2)$. The contour orientation differs --- the tip (left) and midpoint (right) have different sensitivity to the two load parameters. The bold black curve marks the observed-value level set: the data constrains $\\boldsymbol{\\theta}$ to lie near this curve. The red X marks the true parameter values."
+#| label: fig-response-surfaces
+
+t1_grid = np.linspace(0, 12, 100)
+t2_grid = np.linspace(0, 20, 100)
+T1, T2 = np.meshgrid(t1_grid, t2_grid)
+
+fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(12, 5))
+
+for ax, a_vec, y_val, title, color in [
+    (ax1, a_tip, y_tip, "Tip sensor", "#27AE60"),
+    (ax2, a_mid, y_mid, "Midpoint sensor", "#8E44AD"),
+]:
+    Z = a_vec[0] * T1 + a_vec[1] * T2
+    cs = ax.contourf(T1, T2, Z, levels=15, cmap="coolwarm", alpha=0.7)
+    ax.contour(T1, T2, Z, levels=15, colors="gray", linewidths=0.3, alpha=0.5)
+    fig.colorbar(cs, ax=ax, shrink=0.8, label=r"$\delta(x_s)$")
+
+    # Level set at observed value
+    ax.contour(T1, T2, Z, levels=[y_val], colors="k", linewidths=2.5)
+
+    # True parameters
+    ax.plot(*theta_true, "x", ms=12, mew=3, color="#C0392B", zorder=5)
+
+    ax.set_xlabel(r"$\theta_1$", fontsize=12)
+    ax.set_ylabel(r"$\theta_2$", fontsize=12)
+    ax.set_title(title, fontsize=11, color=color, fontweight="bold")
+    ax.grid(True, alpha=0.15)
+
+plt.tight_layout()
+plt.show()
+```
+
+The contours are straight lines (the model is linear), but they have different slopes at the two locations. This means the two sensors provide constraints along different directions in parameter space --- exactly what we saw in the posterior ellipses.
+
+
+## The Observation Matrix
+
+Because linear elasticity is linear in the applied load, the deflection at any sensor location $x_s$ satisfies:
+
+$$
+\delta(x_s) = \underbrace{[a_1(x_s),\; a_2(x_s)]}_{\mathbf{a}(x_s)^\top} \begin{bmatrix} \theta_1 \\ \theta_2 \end{bmatrix}
+$$
+
+We compute the sensitivity vector $\mathbf{a}(x_s)$ by **superposition**: solve the FEM once with a unit constant load ($\theta_1 = 1$, $\theta_2 = 0$) and once with a unit slope load ($\theta_1 = 0$, $\theta_2 = 1$). The deflections from these two solves give $a_1(x_s)$ and $a_2(x_s)$ directly.
+
+```{python}
+# Sensitivity vectors at tip and midpoint
+print(f"Tip sensor:   a = [{a_tip[0]:.6f}, {a_tip[1]:.6f}]")
+print(f"Mid sensor:   a = [{a_mid[0]:.6f}, {a_mid[1]:.6f}]")
+print()
+print(f"Tip:   ratio a2/a1 = {a_tip[1]/a_tip[0]:.3f}")
+print(f"Mid:   ratio a2/a1 = {a_mid[1]/a_mid[0]:.3f}")
+```
+
+The ratio $a_2 / a_1$ determines the contour slope in @fig-response-surfaces. Different ratios mean different constraint directions, which is why the posteriors differ.
+
+
+## Which Sensor Learned More?
+
+Both sensors reduced the posterior uncertainty compared to the prior, but by different amounts. We quantify this by comparing the **posterior covariance**. A smaller covariance means the experiment was more informative.
+
+```{python}
+def cov_det(gaussian):
+    return bkd.to_float(bkd.det(gaussian.covariance()))
+
+def cov_std(gaussian, idx):
+    return bkd.to_float(bkd.sqrt(gaussian.covariance()[idx, idx]))
+
+# Compare prior and posterior uncertainty
+prior_det = cov_det(prior_dist)
+tip_det = cov_det(post_tip)
+mid_det = cov_det(post_mid)
+
+print(f"Prior covariance determinant:      {prior_det:.2f}")
+print(f"Posterior det (tip sensor):         {tip_det:.4f}  "
+      f"(reduction: {1 - tip_det/prior_det:.1%})")
+print(f"Posterior det (midpoint sensor):    {mid_det:.4f}  "
+      f"(reduction: {1 - mid_det/prior_det:.1%})")
+print()
+print("Posterior standard deviations:")
+print(f"  Tip:   sigma(theta_1) = {cov_std(post_tip, 0):.3f},  "
+      f"sigma(theta_2) = {cov_std(post_tip, 1):.3f}")
+print(f"  Mid:   sigma(theta_1) = {cov_std(post_mid, 0):.3f},  "
+      f"sigma(theta_2) = {cov_std(post_mid, 1):.3f}")
+```
+
+The determinant of the posterior covariance measures the "volume" of the uncertainty ellipse. A smaller determinant means the experiment squeezed the ellipse into a smaller area.
+
+
+## Combining Sensors: Signal Strength vs. Diversity
+
+Suppose we have budget for **two** sensors. Should we place both at the tip (maximizing signal strength), or one at the tip and one at the midpoint (diversifying)?
+
+With two sensors, the observation model becomes:
+
+$$
+\begin{bmatrix} \delta(x_1) \\ \delta(x_2) \end{bmatrix}
+= \begin{bmatrix} \mathbf{a}(x_1)^\top \\ \mathbf{a}(x_2)^\top \end{bmatrix}
+\begin{bmatrix} \theta_1 \\ \theta_2 \end{bmatrix}
++ \begin{bmatrix} \varepsilon_1 \\ \varepsilon_2 \end{bmatrix}
+$$
+
+@fig-combined-experiments compares three configurations: two sensors at the tip, two at the midpoint, and one at each.
+
+```{python}
+#| echo: false
+#| fig-cap: "Combining sensors. Left: two sensors at the tip --- the strong signal from both measurements reduces noise effectively. Center: one at the tip plus one at the midpoint --- diversity adds some new information, but the midpoint's weaker signal limits the gain. Right: posterior covariance determinant for all three configurations."
+#| label: fig-combined-experiments
+
+# Two-sensor posteriors
+def two_sensor_posterior(x1, x2, seed):
+    rng_local = np.random.default_rng(seed)
+    A = np.vstack([observation_row(x1), observation_row(x2)])
+    y = A @ theta_true + rng_local.normal(0, sigma_noise, size=2)
+    return compute_posterior(A, y)
+
+post_tt = two_sensor_posterior(L, L, 100)          # tip + tip
+post_tm = two_sensor_posterior(L, L/2, 101)        # tip + mid
+post_mm = two_sensor_posterior(L/2, L/2, 102)      # mid + mid
+
+fig, axes = plt.subplots(1, 3, figsize=(15, 5))
+
+configs = [
+    ("Tip + Tip", post_tt, "#C0392B"),
+    ("Tip + Mid", post_tm, "#27AE60"),
+]
+
+for ax, (title, post, color) in zip(axes[:2], configs):
+    # Prior
+    plot_gaussian_2d_contour(prior_dist, ax, n_std=2,
+                             facecolor="none", edgecolor="#2C7FB8", lw=2,
+                             ls="--", label="Prior")
+    # Posterior
+    plot_gaussian_2d_contour(post, ax, n_std=2,
+                             facecolor=color, edgecolor=color, lw=2,
+                             alpha=0.2)
+    plot_gaussian_2d_contour(post, ax, n_std=2,
+                             facecolor="none", edgecolor=color, lw=2,
+                             label="Posterior")
+    # True
+    ax.plot(*theta_true, "x", ms=12, mew=3, color="#C0392B", zorder=5)
+    ax.set_xlabel(r"$\theta_1$", fontsize=11)
+    ax.set_ylabel(r"$\theta_2$", fontsize=11)
+    ax.set_title(title, fontsize=10, fontweight="bold", color=color)
+    ax.legend(fontsize=9)
+    ax.grid(True, alpha=0.15)
+    ax.set_aspect("equal")
+
+# Bar chart
+ax_bar = axes[2]
+dets = {
+    "Tip+Tip": cov_det(post_tt),
+    "Mid+Mid": cov_det(post_mm),
+    "Tip+Mid": cov_det(post_tm),
+}
+colors_bar = ["#C0392B", "#8E44AD", "#27AE60"]
+bars = ax_bar.bar(dets.keys(), dets.values(), color=colors_bar, alpha=0.7,
+                  edgecolor="k", lw=0.5)
+ax_bar.set_ylabel("Posterior cov. determinant\n(smaller = more informative)",
+                   fontsize=10)
+ax_bar.set_title("Design comparison", fontsize=10, fontweight="bold")
+ax_bar.grid(True, alpha=0.15, axis="y")
+
+# Annotate the winner
+min_key = min(dets, key=dets.get)
+min_idx = list(dets.keys()).index(min_key)
+min_color = colors_bar[min_idx]
+ax_bar.annotate("Best", xy=(min_idx, dets[min_key]),
+                xytext=(0, 15), textcoords="offset points", ha="center",
+                fontsize=10, fontweight="bold", color=min_color,
+                arrowprops=dict(arrowstyle="->", color=min_color))
+
+plt.tight_layout()
+plt.show()
+```
+
+The result may be surprising: **two sensors at the tip beat the mixed placement**. Why? For this beam, the sensitivity directions at the tip and midpoint are nearly identical --- both sensors constrain almost the same parameter combination. The midpoint simply has a weaker signal (smaller deflection). The repeated tip measurement averages out observation noise, extracting more information from the strong signal. Replacing one strong tip measurement with a weaker midpoint measurement trades noise-averaging ability for negligible diversity.
+
+```{python}
+print(f"Posterior covariance determinant (Tip+Tip): {cov_det(post_tt):.4f}")
+print(f"Posterior covariance determinant (Tip+Mid): {cov_det(post_tm):.4f}")
+print(f"Posterior covariance determinant (Mid+Mid): {cov_det(post_mm):.4f}")
+```
+
+The determinants confirm the bar chart: Tip+Tip produces the tightest posterior. This illustrates an important nuance: **diversification only helps when the sensors provide genuinely complementary information** --- that is, when their sensitivity directions differ substantially. When all candidate locations "see" the parameters through nearly the same linear combination, placing sensors where the signal is strongest wins. The two-sensor EIG heatmap below confirms this.
+
+
+## Expected Information Gain
+
+So far we've compared designs *after* collecting data. But we want to choose the design *before* running the experiment. The observation is random (because of noise), so we need a measure of informativeness that averages over possible outcomes.
+
+The **Expected Information Gain (EIG)** does exactly this:
+
+$$
+\text{EIG}(\xi) = \mathbb{E}_{y \mid \xi}\!\big[\text{KL}\!\left(p(\boldsymbol{\theta} \mid y, \xi) \;\|\; p(\boldsymbol{\theta})\right)\big]
+$$
+
+The KL divergence measures how much the posterior differs from the prior --- how much the experiment "taught" us. The expectation averages over all possible data $y$ we might observe. Higher EIG means the design is expected to be more informative, regardless of what data actually arrives.
+
+For our linear Gaussian problem, the EIG has a closed form that we can compute using `DenseGaussianConjugatePosterior`:
+
+```{python}
+def compute_eig(A_design):
+    """Expected Information Gain for linear Gaussian model."""
+    nobs = A_design.shape[0]
+    noise_cov = bkd.eye(nobs) * sigma_noise**2
+    post = DenseGaussianConjugatePosterior(
+        bkd.asarray(A_design),
+        prior_mean,
+        prior_cov,
+        noise_cov,
+        bkd,
+    )
+    dummy_obs = bkd.zeros((nobs, 1))
+    post.compute(dummy_obs)
+    return post.expected_kl_divergence()
+
+# Single-sensor EIG
+eig_tip = compute_eig(a_tip.reshape(1, -1))
+eig_mid = compute_eig(a_mid.reshape(1, -1))
+
+print(f"EIG (tip sensor):      {eig_tip:.4f} nats")
+print(f"EIG (midpoint sensor): {eig_mid:.4f} nats")
+print(f"Tip is {eig_tip/eig_mid:.1f}x more informative than midpoint")
+```
+
+::: {.callout-note}
+## EIG depends on the design, not the data
+The EIG for the linear Gaussian case involves only $\mathbf{A}$, $\boldsymbol{\Sigma}_{\text{prior}}$, and $\sigma_{\text{noise}}$ --- it doesn't depend on the observation $y$. This means we can compare designs without running any experiments. For nonlinear models, the EIG generally depends on the data and must be estimated by simulation, which is more expensive.
+:::
+
+
+## Sensor Placement Sweep
+
+With EIG as our design criterion, we can systematically search over all candidate sensor locations. @fig-eig-sweep shows the EIG as a function of sensor position along the beam.
+
+```{python}
+#| echo: false
+#| fig-cap: "Expected Information Gain vs. sensor position along the beam. The tip region is most informative because deflection is largest there, giving the best signal-to-noise ratio. The clamped end provides almost no information (near-zero deflection regardless of parameters)."
+#| label: fig-eig-sweep
+
+x_candidates = bkd.to_numpy(all_sensor_xs)
+eig_values = np.array([
+    compute_eig(observation_row(x).reshape(1, -1))
+    for x in x_candidates
+])
+
+# Find optimal
+x_opt = x_candidates[np.argmax(eig_values)]
+eig_opt = eig_values.max()
+
+fig, ax = plt.subplots(figsize=(9, 4.5))
+ax.plot(x_candidates, eig_values, color="#2C7FB8", lw=2.5)
+ax.axvline(L, color="#27AE60", ls="--", lw=1.5, alpha=0.7, label="Tip")
+ax.axvline(L/2, color="#8E44AD", ls="--", lw=1.5, alpha=0.7, label="Midpoint")
+ax.plot(x_opt, eig_opt, "o", ms=12, color="#C0392B", zorder=5,
+        markeredgecolor="k", markeredgewidth=1.5,
+        label=f"Optimal: $x$ = {x_opt:.1f}")
+
+ax.set_xlabel(r"Sensor position $x$ along beam", fontsize=12)
+ax.set_ylabel("Expected Information Gain (nats)", fontsize=12)
+ax.set_title("Single-sensor design optimization", fontsize=11)
+ax.legend(fontsize=10)
+ax.grid(True, alpha=0.2)
+plt.tight_layout()
+plt.show()
+```
+
+
+## Two-Sensor Optimization
+
+For two sensors, we search over all pairs $(x_1, x_2)$. @fig-eig-2sensor-heatmap shows the EIG as a heatmap. The off-diagonal maxima confirm the complementarity principle: the best pair places sensors at different locations.
+
+```{python}
+#| echo: false
+#| fig-cap: "EIG heatmap for two-sensor designs. Each pixel shows the EIG for the sensor pair $(x_1, x_2)$. The diagonal corresponds to placing both sensors at the same location. The star marks the optimal pair."
+#| label: fig-eig-2sensor-heatmap
+
+n_sweep = 40
+x_sweep = np.linspace(2, L, n_sweep)
+eig_2d = np.zeros((n_sweep, n_sweep))
+
+for i, x1 in enumerate(x_sweep):
+    for j, x2 in enumerate(x_sweep):
+        A2 = np.vstack([observation_row(x1), observation_row(x2)])
+        eig_2d[i, j] = compute_eig(A2)
+
+# Find optimal pair
+idx_opt = np.unravel_index(np.argmax(eig_2d), eig_2d.shape)
+x1_opt = x_sweep[idx_opt[0]]
+x2_opt = x_sweep[idx_opt[1]]
+
+fig, ax = plt.subplots(figsize=(7, 6))
+im = ax.imshow(eig_2d, origin="lower", aspect="equal",
+               extent=[x_sweep[0], x_sweep[-1], x_sweep[0], x_sweep[-1]],
+               cmap="YlOrRd")
+fig.colorbar(im, ax=ax, shrink=0.8, label="EIG (nats)")
+
+# Diagonal line
+ax.plot([x_sweep[0], x_sweep[-1]], [x_sweep[0], x_sweep[-1]],
+        "w--", lw=1.5, alpha=0.7, label="Same location (repeated)")
+
+# Optimal pair
+ax.plot(x2_opt, x1_opt, "*", ms=18, color="cyan", markeredgecolor="k",
+        markeredgewidth=1.5, zorder=5,
+        label=f"Optimal: ({x1_opt:.0f}, {x2_opt:.0f})")
+
+ax.set_xlabel(r"Sensor 2 position $x_2$", fontsize=12)
+ax.set_ylabel(r"Sensor 1 position $x_1$", fontsize=12)
+ax.set_title("Two-sensor EIG heatmap", fontsize=11)
+ax.legend(fontsize=9, loc="upper left")
+plt.tight_layout()
+plt.show()
+
+print(f"Optimal sensor pair: x_1 = {x1_opt:.1f}, x_2 = {x2_opt:.1f}")
+print(f"EIG (optimal pair):  {eig_2d[idx_opt]:.4f} nats")
+eig_tip_tip = compute_eig(np.vstack([a_tip, a_tip]))
+print(f"EIG (tip + tip):     {eig_tip_tip:.4f} nats")
+```
+
+
+## Key Takeaways
+
+- **Different experiments produce different posteriors**, even with the same prior and data budget. The choice of experiment determines what we learn.
+- The **sensitivity structure** of the model (encoded in the observation matrix $\mathbf{A}$) determines which parameter directions a measurement constrains. The posterior ellipse is elongated in the unconstrained direction.
+- **Diversification only helps when sensors provide genuinely different information.** When sensitivity directions are similar across locations, concentrating measurements where the signal is strongest can outperform diversifying to weaker locations.
+- **Expected Information Gain** provides a principled, data-independent measure of design quality. For linear Gaussian problems, it has a closed-form expression.
+- The **sensor placement problem** is a concrete instance of experimental design: the optimal locations are those that maximize the expected information about the parameters.
+
+
+## Exercises
+
+1. Add a third sensor location at $x = L/4$ (quarter-span). Compute its EIG and compare to tip and midpoint. Where does it rank?
+
+2. Change the prior to be correlated: $\Sigma_{\text{prior}} = \begin{bmatrix} 9 & 6 \\ 6 & 25 \end{bmatrix}$. How do the posterior ellipses change? Does the optimal sensor location change?
+
+3. Increase the noise level by a factor of 5. How does the EIG sweep change? Does the optimal location shift, or just the overall EIG scale?
+
+4. **(Challenge)** Find the optimal **three-sensor** placement by exhaustive search over a grid. Is the gain from 2 to 3 sensors as large as from 1 to 2? Plot the posterior ellipse for the optimal triple.
+
+
+## Next Steps
+
+Continue with:
+
+- [Bayesian Optimal Experimental Design](bayesian_oed.qmd) --- Systematic optimization of experiments using EIG
+- [Alphabetical Optimal Design](alphabetical_oed.qmd) --- Frequentist approach: A-optimality, D-optimality, and their connections to EIG

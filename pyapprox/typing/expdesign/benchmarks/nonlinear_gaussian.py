@@ -22,11 +22,10 @@ formula, allowing exact validation of numerical estimates.
 
 from typing import Generic
 
-import numpy as np
-
 from pyapprox.typing.util.backends.protocols import Array, Backend
 
-from .linear_gaussian import LinearGaussianOEDBenchmark
+from .linear_gaussian import _build_vandermonde
+from .linear_gaussian_model import LinearGaussianOEDModel
 
 
 class NonLinearGaussianOEDBenchmark(Generic[Array]):
@@ -38,6 +37,8 @@ class NonLinearGaussianOEDBenchmark(Generic[Array]):
     - Nonlinear QoI model: qoi = exp(B @ theta)
 
     The QoI is lognormal, enabling analytical utility computation.
+
+    Uses composition with LinearGaussianOEDModel for observation model logic.
 
     Parameters
     ----------
@@ -82,14 +83,24 @@ class NonLinearGaussianOEDBenchmark(Generic[Array]):
         self._prior_std = prior_std
         self._npred = npred
 
-        # Setup observation model (same as linear benchmark)
-        self._design_locations = self._setup_design_locations()
-        self._design_matrix = self._setup_design_matrix()
-        self._nparams = self._design_matrix.shape[1]
+        # Build observation model via composition
+        obs_locations = bkd.linspace(-1.0, 1.0, nobs)
+        A = _build_vandermonde(obs_locations, min_degree, degree, bkd)
+        nparams = A.shape[1]
 
-        # Setup QoI model
-        self._qoi_locations = self._setup_qoi_locations()
-        self._qoi_matrix = self._setup_qoi_matrix()
+        prior_mean = bkd.zeros((nparams, 1))
+        prior_cov = bkd.eye(nparams) * prior_std ** 2
+        noise_cov = bkd.eye(nobs) * noise_std ** 2
+
+        self._model = LinearGaussianOEDModel(
+            A, prior_mean, prior_cov, noise_cov, bkd, obs_locations,
+        )
+
+        # QoI-specific setup
+        self._qoi_locations = bkd.linspace(-2.0 / 3.0, 2.0 / 3.0, npred)
+        self._qoi_matrix = _build_vandermonde(
+            self._qoi_locations, min_degree, degree, bkd,
+        )
         self._qoi_quad_weights = bkd.full((npred, 1), 1.0 / npred)
 
     def bkd(self) -> Backend[Array]:
@@ -98,11 +109,11 @@ class NonLinearGaussianOEDBenchmark(Generic[Array]):
 
     def nobs(self) -> int:
         """Number of observations."""
-        return self._nobs
+        return self._model.nobs()
 
     def nparams(self) -> int:
         """Number of model parameters."""
-        return self._nparams
+        return self._model.nparams()
 
     def npred(self) -> int:
         """Number of prediction QoI locations."""
@@ -126,11 +137,17 @@ class NonLinearGaussianOEDBenchmark(Generic[Array]):
 
     def design_matrix(self) -> Array:
         """Get the observation design matrix A. Shape: (nobs, nparams)"""
-        return self._design_matrix
+        return self._model.design_matrix()
 
     def design_locations(self) -> Array:
         """Get observation design locations. Shape: (nobs,)"""
-        return self._design_locations
+        loc = self._model.design_locations()
+        assert loc is not None
+        return loc
+
+    def model(self) -> LinearGaussianOEDModel[Array]:
+        """Get the underlying LinearGaussianOEDModel."""
+        return self._model
 
     def qoi_matrix(self) -> Array:
         """Get the QoI design matrix B. Shape: (npred, nparams)"""
@@ -144,45 +161,21 @@ class NonLinearGaussianOEDBenchmark(Generic[Array]):
         """Get QoI quadrature weights. Shape: (npred, 1)"""
         return self._qoi_quad_weights
 
-    def _setup_design_locations(self) -> Array:
-        """Set up observation locations in [-1, 1]."""
-        return self._bkd.linspace(-1.0, 1.0, self._nobs)
+    def noise_variances(self) -> Array:
+        """Get noise variances for all observations. Shape: (nobs,)"""
+        return self._model.noise_variances()
 
-    def _setup_qoi_locations(self) -> Array:
-        """Set up QoI prediction locations in [-2/3, 2/3]."""
-        return self._bkd.linspace(-2.0 / 3.0, 2.0 / 3.0, self._npred)
+    def prior_mean(self) -> Array:
+        """Get prior mean (zero vector). Shape: (nparams, 1)"""
+        return self._model.prior_mean()
 
-    def _setup_design_matrix(self) -> Array:
-        """
-        Set up polynomial design matrix for observations.
+    def prior_covariance(self) -> Array:
+        """Get prior covariance (isotropic). Shape: (nparams, nparams)"""
+        return self._model.prior_covariance()
 
-        Returns
-        -------
-        A : Array
-            Design matrix. Shape: (nobs, nparams)
-            A[i, j] = x_i^(j + min_degree)
-        """
-        x = self._design_locations
-        powers = self._bkd.arange(self._min_degree, self._degree + 1)
-        x_col = self._bkd.reshape(x, (self._nobs, 1))
-        powers_row = self._bkd.reshape(powers, (1, len(powers)))
-        return x_col ** powers_row
-
-    def _setup_qoi_matrix(self) -> Array:
-        """
-        Set up polynomial design matrix for QoI predictions.
-
-        Returns
-        -------
-        B : Array
-            QoI matrix. Shape: (npred, nparams)
-            B[i, j] = qoi_x_i^(j + min_degree)
-        """
-        x = self._qoi_locations
-        powers = self._bkd.arange(self._min_degree, self._degree + 1)
-        x_col = self._bkd.reshape(x, (self._npred, 1))
-        powers_row = self._bkd.reshape(powers, (1, len(powers)))
-        return x_col ** powers_row
+    def prior(self):
+        """Return the prior as a Gaussian distribution."""
+        return self._model.prior()
 
     def generate_parameter_samples(
         self,
@@ -204,9 +197,7 @@ class NonLinearGaussianOEDBenchmark(Generic[Array]):
         theta_samples : Array
             Parameter samples. Shape: (nparams, nsamples)
         """
-        np.random.seed(seed)
-        theta_np = self._prior_std * np.random.randn(self._nparams, nsamples)
-        return self._bkd.asarray(theta_np)
+        return self._model.generate_parameter_samples(nsamples, seed)
 
     def generate_observation_data(
         self,
@@ -230,9 +221,7 @@ class NonLinearGaussianOEDBenchmark(Generic[Array]):
         y_samples : Array
             Observations. Shape: (nobs, nsamples)
         """
-        theta_samples = self.generate_parameter_samples(nsamples, seed)
-        y_samples = self._bkd.dot(self._design_matrix, theta_samples)
-        return theta_samples, y_samples
+        return self._model.generate_observation_data(nsamples, seed)
 
     def generate_qoi_data(
         self,
@@ -287,15 +276,7 @@ class NonLinearGaussianOEDBenchmark(Generic[Array]):
         y_noisy : Array
             Noisy observations. Shape: (nobs, nsamples)
         """
-        theta_samples, y_clean = self.generate_observation_data(nsamples, seed)
-
-        # Add noise with different seed
-        np.random.seed(seed + 1000)
-        noise_np = self._noise_std * np.random.randn(self._nobs, nsamples)
-        noise = self._bkd.asarray(noise_np)
-        y_noisy = y_clean + noise
-
-        return theta_samples, y_clean, y_noisy
+        return self._model.generate_noisy_observations(nsamples, seed)
 
     def generate_latent_samples(
         self,
@@ -317,39 +298,4 @@ class NonLinearGaussianOEDBenchmark(Generic[Array]):
         latent : Array
             Standard normal samples. Shape: (nobs, nsamples)
         """
-        np.random.seed(seed + 2000)
-        latent_np = np.random.randn(self._nobs, nsamples)
-        return self._bkd.asarray(latent_np)
-
-    def noise_variances(self) -> Array:
-        """
-        Get noise variances for all observations.
-
-        Returns
-        -------
-        variances : Array
-            Noise variances. Shape: (nobs,)
-        """
-        return self._bkd.full((self._nobs,), self.noise_var())
-
-    def prior_mean(self) -> Array:
-        """
-        Get prior mean (zero vector).
-
-        Returns
-        -------
-        mean : Array
-            Prior mean. Shape: (nparams, 1)
-        """
-        return self._bkd.zeros((self._nparams, 1))
-
-    def prior_covariance(self) -> Array:
-        """
-        Get prior covariance (isotropic).
-
-        Returns
-        -------
-        cov : Array
-            Prior covariance. Shape: (nparams, nparams)
-        """
-        return self._bkd.eye(self._nparams) * self.prior_var()
+        return self._model.generate_latent_samples(nsamples, seed)

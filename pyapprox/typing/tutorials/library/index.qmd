@@ -42,6 +42,12 @@ subtitle: "Validated tutorials for uncertainty quantification"
 |----------|-------------|
 | [Introduction to Experimental Design](experimental_design_intro.qmd) | Choosing where to sample: space-filling designs, optimality criteria, and sequential strategies |
 
+## Experimental Design
+
+| Tutorial | Description |
+|----------|-------------|
+| [Introduction to Experimental Design](experimental_design_intro.qmd) | Why sensor placement matters: comparing designs by posterior covariance and Expected Information Gain |
+
 ## Surrogate Modeling
 
 | Tutorial | Description |

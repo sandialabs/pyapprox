@@ -633,6 +633,10 @@ class TorchBkd(Backend[torch.Tensor]):  # Specify torch.Tensor type
         return torch.linalg.slogdet(array)
 
     @staticmethod
+    def det(array: torch.Tensor) -> torch.Tensor:
+        return torch.linalg.det(array)
+
+    @staticmethod
     def mean(
         array: torch.Tensor,
         axis: Optional[Union[int, Tuple[int, ...]]] = None,

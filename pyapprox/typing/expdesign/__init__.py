@@ -129,7 +129,11 @@ from .solver import (
     solve_kl_oed,
 )
 # Benchmarks
-from .benchmarks import LinearGaussianOEDBenchmark, NonLinearGaussianOEDBenchmark
+from .benchmarks import (
+    LinearGaussianOEDBenchmark,
+    LinearGaussianOEDModel,
+    NonLinearGaussianOEDBenchmark,
+)
 # Diagnostics
 from .diagnostics import (
     KLOEDDiagnostics,
@@ -183,6 +187,7 @@ __all__ = [
     "DOptimalLinearModelObjective",
     # Benchmarks
     "LinearGaussianOEDBenchmark",
+    "LinearGaussianOEDModel",
     "NonLinearGaussianOEDBenchmark",
     # Diagnostics
     "KLOEDDiagnostics",

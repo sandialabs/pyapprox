@@ -21,6 +21,7 @@ from .dense import DenseCholeskyMultivariateGaussian
 from .diagonal import DiagonalMultivariateGaussian
 from .operator import OperatorBasedMultivariateGaussian
 from .canonical import GaussianCanonicalForm, compute_normalization
+from .plot import plot_gaussian_2d_contour
 
 __all__ = [
     "GaussianLogPDFCore",
@@ -29,4 +30,5 @@ __all__ = [
     "OperatorBasedMultivariateGaussian",
     "GaussianCanonicalForm",
     "compute_normalization",
+    "plot_gaussian_2d_contour",
 ]
