@@ -157,14 +157,22 @@ class ACVEstimator(CVEstimator[Array], Generic[Array]):
         bool
             True if an allocation has been set, False otherwise.
         """
-        return self._allocation is not None
+        return (
+            self._allocation is not None
+            or self._nsamples_per_model is not None
+        )
 
     def _compute_discrepancy_covariances(self) -> Tuple[Array, Array]:
         """Compute and cache CF, cf discrepancy covariances for ACV."""
         self._ensure_allocation()
         if self._cached_discrepancy_covariances is None:
-            self._cached_discrepancy_covariances = self._get_discrepancy_covariances(
+            npartition_samples = (
                 self._npartition_samples
+                if self._npartition_samples is not None
+                else self._rounded_npartition_samples
+            )
+            self._cached_discrepancy_covariances = self._get_discrepancy_covariances(
+                npartition_samples
             )
         return self._cached_discrepancy_covariances
 
@@ -172,8 +180,13 @@ class ACVEstimator(CVEstimator[Array], Generic[Array]):
         """Lazily compute and return optimized covariance for ACV."""
         self._ensure_allocation()
         if self._cached_covariance is None:
-            self._cached_covariance = self._covariance_from_npartition_samples(
+            npartition_samples = (
                 self._npartition_samples
+                if self._npartition_samples is not None
+                else self._rounded_npartition_samples
+            )
+            self._cached_covariance = self._covariance_from_npartition_samples(
+                npartition_samples
             )
         return self._cached_covariance
 
@@ -495,7 +508,7 @@ class ACVEstimator(CVEstimator[Array], Generic[Array]):
     def generate_samples_per_model(
         self, rvs: Callable, npilot_samples: int = 0
     ) -> List[Array]:
-        ntotal_independent_samples = (
+        ntotal_independent_samples = int(
             self._rounded_npartition_samples.sum() - npilot_samples
         )
         independent_samples = rvs(ntotal_independent_samples)
