@@ -32,6 +32,7 @@ from pyapprox.typing.surrogates.functiontrain.fitters import (
 )
 from pyapprox.typing.surrogates.functiontrain.statistics.marginalization import (
     FunctionTrainMarginalization,
+    FTDimensionReducer,
     marginal_1d,
     marginal_2d,
     all_marginals_1d,
@@ -52,6 +53,7 @@ __all__ = [
     "MSEFitter",
     "MSEFitterResult",
     "FunctionTrainMarginalization",
+    "FTDimensionReducer",
     "marginal_1d",
     "marginal_2d",
     "all_marginals_1d",

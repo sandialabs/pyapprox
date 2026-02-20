@@ -29,9 +29,14 @@ from pyapprox.typing.surrogates.functiontrain.statistics import (
 )
 from pyapprox.typing.surrogates.functiontrain.statistics.marginalization import (
     FunctionTrainMarginalization,
+    FTDimensionReducer,
     marginal_1d,
     marginal_2d,
     all_marginals_1d,
+)
+from pyapprox.typing.interface.functions.marginalize import (
+    DimensionReducerProtocol,
+    ReducedFunction,
 )
 
 
@@ -666,6 +671,174 @@ class TestFunctionTrainMarginalizationNumpy(
 
 class TestFunctionTrainMarginalizationTorch(
     TestFunctionTrainMarginalization[torch.Tensor]
+):
+    """PyTorch backend tests."""
+
+    __test__ = True
+
+    def bkd(self) -> TorchBkd:
+        return TorchBkd()
+
+    def setUp(self) -> None:
+        torch.set_default_dtype(torch.float64)
+        super().setUp()
+
+
+class TestFTDimensionReducer(Generic[Array], unittest.TestCase):
+    """Base class for FTDimensionReducer tests."""
+
+    __test__ = False
+
+    def bkd(self) -> Backend[Array]:
+        raise NotImplementedError
+
+    def setUp(self) -> None:
+        self._bkd = self.bkd()
+        np.random.seed(42)
+
+    def _create_rank1_pce_ft(
+        self,
+        nvars: int = 3,
+        max_level: int = 2,
+        coefficients: Optional[List[Array]] = None,
+    ) -> PCEFunctionTrain[Array]:
+        """Create a rank-1 PCE FT with optional coefficients."""
+        bkd = self._bkd
+        marginals = [UniformMarginal(-1.0, 1.0, bkd) for _ in range(nvars)]
+        bases_1d_list = [create_bases_1d([m], bkd) for m in marginals]
+        indices_1d = compute_hyperbolic_indices(1, max_level, 1.0, bkd)
+
+        cores: List[FunctionTrainCore[Array]] = []
+        for dd in range(nvars):
+            basis = OrthonormalPolynomialBasis(bases_1d_list[dd], bkd, indices_1d)
+            bexp = BasisExpansion(basis, bkd, nqoi=1)
+            if coefficients is not None:
+                bexp.set_coefficients(coefficients[dd])
+            else:
+                coef = bkd.asarray(
+                    np.random.randn(max_level + 1, 1) * 0.5
+                )
+                coef[0, 0] = 1.0 + np.random.rand()
+                bexp.set_coefficients(coef)
+            core = FunctionTrainCore([[bexp]], bkd)
+            cores.append(core)
+
+        ft = FunctionTrain(cores, bkd, nqoi=1)
+        return PCEFunctionTrain(ft)
+
+    def test_satisfies_dimension_reducer_protocol(self) -> None:
+        """Test that FTDimensionReducer satisfies DimensionReducerProtocol."""
+        pce_ft = self._create_rank1_pce_ft()
+        reducer = FTDimensionReducer(pce_ft, self._bkd)
+        self.assertIsInstance(reducer, DimensionReducerProtocol)
+
+    def test_nvars_matches_original(self) -> None:
+        """Test nvars returns original FT variable count."""
+        pce_ft = self._create_rank1_pce_ft(nvars=4)
+        reducer = FTDimensionReducer(pce_ft, self._bkd)
+        self.assertEqual(reducer.nvars(), 4)
+
+    def test_nqoi_matches_original(self) -> None:
+        """Test nqoi returns original FT QoI count."""
+        pce_ft = self._create_rank1_pce_ft()
+        reducer = FTDimensionReducer(pce_ft, self._bkd)
+        self.assertEqual(reducer.nqoi(), 1)
+
+    def test_reduce_1d_returns_reduced_function(self) -> None:
+        """Test reduce with single index returns ReducedFunction."""
+        pce_ft = self._create_rank1_pce_ft()
+        reducer = FTDimensionReducer(pce_ft, self._bkd)
+        fn = reducer.reduce([0])
+        self.assertIsInstance(fn, ReducedFunction)
+        self.assertEqual(fn.nvars(), 1)
+        self.assertEqual(fn.nqoi(), 1)
+
+    def test_reduce_2d_returns_reduced_function(self) -> None:
+        """Test reduce with two indices returns ReducedFunction."""
+        pce_ft = self._create_rank1_pce_ft()
+        reducer = FTDimensionReducer(pce_ft, self._bkd)
+        fn = reducer.reduce([0, 2])
+        self.assertIsInstance(fn, ReducedFunction)
+        self.assertEqual(fn.nvars(), 2)
+        self.assertEqual(fn.nqoi(), 1)
+
+    def test_reduce_1d_evaluates_correctly(self) -> None:
+        """Test 1D reduced function evaluates with correct shape."""
+        bkd = self._bkd
+        pce_ft = self._create_rank1_pce_ft()
+        reducer = FTDimensionReducer(pce_ft, bkd)
+        fn = reducer.reduce([1])
+        samples = bkd.asarray(np.array([[-0.5, 0.0, 0.5]]))  # (1, 3)
+        result = fn(samples)
+        self.assertEqual(result.shape, (1, 3))
+
+    def test_reduce_2d_evaluates_correctly(self) -> None:
+        """Test 2D reduced function evaluates with correct shape."""
+        bkd = self._bkd
+        pce_ft = self._create_rank1_pce_ft()
+        reducer = FTDimensionReducer(pce_ft, bkd)
+        fn = reducer.reduce([0, 2])
+        samples = bkd.asarray(np.array([[-0.5, 0.0, 0.5], [0.3, -0.3, 0.1]]))
+        result = fn(samples)
+        self.assertEqual(result.shape, (1, 3))
+
+    def test_reduce_preserves_mean(self) -> None:
+        """Test mean of reduced FT matches original."""
+        bkd = self._bkd
+        pce_ft = self._create_rank1_pce_ft()
+        reducer = FTDimensionReducer(pce_ft, bkd)
+
+        # Original mean
+        moments_orig = FunctionTrainMoments(pce_ft)
+        mean_orig = moments_orig.mean()
+
+        # Reduced to 1D — wrap in FT to compute mean
+        marg = FunctionTrainMarginalization(pce_ft)
+        ft_1d = marg.marginal([0])
+        pce_1d = PCEFunctionTrain(ft_1d)
+        mean_1d = FunctionTrainMoments(pce_1d).mean()
+
+        bkd.assert_allclose(mean_1d, mean_orig, rtol=1e-12)
+
+    def test_reduce_matches_direct_marginalization(self) -> None:
+        """Test reduce gives same values as FunctionTrainMarginalization."""
+        bkd = self._bkd
+        pce_ft = self._create_rank1_pce_ft()
+        reducer = FTDimensionReducer(pce_ft, bkd)
+        marg = FunctionTrainMarginalization(pce_ft)
+
+        samples = bkd.asarray(np.array([[-0.5, 0.0, 0.5]]))  # (1, 3)
+
+        # Via reducer
+        fn_reduced = reducer.reduce([1])
+        vals_reducer = fn_reduced(samples)
+
+        # Via direct marginalization
+        ft_1d = marg.marginal([1])
+        vals_direct = ft_1d(samples)
+
+        bkd.assert_allclose(vals_reducer, vals_direct, rtol=1e-14)
+
+    def test_bkd_returns_backend(self) -> None:
+        """Test bkd() returns the computational backend."""
+        pce_ft = self._create_rank1_pce_ft()
+        reducer = FTDimensionReducer(pce_ft, self._bkd)
+        self.assertIs(reducer.bkd(), self._bkd)
+
+
+class TestFTDimensionReducerNumpy(
+    TestFTDimensionReducer[NDArray[Any]]
+):
+    """NumPy backend tests."""
+
+    __test__ = True
+
+    def bkd(self) -> NumpyBkd:
+        return NumpyBkd()
+
+
+class TestFTDimensionReducerTorch(
+    TestFTDimensionReducer[torch.Tensor]
 ):
     """PyTorch backend tests."""
 

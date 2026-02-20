@@ -17,6 +17,7 @@ from pyapprox.typing.surrogates.functiontrain.pce_functiontrain import (
 from pyapprox.typing.surrogates.functiontrain.pce_core import (
     PCEFunctionTrainCore,
 )
+from pyapprox.typing.interface.functions.marginalize import ReducedFunction
 
 
 class FunctionTrainMarginalization(Generic[Array]):
@@ -415,3 +416,64 @@ def all_marginals_1d(
     """
     marg = FunctionTrainMarginalization(pce_ft)
     return [marg.marginal([k]) for k in range(pce_ft.nvars())]
+
+
+class FTDimensionReducer(Generic[Array]):
+    """Analytically marginalizes a PCE FunctionTrain.
+
+    Satisfies ``DimensionReducerProtocol``.
+
+    Uses the FunctionTrain core structure and PCE orthonormality to
+    replace marginalized cores with their expected (constant-term)
+    matrices, producing exact lower-dimensional FunctionTrains with
+    no quadrature.
+
+    Parameters
+    ----------
+    pce_ft : PCEFunctionTrain[Array]
+        Fitted PCE FunctionTrain.
+    bkd : Backend[Array]
+        Computational backend.
+    """
+
+    def __init__(
+        self,
+        pce_ft: PCEFunctionTrain[Array],
+        bkd: Backend[Array],
+    ):
+        self._pce_ft = pce_ft
+        self._bkd = bkd
+        self._marg = FunctionTrainMarginalization(pce_ft)
+
+    def bkd(self) -> Backend[Array]:
+        """Return the computational backend."""
+        return self._bkd
+
+    def nvars(self) -> int:
+        """Return the number of variables in the original FT."""
+        return self._pce_ft.nvars()
+
+    def nqoi(self) -> int:
+        """Return the number of quantities of interest."""
+        return self._pce_ft.nqoi()
+
+    def reduce(
+        self, keep_indices: List[int]
+    ) -> ReducedFunction[Array]:
+        """Reduce to the specified variables via analytical marginalization.
+
+        Parameters
+        ----------
+        keep_indices : List[int]
+            Indices of variables to keep (0-based).
+
+        Returns
+        -------
+        ReducedFunction[Array]
+            A function with ``nvars = len(keep_indices)`` and the same
+            ``nqoi``.
+        """
+        ft_reduced = self._marg.marginal(keep_indices)
+        return ReducedFunction(
+            len(keep_indices), self.nqoi(), ft_reduced.__call__, self._bkd
+        )
