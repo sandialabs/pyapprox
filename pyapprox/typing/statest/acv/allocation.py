@@ -7,6 +7,7 @@ This module separates allocation optimization from estimation, providing:
 - AnalyticalAllocator: Closed-form allocator for MFMC/MLMC
 """
 
+import copy
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from typing import Any, Generic, List, Optional, TYPE_CHECKING
@@ -78,6 +79,124 @@ class ACVAllocationResult(Generic[Array]):
     actual_cost: float
     success: bool
     message: str = ""
+
+
+def _clone_estimator_for_torch(
+    estimator: "ACVEstimator[Any]",
+) -> "ACVEstimator[Any]":
+    """Create a torch-backed clone of an estimator for optimization.
+
+    Reuses the same logic as ACVEstimator._clone_for_torch_optimization:
+    shallow copy with TorchBkd, converting costs, stat, allocation_mat,
+    and recursion_index.
+
+    Parameters
+    ----------
+    estimator : ACVEstimator
+        The estimator (any backend) to clone.
+
+    Returns
+    -------
+    ACVEstimator
+        A shallow copy backed by TorchBkd.
+    """
+    from pyapprox.typing.util.backends.torch import TorchBkd
+    from pyapprox.typing.statest.statistics import (
+        MultiOutputMean,
+        MultiOutputVariance,
+        MultiOutputMeanAndVariance,
+    )
+
+    torch_bkd = TorchBkd()
+    clone = copy.copy(estimator)
+    clone._bkd = torch_bkd
+    clone._costs = torch_bkd.asarray(estimator._bkd.to_numpy(estimator._costs))
+
+    # Create fresh torch stat with re-derived pilot quantities
+    nqoi = estimator._stat.nqoi()
+    stat = estimator._stat
+    if isinstance(stat, MultiOutputMeanAndVariance):
+        clone._stat = MultiOutputMeanAndVariance(
+            nqoi, torch_bkd, tril=stat._tril
+        )
+        clone._stat.set_pilot_quantities(
+            torch_bkd.asarray(estimator._bkd.to_numpy(stat._cov)),
+            torch_bkd.asarray(estimator._bkd.to_numpy(stat._W)),
+            torch_bkd.asarray(estimator._bkd.to_numpy(stat._B)),
+        )
+    elif isinstance(stat, MultiOutputVariance):
+        clone._stat = MultiOutputVariance(nqoi, torch_bkd, tril=stat._tril)
+        clone._stat.set_pilot_quantities(
+            torch_bkd.asarray(estimator._bkd.to_numpy(stat._cov)),
+            torch_bkd.asarray(estimator._bkd.to_numpy(stat._W)),
+        )
+    elif isinstance(stat, MultiOutputMean):
+        clone._stat = MultiOutputMean(nqoi, torch_bkd)
+        clone._stat.set_pilot_quantities(
+            torch_bkd.asarray(estimator._bkd.to_numpy(stat._cov)),
+        )
+    else:
+        raise TypeError(
+            f"Unsupported stat type for torch optimization: "
+            f"{type(stat).__name__}"
+        )
+
+    # Convert allocation matrix
+    if hasattr(estimator, "_allocation_mat") and estimator._allocation_mat is not None:
+        clone._allocation_mat = torch_bkd.asarray(
+            estimator._bkd.to_numpy(estimator._allocation_mat)
+        )
+
+    # Convert recursion index
+    if (
+        hasattr(estimator, "_recursion_index")
+        and estimator._recursion_index is not None
+    ):
+        clone._recursion_index = torch_bkd.asarray(
+            estimator._bkd.to_numpy(estimator._recursion_index)
+        )
+
+    return clone
+
+
+def _convert_result_to_backend(
+    result: "ACVAllocationResult[Any]",
+    bkd: Backend[Array],
+) -> "ACVAllocationResult[Array]":
+    """Convert an ACVAllocationResult's arrays to a different backend.
+
+    Parameters
+    ----------
+    result : ACVAllocationResult
+        The result to convert (typically from TorchBkd optimization).
+    bkd : Backend
+        The target backend.
+
+    Returns
+    -------
+    ACVAllocationResult
+        A new result with all Array fields converted to the target backend.
+    """
+    from pyapprox.typing.util.backends.torch import TorchBkd
+
+    src_bkd = TorchBkd()
+    return ACVAllocationResult(
+        partition_ratios=bkd.asarray(src_bkd.to_numpy(result.partition_ratios)),
+        continuous_npartition_samples=bkd.asarray(
+            src_bkd.to_numpy(result.continuous_npartition_samples)
+        ),
+        objective_value=bkd.asarray(src_bkd.to_numpy(result.objective_value)),
+        npartition_samples=bkd.asarray(
+            src_bkd.to_numpy(result.npartition_samples), dtype=int
+        ),
+        nsamples_per_model=bkd.asarray(
+            src_bkd.to_numpy(result.nsamples_per_model), dtype=int
+        ),
+        target_cost=result.target_cost,
+        actual_cost=result.actual_cost,
+        success=result.success,
+        message=result.message,
+    )
 
 
 class Allocator(ABC, Generic[Array]):
@@ -162,6 +281,11 @@ class ACVAllocator(Allocator[Array]):
     def allocate(self, target_cost: float) -> ACVAllocationResult[Array]:
         """Allocate samples using optimization.
 
+        Automatically clones the estimator to TorchBkd when the estimator
+        uses NumpyBkd, since the trust-constr optimizer requires autodiff
+        gradients. The result arrays are converted back to the original
+        backend.
+
         Parameters
         ----------
         target_cost : float
@@ -172,6 +296,25 @@ class ACVAllocator(Allocator[Array]):
         AllocationResult
             The allocation result. Check `success` field for status.
         """
+        from pyapprox.typing.util.backends.numpy import NumpyBkd
+
+        if isinstance(self._bkd, NumpyBkd):
+            return self._allocate_with_torch_clone(target_cost)
+        return self._allocate_impl(target_cost)
+
+    def _allocate_with_torch_clone(
+        self, target_cost: float
+    ) -> ACVAllocationResult[Array]:
+        """Run allocation via a TorchBkd clone, then convert result back."""
+        torch_est = _clone_estimator_for_torch(self._est)
+        torch_allocator = ACVAllocator(torch_est, optimizer=self._optimizer)
+        torch_result = torch_allocator._allocate_impl(target_cost)
+        if not torch_result.success:
+            return self._failure_result(target_cost, torch_result.message)
+        return _convert_result_to_backend(torch_result, self._bkd)
+
+    def _allocate_impl(self, target_cost: float) -> ACVAllocationResult[Array]:
+        """Core allocation logic (requires autodiff-capable backend)."""
         if target_cost < float(self._bkd.to_numpy(self._bkd.sum(self._est._costs))):
             return self._failure_result(
                 target_cost, "Budget too small for one sample per model"

@@ -349,9 +349,6 @@ class GMFEstimator(ACVEstimator[Array], Generic[Array]):
             recursion_index, self._bkd
         )
 
-    def _get_specific_constraints(self, target_cost: float):
-        return []
-
 
 class GISEstimator(ACVEstimator[Array], Generic[Array]):
     """
@@ -363,9 +360,6 @@ class GISEstimator(ACVEstimator[Array], Generic[Array]):
             recursion_index, self._bkd
         )
 
-    def _get_specific_constraints(self, target_cost: float):
-        return []
-
 
 class GRDEstimator(ACVEstimator[Array], Generic[Array]):
     """
@@ -376,9 +370,6 @@ class GRDEstimator(ACVEstimator[Array], Generic[Array]):
         self._allocation_mat = _get_allocation_matrix_acvrd(
             recursion_index, self._bkd
         )
-
-    def _get_specific_constraints(self, target_cost: float):
-        return []
 
 
 class MFMCEstimator(GMFEstimator[Array], Generic[Array]):

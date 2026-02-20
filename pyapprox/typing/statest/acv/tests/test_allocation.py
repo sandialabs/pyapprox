@@ -101,36 +101,36 @@ class TestACVAllocationResultTorch(TestACVAllocationResult[torch.Tensor]):
         return TorchBkd()
 
 
-class TestACVAllocator(unittest.TestCase):
-    """Tests for ACVAllocator.
+class TestACVAllocator(Generic[Array], unittest.TestCase):
+    """Tests for ACVAllocator with both backends.
 
-    Note: ACVAllocator requires autodiff for gradients, which is only available
-    in PyTorch. These tests use TorchBkd only.
+    NumpyBkd estimators are automatically cloned to TorchBkd for optimization,
+    with results converted back.
     """
 
+    __test__ = False
+
+    def bkd(self):
+        raise NotImplementedError
+
     def setUp(self):
-        torch.set_default_dtype(torch.float64)
-        self._bkd = TorchBkd()
+        self._bkd = self.bkd()
         np.random.seed(42)
 
     def _create_stat_and_costs(self, nmodels: int = 3, nqoi: int = 1):
         """Helper to create test statistic and costs."""
-        # Create a simple covariance matrix with decreasing correlations
         nqoi_nmodels = nqoi * nmodels
         cov = np.eye(nqoi_nmodels)
-        # Set correlations between models for each QoI
         for q in range(nqoi):
             for i in range(nmodels):
                 for j in range(nmodels):
                     if i != j:
-                        # Correlation decreases with model index difference
                         corr = 0.9 ** abs(i - j)
                         cov[q * nmodels + i, q * nmodels + j] = corr
 
         stat = MultiOutputMean(nqoi, self._bkd)
         stat.set_pilot_quantities(self._bkd.array(cov))
 
-        # Costs decrease with model index (HF most expensive)
         costs = self._bkd.array([10.0 ** (nmodels - 1 - i) for i in range(nmodels)])
         return stat, costs
 
@@ -184,8 +184,34 @@ class TestACVAllocator(unittest.TestCase):
         result = allocator.allocate(target_cost=0.1)  # Will fail
         self.assertFalse(result.success)
         self.assertEqual(result.objective_value.shape, (1,))
-        # Should be inf
         self.assertTrue(float(result.objective_value[0]) == float("inf"))
+
+    def test_acv_allocator_result_backend_matches(self):
+        """Result arrays are in the estimator's backend type."""
+        stat, costs = self._create_stat_and_costs()
+        recursion_index = self._bkd.array([0, 1], dtype=int)
+        est = GMFEstimator(stat, costs, recursion_index=recursion_index)
+        allocator = ACVAllocator(est)
+        result = allocator.allocate(target_cost=1000.0)
+        self.assertTrue(result.success)
+        # All array fields should be the same type as the backend's arrays
+        expected_type = type(self._bkd.array([0.0]))
+        self.assertIsInstance(result.partition_ratios, expected_type)
+        self.assertIsInstance(result.continuous_npartition_samples, expected_type)
+        self.assertIsInstance(result.objective_value, expected_type)
+        self.assertIsInstance(result.npartition_samples, expected_type)
+        self.assertIsInstance(result.nsamples_per_model, expected_type)
+
+
+class TestACVAllocatorNumpy(TestACVAllocator[NDArray[Any]]):
+    def bkd(self) -> NumpyBkd:
+        return NumpyBkd()
+
+
+class TestACVAllocatorTorch(TestACVAllocator[torch.Tensor]):
+    def bkd(self) -> TorchBkd:
+        torch.set_default_dtype(torch.float64)
+        return TorchBkd()
 
 
 class TestAnalyticalAllocator(Generic[Array], unittest.TestCase):
@@ -204,20 +230,16 @@ class TestAnalyticalAllocator(Generic[Array], unittest.TestCase):
         """Create stat and costs that satisfy MFMC hierarchy requirements."""
         nqoi_nmodels = nqoi * nmodels
         cov = np.eye(nqoi_nmodels)
-        # Set correlations that satisfy MFMC hierarchy
-        # Correlations must decrease and satisfy cost/correlation ratio
         for q in range(nqoi):
             for i in range(nmodels):
                 for j in range(nmodels):
                     if i != j:
-                        # Strong correlations that decrease
                         corr = 0.95 ** max(i, j)
                         cov[q * nmodels + i, q * nmodels + j] = corr
 
         stat = MultiOutputMean(nqoi, self._bkd)
         stat.set_pilot_quantities(self._bkd.array(cov))
 
-        # Costs must satisfy hierarchy with correlations
         costs = self._bkd.array([100.0, 10.0, 1.0][:nmodels])
         return stat, costs
 
@@ -225,19 +247,16 @@ class TestAnalyticalAllocator(Generic[Array], unittest.TestCase):
         """Create stat and costs that satisfy MLMC requirements (decreasing cost)."""
         nqoi_nmodels = nqoi * nmodels
         cov = np.eye(nqoi_nmodels)
-        # Set correlations between adjacent levels
         for q in range(nqoi):
             for i in range(nmodels):
                 for j in range(nmodels):
                     if i != j:
-                        # Strong correlations between adjacent levels
                         corr = 0.9 ** abs(i - j)
                         cov[q * nmodels + i, q * nmodels + j] = corr
 
         stat = MultiOutputMean(nqoi, self._bkd)
         stat.set_pilot_quantities(self._bkd.array(cov))
 
-        # Costs must decrease monotonically for MLMC
         costs = self._bkd.array([100.0, 10.0, 1.0][:nmodels])
         return stat, costs
 
@@ -271,7 +290,6 @@ class TestAnalyticalAllocator(Generic[Array], unittest.TestCase):
         result = allocator.allocate(target_cost=1000.0)
         self.assertTrue(result.success)
         self.assertLessEqual(result.actual_cost, result.target_cost)
-        # objective_value should be Array shape (1,)
         self.assertEqual(result.objective_value.shape, (1,))
 
     def test_analytical_allocator_mlmc_success(self):
@@ -282,7 +300,6 @@ class TestAnalyticalAllocator(Generic[Array], unittest.TestCase):
         result = allocator.allocate(target_cost=1000.0)
         self.assertTrue(result.success)
         self.assertLessEqual(result.actual_cost, result.target_cost)
-        # objective_value should be Array shape (1,)
         self.assertEqual(result.objective_value.shape, (1,))
 
     def test_analytical_allocator_budget_too_small(self):
@@ -306,12 +323,16 @@ class TestAnalyticalAllocatorTorch(TestAnalyticalAllocator[torch.Tensor]):
         return TorchBkd()
 
 
-class TestAllocatorFactory(unittest.TestCase):
+class TestAllocatorFactory(Generic[Array], unittest.TestCase):
     """Tests for default_allocator_factory."""
 
+    __test__ = False
+
+    def bkd(self):
+        raise NotImplementedError
+
     def setUp(self):
-        torch.set_default_dtype(torch.float64)
-        self._bkd = TorchBkd()
+        self._bkd = self.bkd()
         np.random.seed(42)
 
     def _create_stat_and_costs(self, nmodels: int = 3, nqoi: int = 1):
@@ -353,12 +374,27 @@ class TestAllocatorFactory(unittest.TestCase):
         self.assertIsInstance(allocator, AnalyticalAllocator)
 
 
-class TestEstimatorAllocationAPI(unittest.TestCase):
+class TestAllocatorFactoryNumpy(TestAllocatorFactory[NDArray[Any]]):
+    def bkd(self) -> NumpyBkd:
+        return NumpyBkd()
+
+
+class TestAllocatorFactoryTorch(TestAllocatorFactory[torch.Tensor]):
+    def bkd(self) -> TorchBkd:
+        torch.set_default_dtype(torch.float64)
+        return TorchBkd()
+
+
+class TestEstimatorAllocationAPI(Generic[Array], unittest.TestCase):
     """Tests for ACVEstimator allocation management methods."""
 
+    __test__ = False
+
+    def bkd(self):
+        raise NotImplementedError
+
     def setUp(self):
-        torch.set_default_dtype(torch.float64)
-        self._bkd = TorchBkd()
+        self._bkd = self.bkd()
         np.random.seed(42)
 
     def _create_stat_and_costs(self, nmodels: int = 3, nqoi: int = 1):
@@ -399,21 +435,15 @@ class TestEstimatorAllocationAPI(unittest.TestCase):
         recursion_index = self._bkd.array([0, 1], dtype=int)
         est = GMFEstimator(stat, costs, recursion_index=recursion_index)
 
-        # Create allocation via ACVAllocator
         allocator = ACVAllocator(est)
         result = allocator.allocate(target_cost=1000.0)
         self.assertTrue(result.success)
 
-        # Set allocation
         est.set_allocation(result)
 
-        # Verify has_allocation
         self.assertTrue(est.has_allocation)
-
-        # Verify allocation() returns same object
         self.assertIs(est.allocation(), result)
 
-        # Verify internal state was updated for backward compatibility
         self._bkd.assert_allclose(
             est._rounded_npartition_samples, result.npartition_samples
         )
@@ -427,12 +457,10 @@ class TestEstimatorAllocationAPI(unittest.TestCase):
         recursion_index = self._bkd.array([0, 1], dtype=int)
         est = GMFEstimator(stat, costs, recursion_index=recursion_index)
 
-        # Create failed allocation
         allocator = ACVAllocator(est)
-        result = allocator.allocate(target_cost=0.1)  # Too small, will fail
+        result = allocator.allocate(target_cost=0.1)
         self.assertFalse(result.success)
 
-        # set_allocation should raise
         with self.assertRaises(ValueError) as ctx:
             est.set_allocation(result)
         self.assertIn("Cannot set failed allocation", str(ctx.exception))
@@ -448,9 +476,7 @@ class TestEstimatorAllocationAPI(unittest.TestCase):
 
         cov = est.covariance_from_ratios(target_cost, partition_ratios)
 
-        # Should return a valid covariance matrix
         self.assertEqual(len(cov.shape), 2)
-        # Should be square
         self.assertEqual(cov.shape[0], cov.shape[1])
 
     def test_estimator_npartition_samples_from_ratios(self):
@@ -466,9 +492,7 @@ class TestEstimatorAllocationAPI(unittest.TestCase):
             target_cost, partition_ratios
         )
 
-        # Should have npartitions elements
         self.assertEqual(len(npartition_samples), est._npartitions)
-        # All should be positive
         self.assertTrue(all(float(n) > 0 for n in npartition_samples))
 
     def test_estimator_covariance_requires_allocation(self):
@@ -487,17 +511,38 @@ class TestEstimatorAllocationAPI(unittest.TestCase):
         recursion_index = self._bkd.array([0, 1], dtype=int)
         est = GMFEstimator(stat, costs, recursion_index=recursion_index)
 
-        # Set allocation
         allocator = ACVAllocator(est)
         result = allocator.allocate(target_cost=1000.0)
         est.set_allocation(result)
 
-        # Get covariance
         cov = est.covariance()
 
-        # Should return a valid covariance matrix
         self.assertEqual(len(cov.shape), 2)
         self.assertEqual(cov.shape[0], cov.shape[1])
+
+    def test_allocate_samples_delegates_to_allocator(self):
+        """allocate_samples() produces the same result as ACVAllocator."""
+        stat, costs = self._create_stat_and_costs()
+        recursion_index = self._bkd.array([0, 1], dtype=int)
+        est = GMFEstimator(stat, costs, recursion_index=recursion_index)
+
+        est.allocate_samples(target_cost=1000.0)
+
+        self.assertTrue(est.has_allocation)
+        alloc = est.allocation()
+        self.assertTrue(alloc.success)
+        self.assertLessEqual(alloc.actual_cost, 1000.0)
+
+
+class TestEstimatorAllocationAPINumpy(TestEstimatorAllocationAPI[NDArray[Any]]):
+    def bkd(self) -> NumpyBkd:
+        return NumpyBkd()
+
+
+class TestEstimatorAllocationAPITorch(TestEstimatorAllocationAPI[torch.Tensor]):
+    def bkd(self) -> TorchBkd:
+        torch.set_default_dtype(torch.float64)
+        return TorchBkd()
 
 
 if __name__ == "__main__":

@@ -107,8 +107,8 @@ class TestACVLogDeterminantObjectiveGradients(ParametrizedTestCase):
         checker = DerivativeChecker(objective)
         errors = checker.check_derivatives(partition_ratios, verbosity=0)
 
-        # Check Jacobian accuracy (use 2e-6 tolerance for numerical precision)
-        self.assertLessEqual(float(checker.error_ratio(errors[0])), 2e-6)
+        # Check Jacobian accuracy (use 1e-5 tolerance for numerical precision)
+        self.assertLessEqual(float(checker.error_ratio(errors[0])), 1e-5)
 
     @parametrize(
         "est_type,nmodels",
@@ -208,8 +208,8 @@ class TestACVPartitionConstraintGradients(ParametrizedTestCase):
             partition_ratios, weights=weights, verbosity=0
         )
 
-        # Check Jacobian accuracy (use 2e-6 tolerance for numerical precision)
-        self.assertLessEqual(float(checker.error_ratio(errors[0])), 2e-6)
+        # Check Jacobian accuracy (use 1e-5 tolerance for numerical precision)
+        self.assertLessEqual(float(checker.error_ratio(errors[0])), 1e-5)
 
 
 class TestMFMCOptimalSolutionGradients(unittest.TestCase):

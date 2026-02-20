@@ -19,8 +19,6 @@ from pyapprox.typing.statest.cv_estimator import CVEstimator
 from pyapprox.typing.statest.acv.optimization import (
     _combine_acv_values,
     _combine_acv_samples,
-    ACVLogDeterminantObjective,
-    ACVPartitionConstraint,
 )
 
 if TYPE_CHECKING:
@@ -706,110 +704,24 @@ class ACVEstimator(CVEstimator[Array], Generic[Array]):
     def set_optimizer(self, optimizer):
         self._optimizer = optimizer
 
-    def _allocate_samples_minimize(self, target_cost: float):
-        if target_cost < self._bkd.sum(self._costs):
-            msg = "Target cost does not allow at least one sample from "
-            msg += "each model"
-            raise ValueError(msg)
-
-        if self._optimizer is None:
-            self.set_optimizer(self.get_default_optimizer())
-        scaling = getattr(self._optimizer, '_scaling', 1)
-        objective = ACVLogDeterminantObjective(scaling=scaling, bkd=self._bkd)
-        objective.set_target_cost(target_cost)
-        objective.set_estimator(self)
-        constraints = [ACVPartitionConstraint(self, target_cost)]
-        bounds = self.get_npartition_bounds(target_cost)
-        self._optimizer.bind(objective, bounds, constraints)
-        init_iterate = self._bkd.full((self._nmodels - 1, 1), 1.0)
-        result = self._optimizer.minimize(init_iterate)
-        return result
-
-    @abstractmethod
-    def _get_specific_constraints(self, target_cost: float):
-        raise NotImplementedError()
-
-    def _allocate_samples(self, target_cost: float):
-        opt_result = self._allocate_samples_minimize(target_cost)
-        partition_ratios = opt_result.optima()[:, 0]
-        if not opt_result.success():
-            raise RuntimeError(
-                "{0} optimizer failed {1} with message {2}".format(
-                    self, opt_result, opt_result.message()
-                )
-            )
-        else:
-            val = opt_result.fun()
-        return partition_ratios, val
-
-    def _round_partition_ratios(
-        self, target_cost: float, partition_ratios: Array
-    ):
-        npartition_samples = self._npartition_samples_from_partition_ratios(
-            target_cost, partition_ratios
-        )
-        if npartition_samples[0] < 1 - 1e-8:
-            msg = "Rounding will cause nhf samples to be zero {0}".format(
-                npartition_samples
-            )
-            raise RuntimeError(msg)
-        rounded_npartition_samples = self._bkd.asarray(
-            self._bkd.floor(npartition_samples + 1e-8), dtype=int
-        )
-        assert rounded_npartition_samples[0] >= 1
-        rounded_target_cost = (
-            self._compute_nsamples_per_model(rounded_npartition_samples)
-            * self._costs
-        ).sum()
-        rounded_partition_ratios = (
-            rounded_npartition_samples[1:] / rounded_npartition_samples[0]
-        )
-        return rounded_partition_ratios, rounded_target_cost
-
     def _estimator_cost(self, npartition_samples: Array) -> float:
         nsamples_per_model = self._compute_nsamples_per_model(
             npartition_samples
         )
         return (nsamples_per_model * self._costs).sum()
 
-    def _set_optimized_params(
-        self, partition_ratios: Array, target_cost: float
-    ):
-        """
-        Set the parameters needed to generate samples for evaluating the
-        estimator
-        """
-        self._rounded_partition_ratios, rounded_target_cost = (
-            self._round_partition_ratios(
-                target_cost, self._bkd.asarray(partition_ratios)
-            )
-        )
-        rounded_npartition_samples = (
-            self._npartition_samples_from_partition_ratios(
-                rounded_target_cost,
-                self._bkd.asarray(self._rounded_partition_ratios),
-            )
-        )
-        # round because sometimes round_partition_ratios
-        # will produce floats slightly smaller
-        # than an integer so when converted to an integer will produce
-        # values 1 smaller than the correct value
-        rounded_npartition_samples = self._bkd.round(
-            rounded_npartition_samples
-        )
-        rounded_nsamples_per_model = self._bkd.asarray(
-            self._compute_nsamples_per_model(rounded_npartition_samples),
-            dtype=int,
-        )
-        super()._set_optimized_params_base(
-            rounded_npartition_samples,
-            rounded_nsamples_per_model,
-            rounded_target_cost,
-        )
-
     def _allocate_samples_for_single_recursion(self, target_cost: float):
-        partition_ratios, obj_val = self._allocate_samples(target_cost)
-        self._set_optimized_params(partition_ratios, target_cost)
+        from pyapprox.typing.statest.acv.allocation import ACVAllocator
+
+        allocator = ACVAllocator(self, optimizer=self._optimizer)
+        result = allocator.allocate(target_cost)
+        if not result.success:
+            raise RuntimeError(
+                "{0} optimizer failed with message {1}".format(
+                    self, result.message
+                )
+            )
+        self.set_allocation(result)
 
     def _get_optimizer_verbosity(self) -> int:
         """Get verbosity level from the optimizer.
@@ -830,39 +742,41 @@ class ACVEstimator(CVEstimator[Array], Generic[Array]):
         return _get_acv_recursion_indices(self._nmodels, self._tree_depth)
 
     def _allocate_samples_for_all_recursion_indices(self, target_cost: float):
-        best_criteria = self._bkd.asarray(np.inf)
+        from pyapprox.typing.statest.acv.allocation import ACVAllocator
+
+        best_obj = self._bkd.asarray(np.inf)
         best_result = None
+        best_index = None
         for index in self.get_all_recursion_indices():
             self._set_recursion_index(index)
-            try:
-                self._allocate_samples_for_single_recursion(target_cost)
-            except RuntimeError as e:
+            allocator = ACVAllocator(self, optimizer=self._optimizer)
+            result = allocator.allocate(target_cost)
+            if not result.success:
                 if not self._allow_failures:
-                    raise e
-                self._optimized_criteria = self._bkd.asarray(np.inf)
+                    raise RuntimeError(
+                        "{0} optimizer failed with message {1}".format(
+                            self, result.message
+                        )
+                    )
                 if self._get_optimizer_verbosity() > 0:
                     print("Optimizer failed")
+                continue
+            obj_val = result.objective_value[0]
             if self._get_optimizer_verbosity() > 2:
                 msg = "\t\t Recursion: {0} Objective: best {1}, current {2}".format(
                     index,
-                    best_criteria.item(),
-                    self._optimized_criteria.item(),
+                    best_obj.item(),
+                    obj_val.item(),
                 )
                 print(msg)
-            if self._optimized_criteria < best_criteria:
-                best_result = [
-                    self._rounded_partition_ratios,
-                    self._rounded_target_cost,
-                    self._optimized_criteria,
-                    index,
-                ]
-                best_criteria = self._optimized_criteria
+            if obj_val < best_obj:
+                best_obj = obj_val
+                best_result = result
+                best_index = index
         if best_result is None:
             raise RuntimeError("No solutions were found")
-        self._set_recursion_index(best_result[3])
-        self._set_optimized_params(
-            self._bkd.asarray(best_result[0]), target_cost
-        )
+        self._set_recursion_index(best_index)
+        self.set_allocation(best_result)
 
     def allocate_samples(self, target_cost: float):
         if self._tree_depth is not None:
