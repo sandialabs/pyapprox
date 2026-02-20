@@ -2,12 +2,16 @@
 title: "FunctionTrain Sensitivity: Practical Usage"
 subtitle: "PyApprox Tutorial Library"
 description: "Computing Sobol indices analytically with FunctionTrainSensitivity"
+tutorial_type: usage
+topic: sensitivity_analysis
+difficulty: intermediate
+estimated_time: 10
 prerequisites:
   - functiontrain_sensitivity_math
 tags:
   - surrogate
   - tensor-decomposition
-  - sensitivity
+  - sensitivity-analysis
 format:
   html:
     code-fold: false
@@ -186,8 +190,8 @@ result = fitter.fit(ft_init, train_samples, train_values)
 fitted_ft = result.surrogate()
 
 print(f"Fitting result:")
-print(f"  Sweeps: {result.num_sweeps()}")
-print(f"  Final residual: {result.final_residual():.2e}")
+print(f"  Sweeps: {result.n_sweeps()}")
+print(f"  Final residual: {result.residual_history()[-1]:.2e}")
 
 # Verify fit quality
 n_test = 1000
@@ -455,5 +459,4 @@ print("""
 
 Continue with:
 
-- [GP Sobol Indices](gp_sobol_indices.qmd) - Sensitivity analysis with Gaussian Process surrogates
-- [FunctionTrain Moments](functiontrain_moments.qmd) - Review moment computation
+- [Sensitivity Analysis (Concept)](sensitivity_analysis_concept.qmd) --- Review variance decomposition fundamentals

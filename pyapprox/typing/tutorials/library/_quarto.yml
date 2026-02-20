@@ -32,6 +32,12 @@ website:
             - control_variate_concept.qmd
             - control_variate_analysis.qmd
             - control_variate_usage.qmd
+            - acv_concept.qmd
+            - acv_analysis.qmd
+            - acv_usage.qmd
+            - mfmc_concept.qmd
+            - mfmc_analysis.qmd
+            - mfmc_usage.qmd
         - section: "Inverse UQ"
           contents:
             - bayesian_inference_intro.qmd
@@ -46,6 +52,15 @@ website:
             - practical_pce_fitting.qmd
             - sparse_pce_fitting.qmd
             - uq_with_pce.qmd
+        - section: "Sensitivity Analysis"
+          contents:
+            - sensitivity_analysis_concept.qmd
+            - sobol_sensitivity_analysis.qmd
+            - pce_sensitivity.qmd
+            - morris_screening.qmd
+            - bin_based_sensitivity.qmd
+            - functiontrain_sensitivity_math.qmd
+            - functiontrain_sensitivity.qmd
         - section: "Optimization Under Uncertainty"
           contents:
             - design_under_uncertainty.qmd

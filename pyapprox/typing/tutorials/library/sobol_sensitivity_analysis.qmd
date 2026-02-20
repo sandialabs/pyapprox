@@ -2,10 +2,16 @@
 title: "Sobol Sensitivity Analysis"
 subtitle: "PyApprox Tutorial Library"
 description: "Variance-based sensitivity indices for identifying important parameters"
+tutorial_type: usage
+topic: sensitivity_analysis
+difficulty: intermediate
+estimated_time: 10
 prerequisites:
-  - monte_carlo_basics
+  - sensitivity_analysis_concept
 tags:
-  - sensitivity
+  - sensitivity-analysis
+  - sobol-indices
+  - monte-carlo
 format:
   html:
     code-fold: false
@@ -33,7 +39,7 @@ After completing this tutorial, you will be able to:
 
 ## Prerequisites
 
-Complete [Monte Carlo Basics](monte_carlo_basics.qmd) before this tutorial.
+Complete [Sensitivity Analysis](sensitivity_analysis_concept.qmd) before this tutorial.
 
 ## Why Sensitivity Analysis?
 
@@ -345,5 +351,5 @@ else:
 
 Continue with:
 
-- [Bayesian Calibration Intro](bayesian_calibration_intro.qmd) - Inferring parameters from data
-- [Control Variates](control_variates.qmd) - Variance reduction techniques
+- [Bin-Based Sensitivity](bin_based_sensitivity.qmd) --- Sensitivity indices from existing datasets via binning
+- [PCE-Based Sensitivity](pce_sensitivity.qmd) --- Sobol indices from polynomial chaos surrogates

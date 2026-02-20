@@ -2,13 +2,17 @@
 title: "FunctionTrain Sensitivity: Mathematical Derivation"
 subtitle: "PyApprox Tutorial Library"
 description: "Deriving Sobol indices analytically from PCE FunctionTrain structure"
+tutorial_type: analysis
+topic: sensitivity_analysis
+difficulty: advanced
+estimated_time: 15
 prerequisites:
   - sobol_sensitivity_analysis
   - functiontrain_moments_math
 tags:
   - surrogate
   - tensor-decomposition
-  - sensitivity
+  - sensitivity-analysis
   - math
 format:
   html:

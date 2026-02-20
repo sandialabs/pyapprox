@@ -27,6 +27,12 @@ subtitle: "Validated tutorials for uncertainty quantification"
 | [Control Variate Monte Carlo](control_variate_concept.qmd) | Reducing MC estimator variance using a correlated low-fidelity model with a known statistic |
 | [Control Variate Analysis](control_variate_analysis.qmd) | Deriving the optimal control variate weight, variance reduction formula, and unbiasedness |
 | [Control Variate Usage](control_variate_usage.qmd) | Using the PyApprox CVMC API to reduce estimator variance with a correlated low-fidelity model |
+| [ACV Concept](acv_concept.qmd) | Approximate control variates: extending CVMC to multiple low-fidelity models without known statistics |
+| [ACV Analysis](acv_analysis.qmd) | Deriving ACV variance reduction and comparing GMF, GIS, and GRD allocation strategies |
+| [ACV Usage](acv_usage.qmd) | Using the PyApprox ACV API to allocate samples and estimate statistics with multiple models |
+| [MFMC Concept](mfmc_concept.qmd) | Multi-fidelity Monte Carlo: exploiting a hierarchy of model fidelities for variance reduction |
+| [MFMC Analysis](mfmc_analysis.qmd) | Optimal sample ratios, variance reduction formulas, and numerical verification of MFMC and MLMC |
+| [MFMC Usage](mfmc_usage.qmd) | Using the PyApprox MFMC and MLMC API to allocate samples, visualize allocations, and verify estimates |
 
 ## Inverse UQ
 

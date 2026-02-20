@@ -2,10 +2,16 @@
 title: "Bin-Based Sensitivity Analysis"
 subtitle: "PyApprox Tutorial Library"
 description: "Variance-based sensitivity indices via binning estimation"
+tutorial_type: usage
+topic: sensitivity_analysis
+difficulty: intermediate
+estimated_time: 10
 prerequisites:
   - sobol_sensitivity_analysis
 tags:
-  - sensitivity
+  - sensitivity-analysis
+  - sobol-indices
+  - binning
 format:
   html:
     code-fold: false
@@ -437,5 +443,5 @@ plt.show()
 
 Continue with:
 
-- [Control Variates](control_variates.qmd) - Variance reduction techniques
-- [Polynomial Chaos Expansion](polynomial_chaos_expansion.qmd) - Surrogate-based sensitivity
+- [PCE-Based Sensitivity](pce_sensitivity.qmd) --- Sobol indices from polynomial chaos surrogates
+- [FunctionTrain Sensitivity (Math)](functiontrain_sensitivity_math.qmd) --- Analytical Sobol index derivation from tensor decompositions
