@@ -37,7 +37,7 @@ After completing this tutorial, you will be able to:
 - Define configuration variables and a model hierarchy
 - Implement `MultiFidelityModelFactoryProtocol`
 - Construct a `MultiIndexAdaptiveCombinationSparseGrid`
-- Analyse cost-aware adaptive refinement that balances accuracy and computational cost
+- Analyze cost-aware adaptive refinement that balances accuracy and computational cost
 
 
 ## Prerequisites
@@ -51,6 +51,10 @@ Complete [Adaptive Sparse Grids](adaptive_sparse_grids.qmd) before this tutorial
 import numpy as np
 import matplotlib.pyplot as plt
 from pyapprox.typing.util.backends.numpy import NumpyBkd
+from pyapprox.typing.interface.functions.plot.plot2d_rectangular import (
+    Plotter2DRectangularDomain,
+    meshgrid_samples,
+)
 
 bkd = NumpyBkd()
 np.random.seed(42)
@@ -180,6 +184,45 @@ In the multi-index framework, each subspace is labelled by a **full index** $[\b
 
 The Smolyak combination technique operates over the full index space, but each subspace builds a tensor product interpolant over **physical dimensions only**.  The config index simply determines which model provides the function values.
 
+::: {.callout-note}
+## Multi-level vs Multi-index
+
+When there is a **single** configuration variable ($c = 1$), multi-index collocation reduces to **multi-level collocation** --- the telescoping sum over a single fidelity hierarchy described in the previous section.  The multi-index framework *generalizes* this to multiple independent configuration controls ($c > 1$).
+:::
+
+### What are configuration variables?
+
+Configuration variables parameterize the *solver settings* that control model fidelity.  A PDE solver, for instance, might expose two independent mesh resolution controls:
+
+```{python}
+#| echo: false
+fig, axes = plt.subplots(1, 3, figsize=(14, 4))
+
+for ax_i, (nx, ny, label) in zip(axes, [
+    (3, 3, "$\\alpha_x=0,\\; \\alpha_y=0$\n(coarse $\\times$ coarse)"),
+    (7, 3, "$\\alpha_x=1,\\; \\alpha_y=0$\n(fine $x$ $\\times$ coarse $y$)"),
+    (7, 7, "$\\alpha_x=1,\\; \\alpha_y=1$\n(fine $\\times$ fine)"),
+]):
+    for i in range(nx):
+        for j in range(ny):
+            ax_i.add_patch(plt.Rectangle(
+                (i / nx, j / ny), 1 / nx, 1 / ny,
+                facecolor="white", edgecolor="steelblue", linewidth=1.2,
+            ))
+    ax_i.set_xlim(0, 1)
+    ax_i.set_ylim(0, 1)
+    ax_i.set_aspect("equal")
+    ax_i.set_title(label, fontsize=11)
+    ax_i.set_xlabel("$x$", fontsize=11)
+    ax_i.set_ylabel("$y$", fontsize=11)
+
+plt.suptitle("Configuration variables as mesh refinement levels", fontsize=13, y=1.02)
+plt.tight_layout()
+plt.show()
+```
+
+Here, $\alpha_x$ and $\alpha_y$ are **two independent** configuration variables controlling the mesh in the $x$- and $y$-directions.  The adaptive multi-index algorithm explores the joint space $(\beta_1, \ldots, \beta_d, \alpha_x, \alpha_y)$, preferring cheap low-resolution solves until their interpolation error is dominated by discretization bias.
+
 
 ## Implementing `MultiFidelityModelFactoryProtocol`
 
@@ -245,9 +288,11 @@ print(f"f_1(0.5) = {float(model_1(test_z)[0, 0]):.6f}")
 from pyapprox.typing.surrogates.sparsegrids.multifidelity.grid import (
     MultiIndexAdaptiveCombinationSparseGrid,
 )
+from pyapprox.typing.surrogates.affine.indices import DoublePlusOneGrowthRule
 
-physical_factories = create_basis_factories(margs_1d, bkd, "leja")
+physical_factories = create_basis_factories(margs_1d, bkd, "clenshaw_curtis")
 config_bounds = bkd.array([1.0])  # max config level = 1 (two models: 0 and 1)
+cc_growth = DoublePlusOneGrowthRule()
 
 mi_grid = MultiIndexAdaptiveCombinationSparseGrid(
     bkd,
@@ -255,6 +300,7 @@ mi_grid = MultiIndexAdaptiveCombinationSparseGrid(
     nconfig_vars=1,
     config_bounds=config_bounds,
     nqoi=1,
+    growth_rule=cc_growth,
     model_factory=factory,
 )
 print(mi_grid)
@@ -273,17 +319,18 @@ print(f"Error estimate: {mi_grid.error_estimate():.2e}")
 # Evaluate the surrogate
 z_test = bkd.array(np.linspace(-1, 1, 200).reshape(1, -1))
 approx = mi_grid(z_test)
-exact = bkd.array(np.cos(np.pi * (np.linspace(-1, 1, 200) + 1) / 2).reshape(1, -1))
+exact = factory.get_model((1,))(z_test)
 max_err = float(bkd.max(bkd.abs(approx - exact)))
 print(f"Max error on test grid: {max_err:.2e}")
 ```
 
 
-## Visualising the Multi-Index Set
+## Visualizing the Multi-Index Set
 
 The selected subspace indices show how the algorithm balances physical resolution and model fidelity.
 
 ```{python}
+#| echo: false
 sel = mi_grid.get_selected_subspace_indices()
 sel_np = bkd.to_numpy(sel).astype(int)
 
@@ -311,6 +358,83 @@ plt.show()
 The blue boxes ($\alpha = 0$) represent evaluations of the cheap model $f_0$; the red boxes ($\alpha = 1$) represent evaluations of the expensive model $f_1$.  The grid uses more physical levels for the cheap model and fewer for the expensive one.
 
 
+### Animated Refinement
+
+The animation below shows how the adaptive algorithm builds the multi-index set and approximation step by step.  At each step, the left panel shows the selected multi-indices and the right panel shows the current surrogate vs the true high-fidelity model.
+
+```{python}
+#| echo: false
+import copy
+import matplotlib.animation as animation
+from IPython.display import HTML
+
+# Build a fresh grid, capturing state at each step
+mi_anim = MultiIndexAdaptiveCombinationSparseGrid(
+    bkd, physical_factories, nconfig_vars=1,
+    config_bounds=config_bounds, nqoi=1,
+    growth_rule=cc_growth, model_factory=factory,
+)
+
+snapshots = []  # (selected_indices, approx_values, error_est)
+z_anim = bkd.array(np.linspace(-1, 1, 300).reshape(1, -1))
+f1_exact = bkd.to_numpy(factory.get_model((1,))(z_anim)).ravel()
+
+for _ in range(15):
+    if not mi_anim.step():
+        break
+    sel_idx = bkd.to_numpy(mi_anim.get_selected_subspace_indices()).astype(int)
+    approx_vals = bkd.to_numpy(mi_anim(z_anim)).ravel()
+    err = mi_anim.error_estimate()
+    snapshots.append((sel_idx.copy(), approx_vals.copy(), err))
+
+# Determine axis limits from final state
+max_beta = max(s[0][0].max() for s in snapshots)
+
+fig, (ax_idx, ax_fn) = plt.subplots(1, 2, figsize=(14, 4.5))
+
+def animate(ii):
+    ax_idx.clear()
+    ax_fn.clear()
+    sel_idx, approx_vals, err = snapshots[ii]
+
+    # Left: multi-index set
+    for j in range(sel_idx.shape[1]):
+        beta, alpha = sel_idx[0, j], sel_idx[1, j]
+        color = "#2C7FB8" if alpha == 0 else "#E74C3C"
+        rect = plt.Rectangle(
+            (beta - 0.4, alpha - 0.3), 0.8, 0.6,
+            facecolor=color, edgecolor="black", alpha=0.7, linewidth=1.5,
+        )
+        ax_idx.add_patch(rect)
+        ax_idx.text(beta, alpha, f"({beta},{alpha})",
+                    ha="center", va="center", fontsize=9)
+    ax_idx.set_xlim(-0.6, max_beta + 1)
+    ax_idx.set_ylim(-0.5, 2)
+    ax_idx.set_xlabel("Physical level $\\beta$", fontsize=12)
+    ax_idx.set_ylabel("Config level $\\alpha$", fontsize=12)
+    ax_idx.set_title(f"Step {ii + 1}: multi-indices", fontsize=12)
+    ax_idx.grid(True, alpha=0.3)
+
+    # Right: approximation vs true
+    ax_fn.plot(np.linspace(-1, 1, 300), f1_exact, "--", lw=2,
+               color="#E74C3C", label="$f_1$ (exact)")
+    ax_fn.plot(np.linspace(-1, 1, 300), approx_vals, lw=2,
+               color="#27AE60", label="surrogate")
+    ax_fn.set_xlabel("$z$", fontsize=12)
+    ax_fn.set_ylabel("$f(z)$", fontsize=12)
+    ax_fn.set_title(f"Error estimate: {err:.2e}", fontsize=12)
+    ax_fn.legend(fontsize=10, loc="upper right")
+    ax_fn.set_ylim(-1.3, 1.3)
+    ax_fn.grid(True, alpha=0.3)
+
+ani = animation.FuncAnimation(
+    fig, animate, frames=len(snapshots), interval=800, repeat_delay=2000,
+)
+plt.close(fig)
+HTML(ani.to_jshtml())
+```
+
+
 ## Manual Mode: `step_samples()` / `step_values()`
 
 For more control, you can use the manual step pattern.  `step_samples()` returns a dictionary mapping each config index to its required physical samples:
@@ -319,10 +443,16 @@ For more control, you can use the manual step pattern.  `step_samples()` returns
 mi_grid2 = MultiIndexAdaptiveCombinationSparseGrid(
     bkd, physical_factories, nconfig_vars=1,
     config_bounds=config_bounds, nqoi=1,
+    growth_rule=cc_growth,
 )
 
-errors = []
-for step in range(15):
+# Validation samples for true test error
+z_val = bkd.array(np.linspace(-1, 1, 500).reshape(1, -1))
+exact_val = factory.get_model((1,))(z_val)
+
+error_estimates = []
+test_errors = []
+for step in range(50):
     config_requests = mi_grid2.step_samples()
     if config_requests is None:
         break
@@ -334,17 +464,32 @@ for step in range(15):
         values_dict[config_idx] = model(phys_samples)
 
     mi_grid2.step_values(values_dict)
-    errors.append(mi_grid2.error_estimate())
+    error_estimates.append(mi_grid2.error_estimate())
+
+    # Compute true test error (max abs error on validation grid)
+    approx_val = mi_grid2(z_val)
+    test_err = float(bkd.max(bkd.abs(approx_val - exact_val)))
+    test_errors.append(test_err)
+
+    if test_err < 1e-14:
+        break
 
 print(f"Manual mode: {mi_grid2.nsubspaces()} subspaces after {step+1} steps")
+print(f"Final test error: {test_errors[-1]:.2e}")
 ```
 
 ```{python}
 fig, ax = plt.subplots(figsize=(8, 4))
-ax.semilogy(range(1, len(errors) + 1), errors, "o-", lw=2, ms=7, color="steelblue")
+steps = range(1, len(error_estimates) + 1)
+ax.semilogy(steps, error_estimates, "o-", lw=2, ms=6, color="steelblue",
+            label="Error estimate")
+ax.semilogy(steps, test_errors, "s--", lw=2, ms=6, color="#E74C3C",
+            label="True test error")
+ax.axhline(1e-5, color="gray", ls=":", lw=1, label="$10^{-5}$ target")
 ax.set_xlabel("Refinement step", fontsize=12)
-ax.set_ylabel("Error estimate", fontsize=12)
+ax.set_ylabel("Error", fontsize=12)
 ax.set_title("Multi-index refinement convergence", fontsize=12)
+ax.legend(fontsize=10)
 ax.grid(True, which="both", alpha=0.3)
 plt.tight_layout()
 plt.show()
@@ -405,15 +550,16 @@ class TwoD_ModelFactory:
 factory_2d = TwoD_ModelFactory(bkd)
 
 margs_2d = [UniformMarginal(-1.0, 1.0, bkd)] * 2
-phys_facs_2d = create_basis_factories(margs_2d, bkd, "leja")
+phys_facs_2d = create_basis_factories(margs_2d, bkd, "clenshaw_curtis")
 
 mi_2d = MultiIndexAdaptiveCombinationSparseGrid(
     bkd, phys_facs_2d, nconfig_vars=1,
     config_bounds=bkd.array([1.0]),
-    nqoi=1, model_factory=factory_2d,
+    nqoi=1, growth_rule=cc_growth,
+    model_factory=factory_2d,
 )
 
-nsteps = mi_2d.refine_to_tolerance(1e-5, max_steps=20)
+nsteps = mi_2d.refine_to_tolerance(1e-8, max_steps=50)
 print(f"2D+config: {mi_2d.nsubspaces()} subspaces, refined {nsteps} steps")
 print(f"Error estimate: {mi_2d.error_estimate():.2e}")
 
@@ -425,24 +571,119 @@ rms_err = float(bkd.sqrt(bkd.sum((exact_2d - approx_2d) ** 2) / 1000))
 print(f"RMS error vs exact model: {rms_err:.2e}")
 ```
 
+### Visualizing the 2D Multi-Index Set
+
+With two physical variables and one configuration variable, each selected subspace index is a triple $[\beta_1, \beta_2, \alpha]$.  A 3D scatter plot reveals how the algorithm distributes resolution across the two physical dimensions and the model hierarchy.
+
+```{python}
+from mpl_toolkits.mplot3d import Axes3D  # noqa: F401
+
+sel_2d = mi_2d.get_selected_subspace_indices()
+sel_2d_np = bkd.to_numpy(sel_2d).astype(int)
+
+fig = plt.figure(figsize=(9, 6))
+ax = fig.add_subplot(111, projection="3d")
+
+for j in range(sel_2d_np.shape[1]):
+    b1, b2, alpha = sel_2d_np[0, j], sel_2d_np[1, j], sel_2d_np[2, j]
+    color = "#2C7FB8" if alpha == 0 else "#E74C3C"
+    label = "$\\alpha=0$ (cheap)" if alpha == 0 else "$\\alpha=1$ (expensive)"
+    # Only add label once per config level
+    if j > 0 and alpha in sel_2d_np[2, :j]:
+        label = None
+    ax.scatter(b1, b2, alpha, c=color, s=120, edgecolors="black",
+               linewidths=0.8, label=label, zorder=5, depthshade=False)
+    # Draw thin bar from z=0 up to the point
+    ax.plot([b1, b1], [b2, b2], [0, alpha], color=color, lw=1.5, alpha=0.5)
+
+ax.set_xlabel("$\\beta_1$ (physical dim 1)", fontsize=11)
+ax.set_ylabel("$\\beta_2$ (physical dim 2)", fontsize=11)
+ax.set_zlabel("$\\alpha$ (config level)", fontsize=11)
+ax.set_title("Selected multi-indices $[\\beta_1, \\beta_2, \\alpha]$", fontsize=12)
+ax.set_zticks([0, 1])
+ax.legend(fontsize=10, loc="upper left")
+plt.tight_layout()
+plt.show()
+```
+
+The blue markers ($\alpha = 0$) span many physical levels using the cheap model, while the red markers ($\alpha = 1$) appear at fewer physical levels.  The algorithm invests in cheap evaluations first, adding expensive ones only where the discrepancy matters.
+
+
+### Approximation vs True Function
+
+We compare the multi-fidelity surrogate against the true high-fidelity model $f_1(z_1, z_2)$.
+
+```{python}
+plot_limits = [-1.0, 1.0, -1.0, 1.0]
+
+# Build a FunctionFromCallable for the true high-fidelity model
+def true_hf(samples):
+    z1, z2 = samples[0], samples[1]
+    return bkd.reshape(bkd.cos(np.pi * z1) * bkd.sin(np.pi * z2 / 2), (1, -1))
+
+true_fn = FunctionFromCallable(1, 2, true_hf, bkd)
+
+# Build a FunctionFromCallable wrapper for the surrogate
+def surrogate_fn(samples):
+    return mi_2d(samples)
+
+surr_fn = FunctionFromCallable(1, 2, surrogate_fn, bkd)
+
+# Create plotters
+plotter_true = Plotter2DRectangularDomain(true_fn, plot_limits)
+plotter_surr = Plotter2DRectangularDomain(surr_fn, plot_limits)
+
+fig, axes = plt.subplots(1, 3, figsize=(16, 4.5))
+
+# Panel 1: True function
+plotter_true.plot_contours(axes[0], qoi=0, npts_1d=80, cmap="viridis")
+axes[0].set_title("True $f_1(z_1, z_2)$", fontsize=12)
+axes[0].set_xlabel("$z_1$", fontsize=11)
+axes[0].set_ylabel("$z_2$", fontsize=11)
+
+# Panel 2: Surrogate
+plotter_surr.plot_contours(axes[1], qoi=0, npts_1d=80, cmap="viridis")
+axes[1].set_title("Multi-fidelity surrogate", fontsize=12)
+axes[1].set_xlabel("$z_1$", fontsize=11)
+axes[1].set_ylabel("$z_2$", fontsize=11)
+
+# Panel 3: Pointwise error
+X, Y, pts = meshgrid_samples(80, plot_limits, bkd)
+true_vals = true_fn(pts)
+surr_vals = mi_2d(pts)
+error = bkd.to_numpy(bkd.abs(true_vals - surr_vals)).reshape(
+    bkd.to_numpy(X).shape
+)
+cs = axes[2].contourf(
+    bkd.to_numpy(X), bkd.to_numpy(Y), error, levels=20, cmap="inferno"
+)
+fig.colorbar(cs, ax=axes[2])
+axes[2].set_title("Pointwise error $|f_1 - \\hat{f}|$", fontsize=12)
+axes[2].set_xlabel("$z_1$", fontsize=11)
+axes[2].set_ylabel("$z_2$", fontsize=11)
+
+plt.tight_layout()
+plt.show()
+```
+
 
 ## Multi-Index with Multiple Config Variables
 
-While this tutorial focuses on a single configuration variable (one-dimensional model hierarchy), the framework naturally extends to **multiple** configuration variables.  For example, a PDE solver might have separate controls for mesh resolution in $x$ and $y$:
+While this tutorial focuses on a single configuration variable (one-dimensional model hierarchy), the framework naturally extends to **multiple** configuration variables.  As shown in the [mesh illustration](#what-are-configuration-variables) earlier, a PDE solver might have separate controls for mesh resolution in $x$ and $y$:
 
-- Config variable 1: $x$-mesh refinement level
-- Config variable 2: $y$-mesh refinement level
+- Config variable 1: $x$-mesh refinement level ($\alpha_x$)
+- Config variable 2: $y$-mesh refinement level ($\alpha_y$)
 
-The `nconfig_vars` parameter controls this, and `config_bounds` specifies the maximum level for each config dimension.  The adaptive algorithm then explores the full joint space of physical resolution and model fidelity.
+The `nconfig_vars` parameter controls this, and `config_bounds` specifies the maximum level for each config dimension.  The adaptive algorithm then explores the full joint space of physical resolution and model fidelity.  With two config variables the index becomes $[\beta_1, \ldots, \beta_d, \alpha_x, \alpha_y]$, and the Smolyak combination builds discrepancy surrogates along *each* config direction independently.
 
 
 ## Summary
 
 - **Multi-level collocation** approximates $f_\alpha = f_0 + \sum_{j=1}^{\alpha} (f_j - f_{j-1})$ by interpolating each discrepancy separately.  Discrepancies are smoother and cheaper to approximate.
-- **Multi-index collocation** generalises this to multiple configuration variables using the Smolyak combination over the full (physical + config) index space.
+- **Multi-index collocation** generalizes this to multiple configuration variables using the Smolyak combination over the full (physical + config) index space.
 - `MultiFidelityModelFactoryProtocol` requires `get_model(config_index)`, `nconfig_vars()`, and `bkd()`.
 - `MultiIndexAdaptiveCombinationSparseGrid` supports both **auto mode** (with `step()` or `refine_to_tolerance()`) and **manual mode** (with `step_samples()`/`step_values()`).
-- **Cost-aware refinement** via `ConfigIndexCostFunction` ensures that cheap models are exploited before expensive ones, optimising accuracy per unit cost.
+- **Cost-aware refinement** via `ConfigIndexCostFunction` ensures that cheap models are exploited before expensive ones, optimizing accuracy per unit cost.
 
 
 ## Exercises
@@ -456,7 +697,7 @@ The `nconfig_vars` parameter controls this, and `config_bounds` specifies the ma
 
 3. **Convergence comparison.**  Compare the multi-fidelity grid against a single-model adaptive grid (using only $f_1$).  Plot error vs total **cost** (not just sample count) to see the benefit of multi-fidelity.
 
-4. **2D physical problem.**  Implement a 2D problem where the low-fidelity model uses a coarser discretisation (e.g., fewer Fourier modes).  Use `MultiIndexAdaptiveCombinationSparseGrid` to build a multi-fidelity surrogate.
+4. **2D physical problem.**  Implement a 2D problem where the low-fidelity model uses a coarser discretization (e.g., fewer Fourier modes).  Use `MultiIndexAdaptiveCombinationSparseGrid` to build a multi-fidelity surrogate.
 :::
 
 

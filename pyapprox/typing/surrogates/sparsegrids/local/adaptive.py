@@ -274,7 +274,7 @@ class LocallyAdaptiveCombinationSparseGrid(Generic[Array]):
             idx = self._index_gen._cand_basis_indices_dict[key]
             self._candidate_queue.put(priority, error, idx)
 
-    def _evaluate_selected_only(self, samples: Array) -> Array:
+    def _evaluate_with_selected_indices(self, samples: Array) -> Array:
         """Evaluate interpolant using only selected basis functions.
 
         This is a simplified evaluation that sums contributions from
@@ -418,7 +418,7 @@ class LocallyAdaptiveCombinationSparseGrid(Generic[Array]):
         Array
             Interpolant values. Shape: (npoints, nqoi)
         """
-        return self._evaluate_selected_only(samples)
+        return self._evaluate_with_selected_indices(samples)
 
     def error_estimate(self) -> float:
         """Return current error estimate."""

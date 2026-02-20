@@ -181,6 +181,29 @@ class CombinationSparseGrid(Generic[Array]):
         # Bind derivative methods based on nqoi
         self._setup_derivative_methods()
 
+    def _create_subspace(self, index: Array) -> TensorProductSubspace[Array]:
+        """Create a tensor product subspace for the given index.
+
+        Override this in subclasses to customize subspace construction
+        (e.g., using only physical dimensions of the index).
+
+        Parameters
+        ----------
+        index : Array
+            Multi-index for the subspace, shape (nvars,) or larger.
+
+        Returns
+        -------
+        TensorProductSubspace[Array]
+            The newly created subspace.
+        """
+        return TensorProductSubspace(
+            self._bkd,
+            index,
+            self._basis_factories,
+            self._growth_rules,
+        )
+
     def _add_subspace(self, index: Array) -> TensorProductSubspace[Array]:
         """Add a subspace to the sparse grid.
 
@@ -199,12 +222,7 @@ class CombinationSparseGrid(Generic[Array]):
             return self._subspaces[key]
 
         subspace_idx = len(self._subspace_list)
-        subspace = TensorProductSubspace(
-            self._bkd,
-            index,
-            self._basis_factories,
-            self._growth_rules,
-        )
+        subspace = self._create_subspace(index)
         self._subspaces[key] = subspace
         self._subspace_list.append(subspace)
 
@@ -243,7 +261,7 @@ class CombinationSparseGrid(Generic[Array]):
         self,
         smolyak_coefs: Array,
         new_index: Array,
-        indices: Array,
+        subset_positions: Array,
     ) -> Array:
         """Incrementally update Smolyak coefficients when adding a new index.
 
@@ -251,17 +269,17 @@ class CombinationSparseGrid(Generic[Array]):
         The algorithm updates coefficients for all indices that are "neighbors"
         of the new index (differ by at most 1 in each component).
 
-        This matches the legacy implementation in
-        pyapprox.surrogates.sparsegrids.combination.AdaptiveCombinationSparseGrid._adjust_smolyak_coefficients().
-
         Parameters
         ----------
         smolyak_coefs : Array
             Current Smolyak coefficients. Shape: (nindices,)
         new_index : Array
             New index being added. Shape: (nvars,)
-        indices : Array
-            All indices (including new_index). Shape: (nvars, nindices)
+        subset_positions : Array
+            Integer positions into the indices array (and
+            ``smolyak_coefs``) to consider. Each position ``p``
+            indexes column ``p`` of the stored indices array and
+            entry ``p`` of ``smolyak_coefs``.
 
         Returns
         -------
@@ -269,20 +287,28 @@ class CombinationSparseGrid(Generic[Array]):
             Updated Smolyak coefficients.
         """
         new_smolyak_coefs = self._bkd.copy(smolyak_coefs)
-        nindices = indices.shape[1]
+        indices = self._get_all_indices()
 
-        for idx in range(nindices):
+        for pos in subset_positions:
+            idx = int(pos)
             diff = new_index - indices[:, idx]
-            # Check if this index is a neighbor: all diffs >= 0 and max diff <= 1
             max_diff: float = self._bkd.max(diff).item()
             if self._bkd.all_bool(diff >= 0) and max_diff <= 1:
-                # Update coefficient using inclusion-exclusion formula
                 sum_diff: float = self._bkd.sum(diff).item()
                 new_smolyak_coefs[idx] = new_smolyak_coefs[idx] + (
                     (-1.0) ** sum_diff
                 )
 
         return new_smolyak_coefs
+
+    def _get_all_indices(self) -> Array:
+        """Return indices array for Smolyak coefficient updates.
+
+        Subclasses with an index generator override this to return
+        ``self._index_gen._indices``. The base class returns the
+        subspace indices stored in the grid.
+        """
+        return self.get_subspace_indices()
 
     def _collect_unique_samples(self) -> None:
         """Collect unique samples using precomputed index mappings."""
@@ -323,6 +349,35 @@ class CombinationSparseGrid(Generic[Array]):
             subspace_values = self._values[:, global_indices]
             subspace.set_values(subspace_values)
 
+    def _evaluate_from_smolyak_coefficients(
+        self,
+        samples: Array,
+        smolyak_coefs: Array,
+    ) -> Array:
+        """Evaluate combination using given Smolyak coefficients.
+
+        Parameters
+        ----------
+        samples : Array
+            Evaluation points of shape (nvars, npoints).
+        smolyak_coefs : Array
+            Coefficients of shape (nsubspaces,).
+
+        Returns
+        -------
+        Array
+            Interpolant values of shape (nqoi, npoints).
+        """
+        assert self._nqoi is not None
+        npoints = samples.shape[1]
+        result = self._bkd.zeros((self._nqoi, npoints))
+        for j, subspace in enumerate(self._subspace_list):
+            coef: float = smolyak_coefs[j].item()
+            if abs(coef) > 1e-14:
+                subspace_vals = subspace(samples)
+                result = result + coef * subspace_vals
+        return result
+
     def __call__(self, samples: Array) -> Array:
         """Evaluate sparse grid interpolant.
 
@@ -344,16 +399,9 @@ class CombinationSparseGrid(Generic[Array]):
             self._update_smolyak_coefficients()
         assert self._smolyak_coefficients is not None
 
-        npoints = samples.shape[1]
-        result = self._bkd.zeros((self._nqoi, npoints))
-
-        for j, subspace in enumerate(self._subspace_list):
-            coef: float = self._smolyak_coefficients[j].item()
-            if abs(coef) > 1e-14:
-                subspace_vals = subspace(samples)
-                result = result + coef * subspace_vals
-
-        return result
+        return self._evaluate_from_smolyak_coefficients(
+            samples, self._smolyak_coefficients
+        )
 
     def get_subspace_indices(self) -> Array:
         """Return indices of all subspaces.
@@ -413,6 +461,50 @@ class CombinationSparseGrid(Generic[Array]):
         # whvp - always available (works for any nqoi)
         self.whvp = self._whvp
 
+    def _jacobian_from_smolyak_coefficients(
+        self, sample: Array, smolyak_coefs: Array
+    ) -> Array:
+        """Compute Jacobian using given Smolyak coefficients."""
+        assert self._nqoi is not None
+        jacobian = self._bkd.zeros((self._nqoi, self._nvars))
+        for j, subspace in enumerate(self._subspace_list):
+            coef: float = smolyak_coefs[j].item()
+            if abs(coef) > 1e-14:
+                jacobian = jacobian + coef * subspace.jacobian(sample)
+        return jacobian
+
+    def _hvp_from_smolyak_coefficients(
+        self, sample: Array, vec: Array, smolyak_coefs: Array
+    ) -> Array:
+        """Compute HVP using given Smolyak coefficients."""
+        result = self._bkd.zeros((self._nvars, 1))
+        for j, subspace in enumerate(self._subspace_list):
+            coef: float = smolyak_coefs[j].item()
+            if abs(coef) > 1e-14:
+                result = result + coef * subspace.hvp(sample, vec)
+        return result
+
+    def _whvp_from_smolyak_coefficients(
+        self, sample: Array, vec: Array, weights: Array,
+        smolyak_coefs: Array,
+    ) -> Array:
+        """Compute weighted HVP using given Smolyak coefficients."""
+        result = self._bkd.zeros((self._nvars, 1))
+        for j, subspace in enumerate(self._subspace_list):
+            coef: float = smolyak_coefs[j].item()
+            if abs(coef) > 1e-14:
+                result = result + coef * subspace.whvp(
+                    sample, vec, weights
+                )
+        return result
+
+    def _ensure_smolyak_coefficients(self) -> Array:
+        """Return current Smolyak coefficients, recomputing if needed."""
+        if self._smolyak_coefficients is None:
+            self._update_smolyak_coefficients()
+        assert self._smolyak_coefficients is not None
+        return self._smolyak_coefficients
+
     def _jacobian(self, sample: Array) -> Array:
         """Compute Jacobian at a single sample point.
 
@@ -428,27 +520,14 @@ class CombinationSparseGrid(Generic[Array]):
         """
         if self._values is None:
             raise ValueError("Values not set. Call set_values() first.")
-        assert self._nqoi is not None
-
-        if self._smolyak_coefficients is None:
-            self._update_smolyak_coefficients()
-        assert self._smolyak_coefficients is not None
-
-        jacobian = self._bkd.zeros((self._nqoi, self._nvars))
-
-        for j, subspace in enumerate(self._subspace_list):
-            coef: float = self._smolyak_coefficients[j].item()
-            if abs(coef) > 1e-14:
-                subspace_jac = subspace.jacobian(sample)
-                jacobian = jacobian + coef * subspace_jac
-
-        return jacobian
+        return self._jacobian_from_smolyak_coefficients(
+            sample, self._ensure_smolyak_coefficients()
+        )
 
     def _hvp(self, sample: Array, vec: Array) -> Array:
         """Compute Hessian-vector product for scalar-valued function.
 
-        Only valid when nqoi=1. Uses efficient computation without forming
-        the full Hessian. This method is bound to self.hvp by
+        Only valid when nqoi=1. This method is bound to self.hvp by
         _setup_derivative_methods() only when nqoi == 1.
 
         Parameters
@@ -465,29 +544,12 @@ class CombinationSparseGrid(Generic[Array]):
         """
         if self._values is None:
             raise ValueError("Values not set. Call set_values() first.")
-
-        if self._smolyak_coefficients is None:
-            self._update_smolyak_coefficients()
-        assert self._smolyak_coefficients is not None
-
-        # Use efficient subspace HVP without forming full Hessian
-        result = self._bkd.zeros((self._nvars, 1))
-
-        for j, subspace in enumerate(self._subspace_list):
-            coef: float = self._smolyak_coefficients[j].item()
-            if abs(coef) > 1e-14:
-                subspace_hvp = subspace.hvp(sample, vec)
-                result = result + coef * subspace_hvp
-
-        return result
+        return self._hvp_from_smolyak_coefficients(
+            sample, vec, self._ensure_smolyak_coefficients()
+        )
 
     def _whvp(self, sample: Array, vec: Array, weights: Array) -> Array:
         """Compute weighted Hessian-vector product for vector-valued function.
-
-        For vector-valued functions, computes sum_i weights[i] * H_i @ vec
-        where H_i is the Hessian of the i-th QoI. Uses efficient computation
-        without forming full Hessians. This method is bound to self.whvp by
-        _setup_derivative_methods().
 
         Parameters
         ----------
@@ -496,7 +558,7 @@ class CombinationSparseGrid(Generic[Array]):
         vec : Array
             Direction vector of shape (nvars, 1)
         weights : Array
-            Weights for each QoI. Can be shape (nqoi, 1), (1, nqoi), or (nqoi,).
+            Weights for each QoI.
 
         Returns
         -------
@@ -505,21 +567,9 @@ class CombinationSparseGrid(Generic[Array]):
         """
         if self._values is None:
             raise ValueError("Values not set. Call set_values() first.")
-
-        if self._smolyak_coefficients is None:
-            self._update_smolyak_coefficients()
-        assert self._smolyak_coefficients is not None
-
-        # Use efficient subspace WHVP without forming full Hessians
-        result = self._bkd.zeros((self._nvars, 1))
-
-        for j, subspace in enumerate(self._subspace_list):
-            coef: float = self._smolyak_coefficients[j].item()
-            if abs(coef) > 1e-14:
-                subspace_whvp = subspace.whvp(sample, vec, weights)
-                result = result + coef * subspace_whvp
-
-        return result
+        return self._whvp_from_smolyak_coefficients(
+            sample, vec, weights, self._ensure_smolyak_coefficients()
+        )
 
     def mean(self) -> Array:
         """Compute the integral of the interpolant using sparse grid quadrature.

@@ -95,7 +95,7 @@ class L2NormRefinementCriteria(Generic[Array]):
         samples = subspace.get_samples()
 
         # Evaluate current interpolant at subspace samples
-        current_vals = grid._evaluate_selected_only(samples)
+        current_vals = grid._evaluate_with_selected_indices(samples)
 
         # Compute L2 norm error normalized by number of samples
         nsamples = subspace_values.shape[1]

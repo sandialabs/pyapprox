@@ -314,15 +314,19 @@ class TestIncrementalSmolyakUpdate(Generic[Array], unittest.TestCase):
 
         old_coefs = grid.get_smolyak_coefficients()
         new_index = self._bkd.asarray([2])
-        old_indices = grid.get_subspace_indices()
+
+        # Add new subspace so _get_all_indices includes it
+        grid._add_subspace(new_index)
 
         extended_coefs = self._bkd.hstack((old_coefs, self._bkd.zeros((1,))))
-        new_indices = self._bkd.hstack((old_indices, new_index[:, None]))
+        all_positions = self._bkd.arange(3, dtype=self._bkd.int64_dtype())
 
         incremental_coefs = grid._adjust_smolyak_coefficients(
-            extended_coefs, new_index, new_indices
+            extended_coefs, new_index, all_positions
         )
-        scratch_coefs = compute_smolyak_coefficients(new_indices, self._bkd)
+        scratch_coefs = compute_smolyak_coefficients(
+            grid.get_subspace_indices(), self._bkd
+        )
 
         self._bkd.assert_allclose(incremental_coefs, scratch_coefs)
 
@@ -336,16 +340,19 @@ class TestIncrementalSmolyakUpdate(Generic[Array], unittest.TestCase):
         grid._add_subspace(self._bkd.asarray([0, 1]))
 
         old_coefs = grid.get_smolyak_coefficients()
-        old_indices = grid.get_subspace_indices()
-
         new_index = self._bkd.asarray([1, 1])
+
+        grid._add_subspace(new_index)
+
         extended_coefs = self._bkd.hstack((old_coefs, self._bkd.zeros((1,))))
-        new_indices = self._bkd.hstack((old_indices, new_index[:, None]))
+        all_positions = self._bkd.arange(4, dtype=self._bkd.int64_dtype())
 
         incremental_coefs = grid._adjust_smolyak_coefficients(
-            extended_coefs, new_index, new_indices
+            extended_coefs, new_index, all_positions
         )
-        scratch_coefs = compute_smolyak_coefficients(new_indices, self._bkd)
+        scratch_coefs = compute_smolyak_coefficients(
+            grid.get_subspace_indices(), self._bkd
+        )
 
         self._bkd.assert_allclose(incremental_coefs, scratch_coefs)
 
@@ -360,16 +367,19 @@ class TestIncrementalSmolyakUpdate(Generic[Array], unittest.TestCase):
         grid._add_subspace(self._bkd.asarray([1, 1]))
 
         old_coefs = grid.get_smolyak_coefficients()
-        old_indices = grid.get_subspace_indices()
-
         new_index = self._bkd.asarray([2, 0])
+
+        grid._add_subspace(new_index)
+
         extended_coefs = self._bkd.hstack((old_coefs, self._bkd.zeros((1,))))
-        new_indices = self._bkd.hstack((old_indices, new_index[:, None]))
+        all_positions = self._bkd.arange(5, dtype=self._bkd.int64_dtype())
 
         incremental_coefs = grid._adjust_smolyak_coefficients(
-            extended_coefs, new_index, new_indices
+            extended_coefs, new_index, all_positions
         )
-        scratch_coefs = compute_smolyak_coefficients(new_indices, self._bkd)
+        scratch_coefs = compute_smolyak_coefficients(
+            grid.get_subspace_indices(), self._bkd
+        )
 
         self._bkd.assert_allclose(incremental_coefs, scratch_coefs)
 
@@ -391,17 +401,18 @@ class TestIncrementalSmolyakUpdate(Generic[Array], unittest.TestCase):
         grid._add_subspace(indices_to_add[0])
         current_coefs = grid.get_smolyak_coefficients()
 
-        for new_index in indices_to_add[1:]:
-            old_indices = grid.get_subspace_indices()
+        for ii, new_index in enumerate(indices_to_add[1:], start=2):
             grid._add_subspace(new_index)
 
             extended_coefs = self._bkd.hstack(
                 (current_coefs, self._bkd.zeros((1,)))
             )
-            new_indices = self._bkd.hstack((old_indices, new_index[:, None]))
+            all_positions = self._bkd.arange(
+                ii, dtype=self._bkd.int64_dtype()
+            )
 
             current_coefs = grid._adjust_smolyak_coefficients(
-                extended_coefs, new_index, new_indices
+                extended_coefs, new_index, all_positions
             )
 
         final_indices = grid.get_subspace_indices()
@@ -419,14 +430,15 @@ class TestIncrementalSmolyakUpdate(Generic[Array], unittest.TestCase):
         grid._add_subspace(self._bkd.asarray([0, 1]))
 
         old_coefs = grid.get_smolyak_coefficients()
-        old_indices = grid.get_subspace_indices()
-
         new_index = self._bkd.asarray([1, 1])
+
+        grid._add_subspace(new_index)
+
         extended_coefs = self._bkd.hstack((old_coefs, self._bkd.zeros((1,))))
-        new_indices = self._bkd.hstack((old_indices, new_index[:, None]))
+        all_positions = self._bkd.arange(4, dtype=self._bkd.int64_dtype())
 
         incremental_coefs = grid._adjust_smolyak_coefficients(
-            extended_coefs, new_index, new_indices
+            extended_coefs, new_index, all_positions
         )
 
         coef_sum = float(self._bkd.sum(incremental_coefs).item())
@@ -448,16 +460,19 @@ class TestIncrementalSmolyakUpdate(Generic[Array], unittest.TestCase):
         grid._add_subspace(self._bkd.asarray([0, 0, 1]))
 
         old_coefs = grid.get_smolyak_coefficients()
-        old_indices = grid.get_subspace_indices()
-
         new_index = self._bkd.asarray([1, 1, 0])
+
+        grid._add_subspace(new_index)
+
         extended_coefs = self._bkd.hstack((old_coefs, self._bkd.zeros((1,))))
-        new_indices = self._bkd.hstack((old_indices, new_index[:, None]))
+        all_positions = self._bkd.arange(5, dtype=self._bkd.int64_dtype())
 
         incremental_coefs = grid._adjust_smolyak_coefficients(
-            extended_coefs, new_index, new_indices
+            extended_coefs, new_index, all_positions
         )
-        scratch_coefs = compute_smolyak_coefficients(new_indices, self._bkd)
+        scratch_coefs = compute_smolyak_coefficients(
+            grid.get_subspace_indices(), self._bkd
+        )
 
         self._bkd.assert_allclose(incremental_coefs, scratch_coefs)
 

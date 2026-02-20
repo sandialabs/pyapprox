@@ -27,7 +27,9 @@ from .refinement.l2norm import L2NormRefinementCriteria
 _IndexGenType = IterativeIndexGenerator
 
 
-class AdaptiveCombinationSparseGrid(CombinationSparseGrid[Array], Generic[Array]):
+class AdaptiveCombinationSparseGrid(
+    CombinationSparseGrid[Array], Generic[Array]
+):
     """Adaptive sparse grid with refinement based on error indicators.
 
     Implements the step_samples/step_values pattern for incremental
@@ -81,12 +83,15 @@ class AdaptiveCombinationSparseGrid(CombinationSparseGrid[Array], Generic[Array]
         self,
         bkd: Backend[Array],
         basis_factories: List[BasisFactoryProtocol[Array]],
-        growth_rules: Union[IndexGrowthRuleProtocol, List[IndexGrowthRuleProtocol]],
+        growth_rules: Union[
+            IndexGrowthRuleProtocol, List[IndexGrowthRuleProtocol]
+        ],
         admissibility: AdmissibilityCriteria[Array],
         refinement_priority: Optional[
             SparseGridRefinementCriteriaProtocol[Array]
         ] = None,
         verbosity: int = 0,
+        nvars_index: Optional[int] = None,
     ):
         # Runtime protocol validation (bkd, basis_factories, growth_rules validated by parent)
         validate_admissibility(admissibility)
@@ -95,7 +100,9 @@ class AdaptiveCombinationSparseGrid(CombinationSparseGrid[Array], Generic[Array]
         self._admissibility = admissibility
         if refinement_priority is None:
             refinement_priority = L2NormRefinementCriteria(bkd)
-        if not isinstance(refinement_priority, SparseGridRefinementCriteriaProtocol):
+        if not isinstance(
+            refinement_priority, SparseGridRefinementCriteriaProtocol
+        ):
             raise TypeError(
                 f"refinement_priority must satisfy SparseGridRefinementCriteriaProtocol, "
                 f"got {type(refinement_priority).__name__}"
@@ -103,10 +110,14 @@ class AdaptiveCombinationSparseGrid(CombinationSparseGrid[Array], Generic[Array]
         self._refinement_priority = refinement_priority
         self._verbosity = verbosity
 
+        # nvars_index allows subclasses to use a higher-dimensional index
+        # space (e.g., physical + config) while keeping physical-only bases
+        self._nvars_index = nvars_index if nvars_index is not None else self._nvars
+
         # Index generator for tracking selected/candidate subspaces
         # Type annotation shadows base class's Optional[IndexGenerator[Array]]
         self._index_gen: _IndexGenType[Array] = IterativeIndexGenerator(
-            self._nvars, bkd
+            self._nvars_index, bkd
         )
         self._index_gen.set_admissibility_criteria(admissibility)
 
@@ -125,31 +136,54 @@ class AdaptiveCombinationSparseGrid(CombinationSparseGrid[Array], Generic[Array]
         # Shape: (nselected + ncandidates,) with candidates having 0 coefficients
         self._selected_smolyak_coefs: Optional[Array] = None
 
-    def _evaluate_selected_only(self, samples: Array) -> Array:
-        """Evaluate sparse grid using only selected subspaces."""
-        if self._values is None or self._nqoi is None:
-            return self._bkd.zeros((1, samples.shape[1]))
+    def _get_all_indices(self) -> Array:
+        """Return indices from the index generator."""
+        return self._index_gen._indices
 
-        # Get Smolyak coefficients for selected indices only
+    def _smolyak_coefs_from_index_gen(self, indices: Array) -> Array:
+        """Compute full-length Smolyak coefs from a subset of indices.
+
+        Computes Smolyak coefficients for the given index subset, then
+        scatters them into a full-length array (one entry per element
+        in ``_subspace_list``).  Entries not in ``indices`` are zero.
+        """
+        smolyak_coefs = compute_smolyak_coefficients(indices, self._bkd)
+        nsubspaces = len(self._subspace_list)
+        full_coefs = self._bkd.zeros((nsubspaces,))
+        all_indices = self._index_gen.get_indices()
+        # Map each index in `indices` to its position in all_indices
+        # (which has the same ordering as _subspace_list)
+        for k in range(indices.shape[1]):
+            idx = indices[:, k]
+            for pos in range(all_indices.shape[1]):
+                if self._bkd.all_bool(all_indices[:, pos] == idx):
+                    full_coefs[pos] = smolyak_coefs[k]
+                    break
+        return full_coefs
+
+    def _evaluate_with_all_indices(self, samples: Array) -> Array:
+        """Evaluate using all subspaces (selected + candidates)."""
+        all_indices = self._index_gen.get_indices()
+        if all_indices.shape[1] == 0:
+            assert self._nqoi is not None
+            return self._bkd.zeros((self._nqoi, samples.shape[1]))
+        smolyak_coefs = compute_smolyak_coefficients(
+            all_indices, self._bkd
+        )
+        return self._evaluate_from_smolyak_coefficients(
+            samples, smolyak_coefs
+        )
+
+    def _evaluate_with_selected_indices(self, samples: Array) -> Array:
+        """Evaluate using only selected subspaces."""
         selected_indices = self._index_gen.get_selected_indices()
         if selected_indices.shape[1] == 0:
+            assert self._nqoi is not None
             return self._bkd.zeros((self._nqoi, samples.shape[1]))
-
-        smolyak_coefs = compute_smolyak_coefficients(selected_indices, self._bkd)
-
-        npoints = samples.shape[1]
-        result = self._bkd.zeros((self._nqoi, npoints))
-
-        for j, index in enumerate(selected_indices.T):
-            key = _index_to_tuple(index)
-            if key in self._subspaces:
-                coef = float(smolyak_coefs[j])
-                if abs(coef) > 1e-14:
-                    subspace = self._subspaces[key]
-                    if subspace.get_values() is not None:
-                        result = result + coef * subspace(samples)
-
-        return result
+        return self._evaluate_from_smolyak_coefficients(
+            samples,
+            self._smolyak_coefs_from_index_gen(selected_indices),
+        )
 
     def step_samples(self) -> Optional[Array]:
         """Get samples for next refinement step.
@@ -165,9 +199,9 @@ class AdaptiveCombinationSparseGrid(CombinationSparseGrid[Array], Generic[Array]
 
     def _first_step_samples(self) -> Array:
         """Get samples for the first step (initial subspaces)."""
-        # Initialize with zero index
+        # Initialize with zero index (uses nvars_index for full index space)
         zero_index = self._bkd.zeros(
-            (self._nvars, 1), dtype=self._bkd.int64_dtype()
+            (self._nvars_index, 1), dtype=self._bkd.int64_dtype()
         )
         self._index_gen.set_selected_indices(zero_index)
 
@@ -190,10 +224,9 @@ class AdaptiveCombinationSparseGrid(CombinationSparseGrid[Array], Generic[Array]
         if cand_indices is not None:
             # Extend Smolyak coefficients with zeros for candidates
             ncandidates = cand_indices.shape[1]
-            self._selected_smolyak_coefs = self._bkd.hstack((
-                self._selected_smolyak_coefs,
-                self._bkd.zeros((ncandidates,))
-            ))
+            self._selected_smolyak_coefs = self._bkd.hstack(
+                (self._selected_smolyak_coefs, self._bkd.zeros((ncandidates,)))
+            )
             for index in cand_indices.T:
                 self._add_subspace(index)
                 self._subspace_errors.append(float("inf"))
@@ -201,7 +234,9 @@ class AdaptiveCombinationSparseGrid(CombinationSparseGrid[Array], Generic[Array]
             if self._verbosity >= 2:
                 print("[Adaptive SG] Initial candidates:")
                 for index in cand_indices.T:
-                    idx_tuple = tuple(int(x) for x in self._bkd.to_numpy(index))
+                    idx_tuple = tuple(
+                        int(x) for x in self._bkd.to_numpy(index)
+                    )
                     print(f"  - {idx_tuple} (error=inf, priority=pending)")
 
         self._last_subspace_indices = self._index_gen.get_indices()
@@ -213,8 +248,30 @@ class AdaptiveCombinationSparseGrid(CombinationSparseGrid[Array], Generic[Array]
         return self._bkd.copy(self._unique_samples)
 
     def _next_step_samples(self) -> Optional[Array]:
-        """Get samples for subsequent steps (refinement)."""
-        while self._candidate_queue is not None and not self._candidate_queue.empty():
+        """Get samples for subsequent steps (refinement).
+
+        Pops the highest-priority candidate from the queue, refines it
+        (moves it from candidate to selected), and returns the new
+        unique samples needed by the child subspaces.
+
+        The loop typically executes a single iteration because the
+        refined candidate almost always produces new child indices
+        with new samples, triggering an immediate return.  The loop
+        only continues when ``refine_index`` produces **no** new
+        candidate indices --- this happens when all forward neighbors
+        are blocked by the admissibility criteria (e.g. they exceed
+        ``max_level``).  In that case the next-best candidate is
+        tried until one yields new samples or the queue is exhausted.
+
+        Returns
+        -------
+        Optional[Array]
+            New unique samples to evaluate, or None if converged.
+        """
+        while (
+            self._candidate_queue is not None
+            and not self._candidate_queue.empty()
+        ):
             # Get best candidate subspace
             priority, error, best_idx = self._candidate_queue.get()
             best_index = self._index_gen._indices[:, best_idx]
@@ -237,18 +294,23 @@ class AdaptiveCombinationSparseGrid(CombinationSparseGrid[Array], Generic[Array]
 
             # Extend Smolyak coefficients array for new candidates
             if self._selected_smolyak_coefs is not None:
-                self._selected_smolyak_coefs = self._bkd.hstack((
-                    self._selected_smolyak_coefs,
-                    self._bkd.zeros((new_cand_indices.shape[1],))
-                ))
+                self._selected_smolyak_coefs = self._bkd.hstack(
+                    (
+                        self._selected_smolyak_coefs,
+                        self._bkd.zeros((new_cand_indices.shape[1],)),
+                    )
+                )
 
-            # Incrementally update Smolyak coefficients for the refined index
-            # This is done after refine_index moves it from candidate to selected
+            # Incrementally update Smolyak coefficients for the refined index.
+            # Only iterate over selected positions (not candidates).
             if self._selected_smolyak_coefs is not None:
-                self._selected_smolyak_coefs = self._adjust_smolyak_coefficients(
-                    self._selected_smolyak_coefs,
-                    best_index,
-                    self._index_gen.get_indices(),
+                selected_positions = self._index_gen._get_selected_idx()
+                self._selected_smolyak_coefs = (
+                    self._adjust_smolyak_coefficients(
+                        self._selected_smolyak_coefs,
+                        best_index,
+                        selected_positions,
+                    )
                 )
 
             # Reset error for the refined subspace
@@ -262,7 +324,9 @@ class AdaptiveCombinationSparseGrid(CombinationSparseGrid[Array], Generic[Array]
             if self._verbosity >= 2 and new_cand_indices.shape[1] > 0:
                 print(f"[Adaptive SG] New candidates from {best_index_tuple}:")
                 for index in new_cand_indices.T:
-                    idx_tuple = tuple(int(x) for x in self._bkd.to_numpy(index))
+                    idx_tuple = tuple(
+                        int(x) for x in self._bkd.to_numpy(index)
+                    )
                     print(f"  - {idx_tuple} (error=inf, priority=pending)")
 
             if new_cand_indices.shape[1] == 0:
@@ -298,20 +362,14 @@ class AdaptiveCombinationSparseGrid(CombinationSparseGrid[Array], Generic[Array]
             return self._subspaces[key]
 
         subspace_idx = len(self._subspace_list)
-        subspace = TensorProductSubspace(
-            self._bkd,
-            index,
-            self._basis_factories,
-            self._growth_rules,
-        )
+        subspace = self._create_subspace(index)
         self._subspaces[key] = subspace
         self._subspace_list.append(subspace)
 
         # Build index mappings for sample deduplication
         # Pass samples for non-nested path (needed for coordinate-based hashing)
         self._basis_gen._set_unique_subspace_basis_indices(
-            index, subspace_idx,
-            subspace_samples=subspace.get_samples()
+            index, subspace_idx, subspace_samples=subspace.get_samples()
         )
 
         # Invalidate Smolyak coefficients but NOT unique_samples
@@ -336,7 +394,9 @@ class AdaptiveCombinationSparseGrid(CombinationSparseGrid[Array], Generic[Array]
             subspace = self._subspaces[key]
             subspace_idx = self._subspace_list.index(subspace)
 
-            unique_local = self._basis_gen.get_unique_local_indices(subspace_idx)
+            unique_local = self._basis_gen.get_unique_local_indices(
+                subspace_idx
+            )
 
             if len(unique_local) > 0:
                 subspace_samples = subspace.get_samples()
@@ -400,13 +460,17 @@ class AdaptiveCombinationSparseGrid(CombinationSparseGrid[Array], Generic[Array]
             )
 
             # Get index id
-            idx = self._index_gen._cand_indices_dict[self._index_gen._hash_index(index)]
+            idx = self._index_gen._cand_indices_dict[
+                self._index_gen._hash_index(index)
+            ]
             self._candidate_queue.put(priority, error, idx)
             self._subspace_errors[idx] = error
 
             if self._verbosity >= 2:
                 idx_tuple = tuple(int(x) for x in self._bkd.to_numpy(index))
-                print(f"  - {idx_tuple}: error={error:.2e}, priority={priority:.2e}")
+                print(
+                    f"  - {idx_tuple}: error={error:.2e}, priority={priority:.2e}"
+                )
 
     def error_estimate(self) -> float:
         """Return current error estimate.
@@ -414,24 +478,17 @@ class AdaptiveCombinationSparseGrid(CombinationSparseGrid[Array], Generic[Array]
         Returns
         -------
         float
-            Sum of subspace errors.
-
-        Raises
-        ------
-        RuntimeError
-            If any subspace error is infinity after step_values() has been called.
-            This indicates a bug in the error computation.
+            Sum of errors for candidate subspaces only.
         """
-        # Check for infinities - these should never appear after step_values()
-        # has been called for all candidate subspaces
-        inf_count = sum(1 for e in self._subspace_errors if e == float("inf"))
-        if inf_count > 0:
-            raise RuntimeError(
-                f"Found {inf_count} subspace(s) with infinite error. "
-                "This should not happen after step_values() is called. "
-                "Check that values are provided for all candidate subspaces."
-            )
-        return sum(self._subspace_errors)
+        cand_indices = self._index_gen.get_candidate_indices()
+        if cand_indices is None:
+            return 0.0
+        total = 0.0
+        for index in cand_indices.T:
+            key = self._index_gen._hash_index(index)
+            idx = self._index_gen._cand_indices_dict[key]
+            total += self._subspace_errors[idx]
+        return total
 
     def get_candidate_subspaces(self) -> List[Array]:
         """Return indices of candidate subspaces for refinement.
@@ -513,17 +570,28 @@ class AdaptiveCombinationSparseGrid(CombinationSparseGrid[Array], Generic[Array]
         if self._selected_smolyak_coefs is None:
             # Fallback: compute from scratch
             selected = self._index_gen.get_selected_indices()
-            temp_indices = self._bkd.hstack((selected, candidate_index[:, None]))
+            temp_indices = self._bkd.hstack(
+                (selected, candidate_index[:, None])
+            )
             return compute_smolyak_coefficients(temp_indices, self._bkd)
 
-        # Use stored coefficients and incrementally update
-        # The stored coefficients already have zeros for candidates
-        # We need to compute what they would be if this candidate were selected
-        all_indices = self._index_gen.get_indices()
+        # Incrementally update: include selected positions plus this
+        # candidate's own position so that it participates in the update.
+        key = self._index_gen._hash_index(candidate_index)
+        cand_pos = self._index_gen._cand_indices_dict[key]
+        selected_positions = self._index_gen._get_selected_idx()
+        positions = self._bkd.hstack(
+            (
+                selected_positions,
+                self._bkd.asarray(
+                    [cand_pos], dtype=self._bkd.int64_dtype()
+                ),
+            )
+        )
         return self._adjust_smolyak_coefficients(
             self._selected_smolyak_coefs,
             candidate_index,
-            all_indices,
+            positions,
         )
 
     def mean(self) -> Array:
@@ -538,7 +606,9 @@ class AdaptiveCombinationSparseGrid(CombinationSparseGrid[Array], Generic[Array]
             Mean values of shape (nqoi,).
         """
         if self._selected_smolyak_coefs is not None:
-            return self._compute_moment("integrate", self._selected_smolyak_coefs)
+            return self._compute_moment(
+                "integrate", self._selected_smolyak_coefs
+            )
         # Fallback: compute from scratch
         smolyak_coefs = compute_smolyak_coefficients(
             self._index_gen.get_selected_indices(), self._bkd
@@ -557,31 +627,14 @@ class AdaptiveCombinationSparseGrid(CombinationSparseGrid[Array], Generic[Array]
             Variance values of shape (nqoi,).
         """
         if self._selected_smolyak_coefs is not None:
-            return self._compute_moment("variance", self._selected_smolyak_coefs)
+            return self._compute_moment(
+                "variance", self._selected_smolyak_coefs
+            )
         # Fallback: compute from scratch
         smolyak_coefs = compute_smolyak_coefficients(
             self._index_gen.get_selected_indices(), self._bkd
         )
         return self._compute_moment("variance", smolyak_coefs)
-
-    def __call__(self, samples: Array) -> Array:
-        """Evaluate sparse grid interpolant using selected subspaces.
-
-        Only selected subspaces (not candidates) are used for evaluation.
-
-        Parameters
-        ----------
-        samples : Array
-            Evaluation points of shape (nvars, npoints)
-
-        Returns
-        -------
-        Array
-            Interpolant values of shape (nqoi, npoints)
-        """
-        if self._values is None or self._nqoi is None:
-            raise ValueError("Values not set. Call step_values() first.")
-        return self._evaluate_selected_only(samples)
 
     def __repr__(self) -> str:
         return (

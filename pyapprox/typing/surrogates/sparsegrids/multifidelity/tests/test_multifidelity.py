@@ -15,6 +15,13 @@ from pyapprox.typing.util.test_utils import load_tests  # noqa: F401
 from pyapprox.typing.interface.functions.protocols import FunctionProtocol
 from pyapprox.typing.surrogates.affine.univariate import LegendrePolynomial1D
 from pyapprox.typing.surrogates.sparsegrids import PrebuiltBasisFactory
+from pyapprox.typing.surrogates.affine.indices import (
+    LinearGrowthRule,
+    MaxLevelCriteria,
+)
+from pyapprox.typing.surrogates.sparsegrids.adaptive import (
+    AdaptiveCombinationSparseGrid,
+)
 from pyapprox.typing.surrogates.sparsegrids.refinement import (
     ConfigIndexCostFunction,
 )
@@ -740,6 +747,122 @@ class TestMultiFidelitySparseGrid(Generic[Array], unittest.TestCase):
                 f"Config {config_idx}: Expected physical samples with 2 rows, "
                 f"got shape {phys_samples.shape}"
             )
+
+
+    def test_single_fidelity_matches_parent(self) -> None:
+        """Test multi-fidelity with 1 config level matches parent exactly.
+
+        When config_bounds=[0] (only config level 0), the multi-fidelity
+        grid should produce identical subspaces, Smolyak coefficients,
+        and evaluation to a plain AdaptiveCombinationSparseGrid.
+        """
+        np.random.seed(42)
+
+        # The function: f(x) = 1 + 2*x + 0.5*x^2
+        def fun(samples: Array) -> Array:
+            x = samples[0, :]
+            values = 1.0 + 2.0 * x + 0.5 * x**2
+            return self._bkd.reshape(values, (1, -1))
+
+        # Model factory returning always the same function
+        class SingleModelFactory(Generic[Array]):
+            def __init__(self, bkd: Backend[Array]) -> None:
+                self._bkd = bkd
+
+            def get_model(
+                self, config_index: Tuple[int, ...]
+            ) -> FunctionProtocol[Array]:
+                class Model:
+                    def __init__(self_m, bkd: Backend[Array]) -> None:
+                        self_m._bkd = bkd
+                    def bkd(self_m) -> Backend[Array]:
+                        return self_m._bkd
+                    def nvars(self_m) -> int:
+                        return 1
+                    def nqoi(self_m) -> int:
+                        return 1
+                    def __call__(self_m, samples: Array) -> Array:
+                        return fun(samples)
+                return Model(self._bkd)
+
+            def nconfig_vars(self) -> int:
+                return 1
+
+            def bkd(self) -> Backend[Array]:
+                return self._bkd
+
+        factories = [self._create_legendre_factory()]
+        growth = LinearGrowthRule(scale=2, shift=1)
+        admis = MaxLevelCriteria(max_level=3, pnorm=1.0, bkd=self._bkd)
+
+        # -- Parent class (single fidelity) --
+        parent_grid = AdaptiveCombinationSparseGrid(
+            self._bkd,
+            factories,
+            growth,
+            admis,
+        )
+        parent_samples = parent_grid.step_samples()
+        assert parent_samples is not None
+        parent_grid.step_values(fun(parent_samples))
+
+        for _ in range(10):
+            parent_samples = parent_grid.step_samples()
+            if parent_samples is None:
+                break
+            parent_grid.step_values(fun(parent_samples))
+
+        # -- Multi-fidelity with single config level --
+        from pyapprox.typing.surrogates.affine.indices import (
+            Max1DLevelsCriteria,
+        )
+        config_bounds = self._bkd.asarray([0.0])
+        max_levels = self._bkd.asarray([3.0, 0.0])
+        mf_admis = Max1DLevelsCriteria(max_levels, self._bkd)
+
+        mf_grid = MultiIndexAdaptiveCombinationSparseGrid(
+            self._bkd,
+            factories,
+            nconfig_vars=1,
+            config_bounds=config_bounds,
+            nqoi=1,
+            model_factory=SingleModelFactory(self._bkd),
+            admissibility=mf_admis,
+            growth_rule=growth,
+        )
+
+        for _ in range(20):
+            if not mf_grid.step():
+                break
+
+        # Compare selected subspace indices (strip config dim from MF)
+        parent_sel = parent_grid.get_selected_subspace_indices()  # (1, n)
+        mf_sel = mf_grid.get_selected_subspace_indices()  # (2, n)
+
+        # MF config dim should all be 0
+        mf_config = mf_sel[1:, :]
+        self._bkd.assert_allclose(
+            mf_config,
+            self._bkd.zeros(mf_config.shape, dtype=self._bkd.int64_dtype()),
+        )
+
+        # Physical parts should match
+        mf_physical = mf_sel[:1, :]
+        self._bkd.assert_allclose(mf_physical, parent_sel)
+
+        # Compare _values arrays: same unique content, same length.
+        # Order may differ, so sort by value for comparison.
+        assert parent_grid._values is not None
+        assert mf_grid._values is not None
+        parent_vals_sorted = self._bkd.sort(parent_grid._values[0, :])
+        mf_vals_sorted = self._bkd.sort(mf_grid._values[0, :])
+        self._bkd.assert_allclose(mf_vals_sorted, parent_vals_sorted)
+
+        # Compare evaluation at test points
+        test_pts = self._bkd.asarray([[-0.8, -0.3, 0.0, 0.3, 0.8]])
+        parent_result = parent_grid(test_pts)
+        mf_result = mf_grid(test_pts)
+        self._bkd.assert_allclose(mf_result, parent_result, rtol=1e-12)
 
 
 class TestMultiFidelitySparseGridNumpy(

@@ -72,7 +72,7 @@ class LocalHierarchicalRefinementCriteria(Generic[Array]):
         sample = grid._get_basis_sample(basis_index)
 
         # Evaluate current interpolant at this location
-        interpolant_value = grid._evaluate_selected_only(sample)
+        interpolant_value = grid._evaluate_with_selected_indices(sample)
 
         # Hierarchical surplus is the difference
         surplus = self._bkd.abs(basis_value - interpolant_value)
