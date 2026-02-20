@@ -205,6 +205,9 @@ Note that $S_3 \approx 0$ (no main effect) but $T_3 > 0$ (interaction with $x_1$
 ### Step 5: Visualize Results
 
 ```{python}
+#| fig-cap: "FunctionTrain vs. analytical Sobol indices for the Ishigami function. Left: first-order indices $S_k$. Center: total-order indices $S_k^T$. Right: main vs. total effect scatter---points above the diagonal indicate variables involved in interactions."
+#| label: fig-ft-sobol
+
 fig, axes = plt.subplots(1, 3, figsize=(14, 4))
 
 # Main effect comparison
@@ -301,6 +304,9 @@ Since the Ishigami function already contains interactions, we can visualize the
 full decomposition. With $d = 3$ there are $2^3 - 1 = 7$ indices.
 
 ```{python}
+#| fig-cap: "Full Sobol index decomposition of the Ishigami function computed from the FunctionTrain surrogate. Blue bars are first-order indices, orange are second-order, and green is the third-order interaction. The dominant interaction $S_{0,2}$ reflects the $b\\,x_3^4 \\sin(x_1)$ coupling."
+#| label: fig-ft-decomposition
+
 # Visualize interaction structure
 fig, ax = plt.subplots(figsize=(8, 5))
 

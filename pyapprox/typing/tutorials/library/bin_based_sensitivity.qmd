@@ -183,6 +183,9 @@ def compute_bin_statistics(var_idx, nbins):
 Now we plot the conditional means for each variable:
 
 ```{python}
+#| fig-cap: "Conditional means per bin for each input variable. Orange bars show the bin-averaged output $\\hat{\\mu}_k = E[Y \\mid X_i \\in \\text{bin}_k]$; the red dashed line marks the global mean $E[Y]$; the blue histogram shows the sample density. Large bar-to-bar variation indicates a high first-order index."
+#| label: fig-bin-1d
+
 fig, axes = plt.subplots(1, 3, figsize=(14, 4))
 
 for var_idx in range(3):
@@ -190,20 +193,25 @@ for var_idx in range(3):
     bin_edges, bin_means, bin_centers = compute_bin_statistics(var_idx, nbins)
 
     # Plot histogram of samples
-    ax.hist(samples_np[var_idx], bins=30, alpha=0.3, density=True, label='Sample density')
+    ax.hist(samples_np[var_idx], bins=30, alpha=0.3, density=True,
+            color='tab:blue', label='Sample density')
 
     # Plot bin means as bar chart overlay
     ax2 = ax.twinx()
-    ax2.bar(bin_centers, bin_means, width=0.4, alpha=0.7, color='orange', label='E[Y|bin]')
-    ax2.axhline(global_mean, color='red', linestyle='--', label='E[Y]')
+    ax2.bar(bin_centers, bin_means, width=0.4, alpha=0.7, color='orange',
+            label=r'$E[Y|\mathrm{bin}]$')
+    ax2.axhline(global_mean, color='red', linestyle='--', label='$E[Y]$')
 
     ax.set_xlabel(f'$X_{var_idx+1}$')
     ax.set_ylabel('Density')
     ax2.set_ylabel('Conditional Mean', color='orange')
     ax.set_title(f'$S_{var_idx+1}$ = {main_effects[var_idx]:.3f}')
 
+    # Combine legends from both axes
+    h1, l1 = ax.get_legend_handles_labels()
+    h2, l2 = ax2.get_legend_handles_labels()
     if var_idx == 2:
-        ax2.legend(loc='upper right')
+        ax2.legend(h1 + h2, l1 + l2, loc='upper right', fontsize=8)
 
 plt.tight_layout()
 plt.show()
@@ -283,6 +291,9 @@ print(f"Conditional mean range: [{cell_means.min():.2f}, {cell_means.max():.2f}]
 Now we visualize the results:
 
 ```{python}
+#| fig-cap: "2D binning for the $X_1$--$X_3$ interaction. Left: samples colored by output value with the 5x5 bin grid overlaid. Right: conditional mean $E[Y \\mid X_1, X_3]$ within each cell. The cell-to-cell variation (after subtracting main effects) yields $S_{13}$."
+#| label: fig-bin-2d
+
 fig, axes = plt.subplots(1, 2, figsize=(14, 5))
 
 # Left plot: scatter with bin grid
@@ -322,40 +333,138 @@ The left plot shows samples colored by their $Y$ values with the bin grid overla
 
 ## Comparison: Bin-Based vs. Sample-Based
 
-Let's compare the bin-based estimates with the Saltelli/Jansen sample-based estimator.
+Let's compare the bin-based estimates with the Saltelli/Jansen sample-based estimator
+**at the same computational budget** (same number of function evaluations).
+
+The sample-based method requires a special sampling design: two independent sample
+matrices $\mt{A}$ and $\mt{B}$ (each of size $N_\text{base}$), plus $d$ mixed matrices
+$\mt{C}_i$. The total cost is $N_\text{base}(d + 2)$ function evaluations. So for a
+budget of $N$ evaluations, the sample-based method can afford $N_\text{base} = \lfloor N / (d + 2) \rfloor$ base samples.
 
 ```{python}
-# Bin-based (already computed)
-bin_main = main_effects
+from pyapprox.typing.sensitivity import MonteCarloSensitivityAnalysis
 
-# Compare with ground truth
 gt_main = bkd.to_numpy(gt.main_effects).flatten()
+gt_total = bkd.to_numpy(gt.total_effects).flatten()
 
-# Visualization
-fig, ax = plt.subplots(figsize=(10, 5))
+# Fixed budget: same total number of function evaluations
+budgets = [500, 1000, 2000, 5000, 10000]
+n_reps = 10
+
+bin_errors = {N: [] for N in budgets}
+mc_errors = {N: [] for N in budgets}
+mc_total_errors = {N: [] for N in budgets}
+
+for N_budget in budgets:
+    for rep in range(n_reps):
+        np.random.seed(rep)
+
+        # --- Bin-based: uses all N_budget samples ---
+        s = prior.rvs(N_budget)
+        v = func(s)
+        sa_bin = BinBasedSensitivityAnalysis(prior, bkd)
+        sa_bin.compute(s, v)
+        bin_main = bkd.to_numpy(sa_bin.main_effects()).flatten()
+        bin_errors[N_budget].append(np.max(np.abs(bin_main - gt_main)))
+
+        # --- Sample-based (MC): N_base = N_budget / (d + 2) ---
+        d = 3
+        N_base = N_budget // (d + 2)
+        sa_mc = MonteCarloSensitivityAnalysis(prior, bkd)
+        # Only main effects (no pairwise), so nterms = d
+        interaction_terms = bkd.asarray(np.eye(d, dtype=float))
+        sa_mc.set_interaction_terms_of_interest(interaction_terms)
+        mc_samples = sa_mc.generate_samples(N_base)
+        mc_values = func(mc_samples)
+        sa_mc.compute(mc_values)
+        mc_main = bkd.to_numpy(sa_mc.main_effects()).flatten()
+        mc_total = bkd.to_numpy(sa_mc.total_effects()).flatten()
+        mc_errors[N_budget].append(np.max(np.abs(mc_main - gt_main)))
+        mc_total_errors[N_budget].append(np.max(np.abs(mc_total - gt_total)))
+
+# Print summary
+print(f"{'Budget':<8}{'Bin max|err|':<18}{'MC max|err| (S)':<18}{'MC max|err| (T)':<18}")
+print("-" * 62)
+for N_budget in budgets:
+    b = np.median(bin_errors[N_budget])
+    m = np.median(mc_errors[N_budget])
+    t = np.median(mc_total_errors[N_budget])
+    print(f"{N_budget:<8}{b:<18.4f}{m:<18.4f}{t:<18.4f}")
+```
+
+```{python}
+#| fig-cap: "Convergence comparison at equal computational budget. Left: maximum absolute error in first-order Sobol indices vs. number of function evaluations. The bin-based method uses all $N$ samples directly; the sample-based (Saltelli/Jansen) method splits the budget into $N/(d+2)$ base samples. Shaded bands show the 25th--75th percentile range over 10 random seeds. Right: detailed comparison at $N = 10{,}000$ showing per-variable accuracy."
+#| label: fig-bin-vs-mc
+
+fig, axes = plt.subplots(1, 2, figsize=(14, 5))
+
+# Left: convergence plot
+ax = axes[0]
+bin_med = [np.median(bin_errors[N]) for N in budgets]
+bin_q25 = [np.percentile(bin_errors[N], 25) for N in budgets]
+bin_q75 = [np.percentile(bin_errors[N], 75) for N in budgets]
+
+mc_med = [np.median(mc_errors[N]) for N in budgets]
+mc_q25 = [np.percentile(mc_errors[N], 25) for N in budgets]
+mc_q75 = [np.percentile(mc_errors[N], 75) for N in budgets]
+
+ax.plot(budgets, bin_med, 'o-', color='tab:blue', label='Bin-based ($S_i$)')
+ax.fill_between(budgets, bin_q25, bin_q75, color='tab:blue', alpha=0.2)
+ax.plot(budgets, mc_med, 's-', color='tab:orange', label='Saltelli/Jansen ($S_i$)')
+ax.fill_between(budgets, mc_q25, mc_q75, color='tab:orange', alpha=0.2)
+
+ax.set_xlabel('Total function evaluations')
+ax.set_ylabel('Max absolute error in $S_i$')
+ax.set_title('First-Order Index Error vs. Budget')
+ax.set_xscale('log')
+ax.set_yscale('log')
+ax.legend()
+ax.grid(True, alpha=0.3)
+
+# Right: per-variable comparison at N=10000
+ax = axes[1]
+N_detail = 10000
+np.random.seed(42)
+
+# Bin-based at N_detail
+s = prior.rvs(N_detail)
+v = func(s)
+sa_bin = BinBasedSensitivityAnalysis(prior, bkd)
+sa_bin.compute(s, v)
+bin_main_detail = bkd.to_numpy(sa_bin.main_effects()).flatten()
+
+# MC at same budget
+N_base_detail = N_detail // (3 + 2)
+sa_mc = MonteCarloSensitivityAnalysis(prior, bkd)
+interaction_terms = bkd.asarray(np.eye(3, dtype=float))
+sa_mc.set_interaction_terms_of_interest(interaction_terms)
+mc_s = sa_mc.generate_samples(N_base_detail)
+mc_v = func(mc_s)
+sa_mc.compute(mc_v)
+mc_main_detail = bkd.to_numpy(sa_mc.main_effects()).flatten()
 
 x = np.arange(3)
-width = 0.35
-
-bars1 = ax.bar(x - width/2, bin_main, width, label='Bin-based', alpha=0.8)
-bars2 = ax.bar(x + width/2, gt_main, width, label='Ground truth', alpha=0.8)
-
+width = 0.25
+ax.bar(x - width, gt_main, width, label='Ground truth', alpha=0.8, color='tab:green')
+ax.bar(x, bin_main_detail, width, label=f'Bin-based (N={N_detail})', alpha=0.8, color='tab:blue')
+ax.bar(x + width, mc_main_detail, width,
+       label=f'Saltelli (N_base={N_base_detail})', alpha=0.8, color='tab:orange')
 ax.set_xlabel('Variable')
-ax.set_ylabel('Sobol Index')
-ax.set_title('First-Order Indices: Bin-Based vs. Ground Truth')
+ax.set_ylabel('$S_i$')
+ax.set_title(f'First-Order Indices at Budget = {N_detail}')
 ax.set_xticks(x)
 ax.set_xticklabels(['$X_1$', '$X_2$', '$X_3$'])
-ax.legend()
+ax.legend(fontsize=8)
 ax.axhline(0, color='black', linewidth=0.5)
-
-# Add error bars text
-for i, (bb, gt_val) in enumerate(zip(bin_main, gt_main)):
-    error = abs(bb - gt_val)
-    ax.text(i, max(bb, gt_val) + 0.02, f'err={error:.3f}', ha='center', fontsize=9)
 
 plt.tight_layout()
 plt.show()
 ```
+
+Both methods converge as the budget increases. The bin-based method uses all $N$ samples
+for binning, while the sample-based method must split the budget across its $A$, $B$,
+and $C_i$ matrices ($N_\text{base} = N / 5$ for $d = 3$). However, the sample-based
+method also provides **total effects**, which binning cannot.
 
 ## Bootstrap Uncertainty Estimates
 
@@ -379,6 +488,9 @@ for i in range(3):
 ```
 
 ```{python}
+#| fig-cap: "Bootstrap uncertainty of bin-based main effect estimates. Bars show medians over 20 resamples; error bars span the 25th--75th percentile range. Red stars mark the analytical ground truth."
+#| label: fig-bootstrap
+
 # Visualization with error bars
 fig, ax = plt.subplots(figsize=(8, 5))
 
@@ -405,10 +517,10 @@ plt.show()
 | Aspect | Bin-Based | Saltelli/Jansen |
 |--------|-----------|-----------------|
 | Sample requirements | Any existing samples | Special A/B/C matrices |
-| Efficiency | $O(N)$ evaluations | $O(N(d+2))$ evaluations |
+| Cost for $\Sobol{i}$ | $N$ evaluations | $N_\text{base}(d+2)$ evaluations |
 | Total effects | Not available | Available |
 | Higher-order | Up to ~3rd order | Only first and total |
-| Accuracy | Depends on binning | Generally lower variance |
+| Accuracy at equal budget | More samples per estimate | Fewer base samples |
 
 **Use bin-based when:**
 

@@ -164,6 +164,9 @@ The $\Sobol{13}$ interaction is substantial, capturing the $x_1$-$x_3$ coupling 
 The `sensitivity.plots` module provides built-in plotting functions.
 
 ```{python}
+#| fig-cap: "PCE-based Sobol indices for the Ishigami function. Left: main effect pie chart showing $x_2$ dominates. Center: total-order bar chart---$x_3$ has zero main effect but nonzero total effect due to its interaction with $x_1$. Right: full Sobol decomposition showing the $S_{13}$ interaction."
+#| label: fig-pce-sobol
+
 from pyapprox.typing.sensitivity.plots import (
     plot_main_effects,
     plot_total_effects,
