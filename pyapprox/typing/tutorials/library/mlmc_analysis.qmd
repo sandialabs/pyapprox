@@ -211,67 +211,7 @@ var_mc = float(mc_est.optimized_covariance()[0, 0])
 print(f"MLMC optimized variance (estimator): {var_est:.6f}")
 print(f"MC variance (estimator):             {var_mc:.6f}")
 print(f"Variance reduction:                  {var_mc / var_est:.1f}x")
-
-# --- Analytical verification ---
-# V_ell = Var[f_ell - f_{ell+1}]; f_{M+1} = 0
-V = np.array([
-    cov_true[ell, ell] - 2 * cov_true[ell, ell + 1] + cov_true[ell + 1, ell + 1]
-    if ell < M else cov_true[M, M]
-    for ell in range(M + 1)
-])
-lambda_ = np.sum(np.sqrt(V * costs)) / P
-N_analytical = np.sqrt(V / costs) / lambda_
-var_analytical = np.sum(np.sqrt(V * costs))**2 / P
-var_mc_analytical = sigma2_hf * costs[0] / P
-
-print(f"\nAnalytical verification:")
-print(f"  MLMC variance:  analytical = {var_analytical:.6f},  estimator = {var_est:.6f}")
-print(f"  MC variance:    analytical = {var_mc_analytical:.6f},  estimator = {var_mc:.6f}")
-print(f"\nOptimal N_ell* (analytical) for budget P={P}:")
-for ell in range(M + 1):
-    print(f"  ell={ell}: N* = {N_analytical[ell]:.1f},  "
-          f"V = {V[ell]:.6f},  C = {costs[ell]:.6f}")
 ```
-
-```{python}
-#| fig-cap: "Optimal MLMC sample allocation from `MLMCEstimator` (blue bars) versus MC allocation (grey bars) across the five levels, for budget $P = 100$. Red diamonds mark the analytical $N_\\ell^*$ from @eq-optimal-N for verification."
-#| label: fig-allocation
-
-# MC allocation from estimator
-N_mc = np.zeros(M + 1)
-N_mc[0] = int(mc_est._rounded_nsamples_per_model[0])
-
-level_labels = [rf"$\ell={ell}$" for ell in range(M + 1)]
-x = np.arange(M + 1)
-width = 0.35
-
-fig, ax = plt.subplots(figsize=(8, 4.5))
-ax.bar(x - width/2, N_est, width, color="#2C7FB8", alpha=0.8,
-       edgecolor="k", lw=0.5, label="MLMC (estimator)")
-ax.bar(x + width/2, N_mc, width, color="#aaaaaa", alpha=0.8,
-       edgecolor="k", lw=0.5, label="MC (estimator)")
-# Analytical overlay
-ax.plot(x - width/2, N_analytical, "d", color="#C0392B", ms=8, zorder=5,
-        label=r"Analytical $N_\ell^*$")
-ax.set_xticks(x)
-ax.set_xticklabels(level_labels, fontsize=12)
-ax.set_ylabel("Number of samples $N_\\ell^*$", fontsize=12)
-ax.set_title(f"Optimal sample allocation  (budget $P = {P}$)", fontsize=11)
-ax.set_yscale("log")
-ax.legend(fontsize=10)
-ax.grid(True, alpha=0.2, axis="y")
-plt.tight_layout()
-plt.show()
-```
-
-::: {.callout-note}
-## Integer rounding
-`allocate_samples` rounds the continuous $N_\ell^*$ to integers (you cannot draw a
-fractional number of samples). The red diamonds show the continuous analytical optimum;
-the blue bars show the integer allocation actually used. This rounding causes a small
-discrepancy between the estimator's `optimized_covariance()` and the analytical formula,
-which shrinks as the budget grows.
-:::
 
 ```{python}
 #| fig-cap: "MLMC variance vs total cost: `optimized_covariance()` (lines) compared to empirical variance from 500 independent trials (markers). Both MC (blue) and MLMC (orange) show close agreement, confirming the estimator's variance prediction. The vertical gap is the MLMC improvement factor."
@@ -345,30 +285,46 @@ allows the weight to be optimised, and the resulting estimator — sometimes cal
 MLMC-OPT — can outperform standard MLMC.
 
 ```{python}
-#| fig-cap: "Variance reduction relative to MC for standard MLMC ($\\eta = -1$, blue) and MLMC with optimal ACV weights (orange), at target cost $P = 100$. Optimal weights reduce variance further when the fixed-$\\eta$ structure is not optimal for this ensemble."
+#| fig-cap: "Variance reduction relative to MC for standard MLMC ($\\eta = -1$, blue) and MLMC with optimal ACV weights (orange), at target cost $P = 500$. Optimal weights reduce variance further when the fixed-$\\eta$ structure is not optimal for this ensemble."
 #| label: fig-mlmc-vs-opt
 
-from pyapprox.typing.statest import GMFEstimator
+from pyapprox.typing.statest import GRDEstimator
+from pyapprox.typing.optimization.minimize.scipy.direct import (
+    ScipyDirectOptimizer,
+)
+from pyapprox.typing.optimization.minimize.scipy.trust_constr import (
+    ScipyTrustConstrOptimizer,
+)
+from pyapprox.typing.optimization.minimize.chained.chained_optimizer import (
+    ChainedOptimizer,
+)
 
 stat_true = MultiOutputMean(nqoi, bkd)
 stat_true.set_pilot_quantities(bkd.asarray(cov_true))
 
+P_cmp = 500.0
 mlmc_est = MLMCEstimator(stat_true, bkd.asarray(costs))
-mlmc_est.allocate_samples(100.0)
+mlmc_est.allocate_samples(P_cmp)
 mlmc_var = float(mlmc_est.optimized_covariance()[0, 0])
 
-acv_est = GMFEstimator(stat_true, bkd.asarray(costs))
-acv_est.allocate_samples(100.0)
+acv_optimizer = ChainedOptimizer(
+    ScipyDirectOptimizer(raise_on_failure=False),
+    ScipyTrustConstrOptimizer(maxiter=5000),
+)
+ri_mlmc = bkd.asarray(np.arange(M), dtype=int)  # [0, 1, 2, 3]
+acv_est = GRDEstimator(stat_true, bkd.asarray(costs), recursion_index=ri_mlmc)
+acv_est.set_optimizer(acv_optimizer)
+acv_est.allocate_samples(P_cmp)
 acv_var = float(acv_est.optimized_covariance()[0, 0])
 
 mc_stat_cmp = MultiOutputMean(nqoi, bkd)
 mc_stat_cmp.set_pilot_quantities(bkd.asarray(cov_true[0:1, 0:1]))
 mc_est = MCEstimator(mc_stat_cmp, bkd.asarray(costs[0:1]))
-mc_est.allocate_samples(100.0)
+mc_est.allocate_samples(P_cmp)
 mc_var = float(mc_est.optimized_covariance()[0, 0])
 
 fig, ax = plt.subplots(figsize=(6, 4))
-labels = ["MC", "MLMC\n($\\eta=-1$)", "ACV-GMF\n(optimal weights)"]
+labels = ["MC", "MLMC\n($\\eta=-1$)", "ACV-GRD\n(optimal weights)"]
 vals   = [mc_var / mc_var, mc_var / mlmc_var, mc_var / acv_var]
 colors = ["#aaaaaa", "#2C7FB8", "#E67E22"]
 bars = ax.bar(labels, vals, color=colors, edgecolor="k", lw=0.5, alpha=0.85)

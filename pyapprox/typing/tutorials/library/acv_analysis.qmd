@@ -262,8 +262,8 @@ r_values = [1.5, 2, 3, 5, 10, 20, 50]
 # MC variance baseline: sigma^2_alpha / N
 mc_var = sigma2_alpha / N
 
-# Use a tiny LF cost so that _set_optimized_params produces exactly N HF
-# samples for any requested r
+from pyapprox.typing.statest.acv.allocation import ACVAllocationResult
+
 cost_hf_unit = 1.0
 cost_lf_unit = 0.001
 
@@ -273,7 +273,28 @@ for r in r_values:
     # Build ACV estimator with fixed N and rN
     est = MFMCEstimator(stat, costs=[cost_hf_unit, cost_lf_unit])
     target_cost = N * cost_hf_unit + r * N * cost_lf_unit
-    est._set_optimized_params(bkd.asarray([float(r - 1)]), target_cost)
+
+    # Manually set allocation with desired sample ratio r
+    partition_ratios = bkd.asarray([float(r - 1)])
+    npart = est._npartition_samples_from_partition_ratios(
+        target_cost, partition_ratios
+    )
+    npart_int = bkd.asarray(
+        [int(round(float(npart[k]))) for k in range(len(npart))]
+    )
+    nsamp = est._compute_nsamples_per_model(npart_int)
+    actual_cost = float((nsamp * bkd.asarray([cost_hf_unit, cost_lf_unit])).sum())
+    alloc = ACVAllocationResult(
+        partition_ratios=partition_ratios,
+        continuous_npartition_samples=npart,
+        objective_value=bkd.asarray([0.0]),
+        npartition_samples=npart_int,
+        nsamples_per_model=nsamp,
+        target_cost=target_cost,
+        actual_cost=actual_cost,
+        success=True,
+    )
+    est.set_allocation(alloc)
 
     acv_ests = np.empty(n_trials)
     for i in range(n_trials):

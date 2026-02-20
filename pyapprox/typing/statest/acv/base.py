@@ -711,9 +711,15 @@ class ACVEstimator(CVEstimator[Array], Generic[Array]):
         return (nsamples_per_model * self._costs).sum()
 
     def _allocate_samples_for_single_recursion(self, target_cost: float):
-        from pyapprox.typing.statest.acv.allocation import ACVAllocator
+        from pyapprox.typing.statest.acv.allocation import (
+            ACVAllocator,
+            default_allocator_factory,
+        )
 
-        allocator = ACVAllocator(self, optimizer=self._optimizer)
+        if self._optimizer is not None:
+            allocator = ACVAllocator(self, optimizer=self._optimizer)
+        else:
+            allocator = default_allocator_factory(self)
         result = allocator.allocate(target_cost)
         if not result.success:
             raise RuntimeError(
@@ -742,14 +748,20 @@ class ACVEstimator(CVEstimator[Array], Generic[Array]):
         return _get_acv_recursion_indices(self._nmodels, self._tree_depth)
 
     def _allocate_samples_for_all_recursion_indices(self, target_cost: float):
-        from pyapprox.typing.statest.acv.allocation import ACVAllocator
+        from pyapprox.typing.statest.acv.allocation import (
+            ACVAllocator,
+            default_allocator_factory,
+        )
 
         best_obj = self._bkd.asarray(np.inf)
         best_result = None
         best_index = None
         for index in self.get_all_recursion_indices():
             self._set_recursion_index(index)
-            allocator = ACVAllocator(self, optimizer=self._optimizer)
+            if self._optimizer is not None:
+                allocator = ACVAllocator(self, optimizer=self._optimizer)
+            else:
+                allocator = default_allocator_factory(self)
             result = allocator.allocate(target_cost)
             if not result.success:
                 if not self._allow_failures:

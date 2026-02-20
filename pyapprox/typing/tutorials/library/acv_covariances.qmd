@@ -171,8 +171,8 @@ from pyapprox.typing.benchmarks.instances.multifidelity.polynomial_ensemble impo
 from pyapprox.typing.statest.statistics import MultiOutputMean
 from pyapprox.typing.statest import GMFEstimator
 from pyapprox.typing.statest.acv import ACVAllocator
-from pyapprox.typing.optimization.minimize.scipy.diffevol import (
-    ScipyDifferentialEvolutionOptimizer,
+from pyapprox.typing.optimization.minimize.scipy.direct import (
+    ScipyDirectOptimizer,
 )
 from pyapprox.typing.optimization.minimize.scipy.trust_constr import (
     ScipyTrustConstrOptimizer,
@@ -195,8 +195,8 @@ stat = MultiOutputMean(nqoi, bkd)
 stat.set_pilot_quantities(bkd.asarray(cov_true))
 
 optimizer = ChainedOptimizer(
-    ScipyDifferentialEvolutionOptimizer(maxiter=200, raise_on_failure=False),
-    ScipyTrustConstrOptimizer(maxiter=1000),
+    ScipyDirectOptimizer(raise_on_failure=False),
+    ScipyTrustConstrOptimizer(maxiter=5000),
 )
 
 ri_zeros = bkd.zeros(M, dtype=int)

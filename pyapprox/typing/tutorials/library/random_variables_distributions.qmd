@@ -90,6 +90,9 @@ $$
 The joint density is the product of the marginals --- this is the defining property of independence.
 
 ```{python}
+import numpy as np
+np.random.seed(42)
+
 from pyapprox.typing.util.backends.numpy import NumpyBkd
 from pyapprox.typing.probability.univariate.beta import BetaMarginal
 from pyapprox.typing.probability.joint.independent import IndependentJoint

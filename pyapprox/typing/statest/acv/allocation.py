@@ -107,33 +107,42 @@ def _clone_estimator_for_torch(
         MultiOutputMeanAndVariance,
     )
 
+    import torch
+
     torch_bkd = TorchBkd()
     clone = copy.copy(estimator)
     clone._bkd = torch_bkd
-    clone._costs = torch_bkd.asarray(estimator._bkd.to_numpy(estimator._costs))
+    clone._costs = torch_bkd.asarray(
+        estimator._bkd.to_numpy(estimator._costs), dtype=torch.double
+    )
 
     # Create fresh torch stat with re-derived pilot quantities
     nqoi = estimator._stat.nqoi()
     stat = estimator._stat
+    def _to_torch_double(arr):
+        return torch_bkd.asarray(
+            estimator._bkd.to_numpy(arr), dtype=torch.double
+        )
+
     if isinstance(stat, MultiOutputMeanAndVariance):
         clone._stat = MultiOutputMeanAndVariance(
             nqoi, torch_bkd, tril=stat._tril
         )
         clone._stat.set_pilot_quantities(
-            torch_bkd.asarray(estimator._bkd.to_numpy(stat._cov)),
-            torch_bkd.asarray(estimator._bkd.to_numpy(stat._W)),
-            torch_bkd.asarray(estimator._bkd.to_numpy(stat._B)),
+            _to_torch_double(stat._cov),
+            _to_torch_double(stat._W),
+            _to_torch_double(stat._B),
         )
     elif isinstance(stat, MultiOutputVariance):
         clone._stat = MultiOutputVariance(nqoi, torch_bkd, tril=stat._tril)
         clone._stat.set_pilot_quantities(
-            torch_bkd.asarray(estimator._bkd.to_numpy(stat._cov)),
-            torch_bkd.asarray(estimator._bkd.to_numpy(stat._W)),
+            _to_torch_double(stat._cov),
+            _to_torch_double(stat._W),
         )
     elif isinstance(stat, MultiOutputMean):
         clone._stat = MultiOutputMean(nqoi, torch_bkd)
         clone._stat.set_pilot_quantities(
-            torch_bkd.asarray(estimator._bkd.to_numpy(stat._cov)),
+            _to_torch_double(stat._cov),
         )
     else:
         raise TypeError(
@@ -143,18 +152,14 @@ def _clone_estimator_for_torch(
 
     # Convert allocation matrix
     if hasattr(estimator, "_allocation_mat") and estimator._allocation_mat is not None:
-        clone._allocation_mat = torch_bkd.asarray(
-            estimator._bkd.to_numpy(estimator._allocation_mat)
-        )
+        clone._allocation_mat = _to_torch_double(estimator._allocation_mat)
 
     # Convert recursion index
     if (
         hasattr(estimator, "_recursion_index")
         and estimator._recursion_index is not None
     ):
-        clone._recursion_index = torch_bkd.asarray(
-            estimator._bkd.to_numpy(estimator._recursion_index)
-        )
+        clone._recursion_index = _to_torch_double(estimator._recursion_index)
 
     return clone
 
@@ -306,12 +311,19 @@ class ACVAllocator(Allocator[Array]):
         self, target_cost: float
     ) -> ACVAllocationResult[Array]:
         """Run allocation via a TorchBkd clone, then convert result back."""
-        torch_est = _clone_estimator_for_torch(self._est)
-        torch_allocator = ACVAllocator(torch_est, optimizer=self._optimizer)
-        torch_result = torch_allocator._allocate_impl(target_cost)
-        if not torch_result.success:
-            return self._failure_result(target_cost, torch_result.message)
-        return _convert_result_to_backend(torch_result, self._bkd)
+        import torch
+
+        prev_dtype = torch.get_default_dtype()
+        torch.set_default_dtype(torch.float64)
+        try:
+            torch_est = _clone_estimator_for_torch(self._est)
+            torch_allocator = ACVAllocator(torch_est, optimizer=self._optimizer)
+            torch_result = torch_allocator._allocate_impl(target_cost)
+            if not torch_result.success:
+                return self._failure_result(target_cost, torch_result.message)
+            return _convert_result_to_backend(torch_result, self._bkd)
+        finally:
+            torch.set_default_dtype(prev_dtype)
 
     def _allocate_impl(self, target_cost: float) -> ACVAllocationResult[Array]:
         """Core allocation logic (requires autodiff-capable backend)."""
