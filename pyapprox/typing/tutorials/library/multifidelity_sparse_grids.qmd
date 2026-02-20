@@ -1,0 +1,477 @@
+---
+title: "Multifidelity Sparse Grids: Multi-Index Collocation for Model Hierarchies"
+subtitle: "PyApprox Tutorial Library"
+description: "Combine cheap low-fidelity models with expensive high-fidelity models using multi-index collocation, cost-aware adaptive refinement, and the MultiFidelityModelFactoryProtocol."
+tutorial_type: hands-on
+topic: surrogate_modeling
+difficulty: advanced
+estimated_time: 35
+prerequisites:
+  - adaptive_sparse_grids
+tags:
+  - surrogate
+  - sparse-grid
+  - multifidelity
+  - adaptive
+format:
+  html:
+    code-fold: false
+    code-tools: true
+    toc: true
+execute:
+  echo: true
+  warning: false
+jupyter: python3
+---
+
+::: {.callout-tip collapse="true"}
+## Download Notebook
+[Download as Jupyter Notebook](notebooks/multifidelity_sparse_grids.ipynb)
+:::
+
+## Learning Objectives
+
+After completing this tutorial, you will be able to:
+
+- Explain the multi-level and multi-index collocation ideas
+- Define configuration variables and a model hierarchy
+- Implement `MultiFidelityModelFactoryProtocol`
+- Construct a `MultiIndexAdaptiveCombinationSparseGrid`
+- Analyse cost-aware adaptive refinement that balances accuracy and computational cost
+
+
+## Prerequisites
+
+Complete [Adaptive Sparse Grids](adaptive_sparse_grids.qmd) before this tutorial. You should understand the Smolyak combination technique, adaptive refinement with `step_samples()`/`step_values()`, and admissibility criteria.
+
+
+## Setup
+
+```{python}
+import numpy as np
+import matplotlib.pyplot as plt
+from pyapprox.typing.util.backends.numpy import NumpyBkd
+
+bkd = NumpyBkd()
+np.random.seed(42)
+```
+
+
+## The Multi-Fidelity Idea
+
+In many applications, a hierarchy of models with varying accuracy and cost is available.  For example, a PDE solver might offer coarse, medium, and fine mesh resolutions.  Let $f_\alpha(z)$ denote the model at fidelity level $\alpha$, where higher $\alpha$ is more accurate but more expensive.
+
+**Key observation**: the *discrepancy* between consecutive fidelity levels,
+
+$$
+\delta_\alpha(z) = f_\alpha(z) - f_{\alpha-1}(z),
+$$
+
+is typically much smoother than $f_\alpha$ itself, so it can be approximated with fewer samples.  Multi-level collocation exploits this by building
+
+$$
+f_\alpha(z) = f_0(z) + \sum_{j=1}^{\alpha} \delta_j(z),
+$$
+
+where each discrepancy $\delta_j$ is approximated independently.
+
+
+## A Simple Model Hierarchy
+
+We use a 1D parametric family:
+
+$$
+f_\alpha(z) = \cos\!\left(\frac{\pi(z+1)}{2} + \epsilon_\alpha\right), \quad z \in [-1, 1],
+$$
+
+where $\epsilon_0 = 0.5$ (low fidelity, biased) and $\epsilon_1 = 0$ (high fidelity, exact).
+
+```{python}
+epsilons = {0: 0.5, 1: 0.0}
+
+z_plot = np.linspace(-1, 1, 300)
+
+fig, axes = plt.subplots(1, 3, figsize=(15, 4))
+
+# Left: both models
+ax = axes[0]
+for alpha in [0, 1]:
+    f_alpha = np.cos(np.pi * (z_plot + 1) / 2 + epsilons[alpha])
+    ax.plot(z_plot, f_alpha, lw=2, label=f"$f_{alpha}$ ($\\epsilon={epsilons[alpha]}$)")
+ax.set_xlabel("$z$", fontsize=12)
+ax.set_ylabel("$f_\\alpha(z)$", fontsize=12)
+ax.set_title("Model hierarchy", fontsize=12)
+ax.legend(fontsize=10)
+ax.grid(True, alpha=0.3)
+
+# Middle: discrepancy
+ax = axes[1]
+f0 = np.cos(np.pi * (z_plot + 1) / 2 + epsilons[0])
+f1 = np.cos(np.pi * (z_plot + 1) / 2 + epsilons[1])
+delta = f1 - f0
+ax.plot(z_plot, f1, "--", lw=2, color="#E74C3C", label="$f_1$ (exact)")
+ax.plot(z_plot, delta, lw=2, color="#2C7FB8", label="$\\delta = f_1 - f_0$")
+ax.set_xlabel("$z$", fontsize=12)
+ax.set_title("Discrepancy is smoother", fontsize=12)
+ax.legend(fontsize=10)
+ax.grid(True, alpha=0.3)
+
+# Right: reconstruction
+ax = axes[2]
+# Approximate f0 with 5 points, delta with 3 points
+from pyapprox.typing.surrogates.sparsegrids import create_basis_factories
+from pyapprox.typing.surrogates.affine.indices import LinearGrowthRule
+from pyapprox.typing.surrogates.sparsegrids import IsotropicCombinationSparseGrid
+from pyapprox.typing.probability.univariate.uniform import UniformMarginal
+
+margs_1d = [UniformMarginal(-1.0, 1.0, bkd)]
+facs_1d = create_basis_factories(margs_1d, bkd, "gauss")
+growth = LinearGrowthRule(2, 1)
+
+# Low-fidelity approximation (level 2 = 5 points)
+grid_f0 = IsotropicCombinationSparseGrid(bkd, facs_1d, growth, level=2)
+s0 = grid_f0.get_samples()
+v0 = bkd.reshape(bkd.cos(np.pi * (s0[0] + 1) / 2 + epsilons[0]), (1, -1))
+grid_f0.set_values(v0)
+
+# Discrepancy approximation (level 1 = 3 points)
+grid_delta = IsotropicCombinationSparseGrid(bkd, facs_1d, growth, level=1)
+sd = grid_delta.get_samples()
+vd = bkd.reshape(
+    bkd.cos(np.pi * (sd[0] + 1) / 2 + epsilons[1])
+    - bkd.cos(np.pi * (sd[0] + 1) / 2 + epsilons[0]),
+    (1, -1),
+)
+grid_delta.set_values(vd)
+
+z_eval = bkd.array(z_plot.reshape(1, -1))
+approx_f0 = bkd.to_numpy(grid_f0(z_eval)).ravel()
+approx_delta = bkd.to_numpy(grid_delta(z_eval)).ravel()
+approx_ml = approx_f0 + approx_delta
+
+ax.plot(z_plot, f1, "--", lw=2, color="#E74C3C", label="$f_1$ (exact)")
+ax.plot(z_plot, approx_ml, lw=2, color="#27AE60",
+        label="$\\hat{f}_0 + \\hat{\\delta}$ (8 evals)")
+pts0 = bkd.to_numpy(s0[0])
+ptsd = bkd.to_numpy(sd[0])
+ax.plot(pts0, np.cos(np.pi * (pts0 + 1) / 2 + epsilons[0]), "ko", ms=7,
+        label=f"$f_0$ evals ({len(pts0)})")
+ax.plot(ptsd, np.cos(np.pi * (ptsd + 1) / 2 + epsilons[1])
+        - np.cos(np.pi * (ptsd + 1) / 2 + epsilons[0]), "bs", ms=7,
+        label=f"$\\delta$ evals ({len(ptsd)})")
+ax.set_xlabel("$z$", fontsize=12)
+ax.set_title("Multi-level reconstruction", fontsize=12)
+ax.legend(fontsize=9)
+ax.grid(True, alpha=0.3)
+
+plt.tight_layout()
+plt.show()
+```
+
+Using 5 evaluations of the cheap model plus 3 evaluations of the expensive model (to form $\delta$), the multi-level reconstruction approximates $f_1$ well --- much better than 3 direct evaluations of $f_1$ alone.
+
+
+## Configuration Variables
+
+In the multi-index framework, each subspace is labelled by a **full index** $[\beta_1, \ldots, \beta_d, \alpha_1, \ldots, \alpha_c]$ where:
+
+- $[\beta_1, \ldots, \beta_d]$ are **physical** indices controlling interpolation resolution
+- $[\alpha_1, \ldots, \alpha_c]$ are **configuration** indices selecting the model fidelity
+
+The Smolyak combination technique operates over the full index space, but each subspace builds a tensor product interpolant over **physical dimensions only**.  The config index simply determines which model provides the function values.
+
+
+## Implementing `MultiFidelityModelFactoryProtocol`
+
+The multi-fidelity sparse grid needs a factory that returns a callable model for any configuration index.  The protocol requires three methods:
+
+- `get_model(config_index) -> FunctionProtocol` --- return the model for a fidelity level
+- `nconfig_vars() -> int` --- number of configuration dimensions
+- `bkd() -> Backend` --- the computational backend
+
+```{python}
+from pyapprox.typing.surrogates.sparsegrids import MultiFidelityModelFactoryProtocol
+from pyapprox.typing.interface.functions.fromcallable.function import FunctionFromCallable
+
+
+class CosineModelFactory:
+    """Factory producing cos models at different fidelity levels."""
+
+    def __init__(self, epsilons, bkd):
+        self._epsilons = epsilons   # {alpha: epsilon_alpha}
+        self._bkd = bkd
+
+    def get_model(self, config_index):
+        """Return model for given config. config_index is a tuple, e.g. (0,) or (1,)."""
+        alpha = config_index[0]
+        eps = self._epsilons[alpha]
+
+        def model_fn(samples):
+            return bkd.reshape(
+                bkd.cos(np.pi * (samples[0] + 1) / 2 + eps), (1, -1)
+            )
+
+        return FunctionFromCallable(1, 1, model_fn, self._bkd)
+
+    def nconfig_vars(self):
+        return 1
+
+    def bkd(self):
+        return self._bkd
+
+
+factory = CosineModelFactory(epsilons, bkd)
+print(f"Satisfies protocol: {isinstance(factory, MultiFidelityModelFactoryProtocol)}")
+
+# Quick test
+model_0 = factory.get_model((0,))
+model_1 = factory.get_model((1,))
+test_z = bkd.array([[0.5]])
+print(f"f_0(0.5) = {float(model_0(test_z)[0, 0]):.6f}")
+print(f"f_1(0.5) = {float(model_1(test_z)[0, 0]):.6f}")
+```
+
+
+## Constructing a Multi-Index Sparse Grid
+
+`MultiIndexAdaptiveCombinationSparseGrid` manages the joint physical + config index space.  It requires:
+
+1. **Physical basis factories** --- one per physical input variable
+2. **Number of config variables** and their **bounds** (max fidelity level per config dimension)
+3. **Number of QoIs**
+4. Optionally, a **model factory** for automatic evaluation
+
+```{python}
+from pyapprox.typing.surrogates.sparsegrids.multifidelity.grid import (
+    MultiIndexAdaptiveCombinationSparseGrid,
+)
+
+physical_factories = create_basis_factories(margs_1d, bkd, "leja")
+config_bounds = bkd.array([1.0])  # max config level = 1 (two models: 0 and 1)
+
+mi_grid = MultiIndexAdaptiveCombinationSparseGrid(
+    bkd,
+    physical_factories,
+    nconfig_vars=1,
+    config_bounds=config_bounds,
+    nqoi=1,
+    model_factory=factory,
+)
+print(mi_grid)
+```
+
+### Auto Mode: `step()` and `refine_to_tolerance()`
+
+When a model factory is provided, the grid can automatically evaluate the correct model at each step:
+
+```{python}
+nsteps = mi_grid.refine_to_tolerance(tol=1e-6, max_steps=15)
+print(f"Refined {nsteps} steps")
+print(f"Subspaces: {mi_grid.nsubspaces()}")
+print(f"Error estimate: {mi_grid.error_estimate():.2e}")
+
+# Evaluate the surrogate
+z_test = bkd.array(np.linspace(-1, 1, 200).reshape(1, -1))
+approx = mi_grid(z_test)
+exact = bkd.array(np.cos(np.pi * (np.linspace(-1, 1, 200) + 1) / 2).reshape(1, -1))
+max_err = float(bkd.max(bkd.abs(approx - exact)))
+print(f"Max error on test grid: {max_err:.2e}")
+```
+
+
+## Visualising the Multi-Index Set
+
+The selected subspace indices show how the algorithm balances physical resolution and model fidelity.
+
+```{python}
+sel = mi_grid.get_selected_subspace_indices()
+sel_np = bkd.to_numpy(sel).astype(int)
+
+fig, ax = plt.subplots(figsize=(8, 4))
+for j in range(sel_np.shape[1]):
+    beta, alpha = sel_np[0, j], sel_np[1, j]
+    color = "#2C7FB8" if alpha == 0 else "#E74C3C"
+    rect = plt.Rectangle(
+        (beta - 0.4, alpha - 0.3), 0.8, 0.6,
+        facecolor=color, edgecolor="black", alpha=0.7, linewidth=1.5,
+    )
+    ax.add_patch(rect)
+    ax.text(beta, alpha, f"({beta},{alpha})", ha="center", va="center", fontsize=9)
+
+ax.set_xlim(-0.6, sel_np[0].max() + 1)
+ax.set_ylim(-0.5, 2)
+ax.set_xlabel("Physical level $\\beta$", fontsize=12)
+ax.set_ylabel("Config level $\\alpha$", fontsize=12)
+ax.set_title("Selected multi-indices [physical, config]", fontsize=12)
+ax.grid(True, alpha=0.3)
+plt.tight_layout()
+plt.show()
+```
+
+The blue boxes ($\alpha = 0$) represent evaluations of the cheap model $f_0$; the red boxes ($\alpha = 1$) represent evaluations of the expensive model $f_1$.  The grid uses more physical levels for the cheap model and fewer for the expensive one.
+
+
+## Manual Mode: `step_samples()` / `step_values()`
+
+For more control, you can use the manual step pattern.  `step_samples()` returns a dictionary mapping each config index to its required physical samples:
+
+```{python}
+mi_grid2 = MultiIndexAdaptiveCombinationSparseGrid(
+    bkd, physical_factories, nconfig_vars=1,
+    config_bounds=config_bounds, nqoi=1,
+)
+
+errors = []
+for step in range(15):
+    config_requests = mi_grid2.step_samples()
+    if config_requests is None:
+        break
+
+    # config_requests: {(alpha,): physical_samples}
+    values_dict = {}
+    for config_idx, phys_samples in config_requests.items():
+        model = factory.get_model(config_idx)
+        values_dict[config_idx] = model(phys_samples)
+
+    mi_grid2.step_values(values_dict)
+    errors.append(mi_grid2.error_estimate())
+
+print(f"Manual mode: {mi_grid2.nsubspaces()} subspaces after {step+1} steps")
+```
+
+```{python}
+fig, ax = plt.subplots(figsize=(8, 4))
+ax.semilogy(range(1, len(errors) + 1), errors, "o-", lw=2, ms=7, color="steelblue")
+ax.set_xlabel("Refinement step", fontsize=12)
+ax.set_ylabel("Error estimate", fontsize=12)
+ax.set_title("Multi-index refinement convergence", fontsize=12)
+ax.grid(True, which="both", alpha=0.3)
+plt.tight_layout()
+plt.show()
+```
+
+
+## Cost-Aware Refinement
+
+The default refinement priority uses `ConfigIndexCostFunction`, which assigns higher cost to higher fidelity levels: cost $= \text{base}^{\sum \alpha_i}$.  This makes the algorithm prefer refining cheap models until their interpolation error is dominated by bias.
+
+```{python}
+from pyapprox.typing.surrogates.sparsegrids.refinement.cost import ConfigIndexCostFunction
+
+cost_fn = ConfigIndexCostFunction(bkd, nvars_physical=1, base=4.0)
+
+# Cost for each fidelity level
+for alpha in range(3):
+    idx = bkd.asarray([0, alpha], dtype=bkd.int64_dtype())  # [phys=0, config=alpha]
+    print(f"Config alpha={alpha}: cost = {cost_fn(idx):.1f}")
+```
+
+With base 4.0, model $f_1$ costs 4x more than $f_0$.  The refinement algorithm will preferentially evaluate $f_0$ at more physical levels before investing in $f_1$ evaluations.
+
+
+## Two-Dimensional Physical + One Config Variable
+
+Here we demonstrate the multi-fidelity approach on a 2D physical problem with two fidelity levels:
+
+$$
+f_\alpha(z_1, z_2) = \cos\!\left(\pi z_1 + \epsilon_\alpha\right) \cdot \sin\!\left(\pi z_2 / 2\right), \quad \epsilon_0 = 0.3,\ \epsilon_1 = 0.
+$$
+
+```{python}
+epsilons_2d = {0: 0.3, 1: 0.0}
+
+
+class TwoD_ModelFactory:
+    def __init__(self, bkd):
+        self._bkd = bkd
+
+    def get_model(self, config_index):
+        eps = epsilons_2d[config_index[0]]
+
+        def model_fn(samples):
+            z1, z2 = samples[0], samples[1]
+            vals = self._bkd.cos(np.pi * z1 + eps) * self._bkd.sin(np.pi * z2 / 2)
+            return self._bkd.reshape(vals, (1, -1))
+
+        return FunctionFromCallable(1, 2, model_fn, self._bkd)
+
+    def nconfig_vars(self):
+        return 1
+
+    def bkd(self):
+        return self._bkd
+
+
+factory_2d = TwoD_ModelFactory(bkd)
+
+margs_2d = [UniformMarginal(-1.0, 1.0, bkd)] * 2
+phys_facs_2d = create_basis_factories(margs_2d, bkd, "leja")
+
+mi_2d = MultiIndexAdaptiveCombinationSparseGrid(
+    bkd, phys_facs_2d, nconfig_vars=1,
+    config_bounds=bkd.array([1.0]),
+    nqoi=1, model_factory=factory_2d,
+)
+
+nsteps = mi_2d.refine_to_tolerance(1e-5, max_steps=20)
+print(f"2D+config: {mi_2d.nsubspaces()} subspaces, refined {nsteps} steps")
+print(f"Error estimate: {mi_2d.error_estimate():.2e}")
+
+# Test accuracy
+z_test_2d = bkd.array(np.random.uniform(-1, 1, (2, 1000)))
+exact_2d = factory_2d.get_model((1,))(z_test_2d)
+approx_2d = mi_2d(z_test_2d)
+rms_err = float(bkd.sqrt(bkd.sum((exact_2d - approx_2d) ** 2) / 1000))
+print(f"RMS error vs exact model: {rms_err:.2e}")
+```
+
+
+## Multi-Index with Multiple Config Variables
+
+While this tutorial focuses on a single configuration variable (one-dimensional model hierarchy), the framework naturally extends to **multiple** configuration variables.  For example, a PDE solver might have separate controls for mesh resolution in $x$ and $y$:
+
+- Config variable 1: $x$-mesh refinement level
+- Config variable 2: $y$-mesh refinement level
+
+The `nconfig_vars` parameter controls this, and `config_bounds` specifies the maximum level for each config dimension.  The adaptive algorithm then explores the full joint space of physical resolution and model fidelity.
+
+
+## Summary
+
+- **Multi-level collocation** approximates $f_\alpha = f_0 + \sum_{j=1}^{\alpha} (f_j - f_{j-1})$ by interpolating each discrepancy separately.  Discrepancies are smoother and cheaper to approximate.
+- **Multi-index collocation** generalises this to multiple configuration variables using the Smolyak combination over the full (physical + config) index space.
+- `MultiFidelityModelFactoryProtocol` requires `get_model(config_index)`, `nconfig_vars()`, and `bkd()`.
+- `MultiIndexAdaptiveCombinationSparseGrid` supports both **auto mode** (with `step()` or `refine_to_tolerance()`) and **manual mode** (with `step_samples()`/`step_values()`).
+- **Cost-aware refinement** via `ConfigIndexCostFunction` ensures that cheap models are exploited before expensive ones, optimising accuracy per unit cost.
+
+
+## Exercises
+
+::: {.callout-note}
+## Exercises
+
+1. **Three fidelity levels.**  Add a third model with $\epsilon_2 = 0.25$ (intermediate fidelity).  Set `config_bounds = bkd.array([2.0])` and observe how the algorithm distributes evaluations across three models.
+
+2. **Cost sensitivity.**  Change the `base` parameter in `ConfigIndexCostFunction` from 4.0 to 2.0 and 10.0.  How does this affect the selected multi-index set?
+
+3. **Convergence comparison.**  Compare the multi-fidelity grid against a single-model adaptive grid (using only $f_1$).  Plot error vs total **cost** (not just sample count) to see the benefit of multi-fidelity.
+
+4. **2D physical problem.**  Implement a 2D problem where the low-fidelity model uses a coarser discretisation (e.g., fewer Fourier modes).  Use `MultiIndexAdaptiveCombinationSparseGrid` to build a multi-fidelity surrogate.
+:::
+
+
+## Next Steps
+
+This concludes the sparse grid tutorial series.  You now have a complete toolkit for:
+
+- [Piecewise Polynomial Quadrature](piecewise_quadrature.qmd) --- Composite Newton-Cotes rules
+- [Gauss Quadrature](gauss_quadrature.qmd) --- Optimal nodes from orthogonal polynomials
+- [Lagrange Interpolation](lagrange_interpolation.qmd) --- 1D polynomial interpolation
+- [Leja Sequences](leja_sequences.qmd) --- Nested points for adaptive algorithms
+- [Piecewise Interpolation](piecewise_interpolation.qmd) --- Local basis functions
+- [Tensor Product Interpolation](tensor_product_interpolation.qmd) --- Multivariate approximation
+- [Isotropic Sparse Grids](isotropic_sparse_grids.qmd) --- Breaking the curse of dimensionality
+- [Adaptive Sparse Grids](adaptive_sparse_grids.qmd) --- Data-driven refinement
+- **Multifidelity Sparse Grids** (this tutorial) --- Multi-index collocation
+
+For related topics, see [Building a Polynomial Chaos Surrogate](polynomial_chaos_surrogates.qmd) for spectral methods and [UQ with Polynomial Chaos](uq_with_pce.qmd) for moment computation.

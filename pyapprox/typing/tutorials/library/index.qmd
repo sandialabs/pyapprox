@@ -64,6 +64,20 @@ subtitle: "Validated tutorials for uncertainty quantification"
 | [Sparse Polynomial Approximation](sparse_pce_fitting.qmd) | OMP and BPDN/LASSO for high-dimensional polynomial chaos |
 | [UQ with Polynomial Chaos](uq_with_pce.qmd) | Extract analytical moments, marginal densities, and convergence comparisons from a fitted PCE |
 
+## Sparse Grid Interpolation
+
+| Tutorial | Description |
+|----------|-------------|
+| [Piecewise Polynomial Quadrature](piecewise_quadrature.qmd) | Rectangle, trapezoid, and Simpson's rules with error derivations |
+| [Gauss Quadrature](gauss_quadrature.qmd) | Optimal nodes from orthogonal polynomials with exponential convergence |
+| [Lagrange Interpolation](lagrange_interpolation.qmd) | Lagrange basis polynomials, Runge phenomenon, and optimal node placement |
+| [Leja Sequences](leja_sequences.qmd) | Nested points for adaptive interpolation via greedy determinant maximisation |
+| [Piecewise Interpolation](piecewise_interpolation.qmd) | Local basis functions for smooth and discontinuous functions |
+| [Tensor Product Interpolation](tensor_product_interpolation.qmd) | Multivariate approximation via Cartesian products of 1D bases |
+| [Isotropic Sparse Grids](isotropic_sparse_grids.qmd) | Smolyak combination technique for breaking the curse of dimensionality |
+| [Adaptive Sparse Grids](adaptive_sparse_grids.qmd) | Data-driven refinement for anisotropic functions |
+| [Multifidelity Sparse Grids](multifidelity_sparse_grids.qmd) | Multi-index collocation for model hierarchies with varying cost and accuracy |
+
 ## Optimization Under Uncertainty
 
 | Tutorial | Description |
