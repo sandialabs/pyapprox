@@ -33,6 +33,13 @@ subtitle: "Validated tutorials for uncertainty quantification"
 | [MFMC Concept](mfmc_concept.qmd) | Multi-fidelity Monte Carlo: exploiting a hierarchy of model fidelities for variance reduction |
 | [MFMC Analysis](mfmc_analysis.qmd) | Optimal sample ratios, variance reduction formulas, and numerical verification of MFMC and MLMC |
 | [MFMC Usage](mfmc_usage.qmd) | Using the PyApprox MFMC and MLMC API to allocate samples, visualize allocations, and verify estimates |
+| [Multi-Level Monte Carlo](mlmc_concept.qmd) | Estimating high-fidelity model statistics using a hierarchy of models by accumulating corrections between consecutive levels |
+| [MLMC Analysis](mlmc_analysis.qmd) | Deriving the optimal MLMC sample allocation, minimum achievable cost, and the MLMC complexity theorem |
+| [MLMC Usage](mlmc_usage.qmd) | Using the PyApprox MLMC API to set up a model hierarchy, allocate samples optimally, and compare variance reduction against MC |
+| [General ACV Concept](acv_many_models_concept.qmd) | How using all LF models as direct control variates breaks the CV-1 variance ceiling |
+| [General ACV Analysis](acv_many_models_analysis.qmd) | Deriving the optimal weight matrix and minimum covariance via Schur complement |
+| [ACV Allocation Matrices](acv_allocation_matrices.qmd) | How allocation matrices encode sample-set structure for all ACV estimators |
+| [ACV Covariances](acv_covariances.qmd) | Explicit formulas for the covariance blocks that determine ACV estimator variance |
 
 ## Inverse UQ
 
