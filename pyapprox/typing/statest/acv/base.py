@@ -190,6 +190,16 @@ class ACVEstimator(CVEstimator[Array], Generic[Array]):
             )
         return self._cached_covariance
 
+    def allocation_matrix(self) -> Array:
+        """Return the allocation matrix.
+
+        Returns
+        -------
+        Array
+            Allocation matrix. Shape: (npartitions, 2*nmodels).
+        """
+        return self._get_allocation_matrix()
+
     def npartition_samples(self) -> Array:
         """Get current partition sample allocation.
 

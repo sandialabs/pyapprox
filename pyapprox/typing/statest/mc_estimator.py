@@ -82,6 +82,23 @@ class MCEstimator(Generic[Array]):
             npartition_samples[0]
         )
 
+    def nsamples_per_model(self) -> Array:
+        """Return the number of samples allocated to each model.
+
+        Returns
+        -------
+        Array
+            Number of samples per model. Shape: (nmodels,)
+
+        Raises
+        ------
+        ValueError
+            If allocate_samples has not been called.
+        """
+        if self._rounded_nsamples_per_model is None:
+            raise ValueError("Call allocate_samples first.")
+        return self._rounded_nsamples_per_model
+
     def optimized_covariance(self) -> Array:
         """
         Return the estimator covariance at the optimal sample allocation

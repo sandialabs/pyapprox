@@ -57,6 +57,7 @@ from pyapprox.typing.statest.groupacv import (
     get_model_subsets,
     default_groupacv_optimizer,
 )
+from pyapprox.typing.statest.plotting import plot_allocation
 from pyapprox.typing.statest.aetc import AETC, AETCBLUE, AETCMC
 from pyapprox.typing.statest.search import (
     EstimatorFamily,
@@ -102,6 +103,8 @@ __all__ = [
     "GroupACVCostConstraint",
     "get_model_subsets",
     "default_groupacv_optimizer",
+    # Plotting
+    "plot_allocation",
     # AETC exports
     "AETC",
     "AETCBLUE",
