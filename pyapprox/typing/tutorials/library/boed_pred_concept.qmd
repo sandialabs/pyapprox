@@ -1,0 +1,181 @@
+---
+title: "Goal-Oriented Bayesian OED: Designing for Prediction"
+subtitle: "PyApprox Tutorial Library"
+description: "Why targeting prediction uncertainty rather than parameter uncertainty changes which experiments are optimal."
+tutorial_type: concept
+topic: experimental_design
+difficulty: intermediate
+estimated_time: 8
+prerequisites:
+  - experimental_design_intro
+  - boed_kl_concept
+tags:
+  - experimental-design
+  - goal-oriented
+  - risk-measures
+  - prediction-uncertainty
+format:
+  html:
+    code-fold: false
+    code-tools: true
+    toc: true
+execute:
+  echo: true
+  warning: false
+jupyter: python3
+---
+
+::: {.callout-tip collapse="true"}
+## Download Notebook
+[Download as Jupyter Notebook](notebooks/boed_pred_concept.ipynb)
+:::
+
+## Learning Objectives
+
+After completing this tutorial, you will be able to:
+
+- Explain why EIG-based OED can be suboptimal when the goal is prediction
+- Define the goal-oriented utility in terms of posterior push-forward variance
+- Describe how a risk measure replaces simple variance for vector-valued QoIs
+- Identify the role of the double-loop estimator for goal-oriented utility
+
+## Prerequisites
+
+Complete [Learning from Experiments](boed_kl_concept.qmd) before this tutorial.
+
+## Why EIG Can Be the Wrong Objective
+
+Consider a model with two parameters $\boldsymbol{\theta} = (\theta_1, \theta_2)$:
+one controls a large-scale trend (high prior variance, easy to identify) and one
+controls a local detail (low prior variance, hard to identify). Maximizing EIG
+will preferentially place sensors to identify $\theta_1$ because it drives most
+of the KL divergence. But if the downstream QoI depends almost entirely on
+$\theta_2$, those sensors are wasted.
+
+**Goal-oriented OED** replaces the EIG criterion with a utility that directly
+measures prediction uncertainty after the experiment.
+
+## The Goal-Oriented Utility
+
+Let $q: \mathbb{R}^D \to \mathbb{R}^Q$ be a QoI map. For a design $\mathbf{w}$
+and observations $\mathbf{y}$, the posterior push-forward
+$p(q(\boldsymbol{\theta}) \mid \mathbf{y}, \mathbf{w})$ captures residual
+prediction uncertainty. The goal-oriented utility is:
+
+$$
+U(\mathbf{w}) =
+\mathbb{E}_{p(\mathbf{y} \mid \mathbf{w})}
+\!\left\{
+  \mathcal{R}_{p(q)}\!\left[
+    \mathbb{V}_{p(\boldsymbol{\theta} \mid \mathbf{y}, \mathbf{w})}[q(\boldsymbol{\theta})]
+  \right]
+\right\},
+$$
+
+where:
+
+- $\mathbb{V}_{p(\boldsymbol{\theta} \mid \mathbf{y}, \mathbf{w})}[q(\boldsymbol{\theta})]$
+  is the posterior variance of $q$ (a $Q$-vector for vector-valued QoIs),
+- $\mathcal{R}_{p(q)}$ is a **risk measure** that aggregates the $Q$ variance
+  values into a single scalar.
+
+For scalar QoIs ($Q = 1$), $\mathcal{R}$ is redundant. For $Q > 1$, a natural
+choice is the expected value under a discrete uniform measure:
+
+$$
+\mathcal{R}[v] = \frac{1}{Q}\sum_{i=1}^Q v_i.
+$$
+
+Risk-averse choices — such as Average Value at Risk (AVaR) — can also be used
+when the worst-case QoI deviation matters more than the average.
+
+## From Variance to Standard Deviation Deviation
+
+In practice, the utility is often expressed in terms of a **deviation measure**:
+
+$$
+U(\mathbf{w}) = \mathbb{E}_{p(\mathbf{y} \mid \mathbf{w})}
+\!\left\{\mathcal{D}\!\left[q(\boldsymbol{\theta}) \mid \mathbf{y}, \mathbf{w}\right]\right\},
+$$
+
+where $\mathcal{D}[X] = \mathcal{R}[X] - \mathbb{E}[X]$ is the deviation
+associated with risk measure $\mathcal{R}$. Choosing $\mathcal{D}$ to be the
+**standard deviation** yields a natural, interpretable criterion: minimize the
+expected posterior standard deviation of the QoI. Choosing AVaR deviation gives
+a risk-averse variant that prioritizes reducing tail prediction uncertainty.
+
+## Double-Loop Estimator for Goal-Oriented Utility
+
+The goal-oriented utility requires the same outer-inner loop structure as EIG:
+
+1. **Outer loop** ($M$ samples): draw $(\boldsymbol{\theta}^{(m)}, \mathbf{y}^{(m)})$
+   pairs and evaluate the QoI $q^{(m)} = q(\boldsymbol{\theta}^{(m)})$.
+2. **Inner loop** ($N_\text{in}$ samples): approximate the posterior variance by
+   importance-weighted averaging over fresh prior samples.
+
+A key difference from the EIG estimator: for goal-oriented OED, **the inner loop
+dominates** convergence because the posterior variance involves a quadratic
+combination of QoI values and likelihoods. This is the opposite of EIG, where the
+outer loop dominates. The [usage tutorial](boed_pred_usage.qmd) demonstrates this
+numerically.
+
+```{python}
+#| echo: false
+import numpy as np
+import matplotlib.pyplot as plt
+from pyapprox.typing.util.backends.numpy import NumpyBkd
+
+# Illustrative comparison: EIG OED weight vs. Pred OED weight
+# for a 1-D polynomial model where theta_1 is scale, theta_2 is offset
+# EIG gives equal weight; Pred OED concentrates on the QoI-sensitive region
+bkd = NumpyBkd()
+x = np.linspace(-1, 1, 200)
+# Sensitivity of QoI (evaluated at x=0.8) to each observation location
+sens_eig  = 0.5 * np.ones_like(x)   # flat: EIG weights all observations equally
+sens_pred = np.exp(-((x - 0.8)**2) / 0.1)  # peaks near x=0.8 (QoI location)
+sens_pred /= sens_pred.max()
+
+fig, ax = plt.subplots(figsize=(8, 3.5))
+ax.fill_between(x, sens_eig, alpha=0.3, color="#2C7FB8", label="EIG (uniform)")
+ax.fill_between(x, sens_pred, alpha=0.4, color="#D95F02", label="Goal-oriented")
+ax.set_xlabel("Observation location $x$", fontsize=12)
+ax.set_ylabel("Design weight (schematic)", fontsize=12)
+ax.set_title("EIG vs. goal-oriented OED weight allocation", fontsize=11)
+ax.legend(fontsize=10)
+ax.grid(True, alpha=0.2)
+plt.tight_layout()
+plt.show()
+```
+
+The schematic illustrates the key difference: EIG spreads weight uniformly across
+observation locations, while goal-oriented OED concentrates weight near the region
+that most affects the QoI.
+
+## Key Takeaways
+
+- EIG maximizes information about all parameters equally; it is suboptimal when
+  only a specific QoI matters.
+- Goal-oriented OED measures the expected posterior spread of the push-forward
+  $p(q(\boldsymbol{\theta}) \mid \mathbf{y}, \mathbf{w})$.
+- For vector-valued QoIs, a risk measure $\mathcal{R}$ aggregates componentwise
+  deviations into a scalar utility.
+- The inner loop dominates convergence for the goal-oriented estimator, unlike EIG.
+
+## Exercises
+
+1. Suppose $q(\boldsymbol{\theta}) = \theta_1 + \theta_2$ and the prior is
+   isotropic. Would EIG and goal-oriented OED agree on the optimal design?
+   What if $q(\boldsymbol{\theta}) = \theta_1$?
+
+2. Give an example QoI where AVaR deviation is a better objective than standard
+   deviation. Why?
+
+3. Explain qualitatively why the inner loop dominates convergence for the
+   goal-oriented estimator but not for EIG.
+
+## Next Steps
+
+- [Gaussian Posterior Expressions for OED](boed_pred_gaussian_analysis.qmd) —
+  closed-form expressions for risk measures under Gaussian posteriors
+- [Goal-Oriented OED: Convergence Verification](boed_pred_usage.qmd) — API
+  usage and convergence analysis with `PredOEDDiagnostics`

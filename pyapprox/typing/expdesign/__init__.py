@@ -123,16 +123,19 @@ from .quadrature import (
 )
 from .protocols import QuadratureSamplerProtocol
 from .solver import (
+    RelaxedOEDSolver,
     RelaxedKLOEDSolver,
     RelaxedOEDConfig,
     BruteForceKLOEDSolver,
     solve_kl_oed,
+    solve_prediction_oed,
 )
 # Benchmarks
 from .benchmarks import (
     LinearGaussianOEDBenchmark,
     LinearGaussianOEDModel,
     NonLinearGaussianOEDBenchmark,
+    LinearGaussianPredOEDBenchmark,
 )
 # Diagnostics
 from .diagnostics import (
@@ -151,6 +154,8 @@ from .analytical import (
     ConjugateGaussianOEDForLogNormalExpectedStdDev,
     ConjugateGaussianOEDForLogNormalAVaRStdDev,
 )
+# Data generation and management
+from .data import OEDDataGenerator, OEDDataManager
 # Local OED (linear regression design)
 from .local import (
     # Design matrices
@@ -189,6 +194,7 @@ __all__ = [
     "LinearGaussianOEDBenchmark",
     "LinearGaussianOEDModel",
     "NonLinearGaussianOEDBenchmark",
+    "LinearGaussianPredOEDBenchmark",
     # Diagnostics
     "KLOEDDiagnostics",
     "PredictionOEDDiagnostics",
@@ -222,6 +228,7 @@ __all__ = [
     "GaussianQuadratureSampler",
     "OEDQuadratureSampler",
     # Solvers
+    "RelaxedOEDSolver",
     "RelaxedKLOEDSolver",
     "RelaxedOEDConfig",
     "BruteForceKLOEDSolver",
@@ -229,10 +236,15 @@ __all__ = [
     "create_kl_oed_objective",
     "create_kl_oed_objective_from_data",
     "solve_kl_oed",
+    # Prediction OED convenience functions (solver)
+    "solve_prediction_oed",
     # Prediction OED convenience functions
     "create_deviation_measure",
     "create_risk_measure",
     "create_prediction_oed_objective",
+    # Data generation and management
+    "OEDDataGenerator",
+    "OEDDataManager",
     # Local OED - Design matrices
     "LeastSquaresDesignMatrices",
     "QuantileDesignMatrices",

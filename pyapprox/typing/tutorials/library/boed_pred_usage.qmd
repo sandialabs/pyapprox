@@ -1,0 +1,228 @@
+---
+title: "Goal-Oriented OED: Convergence Verification"
+subtitle: "PyApprox Tutorial Library"
+description: "Using PredictionOEDDiagnostics to verify that numerical risk-aware utility estimates converge to analytical values, and comparing MC vs. Halton convergence rates."
+tutorial_type: usage
+topic: experimental_design
+difficulty: intermediate
+estimated_time: 12
+prerequisites:
+  - boed_pred_concept
+  - boed_pred_gaussian_analysis
+tags:
+  - experimental-design
+  - convergence
+  - risk-measures
+  - api-usage
+  - quasi-monte-carlo
+format:
+  html:
+    code-fold: false
+    code-tools: true
+    toc: true
+execute:
+  echo: true
+  warning: false
+jupyter: python3
+---
+
+::: {.callout-tip collapse="true"}
+## Download Notebook
+[Download as Jupyter Notebook](notebooks/boed_pred_usage.ipynb)
+:::
+
+## Learning Objectives
+
+After completing this tutorial, you will be able to:
+
+- Construct a `LinearGaussianPredOEDBenchmark` and query its analytical utility
+- Use `PredictionOEDDiagnostics` to compute MSE, bias, and variance of numerical estimates
+- Explain why the **inner** loop (not outer) drives convergence for goal-oriented OED
+- Compare MC convergence rates for the standard deviation utility
+
+## Prerequisites
+
+Read [Goal-Oriented Bayesian OED](boed_pred_concept.qmd) and
+[Gaussian Posterior Expressions](boed_pred_gaussian_analysis.qmd).
+
+## Quick Recap
+
+From the analysis tutorial, the expected standard deviation of the posterior
+push-forward in a linear Gaussian model is:
+
+$$
+U_\mathrm{std}(\mathbf{w})
+= \sqrt{\boldsymbol{\psi}\boldsymbol{\Sigma}_\star(\mathbf{w})\boldsymbol{\psi}^\top}.
+$$
+
+This is **deterministic** — no averaging over observations is needed.
+The numerical estimator must reproduce this from Monte Carlo samples alone.
+Because the estimator uses ratios of QoI-weighted likelihoods, the bias
+from the inner loop dominates, unlike the EIG estimator.
+
+## Setup
+
+```{python}
+import numpy as np
+import matplotlib.pyplot as plt
+from pyapprox.typing.util.backends.numpy import NumpyBkd
+from pyapprox.typing.expdesign.benchmarks import LinearGaussianPredOEDBenchmark
+from pyapprox.typing.expdesign.diagnostics import (
+    PredictionOEDDiagnostics,
+    create_prediction_oed_diagnostics,
+)
+
+np.random.seed(1)
+bkd = NumpyBkd()
+```
+
+```{python}
+nobs      = 2
+degree    = 3
+noise_std = 0.5
+prior_std = 0.5
+npred     = 1
+
+benchmark = LinearGaussianPredOEDBenchmark(
+    nobs, degree, noise_std, prior_std, npred, bkd,
+)
+diagnostics = create_prediction_oed_diagnostics(benchmark, "linear_stdev")
+
+# Uniform design weights
+weights = bkd.ones((nobs, 1)) / nobs
+```
+
+## Analytical Reference Value
+
+```{python}
+exact = diagnostics.exact_utility(weights)
+print(f"Analytical utility (std deviation): {exact:.6f}")
+```
+
+A single numerical estimate:
+
+```{python}
+approx = diagnostics.compute_numerical_utility(
+    nouter=500,
+    ninner=1000,
+    design_weights=weights,
+    seed=42,
+)
+print(f"Numerical utility (nouter=500, ninner=1000): {approx:.6f}")
+print(f"Absolute error: {abs(approx - exact):.6f}")
+```
+
+## MSE Decomposition
+
+```{python}
+bias, variance, mse = diagnostics.compute_mse(
+    nouter=100,
+    ninner=500,
+    nrealizations=50,
+    design_weights=weights,
+    base_seed=0,
+)
+print(f"Bias^2:   {bias**2:.2e}")
+print(f"Variance: {variance:.2e}")
+print(f"MSE:      {mse:.2e}")
+```
+
+::: {.callout-note}
+## Inner loop dominates for goal-oriented OED
+Compare to the EIG case in [boed_kl_usage.qmd](boed_kl_usage.qmd): there, outer
+samples drive the MSE. Here, the inner samples drive it. You can verify this by
+holding `ninner` fixed while increasing `nouter` — the MSE barely changes.
+:::
+
+## MSE vs. Inner Sample Count (MC)
+
+```{python}
+outer_counts = [100, 500]           # fixed at modest values
+inner_counts = [100, 500, 1000, 5000]
+
+values_mc = diagnostics.compute_mse_for_sample_combinations(
+    outer_sample_counts=outer_counts,
+    inner_sample_counts=inner_counts,
+    nrealizations=50,
+    design_weights=weights,
+    base_seed=0,
+)
+```
+
+```{python}
+#| echo: false
+#| fig-cap: "MSE of the goal-oriented utility estimator vs. number of inner samples for two outer sample counts (MC quadrature). The curves overlap — outer count has negligible effect — confirming that inner samples dominate convergence."
+#| label: fig-pred-mse-mc
+
+fig, axes = plt.subplots(1, 2, figsize=(12, 5), sharey=True)
+mse_array = bkd.to_numpy(bkd.vstack(values_mc["mse"]))  # shape: (n_inner, n_outer)
+
+colors = ["#2C7FB8", "#D95F02"]
+for ax_idx, nouter in enumerate(outer_counts):
+    ax = axes[ax_idx]
+    ax.loglog(inner_counts, mse_array[:, ax_idx], "o-",
+              color=colors[ax_idx], lw=2, label=f"$M = {nouter}$")
+
+    # Reference O(1/N) slope
+    ref_x = np.array([inner_counts[0], inner_counts[-1]])
+    ref_y = mse_array[0, ax_idx] * ref_x[0] / ref_x
+    ax.loglog(ref_x, ref_y, "k--", lw=1.5, alpha=0.6, label="$O(1/N)$")
+
+    ax.set_title(f"$M = {nouter}$ outer samples", fontsize=11)
+    ax.set_xlabel("Inner samples $N_{in}$", fontsize=11)
+    ax.set_ylabel("MSE" if ax_idx == 0 else "", fontsize=11)
+    ax.legend(fontsize=9)
+    ax.grid(True, alpha=0.25, which="both")
+
+plt.suptitle("Goal-oriented OED: MSE vs. inner samples (MC)", fontsize=12, y=1.01)
+plt.tight_layout()
+plt.show()
+```
+
+```{python}
+# MC convergence rates (w.r.t. inner samples)
+for jj, nouter in enumerate(outer_counts):
+    mse_values = bkd.to_numpy(values_mc["mse"][jj]).tolist()
+    rate = PredictionOEDDiagnostics.compute_convergence_rate(inner_counts, mse_values)
+    print(f"MC rate (nouter={nouter:4d}): {rate:.3f}  (expected ~1.0)")
+```
+
+## AVaR Deviation Variant
+
+Switching to AVaR deviation requires only changing the utility type in the
+`create_prediction_oed_diagnostics` call.
+
+```{python}
+diagnostics_avar = create_prediction_oed_diagnostics(
+    benchmark, "linear_avar", beta=0.9,
+)
+exact_avar = diagnostics_avar.exact_utility(weights)
+print(f"Analytical utility (AVaR 0.9 deviation): {exact_avar:.6f}")
+```
+
+## Key Takeaways
+
+- For goal-oriented OED, **inner samples dominate** MSE convergence — increasing
+  outer samples alone barely reduces error.
+- `PredictionOEDDiagnostics` mirrors `KLOEDDiagnostics`: same `compute_mse`,
+  `compute_mse_for_sample_combinations`, and `compute_convergence_rate` interface.
+- Switching between standard deviation and AVaR utility requires only changing
+  `utility_type` in the `create_prediction_oed_diagnostics` call.
+
+## Exercises
+
+1. Run `compute_mse_for_sample_combinations` varying `outer_counts` with
+   `ninner` fixed at 2000. Confirm that the MSE does not decrease.
+
+2. Try `npred=3` (three QoI components). Does the analytical utility change?
+   Does the convergence rate change?
+
+3. Compare `exact_utility` for designs that concentrate all weight on one
+   observation vs. uniform weights. Which is better for this polynomial model?
+
+## Next Steps
+
+- Optimize the design weights using the gradient expressions from
+  [Bayesian OED: Double-Loop Formulation](boed_kl_analysis.qmd) adapted for
+  the goal-oriented utility
+- Extend to nonlinear models where no analytical reference is available

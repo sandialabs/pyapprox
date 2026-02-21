@@ -1,0 +1,304 @@
+---
+title: "Bayesian OED in Practice: Parameter Estimation for a Predator-Prey System"
+subtitle: "PyApprox Tutorial Library"
+description: "Applying EIG-based Bayesian OED to choose when to observe a Lotka-Volterra predator-prey ODE — a nonlinear model where analytic EIG is unavailable."
+tutorial_type: usage
+topic: experimental_design
+difficulty: intermediate
+estimated_time: 12
+prerequisites:
+  - boed_kl_concept
+  - boed_kl_usage
+tags:
+  - experimental-design
+  - information-gain
+  - nonlinear
+  - ode
+  - lotka-volterra
+format:
+  html:
+    code-fold: false
+    code-tools: true
+    toc: true
+execute:
+  echo: true
+  warning: false
+jupyter: python3
+---
+
+::: {.callout-tip collapse="true"}
+## Download Notebook
+[Download as Jupyter Notebook](notebooks/boed_kl_nonlinear_usage.ipynb)
+:::
+
+## Learning Objectives
+
+After completing this tutorial, you will be able to:
+
+- Explain why observation timing matters for identifying Lotka-Volterra parameters
+- Construct a nonlinear OED problem using `LotkaVolterraOEDBenchmark` and the KL-OED API
+- Generate outer-loop and inner-loop quadrature data from a forward model
+- Interpret design weights as a probability measure over candidate observation times
+
+## Prerequisites
+
+Complete [Bayesian OED: Convergence Verification](boed_kl_usage.qmd) before this
+tutorial. That tutorial establishes the API pattern; here we apply it to a
+problem where no analytical reference exists.
+
+## Why Timing Matters for ODE Parameter Identification
+
+The Lotka-Volterra equations describe a predator-prey ecosystem:
+
+$$
+\dot{u}_1 = \theta_1 u_1 - \theta_2 u_1 u_2, \qquad
+\dot{u}_2 = \theta_3 u_1 u_2 - \theta_4 u_2,
+$$
+
+where $u_1, u_2$ are prey and predator populations and
+$\boldsymbol{\theta} = (\theta_1, \theta_2, \theta_3, \theta_4)$ are growth
+and interaction rates. We can measure two of the three states at any of several
+candidate times.
+
+The informativeness of a measurement depends on *when* it is taken. Early
+measurements, while the populations are still near their initial conditions,
+reveal little about the interaction rates $\theta_2, \theta_3$ — those only
+become visible once predator-prey cycling has developed. Observations near a
+population peak or trough carry the most information about the amplitude
+parameters. OED finds the combination of times that, in expectation across
+all possible parameter realizations, is most informative.
+
+## Setup
+
+```{python}
+import numpy as np
+import matplotlib.pyplot as plt
+from pyapprox.typing.util.backends.numpy import NumpyBkd
+from pyapprox.typing.expdesign.benchmarks import LotkaVolterraOEDBenchmark  # TODO: implement
+from pyapprox.typing.expdesign.data import OEDDataGenerator
+from pyapprox.typing.expdesign import (
+    GaussianOEDInnerLoopLikelihood,
+    create_kl_oed_objective_from_data,
+    RelaxedKLOEDSolver,
+    RelaxedOEDConfig,
+)
+
+np.random.seed(1)
+bkd = NumpyBkd()
+```
+
+```{python}
+benchmark = LotkaVolterraOEDBenchmark(bkd)
+obs_model = benchmark.observation_model()   # maps theta -> (nobs_times * 2,)
+prior     = benchmark.prior()               # IndependentJoint over theta
+```
+
+## The Model and Observation Structure
+
+```{python}
+# Draw a single prior sample and run the ODE
+sample = prior.rvs(1)
+full_solution = obs_model.forward_solve(sample)[0]   # full ODE trajectory
+
+# Candidate observations: 2 states x T times
+observations = obs_model(sample).reshape((2, -1))    # shape (2, T)
+
+print(f"Number of candidate observation times: {observations.shape[1]}")
+print(f"Total OED design dimension: {obs_model.nqoi()}")
+```
+
+```{python}
+#| echo: false
+#| fig-cap: "Lotka-Volterra ODE trajectories for 100 prior samples (grey) overlaid with the noiseless observations (circles) for one representative sample. The observation model records states 1 and 3. The spread across samples reflects prior uncertainty in the interaction parameters; observations near peaks and troughs carry the most information."
+#| label: fig-lv-trajectories
+
+fig, axes = plt.subplots(1, 3, figsize=(15, 4.5), sharey=False)
+titles = ["State 1 (prey)", "State 2", "State 3 (predator)"]
+
+# 100 random trajectories
+for samp in prior.rvs(100).T:
+    sol = obs_model.forward_solve(samp[:, None])[0]
+    for ii in range(3):
+        axes[ii].plot(
+            benchmark.solution_times(), sol[ii], color="#AAAAAA", lw=0.8, alpha=0.5
+        )
+
+# Nominal trajectory and observations
+sol_nom = obs_model.forward_solve(sample)[0]
+for ii in range(3):
+    axes[ii].plot(benchmark.solution_times(), sol_nom[ii], color="#2C7FB8", lw=2)
+    axes[ii].set_title(titles[ii], fontsize=11)
+    axes[ii].set_xlabel("Time (s)", fontsize=10)
+    axes[ii].grid(True, alpha=0.2)
+
+# Mark observation locations (states 1 and 3)
+for ii, state_idx in enumerate([0, 2]):
+    axes[state_idx].plot(
+        benchmark.observation_times()[ii],
+        observations[ii],
+        "o", ms=7, color="#D95F02", zorder=5, label="Candidate obs."
+    )
+axes[0].legend(fontsize=9)
+axes[1].set_ylabel("Population", fontsize=10)
+plt.suptitle("Lotka-Volterra: prior ensemble + nominal trajectory", fontsize=12)
+plt.tight_layout()
+plt.show()
+```
+
+## Define the Likelihood
+
+```{python}
+noise_std = 0.1
+nobs = obs_model.nqoi()
+# Each candidate observation has independent additive Gaussian noise
+noise_variances = bkd.full((nobs,), noise_std**2)
+likelihood = GaussianOEDInnerLoopLikelihood(noise_variances, bkd)
+```
+
+::: {.callout-note}
+## Why independent diagonal noise?
+For ODE state observations, sensor noise is typically uncorrelated across
+locations and times. The diagonal assumption keeps the log-likelihood computation
+$O(K)$ rather than $O(K^3)$, which matters when $K$ (the number of candidate
+observations) is large.
+:::
+
+## Generate Quadrature Data
+
+The double-loop estimator needs two independent sets of samples from the prior
+(and the joint prior-noise distribution for the outer loop). The
+`OEDDataGenerator` handles this bookkeeping.
+
+```{python}
+data_gen = OEDDataGenerator(bkd)
+
+# Outer loop: joint samples from (theta, epsilon) — used to generate
+# synthetic observations y^(m) = f(theta^(m)) + epsilon^(m)
+nouter = 10_000
+noise_cov_diag = bkd.full((nobs,), noise_std**2)
+outerloop_samples, outerloop_weights = data_gen.setup_quadrature_data(
+    quadrature_type="MC",
+    variable=data_gen.joint_prior_noise_variable(prior, noise_cov_diag),
+    nsamples=nouter,
+    loop="outer",
+)
+
+# Inner loop: prior samples theta^(n) only — used to approximate the evidence
+import math
+ninner = int(math.sqrt(nouter))    # rule-of-thumb: sqrt of outer budget
+innerloop_samples, innerloop_weights = data_gen.setup_quadrature_data(
+    quadrature_type="MC",
+    variable=prior,
+    nsamples=ninner,
+    loop="inner",
+)
+
+print(f"Outer samples: {nouter},  Inner samples: {ninner}")
+```
+
+::: {.callout-note}
+## Why sqrt(N) for the inner loop?
+For the EIG estimator the MSE scales as $O(1/M + 1/N^2)$ where $M$ is outer
+and $N$ is inner. Setting $N \approx \sqrt{M}$ balances both error sources for
+a total cost of $O(M)$ model evaluations.
+:::
+
+## Evaluate the Forward Model
+
+```{python}
+nparams = prior.nvars()
+
+# Extract prior parameter samples from outer loop
+theta_outer = outerloop_samples[:nparams, :]
+
+# Evaluate the observation model at outer and inner parameter samples
+outer_shapes = obs_model(theta_outer)     # shape (nobs, nouter)
+inner_shapes = obs_model(innerloop_samples)  # shape (nobs, ninner)
+
+# Latent noise samples for the reparameterization trick
+latent_samples = outerloop_samples[nparams:, :]  # shape (nobs, nouter)
+```
+
+## Create the Objective and Solve
+
+```{python}
+objective = create_kl_oed_objective_from_data(
+    noise_variances=noise_variances,
+    outer_shapes=outer_shapes,
+    inner_shapes=inner_shapes,
+    latent_samples=latent_samples,
+    bkd=bkd,
+    outer_quad_weights=outerloop_weights,
+    inner_quad_weights=innerloop_weights,
+)
+
+config = RelaxedOEDConfig(maxiter=200, verbose=0)
+solver = RelaxedKLOEDSolver(objective, config)
+design_weights, eig = solver.solve()
+print(f"Optimal EIG: {eig:.4f} nats")
+```
+
+## Interpreting the Design
+
+The output is a probability vector over candidate observation times. Large
+weight on time $t_k$ means: *observing at $t_k$ contributes most to learning
+about the parameters, on average.*
+
+```{python}
+#| fig-cap: "Optimal design weights for the Lotka-Volterra EIG problem. Each bar is one candidate observation time for one of the two measured states. The OED concentrates observations near the population peak — where sensitivity to the interaction parameters is highest."
+#| label: fig-lv-design
+
+weights_by_state = bkd.to_numpy(design_weights).reshape((2, -1))
+obs_times = bkd.to_numpy(benchmark.observation_times())
+
+fig, axes = plt.subplots(1, 2, figsize=(12, 5), sharey=True)
+labels = ["State 1 (prey)", "State 3 (predator)"]
+colors = ["#2C7FB8", "#D95F02"]
+
+for ii, ax in enumerate(axes):
+    ax.bar(obs_times[ii], weights_by_state[ii], color=colors[ii], alpha=0.8)
+    ax.set_xlabel("Observation time (s)", fontsize=11)
+    ax.set_title(labels[ii], fontsize=11)
+    ax.grid(True, axis="y", alpha=0.25)
+
+axes[0].set_ylabel("Design weight", fontsize=11)
+plt.suptitle("Optimal EIG design: Lotka-Volterra", fontsize=12)
+plt.tight_layout()
+plt.show()
+```
+
+The weights are not uniform — the OED is telling us that some time points are
+substantially more informative than others. Observations taken while populations
+are rapidly changing encode more about interaction rates than observations taken
+at quasi-steady state.
+
+## Key Takeaways
+
+- The `create_kl_oed_objective_from_data` factory creates a KL-OED objective
+  from pre-computed model evaluations. Combined with `RelaxedKLOEDSolver`,
+  this provides an end-to-end OED workflow.
+- Outer and inner sample counts play distinct roles; the $\sqrt{M}$ heuristic
+  for inner samples balances bias and variance for minimal total cost.
+- Design weights are a probability measure: they tell you *how much* to invest in
+  each candidate measurement time.
+- For nonlinear models, the OED weights depend on the model's sensitivity
+  structure, which can only be discovered numerically.
+
+## Exercises
+
+1. Re-run with `nouter = 1000` and `nouter = 50000`. How stable are the
+   resulting weight distributions?
+
+2. The noise standard deviation is set to 0.1. Double it to 0.2 and re-solve.
+   Do the optimal times shift, or do the relative weights change?
+
+3. What happens to the design if you restrict to observing only State 1 (remove
+   State 3)? Does the optimal timing change?
+
+## Next Steps
+
+- [Goal-Oriented OED: Predator-Prey Prediction](boed_pred_nonlinear_usage.qmd) —
+  redesign the same experiment to minimise prediction uncertainty rather than
+  parameter estimation error
+- [Decoupling Data Generation from Optimisation](boed_data_workflow_usage.qmd) —
+  saving and reusing expensive model evaluations across multiple OED runs

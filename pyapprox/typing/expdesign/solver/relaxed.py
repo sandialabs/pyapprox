@@ -1,5 +1,5 @@
 """
-Relaxed (continuous) solver for KL-OED.
+Relaxed (continuous) solver for OED problems.
 
 The relaxed solver treats design weights as continuous variables in [0, 1]
 with a sum-to-one constraint, using trust-region constrained optimization.
@@ -11,6 +11,7 @@ from dataclasses import dataclass
 import numpy as np
 
 from pyapprox.typing.util.backends.protocols import Array, Backend
+from pyapprox.typing.expdesign.protocols.objective import OEDObjectiveProtocol
 from pyapprox.typing.expdesign.objective import KLOEDObjective
 from pyapprox.typing.optimization.minimize.scipy.trust_constr import (
     ScipyTrustConstrOptimizer,
@@ -43,18 +44,18 @@ class RelaxedOEDConfig:
 
 
 class OEDObjectiveWrapper(Generic[Array]):
-    """Wrapper adapting KLOEDObjective for optimization.
+    """Wrapper adapting an OED objective for optimization.
 
     The optimizer expects:
     - __call__(x) where x is (nvars, nsamples)
     - jacobian(x) where x is (nvars, 1)
 
-    KLOEDObjective uses design_weights of shape (nobs, 1).
+    OED objectives use design_weights of shape (nobs, 1).
     This wrapper ensures shape compatibility.
     """
 
     def __init__(
-        self, objective: KLOEDObjective[Array], bkd: Backend[Array]
+        self, objective: OEDObjectiveProtocol[Array], bkd: Backend[Array]
     ) -> None:
         self._objective = objective
         self._bkd = bkd
@@ -110,31 +111,31 @@ class OEDObjectiveWrapper(Generic[Array]):
         return self._objective.jacobian(sample)
 
 
-class RelaxedKLOEDSolver(Generic[Array]):
-    """Relaxed (continuous) solver for KL-OED.
+class RelaxedOEDSolver(Generic[Array]):
+    """Relaxed (continuous) solver for any OED objective.
 
     Solves the continuous relaxation of the OED problem:
-        min -EIG(w)
+        min objective(w)
         s.t. sum(w) = 1
              0 <= w_i <= 1
 
     Parameters
     ----------
-    objective : KLOEDObjective[Array]
-        The KL-OED objective function.
+    objective : OEDObjectiveProtocol[Array]
+        Any OED objective function satisfying the protocol.
     config : RelaxedOEDConfig, optional
         Solver configuration. Uses defaults if None.
     """
 
     def __init__(
         self,
-        objective: KLOEDObjective[Array],
+        objective: OEDObjectiveProtocol[Array],
         config: Optional[RelaxedOEDConfig] = None,
     ) -> None:
         self._objective = objective
         self._bkd = objective.bkd()
         self._config = config or RelaxedOEDConfig()
-        self._nobs = objective.nobs()
+        self._nobs = objective.nvars()
 
     def bkd(self) -> Backend[Array]:
         """Get the backend."""
@@ -186,8 +187,8 @@ class RelaxedKLOEDSolver(Generic[Array]):
         -------
         optimal_weights : Array
             Optimal design weights. Shape: (nobs, 1)
-        optimal_eig : float
-            Expected information gain at optimal design.
+        optimal_value : float
+            Objective value at optimal design.
         """
         # Default to uniform weights
         if init_weights is None:
@@ -217,8 +218,117 @@ class RelaxedKLOEDSolver(Generic[Array]):
         # Extract optimal weights (optima() returns (nvars, 1))
         optimal_weights = result.optima()
 
+        # Compute objective value at optimal
+        optimal_value = float(
+            self._bkd.to_numpy(self._objective(optimal_weights))[0, 0]
+        )
+
+        return optimal_weights, optimal_value
+
+    def solve_multistart(
+        self,
+        n_starts: int = 5,
+        seed: Optional[int] = None,
+    ) -> Tuple[Array, float]:
+        """Solve with multiple random starting points.
+
+        Parameters
+        ----------
+        n_starts : int
+            Number of random starting points.
+        seed : int, optional
+            Random seed for reproducibility.
+
+        Returns
+        -------
+        optimal_weights : Array
+            Best design weights found. Shape: (nobs, 1)
+        optimal_value : float
+            Best objective value found.
+        """
+        rng = np.random.default_rng(seed)
+
+        best_weights = None
+        best_value = np.inf
+
+        for _ in range(n_starts):
+            # Generate random initial weights on simplex
+            raw = rng.exponential(size=(self._nobs,))
+            init_np = raw / raw.sum()
+            init_weights = self._bkd.reshape(
+                self._bkd.asarray(init_np), (self._nobs, 1)
+            )
+
+            try:
+                weights, value = self.solve(init_weights)
+                if value < best_value:
+                    best_value = value
+                    best_weights = weights
+            except Exception:
+                # Skip failed optimizations
+                continue
+
+        if best_weights is None:
+            # Fallback to uniform if all failed
+            best_weights = self._bkd.ones((self._nobs, 1)) / self._nobs
+            best_value = float(
+                self._bkd.to_numpy(self._objective(best_weights))[0, 0]
+            )
+
+        return best_weights, best_value
+
+
+class RelaxedKLOEDSolver(RelaxedOEDSolver[Array]):
+    """Relaxed (continuous) solver for KL-OED.
+
+    Specializes RelaxedOEDSolver for KL-OED objectives, adding
+    expected_information_gain to the return values.
+
+    Solves the continuous relaxation of the OED problem:
+        min -EIG(w)
+        s.t. sum(w) = 1
+             0 <= w_i <= 1
+
+    Parameters
+    ----------
+    objective : KLOEDObjective[Array]
+        The KL-OED objective function.
+    config : RelaxedOEDConfig, optional
+        Solver configuration. Uses defaults if None.
+    """
+
+    def __init__(
+        self,
+        objective: KLOEDObjective[Array],
+        config: Optional[RelaxedOEDConfig] = None,
+    ) -> None:
+        super().__init__(objective, config)
+        self._kl_objective = objective
+
+    def solve(
+        self, init_weights: Optional[Array] = None
+    ) -> Tuple[Array, float]:
+        """Solve the relaxed KL-OED problem.
+
+        Parameters
+        ----------
+        init_weights : Array, optional
+            Initial design weights. Shape: (nobs, 1)
+            If None, uses uniform weights.
+
+        Returns
+        -------
+        optimal_weights : Array
+            Optimal design weights. Shape: (nobs, 1)
+        optimal_eig : float
+            Expected information gain at optimal design.
+        """
+        optimal_weights, _ = super().solve(init_weights)
+
         # Compute EIG at optimal
-        optimal_eig = self._objective.expected_information_gain(optimal_weights)
+        optimal_eig = self._kl_objective.expected_information_gain(
+            optimal_weights
+        )
 
         return optimal_weights, optimal_eig
 
@@ -268,6 +378,8 @@ class RelaxedKLOEDSolver(Generic[Array]):
         if best_weights is None:
             # Fallback to uniform if all failed
             best_weights = self._bkd.ones((self._nobs, 1)) / self._nobs
-            best_eig = self._objective.expected_information_gain(best_weights)
+            best_eig = self._kl_objective.expected_information_gain(
+                best_weights
+            )
 
         return best_weights, best_eig

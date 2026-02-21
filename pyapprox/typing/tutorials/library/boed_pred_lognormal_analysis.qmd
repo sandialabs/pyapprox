@@ -1,0 +1,222 @@
+---
+title: "Risk-Aware Utility: Log-Normal Prediction Distributions"
+subtitle: "PyApprox Tutorial Library"
+description: "Deriving the distribution and expected AVaR deviation of the standard deviation of a log-normal QoI using scaled log-normal random variables."
+tutorial_type: analysis
+topic: experimental_design
+difficulty: advanced
+estimated_time: 15
+prerequisites:
+  - boed_pred_gaussian_analysis
+tags:
+  - experimental-design
+  - lognormal
+  - risk-measures
+  - avar
+format:
+  html:
+    code-fold: false
+    code-tools: true
+    toc: true
+execute:
+  echo: true
+  warning: false
+jupyter: python3
+---
+
+::: {.callout-tip collapse="true"}
+## Download Notebook
+[Download as Jupyter Notebook](notebooks/boed_pred_lognormal_analysis.ipynb)
+:::
+
+## Learning Objectives
+
+After completing this tutorial, you will be able to:
+
+- Show that the standard deviation of $W = \exp(Q)$ is a scaled log-normal variable
+- Identify the parameters of its distribution in terms of the posterior mean and covariance
+- Derive the expected standard deviation using the log-normal mean formula
+- Apply the positive homogeneity of AVaR to compute the AVaR of the standard deviation
+
+## Prerequisites
+
+Complete [Risk-Aware Utility: Gaussian Posterior Expressions](boed_pred_gaussian_analysis.qmd)
+before this tutorial.
+
+## Setup: Log-Normal QoI
+
+When the natural-scale QoI is $W = \exp(Q)$ and
+$Q \mid \mathbf{y} \sim \mathcal{N}(\tau, \sigma^2)$ with:
+
+$$
+\tau = \boldsymbol{\psi}\boldsymbol{\mu}_\star, \quad
+\sigma^2 = \boldsymbol{\psi}\boldsymbol{\Sigma}_\star\boldsymbol{\psi}^\top,
+$$
+
+the variable $W \mid \mathbf{y}$ follows a log-normal distribution:
+
+$$
+W \mid \mathbf{y} \sim \mathcal{LN}(\tau, \sigma^2).
+$$
+
+The standard deviation of $W \mid \mathbf{y}$ has the closed form:
+
+$$
+\mathrm{Std}(W \mid \mathbf{y})
+= \underbrace{\exp\!\left(\tfrac{\sigma^2}{2}\right)\sqrt{\exp(\sigma^2) - 1}}_K
+  \cdot \exp(\tau),
+$$
+
+where $K$ is a **deterministic** constant (depending only on $\sigma^2$, which is
+observation-independent).
+
+## Distribution of the Standard Deviation
+
+From the [Gaussian analysis](boed_pred_gaussian_analysis.qmd), the posterior mean
+$\boldsymbol{\mu}_\star$ is Gaussian, so:
+
+$$
+\tau = \boldsymbol{\psi}\boldsymbol{\mu}_\star
+\sim \mathcal{N}(\nu, \sigma_\tau^2),
+\quad
+\nu = \boldsymbol{\psi}\boldsymbol{\nu}, \quad
+\sigma_\tau^2 = \boldsymbol{\psi}\mathbf{C}\boldsymbol{\psi}^\top.
+$$
+
+Because $K > 0$ is deterministic and $\exp(\tau)$ is the exponential of a Gaussian,
+the standard deviation of $W \mid \mathbf{y}$ is a scaled log-normal:
+
+$$
+\mathrm{Std}(W \mid \mathbf{y}) = K \cdot \exp(\tau)
+\sim \mathcal{LN}(\nu, \sigma_\tau^2)
+\quad \text{(scaled by } K \text{)}.
+$$
+
+## Expected Standard Deviation
+
+The mean of a log-normal $X \sim \mathcal{LN}(\mu_X, \sigma_X^2)$ is
+$\mathbb{E}[X] = \exp(\mu_X + \sigma_X^2/2)$. Applying this:
+
+$$
+\mathbb{E}\!\left[\mathrm{Std}(W \mid \mathbf{y})\right]
+= K \cdot \exp\!\left(\nu + \tfrac{\sigma_\tau^2}{2}\right),
+$$
+
+where all quantities are analytical:
+
+- $K = \exp(\sigma^2/2)\sqrt{\exp(\sigma^2) - 1}$,
+- $\nu = \boldsymbol{\psi}\boldsymbol{\nu}$,
+- $\sigma_\tau^2 = \boldsymbol{\psi}\mathbf{C}\boldsymbol{\psi}^\top$.
+
+## AVaR of the Standard Deviation
+
+By **positive homogeneity** of AVaR — $\mathrm{AVaR}[c \cdot X] = c \cdot \mathrm{AVaR}[X]$
+for $c > 0$ deterministic — we have:
+
+$$
+\mathrm{AVaR}_p\!\left[\mathrm{Std}(W \mid \mathbf{y})\right]
+= K \cdot \mathrm{AVaR}_p[\exp(\tau)].
+$$
+
+Since $\exp(\tau)$ is log-normally distributed with parameters $(\nu, \sigma_\tau^2)$,
+its AVaR at level $p$ is:
+
+$$
+\mathrm{AVaR}_p[\exp(\tau)]
+= \frac{\exp(\nu + \sigma_\tau^2/2)\,\Phi\!\left(\sigma_\tau - \Phi^{-1}(p)\right)}{1 - p},
+$$
+
+where $\Phi$ is the standard normal CDF. Combining:
+
+$$
+\mathrm{AVaR}_p\!\left[\mathrm{Std}(W \mid \mathbf{y})\right]
+= K \cdot
+  \frac{\exp(\nu + \sigma_\tau^2/2)\,\Phi\!\left(\sigma_\tau - \Phi^{-1}(p)\right)}{1 - p}.
+$$
+
+## Numerical Verification
+
+```{python}
+import numpy as np
+from scipy.stats import norm
+
+def lognormal_avar(nu: float, sigma_tau: float, sigma_sq: float, p: float) -> float:
+    """
+    AVaR of Std(W | y) where W = exp(Q) and Q|y ~ N(tau, sigma_sq),
+    tau ~ N(nu, sigma_tau^2).
+
+    Parameters
+    ----------
+    nu       : mean of tau (= psi @ nu_vec)
+    sigma_tau: std dev of tau (= sqrt(psi @ C @ psi^T))
+    sigma_sq : posterior variance of Q|y (= psi @ Sigma_star @ psi^T)
+    p        : AVaR level in (0, 1)
+    """
+    # Deterministic scale factor K
+    K = np.exp(sigma_sq / 2) * np.sqrt(np.exp(sigma_sq) - 1)
+    # AVaR of exp(tau) where tau ~ N(nu, sigma_tau^2)
+    avar_exp_tau = (
+        np.exp(nu + sigma_tau**2 / 2)
+        * norm.cdf(sigma_tau - norm.ppf(p))
+        / (1 - p)
+    )
+    return K * avar_exp_tau
+
+
+def lognormal_expected_std(nu: float, sigma_tau: float, sigma_sq: float) -> float:
+    """Expected value of Std(W | y)."""
+    K = np.exp(sigma_sq / 2) * np.sqrt(np.exp(sigma_sq) - 1)
+    return K * np.exp(nu + sigma_tau**2 / 2)
+```
+
+We verify against Monte Carlo:
+
+```{python}
+np.random.seed(0)
+nu, sigma_tau, sigma_sq, p = 0.5, 0.3, 0.2, 0.9
+
+# Analytical
+avar_analytical   = lognormal_avar(nu, sigma_tau, sigma_sq, p)
+estd_analytical   = lognormal_expected_std(nu, sigma_tau, sigma_sq)
+
+# Monte Carlo reference
+N = 2_000_000
+tau_samples = np.random.normal(nu, sigma_tau, N)
+K = np.exp(sigma_sq / 2) * np.sqrt(np.exp(sigma_sq) - 1)
+std_samples = K * np.exp(tau_samples)
+avar_mc   = np.mean(std_samples[std_samples >= np.quantile(std_samples, p)])
+estd_mc   = np.mean(std_samples)
+
+print(f"E[Std(W|y)]  — analytical: {estd_analytical:.6f},  MC: {estd_mc:.6f}")
+print(f"AVaR_{p}     — analytical: {avar_analytical:.6f},  MC: {avar_mc:.6f}")
+```
+
+## Key Takeaways
+
+- The standard deviation of $W = \exp(Q)$ is a scaled log-normal random variable;
+  the scale factor $K$ depends only on the (deterministic) posterior variance $\sigma^2$.
+- The randomness in $\mathrm{Std}(W \mid \mathbf{y})$ comes entirely from the
+  Gaussian posterior mean $\tau = \boldsymbol{\psi}\boldsymbol{\mu}_\star$.
+- Expected standard deviation and AVaR both have closed forms involving the
+  log-normal mean formula and the log-normal AVaR formula, respectively.
+- Positive homogeneity of AVaR allows the scale factor $K$ to be factored out,
+  reducing the computation to the AVaR of $\exp(\tau)$.
+
+## Exercises
+
+1. Verify that as $\sigma_\tau \to 0$ (i.e., $\mathbf{C} \to 0$, meaning the
+   prior is very tight), $\mathbb{E}[\mathrm{Std}(W \mid \mathbf{y})]$ reduces
+   to a deterministic value. What is it?
+
+2. Plot $\mathrm{AVaR}_p[\mathrm{Std}(W \mid \mathbf{y})]$ as a function of $p$
+   for $p \in [0.5, 0.99]$. Compare to $\mathbb{E}[\mathrm{Std}(W \mid \mathbf{y})]$.
+   At what level $p$ does AVaR exceed the mean by a factor of 2?
+
+3. The AVaR formula for the log-normal distribution uses $\Phi(\sigma_\tau - \Phi^{-1}(p))$.
+   Verify this formula by deriving it from the definition:
+   $\mathrm{AVaR}_p[X] = \frac{1}{1-p}\int_p^1 F_X^{-1}(u)\,\mathrm{d}u$.
+
+## Next Steps
+
+- [Goal-Oriented OED: Convergence Verification](boed_pred_usage.qmd) — using
+  `PredOEDDiagnostics` to numerically validate these analytical expressions
