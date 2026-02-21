@@ -68,11 +68,17 @@ website:
             - sparse_pce_fitting.qmd
             - uq_with_pce.qmd
             - function_train_surrogates.qmd
+        - section: "Gaussian Process Surrogates"
+          contents:
+            - gp_surrogate.qmd
+            - uq_with_gp.qmd
+            - adaptive_gp_sampling.qmd
         - section: "Sensitivity Analysis"
           contents:
             - sensitivity_analysis_concept.qmd
             - sobol_sensitivity_analysis.qmd
             - pce_sensitivity.qmd
+            - gp_sensitivity.qmd
             - morris_screening.qmd
             - bin_based_sensitivity.qmd
             - functiontrain_sensitivity_math.qmd
