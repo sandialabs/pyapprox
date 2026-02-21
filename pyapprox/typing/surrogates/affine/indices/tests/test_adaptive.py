@@ -24,7 +24,7 @@ from pyapprox.typing.surrogates.affine.indices.basis_generator import (
 )
 from pyapprox.typing.surrogates.affine.indices.growth_rules import (
     LinearGrowthRule,
-    DoublePlusOneGrowthRule,
+    ClenshawCurtisGrowthRule,
 )
 
 
@@ -230,7 +230,7 @@ class TestBasisIndexGenerator(_BaseAdaptiveTest, unittest.TestCase):
     def test_double_plus_one_growth(self):
         """Test basis count with double plus one growth rule."""
         bkd = self.bkd
-        growth_rule = DoublePlusOneGrowthRule()
+        growth_rule = ClenshawCurtisGrowthRule()
         gen = BasisIndexGenerator(bkd, nvars=2, growth_rules=growth_rule)
 
         index = bkd.asarray([3, 2], dtype=bkd.int64_dtype())

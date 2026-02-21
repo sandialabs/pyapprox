@@ -35,10 +35,10 @@ After completing this tutorial, you will be able to:
 
 - Explain the Smolyak combination technique and its relationship to tensor products
 - Define downward-closed index sets and compute Smolyak coefficients
-- Construct isotropic sparse grids using `IsotropicCombinationSparseGrid`
+- Construct isotropic sparse grids using `IsotropicSparseGridFitter`
 - Compare sparse grid point counts with tensor product grids across dimensions
 - Measure sparse grid convergence against the theoretical rate $N^{-r}(\log N)^{(r+2)(D-1)+1}$
-- Compute statistics via `grid.mean()`
+- Compute statistics via `surrogate.mean()`
 
 
 ## Prerequisites
@@ -54,7 +54,8 @@ import matplotlib.pyplot as plt
 
 from pyapprox.typing.util.backends.numpy import NumpyBkd
 from pyapprox.typing.surrogates.sparsegrids import (
-    IsotropicCombinationSparseGrid,
+    IsotropicSparseGridFitter,
+    TensorProductSubspaceFactory,
     LejaLagrangeFactory,
     compute_smolyak_coefficients,
     is_downward_closed,
@@ -69,7 +70,7 @@ from pyapprox.typing.surrogates.affine.leja import (
 )
 from pyapprox.typing.surrogates.affine.indices import (
     LinearGrowthRule,
-    DoublePlusOneGrowthRule,
+    ClenshawCurtisGrowthRule,
 )
 from pyapprox.typing.interface.functions.plot.plot2d_rectangular import (
     Plotter2DRectangularDomain,
@@ -171,7 +172,7 @@ def target_2d(samples):
     )
 
 max_level = 2
-growth = DoublePlusOneGrowthRule()
+growth = ClenshawCurtisGrowthRule()
 
 # Build each tensor product subspace and plot it
 fig, axs = plt.subplots(
@@ -233,42 +234,58 @@ plt.show()
 ```
 
 
-## Building an `IsotropicCombinationSparseGrid`
+## Building an Isotropic Sparse Grid
 
-The sparse grid combines these tensor product subspaces automatically.  We create one by specifying a **basis factory** (which knows how to build 1D bases at any resolution), a **growth rule** (mapping level $\ell$ to the number of 1D nodes $M_\ell$), and a **level** (the maximum $L^1$ norm of multi-indices).
+The sparse grid combines these tensor product subspaces automatically.  We create one by specifying **basis factories** (which know how to build 1D bases at any resolution), a **growth rule** (mapping level $\ell$ to the number of 1D nodes $M_\ell$), and a **level** (the maximum $L^1$ norm of multi-indices).
+
+The new fitter API separates construction from evaluation:
+
+1. Create a `TensorProductSubspaceFactory` from your factories and growth rule
+2. Create an `IsotropicSparseGridFitter` with the factory and level
+3. Call `get_samples()` to get the sample locations
+4. Evaluate your function at those locations
+5. Call `fit(values)` to get the result containing the surrogate
 
 ```{python}
 nvars = 2
 factories = [leja_factory] * nvars
-growth = DoublePlusOneGrowthRule()
+growth = ClenshawCurtisGrowthRule()
 
 # Create isotropic sparse grids at increasing levels
 for level in range(5):
-    grid = IsotropicCombinationSparseGrid(bkd, factories, growth, level=level)
+    tp_factory = TensorProductSubspaceFactory(bkd, factories, growth)
+    fitter = IsotropicSparseGridFitter(bkd, tp_factory, level)
+    samples = fitter.get_samples()
+    nsamples = samples.shape[1]
+    # Fit with dummy values to get subspace count
+    values = bkd.ones((1, nsamples))
+    result = fitter.fit(values)
     print(
-        f"Level {level}: {grid.nsubspaces():>3} subspaces, "
-        f"{grid.nsamples():>4} samples"
+        f"Level {level}: {result.surrogate.nsubspaces():>3} subspaces, "
+        f"{nsamples:>4} samples"
     )
 ```
 
 ### Visualizing Sparse Grid Points
 
 ```{python}
-#| fig-cap: "Isotropic sparse grid points in 2D at levels 0–3 using Leja nodes with double+1 growth. The nested structure emerges from the combination of tensor product sub-grids."
+#| fig-cap: "Isotropic sparse grid points in 2D at levels 0–3 using Leja nodes with Clenshaw-Curtis growth. The nested structure emerges from the combination of tensor product sub-grids."
 #| label: fig-sg-points
 
 fig, axes = plt.subplots(1, 4, figsize=(14, 3.5))
 
 for i, level in enumerate([0, 1, 2, 3]):
-    grid = IsotropicCombinationSparseGrid(bkd, factories, growth, level=level)
-    samples = bkd.to_numpy(grid.get_samples())
+    tp_factory = TensorProductSubspaceFactory(bkd, factories, growth)
+    fitter = IsotropicSparseGridFitter(bkd, tp_factory, level)
+    samples = bkd.to_numpy(fitter.get_samples())
+    nsamples = samples.shape[1]
 
     ax = axes[i]
     ax.scatter(samples[0], samples[1], s=40, c="steelblue", alpha=0.7)
     ax.set_xlim(-1.1, 1.1)
     ax.set_ylim(-1.1, 1.1)
     ax.set_aspect("equal")
-    ax.set_title(f"Level {level}: {grid.nsamples()} points")
+    ax.set_title(f"Level {level}: {nsamples} points")
     ax.set_xlabel("$z_1$")
     if i == 0:
         ax.set_ylabel("$z_2$")
@@ -292,14 +309,17 @@ def target_function(samples, bkd):
     return bkd.reshape(values, (1, -1))
 
 level = 3
-grid = IsotropicCombinationSparseGrid(bkd, factories, growth, level=level)
-samples = grid.get_samples()
+tp_factory = TensorProductSubspaceFactory(bkd, factories, growth)
+fitter = IsotropicSparseGridFitter(bkd, tp_factory, level)
+samples = fitter.get_samples()
 values = target_function(samples, bkd)
-grid.set_values(values)
+result = fitter.fit(values)
+surrogate = result.surrogate
 
 # Compare point counts with tensor product at same level
 M_tp = growth(level) ** nvars
-print(f"Sparse grid (level {level}, D={nvars}): {grid.nsamples()} points")
+nsamples = samples.shape[1]
+print(f"Sparse grid (level {level}, D={nvars}): {nsamples} points")
 print(f"Tensor product (level {level}, D={nvars}): {M_tp} points")
 print(f"Note: in 2D the sparse grid has more points than the TP at low levels;")
 print(f"the savings emerge in higher dimensions (see point count table below).")
@@ -322,17 +342,17 @@ axes[0].set_xlabel("$z_1$")
 axes[0].set_ylabel("$z_2$")
 
 # Sparse grid interpolant
-sg_plotter = Plotter2DRectangularDomain(grid, plot_limits)
+sg_plotter = Plotter2DRectangularDomain(surrogate, plot_limits)
 sg_plotter.plot_contours(axes[1], qoi=0, npts_1d=51, levels=20, cmap="coolwarm")
-sg_pts = bkd.to_numpy(grid.get_samples())
+sg_pts = bkd.to_numpy(samples)
 axes[1].scatter(sg_pts[0], sg_pts[1], c="k", s=20, alpha=0.7)
-axes[1].set_title(f"Sparse grid ({grid.nsamples()} pts)")
+axes[1].set_title(f"Sparse grid ({nsamples} pts)")
 axes[1].set_xlabel("$z_1$")
 
 # Error plot
 X, Y, eval_pts = meshgrid_samples(51, plot_limits, bkd)
 true_vals = target_function(eval_pts, bkd)
-approx_vals = grid(eval_pts)
+approx_vals = surrogate(eval_pts)
 error_vals = bkd.abs(true_vals - approx_vals)
 error_2d = bkd.reshape(error_vals[0], X.shape)
 im_err = axes[2].contourf(
@@ -366,10 +386,10 @@ for ax, d in zip(axs, dims_compare):
     sg_counts = []
     tp_counts = []
     for ell in levels_range:
-        sg = IsotropicCombinationSparseGrid(
-            bkd, [leja_factory] * d, growth, level=int(ell),
-        )
-        sg_counts.append(sg.nsamples())
+        facs_d = [leja_factory] * d
+        tp_fac = TensorProductSubspaceFactory(bkd, facs_d, growth)
+        fitter = IsotropicSparseGridFitter(bkd, tp_fac, int(ell))
+        sg_counts.append(fitter.get_samples().shape[1])
         tp_counts.append(growth(int(ell)) ** d)
 
     ax.semilogy(
@@ -402,17 +422,14 @@ print("-" * 85)
 
 for ell in range(max_ell + 1):
     tp_2d = growth(ell) ** 2
-    sg_2d = IsotropicCombinationSparseGrid(
-        bkd, [leja_factory] * 2, growth, level=ell
-    ).nsamples()
+    fac2 = TensorProductSubspaceFactory(bkd, [leja_factory] * 2, growth)
+    sg_2d = IsotropicSparseGridFitter(bkd, fac2, ell).get_samples().shape[1]
     tp_5d = growth(ell) ** 5
-    sg_5d = IsotropicCombinationSparseGrid(
-        bkd, [leja_factory] * 5, growth, level=ell
-    ).nsamples()
+    fac5 = TensorProductSubspaceFactory(bkd, [leja_factory] * 5, growth)
+    sg_5d = IsotropicSparseGridFitter(bkd, fac5, ell).get_samples().shape[1]
     tp_10d = growth(ell) ** 10
-    sg_10d = IsotropicCombinationSparseGrid(
-        bkd, [leja_factory] * 10, growth, level=ell
-    ).nsamples()
+    fac10 = TensorProductSubspaceFactory(bkd, [leja_factory] * 10, growth)
+    sg_10d = IsotropicSparseGridFitter(bkd, fac10, ell).get_samples().shape[1]
     print(
         f"{ell:<7} {tp_2d:>10,} {sg_2d:>10,}  "
         f"{tp_5d:>12,} {sg_5d:>10,}  "
@@ -451,20 +468,20 @@ validation_values = fun4d(validation_samples, bkd)
 # Sparse grid convergence
 sg_npts, sg_errors = [], []
 for level in range(5):
-    sg = IsotropicCombinationSparseGrid(
-        bkd, [leja_factory] * nvars4, growth, level=level,
-    )
-    samples = sg.get_samples()
-    sg.set_values(fun4d(samples, bkd))
+    facs4 = [leja_factory] * nvars4
+    tp_fac4 = TensorProductSubspaceFactory(bkd, facs4, growth)
+    fitter = IsotropicSparseGridFitter(bkd, tp_fac4, level)
+    samples = fitter.get_samples()
+    result = fitter.fit(fun4d(samples, bkd))
 
-    approx = sg(validation_samples)
+    approx = result.surrogate(validation_samples)
     err = float(
         bkd.sqrt(bkd.sum((validation_values - approx) ** 2))
         / np.sqrt(1000)
     )
-    sg_npts.append(sg.nsamples())
+    sg_npts.append(samples.shape[1])
     sg_errors.append(err)
-    print(f"SG level {level}: {sg.nsamples():>5} pts, error = {err:.2e}")
+    print(f"SG level {level}: {samples.shape[1]:>5} pts, error = {err:.2e}")
 
 # Tensor product convergence (only small levels feasible)
 tp_npts, tp_errors = [], []
@@ -517,14 +534,14 @@ The **growth rule** maps a level $\ell$ to the number of quadrature nodes $M_\el
 | Rule | Formula | Example (l=0,1,2,3,4) |
 |------|---------|----------------------|
 | Linear | $M_0 = 1$; $M_\ell = 2\ell+1$ | 1, 3, 5, 7, 9 |
-| Double+1 | $M_0 = 1$; $M_\ell = 2^\ell+1$ | 1, 3, 5, 9, 17 |
+| Clenshaw-Curtis | $M_0 = 1$; $M_\ell = 2^\ell+1$ | 1, 3, 5, 9, 17 |
 
 ```{python}
-#| fig-cap: "Two standard univariate growth rules. Double+1 is natural for Clenshaw-Curtis (nested) points; linear gives the slowest point growth."
+#| fig-cap: "Two standard univariate growth rules. Clenshaw-Curtis growth is natural for nested Clenshaw-Curtis points; linear gives the slowest point growth."
 #| label: fig-growth-rules
 
 linear = LinearGrowthRule(scale=2, shift=1)
-dpo = DoublePlusOneGrowthRule()
+cc = ClenshawCurtisGrowthRule()
 
 levels_gr = np.arange(0, 11)
 
@@ -532,7 +549,7 @@ fig, ax = plt.subplots(figsize=(8, 4))
 styles = [("o-", "#2C7FB8"), ("s-", "#E67E22")]
 rules = [
     ("Linear ($2\\ell+1$)", linear),
-    ("Double+1 ($2^\\ell+1$)", dpo),
+    ("CC ($2^\\ell+1$)", cc),
 ]
 for (label, rule), (sty, col) in zip(rules, styles):
     counts = [rule(int(ell)) for ell in levels_gr]
@@ -548,9 +565,9 @@ plt.show()
 ```
 
 
-## Computing Statistics with `grid.mean()`
+## Computing Statistics with `surrogate.mean()`
 
-Sparse grids double as **quadrature rules**: the combination of 1D quadrature weights yields multivariate weights that integrate polynomials of the appropriate mixed degree exactly.  The `grid.mean()` method returns $\mathbb{E}[f(\mathbf{Z})]$ for the measure determined by the 1D bases.
+Sparse grids double as **quadrature rules**: the combination of 1D quadrature weights yields multivariate weights that integrate polynomials of the appropriate mixed degree exactly.  The `surrogate.mean()` method returns $\mathbb{E}[f(\mathbf{Z})]$ for the measure determined by the 1D bases.
 
 ```{python}
 # Compute E[cos(πZ₁)cos(πZ₂/2)] over U(-1,1)²
@@ -558,15 +575,17 @@ Sparse grids double as **quadrature rules**: the combination of 1D quadrature we
 # because ∫_{-1}^{1} cos(πz₁) dz₁ = [sin(πz₁)/π]_{-1}^{1} = 0
 exact_mean = 0.0
 
-grid_quad = IsotropicCombinationSparseGrid(bkd, factories, growth, level=4)
-samples = grid_quad.get_samples()
-values = target_function(samples, bkd)
-grid_quad.set_values(values)
+tp_factory_quad = TensorProductSubspaceFactory(bkd, factories, growth)
+fitter_quad = IsotropicSparseGridFitter(bkd, tp_factory_quad, level=4)
+samples_quad = fitter_quad.get_samples()
+values_quad = target_function(samples_quad, bkd)
+result_quad = fitter_quad.fit(values_quad)
+nsamples_quad = samples_quad.shape[1]
 
-sg_mean = float(grid_quad.mean()[0])
+sg_mean = float(result_quad.surrogate.mean()[0])
 
 print(f"Exact mean (by symmetry):                      {exact_mean:.8f}")
-print(f"Sparse grid mean (level 4, {grid_quad.nsamples()} pts): {sg_mean:.8f}")
+print(f"Sparse grid mean (level 4, {nsamples_quad} pts): {sg_mean:.8f}")
 print(f"|Error|: {abs(sg_mean - exact_mean):.2e}")
 ```
 
@@ -576,8 +595,8 @@ print(f"|Error|: {abs(sg_mean - exact_mean):.2e}")
 - The Smolyak sparse grid is a linear combination of low-order tensor product interpolants indexed by a downward-closed index set; the combination cancels high-order cross-terms that contribute little accuracy.
 - Smolyak coefficients alternate in sign; their sum over any downward-closed index set equals 1.
 - For $D$ dimensions and $r$ mixed derivatives, the sparse grid error satisfies $O(N^{-r}(\log N)^{(r+2)(D-1)+1})$ vs. $O(N^{-r/D})$ for tensor products.
-- The growth rule (linear, double+1, exponential) controls how rapidly the 1D node count grows with level. Certain quadrature rules demand specific growth patterns (e.g. Clenshaw-Curtis requires double+1), while faster growth adds larger subspace grids at each new level, enabling greater parallelism of function evaluations in adaptive settings.
-- `grid.mean()` provides a direct route to computing $\mathbb{E}[f]$ without additional sampling.
+- The growth rule (linear, Clenshaw-Curtis, exponential) controls how rapidly the 1D node count grows with level. Certain quadrature rules demand specific growth patterns (e.g. Clenshaw-Curtis requires Clenshaw-Curtis growth), while faster growth adds larger subspace grids at each new level, enabling greater parallelism of function evaluations in adaptive settings.
+- `surrogate.mean()` provides a direct route to computing $\mathbb{E}[f]$ without additional sampling.
 
 
 ## Exercises
@@ -587,11 +606,11 @@ print(f"|Error|: {abs(sg_mean - exact_mean):.2e}")
 
 1. **Coefficient verification.** For $D = 3$, $l = 3$, build the isotropic index set and compute the Smolyak coefficients using `compute_smolyak_coefficients`.  Verify that they sum to 1.
 
-2. **Growth rule impact.** Build two 2D isotropic sparse grids at $l = 4$, one with `LinearGrowthRule(scale=2, shift=1)` and one with `DoublePlusOneGrowthRule()`.  Compare point counts and interpolation errors for $f(z_1,z_2) = \exp(-z_1^2 - z_2^2)$.
+2. **Growth rule impact.** Build two 2D isotropic sparse grids at $l = 4$, one with `LinearGrowthRule(scale=2, shift=1)` and one with `ClenshawCurtisGrowthRule()`.  Compare point counts and interpolation errors for $f(z_1,z_2) = \exp(-z_1^2 - z_2^2)$.
 
 3. **High dimensions.** For $D = 6$ and $l = 3$, compute the sparse grid and tensor product point counts.  What is the ratio?
 
-4. **Statistics.** Use `grid.mean()` to compute $\mathbb{E}[\cos(\pi z_1)\cos(\pi z_2/2)]$ over $\mathcal{U}(-1,1)^2$.  Compare with the known analytic value (which is 0, by symmetry of cosine over $[-1,1]$).
+4. **Statistics.** Use `surrogate.mean()` to compute $\mathbb{E}[\cos(\pi z_1)\cos(\pi z_2/2)]$ over $\mathcal{U}(-1,1)^2$.  Compare with the known analytic value (which is 0, by symmetry of cosine over $[-1,1]$).
 :::
 
 

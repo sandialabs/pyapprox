@@ -4,7 +4,7 @@ This module provides reusable functions for creating test configurations
 for sparse grid tests with different:
 - Marginal distributions (uniform, gaussian, beta, gamma)
 - Joint configurations (2D, 3D, 4D, mixed)
-- Quadrature rules (Gauss, Leja)
+- PCE target functions (isotropic, anisotropic, additive)
 - Growth rules (linear, Clenshaw-Curtis)
 
 Example usage:
@@ -12,7 +12,6 @@ Example usage:
     >>> bkd = NumpyBkd()
     >>> joint = create_test_joint("2d_uniform", bkd)
     >>> pce = create_test_pce(joint, level=2, nqoi=1, bkd=bkd)
-    >>> grid = create_test_grid_gauss(joint, level=2, bkd=bkd)
 """
 
 from typing import Any, Callable, Dict, List, Tuple
@@ -34,13 +33,12 @@ from pyapprox.typing.surrogates.affine.expansions.pce import (
 from pyapprox.typing.surrogates.affine.basis import OrthonormalPolynomialBasis
 from pyapprox.typing.surrogates.affine.indices import (
     CubicNestedGrowthRule,
-    DoublePlusOneGrowthRule,
+    ClenshawCurtisGrowthRule,
     HyperbolicIndexGenerator,
     IndexGrowthRule,
     LinearGrowthRule,
 )
 from pyapprox.typing.surrogates.sparsegrids import (
-    IsotropicCombinationSparseGrid,
     create_basis_factories,
     TensorProductSubspace,
 )
@@ -102,9 +100,19 @@ BOUNDED_JOINT_CONFIGS = [
 GROWTH_RULES: Dict[str, IndexGrowthRule] = {
     "linear_1_1": LinearGrowthRule(scale=1, shift=1),  # d = l + 1
     "linear_2_1": LinearGrowthRule(scale=2, shift=1),  # d = 2*l + 1
-    "clenshaw_curtis": DoublePlusOneGrowthRule(),  # d = 2^l + 1 (nested)
+    "clenshaw_curtis": ClenshawCurtisGrowthRule(),  # d = 2^l + 1 (nested)
     "cubic_nested": CubicNestedGrowthRule(),  # d = 3 * 2^(l-1) + 1 (nested for cubic)
 }
+
+
+def _get_default_growth_rule(basis_type: str) -> IndexGrowthRuleProtocol:
+    """Get the default growth rule for a basis type."""
+    if basis_type == "piecewise_cubic":
+        return CubicNestedGrowthRule()
+    elif basis_type.startswith("piecewise_") or basis_type == "clenshaw_curtis":
+        return ClenshawCurtisGrowthRule()
+    else:
+        return ClenshawCurtisGrowthRule()
 
 
 # =============================================================================
@@ -200,91 +208,6 @@ def create_test_pce(
     coeffs = bkd.asarray(np.random.randn(nterms, nqoi))  # type: ignore[arg-type]
     pce.set_coefficients(coeffs)
     return pce
-
-
-# =============================================================================
-# Sparse grid creation
-# =============================================================================
-
-
-def create_test_grid_gauss(
-    joint: IndependentJoint[Array],
-    level: int,
-    bkd: Backend[Array],
-    growth: IndexGrowthRule | None = None,
-) -> IsotropicCombinationSparseGrid[Array]:
-    """Create IsotropicCombinationSparseGrid with Gauss quadrature.
-
-    Parameters
-    ----------
-    joint : IndependentJoint[Array]
-        Joint distribution defining the marginals.
-    level : int
-        Sparse grid level (controls number of subspaces).
-    bkd : Backend[Array]
-        Computational backend.
-    growth : IndexGrowthRule, optional
-        Growth rule for mapping level to polynomial degree.
-        Default: LinearGrowthRule(scale=1, shift=1).
-
-    Returns
-    -------
-    IsotropicCombinationSparseGrid[Array]
-        Sparse grid with Gauss quadrature points.
-
-    Example
-    -------
-    >>> from pyapprox.typing.util.backends.numpy import NumpyBkd
-    >>> bkd = NumpyBkd()
-    >>> joint = create_test_joint("2d_uniform", bkd)
-    >>> grid = create_test_grid_gauss(joint, level=2, bkd=bkd)
-    >>> grid.nsubspaces()
-    6
-    """
-    factories = create_basis_factories(joint.marginals(), bkd, "gauss")
-    if growth is None:
-        growth = LinearGrowthRule(scale=1, shift=1)
-    return IsotropicCombinationSparseGrid(bkd, factories, growth, level=level)
-
-
-def create_test_grid_leja(
-    joint: IndependentJoint[Array],
-    level: int,
-    bkd: Backend[Array],
-    growth: IndexGrowthRule | None = None,
-) -> IsotropicCombinationSparseGrid[Array]:
-    """Create IsotropicCombinationSparseGrid with Leja quadrature.
-
-    Parameters
-    ----------
-    joint : IndependentJoint[Array]
-        Joint distribution defining the marginals.
-    level : int
-        Sparse grid level (controls number of subspaces).
-    bkd : Backend[Array]
-        Computational backend.
-    growth : IndexGrowthRule, optional
-        Growth rule for mapping level to polynomial degree.
-        Default: LinearGrowthRule(scale=1, shift=1).
-
-    Returns
-    -------
-    IsotropicCombinationSparseGrid[Array]
-        Sparse grid with Leja quadrature points.
-
-    Example
-    -------
-    >>> from pyapprox.typing.util.backends.numpy import NumpyBkd
-    >>> bkd = NumpyBkd()
-    >>> joint = create_test_joint("2d_uniform", bkd)
-    >>> grid = create_test_grid_leja(joint, level=2, bkd=bkd)
-    >>> grid.nsubspaces()
-    6
-    """
-    factories = create_basis_factories(joint.marginals(), bkd, "leja")
-    if growth is None:
-        growth = LinearGrowthRule(scale=1, shift=1)
-    return IsotropicCombinationSparseGrid(bkd, factories, growth, level=level)
 
 
 # =============================================================================
@@ -767,141 +690,6 @@ BOUNDED_BASIS_TYPES: List[str] = [
 ]
 
 
-# =============================================================================
-# Generic sparse grid creation
-# =============================================================================
-
-
-def create_test_grid(
-    joint: IndependentJoint[Array],
-    level: int,
-    bkd: Backend[Array],
-    basis_type: str = "gauss",
-    growth: IndexGrowthRule | None = None,
-) -> IsotropicCombinationSparseGrid[Array]:
-    """Create sparse grid with specified basis type.
-
-    If growth is None, uses default:
-    - DoublePlusOneGrowthRule for piecewise and clenshaw_curtis bases
-    - LinearGrowthRule(1,1) for Lagrange bases (gauss, leja)
-
-    Parameters
-    ----------
-    joint : IndependentJoint[Array]
-        Joint distribution defining the marginals.
-    level : int
-        Sparse grid level.
-    bkd : Backend[Array]
-        Computational backend.
-    basis_type : str, optional
-        Type of basis factory. Default: "gauss".
-    growth : IndexGrowthRule, optional
-        Growth rule. If None, uses default based on basis_type.
-
-    Returns
-    -------
-    IsotropicCombinationSparseGrid[Array]
-        Sparse grid with specified basis type.
-    """
-    factories = create_basis_factories(joint.marginals(), bkd, basis_type)
-
-    if growth is None:
-        # Look up default growth rule from BASIS_TYPE_CONFIGS registry
-        growth_name = None
-        for config in BASIS_TYPE_CONFIGS:
-            if config[0] == basis_type:
-                growth_name = config[2]
-                break
-        if growth_name is None:
-            growth_name = "linear_1_1"  # fallback default
-        growth = GROWTH_RULES[growth_name]
-
-    return IsotropicCombinationSparseGrid(bkd, factories, growth, level=level)
-
-
-def _get_default_growth_rule(basis_type: str) -> IndexGrowthRuleProtocol:
-    """Get the default growth rule for a basis type."""
-    if basis_type == "piecewise_cubic":
-        return CubicNestedGrowthRule()
-    elif basis_type.startswith("piecewise_") or basis_type == "clenshaw_curtis":
-        return DoublePlusOneGrowthRule()
-    else:
-        # Gauss, Leja use linear by default but DoublePlusOneGrowthRule
-        # is also valid for them
-        return DoublePlusOneGrowthRule()
-
-
-def create_test_grid_mixed(
-    joint: IndependentJoint[Array],
-    level: int,
-    bkd: Backend[Array],
-    basis_types: List[str],
-    growth_rules: (
-        List[IndexGrowthRuleProtocol] | IndexGrowthRuleProtocol | None
-    ) = None,
-) -> IsotropicCombinationSparseGrid[Array]:
-    """Create sparse grid with mixed basis types per dimension.
-
-    Allows testing Lagrange in some dims, piecewise in others.
-    Uses per-dimension growth rules by default based on basis type:
-    - piecewise_cubic: CubicNestedGrowthRule
-    - other piecewise, clenshaw_curtis: DoublePlusOneGrowthRule
-    - gauss, leja: DoublePlusOneGrowthRule (for compatibility)
-
-    Parameters
-    ----------
-    joint : IndependentJoint[Array]
-        Joint distribution defining the marginals.
-    level : int
-        Sparse grid level.
-    bkd : Backend[Array]
-        Computational backend.
-    basis_types : List[str]
-        Basis type for each dimension.
-    growth_rules : List[IndexGrowthRule] or IndexGrowthRule or None, optional
-        Growth rule(s). If None, uses default per-dimension rules based on
-        basis_types. If a single rule, uses it for all dimensions.
-
-    Returns
-    -------
-    IsotropicCombinationSparseGrid[Array]
-        Sparse grid with mixed basis types.
-    """
-    marginals = joint.marginals()
-    if len(basis_types) != len(marginals):
-        raise ValueError(
-            f"basis_types length ({len(basis_types)}) must match "
-            f"number of marginals ({len(marginals)})"
-        )
-
-    factories: List[BasisFactoryProtocol[Array]] = []
-    for marginal, btype in zip(marginals, basis_types):
-        factory: BasisFactoryProtocol[Array]
-        if btype == "gauss":
-            factory = GaussLagrangeFactory(marginal, bkd)
-        elif btype == "leja":
-            factory = LejaLagrangeFactory(marginal, bkd)
-        elif btype == "clenshaw_curtis":
-            factory = ClenshawCurtisLagrangeFactory(marginal, bkd)
-        elif btype.startswith("piecewise_"):
-            poly_type = btype.replace("piecewise_", "")
-            factory = PiecewiseFactory(marginal, bkd, poly_type=poly_type)
-        else:
-            raise ValueError(f"Unknown basis_type: {btype}")
-        factories.append(factory)
-
-    # Determine growth rules
-    resolved_rules: IndexGrowthRuleProtocol | List[IndexGrowthRuleProtocol]
-    if growth_rules is None:
-        # Use per-dimension defaults based on basis type
-        resolved_rules = [_get_default_growth_rule(bt) for bt in basis_types]
-    elif not isinstance(growth_rules, list):
-        # Single rule for all dimensions
-        resolved_rules = growth_rules
-    else:
-        resolved_rules = growth_rules
-
-    return IsotropicCombinationSparseGrid(bkd, factories, resolved_rules, level=level)
 
 
 # =============================================================================
@@ -972,15 +760,12 @@ __all__ = [
     "JOINT_CONFIGS",
     "BOUNDED_JOINT_CONFIGS",
     "GROWTH_RULES",
+    "_get_default_growth_rule",
     "BASIS_TYPE_CONFIGS",
     "BOUNDED_BASIS_TYPES",
     "create_test_joint",
     "create_test_pce",
     "create_tensor_product_pce",
-    "create_test_grid_gauss",
-    "create_test_grid_leja",
-    "create_test_grid",
-    "create_test_grid_mixed",
     "create_test_tensor_product_subspace",
     "create_test_tensor_product_subspace_mixed",
     "create_anisotropic_pce",

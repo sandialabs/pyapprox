@@ -25,7 +25,7 @@ from pyapprox.typing.surrogates.affine.indices.admissibility import (
 )
 from pyapprox.typing.surrogates.affine.indices.growth_rules import (
     LinearGrowthRule,
-    DoublePlusOneGrowthRule,
+    ClenshawCurtisGrowthRule,
     ConstantGrowthRule,
     ExponentialGrowthRule,
     inverse_growth_rule,
@@ -344,8 +344,8 @@ class TestGrowthRules(unittest.TestCase):
         self.assertEqual(rule(3), 7)
 
     def test_double_plus_one(self):
-        """Test DoublePlusOneGrowthRule."""
-        rule = DoublePlusOneGrowthRule()
+        """Test ClenshawCurtisGrowthRule."""
+        rule = ClenshawCurtisGrowthRule()
         self.assertEqual(rule(0), 1)
         self.assertEqual(rule(1), 3)
         self.assertEqual(rule(2), 5)
@@ -520,8 +520,8 @@ class TestInverseGrowthRule(unittest.TestCase):
         self.assertEqual(inverse_growth_rule(4, rule), 2)
 
     def test_double_plus_one(self):
-        """Test DoublePlusOneGrowthRule."""
-        rule = DoublePlusOneGrowthRule()
+        """Test ClenshawCurtisGrowthRule."""
+        rule = ClenshawCurtisGrowthRule()
         # n(0) = 1, n(1) = 3, n(2) = 5, n(3) = 9, n(4) = 17
         # degree 0: n(0) = 1 > 0, level 0
         # degree 2: need n > 2, n(1) = 3 > 2, level 1
@@ -536,7 +536,7 @@ class TestInverseGrowthRule(unittest.TestCase):
         """Test that degree 0 returns level 0 for typical growth rules."""
         # Any growth rule with n(0) >= 1 should return level 0 for degree 0
         self.assertEqual(inverse_growth_rule(0, LinearGrowthRule(1, 1)), 0)
-        self.assertEqual(inverse_growth_rule(0, DoublePlusOneGrowthRule()), 0)
+        self.assertEqual(inverse_growth_rule(0, ClenshawCurtisGrowthRule()), 0)
         self.assertEqual(inverse_growth_rule(0, ExponentialGrowthRule(2)), 0)
 
     def test_negative_degree_raises(self):

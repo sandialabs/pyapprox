@@ -8,8 +8,8 @@ from typing import Generic, List, Sequence
 
 from pyapprox.typing.util.backends.protocols import Array, Backend
 from pyapprox.typing.surrogates.affine.univariate import OrthonormalPolynomial1D
-from pyapprox.typing.surrogates.sparsegrids.combination import (
-    CombinationSparseGrid,
+from pyapprox.typing.surrogates.sparsegrids.combination_surrogate import (
+    CombinationSurrogate,
 )
 from pyapprox.typing.surrogates.sparsegrids.converters.pce import (
     SparseGridToPCEConverter,
@@ -27,7 +27,7 @@ class SparseGridSensitivityAnalysis(Generic[Array]):
 
     Parameters
     ----------
-    sparse_grid : CombinationSparseGrid[Array]
+    sparse_grid : CombinationSurrogate[Array]
         A fitted sparse grid surrogate with values set.
     orthonormal_bases_1d : Sequence[OrthonormalPolynomial1D[Array]]
         Univariate orthonormal polynomial bases for each dimension.
@@ -48,12 +48,12 @@ class SparseGridSensitivityAnalysis(Generic[Array]):
 
     def __init__(
         self,
-        sparse_grid: CombinationSparseGrid[Array],
+        sparse_grid: CombinationSurrogate[Array],
         orthonormal_bases_1d: Sequence[OrthonormalPolynomial1D[Array]],
     ) -> None:
-        if not isinstance(sparse_grid, CombinationSparseGrid):
+        if not isinstance(sparse_grid, CombinationSurrogate):
             raise TypeError(
-                "sparse_grid must be a CombinationSparseGrid, "
+                "sparse_grid must be a CombinationSurrogate, "
                 f"got {type(sparse_grid).__name__}"
             )
         self._bkd = sparse_grid.bkd()

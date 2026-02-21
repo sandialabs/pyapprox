@@ -110,9 +110,9 @@ def validate_piecewise_growth_compatibility(
     Growth rule requirements by basis type:
 
     - piecewise_linear: Any growth rule works
-    - piecewise_quadratic: Use DoublePlusOneGrowthRule() (produces 1, 3, 5, 9, 17, ...)
+    - piecewise_quadratic: Use ClenshawCurtisGrowthRule() (produces 1, 3, 5, 9, 17, ...)
     - piecewise_cubic: Use CubicNestedGrowthRule() (produces 1, 4, 7, 13, 25, ...)
-    - gauss, leja, clenshaw_curtis: LinearGrowthRule or DoublePlusOneGrowthRule
+    - gauss, leja, clenshaw_curtis: LinearGrowthRule or ClenshawCurtisGrowthRule
     """
     # Import here to avoid circular imports
     from pyapprox.typing.surrogates.sparsegrids.basis_factory import PiecewiseFactory
@@ -140,7 +140,7 @@ def validate_piecewise_growth_compatibility(
                 raise ValueError(
                     f"piecewise_quadratic (dimension {dim}) requires odd number "
                     f"of nodes, but growth_rule({level}) = {npts}. "
-                    f"Use DoublePlusOneGrowthRule() instead of {rule!r}."
+                    f"Use ClenshawCurtisGrowthRule() instead of {rule!r}."
                 )
 
             if poly_type == "cubic" and npts > 1 and (npts - 4) % 3 != 0:

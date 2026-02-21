@@ -34,8 +34,8 @@ from pyapprox.typing.surrogates.affine.expansions import (
 from pyapprox.typing.surrogates.sparsegrids.subspace import (
     TensorProductSubspace,
 )
-from pyapprox.typing.surrogates.sparsegrids.combination import (
-    CombinationSparseGrid,
+from pyapprox.typing.surrogates.sparsegrids.combination_surrogate import (
+    CombinationSurrogate,
 )
 
 
@@ -324,7 +324,7 @@ class TensorProductSubspaceToPCEConverter(Generic[Array]):
 
 
 class SparseGridToPCEConverter(Generic[Array]):
-    """Convert a combination sparse grid to a Polynomial Chaos Expansion.
+    """Convert a CombinationSurrogate to a Polynomial Chaos Expansion.
 
     Uses spectral projection to convert each tensor product subspace's
     Lagrange interpolant to PCE, then combines using Smolyak coefficients.
@@ -343,8 +343,8 @@ class SparseGridToPCEConverter(Generic[Array]):
     >>> from pyapprox.typing.util.backends.numpy import NumpyBkd
     >>> from pyapprox.typing.probability import UniformMarginal
     >>> from pyapprox.typing.surrogates.affine.univariate import create_bases_1d
-    >>> from pyapprox.typing.surrogates.sparsegrids import (
-    ...     IsotropicCombinationSparseGrid,
+    >>> from pyapprox.typing.surrogates.sparsegrids.isotropic_fitter import (
+    ...     IsotropicSparseGridFitter,
     ... )
     >>> from pyapprox.typing.surrogates.sparsegrids.basis_factory import (
     ...     GaussLagrangeFactory,
@@ -354,11 +354,10 @@ class SparseGridToPCEConverter(Generic[Array]):
     >>> marginals = [UniformMarginal(0.0, 1.0, bkd) for _ in range(2)]
     >>> factories = [GaussLagrangeFactory(m, bkd) for m in marginals]
     >>> growth = LinearGrowthRule(scale=2, shift=1)
-    >>> grid = IsotropicCombinationSparseGrid(bkd, factories, growth, level=3)
-    >>> # ... set grid values ...
+    >>> # ... build fitter, get samples, fit ...
     >>> bases_1d = create_bases_1d(marginals, bkd)
     >>> converter = SparseGridToPCEConverter(bkd, bases_1d)
-    >>> pce = converter.convert(grid)
+    >>> # pce = converter.convert(result.surrogate)
 
     See Also
     --------
@@ -388,31 +387,32 @@ class SparseGridToPCEConverter(Generic[Array]):
 
     def convert(
         self,
-        sparse_grid: CombinationSparseGrid[Array],
+        surrogate: CombinationSurrogate[Array],
         nqoi: Optional[int] = None,
     ) -> PolynomialChaosExpansion[Array]:
-        """Convert sparse grid to Polynomial Chaos Expansion.
+        """Convert combination surrogate to Polynomial Chaos Expansion.
 
         Parameters
         ----------
-        sparse_grid : CombinationSparseGrid[Array]
-            Sparse grid with values set.
+        surrogate : CombinationSurrogate[Array]
+            Fitted combination surrogate with subspace values set.
         nqoi : int, optional
-            Number of quantities of interest. If None, inferred from grid.
+            Number of quantities of interest. If None, inferred from
+            surrogate.
 
         Returns
         -------
         PolynomialChaosExpansion[Array]
             The converted PCE.
         """
-        if sparse_grid.nvars() != self._nvars:
+        if surrogate.nvars() != self._nvars:
             raise ValueError(
-                f"Sparse grid has {sparse_grid.nvars()} variables, "
+                f"Surrogate has {surrogate.nvars()} variables, "
                 f"but converter has {self._nvars} bases"
             )
 
-        subspaces = sparse_grid.get_subspaces()
-        smolyak_coefs = sparse_grid.get_smolyak_coefficients()
+        subspaces = surrogate.subspaces()
+        smolyak_coefs = surrogate.coefficients()
 
         if len(subspaces) == 0:
             raise ValueError("Sparse grid has no subspaces")

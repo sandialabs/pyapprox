@@ -197,6 +197,41 @@ def get_subspace_neighbors(
     return neighbors
 
 
+def smolyak_coefs_with_candidate(
+    selected_indices: Array,
+    selected_coefs: Array,
+    candidate_index: Array,
+    bkd: Backend[Array],
+) -> Array:
+    """Compute Smolyak coefficients for selected indices plus a candidate.
+
+    Currently recomputes from scratch. The ``selected_coefs`` argument is
+    accepted but unused — reserved for a future incremental O(2^nvars)
+    update.
+
+    Parameters
+    ----------
+    selected_indices : Array
+        Current selected indices, shape (nvars, nselected).
+    selected_coefs : Array
+        Current Smolyak coefficients for selected indices, shape (nselected,).
+        Currently unused (reserved for future incremental update).
+    candidate_index : Array
+        Candidate index to add, shape (nvars,).
+    bkd : Backend[Array]
+        Computational backend.
+
+    Returns
+    -------
+    Array
+        Smolyak coefficients for selected + candidate, shape (nselected + 1,).
+    """
+    combined = bkd.hstack(
+        (selected_indices, bkd.reshape(candidate_index, (-1, 1)))
+    )
+    return compute_smolyak_coefficients(combined, bkd)
+
+
 def check_admissibility(
     candidate: Array,
     existing_indices: Array,

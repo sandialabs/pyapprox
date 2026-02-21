@@ -5,8 +5,9 @@ combination technique, which combines tensor product interpolants
 to achieve efficient high-dimensional approximation.
 
 Key classes:
-- CombinationSparseGrid: Base class for sparse grids
-- IsotropicCombinationSparseGrid: Pre-computed isotropic sparse grid
+- CombinationSurrogate: Evaluation-only sparse grid surrogate
+- IsotropicSparseGridFitter: Fixed-level sparse grid fitter
+- AdaptiveSparseGridFitter: Adaptive sparse grid fitter
 - TensorProductSubspace: Individual tensor product in sparse grid
 
 Key functions:
@@ -20,8 +21,6 @@ from .protocols import (
     SparseGridProtocol,
     SparseGridWithDerivativesProtocol,
     AdaptiveSparseGridProtocol,
-    LocalIndexGeneratorProtocol,
-    LocalRefinementCriteriaProtocol,
 )
 
 from .smolyak import (
@@ -33,16 +32,26 @@ from .smolyak import (
 
 from .subspace import TensorProductSubspace
 
-from .combination import CombinationSparseGrid
-
-from .isotropic import IsotropicCombinationSparseGrid
-
-from .adaptive import AdaptiveCombinationSparseGrid
-
-from .multifidelity import (
-    MultiFidelityModelFactoryProtocol,
-    MultiIndexAdaptiveCombinationSparseGrid,
+# New fitter/surrogate architecture
+from .combination_surrogate import CombinationSurrogate
+from .isotropic_fitter import IsotropicSparseGridFitter
+from .adaptive_fitter import AdaptiveSparseGridFitter
+from .fit_result import (
+    IsotropicSparseGridFitResult,
+    AdaptiveSparseGridFitResult,
 )
+from .error_indicators import (
+    ErrorIndicatorProtocol,
+    L2SurrogateDifferenceIndicator,
+    L2NewSamplesIndicator,
+    VarianceChangeIndicator,
+    CostWeightedIndicator,
+)
+from .candidate_info import CandidateInfo, ConfigIdx
+from .cost_model import CostModelProtocol, ConstantCostModel, ExponentialConfigCostModel
+from .subspace_factory import SubspaceFactoryProtocol, TensorProductSubspaceFactory
+from .sample_tracker import SampleTracker
+
 
 from .converters import (
     SparseGridToPCEConverter,
@@ -68,21 +77,33 @@ __all__ = [
     "SparseGridProtocol",
     "SparseGridWithDerivativesProtocol",
     "AdaptiveSparseGridProtocol",
-    "LocalIndexGeneratorProtocol",
-    "LocalRefinementCriteriaProtocol",
     # Smolyak utilities
     "compute_smolyak_coefficients",
     "is_downward_closed",
     "get_subspace_neighbors",
     "check_admissibility",
-    # Classes
+    # Classes — new architecture
     "TensorProductSubspace",
-    "CombinationSparseGrid",
-    "IsotropicCombinationSparseGrid",
-    "AdaptiveCombinationSparseGrid",
-    # Multi-fidelity
-    "MultiFidelityModelFactoryProtocol",
-    "MultiIndexAdaptiveCombinationSparseGrid",
+    "CombinationSurrogate",
+    "IsotropicSparseGridFitter",
+    "AdaptiveSparseGridFitter",
+    "IsotropicSparseGridFitResult",
+    "AdaptiveSparseGridFitResult",
+    # Error indicators
+    "ErrorIndicatorProtocol",
+    "L2SurrogateDifferenceIndicator",
+    "L2NewSamplesIndicator",
+    "VarianceChangeIndicator",
+    "CostWeightedIndicator",
+    # Data classes and utilities
+    "CandidateInfo",
+    "ConfigIdx",
+    "CostModelProtocol",
+    "ConstantCostModel",
+    "ExponentialConfigCostModel",
+    "SubspaceFactoryProtocol",
+    "TensorProductSubspaceFactory",
+    "SampleTracker",
     # Converters
     "SparseGridToPCEConverter",
     "TensorProductSubspaceToPCEConverter",

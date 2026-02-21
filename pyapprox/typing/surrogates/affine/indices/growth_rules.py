@@ -5,7 +5,7 @@ controlling how approximations grow with increasing level.
 
 Common rules:
 - Linear: n(l) = scale * l + shift
-- Double plus one: n(l) = 2^l + 1 (nested Clenshaw-Curtis)
+- Clenshaw-Curtis: n(l) = 2^l + 1 (nested Clenshaw-Curtis)
 """
 
 from abc import ABC, abstractmethod
@@ -70,15 +70,16 @@ class LinearGrowthRule(IndexGrowthRule):
         return f"LinearGrowthRule(scale={self._scale}, shift={self._shift})"
 
 
-class DoublePlusOneGrowthRule(IndexGrowthRule):
-    """Double plus one growth rule: n(l) = 2^l + 1 for l > 0.
+class ClenshawCurtisGrowthRule(IndexGrowthRule):
+    """Clenshaw-Curtis nested growth rule: n(l) = 2^l + 1 for l > 0.
 
     At level 0, returns 1.
-    This rule corresponds to nested Clenshaw-Curtis quadrature.
+    This rule produces nested point sets compatible with Clenshaw-Curtis
+    quadrature, where points at level l are a subset of points at level l+1.
 
     Examples
     --------
-    >>> rule = DoublePlusOneGrowthRule()
+    >>> rule = ClenshawCurtisGrowthRule()
     >>> [rule(l) for l in range(5)]
     [1, 3, 5, 9, 17]
     """
@@ -89,7 +90,7 @@ class DoublePlusOneGrowthRule(IndexGrowthRule):
         return 2**level + 1
 
     def __repr__(self) -> str:
-        return "DoublePlusOneGrowthRule()"
+        return "ClenshawCurtisGrowthRule()"
 
 
 class ConstantGrowthRule(IndexGrowthRule):

@@ -21,7 +21,7 @@ from pyapprox.typing.surrogates.affine.indices.admissibility import (
 from pyapprox.typing.surrogates.affine.indices.growth_rules import (
     IndexGrowthRule,
     LinearGrowthRule,
-    DoublePlusOneGrowthRule,
+    ClenshawCurtisGrowthRule,
     ConstantGrowthRule,
     ExponentialGrowthRule,
     CubicNestedGrowthRule,
@@ -77,7 +77,7 @@ __all__ = [
     # Growth rules
     "IndexGrowthRule",
     "LinearGrowthRule",
-    "DoublePlusOneGrowthRule",
+    "ClenshawCurtisGrowthRule",
     "ConstantGrowthRule",
     "ExponentialGrowthRule",
     "CubicNestedGrowthRule",

@@ -34,7 +34,7 @@ jupyter: python3
 After completing this tutorial, you will be able to:
 
 - Explain why adaptive refinement outperforms isotropic grids for anisotropic functions
-- Use the `step_samples()` / `step_values()` pattern with `AdaptiveCombinationSparseGrid`
+- Use the `step_samples()` / `step_values()` pattern with `AdaptiveSparseGridFitter`
 - Understand the knapsack formulation of index set selection
 - Configure admissibility criteria: `MaxLevelCriteria`, `Max1DLevelsCriteria`, `CompositeCriteria`
 - Visualise the adaptive refinement process: index sets, point distributions, and convergence
@@ -43,7 +43,7 @@ After completing this tutorial, you will be able to:
 
 ## Prerequisites
 
-Complete [Isotropic Sparse Grids](isotropic_sparse_grids.qmd) before this tutorial. You should understand the Smolyak combination technique, downward-closed index sets, and the `IsotropicCombinationSparseGrid` constructor.
+Complete [Isotropic Sparse Grids](isotropic_sparse_grids.qmd) before this tutorial. You should understand the Smolyak combination technique, downward-closed index sets, and the `IsotropicSparseGridFitter` API.
 
 
 ## Setup
@@ -54,14 +54,15 @@ import matplotlib.pyplot as plt
 
 from pyapprox.typing.util.backends.numpy import NumpyBkd
 from pyapprox.typing.surrogates.sparsegrids import (
-    AdaptiveCombinationSparseGrid,
-    IsotropicCombinationSparseGrid,
+    IsotropicSparseGridFitter,
+    AdaptiveSparseGridFitter,
+    TensorProductSubspaceFactory,
 )
 from pyapprox.typing.surrogates.sparsegrids.basis_factory import (
     ClenshawCurtisLagrangeFactory,
 )
 from pyapprox.typing.surrogates.affine.indices import (
-    DoublePlusOneGrowthRule,
+    ClenshawCurtisGrowthRule,
     MaxLevelCriteria,
     Max1DLevelsCriteria,
     CompositeCriteria,
@@ -81,12 +82,12 @@ np.random.seed(42)
 
 ## Motivation: Anisotropy
 
-The isotropic sparse grid treats all dimensions symmetrically: level $l$ in dimension 1 pairs with level $l$ in dimension 2.  For **anisotropic functions** — where variation is concentrated in a subset of dimensions — this symmetry is wasteful.  An adaptive algorithm that allocates more nodes to the high-variation dimensions and fewer to the low-variation ones will reach a given error tolerance with far fewer function evaluations.
+The isotropic sparse grid treats all dimensions symmetrically: level $l$ in dimension 1 pairs with level $l$ in dimension 2.  For **anisotropic functions** --- where variation is concentrated in a subset of dimensions --- this symmetry is wasteful.  An adaptive algorithm that allocates more nodes to the high-variation dimensions and fewer to the low-variation ones will reach a given error tolerance with far fewer function evaluations.
 
 Consider $f(z_1, z_2) = \cos(5z_1) + 0.1 z_2$.  This function varies much more in $z_1$ than in $z_2$.  The isotropic grid places equal resources in both dimensions; an adaptive grid should concentrate almost all nodes along the $z_1$ axis.
 
 ```{python}
-#| fig-cap: "The additive benchmark f(z₁,z₂) = cos(5z₁) + 0.1z₂. Variation along z₁ dominates; the adaptive algorithm should detect this and refine preferentially in z₁."
+#| fig-cap: "The additive benchmark f(z_1,z_2) = cos(5z_1) + 0.1z_2. Variation along z_1 dominates; the adaptive algorithm should detect this and refine preferentially in z_1."
 #| label: fig-additive-function
 
 def additive_function(samples, bkd):
@@ -126,7 +127,7 @@ $$
 Solving this exactly is intractable, so PyApprox uses a **greedy adaptive procedure**:
 
 1. Begin with $\mathcal{I} = \{\mathbf{0}\}$.
-2. Identify **active indices** — candidates satisfying downward closure that are not yet in $\mathcal{I}$.
+2. Identify **active indices** --- candidates satisfying downward closure that are not yet in $\mathcal{I}$.
 3. Evaluate $f$ at all points associated with active indices.
 4. Compute an **error indicator** $\Delta E_\beta$ for each active index (e.g., variance of the sub-space contribution).
 5. Add the active index with the largest indicator to $\mathcal{I}$.
@@ -135,15 +136,15 @@ Solving this exactly is intractable, so PyApprox uses a **greedy adaptive proced
 
 ## The Step Pattern
 
-`AdaptiveCombinationSparseGrid` uses a **step pattern** for incremental construction:
+`AdaptiveSparseGridFitter` uses a **step pattern** for incremental construction:
 
 ```python
 while True:
-    new_samples = grid.step_samples()  # Get new sample points
+    new_samples = fitter.step_samples()  # Get new sample points
     if new_samples is None:
         break  # All admissible indices exhausted
     new_values = my_function(new_samples)
-    grid.step_values(new_values)        # Provide function values
+    fitter.step_values(new_values)        # Provide function values
 ```
 
 Each call to `step_samples()` returns the points for the next candidate subspace.  After evaluating the function at those points and passing the values back via `step_values()`, the algorithm decides which subspace to add based on the error indicator.
@@ -152,49 +153,53 @@ Each call to `step_samples()` returns the points for the next candidate subspace
 nvars = 2
 marginal = UniformMarginal(-1.0, 1.0, bkd)
 factories = [ClenshawCurtisLagrangeFactory(marginal, bkd) for _ in range(nvars)]
-growth = DoublePlusOneGrowthRule()
+growth = ClenshawCurtisGrowthRule()
 
 # Admissibility: maximum total level (set high so it does not activate)
 admissibility = MaxLevelCriteria(max_level=20, pnorm=1.0, bkd=bkd)
 
-# Create adaptive sparse grid
-grid = AdaptiveCombinationSparseGrid(bkd, factories, growth, admissibility)
+# Create adaptive sparse grid fitter
+tp_factory = TensorProductSubspaceFactory(bkd, factories, growth)
+fitter = AdaptiveSparseGridFitter(bkd, tp_factory, admissibility)
 
 # Test samples for error estimation
 n_test = 2000
 test_samples = bkd.asarray(np.random.uniform(-1, 1, (nvars, n_test)))
 true_values = additive_function(test_samples, bkd)
 
-# Track convergence — stop when error estimate drops below tolerance
+# Track convergence --- stop when error estimate drops below tolerance
 nsamples_history = []
 error_history = []
 tol = 1e-12
 
 for step in range(100):
-    new_samples = grid.step_samples()
+    new_samples = fitter.step_samples()
     if new_samples is None:
         print(f"No more candidates after {step} steps")
         break
 
     new_values = additive_function(new_samples, bkd)
-    grid.step_values(new_values)
+    fitter.step_values(new_values)
 
     # Track approximation error on test set
-    if grid.nsamples() > 1:
-        approx_values = grid(test_samples)
+    ada_result = fitter.result()
+    if ada_result.nsamples > 1:
+        approx_values = ada_result.surrogate(test_samples)
         error = float(
             bkd.sqrt(bkd.sum((true_values - approx_values) ** 2))
             / np.sqrt(n_test)
         )
-        nsamples_history.append(grid.nsamples())
+        nsamples_history.append(ada_result.nsamples)
         error_history.append(error)
 
-    # Stop when the grid's built-in error estimate is small
-    if grid.error_estimate() < tol:
-        print(f"Converged at step {step}: error_estimate = {grid.error_estimate():.2e}")
+    # Stop when the fitter's built-in error estimate is small
+    if fitter.current_error() < tol:
+        print(f"Converged at step {step}: error = {fitter.current_error():.2e}")
         break
 
-print(f"Final grid: {grid.nsamples()} samples, {grid.nsubspaces()} subspaces")
+ada_result = fitter.result()
+print(f"Final grid: {ada_result.nsamples} samples, "
+      f"{ada_result.surrogate.nsubspaces()} subspaces")
 ```
 
 ```{python}
@@ -217,10 +222,10 @@ plt.show()
 Because $f$ is **additive** ($f = g_1(z_1) + g_2(z_2)$), no mixed terms are needed: the ideal index set consists only of axis-aligned indices $(k, 0)$ and $(0, k)$.  The adaptive algorithm discovers both the **additive structure** (no cross-indices) and the **anisotropy** (more levels in $z_1$ than $z_2$):
 
 ```{python}
-#| fig-cap: "Selected index set after adaptive refinement. The algorithm allocates far more levels along z₁ (the dominant dimension) than z₂, demonstrating automatic anisotropy detection."
+#| fig-cap: "Selected index set after adaptive refinement. The algorithm allocates far more levels along z_1 (the dominant dimension) than z_2, demonstrating automatic anisotropy detection."
 #| label: fig-index-set
 
-selected = grid.get_selected_subspace_indices()
+selected = ada_result.indices
 print(f"Number of selected subspaces: {selected.shape[1]}")
 
 fig, ax = plt.subplots(figsize=(8, 6))
@@ -246,38 +251,57 @@ plt.tight_layout()
 plt.show()
 ```
 
-Notice that the index set contains only axis-aligned indices — no cross-terms like $(2, 1)$ or $(1, 2)$ — reflecting the additive structure of $f$.  It also extends much further in $k_1$ than in $k_2$, reflecting the much stronger dependence on $z_1$.
+Notice that the index set contains only axis-aligned indices --- no cross-terms like $(2, 1)$ or $(1, 2)$ --- reflecting the additive structure of $f$.  It also extends much further in $k_1$ than in $k_2$, reflecting the much stronger dependence on $z_1$.
 
 ### Visualizing Grid Points
 
 ```{python}
-#| fig-cap: "Point distribution for adaptive (left) vs. isotropic (right) sparse grids. The adaptive grid concentrates more points along z₁."
+#| fig-cap: "Point distribution for adaptive (left) vs. isotropic (right) sparse grids. The adaptive grid concentrates more points along z_1."
 #| label: fig-points-compare
 
 fig, axes = plt.subplots(1, 2, figsize=(12, 5))
 
-# Adaptive points
-sg_samples = bkd.to_numpy(grid.get_samples())
-axes[0].scatter(sg_samples[0], sg_samples[1], s=30, c="steelblue", alpha=0.7)
+# Adaptive points --- collect all unique samples from fitter
+ada_surrogate = ada_result.surrogate
+
+# For visualization, gather samples from all subspaces weighted by Smolyak coefs
+# The simplest approach: evaluate at a grid and show the surrogate's sample points
+# We'll reconstruct the samples from the fitter's trackers
+# Since the adaptive fitter exposes result.nsamples, we track this
+
 axes[0].set_xlim(-1.1, 1.1)
 axes[0].set_ylim(-1.1, 1.1)
 axes[0].set_aspect("equal")
 axes[0].set_xlabel("$z_1$")
 axes[0].set_ylabel("$z_2$")
-axes[0].set_title(f"Adaptive: {grid.nsamples()} points")
+axes[0].set_title(f"Adaptive: {ada_result.nsamples} samples")
 axes[0].grid(True, alpha=0.3)
+
+# Collect unique samples from adaptive subspaces
+ada_subspaces = ada_surrogate.subspaces()
+ada_all_pts = set()
+for sub in ada_subspaces:
+    pts = bkd.to_numpy(sub.get_samples())
+    for col in range(pts.shape[1]):
+        ada_all_pts.add((round(float(pts[0, col]), 10), round(float(pts[1, col]), 10)))
+ada_arr = np.array(list(ada_all_pts))
+if ada_arr.shape[0] > 0:
+    axes[0].scatter(ada_arr[:, 0], ada_arr[:, 1], s=30, c="steelblue", alpha=0.7)
 
 # Isotropic with comparable point count
 iso_level = 4
-iso_grid = IsotropicCombinationSparseGrid(bkd, factories, growth, level=iso_level)
-iso_samples = bkd.to_numpy(iso_grid.get_samples())
+iso_tp_factory = TensorProductSubspaceFactory(bkd, factories, growth)
+iso_fitter = IsotropicSparseGridFitter(bkd, iso_tp_factory, iso_level)
+iso_samples = bkd.to_numpy(iso_fitter.get_samples())
+iso_nsamples = iso_samples.shape[1]
+
 axes[1].scatter(iso_samples[0], iso_samples[1], s=30, c="coral", alpha=0.7)
 axes[1].set_xlim(-1.1, 1.1)
 axes[1].set_ylim(-1.1, 1.1)
 axes[1].set_aspect("equal")
 axes[1].set_xlabel("$z_1$")
 axes[1].set_ylabel("$z_2$")
-axes[1].set_title(f"Isotropic (L={iso_level}): {iso_grid.nsamples()} points")
+axes[1].set_title(f"Isotropic (L={iso_level}): {iso_nsamples} points")
 axes[1].grid(True, alpha=0.3)
 
 plt.tight_layout()
@@ -292,19 +316,20 @@ plt.show()
 #| label: fig-adaptive-vs-iso
 
 # Isotropic convergence
-iso_nsamples, iso_errors = [], []
+iso_nsamples_list, iso_errors = [], []
 
 for level in range(7):
-    iso = IsotropicCombinationSparseGrid(bkd, factories, growth, level=level)
-    samples = iso.get_samples()
-    values = additive_function(samples, bkd)
-    iso.set_values(values)
+    iso_tp_fac = TensorProductSubspaceFactory(bkd, factories, growth)
+    iso_fit = IsotropicSparseGridFitter(bkd, iso_tp_fac, level)
+    iso_samp = iso_fit.get_samples()
+    iso_vals = additive_function(iso_samp, bkd)
+    iso_res = iso_fit.fit(iso_vals)
 
-    approx = iso(test_samples)
+    approx = iso_res.surrogate(test_samples)
     error = float(
         bkd.sqrt(bkd.sum((true_values - approx) ** 2)) / np.sqrt(n_test)
     )
-    iso_nsamples.append(iso.nsamples())
+    iso_nsamples_list.append(iso_samp.shape[1])
     iso_errors.append(error)
 
 fig, ax = plt.subplots(figsize=(8, 5))
@@ -313,13 +338,13 @@ ax.semilogy(
     label="Adaptive SG",
 )
 ax.semilogy(
-    iso_nsamples, iso_errors, "--s", color="#E67E22", lw=2, ms=5,
+    iso_nsamples_list, iso_errors, "--s", color="#E67E22", lw=2, ms=5,
     label="Isotropic SG",
 )
 ax.set_xlabel("Number of function evaluations", fontsize=12)
 ax.set_ylabel("RMS error", fontsize=12)
 ax.set_title(
-    "Adaptive vs. isotropic — additive function ($D=2$)", fontsize=12
+    "Adaptive vs. isotropic --- additive function ($D=2$)", fontsize=12
 )
 ax.legend(fontsize=11)
 ax.grid(True, which="both", alpha=0.3)
@@ -350,20 +375,22 @@ combined = CompositeCriteria(
 )
 
 # Build adaptive grid with combined criteria
-custom_grid = AdaptiveCombinationSparseGrid(
-    bkd, factories, growth, combined,
+custom_tp_factory = TensorProductSubspaceFactory(bkd, factories, growth)
+custom_fitter = AdaptiveSparseGridFitter(
+    bkd, custom_tp_factory, combined,
 )
 
 for _ in range(25):
-    s = custom_grid.step_samples()
+    s = custom_fitter.step_samples()
     if s is None:
         break
-    custom_grid.step_values(additive_function(s, bkd))
-    if custom_grid.error_estimate() < 1e-12:
+    custom_fitter.step_values(additive_function(s, bkd))
+    if custom_fitter.current_error() < 1e-12:
         break
 
-print(f"Custom criteria grid: {custom_grid.nsamples()} samples, "
-      f"{custom_grid.nsubspaces()} subspaces")
+custom_result = custom_fitter.result()
+print(f"Custom criteria grid: {custom_result.nsamples} samples, "
+      f"{custom_result.surrogate.nsubspaces()} subspaces")
 ```
 
 
@@ -391,7 +418,8 @@ true_4d = fun4d_additive(test_4d, bkd)
 
 # Adaptive grid with error-based stopping
 adm_4d = MaxLevelCriteria(max_level=20, pnorm=1.0, bkd=bkd)
-adaptive_4d = AdaptiveCombinationSparseGrid(bkd, facs_4d, growth, adm_4d)
+tp_fac_4d = TensorProductSubspaceFactory(bkd, facs_4d, growth)
+adaptive_4d = AdaptiveSparseGridFitter(bkd, tp_fac_4d, adm_4d)
 
 adapt_nsamples, adapt_errors = [], []
 for step in range(100):
@@ -399,31 +427,34 @@ for step in range(100):
     if s is None:
         break
     adaptive_4d.step_values(fun4d_additive(s, bkd))
-    if adaptive_4d.nsamples() > 1:
-        approx = adaptive_4d(test_4d)
+    r4 = adaptive_4d.result()
+    if r4.nsamples > 1:
+        approx = r4.surrogate(test_4d)
         err = float(
             bkd.sqrt(bkd.sum((true_4d - approx) ** 2)) / np.sqrt(2000)
         )
-        adapt_nsamples.append(adaptive_4d.nsamples())
+        adapt_nsamples.append(r4.nsamples)
         adapt_errors.append(err)
-    if adaptive_4d.error_estimate() < 1e-12:
+    if adaptive_4d.current_error() < 1e-12:
         break
 
 # Isotropic comparison
 iso_nsamples_4d, iso_errors_4d = [], []
 for level in range(5):
-    iso = IsotropicCombinationSparseGrid(bkd, facs_4d, growth, level=level)
-    samples = iso.get_samples()
-    iso.set_values(fun4d_additive(samples, bkd))
-    approx = iso(test_4d)
+    iso_tp_fac4 = TensorProductSubspaceFactory(bkd, facs_4d, growth)
+    iso_fit4 = IsotropicSparseGridFitter(bkd, iso_tp_fac4, level)
+    iso_samp4 = iso_fit4.get_samples()
+    iso_res4 = iso_fit4.fit(fun4d_additive(iso_samp4, bkd))
+    approx = iso_res4.surrogate(test_4d)
     err = float(
         bkd.sqrt(bkd.sum((true_4d - approx) ** 2)) / np.sqrt(2000)
     )
-    iso_nsamples_4d.append(iso.nsamples())
+    iso_nsamples_4d.append(iso_samp4.shape[1])
     iso_errors_4d.append(err)
 
-print(f"Adaptive 4D: {adaptive_4d.nsamples()} samples, "
-      f"{adaptive_4d.nsubspaces()} subspaces")
+r4_final = adaptive_4d.result()
+print(f"Adaptive 4D: {r4_final.nsamples} samples, "
+      f"{r4_final.surrogate.nsubspaces()} subspaces")
 print(f"Isotropic L=4: {iso_nsamples_4d[-1]} samples")
 
 fig, ax = plt.subplots(figsize=(8, 5))
@@ -450,11 +481,11 @@ plt.show()
 Once the adaptive sparse grid is built, computing expectations requires no additional model evaluations.
 
 ```{python}
-# Compute E[cos(5*z1) + 0.1*z2] over U(-1,1)²
-# Analytical: E[cos(5*Z1)] = sin(5)/5 ≈ -0.1918, E[0.1*Z2] = 0
-# Total: sin(5)/5 ≈ -0.19178
+# Compute E[cos(5*z1) + 0.1*z2] over U(-1,1)^2
+# Analytical: E[cos(5*Z1)] = sin(5)/5, E[0.1*Z2] = 0
+# Total: sin(5)/5
 
-sg_mean = float(grid.mean()[0])
+sg_mean = float(ada_result.surrogate.mean()[0])
 analytical_mean = np.sin(5) / 5
 
 print(f"Analytical mean:   {analytical_mean:.6f}")
@@ -467,10 +498,10 @@ print(f"|Error|: {abs(sg_mean - analytical_mean):.2e}")
 
 - Adaptive sparse grids discover the structure of $f$ from function evaluations alone: for additive functions the algorithm selects only axis-aligned indices (no cross-terms), and for anisotropic functions it allocates more levels to the important dimensions.
 - The greedy adaptive algorithm selects the index with the largest variance indicator at each step, approximating the solution to a knapsack optimization problem.
-- For strongly anisotropic functions, adaptive grids can achieve the same accuracy as isotropic grids at a fraction of the cost — the advantage grows with the degree of anisotropy.
+- For strongly anisotropic functions, adaptive grids can achieve the same accuracy as isotropic grids at a fraction of the cost --- the advantage grows with the degree of anisotropy.
 - Admissibility criteria (`MaxLevelCriteria`, `Max1DLevelsCriteria`, `CompositeCriteria`) provide flexible budget and safety constraints on the index set.
-- The step-based API (`step_samples()` / `step_values()`) allows fine-grained control; use `grid.error_estimate()` to stop when the estimated error drops below a tolerance.
-- `grid.mean()` computes expectations directly from the sparse grid weights.
+- The step-based API (`step_samples()` / `step_values()`) allows fine-grained control; use `fitter.current_error()` to stop when the estimated error drops below a tolerance.
+- `surrogate.mean()` computes expectations directly from the sparse grid weights.
 
 
 ## Exercises
@@ -490,4 +521,4 @@ print(f"|Error|: {abs(sg_mean - analytical_mean):.2e}")
 
 ## Next Steps
 
-- [Multifidelity Sparse Grids](multifidelity_sparse_grids.qmd) — Combine adaptive refinement with a hierarchy of model fidelities to reduce cost further
+- [Multifidelity Sparse Grids](multifidelity_sparse_grids.qmd) --- Combine adaptive refinement with a hierarchy of model fidelities to reduce cost further

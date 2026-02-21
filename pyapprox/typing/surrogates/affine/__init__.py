@@ -126,7 +126,7 @@ from pyapprox.typing.surrogates.affine.indices import (
     # Growth rules
     IndexGrowthRule,
     LinearGrowthRule,
-    DoublePlusOneGrowthRule,
+    ClenshawCurtisGrowthRule,
     ConstantGrowthRule,
     ExponentialGrowthRule,
     # Generators
@@ -281,7 +281,7 @@ __all__ = [
     # Growth rules
     "IndexGrowthRule",
     "LinearGrowthRule",
-    "DoublePlusOneGrowthRule",
+    "ClenshawCurtisGrowthRule",
     "ConstantGrowthRule",
     "ExponentialGrowthRule",
     # Index generators

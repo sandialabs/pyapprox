@@ -359,7 +359,7 @@ class ClenshawCurtisLagrangeFactory(Generic[Array]):
     where the hierarchical surplus should be stable.
 
     Important: Requires a compatible growth rule for proper nesting.
-    Use DoublePlusOneGrowthRule which gives n = 2^l + 1 points at level l
+    Use ClenshawCurtisGrowthRule which gives n = 2^l + 1 points at level l
     (with level 0 giving 1 point).
 
     Parameters
@@ -686,9 +686,9 @@ def create_basis_factories(
     constraints on the growth rule:
 
     - gauss, leja, piecewise_linear: Any growth rule works
-    - clenshaw_curtis: Any growth rule works (DoublePlusOneGrowthRule for nested)
+    - clenshaw_curtis: Any growth rule works (ClenshawCurtisGrowthRule for nested)
     - piecewise_quadratic: Requires odd number of nodes.
-      Use DoublePlusOneGrowthRule() which produces 1, 3, 5, 9, 17, ...
+      Use ClenshawCurtisGrowthRule() which produces 1, 3, 5, 9, 17, ...
     - piecewise_cubic: Requires (n - 4) % 3 == 0.
       Use CubicNestedGrowthRule() which produces 1, 4, 7, 13, 25, ...
 

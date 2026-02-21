@@ -288,11 +288,11 @@ print(f"f_1(0.5) = {float(model_1(test_z)[0, 0]):.6f}")
 from pyapprox.typing.surrogates.sparsegrids.multifidelity.grid import (
     MultiIndexAdaptiveCombinationSparseGrid,
 )
-from pyapprox.typing.surrogates.affine.indices import DoublePlusOneGrowthRule
+from pyapprox.typing.surrogates.affine.indices import ClenshawCurtisGrowthRule
 
 physical_factories = create_basis_factories(margs_1d, bkd, "clenshaw_curtis")
 config_bounds = bkd.array([1.0])  # max config level = 1 (two models: 0 and 1)
-cc_growth = DoublePlusOneGrowthRule()
+cc_growth = ClenshawCurtisGrowthRule()
 
 mi_grid = MultiIndexAdaptiveCombinationSparseGrid(
     bkd,
