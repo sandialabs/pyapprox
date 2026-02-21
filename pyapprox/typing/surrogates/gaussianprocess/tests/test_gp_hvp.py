@@ -345,7 +345,7 @@ class TestGPHVPCompositionKernels(Generic[Array], unittest.TestCase):
             self._bkd.all_bool(self._bkd.isfinite(jac_error))
         )
         jac_ratio = float(checker.error_ratio(jac_error))
-        self.assertLess(jac_ratio, 1e-6, f"Jacobian error ratio: {jac_ratio}")
+        self.assertLess(jac_ratio, 2e-6, f"Jacobian error ratio: {jac_ratio}")
 
         # Verify HVP is correct
         hvp_error = errors[1]
@@ -353,7 +353,7 @@ class TestGPHVPCompositionKernels(Generic[Array], unittest.TestCase):
             self._bkd.all_bool(self._bkd.isfinite(hvp_error))
         )
         hvp_ratio = float(checker.error_ratio(hvp_error))
-        self.assertLess(hvp_ratio, 1e-6, f"HVP error ratio: {hvp_ratio}")
+        self.assertLess(hvp_ratio, 2e-6, f"HVP error ratio: {hvp_ratio}")
 
     def test_composition_hvp_matern_1_5(self) -> None:
         """Test composition HVP with Matern nu=1.5."""

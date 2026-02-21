@@ -110,3 +110,16 @@ class PriorityQueue(Generic[Array]):
         """Remove all items from the queue."""
         self._heap.clear()
         self._counter = 0
+
+    def __repr__(self) -> str:
+        """Show all entries sorted by priority (highest first if max_priority)."""
+        if self.empty():
+            return "PriorityQueue(empty)"
+        # Sort a copy of the heap so highest-priority entries come first
+        entries = sorted(self._heap)
+        lines = [f"PriorityQueue({len(entries)} entries):"]
+        for heap_pri, counter, priority, error, index_id in entries:
+            lines.append(
+                f"  idx={index_id}  priority={priority:.6e}  error={error:.6e}"
+            )
+        return "\n".join(lines)

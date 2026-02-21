@@ -37,23 +37,26 @@ def package_available(name: str) -> bool:
     if name in _package_cache:
         return _package_cache[name]
 
+    # Use find_spec as a fast pre-check to skip packages that are not
+    # installed, avoiding the cost of a failed import_module call.
+    # For packages that *are* found, we still do the full import to
+    # catch broken installs (e.g. numba requiring numpy < 2.3).
+    if importlib.util.find_spec(name) is None:
+        _package_cache[name] = False
+        return False
+
     try:
         importlib.import_module(name)
         _package_cache[name] = True
         return True
-    except ModuleNotFoundError:
-        _package_cache[name] = False
-        return False
     except ImportError as err:
-        # Package is installed but can't be imported — warn once
-        if importlib.util.find_spec(name) is not None:
-            warnings.warn(
-                f"'{name}' is installed but failed to import: {err}. "
-                f"Falling back to vectorized implementations. "
-                f"To fix, install a compatible version: "
-                f"pip install pyapprox[{name}]",
-                stacklevel=2,
-            )
+        warnings.warn(
+            f"'{name}' is installed but failed to import: {err}. "
+            f"Falling back to vectorized implementations. "
+            f"To fix, install a compatible version: "
+            f"pip install pyapprox[{name}]",
+            stacklevel=2,
+        )
         _package_cache[name] = False
         return False
 

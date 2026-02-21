@@ -16,7 +16,6 @@ import numpy as np
 
 from pyapprox.typing.util.backends.protocols import Array, Backend
 from pyapprox.typing.util.backends.numpy import NumpyBkd
-from pyapprox.typing.util.backends.torch import TorchBkd
 from pyapprox.typing.util.optional_deps import package_available
 
 _HAS_NUMBA = package_available("numba")
@@ -47,7 +46,8 @@ def _is_numpy(bkd: Backend[Array]) -> bool:
 
 
 def _is_torch(bkd: Backend[Array]) -> bool:
-    """Check if backend is PyTorch."""
+    """Check if backend is PyTorch; import deferred to avoid torch load time."""
+    from pyapprox.typing.util.backends.torch import TorchBkd
     return isinstance(bkd, TorchBkd)
 
 

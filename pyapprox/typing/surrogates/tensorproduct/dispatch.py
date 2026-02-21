@@ -12,21 +12,22 @@ the TensorProductInterpolant is unaware of which strategy is active.
 from typing import Callable, List
 
 import numpy as np
-import torch
 
 from pyapprox.typing.util.backends.protocols import Array, Backend
 from pyapprox.typing.util.backends.numpy import NumpyBkd
-from pyapprox.typing.util.backends.torch import TorchBkd
 
 from pyapprox.typing.surrogates.tensorproduct.compute import (
     tp_eval_vectorized,
 )
-from pyapprox.typing.surrogates.tensorproduct.compute_torch import (
-    tp_eval_torch,
-)
 from pyapprox.typing.util.optional_deps import package_available
 
 _HAS_NUMBA = package_available("numba")
+
+
+def _is_torch(bkd: Backend[Array]) -> bool:
+    """Check if backend is PyTorch; import deferred to avoid torch load time."""
+    from pyapprox.typing.util.backends.torch import TorchBkd
+    return isinstance(bkd, TorchBkd)
 
 
 TpEvalImpl = Callable[
@@ -81,6 +82,10 @@ def _make_compiled_tp_eval() -> TpEvalImpl:
     Uses torch.einsum directly (bypassing bkd.*) to avoid graph breaks
     during torch.compile tracing.
     """
+    import torch
+    from pyapprox.typing.surrogates.tensorproduct.compute_torch import (
+        tp_eval_torch,
+    )
     compiled_fn = torch.compile(tp_eval_torch)
 
     def impl(
@@ -115,6 +120,6 @@ def get_tp_eval_impl(bkd: Backend[Array]) -> TpEvalImpl:
     """
     if isinstance(bkd, NumpyBkd) and _HAS_NUMBA:
         return _make_numba_tp_eval()
-    if isinstance(bkd, TorchBkd):
+    if _is_torch(bkd):
         return _make_compiled_tp_eval()
     return tp_eval_vectorized

@@ -23,17 +23,32 @@ from pyapprox.typing.interface.wrappers import (
     TrackedModel,
     FiniteDifferenceWrapper,
 )
-from pyapprox.typing.interface.umbridge import (
-    UMBridgeModel,
-    UMBRIDGE_AVAILABLE,
-)
 
 __all__ = [
     # Wrappers
     "WorkTracker",
     "TrackedModel",
     "FiniteDifferenceWrapper",
-    # UMBridge
+    # UMBridge (lazy import to avoid ~300ms umbridge load time)
     "UMBridgeModel",
     "UMBRIDGE_AVAILABLE",
 ]
+
+
+def __getattr__(name: str):
+    """Lazy import for UMBridge symbols.
+
+    UMBridge is deferred because importing umbridge pulls in aiohttp and
+    other HTTP dependencies (~300ms), which penalizes users who never use
+    the UMBridge client.  Other symbols in this module (WorkTracker, etc.)
+    are lightweight and imported eagerly.
+    """
+    if name in ("UMBridgeModel", "UMBRIDGE_AVAILABLE"):
+        from pyapprox.typing.interface.umbridge import (
+            UMBridgeModel as _UMBridgeModel,
+            UMBRIDGE_AVAILABLE as _UMBRIDGE_AVAILABLE,
+        )
+        globals()["UMBridgeModel"] = _UMBridgeModel
+        globals()["UMBRIDGE_AVAILABLE"] = _UMBRIDGE_AVAILABLE
+        return globals()[name]
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")

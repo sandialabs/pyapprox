@@ -12,7 +12,6 @@ import numpy as np
 
 from pyapprox.typing.util.backends.protocols import Array, Backend
 from pyapprox.typing.util.backends.numpy import NumpyBkd
-from pyapprox.typing.util.backends.torch import TorchBkd
 from pyapprox.typing.util.optional_deps import package_available
 
 _HAS_NUMBA = package_available("numba")
@@ -27,6 +26,12 @@ LagrangeEvalImpl = Callable[
 LagrangeDerivImpl = Callable[
     [Array, Array, Array, Backend[Array]], Array
 ]
+
+
+def _is_torch(bkd: Backend[Array]) -> bool:
+    """Check if backend is PyTorch; import deferred to avoid torch load time."""
+    from pyapprox.typing.util.backends.torch import TorchBkd
+    return isinstance(bkd, TorchBkd)
 
 
 # ---------------------------------------------------------------------------
@@ -150,7 +155,7 @@ def get_lagrange_eval_impl(bkd: Backend[Array]) -> LagrangeEvalImpl:
     """
     if isinstance(bkd, NumpyBkd) and _HAS_NUMBA:
         return _make_numba_lagrange_eval()
-    if isinstance(bkd, TorchBkd):
+    if _is_torch(bkd):
         return _make_compiled_lagrange_eval()
     return _generic_lagrange_eval
 
@@ -299,7 +304,7 @@ def get_lagrange_jacobian_impl(bkd: Backend[Array]) -> LagrangeDerivImpl:
     """
     if isinstance(bkd, NumpyBkd) and _HAS_NUMBA:
         return _make_numba_lagrange_jacobian()
-    if isinstance(bkd, TorchBkd):
+    if _is_torch(bkd):
         return _make_compiled_lagrange_jacobian()
     return _generic_lagrange_jacobian
 
@@ -453,6 +458,6 @@ def get_lagrange_hessian_impl(bkd: Backend[Array]) -> LagrangeDerivImpl:
     """
     if isinstance(bkd, NumpyBkd) and _HAS_NUMBA:
         return _make_numba_lagrange_hessian()
-    if isinstance(bkd, TorchBkd):
+    if _is_torch(bkd):
         return _make_compiled_lagrange_hessian()
     return _generic_lagrange_hessian
