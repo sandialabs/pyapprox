@@ -10,17 +10,21 @@ import torch
 from pyapprox.typing.util.backends.protocols import Array
 from pyapprox.typing.util.backends.numpy import NumpyBkd
 from pyapprox.typing.util.backends.torch import TorchBkd
-from pyapprox.typing.util.test_utils import load_tests  # noqa: F401
+from pyapprox.typing.util.test_utils import load_tests, slow_test  # noqa: F401
 
 from pyapprox.typing.statest.acv.allocation import (
     ACVAllocationResult,
     ACVAllocator,
     AnalyticalAllocator,
+    _MFMCAnalyticalProxyAllocator,
+    _MLMCAnalyticalProxyAllocator,
     default_allocator_factory,
 )
 from pyapprox.typing.statest.statistics import MultiOutputMean
 from pyapprox.typing.statest.acv.variants import (
     GMFEstimator,
+    GISEstimator,
+    GRDEstimator,
     MFMCEstimator,
     MLMCEstimator,
 )
@@ -260,10 +264,18 @@ class TestAnalyticalAllocator(Generic[Array], unittest.TestCase):
         costs = self._bkd.array([100.0, 10.0, 1.0][:nmodels])
         return stat, costs
 
-    def test_default_allocator_factory_gmf(self):
-        """Returns ACVAllocator for GMF (no analytical method)."""
+    def test_default_allocator_factory_gmf_chain(self):
+        """Returns proxy for GMF with chain index."""
         stat, costs = self._create_mfmc_stat_and_costs()
         recursion_index = self._bkd.array([0, 1], dtype=int)
+        est = GMFEstimator(stat, costs, recursion_index=recursion_index)
+        allocator = default_allocator_factory(est)
+        self.assertIsInstance(allocator, _MFMCAnalyticalProxyAllocator)
+
+    def test_default_allocator_factory_gmf_non_chain(self):
+        """Returns ACVAllocator for GMF with non-chain index."""
+        stat, costs = self._create_mfmc_stat_and_costs()
+        recursion_index = self._bkd.array([0, 0], dtype=int)
         est = GMFEstimator(stat, costs, recursion_index=recursion_index)
         allocator = default_allocator_factory(est)
         self.assertIsInstance(allocator, ACVAllocator)
@@ -351,10 +363,18 @@ class TestAllocatorFactory(Generic[Array], unittest.TestCase):
         costs = self._bkd.array([100.0, 10.0, 1.0][:nmodels])
         return stat, costs
 
-    def test_factory_returns_acv_for_gmf(self):
-        """Returns ACVAllocator for GMF."""
+    def test_factory_returns_proxy_for_gmf_chain(self):
+        """Returns proxy for GMF with chain index."""
         stat, costs = self._create_stat_and_costs()
         recursion_index = self._bkd.array([0, 1], dtype=int)
+        est = GMFEstimator(stat, costs, recursion_index=recursion_index)
+        allocator = default_allocator_factory(est)
+        self.assertIsInstance(allocator, _MFMCAnalyticalProxyAllocator)
+
+    def test_factory_returns_acv_for_gmf_non_chain(self):
+        """Returns ACVAllocator for GMF with non-chain index."""
+        stat, costs = self._create_stat_and_costs()
+        recursion_index = self._bkd.array([0, 0], dtype=int)
         est = GMFEstimator(stat, costs, recursion_index=recursion_index)
         allocator = default_allocator_factory(est)
         self.assertIsInstance(allocator, ACVAllocator)
@@ -540,6 +560,283 @@ class TestEstimatorAllocationAPINumpy(TestEstimatorAllocationAPI[NDArray[Any]]):
 
 
 class TestEstimatorAllocationAPITorch(TestEstimatorAllocationAPI[torch.Tensor]):
+    def bkd(self) -> TorchBkd:
+        torch.set_default_dtype(torch.float64)
+        return TorchBkd()
+
+
+class TestProxyAllocators(Generic[Array], unittest.TestCase):
+    """Tests for MFMC/MLMC proxy allocators."""
+
+    __test__ = False
+
+    def bkd(self):
+        raise NotImplementedError
+
+    def setUp(self):
+        self._bkd = self.bkd()
+        np.random.seed(42)
+
+    def _create_mfmc_stat_and_costs(self, nmodels: int = 3, nqoi: int = 1):
+        """Create stat/costs satisfying MFMC hierarchy (decreasing correlation)."""
+        nqoi_nmodels = nqoi * nmodels
+        cov = np.eye(nqoi_nmodels)
+        for q in range(nqoi):
+            for i in range(nmodels):
+                for j in range(nmodels):
+                    if i != j:
+                        corr = 0.95 ** max(i, j)
+                        cov[q * nmodels + i, q * nmodels + j] = corr
+        stat = MultiOutputMean(nqoi, self._bkd)
+        stat.set_pilot_quantities(self._bkd.array(cov))
+        costs = self._bkd.array([100.0, 10.0, 1.0][:nmodels])
+        return stat, costs
+
+    def _create_mlmc_stat_and_costs(self, nmodels: int = 3, nqoi: int = 1):
+        """Create stat/costs satisfying MLMC requirements (decreasing cost)."""
+        nqoi_nmodels = nqoi * nmodels
+        cov = np.eye(nqoi_nmodels)
+        for q in range(nqoi):
+            for i in range(nmodels):
+                for j in range(nmodels):
+                    if i != j:
+                        corr = 0.9 ** abs(i - j)
+                        cov[q * nmodels + i, q * nmodels + j] = corr
+        stat = MultiOutputMean(nqoi, self._bkd)
+        stat.set_pilot_quantities(self._bkd.array(cov))
+        costs = self._bkd.array([100.0, 10.0, 1.0][:nmodels])
+        return stat, costs
+
+    def test_proxy_mfmc_matches_mfmc_estimator(self):
+        """GMFEstimator with chain index produces same result as MFMCEstimator."""
+        stat, costs = self._create_mfmc_stat_and_costs()
+        chain_index = self._bkd.array([0, 1], dtype=int)
+        target_cost = 1000.0
+
+        # GMF with chain index -> proxy allocator
+        gmf_est = GMFEstimator(stat, costs, recursion_index=chain_index)
+        gmf_allocator = default_allocator_factory(gmf_est)
+        self.assertIsInstance(gmf_allocator, _MFMCAnalyticalProxyAllocator)
+        gmf_result = gmf_allocator.allocate(target_cost)
+        self.assertTrue(gmf_result.success)
+
+        # MFMC -> analytical allocator
+        mfmc_est = MFMCEstimator(stat, costs)
+        mfmc_allocator = default_allocator_factory(mfmc_est)
+        self.assertIsInstance(mfmc_allocator, AnalyticalAllocator)
+        mfmc_result = mfmc_allocator.allocate(target_cost)
+        self.assertTrue(mfmc_result.success)
+
+        # Partition ratios and objective should match
+        self._bkd.assert_allclose(
+            gmf_result.partition_ratios,
+            mfmc_result.partition_ratios,
+            rtol=1e-10,
+        )
+        self._bkd.assert_allclose(
+            gmf_result.objective_value,
+            mfmc_result.objective_value,
+            rtol=1e-10,
+        )
+
+    def test_proxy_mlmc_matches_mlmc_estimator(self):
+        """GRDEstimator with chain index produces same result as MLMCEstimator."""
+        stat, costs = self._create_mlmc_stat_and_costs()
+        chain_index = self._bkd.array([0, 1], dtype=int)
+        target_cost = 1000.0
+
+        # GRD with chain index -> proxy allocator
+        grd_est = GRDEstimator(stat, costs, recursion_index=chain_index)
+        grd_allocator = default_allocator_factory(grd_est)
+        self.assertIsInstance(grd_allocator, _MLMCAnalyticalProxyAllocator)
+        grd_result = grd_allocator.allocate(target_cost)
+        self.assertTrue(grd_result.success)
+
+        # MLMC -> analytical allocator
+        mlmc_est = MLMCEstimator(stat, costs)
+        mlmc_allocator = default_allocator_factory(mlmc_est)
+        self.assertIsInstance(mlmc_allocator, AnalyticalAllocator)
+        mlmc_result = mlmc_allocator.allocate(target_cost)
+        self.assertTrue(mlmc_result.success)
+
+        # Partition ratios and objective should match
+        self._bkd.assert_allclose(
+            grd_result.partition_ratios,
+            mlmc_result.partition_ratios,
+            rtol=1e-10,
+        )
+        self._bkd.assert_allclose(
+            grd_result.objective_value,
+            mlmc_result.objective_value,
+            rtol=1e-10,
+        )
+
+    def test_proxy_mfmc_fallback(self):
+        """Proxy falls back to optimization when MFMC formula fails."""
+        # Create correlations NOT ordered by decreasing correlation
+        # Model 2 more correlated with HF than model 1
+        nmodels = 3
+        cov = np.eye(nmodels)
+        cov[0, 1] = cov[1, 0] = 0.3  # Low correlation
+        cov[0, 2] = cov[2, 0] = 0.9  # High correlation
+        cov[1, 2] = cov[2, 1] = 0.2
+
+        stat = MultiOutputMean(1, self._bkd)
+        stat.set_pilot_quantities(self._bkd.array(cov))
+        costs = self._bkd.array([100.0, 10.0, 1.0])
+
+        chain_index = self._bkd.array([0, 1], dtype=int)
+        est = GMFEstimator(stat, costs, recursion_index=chain_index)
+        allocator = default_allocator_factory(est)
+        # Should still get proxy allocator type
+        self.assertIsInstance(allocator, _MFMCAnalyticalProxyAllocator)
+        # But allocation should fall back to optimization and still succeed
+        result = allocator.allocate(target_cost=1000.0)
+        self.assertTrue(result.success)
+
+    def test_proxy_not_used_for_non_chain_index(self):
+        """GMFEstimator with non-chain index gets ACVAllocator."""
+        stat, costs = self._create_mfmc_stat_and_costs()
+        non_chain_index = self._bkd.array([0, 0], dtype=int)
+        est = GMFEstimator(stat, costs, recursion_index=non_chain_index)
+        allocator = default_allocator_factory(est)
+        self.assertIsInstance(allocator, ACVAllocator)
+
+    def test_grd_non_chain_not_proxied(self):
+        """GRDEstimator with non-chain index gets ACVAllocator."""
+        stat, costs = self._create_mlmc_stat_and_costs()
+        non_chain_index = self._bkd.array([0, 0], dtype=int)
+        est = GRDEstimator(stat, costs, recursion_index=non_chain_index)
+        allocator = default_allocator_factory(est)
+        self.assertIsInstance(allocator, ACVAllocator)
+
+    def test_gis_not_proxied(self):
+        """GISEstimator with chain index still gets ACVAllocator."""
+        stat, costs = self._create_mfmc_stat_and_costs()
+        chain_index = self._bkd.array([0, 1], dtype=int)
+        est = GISEstimator(stat, costs, recursion_index=chain_index)
+        allocator = default_allocator_factory(est)
+        self.assertIsInstance(allocator, ACVAllocator)
+
+
+class TestProxyAllocatorsNumpy(TestProxyAllocators[NDArray[Any]]):
+    def bkd(self) -> NumpyBkd:
+        return NumpyBkd()
+
+
+class TestProxyAllocatorsTorch(TestProxyAllocators[torch.Tensor]):
+    def bkd(self) -> TorchBkd:
+        torch.set_default_dtype(torch.float64)
+        return TorchBkd()
+
+
+class TestAnalyticalVsNumerical(Generic[Array], unittest.TestCase):
+    """Compare analytical MFMC/MLMC allocation with numerical optimization."""
+
+    __test__ = False
+
+    def bkd(self):
+        raise NotImplementedError
+
+    def setUp(self):
+        self._bkd = self.bkd()
+        np.random.seed(42)
+
+    def _create_mfmc_stat_and_costs(self, nmodels: int = 3, nqoi: int = 1):
+        """Create stat/costs satisfying MFMC hierarchy (decreasing correlation)."""
+        nqoi_nmodels = nqoi * nmodels
+        cov = np.eye(nqoi_nmodels)
+        for q in range(nqoi):
+            for i in range(nmodels):
+                for j in range(nmodels):
+                    if i != j:
+                        corr = 0.95 ** max(i, j)
+                        cov[q * nmodels + i, q * nmodels + j] = corr
+        stat = MultiOutputMean(nqoi, self._bkd)
+        stat.set_pilot_quantities(self._bkd.array(cov))
+        costs = self._bkd.array([100.0, 10.0, 1.0][:nmodels])
+        return stat, costs
+
+    def _create_mlmc_stat_and_costs(self, nmodels: int = 3, nqoi: int = 1):
+        """Create stat/costs satisfying MLMC requirements (decreasing cost)."""
+        nqoi_nmodels = nqoi * nmodels
+        cov = np.eye(nqoi_nmodels)
+        for q in range(nqoi):
+            for i in range(nmodels):
+                for j in range(nmodels):
+                    if i != j:
+                        corr = 0.9 ** abs(i - j)
+                        cov[q * nmodels + i, q * nmodels + j] = corr
+        stat = MultiOutputMean(nqoi, self._bkd)
+        stat.set_pilot_quantities(self._bkd.array(cov))
+        costs = self._bkd.array([100.0, 10.0, 1.0][:nmodels])
+        return stat, costs
+
+    @slow_test
+    def test_mfmc_analytical_vs_numerical(self):
+        """Analytical MFMC allocation matches numerical optimization."""
+        stat, costs = self._create_mfmc_stat_and_costs()
+        target_cost = 1000.0
+
+        # Analytical
+        mfmc_est = MFMCEstimator(stat, costs)
+        analytical_allocator = AnalyticalAllocator(mfmc_est)
+        analytical_result = analytical_allocator.allocate(target_cost)
+        self.assertTrue(analytical_result.success)
+
+        # Numerical (force optimization by using ACVAllocator directly)
+        numerical_allocator = ACVAllocator(mfmc_est)
+        numerical_result = numerical_allocator.allocate(target_cost)
+        self.assertTrue(numerical_result.success)
+
+        # rtol=1e-5 accounts for optimizer convergence tolerance
+        self._bkd.assert_allclose(
+            analytical_result.partition_ratios,
+            numerical_result.partition_ratios,
+            rtol=1e-5,
+        )
+        self._bkd.assert_allclose(
+            analytical_result.objective_value,
+            numerical_result.objective_value,
+            rtol=1e-5,
+        )
+
+    @slow_test
+    def test_mlmc_analytical_vs_numerical(self):
+        """Analytical MLMC allocation matches numerical optimization."""
+        stat, costs = self._create_mlmc_stat_and_costs()
+        target_cost = 1000.0
+
+        # Analytical
+        mlmc_est = MLMCEstimator(stat, costs)
+        analytical_allocator = AnalyticalAllocator(mlmc_est)
+        analytical_result = analytical_allocator.allocate(target_cost)
+        self.assertTrue(analytical_result.success)
+
+        # Numerical (MLMCEstimator uses -1 weights, same objective)
+        numerical_allocator = ACVAllocator(mlmc_est)
+        numerical_result = numerical_allocator.allocate(target_cost)
+        self.assertTrue(numerical_result.success)
+
+        # rtol=1e-5 accounts for optimizer convergence tolerance
+        self._bkd.assert_allclose(
+            analytical_result.partition_ratios,
+            numerical_result.partition_ratios,
+            rtol=1e-5,
+        )
+        self._bkd.assert_allclose(
+            analytical_result.objective_value,
+            numerical_result.objective_value,
+            rtol=1e-5,
+        )
+
+
+class TestAnalyticalVsNumericalNumpy(TestAnalyticalVsNumerical[NDArray[Any]]):
+    def bkd(self) -> NumpyBkd:
+        return NumpyBkd()
+
+
+class TestAnalyticalVsNumericalTorch(TestAnalyticalVsNumerical[torch.Tensor]):
     def bkd(self) -> TorchBkd:
         torch.set_default_dtype(torch.float64)
         return TorchBkd()

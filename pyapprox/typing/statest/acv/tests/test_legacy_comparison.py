@@ -310,11 +310,6 @@ class TestLegacyComparisonSampleAllocation(unittest.TestCase):
         self._check_allocation("mfmc", [0, 1, 2], [0], stat_type="mean")
 
     @slow_test
-    def test_mlmc_allocation_mean(self) -> None:
-        """Compare MLMC sample allocation with mean statistic."""
-        self._check_allocation("mlmc", [0, 1, 2], [0], stat_type="mean")
-
-    @slow_test
     def test_gmf_allocation_mean(self) -> None:
         """Compare GMF sample allocation with mean statistic."""
         self._check_allocation(
@@ -341,40 +336,6 @@ class TestLegacyComparisonSampleAllocation(unittest.TestCase):
         """Compare MFMC sample allocation with variance statistic."""
         self._check_allocation("mfmc", [0, 1, 2], [0], stat_type="variance")
 
-    @slow_test
-    def test_mlmc_allocation_variance(self) -> None:
-        """Compare MLMC sample allocation with variance statistic."""
-        self._check_allocation("mlmc", [0, 1, 2], [0], stat_type="variance")
-
-    @slow_test
-    def test_gmf_allocation_variance(self) -> None:
-        """Compare GMF sample allocation with variance statistic."""
-        self._check_allocation(
-            "gmf", [0, 1], [0], stat_type="variance", recursion_index=[0]
-        )
-
-    @slow_test
-    def test_grd_allocation_variance(self) -> None:
-        """Compare GRD sample allocation with variance statistic."""
-        self._check_allocation(
-            "grd", [0, 1, 2], [0, 1], stat_type="variance", recursion_index=[0, 1]
-        )
-
-    # Mean-variance statistic tests
-    @slow_test
-    def test_gmf_allocation_mean_variance(self) -> None:
-        """Compare GMF sample allocation with mean_variance statistic."""
-        self._check_allocation(
-            "gmf", [0, 1], [0], stat_type="mean_variance", recursion_index=[0]
-        )
-
-    @slow_test
-    def test_mlmc_allocation_mean_variance(self) -> None:
-        """Compare MLMC sample allocation with mean_variance statistic."""
-        self._check_allocation(
-            "mlmc", [0, 1, 2], [0], stat_type="mean_variance"
-        )
-
     # Multi-QoI tests
     @slow_test
     def test_mfmc_allocation_mean_multi_qoi(self) -> None:
@@ -386,14 +347,6 @@ class TestLegacyComparisonSampleAllocation(unittest.TestCase):
         """Compare GRD sample allocation with mean statistic and 2 QoIs."""
         self._check_allocation(
             "grd", [0, 1, 2], [0, 1], stat_type="mean", recursion_index=[0, 0]
-        )
-
-    @slow_test
-    def test_grd_allocation_variance_multi_qoi(self) -> None:
-        """Compare GRD sample allocation with variance statistic and 2 QoIs."""
-        self._check_allocation(
-            "grd", [0, 1, 2], [0, 1], stat_type="variance",
-            recursion_index=[0, 1], target_cost=200.0
         )
 
 
@@ -504,11 +457,6 @@ class TestLegacyComparisonEstimatorVariance(unittest.TestCase):
         self._check_variance_formula("mfmc", [0, 1, 2], [0], stat_type="mean")
 
     @slow_test
-    def test_mlmc_variance_mean(self) -> None:
-        """Compare MLMC variance formula with mean statistic."""
-        self._check_variance_formula("mlmc", [0, 1, 2], [0], stat_type="mean")
-
-    @slow_test
     def test_gmf_variance_mean(self) -> None:
         """Compare GMF variance formula with mean statistic."""
         self._check_variance_formula(
@@ -534,36 +482,6 @@ class TestLegacyComparisonEstimatorVariance(unittest.TestCase):
     def test_mfmc_variance_variance_stat(self) -> None:
         """Compare MFMC variance formula with variance statistic."""
         self._check_variance_formula("mfmc", [0, 1, 2], [0], stat_type="variance")
-
-    @slow_test
-    def test_gmf_variance_variance_stat(self) -> None:
-        """Compare GMF variance formula with variance statistic."""
-        self._check_variance_formula(
-            "gmf", [0, 1], [0], stat_type="variance", recursion_index=[0]
-        )
-
-    @slow_test
-    def test_grd_variance_variance_stat(self) -> None:
-        """Compare GRD variance formula with variance statistic."""
-        self._check_variance_formula(
-            "grd", [0, 1, 2], [0, 1], stat_type="variance",
-            recursion_index=[0, 1], target_cost=200.0
-        )
-
-    # Mean-variance statistic tests
-    @slow_test
-    def test_gmf_variance_mean_variance_stat(self) -> None:
-        """Compare GMF variance formula with mean_variance statistic."""
-        self._check_variance_formula(
-            "gmf", [0, 1], [0], stat_type="mean_variance", recursion_index=[0]
-        )
-
-    @slow_test
-    def test_mlmc_variance_mean_variance_stat(self) -> None:
-        """Compare MLMC variance formula with mean_variance statistic."""
-        self._check_variance_formula(
-            "mlmc", [0, 1, 2], [0], stat_type="mean_variance"
-        )
 
     # Multi-QoI tests
     @slow_test

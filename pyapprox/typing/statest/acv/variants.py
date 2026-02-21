@@ -508,7 +508,10 @@ class MLMCEstimator(GRDEstimator[Array], Generic[Array]):
             target_cost,
             self._bkd,
         )
-        return self._bkd.asarray(nsample_ratios), val
+        partition_ratios = self._native_ratios_to_npartition_ratios(
+            nsample_ratios
+        )
+        return partition_ratios, val
 
     def _allocate_samples_analytical(self, target_cost: float):
         """Analytical allocation for MLMC.

@@ -355,13 +355,60 @@ class ACVAllocator(Allocator[Array]):
         from pyapprox.typing.statest.acv.optimization import ACVPartitionConstraint
 
         objective.set_target_cost(target_cost)
-        constraints: List["ACVPartitionConstraint[Array]"] = [
-            ACVPartitionConstraint(self._est, target_cost)
-        ]
+        constraint = ACVPartitionConstraint(self._est, target_cost)
+        constraints: List["ACVPartitionConstraint[Array]"] = [constraint]
         bounds = self._est.get_npartition_bounds(target_cost)
         optimizer.bind(objective, bounds, constraints)
         init_iterate = self._bkd.full((self._est._nmodels - 1, 1), 1.0)
+        init_iterate = self._ensure_feasible_init(
+            init_iterate, constraint, bounds
+        )
         return optimizer.minimize(init_iterate)
+
+    def _ensure_feasible_init(
+        self,
+        init_iterate: Array,
+        constraint: "ACVPartitionConstraint[Array]",
+        bounds: Array,
+    ) -> Array:
+        """Ensure the initial iterate satisfies constraints and bounds.
+
+        If the default initial guess (all ones) is infeasible, projects it
+        to the midpoint of the bounds which is more likely to be feasible.
+
+        Parameters
+        ----------
+        init_iterate : Array, shape (nvars, 1)
+            The initial iterate to check.
+        constraint : ACVPartitionConstraint
+            The partition constraint.
+        bounds : Array, shape (nvars, 2)
+            Variable bounds [lower, upper] per row.
+
+        Returns
+        -------
+        Array, shape (nvars, 1)
+            A feasible initial iterate.
+        """
+        constraint_vals = constraint(init_iterate)
+        lb = constraint.lb()
+        if self._bkd.all_bool(constraint_vals[:, 0] >= lb):
+            return init_iterate
+
+        # Try midpoint of bounds
+        mid = ((bounds[:, 0] + bounds[:, 1]) / 2.0)[:, None]
+        constraint_vals_mid = constraint(mid)
+        if self._bkd.all_bool(constraint_vals_mid[:, 0] >= lb):
+            return mid
+
+        # Try lower bounds (smallest feasible ratios)
+        lo = bounds[:, 0:1]
+        constraint_vals_lo = constraint(lo)
+        if self._bkd.all_bool(constraint_vals_lo[:, 0] >= lb):
+            return lo
+
+        # Return original; optimizer will handle infeasibility
+        return init_iterate
 
     def _build_result(
         self,
@@ -518,10 +565,245 @@ class AnalyticalAllocator(Allocator[Array]):
         )
 
 
+def _is_chain_recursion_index(recursion_index: Array, bkd: Backend[Array]) -> bool:
+    """Check if recursion_index is [0, 1, ..., M-2] (chain/hierarchical).
+
+    Parameters
+    ----------
+    recursion_index : Array, shape (nmodels-1,)
+        The recursion index to check.
+    bkd : Backend
+        The backend for array operations.
+
+    Returns
+    -------
+    bool
+        True if the recursion index is a chain (sequential).
+    """
+    nmodels_minus_1 = recursion_index.shape[0]
+    return bool(bkd.allclose(
+        recursion_index, bkd.arange(nmodels_minus_1, dtype=int)
+    ))
+
+
+class _MFMCAnalyticalProxyAllocator(Allocator[Array]):
+    """Analytical proxy allocator for GMFEstimator with chain recursion index.
+
+    Routes chain-indexed GMF estimators to the closed-form MFMC allocation
+    formula, avoiding expensive numerical optimization. Falls back to
+    ACVAllocator if the MFMC formula fails (e.g. models not ordered by
+    correlation).
+
+    Parameters
+    ----------
+    estimator : GMFEstimator
+        The GMF estimator with a chain recursion index.
+    """
+
+    def __init__(self, estimator: "ACVEstimator[Array]") -> None:
+        self._est = estimator
+        self._bkd: Backend[Array] = estimator._bkd
+
+    def allocate(self, target_cost: float) -> ACVAllocationResult[Array]:
+        if target_cost < float(self._bkd.to_numpy(self._bkd.sum(self._est._costs))):
+            return self._failure_result(
+                target_cost, "Budget too small for one sample per model"
+            )
+        try:
+            partition_ratios, objective_value = self._allocate_analytical(
+                target_cost
+            )
+        except Exception:
+            return ACVAllocator(self._est).allocate(target_cost)
+
+        return self._build_result(target_cost, partition_ratios, objective_value)
+
+    def _allocate_analytical(self, target_cost: float):
+        from pyapprox.typing.statest.acv.variants import _allocate_samples_mfmc
+
+        nqoi = self._est._stat.nqoi()
+        cov = self._est._stat._cov[0::nqoi, 0::nqoi]
+        nsample_ratios, log_variance = _allocate_samples_mfmc(
+            cov, self._est._costs, target_cost, self._bkd
+        )
+        # Convert native MFMC ratios to partition ratios
+        # Same logic as MFMCEstimator._native_ratios_to_npartition_ratios
+        partition_ratios = self._bkd.hstack(
+            (nsample_ratios[0] - 1, self._bkd.diff(nsample_ratios))
+        )
+        objective_value = self._bkd.atleast_1d(log_variance)
+        return partition_ratios, objective_value
+
+    def _build_result(
+        self,
+        target_cost: float,
+        partition_ratios: Array,
+        objective_value: Array,
+    ) -> ACVAllocationResult[Array]:
+        continuous = self._est._npartition_samples_from_partition_ratios(
+            target_cost, partition_ratios
+        )
+        if float(self._bkd.to_numpy(continuous[0])) < 1 - 1e-8:
+            return self._failure_result(
+                target_cost,
+                f"Would give {float(continuous[0]):.2f} HF samples",
+            )
+        npartition_samples = self._bkd.asarray(
+            self._bkd.floor(continuous + 1e-8), dtype=int
+        )
+        nsamples_per_model = self._bkd.asarray(
+            self._est._compute_nsamples_per_model(npartition_samples), dtype=int
+        )
+        actual_cost = float(
+            self._bkd.to_numpy(
+                self._bkd.sum(nsamples_per_model * self._est._costs)
+            )
+        )
+        return ACVAllocationResult(
+            partition_ratios=partition_ratios,
+            continuous_npartition_samples=continuous,
+            objective_value=objective_value,
+            npartition_samples=npartition_samples,
+            nsamples_per_model=nsamples_per_model,
+            target_cost=target_cost,
+            actual_cost=actual_cost,
+            success=True,
+            message="",
+        )
+
+    def _failure_result(
+        self, target_cost: float, message: str
+    ) -> ACVAllocationResult[Array]:
+        nmodels = self._est._nmodels
+        npartitions = self._est._npartitions
+        return ACVAllocationResult(
+            partition_ratios=self._bkd.zeros((nmodels - 1,)),
+            continuous_npartition_samples=self._bkd.zeros((npartitions,)),
+            objective_value=self._bkd.array([float("inf")]),
+            npartition_samples=self._bkd.zeros((npartitions,), dtype=int),
+            nsamples_per_model=self._bkd.zeros((nmodels,), dtype=int),
+            target_cost=target_cost,
+            actual_cost=0.0,
+            success=False,
+            message=message,
+        )
+
+
+class _MLMCAnalyticalProxyAllocator(Allocator[Array]):
+    """Analytical proxy allocator for GRDEstimator with chain recursion index.
+
+    Routes chain-indexed GRD estimators to the closed-form MLMC allocation
+    formula, avoiding expensive numerical optimization. Falls back to
+    ACVAllocator if the MLMC formula fails.
+
+    Parameters
+    ----------
+    estimator : GRDEstimator
+        The GRD estimator with a chain recursion index.
+    """
+
+    def __init__(self, estimator: "ACVEstimator[Array]") -> None:
+        self._est = estimator
+        self._bkd: Backend[Array] = estimator._bkd
+
+    def allocate(self, target_cost: float) -> ACVAllocationResult[Array]:
+        if target_cost < float(self._bkd.to_numpy(self._bkd.sum(self._est._costs))):
+            return self._failure_result(
+                target_cost, "Budget too small for one sample per model"
+            )
+        try:
+            partition_ratios, objective_value = self._allocate_analytical(
+                target_cost
+            )
+        except Exception:
+            return ACVAllocator(self._est).allocate(target_cost)
+
+        return self._build_result(target_cost, partition_ratios, objective_value)
+
+    def _allocate_analytical(self, target_cost: float):
+        from pyapprox.typing.statest.acv.variants import _allocate_samples_mlmc
+
+        nqoi = self._est._stat.nqoi()
+        cov = self._est._stat._cov[0::nqoi, 0::nqoi]
+        nsample_ratios, log_variance = _allocate_samples_mlmc(
+            cov, self._est._costs, target_cost, self._bkd
+        )
+        # Convert native MLMC ratios to partition ratios
+        # Same logic as MLMCEstimator._native_ratios_to_npartition_ratios
+        partition_ratios = [nsample_ratios[0] - 1]
+        for ii in range(1, len(nsample_ratios)):
+            partition_ratios.append(
+                nsample_ratios[ii] - partition_ratios[ii - 1]
+            )
+        partition_ratios = self._bkd.hstack(partition_ratios)
+        objective_value = self._bkd.atleast_1d(log_variance)
+        return partition_ratios, objective_value
+
+    def _build_result(
+        self,
+        target_cost: float,
+        partition_ratios: Array,
+        objective_value: Array,
+    ) -> ACVAllocationResult[Array]:
+        continuous = self._est._npartition_samples_from_partition_ratios(
+            target_cost, partition_ratios
+        )
+        if float(self._bkd.to_numpy(continuous[0])) < 1 - 1e-8:
+            return self._failure_result(
+                target_cost,
+                f"Would give {float(continuous[0]):.2f} HF samples",
+            )
+        npartition_samples = self._bkd.asarray(
+            self._bkd.floor(continuous + 1e-8), dtype=int
+        )
+        nsamples_per_model = self._bkd.asarray(
+            self._est._compute_nsamples_per_model(npartition_samples), dtype=int
+        )
+        actual_cost = float(
+            self._bkd.to_numpy(
+                self._bkd.sum(nsamples_per_model * self._est._costs)
+            )
+        )
+        return ACVAllocationResult(
+            partition_ratios=partition_ratios,
+            continuous_npartition_samples=continuous,
+            objective_value=objective_value,
+            npartition_samples=npartition_samples,
+            nsamples_per_model=nsamples_per_model,
+            target_cost=target_cost,
+            actual_cost=actual_cost,
+            success=True,
+            message="",
+        )
+
+    def _failure_result(
+        self, target_cost: float, message: str
+    ) -> ACVAllocationResult[Array]:
+        nmodels = self._est._nmodels
+        npartitions = self._est._npartitions
+        return ACVAllocationResult(
+            partition_ratios=self._bkd.zeros((nmodels - 1,)),
+            continuous_npartition_samples=self._bkd.zeros((npartitions,)),
+            objective_value=self._bkd.array([float("inf")]),
+            npartition_samples=self._bkd.zeros((npartitions,), dtype=int),
+            nsamples_per_model=self._bkd.zeros((nmodels,), dtype=int),
+            target_cost=target_cost,
+            actual_cost=0.0,
+            success=False,
+            message=message,
+        )
+
+
 def default_allocator_factory(
     estimator: "ACVEstimator[Array]",
 ) -> Allocator[Array]:
     """Create appropriate allocator for estimator type.
+
+    Routes estimators to the fastest available allocation strategy:
+    1. AnalyticalAllocator for MFMC/MLMC (has _allocate_samples_analytical)
+    2. MFMC proxy for GMFEstimator with chain recursion index [0,1,...,M-2]
+    3. MLMC proxy for GRDEstimator with chain recursion index [0,1,...,M-2]
+    4. ACVAllocator (optimization-based) for everything else
 
     Parameters
     ----------
@@ -531,9 +813,19 @@ def default_allocator_factory(
     Returns
     -------
     Allocator
-        AnalyticalAllocator if estimator has `_allocate_samples_analytical`,
-        otherwise ACVAllocator.
+        The most efficient allocator for the given estimator type.
     """
     if hasattr(estimator, "_allocate_samples_analytical"):
         return AnalyticalAllocator(estimator)
+
+    from pyapprox.typing.statest.acv.variants import GMFEstimator, GRDEstimator
+
+    if isinstance(estimator, GMFEstimator):
+        if _is_chain_recursion_index(estimator._recursion_index, estimator._bkd):
+            return _MFMCAnalyticalProxyAllocator(estimator)
+
+    if isinstance(estimator, GRDEstimator):
+        if _is_chain_recursion_index(estimator._recursion_index, estimator._bkd):
+            return _MLMCAnalyticalProxyAllocator(estimator)
+
     return ACVAllocator(estimator)
