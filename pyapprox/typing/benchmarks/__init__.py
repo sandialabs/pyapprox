@@ -19,6 +19,9 @@ from pyapprox.typing.benchmarks.protocols import (
     BenchmarkWithPriorProtocol,
     ConstraintProtocol,
     ConstrainedBenchmarkProtocol,
+    HasObservationModel,
+    HasPredictionModel,
+    HasExactEIG,
 )
 from pyapprox.typing.benchmarks.ground_truth import (
     SensitivityGroundTruth,
@@ -107,6 +110,9 @@ __all__ = [
     "BenchmarkWithPriorProtocol",
     "ConstraintProtocol",
     "ConstrainedBenchmarkProtocol",
+    "HasObservationModel",
+    "HasPredictionModel",
+    "HasExactEIG",
     # Ground truth
     "SensitivityGroundTruth",
     "OptimizationGroundTruth",

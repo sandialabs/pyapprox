@@ -26,6 +26,10 @@ SIAM Journal on Scientific Computing 2018 40:5, A2956-A2985
 from typing import Generic, Optional
 
 from pyapprox.typing.util.backends.protocols import Array, Backend
+from pyapprox.typing.benchmarks.registry import BenchmarkRegistry
+from pyapprox.typing.interface.functions.fromcallable.function import (
+    FunctionFromCallable,
+)
 
 from .linear_gaussian_model import LinearGaussianOEDModel
 
@@ -172,6 +176,14 @@ class LinearGaussianOEDBenchmark(Generic[Array]):
         """Get the underlying LinearGaussianOEDModel."""
         return self._model
 
+    def observation_model(self) -> FunctionFromCallable[Array]:
+        """Return the observation model as a FunctionProtocol.
+
+        Returns a callable mapping theta (nparams, nsamples) -> y (nobs, nsamples)
+        via y = A @ theta.
+        """
+        return self._model.observation_model()
+
     def exact_eig(self, weights: Array) -> float:
         """
         Compute exact expected information gain.
@@ -298,3 +310,16 @@ class LinearGaussianOEDBenchmark(Generic[Array]):
             Standard normal samples. Shape: (nobs, nsamples)
         """
         return self._model.generate_latent_samples(nsamples, seed)
+
+
+@BenchmarkRegistry.register(
+    "linear_gaussian_oed",
+    category="oed",
+    description="Linear Gaussian OED benchmark with analytical EIG",
+)
+def _linear_gaussian_oed_factory(
+    bkd: Backend[Array],
+) -> LinearGaussianOEDBenchmark:
+    return LinearGaussianOEDBenchmark(
+        nobs=10, degree=3, noise_std=1.0, prior_std=1.0, bkd=bkd,
+    )

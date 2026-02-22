@@ -23,6 +23,10 @@ formula, allowing exact validation of numerical estimates.
 from typing import Generic
 
 from pyapprox.typing.util.backends.protocols import Array, Backend
+from pyapprox.typing.benchmarks.registry import BenchmarkRegistry
+from pyapprox.typing.interface.functions.fromcallable.function import (
+    FunctionFromCallable,
+)
 
 from .linear_gaussian import _build_vandermonde
 from .linear_gaussian_model import LinearGaussianOEDModel
@@ -142,6 +146,30 @@ class LinearGaussianPredOEDBenchmark(Generic[Array]):
     def model(self) -> LinearGaussianOEDModel[Array]:
         """Get the underlying LinearGaussianOEDModel."""
         return self._model
+
+    def observation_model(self) -> FunctionFromCallable[Array]:
+        """Return the observation model as a FunctionProtocol.
+
+        Returns a callable mapping theta (nparams, nsamples) -> y (nobs, nsamples)
+        via y = A @ theta.
+        """
+        return self._model.observation_model()
+
+    def prediction_model(self) -> FunctionFromCallable[Array]:
+        """Return the prediction model as a FunctionProtocol.
+
+        Returns a callable mapping theta (nparams, nsamples) -> qoi (npred, nsamples)
+        via qoi = B @ theta.
+        """
+        B = self._qoi_matrix
+        bkd = self._bkd
+
+        def _pred_fun(samples: Array) -> Array:
+            return bkd.dot(B, samples)
+
+        return FunctionFromCallable(
+            self._npred, self._model.nparams(), _pred_fun, bkd,
+        )
 
     def qoi_matrix(self) -> Array:
         """Get the QoI design matrix B. Shape: (npred, nparams)"""
@@ -290,3 +318,16 @@ class LinearGaussianPredOEDBenchmark(Generic[Array]):
             Standard normal samples. Shape: (nobs, nsamples)
         """
         return self._model.generate_latent_samples(nsamples, seed)
+
+
+@BenchmarkRegistry.register(
+    "linear_gaussian_pred_oed",
+    category="oed",
+    description="Linear Gaussian prediction OED benchmark with linear QoI",
+)
+def _linear_gaussian_pred_oed_factory(
+    bkd: Backend[Array],
+) -> LinearGaussianPredOEDBenchmark:
+    return LinearGaussianPredOEDBenchmark(
+        nobs=10, degree=3, noise_std=1.0, prior_std=1.0, npred=3, bkd=bkd,
+    )

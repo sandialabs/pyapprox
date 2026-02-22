@@ -23,6 +23,10 @@ formula, allowing exact validation of numerical estimates.
 from typing import Generic
 
 from pyapprox.typing.util.backends.protocols import Array, Backend
+from pyapprox.typing.benchmarks.registry import BenchmarkRegistry
+from pyapprox.typing.interface.functions.fromcallable.function import (
+    FunctionFromCallable,
+)
 
 from .linear_gaussian import _build_vandermonde
 from .linear_gaussian_model import LinearGaussianOEDModel
@@ -148,6 +152,30 @@ class NonLinearGaussianOEDBenchmark(Generic[Array]):
     def model(self) -> LinearGaussianOEDModel[Array]:
         """Get the underlying LinearGaussianOEDModel."""
         return self._model
+
+    def observation_model(self) -> FunctionFromCallable[Array]:
+        """Return the observation model as a FunctionProtocol.
+
+        Returns a callable mapping theta (nparams, nsamples) -> y (nobs, nsamples)
+        via y = A @ theta.
+        """
+        return self._model.observation_model()
+
+    def prediction_model(self) -> FunctionFromCallable[Array]:
+        """Return the prediction model as a FunctionProtocol.
+
+        Returns a callable mapping theta (nparams, nsamples) -> qoi (npred, nsamples)
+        via qoi = exp(B @ theta).
+        """
+        B = self._qoi_matrix
+        bkd = self._bkd
+
+        def _pred_fun(samples: Array) -> Array:
+            return bkd.exp(bkd.dot(B, samples))
+
+        return FunctionFromCallable(
+            self._npred, self._model.nparams(), _pred_fun, bkd,
+        )
 
     def qoi_matrix(self) -> Array:
         """Get the QoI design matrix B. Shape: (npred, nparams)"""
@@ -299,3 +327,16 @@ class NonLinearGaussianOEDBenchmark(Generic[Array]):
             Standard normal samples. Shape: (nobs, nsamples)
         """
         return self._model.generate_latent_samples(nsamples, seed)
+
+
+@BenchmarkRegistry.register(
+    "nonlinear_gaussian_oed",
+    category="oed",
+    description="Nonlinear Gaussian OED benchmark with exponential QoI",
+)
+def _nonlinear_gaussian_oed_factory(
+    bkd: Backend[Array],
+) -> NonLinearGaussianOEDBenchmark:
+    return NonLinearGaussianOEDBenchmark(
+        nobs=10, degree=3, noise_std=1.0, prior_std=1.0, bkd=bkd,
+    )

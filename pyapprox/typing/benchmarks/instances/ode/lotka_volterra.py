@@ -52,7 +52,7 @@ class ODEBenchmarkWrapper:
     def reference(self) -> str:
         return self._inner.reference()
 
-    def qoi_function(self, functional: str = "endpoint", stepper: str = "backward_euler"):
+    def qoi_function(self, functional="endpoint", stepper: str = "backward_euler"):
         return self._inner.qoi_function(functional=functional, stepper=stepper)
 
     def estimated_evaluation_cost(self) -> float:

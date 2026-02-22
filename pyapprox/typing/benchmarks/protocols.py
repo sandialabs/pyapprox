@@ -324,3 +324,35 @@ class HasEnsembleCovariance(Protocol, Generic[Array]):
     def ensemble_covariance(self) -> Array:
         """Return cross-model covariance matrix."""
         ...
+
+
+# ---------------------------------------------------------------------------
+# OED capability protocols — what OED tasks the benchmark supports
+# ---------------------------------------------------------------------------
+
+
+@runtime_checkable
+class HasObservationModel(Protocol, Generic[Array]):
+    """Benchmark provides an observation model for OED."""
+
+    def observation_model(self) -> Any:
+        """Return the observation model."""
+        ...
+
+
+@runtime_checkable
+class HasPredictionModel(Protocol, Generic[Array]):
+    """Benchmark provides a prediction model for OED."""
+
+    def prediction_model(self) -> Any:
+        """Return the prediction model."""
+        ...
+
+
+@runtime_checkable
+class HasExactEIG(Protocol, Generic[Array]):
+    """Benchmark provides analytical expected information gain."""
+
+    def exact_eig(self, weights: Array) -> float:
+        """Return analytical EIG for given design weights."""
+        ...
