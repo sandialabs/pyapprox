@@ -7,7 +7,8 @@ to achieve efficient high-dimensional approximation.
 Key classes:
 - CombinationSurrogate: Evaluation-only sparse grid surrogate
 - IsotropicSparseGridFitter: Fixed-level sparse grid fitter
-- AdaptiveSparseGridFitter: Adaptive sparse grid fitter
+- MultiFidelityAdaptiveSparseGridFitter: Adaptive MF sparse grid fitter
+- SingleFidelityAdaptiveSparseGridFitter: Adaptive SF sparse grid fitter
 - TensorProductSubspace: Individual tensor product in sparse grid
 
 Key functions:
@@ -35,7 +36,10 @@ from .subspace import TensorProductSubspace
 # New fitter/surrogate architecture
 from .combination_surrogate import CombinationSurrogate
 from .isotropic_fitter import IsotropicSparseGridFitter
-from .adaptive_fitter import AdaptiveSparseGridFitter
+from .adaptive_fitter import (
+    MultiFidelityAdaptiveSparseGridFitter,
+    SingleFidelityAdaptiveSparseGridFitter,
+)
 from .fit_result import (
     IsotropicSparseGridFitResult,
     AdaptiveSparseGridFitResult,
@@ -48,7 +52,8 @@ from .error_indicators import (
     CostWeightedIndicator,
 )
 from .candidate_info import CandidateInfo, ConfigIdx
-from .cost_model import CostModelProtocol, ConstantCostModel, ExponentialConfigCostModel
+from .cost_model import CostModelProtocol, ConstantCostModel, ExponentialConfigCostModel, MeasuredCostModel
+from .model_factory import ModelFactoryProtocol, DictModelFactory, TimedModelFactory
 from .subspace_factory import SubspaceFactoryProtocol, TensorProductSubspaceFactory
 from .sample_tracker import SampleTracker
 
@@ -86,7 +91,8 @@ __all__ = [
     "TensorProductSubspace",
     "CombinationSurrogate",
     "IsotropicSparseGridFitter",
-    "AdaptiveSparseGridFitter",
+    "MultiFidelityAdaptiveSparseGridFitter",
+    "SingleFidelityAdaptiveSparseGridFitter",
     "IsotropicSparseGridFitResult",
     "AdaptiveSparseGridFitResult",
     # Error indicators
@@ -101,6 +107,11 @@ __all__ = [
     "CostModelProtocol",
     "ConstantCostModel",
     "ExponentialConfigCostModel",
+    "MeasuredCostModel",
+    # Model factories
+    "ModelFactoryProtocol",
+    "DictModelFactory",
+    "TimedModelFactory",
     "SubspaceFactoryProtocol",
     "TensorProductSubspaceFactory",
     "SampleTracker",

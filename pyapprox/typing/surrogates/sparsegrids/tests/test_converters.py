@@ -20,7 +20,7 @@ from pyapprox.typing.surrogates.sparsegrids import (
     TensorProductSubspaceToPCEConverter,
     TensorProductSubspace,
     IsotropicSparseGridFitter,
-    AdaptiveSparseGridFitter,
+    SingleFidelityAdaptiveSparseGridFitter,
     create_basis_factories,
 )
 from pyapprox.typing.surrogates.sparsegrids.basis_factory import (
@@ -421,7 +421,7 @@ class TestAdaptiveSGToPCEConverter(Generic[Array], unittest.TestCase):
             self._bkd, factories, growth
         )
         admis = MaxLevelCriteria(max_level=3, pnorm=1.0, bkd=self._bkd)
-        fitter = AdaptiveSparseGridFitter(self._bkd, tp_factory, admis)
+        fitter = SingleFidelityAdaptiveSparseGridFitter(self._bkd, tp_factory, admis)
 
         ada_result = fitter.refine_to_tolerance(
             lambda s: pce_target(s), tol=1e-12, max_steps=50
@@ -452,7 +452,7 @@ class TestAdaptiveSGToPCEConverter(Generic[Array], unittest.TestCase):
             self._bkd, factories, growth
         )
         admis = MaxLevelCriteria(max_level=3, pnorm=1.0, bkd=self._bkd)
-        fitter = AdaptiveSparseGridFitter(self._bkd, tp_factory, admis)
+        fitter = SingleFidelityAdaptiveSparseGridFitter(self._bkd, tp_factory, admis)
 
         ada_result = fitter.refine_to_tolerance(
             lambda s: pce_target(s), tol=1e-12, max_steps=50
@@ -479,7 +479,7 @@ class TestAdaptiveSGToPCEConverter(Generic[Array], unittest.TestCase):
             self._bkd, factories, growth
         )
         admis = MaxLevelCriteria(max_level=3, pnorm=1.0, bkd=self._bkd)
-        fitter = AdaptiveSparseGridFitter(self._bkd, tp_factory, admis)
+        fitter = SingleFidelityAdaptiveSparseGridFitter(self._bkd, tp_factory, admis)
 
         ada_result = fitter.refine_to_tolerance(
             lambda s: pce_target(s), tol=1e-12, max_steps=50

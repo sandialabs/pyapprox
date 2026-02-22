@@ -4,7 +4,14 @@ Provides per-sample cost estimates for different model configurations,
 used by CostWeightedIndicator to normalize error indicators.
 """
 
-from typing import Generic, Protocol, runtime_checkable
+from __future__ import annotations
+
+from typing import TYPE_CHECKING, Protocol, runtime_checkable
+
+if TYPE_CHECKING:
+    from pyapprox.typing.surrogates.sparsegrids.model_factory import (
+        TimedModelFactory,
+    )
 
 from pyapprox.typing.surrogates.sparsegrids.candidate_info import ConfigIdx
 
@@ -65,3 +72,28 @@ class ExponentialConfigCostModel:
 
     def __repr__(self) -> str:
         return f"ExponentialConfigCostModel(base={self._base})"
+
+
+class MeasuredCostModel:
+    """Cost model that reads measured wall times from a TimedModelFactory.
+
+    Returns median per-sample time for configs that have been evaluated.
+    Returns 1.0 for configs with no measurements yet.
+
+    Parameters
+    ----------
+    timed_factory : TimedModelFactory
+        Timed model factory whose per-config timers provide cost data.
+    """
+
+    def __init__(self, timed_factory: TimedModelFactory) -> None:
+        self._timed_factory = timed_factory
+
+    def __call__(self, config_idx: ConfigIdx) -> float:
+        method_timer = self._timed_factory.timer(config_idx).get("__call__")
+        if method_timer.call_count() == 0:
+            return 1.0
+        return method_timer.median()
+
+    def __repr__(self) -> str:
+        return "MeasuredCostModel()"

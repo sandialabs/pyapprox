@@ -1,4 +1,4 @@
-"""Tests for AdaptiveSparseGridFitter.
+"""Tests for SingleFidelityAdaptiveSparseGridFitter.
 
 Tests verify that adaptive refinement converges for polynomial targets,
 recovers anisotropic index sets without over-refinement, and correctly
@@ -22,7 +22,7 @@ from pyapprox.typing.surrogates.affine.indices import (
 )
 from pyapprox.typing.surrogates.sparsegrids import create_basis_factories
 from pyapprox.typing.surrogates.sparsegrids.adaptive_fitter import (
-    AdaptiveSparseGridFitter,
+    SingleFidelityAdaptiveSparseGridFitter,
 )
 from pyapprox.typing.surrogates.sparsegrids.basis_factory import (
     GaussLagrangeFactory,
@@ -61,7 +61,7 @@ from pyapprox.typing.util.test_utils import load_tests  # noqa: F401
 
 
 class TestAdaptiveFitter(Generic[Array], unittest.TestCase):
-    """Core tests for AdaptiveSparseGridFitter."""
+    """Core tests for SingleFidelityAdaptiveSparseGridFitter."""
 
     __test__ = False
 
@@ -73,7 +73,7 @@ class TestAdaptiveFitter(Generic[Array], unittest.TestCase):
 
     def _make_fitter(
         self, nvars: int = 2, max_level: int = 3
-    ) -> AdaptiveSparseGridFitter[Array]:
+    ) -> SingleFidelityAdaptiveSparseGridFitter[Array]:
         marginal = UniformMarginal(-1.0, 1.0, self._bkd)
         factories = [GaussLagrangeFactory(marginal, self._bkd)] * nvars
         growth = LinearGrowthRule(scale=1, shift=1)
@@ -83,7 +83,7 @@ class TestAdaptiveFitter(Generic[Array], unittest.TestCase):
         admis = MaxLevelCriteria(
             max_level=max_level, pnorm=1.0, bkd=self._bkd
         )
-        return AdaptiveSparseGridFitter(self._bkd, tp_factory, admis)
+        return SingleFidelityAdaptiveSparseGridFitter(self._bkd, tp_factory, admis)
 
     def test_convergence_on_polynomial(self) -> None:
         """Adaptive grid converges for polynomial target."""
@@ -224,7 +224,7 @@ class TestAdaptiveConvergence(
         admis = MaxLevelCriteria(
             max_level=max_level, pnorm=1.0, bkd=self._bkd
         )
-        fitter = AdaptiveSparseGridFitter(self._bkd, tp_factory, admis)
+        fitter = SingleFidelityAdaptiveSparseGridFitter(self._bkd, tp_factory, admis)
 
         result = fitter.refine_to_tolerance(
             lambda s: pce(s), tol=1e-12, max_steps=50
@@ -283,7 +283,7 @@ class TestAdaptiveMoments(Generic[Array], unittest.TestCase):
         admis = MaxLevelCriteria(
             max_level=4, pnorm=1.0, bkd=self._bkd
         )
-        fitter = AdaptiveSparseGridFitter(self._bkd, tp_factory, admis)
+        fitter = SingleFidelityAdaptiveSparseGridFitter(self._bkd, tp_factory, admis)
 
         result = fitter.refine_to_tolerance(
             lambda s: pce(s), tol=1e-12, max_steps=50
@@ -388,7 +388,7 @@ class TestAdaptiveAnisotropicRecovery(
         admis = MaxLevelCriteria(
             max_level=max_level, pnorm=1.0, bkd=self._bkd
         )
-        fitter = AdaptiveSparseGridFitter(self._bkd, tp_factory, admis)
+        fitter = SingleFidelityAdaptiveSparseGridFitter(self._bkd, tp_factory, admis)
 
         result = fitter.refine_to_tolerance(
             lambda s: pce(s), tol=1e-12, max_steps=100
@@ -501,7 +501,7 @@ class TestAdaptiveAdditiveRecovery(
         admis = MaxLevelCriteria(
             max_level=max_level, pnorm=1.0, bkd=self._bkd
         )
-        fitter = AdaptiveSparseGridFitter(self._bkd, tp_factory, admis)
+        fitter = SingleFidelityAdaptiveSparseGridFitter(self._bkd, tp_factory, admis)
 
         result = fitter.refine_to_tolerance(
             lambda s: pce(s), tol=1e-12, max_steps=100
@@ -581,7 +581,7 @@ class TestAdaptiveVarianceRefinement(Generic[Array], unittest.TestCase):
             max_level=4, pnorm=1.0, bkd=self._bkd
         )
         indicator = VarianceChangeIndicator(self._bkd)
-        fitter = AdaptiveSparseGridFitter(
+        fitter = SingleFidelityAdaptiveSparseGridFitter(
             self._bkd, tp_factory, admis, error_indicator=indicator
         )
 
@@ -617,7 +617,7 @@ class TestAdaptiveVarianceRefinement(Generic[Array], unittest.TestCase):
             max_level=4, pnorm=1.0, bkd=self._bkd
         )
         indicator = VarianceChangeIndicator(self._bkd)
-        fitter = AdaptiveSparseGridFitter(
+        fitter = SingleFidelityAdaptiveSparseGridFitter(
             self._bkd, tp_factory, admis, error_indicator=indicator
         )
 
@@ -698,7 +698,7 @@ class TestAdaptiveRecoversIsotropic(Generic[Array], unittest.TestCase):
         tp_factory2 = TensorProductSubspaceFactory(
             self._bkd, factories, growth
         )
-        ada_fitter = AdaptiveSparseGridFitter(
+        ada_fitter = SingleFidelityAdaptiveSparseGridFitter(
             self._bkd, tp_factory2, admis
         )
         ada_result = ada_fitter.refine_to_tolerance(

@@ -1,11 +1,13 @@
-"""Adaptive sparse grid fitter.
+"""Adaptive sparse grid fitters.
 
-Iteratively refines a sparse grid using error indicators to select
-the most important subspaces. Uses the step_samples/step_values pattern
-for external control, or refine_to_tolerance for automatic refinement.
+Provides two classes:
+- MultiFidelityAdaptiveSparseGridFitter: Core implementation that always
+  operates on Dict[ConfigIdx, Array] for samples and values.
+- SingleFidelityAdaptiveSparseGridFitter: Thin composition wrapper that
+  adapts the Array <-> Dict boundary for single-fidelity use.
 """
 
-from typing import Callable, Dict, Generic, List, Optional, Tuple, Union
+from typing import Callable, Dict, Generic, List, Optional, Tuple
 
 from pyapprox.typing.util.backends.protocols import Array, Backend
 from pyapprox.typing.surrogates.affine.indices import (
@@ -41,16 +43,24 @@ from pyapprox.typing.surrogates.sparsegrids.error_indicators import (
     ErrorIndicatorProtocol,
     L2SurrogateDifferenceIndicator,
 )
+from pyapprox.typing.surrogates.sparsegrids.cost_model import (
+    CostModelProtocol,
+    ConstantCostModel,
+)
+from pyapprox.typing.surrogates.sparsegrids.model_factory import (
+    DictModelFactory,
+    ModelFactoryProtocol,
+)
+
+# Sentinel key for single-fidelity grids (nconfig_vars=0)
+_SF_KEY: ConfigIdx = ()
 
 
-class AdaptiveSparseGridFitter(Generic[Array]):
-    """Adaptive sparse grid fitter with step_samples/step_values pattern.
+class MultiFidelityAdaptiveSparseGridFitter(Generic[Array]):
+    """Adaptive sparse grid fitter for multi-fidelity models.
 
-    Iteratively builds a sparse grid by selecting subspaces based on
-    error indicators. Each step:
-    1. step_samples() returns new sample locations
-    2. step_values(values) provides function evaluations
-    3. Internal reprioritization determines next subspace to refine
+    Always operates on Dict[ConfigIdx, Array] for samples and values.
+    Each config index identifies a model fidelity level.
 
     Parameters
     ----------
@@ -60,11 +70,13 @@ class AdaptiveSparseGridFitter(Generic[Array]):
         Factory for creating tensor product subspaces.
     admissibility : AdmissibilityCriteria[Array]
         Criteria for admissible subspace indices.
+    nconfig_vars : int
+        Number of config/fidelity dimensions.
     error_indicator : ErrorIndicatorProtocol[Array], optional
         Error indicator for computing refinement priorities.
         Default: L2SurrogateDifferenceIndicator.
-    nconfig_vars : int, optional
-        Number of config/fidelity dimensions. Default: 0.
+    cost_model : CostModelProtocol, optional
+        Per-sample cost model. Default: ConstantCostModel() (unit cost).
     verbosity : int, optional
         Verbosity level. Default: 0.
     """
@@ -74,8 +86,9 @@ class AdaptiveSparseGridFitter(Generic[Array]):
         bkd: Backend[Array],
         factory: SubspaceFactoryProtocol[Array],
         admissibility: AdmissibilityCriteria[Array],
+        nconfig_vars: int,
         error_indicator: Optional[ErrorIndicatorProtocol[Array]] = None,
-        nconfig_vars: int = 0,
+        cost_model: Optional[CostModelProtocol] = None,
         verbosity: int = 0,
     ) -> None:
         self._bkd = bkd
@@ -84,6 +97,9 @@ class AdaptiveSparseGridFitter(Generic[Array]):
         if error_indicator is None:
             error_indicator = L2SurrogateDifferenceIndicator(bkd)
         self._error_indicator = error_indicator
+        if cost_model is None:
+            cost_model = ConstantCostModel()
+        self._cost_model = cost_model
         self._nconfig_vars = nconfig_vars
         self._verbosity = verbosity
         self._nvars_physical = factory.nvars_physical()
@@ -119,7 +135,7 @@ class AdaptiveSparseGridFitter(Generic[Array]):
     def _get_config_idx(self, full_index: Array) -> ConfigIdx:
         """Extract config index from full multi-index."""
         if self._nconfig_vars == 0:
-            return ()
+            return _SF_KEY
         config_part = full_index[self._nvars_physical:]
         return tuple(
             int(config_part[i]) for i in range(self._nconfig_vars)
@@ -152,23 +168,19 @@ class AdaptiveSparseGridFitter(Generic[Array]):
         self._subspace_keys.append(key)
         self._tracker_positions[config_idx][key] = pos
 
-    def step_samples(self) -> Optional[Union[Array, Dict[ConfigIdx, Array]]]:
+    def step_samples(self) -> Optional[Dict[ConfigIdx, Array]]:
         """Get samples for next refinement step.
 
         Returns
         -------
-        Optional[Union[Array, Dict[ConfigIdx, Array]]]
-            New samples, or None if converged.
-            For SF: Array of shape (nvars_physical, n_new).
-            For MF: Dict mapping config_idx to sample arrays.
+        Optional[Dict[ConfigIdx, Array]]
+            Dict mapping config_idx to sample arrays, or None if converged.
         """
         if self._first_step:
             return self._first_step_samples()
         return self._next_step_samples()
 
-    def _first_step_samples(
-        self,
-    ) -> Union[Array, Dict[ConfigIdx, Array]]:
+    def _first_step_samples(self) -> Dict[ConfigIdx, Array]:
         """Get samples for the first step (zero index + candidates)."""
         # Initialize with zero index
         zero_index = self._bkd.zeros(
@@ -191,13 +203,23 @@ class AdaptiveSparseGridFitter(Generic[Array]):
 
         self._first_step = False
 
-        # Return all unique samples
-        return self._unwrap_samples()
+        # Return all unique samples per config
+        return {
+            cfg: tracker.collect_unique_samples()
+            for cfg, tracker in self._trackers.items()
+        }
 
     def _next_step_samples(
         self,
-    ) -> Optional[Union[Array, Dict[ConfigIdx, Array]]]:
-        """Get samples for subsequent steps (refinement)."""
+    ) -> Optional[Dict[ConfigIdx, Array]]:
+        """Get samples for subsequent steps (refinement).
+
+        Promotes the highest-priority candidate to selected and returns
+        new samples from its admissible neighbor candidates.  When a
+        promoted candidate has no admissible neighbors (e.g. due to
+        downward-closed constraints), the next candidate is promoted
+        immediately since no new evaluations are needed.
+        """
         while (
             self._candidate_queue is not None
             and not self._candidate_queue.empty()
@@ -224,6 +246,8 @@ class AdaptiveSparseGridFitter(Generic[Array]):
                 self._subspace_errors.append(float("inf"))
 
             if new_cand_indices.shape[1] == 0:
+                # No admissible neighbors (e.g. downward-closed blocks
+                # children until siblings are selected). Promote next.
                 continue
 
             # Return new unique samples from new candidates
@@ -236,10 +260,8 @@ class AdaptiveSparseGridFitter(Generic[Array]):
 
     def _collect_new_samples(
         self, new_indices: Array
-    ) -> Optional[Union[Array, Dict[ConfigIdx, Array]]]:
+    ) -> Optional[Dict[ConfigIdx, Array]]:
         """Collect new unique samples from newly added subspaces."""
-        # For each new candidate, find its unique local indices
-        # and collect those samples
         new_by_config: Dict[ConfigIdx, List[Array]] = {}
 
         for j in range(new_indices.shape[1]):
@@ -248,7 +270,6 @@ class AdaptiveSparseGridFitter(Generic[Array]):
             config_idx = self._get_config_idx(full_index)
             tracker = self._trackers[config_idx]
 
-            # Find subspace position via stored mapping
             pos_map = self._tracker_positions[config_idx]
             if key not in pos_map:
                 continue
@@ -275,54 +296,28 @@ class AdaptiveSparseGridFitter(Generic[Array]):
         result: Dict[ConfigIdx, Array] = {}
         for cfg, sample_list in new_by_config.items():
             result[cfg] = self._bkd.hstack(sample_list)
-
-        if self._nconfig_vars == 0:
-            return result[()]
         return result
 
-    def _unwrap_samples(
-        self,
-    ) -> Union[Array, Dict[ConfigIdx, Array]]:
-        """Return all unique samples from all trackers."""
-        if self._nconfig_vars == 0:
-            tracker = self._trackers[()]
-            return tracker.collect_unique_samples()
-        return {
-            cfg: tracker.collect_unique_samples()
-            for cfg, tracker in self._trackers.items()
-        }
-
-    def step_values(
-        self, values: Union[Array, Dict[ConfigIdx, Array]]
-    ) -> None:
+    def step_values(self, values: Dict[ConfigIdx, Array]) -> None:
         """Provide function values for the samples from step_samples.
 
         Parameters
         ----------
-        values : Union[Array, Dict[ConfigIdx, Array]]
-            For SF: Array of shape (nqoi, n_samples).
-            For MF: Dict mapping config_idx to value arrays.
+        values : Dict[ConfigIdx, Array]
+            Dict mapping config_idx to value arrays of shape
+            (nqoi, n_samples).
         """
-        wrapped = self._wrap(values)
-        for cfg, vals in wrapped.items():
+        for cfg, vals in values.items():
             self._trackers[cfg].append_new_values(vals)
 
         # Distribute values to subspaces
         for tracker in self._trackers.values():
             tracker.distribute_values_to_subspaces()
 
-        self._nqoi = next(iter(wrapped.values())).shape[0]
+        self._nqoi = next(iter(values.values())).shape[0]
 
         # Re-prioritize candidates
         self._reprioritize_candidates()
-
-    def _wrap(
-        self, values: Union[Array, Dict[ConfigIdx, Array]]
-    ) -> Dict[ConfigIdx, Array]:
-        """Normalize values to dict form."""
-        if isinstance(values, dict):
-            return values
-        return {(): values}
 
     def _reprioritize_candidates(self) -> None:
         """Compute priorities for all candidate subspaces."""
@@ -424,6 +419,9 @@ class AdaptiveSparseGridFitter(Generic[Array]):
             indices=combined_indices,
         )
 
+        model_cost = self._cost_model(config_idx)
+        subspace_cost = model_cost * len(unique_local)
+
         return CandidateInfo(
             candidate_index=candidate_index,
             candidate_subspace=candidate_subspace,
@@ -433,6 +431,8 @@ class AdaptiveSparseGridFitter(Generic[Array]):
             selected_surrogate=selected_surrogate,
             sel_plus_candidate_surrogate=sel_plus_surrogate,
             config_idx=config_idx if self._nconfig_vars > 0 else None,
+            model_cost=model_cost,
+            subspace_cost=subspace_cost,
         )
 
     def _get_subspaces_for_indices(
@@ -447,13 +447,7 @@ class AdaptiveSparseGridFitter(Generic[Array]):
         return result
 
     def current_error(self) -> float:
-        """Return sum of errors for candidate subspaces.
-
-        Returns
-        -------
-        float
-            Current total error estimate.
-        """
+        """Return sum of errors for candidate subspaces."""
         cand_indices = self._index_gen.get_candidate_indices()
         if cand_indices is None:
             return 0.0
@@ -480,7 +474,6 @@ class AdaptiveSparseGridFitter(Generic[Array]):
         Returns
         -------
         AdaptiveSparseGridFitResult[Array]
-            The fit result containing the surrogate.
         """
         assert self._nqoi is not None
 
@@ -517,6 +510,127 @@ class AdaptiveSparseGridFitter(Generic[Array]):
 
     def refine_to_tolerance(
         self,
+        model_factory: ModelFactoryProtocol,
+        tol: float = 1e-6,
+        max_steps: int = 200,
+    ) -> AdaptiveSparseGridFitResult[Array]:
+        """Refine adaptively until error < tol or max_steps reached.
+
+        Parameters
+        ----------
+        model_factory : ModelFactoryProtocol
+            Factory mapping config indices to callable models.
+        tol : float
+            Error tolerance.
+        max_steps : int
+            Maximum number of refinement steps.
+
+        Returns
+        -------
+        AdaptiveSparseGridFitResult[Array]
+        """
+        for _ in range(max_steps):
+            samples = self.step_samples()
+            if samples is None:
+                return self.result(converged=True)
+
+            values = {
+                cfg: model_factory.get_model(cfg)(s)
+                for cfg, s in samples.items()
+            }
+            self.step_values(values)
+
+            if self.current_error() < tol:
+                return self.result(converged=True)
+
+        return self.result(converged=False)
+
+    def nvars_physical(self) -> int:
+        """Return number of physical variables."""
+        return self._nvars_physical
+
+    def __repr__(self) -> str:
+        return (
+            f"MultiFidelityAdaptiveSparseGridFitter("
+            f"nvars={self._nvars_physical}, "
+            f"nconfig_vars={self._nconfig_vars}, "
+            f"nsubspaces={len(self._subspaces)}, "
+            f"nselected={self._index_gen.nselected_indices()}, "
+            f"ncandidates={self._index_gen.ncandidate_indices()})"
+        )
+
+
+class SingleFidelityAdaptiveSparseGridFitter(Generic[Array]):
+    """Adaptive sparse grid fitter for single-fidelity models.
+
+    Thin composition wrapper around MultiFidelityAdaptiveSparseGridFitter
+    that converts between Array and Dict[ConfigIdx, Array] at the boundary.
+
+    Parameters
+    ----------
+    bkd : Backend[Array]
+        Computational backend.
+    factory : SubspaceFactoryProtocol[Array]
+        Factory for creating tensor product subspaces.
+    admissibility : AdmissibilityCriteria[Array]
+        Criteria for admissible subspace indices.
+    error_indicator : ErrorIndicatorProtocol[Array], optional
+        Error indicator for computing refinement priorities.
+        Default: L2SurrogateDifferenceIndicator.
+    verbosity : int, optional
+        Verbosity level. Default: 0.
+    """
+
+    def __init__(
+        self,
+        bkd: Backend[Array],
+        factory: SubspaceFactoryProtocol[Array],
+        admissibility: AdmissibilityCriteria[Array],
+        error_indicator: Optional[ErrorIndicatorProtocol[Array]] = None,
+        verbosity: int = 0,
+    ) -> None:
+        self._fitter = MultiFidelityAdaptiveSparseGridFitter(
+            bkd, factory, admissibility,
+            nconfig_vars=0,
+            error_indicator=error_indicator,
+            verbosity=verbosity,
+        )
+
+    def step_samples(self) -> Optional[Array]:
+        """Get samples for next refinement step.
+
+        Returns
+        -------
+        Optional[Array]
+            New samples of shape (nvars, n_new), or None if converged.
+        """
+        result = self._fitter.step_samples()
+        if result is None:
+            return None
+        return result[_SF_KEY]
+
+    def step_values(self, values: Array) -> None:
+        """Provide function values for the samples from step_samples.
+
+        Parameters
+        ----------
+        values : Array
+            Values of shape (nqoi, n_samples).
+        """
+        self._fitter.step_values({_SF_KEY: values})
+
+    def current_error(self) -> float:
+        """Return sum of errors for candidate subspaces."""
+        return self._fitter.current_error()
+
+    def result(
+        self, converged: bool = False
+    ) -> AdaptiveSparseGridFitResult[Array]:
+        """Build result from current state."""
+        return self._fitter.result(converged=converged)
+
+    def refine_to_tolerance(
+        self,
         target_fn: Callable[[Array], Array],
         tol: float = 1e-6,
         max_steps: int = 200,
@@ -535,35 +649,19 @@ class AdaptiveSparseGridFitter(Generic[Array]):
         Returns
         -------
         AdaptiveSparseGridFitResult[Array]
-            The fit result.
         """
-        for _ in range(max_steps):
-            samples = self.step_samples()
-            if samples is None:
-                return self.result(converged=True)
-
-            if isinstance(samples, dict):
-                values = {
-                    cfg: target_fn(s) for cfg, s in samples.items()
-                }
-            else:
-                values = target_fn(samples)
-
-            self.step_values(values)
-
-            if self.current_error() < tol:
-                return self.result(converged=True)
-
-        return self.result(converged=False)
+        factory = DictModelFactory({_SF_KEY: target_fn})
+        return self._fitter.refine_to_tolerance(factory, tol, max_steps)
 
     def nvars_physical(self) -> int:
         """Return number of physical variables."""
-        return self._nvars_physical
+        return self._fitter.nvars_physical()
 
     def __repr__(self) -> str:
         return (
-            f"AdaptiveSparseGridFitter(nvars={self._nvars_physical}, "
-            f"nsubspaces={len(self._subspaces)}, "
-            f"nselected={self._index_gen.nselected_indices()}, "
-            f"ncandidates={self._index_gen.ncandidate_indices()})"
+            f"SingleFidelityAdaptiveSparseGridFitter("
+            f"nvars={self._fitter.nvars_physical()}, "
+            f"nsubspaces={len(self._fitter._subspaces)}, "
+            f"nselected={self._fitter._index_gen.nselected_indices()}, "
+            f"ncandidates={self._fitter._index_gen.ncandidate_indices()})"
         )
