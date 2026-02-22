@@ -5,7 +5,10 @@ them with the benchmark registry system.
 """
 
 from dataclasses import dataclass
-from typing import Generic, Optional, TypeVar, Any, Callable, List
+from typing import (
+    Generic, Optional, TypeVar, Any, List, Protocol, Tuple, Union,
+    runtime_checkable,
+)
 
 from pyapprox.typing.util.backends.protocols import Array, Backend
 from pyapprox.typing.benchmarks.benchmark import BoxDomain
@@ -14,22 +17,139 @@ from pyapprox.typing.benchmarks.ground_truth import ODEGroundTruth
 GT = TypeVar("GT")
 
 
+@runtime_checkable
+class ODEFunctionalProtocol(Protocol[Array]):
+    """Lightweight protocol for ODE QoI extraction functionals.
+
+    Functionals extract a quantity of interest from an ODE solution
+    trajectory. Unlike TransientFunctionalWithJacobianProtocol, this
+    protocol requires only evaluation and nqoi — no Jacobians or HVPs.
+    """
+
+    def nqoi(self) -> int:
+        """Return the number of quantities of interest."""
+        ...
+
+    def __call__(self, sol: Array, times: Array) -> Array:
+        """Evaluate the functional.
+
+        Parameters
+        ----------
+        sol : Array
+            Solution trajectory. Shape: (nstates, ntimes)
+        times : Array
+            Time points. Shape: (ntimes,)
+
+        Returns
+        -------
+        Array
+            QoI values. Shape: (nqoi,)
+        """
+        ...
+
+
+class AllStatesEndpointODEFunctional(Generic[Array]):
+    """Return all states at the final time.
+
+    Parameters
+    ----------
+    nstates : int
+        Number of state variables.
+    """
+
+    def __init__(self, nstates: int) -> None:
+        self._nstates = nstates
+
+    def nqoi(self) -> int:
+        return self._nstates
+
+    def __call__(self, sol: Array, times: Array) -> Array:
+        return sol[:, -1]
+
+
+class SingleStateEndpointODEFunctional(Generic[Array]):
+    """Return a single state at the final time.
+
+    Parameters
+    ----------
+    state_idx : int
+        Index of the state variable to extract.
+    """
+
+    def __init__(self, state_idx: int) -> None:
+        self._state_idx = state_idx
+
+    def nqoi(self) -> int:
+        return 1
+
+    def __call__(self, sol: Array, times: Array) -> Array:
+        return sol[self._state_idx : self._state_idx + 1, -1]
+
+
+class MaxODEFunctional(Generic[Array]):
+    """Return the maximum of each state over time.
+
+    Parameters
+    ----------
+    nstates : int
+        Number of state variables.
+    bkd : Backend[Array]
+        Backend for array operations.
+    """
+
+    def __init__(self, nstates: int, bkd: Backend[Array]) -> None:
+        self._nstates = nstates
+        self._bkd = bkd
+
+    def nqoi(self) -> int:
+        return self._nstates
+
+    def __call__(self, sol: Array, times: Array) -> Array:
+        return self._bkd.max(sol, axis=1)
+
+
+def _create_functional_from_string(
+    name: str, nstates: int, bkd: Backend[Array],
+) -> ODEFunctionalProtocol[Array]:
+    """Create a functional object from a string name.
+
+    Parameters
+    ----------
+    name : str
+        Functional name: "endpoint", "endpoint_0", "endpoint_1", ..., "max".
+    nstates : int
+        Number of ODE state variables.
+    bkd : Backend[Array]
+        Backend for array operations.
+
+    Returns
+    -------
+    ODEFunctionalProtocol[Array]
+        The functional object.
+    """
+    if name == "endpoint":
+        return AllStatesEndpointODEFunctional(nstates)
+    elif name.startswith("endpoint_"):
+        idx = int(name.split("_")[1])
+        return SingleStateEndpointODEFunctional(idx)
+    elif name == "max":
+        return MaxODEFunctional(nstates, bkd)
+    else:
+        raise ValueError(f"Unknown functional name: {name}")
+
+
 class ODEQoIFunction(Generic[Array]):
     """Wrapper that turns an ODE benchmark into a callable QoI function.
 
     This class integrates the ODE for each parameter sample and extracts
-    a quantity of interest from the solution trajectory.
+    a quantity of interest from the solution trajectory via a functional.
 
     Parameters
     ----------
     benchmark : ODEBenchmark
         The ODE benchmark to wrap.
-    functional : str or Callable, optional
-        How to extract QoI from the solution trajectory:
-        - "endpoint": Returns state at final time (default)
-        - "endpoint_0", "endpoint_1", etc.: Returns specific state at final time
-        - "max": Returns maximum of all states over time
-        - Callable: Custom functional (sol: Array, times: Array) -> Array
+    functional : ODEFunctionalProtocol
+        Functional that extracts QoI from the solution trajectory.
     stepper : str, optional
         Time stepping method: "backward_euler" (default), "forward_euler",
         "heun", "crank_nicolson"
@@ -37,7 +157,8 @@ class ODEQoIFunction(Generic[Array]):
     Examples
     --------
     >>> benchmark = lotka_volterra_3species(bkd)
-    >>> qoi_func = ODEQoIFunction(benchmark)
+    >>> functional = AllStatesEndpointODEFunctional(nstates=3)
+    >>> qoi_func = ODEQoIFunction(benchmark, functional)
     >>> samples = bkd.array([[0.5]*12]).T  # Single sample, shape (12, 1)
     >>> qoi_values = qoi_func(samples)  # Shape (3, 1) - 3 states at final time
     """
@@ -45,11 +166,11 @@ class ODEQoIFunction(Generic[Array]):
     def __init__(
         self,
         benchmark: "ODEBenchmark[Array, Any]",
-        functional: str = "endpoint",
+        functional: ODEFunctionalProtocol[Array],
         stepper: str = "backward_euler",
     ) -> None:
         self._benchmark = benchmark
-        self._functional_type = functional
+        self._functional = functional
         self._stepper_type = stepper
         self._bkd = benchmark._domain.bkd()
 
@@ -64,21 +185,6 @@ class ODEQoIFunction(Generic[Array]):
         self._nstates = gt.nstates
         self._nparams = gt.nparams
 
-        # Parse functional type
-        if functional == "endpoint":
-            self._qoi_indices: Optional[List[int]] = None  # All states
-        elif functional.startswith("endpoint_"):
-            idx = int(functional.split("_")[1])
-            self._qoi_indices = [idx]
-        elif functional == "max":
-            self._qoi_indices = None
-            self._functional_type = "max"
-        elif callable(functional):
-            self._custom_functional = functional
-            self._functional_type = "custom"
-        else:
-            raise ValueError(f"Unknown functional type: {functional}")
-
     def bkd(self) -> Backend[Array]:
         """Return the backend."""
         return self._bkd
@@ -89,12 +195,7 @@ class ODEQoIFunction(Generic[Array]):
 
     def nqoi(self) -> int:
         """Return number of QoI outputs."""
-        if self._functional_type == "max":
-            return self._nstates
-        elif self._qoi_indices is not None:
-            return len(self._qoi_indices)
-        else:
-            return self._nstates
+        return self._functional.nqoi()
 
     def __call__(self, samples: Array) -> Array:
         """Evaluate QoI for each parameter sample.
@@ -119,27 +220,29 @@ class ODEQoIFunction(Generic[Array]):
 
         return self._bkd.stack(qoi_values, axis=1)
 
-    def _evaluate_single(self, param: Array) -> Array:
-        """Evaluate QoI for a single parameter sample.
+    def solve_trajectory(self, param: Array) -> Tuple[Array, Array]:
+        """Solve the ODE and return full trajectory.
 
         Parameters
         ----------
         param : Array
-            Single parameter sample. Shape: (nparams,)
+            Single parameter sample. Shape: (nparams, 1) or (nparams,)
 
         Returns
         -------
-        Array
-            QoI values. Shape: (nqoi,)
+        solutions : Array
+            Solution trajectory. Shape: (nstates, ntimes)
+        times : Array
+            Time points. Shape: (ntimes,)
         """
-        # Set parameters on residual
+        if param.ndim == 2:
+            param = param[:, 0]
+
         residual = self._benchmark.residual()
         residual.set_param(param)
 
-        # Create time stepper
         time_residual = self._create_time_residual(residual)
 
-        # Create Newton solver and integrator
         from pyapprox.typing.optimization.rootfinding.newton import NewtonSolver
         from pyapprox.typing.pde.time.implicit_steppers.integrator import (
             TimeIntegrator,
@@ -153,11 +256,23 @@ class ODEQoIFunction(Generic[Array]):
             newton_solver=newton_solver,
         )
 
-        # Solve forward problem
-        solutions, times = integrator.solve(self._init_state)
+        return integrator.solve(self._init_state)
 
-        # Extract QoI
-        return self._extract_qoi(solutions, times)
+    def _evaluate_single(self, param: Array) -> Array:
+        """Evaluate QoI for a single parameter sample.
+
+        Parameters
+        ----------
+        param : Array
+            Single parameter sample. Shape: (nparams,)
+
+        Returns
+        -------
+        Array
+            QoI values. Shape: (nqoi,)
+        """
+        solutions, times = self.solve_trajectory(param)
+        return self._functional(solutions, times)
 
     def _create_time_residual(self, residual: Any) -> Any:
         """Create time stepping residual based on stepper type."""
@@ -183,33 +298,6 @@ class ODEQoIFunction(Generic[Array]):
             return CrankNicolsonResidual(residual)
         else:
             raise ValueError(f"Unknown stepper type: {self._stepper_type}")
-
-    def _extract_qoi(self, solutions: Array, times: Array) -> Array:
-        """Extract QoI from solution trajectory.
-
-        Parameters
-        ----------
-        solutions : Array
-            Solution trajectory. Shape: (nstates, ntimes)
-        times : Array
-            Time points. Shape: (ntimes,)
-
-        Returns
-        -------
-        Array
-            QoI values. Shape: (nqoi,)
-        """
-        if self._functional_type == "custom":
-            return self._custom_functional(solutions, times)
-        elif self._functional_type == "max":
-            # Return max value of each state over time
-            return self._bkd.max(solutions, axis=1)
-        elif self._qoi_indices is not None:
-            # Return specified states at final time
-            return solutions[self._qoi_indices, -1]
-        else:
-            # Return all states at final time
-            return solutions[:, -1]
 
 
 @dataclass
@@ -397,21 +485,21 @@ class ODEBenchmark(Generic[Array, GT]):
 
     def qoi_function(
         self,
-        functional: str = "endpoint",
+        functional: Union[str, ODEFunctionalProtocol[Array]] = "endpoint",
         stepper: str = "backward_euler",
     ) -> ODEQoIFunction[Array]:
         """Create a callable QoI function from this benchmark.
 
-        This returns a function that takes parameter samples and returns
-        QoI values, handling all the ODE integration internally.
+        This is a convenience method that accepts either a string shorthand
+        or a functional object. Strings are converted to the corresponding
+        built-in functional class.
 
         Parameters
         ----------
-        functional : str, optional
-            How to extract QoI from the solution trajectory:
-            - "endpoint": Returns all states at final time (default)
-            - "endpoint_0", "endpoint_1", etc.: Returns specific state at final time
-            - "max": Returns maximum of each state over time
+        functional : str or ODEFunctionalProtocol, optional
+            How to extract QoI from the solution trajectory. Either a
+            string shorthand ("endpoint", "endpoint_0", "max") or an
+            object satisfying ODEFunctionalProtocol.
         stepper : str, optional
             Time stepping method: "backward_euler" (default), "forward_euler",
             "heun", "crank_nicolson"
@@ -434,4 +522,8 @@ class ODEBenchmark(Generic[Array, GT]):
         >>> qoi_func = benchmark.qoi_function(functional="endpoint_0")
         >>> qoi_values = qoi_func(samples)  # Shape: (1, 100)
         """
+        if isinstance(functional, str):
+            functional = _create_functional_from_string(
+                functional, self.nstates(), self._domain.bkd(),
+            )
         return ODEQoIFunction(self, functional=functional, stepper=stepper)
