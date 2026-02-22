@@ -181,8 +181,9 @@ plt.show()
 
 ```{python}
 # MC convergence rates (w.r.t. inner samples)
+mse_array = bkd.to_numpy(bkd.vstack(values_mc["mse"]))  # (n_inner, n_outer)
 for jj, nouter in enumerate(outer_counts):
-    mse_values = bkd.to_numpy(values_mc["mse"][jj]).tolist()
+    mse_values = mse_array[:, jj].tolist()
     rate = PredictionOEDDiagnostics.compute_convergence_rate(inner_counts, mse_values)
     print(f"MC rate (nouter={nouter:4d}): {rate:.3f}  (expected ~1.0)")
 ```

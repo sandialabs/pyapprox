@@ -55,7 +55,7 @@ This tutorial re-uses the same setup — only the utility function changes.
 import numpy as np
 import matplotlib.pyplot as plt
 from pyapprox.typing.util.backends.numpy import NumpyBkd
-from pyapprox.typing.expdesign.benchmarks import LotkaVolterraOEDBenchmark  # TODO: implement
+from pyapprox.typing.expdesign.benchmarks import LotkaVolterraOEDBenchmark
 from pyapprox.typing.expdesign.data import OEDDataGenerator
 from pyapprox.typing.expdesign import (
     GaussianOEDInnerLoopLikelihood,
@@ -107,13 +107,14 @@ print(f"Prediction model output dim:  {pred_model.nqoi()}")
 
 fig, ax = plt.subplots(figsize=(9, 4.5))
 sample_np = bkd.to_numpy(sample)
-sol = obs_model.forward_solve(sample)[0]
+sol = obs_model.solve_trajectory(sample)[0]
 ax.plot(benchmark.solution_times(), bkd.to_numpy(sol).T, lw=2)
 
 # Observations (two states)
+obs_times = bkd.to_numpy(benchmark.observation_times())
 for ii, state_idx in enumerate([0, 2]):
     ax.plot(
-        benchmark.observation_times()[ii],
+        obs_times,
         bkd.to_numpy(observations[ii]),
         "o", ms=8, label=f"Obs. state {state_idx+1}", alpha=0.8
     )
@@ -165,9 +166,11 @@ innerloop_samples, innerloop_weights = data_gen.setup_quadrature_data(
 # Evaluate forward models at sampled parameter values
 theta_outer = outerloop_samples[:nparams, :]
 outer_shapes = obs_model(theta_outer)           # (nobs, nouterloop)
-inner_shapes = obs_model(innerloop_samples)     # (nobs, ninnerloop)
 latent_samples = outerloop_samples[nparams:, :] # (nobs, nouterloop)
-qoi_vals = pred_model(innerloop_samples)        # (nqoi, ninnerloop)
+
+# Solve once per inner sample to get both obs and pred quantities
+inner_shapes, qoi_vals_raw = benchmark.evaluate_both(innerloop_samples)
+qoi_vals = qoi_vals_raw.T                       # (ninnerloop, nqoi)
 ```
 
 ## Design 1: Standard Deviation Utility
@@ -186,7 +189,7 @@ weights_std, utility_std = solve_prediction_oed(
     bkd=bkd,
     deviation_type="stdev",
     risk_type="mean",
-    config=RelaxedOEDConfig(maxiter=200, verbose=0),
+    config=RelaxedOEDConfig(maxiter=200, verbosity=0),
 )
 print(f"Std dev objective value: {utility_std:.6f}")
 ```
@@ -206,7 +209,7 @@ weights_ent, utility_ent = solve_prediction_oed(
     bkd=bkd,
     deviation_type="entropic",
     risk_type="mean",
-    config=RelaxedOEDConfig(maxiter=200, verbose=0),
+    config=RelaxedOEDConfig(maxiter=200, verbosity=0),
 )
 print(f"Entropic deviation objective value: {utility_ent:.6f}")
 ```
@@ -238,7 +241,7 @@ for row, (w, rl) in enumerate(
 ):
     for col in range(2):
         ax = axes[row][col]
-        ax.bar(obs_times[col], w[col], color=colors[row], alpha=0.8)
+        ax.bar(obs_times, w[col], color=colors[row], alpha=0.8)
         ax.set_xlabel("Time (s)", fontsize=10)
         if col == 0:
             ax.set_ylabel("Design weight", fontsize=10)

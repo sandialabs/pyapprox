@@ -46,6 +46,18 @@ website:
         - section: "Experimental Design"
           contents:
             - experimental_design_intro.qmd
+        - section: "Bayesian OED"
+          contents:
+            - boed_kl_concept.qmd
+            - boed_kl_analysis.qmd
+            - boed_kl_usage.qmd
+            - boed_kl_nonlinear_usage.qmd
+            - boed_pred_concept.qmd
+            - boed_pred_gaussian_analysis.qmd
+            - boed_pred_lognormal_analysis.qmd
+            - boed_pred_usage.qmd
+            - boed_pred_nonlinear_usage.qmd
+            - boed_data_workflow_usage.qmd
         - section: "Surrogate Modeling"
           contents:
             - polynomial_chaos_surrogates.qmd

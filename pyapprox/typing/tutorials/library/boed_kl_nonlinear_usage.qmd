@@ -74,7 +74,7 @@ all possible parameter realizations, is most informative.
 import numpy as np
 import matplotlib.pyplot as plt
 from pyapprox.typing.util.backends.numpy import NumpyBkd
-from pyapprox.typing.expdesign.benchmarks import LotkaVolterraOEDBenchmark  # TODO: implement
+from pyapprox.typing.expdesign.benchmarks import LotkaVolterraOEDBenchmark
 from pyapprox.typing.expdesign.data import OEDDataGenerator
 from pyapprox.typing.expdesign import (
     GaussianOEDInnerLoopLikelihood,
@@ -98,7 +98,7 @@ prior     = benchmark.prior()               # IndependentJoint over theta
 ```{python}
 # Draw a single prior sample and run the ODE
 sample = prior.rvs(1)
-full_solution = obs_model.forward_solve(sample)[0]   # full ODE trajectory
+full_solution = obs_model.solve_trajectory(sample)[0]   # full ODE trajectory
 
 # Candidate observations: 2 states x T times
 observations = obs_model(sample).reshape((2, -1))    # shape (2, T)
@@ -117,14 +117,14 @@ titles = ["State 1 (prey)", "State 2", "State 3 (predator)"]
 
 # 100 random trajectories
 for samp in prior.rvs(100).T:
-    sol = obs_model.forward_solve(samp[:, None])[0]
+    sol = obs_model.solve_trajectory(samp[:, None])[0]
     for ii in range(3):
         axes[ii].plot(
             benchmark.solution_times(), sol[ii], color="#AAAAAA", lw=0.8, alpha=0.5
         )
 
 # Nominal trajectory and observations
-sol_nom = obs_model.forward_solve(sample)[0]
+sol_nom = obs_model.solve_trajectory(sample)[0]
 for ii in range(3):
     axes[ii].plot(benchmark.solution_times(), sol_nom[ii], color="#2C7FB8", lw=2)
     axes[ii].set_title(titles[ii], fontsize=11)
@@ -132,9 +132,10 @@ for ii in range(3):
     axes[ii].grid(True, alpha=0.2)
 
 # Mark observation locations (states 1 and 3)
+obs_times = bkd.to_numpy(benchmark.observation_times())
 for ii, state_idx in enumerate([0, 2]):
     axes[state_idx].plot(
-        benchmark.observation_times()[ii],
+        obs_times,
         observations[ii],
         "o", ms=7, color="#D95F02", zorder=5, label="Candidate obs."
     )
@@ -232,7 +233,7 @@ objective = create_kl_oed_objective_from_data(
     inner_quad_weights=innerloop_weights,
 )
 
-config = RelaxedOEDConfig(maxiter=200, verbose=0)
+config = RelaxedOEDConfig(maxiter=200, verbosity=0)
 solver = RelaxedKLOEDSolver(objective, config)
 design_weights, eig = solver.solve()
 print(f"Optimal EIG: {eig:.4f} nats")
@@ -256,7 +257,7 @@ labels = ["State 1 (prey)", "State 3 (predator)"]
 colors = ["#2C7FB8", "#D95F02"]
 
 for ii, ax in enumerate(axes):
-    ax.bar(obs_times[ii], weights_by_state[ii], color=colors[ii], alpha=0.8)
+    ax.bar(obs_times, weights_by_state[ii], color=colors[ii], alpha=0.8)
     ax.set_xlabel("Observation time (s)", fontsize=11)
     ax.set_title(labels[ii], fontsize=11)
     ax.grid(True, axis="y", alpha=0.25)

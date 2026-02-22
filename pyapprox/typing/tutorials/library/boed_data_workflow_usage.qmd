@@ -68,7 +68,7 @@ import os
 import numpy as np
 import matplotlib.pyplot as plt
 from pyapprox.typing.util.backends.numpy import NumpyBkd
-from pyapprox.typing.expdesign.benchmarks import (                           # TODO: implement
+from pyapprox.typing.expdesign.benchmarks import (
     ObstructedAdvectionDiffusionOEDBenchmark,
 )
 from pyapprox.typing.expdesign.data import OEDDataGenerator, OEDDataManager
@@ -87,7 +87,11 @@ bkd = NumpyBkd()
 ```
 
 ```{python}
-benchmark  = ObstructedAdvectionDiffusionOEDBenchmark(bkd)
+# Use lower mesh refinement for the tutorial (nrefine=2 instead of default 3).
+# Production runs should use nrefine=3 or higher.
+benchmark  = ObstructedAdvectionDiffusionOEDBenchmark(
+    bkd, nstokes_refine=1, nadvec_diff_refine=1,
+)
 obs_model  = benchmark.observation_model()   # FEM-based PDE solver
 pred_model = benchmark.prediction_model()
 prior      = benchmark.prior()
@@ -104,12 +108,14 @@ unobserved locations.
 #| label: fig-domain-sensors
 
 fig, ax = plt.subplots(figsize=(9, 4))
-fe_model = benchmark.observation_model().fe_model()
-fe_model.stokes_model().plot_domain_boundaries(ax)
 locs = bkd.to_numpy(benchmark.observation_locations())
-sc = ax.scatter(locs[0], locs[1], s=15, c="#2C7FB8", alpha=0.7, label="Candidate sensors")
+ax.scatter(locs[0], locs[1], s=15, c="#2C7FB8", alpha=0.7, label="Candidate sensors")
+ax.set_xlabel("x", fontsize=10)
+ax.set_ylabel("y", fontsize=10)
 ax.set_title("Domain and candidate observation locations", fontsize=11)
+ax.set_aspect("equal")
 ax.legend(fontsize=9)
+ax.grid(True, alpha=0.2)
 plt.tight_layout()
 plt.show()
 ```
@@ -121,8 +127,8 @@ plt.show()
 # Configure sample sizes. For production, use 10_000 / 10_000.
 # These small values are used only so this tutorial runs in CI.
 # ------------------------------------------------------------------
-nout = 10    # outer loop samples (use 10_000 in practice)
-nin  = 10    # inner loop samples (use 10_000 in practice)
+nout = 5     # outer loop samples (use 10_000 in practice)
+nin  = 5     # inner loop samples (use 10_000 in practice)
 quad_type = "Halton"    # Halton gives better convergence than MC for smooth integrands
 
 data_gen = OEDDataGenerator(bkd)
@@ -170,10 +176,12 @@ nparams = prior.nvars()
 if not os.path.exists(filename):
     print(f"Running forward model and saving to {filename} ...")
     # Evaluate models at the sampled parameter values
-    outer_theta_samples = outerloop_samples[:nparams, :]  # strip noise columns
+    outer_theta_samples = outerloop_samples[:nparams, :]   # strip noise columns
     outerloop_shapes    = obs_model(outer_theta_samples)   # (nobs_total, nout)
-    innerloop_shapes    = obs_model(innerloop_samples)     # (nobs_total, nin)
-    qoi_vals            = pred_model(innerloop_samples)    # (nqoi, nin)
+
+    # Solve once per inner sample to get both obs and pred quantities
+    innerloop_shapes, qoi_vals_raw = benchmark.evaluate_both(innerloop_samples)
+    qoi_vals = qoi_vals_raw.T                              # (nin, nqoi)
 
     data_manager.save_data(
         filename,
@@ -205,18 +213,16 @@ data_manager.load_data(filename)
 ### Selecting a Spatial Subset
 
 The saved dataset covers all `nobs_total` sensor locations. For the OED we may
-want to use only a spatial subset — for example, every third location at the
-final time step, limited to `nobs=100` locations.
+want to use only a spatial subset — for example, every third location.
 
 ```{python}
-nobs = min(100, nobs_total)
-# Extract final-time observation from each spatial location
-active_obs_idx  = bkd.arange(data_manager.nobservations())[2::3][:nobs]
-active_loc_idx  = bkd.arange(nobs)
+# Select a subset of observations (every third sensor location)
+active_obs_idx  = bkd.arange(data_manager.nobservations())[::3]
+active_loc_idx  = active_obs_idx  # same indices into location array
 
 # nout_oed / nin_oed can be smaller than the saved dataset (useful for quick tests)
-nout_oed = min(9, nout)
-nin_oed  = min(9, nin)
+nout_oed = min(4, nout)
+nin_oed  = min(4, nin)
 
 oed_data = data_manager.extract_data_subset(
     active_obs_idx, active_loc_idx, nout_oed, nin_oed
@@ -244,8 +250,10 @@ in_weights   = oed_data["inloop_quad_weights"]
 out_weights  = oed_data["outloop_quad_weights"]
 qoi_vals_sub = oed_data["qoi_vals"]
 
-# Generate latent samples from outer loop
-latent_samples = out_samples[nparams:nparams + nobs_oed, :]
+# Generate latent noise samples: use the active observation indices
+# into the noise portion of the outer loop samples
+noise_indices = nparams + bkd.to_numpy(active_obs_idx).astype(int)
+latent_samples = out_samples[noise_indices, :]
 
 # Solve using the convenience function
 design_weights, utility = solve_prediction_oed(
@@ -257,7 +265,7 @@ design_weights, utility = solve_prediction_oed(
     bkd=bkd,
     deviation_type="stdev",
     risk_type="mean",
-    config=RelaxedOEDConfig(maxiter=200, verbose=0),
+    config=RelaxedOEDConfig(maxiter=200, verbosity=0),
 )
 print(f"Optimal design computed. Shape: {bkd.to_numpy(design_weights).shape}")
 print(f"Objective value: {utility:.6f}")
@@ -270,8 +278,6 @@ print(f"Objective value: {utility:.6f}")
 #| label: fig-advec-diff-design
 
 fig, ax = plt.subplots(figsize=(9, 4))
-fe_model = benchmark.observation_model().fe_model()
-fe_model.stokes_model().plot_domain_boundaries(ax)
 
 obs_locs   = bkd.to_numpy(oed_data["observation_locations"])
 w          = bkd.to_numpy(design_weights[:, 0])
@@ -280,6 +286,9 @@ w_norm     = w / w.max()
 sc = ax.scatter(obs_locs[0], obs_locs[1], c=w, s=w_norm * 60 + 5,
                 cmap="YlOrRd", edgecolors="k", linewidths=0.4, zorder=3)
 plt.colorbar(sc, ax=ax, shrink=0.8, label="Design weight")
+ax.set_xlabel("x", fontsize=10)
+ax.set_ylabel("y", fontsize=10)
+ax.set_aspect("equal")
 ax.set_title("Optimal sensor placement: advection-diffusion", fontsize=11)
 plt.tight_layout()
 plt.show()
