@@ -262,25 +262,15 @@ class GaussianOEDInnerLoopLikelihood(Generic[Array]):
         self,
         noise_variances: Array,
         bkd: Backend[Array],
-        use_numba: bool = True,
-        use_torch_compile: bool = False,
     ):
         self._bkd = bkd
         self._base_variances = noise_variances
         self._nobs = noise_variances.shape[0]
-        self._use_numba = use_numba
-        self._use_torch_compile = use_torch_compile
 
-        # Dispatch implementations
-        self._logpdf_impl = get_logpdf_matrix_impl(
-            bkd, use_numba, use_torch_compile,
-        )
-        self._jacobian_impl = get_jacobian_matrix_impl(
-            bkd, use_numba, use_torch_compile,
-        )
-        self._evidence_jacobian_impl = get_evidence_jacobian_impl(
-            bkd, use_numba, use_torch_compile,
-        )
+        # Dispatch implementations (auto-selected based on backend type)
+        self._logpdf_impl = get_logpdf_matrix_impl(bkd)
+        self._jacobian_impl = get_jacobian_matrix_impl(bkd)
+        self._evidence_jacobian_impl = get_evidence_jacobian_impl(bkd)
 
         # State
         self._shapes: Optional[Array] = None  # (nobs, ninner)
@@ -291,14 +281,6 @@ class GaussianOEDInnerLoopLikelihood(Generic[Array]):
     def bkd(self) -> Backend[Array]:
         """Get the backend."""
         return self._bkd
-
-    def use_numba(self) -> bool:
-        """Whether Numba acceleration is active."""
-        return self._use_numba
-
-    def use_torch_compile(self) -> bool:
-        """Whether torch.compile acceleration is active."""
-        return self._use_torch_compile
 
     def nobs(self) -> int:
         """Number of observation locations."""

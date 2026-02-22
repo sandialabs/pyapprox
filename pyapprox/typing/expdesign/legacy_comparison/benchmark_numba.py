@@ -22,6 +22,16 @@ from pyapprox.typing.expdesign.benchmarks.linear_gaussian import (
 from pyapprox.typing.expdesign.likelihood import (
     GaussianOEDInnerLoopLikelihood,
 )
+from pyapprox.typing.expdesign.likelihood.compute import (
+    logpdf_matrix_vectorized,
+    jacobian_matrix_vectorized,
+    evidence_jacobian_vectorized,
+)
+from pyapprox.typing.expdesign.likelihood.compute_numba import (
+    logpdf_matrix_numba,
+    jacobian_matrix_numba,
+    fused_evidence_jacobian_numba,
+)
 from pyapprox.typing.expdesign.objective import KLOEDObjective
 
 
@@ -38,7 +48,7 @@ def time_fn(fn, n_warmup=3, n_timed=10):
 
 
 def benchmark_kernels():
-    """Benchmark individual kernels."""
+    """Benchmark individual kernels: numba vs vectorized."""
     bkd = NumpyBkd()
     nobs, ninner, nouter = 50, 1000, 1000
 
@@ -52,40 +62,29 @@ def benchmark_kernels():
     quad_weights = np.ones(ninner) / ninner
 
     print("=" * 70)
-    print("Individual Kernel Benchmarks")
+    print("Individual Kernel Benchmarks (raw functions)")
     print(f"Problem size: nobs={nobs}, ninner={ninner}, nouter={nouter}")
     print("=" * 70)
-
-    # --- logpdf_matrix ---
-    like_numba = GaussianOEDInnerLoopLikelihood(
-        bkd.asarray(base_variances), bkd, use_numba=True,
-    )
-    like_vec = GaussianOEDInnerLoopLikelihood(
-        bkd.asarray(base_variances), bkd, use_numba=False,
-    )
-    for like in (like_numba, like_vec):
-        like.set_shapes(bkd.asarray(shapes))
-        like.set_observations(bkd.asarray(obs))
-        like.set_latent_samples(bkd.asarray(latent_samples))
-
-    dw = bkd.asarray(design_weights)
 
     # JIT warmup for Numba
     print("\nWarming up Numba JIT...")
     t0 = time.perf_counter()
-    like_numba.logpdf_matrix(dw)
+    logpdf_matrix_numba(shapes, obs, base_variances, design_weights)
     jit_logpdf = time.perf_counter() - t0
 
     t0 = time.perf_counter()
-    like_numba.jacobian_matrix(dw)
+    dummy = np.zeros_like(obs)
+    jacobian_matrix_numba(shapes, obs, dummy, base_variances, design_weights, False)
     jit_jacobian = time.perf_counter() - t0
 
-    loglike = like_numba.logpdf_matrix(dw)
+    loglike = logpdf_matrix_numba(shapes, obs, base_variances, design_weights)
     like_matrix = np.exp(loglike)
     qwl = quad_weights[:, None] * like_matrix
 
     t0 = time.perf_counter()
-    like_numba.evidence_jacobian(dw, qwl)
+    fused_evidence_jacobian_numba(
+        shapes, obs, dummy, base_variances, design_weights, qwl, False,
+    )
     jit_evidence = time.perf_counter() - t0
 
     print(f"  JIT logpdf_matrix:  {jit_logpdf:.3f}s")
@@ -94,8 +93,12 @@ def benchmark_kernels():
     print(f"  JIT total: {jit_logpdf + jit_jacobian + jit_evidence:.3f}s")
 
     # logpdf_matrix
-    mean_numba, std_numba = time_fn(lambda: like_numba.logpdf_matrix(dw))
-    mean_vec, std_vec = time_fn(lambda: like_vec.logpdf_matrix(dw))
+    mean_numba, std_numba = time_fn(
+        lambda: logpdf_matrix_numba(shapes, obs, base_variances, design_weights)
+    )
+    mean_vec, std_vec = time_fn(
+        lambda: logpdf_matrix_vectorized(shapes, obs, base_variances, design_weights, bkd)
+    )
     speedup = mean_vec / mean_numba
     print(f"\nlogpdf_matrix:")
     print(f"  Vectorized: {mean_vec*1000:.1f} +/- {std_vec*1000:.1f} ms")
@@ -103,31 +106,45 @@ def benchmark_kernels():
     print(f"  Speedup:    {speedup:.1f}x")
 
     # jacobian_matrix
-    mean_numba, std_numba = time_fn(lambda: like_numba.jacobian_matrix(dw))
-    mean_vec, std_vec = time_fn(lambda: like_vec.jacobian_matrix(dw))
+    mean_numba, std_numba = time_fn(
+        lambda: jacobian_matrix_numba(
+            shapes, obs, latent_samples, base_variances, design_weights, True,
+        )
+    )
+    mean_vec, std_vec = time_fn(
+        lambda: jacobian_matrix_vectorized(
+            shapes, obs, latent_samples, base_variances, design_weights, bkd,
+        )
+    )
     speedup = mean_vec / mean_numba
     print(f"\njacobian_matrix:")
     print(f"  Vectorized: {mean_vec*1000:.1f} +/- {std_vec*1000:.1f} ms")
     print(f"  Numba:      {mean_numba*1000:.1f} +/- {std_numba*1000:.1f} ms")
     print(f"  Speedup:    {speedup:.1f}x")
 
-    # evidence_jacobian (fused)
-    # Recompute quad_weighted_like for each path
-    def run_fused():
-        loglike = like_numba.logpdf_matrix(dw)
+    # evidence_jacobian (fused numba vs separate vectorized)
+    def run_numba_fused():
+        loglike = logpdf_matrix_numba(shapes, obs, base_variances, design_weights)
         like_mat = np.exp(loglike)
         qwl = quad_weights[:, None] * like_mat
-        like_numba.evidence_jacobian(dw, qwl)
+        fused_evidence_jacobian_numba(
+            shapes, obs, latent_samples, base_variances,
+            design_weights, qwl, True,
+        )
 
-    def run_separate():
-        loglike = like_vec.logpdf_matrix(dw)
+    def run_vectorized_separate():
+        loglike = logpdf_matrix_vectorized(
+            shapes, obs, base_variances, design_weights, bkd,
+        )
         like_mat = np.exp(loglike)
         qwl = quad_weights[:, None] * like_mat
-        jac = like_vec.jacobian_matrix(dw)
-        np.einsum("io,iok->ok", qwl, jac)
+        jac = jacobian_matrix_vectorized(
+            shapes, obs, latent_samples, base_variances, design_weights, bkd,
+        )
+        evidence_jacobian_vectorized(jac, qwl, bkd)
 
-    mean_numba, std_numba = time_fn(run_fused)
-    mean_vec, std_vec = time_fn(run_separate)
+    mean_numba, std_numba = time_fn(run_numba_fused)
+    mean_vec, std_vec = time_fn(run_vectorized_separate)
     speedup = mean_vec / mean_numba
     print(f"\nevidence_jacobian (logpdf + fused jac vs logpdf + jac + einsum):")
     print(f"  Vectorized: {mean_vec*1000:.1f} +/- {std_vec*1000:.1f} ms")
@@ -136,12 +153,16 @@ def benchmark_kernels():
 
 
 def benchmark_full_pipeline():
-    """Benchmark the full KL-OED objective + jacobian pipeline."""
+    """Benchmark the full KL-OED objective + jacobian pipeline.
+
+    With automatic dispatch, NumPy backend always uses Numba.
+    This benchmarks the auto-dispatched pipeline.
+    """
     bkd = NumpyBkd()
     nobs, ninner, nouter = 50, 1000, 1000
 
     print("\n" + "=" * 70)
-    print("Full Pipeline Benchmark: KLOEDObjective")
+    print("Full Pipeline Benchmark: KLOEDObjective (auto-dispatched)")
     print(f"Problem size: nobs={nobs}, ninner={ninner}, nouter={nouter}")
     print("=" * 70)
 
@@ -160,22 +181,10 @@ def benchmark_full_pipeline():
     # Generate latent samples
     latent_samples = bkd.asarray(np.random.randn(nobs, nouter))
 
-    # Numba-accelerated
-    inner_like_numba = GaussianOEDInnerLoopLikelihood(
-        noise_variances, bkd, use_numba=True,
-    )
-    obj_numba = KLOEDObjective(
-        inner_like_numba,
-        outer_shapes, latent_samples,
-        inner_shapes, None, None, bkd,
-    )
-
-    # Vectorized only
-    inner_like_vec = GaussianOEDInnerLoopLikelihood(
-        noise_variances, bkd, use_numba=False,
-    )
-    obj_vec = KLOEDObjective(
-        inner_like_vec,
+    # Auto-dispatched (NumPy → Numba)
+    inner_like = GaussianOEDInnerLoopLikelihood(noise_variances, bkd)
+    obj = KLOEDObjective(
+        inner_like,
         outer_shapes, latent_samples,
         inner_shapes, None, None, bkd,
     )
@@ -185,66 +194,36 @@ def benchmark_full_pipeline():
     # JIT warmup
     print("\nWarming up Numba JIT (first call)...")
     t0 = time.perf_counter()
-    obj_numba(dw)
-    obj_numba.jacobian(dw)
+    obj(dw)
+    obj.jacobian(dw)
     jit_time = time.perf_counter() - t0
     print(f"  JIT warmup: {jit_time:.3f}s")
 
     # Benchmark __call__
-    mean_numba, std_numba = time_fn(lambda: obj_numba(dw))
-    mean_vec, std_vec = time_fn(lambda: obj_vec(dw))
-    speedup = mean_vec / mean_numba
+    mean_val, std_val = time_fn(lambda: obj(dw))
     print(f"\nKLOEDObjective.__call__:")
-    print(f"  Vectorized: {mean_vec*1000:.1f} +/- {std_vec*1000:.1f} ms")
-    print(f"  Numba:      {mean_numba*1000:.1f} +/- {std_numba*1000:.1f} ms")
-    print(f"  Speedup:    {speedup:.1f}x")
+    print(f"  {mean_val*1000:.1f} +/- {std_val*1000:.1f} ms")
 
     # Benchmark jacobian
-    mean_numba, std_numba = time_fn(lambda: obj_numba.jacobian(dw))
-    mean_vec, std_vec = time_fn(lambda: obj_vec.jacobian(dw))
-    speedup = mean_vec / mean_numba
+    mean_jac, std_jac = time_fn(lambda: obj.jacobian(dw))
     print(f"\nKLOEDObjective.jacobian:")
-    print(f"  Vectorized: {mean_vec*1000:.1f} +/- {std_vec*1000:.1f} ms")
-    print(f"  Numba:      {mean_numba*1000:.1f} +/- {std_numba*1000:.1f} ms")
-    print(f"  Speedup:    {speedup:.1f}x")
+    print(f"  {mean_jac*1000:.1f} +/- {std_jac*1000:.1f} ms")
 
     # Combined (simulating optimizer iteration)
-    def run_combined(obj):
+    def run_combined():
         obj(dw)
         obj.jacobian(dw)
 
-    mean_numba, std_numba = time_fn(lambda: run_combined(obj_numba))
-    mean_vec, std_vec = time_fn(lambda: run_combined(obj_vec))
-    speedup = mean_vec / mean_numba
+    mean_comb, std_comb = time_fn(run_combined)
     print(f"\nKLOEDObjective call + jacobian (optimizer iteration):")
-    print(f"  Vectorized: {mean_vec*1000:.1f} +/- {std_vec*1000:.1f} ms")
-    print(f"  Numba:      {mean_numba*1000:.1f} +/- {std_numba*1000:.1f} ms")
-    print(f"  Speedup:    {speedup:.1f}x")
-
-    # Verify correctness
-    val_numba = obj_numba(dw)
-    val_vec = obj_vec(dw)
-    jac_numba = obj_numba.jacobian(dw)
-    jac_vec = obj_vec.jacobian(dw)
-
-    val_diff = float(np.max(np.abs(val_numba - val_vec)))
-    jac_diff = float(np.max(np.abs(jac_numba - jac_vec)))
-    print(f"\nCorrectness check:")
-    print(f"  Max value difference: {val_diff:.2e}")
-    print(f"  Max jacobian difference: {jac_diff:.2e}")
+    print(f"  {mean_comb*1000:.1f} +/- {std_comb*1000:.1f} ms")
 
     # Amortization analysis
     n_iter = 100
     print(f"\nAmortization ({n_iter} optimizer iterations):")
-    amortized_numba = jit_time + n_iter * mean_numba
-    amortized_vec = n_iter * mean_vec
-    print(f"  Vectorized total: {amortized_vec:.1f}s")
-    print(f"  Numba total (incl JIT): {amortized_numba:.1f}s")
-    if amortized_numba < amortized_vec:
-        print(f"  Numba breaks even after "
-              f"~{int(jit_time / (mean_vec - mean_numba))} iterations")
-    else:
-        print("  Numba does not break even within 100 iterations")
+    total = jit_time + n_iter * mean_comb
+    print(f"  Total (incl JIT): {total:.1f}s")
+    print(f"  Per iteration (after JIT): {mean_comb*1000:.1f} ms")
 
 
 if __name__ == "__main__":

@@ -283,6 +283,9 @@ class TestDeviationMeasuresTorch(TestDeviationMeasures[torch.Tensor]):
 
     def test_avar_jacobian_autodiff(self):
         """Test AVaR Jacobian using PyTorch autodiff."""
+        # torch.compile donated buffers conflict with autograd jacobian
+        import torch._functorch.config as _ftconfig
+        _ftconfig.donated_buffer = False
         avar = AVaRDeviationMeasure(self._npred, 0.8, self._bkd, delta=100)
         self._setup_deviation(avar)
 

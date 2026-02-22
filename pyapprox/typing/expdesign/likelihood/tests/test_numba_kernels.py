@@ -4,7 +4,6 @@ Tests for Numba-accelerated OED likelihood kernels.
 Tests verify that:
 - Each Numba kernel matches the vectorized implementation (rtol=1e-12)
 - Dispatch logic selects the correct implementation per backend
-- use_numba=False forces the vectorized path
 - Fused evidence jacobian matches separate jacobian_matrix + einsum
 - Results are correct with and without latent samples
 
@@ -192,39 +191,43 @@ class TestDispatch(unittest.TestCase):
     """Test dispatch logic selects correct implementation per backend."""
 
     def test_numpy_gets_numba(self):
-        """NumPy backend should use Numba when available and requested."""
+        """NumPy backend should use Numba when available."""
         bkd = NumpyBkd()
-        impl = get_logpdf_matrix_impl(bkd, use_numba=True)
+        impl = get_logpdf_matrix_impl(bkd)
         # The Numba impl is a closure, not the vectorized function directly
         self.assertIsNot(impl, logpdf_matrix_vectorized)
 
-    def test_numpy_no_numba_gets_vectorized(self):
-        """NumPy backend with use_numba=False should use vectorized."""
-        bkd = NumpyBkd()
-        impl = get_logpdf_matrix_impl(bkd, use_numba=False)
-        self.assertIs(impl, logpdf_matrix_vectorized)
-
-    def test_torch_gets_vectorized(self):
-        """Torch backend should always use vectorized."""
+    def test_torch_gets_compiled(self):
+        """Torch backend should use torch.compile, not vectorized."""
         bkd = TorchBkd()
-        impl = get_logpdf_matrix_impl(bkd, use_numba=True)
-        self.assertIs(impl, logpdf_matrix_vectorized)
+        impl = get_logpdf_matrix_impl(bkd)
+        # torch.compile returns a closure, not the vectorized function
+        self.assertIsNot(impl, logpdf_matrix_vectorized)
 
     def test_jacobian_dispatch_numpy(self):
-        """Jacobian dispatch for NumPy backend."""
+        """Jacobian dispatch for NumPy backend uses Numba."""
         bkd = NumpyBkd()
-        impl_numba = get_jacobian_matrix_impl(bkd, use_numba=True)
-        impl_vec = get_jacobian_matrix_impl(bkd, use_numba=False)
-        self.assertIsNot(impl_numba, jacobian_matrix_vectorized)
-        self.assertIs(impl_vec, jacobian_matrix_vectorized)
+        impl = get_jacobian_matrix_impl(bkd)
+        self.assertIsNot(impl, jacobian_matrix_vectorized)
+
+    def test_jacobian_dispatch_torch(self):
+        """Jacobian dispatch for Torch backend uses compiled."""
+        bkd = TorchBkd()
+        impl = get_jacobian_matrix_impl(bkd)
+        self.assertIsNot(impl, jacobian_matrix_vectorized)
 
     def test_evidence_jacobian_dispatch_numpy(self):
-        """Evidence jacobian dispatch for NumPy backend."""
+        """Evidence jacobian dispatch for NumPy backend uses Numba."""
         bkd = NumpyBkd()
-        impl_numba = get_evidence_jacobian_impl(bkd, use_numba=True)
-        impl_vec = get_evidence_jacobian_impl(bkd, use_numba=False)
-        # Both are closures, but they should be different objects
-        self.assertIsNot(impl_numba, impl_vec)
+        impl = get_evidence_jacobian_impl(bkd)
+        # Should be a numba closure, not the vectorized fallback
+        self.assertIsNotNone(impl)
+
+    def test_evidence_jacobian_dispatch_torch(self):
+        """Evidence jacobian dispatch for Torch backend uses compiled."""
+        bkd = TorchBkd()
+        impl = get_evidence_jacobian_impl(bkd)
+        self.assertIsNotNone(impl)
 
 
 class TestDispatchBranches(unittest.TestCase):
@@ -241,24 +244,9 @@ class TestDispatchBranches(unittest.TestCase):
         self._dw = np.random.uniform(0.5, 2.0, (nobs, 1))
         self._latent = np.random.randn(nobs, nouter)
 
-    def test_logpdf_numba_disabled_matches_vectorized(self):
-        """use_numba=False dispatch returns vectorized for logpdf."""
-        impl = get_logpdf_matrix_impl(self._bkd_np, use_numba=False)
-        self.assertIs(impl, logpdf_matrix_vectorized)
-
-    def test_jacobian_numba_disabled_matches_vectorized(self):
-        """use_numba=False dispatch returns vectorized for jacobian."""
-        impl = get_jacobian_matrix_impl(self._bkd_np, use_numba=False)
-        self.assertIs(impl, jacobian_matrix_vectorized)
-
-    def test_evidence_jac_numba_disabled_produces_correct_result(self):
-        """use_numba=False evidence_jacobian matches numba-enabled."""
-        impl_no_numba = get_evidence_jacobian_impl(
-            self._bkd_np, use_numba=False
-        )
-        impl_numba = get_evidence_jacobian_impl(
-            self._bkd_np, use_numba=True
-        )
+    def test_numba_evidence_jac_matches_vectorized(self):
+        """Numba evidence_jacobian matches vectorized reference."""
+        impl_numba = get_evidence_jacobian_impl(self._bkd_np)
 
         # Compute quad_weighted_like
         loglike = logpdf_matrix_numba(
@@ -269,30 +257,19 @@ class TestDispatchBranches(unittest.TestCase):
         qw = np.ones(ninner) / ninner
         qwl = qw[:, None] * like
 
-        result_no = impl_no_numba(
-            self._shapes, self._obs, self._latent,
-            self._bv, self._dw, qwl, self._bkd_np,
-        )
-        result_yes = impl_numba(
+        result_numba = impl_numba(
             self._shapes, self._obs, self._latent,
             self._bv, self._dw, qwl, self._bkd_np,
         )
 
-        self._bkd_np.assert_allclose(result_no, result_yes, rtol=1e-12)
-
-    def test_torch_bkd_no_compile_gets_vectorized(self):
-        """TorchBkd without compile falls back to vectorized for logpdf."""
-        impl = get_logpdf_matrix_impl(
-            self._bkd_torch, use_numba=True, use_torch_compile=False
+        # Reference: vectorized path
+        jac = jacobian_matrix_vectorized(
+            self._shapes, self._obs, self._latent,
+            self._bv, self._dw, self._bkd_np,
         )
-        self.assertIs(impl, logpdf_matrix_vectorized)
+        result_ref = evidence_jacobian_vectorized(jac, qwl, self._bkd_np)
 
-    def test_torch_bkd_jacobian_no_compile_gets_vectorized(self):
-        """TorchBkd without compile falls back to vectorized for jacobian."""
-        impl = get_jacobian_matrix_impl(
-            self._bkd_torch, use_numba=True, use_torch_compile=False
-        )
-        self.assertIs(impl, jacobian_matrix_vectorized)
+        self._bkd_np.assert_allclose(result_numba, result_ref, rtol=1e-12)
 
 
 class TestNumbaIntegration(Generic[Array], unittest.TestCase):
@@ -326,78 +303,43 @@ class TestNumbaIntegration(Generic[Array], unittest.TestCase):
             np.random.uniform(0.5, 1.5, (self._nobs, 1))
         )
 
-    def test_numba_vs_no_numba_logpdf(self):
-        """Inner loop logpdf_matrix matches with and without Numba."""
-        like_numba = GaussianOEDInnerLoopLikelihood(
-            self._noise_variances, self._bkd, use_numba=True,
+    def test_logpdf_matrix_runs(self):
+        """Inner loop logpdf_matrix runs without error."""
+        like = GaussianOEDInnerLoopLikelihood(
+            self._noise_variances, self._bkd,
         )
-        like_nonumba = GaussianOEDInnerLoopLikelihood(
-            self._noise_variances, self._bkd, use_numba=False,
+        like.set_shapes(self._shapes)
+        like.set_observations(self._obs)
+        result = like.logpdf_matrix(self._design_weights)
+        self.assertEqual(result.shape, (self._ninner, self._nouter))
+
+    def test_jacobian_matrix_runs(self):
+        """Inner loop jacobian_matrix runs without error."""
+        like = GaussianOEDInnerLoopLikelihood(
+            self._noise_variances, self._bkd,
         )
-
-        for like in (like_numba, like_nonumba):
-            like.set_shapes(self._shapes)
-            like.set_observations(self._obs)
-
-        result_numba = like_numba.logpdf_matrix(self._design_weights)
-        result_nonumba = like_nonumba.logpdf_matrix(self._design_weights)
-
-        self._bkd.assert_allclose(result_numba, result_nonumba, rtol=1e-12)
-
-    def test_numba_vs_no_numba_jacobian(self):
-        """Inner loop jacobian_matrix matches with and without Numba."""
-        like_numba = GaussianOEDInnerLoopLikelihood(
-            self._noise_variances, self._bkd, use_numba=True,
-        )
-        like_nonumba = GaussianOEDInnerLoopLikelihood(
-            self._noise_variances, self._bkd, use_numba=False,
+        like.set_shapes(self._shapes)
+        like.set_observations(self._obs)
+        like.set_latent_samples(self._latent)
+        result = like.jacobian_matrix(self._design_weights)
+        self.assertEqual(
+            result.shape,
+            (self._ninner, self._nouter, self._nobs),
         )
 
-        for like in (like_numba, like_nonumba):
-            like.set_shapes(self._shapes)
-            like.set_observations(self._obs)
-            like.set_latent_samples(self._latent)
-
-        result_numba = like_numba.jacobian_matrix(self._design_weights)
-        result_nonumba = like_nonumba.jacobian_matrix(self._design_weights)
-
-        self._bkd.assert_allclose(result_numba, result_nonumba, rtol=1e-12)
-
-    def test_numba_vs_no_numba_evidence_jacobian(self):
-        """Fused evidence jacobian matches non-fused path."""
-        like_numba = GaussianOEDInnerLoopLikelihood(
-            self._noise_variances, self._bkd, use_numba=True,
+    def test_evidence_jacobian_runs(self):
+        """Fused evidence jacobian runs via LogEvidence."""
+        like = GaussianOEDInnerLoopLikelihood(
+            self._noise_variances, self._bkd,
         )
-        like_nonumba = GaussianOEDInnerLoopLikelihood(
-            self._noise_variances, self._bkd, use_numba=False,
-        )
-
-        for like in (like_numba, like_nonumba):
-            like.set_shapes(self._shapes)
-            like.set_observations(self._obs)
-            like.set_latent_samples(self._latent)
+        like.set_shapes(self._shapes)
+        like.set_observations(self._obs)
+        like.set_latent_samples(self._latent)
 
         quad_weights = self._bkd.ones((self._ninner,)) / self._ninner
-
-        ev_numba = LogEvidence(like_numba, quad_weights, self._bkd)
-        ev_nonumba = LogEvidence(like_nonumba, quad_weights, self._bkd)
-
-        jac_numba = ev_numba.jacobian(self._design_weights)
-        jac_nonumba = ev_nonumba.jacobian(self._design_weights)
-
-        self._bkd.assert_allclose(jac_numba, jac_nonumba, rtol=1e-10)
-
-    def test_use_numba_flag(self):
-        """Test that use_numba flag is accessible."""
-        like = GaussianOEDInnerLoopLikelihood(
-            self._noise_variances, self._bkd, use_numba=False,
-        )
-        self.assertFalse(like.use_numba())
-
-        like2 = GaussianOEDInnerLoopLikelihood(
-            self._noise_variances, self._bkd, use_numba=True,
-        )
-        self.assertTrue(like2.use_numba())
+        ev = LogEvidence(like, quad_weights, self._bkd)
+        jac = ev.jacobian(self._design_weights)
+        self.assertEqual(jac.shape, (self._nouter, self._nobs))
 
 
 class TestNumbaIntegrationNumpy(TestNumbaIntegration[NDArray[Any]]):
@@ -412,8 +354,7 @@ class TestNumbaIntegrationNumpy(TestNumbaIntegration[NDArray[Any]]):
 class TestNumbaIntegrationTorch(TestNumbaIntegration[torch.Tensor]):
     """PyTorch backend integration tests.
 
-    Torch backend always uses the vectorized path, so Numba vs non-Numba
-    should produce identical results (same code path).
+    Torch backend uses torch.compile path automatically.
     """
 
     __test__ = True

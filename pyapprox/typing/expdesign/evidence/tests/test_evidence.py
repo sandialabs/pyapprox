@@ -207,51 +207,55 @@ class TestEvidence(Generic[Array], unittest.TestCase):
         )
 
 
-    def test_evidence_jacobian_non_fused_matches_fused(self):
-        """Test non-fused jacobian path matches fused path."""
-        # Fused path (default, uses evidence_jacobian if available)
+    def test_evidence_jacobian_fused_matches_separate(self):
+        """Test fused evidence jacobian matches separate jacobian + einsum."""
         quad_weights = self._bkd.ones((self._ninner,)) / self._ninner
-        evidence_fused = Evidence(self._likelihood, quad_weights, self._bkd)
-        jac_fused = evidence_fused.jacobian(self._design_weights)
+        evidence = Evidence(self._likelihood, quad_weights, self._bkd)
+        jac_fused = evidence.jacobian(self._design_weights)
 
-        # Non-fused path: create likelihood without fused kernel
-        likelihood_nf = GaussianOEDInnerLoopLikelihood(
-            self._noise_variances, self._bkd, use_numba=False
+        # Reference: separate jacobian_matrix + einsum via vectorized compute
+        from pyapprox.typing.expdesign.likelihood.compute import (
+            jacobian_matrix_vectorized,
+            evidence_jacobian_vectorized,
         )
-        likelihood_nf.set_shapes(self._shapes_inner)
-        likelihood_nf.set_observations(self._observations)
-        likelihood_nf.set_latent_samples(
+        self._likelihood.set_shapes(self._shapes_inner)
+        self._likelihood.set_observations(self._observations)
+        self._likelihood.set_latent_samples(
             self._bkd.zeros((self._nobs, self._nouter))
         )
-        evidence_nf = Evidence(likelihood_nf, quad_weights, self._bkd)
+        loglike = self._likelihood.logpdf_matrix(self._design_weights)
+        like = self._bkd.exp(loglike)
+        qwl = quad_weights[:, None] * like
+        jac_3d = jacobian_matrix_vectorized(
+            self._shapes_inner, self._observations,
+            self._bkd.zeros((self._nobs, self._nouter)),
+            self._noise_variances, self._design_weights, self._bkd,
+        )
+        jac_ref = evidence_jacobian_vectorized(jac_3d, qwl, self._bkd)
 
-        jac_non_fused = evidence_nf.jacobian(self._design_weights)
+        self._bkd.assert_allclose(jac_fused, jac_ref, rtol=1e-10)
 
-        # Both paths must produce the same result
-        self._bkd.assert_allclose(jac_fused, jac_non_fused, rtol=1e-10)
-
-    def test_log_evidence_jacobian_non_fused_matches_fused(self):
-        """Test non-fused log-evidence jacobian matches fused path."""
+    def test_log_evidence_jacobian_fused_matches_separate(self):
+        """Test fused log-evidence jacobian matches separate path."""
         quad_weights = self._bkd.ones((self._ninner,)) / self._ninner
-        log_ev_fused = LogEvidence(
+        log_ev = LogEvidence(
             self._likelihood, quad_weights, self._bkd
         )
-        jac_fused = log_ev_fused.jacobian(self._design_weights)
+        jac_fused = log_ev.jacobian(self._design_weights)
 
-        # Non-fused path
-        likelihood_nf = GaussianOEDInnerLoopLikelihood(
-            self._noise_variances, self._bkd, use_numba=False
+        # Reference: create a second likelihood to get separate computation
+        likelihood2 = GaussianOEDInnerLoopLikelihood(
+            self._noise_variances, self._bkd,
         )
-        likelihood_nf.set_shapes(self._shapes_inner)
-        likelihood_nf.set_observations(self._observations)
-        likelihood_nf.set_latent_samples(
+        likelihood2.set_shapes(self._shapes_inner)
+        likelihood2.set_observations(self._observations)
+        likelihood2.set_latent_samples(
             self._bkd.zeros((self._nobs, self._nouter))
         )
-        log_ev_nf = LogEvidence(likelihood_nf, quad_weights, self._bkd)
+        log_ev2 = LogEvidence(likelihood2, quad_weights, self._bkd)
+        jac_ref = log_ev2.jacobian(self._design_weights)
 
-        jac_non_fused = log_ev_nf.jacobian(self._design_weights)
-
-        self._bkd.assert_allclose(jac_fused, jac_non_fused, rtol=1e-10)
+        self._bkd.assert_allclose(jac_fused, jac_ref, rtol=1e-10)
 
     def test_evidence_accessors(self):
         """Test bkd(), ninner(), nouter() accessors."""

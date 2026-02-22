@@ -101,6 +101,9 @@ class TestAutogradEvidence(unittest.TestCase):
 
     def setUp(self):
         torch.set_default_dtype(torch.float64)
+        # torch.compile donated buffers conflict with autograd jacobian
+        import torch._functorch.config as _ftconfig
+        _ftconfig.donated_buffer = False
         self._bkd = TorchBkd()
         np.random.seed(42)
 
@@ -120,7 +123,7 @@ class TestAutogradEvidence(unittest.TestCase):
 
     def _create_evidence(self):
         like = GaussianOEDInnerLoopLikelihood(
-            self._noise_variances, self._bkd, use_numba=False,
+            self._noise_variances, self._bkd,
         )
         like.set_shapes(self._shapes)
         like.set_observations(self._obs)
@@ -156,6 +159,9 @@ class TestAutogradLogEvidence(unittest.TestCase):
 
     def setUp(self):
         torch.set_default_dtype(torch.float64)
+        # torch.compile donated buffers conflict with autograd jacobian
+        import torch._functorch.config as _ftconfig
+        _ftconfig.donated_buffer = False
         self._bkd = TorchBkd()
         np.random.seed(42)
 
@@ -175,7 +181,7 @@ class TestAutogradLogEvidence(unittest.TestCase):
 
     def _create_log_evidence(self):
         like = GaussianOEDInnerLoopLikelihood(
-            self._noise_variances, self._bkd, use_numba=False,
+            self._noise_variances, self._bkd,
         )
         like.set_shapes(self._shapes)
         like.set_observations(self._obs)
@@ -229,7 +235,7 @@ class TestAutogradKLObjective(unittest.TestCase):
         bkd = self._bkd
         noise_variances = bkd.asarray(np.array([0.1, 0.2, 0.15]))
         inner_loglike = GaussianOEDInnerLoopLikelihood(
-            noise_variances, bkd, use_numba=False,
+            noise_variances, bkd,
         )
         inner_shapes = bkd.asarray(
             np.random.randn(self._nobs, self._ninner)

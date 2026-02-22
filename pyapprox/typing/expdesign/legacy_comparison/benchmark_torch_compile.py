@@ -4,7 +4,9 @@ Benchmark: torch.compile-accelerated vs eager PyTorch OED computations.
 Compares performance at target problem size (nobs=50, ninner=1000, nouter=1000)
 for each kernel and the full objective+jacobian pipeline.
 
-Reports per-operation speedup, warmup overhead, and correctness verification.
+With automatic dispatch, PyTorch backend always uses torch.compile.
+This benchmark compares the compiled path against the vectorized
+(eager) functions called directly.
 
 Usage:
     conda run -n linalg python -m pyapprox.typing.expdesign.legacy_comparison.benchmark_torch_compile
@@ -22,6 +24,11 @@ from pyapprox.typing.expdesign.benchmarks.linear_gaussian import (
 from pyapprox.typing.expdesign.likelihood import (
     GaussianOEDInnerLoopLikelihood,
 )
+from pyapprox.typing.expdesign.likelihood.compute import (
+    logpdf_matrix_vectorized,
+    jacobian_matrix_vectorized,
+    evidence_jacobian_vectorized,
+)
 from pyapprox.typing.expdesign.objective import KLOEDObjective
 
 
@@ -38,7 +45,7 @@ def time_fn(fn, n_warmup=3, n_timed=10):
 
 
 def benchmark_kernels():
-    """Benchmark individual kernels: compiled vs eager PyTorch."""
+    """Benchmark individual kernels: compiled (auto-dispatched) vs eager (vectorized)."""
     torch.set_default_dtype(torch.float64)
     bkd = TorchBkd()
     nobs, ninner, nouter = 50, 1000, 1000
@@ -57,17 +64,11 @@ def benchmark_kernels():
     print(f"Device: {shapes.device}")
     print("=" * 70)
 
-    # Create eager and compiled likelihoods
-    like_eager = GaussianOEDInnerLoopLikelihood(
-        base_variances, bkd, use_numba=False, use_torch_compile=False,
-    )
-    like_compiled = GaussianOEDInnerLoopLikelihood(
-        base_variances, bkd, use_numba=False, use_torch_compile=True,
-    )
-    for like in (like_eager, like_compiled):
-        like.set_shapes(shapes)
-        like.set_observations(obs)
-        like.set_latent_samples(latent_samples)
+    # Create auto-dispatched likelihood (gets torch.compile on TorchBkd)
+    like_compiled = GaussianOEDInnerLoopLikelihood(base_variances, bkd)
+    like_compiled.set_shapes(shapes)
+    like_compiled.set_observations(obs)
+    like_compiled.set_latent_samples(latent_samples)
 
     dw = design_weights
 
@@ -94,12 +95,12 @@ def benchmark_kernels():
     print(f"  Compile evidence_jacobian: {warmup_evidence:.3f}s")
     print(f"  Compile total: {warmup_logpdf + warmup_jacobian + warmup_evidence:.3f}s")
 
-    # logpdf_matrix
+    # logpdf_matrix: compiled vs vectorized (eager)
     mean_compiled, std_compiled = time_fn(
         lambda: like_compiled.logpdf_matrix(dw),
     )
     mean_eager, std_eager = time_fn(
-        lambda: like_eager.logpdf_matrix(dw),
+        lambda: logpdf_matrix_vectorized(shapes, obs, base_variances, dw, bkd),
     )
     speedup = mean_eager / mean_compiled
     print(f"\nlogpdf_matrix:")
@@ -112,7 +113,9 @@ def benchmark_kernels():
         lambda: like_compiled.jacobian_matrix(dw),
     )
     mean_eager, std_eager = time_fn(
-        lambda: like_eager.jacobian_matrix(dw),
+        lambda: jacobian_matrix_vectorized(
+            shapes, obs, latent_samples, base_variances, dw, bkd,
+        ),
     )
     speedup = mean_eager / mean_compiled
     print(f"\njacobian_matrix:")
@@ -120,7 +123,7 @@ def benchmark_kernels():
     print(f"  Compiled: {mean_compiled*1000:.1f} +/- {std_compiled*1000:.1f} ms")
     print(f"  Speedup:  {speedup:.2f}x")
 
-    # evidence_jacobian (compiled jac + compiled einsum vs eager jac + eager einsum)
+    # evidence_jacobian
     def run_compiled_fused():
         loglike = like_compiled.logpdf_matrix(dw)
         like_mat = torch.exp(loglike)
@@ -128,11 +131,13 @@ def benchmark_kernels():
         like_compiled.evidence_jacobian(dw, qwl)
 
     def run_eager_separate():
-        loglike = like_eager.logpdf_matrix(dw)
+        loglike = logpdf_matrix_vectorized(shapes, obs, base_variances, dw, bkd)
         like_mat = torch.exp(loglike)
         qwl = quad_weights[:, None] * like_mat
-        jac = like_eager.jacobian_matrix(dw)
-        torch.einsum("io,iok->ok", qwl, jac)
+        jac = jacobian_matrix_vectorized(
+            shapes, obs, latent_samples, base_variances, dw, bkd,
+        )
+        evidence_jacobian_vectorized(jac, qwl, bkd)
 
     mean_compiled, std_compiled = time_fn(run_compiled_fused)
     mean_eager, std_eager = time_fn(run_eager_separate)
@@ -143,30 +148,26 @@ def benchmark_kernels():
     print(f"  Speedup:  {speedup:.2f}x")
 
     # Correctness check
-    val_eager = like_eager.logpdf_matrix(dw)
+    val_eager = logpdf_matrix_vectorized(shapes, obs, base_variances, dw, bkd)
     val_compiled = like_compiled.logpdf_matrix(dw)
     diff = float(torch.max(torch.abs(val_eager - val_compiled)))
     print(f"\nCorrectness (logpdf max abs diff): {diff:.2e}")
 
-    jac_eager = like_eager.jacobian_matrix(dw)
-    jac_compiled = like_compiled.jacobian_matrix(dw)
-    diff = float(torch.max(torch.abs(jac_eager - jac_compiled)))
-    print(f"Correctness (jacobian max abs diff): {diff:.2e}")
-
 
 def benchmark_full_pipeline():
-    """Benchmark the full KL-OED objective + jacobian pipeline."""
+    """Benchmark the full KL-OED objective + jacobian pipeline.
+
+    With automatic dispatch, TorchBkd always gets torch.compile.
+    """
     torch.set_default_dtype(torch.float64)
     bkd = TorchBkd()
     nobs, ninner, nouter = 50, 1000, 1000
 
     print("\n" + "=" * 70)
-    print("Full Pipeline Benchmark: KLOEDObjective (PyTorch CPU)")
+    print("Full Pipeline Benchmark: KLOEDObjective (PyTorch auto-dispatched)")
     print(f"Problem size: nobs={nobs}, ninner={ninner}, nouter={nouter}")
     print("=" * 70)
 
-    # Set up benchmark data (noise_std=0.5 avoids numerical underflow
-    # that produces NaN at this problem size with noise_std=0.1)
     benchmark = LinearGaussianOEDBenchmark(
         nobs=nobs, degree=5, noise_std=0.5, prior_std=1.0, bkd=bkd,
     )
@@ -178,22 +179,10 @@ def benchmark_full_pipeline():
     _, outer_shapes = benchmark.generate_data(nouter, seed=123)
     latent_samples = bkd.asarray(np.random.randn(nobs, nouter))
 
-    # Compiled
-    inner_like_compiled = GaussianOEDInnerLoopLikelihood(
-        noise_variances, bkd, use_numba=False, use_torch_compile=True,
-    )
-    obj_compiled = KLOEDObjective(
-        inner_like_compiled,
-        outer_shapes, latent_samples,
-        inner_shapes, None, None, bkd,
-    )
-
-    # Eager
-    inner_like_eager = GaussianOEDInnerLoopLikelihood(
-        noise_variances, bkd, use_numba=False, use_torch_compile=False,
-    )
-    obj_eager = KLOEDObjective(
-        inner_like_eager,
+    # Auto-dispatched (TorchBkd → torch.compile)
+    inner_like = GaussianOEDInnerLoopLikelihood(noise_variances, bkd)
+    obj = KLOEDObjective(
+        inner_like,
         outer_shapes, latent_samples,
         inner_shapes, None, None, bkd,
     )
@@ -203,66 +192,29 @@ def benchmark_full_pipeline():
     # torch.compile warmup
     print("\nWarming up torch.compile (first calls trigger compilation)...")
     t0 = time.perf_counter()
-    obj_compiled(dw)
-    obj_compiled.jacobian(dw)
+    obj(dw)
+    obj.jacobian(dw)
     warmup_time = time.perf_counter() - t0
     print(f"  Compile warmup: {warmup_time:.3f}s")
 
     # Benchmark __call__
-    mean_compiled, std_compiled = time_fn(lambda: obj_compiled(dw))
-    mean_eager, std_eager = time_fn(lambda: obj_eager(dw))
-    speedup = mean_eager / mean_compiled
+    mean_val, std_val = time_fn(lambda: obj(dw))
     print(f"\nKLOEDObjective.__call__:")
-    print(f"  Eager:    {mean_eager*1000:.1f} +/- {std_eager*1000:.1f} ms")
-    print(f"  Compiled: {mean_compiled*1000:.1f} +/- {std_compiled*1000:.1f} ms")
-    print(f"  Speedup:  {speedup:.2f}x")
+    print(f"  {mean_val*1000:.1f} +/- {std_val*1000:.1f} ms")
 
     # Benchmark jacobian
-    mean_compiled, std_compiled = time_fn(lambda: obj_compiled.jacobian(dw))
-    mean_eager, std_eager = time_fn(lambda: obj_eager.jacobian(dw))
-    speedup = mean_eager / mean_compiled
+    mean_jac, std_jac = time_fn(lambda: obj.jacobian(dw))
     print(f"\nKLOEDObjective.jacobian:")
-    print(f"  Eager:    {mean_eager*1000:.1f} +/- {std_eager*1000:.1f} ms")
-    print(f"  Compiled: {mean_compiled*1000:.1f} +/- {std_compiled*1000:.1f} ms")
-    print(f"  Speedup:  {speedup:.2f}x")
+    print(f"  {mean_jac*1000:.1f} +/- {std_jac*1000:.1f} ms")
 
-    # Combined (simulating optimizer iteration)
-    def run_combined(obj):
+    # Combined
+    def run_combined():
         obj(dw)
         obj.jacobian(dw)
 
-    mean_compiled, std_compiled = time_fn(lambda: run_combined(obj_compiled))
-    mean_eager, std_eager = time_fn(lambda: run_combined(obj_eager))
-    speedup = mean_eager / mean_compiled
+    mean_comb, std_comb = time_fn(run_combined)
     print(f"\nKLOEDObjective call + jacobian (optimizer iteration):")
-    print(f"  Eager:    {mean_eager*1000:.1f} +/- {std_eager*1000:.1f} ms")
-    print(f"  Compiled: {mean_compiled*1000:.1f} +/- {std_compiled*1000:.1f} ms")
-    print(f"  Speedup:  {speedup:.2f}x")
-
-    # Verify correctness
-    val_compiled = obj_compiled(dw)
-    val_eager = obj_eager(dw)
-    jac_compiled = obj_compiled.jacobian(dw)
-    jac_eager = obj_eager.jacobian(dw)
-
-    val_diff = float(torch.max(torch.abs(val_compiled - val_eager)))
-    jac_diff = float(torch.max(torch.abs(jac_compiled - jac_eager)))
-    print(f"\nCorrectness check:")
-    print(f"  Max value difference: {val_diff:.2e}")
-    print(f"  Max jacobian difference: {jac_diff:.2e}")
-
-    # Amortization analysis
-    n_iter = 100
-    print(f"\nAmortization ({n_iter} optimizer iterations):")
-    amortized_compiled = warmup_time + n_iter * mean_compiled
-    amortized_eager = n_iter * mean_eager
-    print(f"  Eager total: {amortized_eager:.1f}s")
-    print(f"  Compiled total (incl warmup): {amortized_compiled:.1f}s")
-    if amortized_compiled < amortized_eager:
-        print(f"  Compiled breaks even after "
-              f"~{int(warmup_time / (mean_eager - mean_compiled))} iterations")
-    else:
-        print("  Compiled does not break even within 100 iterations")
+    print(f"  {mean_comb*1000:.1f} +/- {std_comb*1000:.1f} ms")
 
 
 if __name__ == "__main__":
