@@ -22,46 +22,38 @@ website:
         - section: "Forward UQ"
           contents:
             - forward_model_definition.qmd
-            - random_variables_distributions.qmd
             - quantities_of_interest.qmd
-            - monte_carlo_basics.qmd
-        - section: "Sensitivity Analysis"
-          contents:
-            - sobol_sensitivity_analysis.qmd
-            - bin_based_sensitivity.qmd
         - section: "Inverse Problems"
           contents:
-            - bayesian_calibration_intro.qmd
             - hamiltonian_mcmc.qmd
-        - section: "Surrogates"
-          contents:
-            - polynomial_chaos_expansion.qmd
-            - gaussian_process_surrogates.qmd
         - section: "FunctionTrain"
           contents:
-            - functiontrain_intro.qmd
             - functiontrain_pce.qmd
             - functiontrain_moments_math.qmd
             - functiontrain_moments.qmd
-            - functiontrain_sensitivity_math.qmd
-            - functiontrain_sensitivity.qmd
         - section: "Multifidelity"
           contents:
-            - control_variates.qmd
-            - multifidelity_monte_carlo.qmd
-            - acv_two_model.qmd
-            - acv_framework.qmd
             - multioutput_statistics.qmd
             - multioutput_statistics_usage.qmd
             - pacv_estimators.qmd
-            - allocation_matrices.qmd
             - pacv_recursion_analysis.qmd
+        - section: "GP Statistics"
+          contents:
+            - gp_marginalization.qmd
+            - gp_mean_uncertain_inputs.qmd
+            - gp_mean_of_variance.qmd
+            - gp_variance_of_variance.qmd
+            - gp_separable_kernel_integrals.qmd
+            - gp_statistics_workflow.qmd
+            - gp_sobol_uncertainty.qmd
         - section: "Advanced Topics"
           contents:
             - optimal_experimental_design.qmd
             - optimization_under_uncertainty.qmd
             - backend_alternatives.qmd
             - benchmark_setup.qmd
+            - ode_integration.qmd
+            - beam_model_introduction.qmd
 
 format:
   html:

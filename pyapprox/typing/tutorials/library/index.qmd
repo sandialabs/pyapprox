@@ -40,6 +40,12 @@ subtitle: "Validated tutorials for uncertainty quantification"
 | [General ACV Analysis](acv_many_models_analysis.qmd) | Deriving the optimal weight matrix and minimum covariance via Schur complement |
 | [ACV Allocation Matrices](acv_allocation_matrices.qmd) | How allocation matrices encode sample-set structure for all ACV estimators |
 | [ACV Covariances](acv_covariances.qmd) | Explicit formulas for the covariance blocks that determine ACV estimator variance |
+| [Multi-Output ACV Concept](multioutput_acv_concept.qmd) | Why estimating several QoIs jointly with multi-fidelity corrections improves each individual estimate |
+| [Multi-Output ACV Analysis](multioutput_acv_analysis.qmd) | Deriving the MOACV optimal weight matrix and the condition under which joint estimation beats independent scalar ACVs |
+| [Multi-Output ACV Usage](multioutput_acv_usage.qmd) | Running MOACV and SOACV end-to-end, comparing variance reduction, and choosing between joint and per-QoI strategies |
+| [PACV Concept](pacv_concept.qmd) | How a single recursion index unifies MLMC, MFMC, ACVMF, and ACVIS as special cases of one family |
+| [PACV Analysis](pacv_analysis.qmd) | Formal definition of GMF, GRD, GIS families and the covariance formulas enabling enumeration-based best-estimator selection |
+| [PACV Usage](pacv_usage.qmd) | Configuring PACV estimators, enumerating all valid structures, and selecting the best estimator for a given budget |
 
 ## Inverse UQ
 
@@ -55,6 +61,25 @@ subtitle: "Validated tutorials for uncertainty quantification"
 |----------|-------------|
 | [Introduction to Experimental Design](experimental_design_intro.qmd) | Why sensor placement matters: comparing designs by posterior covariance and Expected Information Gain |
 
+## Bayesian OED
+
+| Tutorial | Description |
+|----------|-------------|
+| [Bayesian OED: KL Concept](boed_kl_concept.qmd) | What Expected Information Gain measures and why it is the right objective for choosing experiments |
+| [Bayesian OED: Double-Loop Estimator](boed_kl_estimator.qmd) | How the double-loop MC estimator approximates EIG by treating the marginal evidence as a nested average |
+| [Bayesian OED: Gradients](boed_kl_gradients.qmd) | The reparameterization trick, the C1+C2+C3 gradient decomposition, and the corrected Hessian |
+| [Bayesian OED: Convergence](boed_kl_usage.qmd) | Using KLOEDDiagnostics to measure MSE, decompose bias and variance, and confirm convergence |
+| [Bayesian OED: MC vs Halton](boed_kl_qmc.qmd) | Why randomly-shifted Halton sequences reduce MSE compared to i.i.d. MC for the double-loop EIG estimator |
+| [Bayesian OED: Nonlinear Usage](boed_kl_nonlinear_usage.qmd) | Applying EIG-based OED to a Lotka-Volterra predator-prey system — a nonlinear model with no analytic EIG |
+| [Bayesian OED: Design Stability](boed_kl_design_stability.qmd) | Demonstrating that OED designs depend on MC realizations at fixed budget and stabilize as budget grows |
+| [Goal-Oriented OED: Concept](boed_pred_concept.qmd) | Why targeting prediction uncertainty rather than parameter uncertainty changes which experiments are optimal |
+| [Goal-Oriented OED: Gaussian Analysis](boed_pred_gaussian_analysis.qmd) | Closed-form posterior mean distribution, entropic risk deviation, and AVaR deviation for Gaussian push-forwards |
+| [Goal-Oriented OED: Log-Normal Analysis](boed_pred_lognormal_analysis.qmd) | Deriving the distribution and expected AVaR deviation of the standard deviation of a log-normal QoI |
+| [Goal-Oriented OED: Convergence](boed_pred_usage.qmd) | Verifying numerical risk-aware utility estimates converge to analytical values with MC vs. Halton |
+| [Goal-Oriented OED: Nonlinear Usage](boed_pred_nonlinear_usage.qmd) | Comparing std-deviation and entropic deviation objectives for goal-oriented OED on Lotka-Volterra |
+| [OED Data Workflow](boed_data_workflow_usage.qmd) | Generating, saving, and reusing expensive model evaluations so OED optimisation avoids re-running the forward model |
+| [Surrogate-Accelerated OED](boed_surrogate_usage.qmd) | Building a sparse-grid surrogate to enable large-sample-budget OED infeasible with the original model |
+
 ## Surrogate Modeling
 
 | Tutorial | Description |
@@ -63,6 +88,8 @@ subtitle: "Validated tutorials for uncertainty quantification"
 | [Overfitting and Cross-Validation](practical_pce_fitting.qmd) | Choose the polynomial degree using LOO cross-validation |
 | [Sparse Polynomial Approximation](sparse_pce_fitting.qmd) | OMP and BPDN/LASSO for high-dimensional polynomial chaos |
 | [UQ with Polynomial Chaos](uq_with_pce.qmd) | Extract analytical moments, marginal densities, and convergence comparisons from a fitted PCE |
+| [Function Train Surrogates](function_train_surrogates.qmd) | Build intuition for low-rank functions and the function train decomposition |
+| [UQ with Function Trains](uq_with_functiontrain.qmd) | Extract analytical moments, marginal densities, and input marginals from a fitted function train |
 
 ## Sparse Grid Interpolation
 
@@ -77,6 +104,29 @@ subtitle: "Validated tutorials for uncertainty quantification"
 | [Isotropic Sparse Grids](isotropic_sparse_grids.qmd) | Smolyak combination technique for breaking the curse of dimensionality |
 | [Adaptive Sparse Grids](adaptive_sparse_grids.qmd) | Data-driven refinement for anisotropic functions |
 | [Multifidelity Sparse Grids](multifidelity_sparse_grids.qmd) | Multi-index collocation for model hierarchies with varying cost and accuracy |
+| [Sparse Grid to PCE Conversion](sparse_grid_to_pce_conversion.qmd) | Spectral projection converting Lagrange-based sparse grid interpolants into Polynomial Chaos Expansions |
+| [UQ with Sparse Grids](uq_with_sparse_grids.qmd) | Compute moments from sparse grid quadrature, convert to PCE for Sobol indices, and compare against MC |
+
+## Gaussian Process Surrogates
+
+| Tutorial | Description |
+|----------|-------------|
+| [Building a GP Surrogate](gp_surrogate.qmd) | Approximate an expensive model with a Gaussian process and quantify prediction uncertainty |
+| [UQ with Gaussian Processes](uq_with_gp.qmd) | Compute analytical moments, marginal densities, and main effects from a fitted GP — without additional model evaluations |
+| [Adaptive GP Sampling](adaptive_gp_sampling.qmd) | Choose training points that maximally reduce GP posterior uncertainty using greedy Cholesky and IVAR strategies |
+
+## Sensitivity Analysis
+
+| Tutorial | Description |
+|----------|-------------|
+| [Sensitivity Analysis Concept](sensitivity_analysis_concept.qmd) | Variance decomposition and Sobol indices: identifying which uncertain inputs drive output variability |
+| [Sobol Sensitivity Analysis](sobol_sensitivity_analysis.qmd) | Variance-based sensitivity indices for identifying important parameters |
+| [PCE-Based Sensitivity](pce_sensitivity.qmd) | Computing Sobol indices analytically from polynomial chaos expansion coefficients |
+| [GP-Based Sensitivity](gp_sensitivity.qmd) | Computing Sobol indices analytically from GP kernel integrals and verifying against fix-and-freeze estimates |
+| [Morris Screening](morris_screening.qmd) | One-at-a-time elementary effects for cheap parameter screening |
+| [Bin-Based Sensitivity](bin_based_sensitivity.qmd) | Variance-based sensitivity indices via binning estimation |
+| [FT Sensitivity: Math](functiontrain_sensitivity_math.qmd) | Deriving Sobol indices analytically from PCE FunctionTrain structure |
+| [FT Sensitivity: Usage](functiontrain_sensitivity.qmd) | Computing Sobol indices analytically with FunctionTrainSensitivity |
 
 ## Optimization Under Uncertainty
 

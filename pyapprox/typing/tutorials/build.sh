@@ -11,6 +11,8 @@
 #   --execute       Force re-execute all code
 #   --notebooks     Generate downloadable notebooks (library only)
 #   --serve         Start local server after build
+#   --skip=NAME     Skip rendering a tutorial (e.g. --skip=pacv_usage)
+#                   Can be repeated: --skip=pacv_usage --skip=foo
 #   --help          Show this help message
 
 set -e
@@ -29,6 +31,7 @@ NO_EXECUTE=""
 FORCE_EXECUTE=""
 GEN_NOTEBOOKS=""
 SERVE=""
+SKIP_FILES=()
 
 for arg in "$@"; do
     case $arg in
@@ -44,8 +47,11 @@ for arg in "$@"; do
         --serve)
             SERVE="yes"
             ;;
+        --skip=*)
+            SKIP_FILES+=("${arg#--skip=}")
+            ;;
         --help)
-            head -16 "$0" | tail -15
+            head -17 "$0" | tail -16
             exit 0
             ;;
         *)
@@ -74,6 +80,29 @@ if [ -d "_site" ]; then
     echo "Cleaning old build..."
     rm -rf _site
 fi
+
+# Temporarily hide skipped files
+SKIPPED_PATHS=()
+for name in "${SKIP_FILES[@]}"; do
+    qmd="$BUILD_DIR/${name}.qmd"
+    if [ -f "$qmd" ]; then
+        echo "  Skipping: ${name}.qmd"
+        mv "$qmd" "$qmd.skip"
+        SKIPPED_PATHS+=("$qmd")
+    else
+        echo "  Warning: ${name}.qmd not found, ignoring --skip=${name}"
+    fi
+done
+
+# Restore skipped files on exit (even if build fails)
+restore_skipped() {
+    for qmd in "${SKIPPED_PATHS[@]}"; do
+        if [ -f "$qmd.skip" ]; then
+            mv "$qmd.skip" "$qmd"
+        fi
+    done
+}
+trap restore_skipped EXIT
 
 # Build site
 echo "Rendering Quarto site..."

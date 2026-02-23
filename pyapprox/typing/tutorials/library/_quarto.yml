@@ -35,9 +35,22 @@ website:
             - acv_concept.qmd
             - acv_analysis.qmd
             - acv_usage.qmd
+            - acv_allocation_matrices.qmd
+            - acv_covariances.qmd
+            - acv_many_models_concept.qmd
+            - acv_many_models_analysis.qmd
             - mfmc_concept.qmd
             - mfmc_analysis.qmd
             - mfmc_usage.qmd
+            - mlmc_concept.qmd
+            - mlmc_analysis.qmd
+            - mlmc_usage.qmd
+            - multioutput_acv_concept.qmd
+            - multioutput_acv_analysis.qmd
+            - multioutput_acv_usage.qmd
+            - pacv_concept.qmd
+            - pacv_analysis.qmd
+            - pacv_usage.qmd
         - section: "Inverse UQ"
           contents:
             - bayesian_inference_intro.qmd
@@ -61,6 +74,15 @@ website:
             - boed_pred_usage.qmd
             - boed_pred_nonlinear_usage.qmd
             - boed_data_workflow_usage.qmd
+            - boed_surrogate_usage.qmd
+        - section: "Approximation Theory"
+          contents:
+            - lagrange_interpolation.qmd
+            - piecewise_interpolation.qmd
+            - tensor_product_interpolation.qmd
+            - gauss_quadrature.qmd
+            - piecewise_quadrature.qmd
+            - leja_sequences.qmd
         - section: "Surrogate Modeling"
           contents:
             - polynomial_chaos_surrogates.qmd
@@ -68,6 +90,14 @@ website:
             - sparse_pce_fitting.qmd
             - uq_with_pce.qmd
             - function_train_surrogates.qmd
+            - uq_with_functiontrain.qmd
+        - section: "Sparse Grid Surrogates"
+          contents:
+            - isotropic_sparse_grids.qmd
+            - adaptive_sparse_grids.qmd
+            - multifidelity_sparse_grids.qmd
+            - sparse_grid_to_pce_conversion.qmd
+            - uq_with_sparse_grids.qmd
         - section: "Gaussian Process Surrogates"
           contents:
             - gp_surrogate.qmd

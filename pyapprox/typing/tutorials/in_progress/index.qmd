@@ -22,54 +22,42 @@ These tutorials have not yet been validated. They may contain errors, incomplete
 | Tutorial | Description | Prerequisites |
 |----------|-------------|---------------|
 | [Forward Model Definition](forward_model_definition.qmd) | Define and evaluate forward models | Setup |
-| [Random Variables & Distributions](random_variables_distributions.qmd) | Probability distributions for uncertain inputs | Setup |
 | [Quantities of Interest](quantities_of_interest.qmd) | Extract meaningful outputs from models | Forward Model |
-| [Monte Carlo Basics](monte_carlo_basics.qmd) | Sampling-based uncertainty propagation | Distributions |
-
-### Sensitivity Analysis
-
-| Tutorial | Description | Prerequisites |
-|----------|-------------|---------------|
-| [Sobol Sensitivity Analysis](sobol_sensitivity_analysis.qmd) | Variance-based sensitivity indices | MC Basics |
 
 ### Inverse Problems
 
 | Tutorial | Description | Prerequisites |
 |----------|-------------|---------------|
-| [Bayesian Calibration Intro](bayesian_calibration_intro.qmd) | Parameter inference from data | MC Basics |
 | [Hamiltonian MCMC](hamiltonian_mcmc.qmd) | Advanced MCMC sampling | Bayesian Calibration |
-
-### Surrogates
-
-| Tutorial | Description | Prerequisites |
-|----------|-------------|---------------|
-| [Polynomial Chaos Expansion](polynomial_chaos_expansion.qmd) | Spectral surrogate models | MC Basics |
-| [Gaussian Process Surrogates](gaussian_process_surrogates.qmd) | Kriging/GP regression | MC Basics |
 
 ### FunctionTrain
 
 | Tutorial | Description | Prerequisites |
 |----------|-------------|---------------|
-| [FunctionTrain Introduction](functiontrain_intro.qmd) | Tensor decomposition surrogates | PCE |
 | [FunctionTrain PCE](functiontrain_pce.qmd) | FT-based polynomial chaos | FT Intro |
 | [FunctionTrain Moments (Math)](functiontrain_moments_math.qmd) | Theory of moment computation | FT Intro |
 | [FunctionTrain Moments](functiontrain_moments.qmd) | Computing moments with FT | FT Moments Math |
-| [FunctionTrain Sensitivity (Math)](functiontrain_sensitivity_math.qmd) | Theory of sensitivity indices | FT Intro |
-| [FunctionTrain Sensitivity](functiontrain_sensitivity.qmd) | Computing sensitivity with FT | FT Sensitivity Math |
 
 ### Multifidelity
 
 | Tutorial | Description | Prerequisites |
 |----------|-------------|---------------|
-| [Control Variates](control_variates.qmd) | Variance reduction fundamentals | MC Basics |
-| [Multifidelity Monte Carlo](multifidelity_monte_carlo.qmd) | Combining models of varying fidelity | Control Variates |
-| [ACV Two Model](acv_two_model.qmd) | Approximate control variates | MFMC |
-| [ACV Framework](acv_framework.qmd) | General ACV framework | ACV Two Model |
 | [Multioutput Statistics](multioutput_statistics.qmd) | Statistics for vector QoIs | MC Basics |
 | [Multioutput Statistics Usage](multioutput_statistics_usage.qmd) | Using multioutput statistics | Multioutput Statistics |
 | [PACV Estimators](pacv_estimators.qmd) | Parameterized ACV | ACV Framework |
-| [Allocation Matrices](allocation_matrices.qmd) | Sample allocation | PACV |
 | [PACV Recursion Analysis](pacv_recursion_analysis.qmd) | Recursive PACV analysis | PACV |
+
+### GP Statistics
+
+| Tutorial | Description | Prerequisites |
+|----------|-------------|---------------|
+| [GP Marginalization](gp_marginalization.qmd) | Reducing multi-dimensional GPs to 1D functions | GP Surrogates |
+| [GP Mean with Uncertain Inputs](gp_mean_uncertain_inputs.qmd) | Computing GP mean/variance over uncertain inputs | GP Surrogates |
+| [GP Mean of Variance](gp_mean_of_variance.qmd) | Expected variance of GP predictions | GP Surrogates |
+| [GP Variance of Variance](gp_variance_of_variance.qmd) | Higher-order GP statistics (Isserlis' theorem) | GP Surrogates |
+| [GP Separable Kernel Integrals](gp_separable_kernel_integrals.qmd) | Efficient 1D building blocks for GP statistics | GP Surrogates |
+| [GP Statistics Workflow](gp_statistics_workflow.qmd) | End-to-end GP statistics workflow | GP Surrogates |
+| [GP Sobol Uncertainty](gp_sobol_uncertainty.qmd) | Uncertainty in GP Sobol indices | GP Sensitivity |
 
 ### Advanced Topics
 
@@ -79,3 +67,5 @@ These tutorials have not yet been validated. They may contain errors, incomplete
 | [Optimization Under Uncertainty](optimization_under_uncertainty.qmd) | Risk-aware optimization | MC Basics |
 | [Backend Alternatives](backend_alternatives.qmd) | Using PyTorch backend | Setup |
 | [Benchmark Setup](benchmark_setup.qmd) | Creating custom UQ benchmarks | Forward Model |
+| [ODE Integration](ode_integration.qmd) | ODE integration infrastructure | Forward Model |
+| [Beam Model Introduction](beam_model_introduction.qmd) | Cantilever beam model running example | Setup |
