@@ -337,7 +337,7 @@ $$
 Different subspaces may produce the **same** multi-index $\mathbf{k}$, so their coefficients must be **accumulated** (summed). This merging step is what `SparseGridToPCEConverter` handles.
 
 ```{python}
-#| fig-cap: "Smolyak merging for a 2D, level-2 sparse grid with f(x1, x2) = x1^2 + x1*x2. Each panel shows one tensor product subspace with its Smolyak coefficient and PCE multi-indices. The final merged PCE (bottom right) accumulates overlapping coefficients."
+#| fig-cap: "Smolyak merging for a 2D, level-2 sparse grid with $f(x_1, x_2) = x_1^2 + x_1 x_2$. Each dot is a PCE multi-index $(k_1, k_2)$. Orange dots (subspace panels) or green dots (merged panel) have nonzero Smolyak-weighted coefficients, annotated with the signed value $c_{\\ell} \\hat{c}_{\\mathbf{k}}^{(\\ell)}$. Gray dots have zero coefficients because the function has no component at those polynomial degrees (e.g., there is no pure $x_2$ term, so the $(0,1)$ coefficient is zero). The final panel accumulates overlapping indices: when multiple subspaces contribute to the same $(k_1, k_2)$, their weighted coefficients are summed."
 #| label: fig-smolyak-merge
 
 # Build level-2 SG to have multiple subspaces
@@ -426,6 +426,9 @@ plt.suptitle("Smolyak combination: subspace PCEs merge into global PCE",
 plt.tight_layout()
 plt.show()
 ```
+
+
+Notice that subspaces $(0,1)$ and $(0,2)$ have **no nonzero coefficients** (all gray dots). The reason is simple: level 0 in $x_1$ means a single Gauss node at $x_1 = 0$. Since $f(0, x_2) = 0^2 + 0 \cdot x_2 = 0$ for all $x_2$, every function value in these subspaces is exactly zero, so the projected PCE coefficients are all zero too.
 
 
 ## Putting It All Together --- Worked Example
