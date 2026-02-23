@@ -88,7 +88,7 @@ bkd = NumpyBkd()
 ```
 
 ```{python}
-benchmark = LotkaVolterraOEDBenchmark(bkd)
+benchmark = LotkaVolterraOEDBenchmark(bkd, final_time=50.0)
 obs_model = benchmark.observation_model()   # maps theta -> (nobs_times * 2,)
 prior     = benchmark.prior()               # IndependentJoint over theta
 ```
@@ -298,6 +298,8 @@ at quasi-steady state.
 
 ## Next Steps
 
+- [Design Stability and Convergence](boed_kl_design_stability.qmd) —
+  verifying that the design is trustworthy by solving at multiple seeds and budgets
 - [Goal-Oriented OED: Predator-Prey Prediction](boed_pred_nonlinear_usage.qmd) —
   redesign the same experiment to minimise prediction uncertainty rather than
   parameter estimation error

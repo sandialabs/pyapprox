@@ -49,9 +49,12 @@ website:
         - section: "Bayesian OED"
           contents:
             - boed_kl_concept.qmd
-            - boed_kl_analysis.qmd
+            - boed_kl_estimator.qmd
+            - boed_kl_gradients.qmd
             - boed_kl_usage.qmd
+            - boed_kl_qmc.qmd
             - boed_kl_nonlinear_usage.qmd
+            - boed_kl_design_stability.qmd
             - boed_pred_concept.qmd
             - boed_pred_gaussian_analysis.qmd
             - boed_pred_lognormal_analysis.qmd

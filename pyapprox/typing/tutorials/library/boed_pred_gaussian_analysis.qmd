@@ -47,7 +47,7 @@ Complete [Goal-Oriented Bayesian OED](boed_pred_concept.qmd) before this tutoria
 
 ## Model and Notation
 
-We work with the linear Gaussian model from [Bayesian OED Formulation](boed_kl_analysis.qmd).
+We work with the linear Gaussian model from [Bayesian OED: The Double-Loop Estimator](boed_kl_estimator.qmd).
 The prior is $\boldsymbol{\theta} \sim \mathcal{N}(\boldsymbol{\mu}, \boldsymbol{\Sigma})$,
 the likelihood is $\mathbf{y} \mid \boldsymbol{\theta}, \mathbf{w} \sim
 \mathcal{N}(\boldsymbol{\Phi}\boldsymbol{\theta}, \boldsymbol{\Gamma})$

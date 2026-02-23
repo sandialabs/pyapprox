@@ -1,0 +1,322 @@
+---
+title: "Bayesian OED: The Double-Loop Estimator"
+subtitle: "PyApprox Tutorial Library"
+description: "How the double-loop Monte Carlo estimator approximates EIG by treating the marginal evidence as a nested average over prior samples."
+tutorial_type: analysis
+topic: experimental_design
+difficulty: intermediate
+estimated_time: 10
+prerequisites:
+  - boed_kl_concept
+tags:
+  - experimental-design
+  - information-gain
+  - monte-carlo
+format:
+  html:
+    code-fold: false
+    code-tools: true
+    toc: true
+execute:
+  echo: true
+  warning: false
+jupyter: python3
+---
+
+::: {.callout-tip collapse="true"}
+## Download Notebook
+[Download as Jupyter Notebook](notebooks/boed_kl_estimator.ipynb)
+:::
+
+## Learning Objectives
+
+After completing this tutorial, you will be able to:
+
+- State the mutual-information form of EIG and identify the term that makes it
+  expensive to evaluate
+- Explain why the inner loop approximates the marginal evidence and what determines
+  its accuracy
+- Describe the joint sampling requirement for the outer loop
+- Trace data flow through the double-loop algorithm and identify which arrays must
+  be reused across loops
+
+## Prerequisites
+
+Complete [Learning from Experiments: Bayesian OED](boed_kl_concept.qmd) before
+this tutorial.
+
+## Problem Setup
+
+We observe $K$ candidate measurements. Each sensor $k$ has a **design weight**
+$w_k$ that scales its effective precision. The observation model is:
+
+$$
+y_k \mid \boldsymbol{\theta}, w_k
+\;\sim\; \mathcal{N}\!\left(h_k(\boldsymbol{\theta}),\; \gamma_k / w_k\right),
+$$
+
+where $h_k(\boldsymbol{\theta}) = [\mathbf{f}(\boldsymbol{\theta})]_k$ is the
+forward model at sensor $k$ and $\gamma_k$ is the base noise variance.
+The $K$-sensor joint log-likelihood is:
+
+$$
+\log p(\mathbf{y} \mid \boldsymbol{\theta}, \mathbf{w})
+= -\tfrac{1}{2}\,\mathbf{r}^\top \mathbf{W}^{1/2} \boldsymbol{\Gamma}^{-1}
+  \mathbf{W}^{1/2} \mathbf{r} + C_{\mathbf{w}},
+$$
+
+where $\mathbf{r} = \mathbf{f}(\boldsymbol{\theta}) - \mathbf{y}$,
+$\mathbf{W} = \mathrm{Diag}[\mathbf{w}]$,
+$\boldsymbol{\Gamma} = \mathrm{Diag}[\boldsymbol{\gamma}]$, and
+
+$$
+C_{\mathbf{w}}
+= \tfrac{1}{2}\log\lvert\mathbf{W}^{1/2}\boldsymbol{\Gamma}^{-1}\mathbf{W}^{1/2}\rvert
+= \tfrac{1}{2}\sum_{k=1}^{K}\log(w_k/\gamma_k).
+$$
+
+The weights satisfy $\mathbf{w} \in [0,1]^K$ with $\sum_k w_k = 1$.
+
+### Reparameterized Outer Samples
+
+Because $w_k$ sets the noise variance to $\gamma_k/w_k$, the correct way to
+generate an outer observation is:
+
+$$
+\mathbf{y}^{(m)}(\mathbf{w})
+= \mathbf{f}(\boldsymbol{\theta}^{(m)})
+  + \mathbf{W}^{-1/2}\boldsymbol{\Gamma}^{1/2}\boldsymbol{\varepsilon}^{(m)},
+\quad \boldsymbol{\varepsilon}^{(m)} \sim \mathcal{N}(\mathbf{0}, \mathbf{I}_K).
+$$
+
+Drawing from $\mathcal{N}(\mathbf{0}, \mathbf{I}_K)$ and scaling by
+$\mathbf{W}^{-1/2}\boldsymbol{\Gamma}^{1/2}$ is the **reparameterization** of
+the observation. It keeps the randomness in a fixed standard-normal draw while
+making $\mathbf{y}^{(m)}$ a differentiable function of $\mathbf{w}$. Why this
+matters for gradients is covered in
+[Bayesian OED: Gradients and the Reparameterization Trick](boed_kl_gradients.qmd);
+for estimation alone, the key point is to use $\mathbf{W}^{-1/2}\boldsymbol{\Gamma}^{1/2}$
+scaling, not raw $\boldsymbol{\Gamma}^{1/2}$, when drawing outer noise.
+
+## The Double-Loop Estimator
+
+### Why an Inner Loop?
+
+The mutual information form of EIG is:
+
+$$
+\text{EIG}(\mathbf{w})
+= \mathbb{E}_{p(\boldsymbol{\theta},\mathbf{y}\mid\mathbf{w})}
+  \!\left[
+    \log p(\mathbf{y}\mid\boldsymbol{\theta},\mathbf{w})
+    - \log p(\mathbf{y}\mid\mathbf{w})
+  \right].
+$$
+
+The first term — the log-likelihood — is cheap to evaluate for any
+$(\boldsymbol{\theta}, \mathbf{y})$ pair. The second term — the log **marginal
+evidence** — requires integrating out all parameters:
+
+$$
+p(\mathbf{y}\mid\mathbf{w})
+= \int p(\mathbf{y}\mid\boldsymbol{\theta},\mathbf{w})\,p(\boldsymbol{\theta})\,d\boldsymbol{\theta}.
+$$
+
+This integral is analytically intractable for nonlinear forward models. The inner
+loop approximates it by averaging over $N_\text{in}$ freshly drawn prior samples:
+
+$$
+p(\mathbf{y}\mid\mathbf{w})
+\approx \frac{1}{N_\text{in}}\sum_{n=1}^{N_\text{in}}
+p(\mathbf{y}\mid\boldsymbol{\theta}^{(n)},\mathbf{w}).
+$$
+
+### The Estimator
+
+Substituting the inner-loop approximation and averaging over $M$ outer samples:
+
+$$
+\widehat{\text{EIG}}(\mathbf{w}) = \frac{1}{M} \sum_{m=1}^{M}
+\left\{
+  \log p\!\left(\mathbf{y}^{(m)} \mid \boldsymbol{\theta}^{(m)}, \mathbf{w}\right)
+  - \log\!\left[
+      \frac{1}{N_\text{in}} \sum_{n=1}^{N_\text{in}}
+      p\!\left(\mathbf{y}^{(m)} \mid \boldsymbol{\theta}^{(n)}, \mathbf{w}\right)
+    \right]
+\right\}.
+$$
+
+The outer samples $(\boldsymbol{\theta}^{(m)}, \boldsymbol{\varepsilon}^{(m)})$ are
+drawn jointly from the model. The inner samples $\boldsymbol{\theta}^{(n)}$ are drawn
+independently from the same prior. The observation $\mathbf{y}^{(m)}$ is
+**reused** across all $N_\text{in}$ inner likelihood evaluations — this is what
+makes the estimator a nested loop rather than two independent sweeps.
+
+```{python}
+#| echo: false
+#| fig-cap: "Double-loop estimator flow. Outer loop (blue, left) draws (θ,ε) jointly and forms y(w) via the reparameterization. The observation y^(m) is passed to the inner loop (orange, right), which draws independent θ* samples and averages their likelihoods to approximate the marginal evidence. The outer log-likelihood ℓₘ and inner log-evidence feed the final EIG estimate (green, bottom)."
+#| label: fig-double-loop
+import matplotlib.pyplot as plt
+from matplotlib.patches import FancyBboxPatch
+
+BLUE     = "#2C7FB8"
+ORANGE   = "#E6550D"
+GREEN    = "#31A354"
+GREY     = "#636363"
+LTBLUE   = "#BDD7E7"
+LTORANGE = "#FDDBC7"
+LTGREEN  = "#A1D99B"
+
+fig, ax = plt.subplots(figsize=(13, 7.5))
+ax.set_xlim(0, 13)
+ax.set_ylim(0, 8.0)
+ax.axis("off")
+
+def box(ax, x, y, w, h, text, fc, ec, fontsize=9.5, bold=False):
+    p = FancyBboxPatch((x, y), w, h, boxstyle="round,pad=0.1",
+                       facecolor=fc, edgecolor=ec, linewidth=1.8, zorder=3)
+    ax.add_patch(p)
+    ax.text(x+w/2, y+h/2, text, ha="center", va="center", fontsize=fontsize,
+            fontweight="bold" if bold else "normal", zorder=4, multialignment="center")
+
+def arrow(ax, x0, y0, x1, y1, color=GREY, lw=1.6, ls="solid"):
+    ax.annotate("", xy=(x1,y1), xytext=(x0,y0),
+                arrowprops=dict(arrowstyle="-|>", color=color,
+                                lw=lw, linestyle=ls, mutation_scale=11), zorder=2)
+
+ax.text(1.85, 7.7, "OUTER LOOP  ($M$ samples)",
+        ha="center", fontsize=11, fontweight="bold", color=BLUE)
+ax.text(6.5,  7.7, "SHARED  (reuses outer $\\mathbf{y}$)",
+        ha="center", fontsize=11, fontweight="bold", color=GREEN)
+ax.text(11.2, 7.7, "INNER LOOP  ($N_{\\mathrm{in}}$ samples)",
+        ha="center", fontsize=11, fontweight="bold", color=ORANGE)
+
+box(ax, 0.15, 6.3,  2.1, 0.95, r"$\boldsymbol{\theta}^{(m)} \sim p(\boldsymbol{\theta})$", LTBLUE, BLUE, 9)
+box(ax, 0.15, 4.95, 2.1, 0.95, "$\\boldsymbol{\\varepsilon}^{(m)}\\sim\\mathcal{N}(\\mathbf{0},\\mathbf{I}_K)$", LTBLUE, BLUE, 9)
+box(ax, 0.15, 3.55, 2.1, 0.90, r"$\mathbf{f}(\boldsymbol{\theta}^{(m)})$", LTBLUE, BLUE, 9)
+
+box(ax, 4.5, 6.2, 4.0, 1.05,
+    "$\\mathbf{y}^{(m)}=\\mathbf{f}(\\boldsymbol{\\theta}^{(m)})"
+    "+\\mathbf{W}^{-1/2}\\boldsymbol{\\Gamma}^{1/2}\\boldsymbol{\\varepsilon}^{(m)}$",
+    LTGREEN, GREEN, 8.8)
+box(ax, 4.5, 4.85, 4.0, 1.0,
+    r"$\ell_m = \log p(\mathbf{y}^{(m)} \mid \boldsymbol{\theta}^{(m)}, \mathbf{w})$"
+    "\n(outer log-likelihood)",
+    LTGREEN, GREEN, 8.5)
+box(ax, 4.5, 3.2, 4.0, 1.0,
+    r"$\hat{p}(\mathbf{y}^{(m)}\!\mid\!\mathbf{w}) = "
+    r"\frac{1}{N_{\mathrm{in}}}\!\sum_n p(\mathbf{y}^{(m)}\!\mid\!\boldsymbol{\theta}^{(n)},\mathbf{w})$"
+    "\n(inner evidence average)",
+    LTGREEN, GREEN, 8.0)
+box(ax, 4.5, 1.4, 4.0, 1.2,
+    r"$\widehat{\mathrm{EIG}}=\frac{1}{M}\sum_m"
+    r"\left[\ell_m-\log\hat{p}(\mathbf{y}^{(m)}\mid\mathbf{w})\right]$",
+    "#EDF8FB", GREEN, 9.2, bold=True)
+
+box(ax, 11.0, 6.2,  1.85, 1.05,
+    "$\\boldsymbol{\\theta}^{(n)}\\sim p(\\boldsymbol{\\theta})$\n$n=1,\\ldots,N_{\\mathrm{in}}$",
+    LTORANGE, ORANGE, 8.5)
+box(ax, 11.0, 4.85, 1.85, 0.95, r"$\mathbf{f}(\boldsymbol{\theta}^{(n)})$", LTORANGE, ORANGE, 9)
+box(ax, 11.0, 3.2,  1.85, 1.0,
+    "$\\log p(\\mathbf{y}^{(m)}\\!\\mid\\!\\boldsymbol{\\theta}^{(n)},\\mathbf{w})$\nfor each $(m,n)$",
+    LTORANGE, ORANGE, 7.8)
+
+arrow(ax, 1.2,  6.3,  1.2,  5.9,  BLUE)
+arrow(ax, 1.2,  4.95, 1.2,  4.45, BLUE)
+arrow(ax, 2.25, 6.77, 4.5,  6.72, BLUE)
+arrow(ax, 2.25, 5.42, 4.5,  6.60, BLUE)
+arrow(ax, 2.25, 4.00, 4.5,  6.50, BLUE)
+arrow(ax, 6.5,  6.2,  6.5,  5.85, GREEN)
+arrow(ax, 6.5,  4.85, 6.5,  4.2,  GREEN)
+arrow(ax, 6.5,  3.2,  6.5,  2.6,  GREEN)
+arrow(ax, 11.93, 6.2,  11.93, 5.8,  ORANGE)
+arrow(ax, 11.93, 4.85, 11.93, 4.2,  ORANGE)
+arrow(ax, 8.5,   6.72, 11.0,  3.72, ORANGE)
+arrow(ax, 11.0,  3.7,  8.5,   3.7,  ORANGE)
+
+ax.text(9.85, 5.5,
+        "outer $\\mathbf{y}^{(m)}$\npassed to inner loop",
+        ha="center", va="center", fontsize=8, color=ORANGE, fontstyle="italic",
+        bbox=dict(fc="white", ec=ORANGE, lw=0.8, pad=2, alpha=0.85))
+
+plt.tight_layout(pad=0.2)
+plt.show()
+```
+
+### Computational Steps
+
+**Outer loop** ($M$ samples):
+
+1. Draw $\boldsymbol{\theta}^{(m)} \sim p(\boldsymbol{\theta})$ for $m=1,\ldots,M$.
+2. Evaluate $\mathbf{F} = [\mathbf{f}(\boldsymbol{\theta}^{(1)}), \ldots,
+   \mathbf{f}(\boldsymbol{\theta}^{(M)})]$.
+3. Draw $\boldsymbol{\mathcal{E}} \in \mathbb{R}^{K \times M}$ with columns
+   $\sim \mathcal{N}(\mathbf{0}, \mathbf{I}_K)$ and form
+   $\mathbf{Y} = \mathbf{F} + \mathbf{W}^{-1/2}\boldsymbol{\Gamma}^{1/2}\boldsymbol{\mathcal{E}}$.
+4. Compute per-sample log-likelihood via Cholesky:
+
+   a. $\mathbf{R} = \mathbf{Y} - \mathbf{F}$
+   b. Factorize $\boldsymbol{\Gamma} = \mathbf{L}\mathbf{L}^\top$
+   c. $\mathbf{P} = \mathbf{L}^{-1} \mathbf{W}^{1/2} \mathbf{R}$
+   d. $\ell_m = C_{\mathbf{w}} - \tfrac{1}{2}[\mathbf{P}^\top\mathbf{P}]_{mm}$
+
+**Inner loop** ($N_\text{in}$ samples, reusing $\mathbf{Y}$):
+
+5. Draw $\boldsymbol{\theta}^{(n)} \sim p(\boldsymbol{\theta})$ for $n=1,\ldots,N_\text{in}$
+   (independent of the outer draws).
+6. Evaluate $\mathbf{F}^\star$.
+7. Compute residuals $R^\star_{k,m,n} = Y_{k,m} - F^\star_{k,n}$ for all $(m,n)$.
+8. Compute log-likelihoods, then accumulate the inner evidence via stable log-sum-exp:
+
+$$
+\log\hat{p}(\mathbf{y}^{(m)}\mid\mathbf{w})
+= \log\!\sum_{n=1}^{N_\text{in}}\exp(\ell_n^{(m)}) - \log N_\text{in}.
+$$
+
+**Final estimate:**
+$\widehat{\text{EIG}} = M^{-1}\sum_m [\ell_m - \log\hat{p}(\mathbf{y}^{(m)}\mid\mathbf{w})]$.
+
+::: {.callout-note}
+## Log-sum-exp is essential
+
+Direct summation in probability space underflows to zero at realistic sample sizes.
+Always compute the inner average as $\log(\text{sum of exp})$ then subtract
+$\log N_\text{in}$, using the log-sum-exp trick for stability.
+:::
+
+## Key Takeaways
+
+- The inner loop exists solely to approximate the intractable marginal evidence
+  $p(\mathbf{y}\mid\mathbf{w})$; the outer loop controls the Monte Carlo variance
+  of the full EIG estimate.
+- Outer observations must use the $\mathbf{w}$-dependent noise scaling:
+  $\mathbf{y}^{(m)} = \mathbf{f}(\boldsymbol{\theta}^{(m)}) +
+  \mathbf{W}^{-1/2}\boldsymbol{\Gamma}^{1/2}\boldsymbol{\varepsilon}^{(m)}$.
+- The observation $\mathbf{y}^{(m)}$ is reused across all $N_\text{in}$ inner
+  evaluations; inner samples are drawn independently.
+- Log-sum-exp is required when accumulating the inner average.
+- Convergence depends on both $M$ (variance) and $N_\text{in}$ (bias); see
+  [Bayesian OED: Verifying Convergence](boed_kl_usage.qmd) for empirical rates.
+
+## Exercises
+
+1. In step 8, why must log-sum-exp be computed over axis $n$ (inner samples)
+   rather than axis $m$ (outer samples)?
+
+2. Suppose the forward model is linear, $\mathbf{f}(\boldsymbol{\theta}) =
+   \mathbf{A}\boldsymbol{\theta}$, and the prior is Gaussian. Show that the inner-loop
+   average converges to the exact marginal as $N_\text{in}\to\infty$ and write down
+   what $p(\mathbf{y}\mid\mathbf{w})$ equals analytically.
+
+3. The estimator is biased downward for finite $N_\text{in}$. In which direction
+   does the bias go as $N_\text{in}\to\infty$, and why?
+
+4. What goes wrong if inner samples $\boldsymbol{\theta}^{(n)}$ are reused from
+   the outer loop instead of drawn independently?
+
+## Next Steps
+
+- [Bayesian OED: Gradients and the Reparameterization Trick](boed_kl_gradients.qmd) —
+  why $\partial\mathbf{y}/\partial\mathbf{w} \neq 0$ and how this changes the gradient
+- [Bayesian OED: Verifying Convergence](boed_kl_usage.qmd) — measuring MSE,
+  bias, and variance with `KLOEDDiagnostics`

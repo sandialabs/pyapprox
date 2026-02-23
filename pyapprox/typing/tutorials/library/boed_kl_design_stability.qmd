@@ -1,0 +1,282 @@
+---
+title: "Bayesian OED: Design Stability and Convergence"
+subtitle: "PyApprox Tutorial Library"
+description: "Demonstrating that OED designs depend on Monte Carlo realizations at fixed budget, and that they stabilize as the budget grows."
+tutorial_type: analysis
+topic: experimental_design
+difficulty: intermediate
+estimated_time: 10
+prerequisites:
+  - boed_kl_concept
+  - boed_kl_usage
+  - boed_kl_nonlinear_usage
+tags:
+  - experimental-design
+  - convergence
+  - monte-carlo
+  - design-stability
+format:
+  html:
+    code-fold: false
+    code-tools: true
+    toc: true
+execute:
+  echo: true
+  warning: false
+jupyter: python3
+---
+
+::: {.callout-tip collapse="true"}
+## Download Notebook
+[Download as Jupyter Notebook](notebooks/boed_kl_design_stability.ipynb)
+:::
+
+## Learning Objectives
+
+After completing this tutorial, you will be able to:
+
+- Explain why optimal designs vary between independent MC runs at a fixed budget
+- Demonstrate the variability by solving the same OED problem with different
+  random seeds
+- Confirm that designs stabilize as the outer-loop budget $M$ increases
+- Identify when a design is trustworthy enough to act on
+
+## Prerequisites
+
+Complete [Bayesian OED in Practice](boed_kl_nonlinear_usage.qmd) before this
+tutorial. That tutorial solves a nonlinear OED problem once; here we examine
+how the solution depends on the Monte Carlo randomness used to build the
+objective.
+
+## Why Do Designs Vary?
+
+The EIG objective is an *expectation* estimated with a finite Monte Carlo sum.
+Every independent set of outer/inner draws produces a slightly different
+objective landscape, and therefore a slightly different optimal design.
+
+This is **not** a bug — it is the statistical reality of working with
+Monte Carlo estimates. The key questions are:
+
+1. **At a fixed budget**, how much do designs scatter across independent runs?
+2. **As the budget grows**, does the scatter shrink and the design converge?
+
+A design that changes substantially between independent runs cannot be trusted.
+Stability across multiple seeds is a necessary condition for a reliable OED
+solution.
+
+## Setup
+
+We reuse the Lotka-Volterra predator-prey benchmark from the nonlinear tutorial.
+
+```{python}
+import math
+import numpy as np
+import matplotlib.pyplot as plt
+from pyapprox.typing.util.backends.numpy import NumpyBkd
+from pyapprox.typing.expdesign.benchmarks import LotkaVolterraOEDBenchmark
+from pyapprox.typing.expdesign.data import OEDDataGenerator
+from pyapprox.typing.expdesign import (
+    GaussianOEDInnerLoopLikelihood,
+    create_kl_oed_objective_from_data,
+    RelaxedKLOEDSolver,
+    RelaxedOEDConfig,
+)
+
+np.random.seed(1)
+bkd = NumpyBkd()
+
+benchmark = LotkaVolterraOEDBenchmark(bkd, final_time=50.0, deltat=2.0, stepper="heun")
+obs_model = benchmark.observation_model()
+prior     = benchmark.prior()
+nparams   = prior.nvars()
+nobs      = obs_model.nqoi()
+
+noise_std = 0.1
+noise_variances = bkd.full((nobs,), noise_std**2)
+noise_cov_diag  = bkd.full((nobs,), noise_std**2)
+
+data_gen  = OEDDataGenerator(bkd)
+joint_var = data_gen.joint_prior_noise_variable(prior, noise_cov_diag)
+
+obs_times = bkd.to_numpy(benchmark.observation_times())
+```
+
+## Helper: Solve OED for a Given Budget and Seed
+
+```{python}
+def solve_oed(M, seed):
+    """Solve the relaxed KL-OED problem for a given outer budget and seed.
+
+    Returns the optimal weight vector reshaped as (2, ntimes).
+    """
+    N_in = int(math.sqrt(M))
+
+    outer_s, outer_w = data_gen.setup_quadrature_data(
+        "MC", joint_var, M, "outer", seed=seed)
+    inner_s, inner_w = data_gen.setup_quadrature_data(
+        "MC", prior, N_in, "inner", seed=seed + 500_000)
+
+    theta_o  = outer_s[:nparams, :]
+    latent_o = outer_s[nparams:, :]
+    o_shapes = obs_model(theta_o)
+    i_shapes = obs_model(inner_s)
+
+    obj = create_kl_oed_objective_from_data(
+        noise_variances, o_shapes, i_shapes, latent_o, bkd,
+        outer_quad_weights=outer_w, inner_quad_weights=inner_w,
+    )
+    solver = RelaxedKLOEDSolver(obj, RelaxedOEDConfig(maxiter=200, verbosity=0))
+    w_opt, eig = solver.solve()
+    return bkd.to_numpy(w_opt).reshape((2, -1)), eig
+```
+
+## Design Variability at Fixed Budget
+
+We solve the OED problem three times at $M = 2{,}000$ with different random
+seeds. At this moderate budget the EIG estimate is noisy, so the optimal
+designs should differ visibly between runs.
+
+```{python}
+M_fixed = 2000
+n_seeds = 3
+
+designs_fixed = []
+eigs_fixed    = []
+for seed in range(n_seeds):
+    w, e = solve_oed(M_fixed, seed=seed * 1000)
+    designs_fixed.append(w)
+    eigs_fixed.append(e)
+    print(f"  seed {seed}: EIG = {e:.4f} nats")
+```
+
+```{python}
+#| echo: false
+#| fig-cap: "Optimal design weights from 3 independent MC realizations at M=2,000. The designs share the same broad structure (peaks near the same times) but differ in magnitude, showing that the Monte Carlo noise in the EIG estimate propagates to the design."
+#| label: fig-variability
+
+state_labels = ["State 1 (prey)", "State 3 (predator)"]
+BLUE   = "#2C7FB8"
+ORANGE = "#D95F02"
+GREEN  = "#31A354"
+seed_colors = [BLUE, ORANGE, GREEN]
+
+fig, axes = plt.subplots(1, 2, figsize=(13, 4.5), sharey=True)
+for col in range(2):
+    ax = axes[col]
+    for trial, w_2d in enumerate(designs_fixed):
+        ax.plot(obs_times, w_2d[col], "o-", ms=4, lw=1.5, alpha=0.7,
+                color=seed_colors[trial], label=f"seed {trial}")
+    ax.set_title(f"{state_labels[col]}  ($M = {M_fixed:,}$)", fontsize=11)
+    ax.set_xlabel("Observation time (s)", fontsize=10)
+    ax.grid(True, alpha=0.2)
+    ax.spines[["top", "right"]].set_visible(False)
+
+axes[0].set_ylabel("Design weight", fontsize=10)
+axes[0].legend(fontsize=9)
+plt.suptitle(f"Design variability at fixed budget $M = {M_fixed:,}$",
+             fontsize=12, fontweight="bold")
+plt.tight_layout()
+plt.show()
+```
+
+The three designs share the same qualitative shape — the optimizer finds the
+same informative time windows — but the exact weight values differ. This
+variability is the fingerprint of finite-sample noise in the EIG estimate.
+
+## Design Convergence with Increasing Budget
+
+As we increase $M$, the EIG estimate becomes more accurate and the optimal
+designs should converge. The figure below overlays designs from multiple
+seeds at each of several budgets; the spread should shrink with $M$.
+
+::: {.callout-note}
+## Computational cost
+
+Each budget level requires `n_seeds` independent forward-model evaluations
+and optimizations. For expensive models, this convergence study is itself
+a significant investment — but it is the only reliable way to verify that
+your design is trustworthy.
+:::
+
+```{python}
+budgets = [2000, 5000, 10000]
+n_seeds = 3
+
+all_designs = {}
+for M in budgets:
+    designs_at_M = []
+    for seed in range(n_seeds):
+        w, e = solve_oed(M, seed=seed * 1000)
+        designs_at_M.append(w)
+        print(f"  M={M:6d}, seed {seed}: EIG = {e:.4f}")
+    all_designs[M] = designs_at_M
+```
+
+```{python}
+#| echo: false
+#| fig-cap: "Design weights from 3 independent MC realizations at three outer-loop budgets. At M=2,000 the designs scatter visibly. By M=10,000 the curves nearly overlap, confirming that the design has stabilized."
+#| label: fig-design-convergence
+
+fig, axes = plt.subplots(len(budgets), 2, figsize=(13, 3.0 * len(budgets)),
+                         sharex=True, sharey=True)
+
+for row, M in enumerate(budgets):
+    for col in range(2):
+        ax = axes[row, col]
+        for trial, w_2d in enumerate(all_designs[M]):
+            ax.plot(obs_times, w_2d[col], "o-", ms=3, lw=1.2, alpha=0.6,
+                    color=seed_colors[trial],
+                    label=f"seed {trial}" if row == 0 and col == 0 else None)
+        ax.set_title(f"$M={M:,}$  —  {state_labels[col]}", fontsize=10)
+        ax.grid(True, alpha=0.2)
+        ax.spines[["top", "right"]].set_visible(False)
+        if col == 0:
+            ax.set_ylabel("Design weight", fontsize=10)
+        if row == len(budgets) - 1:
+            ax.set_xlabel("Observation time (s)", fontsize=10)
+
+axes[0, 0].legend(fontsize=8, ncol=3, loc="upper right")
+plt.suptitle("Design convergence: MC realizations at increasing budget",
+             fontsize=12, fontweight="bold")
+plt.tight_layout()
+plt.show()
+```
+
+::: {.callout-tip}
+## When is the design "converged"?
+
+A pragmatic criterion: if adding more samples does not change which time
+points receive the largest weights, the design is stable enough to act on.
+The exact weight magnitudes may still fluctuate, but the *ranking* of
+observation times should be consistent.
+:::
+
+## Key Takeaways
+
+- At any finite MC budget, optimal designs are random variables — they depend on
+  the particular samples drawn to build the EIG objective.
+- The qualitative structure (which times are informative) emerges at moderate
+  budgets, but exact weight values require larger budgets to stabilize.
+- Always verify design stability by solving at multiple independent seeds before
+  acting on the result.
+- For expensive forward models, the convergence study is itself costly but
+  essential for trustworthy designs.
+
+## Exercises
+
+1. Add $M = 30{,}000$ to the `budgets` list and re-run. Does the design change
+   materially compared to $M = 10{,}000$?
+
+2. For a fixed $M = 5{,}000$, try increasing `n_seeds` to 10. What is the
+   standard deviation of the design weight at the most informative time point?
+
+3. Replace `"MC"` with `"Halton"` in the outer-loop sampling. Does the design
+   variability decrease at the same budget? (See
+   [MC vs. Halton](boed_kl_qmc.qmd) for background.)
+
+## Next Steps
+
+- [MC vs. Halton for EIG Estimation](boed_kl_qmc.qmd) — reducing estimator
+  variance with quasi-Monte Carlo sampling
+- [Goal-Oriented Bayesian OED](boed_pred_concept.qmd) — when prediction
+  accuracy matters more than parameter estimation

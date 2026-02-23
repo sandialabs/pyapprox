@@ -61,6 +61,8 @@ class ODEBenchmarkWrapper:
 
 def lotka_volterra_3species(
     bkd: Backend[Array],
+    final_time: float = 10.0,
+    deltat: float = 1.0,
 ) -> ODEBenchmarkWrapper:
     """Create the 3-species competitive Lotka-Volterra benchmark.
 
@@ -74,6 +76,10 @@ def lotka_volterra_3species(
     ----------
     bkd : Backend[Array]
         Backend for array operations.
+    final_time : float, optional
+        Final simulation time. Default 10.0.
+    deltat : float, optional
+        Time step. Default 1.0.
 
     Returns
     -------
@@ -124,13 +130,13 @@ def lotka_volterra_3species(
             initial_condition=initial_condition,
             nominal_parameters=nominal_parameters,
             init_time=0.0,
-            final_time=10.0,
-            deltat=1.0,
+            final_time=final_time,
+            deltat=deltat,
         ),
         _time_config=ODETimeConfig(
             init_time=0.0,
-            final_time=10.0,
-            deltat=1.0,
+            final_time=final_time,
+            deltat=deltat,
         ),
         _prior=prior,
         _description="3-species competitive Lotka-Volterra",

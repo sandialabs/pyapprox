@@ -5,7 +5,7 @@ description: "Why targeting prediction uncertainty rather than parameter uncerta
 tutorial_type: concept
 topic: experimental_design
 difficulty: intermediate
-estimated_time: 8
+estimated_time: 10
 prerequisites:
   - experimental_design_intro
   - boed_kl_concept
@@ -35,6 +35,8 @@ jupyter: python3
 After completing this tutorial, you will be able to:
 
 - Explain why EIG-based OED can be suboptimal when the goal is prediction
+- Use a 2D parameter ellipse to visualize why EIG-optimal sensors can leave
+  push-forward uncertainty completely unchanged
 - Define the goal-oriented utility in terms of posterior push-forward variance
 - Describe how a risk measure replaces simple variance for vector-valued QoIs
 - Identify the role of the double-loop estimator for goal-oriented utility
@@ -46,11 +48,163 @@ Complete [Learning from Experiments](boed_kl_concept.qmd) before this tutorial.
 ## Why EIG Can Be the Wrong Objective
 
 Consider a model with two parameters $\boldsymbol{\theta} = (\theta_1, \theta_2)$:
-one controls a large-scale trend (high prior variance, easy to identify) and one
-controls a local detail (low prior variance, hard to identify). Maximizing EIG
-will preferentially place sensors to identify $\theta_1$ because it drives most
-of the KL divergence. But if the downstream QoI depends almost entirely on
-$\theta_2$, those sensors are wasted.
+$\theta_1$ controls a large-scale trend (high prior variance, easy to identify)
+and $\theta_2$ controls a local feature (lower prior variance, harder to identify).
+Maximizing EIG preferentially places sensors to identify $\theta_1$ because it
+drives most of the KL divergence. But if the downstream quantity of interest (QoI)
+depends almost entirely on $\theta_2$, those sensors are wasted.
+
+The figure below makes this concrete. The model is:
+
+$$
+f(\boldsymbol{\theta}, x)
+= \theta_1 \cos\!\left(\tfrac{\pi x}{2}\right)
++ \theta_2 \sin\!\left(\tfrac{\pi x}{2}\right),
+\quad x \in [0, 1],
+$$
+
+with prior $\theta_1 \sim \mathcal{N}(0, 4)$, $\theta_2 \sim \mathcal{N}(0, 0.25)$,
+noise $\sigma_n = 0.5$, and QoI $q(\boldsymbol{\theta}) = \theta_2$.
+A sensor at $x=0$ measures only $\theta_1$ (since $\cos 0 = 1$, $\sin 0 = 0$).
+A sensor at $x=1$ measures only $\theta_2$ (since $\cos\tfrac{\pi}{2} = 0$,
+$\sin\tfrac{\pi}{2} = 1$). Both sensors generate identical EIG up to a scalar
+— yet only one reduces prediction uncertainty.
+
+```{python}
+#| echo: false
+#| fig-cap: "Top row: 2D posterior ellipses (1σ and 2σ) in parameter space for each design. The green double-headed arrow marks the QoI direction θ₂. Design A (EIG-optimal) tightly constrains θ₁ but leaves the ellipse width in the θ₂ direction unchanged; Design B constrains θ₂ directly. Bottom row: the resulting 1D push-forward distributions p(q(θ)|y,w). Design A's push-forward is identical to the prior — the experiment gave zero benefit for prediction. Design B's push-forward is 30% narrower."
+#| label: fig-pushforward-intuition
+import numpy as np
+import matplotlib.pyplot as plt
+from matplotlib.patches import Ellipse
+from scipy import stats
+
+sigma1, sigma2, sigma_n = 2.0, 0.5, 0.5
+Sigma0     = np.diag([sigma1**2, sigma2**2])
+Sigma0_inv = np.diag([1/sigma1**2, 1/sigma2**2])
+c = np.array([0., 1.])   # QoI gradient: q(θ) = θ₂
+
+def sensor_row(x):
+    return np.array([np.cos(np.pi*x/2), np.sin(np.pi*x/2)])
+
+def posterior_cov(x_locs):
+    rows = np.vstack([sensor_row(x) for x in x_locs])
+    return np.linalg.inv(rows.T @ rows / sigma_n**2 + Sigma0_inv)
+
+def pf_std(x_locs):
+    return np.sqrt(c @ posterior_cov(x_locs) @ c)
+
+def eig_val(x_locs):
+    Sp = posterior_cov(x_locs)
+    _, ld0 = np.linalg.slogdet(Sigma0)
+    _, ld1 = np.linalg.slogdet(Sp)
+    return 0.5*(ld0 - ld1)
+
+def cov_ellipse(ax, cov, center, nstd, color, lw, ls="-", label=None):
+    vals, vecs = np.linalg.eigh(cov)
+    order = vals.argsort()[::-1]
+    vals, vecs = vals[order], vecs[:, order]
+    angle = np.degrees(np.arctan2(*vecs[:, 0][::-1]))
+    e = Ellipse(xy=center,
+                width=2*nstd*np.sqrt(vals[0]), height=2*nstd*np.sqrt(vals[1]),
+                angle=angle, edgecolor=color, fc="none", lw=lw, ls=ls, label=label)
+    ax.add_patch(e)
+
+BLUE   = "#2C7FB8"
+ORANGE = "#E6550D"
+GREEN  = "#31A354"
+GREY   = "#888888"
+
+Spost_A = posterior_cov([0.0])
+Spost_B = posterior_cov([1.0])
+eig_A   = eig_val([0.0])
+eig_B   = eig_val([1.0])
+
+fig = plt.figure(figsize=(11, 9))
+fig.suptitle("EIG-optimal designs can leave prediction uncertainty unchanged",
+             fontsize=13, fontweight="bold", y=0.99)
+
+gs = fig.add_gridspec(2, 2, hspace=0.40, wspace=0.35)
+ax_A2d = fig.add_subplot(gs[0, 0])
+ax_B2d = fig.add_subplot(gs[0, 1], sharey=ax_A2d)
+ax_Apf = fig.add_subplot(gs[1, 0])
+ax_Bpf = fig.add_subplot(gs[1, 1], sharey=ax_Apf)
+
+theta2_g = np.linspace(-1.5, 1.5, 400)
+
+for ax_2d, ax_pf, Spost, title, subtitle, color in [
+    (ax_A2d, ax_Apf, Spost_A,
+     f"Design A  (EIG-optimal, $x=0$)",
+     f"EIG = {eig_A:.2f} nats", ORANGE),
+    (ax_B2d, ax_Bpf, Spost_B,
+     f"Design B  (Pred-OED-optimal, $x=1$)",
+     f"EIG = {eig_B:.2f} nats", BLUE),
+]:
+    # ── 2D ellipses ───────────────────────────────────────────────────────
+    ax_2d.set_xlim(-6.5, 6.5)
+    ax_2d.set_ylim(-1.55, 1.55)
+    ax_2d.axhline(0, color="lightgrey", lw=0.8, zorder=0)
+    ax_2d.axvline(0, color="lightgrey", lw=0.8, zorder=0)
+
+    cov_ellipse(ax_2d, Sigma0, (0,0), nstd=2, color=GREY,  lw=2.0, ls="--",
+                label="Prior (2$\\sigma$)")
+    cov_ellipse(ax_2d, Sigma0, (0,0), nstd=1, color=GREY,  lw=1.2, ls="--")
+    cov_ellipse(ax_2d, Spost,  (0,0), nstd=2, color=color, lw=2.5,
+                label="Posterior (2$\\sigma$)")
+    cov_ellipse(ax_2d, Spost,  (0,0), nstd=1, color=color, lw=1.5)
+
+    # QoI direction arrow
+    ax_2d.annotate("", xy=(5.8, 0.85), xytext=(5.8, -0.85),
+                   arrowprops=dict(arrowstyle="<->", color=GREEN, lw=2.2))
+    ax_2d.text(5.35, 0.0, "$q=\\theta_2$",
+               color=GREEN, fontsize=9, ha="right", va="center", fontweight="bold")
+
+    ax_2d.set_xlabel("$\\theta_1$  (trend)", fontsize=10)
+    ax_2d.set_ylabel("$\\theta_2$  (QoI)", fontsize=10)
+    ax_2d.set_title(f"{title}\n{subtitle}",
+                    fontsize=10, fontweight="bold", color=color)
+    ax_2d.legend(fontsize=8.5, loc="upper left")
+    ax_2d.spines[["top", "right"]].set_visible(False)
+
+    # ── 1D push-forward ───────────────────────────────────────────────────
+    prior_pf = stats.norm.pdf(theta2_g, 0, sigma2)
+    post_std  = np.sqrt(c @ Spost @ c)
+    post_pf   = stats.norm.pdf(theta2_g, 0, post_std)
+
+    ax_pf.fill_between(theta2_g, prior_pf, alpha=0.15, color=GREY)
+    ax_pf.plot(theta2_g, prior_pf, color=GREY,  lw=2.0, ls="--",
+               label=f"Prior $q$  (std = {sigma2:.2f})")
+    ax_pf.fill_between(theta2_g, post_pf, alpha=0.25, color=color)
+    ax_pf.plot(theta2_g, post_pf, color=color, lw=2.5,
+               label=f"Posterior $q$  (std = {post_std:.2f})")
+
+    ax_pf.set_xlabel("QoI  $q(\\boldsymbol{\\theta}) = \\theta_2$", fontsize=10)
+    ax_pf.set_ylabel("Density", fontsize=10)
+    ax_pf.set_xlim(-1.5, 1.5)
+    ax_pf.set_ylim(0)
+    ax_pf.legend(fontsize=8.5)
+    ax_pf.grid(True, alpha=0.18)
+    ax_pf.spines[["top", "right"]].set_visible(False)
+    ax_pf.text(0.97, 0.93, f"Push-forward std = {post_std:.3f}",
+               transform=ax_pf.transAxes, ha="right", va="top",
+               fontsize=9.5, fontweight="bold", color=color,
+               bbox=dict(fc="white", ec=color, lw=1, pad=2, alpha=0.9))
+
+ax_Apf.set_title("Push-forward: prior $\\approx$ posterior",
+                  fontsize=9, color=GREY, pad=4)
+ax_Bpf.set_title("Push-forward: posterior is narrower",
+                  fontsize=9, color=BLUE, pad=4)
+
+plt.savefig("/tmp/_fig_pf_intuition.png", dpi=10)  # discard
+plt.show()
+```
+
+The key insight: Design A has **4× higher EIG** because it reduces uncertainty about
+the high-variance parameter $\theta_1$ — but $\theta_1$ is irrelevant to the QoI.
+Its posterior ellipse shrinks in the $\theta_1$ direction (horizontal), leaving the
+$\theta_2$ direction (vertical, green arrow) unchanged. The push-forward is
+**identical to the prior**. Design B has lower EIG but directly constrains $\theta_2$,
+giving a 30% narrower push-forward.
 
 **Goal-oriented OED** replaces the EIG criterion with a utility that directly
 measures prediction uncertainty after the experiment.
@@ -89,7 +243,142 @@ $$
 Risk-averse choices — such as Average Value at Risk (AVaR) — can also be used
 when the worst-case QoI deviation matters more than the average.
 
-## From Variance to Standard Deviation Deviation
+## The Push-Forward as an Average
+
+Like EIG, the goal-oriented utility $U(\mathbf{w})$ is an expectation over
+observations. For each outer sample $\mathbf{y}^{(m)}$ you obtain a different
+posterior push-forward, and $U(\mathbf{w})$ averages their variance.
+
+```{python}
+#| echo: false
+#| fig-cap: "Left: 12 outer samples each produce a push-forward posterior p(q|y^(m),w) (thin blue curves). For the linear Gaussian model, all have the same width (variance does not depend on the specific observation). The utility U(w) equals this common variance. The grey dashed curve is the prior push-forward. Right: EIG(x) (orange, left axis) and push-forward std (blue dashed, right axis) as functions of a single-sensor location. The two criteria are maximised/minimised at opposite ends of the domain — EIG peaks at x=0 (where θ₁ is measured), prediction utility peaks at x=1 (where θ₂ is measured)."
+#| label: fig-utility-as-average
+import numpy as np
+import matplotlib.pyplot as plt
+from scipy import stats
+
+rng = np.random.default_rng(42)
+
+sigma1, sigma2, sigma_n = 2.0, 0.5, 0.5
+Sigma0     = np.diag([sigma1**2, sigma2**2])
+Sigma0_inv = np.diag([1/sigma1**2, 1/sigma2**2])
+c = np.array([0., 1.])
+
+def sensor_row(x):
+    return np.array([np.cos(np.pi*x/2), np.sin(np.pi*x/2)])
+
+def posterior_cov(x_locs):
+    rows = np.vstack([sensor_row(x) for x in x_locs])
+    return np.linalg.inv(rows.T @ rows / sigma_n**2 + Sigma0_inv)
+
+def pf_std_fn(x_locs):
+    return np.sqrt(c @ posterior_cov(x_locs) @ c)
+
+def eig_fn(x_locs):
+    Sp = posterior_cov(x_locs)
+    _, ld0 = np.linalg.slogdet(Sigma0)
+    _, ld1 = np.linalg.slogdet(Sp)
+    return 0.5*(ld0 - ld1)
+
+# ── Left panel: multiple push-forward posteriors ──────────────────────────
+x_demo = [0.3, 0.6, 0.9]   # mixed design: partial θ₂ information
+Spost   = posterior_cov(x_demo)
+A_demo  = np.vstack([sensor_row(x) for x in x_demo])
+pf_std_demo = np.sqrt(c @ Spost @ c)
+
+M = 12
+theta_true = rng.multivariate_normal([0, 0], Sigma0, size=M)
+eps   = rng.normal(0, sigma_n, (M, 3))
+y_obs = theta_true @ A_demo.T + eps
+
+post_means = np.array(
+    [(Spost @ (A_demo.T @ y_obs[m] / sigma_n**2))[1] for m in range(M)]
+)
+
+theta2_g = np.linspace(-1.8, 1.8, 400)
+
+BLUE   = "#2C7FB8"
+ORANGE = "#E6550D"
+GREY   = "#888888"
+
+fig, axes = plt.subplots(1, 2, figsize=(12, 4.6))
+fig.suptitle("Goal-oriented utility = expected push-forward variance",
+             fontsize=12, fontweight="bold")
+
+ax = axes[0]
+prior_pf = stats.norm.pdf(theta2_g, 0, sigma2)
+ax.fill_between(theta2_g, prior_pf, alpha=0.12, color=GREY)
+ax.plot(theta2_g, prior_pf, color=GREY, lw=2.5, ls="--",
+        label=f"Prior push-forward  (std = {sigma2:.2f})")
+for m in range(M):
+    ax.plot(theta2_g,
+            stats.norm.pdf(theta2_g, post_means[m], pf_std_demo),
+            color=BLUE, lw=1.0, alpha=0.45)
+ax.plot([], [], color=BLUE, lw=1.8, alpha=0.7,
+        label=f"Posterior push-forwards  (std = {pf_std_demo:.2f} each)")
+ax.set_xlabel("QoI  $q(\\boldsymbol{\\theta}) = \\theta_2$", fontsize=11)
+ax.set_ylabel("Density", fontsize=11)
+ax.set_title(f"$M={M}$ outer samples $\\to$ $M$ push-forward posteriors\n"
+             "(same width, different centres — Gaussian case)",
+             fontsize=9.5)
+ax.set_xlim(-1.8, 1.8)
+ax.set_ylim(0)
+ax.legend(fontsize=9.5)
+ax.grid(True, alpha=0.18)
+ax.spines[["top", "right"]].set_visible(False)
+ax.text(0.97, 0.93,
+        "Width = push-forward std\n$U(\\mathbf{w})$ = expected (variance of) width",
+        transform=ax.transAxes, ha="right", va="top", fontsize=9,
+        bbox=dict(fc="white", ec=BLUE, lw=1, pad=2, alpha=0.9), color=BLUE)
+
+# ── Right panel: EIG(x) vs push-forward std(x) ───────────────────────────
+xs    = np.linspace(0.01, 0.99, 200)
+eigs  = [eig_fn([x]) for x in xs]
+pfstds = [pf_std_fn([x]) for x in xs]
+
+ax  = axes[1]
+ax2 = ax.twinx()
+ln1, = ax.plot(xs,  eigs,  color=ORANGE, lw=2.5,
+               label=f"EIG  (max at $x=0$)")
+ln2, = ax2.plot(xs, pfstds, color=BLUE, lw=2.5, ls="--",
+                label=f"Push-forward std  (min at $x=1$)")
+ax.axvline(xs[np.argmax(eigs)],   color=ORANGE, lw=1.2, ls=":", alpha=0.7)
+ax2.axvline(xs[np.argmin(pfstds)], color=BLUE,  lw=1.2, ls=":", alpha=0.7)
+ax.set_xlabel("Sensor location $x$", fontsize=11)
+ax.set_ylabel("EIG (nats)", fontsize=11, color=ORANGE)
+ax2.set_ylabel("Push-forward std of $q$", fontsize=11, color=BLUE)
+ax.tick_params(axis="y", labelcolor=ORANGE)
+ax2.tick_params(axis="y", labelcolor=BLUE)
+ax.set_title("EIG and prediction utility disagree on the optimal sensor",
+             fontsize=9.5)
+ax.grid(True, alpha=0.18)
+ax.legend([ln1, ln2], [ln1.get_label(), ln2.get_label()],
+          fontsize=9.5, loc="center right")
+ax.spines[["top"]].set_visible(False)
+ax2.spines[["top"]].set_visible(False)
+
+plt.tight_layout()
+plt.show()
+```
+
+The right panel crystallises the key tension: EIG peaks at $x=0$ because a sensor
+there explains most of the prior variance (all from $\theta_1$). The push-forward
+std is **minimised at the opposite end**, $x=1$, because only there does a sensor
+directly constrain $\theta_2$. Every intermediate location involves a tradeoff,
+and the two criteria rank them in reverse order.
+
+::: {.callout-note}
+## Why variance does not depend on $\mathbf{y}$ here
+
+For a linear Gaussian model, the posterior covariance $\boldsymbol{\Sigma}_\text{post}$
+is independent of the observed values $\mathbf{y}$ — it depends only on the design
+matrix. So the push-forward variance $\mathbf{c}^\top\boldsymbol{\Sigma}_\text{post}\mathbf{c}$
+is the same for every outer sample, and $U(\mathbf{w})$ equals that constant variance.
+For nonlinear models this no longer holds: the outer expectation genuinely matters
+and requires Monte Carlo estimation.
+:::
+
+## From Variance to Deviation Measure
 
 In practice, the utility is often expressed in terms of a **deviation measure**:
 
@@ -113,64 +402,160 @@ The goal-oriented utility requires the same outer-inner loop structure as EIG:
 2. **Inner loop** ($N_\text{in}$ samples): approximate the posterior variance by
    importance-weighted averaging over fresh prior samples.
 
-A key difference from the EIG estimator: for goal-oriented OED, **the inner loop
+A key difference from the EIG estimator: for goal-oriented OED, the **inner loop
 dominates** convergence because the posterior variance involves a quadratic
 combination of QoI values and likelihoods. This is the opposite of EIG, where the
 outer loop dominates. The [usage tutorial](boed_pred_usage.qmd) demonstrates this
 numerically.
 
+The figure below shows how the push-forward shrinks as sensors accumulate under
+each design, and the utility landscape for a single-sensor sweep — the direct
+parallel to the [posterior-shrinkage figure](boed_kl_concept.qmd#fig-posterior-shrinkage)
+in the KL-OED tutorial.
+
 ```{python}
 #| echo: false
+#| fig-cap: "Left: push-forward std of q(θ)=θ₂ as sensors are added for the EIG-optimal design (x=0, orange) and the Pred-OED-optimal design (x=1, blue). Design A never reduces prediction uncertainty regardless of how many sensors are added — it is exactly at the prior std for all K. Middle: push-forward PDFs at K=5 sensors; Design B's push-forward is 2.5× narrower. Right: goal-oriented utility landscape (push-forward std vs. sensor location) for a single sensor, showing the monotone improvement as x→1."
+#| label: fig-pushforward-shrinkage
 import numpy as np
 import matplotlib.pyplot as plt
-from pyapprox.typing.util.backends.numpy import NumpyBkd
+from scipy import stats
 
-# Illustrative comparison: EIG OED weight vs. Pred OED weight
-# for a 1-D polynomial model where theta_1 is scale, theta_2 is offset
-# EIG gives equal weight; Pred OED concentrates on the QoI-sensitive region
-bkd = NumpyBkd()
-x = np.linspace(-1, 1, 200)
-# Sensitivity of QoI (evaluated at x=0.8) to each observation location
-sens_eig  = 0.5 * np.ones_like(x)   # flat: EIG weights all observations equally
-sens_pred = np.exp(-((x - 0.8)**2) / 0.1)  # peaks near x=0.8 (QoI location)
-sens_pred /= sens_pred.max()
+sigma1, sigma2, sigma_n = 2.0, 0.5, 0.5
+Sigma0     = np.diag([sigma1**2, sigma2**2])
+Sigma0_inv = np.diag([1/sigma1**2, 1/sigma2**2])
+c = np.array([0., 1.])
 
-fig, ax = plt.subplots(figsize=(8, 3.5))
-ax.fill_between(x, sens_eig, alpha=0.3, color="#2C7FB8", label="EIG (uniform)")
-ax.fill_between(x, sens_pred, alpha=0.4, color="#D95F02", label="Goal-oriented")
-ax.set_xlabel("Observation location $x$", fontsize=12)
-ax.set_ylabel("Design weight (schematic)", fontsize=12)
-ax.set_title("EIG vs. goal-oriented OED weight allocation", fontsize=11)
-ax.legend(fontsize=10)
+def sensor_row(x):
+    return np.array([np.cos(np.pi*x/2), np.sin(np.pi*x/2)])
+
+def posterior_cov(x_locs):
+    rows = np.vstack([sensor_row(x) for x in x_locs])
+    return np.linalg.inv(rows.T @ rows / sigma_n**2 + Sigma0_inv)
+
+def pf_std(x_locs):
+    return np.sqrt(c @ posterior_cov(x_locs) @ c)
+
+BLUE   = "#2C7FB8"
+ORANGE = "#E6550D"
+GREY   = "#888888"
+
+nobs_sweep = list(range(1, 11))
+pf_A = [pf_std([0.0]*K) for K in nobs_sweep]
+pf_B = [pf_std([1.0]*K) for K in nobs_sweep]
+
+K_show   = 5
+Spost_A5 = posterior_cov([0.0]*K_show)
+Spost_B5 = posterior_cov([1.0]*K_show)
+pf_A5    = np.sqrt(c @ Spost_A5 @ c)
+pf_B5    = np.sqrt(c @ Spost_B5 @ c)
+
+theta2_g  = np.linspace(-1.5, 1.5, 400)
+prior_pdf = stats.norm.pdf(theta2_g, 0, sigma2)
+pf_A5_pdf = stats.norm.pdf(theta2_g, 0, pf_A5)
+pf_B5_pdf = stats.norm.pdf(theta2_g, 0, pf_B5)
+
+xs         = np.linspace(0.01, 0.99, 200)
+pf_stds_x  = [pf_std([x]) for x in xs]
+
+fig, axes = plt.subplots(1, 3, figsize=(13, 4.2))
+fig.suptitle(
+    "Pred-OED-optimal sensors shrink the push-forward; EIG-optimal sensors do not",
+    fontsize=12, fontweight="bold"
+)
+
+# Panel 1: push-forward std vs K
+ax = axes[0]
+ax.axhline(sigma2, color=GREY, lw=1.5, ls=":", label=f"Prior std = {sigma2}")
+ax.plot(nobs_sweep, pf_A, "o-", color=ORANGE, lw=2, ms=6,
+        label="Design A  ($x=0$, EIG-optimal)")
+ax.plot(nobs_sweep, pf_B, "s-", color=BLUE,   lw=2, ms=6,
+        label="Design B  ($x=1$, Pred-OED-optimal)")
+ax.set_xlabel("Number of sensors $K$", fontsize=11)
+ax.set_ylabel("Push-forward std of $q$", fontsize=11)
+ax.set_title("Prediction uncertainty vs. $K$", fontsize=10)
+ax.legend(fontsize=8.5)
 ax.grid(True, alpha=0.2)
+ax.spines[["top", "right"]].set_visible(False)
+
+# Panel 2: PDFs at K=5
+ax = axes[1]
+ax.fill_between(theta2_g, prior_pdf, alpha=0.12, color=GREY)
+ax.plot(theta2_g, prior_pdf, color=GREY, lw=2, ls="--",
+        label=f"Prior  (std = {sigma2:.2f})")
+ax.fill_between(theta2_g, pf_A5_pdf, alpha=0.20, color=ORANGE)
+ax.plot(theta2_g, pf_A5_pdf, color=ORANGE, lw=2.2,
+        label=f"Design A  ($K={K_show}$,  std = {pf_A5:.2f})")
+ax.fill_between(theta2_g, pf_B5_pdf, alpha=0.20, color=BLUE)
+ax.plot(theta2_g, pf_B5_pdf, color=BLUE, lw=2.2,
+        label=f"Design B  ($K={K_show}$,  std = {pf_B5:.2f})")
+ax.set_xlabel("QoI  $q(\\boldsymbol{\\theta}) = \\theta_2$", fontsize=11)
+ax.set_ylabel("Density", fontsize=11)
+ax.set_title(f"Push-forward PDFs at $K = {K_show}$ sensors", fontsize=10)
+ax.legend(fontsize=8.5)
+ax.set_xlim(-1.5, 1.5)
+ax.set_ylim(0)
+ax.grid(True, alpha=0.2)
+ax.spines[["top", "right"]].set_visible(False)
+
+# Panel 3: utility landscape
+ax = axes[2]
+ax.plot(xs, pf_stds_x, color=BLUE, lw=2.5)
+ax.axvline(xs[np.argmin(pf_stds_x)], color=BLUE, lw=1.5, ls="--", alpha=0.7,
+           label="Optimum at $x=1$")
+ax.axhline(sigma2, color=GREY, lw=1.5, ls=":",
+           label=f"Prior std = {sigma2}")
+ax.fill_between(xs, pf_stds_x, sigma2,
+                where=[p < sigma2 for p in pf_stds_x],
+                alpha=0.12, color=BLUE, label="Reduction vs. prior")
+ax.set_xlabel("Sensor location $x$", fontsize=11)
+ax.set_ylabel("Push-forward std of $q$  $= \\sqrt{U(\\mathbf{w})}$", fontsize=10)
+ax.set_title("Utility landscape  (1 sensor)", fontsize=10)
+ax.legend(fontsize=8.5)
+ax.grid(True, alpha=0.2)
+ax.spines[["top", "right"]].set_visible(False)
+
 plt.tight_layout()
 plt.show()
 ```
 
-The schematic illustrates the key difference: EIG spreads weight uniformly across
-observation locations, while goal-oriented OED concentrates weight near the region
-that most affects the QoI.
+Design A sensors at $x=0$ measure only $\theta_1$. Adding arbitrarily many of
+them never reduces $\theta_2$ uncertainty — the left panel's orange line is
+perfectly flat at the prior std for every $K$. Design B at $x=1$ monotonically
+tightens the push-forward, reaching std = 0.20 at $K=5$ versus 0.50 for Design A.
+The right panel confirms the utility landscape is monotone in $x$: every step
+toward $x=1$ improves prediction.
 
 ## Key Takeaways
 
 - EIG maximizes information about all parameters equally; it is suboptimal when
-  only a specific QoI matters.
-- Goal-oriented OED measures the expected posterior spread of the push-forward
-  $p(q(\boldsymbol{\theta}) \mid \mathbf{y}, \mathbf{w})$.
+  only a specific QoI matters. A sensor can have high EIG while reducing QoI
+  uncertainty by exactly zero.
+- The posterior push-forward $p(q(\boldsymbol{\theta})\mid\mathbf{y},\mathbf{w})$
+  captures what actually matters: residual prediction uncertainty after the experiment.
 - For vector-valued QoIs, a risk measure $\mathcal{R}$ aggregates componentwise
   deviations into a scalar utility.
-- The inner loop dominates convergence for the goal-oriented estimator, unlike EIG.
+- For the linear Gaussian case, push-forward variance is independent of the observed
+  $\mathbf{y}$ and equals the analytic posterior variance. For nonlinear models the
+  outer expectation genuinely varies across observations and requires Monte Carlo.
+- The inner loop dominates convergence for the goal-oriented estimator, unlike EIG
+  where the outer loop dominates.
 
 ## Exercises
 
-1. Suppose $q(\boldsymbol{\theta}) = \theta_1 + \theta_2$ and the prior is
-   isotropic. Would EIG and goal-oriented OED agree on the optimal design?
-   What if $q(\boldsymbol{\theta}) = \theta_1$?
+1. In the example above, Design A gives zero benefit for any $K$. Is this specific
+   to the QoI $q(\boldsymbol{\theta}) = \theta_2$, or would it also hold for
+   $q(\boldsymbol{\theta}) = \theta_1 + \theta_2$? Compute the push-forward std
+   for both QoIs under each design.
 
-2. Give an example QoI where AVaR deviation is a better objective than standard
+2. Suppose $q(\boldsymbol{\theta}) = \theta_1 + \theta_2$ and the prior is
+   isotropic. Would EIG and goal-oriented OED agree on the optimal design? What if
+   $q(\boldsymbol{\theta}) = \theta_2$ only?
+
+3. Give an example QoI where AVaR deviation is a better objective than standard
    deviation. Why?
 
-3. Explain qualitatively why the inner loop dominates convergence for the
+4. Explain qualitatively why the inner loop dominates convergence for the
    goal-oriented estimator but not for EIG.
 
 ## Next Steps

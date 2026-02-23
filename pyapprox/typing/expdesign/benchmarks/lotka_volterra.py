@@ -66,18 +66,33 @@ class LotkaVolterraOEDBenchmark(Generic[Array]):
     Uses the 3-species competitive Lotka-Volterra system with 12
     parameters (3 growth rates + 9 competition coefficients).
 
-    Observation model: species 0 and 2 at all 11 time points (nqoi=22).
-    Prediction model: species 1 at every other time point (nqoi=5).
+    Observation model: species 0 and 2 at all time points.
+    Prediction model: species 1 at every other time point.
 
     Parameters
     ----------
     bkd : Backend[Array]
         Backend for array operations.
+    final_time : float, optional
+        Final simulation time. Default 10.0.
+    deltat : float, optional
+        Time step. Default 1.0.
+    stepper : str, optional
+        Time stepping method: "backward_euler" (default), "forward_euler",
+        "heun", "crank_nicolson".
     """
 
-    def __init__(self, bkd: Backend[Array]) -> None:
+    def __init__(
+        self,
+        bkd: Backend[Array],
+        final_time: float = 10.0,
+        deltat: float = 1.0,
+        stepper: str = "backward_euler",
+    ) -> None:
         self._bkd = bkd
-        self._wrapper = lotka_volterra_3species(bkd)
+        self._wrapper = lotka_volterra_3species(
+            bkd, final_time=final_time, deltat=deltat,
+        )
         inner = self._wrapper._inner
 
         tc = inner.time_config()
@@ -91,10 +106,10 @@ class LotkaVolterraOEDBenchmark(Generic[Array]):
         )
 
         self._obs_model = ODEQoIFunction(
-            inner, functional=obs_functional,
+            inner, functional=obs_functional, stepper=stepper,
         )
         self._pred_model = ODEQoIFunction(
-            inner, functional=pred_functional,
+            inner, functional=pred_functional, stepper=stepper,
         )
 
         # Precompute time arrays

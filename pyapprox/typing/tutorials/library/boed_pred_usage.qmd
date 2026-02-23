@@ -224,6 +224,6 @@ print(f"Analytical utility (AVaR 0.9 deviation): {exact_avar:.6f}")
 ## Next Steps
 
 - Optimize the design weights using the gradient expressions from
-  [Bayesian OED: Double-Loop Formulation](boed_kl_analysis.qmd) adapted for
-  the goal-oriented utility
+  [Bayesian OED: Gradients and the Reparameterization Trick](boed_kl_gradients.qmd)
+  adapted for the goal-oriented utility
 - Extend to nonlinear models where no analytical reference is available
