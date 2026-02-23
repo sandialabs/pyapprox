@@ -4,7 +4,7 @@ Builds a fixed-level sparse grid using HyperbolicIndexGenerator,
 collects unique samples, and fits a CombinationSurrogate.
 """
 
-from typing import Dict, Generic, List, Tuple, Union
+from typing import Dict, Generic, List, Optional, Tuple, Union
 
 from pyapprox.typing.util.backends.protocols import Array, Backend
 from pyapprox.typing.surrogates.affine.indices import HyperbolicIndexGenerator
@@ -158,6 +158,42 @@ class IsotropicSparseGridFitter(Generic[Array]):
                 cfg: tracker.collect_unique_samples()
                 for cfg, tracker in self._trackers.items()
             }
+
+    def get_values(
+        self,
+    ) -> Optional[Union[Array, Dict[ConfigIdx, Array]]]:
+        """Return unique values aligned with get_samples().
+
+        Must be called after fit(). Returns None if fit() has not been
+        called yet.
+
+        For single-fidelity (nconfig_vars=0), returns Array of shape
+        (nqoi, n_unique). For multi-fidelity, returns a dict mapping
+        config_idx to value arrays.
+
+        Returns
+        -------
+        Optional[Union[Array, Dict[ConfigIdx, Array]]]
+            Unique values, or None if fit() has not been called.
+        """
+        # Check if any tracker has values
+        has_values = any(
+            t.nqoi() is not None for t in self._trackers.values()
+        )
+        if not has_values:
+            return None
+
+        if self._nconfig_vars == 0:
+            tracker = self._trackers[()]
+            vals = tracker.collect_filtered_unique_values(None)
+            return vals
+        else:
+            dict_result: Dict[ConfigIdx, Array] = {}
+            for cfg, tracker in self._trackers.items():
+                vals = tracker.collect_filtered_unique_values(None)
+                if vals is not None:
+                    dict_result[cfg] = vals
+            return dict_result
 
     def fit(
         self, values: Union[Array, Dict[ConfigIdx, Array]]

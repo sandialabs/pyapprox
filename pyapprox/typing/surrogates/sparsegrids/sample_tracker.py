@@ -4,7 +4,7 @@ Wraps BasisIndexGenerator to provide a clean interface for registering
 subspaces, tracking unique samples, and distributing values.
 """
 
-from typing import Generic, List, Optional
+from typing import Generic, List, Optional, Set
 
 from pyapprox.typing.util.backends.protocols import Array, Backend
 from pyapprox.typing.surrogates.affine.indices.basis_generator import (
@@ -193,6 +193,114 @@ class SampleTracker(Generic[Array]):
                 result[:, global_idx : global_idx + n_new] = (
                     samples[:, idx_array]
                 )
+                global_idx += n_new
+        return result
+
+    def n_filtered_unique_samples(
+        self, positions: Optional[Set[int]] = None
+    ) -> int:
+        """Count unique samples for a filtered set of positions.
+
+        Parameters
+        ----------
+        positions : Optional[Set[int]]
+            Set of subspace positions to include. None means all.
+
+        Returns
+        -------
+        int
+            Number of unique samples owned by the filtered positions.
+        """
+        if positions is not None and len(positions) == 0:
+            return 0
+        count = 0
+        for pos in range(len(self._registered)):
+            if positions is not None and pos not in positions:
+                continue
+            count += len(self.get_unique_local_indices(pos))
+        return count
+
+    def collect_filtered_unique_samples(
+        self, positions: Optional[Set[int]] = None
+    ) -> Array:
+        """Collect unique samples from a filtered set of subspace positions.
+
+        A sample is included iff the subspace that first contributed it
+        (where it was "new") is in the positions set.
+        positions=None is equivalent to collect_unique_samples().
+
+        Parameters
+        ----------
+        positions : Optional[Set[int]]
+            Set of subspace positions to include. None means all.
+
+        Returns
+        -------
+        Array
+            Unique samples, shape (nvars, n_filtered).
+        """
+        nvars = self._basis_gen.nvars()
+        n_filtered = self.n_filtered_unique_samples(positions)
+        if n_filtered == 0:
+            return self._bkd.zeros((nvars, 0))
+
+        result = self._bkd.zeros((nvars, n_filtered))
+        out_idx = 0
+        for pos, subspace in enumerate(self._registered):
+            if positions is not None and pos not in positions:
+                continue
+            unique_local = self.get_unique_local_indices(pos)
+            if len(unique_local) > 0:
+                samples = subspace.get_samples()
+                idx_array = self._bkd.asarray(
+                    unique_local, dtype=self._bkd.int64_dtype()
+                )
+                n_new = len(unique_local)
+                result[:, out_idx : out_idx + n_new] = (
+                    samples[:, idx_array]
+                )
+                out_idx += n_new
+        return result
+
+    def collect_filtered_unique_values(
+        self, positions: Optional[Set[int]] = None
+    ) -> Optional[Array]:
+        """Collect unique values aligned with collect_filtered_unique_samples.
+
+        Parameters
+        ----------
+        positions : Optional[Set[int]]
+            Set of subspace positions to include. None means all.
+
+        Returns
+        -------
+        Optional[Array]
+            Unique values, shape (nqoi, n_filtered), or None if no
+            values have been set.
+        """
+        if self._values is None:
+            return None
+
+        n_filtered = self.n_filtered_unique_samples(positions)
+        if n_filtered == 0:
+            assert self._nqoi is not None
+            return self._bkd.zeros((self._nqoi, 0))
+
+        assert self._nqoi is not None
+        result = self._bkd.zeros((self._nqoi, n_filtered))
+        out_idx = 0
+        global_idx = 0
+        for pos in range(len(self._registered)):
+            unique_local = self.get_unique_local_indices(pos)
+            n_new = len(unique_local)
+            if positions is not None and pos not in positions:
+                global_idx += n_new
+                continue
+            if n_new > 0:
+                result[:, out_idx : out_idx + n_new] = (
+                    self._values[:, global_idx : global_idx + n_new]
+                )
+                out_idx += n_new
                 global_idx += n_new
         return result
 

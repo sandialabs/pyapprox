@@ -7,7 +7,7 @@ Provides two classes:
   adapts the Array <-> Dict boundary for single-fidelity use.
 """
 
-from typing import Callable, Dict, Generic, List, Optional, Tuple
+from typing import Callable, Dict, Generic, List, Literal, Optional, Set, Tuple
 
 from pyapprox.typing.util.backends.protocols import Array, Backend
 from pyapprox.typing.surrogates.affine.indices import (
@@ -54,6 +54,8 @@ from pyapprox.typing.surrogates.sparsegrids.model_factory import (
 
 # Sentinel key for single-fidelity grids (nconfig_vars=0)
 _SF_KEY: ConfigIdx = ()
+
+SubsetType = Literal["selected", "candidate", "all"]
 
 
 class MultiFidelityAdaptiveSparseGridFitter(Generic[Array]):
@@ -549,6 +551,154 @@ class MultiFidelityAdaptiveSparseGridFitter(Generic[Array]):
         """Return number of physical variables."""
         return self._nvars_physical
 
+    def _get_tracker_positions(
+        self, config_idx: ConfigIdx, subset: SubsetType
+    ) -> Set[int]:
+        """Get tracker positions for the specified subset.
+
+        Parameters
+        ----------
+        config_idx : ConfigIdx
+            Configuration index.
+        subset : SubsetType
+            "selected", "candidate", or "all".
+
+        Returns
+        -------
+        Set[int]
+            Tracker positions matching the subset filter.
+        """
+        pos_map = self._tracker_positions.get(config_idx, {})
+
+        if subset == "all":
+            return set(pos_map.values())
+
+        if subset == "selected":
+            index_set: Optional[Array] = (
+                self._index_gen.get_selected_indices()
+            )
+        else:
+            index_set = self._index_gen.get_candidate_indices()
+
+        if index_set is None:
+            return set()
+
+        result: Set[int] = set()
+        for j in range(index_set.shape[1]):
+            idx = index_set[:, j]
+            idx_config = self._get_config_idx(idx)
+            if idx_config != config_idx:
+                continue
+            key = _index_to_tuple(idx)
+            if key in pos_map:
+                result.add(pos_map[key])
+        return result
+
+    def get_samples(
+        self, subset: SubsetType = "all"
+    ) -> Dict[ConfigIdx, Array]:
+        """Return unique samples per config, filtered by subset.
+
+        Parameters
+        ----------
+        subset : SubsetType
+            "selected", "candidate", or "all".
+
+        Returns
+        -------
+        Dict[ConfigIdx, Array]
+            Maps config_idx to sample arrays of shape
+            (nvars_physical, n_unique).
+        """
+        result: Dict[ConfigIdx, Array] = {}
+        for cfg, tracker in self._trackers.items():
+            if subset == "all":
+                result[cfg] = tracker.collect_filtered_unique_samples(None)
+            else:
+                positions = self._get_tracker_positions(cfg, subset)
+                result[cfg] = tracker.collect_filtered_unique_samples(
+                    positions
+                )
+        return result
+
+    def get_values(
+        self, subset: SubsetType = "all"
+    ) -> Dict[ConfigIdx, Optional[Array]]:
+        """Return unique values per config, filtered by subset.
+
+        Parameters
+        ----------
+        subset : SubsetType
+            "selected", "candidate", or "all".
+
+        Returns
+        -------
+        Dict[ConfigIdx, Optional[Array]]
+            Maps config_idx to value arrays of shape (nqoi, n_unique),
+            or None if no values have been set for that config.
+        """
+        result: Dict[ConfigIdx, Optional[Array]] = {}
+        for cfg, tracker in self._trackers.items():
+            if subset == "all":
+                result[cfg] = tracker.collect_filtered_unique_values(None)
+            else:
+                positions = self._get_tracker_positions(cfg, subset)
+                result[cfg] = tracker.collect_filtered_unique_values(
+                    positions
+                )
+        return result
+
+    def get_selected_indices(self) -> Array:
+        """Return indices of selected subspaces.
+
+        Returns
+        -------
+        Array
+            Selected indices, shape (nvars_index, nselected).
+        """
+        return self._index_gen.get_selected_indices()
+
+    def get_candidate_indices(self) -> Optional[Array]:
+        """Return indices of candidate subspaces.
+
+        Returns
+        -------
+        Optional[Array]
+            Candidate indices, shape (nvars_index, ncandidates),
+            or None if there are no candidates.
+        """
+        return self._index_gen.get_candidate_indices()
+
+    def cumulative_cost(
+        self, cost_model: Optional[CostModelProtocol] = None
+    ) -> float:
+        """Return total cumulative cost of all evaluations.
+
+        Parameters
+        ----------
+        cost_model : Optional[CostModelProtocol]
+            Cost model to use. If None, uses the fitter's cost model.
+
+        Returns
+        -------
+        float
+            Sum of n_unique_samples * cost_per_sample across all configs.
+        """
+        if cost_model is None:
+            cost_model = self._cost_model
+        total = 0.0
+        for cfg, tracker in self._trackers.items():
+            total += tracker.n_unique_samples() * cost_model(cfg)
+        return total
+
+    def nselected(self) -> int:
+        """Return number of selected subspaces."""
+        return self._index_gen.nselected_indices()
+
+    def ncandidates(self) -> int:
+        """Return number of candidate subspaces."""
+        return self._index_gen.ncandidate_indices()
+
     def __repr__(self) -> str:
         return (
             f"MultiFidelityAdaptiveSparseGridFitter("
@@ -657,11 +807,88 @@ class SingleFidelityAdaptiveSparseGridFitter(Generic[Array]):
         """Return number of physical variables."""
         return self._fitter.nvars_physical()
 
+    def get_samples(self, subset: SubsetType = "all") -> Array:
+        """Return unique samples, filtered by subset.
+
+        Parameters
+        ----------
+        subset : SubsetType
+            "selected", "candidate", or "all".
+
+        Returns
+        -------
+        Array
+            Samples of shape (nvars, n_unique).
+        """
+        return self._fitter.get_samples(subset)[_SF_KEY]
+
+    def get_values(
+        self, subset: SubsetType = "all"
+    ) -> Optional[Array]:
+        """Return unique values, filtered by subset.
+
+        Parameters
+        ----------
+        subset : SubsetType
+            "selected", "candidate", or "all".
+
+        Returns
+        -------
+        Optional[Array]
+            Values of shape (nqoi, n_unique), or None if no values set.
+        """
+        return self._fitter.get_values(subset)[_SF_KEY]
+
+    def get_selected_indices(self) -> Array:
+        """Return indices of selected subspaces.
+
+        Returns
+        -------
+        Array
+            Selected indices, shape (nvars, nselected).
+        """
+        return self._fitter.get_selected_indices()
+
+    def get_candidate_indices(self) -> Optional[Array]:
+        """Return indices of candidate subspaces.
+
+        Returns
+        -------
+        Optional[Array]
+            Candidate indices, or None if there are no candidates.
+        """
+        return self._fitter.get_candidate_indices()
+
+    def cumulative_cost(
+        self, cost_model: Optional[CostModelProtocol] = None
+    ) -> float:
+        """Return total cumulative cost of all evaluations.
+
+        Parameters
+        ----------
+        cost_model : Optional[CostModelProtocol]
+            Cost model to use. If None, uses unit cost.
+
+        Returns
+        -------
+        float
+            Total cost.
+        """
+        return self._fitter.cumulative_cost(cost_model)
+
+    def nselected(self) -> int:
+        """Return number of selected subspaces."""
+        return self._fitter.nselected()
+
+    def ncandidates(self) -> int:
+        """Return number of candidate subspaces."""
+        return self._fitter.ncandidates()
+
     def __repr__(self) -> str:
         return (
             f"SingleFidelityAdaptiveSparseGridFitter("
             f"nvars={self._fitter.nvars_physical()}, "
             f"nsubspaces={len(self._fitter._subspaces)}, "
-            f"nselected={self._fitter._index_gen.nselected_indices()}, "
-            f"ncandidates={self._fitter._index_gen.ncandidate_indices()})"
+            f"nselected={self._fitter.nselected()}, "
+            f"ncandidates={self._fitter.ncandidates()})"
         )

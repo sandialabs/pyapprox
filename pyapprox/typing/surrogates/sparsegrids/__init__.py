@@ -16,14 +16,6 @@ Key functions:
 - is_downward_closed: Check index set validity
 """
 
-from .protocols import (
-    SubspaceProtocol,
-    SubspaceWithDerivativesProtocol,
-    SparseGridProtocol,
-    SparseGridWithDerivativesProtocol,
-    AdaptiveSparseGridProtocol,
-)
-
 from .smolyak import (
     compute_smolyak_coefficients,
     is_downward_closed,
@@ -39,6 +31,7 @@ from .isotropic_fitter import IsotropicSparseGridFitter
 from .adaptive_fitter import (
     MultiFidelityAdaptiveSparseGridFitter,
     SingleFidelityAdaptiveSparseGridFitter,
+    SubsetType,
 )
 from .fit_result import (
     IsotropicSparseGridFitResult,
@@ -58,6 +51,8 @@ from .subspace_factory import SubspaceFactoryProtocol, TensorProductSubspaceFact
 from .sample_tracker import SampleTracker
 
 
+from .plot import plot_sparse_grid_points
+
 from .converters import (
     SparseGridToPCEConverter,
     TensorProductSubspaceToPCEConverter,
@@ -76,12 +71,6 @@ from .basis_factory import (
 )
 
 __all__ = [
-    # Protocols
-    "SubspaceProtocol",
-    "SubspaceWithDerivativesProtocol",
-    "SparseGridProtocol",
-    "SparseGridWithDerivativesProtocol",
-    "AdaptiveSparseGridProtocol",
     # Smolyak utilities
     "compute_smolyak_coefficients",
     "is_downward_closed",
@@ -93,6 +82,7 @@ __all__ = [
     "IsotropicSparseGridFitter",
     "MultiFidelityAdaptiveSparseGridFitter",
     "SingleFidelityAdaptiveSparseGridFitter",
+    "SubsetType",
     "IsotropicSparseGridFitResult",
     "AdaptiveSparseGridFitResult",
     # Error indicators
@@ -115,6 +105,8 @@ __all__ = [
     "SubspaceFactoryProtocol",
     "TensorProductSubspaceFactory",
     "SampleTracker",
+    # Plotting
+    "plot_sparse_grid_points",
     # Converters
     "SparseGridToPCEConverter",
     "TensorProductSubspaceToPCEConverter",
