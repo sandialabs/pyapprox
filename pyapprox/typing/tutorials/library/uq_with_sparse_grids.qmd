@@ -1,0 +1,442 @@
+---
+title: "UQ with Sparse Grids"
+subtitle: "PyApprox Tutorial Library"
+description: "Compute moments from sparse grid quadrature, convert to PCE for Sobol indices, and compare efficiency against Monte Carlo."
+tutorial_type: hands-on
+topic: uncertainty_quantification
+difficulty: intermediate
+estimated_time: 15
+prerequisites:
+  - isotropic_sparse_grids
+  - uq_with_pce
+tags:
+  - uq
+  - sparse-grid
+  - moments
+  - sensitivity-analysis
+  - beam
+format:
+  html:
+    code-fold: false
+    code-tools: true
+    toc: true
+execute:
+  echo: true
+  warning: false
+jupyter: python3
+---
+
+::: {.callout-tip collapse="true"}
+## Download Notebook
+[Download as Jupyter Notebook](notebooks/uq_with_sparse_grids.ipynb)
+:::
+
+## Learning Objectives
+
+After completing this tutorial, you will be able to:
+
+- Compute mean and variance directly from a sparse grid surrogate (Smolyak quadrature)
+- Explain why sparse grids can represent the same function as a PCE with nested point sets
+- Convert a Lagrange-based sparse grid to a PCE using `SparseGridToPCEConverter`
+- Compute covariance and Sobol sensitivity indices from the converted PCE
+- Compare sparse grid vs Monte Carlo moment estimation efficiency
+
+
+## Prerequisites
+
+Complete:
+
+- [Isotropic Sparse Grids](isotropic_sparse_grids.qmd) --- sparse grid construction and the Smolyak combination technique
+- [UQ with Polynomial Chaos](uq_with_pce.qmd) --- analytical moments and marginal densities from PCE
+
+
+## Setup: Build an Isotropic Sparse Grid
+
+We use the same 1D Euler--Bernoulli cantilever beam with 3 KLE terms and 3 QoIs as in [UQ with Polynomial Chaos](uq_with_pce.qmd), enabling direct comparison of the two approaches.
+
+We build a level-3 isotropic sparse grid with Gauss--Legendre nodes.
+
+```{python}
+import numpy as np
+import matplotlib.pyplot as plt
+from pyapprox.typing.util.backends.numpy import NumpyBkd
+from pyapprox.typing.benchmarks.instances.pde.cantilever_beam import (
+    cantilever_beam_1d,
+)
+from pyapprox.typing.surrogates.sparsegrids import (
+    IsotropicSparseGridFitter,
+    TensorProductSubspaceFactory,
+    create_basis_factories,
+)
+from pyapprox.typing.surrogates.affine.indices import LinearGrowthRule
+
+bkd = NumpyBkd()
+
+benchmark = cantilever_beam_1d(bkd, num_kle_terms=3)
+model = benchmark.function()
+prior = benchmark.prior()
+marginals = prior.marginals()
+nvars = model.nvars()
+nqoi = model.nqoi()
+
+qoi_labels = [
+    r"$\delta_{\mathrm{tip}}$",
+    r"$\sigma_{\mathrm{int}}$",
+    r"$\kappa_{\max}$",
+]
+
+# Build isotropic sparse grid
+factories = create_basis_factories(marginals, bkd, basis_type="gauss")
+growth = LinearGrowthRule(scale=2, shift=1)
+tp_factory = TensorProductSubspaceFactory(bkd, factories, growth)
+level = 3
+fitter = IsotropicSparseGridFitter(bkd, tp_factory, level)
+samples = fitter.get_samples()
+values = model(samples)
+result = fitter.fit(values)
+surrogate = result.surrogate
+
+print(f"Sparse grid level {level}: {samples.shape[1]} points, "
+      f"{surrogate.nsubspaces()} subspaces")
+print(f"Input variables: {nvars}, QoIs: {nqoi}")
+```
+
+
+## Native Moments from Smolyak Quadrature
+
+`CombinationSurrogate` computes moments via the Smolyak combination of tensor product quadrature rules --- no extra sampling and no basis conversion needed:
+
+$$
+\mathbb{E}[\hat{f}] = \sum_k c_k \int \hat{f}_k(\boldsymbol{\theta})\, d\mu(\boldsymbol{\theta}),
+\qquad
+\text{Var}[\hat{f}] = \sum_k c_k \left(\int \hat{f}_k^2\, d\mu - \left(\int \hat{f}_k\, d\mu\right)^2\right)
+$$
+
+where $c_k$ are Smolyak coefficients and each integral is exact for the polynomial subspace $\hat{f}_k$.
+
+```{python}
+sg_mean = bkd.to_numpy(surrogate.mean())
+sg_var = bkd.to_numpy(surrogate.variance())
+
+print("Sparse grid native moments (Smolyak quadrature):")
+for k in range(nqoi):
+    print(f"  {qoi_labels[k]}: mean = {sg_mean[k]:.6f},  "
+          f"std = {np.sqrt(sg_var[k]):.6f}")
+```
+
+::: {.callout-important}
+## Exact for the surrogate
+These formulas are *exact* for the fitted sparse grid surrogate $\hat{f}$, not the true model $f$. The only source of error is the surrogate approximation itself --- same caveat as PCE.
+:::
+
+::: {.callout-note}
+## Covariance and Sobol indices require conversion
+`CombinationSurrogate` provides `mean()` and `variance()` natively. For **covariance**, **Sobol indices**, or **marginalization**, we need to convert the sparse grid to a PCE --- that is the subject of the next section.
+:::
+
+
+## Converting Sparse Grids to PCE
+
+A Lagrange interpolant on each tensor product subspace can be re-expanded in an orthonormal polynomial basis via spectral projection. `SparseGridToPCEConverter` iterates all subspaces, projects each to PCE, applies Smolyak coefficients, and merges duplicate multi-indices into a standard `PolynomialChaosExpansion`.
+
+The key ingredients are:
+
+1. **Orthonormal 1D bases** matching the input distribution, created via `create_bases_1d()`
+2. The fitted `CombinationSurrogate`
+
+```{python}
+from pyapprox.typing.surrogates.affine.univariate import create_bases_1d
+from pyapprox.typing.surrogates.sparsegrids.converters.pce import (
+    SparseGridToPCEConverter,
+)
+
+bases_1d = create_bases_1d(marginals, bkd)
+converter = SparseGridToPCEConverter(bkd, bases_1d)
+pce = converter.convert(surrogate)
+
+print(f"Converted PCE: {pce.nterms()} terms")
+```
+
+The converted PCE gives us the full analytical moment toolkit. Let us verify that its mean and variance match the native sparse grid moments:
+
+```{python}
+pce_mean = bkd.to_numpy(pce.mean())
+pce_var = bkd.to_numpy(pce.variance())
+pce_cov = bkd.to_numpy(pce.covariance())
+
+print("Comparison: SG native vs. converted PCE")
+print(f"{'QoI':<20} {'SG mean':>10} {'PCE mean':>10} "
+      f"{'SG std':>10} {'PCE std':>10}")
+print("-" * 62)
+for k in range(nqoi):
+    print(f"{qoi_labels[k]:<20} {sg_mean[k]:>10.6f} {pce_mean[k]:>10.6f} "
+          f"{np.sqrt(sg_var[k]):>10.6f} {np.sqrt(pce_var[k]):>10.6f}")
+
+print(f"\nCovariance matrix (from converted PCE):\n{pce_cov}")
+```
+
+The SG and PCE moments should agree to near machine precision, since both represent the same polynomial interpolant --- just in different bases.
+
+
+## Sensitivity Analysis via Converted PCE
+
+`SparseGridSensitivityAnalysis` is a convenience wrapper that converts the sparse grid to PCE internally and provides Sobol index computation in a single step.
+
+```{python}
+#| fig-cap: "Sobol indices computed from the sparse grid surrogate via SG-to-PCE conversion. Left: main effect pie chart. Right: total effects bar chart. The first KLE coefficient dominates the variance for all QoIs."
+#| label: fig-sg-sobol
+
+from pyapprox.typing.sensitivity import SparseGridSensitivityAnalysis
+from pyapprox.typing.sensitivity.plots import (
+    plot_main_effects,
+    plot_total_effects,
+)
+
+sa = SparseGridSensitivityAnalysis(surrogate, bases_1d)
+main_effects = sa.main_effects()   # (nvars, nqoi)
+total_effects = sa.total_effects()  # (nvars, nqoi)
+
+input_labels = [rf"$\xi_{{{ii+1}}}$" for ii in range(nvars)]
+
+print("Sobol indices for each QoI:")
+for k in range(nqoi):
+    print(f"\n  {qoi_labels[k]}:")
+    for i in range(nvars):
+        me_val = float(main_effects[i, k])
+        te_val = float(total_effects[i, k])
+        print(f"    {input_labels[i]}: S = {me_val:.4f},  S^T = {te_val:.4f}")
+
+fig, axes = plt.subplots(1, 2, figsize=(11, 4.5))
+
+# Main effects pie chart (tip deflection)
+plot_main_effects(main_effects, axes[0], bkd, rv=r"\xi", qoi=0)
+axes[0].set_title(f"Main Effects ({qoi_labels[0]})", fontsize=12)
+
+# Total effects bar chart (tip deflection)
+plot_total_effects(total_effects, axes[1], bkd, rv=r"\xi", qoi=0)
+axes[1].set_ylabel("Sobol Index", fontsize=11)
+axes[1].set_title(f"Total Effects ({qoi_labels[0]})", fontsize=12)
+
+plt.tight_layout()
+plt.show()
+```
+
+
+## Marginal Densities: Fair Cost Comparison
+
+To compare the sparse grid surrogate against direct Monte Carlo fairly, both approaches must use the **same total wall-clock budget**. We use `timed()` to measure the mean execution time per evaluation:
+
+$$
+N_{\text{SG}} \times t_{\text{beam}} + M \times t_{\text{SG}} = 500 \times t_{\text{beam}}
+\quad\Longrightarrow\quad
+M = \frac{(500 - N_{\text{SG}}) \times t_{\text{beam}}}{t_{\text{SG}}}
+$$
+
+```{python}
+#| fig-cap: "Marginal density estimates at equal wall-clock cost. MC (blue) uses 500 beam evaluations. SG (orange) uses N_SG beam evaluations for training plus M equivalent-cost surrogate evaluations. The sparse grid surrogate produces much smoother densities because the cheap surrogate allows orders of magnitude more samples in the same time budget."
+#| label: fig-sg-marginals
+
+from pyapprox.typing.interface.functions.timing import timed
+
+# Measure per-evaluation cost
+timed_model = timed(model)
+np.random.seed(0)
+warmup_samples = prior.rvs(50)
+_ = timed_model(warmup_samples)
+beam_cost = timed_model.timer().get("__call__").median()
+
+timed_sg = timed(surrogate)
+_ = timed_sg(warmup_samples)
+sg_cost = timed_sg.timer().get("__call__").median()
+
+speedup = beam_cost / sg_cost
+N_sg = samples.shape[1]
+print(f"Beam model: {beam_cost:.6f} s/eval")
+print(f"SG surrogate: {sg_cost:.6f} s/eval")
+print(f"Speedup: {speedup:.0f}x")
+
+# Equal-cost sample sizes
+N_mc = 500
+M_sg = int((N_mc - N_sg) * beam_cost / sg_cost)
+print(f"\nMC budget:  {N_mc} beam evaluations")
+print(f"SG budget:  {N_sg} beam evals (training) + {M_sg:,} SG evals")
+
+# MC reference
+np.random.seed(123)
+samples_mc = prior.rvs(N_mc)
+vals_mc = bkd.to_numpy(model(samples_mc))
+
+# SG surrogate: M_sg equivalent-cost evaluations
+np.random.seed(99)
+samples_sg_eval = prior.rvs(M_sg)
+preds_sg = bkd.to_numpy(surrogate(samples_sg_eval))
+
+fig, axes = plt.subplots(1, nqoi, figsize=(14, 4))
+
+for k, ax in enumerate(axes):
+    ax.hist(vals_mc[k, :], bins=40, density=True, alpha=0.5,
+            color="#2C7FB8", edgecolor="k", lw=0.2,
+            label=f"MC ({N_mc} beam evals)")
+    ax.hist(preds_sg[k, :], bins=80, density=True, alpha=0.4,
+            color="#E67E22", edgecolor="k", lw=0.1,
+            label=f"SG ({N_sg}+{M_sg:,} evals)")
+    ax.set_xlabel(qoi_labels[k], fontsize=11)
+    ax.set_ylabel("Density", fontsize=11)
+    ax.legend(fontsize=8)
+    ax.grid(True, alpha=0.2)
+
+plt.tight_layout()
+plt.show()
+```
+
+
+## SG vs. Monte Carlo: Efficiency Comparison
+
+We compare moment estimation efficiency by increasing the sparse grid level with the budget and measuring relative error in the mean and variance.  Monte Carlo uses the same number of raw model evaluations at each budget level.
+
+@fig-sg-vs-mc repeats each experiment 20 times with different random seeds and plots the median error with 10th/90th percentile envelopes.
+
+```{python}
+#| echo: false
+#| fig-cap: "SG vs. Monte Carlo efficiency. Relative error in the mean (left) and variance (right) of tip deflection as a function of the number of model evaluations. For SG, the level increases with the budget. Lines show median over 20 repetitions; bands show 10th--90th percentiles."
+#| label: fig-sg-vs-mc
+
+from pyapprox.typing.surrogates.quadrature import (
+    TensorProductQuadratureRule,
+    gauss_quadrature_rule,
+)
+
+# True moments via tensor-product Gauss quadrature
+nquad = 20
+quad_rules = [lambda n, m=m: gauss_quadrature_rule(m, n, bkd) for m in marginals]
+quad_rule = TensorProductQuadratureRule(bkd, quad_rules, [nquad] * nvars)
+quad_pts, quad_wts = quad_rule()
+qoi_quad = model(quad_pts)
+qoi_quad_np = bkd.to_numpy(qoi_quad)
+quad_wts_np = bkd.to_numpy(quad_wts)
+qoi_plot = 0  # tip deflection
+true_mean = float(quad_wts_np @ qoi_quad_np[qoi_plot])
+true_var = float(quad_wts_np @ (qoi_quad_np[qoi_plot] - true_mean) ** 2)
+
+# Build (level, N_budget) pairs
+sg_levels = [1, 2, 3, 4]
+sg_npts_list = []
+for lev in sg_levels:
+    tp_fac = TensorProductSubspaceFactory(bkd, factories, growth)
+    fitter_tmp = IsotropicSparseGridFitter(bkd, tp_fac, lev)
+    sg_npts_list.append(fitter_tmp.get_samples().shape[1])
+
+n_reps = 20
+
+mc_mean_errors = {N: [] for N in sg_npts_list}
+mc_var_errors = {N: [] for N in sg_npts_list}
+sg_mean_errors = {N: [] for N in sg_npts_list}
+sg_var_errors = {N: [] for N in sg_npts_list}
+
+for lev, N_bud in zip(sg_levels, sg_npts_list):
+    for rep in range(n_reps):
+        np.random.seed(1000 * N_bud + rep)
+        s = prior.rvs(N_bud)
+        v = bkd.to_numpy(model(s))
+
+        # MC estimates
+        mc_mu = np.mean(v[qoi_plot, :])
+        mc_va = np.var(v[qoi_plot, :], ddof=1)
+        mc_mean_errors[N_bud].append(
+            abs(mc_mu - true_mean) / abs(true_mean)
+        )
+        mc_var_errors[N_bud].append(
+            abs(mc_va - true_var) / abs(true_var)
+        )
+
+        # SG: fit at this level
+        tp_fac_rep = TensorProductSubspaceFactory(bkd, factories, growth)
+        fitter_rep = IsotropicSparseGridFitter(bkd, tp_fac_rep, lev)
+        s_sg = fitter_rep.get_samples()
+        v_sg = model(s_sg)
+        res_rep = fitter_rep.fit(v_sg)
+        sg_mu = bkd.to_numpy(res_rep.surrogate.mean())[qoi_plot]
+        sg_va = bkd.to_numpy(res_rep.surrogate.variance())[qoi_plot]
+        sg_mean_errors[N_bud].append(
+            abs(sg_mu - true_mean) / abs(true_mean)
+        )
+        sg_var_errors[N_bud].append(
+            abs(sg_va - true_var) / abs(true_var)
+        )
+
+
+def _plot_convergence(ax, N_vals, mc_errs, sg_errs, ylabel, title,
+                      level_labels):
+    mc_med = [np.nanmedian(mc_errs[N]) for N in N_vals]
+    mc_lo = [np.nanpercentile(mc_errs[N], 10) for N in N_vals]
+    mc_hi = [np.nanpercentile(mc_errs[N], 90) for N in N_vals]
+    sg_med = [np.nanmedian(sg_errs[N]) for N in N_vals]
+    sg_lo = [np.nanpercentile(sg_errs[N], 10) for N in N_vals]
+    sg_hi = [np.nanpercentile(sg_errs[N], 90) for N in N_vals]
+
+    ax.fill_between(N_vals, mc_lo, mc_hi, alpha=0.15, color="#2C7FB8")
+    ax.semilogy(N_vals, mc_med, "o-", ms=5, color="#2C7FB8", lw=1.5,
+                label="Monte Carlo")
+    ax.fill_between(N_vals, sg_lo, sg_hi, alpha=0.15, color="#E67E22")
+    ax.semilogy(N_vals, sg_med, "s-", ms=5, color="#E67E22", lw=1.5,
+                label="Sparse Grid")
+    for N, lbl in zip(N_vals, level_labels):
+        idx = N_vals.index(N)
+        ax.annotate(f"l={lbl}", (N, sg_med[idx]),
+                    textcoords="offset points", xytext=(6, -12),
+                    fontsize=7, color="#E67E22")
+    ax.set_xlabel("Number of model evaluations $N$", fontsize=11)
+    ax.set_ylabel(ylabel, fontsize=11)
+    ax.set_title(title, fontsize=11)
+    ax.legend(fontsize=9)
+    ax.grid(True, alpha=0.2, which="both")
+
+
+level_labels = [str(lev) for lev in sg_levels]
+fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(12, 4.5))
+_plot_convergence(
+    ax1, sg_npts_list, mc_mean_errors, sg_mean_errors,
+    "Relative error in mean",
+    f"Mean of {qoi_labels[qoi_plot]}",
+    level_labels,
+)
+_plot_convergence(
+    ax2, sg_npts_list, mc_var_errors, sg_var_errors,
+    "Relative error in variance",
+    f"Variance of {qoi_labels[qoi_plot]}",
+    level_labels,
+)
+plt.tight_layout()
+plt.show()
+```
+
+The sparse grid achieves lower error than Monte Carlo for the same number of model evaluations because:
+
+- Monte Carlo converges at rate $1/\sqrt{N}$, regardless of the function's smoothness.
+- The sparse grid exploits the smoothness of the beam model through polynomial interpolation, so its error decays much faster.
+- By increasing the sparse grid level with the budget, the approximation error continues to shrink, while MC progress is slow and steady.
+
+
+## Key Takeaways
+
+- Sparse grids give **mean and variance natively** via Smolyak quadrature --- no conversion needed
+- For **covariance, Sobol indices, and marginalization**, convert to PCE via `SparseGridToPCEConverter`
+- `SparseGridSensitivityAnalysis` is a convenience wrapper that handles the conversion internally
+- The converted PCE is **mathematically equivalent** to the sparse grid interpolant, just re-expanded in an orthonormal basis
+- For smooth functions, sparse grid-based UQ **converges faster** than Monte Carlo
+
+
+## Exercises
+
+1. Compare SG moments at levels 2, 3, and 4. How quickly do the mean and variance converge?
+
+2. Use `pce.total_sobol_indices()` directly on the converted PCE. Verify the results match `SparseGridSensitivityAnalysis.total_effects()`.
+
+3. Repeat the analysis with Clenshaw--Curtis nodes (`basis_type="clenshaw_curtis"` in `create_basis_factories()` + `ClenshawCurtisGrowthRule()`). Compare point counts and accuracy vs Gauss nodes.
+
+
+## Next Steps
+
+- [Adaptive Sparse Grids](adaptive_sparse_grids.qmd) --- Refinement driven by error indicators
+- [PCE-Based Sensitivity Analysis](pce_sensitivity.qmd) --- Deeper dive into Sobol index computation
+- [From Sparse Grids to PCE](sparse_grid_to_pce_conversion.qmd) --- The mathematics behind the SG-to-PCE conversion

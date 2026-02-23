@@ -616,5 +616,6 @@ print(f"|Error|: {abs(sg_mean - exact_mean):.2e}")
 
 ## Next Steps
 
+- [UQ with Sparse Grids](uq_with_sparse_grids.qmd) — Compute Sobol indices, covariance, and marginal densities from sparse grids via SG-to-PCE conversion
 - [Adaptive Sparse Grids](adaptive_sparse_grids.qmd) — Anisotropic functions can be resolved even more efficiently by adapting the index set to the data
 - [Multifidelity Sparse Grids](multifidelity_sparse_grids.qmd) — Combine sparse grids across a hierarchy of model fidelities
