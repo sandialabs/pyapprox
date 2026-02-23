@@ -88,6 +88,9 @@ $$
 where $\epsilon_0 = 0.5$ (low fidelity, biased) and $\epsilon_1 = 0$ (high fidelity, exact).
 
 ```{python}
+#| fig-cap: "A simple two-level model hierarchy. Left: low-fidelity (biased) and high-fidelity models. Center: the discrepancy is smoother than either model. Right: multi-level reconstruction using 5 cheap + 3 expensive evaluations."
+#| label: fig-model-hierarchy
+
 epsilons = {0: 0.5, 1: 0.0}
 
 z_plot = np.linspace(-1, 1, 300)
@@ -197,6 +200,9 @@ Configuration variables parameterize the *solver settings* that control model fi
 
 ```{python}
 #| echo: false
+#| fig-cap: "Configuration variables as mesh refinement levels. Each panel shows a different combination of $x$- and $y$-mesh resolution, illustrating how two independent configuration variables control solver fidelity."
+#| label: fig-config-vars
+
 fig, axes = plt.subplots(1, 3, figsize=(14, 4))
 
 for ax_i, (nx, ny, label) in zip(axes, [
@@ -356,26 +362,27 @@ print(f"Max error on test grid: {max_err:.2e}")
 The selected subspace indices show how the algorithm balances physical resolution and model fidelity.
 
 ```{python}
+#| fig-cap: "Selected multi-indices for the 1D physical + 1 config variable problem. Blue boxes are cheap model evaluations ($\\alpha=0$); red boxes are expensive model evaluations ($\\alpha=1$). The algorithm uses many physical levels for the cheap model and few for the expensive one."
+#| label: fig-mf-indices-1d
+
+from pyapprox.typing.surrogates.affine.indices import (
+    plot_indices_2d, format_index_axes,
+)
+
 sel = result.indices
 sel_np = bkd.to_numpy(sel).astype(int)
 
 fig, ax = plt.subplots(figsize=(8, 4))
-for j in range(sel_np.shape[1]):
-    beta, alpha = sel_np[0, j], sel_np[1, j]
-    color = "#2C7FB8" if alpha == 0 else "#E74C3C"
-    rect = plt.Rectangle(
-        (beta - 0.4, alpha - 0.3), 0.8, 0.6,
-        facecolor=color, edgecolor="black", alpha=0.7, linewidth=1.5,
-    )
-    ax.add_patch(rect)
-    ax.text(beta, alpha, f"({beta},{alpha})", ha="center", va="center", fontsize=9)
-
-ax.set_xlim(-0.6, sel_np[0].max() + 1)
-ax.set_ylim(-0.5, 2)
-ax.set_xlabel("Physical level $\\beta$", fontsize=12)
-ax.set_ylabel("Config level $\\alpha$", fontsize=12)
+plot_indices_2d(
+    ax, sel_np,
+    colors=lambda idx: "#2C7FB8" if idx[-1] == 0 else "#E74C3C",
+    labels=True, box_height=0.6, label_fontsize=9,
+)
+format_index_axes(
+    ax, sel_np,
+    axis_labels=["Physical level $\\beta$", "Config level $\\alpha$"],
+)
 ax.set_title("Selected multi-indices [physical, config]", fontsize=12)
-ax.grid(True, alpha=0.3)
 plt.tight_layout()
 plt.show()
 ```
@@ -389,9 +396,13 @@ The animation below shows how the adaptive algorithm builds the multi-index set 
 
 ```{python}
 #| echo: false
+#| fig-cap: "Animated multi-index refinement. Solid boxes are selected subspaces; dashed boxes are candidates. The algorithm alternates between cheap ($\\alpha=0$, blue) and expensive ($\\alpha=1$, red) model evaluations."
+#| label: fig-mf-animation
+
 import matplotlib.animation as animation
 from matplotlib.patches import Patch
 from IPython.display import HTML
+from pyapprox.typing.surrogates.affine.indices import plot_index_sets
 
 # Build a fresh fitter for animation
 tp_factory_anim = TensorProductSubspaceFactory(bkd, phys_factories, growth)
@@ -417,71 +428,53 @@ for _ in range(15):
 
     res = fitter_anim.result()
     sel_idx = bkd.to_numpy(res.indices).astype(int)
-    cand_arr = fitter_anim._index_gen.get_candidate_indices()
+    cand_arr = fitter_anim.get_candidate_indices()
     cand_idx = (bkd.to_numpy(cand_arr).astype(int)
                 if cand_arr is not None else np.zeros((2, 0), dtype=int))
     approx_vals = bkd.to_numpy(res.surrogate(z_anim)).ravel()
     err = fitter_anim.current_error()
     snapshots.append((sel_idx.copy(), cand_idx.copy(), approx_vals.copy(), err))
 
-# Determine axis limits from final state
-all_betas = [s[0][0].max() for s in snapshots]
-all_betas += [s[1][0].max() for s in snapshots if s[1].shape[1] > 0]
-max_beta = max(all_betas) if all_betas else 3
+_mf_color = lambda idx: "#2C7FB8" if idx[-1] == 0 else "#E74C3C"
+_mf_cand_color = lambda idx: "#93C5E8" if idx[-1] == 0 else "#F5A9A9"
+
+# Compute fixed axis limits from the union of all frames
+_all_idx = np.hstack(
+    [s[0] for s in snapshots]
+    + [s[1] for s in snapshots if s[1].shape[1] > 0]
+)
+_anim_max_indices = list(_all_idx.max(axis=1).astype(int))
 
 fig, (ax_idx, ax_fn) = plt.subplots(1, 2, figsize=(14, 4.5))
+
+legend_handles = [
+    Patch(facecolor="#2C7FB8", edgecolor="black", alpha=0.7,
+          label="Selected ($\\alpha=0$)"),
+    Patch(facecolor="#E74C3C", edgecolor="black", alpha=0.7,
+          label="Selected ($\\alpha=1$)"),
+    Patch(facecolor="#93C5E8", edgecolor="black", alpha=0.4,
+          linestyle="--", label="Candidate ($\\alpha=0$)"),
+    Patch(facecolor="#F5A9A9", edgecolor="black", alpha=0.4,
+          linestyle="--", label="Candidate ($\\alpha=1$)"),
+]
 
 def animate(ii):
     ax_idx.clear()
     ax_fn.clear()
     sel_idx, cand_idx, approx_vals, err = snapshots[ii]
 
-    # Left: multi-index set — candidates first (behind), then selected
-    # Draw candidates (dashed outline, lighter fill, colored by config level)
-    for j in range(cand_idx.shape[1]):
-        beta, alpha = cand_idx[0, j], cand_idx[1, j]
-        color = "#93C5E8" if alpha == 0 else "#F5A9A9"
-        rect = plt.Rectangle(
-            (beta - 0.4, alpha - 0.3), 0.8, 0.6,
-            facecolor=color, edgecolor="black", alpha=0.4,
-            linewidth=1.5, linestyle="--",
-        )
-        ax_idx.add_patch(rect)
-        ax_idx.text(beta, alpha, f"({beta},{alpha})",
-                    ha="center", va="center", fontsize=8, color="gray")
-
-    # Draw selected (solid fill, colored by config level)
-    for j in range(sel_idx.shape[1]):
-        beta, alpha = sel_idx[0, j], sel_idx[1, j]
-        color = "#2C7FB8" if alpha == 0 else "#E74C3C"
-        rect = plt.Rectangle(
-            (beta - 0.4, alpha - 0.3), 0.8, 0.6,
-            facecolor=color, edgecolor="black", alpha=0.7, linewidth=1.5,
-        )
-        ax_idx.add_patch(rect)
-        ax_idx.text(beta, alpha, f"({beta},{alpha})",
-                    ha="center", va="center", fontsize=9)
-
-    # Legend
-    legend_handles = [
-        Patch(facecolor="#2C7FB8", edgecolor="black", alpha=0.7,
-              label="Selected ($\\alpha=0$)"),
-        Patch(facecolor="#E74C3C", edgecolor="black", alpha=0.7,
-              label="Selected ($\\alpha=1$)"),
-        Patch(facecolor="#93C5E8", edgecolor="black", alpha=0.4,
-              linestyle="--", label="Candidate ($\\alpha=0$)"),
-        Patch(facecolor="#F5A9A9", edgecolor="black", alpha=0.4,
-              linestyle="--", label="Candidate ($\\alpha=1$)"),
-    ]
+    # Left: multi-index set
+    plot_index_sets(
+        ax_idx, sel_idx, cand_idx,
+        selected_colors=_mf_color, candidate_colors=_mf_cand_color,
+        selected_labels=True, candidate_labels=True,
+        box_height=0.6, selected_alpha=0.7, candidate_alpha=0.4,
+        axis_labels=["Physical level $\\beta$", "Config level $\\alpha$"],
+        max_indices=_anim_max_indices,
+    )
     ax_idx.legend(handles=legend_handles, fontsize=8, loc="upper right")
-
-    ax_idx.set_xlim(-0.6, max_beta + 1)
-    ax_idx.set_ylim(-0.5, 2)
-    ax_idx.set_xlabel("Physical level $\\beta$", fontsize=12)
-    ax_idx.set_ylabel("Config level $\\alpha$", fontsize=12)
     ax_idx.set_title(f"Step {ii + 1}: {sel_idx.shape[1]} selected, "
                      f"{cand_idx.shape[1]} candidates", fontsize=12)
-    ax_idx.grid(True, alpha=0.3)
 
     # Right: approximation vs true
     ax_fn.plot(np.linspace(-1, 1, 300), f1_exact, "--", lw=2,
@@ -552,6 +545,9 @@ print(f"Final test error: {test_errors[-1]:.2e}")
 ```
 
 ```{python}
+#| fig-cap: "Multi-index refinement convergence in manual mode. The error estimate (blue) tracks the true test error (red) closely, validating the built-in error indicator."
+#| label: fig-mf-manual-convergence
+
 fig, ax = plt.subplots(figsize=(8, 4))
 steps = range(1, len(error_estimates) + 1)
 ax.semilogy(steps, error_estimates, "o-", lw=2, ms=6, color="steelblue",
@@ -607,16 +603,14 @@ def _run_steps(fitter_obj, factory_obj, cost_model_obj, max_steps=15):
 
         res = fitter_obj.result()
         sel = bkd.to_numpy(res.indices).astype(int)
-        cand_arr = fitter_obj._index_gen.get_candidate_indices()
+        cand_arr = fitter_obj.get_candidate_indices()
         cand = (bkd.to_numpy(cand_arr).astype(int)
                 if cand_arr is not None else np.zeros((2, 0), dtype=int))
         approx = bkd.to_numpy(res.surrogate(z_eval)).ravel()
         err = fitter_obj.current_error()
 
-        # Cumulative cost = sum over configs of n_samples * cost_per_sample
-        cum_cost = 0.0
-        for cfg, tracker in fitter_obj._trackers.items():
-            cum_cost += tracker.n_unique_samples() * cost_model_obj(cfg)
+        # Cumulative cost using public API
+        cum_cost = fitter_obj.cumulative_cost(cost_model_obj)
         snaps.append((sel.copy(), cand.copy(), approx.copy(), err, cum_cost))
     return snaps, f1_ref
 
@@ -661,52 +655,21 @@ while len(snaps_cw) < n_frames:
 
 ```{python}
 #| echo: false
+#| fig-cap: "Side-by-side comparison of unweighted (left) and cost-weighted (right) refinement paths. The cost-weighted algorithm defers expensive model evaluations, reaching the same accuracy at lower total cost."
+#| label: fig-cost-weighted-animation
+
 from matplotlib.patches import Patch
 
-# Determine shared axis limits
-all_betas = []
-for snaps in [snaps_uw, snaps_cw]:
-    for s in snaps:
-        all_betas.append(s[0][0].max())
-        if s[1].shape[1] > 0:
-            all_betas.append(s[1][0].max())
-max_beta = max(all_betas) if all_betas else 3
+# Compute fixed axis limits from the union of all frames in both runs
+_cw_all = np.hstack(
+    [s[0] for snaps in [snaps_uw, snaps_cw] for s in snaps]
+    + [s[1] for snaps in [snaps_uw, snaps_cw] for s in snaps if s[1].shape[1] > 0]
+)
+_cw_max_indices = list(_cw_all.max(axis=1).astype(int))
 
 fig, axes = plt.subplots(1, 2, figsize=(14, 4.5))
 
-def _draw_indices(ax, sel, cand, title):
-    """Draw selected + candidate boxes on ax."""
-    # Candidates (dashed, behind)
-    for j in range(cand.shape[1]):
-        beta, alpha = cand[0, j], cand[1, j]
-        color = "#93C5E8" if alpha == 0 else "#F5A9A9"
-        rect = plt.Rectangle(
-            (beta - 0.4, alpha - 0.3), 0.8, 0.6,
-            facecolor=color, edgecolor="black", alpha=0.4,
-            linewidth=1.5, linestyle="--",
-        )
-        ax.add_patch(rect)
-        ax.text(beta, alpha, f"({beta},{alpha})",
-                ha="center", va="center", fontsize=8, color="gray")
-    # Selected (solid, on top)
-    for j in range(sel.shape[1]):
-        beta, alpha = sel[0, j], sel[1, j]
-        color = "#2C7FB8" if alpha == 0 else "#E74C3C"
-        rect = plt.Rectangle(
-            (beta - 0.4, alpha - 0.3), 0.8, 0.6,
-            facecolor=color, edgecolor="black", alpha=0.7, linewidth=1.5,
-        )
-        ax.add_patch(rect)
-        ax.text(beta, alpha, f"({beta},{alpha})",
-                ha="center", va="center", fontsize=9)
-    ax.set_xlim(-0.6, max_beta + 1)
-    ax.set_ylim(-0.5, 2)
-    ax.set_xlabel("Physical level $\\beta$", fontsize=11)
-    ax.set_ylabel("Config level $\\alpha$", fontsize=11)
-    ax.set_title(title, fontsize=11)
-    ax.grid(True, alpha=0.3)
-
-legend_handles = [
+legend_handles_cw = [
     Patch(facecolor="#2C7FB8", edgecolor="black", alpha=0.7,
           label="Selected ($\\alpha=0$)"),
     Patch(facecolor="#E74C3C", edgecolor="black", alpha=0.7,
@@ -722,15 +685,22 @@ def animate_cw(ii):
     axes[1].clear()
     sel_uw, cand_uw, _, err_uw, cost_uw = snaps_uw[ii]
     sel_cw, cand_cw, _, err_cw, cost_cw = snaps_cw[ii]
-    _draw_indices(
-        axes[0], sel_uw, cand_uw,
-        f"Unweighted — step {ii+1}\ncost={cost_uw:.1f}, error={err_uw:.1e}",
-    )
-    _draw_indices(
-        axes[1], sel_cw, cand_cw,
-        f"Cost-weighted (base=4) — step {ii+1}\ncost={cost_cw:.1f}, error={err_cw:.1e}",
-    )
-    axes[1].legend(handles=legend_handles, fontsize=7, loc="upper right")
+    for ax_i, sel_i, cand_i, title_i in [
+        (axes[0], sel_uw, cand_uw,
+         f"Unweighted — step {ii+1}\ncost={cost_uw:.1f}, error={err_uw:.1e}"),
+        (axes[1], sel_cw, cand_cw,
+         f"Cost-weighted (base=4) — step {ii+1}\ncost={cost_cw:.1f}, error={err_cw:.1e}"),
+    ]:
+        plot_index_sets(
+            ax_i, sel_i, cand_i,
+            selected_colors=_mf_color, candidate_colors=_mf_cand_color,
+            selected_labels=True, candidate_labels=True,
+            box_height=0.6, selected_alpha=0.7, candidate_alpha=0.4,
+            axis_labels=["Physical level $\\beta$", "Config level $\\alpha$"],
+            max_indices=_cw_max_indices,
+        )
+        ax_i.set_title(title_i, fontsize=11)
+    axes[1].legend(handles=legend_handles_cw, fontsize=7, loc="upper right")
 
 ani_cw = animation.FuncAnimation(
     fig, animate_cw, frames=n_frames, interval=800, repeat_delay=2000,
@@ -863,31 +833,39 @@ print(f"RMS error vs exact model: {rms_err:.2e}")
 With two physical variables and one configuration variable, each selected subspace index is a triple $[\beta_1, \beta_2, \alpha]$.  A 3D scatter plot reveals how the algorithm distributes resolution across the two physical dimensions and the model hierarchy.
 
 ```{python}
-from mpl_toolkits.mplot3d import Axes3D  # noqa: F401
+#| fig-cap: "Selected multi-indices $[\\beta_1, \\beta_2, \\alpha]$ for the 2D physical + 1 config variable problem, shown as 3D voxels. Blue voxels ($\\alpha=0$) represent cheap model evaluations spanning many physical levels; red voxels ($\\alpha=1$) represent expensive model evaluations at fewer physical levels."
+#| label: fig-mf-indices-2d
+
+from pyapprox.typing.surrogates.affine.indices import (
+    plot_indices_3d, format_index_axes,
+)
+from matplotlib.patches import Patch
 
 sel_2d = result_2d.indices
 sel_2d_np = bkd.to_numpy(sel_2d).astype(int)
 
-fig = plt.figure(figsize=(9, 6))
+fig = plt.figure(figsize=(10, 7))
 ax = fig.add_subplot(111, projection="3d")
+plot_indices_3d(
+    ax, sel_2d_np,
+    colors=lambda idx: "#2C7FB8CC" if idx[-1] == 0 else "#E74C3CCC",
+    labels=True,
+)
+format_index_axes(
+    ax, sel_2d_np,
+    axis_labels=[
+        "$\\beta_1$ (physical dim 1)",
+        "$\\beta_2$ (physical dim 2)",
+        "$\\alpha$ (config level)",
+    ],
+)
 
-for j in range(sel_2d_np.shape[1]):
-    b1, b2, alpha = sel_2d_np[0, j], sel_2d_np[1, j], sel_2d_np[2, j]
-    color = "#2C7FB8" if alpha == 0 else "#E74C3C"
-    label = "$\\alpha=0$ (cheap)" if alpha == 0 else "$\\alpha=1$ (expensive)"
-    # Only add label once per config level
-    if j > 0 and alpha in sel_2d_np[2, :j]:
-        label = None
-    ax.scatter(b1, b2, alpha, c=color, s=120, edgecolors="black",
-               linewidths=0.8, label=label, zorder=5, depthshade=False)
-    ax.plot([b1, b1], [b2, b2], [0, alpha], color=color, lw=1.5, alpha=0.5)
-
-ax.set_xlabel("$\\beta_1$ (physical dim 1)", fontsize=11)
-ax.set_ylabel("$\\beta_2$ (physical dim 2)", fontsize=11)
-ax.set_zlabel("$\\alpha$ (config level)", fontsize=11)
+legend_handles = [
+    Patch(facecolor="#2C7FB8", edgecolor="black", label="$\\alpha=0$ (cheap)"),
+    Patch(facecolor="#E74C3C", edgecolor="black", label="$\\alpha=1$ (expensive)"),
+]
+ax.legend(handles=legend_handles, fontsize=10, loc="upper left")
 ax.set_title("Selected multi-indices $[\\beta_1, \\beta_2, \\alpha]$", fontsize=12)
-ax.set_zticks([0, 1])
-ax.legend(fontsize=10, loc="upper left")
 plt.tight_layout()
 plt.show()
 ```
@@ -900,6 +878,9 @@ The blue markers ($\alpha = 0$) span many physical levels using the cheap model,
 We compare the multi-fidelity surrogate against the true high-fidelity model $f_1(z_1, z_2)$.
 
 ```{python}
+#| fig-cap: "Multi-fidelity surrogate accuracy on the 2D problem. Left: true high-fidelity function. Center: multi-fidelity surrogate. Right: pointwise absolute error, showing the surrogate closely matches the true function."
+#| label: fig-mf-2d-accuracy
+
 from pyapprox.typing.interface.functions.plot.plot2d_rectangular import (
     Plotter2DRectangularDomain,
     meshgrid_samples,

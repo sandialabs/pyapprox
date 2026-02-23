@@ -59,6 +59,13 @@ from pyapprox.typing.surrogates.affine.indices.adaptive import (
     AdaptiveIndexRefinement,
 )
 
+from pyapprox.typing.surrogates.affine.indices.plot import (
+    plot_indices_2d,
+    plot_indices_3d,
+    format_index_axes,
+    plot_index_sets,
+)
+
 __all__ = [
     # Utilities
     "hash_index",
@@ -104,4 +111,9 @@ __all__ = [
     "BasisIndexGenerator",
     # Adaptive refinement
     "AdaptiveIndexRefinement",
+    # Plotting
+    "plot_indices_2d",
+    "plot_indices_3d",
+    "format_index_axes",
+    "plot_index_sets",
 ]
