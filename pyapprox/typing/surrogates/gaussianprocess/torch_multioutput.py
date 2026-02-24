@@ -17,6 +17,8 @@ from pyapprox.typing.util.backends.validation import validate_backends
 from pyapprox.typing.surrogates.kernels.multioutput import (
     IndependentMultiOutputKernel,
     LinearCoregionalizationKernel,
+    MultiLevelKernel,
+    DAGMultiOutputKernel,
 )
 from pyapprox.typing.surrogates.gaussianprocess.multioutput import (
     MultiOutputGP,
@@ -33,7 +35,8 @@ class TorchMultiOutputGP(MultiOutputGP[torch.Tensor]):
 
     Parameters
     ----------
-    kernel : IndependentMultiOutputKernel or LinearCoregionalizationKernel
+    kernel : IndependentMultiOutputKernel, LinearCoregionalizationKernel,
+             MultiLevelKernel, or DAGMultiOutputKernel
         Multi-output kernel. Must use TorchBkd as its backend.
     nugget : float, optional
         Numerical stability parameter. Default is 1e-6.
@@ -42,7 +45,10 @@ class TorchMultiOutputGP(MultiOutputGP[torch.Tensor]):
     def __init__(
         self,
         kernel: Union[
-            IndependentMultiOutputKernel, LinearCoregionalizationKernel
+            IndependentMultiOutputKernel,
+            LinearCoregionalizationKernel,
+            MultiLevelKernel,
+            DAGMultiOutputKernel,
         ],
         nugget: float = 1e-6,
     ):

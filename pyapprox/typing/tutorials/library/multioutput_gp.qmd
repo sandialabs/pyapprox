@@ -1,0 +1,394 @@
+---
+title: "Multi-Fidelity and Multi-Output Gaussian Processes"
+subtitle: "PyApprox Tutorial Library"
+description: "Exploit correlations between model fidelities and between output quantities to build accurate surrogates within a fixed computational budget."
+tutorial_type: usage
+topic: surrogate_modeling
+difficulty: advanced
+estimated_time: 15
+prerequisites:
+  - gp_surrogate
+  - adaptive_gp_sampling
+tags:
+  - surrogate
+  - gaussian-process
+  - multi-fidelity
+  - multi-output
+  - ivar
+  - coregionalization
+  - beam
+format:
+  html:
+    code-fold: false
+    code-tools: true
+    toc: true
+execute:
+  echo: true
+  warning: false
+jupyter: python3
+---
+
+::: {.callout-tip collapse="true"}
+## Download Notebook
+[Download as Jupyter Notebook](notebooks/multioutput_gp.ipynb)
+:::
+
+## Learning Objectives
+
+After completing this tutorial you will be able to:
+
+- Build a `MultiLevelKernel` from per-level kernels and `PolynomialScaling`
+  correlation functions to represent the Kennedy–O'Hagan auto-regressive model
+- Feed per-fidelity evaluation costs into a cost-aware `MultiOutputIVARSampler`
+- Fit and predict with `MultiOutputGP`, and interpret the joint predictive covariance
+- Explain when a `LinearCoregionalizationKernel` outperforms independent
+  per-output GPs
+
+
+## The Multi-Fidelity Idea
+
+Many simulators exist at multiple resolution levels: a coarse mesh runs in
+milliseconds while the fine mesh takes seconds or minutes per evaluation. The
+outputs are highly correlated — the coarse model is inaccurate in absolute terms
+but tracks the fine model closely enough to carry information.
+
+Spending the entire budget on fine evaluations ignores this. A
+**multi-fidelity Gaussian process (MFGP)** models the relationship between
+levels explicitly, so that many cheap coarse evaluations substantially reduce
+uncertainty in the fine-level prediction. The accuracy gain is largest when the
+cost ratio is high and the inter-level correlation is strong.
+
+
+## Setup: Three Beam Fidelities
+
+We use three mesh refinements of a 1D Euler–Bernoulli cantilever beam with a
+KLE-parameterised bending stiffness field (nx=10, 20, 40 elements, coarse to
+fine).
+
+```{python}
+import numpy as np
+import matplotlib.pyplot as plt
+import torch
+torch.set_default_dtype(torch.float64)
+
+from pyapprox.typing.util.backends.torch import TorchBkd
+from pyapprox.typing.benchmarks.instances.pde.cantilever_beam import cantilever_beam_1d
+
+bkd     = TorchBkd()
+nkle    = 2
+nx_levels = [10, 20, 40]     # coarse, medium, fine
+nmodels   = len(nx_levels)
+
+benchmarks    = [cantilever_beam_1d(bkd, nx=nx, num_kle_terms=nkle)
+                 for nx in nx_levels]
+raw_models    = [b.function() for b in benchmarks]
+prior         = benchmarks[-1].prior()
+marginals     = prior.marginals()
+nvars         = raw_models[-1].nvars()
+level_names   = ["Coarse", "Medium", "Fine"]
+
+# Synthetic per-evaluation costs reflecting a realistic FEM hierarchy.
+# The 1D beam is cheap at all levels, so we assign representative costs
+# (in seconds) to demonstrate cost-aware allocation.
+costs_per_eval = [1.0, 5.0, 25.0]
+print("Per-evaluation costs (synthetic):")
+for name, c in zip(level_names, costs_per_eval):
+    print(f"  {name:7s}: {c:.1f} s/eval")
+print(f"Fine/Coarse ratio: {costs_per_eval[-1]/costs_per_eval[0]:.0f}×")
+
+# Hold-out test set evaluated on the fine model
+N_test    = 300
+np.random.seed(1)
+X_test    = prior.rvs(N_test)
+y_test_all = bkd.to_numpy(raw_models[-1](X_test))        # (3, N_test)
+y_test_hf  = y_test_all[0, :]                             # tip deflection
+```
+
+
+## The Kennedy–O'Hagan Auto-Regressive Model
+
+The MFGP is built on the **Kennedy–O'Hagan (KO)** model, which represents each
+fidelity level $k$ as a scaled version of the level below plus an independent
+discrepancy:
+
+$$
+f_0 \sim \mathcal{GP}(0, k_0), \qquad
+f_k = \rho_{k-1}(\boldsymbol{\xi})\,f_{k-1} + \delta_k(\boldsymbol{\xi}),
+\quad k = 1, \ldots, K-1
+$$
+
+where $\rho_{k-1}$ is a learnable **scaling function** and
+$\delta_k \sim \mathcal{GP}(0, k_k)$ is an independent discrepancy.
+Recursively expanding this expression yields the joint covariance across all
+levels — a block matrix that `MultiLevelKernel` assembles automatically.
+
+
+## Building the MultiLevelKernel
+
+```{python}
+from pyapprox.typing.surrogates.kernels.matern import SquaredExponentialKernel
+from pyapprox.typing.surrogates.kernels.multioutput.multilevel import MultiLevelKernel
+from pyapprox.typing.surrogates.kernels.scalings import PolynomialScaling
+from pyapprox.typing.surrogates.gaussianprocess.torch_multioutput import TorchMultiOutputGP
+
+# One SE kernel per fidelity level (the k_k terms in the KO model)
+level_kernels = [
+    SquaredExponentialKernel([1.0], (0.05, 5.0), nvars, bkd)
+    for _ in range(nmodels)
+]
+
+# One scaling function per inter-level transition.
+# PolynomialScaling with fixed=False learns rho during fit().
+# Degree-0 (one coefficient) means a learned constant scaling.
+scalings = [
+    PolynomialScaling([1.0], (-3.0, 3.0), bkd, nvars=nvars, fixed=False),
+    PolynomialScaling([1.0], (-3.0, 3.0), bkd, nvars=nvars, fixed=False),
+]
+
+mf_kernel = MultiLevelKernel(level_kernels, scalings)
+
+# TorchMultiOutputGP uses autograd to differentiate the NLL directly,
+# bypassing the kernel's analytical jacobian_wrt_params. This enables
+# gradient-based optimization even when X arrays differ per level.
+mf_gp = TorchMultiOutputGP(mf_kernel, nugget=1e-8)
+
+print("Hyperparameters before fitting:")
+for h in mf_kernel.hyp_list().hyperparameters():
+    vals = bkd.to_numpy(h.get_values())
+    vals_str = ", ".join(f"{float(v):.3f}" for v in vals)
+    print(f"  {h._name}: [{vals_str}]  (active={h.nactive_params() > 0})")
+```
+
+::: {.callout-note}
+## Constant vs. input-dependent scaling
+
+`PolynomialScaling` with one coefficient learns a single scalar $\rho_k$ per
+transition. Higher-degree polynomials can capture input-dependent correlations but
+require more data to avoid overfitting. Constant scalings are stable and sufficient
+for the beam benchmark.
+:::
+
+
+## Cost-Aware Adaptive Sampling
+
+Multi-output IVAR (Uncertainty Quantification) selects a **(level, location)** pair
+at each step to maximally reduce the integrated fine-level variance per unit cost:
+
+$$
+(k^*, \boldsymbol{\xi}^*) = \underset{k,\,\boldsymbol{\xi}}{\arg\max}
+\;\frac{\Delta\mathrm{IVAR}_\mathrm{HF}(k,\,\boldsymbol{\xi})}{c_k}
+$$
+
+where $c_k$ is the measured cost at level $k$. Cheap coarse evaluations are chosen
+whenever their cross-covariance with the fine level is large enough to justify them
+over a directly fine evaluation.
+
+```{python}
+from pyapprox.typing.surrogates.gaussianprocess.adaptive.multioutput_ivar_sampler import (
+    MultiOutputIVARSampler,
+)
+
+N_cand          = 400
+np.random.seed(2)
+candidates      = prior.rvs(N_cand)
+candidates_list = [candidates] * nmodels   # same candidate pool for each level
+
+costs_arr = bkd.asarray(costs_per_eval)
+
+sampler = MultiOutputIVARSampler(
+    candidates_list, costs_arr, bkd,
+    nugget=0, nquad_samples=5000,
+)
+# Initial pivot: midpoint of the finest (last) candidate block
+init_pivot = N_cand * (nmodels - 1) + N_cand // 2
+sampler.set_initial_pivots([init_pivot])
+sampler.set_kernel(mf_kernel)
+
+# Budget equivalent to 30 fine-level evaluations
+budget_s     = 30 * costs_per_eval[-1]
+n_ivar       = max(6, int(budget_s / np.mean(costs_per_eval)))
+samples_list = sampler.select_samples(n_ivar)
+
+print("Sample allocation:")
+total_cost = 0.0
+for k, (name, samps) in enumerate(zip(level_names, samples_list)):
+    cost_k = samps.shape[1] * costs_per_eval[k]
+    total_cost += cost_k
+    print(f"  {name:7s}: {samps.shape[1]:3d} evals  ({cost_k:.2f} s)")
+print(f"  Total cost: {total_cost:.2f} s  "
+      f"(budget: {budget_s:.2f} s)")
+```
+
+```{python}
+#| echo: false
+#| fig-cap: "Left: synthetic per-evaluation cost for each fidelity level. Right: sample allocation from the cost-aware IVAR sampler — more evaluations go to cheap low-fidelity levels because their cross-covariance with the fine level is large."
+#| label: fig-costs-allocation
+
+fig, axes = plt.subplots(1, 2, figsize=(10, 3.5))
+colors = ["#AED6F1", "#2980B9", "#1A5276"]
+
+axes[0].bar(level_names, costs_per_eval, color=colors, edgecolor="k", lw=0.8)
+for bar, c in zip(axes[0].patches, costs_per_eval):
+    axes[0].text(bar.get_x() + bar.get_width()/2,
+                 bar.get_height() + max(costs_per_eval)*0.01,
+                 f"{c:.0f}s", ha="center", va="bottom", fontsize=9)
+axes[0].set_ylabel("Cost per evaluation (s)", fontsize=10)
+axes[0].set_title("Fidelity evaluation costs", fontsize=10)
+axes[0].grid(True, axis="y", alpha=0.3)
+
+n_alloc  = [s.shape[1] for s in samples_list]
+axes[1].bar(level_names, n_alloc, color=colors, edgecolor="k", lw=0.8)
+for bar, n in zip(axes[1].patches, n_alloc):
+    axes[1].text(bar.get_x() + bar.get_width()/2,
+                 bar.get_height() + 0.15,
+                 str(n), ha="center", va="bottom", fontsize=9)
+axes[1].set_ylabel("Number of evaluations", fontsize=10)
+axes[1].set_title("IVAR sample allocation", fontsize=10)
+axes[1].grid(True, axis="y", alpha=0.3)
+plt.tight_layout()
+plt.show()
+```
+
+
+## Fitting and Assessing the Multi-Fidelity GP
+
+```{python}
+# Evaluate each model at its allocated sample locations
+y_train_list = []
+for k, (model, samps) in enumerate(zip(raw_models, samples_list)):
+    y_k = model(samps)[:1, :]    # tip deflection only, shape (1, n_k)
+    y_train_list.append(y_k)
+    print(f"  {level_names[k]:7s}: {samps.shape[1]} evals")
+
+# fit() optimises all active hyperparameters by default via MLL
+mf_gp.fit(samples_list, y_train_list)
+
+print("\nFitted rho values:")
+for h in mf_kernel.hyp_list().hyperparameters():
+    if "scaling" in h._name.lower() or "rho" in h._name.lower():
+        vals = bkd.to_numpy(h.get_values())
+        vals_str = ", ".join(f"{float(v):.4f}" for v in vals)
+        print(f"  {h._name}: [{vals_str}]")
+
+# Predict at all three levels on the test set
+X_test_list = [X_test] * nmodels
+means, stds  = mf_gp.predict_with_uncertainty(X_test_list)
+
+mf_pred_hf  = bkd.to_numpy(means[-1])[0, :]
+l2_mf = (np.linalg.norm(y_test_hf - mf_pred_hf)
+         / np.linalg.norm(y_test_hf))
+print(f"\nMulti-fidelity GP  HF L2 error: {l2_mf:.4e}")
+
+# HF-only baseline at equal cost budget
+from pyapprox.typing.surrogates.gaussianprocess import ExactGaussianProcess
+from pyapprox.typing.surrogates.gaussianprocess.adaptive.cholesky_sampler import (
+    CholeskySampler,
+)
+from pyapprox.typing.surrogates.gaussianprocess.fitters import (
+    GPMaximumLikelihoodFitter,
+)
+n_hf_equiv  = max(5, int(budget_s / costs_per_eval[-1]))
+hf_ref_kern = SquaredExponentialKernel([1.0], (0.05, 5.0), nvars, bkd)
+hf_sampler  = CholeskySampler(prior.rvs(N_cand), bkd)
+hf_sampler.set_kernel(hf_ref_kern)
+X_hf   = hf_sampler.select_samples(n_hf_equiv)
+y_hf   = raw_models[-1](X_hf)[:1, :]
+hf_gp  = ExactGaussianProcess(hf_ref_kern, nvars=nvars, bkd=bkd, nugget=1e-6)
+hf_gp  = GPMaximumLikelihoodFitter(bkd).fit(hf_gp, X_hf, y_hf).surrogate()
+hf_pred = bkd.to_numpy(hf_gp.predict(X_test))[0, :]
+l2_hf   = (np.linalg.norm(y_test_hf - hf_pred)
+           / np.linalg.norm(y_test_hf))
+print(f"HF-only GP         HF L2 error: {l2_hf:.4e}")
+print(f"Accuracy improvement: {l2_hf/l2_mf:.1f}×")
+```
+
+A fitted $\rho$ close to 1 means consecutive levels are nearly proportional —
+the inter-level information transfer is strong and multi-fidelity pays off.
+Values far from 1 indicate a large systematic bias between mesh resolutions.
+
+```{python}
+#| echo: false
+#| fig-cap: "Left: predicted vs. true tip deflection for the multi-fidelity GP (red circles) and HF-only GP at the same cost budget (blue triangles). Right: prior kernel matrix across 25 test points for all three fidelity levels. Strong off-diagonal blocks confirm the inter-level correlation exploited by the sampler."
+#| label: fig-accuracy-covariance
+
+fig, axes = plt.subplots(1, 2, figsize=(11, 4.5))
+
+# Left: accuracy scatter
+lims = [min(y_test_hf.min(), mf_pred_hf.min(), hf_pred.min()),
+        max(y_test_hf.max(), mf_pred_hf.max(), hf_pred.max())]
+axes[0].scatter(y_test_hf, mf_pred_hf, s=20, alpha=0.7,
+                color="#D62728", marker="o", edgecolors="none",
+                label=f"Multi-fidelity  L2={l2_mf:.2e}")
+axes[0].scatter(y_test_hf, hf_pred, s=20, alpha=0.7,
+                color="#1F77B4", marker="^", edgecolors="none",
+                label=f"HF-only (N={n_hf_equiv})  L2={l2_hf:.2e}")
+axes[0].plot(lims, lims, "k--", lw=1.2)
+axes[0].set_xlabel("True HF tip deflection", fontsize=10)
+axes[0].set_ylabel("Predicted mean", fontsize=10)
+axes[0].set_title("Accuracy at equal cost budget", fontsize=10)
+axes[0].legend(fontsize=8)
+axes[0].grid(True, alpha=0.2)
+
+# Right: joint *prior* kernel matrix to show multi-level structure
+# Sort points by first coordinate so the covariance matrix has smooth structure
+n_cov  = 50
+X_cov_unsorted = X_test[:, :n_cov]
+sort_idx = bkd.to_numpy(X_cov_unsorted[0, :]).argsort()
+X_cov  = X_cov_unsorted[:, sort_idx]
+K_np   = bkd.to_numpy(mf_kernel([X_cov] * nmodels))
+im = axes[1].imshow(K_np, cmap="viridis", aspect="auto")
+plt.colorbar(im, ax=axes[1], label="Kernel value", fraction=0.046)
+block = n_cov
+for k, name in enumerate(level_names):
+    mid = k * block + block // 2
+    axes[1].text(mid, -1.8, name, ha="center", va="top", fontsize=7)
+    axes[1].text(-1.8, mid, name, ha="right", va="center",
+                 fontsize=7, rotation=90)
+    if k < nmodels - 1:
+        axes[1].axvline((k+1)*block - 0.5, color="k", lw=0.8)
+        axes[1].axhline((k+1)*block - 0.5, color="k", lw=0.8)
+axes[1].set_xticks([]); axes[1].set_yticks([])
+axes[1].set_title("Multi-level kernel matrix", fontsize=10)
+plt.tight_layout()
+plt.show()
+```
+
+::: {.callout-note}
+## Reading the kernel heatmap
+
+Each diagonal block is the per-level prior covariance. The off-diagonal blocks
+are cross-level covariances implied by the KO recursion: a large Coarse–Fine
+block means a coarse evaluation carries information about the fine level. This
+is exactly what `MultiOutputIVARSampler` exploits when it allocates budget.
+:::
+
+
+## Key Takeaways
+
+- The **Kennedy–O'Hagan model** $f_k = \rho_{k-1}\,f_{k-1} + \delta_k$ encodes
+  inter-level correlation explicitly; `MultiLevelKernel` assembles the block
+  kernel matrix automatically from per-level kernels and scalings
+- **Multi-output IVAR** allocates evaluations across fidelity levels by maximising
+  HF variance reduction per unit cost; it exploits the cross-level covariance to
+  favour cheap levels when they are strongly correlated with the fine level
+- The block kernel matrix shows cross-level covariance confirming how much
+  information flows between levels
+
+
+## Exercises
+
+1. Set `fixed=True` and $\rho = 0.5$ on both `PolynomialScaling` objects (no
+   learning). How does the HF L2 error compare to the learned $\rho$?
+2. Change the cost vector to `[1.0, 1.0, 1.0]` (equal costs). Does the IVAR
+   sampler still allocate unevenly? Explain why or why not.
+3. Plot `sampler.best_obj_vals()` against sample index. How quickly does the
+   multi-output integrated variance decay, and does it plateau before the budget
+   is exhausted?
+
+
+## Next Steps
+
+- [Adaptive Sampling for Gaussian Processes](adaptive_gp_sampling.qmd) — The
+  single-output Cholesky and IVAR methods that `MultiOutputIVARSampler` extends
+- [UQ with Gaussian Processes](uq_with_gp.qmd) — The P matrix and kernel integral
+  framework that underlies both single- and multi-output IVAR

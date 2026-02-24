@@ -114,6 +114,7 @@ subtitle: "Validated tutorials for uncertainty quantification"
 | [Building a GP Surrogate](gp_surrogate.qmd) | Approximate an expensive model with a Gaussian process and quantify prediction uncertainty |
 | [UQ with Gaussian Processes](uq_with_gp.qmd) | Compute analytical moments, marginal densities, and main effects from a fitted GP — without additional model evaluations |
 | [Adaptive GP Sampling](adaptive_gp_sampling.qmd) | Choose training points that maximally reduce GP posterior uncertainty using greedy Cholesky and IVAR strategies |
+| [Multi-Fidelity and Multi-Output GPs](multioutput_gp.qmd) | Exploit correlations between model fidelities and between output quantities to build accurate surrogates within a fixed computational budget |
 
 ## Sensitivity Analysis
 

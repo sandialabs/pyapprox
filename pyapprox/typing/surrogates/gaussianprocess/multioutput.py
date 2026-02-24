@@ -15,6 +15,8 @@ from pyapprox.typing.util.linalg.cholesky_factor import CholeskyFactor
 from pyapprox.typing.surrogates.kernels.multioutput import (
     IndependentMultiOutputKernel,
     LinearCoregionalizationKernel,
+    MultiLevelKernel,
+    DAGMultiOutputKernel,
 )
 from pyapprox.typing.surrogates.gaussianprocess.multioutput_data import (
     MultiOutputGPTrainingData
@@ -104,7 +106,12 @@ class MultiOutputGP(Generic[Array]):
 
     def __init__(
         self,
-        kernel: Union[IndependentMultiOutputKernel, LinearCoregionalizationKernel],
+        kernel: Union[
+            IndependentMultiOutputKernel,
+            LinearCoregionalizationKernel,
+            MultiLevelKernel,
+            DAGMultiOutputKernel,
+        ],
         nugget: float = 1e-6,
     ):
         """
@@ -112,7 +119,8 @@ class MultiOutputGP(Generic[Array]):
 
         Parameters
         ----------
-        kernel : IndependentMultiOutputKernel or LinearCoregionalizationKernel
+        kernel : IndependentMultiOutputKernel, LinearCoregionalizationKernel,
+                 MultiLevelKernel, or DAGMultiOutputKernel
             Multi-output kernel.
         nugget : float, optional
             Small value added to diagonal for numerical stability. Default: 1e-6.

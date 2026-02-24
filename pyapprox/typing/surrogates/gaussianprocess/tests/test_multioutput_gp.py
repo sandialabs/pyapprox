@@ -15,7 +15,11 @@ from numpy.typing import NDArray
 from pyapprox.typing.util.backends.protocols import Backend, Array
 from pyapprox.typing.util.backends.numpy import NumpyBkd
 from pyapprox.typing.util.backends.torch import TorchBkd
-from pyapprox.typing.surrogates.kernels.matern import Matern52Kernel
+from pyapprox.typing.surrogates.kernels.matern import (
+    Matern52Kernel,
+    SquaredExponentialKernel,
+)
+from pyapprox.typing.surrogates.kernels.multioutput.multilevel import MultiLevelKernel
 from pyapprox.typing.surrogates.kernels.scalings import PolynomialScaling
 from pyapprox.typing.surrogates.kernels.iid_gaussian_noise import IIDGaussianNoise
 from pyapprox.typing.surrogates.kernels.multioutput import (
@@ -657,6 +661,116 @@ class TestMultiOutputGPOptimization(unittest.TestCase):
         error_ratio = float(checker.error_ratio(grad_error))
         self.assertLess(error_ratio, 1e-6,
                        f"Error ratio {error_ratio:.2e} suggests poor convergence")
+
+
+class TestTorchMultiOutputGPWithMultiLevelKernel(unittest.TestCase):
+    """Torch-only tests for TorchMultiOutputGP with MultiLevelKernel.
+
+    Tests autograd-based NLL gradients with different X arrays per level,
+    the key scenario where analytical kernel jacobian_wrt_params fails.
+    """
+
+    def setUp(self) -> None:
+        torch.set_default_dtype(torch.float64)
+        np.random.seed(42)
+        self._bkd = TorchBkd()
+        self.nvars = 2
+        self.nlevels = 3
+
+    def _create_multilevel_data(self):
+        """Create multi-level data with different X arrays per level."""
+        bkd = self._bkd
+        # Different number of samples per level (more at cheap levels)
+        n_per_level = [25, 15, 8]
+        X_list = []
+        y_list = []
+        for k, n_k in enumerate(n_per_level):
+            X_np = np.random.randn(self.nvars, n_k)
+            X_k = bkd.array(X_np)
+            # Simulate multi-fidelity: each level is a noisy version of sin
+            bias = 0.1 * (self.nlevels - 1 - k)
+            y_np = np.sin(X_np[0, :] + X_np[1, :]) + bias
+            y_k = bkd.array(y_np.reshape(1, -1))
+            X_list.append(X_k)
+            y_list.append(y_k)
+        return X_list, y_list
+
+    def _create_kernel(self):
+        """Create a MultiLevelKernel with SE kernels and polynomial scalings."""
+        bkd = self._bkd
+        level_kernels = [
+            SquaredExponentialKernel([1.0], (0.05, 5.0), self.nvars, bkd)
+            for _ in range(self.nlevels)
+        ]
+        scalings = [
+            PolynomialScaling(
+                [1.0], (-3.0, 3.0), bkd, nvars=self.nvars, fixed=False
+            )
+            for _ in range(self.nlevels - 1)
+        ]
+        return MultiLevelKernel(level_kernels, scalings)
+
+    def test_loss_gradient_accuracy_different_X_per_level(self) -> None:
+        """Verify autograd NLL gradients match finite differences."""
+        bkd = self._bkd
+        X_list, y_list = self._create_multilevel_data()
+        mf_kernel = self._create_kernel()
+        gp = TorchMultiOutputGP(mf_kernel, nugget=1e-6)
+
+        gp._fit_internal(X_list, y_list)
+
+        loss = GPNegativeLogMarginalLikelihoodLoss(gp, (X_list, y_list))
+        gp._configure_loss(loss)
+
+        self.assertTrue(
+            hasattr(loss, 'jacobian'),
+            "Autograd jacobian should be bound on loss"
+        )
+
+        checker = DerivativeChecker(loss)
+        params = gp.hyp_list().get_active_values()
+
+        fd_eps = bkd.flip(bkd.logspace(-14, 0, 15))
+
+        errors = checker.check_derivatives(
+            params[:, None],
+            fd_eps=fd_eps,
+            relative=True,
+            verbosity=0,
+        )
+
+        grad_error = errors[0]
+        self.assertTrue(
+            bkd.all_bool(bkd.isfinite(grad_error)),
+            "Gradient errors contain non-finite values",
+        )
+        min_error = float(bkd.min(grad_error))
+        self.assertLess(
+            min_error, 1e-6,
+            f"Min gradient error {min_error} exceeds threshold"
+        )
+
+        error_ratio = float(checker.error_ratio(grad_error))
+        self.assertLess(
+            error_ratio, 1e-6,
+            f"Error ratio {error_ratio:.2e} suggests poor convergence"
+        )
+
+    def test_fit_with_different_X_per_level(self) -> None:
+        """End-to-end fit() with different X per level optimizes params."""
+        X_list, y_list = self._create_multilevel_data()
+        mf_kernel = self._create_kernel()
+        gp = TorchMultiOutputGP(mf_kernel, nugget=1e-6)
+
+        initial_params = gp.hyp_list().get_active_values().clone()
+
+        gp.fit(X_list, y_list)
+
+        final_params = gp.hyp_list().get_active_values()
+        self.assertFalse(
+            self._bkd.allclose(initial_params, final_params),
+            "Hyperparameters should change during optimization"
+        )
 
 
 from pyapprox.typing.util.test_utils import load_tests  # noqa: F401

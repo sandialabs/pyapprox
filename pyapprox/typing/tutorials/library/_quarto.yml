@@ -103,6 +103,7 @@ website:
             - gp_surrogate.qmd
             - uq_with_gp.qmd
             - adaptive_gp_sampling.qmd
+            - multioutput_gp.qmd
         - section: "Sensitivity Analysis"
           contents:
             - sensitivity_analysis_concept.qmd
