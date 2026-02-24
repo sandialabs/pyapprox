@@ -16,8 +16,20 @@ from pyapprox.typing.benchmarks.functions.multifidelity.tunable_ensemble import 
     TunableModelFunction,
     TunableModelEnsemble,
 )
+from pyapprox.typing.benchmarks.functions.multifidelity.branin_ensemble import (
+    BraninModelFunction,
+    BraninEnsemble,
+)
+from pyapprox.typing.benchmarks.functions.multifidelity.forrester_ensemble import (
+    ForresterModelFunction,
+    ForresterEnsemble,
+)
 
 __all__ = [
+    "BraninModelFunction",
+    "BraninEnsemble",
+    "ForresterModelFunction",
+    "ForresterEnsemble",
     "MultifidelityStatisticsMixin",
     "PolynomialModelFunction",
     "PolynomialEnsemble",

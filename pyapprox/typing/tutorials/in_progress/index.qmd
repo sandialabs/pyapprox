@@ -47,6 +47,13 @@ These tutorials have not yet been validated. They may contain errors, incomplete
 | [PACV Estimators](pacv_estimators.qmd) | Parameterized ACV | ACV Framework |
 | [PACV Recursion Analysis](pacv_recursion_analysis.qmd) | Recursive PACV analysis | PACV |
 
+### Multi-Fidelity Surrogates
+
+| Tutorial | Description | Prerequisites |
+|----------|-------------|---------------|
+| [Multi-Fidelity Networks](mfnet_concept.qmd) | DAG-based multi-fidelity surrogates: concept and theory | Polynomial Chaos |
+| [Multi-Fidelity Networks: Usage](mfnet_usage.qmd) | Build, fit, and evaluate MFNets with the PyApprox API | MFNet Concept |
+
 ### GP Statistics
 
 | Tutorial | Description | Prerequisites |

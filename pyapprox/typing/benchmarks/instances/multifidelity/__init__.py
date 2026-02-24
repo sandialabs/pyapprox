@@ -11,8 +11,16 @@ from pyapprox.typing.benchmarks.instances.multifidelity.multioutput_ensemble imp
 from pyapprox.typing.benchmarks.instances.multifidelity.tunable_ensemble import (
     tunable_ensemble_3model,
 )
+from pyapprox.typing.benchmarks.instances.multifidelity.branin_ensemble import (
+    branin_ensemble_3model,
+)
+from pyapprox.typing.benchmarks.instances.multifidelity.forrester_ensemble import (
+    forrester_ensemble_2model,
+)
 
 __all__ = [
+    "branin_ensemble_3model",
+    "forrester_ensemble_2model",
     "polynomial_ensemble_5model",
     "polynomial_ensemble_3model",
     "multioutput_ensemble_3x3",
