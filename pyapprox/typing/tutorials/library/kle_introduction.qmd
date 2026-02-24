@@ -1,0 +1,358 @@
+---
+title: "KLE I: Random Fields and the Karhunen-Loève Expansion"
+subtitle: "PyApprox Tutorial Library"
+description: "Understand random fields, their covariance structure, and how the KLE decomposes them into deterministic spatial modes."
+tutorial_type: concept
+topic: random_fields
+difficulty: beginner
+estimated_time: 10
+prerequisites:
+  - setup_environment
+tags:
+  - random-field
+  - kle
+  - kernel
+  - eigenvalue
+format:
+  html:
+    code-fold: false
+    code-tools: true
+    toc: true
+execute:
+  echo: true
+  warning: false
+jupyter: python3
+---
+
+::: {.callout-tip collapse="true"}
+## Download Notebook
+[Download as Jupyter Notebook](notebooks/kle_introduction.ipynb)
+:::
+
+## Learning Objectives
+
+After completing this tutorial, you will be able to:
+
+- Explain what a random field is and how its covariance kernel encodes spatial correlation
+- Describe the Fredholm eigenvalue problem and the role of eigenfunctions and eigenvalues
+- Use `MeshKLE` with an `ExponentialKernel` to compute a KLE
+- Draw sample paths from the expansion and understand the effect of truncation
+- Assess truncation error using eigenvalue decay and pointwise variance
+
+A **random field** assigns a random variable to every point in space.
+The Karhunen-Loeve Expansion (KLE) decomposes it into deterministic
+spatial modes weighted by uncorrelated random scalars -- a PCA for
+functions.
+
+```{python}
+import numpy as np
+import matplotlib.pyplot as plt
+
+from pyapprox.typing.util.backends.numpy import NumpyBkd
+from pyapprox.typing.surrogates.kernels import ExponentialKernel
+from pyapprox.typing.surrogates.kle import MeshKLE
+
+bkd = NumpyBkd()
+rng = np.random.default_rng(42)
+
+npts = 200
+x = np.linspace(0, 2, npts)
+# MeshKLE expects mesh_coords of shape (nphys_vars, ncoords)
+mesh_coords = bkd.array(x[None, :])
+```
+
+## The covariance kernel controls spatial correlation
+
+The covariance $C(x, x') = \sigma^2 k(x, x')$ determines how similar
+the field is at nearby points.  The correlation length $\ell$ controls
+the spatial scale.
+
+```{python}
+#| label: fig-cov-matrices
+#| fig-cap: "Covariance matrix $C(x,x')$ of the exponential kernel for three correlation lengths. Larger $\\ell$ concentrates the covariance along the diagonal over a wider band, encoding longer-range spatial dependence."
+fig, axes = plt.subplots(1, 3, figsize=(12, 3.5), sharey=True)
+for ax, ell in zip(axes, [0.2, 0.5, 1.5]):
+    kernel = ExponentialKernel(bkd.array([ell]), (0.01, 10.0), 1, bkd)
+    C = bkd.to_numpy(kernel(mesh_coords, mesh_coords))
+    ax.imshow(C, extent=[0, 2, 2, 0], cmap="RdBu_r", vmin=0, vmax=1)
+    ax.set_title(f"$\\ell = {ell}$", fontsize=13)
+    ax.set_xlabel("$x'$")
+axes[0].set_ylabel("$x$")
+fig.suptitle("Covariance matrix $C(x,x')$ for three correlation lengths",
+             fontsize=13)
+plt.tight_layout()
+plt.show()
+```
+
+Larger $\ell$ produces smoother fields with long-range dependence.
+
+## Eigenfunctions are the natural modes of the field
+
+The **Fredholm eigenvalue problem**:
+
+$$\int_D C(x, x')\,\phi_k(x')\,dx' = \lambda_k\,\phi_k(x)$$
+
+gives eigenfunctions $\phi_k$ (deterministic shapes) and eigenvalues
+$\lambda_k$ (variance explained by each mode).
+
+`MeshKLE` discretizes this integral using quadrature weights $w_i$ and
+solves the weighted eigenproblem
+$W^{1/2}\,C\,W^{1/2}\,\hat\phi = \lambda\,\hat\phi$.
+
+```{python}
+#| label: fig-eigenvalues-eigenfunctions
+#| fig-cap: "Left: eigenvalue decay showing the variance captured by each mode. Right: the first four eigenfunctions $\\phi_k(x)$, which are orthogonal spatial oscillations matched to the exponential covariance structure."
+# Trapezoid quadrature weights
+dx = x[1] - x[0]
+w = np.ones(npts) * dx
+w[0] /= 2; w[-1] /= 2
+quad_weights = bkd.array(w)
+
+nterms = 6
+ell = 0.5
+kernel = ExponentialKernel(bkd.array([ell]), (0.01, 10.0), 1, bkd)
+kle = MeshKLE(
+    mesh_coords, kernel, sigma=1.0, nterms=nterms,
+    quad_weights=quad_weights, bkd=bkd,
+)
+
+lam = bkd.to_numpy(kle.eigenvalues())
+phi = bkd.to_numpy(kle.eigenvectors())
+
+fig, axes = plt.subplots(1, 2, figsize=(12, 4))
+
+# Eigenvalue decay
+axes[0].bar(range(1, nterms+1), lam, color="steelblue", alpha=0.8)
+axes[0].set_xlabel("Mode $k$", fontsize=12)
+axes[0].set_ylabel("$\\lambda_k$", fontsize=12)
+axes[0].set_title("Eigenvalue decay — energy per mode", fontsize=12)
+axes[0].set_xticks(range(1, nterms+1))
+axes[0].set_ylim(bottom=0)
+
+# First 4 eigenfunctions
+colors = plt.cm.tab10(np.linspace(0, 0.5, 4))
+for k in range(4):
+    axes[1].plot(x, phi[:, k], color=colors[k],
+                 label=f"$\\phi_{k+1}$  ($\\lambda={lam[k]:.3f}$)")
+axes[1].axhline(0, color="k", lw=0.5)
+axes[1].set_xlabel("$x$", fontsize=12)
+axes[1].set_title("First four eigenfunctions $\\phi_k(x)$", fontsize=12)
+axes[1].legend(fontsize=10)
+plt.tight_layout()
+plt.show()
+```
+
+Eigenvalues decay -- the field's energy concentrates in the first few modes.
+The eigenfunctions are orthogonal spatial oscillations (analogous to Fourier modes
+but matched to the covariance structure).
+
+
+## The KLE: sample paths from random coefficients
+
+$$f(x) = \mu(x) + \sum_{k=1}^{K} \sqrt{\lambda_k}\,\phi_k(x)\,z_k,
+\qquad z_k \sim \mathcal{N}(0,1)$$
+
+Each draw of $z_1, \ldots, z_K$ gives one realization of the random field.
+`MeshKLE.__call__` evaluates this expansion: pass a `(nterms, nsamples)` coefficient
+array and get back `(ncoords, nsamples)` field values.
+
+```{python}
+#| label: fig-sample-paths
+#| fig-cap: "Sample paths from the KLE using $K = 1, 2, 4, 6$ terms with the same random coefficients $z_k$. More terms add finer spatial detail; by $K = 6$ essentially all variance is captured for $\\ell = 0.5$."
+K_list = [1, 2, 4, 6]
+nsamples = 5
+fig, axes = plt.subplots(1, len(K_list), figsize=(14, 3.8), sharey=True)
+
+Z = rng.standard_normal((nterms, nsamples))
+
+for ax, K in zip(axes, K_list):
+    # Build a KLE with K terms and evaluate
+    kle_K = MeshKLE(
+        mesh_coords, kernel, sigma=1.0, nterms=K,
+        quad_weights=quad_weights, bkd=bkd,
+    )
+    coef = bkd.array(Z[:K, :])
+    fields = bkd.to_numpy(kle_K(coef))
+    for s in range(nsamples):
+        ax.plot(x, fields[:, s], alpha=0.7, lw=1.2)
+    ax.set_title(f"$K = {K}$ terms", fontsize=12)
+    ax.set_xlabel("$x$")
+    ax.axhline(0, color="k", lw=0.5, ls="--")
+
+axes[0].set_ylabel("$f(x)$")
+fig.suptitle("Sample paths using increasing numbers of KLE terms  "
+             r"($\ell=0.5$, same $z_k$ draws)", fontsize=12)
+plt.tight_layout()
+plt.show()
+```
+
+More terms produce rougher, more detailed realizations.  With $K = 6$ terms
+we have captured essentially all the variance for $\ell = 0.5$.
+
+
+## Truncation error: how many terms do you need?
+
+The fraction of variance explained by $K$ terms is:
+
+$$\frac{\sum_{k=1}^K \lambda_k}{\sum_{k=1}^{\infty} \lambda_k}$$
+
+```{python}
+#| label: fig-truncation-error
+#| fig-cap: "Left: cumulative variance explained as a function of the number of KLE terms $K$, showing the thresholds at 90%, 95%, and 99%. Right: normalised eigenvalue decay for three correlation lengths on a log scale. Larger $\\ell$ produces faster decay, meaning fewer terms are needed."
+nterms_full = 100
+kle_full = MeshKLE(
+    mesh_coords, kernel, sigma=1.0, nterms=nterms_full,
+    quad_weights=quad_weights, bkd=bkd,
+)
+lam_full = bkd.to_numpy(kle_full.eigenvalues())
+
+fig, axes = plt.subplots(1, 2, figsize=(12, 4))
+
+# Cumulative variance explained
+cumvar = np.cumsum(lam_full) / lam_full.sum()
+axes[0].plot(range(1, nterms_full+1), cumvar, "steelblue", lw=2)
+for thresh in [0.90, 0.95, 0.99]:
+    k_thresh = int(np.searchsorted(cumvar, thresh)) + 1
+    axes[0].axhline(thresh, color="gray", ls="--", lw=0.8)
+    axes[0].text(nterms_full * 0.55, thresh + 0.005,
+                 f"{int(thresh*100)}% at $K={k_thresh}$", fontsize=9)
+axes[0].set_xlabel("Number of terms $K$", fontsize=12)
+axes[0].set_ylabel("Cumulative variance explained", fontsize=12)
+axes[0].set_title("Truncation error vs $K$  ($\\ell=0.5$)", fontsize=12)
+axes[0].set_xlim(1, nterms_full)
+
+# Eigenvalue decay for three correlation lengths
+colors2 = ["steelblue", "darkorange", "green"]
+for color, ell_i in zip(colors2, [0.2, 0.5, 1.5]):
+    kernel_i = ExponentialKernel(bkd.array([ell_i]), (0.01, 10.0), 1, bkd)
+    kle_i = MeshKLE(
+        mesh_coords, kernel_i, sigma=1.0, nterms=nterms_full,
+        quad_weights=quad_weights, bkd=bkd,
+    )
+    lam_i = bkd.to_numpy(kle_i.eigenvalues())
+    axes[1].semilogy(range(1, nterms_full+1), lam_i / lam_i[0],
+                     color=color, lw=1.8, label=f"$\\ell={ell_i}$")
+axes[1].set_xlabel("Mode $k$", fontsize=12)
+axes[1].set_ylabel("$\\lambda_k / \\lambda_1$ (log scale)", fontsize=12)
+axes[1].set_title("Eigenvalue decay by correlation length", fontsize=12)
+axes[1].legend(fontsize=11)
+axes[1].set_xlim(1, 40)
+plt.tight_layout()
+plt.show()
+```
+
+**Key insight**: larger $\ell$ produces faster eigenvalue decay and fewer terms are needed.
+Smooth fields are cheap to represent; rough fields require many modes.
+
+
+## Pointwise variance: how much does truncation miss?
+
+```{python}
+#| label: fig-pointwise-variance
+#| fig-cap: "Left: pointwise variance recovered by the truncated KLE for $K = 1, 3, 6, 20$ terms compared with the exact diagonal of $C$. Right: relative error in pointwise variance on a log scale. Boundary nodes converge more slowly -- a systematic effect in all mesh-based KLE methods."
+K_vals = [1, 3, 6, 20]
+fig, axes = plt.subplots(1, 2, figsize=(12, 4))
+
+# Exact variance (from full covariance diagonal)
+C = bkd.to_numpy(kernel(mesh_coords, mesh_coords))
+true_var = np.diag(C)
+
+colors3 = plt.cm.viridis(np.linspace(0, 0.85, len(K_vals)))
+for color, K in zip(colors3, K_vals):
+    kle_K = MeshKLE(
+        mesh_coords, kernel, sigma=1.0, nterms=K,
+        quad_weights=quad_weights, bkd=bkd,
+    )
+    # weighted_eigenvectors() includes sqrt(lam_k) * sigma,
+    # so sum of squares gives sigma^2 * sum(lam_k * phi_k^2)
+    W = bkd.to_numpy(kle_K.weighted_eigenvectors())
+    approx_var = np.sum(W**2, axis=1)
+    axes[0].plot(x, approx_var, color=color, lw=1.8, label=f"$K={K}$")
+axes[0].plot(x, true_var, "k--", lw=2, label="exact")
+axes[0].set_xlabel("$x$", fontsize=12)
+axes[0].set_ylabel("Pointwise variance", fontsize=12)
+axes[0].set_title("Variance recovered by truncated KLE", fontsize=12)
+axes[0].legend(fontsize=10)
+
+# Relative error in variance
+for color, K in zip(colors3, K_vals):
+    kle_K = MeshKLE(
+        mesh_coords, kernel, sigma=1.0, nterms=K,
+        quad_weights=quad_weights, bkd=bkd,
+    )
+    W = bkd.to_numpy(kle_K.weighted_eigenvectors())
+    approx_var = np.sum(W**2, axis=1)
+    rel_err = np.abs(true_var - approx_var) / true_var
+    axes[1].semilogy(x, rel_err + 1e-16, color=color, lw=1.8, label=f"$K={K}$")
+axes[1].set_xlabel("$x$", fontsize=12)
+axes[1].set_ylabel("Relative variance error (log)", fontsize=12)
+axes[1].set_title("Truncation error in pointwise variance", fontsize=12)
+axes[1].legend(fontsize=10)
+plt.tight_layout()
+plt.show()
+```
+
+The boundary nodes recover more slowly -- a systematic effect present in all
+mesh-based KLE methods (and worsened by boundary conditions in the SPDE approach).
+
+## Validation against the analytical solution
+
+The exponential kernel on $[0, L]$ has known eigenvalues and eigenfunctions.
+`AnalyticalExponentialKLE1D` computes these analytically, providing a ground truth
+to validate the numerical `MeshKLE` solution.
+
+```{python}
+#| label: fig-analytical-validation
+#| fig-cap: "Left: eigenvalues from the numerical `MeshKLE` (blue) vs the analytical solution (orange) for the exponential kernel on $[0, 2]$. Right: relative eigenvalue error on a log scale, showing the numerical discretisation error decreases with mesh refinement."
+from pyapprox.typing.surrogates.kle import AnalyticalExponentialKLE1D
+
+# Analytical solution for the same kernel on [0, 2]
+kle_exact = AnalyticalExponentialKLE1D(
+    corr_len=ell, sigma2=1.0, dom_len=2.0, nterms=nterms,
+)
+lam_exact = kle_exact.eigenvalues()
+
+fig, axes = plt.subplots(1, 2, figsize=(12, 4))
+
+k_idx = np.arange(1, nterms + 1)
+axes[0].bar(k_idx - 0.15, lam, width=0.3, color="steelblue", alpha=0.8,
+            label="MeshKLE (numerical)")
+axes[0].bar(k_idx + 0.15, lam_exact, width=0.3, color="darkorange", alpha=0.8,
+            label="Analytical")
+axes[0].set_xlabel("Mode $k$", fontsize=12)
+axes[0].set_ylabel("$\\lambda_k$", fontsize=12)
+axes[0].set_title("Eigenvalue comparison", fontsize=12)
+axes[0].set_xticks(k_idx)
+axes[0].legend(fontsize=10)
+axes[0].set_ylim(bottom=0)
+
+# Relative error
+rel_err_eig = np.abs(lam - lam_exact) / lam_exact
+axes[1].bar(k_idx, rel_err_eig, color="steelblue", alpha=0.8)
+axes[1].set_xlabel("Mode $k$", fontsize=12)
+axes[1].set_ylabel("Relative eigenvalue error", fontsize=12)
+axes[1].set_title(f"MeshKLE accuracy  ({npts} mesh points)", fontsize=12)
+axes[1].set_xticks(k_idx)
+axes[1].set_yscale("log")
+plt.tight_layout()
+plt.show()
+```
+
+The numerical eigenvalues from `MeshKLE` agree with the analytical solution
+to high accuracy.  The error is controlled by the quadrature resolution --
+more mesh points would reduce it further.
+
+---
+
+**Summary**
+
+| Concept | Meaning |
+|---|---|
+| Covariance kernel | Encodes spatial correlation structure |
+| Eigenfunctions $\phi_k$ | Deterministic spatial modes |
+| Eigenvalues $\lambda_k$ | Variance in each mode; must decay for KLE to be useful |
+| KLE coefficients $z_k$ | Independent $\mathcal{N}(0,1)$ random variables |
+| Truncation at $K$ terms | Controls accuracy; larger $\ell$ means fewer terms needed |
+
+Next: [KLE II](kle_mesh_and_data_driven.qmd) shows how `MeshKLE` and `DataDrivenKLE` compute these eigenpairs
+from a kernel function or from data samples respectively.

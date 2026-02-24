@@ -113,6 +113,11 @@ website:
             - bin_based_sensitivity.qmd
             - functiontrain_sensitivity_math.qmd
             - functiontrain_sensitivity.qmd
+        - section: "Random Fields"
+          contents:
+            - kle_introduction.qmd
+            - kle_mesh_and_data_driven.qmd
+            - kle_spde.qmd
         - section: "Optimization Under Uncertainty"
           contents:
             - design_under_uncertainty.qmd
