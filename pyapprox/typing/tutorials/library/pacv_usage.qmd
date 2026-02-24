@@ -266,8 +266,11 @@ variances_gmf, labels_ri = [], []
 for est, alloc in result_gmf.all_allocations:
     ri = bkd.to_numpy(est._recursion_index).astype(int)
     if alloc.success:
-        est.set_allocation(alloc)
-        var = float(bkd.to_numpy(est.optimized_covariance())[0, 0])
+        try:
+            est.set_allocation(alloc)
+            var = float(bkd.to_numpy(est.optimized_covariance())[0, 0])
+        except np.linalg.LinAlgError:
+            var = mc_var
     else:
         var = mc_var
     variances_gmf.append(var / mc_var)
@@ -387,7 +390,7 @@ for name, srch in search_dict.items():
             res = srch.search(P, allow_failures=True)
             var = float(bkd.to_numpy(res.estimator.optimized_covariance())[0, 0])
             print(f"  {var / mc_vars_table[j]:>7.4f}", end="")
-        except RuntimeError:
+        except (RuntimeError, np.linalg.LinAlgError):
             print(f"  {'N/A':>7}", end="")
     print()
 
@@ -432,7 +435,7 @@ for name, srch in search_dict.items():
             res = srch.search(float(P), allow_failures=True)
             vars_.append(float(bkd.to_numpy(res.estimator.optimized_covariance())[0, 0]))
             costs_ok.append(P)
-        except RuntimeError:
+        except (RuntimeError, np.linalg.LinAlgError):
             continue
     ax.loglog(costs_ok, vars_, line_styles[name], color=line_colors[name],
               lw=2.2, marker=markers[name], markersize=7, label=name)

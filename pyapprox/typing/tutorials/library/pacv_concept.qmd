@@ -316,8 +316,11 @@ result = search.search(100.0, allow_failures=True)
 variances, labels_ri = [], []
 for est, alloc in result.all_allocations:
     if alloc.success:
-        est.set_allocation(alloc)
-        var = float(bkd.to_numpy(est.optimized_covariance())[0, 0])
+        try:
+            est.set_allocation(alloc)
+            var = float(bkd.to_numpy(est.optimized_covariance())[0, 0])
+        except np.linalg.LinAlgError:
+            var = mc_var
     else:
         var = mc_var
     variances.append(var / mc_var)
