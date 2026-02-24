@@ -51,6 +51,9 @@ website:
             - pacv_concept.qmd
             - pacv_analysis.qmd
             - pacv_usage.qmd
+            - mlblue_concept.qmd
+            - mlblue_analysis.qmd
+            - mlblue_usage.qmd
         - section: "Inverse UQ"
           contents:
             - bayesian_inference_intro.qmd

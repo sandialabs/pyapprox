@@ -1,0 +1,580 @@
+---
+title: "Multilevel Best Linear Unbiased Estimators"
+subtitle: "PyApprox Tutorial Library"
+description: "How viewing multi-fidelity estimation as a generalized least-squares problem over flexible model subsets produces an estimator that reaches the multi-model CV ceiling — without requiring a hierarchical correction chain."
+tutorial_type: concept
+topic: multi_fidelity
+difficulty: intermediate
+estimated_time: 7
+prerequisites:
+  - acv_many_models_concept
+tags:
+  - multi-fidelity
+  - mlblue
+  - generalized-least-squares
+  - variance-reduction
+format:
+  html:
+    code-fold: false
+    code-tools: true
+    toc: true
+execute:
+  echo: true
+  warning: false
+jupyter: python3
+---
+
+::: {.callout-tip collapse="true"}
+## Download Notebook
+[Download as Jupyter Notebook](notebooks/mlblue_concept.ipynb)
+:::
+
+## Learning Objectives
+
+After completing this tutorial, you will be able to:
+
+- Explain how MLBLUE frames multi-fidelity estimation as generalized least squares
+  rather than a control-variate correction
+- Describe what a *subset* is and how the subset design determines which models are
+  co-evaluated on shared sample points
+- Interpret the restriction matrix $\mathbf{H}$, the error covariance $\mathbf{C}_{\boldsymbol{\epsilon}\boldsymbol{\epsilon}}$, and the observation vector $\mathbf{Y}$
+- State the key convergence property: MLBLUE reaches the multi-model CV ceiling while
+  MLMC and MFMC are permanently capped at CV-1
+- Identify when MLBLUE's unrestricted subset design is an advantage over the ACV family
+
+
+## Prerequisites
+
+Complete [General ACV Concept](acv_many_models_concept.qmd) before this tutorial.
+MLBLUE reaches the same variance floor as ACVMF but through an entirely different
+framing — understanding both is valuable when either does not map naturally onto the
+problem structure.
+
+
+## A Different Angle on Multi-Fidelity Estimation
+
+Every estimator so far *corrects* a noisy HF mean estimate using cheap LF correction
+terms. MLBLUE takes a completely different angle: it **jointly estimates the means of
+all models simultaneously** using generalized least squares (GLS), then extracts the
+HF mean as a linear combination of the full joint estimate.
+
+The structural choice in MLBLUE is not an allocation matrix or a recursion index — it
+is a set of **subsets**. A subset $S_k \subseteq \{0, 1, \ldots, M\}$ is any non-empty
+collection of model indices. For each subset you draw $m_k$ independent samples and
+evaluate every model in $S_k$ at each of those sample points. There is no requirement
+that subsets form a chain, star, or any particular nesting pattern.
+
+
+## Subsets and the Observation Vector
+
+@fig-subsets shows the subset structure for a three-model example with four active
+subsets. Each column is one subset; stacked coloured blocks show which models are
+evaluated at the same $m_k$ sample points.
+
+```{python}
+#| echo: false
+#| fig-cap: "**MLBLUE sample allocation.** Each column is an active subset $S_k$ with $m_k$ sample points. Colours identify individual models. A block present in column $k$ means that model is evaluated at all $m_k$ sample points of subset $k$. The observation blocks $Y_1, \\ldots, Y_7$ stack into the MLBLUE data vector $\\mathbf{Y}$. Unlike ACV's allocation matrix, no nesting or hierarchy is required."
+#| label: fig-subsets
+
+import matplotlib.pyplot as plt
+import matplotlib.patches as mpatches
+import numpy as np
+
+# Define subsets: each column is a subset with its member models
+subsets = [
+    {"models": [0, 2, 3], "label": "$S_1$"},
+    {"models": [0, 1],    "label": "$S_2$"},
+    {"models": [1, 4],    "label": "$S_3$"},
+    {"models": [4],       "label": "$S_4$"},
+]
+
+model_colors = ["#2C7FB8", "#95a5a6", "#27AE60", "#8E44AD", "#C0392B"]
+model_labels = ["$f_0$ (HF)", "$f_1$", "$f_2$", "$f_3$", "$f_4$"]
+
+fig, ax = plt.subplots(figsize=(8, 5))
+block_w, block_h = 0.75, 0.7
+gap_x = 1.3
+y_counter = 0  # tracks Y-vector index
+
+for col, sub in enumerate(subsets):
+    x = col * gap_x
+    for row, midx in enumerate(sub["models"]):
+        y = -(y_counter + row) * (block_h + 0.15)
+        rect = mpatches.FancyBboxPatch(
+            (x - block_w / 2, y - block_h / 2), block_w, block_h,
+            boxstyle="round,pad=0.05", facecolor=model_colors[midx],
+            edgecolor="k", lw=1.2, alpha=0.85,
+        )
+        ax.add_patch(rect)
+        ax.text(x, y, f"$Y_{{{y_counter + row + 1}}}$",
+                ha="center", va="center", fontsize=10, fontweight="bold",
+                color="white")
+    # Subset label above
+    top_y = -(y_counter) * (block_h + 0.15) + block_h / 2 + 0.3
+    ax.text(x, top_y, sub["label"], ha="center", va="bottom",
+            fontsize=11, fontweight="bold")
+    ax.text(x, top_y + 0.35, f"$m_{{{col+1}}}$ pts", ha="center",
+            va="bottom", fontsize=8, color="#555")
+    y_counter += len(sub["models"])
+
+# Legend — place outside the stacked blocks in the upper-right area
+handles = [mpatches.Patch(facecolor=c, edgecolor="k", label=l)
+           for c, l in zip(model_colors, model_labels)]
+ax.legend(handles=handles, loc="upper right", fontsize=9, ncol=1,
+          framealpha=0.95, edgecolor="#ccc")
+
+ax.set_xlim(-0.8, (len(subsets) - 1) * gap_x + 2.5)
+ax.set_ylim(-(y_counter) * (block_h + 0.15) - 0.5, 1.5)
+ax.set_aspect("equal")
+ax.axis("off")
+ax.set_title("MLBLUE subset allocation structure", fontsize=12, pad=10)
+plt.tight_layout()
+plt.show()
+```
+
+Reading @fig-subsets: the leftmost column co-evaluates three models ($f_0, f_2, f_3$)
+and produces stacked observations $Y_1, Y_2, Y_3$. The rightmost column at bottom is
+a cheap singleton ($f_4$) that evaluates only the cheapest model alone —
+accumulating many inexpensive samples that still contribute useful information about
+the joint mean vector through the GLS system.
+
+
+## Assembling the Least-Squares System
+
+Each observation at a sample $\boldsymbol{\theta}_k^{(i)}$ within subset $k$ satisfies:
+$$
+\mathbf{Y}_k^{(i)} = \mathbf{R}_k\,\mathbf{q} + \boldsymbol{\epsilon}_k^{(i)},
+$$
+where $\mathbf{q} = [Q_0, \ldots, Q_M]^\top$ are all model means (the unknowns),
+$\mathbf{R}_k \in \{0,1\}^{|S_k|\times(M+1)}$ is the **restriction operator** whose
+row $\ell$ has a single 1 in the column of the $\ell$-th model in $S_k$, and
+$\boldsymbol{\epsilon}_k^{(i)}$ is zero-mean noise. Stacking all subsets and samples
+gives the full system $\mathbf{Y} = \mathbf{H}\mathbf{q} + \boldsymbol{\epsilon}$.
+
+@fig-system shows this construction for three active subsets with small sample counts.
+
+```{python}
+#| echo: false
+#| fig-cap: "**MLBLUE system construction** for three active subsets: $S_5 = \\{f_2\\}$ (grey, 1 sample), $S_2 = \\{f_1, f_2\\}$ (red, 1 sample), $S_3 = \\{f_0, f_1\\}$ (green, 2 samples). **Far left:** active subset columns. **Centre-left:** the stacked observation vector $\\mathbf{Y}$, colour-coded by subset. **Centre-right:** the restriction matrix $\\mathbf{H}$ — each row has a single 1 selecting the evaluated model's mean ($Q_0$, $Q_1$, or $Q_2$); the two-sample subset $S_3$ contributes two identical row blocks. **Far right:** the residual $\\mathbf{Y} - \\mathbf{H}\\mathbf{q}$."
+#| label: fig-system
+
+import matplotlib.pyplot as plt
+import matplotlib.patches as mpatches
+import numpy as np
+
+# Three subsets: S5={f2} m=1, S2={f1,f2} m=1, S3={f0,f1} m=2
+# Total rows: 1 + 2 + 2 + 2 = 7 (S3 repeated twice)
+subset_specs = [
+    {"name": "$S_5$", "models": [2],    "m": 1, "color": "#95a5a6",
+     "members": "$\\{f_2\\}$"},
+    {"name": "$S_2$", "models": [1, 2], "m": 1, "color": "#C0392B",
+     "members": "$\\{f_1, f_2\\}$"},
+    {"name": "$S_3$", "models": [0, 1], "m": 2, "color": "#27AE60",
+     "members": "$\\{f_0, f_1\\}$"},
+]
+
+nmodels = 3
+mean_labels = ["$Q_0$", "$Q_1$", "$Q_2$"]
+
+# Build H matrix and row labels
+H_rows = []
+row_colors = []
+row_labels = []
+for spec in subset_specs:
+    for rep in range(spec["m"]):
+        for midx in spec["models"]:
+            row = [0] * nmodels
+            row[midx] = 1
+            H_rows.append(row)
+            row_colors.append(spec["color"])
+            row_labels.append(f"{spec['name']}$^{{({rep+1})}}$: $f_{midx}$")
+
+H = np.array(H_rows)
+nrows = len(H_rows)
+
+fig, axes = plt.subplots(1, 4, figsize=(14, 5),
+                         gridspec_kw={"width_ratios": [2.0, 1.5, 2.5, 1.5]})
+
+# Panel 1: subset column labels
+ax = axes[0]
+ax.axis("off")
+ax.set_title("Subsets", fontsize=10, fontweight="bold")
+y_pos = 0
+for spec in subset_specs:
+    block_h = spec["m"] * len(spec["models"])
+    rect = mpatches.FancyBboxPatch(
+        (0.1, -(y_pos + block_h) + 0.1), 0.8, block_h - 0.2,
+        boxstyle="round,pad=0.05", facecolor=spec["color"],
+        edgecolor="k", lw=1, alpha=0.3,
+    )
+    ax.add_patch(rect)
+    ax.text(0.5, -(y_pos + block_h / 2),
+            f"{spec['name']}={spec['members']}\n$m={spec['m']}$",
+            ha="center", va="center", fontsize=8, fontweight="bold")
+    y_pos += block_h
+ax.set_xlim(-0.1, 1.1)
+ax.set_ylim(-nrows - 0.3, 0.8)
+
+# Panel 2: Y vector
+ax = axes[1]
+ax.axis("off")
+ax.set_title("$\\mathbf{Y}$", fontsize=11, fontweight="bold")
+for i in range(nrows):
+    rect = mpatches.FancyBboxPatch(
+        (0.05, -(i + 1) + 0.05), 0.9, 0.9,
+        boxstyle="round,pad=0.03", facecolor=row_colors[i],
+        edgecolor="k", lw=0.8, alpha=0.5,
+    )
+    ax.add_patch(rect)
+    ax.text(0.5, -(i + 0.5), f"$Y_{{{i+1}}}$", ha="center", va="center",
+            fontsize=9, fontweight="bold")
+ax.set_xlim(-0.1, 1.1)
+ax.set_ylim(-nrows - 0.3, 0.8)
+
+# Panel 3: H matrix
+ax = axes[2]
+ax.set_title("$\\mathbf{H}$", fontsize=11, fontweight="bold")
+ax.matshow(H, cmap="Blues", alpha=0.7, extent=[0, nmodels, nrows, 0])
+for i in range(nrows):
+    for j in range(nmodels):
+        ax.text(j + 0.5, i + 0.5, str(H[i, j]),
+                ha="center", va="center", fontsize=10,
+                fontweight="bold" if H[i, j] == 1 else "normal",
+                color="white" if H[i, j] == 1 else "#888")
+# Column labels
+for j in range(nmodels):
+    ax.text(j + 0.5, -0.3, mean_labels[j], ha="center", va="center",
+            fontsize=10, fontweight="bold")
+ax.set_xticks([])
+ax.set_yticks([])
+for spine in ax.spines.values():
+    spine.set_visible(False)
+ax.set_xlim(0, nmodels)
+ax.set_ylim(nrows, -0.6)
+
+# Panel 4: residual
+ax = axes[3]
+ax.axis("off")
+ax.set_title("$\\mathbf{Y} - \\mathbf{H}\\mathbf{q}$", fontsize=11,
+             fontweight="bold")
+for i in range(nrows):
+    rect = mpatches.FancyBboxPatch(
+        (0.05, -(i + 1) + 0.05), 0.9, 0.9,
+        boxstyle="round,pad=0.03", facecolor=row_colors[i],
+        edgecolor="k", lw=0.8, alpha=0.3,
+    )
+    ax.add_patch(rect)
+    ax.text(0.5, -(i + 0.5), f"$\\epsilon_{{{i+1}}}$", ha="center",
+            va="center", fontsize=9)
+ax.set_xlim(-0.1, 1.1)
+ax.set_ylim(-nrows - 0.3, 0.8)
+
+plt.tight_layout()
+plt.show()
+```
+
+Three things to notice in @fig-system:
+
+1. **Row count equals total evaluations.** $\mathbf{H}$ has one row per model evaluation
+   across all subsets and all samples: $\sum_k m_k |S_k|$ rows total.
+2. **Column count equals number of model means.** Three columns for three means
+   ($Q_0, Q_1, Q_2$).
+3. **Repeated subset samples contribute identical row blocks.** The two samples of $S_3$
+   produce four rows but each pair is structurally identical — only the data values differ.
+
+
+## The Error Covariance
+
+Models within the same subset, evaluated at the same sample point, are correlated. The
+full error covariance is **block-diagonal**:
+$$
+\mathbf{C}_{\boldsymbol{\epsilon}\boldsymbol{\epsilon}}
+= \mathrm{BlockDiag}(G_1, \ldots, G_K), \qquad
+G_k = \mathrm{BlockDiag}(\underbrace{C_k, \ldots, C_k}_{m_k}),
+$$
+where $C_k = \mathbf{R}_k\,\boldsymbol{\Sigma}\,\mathbf{R}_k^\top$ is the submatrix of
+the population covariance $\boldsymbol{\Sigma}$ for the models in $S_k$, estimated
+from the pilot study. @fig-cov shows this block structure for the same three-subset example.
+
+```{python}
+#| echo: false
+#| fig-cap: "**Block-diagonal error covariance** $\\mathbf{C}_{\\boldsymbol{\\epsilon}\\boldsymbol{\\epsilon}}$ for the three-subset example. Each outlined box is a $G_k$ block. $G_5$ is $1\\times 1$ (singleton $\\{f_2\\}$, 1 sample); $G_2$ is $2\\times 2$ ($\\{f_1,f_2\\}$, 1 sample); $G_3$ is $2\\times 2$ and appears **twice** ($\\{f_0,f_1\\}$, 2 samples). Off-diagonal regions are exactly zero: samples from different subsets use independent random points."
+#| label: fig-cov
+
+import matplotlib.pyplot as plt
+import matplotlib.patches as mpatches
+import numpy as np
+
+# Build a synthetic block-diagonal covariance for visualisation
+# Same subsets as fig-system: S5={f2} m=1, S2={f1,f2} m=1, S3={f0,f1} m=2
+# Use a plausible covariance matrix for 3 models
+Sigma = np.array([
+    [1.00, 0.70, 0.50],
+    [0.70, 1.00, 0.60],
+    [0.50, 0.60, 1.00],
+])
+
+subset_specs = [
+    {"name": "$G_5$", "models": [2],    "m": 1},
+    {"name": "$G_2$", "models": [1, 2], "m": 1},
+    {"name": "$G_3$", "models": [0, 1], "m": 2},
+]
+
+# Build full block-diagonal C_ee
+blocks = []
+block_info = []  # (start, size, name)
+pos = 0
+for spec in subset_specs:
+    idx = spec["models"]
+    Ck = Sigma[np.ix_(idx, idx)]
+    for rep in range(spec["m"]):
+        blocks.append(Ck)
+        block_info.append((pos, len(idx), spec["name"]))
+        pos += len(idx)
+
+total = pos
+C_ee = np.zeros((total, total))
+for blk, (start, size, _) in zip(blocks, block_info):
+    C_ee[start:start + size, start:start + size] = blk
+
+fig, ax = plt.subplots(figsize=(7, 5.5))
+im = ax.matshow(C_ee, cmap="RdBu_r", vmin=-1, vmax=1)
+
+# Annotate values
+for i in range(total):
+    for j in range(total):
+        v = C_ee[i, j]
+        if abs(v) > 1e-10:
+            ax.text(j, i, f"{v:.2f}", ha="center", va="center", fontsize=10)
+
+# Draw block outlines and label each G_k
+block_colors = ["#95a5a6", "#C0392B", "#27AE60", "#27AE60"]
+block_labels_used = set()
+for (start, size, name), col in zip(block_info, block_colors):
+    rect = mpatches.Rectangle(
+        (start - 0.5, start - 0.5), size, size,
+        linewidth=2.5, edgecolor=col, facecolor="none",
+    )
+    ax.add_patch(rect)
+    # Label each block once on the right side
+    if name not in block_labels_used:
+        ax.text(total - 0.1, start + size / 2 - 0.5, name,
+                ha="left", va="center", fontsize=10, fontweight="bold",
+                color=col)
+        block_labels_used.add(name)
+
+ax.set_xticks(range(total))
+ax.set_yticks(range(total))
+ax.set_title("$\\mathbf{C}_{\\epsilon\\epsilon}$", fontsize=12)
+fig.colorbar(im, ax=ax, shrink=0.75, pad=0.12, label="covariance")
+plt.tight_layout()
+plt.show()
+```
+
+Because $\mathbf{C}_{\boldsymbol{\epsilon}\boldsymbol{\epsilon}}$ is block-diagonal,
+its inverse is also block-diagonal and the GLS problem reduces to the tractable
+normal equations
+$$
+\boldsymbol{\Psi}\,\mathbf{q}^B = \mathbf{y}, \qquad
+\boldsymbol{\Psi} = \sum_{k=1}^K m_k\,\mathbf{R}_k^\top C_k^{-1} \mathbf{R}_k, \qquad
+\mathbf{y} = \sum_{k=1}^K \mathbf{R}_k^\top C_k^{-1}\! \sum_{i=1}^{m_k} \mathbf{Y}_k^{(i)}.
+$$
+
+The MLBLUE estimator $\mathbf{q}^B = \boldsymbol{\Psi}^{-1}\mathbf{y}$ is unbiased for
+$\mathbf{q}$ and has variance
+$\mathbb{V}[Q^B_\beta] = \boldsymbol{\beta}^\top\boldsymbol{\Psi}^{-1}\boldsymbol{\beta}$
+for any target vector $\boldsymbol{\beta}$. Setting $\boldsymbol{\beta} = \mathbf{e}_0$
+extracts the HF mean estimate.
+
+
+## Convergence to the Multi-Model CV Ceiling
+
+Like ACVMF, MLBLUE converges to the multi-model CV ceiling as LF sample counts
+grow. MLMC and MFMC plateau at the CV-1 ceiling. @fig-ceiling demonstrates this
+by fixing the HF sample count at $N_0 = 1$ and steadily increasing LF samples on
+the five-model polynomial benchmark.
+
+```{python}
+#| echo: false
+#| fig-cap: "Variance relative to MC ($N_0 = 1$ HF sample fixed) as LF sample counts grow, for MLMC, MFMC, and MLBLUE on the five-model polynomial benchmark. MLMC and MFMC both plateau at the CV-1 limit (set by $\\rho_{0,1}^2$ alone). MLBLUE, which aggregates all LF models through the GLS system, converges toward the much lower CV-4 limit. Dashed lines mark the four CV-$k$ limits."
+#| label: fig-ceiling
+
+import copy
+import numpy as np
+import matplotlib.pyplot as plt
+from pyapprox.typing.util.backends.numpy import NumpyBkd
+from pyapprox.typing.benchmarks.instances.multifidelity.polynomial_ensemble import (
+    polynomial_ensemble_5model,
+)
+from pyapprox.typing.statest.statistics import MultiOutputMean
+from pyapprox.typing.statest.acv import MLMCEstimator, MFMCEstimator
+from pyapprox.typing.statest.groupacv import MLBLUEEstimator
+from pyapprox.typing.statest.groupacv.allocation import GroupACVAllocationResult
+
+bkd = NumpyBkd()
+benchmark = polynomial_ensemble_5model(bkd)
+nmodels = 5
+cov = benchmark.ensemble_covariance()
+costs = benchmark.costs()
+nqoi = benchmark.models()[0].nqoi()
+cov_np = bkd.to_numpy(cov)
+sigma2 = cov_np[0, 0]
+
+# CV-k limits: 1 - R^2 for k LF models with known means
+cv_lims = []
+for k in range(1, nmodels):
+    sub = cov_np[:k+1, :k+1]
+    c0 = sub[0, 1:]
+    Sll = sub[1:, 1:]
+    cv_lims.append(1 - c0 @ np.linalg.solve(Sll, c0) / sigma2)
+
+stat = MultiOutputMean(nqoi, bkd)
+stat.set_pilot_quantities(cov)
+
+# Fix nhf=1 and manually grow LF partition sizes.
+nhf_samples = 1
+mc_var = sigma2 / nhf_samples
+npartition_ratio_base = np.array([2, 2, 2, 2])  # one per LF partition
+factors = np.arange(22)
+
+# --- MLMC / MFMC (ACV estimators) ---
+def compute_acv_ratios(est_template):
+    est_costs, est_ratios = [], []
+    for factor in factors:
+        npartition_samples = bkd.asarray(
+            nhf_samples * np.hstack(
+                (1, npartition_ratio_base[:est_template._npartitions - 1]
+                 * 2**factor)),
+        )
+        est_copy = copy.deepcopy(est_template)
+        nsamples_per_model = est_copy._compute_nsamples_per_model(
+            npartition_samples)
+        est_copy._set_optimized_params_base(
+            npartition_samples, nsamples_per_model,
+            est_copy._estimator_cost(npartition_samples))
+        est_var = float(est_copy._optimized_covariance[0, 0])
+        est_costs.append(float(est_copy._estimator_cost(npartition_samples)))
+        est_ratios.append(est_var / mc_var)
+    return est_costs, est_ratios
+
+mlmc_costs, mlmc_ratio = compute_acv_ratios(MLMCEstimator(stat, costs))
+mfmc_costs, mfmc_ratio = compute_acv_ratios(MFMCEstimator(stat, costs))
+
+# --- MLBLUE (GroupACV estimator) ---
+mlblue_subsets = [
+    bkd.asarray(list(range(nmodels)), dtype=int),
+    bkd.asarray(list(range(1, nmodels)), dtype=int),
+    bkd.asarray(list(range(2, nmodels)), dtype=int),
+    bkd.asarray(list(range(3, nmodels)), dtype=int),
+    bkd.asarray([nmodels - 1], dtype=int),
+]
+mlblue_template = MLBLUEEstimator(stat, costs, model_subsets=mlblue_subsets)
+
+mlblue_costs, mlblue_ratio = [], []
+for factor in factors:
+    npartition_samples = bkd.asarray(
+        nhf_samples * np.hstack(
+            (1, npartition_ratio_base * 2**factor)),
+    )
+    est_copy = copy.deepcopy(mlblue_template)
+    nsamples_per_model = est_copy._compute_nsamples_per_model(
+        npartition_samples)
+    actual_cost = float(est_copy._estimator_cost(npartition_samples))
+    result = GroupACVAllocationResult(
+        npartition_samples=npartition_samples,
+        nsamples_per_model=nsamples_per_model,
+        actual_cost=actual_cost,
+        objective_value=bkd.asarray([0.0]),
+        success=True,
+    )
+    est_copy.set_allocation(result)
+    est_var = float(bkd.to_numpy(est_copy.optimized_covariance())[0, 0])
+    mlblue_costs.append(actual_cost)
+    mlblue_ratio.append(est_var / mc_var)
+
+# --- Plot ---
+fig, ax = plt.subplots(figsize=(7, 4.5))
+ax.loglog(mlmc_costs, mlmc_ratio, "-",  color="#2C7FB8", lw=2, label="MLMC")
+ax.loglog(mfmc_costs, mfmc_ratio, "--", color="#E67E22", lw=2, label="MFMC")
+ax.loglog(mlblue_costs, mlblue_ratio, "-", color="#27AE60", lw=2.5,
+          label="MLBLUE")
+
+cv_colors = ["#c0392b", "#d35400", "#f39c12", "#2c3e50"]
+cv_ls     = ["--", "-.", ":", (0, (5, 1))]
+for i, (lim, col, ls) in enumerate(zip(cv_lims, cv_colors, cv_ls)):
+    ax.axhline(lim, color=col, ls=ls, lw=1.5,
+               label=f"CV-{i+1} limit ({i+1} LF)")
+
+ax.axhline(1.0, color="k", lw=1, ls=":", alpha=0.4, label="MC (no reduction)")
+ax.set_xlabel("Total cost", fontsize=11)
+ax.set_ylabel("Variance / MC variance", fontsize=11)
+ax.set_title("MLBLUE converges to the multi-model CV ceiling", fontsize=11)
+ax.legend(fontsize=8, loc="lower left")
+ax.grid(True, alpha=0.2, which="both")
+plt.tight_layout()
+plt.show()
+```
+
+The convergence is structural: $\boldsymbol{\Psi}$ aggregates information from every
+subset simultaneously. As LF sample counts grow, every LF mean $Q_j$ is estimated with
+negligible error, and the GLS estimator for $Q_0$ saturates at the CV-$M$ lower bound.
+MLMC and MFMC cannot achieve this because only the one-step correction $\Delta_1$
+directly reduces variance for $Q_0$.
+
+
+## Key Takeaways
+
+- MLBLUE estimates all model means jointly via GLS; the HF mean is extracted via
+  $Q^B_0 = \boldsymbol{e}_0^\top\mathbf{q}^B$
+- Subsets define co-evaluation groups; any non-empty subsets are valid —
+  no chain or nesting required (@fig-subsets)
+- Three ingredients: restriction operator $\mathbf{R}_k$ (who is measured),
+  per-subset error covariance $C_k$ (how correlated), block-diagonal
+  $\mathbf{C}_{\boldsymbol{\epsilon}\boldsymbol{\epsilon}}$ (across all subsets and samples)
+  (@fig-system, @fig-cov)
+- Like ACVMF, MLBLUE converges to CV-$M$ and is not capped at CV-1 (@fig-ceiling)
+- The subset design is most flexible when physically incompatible models prevent
+  certain co-evaluations
+
+
+## Exercises
+
+1. In @fig-subsets, how many evaluations does the leftmost subset contribute to $\mathbf{Y}$?
+   What is the total length of $\mathbf{Y}$ across all shown subsets (assume $m_k = 1$
+   for each)?
+
+2. From @fig-system, how many rows does $\mathbf{H}$ have? How many columns? What
+   does each column correspond to?
+
+3. From @fig-cov, why is $G_3$ a $2\times 2$ matrix while $G_5$ is $1\times 1$?
+   Why does $G_3$ appear twice but $G_2$ appears once?
+
+4. Suppose $f_0$ and $f_2$ cannot be co-evaluated. Which subsets must be excluded?
+   Can MLBLUE still use $f_2$ to improve the HF mean estimate?
+
+5. From @fig-ceiling: at sample ratio $r = 100$, how much better is MLBLUE than MLMC?
+   Estimate as a ratio of variance reductions.
+
+
+## Next Steps
+
+- [MLBLUE Analysis](mlblue_analysis.qmd) — Formal derivation of
+  $\boldsymbol{\Psi}$, the variance formula, and its connection to the CV-$M$ limit
+- [MLBLUE Usage](mlblue_usage.qmd) — Define subsets, run MLBLUE end-to-end,
+  compare to MLMC and PACV in PyApprox
+
+
+## References
+
+- [SUSIAMUQ2020] D. Schaden, E. Ullmann. *On multilevel best linear unbiased estimators.*
+  SIAM/ASA J. Uncertainty Quantification 8(2):601–635, 2020.
+  [DOI](https://doi.org/10.1137/19M1263534)
+
+- [SUSIAMUQ2021] D. Schaden, E. Ullmann. *Asymptotic Analysis of Multilevel Best
+  Linear Unbiased Estimators.* SIAM/ASA J. Uncertainty Quantification 9(3):953–978, 2021.
+  [DOI](https://doi.org/10.1137/20M1321607)
+
+- [CWARXIV2023] M. Croci, K. Willcox, S. Wright. *Multi-output multilevel best linear
+  unbiased estimators via semidefinite programming.*
+  Computer Methods in Applied Mechanics and Engineering, 2023.
+  [DOI](https://doi.org/10.1016/j.cma.2023.116130)

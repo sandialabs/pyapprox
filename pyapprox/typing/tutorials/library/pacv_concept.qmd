@@ -354,6 +354,135 @@ Committing to MLMC or MFMC by convention can leave significant variance reductio
 on the table for problems where an intermediate structure is better.
 
 
+## Convergence to the Multi-Model CV Ceiling
+
+Like ACVMF, the best PACV estimator converges to the multi-model CV ceiling as LF
+sample counts grow. @fig-pacv-ceiling demonstrates this by fixing the HF sample count
+at $N_0 = 1$ and steadily increasing LF samples on the five-model polynomial benchmark.
+The best GMF curve selects the recursion index with lowest variance at each cost point
+(over all 125 valid indices). Both ACVMF and the best GMF converge toward the CV-4
+limit, while MLMC and MFMC plateau at CV-1.
+
+```{python}
+#| echo: false
+#| fig-cap: "Variance relative to MC ($N_0 = 1$ HF sample fixed) as LF sample counts grow, for MLMC, MFMC, ACVMF, and the best GMF estimator (selected over all valid recursion indices at each cost) on the five-model polynomial benchmark. MLMC and MFMC both plateau at the CV-1 limit. ACVMF and the best GMF converge toward the much lower CV-4 limit. Dashed lines mark the four CV-$k$ limits."
+#| label: fig-pacv-ceiling
+
+import numpy as np
+import matplotlib.pyplot as plt
+from pyapprox.typing.util.backends.numpy import NumpyBkd
+from pyapprox.typing.benchmarks.instances.multifidelity.polynomial_ensemble import (
+    polynomial_ensemble_5model,
+)
+from pyapprox.typing.statest.statistics import MultiOutputMean
+from pyapprox.typing.statest.acv import MLMCEstimator, MFMCEstimator, GMFEstimator
+from pyapprox.typing.statest.acv.strategies import TreeDepthRecursionStrategy
+
+bkd       = NumpyBkd()
+benchmark = polynomial_ensemble_5model(bkd)
+models    = benchmark.models()
+costs     = benchmark.costs()
+nqoi      = models[0].nqoi()
+cov       = bkd.to_numpy(benchmark.ensemble_covariance())
+sigma2_hf = cov[0, 0]
+n_models  = len(models)
+M         = n_models - 1
+
+# CV-k limits
+cv_limits = []
+for k in range(1, n_models):
+    sub = cov[:k + 1, :k + 1]
+    c0l = sub[0, 1:]
+    Sl  = sub[1:, 1:]
+    r2  = c0l @ np.linalg.solve(Sl, c0l) / sigma2_hf
+    cv_limits.append(1 - r2)
+
+stat = MultiOutputMean(nqoi, bkd)
+stat.set_pilot_quantities(bkd.asarray(cov))
+
+nhf_samples = 1
+mc_var = sigma2_hf / nhf_samples
+partition_ratio_base = np.array([2, 2, 2, 2])
+factors = np.arange(22)
+
+def compute_variance_vs_cost(estimator):
+    nparts = estimator._npartitions
+    est_costs, est_ratios = [], []
+    for factor in factors:
+        ratios = bkd.asarray(
+            partition_ratio_base[:nparts - 1] * 2**factor, dtype=float
+        )
+        model_ratios = estimator._partition_ratios_to_model_ratios(ratios)
+        target_cost = float(
+            nhf_samples * (costs[0] + bkd.dot(model_ratios, costs[1:]))
+        )
+        est_cov = estimator.covariance_from_ratios(target_cost, ratios)
+        est_var = float(est_cov[0, 0])
+        est_costs.append(target_cost)
+        est_ratios.append(est_var / mc_var)
+    return est_costs, est_ratios
+
+mlmc_costs,  mlmc_ratio  = compute_variance_vs_cost(MLMCEstimator(stat, costs))
+mfmc_costs,  mfmc_ratio  = compute_variance_vs_cost(MFMCEstimator(stat, costs))
+acvmf_costs, acvmf_ratio = compute_variance_vs_cost(
+    GMFEstimator(stat, costs, recursion_index=bkd.zeros(M, dtype=int)))
+
+# Best GMF: enumerate all valid recursion indices at each cost point
+all_ri = TreeDepthRecursionStrategy(max_depth=M).indices(n_models, bkd)
+best_costs, best_ratio = [], []
+for factor in factors:
+    best_var = np.inf
+    for ri in all_ri:
+        est = GMFEstimator(stat, costs, recursion_index=ri)
+        nparts = est._npartitions
+        ratios = bkd.asarray(
+            partition_ratio_base[:nparts - 1] * 2**factor, dtype=float
+        )
+        model_ratios = est._partition_ratios_to_model_ratios(ratios)
+        target_cost = float(
+            nhf_samples * (costs[0] + bkd.dot(model_ratios, costs[1:]))
+        )
+        est_cov = est.covariance_from_ratios(target_cost, ratios)
+        est_var = float(est_cov[0, 0])
+        if est_var < best_var:
+            best_var = est_var
+    best_costs.append(target_cost)
+    best_ratio.append(best_var / mc_var)
+
+cv_colors = ["#e74c3c", "#8e44ad", "#16a085", "#2c3e50"]
+cv_ls     = ["--", "-.", ":", (0, (5, 1))]
+
+fig, ax = plt.subplots(figsize=(7, 4.5))
+ax.loglog(mlmc_costs,  mlmc_ratio,  "-",  color="#2C7FB8", lw=2, label="MLMC")
+ax.loglog(mfmc_costs,  mfmc_ratio,  "--", color="#E67E22", lw=2, label="MFMC")
+ax.loglog(acvmf_costs, acvmf_ratio, "-.", color="#27AE60", lw=2, label="ACVMF")
+ax.loglog(best_costs,  best_ratio,  "-",  color="#c0392b", lw=2.5,
+          label="Best GMF")
+
+for k, (lim, col, ls) in enumerate(zip(cv_limits, cv_colors, cv_ls)):
+    ax.axhline(lim, color=col, ls=ls, lw=1.5,
+               label=f"CV-{k+1} limit ({k+1} LF)")
+
+ax.axhline(1.0, color="k", lw=1, ls=":", alpha=0.4, label="MC (no reduction)")
+ax.set_xlabel("Total cost", fontsize=11)
+ax.set_ylabel("Variance / MC variance", fontsize=11)
+ax.set_title("PACV best-GMF converges to the multi-model CV ceiling",
+             fontsize=11)
+ax.legend(fontsize=8, loc="lower left")
+ax.grid(True, alpha=0.2, which="both")
+plt.tight_layout()
+plt.show()
+```
+
+This plot mirrors the ceiling plots in the [MFMC Concept](mfmc_concept.qmd) and
+[MLBLUE Concept](mlblue_concept.qmd) tutorials. The best GMF envelope matches or
+beats ACVMF at every cost: at small budgets the best recursion index may differ from
+the star, while at large budgets both converge to CV-$M$. MLMC and MFMC are permanently
+capped at CV-1. The key advantage of PACV is that it *automatically finds* the best
+recursion index — there is no need to guess whether the star (ACVMF) or chain
+(MFMC) structure is better for the problem at hand.
+
+
 ## Key Takeaways
 
 - The recursion index $\boldsymbol{\gamma}$ encodes which model corrects which, as a

@@ -1,0 +1,460 @@
+---
+title: "MLBLUE: Analysis"
+subtitle: "PyApprox Tutorial Library"
+description: "Deriving the GLS normal equations, the information matrix Psi, and the MLBLUE variance formula beta^T Psi^{-1} beta — with numerical verification and a detailed walk-through of the three-subset example from the concept tutorial."
+tutorial_type: analysis
+topic: multi_fidelity
+difficulty: advanced
+estimated_time: 20
+prerequisites:
+  - mlblue_concept
+  - acv_many_models_analysis
+tags:
+  - multi-fidelity
+  - mlblue
+  - generalized-least-squares
+  - estimator-theory
+  - variance-formula
+format:
+  html:
+    code-fold: false
+    code-tools: true
+    toc: true
+execute:
+  echo: true
+  warning: false
+jupyter: python3
+---
+
+::: {.callout-tip collapse="true"}
+## Download Notebook
+[Download as Jupyter Notebook](notebooks/mlblue_analysis.ipynb)
+:::
+
+## Learning Objectives
+
+After completing this tutorial, you will be able to:
+
+- Construct the restriction operator $\mathbf{R}_k$, the error covariance block
+  $\mathbf{C}_k$, and the per-subset information contribution $\mathbf{R}_k^\top\mathbf{C}_k^{-1}\mathbf{R}_k$
+- Derive the GLS normal equations and their solution $\mathbf{q}^B = \boldsymbol{\Psi}^{-1}\mathbf{y}$
+- Prove that MLBLUE is unbiased and attains the Gauss-Markov lower bound
+- Compute $\mathbb{V}[Q^B_\beta] = \boldsymbol{\beta}^\top\boldsymbol{\Psi}^{-1}\boldsymbol{\beta}$
+  and verify it numerically
+- Explain how adding subsets reduces variance and show that adding any subset cannot
+  increase variance
+
+
+## Prerequisites
+
+Complete [MLBLUE Concept](mlblue_concept.qmd) and
+[General ACV Analysis](acv_many_models_analysis.qmd) before this tutorial.
+
+
+## Setup and Notation
+
+We have $M+1$ models $f_0, \ldots, f_M$ with population mean vector
+$\mathbf{q} = [Q_0, \ldots, Q_M]^\top \in \mathbb{R}^{M+1}$ and population covariance
+$\boldsymbol{\Sigma} \in \mathbb{R}^{(M+1)\times(M+1)}$.
+
+The estimator is defined by $K$ subsets $\{S_k\}_{k=1}^K$ with $|S_k|$ models and
+$m_k \geq 0$ samples each.
+
+
+## The Restriction Operator
+
+For subset $S_k = \{j_1, \ldots, j_{|S_k|}\}$ (listed in ascending order), define
+the **restriction operator** $\mathbf{R}_k \in \{0,1\}^{|S_k| \times (M+1)}$ by:
+row $\ell$ of $\mathbf{R}_k$ has a 1 in column $j_\ell$ and zeros elsewhere.
+This selects the means of exactly the models in $S_k$:
+
+$$
+\mathbf{R}_k \mathbf{q} = [Q_{j_1}, \ldots, Q_{j_{|S_k|}}]^\top.
+$$
+
+For a single sample $\boldsymbol{\theta}_k^{(i)}$ from subset $k$:
+
+$$
+\mathbf{Y}_k^{(i)}
+= [f_{j_\ell}(\boldsymbol{\theta}_k^{(i)})]_{\ell=1}^{|S_k|}
+= \mathbf{R}_k \mathbf{q} + \boldsymbol{\epsilon}_k^{(i)},
+\qquad \boldsymbol{\epsilon}_k^{(i)} \sim (0,\, \mathbf{C}_k),
+$$
+
+where the **within-subset covariance** is
+
+$$
+\mathbf{C}_k = \mathbb{C}\mathrm{ov}(\boldsymbol{\epsilon}_k^{(i)})
+= \mathbf{R}_k \boldsymbol{\Sigma} \mathbf{R}_k^\top \in \mathbb{R}^{|S_k|\times|S_k|}.
+$$ {#eq-Ck}
+
+$\mathbf{C}_k$ is the submatrix of $\boldsymbol{\Sigma}$ that retains only the rows and
+columns for models in $S_k$.
+
+
+## Constructing the Full System
+
+Stacking all samples of all subsets into the full observation vector
+$\mathbf{Y} \in \mathbb{R}^N$ with $N = \sum_k m_k|S_k|$, the full system is:
+
+$$
+\mathbf{Y} = \mathbf{H}\mathbf{q} + \boldsymbol{\epsilon},
+\quad
+\mathbf{H} = \begin{pmatrix} \mathbf{R}_1 \\ \vdots \\ \mathbf{R}_1 \\ \mathbf{R}_2 \\ \vdots \\ \mathbf{R}_K \end{pmatrix}
+\;\text{($\mathbf{R}_k$ repeated $m_k$ times)},
+$$ {#eq-full-system}
+
+with block-diagonal error covariance:
+
+$$
+\mathbf{C}_{\boldsymbol{\epsilon}\boldsymbol{\epsilon}}
+= \mathrm{BlockDiag}\!\bigl(
+  \underbrace{\mathbf{C}_1, \ldots, \mathbf{C}_1}_{m_1},\;
+  \underbrace{\mathbf{C}_2, \ldots, \mathbf{C}_2}_{m_2},\;
+  \ldots,\;
+  \underbrace{\mathbf{C}_K, \ldots, \mathbf{C}_K}_{m_K}
+\bigr).
+$$ {#eq-Cee}
+
+The block-diagonal structure of @eq-Cee follows from the independence of samples across
+subsets. Its inverse is $\mathrm{BlockDiag}(\mathbf{C}_1^{-1}, \ldots, \mathbf{C}_K^{-1})$,
+repeated appropriately.
+
+
+## The GLS Normal Equations
+
+The generalised least-squares problem is:
+
+$$
+\mathbf{q}^B = \arg\min_{\mathbf{q}}
+\bigl\|\mathbf{Y} - \mathbf{H}\mathbf{q}\bigr\|^2_{\mathbf{C}_{\boldsymbol{\epsilon}\boldsymbol{\epsilon}}^{-1}}.
+$$ {#eq-gls}
+
+Setting the gradient to zero and using the block structure of both $\mathbf{H}$ and
+$\mathbf{C}_{\boldsymbol{\epsilon}\boldsymbol{\epsilon}}^{-1}$:
+
+$$
+\boxed{
+\boldsymbol{\Psi}\,\mathbf{q}^B = \mathbf{y},
+\quad
+\boldsymbol{\Psi} = \sum_{k=1}^K m_k\,\mathbf{R}_k^\top \mathbf{C}_k^{-1} \mathbf{R}_k,
+\quad
+\mathbf{y} = \sum_{k=1}^K \mathbf{R}_k^\top \mathbf{C}_k^{-1}
+  \sum_{i=1}^{m_k} \mathbf{Y}_k^{(i)}.
+}
+$$ {#eq-normal}
+
+The matrix $\boldsymbol{\Psi} \in \mathbb{R}^{(M+1)\times(M+1)}$ is the **information
+matrix**: each term $m_k\,\mathbf{R}_k^\top\mathbf{C}_k^{-1}\mathbf{R}_k$ is the Fisher
+information contributed by the $m_k$ samples of subset $k$. Adding any active subset
+increases $\boldsymbol{\Psi}$ by a positive semidefinite amount.
+
+The solution is $\mathbf{q}^B = \boldsymbol{\Psi}^{-1}\mathbf{y}$, provided
+$\boldsymbol{\Psi}$ is invertible. Invertibility requires that the active subsets
+collectively cover every model — each model must appear in at least one active subset.
+
+
+## Unbiasedness and Variance
+
+**Unbiasedness.** Using $\mathbb{E}[\mathbf{Y}_k^{(i)}] = \mathbf{R}_k\mathbf{q}$:
+
+$$
+\mathbb{E}[\mathbf{y}] = \sum_k m_k \mathbf{R}_k^\top \mathbf{C}_k^{-1} \mathbf{R}_k \mathbf{q}
+= \boldsymbol{\Psi}\mathbf{q},
+\quad\text{so}\quad
+\mathbb{E}[\mathbf{q}^B] = \boldsymbol{\Psi}^{-1}\boldsymbol{\Psi}\mathbf{q} = \mathbf{q}.
+\qquad\square
+$$
+
+**Covariance of $\mathbf{q}^B$.**
+
+$$
+\mathrm{Cov}(\mathbf{q}^B)
+= \boldsymbol{\Psi}^{-1}
+  \mathbf{H}^\top \mathbf{C}_{\boldsymbol{\epsilon}\boldsymbol{\epsilon}}^{-1}
+  \underbrace{\mathrm{Cov}(\mathbf{Y})}_{=\mathbf{C}_{\boldsymbol{\epsilon}\boldsymbol{\epsilon}}}
+  \mathbf{C}_{\boldsymbol{\epsilon}\boldsymbol{\epsilon}}^{-1} \mathbf{H}
+  \boldsymbol{\Psi}^{-1}
+= \boldsymbol{\Psi}^{-1} \boldsymbol{\Psi} \boldsymbol{\Psi}^{-1}
+= \boldsymbol{\Psi}^{-1}.
+$$
+
+**Variance of a linear combination.** For any target vector $\boldsymbol{\beta}$,
+the variance of $Q^B_\beta = \boldsymbol{\beta}^\top\mathbf{q}^B$ is:
+
+$$
+\boxed{
+\mathbb{V}[Q^B_\beta]
+= \boldsymbol{\beta}^\top \boldsymbol{\Psi}^{-1} \boldsymbol{\beta}.
+}
+$$ {#eq-variance}
+
+For estimating only the HF mean: $\boldsymbol{\beta} = \mathbf{e}_0 = [1,0,\ldots,0]^\top$,
+giving $\mathbb{V}[Q^B_0] = [\boldsymbol{\Psi}^{-1}]_{00}$.
+
+**Gauss-Markov optimality.** By the Gauss-Markov theorem extended to GLS,
+$\mathbf{q}^B$ is the best (minimum variance) linear unbiased estimator of $\mathbf{q}$
+within the GLS class for the given subsets and sample counts.
+
+
+## Adding Subsets Cannot Increase Variance
+
+For any new active subset $S_\text{new}$ with $m_\text{new} > 0$ samples:
+
+$$
+\boldsymbol{\Psi}_\text{new}
+= \boldsymbol{\Psi}_\text{old}
+  + m_\text{new}\,\mathbf{R}_\text{new}^\top \mathbf{C}_\text{new}^{-1} \mathbf{R}_\text{new}
+\succeq \boldsymbol{\Psi}_\text{old},
+$$
+
+so $\boldsymbol{\Psi}_\text{new}^{-1} \preceq \boldsymbol{\Psi}_\text{old}^{-1}$ (matrix
+inversion reverses the PSD order), and therefore:
+
+$$
+\mathbb{V}[Q^B_\beta]_\text{new}
+= \boldsymbol{\beta}^\top \boldsymbol{\Psi}_\text{new}^{-1} \boldsymbol{\beta}
+\leq \boldsymbol{\beta}^\top \boldsymbol{\Psi}_\text{old}^{-1} \boldsymbol{\beta}
+= \mathbb{V}[Q^B_\beta]_\text{old}.
+$$
+
+Adding any non-trivially informative subset can only reduce variance. This is analogous
+to the result that adding any LF model to an ACV estimator can only decrease its
+optimal variance — but here the result holds for arbitrary subsets, not just for
+models that satisfy the allocation matrix constraints.
+
+
+## Numerical Verification
+
+We manually construct $\boldsymbol{\Psi}$ for the three-subset example from the concept
+tutorial and verify @eq-variance against empirical variance from repeated trials.
+
+```{python}
+import numpy as np
+import matplotlib.pyplot as plt
+from pyapprox.typing.util.backends.numpy import NumpyBkd
+from pyapprox.typing.benchmarks.instances.multifidelity.polynomial_ensemble import (
+    polynomial_ensemble_5model,
+)
+
+np.random.seed(1)
+bkd = NumpyBkd()
+benchmark = polynomial_ensemble_5model(bkd)
+nmodels = 3        # f0 (HF), f1, f2
+nqoi = benchmark.models()[0].nqoi()
+cov = bkd.to_numpy(benchmark.ensemble_covariance()[:nmodels, :nmodels])
+M = nmodels - 1
+
+# Three-subset example: S5={f2}, S2={f1,f2}, S3={f0,f1}
+subsets_idx = [[2], [1, 2], [0, 1]]
+m_counts    = [1,    1,      2]     # sample counts per subset
+
+def restriction(sidx, M):
+    """R_k: |S_k| x (M+1) binary restriction matrix."""
+    R = np.zeros((len(sidx), M + 1))
+    for row, j in enumerate(sidx):
+        R[row, j] = 1.0
+    return R
+
+# Build Psi manually via eq. (normal)
+Psi = np.zeros((M + 1, M + 1))
+for sidx, mk in zip(subsets_idx, m_counts):
+    Rk = restriction(sidx, M)
+    Ck = Rk @ cov @ Rk.T       # |S_k| x |S_k| error covariance block
+    Psi += mk * Rk.T @ np.linalg.solve(Ck, Rk)
+
+print("Psi (information matrix):")
+print(np.round(Psi, 4))
+print(f"\nPsi^{{-1}} (estimator covariance):")
+Psi_inv = np.linalg.inv(Psi)
+print(np.round(Psi_inv, 6))
+
+beta = np.zeros(M + 1); beta[0] = 1.0   # extract HF mean
+var_theo = float(beta @ Psi_inv @ beta)
+print(f"\nV[Q^B_0] = beta^T Psi^{{-1}} beta = {var_theo:.8f}")
+```
+
+```{python}
+# Per-subset information contributions — shows which subsets inform which means
+print("Per-subset contributions to Psi:\n")
+for k, (sidx, mk) in enumerate(zip(subsets_idx, m_counts)):
+    Rk = restriction(sidx, M)
+    Ck = Rk @ cov @ Rk.T
+    term = mk * Rk.T @ np.linalg.solve(Ck, Rk)
+    print(f"  S_{{{k+1}}} = {sidx}, m={mk}:")
+    print(f"    {np.round(term, 4)}")
+    nonzero = [(i, round(float(term[i, i]), 4)) for i in range(M+1) if term[i, i] > 1e-9]
+    print(f"    Informs: {nonzero}\n")
+```
+
+Now verify @eq-variance empirically.
+
+```{python}
+#| fig-cap: "Empirical distribution of MLBLUE estimates for $Q_0$ from 1000 independent trials (blue histogram), compared with the true mean (red dashed) and the theoretical +/-1 std band (shaded). The empirical std matches the theoretical prediction $\\sqrt{\\boldsymbol{\\beta}^\\top\\boldsymbol{\\Psi}^{-1}\\boldsymbol{\\beta}}$ to within Monte Carlo noise."
+#| label: fig-verify
+
+variable = benchmark.prior()
+models = [benchmark.models()[i] for i in range(nmodels)]
+n_trials = 1000
+estimates = []
+
+for seed in range(n_trials):
+    np.random.seed(seed + 2000)
+    # Build y = sum_k R_k^T C_k^{-1} mean(Y_k)
+    y_vec = np.zeros(M + 1)
+    for sidx, mk in zip(subsets_idx, m_counts):
+        Rk = restriction(sidx, M)
+        Ck = Rk @ cov @ Rk.T
+        s = variable.rvs(mk)
+        Yk = np.array([bkd.to_numpy(models[j](s)).ravel() for j in sidx])
+        # Yk shape: (|S_k|, mk); mean over samples axis=1
+        y_vec += Rk.T @ np.linalg.solve(Ck, Yk.mean(axis=1)) * mk
+
+    q_hat = Psi_inv @ y_vec
+    estimates.append(q_hat[0])
+
+estimates = np.array(estimates)
+true_mean = float(bkd.to_numpy(benchmark.ensemble_means())[0, 0])
+
+fig, ax = plt.subplots(figsize=(8, 4.5))
+ax.hist(estimates, bins=60, density=True, color="#2C7FB8", alpha=0.78,
+        edgecolor="k", lw=0.2, label=f"Empirical ({n_trials} trials)")
+ax.axvline(true_mean, color="#C0392B", ls="--", lw=2, label="True mean")
+ax.axvspan(true_mean - var_theo**0.5, true_mean + var_theo**0.5,
+           alpha=0.14, color="#C0392B",
+           label=f"$\\pm$std theory = {var_theo**0.5:.4f}")
+ax.set_xlabel(r"MLBLUE estimate $Q^B_0$", fontsize=11)
+ax.set_ylabel("Density", fontsize=11)
+ax.set_title(f"Variance verification  |  subsets {subsets_idx}  |  m={m_counts}",
+             fontsize=10)
+ax.legend(fontsize=9)
+ax.grid(True, alpha=0.2)
+plt.tight_layout()
+plt.show()
+
+print(f"Theoretical std: {var_theo**0.5:.5f}")
+print(f"Empirical std:   {estimates.std():.5f}  (ratio = {estimates.std()/var_theo**0.5:.4f})")
+```
+
+
+## How Subset Sample Counts Affect Variance
+
+Increasing $m_k$ for any subset $k$ scales its contribution to $\boldsymbol{\Psi}$
+linearly: $\boldsymbol{\Psi} \propto m_k$ for that term. The variance therefore
+decreases roughly as $1/m_k$ for large $m_k$. @fig-m-sweep shows this for the
+three-subset example.
+
+```{python}
+#| fig-cap: "MLBLUE variance $\\boldsymbol{\\beta}^\\top\\boldsymbol{\\Psi}^{-1}\\boldsymbol{\\beta}$ as a function of the sample count $m_3$ for subset $S_3 = \\{f_0, f_1\\}$ (holding $m_1=1$, $m_2=1$ fixed). As $m_3 \\to \\infty$ the variance converges to the CV-1 limit (the maximum achievable when only $f_1$ provides cross-model information). Adding more models to the active subsets would lower this floor further."
+#| label: fig-m-sweep
+
+m3_vals = np.logspace(0, 4, 80)
+vars_sweep = []
+for m3 in m3_vals:
+    Psi_s = np.zeros((M + 1, M + 1))
+    for sidx, mk in zip(subsets_idx, [1, 1, m3]):
+        Rk = restriction(sidx, M)
+        Ck = Rk @ cov @ Rk.T
+        Psi_s += mk * Rk.T @ np.linalg.solve(Ck, Rk)
+    vars_sweep.append(float(beta @ np.linalg.solve(Psi_s, beta)))
+
+# CV-1 floor: variance with S3={f0,f1} and m1,m2->infty
+Psi_inf = np.zeros((M+1, M+1))
+for sidx, mk in zip([[2], [1, 2], [0, 1]], [1, 1, 1e8]):
+    Rk = restriction(sidx, M); Ck = Rk @ cov @ Rk.T
+    Psi_inf += mk * Rk.T @ np.linalg.solve(Ck, Rk)
+cv1_floor = float(beta @ np.linalg.solve(Psi_inf, beta))
+
+mc_var_N1 = cov[0, 0]    # MC variance with N=1 HF sample
+
+fig, ax = plt.subplots(figsize=(8, 4))
+ax.semilogx(m3_vals, vars_sweep, color="#2C7FB8", lw=2.5,
+            label=r"MLBLUE variance ($m_1=1, m_2=1, m_3$ varies)")
+ax.axhline(cv1_floor, color="#C0392B", ls="--", lw=1.5, alpha=0.85,
+           label=f"CV-1 floor = {cv1_floor:.5f}")
+ax.axhline(mc_var_N1, color="k", ls=":", lw=1, alpha=0.4,
+           label=f"MC variance (N=1) = {mc_var_N1:.4f}")
+ax.set_xlabel(r"Sample count $m_3$ for $S_3 = \{f_0, f_1\}$", fontsize=11)
+ax.set_ylabel(r"$\mathbb{V}[Q^B_0] = \boldsymbol{\beta}^\top\boldsymbol{\Psi}^{-1}\boldsymbol{\beta}$",
+              fontsize=11)
+ax.set_title("MLBLUE variance vs subset sample count", fontsize=11)
+ax.legend(fontsize=9)
+ax.grid(True, alpha=0.2)
+plt.tight_layout()
+plt.show()
+```
+
+
+## Optimal Sample Allocation
+
+For a budget $P$, the cost of subset $k$ per sample is
+$c_k = \sum_{j \in S_k} C_j$ (sum of model costs in that subset).
+The budget constraint is $\sum_k m_k c_k \leq P$.
+
+Minimising $\boldsymbol{\beta}^\top\boldsymbol{\Psi}^{-1}\boldsymbol{\beta}$ over
+$\mathbf{m} \geq 0$ subject to the budget is a **semidefinite programme (SDP)**.
+To see this, write the epigraph reformulation:
+
+$$
+\min_{\mathbf{m}, t}\; t
+\quad \text{s.t.} \quad
+\begin{pmatrix} \boldsymbol{\Psi}(\mathbf{m}) & \boldsymbol{\beta} \\
+\boldsymbol{\beta}^\top & t \end{pmatrix} \succeq 0,
+\quad
+\sum_k m_k c_k \leq P,\quad \mathbf{m} \geq 0.
+$$ {#eq-sdp}
+
+This is a linear SDP in $\mathbf{m}$ (since $\boldsymbol{\Psi}(\mathbf{m})$ is linear
+in $\mathbf{m}$) and can be solved to global optimality via off-the-shelf solvers.
+PyApprox uses this SDP internally when `MLBLUESPDAllocationOptimizer.optimize` is
+called on an MLBLUE estimator.
+
+
+## Key Takeaways
+
+- The restriction operator $\mathbf{R}_k$ selects the model means in subset $k$;
+  $\mathbf{C}_k = \mathbf{R}_k\boldsymbol{\Sigma}\mathbf{R}_k^\top$ is the corresponding
+  within-subset covariance block
+- The information matrix $\boldsymbol{\Psi} = \sum_k m_k \mathbf{R}_k^\top\mathbf{C}_k^{-1}\mathbf{R}_k$
+  is PSD-additive over subsets; adding any subset cannot increase variance
+- The MLBLUE variance is $\boldsymbol{\beta}^\top\boldsymbol{\Psi}^{-1}\boldsymbol{\beta}$
+  — the Gauss-Markov lower bound within the GLS class
+- Optimal allocation is a semidefinite programme in the subset sample counts, solved
+  internally by PyApprox's `MLBLUESPDAllocationOptimizer`
+
+
+## Exercises
+
+1. For the singleton subset $S = \{f_0\}$ with $m$ samples, show that
+   $\boldsymbol{\beta}^\top\boldsymbol{\Psi}^{-1}\boldsymbol{\beta} = \sigma_0^2/m$ —
+   i.e. MLBLUE reduces to plain MC when the only active subset is the HF singleton.
+
+2. For the two-model case ($M=1$) with one active subset $\{f_0, f_1\}$ with $m$
+   samples and one singleton $\{f_1\}$ with $n$ additional samples, derive
+   $\boldsymbol{\Psi}$ explicitly and show that the HF variance
+   $[\boldsymbol{\Psi}^{-1}]_{00}$ decreases as $n \to \infty$. What is its limit?
+
+3. Prove rigorously that adding any new active subset with $m_\text{new} > 0$ satisfies
+   $\boldsymbol{\Psi}_\text{new} \succeq \boldsymbol{\Psi}_\text{old}$ and therefore
+   $\boldsymbol{\beta}^\top\boldsymbol{\Psi}_\text{new}^{-1}\boldsymbol{\beta}
+   \leq \boldsymbol{\beta}^\top\boldsymbol{\Psi}_\text{old}^{-1}\boldsymbol{\beta}$.
+
+4. **(Challenge)** Show that @eq-sdp is a linear SDP by writing out the full
+   block-matrix constraint and identifying which variables are semidefinite, linear,
+   and which constraints are affine.
+
+
+## References
+
+- [SUSIAMUQ2020] D. Schaden, E. Ullmann. *On multilevel best linear unbiased estimators.*
+  SIAM/ASA J. Uncertainty Quantification 8(2):601-635, 2020.
+  [DOI](https://doi.org/10.1137/19M1263534)
+
+- [SUSIAMUQ2021] D. Schaden, E. Ullmann. *Asymptotic Analysis of Multilevel Best Linear
+  Unbiased Estimators.* SIAM/ASA J. Uncertainty Quantification 9(3):953-978, 2021.
+  [DOI](https://doi.org/10.1137/20M1321607)
+
+- [CWARXIV2023] M. Croci, K. Willcox, S. Wright. *Multi-output multilevel best linear
+  unbiased estimators via semidefinite programming.* Computer Methods in Applied
+  Mechanics and Engineering, 2023.
+  [DOI](https://doi.org/10.1016/j.cma.2023.116130)
