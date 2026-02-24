@@ -1,5 +1,6 @@
 """Unified search for optimal ACV estimator configurations."""
 
+import inspect
 from dataclasses import dataclass
 from typing import (
     Callable,
@@ -155,7 +156,12 @@ class ACVSearch(Generic[Array]):
         subset_stat = self._stat.subset(model_indices, qoi_indices)
         costs_np = self._bkd.to_numpy(self._costs)
         subset_costs = self._bkd.array([costs_np[i] for i in model_indices])
-        return est_class(subset_stat, subset_costs, recursion_index=recursion_idx)
+        sig = inspect.signature(est_class.__init__)
+        if "recursion_index" in sig.parameters:
+            return est_class(
+                subset_stat, subset_costs, recursion_index=recursion_idx
+            )
+        return est_class(subset_stat, subset_costs)
 
     def search(
         self,

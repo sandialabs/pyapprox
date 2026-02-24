@@ -1,0 +1,334 @@
+---
+title: "Ensemble Selection: Usage"
+subtitle: "PyApprox Tutorial Library"
+description: "Using `AllSubsetsStrategy`, `ACVSearch`, and `plot_estimator_variance_reductions` to automatically find the best model subset and estimator type for any multi-fidelity problem."
+tutorial_type: usage
+topic: multi_fidelity
+difficulty: intermediate
+estimated_time: 10
+prerequisites:
+  - ensemble_selection_concept
+  - pacv_usage
+tags:
+  - multi-fidelity
+  - ensemble-selection
+  - api
+  - model-subset
+format:
+  html:
+    code-fold: false
+    code-tools: true
+    toc: true
+execute:
+  echo: true
+  warning: false
+jupyter: python3
+---
+
+::: {.callout-tip collapse="true"}
+## Download Notebook
+[Download as Jupyter Notebook](notebooks/ensemble_selection_usage.ipynb)
+:::
+
+## Learning Objectives
+
+After completing this tutorial, you will be able to:
+
+- Trigger ensemble selection using `ACVSearch` with `AllSubsetsStrategy(max_models=k)`
+- Retrieve and inspect all candidate estimators via the `SearchResult`
+- Plot variance reduction by ensemble size using `plot_estimator_variance_reductions`
+- Run selection across multiple estimator families simultaneously
+- Interpret the output to decide how many LF models to deploy in production
+
+
+## Prerequisites
+
+Complete [Ensemble Selection Concept](ensemble_selection_concept.qmd) before this
+tutorial. The [PACV Usage](pacv_usage.qmd) tutorial establishes the base API that
+ensemble selection extends.
+
+
+## Setup
+
+```{python}
+import numpy as np
+import matplotlib.pyplot as plt
+from collections import defaultdict
+from pyapprox.typing.util.backends.numpy import NumpyBkd
+from pyapprox.typing.benchmarks import tunable_ensemble_3model
+from pyapprox.typing.statest import (
+    MultiOutputMean, MFMCEstimator, MCEstimator,
+    GMFEstimator, GRDEstimator, AllSubsetsStrategy,
+    plot_allocation, plot_estimator_variance_reductions, plot_recursion_dag,
+)
+from pyapprox.typing.statest.acv.search import ACVSearch
+
+bkd = NumpyBkd()
+np.random.seed(1)
+
+benchmark  = tunable_ensemble_3model(bkd, theta1=1.0)
+nmodels    = 3
+nqoi       = 1
+costs_all  = benchmark.costs()
+prior      = benchmark.prior()
+all_models = benchmark.models()
+```
+
+
+## Stage 1: Pilot Study
+
+Ensemble selection requires the joint covariance across all candidate models — the
+pilot must evaluate every model in the library.
+
+```{python}
+N_pilot   = 500
+s_pilot   = prior.rvs(N_pilot)
+vals_pilot = [m(s_pilot) for m in all_models]
+
+stat = MultiOutputMean(nqoi, bkd)
+(cov_pilot,) = stat.compute_pilot_quantities(vals_pilot)
+stat.set_pilot_quantities(cov_pilot)
+
+# Visual summary
+cov_np = bkd.to_numpy(cov_pilot)
+D_inv  = np.diag(1.0 / np.sqrt(np.diag(cov_np)))
+corr   = D_inv @ cov_np @ D_inv
+
+print("Pilot HF–LF correlations:")
+for a in range(1, nmodels):
+    print(f"  ρ(f0, f{a}) = {corr[0, a]:.4f}")
+```
+
+
+## Stage 2: Single-Family Selection with `ACVSearch`
+
+Use `ACVSearch` with `AllSubsetsStrategy(max_models=5)` to enumerate all model
+subsets up to the given size, and select the best MFMC estimator.
+
+```{python}
+target_cost = 100.0
+
+search = ACVSearch(
+    stat=stat,
+    costs=costs_all,
+    estimator_classes=[GMFEstimator],
+    model_strategy=AllSubsetsStrategy(max_models=3),  # up to 2 LF models
+)
+result = search.search(target_cost, allow_failures=True)
+best_est = result.estimator
+
+print(f"Best estimator: {best_est}")
+print(f"Predicted variance: "
+      f"{float(bkd.to_numpy(best_est.optimized_covariance())[0,0]):.6f}")
+print(f"Candidates evaluated: {result.candidates_evaluated()}")
+print(f"Candidates successful: {result.candidates_successful()}")
+```
+
+::: {.callout-note}
+## What `max_models` means
+`AllSubsetsStrategy(max_models=3)` means subsets of size up to **3 models total**
+(1 HF + up to 2 LF). With `nmodels=3` in our library, this is the full enumeration.
+:::
+
+
+## Stage 3: Variance Reduction by Ensemble Size
+
+Group the saved candidates by number of models and plot the best variance reduction
+at each ensemble size.
+
+```{python}
+#| fig-cap: "Best GMF variance reduction (relative to MC) by ensemble size, selected from all candidate subsets at $P=100$."
+#| label: fig-by-nmodels
+
+# Group successful candidates by number of models
+est_dict = defaultdict(list)
+for est_cand, alloc in result.successful_allocations():
+    nm = len(bkd.to_numpy(est_cand._costs))
+    obj = float(bkd.to_numpy(alloc.objective_value)[0])
+    est_dict[nm].append((est_cand, alloc, obj))
+
+nmodels_list = np.sort(list(est_dict.keys())).astype(int)
+
+# Find best candidate at each size
+best_ests   = []
+best_labels = []
+for nm in nmodels_list:
+    candidates = est_dict[nm]
+    best_i = np.argmin([c[2] for c in candidates])
+    best_cand = candidates[best_i]
+    # Allocate the best candidate for this size
+    best_cand[0].set_allocation(best_cand[1])
+    best_ests.append(best_cand[0])
+    best_labels.append(f"{nm} models")
+
+fig, ax = plt.subplots(figsize=(8, 4.5))
+plot_estimator_variance_reductions(best_ests, best_labels, ax)
+ax.set_xlabel("LF models included", fontsize=11)
+ax.set_title(f"Best GMF subset by ensemble size  (P={target_cost})", fontsize=11)
+plt.tight_layout()
+plt.show()
+
+print("\nBest subset at each size:")
+for nm, lbl, est_cand in zip(nmodels_list, best_labels, best_ests):
+    var = float(bkd.to_numpy(est_cand.optimized_covariance())[0, 0])
+    print(f"  {nm-1} LF models: {lbl:30s}  predicted variance = {var:.6f}")
+```
+
+
+## Stage 4: Multi-Family Selection
+
+Pass a list of estimator family names to search across families simultaneously.
+PyApprox evaluates every valid combination of (family, recursion index, model subset).
+
+```{python}
+#| fig-cap: "Best variance reduction by estimator type (GMF and GRD families), across all valid recursion indices and model subsets. Each bar is the best estimator within that class."
+#| label: fig-multifamily
+
+search_multi = ACVSearch(
+    stat=stat,
+    costs=costs_all,
+    estimator_classes=[GRDEstimator, GMFEstimator],
+    model_strategy=AllSubsetsStrategy(max_models=3),  # full enumeration
+)
+result_multi = search_multi.search(target_cost, allow_failures=True)
+best_multi = result_multi.estimator
+
+print(f"Best multi-family estimator: {best_multi}")
+print(f"Predicted variance: "
+      f"{float(bkd.to_numpy(best_multi.optimized_covariance())[0,0]):.6f}")
+
+# Group by estimator class name
+class_dict = defaultdict(list)
+for est_cand, alloc in result_multi.successful_allocations():
+    name = est_cand.__class__.__name__
+    obj = float(bkd.to_numpy(alloc.objective_value)[0])
+    class_dict[name].append((est_cand, alloc, obj))
+
+class_names = sorted(class_dict.keys())
+best_by_class = []
+class_labels  = []
+for name in class_names:
+    cands = class_dict[name]
+    best_i = np.argmin([c[2] for c in cands])
+    best_cand = cands[best_i]
+    best_cand[0].set_allocation(best_cand[1])
+    best_by_class.append(best_cand[0])
+    ri = bkd.to_numpy(best_cand[0]._recursion_index).astype(int)
+    class_labels.append(f"{name}\n\u03b3={list(ri)}")
+
+fig, ax = plt.subplots(figsize=(8, 4.5))
+plot_estimator_variance_reductions(best_by_class, class_labels, ax)
+ax.set_title("Best estimator per family (GMF vs GRD)", fontsize=11)
+plt.tight_layout()
+plt.show()
+```
+
+
+## Stage 5: Inspecting the Best Estimator
+
+After selection, inspect the allocation and DAG to understand the chosen structure.
+
+```{python}
+#| fig-cap: "Allocation matrix (left) and recursion DAG (right) for the best multi-family estimator. The selected model subset and recursion index are shown in the titles."
+#| label: fig-inspect
+
+fig, axes = plt.subplots(1, 2, figsize=(14, 5))
+plot_allocation(best_multi, axes[0], show_partition_sizes=True)
+plot_recursion_dag(best_multi, axes[1])
+axes[0].set_title("Best estimator — allocation matrix", fontsize=10)
+axes[1].set_title("Best estimator — recursion DAG", fontsize=10)
+plt.tight_layout()
+plt.show()
+```
+
+
+## Stage 6: Running the Selected Estimator
+
+Once selected, the generate → evaluate → call workflow is identical to any other estimator.
+
+```{python}
+true_mean = float(bkd.to_numpy(benchmark.ensemble_means())[0, 0])
+n_trials  = 600
+estimates = []
+
+# Identify which models are used by the selected estimator
+# The estimator was built with a subset of costs_all;
+# models are indexed from the original list
+for seed in range(n_trials):
+    np.random.seed(seed + 5000)
+    spm = best_multi.generate_samples_per_model(prior.rvs)
+    vpm = [all_models[a](spm[a]) for a in range(len(spm))]
+    estimates.append(float(best_multi(vpm)))
+
+estimates = np.array(estimates)
+pred_std  = float(bkd.to_numpy(best_multi.optimized_covariance())[0, 0])**0.5
+
+print(f"True mean:          {true_mean:.5f}")
+print(f"Mean estimate:      {estimates.mean():.5f}")
+print(f"Predicted std:      {pred_std:.5f}")
+print(f"Empirical std:      {estimates.std():.5f}  ({n_trials} trials)")
+```
+
+
+## How to Use This in Practice
+
+A practical ensemble selection workflow for a new problem:
+
+1. **Run pilot on full library.** Evaluate all candidate models at $N_\text{pilot}$
+   shared samples. $N_\text{pilot} = 20$–$50$ is often enough to identify which models
+   to exclude; see [Pilot Studies](pilot_studies_concept.qmd) for sizing guidance.
+
+2. **Check costs.** After the pilot, measure median wall-clock time per model. Pass
+   these as `model_costs` to `get_estimator`.
+
+3. **Run selection.** `ACVSearch(stat, model_costs, estimator_classes=[GMFEstimator], model_strategy=AllSubsetsStrategy(max_models=k))`. Set `max_models` to 3–5 for a first pass.
+
+4. **Inspect the variance-by-size plot.** If the curve flattens before the cap, you've
+   found the effective ensemble size.
+
+5. **Deploy the best estimator.** Use the selected estimator directly; re-run
+   `allocate_samples` for different production budgets without re-running selection.
+
+```{python}
+# Quick selection summary
+print("Selection summary:")
+print(f"  Full library:       {nmodels} models ({nmodels-1} LF)")
+print(f"  Selected estimator: {best_multi.__class__.__name__}")
+ri = bkd.to_numpy(best_multi._recursion_index).astype(int)
+print(f"  Recursion index:    {list(ri)}")
+```
+
+::: {.callout-tip}
+## When to cap `max_nmodels`
+Start with `max_nmodels = min(nmodels, 4)`. If the variance-by-size plot is still
+decreasing sharply at the cap, increase it. If it has already plateaued, the cap is
+fine and you're not missing better options.
+:::
+
+
+## Common Errors
+
+**`allow_failures=True` required.** Some estimator families (MFMC in particular)
+impose ordering conditions on model correlations that not all subsets satisfy. Without
+`allow_failures=True`, the first failing subset raises an exception. With it, failures
+are silently skipped.
+
+**Costs must cover all models in the library.** Pass `costs_all` (length = full
+library), not a truncated version. The search selects the subset internally.
+
+**`stat` must be set from pilot over the full library.** If `stat.set_pilot_quantities`
+was called with a sub-covariance, the search only considers the sub-library.
+
+**Large libraries can be expensive.** For $M > 15$ models with `max_models > 4`,
+the number of subsets grows combinatorially. Profile runtime before using large caps.
+
+
+## Key Takeaways
+
+- `AllSubsetsStrategy(max_models=k)` triggers full enumeration over all subsets of size $\leq k$
+- `SearchResult.all_allocations` and `successful_allocations()` provide all candidates
+  for post-hoc inspection
+- Pass a list of estimator classes to `ACVSearch` to search across families simultaneously
+- `plot_estimator_variance_reductions` shows diminishing returns by ensemble size
+- The selected estimator can be used directly with the standard generate→evaluate→call
+  workflow — no changes to the rest of the code

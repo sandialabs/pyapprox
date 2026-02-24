@@ -54,6 +54,11 @@ website:
             - mlblue_concept.qmd
             - mlblue_analysis.qmd
             - mlblue_usage.qmd
+            - pilot_studies_concept.qmd
+            - pilot_studies_usage.qmd
+            - pilot_studies_analysis.qmd
+            - ensemble_selection_concept.qmd
+            - ensemble_selection_usage.qmd
         - section: "Inverse UQ"
           contents:
             - bayesian_inference_intro.qmd

@@ -1,8 +1,10 @@
 """Plotting utilities for statistical estimators.
 
 This module provides standalone plotting functions for visualising
-allocation matrices and other estimator data.
+allocation matrices, variance reductions, and recursion DAGs.
 """
+
+from typing import Dict, List, Optional, Tuple
 
 import numpy as np
 import matplotlib.pyplot as plt
@@ -90,3 +92,160 @@ def plot_allocation(estimator, ax, show_partition_sizes=False):
         estimator.npartition_samples() if show_partition_sizes else None
     )
     _plot_allocation_matrix(allocation_mat, npartition_samples, ax)
+
+
+def _autolabel(ax, rects, labels):
+    """Attach a text label inside each bar."""
+    for rect, label in zip(rects, labels):
+        ax.annotate(
+            label,
+            xy=(
+                rect.get_x() + rect.get_width() / 2,
+                rect.get_y() + rect.get_height() / 2,
+            ),
+            xytext=(0, 0),
+            textcoords="offset points",
+            ha="center",
+            va="center",
+        )
+
+
+def plot_estimator_variance_reductions(
+    optimized_estimators: list,
+    est_labels: List[str],
+    ax: plt.Axes,
+    ylabel: Optional[str] = None,
+    **bar_kwargs,
+) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
+    """Plot variance reduction relative to single-fidelity MC.
+
+    For each estimator, computes the ratio of MC variance (using the
+    same total budget on the HF model only) to the estimator's
+    optimized variance.
+
+    Parameters
+    ----------
+    optimized_estimators : list
+        Estimators that have already been allocated (via
+        ``allocate_samples``).
+    est_labels : list of str
+        Label for each estimator bar.
+    ax : matplotlib.axes.Axes
+        Axes to plot on.
+    ylabel : str, optional
+        Y-axis label. Defaults to "Estimator variance reduction".
+    **bar_kwargs
+        Keyword arguments forwarded to ``ax.bar``.
+
+    Returns
+    -------
+    var_red : ndarray
+        Variance reduction ratios (MC / estimator).
+    est_covariances : ndarray
+        Determinant of each estimator's covariance.
+    sf_covariances : ndarray
+        Determinant of the single-fidelity MC covariance.
+    """
+    var_red = []
+    est_covs = []
+    sf_covs = []
+    for est in optimized_estimators:
+        est_cov = est.optimized_covariance()
+        bkd = est._bkd
+        est_det = float(bkd.to_numpy(est_cov).flat[0])
+        nhf = int(est._rounded_target_cost / float(bkd.to_numpy(est._costs)[0]))
+        sf_cov = est._stat.high_fidelity_estimator_covariance(nhf)
+        sf_det = float(bkd.to_numpy(sf_cov).flat[0])
+        var_red.append(sf_det / est_det if est_det > 0 else 0.0)
+        est_covs.append(est_det)
+        sf_covs.append(sf_det)
+
+    var_red = np.array(var_red)
+    est_covs = np.array(est_covs)
+    sf_covs = np.array(sf_covs)
+
+    rects = ax.bar(est_labels, var_red, **bar_kwargs)
+    _autolabel(ax, list(rects), ["$%1.2f$" % v for v in var_red])
+    if ylabel is None:
+        ylabel = "Estimator variance reduction"
+    ax.set_ylabel(ylabel)
+    return var_red, est_covs, sf_covs
+
+
+def _hp(
+    G,
+    root: int,
+    width: float = 1.0,
+    vert_gap: float = 0.2,
+    vert_loc: float = 0,
+    xcenter: float = 0.5,
+    pos: Optional[Dict[int, Tuple[float, float]]] = None,
+    parent: Optional[int] = None,
+) -> Dict[int, Tuple[float, float]]:
+    """Recursive helper for hierarchy_pos."""
+    if pos is None:
+        pos = {root: (xcenter, vert_loc)}
+    else:
+        pos[root] = (xcenter, vert_loc)
+    children = list(G.neighbors(root))
+    if parent is not None:
+        children = [c for c in children if c != parent]
+    if len(children) != 0:
+        dx = width / len(children)
+        nextx = xcenter - width / 2 - dx / 2
+        for child in children:
+            nextx += dx
+            pos = _hp(
+                G,
+                child,
+                width=dx,
+                vert_gap=vert_gap,
+                vert_loc=vert_loc - vert_gap,
+                xcenter=nextx,
+                pos=pos,
+                parent=root,
+            )
+    return pos
+
+
+def _hierarchy_pos(
+    G,
+    root: int,
+    width: float = 1.0,
+    vert_gap: float = 0.2,
+    vert_loc: float = 0,
+    xcenter: float = 0.5,
+) -> Dict[int, Tuple[float, float]]:
+    """Compute hierarchical layout positions for a tree graph."""
+    return _hp(G, root, width, vert_gap, vert_loc, xcenter)
+
+
+def plot_recursion_dag(estimator, ax: plt.Axes) -> None:
+    """Plot the recursion DAG of an ACV estimator.
+
+    Each node represents a model index; edges show the recursion
+    structure (which model each low-fidelity model is paired with).
+
+    Parameters
+    ----------
+    estimator : ACVEstimator
+        An estimator with ``_recursion_index`` attribute.
+    ax : matplotlib.axes.Axes
+        Axes to plot on.
+    """
+    import networkx as nx
+
+    bkd = estimator._bkd
+    recursion_index = bkd.to_numpy(estimator._recursion_index).astype(int)
+    nmodels = len(recursion_index) + 1
+
+    graph = nx.Graph()
+    graph.add_nodes_from(np.arange(nmodels))
+    for ii, jj in enumerate(recursion_index):
+        graph.add_edge(ii + 1, int(jj))
+
+    pos = _hierarchy_pos(graph, 0, vert_gap=0.1, width=0.1)
+    nx.draw(
+        graph, pos=pos, ax=ax, with_labels=True,
+        node_size=[2000], font_size=24,
+    )
