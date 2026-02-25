@@ -6,20 +6,20 @@ used in computing expectations over prior and data distributions.
 Supports Monte Carlo, quasi-Monte Carlo (Halton/Sobol), and Gaussian quadrature.
 """
 
-from .monte_carlo import MonteCarloSampler
-from .halton import HaltonSampler
-from .sobol import SobolSampler
 from .gaussian import GaussianQuadratureSampler
+from .halton import HaltonSampler
+from .monte_carlo import MonteCarloSampler
 from .oed import OEDQuadratureSampler
+from .sobol import SobolSampler
 from .strategies import (
-    SamplerStrategy,
     GaussStrategy,
-    MCStrategy,
     HaltonStrategy,
+    MCStrategy,
+    SamplerStrategy,
     SobolStrategy,
-    register_sampler,
     get_sampler,
     list_samplers,
+    register_sampler,
 )
 
 __all__ = [

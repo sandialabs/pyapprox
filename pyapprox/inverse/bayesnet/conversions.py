@@ -8,12 +8,13 @@ For linear-Gaussian CPDs:
 This creates a joint Gaussian over (x_parent, x_child) in canonical form.
 """
 
-from typing import List, Optional
+from typing import List
 
 import numpy as np
 
-from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.probability.gaussian import GaussianCanonicalForm
+from pyapprox.util.backends.protocols import Array, Backend
+
 from .factor import GaussianFactor
 
 
@@ -77,9 +78,7 @@ def convert_cpd_to_canonical(
 
     # Check dimensions
     if A.shape != (n_child, n_parent):
-        raise ValueError(
-            f"A has shape {A.shape}, expected ({n_child}, {n_parent})"
-        )
+        raise ValueError(f"A has shape {A.shape}, expected ({n_child}, {n_parent})")
     if len(b) != n_child:
         raise ValueError(f"b has length {len(b)}, expected {n_child}")
 
@@ -122,9 +121,7 @@ def convert_cpd_to_canonical(
     # g = -0.5 * b^T Q b - 0.5 * n_child * log(2*pi) + 0.5 * log|Q|
     sign, logdet_Q = bkd.slogdet(Q)
     normalization = 0.5 * (
-        -float(b_np @ Q_np @ b_np)
-        - n_child * np.log(2 * np.pi)
-        + float(logdet_Q)
+        -float(b_np @ Q_np @ b_np) - n_child * np.log(2 * np.pi) + float(logdet_Q)
     )
 
     canonical = GaussianCanonicalForm(precision, shift, normalization, bkd)
@@ -165,9 +162,7 @@ def convert_prior_to_factor(
         mean = mean.flatten()
 
     nvars = len(mean)
-    return GaussianFactor.from_moments(
-        mean, covariance, [var_id], [nvars], bkd
-    )
+    return GaussianFactor.from_moments(mean, covariance, [var_id], [nvars], bkd)
 
 
 def convert_likelihood_to_factor(
@@ -229,9 +224,7 @@ def convert_likelihood_to_factor(
     # Normalization
     sign, logdet_R_inv = bkd.slogdet(R_inv)
     y_Rinv_y = float(observation @ (R_inv @ observation))
-    normalization = 0.5 * (
-        -y_Rinv_y - nobs * np.log(2 * np.pi) + float(logdet_R_inv)
-    )
+    normalization = 0.5 * (-y_Rinv_y - nobs * np.log(2 * np.pi) + float(logdet_R_inv))
 
     canonical = GaussianCanonicalForm(precision, shift, normalization, bkd)
 

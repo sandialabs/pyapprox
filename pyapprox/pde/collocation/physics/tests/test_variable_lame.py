@@ -16,23 +16,23 @@ import numpy as np
 import torch
 from numpy.typing import NDArray
 
-from pyapprox.util.backends.protocols import Array, Backend
-from pyapprox.util.backends.numpy import NumpyBkd
-from pyapprox.util.backends.torch import TorchBkd
-from pyapprox.util.test_utils import load_tests  # noqa: F401
-from pyapprox.pde.collocation.basis import ChebyshevBasis2D
-from pyapprox.pde.collocation.mesh import (
-    create_uniform_mesh_2d,
-    TransformedMesh2D,
-)
-from pyapprox.pde.collocation.boundary import zero_dirichlet_bc
-from pyapprox.pde.collocation.physics import LinearElasticityPhysics
-from pyapprox.pde.collocation.manufactured_solutions import (
-    ManufacturedLinearElasticityEquations,
-)
 from pyapprox.interface.functions.derivative_checks.derivative_checker import (
     DerivativeChecker,
 )
+from pyapprox.pde.collocation.basis import ChebyshevBasis2D
+from pyapprox.pde.collocation.boundary import zero_dirichlet_bc
+from pyapprox.pde.collocation.manufactured_solutions import (
+    ManufacturedLinearElasticityEquations,
+)
+from pyapprox.pde.collocation.mesh import (
+    TransformedMesh2D,
+    create_uniform_mesh_2d,
+)
+from pyapprox.pde.collocation.physics import LinearElasticityPhysics
+from pyapprox.util.backends.numpy import NumpyBkd
+from pyapprox.util.backends.protocols import Array, Backend
+from pyapprox.util.backends.torch import TorchBkd
+from pyapprox.util.test_utils import load_tests  # noqa: F401
 
 
 class PhysicsDerivativeWrapper(Generic[Array]):
@@ -55,9 +55,11 @@ class PhysicsDerivativeWrapper(Generic[Array]):
     def __call__(self, samples):
         if samples.ndim == 2:
             return self._backend.stack(
-                [self._physics.residual(samples[:, i], self._time)
-                 for i in range(samples.shape[1])],
-                axis=1
+                [
+                    self._physics.residual(samples[:, i], self._time)
+                    for i in range(samples.shape[1])
+                ],
+                axis=1,
             )
         return self._physics.residual(samples, self._time).reshape(-1, 1)
 
@@ -71,12 +73,8 @@ def _setup_2d_physics(bkd, npts_1d=6, lamda=1.0, mu=1.0, forcing=None):
     """Create 2D linear elasticity physics on [-1,1]^2."""
     mesh = TransformedMesh2D(npts_1d, npts_1d, bkd)
     basis = ChebyshevBasis2D(mesh, bkd)
-    mesh_obj = create_uniform_mesh_2d(
-        (npts_1d, npts_1d), (-1.0, 1.0, -1.0, 1.0), bkd
-    )
-    physics = LinearElasticityPhysics(
-        basis, bkd, lamda=lamda, mu=mu, forcing=forcing
-    )
+    mesh_obj = create_uniform_mesh_2d((npts_1d, npts_1d), (-1.0, 1.0, -1.0, 1.0), bkd)
+    physics = LinearElasticityPhysics(basis, bkd, lamda=lamda, mu=mu, forcing=forcing)
     return physics, basis, mesh_obj
 
 
@@ -159,13 +157,9 @@ class TestVariableLame(Generic[Array], unittest.TestCase):
         physics, basis, _ = _setup_2d_physics(bkd)
         npts = basis.npts()
         physics.set_lamda(0.0)
-        bkd.assert_allclose(
-            physics._lambda_array, bkd.zeros((npts,))
-        )
+        bkd.assert_allclose(physics._lambda_array, bkd.zeros((npts,)))
         physics.set_lamda(1.5)
-        bkd.assert_allclose(
-            physics._lambda_array, bkd.full((npts,), 1.5)
-        )
+        bkd.assert_allclose(physics._lambda_array, bkd.full((npts,), 1.5))
 
     def test_set_lamda_negative_raises(self):
         """set_lamda raises ValueError for negative lambda."""
@@ -192,7 +186,7 @@ class TestVariableLame(Generic[Array], unittest.TestCase):
         bkd = self.bkd()
         physics, basis, _ = _setup_2d_physics(bkd, npts_1d=6)
         nodes = _get_nodes(basis, bkd)
-        npts = basis.npts()
+        basis.npts()
 
         # Spatially varying Lame parameters
         x = nodes[0, :]
@@ -295,9 +289,7 @@ class TestVariableLame(Generic[Array], unittest.TestCase):
         )
 
         interior_idx = _interior_indices(mesh_obj, npts)
-        interior_res = bkd.asarray(
-            [residual_bc[i] for i in interior_idx]
-        )
+        interior_res = bkd.asarray([residual_bc[i] for i in interior_idx])
         bkd.assert_allclose(
             interior_res,
             bkd.zeros(interior_res.shape),
@@ -318,7 +310,7 @@ class TestVariableLame(Generic[Array], unittest.TestCase):
 
         # Set variable mu
         x = nodes[0, :]
-        y = nodes[1, :]
+        nodes[1, :]
         mu0 = 1.0 + 0.5 * bkd.sin(math.pi * x)
         physics.set_mu(mu0)
 
@@ -355,7 +347,7 @@ class TestVariableLame(Generic[Array], unittest.TestCase):
         nstates = physics.nstates()
 
         # Set variable lambda
-        x = nodes[0, :]
+        nodes[0, :]
         y = nodes[1, :]
         lam0 = 2.0 + 0.3 * bkd.cos(math.pi * y)
         physics.set_lamda(lam0)
@@ -369,9 +361,7 @@ class TestVariableLame(Generic[Array], unittest.TestCase):
         delta_lam = bkd.asarray(np.random.randn(npts) * 0.01)
 
         # Analytical sensitivity
-        sens_analytical = physics.residual_lamda_sensitivity(
-            state, 0.0, delta_lam
-        )
+        sens_analytical = physics.residual_lamda_sensitivity(state, 0.0, delta_lam)
 
         # Finite difference
         eps = 1e-7

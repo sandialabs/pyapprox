@@ -10,7 +10,14 @@ The key difference from collocation is that Galerkin uses weak formulation
 with mass matrices: M*du/dt = F(u,t) instead of du/dt = f(u,t).
 """
 
-from typing import Protocol, Generic, runtime_checkable, Tuple, Optional, Any  # noqa: F401
+from typing import (  # noqa: F401
+    Any,
+    Generic,
+    Optional,
+    Protocol,
+    Tuple,
+    runtime_checkable,
+)
 
 from pyapprox.util.backends.protocols import Array, Backend
 
@@ -148,9 +155,7 @@ class GalerkinPhysicsProtocol(Protocol, Generic[Array]):
         """
         ...
 
-    def dirichlet_dof_info(
-        self, time: float
-    ) -> Tuple[Array, Array]:
+    def dirichlet_dof_info(self, time: float) -> Tuple[Array, Array]:
         """Return Dirichlet DOF indices and their exact values.
 
         Parameters
@@ -193,5 +198,3 @@ class GalerkinPhysicsProtocol(Protocol, Generic[Array]):
             Modified (residual, jacobian).
         """
         ...
-
-

@@ -10,7 +10,8 @@ the multidimensional integrals factor into products of 1D integrals, which
 are computed by the KernelIntegralCalculatorProtocol.
 """
 
-from typing import Protocol, runtime_checkable, Generic
+from typing import Generic, Protocol, runtime_checkable
+
 from pyapprox.util.backends.protocols import Array, Backend
 
 
@@ -52,11 +53,13 @@ class KernelIntegralCalculatorProtocol(Protocol, Generic[Array]):
         For separable kernels: lambda = prod_k lambda_k
 
     Pi : Array
-        Shape (N, N). Pi_ij = integral integral C(x, x^(i)) C(x, z) C(z, x^(j)) rho(x) rho(z) dx dz
+        Shape (N, N). Pi_ij = integral integral C(x, x^(i)) C(x, z) C(z, x^(j)) rho(x)
+        rho(z) dx dz
         For separable kernels: Pi = prod_k Pi_k
 
     xi1 : Array
-        Scalar. xi1 = integral integral integral C(w, x) C(w, z) rho(w) rho(x) rho(z) dw dx dz
+        Scalar. xi1 = integral integral integral C(w, x) C(w, z) rho(w) rho(x) rho(z) dw
+        dx dz
         For separable kernels: xi1 = prod_k xi1_k
 
     Sensitivity Methods

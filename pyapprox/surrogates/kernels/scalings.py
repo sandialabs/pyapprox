@@ -7,13 +7,26 @@ This module provides polynomial scaling functions that can be used for:
 - Non-stationary kernel construction
 """
 
-from typing import Protocol, runtime_checkable, Generic, List, Tuple
+from typing import (
+    TYPE_CHECKING,
+    Generic,
+    List,
+    Protocol,
+    Tuple,
+    runtime_checkable,
+)
 
 from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.util.hyperparameter import (
-    HyperParameterList,
     HyperParameter,
+    HyperParameterList,
 )
+
+if TYPE_CHECKING:
+    from pyapprox.surrogates.kernels.composition import (
+        ProductKernel,
+        SumKernel,
+    )
 
 
 @runtime_checkable
@@ -285,8 +298,9 @@ class PolynomialScaling(Generic[Array]):
             return self._bkd.zeros((n_samples, self._nvars))
         else:
             hyps = self._hyp_list.hyperparameters()
-            slopes = self._bkd.stack([hyps[i+1].get_values()[0]
-                                     for i in range(self._nvars)])
+            slopes = self._bkd.stack(
+                [hyps[i + 1].get_values()[0] for i in range(self._nvars)]
+            )
             jac = self._bkd.tile(slopes[None, :], (n_samples, 1))
             return jac
 
@@ -345,11 +359,13 @@ class PolynomialScaling(Generic[Array]):
     def __mul__(self, other: "PolynomialScaling") -> "ProductKernel":
         """Multiply two kernels."""
         from pyapprox.surrogates.kernels.composition import ProductKernel
+
         return ProductKernel(self, other)
 
     def __add__(self, other: "PolynomialScaling") -> "SumKernel":
         """Add two kernels."""
         from pyapprox.surrogates.kernels.composition import SumKernel
+
         return SumKernel(self, other)
 
     def jacobian_wrt_params(self, X: Array) -> Array:
@@ -440,8 +456,9 @@ class PolynomialScaling(Generic[Array]):
         # For each i: hvp[:, :, i] = Σ_j H[:, :, i, j] * v[j]
         # where H[:, :, i, j] = (∂ρ/∂θ_i) @ (∂ρ/∂θ_j)^T + (∂ρ/∂θ_j) @ (∂ρ/∂θ_i)^T
         #
-        # Expanding: hvp[:, :, i] = Σ_j [(∂ρ/∂θ_i) @ (∂ρ/∂θ_j)^T * v[j] + (∂ρ/∂θ_j) @ (∂ρ/∂θ_i)^T * v[j]]
-        #                         = (∂ρ/∂θ_i) @ (Σ_j ∂ρ/∂θ_j * v[j])^T + (Σ_j ∂ρ/∂θ_j * v[j]) @ (∂ρ/∂θ_i)^T
+        # Expanding: hvp[:, :, i] = Σ_j [(∂ρ/∂θ_i) @ (∂ρ/∂θ_j)^T * v[j] + (∂ρ/∂θ_j) @
+        # (∂ρ/∂θ_i)^T * v[j]]
+        # = (∂ρ/∂θ_i) @ (Σ_j ∂ρ/∂θ_j * v[j])^T + (Σ_j ∂ρ/∂θ_j * v[j]) @ (∂ρ/∂θ_i)^T
         #                         = (∂ρ/∂θ_i) @ D^T + D @ (∂ρ/∂θ_i)^T
         # where D = drho_dtheta @ direction (shape: n_samples, 1)
 
@@ -454,8 +471,9 @@ class PolynomialScaling(Generic[Array]):
 
         # Vectorize using einsum:
         # hvp[:, :, i] = drho_dtheta[:, i] ⊗ D + D ⊗ drho_dtheta[:, i]
-        hvp = self._bkd.einsum('ni,m->nmi', drho_dtheta, D) + \
-              self._bkd.einsum('n,mi->nmi', D, drho_dtheta)
+        hvp = self._bkd.einsum("ni,m->nmi", drho_dtheta, D) + self._bkd.einsum(
+            "n,mi->nmi", D, drho_dtheta
+        )
         # Shape: (n_samples, n_samples, ncoeffs)
 
         return hvp
@@ -587,9 +605,9 @@ class ScalingKernel(Generic[Array]):
         # Result: jac[i, k, j] = drho1[i, j] * rho2[k]
         # = ∂K(X1[:, i], X2[:, k])/∂X1_j
 
-        nvars = X1.shape[0]
-        n1 = X1.shape[1]
-        n2 = X2.shape[1]
+        X1.shape[0]
+        X1.shape[1]
+        X2.shape[1]
 
         # drho1 is (n1, nvars), rho2 is (n2, 1)
         # Want jac[i, k, j] = drho1[i, j] * rho2[k, 0]
@@ -635,9 +653,11 @@ class ScalingKernel(Generic[Array]):
     def __mul__(self, other: "ScalingKernel") -> "ProductKernel":
         """Multiply two kernels."""
         from pyapprox.surrogates.kernels.composition import ProductKernel
+
         return ProductKernel(self, other)
 
     def __add__(self, other: "ScalingKernel") -> "SumKernel":
         """Add two kernels."""
         from pyapprox.surrogates.kernels.composition import SumKernel
+
         return SumKernel(self, other)

@@ -85,99 +85,102 @@ local
     Local OED for linear regression (D, A, C, I, G, R-optimal criteria).
 """
 
-from .likelihood import (
-    GaussianOEDOuterLoopLikelihood,
-    GaussianOEDInnerLoopLikelihood,
+# Analytical utilities (conjugate priors)
+from .analytical import (
+    ConjugateGaussianOEDExpectedAVaRDev,
+    ConjugateGaussianOEDExpectedEntropicDev,
+    ConjugateGaussianOEDExpectedKLDivergence,
+    ConjugateGaussianOEDExpectedStdDev,
+    ConjugateGaussianOEDForLogNormalAVaRStdDev,
+    ConjugateGaussianOEDForLogNormalExpectedStdDev,
 )
-from .evidence import Evidence, LogEvidence
-from .objective import (
-    KLOEDObjective,
-    PredictionOEDObjective,
-    DOptimalLinearModelObjective,
-    create_kl_oed_objective,
-    create_kl_oed_objective_from_data,
-    create_deviation_measure,
-    create_risk_measure,
-    create_prediction_oed_objective,
-)
-from .deviation import (
-    DeviationMeasure,
-    StandardDeviationMeasure,
-    EntropicDeviationMeasure,
-    AVaRDeviationMeasure,
-)
-from .statistics import (
-    SampleStatistic,
-    SampleAverageMean,
-    SampleAverageVariance,
-    SampleAverageStdev,
-    SampleAverageEntropicRisk,
-    SampleAverageSmoothedAVaR,
-)
-from .quadrature import (
-    MonteCarloSampler,
-    HaltonSampler,
-    SobolSampler,
-    GaussianQuadratureSampler,
-    OEDQuadratureSampler,
-)
-from .protocols import QuadratureSamplerProtocol
-from .solver import (
-    RelaxedOEDSolver,
-    RelaxedKLOEDSolver,
-    RelaxedOEDConfig,
-    BruteForceKLOEDSolver,
-    solve_kl_oed,
-    solve_prediction_oed,
-)
+
 # Benchmarks
 from .benchmarks import (
     LinearGaussianOEDBenchmark,
     LinearGaussianOEDModel,
-    NonLinearGaussianOEDBenchmark,
     LinearGaussianPredOEDBenchmark,
+    NonLinearGaussianOEDBenchmark,
 )
+
+# Data generation and management
+from .data import OEDDataGenerator, OEDDataManager
+from .deviation import (
+    AVaRDeviationMeasure,
+    DeviationMeasure,
+    EntropicDeviationMeasure,
+    StandardDeviationMeasure,
+)
+
 # Diagnostics
 from .diagnostics import (
     KLOEDDiagnostics,
     PredictionOEDDiagnostics,
     create_prediction_oed_diagnostics,
-    register_utility,
     get_registered_utility_types,
+    register_utility,
 )
-# Analytical utilities (conjugate priors)
-from .analytical import (
-    ConjugateGaussianOEDExpectedStdDev,
-    ConjugateGaussianOEDExpectedEntropicDev,
-    ConjugateGaussianOEDExpectedAVaRDev,
-    ConjugateGaussianOEDExpectedKLDivergence,
-    ConjugateGaussianOEDForLogNormalExpectedStdDev,
-    ConjugateGaussianOEDForLogNormalAVaRStdDev,
+from .evidence import Evidence, LogEvidence
+from .likelihood import (
+    GaussianOEDInnerLoopLikelihood,
+    GaussianOEDOuterLoopLikelihood,
 )
-# Data generation and management
-from .data import OEDDataGenerator, OEDDataManager
+
 # Local OED (linear regression design)
 from .local import (
-    # Design matrices
-    LeastSquaresDesignMatrices,
-    QuantileDesignMatrices,
+    AOptimalCriterion,
+    AVaRLocalOEDSolver,
+    COptimalCriterion,
     # Criteria
     DOptimalCriterion,
-    AOptimalCriterion,
-    COptimalCriterion,
-    IOptimalCriterion,
     GOptimalCriterion,
+    IOptimalCriterion,
+    # Design matrices
+    LeastSquaresDesignMatrices,
+    MinimaxLocalOEDSolver,
+    QuantileDesignMatrices,
     ROptimalCriterion,
     # Solvers
     ScipyLocalOEDSolver,
-    MinimaxLocalOEDSolver,
-    AVaRLocalOEDSolver,
+    create_criterion,
     # Factory
     create_design_matrices,
-    create_criterion,
     create_solver,
 )
-
+from .objective import (
+    DOptimalLinearModelObjective,
+    KLOEDObjective,
+    PredictionOEDObjective,
+    create_deviation_measure,
+    create_kl_oed_objective,
+    create_kl_oed_objective_from_data,
+    create_prediction_oed_objective,
+    create_risk_measure,
+)
+from .protocols import QuadratureSamplerProtocol
+from .quadrature import (
+    GaussianQuadratureSampler,
+    HaltonSampler,
+    MonteCarloSampler,
+    OEDQuadratureSampler,
+    SobolSampler,
+)
+from .solver import (
+    BruteForceKLOEDSolver,
+    RelaxedKLOEDSolver,
+    RelaxedOEDConfig,
+    RelaxedOEDSolver,
+    solve_kl_oed,
+    solve_prediction_oed,
+)
+from .statistics import (
+    SampleAverageEntropicRisk,
+    SampleAverageMean,
+    SampleAverageSmoothedAVaR,
+    SampleAverageStdev,
+    SampleAverageVariance,
+    SampleStatistic,
+)
 
 __all__ = [
     # Likelihood

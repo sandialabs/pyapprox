@@ -8,35 +8,36 @@ import math
 import unittest
 from typing import Any, Generic
 
-import numpy as np
-from numpy.typing import NDArray
 import torch
+from numpy.typing import NDArray
 
-from pyapprox.util.backends.protocols import Array, Backend
-from pyapprox.util.backends.numpy import NumpyBkd
-from pyapprox.util.backends.torch import TorchBkd
-from pyapprox.util.test_utils import load_tests  # noqa: F401
 from pyapprox.pde.collocation.basis import (
     ChebyshevBasis1D,
     ChebyshevBasis2D,
 )
-from pyapprox.pde.collocation.mesh import (
-    create_uniform_mesh_1d,
-    TransformedMesh1D,
-    TransformedMesh2D,
-)
 from pyapprox.pde.collocation.boundary import (
     DirichletBC,
     constant_dirichlet_bc,
-    gradient_neumann_bc,
-    gradient_robin_bc,
     flux_neumann_bc,
     flux_robin_bc,
-    traction_robin_bc,
+    gradient_neumann_bc,
+    gradient_robin_bc,
     traction_neumann_bc,
+    traction_robin_bc,
+)
+from pyapprox.pde.collocation.manufactured_solutions import (
+    ManufacturedAdvectionDiffusionReaction,
+)
+from pyapprox.pde.collocation.manufactured_solutions.linear_elasticity import (
+    ManufacturedLinearElasticityEquations,
+)
+from pyapprox.pde.collocation.mesh import (
+    TransformedMesh1D,
+    TransformedMesh2D,
+    create_uniform_mesh_1d,
+    create_uniform_mesh_2d,
 )
 from pyapprox.pde.collocation.mesh.transforms.polar import PolarTransform
-from pyapprox.pde.collocation.mesh import create_uniform_mesh_2d
 from pyapprox.pde.collocation.physics import AdvectionDiffusionReaction
 from pyapprox.pde.collocation.physics.linear_elasticity import (
     LinearElasticityPhysics,
@@ -45,12 +46,10 @@ from pyapprox.pde.collocation.time_integration import (
     CollocationModel,
     TimeIntegrationConfig,
 )
-from pyapprox.pde.collocation.manufactured_solutions import (
-    ManufacturedAdvectionDiffusionReaction,
-)
-from pyapprox.pde.collocation.manufactured_solutions.linear_elasticity import (
-    ManufacturedLinearElasticityEquations,
-)
+from pyapprox.util.backends.numpy import NumpyBkd
+from pyapprox.util.backends.protocols import Array, Backend
+from pyapprox.util.backends.torch import TorchBkd
+from pyapprox.util.test_utils import load_tests  # noqa: F401
 
 
 class TestGradientNeumannSolve(Generic[Array], unittest.TestCase):
@@ -100,8 +99,7 @@ class TestGradientNeumannSolve(Generic[Array], unittest.TestCase):
             tmesh.points()[:, left_idx], left_normals, convention="gradient"
         )
         bc_left = gradient_neumann_bc(
-            bkd, left_idx, left_normals,
-            [basis.derivative_matrix()], neumann_val
+            bkd, left_idx, left_normals, [basis.derivative_matrix()], neumann_val
         )
 
         # Right: Dirichlet
@@ -156,9 +154,7 @@ class TestGradientNeumannSolve(Generic[Array], unittest.TestCase):
         neumann_left = man_sol.neumann_values(
             left_pts, left_normals, convention="gradient"
         )
-        bc_left = gradient_neumann_bc(
-            bkd, left_idx, left_normals, D_list, neumann_left
-        )
+        bc_left = gradient_neumann_bc(bkd, left_idx, left_normals, D_list, neumann_left)
 
         # Other 3 sides: Dirichlet
         bcs = [bc_left]
@@ -168,6 +164,7 @@ class TestGradientNeumannSolve(Generic[Array], unittest.TestCase):
             # Use exact values for non-zero boundaries
             vals = u_exact[idx]
             from pyapprox.pde.collocation.boundary import DirichletBC
+
             bc = DirichletBC(bkd, idx, lambda t, v=vals: v)
             bcs.append(bc)
 
@@ -224,12 +221,20 @@ class TestGradientRobinSolve(Generic[Array], unittest.TestCase):
         left_idx = umesh.boundary_indices(0)
         left_normals = tmesh.boundary_normals(0)
         robin_val = man_sol.robin_values(
-            tmesh.points()[:, left_idx], left_normals,
-            alpha=1.0, beta=1.0, convention="gradient"
+            tmesh.points()[:, left_idx],
+            left_normals,
+            alpha=1.0,
+            beta=1.0,
+            convention="gradient",
         )
         bc_left = gradient_robin_bc(
-            bkd, left_idx, left_normals,
-            [basis.derivative_matrix()], 1.0, 1.0, robin_val
+            bkd,
+            left_idx,
+            left_normals,
+            [basis.derivative_matrix()],
+            1.0,
+            1.0,
+            robin_val,
         )
 
         # Right: Dirichlet
@@ -291,9 +296,7 @@ class TestFluxNeumannSolve(Generic[Array], unittest.TestCase):
         neumann_val = man_sol.neumann_values(
             tmesh.points()[:, left_idx], left_normals, convention="flux"
         )
-        bc_left = flux_neumann_bc(
-            bkd, left_idx, left_normals, physics, neumann_val
-        )
+        bc_left = flux_neumann_bc(bkd, left_idx, left_normals, physics, neumann_val)
 
         # Right: Dirichlet
         right_idx = umesh.boundary_indices(1)
@@ -338,8 +341,7 @@ class TestFluxNeumannSolve(Generic[Array], unittest.TestCase):
 
         velocity = [bkd.full((npts,), 2.0)]
         physics = AdvectionDiffusionReaction(
-            basis, bkd, diffusion=1.0, velocity=velocity,
-            forcing=lambda t: forcing
+            basis, bkd, diffusion=1.0, velocity=velocity, forcing=lambda t: forcing
         )
 
         # Left: flux Neumann
@@ -348,9 +350,7 @@ class TestFluxNeumannSolve(Generic[Array], unittest.TestCase):
         neumann_val = man_sol.neumann_values(
             tmesh.points()[:, left_idx], left_normals, convention="flux"
         )
-        bc_left = flux_neumann_bc(
-            bkd, left_idx, left_normals, physics, neumann_val
-        )
+        bc_left = flux_neumann_bc(bkd, left_idx, left_normals, physics, neumann_val)
 
         # Right: Dirichlet
         right_idx = umesh.boundary_indices(1)
@@ -411,8 +411,11 @@ class TestFluxRobinSolve(Generic[Array], unittest.TestCase):
         left_idx = umesh.boundary_indices(0)
         left_normals = tmesh.boundary_normals(0)
         robin_val = man_sol.robin_values(
-            tmesh.points()[:, left_idx], left_normals,
-            alpha=2.0, beta=1.0, convention="flux"
+            tmesh.points()[:, left_idx],
+            left_normals,
+            alpha=2.0,
+            beta=1.0,
+            convention="flux",
         )
         bc_left = flux_robin_bc(
             bkd, left_idx, left_normals, physics, 2.0, 1.0, robin_val
@@ -463,16 +466,18 @@ class TestFluxRobinSolve(Generic[Array], unittest.TestCase):
 
         velocity = [bkd.full((npts,), 3.0)]
         physics = AdvectionDiffusionReaction(
-            basis, bkd, diffusion=1.0, velocity=velocity,
-            forcing=lambda t: forcing
+            basis, bkd, diffusion=1.0, velocity=velocity, forcing=lambda t: forcing
         )
 
         # Left: flux Robin, alpha=1, beta=1
         left_idx = umesh.boundary_indices(0)
         left_normals = tmesh.boundary_normals(0)
         robin_val = man_sol.robin_values(
-            tmesh.points()[:, left_idx], left_normals,
-            alpha=1.0, beta=1.0, convention="flux"
+            tmesh.points()[:, left_idx],
+            left_normals,
+            alpha=1.0,
+            beta=1.0,
+            convention="flux",
         )
         bc_left = flux_robin_bc(
             bkd, left_idx, left_normals, physics, 1.0, 1.0, robin_val
@@ -517,9 +522,13 @@ class TestMixedBCSolve(Generic[Array], unittest.TestCase):
         basis = ChebyshevBasis2D(tmesh, bkd)
 
         man_sol = ManufacturedAdvectionDiffusionReaction(
-            sol_str="x**2 + y**2 + x*y", nvars=2,
-            diff_str=str(diffusion), react_str="u",
-            vel_strs=["0", "0"], bkd=bkd, oned=True,
+            sol_str="x**2 + y**2 + x*y",
+            nvars=2,
+            diff_str=str(diffusion),
+            react_str="u",
+            vel_strs=["0", "0"],
+            bkd=bkd,
+            oned=True,
         )
 
         pts = tmesh.points()
@@ -527,7 +536,10 @@ class TestMixedBCSolve(Generic[Array], unittest.TestCase):
         forcing = man_sol.functions["forcing"](pts)
 
         physics = AdvectionDiffusionReaction(
-            basis, bkd, diffusion=diffusion, reaction=1.0,
+            basis,
+            bkd,
+            diffusion=diffusion,
+            reaction=1.0,
             forcing=lambda t: forcing,
         )
 
@@ -535,18 +547,34 @@ class TestMixedBCSolve(Generic[Array], unittest.TestCase):
         left_normals = tmesh.boundary_normals(0)
         left_pts = pts[:, left_idx]
         robin_val = man_sol.robin_values(
-            left_pts, left_normals, 1.0, 1.0, convention=convention,
+            left_pts,
+            left_normals,
+            1.0,
+            1.0,
+            convention=convention,
         )
 
         if convention == "gradient":
             Dx = basis.derivative_matrix(1, 0)
             Dy = basis.derivative_matrix(1, 1)
             bc_left = gradient_robin_bc(
-                bkd, left_idx, left_normals, [Dx, Dy], 1.0, 1.0, robin_val,
+                bkd,
+                left_idx,
+                left_normals,
+                [Dx, Dy],
+                1.0,
+                1.0,
+                robin_val,
             )
         else:
             bc_left = flux_robin_bc(
-                bkd, left_idx, left_normals, physics, 1.0, 1.0, robin_val,
+                bkd,
+                left_idx,
+                left_normals,
+                physics,
+                1.0,
+                1.0,
+                robin_val,
             )
 
         bcs = [bc_left] + self._dirichlet_bcs_on_sides(tmesh, u_exact, [1, 2, 3])
@@ -554,7 +582,9 @@ class TestMixedBCSolve(Generic[Array], unittest.TestCase):
 
         model = CollocationModel(physics, bkd)
         u_numerical = model.solve_steady(
-            bkd.zeros((npts * npts,)), tol=1e-10, maxiter=50,
+            bkd.zeros((npts * npts,)),
+            tol=1e-10,
+            maxiter=50,
         )
         bkd.assert_allclose(u_numerical, u_exact, atol=1e-8)
 
@@ -575,8 +605,13 @@ class TestMixedBCSolve(Generic[Array], unittest.TestCase):
         umesh = create_uniform_mesh_1d(npts, (-1.0, 1.0), bkd)
 
         man_sol = ManufacturedAdvectionDiffusionReaction(
-            sol_str="x**2 + 1", nvars=1, diff_str="1 + x**2",
-            react_str="0", vel_strs=["0"], bkd=bkd, oned=True,
+            sol_str="x**2 + 1",
+            nvars=1,
+            diff_str="1 + x**2",
+            react_str="0",
+            vel_strs=["0"],
+            bkd=bkd,
+            oned=True,
         )
 
         nodes = basis.nodes().reshape(1, -1)
@@ -584,29 +619,41 @@ class TestMixedBCSolve(Generic[Array], unittest.TestCase):
         forcing = man_sol.functions["forcing"](nodes)
 
         physics = AdvectionDiffusionReaction(
-            basis, bkd, diffusion=1.0 + basis.nodes() ** 2,
+            basis,
+            bkd,
+            diffusion=1.0 + basis.nodes() ** 2,
             forcing=lambda t: forcing,
         )
 
         left_idx = umesh.boundary_indices(0)
         left_normals = tmesh.boundary_normals(0)
         neumann_val = man_sol.neumann_values(
-            tmesh.points()[:, left_idx], left_normals, convention="flux",
+            tmesh.points()[:, left_idx],
+            left_normals,
+            convention="flux",
         )
         bc_left = flux_neumann_bc(
-            bkd, left_idx, left_normals, physics, neumann_val,
+            bkd,
+            left_idx,
+            left_normals,
+            physics,
+            neumann_val,
         )
 
         right_idx = umesh.boundary_indices(1)
         bc_right = constant_dirichlet_bc(
-            bkd, right_idx, float(u_exact[right_idx[0]]),
+            bkd,
+            right_idx,
+            float(u_exact[right_idx[0]]),
         )
 
         physics.set_boundary_conditions([bc_left, bc_right])
 
         model = CollocationModel(physics, bkd)
         u_numerical = model.solve_steady(
-            bkd.zeros((npts,)), tol=1e-12, maxiter=50,
+            bkd.zeros((npts,)),
+            tol=1e-12,
+            maxiter=50,
         )
         bkd.assert_allclose(u_numerical, u_exact, atol=1e-9)
 
@@ -632,9 +679,13 @@ class TestTransientRobinSolve(Generic[Array], unittest.TestCase):
 
         vel_strs = [str(velocity_val)]
         man_sol = ManufacturedAdvectionDiffusionReaction(
-            sol_str="(x**2 + 1)*(1 + T)", nvars=1,
-            diff_str=str(diffusion), react_str="u",
-            vel_strs=vel_strs, bkd=bkd, oned=True,
+            sol_str="(x**2 + 1)*(1 + T)",
+            nvars=1,
+            diff_str=str(diffusion),
+            react_str="u",
+            vel_strs=vel_strs,
+            bkd=bkd,
+            oned=True,
             conservative=(velocity_val != 0),
         )
 
@@ -645,8 +696,12 @@ class TestTransientRobinSolve(Generic[Array], unittest.TestCase):
 
         velocity = [bkd.full((npts,), float(velocity_val))] if velocity_val else None
         physics = AdvectionDiffusionReaction(
-            basis, bkd, diffusion=diffusion, reaction=1.0,
-            velocity=velocity, forcing=forcing_fn,
+            basis,
+            bkd,
+            diffusion=diffusion,
+            reaction=1.0,
+            velocity=velocity,
+            forcing=forcing_fn,
         )
 
         # Left: time-dependent Robin, alpha=1, beta=1
@@ -659,12 +714,23 @@ class TestTransientRobinSolve(Generic[Array], unittest.TestCase):
 
         if convention == "gradient":
             bc_left = gradient_robin_bc(
-                bkd, left_idx, left_normals,
-                [basis.derivative_matrix()], 1.0, 1.0, robin_values_fn,
+                bkd,
+                left_idx,
+                left_normals,
+                [basis.derivative_matrix()],
+                1.0,
+                1.0,
+                robin_values_fn,
             )
         else:
             bc_left = flux_robin_bc(
-                bkd, left_idx, left_normals, physics, 1.0, 1.0, robin_values_fn,
+                bkd,
+                left_idx,
+                left_normals,
+                physics,
+                1.0,
+                1.0,
+                robin_values_fn,
             )
 
         # Right: time-dependent Dirichlet
@@ -680,7 +746,9 @@ class TestTransientRobinSolve(Generic[Array], unittest.TestCase):
         model = CollocationModel(physics, bkd)
         u_initial = man_sol.functions["solution"](pts, 0.0)
         config = TimeIntegrationConfig(
-            method="backward_euler", final_time=1.0, deltat=0.25,
+            method="backward_euler",
+            final_time=1.0,
+            deltat=0.25,
         )
 
         solutions, times = model.solve_transient(u_initial, config)
@@ -722,8 +790,13 @@ class TestCurvilinearRobinSolve(Generic[Array], unittest.TestCase):
         basis = ChebyshevBasis2D(tmesh, bkd)
 
         man_sol = ManufacturedAdvectionDiffusionReaction(
-            sol_str="x**2*y**2", nvars=2, diff_str="1.0",
-            react_str="u", vel_strs=["0", "0"], bkd=bkd, oned=True,
+            sol_str="x**2*y**2",
+            nvars=2,
+            diff_str="1.0",
+            react_str="u",
+            vel_strs=["0", "0"],
+            bkd=bkd,
+            oned=True,
         )
 
         pts = tmesh.points()
@@ -731,7 +804,10 @@ class TestCurvilinearRobinSolve(Generic[Array], unittest.TestCase):
         forcing = man_sol.functions["forcing"](pts)
 
         physics = AdvectionDiffusionReaction(
-            basis, bkd, diffusion=1.0, reaction=1.0,
+            basis,
+            bkd,
+            diffusion=1.0,
+            reaction=1.0,
             forcing=lambda t: forcing,
         )
 
@@ -742,10 +818,20 @@ class TestCurvilinearRobinSolve(Generic[Array], unittest.TestCase):
         left_idx = tmesh.boundary_indices(0)
         left_normals = tmesh.boundary_normals(0)
         robin_val = man_sol.robin_values(
-            pts[:, left_idx], left_normals, 1.0, 1.0, convention="gradient",
+            pts[:, left_idx],
+            left_normals,
+            1.0,
+            1.0,
+            convention="gradient",
         )
         bc_left = gradient_robin_bc(
-            bkd, left_idx, left_normals, [Dx, Dy], 1.0, 1.0, robin_val,
+            bkd,
+            left_idx,
+            left_normals,
+            [Dx, Dy],
+            1.0,
+            1.0,
+            robin_val,
         )
 
         # Other 3 sides: Dirichlet
@@ -759,7 +845,9 @@ class TestCurvilinearRobinSolve(Generic[Array], unittest.TestCase):
 
         model = CollocationModel(physics, bkd)
         u_numerical = model.solve_steady(
-            bkd.zeros((npts * npts,)), tol=1e-10, maxiter=50,
+            bkd.zeros((npts * npts,)),
+            tol=1e-10,
+            maxiter=50,
         )
         bkd.assert_allclose(u_numerical, u_exact, atol=1e-6)
 
@@ -783,9 +871,7 @@ class TestElasticityTractionBC(Generic[Array], unittest.TestCase):
         npts = 10
         tmesh = TransformedMesh2D(npts, npts, bkd)
         basis = ChebyshevBasis2D(tmesh, bkd)
-        umesh = create_uniform_mesh_2d(
-            (npts, npts), (-1.0, 1.0, -1.0, 1.0), bkd
-        )
+        umesh = create_uniform_mesh_2d((npts, npts), (-1.0, 1.0, -1.0, 1.0), bkd)
 
         lamda, mu = 1.0, 1.0
         man_sol = ManufacturedLinearElasticityEquations(
@@ -799,7 +885,7 @@ class TestElasticityTractionBC(Generic[Array], unittest.TestCase):
 
         pts = tmesh.points()
         u_exact = man_sol.functions["solution"](pts)  # (npts_total, 2)
-        forcing = man_sol.functions["forcing"](pts)    # (npts_total, 2)
+        forcing = man_sol.functions["forcing"](pts)  # (npts_total, 2)
         npts_total = basis.npts()
         u_exact_flat = bkd.concatenate([u_exact[:, 0], u_exact[:, 1]])
         forcing_flat = bkd.concatenate([forcing[:, 0], forcing[:, 1]])
@@ -812,10 +898,18 @@ class TestElasticityTractionBC(Generic[Array], unittest.TestCase):
         Dy = basis.derivative_matrix(1, 1)
 
         return {
-            "bkd": bkd, "tmesh": tmesh, "basis": basis, "umesh": umesh,
-            "man_sol": man_sol, "pts": pts, "u_exact_flat": u_exact_flat,
-            "physics": physics, "npts_total": npts_total,
-            "lamda": lamda, "mu": mu, "D_list": [Dx, Dy],
+            "bkd": bkd,
+            "tmesh": tmesh,
+            "basis": basis,
+            "umesh": umesh,
+            "man_sol": man_sol,
+            "pts": pts,
+            "u_exact_flat": u_exact_flat,
+            "physics": physics,
+            "npts_total": npts_total,
+            "lamda": lamda,
+            "mu": mu,
+            "D_list": [Dx, Dy],
         }
 
     def _dirichlet_bcs_for_elasticity(self, umesh, u_exact_flat, npts, sides):
@@ -851,12 +945,26 @@ class TestElasticityTractionBC(Generic[Array], unittest.TestCase):
 
         # Traction Neumann for each component
         bc_tx = traction_neumann_bc(
-            bkd, left_idx, left_normals, s["D_list"],
-            s["lamda"], s["mu"], s["npts_total"], 0, traction_vals[:, 0]
+            bkd,
+            left_idx,
+            left_normals,
+            s["D_list"],
+            s["lamda"],
+            s["mu"],
+            s["npts_total"],
+            0,
+            traction_vals[:, 0],
         )
         bc_ty = traction_neumann_bc(
-            bkd, left_idx, left_normals, s["D_list"],
-            s["lamda"], s["mu"], s["npts_total"], 1, traction_vals[:, 1]
+            bkd,
+            left_idx,
+            left_normals,
+            s["D_list"],
+            s["lamda"],
+            s["mu"],
+            s["npts_total"],
+            1,
+            traction_vals[:, 1],
         )
 
         # Dirichlet on sides 1, 2, 3
@@ -885,20 +993,34 @@ class TestElasticityTractionBC(Generic[Array], unittest.TestCase):
         left_pts = s["pts"][:, left_idx]
 
         # Exact Robin values at left boundary
-        robin_vals = s["man_sol"].robin_values(
-            left_pts, left_normals, alpha, beta
-        )
+        robin_vals = s["man_sol"].robin_values(left_pts, left_normals, alpha, beta)
 
         # Traction Robin for each component
         bc_rx = traction_robin_bc(
-            bkd, left_idx, left_normals, s["D_list"],
-            s["lamda"], s["mu"], s["npts_total"], 0,
-            alpha, beta, robin_vals[:, 0]
+            bkd,
+            left_idx,
+            left_normals,
+            s["D_list"],
+            s["lamda"],
+            s["mu"],
+            s["npts_total"],
+            0,
+            alpha,
+            beta,
+            robin_vals[:, 0],
         )
         bc_ry = traction_robin_bc(
-            bkd, left_idx, left_normals, s["D_list"],
-            s["lamda"], s["mu"], s["npts_total"], 1,
-            alpha, beta, robin_vals[:, 1]
+            bkd,
+            left_idx,
+            left_normals,
+            s["D_list"],
+            s["lamda"],
+            s["mu"],
+            s["npts_total"],
+            1,
+            alpha,
+            beta,
+            robin_vals[:, 1],
         )
 
         # Dirichlet on sides 1, 2, 3
@@ -917,48 +1039,56 @@ class TestElasticityTractionBC(Generic[Array], unittest.TestCase):
 # NumPy backend
 class TestGradientNeumannSolveNumpy(TestGradientNeumannSolve[NDArray[Any]]):
     __test__ = True
+
     def bkd(self) -> NumpyBkd:
         return NumpyBkd()
 
 
 class TestGradientRobinSolveNumpy(TestGradientRobinSolve[NDArray[Any]]):
     __test__ = True
+
     def bkd(self) -> NumpyBkd:
         return NumpyBkd()
 
 
 class TestFluxNeumannSolveNumpy(TestFluxNeumannSolve[NDArray[Any]]):
     __test__ = True
+
     def bkd(self) -> NumpyBkd:
         return NumpyBkd()
 
 
 class TestFluxRobinSolveNumpy(TestFluxRobinSolve[NDArray[Any]]):
     __test__ = True
+
     def bkd(self) -> NumpyBkd:
         return NumpyBkd()
 
 
 class TestMixedBCSolveNumpy(TestMixedBCSolve[NDArray[Any]]):
     __test__ = True
+
     def bkd(self) -> NumpyBkd:
         return NumpyBkd()
 
 
 class TestTransientRobinSolveNumpy(TestTransientRobinSolve[NDArray[Any]]):
     __test__ = True
+
     def bkd(self) -> NumpyBkd:
         return NumpyBkd()
 
 
 class TestCurvilinearRobinSolveNumpy(TestCurvilinearRobinSolve[NDArray[Any]]):
     __test__ = True
+
     def bkd(self) -> NumpyBkd:
         return NumpyBkd()
 
 
 class TestElasticityTractionBCNumpy(TestElasticityTractionBC[NDArray[Any]]):
     __test__ = True
+
     def bkd(self) -> NumpyBkd:
         return NumpyBkd()
 
@@ -966,8 +1096,10 @@ class TestElasticityTractionBCNumpy(TestElasticityTractionBC[NDArray[Any]]):
 # Torch backend
 class TestGradientNeumannSolveTorch(TestGradientNeumannSolve[torch.Tensor]):
     __test__ = True
+
     def bkd(self) -> TorchBkd:
         return TorchBkd()
+
     def setUp(self):
         torch.set_default_dtype(torch.float64)
         self._bkd = self.bkd()
@@ -975,8 +1107,10 @@ class TestGradientNeumannSolveTorch(TestGradientNeumannSolve[torch.Tensor]):
 
 class TestGradientRobinSolveTorch(TestGradientRobinSolve[torch.Tensor]):
     __test__ = True
+
     def bkd(self) -> TorchBkd:
         return TorchBkd()
+
     def setUp(self):
         torch.set_default_dtype(torch.float64)
         self._bkd = self.bkd()
@@ -984,8 +1118,10 @@ class TestGradientRobinSolveTorch(TestGradientRobinSolve[torch.Tensor]):
 
 class TestFluxNeumannSolveTorch(TestFluxNeumannSolve[torch.Tensor]):
     __test__ = True
+
     def bkd(self) -> TorchBkd:
         return TorchBkd()
+
     def setUp(self):
         torch.set_default_dtype(torch.float64)
         self._bkd = self.bkd()
@@ -993,8 +1129,10 @@ class TestFluxNeumannSolveTorch(TestFluxNeumannSolve[torch.Tensor]):
 
 class TestFluxRobinSolveTorch(TestFluxRobinSolve[torch.Tensor]):
     __test__ = True
+
     def bkd(self) -> TorchBkd:
         return TorchBkd()
+
     def setUp(self):
         torch.set_default_dtype(torch.float64)
         self._bkd = self.bkd()
@@ -1002,8 +1140,10 @@ class TestFluxRobinSolveTorch(TestFluxRobinSolve[torch.Tensor]):
 
 class TestMixedBCSolveTorch(TestMixedBCSolve[torch.Tensor]):
     __test__ = True
+
     def bkd(self) -> TorchBkd:
         return TorchBkd()
+
     def setUp(self):
         torch.set_default_dtype(torch.float64)
         self._bkd = self.bkd()
@@ -1011,8 +1151,10 @@ class TestMixedBCSolveTorch(TestMixedBCSolve[torch.Tensor]):
 
 class TestTransientRobinSolveTorch(TestTransientRobinSolve[torch.Tensor]):
     __test__ = True
+
     def bkd(self) -> TorchBkd:
         return TorchBkd()
+
     def setUp(self):
         torch.set_default_dtype(torch.float64)
         self._bkd = self.bkd()
@@ -1020,8 +1162,10 @@ class TestTransientRobinSolveTorch(TestTransientRobinSolve[torch.Tensor]):
 
 class TestCurvilinearRobinSolveTorch(TestCurvilinearRobinSolve[torch.Tensor]):
     __test__ = True
+
     def bkd(self) -> TorchBkd:
         return TorchBkd()
+
     def setUp(self):
         torch.set_default_dtype(torch.float64)
         self._bkd = self.bkd()
@@ -1029,8 +1173,10 @@ class TestCurvilinearRobinSolveTorch(TestCurvilinearRobinSolve[torch.Tensor]):
 
 class TestElasticityTractionBCTorch(TestElasticityTractionBC[torch.Tensor]):
     __test__ = True
+
     def bkd(self) -> TorchBkd:
         return TorchBkd()
+
     def setUp(self):
         torch.set_default_dtype(torch.float64)
         self._bkd = self.bkd()

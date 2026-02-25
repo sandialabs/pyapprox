@@ -6,8 +6,8 @@ across the PyApprox typing system.
 """
 
 from .base import (
-    ComputationalObject,
     CallableObject,
+    ComputationalObject,
     DimensionalObject,
     ParameterizedObject,
 )

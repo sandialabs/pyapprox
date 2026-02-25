@@ -6,6 +6,7 @@ the variational GP's negative ELBO for use with optimizers.
 """
 
 from typing import Generic, Tuple
+
 from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.util.hyperparameter import HyperParameterList
 
@@ -75,7 +76,7 @@ class VariationalGPELBOLoss(Generic[Array]):
 
         neg_elbo_arr = (
             self._bkd.reshape(neg_elbo, (1,))
-            if hasattr(neg_elbo, 'shape')
+            if hasattr(neg_elbo, "shape")
             else self._bkd.array([neg_elbo])
         )
         return self._bkd.reshape(neg_elbo_arr, (1, 1))

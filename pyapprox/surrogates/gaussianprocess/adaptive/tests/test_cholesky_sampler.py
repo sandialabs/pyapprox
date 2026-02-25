@@ -39,12 +39,12 @@ class TestCholeskySampler(Generic[Array], unittest.TestCase):
         np.random.seed(42)
 
     def _make_kernel(self) -> KernelProtocol[Array]:
-        return SquaredExponentialKernel(
-            [0.5], (0.01, 10.0), 1, self._bkd
-        )
+        return SquaredExponentialKernel([0.5], (0.01, 10.0), 1, self._bkd)
 
     def _make_weight_function(
-        self, fun: Any, nvars: int,
+        self,
+        fun: Any,
+        nvars: int,
     ) -> FunctionFromCallable[Array]:
         """Wrap a callable as FunctionProtocol with nqoi=1."""
         return FunctionFromCallable(1, nvars, fun, self._bkd)
@@ -175,14 +175,12 @@ class TestCholeskySampler(Generic[Array], unittest.TestCase):
 
         # First half matches
         bkd.assert_allclose(
-            changed_samples[:, :nsamples // 2],
-            full_samples[:, :nsamples // 2],
+            changed_samples[:, : nsamples // 2],
+            full_samples[:, : nsamples // 2],
         )
         # Full result differs due to kernel change
         diff = bkd.sum((changed_samples - full_samples) ** 2)
-        self.assertGreater(
-            float(bkd.to_numpy(bkd.reshape(diff, (1,)))[0]), 0.0
-        )
+        self.assertGreater(float(bkd.to_numpy(bkd.reshape(diff, (1,)))[0]), 0.0)
 
     def test_candidate_exhaustion(self) -> None:
         """Selecting more than available raises ValueError."""
@@ -221,10 +219,12 @@ class TestCholeskySampler(Generic[Array], unittest.TestCase):
         nsamples = 10
 
         uniform_wf = self._make_weight_function(
-            lambda x: bkd.ones((1, x.shape[1])), 1,
+            lambda x: bkd.ones((1, x.shape[1])),
+            1,
         )
         quadratic_wf = self._make_weight_function(
-            lambda x: bkd.reshape(x[0, :] ** 2, (1, -1)), 1,
+            lambda x: bkd.reshape(x[0, :] ** 2, (1, -1)),
+            1,
         )
 
         # Sampler 1: uniform weights throughout
@@ -244,13 +244,14 @@ class TestCholeskySampler(Generic[Array], unittest.TestCase):
 
         # First half should match
         bkd.assert_allclose(
-            changed_samples[:, :nsamples // 2],
-            full_samples[:, :nsamples // 2],
+            changed_samples[:, : nsamples // 2],
+            full_samples[:, : nsamples // 2],
         )
         # Full result should differ after weight change
         diff = bkd.sum((changed_samples - full_samples) ** 2)
         self.assertGreater(
-            float(bkd.to_numpy(bkd.reshape(diff, (1,)))[0]), 0.0,
+            float(bkd.to_numpy(bkd.reshape(diff, (1,)))[0]),
+            0.0,
         )
 
     def test_weight_function_biases_selection(self) -> None:
@@ -258,9 +259,7 @@ class TestCholeskySampler(Generic[Array], unittest.TestCase):
         bkd = self._bkd
         np.random.seed(42)
         ncandidates = 100
-        candidates = bkd.asarray(
-            np.linspace(0.0, 1.0, ncandidates).reshape(1, -1)
-        )
+        candidates = bkd.asarray(np.linspace(0.0, 1.0, ncandidates).reshape(1, -1))
         kernel = SquaredExponentialKernel([0.1], (0.01, 10.0), 1, bkd)
         nsamples = 10
 
@@ -307,7 +306,8 @@ class TestCholeskySampler(Generic[Array], unittest.TestCase):
 
         # Uniform weight function (equivalent to no weights)
         uniform_wf = self._make_weight_function(
-            lambda x: bkd.ones((1, x.shape[1])), 1,
+            lambda x: bkd.ones((1, x.shape[1])),
+            1,
         )
         sampler2 = CholeskySampler(candidates, bkd)
         sampler2.set_weight_function(uniform_wf)
@@ -320,11 +320,12 @@ class TestCholeskySampler(Generic[Array], unittest.TestCase):
         """Weight function returning wrong shape raises ValueError."""
         bkd = self._bkd
         candidates = bkd.asarray(np.random.rand(1, 20))
-        kernel = SquaredExponentialKernel([0.1], (0.01, 10.0), 1, bkd)
+        SquaredExponentialKernel([0.1], (0.01, 10.0), 1, bkd)
 
         # Returns (ncandidates,) instead of (1, ncandidates)
         bad_wf = self._make_weight_function(
-            lambda x: bkd.ones(x.shape[1]), 1,
+            lambda x: bkd.ones(x.shape[1]),
+            1,
         )
         sampler = CholeskySampler(candidates, bkd)
         with self.assertRaises(ValueError):
@@ -338,7 +339,8 @@ class TestCholeskySampler(Generic[Array], unittest.TestCase):
         kernel = SquaredExponentialKernel([0.1], (0.01, 10.0), 1, bkd)
 
         wf = self._make_weight_function(
-            lambda x: bkd.reshape(x[0, :] ** 2, (1, -1)), 1,
+            lambda x: bkd.reshape(x[0, :] ** 2, (1, -1)),
+            1,
         )
         sampler = CholeskySampler(candidates, bkd)
         sampler.set_weight_function(wf)
@@ -362,7 +364,8 @@ class TestCholeskySampler(Generic[Array], unittest.TestCase):
 
         # Change to weighted
         wf = self._make_weight_function(
-            lambda x: bkd.reshape(x[0, :] ** 2, (1, -1)), 1,
+            lambda x: bkd.reshape(x[0, :] ** 2, (1, -1)),
+            1,
         )
         sampler.set_weight_function(wf)
         # Select 3 more — uses weighted selection, preserves first 3

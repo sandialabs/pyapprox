@@ -6,9 +6,14 @@ This module provides:
 """
 
 import time
-from typing import Dict, Generic, List, Optional
+from typing import TYPE_CHECKING, Dict, Generic, List, Optional
 
 from pyapprox.util.backends.protocols import Array, Backend
+
+if TYPE_CHECKING:
+    from pyapprox.interface.functions.protocols.function import (
+        FunctionProtocol,
+    )
 
 
 class WorkTracker(Generic[Array]):
@@ -48,9 +53,7 @@ class WorkTracker(Generic[Array]):
             The backend for array operations.
         """
         self._bkd = bkd
-        self._wall_times: Dict[str, List[float]] = {
-            key: [] for key in self._EVAL_TYPES
-        }
+        self._wall_times: Dict[str, List[float]] = {key: [] for key in self._EVAL_TYPES}
 
     def bkd(self) -> Backend[Array]:
         """Return the backend."""
@@ -74,8 +77,7 @@ class WorkTracker(Generic[Array]):
         """
         if eval_type not in self._wall_times:
             raise ValueError(
-                f"Unknown eval_type: {eval_type}. "
-                f"Must be one of {self._EVAL_TYPES}"
+                f"Unknown eval_type: {eval_type}. Must be one of {self._EVAL_TYPES}"
             )
         self._wall_times[eval_type].append(wall_time)
 
@@ -203,7 +205,7 @@ class TrackedModel(Generic[Array]):
 
     def __init__(
         self,
-        model: "FunctionProtocol[Array]",  # type: ignore[name-defined]
+        model: "FunctionProtocol[Array]",
         tracker: WorkTracker[Array],
     ) -> None:
         """Initialize the tracked model.
@@ -248,7 +250,7 @@ class TrackedModel(Generic[Array]):
         """Return the tracker."""
         return self._tracker
 
-    def wrapped(self) -> "FunctionProtocol[Array]":  # type: ignore[name-defined]
+    def wrapped(self) -> "FunctionProtocol[Array]":
         """Return the wrapped model."""
         return self._model
 

@@ -73,24 +73,17 @@ class GumbelCopula(Generic[Array]):
         """Validate that input is 2D with shape (2, nsamples)."""
         if u.ndim != 2:
             raise ValueError(
-                f"Expected 2D array with shape (2, nsamples), "
-                f"got {u.ndim}D"
+                f"Expected 2D array with shape (2, nsamples), got {u.ndim}D"
             )
         if u.shape[0] != 2:
-            raise ValueError(
-                f"Expected 2 variables, got {u.shape[0]}"
-            )
+            raise ValueError(f"Expected 2 variables, got {u.shape[0]}")
 
     def _validate_h_input(self, u1: Array, u2: Array) -> None:
         """Validate h-function inputs."""
         if u1.ndim != 2 or u1.shape[0] != 1:
-            raise ValueError(
-                f"u1 must have shape (1, nsamples), got {u1.shape}"
-            )
+            raise ValueError(f"u1 must have shape (1, nsamples), got {u1.shape}")
         if u2.ndim != 2 or u2.shape[0] != 1:
-            raise ValueError(
-                f"u2 must have shape (1, nsamples), got {u2.shape}"
-            )
+            raise ValueError(f"u2 must have shape (1, nsamples), got {u2.shape}")
 
     def logpdf(self, u: Array) -> Array:
         """
@@ -126,8 +119,8 @@ class GumbelCopula(Generic[Array]):
         neg_log_u1 = -self._bkd.log(u1)
         neg_log_u2 = -self._bkd.log(u2)
 
-        a1 = neg_log_u1 ** theta
-        a2 = neg_log_u2 ** theta
+        a1 = neg_log_u1**theta
+        a2 = neg_log_u2**theta
         A = a1 + a2
 
         A_inv_theta = A ** (1.0 / theta)
@@ -140,9 +133,7 @@ class GumbelCopula(Generic[Array]):
             log_C
             - self._bkd.log(u1)
             - self._bkd.log(u2)
-            + (theta - 1.0) * (
-                self._bkd.log(neg_log_u1) + self._bkd.log(neg_log_u2)
-            )
+            + (theta - 1.0) * (self._bkd.log(neg_log_u1) + self._bkd.log(neg_log_u2))
             + (2.0 / theta - 2.0) * self._bkd.log(A)
             + self._bkd.log(1.0 + (theta - 1.0) * A ** (-1.0 / theta))
         )
@@ -176,16 +167,14 @@ class GumbelCopula(Generic[Array]):
         neg_log_u1 = -self._bkd.log(u1_c)
         neg_log_u2 = -self._bkd.log(u2_c)
 
-        a1 = neg_log_u1 ** theta
-        a2 = neg_log_u2 ** theta
+        a1 = neg_log_u1**theta
+        a2 = neg_log_u2**theta
         A = a1 + a2
 
         # C = exp(-A^{1/theta})
-        C = self._bkd.exp(-A ** (1.0 / theta))
+        C = self._bkd.exp(-(A ** (1.0 / theta)))
 
-        result = C / u2_c * neg_log_u2 ** (theta - 1.0) * A ** (
-            1.0 / theta - 1.0
-        )
+        result = C / u2_c * neg_log_u2 ** (theta - 1.0) * A ** (1.0 / theta - 1.0)
         return self._bkd.clip(result, 1e-10, 1.0 - 1e-10)
 
     def h_inverse(self, v: Array, u2: Array) -> Array:
@@ -238,9 +227,7 @@ class GumbelCopula(Generic[Array]):
         Array
             Samples in (0,1)^2. Shape: (2, nsamples)
         """
-        w = self._bkd.asarray(
-            np.random.uniform(0, 1, (2, nsamples)).astype(np.float64)
-        )
+        w = self._bkd.asarray(np.random.uniform(0, 1, (2, nsamples)).astype(np.float64))
         u1 = w[0:1, :]
         w2 = w[1:2, :]
         u2 = self.h_inverse(w2, u1)

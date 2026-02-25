@@ -6,15 +6,13 @@ allocation matrices, variance reductions, and recursion DAGs.
 
 from typing import Dict, List, Optional, Tuple
 
-import numpy as np
 import matplotlib.pyplot as plt
+import numpy as np
 
 
 def _plot_partition(ii, jj, ax, color, text):
     """Plot a single partition block in an allocation matrix."""
-    box = np.array(
-        [[ii, jj], [ii + 1, jj], [ii + 1, jj + 1], [ii, jj + 1], [ii, jj]]
-    ).T
+    box = np.array([[ii, jj], [ii + 1, jj], [ii + 1, jj + 1], [ii, jj + 1], [ii, jj]]).T
     ax.plot(*box, color="k")
     ax.fill(*box, color=color)
     if text is not None:
@@ -63,9 +61,7 @@ def _plot_allocation_matrix(allocation_mat, npartition_samples, ax):
     ]
     ax.set_xticklabels(labels)
     ax.set_yticks(np.arange(nmodels) + 0.5)
-    ax.set_yticklabels(
-        [r"$\mathcal{P}_{%d}$" % ii for ii in range(nmodels)]
-    )
+    ax.set_yticklabels([r"$\mathcal{P}_{%d}$" % ii for ii in range(nmodels)])
     ax.spines["top"].set_visible(False)
     ax.spines["right"].set_visible(False)
     ax.spines["bottom"].set_visible(False)
@@ -246,6 +242,10 @@ def plot_recursion_dag(estimator, ax: plt.Axes) -> None:
 
     pos = _hierarchy_pos(graph, 0, vert_gap=0.1, width=0.1)
     nx.draw(
-        graph, pos=pos, ax=ax, with_labels=True,
-        node_size=[2000], font_size=24,
+        graph,
+        pos=pos,
+        ax=ax,
+        with_labels=True,
+        node_size=[2000],
+        font_size=24,
     )

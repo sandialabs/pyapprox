@@ -28,9 +28,9 @@ from .beta import BetaMarginal
 from .discrete import CustomDiscreteMarginal, DiscreteChebyshevMarginal
 from .gamma import GammaMarginal
 from .gaussian import GaussianMarginal
-from .uniform import UniformMarginal
 from .scipy_continuous import ScipyContinuousMarginal
 from .scipy_discrete import ScipyDiscreteMarginal
+from .uniform import UniformMarginal
 
 __all__ = [
     "BetaMarginal",

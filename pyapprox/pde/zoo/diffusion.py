@@ -1,14 +1,19 @@
 """Factory functions for 1D diffusion forward models."""
 
-from typing import Callable, Generic, List, Optional, Tuple
+from typing import Callable, List, Optional, Tuple
 
-from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.pde.collocation.basis import ChebyshevBasis1D
-from pyapprox.pde.collocation.mesh import (
-    create_uniform_mesh_1d,
-    TransformedMesh1D,
-)
 from pyapprox.pde.collocation.boundary import zero_dirichlet_bc
+from pyapprox.pde.collocation.forward_models.steady import (
+    SteadyForwardModel,
+)
+from pyapprox.pde.collocation.forward_models.transient import (
+    TransientForwardModel,
+)
+from pyapprox.pde.collocation.mesh import (
+    TransformedMesh1D,
+    create_uniform_mesh_1d,
+)
 from pyapprox.pde.collocation.physics.advection_diffusion import (
     AdvectionDiffusionReaction,
 )
@@ -21,13 +26,8 @@ from pyapprox.pde.field_maps.protocol import (
 from pyapprox.pde.parameterizations.diffusion import (
     create_diffusion_parameterization,
 )
-from pyapprox.pde.collocation.forward_models.steady import (
-    SteadyForwardModel,
-)
-from pyapprox.pde.collocation.forward_models.transient import (
-    TransientForwardModel,
-)
 from pyapprox.pde.time.config import TimeIntegrationConfig
+from pyapprox.util.backends.protocols import Array, Backend
 
 
 def _build_field_map(
@@ -39,18 +39,12 @@ def _build_field_map(
     """Resolve field map from either explicit field_map or basis_funs args."""
     if field_map is not None:
         if basis_funs is not None:
-            raise ValueError(
-                "Cannot specify both field_map and basis_funs"
-            )
+            raise ValueError("Cannot specify both field_map and basis_funs")
         return field_map
     if basis_funs is None:
-        raise ValueError(
-            "Must specify either field_map or basis_funs"
-        )
+        raise ValueError("Must specify either field_map or basis_funs")
     if diffusion_base is None:
-        raise ValueError(
-            "diffusion_base is required when using basis_funs"
-        )
+        raise ValueError("diffusion_base is required when using basis_funs")
     return BasisExpansion(bkd, diffusion_base, basis_funs)
 
 
@@ -102,7 +96,10 @@ def create_steady_diffusion_1d(
 
     init_diffusion = diffusion_base if diffusion_base is not None else 1.0
     physics = AdvectionDiffusionReaction(
-        basis, bkd, diffusion=init_diffusion, forcing=forcing,
+        basis,
+        bkd,
+        diffusion=init_diffusion,
+        forcing=forcing,
     )
 
     if bcs is None:
@@ -119,8 +116,11 @@ def create_steady_diffusion_1d(
 
     init_state = bkd.zeros((npts,))
     return SteadyForwardModel(
-        physics, bkd, init_state,
-        functional=functional, parameterization=param,
+        physics,
+        bkd,
+        init_state,
+        functional=functional,
+        parameterization=param,
     )
 
 
@@ -179,7 +179,10 @@ def create_transient_diffusion_1d(
 
     init_diffusion = diffusion_base if diffusion_base is not None else 1.0
     physics = AdvectionDiffusionReaction(
-        basis, bkd, diffusion=init_diffusion, forcing=forcing,
+        basis,
+        bkd,
+        diffusion=init_diffusion,
+        forcing=forcing,
     )
 
     if bcs is None:
@@ -196,6 +199,10 @@ def create_transient_diffusion_1d(
 
     init_state = init_state_func(nodes)
     return TransientForwardModel(
-        physics, bkd, init_state, time_config,
-        functional=functional, parameterization=param,
+        physics,
+        bkd,
+        init_state,
+        time_config,
+        functional=functional,
+        parameterization=param,
     )

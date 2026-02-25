@@ -98,11 +98,13 @@ class ChemicalReactionResidual(Generic[Array]):
         u, v, w = state
         a, b, c, d, e, f = self._param
         z = 1.0 - u - v - w
-        return self._bkd.hstack([
-            a * z - c * u - 4 * d * u * v,
-            2 * b * z**2 - 4 * d * u * v,
-            e * z - f * w,
-        ])
+        return self._bkd.hstack(
+            [
+                a * z - c * u - 4 * d * u * v,
+                2 * b * z**2 - 4 * d * u * v,
+                e * z - f * w,
+            ]
+        )
 
     def jacobian(self, state: Array) -> Array:
         """
@@ -121,19 +123,16 @@ class ChemicalReactionResidual(Generic[Array]):
         u, v, w = state
         a, b, c, d, e, f = self._param
         z = 1.0 - u - v - w
-        return self._bkd.stack([
-            self._bkd.hstack([
-                -a - c - 4 * d * v,
-                -a - 4 * d * u,
-                -a
-            ]),
-            self._bkd.hstack([
-                -4 * b * z - 4 * d * v,
-                -4 * b * z - 4 * d * u,
-                -4 * b * z
-            ]),
-            self._bkd.hstack([-e, -e, -e - f]),
-        ], axis=0)
+        return self._bkd.stack(
+            [
+                self._bkd.hstack([-a - c - 4 * d * v, -a - 4 * d * u, -a]),
+                self._bkd.hstack(
+                    [-4 * b * z - 4 * d * v, -4 * b * z - 4 * d * u, -4 * b * z]
+                ),
+                self._bkd.hstack([-e, -e, -e - f]),
+            ],
+            axis=0,
+        )
 
     def mass_matrix(self, nstates: int) -> Array:
         """Return the identity mass matrix."""

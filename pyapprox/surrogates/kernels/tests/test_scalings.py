@@ -9,13 +9,10 @@ import numpy as np
 import torch
 from numpy.typing import NDArray
 
-from pyapprox.util.backends.numpy import NumpyBkd
-from pyapprox.util.backends.torch import TorchBkd
-from pyapprox.util.backends.protocols import Array
 from pyapprox.surrogates.kernels.scalings import PolynomialScaling
-
-
-from pyapprox.util.test_utils import load_tests
+from pyapprox.util.backends.numpy import NumpyBkd
+from pyapprox.util.backends.protocols import Array
+from pyapprox.util.backends.torch import TorchBkd
 
 
 class TestPolynomialScaling(Generic[Array], unittest.TestCase):
@@ -41,9 +38,7 @@ class TestPolynomialScaling(Generic[Array], unittest.TestCase):
 
         # All values should be 0.8
         expected = self._bkd.ones((3, 1)) * 0.8
-        self.assertTrue(
-            self._bkd.allclose(rho, expected)
-        )
+        self.assertTrue(self._bkd.allclose(rho, expected))
 
     def test_constant_scaling_jacobian(self):
         """Test that constant scaling has zero spatial Jacobian."""
@@ -54,9 +49,7 @@ class TestPolynomialScaling(Generic[Array], unittest.TestCase):
 
         # Spatial derivative should be zero
         expected = self._bkd.zeros((3, 1))
-        self.assertTrue(
-            self._bkd.allclose(jac_x, expected)
-        )
+        self.assertTrue(self._bkd.allclose(jac_x, expected))
 
     def test_constant_scaling_param_jacobian(self):
         """Test parameter Jacobian for constant scaling."""
@@ -67,9 +60,7 @@ class TestPolynomialScaling(Generic[Array], unittest.TestCase):
 
         # ∂ρ/∂c0 = 1
         expected = self._bkd.ones((3, 1))
-        self.assertTrue(
-            self._bkd.allclose(jac_params, expected)
-        )
+        self.assertTrue(self._bkd.allclose(jac_params, expected))
 
     def test_linear_scaling_1d(self):
         """Test degree 1 (linear) scaling in 1D."""
@@ -81,9 +72,7 @@ class TestPolynomialScaling(Generic[Array], unittest.TestCase):
 
         # Expected: [0.8, 0.9, 1.0]
         expected = self._bkd.array([[0.8], [0.9], [1.0]])
-        self.assertTrue(
-            self._bkd.allclose(rho, expected, rtol=1e-6, atol=1e-7)
-        )
+        self.assertTrue(self._bkd.allclose(rho, expected, rtol=1e-6, atol=1e-7))
 
     def test_linear_scaling_jacobian_1d(self):
         """Test spatial Jacobian for linear scaling in 1D."""
@@ -95,9 +84,7 @@ class TestPolynomialScaling(Generic[Array], unittest.TestCase):
 
         # ∂ρ/∂x = 0.1 (constant slope)
         expected = self._bkd.ones((3, 1)) * 0.1
-        self.assertTrue(
-            self._bkd.allclose(jac_x, expected, rtol=1e-6, atol=1e-7)
-        )
+        self.assertTrue(self._bkd.allclose(jac_x, expected, rtol=1e-6, atol=1e-7))
 
     def test_linear_scaling_param_jacobian_1d(self):
         """Test parameter Jacobian for linear scaling in 1D."""
@@ -108,13 +95,10 @@ class TestPolynomialScaling(Generic[Array], unittest.TestCase):
         jac_params = scaling.jacobian_wrt_params(X)
 
         # ∂ρ/∂c0 = 1, ∂ρ/∂c1 = x
-        expected = self._bkd.hstack([
-            self._bkd.ones((3, 1)),
-            self._bkd.array([[-1.0], [0.0], [1.0]])
-        ])
-        self.assertTrue(
-            self._bkd.allclose(jac_params, expected, rtol=1e-10)
+        expected = self._bkd.hstack(
+            [self._bkd.ones((3, 1)), self._bkd.array([[-1.0], [0.0], [1.0]])]
         )
+        self.assertTrue(self._bkd.allclose(jac_params, expected, rtol=1e-10))
 
     def test_linear_scaling_2d(self):
         """Test degree 1 (linear) scaling in 2D."""
@@ -127,9 +111,7 @@ class TestPolynomialScaling(Generic[Array], unittest.TestCase):
 
         # Expected: [1.0, 1.5, 1.3, 1.8]
         expected = self._bkd.array([[1.0], [1.5], [1.3], [1.8]])
-        self.assertTrue(
-            self._bkd.allclose(rho, expected, rtol=1e-6, atol=1e-7)
-        )
+        self.assertTrue(self._bkd.allclose(rho, expected, rtol=1e-6, atol=1e-7))
 
     def test_linear_scaling_jacobian_2d(self):
         """Test spatial Jacobian for linear scaling in 2D."""
@@ -140,13 +122,10 @@ class TestPolynomialScaling(Generic[Array], unittest.TestCase):
         jac_x = scaling.jacobian_scaling(X)
 
         # ∂ρ/∂x1 = 0.5, ∂ρ/∂x2 = 0.3 (constant gradients)
-        expected = self._bkd.hstack([
-            self._bkd.ones((4, 1)) * 0.5,
-            self._bkd.ones((4, 1)) * 0.3
-        ])
-        self.assertTrue(
-            self._bkd.allclose(jac_x, expected, rtol=1e-6, atol=1e-7)
+        expected = self._bkd.hstack(
+            [self._bkd.ones((4, 1)) * 0.5, self._bkd.ones((4, 1)) * 0.3]
         )
+        self.assertTrue(self._bkd.allclose(jac_x, expected, rtol=1e-6, atol=1e-7))
 
     def test_linear_scaling_param_jacobian_2d(self):
         """Test parameter Jacobian for linear scaling in 2D."""
@@ -160,9 +139,7 @@ class TestPolynomialScaling(Generic[Array], unittest.TestCase):
         # For (0, 0): [1, 0, 0]
         # For (1, 0): [1, 1, 0]
         expected = self._bkd.array([[1.0, 0.0, 0.0], [1.0, 1.0, 0.0]])
-        self.assertTrue(
-            self._bkd.allclose(jac_params, expected, rtol=1e-10)
-        )
+        self.assertTrue(self._bkd.allclose(jac_params, expected, rtol=1e-10))
 
     def test_hyperparameter_bounds(self):
         """Test that hyperparameters respect bounds."""
@@ -192,9 +169,7 @@ class TestPolynomialScaling(Generic[Array], unittest.TestCase):
 
         # Expected: [0.9, 1.05]
         expected = self._bkd.array([[0.9], [1.05]])
-        self.assertTrue(
-            self._bkd.allclose(rho, expected, rtol=1e-6, atol=1e-7)
-        )
+        self.assertTrue(self._bkd.allclose(rho, expected, rtol=1e-6, atol=1e-7))
 
     def test_fixed_parameters(self):
         """Test fixed (non-trainable) parameters."""
@@ -238,7 +213,11 @@ class TestPolynomialScaling(Generic[Array], unittest.TestCase):
         # Test points
         X1 = self._bkd.array(np.random.randn(2, 3))
         X2 = self._bkd.array(np.random.randn(2, 4))
-        direction = self._bkd.array(np.random.randn(2,))  # Shape (nvars,)
+        direction = self._bkd.array(
+            np.random.randn(
+                2,
+            )
+        )  # Shape (nvars,)
 
         # Compute HVP
         hvp = scaling.hvp_wrt_x1(X1, X2, direction)
@@ -249,9 +228,7 @@ class TestPolynomialScaling(Generic[Array], unittest.TestCase):
 
         # All values should be zero
         zeros = self._bkd.zeros(expected_shape)
-        self.assertTrue(
-            self._bkd.allclose(hvp, zeros, atol=1e-15)
-        )
+        self.assertTrue(self._bkd.allclose(hvp, zeros, atol=1e-15))
 
 
 class TestPolynomialScalingNumpy(TestPolynomialScaling[NDArray[Any]]):

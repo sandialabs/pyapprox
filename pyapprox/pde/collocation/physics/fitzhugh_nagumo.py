@@ -14,16 +14,16 @@ where:
     gamma = recovery rate (typically 1.0)
 """
 
-from typing import Generic, Optional, Callable, Union
+from typing import Callable, Optional
 
-from pyapprox.util.backends.protocols import Array, Backend
+from pyapprox.pde.collocation.physics.reaction_diffusion import (
+    FitzHughNagumoReaction,
+    TwoSpeciesReactionDiffusionPhysics,
+)
 from pyapprox.pde.collocation.protocols.basis import (
     TensorProductBasisProtocol,
 )
-from pyapprox.pde.collocation.physics.reaction_diffusion import (
-    TwoSpeciesReactionDiffusionPhysics,
-    FitzHughNagumoReaction,
-)
+from pyapprox.util.backends.protocols import Array, Backend
 
 
 class FitzHughNagumoPhysics(TwoSpeciesReactionDiffusionPhysics[Array]):

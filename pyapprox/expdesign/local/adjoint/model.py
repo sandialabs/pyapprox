@@ -7,8 +7,8 @@ using the adjoint method.
 
 from typing import Generic, Optional
 
-from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.expdesign.local.protocols import DesignMatricesProtocol
+from pyapprox.util.backends.protocols import Array, Backend
 
 from .functional import QuadraticFunctional
 from .residual import LinearResidual
@@ -85,9 +85,7 @@ class AdjointModel(Generic[Array]):
         if self._cached_params is None:
             return False
         return bool(
-            self._bkd.allclose(
-                self._cached_params, params, atol=1e-15, rtol=1e-15
-            )
+            self._bkd.allclose(self._cached_params, params, atol=1e-15, rtol=1e-15)
         )
 
     def _ensure_solved(self, params: Array) -> None:
@@ -97,9 +95,7 @@ class AdjointModel(Generic[Array]):
             self._cached_fwd_sol = self._residual.solve_forward(params)
 
             # Compute adjoint RHS and solve
-            adj_rhs = self._functional.state_jacobian(
-                self._cached_fwd_sol, params
-            )
+            adj_rhs = self._functional.state_jacobian(self._cached_fwd_sol, params)
             self._cached_adj_sol = self._residual.solve_adjoint(params, adj_rhs)
 
             self._cached_params = self._bkd.copy(params)
@@ -244,10 +240,9 @@ class AdjointModel(Generic[Array]):
         # Adjoint contribution derivatives
         # d(-lambda^T @ M1_k @ x)/dw @ v
         # = -lambda_tilde^T @ M1_k @ x - lambda^T @ M1_k @ w_tilde
-        adj_contrib = (
-            -self._bkd.einsum("i,kij,j->k", lambda_tilde, M1k, fwd_sol)
-            - self._bkd.einsum("i,kij,j->k", adj_sol, M1k, w_tilde)
-        )
+        adj_contrib = -self._bkd.einsum(
+            "i,kij,j->k", lambda_tilde, M1k, fwd_sol
+        ) - self._bkd.einsum("i,kij,j->k", adj_sol, M1k, w_tilde)
 
         hvp_result = func_contrib + adj_contrib
         return self._bkd.reshape(hvp_result, (self.nparams(), 1))

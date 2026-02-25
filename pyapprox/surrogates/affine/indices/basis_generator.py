@@ -8,14 +8,14 @@ PCE and sparse grid contexts.
 import math
 from typing import Dict, Generic, List, Optional, Tuple, Union
 
-from pyapprox.util.backends.protocols import Array, Backend
-from pyapprox.surrogates.affine.protocols.index import (
-    IndexGrowthRuleProtocol,
-)
 from pyapprox.surrogates.affine.indices.growth_rules import (
     LinearGrowthRule,
 )
 from pyapprox.surrogates.affine.indices.utils import hash_index
+from pyapprox.surrogates.affine.protocols.index import (
+    IndexGrowthRuleProtocol,
+)
+from pyapprox.util.backends.protocols import Array, Backend
 
 
 class BasisIndexGenerator(Generic[Array]):
@@ -131,8 +131,7 @@ class BasisIndexGenerator(Generic[Array]):
         """
         index_np = self._bkd.to_numpy(subspace_index)
         return [
-            self._growth_rules[dim](int(index_np[dim]))
-            for dim in range(self._nvars)
+            self._growth_rules[dim](int(index_np[dim])) for dim in range(self._nvars)
         ]
 
     def nsubspace_basis(self, subspace_index: Array) -> int:
@@ -196,14 +195,10 @@ class BasisIndexGenerator(Generic[Array]):
         nbasis = self.nsubspace_basis(subspace_index)
 
         if nbasis == 0:
-            return self._bkd.zeros(
-                (self._nvars, 0), dtype=self._bkd.int64_dtype()
-            )
+            return self._bkd.zeros((self._nvars, 0), dtype=self._bkd.int64_dtype())
 
         # Generate tensor product of indices
-        indices = self._bkd.zeros(
-            (self._nvars, nbasis), dtype=self._bkd.int64_dtype()
-        )
+        indices = self._bkd.zeros((self._nvars, nbasis), dtype=self._bkd.int64_dtype())
 
         # Compute stride for each dimension
         stride = 1
@@ -215,9 +210,7 @@ class BasisIndexGenerator(Generic[Array]):
 
         return indices
 
-    def get_hierarchical_surplus_indices(
-        self, subspace_index: Array
-    ) -> Array:
+    def get_hierarchical_surplus_indices(self, subspace_index: Array) -> Array:
         """Return indices of hierarchical surplus basis functions.
 
         For a subspace at level l, the hierarchical surplus contains
@@ -244,9 +237,7 @@ class BasisIndexGenerator(Generic[Array]):
     # Deduplication methods for sparse grids
     # -------------------------------------------------------------------------
 
-    def _hash_sample_coords(
-        self, sample: Array, tolerance: float = 1e-12
-    ) -> int:
+    def _hash_sample_coords(self, sample: Array, tolerance: float = 1e-12) -> int:
         """Hash sample coordinates with tolerance for floating-point comparison.
 
         Used for non-nested quadrature rules where basis indices don't uniquely
@@ -375,6 +366,5 @@ class BasisIndexGenerator(Generic[Array]):
 
     def __repr__(self) -> str:
         return (
-            f"BasisIndexGenerator(nvars={self._nvars}, "
-            f"growth_rule={self._growth_rule})"
+            f"BasisIndexGenerator(nvars={self._nvars}, growth_rule={self._growth_rule})"
         )

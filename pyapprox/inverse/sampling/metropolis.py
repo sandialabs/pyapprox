@@ -6,13 +6,13 @@ This module provides:
 - AdaptiveMetropolisSampler: Adaptive Metropolis with covariance estimation
 """
 
-from typing import Generic, Optional, Callable, Tuple
 from dataclasses import dataclass
+from typing import Callable, Generic, Optional, Tuple
 
 import numpy as np
 
-from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.probability.gaussian import DenseCholeskyMultivariateGaussian
+from pyapprox.util.backends.protocols import Array, Backend
 
 
 @dataclass
@@ -29,6 +29,7 @@ class MCMCResult(Generic[Array]):
     log_posteriors : Array
         Log posterior values at each sample. Shape: (nsamples,)
     """
+
     samples: Array
     acceptance_rate: float
     log_posteriors: Array
@@ -111,9 +112,7 @@ class MetropolisHastingsSampler(Generic[Array]):
         """
         # Use explicit float64 for backend compatibility
         zero_mean = self._bkd.asarray(np.zeros((self._nvars, 1), dtype=np.float64))
-        return DenseCholeskyMultivariateGaussian(
-            zero_mean, proposal_cov, self._bkd
-        )
+        return DenseCholeskyMultivariateGaussian(zero_mean, proposal_cov, self._bkd)
 
     def bkd(self) -> Backend[Array]:
         """Get the backend used for computations."""
@@ -227,8 +226,9 @@ class MetropolisHastingsSampler(Generic[Array]):
             if bounds is not None:
                 bounds_np = self._bkd.to_numpy(bounds)
                 proposal_np = self._bkd.to_numpy(proposal)
-                in_bounds = np.all(proposal_np[:, 0] >= bounds_np[:, 0]) and \
-                           np.all(proposal_np[:, 0] <= bounds_np[:, 1])
+                in_bounds = np.all(proposal_np[:, 0] >= bounds_np[:, 0]) and np.all(
+                    proposal_np[:, 0] <= bounds_np[:, 1]
+                )
                 if not in_bounds:
                     # Reject - stay at current
                     samples_np[:, i] = self._bkd.to_numpy(current)[:, 0]
@@ -381,8 +381,9 @@ class AdaptiveMetropolisSampler(MetropolisHastingsSampler[Array]):
             if bounds is not None:
                 bounds_np = self._bkd.to_numpy(bounds)
                 proposal_np = self._bkd.to_numpy(proposal)
-                in_bounds = np.all(proposal_np[:, 0] >= bounds_np[:, 0]) and \
-                           np.all(proposal_np[:, 0] <= bounds_np[:, 1])
+                in_bounds = np.all(proposal_np[:, 0] >= bounds_np[:, 0]) and np.all(
+                    proposal_np[:, 0] <= bounds_np[:, 1]
+                )
                 if not in_bounds:
                     samples_np[:, i] = self._bkd.to_numpy(current)[:, 0]
                     logposts_np[i] = current_logpost
@@ -414,8 +415,10 @@ class AdaptiveMetropolisSampler(MetropolisHastingsSampler[Array]):
             )
 
             # Adapt proposal covariance
-            if (i >= self._adaptation_start and
-                (i - self._adaptation_start) % self._adaptation_interval == 0):
+            if (
+                i >= self._adaptation_start
+                and (i - self._adaptation_start) % self._adaptation_interval == 0
+            ):
                 self._adapt_proposal(sample_cov)
 
         # Remove burn-in
@@ -490,14 +493,10 @@ class AdaptiveMetropolisSampler(MetropolisHastingsSampler[Array]):
         regularized_cov = sample_cov + self._nugget * np.eye(self._nvars)
 
         try:
-            new_proposal_cov = self._bkd.asarray(
-                regularized_cov.astype(np.float64)
-            )
+            new_proposal_cov = self._bkd.asarray(regularized_cov.astype(np.float64))
             # Create new proposal distribution using typing.probability
             self._proposal_cov = new_proposal_cov
-            self._proposal_dist = self._create_proposal_distribution(
-                new_proposal_cov
-            )
+            self._proposal_dist = self._create_proposal_distribution(new_proposal_cov)
         except Exception:
             # If Cholesky fails in the Gaussian constructor, don't update
             pass

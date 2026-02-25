@@ -6,9 +6,9 @@ Computes AVaR[qoi | obs] - E[qoi | obs].
 
 from typing import Generic
 
-from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.expdesign.deviation.base import DeviationMeasure
 from pyapprox.expdesign.statistics.avar import SampleAverageSmoothedAVaR
+from pyapprox.util.backends.protocols import Array, Backend
 
 
 class AVaRDeviationMeasure(DeviationMeasure[Array], Generic[Array]):
@@ -68,9 +68,7 @@ class AVaRDeviationMeasure(DeviationMeasure[Array], Generic[Array]):
 
         # Normalized quad-weighted likelihoods as posterior weights
         # Shape: (ninner, nouter)
-        normalized_like = (
-            self._evidence.quad_weighted_like_vals / evidences[:, 0]
-        )
+        normalized_like = self._evidence.quad_weighted_like_vals / evidences[:, 0]
 
         # Compute mean for each (qoi, outer) pair
         mean = self._first_moment(normalized_like)  # (npred, nouter)
@@ -86,8 +84,8 @@ class AVaRDeviationMeasure(DeviationMeasure[Array], Generic[Array]):
             for oo in range(nouter):
                 # Get posterior weights for this outer sample
                 # _evaluate_single expects (1, nsamples) for both
-                weights = normalized_like[:, oo:oo + 1].T  # (1, ninner)
-                values = self._qoi_vals[:, qq:qq + 1].T  # (1, ninner)
+                weights = normalized_like[:, oo : oo + 1].T  # (1, ninner)
+                values = self._qoi_vals[:, qq : qq + 1].T  # (1, ninner)
 
                 # Compute AVaR using smoothed estimator
                 avar = self._smoothed_avar._evaluate_single(values, weights)

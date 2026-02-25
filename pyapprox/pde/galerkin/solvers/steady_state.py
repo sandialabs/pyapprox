@@ -7,13 +7,14 @@ For linear problems: K*u = b (solved directly)
 For nonlinear problems: Newton iteration with line search
 """
 
-from typing import Generic, Optional, Tuple, Callable
 from dataclasses import dataclass
+from typing import Generic
 
 import numpy as np
-from pyapprox.util.backends.protocols import Array, Backend
+
 from pyapprox.pde.galerkin.protocols.physics import GalerkinPhysicsProtocol
 from pyapprox.pde.sparse_utils import solve_maybe_sparse
+from pyapprox.util.backends.protocols import Array
 
 
 @dataclass
@@ -128,9 +129,7 @@ class SteadyStateSolver(Generic[Array]):
 
             # Line search for robustness
             if self._line_search:
-                alpha = self._line_search_backtrack(
-                    u, delta_u, residual_norm, time
-                )
+                alpha = self._line_search_backtrack(u, delta_u, residual_norm, time)
             else:
                 alpha = 1.0
 
@@ -253,7 +252,9 @@ class SteadyStateSolver(Generic[Array]):
             converged=converged,
             iterations=1,
             residual_norm=residual_norm,
-            message="Linear solve" if converged else "Linear solve (residual above tolerance)",
+            message="Linear solve"
+            if converged
+            else "Linear solve (residual above tolerance)",
         )
 
     def __repr__(self) -> str:

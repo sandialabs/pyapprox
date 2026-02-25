@@ -4,14 +4,10 @@ This module provides backend-agnostic array indexing functions that work
 with both NumPy and PyTorch arrays.
 """
 
-from typing import Generic
-
 from pyapprox.util.backends.protocols import Array
 
 
-def extract_submatrix(
-    mat: Array, row_indices: Array, col_indices: Array
-) -> Array:
+def extract_submatrix(mat: Array, row_indices: Array, col_indices: Array) -> Array:
     """Extract submatrix using row and column indices.
 
     This is a backend-agnostic replacement for NumPy's np.ix_ indexing pattern.

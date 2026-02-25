@@ -16,19 +16,19 @@ Each outer iteration:
 
 from typing import Generic, List, Optional
 
-from pyapprox.util.backends.protocols import Array, Backend
-from pyapprox.surrogates.affine.protocols import (
-    BasisExpansionProtocol,
-    MultiIndexBasisProtocol,
+from pyapprox.surrogates.affine.expansions.fitters.omp_cv import (
+    OMPCVFitter,
 )
 from pyapprox.surrogates.affine.indices.utils import (
     compute_hyperbolic_indices,
     hash_index,
     sort_indices_lexiographically,
 )
-from pyapprox.surrogates.affine.expansions.fitters.omp_cv import (
-    OMPCVFitter,
+from pyapprox.surrogates.affine.protocols import (
+    BasisExpansionProtocol,
+    MultiIndexBasisProtocol,
 )
+from pyapprox.util.backends.protocols import Array, Backend
 
 
 class AdaptivePCEResult(Generic[Array]):
@@ -128,8 +128,9 @@ class AdaptivePCEResult(Generic[Array]):
         )
 
 
-def _expand_indices(indices: Array, max_level: int, pnorm: float,
-                    bkd: Backend[Array]) -> Array:
+def _expand_indices(
+    indices: Array, max_level: int, pnorm: float, bkd: Backend[Array]
+) -> Array:
     """Add all admissible forward neighbors to an index set.
 
     A forward neighbor lambda + e_k is admissible if all its backward
@@ -173,9 +174,7 @@ def _expand_indices(indices: Array, max_level: int, pnorm: float,
 
             # Check p-norm constraint
             neighbor_np = bkd.to_numpy(neighbor)
-            level = float(sum(int(v) ** pnorm for v in neighbor_np)) ** (
-                1.0 / pnorm
-            )
+            level = float(sum(int(v) ** pnorm for v in neighbor_np)) ** (1.0 / pnorm)
             if level > max_level + 1e-10:
                 continue
 
@@ -376,9 +375,7 @@ class AdaptivePCEFitter(Generic[Array]):
         # Run initial OMP+CV on Λ^(0)
         cv_result = self._run_omp_cv(expansion, samples, values)
         if cv_result is None:
-            return self._make_fallback_result(
-                expansion, basis, bkd, initial_indices
-            )
+            return self._make_fallback_result(expansion, basis, bkd, initial_indices)
 
         star_cv = float(cv_result.cv_scores()[cv_result.best_index()])
         star_params = bkd.copy(cv_result.params())
@@ -390,10 +387,7 @@ class AdaptivePCEFitter(Generic[Array]):
         best_iteration_idx = 0
 
         if self._verbosity > 0:
-            print(
-                f"Init: nterms={initial_indices.shape[1]}, "
-                f"CV={star_cv:.6e}"
-            )
+            print(f"Init: nterms={initial_indices.shape[1]}, CV={star_cv:.6e}")
 
         # Current coefficients from the initial fit
         current_params = cv_result.params()
@@ -430,9 +424,7 @@ class AdaptivePCEFitter(Generic[Array]):
 
             expanded = restricted
             for t in range(1, self._num_expansions + 1):
-                expanded = _expand_indices(
-                    expanded, self._max_level, self._pnorm, bkd
-                )
+                expanded = _expand_indices(expanded, self._max_level, self._pnorm, bkd)
 
                 if expanded.shape[1] == restricted.shape[1] and t > 1:
                     # No new indices added; further expansions won't help
@@ -444,15 +436,10 @@ class AdaptivePCEFitter(Generic[Array]):
                 if cv_result_t is None:
                     continue
 
-                cv_t = float(
-                    cv_result_t.cv_scores()[cv_result_t.best_index()]
-                )
+                cv_t = float(cv_result_t.cv_scores()[cv_result_t.best_index()])
 
                 if self._verbosity > 0:
-                    print(
-                        f"  t={t}: nterms={expanded.shape[1]}, "
-                        f"CV={cv_t:.6e}"
-                    )
+                    print(f"  t={t}: nterms={expanded.shape[1]}, CV={cv_t:.6e}")
 
                 if cv_t < iter_best_cv:
                     iter_best_cv = cv_t

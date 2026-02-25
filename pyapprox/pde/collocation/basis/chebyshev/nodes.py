@@ -3,8 +3,9 @@
 Provides Chebyshev nodes for spectral collocation methods.
 """
 
-import numpy as np
 from typing import Generic
+
+import numpy as np
 
 from pyapprox.util.backends.protocols import Array, Backend
 

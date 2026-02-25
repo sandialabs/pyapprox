@@ -1,18 +1,18 @@
 from typing import Any, Generic, Tuple
 
 import matplotlib.pyplot as plt
-from mpl_toolkits.mplot3d import Axes3D  # type: ignore
 from matplotlib.axes import Axes
 from matplotlib.figure import Figure
 from matplotlib.tri import Triangulation
+from mpl_toolkits.mplot3d import Axes3D  # type: ignore
 
-from pyapprox.util.backends.protocols import Array
 from pyapprox.interface.functions.protocols.function import (
     FunctionProtocol,
 )
 from pyapprox.interface.functions.protocols.validation import (
     validate_function,
 )
+from pyapprox.util.backends.protocols import Array
 
 
 class Plotter2DGeneralDomain(Generic[Array]):
@@ -121,7 +121,7 @@ class Plotter2DGeneralDomain(Generic[Array]):
         Z = vals[qoi]
 
         # Create a triangulation object
-        triangulation = Triangulation(points[0, :], points[1, :])
+        Triangulation(points[0, :], points[1, :])
 
         # Plot the tricontour
         return ax.tricontourf(

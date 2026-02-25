@@ -28,9 +28,7 @@ class RiskMeasureProtocol(Protocol, Generic[Array]):
         """Return computational backend."""
         ...
 
-    def set_samples(
-        self, samples: Array, weights: Optional[Array] = None
-    ) -> None:
+    def set_samples(self, samples: Array, weights: Optional[Array] = None) -> None:
         """Set samples to compute risk of.
 
         Parameters
@@ -78,9 +76,7 @@ class RiskMeasureBase(Generic[Array]):
         """Return computational backend."""
         return self._bkd
 
-    def set_samples(
-        self, samples: Array, weights: Optional[Array] = None
-    ) -> None:
+    def set_samples(self, samples: Array, weights: Optional[Array] = None) -> None:
         """Set samples to compute risk of.
 
         Parameters
@@ -105,9 +101,7 @@ class RiskMeasureBase(Generic[Array]):
             weights = self._bkd.full((nsamples,), 1.0 / nsamples)
         else:
             if weights.ndim != 1:
-                raise ValueError(
-                    f"weights must be 1D, got shape {weights.shape}"
-                )
+                raise ValueError(f"weights must be 1D, got shape {weights.shape}")
             if weights.shape[0] != nsamples:
                 raise ValueError(
                     f"weights length {weights.shape[0]} != nsamples {nsamples}"
@@ -159,9 +153,7 @@ class SafetyMarginRiskMeasure(RiskMeasureBase[Array]):
         """Compute mean + strength * std."""
         assert self._samples is not None and self._weights is not None
         mean = self._bkd.dot(self._samples, self._weights)
-        variance = (
-            self._bkd.dot(self._samples**2, self._weights) - mean**2
-        )
+        variance = self._bkd.dot(self._samples**2, self._weights) - mean**2
         std = self._bkd.sqrt(variance)
         return mean + self._strength * std
 
@@ -267,12 +259,11 @@ class AverageValueAtRisk(RiskMeasureBase[Array]):
         if idx + 1 >= len(self._samples):
             return var
 
-        tail_samples = self._samples[idx + 1:]
-        tail_weights = self._weights[idx + 1:]
+        tail_samples = self._samples[idx + 1 :]
+        tail_weights = self._weights[idx + 1 :]
 
         cvar = var + (
-            1.0 / (1.0 - self._beta)
-            * self._bkd.dot(tail_samples - var, tail_weights)
+            1.0 / (1.0 - self._beta) * self._bkd.dot(tail_samples - var, tail_weights)
         )
         return cvar
 

@@ -161,9 +161,7 @@ def effective_sample_size(
         samples_np = samples_np.reshape(1, -1)
 
     nsamples = samples_np.shape[1]
-    iat = bkd.to_numpy(
-        integrated_autocorrelation_time(bkd.asarray(samples_np), bkd)
-    )
+    iat = bkd.to_numpy(integrated_autocorrelation_time(bkd.asarray(samples_np), bkd))
     ess = nsamples / iat
 
     if was_1d:
@@ -216,8 +214,7 @@ def rhat(
     for i, chain in enumerate(chains_np[1:], 1):
         if chain.shape != (nvars, nsamples):
             raise ValueError(
-                f"Chain {i} has shape {chain.shape}, "
-                f"expected ({nvars}, {nsamples})"
+                f"Chain {i} has shape {chain.shape}, expected ({nvars}, {nsamples})"
             )
 
     m = len(chains_np)  # number of chains

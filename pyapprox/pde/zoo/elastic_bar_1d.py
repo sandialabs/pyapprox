@@ -7,16 +7,18 @@ diffusion = E(x), providing a mechanics-oriented interface.
 
 from typing import Callable, Optional, Union
 
-from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.pde.collocation.basis import ChebyshevBasis1D
-from pyapprox.pde.collocation.mesh import (
-    AffineTransform1D,
-    TransformedMesh1D,
-)
 from pyapprox.pde.collocation.boundary import (
     constant_dirichlet_bc,
     flux_neumann_bc,
     zero_dirichlet_bc,
+)
+from pyapprox.pde.collocation.forward_models.steady import (
+    SteadyForwardModel,
+)
+from pyapprox.pde.collocation.mesh import (
+    AffineTransform1D,
+    TransformedMesh1D,
 )
 from pyapprox.pde.collocation.physics.advection_diffusion import (
     AdvectionDiffusionReaction,
@@ -27,9 +29,7 @@ from pyapprox.pde.field_maps.protocol import (
 from pyapprox.pde.parameterizations.diffusion import (
     create_diffusion_parameterization,
 )
-from pyapprox.pde.collocation.forward_models.steady import (
-    SteadyForwardModel,
-)
+from pyapprox.util.backends.protocols import Array, Backend
 
 
 def create_linear_elastic_bar_1d(
@@ -86,7 +86,10 @@ def create_linear_elastic_bar_1d(
 
     init_E = E_mean_field if not isinstance(E_mean_field, float) else E_mean_field
     physics = AdvectionDiffusionReaction(
-        basis, bkd, diffusion=init_E, forcing=forcing,
+        basis,
+        bkd,
+        diffusion=init_E,
+        forcing=forcing,
     )
 
     # Left BC: prescribed displacement at x=0
@@ -103,7 +106,11 @@ def create_linear_elastic_bar_1d(
     right_normals = mesh.boundary_normals(1)
     traction_val = 0.0 if traction is None else -traction
     bc_right = flux_neumann_bc(
-        bkd, right_idx, right_normals, physics, traction_val,
+        bkd,
+        right_idx,
+        right_normals,
+        physics,
+        traction_val,
     )
 
     physics.set_boundary_conditions([bc_left, bc_right])
@@ -112,6 +119,9 @@ def create_linear_elastic_bar_1d(
 
     init_state = bkd.zeros((npts,))
     return SteadyForwardModel(
-        physics, bkd, init_state,
-        functional=functional, parameterization=param,
+        physics,
+        bkd,
+        init_state,
+        functional=functional,
+        parameterization=param,
     )

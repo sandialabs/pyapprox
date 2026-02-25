@@ -7,20 +7,20 @@ adjoint-based Jacobian (scalar QoI) or forward sensitivity Jacobian
 
 from typing import Generic, Optional, Tuple
 
-from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.pde.collocation.time_integration.collocation_model import (
     CollocationModel,
-)
-from pyapprox.pde.time.config import TimeIntegrationConfig
-from pyapprox.pde.time.operator.time_adjoint_hvp import (
-    TimeAdjointOperatorWithHVP,
-)
-from pyapprox.pde.time.functionals.all_states_endpoint import (
-    AllStatesEndpointFunctional,
 )
 from pyapprox.pde.parameterizations.protocol import (
     ParameterizationProtocol,
 )
+from pyapprox.pde.time.config import TimeIntegrationConfig
+from pyapprox.pde.time.functionals.all_states_endpoint import (
+    AllStatesEndpointFunctional,
+)
+from pyapprox.pde.time.operator.time_adjoint_hvp import (
+    TimeAdjointOperatorWithHVP,
+)
+from pyapprox.util.backends.protocols import Array, Backend
 
 
 class TransientForwardModel(Generic[Array]):
@@ -82,11 +82,8 @@ class TransientForwardModel(Generic[Array]):
 
         # Dynamic binding for jacobian
         has_param_jac = (
-            (parameterization is not None
-             and hasattr(parameterization, "param_jacobian"))
-            or (parameterization is None
-                and hasattr(physics, "param_jacobian"))
-        )
+            parameterization is not None and hasattr(parameterization, "param_jacobian")
+        ) or (parameterization is None and hasattr(physics, "param_jacobian"))
         if has_param_jac:
             self.jacobian = self._jacobian_dispatch
 
@@ -126,14 +123,13 @@ class TransientForwardModel(Generic[Array]):
         else:
             self._physics.set_param(param_2d[:, 0])
         model = CollocationModel(
-            self._physics, self._bkd,
+            self._physics,
+            self._bkd,
             parameterization=self._parameterization,
         )
         # Store params on adapter so param_jacobian can access them
         model.adapter().set_param(param_2d[:, 0])
-        solutions, times = model.solve_transient(
-            self._init_state, self._time_config
-        )
+        solutions, times = model.solve_transient(self._init_state, self._time_config)
         return model, solutions, times
 
     def __call__(self, samples: Array) -> Array:
@@ -155,11 +151,11 @@ class TransientForwardModel(Generic[Array]):
         result = bkd.zeros((nqoi, nsamples))
         result = bkd.copy(result)
         for ii in range(nsamples):
-            param_2d = samples[:, ii:ii+1]
+            param_2d = samples[:, ii : ii + 1]
             _, fwd_sols, times = self._forward_solve(param_2d)
             qoi = self._functional(fwd_sols, param_2d)
             if qoi.ndim == 2:
-                result[:, ii:ii+1] = qoi
+                result[:, ii : ii + 1] = qoi
             else:
                 result[:, ii] = qoi
         return result
@@ -205,9 +201,7 @@ class TransientForwardModel(Generic[Array]):
         # internally. Refactor to pass the precomputed trajectory.
         model, fwd_sols, times = self._forward_solve(sample)
         integrator = model.last_integrator()
-        adjoint_op = TimeAdjointOperatorWithHVP(
-            integrator, self._functional
-        )
+        adjoint_op = TimeAdjointOperatorWithHVP(integrator, self._functional)
         return adjoint_op.jacobian(self._init_state, sample)
 
     def _jacobian_sensitivity(self, sample: Array) -> Array:
@@ -233,9 +227,7 @@ class TransientForwardModel(Generic[Array]):
         integrator = model.last_integrator()
         time_residual = integrator.time_residual()
 
-        W_T = self._solve_full_forward_sensitivity(
-            fwd_sols, times, time_residual
-        )
+        W_T = self._solve_full_forward_sensitivity(fwd_sols, times, time_residual)
         # W_T shape: (nstates, nparams)
         return W_T
 
@@ -276,24 +268,18 @@ class TransientForwardModel(Generic[Array]):
 
         if hasattr(time_residual, "initial_param_jacobian"):
             deltat_0 = float(times[1] - times[0])
-            time_residual.set_time(
-                float(times[0]), deltat_0, fwd_sols[:, 0]
-            )
+            time_residual.set_time(float(times[0]), deltat_0, fwd_sols[:, 0])
             W_prev = time_residual.initial_param_jacobian()
 
         for nn in range(1, ntimes):
             deltat_n = float(times[nn] - times[nn - 1])
-            time_residual.set_time(
-                float(times[nn - 1]), deltat_n, fwd_sols[:, nn - 1]
-            )
+            time_residual.set_time(float(times[nn - 1]), deltat_n, fwd_sols[:, nn - 1])
 
             drdy_n = time_residual.jacobian(fwd_sols[:, nn])
             drdy_nm1 = time_residual.sensitivity_off_diag_jacobian(
                 fwd_sols[:, nn - 1], fwd_sols[:, nn], deltat_n
             )
-            drdp_n = time_residual.param_jacobian(
-                fwd_sols[:, nn - 1], fwd_sols[:, nn]
-            )
+            drdp_n = time_residual.param_jacobian(fwd_sols[:, nn - 1], fwd_sols[:, nn])
 
             rhs = bkd.dot(drdy_nm1, W_prev) + drdp_n
             W_prev = -bkd.solve(drdy_n, rhs)

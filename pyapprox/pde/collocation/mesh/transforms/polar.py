@@ -11,7 +11,7 @@ Unit curvilinear basis:
 """
 
 import math
-from typing import Generic, Tuple, Optional
+from typing import Generic, Tuple
 
 from pyapprox.util.backends.protocols import Array, Backend
 
@@ -198,10 +198,10 @@ class PolarTransform(Generic[Array]):
         # dx/dr = cos(theta), dx/dtheta = -r*sin(theta)
         # dy/dr = sin(theta), dy/dtheta = r*cos(theta)
         jac_polar = self._bkd.zeros((npts, 2, 2))
-        jac_polar[:, 0, 0] = cos_theta       # dx/dr
+        jac_polar[:, 0, 0] = cos_theta  # dx/dr
         jac_polar[:, 0, 1] = -r * sin_theta  # dx/dtheta
-        jac_polar[:, 1, 0] = sin_theta       # dy/dr
-        jac_polar[:, 1, 1] = r * cos_theta   # dy/dtheta
+        jac_polar[:, 1, 0] = sin_theta  # dy/dr
+        jac_polar[:, 1, 1] = r * cos_theta  # dy/dtheta
 
         if self._from_reference:
             # Chain rule: J_total = J_polar @ J_affine

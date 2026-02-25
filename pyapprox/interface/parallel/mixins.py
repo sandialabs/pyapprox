@@ -47,9 +47,9 @@ class ParallelJacobianMixin(Generic[Array]):
     """
 
     _parallel_config: Optional[ParallelConfig] = None
-    _parallel_backend: Optional[
-        Union[ParallelBackendProtocol, SequentialBackend]
-    ] = None
+    _parallel_backend: Optional[Union[ParallelBackendProtocol, SequentialBackend]] = (
+        None
+    )
 
     def set_parallel_config(self, config: ParallelConfig) -> None:
         """Set the parallel execution configuration.
@@ -107,9 +107,9 @@ class ParallelHessianMixin(Generic[Array]):
     """
 
     _parallel_config: Optional[ParallelConfig] = None
-    _parallel_backend: Optional[
-        Union[ParallelBackendProtocol, SequentialBackend]
-    ] = None
+    _parallel_backend: Optional[Union[ParallelBackendProtocol, SequentialBackend]] = (
+        None
+    )
 
     def set_parallel_config(self, config: ParallelConfig) -> None:
         """Set the parallel execution configuration."""
@@ -162,9 +162,9 @@ class ParallelHVPMixin(Generic[Array]):
     """
 
     _parallel_config: Optional[ParallelConfig] = None
-    _parallel_backend: Optional[
-        Union[ParallelBackendProtocol, SequentialBackend]
-    ] = None
+    _parallel_backend: Optional[Union[ParallelBackendProtocol, SequentialBackend]] = (
+        None
+    )
 
     def set_parallel_config(self, config: ParallelConfig) -> None:
         """Set the parallel execution configuration."""
@@ -224,18 +224,16 @@ class ParallelWHVPMixin(Generic[Array]):
     """
 
     _parallel_config: Optional[ParallelConfig] = None
-    _parallel_backend: Optional[
-        Union[ParallelBackendProtocol, SequentialBackend]
-    ] = None
+    _parallel_backend: Optional[Union[ParallelBackendProtocol, SequentialBackend]] = (
+        None
+    )
 
     def set_parallel_config(self, config: ParallelConfig) -> None:
         """Set the parallel execution configuration."""
         self._parallel_config = config
         self._parallel_backend = config.get_parallel_backend()
 
-    def whvp_batch(
-        self, samples: Array, vecs: Array, weights: Array
-    ) -> Array:
+    def whvp_batch(self, samples: Array, vecs: Array, weights: Array) -> Array:
         """Compute weighted HVPs at multiple samples in parallel.
 
         Parameters

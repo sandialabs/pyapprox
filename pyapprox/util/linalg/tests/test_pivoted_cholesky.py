@@ -87,9 +87,7 @@ class TestPivotedCholesky(Generic[Array], unittest.TestCase):
     def test_known_matrix(self) -> None:
         """Factorize a known 3x3 matrix and compare with numpy cholesky."""
         bkd = self._bkd
-        A = bkd.asarray(
-            [[4.0, 12.0, -16.0], [12.0, 37.0, -43.0], [-16.0, -43.0, 98.0]]
-        )
+        A = bkd.asarray([[4.0, 12.0, -16.0], [12.0, 37.0, -43.0], [-16.0, -43.0, 98.0]])
         fact = PivotedCholeskyFactorizer(A, bkd)
         fact.factorize(A.shape[0])
         L = fact.factor()
@@ -199,7 +197,7 @@ class TestPivotedCholesky(Generic[Array], unittest.TestCase):
         # Without weights
         fact1 = PivotedCholeskyFactorizer(A, bkd)
         fact1.factorize(nrows)
-        pivots1 = fact1.pivots()
+        fact1.pivots()
 
         # With weights heavily favoring index 0
         weights = bkd.asarray([100.0, 1.0, 1.0, 1.0, 1.0])

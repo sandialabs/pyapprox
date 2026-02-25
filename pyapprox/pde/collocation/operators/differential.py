@@ -4,13 +4,13 @@ Provides gradient, divergence, and Laplacian operators that act on
 scalar and vector fields.
 """
 
-from typing import Generic, List, Tuple
+from typing import Generic, List
 
-from pyapprox.util.backends.protocols import Array, Backend
+from pyapprox.pde.collocation.operators.field import Field
 from pyapprox.pde.collocation.protocols.basis import (
     TensorProductBasisProtocol,
 )
-from pyapprox.pde.collocation.operators.field import Field
+from pyapprox.util.backends.protocols import Array, Backend
 
 
 class Gradient(Generic[Array]):
@@ -75,9 +75,7 @@ class Divergence(Generic[Array]):
         self._basis = basis
         self._bkd = bkd
 
-    def __call__(
-        self, vector_field: List[Field[Array]]
-    ) -> Field[Array]:
+    def __call__(self, vector_field: List[Field[Array]]) -> Field[Array]:
         """Compute divergence of vector field.
 
         Parameters

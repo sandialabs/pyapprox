@@ -5,18 +5,18 @@ height, initial conditions) using symbolic expressions. Supports evaluation
 at mesh points and automatic gradient computation.
 """
 
-from typing import Dict, Generic, List, Optional, Tuple
+from typing import Dict, Generic, List, Tuple
 
 import numpy as np
 import sympy as sp
 
-from pyapprox.util.backends.protocols import Array, Backend
-from pyapprox.pde.collocation.protocols.mesh import (
-    MeshWithTransformProtocol,
-)
 from pyapprox.pde.collocation.mesh.transforms.affine import (
     AffineTransform2D,
 )
+from pyapprox.pde.collocation.protocols.mesh import (
+    MeshWithTransformProtocol,
+)
+from pyapprox.util.backends.protocols import Array, Backend
 
 
 class SympyField2D(Generic[Array]):
@@ -97,8 +97,7 @@ class SympyField2D(Generic[Array]):
         # Lambdify for numerical evaluation
         self._eval_func = sp.lambdify(self._coord_symbols, expr, "numpy")
         self._grad_funcs = [
-            sp.lambdify(self._coord_symbols, g, "numpy")
-            for g in self._grad_exprs
+            sp.lambdify(self._coord_symbols, g, "numpy") for g in self._grad_exprs
         ]
 
     def bkd(self) -> Backend[Array]:

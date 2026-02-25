@@ -7,19 +7,18 @@ import numpy as np
 import torch
 from numpy.typing import NDArray
 
-from pyapprox.util.backends.numpy import NumpyBkd
-from pyapprox.util.backends.protocols import Array, Backend
-from pyapprox.util.backends.torch import TorchBkd
-from pyapprox.util.test_utils import load_tests  # noqa: F401
-
 from pyapprox.surrogates.mfnets.builders import build_chain_mfnet
+from pyapprox.surrogates.mfnets.fitters.composite_fitter import (
+    MFNetCompositeFitter,
+)
 from pyapprox.surrogates.mfnets.helpers import (
     generate_synthetic_data,
     randomize_coefficients,
 )
-from pyapprox.surrogates.mfnets.fitters.composite_fitter import (
-    MFNetCompositeFitter,
-)
+from pyapprox.util.backends.numpy import NumpyBkd
+from pyapprox.util.backends.protocols import Array, Backend
+from pyapprox.util.backends.torch import TorchBkd
+from pyapprox.util.test_utils import load_tests  # noqa: F401
 
 
 class TestCompositeFitter(Generic[Array], unittest.TestCase):
@@ -37,23 +36,38 @@ class TestCompositeFitter(Generic[Array], unittest.TestCase):
 
         # Build and randomize a true network
         true_net = build_chain_mfnet(
-            nvars=1, nqoi=1, nnodes=2, bkd=bkd,
-            leaf_level=3, scale_level=1, delta_level=3,
+            nvars=1,
+            nqoi=1,
+            nnodes=2,
+            bkd=bkd,
+            leaf_level=3,
+            scale_level=1,
+            delta_level=3,
         )
         randomize_coefficients(true_net, bkd, seed=10)
 
         # Generate clean training data
         samples, values = generate_synthetic_data(
-            true_net, bkd, nsamples_per_node=[30, 25], seed=42,
+            true_net,
+            bkd,
+            nsamples_per_node=[30, 25],
+            seed=42,
         )
 
         # Build blank network and fit
         fit_net = build_chain_mfnet(
-            nvars=1, nqoi=1, nnodes=2, bkd=bkd,
-            leaf_level=3, scale_level=1, delta_level=3,
+            nvars=1,
+            nqoi=1,
+            nnodes=2,
+            bkd=bkd,
+            leaf_level=3,
+            scale_level=1,
+            delta_level=3,
         )
         fitter = MFNetCompositeFitter(
-            bkd, als_max_sweeps=20, als_tol=1e-14,
+            bkd,
+            als_max_sweeps=20,
+            als_tol=1e-14,
         )
         result = fitter.fit(fit_net, samples, values)
 
@@ -69,20 +83,35 @@ class TestCompositeFitter(Generic[Array], unittest.TestCase):
         bkd = self._bkd
 
         true_net = build_chain_mfnet(
-            nvars=1, nqoi=1, nnodes=2, bkd=bkd,
-            leaf_level=3, scale_level=1, delta_level=3,
+            nvars=1,
+            nqoi=1,
+            nnodes=2,
+            bkd=bkd,
+            leaf_level=3,
+            scale_level=1,
+            delta_level=3,
         )
         randomize_coefficients(true_net, bkd, seed=10)
         samples, values = generate_synthetic_data(
-            true_net, bkd, nsamples_per_node=[30, 25], seed=42,
+            true_net,
+            bkd,
+            nsamples_per_node=[30, 25],
+            seed=42,
         )
 
         fit_net = build_chain_mfnet(
-            nvars=1, nqoi=1, nnodes=2, bkd=bkd,
-            leaf_level=3, scale_level=1, delta_level=3,
+            nvars=1,
+            nqoi=1,
+            nnodes=2,
+            bkd=bkd,
+            leaf_level=3,
+            scale_level=1,
+            delta_level=3,
         )
         fitter = MFNetCompositeFitter(
-            bkd, als_max_sweeps=10, skip_gradient=True,
+            bkd,
+            als_max_sweeps=10,
+            skip_gradient=True,
         )
         result = fitter.fit(fit_net, samples, values)
 
@@ -97,20 +126,35 @@ class TestCompositeFitter(Generic[Array], unittest.TestCase):
         bkd = self._bkd
 
         true_net = build_chain_mfnet(
-            nvars=1, nqoi=1, nnodes=2, bkd=bkd,
-            leaf_level=2, scale_level=0, delta_level=2,
+            nvars=1,
+            nqoi=1,
+            nnodes=2,
+            bkd=bkd,
+            leaf_level=2,
+            scale_level=0,
+            delta_level=2,
         )
         randomize_coefficients(true_net, bkd, seed=10)
         samples, values = generate_synthetic_data(
-            true_net, bkd, nsamples_per_node=[20, 15], seed=42,
+            true_net,
+            bkd,
+            nsamples_per_node=[20, 15],
+            seed=42,
         )
 
         fit_net = build_chain_mfnet(
-            nvars=1, nqoi=1, nnodes=2, bkd=bkd,
-            leaf_level=2, scale_level=0, delta_level=2,
+            nvars=1,
+            nqoi=1,
+            nnodes=2,
+            bkd=bkd,
+            leaf_level=2,
+            scale_level=0,
+            delta_level=2,
         )
         fitter = MFNetCompositeFitter(
-            bkd, als_max_sweeps=5, als_tol=1e-10,
+            bkd,
+            als_max_sweeps=5,
+            als_tol=1e-10,
         )
         result = fitter.fit(fit_net, samples, values)
 
@@ -126,20 +170,35 @@ class TestCompositeFitter(Generic[Array], unittest.TestCase):
         bkd = self._bkd
 
         true_net = build_chain_mfnet(
-            nvars=1, nqoi=1, nnodes=3, bkd=bkd,
-            leaf_level=2, scale_level=0, delta_level=2,
+            nvars=1,
+            nqoi=1,
+            nnodes=3,
+            bkd=bkd,
+            leaf_level=2,
+            scale_level=0,
+            delta_level=2,
         )
         randomize_coefficients(true_net, bkd, seed=30)
         samples, values = generate_synthetic_data(
-            true_net, bkd, nsamples_per_node=[30, 25, 20], seed=42,
+            true_net,
+            bkd,
+            nsamples_per_node=[30, 25, 20],
+            seed=42,
         )
 
         fit_net = build_chain_mfnet(
-            nvars=1, nqoi=1, nnodes=3, bkd=bkd,
-            leaf_level=2, scale_level=0, delta_level=2,
+            nvars=1,
+            nqoi=1,
+            nnodes=3,
+            bkd=bkd,
+            leaf_level=2,
+            scale_level=0,
+            delta_level=2,
         )
         fitter = MFNetCompositeFitter(
-            bkd, als_max_sweeps=30, als_tol=1e-14,
+            bkd,
+            als_max_sweeps=30,
+            als_tol=1e-14,
         )
         result = fitter.fit(fit_net, samples, values)
 
@@ -151,6 +210,7 @@ class TestCompositeFitter(Generic[Array], unittest.TestCase):
 
 
 # --- Concrete backend test classes ---
+
 
 class TestCompositeFitterNumpy(TestCompositeFitter[NDArray[Any]]):
     def bkd(self) -> NumpyBkd:

@@ -7,18 +7,18 @@ Composes a copula with marginal distributions to form a joint distribution:
 where u_i = F_i(x_i) is the probability integral transform.
 """
 
-from typing import Generic, List, Optional, Sequence, Union
+from typing import Generic, List, Optional
 
 import numpy as np
 
-from pyapprox.util.backends.protocols import Array, Backend
-from pyapprox.util.hyperparameter import HyperParameterList
-from pyapprox.probability.copula.protocols import CopulaProtocol
-from pyapprox.probability.protocols import MarginalProtocol
 from pyapprox.interface.functions.plot.plot1d import Plotter1D
 from pyapprox.interface.functions.plot.plot2d_rectangular import (
     Plotter2DRectangularDomain,
 )
+from pyapprox.probability.copula.protocols import CopulaProtocol
+from pyapprox.probability.protocols import MarginalProtocol
+from pyapprox.util.backends.protocols import Array, Backend
+from pyapprox.util.hyperparameter import HyperParameterList
 
 
 class CopulaDistribution(Generic[Array]):
@@ -102,8 +102,7 @@ class CopulaDistribution(Generic[Array]):
         """Validate that input is 2D with shape (nvars, nsamples)."""
         if samples.ndim != 2:
             raise ValueError(
-                f"Expected 2D array with shape (nvars, nsamples), "
-                f"got {samples.ndim}D"
+                f"Expected 2D array with shape (nvars, nsamples), got {samples.ndim}D"
             )
         if samples.shape[0] != self._nvars:
             raise ValueError(
@@ -323,16 +322,9 @@ class CopulaDistribution(Generic[Array]):
             return PairPlotter(reducer, plot_limits, self._bkd, variable_names)
         if quad_factory is not None:
             marginalizer = FunctionMarginalizer(self, quad_factory, self._bkd)
-            return PairPlotter(
-                marginalizer, plot_limits, self._bkd, variable_names
-            )
-        raise ValueError(
-            "For nvars > 2, provide either 'reducer' or 'quad_factory'"
-        )
+            return PairPlotter(marginalizer, plot_limits, self._bkd, variable_names)
+        raise ValueError("For nvars > 2, provide either 'reducer' or 'quad_factory'")
 
     def __repr__(self) -> str:
         """Return string representation."""
-        return (
-            f"CopulaDistribution(nvars={self._nvars}, "
-            f"copula={self._copula!r})"
-        )
+        return f"CopulaDistribution(nvars={self._nvars}, copula={self._copula!r})"

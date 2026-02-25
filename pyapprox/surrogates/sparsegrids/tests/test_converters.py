@@ -10,17 +10,19 @@ import numpy as np
 import torch
 from numpy.typing import NDArray
 
-from pyapprox.util.backends.numpy import NumpyBkd
-from pyapprox.util.backends.torch import TorchBkd
-from pyapprox.util.backends.protocols import Array, Backend
-from pyapprox.util.test_utils import load_tests  # noqa: F401
-
+from pyapprox.probability import UniformMarginal
+from pyapprox.surrogates.affine.indices import (
+    IsotropicSparseGridBasisIndexGenerator,
+    LinearGrowthRule,
+    MaxLevelCriteria,
+)
+from pyapprox.surrogates.affine.univariate import create_bases_1d
 from pyapprox.surrogates.sparsegrids import (
-    SparseGridToPCEConverter,
-    TensorProductSubspaceToPCEConverter,
-    TensorProductSubspace,
     IsotropicSparseGridFitter,
     SingleFidelityAdaptiveSparseGridFitter,
+    SparseGridToPCEConverter,
+    TensorProductSubspace,
+    TensorProductSubspaceToPCEConverter,
     create_basis_factories,
 )
 from pyapprox.surrogates.sparsegrids.basis_factory import (
@@ -34,13 +36,10 @@ from pyapprox.surrogates.sparsegrids.tests.test_helpers import (
     create_test_joint,
     create_test_pce,
 )
-from pyapprox.surrogates.affine.univariate import create_bases_1d
-from pyapprox.probability import UniformMarginal
-from pyapprox.surrogates.affine.indices import (
-    IsotropicSparseGridBasisIndexGenerator,
-    LinearGrowthRule,
-    MaxLevelCriteria,
-)
+from pyapprox.util.backends.numpy import NumpyBkd
+from pyapprox.util.backends.protocols import Array, Backend
+from pyapprox.util.backends.torch import TorchBkd
+from pyapprox.util.test_utils import load_tests  # noqa: F401
 
 
 class TestSparseGridToPCEConverter(Generic[Array], unittest.TestCase):
@@ -60,12 +59,8 @@ class TestSparseGridToPCEConverter(Generic[Array], unittest.TestCase):
         factories: List[BasisFactoryProtocol[Array]] = [
             GaussLagrangeFactory(m, self._bkd) for m in marginals
         ]
-        tp_factory = TensorProductSubspaceFactory(
-            self._bkd, factories, growth
-        )
-        fitter = IsotropicSparseGridFitter(
-            self._bkd, tp_factory, level
-        )
+        tp_factory = TensorProductSubspaceFactory(self._bkd, factories, growth)
+        fitter = IsotropicSparseGridFitter(self._bkd, tp_factory, level)
         return fitter, marginals
 
     def test_simple_polynomial(self) -> None:
@@ -79,7 +74,7 @@ class TestSparseGridToPCEConverter(Generic[Array], unittest.TestCase):
 
         # f(x, y) = x^2 + 2*x*y + y
         x, y = samples[0, :], samples[1, :]
-        values = self._bkd.reshape(x ** 2 + 2 * x * y + y, (1, -1))
+        values = self._bkd.reshape(x**2 + 2 * x * y + y, (1, -1))
         result = fitter.fit(values)
 
         # Convert to PCE
@@ -107,7 +102,7 @@ class TestSparseGridToPCEConverter(Generic[Array], unittest.TestCase):
         # E[f] = E[x^2] = 1/3
         # Var[f] = 13/15
         x, y = samples[0, :], samples[1, :]
-        values = self._bkd.reshape(x ** 2 + 2 * x * y + y, (1, -1))
+        values = self._bkd.reshape(x**2 + 2 * x * y + y, (1, -1))
         result = fitter.fit(values)
 
         # Convert to PCE
@@ -144,7 +139,7 @@ class TestSparseGridToPCEConverter(Generic[Array], unittest.TestCase):
 
         # f(x, y) = x^2 + 2*x*y + y
         x, y = samples[0, :], samples[1, :]
-        values = self._bkd.reshape(x ** 2 + 2 * x * y + y, (1, -1))
+        values = self._bkd.reshape(x**2 + 2 * x * y + y, (1, -1))
         result = fitter.fit(values)
 
         # Convert to PCE
@@ -204,11 +199,7 @@ class TestSparseGridToPCEConverter(Generic[Array], unittest.TestCase):
         pce = converter.convert(result.surrogate)
 
         # Test evaluation matches
-        test_pts = self._bkd.asarray([
-            [0.1, 0.2],
-            [0.3, 0.4],
-            [0.5, 0.6]
-        ])
+        test_pts = self._bkd.asarray([[0.1, 0.2], [0.3, 0.4], [0.5, 0.6]])
         sg_vals = result.surrogate(test_pts)
         pce_vals = pce(test_pts)
 
@@ -233,12 +224,8 @@ class TestSparseGridToPCEConverter(Generic[Array], unittest.TestCase):
         ]
         growth = LinearGrowthRule(scale=2, shift=1)
 
-        tp_factory = TensorProductSubspaceFactory(
-            self._bkd, factories, growth
-        )
-        fitter = IsotropicSparseGridFitter(
-            self._bkd, tp_factory, level
-        )
+        tp_factory = TensorProductSubspaceFactory(self._bkd, factories, growth)
+        fitter = IsotropicSparseGridFitter(self._bkd, tp_factory, level)
         samples = fitter.get_samples()
 
         # Verify samples are in [0, 1] domain
@@ -251,7 +238,7 @@ class TestSparseGridToPCEConverter(Generic[Array], unittest.TestCase):
 
         # f(x, y) = x^2 + 2*x*y + y
         x, y = samples[0, :], samples[1, :]
-        values = self._bkd.reshape(x ** 2 + 2 * x * y + y, (1, -1))
+        values = self._bkd.reshape(x**2 + 2 * x * y + y, (1, -1))
         result = fitter.fit(values)
 
         # Convert to PCE
@@ -267,28 +254,21 @@ class TestSparseGridToPCEConverter(Generic[Array], unittest.TestCase):
         self._bkd.assert_allclose(sg_vals, pce_vals, rtol=1e-10, atol=1e-14)
 
     def test_pce_indices_match_sparse_grid_index_generator(self) -> None:
-        """Test that converted PCE index set matches IsotropicSparseGridBasisIndexGenerator."""
+        """Test that converted PCE index set matches
+        IsotropicSparseGridBasisIndexGenerator."""
         for nvars, level in [(2, 3), (3, 2)]:
             growth = LinearGrowthRule(scale=2, shift=1)
-            marginals = [
-                UniformMarginal(-1.0, 1.0, self._bkd) for _ in range(nvars)
-            ]
+            marginals = [UniformMarginal(-1.0, 1.0, self._bkd) for _ in range(nvars)]
             factories: List[BasisFactoryProtocol[Array]] = [
                 GaussLagrangeFactory(m, self._bkd) for m in marginals
             ]
 
-            tp_factory = TensorProductSubspaceFactory(
-                self._bkd, factories, growth
-            )
-            fitter = IsotropicSparseGridFitter(
-                self._bkd, tp_factory, level
-            )
+            tp_factory = TensorProductSubspaceFactory(self._bkd, factories, growth)
+            fitter = IsotropicSparseGridFitter(self._bkd, tp_factory, level)
             samples = fitter.get_samples()
 
             # Use a simple polynomial so all subspace conversions are valid
-            values = self._bkd.reshape(
-                self._bkd.sum(samples, axis=0), (1, -1)
-            )
+            values = self._bkd.reshape(self._bkd.sum(samples, axis=0), (1, -1))
             result = fitter.fit(values)
 
             pce_bases_1d = create_bases_1d(marginals, self._bkd)
@@ -301,28 +281,30 @@ class TestSparseGridToPCEConverter(Generic[Array], unittest.TestCase):
             for j in range(pce_indices.shape[1]):
                 pce_set.add(
                     tuple(
-                        int(self._bkd.to_numpy(pce_indices[i, j]))
-                        for i in range(nvars)
+                        int(self._bkd.to_numpy(pce_indices[i, j])) for i in range(nvars)
                     )
                 )
 
             # Get index set from IsotropicSparseGridBasisIndexGenerator
             gen = IsotropicSparseGridBasisIndexGenerator(
-                nvars, level, self._bkd, growth_rules=growth,
+                nvars,
+                level,
+                self._bkd,
+                growth_rules=growth,
             )
             gen_indices = gen.get_indices()
             gen_set = set()
             for j in range(gen_indices.shape[1]):
                 gen_set.add(
                     tuple(
-                        int(self._bkd.to_numpy(gen_indices[i, j]))
-                        for i in range(nvars)
+                        int(self._bkd.to_numpy(gen_indices[i, j])) for i in range(nvars)
                     )
                 )
 
             # The PCE index set should match the generator's set
             self.assertEqual(
-                pce_set, gen_set,
+                pce_set,
+                gen_set,
                 f"nvars={nvars}, level={level}: index sets differ. "
                 f"In gen but not PCE: {gen_set - pce_set}. "
                 f"In PCE but not gen: {pce_set - gen_set}",
@@ -377,9 +359,7 @@ class TestTensorProductSubspaceToPCEConverter(Generic[Array], unittest.TestCase)
 
         # Create a subspace
         index = self._bkd.asarray([2, 2])
-        subspace = TensorProductSubspace(
-            self._bkd, index, factories, growth
-        )
+        subspace = TensorProductSubspace(self._bkd, index, factories, growth)
 
         # f(x, y) = x^2 + y
         samples = subspace.get_samples()
@@ -413,13 +393,9 @@ class TestAdaptiveSGToPCEConverter(Generic[Array], unittest.TestCase):
         joint = create_test_joint("2d_uniform", self._bkd)
         pce_target = create_test_pce(joint, level=3, nqoi=1, bkd=self._bkd)
 
-        factories = create_basis_factories(
-            joint.marginals(), self._bkd, "gauss"
-        )
+        factories = create_basis_factories(joint.marginals(), self._bkd, "gauss")
         growth = LinearGrowthRule(scale=1, shift=1)
-        tp_factory = TensorProductSubspaceFactory(
-            self._bkd, factories, growth
-        )
+        tp_factory = TensorProductSubspaceFactory(self._bkd, factories, growth)
         admis = MaxLevelCriteria(max_level=3, pnorm=1.0, bkd=self._bkd)
         fitter = SingleFidelityAdaptiveSparseGridFitter(self._bkd, tp_factory, admis)
 
@@ -444,13 +420,9 @@ class TestAdaptiveSGToPCEConverter(Generic[Array], unittest.TestCase):
         joint = create_test_joint("2d_uniform", self._bkd)
         pce_target = create_test_pce(joint, level=3, nqoi=1, bkd=self._bkd)
 
-        factories = create_basis_factories(
-            joint.marginals(), self._bkd, "gauss"
-        )
+        factories = create_basis_factories(joint.marginals(), self._bkd, "gauss")
         growth = LinearGrowthRule(scale=1, shift=1)
-        tp_factory = TensorProductSubspaceFactory(
-            self._bkd, factories, growth
-        )
+        tp_factory = TensorProductSubspaceFactory(self._bkd, factories, growth)
         admis = MaxLevelCriteria(max_level=3, pnorm=1.0, bkd=self._bkd)
         fitter = SingleFidelityAdaptiveSparseGridFitter(self._bkd, tp_factory, admis)
 
@@ -462,22 +434,16 @@ class TestAdaptiveSGToPCEConverter(Generic[Array], unittest.TestCase):
         converter = SparseGridToPCEConverter(self._bkd, pce_bases_1d)
         pce = converter.convert(ada_result.surrogate)
 
-        self._bkd.assert_allclose(
-            pce.mean(), ada_result.surrogate.mean(), rtol=1e-10
-        )
+        self._bkd.assert_allclose(pce.mean(), ada_result.surrogate.mean(), rtol=1e-10)
 
     def test_adaptive_sg_to_pce_variance(self) -> None:
         """Test adaptive SG -> PCE conversion preserves variance."""
         joint = create_test_joint("2d_uniform", self._bkd)
         pce_target = create_test_pce(joint, level=3, nqoi=1, bkd=self._bkd)
 
-        factories = create_basis_factories(
-            joint.marginals(), self._bkd, "gauss"
-        )
+        factories = create_basis_factories(joint.marginals(), self._bkd, "gauss")
         growth = LinearGrowthRule(scale=1, shift=1)
-        tp_factory = TensorProductSubspaceFactory(
-            self._bkd, factories, growth
-        )
+        tp_factory = TensorProductSubspaceFactory(self._bkd, factories, growth)
         admis = MaxLevelCriteria(max_level=3, pnorm=1.0, bkd=self._bkd)
         fitter = SingleFidelityAdaptiveSparseGridFitter(self._bkd, tp_factory, admis)
 
@@ -495,9 +461,7 @@ class TestAdaptiveSGToPCEConverter(Generic[Array], unittest.TestCase):
 
 
 # NumPy backend tests
-class TestSparseGridToPCEConverterNumpy(
-    TestSparseGridToPCEConverter[NDArray[Any]]
-):
+class TestSparseGridToPCEConverterNumpy(TestSparseGridToPCEConverter[NDArray[Any]]):
     """NumPy backend tests for SparseGridToPCEConverter."""
 
     def bkd(self) -> NumpyBkd:
@@ -513,9 +477,7 @@ class TestTensorProductSubspaceToPCEConverterNumpy(
         return NumpyBkd()
 
 
-class TestAdaptiveSGToPCEConverterNumpy(
-    TestAdaptiveSGToPCEConverter[NDArray[Any]]
-):
+class TestAdaptiveSGToPCEConverterNumpy(TestAdaptiveSGToPCEConverter[NDArray[Any]]):
     """NumPy backend tests for adaptive SG -> PCE converter."""
 
     def bkd(self) -> NumpyBkd:
@@ -523,9 +485,7 @@ class TestAdaptiveSGToPCEConverterNumpy(
 
 
 # PyTorch backend tests
-class TestSparseGridToPCEConverterTorch(
-    TestSparseGridToPCEConverter[torch.Tensor]
-):
+class TestSparseGridToPCEConverterTorch(TestSparseGridToPCEConverter[torch.Tensor]):
     """PyTorch backend tests for SparseGridToPCEConverter."""
 
     def setUp(self) -> None:
@@ -549,9 +509,7 @@ class TestTensorProductSubspaceToPCEConverterTorch(
         return TorchBkd()
 
 
-class TestAdaptiveSGToPCEConverterTorch(
-    TestAdaptiveSGToPCEConverter[torch.Tensor]
-):
+class TestAdaptiveSGToPCEConverterTorch(TestAdaptiveSGToPCEConverter[torch.Tensor]):
     """PyTorch backend tests for adaptive SG -> PCE converter."""
 
     def setUp(self) -> None:

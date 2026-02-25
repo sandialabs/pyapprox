@@ -2,12 +2,12 @@
 
 from typing import Generic, Optional
 
-from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.optimization.linear import LeastSquaresSolver
-from pyapprox.surrogates.affine.protocols import BasisExpansionProtocol
 from pyapprox.surrogates.affine.expansions.fitters.results import (
     DirectSolverResult,
 )
+from pyapprox.surrogates.affine.protocols import BasisExpansionProtocol
+from pyapprox.util.backends.protocols import Array, Backend
 
 
 class LeastSquaresFitter(Generic[Array]):

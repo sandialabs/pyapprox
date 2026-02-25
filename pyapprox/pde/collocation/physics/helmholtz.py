@@ -7,15 +7,15 @@ where k is the wave number. This is the standard form of the Helmholtz
 equation that arises from separating the wave equation or quantum mechanics.
 """
 
-from typing import Generic, Optional, Callable, Union
+from typing import Callable, Optional, Union
 
-from pyapprox.util.backends.protocols import Array, Backend
-from pyapprox.pde.collocation.protocols.basis import (
-    TensorProductBasisProtocol,
-)
 from pyapprox.pde.collocation.physics.advection_diffusion import (
     AdvectionDiffusionReaction,
 )
+from pyapprox.pde.collocation.protocols.basis import (
+    TensorProductBasisProtocol,
+)
+from pyapprox.util.backends.protocols import Array, Backend
 
 
 class HelmholtzPhysics(AdvectionDiffusionReaction[Array]):

@@ -9,11 +9,11 @@ overridden with analytical formulas for efficiency.
 from functools import partial
 from typing import Callable, Generic, List, Sequence, Tuple
 
-from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.probability.univariate import UniformMarginal
 from pyapprox.surrogates.sparsegrids.basis_factory import (
     create_basis_factories,
 )
+from pyapprox.util.backends.protocols import Array, Backend
 
 
 class MultifidelityStatisticsMixin(Generic[Array]):
@@ -40,9 +40,7 @@ class MultifidelityStatisticsMixin(Generic[Array]):
     _nmodels: int
     _nqoi: int
 
-    def _get_quadrature_rule(
-        self, npts: int = 21
-    ) -> Tuple[Array, Array]:
+    def _get_quadrature_rule(self, npts: int = 21) -> Tuple[Array, Array]:
         """Get Gauss quadrature points and weights on [0, 1].
 
         Parameters
@@ -120,11 +118,13 @@ class MultifidelityStatisticsMixin(Generic[Array]):
 
     def _V_fun_entry(
         self,
-        jj: int, kk: int, ll: int,
+        jj: int,
+        kk: int,
+        ll: int,
         means: Array,
         flat_covs: List[List[float]],
         flat_funs: List[Callable[[Array], Array]],
-        xx: Array
+        xx: Array,
     ) -> Array:
         """Compute V entry for variance covariance.
 
@@ -132,39 +132,42 @@ class MultifidelityStatisticsMixin(Generic[Array]):
         """
         idx1 = jj * self._nqoi + kk
         idx2 = jj * self._nqoi + ll
-        return (
-            (flat_funs[idx1](xx) - means[idx1])
-            * (flat_funs[idx2](xx) - means[idx2])
-            - flat_covs[jj][kk * self._nqoi + ll]
-        )
+        return (flat_funs[idx1](xx) - means[idx1]) * (
+            flat_funs[idx2](xx) - means[idx2]
+        ) - flat_covs[jj][kk * self._nqoi + ll]
 
     def _V_fun(
         self,
-        jj1: int, kk1: int, ll1: int,
-        jj2: int, kk2: int, ll2: int,
+        jj1: int,
+        kk1: int,
+        ll1: int,
+        jj2: int,
+        kk2: int,
+        ll2: int,
         means: Array,
         flat_covs: List[List[float]],
         flat_funs: List[Callable[[Array], Array]],
-        xx: Array
+        xx: Array,
     ) -> Array:
         """Compute product of two V entries for Kronecker product covariance."""
-        return (
-            self._V_fun_entry(jj1, kk1, ll1, means, flat_covs, flat_funs, xx)
-            * self._V_fun_entry(jj2, kk2, ll2, means, flat_covs, flat_funs, xx)
-        )
+        return self._V_fun_entry(
+            jj1, kk1, ll1, means, flat_covs, flat_funs, xx
+        ) * self._V_fun_entry(jj2, kk2, ll2, means, flat_covs, flat_funs, xx)
 
     def _B_fun(
         self,
-        ii: int, jj: int, kk: int, ll: int,
+        ii: int,
+        jj: int,
+        kk: int,
+        ll: int,
         means: Array,
         flat_covs: List[List[float]],
         flat_funs: List[Callable[[Array], Array]],
-        xx: Array
+        xx: Array,
     ) -> Array:
         """Compute covariance between mean and variance estimator."""
-        return (
-            (flat_funs[ii](xx) - means[ii])
-            * self._V_fun_entry(jj, kk, ll, means, flat_covs, flat_funs, xx)
+        return (flat_funs[ii](xx) - means[ii]) * self._V_fun_entry(
+            jj, kk, ll, means, flat_covs, flat_funs, xx
         )
 
     def means(self) -> Array:
@@ -229,12 +232,10 @@ class MultifidelityStatisticsMixin(Generic[Array]):
         """
         quadx, quadw = self._get_quadrature_rule()
         flat_funs = self._get_flat_funs()
-        means = self._bkd.array([
-            self._bkd.sum(f(quadx) * quadw) for f in flat_funs
-        ])
+        means = self._bkd.array([self._bkd.sum(f(quadx) * quadw) for f in flat_funs])
         flat_covs = self._flat_covs()
 
-        n = self._nmodels * self._nqoi ** 2
+        n = self._nmodels * self._nqoi**2
         est_cov = self._bkd.zeros((n, n))
 
         cnt1 = 0
@@ -246,13 +247,18 @@ class MultifidelityStatisticsMixin(Generic[Array]):
                         for kk2 in range(self._nqoi):
                             for ll2 in range(self._nqoi):
                                 quad_val = self._V_fun(
-                                    jj1, kk1, ll1,
-                                    jj2, kk2, ll2,
-                                    means, flat_covs, flat_funs, quadx
+                                    jj1,
+                                    kk1,
+                                    ll1,
+                                    jj2,
+                                    kk2,
+                                    ll2,
+                                    means,
+                                    flat_covs,
+                                    flat_funs,
+                                    quadx,
                                 )
-                                est_cov[cnt1, cnt2] = self._bkd.sum(
-                                    quad_val * quadw
-                                )
+                                est_cov[cnt1, cnt2] = self._bkd.sum(quad_val * quadw)
                                 cnt2 += 1
                     cnt1 += 1
 
@@ -270,13 +276,11 @@ class MultifidelityStatisticsMixin(Generic[Array]):
         """
         quadx, quadw = self._get_quadrature_rule()
         flat_funs = self._get_flat_funs()
-        means = self._bkd.array([
-            self._bkd.sum(f(quadx) * quadw) for f in flat_funs
-        ])
+        means = self._bkd.array([self._bkd.sum(f(quadx) * quadw) for f in flat_funs])
         flat_covs = self._flat_covs()
 
         n_mean = self._nmodels * self._nqoi
-        n_var = self._nmodels * self._nqoi ** 2
+        n_var = self._nmodels * self._nqoi**2
         est_cov = self._bkd.zeros((n_mean, n_var))
 
         for ii in range(n_mean):
@@ -285,17 +289,14 @@ class MultifidelityStatisticsMixin(Generic[Array]):
                 for kk in range(self._nqoi):
                     for ll in range(self._nqoi):
                         quad_val = self._B_fun(
-                            ii, jj, kk, ll,
-                            means, flat_covs, flat_funs, quadx
+                            ii, jj, kk, ll, means, flat_covs, flat_funs, quadx
                         )
                         est_cov[ii, cnt] = self._bkd.sum(quad_val * quadw)
                         cnt += 1
 
         return est_cov
 
-    def covariance_subproblem(
-        self, model_idx: List[int], qoi_idx: List[int]
-    ) -> Array:
+    def covariance_subproblem(self, model_idx: List[int], qoi_idx: List[int]) -> Array:
         """Extract covariance submatrix for subset of models and QoI.
 
         Parameters
@@ -351,7 +352,7 @@ class MultifidelityStatisticsMixin(Generic[Array]):
         W = self.covariance_of_centered_values_kronecker_product()
         nsub_models = len(model_idx)
         nsub_qoi = len(qoi_idx)
-        n = nsub_models * nsub_qoi ** 2
+        n = nsub_models * nsub_qoi**2
 
         W_new = self._bkd.zeros((n, n))
         cnt1 = 0
@@ -363,11 +364,7 @@ class MultifidelityStatisticsMixin(Generic[Array]):
                     for jj2 in model_idx:
                         for kk2 in qoi_idx:
                             for ll2 in qoi_idx:
-                                idx2 = (
-                                    jj2 * self._nqoi**2
-                                    + kk2 * self._nqoi
-                                    + ll2
-                                )
+                                idx2 = jj2 * self._nqoi**2 + kk2 * self._nqoi + ll2
                                 W_new[cnt1, cnt2] = W[idx1, idx2]
                                 cnt2 += 1
                     cnt1 += 1
@@ -396,7 +393,7 @@ class MultifidelityStatisticsMixin(Generic[Array]):
         nsub_models = len(model_idx)
         nsub_qoi = len(qoi_idx)
         n_mean = nsub_models * nsub_qoi
-        n_var = nsub_models * nsub_qoi ** 2
+        n_var = nsub_models * nsub_qoi**2
 
         B_new = self._bkd.zeros((n_mean, n_var))
         cnt1 = 0
@@ -407,11 +404,7 @@ class MultifidelityStatisticsMixin(Generic[Array]):
                 for jj2 in model_idx:
                     for kk2 in qoi_idx:
                         for ll2 in qoi_idx:
-                            idx2 = (
-                                jj2 * self._nqoi**2
-                                + kk2 * self._nqoi
-                                + ll2
-                            )
+                            idx2 = jj2 * self._nqoi**2 + kk2 * self._nqoi + ll2
                             B_new[cnt1, cnt2] = B[idx1, idx2]
                             cnt2 += 1
                 cnt1 += 1

@@ -7,18 +7,16 @@ import numpy as np
 import torch
 from numpy.typing import NDArray
 
-from pyapprox.util.backends.numpy import NumpyBkd
-from pyapprox.util.backends.torch import TorchBkd
-from pyapprox.util.backends.protocols import Array, Backend
-from pyapprox.util.test_utils import load_tests  # noqa: F401
-
-from pyapprox.surrogates.affine.univariate import create_bases_1d
-from pyapprox.surrogates.affine.indices import compute_hyperbolic_indices
+from pyapprox.probability import UniformMarginal
 from pyapprox.surrogates.affine.basis import OrthonormalPolynomialBasis
 from pyapprox.surrogates.affine.expansions import BasisExpansion
-from pyapprox.probability import UniformMarginal
-
+from pyapprox.surrogates.affine.indices import compute_hyperbolic_indices
+from pyapprox.surrogates.affine.univariate import create_bases_1d
 from pyapprox.surrogates.functiontrain.core import FunctionTrainCore
+from pyapprox.util.backends.numpy import NumpyBkd
+from pyapprox.util.backends.protocols import Array, Backend
+from pyapprox.util.backends.torch import TorchBkd
+from pyapprox.util.test_utils import load_tests  # noqa: F401
 
 
 class TestFunctionTrainCore(Generic[Array], unittest.TestCase):

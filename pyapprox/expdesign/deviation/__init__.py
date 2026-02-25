@@ -5,10 +5,10 @@ Deviation measures quantify the spread or uncertainty of QoI predictions
 conditional on observed data. They are used in the prediction OED objective.
 """
 
-from .base import DeviationMeasure
-from .standard_deviation import StandardDeviationMeasure
-from .entropic import EntropicDeviationMeasure
 from .avar import AVaRDeviationMeasure
+from .base import DeviationMeasure
+from .entropic import EntropicDeviationMeasure
+from .standard_deviation import StandardDeviationMeasure
 
 __all__ = [
     "DeviationMeasure",

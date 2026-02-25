@@ -2,8 +2,8 @@
 
 from typing import Dict, Generic, List, Optional, Tuple
 
-from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.surrogates.functiontrain.core import FunctionTrainCore
+from pyapprox.util.backends.protocols import Array, Backend
 
 
 class PCEFunctionTrainCore(Generic[Array]):
@@ -123,9 +123,7 @@ class PCEFunctionTrainCore(Generic[Array]):
             If basis_idx is out of bounds [0, nterms).
         """
         if basis_idx < 0 or basis_idx >= self._nterms:
-            raise IndexError(
-                f"basis_idx {basis_idx} out of bounds [0, {self._nterms})"
-            )
+            raise IndexError(f"basis_idx {basis_idx} out of bounds [0, {self._nterms})")
 
         if basis_idx in self._theta_cache:
             return self._theta_cache[basis_idx]

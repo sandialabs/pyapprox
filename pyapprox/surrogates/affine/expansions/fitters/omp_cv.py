@@ -7,17 +7,17 @@ nested least-squares system to select the best truncation.
 
 from typing import Generic, List, Optional
 
-from pyapprox.util.backends.protocols import Array, Backend
-from pyapprox.surrogates.affine.protocols import BasisExpansionProtocol
-from pyapprox.surrogates.affine.expansions.fitters.omp import OMPFitter
 from pyapprox.surrogates.affine.expansions.crossvalidation import (
-    leave_one_out_lsq_cross_validation,
-    leave_many_out_lsq_cross_validation,
     get_random_k_fold_sample_indices,
+    leave_many_out_lsq_cross_validation,
+    leave_one_out_lsq_cross_validation,
 )
+from pyapprox.surrogates.affine.expansions.fitters.omp import OMPFitter
 from pyapprox.surrogates.affine.expansions.fitters.results import (
     CVSelectionResult,
 )
+from pyapprox.surrogates.affine.protocols import BasisExpansionProtocol
+from pyapprox.util.backends.protocols import Array, Backend
 
 
 class OMPCVFitter(Generic[Array]):
@@ -116,9 +116,7 @@ class OMPCVFitter(Generic[Array]):
             values = bkd.reshape(values, (1, -1))
 
         if values.shape[0] != 1:
-            raise ValueError(
-                f"OMPCVFitter only supports nqoi=1, got {values.shape[0]}"
-            )
+            raise ValueError(f"OMPCVFitter only supports nqoi=1, got {values.shape[0]}")
 
         nsamples = samples.shape[1]
 
@@ -167,8 +165,7 @@ class OMPCVFitter(Generic[Array]):
                 )
             else:
                 _, cv_score, sub_coef = leave_many_out_lsq_cross_validation(
-                    sub_basis_mat, values_T, fold_indices, self._alpha,
-                    bkd=bkd
+                    sub_basis_mat, values_T, fold_indices, self._alpha, bkd=bkd
                 )
 
             cv_scores_list.append(float(cv_score[0]))

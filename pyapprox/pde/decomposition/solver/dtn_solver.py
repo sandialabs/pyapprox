@@ -4,14 +4,13 @@ High-level Newton solver for finding interface values that satisfy
 flux conservation across all interfaces.
 """
 
-from typing import Generic, Dict, Tuple, Optional, NamedTuple
+from typing import Dict, Generic, NamedTuple, Optional
 
-from pyapprox.util.backends.protocols import Array, Backend
-from pyapprox.pde.decomposition.solver.dtn_residual import DtNResidual
 from pyapprox.pde.decomposition.solver.dtn_jacobian import (
-    DtNJacobian,
     create_jacobian,
 )
+from pyapprox.pde.decomposition.solver.dtn_residual import DtNResidual
+from pyapprox.util.backends.protocols import Array, Backend
 
 
 class DtNSolverResult(NamedTuple):
@@ -86,9 +85,7 @@ class DtNSolver(Generic[Array]):
         """Return the computational backend."""
         return self._bkd
 
-    def solve(
-        self, initial_guess: Optional[Array] = None
-    ) -> DtNSolverResult:
+    def solve(self, initial_guess: Optional[Array] = None) -> DtNSolverResult:
         """Solve for interface DOFs using Newton iteration.
 
         Parameters

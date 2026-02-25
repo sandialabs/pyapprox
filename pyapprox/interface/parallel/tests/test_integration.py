@@ -14,7 +14,6 @@ from numpy.typing import NDArray
 from pyapprox.util.backends.numpy import NumpyBkd
 from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.util.backends.torch import TorchBkd
-from pyapprox.util.test_utils import load_tests
 
 
 class QuadraticFunction(Generic[Array]):
@@ -98,11 +97,13 @@ class TestIntegration(Generic[Array], unittest.TestCase):
         seq_func = make_parallel(func, backend="sequential")
         par_func = make_parallel(func, backend="joblib_processes", n_jobs=2)
 
-        samples = self._bkd.asarray([
-            [1.0, 2.0, 3.0, 4.0],
-            [5.0, 6.0, 7.0, 8.0],
-            [9.0, 10.0, 11.0, 12.0],
-        ])
+        samples = self._bkd.asarray(
+            [
+                [1.0, 2.0, 3.0, 4.0],
+                [5.0, 6.0, 7.0, 8.0],
+                [9.0, 10.0, 11.0, 12.0],
+            ]
+        )
 
         seq_jac = seq_func.jacobian_batch(samples)
         par_jac = par_func.jacobian_batch(samples)
@@ -171,9 +172,7 @@ class TestIntegration(Generic[Array], unittest.TestCase):
                 numerical_grad = (f_plus - f_minus) / (2 * eps)
 
                 analytic_grad = float(jacobians[i, 0, j])
-                self.assertAlmostEqual(
-                    numerical_grad, analytic_grad, places=5
-                )
+                self.assertAlmostEqual(numerical_grad, analytic_grad, places=5)
 
     def test_backend_switching(self):
         """Test that different backends produce same results."""
@@ -189,19 +188,15 @@ class TestIntegration(Generic[Array], unittest.TestCase):
         futures_func = make_parallel(func, backend="futures", n_jobs=2)
         futures_jac = futures_func.jacobian_batch(samples)
 
-        self.assertTrue(
-            self._bkd.allclose(joblib_jac, futures_jac, rtol=1e-12)
-        )
+        self.assertTrue(self._bkd.allclose(joblib_jac, futures_jac, rtol=1e-12))
 
         try:
-            import mpire
+            import mpire  # noqa: F401
 
             mpire_func = make_parallel(func, backend="mpire", n_jobs=2)
             mpire_jac = mpire_func.jacobian_batch(samples)
 
-            self.assertTrue(
-                self._bkd.allclose(joblib_jac, mpire_jac, rtol=1e-12)
-            )
+            self.assertTrue(self._bkd.allclose(joblib_jac, mpire_jac, rtol=1e-12))
         except ImportError:
             pass  # Skip if mpire not installed
 
@@ -239,15 +234,15 @@ class TestIntegration(Generic[Array], unittest.TestCase):
         from pyapprox.interface.parallel import make_parallel
 
         func = QuadraticFunction(self._bkd, nvars=3)
-        par_func = make_parallel(
-            func, backend="joblib_processes", n_jobs=2
-        )
+        par_func = make_parallel(func, backend="joblib_processes", n_jobs=2)
 
-        samples = self._bkd.asarray([
-            [1.0, 2.0, 3.0, 4.0],
-            [5.0, 6.0, 7.0, 8.0],
-            [9.0, 10.0, 11.0, 12.0],
-        ])
+        samples = self._bkd.asarray(
+            [
+                [1.0, 2.0, 3.0, 4.0],
+                [5.0, 6.0, 7.0, 8.0],
+                [9.0, 10.0, 11.0, 12.0],
+            ]
+        )
 
         expected = func(samples)
         par_result = par_func(samples)
@@ -260,13 +255,9 @@ class TestIntegration(Generic[Array], unittest.TestCase):
         from pyapprox.interface.parallel import make_parallel
 
         func = RosenbrockFunction(self._bkd)
-        par_func = make_parallel(
-            func, backend="joblib_processes", n_jobs=2
-        )
+        par_func = make_parallel(func, backend="joblib_processes", n_jobs=2)
 
-        samples = self._bkd.asarray(
-            [[0.5, 1.0, -0.5], [0.5, 1.0, -0.5]]
-        )
+        samples = self._bkd.asarray([[0.5, 1.0, -0.5], [0.5, 1.0, -0.5]])
         par_result = par_func(samples)
         seq_result = func(samples)
 

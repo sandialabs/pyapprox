@@ -11,25 +11,24 @@ import numpy as np
 import torch
 from numpy.typing import NDArray
 
-from pyapprox.util.backends.numpy import NumpyBkd
-from pyapprox.util.backends.protocols import Array, Backend
-from pyapprox.util.backends.torch import TorchBkd
-from pyapprox.util.test_utils import load_tests  # noqa: F401
-
+from pyapprox.surrogates.mfnets.edges import MFNetEdge
+from pyapprox.surrogates.mfnets.fitters.als_fitter import (
+    MFNetALSFitter,
+)
+from pyapprox.surrogates.mfnets.fitters.gradient_fitter import (
+    MFNetGradientFitter,
+)
+from pyapprox.surrogates.mfnets.network import MFNet
 from pyapprox.surrogates.mfnets.nodes import (
     LeafMFNetNode,
     MFNetNode,
     RootMFNetNode,
 )
-from pyapprox.surrogates.mfnets.edges import MFNetEdge
-from pyapprox.surrogates.mfnets.network import MFNet
 from pyapprox.surrogates.mfnets.registry import create_node_model
-from pyapprox.surrogates.mfnets.fitters.gradient_fitter import (
-    MFNetGradientFitter,
-)
-from pyapprox.surrogates.mfnets.fitters.als_fitter import (
-    MFNetALSFitter,
-)
+from pyapprox.util.backends.numpy import NumpyBkd
+from pyapprox.util.backends.protocols import Array, Backend
+from pyapprox.util.backends.torch import TorchBkd
+from pyapprox.util.test_utils import load_tests  # noqa: F401
 
 
 def _build_two_node_mfnet(
@@ -48,15 +47,17 @@ def _build_two_node_mfnet(
     leaf.set_coefficients(bkd.asarray(np.random.randn(nterms_leaf, 1)))
 
     root = create_node_model(
-        "multiplicative_additive", bkd,
-        nvars_x=1, nqoi=1, nscaled_qoi=1,
-        scale_level=scale_level, delta_level=delta_level,
+        "multiplicative_additive",
+        bkd,
+        nvars_x=1,
+        nqoi=1,
+        nscaled_qoi=1,
+        scale_level=scale_level,
+        delta_level=delta_level,
     )
     # Set random coefficients for all sub-models
     for sm in root.scaling_models():
-        sm.set_coefficients(
-            bkd.asarray(np.random.randn(sm.nterms(), sm.nqoi()))
-        )
+        sm.set_coefficients(bkd.asarray(np.random.randn(sm.nterms(), sm.nqoi())))
     root.delta_model().set_coefficients(
         bkd.asarray(np.random.randn(root.delta_model().nterms(), root.nqoi()))
     )
@@ -80,9 +81,13 @@ def _build_blank_two_node_mfnet(
         "basis_expansion", bkd, nvars=1, nqoi=1, max_level=leaf_level
     )
     root = create_node_model(
-        "multiplicative_additive", bkd,
-        nvars_x=1, nqoi=1, nscaled_qoi=1,
-        scale_level=scale_level, delta_level=delta_level,
+        "multiplicative_additive",
+        bkd,
+        nvars_x=1,
+        nqoi=1,
+        nscaled_qoi=1,
+        scale_level=scale_level,
+        delta_level=delta_level,
     )
     net = MFNet(nvars=1, bkd=bkd)
     net.add_node(LeafMFNetNode(0, leaf, noise_std=1e-2, bkd=bkd))
@@ -93,8 +98,7 @@ def _build_blank_two_node_mfnet(
 
 
 def _generate_data(
-    net: MFNet[Array], bkd: Backend[Array],
-    n_per_node: List[int], seed: int = 42
+    net: MFNet[Array], bkd: Backend[Array], n_per_node: List[int], seed: int = 42
 ) -> Any:
     """Generate noise-free training data from a true network."""
     np.random.seed(seed)
@@ -162,9 +166,13 @@ class TestRecovery(Generic[Array], unittest.TestCase):
         leaf = create_node_model("basis_expansion", bkd, nvars=1, nqoi=1, max_level=2)
         leaf.set_coefficients(bkd.asarray(np.random.randn(leaf.nterms(), 1)))
         mid = create_node_model(
-            "multiplicative_additive", bkd,
-            nvars_x=1, nqoi=1, nscaled_qoi=1,
-            scale_level=0, delta_level=2,
+            "multiplicative_additive",
+            bkd,
+            nvars_x=1,
+            nqoi=1,
+            nscaled_qoi=1,
+            scale_level=0,
+            delta_level=2,
         )
         for sm in mid.scaling_models():
             sm.set_coefficients(bkd.asarray(np.random.randn(sm.nterms(), sm.nqoi())))
@@ -172,9 +180,13 @@ class TestRecovery(Generic[Array], unittest.TestCase):
             bkd.asarray(np.random.randn(mid.delta_model().nterms(), mid.nqoi()))
         )
         root = create_node_model(
-            "multiplicative_additive", bkd,
-            nvars_x=1, nqoi=1, nscaled_qoi=1,
-            scale_level=0, delta_level=2,
+            "multiplicative_additive",
+            bkd,
+            nvars_x=1,
+            nqoi=1,
+            nscaled_qoi=1,
+            scale_level=0,
+            delta_level=2,
         )
         for sm in root.scaling_models():
             sm.set_coefficients(bkd.asarray(np.random.randn(sm.nterms(), sm.nqoi())))
@@ -195,14 +207,22 @@ class TestRecovery(Generic[Array], unittest.TestCase):
         # Blank network
         leaf_f = create_node_model("basis_expansion", bkd, nvars=1, nqoi=1, max_level=2)
         mid_f = create_node_model(
-            "multiplicative_additive", bkd,
-            nvars_x=1, nqoi=1, nscaled_qoi=1,
-            scale_level=0, delta_level=2,
+            "multiplicative_additive",
+            bkd,
+            nvars_x=1,
+            nqoi=1,
+            nscaled_qoi=1,
+            scale_level=0,
+            delta_level=2,
         )
         root_f = create_node_model(
-            "multiplicative_additive", bkd,
-            nvars_x=1, nqoi=1, nscaled_qoi=1,
-            scale_level=0, delta_level=2,
+            "multiplicative_additive",
+            bkd,
+            nvars_x=1,
+            nqoi=1,
+            nscaled_qoi=1,
+            scale_level=0,
+            delta_level=2,
         )
         fit_net = MFNet(nvars=1, bkd=bkd)
         fit_net.add_node(LeafMFNetNode(0, leaf_f, noise_std=1e-2, bkd=bkd))
@@ -224,6 +244,7 @@ class TestRecovery(Generic[Array], unittest.TestCase):
     def test_registry_list(self) -> None:
         """Verify registry contains built-in models."""
         from pyapprox.surrogates.mfnets.registry import list_node_models
+
         models = list_node_models()
         self.assertIn("basis_expansion", models)
         self.assertIn("multiplicative_additive", models)
@@ -231,11 +252,13 @@ class TestRecovery(Generic[Array], unittest.TestCase):
     def test_registry_unknown_raises(self) -> None:
         """Verify unknown model name raises KeyError."""
         from pyapprox.surrogates.mfnets.registry import create_node_model
+
         with self.assertRaises(KeyError):
             create_node_model("nonexistent", self._bkd)
 
 
 # --- Concrete backend test classes ---
+
 
 class TestRecoveryNumpy(TestRecovery[NDArray[Any]]):
     def bkd(self) -> NumpyBkd:

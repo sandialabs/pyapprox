@@ -5,28 +5,27 @@ These functions provide a convenient interface for creating OED components
 without manually instantiating design matrices and criteria.
 """
 
-from typing import Generic, Optional, Literal
+from typing import Literal, Optional
 
 from pyapprox.util.backends.protocols import Array, Backend
 
+from .criteria import (
+    AOptimalCriterion,
+    COptimalCriterion,
+    DOptimalCriterion,
+    GOptimalCriterion,
+    IOptimalCriterion,
+    ROptimalCriterion,
+)
 from .design_matrices import (
     LeastSquaresDesignMatrices,
     QuantileDesignMatrices,
 )
-from .criteria import (
-    DOptimalCriterion,
-    AOptimalCriterion,
-    COptimalCriterion,
-    IOptimalCriterion,
-    GOptimalCriterion,
-    ROptimalCriterion,
-)
 from .solver import (
-    ScipyLocalOEDSolver,
-    MinimaxLocalOEDSolver,
     AVaRLocalOEDSolver,
+    MinimaxLocalOEDSolver,
+    ScipyLocalOEDSolver,
 )
-
 
 CriterionType = Literal["D", "A", "C", "I", "G", "R"]
 RegressionType = Literal["least_squares", "quantile"]
@@ -216,9 +215,7 @@ def create_solver(
     # Choose appropriate solver based on criterion type
     if criterion_type in ("D", "A", "C", "I"):
         # Scalar criteria use standard scipy solver
-        return ScipyLocalOEDSolver(
-            criterion, bkd, verbosity=verbosity, maxiter=maxiter
-        )
+        return ScipyLocalOEDSolver(criterion, bkd, verbosity=verbosity, maxiter=maxiter)
     elif criterion_type == "G":
         # G-optimal uses minimax solver
         return MinimaxLocalOEDSolver(

@@ -6,14 +6,13 @@ import unittest
 from typing import Any, Generic
 
 import numpy as np
-from numpy.typing import NDArray
 import torch
+from numpy.typing import NDArray
 
-from pyapprox.util.backends.protocols import Array, Backend
-from pyapprox.util.backends.numpy import NumpyBkd
-from pyapprox.util.backends.torch import TorchBkd
-from pyapprox.probability.gaussian import GaussianCanonicalForm
 from pyapprox.inverse.bayesnet.factor import GaussianFactor
+from pyapprox.util.backends.numpy import NumpyBkd
+from pyapprox.util.backends.protocols import Array, Backend
+from pyapprox.util.backends.torch import TorchBkd
 
 
 class TestGaussianFactorBase(Generic[Array], unittest.TestCase):
@@ -135,12 +134,8 @@ class TestGaussianFactorBase(Generic[Array], unittest.TestCase):
         self.assertEqual(marginal.var_ids(), [0])
         mean_marg, cov_marg = marginal.to_moments()
 
-        np.testing.assert_allclose(
-            self.bkd().to_numpy(mean_marg), [1.0], rtol=1e-6
-        )
-        np.testing.assert_allclose(
-            self.bkd().to_numpy(cov_marg), [[1.0]], rtol=1e-6
-        )
+        np.testing.assert_allclose(self.bkd().to_numpy(mean_marg), [1.0], rtol=1e-6)
+        np.testing.assert_allclose(self.bkd().to_numpy(cov_marg), [[1.0]], rtol=1e-6)
 
     def test_condition_vars(self) -> None:
         """Test conditioning on variables."""
@@ -162,12 +157,8 @@ class TestGaussianFactorBase(Generic[Array], unittest.TestCase):
         # Conditional var: 1 - 0.5^2 = 0.75
         mean_cond, cov_cond = conditional.to_moments()
 
-        np.testing.assert_allclose(
-            self.bkd().to_numpy(mean_cond), [0.5], rtol=1e-6
-        )
-        np.testing.assert_allclose(
-            self.bkd().to_numpy(cov_cond), [[0.75]], rtol=1e-6
-        )
+        np.testing.assert_allclose(self.bkd().to_numpy(mean_cond), [0.5], rtol=1e-6)
+        np.testing.assert_allclose(self.bkd().to_numpy(cov_cond), [[0.75]], rtol=1e-6)
 
     def test_expand_scope(self) -> None:
         """Test expanding factor scope."""
@@ -234,9 +225,6 @@ class TestGaussianFactorTorch(TestGaussianFactorBase[torch.Tensor]):
 
     def bkd(self) -> TorchBkd:
         return self._bkd
-
-
-from pyapprox.util.test_utils import load_tests
 
 
 if __name__ == "__main__":

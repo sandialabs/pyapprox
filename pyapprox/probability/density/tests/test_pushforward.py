@@ -21,15 +21,24 @@ import torch
 from numpy.typing import NDArray
 from scipy import stats
 
-from pyapprox.util.backends.numpy import NumpyBkd
-from pyapprox.util.backends.protocols import Array, Backend
-from pyapprox.util.backends.torch import TorchBkd
-from pyapprox.util.test_utils import load_tests  # noqa: F401
-
 from pyapprox.interface.functions.protocols.function import (
     FunctionProtocol,
 )
-from pyapprox.probability import GaussianMarginal, UniformMarginal
+from pyapprox.probability import GaussianMarginal
+from pyapprox.probability.density._fitters import (
+    KDEFitter,
+    LinearDensityFitter,
+)
+from pyapprox.probability.density.kernel_density_basis import (
+    KernelDensityBasis,
+)
+from pyapprox.probability.density.piecewise_density_basis import (
+    PiecewiseDensityBasis,
+)
+from pyapprox.probability.density.pushforward import (
+    PushforwardDensity,
+)
+from pyapprox.surrogates.affine.basis.kernel_basis import KernelBasis
 from pyapprox.surrogates.affine.expansions import (
     create_pce_from_marginals,
 )
@@ -40,21 +49,10 @@ from pyapprox.surrogates.affine.expansions.pce_density import (
 from pyapprox.surrogates.kernels.matern import (
     SquaredExponentialKernel,
 )
-from pyapprox.surrogates.affine.basis.kernel_basis import KernelBasis
-from pyapprox.probability.density.piecewise_density_basis import (
-    PiecewiseDensityBasis,
-)
-from pyapprox.probability.density.kernel_density_basis import (
-    KernelDensityBasis,
-)
-from pyapprox.probability.density.pushforward import (
-    PushforwardDensity,
-)
-from pyapprox.probability.density._fitters import (
-    DensityFitterProtocol,
-    KDEFitter,
-    LinearDensityFitter,
-)
+from pyapprox.util.backends.numpy import NumpyBkd
+from pyapprox.util.backends.protocols import Array, Backend
+from pyapprox.util.backends.torch import TorchBkd
+from pyapprox.util.test_utils import load_tests  # noqa: F401
 
 
 class TestPushforwardDensity(Generic[Array], unittest.TestCase):
@@ -147,7 +145,11 @@ class TestPushforwardDensity(Generic[Array], unittest.TestCase):
         y_min_data = float(y_np.min())
         y_max_data = float(y_np.max())
         basis = PiecewiseDensityBasis(
-            y_min_data, y_max_data, 41, degree=1, bkd=bkd,
+            y_min_data,
+            y_max_data,
+            41,
+            degree=1,
+            bkd=bkd,
         )
 
         density = PushforwardDensity(y_values, w_quad, basis)
@@ -216,7 +218,11 @@ class TestPushforwardDensity(Generic[Array], unittest.TestCase):
             return bkd.to_numpy(f[0])
 
         integral = composite_gauss_legendre(
-            integrand, y_min, y_max, n_intervals=500, n_points=5,
+            integrand,
+            y_min,
+            y_max,
+            n_intervals=500,
+            n_points=5,
         )
         bkd.assert_allclose(
             bkd.asarray([integral]),
@@ -241,18 +247,20 @@ class TestPushforwardDensity(Generic[Array], unittest.TestCase):
         # Compute reference moments via xi-space quadrature
         # E[Y^k] = sum_q w_q * y_q^k
         for kk in range(1, 5):
-            moment_quad = float(bkd.to_numpy(
-                bkd.sum(weights * y_values[0] ** kk)
-            ))
+            moment_quad = float(bkd.to_numpy(bkd.sum(weights * y_values[0] ** kk)))
 
             # Compute from density integral: int y^k f(y) dy
             def integrand(y_np_arr: np.ndarray, k=kk) -> np.ndarray:
                 y_arr = bkd.reshape(bkd.asarray(y_np_arr), (1, -1))
                 f = density(y_arr)
-                return bkd.to_numpy(f[0]) * y_np_arr ** k
+                return bkd.to_numpy(f[0]) * y_np_arr**k
 
             moment_dens = composite_gauss_legendre(
-                integrand, y_min, y_max, n_intervals=500, n_points=5,
+                integrand,
+                y_min,
+                y_max,
+                n_intervals=500,
+                n_points=5,
             )
             bkd.assert_allclose(
                 bkd.asarray([moment_dens]),
@@ -308,10 +316,11 @@ class TestPushforwardDensity(Generic[Array], unittest.TestCase):
         # Each increase in nbasis should reduce error
         for ii in range(1, len(l1_errors)):
             self.assertLess(
-                l1_errors[ii], l1_errors[ii - 1],
+                l1_errors[ii],
+                l1_errors[ii - 1],
                 f"L1 error did not decrease: nbasis={nbasis_list[ii]} "
-                f"({l1_errors[ii]:.6f}) >= nbasis={nbasis_list[ii-1]} "
-                f"({l1_errors[ii-1]:.6f})",
+                f"({l1_errors[ii]:.6f}) >= nbasis={nbasis_list[ii - 1]} "
+                f"({l1_errors[ii - 1]:.6f})",
             )
 
     def test_function_protocol(self) -> None:
@@ -352,7 +361,10 @@ class TestPushforwardDensity(Generic[Array], unittest.TestCase):
         y_values, weights = self._gaussian_quadrature(0.0, 1.0, nquad)
 
         kernel = SquaredExponentialKernel(
-            bkd.asarray([0.5]), (0.01, 100.0), 1, bkd,
+            bkd.asarray([0.5]),
+            (0.01, 100.0),
+            1,
+            bkd,
         )
         centers = bkd.reshape(bkd.linspace(-4.0, 4.0, 25), (1, -1))
         kb = KernelBasis(kernel, centers)
@@ -365,7 +377,8 @@ class TestPushforwardDensity(Generic[Array], unittest.TestCase):
 
         y_test_np = bkd.to_numpy(y_test[0])
         f_true = bkd.reshape(
-            bkd.asarray(stats.norm.pdf(y_test_np)), (1, -1),
+            bkd.asarray(stats.norm.pdf(y_test_np)),
+            (1, -1),
         )
         bkd.assert_allclose(f_approx, f_true, atol=0.01, rtol=0.05)
 
@@ -391,11 +404,12 @@ class TestPushforwardDensity(Generic[Array], unittest.TestCase):
 
     def test_invalid_basis_type(self) -> None:
         """Should reject non-DensityBasisProtocol objects."""
-        bkd = self._bkd
         y_values, weights = self._gaussian_quadrature(0.0, 1.0, 40)
         with self.assertRaises(TypeError):
             PushforwardDensity(
-                y_values, weights, "not a basis",  # type: ignore
+                y_values,
+                weights,
+                "not a basis",  # type: ignore
             )
 
     def test_default_fitter_is_linear(self) -> None:
@@ -413,10 +427,15 @@ class TestPushforwardDensity(Generic[Array], unittest.TestCase):
         basis = PiecewiseDensityBasis(-5.0, 5.0, 21, degree=1, bkd=bkd)
         d_default = PushforwardDensity(y_values, weights, basis)
         d_explicit = PushforwardDensity(
-            y_values, weights, basis, fitter=LinearDensityFitter(bkd),
+            y_values,
+            weights,
+            basis,
+            fitter=LinearDensityFitter(bkd),
         )
         bkd.assert_allclose(
-            d_explicit.coefficients(), d_default.coefficients(), rtol=1e-14,
+            d_explicit.coefficients(),
+            d_default.coefficients(),
+            rtol=1e-14,
         )
 
     def test_ise_score_consistent(self) -> None:
@@ -489,7 +508,10 @@ class TestPushforwardDensity(Generic[Array], unittest.TestCase):
         basis = PiecewiseDensityBasis(-5.0, 5.0, 21, degree=1, bkd=bkd)
         with self.assertRaises(TypeError):
             PushforwardDensity(
-                y_values, weights, basis, fitter="not a fitter",  # type: ignore
+                y_values,
+                weights,
+                basis,
+                fitter="not a fitter",  # type: ignore
             )
 
 

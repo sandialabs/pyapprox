@@ -5,14 +5,15 @@ A Bayesian network of linear-Gaussian CPDs where each node represents
 a random variable and edges represent conditional dependencies.
 """
 
-from typing import Any, Dict, Generic, List, Optional, Tuple
+from typing import Any, Dict, Generic, List, Optional
 
 import networkx as nx
 import numpy as np
 
 from pyapprox.util.backends.protocols import Array, Backend
-from .factor import GaussianFactor
+
 from .conversions import convert_cpd_to_canonical, convert_prior_to_factor
+from .factor import GaussianFactor
 
 
 class GaussianNetwork(Generic[Array]):
@@ -177,9 +178,7 @@ class GaussianNetwork(Generic[Array]):
         """
         data = self._node_data[node_id]
         if not data["is_root"]:
-            raise ValueError(
-                f"Node {node_id} is not a root node"
-            )
+            raise ValueError(f"Node {node_id} is not a root node")
         return data["prior_cov"]
 
     def get_cpd_coefficients(self, node_id: int) -> List[Array]:
@@ -198,9 +197,7 @@ class GaussianNetwork(Generic[Array]):
         """
         data = self._node_data[node_id]
         if data["is_root"]:
-            raise ValueError(
-                f"Node {node_id} is a root node (no CPD)"
-            )
+            raise ValueError(f"Node {node_id} is a root node (no CPD)")
         return data["cpd_coefficients"]
 
     def get_cpd_noise_cov(self, node_id: int) -> Array:
@@ -218,9 +215,7 @@ class GaussianNetwork(Generic[Array]):
         """
         data = self._node_data[node_id]
         if data["is_root"]:
-            raise ValueError(
-                f"Node {node_id} is a root node (no CPD)"
-            )
+            raise ValueError(f"Node {node_id} is a root node (no CPD)")
         return data["cpd_noise_cov"]
 
     def nodes(self) -> List[int]:
@@ -260,9 +255,7 @@ class GaussianNetwork(Generic[Array]):
                 cpd_coeffs = data["cpd_coefficients"]
 
                 # Build combined coefficient matrix A
-                parent_nvars_per_var = [
-                    self._node_data[p]["nvars"] for p in parents
-                ]
+                parent_nvars_per_var = [self._node_data[p]["nvars"] for p in parents]
                 total_parent_dims = sum(parent_nvars_per_var)
                 A = self._bkd.zeros((nvars, total_parent_dims))
                 A_np = self._bkd.to_numpy(A)
@@ -271,7 +264,7 @@ class GaussianNetwork(Generic[Array]):
                 for i, (parent_id, coeff) in enumerate(zip(parents, cpd_coeffs)):
                     coeff_np = self._bkd.to_numpy(coeff)
                     parent_nvars = self._node_data[parent_id]["nvars"]
-                    A_np[:, offset:offset + parent_nvars] = coeff_np
+                    A_np[:, offset : offset + parent_nvars] = coeff_np
                     offset += parent_nvars
 
                 A = self._bkd.asarray(A_np)
@@ -340,9 +333,7 @@ class GaussianNetwork(Generic[Array]):
                 mean = data["prior_mean"]
                 cov = data["prior_cov"]
                 L = self._bkd.cholesky(cov)
-                std_normal = self._bkd.asarray(
-                    np.random.randn(nvars, nsamples)
-                )
+                std_normal = self._bkd.asarray(np.random.randn(nvars, nsamples))
                 if mean.ndim == 1:
                     mean = mean[:, None]
                 node_samples = L @ std_normal + mean
@@ -371,9 +362,7 @@ class GaussianNetwork(Generic[Array]):
 
                 # Add noise
                 L = self._bkd.cholesky(noise_cov)
-                std_normal = self._bkd.asarray(
-                    np.random.randn(nvars, nsamples)
-                )
+                std_normal = self._bkd.asarray(np.random.randn(nvars, nsamples))
                 node_samples = mean + L @ std_normal
 
             samples[node_id] = node_samples

@@ -98,8 +98,7 @@ class MSEFunctional(Generic[Array]):
         """
         if obs.shape != (self.nstates(), 1):
             raise ValueError(
-                f"obs has shape {obs.shape} but must have "
-                f"shape {(self.nstates(), 1)}"
+                f"obs has shape {obs.shape} but must have shape {(self.nstates(), 1)}"
             )
         self._obs = obs
 
@@ -143,9 +142,7 @@ class MSEFunctional(Generic[Array]):
         """
         return (state - self._obs).T
 
-    def param_param_hvp(
-        self, state: Array, param: Array, vvec: Array
-    ) -> Array:
+    def param_param_hvp(self, state: Array, param: Array, vvec: Array) -> Array:
         """
         Compute the Hessian-vector product with respect to the parameters.
 
@@ -156,9 +153,7 @@ class MSEFunctional(Generic[Array]):
         """
         return self._bkd.zeros((self.nparams(), 1))
 
-    def state_state_hvp(
-        self, state: Array, param: Array, vvec: Array
-    ) -> Array:
+    def state_state_hvp(self, state: Array, param: Array, vvec: Array) -> Array:
         """
         Compute the Hessian-vector product with respect to the state.
 
@@ -169,9 +164,7 @@ class MSEFunctional(Generic[Array]):
         """
         return vvec
 
-    def param_state_hvp(
-        self, state: Array, param: Array, vvec: Array
-    ) -> Array:
+    def param_state_hvp(self, state: Array, param: Array, vvec: Array) -> Array:
         """
         Compute the Hessian-vector product with respect to parameters and state.
 
@@ -182,9 +175,7 @@ class MSEFunctional(Generic[Array]):
         """
         return self._bkd.zeros((self.nparams(), 1))
 
-    def state_param_hvp(
-        self, state: Array, param: Array, vvec: Array
-    ) -> Array:
+    def state_param_hvp(self, state: Array, param: Array, vvec: Array) -> Array:
         """
         Compute the Hessian-vector product with respect to state and parameters.
 

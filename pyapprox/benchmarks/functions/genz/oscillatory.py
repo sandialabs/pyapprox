@@ -131,9 +131,7 @@ class OscillatoryFunction(Generic[Array]):
                 f"sample must have shape ({self._nvars}, 1), got {sample.shape}"
             )
         if vec.ndim != 2 or vec.shape != (self._nvars, 1):
-            raise ValueError(
-                f"vec must have shape ({self._nvars}, 1), got {vec.shape}"
-            )
+            raise ValueError(f"vec must have shape ({self._nvars}, 1), got {vec.shape}")
         bkd = self._bkd
         arg = 2.0 * math.pi * self._w[0, 0] + bkd.sum(self._c * sample)
         # H = -cos(arg) * c @ c^T
@@ -151,9 +149,7 @@ class OscillatoryFunction(Generic[Array]):
         """
         return float(self._compute_integral())
 
-    def _oscillatory_recursive_integrate(
-        self, var_id: int, cosine: bool
-    ) -> Array:
+    def _oscillatory_recursive_integrate(self, var_id: int, cosine: bool) -> Array:
         """Recursively compute the integral.
 
         Uses the recurrence relation for integrating cosines.
@@ -169,21 +165,18 @@ class OscillatoryFunction(Generic[Array]):
             return C2
 
         if cosine:
-            return (
-                C1 * self._oscillatory_recursive_integrate(var_id + 1, True)
-                - C2 * self._oscillatory_recursive_integrate(var_id + 1, False)
-            )
-        return (
-            C2 * self._oscillatory_recursive_integrate(var_id + 1, True)
-            + C1 * self._oscillatory_recursive_integrate(var_id + 1, False)
-        )
+            return C1 * self._oscillatory_recursive_integrate(
+                var_id + 1, True
+            ) - C2 * self._oscillatory_recursive_integrate(var_id + 1, False)
+        return C2 * self._oscillatory_recursive_integrate(
+            var_id + 1, True
+        ) + C1 * self._oscillatory_recursive_integrate(var_id + 1, False)
 
     def _compute_integral(self) -> Array:
         """Compute the integral using the recursive formula."""
         bkd = self._bkd
         C1 = bkd.cos(2.0 * math.pi * self._w[0, 0])
         C2 = bkd.sin(2.0 * math.pi * self._w[0, 0])
-        return (
-            C1 * self._oscillatory_recursive_integrate(0, True)
-            - C2 * self._oscillatory_recursive_integrate(0, False)
-        )
+        return C1 * self._oscillatory_recursive_integrate(
+            0, True
+        ) - C2 * self._oscillatory_recursive_integrate(0, False)

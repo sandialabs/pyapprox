@@ -216,6 +216,4 @@ def inverse_growth_rule(degree: int, growth_rule: IndexGrowthRule) -> int:
         if growth_rule(level) > degree:
             return level
 
-    raise ValueError(
-        f"Could not find level for degree {degree} within search limit"
-    )
+    raise ValueError(f"Could not find level for degree {degree} within search limit")

@@ -1,12 +1,12 @@
 import unittest
-from typing import Generic, Any
+from typing import Any, Generic
 
 import numpy as np
 import torch
 from numpy.typing import NDArray
 
-from pyapprox.util.backends.protocols import Backend, Array
 from pyapprox.util.backends.numpy import NumpyBkd
+from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.util.backends.torch import TorchBkd
 from pyapprox.util.hyperparameter.cholesky_hyperparameter import (
     CholeskyHyperParameter,
@@ -37,9 +37,7 @@ class TestCholeskyHyperParameter(Generic[Array], unittest.TestCase):
         """
         Override this method in derived classes to provide the backend.
         """
-        raise NotImplementedError(
-            "Derived classes must implement this method."
-        )
+        raise NotImplementedError("Derived classes must implement this method.")
 
     def test_get_values(self) -> None:
         """
@@ -68,14 +66,10 @@ class TestCholeskyHyperParameter(Generic[Array], unittest.TestCase):
             user_bounds=self.user_bounds,
             bkd=self.bkd(),
         )
-        self.bkd().assert_allclose(
-            cholesky_hyperparameter.factor(), self.user_values
-        )
+        self.bkd().assert_allclose(cholesky_hyperparameter.factor(), self.user_values)
 
 
-class TestCholeskyHyperParameterNumpy(
-    TestCholeskyHyperParameter[NDArray[Any]]
-):
+class TestCholeskyHyperParameterNumpy(TestCholeskyHyperParameter[NDArray[Any]]):
     def setUp(self) -> None:
         self._bkd = NumpyBkd()
         super().setUp()
@@ -84,18 +78,13 @@ class TestCholeskyHyperParameterNumpy(
         return self._bkd
 
 
-class TestCholeskyHyperParameterTorch(
-    TestCholeskyHyperParameter[torch.Tensor]
-):
+class TestCholeskyHyperParameterTorch(TestCholeskyHyperParameter[torch.Tensor]):
     def setUp(self) -> None:
         self._bkd = TorchBkd()
         super().setUp()
 
     def bkd(self) -> TorchBkd:
         return self._bkd
-
-
-from pyapprox.util.test_utils import load_tests
 
 
 if __name__ == "__main__":

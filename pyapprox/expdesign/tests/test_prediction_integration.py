@@ -15,23 +15,20 @@ import numpy as np
 import torch
 from numpy.typing import NDArray
 
-from pyapprox.util.backends.numpy import NumpyBkd
-from pyapprox.util.backends.torch import TorchBkd
-from pyapprox.util.backends.protocols import Array
-from pyapprox.util.test_utils import load_tests  # noqa: F401
-
 from pyapprox.expdesign import (
-    GaussianOEDInnerLoopLikelihood,
-    PredictionOEDObjective,
-    StandardDeviationMeasure,
     EntropicDeviationMeasure,
     SampleAverageMean,
     SampleAverageVariance,
+    StandardDeviationMeasure,
     create_deviation_measure,
-    create_risk_measure,
     create_prediction_oed_objective,
+    create_risk_measure,
 )
 from pyapprox.probability.risk.gaussian import GaussianAnalyticalRiskMeasures
+from pyapprox.util.backends.numpy import NumpyBkd
+from pyapprox.util.backends.protocols import Array
+from pyapprox.util.backends.torch import TorchBkd
+from pyapprox.util.test_utils import load_tests  # noqa: F401
 
 
 class TestPredictionOEDWorkflow(Generic[Array], unittest.TestCase):
@@ -236,9 +233,7 @@ class TestPredictionOEDWorkflow(Generic[Array], unittest.TestCase):
         val2 = objective(weights2)
 
         # Higher weights = less noise = less deviation
-        self.assertFalse(
-            self._bkd.allclose(val1, val2, atol=1e-8)
-        )
+        self.assertFalse(self._bkd.allclose(val1, val2, atol=1e-8))
 
 
 class TestPredictionOEDWorkflowNumpy(TestPredictionOEDWorkflow[NDArray[Any]]):
@@ -381,9 +376,7 @@ class TestPredictionOEDAnalytical(Generic[Array], unittest.TestCase):
         self.assertTrue(val_np < 10 * expected_approx + 0.1)
 
 
-class TestPredictionOEDAnalyticalNumpy(
-    TestPredictionOEDAnalytical[NDArray[Any]]
-):
+class TestPredictionOEDAnalyticalNumpy(TestPredictionOEDAnalytical[NDArray[Any]]):
     """NumPy backend tests."""
 
     __test__ = True
@@ -392,9 +385,7 @@ class TestPredictionOEDAnalyticalNumpy(
         return NumpyBkd()
 
 
-class TestPredictionOEDAnalyticalTorch(
-    TestPredictionOEDAnalytical[torch.Tensor]
-):
+class TestPredictionOEDAnalyticalTorch(TestPredictionOEDAnalytical[torch.Tensor]):
     """PyTorch backend tests."""
 
     __test__ = True
@@ -412,6 +403,7 @@ class TestGaussianRiskMeasuresIntegration(unittest.TestCase):
 
     def setUp(self):
         from pyapprox.util.backends.numpy import NumpyBkd
+
         self._bkd = NumpyBkd()
 
     def test_gaussian_stdev(self):
@@ -421,7 +413,7 @@ class TestGaussianRiskMeasuresIntegration(unittest.TestCase):
 
         self.assertEqual(risk.mean(), mu)
         self.assertEqual(risk.stdev(), sigma)
-        self.assertEqual(risk.variance(), sigma ** 2)
+        self.assertEqual(risk.variance(), sigma**2)
 
     def test_gaussian_entropic(self):
         """Test Gaussian analytical entropic risk."""
@@ -430,7 +422,7 @@ class TestGaussianRiskMeasuresIntegration(unittest.TestCase):
 
         alpha = 0.5
         # Entropic for Gaussian: mu + alpha * sigma^2 / 2
-        expected = mu + alpha * sigma ** 2 / 2.0
+        expected = mu + alpha * sigma**2 / 2.0
         self._bkd.assert_allclose(
             self._bkd.asarray([risk.entropic(alpha)]),
             self._bkd.asarray([expected]),

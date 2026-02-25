@@ -10,16 +10,15 @@ All kernels support analytical Jacobians and Hessian-vector products (HVP)
 w.r.t. hyperparameters for efficient optimization.
 """
 
-from typing import Tuple
 import math
 from abc import abstractmethod
+from typing import Tuple
 
 import numpy as np
 
-from pyapprox.util.hyperparameter import LogHyperParameter
-from pyapprox.util.hyperparameter import HyperParameterList
-from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.surrogates.kernels.protocols import Kernel
+from pyapprox.util.backends.protocols import Array, Backend
+from pyapprox.util.hyperparameter import HyperParameterList, LogHyperParameter
 
 
 class MaternKernel(Kernel):
@@ -134,9 +133,7 @@ class MaternKernel(Kernel):
         hvp : Array, shape (n1, n2, nvars)
             Hessian-vector product
         """
-        nvars = X1.shape[0]
         n1 = X1.shape[1]
-        n2 = X2.shape[1]
 
         lenscale = self._log_lenscale.exp_values()
 
@@ -168,8 +165,11 @@ class MaternKernel(Kernel):
         diffs_scaled_dot_V = self._bkd.einsum('ki,k->i', diffs_over_ell2, V)
 
         r_inv3 = r_inv**3
-        d2r_dot_V = (-diffs_over_ell2 * (r_inv3[None, :] * diffs_scaled_dot_V[None, :]) +
-                     V[:, None] * r_inv[None, :] / ell_squared)
+        d2r_dot_V = (
+            -diffs_over_ell2
+            * (r_inv3[None, :] * diffs_scaled_dot_V[None, :])
+            + V[:, None] * r_inv[None, :] / ell_squared
+        )
 
         term2 = d2r_dot_V * phi_prime[None, :]
 
@@ -236,7 +236,6 @@ class SquaredExponentialKernel(MaternKernel):
         """
         lenscale = self._log_lenscale.exp_values()
         Kmat = self(X1, X1)
-        nvars = X1.shape[0]
 
         diffs = X1[:, :, None] - X1[:, None, :]
         r_sq = (diffs / lenscale[:, None, None])**2
@@ -307,7 +306,11 @@ class SquaredExponentialKernel(MaternKernel):
         )
 
     def __repr__(self) -> str:
-        return f"SquaredExponentialKernel({self._hyp_list}, bkd={self._bkd.__class__.__name__})"
+        cls = self._bkd.__class__.__name__
+        return (
+            f"SquaredExponentialKernel("
+            f"{self._hyp_list}, bkd={cls})"
+        )
 
 
 class Matern52Kernel(MaternKernel):
@@ -373,7 +376,6 @@ class Matern52Kernel(MaternKernel):
                = K*s_i²*(g² - g'/r)*(s²·v) - 2*K*g*s_i²*v_i
         """
         lenscale = self._log_lenscale.exp_values()
-        nvars = X1.shape[0]
 
         # Compute scaled differences
         diffs = X1[:, :, None] - X1[:, None, :]  # (nvars, n, n)
@@ -413,7 +415,10 @@ class Matern52Kernel(MaternKernel):
 
         # Second term: -2*K*g*s_i²*v_i
         Kg = Kmat * g  # (n, n)
-        term2 = -2.0 * Kg[:, :, None] * s_sq_T * direction[None, None, :]  # (n, n, nvars)
+        term2 = (  # (n, n, nvars)
+            -2.0 * Kg[:, :, None] * s_sq_T
+            * direction[None, None, :]
+        )
 
         return term1 + term2
 
@@ -528,7 +533,10 @@ class Matern32Kernel(MaternKernel):
         term1 = first_factor[:, :, None] * s_sq_T  # (n, n, nvars)
 
         Kg = Kmat * g  # (n, n)
-        term2 = -2.0 * Kg[:, :, None] * s_sq_T * direction[None, None, :]  # (n, n, nvars)
+        term2 = (  # (n, n, nvars)
+            -2.0 * Kg[:, :, None] * s_sq_T
+            * direction[None, None, :]
+        )
 
         return term1 + term2
 
@@ -658,4 +666,8 @@ class ExponentialKernel(MaternKernel):
         return phi_prime, phi_double_prime
 
     def __repr__(self) -> str:
-        return f"ExponentialKernel({self._hyp_list}, bkd={self._bkd.__class__.__name__})"
+        cls = self._bkd.__class__.__name__
+        return (
+            f"ExponentialKernel("
+            f"{self._hyp_list}, bkd={cls})"
+        )

@@ -1,4 +1,5 @@
-from typing import Union, Tuple, Generic, Optional, cast
+from typing import Generic, Tuple, Union, cast
+
 from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.util.backends.validation import validate_backend
 
@@ -212,7 +213,8 @@ class HyperParameter(Generic[Array]):
             raise ValueError("values must be a 1D array")
         if values.shape[0] != self.nparams():
             raise ValueError(
-                f"values shape {values.shape} inconsistent with nparams {self.nparams()}"
+                f"values shape {values.shape} inconsistent"
+                f" with nparams {self.nparams()}"
             )
         self._values = values
 
@@ -239,7 +241,8 @@ class HyperParameter(Generic[Array]):
         Raises
         ------
         ValueError
-            If the active_values shape is inconsistent with the number of active parameters.
+            If the active_values shape is inconsistent with
+            the number of active parameters.
         """
         if active_values.ndim != 1:
             raise ValueError("active_values must be a 1D array")

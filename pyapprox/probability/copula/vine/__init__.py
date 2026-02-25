@@ -6,13 +6,13 @@ and optional integration with Bayesian Gaussian networks.
 """
 
 from pyapprox.probability.copula.vine.dvine import DVineCopula
-from pyapprox.probability.copula.vine.helpers import (
-    precision_bandwidth,
-    compute_dvine_partial_correlations,
-    correlation_from_partial_correlations,
-)
 from pyapprox.probability.copula.vine.gaussian_network_factory import (
     dvine_from_gaussian_network,
+)
+from pyapprox.probability.copula.vine.helpers import (
+    compute_dvine_partial_correlations,
+    correlation_from_partial_correlations,
+    precision_bandwidth,
 )
 
 __all__ = [

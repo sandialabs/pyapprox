@@ -8,15 +8,6 @@ import numpy as np
 import torch
 from numpy.typing import NDArray
 
-from pyapprox.util.backends.numpy import NumpyBkd
-from pyapprox.util.backends.protocols import Array, Backend
-from pyapprox.util.backends.torch import TorchBkd
-from pyapprox.util.test_utils import load_tests  # noqa: F401
-
-from pyapprox.surrogates.kernels.matern import (
-    SquaredExponentialKernel,
-)
-from pyapprox.surrogates.affine.basis.kernel_basis import KernelBasis
 from pyapprox.probability.density.kernel_density_basis import (
     KernelDensityBasis,
 )
@@ -27,9 +18,17 @@ from pyapprox.probability.density.projection import (
     ISEOptimizingFitter,
     ProjectionDensityFitter,
 )
+from pyapprox.surrogates.affine.basis.kernel_basis import KernelBasis
 from pyapprox.surrogates.affine.expansions.pce_density import (
     composite_gauss_legendre,
 )
+from pyapprox.surrogates.kernels.matern import (
+    SquaredExponentialKernel,
+)
+from pyapprox.util.backends.numpy import NumpyBkd
+from pyapprox.util.backends.protocols import Array, Backend
+from pyapprox.util.backends.torch import TorchBkd
+from pyapprox.util.test_utils import load_tests  # noqa: F401
 
 
 class TestProjectionDensityFitter(Generic[Array], unittest.TestCase):
@@ -41,15 +40,13 @@ class TestProjectionDensityFitter(Generic[Array], unittest.TestCase):
     def setUp(self) -> None:
         self._bkd = self.bkd()
 
-    def _gaussian_pdf(self, y: np.ndarray, mu: float, sigma: float
-                      ) -> np.ndarray:
+    def _gaussian_pdf(self, y: np.ndarray, mu: float, sigma: float) -> np.ndarray:
         """Standard Gaussian PDF for reference."""
         return (1.0 / (sigma * math.sqrt(2.0 * math.pi))) * np.exp(
             -0.5 * ((y - mu) / sigma) ** 2
         )
 
-    def _make_gaussian_quadrature(self, mu: float, sigma: float,
-                                  nquad: int):
+    def _make_gaussian_quadrature(self, mu: float, sigma: float, nquad: int):
         """Generate Gauss-Hermite quadrature for N(mu, sigma^2).
 
         Returns (y_values, weights) where y_values has shape (1, nquad).
@@ -86,7 +83,10 @@ class TestProjectionDensityFitter(Generic[Array], unittest.TestCase):
         """Fit returns correct shape with kernel basis."""
         bkd = self._bkd
         kernel = SquaredExponentialKernel(
-            bkd.asarray([0.5]), (0.01, 100.0), 1, bkd,
+            bkd.asarray([0.5]),
+            (0.01, 100.0),
+            1,
+            bkd,
         )
         centers = bkd.reshape(bkd.linspace(-3.0, 3.0, 15), (1, -1))
         kb = KernelBasis(kernel, centers)
@@ -146,7 +146,10 @@ class TestProjectionDensityFitter(Generic[Array], unittest.TestCase):
         """Kernel basis density approximates N(0,1)."""
         bkd = self._bkd
         kernel = SquaredExponentialKernel(
-            bkd.asarray([0.5]), (0.01, 100.0), 1, bkd,
+            bkd.asarray([0.5]),
+            (0.01, 100.0),
+            1,
+            bkd,
         )
         centers = bkd.reshape(bkd.linspace(-4.0, 4.0, 25), (1, -1))
         kb = KernelBasis(kernel, centers)
@@ -203,7 +206,10 @@ class TestProjectionDensityFitter(Generic[Array], unittest.TestCase):
         """ISE criterion should be positive for kernel basis."""
         bkd = self._bkd
         kernel = SquaredExponentialKernel(
-            bkd.asarray([0.5]), (0.01, 100.0), 1, bkd,
+            bkd.asarray([0.5]),
+            (0.01, 100.0),
+            1,
+            bkd,
         )
         centers = bkd.reshape(bkd.linspace(-3.0, 3.0, 15), (1, -1))
         kb = KernelBasis(kernel, centers)
@@ -265,16 +271,12 @@ class TestProjectionDensityFitter(Generic[Array], unittest.TestCase):
         bkd.assert_allclose(f_approx, f_true, atol=0.05)
 
 
-class TestProjectionDensityFitterNumpy(
-    TestProjectionDensityFitter[NDArray[Any]]
-):
+class TestProjectionDensityFitterNumpy(TestProjectionDensityFitter[NDArray[Any]]):
     def bkd(self) -> NumpyBkd:
         return NumpyBkd()
 
 
-class TestProjectionDensityFitterTorch(
-    TestProjectionDensityFitter[torch.Tensor]
-):
+class TestProjectionDensityFitterTorch(TestProjectionDensityFitter[torch.Tensor]):
     def bkd(self) -> TorchBkd:
         torch.set_default_dtype(torch.float64)
         return TorchBkd()
@@ -298,16 +300,22 @@ class TestISEOptimizingFitter(Generic[Array], unittest.TestCase):
         weights = bkd.asarray(w_np)
         return y_values, weights
 
-    def _make_kernel_basis(self, lenscale: float = 0.1,
-                           ncenters: int = 20,
-                           y_min: float = -4.0,
-                           y_max: float = 4.0) -> KernelDensityBasis:
+    def _make_kernel_basis(
+        self,
+        lenscale: float = 0.1,
+        ncenters: int = 20,
+        y_min: float = -4.0,
+        y_max: float = 4.0,
+    ) -> KernelDensityBasis:
         bkd = self._bkd
         # Upper bound: average spacing between centers
         domain_len = y_max - y_min
         max_lenscale = domain_len / ncenters
         kernel = SquaredExponentialKernel(
-            bkd.asarray([lenscale]), (0.05, max_lenscale), 1, bkd,
+            bkd.asarray([lenscale]),
+            (0.05, max_lenscale),
+            1,
+            bkd,
         )
         centers = bkd.reshape(bkd.linspace(y_min, y_max, ncenters), (1, -1))
         kb = KernelBasis(kernel, centers)
@@ -321,19 +329,16 @@ class TestISEOptimizingFitter(Generic[Array], unittest.TestCase):
         # Start from a clearly non-optimal length scale
         basis = self._make_kernel_basis(lenscale=0.1)
         fitter_proj = ProjectionDensityFitter(basis)
-        ise_before = float(bkd.to_numpy(
-            fitter_proj.ise_criterion(y_values, weights)
-        ))
+        ise_before = float(bkd.to_numpy(fitter_proj.ise_criterion(y_values, weights)))
 
         ise_fitter = ISEOptimizingFitter(basis)
         ise_fitter.fit(y_values, weights)
 
-        ise_after = float(bkd.to_numpy(
-            fitter_proj.ise_criterion(y_values, weights)
-        ))
+        ise_after = float(bkd.to_numpy(fitter_proj.ise_criterion(y_values, weights)))
 
         self.assertGreater(
-            ise_after, ise_before,
+            ise_after,
+            ise_before,
             f"ISE did not improve: {ise_after:.6f} <= {ise_before:.6f}",
         )
 
@@ -360,21 +365,17 @@ class TestISEOptimizingFitter(Generic[Array], unittest.TestCase):
         f_true_np = stats.norm.pdf(y_test_np)
 
         Phi_fixed = basis_fixed.evaluate(y_test)
-        f_fixed_np = bkd.to_numpy(
-            bkd.dot(bkd.reshape(d_fixed, (1, -1)), Phi_fixed)[0]
-        )
+        f_fixed_np = bkd.to_numpy(bkd.dot(bkd.reshape(d_fixed, (1, -1)), Phi_fixed)[0])
         l2_fixed = float(np.sqrt(np.sum((f_fixed_np - f_true_np) ** 2)))
 
         Phi_opt = basis_opt.evaluate(y_test)
-        f_opt_np = bkd.to_numpy(
-            bkd.dot(bkd.reshape(d_opt, (1, -1)), Phi_opt)[0]
-        )
+        f_opt_np = bkd.to_numpy(bkd.dot(bkd.reshape(d_opt, (1, -1)), Phi_opt)[0])
         l2_opt = float(np.sqrt(np.sum((f_opt_np - f_true_np) ** 2)))
 
         self.assertLess(
-            l2_opt, l2_fixed,
-            f"Optimized L2 ({l2_opt:.6f}) not less than "
-            f"fixed L2 ({l2_fixed:.6f})",
+            l2_opt,
+            l2_fixed,
+            f"Optimized L2 ({l2_opt:.6f}) not less than fixed L2 ({l2_fixed:.6f})",
         )
 
     def test_ise_with_custom_optimizer(self) -> None:
@@ -385,6 +386,7 @@ class TestISEOptimizingFitter(Generic[Array], unittest.TestCase):
         from pyapprox.optimization.minimize.scipy.trust_constr import (
             ScipyTrustConstrOptimizer,
         )
+
         optimizer = ScipyTrustConstrOptimizer(verbosity=0, maxiter=100)
 
         basis = self._make_kernel_basis(lenscale=0.1)
@@ -404,16 +406,12 @@ class TestISEOptimizingFitter(Generic[Array], unittest.TestCase):
             ISEOptimizingFitter(basis)  # type: ignore
 
 
-class TestISEOptimizingFitterNumpy(
-    TestISEOptimizingFitter[NDArray[Any]]
-):
+class TestISEOptimizingFitterNumpy(TestISEOptimizingFitter[NDArray[Any]]):
     def bkd(self) -> NumpyBkd:
         return NumpyBkd()
 
 
-class TestISEOptimizingFitterTorch(
-    TestISEOptimizingFitter[torch.Tensor]
-):
+class TestISEOptimizingFitterTorch(TestISEOptimizingFitter[torch.Tensor]):
     def bkd(self) -> TorchBkd:
         torch.set_default_dtype(torch.float64)
         return TorchBkd()

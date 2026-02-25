@@ -17,39 +17,37 @@ GP B trains on original data with OutputStandardScaler. Same kernel params.
 
 import math
 import unittest
-from typing import Generic, Any, List
+from typing import Any, Generic, List
 
 import numpy as np
 import torch
 from numpy.typing import NDArray
 
-from pyapprox.util.backends.protocols import Backend, Array
-from pyapprox.util.backends.numpy import NumpyBkd
-from pyapprox.util.backends.torch import TorchBkd
-from pyapprox.util.test_utils import load_tests  # noqa: F401
-
-from pyapprox.surrogates.kernels.matern import (
-    SquaredExponentialKernel,
-)
-from pyapprox.surrogates.kernels.composition import (
-    SeparableProductKernel,
-)
+from pyapprox.probability.univariate.uniform import UniformMarginal
 from pyapprox.surrogates.gaussianprocess import ExactGaussianProcess
 from pyapprox.surrogates.gaussianprocess.output_transform import (
     OutputStandardScaler,
 )
-from pyapprox.probability.univariate.uniform import UniformMarginal
-from pyapprox.surrogates.sparsegrids.basis_factory import (
-    create_basis_factories,
-)
 from pyapprox.surrogates.gaussianprocess.statistics import (
-    SeparableKernelIntegralCalculator,
     GaussianProcessStatistics,
+    SeparableKernelIntegralCalculator,
 )
 from pyapprox.surrogates.gaussianprocess.statistics.sensitivity import (
     GaussianProcessSensitivity,
 )
-
+from pyapprox.surrogates.kernels.composition import (
+    SeparableProductKernel,
+)
+from pyapprox.surrogates.kernels.matern import (
+    SquaredExponentialKernel,
+)
+from pyapprox.surrogates.sparsegrids.basis_factory import (
+    create_basis_factories,
+)
+from pyapprox.util.backends.numpy import NumpyBkd
+from pyapprox.util.backends.protocols import Array, Backend
+from pyapprox.util.backends.torch import TorchBkd
+from pyapprox.util.test_utils import load_tests  # noqa: F401
 
 _NUGGET = 1e-10
 _NQUAD = 20
@@ -67,17 +65,13 @@ def _make_training_data(
     np.random.seed(42)
     X = bkd.array(np.random.rand(2, 5) * 2 - 1)
     y = bkd.reshape(
-        10.0 * bkd.sin(math.pi * X[0, :])
-        * bkd.cos(math.pi * X[1, :])
-        + 50.0,
+        10.0 * bkd.sin(math.pi * X[0, :]) * bkd.cos(math.pi * X[1, :]) + 50.0,
         (1, -1),
     )
     return X, y
 
 
-def _create_quadrature_bases(
-    marginals: List[Any], bkd: Backend[Array]
-) -> List[Any]:
+def _create_quadrature_bases(marginals: List[Any], bkd: Backend[Array]) -> List[Any]:
     factories = create_basis_factories(marginals, bkd, "gauss")
     bases = [f.create_basis() for f in factories]
     for b in bases:
@@ -89,8 +83,8 @@ def _create_stats(
     gp: Any, marginals: List[Any], bkd: Backend[Array]
 ) -> GaussianProcessStatistics[Array]:
     bases = _create_quadrature_bases(marginals, bkd)
-    calc: SeparableKernelIntegralCalculator[Array] = (
-        SeparableKernelIntegralCalculator(gp, bases, marginals, bkd=bkd)
+    calc: SeparableKernelIntegralCalculator[Array] = SeparableKernelIntegralCalculator(
+        gp, bases, marginals, bkd=bkd
     )
     return GaussianProcessStatistics(gp, calc)
 
@@ -99,8 +93,8 @@ def _create_sensitivity(
     gp: Any, marginals: List[Any], bkd: Backend[Array]
 ) -> GaussianProcessSensitivity[Array]:
     bases = _create_quadrature_bases(marginals, bkd)
-    calc: SeparableKernelIntegralCalculator[Array] = (
-        SeparableKernelIntegralCalculator(gp, bases, marginals, bkd=bkd)
+    calc: SeparableKernelIntegralCalculator[Array] = SeparableKernelIntegralCalculator(
+        gp, bases, marginals, bkd=bkd
     )
     stats = GaussianProcessStatistics(gp, calc)
     return GaussianProcessSensitivity(stats)
@@ -158,9 +152,7 @@ class TestOutputScaling(Generic[Array], unittest.TestCase):
         mu_y = self._scaler.shift()[0]
         expected = sigma_y * eta_a + mu_y
 
-        bkd.assert_allclose(
-            bkd.asarray([eta_b]), bkd.asarray([expected]), rtol=1e-10
-        )
+        bkd.assert_allclose(bkd.asarray([eta_b]), bkd.asarray([expected]), rtol=1e-10)
 
     def test_variance_of_mean(self) -> None:
         """variance_of_mean(B) ≈ σ_y² * variance_of_mean(A)"""
@@ -171,9 +163,7 @@ class TestOutputScaling(Generic[Array], unittest.TestCase):
         sigma_y_sq = self._scaler.scale()[0] ** 2
         expected = sigma_y_sq * var_a
 
-        bkd.assert_allclose(
-            bkd.asarray([var_b]), bkd.asarray([expected]), rtol=1e-10
-        )
+        bkd.assert_allclose(bkd.asarray([var_b]), bkd.asarray([expected]), rtol=1e-10)
 
     def test_mean_of_variance(self) -> None:
         """mean_of_variance(B) ≈ σ_y² * mean_of_variance(A)"""
@@ -184,9 +174,7 @@ class TestOutputScaling(Generic[Array], unittest.TestCase):
         sigma_y_sq = self._scaler.scale()[0] ** 2
         expected = sigma_y_sq * mov_a
 
-        bkd.assert_allclose(
-            bkd.asarray([mov_b]), bkd.asarray([expected]), rtol=1e-10
-        )
+        bkd.assert_allclose(bkd.asarray([mov_b]), bkd.asarray([expected]), rtol=1e-10)
 
     def test_variance_of_variance(self) -> None:
         """variance_of_variance(B) ≈ σ_y⁴ * variance_of_variance(A)"""
@@ -197,9 +185,7 @@ class TestOutputScaling(Generic[Array], unittest.TestCase):
         sigma_y_4 = self._scaler.scale()[0] ** 4
         expected = sigma_y_4 * vov_a
 
-        bkd.assert_allclose(
-            bkd.asarray([vov_b]), bkd.asarray([expected]), rtol=1e-8
-        )
+        bkd.assert_allclose(bkd.asarray([vov_b]), bkd.asarray([expected]), rtol=1e-8)
 
     def test_conditional_variance(self) -> None:
         """conditional_variance(B) ≈ σ_y² * conditional_variance(A)"""
@@ -213,9 +199,7 @@ class TestOutputScaling(Generic[Array], unittest.TestCase):
         sigma_y_sq = self._scaler.scale()[0] ** 2
         expected = sigma_y_sq * cv_a
 
-        bkd.assert_allclose(
-            bkd.asarray([cv_b]), bkd.asarray([expected]), rtol=1e-10
-        )
+        bkd.assert_allclose(bkd.asarray([cv_b]), bkd.asarray([expected]), rtol=1e-10)
 
     def test_sobol_indices_invariant(self) -> None:
         """Sobol indices are invariant to output scaling."""
@@ -251,9 +235,12 @@ class TestOutputScaling(Generic[Array], unittest.TestCase):
 
         # The original y has mean ~50, so eta should be in that ballpark.
         # Just verify it's not in scaled space (which would be ~0).
-        mu_y = float(bkd.to_numpy(self._scaler.shift()[0:1])[0])
-        self.assertGreater(abs(float(bkd.to_numpy(bkd.asarray([eta]))[0])), 1.0,
-                           "mean_of_mean appears to be in scaled space, not original")
+        float(bkd.to_numpy(self._scaler.shift()[0:1])[0])
+        self.assertGreater(
+            abs(float(bkd.to_numpy(bkd.asarray([eta]))[0])),
+            1.0,
+            "mean_of_mean appears to be in scaled space, not original",
+        )
 
 
 class TestOutputScalingNumpy(TestOutputScaling[NDArray[Any]]):

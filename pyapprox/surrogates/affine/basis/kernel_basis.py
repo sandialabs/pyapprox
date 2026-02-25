@@ -7,11 +7,11 @@ interpolation, regression, and density estimation.
 
 from typing import Generic
 
+from pyapprox.surrogates.kernels.protocols import KernelProtocol
 from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.util.hyperparameter.hyperparameter_list import (
     HyperParameterList,
 )
-from pyapprox.surrogates.kernels.protocols import KernelProtocol
 
 
 class KernelBasis(Generic[Array]):
@@ -35,13 +35,10 @@ class KernelBasis(Generic[Array]):
         If centers shape is incompatible with kernel.nvars().
     """
 
-    def __init__(
-        self, kernel: KernelProtocol[Array], centers: Array
-    ) -> None:
+    def __init__(self, kernel: KernelProtocol[Array], centers: Array) -> None:
         if not isinstance(kernel, KernelProtocol):
             raise TypeError(
-                f"kernel must satisfy KernelProtocol, "
-                f"got {type(kernel).__name__}"
+                f"kernel must satisfy KernelProtocol, got {type(kernel).__name__}"
             )
         if centers.ndim != 2:
             raise ValueError(

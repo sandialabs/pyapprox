@@ -11,19 +11,18 @@ import numpy as np
 import torch
 from numpy.typing import NDArray
 
-from pyapprox.util.backends.numpy import NumpyBkd
-from pyapprox.util.backends.torch import TorchBkd
-from pyapprox.util.backends.protocols import Array
-from pyapprox.util.test_utils import load_tests  # noqa: F401
-
 from pyapprox.benchmarks.instances.sensitivity import (
     ishigami_3d,
     sobol_g_4d,
 )
 from pyapprox.sensitivity import (
-    SobolSequenceSensitivityAnalysis,
     MorrisSensitivityAnalysis,
+    SobolSequenceSensitivityAnalysis,
 )
+from pyapprox.util.backends.numpy import NumpyBkd
+from pyapprox.util.backends.protocols import Array
+from pyapprox.util.backends.torch import TorchBkd
+from pyapprox.util.test_utils import load_tests  # noqa: F401
 
 
 class TestSampleBasedSensitivity(Generic[Array], unittest.TestCase):
@@ -63,9 +62,7 @@ class TestSampleBasedSensitivity(Generic[Array], unittest.TestCase):
 
         # Relaxed tolerances for Monte Carlo estimation
         self._bkd.assert_allclose(mean, self._bkd.asarray([gt.mean]), rtol=0.1)
-        self._bkd.assert_allclose(
-            variance, self._bkd.asarray([gt.variance]), rtol=0.15
-        )
+        self._bkd.assert_allclose(variance, self._bkd.asarray([gt.variance]), rtol=0.15)
 
         # Check main effects
         main_effects = sa.main_effects()

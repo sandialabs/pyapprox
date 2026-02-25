@@ -3,10 +3,18 @@
 All attributes accessed via methods per CLAUDE.md conventions.
 """
 
-from typing import Any, Generic, List, Optional, Protocol, TypeVar, runtime_checkable
+from typing import (
+    Any,
+    Generic,
+    List,
+    Optional,
+    Protocol,
+    TypeVar,
+    runtime_checkable,
+)
 
-from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.optimization.linear.sparse import OMPTerminationFlag
+from pyapprox.util.backends.protocols import Array, Backend
 
 
 @runtime_checkable

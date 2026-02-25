@@ -33,23 +33,23 @@ import torch
 from numpy.typing import NDArray
 from unittest_parametrize import ParametrizedTestCase, parametrize
 
-from pyapprox.util.backends.protocols import Array, Backend
-from pyapprox.util.backends.numpy import NumpyBkd
-from pyapprox.util.backends.torch import TorchBkd
-from pyapprox.util.test_utils import load_tests  # noqa: F401
-from pyapprox.pde.collocation.basis import ChebyshevBasis1D
-from pyapprox.pde.collocation.mesh import (
-    create_uniform_mesh_1d,
-    TransformedMesh1D,
-)
-from pyapprox.pde.collocation.boundary import constant_dirichlet_bc
-from pyapprox.pde.collocation.physics import ShallowWavePhysics
-from pyapprox.pde.collocation.manufactured_solutions import (
-    ManufacturedShallowWave,
-)
 from pyapprox.interface.functions.derivative_checks.derivative_checker import (
     DerivativeChecker,
 )
+from pyapprox.pde.collocation.basis import ChebyshevBasis1D
+from pyapprox.pde.collocation.boundary import constant_dirichlet_bc
+from pyapprox.pde.collocation.manufactured_solutions import (
+    ManufacturedShallowWave,
+)
+from pyapprox.pde.collocation.mesh import (
+    TransformedMesh1D,
+    create_uniform_mesh_1d,
+)
+from pyapprox.pde.collocation.physics import ShallowWavePhysics
+from pyapprox.util.backends.numpy import NumpyBkd
+from pyapprox.util.backends.protocols import Array, Backend
+from pyapprox.util.backends.torch import TorchBkd
+from pyapprox.util.test_utils import load_tests  # noqa: F401
 
 
 class PhysicsDerivativeWrapper(Generic[Array]):
@@ -81,9 +81,11 @@ class PhysicsDerivativeWrapper(Generic[Array]):
         # samples shape: (nvars, nsamples), return (nqoi, nsamples)
         if samples.ndim == 2:
             return self._backend.stack(
-                [self._physics.residual(samples[:, i], self._time)
-                 for i in range(samples.shape[1])],
-                axis=1
+                [
+                    self._physics.residual(samples[:, i], self._time)
+                    for i in range(samples.shape[1])
+                ],
+                axis=1,
             )
         # Single sample: return (nqoi, 1)
         return self._physics.residual(samples, self._time).reshape(-1, 1)
@@ -136,17 +138,14 @@ class TestManufacturedShallowWave1D(Generic[Array], unittest.TestCase):
         # Create physics with manufactured forcing for all components
         all_forcing = bkd.hstack([forcing[:, 0], forcing[:, 1]])
         physics = ShallowWavePhysics(
-            basis, bkd, bed=bed.flatten(), g=9.81,
-            forcing=lambda t: all_forcing
+            basis, bkd, bed=bed.flatten(), g=9.81, forcing=lambda t: all_forcing
         )
 
         # Set Dirichlet BCs at boundaries for both h and hu
         left_idx = mesh.boundary_indices(0)
         right_idx = mesh.boundary_indices(1)
 
-        bc_h_left = constant_dirichlet_bc(
-            bkd, left_idx, float(h_exact[int(left_idx)])
-        )
+        bc_h_left = constant_dirichlet_bc(bkd, left_idx, float(h_exact[int(left_idx)]))
         bc_h_right = constant_dirichlet_bc(
             bkd, right_idx, float(h_exact[int(right_idx)])
         )
@@ -156,7 +155,9 @@ class TestManufacturedShallowWave1D(Generic[Array], unittest.TestCase):
         bc_hu_right = constant_dirichlet_bc(
             bkd, right_idx + npts, float(hu_exact[int(right_idx)])
         )
-        physics.set_boundary_conditions([bc_h_left, bc_h_right, bc_hu_left, bc_hu_right])
+        physics.set_boundary_conditions(
+            [bc_h_left, bc_h_right, bc_hu_left, bc_hu_right]
+        )
 
         # Create state and compute residual
         state_exact = bkd.hstack([h_exact, hu_exact])
@@ -201,8 +202,7 @@ class TestManufacturedShallowWave1D(Generic[Array], unittest.TestCase):
 
         all_forcing = bkd.hstack([forcing[:, 0], forcing[:, 1]])
         physics = ShallowWavePhysics(
-            basis, bkd, bed=bed.flatten(), g=9.81,
-            forcing=lambda t: all_forcing
+            basis, bkd, bed=bed.flatten(), g=9.81, forcing=lambda t: all_forcing
         )
 
         state_exact = bkd.hstack([sol[:, 0], sol[:, 1]])
@@ -239,17 +239,24 @@ class TestManufacturedShallowWave1D(Generic[Array], unittest.TestCase):
 
         all_forcing = bkd.hstack([forcing[:, 0], forcing[:, 1]])
         physics = ShallowWavePhysics(
-            basis, bkd, bed=bed.flatten(), g=9.81,
-            forcing=lambda t: all_forcing
+            basis, bkd, bed=bed.flatten(), g=9.81, forcing=lambda t: all_forcing
         )
 
         left_idx = mesh.boundary_indices(0)
         right_idx = mesh.boundary_indices(1)
         bc_h_left = constant_dirichlet_bc(bkd, left_idx, float(h_exact[int(left_idx)]))
-        bc_h_right = constant_dirichlet_bc(bkd, right_idx, float(h_exact[int(right_idx)]))
-        bc_hu_left = constant_dirichlet_bc(bkd, left_idx + npts, float(hu_exact[int(left_idx)]))
-        bc_hu_right = constant_dirichlet_bc(bkd, right_idx + npts, float(hu_exact[int(right_idx)]))
-        physics.set_boundary_conditions([bc_h_left, bc_h_right, bc_hu_left, bc_hu_right])
+        bc_h_right = constant_dirichlet_bc(
+            bkd, right_idx, float(h_exact[int(right_idx)])
+        )
+        bc_hu_left = constant_dirichlet_bc(
+            bkd, left_idx + npts, float(hu_exact[int(left_idx)])
+        )
+        bc_hu_right = constant_dirichlet_bc(
+            bkd, right_idx + npts, float(hu_exact[int(right_idx)])
+        )
+        physics.set_boundary_conditions(
+            [bc_h_left, bc_h_right, bc_hu_left, bc_hu_right]
+        )
 
         state_exact = bkd.hstack([h_exact, hu_exact])
         residual = physics.residual(state_exact, 0.0)
@@ -303,7 +310,13 @@ class TestShallowWave1DParameterized(ParametrizedTestCase):
         [
             ("quadratic_sloped", "2 + 0.3*(1 - x**2)", "0.5*(1 - x**2)", "0.1*x", 20),
             ("quadratic_flat", "2 + 0.3*(1 - x**2)", "0.5*(1 - x**2)", "0.0", 20),
-            ("quadratic_curved_bed", "2 + 0.3*(1 - x**2)", "0.5*(1 - x**2)", "0.05*x**2", 20),
+            (
+                "quadratic_curved_bed",
+                "2 + 0.3*(1 - x**2)",
+                "0.5*(1 - x**2)",
+                "0.05*x**2",
+                20,
+            ),
             ("quartic_depth", "2 + 0.2*(1 - x**2)**2", "0.3*(1 - x**2)", "0.1*x", 25),
             ("higher_depth", "3 + 0.5*(1 - x**2)", "0.8*(1 - x**2)", "0.1*x", 20),
         ],
@@ -337,17 +350,24 @@ class TestShallowWave1DParameterized(ParametrizedTestCase):
 
         all_forcing = bkd.hstack([forcing[:, 0], forcing[:, 1]])
         physics = ShallowWavePhysics(
-            basis, bkd, bed=bed.flatten(), g=9.81,
-            forcing=lambda t: all_forcing
+            basis, bkd, bed=bed.flatten(), g=9.81, forcing=lambda t: all_forcing
         )
 
         left_idx = mesh.boundary_indices(0)
         right_idx = mesh.boundary_indices(1)
         bc_h_left = constant_dirichlet_bc(bkd, left_idx, float(h_exact[int(left_idx)]))
-        bc_h_right = constant_dirichlet_bc(bkd, right_idx, float(h_exact[int(right_idx)]))
-        bc_hu_left = constant_dirichlet_bc(bkd, left_idx + npts, float(hu_exact[int(left_idx)]))
-        bc_hu_right = constant_dirichlet_bc(bkd, right_idx + npts, float(hu_exact[int(right_idx)]))
-        physics.set_boundary_conditions([bc_h_left, bc_h_right, bc_hu_left, bc_hu_right])
+        bc_h_right = constant_dirichlet_bc(
+            bkd, right_idx, float(h_exact[int(right_idx)])
+        )
+        bc_hu_left = constant_dirichlet_bc(
+            bkd, left_idx + npts, float(hu_exact[int(left_idx)])
+        )
+        bc_hu_right = constant_dirichlet_bc(
+            bkd, right_idx + npts, float(hu_exact[int(right_idx)])
+        )
+        physics.set_boundary_conditions(
+            [bc_h_left, bc_h_right, bc_hu_left, bc_hu_right]
+        )
 
         state_exact = bkd.hstack([h_exact, hu_exact])
         residual = physics.residual(state_exact, 0.0)
@@ -372,7 +392,13 @@ class TestShallowWave1DParameterized(ParametrizedTestCase):
         [
             ("jacobian_basic", "2 + 0.3*(1 - x**2)", "0.5*(1 - x**2)", "0.1*x", 12),
             ("jacobian_flat_bed", "2 + 0.3*(1 - x**2)", "0.5*(1 - x**2)", "0.0", 12),
-            ("jacobian_high_depth", "3 + 0.5*(1 - x**2)", "0.3*(1 - x**2)", "0.1*x", 12),
+            (
+                "jacobian_high_depth",
+                "3 + 0.5*(1 - x**2)",
+                "0.3*(1 - x**2)",
+                "0.1*x",
+                12,
+            ),
         ],
     )
     def test_shallow_wave_1d_jacobian(self, name, depth_str, mom_str, bed_str, npts):
@@ -398,8 +424,7 @@ class TestShallowWave1DParameterized(ParametrizedTestCase):
 
         all_forcing = bkd.hstack([forcing[:, 0], forcing[:, 1]])
         physics = ShallowWavePhysics(
-            basis, bkd, bed=bed.flatten(), g=9.81,
-            forcing=lambda t: all_forcing
+            basis, bkd, bed=bed.flatten(), g=9.81, forcing=lambda t: all_forcing
         )
 
         state_exact = bkd.hstack([sol[:, 0], sol[:, 1]])
@@ -410,9 +435,7 @@ class TestShallowWave1DParameterized(ParametrizedTestCase):
 
 
 # Concrete backend implementations
-class TestManufacturedShallowWave1DNumpy(
-    TestManufacturedShallowWave1D[NDArray[Any]]
-):
+class TestManufacturedShallowWave1DNumpy(TestManufacturedShallowWave1D[NDArray[Any]]):
     """NumPy backend tests for 1D Shallow Wave."""
 
     __test__ = True
@@ -421,9 +444,7 @@ class TestManufacturedShallowWave1DNumpy(
         return NumpyBkd()
 
 
-class TestManufacturedShallowWave1DTorch(
-    TestManufacturedShallowWave1D[torch.Tensor]
-):
+class TestManufacturedShallowWave1DTorch(TestManufacturedShallowWave1D[torch.Tensor]):
     """PyTorch backend tests for 1D Shallow Wave."""
 
     __test__ = True

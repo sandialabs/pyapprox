@@ -15,8 +15,8 @@ This form is efficient for:
 - Message passing in graphical models
 """
 
-from typing import Generic, Tuple
 import math
+from typing import Generic, Tuple
 
 import numpy as np
 
@@ -117,9 +117,7 @@ class GaussianCanonicalForm(Generic[Array]):
         # g = -0.5 * m^T h - 0.5 * n * log(2*pi) + 0.5 * log|K|
         sign, logdet = bkd.slogdet(precision)
         normalization = 0.5 * (
-            -float(mean @ shift)
-            - nvars * math.log(2 * math.pi)
-            + float(logdet)
+            -float(mean @ shift) - nvars * math.log(2 * math.pi) + float(logdet)
         )
 
         return cls(precision, shift, normalization, bkd)
@@ -193,9 +191,7 @@ class GaussianCanonicalForm(Generic[Array]):
             Product (unnormalized).
         """
         if self._nvars != other.nvars():
-            raise ValueError(
-                f"Dimension mismatch: {self._nvars} vs {other.nvars()}"
-            )
+            raise ValueError(f"Dimension mismatch: {self._nvars} vs {other.nvars()}")
 
         new_precision = self._precision + other.precision()
         new_shift = self._shift + other.shift()
@@ -272,9 +268,7 @@ class GaussianCanonicalForm(Generic[Array]):
             new_precision, new_shift, new_normalization, self._bkd
         )
 
-    def marginalize(
-        self, marg_indices: Array
-    ) -> "GaussianCanonicalForm[Array]":
+    def marginalize(self, marg_indices: Array) -> "GaussianCanonicalForm[Array]":
         """
         Compute marginal distribution by integrating out variables.
 
@@ -322,10 +316,8 @@ class GaussianCanonicalForm(Generic[Array]):
         # Normalization adjustment
         sign, logdet_K22 = self._bkd.slogdet(K22)
         h2_K22inv_h2 = float(h2 @ (K22_inv @ h2))
-        new_normalization = (
-            self._normalization
-            + 0.5
-            * (n_marg * math.log(2 * math.pi) + float(logdet_K22) + h2_K22inv_h2)
+        new_normalization = self._normalization + 0.5 * (
+            n_marg * math.log(2 * math.pi) + float(logdet_K22) + h2_K22inv_h2
         )
 
         return GaussianCanonicalForm(
@@ -348,9 +340,7 @@ class GaussianCanonicalForm(Generic[Array]):
         """
         mean, covariance = self.to_moments()
         L = self._bkd.cholesky(covariance)
-        std_normal = self._bkd.asarray(
-            np.random.normal(0, 1, (self._nvars, nsamples))
-        )
+        std_normal = self._bkd.asarray(np.random.normal(0, 1, (self._nvars, nsamples)))
         return L @ std_normal + mean[:, None]
 
     def __repr__(self) -> str:
@@ -390,6 +380,4 @@ def compute_normalization(
     nvars = precision.shape[0]
     sign, logdet = bkd.slogdet(precision)
 
-    return 0.5 * (
-        -float(mean @ shift) - nvars * math.log(2 * math.pi) + float(logdet)
-    )
+    return 0.5 * (-float(mean @ shift) - nvars * math.log(2 * math.pi) + float(logdet))

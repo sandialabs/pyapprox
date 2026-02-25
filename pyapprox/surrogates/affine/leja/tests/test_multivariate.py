@@ -7,9 +7,8 @@ import torch
 from numpy.typing import NDArray
 
 from pyapprox.util.backends.numpy import NumpyBkd
-from pyapprox.util.backends.torch import TorchBkd
 from pyapprox.util.backends.protocols import Array, Backend
-from pyapprox.util.test_utils import load_tests
+from pyapprox.util.backends.torch import TorchBkd
 
 
 class TestFeketeSampler(Generic[Array], unittest.TestCase):
@@ -25,13 +24,13 @@ class TestFeketeSampler(Generic[Array], unittest.TestCase):
 
     def test_fekete_sample_count(self) -> None:
         """Test that Fekete sampler returns correct number of points."""
-        from pyapprox.surrogates.affine.leja import FeketeSampler
-        from pyapprox.surrogates.affine.univariate import (
-            LegendrePolynomial1D,
-        )
         from pyapprox.surrogates.affine.basis import MultiIndexBasis
         from pyapprox.surrogates.affine.indices import (
             HyperbolicIndexGenerator,
+        )
+        from pyapprox.surrogates.affine.leja import FeketeSampler
+        from pyapprox.surrogates.affine.univariate import (
+            LegendrePolynomial1D,
         )
 
         # Create a simple 1D basis
@@ -52,13 +51,13 @@ class TestFeketeSampler(Generic[Array], unittest.TestCase):
 
     def test_fekete_selected_indices(self) -> None:
         """Test that selected indices are valid."""
-        from pyapprox.surrogates.affine.leja import FeketeSampler
-        from pyapprox.surrogates.affine.univariate import (
-            LegendrePolynomial1D,
-        )
         from pyapprox.surrogates.affine.basis import MultiIndexBasis
         from pyapprox.surrogates.affine.indices import (
             HyperbolicIndexGenerator,
+        )
+        from pyapprox.surrogates.affine.leja import FeketeSampler
+        from pyapprox.surrogates.affine.univariate import (
+            LegendrePolynomial1D,
         )
 
         poly = LegendrePolynomial1D(self._bkd)
@@ -92,13 +91,13 @@ class TestLejaSampler(Generic[Array], unittest.TestCase):
 
     def test_leja_sample_count(self) -> None:
         """Test that Leja sampler returns correct number of points."""
-        from pyapprox.surrogates.affine.leja import LejaSampler
-        from pyapprox.surrogates.affine.univariate import (
-            LegendrePolynomial1D,
-        )
         from pyapprox.surrogates.affine.basis import MultiIndexBasis
         from pyapprox.surrogates.affine.indices import (
             HyperbolicIndexGenerator,
+        )
+        from pyapprox.surrogates.affine.leja import LejaSampler
+        from pyapprox.surrogates.affine.univariate import (
+            LegendrePolynomial1D,
         )
 
         # Create a simple 1D basis
@@ -119,13 +118,13 @@ class TestLejaSampler(Generic[Array], unittest.TestCase):
 
     def test_leja_incremental(self) -> None:
         """Test incremental Leja sampling."""
-        from pyapprox.surrogates.affine.leja import LejaSampler
-        from pyapprox.surrogates.affine.univariate import (
-            LegendrePolynomial1D,
-        )
         from pyapprox.surrogates.affine.basis import MultiIndexBasis
         from pyapprox.surrogates.affine.indices import (
             HyperbolicIndexGenerator,
+        )
+        from pyapprox.surrogates.affine.leja import LejaSampler
+        from pyapprox.surrogates.affine.univariate import (
+            LegendrePolynomial1D,
         )
 
         poly = LegendrePolynomial1D(self._bkd)
@@ -149,13 +148,13 @@ class TestLejaSampler(Generic[Array], unittest.TestCase):
 
     def test_leja_selected_indices(self) -> None:
         """Test that selected indices are valid and consistent."""
-        from pyapprox.surrogates.affine.leja import LejaSampler
-        from pyapprox.surrogates.affine.univariate import (
-            LegendrePolynomial1D,
-        )
         from pyapprox.surrogates.affine.basis import MultiIndexBasis
         from pyapprox.surrogates.affine.indices import (
             HyperbolicIndexGenerator,
+        )
+        from pyapprox.surrogates.affine.leja import LejaSampler
+        from pyapprox.surrogates.affine.univariate import (
+            LegendrePolynomial1D,
         )
 
         poly = LegendrePolynomial1D(self._bkd)
@@ -178,24 +177,25 @@ class TestLejaSampler(Generic[Array], unittest.TestCase):
     def test_1d_multivariate_matches_univariate_with_optimal_candidates(
         self,
     ) -> None:
-        """Test 1D multivariate Leja matches univariate when candidates include optimal points.
+        """Test 1D multivariate Leja matches univariate when candidates include optimal
+        points.
 
         This test verifies that when the candidate set includes the optimal
         Leja points from the gradient-optimized univariate LejaSequence1D,
         and the initial point is the same, the multivariate LejaSampler
         recovers the same sequence.
         """
-        from pyapprox.surrogates.affine.leja import (
-            LejaSampler,
-            LejaSequence1D,
-            ChristoffelWeighting,
-        )
-        from pyapprox.surrogates.affine.univariate import (
-            LegendrePolynomial1D,
-        )
         from pyapprox.surrogates.affine.basis import MultiIndexBasis
         from pyapprox.surrogates.affine.indices import (
             HyperbolicIndexGenerator,
+        )
+        from pyapprox.surrogates.affine.leja import (
+            ChristoffelWeighting,
+            LejaSampler,
+            LejaSequence1D,
+        )
+        from pyapprox.surrogates.affine.univariate import (
+            LegendrePolynomial1D,
         )
 
         npts = 5
@@ -203,9 +203,7 @@ class TestLejaSampler(Generic[Array], unittest.TestCase):
         # First, generate optimal Leja sequence using univariate optimizer
         poly = LegendrePolynomial1D(self._bkd)
         weighting = ChristoffelWeighting(self._bkd)
-        univariate_leja = LejaSequence1D(
-            self._bkd, poly, weighting, bounds=(-1.0, 1.0)
-        )
+        univariate_leja = LejaSequence1D(self._bkd, poly, weighting, bounds=(-1.0, 1.0))
         optimal_samples, _ = univariate_leja.quadrature_rule(npts)
 
         # Create candidate set that INCLUDES the optimal points plus extra

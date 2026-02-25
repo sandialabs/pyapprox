@@ -7,7 +7,9 @@ suitable for R-optimal (risk-based) designs.
 
 from typing import Generic, Optional
 
-from pyapprox.util.backends.protocols import Array, Backend
+from pyapprox.expdesign.local.protocols.criterion import (
+    LocalOEDCriterionProtocol,
+)
 from pyapprox.optimization.minimize.avar import AVaROptimizer
 from pyapprox.optimization.minimize.constraints.linear import (
     PyApproxLinearConstraint,
@@ -15,9 +17,7 @@ from pyapprox.optimization.minimize.constraints.linear import (
 from pyapprox.optimization.minimize.scipy.scipy_result import (
     ScipyOptimizerResultWrapper,
 )
-from pyapprox.expdesign.local.protocols.criterion import (
-    LocalOEDCriterionProtocol,
-)
+from pyapprox.util.backends.protocols import Array, Backend
 
 from .base import LocalOEDSolverBase
 
@@ -171,9 +171,7 @@ class AVaRLocalOEDSolver(LocalOEDSolverBase[Array], Generic[Array]):
             If construct() has not been called yet.
         """
         if not hasattr(self, "_result"):
-            raise AttributeError(
-                "No result available. Call construct() first."
-            )
+            raise AttributeError("No result available. Call construct() first.")
         return self._optimizer.get_var_value(self._result.optima())
 
     def get_avar_value(self) -> Array:
@@ -193,9 +191,7 @@ class AVaRLocalOEDSolver(LocalOEDSolverBase[Array], Generic[Array]):
             If construct() has not been called yet.
         """
         if not hasattr(self, "_result"):
-            raise AttributeError(
-                "No result available. Call construct() first."
-            )
+            raise AttributeError("No result available. Call construct() first.")
         return self._optimizer.get_avar_value(self._result.optima())
 
     def get_result(self) -> ScipyOptimizerResultWrapper[Array]:
@@ -213,7 +209,5 @@ class AVaRLocalOEDSolver(LocalOEDSolverBase[Array], Generic[Array]):
             If construct() has not been called yet.
         """
         if not hasattr(self, "_result"):
-            raise AttributeError(
-                "No result available. Call construct() first."
-            )
+            raise AttributeError("No result available. Call construct() first.")
         return self._result

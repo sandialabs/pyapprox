@@ -6,20 +6,20 @@ likelihood. Extracts the optimization logic from ExactGaussianProcess.fit().
 
 from typing import Generic, Optional
 
-from pyapprox.util.backends.protocols import Array, Backend
-from pyapprox.surrogates.gaussianprocess.input_transform import (
-    InputAffineTransformProtocol,
-    IdentityInputTransform,
-)
-from pyapprox.surrogates.gaussianprocess.output_transform import (
-    OutputAffineTransformProtocol,
-)
 from pyapprox.optimization.minimize.protocols import (
     BindableOptimizerProtocol,
 )
 from pyapprox.surrogates.gaussianprocess.fitters.results import (
     GPOptimizedFitResult,
 )
+from pyapprox.surrogates.gaussianprocess.input_transform import (
+    IdentityInputTransform,
+    InputAffineTransformProtocol,
+)
+from pyapprox.surrogates.gaussianprocess.output_transform import (
+    OutputAffineTransformProtocol,
+)
+from pyapprox.util.backends.protocols import Array, Backend
 
 
 class GPMaximumLikelihoodFitter(Generic[Array]):
@@ -59,12 +59,8 @@ class GPMaximumLikelihoodFitter(Generic[Array]):
         self,
         bkd: Backend[Array],
         optimizer: Optional[BindableOptimizerProtocol[Array]] = None,
-        output_transform: Optional[
-            OutputAffineTransformProtocol[Array]
-        ] = None,
-        input_transform: Optional[
-            InputAffineTransformProtocol[Array]
-        ] = None,
+        output_transform: Optional[OutputAffineTransformProtocol[Array]] = None,
+        input_transform: Optional[InputAffineTransformProtocol[Array]] = None,
     ):
         self._bkd = bkd
         self._optimizer = optimizer
@@ -112,9 +108,7 @@ class GPMaximumLikelihoodFitter(Generic[Array]):
         if self._input_transform is not None:
             clone._input_transform = self._input_transform
         else:
-            clone._input_transform = IdentityInputTransform(
-                gp.nvars(), self._bkd
-            )
+            clone._input_transform = IdentityInputTransform(gp.nvars(), self._bkd)
 
         # Transform data
         X_scaled = clone._input_transform.transform(X_train)
@@ -145,6 +139,7 @@ class GPMaximumLikelihoodFitter(Generic[Array]):
         from pyapprox.surrogates.gaussianprocess.gp_loss import (
             GPNegativeLogMarginalLikelihoodLoss,
         )
+
         loss = GPNegativeLogMarginalLikelihoodLoss(
             clone, (clone._data.X(), clone._data.y())
         )
@@ -160,6 +155,7 @@ class GPMaximumLikelihoodFitter(Generic[Array]):
             from pyapprox.optimization.minimize.scipy.trust_constr import (
                 ScipyTrustConstrOptimizer,
             )
+
             optimizer = ScipyTrustConstrOptimizer(verbosity=0, maxiter=1000)
 
         # Bind optimizer to loss and bounds
@@ -168,9 +164,7 @@ class GPMaximumLikelihoodFitter(Generic[Array]):
         # Get initial guess from current hyperparameter values
         init_guess = clone.hyp_list().get_active_values()
         if len(init_guess.shape) == 1:
-            init_guess = self._bkd.reshape(
-                init_guess, (len(init_guess), 1)
-            )
+            init_guess = self._bkd.reshape(init_guess, (len(init_guess), 1))
 
         # Run optimization
         opt_result = optimizer.minimize(init_guess)

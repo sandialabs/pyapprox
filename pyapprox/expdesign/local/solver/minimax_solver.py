@@ -7,17 +7,17 @@ suitable for G-optimal designs.
 
 from typing import Generic, Optional
 
-from pyapprox.util.backends.protocols import Array, Backend
-from pyapprox.optimization.minimize.minimax import MinimaxOptimizer
-from pyapprox.optimization.minimize.constraints.linear import (
-    PyApproxLinearConstraint,
-)
-from pyapprox.optimization.minimize.scipy.scipy_result import (
-    ScipyOptimizerResultWrapper,
-)
 from pyapprox.expdesign.local.protocols.criterion import (
     LocalOEDCriterionProtocol,
 )
+from pyapprox.optimization.minimize.constraints.linear import (
+    PyApproxLinearConstraint,
+)
+from pyapprox.optimization.minimize.minimax import MinimaxOptimizer
+from pyapprox.optimization.minimize.scipy.scipy_result import (
+    ScipyOptimizerResultWrapper,
+)
+from pyapprox.util.backends.protocols import Array, Backend
 
 from .base import LocalOEDSolverBase
 
@@ -147,9 +147,7 @@ class MinimaxLocalOEDSolver(LocalOEDSolverBase[Array], Generic[Array]):
             If construct() has not been called yet.
         """
         if not hasattr(self, "_result"):
-            raise AttributeError(
-                "No result available. Call construct() first."
-            )
+            raise AttributeError("No result available. Call construct() first.")
         return self._optimizer.get_minimax_value(self._result.optima())
 
     def get_result(self) -> ScipyOptimizerResultWrapper[Array]:
@@ -167,7 +165,5 @@ class MinimaxLocalOEDSolver(LocalOEDSolverBase[Array], Generic[Array]):
             If construct() has not been called yet.
         """
         if not hasattr(self, "_result"):
-            raise AttributeError(
-                "No result available. Call construct() first."
-            )
+            raise AttributeError("No result available. Call construct() first.")
         return self._result

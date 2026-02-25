@@ -7,17 +7,17 @@ methods (MFNets, co-kriging) on a nonlinear 2D problem.
 
 from typing import Generic, List
 
-from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.benchmarks.benchmark import BoxDomain
-from pyapprox.benchmarks.registry import BenchmarkRegistry
 from pyapprox.benchmarks.functions.multifidelity.branin_ensemble import (
     BraninEnsemble,
 )
+from pyapprox.benchmarks.registry import BenchmarkRegistry
 from pyapprox.interface.functions.protocols.function import (
     FunctionProtocol,
 )
-from pyapprox.probability.univariate.uniform import UniformMarginal
 from pyapprox.probability.joint.independent import IndependentJoint
+from pyapprox.probability.univariate.uniform import UniformMarginal
+from pyapprox.util.backends.protocols import Array, Backend
 
 
 class BraninEnsembleBenchmark(Generic[Array]):

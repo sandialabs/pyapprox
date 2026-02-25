@@ -3,7 +3,7 @@
 Defines interfaces for finite element meshes that wrap scikit-fem (skfem).
 """
 
-from typing import Protocol, Generic, runtime_checkable, Any
+from typing import Any, Generic, Protocol, runtime_checkable
 
 from pyapprox.util.backends.protocols import Array, Backend
 

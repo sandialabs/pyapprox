@@ -2,10 +2,10 @@
 
 from typing import Callable, Generic, Optional
 
-from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.pde.field_maps.protocol import (
     FieldMapProtocol,
 )
+from pyapprox.util.backends.protocols import Array, Backend
 
 
 class TransformedFieldMap(Generic[Array]):
@@ -37,8 +37,7 @@ class TransformedFieldMap(Generic[Array]):
     ) -> None:
         if not isinstance(inner, FieldMapProtocol):
             raise TypeError(
-                f"inner must satisfy FieldMapProtocol, "
-                f"got {type(inner).__name__}"
+                f"inner must satisfy FieldMapProtocol, got {type(inner).__name__}"
             )
         self._inner = inner
         self._transform = transform

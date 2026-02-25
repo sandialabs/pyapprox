@@ -11,14 +11,13 @@ This is more efficient than the full Rosenblatt transform when marginals
 are known but the joint PDF is not analytically available.
 """
 
-from typing import Generic, Tuple, List
+from typing import Generic, List, Tuple
 
 import numpy as np
 from scipy import stats
-from scipy.optimize import brentq
 
-from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.probability.protocols import MarginalProtocol
+from pyapprox.util.backends.protocols import Array, Backend
 
 
 class NatafTransform(Generic[Array]):
@@ -111,8 +110,7 @@ class NatafTransform(Generic[Array]):
         """Validate that input is 2D with shape (nvars, nsamples)."""
         if samples.ndim != 2:
             raise ValueError(
-                f"Expected 2D array with shape (nvars, nsamples), "
-                f"got {samples.ndim}D"
+                f"Expected 2D array with shape (nvars, nsamples), got {samples.ndim}D"
             )
         if samples.shape[0] != self._nvars:
             raise ValueError(
@@ -181,9 +179,7 @@ class NatafTransform(Generic[Array]):
 
         return x
 
-    def map_to_canonical_with_jacobian(
-        self, samples: Array
-    ) -> Tuple[Array, Array]:
+    def map_to_canonical_with_jacobian(self, samples: Array) -> Tuple[Array, Array]:
         """
         Transform to canonical with Jacobian.
 

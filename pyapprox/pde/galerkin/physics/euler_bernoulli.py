@@ -19,15 +19,16 @@ from typing import Callable, Generic, List, Optional, Union
 
 import numpy as np
 
-from pyapprox.util.backends.protocols import Array, Backend
-from pyapprox.pde.galerkin.physics.bc_mixin import GalerkinBCMixin
 from pyapprox.pde.galerkin.boundary.implementations import DirectDirichletBC
+from pyapprox.pde.galerkin.physics.bc_mixin import GalerkinBCMixin
+from pyapprox.util.backends.protocols import Array, Backend
 
 try:
     from skfem import Basis, BilinearForm, LinearForm, asm
     from skfem.element import ElementLineHermite
     from skfem.mesh import MeshLine
-    from skfem.utils import condense, solve as skfem_solve
+    from skfem.utils import condense
+    from skfem.utils import solve as skfem_solve
 except ImportError:
     raise ImportError(
         "scikit-fem is required for Galerkin module. "
@@ -104,17 +105,14 @@ class EulerBernoulliBeamAnalytical(Generic[Array]):
         L = self._length
         EI = self._EI
         q0 = self._q0
-        bkd = self._bkd
 
         if self._load_type == "uniform":
             # w(x) = q0/(24*EI) * x^2 * (6*L^2 - 4*L*x + x^2)
-            return (q0 / (24.0 * EI)) * x**2 * (
-                6.0 * L**2 - 4.0 * L * x + x**2
-            )
+            return (q0 / (24.0 * EI)) * x**2 * (6.0 * L**2 - 4.0 * L * x + x**2)
         else:
             # w(x) = q0/(120*L*EI) * x^2 * (20*L^3 - 10*L^2*x + x^3)
-            return (q0 / (120.0 * L * EI)) * x**2 * (
-                20.0 * L**3 - 10.0 * L**2 * x + x**3
+            return (
+                (q0 / (120.0 * L * EI)) * x**2 * (20.0 * L**3 - 10.0 * L**2 * x + x**3)
             )
 
     def slope(self, x: Array) -> Array:
@@ -136,13 +134,13 @@ class EulerBernoulliBeamAnalytical(Generic[Array]):
 
         if self._load_type == "uniform":
             # w'(x) = q0/(6*EI) * x * (3*L^2 - 3*L*x + x^2)
-            return (q0 / (6.0 * EI)) * x * (
-                3.0 * L**2 - 3.0 * L * x + x**2
-            )
+            return (q0 / (6.0 * EI)) * x * (3.0 * L**2 - 3.0 * L * x + x**2)
         else:
             # w'(x) = q0/(120*L*EI) * x * (40*L^3 - 30*L^2*x + 4*x^3)
-            return (q0 / (120.0 * L * EI)) * x * (
-                40.0 * L**3 - 30.0 * L**2 * x + 4.0 * x**3
+            return (
+                (q0 / (120.0 * L * EI))
+                * x
+                * (40.0 * L**3 - 30.0 * L**2 * x + 4.0 * x**3)
             )
 
     def tip_deflection(self) -> float:
@@ -231,7 +229,8 @@ class EulerBernoulliBeamFEM(GalerkinBCMixin[Array], Generic[Array]):
         if dirichlet_dofs is not None:
             dof_indices = np.array(dirichlet_dofs, dtype=np.int64)
             dof_values = np.array(
-                dirichlet_values if dirichlet_values is not None
+                dirichlet_values
+                if dirichlet_values is not None
                 else [0.0] * len(dirichlet_dofs),
                 dtype=np.float64,
             )
@@ -241,9 +240,7 @@ class EulerBernoulliBeamFEM(GalerkinBCMixin[Array], Generic[Array]):
             dof_indices = left_dof_indices.astype(np.int64)
             dof_values = np.zeros(len(dof_indices), dtype=np.float64)
 
-        self._boundary_conditions = [
-            DirectDirichletBC(dof_indices, dof_values, bkd)
-        ]
+        self._boundary_conditions = [DirectDirichletBC(dof_indices, dof_values, bkd)]
 
         # Assembly caches
         self._stiffness: Optional[Array] = None
@@ -307,6 +304,7 @@ class EulerBernoulliBeamFEM(GalerkinBCMixin[Array], Generic[Array]):
                 )
                 return ei_array[elem_idx] * u.hess[0, 0] * v.hess[0, 0]
         else:
+
             @BilinearForm
             def beam_stiffness_form(u, v, w):
                 return EI_val * u.hess[0, 0] * v.hess[0, 0]

@@ -16,21 +16,23 @@ import torch
 from numpy.typing import NDArray
 from unittest_parametrize import ParametrizedTestCase, parametrize
 
-from pyapprox.util.backends.numpy import NumpyBkd
-from pyapprox.util.backends.torch import TorchBkd
-from pyapprox.util.backends.protocols import Array, Backend
-from pyapprox.util.test_utils import load_tests  # noqa: F401
-
 from pyapprox.expdesign.benchmarks import LinearGaussianOEDBenchmark
-from pyapprox.expdesign.objective import KLOEDObjective, create_kl_oed_objective
+from pyapprox.expdesign.objective import (
+    KLOEDObjective,
+    create_kl_oed_objective,
+)
 from pyapprox.expdesign.solver import BruteForceKLOEDSolver
 from pyapprox.probability.joint.independent import IndependentJoint
 from pyapprox.probability.univariate.gaussian import GaussianMarginal
-
+from pyapprox.util.backends.numpy import NumpyBkd
+from pyapprox.util.backends.protocols import Array, Backend
+from pyapprox.util.backends.torch import TorchBkd
+from pyapprox.util.test_utils import load_tests  # noqa: F401
 
 # =============================================================================
 # Test Utilities
 # =============================================================================
+
 
 class LinearForwardModel(Generic[Array]):
     """Test utility: Wrap a design matrix as a FunctionProtocol.
@@ -71,9 +73,7 @@ def create_kl_oed_objective_from_benchmark(
     prior_std = np.sqrt(benchmark.prior_var())
 
     # Create prior distribution
-    prior_marginals = [
-        GaussianMarginal(0.0, prior_std, bkd) for _ in range(nparams)
-    ]
+    prior_marginals = [GaussianMarginal(0.0, prior_std, bkd) for _ in range(nparams)]
     prior = IndependentJoint(prior_marginals, bkd)
 
     # Wrap design matrix as forward model
@@ -99,6 +99,7 @@ def create_kl_oed_objective_from_benchmark(
 # =============================================================================
 # Tests
 # =============================================================================
+
 
 class TestBruteForceSymmetryStandalone(
     Generic[Array], ParametrizedTestCase, unittest.TestCase
@@ -155,7 +156,8 @@ class TestBruteForceSymmetryStandalone(
         ninner = 100
 
         objective = create_kl_oed_objective_from_benchmark(
-            benchmark, self._bkd,
+            benchmark,
+            self._bkd,
             outer_sampler_type="gauss",
             inner_sampler_type="gauss",
             nouter_approx=nouter,
@@ -170,9 +172,7 @@ class TestBruteForceSymmetryStandalone(
         all_eigs = solver.all_eigs()
 
         # Create mapping from indices tuple to position
-        indices_to_pos = {
-            indices: ii for ii, indices in enumerate(all_indices)
-        }
+        indices_to_pos = {indices: ii for ii, indices in enumerate(all_indices)}
 
         # Symmetric pairs for nobs=5, k=3
         # These pairs are mirror images around the center of [-1, 1]
@@ -234,7 +234,8 @@ class TestBruteForceSymmetryStandalone(
         ninner = 100
 
         objective = create_kl_oed_objective_from_benchmark(
-            benchmark, self._bkd,
+            benchmark,
+            self._bkd,
             outer_sampler_type="gauss",
             inner_sampler_type="gauss",
             nouter_approx=nouter,
@@ -260,7 +261,8 @@ class TestBruteForceSymmetryStandalone(
         )
 
         objective = create_kl_oed_objective_from_benchmark(
-            benchmark, self._bkd,
+            benchmark,
+            self._bkd,
             outer_sampler_type="mc",
             inner_sampler_type="mc",
             nouter_approx=100,
@@ -285,6 +287,7 @@ class TestBruteForceSymmetryStandalone(
 
         # Should have C(4,2) = 6 entries
         from math import comb
+
         expected_count = comb(nobs, 2)
         self.assertEqual(len(solver.all_indices()), expected_count)
         self.assertEqual(len(solver.all_eigs()), expected_count)

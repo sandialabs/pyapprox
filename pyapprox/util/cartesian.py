@@ -60,7 +60,8 @@ def cartesian_product(
     >>> cartesian_product(bkd, [x, y])  # last (y) varies fastest
     array([[0, 0, 0, 1, 1, 1],
            [0, 1, 2, 0, 1, 2]])
-    >>> cartesian_product(bkd, [x, y], first_dim_fastest=True)  # first (x) varies fastest
+    >>> cartesian_product(bkd, [x, y], first_dim_fastest=True) # first (x) varies
+    fastest
     array([[0, 1, 0, 1, 0, 1],
            [0, 0, 1, 1, 2, 2]])
     """

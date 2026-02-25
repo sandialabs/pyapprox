@@ -92,10 +92,7 @@ class CantileverBeam2DAnalytical(Generic[Array]):
 
         stress = 6.0 * L * (X / (w**2 * t) + Y / (w * t**2))
 
-        displacement = (
-            4.0 * L**3 / (E * w * t)
-            * bkd.sqrt(X**2 / w**4 + Y**2 / t**4)
-        )
+        displacement = 4.0 * L**3 / (E * w * t) * bkd.sqrt(X**2 / w**4 + Y**2 / t**4)
 
         return bkd.concatenate([stress, displacement], axis=0)
 
@@ -140,12 +137,10 @@ class CantileverBeam2DAnalytical(Generic[Array]):
         dd_dE = -coeff / (E**2 * w * t) * sqrtS
         dd_dR = 0.0 * E
         dd_dw = coeff * (
-            -sqrtS / (E * w**2 * t)
-            + (-4.0 * X**2 / w**5) / (E * w * t * 2.0 * sqrtS)
+            -sqrtS / (E * w**2 * t) + (-4.0 * X**2 / w**5) / (E * w * t * 2.0 * sqrtS)
         )
         dd_dt = coeff * (
-            -sqrtS / (E * w * t**2)
-            + (-4.0 * Y**2 / t**5) / (E * w * t * 2.0 * sqrtS)
+            -sqrtS / (E * w * t**2) + (-4.0 * Y**2 / t**5) / (E * w * t * 2.0 * sqrtS)
         )
 
         row0 = bkd.asarray([ds_dX, ds_dY, ds_dE, ds_dR, ds_dw, ds_dt])

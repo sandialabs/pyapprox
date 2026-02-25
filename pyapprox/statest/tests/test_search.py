@@ -1,27 +1,25 @@
 """Tests for unified multi-fidelity search."""
 
-from typing import Generic, Tuple
 import unittest
+from typing import Generic, Tuple
 
 import numpy as np
 import torch
 
-from pyapprox.util.backends.protocols import Array
-from pyapprox.util.backends.torch import TorchBkd
-from pyapprox.util.test_utils import load_tests  # noqa: F401
-
-from pyapprox.statest.statistics import MultiOutputMean
+from pyapprox.statest.acv.search import ACVSearch
+from pyapprox.statest.acv.variants import GISEstimator, GMFEstimator
+from pyapprox.statest.groupacv.mlblue import MLBLUEEstimator
+from pyapprox.statest.groupacv.search import GroupACVSearch
+from pyapprox.statest.groupacv.variants import GroupACVEstimatorNested
 from pyapprox.statest.search import (
     EstimatorFamily,
     UnifiedSearchResult,
     unified_search,
 )
-from pyapprox.statest.acv.search import ACVSearch
-from pyapprox.statest.groupacv.search import GroupACVSearch
-from pyapprox.statest.acv.variants import GMFEstimator, GISEstimator
-from pyapprox.statest.acv.strategies import FixedRecursionStrategy
-from pyapprox.statest.groupacv.mlblue import MLBLUEEstimator
-from pyapprox.statest.groupacv.variants import GroupACVEstimatorNested
+from pyapprox.statest.statistics import MultiOutputMean
+from pyapprox.util.backends.protocols import Array
+from pyapprox.util.backends.torch import TorchBkd
+from pyapprox.util.test_utils import load_tests  # noqa: F401
 
 
 class TestUnifiedSearch(Generic[Array], unittest.TestCase):

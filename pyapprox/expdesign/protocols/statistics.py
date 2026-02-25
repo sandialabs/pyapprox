@@ -5,7 +5,7 @@ Sample statistics compute expectations and risk measures over samples,
 used for prediction OED objectives.
 """
 
-from typing import Protocol, Generic, runtime_checkable
+from typing import Generic, Protocol, runtime_checkable
 
 from pyapprox.util.backends.protocols import Array, Backend
 
@@ -65,9 +65,7 @@ class SampleStatisticProtocol(Protocol, Generic[Array]):
         """
         ...
 
-    def jacobian(
-        self, values: Array, jac_values: Array, weights: Array
-    ) -> Array:
+    def jacobian(self, values: Array, jac_values: Array, weights: Array) -> Array:
         """
         Compute Jacobian of statistic w.r.t. upstream variables via chain rule.
 

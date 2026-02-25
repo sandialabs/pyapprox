@@ -18,13 +18,11 @@ where:
 import copy
 from typing import Generic, List
 
-import sympy as sp
-
-from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.pde.collocation.manufactured_solutions.base import (
     ManufacturedSolution,
     VectorSolutionMixin,
 )
+from pyapprox.util.backends.protocols import Array, Backend
 
 
 class ManufacturedStokes(
@@ -76,7 +74,9 @@ class ManufacturedStokes(
         if nvars not in (1, 2, 3):
             raise ValueError("Stokes requires nvars=1, 2, or 3")
         if len(sol_strs) != nvars + 1:
-            raise ValueError(f"Expected {nvars + 1} solution components (velocity + pressure)")
+            raise ValueError(
+                f"Expected {nvars + 1} solution components (velocity + pressure)"
+            )
 
         self._navier_stokes = navier_stokes
         self._vel_strs = sol_strs[:nvars]
@@ -87,7 +87,7 @@ class ManufacturedStokes(
         """Build sympy expressions for Stokes/Navier-Stokes equations."""
         cartesian_symbs = self.cartesian_symbols()
         exprs = self._expressions["solution"]
-        vel_exprs = exprs[:self._nvars]
+        vel_exprs = exprs[: self._nvars]
         pres_expr = exprs[self._nvars]
 
         # Build velocity forcing: f_i = -Δv_i + dp/dx_i + (v·∇)v_i (if NS)
@@ -102,22 +102,17 @@ class ManufacturedStokes(
             # Convective term for Navier-Stokes: (v·∇)v_i = sum_j v_j * dv_i/dx_j
             if self._navier_stokes:
                 forc += sum(
-                    u * vel.diff(s2)
-                    for u, s2 in zip(vel_exprs, cartesian_symbs)
+                    u * vel.diff(s2) for u, s2 in zip(vel_exprs, cartesian_symbs)
                 )
 
             vel_forc_exprs.append(forc)
 
         # Pressure forcing: continuity constraint div(v) = 0
         # f_p = du/dx + dv/dy (+ dw/dz for 3D)
-        pres_forc_expr = sum(
-            vel.diff(s) for vel, s in zip(vel_exprs, cartesian_symbs)
-        )
+        pres_forc_expr = sum(vel.diff(s) for vel, s in zip(vel_exprs, cartesian_symbs))
 
         # Store velocity and pressure gradients as flux
-        vel_grad_exprs = [
-            [v.diff(s) for s in cartesian_symbs] for v in vel_exprs
-        ]
+        vel_grad_exprs = [[v.diff(s) for s in cartesian_symbs] for v in vel_exprs]
         pres_grad_expr = [pres_expr.diff(s) for s in cartesian_symbs]
         flux_exprs = vel_grad_exprs + [pres_grad_expr]
 
@@ -146,6 +141,6 @@ class ManufacturedStokes(
             )
             # Only add temporal derivative for velocity, NOT pressure
             for ii in range(self._nvars):
-                self._expressions["forcing"][ii] += self._expressions[
-                    "solution"
-                ][ii].diff(self.time_symbol()[0])
+                self._expressions["forcing"][ii] += self._expressions["solution"][
+                    ii
+                ].diff(self.time_symbol()[0])

@@ -77,9 +77,7 @@ class PeriodicBC(Generic[Array]):
         """Return indices of mesh points on the partner boundary."""
         return self._partner_indices
 
-    def apply_to_residual(
-        self, residual: Array, state: Array, time: float
-    ) -> Array:
+    def apply_to_residual(self, residual: Array, state: Array, time: float) -> Array:
         """Apply periodic BC to residual.
 
         Primary boundary rows: u(primary) - u(partner)
@@ -113,9 +111,7 @@ class PeriodicBC(Generic[Array]):
             residual[idx2[i]] = du_primary - du_partner
         return residual
 
-    def apply_to_jacobian(
-        self, jacobian: Array, state: Array, time: float
-    ) -> Array:
+    def apply_to_jacobian(self, jacobian: Array, state: Array, time: float) -> Array:
         """Apply periodic BC to Jacobian.
 
         Primary boundary rows: J[idx1, idx1] = 1, J[idx1, idx2] = -1
@@ -154,7 +150,10 @@ class PeriodicBC(Generic[Array]):
         return jacobian
 
     def apply_to_param_jacobian(
-        self, param_jacobian: Array, state: Array, time: float,
+        self,
+        param_jacobian: Array,
+        state: Array,
+        time: float,
         physical_sensitivities=None,
     ) -> Array:
         """Apply periodic BC to parameter Jacobian.

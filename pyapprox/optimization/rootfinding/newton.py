@@ -1,4 +1,4 @@
-from typing import Protocol, Generic, runtime_checkable
+from typing import Generic, Protocol, runtime_checkable
 
 from pyapprox.util.backends.protocols import Array, Backend
 
@@ -77,9 +77,7 @@ class NewtonSolverOptions:
 class NewtonSolver(Generic[Array]):
     def __init__(self, residual: NewtonSolverResidualProtocol[Array]) -> None:
         if not isinstance(residual, NewtonSolverResidualProtocol):
-            raise ValueError(
-                "residual must satisfy NewtonSolverResidualProtocol"
-            )
+            raise ValueError("residual must satisfy NewtonSolverResidualProtocol")
         self._residual = residual
         self._bkd = residual.bkd()
         self.set_options()
@@ -134,15 +132,14 @@ class NewtonSolver(Generic[Array]):
                 raise RuntimeError("Residual is no longer finite")
             if residual_norm <= self._atol + self._rtol * residual_norms[0]:
                 exit_msg = (
-                    f"Tolerance {self._atol+self._rtol*residual_norms[0]} "
-                    "reached"
+                    f"Tolerance {self._atol + self._rtol * residual_norms[0]} reached"
                 )
                 break
             if it >= self._maxiters:
                 exit_msg = (
                     f"Max iterations {self._maxiters} reached.\n"
                     f"Rel residual norm is {residual_norm} "
-                    f"Needs to be {self._atol+self._rtol*residual_norms[0]}"
+                    f"Needs to be {self._atol + self._rtol * residual_norms[0]}"
                 )
                 raise RuntimeError(exit_msg)
         if self._verbosity > 0:
@@ -151,8 +148,7 @@ class NewtonSolver(Generic[Array]):
 
     def __repr__(self) -> str:
         return (
-            "{0}(maxiters={1}, verbosity={2}, step_size={3}, atol={4}, "
-            "rol={5})"
+            "{0}(maxiters={1}, verbosity={2}, step_size={3}, atol={4}, rol={5})"
         ).format(
             self.__class__.__name__,
             self._maxiters,

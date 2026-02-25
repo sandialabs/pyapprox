@@ -4,8 +4,8 @@ from typing import Generic, Optional, Union
 
 import numpy as np
 
-from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.surrogates.kle.utils import adjust_sign_eig
+from pyapprox.util.backends.protocols import Array, Backend
 
 
 class DataDrivenKLE(Generic[Array]):
@@ -46,9 +46,7 @@ class DataDrivenKLE(Generic[Array]):
         self._use_log = use_log
         self._quad_weights = quad_weights
         if quad_weights is not None and quad_weights.ndim != 1:
-            raise ValueError(
-                f"quad_weights must be 1D, got ndim={quad_weights.ndim}"
-            )
+            raise ValueError(f"quad_weights must be 1D, got ndim={quad_weights.ndim}")
 
         # Set mean field
         ncoords = field_samples.shape[0]
@@ -61,9 +59,7 @@ class DataDrivenKLE(Generic[Array]):
         if nterms is None:
             nterms = ncoords
         if nterms > ncoords:
-            raise ValueError(
-                f"nterms={nterms} exceeds ncoords={ncoords}"
-            )
+            raise ValueError(f"nterms={nterms} exceeds ncoords={ncoords}")
         self._nterms = nterms
 
         # Compute basis via SVD
@@ -87,7 +83,7 @@ class DataDrivenKLE(Generic[Array]):
             field_samples = sqrt_weights[:, None] * self._field_samples
 
         U, S, Vh = bkd.svd(field_samples)
-        eig_vecs = adjust_sign_eig(U[:, :self._nterms], bkd)
+        eig_vecs = adjust_sign_eig(U[:, : self._nterms], bkd)
 
         if self._quad_weights is not None:
             sqrt_weights = bkd.sqrt(self._quad_weights)
@@ -95,7 +91,7 @@ class DataDrivenKLE(Generic[Array]):
 
         # Divide S by sqrt(n-1) to be consistent with sample covariance
         nsamples = self._field_samples.shape[1]
-        self._sqrt_eig_vals = S[:self._nterms] / bkd.sqrt(
+        self._sqrt_eig_vals = S[: self._nterms] / bkd.sqrt(
             bkd.full((1,), nsamples - 1)[0]
         )
         self._eig_vecs = eig_vecs * self._sqrt_eig_vals
@@ -117,13 +113,9 @@ class DataDrivenKLE(Generic[Array]):
         if coef.ndim != 2:
             raise ValueError(f"coef.ndim={coef.ndim} but should be 2")
         if coef.shape[0] != self._nterms:
-            raise ValueError(
-                f"coef.shape[0]={coef.shape[0]} != nterms={self._nterms}"
-            )
+            raise ValueError(f"coef.shape[0]={coef.shape[0]} != nterms={self._nterms}")
         if self._use_log:
-            return self._bkd.exp(
-                self._mean_field[:, None] + self._eig_vecs @ coef
-            )
+            return self._bkd.exp(self._mean_field[:, None] + self._eig_vecs @ coef)
         return self._mean_field[:, None] + self._eig_vecs @ coef
 
     def bkd(self) -> Backend[Array]:
@@ -151,7 +143,7 @@ class DataDrivenKLE(Generic[Array]):
 
     def eigenvalues(self) -> Array:
         """Return eigenvalues, shape (nterms,)."""
-        return self._sqrt_eig_vals ** 2
+        return self._sqrt_eig_vals**2
 
     def mean_field(self) -> Array:
         """Return the mean field, shape (ncoords,)."""

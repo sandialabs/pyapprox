@@ -4,7 +4,7 @@ Provides fast leave-one-out (LOO) and leave-many-out (LMO) cross-validation
 using the hat matrix formula, avoiding repeated refitting.
 """
 
-from typing import Generic, List, Optional, Tuple
+from typing import List, Optional, Tuple
 
 import numpy as np
 
@@ -40,13 +40,9 @@ def get_random_k_fold_sample_indices(
     """
     sample_indices = bkd.arange(nsamples, dtype=int)
     if random:
-        sample_indices = bkd.asarray(
-            np.random.permutation(sample_indices), dtype=int
-        )
+        sample_indices = bkd.asarray(np.random.permutation(sample_indices), dtype=int)
 
-    fold_sample_indices: List[Array] = [
-        bkd.empty(0, dtype=int) for _ in range(nfolds)
-    ]
+    fold_sample_indices: List[Array] = [bkd.empty(0, dtype=int) for _ in range(nfolds)]
     nn = 0
     while nn < nsamples:
         for jj in range(nfolds):

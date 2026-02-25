@@ -14,10 +14,9 @@ Use with TorchExactGaussianProcess which computes derivatives via autograd.
 import math
 from typing import Tuple
 
-from pyapprox.util.hyperparameter import LogHyperParameter
-from pyapprox.util.hyperparameter import HyperParameterList
-from pyapprox.util.backends.protocols import Array
 from pyapprox.surrogates.kernels.protocols import Kernel
+from pyapprox.util.backends.protocols import Array
+from pyapprox.util.hyperparameter import HyperParameterList, LogHyperParameter
 
 
 class GeneralMaternKernel(Kernel):
@@ -88,6 +87,7 @@ class GeneralMaternKernel(Kernel):
 
         # Always use TorchBkd since this kernel requires PyTorch autograd
         from pyapprox.util.backends.torch import TorchBkd
+
         bkd = TorchBkd()
 
         super().__init__(bkd)
@@ -109,8 +109,7 @@ class GeneralMaternKernel(Kernel):
         # Half-integers: 0.5, 1.5, 2.5, 3.5, ... => 2*nu is odd integer
         two_nu = 2.0 * nu
         self._is_half_integer = (
-            abs(two_nu - round(two_nu)) < 1e-10 and
-            int(round(two_nu)) % 2 == 1
+            abs(two_nu - round(two_nu)) < 1e-10 and int(round(two_nu)) % 2 == 1
         )
         if self._is_half_integer:
             self._half_int_n = int(round(nu - 0.5))
@@ -212,10 +211,12 @@ class GeneralMaternKernel(Kernel):
             return (1.0 + z + z**2 / 3.0) * self._bkd.exp(-z)
 
         elif n == 3:  # nu = 3.5
-            return (1.0 + z + 2.0*z**2/5.0 + z**3/15.0) * self._bkd.exp(-z)
+            return (1.0 + z + 2.0 * z**2 / 5.0 + z**3 / 15.0) * self._bkd.exp(-z)
 
         elif n == 4:  # nu = 4.5
-            return (1.0 + z + 3.0*z**2/7.0 + 2.0*z**3/21.0 + z**4/105.0) * self._bkd.exp(-z)
+            return (
+                1.0 + z + 3.0 * z**2 / 7.0 + 2.0 * z**3 / 21.0 + z**4 / 105.0
+            ) * self._bkd.exp(-z)
 
         else:
             # General half-integer formula using recurrence
@@ -225,7 +226,7 @@ class GeneralMaternKernel(Kernel):
             coeffs = [1.0]
             for k in range(1, n + 1):
                 c_prev = coeffs[-1]
-                c_k = c_prev * (n - k + 1) / (k * (2*n - k + 1))
+                c_k = c_prev * (n - k + 1) / (k * (2 * n - k + 1))
                 coeffs.append(c_k)
 
             result = self._bkd.full(z.shape, coeffs[0])
@@ -264,7 +265,7 @@ class GeneralMaternKernel(Kernel):
         if self._bkd.any_bool(small_z_mask):
             # For small z: K(r) ≈ 1 - (z^2)/(2*nu) + higher order terms
             z_small = z * small_z_mask
-            K_small = 1.0 - (z_small ** 2) / (4.0 * nu)
+            K_small = 1.0 - (z_small**2) / (4.0 * nu)
             K = K + K_small * small_z_mask
 
         # For large z, use asymptotic expansion
@@ -276,7 +277,7 @@ class GeneralMaternKernel(Kernel):
             norm = math.exp(log_norm)
 
             # z^nu
-            z_pow_nu = z_large ** nu
+            z_pow_nu = z_large**nu
 
             # K_nu(z) using asymptotic expansion
             kve_exp_neg_z = self._kve_times_exp_neg_z(nu, z_large)
@@ -304,7 +305,7 @@ class GeneralMaternKernel(Kernel):
 
         # Compute terms of asymptotic expansion
         for k in range(1, 15):
-            factor = (mu - (2*k - 1)**2) / (8.0 * k)
+            factor = (mu - (2 * k - 1) ** 2) / (8.0 * k)
             term = term * factor / z
             result = result + term
 

@@ -14,16 +14,22 @@ import unittest
 from typing import Any, Generic
 
 import numpy as np
-from numpy.typing import NDArray
 import torch
+from numpy.typing import NDArray
 
-from pyapprox.util.backends.protocols import Array, Backend
-from pyapprox.util.backends.numpy import NumpyBkd
-from pyapprox.util.backends.torch import TorchBkd
-from pyapprox.util.test_utils import slow_test
-from pyapprox.probability.univariate import UniformMarginal
-from pyapprox.probability.univariate.gaussian import GaussianMarginal
-from pyapprox.probability.joint.independent import IndependentJoint
+from pyapprox.expdesign.quadrature.gaussian import (
+    GaussianQuadratureSampler,
+)
+from pyapprox.interface.functions.protocols.function import (
+    FunctionProtocol,
+)
+from pyapprox.inverse.conjugate.gaussian import (
+    DenseGaussianConjugatePosterior,
+)
+from pyapprox.inverse.variational.elbo import (
+    make_discrete_group_elbo,
+)
+from pyapprox.inverse.variational.fitter import VariationalFitter
 from pyapprox.probability.conditional.gaussian import (
     ConditionalGaussian,
 )
@@ -34,48 +40,36 @@ from pyapprox.probability.conditional.multivariate_gaussian import (
     ConditionalDenseCholGaussian,
     ConditionalLowRankCholGaussian,
 )
+from pyapprox.probability.covariance import (
+    DenseCholeskyCovarianceOperator,
+)
 from pyapprox.probability.gaussian.dense import (
     DenseCholeskyMultivariateGaussian,
 )
+from pyapprox.probability.joint.independent import IndependentJoint
 from pyapprox.probability.likelihood.gaussian import (
     DiagonalGaussianLogLikelihood,
     GaussianLogLikelihood,
     MultiExperimentLogLikelihood,
 )
-from pyapprox.probability.covariance import (
-    DenseCholeskyCovarianceOperator,
-)
-from pyapprox.inverse.conjugate.gaussian import (
-    DenseGaussianConjugatePosterior,
-)
-from pyapprox.surrogates.affine.univariate import create_bases_1d
-from pyapprox.surrogates.affine.indices import (
-    compute_hyperbolic_indices,
-)
+from pyapprox.probability.univariate import UniformMarginal
+from pyapprox.probability.univariate.gaussian import GaussianMarginal
 from pyapprox.surrogates.affine.basis import OrthonormalPolynomialBasis
 from pyapprox.surrogates.affine.expansions.base import BasisExpansion
 from pyapprox.surrogates.affine.expansions.pce import (
     create_pce_from_marginals,
 )
-from pyapprox.expdesign.quadrature.gaussian import (
-    GaussianQuadratureSampler,
+from pyapprox.surrogates.affine.indices import (
+    compute_hyperbolic_indices,
 )
-from pyapprox.inverse.variational.elbo import (
-    ELBOObjective,
-    make_discrete_group_elbo,
-)
-from pyapprox.interface.functions.protocols.function import (
-    FunctionProtocol,
-)
-from pyapprox.inverse.variational.fitter import VariationalFitter
-from pyapprox.optimization.minimize.scipy.trust_constr import (
-    ScipyTrustConstrOptimizer,
-)
+from pyapprox.surrogates.affine.univariate import create_bases_1d
+from pyapprox.util.backends.numpy import NumpyBkd
+from pyapprox.util.backends.protocols import Array, Backend
+from pyapprox.util.backends.torch import TorchBkd
+from pyapprox.util.test_utils import slow_test
 
 
-def _make_expansion(
-    bkd: Backend, degree: int, coeff: float = 0.0
-) -> BasisExpansion:
+def _make_expansion(bkd: Backend, degree: int, coeff: float = 0.0) -> BasisExpansion:
     """Create a BasisExpansion with given degree (1D input, 1 QoI).
 
     For degree d, the expansion has d+1 terms.
@@ -118,7 +112,11 @@ def _gauss_hermite_nodes_weights(bkd: Backend, npoints: int):
 
 
 def _make_expansion_nd_nqoi(
-    bkd: Backend, nvars_in: int, degree: int, nqoi: int, coeff: float = 0.0,
+    bkd: Backend,
+    nvars_in: int,
+    degree: int,
+    nqoi: int,
+    coeff: float = 0.0,
 ):
     """Create a BasisExpansion with given degree, input dim, and nqoi."""
     marginals = [UniformMarginal(-1.0, 1.0, bkd) for _ in range(nvars_in)]
@@ -131,7 +129,10 @@ def _make_expansion_nd_nqoi(
 
 
 def _make_cond_dense_chol_nd(
-    bkd: Backend, nvars_in: int, d: int, degree: int,
+    bkd: Backend,
+    nvars_in: int,
+    d: int,
+    degree: int,
 ) -> ConditionalDenseCholGaussian:
     """Create a ConditionalDenseCholGaussian with nvars_in-dim input."""
     mean_func = _make_expansion_nd_nqoi(bkd, nvars_in, degree, nqoi=d)
@@ -140,15 +141,25 @@ def _make_cond_dense_chol_nd(
     chol_offdiag_func = None
     if d > 1:
         chol_offdiag_func = _make_expansion_nd_nqoi(
-            bkd, nvars_in, degree, nqoi=n_offdiag,
+            bkd,
+            nvars_in,
+            degree,
+            nqoi=n_offdiag,
         )
     return ConditionalDenseCholGaussian(
-        mean_func, log_chol_diag_func, chol_offdiag_func, bkd,
+        mean_func,
+        log_chol_diag_func,
+        chol_offdiag_func,
+        bkd,
     )
 
 
 def _make_cond_low_rank_nd(
-    bkd: Backend, nvars_in: int, d: int, rank: int, degree: int,
+    bkd: Backend,
+    nvars_in: int,
+    d: int,
+    rank: int,
+    degree: int,
     log_diag_lower_bound: float = -6.0,
 ) -> ConditionalLowRankCholGaussian:
     """Create a ConditionalLowRankCholGaussian with nvars_in-dim input.
@@ -168,10 +179,17 @@ def _make_cond_low_rank_nd(
     factor_func = None
     if rank > 0:
         factor_func = _make_expansion_nd_nqoi(
-            bkd, nvars_in, degree, nqoi=d * rank,
+            bkd,
+            nvars_in,
+            degree,
+            nqoi=d * rank,
         )
     return ConditionalLowRankCholGaussian(
-        mean_func, log_diag_func, factor_func, rank, bkd,
+        mean_func,
+        log_diag_func,
+        factor_func,
+        rank,
+        bkd,
     )
 
 
@@ -215,8 +233,13 @@ class TestAmortizedBase(Generic[Array], unittest.TestCase):
         base_nodes, base_weights = _gauss_hermite_nodes_weights(bkd, npoints)
 
         elbo = make_discrete_group_elbo(
-            var_dist, log_lik_fns, prior,
-            labels, base_nodes, base_weights, bkd,
+            var_dist,
+            log_lik_fns,
+            prior,
+            labels,
+            base_nodes,
+            base_weights,
+            bkd,
         )
 
         # nvars = nterms_mean + nterms_logstdev = (degree+1)*2 = 6
@@ -251,8 +274,13 @@ class TestAmortizedBase(Generic[Array], unittest.TestCase):
             log_lik_fns.append(multi_lik.logpdf)
 
         elbo = make_discrete_group_elbo(
-            var_dist, log_lik_fns, prior,
-            labels, base_nodes, base_weights, bkd,
+            var_dist,
+            log_lik_fns,
+            prior,
+            labels,
+            base_nodes,
+            base_weights,
+            bkd,
         )
 
         # K*M = 4*10 = 40 joint quadrature points
@@ -289,8 +317,13 @@ class TestAmortizedBase(Generic[Array], unittest.TestCase):
             log_lik_fns.append(multi_lik.logpdf)
 
         elbo = make_discrete_group_elbo(
-            var_dist, log_lik_fns, prior,
-            labels, base_nodes, base_weights, bkd,
+            var_dist,
+            log_lik_fns,
+            prior,
+            labels,
+            base_nodes,
+            base_weights,
+            bkd,
         )
         params = bkd.zeros((elbo.nvars(), 1))
         v1 = elbo(params)
@@ -364,7 +397,9 @@ class TestAmortizedTorch(TestAmortizedBase[torch.Tensor], unittest.TestCase):
 
         # --- Prior quadrature ---
         prior_sampler = GaussianQuadratureSampler(
-            nvars=nlatent, bkd=bkd, npoints_1d=nprior_quad,
+            nvars=nlatent,
+            bkd=bkd,
+            npoints_1d=nprior_quad,
         )
         prior_nodes, _ = prior_sampler.sample(0)
         prior_stds = bkd.sqrt(bkd.diag(prior_cov))
@@ -374,13 +409,16 @@ class TestAmortizedTorch(TestAmortizedBase[torch.Tensor], unittest.TestCase):
         # --- Generate noisy observations ---
         np.random.seed(42)
         noise_L = np.linalg.cholesky(
-            np.array([[float(noise_cov[i, j])
-                       for j in range(nobs_dim)]
-                      for i in range(nobs_dim)])
+            np.array(
+                [
+                    [float(noise_cov[i, j]) for j in range(nobs_dim)]
+                    for i in range(nobs_dim)
+                ]
+            )
         )
         all_obs = []
         for k in range(K):
-            mean_k = bkd.dot(obs_matrix, z_train[:, k:k+1])
+            mean_k = bkd.dot(obs_matrix, z_train[:, k : k + 1])
             eps_np = noise_L @ np.random.randn(nobs_dim, n_obs)
             eps = bkd.asarray(eps_np)
             obs_k = bkd.tile(mean_k, (1, n_obs)) + eps
@@ -389,26 +427,23 @@ class TestAmortizedTorch(TestAmortizedBase[torch.Tensor], unittest.TestCase):
         # --- Compute observation means and map to labels ---
         bar_y_list = []
         for obs_k in all_obs:
-            bar_y_k = bkd.reshape(
-                bkd.sum(obs_k, axis=1) / n_obs, (nobs_dim, 1)
-            )
+            bar_y_k = bkd.reshape(bkd.sum(obs_k, axis=1) / n_obs, (nobs_dim, 1))
             bar_y_list.append(bar_y_k)
         bar_y_all = bkd.hstack(bar_y_list)
 
         bar_y_min = bkd.reshape(
-            bkd.asarray([float(bar_y_all[d, :].min())
-                         for d in range(nobs_dim)]),
+            bkd.asarray([float(bar_y_all[d, :].min()) for d in range(nobs_dim)]),
             (nobs_dim, 1),
         )
         bar_y_max = bkd.reshape(
-            bkd.asarray([float(bar_y_all[d, :].max())
-                         for d in range(nobs_dim)]),
+            bkd.asarray([float(bar_y_all[d, :].max()) for d in range(nobs_dim)]),
             (nobs_dim, 1),
         )
         bar_y_mid = 0.5 * (bar_y_min + bar_y_max)
         bar_y_scale = 0.5 * (bar_y_max - bar_y_min)
         bar_y_scale = bkd.where(
-            bar_y_scale > 1e-12, bar_y_scale,
+            bar_y_scale > 1e-12,
+            bar_y_scale,
             bkd.ones_like(bar_y_scale),
         )
         train_labels = (bar_y_all - bar_y_mid) / bar_y_scale
@@ -423,7 +458,9 @@ class TestAmortizedTorch(TestAmortizedBase[torch.Tensor], unittest.TestCase):
             def _make_log_lik(ml):
                 def log_lik(z):
                     return ml.logpdf(bkd.dot(obs_matrix, z))
+
                 return log_lik
+
             log_lik_fns.append(_make_log_lik(multi_lik))
 
         # --- Variational distribution (multivariate) ---
@@ -432,20 +469,29 @@ class TestAmortizedTorch(TestAmortizedBase[torch.Tensor], unittest.TestCase):
 
         # Prior: multivariate Gaussian
         prior = DenseCholeskyMultivariateGaussian(
-            prior_mean, prior_cov, bkd,
+            prior_mean,
+            prior_cov,
+            bkd,
         )
 
         # --- Gauss-Hermite quadrature for ELBO base samples ---
         nbase = var_dist.base_distribution().nvars()
         base_sampler = GaussianQuadratureSampler(
-            nvars=nbase, bkd=bkd, npoints_1d=nbase_quad,
+            nvars=nbase,
+            bkd=bkd,
+            npoints_1d=nbase_quad,
         )
         base_nodes, weights_1d = base_sampler.sample(0)
         base_weights = bkd.reshape(weights_1d, (1, -1))
 
         elbo = make_discrete_group_elbo(
-            var_dist, log_lik_fns, prior,
-            train_labels, base_nodes, base_weights, bkd,
+            var_dist,
+            log_lik_fns,
+            prior,
+            train_labels,
+            base_nodes,
+            base_weights,
+            bkd,
         )
 
         # --- Optimize ---
@@ -459,25 +505,29 @@ class TestAmortizedTorch(TestAmortizedBase[torch.Tensor], unittest.TestCase):
         # --- Verify at unseen test data ---
         np.random.seed(123)
         test_sampler = GaussianQuadratureSampler(
-            nvars=nlatent, bkd=bkd, npoints_1d=nprior_quad + 1,
+            nvars=nlatent,
+            bkd=bkd,
+            npoints_1d=nprior_quad + 1,
         )
         test_nodes, _ = test_sampler.sample(0)
         z_test = test_nodes * bkd.reshape(prior_stds, (nlatent, 1))
         K_test = z_test.shape[1]
 
         conjugate = DenseGaussianConjugatePosterior(
-            obs_matrix, prior_mean, prior_cov, noise_cov, bkd,
+            obs_matrix,
+            prior_mean,
+            prior_cov,
+            noise_cov,
+            bkd,
         )
 
         for t in range(K_test):
-            mean_t = bkd.dot(obs_matrix, z_test[:, t:t+1])
+            mean_t = bkd.dot(obs_matrix, z_test[:, t : t + 1])
             eps_np = noise_L @ np.random.randn(nobs_dim, n_obs)
             eps = bkd.asarray(eps_np)
             obs_test = bkd.tile(mean_t, (1, n_obs)) + eps
 
-            bar_y_t = bkd.reshape(
-                bkd.sum(obs_test, axis=1) / n_obs, (nobs_dim, 1)
-            )
+            bar_y_t = bkd.reshape(bkd.sum(obs_test, axis=1) / n_obs, (nobs_dim, 1))
             test_label = (bar_y_t - bar_y_mid) / bar_y_scale
 
             max_abs = float(bkd.max(bkd.abs(test_label)))
@@ -491,7 +541,8 @@ class TestAmortizedTorch(TestAmortizedBase[torch.Tensor], unittest.TestCase):
 
             # Evaluate variational distribution
             vi_mean = var_dist.reparameterize(
-                test_label, bkd.zeros((nbase, 1)),
+                test_label,
+                bkd.zeros((nbase, 1)),
             )
             bkd.assert_allclose(vi_mean, exact_mean, atol=atol)
 
@@ -564,7 +615,11 @@ class TestAmortizedTorch(TestAmortizedBase[torch.Tensor], unittest.TestCase):
 
         def factory(bkd, nlabel_dims, nlatent, degree):
             return _make_cond_low_rank_nd(
-                bkd, nlabel_dims, nlatent, rank=nlatent, degree=degree,
+                bkd,
+                nlabel_dims,
+                nlatent,
+                rank=nlatent,
+                degree=degree,
             )
 
         self._run_generalization_test_multivariate(
@@ -585,6 +640,7 @@ class TestAmortizedTorch(TestAmortizedBase[torch.Tensor], unittest.TestCase):
         from pyapprox.interface.functions.derivative_checks.derivative_checker import (
             DerivativeChecker,
         )
+
         bkd = self._bkd
         degree = 1
         cond = _make_cond_gaussian_degree(bkd, degree)
@@ -605,31 +661,37 @@ class TestAmortizedTorch(TestAmortizedBase[torch.Tensor], unittest.TestCase):
             log_lik_fns.append(multi_lik.logpdf)
 
         elbo = make_discrete_group_elbo(
-            var_dist, log_lik_fns, prior,
-            labels, base_nodes, base_weights, bkd,
+            var_dist,
+            log_lik_fns,
+            prior,
+            labels,
+            base_nodes,
+            base_weights,
+            bkd,
         )
 
-        self.assertTrue(hasattr(elbo, 'jacobian'))
+        self.assertTrue(hasattr(elbo, "jacobian"))
         checker = DerivativeChecker(elbo)
         sample = bkd.zeros((elbo.nvars(), 1))
         errors = checker.check_derivatives(sample, verbosity=0)
         ratio = checker.error_ratio(errors[0])
-        self.assertLessEqual(
-            float(bkd.flatten(ratio)[0]), 1e-5
-        )
+        self.assertLessEqual(float(bkd.flatten(ratio)[0]), 1e-5)
 
     def test_elbo_derivative_checker_dense_chol(self) -> None:
         """DerivativeChecker on ELBO with ConditionalDenseCholGaussian."""
         from pyapprox.interface.functions.derivative_checks.derivative_checker import (
             DerivativeChecker,
         )
+
         bkd = self._bkd
         d = 2
         nlabel_dims = 2
         degree = 1
         var_dist = _make_cond_dense_chol_nd(bkd, nlabel_dims, d, degree)
         prior = DenseCholeskyMultivariateGaussian(
-            bkd.zeros((d, 1)), bkd.eye(d), bkd,
+            bkd.zeros((d, 1)),
+            bkd.eye(d),
+            bkd,
         )
 
         K = 2
@@ -637,7 +699,9 @@ class TestAmortizedTorch(TestAmortizedBase[torch.Tensor], unittest.TestCase):
         nbase_quad = 3
         nbase = var_dist.base_distribution().nvars()
         base_sampler = GaussianQuadratureSampler(
-            nvars=nbase, bkd=bkd, npoints_1d=nbase_quad,
+            nvars=nbase,
+            bkd=bkd,
+            npoints_1d=nbase_quad,
         )
         base_nodes, weights_1d = base_sampler.sample(0)
         base_weights = bkd.reshape(weights_1d, (1, -1))
@@ -652,34 +716,44 @@ class TestAmortizedTorch(TestAmortizedBase[torch.Tensor], unittest.TestCase):
             log_lik_fns.append(multi_lik.logpdf)
 
         elbo = make_discrete_group_elbo(
-            var_dist, log_lik_fns, prior,
-            labels, base_nodes, base_weights, bkd,
+            var_dist,
+            log_lik_fns,
+            prior,
+            labels,
+            base_nodes,
+            base_weights,
+            bkd,
         )
 
-        self.assertTrue(hasattr(elbo, 'jacobian'))
+        self.assertTrue(hasattr(elbo, "jacobian"))
         checker = DerivativeChecker(elbo)
         sample = bkd.zeros((elbo.nvars(), 1))
         errors = checker.check_derivatives(sample, verbosity=0)
         ratio = checker.error_ratio(errors[0])
-        self.assertLessEqual(
-            float(bkd.flatten(ratio)[0]), 1e-5
-        )
+        self.assertLessEqual(float(bkd.flatten(ratio)[0]), 1e-5)
 
     def test_elbo_derivative_checker_low_rank(self) -> None:
         """DerivativeChecker on ELBO with ConditionalLowRankCholGaussian."""
         from pyapprox.interface.functions.derivative_checks.derivative_checker import (
             DerivativeChecker,
         )
+
         bkd = self._bkd
         d = 2
         rank = 2
         nlabel_dims = 2
         degree = 1
         var_dist = _make_cond_low_rank_nd(
-            bkd, nlabel_dims, d, rank, degree,
+            bkd,
+            nlabel_dims,
+            d,
+            rank,
+            degree,
         )
         prior = DenseCholeskyMultivariateGaussian(
-            bkd.zeros((d, 1)), bkd.eye(d), bkd,
+            bkd.zeros((d, 1)),
+            bkd.eye(d),
+            bkd,
         )
 
         K = 2
@@ -687,7 +761,9 @@ class TestAmortizedTorch(TestAmortizedBase[torch.Tensor], unittest.TestCase):
         nbase_quad = 3
         nbase = var_dist.base_distribution().nvars()
         base_sampler = GaussianQuadratureSampler(
-            nvars=nbase, bkd=bkd, npoints_1d=nbase_quad,
+            nvars=nbase,
+            bkd=bkd,
+            npoints_1d=nbase_quad,
         )
         base_nodes, weights_1d = base_sampler.sample(0)
         base_weights = bkd.reshape(weights_1d, (1, -1))
@@ -702,18 +778,21 @@ class TestAmortizedTorch(TestAmortizedBase[torch.Tensor], unittest.TestCase):
             log_lik_fns.append(multi_lik.logpdf)
 
         elbo = make_discrete_group_elbo(
-            var_dist, log_lik_fns, prior,
-            labels, base_nodes, base_weights, bkd,
+            var_dist,
+            log_lik_fns,
+            prior,
+            labels,
+            base_nodes,
+            base_weights,
+            bkd,
         )
 
-        self.assertTrue(hasattr(elbo, 'jacobian'))
+        self.assertTrue(hasattr(elbo, "jacobian"))
         checker = DerivativeChecker(elbo)
         sample = bkd.zeros((elbo.nvars(), 1))
         errors = checker.check_derivatives(sample, verbosity=0)
         ratio = checker.error_ratio(errors[0])
-        self.assertLessEqual(
-            float(bkd.flatten(ratio)[0]), 1e-5
-        )
+        self.assertLessEqual(float(bkd.flatten(ratio)[0]), 1e-5)
 
     def test_amortized_jacobian_shape(self) -> None:
         """Verify Jacobian shape for amortized ELBO."""
@@ -737,11 +816,16 @@ class TestAmortizedTorch(TestAmortizedBase[torch.Tensor], unittest.TestCase):
             log_lik_fns.append(multi_lik.logpdf)
 
         elbo = make_discrete_group_elbo(
-            var_dist, log_lik_fns, prior,
-            labels, base_nodes, base_weights, bkd,
+            var_dist,
+            log_lik_fns,
+            prior,
+            labels,
+            base_nodes,
+            base_weights,
+            bkd,
         )
 
-        self.assertTrue(hasattr(elbo, 'jacobian'))
+        self.assertTrue(hasattr(elbo, "jacobian"))
         params = bkd.zeros((elbo.nvars(), 1))
         jac = elbo.jacobian(params)
         self.assertEqual(jac.shape, (1, elbo.nvars()))

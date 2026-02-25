@@ -7,17 +7,11 @@ import numpy as np
 import torch
 from numpy.typing import NDArray
 
-from pyapprox.util.backends.numpy import NumpyBkd
-from pyapprox.util.backends.torch import TorchBkd
-from pyapprox.util.backends.protocols import Array, Backend
-from pyapprox.util.test_utils import load_tests
-
-from pyapprox.surrogates.affine.univariate import (
-    MonomialBasis1D,
-    create_bases_1d,
-)
-from pyapprox.surrogates.affine.indices import (
-    compute_hyperbolic_indices,
+from pyapprox.probability import (
+    BetaMarginal,
+    GammaMarginal,
+    GaussianMarginal,
+    UniformMarginal,
 )
 from pyapprox.surrogates.affine.basis import (
     MultiIndexBasis,
@@ -29,13 +23,17 @@ from pyapprox.surrogates.affine.expansions import (
     create_pce_from_marginals,
     pce_statistics,
 )
-from pyapprox.surrogates.affine.solvers import LeastSquaresSolver
-from pyapprox.probability import (
-    UniformMarginal,
-    GaussianMarginal,
-    GammaMarginal,
-    BetaMarginal,
+from pyapprox.surrogates.affine.indices import (
+    compute_hyperbolic_indices,
 )
+from pyapprox.surrogates.affine.solvers import LeastSquaresSolver
+from pyapprox.surrogates.affine.univariate import (
+    MonomialBasis1D,
+    create_bases_1d,
+)
+from pyapprox.util.backends.numpy import NumpyBkd
+from pyapprox.util.backends.protocols import Array, Backend
+from pyapprox.util.backends.torch import TorchBkd
 
 # Tests are organized into separate files:
 # - test_solvers.py: Linear system solvers (LeastSquares, Ridge, OMP, etc.)
@@ -309,14 +307,14 @@ class TestBasisExpansionFitting(Generic[Array], unittest.TestCase):
         samples = bkd.asarray(np.random.uniform(-1, 1, (2, nsamples)))
         x, y = samples[0, :], samples[1, :]
         # Values shape: (nqoi, nsamples) = (1, nsamples)
-        values = bkd.reshape(x**2 + x*y, (1, -1))
+        values = bkd.reshape(x**2 + x * y, (1, -1))
 
         exp.fit(samples, values)
 
         # Test on new samples
         test_samples = bkd.asarray(np.random.uniform(-1, 1, (2, 20)))
         x_test, y_test = test_samples[0, :], test_samples[1, :]
-        expected = bkd.reshape(x_test**2 + x_test*y_test, (1, -1))
+        expected = bkd.reshape(x_test**2 + x_test * y_test, (1, -1))
         predicted = exp(test_samples)
 
         bkd.assert_allclose(predicted, expected, rtol=1e-10, atol=1e-10)
@@ -566,9 +564,7 @@ class TestLaguerreBasisExpansion(Generic[Array], unittest.TestCase):
         np.random.seed(123)
         test_samples = bkd.asarray(np.random.exponential(1.0, (2, 30)))
         x_test, y_test = test_samples[0, :], test_samples[1, :]
-        expected = bkd.reshape(
-            x_test**2 + y_test**2 + x_test * y_test - 2.0, (1, -1)
-        )
+        expected = bkd.reshape(x_test**2 + y_test**2 + x_test * y_test - 2.0, (1, -1))
         predicted = exp(test_samples)
 
         bkd.assert_allclose(predicted, expected, rtol=1e-10, atol=1e-10)
@@ -631,9 +627,7 @@ class TestJacobiBasisExpansion(Generic[Array], unittest.TestCase):
         bkd = self._bkd
         # BetaMarginal(a, b) on [0, 1] -> Jacobi(b-1, a-1) on [-1, 1]
         # For Jacobi(alpha, beta), use Beta(beta+1, alpha+1)
-        marginals = [
-            BetaMarginal(beta + 1.0, alpha + 1.0, bkd) for _ in range(nvars)
-        ]
+        marginals = [BetaMarginal(beta + 1.0, alpha + 1.0, bkd) for _ in range(nvars)]
         bases_1d = create_bases_1d(marginals, bkd)
         indices = compute_hyperbolic_indices(nvars, max_level, 1.0, bkd)
         return OrthonormalPolynomialBasis(bases_1d, bkd, indices)
@@ -716,7 +710,10 @@ class TestJacobiBasisExpansion(Generic[Array], unittest.TestCase):
             predicted = exp(test_samples)
 
             bkd.assert_allclose(
-                predicted, expected, rtol=1e-10, atol=1e-10,
+                predicted,
+                expected,
+                rtol=1e-10,
+                atol=1e-10,
             )
 
     def test_evaluation_shape(self):
@@ -1135,7 +1132,7 @@ class TestPolynomialChaosExpansion(Generic[Array], unittest.TestCase):
         samples = bkd.asarray(np.random.uniform(-1, 1, (2, nsamples)))
         x, y = samples[0, :], samples[1, :]
         # Values shape: (nqoi, nsamples) = (1, nsamples)
-        values = bkd.reshape(1.0 + x + y + x*y, (1, -1))
+        values = bkd.reshape(1.0 + x + y + x * y, (1, -1))
 
         pce.fit(samples, values)
 
@@ -1146,7 +1143,7 @@ class TestPolynomialChaosExpansion(Generic[Array], unittest.TestCase):
         var = pce.variance()
 
         bkd.assert_allclose(mean, bkd.asarray([1.0]), atol=1e-10)
-        bkd.assert_allclose(var, bkd.asarray([7.0/9.0]), atol=1e-10)
+        bkd.assert_allclose(var, bkd.asarray([7.0 / 9.0]), atol=1e-10)
 
     def test_fit_via_projection(self):
         """Test spectral projection fitting."""
@@ -1224,7 +1221,7 @@ class TestPCESobolIndices(Generic[Array], unittest.TestCase):
         nsamples = 100
         samples = bkd.asarray(np.random.uniform(-1, 1, (2, nsamples)))
         x, y = samples[0, :], samples[1, :]
-        values = bkd.reshape(x + y + x*y, (1, -1))
+        values = bkd.reshape(x + y + x * y, (1, -1))
         pce.fit(samples, values)
 
         total_indices = pce.total_sobol_indices()
@@ -1244,7 +1241,7 @@ class TestPCESobolIndices(Generic[Array], unittest.TestCase):
         nsamples = 100
         samples = bkd.asarray(np.random.uniform(-1, 1, (2, nsamples)))
         x, y = samples[0, :], samples[1, :]
-        values = bkd.reshape(x + y + x*y, (1, -1))
+        values = bkd.reshape(x + y + x * y, (1, -1))
         pce.fit(samples, values)
 
         main_indices = pce.main_effect_sobol_indices()
@@ -1261,7 +1258,7 @@ class TestPCESobolIndices(Generic[Array], unittest.TestCase):
         nsamples = 100
         samples = bkd.asarray(np.random.uniform(-1, 1, (2, nsamples)))
         x, y = samples[0, :], samples[1, :]
-        values = bkd.reshape(x + 2*y, (1, -1))
+        values = bkd.reshape(x + 2 * y, (1, -1))
         pce.fit(samples, values)
 
         main_indices = pce.main_effect_sobol_indices()
@@ -1322,7 +1319,7 @@ class TestPCEStatisticsFunctions(Generic[Array], unittest.TestCase):
         nsamples = 50
         samples = bkd.asarray(np.random.uniform(-1, 1, (2, nsamples)))
         x, y = samples[0, :], samples[1, :]
-        values = bkd.reshape(x + y + x*y, (1, -1))
+        values = bkd.reshape(x + y + x * y, (1, -1))
         pce.fit(samples, values)
 
         # Compare function outputs to method outputs
@@ -1330,12 +1327,11 @@ class TestPCEStatisticsFunctions(Generic[Array], unittest.TestCase):
         bkd.assert_allclose(pce_statistics.variance(pce), pce.variance())
         bkd.assert_allclose(pce_statistics.std(pce), pce.std())
         bkd.assert_allclose(
-            pce_statistics.total_sobol_indices(pce),
-            pce.total_sobol_indices()
+            pce_statistics.total_sobol_indices(pce), pce.total_sobol_indices()
         )
         bkd.assert_allclose(
             pce_statistics.main_effect_sobol_indices(pce),
-            pce.main_effect_sobol_indices()
+            pce.main_effect_sobol_indices(),
         )
 
 
@@ -1436,13 +1432,13 @@ class TestMixedBasisExpansion(Generic[Array], unittest.TestCase):
 
     def test_create_pce_from_marginals_continuous(self):
         """Test create_pce_from_marginals with continuous distributions."""
+        from pyapprox.probability.univariate import (
+            GammaMarginal,
+            GaussianMarginal,
+            UniformMarginal,
+        )
         from pyapprox.surrogates.affine.expansions.pce import (
             create_pce_from_marginals,
-        )
-        from pyapprox.probability.univariate import (
-            UniformMarginal,
-            GaussianMarginal,
-            GammaMarginal,
         )
 
         bkd = self._bkd
@@ -1468,15 +1464,18 @@ class TestMixedBasisExpansion(Generic[Array], unittest.TestCase):
 
     def test_create_pce_from_marginals_discrete(self):
         """Test create_pce_from_marginals with discrete distributions."""
+        from scipy import stats
+
+        from pyapprox.probability.univariate import ScipyDiscreteMarginal
         from pyapprox.surrogates.affine.expansions.pce import (
             create_pce_from_marginals,
         )
-        from pyapprox.probability.univariate import ScipyDiscreteMarginal
-        from scipy import stats
 
         bkd = self._bkd
         marginals = [
-            ScipyDiscreteMarginal(stats.poisson(mu=3.0), bkd),  # -> CharlierPolynomial1D
+            ScipyDiscreteMarginal(
+                stats.poisson(mu=3.0), bkd
+            ),  # -> CharlierPolynomial1D
             ScipyDiscreteMarginal(stats.binom(n=10, p=0.3), bkd),  # -> DiscreteNumeric
         ]
         pce = create_pce_from_marginals(marginals, max_level=3, bkd=bkd)
@@ -1506,11 +1505,12 @@ class TestMixedBasisExpansion(Generic[Array], unittest.TestCase):
         for higher polynomial degrees. We test with fewer terms and use a
         more relaxed tolerance for Poisson.
         """
+        from scipy import stats
+
+        from pyapprox.probability.univariate import ScipyDiscreteMarginal
         from pyapprox.surrogates.affine.expansions.pce import (
             create_pce_from_marginals,
         )
-        from pyapprox.probability.univariate import ScipyDiscreteMarginal
-        from scipy import stats
 
         bkd = self._bkd
 
@@ -1518,7 +1518,9 @@ class TestMixedBasisExpansion(Generic[Array], unittest.TestCase):
         # For unbounded distributions, use fewer terms since we can't capture
         # all mass points, which causes orthonormality to degrade
         poisson_marginal = ScipyDiscreteMarginal(stats.poisson(mu=3.0), bkd)
-        pce_poisson = create_pce_from_marginals([poisson_marginal], max_level=3, bkd=bkd)
+        pce_poisson = create_pce_from_marginals(
+            [poisson_marginal], max_level=3, bkd=bkd
+        )
         basis_1d = pce_poisson._basis._bases_1d[0]
         nterms = 4  # Use fewer terms for better orthonormality with truncated support
         basis_1d.set_nterms(nterms)
@@ -1543,14 +1545,16 @@ class TestMixedBasisExpansion(Generic[Array], unittest.TestCase):
     def test_discrete_numeric_orthonormality_exact(self):
         """Test orthonormality of numeric discrete polynomials using exact evaluation.
 
-        For distributions that use DiscreteNumericOrthonormalPolynomial1D (like binomial),
+        For distributions that use DiscreteNumericOrthonormalPolynomial1D (like
+        binomial),
         verify orthonormality by evaluating at all mass points.
         """
+        from scipy import stats
+
+        from pyapprox.probability.univariate import ScipyDiscreteMarginal
         from pyapprox.surrogates.affine.expansions.pce import (
             create_pce_from_marginals,
         )
-        from pyapprox.probability.univariate import ScipyDiscreteMarginal
-        from scipy import stats
 
         bkd = self._bkd
 

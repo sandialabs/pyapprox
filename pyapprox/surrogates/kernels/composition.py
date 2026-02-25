@@ -7,13 +7,12 @@ building sophisticated kernels from simpler building blocks.
 
 from typing import Generic
 
-from pyapprox.util.backends.protocols import Array, Backend
-from pyapprox.util.hyperparameter import HyperParameterList
 from pyapprox.surrogates.kernels.protocols import (
     Kernel,
     KernelHasHVPWrtX1Protocol,
-    KernelHasHVPWrtParamsProtocol,
 )
+from pyapprox.util.backends.protocols import Array, Backend
+from pyapprox.util.hyperparameter import HyperParameterList
 
 
 class CompositionKernel(Kernel, Generic[Array]):
@@ -103,8 +102,8 @@ class CompositionKernel(Kernel, Generic[Array]):
         available when they can be correctly computed.
         """
         # Check if both kernels support jacobian_wrt_params
-        has_jac_1 = hasattr(self._kernel1, 'jacobian_wrt_params')
-        has_jac_2 = hasattr(self._kernel2, 'jacobian_wrt_params')
+        has_jac_1 = hasattr(self._kernel1, "jacobian_wrt_params")
+        has_jac_2 = hasattr(self._kernel2, "jacobian_wrt_params")
 
         if has_jac_1 and has_jac_2:
             # Both kernels support jacobian, add the method
@@ -112,8 +111,8 @@ class CompositionKernel(Kernel, Generic[Array]):
         # Otherwise, jacobian_wrt_params will not exist on this instance
 
         # Check if both kernels support hvp_wrt_params
-        has_hvp_1 = hasattr(self._kernel1, 'hvp_wrt_params')
-        has_hvp_2 = hasattr(self._kernel2, 'hvp_wrt_params')
+        has_hvp_1 = hasattr(self._kernel1, "hvp_wrt_params")
+        has_hvp_2 = hasattr(self._kernel2, "hvp_wrt_params")
 
         if has_hvp_1 and has_hvp_2:
             # Both kernels support HVP, add the method
@@ -229,7 +228,9 @@ class ProductKernel(CompositionKernel):
         NotImplementedError
             If either kernel doesn't support Jacobians.
         """
-        if not (hasattr(self._kernel1, "jacobian") and hasattr(self._kernel2, "jacobian")):
+        if not (
+            hasattr(self._kernel1, "jacobian") and hasattr(self._kernel2, "jacobian")
+        ):
             raise NotImplementedError(
                 "Both kernels must implement jacobian() for ProductKernel Jacobian"
             )
@@ -275,8 +276,8 @@ class ProductKernel(CompositionKernel):
         # dK1 has shape (n, n, nparams1)
         # dK2 has shape (n, n, nparams2)
 
-        nparams1 = dK1.shape[2]
-        nparams2 = dK2.shape[2]
+        dK1.shape[2]
+        dK2.shape[2]
 
         # First part: dK1 * K2
         jac1 = dK1 * K2[..., None]
@@ -339,11 +340,12 @@ class ProductKernel(CompositionKernel):
         # Block 1: K1 parameters (i in K1)
         # hvp[:, :, i] = Σ_{j in K1} (∂²K1/∂θ_i∂θ_j * K2) * v1[j]
         #              + Σ_{j in K2} (∂K1/∂θ_i * ∂K2/∂θ_j) * v2[j]
-        # = (Σ_{j in K1} ∂²K1/∂θ_i∂θ_j * v1[j]) * K2 + (∂K1/∂θ_i) * (Σ_{j in K2} ∂K2/∂θ_j * v2[j])
+        # = (Σ_{j in K1} ∂²K1/∂θ_i∂θ_j * v1[j]) * K2 + (∂K1/∂θ_i) * (Σ_{j in K2}
+        # ∂K2/∂θ_j * v2[j])
         # = HK1_v[:, :, i] * K2 + dK1[:, :, i] * (dK2 · v2)
 
         # Compute dK2 · v2: shape (n, n)
-        dK2_dot_v2 = self._bkd.einsum('ijk,k->ij', dK2, v2)
+        dK2_dot_v2 = self._bkd.einsum("ijk,k->ij", dK2, v2)
 
         for i in range(p1):
             hvp[:, :, i] = HK1_v[:, :, i] * K2 + dK1[:, :, i] * dK2_dot_v2
@@ -351,11 +353,12 @@ class ProductKernel(CompositionKernel):
         # Block 2: K2 parameters (i in K2)
         # hvp[:, :, p1+i] = Σ_{j in K1} (∂K1/∂θ_j * ∂K2/∂θ_i) * v1[j]
         #                 + Σ_{j in K2} (K1 * ∂²K2/∂θ_i∂θ_j) * v2[j]
-        # = (Σ_{j in K1} ∂K1/∂θ_j * v1[j]) * ∂K2/∂θ_i + K1 * (Σ_{j in K2} ∂²K2/∂θ_i∂θ_j * v2[j])
+        # = (Σ_{j in K1} ∂K1/∂θ_j * v1[j]) * ∂K2/∂θ_i + K1 * (Σ_{j in K2} ∂²K2/∂θ_i∂θ_j
+        # * v2[j])
         # = (dK1 · v1) * dK2[:, :, i] + K1 * HK2_v[:, :, i]
 
         # Compute dK1 · v1: shape (n, n)
-        dK1_dot_v1 = self._bkd.einsum('ijk,k->ij', dK1, v1)
+        dK1_dot_v1 = self._bkd.einsum("ijk,k->ij", dK1, v1)
 
         for i in range(p2):
             hvp[:, :, p1 + i] = dK1_dot_v1 * dK2[:, :, i] + K1 * HK2_v[:, :, i]
@@ -390,8 +393,10 @@ class ProductKernel(CompositionKernel):
         NotImplementedError
             If either kernel doesn't support hvp_wrt_x1
         """
-        if not (isinstance(self._kernel1, KernelHasHVPWrtX1Protocol) and
-                isinstance(self._kernel2, KernelHasHVPWrtX1Protocol)):
+        if not (
+            isinstance(self._kernel1, KernelHasHVPWrtX1Protocol)
+            and isinstance(self._kernel2, KernelHasHVPWrtX1Protocol)
+        ):
             raise NotImplementedError(
                 "Both kernels must implement hvp_wrt_x1() for ProductKernel HVP"
             )
@@ -401,8 +406,9 @@ class ProductKernel(CompositionKernel):
         K2 = self._kernel2(X1, X2)  # (n1, n2)
 
         # Get Jacobians (gradients)
-        if not (hasattr(self._kernel1, "jacobian") and
-                hasattr(self._kernel2, "jacobian")):
+        if not (
+            hasattr(self._kernel1, "jacobian") and hasattr(self._kernel2, "jacobian")
+        ):
             raise NotImplementedError(
                 "Both kernels must implement jacobian() for ProductKernel HVP"
             )
@@ -425,13 +431,14 @@ class ProductKernel(CompositionKernel):
         term2 = K1[:, :, None] * HK2_V  # (n1, n2, nvars)
 
         # Term 3: Mixed derivative term
-        # (∇K1)^T · V gives scalar per point pair: (n1, n2, nvars) · (nvars,) -> (n1, n2)
-        dK1_dot_V = self._bkd.einsum('ijk,k->ij', dK1, direction)  # (n1, n2)
+        # (∇K1)^T · V gives scalar per point pair: (n1, n2, nvars) · (nvars,) -> (n1,
+        # n2)
+        dK1_dot_V = self._bkd.einsum("ijk,k->ij", dK1, direction)  # (n1, n2)
         # Then multiply by ∇K2: (n1, n2) * (n1, n2, nvars) -> (n1, n2, nvars)
         term3 = dK1_dot_V[:, :, None] * dK2  # (n1, n2, nvars)
 
         # Term 4: Symmetric mixed term
-        dK2_dot_V = self._bkd.einsum('ijk,k->ij', dK2, direction)  # (n1, n2)
+        dK2_dot_V = self._bkd.einsum("ijk,k->ij", dK2, direction)  # (n1, n2)
         term4 = dK2_dot_V[:, :, None] * dK1  # (n1, n2, nvars)
 
         return term1 + term2 + term3 + term4
@@ -521,7 +528,9 @@ class SumKernel(CompositionKernel):
         NotImplementedError
             If either kernel doesn't support Jacobians.
         """
-        if not (hasattr(self._kernel1, "jacobian") and hasattr(self._kernel2, "jacobian")):
+        if not (
+            hasattr(self._kernel1, "jacobian") and hasattr(self._kernel2, "jacobian")
+        ):
             raise NotImplementedError(
                 "Both kernels must implement jacobian() for SumKernel Jacobian"
             )
@@ -585,8 +594,8 @@ class SumKernel(CompositionKernel):
 
         # Get dimensions
         p1 = self._kernel1.hyp_list().nactive_params()
-        p2 = self._kernel2.hyp_list().nactive_params()
-        n = samples.shape[1]
+        self._kernel2.hyp_list().nactive_params()
+        samples.shape[1]
 
         # Split direction vector
         v1 = direction[:p1]  # Direction for K1 params
@@ -627,8 +636,10 @@ class SumKernel(CompositionKernel):
         NotImplementedError
             If either kernel doesn't support hvp_wrt_x1
         """
-        if not (isinstance(self._kernel1, KernelHasHVPWrtX1Protocol) and
-                isinstance(self._kernel2, KernelHasHVPWrtX1Protocol)):
+        if not (
+            isinstance(self._kernel1, KernelHasHVPWrtX1Protocol)
+            and isinstance(self._kernel2, KernelHasHVPWrtX1Protocol)
+        ):
             raise NotImplementedError(
                 "Both kernels must implement hvp_wrt_x1() for SumKernel HVP"
             )
@@ -686,9 +697,7 @@ class SeparableProductKernel(Kernel, Generic[Array]):
         # Validate each kernel is 1D
         for i, k in enumerate(kernels_1d):
             if k.nvars() != 1:
-                raise ValueError(
-                    f"Kernel {i} must have nvars=1, got {k.nvars()}"
-                )
+                raise ValueError(f"Kernel {i} must have nvars=1, got {k.nvars()}")
 
         # Combine hyperparameter lists from all kernels
         hyp_lists = [k.hyp_list() for k in kernels_1d]

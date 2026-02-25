@@ -1,29 +1,29 @@
 import unittest
-from typing import Generic, Any
+from typing import Any, Generic
 
 import numpy as np
-from numpy.typing import NDArray
 import torch
+from numpy.typing import NDArray
 
-from pyapprox.util.backends.protocols import Array, Backend
-from pyapprox.util.backends.numpy import NumpyBkd
-from pyapprox.util.backends.torch import TorchBkd
-from pyapprox.optimization.minimize.scipy.trust_constr import (
-    ScipyTrustConstrOptimizer,
-)
-from pyapprox.optimization.minimize.scipy.diffevol import (
-    ScipyDifferentialEvolutionOptimizer,
+from pyapprox.optimization.minimize.benchmarks.evutushenko import (
+    EvtushenkoNonLinearConstraint,
+    EvtushenkoObjective,
 )
 from pyapprox.optimization.minimize.chained.chained_optimizer import (
     ChainedOptimizer,
 )
-from pyapprox.optimization.minimize.benchmarks.evutushenko import (
-    EvtushenkoObjective,
-    EvtushenkoNonLinearConstraint,
-)
 from pyapprox.optimization.minimize.constraints.linear import (
     PyApproxLinearConstraint,
 )
+from pyapprox.optimization.minimize.scipy.diffevol import (
+    ScipyDifferentialEvolutionOptimizer,
+)
+from pyapprox.optimization.minimize.scipy.trust_constr import (
+    ScipyTrustConstrOptimizer,
+)
+from pyapprox.util.backends.numpy import NumpyBkd
+from pyapprox.util.backends.protocols import Array, Backend
+from pyapprox.util.backends.torch import TorchBkd
 
 
 class TestChainedOptimizer(Generic[Array], unittest.TestCase):
@@ -34,9 +34,7 @@ class TestChainedOptimizer(Generic[Array], unittest.TestCase):
         Override this method in derived classes to provide the specific
         backend.
         """
-        raise NotImplementedError(
-            "Derived classes must implement this method."
-        )
+        raise NotImplementedError("Derived classes must implement this method.")
 
     def test_chained_optimizer_with_evtushenko_objective_and_constraints(
         self,
@@ -104,12 +102,8 @@ class TestChainedOptimizer(Generic[Array], unittest.TestCase):
         # Assert that the constraints are satisfied
         nonlinear_constraint_value = nonlinear_constraint(result.optima())
         self.assertTrue(
-            bkd.all_bool(
-                nonlinear_constraint_value >= nonlinear_constraint.lb()
-            )
-            and bkd.all_bool(
-                nonlinear_constraint_value <= nonlinear_constraint.ub()
-            )
+            bkd.all_bool(nonlinear_constraint_value >= nonlinear_constraint.lb())
+            and bkd.all_bool(nonlinear_constraint_value <= nonlinear_constraint.ub())
         )
 
         linear_constraint_value = bkd.ones((1, 3)) @ result.optima()
@@ -121,9 +115,7 @@ class TestChainedOptimizer(Generic[Array], unittest.TestCase):
 
         # Assert that the objective value matches the expected value
         expected_fun = objective(expected_optima)
-        self.bkd().assert_allclose(
-            result.fun(), float(expected_fun[0, 0]), atol=1e-8
-        )
+        self.bkd().assert_allclose(result.fun(), float(expected_fun[0, 0]), atol=1e-8)
 
     def test_deferred_binding(self) -> None:
         """Test ChainedOptimizer with deferred binding."""
@@ -206,9 +198,7 @@ class TestChainedOptimizer(Generic[Array], unittest.TestCase):
         bounds = bkd.array([[0, 2.0], [0, 2.0], [0, 2.0]])
 
         # Create and bind optimizers
-        global_optimizer = ScipyDifferentialEvolutionOptimizer(
-            maxiter=500, seed=42
-        )
+        global_optimizer = ScipyDifferentialEvolutionOptimizer(maxiter=500, seed=42)
         local_optimizer = ScipyTrustConstrOptimizer(maxiter=200)
 
         chained_optimizer = ChainedOptimizer(global_optimizer, local_optimizer)
@@ -226,7 +216,7 @@ class TestChainedOptimizer(Generic[Array], unittest.TestCase):
 
     def test_invalid_optimizer_raises_typeerror(self) -> None:
         """Test that passing an invalid optimizer raises TypeError."""
-        bkd = self.bkd()
+        self.bkd()
 
         global_optimizer = ScipyDifferentialEvolutionOptimizer(maxiter=100)
 
@@ -259,9 +249,7 @@ class TestChainedOptimizerTorch(TestChainedOptimizer[torch.Tensor]):
 
 
 # Custom test loader to exclude the base class
-def load_tests(
-    loader: unittest.TestLoader, tests, pattern: str
-) -> unittest.TestSuite:
+def load_tests(loader: unittest.TestLoader, tests, pattern: str) -> unittest.TestSuite:
     """
     Custom test loader to exclude the base class
     ContinuousScipyRandomVariable1D.

@@ -6,37 +6,35 @@ Selects the best acceleration strategy based on the backend type:
 3. Backend-generic barycentric formula (fallback) — uses bkd.* methods
 """
 
-from typing import Callable, Optional
+from typing import Callable
 
 import numpy as np
 
-from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.util.backends.numpy import NumpyBkd
+from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.util.optional_deps import package_available
 
 _HAS_NUMBA = package_available("numba")
 
 
 # Uniform signature: (abscissa, samples, bary_weights, bkd) -> values
-LagrangeEvalImpl = Callable[
-    [Array, Array, Array, Backend[Array]], Array
-]
+LagrangeEvalImpl = Callable[[Array, Array, Array, Backend[Array]], Array]
 
 # Uniform signature for derivatives: same as eval
-LagrangeDerivImpl = Callable[
-    [Array, Array, Array, Backend[Array]], Array
-]
+LagrangeDerivImpl = Callable[[Array, Array, Array, Backend[Array]], Array]
 
 
 def _is_torch(bkd: Backend[Array]) -> bool:
     """Check if backend is PyTorch; import deferred to avoid torch load time."""
     from pyapprox.util.backends.torch import TorchBkd
+
     return isinstance(bkd, TorchBkd)
 
 
 # ---------------------------------------------------------------------------
 # Evaluation implementations
 # ---------------------------------------------------------------------------
+
 
 def _make_numba_lagrange_eval() -> LagrangeEvalImpl:
     """Create a numba-backed Lagrange evaluation implementation."""
@@ -117,6 +115,7 @@ def _generic_lagrange_eval(
 def _make_compiled_lagrange_eval() -> LagrangeEvalImpl:
     """Create a torch.compile-wrapped Lagrange evaluation implementation."""
     import torch
+
     from pyapprox.surrogates.affine.univariate.lagrange_torch import (
         lagrange_eval_torch,
     )
@@ -163,6 +162,7 @@ def get_lagrange_eval_impl(bkd: Backend[Array]) -> LagrangeEvalImpl:
 # ---------------------------------------------------------------------------
 # First derivative implementations
 # ---------------------------------------------------------------------------
+
 
 def _generic_lagrange_jacobian(
     abscissa: Array,
@@ -229,9 +229,7 @@ def _generic_lagrange_jacobian(
     node_diffs = abscissa[:, None] - abscissa[None, :]
     node_is_diag = node_diffs == 0.0
     safe_node_diffs = bkd.where(node_is_diag, 1.0, node_diffs)
-    node_derivs = bary_weights[None, :] / (
-        bary_weights[:, None] * safe_node_diffs
-    )
+    node_derivs = bary_weights[None, :] / (bary_weights[:, None] * safe_node_diffs)
     off_diag = bkd.where(node_is_diag, 0.0, node_derivs)
     diag_vals = -bkd.sum(off_diag, axis=1)
     node_derivs = bkd.where(node_is_diag, diag_vals[:, None], off_diag)
@@ -271,6 +269,7 @@ def _make_numba_lagrange_jacobian() -> LagrangeDerivImpl:
 def _make_compiled_lagrange_jacobian() -> LagrangeDerivImpl:
     """Create a torch.compile-wrapped first derivative implementation."""
     import torch
+
     from pyapprox.surrogates.affine.univariate.lagrange_torch import (
         lagrange_jacobian_torch,
     )
@@ -312,6 +311,7 @@ def get_lagrange_jacobian_impl(bkd: Backend[Array]) -> LagrangeDerivImpl:
 # ---------------------------------------------------------------------------
 # Second derivative implementations
 # ---------------------------------------------------------------------------
+
 
 def _generic_lagrange_hessian(
     abscissa: Array,
@@ -425,6 +425,7 @@ def _make_numba_lagrange_hessian() -> LagrangeDerivImpl:
 def _make_compiled_lagrange_hessian() -> LagrangeDerivImpl:
     """Create a torch.compile-wrapped second derivative implementation."""
     import torch
+
     from pyapprox.surrogates.affine.univariate.lagrange_torch import (
         lagrange_hessian_torch,
     )

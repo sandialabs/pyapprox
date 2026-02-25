@@ -2,14 +2,14 @@
 
 from typing import Generic
 
-from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.optimization.linear.least_squares import (
     LinearlyConstrainedLstSqSolver,
 )
-from pyapprox.surrogates.affine.protocols import BasisExpansionProtocol
 from pyapprox.surrogates.affine.expansions.fitters.results import (
     DirectSolverResult,
 )
+from pyapprox.surrogates.affine.protocols import BasisExpansionProtocol
+from pyapprox.util.backends.protocols import Array, Backend
 
 
 class GradientEnhancedPCEFitter(Generic[Array]):
@@ -90,8 +90,7 @@ class GradientEnhancedPCEFitter(Generic[Array]):
         # Validate single QoI
         if values.shape[0] != 1:
             raise ValueError(
-                f"GradientEnhancedPCEFitter only supports nqoi=1, "
-                f"got {values.shape[0]}"
+                f"GradientEnhancedPCEFitter only supports nqoi=1, got {values.shape[0]}"
             )
 
         # Check expansion has jacobian_batch
@@ -124,7 +123,8 @@ class GradientEnhancedPCEFitter(Generic[Array]):
         basis_jac = basis.jacobian_batch(samples)  # (nsamples, nterms, nvars)
 
         # Reshape to (nsamples * nvars, nterms)
-        # For each sample i and variable j, row i*nvars + j contains d(phi_k)/dx_j at sample i
+        # For each sample i and variable j, row i*nvars + j contains d(phi_k)/dx_j at
+        # sample i
         Phi_G = bkd.reshape(
             bkd.transpose(basis_jac, (0, 2, 1)),  # (nsamples, nvars, nterms)
             (nsamples * nvars, nterms),

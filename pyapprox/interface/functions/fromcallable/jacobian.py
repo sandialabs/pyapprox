@@ -1,15 +1,15 @@
 from typing import Callable
 
-from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.interface.functions.fromcallable.function import (
     FunctionFromCallable,
 )
 from pyapprox.interface.functions.protocols.validation import (
-    validate_sample,
-    validate_samples,
     validate_jacobian,
     validate_jacobian_batch,
+    validate_sample,
+    validate_samples,
 )
+from pyapprox.util.backends.protocols import Array, Backend
 
 
 class FunctionWithJacobianFromCallable(FunctionFromCallable[Array]):

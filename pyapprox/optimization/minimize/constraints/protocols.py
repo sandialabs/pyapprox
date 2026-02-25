@@ -1,22 +1,14 @@
 from typing import (
-    Protocol,
-    runtime_checkable,
     Generic,
-    Union,
+    Protocol,
     Sequence,
-    List,
-    Any,
+    Union,
+    runtime_checkable,
 )
 
-from pyapprox.util.backends.protocols import Array, Backend
-from pyapprox.optimization.minimize.constraints.linear import (
-    PyApproxLinearConstraint,
-)
-
-
-from typing import Protocol, runtime_checkable, Generic
-from pyapprox.util.backends.protocols import Array, Backend
 from scipy.optimize import LinearConstraint as ScipyLinearConstraint
+
+from pyapprox.util.backends.protocols import Array, Backend
 
 
 @runtime_checkable

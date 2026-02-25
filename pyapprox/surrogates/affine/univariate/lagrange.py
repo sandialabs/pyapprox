@@ -18,20 +18,18 @@ Example with Leja sequence:
 
 from typing import Callable, Generic, Optional, Tuple
 
-from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.surrogates.affine.univariate.lagrange_dispatch import (
-    get_lagrange_eval_impl,
-    get_lagrange_jacobian_impl,
-    get_lagrange_hessian_impl,
     _generic_lagrange_eval,
-    _generic_lagrange_jacobian,
     _generic_lagrange_hessian,
+    _generic_lagrange_jacobian,
+    get_lagrange_eval_impl,
+    get_lagrange_hessian_impl,
+    get_lagrange_jacobian_impl,
 )
+from pyapprox.util.backends.protocols import Array, Backend
 
 
-def compute_barycentric_weights(
-    abscissa: Array, bkd: Backend[Array]
-) -> Array:
+def compute_barycentric_weights(abscissa: Array, bkd: Backend[Array]) -> Array:
     """Compute barycentric weights for Lagrange interpolation.
 
     Parameters
@@ -231,9 +229,7 @@ class LagrangeBasis1D(Generic[Array]):
         samples, weights = self._quadrature_rule(nterms)
         self._abscissa = samples.flatten()
         self._weights = weights
-        self._bary_weights = compute_barycentric_weights(
-            self._abscissa, self._bkd
-        )
+        self._bary_weights = compute_barycentric_weights(self._abscissa, self._bkd)
 
     def nterms(self) -> int:
         """Return the number of basis terms."""
@@ -278,9 +274,7 @@ class LagrangeBasis1D(Generic[Array]):
         """
         if self._abscissa is None:
             raise ValueError("Must call set_nterms before evaluation")
-        return self._jac_impl(
-            self._abscissa, samples[0], self._bary_weights, self._bkd
-        )
+        return self._jac_impl(self._abscissa, samples[0], self._bary_weights, self._bkd)
 
     def hessian_batch(self, samples: Array) -> Array:
         """Evaluate second derivatives of Lagrange basis.
@@ -328,9 +322,7 @@ class LagrangeBasis1D(Generic[Array]):
         elif order == 2:
             return self.hessian_batch(samples)
         else:
-            raise ValueError(
-                f"Derivative order {order} not supported. Max is 2."
-            )
+            raise ValueError(f"Derivative order {order} not supported. Max is 2.")
 
     def quadrature_rule(self) -> Tuple[Array, Array]:
         """Return quadrature points and weights for current nterms.

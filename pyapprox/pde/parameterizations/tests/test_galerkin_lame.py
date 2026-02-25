@@ -7,29 +7,28 @@ import numpy as np
 from numpy.typing import NDArray
 from scipy.sparse import issparse
 
-from pyapprox.util.backends.protocols import Array, Backend
-from pyapprox.util.backends.numpy import NumpyBkd
-from pyapprox.util.test_utils import load_tests  # noqa: F401
-from pyapprox.pde.parameterizations.protocol import (
-    ParameterizationProtocol,
-)
-from pyapprox.pde.parameterizations.galerkin_lame import (
-    GalerkinLameParameterization,
-    create_galerkin_lame_parameterization,
-)
-from pyapprox.pde.galerkin.mesh import StructuredMesh2D
-from pyapprox.pde.galerkin.basis import VectorLagrangeBasis
-from pyapprox.pde.galerkin.physics.composite_linear_elasticity import (
-    CompositeLinearElasticity,
-)
-from pyapprox.pde.galerkin.solvers import SteadyStateSolver
-from pyapprox.pde.galerkin.boundary.implementations import DirichletBC
 from pyapprox.interface.functions.derivative_checks.derivative_checker import (
     DerivativeChecker,
 )
 from pyapprox.interface.functions.fromcallable.jacobian import (
     FunctionWithJacobianFromCallable,
 )
+from pyapprox.pde.galerkin.basis import VectorLagrangeBasis
+from pyapprox.pde.galerkin.boundary.implementations import DirichletBC
+from pyapprox.pde.galerkin.mesh import StructuredMesh2D
+from pyapprox.pde.galerkin.physics.composite_linear_elasticity import (
+    CompositeLinearElasticity,
+)
+from pyapprox.pde.galerkin.solvers import SteadyStateSolver
+from pyapprox.pde.parameterizations.galerkin_lame import (
+    create_galerkin_lame_parameterization,
+)
+from pyapprox.pde.parameterizations.protocol import (
+    ParameterizationProtocol,
+)
+from pyapprox.util.backends.numpy import NumpyBkd
+from pyapprox.util.backends.protocols import Array, Backend
+from pyapprox.util.test_utils import load_tests  # noqa: F401
 
 
 def _to_dense(mat):
@@ -42,7 +41,8 @@ def _to_dense(mat):
 def _make_physics(bkd, E=1.0, nu=0.3, with_bcs=True):
     """Create a 2D uniform CompositeLinearElasticity."""
     mesh = StructuredMesh2D(
-        nx=5, ny=5,
+        nx=5,
+        ny=5,
         bounds=[[0.0, 1.0], [0.0, 1.0]],
         bkd=bkd,
     )
@@ -77,7 +77,8 @@ def _make_physics(bkd, E=1.0, nu=0.3, with_bcs=True):
 def _make_multi_material_physics(bkd, with_bcs=True):
     """Create a 2-material CompositeLinearElasticity."""
     mesh = StructuredMesh2D(
-        nx=10, ny=5,
+        nx=10,
+        ny=5,
         bounds=[[0.0, 2.0], [0.0, 1.0]],
         bkd=bkd,
     )
@@ -119,9 +120,7 @@ def _make_multi_material_physics(bkd, with_bcs=True):
     )
 
 
-class TestGalerkinLameParameterizationBase(
-    Generic[Array], unittest.TestCase
-):
+class TestGalerkinLameParameterizationBase(Generic[Array], unittest.TestCase):
     __test__ = False
 
     def bkd(self) -> Backend[Array]:
@@ -133,17 +132,13 @@ class TestGalerkinLameParameterizationBase(
     def test_protocol_conformance(self) -> None:
         """GalerkinLameParameterization satisfies ParameterizationProtocol."""
         physics = _make_physics(self.bkd_inst)
-        param = create_galerkin_lame_parameterization(
-            physics, self.bkd_inst
-        )
+        param = create_galerkin_lame_parameterization(physics, self.bkd_inst)
         self.assertIsInstance(param, ParameterizationProtocol)
 
     def test_nparams(self) -> None:
         """nparams returns 2 * nmaterials."""
         physics = _make_physics(self.bkd_inst)
-        param = create_galerkin_lame_parameterization(
-            physics, self.bkd_inst
-        )
+        param = create_galerkin_lame_parameterization(physics, self.bkd_inst)
         self.assertEqual(param.nparams(), 2)
 
         physics_multi = _make_multi_material_physics(self.bkd_inst)
@@ -155,15 +150,11 @@ class TestGalerkinLameParameterizationBase(
     def test_apply_changes_stiffness(self) -> None:
         """apply() modifies the physics stiffness matrix."""
         physics = _make_physics(self.bkd_inst, E=1.0, nu=0.3)
-        param = create_galerkin_lame_parameterization(
-            physics, self.bkd_inst
-        )
+        param = create_galerkin_lame_parameterization(physics, self.bkd_inst)
 
         K1 = _to_dense(physics.stiffness_matrix()).copy()
 
-        param.apply(
-            physics, self.bkd_inst.asarray(np.array([2.0, 0.25]))
-        )
+        param.apply(physics, self.bkd_inst.asarray(np.array([2.0, 0.25])))
         K2 = _to_dense(physics.stiffness_matrix())
 
         diff = np.linalg.norm(K2 - K1)
@@ -172,13 +163,9 @@ class TestGalerkinLameParameterizationBase(
     def test_apply_poisson_validation(self) -> None:
         """apply() raises for invalid Poisson ratio."""
         physics = _make_physics(self.bkd_inst)
-        param = create_galerkin_lame_parameterization(
-            physics, self.bkd_inst
-        )
+        param = create_galerkin_lame_parameterization(physics, self.bkd_inst)
         with self.assertRaises(ValueError):
-            param.apply(
-                physics, self.bkd_inst.asarray(np.array([1.0, 0.5]))
-            )
+            param.apply(physics, self.bkd_inst.asarray(np.array([1.0, 0.5])))
 
     def test_param_jacobian_fd_validation(self) -> None:
         """FD validation of param_jacobian via DerivativeChecker."""
@@ -296,21 +283,25 @@ class TestGalerkinLameParameterizationBase(
                 p = params[:, ii]
                 param.apply(physics, p)
                 r = SteadyStateSolver(
-                    physics, tol=1e-12, max_iter=5, line_search=False,
+                    physics,
+                    tol=1e-12,
+                    max_iter=5,
+                    line_search=False,
                 ).solve_linear()
                 u_np = bkd.to_numpy(r.solution)
                 Q = c_np @ u_np
                 results.append(Q)
             param.apply(physics, bkd.asarray(np.array([E0, nu0])))
-            return bkd.reshape(
-                bkd.asarray(np.array(results)), (1, nsamples)
-            )
+            return bkd.reshape(bkd.asarray(np.array(results)), (1, nsamples))
 
         def adjoint_gradient(params: Array) -> Array:
             p = params[:, 0]
             param.apply(physics, p)
             r = SteadyStateSolver(
-                physics, tol=1e-12, max_iter=5, line_search=False,
+                physics,
+                tol=1e-12,
+                max_iter=5,
+                line_search=False,
             ).solve_linear()
             u_sol = r.solution
 
@@ -319,9 +310,7 @@ class TestGalerkinLameParameterizationBase(
             lam_np = np.linalg.solve(J_np.T, -c_np)
 
             # Use parameterization param_jacobian (raw, no BC enforcement)
-            dF_dp_raw = bkd.to_numpy(
-                param.param_jacobian(physics, u_sol, 0.0, p)
-            )
+            dF_dp_raw = bkd.to_numpy(param.param_jacobian(physics, u_sol, 0.0, p))
 
             # Apply BC enforcement for steady-state
             dF_dp = bkd.to_numpy(
@@ -363,6 +352,7 @@ class TestGalerkinLameParameterizationNumpy(
 
 try:
     import torch
+
     from pyapprox.util.backends.torch import TorchBkd
 
     class TestGalerkinLameParameterizationTorch(
@@ -378,21 +368,15 @@ try:
         def bkd(self) -> Backend[torch.Tensor]:
             return self._bkd
 
-        @unittest.skip(
-            "sparse solve not available on CPU with TorchBkd"
-        )
+        @unittest.skip("sparse solve not available on CPU with TorchBkd")
         def test_adjoint_gradient_steady_integration(self) -> None:
             pass
 
-        @unittest.skip(
-            "sparse @ torch returns numpy — pre-existing issue"
-        )
+        @unittest.skip("sparse @ torch returns numpy — pre-existing issue")
         def test_param_jacobian_fd_validation(self) -> None:
             pass
 
-        @unittest.skip(
-            "sparse @ torch returns numpy — pre-existing issue"
-        )
+        @unittest.skip("sparse @ torch returns numpy — pre-existing issue")
         def test_param_jacobian_multi_material_fd(self) -> None:
             pass
 

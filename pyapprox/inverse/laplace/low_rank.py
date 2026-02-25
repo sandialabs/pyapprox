@@ -6,14 +6,14 @@ by the data, a low-rank approximation of the posterior covariance
 can be much more efficient than a full-rank approximation.
 """
 
-from typing import Generic, Optional, Callable
+from typing import Callable, Generic, Optional
 
 import numpy as np
 
+from pyapprox.probability.gaussian import DenseCholeskyMultivariateGaussian
+from pyapprox.probability.protocols import SqrtCovarianceOperatorProtocol
 from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.util.linalg import randomized_symmetric_eigendecomposition
-from pyapprox.probability.protocols import SqrtCovarianceOperatorProtocol
-from pyapprox.probability.gaussian import DenseCholeskyMultivariateGaussian
 
 
 class LowRankLaplacePosterior(Generic[Array]):
@@ -79,9 +79,7 @@ class LowRankLaplacePosterior(Generic[Array]):
         self._map_point = map_point
 
         if rank > self._nvars:
-            raise ValueError(
-                f"rank ({rank}) cannot exceed nvars ({self._nvars})"
-            )
+            raise ValueError(f"rank ({rank}) cannot exceed nvars ({self._nvars})")
 
         self._prior_sqrt = prior_sqrt
         self._apply_conditioned_hessian = apply_conditioned_hessian

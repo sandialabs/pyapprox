@@ -1,16 +1,11 @@
 """Tests for ACV allocation module."""
 
-from typing import Any, Generic
 import unittest
+from typing import Any, Generic
 
 import numpy as np
-from numpy.typing import NDArray
 import torch
-
-from pyapprox.util.backends.protocols import Array
-from pyapprox.util.backends.numpy import NumpyBkd
-from pyapprox.util.backends.torch import TorchBkd
-from pyapprox.util.test_utils import load_tests, slow_test  # noqa: F401
+from numpy.typing import NDArray
 
 from pyapprox.statest.acv.allocation import (
     ACVAllocationResult,
@@ -20,14 +15,18 @@ from pyapprox.statest.acv.allocation import (
     _MLMCAnalyticalProxyAllocator,
     default_allocator_factory,
 )
-from pyapprox.statest.statistics import MultiOutputMean
 from pyapprox.statest.acv.variants import (
-    GMFEstimator,
     GISEstimator,
+    GMFEstimator,
     GRDEstimator,
     MFMCEstimator,
     MLMCEstimator,
 )
+from pyapprox.statest.statistics import MultiOutputMean
+from pyapprox.util.backends.numpy import NumpyBkd
+from pyapprox.util.backends.protocols import Array
+from pyapprox.util.backends.torch import TorchBkd
+from pyapprox.util.test_utils import load_tests, slow_test  # noqa: F401
 
 
 class TestACVAllocationResult(Generic[Array], unittest.TestCase):

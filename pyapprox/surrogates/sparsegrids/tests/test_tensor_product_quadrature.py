@@ -21,17 +21,16 @@ import torch
 from numpy.typing import NDArray
 from unittest_parametrize import ParametrizedTestCase, parametrize
 
-from pyapprox.util.backends.numpy import NumpyBkd
-from pyapprox.util.backends.torch import TorchBkd
-from pyapprox.util.backends.protocols import Array
-from pyapprox.util.test_utils import load_tests  # noqa: F401
 from pyapprox.surrogates.sparsegrids.tests.test_helpers import (
-    create_test_joint,
     create_tensor_product_pce,
+    create_test_joint,
     create_test_tensor_product_subspace,
     create_test_tensor_product_subspace_mixed,
 )
-
+from pyapprox.util.backends.numpy import NumpyBkd
+from pyapprox.util.backends.protocols import Array
+from pyapprox.util.backends.torch import TorchBkd
+from pyapprox.util.test_utils import load_tests  # noqa: F401
 
 # =============================================================================
 # Test Configurations

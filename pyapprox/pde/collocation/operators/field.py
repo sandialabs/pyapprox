@@ -8,18 +8,18 @@ Shape convention: (ncomponents, npts)
 - Vector fields: ncomponents=ndim
 """
 
-from typing import Generic, Optional, Union, List
+from typing import Generic, Optional, Union
 
-from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.pde.collocation.operators.jacobian_types import (
-    SparseJacobian,
     DenseJacobian,
     DiagJacobian,
+    SparseJacobian,
     ZeroJacobian,
 )
 from pyapprox.pde.collocation.protocols.basis import (
     TensorProductBasisProtocol,
 )
+from pyapprox.util.backends.protocols import Array, Backend
 
 
 class Field(Generic[Array]):
@@ -113,9 +113,7 @@ class Field(Generic[Array]):
         npts = self.npts()
         expected_shape = (self._ncomponents, npts)
         if values.shape != expected_shape:
-            raise ValueError(
-                f"values.shape {values.shape} should be {expected_shape}"
-            )
+            raise ValueError(f"values.shape {values.shape} should be {expected_shape}")
         self._values = values
 
         if jacobian is None:
@@ -218,9 +216,7 @@ class Field(Generic[Array]):
 
     # Arithmetic operations with Jacobian tracking (for scalar fields)
 
-    def __add__(
-        self, other: Union["Field[Array]", float]
-    ) -> "Field[Array]":
+    def __add__(self, other: Union["Field[Array]", float]) -> "Field[Array]":
         """Add two fields or add a scalar."""
         if not self.is_scalar:
             raise NotImplementedError("Arithmetic only supported for scalar fields")
@@ -252,17 +248,13 @@ class Field(Generic[Array]):
             ninput_funs=self._ninput_funs,
         )
 
-    def __radd__(
-        self, other: Union["Field[Array]", float]
-    ) -> "Field[Array]":
+    def __radd__(self, other: Union["Field[Array]", float]) -> "Field[Array]":
         """Right-add (for sum() to work with initial value 0)."""
         if isinstance(other, int):
             other = float(other)
         return self.__add__(other)
 
-    def __sub__(
-        self, other: Union["Field[Array]", float]
-    ) -> "Field[Array]":
+    def __sub__(self, other: Union["Field[Array]", float]) -> "Field[Array]":
         """Subtract two fields or subtract a scalar."""
         if not self.is_scalar:
             raise NotImplementedError("Arithmetic only supported for scalar fields")
@@ -295,9 +287,7 @@ class Field(Generic[Array]):
             ninput_funs=self._ninput_funs,
         )
 
-    def __rsub__(
-        self, other: Union["Field[Array]", float]
-    ) -> "Field[Array]":
+    def __rsub__(self, other: Union["Field[Array]", float]) -> "Field[Array]":
         """Right-subtract (scalar - field)."""
         if not self.is_scalar:
             raise NotImplementedError("Arithmetic only supported for scalar fields")
@@ -316,9 +306,7 @@ class Field(Generic[Array]):
             )
         raise ValueError(f"Cannot subtract Field from {type(other)}")
 
-    def __mul__(
-        self, other: Union["Field[Array]", float]
-    ) -> "Field[Array]":
+    def __mul__(self, other: Union["Field[Array]", float]) -> "Field[Array]":
         """Multiply two fields or multiply by a scalar.
 
         Uses product rule for Jacobian: d(f*g) = g*df + f*dg
@@ -357,9 +345,7 @@ class Field(Generic[Array]):
             ninput_funs=self._ninput_funs,
         )
 
-    def __rmul__(
-        self, other: Union["Field[Array]", float]
-    ) -> "Field[Array]":
+    def __rmul__(self, other: Union["Field[Array]", float]) -> "Field[Array]":
         """Right-multiply."""
         return self.__mul__(other)
 
@@ -378,7 +364,7 @@ class Field(Generic[Array]):
             raise ValueError("Power must be non-zero int or float")
         power = float(power)
         f_vals = self.values()[0, :]
-        new_values = self._bkd.reshape(f_vals ** power, (1, self.npts()))
+        new_values = self._bkd.reshape(f_vals**power, (1, self.npts()))
         jac = power * self.jacobian() * f_vals ** (power - 1)
         return Field(
             self._basis,
@@ -389,9 +375,7 @@ class Field(Generic[Array]):
             ninput_funs=self._ninput_funs,
         )
 
-    def __truediv__(
-        self, other: Union["Field[Array]", float]
-    ) -> "Field[Array]":
+    def __truediv__(self, other: Union["Field[Array]", float]) -> "Field[Array]":
         """Divide field by another field or scalar.
 
         Uses quotient rule: d(f/g) = (g*df - f*dg) / g^2
@@ -422,9 +406,7 @@ class Field(Generic[Array]):
         f_vals = self.values()[0, :]
         g_vals = other.values()[0, :]
         new_values = self._bkd.reshape(f_vals / g_vals, (1, self.npts()))
-        jac = (
-            g_vals * self.jacobian() - other.jacobian() * f_vals
-        ) / g_vals ** 2
+        jac = (g_vals * self.jacobian() - other.jacobian() * f_vals) / g_vals**2
         return Field(
             self._basis,
             self._bkd,
@@ -434,9 +416,7 @@ class Field(Generic[Array]):
             ninput_funs=self._ninput_funs,
         )
 
-    def __rtruediv__(
-        self, other: Union["Field[Array]", float]
-    ) -> "Field[Array]":
+    def __rtruediv__(self, other: Union["Field[Array]", float]) -> "Field[Array]":
         """Right-divide (scalar / field)."""
         if not self.is_scalar:
             raise NotImplementedError("Arithmetic only supported for scalar fields")
@@ -445,7 +425,7 @@ class Field(Generic[Array]):
             # d(c/f) = -c * df / f^2
             f_vals = self.values()[0, :]
             new_values = self._bkd.reshape(other / f_vals, (1, self.npts()))
-            jac = -other * self.jacobian() / f_vals ** 2
+            jac = -other * self.jacobian() / f_vals**2
             return Field(
                 self._basis,
                 self._bkd,
@@ -519,8 +499,14 @@ def scalar_field(
     npts = basis.npts()
     if values.shape == (npts,):
         values = bkd.reshape(values, (1, npts))
-    return Field(basis, bkd, ncomponents=1, values=values, jacobian=jacobian,
-                 ninput_funs=ninput_funs)
+    return Field(
+        basis,
+        bkd,
+        ncomponents=1,
+        values=values,
+        jacobian=jacobian,
+        ninput_funs=ninput_funs,
+    )
 
 
 def input_field(
@@ -567,8 +553,14 @@ def input_field(
         diag_data[ii, input_index] = ones[ii]
     jacobian = DiagJacobian(bkd, jac_shape, diag_data)
 
-    return Field(basis, bkd, ncomponents=1, values=values_2d,
-                 jacobian=jacobian, ninput_funs=ninput_funs)
+    return Field(
+        basis,
+        bkd,
+        ncomponents=1,
+        values=values_2d,
+        jacobian=jacobian,
+        ninput_funs=ninput_funs,
+    )
 
 
 def constant_field(

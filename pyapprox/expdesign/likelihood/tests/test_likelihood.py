@@ -15,15 +15,14 @@ import numpy as np
 import torch
 from numpy.typing import NDArray
 
-from pyapprox.util.backends.numpy import NumpyBkd
-from pyapprox.util.backends.torch import TorchBkd
-from pyapprox.util.backends.protocols import Array
-from pyapprox.util.test_utils import load_tests  # noqa: F401
-
 from pyapprox.expdesign.likelihood import (
-    GaussianOEDOuterLoopLikelihood,
     GaussianOEDInnerLoopLikelihood,
+    GaussianOEDOuterLoopLikelihood,
 )
+from pyapprox.util.backends.numpy import NumpyBkd
+from pyapprox.util.backends.protocols import Array
+from pyapprox.util.backends.torch import TorchBkd
+from pyapprox.util.test_utils import load_tests  # noqa: F401
 
 
 class TestGaussianOEDLikelihood(Generic[Array], unittest.TestCase):
@@ -42,9 +41,7 @@ class TestGaussianOEDLikelihood(Generic[Array], unittest.TestCase):
         self._nouter = 4
 
         np.random.seed(42)
-        self._noise_variances = self._bkd.asarray(
-            np.array([0.1, 0.2, 0.15])
-        )
+        self._noise_variances = self._bkd.asarray(np.array([0.1, 0.2, 0.15]))
         self._shapes_inner = self._bkd.asarray(
             np.random.randn(self._nobs, self._ninner)
         )
@@ -61,18 +58,14 @@ class TestGaussianOEDLikelihood(Generic[Array], unittest.TestCase):
     def _generate_observations(self, shapes: Array, weights: Array) -> Array:
         """Generate observations using reparameterization trick."""
         # obs = shapes + sqrt(var / weights) * latent
-        std = self._bkd.sqrt(
-            self._noise_variances[:, None] / weights
-        )
+        std = self._bkd.sqrt(self._noise_variances[:, None] / weights)
         return shapes + std * self._latent_samples
 
     # --- Outer Loop Likelihood Tests ---
 
     def test_outer_loop_values(self):
         """Test outer loop likelihood values against manual computation."""
-        likelihood = GaussianOEDOuterLoopLikelihood(
-            self._noise_variances, self._bkd
-        )
+        likelihood = GaussianOEDOuterLoopLikelihood(self._noise_variances, self._bkd)
         likelihood.set_shapes(self._shapes_outer)
 
         # Generate observations without reparameterization for simpler test
@@ -93,15 +86,11 @@ class TestGaussianOEDLikelihood(Generic[Array], unittest.TestCase):
         log_norm = -0.5 * self._nobs * np.log(2 * np.pi) - 0.5 * log_det
         expected = log_norm - 0.5 * squared_dist
 
-        self.assertTrue(
-            self._bkd.allclose(values[0], expected, rtol=1e-10)
-        )
+        self.assertTrue(self._bkd.allclose(values[0], expected, rtol=1e-10))
 
     def test_outer_loop_jacobian_finite_diff(self):
         """Test outer loop Jacobian against finite differences."""
-        likelihood = GaussianOEDOuterLoopLikelihood(
-            self._noise_variances, self._bkd
-        )
+        likelihood = GaussianOEDOuterLoopLikelihood(self._noise_variances, self._bkd)
         likelihood.set_shapes(self._shapes_outer)
         obs = self._shapes_outer + 0.05
         likelihood.set_observations(obs)
@@ -129,16 +118,12 @@ class TestGaussianOEDLikelihood(Generic[Array], unittest.TestCase):
 
     def test_outer_loop_jacobian_with_reparam(self):
         """Test outer loop Jacobian with reparameterization trick."""
-        likelihood = GaussianOEDOuterLoopLikelihood(
-            self._noise_variances, self._bkd
-        )
+        likelihood = GaussianOEDOuterLoopLikelihood(self._noise_variances, self._bkd)
         likelihood.set_shapes(self._shapes_outer)
         likelihood.set_latent_samples(self._latent_samples)
 
         # Generate observations using reparameterization
-        obs = self._generate_observations(
-            self._shapes_outer, self._design_weights
-        )
+        obs = self._generate_observations(self._shapes_outer, self._design_weights)
         likelihood.set_observations(obs)
 
         # Compute analytical Jacobian
@@ -155,12 +140,8 @@ class TestGaussianOEDLikelihood(Generic[Array], unittest.TestCase):
             weights_minus[k, 0] = weights_minus[k, 0] - eps
 
             # Recompute observations with perturbed weights
-            obs_plus = self._generate_observations(
-                self._shapes_outer, weights_plus
-            )
-            obs_minus = self._generate_observations(
-                self._shapes_outer, weights_minus
-            )
+            obs_plus = self._generate_observations(self._shapes_outer, weights_plus)
+            obs_minus = self._generate_observations(self._shapes_outer, weights_minus)
 
             likelihood.set_observations(obs_plus)
             val_plus = likelihood(weights_plus)
@@ -178,9 +159,7 @@ class TestGaussianOEDLikelihood(Generic[Array], unittest.TestCase):
 
     def test_inner_loop_values(self):
         """Test inner loop likelihood matrix values."""
-        likelihood = GaussianOEDInnerLoopLikelihood(
-            self._noise_variances, self._bkd
-        )
+        likelihood = GaussianOEDInnerLoopLikelihood(self._noise_variances, self._bkd)
         likelihood.set_shapes(self._shapes_inner)
         likelihood.set_observations(self._shapes_outer)  # Use shapes as obs
 
@@ -204,15 +183,13 @@ class TestGaussianOEDLikelihood(Generic[Array], unittest.TestCase):
             self._bkd.allclose(
                 self._bkd.asarray([[actual]]),
                 self._bkd.asarray([[expected]]),
-                rtol=1e-10
+                rtol=1e-10,
             )
         )
 
     def test_inner_loop_jacobian_finite_diff(self):
         """Test inner loop Jacobian matrix against finite differences."""
-        likelihood = GaussianOEDInnerLoopLikelihood(
-            self._noise_variances, self._bkd
-        )
+        likelihood = GaussianOEDInnerLoopLikelihood(self._noise_variances, self._bkd)
         likelihood.set_shapes(self._shapes_inner)
         likelihood.set_observations(self._shapes_outer)
 
@@ -238,9 +215,7 @@ class TestGaussianOEDLikelihood(Generic[Array], unittest.TestCase):
 
     def test_create_outer_loop_likelihood(self):
         """Test factory method for outer loop likelihood."""
-        inner = GaussianOEDInnerLoopLikelihood(
-            self._noise_variances, self._bkd
-        )
+        inner = GaussianOEDInnerLoopLikelihood(self._noise_variances, self._bkd)
         outer = inner.create_outer_loop_likelihood()
 
         self.assertIsInstance(outer, GaussianOEDOuterLoopLikelihood)
@@ -248,9 +223,7 @@ class TestGaussianOEDLikelihood(Generic[Array], unittest.TestCase):
 
     def test_consistency_inner_outer(self):
         """Test that inner and outer loop agree for matching samples."""
-        inner = GaussianOEDInnerLoopLikelihood(
-            self._noise_variances, self._bkd
-        )
+        inner = GaussianOEDInnerLoopLikelihood(self._noise_variances, self._bkd)
         outer = inner.create_outer_loop_likelihood()
 
         # Use same shapes for both (ninner = nouter = 4)
@@ -268,9 +241,7 @@ class TestGaussianOEDLikelihood(Generic[Array], unittest.TestCase):
 
         # Diagonal of matrix should match outer values
         diag = self._bkd.asarray([matrix[i, i] for i in range(shapes.shape[1])])
-        self.assertTrue(
-            self._bkd.allclose(diag, values[0], rtol=1e-10)
-        )
+        self.assertTrue(self._bkd.allclose(diag, values[0], rtol=1e-10))
 
 
 class TestGaussianOEDLikelihoodNumpy(TestGaussianOEDLikelihood[NDArray[Any]]):

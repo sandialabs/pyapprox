@@ -23,13 +23,13 @@ Bayesian Linear Inverse Problems"
 SIAM Journal on Scientific Computing 2018 40:5, A2956-A2985
 """
 
-from typing import Generic, Optional
+from typing import Generic
 
-from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.benchmarks.registry import BenchmarkRegistry
 from pyapprox.interface.functions.fromcallable.function import (
     FunctionFromCallable,
 )
+from pyapprox.util.backends.protocols import Array, Backend
 
 from .linear_gaussian_model import LinearGaussianOEDModel
 
@@ -64,7 +64,7 @@ def _build_vandermonde(
     powers = bkd.arange(min_degree, degree + 1)
     x_col = bkd.reshape(locations, (n, 1))
     powers_row = bkd.reshape(powers, (1, len(powers)))
-    return x_col ** powers_row
+    return x_col**powers_row
 
 
 class LinearGaussianOEDBenchmark(Generic[Array]):
@@ -126,12 +126,17 @@ class LinearGaussianOEDBenchmark(Generic[Array]):
 
         # Build isotropic prior and noise
         prior_mean = bkd.zeros((nparams, 1))
-        prior_cov = bkd.eye(nparams) * prior_std ** 2
-        noise_cov = bkd.eye(nobs) * noise_std ** 2
+        prior_cov = bkd.eye(nparams) * prior_std**2
+        noise_cov = bkd.eye(nobs) * noise_std**2
 
         # Create general model
         self._model = LinearGaussianOEDModel(
-            A, prior_mean, prior_cov, noise_cov, bkd, locations,
+            A,
+            prior_mean,
+            prior_cov,
+            noise_cov,
+            bkd,
+            locations,
         )
 
     def bkd(self) -> Backend[Array]:
@@ -148,11 +153,11 @@ class LinearGaussianOEDBenchmark(Generic[Array]):
 
     def noise_var(self) -> float:
         """Noise variance."""
-        return self._noise_std ** 2
+        return self._noise_std**2
 
     def prior_var(self) -> float:
         """Prior variance."""
-        return self._prior_std ** 2
+        return self._prior_std**2
 
     def noise_std(self) -> float:
         """Noise standard deviation."""
@@ -321,5 +326,9 @@ def _linear_gaussian_oed_factory(
     bkd: Backend[Array],
 ) -> LinearGaussianOEDBenchmark:
     return LinearGaussianOEDBenchmark(
-        nobs=10, degree=3, noise_std=1.0, prior_std=1.0, bkd=bkd,
+        nobs=10,
+        degree=3,
+        noise_std=1.0,
+        prior_std=1.0,
+        bkd=bkd,
     )

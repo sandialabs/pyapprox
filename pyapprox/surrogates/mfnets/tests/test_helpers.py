@@ -7,11 +7,6 @@ import numpy as np
 import torch
 from numpy.typing import NDArray
 
-from pyapprox.util.backends.numpy import NumpyBkd
-from pyapprox.util.backends.protocols import Array, Backend
-from pyapprox.util.backends.torch import TorchBkd
-from pyapprox.util.test_utils import load_tests  # noqa: F401
-
 from pyapprox.surrogates.mfnets.builders import (
     build_chain_mfnet,
     build_dag_mfnet,
@@ -25,9 +20,13 @@ from pyapprox.surrogates.mfnets.nodes import (
     MFNetNode,
     RootMFNetNode,
 )
-
+from pyapprox.util.backends.numpy import NumpyBkd
+from pyapprox.util.backends.protocols import Array, Backend
+from pyapprox.util.backends.torch import TorchBkd
+from pyapprox.util.test_utils import load_tests  # noqa: F401
 
 # --- Builder Tests ---
+
 
 class TestBuildChainMFNet(Generic[Array], unittest.TestCase):
     __test__ = False
@@ -69,7 +68,10 @@ class TestBuildChainMFNet(Generic[Array], unittest.TestCase):
         """Per-node noise_std list is propagated."""
         bkd = self._bkd
         net = build_chain_mfnet(
-            nvars=1, nqoi=1, nnodes=3, bkd=bkd,
+            nvars=1,
+            nqoi=1,
+            nnodes=3,
+            bkd=bkd,
             noise_std=[0.1, 0.2, 0.3],
         )
         for i, expected in enumerate([0.1, 0.2, 0.3]):
@@ -81,7 +83,10 @@ class TestBuildChainMFNet(Generic[Array], unittest.TestCase):
         bkd = self._bkd
         with self.assertRaises(ValueError):
             build_chain_mfnet(
-                nvars=1, nqoi=1, nnodes=3, bkd=bkd,
+                nvars=1,
+                nqoi=1,
+                nnodes=3,
+                bkd=bkd,
                 noise_std=[0.1, 0.2],
             )
 
@@ -95,12 +100,20 @@ class TestBuildChainMFNet(Generic[Array], unittest.TestCase):
         """Custom polynomial levels produce different-sized models."""
         bkd = self._bkd
         net_low = build_chain_mfnet(
-            nvars=1, nqoi=1, nnodes=2, bkd=bkd,
-            leaf_level=1, delta_level=1,
+            nvars=1,
+            nqoi=1,
+            nnodes=2,
+            bkd=bkd,
+            leaf_level=1,
+            delta_level=1,
         )
         net_high = build_chain_mfnet(
-            nvars=1, nqoi=1, nnodes=2, bkd=bkd,
-            leaf_level=5, delta_level=5,
+            nvars=1,
+            nqoi=1,
+            nnodes=2,
+            bkd=bkd,
+            leaf_level=5,
+            delta_level=5,
         )
         # Higher levels = more parameters
         nparams_low = net_low.hyp_list().nparams()
@@ -120,6 +133,7 @@ class TestBuildChainMFNet(Generic[Array], unittest.TestCase):
 
 # --- DAG Builder Tests ---
 
+
 class TestBuildDAGMFNet(Generic[Array], unittest.TestCase):
     __test__ = False
 
@@ -133,7 +147,8 @@ class TestBuildDAGMFNet(Generic[Array], unittest.TestCase):
         """Diamond: 0->1, 0->2, 1->3, 2->3."""
         bkd = self._bkd
         net = build_dag_mfnet(
-            nvars=1, nqoi=1,
+            nvars=1,
+            nqoi=1,
             edges=[(0, 1), (0, 2), (1, 3), (2, 3)],
             bkd=bkd,
         )
@@ -148,7 +163,8 @@ class TestBuildDAGMFNet(Generic[Array], unittest.TestCase):
         """Diamond DAG evaluates without error."""
         bkd = self._bkd
         net = build_dag_mfnet(
-            nvars=1, nqoi=1,
+            nvars=1,
+            nqoi=1,
             edges=[(0, 1), (0, 2), (1, 3), (2, 3)],
             bkd=bkd,
         )
@@ -162,7 +178,8 @@ class TestBuildDAGMFNet(Generic[Array], unittest.TestCase):
         """DAG with chain edges has correct topology."""
         bkd = self._bkd
         net = build_dag_mfnet(
-            nvars=1, nqoi=1,
+            nvars=1,
+            nqoi=1,
             edges=[(0, 1), (1, 2)],
             bkd=bkd,
         )
@@ -175,7 +192,8 @@ class TestBuildDAGMFNet(Generic[Array], unittest.TestCase):
         """Per-node config overrides are applied."""
         bkd = self._bkd
         net = build_dag_mfnet(
-            nvars=1, nqoi=1,
+            nvars=1,
+            nqoi=1,
             edges=[(0, 1)],
             bkd=bkd,
             node_configs={
@@ -196,7 +214,8 @@ class TestBuildDAGMFNet(Generic[Array], unittest.TestCase):
         """Two leaves feeding one root: 0->2, 1->2."""
         bkd = self._bkd
         net = build_dag_mfnet(
-            nvars=1, nqoi=1,
+            nvars=1,
+            nqoi=1,
             edges=[(0, 2), (1, 2)],
             bkd=bkd,
         )
@@ -212,6 +231,7 @@ class TestBuildDAGMFNet(Generic[Array], unittest.TestCase):
 
 
 # --- Synthetic Data Tests ---
+
 
 class TestGenerateSyntheticData(Generic[Array], unittest.TestCase):
     __test__ = False
@@ -229,7 +249,10 @@ class TestGenerateSyntheticData(Generic[Array], unittest.TestCase):
         randomize_coefficients(net, bkd, seed=10)
 
         samples, values = generate_synthetic_data(
-            net, bkd, nsamples_per_node=[20, 15], seed=42,
+            net,
+            bkd,
+            nsamples_per_node=[20, 15],
+            seed=42,
         )
 
         # Check shapes
@@ -250,10 +273,18 @@ class TestGenerateSyntheticData(Generic[Array], unittest.TestCase):
         randomize_coefficients(net, bkd, seed=10)
 
         samples_clean, values_clean = generate_synthetic_data(
-            net, bkd, nsamples_per_node=[20, 15], noise_std=0.0, seed=42,
+            net,
+            bkd,
+            nsamples_per_node=[20, 15],
+            noise_std=0.0,
+            seed=42,
         )
         samples_noisy, values_noisy = generate_synthetic_data(
-            net, bkd, nsamples_per_node=[20, 15], noise_std=0.1, seed=42,
+            net,
+            bkd,
+            nsamples_per_node=[20, 15],
+            noise_std=0.1,
+            seed=42,
         )
 
         # Same samples (same seed, noise added after sampling)
@@ -269,10 +300,16 @@ class TestGenerateSyntheticData(Generic[Array], unittest.TestCase):
         randomize_coefficients(net, bkd, seed=10)
 
         s1, v1 = generate_synthetic_data(
-            net, bkd, nsamples_per_node=[20, 15], seed=99,
+            net,
+            bkd,
+            nsamples_per_node=[20, 15],
+            seed=99,
         )
         s2, v2 = generate_synthetic_data(
-            net, bkd, nsamples_per_node=[20, 15], seed=99,
+            net,
+            bkd,
+            nsamples_per_node=[20, 15],
+            seed=99,
         )
         for i in range(2):
             bkd.assert_allclose(s1[i], s2[i])
@@ -280,6 +317,7 @@ class TestGenerateSyntheticData(Generic[Array], unittest.TestCase):
 
 
 # --- Randomize Coefficients Tests ---
+
 
 class TestRandomizeCoefficients(Generic[Array], unittest.TestCase):
     __test__ = False
@@ -303,9 +341,7 @@ class TestRandomizeCoefficients(Generic[Array], unittest.TestCase):
         out_after = bkd.to_numpy(net(samples))
 
         # Output should change
-        self.assertGreater(
-            float(np.max(np.abs(out_after - out_before))), 1e-10
-        )
+        self.assertGreater(float(np.max(np.abs(out_after - out_before))), 1e-10)
 
     def test_reproducibility(self) -> None:
         """Same seed produces identical coefficients."""
@@ -330,12 +366,11 @@ class TestRandomizeCoefficients(Generic[Array], unittest.TestCase):
         samples = bkd.asarray(np.random.uniform(-1, 1, (1, 10)))
         out = net(samples)
         # Should produce non-trivial output
-        self.assertGreater(
-            float(np.max(np.abs(bkd.to_numpy(out)))), 1e-10
-        )
+        self.assertGreater(float(np.max(np.abs(bkd.to_numpy(out)))), 1e-10)
 
 
 # --- Concrete backend test classes ---
+
 
 class TestBuildChainNumpy(TestBuildChainMFNet[NDArray[Any]]):
     def bkd(self) -> NumpyBkd:

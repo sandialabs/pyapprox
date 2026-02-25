@@ -11,20 +11,20 @@ analysis using different surrogate models:
 from pyapprox.sensitivity.variance_based.base import (
     VarianceBasedSensitivityAnalysis,
 )
+from pyapprox.sensitivity.variance_based.bin_based import (
+    BinBasedSensitivityAnalysis,
+)
 from pyapprox.sensitivity.variance_based.pce import (
     PolynomialChaosSensitivityAnalysis,
 )
+from pyapprox.sensitivity.variance_based.sample_based import (
+    HaltonSequenceSensitivityAnalysis,
+    MonteCarloSensitivityAnalysis,
+    SampleBasedSensitivityAnalysis,
+    SobolSequenceSensitivityAnalysis,
+)
 from pyapprox.sensitivity.variance_based.sparsegrid import (
     SparseGridSensitivityAnalysis,
-)
-from pyapprox.sensitivity.variance_based.sample_based import (
-    SampleBasedSensitivityAnalysis,
-    MonteCarloSensitivityAnalysis,
-    SobolSequenceSensitivityAnalysis,
-    HaltonSequenceSensitivityAnalysis,
-)
-from pyapprox.sensitivity.variance_based.bin_based import (
-    BinBasedSensitivityAnalysis,
 )
 
 __all__ = [

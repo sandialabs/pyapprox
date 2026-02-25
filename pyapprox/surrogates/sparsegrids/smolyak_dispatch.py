@@ -19,9 +19,7 @@ _HAS_NUMBA = package_available("numba")
 
 
 # Type alias: (np_indices, np_shifts, np_signs, nvars, nsubspaces, nshifts) -> np_coefs
-SmolyakImpl = Callable[
-    [np.ndarray, np.ndarray, np.ndarray, int, int, int], np.ndarray
-]
+SmolyakImpl = Callable[[np.ndarray, np.ndarray, np.ndarray, int, int, int], np.ndarray]
 
 
 def _generic_smolyak(
@@ -69,7 +67,12 @@ def _make_numba_smolyak() -> SmolyakImpl:
         nshifts: int,
     ) -> np.ndarray:
         return smolyak_coefficients_numba(
-            np_indices, np_shifts, np_signs, nvars, nsubspaces, nshifts,
+            np_indices,
+            np_shifts,
+            np_signs,
+            nvars,
+            nsubspaces,
+            nshifts,
         )
 
     return impl

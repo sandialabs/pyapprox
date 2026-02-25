@@ -9,10 +9,10 @@ Key classes:
 - FeketeSampler: One-shot Fekete sampling using pivoted QR factorization
 """
 
-from typing import Callable, Generic, Optional, Tuple, Union
+from typing import Generic, Optional
 
-from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.surrogates.affine.protocols import BasisProtocol
+from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.util.linalg import PivotedLUFactorizer, PivotedQRFactorizer
 
 from .protocols import LejaWeightingProtocol
@@ -106,9 +106,7 @@ class LejaSampler(Generic[Array]):
             Must be set before calling sample().
         """
         if self._nselected > 0:
-            raise RuntimeError(
-                "Cannot set initial pivots after sampling has begun"
-            )
+            raise RuntimeError("Cannot set initial pivots after sampling has begun")
         self._init_pivots = init_pivots
 
     def _ensure_factorizer(self) -> None:
@@ -136,8 +134,7 @@ class LejaSampler(Generic[Array]):
         """
         if nsamples > self.ncandidates():
             raise ValueError(
-                f"Cannot select {nsamples} samples from "
-                f"{self.ncandidates()} candidates"
+                f"Cannot select {nsamples} samples from {self.ncandidates()} candidates"
             )
 
         self._ensure_factorizer()
@@ -284,8 +281,7 @@ class FeketeSampler(Generic[Array]):
         """
         if nsamples > self.ncandidates():
             raise ValueError(
-                f"Cannot select {nsamples} samples from "
-                f"{self.ncandidates()} candidates"
+                f"Cannot select {nsamples} samples from {self.ncandidates()} candidates"
             )
 
         # Use QR with column pivoting on transposed preconditioned matrix
@@ -305,8 +301,7 @@ class FeketeSampler(Generic[Array]):
             len(self._selected_indices) if self._selected_indices is not None else 0
         )
         return (
-            f"FeketeSampler(ncandidates={self.ncandidates()}, "
-            f"nselected={n_selected})"
+            f"FeketeSampler(ncandidates={self.ncandidates()}, nselected={n_selected})"
         )
 
 

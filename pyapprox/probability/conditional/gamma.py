@@ -201,12 +201,8 @@ class ConditionalGamma(Generic[Array]):
                 f"x first dimension must be {self.nvars()}, got {x.shape[0]}"
             )
 
-        shape = self._bkd.to_numpy(
-            self._bkd.exp(self._log_shape_func(x))
-        ).flatten()
-        scale = self._bkd.to_numpy(
-            self._bkd.exp(self._log_scale_func(x))
-        ).flatten()
+        shape = self._bkd.to_numpy(self._bkd.exp(self._log_shape_func(x))).flatten()
+        scale = self._bkd.to_numpy(self._bkd.exp(self._log_scale_func(x))).flatten()
 
         samples = np.random.gamma(shape, scale)
         return self._bkd.reshape(self._bkd.asarray(samples), (1, -1))

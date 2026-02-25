@@ -4,10 +4,10 @@ Provides the base ManufacturedSolution class and solution mixins
 for scalar and vector PDEs.
 """
 
+import copy
 from abc import ABC, abstractmethod
 from functools import partial
-from typing import Generic, List, Dict, Callable, Union, Any
-import copy
+from typing import Any, Callable, Dict, Generic, List
 
 import sympy as sp
 
@@ -44,7 +44,7 @@ def _evaluate_sp_lambda(
         sp_args = tuple(xx[ii, :] for ii in range(xx.shape[0]))
     vals = sp_lambda(*sp_args)
     # Check if vals is array-like (has shape attribute)
-    if hasattr(vals, 'shape'):
+    if hasattr(vals, "shape"):
         if oned:
             return bkd.asarray(vals)
         vals_arr = bkd.asarray(vals)
@@ -90,7 +90,7 @@ def _evaluate_transient_sp_lambda(
         sp_args = tuple(xx[ii, :] for ii in range(xx.shape[0])) + (time,)
     vals = sp_lambda(*sp_args)
     # Check if vals is array-like (has shape attribute)
-    if hasattr(vals, 'shape'):
+    if hasattr(vals, "shape"):
         if oned:
             return bkd.asarray(vals)
         vals_arr = bkd.asarray(vals)
@@ -127,10 +127,7 @@ def _evaluate_list_of_sp_lambda(
     Array
         Stacked values. Shape: (npts, nfuncs).
     """
-    vals = [
-        _evaluate_sp_lambda(sp_lambda, xx, bkd, oned)
-        for sp_lambda in sp_lambdas
-    ]
+    vals = [_evaluate_sp_lambda(sp_lambda, xx, bkd, oned) for sp_lambda in sp_lambdas]
     return bkd.hstack(vals)
 
 
@@ -156,10 +153,7 @@ def _evaluate_list_of_list_of_sp_lambda(
     oned: bool = False,
 ) -> Array:
     """Evaluate a list of lists of sympy lambda functions."""
-    vals = [
-        _evaluate_list_of_sp_lambda(row, xx, bkd, oned)
-        for row in sp_lambdas
-    ]
+    vals = [_evaluate_list_of_sp_lambda(row, xx, bkd, oned) for row in sp_lambdas]
     return bkd.stack(vals, axis=0)
 
 
@@ -245,9 +239,7 @@ class ManufacturedSolution(ABC, Generic[Array]):
         """Convert a steady expression to a callable function."""
         all_symbs = self.cartesian_symbols()
         expr_lambda = sp.lambdify(all_symbs, expr, "numpy")
-        return partial(
-            _evaluate_sp_lambda, expr_lambda, bkd=self._bkd, oned=self._oned
-        )
+        return partial(_evaluate_sp_lambda, expr_lambda, bkd=self._bkd, oned=self._oned)
 
     def _steady_expression_list_to_function(self, exprs: List) -> Callable:
         """Convert a list of steady expressions to a callable function."""
@@ -266,8 +258,7 @@ class ManufacturedSolution(ABC, Generic[Array]):
         """Convert a list of lists of steady expressions to a callable."""
         all_symbs = self.cartesian_symbols()
         expr_lambda = [
-            [sp.lambdify(all_symbs, expr, "numpy") for expr in row]
-            for row in exprs
+            [sp.lambdify(all_symbs, expr, "numpy") for expr in row] for row in exprs
         ]
         return partial(
             _evaluate_list_of_list_of_sp_lambda,
@@ -304,8 +295,7 @@ class ManufacturedSolution(ABC, Generic[Array]):
         """Convert a list of lists of transient expressions to a callable."""
         all_symbs = self.all_symbols()
         expr_lambda = [
-            [sp.lambdify(all_symbs, expr, "numpy") for expr in row]
-            for row in exprs
+            [sp.lambdify(all_symbs, expr, "numpy") for expr in row] for row in exprs
         ]
         return partial(
             _evaluate_list_of_list_of_transient_sp_lambda,
@@ -323,23 +313,18 @@ class ManufacturedSolution(ABC, Generic[Array]):
     def _expressions_to_functions(self) -> None:
         """Convert all sympy expressions to callable functions."""
         self.transient["forcing"] = self.is_transient()
-        if (
-            any(self.transient.values())
-            and not self.transient.get("solution", False)
-        ):
-            raise ValueError(
-                "solution must be transient because another function is"
-            )
+        if any(self.transient.values()) and not self.transient.get("solution", False):
+            raise ValueError("solution must be transient because another function is")
         self.functions: Dict[str, Callable] = {}
         for name, expr in self._expressions.items():
             if isinstance(expr, list) and not isinstance(expr[0], list):
                 if not self.transient.get(name, False):
-                    self.functions[name] = (
-                        self._steady_expression_list_to_function(expr)
+                    self.functions[name] = self._steady_expression_list_to_function(
+                        expr
                     )
                 else:
-                    self.functions[name] = (
-                        self._transient_expression_list_to_function(expr)
+                    self.functions[name] = self._transient_expression_list_to_function(
+                        expr
                     )
             elif isinstance(expr, list) and isinstance(expr[0], list):
                 if not self.transient.get(name, False):
@@ -348,27 +333,19 @@ class ManufacturedSolution(ABC, Generic[Array]):
                     )
                 else:
                     self.functions[name] = (
-                        self._transient_expression_list_of_lists_to_function(
-                            expr
-                        )
+                        self._transient_expression_list_of_lists_to_function(expr)
                     )
             else:
                 if not self.transient.get(name, False):
-                    self.functions[name] = self._steady_expression_to_function(
-                        expr
-                    )
+                    self.functions[name] = self._steady_expression_to_function(expr)
                 else:
-                    self.functions[name] = (
-                        self._transient_expression_to_function(expr)
-                    )
+                    self.functions[name] = self._transient_expression_to_function(expr)
 
     def nvars(self) -> int:
         """Return number of spatial dimensions."""
         return self._nvars
 
-    def _set_expression_from_bool(
-        self, name: str, expr: Any, transient: bool
-    ) -> None:
+    def _set_expression_from_bool(self, name: str, expr: Any, transient: bool) -> None:
         """Set an expression with explicit transient flag."""
         if name in self._expressions:
             if not isinstance(expr, list):
@@ -467,13 +444,11 @@ class VectorSolutionMixin:
         sol_exprs = [sp.sympify(sol_str) for sol_str in self._sol_strs]
         self._set_expression("solution", sol_exprs, self._sol_strs[0])
         # Initialize forcing to zeros for each component
-        self._expressions["forcing"] = [
-            sp.Integer(0) for _ in range(self._ncomponents)
-        ]
+        self._expressions["forcing"] = [sp.Integer(0) for _ in range(self._ncomponents)]
 
     def solution_symbols(self) -> List[sp.Symbol]:
         """Return sympy symbols for solution components."""
-        return list(sp.symbols([f"u{ii+1}" for ii in range(self._ncomponents)]))
+        return list(sp.symbols([f"u{ii + 1}" for ii in range(self._ncomponents)]))
 
     def sympy_temporal_derivative_expression(self) -> None:
         """Add temporal derivatives to forcing for transient problems."""
@@ -484,6 +459,6 @@ class VectorSolutionMixin:
                 self._sol_strs[0],
             )
             for ii in range(self.ncomponents()):
-                self._expressions["forcing"][ii] += self._expressions[
-                    "solution"
-                ][ii].diff(self.time_symbol()[0])
+                self._expressions["forcing"][ii] += self._expressions["solution"][
+                    ii
+                ].diff(self.time_symbol()[0])

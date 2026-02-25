@@ -4,7 +4,14 @@ Defines interfaces for direct solvers, iterative solvers, and preconditioners.
 These are general-purpose protocols for solving Ax = b systems.
 """
 
-from typing import Protocol, Generic, runtime_checkable, Tuple, Optional, Callable
+from typing import (
+    Callable,
+    Generic,
+    Optional,
+    Protocol,
+    Tuple,
+    runtime_checkable,
+)
 
 from pyapprox.util.backends.protocols import Array, Backend
 

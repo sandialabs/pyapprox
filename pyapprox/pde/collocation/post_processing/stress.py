@@ -59,7 +59,8 @@ class StressPostProcessor2D(Generic[Array]):
         return self._npts
 
     def cartesian_stress(
-        self, state: Array,
+        self,
+        state: Array,
     ) -> Tuple[Array, Array, Array]:
         """Compute Cartesian stress components at all mesh points.
 
@@ -113,18 +114,12 @@ class StressPostProcessor2D(Generic[Array]):
             Hoop stress at each mesh point.
         """
         if self._curvilinear_basis is None:
-            raise ValueError(
-                "curvilinear_basis required for hoop_stress computation"
-            )
+            raise ValueError("curvilinear_basis required for hoop_stress computation")
         sigma_xx, sigma_xy, sigma_yy = self.cartesian_stress(state)
         et_x = self._curvilinear_basis[:, 0, 1]  # -sin(theta)
         et_y = self._curvilinear_basis[:, 1, 1]  # cos(theta)
 
-        return (
-            et_x ** 2 * sigma_xx
-            + 2.0 * et_x * et_y * sigma_xy
-            + et_y ** 2 * sigma_yy
-        )
+        return et_x**2 * sigma_xx + 2.0 * et_x * et_y * sigma_xy + et_y**2 * sigma_yy
 
     def radial_stress(self, state: Array) -> Array:
         """Compute radial stress sigma_rr.
@@ -141,18 +136,12 @@ class StressPostProcessor2D(Generic[Array]):
         Array, shape (npts,)
         """
         if self._curvilinear_basis is None:
-            raise ValueError(
-                "curvilinear_basis required for radial_stress computation"
-            )
+            raise ValueError("curvilinear_basis required for radial_stress computation")
         sigma_xx, sigma_xy, sigma_yy = self.cartesian_stress(state)
         er_x = self._curvilinear_basis[:, 0, 0]  # cos(theta)
         er_y = self._curvilinear_basis[:, 1, 0]  # sin(theta)
 
-        return (
-            er_x ** 2 * sigma_xx
-            + 2.0 * er_x * er_y * sigma_xy
-            + er_y ** 2 * sigma_yy
-        )
+        return er_x**2 * sigma_xx + 2.0 * er_x * er_y * sigma_xy + er_y**2 * sigma_yy
 
     def strain_energy_density(self, state: Array) -> Array:
         """Compute strain energy density psi = 0.5 * sigma : epsilon.
@@ -174,9 +163,7 @@ class StressPostProcessor2D(Generic[Array]):
         exy = 0.5 * (self._Dy @ u + self._Dx @ v)
         eyy = self._Dy @ v
 
-        return 0.5 * (
-            sigma_xx * exx + 2.0 * sigma_xy * exy + sigma_yy * eyy
-        )
+        return 0.5 * (sigma_xx * exx + 2.0 * sigma_xy * exy + sigma_yy * eyy)
 
     def cartesian_stress_state_jacobian(
         self,
@@ -192,7 +179,6 @@ class StressPostProcessor2D(Generic[Array]):
             Each has shape (npts, 2*npts).
         """
         bkd = self._bkd
-        npts = self._npts
         lamda = self._get_lamda()
         mu = self._get_mu()
         Dx, Dy = self._Dx, self._Dy
@@ -203,15 +189,18 @@ class StressPostProcessor2D(Generic[Array]):
 
         # dsxx/d[u, v] = [(lam+2mu)*Dx, lam*Dy]
         dsxx = bkd.concatenate(
-            [diag_lam_2mu @ Dx, diag_lam @ Dy], axis=1,
+            [diag_lam_2mu @ Dx, diag_lam @ Dy],
+            axis=1,
         )
         # dsxy/d[u, v] = [mu*Dy, mu*Dx]
         dsxy = bkd.concatenate(
-            [diag_mu @ Dy, diag_mu @ Dx], axis=1,
+            [diag_mu @ Dy, diag_mu @ Dx],
+            axis=1,
         )
         # dsyy/d[u, v] = [lam*Dx, (lam+2mu)*Dy]
         dsyy = bkd.concatenate(
-            [diag_lam @ Dx, diag_lam_2mu @ Dy], axis=1,
+            [diag_lam @ Dx, diag_lam_2mu @ Dy],
+            axis=1,
         )
         return dsxx, dsxy, dsyy
 
@@ -234,9 +223,9 @@ class StressPostProcessor2D(Generic[Array]):
         et_y = self._curvilinear_basis[:, 1, 1]
 
         return (
-            bkd.diag(et_x ** 2) @ dsxx
+            bkd.diag(et_x**2) @ dsxx
             + bkd.diag(2.0 * et_x * et_y) @ dsxy
-            + bkd.diag(et_y ** 2) @ dsyy
+            + bkd.diag(et_y**2) @ dsyy
         )
 
     def strain_energy_density_state_jacobian(self, state: Array) -> Array:
@@ -313,7 +302,8 @@ class HyperelasticStressPostProcessor2D(Generic[Array]):
         return self._npts
 
     def _compute_F(
-        self, state: Array,
+        self,
+        state: Array,
     ) -> Tuple[Array, Array, Array, Array]:
         """Compute deformation gradient components.
 
@@ -332,7 +322,8 @@ class HyperelasticStressPostProcessor2D(Generic[Array]):
         return F11, F12, F21, F22
 
     def cartesian_stress(
-        self, state: Array,
+        self,
+        state: Array,
     ) -> Tuple[Array, Array, Array]:
         """Compute Cauchy stress sigma = (1/J)*P*F^T at all mesh points.
 
@@ -349,7 +340,11 @@ class HyperelasticStressPostProcessor2D(Generic[Array]):
         bkd = self._bkd
         F11, F12, F21, F22 = self._compute_F(state)
         P11, P12, P21, P22 = self._stress_model.compute_stress_2d(
-            F11, F12, F21, F22, bkd,
+            F11,
+            F12,
+            F21,
+            F22,
+            bkd,
         )
         J = F11 * F22 - F12 * F21
         inv_J = 1.0 / J
@@ -372,17 +367,11 @@ class HyperelasticStressPostProcessor2D(Generic[Array]):
         Array, shape (npts,)
         """
         if self._curvilinear_basis is None:
-            raise ValueError(
-                "curvilinear_basis required for hoop_stress computation"
-            )
+            raise ValueError("curvilinear_basis required for hoop_stress computation")
         sigma_xx, sigma_xy, sigma_yy = self.cartesian_stress(state)
         et_x = self._curvilinear_basis[:, 0, 1]
         et_y = self._curvilinear_basis[:, 1, 1]
-        return (
-            et_x ** 2 * sigma_xx
-            + 2.0 * et_x * et_y * sigma_xy
-            + et_y ** 2 * sigma_yy
-        )
+        return et_x**2 * sigma_xx + 2.0 * et_x * et_y * sigma_xy + et_y**2 * sigma_yy
 
     def radial_stress(self, state: Array) -> Array:
         """Compute radial stress sigma_rr.
@@ -396,17 +385,11 @@ class HyperelasticStressPostProcessor2D(Generic[Array]):
         Array, shape (npts,)
         """
         if self._curvilinear_basis is None:
-            raise ValueError(
-                "curvilinear_basis required for radial_stress computation"
-            )
+            raise ValueError("curvilinear_basis required for radial_stress computation")
         sigma_xx, sigma_xy, sigma_yy = self.cartesian_stress(state)
         er_x = self._curvilinear_basis[:, 0, 0]
         er_y = self._curvilinear_basis[:, 1, 0]
-        return (
-            er_x ** 2 * sigma_xx
-            + 2.0 * er_x * er_y * sigma_xy
-            + er_y ** 2 * sigma_yy
-        )
+        return er_x**2 * sigma_xx + 2.0 * er_x * er_y * sigma_xy + er_y**2 * sigma_yy
 
     def strain_energy_density(self, state: Array) -> Array:
         """Compute Neo-Hookean stored energy density (plane strain).
@@ -430,17 +413,14 @@ class HyperelasticStressPostProcessor2D(Generic[Array]):
         J = F11 * F22 - F12 * F21
         ln_J = bkd.log(J)
         # Plane strain: F33=1, so I1 = F11^2+F12^2+F21^2+F22^2 + F33^2
-        I1 = F11 ** 2 + F12 ** 2 + F21 ** 2 + F22 ** 2 + 1.0
+        I1 = F11**2 + F12**2 + F21**2 + F22**2 + 1.0
         mu = self._stress_model._mu
         lamda = self._stress_model._lamda
-        return (
-            0.5 * mu * (I1 - 3.0)
-            - mu * ln_J
-            + 0.5 * lamda * ln_J ** 2
-        )
+        return 0.5 * mu * (I1 - 3.0) - mu * ln_J + 0.5 * lamda * ln_J**2
 
     def strain_energy_density_state_jacobian(
-        self, state: Array,
+        self,
+        state: Array,
     ) -> Array:
         """Compute d(W)/d(state) at all mesh points.
 
@@ -459,7 +439,11 @@ class HyperelasticStressPostProcessor2D(Generic[Array]):
         bkd = self._bkd
         F11, F12, F21, F22 = self._compute_F(state)
         P11, P12, P21, P22 = self._stress_model.compute_stress_2d(
-            F11, F12, F21, F22, bkd,
+            F11,
+            F12,
+            F21,
+            F22,
+            bkd,
         )
         Dx, Dy = self._Dx, self._Dy
         # dW/d(u) = P11*Dx + P12*Dy (since dF_{1L}/du = D_L)
@@ -469,7 +453,8 @@ class HyperelasticStressPostProcessor2D(Generic[Array]):
         return bkd.concatenate([dW_du, dW_dv], axis=1)
 
     def cartesian_stress_state_jacobian(
-        self, state: Array,
+        self,
+        state: Array,
     ) -> Tuple[Array, Array, Array]:
         """Compute Jacobians d(sigma_ij)/d(state) for all stress components.
 
@@ -491,10 +476,18 @@ class HyperelasticStressPostProcessor2D(Generic[Array]):
 
         F11, F12, F21, F22 = self._compute_F(state)
         P11, P12, P21, P22 = self._stress_model.compute_stress_2d(
-            F11, F12, F21, F22, bkd,
+            F11,
+            F12,
+            F21,
+            F22,
+            bkd,
         )
         A = self._stress_model.compute_tangent_2d(
-            F11, F12, F21, F22, bkd,
+            F11,
+            F12,
+            F21,
+            F22,
+            bkd,
         )
 
         J = F11 * F22 - F12 * F21
@@ -542,11 +535,9 @@ class HyperelasticStressPostProcessor2D(Generic[Array]):
         def _dsigma(i, j):
             """Compute d(sigma_{ij})/d(state). Shape: (npts, 2*npts)."""
             # sum_K P_{iK} * F_{jK}
-            PFt_ij = sum(
-                P_vals[(i, K)] * F_vals[(j, K)] for K in (1, 2)
-            )
+            PFt_ij = sum(P_vals[(i, K)] * F_vals[(j, K)] for K in (1, 2))
             # Term 1: -(1/J^2) * PFt_ij * dJ
-            term1 = bkd.diag(-inv_J ** 2 * PFt_ij) @ dJ
+            term1 = bkd.diag(-(inv_J**2) * PFt_ij) @ dJ
             # Term 2: (1/J) * sum_K [dP_{iK} * F_{jK} + P_{iK} * dF_{jK}]
             term2 = bkd.zeros((npts, 2 * npts))
             term2 = bkd.copy(term2)
@@ -587,7 +578,7 @@ class HyperelasticStressPostProcessor2D(Generic[Array]):
         et_x = self._curvilinear_basis[:, 0, 1]
         et_y = self._curvilinear_basis[:, 1, 1]
         return (
-            bkd.diag(et_x ** 2) @ dsxx
+            bkd.diag(et_x**2) @ dsxx
             + bkd.diag(2.0 * et_x * et_y) @ dsxy
-            + bkd.diag(et_y ** 2) @ dsyy
+            + bkd.diag(et_y**2) @ dsyy
         )

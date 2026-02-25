@@ -7,14 +7,14 @@ and push optimal params back into the distribution.
 
 from typing import Generic, Optional
 
-from pyapprox.util.backends.protocols import Array, Backend
+from pyapprox.inverse.variational.elbo import ELBOObjective
 from pyapprox.optimization.minimize.protocols import (
     BindableOptimizerProtocol,
 )
 from pyapprox.optimization.minimize.scipy.scipy_result import (
     ScipyOptimizerResultWrapper,
 )
-from pyapprox.inverse.variational.elbo import ELBOObjective
+from pyapprox.util.backends.protocols import Array, Backend
 
 
 class VIFitResult(Generic[Array]):
@@ -147,8 +147,11 @@ class VariationalFitter(Generic[Array]):
             from pyapprox.optimization.minimize.scipy.trust_constr import (
                 ScipyTrustConstrOptimizer,
             )
+
             optimizer = ScipyTrustConstrOptimizer(
-                maxiter=500, gtol=1e-8, verbosity=0,
+                maxiter=500,
+                gtol=1e-8,
+                verbosity=0,
             )
 
         optimizer.bind(elbo, bounds)

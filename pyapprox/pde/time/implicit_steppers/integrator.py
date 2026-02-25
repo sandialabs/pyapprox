@@ -7,15 +7,12 @@ the discrete adjoint method.
 
 from typing import Generic, Tuple
 
-from pyapprox.util.backends.protocols import Array
-from pyapprox.pde.sparse_utils import solve_maybe_sparse
 from pyapprox.optimization.rootfinding.newton import NewtonSolver
-from pyapprox.pde.time.protocols import (
-    AdjointEnabledTimeSteppingResidualProtocol,
-)
+from pyapprox.pde.sparse_utils import solve_maybe_sparse
 from pyapprox.pde.time.functionals.protocols import (
     TransientFunctionalWithJacobianProtocol,
 )
+from pyapprox.util.backends.protocols import Array
 
 
 class TimeIntegrator(Generic[Array]):
@@ -182,9 +179,7 @@ class TimeIntegrator(Generic[Array]):
         rhs = -drduT_offdiag @ asol_np1 - dqdu_n
         return solve_maybe_sparse(self._bkd, drduT_diag, rhs)
 
-    def solve_adjoint(
-        self, fwd_sols: Array, times: Array, param: Array
-    ) -> Array:
+    def solve_adjoint(self, fwd_sols: Array, times: Array, param: Array) -> Array:
         """
         Solve the adjoint equations backward in time.
 
@@ -215,9 +210,7 @@ class TimeIntegrator(Generic[Array]):
 
         # Zero BC DOFs in dQ/dy if the time residual supports it
         # (required for collocation BCs to enforce lambda[bc] = 0)
-        _has_bc_zeroing = hasattr(
-            self._time_residual, "zero_adjoint_rhs"
-        )
+        _has_bc_zeroing = hasattr(self._time_residual, "zero_adjoint_rhs")
 
         adj_sols = self._bkd.zeros(fwd_sols.shape)
 
@@ -273,9 +266,7 @@ class TimeIntegrator(Generic[Array]):
 
         return adj_sols
 
-    def gradient(
-        self, fwd_sols: Array, times: Array, param: Array
-    ) -> Array:
+    def gradient(self, fwd_sols: Array, times: Array, param: Array) -> Array:
         """
         Compute the gradient dQ/dp via the adjoint method.
 

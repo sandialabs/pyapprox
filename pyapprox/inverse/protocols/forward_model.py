@@ -10,7 +10,7 @@ The protocols are tiered to allow users to implement only what they need:
 - WithHessian: Adds second derivative (Hessian-vector products)
 """
 
-from typing import Protocol, Generic, runtime_checkable
+from typing import Generic, Protocol, runtime_checkable
 
 from pyapprox.util.backends.protocols import Array, Backend
 

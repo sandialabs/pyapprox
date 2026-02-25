@@ -12,17 +12,17 @@ from typing import Union
 
 import torch
 
-from pyapprox.util.backends.torch import TorchBkd
-from pyapprox.util.backends.validation import validate_backends
-from pyapprox.surrogates.kernels.multioutput import (
-    IndependentMultiOutputKernel,
-    LinearCoregionalizationKernel,
-    MultiLevelKernel,
-    DAGMultiOutputKernel,
-)
 from pyapprox.surrogates.gaussianprocess.multioutput import (
     MultiOutputGP,
 )
+from pyapprox.surrogates.kernels.multioutput import (
+    DAGMultiOutputKernel,
+    IndependentMultiOutputKernel,
+    LinearCoregionalizationKernel,
+    MultiLevelKernel,
+)
+from pyapprox.util.backends.torch import TorchBkd
+from pyapprox.util.backends.validation import validate_backends
 
 
 class TorchMultiOutputGP(MultiOutputGP[torch.Tensor]):
@@ -55,7 +55,7 @@ class TorchMultiOutputGP(MultiOutputGP[torch.Tensor]):
         bkd = TorchBkd()
 
         # Validate that kernel uses TorchBkd
-        if hasattr(kernel, '_bkd'):
+        if hasattr(kernel, "_bkd"):
             validate_backends([bkd, kernel._bkd])
 
         super().__init__(kernel, nugget)

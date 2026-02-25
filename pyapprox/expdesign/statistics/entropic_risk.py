@@ -8,8 +8,8 @@ This is also known as the certainty equivalent for exponential utility.
 
 from typing import Generic
 
-from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.expdesign.statistics.base import SampleStatistic
+from pyapprox.util.backends.protocols import Array, Backend
 
 
 class SampleAverageEntropicRisk(SampleStatistic[Array], Generic[Array]):
@@ -55,9 +55,7 @@ class SampleAverageEntropicRisk(SampleStatistic[Array], Generic[Array]):
         exp_vals = self._bkd.exp(self._alpha * values)
         return self._bkd.log(exp_vals @ weights.T) / self._alpha
 
-    def _jacobian(
-        self, values: Array, jac_values: Array, weights: Array
-    ) -> Array:
+    def _jacobian(self, values: Array, jac_values: Array, weights: Array) -> Array:
         """
         Compute Jacobian of entropic risk.
 

@@ -1,4 +1,5 @@
 from typing import Generic, Tuple
+
 from pyapprox.util.backends.protocols import Array, Backend
 
 
@@ -113,7 +114,8 @@ class PiecewiseCubic(Generic[Array]):
             )
         if nnodes < 4 or (nnodes - 4) % 3 != 0:
             raise ValueError(
-                f"Nodes must contain at least 4 elements and satisfy (nnodes - 4) % 3 == 0."
+                "Nodes must contain at least 4 elements"
+                " and satisfy (nnodes - 4) % 3 == 0."
             )
         weights = [0.0 for ii in range(nnodes)]
         for ii in range(nnodes):

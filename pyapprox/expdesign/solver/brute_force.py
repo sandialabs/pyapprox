@@ -5,13 +5,13 @@ Enumerates all k-subsets of n candidate observations and evaluates
 EIG for each subset, returning the design with maximum EIG.
 """
 
-from typing import Generic, Optional, Tuple, List
 from itertools import combinations
+from typing import Generic, List, Optional, Tuple
 
 import numpy as np
 
-from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.expdesign.objective import KLOEDObjective
+from pyapprox.util.backends.protocols import Array, Backend
 
 
 class BruteForceKLOEDSolver(Generic[Array]):
@@ -66,9 +66,7 @@ class BruteForceKLOEDSolver(Generic[Array]):
             weights[idx, 0] = 1.0
         return weights
 
-    def solve(
-        self, k: int, store_all: bool = False
-    ) -> Tuple[Array, float, List[int]]:
+    def solve(self, k: int, store_all: bool = False) -> Tuple[Array, float, List[int]]:
         """Find the optimal k-subset design.
 
         Parameters
@@ -96,9 +94,7 @@ class BruteForceKLOEDSolver(Generic[Array]):
         if k <= 0:
             raise ValueError(f"k must be positive, got {k}")
         if k > self._nobs:
-            raise ValueError(
-                f"k={k} exceeds number of observations {self._nobs}"
-            )
+            raise ValueError(f"k={k} exceeds number of observations {self._nobs}")
 
         best_weights = None
         best_eig = -np.inf
@@ -170,6 +166,7 @@ class BruteForceKLOEDSolver(Generic[Array]):
             Number of k-subsets of n elements.
         """
         from math import comb
+
         return comb(self._nobs, k)
 
     def all_indices(self) -> List[Tuple[int, ...]]:

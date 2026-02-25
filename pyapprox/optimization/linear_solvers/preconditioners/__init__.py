@@ -1,10 +1,10 @@
 """Preconditioners for iterative solvers."""
 
 from pyapprox.optimization.linear_solvers.preconditioners.jacobi import (
-    JacobiPreconditioner,
     BlockJacobiPreconditioner,
-    jacobi_preconditioner,
+    JacobiPreconditioner,
     block_jacobi_preconditioner,
+    jacobi_preconditioner,
 )
 
 __all__ = [

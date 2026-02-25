@@ -6,13 +6,13 @@ Provides:
 - DtNSolver: Newton solver for interface DOFs
 """
 
-from pyapprox.pde.decomposition.solver.dtn_residual import (
-    DtNResidual,
-)
 from pyapprox.pde.decomposition.solver.dtn_jacobian import (
     DtNJacobian,
     DtNJacobianExact,
     create_jacobian,
+)
+from pyapprox.pde.decomposition.solver.dtn_residual import (
+    DtNResidual,
 )
 from pyapprox.pde.decomposition.solver.dtn_solver import (
     DtNSolver,

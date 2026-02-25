@@ -6,29 +6,30 @@ classes for computing statistical quantities from fitted GPs.
 """
 import math
 import unittest
-from typing import Generic, Any, List
+from typing import Any, Generic, List
+
 import numpy as np
 import torch
 from numpy.typing import NDArray
 
-from pyapprox.util.backends.protocols import Backend, Array
-from pyapprox.util.backends.numpy import NumpyBkd
-from pyapprox.util.backends.torch import TorchBkd
-from pyapprox.util.test_utils import load_tests, slow_test  # noqa: F401
-from pyapprox.surrogates.kernels.matern import (
-    SquaredExponentialKernel,
-    Matern52Kernel,
+from pyapprox.probability.univariate.uniform import UniformMarginal
+from pyapprox.surrogates.gaussianprocess import ExactGaussianProcess
+from pyapprox.surrogates.gaussianprocess.statistics import (
+    GaussianProcessStatistics,
+    SeparableKernelIntegralCalculator,
 )
 from pyapprox.surrogates.kernels.composition import SeparableProductKernel
-from pyapprox.surrogates.gaussianprocess import ExactGaussianProcess
-from pyapprox.probability.univariate.uniform import UniformMarginal
+from pyapprox.surrogates.kernels.matern import (
+    Matern52Kernel,
+    SquaredExponentialKernel,
+)
 from pyapprox.surrogates.sparsegrids.basis_factory import (
     create_basis_factories,
 )
-from pyapprox.surrogates.gaussianprocess.statistics import (
-    SeparableKernelIntegralCalculator,
-    GaussianProcessStatistics,
-)
+from pyapprox.util.backends.numpy import NumpyBkd
+from pyapprox.util.backends.protocols import Array, Backend
+from pyapprox.util.backends.torch import TorchBkd
+from pyapprox.util.test_utils import load_tests, slow_test  # noqa: F401
 
 
 def _create_quadrature_bases(
@@ -150,7 +151,8 @@ class TestSeparableKernelIntegralCalculator(Generic[Array], unittest.TestCase):
         index[k] = 0: dimension k is INTEGRATED OUT (use P̃_k = τ_k τ_k^T)
         """
         # Condition on dimension 0, integrate out dimension 1
-        # index = [1, 0] means: dim 0 conditioned (use P_0), dim 1 integrated (use τ_1 τ_1^T)
+        # index = [1, 0] means: dim 0 conditioned (use P_0),
+        # dim 1 integrated (use τ_1 τ_1^T)
         index = self._bkd.asarray([1.0, 0.0])
         P_cond = self._calc.conditional_P(index)
 
@@ -502,7 +504,8 @@ class TestMCComparison(Generic[Array], unittest.TestCase):
         # Use relative comparison for robustness
         rel_error = abs(var_quad_val - var_mc) / max(var_quad_val, 1e-10)
         self.assertLess(rel_error, 0.1,
-            f"Relative error {rel_error:.4f} too large: quad={var_quad_val:.6f}, mc={var_mc:.6f}")
+            f"Relative error {rel_error:.4f} too large: "
+            f"quad={var_quad_val:.6f}, mc={var_mc:.6f}")
 
     @slow_test
     def test_mc_convergence_variance_of_variance(self) -> None:
@@ -587,7 +590,9 @@ class TestMCComparison(Generic[Array], unittest.TestCase):
         # MC error than variance of mean
         rel_error = abs(var_var_quad_val - var_var_mc) / max(var_var_quad_val, 1e-10)
         self.assertLess(rel_error, 0.2,
-            f"Relative error {rel_error:.4f} too large: quad={var_var_quad_val:.6f}, mc={var_var_mc:.6f}")
+            f"Relative error {rel_error:.4f} too large: "
+            f"quad={var_var_quad_val:.6f}, "
+            f"mc={var_var_mc:.6f}")
 
 
 class TestKnownMoments(Generic[Array], unittest.TestCase):

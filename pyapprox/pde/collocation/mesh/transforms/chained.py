@@ -6,7 +6,7 @@ A ChainedTransform composes multiple transforms in sequence:
 The Jacobian of the composition is the product of individual Jacobians.
 """
 
-from typing import Generic, List, Union
+from typing import Generic, List
 
 from pyapprox.util.backends.protocols import Array, Backend
 
@@ -54,8 +54,7 @@ class ChainedTransform(Generic[Array]):
         for ii, transform in enumerate(transforms):
             if transform.ndim() != ndim:
                 raise ValueError(
-                    f"Transform {ii} has ndim={transform.ndim()}, "
-                    f"expected {ndim}"
+                    f"Transform {ii} has ndim={transform.ndim()}, expected {ndim}"
                 )
 
         self._transforms = transforms

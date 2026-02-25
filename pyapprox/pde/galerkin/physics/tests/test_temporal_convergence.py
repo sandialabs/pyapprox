@@ -13,23 +13,22 @@ see nonzero truncation error.
 """
 
 import unittest
-from typing import List
 
 import numpy as np
 from unittest_parametrize import ParametrizedTestCase, parametrize
 
-from pyapprox.util.backends.numpy import NumpyBkd
-from pyapprox.pde.galerkin.mesh import StructuredMesh1D
 from pyapprox.pde.galerkin.basis import LagrangeBasis
-from pyapprox.pde.galerkin.physics import AdvectionDiffusionReaction
 from pyapprox.pde.galerkin.manufactured.adapter import (
     GalerkinManufacturedSolutionAdapter,
     create_adr_manufactured_test,
 )
+from pyapprox.pde.galerkin.mesh import StructuredMesh1D
+from pyapprox.pde.galerkin.physics import AdvectionDiffusionReaction
 from pyapprox.pde.galerkin.time_integration import (
     GalerkinModel,
     TimeIntegrationConfig,
 )
+from pyapprox.util.backends.numpy import NumpyBkd
 from pyapprox.util.test_utils import slow_test
 
 
@@ -50,9 +49,7 @@ def _compute_convergence_rates(dt_values, errors):
     """
     dt_arr = np.array(dt_values)
     err_arr = np.array(errors)
-    rates = np.log(err_arr[:-1] / err_arr[1:]) / np.log(
-        dt_arr[:-1] / dt_arr[1:]
-    )
+    rates = np.log(err_arr[:-1] / err_arr[1:]) / np.log(dt_arr[:-1] / dt_arr[1:])
     return rates
 
 
@@ -86,17 +83,13 @@ def _setup_physics_and_model(
         time_dependent=True,
     )
 
-    mesh = StructuredMesh1D(
-        nx=nx, bounds=(bounds[0], bounds[1]), bkd=bkd
-    )
+    mesh = StructuredMesh1D(nx=nx, bounds=(bounds[0], bounds[1]), bkd=bkd)
     basis = LagrangeBasis(mesh, degree=2)
 
     adapter = GalerkinManufacturedSolutionAdapter(
         basis, functions, bkd, time_dependent=True
     )
-    bc_set = adapter.create_boundary_conditions(
-        bndry_types, robin_alpha=1.0
-    )
+    bc_set = adapter.create_boundary_conditions(bndry_types, robin_alpha=1.0)
 
     has_vel = not all("1e-16" in v for v in vel_strs)
     velocity = adapter.velocity_for_galerkin() if has_vel else None
@@ -194,8 +187,7 @@ class TestTemporalConvergenceImplicit(ParametrizedTestCase):
         min_expected = expected_order - 0.15
         self.assertTrue(
             np.all(rates > min_expected),
-            f"{method}: rates={rates}, errors={errors}, "
-            f"expected > {min_expected}",
+            f"{method}: rates={rates}, errors={errors}, expected > {min_expected}",
         )
 
 
@@ -250,8 +242,7 @@ class TestTemporalConvergenceExplicit(ParametrizedTestCase):
         min_expected = expected_order - 0.15
         self.assertTrue(
             np.all(rates > min_expected),
-            f"{method}: rates={rates}, errors={errors}, "
-            f"expected > {min_expected}",
+            f"{method}: rates={rates}, errors={errors}, expected > {min_expected}",
         )
 
 
@@ -314,13 +305,11 @@ class TestTemporalConvergenceNonzeroDirichlet(ParametrizedTestCase):
         min_expected = expected_order - 0.15
         self.assertTrue(
             np.all(rates > min_expected),
-            f"{method}: rates={rates}, errors={errors}, "
-            f"expected > {min_expected}",
+            f"{method}: rates={rates}, errors={errors}, expected > {min_expected}",
         )
 
 
 from pyapprox.util.test_utils import load_tests  # noqa: F401
-
 
 if __name__ == "__main__":
     unittest.main()

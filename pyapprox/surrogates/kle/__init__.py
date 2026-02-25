@@ -27,21 +27,21 @@ Analytical
 - AnalyticalExponentialKLE1D: Analytical KLE for 1D exponential kernel
 """
 
+from .analytical import AnalyticalExponentialKLE1D
+from .data_driven_kle import DataDrivenKLE
+from .galerkin_kle import GalerkinKLE
+from .mesh_kle import MeshKLE
+from .pca import PrincipalComponentAnalysis
+from .periodic_random_field import PeriodicReiszGaussianRandomField
 from .protocols import (
     KLEProtocol,
     ReducibleKLEProtocol,
 )
+from .spde_kle import SPDEMaternKLE
 from .utils import (
     adjust_sign_eig,
     sort_eigenpairs,
 )
-from .mesh_kle import MeshKLE
-from .galerkin_kle import GalerkinKLE
-from .spde_kle import SPDEMaternKLE
-from .data_driven_kle import DataDrivenKLE
-from .pca import PrincipalComponentAnalysis
-from .analytical import AnalyticalExponentialKLE1D
-from .periodic_random_field import PeriodicReiszGaussianRandomField
 
 __all__ = [
     # Protocols

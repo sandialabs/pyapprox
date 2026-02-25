@@ -3,9 +3,8 @@
 Provides mesh construction for 1D domains with tensor-product structure.
 """
 
-from typing import Generic, Tuple, Optional
+from typing import Generic, Optional, Tuple
 
-from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.pde.collocation.mesh.base import (
     MeshData,
     MeshDataWithTransform,
@@ -15,6 +14,7 @@ from pyapprox.pde.collocation.mesh.transforms.affine import (
     AffineTransform1D,
 )
 from pyapprox.pde.collocation.protocols.mesh import TransformProtocol
+from pyapprox.util.backends.protocols import Array, Backend
 
 
 class CartesianMesh1D(Generic[Array]):

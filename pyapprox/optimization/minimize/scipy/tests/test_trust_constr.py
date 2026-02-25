@@ -1,15 +1,19 @@
 import unittest
-from typing import Generic, Any
+from typing import Any, Generic
 
 import numpy as np
-from numpy.typing import NDArray
 import torch
+from numpy.typing import NDArray
 
-from pyapprox.util.backends.protocols import Array, Backend
-from pyapprox.util.backends.numpy import NumpyBkd
-from pyapprox.util.backends.torch import TorchBkd
+from pyapprox.interface.functions.derivative_checks.derivative_checker import (
+    DerivativeChecker,
+)
 from pyapprox.interface.functions.fromcallable.hessian import (
     FunctionWithJacobianAndHVPFromCallable,
+)
+from pyapprox.optimization.minimize.benchmarks.evutushenko import (
+    EvtushenkoNonLinearConstraint,
+    EvtushenkoObjective,
 )
 from pyapprox.optimization.minimize.constraints.linear import (
     PyApproxLinearConstraint,
@@ -17,13 +21,9 @@ from pyapprox.optimization.minimize.constraints.linear import (
 from pyapprox.optimization.minimize.scipy.trust_constr import (
     ScipyTrustConstrOptimizer,
 )
-from pyapprox.interface.functions.derivative_checks.derivative_checker import (
-    DerivativeChecker,
-)
-from pyapprox.optimization.minimize.benchmarks.evutushenko import (
-    EvtushenkoObjective,
-    EvtushenkoNonLinearConstraint,
-)
+from pyapprox.util.backends.numpy import NumpyBkd
+from pyapprox.util.backends.protocols import Array, Backend
+from pyapprox.util.backends.torch import TorchBkd
 
 
 class TestScipyTrustConstrOptimizer(Generic[Array], unittest.TestCase):
@@ -34,9 +34,7 @@ class TestScipyTrustConstrOptimizer(Generic[Array], unittest.TestCase):
         Override this method in derived classes to provide the specific
         backend.
         """
-        raise NotImplementedError(
-            "Derived classes must implement this method."
-        )
+        raise NotImplementedError("Derived classes must implement this method.")
 
     def test_optimizer_with_quadratic_objective_and_linear_constraints(
         self,
@@ -112,9 +110,7 @@ class TestScipyTrustConstrOptimizer(Generic[Array], unittest.TestCase):
 
         # Assert that the objective value matches the expected value
         expected_fun = value_function(expected_optima)
-        self.bkd().assert_allclose(
-            result.fun(), float(expected_fun[0, 0]), atol=1e-8
-        )
+        self.bkd().assert_allclose(result.fun(), float(expected_fun[0, 0]), atol=1e-8)
 
         # Assert the constraint is satisfied
         self.bkd().assert_allclose(
@@ -143,12 +139,8 @@ class TestScipyTrustConstrOptimizer(Generic[Array], unittest.TestCase):
         init_guess = bkd.asarray([[0.1], [0.7], [0.2]])
 
         objective_derivative_checker = DerivativeChecker(objective)
-        errors = objective_derivative_checker.check_derivatives(
-            init_guess, verbosity=0
-        )
-        self.assertLessEqual(
-            objective_derivative_checker.error_ratio(errors[0]), 1e-6
-        )
+        errors = objective_derivative_checker.check_derivatives(init_guess, verbosity=0)
+        self.assertLessEqual(objective_derivative_checker.error_ratio(errors[0]), 1e-6)
 
         constraint_derivative_checker = DerivativeChecker(nonlinear_constraint)
         errors = constraint_derivative_checker.check_derivatives(
@@ -156,9 +148,7 @@ class TestScipyTrustConstrOptimizer(Generic[Array], unittest.TestCase):
         )
         # Use 2e-6 tolerance to account for numerical precision in derivative
         # approximation
-        self.assertLessEqual(
-            constraint_derivative_checker.error_ratio(errors[0]), 2e-6
-        )
+        self.assertLessEqual(constraint_derivative_checker.error_ratio(errors[0]), 2e-6)
 
         # Initialize the optimizer
         optimizer = ScipyTrustConstrOptimizer(
@@ -179,12 +169,8 @@ class TestScipyTrustConstrOptimizer(Generic[Array], unittest.TestCase):
         # Assert that the constraints are satisfied
         nonlinear_constraint_value = nonlinear_constraint(result.optima())
         self.assertTrue(
-            bkd.all_bool(
-                nonlinear_constraint_value >= nonlinear_constraint.lb()
-            )
-            and bkd.all_bool(
-                nonlinear_constraint_value <= nonlinear_constraint.ub()
-            )
+            bkd.all_bool(nonlinear_constraint_value >= nonlinear_constraint.lb())
+            and bkd.all_bool(nonlinear_constraint_value <= nonlinear_constraint.ub())
         )
 
         linear_constraint_value = bkd.ones((1, 3)) @ result.optima()
@@ -196,9 +182,7 @@ class TestScipyTrustConstrOptimizer(Generic[Array], unittest.TestCase):
 
         # Assert that the objective value matches the expected value
         expected_fun = objective(expected_optima)
-        self.bkd().assert_allclose(
-            result.fun(), expected_fun.item(), atol=1e-8
-        )
+        self.bkd().assert_allclose(result.fun(), expected_fun.item(), atol=1e-8)
 
         # Check that function, jacobian and whvp of objective are
         # called.
@@ -208,15 +192,9 @@ class TestScipyTrustConstrOptimizer(Generic[Array], unittest.TestCase):
 
         # Check that function, jacobian and whvp of constraints are
         # called.
-        self.assertTrue(
-            any(bkd.asarray(result.get_raw_result().constr_nfev) > 0)
-        )
-        self.assertTrue(
-            any(bkd.asarray(result.get_raw_result().constr_njev) > 0)
-        )
-        self.assertTrue(
-            any(bkd.asarray(result.get_raw_result().constr_nhev) > 0)
-        )
+        self.assertTrue(any(bkd.asarray(result.get_raw_result().constr_nfev) > 0))
+        self.assertTrue(any(bkd.asarray(result.get_raw_result().constr_njev) > 0))
+        self.assertTrue(any(bkd.asarray(result.get_raw_result().constr_nhev) > 0))
 
     def test_deferred_binding(self) -> None:
         """Test optimizer constructed without objective/bounds."""
@@ -321,9 +299,7 @@ class TestScipyTrustConstrOptimizer(Generic[Array], unittest.TestCase):
         bounds = bkd.array([[-5.0, 5.0]])
 
         # Create and bind optimizer
-        optimizer = ScipyTrustConstrOptimizer(
-            maxiter=500, gtol=1e-8, verbosity=0
-        )
+        optimizer = ScipyTrustConstrOptimizer(maxiter=500, gtol=1e-8, verbosity=0)
         optimizer.bind(obj, bounds)
         self.assertTrue(optimizer.is_bound())
 
@@ -417,9 +393,7 @@ class TestScipyTrustConstrOptimizer(Generic[Array], unittest.TestCase):
         self.assertIn("missing methods", str(context.exception))
 
 
-class TestScipyTrustConstrOptimizerNumpy(
-    TestScipyTrustConstrOptimizer[NDArray[Any]]
-):
+class TestScipyTrustConstrOptimizerNumpy(TestScipyTrustConstrOptimizer[NDArray[Any]]):
     def setUp(self) -> None:
         self._bkd = NumpyBkd()
         super().setUp()
@@ -428,9 +402,7 @@ class TestScipyTrustConstrOptimizerNumpy(
         return self._bkd
 
 
-class TestScipyTrustConstrOptimizerTorch(
-    TestScipyTrustConstrOptimizer[torch.Tensor]
-):
+class TestScipyTrustConstrOptimizerTorch(TestScipyTrustConstrOptimizer[torch.Tensor]):
     def setUp(self) -> None:
         torch.set_default_dtype(torch.float64)
         self._bkd = TorchBkd()
@@ -441,9 +413,7 @@ class TestScipyTrustConstrOptimizerTorch(
 
 
 # Custom test loader to exclude the base class
-def load_tests(
-    loader: unittest.TestLoader, tests, pattern: str
-) -> unittest.TestSuite:
+def load_tests(loader: unittest.TestLoader, tests, pattern: str) -> unittest.TestSuite:
     """
     Custom test loader to exclude the base class
     ContinuousScipyRandomVariable1D.

@@ -15,23 +15,20 @@ import numpy as np
 import torch
 from numpy.typing import NDArray
 
-from pyapprox.util.backends.numpy import NumpyBkd
-from pyapprox.util.backends.torch import TorchBkd
-from pyapprox.util.backends.protocols import Array
-from pyapprox.util.test_utils import load_tests  # noqa: F401
-
 from pyapprox.expdesign import (
     GaussianOEDInnerLoopLikelihood,
+    HaltonSampler,
     KLOEDObjective,
+    MonteCarloSampler,
     RelaxedKLOEDSolver,
     RelaxedOEDConfig,
-    BruteForceKLOEDSolver,
-    MonteCarloSampler,
-    HaltonSampler,
-    GaussianQuadratureSampler,
 )
 from pyapprox.probability.joint import IndependentJoint
 from pyapprox.probability.univariate import GaussianMarginal
+from pyapprox.util.backends.numpy import NumpyBkd
+from pyapprox.util.backends.protocols import Array
+from pyapprox.util.backends.torch import TorchBkd
+from pyapprox.util.test_utils import load_tests  # noqa: F401
 
 
 class TestFullOEDWorkflow(Generic[Array], unittest.TestCase):
@@ -65,9 +62,7 @@ class TestFullOEDWorkflow(Generic[Array], unittest.TestCase):
         latent_samples = self._bkd.asarray(np.random.randn(nobs, nouter))
 
         # 4. Create likelihood
-        inner_likelihood = GaussianOEDInnerLoopLikelihood(
-            noise_variances, self._bkd
-        )
+        inner_likelihood = GaussianOEDInnerLoopLikelihood(noise_variances, self._bkd)
 
         # 5. Create objective
         objective = KLOEDObjective(
@@ -112,9 +107,7 @@ class TestFullOEDWorkflow(Generic[Array], unittest.TestCase):
         inner_shapes = self._bkd.asarray(np.random.randn(nobs, ninner))
         latent_samples = self._bkd.asarray(np.random.randn(nobs, nouter))
 
-        inner_likelihood = GaussianOEDInnerLoopLikelihood(
-            noise_variances, self._bkd
-        )
+        inner_likelihood = GaussianOEDInnerLoopLikelihood(noise_variances, self._bkd)
 
         # Test with uniform weights (MC)
         objective_mc = KLOEDObjective(
@@ -128,12 +121,8 @@ class TestFullOEDWorkflow(Generic[Array], unittest.TestCase):
         )
 
         # Test with custom Dirichlet weights
-        outer_weights = self._bkd.asarray(
-            np.random.dirichlet(np.ones(nouter))
-        )
-        inner_weights = self._bkd.asarray(
-            np.random.dirichlet(np.ones(ninner))
-        )
+        outer_weights = self._bkd.asarray(np.random.dirichlet(np.ones(nouter)))
+        inner_weights = self._bkd.asarray(np.random.dirichlet(np.ones(ninner)))
 
         objective_custom = KLOEDObjective(
             inner_likelihood,
@@ -156,7 +145,6 @@ class TestFullOEDWorkflow(Generic[Array], unittest.TestCase):
     def test_sampler_integration(self):
         """Test integration with quadrature samplers."""
         nvars = 2
-        nobs = 3
 
         # Create Gaussian distribution for MC sampler
         marginals = [GaussianMarginal(0.0, 1.0, self._bkd) for _ in range(nvars)]
@@ -179,12 +167,8 @@ class TestFullOEDWorkflow(Generic[Array], unittest.TestCase):
         mc_sum = self._bkd.sum(mc_weights)
         halton_sum = self._bkd.sum(halton_weights)
         expected = self._bkd.asarray([1.0])
-        self._bkd.assert_allclose(
-            self._bkd.asarray([mc_sum]), expected, rtol=1e-10
-        )
-        self._bkd.assert_allclose(
-            self._bkd.asarray([halton_sum]), expected, rtol=1e-10
-        )
+        self._bkd.assert_allclose(self._bkd.asarray([mc_sum]), expected, rtol=1e-10)
+        self._bkd.assert_allclose(self._bkd.asarray([halton_sum]), expected, rtol=1e-10)
 
     def test_increasing_samples_convergence(self):
         """Test that EIG converges as sample count increases."""
@@ -279,9 +263,7 @@ class TestLinearGaussianOED(Generic[Array], unittest.TestCase):
         noise_variances = self._bkd.asarray(np.array([0.1, 0.1, 0.1, 0.1]))
         latent_samples = self._bkd.asarray(np.random.randn(nobs, nouter))
 
-        inner_likelihood = GaussianOEDInnerLoopLikelihood(
-            noise_variances, self._bkd
-        )
+        inner_likelihood = GaussianOEDInnerLoopLikelihood(noise_variances, self._bkd)
 
         objective = KLOEDObjective(
             inner_likelihood,
@@ -316,9 +298,7 @@ class TestLinearGaussianOED(Generic[Array], unittest.TestCase):
         inner_shapes = self._bkd.asarray(np.random.randn(nobs, ninner))
         latent_samples = self._bkd.asarray(np.random.randn(nobs, nouter))
 
-        inner_likelihood = GaussianOEDInnerLoopLikelihood(
-            noise_variances, self._bkd
-        )
+        inner_likelihood = GaussianOEDInnerLoopLikelihood(noise_variances, self._bkd)
 
         objective = KLOEDObjective(
             inner_likelihood,

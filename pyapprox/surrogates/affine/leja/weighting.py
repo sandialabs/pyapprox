@@ -62,7 +62,7 @@ class ChristoffelWeighting(Generic[Array]):
             Weights for each sample. Shape: (nsamples, 1)
         """
         nsamples = basis_values.shape[0]
-        christoffel = self._bkd.sum(basis_values ** 2, axis=1) / nsamples
+        christoffel = self._bkd.sum(basis_values**2, axis=1) / nsamples
         return (1.0 / christoffel)[:, None]
 
     def jacobian(
@@ -85,12 +85,12 @@ class ChristoffelWeighting(Generic[Array]):
             Weight Jacobians. Shape: (nsamples, 1)
         """
         nsamples = basis_values.shape[0]
-        christoffel = self._bkd.sum(basis_values ** 2, axis=1) / nsamples
+        christoffel = self._bkd.sum(basis_values**2, axis=1) / nsamples
         christoffel_jac = (
             2.0 / nsamples * self._bkd.sum(basis_values * basis_jacobians, axis=1)
         )
         # d/dx (1/K(x)) = -K'(x) / K(x)^2
-        return (-christoffel_jac / christoffel ** 2)[:, None]
+        return (-christoffel_jac / christoffel**2)[:, None]
 
     def __repr__(self) -> str:
         return f"ChristoffelWeighting(bkd={self._bkd.__class__.__name__})"
@@ -272,8 +272,7 @@ class CompositeWeighting(Generic[Array]):
         # Compute all weights and jacobians
         weights = [w(samples, basis_values) for w in self._weightings]
         jacs = [
-            w.jacobian(samples, basis_values, basis_jacobians)
-            for w in self._weightings
+            w.jacobian(samples, basis_values, basis_jacobians) for w in self._weightings
         ]
 
         # Sum over all terms in product rule

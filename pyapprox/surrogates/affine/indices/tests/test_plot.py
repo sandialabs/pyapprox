@@ -7,6 +7,7 @@ they run headlessly in CI.
 import unittest
 
 import matplotlib
+
 matplotlib.use("Agg")
 
 import matplotlib.pyplot as plt  # noqa: E402
@@ -23,7 +24,6 @@ from pyapprox.surrogates.affine.indices.plot import (  # noqa: E402
     plot_indices_3d,
 )
 
-
 # Simple 2D index set: (0,0), (1,0), (0,1), (2,0)
 _INDICES_2D = np.array([[0, 1, 0, 2], [0, 0, 1, 0]])
 
@@ -32,6 +32,7 @@ _INDICES_3D = np.array([[0, 1, 0, 0], [0, 0, 1, 0], [0, 0, 0, 1]])
 
 
 # ---- _resolve_colors ----
+
 
 class TestResolveColors(unittest.TestCase):
     def test_uniform_string(self):
@@ -56,6 +57,7 @@ class TestResolveColors(unittest.TestCase):
 
 
 # ---- _resolve_labels ----
+
 
 class TestResolveLabels(unittest.TestCase):
     def test_none(self):
@@ -85,6 +87,7 @@ class TestResolveLabels(unittest.TestCase):
 
 # ---- plot_indices_2d ----
 
+
 class TestPlotIndices2D(unittest.TestCase):
     def setUp(self):
         self.fig, self.ax = plt.subplots()
@@ -105,7 +108,9 @@ class TestPlotIndices2D(unittest.TestCase):
 
     def test_artist_types(self):
         rects, texts = plot_indices_2d(
-            self.ax, _INDICES_2D, labels=True,
+            self.ax,
+            _INDICES_2D,
+            labels=True,
         )
         for r in rects:
             self.assertIsInstance(r, Rectangle)
@@ -114,7 +119,8 @@ class TestPlotIndices2D(unittest.TestCase):
 
     def test_callable_colors(self):
         rects, _ = plot_indices_2d(
-            self.ax, _INDICES_2D,
+            self.ax,
+            _INDICES_2D,
             colors=lambda idx: "#FF0000" if idx[0] == 0 else "#0000FF",
         )
         self.assertEqual(len(rects), 4)
@@ -125,7 +131,10 @@ class TestPlotIndices2D(unittest.TestCase):
 
     def test_rect_position(self):
         rects, _ = plot_indices_2d(
-            self.ax, _INDICES_2D, box_width=0.8, box_height=0.8,
+            self.ax,
+            _INDICES_2D,
+            box_width=0.8,
+            box_height=0.8,
         )
         # First index is (0, 0), rect should be centred there
         r0 = rects[0]
@@ -137,7 +146,10 @@ class TestPlotIndices2D(unittest.TestCase):
 
     def test_custom_box_size(self):
         rects, _ = plot_indices_2d(
-            self.ax, _INDICES_2D, box_width=1.0, box_height=0.6,
+            self.ax,
+            _INDICES_2D,
+            box_width=1.0,
+            box_height=0.6,
         )
         r = rects[0]
         np.testing.assert_allclose(r.get_width(), 1.0)
@@ -145,6 +157,7 @@ class TestPlotIndices2D(unittest.TestCase):
 
 
 # ---- plot_indices_3d ----
+
 
 class TestPlotIndices3D(unittest.TestCase):
     def setUp(self):
@@ -166,7 +179,8 @@ class TestPlotIndices3D(unittest.TestCase):
 
     def test_callable_colors(self):
         _, texts = plot_indices_3d(
-            self.ax, _INDICES_3D,
+            self.ax,
+            _INDICES_3D,
             colors=lambda idx: "#2C7FB8CC" if idx[2] == 0 else "#E74C3CCC",
         )
         self.assertEqual(len(texts), 0)
@@ -177,6 +191,7 @@ class TestPlotIndices3D(unittest.TestCase):
 
 
 # ---- format_index_axes ----
+
 
 class TestFormatIndexAxes(unittest.TestCase):
     def test_2d_limits_and_ticks(self):
@@ -194,7 +209,8 @@ class TestFormatIndexAxes(unittest.TestCase):
     def test_2d_axis_labels(self):
         fig, ax = plt.subplots()
         format_index_axes(
-            ax, _INDICES_2D,
+            ax,
+            _INDICES_2D,
             axis_labels=["dim 1", "dim 2"],
         )
         self.assertEqual(ax.get_xlabel(), "dim 1")
@@ -232,6 +248,7 @@ class TestFormatIndexAxes(unittest.TestCase):
 
 # ---- plot_index_sets ----
 
+
 class TestPlotIndexSets(unittest.TestCase):
     def test_selected_only_2d(self):
         fig, ax = plt.subplots()
@@ -245,8 +262,11 @@ class TestPlotIndexSets(unittest.TestCase):
         fig, ax = plt.subplots()
         cand = np.array([[3, 0], [0, 2]])
         result = plot_index_sets(
-            ax, _INDICES_2D, cand,
-            selected_labels=True, candidate_labels=True,
+            ax,
+            _INDICES_2D,
+            cand,
+            selected_labels=True,
+            candidate_labels=True,
         )
         self.assertEqual(len(result["selected"][0]), 4)
         self.assertEqual(len(result["candidates"][0]), 2)
@@ -276,7 +296,8 @@ class TestPlotIndexSets(unittest.TestCase):
     def test_callable_colors(self):
         fig, ax = plt.subplots()
         result = plot_index_sets(
-            ax, _INDICES_2D,
+            ax,
+            _INDICES_2D,
             selected_colors=lambda idx: "blue" if idx[1] == 0 else "red",
         )
         self.assertEqual(len(result["selected"][0]), 4)
@@ -285,7 +306,8 @@ class TestPlotIndexSets(unittest.TestCase):
     def test_format_axes_applies_labels(self):
         fig, ax = plt.subplots()
         plot_index_sets(
-            ax, _INDICES_2D,
+            ax,
+            _INDICES_2D,
             axis_labels=["$k_1$", "$k_2$"],
         )
         self.assertEqual(ax.get_xlabel(), "$k_1$")
@@ -295,7 +317,8 @@ class TestPlotIndexSets(unittest.TestCase):
     def test_format_axes_false(self):
         fig, ax = plt.subplots()
         plot_index_sets(
-            ax, _INDICES_2D,
+            ax,
+            _INDICES_2D,
             format_axes=False,
         )
         # Limits should not have been set by format_index_axes

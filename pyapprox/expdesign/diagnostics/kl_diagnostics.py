@@ -5,15 +5,14 @@ Provides tools for computing bias, variance, and MSE of numerical
 EIG estimates compared to exact analytical values.
 """
 
-from typing import Generic, List, Dict, Tuple
+from typing import Dict, Generic, List, Tuple
 
 import numpy as np
-
-from pyapprox.util.backends.protocols import Array, Backend
 
 from pyapprox.expdesign.benchmarks import LinearGaussianOEDBenchmark
 from pyapprox.expdesign.likelihood import GaussianOEDInnerLoopLikelihood
 from pyapprox.expdesign.objective import KLOEDObjective
+from pyapprox.util.backends.protocols import Array, Backend
 
 
 class KLOEDDiagnostics(Generic[Array]):
@@ -170,7 +169,7 @@ class KLOEDDiagnostics(Generic[Array]):
         var_eig = float(np.var(eig_array))
 
         bias = mean_eig - exact
-        mse = bias ** 2 + var_eig
+        mse = bias**2 + var_eig
 
         return bias, var_eig, mse
 

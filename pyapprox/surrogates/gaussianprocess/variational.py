@@ -18,28 +18,28 @@ import copy
 import math
 from typing import Generic, Optional
 
-from pyapprox.util.backends.protocols import Array, Backend
-from pyapprox.surrogates.kernels.protocols import Kernel
+from pyapprox.optimization.minimize.protocols import (
+    BindableOptimizerProtocol,
+)
 from pyapprox.surrogates.gaussianprocess.data import GPTrainingData
-from pyapprox.surrogates.gaussianprocess.output_transform import (
-    OutputAffineTransformProtocol,
+from pyapprox.surrogates.gaussianprocess.inducing_samples import (
+    InducingSamples,
 )
 from pyapprox.surrogates.gaussianprocess.input_transform import (
-    InputAffineTransformProtocol,
     IdentityInputTransform,
+    InputAffineTransformProtocol,
 )
 from pyapprox.surrogates.gaussianprocess.mean_functions import (
     MeanFunction,
     ZeroMean,
 )
-from pyapprox.surrogates.gaussianprocess.inducing_samples import (
-    InducingSamples,
+from pyapprox.surrogates.gaussianprocess.output_transform import (
+    OutputAffineTransformProtocol,
 )
+from pyapprox.surrogates.kernels.protocols import Kernel
+from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.util.hyperparameter import HyperParameterList
 from pyapprox.util.linalg.cholesky_factor import CholeskyFactor
-from pyapprox.optimization.minimize.protocols import (
-    BindableOptimizerProtocol,
-)
 
 
 class VariationalGaussianProcess(Generic[Array]):
@@ -107,9 +107,7 @@ class VariationalGaussianProcess(Generic[Array]):
         self._neg_elbo: Optional[Array] = None
 
         # Transforms
-        self._output_transform: Optional[
-            OutputAffineTransformProtocol[Array]
-        ] = None
+        self._output_transform: Optional[OutputAffineTransformProtocol[Array]] = None
         self._input_transform: InputAffineTransformProtocol[Array] = (
             IdentityInputTransform(nvars, bkd)
         )
@@ -152,12 +150,8 @@ class VariationalGaussianProcess(Generic[Array]):
         self._output_transform = other._output_transform
         self._input_transform = other._input_transform
         # Copy optimized hyperparameters
-        self._kernel.hyp_list().set_values(
-            other._kernel.hyp_list().get_values()
-        )
-        self._mean.hyp_list().set_values(
-            other._mean.hyp_list().get_values()
-        )
+        self._kernel.hyp_list().set_values(other._kernel.hyp_list().get_values())
+        self._mean.hyp_list().set_values(other._mean.hyp_list().get_values())
         self._inducing_samples.hyp_list().set_values(
             other._inducing_samples.hyp_list().get_values()
         )
@@ -202,9 +196,7 @@ class VariationalGaussianProcess(Generic[Array]):
         This is chol(K_eff) where K_eff = K_XU K_UU^{-1} K_XU^T + sigma^2 I.
         """
         if self._cholesky is None:
-            raise RuntimeError(
-                "GP must be fitted before accessing cholesky."
-            )
+            raise RuntimeError("GP must be fitted before accessing cholesky.")
         return self._cholesky
 
     def alpha(self) -> Array:
@@ -241,9 +233,7 @@ class VariationalGaussianProcess(Generic[Array]):
         inducing_hyps = self._inducing_samples.hyp_list().hyperparameters()
         return HyperParameterList(kernel_hyps + mean_hyps + inducing_hyps)
 
-    def set_optimizer(
-        self, optimizer: BindableOptimizerProtocol[Array]
-    ) -> None:
+    def set_optimizer(self, optimizer: BindableOptimizerProtocol[Array]) -> None:
         """Set the optimizer for hyperparameter optimization.
 
         .. deprecated::
@@ -274,13 +264,14 @@ class VariationalGaussianProcess(Generic[Array]):
         """
         bkd = self._bkd
         self._data = GPTrainingData(
-            X_train, y_train, bkd,
+            X_train,
+            y_train,
+            bkd,
             output_transform=self._output_transform,
         )
         if self._data.nvars() != self._nvars:
             raise ValueError(
-                f"X_train has {self._data.nvars()} variables, "
-                f"expected {self._nvars}"
+                f"X_train has {self._data.nvars()} variables, expected {self._nvars}"
             )
 
         U = self._inducing_samples.get_samples()
@@ -313,15 +304,12 @@ class VariationalGaussianProcess(Generic[Array]):
         values = residual.T  # (n_train, nqoi)
 
         # gamma = L_Omega^{-1} Delta values, shape (M, nqoi)
-        gamma = bkd.solve_triangular(
-            L_Omega, Delta @ values, lower=True
-        )
+        gamma = bkd.solve_triangular(L_Omega, Delta @ values, lower=True)
 
         # Log determinant: log|Omega| + 2*N*log(noise_std)
-        log_det = (
-            2.0 * bkd.sum(bkd.log(bkd.get_diagonal(L_Omega)))
-            + 2.0 * n_train * bkd.log(noise_std[0])
-        )
+        log_det = 2.0 * bkd.sum(
+            bkd.log(bkd.get_diagonal(L_Omega))
+        ) + 2.0 * n_train * bkd.log(noise_std[0])
 
         # Log probability
         log_pdf = -0.5 * (
@@ -357,8 +345,7 @@ class VariationalGaussianProcess(Generic[Array]):
             self._cholesky = CholeskyFactor(L_eff, bkd)
         except Exception as e:
             raise RuntimeError(
-                "Cholesky of effective covariance failed. "
-                f"Original error: {e}"
+                f"Cholesky of effective covariance failed. Original error: {e}"
             )
 
         # alpha = K_eff^{-1} residual^T, then transpose to (nqoi, n_train)
@@ -373,9 +360,7 @@ class VariationalGaussianProcess(Generic[Array]):
             Scalar negative ELBO value.
         """
         if self._neg_elbo is None:
-            raise RuntimeError(
-                "GP must be fitted before computing ELBO"
-            )
+            raise RuntimeError("GP must be fitted before computing ELBO")
         return self._neg_elbo
 
     # ---- Prediction ----
@@ -434,9 +419,7 @@ class VariationalGaussianProcess(Generic[Array]):
         K_star = self._kernel(X, self._data.X())
         K_star_star = self._kernel.diag(X)
 
-        v = bkd.solve_triangular(
-            self._cholesky.factor(), K_star.T, lower=True
-        )
+        v = bkd.solve_triangular(self._cholesky.factor(), K_star.T, lower=True)
         var_posterior = K_star_star - bkd.einsum("ij,ij->j", v, v)
         var_posterior = var_posterior * (var_posterior >= 0.0)
         std = bkd.sqrt(var_posterior)
@@ -472,14 +455,12 @@ class VariationalGaussianProcess(Generic[Array]):
         K_star = self._kernel(X, self._data.X())
         K_star_star = self._kernel(X, X)
 
-        v = bkd.solve_triangular(
-            self._cholesky.factor(), K_star.T, lower=True
-        )
+        v = bkd.solve_triangular(self._cholesky.factor(), K_star.T, lower=True)
         cov = K_star_star - v.T @ v
 
         if self._output_transform is not None:
             s = self._output_transform.scale()[0]
-            cov = s ** 2 * cov
+            cov = s**2 * cov
 
         return cov
 
@@ -489,12 +470,8 @@ class VariationalGaussianProcess(Generic[Array]):
         self,
         X_train: Array,
         y_train: Array,
-        output_transform: Optional[
-            OutputAffineTransformProtocol[Array]
-        ] = None,
-        input_transform: Optional[
-            InputAffineTransformProtocol[Array]
-        ] = None,
+        output_transform: Optional[OutputAffineTransformProtocol[Array]] = None,
+        input_transform: Optional[InputAffineTransformProtocol[Array]] = None,
     ) -> None:
         """Fit variational GP and optimize active hyperparameters.
 
@@ -527,6 +504,7 @@ class VariationalGaussianProcess(Generic[Array]):
         from pyapprox.surrogates.gaussianprocess.fitters.variational_fitter import (
             VariationalGPMaximumLikelihoodFitter,
         )
+
         fitter = VariationalGPMaximumLikelihoodFitter(
             bkd=self._bkd,
             optimizer=self._optimizer,

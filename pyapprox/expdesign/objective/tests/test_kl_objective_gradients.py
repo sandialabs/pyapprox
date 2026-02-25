@@ -17,19 +17,18 @@ import torch
 from numpy.typing import NDArray
 from unittest_parametrize import ParametrizedTestCase, parametrize
 
-from pyapprox.util.backends.numpy import NumpyBkd
-from pyapprox.util.backends.torch import TorchBkd
-from pyapprox.util.backends.protocols import Array, Backend
-from pyapprox.util.test_utils import load_tests  # noqa: F401
+from pyapprox.expdesign.likelihood import GaussianOEDInnerLoopLikelihood
+from pyapprox.expdesign.objective import KLOEDObjective
 from pyapprox.interface.functions.derivative_checks.derivative_checker import (
     DerivativeChecker,
 )
 from pyapprox.interface.functions.fromcallable.jacobian import (
     FunctionWithJacobianFromCallable,
 )
-
-from pyapprox.expdesign.objective import KLOEDObjective
-from pyapprox.expdesign.likelihood import GaussianOEDInnerLoopLikelihood
+from pyapprox.util.backends.numpy import NumpyBkd
+from pyapprox.util.backends.protocols import Array, Backend
+from pyapprox.util.backends.torch import TorchBkd
+from pyapprox.util.test_utils import load_tests  # noqa: F401
 
 
 class TestKLOEDObjectiveGradientsStandalone(
@@ -198,7 +197,9 @@ class TestKLOEDObjectiveGradientsStandalone(
         inner_weights = self._bkd.asarray(np.random.dirichlet(np.ones(ninner)))
 
         obj = self._create_kl_objective(
-            nobs, ninner, nouter,
+            nobs,
+            ninner,
+            nouter,
             outer_quad_weights=outer_weights,
             inner_quad_weights=inner_weights,
         )
@@ -324,7 +325,8 @@ class TestKLOEDObjectiveGradientsStandalone(
         # Higher weights should generally give higher EIG
         # (more observations = more information)
         self.assertGreater(
-            eig_high, eig_low,
+            eig_high,
+            eig_low,
             f"EIG with high weights ({eig_high}) should exceed EIG with "
             f"low weights ({eig_low})",
         )

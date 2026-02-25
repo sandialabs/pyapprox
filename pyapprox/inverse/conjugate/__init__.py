@@ -18,9 +18,9 @@ DirichletConjugatePosterior
     Dirichlet conjugate posterior for multinomial likelihood.
 """
 
-from .gaussian import DenseGaussianConjugatePosterior
 from .beta import BetaConjugatePosterior
 from .dirichlet import DirichletConjugatePosterior
+from .gaussian import DenseGaussianConjugatePosterior
 
 __all__ = [
     "DenseGaussianConjugatePosterior",

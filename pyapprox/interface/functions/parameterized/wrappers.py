@@ -1,22 +1,21 @@
 from typing import Generic
 
+from pyapprox.interface.functions.parameterized.protocols import (
+    ParameterizedFunctionProtocol,
+    ParameterizedFunctionWithJacobianAndHVPProtocol,
+    ParameterizedFunctionWithJacobianProtocol,
+)
+from pyapprox.interface.functions.parameterized.validation import (
+    validate_parameterized_function,
+)
 from pyapprox.interface.functions.protocols.function import (
     FunctionProtocol,
 )
 from pyapprox.interface.functions.protocols.validation import (
-    validate_samples,
-    validate_sample,
-    validate_values,
-    validate_jacobian,
     validate_hvp,
-)
-from pyapprox.interface.functions.parameterized.protocols import (
-    ParameterizedFunctionProtocol,
-    ParameterizedFunctionWithJacobianProtocol,
-    ParameterizedFunctionWithJacobianAndHVPProtocol,
-)
-from pyapprox.interface.functions.parameterized.validation import (
-    validate_parameterized_function,
+    validate_jacobian,
+    validate_sample,
+    validate_samples,
 )
 from pyapprox.util.backends.protocols import Array, Backend
 
@@ -40,9 +39,7 @@ class FunctionOfParameters(Generic[Array]):
         The fixed value of x.
     """
 
-    def __init__(
-        self, param_fun: ParameterizedFunctionProtocol[Array], fixed_x: Array
-    ):
+    def __init__(self, param_fun: ParameterizedFunctionProtocol[Array], fixed_x: Array):
         validate_parameterized_function(param_fun)
         self._bkd = param_fun.bkd()
         self._param_fun = param_fun
@@ -100,9 +97,7 @@ class FunctionOfParametersWithJacobian(FunctionOfParameters[Array]):
         param_fun: ParameterizedFunctionWithJacobianProtocol[Array],
         fixed_x: Array,
     ):
-        if not isinstance(
-            param_fun, ParameterizedFunctionWithJacobianProtocol
-        ):
+        if not isinstance(param_fun, ParameterizedFunctionWithJacobianProtocol):
             raise TypeError(
                 f"Invalid function type: expected an object implementing "
                 "ParameterizedFunctionWithJacobianProtocol, "
@@ -110,9 +105,7 @@ class FunctionOfParametersWithJacobian(FunctionOfParameters[Array]):
             )
         validate_parameterized_function(param_fun)
         self._bkd = param_fun.bkd()
-        self._param_fun: ParameterizedFunctionWithJacobianProtocol[Array] = (
-            param_fun
-        )
+        self._param_fun: ParameterizedFunctionWithJacobianProtocol[Array] = param_fun
         self._fixed_x = fixed_x
 
     def jacobian(self, param: Array) -> Array:
@@ -134,9 +127,7 @@ class FunctionOfParametersWithJacobian(FunctionOfParameters[Array]):
         return self._param_fun.jacobian_wrt_parameters(self._fixed_x)
 
 
-class FunctionOfParametersWithJacobianAndHVP(
-    FunctionOfParametersWithJacobian[Array]
-):
+class FunctionOfParametersWithJacobianAndHVP(FunctionOfParametersWithJacobian[Array]):
     """
     Extends FunctionOfParametersWithJacobian to support Hessian-vector
     product computation.
@@ -154,9 +145,7 @@ class FunctionOfParametersWithJacobianAndHVP(
         param_fun: ParameterizedFunctionWithJacobianAndHVPProtocol[Array],
         fixed_x: Array,
     ):
-        if not isinstance(
-            param_fun, ParameterizedFunctionWithJacobianAndHVPProtocol
-        ):
+        if not isinstance(param_fun, ParameterizedFunctionWithJacobianAndHVPProtocol):
             raise TypeError(
                 "Invalid function type: expected an object implementing "
                 "ParameterizedFunctionWithHVPProtocol, got "
@@ -242,9 +231,7 @@ class _FunctionOfParameters(FunctionProtocol[Array]):
         if isinstance(self._param_fun, ParameterizedFunctionWithJacobianProtocol):
             self.jacobian = self._jacobian
 
-        if isinstance(
-            self._param_fun, ParameterizedFunctionWithJacobianAndHVPProtocol
-        ):
+        if isinstance(self._param_fun, ParameterizedFunctionWithJacobianAndHVPProtocol):
             self.hvp = self._hvp
 
     def bkd(self) -> Backend[Array]:

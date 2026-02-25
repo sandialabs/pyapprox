@@ -1,28 +1,28 @@
 import unittest
-from typing import Generic, Any
+from typing import Any, Generic
 
 import numpy as np
-from numpy.typing import NDArray
 import torch
+from numpy.typing import NDArray
 
-from pyapprox.util.backends.protocols import Array, Backend
-from pyapprox.util.backends.numpy import NumpyBkd
-from pyapprox.util.backends.torch import TorchBkd
 from pyapprox.optimization.implicitfunction.benchmarks.linear_state_equation import (
     LinearStateEquation,
 )
 from pyapprox.optimization.implicitfunction.functionals.mean_squared_error import (
     MSEFunctional,
 )
-from pyapprox.optimization.implicitfunction.functionals.tikhonov_mean_squared_error import (
+from pyapprox.optimization.implicitfunction.functionals.tikhonov_mean_squared_error import (  # noqa: E501
     TikhonovMSEFunctional,
-)
-from pyapprox.optimization.implicitfunction.operator.operator_with_hvp import (
-    AdjointOperatorWithJacobianAndHVP,
 )
 from pyapprox.optimization.implicitfunction.operator.check_derivatives import (
     ImplicitFunctionDerivativeChecker,
 )
+from pyapprox.optimization.implicitfunction.operator.operator_with_hvp import (
+    AdjointOperatorWithJacobianAndHVP,
+)
+from pyapprox.util.backends.numpy import NumpyBkd
+from pyapprox.util.backends.protocols import Array, Backend
+from pyapprox.util.backends.torch import TorchBkd
 
 
 class TestLinearLeastSquares(Generic[Array], unittest.TestCase):
@@ -33,9 +33,7 @@ class TestLinearLeastSquares(Generic[Array], unittest.TestCase):
         Override this method in derived classes to provide the specific
         backend.
         """
-        raise NotImplementedError(
-            "Derived classes must implement this method."
-        )
+        raise NotImplementedError("Derived classes must implement this method.")
 
     def test_linear_least_squares(self) -> None:
         """
@@ -56,9 +54,7 @@ class TestLinearLeastSquares(Generic[Array], unittest.TestCase):
         functional.set_observations(obs)
 
         # Create adjoint operator
-        adjoint_operator = AdjointOperatorWithJacobianAndHVP(
-            state_eq, functional
-        )
+        adjoint_operator = AdjointOperatorWithJacobianAndHVP(state_eq, functional)
 
         # Test value computation
         value = adjoint_operator(init_state, param)
@@ -67,13 +63,9 @@ class TestLinearLeastSquares(Generic[Array], unittest.TestCase):
         bkd.assert_allclose(value, expected_value)
 
         # Test derivative computation
-        derivative_checker = ImplicitFunctionDerivativeChecker(
-            adjoint_operator
-        )
+        derivative_checker = ImplicitFunctionDerivativeChecker(adjoint_operator)
         tols = derivative_checker.get_derivative_tolerances(2e-6)
-        derivative_checker.check_derivatives(
-            init_state, param, tols, verbosity=0
-        )
+        derivative_checker.check_derivatives(init_state, param, tols, verbosity=0)
 
     def test_tikhonov_linear_least_squares(self) -> None:
         """
@@ -94,19 +86,13 @@ class TestLinearLeastSquares(Generic[Array], unittest.TestCase):
         functional.set_observations(obs)
 
         # Create adjoint operator
-        adjoint_operator = AdjointOperatorWithJacobianAndHVP(
-            state_eq, functional
-        )
+        adjoint_operator = AdjointOperatorWithJacobianAndHVP(state_eq, functional)
 
         # Test derivative computation
-        derivative_checker = ImplicitFunctionDerivativeChecker(
-            adjoint_operator
-        )
+        derivative_checker = ImplicitFunctionDerivativeChecker(adjoint_operator)
         tols = derivative_checker.get_derivative_tolerances(5e-6)
         tols[[2, 3, 4]] = 5e-6
-        derivative_checker.check_derivatives(
-            init_state, param, tols, verbosity=0
-        )
+        derivative_checker.check_derivatives(init_state, param, tols, verbosity=0)
 
 
 # Derived test class for NumPy backend
@@ -131,9 +117,7 @@ class TestLinearLeastSquaresTorch(TestLinearLeastSquares[torch.Tensor]):
 
 
 # Custom test loader to exclude the base class
-def load_tests(
-    loader: unittest.TestLoader, tests, pattern: str
-) -> unittest.TestSuite:
+def load_tests(loader: unittest.TestLoader, tests, pattern: str) -> unittest.TestSuite:
     """
     Custom test loader to exclude the base class
     ContinuousScipyRandomVariable1D.

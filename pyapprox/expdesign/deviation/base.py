@@ -8,8 +8,8 @@ conditional on observed data.
 from abc import ABC, abstractmethod
 from typing import Generic, Optional
 
-from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.expdesign.evidence.evidence import Evidence
+from pyapprox.util.backends.protocols import Array, Backend
 
 
 class DeviationMeasure(ABC, Generic[Array]):
@@ -91,8 +91,7 @@ class DeviationMeasure(ABC, Generic[Array]):
         expected_shape = (self.ninner(), self._npred)
         if qoi_vals.shape != expected_shape:
             raise ValueError(
-                f"qoi_vals must have shape {expected_shape}, "
-                f"got {qoi_vals.shape}"
+                f"qoi_vals must have shape {expected_shape}, got {qoi_vals.shape}"
             )
         self._qoi_vals = qoi_vals
 
@@ -120,13 +119,9 @@ class DeviationMeasure(ABC, Generic[Array]):
         # E[qoi_q | obs_o] = sum_i qoi[i, q] * like[i, o] * quad_weight[i]
         # qoi_vals: (ninner, npred), quad_weighted_like: (ninner, nouter)
         # Result: (npred, nouter)
-        return self._bkd.einsum(
-            "iq,io->qo", self._qoi_vals, quad_weighted_like_vals
-        )
+        return self._bkd.einsum("iq,io->qo", self._qoi_vals, quad_weighted_like_vals)
 
-    def _first_moment_jac(
-        self, quad_weighted_like_vals_jac: Array
-    ) -> Array:
+    def _first_moment_jac(self, quad_weighted_like_vals_jac: Array) -> Array:
         """
         Compute Jacobian of first moment w.r.t. design weights.
 

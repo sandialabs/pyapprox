@@ -6,18 +6,17 @@ import unittest
 from typing import Any, Generic
 
 import numpy as np
-from numpy.typing import NDArray
 import torch
+from numpy.typing import NDArray
 
-from pyapprox.util.backends.protocols import Array, Backend
-from pyapprox.util.backends.numpy import NumpyBkd
-from pyapprox.util.backends.torch import TorchBkd
-from pyapprox.util.test_utils import load_tests
 from pyapprox.probability.covariance import (
     DenseCholeskyCovarianceOperator,
     DiagonalCovarianceOperator,
     OperatorBasedCovarianceOperator,
 )
+from pyapprox.util.backends.numpy import NumpyBkd
+from pyapprox.util.backends.protocols import Array, Backend
+from pyapprox.util.backends.torch import TorchBkd
 
 
 class TestDenseCholeskyCovarianceOperator(Generic[Array], unittest.TestCase):
@@ -209,23 +208,17 @@ class TestDiagonalCovarianceOperator(Generic[Array], unittest.TestCase):
     def test_1d_requirement(self) -> None:
         """Test that 2D variances raise error."""
         with self.assertRaises(ValueError):
-            DiagonalCovarianceOperator(
-                self._bkd.asarray([[1.0, 2.0]]), self._bkd
-            )
+            DiagonalCovarianceOperator(self._bkd.asarray([[1.0, 2.0]]), self._bkd)
 
 
-class TestDiagonalCovarianceOperatorNumpy(
-    TestDiagonalCovarianceOperator[NDArray[Any]]
-):
+class TestDiagonalCovarianceOperatorNumpy(TestDiagonalCovarianceOperator[NDArray[Any]]):
     """NumPy backend tests."""
 
     def bkd(self) -> NumpyBkd:
         return NumpyBkd()
 
 
-class TestDiagonalCovarianceOperatorTorch(
-    TestDiagonalCovarianceOperator[torch.Tensor]
-):
+class TestDiagonalCovarianceOperatorTorch(TestDiagonalCovarianceOperator[torch.Tensor]):
     """PyTorch backend tests."""
 
     def bkd(self) -> TorchBkd:

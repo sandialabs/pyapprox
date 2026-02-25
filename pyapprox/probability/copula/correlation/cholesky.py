@@ -9,8 +9,6 @@ constraint: L_ii = sqrt(1 - sum_{j<i} L_ij^2).
 
 from typing import Generic
 
-import numpy as np
-
 from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.util.hyperparameter import (
     HyperParameter,
@@ -154,19 +152,15 @@ class CholeskyCorrelationParameterization(Generic[Array]):
             Quadratic form values. Shape: (nsamples,)
         """
         if z.ndim != 2:
-            raise ValueError(
-                f"Expected 2D array, got {z.ndim}D"
-            )
+            raise ValueError(f"Expected 2D array, got {z.ndim}D")
         if z.shape[0] != self._nvars:
-            raise ValueError(
-                f"Expected {self._nvars} variables, got {z.shape[0]}"
-            )
+            raise ValueError(f"Expected {self._nvars} variables, got {z.shape[0]}")
 
         L = self._build_cholesky_factor()
         # w = L^{-1} z via forward substitution
         w = self._bkd.solve_triangular(L, z, lower=True)
         # ||w||^2 - ||z||^2 per column
-        return self._bkd.sum(w ** 2, axis=0) - self._bkd.sum(z ** 2, axis=0)
+        return self._bkd.sum(w**2, axis=0) - self._bkd.sum(z**2, axis=0)
 
     def sample_transform(self, eps: Array) -> Array:
         """
@@ -183,13 +177,9 @@ class CholeskyCorrelationParameterization(Generic[Array]):
             Correlated samples. Shape: (nvars, nsamples)
         """
         if eps.ndim != 2:
-            raise ValueError(
-                f"Expected 2D array, got {eps.ndim}D"
-            )
+            raise ValueError(f"Expected 2D array, got {eps.ndim}D")
         if eps.shape[0] != self._nvars:
-            raise ValueError(
-                f"Expected {self._nvars} variables, got {eps.shape[0]}"
-            )
+            raise ValueError(f"Expected {self._nvars} variables, got {eps.shape[0]}")
 
         L = self._build_cholesky_factor()
         return L @ eps

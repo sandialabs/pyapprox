@@ -21,16 +21,16 @@ The depth equation (mass conservation):
     dH/dt + div(H*velocity) = f_H
 """
 
-from typing import Generic, Optional, Callable, Union, Tuple
+from typing import Callable, Optional, Tuple, Union
 
-from pyapprox.util.backends.protocols import Array, Backend
-from pyapprox.pde.collocation.protocols.basis import (
-    TensorProductBasisProtocol,
-)
 from pyapprox.pde.collocation.physics.base import (
     AbstractPhysics,
     AbstractVectorPhysics,
 )
+from pyapprox.pde.collocation.protocols.basis import (
+    TensorProductBasisProtocol,
+)
+from pyapprox.util.backends.protocols import Array, Backend
 
 
 class ShallowShelfVelocityPhysics(AbstractVectorPhysics[Array]):
@@ -150,13 +150,9 @@ class ShallowShelfVelocityPhysics(AbstractVectorPhysics[Array]):
 
         strain_rate = sqrt(ux^2 + vy^2 + ux*vy + 0.25*(uy+vx)^2 + eps)
         """
-        return (
-            ux ** 2 + vy ** 2 + ux * vy + 0.25 * (uy + vx) ** 2 + self._eps
-        ) ** 0.5
+        return (ux**2 + vy**2 + ux * vy + 0.25 * (uy + vx) ** 2 + self._eps) ** 0.5
 
-    def _compute_viscosity(
-        self, ux: Array, uy: Array, vx: Array, vy: Array
-    ) -> Array:
+    def _compute_viscosity(self, ux: Array, uy: Array, vx: Array, vy: Array) -> Array:
         """Compute effective viscosity.
 
         mu = 0.5 * A^(-1/n) * strain_rate^((1-n)/n)
@@ -169,7 +165,6 @@ class ShallowShelfVelocityPhysics(AbstractVectorPhysics[Array]):
 
         residual = div(2*mu*H*strain_tensor) - C*vel - H*rho*g*grad(s) + f
         """
-        bkd = self._bkd
         npts = self.npts()
 
         u, v = self._split_state(state)
@@ -314,7 +309,7 @@ class ShallowShelfDepthPhysics(AbstractPhysics[Array]):
         # Flux = H * velocity
         residual = bkd.zeros((npts,))
         for dim in range(ndim):
-            vel_component = self._velocities[dim * npts:(dim + 1) * npts]
+            vel_component = self._velocities[dim * npts : (dim + 1) * npts]
             flux = H * vel_component
             residual = residual - self._D1_matrices[dim] @ flux
 
@@ -336,7 +331,7 @@ class ShallowShelfDepthPhysics(AbstractPhysics[Array]):
             raise RuntimeError("Velocities must be set before computing Jacobian")
 
         for dim in range(ndim):
-            vel_component = self._velocities[dim * npts:(dim + 1) * npts]
+            vel_component = self._velocities[dim * npts : (dim + 1) * npts]
             jacobian = jacobian - self._D1_matrices[dim] @ bkd.diag(vel_component)
 
         return jacobian
@@ -395,9 +390,7 @@ class ShallowShelfDepthVelocityPhysics(AbstractVectorPhysics[Array]):
         eps: float = 1e-12,
     ):
         if basis.ndim() != 2:
-            raise ValueError(
-                "ShallowShelfDepthVelocityPhysics requires a 2D basis"
-            )
+            raise ValueError("ShallowShelfDepthVelocityPhysics requires a 2D basis")
 
         super().__init__(basis, bkd, ncomponents=3)
 
@@ -410,7 +403,8 @@ class ShallowShelfDepthVelocityPhysics(AbstractVectorPhysics[Array]):
             basis, bkd, forcing=depth_forcing
         )
         self._velocity_physics = ShallowShelfVelocityPhysics(
-            basis, bkd,
+            basis,
+            bkd,
             depth=initial_depth,
             bed=bed,
             friction=friction,
@@ -430,8 +424,8 @@ class ShallowShelfDepthVelocityPhysics(AbstractVectorPhysics[Array]):
         """Split state [H, u, v] into components."""
         npts = self.npts()
         H = state[:npts]
-        u = state[npts:2 * npts]
-        v = state[2 * npts:]
+        u = state[npts : 2 * npts]
+        v = state[2 * npts :]
         return H, u, v
 
     def _update_cross_dependencies(self, H: Array, u: Array, v: Array) -> None:
@@ -440,7 +434,7 @@ class ShallowShelfDepthVelocityPhysics(AbstractVectorPhysics[Array]):
         Depth physics needs current velocity for flux computation.
         Velocity physics needs current depth for stress computation.
         """
-        npts = self.npts()
+        self.npts()
         self._depth_physics.set_velocities(self._bkd.hstack([u, v]))
         self._velocity_physics.set_depth(H)
 

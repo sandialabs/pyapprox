@@ -20,16 +20,15 @@ physics coefficients and computes chain-rule Jacobians.
 
 from typing import Generic, Optional, Tuple
 
-import numpy as np
 from scipy.sparse import issparse
 
-from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.pde.galerkin.protocols.physics import (
     GalerkinPhysicsProtocol,
 )
 from pyapprox.pde.parameterizations.protocol import (
     ParameterizationProtocol,
 )
+from pyapprox.util.backends.protocols import Array, Backend
 
 
 class GalerkinPhysicsODEAdapter(Generic[Array]):
@@ -97,9 +96,7 @@ class GalerkinPhysicsODEAdapter(Generic[Array]):
             self.nparams = self._parameterization.nparams
             self.set_param = self._set_param_via_parameterization
             if hasattr(self._parameterization, "param_jacobian"):
-                self.param_jacobian = (
-                    self._param_jacobian_via_parameterization
-                )
+                self.param_jacobian = self._param_jacobian_via_parameterization
             if hasattr(self._parameterization, "initial_param_jacobian"):
                 self.initial_param_jacobian = (
                     self._initial_param_jacobian_via_parameterization
@@ -229,13 +226,12 @@ class GalerkinPhysicsODEAdapter(Generic[Array]):
         self._parameterization.apply(self._physics, param)
 
     def _param_jacobian_via_parameterization(
-        self, state: Array,
+        self,
+        state: Array,
     ) -> Array:
         """Compute parameter Jacobian through parameterization."""
         if self._current_params_1d is None:
-            raise RuntimeError(
-                "set_param() must be called before param_jacobian()"
-            )
+            raise RuntimeError("set_param() must be called before param_jacobian()")
         return self._parameterization.param_jacobian(
             self._physics, state, self._time, self._current_params_1d
         )
@@ -244,8 +240,7 @@ class GalerkinPhysicsODEAdapter(Generic[Array]):
         """Get initial condition Jacobian through parameterization."""
         if self._current_params_1d is None:
             raise RuntimeError(
-                "set_param() must be called before "
-                "initial_param_jacobian()"
+                "set_param() must be called before initial_param_jacobian()"
             )
         return self._parameterization.initial_param_jacobian(
             self._physics, self._current_params_1d
@@ -255,13 +250,9 @@ class GalerkinPhysicsODEAdapter(Generic[Array]):
     # HVP Methods (optional, from physics or parameterization)
     # =========================================================================
 
-    def _state_state_hvp(
-        self, state: Array, adj_state: Array, wvec: Array
-    ) -> Array:
+    def _state_state_hvp(self, state: Array, adj_state: Array, wvec: Array) -> Array:
         """Compute (d^2F/du^2)w contracted with adjoint."""
-        return self._physics.state_state_hvp(
-            state, adj_state, wvec, self._time
-        )
+        return self._physics.state_state_hvp(state, adj_state, wvec, self._time)
 
     def __repr__(self) -> str:
         parts = [
@@ -270,8 +261,6 @@ class GalerkinPhysicsODEAdapter(Generic[Array]):
             f"  time={self._time},\n"
         ]
         if self._parameterization is not None:
-            parts.append(
-                f"  parameterization={self._parameterization!r},\n"
-            )
+            parts.append(f"  parameterization={self._parameterization!r},\n")
         parts.append(")")
         return "".join(parts)

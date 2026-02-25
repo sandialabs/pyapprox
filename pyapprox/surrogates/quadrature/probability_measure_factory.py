@@ -11,11 +11,11 @@ input distributions in sensitivity analysis.
 
 from typing import Generic, List
 
-from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.probability.protocols import MarginalProtocol
 from pyapprox.surrogates.quadrature.tensor_product import (
     TensorProductQuadratureRule,
 )
+from pyapprox.util.backends.protocols import Array, Backend
 
 
 class ProbabilityMeasureQuadratureFactory(Generic[Array]):
@@ -87,8 +87,6 @@ class ProbabilityMeasureQuadratureFactory(Generic[Array]):
         rules = []
         for i in integrate_indices:
             marginal = self._marginals[i]
-            rules.append(
-                lambda n, m=marginal: gauss_quadrature_rule(m, n, bkd)
-            )
+            rules.append(lambda n, m=marginal: gauss_quadrature_rule(m, n, bkd))
 
         return TensorProductQuadratureRule(bkd, rules, npts)

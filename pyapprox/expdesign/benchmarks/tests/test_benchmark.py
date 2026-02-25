@@ -18,19 +18,18 @@ import numpy as np
 import torch
 from numpy.typing import NDArray
 
-from pyapprox.util.backends.numpy import NumpyBkd
-from pyapprox.util.backends.torch import TorchBkd
-from pyapprox.util.backends.protocols import Array, Backend
-from pyapprox.util.test_utils import load_tests  # noqa: F401
+from pyapprox.expdesign.benchmarks import LinearGaussianOEDBenchmark
+from pyapprox.expdesign.objective import DOptimalLinearModelObjective
 from pyapprox.interface.functions.derivative_checks.derivative_checker import (
     DerivativeChecker,
 )
 from pyapprox.interface.functions.fromcallable.hessian import (
     FunctionWithJacobianAndHVPFromCallable,
 )
-
-from pyapprox.expdesign.benchmarks import LinearGaussianOEDBenchmark
-from pyapprox.expdesign.objective import DOptimalLinearModelObjective
+from pyapprox.util.backends.numpy import NumpyBkd
+from pyapprox.util.backends.protocols import Array, Backend
+from pyapprox.util.backends.torch import TorchBkd
+from pyapprox.util.test_utils import load_tests  # noqa: F401
 
 
 class TestLinearGaussianBenchmarkStandalone(Generic[Array], unittest.TestCase):
@@ -99,7 +98,7 @@ class TestLinearGaussianBenchmarkStandalone(Generic[Array], unittest.TestCase):
         # Check each row matches [x^0, x^1, x^2]
         for i in range(self._nobs):
             xi = float(self._bkd.to_numpy(x)[i])
-            expected_row = [xi ** p for p in range(self._min_degree, self._degree + 1)]
+            expected_row = [xi**p for p in range(self._min_degree, self._degree + 1)]
             actual_row = self._bkd.to_numpy(A)[i, :]
             self._bkd.assert_allclose(
                 self._bkd.asarray(actual_row),
@@ -119,12 +118,12 @@ class TestLinearGaussianBenchmarkStandalone(Generic[Array], unittest.TestCase):
         benchmark = self._create_benchmark()
         self._bkd.assert_allclose(
             self._bkd.asarray([benchmark.noise_var()]),
-            self._bkd.asarray([self._noise_std ** 2]),
+            self._bkd.asarray([self._noise_std**2]),
             rtol=1e-12,
         )
         self._bkd.assert_allclose(
             self._bkd.asarray([benchmark.prior_var()]),
-            self._bkd.asarray([self._prior_std ** 2]),
+            self._bkd.asarray([self._prior_std**2]),
             rtol=1e-12,
         )
 

@@ -8,9 +8,7 @@ recurrence relation.
 from pyapprox.util.backends.protocols import Array, Backend
 
 
-def convert_orthonormal_to_monomials_1d(
-    rcoefs: Array, bkd: Backend[Array]
-) -> Array:
+def convert_orthonormal_to_monomials_1d(rcoefs: Array, bkd: Backend[Array]) -> Array:
     """Convert orthonormal polynomial basis to monomial coefficients.
 
     Uses the three-term recurrence to incrementally build the monomial
@@ -47,9 +45,7 @@ def convert_orthonormal_to_monomials_1d(
 
     if nmax > 0:
         monomial_coefs[1, :2] = (
-            bkd.array([-rcoefs[0, 0], 1.0])
-            * monomial_coefs[0, 0]
-            / rcoefs[1, 1]
+            bkd.array([-rcoefs[0, 0], 1.0]) * monomial_coefs[0, 0] / rcoefs[1, 1]
         )
 
     for jj in range(2, nmax + 1):
@@ -59,9 +55,7 @@ def convert_orthonormal_to_monomials_1d(
             - rcoefs[jj - 1, 1] * monomial_coefs[jj - 2, :jj]
         ) / rcoefs[jj, 1]
         # Contribution from x * psi_{j-1} (shifts coefficients up by one power)
-        monomial_coefs[jj, 1 : jj + 1] += (
-            monomial_coefs[jj - 1, :jj] / rcoefs[jj, 1]
-        )
+        monomial_coefs[jj, 1 : jj + 1] += monomial_coefs[jj - 1, :jj] / rcoefs[jj, 1]
 
     return monomial_coefs
 

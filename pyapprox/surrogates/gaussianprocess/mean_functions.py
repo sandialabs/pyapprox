@@ -7,11 +7,9 @@ Mean functions represent the prior mean m(x) before observing data.
 
 from abc import ABC, abstractmethod
 from typing import Generic, Tuple
+
 from pyapprox.util.backends.protocols import Array, Backend
-from pyapprox.util.hyperparameter import (
-    HyperParameter,
-    HyperParameterList
-)
+from pyapprox.util.hyperparameter import HyperParameter, HyperParameterList
 
 
 class MeanFunction(ABC, Generic[Array]):
@@ -213,7 +211,7 @@ class ConstantMean(MeanFunction[Array]):
         constant: float,
         constant_bounds: Tuple[float, float],
         bkd: Backend[Array],
-        fixed: bool = False
+        fixed: bool = False,
     ):
         super().__init__(bkd)
 
@@ -224,7 +222,7 @@ class ConstantMean(MeanFunction[Array]):
             [constant],
             constant_bounds,
             bkd=self._bkd,
-            fixed=fixed
+            fixed=fixed,
         )
         self._hyp_list = HyperParameterList([self._constant])
 

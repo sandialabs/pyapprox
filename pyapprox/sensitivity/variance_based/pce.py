@@ -7,18 +7,22 @@ analytically from the expansion coefficients.
 
 from typing import Generic, List, Tuple
 
-from pyapprox.util.backends.protocols import Array
-from pyapprox.surrogates.affine.protocols import PCEStatisticsProtocol
-from pyapprox.surrogates.affine.expansions.pce_statistics import (
-    mean as pce_mean,
-    variance as pce_variance,
-    main_effect_sobol_indices,
-    total_sobol_indices,
-    interaction_sobol_indices,
-)
 from pyapprox.sensitivity.variance_based.base import (
     VarianceBasedSensitivityAnalysis,
 )
+from pyapprox.surrogates.affine.expansions.pce_statistics import (
+    interaction_sobol_indices,
+    main_effect_sobol_indices,
+    total_sobol_indices,
+)
+from pyapprox.surrogates.affine.expansions.pce_statistics import (
+    mean as pce_mean,
+)
+from pyapprox.surrogates.affine.expansions.pce_statistics import (
+    variance as pce_variance,
+)
+from pyapprox.surrogates.affine.protocols import PCEStatisticsProtocol
+from pyapprox.util.backends.protocols import Array
 
 
 class PolynomialChaosSensitivityAnalysis(
@@ -54,8 +58,7 @@ class PolynomialChaosSensitivityAnalysis(
         """
         if not isinstance(pce, PCEStatisticsProtocol):
             raise TypeError(
-                "pce must satisfy PCEStatisticsProtocol, "
-                f"got {type(pce).__name__}"
+                f"pce must satisfy PCEStatisticsProtocol, got {type(pce).__name__}"
             )
         super().__init__(pce.nvars(), pce.bkd())
         self._pce = pce
@@ -137,9 +140,7 @@ class PolynomialChaosSensitivityAnalysis(
             variable_sets = []
             for jj in range(interaction_terms.shape[1]):
                 active = self._bkd.where(interaction_terms[:, jj] > 0)[0]
-                variable_sets.append(
-                    tuple(int(v) for v in self._bkd.to_numpy(active))
-                )
+                variable_sets.append(tuple(int(v) for v in self._bkd.to_numpy(active)))
 
         return interaction_sobol_indices(self._pce, variable_sets)
 

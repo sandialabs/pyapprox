@@ -17,37 +17,35 @@ import numpy as np
 import torch
 from numpy.typing import NDArray
 
-from pyapprox.util.backends.numpy import NumpyBkd
-from pyapprox.util.backends.torch import TorchBkd
-from pyapprox.util.backends.protocols import Array, Backend
-from pyapprox.util.test_utils import load_tests  # noqa: F401
-
-from pyapprox.surrogates.affine.expansions.fitters.stochastic_dominance import (
-    FSDObjective,
-    StochasticDominanceConstraint,
-    FSDFitter,
-    SSDFitter,
-)
-from pyapprox.surrogates.affine.expansions.fitters.results import (
-    DirectSolverResult,
-)
-from pyapprox.optimization.minimize.differentiable_approximations import (
-    SmoothLogBasedMaxFunction,
-    SmoothLogBasedLeftHeavisideFunction,
-)
 from pyapprox.interface.functions.derivative_checks.derivative_checker import (
     DerivativeChecker,
 )
-
-from pyapprox.surrogates.affine.univariate import create_bases_1d
+from pyapprox.optimization.minimize.differentiable_approximations import (
+    SmoothLogBasedLeftHeavisideFunction,
+    SmoothLogBasedMaxFunction,
+)
+from pyapprox.probability import UniformMarginal
+from pyapprox.probability.risk import DisutilitySSD
+from pyapprox.probability.univariate.discrete import CustomDiscreteMarginal
+from pyapprox.surrogates.affine.basis import OrthonormalPolynomialBasis
+from pyapprox.surrogates.affine.expansions import BasisExpansion
+from pyapprox.surrogates.affine.expansions.fitters.results import (
+    DirectSolverResult,
+)
+from pyapprox.surrogates.affine.expansions.fitters.stochastic_dominance import (
+    FSDFitter,
+    FSDObjective,
+    SSDFitter,
+    StochasticDominanceConstraint,
+)
 from pyapprox.surrogates.affine.indices import (
     compute_hyperbolic_indices,
 )
-from pyapprox.surrogates.affine.basis import OrthonormalPolynomialBasis
-from pyapprox.surrogates.affine.expansions import BasisExpansion
-from pyapprox.probability import UniformMarginal
-from pyapprox.probability.univariate.discrete import CustomDiscreteMarginal
-from pyapprox.probability.risk import DisutilitySSD
+from pyapprox.surrogates.affine.univariate import create_bases_1d
+from pyapprox.util.backends.numpy import NumpyBkd
+from pyapprox.util.backends.protocols import Array, Backend
+from pyapprox.util.backends.torch import TorchBkd
+from pyapprox.util.test_utils import load_tests  # noqa: F401
 
 
 class TestStochasticDominanceFitters(Generic[Array], unittest.TestCase):
@@ -187,9 +185,7 @@ class TestStochasticDominanceFitters(Generic[Array], unittest.TestCase):
         train_values = bkd.asarray(np.random.randn(nsamples, 1))
 
         smooth_func = SmoothLogBasedLeftHeavisideFunction(bkd, eps=0.5)
-        constraint = StochasticDominanceConstraint(
-            Phi, train_values, smooth_func, bkd
-        )
+        constraint = StochasticDominanceConstraint(Phi, train_values, smooth_func, bkd)
 
         coef = bkd.asarray(np.random.randn(nterms, 1))
         result = constraint(coef)
@@ -226,9 +222,7 @@ class TestStochasticDominanceFitters(Generic[Array], unittest.TestCase):
         train_values = bkd.asarray(np.random.randn(nsamples, 1))
 
         smooth_func = SmoothLogBasedLeftHeavisideFunction(bkd, eps=0.5)
-        constraint = StochasticDominanceConstraint(
-            Phi, train_values, smooth_func, bkd
-        )
+        constraint = StochasticDominanceConstraint(Phi, train_values, smooth_func, bkd)
 
         coef = bkd.asarray(np.random.randn(nterms, 1))
         jac = constraint.jacobian(coef)
@@ -243,9 +237,7 @@ class TestStochasticDominanceFitters(Generic[Array], unittest.TestCase):
         train_values = bkd.asarray(np.random.randn(nsamples, 1))
 
         smooth_func = SmoothLogBasedLeftHeavisideFunction(bkd, eps=0.5)
-        constraint = StochasticDominanceConstraint(
-            Phi, train_values, smooth_func, bkd
-        )
+        constraint = StochasticDominanceConstraint(Phi, train_values, smooth_func, bkd)
 
         coef = bkd.asarray(np.random.randn(nterms, 1))
         vec = bkd.asarray(np.random.randn(nterms, 1))
@@ -262,9 +254,7 @@ class TestStochasticDominanceFitters(Generic[Array], unittest.TestCase):
         train_values = bkd.asarray(np.random.randn(nsamples, 1))
 
         smooth_func = SmoothLogBasedLeftHeavisideFunction(bkd, eps=0.5)
-        constraint = StochasticDominanceConstraint(
-            Phi, train_values, smooth_func, bkd
-        )
+        constraint = StochasticDominanceConstraint(Phi, train_values, smooth_func, bkd)
 
         coef = bkd.asarray(np.random.randn(nterms, 1))
         h = 1e-7
@@ -293,9 +283,7 @@ class TestStochasticDominanceFitters(Generic[Array], unittest.TestCase):
         train_values = bkd.asarray(np.random.randn(nsamples, 1))
 
         smooth_func = SmoothLogBasedLeftHeavisideFunction(bkd, eps=0.5)
-        constraint = StochasticDominanceConstraint(
-            Phi, train_values, smooth_func, bkd
-        )
+        constraint = StochasticDominanceConstraint(Phi, train_values, smooth_func, bkd)
 
         coef = bkd.asarray(np.random.randn(nterms, 1))
         vec = bkd.asarray(np.random.randn(nterms, 1))
@@ -315,9 +303,7 @@ class TestStochasticDominanceFitters(Generic[Array], unittest.TestCase):
         weighted_jac_minus = bkd.dot(weights.T, jac_minus)  # (1, nterms)
         fd_whvp = (weighted_jac_plus - weighted_jac_minus) / (2 * h)
 
-        bkd.assert_allclose(
-            analytical_whvp.T, fd_whvp, rtol=1e-4, atol=1e-10
-        )
+        bkd.assert_allclose(analytical_whvp.T, fd_whvp, rtol=1e-4, atol=1e-10)
 
     def test_constraint_accessors(self) -> None:
         """Constraint accessors return correct values."""
@@ -327,9 +313,7 @@ class TestStochasticDominanceFitters(Generic[Array], unittest.TestCase):
         train_values = bkd.asarray(np.random.randn(nsamples, 1))
 
         smooth_func = SmoothLogBasedLeftHeavisideFunction(bkd, eps=0.5)
-        constraint = StochasticDominanceConstraint(
-            Phi, train_values, smooth_func, bkd
-        )
+        constraint = StochasticDominanceConstraint(Phi, train_values, smooth_func, bkd)
 
         self.assertEqual(constraint.nvars(), nterms)
         self.assertEqual(constraint.nqoi(), nsamples)
@@ -652,8 +636,8 @@ class TestStochasticDominanceFitters(Generic[Array], unittest.TestCase):
 
         # FSD should generally produce higher (more conservative) predictions
         # Check that mean of FSD is >= mean of SSD
-        fsd_mean = float(bkd.mean(fsd_preds))
-        ssd_mean = float(bkd.mean(ssd_preds))
+        float(bkd.mean(fsd_preds))
+        float(bkd.mean(ssd_preds))
 
         # FSD is often more conservative but this depends on the problem
         # At minimum, both should run without error and produce valid predictions
@@ -722,9 +706,7 @@ class TestStochasticDominanceFitters(Generic[Array], unittest.TestCase):
         self.assertEqual(predictions.shape, (1, nsamples))
 
 
-class TestStochasticDominanceFittersNumpy(
-    TestStochasticDominanceFitters[NDArray[Any]]
-):
+class TestStochasticDominanceFittersNumpy(TestStochasticDominanceFitters[NDArray[Any]]):
     """NumPy backend tests."""
 
     __test__ = True
@@ -733,9 +715,7 @@ class TestStochasticDominanceFittersNumpy(
         return NumpyBkd()
 
 
-class TestStochasticDominanceFittersTorch(
-    TestStochasticDominanceFitters[torch.Tensor]
-):
+class TestStochasticDominanceFittersTorch(TestStochasticDominanceFitters[torch.Tensor]):
     """PyTorch backend tests."""
 
     __test__ = True

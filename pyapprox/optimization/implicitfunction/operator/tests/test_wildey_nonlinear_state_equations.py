@@ -1,25 +1,26 @@
-from typing import Generic, Any
 import unittest
-import numpy as np
-from numpy.typing import NDArray
-import torch
+from typing import Any, Generic
 
-from pyapprox.util.backends.protocols import Array, Backend
-from pyapprox.util.backends.numpy import NumpyBkd
-from pyapprox.util.backends.torch import TorchBkd
-from pyapprox.optimization.implicitfunction.benchmarks.wildeys_nonlinear_state_equation import (
+import numpy as np
+import torch
+from numpy.typing import NDArray
+
+from pyapprox.optimization.implicitfunction.benchmarks.wildeys_nonlinear_state_equation import (  # noqa: E501
     NonLinearCoupledStateEquations,
 )
 from pyapprox.optimization.implicitfunction.functionals.weighted_sum import (
     WeightedSumFunctional,
 )
-from pyapprox.optimization.implicitfunction.operator.operator_with_hvp import (
-    AdjointOperatorWithJacobianAndHVP,
-)
 from pyapprox.optimization.implicitfunction.operator.check_derivatives import (
     ImplicitFunctionDerivativeChecker,
 )
+from pyapprox.optimization.implicitfunction.operator.operator_with_hvp import (
+    AdjointOperatorWithJacobianAndHVP,
+)
 from pyapprox.optimization.rootfinding.newton import NewtonSolverOptions
+from pyapprox.util.backends.numpy import NumpyBkd
+from pyapprox.util.backends.protocols import Array, Backend
+from pyapprox.util.backends.torch import TorchBkd
 
 
 class TestNonLinearCoupledEquations(Generic[Array], unittest.TestCase):
@@ -33,9 +34,7 @@ class TestNonLinearCoupledEquations(Generic[Array], unittest.TestCase):
         Override this method in derived classes to provide the specific
         backend.
         """
-        raise NotImplementedError(
-            "Derived classes must implement this method."
-        )
+        raise NotImplementedError("Derived classes must implement this method.")
 
     def test_state_equation_solution(self) -> None:
         """
@@ -84,9 +83,7 @@ class TestNonLinearCoupledEquations(Generic[Array], unittest.TestCase):
 
 
 # Derived test class for NumPy backend
-class TestNonLinearCoupledEquationsNumpy(
-    TestNonLinearCoupledEquations[NDArray[Any]]
-):
+class TestNonLinearCoupledEquationsNumpy(TestNonLinearCoupledEquations[NDArray[Any]]):
     def setUp(self) -> None:
         self._bkd = NumpyBkd()
         super().setUp()
@@ -96,9 +93,7 @@ class TestNonLinearCoupledEquationsNumpy(
 
 
 # Derived test class for PyTorch backend
-class TestNonLinearCoupledEquationsTorch(
-    TestNonLinearCoupledEquations[torch.Tensor]
-):
+class TestNonLinearCoupledEquationsTorch(TestNonLinearCoupledEquations[torch.Tensor]):
     def setUp(self) -> None:
         torch.set_default_dtype(torch.float64)
         self._bkd = TorchBkd()
@@ -109,9 +104,7 @@ class TestNonLinearCoupledEquationsTorch(
 
 
 # Custom test loader to exclude the base class
-def load_tests(
-    loader: unittest.TestLoader, tests, pattern: str
-) -> unittest.TestSuite:
+def load_tests(loader: unittest.TestLoader, tests, pattern: str) -> unittest.TestSuite:
     """
     Custom test loader to exclude the base class
     ContinuousScipyRandomVariable1D.

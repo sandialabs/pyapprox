@@ -3,30 +3,29 @@
 import unittest
 from typing import Any, Generic
 
-import numpy as np
-from numpy.typing import NDArray
 import torch
+from numpy.typing import NDArray
 
-from pyapprox.util.backends.protocols import Array, Backend
-from pyapprox.util.backends.numpy import NumpyBkd
-from pyapprox.util.backends.torch import TorchBkd
-from pyapprox.util.test_utils import load_tests  # noqa: F401
-from pyapprox.interface.functions.protocols import (
-    FunctionProtocol,
-    FunctionWithJacobianProtocol,
-)
 from pyapprox.interface.functions.derivative_checks.derivative_checker import (
     DerivativeChecker,
 )
 from pyapprox.interface.functions.fromcallable.jacobian import (
     FunctionWithJacobianFromCallable,
 )
-from pyapprox.pde.zoo.elastic_bar_1d import (
-    create_linear_elastic_bar_1d,
+from pyapprox.interface.functions.protocols import (
+    FunctionProtocol,
+    FunctionWithJacobianProtocol,
 )
 from pyapprox.pde.field_maps.kle_factory import (
     create_lognormal_kle_field_map,
 )
+from pyapprox.pde.zoo.elastic_bar_1d import (
+    create_linear_elastic_bar_1d,
+)
+from pyapprox.util.backends.numpy import NumpyBkd
+from pyapprox.util.backends.protocols import Array, Backend
+from pyapprox.util.backends.torch import TorchBkd
+from pyapprox.util.test_utils import load_tests  # noqa: F401
 
 
 def _make_kle_field_map(bkd, mesh, num_kle_terms=2):
@@ -40,8 +39,11 @@ def _make_kle_field_map(bkd, mesh, num_kle_terms=2):
     mesh_coords = (physical_pts - x_min) / length  # (1, npts)
     mean_log = bkd.zeros((npts,))
     return create_lognormal_kle_field_map(
-        mesh_coords, mean_log, bkd,
-        num_kle_terms=num_kle_terms, sigma=0.3,
+        mesh_coords,
+        mean_log,
+        bkd,
+        num_kle_terms=num_kle_terms,
+        sigma=0.3,
     )
 
 
@@ -61,15 +63,17 @@ class TestElasticBar1D(Generic[Array], unittest.TestCase):
         length = 2.0
         E_val = 3.0
 
+        from pyapprox.pde.collocation.basis import ChebyshevBasis1D
+        from pyapprox.pde.collocation.boundary import (
+            flux_neumann_bc,
+            zero_dirichlet_bc,
+        )
         from pyapprox.pde.collocation.manufactured_solutions import (
             ManufacturedAdvectionDiffusionReaction,
         )
         from pyapprox.pde.collocation.mesh import (
-            AffineTransform1D, TransformedMesh1D,
-        )
-        from pyapprox.pde.collocation.basis import ChebyshevBasis1D
-        from pyapprox.pde.collocation.boundary import (
-            flux_neumann_bc, zero_dirichlet_bc,
+            AffineTransform1D,
+            TransformedMesh1D,
         )
         from pyapprox.pde.collocation.physics.advection_diffusion import (
             AdvectionDiffusionReaction,
@@ -98,7 +102,10 @@ class TestElasticBar1D(Generic[Array], unittest.TestCase):
         forcing = man_sol.functions["forcing"](nodes)
 
         physics = AdvectionDiffusionReaction(
-            basis, bkd, diffusion=E_val, forcing=lambda t: forcing,
+            basis,
+            bkd,
+            diffusion=E_val,
+            forcing=lambda t: forcing,
         )
 
         # Left: Dirichlet u(0) = 0
@@ -109,10 +116,16 @@ class TestElasticBar1D(Generic[Array], unittest.TestCase):
         right_idx = mesh.boundary_indices(1)
         right_normals = mesh.boundary_normals(1)
         neumann_val = man_sol.neumann_values(
-            nodes[:, right_idx], right_normals, convention="flux",
+            nodes[:, right_idx],
+            right_normals,
+            convention="flux",
         )
         bc_right = flux_neumann_bc(
-            bkd, right_idx, right_normals, physics, neumann_val,
+            bkd,
+            right_idx,
+            right_normals,
+            physics,
+            neumann_val,
         )
 
         physics.set_boundary_conditions([bc_left, bc_right])
@@ -128,15 +141,17 @@ class TestElasticBar1D(Generic[Array], unittest.TestCase):
         length = 1.0
         E_val = 2.0
 
+        from pyapprox.pde.collocation.basis import ChebyshevBasis1D
+        from pyapprox.pde.collocation.boundary import (
+            flux_neumann_bc,
+            zero_dirichlet_bc,
+        )
         from pyapprox.pde.collocation.manufactured_solutions import (
             ManufacturedAdvectionDiffusionReaction,
         )
         from pyapprox.pde.collocation.mesh import (
-            AffineTransform1D, TransformedMesh1D,
-        )
-        from pyapprox.pde.collocation.basis import ChebyshevBasis1D
-        from pyapprox.pde.collocation.boundary import (
-            flux_neumann_bc, zero_dirichlet_bc,
+            AffineTransform1D,
+            TransformedMesh1D,
         )
         from pyapprox.pde.collocation.physics.advection_diffusion import (
             AdvectionDiffusionReaction,
@@ -161,7 +176,10 @@ class TestElasticBar1D(Generic[Array], unittest.TestCase):
         forcing = man_sol.functions["forcing"](nodes)
 
         physics = AdvectionDiffusionReaction(
-            basis, bkd, diffusion=E_val, forcing=lambda t: forcing,
+            basis,
+            bkd,
+            diffusion=E_val,
+            forcing=lambda t: forcing,
         )
 
         left_idx = mesh.boundary_indices(0)
@@ -170,20 +188,31 @@ class TestElasticBar1D(Generic[Array], unittest.TestCase):
         right_idx = mesh.boundary_indices(1)
         right_normals = mesh.boundary_normals(1)
         neumann_val = man_sol.neumann_values(
-            nodes[:, right_idx], right_normals, convention="flux",
+            nodes[:, right_idx],
+            right_normals,
+            convention="flux",
         )
         bc_right = flux_neumann_bc(
-            bkd, right_idx, right_normals, physics, neumann_val,
+            bkd,
+            right_idx,
+            right_normals,
+            physics,
+            neumann_val,
         )
 
         physics.set_boundary_conditions([bc_left, bc_right])
 
         residual = physics.residual(u_exact, 0.0)
         residual_bc, _ = physics.apply_boundary_conditions(
-            residual, physics.jacobian(u_exact, 0.0), u_exact, 0.0,
+            residual,
+            physics.jacobian(u_exact, 0.0),
+            u_exact,
+            0.0,
         )
         bkd.assert_allclose(
-            residual_bc, bkd.zeros((npts,)), atol=1e-10,
+            residual_bc,
+            bkd.zeros((npts,)),
+            atol=1e-10,
         )
 
     def test_constant_E_analytical(self):
@@ -195,12 +224,14 @@ class TestElasticBar1D(Generic[Array], unittest.TestCase):
         f_val = 2.0
         T_val = 3.0
 
-        from pyapprox.pde.collocation.mesh import (
-            AffineTransform1D, TransformedMesh1D,
-        )
         from pyapprox.pde.collocation.basis import ChebyshevBasis1D
         from pyapprox.pde.collocation.boundary import (
-            flux_neumann_bc, zero_dirichlet_bc,
+            flux_neumann_bc,
+            zero_dirichlet_bc,
+        )
+        from pyapprox.pde.collocation.mesh import (
+            AffineTransform1D,
+            TransformedMesh1D,
         )
         from pyapprox.pde.collocation.physics.advection_diffusion import (
             AdvectionDiffusionReaction,
@@ -218,16 +249,20 @@ class TestElasticBar1D(Generic[Array], unittest.TestCase):
         u_exact = f_val * x * (2.0 * length - x) / (2.0 * E_val) + T_val * x / E_val
 
         physics = AdvectionDiffusionReaction(
-            basis, bkd, diffusion=E_val,
+            basis,
+            bkd,
+            diffusion=E_val,
             forcing=lambda t: f_val * bkd.ones((npts,)),
         )
         left_idx = mesh.boundary_indices(0)
         right_idx = mesh.boundary_indices(1)
         right_normals = mesh.boundary_normals(1)
-        physics.set_boundary_conditions([
-            zero_dirichlet_bc(bkd, left_idx),
-            flux_neumann_bc(bkd, right_idx, right_normals, physics, -T_val),
-        ])
+        physics.set_boundary_conditions(
+            [
+                zero_dirichlet_bc(bkd, left_idx),
+                flux_neumann_bc(bkd, right_idx, right_normals, physics, -T_val),
+            ]
+        )
 
         model = CollocationModel(physics, bkd)
         u_num = model.solve_steady(bkd.zeros((npts,)), tol=2e-12, maxiter=50)
@@ -241,7 +276,8 @@ class TestElasticBar1D(Generic[Array], unittest.TestCase):
         num_kle_terms = 2
 
         from pyapprox.pde.collocation.mesh import (
-            AffineTransform1D, TransformedMesh1D,
+            AffineTransform1D,
+            TransformedMesh1D,
         )
 
         transform = AffineTransform1D((0.0, length), bkd)
@@ -282,7 +318,8 @@ class TestElasticBar1D(Generic[Array], unittest.TestCase):
         num_kle_terms = 2
 
         from pyapprox.pde.collocation.mesh import (
-            AffineTransform1D, TransformedMesh1D,
+            AffineTransform1D,
+            TransformedMesh1D,
         )
 
         transform = AffineTransform1D((0.0, length), bkd)
@@ -314,7 +351,8 @@ class TestElasticBar1D(Generic[Array], unittest.TestCase):
         length = 1.0
 
         from pyapprox.pde.collocation.mesh import (
-            AffineTransform1D, TransformedMesh1D,
+            AffineTransform1D,
+            TransformedMesh1D,
         )
 
         transform = AffineTransform1D((0.0, length), bkd)

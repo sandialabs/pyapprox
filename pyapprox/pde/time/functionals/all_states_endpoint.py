@@ -148,9 +148,7 @@ class AllStatesEndpointFunctional(Generic[Array]):
         """Compute (d^2Q/dp dy)·w. Zero for linear functional."""
         return self._bkd.zeros((self._nparams, 1))
 
-    def param_param_hvp(
-        self, sol: Array, param: Array, vvec: Array
-    ) -> Array:
+    def param_param_hvp(self, sol: Array, param: Array, vvec: Array) -> Array:
         """Compute (d^2Q/dp^2)·v. Zero for linear functional."""
         return self._bkd.zeros((self._nparams, 1))
 

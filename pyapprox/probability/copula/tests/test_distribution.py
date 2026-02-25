@@ -7,15 +7,15 @@ import numpy as np
 import torch
 from numpy.typing import NDArray
 
-from pyapprox.util.backends.protocols import Array, Backend
-from pyapprox.util.backends.numpy import NumpyBkd
-from pyapprox.util.backends.torch import TorchBkd
 from pyapprox.probability.copula.correlation.cholesky import (
     CholeskyCorrelationParameterization,
 )
-from pyapprox.probability.copula.gaussian import GaussianCopula
 from pyapprox.probability.copula.distribution import CopulaDistribution
+from pyapprox.probability.copula.gaussian import GaussianCopula
 from pyapprox.probability.univariate.gaussian import GaussianMarginal
+from pyapprox.util.backends.numpy import NumpyBkd
+from pyapprox.util.backends.protocols import Array, Backend
+from pyapprox.util.backends.torch import TorchBkd
 from pyapprox.util.test_utils import load_tests  # noqa: F401
 
 
@@ -43,9 +43,7 @@ class TestCopulaDistribution(Generic[Array], unittest.TestCase):
             GaussianMarginal(0.0, 2.0, self._bkd),
         ]
 
-        self._dist = CopulaDistribution(
-            self._copula, self._marginals, self._bkd
-        )
+        self._dist = CopulaDistribution(self._copula, self._marginals, self._bkd)
 
     def test_logpdf_decomposes(self) -> None:
         """Verify logpdf = copula.logpdf(u) + sum marginal.logpdf(x_i)."""
@@ -85,12 +83,8 @@ class TestCopulaDistribution(Generic[Array], unittest.TestCase):
         for i in range(self._nvars):
             empirical_mean = np.mean(samples_np[i])
             empirical_std = np.std(samples_np[i])
-            np.testing.assert_allclose(
-                empirical_mean, expected_means[i], atol=0.1
-            )
-            np.testing.assert_allclose(
-                empirical_std, expected_stds[i], atol=0.1
-            )
+            np.testing.assert_allclose(empirical_mean, expected_means[i], atol=0.1)
+            np.testing.assert_allclose(empirical_std, expected_stds[i], atol=0.1)
 
     def test_sample_correlation_structure(self) -> None:
         """For Gaussian copula + Gaussian marginals, correlation matches."""

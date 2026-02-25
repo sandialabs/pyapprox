@@ -19,9 +19,9 @@ Functions (from functions submodule):
 """
 
 from pyapprox.interface.wrappers import (
-    WorkTracker,
-    TrackedModel,
     FiniteDifferenceWrapper,
+    TrackedModel,
+    WorkTracker,
 )
 
 __all__ = [
@@ -45,9 +45,12 @@ def __getattr__(name: str):
     """
     if name in ("UMBridgeModel", "UMBRIDGE_AVAILABLE"):
         from pyapprox.interface.umbridge import (
-            UMBridgeModel as _UMBridgeModel,
             UMBRIDGE_AVAILABLE as _UMBRIDGE_AVAILABLE,
         )
+        from pyapprox.interface.umbridge import (
+            UMBridgeModel as _UMBridgeModel,
+        )
+
         globals()["UMBridgeModel"] = _UMBridgeModel
         globals()["UMBRIDGE_AVAILABLE"] = _UMBRIDGE_AVAILABLE
         return globals()[name]

@@ -10,11 +10,11 @@ All satisfy ParameterizedFunctionalWithJacobianProtocol.
 
 from typing import Generic
 
-from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.pde.collocation.post_processing.stress import (
     HyperelasticStressPostProcessor2D,
     StressPostProcessor2D,
 )
+from pyapprox.util.backends.protocols import Array, Backend
 
 
 class OuterWallRadialDisplacementFunctional(Generic[Array]):
@@ -195,7 +195,6 @@ class AverageHoopStressFunctional(Generic[Array]):
         -------
         Array, shape (1, 2*npts)
         """
-        bkd = self._bkd
         dstt_dstate = self._proc.hoop_stress_state_jacobian()  # (npts, 2*npts)
         # (1, npts) @ (npts, 2*npts) -> (1, 2*npts)
         return self._inv_area * (self._weights[None, :] @ dstt_dstate)
@@ -291,7 +290,6 @@ class HyperelasticAverageHoopStressFunctional(Generic[Array]):
         -------
         Array, shape (1, 2*npts)
         """
-        bkd = self._bkd
         dstt_dstate = self._proc.hoop_stress_state_jacobian(
             state[:, 0],
         )  # (npts, 2*npts)
@@ -386,7 +384,6 @@ class StrainEnergyFunctional2D(Generic[Array]):
         -------
         Array, shape (1, 2*npts)
         """
-        bkd = self._bkd
         dpsi = self._proc.strain_energy_density_state_jacobian(
             state[:, 0],
         )  # (npts, 2*npts)

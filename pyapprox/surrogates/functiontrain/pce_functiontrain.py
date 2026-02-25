@@ -8,13 +8,13 @@ This module provides:
 
 from typing import Generic, List, Sequence, Union
 
-from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.surrogates.affine.protocols import BasisExpansionProtocol
 from pyapprox.surrogates.functiontrain.core import FunctionTrainCore
 from pyapprox.surrogates.functiontrain.functiontrain import FunctionTrain
 from pyapprox.surrogates.functiontrain.pce_core import (
     PCEFunctionTrainCore,
 )
+from pyapprox.util.backends.protocols import Array, Backend
 
 
 class PCEFunctionTrain(Generic[Array]):
@@ -52,9 +52,7 @@ class PCEFunctionTrain(Generic[Array]):
 
     def __init__(self, ft: FunctionTrain[Array]) -> None:
         if not isinstance(ft, FunctionTrain):
-            raise TypeError(
-                f"Expected FunctionTrain, got {type(ft).__name__}"
-            )
+            raise TypeError(f"Expected FunctionTrain, got {type(ft).__name__}")
         if ft.nqoi() != 1:
             raise ValueError(
                 f"PCEFunctionTrain only supports nqoi=1, got nqoi={ft.nqoi()}"
@@ -160,7 +158,8 @@ def create_uniform_pce_functiontrain(
     >>> basis = OrthonormalPolynomialBasis(bases_1d, bkd, indices)
     >>> pce_template = BasisExpansion(basis, bkd, nqoi=1)
     >>>
-    >>> ft = create_uniform_pce_functiontrain(pce_template, nvars=3, ranks=[2, 2], bkd=bkd)
+    >>> ft = create_uniform_pce_functiontrain(pce_template, nvars=3, ranks=[2, 2],
+    bkd=bkd)
     """
     import numpy as np
 
@@ -190,9 +189,7 @@ def create_uniform_pce_functiontrain(
             for _ in range(r_right):
                 # Create fresh copy with small random coefficients
                 if init_scale > 0:
-                    init_params = bkd.asarray(
-                        np.random.randn(nterms) * init_scale
-                    )
+                    init_params = bkd.asarray(np.random.randn(nterms) * init_scale)
                 else:
                     init_params = bkd.zeros((nterms,))
                 pce = univariate_expansion_factory.with_params(init_params)
@@ -262,18 +259,19 @@ def create_pce_functiontrain(
     >>> ft = create_pce_functiontrain(marginals, max_level=5, ranks=[2, 2], bkd=bkd)
 
     >>> # Per-core polynomial degrees
-    >>> ft = create_pce_functiontrain(marginals, max_level=[3, 5, 4], ranks=[2, 2], bkd=bkd)
+    >>> ft = create_pce_functiontrain(marginals, max_level=[3, 5, 4], ranks=[2, 2],
+    bkd=bkd)
     """
     import numpy as np
 
-    from pyapprox.surrogates.affine.univariate import create_bases_1d
-    from pyapprox.surrogates.affine.indices import (
-        compute_hyperbolic_indices,
-    )
     from pyapprox.surrogates.affine.basis import (
         OrthonormalPolynomialBasis,
     )
     from pyapprox.surrogates.affine.expansions import BasisExpansion
+    from pyapprox.surrogates.affine.indices import (
+        compute_hyperbolic_indices,
+    )
+    from pyapprox.surrogates.affine.univariate import create_bases_1d
 
     nvars = len(marginals)
     if nvars == 0:
@@ -318,9 +316,7 @@ def create_pce_functiontrain(
             for _ in range(r_right):
                 # Create fresh copy with small random coefficients
                 if init_scale > 0:
-                    init_params = bkd.asarray(
-                        np.random.randn(nterms) * init_scale
-                    )
+                    init_params = bkd.asarray(np.random.randn(nterms) * init_scale)
                 else:
                     init_params = bkd.zeros((nterms,))
                 pce = BasisExpansion(basis, bkd, nqoi=1).with_params(init_params)

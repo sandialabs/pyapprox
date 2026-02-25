@@ -36,8 +36,9 @@ def _compute_roots_of_characteristic_equation(
     omega : ndarray, shape (nvars,)
         Roots of the characteristic equation.
     """
+
     def func(w):
-        return (corr_len ** 2 * w ** 2 - 1.0) * np.sin(
+        return (corr_len**2 * w**2 - 1.0) * np.sin(
             w * dom_len
         ) - 2 * corr_len * w * np.cos(w * dom_len)
 
@@ -50,12 +51,10 @@ def _compute_roots_of_characteristic_equation(
     fw = func(w)
     fw_sign = np.sign(fw)
     signchange = ((np.roll(fw_sign, -1) - fw_sign) != 0).astype(int)
-    I = np.where(signchange)[0]
-    wI = w[I]
-    if I.shape[0] < nvars + 1:
-        raise RuntimeError(
-            f"Not enough roots found. Increase maxw (currently {maxw})."
-        )
+    idx = np.where(signchange)[0]
+    wI = w[idx]
+    if idx.shape[0] < nvars + 1:
+        raise RuntimeError(f"Not enough roots found. Increase maxw (currently {maxw}).")
 
     prev_root = 0
     for ii in range(nvars):
@@ -119,15 +118,10 @@ def _exponential_kle_basis(
     npts = x.shape[0]
     basis_vals = np.empty((npts, nvars), float)
     for jj in range(nvars):
-        bn = 1 / (
-            (corr_len ** 2 * omega[jj] ** 2 + 1) * dom_len / 2.0
-            + corr_len
-        )
+        bn = 1 / ((corr_len**2 * omega[jj] ** 2 + 1) * dom_len / 2.0 + corr_len)
         bn = np.sqrt(bn)
         an = corr_len * omega[jj] * bn
-        basis_vals[:, jj] = an * np.cos(omega[jj] * x) + bn * np.sin(
-            omega[jj] * x
-        )
+        basis_vals[:, jj] = an * np.cos(omega[jj] * x) + bn * np.sin(omega[jj] * x)
     return basis_vals
 
 
@@ -169,9 +163,7 @@ class AnalyticalExponentialKLE1D:
         self._omega = _compute_roots_of_characteristic_equation(
             corr_len, nterms, dom_len, maxw=maxw
         )
-        self._eig_vals = _exponential_kle_eigenvalues(
-            sigma2, corr_len, self._omega
-        )
+        self._eig_vals = _exponential_kle_eigenvalues(sigma2, corr_len, self._omega)
         self._basis_vals = None
 
     def eigenvalues(self) -> np.ndarray:
@@ -192,7 +184,6 @@ class AnalyticalExponentialKLE1D:
             Basis function values.
         """
         self._basis_vals = _exponential_kle_basis(
-            mesh_1d, self._corr_len, self._sigma2,
-            self._dom_len, self._omega
+            mesh_1d, self._corr_len, self._sigma2, self._dom_len, self._omega
         )
         return self._basis_vals

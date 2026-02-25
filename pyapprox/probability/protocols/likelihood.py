@@ -14,12 +14,12 @@ VectorizedLogLikelihoodProtocol
     Supports batched evaluation for OED.
 """
 
-from typing import Protocol, Generic, runtime_checkable
+from typing import Generic, Protocol, runtime_checkable
 
-from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.probability.protocols.covariance import (
     SqrtCovarianceOperatorProtocol,
 )
+from pyapprox.util.backends.protocols import Array, Backend
 
 
 @runtime_checkable
@@ -107,17 +107,13 @@ class GaussianLogLikelihoodProtocol(Protocol, Generic[Array]):
         Set weights for experimental design.
     """
 
-    def bkd(self) -> Backend[Array]:
-        ...
+    def bkd(self) -> Backend[Array]: ...
 
-    def set_observations(self, obs: Array) -> None:
-        ...
+    def set_observations(self, obs: Array) -> None: ...
 
-    def logpdf(self, model_outputs: Array) -> Array:
-        ...
+    def logpdf(self, model_outputs: Array) -> Array: ...
 
-    def nobs(self) -> int:
-        ...
+    def nobs(self) -> int: ...
 
     def noise_covariance_operator(self) -> SqrtCovarianceOperatorProtocol[Array]:
         """
@@ -179,12 +175,9 @@ class VectorizedLogLikelihoodProtocol(Protocol, Generic[Array]):
         Batched log-likelihood evaluation.
     """
 
-    def bkd(self) -> Backend[Array]:
-        ...
+    def bkd(self) -> Backend[Array]: ...
 
-    def logpdf_vectorized(
-        self, model_outputs: Array, observations: Array
-    ) -> Array:
+    def logpdf_vectorized(self, model_outputs: Array, observations: Array) -> Array:
         """
         Batched log-likelihood evaluation.
 

@@ -6,27 +6,24 @@ This module tests the derivative checking functionality at three levels:
 2. Time residual functions
 3. Full HVP accumulation
 """
-import unittest
-import numpy as np
 
-from pyapprox.util.backends.numpy import NumpyBkd
+import unittest
+
 from pyapprox.optimization.rootfinding.newton import NewtonSolver
 from pyapprox.pde.time.benchmarks.linear_ode import (
     LinearODEResidual,
     QuadraticODEResidual,
 )
 from pyapprox.pde.time.explicit_steppers.heun import HeunResidual
-from pyapprox.pde.time.explicit_steppers.forward_euler import (
-    ForwardEulerResidual,
-)
-from pyapprox.pde.time.implicit_steppers.integrator import TimeIntegrator
 from pyapprox.pde.time.functionals.endpoint import EndpointFunctional
-from pyapprox.pde.time.operator.time_adjoint_hvp import (
-    TimeAdjointOperatorWithHVP,
-)
+from pyapprox.pde.time.implicit_steppers.integrator import TimeIntegrator
 from pyapprox.pde.time.operator.check_derivatives import (
     TimeAdjointDerivativeChecker,
 )
+from pyapprox.pde.time.operator.time_adjoint_hvp import (
+    TimeAdjointOperatorWithHVP,
+)
+from pyapprox.util.backends.numpy import NumpyBkd
 
 
 class TestTimeAdjointDerivativeChecker(unittest.TestCase):
@@ -163,13 +160,11 @@ class TestTimeAdjointDerivativeChecker(unittest.TestCase):
 
         init_state = self._bkd.asarray([1.0, 0.5])
         param = self._bkd.asarray([[0.1], [0.2]])
-        adj_state = self._bkd.asarray([1.0, 0.0])
+        self._bkd.asarray([1.0, 0.0])
 
         # Check at t=0, t=dt, t=2*dt
         for t in [0.0, self._deltat, 2 * self._deltat]:
-            operator._integrator._newton_solver._residual._residual.set_param(
-                param
-            )
+            operator._integrator._newton_solver._residual._residual.set_param(param)
 
             errors = checker.check_ode_jacobian(init_state, time=t, verbosity=0)
             min_err = float(self._bkd.min(errors))

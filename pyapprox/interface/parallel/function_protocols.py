@@ -206,9 +206,7 @@ class ParallelFunctionWithWHVPProtocol(Protocol, Generic[Array]):
         """
         ...
 
-    def whvp_batch(
-        self, samples: Array, vecs: Array, weights: Array
-    ) -> Array:
+    def whvp_batch(self, samples: Array, vecs: Array, weights: Array) -> Array:
         """Compute weighted HVPs at multiple samples.
 
         Parameters

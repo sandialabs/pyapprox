@@ -7,19 +7,18 @@ the linearity of the BasisExpansion vector field.
 import copy
 from typing import Generic
 
-from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.optimization.linear import LeastSquaresSolver
-
-from pyapprox.surrogates.flowmatching.protocols import (
-    ProbabilityPathProtocol,
-)
 from pyapprox.surrogates.flowmatching.cfm_loss import CFMLoss
-from pyapprox.surrogates.flowmatching.quad_data import (
-    FlowMatchingQuadData,
-)
 from pyapprox.surrogates.flowmatching.fitters.results import (
     FlowMatchingFitResult,
 )
+from pyapprox.surrogates.flowmatching.protocols import (
+    ProbabilityPathProtocol,
+)
+from pyapprox.surrogates.flowmatching.quad_data import (
+    FlowMatchingQuadData,
+)
+from pyapprox.util.backends.protocols import Array, Backend
 
 
 class LeastSquaresFitter(Generic[Array]):
@@ -91,8 +90,7 @@ class LeastSquaresFitter(Generic[Array]):
         w_t = loss.weight()(t)  # (1, n_quad)
         combined_w = qd.weights() * w_t[0, :]
         assert combined_w.shape == (qd.n_quad(),), (
-            f"Expected combined weights shape ({qd.n_quad()},), "
-            f"got {combined_w.shape}"
+            f"Expected combined weights shape ({qd.n_quad()},), got {combined_w.shape}"
         )
 
         # Solve via BasisExpansion.fit() with weighted solver
@@ -101,9 +99,7 @@ class LeastSquaresFitter(Generic[Array]):
         fitted_vf.fit(vf_input, u_t, solver=solver)  # type: ignore[union-attr]
 
         # Compute final loss
-        final_loss_val = loss(
-            fitted_vf, path, t, x0, x1, qd.weights(), qd.c()
-        )
+        final_loss_val = loss(fitted_vf, path, t, x0, x1, qd.weights(), qd.c())
         final_loss = float(bkd.to_numpy(bkd.reshape(final_loss_val, (1,)))[0])
 
         return FlowMatchingFitResult(

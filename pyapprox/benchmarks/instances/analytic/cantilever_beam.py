@@ -4,15 +4,15 @@ Provides the analytical 1D cantilever beam model as a benchmark with
 Beta marginals for the Young's moduli E1 (skin) and E2 (core).
 """
 
-from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.benchmarks.benchmark import BenchmarkWithPrior, BoxDomain
-from pyapprox.benchmarks.ground_truth import SensitivityGroundTruth
-from pyapprox.benchmarks.registry import BenchmarkRegistry
 from pyapprox.benchmarks.functions.algebraic.cantilever_beam import (
     CantileverBeam1DAnalytical,
 )
-from pyapprox.probability.univariate.beta import BetaMarginal
+from pyapprox.benchmarks.ground_truth import SensitivityGroundTruth
+from pyapprox.benchmarks.registry import BenchmarkRegistry
 from pyapprox.probability.joint.independent import IndependentJoint
+from pyapprox.probability.univariate.beta import BetaMarginal
+from pyapprox.util.backends.protocols import Array, Backend
 
 
 def cantilever_beam_1d_analytical(
@@ -47,8 +47,11 @@ def cantilever_beam_1d_analytical(
         Benchmark instance.
     """
     func = CantileverBeam1DAnalytical(
-        length=length, height=height, skin_thickness=skin_thickness,
-        q0=q0, bkd=bkd,
+        length=length,
+        height=height,
+        skin_thickness=skin_thickness,
+        q0=q0,
+        bkd=bkd,
     )
 
     # Beta(2,5) marginals on [18000, 22000] for E1, [4500, 5500] for E2
@@ -70,8 +73,7 @@ def cantilever_beam_1d_analytical(
         _ground_truth=SensitivityGroundTruth(),
         _prior=prior,
         _description=(
-            "Analytical 1D cantilever beam: (E1, E2) -> "
-            "[tip deflection, max curvature]"
+            "Analytical 1D cantilever beam: (E1, E2) -> [tip deflection, max curvature]"
         ),
     )
 

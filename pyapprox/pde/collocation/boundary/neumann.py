@@ -11,7 +11,7 @@ is primarily for documentation and to compute appropriate g values from
 manufactured solutions.
 """
 
-from typing import Generic, Callable, Optional, Union
+from typing import Callable, Generic, Optional, Union
 
 from pyapprox.util.backends.protocols import Array, Backend
 
@@ -112,9 +112,7 @@ class NeumannBC(Generic[Array]):
             return self._values_func(time)
         return self._constant_values
 
-    def apply_to_residual(
-        self, residual: Array, state: Array, time: float
-    ) -> Array:
+    def apply_to_residual(self, residual: Array, state: Array, time: float) -> Array:
         """Apply Neumann BC to residual.
 
         Sets residual at boundary points to: normal_sign * D @ u - g
@@ -144,9 +142,7 @@ class NeumannBC(Generic[Array]):
             residual[idx[i]] = flux[i] - g[i]
         return residual
 
-    def apply_to_jacobian(
-        self, jacobian: Array, state: Array, time: float
-    ) -> Array:
+    def apply_to_jacobian(self, jacobian: Array, state: Array, time: float) -> Array:
         """Apply Neumann BC to Jacobian.
 
         Sets Jacobian rows at boundary points to derivative matrix rows.
@@ -172,13 +168,14 @@ class NeumannBC(Generic[Array]):
         for i in range(self._nboundary_pts):
             # Set row to normal_sign * derivative matrix row
             for j in range(nstates):
-                jacobian[idx[i], j] = (
-                    self._normal_sign * self._derivative_matrix[i, j]
-                )
+                jacobian[idx[i], j] = self._normal_sign * self._derivative_matrix[i, j]
         return jacobian
 
     def apply_to_param_jacobian(
-        self, param_jacobian: Array, state: Array, time: float,
+        self,
+        param_jacobian: Array,
+        state: Array,
+        time: float,
         physical_sensitivities=None,
     ) -> Array:
         """Apply Neumann BC to parameter Jacobian.

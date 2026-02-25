@@ -11,21 +11,20 @@ import numpy as np
 import torch
 from numpy.typing import NDArray
 
-from pyapprox.util.backends.protocols import Array, Backend
-from pyapprox.util.backends.numpy import NumpyBkd
-from pyapprox.util.backends.torch import TorchBkd
-from pyapprox.util.test_utils import load_tests  # noqa: F401
-
 from pyapprox.statest.statistics import (
     MultiOutputMean,
-    MultiOutputVariance,
     MultiOutputMeanAndVariance,
+    MultiOutputVariance,
+    _covariance_of_variance_estimator,
     _get_nsamples_intersect,
     _get_nsamples_subset,
     _get_V_from_covariance,
-    _covariance_of_variance_estimator,
     block_2x2,
 )
+from pyapprox.util.backends.numpy import NumpyBkd
+from pyapprox.util.backends.protocols import Array, Backend
+from pyapprox.util.backends.torch import TorchBkd
+from pyapprox.util.test_utils import load_tests  # noqa: F401
 
 
 class TestHelperFunctions(Generic[Array], unittest.TestCase):
@@ -47,25 +46,27 @@ class TestHelperFunctions(Generic[Array], unittest.TestCase):
         c = self._bkd.array([[9.0, 10.0], [11.0, 12.0]])
         d = self._bkd.array([[13.0, 14.0], [15.0, 16.0]])
         result = block_2x2([[a, b], [c, d]], self._bkd)
-        expected = self._bkd.array([
-            [1.0, 2.0, 5.0, 6.0],
-            [3.0, 4.0, 7.0, 8.0],
-            [9.0, 10.0, 13.0, 14.0],
-            [11.0, 12.0, 15.0, 16.0],
-        ])
+        expected = self._bkd.array(
+            [
+                [1.0, 2.0, 5.0, 6.0],
+                [3.0, 4.0, 7.0, 8.0],
+                [9.0, 10.0, 13.0, 14.0],
+                [11.0, 12.0, 15.0, 16.0],
+            ]
+        )
         self._bkd.assert_allclose(result, expected, rtol=1e-12)
 
     def test_get_nsamples_subset_simple(self) -> None:
         """Test _get_nsamples_subset with simple allocation matrix."""
         # 2 models, allocation matrix for CV estimator
-        allocation_mat = self._bkd.array([
-            [0.0, 1.0, 1.0, 0.0],
-            [0.0, 0.0, 0.0, 1.0],
-        ])
-        npartition_samples = self._bkd.array([10.0, 5.0])
-        result = _get_nsamples_subset(
-            allocation_mat, npartition_samples, self._bkd
+        allocation_mat = self._bkd.array(
+            [
+                [0.0, 1.0, 1.0, 0.0],
+                [0.0, 0.0, 0.0, 1.0],
+            ]
         )
+        npartition_samples = self._bkd.array([10.0, 5.0])
+        result = _get_nsamples_subset(allocation_mat, npartition_samples, self._bkd)
         # Column 0: no 1s -> 0
         # Column 1: row 0 has 1 -> 10
         # Column 2: row 0 has 1 -> 10
@@ -80,12 +81,10 @@ class TestHelperFunctions(Generic[Array], unittest.TestCase):
         for ii in range(nmodels):
             allocation_mat[ii, 2 * ii + 1] = 1.0
         npartition_samples = self._bkd.array([10.0, 5.0, 3.0])
-        result = _get_nsamples_intersect(
-            allocation_mat, npartition_samples, self._bkd
-        )
+        result = _get_nsamples_intersect(allocation_mat, npartition_samples, self._bkd)
         self._bkd.assert_allclose(
             self._bkd.asarray([result.shape[0], result.shape[1]]),
-            self._bkd.asarray([2 * nmodels, 2 * nmodels])
+            self._bkd.asarray([2 * nmodels, 2 * nmodels]),
         )
 
     def test_get_V_from_covariance_symmetric(self) -> None:
@@ -127,8 +126,7 @@ class TestMultiOutputMean(Generic[Array], unittest.TestCase):
         nqoi = 3
         stat = MultiOutputMean(nqoi, self._bkd)
         self._bkd.assert_allclose(
-            self._bkd.asarray([stat.nstats()]),
-            self._bkd.asarray([nqoi])
+            self._bkd.asarray([stat.nstats()]), self._bkd.asarray([nqoi])
         )
 
     def test_sample_estimate(self) -> None:
@@ -150,8 +148,7 @@ class TestMultiOutputMean(Generic[Array], unittest.TestCase):
         cov = self._bkd.eye(nmodels * nqoi)
         stat.set_pilot_quantities(cov)
         self._bkd.assert_allclose(
-            self._bkd.asarray([stat._nmodels]),
-            self._bkd.asarray([nmodels])
+            self._bkd.asarray([stat._nmodels]), self._bkd.asarray([nmodels])
         )
 
     def test_high_fidelity_estimator_covariance(self) -> None:
@@ -172,8 +169,7 @@ class TestMultiOutputMean(Generic[Array], unittest.TestCase):
         """Test min_nsamples returns 1."""
         stat = MultiOutputMean(2, self._bkd)
         self._bkd.assert_allclose(
-            self._bkd.asarray([stat.min_nsamples()]),
-            self._bkd.asarray([1])
+            self._bkd.asarray([stat.min_nsamples()]), self._bkd.asarray([1])
         )
 
     def test_subset_creates_valid_statistic(self) -> None:
@@ -190,13 +186,11 @@ class TestMultiOutputMean(Generic[Array], unittest.TestCase):
 
         # Check nmodels is updated
         self._bkd.assert_allclose(
-            self._bkd.asarray([subset_stat._nmodels]),
-            self._bkd.asarray([3])
+            self._bkd.asarray([subset_stat._nmodels]), self._bkd.asarray([3])
         )
         # Check nqoi is preserved
         self._bkd.assert_allclose(
-            self._bkd.asarray([subset_stat._nqoi]),
-            self._bkd.asarray([nqoi])
+            self._bkd.asarray([subset_stat._nqoi]), self._bkd.asarray([nqoi])
         )
 
     def test_subset_requires_model_zero(self) -> None:
@@ -227,7 +221,7 @@ class TestMultiOutputMean(Generic[Array], unittest.TestCase):
         # Expected shape: (2*nqoi, 2*nqoi) = (4, 4)
         self._bkd.assert_allclose(
             self._bkd.asarray([subset_stat._cov.shape[0], subset_stat._cov.shape[1]]),
-            self._bkd.asarray([2 * nqoi, 2 * nqoi])
+            self._bkd.asarray([2 * nqoi, 2 * nqoi]),
         )
 
     def test_compute_pilot_quantities(self) -> None:
@@ -237,16 +231,14 @@ class TestMultiOutputMean(Generic[Array], unittest.TestCase):
         stat = MultiOutputMean(nqoi, self._bkd)
         # Create correlated data with typing convention (nqoi, nsamples)
         values1 = self._bkd.asarray(np.random.randn(nqoi, nsamples))
-        values2 = values1 + self._bkd.asarray(
-            np.random.randn(nqoi, nsamples) * 0.1
-        )
+        values2 = values1 + self._bkd.asarray(np.random.randn(nqoi, nsamples) * 0.1)
         pilot_values = [values1, values2]
         (cov,) = stat.compute_pilot_quantities(pilot_values)
         # Check shape is (nmodels * nqoi, nmodels * nqoi)
         nmodels = 2
         self._bkd.assert_allclose(
             self._bkd.asarray([cov.shape[0], cov.shape[1]]),
-            self._bkd.asarray([nmodels * nqoi, nmodels * nqoi])
+            self._bkd.asarray([nmodels * nqoi, nmodels * nqoi]),
         )
         # Check symmetry
         self._bkd.assert_allclose(cov, cov.T, rtol=1e-10)
@@ -274,16 +266,14 @@ class TestMultiOutputVariance(Generic[Array], unittest.TestCase):
         stat.set_pilot_quantities(cov, W)
         expected_nstats = nqoi * (nqoi + 1) // 2  # 3*4/2 = 6
         self._bkd.assert_allclose(
-            self._bkd.asarray([stat.nstats()]),
-            self._bkd.asarray([expected_nstats])
+            self._bkd.asarray([stat.nstats()]), self._bkd.asarray([expected_nstats])
         )
 
     def test_min_nsamples(self) -> None:
         """Test min_nsamples returns 1."""
         stat = MultiOutputVariance(2, self._bkd)
         self._bkd.assert_allclose(
-            self._bkd.asarray([stat.min_nsamples()]),
-            self._bkd.asarray([1])
+            self._bkd.asarray([stat.min_nsamples()]), self._bkd.asarray([1])
         )
 
     def test_subset_creates_valid_statistic(self) -> None:
@@ -301,13 +291,11 @@ class TestMultiOutputVariance(Generic[Array], unittest.TestCase):
 
         # Check nmodels is updated
         self._bkd.assert_allclose(
-            self._bkd.asarray([subset_stat._nmodels]),
-            self._bkd.asarray([3])
+            self._bkd.asarray([subset_stat._nmodels]), self._bkd.asarray([3])
         )
         # Check nqoi is preserved
         self._bkd.assert_allclose(
-            self._bkd.asarray([subset_stat._nqoi]),
-            self._bkd.asarray([nqoi])
+            self._bkd.asarray([subset_stat._nqoi]), self._bkd.asarray([nqoi])
         )
         # Check tril is preserved
         self.assertEqual(subset_stat._tril, stat._tril)
@@ -341,12 +329,12 @@ class TestMultiOutputVariance(Generic[Array], unittest.TestCase):
         # Expected cov shape: (nsub*nqoi, nsub*nqoi)
         self._bkd.assert_allclose(
             self._bkd.asarray([subset_stat._cov.shape[0], subset_stat._cov.shape[1]]),
-            self._bkd.asarray([nsub * nqoi, nsub * nqoi])
+            self._bkd.asarray([nsub * nqoi, nsub * nqoi]),
         )
         # Expected W shape: (nsub*nqoi^2, nsub*nqoi^2)
         self._bkd.assert_allclose(
             self._bkd.asarray([subset_stat._W.shape[0], subset_stat._W.shape[1]]),
-            self._bkd.asarray([nsub * nqoi**2, nsub * nqoi**2])
+            self._bkd.asarray([nsub * nqoi**2, nsub * nqoi**2]),
         )
 
 
@@ -375,16 +363,14 @@ class TestMultiOutputMeanAndVariance(Generic[Array], unittest.TestCase):
         # nstats = nqoi + nqoi*(nqoi+1)/2 = 2 + 3 = 5
         expected_nstats = nqoi + nqoi * (nqoi + 1) // 2
         self._bkd.assert_allclose(
-            self._bkd.asarray([stat.nstats()]),
-            self._bkd.asarray([expected_nstats])
+            self._bkd.asarray([stat.nstats()]), self._bkd.asarray([expected_nstats])
         )
 
     def test_min_nsamples(self) -> None:
         """Test min_nsamples returns 1."""
         stat = MultiOutputMeanAndVariance(2, self._bkd)
         self._bkd.assert_allclose(
-            self._bkd.asarray([stat.min_nsamples()]),
-            self._bkd.asarray([1])
+            self._bkd.asarray([stat.min_nsamples()]), self._bkd.asarray([1])
         )
 
     def test_set_pilot_quantities_shape_check(self) -> None:
@@ -415,13 +401,11 @@ class TestMultiOutputMeanAndVariance(Generic[Array], unittest.TestCase):
 
         # Check nmodels is updated
         self._bkd.assert_allclose(
-            self._bkd.asarray([subset_stat._nmodels]),
-            self._bkd.asarray([3])
+            self._bkd.asarray([subset_stat._nmodels]), self._bkd.asarray([3])
         )
         # Check nqoi is preserved
         self._bkd.assert_allclose(
-            self._bkd.asarray([subset_stat._nqoi]),
-            self._bkd.asarray([nqoi])
+            self._bkd.asarray([subset_stat._nqoi]), self._bkd.asarray([nqoi])
         )
         # Check tril is preserved
         self.assertEqual(subset_stat._tril, stat._tril)
@@ -457,17 +441,17 @@ class TestMultiOutputMeanAndVariance(Generic[Array], unittest.TestCase):
         # Expected cov shape: (nsub*nqoi, nsub*nqoi)
         self._bkd.assert_allclose(
             self._bkd.asarray([subset_stat._cov.shape[0], subset_stat._cov.shape[1]]),
-            self._bkd.asarray([nsub * nqoi, nsub * nqoi])
+            self._bkd.asarray([nsub * nqoi, nsub * nqoi]),
         )
         # Expected W shape: (nsub*nqoi^2, nsub*nqoi^2)
         self._bkd.assert_allclose(
             self._bkd.asarray([subset_stat._W.shape[0], subset_stat._W.shape[1]]),
-            self._bkd.asarray([nsub * nqoi**2, nsub * nqoi**2])
+            self._bkd.asarray([nsub * nqoi**2, nsub * nqoi**2]),
         )
         # Expected B shape: (nsub*nqoi, nsub*nqoi^2)
         self._bkd.assert_allclose(
             self._bkd.asarray([subset_stat._B.shape[0], subset_stat._B.shape[1]]),
-            self._bkd.asarray([nsub * nqoi, nsub * nqoi**2])
+            self._bkd.asarray([nsub * nqoi, nsub * nqoi**2]),
         )
 
 
@@ -489,9 +473,7 @@ class TestMultiOutputVarianceNumpy(TestMultiOutputVariance[NDArray[Any]]):
         return NumpyBkd()
 
 
-class TestMultiOutputMeanAndVarianceNumpy(
-    TestMultiOutputMeanAndVariance[NDArray[Any]]
-):
+class TestMultiOutputMeanAndVarianceNumpy(TestMultiOutputMeanAndVariance[NDArray[Any]]):
     def bkd(self) -> NumpyBkd:
         return NumpyBkd()
 
@@ -517,9 +499,7 @@ class TestMultiOutputVarianceTorch(TestMultiOutputVariance[torch.Tensor]):
         return TorchBkd()
 
 
-class TestMultiOutputMeanAndVarianceTorch(
-    TestMultiOutputMeanAndVariance[torch.Tensor]
-):
+class TestMultiOutputMeanAndVarianceTorch(TestMultiOutputMeanAndVariance[torch.Tensor]):
     def bkd(self) -> TorchBkd:
         torch.set_default_dtype(torch.float64)
         return TorchBkd()

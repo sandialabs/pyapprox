@@ -6,17 +6,16 @@ Represents an interface between two subdomains, managing:
 - Normal vectors for flux computation
 """
 
-from typing import Generic, Tuple, Dict, Optional, TYPE_CHECKING
+from typing import TYPE_CHECKING, Dict, Generic, Optional, Tuple
 
-from pyapprox.util.backends.protocols import Array, Backend
-from pyapprox.pde.decomposition.protocols.interface import (
-    InterfaceBasisProtocol,
-)
 from pyapprox.pde.decomposition.interface.interpolation import (
     InterpolationOperator,
     RestrictionOperator,
-    lagrange_interpolation_matrix,
 )
+from pyapprox.pde.decomposition.protocols.interface import (
+    InterfaceBasisProtocol,
+)
+from pyapprox.util.backends.protocols import Array, Backend
 
 if TYPE_CHECKING:
     from pyapprox.pde.decomposition.interface.basis import (
@@ -146,7 +145,8 @@ class Interface1D(Generic[Array]):
         Returns
         -------
         Array
-            Values at interface point. Shape: (ncomponents,) for vector, (1,) for scalar.
+            Values at interface point. Shape: (ncomponents,) for vector, (1,) for
+            scalar.
         """
         return coeffs
 

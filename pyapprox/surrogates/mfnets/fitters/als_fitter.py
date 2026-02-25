@@ -7,14 +7,14 @@ optimized. For linear models, this reduces to a direct least-squares solve.
 
 from typing import Dict, Generic, List
 
-from pyapprox.util.backends.protocols import Array, Backend
+from pyapprox.surrogates.mfnets.fitters.results import (
+    MFNetALSFitResult,
+)
 from pyapprox.surrogates.mfnets.network import MFNet
 from pyapprox.surrogates.mfnets.protocols import (
     LinearNodeModelProtocol,
 )
-from pyapprox.surrogates.mfnets.fitters.results import (
-    MFNetALSFitResult,
-)
+from pyapprox.util.backends.protocols import Array, Backend
 
 
 class MFNetALSFitter(Generic[Array]):
@@ -89,8 +89,10 @@ class MFNetALSFitter(Generic[Array]):
             n_sweeps = sweep + 1
             for node_id in network.topo_order():
                 self._fit_node(
-                    network, node_id,
-                    train_samples_per_node, train_values_per_node,
+                    network,
+                    node_id,
+                    train_samples_per_node,
+                    train_values_per_node,
                 )
 
             loss = self._compute_total_mse(
@@ -103,23 +105,19 @@ class MFNetALSFitter(Generic[Array]):
 
             # Check convergence (relative change)
             if len(loss_history) >= 2 and loss_history[-2] > 0:
-                rel_change = abs(
-                    loss_history[-1] - loss_history[-2]
-                ) / max(abs(loss_history[-2]), 1e-30)
+                rel_change = abs(loss_history[-1] - loss_history[-2]) / max(
+                    abs(loss_history[-2]), 1e-30
+                )
                 if rel_change < self._tol:
                     converged = True
                     if self._verbosity > 0:
                         print(
-                            f"ALS: Converged after {n_sweeps} sweeps "
-                            f"(MSE = {loss:.6e})"
+                            f"ALS: Converged after {n_sweeps} sweeps (MSE = {loss:.6e})"
                         )
                     break
 
         if not converged and self._verbosity > 0:
-            print(
-                f"ALS: Max sweeps ({self._max_sweeps}) reached "
-                f"(MSE = {loss:.6e})"
-            )
+            print(f"ALS: Max sweeps ({self._max_sweeps}) reached (MSE = {loss:.6e})")
 
         return MFNetALSFitResult(
             surrogate=network,
@@ -156,9 +154,7 @@ class MFNetALSFitter(Generic[Array]):
             child_val_parts: List[Array] = []
             for child_id in node.children_ids():
                 cache: Dict[int, Array] = {}
-                child_vals = network.subgraph_values(
-                    samples_n, child_id, cache
-                )
+                child_vals = network.subgraph_values(samples_n, child_id, cache)
                 edge_data = network.graph().edges[child_id, node_id]["edge"]
                 output_ids = edge_data.output_ids()
                 child_val_parts.append(child_vals[output_ids])
@@ -191,7 +187,7 @@ class MFNetALSFitter(Generic[Array]):
             # Direct least-squares solve
             # For MultiplicativeAdditiveDiscrepancy, basis_matrix uses
             # the augmented input including child outputs
-            if hasattr(model, 'basis_matrix'):
+            if hasattr(model, "basis_matrix"):
                 phi = model.basis_matrix(samples)  # (nsamples, nterms)
                 # Solve Phi @ c = values.T for each QoI
                 # lstsq returns (nterms, nqoi)
@@ -200,11 +196,11 @@ class MFNetALSFitter(Generic[Array]):
             else:
                 # Fallback: use model's __call__ directly
                 pass
-        elif hasattr(model, 'basis_matrix'):
+        elif hasattr(model, "basis_matrix"):
             # Has basis_matrix but not full protocol — try anyway
             phi = model.basis_matrix(samples)
             coef = bkd.lstsq(phi, values.T)
-            if hasattr(model, 'set_coefficients'):
+            if hasattr(model, "set_coefficients"):
                 model.set_coefficients(bkd.flatten(coef))
 
     def _compute_total_mse(
@@ -218,9 +214,7 @@ class MFNetALSFitter(Generic[Array]):
         total_mse = 0.0
         for node_id in network.topo_order():
             cache: Dict[int, Array] = {}
-            pred = network.subgraph_values(
-                train_samples[node_id], node_id, cache
-            )
+            pred = network.subgraph_values(train_samples[node_id], node_id, cache)
             residual = train_values[node_id] - pred
             mse = float(bkd.to_numpy(bkd.mean(residual * residual)))
             total_mse += mse

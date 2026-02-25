@@ -7,31 +7,29 @@ import numpy as np
 import torch
 from numpy.typing import NDArray
 
-from pyapprox.util.backends.numpy import NumpyBkd
-from pyapprox.util.backends.protocols import Array, Backend
-from pyapprox.util.backends.torch import TorchBkd
-from pyapprox.util.test_utils import load_tests  # noqa: F401
-
-from pyapprox.surrogates.affine.univariate import MonomialBasis1D
+from pyapprox.surrogates.affine.basis import MultiIndexBasis
+from pyapprox.surrogates.affine.expansions import BasisExpansion
 from pyapprox.surrogates.affine.indices import (
     compute_hyperbolic_indices,
 )
-from pyapprox.surrogates.affine.basis import MultiIndexBasis
-from pyapprox.surrogates.affine.expansions import BasisExpansion
-
+from pyapprox.surrogates.affine.univariate import MonomialBasis1D
+from pyapprox.surrogates.mfnets.discrepancy import (
+    MultiplicativeAdditiveDiscrepancy,
+)
+from pyapprox.surrogates.mfnets.edges import MFNetEdge
+from pyapprox.surrogates.mfnets.fitters.als_fitter import (
+    MFNetALSFitter,
+)
+from pyapprox.surrogates.mfnets.network import MFNet
 from pyapprox.surrogates.mfnets.nodes import (
     LeafMFNetNode,
     MFNetNode,
     RootMFNetNode,
 )
-from pyapprox.surrogates.mfnets.edges import MFNetEdge
-from pyapprox.surrogates.mfnets.network import MFNet
-from pyapprox.surrogates.mfnets.discrepancy import (
-    MultiplicativeAdditiveDiscrepancy,
-)
-from pyapprox.surrogates.mfnets.fitters.als_fitter import (
-    MFNetALSFitter,
-)
+from pyapprox.util.backends.numpy import NumpyBkd
+from pyapprox.util.backends.protocols import Array, Backend
+from pyapprox.util.backends.torch import TorchBkd
+from pyapprox.util.test_utils import load_tests  # noqa: F401
 
 
 def _create_expansion(
@@ -95,9 +93,7 @@ class TestMFNetALSFitter(Generic[Array], unittest.TestCase):
         true_scale = bkd.asarray(np.random.randn(scale_nterms, 1))
         true_delta = bkd.asarray(np.random.randn(delta_nterms, 1))
 
-        true_net = _build_mfnet_with_discrepancy(
-            bkd, true_leaf, true_scale, true_delta
-        )
+        true_net = _build_mfnet_with_discrepancy(bkd, true_leaf, true_scale, true_delta)
 
         np.random.seed(42)
         s_leaf = bkd.asarray(np.random.uniform(-1, 1, (1, n_leaf)))
@@ -144,7 +140,9 @@ class TestMFNetALSFitter(Generic[Array], unittest.TestCase):
         # True models
         np.random.seed(10)
         leaf_model = _create_expansion(bkd, nvars=1, nqoi=1, max_level=2)
-        leaf_model.set_coefficients(bkd.asarray(np.random.randn(leaf_model.nterms(), 1)))
+        leaf_model.set_coefficients(
+            bkd.asarray(np.random.randn(leaf_model.nterms(), 1))
+        )
 
         mid_scale = _create_expansion(bkd, nvars=1, nqoi=1, max_level=0)
         mid_scale.set_coefficients(bkd.asarray(np.random.randn(mid_scale.nterms(), 1)))
@@ -155,9 +153,13 @@ class TestMFNetALSFitter(Generic[Array], unittest.TestCase):
         )
 
         root_scale = _create_expansion(bkd, nvars=1, nqoi=1, max_level=0)
-        root_scale.set_coefficients(bkd.asarray(np.random.randn(root_scale.nterms(), 1)))
+        root_scale.set_coefficients(
+            bkd.asarray(np.random.randn(root_scale.nterms(), 1))
+        )
         root_delta = _create_expansion(bkd, nvars=1, nqoi=1, max_level=2)
-        root_delta.set_coefficients(bkd.asarray(np.random.randn(root_delta.nterms(), 1)))
+        root_delta.set_coefficients(
+            bkd.asarray(np.random.randn(root_delta.nterms(), 1))
+        )
         root_model = MultiplicativeAdditiveDiscrepancy(
             [root_scale], root_delta, nscaled_qoi=1, bkd=bkd
         )
@@ -212,6 +214,7 @@ class TestMFNetALSFitter(Generic[Array], unittest.TestCase):
 
 
 # --- Concrete backend test classes ---
+
 
 class TestALSFitterNumpy(TestMFNetALSFitter[NDArray[Any]]):
     def bkd(self) -> NumpyBkd:

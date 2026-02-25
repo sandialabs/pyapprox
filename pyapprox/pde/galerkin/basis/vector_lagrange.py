@@ -3,28 +3,28 @@
 Wraps scikit-fem ElementVector for multi-component problems like elasticity.
 """
 
-from typing import Generic, Callable, Any
+from typing import Any, Callable, Generic
 
 import numpy as np
 
-from pyapprox.util.backends.protocols import Array, Backend
-from pyapprox.pde.galerkin.protocols.mesh import GalerkinMeshProtocol
 from pyapprox.pde.galerkin.basis.lagrange import LagrangeBasis
+from pyapprox.pde.galerkin.protocols.mesh import GalerkinMeshProtocol
+from pyapprox.util.backends.protocols import Array, Backend
 
 # Import skfem for basis construction
 try:
     from skfem import Basis, ElementVector
     from skfem.element import (
+        ElementHex1,
+        ElementHex2,
         ElementLineP1,
         ElementLineP2,
         ElementQuad1,
         ElementQuad2,
-        ElementTriP1,
-        ElementTriP2,
-        ElementHex1,
-        ElementHex2,
         ElementTetP1,
         ElementTetP2,
+        ElementTriP1,
+        ElementTriP2,
     )
 except ImportError:
     raise ImportError(
@@ -188,9 +188,7 @@ class VectorLagrangeBasis(Generic[Array]):
         """
         if self._dof_locs is None:
             dof_locs_np = self._skfem_basis.doflocs
-            self._dof_locs = self._bkd.asarray(
-                dof_locs_np.astype(np.float64)
-            )
+            self._dof_locs = self._bkd.asarray(dof_locs_np.astype(np.float64))
 
         return self._dof_locs
 
@@ -213,17 +211,13 @@ class VectorLagrangeBasis(Generic[Array]):
         if ndim == 1:
             # In 1D there is only one component — skip logic would skip it,
             # so get all boundary DOFs directly.
-            combined = np.asarray(
-                self._skfem_basis.get_dofs(boundary_name)
-            ).flatten()
+            combined = np.asarray(self._skfem_basis.get_dofs(boundary_name)).flatten()
         else:
             all_dofs = []
             dofnames = self._skfem_basis.get_dofs().obj.element.dofnames
             for idx in range(ndim):
                 skip = dofnames[ndim - idx - 1]
-                component_dofs = self._skfem_basis.get_dofs(
-                    boundary_name, skip=skip
-                )
+                component_dofs = self._skfem_basis.get_dofs(boundary_name, skip=skip)
                 all_dofs.append(np.asarray(component_dofs).flatten())
             combined = np.concatenate(all_dofs)
         combined.sort()

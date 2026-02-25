@@ -6,16 +6,17 @@ arbitrary directed acyclic graph (DAG) structures for output dependencies.
 Uses NetworkX DiGraph directly for graph operations.
 """
 
-from typing import List, Dict, Optional, Union, Generic, Tuple
+from typing import Dict, Generic, List, Optional, Tuple, Union
+
 import networkx as nx
 
-from pyapprox.util.backends.protocols import Array, Backend
-from pyapprox.util.hyperparameter import HyperParameterList
 from pyapprox.surrogates.kernels.protocols import Kernel
 from pyapprox.surrogates.kernels.scalings import (
-    ScalingFunctionProtocol,
     PolynomialScaling,
+    ScalingFunctionProtocol,
 )
+from pyapprox.util.backends.protocols import Array, Backend
+from pyapprox.util.hyperparameter import HyperParameterList
 
 
 class DAGMultiOutputKernel(Generic[Array]):
@@ -36,7 +37,8 @@ class DAGMultiOutputKernel(Generic[Array]):
     - δ_i(x) ~ GP(0, k_i(x, x')) is the discrepancy at node i
 
     The covariance between outputs i and j is:
-        K[i,j](x, x') = sum_{k in CommonAncestors(i,j)} w_{k->i}(x) k_k(x,x') w_{k->j}(x')
+        K[i,j](x, x') = sum_{k in CommonAncestors(i,j)}
+            w_{k->i}(x) k_k(x,x') w_{k->j}(x')
 
     where w_{k->i}(x) is the product of scalings along any path from k to i.
 
@@ -327,7 +329,8 @@ class DAGMultiOutputKernel(Generic[Array]):
                 for path2 in paths2:
                     scaling2 = self._compute_scaling_product(X2, path2)
 
-                    # Contribution: w_{ancestor->output1}(X1) * K_ancestor * w_{ancestor->output2}(X2)^T
+                    # Contribution: w_{anc->out1}(X1)
+                    # * K_anc * w_{anc->out2}(X2)^T
                     contribution = scaling1 * K_ancestor * scaling2.T
 
                     if block is None:
@@ -335,7 +338,9 @@ class DAGMultiOutputKernel(Generic[Array]):
                     else:
                         block = block + contribution
 
-        return block if block is not None else self._bkd.zeros((X1.shape[1], X2.shape[1]))
+        if block is not None:
+            return block
+        return self._bkd.zeros((X1.shape[1], X2.shape[1]))
 
     def bkd(self) -> Backend[Array]:
         """Return the backend."""
@@ -391,9 +396,7 @@ class DAGMultiOutputKernel(Generic[Array]):
 
         if X2_list is None:
             X2_list = X1_list
-            symmetric = True
         else:
-            symmetric = False
             if len(X2_list) != self._noutputs:
                 raise ValueError(
                     f"X2_list length ({len(X2_list)}) must match "
@@ -480,11 +483,18 @@ class DAGMultiOutputKernel(Generic[Array]):
                         # Compute kernel gradient at X1_list[i], X2_list[j]
                         # For cross-covariance (X1 != X2), gradients not yet supported
                         if X1_list[i] is not X2_list[j]:
-                            # Check if arrays have same shape and are actually the same (element-wise)
-                            if (X1_list[i].shape != X2_list[j].shape or
-                                not self._bkd.allclose(X1_list[i], X2_list[j])):
+                            # Check if arrays are the same
+                            if (
+                                X1_list[i].shape
+                                != X2_list[j].shape
+                                or not self._bkd.allclose(
+                                    X1_list[i], X2_list[j]
+                                )
+                            ):
                                 raise NotImplementedError(
-                                    "Cross-covariance Jacobians not yet supported for DAG kernels"
+                                    "Cross-covariance Jacobians "
+                                    "not yet supported for "
+                                    "DAG kernels"
                                 )
 
                         kernel_jac_ij = kernel.jacobian_wrt_params(
@@ -493,10 +503,14 @@ class DAGMultiOutputKernel(Generic[Array]):
 
                         # Compute scaling products for all path combinations
                         for path_i in paths_i:
-                            scaling_i = self._compute_scaling_product(X1_list[i], path_i)
+                            scaling_i = self._compute_scaling_product(
+                                X1_list[i], path_i
+                            )
 
                             for path_j in paths_j:
-                                scaling_j = self._compute_scaling_product(X2_list[j], path_j)
+                                scaling_j = self._compute_scaling_product(
+                                    X2_list[j], path_j
+                                )
 
                                 # Gradient contribution: scaling_i * ∂k/∂θ * scaling_j^T
                                 for p_idx in range(kernel_nparams):
@@ -567,40 +581,80 @@ class DAGMultiOutputKernel(Generic[Array]):
                                     continue
 
                                 # Compute scaling products and their derivatives
-                                scaling_i = self._compute_scaling_product(X1_list[i], path_i)
-                                scaling_j = self._compute_scaling_product(X2_list[j], path_j)
+                                scaling_i = self._compute_scaling_product(
+                                    X1_list[i], path_i
+                                )
+                                scaling_j = self._compute_scaling_product(
+                                    X2_list[j], path_j
+                                )
 
                                 # Get scaling Jacobians
                                 X_for_scaling_i = X1_list[i]
                                 X_for_scaling_j = X2_list[j]
-                                scaling_jac_i = scaling.jacobian_wrt_params(X_for_scaling_i)  # (n_i, scaling_nparams)
-                                scaling_jac_j = scaling.jacobian_wrt_params(X_for_scaling_j)  # (n_j, scaling_nparams)
+                                scaling_jac_i = scaling.jacobian_wrt_params(
+                                    X_for_scaling_i
+                                )  # (n_i, scaling_nparams)
+                                scaling_jac_j = scaling.jacobian_wrt_params(
+                                    X_for_scaling_j
+                                )  # (n_j, scaling_nparams)
 
                                 for p_idx in range(scaling_nparams):
                                     contrib = self._bkd.zeros((n_i, n_j))
 
                                     if edge_in_path_i:
                                         # ∂scaling_i/∂θ * K * scaling_j^T
-                                        dscaling_i = self._bkd.reshape(scaling_jac_i[:, p_idx], (n_i, 1))
-                                        # Recompute scaling_i_other (product of other edges)
-                                        scaling_i_other = self._bkd.ones((n_i, 1))
+                                        dscaling_i = self._bkd.reshape(
+                                            scaling_jac_i[:, p_idx],
+                                            (n_i, 1),
+                                        )
+                                        # Recompute scaling_i_other
+                                        scaling_i_other = self._bkd.ones(
+                                            (n_i, 1)
+                                        )
                                         for k in range(len(path_i) - 1):
                                             p, c = path_i[k], path_i[k+1]
                                             if (p, c) != edge:
-                                                scaling_i_other = scaling_i_other * self._edge_scalings[(p, c)].eval_scaling(X_for_scaling_i)
+                                                s = self._edge_scalings[
+                                                    (p, c)
+                                                ].eval_scaling(
+                                                    X_for_scaling_i
+                                                )
+                                                scaling_i_other = (
+                                                    scaling_i_other * s
+                                                )
 
-                                        contrib = contrib + (dscaling_i * scaling_i_other) * K_ancestor * scaling_j.T
+                                        contrib = (
+                                            contrib
+                                            + (dscaling_i * scaling_i_other)
+                                            * K_ancestor * scaling_j.T
+                                        )
 
                                     if edge_in_path_j:
                                         # scaling_i * K * ∂scaling_j/∂θ^T
-                                        dscaling_j = self._bkd.reshape(scaling_jac_j[:, p_idx], (n_j, 1))
-                                        scaling_j_other = self._bkd.ones((n_j, 1))
+                                        dscaling_j = self._bkd.reshape(
+                                            scaling_jac_j[:, p_idx],
+                                            (n_j, 1),
+                                        )
+                                        scaling_j_other = self._bkd.ones(
+                                            (n_j, 1)
+                                        )
                                         for k in range(len(path_j) - 1):
                                             p, c = path_j[k], path_j[k+1]
                                             if (p, c) != edge:
-                                                scaling_j_other = scaling_j_other * self._edge_scalings[(p, c)].eval_scaling(X_for_scaling_j)
+                                                s = self._edge_scalings[
+                                                    (p, c)
+                                                ].eval_scaling(
+                                                    X_for_scaling_j
+                                                )
+                                                scaling_j_other = (
+                                                    scaling_j_other * s
+                                                )
 
-                                        contrib = contrib + scaling_i * K_ancestor * (dscaling_j * scaling_j_other).T
+                                        contrib = (
+                                            contrib
+                                            + scaling_i * K_ancestor
+                                            * (dscaling_j * scaling_j_other).T
+                                        )
 
                                     jac_full[
                                         row_offset:row_offset+n_i,

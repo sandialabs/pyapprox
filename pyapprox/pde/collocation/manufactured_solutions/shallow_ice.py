@@ -22,11 +22,11 @@ from typing import Generic
 
 import sympy as sp
 
-from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.pde.collocation.manufactured_solutions.base import (
     ManufacturedSolution,
     ScalarSolutionMixin,
 )
+from pyapprox.util.backends.protocols import Array, Backend
 
 
 class ManufacturedShallowIce(
@@ -99,9 +99,7 @@ class ManufacturedShallowIce(
         self._n = 3  # Glen's flow law exponent
         self._g = 9.81  # Gravitational acceleration
         # Compute gamma: γ = 2A(ρg)^n / (n+2)
-        self._gamma = (
-            2 * self._A * (self._rho * self._g) ** self._n / (self._n + 2)
-        )
+        self._gamma = 2 * self._A * (self._rho * self._g) ** self._n / (self._n + 2)
         super().__init__(sol_str, nvars, bkd, oned)
 
     def sympy_expressions(self) -> None:
@@ -117,9 +115,7 @@ class ManufacturedShallowIce(
         surface_expr = bed_expr + sol_expr
 
         # Surface gradient components
-        surface_grad_exprs = [
-            surface_expr.diff(s, 1) for s in cartesian_symbs
-        ]
+        surface_grad_exprs = [surface_expr.diff(s, 1) for s in cartesian_symbs]
 
         # |grad(s)|² = sum of squared gradient components
         grad_s_squared = sum(gs**2 for gs in surface_grad_exprs)
@@ -131,9 +127,7 @@ class ManufacturedShallowIce(
             * sol_expr ** (self._n + 2)
             * grad_s_squared ** ((self._n - 1) / 2)
         )
-        sliding_diffusion = (
-            self._rho * self._g / friction_expr * sol_expr**2
-        )
+        sliding_diffusion = self._rho * self._g / friction_expr * sol_expr**2
         diffusion = deformation_diffusion + sliding_diffusion
 
         # Flux: F = D * grad(s) (note: positive diffusion unlike standard -D*grad)

@@ -3,20 +3,20 @@ Tests for Hessian operators.
 """
 
 import unittest
-from typing import Generic, Any
+from typing import Any, Generic
 
 import numpy as np
-from numpy.typing import NDArray
 import torch
+from numpy.typing import NDArray
 
-from pyapprox.util.backends.protocols import Array, Backend
-from pyapprox.util.backends.numpy import NumpyBkd
-from pyapprox.util.backends.torch import TorchBkd
-from pyapprox.probability.covariance import DenseCholeskyCovarianceOperator
 from pyapprox.inverse.laplace.hessian_operators import (
     ApplyNegLogLikelihoodHessian,
     PriorConditionedHessianMatVec,
 )
+from pyapprox.probability.covariance import DenseCholeskyCovarianceOperator
+from pyapprox.util.backends.numpy import NumpyBkd
+from pyapprox.util.backends.protocols import Array, Backend
+from pyapprox.util.backends.torch import TorchBkd
 
 
 class TestApplyNegLogLikelihoodHessianBase(Generic[Array], unittest.TestCase):
@@ -32,11 +32,13 @@ class TestApplyNegLogLikelihoodHessianBase(Generic[Array], unittest.TestCase):
         self.nvars = 3
 
         # Define a simple quadratic Hessian (constant)
-        self.hess_matrix = self.bkd().asarray([
-            [2.0, 0.5, 0.1],
-            [0.5, 3.0, 0.2],
-            [0.1, 0.2, 1.0],
-        ])
+        self.hess_matrix = self.bkd().asarray(
+            [
+                [2.0, 0.5, 0.1],
+                [0.5, 3.0, 0.2],
+                [0.1, 0.2, 1.0],
+            ]
+        )
 
         def apply_hess(sample: Array, vec: Array) -> Array:
             return self.hess_matrix @ vec
@@ -71,6 +73,7 @@ class TestApplyNegLogLikelihoodHessianBase(Generic[Array], unittest.TestCase):
 
     def test_set_sample_required(self) -> None:
         """Test that set_sample must be called before apply."""
+
         def apply_hess(sample: Array, vec: Array) -> Array:
             return vec
 
@@ -99,19 +102,23 @@ class TestPriorConditionedHessianMatVecBase(Generic[Array], unittest.TestCase):
         self.nvars = 3
 
         # Prior covariance
-        self.prior_cov = self.bkd().asarray([
-            [1.0, 0.3, 0.1],
-            [0.3, 1.0, 0.2],
-            [0.1, 0.2, 1.0],
-        ])
+        self.prior_cov = self.bkd().asarray(
+            [
+                [1.0, 0.3, 0.1],
+                [0.3, 1.0, 0.2],
+                [0.1, 0.2, 1.0],
+            ]
+        )
         self.prior_sqrt = DenseCholeskyCovarianceOperator(self.prior_cov, self.bkd())
 
         # Misfit Hessian
-        self.hess_matrix = self.bkd().asarray([
-            [2.0, 0.5, 0.1],
-            [0.5, 3.0, 0.2],
-            [0.1, 0.2, 1.0],
-        ])
+        self.hess_matrix = self.bkd().asarray(
+            [
+                [2.0, 0.5, 0.1],
+                [0.5, 3.0, 0.2],
+                [0.1, 0.2, 1.0],
+            ]
+        )
 
         def apply_hess(vecs: Array) -> Array:
             return self.hess_matrix @ vecs
@@ -209,9 +216,6 @@ class TestPriorConditionedHessianMatVecTorch(
 
     def bkd(self) -> Backend[torch.Tensor]:
         return self._bkd
-
-
-from pyapprox.util.test_utils import load_tests
 
 
 if __name__ == "__main__":

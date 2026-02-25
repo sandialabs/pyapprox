@@ -10,15 +10,14 @@ import torch
 from numpy.typing import NDArray
 
 from pyapprox.util.backends.numpy import NumpyBkd
-from pyapprox.util.backends.torch import TorchBkd
 from pyapprox.util.backends.protocols import Array
+from pyapprox.util.backends.torch import TorchBkd
 from pyapprox.util.cartesian import (
     cartesian_product,
     cartesian_product_indices,
     cartesian_product_samples,
     outer_product_weights,
 )
-from pyapprox.util.test_utils import load_tests
 
 
 class TestCartesianProductIndices(Generic[Array], unittest.TestCase):
@@ -44,10 +43,12 @@ class TestCartesianProductIndices(Generic[Array], unittest.TestCase):
         indices = cartesian_product_indices([2, 3], self._bkd)
         self.assertEqual(indices.shape, (2, 6))
         # Last dimension varies fastest
-        expected = self._bkd.asarray([
-            [0, 0, 0, 1, 1, 1],
-            [0, 1, 2, 0, 1, 2],
-        ])
+        expected = self._bkd.asarray(
+            [
+                [0, 0, 0, 1, 1, 1],
+                [0, 1, 2, 0, 1, 2],
+            ]
+        )
         self._bkd.assert_allclose(indices, expected)
 
     def test_3d_grid(self):
@@ -97,10 +98,12 @@ class TestCartesianProductSamples(Generic[Array], unittest.TestCase):
         samples = cartesian_product_samples([x, y], self._bkd)
         self.assertEqual(samples.shape, (2, 6))
         # Last dimension varies fastest: (0,0), (0,0.5), (0,1), (1,0), (1,0.5), (1,1)
-        expected = self._bkd.asarray([
-            [0.0, 0.0, 0.0, 1.0, 1.0, 1.0],
-            [0.0, 0.5, 1.0, 0.0, 0.5, 1.0],
-        ])
+        expected = self._bkd.asarray(
+            [
+                [0.0, 0.0, 0.0, 1.0, 1.0, 1.0],
+                [0.0, 0.5, 1.0, 0.0, 0.5, 1.0],
+            ]
+        )
         self._bkd.assert_allclose(samples, expected)
 
     def test_2d_input_format(self):
@@ -178,7 +181,8 @@ class TestOuterProductWeights(Generic[Array], unittest.TestCase):
         # 2-point Gauss-Legendre on [-1, 1]
         # Points: +/- 1/sqrt(3), weights: [1, 1]
         import math
-        pts = 1.0 / math.sqrt(3.0)
+
+        1.0 / math.sqrt(3.0)
         w = self._bkd.asarray([1.0, 1.0])
 
         # 2D integral of f(x,y) = 1 over [-1,1]^2 = 4
@@ -270,10 +274,12 @@ class TestFirstDimFastest(Generic[Array], unittest.TestCase):
         y = self._bkd.asarray([0, 1, 2])
         result = cartesian_product(self._bkd, [x, y], first_dim_fastest=False)
         # Last dim (y) varies fastest: (0,0), (0,1), (0,2), (1,0), (1,1), (1,2)
-        expected = self._bkd.asarray([
-            [0, 0, 0, 1, 1, 1],
-            [0, 1, 2, 0, 1, 2],
-        ])
+        expected = self._bkd.asarray(
+            [
+                [0, 0, 0, 1, 1, 1],
+                [0, 1, 2, 0, 1, 2],
+            ]
+        )
         self._bkd.assert_allclose(result, expected)
 
     def test_cartesian_product_first_dim_fastest(self):
@@ -282,20 +288,24 @@ class TestFirstDimFastest(Generic[Array], unittest.TestCase):
         y = self._bkd.asarray([0, 1, 2])
         result = cartesian_product(self._bkd, [x, y], first_dim_fastest=True)
         # First dim (x) varies fastest: (0,0), (1,0), (0,1), (1,1), (0,2), (1,2)
-        expected = self._bkd.asarray([
-            [0, 1, 0, 1, 0, 1],
-            [0, 0, 1, 1, 2, 2],
-        ])
+        expected = self._bkd.asarray(
+            [
+                [0, 1, 0, 1, 0, 1],
+                [0, 0, 1, 1, 2, 2],
+            ]
+        )
         self._bkd.assert_allclose(result, expected)
 
     def test_cartesian_product_indices_first_dim_fastest(self):
         """Test cartesian_product_indices with first_dim_fastest."""
         indices = cartesian_product_indices([2, 3], self._bkd, first_dim_fastest=True)
         # First dim varies fastest
-        expected = self._bkd.asarray([
-            [0, 1, 0, 1, 0, 1],
-            [0, 0, 1, 1, 2, 2],
-        ])
+        expected = self._bkd.asarray(
+            [
+                [0, 1, 0, 1, 0, 1],
+                [0, 0, 1, 1, 2, 2],
+            ]
+        )
         self._bkd.assert_allclose(indices, expected)
 
     def test_cartesian_product_samples_first_dim_fastest(self):
@@ -304,10 +314,12 @@ class TestFirstDimFastest(Generic[Array], unittest.TestCase):
         y = self._bkd.asarray([0.0, 0.5, 1.0])
         samples = cartesian_product_samples([x, y], self._bkd, first_dim_fastest=True)
         # First dim (x) varies fastest
-        expected = self._bkd.asarray([
-            [0.0, 1.0, 0.0, 1.0, 0.0, 1.0],
-            [0.0, 0.0, 0.5, 0.5, 1.0, 1.0],
-        ])
+        expected = self._bkd.asarray(
+            [
+                [0.0, 1.0, 0.0, 1.0, 0.0, 1.0],
+                [0.0, 0.0, 0.5, 0.5, 1.0, 1.0],
+            ]
+        )
         self._bkd.assert_allclose(samples, expected)
 
     def test_3d_first_dim_fastest(self):
@@ -324,12 +336,15 @@ class TestFirstDimFastest(Generic[Array], unittest.TestCase):
         result = cartesian_product(self._bkd, [x, y, z], first_dim_fastest=True)
 
         # Expected ordering with first_dim_fastest:
-        # (x,y,z): (0,0,0), (1,0,0), (0,1,0), (1,1,0), (0,0,1), (1,0,1), (0,1,1), (1,1,1)
-        expected = self._bkd.asarray([
-            [0, 1, 0, 1, 0, 1, 0, 1],  # x varies fastest
-            [0, 0, 1, 1, 0, 0, 1, 1],  # y varies next
-            [0, 0, 0, 0, 1, 1, 1, 1],  # z varies slowest
-        ])
+        # (x,y,z): (0,0,0), (1,0,0), (0,1,0), (1,1,0), (0,0,1), (1,0,1), (0,1,1),
+        # (1,1,1)
+        expected = self._bkd.asarray(
+            [
+                [0, 1, 0, 1, 0, 1, 0, 1],  # x varies fastest
+                [0, 0, 1, 1, 0, 0, 1, 1],  # y varies next
+                [0, 0, 0, 0, 1, 1, 1, 1],  # z varies slowest
+            ]
+        )
         self._bkd.assert_allclose(result, expected)
 
     def test_kronecker_product_consistency(self):
@@ -341,7 +356,7 @@ class TestFirstDimFastest(Generic[Array], unittest.TestCase):
         """
         # Simulate 1D basis nodes
         nodes_x = self._bkd.asarray([-1.0, 0.0, 1.0])  # 3 points
-        nodes_y = self._bkd.asarray([-1.0, 1.0])       # 2 points
+        nodes_y = self._bkd.asarray([-1.0, 1.0])  # 2 points
 
         # With first_dim_fastest, should match kron(I_y, I_x) ordering
         samples = cartesian_product_samples(
@@ -377,7 +392,9 @@ class TestFirstDimFastest(Generic[Array], unittest.TestCase):
         self.assertEqual(result_default.shape, (2, 3))
         # Flattened: (1*3, 1*4, 1*5, 2*3, 2*4, 2*5) = (3, 4, 5, 6, 8, 10)
         expected_flat_default = self._bkd.asarray([3.0, 4.0, 5.0, 6.0, 8.0, 10.0])
-        self._bkd.assert_allclose(self._bkd.ravel(result_default), expected_flat_default)
+        self._bkd.assert_allclose(
+            self._bkd.ravel(result_default), expected_flat_default
+        )
 
         # first_dim_fastest: shape (3, 2), first dim varies fastest when flattened
         result_first = outer_product(self._bkd, [x, y], first_dim_fastest=True)

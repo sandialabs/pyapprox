@@ -3,7 +3,7 @@
 Implements the standard CG algorithm for solving Ax = b where A is SPD.
 """
 
-from typing import Generic, Optional, Tuple, Callable
+from typing import Callable, Generic, Optional, Tuple
 
 from pyapprox.util.backends.protocols import Array, Backend
 

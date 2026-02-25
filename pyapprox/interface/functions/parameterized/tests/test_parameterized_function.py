@@ -1,15 +1,15 @@
 import unittest
-from typing import Generic, Any
+from typing import Any, Generic
 
-from numpy.typing import NDArray
 import torch
+from numpy.typing import NDArray
 
 from pyapprox.interface.functions.parameterized.factory import (
     _convert_to_function_of_parameters as convert_to_function_of_parameters,
     # convert_to_function_of_parameters,
 )
-from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.util.backends.numpy import NumpyBkd
+from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.util.backends.torch import TorchBkd
 
 
@@ -39,7 +39,8 @@ class ExampleParameterizedFunctionWithHVP(Generic[Array]):
 
     def __call__(self, samples: Array) -> Array:
         """
-        Evaluate f(x, p) = sum_j (p[0]**2 * x[j]**2 + p[1]**3 * x[j] + p[2]**4 + p[0] * p[1]).
+        Evaluate f(x, p) = sum_j (p[0]**2 * x[j]**2 + p[1]**3 * x[j] + p[2]**4 + p[0] *
+        p[1]).
 
         functions using protocol must have both the same type and the
         same argument names. We derive from Function here so must
@@ -78,9 +79,7 @@ class ExampleParameterizedFunctionWithHVP(Generic[Array]):
                 self._bkd.sum(
                     3 * self._param[1] ** 2 * x + self._param[0], axis=1
                 ),  # ∂f/∂p[1]
-                self._bkd.sum(
-                    4 * self._param[2] ** 3 + x * 0.0, axis=1
-                ),  # ∂f/∂p[2]
+                self._bkd.sum(4 * self._param[2] ** 3 + x * 0.0, axis=1),  # ∂f/∂p[2]
             ],
             axis=1,
         )
@@ -97,15 +96,11 @@ class ExampleParameterizedFunctionWithHVP(Generic[Array]):
         """
         hessian = self._bkd.zeros((self.nparams(), self.nparams()))
         hessian[0, 0] = self._bkd.sum(2 * x[0] ** 2, axis=0)  # ∂²f/∂p[0]²
-        hessian[1, 1] = self._bkd.sum(
-            6 * self._param[1] * x[0], axis=0
-        )  # ∂²f/∂p[1]²
+        hessian[1, 1] = self._bkd.sum(6 * self._param[1] * x[0], axis=0)  # ∂²f/∂p[1]²
         hessian[2, 2] = self._bkd.sum(
             12 * self._param[2] ** 2 + x[0] * 0.0, axis=0
         )  # ∂²f/∂p[2]²
-        hessian[0, 1] = self._bkd.sum(
-            1.0 + x[0] * 0.0, axis=0
-        )  # ∂²f/∂p[0]∂p[1]
+        hessian[0, 1] = self._bkd.sum(1.0 + x[0] * 0.0, axis=0)  # ∂²f/∂p[0]∂p[1]
         hessian[1, 0] = hessian[0, 1]  # Symmetry of Hessian
 
         # Compute Hessian-vector product
@@ -119,25 +114,21 @@ class TestFunctionOfParameters(Generic[Array], unittest.TestCase):
         """
         Override this method in derived classes to provide the specific backend.
         """
-        raise NotImplementedError(
-            "Derived classes must implement this method."
-        )
+        raise NotImplementedError("Derived classes must implement this method.")
 
     def setUp(self) -> None:
         self.fixed_x = self.bkd().reshape(
             self.bkd().linspace(0, 1, 5), (1, -1)
         )  # Shape (1, npts)
-        self.param_func_with_full_rank_hvp = (
-            ExampleParameterizedFunctionWithHVP(self.bkd())
+        self.param_func_with_full_rank_hvp = ExampleParameterizedFunctionWithHVP(
+            self.bkd()
         )
 
     def test_function_of_parameters(self) -> None:
         """
         Test the functionality of FunctionOfParametersWithJacobian.
         """
-        param = self.bkd().array([1.0, 2.0, 3.0])[
-            :, None
-        ]  # Single parameter vector
+        param = self.bkd().array([1.0, 2.0, 3.0])[:, None]  # Single parameter vector
         self.param_func_with_full_rank_hvp.set_parameter(param)
         func_of_params = convert_to_function_of_parameters(
             self.param_func_with_full_rank_hvp, self.fixed_x
@@ -189,8 +180,7 @@ class TestFunctionOfParameters(Generic[Array], unittest.TestCase):
                 self.bkd().sum(2.0 * self.fixed_x[0] ** 2, axis=0) * vec[0]
                 + self.fixed_x.shape[1]
                 * vec[1],  # ∂²f/∂p[0]² * vec[0] + ∂²f/∂p[0]∂p[1] * vec[1]
-                self.bkd().sum(6.0 * param[1] * self.fixed_x[0], axis=0)
-                * vec[1]
+                self.bkd().sum(6.0 * param[1] * self.fixed_x[0], axis=0) * vec[1]
                 + self.fixed_x.shape[1]
                 * vec[0],  # ∂²f/∂p[1]² * vec[1] + ∂²f/∂p[0]∂p[1] * vec[0]
                 self.fixed_x.shape[1] * 12.0 * param[2] ** 2 * vec[2],
@@ -220,9 +210,6 @@ class TestFunctionOfParametersTorch(TestFunctionOfParameters[torch.Tensor]):
 
     def bkd(self) -> Backend[torch.Tensor]:
         return self._bkd
-
-
-from pyapprox.util.test_utils import load_tests
 
 
 if __name__ == "__main__":

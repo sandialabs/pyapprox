@@ -13,12 +13,12 @@ parameter functions.
 
 from pyapprox.inverse.variational.elbo import (
     ELBOObjective,
-    make_single_problem_elbo,
     make_discrete_group_elbo,
+    make_single_problem_elbo,
 )
 from pyapprox.inverse.variational.fitter import (
-    VIFitResult,
     VariationalFitter,
+    VIFitResult,
 )
 
 __all__ = [

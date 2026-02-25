@@ -26,7 +26,8 @@ def validate_backend(obj: Any) -> None:
 
 def validate_backends(backends: Sequence[Any]) -> None:
     """
-    Validate that all backends in the sequence have the same class name and are valid backends.
+    Validate that all backends in the sequence have the same
+    class name and are valid backends.
 
     Parameters
     ----------
@@ -60,6 +61,7 @@ def validate_backends(backends: Sequence[Any]) -> None:
     # Check if all class names are the same
     if len(set(class_names)) != 1:
         raise ValueError(
-            f"Inconsistent backends: expected all backends to have the same class name, "
-            f"got {set(class_names)}."
+            "Inconsistent backends: expected all backends"
+            " to have the same class name,"
+            f" got {set(class_names)}."
         )

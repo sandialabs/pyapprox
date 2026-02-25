@@ -4,24 +4,22 @@ Provides protocols, implementations, and a registry for pluggable
 constitutive models used by HyperelasticityPhysics.
 """
 
+from pyapprox.pde.collocation.physics.stress_models.neo_hookean import (
+    NeoHookeanStress,
+)
 from pyapprox.pde.collocation.physics.stress_models.protocols import (
     StressModelProtocol,
     StressModelWithTangentProtocol,
     SymbolicStressModelProtocol,
 )
-from pyapprox.pde.collocation.physics.stress_models.neo_hookean import (
-    NeoHookeanStress,
-)
 from pyapprox.pde.collocation.physics.stress_models.registry import (
-    register_stress_model,
     create_stress_model,
     list_stress_models,
+    register_stress_model,
 )
 
 # Auto-register built-in stress models
-register_stress_model(
-    "neo_hookean", lambda **kw: NeoHookeanStress(**kw)
-)
+register_stress_model("neo_hookean", lambda **kw: NeoHookeanStress(**kw))
 
 __all__ = [
     # Protocols

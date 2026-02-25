@@ -1,21 +1,21 @@
 """Sample allocation optimization for GroupACV estimators."""
 
 from dataclasses import dataclass
-from typing import Generic, Optional, TYPE_CHECKING
+from typing import TYPE_CHECKING, Generic, Optional
 
 from pyapprox.util.backends.protocols import Array
 
 if TYPE_CHECKING:
-    from pyapprox.statest.groupacv.base import GroupACVEstimator
-    from pyapprox.statest.groupacv.optimization import (
-        GroupACVObjective,
-        GroupACVCostConstraint,
+    from pyapprox.optimization.minimize.chained.chained_optimizer import (
+        ChainedOptimizer,
     )
     from pyapprox.optimization.minimize.protocols import (
         BindableOptimizerProtocol,
     )
-    from pyapprox.optimization.minimize.chained.chained_optimizer import (
-        ChainedOptimizer,
+    from pyapprox.statest.groupacv.base import GroupACVEstimator
+    from pyapprox.statest.groupacv.optimization import (
+        GroupACVCostConstraint,
+        GroupACVObjective,
     )
 
 
@@ -31,11 +31,11 @@ def default_groupacv_optimizer() -> "ChainedOptimizer":
     from pyapprox.optimization.minimize.chained.chained_optimizer import (
         ChainedOptimizer,
     )
-    from pyapprox.optimization.minimize.scipy.trust_constr import (
-        ScipyTrustConstrOptimizer,
-    )
     from pyapprox.optimization.minimize.scipy.diffevol import (
         ScipyDifferentialEvolutionOptimizer,
+    )
+    from pyapprox.optimization.minimize.scipy.trust_constr import (
+        ScipyTrustConstrOptimizer,
     )
 
     global_opt = ScipyDifferentialEvolutionOptimizer(
@@ -200,9 +200,7 @@ class GroupACVAllocationOptimizer(Generic[Array]):
         result = self._optimizer.minimize(init_guess)
 
         if not result.success() or self._bkd.any_bool(result.optima() < 0):
-            nsamples_per_model = self._est._compute_nsamples_per_model(
-                init_guess[:, 0]
-            )
+            nsamples_per_model = self._est._compute_nsamples_per_model(init_guess[:, 0])
             return GroupACVAllocationResult(
                 npartition_samples=init_guess[:, 0],
                 nsamples_per_model=nsamples_per_model,
@@ -220,9 +218,7 @@ class GroupACVAllocationOptimizer(Generic[Array]):
             npartition_samples = self._bkd.floor(npartition_samples + 1e-4)
 
         # Compute nsamples_per_model and actual_cost
-        nsamples_per_model = self._est._compute_nsamples_per_model(
-            npartition_samples
-        )
+        nsamples_per_model = self._est._compute_nsamples_per_model(npartition_samples)
         actual_cost = float(self._est._estimator_cost(npartition_samples))
 
         # Compute objective at solution

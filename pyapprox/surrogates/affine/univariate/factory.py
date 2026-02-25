@@ -31,11 +31,11 @@ Example
 
 from typing import Any, List, Union
 
-from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.surrogates.affine.univariate.transformed import (
-    TransformedBasis1D,
     NativeBasis1D,
+    TransformedBasis1D,
 )
+from pyapprox.util.backends.protocols import Array, Backend
 
 
 def create_basis_1d(
@@ -79,15 +79,15 @@ def create_basis_1d(
     >>> values = basis(samples)
     """
     # Import registry here to avoid circular imports
+    from pyapprox.surrogates.affine.univariate.globalpoly.continuous_numeric import (
+        ContinuousNumericOrthonormalPolynomial1D,
+    )
     from pyapprox.surrogates.affine.univariate.registry import (
         _lookup_analytical,
         _lookup_discrete,
     )
     from pyapprox.surrogates.affine.univariate.transforms import (
         BoundedAffineTransform1D,
-    )
-    from pyapprox.surrogates.affine.univariate.globalpoly.continuous_numeric import (
-        ContinuousNumericOrthonormalPolynomial1D,
     )
 
     # Check analytical registry first

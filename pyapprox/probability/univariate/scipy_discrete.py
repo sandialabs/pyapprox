@@ -4,7 +4,7 @@ SciPy discrete distribution wrapper.
 Provides a wrapper for SciPy discrete distributions.
 """
 
-from typing import Generic, Any, Dict, Tuple
+from typing import Any, Dict, Generic, Tuple
 
 import numpy as np
 from scipy.stats import _discrete_distns
@@ -90,9 +90,7 @@ class ScipyDiscreteMarginal(Generic[Array]):
             If input is not 2D or has wrong first dimension
         """
         samples_1d = self._validate_input(samples)
-        result = self._bkd.asarray(
-            self._scipy_rv.pmf(self._bkd.to_numpy(samples_1d))
-        )
+        result = self._bkd.asarray(self._scipy_rv.pmf(self._bkd.to_numpy(samples_1d)))
         return self._bkd.reshape(result, (1, -1))
 
     def pdf(self, samples: Array) -> Array:
@@ -153,9 +151,7 @@ class ScipyDiscreteMarginal(Generic[Array]):
             If input is not 2D or has wrong first dimension
         """
         samples_1d = self._validate_input(samples)
-        result = self._bkd.asarray(
-            self._scipy_rv.cdf(self._bkd.to_numpy(samples_1d))
-        )
+        result = self._bkd.asarray(self._scipy_rv.cdf(self._bkd.to_numpy(samples_1d)))
         return self._bkd.reshape(result, (1, -1))
 
     def invcdf(self, probs: Array) -> Array:
@@ -181,9 +177,7 @@ class ScipyDiscreteMarginal(Generic[Array]):
             If input is not 2D or has wrong first dimension
         """
         probs_1d = self._validate_input(probs)
-        result = self._bkd.asarray(
-            self._scipy_rv.ppf(self._bkd.to_numpy(probs_1d))
-        )
+        result = self._bkd.asarray(self._scipy_rv.ppf(self._bkd.to_numpy(probs_1d)))
         return self._bkd.reshape(result, (1, -1))
 
     # Alias for compatibility
@@ -262,9 +256,7 @@ class ScipyDiscreteMarginal(Generic[Array]):
             shape_names = [n.strip() for n in shape_names.split(",")]
             shape_values = [
                 self._scipy_rv.args[ii]
-                for ii in range(
-                    min(len(self._scipy_rv.args), len(shape_names))
-                )
+                for ii in range(min(len(self._scipy_rv.args), len(shape_names)))
             ]
             shape_values += [
                 self._scipy_rv.kwds[shape_names[ii]]
@@ -280,9 +272,7 @@ class ScipyDiscreteMarginal(Generic[Array]):
             for ii in range(len(shapes), len(self._scipy_rv.args))
         ]
         scale_values += [
-            self._scipy_rv.kwds[key]
-            for key in self._scipy_rv.kwds
-            if key not in shapes
+            self._scipy_rv.kwds[key] for key in self._scipy_rv.kwds if key not in shapes
         ]
 
         if len(scale_values) == 0:
@@ -336,7 +326,9 @@ class ScipyDiscreteMarginal(Generic[Array]):
             # Find bounds that capture most of the probability mass
             eps = 1e-12
             a_bounded = int(self._scipy_rv.ppf(eps)) if not np.isfinite(a) else int(a)
-            b_bounded = int(self._scipy_rv.ppf(1 - eps)) if not np.isfinite(b) else int(b)
+            b_bounded = (
+                int(self._scipy_rv.ppf(1 - eps)) if not np.isfinite(b) else int(b)
+            )
             xk = np.arange(a_bounded, b_bounded + 1)
         else:
             xk = np.arange(int(a), int(b) + 1)

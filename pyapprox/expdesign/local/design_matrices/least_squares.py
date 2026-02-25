@@ -70,9 +70,7 @@ class LeastSquaresDesignMatrices(DesignMatricesBase[Array], Generic[Array]):
         """
         # M1_k = phi_k @ phi_k^T for each design point k
         # Using einsum: "ij,il->ijl" computes outer product for each row
-        M1k = self._bkd.einsum(
-            "ij,il->ijl", self._design_factors, self._design_factors
-        )
+        M1k = self._bkd.einsum("ij,il->ijl", self._design_factors, self._design_factors)
 
         if self.is_homoscedastic():
             # M0 = M1 when noise is constant

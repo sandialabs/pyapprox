@@ -4,18 +4,18 @@ import unittest
 
 import numpy as np
 
-from pyapprox.util.backends.numpy import NumpyBkd
 from pyapprox.surrogates.affine.solvers import (
+    BasisPursuitDenoisingSolver,
+    BasisPursuitSolver,
+    ExpectileRegressionSolver,
     LeastSquaresSolver,
-    RidgeRegressionSolver,
     LinearlyConstrainedLstSqSolver,
     OMPSolver,
     OMPTerminationFlag,
-    BasisPursuitSolver,
-    BasisPursuitDenoisingSolver,
     QuantileRegressionSolver,
-    ExpectileRegressionSolver,
+    RidgeRegressionSolver,
 )
+from pyapprox.util.backends.numpy import NumpyBkd
 
 
 class SolverTestBase:
@@ -140,10 +140,12 @@ class TestLinearlyConstrainedLstSqSolver(SolverTestBase, unittest.TestCase):
         y = self.bkd.dot(A, coef_true)
 
         # Constraints: c_0 = 0, c_1 + c_2 = 1
-        C = self.bkd.asarray([
-            [1.0, 0.0, 0.0, 0.0, 0.0],
-            [0.0, 1.0, 1.0, 0.0, 0.0],
-        ])
+        C = self.bkd.asarray(
+            [
+                [1.0, 0.0, 0.0, 0.0, 0.0],
+                [0.0, 1.0, 1.0, 0.0, 0.0],
+            ]
+        )
         d = self.bkd.asarray([[0.0], [1.0]])
 
         solver = LinearlyConstrainedLstSqSolver(self.bkd, C, d)
@@ -151,9 +153,7 @@ class TestLinearlyConstrainedLstSqSolver(SolverTestBase, unittest.TestCase):
 
         # Check constraints are satisfied
         residual = self.bkd.dot(C, coef) - d
-        self.bkd.assert_allclose(
-            residual, self.bkd.zeros_like(residual), atol=1e-10
-        )
+        self.bkd.assert_allclose(residual, self.bkd.zeros_like(residual), atol=1e-10)
 
 
 class TestOMPSolver(SolverTestBase, unittest.TestCase):
@@ -178,9 +178,7 @@ class TestOMPSolver(SolverTestBase, unittest.TestCase):
 
         # Check sparse recovery
         self.bkd.assert_allclose(coef, coef_true, rtol=1e-5)
-        self.assertEqual(
-            solver.termination_flag, OMPTerminationFlag.RESIDUAL_TOLERANCE
-        )
+        self.assertEqual(solver.termination_flag, OMPTerminationFlag.RESIDUAL_TOLERANCE)
 
     def test_respects_max_nonzeros(self):
         """Test that max_nonzeros is respected."""
@@ -323,10 +321,12 @@ class TestWeightedSolving(SolverTestBase, unittest.TestCase):
         weights_uniform = self.bkd.ones((nsamples,))
 
         # Non-uniform weights (emphasize first half)
-        weights_nonuniform = self.bkd.concatenate([
-            2.0 * self.bkd.ones((nsamples // 2,)),
-            0.5 * self.bkd.ones((nsamples - nsamples // 2,)),
-        ])
+        weights_nonuniform = self.bkd.concatenate(
+            [
+                2.0 * self.bkd.ones((nsamples // 2,)),
+                0.5 * self.bkd.ones((nsamples - nsamples // 2,)),
+            ]
+        )
 
         solver1 = LeastSquaresSolver(self.bkd)
         solver1.set_weights(weights_uniform)

@@ -3,32 +3,33 @@
 Ports all relevant legacy tests from pyapprox/surrogates/affine/tests/test_kle.py
 and adds new tests for improved coverage.
 """
+
 import unittest
 from typing import Any, Generic
 
 import numpy as np
-from numpy.typing import NDArray
 import torch
+from numpy.typing import NDArray
 
-from pyapprox.util.backends.protocols import Array, Backend
-from pyapprox.util.backends.numpy import NumpyBkd
-from pyapprox.util.backends.torch import TorchBkd
-from pyapprox.surrogates.kernels.matern import (
-    SquaredExponentialKernel,
-    Matern52Kernel,
-    Matern32Kernel,
-    ExponentialKernel,
-)
-from pyapprox.surrogates.kle.mesh_kle import MeshKLE
-from pyapprox.surrogates.kle.analytical import (
-    AnalyticalExponentialKLE1D,
-)
 from pyapprox.surrogates.affine.univariate.globalpoly import (
     LegendrePolynomial1D,
 )
 from pyapprox.surrogates.affine.univariate.globalpoly.quadrature import (
     GaussQuadratureRule,
 )
+from pyapprox.surrogates.kernels.matern import (
+    ExponentialKernel,
+    Matern32Kernel,
+    Matern52Kernel,
+    SquaredExponentialKernel,
+)
+from pyapprox.surrogates.kle.analytical import (
+    AnalyticalExponentialKLE1D,
+)
+from pyapprox.surrogates.kle.mesh_kle import MeshKLE
+from pyapprox.util.backends.numpy import NumpyBkd
+from pyapprox.util.backends.protocols import Array, Backend
+from pyapprox.util.backends.torch import TorchBkd
 
 
 def _gauss_legendre_quad(lb, ub, npts, bkd):
@@ -95,16 +96,14 @@ class TestMeshKLE(Generic[Array], unittest.TestCase):
         nterms = 3
         len_scale, sigma = 1.0, 1.0
         lb, ub = 0.0, 2.0
-        npts = 2 ** level + 1
+        npts = 2**level + 1
 
         # Get Gauss-Legendre quadrature
         mesh_coords, quad_weights = _gauss_legendre_quad(lb, ub, npts, bkd)
 
         # Create ExponentialKernel (nu=0.5)
         lenscale_arr = bkd.array([len_scale])
-        kernel = ExponentialKernel(
-            lenscale_arr, (0.01, 100.0), 1, bkd
-        )
+        kernel = ExponentialKernel(lenscale_arr, (0.01, 100.0), 1, bkd)
 
         kle = MeshKLE(
             mesh_coords,
@@ -166,40 +165,44 @@ class TestMeshKLE(Generic[Array], unittest.TestCase):
         quad_weights2 = bkd.array(wts2)
 
         lenscale_arr = bkd.array([len_scale])
-        kernel2 = ExponentialKernel(
-            lenscale_arr, (0.01, 100.0), 1, bkd
-        )
+        kernel2 = ExponentialKernel(lenscale_arr, (0.01, 100.0), 1, bkd)
         kle2 = MeshKLE(
-            mesh_coords2, kernel2, sigma=sigma, nterms=nterms,
-            quad_weights=quad_weights2, bkd=bkd,
+            mesh_coords2,
+            kernel2,
+            sigma=sigma,
+            nterms=nterms,
+            quad_weights=quad_weights2,
+            bkd=bkd,
         )
 
         # Coarse mesh
-        npts1 = 2 ** level1 + 1
+        npts1 = 2**level1 + 1
         pts1, wts1 = _trapezoid_rule(lb, ub, npts1)
         mesh_coords1 = bkd.array(pts1[None, :])
         quad_weights1 = bkd.array(wts1)
 
-        kernel1 = ExponentialKernel(
-            lenscale_arr, (0.01, 100.0), 1, bkd
-        )
+        kernel1 = ExponentialKernel(lenscale_arr, (0.01, 100.0), 1, bkd)
         kle1 = MeshKLE(
-            mesh_coords1, kernel1, sigma=sigma, nterms=nterms,
-            quad_weights=quad_weights1, bkd=bkd,
+            mesh_coords1,
+            kernel1,
+            sigma=sigma,
+            nterms=nterms,
+            quad_weights=quad_weights1,
+            bkd=bkd,
         )
 
         # Eigenvectors should be orthonormal under respective weights
         eig_vecs2 = kle2.eigenvectors()
         eig_vecs1 = kle1.eigenvectors()
-        identity = bkd.array(np.eye(nterms))
+        bkd.array(np.eye(nterms))
 
         bkd.assert_allclose(
-            bkd.sum(quad_weights2[:, None] * eig_vecs2 ** 2, axis=0),
+            bkd.sum(quad_weights2[:, None] * eig_vecs2**2, axis=0),
             bkd.ones(nterms),
             atol=1e-6,
         )
         bkd.assert_allclose(
-            bkd.sum(quad_weights1[:, None] * eig_vecs1 ** 2, axis=0),
+            bkd.sum(quad_weights1[:, None] * eig_vecs1**2, axis=0),
             bkd.ones(nterms),
             atol=1e-6,
         )
@@ -216,9 +219,7 @@ class TestMeshKLE(Generic[Array], unittest.TestCase):
         bkd = self._bkd
         nterms = 3
         npts = 50
-        mesh_coords = bkd.array(
-            np.linspace(0, 1, npts)[None, :]
-        )
+        mesh_coords = bkd.array(np.linspace(0, 1, npts)[None, :])
 
         kernel_classes = [
             SquaredExponentialKernel,
@@ -232,19 +233,16 @@ class TestMeshKLE(Generic[Array], unittest.TestCase):
                 lenscale = bkd.array([0.5])
                 kernel = KernelClass(lenscale, (0.01, 10.0), 1, bkd)
                 kle = MeshKLE(
-                    mesh_coords, kernel, nterms=nterms, bkd=bkd,
+                    mesh_coords,
+                    kernel,
+                    nterms=nterms,
+                    bkd=bkd,
                 )
                 # Eigenvalues should be positive
-                self.assertTrue(
-                    bkd.all_bool(kle.eigenvalues() > 0)
-                )
+                self.assertTrue(bkd.all_bool(kle.eigenvalues() > 0))
                 # Check shapes
-                self.assertEqual(
-                    kle.eigenvectors().shape, (npts, nterms)
-                )
-                self.assertEqual(
-                    kle.weighted_eigenvectors().shape, (npts, nterms)
-                )
+                self.assertEqual(kle.eigenvectors().shape, (npts, nterms))
+                self.assertEqual(kle.weighted_eigenvectors().shape, (npts, nterms))
                 self.assertEqual(kle.eigenvalues().shape, (nterms,))
 
                 # Evaluate
@@ -260,9 +258,7 @@ class TestMeshKLE(Generic[Array], unittest.TestCase):
         x = np.linspace(0, 1, nx)
         y = np.linspace(0, 1, ny)
         xx, yy = np.meshgrid(x, y)
-        mesh_coords = bkd.array(
-            np.vstack([xx.ravel(), yy.ravel()])
-        )  # shape (2, 25)
+        mesh_coords = bkd.array(np.vstack([xx.ravel(), yy.ravel()]))  # shape (2, 25)
 
         lenscale = bkd.array([0.5, 0.5])
         kernel = SquaredExponentialKernel(lenscale, (0.01, 10.0), 2, bkd)
@@ -281,12 +277,18 @@ class TestMeshKLE(Generic[Array], unittest.TestCase):
         kernel = SquaredExponentialKernel(lenscale, (0.01, 10.0), 1, bkd)
 
         kle_no_log = MeshKLE(
-            mesh_coords, kernel, nterms=nterms,
-            use_log=False, bkd=bkd,
+            mesh_coords,
+            kernel,
+            nterms=nterms,
+            use_log=False,
+            bkd=bkd,
         )
         kle_log = MeshKLE(
-            mesh_coords, kernel, nterms=nterms,
-            use_log=True, bkd=bkd,
+            mesh_coords,
+            kernel,
+            nterms=nterms,
+            use_log=True,
+            bkd=bkd,
         )
 
         coef = bkd.array(np.random.randn(nterms, 4))
@@ -316,7 +318,11 @@ class TestMeshKLE(Generic[Array], unittest.TestCase):
         # Non-zero mean
         mean = 5.0
         kle_mean = MeshKLE(
-            mesh_coords, kernel, mean_field=mean, nterms=3, bkd=bkd,
+            mesh_coords,
+            kernel,
+            mean_field=mean,
+            nterms=3,
+            bkd=bkd,
         )
         zero_coef = bkd.zeros((3, 1))
         result = kle_mean(zero_coef)
@@ -355,7 +361,6 @@ class TestMeshKLETorch(TestMeshKLE[torch.Tensor]):
 
 
 from pyapprox.util.test_utils import load_tests  # noqa: F401
-
 
 if __name__ == "__main__":
     loader = unittest.TestLoader()

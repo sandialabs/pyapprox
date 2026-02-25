@@ -5,8 +5,8 @@ which allows calling external models via HTTP.
 """
 
 from pyapprox.interface.umbridge.client import (
-    UMBridgeModel,
     UMBRIDGE_AVAILABLE,
+    UMBridgeModel,
 )
 
 __all__ = [

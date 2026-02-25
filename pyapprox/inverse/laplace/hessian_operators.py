@@ -5,10 +5,10 @@ These operators compute the action of various Hessian matrices needed
 for Laplace approximation without forming the full dense matrix.
 """
 
-from typing import Generic, Callable
+from typing import Callable, Generic
 
-from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.probability.protocols import SqrtCovarianceOperatorProtocol
+from pyapprox.util.backends.protocols import Array, Backend
 
 
 class ApplyNegLogLikelihoodHessian(Generic[Array]):
@@ -77,8 +77,7 @@ class ApplyNegLogLikelihoodHessian(Generic[Array]):
         """
         if sample.shape != (self._nvars, 1):
             raise ValueError(
-                f"sample has wrong shape {sample.shape}, "
-                f"expected ({self._nvars}, 1)"
+                f"sample has wrong shape {sample.shape}, expected ({self._nvars}, 1)"
             )
         self._sample = sample
 
@@ -104,7 +103,7 @@ class ApplyNegLogLikelihoodHessian(Generic[Array]):
 
         hvps = []
         for ii in range(vecs.shape[1]):
-            vec = vecs[:, ii:ii+1]
+            vec = vecs[:, ii : ii + 1]
             # Negate because we want negative log-likelihood Hessian
             hvps.append(-self._apply_hessian(self._sample, vec))
         return self._bkd.hstack(hvps)

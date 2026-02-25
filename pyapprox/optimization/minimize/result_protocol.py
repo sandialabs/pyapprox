@@ -1,4 +1,5 @@
-from typing import Protocol, runtime_checkable, Optional, Generic
+from typing import Generic, Protocol, runtime_checkable
+
 from pyapprox.util.backends.protocols import Array
 
 

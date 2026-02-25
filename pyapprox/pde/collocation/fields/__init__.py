@@ -6,9 +6,9 @@ surface height) via SymPy expressions.
 
 from pyapprox.pde.collocation.fields.sympy_field import (
     SympyField2D,
-    create_quadratic_bed,
-    create_polynomial_surface,
     create_beta_surface,
+    create_polynomial_surface,
+    create_quadratic_bed,
     create_shallow_wave_bed,
 )
 

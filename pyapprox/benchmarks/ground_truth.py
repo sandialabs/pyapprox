@@ -4,8 +4,8 @@ Each domain (sensitivity, optimization, quadrature, etc.) has its own
 ground truth dataclass containing the known/computable values.
 """
 
-from dataclasses import dataclass, field
-from typing import Optional, Dict, Any, Sequence, Tuple, Callable, Generic
+from dataclasses import dataclass
+from typing import Any, Callable, Dict, Generic, Optional, Sequence, Tuple
 
 from pyapprox.util.backends.protocols import Array
 
@@ -29,8 +29,7 @@ class SensitivityGroundTruth(Generic[Array]):
         value = getattr(self, name, None)
         if value is None:
             raise ValueError(
-                f"Ground truth '{name}' not available. "
-                f"Available: {self.available()}"
+                f"Ground truth '{name}' not available. Available: {self.available()}"
             )
         return value
 
@@ -52,8 +51,7 @@ class OptimizationGroundTruth(Generic[Array]):
         value = getattr(self, name, None)
         if value is None:
             raise ValueError(
-                f"Ground truth '{name}' not available. "
-                f"Available: {self.available()}"
+                f"Ground truth '{name}' not available. Available: {self.available()}"
             )
         return value
 
@@ -74,8 +72,7 @@ class QuadratureGroundTruth:
         value = getattr(self, name, None)
         if value is None:
             raise ValueError(
-                f"Ground truth '{name}' not available. "
-                f"Available: {self.available()}"
+                f"Ground truth '{name}' not available. Available: {self.available()}"
             )
         return value
 
@@ -99,8 +96,7 @@ class MultifidelityGroundTruth(Generic[Array]):
         value = getattr(self, name, None)
         if value is None:
             raise ValueError(
-                f"Ground truth '{name}' not available. "
-                f"Available: {self.available()}"
+                f"Ground truth '{name}' not available. Available: {self.available()}"
             )
         return value
 
@@ -124,8 +120,7 @@ class InverseGroundTruth(Generic[Array]):
         value = getattr(self, name, None)
         if value is None:
             raise ValueError(
-                f"Ground truth '{name}' not available. "
-                f"Available: {self.available()}"
+                f"Ground truth '{name}' not available. Available: {self.available()}"
             )
         return value
 
@@ -179,7 +174,6 @@ class ODEGroundTruth(Generic[Array]):
         value = getattr(self, name, None)
         if value is None:
             raise ValueError(
-                f"Ground truth '{name}' not available. "
-                f"Available: {self.available()}"
+                f"Ground truth '{name}' not available. Available: {self.available()}"
             )
         return value

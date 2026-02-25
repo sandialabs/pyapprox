@@ -18,13 +18,13 @@ where:
     C = friction coefficient
 """
 
-from typing import Generic, Optional, Callable, Union
+from typing import Callable, Optional, Union
 
-from pyapprox.util.backends.protocols import Array, Backend
+from pyapprox.pde.collocation.physics.base import AbstractScalarPhysics
 from pyapprox.pde.collocation.protocols.basis import (
     TensorProductBasisProtocol,
 )
-from pyapprox.pde.collocation.physics.base import AbstractScalarPhysics
+from pyapprox.util.backends.protocols import Array, Backend
 
 
 class ShallowIcePhysics(AbstractScalarPhysics[Array]):
@@ -84,7 +84,7 @@ class ShallowIcePhysics(AbstractScalarPhysics[Array]):
         self._A = A
         self._rho = rho
         self._g = 9.81  # Gravitational acceleration
-        self._n = 3     # Glen's flow law exponent
+        self._n = 3  # Glen's flow law exponent
         self._eps = eps
 
         npts = basis.npts()
@@ -130,7 +130,6 @@ class ShallowIcePhysics(AbstractScalarPhysics[Array]):
             (grad_s_components, grad_s_sq) where grad_s_components is list
             of gradient components and grad_s_sq is squared magnitude.
         """
-        bkd = self._bkd
         ndim = self._basis.ndim()
 
         # Surface elevation s = H + bed
@@ -140,7 +139,7 @@ class ShallowIcePhysics(AbstractScalarPhysics[Array]):
         grad_s = [self._D_matrices[dim] @ surface for dim in range(ndim)]
 
         # |grad(s)|^2
-        grad_s_sq = sum(gs ** 2 for gs in grad_s)
+        grad_s_sq = sum(gs**2 for gs in grad_s)
 
         return grad_s, grad_s_sq
 
@@ -161,7 +160,6 @@ class ShallowIcePhysics(AbstractScalarPhysics[Array]):
         Array
             Diffusion coefficient D. Shape: (npts,)
         """
-        bkd = self._bkd
         n = self._n
 
         # Deformation component: gamma * H^(n+2) * |grad(s)|^(n-1)
@@ -173,7 +171,7 @@ class ShallowIcePhysics(AbstractScalarPhysics[Array]):
         deformation = self._gamma * H_power * grad_power
 
         # Sliding component: friction_frac * H^2
-        sliding = self._friction_frac * state ** 2
+        sliding = self._friction_frac * state**2
 
         return deformation + sliding
 
@@ -194,7 +192,6 @@ class ShallowIcePhysics(AbstractScalarPhysics[Array]):
         Array
             Residual div(D*grad(s)) + f. Shape: (npts,)
         """
-        bkd = self._bkd
         ndim = self._basis.ndim()
 
         # Compute surface gradient and its squared magnitude
@@ -207,10 +204,7 @@ class ShallowIcePhysics(AbstractScalarPhysics[Array]):
         flux = [D * gs for gs in grad_s]
 
         # Divergence of flux: div(D*grad(s)) = sum_i d/dx_i(D * ds/dx_i)
-        div_flux = sum(
-            self._D_matrices[dim] @ flux[dim]
-            for dim in range(ndim)
-        )
+        div_flux = sum(self._D_matrices[dim] @ flux[dim] for dim in range(ndim))
 
         # Residual = div(D*grad(s)) + f
         residual = div_flux + self._get_forcing(time)
@@ -237,14 +231,13 @@ class ShallowIcePhysics(AbstractScalarPhysics[Array]):
         """
         bkd = self._bkd
         npts = self.npts()
-        ndim = self._basis.ndim()
-        n = self._n
+        self._basis.ndim()
 
         # Compute surface gradient
         grad_s, grad_s_sq = self._compute_surface_gradient(state)
 
         # Compute diffusion and its derivatives
-        D = self._compute_diffusion(state, grad_s_sq)
+        self._compute_diffusion(state, grad_s_sq)
 
         # Initialize Jacobian
         jacobian = bkd.zeros((npts, npts))

@@ -11,25 +11,27 @@ import numpy as np
 import torch
 from numpy.typing import NDArray
 
-from pyapprox.util.backends.numpy import NumpyBkd
-from pyapprox.util.backends.protocols import Array, Backend
-from pyapprox.util.backends.torch import TorchBkd
-from pyapprox.util.test_utils import load_tests  # noqa: F401
-from pyapprox.util.test_utils import slow_test
 from pyapprox.interface.functions.marginalize import (
     FunctionMarginalizer,
 )
-from pyapprox.surrogates.quadrature.tensor_product_factory import (
-    TensorProductQuadratureFactory,
+from pyapprox.probability.copula.correlation.cholesky import (
+    CholeskyCorrelationParameterization,
 )
-from pyapprox.probability.univariate.beta import BetaMarginal
-from pyapprox.probability.joint.independent import IndependentJoint
 from pyapprox.probability.copula.distribution import (
     CopulaDistribution,
 )
 from pyapprox.probability.copula.gaussian import GaussianCopula
-from pyapprox.probability.copula.correlation.cholesky import (
-    CholeskyCorrelationParameterization,
+from pyapprox.probability.joint.independent import IndependentJoint
+from pyapprox.probability.univariate.beta import BetaMarginal
+from pyapprox.surrogates.quadrature.tensor_product_factory import (
+    TensorProductQuadratureFactory,
+)
+from pyapprox.util.backends.numpy import NumpyBkd
+from pyapprox.util.backends.protocols import Array, Backend
+from pyapprox.util.backends.torch import TorchBkd
+from pyapprox.util.test_utils import (
+    load_tests,  # noqa: F401
+    slow_test,
 )
 
 
@@ -40,18 +42,16 @@ def _make_3d_copula_distribution(bkd):
     beta_2 = BetaMarginal(3.0, 5.0, bkd, lb=0.0, ub=1.0)
     marginals = [beta_0, beta_1, beta_2]
 
-    Sigma = np.array([
-        [1.0, 0.6, 0.3],
-        [0.6, 1.0, 0.4],
-        [0.3, 0.4, 1.0],
-    ])
+    Sigma = np.array(
+        [
+            [1.0, 0.6, 0.3],
+            [0.6, 1.0, 0.4],
+            [0.3, 0.4, 1.0],
+        ]
+    )
     L = np.linalg.cholesky(Sigma)
-    chol_params = bkd.asarray(
-        np.array([L[1, 0], L[2, 0], L[2, 1]])
-    )
-    corr_param = CholeskyCorrelationParameterization(
-        chol_params, nvars=3, bkd=bkd
-    )
+    chol_params = bkd.asarray(np.array([L[1, 0], L[2, 0], L[2, 1]]))
+    corr_param = CholeskyCorrelationParameterization(chol_params, nvars=3, bkd=bkd)
     copula = GaussianCopula(corr_param, bkd)
     return CopulaDistribution(copula, marginals, bkd), marginals, Sigma
 
@@ -59,9 +59,7 @@ def _make_3d_copula_distribution(bkd):
 def _make_quadrature_factory(domain, bkd, npoints=20):
     """Create a Gauss-Legendre factory for the given domain."""
     nvars = domain.shape[0]
-    return TensorProductQuadratureFactory(
-        [npoints] * nvars, domain, bkd
-    )
+    return TensorProductQuadratureFactory([npoints] * nvars, domain, bkd)
 
 
 class TestMarginalizeDistributions(Generic[Array], unittest.TestCase):
@@ -87,9 +85,7 @@ class TestMarginalizeDistributions(Generic[Array], unittest.TestCase):
         factory = _make_quadrature_factory(dist.domain(), bkd, npoints=40)
         marginalizer = FunctionMarginalizer(dist, factory, bkd)
 
-        test_pts = bkd.asarray(
-            np.linspace(0.1, 0.9, 10).reshape(1, -1)
-        )
+        test_pts = bkd.asarray(np.linspace(0.1, 0.9, 10).reshape(1, -1))
 
         for var_idx in range(3):
             marg_fn = marginalizer.marginalize([var_idx])
@@ -116,21 +112,15 @@ class TestMarginalizeDistributions(Generic[Array], unittest.TestCase):
         sub_Sigma = Sigma[:2, :2]
         L_sub = np.linalg.cholesky(sub_Sigma)
         chol_sub = bkd.asarray(np.array([L_sub[1, 0]]))
-        corr_sub = CholeskyCorrelationParameterization(
-            chol_sub, nvars=2, bkd=bkd
-        )
+        corr_sub = CholeskyCorrelationParameterization(chol_sub, nvars=2, bkd=bkd)
         copula_2d = GaussianCopula(corr_sub, bkd)
-        ref_dist = CopulaDistribution(
-            copula_2d, [marginals[0], marginals[1]], bkd
-        )
+        ref_dist = CopulaDistribution(copula_2d, [marginals[0], marginals[1]], bkd)
 
         # Compare on a grid
         x0 = np.linspace(0.05, 0.95, 8)
         x1 = np.linspace(0.05, 0.95, 8)
         xx0, xx1 = np.meshgrid(x0, x1)
-        test_pts = bkd.asarray(
-            np.vstack([xx0.ravel(), xx1.ravel()])
-        )
+        test_pts = bkd.asarray(np.vstack([xx0.ravel(), xx1.ravel()]))
 
         result = marg_2d(test_pts)
         expected = ref_dist.pdf(test_pts)
@@ -169,16 +159,12 @@ class TestMarginalizeDistributions(Generic[Array], unittest.TestCase):
         """Error decreases as quadrature points increase."""
         bkd = self._bkd
         dist, marginals, _ = _make_3d_copula_distribution(bkd)
-        test_pts = bkd.asarray(
-            np.linspace(0.1, 0.9, 10).reshape(1, -1)
-        )
+        test_pts = bkd.asarray(np.linspace(0.1, 0.9, 10).reshape(1, -1))
         expected = marginals[0].pdf(test_pts)
 
         errors = []
         for npts in [10, 20, 40]:
-            factory = _make_quadrature_factory(
-                dist.domain(), bkd, npoints=npts
-            )
+            factory = _make_quadrature_factory(dist.domain(), bkd, npoints=npts)
             marginalizer = FunctionMarginalizer(dist, factory, bkd)
             marg_0 = marginalizer.marginalize([0])
             result = marg_0(test_pts)
@@ -190,16 +176,12 @@ class TestMarginalizeDistributions(Generic[Array], unittest.TestCase):
         self.assertGreater(errors[1], errors[2])
 
 
-class TestMarginalizeDistributionsNumpy(
-    TestMarginalizeDistributions[NDArray[Any]]
-):
+class TestMarginalizeDistributionsNumpy(TestMarginalizeDistributions[NDArray[Any]]):
     def bkd(self) -> NumpyBkd:
         return NumpyBkd()
 
 
-class TestMarginalizeDistributionsTorch(
-    TestMarginalizeDistributions[torch.Tensor]
-):
+class TestMarginalizeDistributionsTorch(TestMarginalizeDistributions[torch.Tensor]):
     def bkd(self) -> TorchBkd:
         torch.set_default_dtype(torch.float64)
         return TorchBkd()

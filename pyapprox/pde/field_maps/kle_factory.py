@@ -33,20 +33,20 @@ from typing import Optional, Union
 
 import numpy as np
 
-from pyapprox.util.backends.protocols import Array, Backend
-from pyapprox.surrogates.kernels.protocols import KernelProtocol
-from pyapprox.surrogates.kernels.matern import (
-    SquaredExponentialKernel,
-)
-from pyapprox.surrogates.kle.mesh_kle import MeshKLE
-from pyapprox.surrogates.kle.galerkin_kle import GalerkinKLE
-from pyapprox.surrogates.kle.spde_kle import SPDEMaternKLE
 from pyapprox.pde.field_maps.mesh_kle_field_map import (
     MeshKLEFieldMap,
 )
 from pyapprox.pde.field_maps.transformed import (
     TransformedFieldMap,
 )
+from pyapprox.surrogates.kernels.matern import (
+    SquaredExponentialKernel,
+)
+from pyapprox.surrogates.kernels.protocols import KernelProtocol
+from pyapprox.surrogates.kle.galerkin_kle import GalerkinKLE
+from pyapprox.surrogates.kle.mesh_kle import MeshKLE
+from pyapprox.surrogates.kle.spde_kle import SPDEMaternKLE
+from pyapprox.util.backends.protocols import Array, Backend
 
 
 def create_lognormal_kle_field_map(
@@ -95,13 +95,20 @@ def create_lognormal_kle_field_map(
     if kernel is None:
         lenscale = bkd.full((ndim,), correlation_length)
         kernel = SquaredExponentialKernel(
-            lenscale, (0.01, 10.0), ndim, bkd,
+            lenscale,
+            (0.01, 10.0),
+            ndim,
+            bkd,
         )
 
     mesh_kle = MeshKLE(
-        mesh_coords, kernel,
-        sigma=sigma, mean_field=0.0,
-        nterms=num_kle_terms, quad_weights=quad_weights, bkd=bkd,
+        mesh_coords,
+        kernel,
+        sigma=sigma,
+        mean_field=0.0,
+        nterms=num_kle_terms,
+        quad_weights=quad_weights,
+        bkd=bkd,
     )
 
     inner = MeshKLEFieldMap(bkd, mean_log_field, mesh_kle.weighted_eigenvectors())
@@ -138,10 +145,7 @@ def _build_phi_matrix(skfem_basis) -> np.ndarray:
     for k in range(ndofs_per_elem):
         vals = skfem_basis.basis[k][0]  # (nelems, nquad)
         cols = skfem_basis.element_dofs[k, :]  # (nelems,)
-        rows = (
-            np.arange(nelems)[:, None] * nquad
-            + np.arange(nquad)[None, :]
-        )
+        rows = np.arange(nelems)[:, None] * nquad + np.arange(nquad)[None, :]
         Phi[rows.ravel(), np.repeat(cols, nquad)] += vals.ravel()
     return Phi
 
@@ -247,9 +251,13 @@ def create_fem_nystrom_nodes_kle(
     mesh_coords = skfem_basis.mesh.p  # (ndim, nnodes)
 
     return MeshKLE(
-        bkd.asarray(mesh_coords), kernel,
-        sigma=sigma, mean_field=0.0,
-        nterms=nterms, quad_weights=bkd.asarray(w), bkd=bkd,
+        bkd.asarray(mesh_coords),
+        kernel,
+        sigma=sigma,
+        mean_field=0.0,
+        nterms=nterms,
+        quad_weights=bkd.asarray(w),
+        bkd=bkd,
     )
 
 
@@ -293,9 +301,13 @@ def create_fem_nystrom_quadrature_kle(
     weights_flat = skfem_basis.dx.ravel()  # (nelems*nquad,)
 
     return MeshKLE(
-        bkd.asarray(coords_flat), kernel,
-        sigma=sigma, mean_field=0.0,
-        nterms=nterms, quad_weights=bkd.asarray(weights_flat), bkd=bkd,
+        bkd.asarray(coords_flat),
+        kernel,
+        sigma=sigma,
+        mean_field=0.0,
+        nterms=nterms,
+        quad_weights=bkd.asarray(weights_flat),
+        bkd=bkd,
     )
 
 
@@ -343,10 +355,11 @@ def _compute_spde_tau_squared(
 
     nu = alpha - d / 2.0
     kappa = np.sqrt(delta / gamma)
-    tau_sq = (
-        gamma_func(nu)
-        / (gamma_func(nu + d / 2.0) * (4 * np.pi) ** (d / 2.0)
-           * kappa ** (2 * nu) * sigma ** 2)
+    tau_sq = gamma_func(nu) / (
+        gamma_func(nu + d / 2.0)
+        * (4 * np.pi) ** (d / 2.0)
+        * kappa ** (2 * nu)
+        * sigma**2
     )
     return tau_sq
 
@@ -422,8 +435,8 @@ def create_spde_matern_kle(
         BiLaplacianPrior,
     )
     from pyapprox.surrogates.kle.utils import (
-        sort_eigenpairs,
         adjust_sign_eig,
+        sort_eigenpairs,
     )
 
     if xi is None:
@@ -431,7 +444,11 @@ def create_spde_matern_kle(
 
     # Use BiLaplacianPrior to assemble the precision operator A
     prior = BiLaplacianPrior.with_uniform_robin(
-        basis, gamma=gamma, delta=delta, bkd=bkd, robin_alpha=xi,
+        basis,
+        gamma=gamma,
+        delta=delta,
+        bkd=bkd,
+        robin_alpha=xi,
     )
     A = prior.stiffness_matrix()
 
@@ -450,7 +467,7 @@ def create_spde_matern_kle(
     # The gamma^2 factor arises because A = gamma * L_h where L_h is the
     # SPDE operator, so A^{-1} = (1/gamma) * L_h^{-1} and the covariance
     # C = tau^{-2} L_h^{-1} M L_h^{-1} = tau^{-2} gamma^2 A^{-1} M A^{-1}
-    lambda_vals = gamma ** 2 / (tau_sq * mu_vals ** 2)
+    lambda_vals = gamma**2 / (tau_sq * mu_vals**2)
 
     # Convert to backend arrays
     eig_vals = bkd.asarray(lambda_vals)
@@ -516,12 +533,19 @@ def create_spde_lognormal_kle_field_map(
         Composed field map: exp(mean_log_field + W @ params).
     """
     spde_kle = create_spde_matern_kle(
-        basis, n_modes=n_modes, gamma=gamma, delta=delta,
-        sigma=sigma, bkd=bkd, xi=xi,
+        basis,
+        n_modes=n_modes,
+        gamma=gamma,
+        delta=delta,
+        sigma=sigma,
+        bkd=bkd,
+        xi=xi,
     )
 
     inner = MeshKLEFieldMap(
-        bkd, mean_log_field, spde_kle.weighted_eigenvectors(),
+        bkd,
+        mean_log_field,
+        spde_kle.weighted_eigenvectors(),
     )
 
     return TransformedFieldMap(

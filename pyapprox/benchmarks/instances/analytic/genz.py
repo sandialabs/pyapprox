@@ -4,16 +4,16 @@ Standard Genz family functions for quadrature/integration testing with
 known analytical integrals.
 """
 
-from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.benchmarks.benchmark import Benchmark, BoxDomain
-from pyapprox.benchmarks.ground_truth import QuadratureGroundTruth
-from pyapprox.benchmarks.registry import BenchmarkRegistry
 from pyapprox.benchmarks.functions.genz import (
-    OscillatoryFunction,
-    ProductPeakFunction,
     CornerPeakFunction,
     GaussianPeakFunction,
+    OscillatoryFunction,
+    ProductPeakFunction,
 )
+from pyapprox.benchmarks.ground_truth import QuadratureGroundTruth
+from pyapprox.benchmarks.registry import BenchmarkRegistry
+from pyapprox.util.backends.protocols import Array, Backend
 
 
 class GenzBenchmark:

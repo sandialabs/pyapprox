@@ -6,23 +6,19 @@ from typing import Any, Generic
 
 import numpy as np
 import torch
-
 from numpy.typing import NDArray
 
-from pyapprox.util.backends.protocols import Array, Backend
-from pyapprox.util.backends.numpy import NumpyBkd
-from pyapprox.util.backends.torch import TorchBkd
+from pyapprox.pde.collocation.mesh.transforms.elliptical import (
+    EllipticalTransform,
+)
+from pyapprox.pde.collocation.mesh.transforms.polar import PolarTransform
 from pyapprox.pde.collocation.mesh.transforms.sympy_transform import (
     SympyTransform2D,
     SympyTransform3D,
 )
-from pyapprox.pde.collocation.mesh.transforms.polar import PolarTransform
-from pyapprox.pde.collocation.mesh.transforms.spherical import (
-    SphericalTransform,
-)
-from pyapprox.pde.collocation.mesh.transforms.elliptical import (
-    EllipticalTransform,
-)
+from pyapprox.util.backends.numpy import NumpyBkd
+from pyapprox.util.backends.protocols import Array, Backend
+from pyapprox.util.backends.torch import TorchBkd
 from pyapprox.util.test_utils import load_tests  # noqa: F401
 
 
@@ -267,11 +263,13 @@ class TestSympyTransform3D(Generic[Array], unittest.TestCase):
             validate=True,
         )
 
-        ref_pts = bkd.asarray([
-            [1.0, 1.5, 2.0],       # r
-            [0.5, 1.0, 2.0],       # theta
-            [0.3, 1.0, 2.5],       # phi
-        ])
+        ref_pts = bkd.asarray(
+            [
+                [1.0, 1.5, 2.0],  # r
+                [0.5, 1.0, 2.0],  # theta
+                [0.3, 1.0, 2.5],  # phi
+            ]
+        )
 
         phys_pts = sympy_tf.map_to_physical(ref_pts)
 
@@ -314,15 +312,11 @@ class TestSympyTransform3D(Generic[Array], unittest.TestCase):
         h_theta_expected = r
         h_phi_expected = r * np.sin(theta)
 
-        bkd.assert_allclose(
-            scales[0, 0], bkd.asarray([h_r_expected])[0], rtol=1e-12
-        )
+        bkd.assert_allclose(scales[0, 0], bkd.asarray([h_r_expected])[0], rtol=1e-12)
         bkd.assert_allclose(
             scales[0, 1], bkd.asarray([h_theta_expected])[0], rtol=1e-12
         )
-        bkd.assert_allclose(
-            scales[0, 2], bkd.asarray([h_phi_expected])[0], rtol=1e-12
-        )
+        bkd.assert_allclose(scales[0, 2], bkd.asarray([h_phi_expected])[0], rtol=1e-12)
 
     def test_prolate_spheroidal_scale_factors(self):
         """Test prolate spheroidal coordinates scale factors."""
@@ -348,7 +342,7 @@ class TestSympyTransform3D(Generic[Array], unittest.TestCase):
 
         # Prolate spheroidal: h_xi = h_eta = a*sqrt(sinh^2(xi) + sin^2(eta))
         #                     h_phi = a * sinh(xi) * sin(eta)
-        h_xi_eta = a * np.sqrt(np.sinh(xi)**2 + np.sin(eta)**2)
+        h_xi_eta = a * np.sqrt(np.sinh(xi) ** 2 + np.sin(eta) ** 2)
         h_phi = a * np.sinh(xi) * np.sin(eta)
 
         bkd.assert_allclose(scales[0, 0], bkd.asarray([h_xi_eta])[0], rtol=1e-10)

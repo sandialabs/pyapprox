@@ -46,64 +46,63 @@ Solve a linear inverse problem with Gaussian conjugate prior:
 """
 
 # Protocols
-from .protocols import (
-    ConjugatePosteriorProtocol,
-    GaussianConjugatePosteriorProtocol,
-    ObservationOperatorProtocol,
-    ObservationOperatorWithJacobianProtocol,
-    ObservationOperatorWithHessianProtocol,
-    LaplacePosteriorProtocol,
-    HessianMatVecOperatorProtocol,
-    LogUnNormalizedPosteriorProtocol,
-    GaussianPushforwardProtocol,
+# Bayesian networks
+from .bayesnet import (
+    GaussianFactor,
+    GaussianNetwork,
+    cond_prob_variable_elimination,
 )
 
 # Conjugate prior solvers
 from .conjugate import (
-    DenseGaussianConjugatePosterior,
     BetaConjugatePosterior,
+    DenseGaussianConjugatePosterior,
     DirichletConjugatePosterior,
-)
-
-# Pushforward
-from .pushforward import (
-    GaussianPushforward,
-    DenseGaussianPrediction,
 )
 
 # Laplace approximation
 from .laplace import (
     ApplyNegLogLikelihoodHessian,
-    PriorConditionedHessianMatVec,
     DenseLaplacePosterior,
     LowRankLaplacePosterior,
+    PriorConditionedHessianMatVec,
 )
 
 # Posterior utilities
 from .posterior import (
     LogUnNormalizedPosterior,
 )
+from .protocols import (
+    ConjugatePosteriorProtocol,
+    GaussianConjugatePosteriorProtocol,
+    GaussianPushforwardProtocol,
+    HessianMatVecOperatorProtocol,
+    LaplacePosteriorProtocol,
+    LogUnNormalizedPosteriorProtocol,
+    ObservationOperatorProtocol,
+    ObservationOperatorWithHessianProtocol,
+    ObservationOperatorWithJacobianProtocol,
+)
+
+# Pushforward
+from .pushforward import (
+    DenseGaussianPrediction,
+    GaussianPushforward,
+)
 
 # Sampling
 from .sampling import (
-    MetropolisHastingsSampler,
     AdaptiveMetropolisSampler,
-    HamiltonianMonteCarlo,
     DelayedRejectionAdaptiveMetropolis,
+    HamiltonianMonteCarlo,
+    MCMCDiagnostics,
     MCMCResult,
+    MetropolisHastingsSampler,
     autocorrelation,
+    compute_diagnostics,
     effective_sample_size,
     integrated_autocorrelation_time,
     rhat,
-    MCMCDiagnostics,
-    compute_diagnostics,
-)
-
-# Bayesian networks
-from .bayesnet import (
-    GaussianFactor,
-    GaussianNetwork,
-    cond_prob_variable_elimination,
 )
 
 __all__ = [

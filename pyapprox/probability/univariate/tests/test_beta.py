@@ -6,26 +6,25 @@ import unittest
 from typing import Any, Generic, Tuple
 
 import numpy as np
+import torch
 from numpy.typing import NDArray
 from scipy import stats
-import torch
 from unittest_parametrize import ParametrizedTestCase, parametrize
 
-from pyapprox.util.backends.protocols import Array, Backend
-from pyapprox.util.backends.numpy import NumpyBkd
-from pyapprox.util.backends.torch import TorchBkd
-from pyapprox.util.test_utils import load_tests
-from pyapprox.probability.univariate import BetaMarginal
 from pyapprox.interface.functions.derivative_checks.derivative_checker import (
     DerivativeChecker,
 )
 from pyapprox.interface.functions.fromcallable.jacobian import (
     FunctionWithJacobianFromCallable,
 )
+from pyapprox.probability.univariate import BetaMarginal
 from pyapprox.surrogates.affine.univariate.globalpoly import (
-    LegendrePolynomial1D,
     GaussQuadratureRule,
+    LegendrePolynomial1D,
 )
+from pyapprox.util.backends.numpy import NumpyBkd
+from pyapprox.util.backends.protocols import Array, Backend
+from pyapprox.util.backends.torch import TorchBkd
 
 # Test configurations: (name, alpha, beta, lb, ub)
 BETA_CONFIGS = [
@@ -42,9 +41,7 @@ BETA_CONFIGS = [
 class GaussLegendreQuadratureScaled(Generic[Array]):
     """Gauss-Legendre quadrature on [lb, ub] with Lebesgue measure for tests."""
 
-    def __init__(
-        self, bkd: Backend[Array], lb: float = 0.0, ub: float = 1.0
-    ) -> None:
+    def __init__(self, bkd: Backend[Array], lb: float = 0.0, ub: float = 1.0) -> None:
         self._bkd = bkd
         self._lb = lb
         self._ub = ub
@@ -236,9 +233,7 @@ class TestBetaMarginal(Generic[Array], unittest.TestCase):
         jacobian = self._dist.invcdf_jacobian(probs)
         quantiles = self._dist.invcdf(probs)
         pdf_at_quantiles = self._dist(quantiles)
-        self.assertTrue(
-            self._bkd.allclose(jacobian, 1.0 / pdf_at_quantiles, rtol=1e-6)
-        )
+        self.assertTrue(self._bkd.allclose(jacobian, 1.0 / pdf_at_quantiles, rtol=1e-6))
 
     def test_logpdf_jacobian_derivative_checker(self) -> None:
         """Test logpdf Jacobian using DerivativeChecker."""
@@ -316,9 +311,7 @@ class TestBetaMarginalParametrized(
         # BetaMarginal expects a quadrature rule on [0, 1] for internal CDF
         # computation. The class handles the transformation to [lb, ub] internally.
         quad_rule = GaussLegendreQuadratureScaled(bkd, 0.0, 1.0)
-        dist = BetaMarginal(
-            alpha, beta, bkd, lb=lb, ub=ub, quadrature_rule=quad_rule
-        )
+        dist = BetaMarginal(alpha, beta, bkd, lb=lb, ub=ub, quadrature_rule=quad_rule)
         scipy_dist = stats.beta(alpha, beta, loc=lb, scale=scale)
         return dist, scipy_dist
 
@@ -332,12 +325,8 @@ class TestBetaMarginalParametrized(
         """Test bounds accessor methods for various configurations."""
         bkd = self.bkd()
         dist, _ = self._create_dist(alpha, beta, lb, ub)
-        bkd.assert_allclose(
-            bkd.asarray([dist.lower()]), bkd.asarray([lb]), atol=1e-10
-        )
-        bkd.assert_allclose(
-            bkd.asarray([dist.upper()]), bkd.asarray([ub]), atol=1e-10
-        )
+        bkd.assert_allclose(bkd.asarray([dist.lower()]), bkd.asarray([lb]), atol=1e-10)
+        bkd.assert_allclose(bkd.asarray([dist.upper()]), bkd.asarray([ub]), atol=1e-10)
         lower, upper = dist.bounds()
         bkd.assert_allclose(
             bkd.asarray([lower, upper]), bkd.asarray([lb, ub]), atol=1e-10
@@ -355,8 +344,13 @@ class TestBetaMarginalParametrized(
         dist, scipy_dist = self._create_dist(alpha, beta, lb, ub)
         # Generate sample points within [lb, ub]
         scale = ub - lb
-        test_points = [lb + 0.1 * scale, lb + 0.3 * scale, lb + 0.5 * scale,
-                       lb + 0.7 * scale, lb + 0.9 * scale]
+        test_points = [
+            lb + 0.1 * scale,
+            lb + 0.3 * scale,
+            lb + 0.5 * scale,
+            lb + 0.7 * scale,
+            lb + 0.9 * scale,
+        ]
         samples = bkd.asarray([test_points])
         pdf_vals = dist(samples)
         expected = bkd.asarray([scipy_dist.pdf(test_points)])
@@ -373,8 +367,13 @@ class TestBetaMarginalParametrized(
         bkd = self.bkd()
         dist, scipy_dist = self._create_dist(alpha, beta, lb, ub)
         scale = ub - lb
-        test_points = [lb + 0.1 * scale, lb + 0.3 * scale, lb + 0.5 * scale,
-                       lb + 0.7 * scale, lb + 0.9 * scale]
+        test_points = [
+            lb + 0.1 * scale,
+            lb + 0.3 * scale,
+            lb + 0.5 * scale,
+            lb + 0.7 * scale,
+            lb + 0.9 * scale,
+        ]
         samples = bkd.asarray([test_points])
         logpdf_vals = dist.logpdf(samples)
         expected = bkd.asarray([scipy_dist.logpdf(test_points)])
@@ -391,8 +390,13 @@ class TestBetaMarginalParametrized(
         bkd = self.bkd()
         dist, scipy_dist = self._create_dist(alpha, beta, lb, ub)
         scale = ub - lb
-        test_points = [lb + 0.1 * scale, lb + 0.3 * scale, lb + 0.5 * scale,
-                       lb + 0.7 * scale, lb + 0.9 * scale]
+        test_points = [
+            lb + 0.1 * scale,
+            lb + 0.3 * scale,
+            lb + 0.5 * scale,
+            lb + 0.7 * scale,
+            lb + 0.9 * scale,
+        ]
         samples = bkd.asarray([test_points])
         cdf_vals = dist.cdf(samples)
         expected = bkd.asarray([scipy_dist.cdf(test_points)])
@@ -510,18 +514,14 @@ class TestBetaMarginalParametrized(
         self.assertLessEqual(float(checker.error_ratio(errors[0])), 1e-5)
 
 
-class TestBetaMarginalParametrizedNumpy(
-    TestBetaMarginalParametrized[NDArray[Any]]
-):
+class TestBetaMarginalParametrizedNumpy(TestBetaMarginalParametrized[NDArray[Any]]):
     """NumPy backend parametrized tests for BetaMarginal."""
 
     def bkd(self) -> NumpyBkd:
         return NumpyBkd()
 
 
-class TestBetaMarginalParametrizedTorch(
-    TestBetaMarginalParametrized[torch.Tensor]
-):
+class TestBetaMarginalParametrizedTorch(TestBetaMarginalParametrized[torch.Tensor]):
     """PyTorch backend parametrized tests for BetaMarginal."""
 
     def bkd(self) -> TorchBkd:

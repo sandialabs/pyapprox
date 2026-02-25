@@ -1,24 +1,21 @@
 import unittest
-from typing import Generic, Any
+from typing import Any, Generic
 
-import numpy as np
-from numpy.typing import NDArray
-import torch
 import matplotlib.pyplot as plt
-from mpl_toolkits.mplot3d import Axes3D
-from matplotlib.contour import QuadContourSet
+import torch
+from numpy.typing import NDArray
 
 from pyapprox.interface.functions.fromcallable.function import (
     FunctionFromCallable,
 )
-from pyapprox.interface.functions.plot.plot2d_rectangular import (
-    meshgrid_samples,
-)
 from pyapprox.interface.functions.plot.plot2d_general import (
     Plotter2DGeneralDomain,
 )
-from pyapprox.util.backends.protocols import Array, Backend
+from pyapprox.interface.functions.plot.plot2d_rectangular import (
+    meshgrid_samples,
+)
 from pyapprox.util.backends.numpy import NumpyBkd
+from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.util.backends.torch import TorchBkd
 
 
@@ -29,9 +26,7 @@ class TestPlotter2DGeneralDomain(Generic[Array], unittest.TestCase):
         """
         Override this method in derived classes to provide the specific backend.
         """
-        raise NotImplementedError(
-            "Derived classes must implement this method."
-        )
+        raise NotImplementedError("Derived classes must implement this method.")
 
     def setUp(self) -> None:
         # Define the 2D function
@@ -53,9 +48,7 @@ class TestPlotter2DGeneralDomain(Generic[Array], unittest.TestCase):
         Example function: Z = sin(x) * cos(y)
         """
         x, y = samples[0], samples[1]
-        return self.bkd().stack(
-            [self.bkd().sin(x) * self.bkd().cos(y)], axis=0
-        )
+        return self.bkd().stack([self.bkd().sin(x) * self.bkd().cos(y)], axis=0)
 
     def generate_points(self) -> Array:
         """
@@ -68,18 +61,16 @@ class TestPlotter2DGeneralDomain(Generic[Array], unittest.TestCase):
         # just check plot runs
         fig = plt.figure()
         ax = fig.add_subplot(111, projection="3d")
-        result = self.plotter.plot_trisurf(ax, self.points, qoi=0)
+        self.plotter.plot_trisurf(ax, self.points, qoi=0)
 
     def test_plot_tricontour(self) -> None:
         # just check plot runs
         fig, ax = plt.subplots()
-        result = self.plotter.plot_tricontour(ax, self.points, qoi=0)
+        self.plotter.plot_tricontour(ax, self.points, qoi=0)
 
 
 # Derived test class for NumPy backend
-class TestPlotter2DGeneralDomainNumpy(
-    TestPlotter2DGeneralDomain[NDArray[Any]]
-):
+class TestPlotter2DGeneralDomainNumpy(TestPlotter2DGeneralDomain[NDArray[Any]]):
     def setUp(self) -> None:
         self._bkd = NumpyBkd()
         super().setUp()
@@ -89,18 +80,13 @@ class TestPlotter2DGeneralDomainNumpy(
 
 
 # Derived test class for PyTorch backend
-class TestPlotter2DGeneralDomainTorch(
-    TestPlotter2DGeneralDomain[torch.Tensor]
-):
+class TestPlotter2DGeneralDomainTorch(TestPlotter2DGeneralDomain[torch.Tensor]):
     def setUp(self) -> None:
         self._bkd = TorchBkd()
         super().setUp()
 
     def bkd(self) -> Backend[torch.Tensor]:
         return self._bkd
-
-
-from pyapprox.util.test_utils import load_tests
 
 
 if __name__ == "__main__":

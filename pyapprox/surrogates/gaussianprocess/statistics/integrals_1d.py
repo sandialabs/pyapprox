@@ -10,6 +10,7 @@ integrals factor as products of 1D integrals computed by these functions.
 """
 
 from typing import Callable
+
 from pyapprox.util.backends.protocols import Array, Backend
 
 
@@ -18,7 +19,7 @@ def compute_tau_1d(
     quad_weights: Array,
     train_samples_1d: Array,
     kernel_1d: Callable[[Array, Array], Array],
-    bkd: Backend[Array]
+    bkd: Backend[Array],
 ) -> Array:
     """
     Compute the 1D tau vector for a single dimension.
@@ -60,7 +61,7 @@ def compute_P_1d(
     quad_weights: Array,
     train_samples_1d: Array,
     kernel_1d: Callable[[Array, Array], Array],
-    bkd: Backend[Array]
+    bkd: Backend[Array],
 ) -> Array:
     """
     Compute the 1D P matrix for a single dimension.
@@ -105,7 +106,7 @@ def compute_u_1d(
     quad_samples: Array,
     quad_weights: Array,
     kernel_1d: Callable[[Array, Array], Array],
-    bkd: Backend[Array]
+    bkd: Backend[Array],
 ) -> Array:
     """
     Compute the 1D u scalar for a single dimension.
@@ -143,7 +144,7 @@ def compute_nu_1d(
     quad_samples: Array,
     quad_weights: Array,
     kernel_1d: Callable[[Array, Array], Array],
-    bkd: Backend[Array]
+    bkd: Backend[Array],
 ) -> Array:
     """
     Compute the 1D nu scalar for Var[gamma] computation.
@@ -183,7 +184,7 @@ def compute_lambda_1d(
     quad_weights: Array,
     train_samples_1d: Array,
     kernel_1d: Callable[[Array, Array], Array],
-    bkd: Backend[Array]
+    bkd: Backend[Array],
 ) -> Array:
     """
     Compute the 1D lambda vector for Var[gamma] computation.
@@ -235,14 +236,15 @@ def compute_Pi_1d(
     quad_weights: Array,
     train_samples_1d: Array,
     kernel_1d: Callable[[Array, Array], Array],
-    bkd: Backend[Array]
+    bkd: Backend[Array],
 ) -> Array:
     """
     Compute the 1D Pi matrix for Var[gamma] computation.
 
     Pi_k,ij = integral integral C_k(x_k, x_k^(i)) C_k(x_k, z_k) C_k(z_k, x_k^(j))
               rho_k(x_k) rho_k(z_k) dx_k dz_k
-            = sum_m sum_n w_m w_n C_k(quad_m, train_i) C_k(quad_m, quad_n) C_k(quad_n, train_j)
+            = sum_m sum_n w_m w_n C_k(quad_m, train_i) C_k(quad_m, quad_n) C_k(quad_n,
+            train_j)
 
     Parameters
     ----------
@@ -268,17 +270,21 @@ def compute_Pi_1d(
     # K_quad_quad shape: (nquad, nquad)
     K_quad_quad = kernel_1d(quad_samples, quad_samples)
 
-    # Pi_ij = sum_m sum_n w_m w_n K(quad_m, train_i) K(quad_m, quad_n) K(quad_n, train_j)
+    # Pi_ij = sum_m sum_n w_m w_n K(quad_m, train_i) K(quad_m, quad_n) K(quad_n,
+    # train_j)
     #
     # Let W = diag(w), then:
     # Pi = K_quad_train^T @ W @ K_quad_quad @ W @ K_quad_train
-    #    = (W^{1/2} K_quad_train)^T @ (W^{1/2} K_quad_quad W^{1/2}) @ (W^{1/2} K_quad_train)
+    # = (W^{1/2} K_quad_train)^T @ (W^{1/2} K_quad_quad W^{1/2}) @ (W^{1/2}
+    # K_quad_train)
 
     sqrt_weights = bkd.sqrt(quad_weights)  # (nquad,)
 
     # Weight the kernel matrices
     weighted_K_train = sqrt_weights[:, None] * K_quad_train  # (nquad, N)
-    weighted_K_quad = sqrt_weights[:, None] * K_quad_quad * sqrt_weights[None, :]  # (nquad, nquad)
+    weighted_K_quad = (
+        sqrt_weights[:, None] * K_quad_quad * sqrt_weights[None, :]
+    )  # (nquad, nquad)
 
     # Pi = weighted_K_train^T @ weighted_K_quad @ weighted_K_train
     Pi = weighted_K_train.T @ weighted_K_quad @ weighted_K_train  # (N, N)
@@ -290,7 +296,7 @@ def compute_xi1_1d(
     quad_samples: Array,
     quad_weights: Array,
     kernel_1d: Callable[[Array, Array], Array],
-    bkd: Backend[Array]
+    bkd: Backend[Array],
 ) -> Array:
     """
     Compute the 1D xi1 scalar for Var[gamma] computation.
@@ -339,7 +345,7 @@ def compute_conditional_P_1d(
     quad_weights: Array,
     train_samples_1d: Array,
     kernel_1d: Callable[[Array, Array], Array],
-    bkd: Backend[Array]
+    bkd: Backend[Array],
 ) -> Array:
     """
     Compute the 1D conditional P matrix for sensitivity analysis.
@@ -383,8 +389,7 @@ def compute_conditional_P_1d(
         This is a rank-1 matrix equal to τ_k τ_k^T.
     """
     # Compute tau for this dimension
-    tau = compute_tau_1d(quad_samples, quad_weights, train_samples_1d,
-                         kernel_1d, bkd)
+    tau = compute_tau_1d(quad_samples, quad_weights, train_samples_1d, kernel_1d, bkd)
     # P̃ = τ τᵀ (rank-1 outer product)
     return bkd.outer(tau, tau)
 
@@ -394,7 +399,7 @@ def compute_Gamma_1d(
     quad_weights: Array,
     train_samples_1d: Array,
     kernel_1d: Callable[[Array, Array], Array],
-    bkd: Backend[Array]
+    bkd: Backend[Array],
 ) -> Array:
     """
     Compute the 1D Gamma integral for variance of variance.

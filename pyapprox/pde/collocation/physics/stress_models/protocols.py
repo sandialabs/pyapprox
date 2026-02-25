@@ -28,9 +28,7 @@ class StressModelProtocol(Protocol, Generic[Array]):
     pointwise evaluation at collocation nodes.
     """
 
-    def compute_stress_1d(
-        self, F: Array, bkd: Backend[Array]
-    ) -> Array:
+    def compute_stress_1d(self, F: Array, bkd: Backend[Array]) -> Array:
         """Compute 1D PK1 stress.
 
         Parameters
@@ -104,9 +102,7 @@ class StressModelWithTangentProtocol(Protocol, Generic[Array]):
     Implementations should also satisfy StressModelProtocol.
     """
 
-    def compute_stress_1d(
-        self, F: Array, bkd: Backend[Array]
-    ) -> Array: ...
+    def compute_stress_1d(self, F: Array, bkd: Backend[Array]) -> Array: ...
 
     def compute_stress_2d(
         self,
@@ -123,9 +119,7 @@ class StressModelWithTangentProtocol(Protocol, Generic[Array]):
         bkd: Backend[Array],
     ) -> Tuple[Tuple[Array, ...], ...]: ...
 
-    def compute_tangent_1d(
-        self, F: Array, bkd: Backend[Array]
-    ) -> Array:
+    def compute_tangent_1d(self, F: Array, bkd: Backend[Array]) -> Array:
         """Compute 1D tangent modulus dP/dF.
 
         Parameters

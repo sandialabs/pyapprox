@@ -6,6 +6,7 @@ and validates training data for multi-output GP regression.
 """
 
 from typing import Generic, List
+
 from pyapprox.util.backends.protocols import Array, Backend
 
 
@@ -47,18 +48,11 @@ class MultiOutputGPTrainingData(Generic[Array]):
     [10, 10]
     """
 
-    def __init__(
-        self,
-        X_list: List[Array],
-        y_list: List[Array],
-        bkd: Backend[Array]
-    ):
+    def __init__(self, X_list: List[Array], y_list: List[Array], bkd: Backend[Array]):
         self._bkd = bkd
         self._validate_and_store(X_list, y_list)
 
-    def _validate_and_store(
-        self, X_list: List[Array], y_list: List[Array]
-    ) -> None:
+    def _validate_and_store(self, X_list: List[Array], y_list: List[Array]) -> None:
         """
         Validate training data shapes and store.
 
@@ -86,8 +80,7 @@ class MultiOutputGPTrainingData(Generic[Array]):
         # Validate first X to get nvars
         if X_list[0].ndim != 2:
             raise ValueError(
-                f"X_list[0] must be 2D (nvars, n_samples), "
-                f"got shape {X_list[0].shape}"
+                f"X_list[0] must be 2D (nvars, n_samples), got shape {X_list[0].shape}"
             )
         nvars = X_list[0].shape[0]
 
@@ -97,13 +90,11 @@ class MultiOutputGPTrainingData(Generic[Array]):
             # Validate X
             if X.ndim != 2:
                 raise ValueError(
-                    f"X_list[{i}] must be 2D (nvars, n_samples), "
-                    f"got shape {X.shape}"
+                    f"X_list[{i}] must be 2D (nvars, n_samples), got shape {X.shape}"
                 )
             if X.shape[0] != nvars:
                 raise ValueError(
-                    f"X_list[{i}] has {X.shape[0]} variables, "
-                    f"expected {nvars}"
+                    f"X_list[{i}] has {X.shape[0]} variables, expected {nvars}"
                 )
 
             n_samples = X.shape[1]
@@ -113,8 +104,7 @@ class MultiOutputGPTrainingData(Generic[Array]):
             # Validate y - shape should be (1, n_samples)
             if y.ndim != 2:
                 raise ValueError(
-                    f"y_list[{i}] must be 2D (1, n_samples), "
-                    f"got shape {y.shape}"
+                    f"y_list[{i}] must be 2D (1, n_samples), got shape {y.shape}"
                 )
             if y.shape[0] != 1:
                 raise ValueError(

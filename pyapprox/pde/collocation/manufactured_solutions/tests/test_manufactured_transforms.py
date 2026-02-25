@@ -16,31 +16,34 @@ Configuration notes:
 - Tolerances: Looser than Cartesian due to curvilinear gradient factors
 """
 
-import unittest
 import math
+import unittest
 from typing import Any, Generic
 
-import numpy as np
 import torch
 from numpy.typing import NDArray
 
-from pyapprox.util.backends.protocols import Array, Backend
-from pyapprox.util.backends.numpy import NumpyBkd
-from pyapprox.util.backends.torch import TorchBkd
-from pyapprox.util.test_utils import load_tests  # noqa: F401
+from pyapprox.interface.functions.derivative_checks.derivative_checker import (
+    DerivativeChecker,
+)
 from pyapprox.pde.collocation.basis import (
     ChebyshevBasis2D,
-)
-from pyapprox.pde.collocation.mesh import (
-    TransformedMesh2D,
-)
-from pyapprox.pde.collocation.mesh.transforms.polar import PolarTransform
-from pyapprox.pde.collocation.mesh.transforms.elliptical import (
-    EllipticalTransform,
 )
 from pyapprox.pde.collocation.boundary import (
     DirichletBC,
 )
+from pyapprox.pde.collocation.manufactured_solutions import (
+    ManufacturedAdvectionDiffusionReaction,
+    ManufacturedHelmholtz,
+    ManufacturedLinearElasticityEquations,
+)
+from pyapprox.pde.collocation.mesh import (
+    TransformedMesh2D,
+)
+from pyapprox.pde.collocation.mesh.transforms.elliptical import (
+    EllipticalTransform,
+)
+from pyapprox.pde.collocation.mesh.transforms.polar import PolarTransform
 from pyapprox.pde.collocation.physics import (
     AdvectionDiffusionReaction,
     HelmholtzPhysics,
@@ -50,14 +53,10 @@ from pyapprox.pde.collocation.time_integration import (
     CollocationModel,
     TimeIntegrationConfig,
 )
-from pyapprox.pde.collocation.manufactured_solutions import (
-    ManufacturedAdvectionDiffusionReaction,
-    ManufacturedHelmholtz,
-    ManufacturedLinearElasticityEquations,
-)
-from pyapprox.interface.functions.derivative_checks.derivative_checker import (
-    DerivativeChecker,
-)
+from pyapprox.util.backends.numpy import NumpyBkd
+from pyapprox.util.backends.protocols import Array, Backend
+from pyapprox.util.backends.torch import TorchBkd
+from pyapprox.util.test_utils import load_tests  # noqa: F401
 
 
 class PhysicsDerivativeWrapper(Generic[Array]):
@@ -115,9 +114,7 @@ class TestPolarADR(Generic[Array], unittest.TestCase):
     def bkd(self) -> Backend[Array]:
         raise NotImplementedError
 
-    def _create_polar_mesh_and_basis(
-        self, npts_r: int = 30, npts_theta: int = 30
-    ):
+    def _create_polar_mesh_and_basis(self, npts_r: int = 30, npts_theta: int = 30):
         """Create polar mesh and basis.
 
         Note: Resolution 30x30 gives ~1e-10 residual for x^2*y^2 solution.
@@ -270,7 +267,8 @@ class TestPolarADR(Generic[Array], unittest.TestCase):
     def test_polar_adr_jacobian(self):
         """Test Jacobian correctness via finite differences on polar domain."""
         bkd = self.bkd()
-        # Use smaller grid for Jacobian test (faster, Jacobian check doesn't need high resolution)
+        # Use smaller grid for Jacobian test (faster, Jacobian check doesn't need high
+        # resolution)
         mesh, basis = self._create_polar_mesh_and_basis(npts_r=12, npts_theta=12)
 
         physics = AdvectionDiffusionReaction(basis, bkd, diffusion=1.0)
@@ -347,9 +345,7 @@ class TestEllipticalADR(Generic[Array], unittest.TestCase):
     def bkd(self) -> Backend[Array]:
         raise NotImplementedError
 
-    def _create_elliptical_mesh_and_basis(
-        self, npts_u: int = 25, npts_v: int = 25
-    ):
+    def _create_elliptical_mesh_and_basis(self, npts_u: int = 25, npts_v: int = 25):
         """Create elliptical mesh and basis.
 
         Note: 25x25 gives ~1e-10 residual for x^2*y^2 solution on elliptical domain.
@@ -508,9 +504,7 @@ class TestTransientPolarADR(Generic[Array], unittest.TestCase):
     def bkd(self) -> Backend[Array]:
         raise NotImplementedError
 
-    def _create_polar_mesh_and_basis(
-        self, npts_r: int = 25, npts_theta: int = 25
-    ):
+    def _create_polar_mesh_and_basis(self, npts_r: int = 25, npts_theta: int = 25):
         """Create polar mesh and basis."""
         bkd = self.bkd()
         transform = PolarTransform(
@@ -781,9 +775,7 @@ class TestPolarHelmholtz(Generic[Array], unittest.TestCase):
     def bkd(self) -> Backend[Array]:
         raise NotImplementedError
 
-    def _create_polar_mesh_and_basis(
-        self, npts_r: int = 30, npts_theta: int = 30
-    ):
+    def _create_polar_mesh_and_basis(self, npts_r: int = 30, npts_theta: int = 30):
         bkd = self.bkd()
         transform = PolarTransform(
             r_bounds=(1.0, 2.0),
@@ -934,9 +926,7 @@ class TestPolarLinearElasticity(Generic[Array], unittest.TestCase):
     def bkd(self) -> Backend[Array]:
         raise NotImplementedError
 
-    def _create_polar_mesh_and_basis(
-        self, npts_r: int = 25, npts_theta: int = 25
-    ):
+    def _create_polar_mesh_and_basis(self, npts_r: int = 25, npts_theta: int = 25):
         bkd = self.bkd()
         transform = PolarTransform(
             r_bounds=(1.0, 2.0),
@@ -996,9 +986,7 @@ class TestPolarLinearElasticity(Generic[Array], unittest.TestCase):
 
             # v-component BC (offset indices by npts)
             bc_vals_v = man_sol.functions["solution"](bc_pts)[:, 1]
-            boundary_idx_v = bkd.asarray(
-                [idx + npts for idx in boundary_idx]
-            )
+            boundary_idx_v = bkd.asarray([idx + npts for idx in boundary_idx])
             bcs.append(DirichletBC(bkd, boundary_idx_v, bc_vals_v))
         physics.set_boundary_conditions(bcs)
 
@@ -1065,9 +1053,7 @@ class TestPolarLinearElasticity(Generic[Array], unittest.TestCase):
             bcs.append(DirichletBC(bkd, boundary_idx, bc_vals_u))
 
             bc_vals_v = man_sol.functions["solution"](bc_pts)[:, 1]
-            boundary_idx_v = bkd.asarray(
-                [idx + npts for idx in boundary_idx]
-            )
+            boundary_idx_v = bkd.asarray([idx + npts for idx in boundary_idx])
             bcs.append(DirichletBC(bkd, boundary_idx_v, bc_vals_v))
         physics.set_boundary_conditions(bcs)
 

@@ -2,12 +2,12 @@
 
 from typing import Generic, Optional
 
-from pyapprox.util.backends.protocols import Array, Backend
-from pyapprox.surrogates.functiontrain.functiontrain import FunctionTrain
 from pyapprox.surrogates.functiontrain.compute import (
-    cache_basis_matrices,
     BasisCache,
+    cache_basis_matrices,
 )
+from pyapprox.surrogates.functiontrain.functiontrain import FunctionTrain
+from pyapprox.util.backends.protocols import Array, Backend
 
 
 class FunctionTrainMSELoss(Generic[Array]):
@@ -77,9 +77,7 @@ class FunctionTrainMSELoss(Generic[Array]):
         requires_grad = getattr(params_flat, "requires_grad", False)
         if not requires_grad and (
             self._cached_params is not None
-            and self._bkd.allclose(
-                params_flat, self._cached_params, rtol=0.0, atol=0.0
-            )
+            and self._bkd.allclose(params_flat, self._cached_params, rtol=0.0, atol=0.0)
         ):
             return
 
@@ -122,7 +120,7 @@ class FunctionTrainMSELoss(Generic[Array]):
 
         # Compute MSE: (1/2n) ||pred - values||^2
         residual = self._cached_pred - self._train_values
-        mse = 0.5 * self._bkd.sum(residual ** 2) / self._nsamples
+        mse = 0.5 * self._bkd.sum(residual**2) / self._nsamples
         return self._bkd.reshape(mse, (1, 1))
 
     def jacobian(self, params: Array) -> Array:

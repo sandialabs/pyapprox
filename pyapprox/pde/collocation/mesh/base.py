@@ -5,7 +5,7 @@ separating data from algorithms for C++ portability.
 """
 
 from dataclasses import dataclass
-from typing import Generic, Tuple, List
+from typing import Generic, List, Tuple
 
 from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.util.cartesian import cartesian_product_samples
@@ -97,9 +97,7 @@ class MeshDataWithTransform(Generic[Array]):
         return len(self.boundary_indices)
 
 
-def compute_cartesian_product(
-    arrays_1d: List[Array], bkd: Backend[Array]
-) -> Array:
+def compute_cartesian_product(arrays_1d: List[Array], bkd: Backend[Array]) -> Array:
     """Compute Cartesian product of 1D point arrays.
 
     Parameters
@@ -165,9 +163,7 @@ def compute_boundary_indices_2d(
         [left, right, bottom, top] boundary indices.
     """
     # Left boundary: x = 0, all y -> indices 0, npts_x, 2*npts_x, ...
-    left = bkd.asarray(
-        [j * npts_x for j in range(npts_y)], dtype=bkd.int64_dtype()
-    )
+    left = bkd.asarray([j * npts_x for j in range(npts_y)], dtype=bkd.int64_dtype())
 
     # Right boundary: x = npts_x-1, all y
     right = bkd.asarray(

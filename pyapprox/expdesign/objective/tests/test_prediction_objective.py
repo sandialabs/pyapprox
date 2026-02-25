@@ -15,21 +15,20 @@ import numpy as np
 import torch
 from numpy.typing import NDArray
 
-from pyapprox.util.backends.numpy import NumpyBkd
-from pyapprox.util.backends.torch import TorchBkd
-from pyapprox.util.backends.protocols import Array
-from pyapprox.util.test_utils import load_tests  # noqa: F401
-
+from pyapprox.expdesign.deviation import (
+    EntropicDeviationMeasure,
+    StandardDeviationMeasure,
+)
 from pyapprox.expdesign.likelihood import GaussianOEDInnerLoopLikelihood
 from pyapprox.expdesign.objective import PredictionOEDObjective
-from pyapprox.expdesign.deviation import (
-    StandardDeviationMeasure,
-    EntropicDeviationMeasure,
-)
 from pyapprox.expdesign.statistics import (
     SampleAverageMean,
     SampleAverageVariance,
 )
+from pyapprox.util.backends.numpy import NumpyBkd
+from pyapprox.util.backends.protocols import Array
+from pyapprox.util.backends.torch import TorchBkd
+from pyapprox.util.test_utils import load_tests  # noqa: F401
 
 
 class TestPredictionOEDObjective(Generic[Array], unittest.TestCase):
@@ -49,9 +48,7 @@ class TestPredictionOEDObjective(Generic[Array], unittest.TestCase):
         self._npred = 2
 
         np.random.seed(42)
-        self._noise_variances = self._bkd.asarray(
-            np.array([0.1, 0.2, 0.15])
-        )
+        self._noise_variances = self._bkd.asarray(np.array([0.1, 0.2, 0.15]))
         self._outer_shapes = self._bkd.asarray(
             np.random.randn(self._nobs, self._nouter)
         )
@@ -65,9 +62,7 @@ class TestPredictionOEDObjective(Generic[Array], unittest.TestCase):
             np.random.uniform(0.5, 1.5, (self._nobs, 1))
         )
         # QoI values at inner samples
-        self._qoi_vals = self._bkd.asarray(
-            np.random.randn(self._ninner, self._npred)
-        )
+        self._qoi_vals = self._bkd.asarray(np.random.randn(self._ninner, self._npred))
 
         # Create inner likelihood
         self._likelihood = GaussianOEDInnerLoopLikelihood(
@@ -246,17 +241,14 @@ class TestPredictionOEDObjective(Generic[Array], unittest.TestCase):
         val2 = objective(weights2)
 
         # Values should differ (more weight = less noise = less deviation)
-        self.assertFalse(
-            self._bkd.allclose(val1, val2, atol=1e-8)
-        )
-
+        self.assertFalse(self._bkd.allclose(val1, val2, atol=1e-8))
 
     def test_avar_factory_creates_working_objective(self):
         """Test create_prediction_oed_objective with avar deviation."""
+        from pyapprox.expdesign.deviation import AVaRDeviationMeasure
         from pyapprox.expdesign.objective import (
             create_prediction_oed_objective,
         )
-        from pyapprox.expdesign.deviation import AVaRDeviationMeasure
 
         objective = create_prediction_oed_objective(
             self._noise_variances,
@@ -275,17 +267,13 @@ class TestPredictionOEDObjective(Generic[Array], unittest.TestCase):
         self.assertEqual(val.shape, (1, 1))
 
         # Compare against manually constructed AVaR objective
-        avar = AVaRDeviationMeasure(
-            self._npred, 0.8, self._bkd, delta=100
-        )
+        avar = AVaRDeviationMeasure(self._npred, 0.8, self._bkd, delta=100)
         manual_obj = self._create_objective(avar)
         val_manual = manual_obj(self._design_weights)
         self._bkd.assert_allclose(val, val_manual)
 
 
-class TestPredictionOEDObjectiveNumpy(
-    TestPredictionOEDObjective[NDArray[Any]]
-):
+class TestPredictionOEDObjectiveNumpy(TestPredictionOEDObjective[NDArray[Any]]):
     """NumPy backend tests."""
 
     __test__ = True
@@ -294,9 +282,7 @@ class TestPredictionOEDObjectiveNumpy(
         return NumpyBkd()
 
 
-class TestPredictionOEDObjectiveTorch(
-    TestPredictionOEDObjective[torch.Tensor]
-):
+class TestPredictionOEDObjectiveTorch(TestPredictionOEDObjective[torch.Tensor]):
     """PyTorch backend tests."""
 
     __test__ = True

@@ -1,4 +1,5 @@
 from typing import Generic, Tuple
+
 from pyapprox.util.backends.protocols import Array, Backend
 
 
@@ -15,7 +16,8 @@ class PiecewiseConstantMidpoint(Generic[Array]):
         Parameters
         ----------
         nodes : Array
-            The nodes (abscissas) where the piecewise constant basis functions are defined.
+            The nodes (abscissas) where the piecewise constant basis functions are
+            defined.
         bkd : Backend
             Backend used for computations (e.g., NumPy or PyTorch).
         """
@@ -62,8 +64,8 @@ class PiecewiseConstantMidpoint(Generic[Array]):
         Tuple[Array, Array]
             Quadrature points and weights.
         """
-        quadrature_points, quadrature_weights = (
-            self._quadrature_rule_from_nodes(self._nodes)
+        quadrature_points, quadrature_weights = self._quadrature_rule_from_nodes(
+            self._nodes
         )
         return quadrature_points, quadrature_weights
 
@@ -81,9 +83,7 @@ class PiecewiseConstantMidpoint(Generic[Array]):
         Tuple[Array, Array]
             Quadrature points and weights.
         """
-        quadrature_points = (
-            nodes[1:] + nodes[:-1]
-        ) / 2  # Midpoints of intervals
+        quadrature_points = (nodes[1:] + nodes[:-1]) / 2  # Midpoints of intervals
         quadrature_weights = self._bkd.diff(nodes)[
             :, None
         ]  # Differences between consecutive nodes

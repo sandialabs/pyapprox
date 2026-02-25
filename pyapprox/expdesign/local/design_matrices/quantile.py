@@ -66,9 +66,7 @@ class QuantileDesignMatrices(DesignMatricesBase[Array], Generic[Array]):
             Shape: (ndesign_pts, ndesign_vars, ndesign_vars)
         """
         # M0_k = phi_k @ phi_k^T for each design point k
-        M0k = self._bkd.einsum(
-            "ij,il->ijl", self._design_factors, self._design_factors
-        )
+        M0k = self._bkd.einsum("ij,il->ijl", self._design_factors, self._design_factors)
 
         if self.is_homoscedastic():
             # M0 = M1 when noise is constant

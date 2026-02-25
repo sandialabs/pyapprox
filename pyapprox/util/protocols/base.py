@@ -16,7 +16,7 @@ ComputationalObject
 All protocols use Generic[Array] to support both NumPy and PyTorch backends.
 """
 
-from typing import Protocol, runtime_checkable, Generic
+from typing import Generic, Protocol, runtime_checkable
 
 from pyapprox.util.backends.protocols import Array, Backend
 

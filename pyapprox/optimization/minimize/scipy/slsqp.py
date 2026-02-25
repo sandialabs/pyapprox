@@ -1,39 +1,38 @@
-from typing import Generic, Optional, Self, Union, List, Dict, Any, cast
+from typing import Any, Dict, Generic, List, Optional, Self, Union, cast
 
 import numpy as np
-from scipy.optimize import Bounds, minimize as scipy_minimize
+from scipy.optimize import Bounds
+from scipy.optimize import minimize as scipy_minimize
 
-from pyapprox.util.backends.protocols import Array, Backend
-from pyapprox.optimization.minimize.constraints.protocols import (
-    SequenceOfConstraintProtocols,
-)
-from pyapprox.optimization.minimize.constraints.validation import (
-    validate_constraints,
-)
-from pyapprox.optimization.minimize.objective.validation import (
-    validate_objective,
-)
-from pyapprox.optimization.minimize.objective.protocols import (
-    ObjectiveProtocol,
-)
 from pyapprox.interface.functions.numpy.numpy_function_factory import (
     numpy_function_wrapper_factory,
 )
 from pyapprox.interface.functions.numpy.wrappers import (
-    NumpyFunctionWrapper,
-    NumpyFunctionWithJacobianWrapper,
     NumpyFunctionWithJacobianAndHVPWrapper,
     NumpyFunctionWithJacobianAndWHVPWrapper,
-)
-from pyapprox.optimization.minimize.scipy.scipy_result import (
-    ScipyOptimizerResultWrapper,
+    NumpyFunctionWithJacobianWrapper,
+    NumpyFunctionWrapper,
 )
 from pyapprox.optimization.minimize.constraints.linear import (
     PyApproxLinearConstraint,
 )
 from pyapprox.optimization.minimize.constraints.protocols import (
     NonlinearConstraintProtocol,
+    SequenceOfConstraintProtocols,
 )
+from pyapprox.optimization.minimize.constraints.validation import (
+    validate_constraints,
+)
+from pyapprox.optimization.minimize.objective.protocols import (
+    ObjectiveProtocol,
+)
+from pyapprox.optimization.minimize.objective.validation import (
+    validate_objective,
+)
+from pyapprox.optimization.minimize.scipy.scipy_result import (
+    ScipyOptimizerResultWrapper,
+)
+from pyapprox.util.backends.protocols import Array, Backend
 
 # Type alias for the wrapped objective returned by numpy_function_wrapper_factory
 _WrappedObjective = Union[
@@ -69,24 +68,30 @@ def _convert_constraints_for_slsqp(
 
             is_eq = np.allclose(lb_np, ub_np)
             if is_eq:
-                slsqp_constraints.append({
-                    'type': 'eq',
-                    'fun': lambda x, A=A_np, b=lb_np: A @ x - b,
-                    'jac': lambda x, A=A_np: A,
-                })
+                slsqp_constraints.append(
+                    {
+                        "type": "eq",
+                        "fun": lambda x, A=A_np, b=lb_np: A @ x - b,
+                        "jac": lambda x, A=A_np: A,
+                    }
+                )
             else:
                 if np.all(np.isfinite(lb_np)):
-                    slsqp_constraints.append({
-                        'type': 'ineq',
-                        'fun': lambda x, A=A_np, b=lb_np: A @ x - b,
-                        'jac': lambda x, A=A_np: A,
-                    })
+                    slsqp_constraints.append(
+                        {
+                            "type": "ineq",
+                            "fun": lambda x, A=A_np, b=lb_np: A @ x - b,
+                            "jac": lambda x, A=A_np: A,
+                        }
+                    )
                 if np.all(np.isfinite(ub_np)):
-                    slsqp_constraints.append({
-                        'type': 'ineq',
-                        'fun': lambda x, A=A_np, b=ub_np: b - A @ x,
-                        'jac': lambda x, A=A_np: -A,
-                    })
+                    slsqp_constraints.append(
+                        {
+                            "type": "ineq",
+                            "fun": lambda x, A=A_np, b=ub_np: b - A @ x,
+                            "jac": lambda x, A=A_np: -A,
+                        }
+                    )
         else:
             # Nonlinear constraint
             con = numpy_function_wrapper_factory(
@@ -101,34 +106,28 @@ def _convert_constraints_for_slsqp(
 
             if is_eq:
                 d: Dict[str, Any] = {
-                    'type': 'eq',
-                    'fun': lambda x, c=con, b=lb_np: (
-                        c(x[:, None])[:, 0] - b
-                    ),
+                    "type": "eq",
+                    "fun": lambda x, c=con, b=lb_np: (c(x[:, None])[:, 0] - b),
                 }
                 if has_jac:
-                    d['jac'] = lambda x, c=con: c.jacobian(x[:, None])
+                    d["jac"] = lambda x, c=con: c.jacobian(x[:, None])
                 slsqp_constraints.append(d)
             else:
                 if np.all(np.isfinite(lb_np)):
                     d = {
-                        'type': 'ineq',
-                        'fun': lambda x, c=con, b=lb_np: (
-                            c(x[:, None])[:, 0] - b
-                        ),
+                        "type": "ineq",
+                        "fun": lambda x, c=con, b=lb_np: (c(x[:, None])[:, 0] - b),
                     }
                     if has_jac:
-                        d['jac'] = lambda x, c=con: c.jacobian(x[:, None])
+                        d["jac"] = lambda x, c=con: c.jacobian(x[:, None])
                     slsqp_constraints.append(d)
                 if np.all(np.isfinite(ub_np)):
                     d = {
-                        'type': 'ineq',
-                        'fun': lambda x, c=con, b=ub_np: (
-                            b - c(x[:, None])[:, 0]
-                        ),
+                        "type": "ineq",
+                        "fun": lambda x, c=con, b=ub_np: (b - c(x[:, None])[:, 0]),
                     }
                     if has_jac:
-                        d['jac'] = lambda x, c=con: -c.jacobian(x[:, None])
+                        d["jac"] = lambda x, c=con: -c.jacobian(x[:, None])
                     slsqp_constraints.append(d)
 
     return slsqp_constraints
@@ -218,9 +217,7 @@ class ScipySLSQPOptimizer(Generic[Array]):
         # Backward compatible: if objective/bounds provided, bind immediately
         if objective is not None:
             if bounds is None:
-                raise ValueError(
-                    "bounds must be provided when objective is provided"
-                )
+                raise ValueError("bounds must be provided when objective is provided")
             self.bind(objective, bounds, constraints)
 
     def bind(
@@ -306,9 +303,7 @@ class ScipySLSQPOptimizer(Generic[Array]):
         assert self._objective is not None
         return self._objective.bkd()
 
-    def _convert_bounds(
-        self, bounds: Array, nvars: int, bkd: Backend[Array]
-    ) -> Bounds:
+    def _convert_bounds(self, bounds: Array, nvars: int, bkd: Backend[Array]) -> Bounds:
         """Convert bounds to a SciPy-compatible Bounds object.
 
         Parameters

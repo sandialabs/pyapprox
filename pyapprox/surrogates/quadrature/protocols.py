@@ -7,7 +7,14 @@ This module defines protocols for:
 - AdaptiveQuadratureRuleProtocol: Adaptive quadrature with error estimation
 """
 
-from typing import Callable, Generic, Optional, Protocol, Tuple, runtime_checkable
+from typing import (
+    Callable,
+    Generic,
+    Optional,
+    Protocol,
+    Tuple,
+    runtime_checkable,
+)
 
 from pyapprox.util.backends.protocols import Array, Backend
 

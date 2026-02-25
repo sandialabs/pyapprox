@@ -15,19 +15,18 @@ import numpy as np
 import torch
 from numpy.typing import NDArray
 
-from pyapprox.util.backends.numpy import NumpyBkd
-from pyapprox.util.backends.torch import TorchBkd
-from pyapprox.util.backends.protocols import Array
-from pyapprox.util.test_utils import load_tests  # noqa: F401
-
 from pyapprox.expdesign.likelihood import GaussianOEDInnerLoopLikelihood
 from pyapprox.expdesign.objective import KLOEDObjective
 from pyapprox.expdesign.solver import (
+    BruteForceKLOEDSolver,
     RelaxedKLOEDSolver,
     RelaxedOEDConfig,
-    BruteForceKLOEDSolver,
     solve_kl_oed,
 )
+from pyapprox.util.backends.numpy import NumpyBkd
+from pyapprox.util.backends.protocols import Array
+from pyapprox.util.backends.torch import TorchBkd
+from pyapprox.util.test_utils import load_tests  # noqa: F401
 
 
 class TestRelaxedKLOEDSolver(Generic[Array], unittest.TestCase):
@@ -45,9 +44,7 @@ class TestRelaxedKLOEDSolver(Generic[Array], unittest.TestCase):
         self._nouter = 15
 
         np.random.seed(123)
-        self._noise_variances = self._bkd.asarray(
-            np.array([0.1, 0.15, 0.2, 0.12])
-        )
+        self._noise_variances = self._bkd.asarray(np.array([0.1, 0.15, 0.2, 0.12]))
         self._outer_shapes = self._bkd.asarray(
             np.random.randn(self._nobs, self._nouter)
         )
@@ -171,9 +168,7 @@ class TestBruteForceKLOEDSolver(Generic[Array], unittest.TestCase):
         self._nouter = 10
 
         np.random.seed(456)
-        self._noise_variances = self._bkd.asarray(
-            np.array([0.1, 0.15, 0.2, 0.12])
-        )
+        self._noise_variances = self._bkd.asarray(np.array([0.1, 0.15, 0.2, 0.12]))
         self._outer_shapes = self._bkd.asarray(
             np.random.randn(self._nobs, self._nouter)
         )
@@ -241,9 +236,7 @@ class TestBruteForceKLOEDSolver(Generic[Array], unittest.TestCase):
         self.assertEqual(len(indices), self._nobs)
 
         # All weights should be 1.0 (all selected)
-        self._bkd.assert_allclose(
-            weights, self._bkd.ones((self._nobs, 1)), rtol=1e-7
-        )
+        self._bkd.assert_allclose(weights, self._bkd.ones((self._nobs, 1)), rtol=1e-7)
 
     def test_brute_force_invalid_k(self):
         """Test that invalid k raises error."""
@@ -337,9 +330,7 @@ class TestSolverConsistency(Generic[Array], unittest.TestCase):
         self._nouter = 12
 
         np.random.seed(789)
-        self._noise_variances = self._bkd.asarray(
-            np.array([0.1, 0.15, 0.2])
-        )
+        self._noise_variances = self._bkd.asarray(np.array([0.1, 0.15, 0.2]))
         self._outer_shapes = self._bkd.asarray(
             np.random.randn(self._nobs, self._nouter)
         )
@@ -380,9 +371,7 @@ class TestSolveKLOED(Generic[Array], unittest.TestCase):
         self._nouter = 15
 
         np.random.seed(123)
-        self._noise_variances = self._bkd.asarray(
-            np.array([0.1, 0.15, 0.2, 0.12])
-        )
+        self._noise_variances = self._bkd.asarray(np.array([0.1, 0.15, 0.2, 0.12]))
         self._outer_shapes = self._bkd.asarray(
             np.random.randn(self._nobs, self._nouter)
         )

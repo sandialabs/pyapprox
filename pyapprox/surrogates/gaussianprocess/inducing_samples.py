@@ -5,12 +5,13 @@ This module provides the InducingSamples class which manages inducing
 point locations and noise hyperparameters for variational GP inference.
 """
 
-from typing import Generic, Union, Tuple
+from typing import Generic, Tuple, Union
+
 from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.util.hyperparameter import (
     HyperParameter,
-    LogHyperParameter,
     HyperParameterList,
+    LogHyperParameter,
 )
 
 
@@ -73,9 +74,7 @@ class InducingSamples(Generic[Array]):
 
         # Parse inducing sample bounds
         n_flat = nvars * ninducing_samples
-        inducing_sample_bounds_arr = bkd.atleast_1d(
-            bkd.asarray(inducing_sample_bounds)
-        )
+        inducing_sample_bounds_arr = bkd.atleast_1d(bkd.asarray(inducing_sample_bounds))
         if inducing_sample_bounds_arr.ndim == 1:
             if inducing_sample_bounds_arr.shape[0] != 2:
                 raise ValueError(
@@ -96,9 +95,7 @@ class InducingSamples(Generic[Array]):
             bkd=bkd,
         )
 
-        self._hyp_list = HyperParameterList(
-            [self._noise, self._inducing_samples]
-        )
+        self._hyp_list = HyperParameterList([self._noise, self._inducing_samples])
 
     def hyp_list(self) -> HyperParameterList:
         """Return the hyperparameter list."""
@@ -139,6 +136,5 @@ class InducingSamples(Generic[Array]):
 
     def __repr__(self) -> str:
         return (
-            f"InducingSamples(ninducing={self._ninducing_samples}, "
-            f"nvars={self._nvars})"
+            f"InducingSamples(ninducing={self._ninducing_samples}, nvars={self._nvars})"
         )

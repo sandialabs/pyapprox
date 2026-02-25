@@ -9,24 +9,23 @@ import math
 import unittest
 from typing import Any, Generic
 
-import numpy as np
-from numpy.typing import NDArray
 import torch
+from numpy.typing import NDArray
 
-from pyapprox.util.backends.protocols import Array, Backend
-from pyapprox.util.backends.numpy import NumpyBkd
-from pyapprox.util.backends.torch import TorchBkd
-from pyapprox.util.test_utils import load_tests  # noqa: F401
 from pyapprox.pde.collocation.basis import ChebyshevBasis2D
-from pyapprox.pde.collocation.mesh import TransformedMesh2D
-from pyapprox.pde.collocation.mesh.transforms.affine import AffineTransform2D
-from pyapprox.pde.collocation.mesh.transforms.polar import PolarTransform
 from pyapprox.pde.collocation.boundary import DirichletBC, PeriodicBC
-from pyapprox.pde.collocation.physics import AdvectionDiffusionReaction
-from pyapprox.pde.collocation.time_integration import CollocationModel
 from pyapprox.pde.collocation.manufactured_solutions import (
     ManufacturedAdvectionDiffusionReaction,
 )
+from pyapprox.pde.collocation.mesh import TransformedMesh2D
+from pyapprox.pde.collocation.mesh.transforms.affine import AffineTransform2D
+from pyapprox.pde.collocation.mesh.transforms.polar import PolarTransform
+from pyapprox.pde.collocation.physics import AdvectionDiffusionReaction
+from pyapprox.pde.collocation.time_integration import CollocationModel
+from pyapprox.util.backends.numpy import NumpyBkd
+from pyapprox.util.backends.protocols import Array, Backend
+from pyapprox.util.backends.torch import TorchBkd
+from pyapprox.util.test_utils import load_tests  # noqa: F401
 
 
 class TestPeriodicBCTransforms(Generic[Array], unittest.TestCase):
@@ -46,9 +45,7 @@ class TestPeriodicBCTransforms(Generic[Array], unittest.TestCase):
         """
         bkd = self.bkd()
         npts = 20
-        transform = AffineTransform2D(
-            (0.0, 2 * math.pi, 0.0, 2 * math.pi), bkd
-        )
+        transform = AffineTransform2D((0.0, 2 * math.pi, 0.0, 2 * math.pi), bkd)
         mesh = TransformedMesh2D(npts, npts, bkd, transform)
         basis = ChebyshevBasis2D(mesh, bkd)
 

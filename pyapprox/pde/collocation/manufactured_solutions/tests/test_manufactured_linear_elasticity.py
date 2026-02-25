@@ -14,29 +14,28 @@ residuals for interior points.
 import unittest
 from typing import Any, Generic
 
-import numpy as np
 import torch
 from numpy.typing import NDArray
 from unittest_parametrize import ParametrizedTestCase, parametrize
 
-from pyapprox.util.backends.protocols import Array, Backend
-from pyapprox.util.backends.numpy import NumpyBkd
-from pyapprox.util.backends.torch import TorchBkd
-from pyapprox.util.test_utils import load_tests  # noqa: F401
-from pyapprox.pde.collocation.basis import ChebyshevBasis2D
-from pyapprox.pde.collocation.mesh import (
-    create_uniform_mesh_2d,
-    TransformedMesh2D,
-)
-from pyapprox.pde.collocation.boundary import zero_dirichlet_bc
-from pyapprox.pde.collocation.physics import LinearElasticityPhysics
-from pyapprox.pde.collocation.time_integration import CollocationModel
-from pyapprox.pde.collocation.manufactured_solutions import (
-    ManufacturedLinearElasticityEquations,
-)
 from pyapprox.interface.functions.derivative_checks.derivative_checker import (
     DerivativeChecker,
 )
+from pyapprox.pde.collocation.basis import ChebyshevBasis2D
+from pyapprox.pde.collocation.boundary import zero_dirichlet_bc
+from pyapprox.pde.collocation.manufactured_solutions import (
+    ManufacturedLinearElasticityEquations,
+)
+from pyapprox.pde.collocation.mesh import (
+    TransformedMesh2D,
+    create_uniform_mesh_2d,
+)
+from pyapprox.pde.collocation.physics import LinearElasticityPhysics
+from pyapprox.pde.collocation.time_integration import CollocationModel
+from pyapprox.util.backends.numpy import NumpyBkd
+from pyapprox.util.backends.protocols import Array, Backend
+from pyapprox.util.backends.torch import TorchBkd
+from pyapprox.util.test_utils import load_tests  # noqa: F401
 
 
 class PhysicsDerivativeWrapper(Generic[Array]):
@@ -68,9 +67,11 @@ class PhysicsDerivativeWrapper(Generic[Array]):
         # samples shape: (nvars, nsamples), return (nqoi, nsamples)
         if samples.ndim == 2:
             return self._backend.stack(
-                [self._physics.residual(samples[:, i], self._time)
-                 for i in range(samples.shape[1])],
-                axis=1
+                [
+                    self._physics.residual(samples[:, i], self._time)
+                    for i in range(samples.shape[1])
+                ],
+                axis=1,
             )
         # Single sample: return (nqoi, 1)
         return self._physics.residual(samples, self._time).reshape(-1, 1)
@@ -112,7 +113,7 @@ class TestManufacturedLinearElasticity2D(Generic[Array], unittest.TestCase):
         # Construct mesh nodes
         nodes_x = basis.nodes_x()
         nodes_y = basis.nodes_y()
-        xx, yy = bkd.meshgrid(nodes_x, nodes_y, indexing='xy')
+        xx, yy = bkd.meshgrid(nodes_x, nodes_y, indexing="xy")
         nodes = bkd.stack([xx.flatten(), yy.flatten()], axis=0)
 
         # Get exact solution and forcing
@@ -154,9 +155,7 @@ class TestManufacturedLinearElasticity2D(Generic[Array], unittest.TestCase):
                 boundary_indices.add(idx)
                 boundary_indices.add(idx + npts)
 
-        interior_indices = [
-            i for i in range(2 * npts) if i not in boundary_indices
-        ]
+        interior_indices = [i for i in range(2 * npts) if i not in boundary_indices]
         interior_residual = bkd.asarray([residual_with_bc[i] for i in interior_indices])
 
         bkd.assert_allclose(
@@ -204,7 +203,7 @@ class TestManufacturedLinearElasticity2D(Generic[Array], unittest.TestCase):
 
         nodes_x = basis.nodes_x()
         nodes_y = basis.nodes_y()
-        xx, yy = bkd.meshgrid(nodes_x, nodes_y, indexing='xy')
+        xx, yy = bkd.meshgrid(nodes_x, nodes_y, indexing="xy")
         nodes = bkd.stack([xx.flatten(), yy.flatten()], axis=0)
 
         u_exact = man_sol.functions["solution"](nodes)
@@ -240,9 +239,7 @@ class TestManufacturedLinearElasticity2D(Generic[Array], unittest.TestCase):
                 boundary_indices.add(idx)
                 boundary_indices.add(idx + npts)
 
-        interior_indices = [
-            i for i in range(2 * npts) if i not in boundary_indices
-        ]
+        interior_indices = [i for i in range(2 * npts) if i not in boundary_indices]
         interior_residual = bkd.asarray([residual_with_bc[i] for i in interior_indices])
 
         bkd.assert_allclose(
@@ -269,7 +266,7 @@ class TestManufacturedLinearElasticity2D(Generic[Array], unittest.TestCase):
 
         nodes_x = basis.nodes_x()
         nodes_y = basis.nodes_y()
-        xx, yy = bkd.meshgrid(nodes_x, nodes_y, indexing='xy')
+        xx, yy = bkd.meshgrid(nodes_x, nodes_y, indexing="xy")
         nodes = bkd.stack([xx.flatten(), yy.flatten()], axis=0)
 
         u_exact = man_sol.functions["solution"](nodes)
@@ -310,13 +307,55 @@ class TestLinearElasticity2DParameterized(ParametrizedTestCase):
         "name,u_str,v_str,lambda_str,mu_str,npts_1d",
         [
             # Polynomial solutions (exact for Chebyshev)
-            ("poly_basic", "(1 - x**2)*(1 - y**2)", "(1 - x**2)*(1 - y**2)*x", "1.0", "1.0", 10),
-            ("poly_symmetric", "(1 - x**2)*(1 - y**2)*x*y", "(1 - x**2)*(1 - y**2)*x*y", "1.0", "1.0", 12),
-            ("poly_higher_degree", "(1 - x**2)*(1 - y**2)*x**2", "(1 - x**2)*(1 - y**2)*y**2", "1.0", "1.0", 14),
+            (
+                "poly_basic",
+                "(1 - x**2)*(1 - y**2)",
+                "(1 - x**2)*(1 - y**2)*x",
+                "1.0",
+                "1.0",
+                10,
+            ),
+            (
+                "poly_symmetric",
+                "(1 - x**2)*(1 - y**2)*x*y",
+                "(1 - x**2)*(1 - y**2)*x*y",
+                "1.0",
+                "1.0",
+                12,
+            ),
+            (
+                "poly_higher_degree",
+                "(1 - x**2)*(1 - y**2)*x**2",
+                "(1 - x**2)*(1 - y**2)*y**2",
+                "1.0",
+                "1.0",
+                14,
+            ),
             # Different Lamé parameters
-            ("high_lambda", "(1 - x**2)*(1 - y**2)", "(1 - x**2)*(1 - y**2)*x", "10.0", "1.0", 10),
-            ("high_mu", "(1 - x**2)*(1 - y**2)", "(1 - x**2)*(1 - y**2)*x", "1.0", "10.0", 10),
-            ("incompressible_like", "(1 - x**2)*(1 - y**2)", "(1 - x**2)*(1 - y**2)*x", "100.0", "1.0", 10),
+            (
+                "high_lambda",
+                "(1 - x**2)*(1 - y**2)",
+                "(1 - x**2)*(1 - y**2)*x",
+                "10.0",
+                "1.0",
+                10,
+            ),
+            (
+                "high_mu",
+                "(1 - x**2)*(1 - y**2)",
+                "(1 - x**2)*(1 - y**2)*x",
+                "1.0",
+                "10.0",
+                10,
+            ),
+            (
+                "incompressible_like",
+                "(1 - x**2)*(1 - y**2)",
+                "(1 - x**2)*(1 - y**2)*x",
+                "100.0",
+                "1.0",
+                10,
+            ),
         ],
     )
     def test_linear_elasticity_2d_residual(
@@ -341,7 +380,7 @@ class TestLinearElasticity2DParameterized(ParametrizedTestCase):
 
         nodes_x = basis.nodes_x()
         nodes_y = basis.nodes_y()
-        xx, yy = bkd.meshgrid(nodes_x, nodes_y, indexing='xy')
+        xx, yy = bkd.meshgrid(nodes_x, nodes_y, indexing="xy")
         nodes = bkd.stack([xx.flatten(), yy.flatten()], axis=0)
 
         u_exact = man_sol.functions["solution"](nodes)
@@ -380,9 +419,7 @@ class TestLinearElasticity2DParameterized(ParametrizedTestCase):
                 boundary_indices.add(idx)
                 boundary_indices.add(idx + npts)
 
-        interior_indices = [
-            i for i in range(2 * npts) if i not in boundary_indices
-        ]
+        interior_indices = [i for i in range(2 * npts) if i not in boundary_indices]
         interior_residual = bkd.asarray([residual_with_bc[i] for i in interior_indices])
 
         bkd.assert_allclose(
@@ -392,9 +429,30 @@ class TestLinearElasticity2DParameterized(ParametrizedTestCase):
     @parametrize(
         "name,u_str,v_str,lambda_str,mu_str,npts_1d",
         [
-            ("jacobian_basic", "(1 - x**2)*(1 - y**2)", "(1 - x**2)*(1 - y**2)*x", "1.0", "1.0", 6),
-            ("jacobian_high_lambda", "(1 - x**2)*(1 - y**2)", "(1 - x**2)*(1 - y**2)*x", "2.5", "0.5", 6),
-            ("jacobian_high_mu", "(1 - x**2)*(1 - y**2)", "(1 - x**2)*(1 - y**2)*x", "0.5", "2.5", 6),
+            (
+                "jacobian_basic",
+                "(1 - x**2)*(1 - y**2)",
+                "(1 - x**2)*(1 - y**2)*x",
+                "1.0",
+                "1.0",
+                6,
+            ),
+            (
+                "jacobian_high_lambda",
+                "(1 - x**2)*(1 - y**2)",
+                "(1 - x**2)*(1 - y**2)*x",
+                "2.5",
+                "0.5",
+                6,
+            ),
+            (
+                "jacobian_high_mu",
+                "(1 - x**2)*(1 - y**2)",
+                "(1 - x**2)*(1 - y**2)*x",
+                "0.5",
+                "2.5",
+                6,
+            ),
         ],
     )
     def test_linear_elasticity_2d_jacobian(

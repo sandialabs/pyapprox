@@ -11,31 +11,31 @@ The approach is equivalent to computing the Schur complement implicitly,
 eliminating interior DOFs and solving for interface unknowns.
 """
 
+from pyapprox.pde.decomposition.interface import (
+    Interface,
+    Interface1D,
+    Interface2D,
+    InterpolationOperator,
+    LegendreInterfaceBasis1D,
+    LegendreInterfaceBasis2D,
+    RestrictionOperator,
+)
 from pyapprox.pde.decomposition.protocols import (
+    DomainDecompositionProtocol,
     InterfaceBasisProtocol,
     InterfaceProtocol,
     SubdomainSolverProtocol,
-    DomainDecompositionProtocol,
-)
-from pyapprox.pde.decomposition.interface import (
-    LegendreInterfaceBasis1D,
-    LegendreInterfaceBasis2D,
-    Interface1D,
-    Interface,
-    Interface2D,
-    InterpolationOperator,
-    RestrictionOperator,
-)
-from pyapprox.pde.decomposition.subdomain import (
-    SubdomainWrapper,
-    FluxComputer,
 )
 from pyapprox.pde.decomposition.solver import (
-    DtNResidual,
     DtNJacobian,
+    DtNResidual,
     DtNSolver,
     DtNSolverResult,
     create_dtn_solver,
+)
+from pyapprox.pde.decomposition.subdomain import (
+    FluxComputer,
+    SubdomainWrapper,
 )
 
 __all__ = [

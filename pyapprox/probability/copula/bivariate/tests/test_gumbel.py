@@ -8,23 +8,22 @@ import torch
 from numpy.typing import NDArray
 from scipy import stats
 
-from pyapprox.util.backends.protocols import Array, Backend
-from pyapprox.util.backends.numpy import NumpyBkd
-from pyapprox.util.backends.torch import TorchBkd
 from pyapprox.probability.copula.bivariate.gumbel import (
     GumbelCopula,
 )
 from pyapprox.probability.copula.bivariate.protocols import (
     BivariateCopulaProtocol,
 )
+from pyapprox.util.backends.numpy import NumpyBkd
+from pyapprox.util.backends.protocols import Array, Backend
+from pyapprox.util.backends.torch import TorchBkd
 from pyapprox.util.test_utils import load_tests  # noqa: F401
 
 
-def _gumbel_cdf_reference(u1: np.ndarray, u2: np.ndarray,
-                           theta: float) -> np.ndarray:
+def _gumbel_cdf_reference(u1: np.ndarray, u2: np.ndarray, theta: float) -> np.ndarray:
     """Reference Gumbel CDF (test helper only)."""
-    A = (-np.log(u1))**theta + (-np.log(u2))**theta
-    return np.exp(-A**(1.0/theta))
+    A = (-np.log(u1)) ** theta + (-np.log(u2)) ** theta
+    return np.exp(-(A ** (1.0 / theta)))
 
 
 class TestGumbelCopula(Generic[Array], unittest.TestCase):
@@ -46,9 +45,7 @@ class TestGumbelCopula(Generic[Array], unittest.TestCase):
 
     def test_logpdf_shape(self) -> None:
         np.random.seed(42)
-        u = self._bkd.asarray(
-            np.random.uniform(0.01, 0.99, (2, 20)).astype(np.float64)
-        )
+        u = self._bkd.asarray(np.random.uniform(0.01, 0.99, (2, 20)).astype(np.float64))
         result = self._copula.logpdf(u)
         self.assertEqual(result.shape, (1, 20))
 
@@ -140,9 +137,7 @@ class TestGumbelCopula(Generic[Array], unittest.TestCase):
             self._copula.logpdf(u_1d)
 
     def test_input_validation_wrong_nvars(self) -> None:
-        u = self._bkd.asarray(
-            np.random.uniform(0.01, 0.99, (3, 10)).astype(np.float64)
-        )
+        u = self._bkd.asarray(np.random.uniform(0.01, 0.99, (3, 10)).astype(np.float64))
         with self.assertRaises(ValueError):
             self._copula.logpdf(u)
 

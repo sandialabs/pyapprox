@@ -19,7 +19,6 @@ import matplotlib.pyplot as plt
 from matplotlib.axes import Axes
 from matplotlib.figure import Figure
 
-from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.interface.functions.marginalize import (
     DimensionReducerProtocol,
     ReducedFunction,
@@ -28,6 +27,7 @@ from pyapprox.interface.functions.plot.plot1d import Plotter1D
 from pyapprox.interface.functions.plot.plot2d_rectangular import (
     Plotter2DRectangularDomain,
 )
+from pyapprox.util.backends.protocols import Array, Backend
 
 
 class PairPlotter(Generic[Array]):
@@ -67,20 +67,16 @@ class PairPlotter(Generic[Array]):
         self._variable_names = variable_names or [
             f"$x_{{{i}}}$" for i in range(self._nvars)
         ]
-        self._functions_1d: Optional[
-            List[ReducedFunction[Array]]
-        ] = None
-        self._functions_2d: Optional[
-            Dict[Tuple[int, int], ReducedFunction[Array]]
-        ] = None
+        self._functions_1d: Optional[List[ReducedFunction[Array]]] = None
+        self._functions_2d: Optional[Dict[Tuple[int, int], ReducedFunction[Array]]] = (
+            None
+        )
 
     @classmethod
     def from_functions(
         cls,
         functions_1d: List[ReducedFunction[Array]],
-        functions_2d: Dict[
-            Tuple[int, int], ReducedFunction[Array]
-        ],
+        functions_2d: Dict[Tuple[int, int], ReducedFunction[Array]],
         plot_limits: Array,
         bkd: Backend[Array],
         variable_names: Optional[List[str]] = None,
@@ -122,9 +118,7 @@ class PairPlotter(Generic[Array]):
             return self._functions_1d[idx]
         return self._reducer.reduce([idx])
 
-    def _get_2d_function(
-        self, row: int, col: int
-    ) -> ReducedFunction[Array]:
+    def _get_2d_function(self, row: int, col: int) -> ReducedFunction[Array]:
         if self._functions_2d is not None:
             return self._functions_2d[(row, col)]
         return self._reducer.reduce([col, row])
@@ -195,9 +189,7 @@ class PairPlotter(Generic[Array]):
                     plotter2d = Plotter2DRectangularDomain(
                         fn, self._plot_limits_2d(i, j)
                     )
-                    plotter2d.plot_contours(
-                        ax, npts_1d=npts_1d, **contour_kwargs
-                    )
+                    plotter2d.plot_contours(ax, npts_1d=npts_1d, **contour_kwargs)
 
         # Axis labels: bottom row gets x-labels, left column gets y-labels
         for j in range(n):

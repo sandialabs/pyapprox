@@ -7,9 +7,8 @@ import torch
 from numpy.typing import NDArray
 
 from pyapprox.util.backends.numpy import NumpyBkd
-from pyapprox.util.backends.torch import TorchBkd
 from pyapprox.util.backends.protocols import Array, Backend
-from pyapprox.util.test_utils import load_tests
+from pyapprox.util.backends.torch import TorchBkd
 
 
 class TestPivotedLUFactorizer(Generic[Array], unittest.TestCase):
@@ -39,9 +38,7 @@ class TestPivotedLUFactorizer(Generic[Array], unittest.TestCase):
         """Test that L @ U recovers permuted original matrix."""
         from pyapprox.util.linalg import PivotedLUFactorizer
 
-        A = self._bkd.asarray(
-            [[1.0, 2.0, 3.0], [4.0, 5.0, 6.0], [7.0, 8.0, 10.0]]
-        )
+        A = self._bkd.asarray([[1.0, 2.0, 3.0], [4.0, 5.0, 6.0], [7.0, 8.0, 10.0]])
         factorizer = PivotedLUFactorizer(self._bkd, A)
         L, U = factorizer.factorize(3)
 
@@ -55,9 +52,7 @@ class TestPivotedLUFactorizer(Generic[Array], unittest.TestCase):
         """Test incremental update of factorization."""
         from pyapprox.util.linalg import PivotedLUFactorizer
 
-        A = self._bkd.asarray(
-            [[1.0, 2.0, 3.0], [4.0, 5.0, 6.0], [7.0, 8.0, 10.0]]
-        )
+        A = self._bkd.asarray([[1.0, 2.0, 3.0], [4.0, 5.0, 6.0], [7.0, 8.0, 10.0]])
         factorizer = PivotedLUFactorizer(self._bkd, A)
 
         # Factorize 2 pivots first
@@ -78,9 +73,7 @@ class TestPivotedLUFactorizer(Generic[Array], unittest.TestCase):
         """Test factorization with initial pivots specified."""
         from pyapprox.util.linalg import PivotedLUFactorizer
 
-        A = self._bkd.asarray(
-            [[1.0, 2.0, 3.0], [4.0, 5.0, 6.0], [7.0, 8.0, 10.0]]
-        )
+        A = self._bkd.asarray([[1.0, 2.0, 3.0], [4.0, 5.0, 6.0], [7.0, 8.0, 10.0]])
         init_pivots = self._bkd.asarray([1], dtype=self._bkd.int64_dtype())
         factorizer = PivotedLUFactorizer(self._bkd, A, init_pivots=init_pivots)
         L, U = factorizer.factorize(2)
@@ -99,9 +92,7 @@ class TestPivotedLUFactorizer(Generic[Array], unittest.TestCase):
         from pyapprox.util.linalg import PivotedLUFactorizer
 
         # Original matrix
-        A = self._bkd.asarray(
-            [[1.0, 2.0, 3.0], [4.0, 5.0, 6.0], [7.0, 8.0, 10.0]]
-        )
+        A = self._bkd.asarray([[1.0, 2.0, 3.0], [4.0, 5.0, 6.0], [7.0, 8.0, 10.0]])
 
         # First, factorize to get the pivot order
         factorizer = PivotedLUFactorizer(self._bkd, A)

@@ -5,6 +5,7 @@ PERMANENT - no legacy imports.
 """
 
 import unittest
+
 import numpy as np
 from scipy import stats
 
@@ -21,7 +22,7 @@ class TestLogNormalAnalyticalRiskMeasures(unittest.TestCase):
 
     def test_mean_formula(self):
         """Test mean returns exp(mu + sigma^2/2)."""
-        expected = np.exp(self.mu + self.sigma ** 2 / 2)
+        expected = np.exp(self.mu + self.sigma**2 / 2)
         self.assertAlmostEqual(self.risk.mean(), expected, places=12)
 
     def test_mean_matches_scipy(self):
@@ -43,9 +44,7 @@ class TestLogNormalAnalyticalRiskMeasures(unittest.TestCase):
         """Test VaR matches scipy quantile function."""
         rv = stats.lognorm(scale=np.exp(self.mu), s=self.sigma)
         for beta in [0.1, 0.5, 0.9, 0.95]:
-            self.assertAlmostEqual(
-                self.risk.VaR(beta), rv.ppf(beta), places=12
-            )
+            self.assertAlmostEqual(self.risk.VaR(beta), rv.ppf(beta), places=12)
 
     def test_avar_at_beta_zero(self):
         """Test AVaR at beta=0 equals mean."""
@@ -98,10 +97,12 @@ class TestLogNormalAnalyticalRiskMeasures(unittest.TestCase):
         #   log(s2/s1) + (s1^2 + (mu1-mu2)^2)/(2*s2^2) - 0.5
         expected = (
             np.log(sigma2 / self.sigma)
-            + (self.sigma ** 2 + (self.mu - mu2) ** 2) / (2 * sigma2 ** 2)
+            + (self.sigma**2 + (self.mu - mu2) ** 2) / (2 * sigma2**2)
             - 0.5
         )
-        self.assertAlmostEqual(self.risk.kl_divergence(mu2, sigma2), expected, places=12)
+        self.assertAlmostEqual(
+            self.risk.kl_divergence(mu2, sigma2), expected, places=12
+        )
 
     def test_utility_ssd_at_zero(self):
         """Test utility SSD at eta=0."""

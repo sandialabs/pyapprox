@@ -5,16 +5,16 @@ Provides analytical formulas for expected deviations when computing
 prediction OED with linear Gaussian models and conjugate priors.
 """
 
-from abc import ABC, abstractmethod
 import math
+from abc import ABC, abstractmethod
 from typing import Generic, Optional
 
 from scipy import stats
 
-from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.inverse.conjugate.gaussian import DenseGaussianConjugatePosterior
 from pyapprox.inverse.pushforward.gaussian import GaussianPushforward
 from pyapprox.probability.risk import LogNormalAnalyticalRiskMeasures
+from pyapprox.util.backends.protocols import Array, Backend
 
 
 def _compute_expected_kl_divergence_pushforward(
@@ -274,11 +274,7 @@ class ConjugateGaussianOEDExpectedAVaRDev(
     def _compute_utility(self) -> float:
         # AVaR deviation = sigma * phi(Phi^{-1}(beta)) / (1 - beta)
         sigma = float(self._bkd.sqrt(self._post_pushforward.covariance()[0, 0]))
-        return (
-            sigma
-            * stats.norm.pdf(stats.norm.ppf(self._beta))
-            / (1.0 - self._beta)
-        )
+        return sigma * stats.norm.pdf(stats.norm.ppf(self._beta)) / (1.0 - self._beta)
 
 
 class ConjugateGaussianOEDExpectedKLDivergence(
@@ -311,7 +307,7 @@ class ConjugateGaussianOEDForLogNormalExpectedStdDev(
 
     def _lognormal_mean(self, mu: float, sigma: float) -> float:
         """Compute mean of lognormal with underlying normal N(mu, sigma^2)."""
-        return math.exp(mu + sigma ** 2 / 2.0)
+        return math.exp(mu + sigma**2 / 2.0)
 
     def _compute_utility(self) -> float:
         tau_hat = self._qoi_mat @ self._nu_vec

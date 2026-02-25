@@ -11,38 +11,13 @@ import unittest
 from typing import Any, Generic
 
 import numpy as np
-from numpy.typing import NDArray
 import torch
+from numpy.typing import NDArray
 
-from pyapprox.util.backends.protocols import Array, Backend
-from pyapprox.util.backends.numpy import NumpyBkd
-from pyapprox.util.backends.torch import TorchBkd
-from pyapprox.util.test_utils import slow_test
-from pyapprox.probability.univariate import UniformMarginal
-from pyapprox.probability.univariate.gaussian import GaussianMarginal
-from pyapprox.probability.univariate.beta import BetaMarginal
-from pyapprox.probability.joint.independent import IndependentJoint
-from pyapprox.probability.likelihood.gaussian import (
-    DiagonalGaussianLogLikelihood,
-    MultiExperimentLogLikelihood,
-)
+from pyapprox.inverse.conjugate.beta import BetaConjugatePosterior
 from pyapprox.inverse.conjugate.gaussian import (
     DenseGaussianConjugatePosterior,
 )
-from pyapprox.inverse.conjugate.beta import BetaConjugatePosterior
-from pyapprox.probability.conditional.gaussian import (
-    ConditionalGaussian,
-)
-from pyapprox.probability.conditional.beta import ConditionalBeta
-from pyapprox.probability.conditional.joint import (
-    ConditionalIndependentJoint,
-)
-from pyapprox.surrogates.affine.univariate import create_bases_1d
-from pyapprox.surrogates.affine.indices import (
-    compute_hyperbolic_indices,
-)
-from pyapprox.surrogates.affine.basis import OrthonormalPolynomialBasis
-from pyapprox.surrogates.affine.expansions import BasisExpansion
 from pyapprox.inverse.variational.elbo import (
     make_single_problem_elbo,
 )
@@ -50,11 +25,34 @@ from pyapprox.inverse.variational.fitter import VariationalFitter
 from pyapprox.optimization.minimize.scipy.trust_constr import (
     ScipyTrustConstrOptimizer,
 )
+from pyapprox.probability.conditional.beta import ConditionalBeta
+from pyapprox.probability.conditional.gaussian import (
+    ConditionalGaussian,
+)
+from pyapprox.probability.conditional.joint import (
+    ConditionalIndependentJoint,
+)
+from pyapprox.probability.joint.independent import IndependentJoint
+from pyapprox.probability.likelihood.gaussian import (
+    DiagonalGaussianLogLikelihood,
+    MultiExperimentLogLikelihood,
+)
+from pyapprox.probability.univariate import UniformMarginal
+from pyapprox.probability.univariate.beta import BetaMarginal
+from pyapprox.probability.univariate.gaussian import GaussianMarginal
+from pyapprox.surrogates.affine.basis import OrthonormalPolynomialBasis
+from pyapprox.surrogates.affine.expansions import BasisExpansion
+from pyapprox.surrogates.affine.indices import (
+    compute_hyperbolic_indices,
+)
+from pyapprox.surrogates.affine.univariate import create_bases_1d
+from pyapprox.util.backends.numpy import NumpyBkd
+from pyapprox.util.backends.protocols import Array, Backend
+from pyapprox.util.backends.torch import TorchBkd
+from pyapprox.util.test_utils import slow_test
 
 
-def _make_degree0_expansion(
-    bkd: Backend, coeff: float = 0.0
-) -> BasisExpansion:
+def _make_degree0_expansion(bkd: Backend, coeff: float = 0.0) -> BasisExpansion:
     """Create a degree-0 BasisExpansion (constant function).
 
     Returns a function f(x) = coeff for any x, with 1 conditioning variable
@@ -87,9 +85,7 @@ def _make_cond_beta(
     return ConditionalBeta(log_alpha_func, log_beta_func, bkd)
 
 
-def _extract_gaussian_params(
-    cond: ConditionalGaussian, bkd: Backend
-) -> tuple:
+def _extract_gaussian_params(cond: ConditionalGaussian, bkd: Backend) -> tuple:
     """Extract (mean, stdev) from a fitted ConditionalGaussian.
 
     For degree-0 expansions, the param functions are constant so
@@ -101,9 +97,7 @@ def _extract_gaussian_params(
     return mean, bkd.exp(log_stdev)
 
 
-def _extract_beta_params(
-    cond: ConditionalBeta, bkd: Backend
-) -> tuple:
+def _extract_beta_params(cond: ConditionalBeta, bkd: Backend) -> tuple:
     """Extract (alpha, beta) from a fitted ConditionalBeta."""
     dummy_x = bkd.zeros((cond.nvars(), 1))
     log_alpha = cond._log_alpha_func(dummy_x)[0, 0]
@@ -111,9 +105,7 @@ def _extract_beta_params(
     return bkd.exp(log_alpha), bkd.exp(log_beta)
 
 
-class TestGaussianConjugateRecoveryBase(
-    Generic[Array], unittest.TestCase
-):
+class TestGaussianConjugateRecoveryBase(Generic[Array], unittest.TestCase):
     """Base test class for Gaussian conjugate recovery."""
 
     __test__ = False
@@ -124,9 +116,7 @@ class TestGaussianConjugateRecoveryBase(
     def setUp(self) -> None:
         self._bkd = self.bkd()
 
-    def _make_cond_gaussian_joint(
-        self, nvars: int
-    ) -> ConditionalIndependentJoint:
+    def _make_cond_gaussian_joint(self, nvars: int) -> ConditionalIndependentJoint:
         """Create a variational distribution for nvars dimensions.
 
         Always returns a ConditionalIndependentJoint, even for nvars=1.
@@ -151,13 +141,15 @@ class TestGaussianConjugateRecoveryBase(
         nobs = obs_matrix.shape[0]
 
         # Exact conjugate posterior
-        prior_mean_arr = bkd.reshape(
-            bkd.asarray(prior_mean_vals), (nvars, 1)
-        )
+        prior_mean_arr = bkd.reshape(bkd.asarray(prior_mean_vals), (nvars, 1))
         prior_cov_arr = bkd.diag(bkd.asarray(prior_var_vals))
         noise_cov_arr = noise_var * bkd.eye(nobs)
         conjugate = DenseGaussianConjugatePosterior(
-            obs_matrix, prior_mean_arr, prior_cov_arr, noise_cov_arr, bkd,
+            obs_matrix,
+            prior_mean_arr,
+            prior_cov_arr,
+            noise_cov_arr,
+            bkd,
         )
         conjugate.compute(observations)
         exact_mean = conjugate.posterior_mean()
@@ -177,21 +169,25 @@ class TestGaussianConjugateRecoveryBase(
         noise_variances = bkd.full((nobs,), noise_var)
         base_lik = DiagonalGaussianLogLikelihood(noise_variances, bkd)
         multi_lik = MultiExperimentLogLikelihood(
-            base_lik, observations, bkd,
+            base_lik,
+            observations,
+            bkd,
         )
 
         def log_likelihood_fn(z: Array) -> Array:
             return multi_lik.logpdf(obs_matrix @ z)
 
         np.random.seed(42)
-        base_samples = bkd.asarray(
-            np.random.normal(0, 1, (nvars, nsamples))
-        )
+        base_samples = bkd.asarray(np.random.normal(0, 1, (nvars, nsamples)))
         weights = bkd.full((1, nsamples), 1.0 / nsamples)
 
         elbo = make_single_problem_elbo(
-            var_dist, log_likelihood_fn, prior,
-            base_samples, weights, bkd,
+            var_dist,
+            log_likelihood_fn,
+            prior,
+            base_samples,
+            weights,
+            bkd,
         )
 
         optimizer = ScipyTrustConstrOptimizer(maxiter=maxiter, gtol=1e-8)
@@ -204,7 +200,7 @@ class TestGaussianConjugateRecoveryBase(
         for cond in var_dist._conditionals:
             m, s = _extract_gaussian_params(cond, bkd)
             means.append(m)
-            variances.append(s ** 2)
+            variances.append(s**2)
         vi_mean = bkd.asarray(means)
         vi_var = bkd.asarray(variances)
 
@@ -266,17 +262,15 @@ class TestGaussianConjugateRecoveryBase(
 
         # Few observations
         obs_few = bkd.asarray([[2.0]])
-        vi_mean_few, vi_var_few, exact_mean_few, exact_cov_few = (
-            self._run_vi_recovery(
-                nvars=1,
-                obs_matrix=obs_matrix,
-                prior_mean_vals=[0.0],
-                prior_var_vals=[1.0],
-                noise_var=0.5,
-                observations=obs_few,
-                nsamples=1000,
-                maxiter=300,
-            )
+        vi_mean_few, vi_var_few, exact_mean_few, exact_cov_few = self._run_vi_recovery(
+            nvars=1,
+            obs_matrix=obs_matrix,
+            prior_mean_vals=[0.0],
+            prior_var_vals=[1.0],
+            noise_var=0.5,
+            observations=obs_few,
+            nsamples=1000,
+            maxiter=300,
         )
 
         # Many observations (3 experiments)
@@ -297,11 +291,13 @@ class TestGaussianConjugateRecoveryBase(
         # More data -> smaller posterior variance
         exact_var_few = exact_cov_few[0, 0]
         exact_var_many = exact_cov_many[0, 0]
-        self.assertLess(float(bkd.flatten(exact_var_many)[0]),
-                        float(bkd.flatten(exact_var_few)[0]))
+        self.assertLess(
+            float(bkd.flatten(exact_var_many)[0]), float(bkd.flatten(exact_var_few)[0])
+        )
 
-        self.assertLess(float(bkd.flatten(vi_var_many)[0]),
-                        float(bkd.flatten(vi_var_few)[0]))
+        self.assertLess(
+            float(bkd.flatten(vi_var_many)[0]), float(bkd.flatten(vi_var_few)[0])
+        )
 
 
 class TestGaussianConjugateRecoveryNumpy(
@@ -369,23 +365,23 @@ class TestBetaBernoulliRecoveryBase(Generic[Array], unittest.TestCase):
 
         nsamples = 2000
         np.random.seed(42)
-        base_samples = bkd.asarray(
-            np.random.uniform(0.01, 0.99, (1, nsamples))
-        )
+        base_samples = bkd.asarray(np.random.uniform(0.01, 0.99, (1, nsamples)))
         weights = bkd.full((1, nsamples), 1.0 / nsamples)
 
         elbo = make_single_problem_elbo(
-            cond_beta, log_likelihood_fn, prior,
-            base_samples, weights, bkd,
+            cond_beta,
+            log_likelihood_fn,
+            prior,
+            base_samples,
+            weights,
+            bkd,
         )
 
         fitter = VariationalFitter(bkd)
         fitter.fit(elbo)
 
         # Extract recovered alpha/beta
-        recovered_alpha, recovered_beta = _extract_beta_params(
-            cond_beta, bkd
-        )
+        recovered_alpha, recovered_beta = _extract_beta_params(cond_beta, bkd)
         recovered_mean = recovered_alpha / (recovered_alpha + recovered_beta)
 
         # Posterior mean should match
@@ -475,7 +471,9 @@ class TestGaussianEquivalenceBase(Generic[Array], unittest.TestCase):
         noise_variances = bkd.full((1,), noise_var)
         base_lik = DiagonalGaussianLogLikelihood(noise_variances, bkd)
         multi_lik = MultiExperimentLogLikelihood(
-            base_lik, observations, bkd,
+            base_lik,
+            observations,
+            bkd,
         )
 
         def log_likelihood_fn(z: Array) -> Array:
@@ -489,39 +487,46 @@ class TestGaussianEquivalenceBase(Generic[Array], unittest.TestCase):
         cond_single = _make_cond_gaussian(bkd)
         prior_single = GaussianMarginal(0.0, 1.0, bkd)
         elbo_single = make_single_problem_elbo(
-            cond_single, log_likelihood_fn, prior_single,
-            base_samples, weights, bkd,
+            cond_single,
+            log_likelihood_fn,
+            prior_single,
+            base_samples,
+            weights,
+            bkd,
         )
         optimizer = ScipyTrustConstrOptimizer(maxiter=300, gtol=1e-8)
         fitter_single = VariationalFitter(bkd, optimizer=optimizer)
         fitter_single.fit(elbo_single)
-        single_mean, single_stdev = _extract_gaussian_params(
-            cond_single, bkd
-        )
+        single_mean, single_stdev = _extract_gaussian_params(cond_single, bkd)
 
         # --- ConditionalIndependentJoint([ConditionalGaussian]) ---
         cond_inner = _make_cond_gaussian(bkd)
         cond_joint = ConditionalIndependentJoint([cond_inner], bkd)
         prior_joint = IndependentJoint(
-            [GaussianMarginal(0.0, 1.0, bkd)], bkd,
+            [GaussianMarginal(0.0, 1.0, bkd)],
+            bkd,
         )
         elbo_joint = make_single_problem_elbo(
-            cond_joint, log_likelihood_fn, prior_joint,
-            base_samples, weights, bkd,
+            cond_joint,
+            log_likelihood_fn,
+            prior_joint,
+            base_samples,
+            weights,
+            bkd,
         )
         fitter_joint = VariationalFitter(bkd, optimizer=optimizer)
         fitter_joint.fit(elbo_joint)
-        joint_mean, joint_stdev = _extract_gaussian_params(
-            cond_inner, bkd
-        )
+        joint_mean, joint_stdev = _extract_gaussian_params(cond_inner, bkd)
 
         # Both optimised the same objective -> tight tolerance
         bkd.assert_allclose(
-            bkd.asarray([single_mean]), bkd.asarray([joint_mean]),
+            bkd.asarray([single_mean]),
+            bkd.asarray([joint_mean]),
             rtol=1e-8,
         )
         bkd.assert_allclose(
-            bkd.asarray([single_stdev]), bkd.asarray([joint_stdev]),
+            bkd.asarray([single_stdev]),
+            bkd.asarray([joint_stdev]),
             rtol=1e-8,
         )
 

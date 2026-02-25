@@ -80,8 +80,7 @@ def plot_sparse_grid_points(
     nvars = selected_samples.shape[0]
     if nvars > 2:
         raise ValueError(
-            f"plot_sparse_grid_points supports 1D or 2D only, got "
-            f"nvars={nvars}"
+            f"plot_sparse_grid_points supports 1D or 2D only, got nvars={nvars}"
         )
 
     result: Dict[str, Any] = {"selected": None, "candidate": None}
@@ -112,7 +111,8 @@ def plot_sparse_grid_points(
             cx = candidate_samples[0]
             cy = candidate_samples[1]
         result["candidate"] = ax.scatter(
-            cx, cy,
+            cx,
+            cy,
             s=candidate_size,
             c=candidate_color,
             marker=candidate_marker,
@@ -130,7 +130,8 @@ def plot_sparse_grid_points(
             sx = selected_samples[0]
             sy = selected_samples[1]
         result["selected"] = ax.scatter(
-            sx, sy,
+            sx,
+            sy,
             s=selected_size,
             c=selected_color,
             marker=selected_marker,
@@ -145,10 +146,8 @@ def plot_sparse_grid_points(
         y_range = float(all_y_arr.max() - all_y_arr.min())
         x_pad = max(pad * x_range, pad)
         y_pad = max(pad * y_range, pad)
-        ax.set_xlim(float(all_x_arr.min()) - x_pad,
-                    float(all_x_arr.max()) + x_pad)
-        ax.set_ylim(float(all_y_arr.min()) - y_pad,
-                    float(all_y_arr.max()) + y_pad)
+        ax.set_xlim(float(all_x_arr.min()) - x_pad, float(all_x_arr.max()) + x_pad)
+        ax.set_ylim(float(all_y_arr.min()) - y_pad, float(all_y_arr.max()) + y_pad)
 
     if equal_aspect:
         ax.set_aspect("equal")

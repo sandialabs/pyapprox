@@ -8,25 +8,24 @@ obtained via variable elimination.
 
 import math
 import unittest
-from typing import Any, Dict, Generic, List
+from typing import Any, Generic
 
 import numpy as np
-from numpy.typing import NDArray
 import torch
+from numpy.typing import NDArray
 
-from pyapprox.util.backends.protocols import Array, Backend
-from pyapprox.util.backends.numpy import NumpyBkd
-from pyapprox.util.backends.torch import TorchBkd
-from pyapprox.util.test_utils import load_tests  # noqa: F401
-from pyapprox.inverse.bayesnet.network import GaussianNetwork
 from pyapprox.inverse.bayesnet.inference import compute_marginal
+from pyapprox.inverse.bayesnet.network import GaussianNetwork
 from pyapprox.probability.copula.vine.gaussian_network_factory import (
     dvine_from_gaussian_network,
 )
 from pyapprox.probability.gaussian.dense import (
     DenseCholeskyMultivariateGaussian,
 )
-
+from pyapprox.util.backends.numpy import NumpyBkd
+from pyapprox.util.backends.protocols import Array, Backend
+from pyapprox.util.backends.torch import TorchBkd
+from pyapprox.util.test_utils import load_tests  # noqa: F401
 
 _SQRT2 = math.sqrt(2.0)
 
@@ -74,22 +73,29 @@ def _build_simple_chain(
     """Build a 4-node simple chain: X0 -> X1 -> X2 -> X3."""
     network = GaussianNetwork(bkd)
     network.add_node(
-        0, nvars=1,
+        0,
+        nvars=1,
         prior_mean=bkd.asarray(np.array([0.0])),
         prior_cov=bkd.asarray(np.array([[1.0]])),
     )
     network.add_node(
-        1, nvars=1, parents=[0],
+        1,
+        nvars=1,
+        parents=[0],
         cpd_coefficients=[bkd.asarray(np.array([[0.6]]))],
         cpd_noise_cov=bkd.asarray(np.array([[0.64]])),
     )
     network.add_node(
-        2, nvars=1, parents=[1],
+        2,
+        nvars=1,
+        parents=[1],
         cpd_coefficients=[bkd.asarray(np.array([[0.5]]))],
         cpd_noise_cov=bkd.asarray(np.array([[0.75]])),
     )
     network.add_node(
-        3, nvars=1, parents=[2],
+        3,
+        nvars=1,
+        parents=[2],
         cpd_coefficients=[bkd.asarray(np.array([[0.7]]))],
         cpd_noise_cov=bkd.asarray(np.array([[0.51]])),
     )
@@ -106,17 +112,22 @@ def _build_skip_chain(
     """
     network = GaussianNetwork(bkd)
     network.add_node(
-        0, nvars=1,
+        0,
+        nvars=1,
         prior_mean=bkd.asarray(np.array([0.0])),
         prior_cov=bkd.asarray(np.array([[1.0]])),
     )
     network.add_node(
-        1, nvars=1, parents=[0],
+        1,
+        nvars=1,
+        parents=[0],
         cpd_coefficients=[bkd.asarray(np.array([[0.6]]))],
         cpd_noise_cov=bkd.asarray(np.array([[0.64]])),
     )
     network.add_node(
-        2, nvars=1, parents=[0, 1],
+        2,
+        nvars=1,
+        parents=[0, 1],
         cpd_coefficients=[
             bkd.asarray(np.array([[0.3]])),
             bkd.asarray(np.array([[0.4]])),
@@ -124,7 +135,9 @@ def _build_skip_chain(
         cpd_noise_cov=bkd.asarray(np.array([[0.5]])),
     )
     network.add_node(
-        3, nvars=1, parents=[2],
+        3,
+        nvars=1,
+        parents=[2],
         cpd_coefficients=[bkd.asarray(np.array([[0.7]]))],
         cpd_noise_cov=bkd.asarray(np.array([[0.51]])),
     )
@@ -187,12 +200,8 @@ class TestGaussianNetworkFactoryBase(Generic[Array], unittest.TestCase):
         mvn_logpdf = mvn.logpdf(x)  # (1, nsamples)
 
         log_2pi = math.log(2.0 * math.pi)
-        marginal_logpdf_sum = self._bkd.sum(
-            -0.5 * log_2pi - 0.5 * x * x, axis=0
-        )
-        marginal_logpdf_sum = self._bkd.reshape(
-            marginal_logpdf_sum, (1, -1)
-        )
+        marginal_logpdf_sum = self._bkd.sum(-0.5 * log_2pi - 0.5 * x * x, axis=0)
+        marginal_logpdf_sum = self._bkd.reshape(marginal_logpdf_sum, (1, -1))
 
         copula_logpdf = dvine.logpdf(u)
 
@@ -204,7 +213,8 @@ class TestGaussianNetworkFactoryBase(Generic[Array], unittest.TestCase):
         """Single node network: trunc=0, no pair copulas."""
         network = GaussianNetwork(self._bkd)
         network.add_node(
-            0, nvars=1,
+            0,
+            nvars=1,
             prior_mean=self._bkd.asarray(np.array([0.0])),
             prior_cov=self._bkd.asarray(np.array([[2.0]])),
         )
@@ -217,12 +227,15 @@ class TestGaussianNetworkFactoryBase(Generic[Array], unittest.TestCase):
         """Two-node chain: trunc=1, correlation matches."""
         network = GaussianNetwork(self._bkd)
         network.add_node(
-            0, nvars=1,
+            0,
+            nvars=1,
             prior_mean=self._bkd.asarray(np.array([0.0])),
             prior_cov=self._bkd.asarray(np.array([[1.0]])),
         )
         network.add_node(
-            1, nvars=1, parents=[0],
+            1,
+            nvars=1,
+            parents=[0],
             cpd_coefficients=[self._bkd.asarray(np.array([[0.8]]))],
             cpd_noise_cov=self._bkd.asarray(np.array([[0.36]])),
         )
@@ -239,7 +252,8 @@ class TestGaussianNetworkFactoryBase(Generic[Array], unittest.TestCase):
         """Node with nvars=2 raises ValueError."""
         network = GaussianNetwork(self._bkd)
         network.add_node(
-            0, nvars=2,
+            0,
+            nvars=2,
             prior_mean=self._bkd.asarray(np.array([0.0, 0.0])),
             prior_cov=self._bkd.asarray(np.eye(2)),
         )
@@ -251,7 +265,8 @@ class TestGaussianNetworkFactoryBase(Generic[Array], unittest.TestCase):
         network = GaussianNetwork(self._bkd)
         for i in range(4):
             network.add_node(
-                i, nvars=1,
+                i,
+                nvars=1,
                 prior_mean=self._bkd.asarray(np.array([0.0])),
                 prior_cov=self._bkd.asarray(np.array([[1.0]])),
             )
@@ -277,12 +292,8 @@ class TestGaussianNetworkFactoryBase(Generic[Array], unittest.TestCase):
 
         mvn_logpdf = mvn.logpdf(x)
         log_2pi = math.log(2.0 * math.pi)
-        marginal_logpdf_sum = self._bkd.sum(
-            -0.5 * log_2pi - 0.5 * x * x, axis=0
-        )
-        marginal_logpdf_sum = self._bkd.reshape(
-            marginal_logpdf_sum, (1, -1)
-        )
+        marginal_logpdf_sum = self._bkd.sum(-0.5 * log_2pi - 0.5 * x * x, axis=0)
+        marginal_logpdf_sum = self._bkd.reshape(marginal_logpdf_sum, (1, -1))
 
         copula_logpdf = dvine.logpdf(u)
         self._bkd.assert_allclose(
@@ -308,18 +319,14 @@ class TestGaussianNetworkFactoryBase(Generic[Array], unittest.TestCase):
         self._bkd.assert_allclose(R_actual, R_expected, rtol=1e-10)
 
 
-class TestGaussianNetworkFactoryNumpy(
-    TestGaussianNetworkFactoryBase[NDArray[Any]]
-):
+class TestGaussianNetworkFactoryNumpy(TestGaussianNetworkFactoryBase[NDArray[Any]]):
     __test__ = True
 
     def bkd(self) -> NumpyBkd:
         return NumpyBkd()
 
 
-class TestGaussianNetworkFactoryTorch(
-    TestGaussianNetworkFactoryBase[torch.Tensor]
-):
+class TestGaussianNetworkFactoryTorch(TestGaussianNetworkFactoryBase[torch.Tensor]):
     __test__ = True
 
     def setUp(self) -> None:

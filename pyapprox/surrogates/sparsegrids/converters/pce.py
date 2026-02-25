@@ -23,20 +23,20 @@ which will cause incorrect spectral projection for non-canonical domains.
 
 from typing import Dict, Generic, List, Optional, Sequence, Tuple
 
-from pyapprox.util.backends.protocols import Array, Backend
-from pyapprox.surrogates.affine.protocols import (
-    PhysicalDomainBasis1DProtocol,
-)
 from pyapprox.surrogates.affine.basis import OrthonormalPolynomialBasis
 from pyapprox.surrogates.affine.expansions import (
     PolynomialChaosExpansion,
 )
-from pyapprox.surrogates.sparsegrids.subspace import (
-    TensorProductSubspace,
+from pyapprox.surrogates.affine.protocols import (
+    PhysicalDomainBasis1DProtocol,
 )
 from pyapprox.surrogates.sparsegrids.combination_surrogate import (
     CombinationSurrogate,
 )
+from pyapprox.surrogates.sparsegrids.subspace import (
+    TensorProductSubspace,
+)
+from pyapprox.util.backends.protocols import Array, Backend
 
 
 class TensorProductSubspaceToPCEConverter(Generic[Array]):
@@ -80,9 +80,7 @@ class TensorProductSubspaceToPCEConverter(Generic[Array]):
 
         # Cache for computed projection coefficients
         # Key: (dim, tuple of node values), Value: projection coefficients array
-        self._cached_projection_coefs: Dict[
-            Tuple[int, Tuple[float, ...]], Array
-        ] = {}
+        self._cached_projection_coefs: Dict[Tuple[int, Tuple[float, ...]], Array] = {}
 
     def bkd(self) -> Backend[Array]:
         """Return the computational backend."""
@@ -249,9 +247,7 @@ class TensorProductSubspaceToPCEConverter(Generic[Array]):
             nterms *= npts
 
         # Create multi-indices
-        indices = self._bkd.zeros(
-            (self._nvars, nterms), dtype=self._bkd.int64_dtype()
-        )
+        indices = self._bkd.zeros((self._nvars, nterms), dtype=self._bkd.int64_dtype())
 
         # Build indices using same tensor product ordering as subspace samples
         repeat_inner = 1
@@ -285,9 +281,7 @@ class TensorProductSubspaceToPCEConverter(Generic[Array]):
             # Sum over all Lagrange basis functions
             for sample_idx in range(nsamples):
                 # Extract multi-index for this sample (Lagrange basis)
-                sample_multi_idx = self._sample_idx_to_multi_idx(
-                    sample_idx, npts_1d
-                )
+                sample_multi_idx = self._sample_idx_to_multi_idx(sample_idx, npts_1d)
 
                 # Compute tensor product of 1D projection coefficients
                 proj_coef = 1.0
@@ -433,9 +427,7 @@ class SparseGridToPCEConverter(Generic[Array]):
             if abs(coef) < 1e-14:
                 continue
 
-            indices, coefficients = self._subspace_converter.convert_subspace(
-                subspace
-            )
+            indices, coefficients = self._subspace_converter.convert_subspace(subspace)
 
             # Combine with Smolyak coefficient
             weighted_coefficients = coef * coefficients
@@ -443,12 +435,18 @@ class SparseGridToPCEConverter(Generic[Array]):
             # Merge into accumulated indices
             # coefficients has shape (nqoi, nterms)
             for term_idx in range(indices.shape[1]):
-                idx_tuple = tuple(int(indices[dim, term_idx]) for dim in range(self._nvars))
+                idx_tuple = tuple(
+                    int(indices[dim, term_idx]) for dim in range(self._nvars)
+                )
 
                 if idx_tuple in all_indices:
-                    all_indices[idx_tuple] = all_indices[idx_tuple] + weighted_coefficients[:, term_idx]
+                    all_indices[idx_tuple] = (
+                        all_indices[idx_tuple] + weighted_coefficients[:, term_idx]
+                    )
                 else:
-                    all_indices[idx_tuple] = self._bkd.copy(weighted_coefficients[:, term_idx])
+                    all_indices[idx_tuple] = self._bkd.copy(
+                        weighted_coefficients[:, term_idx]
+                    )
 
         # Build final PCE
         nterms = len(all_indices)

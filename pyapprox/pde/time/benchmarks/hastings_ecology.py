@@ -86,13 +86,14 @@ class HastingsEcologyResidual(Generic[Array]):
         """
         y1, y2, y3 = state
         a1, b1, a2, b2, d1, d2 = self._param[:6]
-        return self._bkd.stack([
-            y1 * (1 - y1) - a1 * y1 * y2 / (1 + b1 * y1),
-            a1 * y1 * y2 / (1 + b1 * y1)
-            - a2 * y2 * y3 / (1 + b2 * y2)
-            - d1 * y2,
-            a2 * y2 * y3 / (1 + b2 * y2) - d2 * y3,
-        ], axis=0)
+        return self._bkd.stack(
+            [
+                y1 * (1 - y1) - a1 * y1 * y2 / (1 + b1 * y1),
+                a1 * y1 * y2 / (1 + b1 * y1) - a2 * y2 * y3 / (1 + b2 * y2) - d1 * y2,
+                a2 * y2 * y3 / (1 + b2 * y2) - d2 * y3,
+            ],
+            axis=0,
+        )
 
     def jacobian(self, state: Array) -> Array:
         """
@@ -122,21 +123,20 @@ class HastingsEcologyResidual(Generic[Array]):
         df1_dy2 = -a1 * y1 / (1 + b1 * y1)
 
         df2_dy1 = a1 * y2 / (1 + b1 * y1) ** 2
-        df2_dy2 = (
-            -d1
-            + a1 * y1 / (1 + b1 * y1)
-            - a2 * y3 / (1 + b2 * y2) ** 2
-        )
+        df2_dy2 = -d1 + a1 * y1 / (1 + b1 * y1) - a2 * y3 / (1 + b2 * y2) ** 2
         df2_dy3 = -a2 * y2 / (1 + b2 * y2)
 
         df3_dy2 = a2 * y3 / (1 + b2 * y2) ** 2
         df3_dy3 = -d2 + a2 * y2 / (1 + b2 * y2)
 
-        return self._bkd.stack([
-            self._bkd.hstack([df1_dy1, df1_dy2, zero]),
-            self._bkd.hstack([df2_dy1, df2_dy2, df2_dy3]),
-            self._bkd.hstack([zero, df3_dy2, df3_dy3]),
-        ], axis=0)
+        return self._bkd.stack(
+            [
+                self._bkd.hstack([df1_dy1, df1_dy2, zero]),
+                self._bkd.hstack([df2_dy1, df2_dy2, df2_dy3]),
+                self._bkd.hstack([zero, df3_dy2, df3_dy3]),
+            ],
+            axis=0,
+        )
 
     def mass_matrix(self, nstates: int) -> Array:
         """Return the identity mass matrix."""
@@ -164,29 +164,45 @@ class HastingsEcologyResidual(Generic[Array]):
         a1, b1, a2, b2, d1, d2 = self._param[:6]
         zero = y1 * 0.0
 
-        row0 = self._bkd.hstack([
-            -y1 * y2 / (1 + b1 * y1),
-            a1 * y1**2 * y2 / (1 + b1 * y1) ** 2,
-            zero, zero, zero, zero,
-            zero, zero, zero,
-        ])
-        row1 = self._bkd.hstack([
-            y1 * y2 / (1 + b1 * y1),
-            -a1 * y1**2 * y2 / (1 + b1 * y1) ** 2,
-            -y2 * y3 / (1 + b2 * y2),
-            a2 * y2**2 * y3 / (1 + b2 * y2) ** 2,
-            -y2,
-            zero,
-            zero, zero, zero,
-        ])
-        row2 = self._bkd.hstack([
-            zero, zero,
-            y2 * y3 / (1 + b2 * y2),
-            -a2 * y2**2 * y3 / (1 + b2 * y2) ** 2,
-            zero,
-            -y3,
-            zero, zero, zero,
-        ])
+        row0 = self._bkd.hstack(
+            [
+                -y1 * y2 / (1 + b1 * y1),
+                a1 * y1**2 * y2 / (1 + b1 * y1) ** 2,
+                zero,
+                zero,
+                zero,
+                zero,
+                zero,
+                zero,
+                zero,
+            ]
+        )
+        row1 = self._bkd.hstack(
+            [
+                y1 * y2 / (1 + b1 * y1),
+                -a1 * y1**2 * y2 / (1 + b1 * y1) ** 2,
+                -y2 * y3 / (1 + b2 * y2),
+                a2 * y2**2 * y3 / (1 + b2 * y2) ** 2,
+                -y2,
+                zero,
+                zero,
+                zero,
+                zero,
+            ]
+        )
+        row2 = self._bkd.hstack(
+            [
+                zero,
+                zero,
+                y2 * y3 / (1 + b2 * y2),
+                -a2 * y2**2 * y3 / (1 + b2 * y2) ** 2,
+                zero,
+                -y3,
+                zero,
+                zero,
+                zero,
+            ]
+        )
         return self._bkd.stack([row0, row1, row2], axis=0)
 
     def initial_param_jacobian(self) -> Array:
@@ -196,10 +212,12 @@ class HastingsEcologyResidual(Generic[Array]):
         The last 3 parameters are initial conditions, so this is -I
         for those columns.
         """
-        return self._bkd.hstack([
-            self._bkd.zeros((self._nstates, 6)),
-            -self._bkd.eye(3),
-        ])
+        return self._bkd.hstack(
+            [
+                self._bkd.zeros((self._nstates, 6)),
+                -self._bkd.eye(3),
+            ]
+        )
 
     def __repr__(self) -> str:
         return f"{self.__class__.__name__}(nparams={self._nparams})"

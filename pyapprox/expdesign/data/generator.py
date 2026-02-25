@@ -10,13 +10,13 @@ from typing import Generic, Optional, Tuple, Union
 
 import numpy as np
 
-from pyapprox.util.backends.protocols import Array, Backend
-from pyapprox.probability.joint.independent import IndependentJoint
+from pyapprox.expdesign.quadrature.strategies import get_sampler
 from pyapprox.probability.gaussian.dense import (
     DenseCholeskyMultivariateGaussian,
 )
+from pyapprox.probability.joint.independent import IndependentJoint
 from pyapprox.probability.univariate.gaussian import GaussianMarginal
-from pyapprox.expdesign.quadrature.strategies import get_sampler
+from pyapprox.util.backends.protocols import Array, Backend
 
 # Type alias for priors accepted by the data generator
 PriorType = Union[
@@ -102,8 +102,7 @@ class OEDDataGenerator(Generic[Array]):
 
         # Create noise marginals
         noise_marginals = [
-            GaussianMarginal(0.0, float(np.sqrt(v)), self._bkd)
-            for v in noise_var
+            GaussianMarginal(0.0, float(np.sqrt(v)), self._bkd) for v in noise_var
         ]
 
         # Extract prior marginals (works for both prior types)

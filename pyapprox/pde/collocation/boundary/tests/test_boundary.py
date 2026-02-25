@@ -4,33 +4,32 @@ import unittest
 from typing import Any, Generic
 
 import numpy as np
-from numpy.typing import NDArray
 import torch
+from numpy.typing import NDArray
 
-from pyapprox.util.backends.protocols import Array, Backend
-from pyapprox.util.backends.numpy import NumpyBkd
-from pyapprox.util.backends.torch import TorchBkd
-from pyapprox.util.test_utils import load_tests  # noqa: F401
 from pyapprox.pde.collocation.basis import ChebyshevBasis1D
-from pyapprox.pde.collocation.mesh import (
-    create_uniform_mesh_1d,
-    TransformedMesh1D,
-)
 from pyapprox.pde.collocation.boundary import (
     DirichletBC,
-    NeumannBC,
-    RobinBC,
     PeriodicBC,
+    RobinBC,
     constant_dirichlet_bc,
+    gradient_neumann_bc,
+    gradient_robin_bc,
+    homogeneous_robin_bc,
     zero_dirichlet_bc,
     zero_neumann_bc,
-    homogeneous_robin_bc,
-    gradient_robin_bc,
-    gradient_neumann_bc,
 )
 from pyapprox.pde.collocation.boundary.normal_operators import (
     _LegacyNormalOperator,
 )
+from pyapprox.pde.collocation.mesh import (
+    TransformedMesh1D,
+    create_uniform_mesh_1d,
+)
+from pyapprox.util.backends.numpy import NumpyBkd
+from pyapprox.util.backends.protocols import Array, Backend
+from pyapprox.util.backends.torch import TorchBkd
+from pyapprox.util.test_utils import load_tests  # noqa: F401
 
 
 class TestDirichletBC(Generic[Array], unittest.TestCase):
@@ -47,7 +46,7 @@ class TestDirichletBC(Generic[Array], unittest.TestCase):
         npts = 5
         mesh = TransformedMesh1D(npts, bkd)
 
-        basis = ChebyshevBasis1D(mesh, bkd)
+        ChebyshevBasis1D(mesh, bkd)
         mesh = create_uniform_mesh_1d(npts, (-1.0, 1.0), bkd)
 
         # Left boundary: u = 2.0
@@ -274,9 +273,7 @@ class TestPeriodicBC(Generic[Array], unittest.TestCase):
         # Derivative matching: res[4] = D[0,:] @ u - D[4,:] @ u
         du_left = float(bkd.dot(D[0, :], state))
         du_right = float(bkd.dot(D[4, :], state))
-        self.assertAlmostEqual(
-            float(residual[4]), du_left - du_right, places=12
-        )
+        self.assertAlmostEqual(float(residual[4]), du_left - du_right, places=12)
 
     def test_periodic_jacobian(self):
         """Test periodic BC Jacobian: value and derivative rows."""
@@ -383,7 +380,8 @@ class TestGradientRobinBC(Generic[Array], unittest.TestCase):
             )
 
     def test_gradient_robin_reduces_to_neumann(self):
-        """Test that gradient_robin_bc with alpha=0, beta=1 matches gradient_neumann_bc."""
+        """Test that gradient_robin_bc with alpha=0, beta=1 matches
+        gradient_neumann_bc."""
         bkd = self.bkd()
         npts = 8
         mesh = TransformedMesh1D(npts, bkd)

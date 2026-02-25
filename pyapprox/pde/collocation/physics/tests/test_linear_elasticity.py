@@ -8,23 +8,23 @@ O(dt) temporal error.
 import unittest
 from typing import Generic
 
-from pyapprox.util.backends.protocols import Array, Backend
-from pyapprox.util.backends.numpy import NumpyBkd
-from pyapprox.util.test_utils import load_tests  # noqa: F401
 from pyapprox.pde.collocation.basis import ChebyshevBasis2D
-from pyapprox.pde.collocation.mesh import (
-    create_uniform_mesh_2d,
-    TransformedMesh2D,
-)
 from pyapprox.pde.collocation.boundary import zero_dirichlet_bc
+from pyapprox.pde.collocation.manufactured_solutions import (
+    ManufacturedLinearElasticityEquations,
+)
+from pyapprox.pde.collocation.mesh import (
+    TransformedMesh2D,
+    create_uniform_mesh_2d,
+)
 from pyapprox.pde.collocation.physics import LinearElasticityPhysics
 from pyapprox.pde.collocation.time_integration import (
     CollocationModel,
     TimeIntegrationConfig,
 )
-from pyapprox.pde.collocation.manufactured_solutions import (
-    ManufacturedLinearElasticityEquations,
-)
+from pyapprox.util.backends.numpy import NumpyBkd
+from pyapprox.util.backends.protocols import Array, Backend
+from pyapprox.util.test_utils import load_tests  # noqa: F401
 
 
 class TestLinearElasticityTransient(Generic[Array], unittest.TestCase):
@@ -85,9 +85,7 @@ class TestLinearElasticityTransient(Generic[Array], unittest.TestCase):
             boundary_idx = mesh_obj.boundary_indices(side)
             bc_u = zero_dirichlet_bc(bkd, boundary_idx)
             bcs.append(bc_u)
-            boundary_idx_v = bkd.asarray(
-                [idx + npts for idx in boundary_idx]
-            )
+            boundary_idx_v = bkd.asarray([idx + npts for idx in boundary_idx])
             bc_v = zero_dirichlet_bc(bkd, boundary_idx_v)
             bcs.append(bc_v)
         physics.set_boundary_conditions(bcs)
@@ -95,9 +93,7 @@ class TestLinearElasticityTransient(Generic[Array], unittest.TestCase):
         return physics, man_sol, nodes, npts, bkd
 
     def _run_transient_elasticity(self, method, atol):
-        physics, man_sol, nodes, npts, bkd = (
-            self._setup_transient_elasticity()
-        )
+        physics, man_sol, nodes, npts, bkd = self._setup_transient_elasticity()
         model = CollocationModel(physics, bkd)
 
         # Initial condition at t=0
@@ -116,9 +112,7 @@ class TestLinearElasticityTransient(Generic[Array], unittest.TestCase):
         t_final = float(bkd.to_numpy(times[-1]))
 
         u_exact_final = man_sol.functions["solution"](nodes, t_final)
-        u_exact_flat = bkd.concatenate(
-            [u_exact_final[:, 0], u_exact_final[:, 1]]
-        )
+        u_exact_flat = bkd.concatenate([u_exact_final[:, 0], u_exact_final[:, 1]])
 
         bkd.assert_allclose(solutions[:, -1], u_exact_flat, atol=atol)
 

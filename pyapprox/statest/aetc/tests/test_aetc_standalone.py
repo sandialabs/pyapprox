@@ -11,19 +11,18 @@ import numpy as np
 import torch
 from numpy.typing import NDArray
 
-from pyapprox.util.backends.protocols import Array, Backend
+from pyapprox.statest.aetc.aetcblue import AETCBLUE
+from pyapprox.statest.aetc.aetcmc import AETCMC
+from pyapprox.statest.aetc.base import AETC
+from pyapprox.statest.groupacv import GroupACVAllocationResult
 from pyapprox.util.backends.numpy import NumpyBkd
+from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.util.backends.torch import TorchBkd
 from pyapprox.util.test_utils import (
     load_tests,  # noqa: F401
     slow_test,
     slower_test,
 )
-
-from pyapprox.statest.aetc.base import AETC
-from pyapprox.statest.aetc.aetcblue import AETCBLUE
-from pyapprox.statest.aetc.aetcmc import AETCMC
-from pyapprox.statest.groupacv import GroupACVAllocationResult
 
 
 def _make_groupacv_allocation(est, npartition_samples):
@@ -55,6 +54,7 @@ class TestLeastSquares(Generic[Array], unittest.TestCase):
 
     def _create_aetc(self, nmodels: int = 3) -> AETC[Array]:
         """Create a minimal AETC instance for testing."""
+
         def dummy_model(samples: Array) -> Array:
             # Typing convention: returns (nqoi, nsamples)
             return self._bkd.zeros((1, samples.shape[1]))
@@ -82,13 +82,13 @@ class TestLeastSquares(Generic[Array], unittest.TestCase):
         # beta shape should be (ncovariates + 1, 1)
         self._bkd.assert_allclose(
             self._bkd.asarray([beta.shape[0], beta.shape[1]]),
-            self._bkd.asarray([ncovariates + 1, 1])
+            self._bkd.asarray([ncovariates + 1, 1]),
         )
 
         # X shape should be (nsamples, ncovariates + 1) - internal design matrix
         self._bkd.assert_allclose(
             self._bkd.asarray([X.shape[0], X.shape[1]]),
-            self._bkd.asarray([nsamples, ncovariates + 1])
+            self._bkd.asarray([nsamples, ncovariates + 1]),
         )
 
     def test_least_squares_known_solution(self) -> None:
@@ -111,29 +111,24 @@ class TestLeastSquares(Generic[Array], unittest.TestCase):
 
         aetc = self._create_aetc()
         beta, sigma_sq, X = aetc._least_squares(
-            self._bkd.asarray(hf_values),
-            self._bkd.asarray(x1)
+            self._bkd.asarray(hf_values), self._bkd.asarray(x1)
         )
 
         # Check intercept is close to true value
         self._bkd.assert_allclose(
-            beta[0:1],
-            self._bkd.asarray([[true_intercept]]),
-            rtol=0.1
+            beta[0:1], self._bkd.asarray([[true_intercept]]), rtol=0.1
         )
 
         # Check slope is close to true value
         self._bkd.assert_allclose(
-            beta[1:2],
-            self._bkd.asarray([[true_slope]]),
-            rtol=0.1
+            beta[1:2], self._bkd.asarray([[true_slope]]), rtol=0.1
         )
 
         # Check residual variance is close to noise variance (0.01)
         self._bkd.assert_allclose(
             self._bkd.asarray([sigma_sq]),
             self._bkd.asarray([0.01]),
-            rtol=0.5  # Relaxed tolerance for variance estimate
+            rtol=0.5,  # Relaxed tolerance for variance estimate
         )
 
     def test_least_squares_perfect_fit(self) -> None:
@@ -152,21 +147,15 @@ class TestLeastSquares(Generic[Array], unittest.TestCase):
 
         # Should recover exact coefficients
         self._bkd.assert_allclose(
-            beta[0:1],
-            self._bkd.asarray([[true_intercept]]),
-            rtol=1e-10
+            beta[0:1], self._bkd.asarray([[true_intercept]]), rtol=1e-10
         )
         self._bkd.assert_allclose(
-            beta[1:2],
-            self._bkd.asarray([[true_slope]]),
-            rtol=1e-10
+            beta[1:2], self._bkd.asarray([[true_slope]]), rtol=1e-10
         )
 
         # Residual variance should be essentially zero
         self._bkd.assert_allclose(
-            self._bkd.asarray([sigma_sq]),
-            self._bkd.asarray([0.0]),
-            atol=1e-20
+            self._bkd.asarray([sigma_sq]), self._bkd.asarray([0.0]), atol=1e-20
         )
 
     def test_least_squares_multiple_covariates(self) -> None:
@@ -191,16 +180,11 @@ class TestLeastSquares(Generic[Array], unittest.TestCase):
 
         aetc = self._create_aetc(nmodels=4)
         beta, sigma_sq, X = aetc._least_squares(
-            self._bkd.asarray(hf_values),
-            self._bkd.asarray(x)
+            self._bkd.asarray(hf_values), self._bkd.asarray(x)
         )
 
         # Check all coefficients are close
-        self._bkd.assert_allclose(
-            beta,
-            self._bkd.asarray(true_beta),
-            rtol=0.15
-        )
+        self._bkd.assert_allclose(beta, self._bkd.asarray(true_beta), rtol=0.15)
 
     def test_least_squares_design_matrix_first_column(self) -> None:
         """Test that design matrix X has leading column of ones."""
@@ -252,6 +236,7 @@ class TestSubsetOracleStats(Generic[Array], unittest.TestCase):
 
     def _create_aetc(self, nmodels: int = 3) -> AETC[Array]:
         """Create a minimal AETC instance for testing."""
+
         def dummy_model(samples: Array) -> Array:
             return self._bkd.zeros((samples.shape[1], 1))
 
@@ -269,7 +254,9 @@ class TestSubsetOracleStats(Generic[Array], unittest.TestCase):
         nsubset = 2
 
         # Create oracle stats: covariance and means
-        cov = self._bkd.asarray(np.eye(nmodels) + 0.1 * np.random.randn(nmodels, nmodels))
+        cov = self._bkd.asarray(
+            np.eye(nmodels) + 0.1 * np.random.randn(nmodels, nmodels)
+        )
         cov = (cov + cov.T) / 2  # Symmetrize
         means = self._bkd.asarray(np.random.randn(nmodels, 1))
 
@@ -277,24 +264,26 @@ class TestSubsetOracleStats(Generic[Array], unittest.TestCase):
         covariate_subset = self._bkd.asarray([0, 1], dtype=int)  # First two LF models
 
         aetc = self._create_aetc(nmodels)
-        Sigma_S, Lambda_Sp, x_Sp = aetc._subset_oracle_stats(oracle_stats, covariate_subset)
+        Sigma_S, Lambda_Sp, x_Sp = aetc._subset_oracle_stats(
+            oracle_stats, covariate_subset
+        )
 
         # Sigma_S shape should be (nsubset, nsubset)
         self._bkd.assert_allclose(
             self._bkd.asarray([Sigma_S.shape[0], Sigma_S.shape[1]]),
-            self._bkd.asarray([nsubset, nsubset])
+            self._bkd.asarray([nsubset, nsubset]),
         )
 
         # Lambda_Sp shape should be (nsubset+1, nsubset+1)
         self._bkd.assert_allclose(
             self._bkd.asarray([Lambda_Sp.shape[0], Lambda_Sp.shape[1]]),
-            self._bkd.asarray([nsubset + 1, nsubset + 1])
+            self._bkd.asarray([nsubset + 1, nsubset + 1]),
         )
 
         # x_Sp shape should be (nsubset+1, 1)
         self._bkd.assert_allclose(
             self._bkd.asarray([x_Sp.shape[0], x_Sp.shape[1]]),
-            self._bkd.asarray([nsubset + 1, 1])
+            self._bkd.asarray([nsubset + 1, 1]),
         )
 
     def test_subset_oracle_stats_sigma_extraction(self) -> None:
@@ -302,12 +291,14 @@ class TestSubsetOracleStats(Generic[Array], unittest.TestCase):
         nmodels = 4
 
         # Create known covariance matrix
-        cov = self._bkd.asarray([
-            [1.0, 0.5, 0.3, 0.2],
-            [0.5, 2.0, 0.4, 0.3],
-            [0.3, 0.4, 3.0, 0.5],
-            [0.2, 0.3, 0.5, 4.0]
-        ])
+        cov = self._bkd.asarray(
+            [
+                [1.0, 0.5, 0.3, 0.2],
+                [0.5, 2.0, 0.4, 0.3],
+                [0.3, 0.4, 3.0, 0.5],
+                [0.2, 0.3, 0.5, 4.0],
+            ]
+        )
         means = self._bkd.asarray([[0.0], [1.0], [2.0], [3.0]])
 
         oracle_stats = [cov, means]
@@ -315,13 +306,12 @@ class TestSubsetOracleStats(Generic[Array], unittest.TestCase):
         covariate_subset = self._bkd.asarray([0, 1], dtype=int)
 
         aetc = self._create_aetc(nmodels)
-        Sigma_S, Lambda_Sp, x_Sp = aetc._subset_oracle_stats(oracle_stats, covariate_subset)
+        Sigma_S, Lambda_Sp, x_Sp = aetc._subset_oracle_stats(
+            oracle_stats, covariate_subset
+        )
 
         # Sigma_S should be cov[[1,2], [1,2]]
-        expected_Sigma_S = self._bkd.asarray([
-            [2.0, 0.4],
-            [0.4, 3.0]
-        ])
+        expected_Sigma_S = self._bkd.asarray([[2.0, 0.4], [0.4, 3.0]])
         self._bkd.assert_allclose(Sigma_S, expected_Sigma_S, rtol=1e-12)
 
     def test_subset_oracle_stats_x_Sp_structure(self) -> None:
@@ -335,7 +325,9 @@ class TestSubsetOracleStats(Generic[Array], unittest.TestCase):
         covariate_subset = self._bkd.asarray([0], dtype=int)  # Just first LF model
 
         aetc = self._create_aetc(nmodels)
-        Sigma_S, Lambda_Sp, x_Sp = aetc._subset_oracle_stats(oracle_stats, covariate_subset)
+        Sigma_S, Lambda_Sp, x_Sp = aetc._subset_oracle_stats(
+            oracle_stats, covariate_subset
+        )
 
         # x_Sp should be (1, means[1])^T = [[1], [1.5]]
         expected_x_Sp = self._bkd.asarray([[1.0], [1.5]])
@@ -345,18 +337,18 @@ class TestSubsetOracleStats(Generic[Array], unittest.TestCase):
         """Test with single covariate subset."""
         nmodels = 3
 
-        cov = self._bkd.asarray([
-            [1.0, 0.8, 0.6],
-            [0.8, 1.0, 0.7],
-            [0.6, 0.7, 1.0]
-        ])
+        cov = self._bkd.asarray([[1.0, 0.8, 0.6], [0.8, 1.0, 0.7], [0.6, 0.7, 1.0]])
         means = self._bkd.asarray([[0.0], [1.0], [2.0]])
 
         oracle_stats = [cov, means]
-        covariate_subset = self._bkd.asarray([1], dtype=int)  # Second LF model (index 2)
+        covariate_subset = self._bkd.asarray(
+            [1], dtype=int
+        )  # Second LF model (index 2)
 
         aetc = self._create_aetc(nmodels)
-        Sigma_S, Lambda_Sp, x_Sp = aetc._subset_oracle_stats(oracle_stats, covariate_subset)
+        Sigma_S, Lambda_Sp, x_Sp = aetc._subset_oracle_stats(
+            oracle_stats, covariate_subset
+        )
 
         # Sigma_S should be cov[2,2] = [[1.0]]
         expected_Sigma_S = self._bkd.asarray([[1.0]])
@@ -442,15 +434,12 @@ class TestAllocateSamples(Generic[Array], unittest.TestCase):
         )
 
         # Check that k1 is a scalar
-        self._bkd.assert_allclose(
-            self._bkd.asarray([k1.ndim]),
-            self._bkd.asarray([0])
-        )
+        self._bkd.assert_allclose(self._bkd.asarray([k1.ndim]), self._bkd.asarray([0]))
 
         # Check that nsamples_per_subset has correct length
         self._bkd.assert_allclose(
             self._bkd.asarray([len(nsamples_per_subset)]),
-            self._bkd.asarray([len(costs_S)])
+            self._bkd.asarray([len(costs_S)]),
         )
 
     def test_allocate_samples_single_covariate(self) -> None:
@@ -476,9 +465,7 @@ class TestAllocateSamples(Generic[Array], unittest.TestCase):
         # nsamples_per_subset = 1 / exploit_cost = 10.0
         # k2 = exploit_cost * trace(Sigma_Sp @ beta_Sp @ beta_Sp.T)
         self._bkd.assert_allclose(
-            nsamples_per_subset,
-            self._bkd.asarray([10.0]),
-            rtol=1e-10
+            nsamples_per_subset, self._bkd.asarray([10.0]), rtol=1e-10
         )
 
     def test_allocate_samples_k1_formula(self) -> None:
@@ -506,9 +493,7 @@ class TestAllocateSamples(Generic[Array], unittest.TestCase):
         )
 
         self._bkd.assert_allclose(
-            self._bkd.asarray([k1]),
-            self._bkd.asarray([expected_k1]),
-            rtol=1e-10
+            self._bkd.asarray([k1]), self._bkd.asarray([expected_k1]), rtol=1e-10
         )
 
 
@@ -541,6 +526,7 @@ class TestValidateSubsets(Generic[Array], unittest.TestCase):
 
     def _create_aetc(self, nmodels: int = 4) -> AETC[Array]:
         """Create a minimal AETC instance for testing."""
+
         def dummy_model(samples: Array) -> Array:
             return self._bkd.zeros((samples.shape[1], 1))
 
@@ -561,13 +547,9 @@ class TestValidateSubsets(Generic[Array], unittest.TestCase):
 
         # For 2 LF models, we should get: [0], [1], [0,1]
         self._bkd.assert_allclose(
-            self._bkd.asarray([len(subsets)]),
-            self._bkd.asarray([3])
+            self._bkd.asarray([len(subsets)]), self._bkd.asarray([3])
         )
-        self._bkd.assert_allclose(
-            self._bkd.asarray([max_ncov]),
-            self._bkd.asarray([2])
-        )
+        self._bkd.assert_allclose(self._bkd.asarray([max_ncov]), self._bkd.asarray([2]))
 
     def test_validate_subsets_valid(self) -> None:
         """Test validation of valid subsets."""
@@ -582,13 +564,9 @@ class TestValidateSubsets(Generic[Array], unittest.TestCase):
         validated, max_ncov = aetc._validate_subsets(subsets)
 
         self._bkd.assert_allclose(
-            self._bkd.asarray([len(validated)]),
-            self._bkd.asarray([2])
+            self._bkd.asarray([len(validated)]), self._bkd.asarray([2])
         )
-        self._bkd.assert_allclose(
-            self._bkd.asarray([max_ncov]),
-            self._bkd.asarray([2])
-        )
+        self._bkd.assert_allclose(self._bkd.asarray([max_ncov]), self._bkd.asarray([2]))
 
     def test_validate_subsets_rejects_duplicates(self) -> None:
         """Test that duplicate indices are rejected."""
@@ -640,6 +618,7 @@ class TestAETCBLUEFindK2(Generic[Array], unittest.TestCase):
 
     def _create_aetcblue(self, nmodels: int = 3) -> AETCBLUE[Array]:
         """Create an AETCBLUE instance for testing."""
+
         def dummy_model(samples: Array) -> Array:
             return self._bkd.zeros((samples.shape[1], 1))
 
@@ -666,6 +645,7 @@ class TestAETCBLUEFindK2(Generic[Array], unittest.TestCase):
 
         # nsamples should have same length as costs_S or subsets
         self.assertGreater(len(nsamples), 0)
+
 
 class TestAETCBLUEFindK2Numpy(TestAETCBLUEFindK2[NDArray[Any]]):
     """NumPy backend tests."""
@@ -696,6 +676,7 @@ class TestAETCBLUEExploitation(Generic[Array], unittest.TestCase):
 
     def _create_aetcblue(self, nmodels: int = 3) -> AETCBLUE[Array]:
         """Create an AETCBLUE instance for testing."""
+
         def dummy_model(samples: Array) -> Array:
             return self._bkd.zeros((1, samples.shape[1]))
 
@@ -723,9 +704,18 @@ class TestAETCBLUEExploitation(Generic[Array], unittest.TestCase):
         mlblue_subset_costs = self._bkd.asarray([0.1, 0.01])
 
         return (
-            nexplore_samples, subset, subset_cost, beta_Sp, sigma_S,
-            rounded_nsamples_per_subset, nsamples_per_subset, loss, k1,
-            BLUE_variance, exploit_budget, mlblue_subset_costs
+            nexplore_samples,
+            subset,
+            subset_cost,
+            beta_Sp,
+            sigma_S,
+            rounded_nsamples_per_subset,
+            nsamples_per_subset,
+            loss,
+            k1,
+            BLUE_variance,
+            exploit_budget,
+            mlblue_subset_costs,
         )
 
     def test_find_exploit_mean_uses_correct_reg_blue(self) -> None:
@@ -751,9 +741,7 @@ class TestAETCBLUEExploitation(Generic[Array], unittest.TestCase):
         # Create MLBLUEEstimator with correct scalar reg_blue
         stat = MultiOutputMean(1, self._bkd)
         stat.set_pilot_quantities(sigma_S)
-        est = MLBLUEEstimator(
-            stat, costs_best_S, asketch=beta_Sp[1:].T, reg_blue=1e-15
-        )
+        est = MLBLUEEstimator(stat, costs_best_S, asketch=beta_Sp[1:].T, reg_blue=1e-15)
         allocation = _make_groupacv_allocation(est, rounded_nsamples_per_subset)
         est.set_allocation(allocation)
         nsamples_per_model = allocation.nsamples_per_model
@@ -767,7 +755,7 @@ class TestAETCBLUEExploitation(Generic[Array], unittest.TestCase):
 
         # Compute expected mean using MLBLUEEstimator directly
         expected_product = est(values_per_model)
-        if hasattr(expected_product, 'item'):
+        if hasattr(expected_product, "item"):
             expected_product = expected_product.item()
         expected_mean = self._bkd.to_numpy(beta_Sp)[0, 0] + expected_product
 
@@ -777,7 +765,7 @@ class TestAETCBLUEExploitation(Generic[Array], unittest.TestCase):
         self._bkd.assert_allclose(
             self._bkd.asarray([typing_mean]),
             self._bkd.asarray([expected_mean]),
-            rtol=1e-10
+            rtol=1e-10,
         )
 
     def test_explore_result_to_dict_keys(self) -> None:
@@ -788,10 +776,19 @@ class TestAETCBLUEExploitation(Generic[Array], unittest.TestCase):
         result_dict = aetcblue._explore_result_to_dict(result)
 
         expected_keys = {
-            "nexplore_samples", "subset", "subset_cost", "beta_Sp",
-            "sigma_S", "rounded_nsamples_per_subset", "nsamples_per_subset",
-            "loss", "k1", "BLUE_variance", "exploit_budget",
-            "mlblue_subset_costs", "explore_budget"
+            "nexplore_samples",
+            "subset",
+            "subset_cost",
+            "beta_Sp",
+            "sigma_S",
+            "rounded_nsamples_per_subset",
+            "nsamples_per_subset",
+            "loss",
+            "k1",
+            "BLUE_variance",
+            "exploit_budget",
+            "mlblue_subset_costs",
+            "explore_budget",
         }
         self.assertEqual(set(result_dict.keys()), expected_keys)
 
@@ -825,6 +822,7 @@ class TestAETCMC(Generic[Array], unittest.TestCase):
 
     def _create_aetcmc(self, nmodels: int = 3) -> AETCMC[Array]:
         """Create an AETCMC instance for testing."""
+
         def dummy_model(samples: Array) -> Array:
             return self._bkd.zeros((1, samples.shape[1]))
 
@@ -852,13 +850,12 @@ class TestAETCMC(Generic[Array], unittest.TestCase):
         # nsamples should be uniform (1/exploit_cost)
         expected_nsamples = 1 / (0.1 + 0.01)
         self._bkd.assert_allclose(
-            nsamples,
-            self._bkd.asarray([expected_nsamples]),
-            rtol=1e-10
+            nsamples, self._bkd.asarray([expected_nsamples]), rtol=1e-10
         )
 
     def test_find_k2_formula(self) -> None:
-        """Test k2 follows the formula: exploit_cost * trace(asketch.T @ Sigma_S @ asketch)."""
+        """Test k2 follows the formula: exploit_cost * trace(asketch.T @ Sigma_S @
+        asketch)."""
         aetcmc = self._create_aetcmc(nmodels=3)
 
         beta_Sp = self._bkd.asarray([[1.0], [0.8], [0.6]])
@@ -875,9 +872,7 @@ class TestAETCMC(Generic[Array], unittest.TestCase):
         )
 
         self._bkd.assert_allclose(
-            self._bkd.asarray([k2]),
-            self._bkd.asarray([expected_k2]),
-            rtol=1e-10
+            self._bkd.asarray([k2]), self._bkd.asarray([expected_k2]), rtol=1e-10
         )
 
     def test_explore_result_to_dict_keys(self) -> None:
@@ -903,10 +898,19 @@ class TestAETCMC(Generic[Array], unittest.TestCase):
         result_dict = aetcmc._explore_result_to_dict(result)
 
         expected_keys = {
-            "nexplore_samples", "subset", "subset_cost", "beta_Sp",
-            "sigma_S", "rounded_nsamples_per_subset", "nsamples_per_subset",
-            "loss", "k1", "BLUE_variance", "exploit_budget",
-            "mlblue_subset_costs", "explore_budget"
+            "nexplore_samples",
+            "subset",
+            "subset_cost",
+            "beta_Sp",
+            "sigma_S",
+            "rounded_nsamples_per_subset",
+            "nsamples_per_subset",
+            "loss",
+            "k1",
+            "BLUE_variance",
+            "exploit_budget",
+            "mlblue_subset_costs",
+            "explore_budget",
         }
         self.assertEqual(set(result_dict.keys()), expected_keys)
 
@@ -951,9 +955,7 @@ class TestExploreStep(Generic[Array], unittest.TestCase):
 
         costs = self._bkd.asarray([10.0 ** (-i) for i in range(len(models))])
 
-        return AETCBLUE(
-            models, ensemble.rvs, costs, oracle_stats=None, bkd=self._bkd
-        )
+        return AETCBLUE(models, ensemble.rvs, costs, oracle_stats=None, bkd=self._bkd)
 
     def test_explore_step_returns_tuple(self) -> None:
         """Test _explore_step returns tuple with correct length."""
@@ -979,9 +981,20 @@ class TestExploreStep(Generic[Array], unittest.TestCase):
         samples, values, result = aetcblue.explore(total_budget, subsets)
 
         # Unpack and check types
-        (nexplore_samples, subset, subset_cost, beta_Sp, sigma_S,
-         rounded_nsamples, nsamples, loss, k1, BLUE_var,
-         exploit_budget, mlblue_costs) = result
+        (
+            nexplore_samples,
+            subset,
+            subset_cost,
+            beta_Sp,
+            sigma_S,
+            rounded_nsamples,
+            nsamples,
+            loss,
+            k1,
+            BLUE_var,
+            exploit_budget,
+            mlblue_costs,
+        ) = result
 
         # nexplore_samples should be integer
         self.assertTrue(isinstance(nexplore_samples, (int, np.integer)))
@@ -1033,9 +1046,7 @@ class TestExploitProducesMean(Generic[Array], unittest.TestCase):
 
         costs = self._bkd.asarray([10.0 ** (-i) for i in range(len(models))])
 
-        return AETCBLUE(
-            models, ensemble.rvs, costs, oracle_stats=None, bkd=self._bkd
-        )
+        return AETCBLUE(models, ensemble.rvs, costs, oracle_stats=None, bkd=self._bkd)
 
     def test_exploit_returns_scalar(self) -> None:
         """Test exploit returns a scalar mean value."""
@@ -1052,8 +1063,9 @@ class TestExploitProducesMean(Generic[Array], unittest.TestCase):
 
         # Mean should be a scalar
         self.assertTrue(
-            np.isscalar(mean) or (hasattr(mean, 'ndim') and mean.ndim == 0)
-            or (hasattr(mean, 'shape') and mean.shape == ())
+            np.isscalar(mean)
+            or (hasattr(mean, "ndim") and mean.ndim == 0)
+            or (hasattr(mean, "shape") and mean.shape == ())
         )
 
     def test_exploit_mean_is_finite(self) -> None:
@@ -1109,9 +1121,7 @@ class TestFullEstimatePipeline(Generic[Array], unittest.TestCase):
 
         costs = self._bkd.asarray([10.0 ** (-i) for i in range(len(models))])
 
-        return AETCBLUE(
-            models, ensemble.rvs, costs, oracle_stats=None, bkd=self._bkd
-        )
+        return AETCBLUE(models, ensemble.rvs, costs, oracle_stats=None, bkd=self._bkd)
 
     def test_estimate_returns_tuple(self) -> None:
         """Test estimate returns (mean, values, result)."""
@@ -1127,8 +1137,9 @@ class TestFullEstimatePipeline(Generic[Array], unittest.TestCase):
 
         # mean should be scalar
         self.assertTrue(
-            np.isscalar(mean) or (hasattr(mean, 'ndim') and mean.ndim == 0)
-            or (hasattr(mean, 'shape') and mean.shape == ())
+            np.isscalar(mean)
+            or (hasattr(mean, "ndim") and mean.ndim == 0)
+            or (hasattr(mean, "shape") and mean.shape == ())
         )
 
         # values should be array
@@ -1151,10 +1162,19 @@ class TestFullEstimatePipeline(Generic[Array], unittest.TestCase):
         self.assertIsInstance(result_dict, dict)
 
         expected_keys = {
-            "nexplore_samples", "subset", "subset_cost", "beta_Sp",
-            "sigma_S", "rounded_nsamples_per_subset", "nsamples_per_subset",
-            "loss", "k1", "BLUE_variance", "exploit_budget",
-            "mlblue_subset_costs", "explore_budget"
+            "nexplore_samples",
+            "subset",
+            "subset_cost",
+            "beta_Sp",
+            "sigma_S",
+            "rounded_nsamples_per_subset",
+            "nsamples_per_subset",
+            "loss",
+            "k1",
+            "BLUE_variance",
+            "exploit_budget",
+            "mlblue_subset_costs",
+            "explore_budget",
         }
         self.assertEqual(set(result_dict.keys()), expected_keys)
 
@@ -1181,11 +1201,7 @@ class TestFullEstimatePipeline(Generic[Array], unittest.TestCase):
         expected_sigma_S = cov_exe[np.ix_(subset_np, subset_np)]
 
         # sigma_S from result should match
-        self._bkd.assert_allclose(
-            result["sigma_S"],
-            expected_sigma_S,
-            rtol=1e-10
-        )
+        self._bkd.assert_allclose(result["sigma_S"], expected_sigma_S, rtol=1e-10)
 
     def test_blue_variance_formula(self) -> None:
         """Test BLUE_variance is computed correctly (assertions 2.2, 2.3)."""
@@ -1228,7 +1244,7 @@ class TestFullEstimatePipeline(Generic[Array], unittest.TestCase):
         self._bkd.assert_allclose(
             self._bkd.asarray([result["BLUE_variance"]]),
             self._bkd.asarray([computed_var_scalar]),
-            rtol=3e-2
+            rtol=3e-2,
         )
 
 
@@ -1292,9 +1308,7 @@ class TestOptimalLossOracleVsMC(unittest.TestCase):
         covariate_values = values[1:, :]
 
         # Create estimators with and without oracle stats
-        est_nor = AETCBLUE(
-            models, ensemble.rvs, costs, oracle_stats=None, bkd=bkd
-        )
+        est_nor = AETCBLUE(models, ensemble.rvs, costs, oracle_stats=None, bkd=bkd)
         est_or = AETCBLUE(
             models, ensemble.rvs, costs, oracle_stats=oracle_stats, bkd=bkd
         )
@@ -1324,11 +1338,7 @@ class TestOptimalLossOracleVsMC(unittest.TestCase):
         k1_mc = result_mc[5]  # k1 is at index 5
         k1_oracle = result_oracle[5]
 
-        bkd.assert_allclose(
-            bkd.asarray([k1_mc]),
-            bkd.asarray([k1_oracle]),
-            rtol=1e-2
-        )
+        bkd.assert_allclose(bkd.asarray([k1_mc]), bkd.asarray([k1_oracle]), rtol=1e-2)
 
 
 class TestMSEMatchesLoss(unittest.TestCase):
@@ -1346,11 +1356,11 @@ class TestMSEMatchesLoss(unittest.TestCase):
         from pyapprox.optimization.minimize.chained.chained_optimizer import (
             ChainedOptimizer,
         )
-        from pyapprox.optimization.minimize.scipy.trust_constr import (
-            ScipyTrustConstrOptimizer,
-        )
         from pyapprox.optimization.minimize.scipy.diffevol import (
             ScipyDifferentialEvolutionOptimizer,
+        )
+        from pyapprox.optimization.minimize.scipy.trust_constr import (
+            ScipyTrustConstrOptimizer,
         )
 
         shifts = [1.0, 2.0]
@@ -1375,8 +1385,13 @@ class TestMSEMatchesLoss(unittest.TestCase):
         optimizer = ChainedOptimizer(global_opt, local_opt)
 
         return AETCBLUE(
-            models, ensemble.rvs, costs, oracle_stats=None,
-            reg_blue=0, optimizer=optimizer, bkd=self._bkd
+            models,
+            ensemble.rvs,
+            costs,
+            oracle_stats=None,
+            reg_blue=0,
+            optimizer=optimizer,
+            bkd=self._bkd,
         ), true_means
 
     @slow_test
@@ -1411,9 +1426,7 @@ class TestMSEMatchesLoss(unittest.TestCase):
 
         # MSE should be close to theoretical loss
         self._bkd.assert_allclose(
-            self._bkd.asarray([mse]),
-            self._bkd.asarray([reference_loss]),
-            rtol=1e-1
+            self._bkd.asarray([mse]), self._bkd.asarray([reference_loss]), rtol=1e-1
         )
 
 

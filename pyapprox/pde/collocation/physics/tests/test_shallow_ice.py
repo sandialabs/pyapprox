@@ -1,35 +1,35 @@
 """Tests for Shallow Ice physics implementation."""
 
 import unittest
-import math
+
 import numpy as np
 
-from pyapprox.util.backends.numpy import NumpyBkd
-from pyapprox.util.test_utils import load_tests  # noqa: F401
+from pyapprox.optimization.rootfinding.newton import NewtonSolver
 from pyapprox.pde.collocation.basis import ChebyshevBasis1D
-from pyapprox.pde.collocation.mesh import (
-    create_uniform_mesh_1d,
-    TransformedMesh1D,
-)
 from pyapprox.pde.collocation.boundary import (
     constant_dirichlet_bc,
+)
+from pyapprox.pde.collocation.manufactured_solutions.shallow_ice import (
+    ManufacturedShallowIce,
+)
+from pyapprox.pde.collocation.mesh import (
+    TransformedMesh1D,
+    create_uniform_mesh_1d,
 )
 from pyapprox.pde.collocation.physics.shallow_ice import (
     ShallowIcePhysics,
     create_shallow_ice,
 )
 from pyapprox.pde.collocation.physics.tests.test_utils import (
-    PhysicsTestBase,
     PhysicsNewtonResidual,
-)
-from pyapprox.optimization.rootfinding.newton import NewtonSolver
-from pyapprox.pde.collocation.manufactured_solutions.shallow_ice import (
-    ManufacturedShallowIce,
+    PhysicsTestBase,
 )
 from pyapprox.pde.collocation.time_integration import (
     CollocationModel,
     TimeIntegrationConfig,
 )
+from pyapprox.util.backends.numpy import NumpyBkd
+from pyapprox.util.test_utils import load_tests  # noqa: F401
 
 
 class TestShallowIcePhysics(PhysicsTestBase):
@@ -57,7 +57,7 @@ class TestShallowIcePhysics(PhysicsTestBase):
         )
 
         # Positive ice thickness (physically meaningful)
-        state = 100.0 + 50.0 * (1.0 - nodes ** 2)
+        state = 100.0 + 50.0 * (1.0 - nodes**2)
 
         self.check_jacobian(physics, state, time=0.0)
 
@@ -78,7 +78,7 @@ class TestShallowIcePhysics(PhysicsTestBase):
         )
 
         # Positive ice thickness
-        state = 150.0 + 30.0 * (1.0 - nodes ** 2)
+        state = 150.0 + 30.0 * (1.0 - nodes**2)
 
         self.check_jacobian(physics, state, time=0.0)
 
@@ -128,8 +128,7 @@ class TestShallowIcePhysics(PhysicsTestBase):
             bed = bed[:, 0]
 
         physics = ShallowIcePhysics(
-            basis, bkd, bed=bed, friction=1.0, A=A, rho=rho,
-            forcing=lambda t: forcing
+            basis, bkd, bed=bed, friction=1.0, A=A, rho=rho, forcing=lambda t: forcing
         )
 
         # Get exact solution
@@ -181,8 +180,7 @@ class TestShallowIcePhysics(PhysicsTestBase):
             bed = bed[:, 0]
 
         physics = ShallowIcePhysics(
-            basis, bkd, bed=bed, friction=1.0, A=A, rho=rho,
-            forcing=lambda t: forcing
+            basis, bkd, bed=bed, friction=1.0, A=A, rho=rho, forcing=lambda t: forcing
         )
 
         # Set boundary conditions
@@ -194,7 +192,9 @@ class TestShallowIcePhysics(PhysicsTestBase):
             exact_solution = exact_solution[:, 0]
 
         bc_left = constant_dirichlet_bc(bkd, left_idx, float(exact_solution[left_idx]))
-        bc_right = constant_dirichlet_bc(bkd, right_idx, float(exact_solution[right_idx]))
+        bc_right = constant_dirichlet_bc(
+            bkd, right_idx, float(exact_solution[right_idx])
+        )
         physics.set_boundary_conditions([bc_left, bc_right])
 
         # Small perturbation from exact solution
@@ -262,16 +262,13 @@ class TestShallowIcePhysics(PhysicsTestBase):
             bed = bed[:, 0]
 
         physics = ShallowIcePhysics(
-            basis, bkd, bed=bed, friction=1.0, A=A, rho=rho,
-            forcing=forcing_fn
+            basis, bkd, bed=bed, friction=1.0, A=A, rho=rho, forcing=forcing_fn
         )
 
         exact_at_0 = man_sol.functions["solution"](nodes[None, :], 0.0)
         left_idx = bc_mesh.boundary_indices(0)
         right_idx = bc_mesh.boundary_indices(1)
-        bc_left = constant_dirichlet_bc(
-            bkd, left_idx, float(exact_at_0[int(left_idx)])
-        )
+        bc_left = constant_dirichlet_bc(bkd, left_idx, float(exact_at_0[int(left_idx)]))
         bc_right = constant_dirichlet_bc(
             bkd, right_idx, float(exact_at_0[int(right_idx)])
         )
@@ -281,9 +278,7 @@ class TestShallowIcePhysics(PhysicsTestBase):
 
     def _run_transient_shallow_ice(self, method, atol):
         """Run transient shallow ice test with given method and tolerance."""
-        bkd, npts, nodes, man_sol, physics = (
-            self._setup_transient_shallow_ice()
-        )
+        bkd, npts, nodes, man_sol, physics = self._setup_transient_shallow_ice()
         model = CollocationModel(physics, bkd)
 
         state0 = man_sol.functions["solution"](nodes[None, :], 0.0)

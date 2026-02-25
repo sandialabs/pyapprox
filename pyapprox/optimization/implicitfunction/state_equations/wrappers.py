@@ -1,11 +1,12 @@
 from typing import Generic
-from pyapprox.util.backends.protocols import Array, Backend
-from pyapprox.optimization.implicitfunction.state_equations.protocols import (
-    ParameterizedStateEquationWithJacobianProtocol,
-)
+
 from pyapprox.interface.functions.protocols.validation import (
     validate_sample,
 )
+from pyapprox.optimization.implicitfunction.state_equations.protocols import (
+    ParameterizedStateEquationWithJacobianProtocol,
+)
+from pyapprox.util.backends.protocols import Array, Backend
 
 
 class ParameterizedStateEquationAsNewtonEquation(Generic[Array]):
@@ -93,14 +94,10 @@ class ParameterizedStateEquationAsNewtonEquation(Generic[Array]):
             Residual of the state equations.
         """
         if iterate1d.shape != (self._state_eq.nstates(),):
-            raise ValueError(
-                f"newton method uses 1D arrays but {iterate1d.shape=}"
-            )
+            raise ValueError(f"newton method uses 1D arrays but {iterate1d.shape=}")
         val = self._state_eq(iterate1d[:, None], self._param)
         if val.shape != (self._state_eq.nstates(), 1):
-            raise ValueError(
-                f"state equations mustretur 2D arrays but {val.shape=}"
-            )
+            raise ValueError(f"state equations mustretur 2D arrays but {val.shape=}")
         return val
 
     def jacobian(self, iterate1d: Array) -> Array:

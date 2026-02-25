@@ -3,19 +3,19 @@ Tests for LogUnNormalizedPosterior.
 """
 
 import unittest
-from typing import Generic, Any
+from typing import Any, Generic
 
 import numpy as np
-from numpy.typing import NDArray
 import torch
+from numpy.typing import NDArray
 
-from pyapprox.util.backends.protocols import Array, Backend
-from pyapprox.util.backends.numpy import NumpyBkd
-from pyapprox.util.backends.torch import TorchBkd
-from pyapprox.probability.covariance import DiagonalCovarianceOperator
-from pyapprox.probability.likelihood import GaussianLogLikelihood
-from pyapprox.probability.gaussian import DenseCholeskyMultivariateGaussian
 from pyapprox.inverse.posterior import LogUnNormalizedPosterior
+from pyapprox.probability.covariance import DiagonalCovarianceOperator
+from pyapprox.probability.gaussian import DenseCholeskyMultivariateGaussian
+from pyapprox.probability.likelihood import GaussianLogLikelihood
+from pyapprox.util.backends.numpy import NumpyBkd
+from pyapprox.util.backends.protocols import Array, Backend
+from pyapprox.util.backends.torch import TorchBkd
 
 
 class TestLogUnNormalizedPosteriorBase(Generic[Array], unittest.TestCase):
@@ -32,11 +32,14 @@ class TestLogUnNormalizedPosteriorBase(Generic[Array], unittest.TestCase):
         self.nobs = 3
 
         # Linear model: y = A @ theta
-        A_np = np.array([
-            [1.0, 0.5],
-            [0.5, 1.0],
-            [1.0, 1.0],
-        ], dtype=np.float64)
+        A_np = np.array(
+            [
+                [1.0, 0.5],
+                [0.5, 1.0],
+                [1.0, 1.0],
+            ],
+            dtype=np.float64,
+        )
         self.A = self.bkd().asarray(A_np)
 
         def model_fn(theta: Array) -> Array:
@@ -56,7 +59,9 @@ class TestLogUnNormalizedPosteriorBase(Generic[Array], unittest.TestCase):
         # Prior
         prior_mean = self.bkd().asarray(np.zeros((self.nvars, 1), dtype=np.float64))
         prior_cov = self.bkd().asarray(np.eye(self.nvars, dtype=np.float64))
-        self.prior = DenseCholeskyMultivariateGaussian(prior_mean, prior_cov, self.bkd())
+        self.prior = DenseCholeskyMultivariateGaussian(
+            prior_mean, prior_cov, self.bkd()
+        )
 
         # Create posterior
         self.posterior = LogUnNormalizedPosterior(
@@ -116,7 +121,6 @@ class TestLogUnNormalizedPosteriorAnalytical(Generic[Array], unittest.TestCase):
     def test_gaussian_prior_likelihood(self) -> None:
         """Test log posterior value matches analytical computation."""
         nvars = 2
-        nobs = 2
 
         # Identity model: y = theta
         def model_fn(theta: Array) -> Array:
@@ -172,7 +176,9 @@ class TestLogUnNormalizedPosteriorValidation(Generic[Array], unittest.TestCase):
         noise_var = self.bkd().asarray(np.array([0.1, 0.1], dtype=np.float64))
         noise_cov_op = DiagonalCovarianceOperator(noise_var, self.bkd())
         likelihood = GaussianLogLikelihood(noise_cov_op, self.bkd())
-        likelihood.set_observations(self.bkd().asarray(np.array([[1.0], [2.0]], dtype=np.float64)))
+        likelihood.set_observations(
+            self.bkd().asarray(np.array([[1.0], [2.0]], dtype=np.float64))
+        )
 
         prior_mean = self.bkd().asarray(np.zeros((nvars, 1), dtype=np.float64))
         prior_cov = self.bkd().asarray(np.eye(nvars, dtype=np.float64))
@@ -255,9 +261,6 @@ class TestLogUnNormalizedPosteriorValidationTorch(
 
     def bkd(self) -> Backend[torch.Tensor]:
         return self._bkd
-
-
-from pyapprox.util.test_utils import load_tests
 
 
 if __name__ == "__main__":

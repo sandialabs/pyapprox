@@ -8,27 +8,26 @@ Tests are structured progressively:
 """
 
 import unittest
-import math
-from typing import Generic, Any
+from typing import Any, Generic
 
 import numpy as np
 import torch
 from numpy.typing import NDArray
 from scipy.stats import qmc
 
-from pyapprox.util.backends.protocols import Array, Backend
-from pyapprox.util.backends.numpy import NumpyBkd
-from pyapprox.util.backends.torch import TorchBkd
-from pyapprox.surrogates.kernels.matern import Matern52Kernel
-from pyapprox.surrogates.gaussianprocess.variational import (
-    VariationalGaussianProcess,
+from pyapprox.surrogates.gaussianprocess.exact import (
+    ExactGaussianProcess,
 )
 from pyapprox.surrogates.gaussianprocess.inducing_samples import (
     InducingSamples,
 )
-from pyapprox.surrogates.gaussianprocess.exact import (
-    ExactGaussianProcess,
+from pyapprox.surrogates.gaussianprocess.variational import (
+    VariationalGaussianProcess,
 )
+from pyapprox.surrogates.kernels.matern import Matern52Kernel
+from pyapprox.util.backends.numpy import NumpyBkd
+from pyapprox.util.backends.protocols import Array, Backend
+from pyapprox.util.backends.torch import TorchBkd
 from pyapprox.util.test_utils import load_tests  # noqa: F401
 
 
@@ -97,9 +96,7 @@ class TestVariationalGP(Generic[Array], unittest.TestCase):
         noise_std: float = 0.1,
     ) -> VariationalGaussianProcess:
         kernel = self._make_kernel(fixed=kernel_fixed)
-        inducing = self._make_inducing(
-            noise_std=noise_std, fixed=inducing_fixed
-        )
+        inducing = self._make_inducing(noise_std=noise_std, fixed=inducing_fixed)
         return VariationalGaussianProcess(
             kernel=kernel,
             nvars=self.nvars,
@@ -134,9 +131,7 @@ class TestVariationalGP(Generic[Array], unittest.TestCase):
         """__call__ should be alias for predict."""
         gp = self._make_gp()
         gp.fit(self.X_train, self.y_train)
-        self._bkd.assert_allclose(
-            gp(self.X_train), gp.predict(self.X_train)
-        )
+        self._bkd.assert_allclose(gp(self.X_train), gp.predict(self.X_train))
 
     def test_predict_covariance(self) -> None:
         """Test predict_covariance returns correct shape."""
@@ -171,7 +166,7 @@ class TestVariationalGP(Generic[Array], unittest.TestCase):
         but do NOT include noise in predict_std.
         """
         noise_std = 0.1
-        noise_var = noise_std ** 2
+        noise_var = noise_std**2
 
         # Variational GP with inducing = training points
         kernel_v = Matern52Kernel(
@@ -216,9 +211,7 @@ class TestVariationalGP(Generic[Array], unittest.TestCase):
         egp.fit(self.X_train, self.y_train)
 
         # Compare predictions at test points
-        X_test = self._bkd.array(
-            np.linspace(-0.9, 0.9, 8).reshape(1, -1)
-        )
+        X_test = self._bkd.array(np.linspace(-0.9, 0.9, 8).reshape(1, -1))
         mean_v = vgp.predict(X_test)
         mean_e = egp.predict(X_test)
         self._bkd.assert_allclose(mean_v, mean_e, atol=1e-4, rtol=1e-4)
@@ -251,14 +244,11 @@ class TestVariationalGP(Generic[Array], unittest.TestCase):
         )
 
         gp = self._make_gp()
-        in_scaler = InputStandardScaler.from_data(
-            self.X_train, self._bkd
-        )
-        out_scaler = OutputStandardScaler.from_data(
-            self.y_train, self._bkd
-        )
+        in_scaler = InputStandardScaler.from_data(self.X_train, self._bkd)
+        out_scaler = OutputStandardScaler.from_data(self.y_train, self._bkd)
         gp.fit(
-            self.X_train, self.y_train,
+            self.X_train,
+            self.y_train,
             output_transform=out_scaler,
             input_transform=in_scaler,
         )
@@ -283,12 +273,8 @@ class TestVariationalGP(Generic[Array], unittest.TestCase):
         n_inducing = 25
 
         # Training data: quadratic on [-1, 1]
-        X_train = bkd.array(
-            np.linspace(-1, 1, n_train).reshape(1, -1)
-        )
-        y_train = bkd.array(
-            (np.linspace(-1, 1, n_train) ** 2).reshape(1, -1)
-        )
+        X_train = bkd.array(np.linspace(-1, 1, n_train).reshape(1, -1))
+        y_train = bkd.array((np.linspace(-1, 1, n_train) ** 2).reshape(1, -1))
 
         # Inducing points via Sobol (fewer than training)
         U_np = _sobol_samples(nvars, n_inducing, -1.0, 1.0)
@@ -322,18 +308,15 @@ class TestVariationalGP(Generic[Array], unittest.TestCase):
         gp.fit(X_train, y_train)
 
         # Test on held-out points
-        X_test = bkd.array(
-            np.linspace(-0.95, 0.95, 50).reshape(1, -1)
-        )
-        y_test = X_test ** 2
+        X_test = bkd.array(np.linspace(-0.95, 0.95, 50).reshape(1, -1))
+        y_test = X_test**2
         y_pred = gp.predict(X_test)
 
-        max_err = float(bkd.to_numpy(
-            bkd.max(bkd.abs(y_pred - y_test))
-        ))
+        max_err = float(bkd.to_numpy(bkd.max(bkd.abs(y_pred - y_test))))
         self.assertLessEqual(
-            max_err, 2e-3,
-            f"Max prediction error {max_err:.2e} exceeds 2e-3 for quadratic"
+            max_err,
+            2e-3,
+            f"Max prediction error {max_err:.2e} exceeds 2e-3 for quadratic",
         )
 
     # ---- Test 6: Hyp list structure ----
@@ -385,16 +368,18 @@ class TestTorchVariationalGP(unittest.TestCase):
         self.U_init = self.bkd.array(U_np)
 
     def _make_torch_vgp(self, kernel_fixed=True, inducing_fixed=True):
-        from pyapprox.surrogates.kernels.torch_matern import (
-            TorchMaternKernel,
-        )
         from pyapprox.surrogates.gaussianprocess.torch_variational import (
             TorchVariationalGaussianProcess,
         )
+        from pyapprox.surrogates.kernels.torch_matern import (
+            TorchMaternKernel,
+        )
 
         kernel = TorchMaternKernel(
-            nu=2.5, lenscale=[1.0],
-            lenscale_bounds=(0.1, 10.0), nvars=self.nvars,
+            nu=2.5,
+            lenscale=[1.0],
+            lenscale_bounds=(0.1, 10.0),
+            nvars=self.nvars,
         )
         if kernel_fixed:
             kernel.hyp_list().set_all_inactive()
@@ -431,7 +416,7 @@ class TestTorchVariationalGP(unittest.TestCase):
         gp = self._make_torch_vgp()
         gp.fit(self.X_train, self.y_train)
 
-        self.assertTrue(hasattr(gp, 'jacobian'))
+        self.assertTrue(hasattr(gp, "jacobian"))
 
         sample = self.bkd.array([[0.3]])
         jac = gp.jacobian(sample)
@@ -447,12 +432,10 @@ class TestTorchVariationalGP(unittest.TestCase):
         gp = self._make_torch_vgp(kernel_fixed=False, inducing_fixed=True)
         gp.fit(self.X_train, self.y_train)
 
-        loss = VariationalGPELBOLoss(
-            gp, (gp.data().X(), gp.data().y())
-        )
+        loss = VariationalGPELBOLoss(gp, (gp.data().X(), gp.data().y()))
         gp._configure_loss(loss)
 
-        self.assertTrue(hasattr(loss, 'jacobian'))
+        self.assertTrue(hasattr(loss, "jacobian"))
 
         params = gp.hyp_list().get_active_values()
         jac = loss.jacobian(params)

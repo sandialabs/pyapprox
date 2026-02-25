@@ -4,14 +4,9 @@ import math
 import unittest
 from typing import Any, Generic
 
-import numpy as np
-from numpy.typing import NDArray
 import torch
+from numpy.typing import NDArray
 
-from pyapprox.util.backends.protocols import Array, Backend
-from pyapprox.util.backends.numpy import NumpyBkd
-from pyapprox.util.backends.torch import TorchBkd
-from pyapprox.util.test_utils import load_tests  # noqa: F401
 from pyapprox.pde.collocation.basis import ChebyshevBasis2D
 from pyapprox.pde.collocation.mesh import TransformedMesh2D
 from pyapprox.pde.collocation.mesh.transforms import PolarTransform
@@ -21,6 +16,10 @@ from pyapprox.pde.collocation.mesh.transforms.affine import (
 from pyapprox.pde.collocation.quadrature import (
     CollocationQuadrature2D,
 )
+from pyapprox.util.backends.numpy import NumpyBkd
+from pyapprox.util.backends.protocols import Array, Backend
+from pyapprox.util.backends.torch import TorchBkd
+from pyapprox.util.test_utils import load_tests  # noqa: F401
 
 
 class TestCollocationQuadrature2D(Generic[Array], unittest.TestCase):
@@ -105,7 +104,9 @@ class TestCollocationQuadrature2D(Generic[Array], unittest.TestCase):
         r_inner, r_outer = 1.0, 2.0
         nx, ny = 10, 10
         transform = PolarTransform(
-            (r_inner, r_outer), (0.0, math.pi / 2.0), bkd,
+            (r_inner, r_outer),
+            (0.0, math.pi / 2.0),
+            bkd,
         )
         mesh = TransformedMesh2D(nx, ny, bkd, transform)
         basis = ChebyshevBasis2D(mesh, bkd)
@@ -129,7 +130,9 @@ class TestCollocationQuadrature2D(Generic[Array], unittest.TestCase):
         r_inner, r_outer = 1.0, 2.0
         nx, ny = 12, 12
         transform = PolarTransform(
-            (r_inner, r_outer), (0.0, math.pi / 2.0), bkd,
+            (r_inner, r_outer),
+            (0.0, math.pi / 2.0),
+            bkd,
         )
         mesh = TransformedMesh2D(nx, ny, bkd, transform)
         basis = ChebyshevBasis2D(mesh, bkd)
@@ -174,7 +177,9 @@ class TestCollocationQuadrature2D(Generic[Array], unittest.TestCase):
         r_mid = (r_inner + r_outer) / 2.0
         nx, ny = 12, 12
         transform = PolarTransform(
-            (r_inner, r_outer), (0.0, math.pi / 2.0), bkd,
+            (r_inner, r_outer),
+            (0.0, math.pi / 2.0),
+            bkd,
         )
         mesh = TransformedMesh2D(nx, ny, bkd, transform)
         basis = ChebyshevBasis2D(mesh, bkd)

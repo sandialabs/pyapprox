@@ -8,10 +8,10 @@ This module provides classes for managing hyperparameters, including:
 - HyperParameterList: Class for managing a list of hyperparameters.
 """
 
-from .hyperparameter import HyperParameter
-from .log_hyperparameter import LogHyperParameter
 from .cholesky_hyperparameter import CholeskyHyperParameter
+from .hyperparameter import HyperParameter
 from .hyperparameter_list import HyperParameterList
+from .log_hyperparameter import LogHyperParameter
 
 __all__ = [
     "HyperParameter",

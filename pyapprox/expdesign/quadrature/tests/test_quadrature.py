@@ -17,23 +17,22 @@ import numpy as np
 import torch
 from numpy.typing import NDArray
 
-from pyapprox.util.backends.numpy import NumpyBkd
-from pyapprox.util.backends.torch import TorchBkd
-from pyapprox.util.backends.protocols import Array
-from pyapprox.util.test_utils import load_tests  # noqa: F401
-
 from pyapprox.expdesign.quadrature import (
-    MonteCarloSampler,
-    HaltonSampler,
-    SobolSampler,
     GaussianQuadratureSampler,
+    HaltonSampler,
+    MonteCarloSampler,
     OEDQuadratureSampler,
+    SobolSampler,
 )
 from pyapprox.probability.joint import IndependentJoint
 from pyapprox.probability.univariate import (
     GaussianMarginal,
     UniformMarginal,
 )
+from pyapprox.util.backends.numpy import NumpyBkd
+from pyapprox.util.backends.protocols import Array
+from pyapprox.util.backends.torch import TorchBkd
+from pyapprox.util.test_utils import load_tests  # noqa: F401
 
 
 class TestMonteCarloSampler(Generic[Array], unittest.TestCase):
@@ -88,7 +87,6 @@ class TestMonteCarloSampler(Generic[Array], unittest.TestCase):
         samples_np = self._bkd.to_numpy(samples)
         self.assertTrue(np.all(samples_np >= 0.0))
         self.assertTrue(np.all(samples_np <= 1.0))
-
 
 
 class TestMonteCarloSamplerNumpy(TestMonteCarloSampler[NDArray[Any]]):
@@ -146,12 +144,8 @@ class TestHaltonSampler(Generic[Array], unittest.TestCase):
 
     def test_deterministic_without_scramble(self):
         """Test that unscrambled Halton is deterministic."""
-        sampler1 = HaltonSampler(
-            self._nvars, self._bkd, start_index=0, scramble=False
-        )
-        sampler2 = HaltonSampler(
-            self._nvars, self._bkd, start_index=0, scramble=False
-        )
+        sampler1 = HaltonSampler(self._nvars, self._bkd, start_index=0, scramble=False)
+        sampler2 = HaltonSampler(self._nvars, self._bkd, start_index=0, scramble=False)
 
         samples1, _ = sampler1.sample(50)
         samples2, _ = sampler2.sample(50)
@@ -208,15 +202,21 @@ class TestHaltonSampler(Generic[Array], unittest.TestCase):
         """Test that start_index skips the initial samples."""
         # Get samples starting from 0
         sampler1 = HaltonSampler(
-            self._nvars, self._bkd, start_index=0, scramble=False,
-            transform_to_normal=False
+            self._nvars,
+            self._bkd,
+            start_index=0,
+            scramble=False,
+            transform_to_normal=False,
         )
         samples_full, _ = sampler1.sample(10)
 
         # Get samples starting from 2
         sampler2 = HaltonSampler(
-            self._nvars, self._bkd, start_index=2, scramble=False,
-            transform_to_normal=False
+            self._nvars,
+            self._bkd,
+            start_index=2,
+            scramble=False,
+            transform_to_normal=False,
         )
         samples_skip, _ = sampler2.sample(8)
 
@@ -279,12 +279,8 @@ class TestSobolSampler(Generic[Array], unittest.TestCase):
 
     def test_deterministic_without_scramble(self):
         """Test that unscrambled Sobol is deterministic."""
-        sampler1 = SobolSampler(
-            self._nvars, self._bkd, start_index=0, scramble=False
-        )
-        sampler2 = SobolSampler(
-            self._nvars, self._bkd, start_index=0, scramble=False
-        )
+        sampler1 = SobolSampler(self._nvars, self._bkd, start_index=0, scramble=False)
+        sampler2 = SobolSampler(self._nvars, self._bkd, start_index=0, scramble=False)
 
         samples1, _ = sampler1.sample(50)
         samples2, _ = sampler2.sample(50)
@@ -341,15 +337,21 @@ class TestSobolSampler(Generic[Array], unittest.TestCase):
         """Test that start_index skips the initial samples."""
         # Get samples starting from 0
         sampler1 = SobolSampler(
-            self._nvars, self._bkd, start_index=0, scramble=False,
-            transform_to_normal=False
+            self._nvars,
+            self._bkd,
+            start_index=0,
+            scramble=False,
+            transform_to_normal=False,
         )
         samples_full, _ = sampler1.sample(10)
 
         # Get samples starting from 2
         sampler2 = SobolSampler(
-            self._nvars, self._bkd, start_index=2, scramble=False,
-            transform_to_normal=False
+            self._nvars,
+            self._bkd,
+            start_index=2,
+            scramble=False,
+            transform_to_normal=False,
         )
         samples_skip, _ = sampler2.sample(8)
 
@@ -363,14 +365,16 @@ class TestSobolSampler(Generic[Array], unittest.TestCase):
             2, self._bkd, start_index=0, scramble=False, transform_to_normal=False
         )
         samples, _ = sampler.sample(4)
-        samples_np = self._bkd.to_numpy(samples)
+        self._bkd.to_numpy(samples)
 
         # Known Sobol sequence values (first 4 points in 2D)
         # [0, 0], [0.5, 0.5], [0.75, 0.25], [0.25, 0.75]
-        expected = self._bkd.asarray([
-            [0.0, 0.5, 0.75, 0.25],
-            [0.0, 0.5, 0.25, 0.75],
-        ])
+        expected = self._bkd.asarray(
+            [
+                [0.0, 0.5, 0.75, 0.25],
+                [0.0, 0.5, 0.25, 0.75],
+            ]
+        )
         self._bkd.assert_allclose(samples, expected, rtol=1e-10)
 
 
@@ -516,8 +520,7 @@ class TestOEDQuadratureSampler(Generic[Array], unittest.TestCase):
     def _create_prior_distribution(self):
         """Create a standard normal prior distribution."""
         marginals = [
-            GaussianMarginal(0.0, 1.0, self._bkd)
-            for _ in range(self._nvars_prior)
+            GaussianMarginal(0.0, 1.0, self._bkd) for _ in range(self._nvars_prior)
         ]
         return IndependentJoint(marginals, self._bkd)
 
@@ -525,9 +528,7 @@ class TestOEDQuadratureSampler(Generic[Array], unittest.TestCase):
         """Test nvars_prior() returns correct value."""
         prior_dist = self._create_prior_distribution()
         prior_sampler = MonteCarloSampler(prior_dist, self._bkd)
-        oed_sampler = OEDQuadratureSampler(
-            prior_sampler, self._nobs, self._bkd
-        )
+        oed_sampler = OEDQuadratureSampler(prior_sampler, self._nobs, self._bkd)
 
         self.assertEqual(oed_sampler.nvars_prior(), self._nvars_prior)
 
@@ -571,9 +572,7 @@ class TestOEDQuadratureSampler(Generic[Array], unittest.TestCase):
         nvars = 2
         npoints_1d = 3
         prior_sampler = GaussianQuadratureSampler(nvars, self._bkd, npoints_1d)
-        oed_sampler = OEDQuadratureSampler(
-            prior_sampler, self._nobs, self._bkd
-        )
+        oed_sampler = OEDQuadratureSampler(prior_sampler, self._nobs, self._bkd)
 
         # nsamples is ignored for Gaussian quadrature
         prior_samples, weights = oed_sampler.sample_prior(0)
@@ -610,9 +609,7 @@ class TestQuadratureStrategies(unittest.TestCase):
 
     def _make_gaussian_joint(self, nvars, bkd):
         """Helper: create IndependentJoint with standard Gaussian marginals."""
-        marginals = [
-            GaussianMarginal(0.0, 1.0, bkd) for _ in range(nvars)
-        ]
+        marginals = [GaussianMarginal(0.0, 1.0, bkd) for _ in range(nvars)]
         return IndependentJoint(marginals, bkd)
 
     def test_halton_strategy_matches_sampler(self):
@@ -671,9 +668,7 @@ class TestQuadratureStrategies(unittest.TestCase):
         )
 
         names = list_samplers()
-        self.assertEqual(
-            set(names), {"gauss", "mc", "halton", "sobol"}
-        )
+        self.assertEqual(set(names), {"gauss", "mc", "halton", "sobol"})
 
 
 if __name__ == "__main__":

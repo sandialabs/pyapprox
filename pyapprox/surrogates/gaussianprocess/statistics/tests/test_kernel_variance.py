@@ -8,41 +8,41 @@ formulas properly apply variance scaling.
 
 import math
 import unittest
-from typing import Generic, Any, Dict, List
+from typing import Any, Generic, List
 
 import numpy as np
 import torch
 from numpy.typing import NDArray
 
-from pyapprox.util.backends.protocols import Backend, Array
-from pyapprox.util.backends.numpy import NumpyBkd
-from pyapprox.util.backends.torch import TorchBkd
-from pyapprox.util.test_utils import load_tests  # noqa: F401
-from pyapprox.surrogates.kernels.matern import (
-    SquaredExponentialKernel,
-)
-from pyapprox.surrogates.kernels.composition import (
-    SeparableProductKernel,
-)
-from pyapprox.surrogates.kernels.scalings import PolynomialScaling
-from pyapprox.surrogates.gaussianprocess import ExactGaussianProcess
 from pyapprox.probability.univariate.uniform import UniformMarginal
-from pyapprox.surrogates.sparsegrids.basis_factory import (
-    create_basis_factories,
-)
+from pyapprox.surrogates.gaussianprocess import ExactGaussianProcess
 from pyapprox.surrogates.gaussianprocess.statistics import (
-    SeparableKernelIntegralCalculator,
     GaussianProcessStatistics,
-)
-from pyapprox.surrogates.gaussianprocess.statistics.sensitivity import (
-    GaussianProcessSensitivity,
+    SeparableKernelIntegralCalculator,
 )
 from pyapprox.surrogates.gaussianprocess.statistics.decompose import (
     _decompose_kernel,
 )
+from pyapprox.surrogates.gaussianprocess.statistics.sensitivity import (
+    GaussianProcessSensitivity,
+)
+from pyapprox.surrogates.kernels.composition import (
+    SeparableProductKernel,
+)
+from pyapprox.surrogates.kernels.matern import (
+    SquaredExponentialKernel,
+)
 from pyapprox.surrogates.kernels.protocols import (
     SeparableKernelProtocol,
 )
+from pyapprox.surrogates.kernels.scalings import PolynomialScaling
+from pyapprox.surrogates.sparsegrids.basis_factory import (
+    create_basis_factories,
+)
+from pyapprox.util.backends.numpy import NumpyBkd
+from pyapprox.util.backends.protocols import Array, Backend
+from pyapprox.util.backends.torch import TorchBkd
+from pyapprox.util.test_utils import load_tests  # noqa: F401
 
 
 def _create_quadrature_bases(
@@ -61,8 +61,7 @@ def _create_separable_kernel(
 ) -> SeparableProductKernel[Array]:
     """Create a SeparableProductKernel from length scales."""
     kernels_1d = [
-        SquaredExponentialKernel([ls], (0.1, 10.0), 1, bkd)
-        for ls in length_scales
+        SquaredExponentialKernel([ls], (0.1, 10.0), 1, bkd) for ls in length_scales
     ]
     return SeparableProductKernel(kernels_1d, bkd)
 
@@ -75,9 +74,7 @@ def _create_scaled_kernel(
     """Create PolynomialScaling([s]) * SeparableProductKernel."""
     base = _create_separable_kernel(length_scales, bkd)
     nvars = len(length_scales)
-    scaling = PolynomialScaling(
-        [s_value], (0.01, 100.0), bkd, nvars=nvars, fixed=False
-    )
+    scaling = PolynomialScaling([s_value], (0.01, 100.0), bkd, nvars=nvars, fixed=False)
     return scaling * base
 
 
@@ -98,8 +95,8 @@ def _create_stats(
 ) -> GaussianProcessStatistics[Array]:
     """Create GaussianProcessStatistics from a fitted GP."""
     bases = _create_quadrature_bases(marginals, nquad, bkd)
-    calc: SeparableKernelIntegralCalculator[Array] = (
-        SeparableKernelIntegralCalculator(gp, bases, marginals, bkd=bkd)
+    calc: SeparableKernelIntegralCalculator[Array] = SeparableKernelIntegralCalculator(
+        gp, bases, marginals, bkd=bkd
     )
     return GaussianProcessStatistics(gp, calc)
 
@@ -109,8 +106,8 @@ def _create_sensitivity(
 ) -> GaussianProcessSensitivity[Array]:
     """Create GaussianProcessSensitivity from a fitted GP."""
     bases = _create_quadrature_bases(marginals, nquad, bkd)
-    calc: SeparableKernelIntegralCalculator[Array] = (
-        SeparableKernelIntegralCalculator(gp, bases, marginals, bkd=bkd)
+    calc: SeparableKernelIntegralCalculator[Array] = SeparableKernelIntegralCalculator(
+        gp, bases, marginals, bkd=bkd
     )
     stats = GaussianProcessStatistics(gp, calc)
     return GaussianProcessSensitivity(stats)
@@ -175,16 +172,9 @@ class TestKernelDecomposition(Generic[Array], unittest.TestCase):
         # A plain SE kernel with nvars=2 satisfies SeparableKernelProtocol,
         # so test with something that doesn't. Use a raw ProductKernel of
         # two non-protocol kernels.
-        from pyapprox.surrogates.kernels.composition import (
-            ProductKernel,
-        )
 
-        k1 = PolynomialScaling(
-            [2.0], (0.01, 100.0), self._bkd, nvars=2, fixed=False
-        )
-        k2 = PolynomialScaling(
-            [3.0], (0.01, 100.0), self._bkd, nvars=2, fixed=False
-        )
+        k1 = PolynomialScaling([2.0], (0.01, 100.0), self._bkd, nvars=2, fixed=False)
+        k2 = PolynomialScaling([3.0], (0.01, 100.0), self._bkd, nvars=2, fixed=False)
         product = k1 * k2
         with self.assertRaises(TypeError):
             _decompose_kernel(product, self._bkd)
@@ -289,9 +279,7 @@ class TestUnitScalingEquivalence(Generic[Array], unittest.TestCase):
         # Unscaled GP
         kernel_bare = _create_separable_kernel(length_scales, self._bkd)
         gp_bare = _fit_gp(kernel_bare, nvars, X_train, y_train, self._bkd)
-        self._stats_bare = _create_stats(
-            gp_bare, self._marginals, nquad, self._bkd
-        )
+        self._stats_bare = _create_stats(gp_bare, self._marginals, nquad, self._bkd)
         self._sens_bare = _create_sensitivity(
             gp_bare, self._marginals, nquad, self._bkd
         )
@@ -299,9 +287,7 @@ class TestUnitScalingEquivalence(Generic[Array], unittest.TestCase):
         # Scaled with s=1.0 (should be equivalent)
         kernel_unit = _create_scaled_kernel(1.0, length_scales, self._bkd)
         gp_unit = _fit_gp(kernel_unit, nvars, X_train, y_train, self._bkd)
-        self._stats_unit = _create_stats(
-            gp_unit, self._marginals, nquad, self._bkd
-        )
+        self._stats_unit = _create_stats(gp_unit, self._marginals, nquad, self._bkd)
         self._sens_unit = _create_sensitivity(
             gp_unit, self._marginals, nquad, self._bkd
         )
@@ -355,18 +341,14 @@ class TestUnitScalingEquivalence(Generic[Array], unittest.TestCase):
             )
 
 
-class TestUnitScalingEquivalenceNumpy(
-    TestUnitScalingEquivalence[NDArray[Any]]
-):
+class TestUnitScalingEquivalenceNumpy(TestUnitScalingEquivalence[NDArray[Any]]):
     __test__ = True
 
     def bkd(self) -> NumpyBkd:
         return NumpyBkd()
 
 
-class TestUnitScalingEquivalenceTorch(
-    TestUnitScalingEquivalence[torch.Tensor]
-):
+class TestUnitScalingEquivalenceTorch(TestUnitScalingEquivalence[torch.Tensor]):
     __test__ = True
 
     def bkd(self) -> TorchBkd:

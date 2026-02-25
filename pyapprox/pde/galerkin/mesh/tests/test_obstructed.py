@@ -1,16 +1,12 @@
 """Tests for ObstructedMesh2D."""
 
 import unittest
-from typing import Any, Generic
 
 import numpy as np
-from numpy.typing import NDArray
-
-from pyapprox.util.backends.numpy import NumpyBkd
-from pyapprox.util.backends.protocols import Array, Backend
-from pyapprox.util.test_utils import load_tests  # noqa: F401
 
 from pyapprox.pde.galerkin.mesh.obstructed import ObstructedMesh2D
+from pyapprox.util.backends.numpy import NumpyBkd
+from pyapprox.util.test_utils import load_tests  # noqa: F401
 
 
 class TestObstructedMesh2D(unittest.TestCase):

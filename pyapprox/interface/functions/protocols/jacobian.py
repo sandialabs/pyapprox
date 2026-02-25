@@ -1,4 +1,4 @@
-from typing import Protocol, Generic, runtime_checkable, Union, Any
+from typing import Any, Generic, Protocol, Union, runtime_checkable
 
 from pyapprox.util.backends.protocols import Array, Backend
 
@@ -97,8 +97,8 @@ FunctionWithJacobianOrJVPProtocol = Union[
 
 
 def function_has_jacobian_or_jvp(function: Any) -> bool:
-    if not isinstance(
-        function, FunctionWithJacobianProtocol
-    ) and not isinstance(function, FunctionWithJVPProtocol):
+    if not isinstance(function, FunctionWithJacobianProtocol) and not isinstance(
+        function, FunctionWithJVPProtocol
+    ):
         return False
     return True

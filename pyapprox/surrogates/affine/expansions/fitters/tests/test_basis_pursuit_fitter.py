@@ -14,25 +14,23 @@ import numpy as np
 import torch
 from numpy.typing import NDArray
 
-from pyapprox.util.backends.numpy import NumpyBkd
-from pyapprox.util.backends.torch import TorchBkd
-from pyapprox.util.backends.protocols import Array, Backend
-from pyapprox.util.test_utils import load_tests  # noqa: F401
-
+from pyapprox.probability import UniformMarginal
+from pyapprox.surrogates.affine.basis import OrthonormalPolynomialBasis
+from pyapprox.surrogates.affine.expansions import BasisExpansion
 from pyapprox.surrogates.affine.expansions.fitters.basis_pursuit import (
     BasisPursuitFitter,
 )
 from pyapprox.surrogates.affine.expansions.fitters.results import (
     SparseResult,
 )
-
-from pyapprox.surrogates.affine.univariate import create_bases_1d
 from pyapprox.surrogates.affine.indices import (
     compute_hyperbolic_indices,
 )
-from pyapprox.surrogates.affine.basis import OrthonormalPolynomialBasis
-from pyapprox.surrogates.affine.expansions import BasisExpansion
-from pyapprox.probability import UniformMarginal
+from pyapprox.surrogates.affine.univariate import create_bases_1d
+from pyapprox.util.backends.numpy import NumpyBkd
+from pyapprox.util.backends.protocols import Array, Backend
+from pyapprox.util.backends.torch import TorchBkd
+from pyapprox.util.test_utils import load_tests  # noqa: F401
 
 
 class TestBasisPursuitFitter(Generic[Array], unittest.TestCase):
@@ -306,7 +304,6 @@ class TestBasisPursuitFitter(Generic[Array], unittest.TestCase):
 
         # Check coefficient recovery
         bkd.assert_allclose(result.params(), true_coef, atol=1e-8)
-
 
     def test_recovers_1d_expansion_random_sparse(self) -> None:
         """BP recovers a 1D expansion with random sparse coefficients.

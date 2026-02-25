@@ -5,11 +5,10 @@ This module extends GaussianCanonicalForm with variable ID tracking,
 enabling scope-aware operations for graphical model inference.
 """
 
-from typing import Generic, List, Optional, Tuple
-import numpy as np
+from typing import Generic, List, Tuple
 
-from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.probability.gaussian import GaussianCanonicalForm
+from pyapprox.util.backends.protocols import Array, Backend
 
 
 class GaussianFactor(Generic[Array]):
@@ -211,9 +210,9 @@ class GaussianFactor(Generic[Array]):
 
                 prec_np = self._bkd.to_numpy(self._canonical.precision())
                 new_prec_np = self._bkd.to_numpy(new_precision)
-                new_prec_np[tgt_start:tgt_end, tgt_start_j:tgt_end_j] = (
-                    prec_np[src_start:src_end, src_start_j:src_end_j]
-                )
+                new_prec_np[tgt_start:tgt_end, tgt_start_j:tgt_end_j] = prec_np[
+                    src_start:src_end, src_start_j:src_end_j
+                ]
                 new_precision = self._bkd.asarray(new_prec_np)
 
         new_canonical = GaussianCanonicalForm(
@@ -347,15 +346,13 @@ class GaussianFactor(Generic[Array]):
 
         # Verify value dimensions
         expected_dims = sum(
-            self._nvars_per_var[self._var_ids.index(vid)]
-            for vid in fixed_var_ids
+            self._nvars_per_var[self._var_ids.index(vid)] for vid in fixed_var_ids
         )
         if values.ndim == 2:
             values = values.flatten()
         if len(values) != expected_dims:
             raise ValueError(
-                f"Values dimension {len(values)} doesn't match "
-                f"expected {expected_dims}"
+                f"Values dimension {len(values)} doesn't match expected {expected_dims}"
             )
 
         # Get remaining var_ids and nvars_per_var

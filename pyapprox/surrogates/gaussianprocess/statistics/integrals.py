@@ -35,40 +35,42 @@ Users should create quadrature rules using the sparse grid infrastructure:
     calc = SeparableKernelIntegralCalculator(gp, bases, bkd=bkd)
 """
 
-from typing import Generic, List, Callable, Optional
-from pyapprox.util.backends.protocols import Array, Backend
+from typing import Callable, Generic, List, Optional
+
+from pyapprox.probability.protocols.distribution import MarginalProtocol
+from pyapprox.surrogates.affine.protocols.quadrature import (
+    QuadratureRuleStatefulProtocol,
+)
 from pyapprox.surrogates.gaussianprocess.protocols import (
     PredictiveGPProtocol,
+)
+from pyapprox.surrogates.gaussianprocess.statistics.decompose import (
+    _decompose_kernel,
+)
+from pyapprox.surrogates.gaussianprocess.statistics.integrals_1d import (
+    compute_conditional_P_1d,
+    compute_Gamma_1d,
+    compute_lambda_1d,
+    compute_nu_1d,
+    compute_P_1d,
+    compute_Pi_1d,
+    compute_tau_1d,
+    compute_u_1d,
+    compute_xi1_1d,
 )
 from pyapprox.surrogates.gaussianprocess.statistics.validation import (
     validate_separable_kernel,
     validate_zero_mean,
 )
-from pyapprox.surrogates.gaussianprocess.statistics.integrals_1d import (
-    compute_tau_1d,
-    compute_P_1d,
-    compute_u_1d,
-    compute_nu_1d,
-    compute_lambda_1d,
-    compute_Pi_1d,
-    compute_xi1_1d,
-    compute_Gamma_1d,
-    compute_conditional_P_1d,
-)
 from pyapprox.surrogates.kernels.protocols import (
     KernelProtocol,
-    SeparableKernelProtocol,
 )
-from pyapprox.surrogates.gaussianprocess.statistics.decompose import (
-    _decompose_kernel,
-)
-from pyapprox.surrogates.affine.protocols.quadrature import (
-    QuadratureRuleStatefulProtocol,
-)
-from pyapprox.probability.protocols.distribution import MarginalProtocol
+from pyapprox.util.backends.protocols import Array, Backend
 
 
-def _extract_1d_kernels(kernel: KernelProtocol[Array], bkd: Backend[Array]) -> List[KernelProtocol[Array]]:
+def _extract_1d_kernels(
+    kernel: KernelProtocol[Array], bkd: Backend[Array]
+) -> List[KernelProtocol[Array]]:
     """
     Extract 1D kernel components from a separable kernel.
 
@@ -306,7 +308,7 @@ class SeparableKernelIntegralCalculator(Generic[Array]):
         Array
             Training samples for dimension dim, shape (1, N).
         """
-        return self._train_samples[dim:dim+1, :]
+        return self._train_samples[dim : dim + 1, :]
 
     def tau_C(self) -> Array:
         """
@@ -321,8 +323,8 @@ class SeparableKernelIntegralCalculator(Generic[Array]):
         Array
             Shape (N,) where N is the number of training points.
         """
-        if 'tau_C' in self._cache:
-            return self._cache['tau_C']
+        if "tau_C" in self._cache:
+            return self._cache["tau_C"]
 
         nvars = len(self._kernels_1d)
 
@@ -334,11 +336,11 @@ class SeparableKernelIntegralCalculator(Generic[Array]):
                 self._quad_weights[dim],
                 self._get_train_samples_1d(dim),
                 self._get_kernel_callable(dim),
-                self._bkd
+                self._bkd,
             )
             tau = tau * tau_1d
 
-        self._cache['tau_C'] = tau
+        self._cache["tau_C"] = tau
         return tau
 
     def tau_K(self) -> Array:
@@ -352,11 +354,11 @@ class SeparableKernelIntegralCalculator(Generic[Array]):
         Array
             Shape (N,) where N is the number of training points.
         """
-        if 'tau_K' in self._cache:
-            return self._cache['tau_K']
+        if "tau_K" in self._cache:
+            return self._cache["tau_K"]
 
         tau_K = self._kernel_variance * self.tau_C()
-        self._cache['tau_K'] = tau_K
+        self._cache["tau_K"] = tau_K
         return tau_K
 
     def P(self) -> Array:
@@ -373,8 +375,8 @@ class SeparableKernelIntegralCalculator(Generic[Array]):
             Shape (N, N) where N is the number of training points.
             This matrix is symmetric positive semi-definite.
         """
-        if 'P' in self._cache:
-            return self._cache['P']
+        if "P" in self._cache:
+            return self._cache["P"]
 
         nvars = len(self._kernels_1d)
 
@@ -386,11 +388,11 @@ class SeparableKernelIntegralCalculator(Generic[Array]):
                 self._quad_weights[dim],
                 self._get_train_samples_1d(dim),
                 self._get_kernel_callable(dim),
-                self._bkd
+                self._bkd,
             )
             P = P * P_1d
 
-        self._cache['P'] = P
+        self._cache["P"] = P
         return P
 
     def u(self) -> Array:
@@ -406,8 +408,8 @@ class SeparableKernelIntegralCalculator(Generic[Array]):
         Array
             Scalar (0-dimensional or shape () array).
         """
-        if 'u' in self._cache:
-            return self._cache['u']
+        if "u" in self._cache:
+            return self._cache["u"]
 
         nvars = len(self._kernels_1d)
 
@@ -418,11 +420,11 @@ class SeparableKernelIntegralCalculator(Generic[Array]):
                 self._quad_samples[dim],
                 self._quad_weights[dim],
                 self._get_kernel_callable(dim),
-                self._bkd
+                self._bkd,
             )
             u = u * u_1d
 
-        self._cache['u'] = u
+        self._cache["u"] = u
         return u
 
     def nu(self) -> Array:
@@ -438,8 +440,8 @@ class SeparableKernelIntegralCalculator(Generic[Array]):
         Array
             Scalar (0-dimensional or shape () array).
         """
-        if 'nu' in self._cache:
-            return self._cache['nu']
+        if "nu" in self._cache:
+            return self._cache["nu"]
 
         nvars = len(self._kernels_1d)
 
@@ -450,11 +452,11 @@ class SeparableKernelIntegralCalculator(Generic[Array]):
                 self._quad_samples[dim],
                 self._quad_weights[dim],
                 self._get_kernel_callable(dim),
-                self._bkd
+                self._bkd,
             )
             nu = nu * nu_1d
 
-        self._cache['nu'] = nu
+        self._cache["nu"] = nu
         return nu
 
     def lambda_vec(self) -> Array:
@@ -470,8 +472,8 @@ class SeparableKernelIntegralCalculator(Generic[Array]):
         Array
             Shape (N,) where N is the number of training points.
         """
-        if 'lambda_vec' in self._cache:
-            return self._cache['lambda_vec']
+        if "lambda_vec" in self._cache:
+            return self._cache["lambda_vec"]
 
         nvars = len(self._kernels_1d)
 
@@ -483,11 +485,11 @@ class SeparableKernelIntegralCalculator(Generic[Array]):
                 self._quad_weights[dim],
                 self._get_train_samples_1d(dim),
                 self._get_kernel_callable(dim),
-                self._bkd
+                self._bkd,
             )
             lambda_vec = lambda_vec * lambda_1d
 
-        self._cache['lambda_vec'] = lambda_vec
+        self._cache["lambda_vec"] = lambda_vec
         return lambda_vec
 
     def Pi(self) -> Array:
@@ -503,8 +505,8 @@ class SeparableKernelIntegralCalculator(Generic[Array]):
         Array
             Shape (N, N) where N is the number of training points.
         """
-        if 'Pi' in self._cache:
-            return self._cache['Pi']
+        if "Pi" in self._cache:
+            return self._cache["Pi"]
 
         nvars = len(self._kernels_1d)
 
@@ -516,11 +518,11 @@ class SeparableKernelIntegralCalculator(Generic[Array]):
                 self._quad_weights[dim],
                 self._get_train_samples_1d(dim),
                 self._get_kernel_callable(dim),
-                self._bkd
+                self._bkd,
             )
             Pi = Pi * Pi_1d
 
-        self._cache['Pi'] = Pi
+        self._cache["Pi"] = Pi
         return Pi
 
     def xi1(self) -> Array:
@@ -536,8 +538,8 @@ class SeparableKernelIntegralCalculator(Generic[Array]):
         Array
             Scalar (0-dimensional or shape () array).
         """
-        if 'xi1' in self._cache:
-            return self._cache['xi1']
+        if "xi1" in self._cache:
+            return self._cache["xi1"]
 
         nvars = len(self._kernels_1d)
 
@@ -548,11 +550,11 @@ class SeparableKernelIntegralCalculator(Generic[Array]):
                 self._quad_samples[dim],
                 self._quad_weights[dim],
                 self._get_kernel_callable(dim),
-                self._bkd
+                self._bkd,
             )
             xi1 = xi1 * xi1_1d
 
-        self._cache['xi1'] = xi1
+        self._cache["xi1"] = xi1
         return xi1
 
     def Gamma(self) -> Array:
@@ -571,8 +573,8 @@ class SeparableKernelIntegralCalculator(Generic[Array]):
         Array
             Shape (N,) where N is the number of training points.
         """
-        if 'Gamma' in self._cache:
-            return self._cache['Gamma']
+        if "Gamma" in self._cache:
+            return self._cache["Gamma"]
 
         nvars = len(self._kernels_1d)
 
@@ -584,11 +586,11 @@ class SeparableKernelIntegralCalculator(Generic[Array]):
                 self._quad_weights[dim],
                 self._get_train_samples_1d(dim),
                 self._get_kernel_callable(dim),
-                self._bkd
+                self._bkd,
             )
             Gamma = Gamma * Gamma_1d
 
-        self._cache['Gamma'] = Gamma
+        self._cache["Gamma"] = Gamma
         return Gamma
 
     def conditional_P(self, index: Array) -> Array:
@@ -661,7 +663,7 @@ class SeparableKernelIntegralCalculator(Generic[Array]):
                     self._quad_weights[dim],
                     self._get_train_samples_1d(dim),
                     self._get_kernel_callable(dim),
-                    self._bkd
+                    self._bkd,
                 )
             else:
                 # Integrated out: use outer product P̃ = τ τᵀ
@@ -670,7 +672,7 @@ class SeparableKernelIntegralCalculator(Generic[Array]):
                     self._quad_weights[dim],
                     self._get_train_samples_1d(dim),
                     self._get_kernel_callable(dim),
-                    self._bkd
+                    self._bkd,
                 )
             P_p = P_p * P_1d
 
@@ -743,7 +745,7 @@ class SeparableKernelIntegralCalculator(Generic[Array]):
                     self._quad_samples[dim],
                     self._quad_weights[dim],
                     self._get_kernel_callable(dim),
-                    self._bkd
+                    self._bkd,
                 )
                 u_p = u_p * u_1d
             # If index[k] = 1 (conditioned on): factor is 1, no multiplication needed

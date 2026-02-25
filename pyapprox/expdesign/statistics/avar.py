@@ -7,8 +7,8 @@ explicit VaR estimation using a smoothing approach.
 
 from typing import Generic
 
-from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.expdesign.statistics.base import SampleStatistic
+from pyapprox.util.backends.protocols import Array, Backend
 
 
 class SampleAverageSmoothedAVaR(SampleStatistic[Array], Generic[Array]):
@@ -72,9 +72,7 @@ class SampleAverageSmoothedAVaR(SampleStatistic[Array], Generic[Array]):
 
         # Sorted kinks in descending order
         K = self._bkd.flip(
-            self._bkd.sort(
-                self._bkd.hstack([lbnd - dvalues, ubnd - dvalues])
-            )
+            self._bkd.sort(self._bkd.hstack([lbnd - dvalues, ubnd - dvalues]))
         )
 
         nsamp = len(values)
@@ -94,9 +92,7 @@ class SampleAverageSmoothedAVaR(SampleStatistic[Array], Generic[Array]):
 
         # Handle edge case when alpha = 0
         if self._bkd.allclose(y1, self._bkd.zeros(1), atol=3e-16):
-            if not self._bkd.allclose(
-                self._alpha, self._bkd.zeros(1), atol=1e-15
-            ):
+            if not self._bkd.allclose(self._alpha, self._bkd.zeros(1), atol=1e-15):
                 raise RuntimeError("Unexpected zero residual at boundary")
             imid = 1
             y1 = y1 * 0 - 3.0e-16
@@ -127,25 +123,18 @@ class SampleAverageSmoothedAVaR(SampleStatistic[Array], Generic[Array]):
         lam = (y2 * x1 - y1 * x2) / (y2 - y1)
 
         # Return projection
-        return weights * self._bkd.maximum(
-            lbnd, self._bkd.minimum(ubnd, dvalues + lam)
-        )
+        return weights * self._bkd.maximum(lbnd, self._bkd.minimum(ubnd, dvalues + lam))
 
-    def _check_values_weights_single(
-        self, values: Array, weights: Array
-    ) -> None:
+    def _check_values_weights_single(self, values: Array, weights: Array) -> None:
         """Validate values and weights for single QoI."""
         if values.ndim != 2 or values.shape[0] != 1:
             raise ValueError("values must be a 2D array with single row")
         if values.shape != weights.shape:
             raise ValueError(
-                f"values shape {values.shape} must match weights shape "
-                f"{weights.shape}"
+                f"values shape {values.shape} must match weights shape {weights.shape}"
             )
         total = self._bkd.sum(weights)
-        if not self._bkd.allclose(
-            self._bkd.ones((1,)), total, atol=1e-15
-        ):
+        if not self._bkd.allclose(self._bkd.ones((1,)), total, atol=1e-15):
             raise ValueError(f"weights must sum to 1, got {total}")
 
     def _evaluate_single(self, values: Array, weights: Array) -> Array:
@@ -173,7 +162,8 @@ class SampleAverageSmoothedAVaR(SampleStatistic[Array], Generic[Array]):
         # Compute smoothed AVaR
         term1 = self._bkd.sum(proj * values[0, :])
         term2 = (
-            1.0 / (2.0 * self._delta)
+            1.0
+            / (2.0 * self._delta)
             * ((proj - self._lambda) / weights[0, :])
             @ (proj - self._lambda)
         )
@@ -198,7 +188,7 @@ class SampleAverageSmoothedAVaR(SampleStatistic[Array], Generic[Array]):
         nqoi = values.shape[0]
         result = self._bkd.stack(
             [
-                self._evaluate_single(values[ii:ii + 1, :], weights)
+                self._evaluate_single(values[ii : ii + 1, :], weights)
                 for ii in range(nqoi)
             ]
         )
@@ -228,9 +218,7 @@ class SampleAverageSmoothedAVaR(SampleStatistic[Array], Generic[Array]):
         proj = self._project(scaled, weights[0, :])
         return self._bkd.einsum("i,ij->j", proj, jac_values)
 
-    def _jacobian(
-        self, values: Array, jac_values: Array, weights: Array
-    ) -> Array:
+    def _jacobian(self, values: Array, jac_values: Array, weights: Array) -> Array:
         """
         Compute Jacobian of AVaR.
 
@@ -252,7 +240,7 @@ class SampleAverageSmoothedAVaR(SampleStatistic[Array], Generic[Array]):
         return self._bkd.stack(
             [
                 self._jacobian_single(
-                    values[ii:ii + 1, :],
+                    values[ii : ii + 1, :],
                     jac_values[ii, :, :],
                     weights,
                 )

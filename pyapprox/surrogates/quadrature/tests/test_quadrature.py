@@ -1,7 +1,6 @@
 """Tests for quadrature module."""
 
 import unittest
-import numpy as np
 
 from pyapprox.util.backends.numpy import NumpyBkd
 
@@ -14,11 +13,11 @@ class TestTensorProductQuadrature(unittest.TestCase):
 
     def test_1d_gauss_legendre(self):
         """Test 1D Gauss-Legendre quadrature."""
-        from pyapprox.surrogates.quadrature import (
-            TensorProductQuadratureRule,
-        )
         from pyapprox.surrogates.affine.univariate import (
             LegendrePolynomial1D,
+        )
+        from pyapprox.surrogates.quadrature import (
+            TensorProductQuadratureRule,
         )
 
         basis = LegendrePolynomial1D(self.bkd)
@@ -39,17 +38,19 @@ class TestTensorProductQuadrature(unittest.TestCase):
 
     def test_2d_tensor_product(self):
         """Test 2D tensor product quadrature."""
-        from pyapprox.surrogates.quadrature import (
-            TensorProductQuadratureRule,
-        )
         from pyapprox.surrogates.affine.univariate import (
             LegendrePolynomial1D,
+        )
+        from pyapprox.surrogates.quadrature import (
+            TensorProductQuadratureRule,
         )
 
         basis = LegendrePolynomial1D(self.bkd)
         basis.set_nterms(5)
 
-        quad_rule = lambda n, b=basis: b.gauss_quadrature_rule(n)
+        def quad_rule(n, b=basis):
+            return b.gauss_quadrature_rule(n)
+
         rule = TensorProductQuadratureRule(
             self.bkd,
             [quad_rule, quad_rule],
@@ -65,17 +66,19 @@ class TestTensorProductQuadrature(unittest.TestCase):
 
     def test_integrate_polynomial(self):
         """Test integrating a polynomial exactly."""
-        from pyapprox.surrogates.quadrature import (
-            TensorProductQuadratureRule,
-        )
         from pyapprox.surrogates.affine.univariate import (
             LegendrePolynomial1D,
+        )
+        from pyapprox.surrogates.quadrature import (
+            TensorProductQuadratureRule,
         )
 
         basis = LegendrePolynomial1D(self.bkd)
         basis.set_nterms(5)
 
-        quad_rule = lambda n, b=basis: b.gauss_quadrature_rule(n)
+        def quad_rule(n, b=basis):
+            return b.gauss_quadrature_rule(n)
+
         rule = TensorProductQuadratureRule(
             self.bkd,
             [quad_rule, quad_rule],
@@ -89,7 +92,7 @@ class TestTensorProductQuadrature(unittest.TestCase):
         # where weights integrate P_0^2 = 1, so we get 2 * E[X^2] = 2 * (1/3) = 2/3
         def func(samples):
             x, y = samples[0, :], samples[1, :]
-            return (x ** 2 + y ** 2)[:, None]
+            return (x**2 + y**2)[:, None]
 
         result = rule.integrate(func)
         expected = 2.0 / 3.0
@@ -116,7 +119,7 @@ class TestStroudCubature(unittest.TestCase):
 
         for d in [2, 3, 4]:
             rule = StroudCdD3(self.bkd, nvars=d)
-            self.assertEqual(rule.nsamples(), 2 ** d)
+            self.assertEqual(rule.nsamples(), 2**d)
 
     def test_cd5_nsamples(self):
         """Test CdD5 has correct number of samples."""
@@ -191,20 +194,22 @@ class TestParameterizedQuadrature(unittest.TestCase):
 
     def test_levels(self):
         """Test that different levels produce different sample counts."""
-        from pyapprox.surrogates.quadrature import (
-            ParameterizedTensorProductQuadratureRule,
+        from pyapprox.surrogates.affine.indices import (
+            LinearGrowthRule,
         )
         from pyapprox.surrogates.affine.univariate import (
             LegendrePolynomial1D,
         )
-        from pyapprox.surrogates.affine.indices import (
-            LinearGrowthRule,
+        from pyapprox.surrogates.quadrature import (
+            ParameterizedTensorProductQuadratureRule,
         )
 
         basis = LegendrePolynomial1D(self.bkd)
         basis.set_nterms(10)
 
-        quad_rule = lambda n, b=basis: b.gauss_quadrature_rule(n)
+        def quad_rule(n, b=basis):
+            return b.gauss_quadrature_rule(n)
+
         growth = LinearGrowthRule(scale=1, shift=1)
 
         rule = ParameterizedTensorProductQuadratureRule(

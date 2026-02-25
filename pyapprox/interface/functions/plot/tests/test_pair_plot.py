@@ -4,16 +4,12 @@ import unittest
 from typing import Any, Generic
 
 import matplotlib
+
 matplotlib.use("Agg")
 
-import numpy as np
 import torch
 from numpy.typing import NDArray
 
-from pyapprox.util.backends.numpy import NumpyBkd
-from pyapprox.util.backends.protocols import Array, Backend
-from pyapprox.util.backends.torch import TorchBkd
-from pyapprox.util.test_utils import load_tests  # noqa: F401
 from pyapprox.interface.functions.marginalize import (
     CrossSectionReducer,
     FunctionMarginalizer,
@@ -23,6 +19,10 @@ from pyapprox.interface.functions.plot.pair_plot import PairPlotter
 from pyapprox.surrogates.quadrature.tensor_product_factory import (
     TensorProductQuadratureFactory,
 )
+from pyapprox.util.backends.numpy import NumpyBkd
+from pyapprox.util.backends.protocols import Array, Backend
+from pyapprox.util.backends.torch import TorchBkd
+from pyapprox.util.test_utils import load_tests  # noqa: F401
 
 
 def _make_polynomial_3d(bkd: Backend[Array]):
@@ -39,18 +39,14 @@ def _make_polynomial_3d(bkd: Backend[Array]):
             return 1
 
         def __call__(self, samples):
-            return bkd.reshape(
-                samples[0] * samples[1] * samples[2], (1, -1)
-            )
+            return bkd.reshape(samples[0] * samples[1] * samples[2], (1, -1))
 
     return _Poly3D()
 
 
 def _make_factory(domain, bkd, npoints=5):
     nvars = domain.shape[0]
-    return TensorProductQuadratureFactory(
-        [npoints] * nvars, domain, bkd
-    )
+    return TensorProductQuadratureFactory([npoints] * nvars, domain, bkd)
 
 
 class TestPairPlotter(Generic[Array], unittest.TestCase):
@@ -76,6 +72,7 @@ class TestPairPlotter(Generic[Array], unittest.TestCase):
             for j in range(i + 1, n):
                 self.assertFalse(axes[i, j].axison)
         import matplotlib.pyplot as plt
+
         plt.close(fig)
 
     def test_diagonal_has_line(self) -> None:
@@ -90,6 +87,7 @@ class TestPairPlotter(Generic[Array], unittest.TestCase):
         for i in range(3):
             self.assertTrue(len(axes[i, i].lines) > 0)
         import matplotlib.pyplot as plt
+
         plt.close(fig)
 
     def test_lower_triangle_has_contours(self) -> None:
@@ -105,6 +103,7 @@ class TestPairPlotter(Generic[Array], unittest.TestCase):
             for j in range(i):
                 self.assertTrue(len(axes[i, j].collections) > 0)
         import matplotlib.pyplot as plt
+
         plt.close(fig)
 
     def test_from_functions(self) -> None:
@@ -114,11 +113,13 @@ class TestPairPlotter(Generic[Array], unittest.TestCase):
         def make_1d(val):
             def fn(samples):
                 return bkd.ones((1, samples.shape[1])) * val
+
             return ReducedFunction(1, 1, fn, bkd)
 
         def make_2d(val):
             def fn(samples):
                 return bkd.ones((1, samples.shape[1])) * val
+
             return ReducedFunction(2, 1, fn, bkd)
 
         functions_1d = [make_1d(1.0), make_1d(2.0), make_1d(3.0)]
@@ -129,7 +130,10 @@ class TestPairPlotter(Generic[Array], unittest.TestCase):
         }
         domain = bkd.asarray([[0.0, 1.0], [0.0, 1.0], [0.0, 1.0]])
         plotter = PairPlotter.from_functions(
-            functions_1d, functions_2d, domain, bkd,
+            functions_1d,
+            functions_2d,
+            domain,
+            bkd,
             variable_names=["a", "b", "c"],
         )
         fig, axes = plotter.plot(npts_1d=5)
@@ -141,6 +145,7 @@ class TestPairPlotter(Generic[Array], unittest.TestCase):
         self.assertEqual(axes[1, 0].get_ylabel(), "b")
         self.assertEqual(axes[2, 0].get_ylabel(), "c")
         import matplotlib.pyplot as plt
+
         plt.close(fig)
 
     def test_cross_section_reducer(self) -> None:
@@ -160,6 +165,7 @@ class TestPairPlotter(Generic[Array], unittest.TestCase):
             for j in range(i):
                 self.assertTrue(len(axes[i, j].collections) > 0)
         import matplotlib.pyplot as plt
+
         plt.close(fig)
 
     def test_nvars(self) -> None:

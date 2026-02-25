@@ -8,6 +8,7 @@ for future PyTorch acceleration.
 Each function corresponds to a method on GaussianOEDInnerLoopLikelihood
 but takes all data as explicit arguments rather than reading from self.
 """
+
 import math
 from typing import Optional
 
@@ -24,10 +25,7 @@ def compute_log_normalization(
 
     Returns a scalar Array to preserve the PyTorch autograd computation graph.
     """
-    log_det = (
-        bkd.sum(bkd.log(base_variances))
-        - bkd.sum(bkd.log(design_weights))
-    )
+    log_det = bkd.sum(bkd.log(base_variances)) - bkd.sum(bkd.log(design_weights))
     const = bkd.asarray(-0.5 * nobs * math.log(2 * math.pi))
     return const - 0.5 * log_det
 
@@ -61,9 +59,7 @@ def logpdf_matrix_vectorized(
     """
     nobs = shapes.shape[0]
     inv_var = design_weights[:, 0] / base_variances
-    log_norm = compute_log_normalization(
-        base_variances, design_weights, nobs, bkd
-    )
+    log_norm = compute_log_normalization(base_variances, design_weights, nobs, bkd)
 
     # residuals: (nobs, ninner, nouter)
     residuals = obs[:, None, :] - shapes[:, :, None]

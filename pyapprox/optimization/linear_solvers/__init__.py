@@ -9,28 +9,28 @@ Note: For coefficient fitting (finding c such that Phi*c = y),
 see pyapprox.optimization.linear instead.
 """
 
-from pyapprox.optimization.linear_solvers.protocols import (
-    LinearSolverProtocol,
-    IterativeSolverProtocol,
-    MatrixFreeSolverProtocol,
-    PreconditionerProtocol,
-    PreconditionerWithSetupProtocol,
-)
 from pyapprox.optimization.linear_solvers.direct import (
     DirectSolver,
     direct_solve,
 )
 from pyapprox.optimization.linear_solvers.iterative import (
     ConjugateGradient,
-    cg_solve,
     PreconditionedConjugateGradient,
+    cg_solve,
     pcg_solve,
 )
 from pyapprox.optimization.linear_solvers.preconditioners import (
-    JacobiPreconditioner,
     BlockJacobiPreconditioner,
-    jacobi_preconditioner,
+    JacobiPreconditioner,
     block_jacobi_preconditioner,
+    jacobi_preconditioner,
+)
+from pyapprox.optimization.linear_solvers.protocols import (
+    IterativeSolverProtocol,
+    LinearSolverProtocol,
+    MatrixFreeSolverProtocol,
+    PreconditionerProtocol,
+    PreconditionerWithSetupProtocol,
 )
 
 __all__ = [

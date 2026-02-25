@@ -5,17 +5,17 @@ protocols. They use composition, not inheritance.
 """
 
 from dataclasses import dataclass
-from typing import Generic, TypeVar, Sequence, Any
+from typing import Any, Generic, Sequence, TypeVar
 
-from pyapprox.util.backends.protocols import Array, Backend
+from pyapprox.benchmarks.protocols import (
+    ConstraintProtocol,
+    DomainProtocol,
+    GroundTruthProtocol,
+)
 from pyapprox.interface.functions.protocols.function import (
     FunctionProtocol,
 )
-from pyapprox.benchmarks.protocols import (
-    DomainProtocol,
-    GroundTruthProtocol,
-    ConstraintProtocol,
-)
+from pyapprox.util.backends.protocols import Array, Backend
 
 GT = TypeVar("GT", bound=GroundTruthProtocol)
 

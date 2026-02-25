@@ -6,10 +6,10 @@ univariate quadrature rules in multiple dimensions.
 
 from typing import Callable, Generic, List, Tuple
 
-from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.surrogates.affine.protocols import (
     IndexGrowthRuleProtocol,
 )
+from pyapprox.util.backends.protocols import Array, Backend
 
 from .protocols import UnivariateQuadratureRuleProtocol
 
@@ -226,6 +226,4 @@ class ParameterizedTensorProductQuadratureRule(Generic[Array]):
         return self._bkd.sum(weights[:, None] * values, axis=0)
 
     def __repr__(self) -> str:
-        return (
-            f"ParameterizedTensorProductQuadratureRule(nvars={self._nvars})"
-        )
+        return f"ParameterizedTensorProductQuadratureRule(nvars={self._nvars})"

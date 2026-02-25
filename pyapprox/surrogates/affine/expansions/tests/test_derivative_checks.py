@@ -18,17 +18,15 @@ import numpy as np
 import torch
 from numpy.typing import NDArray
 
-from pyapprox.util.backends.numpy import NumpyBkd
-from pyapprox.util.backends.torch import TorchBkd
-from pyapprox.util.backends.protocols import Array, Backend
-from pyapprox.util.test_utils import load_tests
-
-from pyapprox.surrogates.affine.univariate import (
-    MonomialBasis1D,
-    create_bases_1d,
+from pyapprox.interface.functions.derivative_checks.derivative_checker import (
+    BatchDerivativeChecker,
+    DerivativeChecker,
 )
-from pyapprox.surrogates.affine.indices import (
-    compute_hyperbolic_indices,
+from pyapprox.probability import (
+    BetaMarginal,
+    GammaMarginal,
+    GaussianMarginal,
+    UniformMarginal,
 )
 from pyapprox.surrogates.affine.basis import (
     MultiIndexBasis,
@@ -38,16 +36,16 @@ from pyapprox.surrogates.affine.expansions import (
     BasisExpansion,
     create_pce_from_marginals,
 )
-from pyapprox.probability import (
-    UniformMarginal,
-    GaussianMarginal,
-    GammaMarginal,
-    BetaMarginal,
+from pyapprox.surrogates.affine.indices import (
+    compute_hyperbolic_indices,
 )
-from pyapprox.interface.functions.derivative_checks.derivative_checker import (
-    DerivativeChecker,
-    BatchDerivativeChecker,
+from pyapprox.surrogates.affine.univariate import (
+    MonomialBasis1D,
+    create_bases_1d,
 )
+from pyapprox.util.backends.numpy import NumpyBkd
+from pyapprox.util.backends.protocols import Array, Backend
+from pyapprox.util.backends.torch import TorchBkd
 
 
 class TestDerivativeCheckerLegendre(Generic[Array], unittest.TestCase):
@@ -437,9 +435,7 @@ class TestDerivativeCheckerJacobi(Generic[Array], unittest.TestCase):
         bkd = self._bkd
         # BetaMarginal(a, b) on [0, 1] -> Jacobi(b-1, a-1) on [-1, 1]
         # For Jacobi(alpha, beta), use Beta(beta+1, alpha+1)
-        marginals = [
-            BetaMarginal(beta + 1.0, alpha + 1.0, bkd) for _ in range(nvars)
-        ]
+        marginals = [BetaMarginal(beta + 1.0, alpha + 1.0, bkd) for _ in range(nvars)]
         bases_1d = create_bases_1d(marginals, bkd)
         indices = compute_hyperbolic_indices(nvars, max_level, 1.0, bkd)
         basis = OrthonormalPolynomialBasis(bases_1d, bkd, indices)
@@ -756,9 +752,7 @@ class TestDerivativeCheckerMonomial(Generic[Array], unittest.TestCase):
     def setUp(self):
         self._bkd = self.bkd()
 
-    def _create_monomial_expansion(
-        self, nvars: int, max_level: int, nqoi: int = 1
-    ):
+    def _create_monomial_expansion(self, nvars: int, max_level: int, nqoi: int = 1):
         """Create a BasisExpansion with MonomialBasis1D univariate bases."""
         bkd = self._bkd
         bases_1d = [MonomialBasis1D(bkd) for _ in range(nvars)]

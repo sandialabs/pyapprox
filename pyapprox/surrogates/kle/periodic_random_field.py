@@ -3,17 +3,18 @@
 Implements the Riesz kernel spectral decomposition for generating
 periodic Gaussian random field realizations.
 """
+
 from typing import Generic
 
 import numpy as np
 
-from pyapprox.util.backends.protocols import Array, Backend
-from pyapprox.surrogates.affine.univariate.trigonometric import (
-    TrigonometricPolynomial1D,
-)
 from pyapprox.surrogates.affine.expansions.trigonometric import (
     TrigonometricExpansion,
 )
+from pyapprox.surrogates.affine.univariate.trigonometric import (
+    TrigonometricPolynomial1D,
+)
+from pyapprox.util.backends.protocols import Array, Backend
 
 
 class PeriodicReiszGaussianRandomField(Generic[Array]):
@@ -74,8 +75,7 @@ class PeriodicReiszGaussianRandomField(Generic[Array]):
             np.sqrt(2)
             * (
                 abs(self._sigma)
-                * ((2 * np.pi * k) ** 2 + self._tau ** 2)
-                ** (-self._gamma / 2)
+                * ((2 * np.pi * k) ** 2 + self._tau**2) ** (-self._gamma / 2)
             )
         )[:, None]  # shape (neigs, 1)
 
@@ -120,10 +120,7 @@ class PeriodicReiszGaussianRandomField(Generic[Array]):
             Field values at the spatial points for each sample.
         """
         bkd = self._bkd
-        if (
-            samples.shape[0] != self._trig_exp.nterms() - 1
-            or samples.ndim != 2
-        ):
+        if samples.shape[0] != self._trig_exp.nterms() - 1 or samples.ndim != 2:
             raise ValueError(
                 f"samples has wrong shape {samples.shape}, "
                 f"expected ({self._trig_exp.nterms() - 1}, nsamples)"
@@ -160,7 +157,5 @@ class PeriodicReiszGaussianRandomField(Generic[Array]):
             Random field realizations.
         """
         return self.values(
-            self._bkd.asarray(
-                np.random.normal(0, 1, (2 * self._neigs, nsamples))
-            )
+            self._bkd.asarray(np.random.normal(0, 1, (2 * self._neigs, nsamples)))
         )

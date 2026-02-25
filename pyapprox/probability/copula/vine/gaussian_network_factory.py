@@ -12,8 +12,6 @@ from typing import Dict, List, Tuple
 
 import numpy as np
 
-from pyapprox.util.backends.protocols import Array, Backend
-from pyapprox.util.linalg.cholesky_factor import CholeskyFactor
 from pyapprox.inverse.bayesnet.network import GaussianNetwork
 from pyapprox.probability.copula.bivariate.gaussian import (
     BivariateGaussianCopula,
@@ -22,6 +20,8 @@ from pyapprox.probability.copula.bivariate.protocols import (
     BivariateCopulaProtocol,
 )
 from pyapprox.probability.copula.vine.dvine import DVineCopula
+from pyapprox.util.backends.protocols import Array, Backend
+from pyapprox.util.linalg.cholesky_factor import CholeskyFactor
 
 
 def _extract_chain_structure(
@@ -63,9 +63,7 @@ def _extract_chain_structure(
                 f"dvine_from_gaussian_network requires scalar nodes (nvars=1)"
             )
 
-    parent_pos_coeffs: List[List[Tuple[int, float]]] = [
-        [] for _ in range(n)
-    ]
+    parent_pos_coeffs: List[List[Tuple[int, float]]] = [[] for _ in range(n)]
     noise_variance: List[float] = [0.0] * n
     bandwidth = 0
 
@@ -198,9 +196,7 @@ def _extract_partial_correlations(
                 chol = CholeskyFactor(L, bkd)
                 P = chol.matrix_inverse()
                 rho_partial = -P[0, t] / bkd.sqrt(P[0, 0] * P[t, t])
-                partial_corrs[t].append(
-                    float(bkd.to_numpy(rho_partial))
-                )
+                partial_corrs[t].append(float(bkd.to_numpy(rho_partial)))
 
     return partial_corrs
 
@@ -237,27 +233,22 @@ def dvine_from_gaussian_network(
     ValueError
         If any node has nvars != 1.
     """
-    topo_order, parent_pos_coeffs, noise_variance, bandwidth = (
-        _extract_chain_structure(network, bkd)
+    topo_order, parent_pos_coeffs, noise_variance, bandwidth = _extract_chain_structure(
+        network, bkd
     )
     n = len(topo_order)
 
     if n < 2 or bandwidth == 0:
         return DVineCopula({}, n, 0, bkd)
 
-    cov = _propagate_local_covariances(
-        n, bandwidth, parent_pos_coeffs, noise_variance
-    )
+    cov = _propagate_local_covariances(n, bandwidth, parent_pos_coeffs, noise_variance)
 
-    partial_corrs = _extract_partial_correlations(
-        n, bandwidth, cov, bkd
-    )
+    partial_corrs = _extract_partial_correlations(n, bandwidth, cov, bkd)
 
     pair_copulas: Dict[int, List[BivariateCopulaProtocol[Array]]] = {}
     for t in range(1, bandwidth + 1):
         pair_copulas[t] = [
-            BivariateGaussianCopula(rho, bkd)
-            for rho in partial_corrs[t]
+            BivariateGaussianCopula(rho, bkd) for rho in partial_corrs[t]
         ]
 
     return DVineCopula(pair_copulas, n, bandwidth, bkd)

@@ -2,7 +2,6 @@
 
 from typing import Any, List
 
-
 # Exclude base test classes from pytest discovery
 collect_ignore_glob: List[str] = []
 

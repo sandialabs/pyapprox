@@ -4,36 +4,43 @@ import unittest
 from typing import Any, Generic
 
 import numpy as np
-from numpy.typing import NDArray
 import torch
+from numpy.typing import NDArray
 
-from pyapprox.util.backends.protocols import Array, Backend
-from pyapprox.util.backends.numpy import NumpyBkd
-from pyapprox.util.backends.torch import TorchBkd
-from pyapprox.util.test_utils import load_tests  # noqa: F401
-from pyapprox.interface.functions.protocols import (
-    FunctionProtocol,
-    FunctionWithJacobianProtocol,
-)
+from pyapprox.benchmarks.instances.pde.elastic_bar import elastic_bar_1d
+from pyapprox.benchmarks.protocols import BenchmarkWithPriorProtocol
+from pyapprox.benchmarks.registry import BenchmarkRegistry
 from pyapprox.interface.functions.derivative_checks.derivative_checker import (
     DerivativeChecker,
 )
 from pyapprox.interface.functions.fromcallable.jacobian import (
     FunctionWithJacobianFromCallable,
 )
-from pyapprox.benchmarks.protocols import BenchmarkWithPriorProtocol
-from pyapprox.benchmarks.instances.pde.elastic_bar import elastic_bar_1d
-from pyapprox.benchmarks.registry import BenchmarkRegistry
+from pyapprox.interface.functions.protocols import (
+    FunctionProtocol,
+    FunctionWithJacobianProtocol,
+)
+from pyapprox.util.backends.numpy import NumpyBkd
+from pyapprox.util.backends.protocols import Array, Backend
+from pyapprox.util.backends.torch import TorchBkd
+from pyapprox.util.test_utils import load_tests  # noqa: F401
 
 
-def _make_benchmark(bkd, constitutive="linear", qoi="tip_displacement",
-                    npts=20, num_kle_terms=2):
+def _make_benchmark(
+    bkd, constitutive="linear", qoi="tip_displacement", npts=20, num_kle_terms=2
+):
     """Helper for creating benchmarks with small defaults for fast tests."""
     return elastic_bar_1d(
-        bkd, constitutive=constitutive, qoi=qoi,
-        npts=npts, length=1.0, E_mean=1.0,
-        poisson_ratio=0.3, traction=1.0,
-        num_kle_terms=num_kle_terms, sigma=0.3,
+        bkd,
+        constitutive=constitutive,
+        qoi=qoi,
+        npts=npts,
+        length=1.0,
+        E_mean=1.0,
+        poisson_ratio=0.3,
+        traction=1.0,
+        num_kle_terms=num_kle_terms,
+        sigma=0.3,
         correlation_length=0.3,
     )
 
@@ -165,8 +172,12 @@ class TestElasticBar1DBenchmark(Generic[Array], unittest.TestCase):
         """All 4 QoIs return nqoi=1 and shape (1,1)."""
         bkd = self._bkd
         sample = bkd.zeros((2, 1))
-        for qoi in ["tip_displacement", "average_displacement",
-                     "average_stress", "strain_energy"]:
+        for qoi in [
+            "tip_displacement",
+            "average_displacement",
+            "average_stress",
+            "strain_energy",
+        ]:
             bm = _make_benchmark(bkd, "linear", qoi)
             fwd = bm.function()
             self.assertEqual(fwd.nqoi(), 1, f"Failed for qoi={qoi}")
@@ -190,7 +201,8 @@ class TestElasticBar1DBenchmark(Generic[Array], unittest.TestCase):
         bounds = bm.domain().bounds()
         self.assertEqual(bounds.shape, (2, 2))
         bkd.assert_allclose(
-            bounds, bkd.array([[-4.0, 4.0], [-4.0, 4.0]]),
+            bounds,
+            bkd.array([[-4.0, 4.0], [-4.0, 4.0]]),
         )
 
     # --- Protocol compliance ---
@@ -226,10 +238,16 @@ class TestElasticBar1DBenchmark(Generic[Array], unittest.TestCase):
         bkd = self._bkd
         sample = bkd.zeros((2, 1))
         bm_coarse = _make_benchmark(
-            bkd, "hyperelastic", "tip_displacement", npts=15,
+            bkd,
+            "hyperelastic",
+            "tip_displacement",
+            npts=15,
         )
         bm_fine = _make_benchmark(
-            bkd, "hyperelastic", "tip_displacement", npts=40,
+            bkd,
+            "hyperelastic",
+            "tip_displacement",
+            npts=40,
         )
         val_coarse = bm_coarse.function()(sample)
         val_fine = bm_fine.function()(sample)

@@ -15,8 +15,8 @@ from typing import Callable, Generic, Optional, Tuple
 
 import numpy as np
 
-from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.inverse.sampling.metropolis import MCMCResult
+from pyapprox.util.backends.protocols import Array, Backend
 
 
 class HamiltonianMonteCarlo(Generic[Array]):
@@ -82,9 +82,7 @@ class HamiltonianMonteCarlo(Generic[Array]):
         self._num_leapfrog_steps = num_leapfrog_steps
 
         if mass_matrix is None:
-            self._mass_matrix = bkd.asarray(
-                np.eye(nvars, dtype=np.float64)
-            )
+            self._mass_matrix = bkd.asarray(np.eye(nvars, dtype=np.float64))
             self._mass_matrix_inv = self._mass_matrix
         else:
             self._mass_matrix = mass_matrix
@@ -138,11 +136,15 @@ class HamiltonianMonteCarlo(Generic[Array]):
             New momentum. Shape: (nvars, 1)
         """
         eps = self._step_size
-        q = position.copy() if hasattr(position, 'copy') else self._bkd.asarray(
-            self._bkd.to_numpy(position).copy()
+        q = (
+            position.copy()
+            if hasattr(position, "copy")
+            else self._bkd.asarray(self._bkd.to_numpy(position).copy())
         )
-        p = momentum.copy() if hasattr(momentum, 'copy') else self._bkd.asarray(
-            self._bkd.to_numpy(momentum).copy()
+        p = (
+            momentum.copy()
+            if hasattr(momentum, "copy")
+            else self._bkd.asarray(self._bkd.to_numpy(momentum).copy())
         )
 
         # Half step for momentum
@@ -212,9 +214,7 @@ class HamiltonianMonteCarlo(Generic[Array]):
 
         # Initialize position
         if initial_state is None:
-            current_q = self._bkd.asarray(
-                np.zeros((self._nvars, 1), dtype=np.float64)
-            )
+            current_q = self._bkd.asarray(np.zeros((self._nvars, 1), dtype=np.float64))
         else:
             if initial_state.shape != (self._nvars, 1):
                 raise ValueError(

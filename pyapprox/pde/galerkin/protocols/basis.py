@@ -3,10 +3,10 @@
 Defines interfaces for finite element bases that wrap scikit-fem (skfem).
 """
 
-from typing import Protocol, Generic, runtime_checkable, Any, Callable
+from typing import Any, Callable, Generic, Protocol, runtime_checkable
 
-from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.pde.galerkin.protocols.mesh import GalerkinMeshProtocol
+from pyapprox.util.backends.protocols import Array, Backend
 
 
 @runtime_checkable

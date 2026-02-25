@@ -7,17 +7,17 @@ These tests verify:
 4. Consistency checks between expressions and evaluations
 """
 
+import math
 import unittest
 from typing import Generic
-import math
 
-from pyapprox.util.backends.protocols import Array, Backend
-from pyapprox.util.backends.numpy import NumpyBkd
 from pyapprox.pde.collocation.manufactured_solutions import (
-    ManufacturedHelmholtz,
     ManufacturedBurgers1D,
+    ManufacturedHelmholtz,
     ManufacturedShallowIce,
 )
+from pyapprox.util.backends.numpy import NumpyBkd
+from pyapprox.util.backends.protocols import Array, Backend
 
 
 class TestManufacturedHelmholtz(Generic[Array], unittest.TestCase):
@@ -110,7 +110,7 @@ class TestManufacturedHelmholtz(Generic[Array], unittest.TestCase):
         # Create test points
         x = bkd.linspace(0, 1, 5)
         y = bkd.linspace(0, 1, 5)
-        xx, yy = bkd.meshgrid(x, y, indexing='xy')
+        xx, yy = bkd.meshgrid(x, y, indexing="xy")
         nodes = bkd.stack([xx.flatten(), yy.flatten()], axis=0)
 
         # Evaluate functions
@@ -390,7 +390,7 @@ class TestManufacturedShallowIce(Generic[Array], unittest.TestCase):
         # Create test points
         x = bkd.linspace(-0.9, 0.9, 5)
         y = bkd.linspace(-0.9, 0.9, 5)
-        xx, yy = bkd.meshgrid(x, y, indexing='xy')
+        xx, yy = bkd.meshgrid(x, y, indexing="xy")
         nodes = bkd.stack([xx.flatten(), yy.flatten()], axis=0)
 
         # Evaluate functions

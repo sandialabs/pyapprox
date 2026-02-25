@@ -10,8 +10,8 @@ All local OED criteria share common structure:
 from abc import ABC, abstractmethod
 from typing import Generic
 
-from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.expdesign.local.protocols import DesignMatricesProtocol
+from pyapprox.util.backends.protocols import Array, Backend
 
 
 class LocalOEDCriterionBase(ABC, Generic[Array]):

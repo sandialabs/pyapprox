@@ -9,10 +9,10 @@ and used purely for evaluation, derivatives, and moment computation.
 
 from typing import Generic, List, Optional
 
-from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.surrogates.sparsegrids.subspace import (
     TensorProductSubspace,
 )
+from pyapprox.util.backends.protocols import Array, Backend
 
 
 class CombinationSurrogate(Generic[Array]):
@@ -162,9 +162,7 @@ class CombinationSurrogate(Generic[Array]):
                 result = result + coef * subspace.hvp(sample, vec)
         return result
 
-    def _whvp(
-        self, sample: Array, vec: Array, weights: Array
-    ) -> Array:
+    def _whvp(self, sample: Array, vec: Array, weights: Array) -> Array:
         """Compute weighted Hessian-vector product.
 
         Parameters
@@ -185,9 +183,7 @@ class CombinationSurrogate(Generic[Array]):
         for j, subspace in enumerate(self._subspaces):
             coef: float = self._coefs[j].item()
             if abs(coef) > 1e-14:
-                result = result + coef * subspace.whvp(
-                    sample, vec, weights
-                )
+                result = result + coef * subspace.whvp(sample, vec, weights)
         return result
 
     # ------------------------------------------------------------------

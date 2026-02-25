@@ -11,15 +11,15 @@ where:
     f0, f1 = forcing/source terms
 """
 
-from typing import Generic, Optional, Callable, Union, Tuple
+from typing import Callable, Generic, Optional, Tuple, Union
 
 import sympy as sp
 
-from pyapprox.util.backends.protocols import Array, Backend
+from pyapprox.pde.collocation.physics.base import AbstractVectorPhysics
 from pyapprox.pde.collocation.protocols.basis import (
     TensorProductBasisProtocol,
 )
-from pyapprox.pde.collocation.physics.base import AbstractVectorPhysics
+from pyapprox.util.backends.protocols import Array, Backend
 
 
 class ReactionProtocol(Generic[Array]):
@@ -29,9 +29,7 @@ class ReactionProtocol(Generic[Array]):
     their Jacobian with respect to the species concentrations.
     """
 
-    def __call__(
-        self, u0: Array, u1: Array
-    ) -> Tuple[Array, Array]:
+    def __call__(self, u0: Array, u1: Array) -> Tuple[Array, Array]:
         """Evaluate reaction terms.
 
         Parameters
@@ -48,9 +46,7 @@ class ReactionProtocol(Generic[Array]):
         """
         ...
 
-    def jacobian(
-        self, u0: Array, u1: Array
-    ) -> Tuple[Array, Array, Array, Array]:
+    def jacobian(self, u0: Array, u1: Array) -> Tuple[Array, Array, Array, Array]:
         """Compute Jacobian of reaction terms.
 
         Parameters
@@ -127,9 +123,7 @@ class LinearReaction(Generic[Array]):
         R1 = self._a10 * u0 + self._a11 * u1
         return R0, R1
 
-    def jacobian(
-        self, u0: Array, u1: Array
-    ) -> Tuple[Array, Array, Array, Array]:
+    def jacobian(self, u0: Array, u1: Array) -> Tuple[Array, Array, Array, Array]:
         bkd = self._bkd
         npts = u0.shape[0]
 
@@ -168,8 +162,12 @@ class LinearReaction(Generic[Array]):
         for symbolic expressions. Only scalar coefficients work.
         """
         # Validate that coefficients are scalar for symbolic use
-        for name, coef in [("a00", self._a00), ("a01", self._a01),
-                           ("a10", self._a10), ("a11", self._a11)]:
+        for name, coef in [
+            ("a00", self._a00),
+            ("a01", self._a01),
+            ("a10", self._a10),
+            ("a11", self._a11),
+        ]:
             if not isinstance(coef, (int, float)):
                 raise ValueError(
                     f"Spatially-varying coefficient {name} not supported "
@@ -229,9 +227,7 @@ class FitzHughNagumoReaction(Generic[Array]):
 
         return R0, R1
 
-    def jacobian(
-        self, u0: Array, u1: Array
-    ) -> Tuple[Array, Array, Array, Array]:
+    def jacobian(self, u0: Array, u1: Array) -> Tuple[Array, Array, Array, Array]:
         alpha = self._alpha
         eps = self._eps
         beta = self._beta
@@ -245,7 +241,7 @@ class FitzHughNagumoReaction(Generic[Array]):
         # = (1-2*u0)*(u0-alpha) + u0*(1-u0)
         # = (u0 - alpha - 2*u0^2 + 2*alpha*u0) + u0 - u0^2
         # = -3*u0^2 + 2*(1+alpha)*u0 - alpha
-        dR0_du0 = -3.0 * u0 ** 2 + 2.0 * (1.0 + alpha) * u0 - alpha
+        dR0_du0 = -3.0 * u0**2 + 2.0 * (1.0 + alpha) * u0 - alpha
 
         # dR0/du1 = -1
         dR0_du1 = bkd.full((npts,), -1.0)
@@ -350,8 +346,16 @@ class TwoSpeciesReactionDiffusionPhysics(AbstractVectorPhysics[Array]):
 
     def diffusion(self) -> Tuple[Union[float, Array], Union[float, Array]]:
         """Return diffusion coefficients."""
-        d0 = self._diffusion0_value if not self._is_variable_diffusion0 else self._diffusion0_array
-        d1 = self._diffusion1_value if not self._is_variable_diffusion1 else self._diffusion1_array
+        d0 = (
+            self._diffusion0_value
+            if not self._is_variable_diffusion0
+            else self._diffusion0_array
+        )
+        d1 = (
+            self._diffusion1_value
+            if not self._is_variable_diffusion1
+            else self._diffusion1_array
+        )
         return d0, d1
 
     def _get_forcing(self, time: float) -> Tuple[Array, Array]:
@@ -410,7 +414,6 @@ class TwoSpeciesReactionDiffusionPhysics(AbstractVectorPhysics[Array]):
         Array
             Residual [res0, res1]. Shape: (2*npts,)
         """
-        bkd = self._bkd
         u0, u1 = self._split_state(state)
 
         # Compute Laplacians
@@ -536,7 +539,7 @@ class TwoSpeciesReactionDiffusionPhysics(AbstractVectorPhysics[Array]):
         """
         bkd = self._bkd
         nboundary = boundary_indices.shape[0]
-        ndim = len(self._D1_matrices)
+        len(self._D1_matrices)
 
         u0, u1 = self._split_state(state)
 

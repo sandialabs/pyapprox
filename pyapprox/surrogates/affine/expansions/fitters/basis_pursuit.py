@@ -2,12 +2,12 @@
 
 from typing import Generic, Optional
 
-from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.optimization.linear.sparse import BasisPursuitSolver
-from pyapprox.surrogates.affine.protocols import BasisExpansionProtocol
 from pyapprox.surrogates.affine.expansions.fitters.results import (
     SparseResult,
 )
+from pyapprox.surrogates.affine.protocols import BasisExpansionProtocol
+from pyapprox.util.backends.protocols import Array, Backend
 
 
 class BasisPursuitFitter(Generic[Array]):
@@ -91,7 +91,7 @@ class BasisPursuitFitter(Generic[Array]):
 
         # Compute sparsity information
         threshold = 1e-10
-        nonzero_mask = bkd.abs(params[:, 0]) > threshold
+        bkd.abs(params[:, 0]) > threshold
         support_list = []
         for ii in range(params.shape[0]):
             if float(bkd.abs(params[ii, 0])) > threshold:

@@ -1,28 +1,25 @@
 """Tests for SympyField2D and field factory functions."""
 
-import math
 import unittest
 from typing import Any, Generic
 
-import numpy as np
 import torch
-
 from numpy.typing import NDArray
 
-from pyapprox.util.backends.protocols import Array, Backend
-from pyapprox.util.backends.numpy import NumpyBkd
-from pyapprox.util.backends.torch import TorchBkd
 from pyapprox.pde.collocation.fields.sympy_field import (
     SympyField2D,
-    create_quadratic_bed,
-    create_polynomial_surface,
     create_beta_surface,
+    create_polynomial_surface,
+    create_quadratic_bed,
     create_shallow_wave_bed,
 )
 from pyapprox.pde.collocation.mesh.transformed import TransformedMesh2D
 from pyapprox.pde.collocation.mesh.transforms.affine import (
     AffineTransform2D,
 )
+from pyapprox.util.backends.numpy import NumpyBkd
+from pyapprox.util.backends.protocols import Array, Backend
+from pyapprox.util.backends.torch import TorchBkd
 from pyapprox.util.test_utils import load_tests  # noqa: F401
 
 
@@ -151,7 +148,9 @@ class TestSympyField2D(Generic[Array], unittest.TestCase):
         mesh = TransformedMesh2D(15, 15, bkd, transform)
 
         # Simple beta parameters
-        surface = create_beta_surface(mesh, bkd, a0=2.0, b0=2.0, a1=2.0, b1=2.0, scale=1.0)
+        surface = create_beta_surface(
+            mesh, bkd, a0=2.0, b0=2.0, a1=2.0, b1=2.0, scale=1.0
+        )
         vals = surface.evaluate()
 
         # Check that values are positive and have maximum in interior
@@ -206,12 +205,8 @@ class TestSympyField2D(Generic[Array], unittest.TestCase):
         expected_dx = 5.0 / Lx
         expected_dy = 7.0 / Ly
 
-        bkd.assert_allclose(
-            grad[0], expected_dx * bkd.ones((mesh.npts(),)), rtol=1e-12
-        )
-        bkd.assert_allclose(
-            grad[1], expected_dy * bkd.ones((mesh.npts(),)), rtol=1e-12
-        )
+        bkd.assert_allclose(grad[0], expected_dx * bkd.ones((mesh.npts(),)), rtol=1e-12)
+        bkd.assert_allclose(grad[1], expected_dy * bkd.ones((mesh.npts(),)), rtol=1e-12)
 
     def test_gradient_quadratic_normalized(self):
         """Test gradient of quadratic field."""

@@ -27,16 +27,16 @@ Strain tensor:
     ε_xy = ε_yx = 0.5*(du/dy + dv/dx)
 """
 
-from typing import Generic, List
 import copy
+from typing import Generic, List
 
 import sympy as sp
 
-from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.pde.collocation.manufactured_solutions.base import (
     ManufacturedSolution,
     VectorSolutionMixin,
 )
+from pyapprox.util.backends.protocols import Array, Backend
 
 
 class ManufacturedShallowShelfVelocityEquations(
@@ -141,9 +141,9 @@ class ManufacturedShallowShelfVelocityEquations(
         exy = sp.Rational(1, 2) * (uy + vx)
 
         # Effective strain rate (regularized to avoid singularity)
-        effective_strain_rate = (
-            exx**2 + eyy**2 + exx * eyy + exy**2
-        ) ** sp.Rational(1, 2)
+        effective_strain_rate = (exx**2 + eyy**2 + exx * eyy + exy**2) ** sp.Rational(
+            1, 2
+        )
 
         # Effective viscosity (Glen's flow law)
         # μ = 0.5 * A^(-1/n) * ε_eff^((1-n)/n)
@@ -161,10 +161,7 @@ class ManufacturedShallowShelfVelocityEquations(
             [2.0 * exx + eyy, exy],
             [exy, exx + 2.0 * eyy],
         ]
-        flux = [
-            [2 * mu_expr * depth_expr * s for s in row]
-            for row in strain_tensor
-        ]
+        flux = [[2 * mu_expr * depth_expr * s for s in row] for row in strain_tensor]
 
         # Forcing for momentum equations
         # -div(flux) + friction*velocity + driving_stress = f
@@ -190,7 +187,9 @@ class ManufacturedShallowShelfVelocityEquations(
         self._set_expression("depth", depth_expr, self._depth_str)
         self._set_expression("surface", surface_expr, self._depth_str)
         self._set_expression("friction", friction_expr, self._friction_str)
-        self._set_expression("effective_strain_rate", effective_strain_rate, self._sol_strs[0])
+        self._set_expression(
+            "effective_strain_rate", effective_strain_rate, self._sol_strs[0]
+        )
         self._set_expression("flux", flux, self._sol_strs[0])
 
         # Add to forcing

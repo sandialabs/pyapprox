@@ -5,7 +5,7 @@ Prediction OED minimizes the expected deviation in QoI predictions,
 combining deviation measures, risk measures, and noise statistics.
 """
 
-from typing import Protocol, Generic, runtime_checkable
+from typing import Generic, Protocol, runtime_checkable
 
 from pyapprox.util.backends.protocols import Array, Backend
 

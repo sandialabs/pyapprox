@@ -15,25 +15,23 @@ import numpy as np
 import torch
 from numpy.typing import NDArray
 
-from pyapprox.util.backends.numpy import NumpyBkd
-from pyapprox.util.backends.torch import TorchBkd
-from pyapprox.util.backends.protocols import Array, Backend
-from pyapprox.util.test_utils import load_tests  # noqa: F401
-
+from pyapprox.probability import UniformMarginal
+from pyapprox.surrogates.affine.basis import OrthonormalPolynomialBasis
+from pyapprox.surrogates.affine.expansions import BasisExpansion
 from pyapprox.surrogates.affine.expansions.fitters.gradient_enhanced import (
     GradientEnhancedPCEFitter,
 )
 from pyapprox.surrogates.affine.expansions.fitters.results import (
     DirectSolverResult,
 )
-
-from pyapprox.surrogates.affine.univariate import create_bases_1d
 from pyapprox.surrogates.affine.indices import (
     compute_hyperbolic_indices,
 )
-from pyapprox.surrogates.affine.basis import OrthonormalPolynomialBasis
-from pyapprox.surrogates.affine.expansions import BasisExpansion
-from pyapprox.probability import UniformMarginal
+from pyapprox.surrogates.affine.univariate import create_bases_1d
+from pyapprox.util.backends.numpy import NumpyBkd
+from pyapprox.util.backends.protocols import Array, Backend
+from pyapprox.util.backends.torch import TorchBkd
+from pyapprox.util.test_utils import load_tests  # noqa: F401
 
 
 class TestGradientEnhancedPCEFitter(Generic[Array], unittest.TestCase):
@@ -74,7 +72,9 @@ class TestGradientEnhancedPCEFitter(Generic[Array], unittest.TestCase):
 
         # Get function values and gradients from target
         values = target_expansion(samples)  # (1, nsamples)
-        gradients = target_expansion.jacobian_batch(samples)[:, 0, :].T  # (nvars, nsamples)
+        gradients = target_expansion.jacobian_batch(samples)[
+            :, 0, :
+        ].T  # (nvars, nsamples)
 
         # Fit
         fitter = GradientEnhancedPCEFitter(bkd)
@@ -328,9 +328,7 @@ class TestGradientEnhancedPCEFitter(Generic[Array], unittest.TestCase):
         bkd.assert_allclose(fitted_gradients, target_gradients, rtol=1e-8)
 
 
-class TestGradientEnhancedPCEFitterNumpy(
-    TestGradientEnhancedPCEFitter[NDArray[Any]]
-):
+class TestGradientEnhancedPCEFitterNumpy(TestGradientEnhancedPCEFitter[NDArray[Any]]):
     """NumPy backend tests."""
 
     __test__ = True
@@ -339,9 +337,7 @@ class TestGradientEnhancedPCEFitterNumpy(
         return NumpyBkd()
 
 
-class TestGradientEnhancedPCEFitterTorch(
-    TestGradientEnhancedPCEFitter[torch.Tensor]
-):
+class TestGradientEnhancedPCEFitterTorch(TestGradientEnhancedPCEFitter[torch.Tensor]):
     """PyTorch backend tests."""
 
     __test__ = True

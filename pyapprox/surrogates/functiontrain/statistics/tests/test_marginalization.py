@@ -7,19 +7,17 @@ import numpy as np
 import torch
 from numpy.typing import NDArray
 
-from pyapprox.util.backends.numpy import NumpyBkd
-from pyapprox.util.backends.torch import TorchBkd
-from pyapprox.util.backends.protocols import Array, Backend
-from pyapprox.util.test_utils import load_tests  # noqa: F401
-
-from pyapprox.surrogates.affine.univariate import create_bases_1d
-from pyapprox.surrogates.affine.indices import compute_hyperbolic_indices
+from pyapprox.interface.functions.marginalize import (
+    DimensionReducerProtocol,
+    ReducedFunction,
+)
+from pyapprox.probability import UniformMarginal
 from pyapprox.surrogates.affine.basis import OrthonormalPolynomialBasis
 from pyapprox.surrogates.affine.expansions import BasisExpansion
-from pyapprox.probability import UniformMarginal
-
-from pyapprox.surrogates.functiontrain.core import FunctionTrainCore
+from pyapprox.surrogates.affine.indices import compute_hyperbolic_indices
+from pyapprox.surrogates.affine.univariate import create_bases_1d
 from pyapprox.surrogates.functiontrain import FunctionTrain
+from pyapprox.surrogates.functiontrain.core import FunctionTrainCore
 from pyapprox.surrogates.functiontrain.pce_functiontrain import (
     PCEFunctionTrain,
 )
@@ -28,16 +26,16 @@ from pyapprox.surrogates.functiontrain.statistics import (
     FunctionTrainSensitivity,
 )
 from pyapprox.surrogates.functiontrain.statistics.marginalization import (
-    FunctionTrainMarginalization,
     FTDimensionReducer,
+    FunctionTrainMarginalization,
+    all_marginals_1d,
     marginal_1d,
     marginal_2d,
-    all_marginals_1d,
 )
-from pyapprox.interface.functions.marginalize import (
-    DimensionReducerProtocol,
-    ReducedFunction,
-)
+from pyapprox.util.backends.numpy import NumpyBkd
+from pyapprox.util.backends.protocols import Array, Backend
+from pyapprox.util.backends.torch import TorchBkd
+from pyapprox.util.test_utils import load_tests  # noqa: F401
 
 
 class TestFunctionTrainMarginalization(Generic[Array], unittest.TestCase):
@@ -404,7 +402,9 @@ class TestFunctionTrainMarginalization(Generic[Array], unittest.TestCase):
         # Σ V_k ≤ Var[f] always (with small tolerance for numerical error)
         self.assertTrue(
             float(sum_marginal_vars[0]) <= float(total_var[0]) + 1e-10,
-            f"Sum of marginal variances {sum_marginal_vars} > total variance {total_var}"
+            f"Sum of marginal variances "
+            f"{sum_marginal_vars} > total "
+            f"variance {total_var}"
         )
 
     def _create_additive_pce_ft(
@@ -598,7 +598,9 @@ class TestFunctionTrainMarginalization(Generic[Array], unittest.TestCase):
             bkd.asarray([[3.0], [2.0], [0.0]]),  # θ_y
             bkd.asarray([[1.0], [0.5], [0.0]]),  # θ_z
         ]
-        pce_ft = self._create_rank1_pce_ft(nvars=3, max_level=2, coefficients=coefficients)
+        pce_ft = self._create_rank1_pce_ft(
+            nvars=3, max_level=2, coefficients=coefficients
+        )
         marg = FunctionTrainMarginalization(pce_ft)
 
         # Marginalize y → f̄(x, z) = p(x) * E[q(y)] * r(z) = p(x) * θ_y^{(0)} * r(z)
@@ -611,7 +613,7 @@ class TestFunctionTrainMarginalization(Generic[Array], unittest.TestCase):
 
         # Test at a few sample points
         test_samples = bkd.asarray([[-0.5, 0.0, 0.5], [0.3, 0.3, 0.3]])  # (2, 3)
-        marg_values = ft_xz(test_samples)  # Shape: (1, 3)
+        ft_xz(test_samples)  # Shape: (1, 3)
 
         # For rank-1: f̄(x,z) should equal p(x) * θ_y^{(0)} * r(z)
         # Evaluate original FT at y=? doesn't matter, we check mean preservation
@@ -643,7 +645,9 @@ class TestFunctionTrainMarginalization(Generic[Array], unittest.TestCase):
         theta_x = bkd.asarray([[2.0], [1.5]])  # θ_x^{(0)}=2, θ_x^{(1)}=1.5
         theta_y = bkd.asarray([[3.0], [0.5]])  # θ_y^{(0)}=3, θ_y^{(1)}=0.5
         coefficients = [theta_x, theta_y]
-        pce_ft = self._create_rank1_pce_ft(nvars=2, max_level=1, coefficients=coefficients)
+        pce_ft = self._create_rank1_pce_ft(
+            nvars=2, max_level=1, coefficients=coefficients
+        )
         marg = FunctionTrainMarginalization(pce_ft)
 
         # Marginalize y
@@ -786,7 +790,6 @@ class TestFTDimensionReducer(Generic[Array], unittest.TestCase):
         """Test mean of reduced FT matches original."""
         bkd = self._bkd
         pce_ft = self._create_rank1_pce_ft()
-        reducer = FTDimensionReducer(pce_ft, bkd)
 
         # Original mean
         moments_orig = FunctionTrainMoments(pce_ft)

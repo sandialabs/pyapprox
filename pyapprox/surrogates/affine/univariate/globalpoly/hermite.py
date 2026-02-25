@@ -12,10 +12,10 @@ from typing import Generic
 
 from scipy import special as sp
 
-from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.surrogates.affine.univariate.globalpoly.orthopoly_base import (
     OrthonormalPolynomial1D,
 )
+from pyapprox.util.backends.protocols import Array, Backend
 
 
 def hermite_recurrence(

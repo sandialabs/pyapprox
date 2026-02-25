@@ -13,11 +13,11 @@ only if the underlying physics supports them.
 
 from typing import Generic, Optional
 
-from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.pde.collocation.protocols import PhysicsProtocol
 from pyapprox.pde.parameterizations.protocol import (
     ParameterizationProtocol,
 )
+from pyapprox.util.backends.protocols import Array, Backend
 
 
 class PhysicsToODEResidualAdapter(Generic[Array]):
@@ -86,17 +86,11 @@ class PhysicsToODEResidualAdapter(Generic[Array]):
                     self._initial_param_jacobian_via_parameterization
                 )
             if hasattr(self._parameterization, "param_param_hvp"):
-                self.param_param_hvp = (
-                    self._param_param_hvp_via_parameterization
-                )
+                self.param_param_hvp = self._param_param_hvp_via_parameterization
             if hasattr(self._parameterization, "state_param_hvp"):
-                self.state_param_hvp = (
-                    self._state_param_hvp_via_parameterization
-                )
+                self.state_param_hvp = self._state_param_hvp_via_parameterization
             if hasattr(self._parameterization, "param_state_hvp"):
-                self.param_state_hvp = (
-                    self._param_state_hvp_via_parameterization
-                )
+                self.param_state_hvp = self._param_state_hvp_via_parameterization
             # state_state_hvp stays from physics (unchanged)
             if hasattr(self._physics, "state_state_hvp"):
                 self.state_state_hvp = self._state_state_hvp_impl
@@ -317,8 +311,7 @@ class PhysicsToODEResidualAdapter(Generic[Array]):
     ) -> Array:
         """Compute param-param HVP via parameterization."""
         return self._parameterization.param_param_hvp(
-            self._physics, state, self._time,
-            self._current_params_1d, adj_state, vvec
+            self._physics, state, self._time, self._current_params_1d, adj_state, vvec
         )
 
     def _state_param_hvp_via_parameterization(
@@ -326,8 +319,7 @@ class PhysicsToODEResidualAdapter(Generic[Array]):
     ) -> Array:
         """Compute state-param HVP via parameterization."""
         return self._parameterization.state_param_hvp(
-            self._physics, state, self._time,
-            self._current_params_1d, adj_state, vvec
+            self._physics, state, self._time, self._current_params_1d, adj_state, vvec
         )
 
     def _param_state_hvp_via_parameterization(
@@ -335,23 +327,29 @@ class PhysicsToODEResidualAdapter(Generic[Array]):
     ) -> Array:
         """Compute param-state HVP via parameterization."""
         return self._parameterization.param_state_hvp(
-            self._physics, state, self._time,
-            self._current_params_1d, adj_state, wvec
+            self._physics, state, self._time, self._current_params_1d, adj_state, wvec
         )
 
     def bc_flux_param_sensitivity(
-        self, state: Array, time: float,
-        bc_indices: Array, normals: Array,
+        self,
+        state: Array,
+        time: float,
+        bc_indices: Array,
+        normals: Array,
     ):
         """Compute d(flux·n)/dp at boundary nodes, or None."""
-        if (self._parameterization is not None
-                and hasattr(
-                    self._parameterization, "bc_flux_param_sensitivity"
-                )
-                and self._current_params_1d is not None):
+        if (
+            self._parameterization is not None
+            and hasattr(self._parameterization, "bc_flux_param_sensitivity")
+            and self._current_params_1d is not None
+        ):
             return self._parameterization.bc_flux_param_sensitivity(
-                self._physics, state, time,
-                self._current_params_1d, bc_indices, normals,
+                self._physics,
+                state,
+                time,
+                self._current_params_1d,
+                bc_indices,
+                normals,
             )
         return None
 

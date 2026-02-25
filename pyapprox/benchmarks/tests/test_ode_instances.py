@@ -3,22 +3,19 @@
 import unittest
 from typing import Any, Generic
 
-import numpy as np
 import torch
 from numpy.typing import NDArray
 
-from pyapprox.util.backends.numpy import NumpyBkd
-from pyapprox.util.backends.torch import TorchBkd
-from pyapprox.util.backends.protocols import Array, Backend
-from pyapprox.util.test_utils import load_tests
-
-from pyapprox.benchmarks.registry import BenchmarkRegistry
 from pyapprox.benchmarks.instances.ode import (
-    lotka_volterra_3species,
+    chemical_reaction_surface,
     coupled_springs_2mass,
     hastings_ecology_3species,
-    chemical_reaction_surface,
+    lotka_volterra_3species,
 )
+from pyapprox.benchmarks.registry import BenchmarkRegistry
+from pyapprox.util.backends.numpy import NumpyBkd
+from pyapprox.util.backends.protocols import Array, Backend
+from pyapprox.util.backends.torch import TorchBkd
 
 
 class TestLotkaVolterra3SpeciesBenchmark(Generic[Array], unittest.TestCase):
@@ -104,12 +101,8 @@ class TestLotkaVolterra3SpeciesBenchmark(Generic[Array], unittest.TestCase):
 
         # Check all samples are within bounds
         for i in range(12):
-            self.assertTrue(
-                self._bkd.all_bool(samples[i, :] >= bounds[i, 0])
-            )
-            self.assertTrue(
-                self._bkd.all_bool(samples[i, :] <= bounds[i, 1])
-            )
+            self.assertTrue(self._bkd.all_bool(samples[i, :] >= bounds[i, 0]))
+            self.assertTrue(self._bkd.all_bool(samples[i, :] <= bounds[i, 1]))
 
     def test_residual_evaluation(self) -> None:
         """Test residual can be evaluated at valid states."""

@@ -43,6 +43,7 @@ LabelMapping = Union[None, bool, Sequence[Optional[str]], Callable[[NDArray[Any]
 # Private helpers
 # ---------------------------------------------------------------------------
 
+
 def _resolve_colors(
     colors: ColorMapping,
     indices: NDArray[Any],
@@ -68,9 +69,7 @@ def _resolve_colors(
         return [colors] * nindices
     colors_seq = list(colors)
     if len(colors_seq) != nindices:
-        raise ValueError(
-            f"len(colors)={len(colors_seq)} != nindices={nindices}"
-        )
+        raise ValueError(f"len(colors)={len(colors_seq)} != nindices={nindices}")
     return colors_seq
 
 
@@ -97,7 +96,9 @@ def _resolve_labels(
         return [None] * nindices
     if labels is True:
         return [
-            "(" + ",".join(str(int(indices[d, j])) for d in range(indices.shape[0])) + ")"
+            "("
+            + ",".join(str(int(indices[d, j])) for d in range(indices.shape[0]))
+            + ")"
             for j in range(nindices)
         ]
     if callable(labels):
@@ -106,15 +107,14 @@ def _resolve_labels(
         return [None] * nindices
     labels_seq: List[Optional[str]] = list(labels)
     if len(labels_seq) != nindices:
-        raise ValueError(
-            f"len(labels)={len(labels_seq)} != nindices={nindices}"
-        )
+        raise ValueError(f"len(labels)={len(labels_seq)} != nindices={nindices}")
     return labels_seq
 
 
 # ---------------------------------------------------------------------------
 # 2D plotting
 # ---------------------------------------------------------------------------
+
 
 def plot_indices_2d(
     ax: Axes,
@@ -165,9 +165,7 @@ def plot_indices_2d(
         One text artist per label (empty list when *labels* is ``None``).
     """
     if indices.shape[0] != 2:
-        raise ValueError(
-            f"plot_indices_2d requires nvars==2, got {indices.shape[0]}"
-        )
+        raise ValueError(f"plot_indices_2d requires nvars==2, got {indices.shape[0]}")
 
     resolved_colors = _resolve_colors(colors, indices)
     resolved_labels = _resolve_labels(labels, indices)
@@ -194,9 +192,13 @@ def plot_indices_2d(
         lbl = resolved_labels[j]
         if lbl is not None:
             t = ax.text(
-                cx, cy, lbl,
-                ha="center", va="center",
-                fontsize=label_fontsize, color=label_color,
+                cx,
+                cy,
+                lbl,
+                ha="center",
+                va="center",
+                fontsize=label_fontsize,
+                color=label_color,
             )
             texts.append(t)
 
@@ -206,6 +208,7 @@ def plot_indices_2d(
 # ---------------------------------------------------------------------------
 # 3D plotting
 # ---------------------------------------------------------------------------
+
 
 def plot_indices_3d(
     ax: Any,
@@ -244,9 +247,7 @@ def plot_indices_3d(
         One text artist per label (empty list when *labels* is ``None``).
     """
     if indices.shape[0] != 3:
-        raise ValueError(
-            f"plot_indices_3d requires nvars==3, got {indices.shape[0]}"
-        )
+        raise ValueError(f"plot_indices_3d requires nvars==3, got {indices.shape[0]}")
 
     resolved_colors = _resolve_colors(colors, indices)
     resolved_labels = _resolve_labels(labels, indices)
@@ -275,7 +276,9 @@ def plot_indices_3d(
     )
 
     voxel_result = ax.voxels(
-        x, y, z,
+        x,
+        y,
+        z,
         voxels,
         facecolors=facecolors,
         edgecolors=edgecolor,
@@ -290,9 +293,12 @@ def plot_indices_3d(
             i1 = int(indices[1, j])
             i2 = int(indices[2, j])
             t = ax.text(
-                i0, i1, i2 + 0.55,
+                i0,
+                i1,
+                i2 + 0.55,
                 lbl,
-                ha="center", va="bottom",
+                ha="center",
+                va="bottom",
                 fontsize=label_fontsize,
             )
             texts.append(t)
@@ -303,6 +309,7 @@ def plot_indices_3d(
 # ---------------------------------------------------------------------------
 # Axis formatting
 # ---------------------------------------------------------------------------
+
 
 def format_index_axes(
     ax: Any,
@@ -386,6 +393,7 @@ def format_index_axes(
 # Combined selected + candidate view
 # ---------------------------------------------------------------------------
 
+
 def plot_index_sets(
     ax: Any,
     selected: NDArray[Any],
@@ -444,9 +452,7 @@ def plot_index_sets(
     """
     nvars = selected.shape[0]
     if nvars not in (2, 3):
-        raise ValueError(
-            f"plot_index_sets supports nvars in (2, 3), got {nvars}"
-        )
+        raise ValueError(f"plot_index_sets supports nvars in (2, 3), got {nvars}")
 
     result: Dict[str, Tuple[Any, ...]] = {}
     _draw = _draw_2d if nvars == 2 else _draw_3d
@@ -458,7 +464,8 @@ def plot_index_sets(
                 f"candidates nvars={candidates.shape[0]} != selected nvars={nvars}"
             )
         result["candidates"] = _draw(
-            ax, candidates,
+            ax,
+            candidates,
             colors=candidate_colors,
             labels=candidate_labels,
             alpha=candidate_alpha,
@@ -471,7 +478,8 @@ def plot_index_sets(
 
     # Draw selected (on top)
     result["selected"] = _draw(
-        ax, selected,
+        ax,
+        selected,
         colors=selected_colors,
         labels=selected_labels,
         alpha=selected_alpha,
@@ -486,8 +494,10 @@ def plot_index_sets(
         if candidates is not None and candidates.shape[1] > 0:
             all_indices = np.hstack([selected, candidates])
         format_index_axes(
-            ax, all_indices,
-            axis_labels=axis_labels, max_indices=max_indices,
+            ax,
+            all_indices,
+            axis_labels=axis_labels,
+            max_indices=max_indices,
         )
 
     return result
@@ -496,6 +506,7 @@ def plot_index_sets(
 # ---------------------------------------------------------------------------
 # Internal dispatch helpers
 # ---------------------------------------------------------------------------
+
 
 def _draw_2d(
     ax: Axes,
@@ -509,10 +520,14 @@ def _draw_2d(
     box_height: float,
 ) -> Tuple[List[Rectangle], List[Text]]:
     return plot_indices_2d(
-        ax, indices,
-        colors=colors, labels=labels,
-        alpha=alpha, linestyle=linestyle,
-        box_width=box_width, box_height=box_height,
+        ax,
+        indices,
+        colors=colors,
+        labels=labels,
+        alpha=alpha,
+        linestyle=linestyle,
+        box_width=box_width,
+        box_height=box_height,
     )
 
 

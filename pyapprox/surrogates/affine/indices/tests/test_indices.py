@@ -3,43 +3,40 @@
 import unittest
 from typing import Type
 
-import numpy as np
 from numpy.typing import NDArray
 
-from pyapprox.util.backends.numpy import NumpyBkd
-from pyapprox.util.backends.protocols import Backend
-
-from pyapprox.surrogates.affine.indices.utils import (
-    hash_index,
-    compute_hyperbolic_level_indices,
-    compute_hyperbolic_indices,
-    sort_indices_lexiographically,
-    indices_pnorm,
-    compute_downward_closure,
-)
 from pyapprox.surrogates.affine.indices.admissibility import (
-    MaxLevelCriteria,
+    CompositeCriteria,
     Max1DLevelsCriteria,
     MaxIndicesCriteria,
-    CompositeCriteria,
-)
-from pyapprox.surrogates.affine.indices.growth_rules import (
-    LinearGrowthRule,
-    ClenshawCurtisGrowthRule,
-    ConstantGrowthRule,
-    ExponentialGrowthRule,
-    inverse_growth_rule,
+    MaxLevelCriteria,
 )
 from pyapprox.surrogates.affine.indices.generators import (
     HyperbolicIndexGenerator,
-    IsotropicSparseGridBasisIndexGenerator,
-    IterativeIndexGenerator,
     HyperbolicIndexSequence,
+    IsotropicSparseGridBasisIndexGenerator,
     SparseGridIndexSequence,
+)
+from pyapprox.surrogates.affine.indices.growth_rules import (
+    ClenshawCurtisGrowthRule,
+    ConstantGrowthRule,
+    ExponentialGrowthRule,
+    LinearGrowthRule,
+    inverse_growth_rule,
+)
+from pyapprox.surrogates.affine.indices.utils import (
+    compute_downward_closure,
+    compute_hyperbolic_indices,
+    compute_hyperbolic_level_indices,
+    hash_index,
+    indices_pnorm,
+    sort_indices_lexiographically,
 )
 from pyapprox.surrogates.affine.protocols.index import (
     IndexSequenceProtocol,
 )
+from pyapprox.util.backends.numpy import NumpyBkd
+from pyapprox.util.backends.protocols import Backend
 
 
 class _BaseIndexTest:
@@ -188,7 +185,8 @@ class TestSortIndices(_BaseIndexTest, unittest.TestCase):
         # Level 0: [0,0]
         # Level 1: [0,1], [1,0]
         # Level 2: [0,2], [1,1], [2,0] - but [2,0] not in input, so [1,1] and [2,0]
-        # From input: [0,0] (level 0), [0,1] (level 1), [1,0] (level 1), [2,0] (level 2), [1,1] (level 2)
+        # From input: [0,0] (level 0), [0,1] (level 1), [1,0] (level 1), [2,0] (level
+        # 2), [1,1] (level 2)
         # Sorted by level first, then lexicographically:
         # [0,0], [1,0], [0,1], [2,0], [1,1]
         expected = bkd.asarray(
@@ -314,7 +312,9 @@ class TestCompositeCriteria(_BaseIndexTest, unittest.TestCase):
         bkd = self.bkd
         criteria = CompositeCriteria(
             MaxLevelCriteria(10, 1.0, bkd),  # passes
-            Max1DLevelsCriteria(bkd.asarray([2, 2], dtype=bkd.int64_dtype()), bkd),  # fails
+            Max1DLevelsCriteria(
+                bkd.asarray([2, 2], dtype=bkd.int64_dtype()), bkd
+            ),  # fails
         )
         idx = bkd.asarray([3, 1], dtype=bkd.int64_dtype())
         self.assertFalse(criteria(idx))
@@ -624,9 +624,7 @@ class TestComputeDownwardClosure(_BaseIndexTest, unittest.TestCase):
                     )
 
 
-class TestIsotropicSparseGridBasisIndexGenerator(
-    _BaseIndexTest, unittest.TestCase
-):
+class TestIsotropicSparseGridBasisIndexGenerator(_BaseIndexTest, unittest.TestCase):
     """Test IsotropicSparseGridBasisIndexGenerator."""
 
     __test__ = True
@@ -638,11 +636,17 @@ class TestIsotropicSparseGridBasisIndexGenerator(
         for nvars in [2, 3]:
             for max_level in [2, 3, 4]:
                 gen = IsotropicSparseGridBasisIndexGenerator(
-                    nvars, max_level, bkd, growth_rules=rule,
+                    nvars,
+                    max_level,
+                    bkd,
+                    growth_rules=rule,
                 )
                 sg_indices = gen.get_indices()
                 td_indices = compute_hyperbolic_indices(
-                    nvars, max_level, 1.0, bkd,
+                    nvars,
+                    max_level,
+                    1.0,
+                    bkd,
                 )
                 self.assertEqual(
                     sg_indices.shape[1],
@@ -656,16 +660,17 @@ class TestIsotropicSparseGridBasisIndexGenerator(
         bkd = self.bkd
         rule = LinearGrowthRule(scale=2, shift=1)
         gen = IsotropicSparseGridBasisIndexGenerator(
-            3, 2, bkd, growth_rules=rule,
+            3,
+            2,
+            bkd,
+            growth_rules=rule,
         )
         indices = gen.get_indices()
 
         # Build set of tuples for easy checking
         idx_set = set()
         for j in range(indices.shape[1]):
-            idx_set.add(
-                tuple(int(bkd.to_numpy(indices[i, j])) for i in range(3))
-            )
+            idx_set.add(tuple(int(bkd.to_numpy(indices[i, j])) for i in range(3)))
 
         # (1,1,0) should be present (from subspace (1,1,0) with
         # growth_rule(1)=3, so max_degree=2 in each active dim)
@@ -708,9 +713,7 @@ class TestIsotropicSparseGridBasisIndexGenerator(
 
         idx_set = set()
         for j in range(indices.shape[1]):
-            idx_set.add(
-                tuple(int(bkd.to_numpy(indices[i, j])) for i in range(3))
-            )
+            idx_set.add(tuple(int(bkd.to_numpy(indices[i, j])) for i in range(3)))
 
         for idx in idx_set:
             for dim in range(3):
@@ -731,7 +734,10 @@ class TestIsotropicSparseGridBasisIndexGenerator(
             LinearGrowthRule(scale=2, shift=1),
         ]
         gen = IsotropicSparseGridBasisIndexGenerator(
-            2, 2, bkd, growth_rules=rules,
+            2,
+            2,
+            bkd,
+            growth_rules=rules,
         )
         indices = gen.get_indices()
 
@@ -786,9 +792,7 @@ class TestHyperbolicIndexSequence(_BaseIndexTest, unittest.TestCase):
                 for pnorm in [0.5, 1.0]:
                     seq = HyperbolicIndexSequence(nvars, pnorm, bkd)
                     result = seq(level)
-                    expected = compute_hyperbolic_indices(
-                        nvars, level, pnorm, bkd
-                    )
+                    expected = compute_hyperbolic_indices(nvars, level, pnorm, bkd)
                     bkd.assert_allclose(result, expected)
 
     def test_accessors(self):
@@ -818,9 +822,7 @@ class TestSparseGridIndexSequence(_BaseIndexTest, unittest.TestCase):
             for level in [0, 1, 2, 3]:
                 seq = SparseGridIndexSequence(nvars, bkd)
                 result = seq(level)
-                gen = IsotropicSparseGridBasisIndexGenerator(
-                    nvars, level, bkd
-                )
+                gen = IsotropicSparseGridBasisIndexGenerator(nvars, level, bkd)
                 expected = gen.get_indices()
                 bkd.assert_allclose(result, expected)
 
@@ -861,6 +863,7 @@ class TestIndexSequenceProtocolCheckable(unittest.TestCase):
 
     def test_callable_without_correct_signature_passes_runtime_check(self):
         """A callable object passes runtime isinstance check."""
+
         # Note: runtime_checkable only checks method existence, not signature
         class DummySeq:
             def __call__(self, level):

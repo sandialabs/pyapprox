@@ -1,4 +1,5 @@
 """PyApprox: High-dimensional function approximation and estimation."""
+
 name = "pyapprox"
 
 try:

@@ -25,37 +25,35 @@ from pyapprox.probability import (
     IndependentJoint,
     UniformMarginal,
 )
+from pyapprox.surrogates.affine.basis import OrthonormalPolynomialBasis
 from pyapprox.surrogates.affine.expansions.pce import (
+    PolynomialChaosExpansion,
     create_pce_from_marginals,
     get_basis_from_marginal,
-    PolynomialChaosExpansion,
 )
-from pyapprox.surrogates.affine.basis import OrthonormalPolynomialBasis
 from pyapprox.surrogates.affine.indices import (
-    CubicNestedGrowthRule,
     ClenshawCurtisGrowthRule,
+    CubicNestedGrowthRule,
     HyperbolicIndexGenerator,
     IndexGrowthRule,
     LinearGrowthRule,
-)
-from pyapprox.surrogates.sparsegrids import (
-    create_basis_factories,
-    TensorProductSubspace,
-)
-from pyapprox.surrogates.sparsegrids.basis_factory import (
-    BasisFactoryProtocol,
-    ClenshawCurtisLagrangeFactory,
-    GaussLagrangeFactory,
-    LejaLagrangeFactory,
-    PiecewiseFactory,
 )
 from pyapprox.surrogates.affine.protocols import (
     IndexGrowthRuleProtocol,
     PhysicalDomainBasis1DProtocol,
 )
+from pyapprox.surrogates.sparsegrids import (
+    TensorProductSubspace,
+    create_basis_factories,
+)
+from pyapprox.surrogates.sparsegrids.basis_factory import (
+    BasisFactoryProtocol,
+    GaussLagrangeFactory,
+    LejaLagrangeFactory,
+    PiecewiseFactory,
+)
 from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.util.cartesian import cartesian_product_indices
-
 
 # =============================================================================
 # Marginal factory functions
@@ -120,9 +118,7 @@ def _get_default_growth_rule(basis_type: str) -> IndexGrowthRuleProtocol:
 # =============================================================================
 
 
-def create_test_joint(
-    config_name: str, bkd: Backend[Array]
-) -> IndependentJoint[Array]:
+def create_test_joint(config_name: str, bkd: Backend[Array]) -> IndependentJoint[Array]:
     """Create IndependentJoint from config name.
 
     Parameters
@@ -222,7 +218,8 @@ def create_tensor_product_pce(
     bkd: Backend[Array],
     seed: int = 42,
 ) -> PolynomialChaosExpansion[Array]:
-    """Create PCE with tensor product index set for testing tensor product interpolation.
+    """Create PCE with tensor product index set for testing tensor product
+    interpolation.
 
     For Lagrange interpolation with n points per dimension, the interpolant
     is exact for polynomials of degree n-1 in each dimension. This creates
@@ -644,8 +641,8 @@ def compute_required_sg_subspaces(
     >>> # all indices (i, j) with i <= 3 and j <= 1
     """
     from pyapprox.surrogates.affine.indices import (
-        inverse_growth_rule,
         compute_downward_closure,
+        inverse_growth_rule,
     )
 
     nvars = pce_indices.shape[0]
@@ -679,7 +676,11 @@ BASIS_TYPE_CONFIGS: List[Tuple[str, str, str]] = [
     ("clenshaw_curtis", "clenshaw_curtis", "clenshaw_curtis"),
     ("piecewise_linear", "piecewise_linear", "clenshaw_curtis"),
     ("piecewise_quadratic", "piecewise_quadratic", "clenshaw_curtis"),
-    ("piecewise_cubic", "piecewise_cubic", "cubic_nested"),  # special growth rule for cubic
+    (
+        "piecewise_cubic",
+        "piecewise_cubic",
+        "cubic_nested",
+    ),  # special growth rule for cubic
 ]
 
 # Bounded-only basis types (require bounded domains)
@@ -688,8 +689,6 @@ BOUNDED_BASIS_TYPES: List[str] = [
     "piecewise_quadratic",
     "piecewise_cubic",
 ]
-
-
 
 
 # =============================================================================

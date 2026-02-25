@@ -7,23 +7,21 @@ import numpy as np
 import torch
 from numpy.typing import NDArray
 
-from pyapprox.util.backends.numpy import NumpyBkd
-from pyapprox.util.backends.torch import TorchBkd
-from pyapprox.util.backends.protocols import Array, Backend
-from pyapprox.util.test_utils import load_tests  # noqa: F401
-
-from pyapprox.surrogates.affine.univariate import create_bases_1d
-from pyapprox.surrogates.affine.indices import compute_hyperbolic_indices
+from pyapprox.probability import UniformMarginal
 from pyapprox.surrogates.affine.basis import OrthonormalPolynomialBasis
 from pyapprox.surrogates.affine.expansions import BasisExpansion
-from pyapprox.probability import UniformMarginal
-
+from pyapprox.surrogates.affine.indices import compute_hyperbolic_indices
+from pyapprox.surrogates.affine.univariate import create_bases_1d
+from pyapprox.surrogates.functiontrain.additive import (
+    ConstantExpansion,
+    create_additive_functiontrain,
+)
 from pyapprox.surrogates.functiontrain.core import FunctionTrainCore
 from pyapprox.surrogates.functiontrain.functiontrain import FunctionTrain
-from pyapprox.surrogates.functiontrain.additive import (
-    create_additive_functiontrain,
-    ConstantExpansion,
-)
+from pyapprox.util.backends.numpy import NumpyBkd
+from pyapprox.util.backends.protocols import Array, Backend
+from pyapprox.util.backends.torch import TorchBkd
+from pyapprox.util.test_utils import load_tests  # noqa: F401
 
 
 class TestFunctionTrain(Generic[Array], unittest.TestCase):
@@ -55,8 +53,7 @@ class TestFunctionTrain(Generic[Array], unittest.TestCase):
         """Create a simple additive FunctionTrain for testing."""
         bkd = self._bkd
         univariate_bases = [
-            self._create_univariate_expansion(max_level, nqoi)
-            for _ in range(nvars)
+            self._create_univariate_expansion(max_level, nqoi) for _ in range(nvars)
         ]
         return create_additive_functiontrain(univariate_bases, bkd, nqoi)
 
@@ -129,7 +126,6 @@ class TestFunctionTrain(Generic[Array], unittest.TestCase):
 
     def test_with_cores(self) -> None:
         """Test with_cores creates new FunctionTrain."""
-        bkd = self._bkd
         ft = self._create_simple_functiontrain(nvars=3)
 
         original_cores = ft.cores()

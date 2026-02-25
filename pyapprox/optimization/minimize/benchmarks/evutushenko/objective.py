@@ -1,14 +1,14 @@
 from typing import Generic
 
-from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.interface.functions.protocols.validation import (
+    validate_hvp,
+    validate_jacobian,
     validate_sample,
     validate_samples,
-    validate_vector_for_apply,
-    validate_hvp,
     validate_values,
-    validate_jacobian,
+    validate_vector_for_apply,
 )
+from pyapprox.util.backends.protocols import Array, Backend
 
 
 class EvtushenkoObjective(Generic[Array]):

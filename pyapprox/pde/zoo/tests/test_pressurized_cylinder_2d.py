@@ -14,51 +14,53 @@ import unittest
 from typing import Any, Generic
 
 import numpy as np
-from numpy.typing import NDArray
 import torch
+from numpy.typing import NDArray
 
-from pyapprox.util.backends.protocols import Array, Backend
-from pyapprox.util.backends.numpy import NumpyBkd
-from pyapprox.util.backends.torch import TorchBkd
-from pyapprox.util.test_utils import load_tests  # noqa: F401
-from pyapprox.interface.functions.protocols import (
-    FunctionWithJacobianProtocol,
-)
 from pyapprox.interface.functions.derivative_checks.derivative_checker import (
     DerivativeChecker,
 )
 from pyapprox.interface.functions.fromcallable.jacobian import (
     FunctionWithJacobianFromCallable,
 )
+from pyapprox.interface.functions.protocols import (
+    FunctionWithJacobianProtocol,
+)
 from pyapprox.pde.collocation.basis import ChebyshevBasis2D
-from pyapprox.pde.collocation.mesh import TransformedMesh2D
-from pyapprox.pde.collocation.mesh.transforms import PolarTransform
 from pyapprox.pde.collocation.boundary import (
-    zero_dirichlet_bc,
     traction_neumann_bc,
+    zero_dirichlet_bc,
 )
 from pyapprox.pde.collocation.boundary.dirichlet import DirichletBC
-from pyapprox.pde.collocation.physics import LinearElasticityPhysics
 from pyapprox.pde.collocation.manufactured_solutions import (
     ManufacturedLinearElasticityEquations,
 )
+from pyapprox.pde.collocation.mesh import TransformedMesh2D
+from pyapprox.pde.collocation.mesh.transforms import PolarTransform
+from pyapprox.pde.collocation.physics import LinearElasticityPhysics
 from pyapprox.pde.collocation.time_integration import CollocationModel
-from pyapprox.pde.zoo.pressurized_cylinder_2d import (
-    create_linear_pressurized_cylinder_2d,
-)
 from pyapprox.pde.field_maps.kle_factory import (
     create_lognormal_kle_field_map,
 )
-
+from pyapprox.pde.zoo.pressurized_cylinder_2d import (
+    create_linear_pressurized_cylinder_2d,
+)
+from pyapprox.util.backends.numpy import NumpyBkd
+from pyapprox.util.backends.protocols import Array, Backend
+from pyapprox.util.backends.torch import TorchBkd
+from pyapprox.util.test_utils import load_tests  # noqa: F401
 
 # ======================================================================
 # Helpers
 # ======================================================================
 
+
 def _setup_polar_mesh_and_basis(bkd, npts_r, npts_theta, r_inner, r_outer):
     """Create polar mesh and 2D Chebyshev basis on quarter-annulus."""
     transform = PolarTransform(
-        (r_inner, r_outer), (0.0, math.pi / 2.0), bkd,
+        (r_inner, r_outer),
+        (0.0, math.pi / 2.0),
+        bkd,
     )
     mesh = TransformedMesh2D(npts_r, npts_theta, bkd, transform)
     basis = ChebyshevBasis2D(mesh, bkd)
@@ -113,8 +115,11 @@ def _make_kle_field_map_2d(bkd, mesh, num_kle_terms=2):
 
     mean_log = bkd.zeros((npts,))
     return create_lognormal_kle_field_map(
-        mesh_coords, mean_log, bkd,
-        num_kle_terms=num_kle_terms, sigma=0.3,
+        mesh_coords,
+        mean_log,
+        bkd,
+        num_kle_terms=num_kle_terms,
+        sigma=0.3,
     )
 
 
@@ -134,36 +139,72 @@ def _apply_cylinder_bcs(bkd, physics, mesh, basis, lamda, mu, inner_pressure):
     outer_idx = mesh.boundary_indices(1)
     outer_normals = mesh.boundary_normals(1)
     for comp in (0, 1):
-        bcs.append(traction_neumann_bc(
-            bkd, outer_idx, outer_normals, D_matrices,
-            lamda, mu, npts, comp, values=0.0,
-        ))
+        bcs.append(
+            traction_neumann_bc(
+                bkd,
+                outer_idx,
+                outer_normals,
+                D_matrices,
+                lamda,
+                mu,
+                npts,
+                comp,
+                values=0.0,
+            )
+        )
 
     # (b) Bottom (bnd 2): shear-free t_x=0
     bottom_idx = mesh.boundary_indices(2)
     bottom_normals = mesh.boundary_normals(2)
-    bcs.append(traction_neumann_bc(
-        bkd, bottom_idx, bottom_normals, D_matrices,
-        lamda, mu, npts, component=0, values=0.0,
-    ))
+    bcs.append(
+        traction_neumann_bc(
+            bkd,
+            bottom_idx,
+            bottom_normals,
+            D_matrices,
+            lamda,
+            mu,
+            npts,
+            component=0,
+            values=0.0,
+        )
+    )
 
     # (c) Top (bnd 3): shear-free t_y=0
     top_idx = mesh.boundary_indices(3)
     top_normals = mesh.boundary_normals(3)
-    bcs.append(traction_neumann_bc(
-        bkd, top_idx, top_normals, D_matrices,
-        lamda, mu, npts, component=1, values=0.0,
-    ))
+    bcs.append(
+        traction_neumann_bc(
+            bkd,
+            top_idx,
+            top_normals,
+            D_matrices,
+            lamda,
+            mu,
+            npts,
+            component=1,
+            values=0.0,
+        )
+    )
 
     # (d) Inner (bnd 0): pressure traction
     inner_idx = mesh.boundary_indices(0)
     inner_normals = mesh.boundary_normals(0)
     for comp in (0, 1):
         pressure_vals = -inner_pressure * inner_normals[:, comp]
-        bcs.append(traction_neumann_bc(
-            bkd, inner_idx, inner_normals, D_matrices,
-            lamda, mu, npts, comp, values=pressure_vals,
-        ))
+        bcs.append(
+            traction_neumann_bc(
+                bkd,
+                inner_idx,
+                inner_normals,
+                D_matrices,
+                lamda,
+                mu,
+                npts,
+                comp,
+                values=pressure_vals,
+            )
+        )
 
     # (e) Bottom Dirichlet v=0
     bottom_v_idx = bottom_idx + npts
@@ -178,6 +219,7 @@ def _apply_cylinder_bcs(bkd, physics, mesh, basis, lamda, mu, inner_pressure):
 # ======================================================================
 # Test class
 # ======================================================================
+
 
 class TestPressurizedCylinder2D(Generic[Array], unittest.TestCase):
     """Tests for 2D linear elastic pressurized cylinder."""
@@ -203,16 +245,29 @@ class TestPressurizedCylinder2D(Generic[Array], unittest.TestCase):
         lamda, mu = 1.0, 1.0
 
         mesh, basis = _setup_polar_mesh_and_basis(
-            bkd, npts_r, npts_theta, r_inner, r_outer,
+            bkd,
+            npts_r,
+            npts_theta,
+            r_inner,
+            r_outer,
         )
         npts = basis.npts()
         pts = mesh.points()
 
         physics = LinearElasticityPhysics(
-            basis, bkd, lamda=lamda, mu=mu,
+            basis,
+            bkd,
+            lamda=lamda,
+            mu=mu,
         )
         _apply_cylinder_bcs(
-            bkd, physics, mesh, basis, lamda, mu, pressure,
+            bkd,
+            physics,
+            mesh,
+            basis,
+            lamda,
+            mu,
+            pressure,
         )
 
         model = CollocationModel(physics, bkd)
@@ -221,7 +276,13 @@ class TestPressurizedCylinder2D(Generic[Array], unittest.TestCase):
 
         # Analytical Lame solution
         u_x_exact, u_y_exact = _lame_analytical(
-            bkd, pts, r_inner, r_outer, pressure, lamda, mu,
+            bkd,
+            pts,
+            r_inner,
+            r_outer,
+            pressure,
+            lamda,
+            mu,
         )
         exact_state = bkd.concatenate([u_x_exact, u_y_exact])
         bkd.assert_allclose(sol, exact_state, atol=1e-8)
@@ -238,7 +299,11 @@ class TestPressurizedCylinder2D(Generic[Array], unittest.TestCase):
         lamda_val, mu_val = 1.5, 0.8
 
         mesh, basis = _setup_polar_mesh_and_basis(
-            bkd, npts_r, npts_theta, r_inner, r_outer,
+            bkd,
+            npts_r,
+            npts_theta,
+            r_inner,
+            r_outer,
         )
         npts = basis.npts()
         pts = mesh.points()
@@ -258,11 +323,14 @@ class TestPressurizedCylinder2D(Generic[Array], unittest.TestCase):
 
         # Exact solution and forcing
         u_exact = man_sol.functions["solution"](pts)  # (npts, 2)
-        forcing = man_sol.functions["forcing"](pts)    # (npts, 2)
+        forcing = man_sol.functions["forcing"](pts)  # (npts, 2)
         forcing_flat = bkd.concatenate([forcing[:, 0], forcing[:, 1]])
 
         physics = LinearElasticityPhysics(
-            basis, bkd, lamda=lamda_val, mu=mu_val,
+            basis,
+            bkd,
+            lamda=lamda_val,
+            mu=mu_val,
             forcing=lambda t: forcing_flat,
         )
 
@@ -277,41 +345,68 @@ class TestPressurizedCylinder2D(Generic[Array], unittest.TestCase):
         inner_normals = mesh.boundary_normals(0)
         inner_pts = pts[:, bkd.to_numpy(inner_idx).astype(int)]
         inner_traction = man_sol.traction_values(
-            inner_pts, inner_normals,
+            inner_pts,
+            inner_normals,
         )  # (nbnd, 2)
         for comp in (0, 1):
-            bcs.append(traction_neumann_bc(
-                bkd, inner_idx, inner_normals, D_matrices,
-                lamda_val, mu_val, npts, comp,
-                values=inner_traction[:, comp],
-            ))
+            bcs.append(
+                traction_neumann_bc(
+                    bkd,
+                    inner_idx,
+                    inner_normals,
+                    D_matrices,
+                    lamda_val,
+                    mu_val,
+                    npts,
+                    comp,
+                    values=inner_traction[:, comp],
+                )
+            )
 
         # Outer boundary (bnd 1): traction with exact manufactured values
         outer_idx = mesh.boundary_indices(1)
         outer_normals = mesh.boundary_normals(1)
         outer_pts = pts[:, bkd.to_numpy(outer_idx).astype(int)]
         outer_traction = man_sol.traction_values(
-            outer_pts, outer_normals,
+            outer_pts,
+            outer_normals,
         )
         for comp in (0, 1):
-            bcs.append(traction_neumann_bc(
-                bkd, outer_idx, outer_normals, D_matrices,
-                lamda_val, mu_val, npts, comp,
-                values=outer_traction[:, comp],
-            ))
+            bcs.append(
+                traction_neumann_bc(
+                    bkd,
+                    outer_idx,
+                    outer_normals,
+                    D_matrices,
+                    lamda_val,
+                    mu_val,
+                    npts,
+                    comp,
+                    values=outer_traction[:, comp],
+                )
+            )
 
         # Bottom (bnd 2, theta=0): traction t_x (comp 0) + Dirichlet v (comp 1)
         bottom_idx = mesh.boundary_indices(2)
         bottom_normals = mesh.boundary_normals(2)
         bottom_pts = pts[:, bkd.to_numpy(bottom_idx).astype(int)]
         bottom_traction = man_sol.traction_values(
-            bottom_pts, bottom_normals,
+            bottom_pts,
+            bottom_normals,
         )
-        bcs.append(traction_neumann_bc(
-            bkd, bottom_idx, bottom_normals, D_matrices,
-            lamda_val, mu_val, npts, component=0,
-            values=bottom_traction[:, 0],
-        ))
+        bcs.append(
+            traction_neumann_bc(
+                bkd,
+                bottom_idx,
+                bottom_normals,
+                D_matrices,
+                lamda_val,
+                mu_val,
+                npts,
+                component=0,
+                values=bottom_traction[:, 0],
+            )
+        )
         # Dirichlet v at bottom
         bottom_v_idx = bottom_idx + npts
         bottom_v_exact = u_exact[bkd.to_numpy(bottom_idx).astype(int), 1]
@@ -322,16 +417,25 @@ class TestPressurizedCylinder2D(Generic[Array], unittest.TestCase):
         top_normals = mesh.boundary_normals(3)
         top_pts = pts[:, bkd.to_numpy(top_idx).astype(int)]
         top_traction = man_sol.traction_values(
-            top_pts, top_normals,
+            top_pts,
+            top_normals,
         )
         # Dirichlet u at top
         top_u_exact = u_exact[bkd.to_numpy(top_idx).astype(int), 0]
         bcs.append(DirichletBC(bkd, top_idx, top_u_exact))
-        bcs.append(traction_neumann_bc(
-            bkd, top_idx, top_normals, D_matrices,
-            lamda_val, mu_val, npts, component=1,
-            values=top_traction[:, 1],
-        ))
+        bcs.append(
+            traction_neumann_bc(
+                bkd,
+                top_idx,
+                top_normals,
+                D_matrices,
+                lamda_val,
+                mu_val,
+                npts,
+                component=1,
+                values=top_traction[:, 1],
+            )
+        )
 
         physics.set_boundary_conditions(bcs)
 
@@ -353,7 +457,11 @@ class TestPressurizedCylinder2D(Generic[Array], unittest.TestCase):
         lamda_val, mu_val = 1.0, 1.0
 
         mesh, basis = _setup_polar_mesh_and_basis(
-            bkd, npts_r, npts_theta, r_inner, r_outer,
+            bkd,
+            npts_r,
+            npts_theta,
+            r_inner,
+            r_outer,
         )
         npts = basis.npts()
         pts = mesh.points()
@@ -376,7 +484,10 @@ class TestPressurizedCylinder2D(Generic[Array], unittest.TestCase):
         forcing_flat = bkd.concatenate([forcing[:, 0], forcing[:, 1]])
 
         physics = LinearElasticityPhysics(
-            basis, bkd, lamda=lamda_val, mu=mu_val,
+            basis,
+            bkd,
+            lamda=lamda_val,
+            mu=mu_val,
             forcing=lambda t: forcing_flat,
         )
 
@@ -410,7 +521,11 @@ class TestPressurizedCylinder2D(Generic[Array], unittest.TestCase):
         r_inner, r_outer = 1.0, 2.0
 
         mesh, basis = _setup_polar_mesh_and_basis(
-            bkd, npts_r, npts_theta, r_inner, r_outer,
+            bkd,
+            npts_r,
+            npts_theta,
+            r_inner,
+            r_outer,
         )
         npts = basis.npts()
         pts = mesh.points()
@@ -422,7 +537,10 @@ class TestPressurizedCylinder2D(Generic[Array], unittest.TestCase):
         lam_field = 1.5 + 0.2 * bkd.cos(math.pi * x) * bkd.sin(math.pi * y)
 
         physics = LinearElasticityPhysics(
-            basis, bkd, lamda=1.0, mu=1.0,
+            basis,
+            bkd,
+            lamda=1.0,
+            mu=1.0,
         )
         physics.set_mu(mu_field)
         physics.set_lamda(lam_field)
@@ -440,18 +558,25 @@ class TestPressurizedCylinder2D(Generic[Array], unittest.TestCase):
             def __init__(self, phys, bk):
                 self._p = phys
                 self._b = bk
+
             def bkd(self):
                 return self._b
+
             def nvars(self):
                 return self._p.nstates()
+
             def nqoi(self):
                 return self._p.nstates()
+
             def __call__(self, samples):
                 return self._b.stack(
-                    [self._p.residual(samples[:, i], 0.0)
-                     for i in range(samples.shape[1])],
+                    [
+                        self._p.residual(samples[:, i], 0.0)
+                        for i in range(samples.shape[1])
+                    ],
                     axis=1,
                 )
+
             def jacobian(self, sample):
                 return self._p.jacobian(sample[:, 0], 0.0)
 
@@ -479,7 +604,11 @@ class TestPressurizedCylinder2D(Generic[Array], unittest.TestCase):
         num_kle_terms = 2
 
         mesh, basis = _setup_polar_mesh_and_basis(
-            bkd, npts_r, npts_theta, r_inner, r_outer,
+            bkd,
+            npts_r,
+            npts_theta,
+            r_inner,
+            r_outer,
         )
         field_map = _make_kle_field_map_2d(bkd, mesh, num_kle_terms)
 
@@ -522,7 +651,11 @@ class TestPressurizedCylinder2D(Generic[Array], unittest.TestCase):
         num_kle_terms = 2
 
         mesh, basis = _setup_polar_mesh_and_basis(
-            bkd, npts_r, npts_theta, r_inner, r_outer,
+            bkd,
+            npts_r,
+            npts_theta,
+            r_inner,
+            r_outer,
         )
         field_map = _make_kle_field_map_2d(bkd, mesh, num_kle_terms)
 
@@ -560,16 +693,13 @@ class TestPressurizedCylinder2D(Generic[Array], unittest.TestCase):
 # Backend-specific test classes
 # ======================================================================
 
-class TestPressurizedCylinder2DNumpy(
-    TestPressurizedCylinder2D[NDArray[Any]]
-):
+
+class TestPressurizedCylinder2DNumpy(TestPressurizedCylinder2D[NDArray[Any]]):
     def bkd(self) -> NumpyBkd:
         return NumpyBkd()
 
 
-class TestPressurizedCylinder2DTorch(
-    TestPressurizedCylinder2D[torch.Tensor]
-):
+class TestPressurizedCylinder2DTorch(TestPressurizedCylinder2D[torch.Tensor]):
     def bkd(self) -> TorchBkd:
         torch.set_default_dtype(torch.float64)
         return TorchBkd()

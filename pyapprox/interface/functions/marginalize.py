@@ -15,17 +15,17 @@ Both satisfy ``DimensionReducerProtocol``, so higher-level tools such as
 ``PairPlotter`` can accept either interchangeably.
 """
 
-from typing import Callable, Generic, List, Optional, Protocol, runtime_checkable
+from typing import Callable, Generic, List, Protocol, runtime_checkable
 
-from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.surrogates.quadrature.protocols import (
     MultivariateQuadratureRuleProtocol,
 )
-
+from pyapprox.util.backends.protocols import Array, Backend
 
 # ------------------------------------------------------------------ #
 # Protocols                                                          #
 # ------------------------------------------------------------------ #
+
 
 @runtime_checkable
 class QuadratureFactoryProtocol(Protocol, Generic[Array]):
@@ -84,9 +84,7 @@ class DimensionReducerProtocol(Protocol, Generic[Array]):
         """Return the number of quantities of interest."""
         ...
 
-    def reduce(
-        self, keep_indices: List[int]
-    ) -> "ReducedFunction[Array]":
+    def reduce(self, keep_indices: List[int]) -> "ReducedFunction[Array]":
         """Reduce to the specified variables.
 
         Parameters
@@ -106,6 +104,7 @@ class DimensionReducerProtocol(Protocol, Generic[Array]):
 # ------------------------------------------------------------------ #
 # Reduced function wrapper                                           #
 # ------------------------------------------------------------------ #
+
 
 class ReducedFunction(Generic[Array]):
     """Function produced by dimension reduction.
@@ -173,6 +172,7 @@ MarginalizedFunction = ReducedFunction
 # Concrete reducers                                                  #
 # ------------------------------------------------------------------ #
 
+
 class FunctionMarginalizer(Generic[Array]):
     """Integrates out variables from any function using quadrature.
 
@@ -217,18 +217,14 @@ class FunctionMarginalizer(Generic[Array]):
         """Return the number of quantities of interest."""
         return self._nqoi
 
-    def reduce(
-        self, keep_indices: List[int]
-    ) -> ReducedFunction[Array]:
+    def reduce(self, keep_indices: List[int]) -> ReducedFunction[Array]:
         """Integrate out all variables except *keep_indices*.
 
         Alias for :meth:`marginalize`.
         """
         return self.marginalize(keep_indices)
 
-    def marginalize(
-        self, keep_indices: List[int]
-    ) -> ReducedFunction[Array]:
+    def marginalize(self, keep_indices: List[int]) -> ReducedFunction[Array]:
         """Integrate out all variables except keep_indices.
 
         Parameters
@@ -243,9 +239,7 @@ class FunctionMarginalizer(Generic[Array]):
             A function satisfying FunctionProtocol with
             nvars = len(keep_indices) and the same nqoi.
         """
-        integrate_indices = sorted(
-            set(range(self._nvars)) - set(keep_indices)
-        )
+        integrate_indices = sorted(set(range(self._nvars)) - set(keep_indices))
 
         if not integrate_indices:
             return ReducedFunction(
@@ -283,14 +277,10 @@ class FunctionMarginalizer(Generic[Array]):
 
             # Reshape to (nqoi, nsamples, nquad), apply weights, sum
             vals_3d = bkd.reshape(vals, (nqoi, nsamples, nquad))
-            result = bkd.sum(
-                vals_3d * quad_weights[None, None, :], axis=2
-            )
+            result = bkd.sum(vals_3d * quad_weights[None, None, :], axis=2)
             return result  # (nqoi, nsamples)
 
-        return ReducedFunction(
-            len(keep_indices), nqoi, eval_fn, bkd
-        )
+        return ReducedFunction(len(keep_indices), nqoi, eval_fn, bkd)
 
 
 class CrossSectionReducer(Generic[Array]):
@@ -335,9 +325,7 @@ class CrossSectionReducer(Generic[Array]):
         """Return the number of quantities of interest."""
         return self._nqoi
 
-    def reduce(
-        self, keep_indices: List[int]
-    ) -> ReducedFunction[Array]:
+    def reduce(self, keep_indices: List[int]) -> ReducedFunction[Array]:
         """Fix all variables except *keep_indices* at nominal values.
 
         Parameters
@@ -351,9 +339,7 @@ class CrossSectionReducer(Generic[Array]):
             A function satisfying FunctionProtocol with
             ``nvars = len(keep_indices)`` and the same ``nqoi``.
         """
-        fix_indices = sorted(
-            set(range(self._nvars)) - set(keep_indices)
-        )
+        fix_indices = sorted(set(range(self._nvars)) - set(keep_indices))
 
         if not fix_indices:
             return ReducedFunction(
@@ -376,9 +362,7 @@ class CrossSectionReducer(Generic[Array]):
                 full[idx] = nominal[idx]
             return function(full)
 
-        return ReducedFunction(
-            len(keep_indices), nqoi, eval_fn, bkd
-        )
+        return ReducedFunction(len(keep_indices), nqoi, eval_fn, bkd)
 
 
 class ActiveSetFunction(Generic[Array]):
@@ -450,9 +434,7 @@ class ActiveSetFunction(Generic[Array]):
         """
         bkd = self._bkd
         nsamples = samples.shape[1]
-        full = bkd.repeat(
-            self._nominal_values[:, None], nsamples, axis=1
-        )
+        full = bkd.repeat(self._nominal_values[:, None], nsamples, axis=1)
         for kk, idx in enumerate(self._keep_indices):
             full[idx] = samples[kk]
         return full

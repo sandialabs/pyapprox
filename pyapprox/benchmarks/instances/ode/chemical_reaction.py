@@ -1,18 +1,18 @@
 """Chemical reaction surface adsorption ODE benchmark instance."""
 
-from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.benchmarks.benchmark import BoxDomain
-from pyapprox.benchmarks.ground_truth import ODEGroundTruth
-from pyapprox.benchmarks.registry import BenchmarkRegistry
 from pyapprox.benchmarks.functions.ode import ODEBenchmark, ODETimeConfig
-from pyapprox.pde.time.benchmarks.chemical_reaction import (
-    ChemicalReactionResidual,
-)
-from pyapprox.probability.univariate.uniform import UniformMarginal
-from pyapprox.probability.joint.independent import IndependentJoint
+from pyapprox.benchmarks.ground_truth import ODEGroundTruth
 from pyapprox.benchmarks.instances.ode.lotka_volterra import (
     ODEBenchmarkWrapper,
 )
+from pyapprox.benchmarks.registry import BenchmarkRegistry
+from pyapprox.pde.time.benchmarks.chemical_reaction import (
+    ChemicalReactionResidual,
+)
+from pyapprox.probability.joint.independent import IndependentJoint
+from pyapprox.probability.univariate.uniform import UniformMarginal
+from pyapprox.util.backends.protocols import Array, Backend
 
 
 def chemical_reaction_surface(
@@ -76,10 +76,7 @@ def chemical_reaction_surface(
     ]
 
     prior = IndependentJoint(
-        [
-            UniformMarginal(lo, hi, bkd)
-            for lo, hi in prior_ranges
-        ],
+        [UniformMarginal(lo, hi, bkd) for lo, hi in prior_ranges],
         bkd,
     )
 

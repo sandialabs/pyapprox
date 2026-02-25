@@ -7,22 +7,21 @@ import numpy as np
 import torch
 from numpy.typing import NDArray
 
-from pyapprox.util.backends.numpy import NumpyBkd
-from pyapprox.util.backends.torch import TorchBkd
-from pyapprox.util.backends.protocols import Array, Backend
-from pyapprox.util.test_utils import load_tests  # noqa: F401
-
-from pyapprox.probability.risk.measures import (
-    SafetyMarginRiskMeasure,
-    ValueAtRisk,
-    AverageValueAtRisk,
-    EntropicRisk,
-    UtilitySSD,
-    DisutilitySSD,
-)
 from pyapprox.probability.risk.gaussian import (
     GaussianAnalyticalRiskMeasures,
 )
+from pyapprox.probability.risk.measures import (
+    AverageValueAtRisk,
+    DisutilitySSD,
+    EntropicRisk,
+    SafetyMarginRiskMeasure,
+    UtilitySSD,
+    ValueAtRisk,
+)
+from pyapprox.util.backends.numpy import NumpyBkd
+from pyapprox.util.backends.protocols import Array, Backend
+from pyapprox.util.backends.torch import TorchBkd
+from pyapprox.util.test_utils import load_tests  # noqa: F401
 
 
 class TestRiskMeasures(Generic[Array], unittest.TestCase):

@@ -6,26 +6,28 @@ from typing import Any, Generic
 import torch
 from numpy.typing import NDArray
 
+from pyapprox.probability import GaussianMarginal, UniformMarginal
 from pyapprox.surrogates.affine.indices import LinearGrowthRule
 from pyapprox.surrogates.affine.univariate import LegendrePolynomial1D
-from pyapprox.surrogates.sparsegrids import TensorProductSubspace
-from pyapprox.surrogates.sparsegrids.basis_setup import (
-    compute_npts_from_growth_rule,
-    get_quadrature_rule,
-    create_lagrange_from_quadrature,
+from pyapprox.surrogates.affine.univariate.globalpoly import (
+    HermitePolynomial1D,
 )
+from pyapprox.surrogates.affine.univariate.piecewisepoly import (
+    DynamicPiecewiseBasis,
+    EquidistantNodeGenerator,
+    PiecewiseQuadratic,
+)
+from pyapprox.surrogates.sparsegrids import TensorProductSubspace
 from pyapprox.surrogates.sparsegrids.basis_factory import (
     GaussLagrangeFactory,
     LejaLagrangeFactory,
     PiecewiseFactory,
 )
-from pyapprox.surrogates.affine.univariate.globalpoly import HermitePolynomial1D
-from pyapprox.surrogates.affine.univariate.piecewisepoly import (
-    PiecewiseQuadratic,
-    DynamicPiecewiseBasis,
-    EquidistantNodeGenerator,
+from pyapprox.surrogates.sparsegrids.basis_setup import (
+    compute_npts_from_growth_rule,
+    create_lagrange_from_quadrature,
+    get_quadrature_rule,
 )
-from pyapprox.probability import UniformMarginal, GaussianMarginal
 from pyapprox.util.backends.numpy import NumpyBkd
 from pyapprox.util.backends.protocols import Array
 from pyapprox.util.backends.torch import TorchBkd
@@ -80,9 +82,7 @@ class TestBasisSetup(Generic[Array], unittest.TestCase):
 
         # Weights should sum to 1 for probability measure
         self._bkd.assert_allclose(
-            self._bkd.sum(weights),
-            self._bkd.asarray(1.0),
-            rtol=1e-12
+            self._bkd.sum(weights), self._bkd.asarray(1.0), rtol=1e-12
         )
 
     def test_get_quadrature_rule_hermite(self):
@@ -101,14 +101,12 @@ class TestBasisSetup(Generic[Array], unittest.TestCase):
 
         # For standard normal (probability measure), weights sum to 1
         self._bkd.assert_allclose(
-            self._bkd.sum(weights_flat),
-            self._bkd.asarray(1.0),
-            rtol=1e-12
+            self._bkd.sum(weights_flat), self._bkd.asarray(1.0), rtol=1e-12
         )
 
         # Test quadrature exactness: E[x^2] = 1 for standard normal
         samples_1d = samples[0, :]
-        integrand = samples_1d ** 2
+        integrand = samples_1d**2
         integral = self._bkd.sum(integrand * weights_flat)
         self._bkd.assert_allclose(integral, self._bkd.asarray(1.0), rtol=1e-10)
 
@@ -140,8 +138,10 @@ class TestBasisSetup(Generic[Array], unittest.TestCase):
 
     def test_get_quadrature_rule_error(self):
         """Test error raised for unsupported basis type."""
+
         class FakeBasis:
             pass
+
         with self.assertRaises(TypeError):
             get_quadrature_rule(FakeBasis())
 
@@ -187,9 +187,7 @@ class TestTensorProductSubspace(Generic[Array], unittest.TestCase):
 
         # Level (1, 2) -> 2 x 3 = 6 samples
         index = self._bkd.asarray([1, 2])
-        subspace = TensorProductSubspace(
-            self._bkd, index, [factory, factory], growth
-        )
+        subspace = TensorProductSubspace(self._bkd, index, [factory, factory], growth)
 
         self.assertEqual(subspace.nsamples(), 6)
         self.assertEqual(subspace.get_samples().shape, (2, 6))
@@ -202,9 +200,7 @@ class TestTensorProductSubspace(Generic[Array], unittest.TestCase):
 
         for level in range(4):
             index = self._bkd.asarray([level])
-            subspace = TensorProductSubspace(
-                self._bkd, index, [factory], growth
-            )
+            subspace = TensorProductSubspace(self._bkd, index, [factory], growth)
             expected_npts = growth(level)
             self.assertEqual(subspace.nsamples(), expected_npts)
 
@@ -216,22 +212,19 @@ class TestTensorProductSubspace(Generic[Array], unittest.TestCase):
 
         # Level (2, 2) -> 3 x 3 = 9 samples, can interpolate degree 2 exactly
         index = self._bkd.asarray([2, 2])
-        subspace = TensorProductSubspace(
-            self._bkd, index, [factory, factory], growth
-        )
+        subspace = TensorProductSubspace(self._bkd, index, [factory, factory], growth)
 
         # Test function: f(x, y) = x^2 + y
         samples = subspace.get_samples()
         x, y = samples[0, :], samples[1, :]
-        values = self._bkd.reshape(x ** 2 + y, (1, -1))
+        values = self._bkd.reshape(x**2 + y, (1, -1))
         subspace.set_values(values)
 
         # Test at new points
-        test_pts = self._bkd.asarray([[0.3, -0.5, 0.7],
-                                      [0.2, 0.4, -0.3]])
+        test_pts = self._bkd.asarray([[0.3, -0.5, 0.7], [0.2, 0.4, -0.3]])
         result = subspace(test_pts)
         x_t, y_t = test_pts[0, :], test_pts[1, :]
-        expected = self._bkd.reshape(x_t ** 2 + y_t, (1, -1))
+        expected = self._bkd.reshape(x_t**2 + y_t, (1, -1))
 
         self._bkd.assert_allclose(result, expected, rtol=1e-10)
 
@@ -251,15 +244,14 @@ class TestTensorProductSubspace(Generic[Array], unittest.TestCase):
             # Polynomial of total degree = degree
             samples = subspace.get_samples()
             x, y = samples[0, :], samples[1, :]
-            values = self._bkd.reshape(x ** degree + y ** degree, (1, -1))
+            values = self._bkd.reshape(x**degree + y**degree, (1, -1))
             subspace.set_values(values)
 
             # Should interpolate exactly
-            test_pts = self._bkd.asarray([[0.3, -0.5],
-                                          [0.2, 0.4]])
+            test_pts = self._bkd.asarray([[0.3, -0.5], [0.2, 0.4]])
             result = subspace(test_pts)
             x_t, y_t = test_pts[0, :], test_pts[1, :]
-            expected = self._bkd.reshape(x_t ** degree + y_t ** degree, (1, -1))
+            expected = self._bkd.reshape(x_t**degree + y_t**degree, (1, -1))
 
             self._bkd.assert_allclose(result, expected, rtol=1e-9)
 
@@ -271,15 +263,13 @@ class TestTensorProductSubspace(Generic[Array], unittest.TestCase):
 
         # Level (2, 2) -> can interpolate degree 2
         index = self._bkd.asarray([2, 2])
-        subspace = TensorProductSubspace(
-            self._bkd, index, [factory, factory], growth
-        )
+        subspace = TensorProductSubspace(self._bkd, index, [factory, factory], growth)
 
         # f(x, y) = x^2 + 2*x*y + y^2 = (x + y)^2
         # df/dx = 2x + 2y, df/dy = 2x + 2y
         samples = subspace.get_samples()
         x, y = samples[0, :], samples[1, :]
-        values = self._bkd.reshape(x ** 2 + 2 * x * y + y ** 2, (1, -1))
+        values = self._bkd.reshape(x**2 + 2 * x * y + y**2, (1, -1))
         subspace.set_values(values)
 
         # Test Jacobian at a point
@@ -298,15 +288,13 @@ class TestTensorProductSubspace(Generic[Array], unittest.TestCase):
 
         # Level (2, 2) -> can interpolate degree 2
         index = self._bkd.asarray([2, 2])
-        subspace = TensorProductSubspace(
-            self._bkd, index, [factory, factory], growth
-        )
+        subspace = TensorProductSubspace(self._bkd, index, [factory, factory], growth)
 
         # f(x, y) = x^2 + x*y + y^2
         # Hessian: [[2, 1], [1, 2]]
         samples = subspace.get_samples()
         x, y = samples[0, :], samples[1, :]
-        values = self._bkd.reshape(x ** 2 + x * y + y ** 2, (1, -1))
+        values = self._bkd.reshape(x**2 + x * y + y**2, (1, -1))
         subspace.set_values(values)
 
         # Test Hessian at a point
@@ -323,14 +311,12 @@ class TestTensorProductSubspace(Generic[Array], unittest.TestCase):
         growth = LinearGrowthRule(scale=1, shift=1)
 
         index = self._bkd.asarray([2, 2])
-        subspace = TensorProductSubspace(
-            self._bkd, index, [factory, factory], growth
-        )
+        subspace = TensorProductSubspace(self._bkd, index, [factory, factory], growth)
 
         # f(x, y) = x^2 + x*y + y^2
         samples = subspace.get_samples()
         x, y = samples[0, :], samples[1, :]
-        values = self._bkd.reshape(x ** 2 + x * y + y ** 2, (1, -1))
+        values = self._bkd.reshape(x**2 + x * y + y**2, (1, -1))
         subspace.set_values(values)
 
         test_pt = self._bkd.asarray([[0.3], [0.5]])
@@ -353,9 +339,7 @@ class TestTensorProductSubspace(Generic[Array], unittest.TestCase):
 
         # Level 2 -> 3 points, can integrate degree 4 exactly (2n-1 = 5)
         index = self._bkd.asarray([2, 2])
-        subspace = TensorProductSubspace(
-            self._bkd, index, [factory, factory], growth
-        )
+        subspace = TensorProductSubspace(self._bkd, index, [factory, factory], growth)
 
         # f(x, y) = x^2 * y^2
         # With probability measure (weights sum to 1):
@@ -363,7 +347,7 @@ class TestTensorProductSubspace(Generic[Array], unittest.TestCase):
         # Integral = E[x^2 * y^2] = E[x^2] * E[y^2] = 1/9
         samples = subspace.get_samples()
         x, y = samples[0, :], samples[1, :]
-        values = self._bkd.reshape(x ** 2 * y ** 2, (1, -1))
+        values = self._bkd.reshape(x**2 * y**2, (1, -1))
         subspace.set_values(values)
 
         integral = subspace.integrate()
@@ -377,14 +361,12 @@ class TestTensorProductSubspace(Generic[Array], unittest.TestCase):
         growth = LinearGrowthRule(scale=1, shift=1)
 
         index = self._bkd.asarray([3, 3])
-        subspace = TensorProductSubspace(
-            self._bkd, index, [factory, factory], growth
-        )
+        subspace = TensorProductSubspace(self._bkd, index, [factory, factory], growth)
 
         # f(x, y) = x^3 (odd in x)
         samples = subspace.get_samples()
         x = samples[0, :]
-        values = self._bkd.reshape(x ** 3, (1, -1))
+        values = self._bkd.reshape(x**3, (1, -1))
         subspace.set_values(values)
 
         integral = subspace.integrate()
@@ -398,9 +380,7 @@ class TestTensorProductSubspace(Generic[Array], unittest.TestCase):
         growth = LinearGrowthRule(scale=1, shift=1)
 
         index = self._bkd.asarray([2, 3])
-        subspace = TensorProductSubspace(
-            self._bkd, index, [factory, factory], growth
-        )
+        subspace = TensorProductSubspace(self._bkd, index, [factory, factory], growth)
 
         weights = subspace.get_quadrature_weights()
         # 3 x 4 = 12 samples
@@ -418,13 +398,11 @@ class TestTensorProductSubspace(Generic[Array], unittest.TestCase):
 
         # Level (2, 2) -> 3 x 3 = 9 points
         index = self._bkd.asarray([2, 2])
-        subspace = TensorProductSubspace(
-            self._bkd, index, [factory, factory], growth
-        )
+        subspace = TensorProductSubspace(self._bkd, index, [factory, factory], growth)
 
         samples = subspace.get_samples()
         x, y = samples[0, :], samples[1, :]
-        values = self._bkd.reshape(x ** 2 + y ** 2, (1, -1))
+        values = self._bkd.reshape(x**2 + y**2, (1, -1))
         subspace.set_values(values)
 
         integral = subspace.integrate()
@@ -443,13 +421,11 @@ class TestTensorProductSubspace(Generic[Array], unittest.TestCase):
 
         # Level 3 -> 4 points, can integrate degree 6 exactly
         index = self._bkd.asarray([3])
-        subspace = TensorProductSubspace(
-            self._bkd, index, [factory], growth
-        )
+        subspace = TensorProductSubspace(self._bkd, index, [factory], growth)
 
         samples = subspace.get_samples()
         x = samples[0, :]
-        values = self._bkd.reshape(x ** 4, (1, -1))
+        values = self._bkd.reshape(x**4, (1, -1))
         subspace.set_values(values)
 
         integral = subspace.integrate()
@@ -477,21 +453,19 @@ class TestTensorProductSubspace(Generic[Array], unittest.TestCase):
 
         # Level 3 -> 4 points
         index = self._bkd.asarray([3, 3])
-        subspace = TensorProductSubspace(
-            self._bkd, index, [factory, factory], growth
-        )
+        subspace = TensorProductSubspace(self._bkd, index, [factory, factory], growth)
 
         # Test polynomial exactness: f(x, y) = x^2 + y^2
         samples = subspace.get_samples()
         x, y = samples[0, :], samples[1, :]
-        values = self._bkd.reshape(x ** 2 + y ** 2, (1, -1))
+        values = self._bkd.reshape(x**2 + y**2, (1, -1))
         subspace.set_values(values)
 
         # Should interpolate exactly
         test_pts = self._bkd.asarray([[0.3, -0.5], [0.2, 0.4]])
         result = subspace(test_pts)
         x_t, y_t = test_pts[0, :], test_pts[1, :]
-        expected = self._bkd.reshape(x_t ** 2 + y_t ** 2, (1, -1))
+        expected = self._bkd.reshape(x_t**2 + y_t**2, (1, -1))
         self._bkd.assert_allclose(result, expected, rtol=1e-9)
 
     def test_subspace_piecewise_quadratic_interpolation(self):
@@ -507,14 +481,12 @@ class TestTensorProductSubspace(Generic[Array], unittest.TestCase):
         growth = LinearGrowthRule(scale=2, shift=1)  # n(l) = 2*l + 1
 
         index = self._bkd.asarray([2])  # level 2 -> 5 nodes
-        subspace = TensorProductSubspace(
-            self._bkd, index, [factory], growth
-        )
+        subspace = TensorProductSubspace(self._bkd, index, [factory], growth)
 
         # Test function: f(x) = x^2 (quadratic, exactly representable)
         samples = subspace.get_samples()
         x = samples[0, :]
-        values = self._bkd.reshape(x ** 2, (1, -1))
+        values = self._bkd.reshape(x**2, (1, -1))
         subspace.set_values(values)
 
         # Integrate x^2 over [-1, 1] with uniform measure
@@ -536,13 +508,11 @@ class TestTensorProductSubspace(Generic[Array], unittest.TestCase):
         growth = LinearGrowthRule(scale=2, shift=1)  # n(l) = 2*l + 1
 
         index = self._bkd.asarray([2, 2])  # level 2 -> 5 nodes each dim
-        subspace = TensorProductSubspace(
-            self._bkd, index, [factory, factory], growth
-        )
+        subspace = TensorProductSubspace(self._bkd, index, [factory, factory], growth)
 
         samples = subspace.get_samples()
         x, y = samples[0, :], samples[1, :]
-        values = self._bkd.reshape(x ** 2 * y ** 2, (1, -1))
+        values = self._bkd.reshape(x**2 * y**2, (1, -1))
         subspace.set_values(values)
 
         integral = subspace.integrate()
@@ -580,7 +550,7 @@ class TestTensorProductSubspace(Generic[Array], unittest.TestCase):
 
         samples = subspace.get_samples()
         x, y = samples[0, :], samples[1, :]
-        values = self._bkd.reshape(x ** 2 * y ** 2, (1, -1))
+        values = self._bkd.reshape(x**2 * y**2, (1, -1))
         subspace.set_values(values)
 
         integral = subspace.integrate()
@@ -612,7 +582,7 @@ class TestTensorProductSubspaceProtocolValidation(Generic[Array], unittest.TestC
                 "not a backend",  # type: ignore[arg-type]
                 index,
                 [self._factory, self._factory],
-                self._growth
+                self._growth,
             )
         self.assertIn("Backend", str(ctx.exception))
         self.assertIn("str", str(ctx.exception))
@@ -625,7 +595,7 @@ class TestTensorProductSubspaceProtocolValidation(Generic[Array], unittest.TestC
                 self._bkd,
                 index,
                 ["not a factory", "also not"],  # type: ignore[list-item]
-                self._growth
+                self._growth,
             )
         self.assertIn("BasisFactoryProtocol", str(ctx.exception))
 
@@ -637,7 +607,7 @@ class TestTensorProductSubspaceProtocolValidation(Generic[Array], unittest.TestC
                 self._bkd,
                 index,
                 [self._factory, self._factory],
-                "not a growth rule"  # type: ignore[arg-type]
+                "not a growth rule",  # type: ignore[arg-type]
             )
         self.assertIn("IndexGrowthRuleProtocol", str(ctx.exception))
 

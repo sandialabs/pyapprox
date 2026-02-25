@@ -10,13 +10,13 @@ where:
     λ, μ are Lamé parameters
 """
 
-from typing import Generic, Optional, Callable, Tuple
+from typing import Callable, Generic, Optional, Tuple
 
-from pyapprox.util.backends.protocols import Array, Backend
+from pyapprox.pde.collocation.physics.base import AbstractVectorPhysics
 from pyapprox.pde.collocation.protocols.basis import (
     TensorProductBasisProtocol,
 )
-from pyapprox.pde.collocation.physics.base import AbstractVectorPhysics
+from pyapprox.util.backends.protocols import Array, Backend
 
 
 class LinearElasticityPhysics(AbstractVectorPhysics[Array], Generic[Array]):
@@ -106,13 +106,9 @@ class LinearElasticityPhysics(AbstractVectorPhysics[Array], Generic[Array]):
         mu_values : float or Array
             Shear modulus values. Must be positive.
         """
-        min_val = float(self._bkd.min(
-            self._bkd.asarray(mu_values).ravel()
-        ))
+        min_val = float(self._bkd.min(self._bkd.asarray(mu_values).ravel()))
         if min_val <= 0.0:
-            raise ValueError(
-                f"mu must be positive; found min {min_val:.2e}"
-            )
+            raise ValueError(f"mu must be positive; found min {min_val:.2e}")
         if isinstance(mu_values, (int, float)):
             npts = self.npts()
             self._mu_array = self._bkd.full((npts,), float(mu_values))
@@ -129,13 +125,9 @@ class LinearElasticityPhysics(AbstractVectorPhysics[Array], Generic[Array]):
         lamda_values : float or Array
             Lame's first parameter values. Must be non-negative.
         """
-        min_val = float(self._bkd.min(
-            self._bkd.asarray(lamda_values).ravel()
-        ))
+        min_val = float(self._bkd.min(self._bkd.asarray(lamda_values).ravel()))
         if min_val < 0.0:
-            raise ValueError(
-                f"lamda must be non-negative; found min {min_val:.2e}"
-            )
+            raise ValueError(f"lamda must be non-negative; found min {min_val:.2e}")
         if isinstance(lamda_values, (int, float)):
             npts = self.npts()
             self._lambda_array = self._bkd.full((npts,), float(lamda_values))
@@ -262,7 +254,7 @@ class LinearElasticityPhysics(AbstractVectorPhysics[Array], Generic[Array]):
             Jacobian matrix. Shape: (2*npts, 2*npts)
         """
         bkd = self._bkd
-        npts = self.npts()
+        self.npts()
 
         # For constant Lamé parameters, use scalar values
         if self._lambda_value is not None and self._mu_value is not None:
@@ -350,14 +342,8 @@ class LinearElasticityPhysics(AbstractVectorPhysics[Array], Generic[Array]):
         exy = 0.5 * (uy + vx)
         eyy = vy
 
-        sens_u = (
-            self._Dx @ (delta_mu * 2.0 * exx)
-            + self._Dy @ (delta_mu * 2.0 * exy)
-        )
-        sens_v = (
-            self._Dx @ (delta_mu * 2.0 * exy)
-            + self._Dy @ (delta_mu * 2.0 * eyy)
-        )
+        sens_u = self._Dx @ (delta_mu * 2.0 * exx) + self._Dy @ (delta_mu * 2.0 * exy)
+        sens_v = self._Dx @ (delta_mu * 2.0 * exy) + self._Dy @ (delta_mu * 2.0 * eyy)
         return bkd.concatenate([sens_u, sens_v])
 
     def residual_lamda_sensitivity(
@@ -420,7 +406,7 @@ class LinearElasticityPhysics(AbstractVectorPhysics[Array], Generic[Array]):
             Shape: (2*nboundary,) with component-stacked ordering.
         """
         bkd = self._bkd
-        nboundary = boundary_indices.shape[0]
+        boundary_indices.shape[0]
 
         u, v = self._extract_components(state)
 

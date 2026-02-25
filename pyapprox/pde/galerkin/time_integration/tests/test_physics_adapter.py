@@ -5,19 +5,19 @@ and works with the time steppers in typing.pde.time.
 """
 
 import unittest
-from typing import Generic, Any
+from typing import Any, Generic
 
 import numpy as np
 from numpy.typing import NDArray
 
-from pyapprox.util.backends.protocols import Array, Backend
-from pyapprox.pde.sparse_utils import solve_maybe_sparse
-from pyapprox.util.backends.numpy import NumpyBkd
-from pyapprox.pde.galerkin.mesh import StructuredMesh1D
 from pyapprox.pde.galerkin.basis import LagrangeBasis
+from pyapprox.pde.galerkin.mesh import StructuredMesh1D
 from pyapprox.pde.galerkin.physics import LinearAdvectionDiffusionReaction
 from pyapprox.pde.galerkin.time_integration import GalerkinPhysicsODEAdapter
+from pyapprox.pde.sparse_utils import solve_maybe_sparse
 from pyapprox.pde.time.implicit_steppers import BackwardEulerResidual
+from pyapprox.util.backends.numpy import NumpyBkd
+from pyapprox.util.backends.protocols import Array, Backend
 
 
 class TestPhysicsAdapterBase(Generic[Array], unittest.TestCase):
@@ -32,9 +32,7 @@ class TestPhysicsAdapterBase(Generic[Array], unittest.TestCase):
         self.bkd_inst = self.bkd()
 
         # Create simple 1D physics for testing
-        self.mesh = StructuredMesh1D(
-            nx=10, bounds=(0.0, 1.0), bkd=self.bkd_inst
-        )
+        self.mesh = StructuredMesh1D(nx=10, bounds=(0.0, 1.0), bkd=self.bkd_inst)
         self.basis = LagrangeBasis(self.mesh, degree=1)
         self.physics = LinearAdvectionDiffusionReaction(
             basis=self.basis, diffusivity=0.01, bkd=self.bkd_inst
@@ -175,6 +173,7 @@ class TestPhysicsAdapterNumpy(TestPhysicsAdapterBase[NDArray[Any]]):
 # Try to import torch for dual-backend testing
 try:
     import torch
+
     from pyapprox.util.backends.torch import TorchBkd
 
     class TestPhysicsAdapterTorch(TestPhysicsAdapterBase[torch.Tensor]):
@@ -203,9 +202,6 @@ try:
 
 except ImportError:
     pass
-
-
-from pyapprox.util.test_utils import load_tests
 
 
 if __name__ == "__main__":

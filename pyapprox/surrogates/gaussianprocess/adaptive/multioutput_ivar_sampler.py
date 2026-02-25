@@ -60,9 +60,7 @@ class MultiOutputIVARSampler(Generic[Array]):
 
         # Track partition indices for mapping global indices to per-output
         ncandidates_per_output = [c.shape[1] for c in candidates_list]
-        self._ncandidates_per_output = bkd.asarray(
-            ncandidates_per_output
-        )
+        self._ncandidates_per_output = bkd.asarray(ncandidates_per_output)
         partition = [0]
         for n in ncandidates_per_output:
             partition.append(partition[-1] + n)
@@ -117,6 +115,7 @@ class MultiOutputIVARSampler(Generic[Array]):
         from pyapprox.util.linalg.incremental_cholesky import (
             IncrementalCholeskyFactorization,
         )
+
         self._ivar._cholesky = IncrementalCholeskyFactorization(K, bkd)
         for idx in self._ivar._selected_indices:
             self._ivar._cholesky.add_pivot(idx)
@@ -157,9 +156,7 @@ class MultiOutputIVARSampler(Generic[Array]):
 
         # Generate quadrature points for HF output only
         np.random.seed(42)
-        hf_quad_pts = bkd.asarray(
-            np.random.rand(nvars, self._nquad_samples).tolist()
-        )
+        hf_quad_pts = bkd.asarray(np.random.rand(nvars, self._nquad_samples).tolist())
 
         # Build quad list: empty arrays for LF outputs, quad pts for HF
         empty = bkd.zeros((nvars, 0))
@@ -228,9 +225,7 @@ class MultiOutputIVARSampler(Generic[Array]):
             priorities = self._objective_to_priority(obj_vals)
 
             # Select candidate with highest priority
-            best = int(
-                bkd.to_numpy(bkd.reshape(bkd.argmax(priorities), (1,)))[0]
-            )
+            best = int(bkd.to_numpy(bkd.reshape(bkd.argmax(priorities), (1,)))[0])
             new_pivots.append(best)
             self._ivar._selected_indices.append(best)
             self._ivar._cholesky.add_pivot(best)
@@ -279,9 +274,7 @@ class MultiOutputIVARSampler(Generic[Array]):
         for ii in range(self._n_total):
             if not np.isinf(obj_np[ii]):
                 cost = costs_np[self._output_ids[ii]]
-                priorities[ii] = bkd.asarray(
-                    (-obj_np[ii] + prev_best) / cost
-                )
+                priorities[ii] = bkd.asarray((-obj_np[ii] + prev_best) / cost)
 
         return priorities
 

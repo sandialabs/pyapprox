@@ -7,28 +7,27 @@ full GP regression using Cholesky factorization for numerical stability.
 
 import copy
 import math
-
-import numpy as np
 from typing import Generic, Optional
-from pyapprox.util.backends.protocols import Array, Backend
-from pyapprox.surrogates.kernels.protocols import Kernel
-from pyapprox.surrogates.gaussianprocess.data import GPTrainingData
-from pyapprox.surrogates.gaussianprocess.output_transform import (
-    OutputAffineTransformProtocol,
-)
-from pyapprox.surrogates.gaussianprocess.input_transform import (
-    InputAffineTransformProtocol,
-    IdentityInputTransform,
-)
-from pyapprox.surrogates.gaussianprocess.mean_functions import (
-    MeanFunction,
-    ZeroMean
-)
-from pyapprox.util.hyperparameter import HyperParameterList
-from pyapprox.util.linalg.cholesky_factor import CholeskyFactor
+
 from pyapprox.optimization.minimize.protocols import (
     BindableOptimizerProtocol,
 )
+from pyapprox.surrogates.gaussianprocess.data import GPTrainingData
+from pyapprox.surrogates.gaussianprocess.input_transform import (
+    IdentityInputTransform,
+    InputAffineTransformProtocol,
+)
+from pyapprox.surrogates.gaussianprocess.mean_functions import (
+    MeanFunction,
+    ZeroMean,
+)
+from pyapprox.surrogates.gaussianprocess.output_transform import (
+    OutputAffineTransformProtocol,
+)
+from pyapprox.surrogates.kernels.protocols import Kernel
+from pyapprox.util.backends.protocols import Array, Backend
+from pyapprox.util.hyperparameter import HyperParameterList
+from pyapprox.util.linalg.cholesky_factor import CholeskyFactor
 
 
 class ExactGaussianProcess(Generic[Array]):
@@ -145,7 +144,7 @@ class ExactGaussianProcess(Generic[Array]):
         nvars: int,
         bkd: Backend[Array],
         mean_function: Optional[MeanFunction[Array]] = None,
-        nugget: float = 1e-6
+        nugget: float = 1e-6,
     ):
         self._kernel = kernel
         self._nvars = nvars
@@ -159,9 +158,7 @@ class ExactGaussianProcess(Generic[Array]):
 
         # Nugget for numerical stability
         if nugget <= 0:
-            raise ValueError(
-                f"nugget must be positive, got {nugget}"
-            )
+            raise ValueError(f"nugget must be positive, got {nugget}")
         self._nugget = nugget
 
         # Training data (set during fit)
@@ -174,9 +171,7 @@ class ExactGaussianProcess(Generic[Array]):
         self._setup_derivative_methods()
 
         self._alpha: Optional[Array] = None
-        self._output_transform: Optional[
-            OutputAffineTransformProtocol[Array]
-        ] = None
+        self._output_transform: Optional[OutputAffineTransformProtocol[Array]] = None
         self._input_transform: InputAffineTransformProtocol[Array] = (
             IdentityInputTransform(nvars, bkd)
         )
@@ -202,9 +197,7 @@ class ExactGaussianProcess(Generic[Array]):
         clone._alpha = None
         return clone
 
-    def _copy_fitted_state_from(
-        self, other: "ExactGaussianProcess[Array]"
-    ) -> None:
+    def _copy_fitted_state_from(self, other: "ExactGaussianProcess[Array]") -> None:
         """Copy all fitted state from another GP into self.
 
         Centralizes state transfer so future fitted-state additions
@@ -221,12 +214,8 @@ class ExactGaussianProcess(Generic[Array]):
         self._output_transform = other._output_transform
         self._input_transform = other._input_transform
         # Copy optimized hyperparameters
-        self._kernel.hyp_list().set_values(
-            other._kernel.hyp_list().get_values()
-        )
-        self._mean.hyp_list().set_values(
-            other._mean.hyp_list().get_values()
-        )
+        self._kernel.hyp_list().set_values(other._kernel.hyp_list().get_values())
+        self._mean.hyp_list().set_values(other._mean.hyp_list().get_values())
 
     def _setup_derivative_methods(self) -> None:
         """
@@ -235,7 +224,10 @@ class ExactGaussianProcess(Generic[Array]):
         The hvp methods are only exposed if the kernel implements
         KernelWithJacobianAndHVPWrtX1Protocol (i.e., has hvp_wrt_x1 method).
         """
-        from pyapprox.surrogates.kernels.protocols import KernelWithJacobianAndHVPWrtX1Protocol
+        from pyapprox.surrogates.kernels.protocols import (
+            KernelWithJacobianAndHVPWrtX1Protocol,
+        )
+
         if isinstance(self._kernel, KernelWithJacobianAndHVPWrtX1Protocol):
             self.hvp = self._hvp
             self.hvp_batch = self._hvp_batch
@@ -368,9 +360,7 @@ class ExactGaussianProcess(Generic[Array]):
         all_hyps = kernel_hyps.hyperparameters() + mean_hyps.hyperparameters()
         return HyperParameterList(all_hyps)
 
-    def set_optimizer(
-        self, optimizer: BindableOptimizerProtocol[Array]
-    ) -> None:
+    def set_optimizer(self, optimizer: BindableOptimizerProtocol[Array]) -> None:
         """Set the optimizer for hyperparameter optimization during fit().
 
         .. deprecated::
@@ -415,12 +405,8 @@ class ExactGaussianProcess(Generic[Array]):
         self,
         X_train: Array,
         y_train: Array,
-        output_transform: Optional[
-            OutputAffineTransformProtocol[Array]
-        ] = None,
-        input_transform: Optional[
-            InputAffineTransformProtocol[Array]
-        ] = None,
+        output_transform: Optional[OutputAffineTransformProtocol[Array]] = None,
+        input_transform: Optional[InputAffineTransformProtocol[Array]] = None,
     ) -> None:
         """Fit GP to data and optimize active hyperparameters.
 
@@ -461,9 +447,10 @@ class ExactGaussianProcess(Generic[Array]):
         RuntimeError
             If Cholesky factorization fails (matrix not positive definite).
         """
-        from pyapprox.surrogates.gaussianprocess.fitters.maximum_likelihood_fitter import (
+        from pyapprox.surrogates.gaussianprocess.fitters.maximum_likelihood_fitter import (  # noqa: E501
             GPMaximumLikelihoodFitter,
         )
+
         fitter = GPMaximumLikelihoodFitter(
             bkd=self._bkd,
             optimizer=self._optimizer,
@@ -503,15 +490,16 @@ class ExactGaussianProcess(Generic[Array]):
         """
         # Validate and store training data
         self._data = GPTrainingData(
-            X_train, y_train, self._bkd,
+            X_train,
+            y_train,
+            self._bkd,
             output_transform=self._output_transform,
         )
 
         # Check nvars matches
         if self._data.nvars() != self._nvars:
             raise ValueError(
-                f"X_train has {self._data.nvars()} variables, "
-                f"expected {self._nvars}"
+                f"X_train has {self._data.nvars()} variables, expected {self._nvars}"
             )
 
         # Compute kernel matrix K(X, X)
@@ -623,9 +611,7 @@ class ExactGaussianProcess(Generic[Array]):
         K_star_star = self._kernel.diag(X)
 
         # Solve L v = k(X, X*)^T for v where L is Cholesky factor
-        v = self._bkd.solve_triangular(
-            self._cholesky.factor(), K_star.T, lower=True
-        )
+        v = self._bkd.solve_triangular(self._cholesky.factor(), K_star.T, lower=True)
 
         # Posterior variance: var* = k(X*, X*) - v^T v
         var_posterior = K_star_star - self._bkd.einsum("ij,ij->j", v, v)
@@ -788,13 +774,13 @@ class ExactGaussianProcess(Generic[Array]):
         # Returns: (1, n_train, nvars)
         kernel_hvp = self._kernel.hvp_wrt_x1(
             x_star[:, None],  # (nvars, 1)
-            X_train,          # (nvars, n_train)
-            V                 # (nvars,)
+            X_train,  # (nvars, n_train)
+            V,  # (nvars,)
         )  # Shape: (1, n_train, nvars)
 
         # Contract with alpha: Σ_i H[k(x, x_i)]·V · α_i
         # Shape: (1, n_train, nvars) · (n_train,) -> (1, nvars) -> (nvars,)
-        hvp = self._bkd.einsum('iqj,q->j', kernel_hvp, alpha)
+        hvp = self._bkd.einsum("iqj,q->j", kernel_hvp, alpha)
 
         return hvp
 
@@ -803,7 +789,8 @@ class ExactGaussianProcess(Generic[Array]):
         Compute Hessian-vector product for GP mean (single sample).
 
         This is a private method. The public hvp() method is dynamically
-        added during __init__ if the kernel supports KernelWithJacobianAndHVPWrtX1Protocol.
+        added during __init__ if the kernel supports
+        KernelWithJacobianAndHVPWrtX1Protocol.
 
         This computes H(x)·v where H is the Hessian of the GP mean prediction
         with respect to inputs x, and v is a direction vector.
@@ -844,9 +831,7 @@ class ExactGaussianProcess(Generic[Array]):
 
         nvars = sample.shape[0]
         if nvars != self._nvars:
-            raise ValueError(
-                f"sample has {nvars} variables, expected {self._nvars}"
-            )
+            raise ValueError(f"sample has {nvars} variables, expected {self._nvars}")
 
         nqoi = self._data.nqoi()
         if nqoi > 1:
@@ -924,9 +909,7 @@ class ExactGaussianProcess(Generic[Array]):
         n_samples = samples.shape[1]
 
         if nvars != self._nvars:
-            raise ValueError(
-                f"samples has {nvars} variables, expected {self._nvars}"
-            )
+            raise ValueError(f"samples has {nvars} variables, expected {self._nvars}")
 
         nqoi = self._data.nqoi()
         if nqoi > 1:
@@ -937,8 +920,8 @@ class ExactGaussianProcess(Generic[Array]):
         # Compute HVP for each sample
         hvps = []
         for i in range(n_samples):
-            sample_i = samples[:, i:i+1]
-            vec_i = vecs[:, i:i+1]
+            sample_i = samples[:, i : i + 1]
+            vec_i = vecs[:, i : i + 1]
             hvp_i = self._hvp(sample_i, vec_i)  # (nvars, 1)
             hvps.append(hvp_i[:, 0])  # (nvars,)
 
@@ -982,9 +965,7 @@ class ExactGaussianProcess(Generic[Array]):
         K_star_star = self._kernel(X, X)
 
         # Solve L v = k(X, X*)^T for v
-        v = self._bkd.solve_triangular(
-            self._cholesky.factor(), K_star.T, lower=True
-        )
+        v = self._bkd.solve_triangular(self._cholesky.factor(), K_star.T, lower=True)
 
         # Posterior covariance: Σ* = k(X*, X*) - v^T v
         cov_posterior = K_star_star - v.T @ v
@@ -1035,9 +1016,7 @@ class ExactGaussianProcess(Generic[Array]):
             If the GP has not been fitted.
         """
         if not self.is_fitted():
-            raise RuntimeError(
-                "GP must be fitted before computing marginal likelihood"
-            )
+            raise RuntimeError("GP must be fitted before computing marginal likelihood")
 
         n = self._data.n_samples()
 

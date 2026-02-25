@@ -6,8 +6,8 @@ from pyapprox.util.cartesian import (
     outer_product_weights,
 )
 from pyapprox.util.optional_deps import (
-    package_available,
     import_optional_dependency,
+    package_available,
 )
 
 __all__ = [

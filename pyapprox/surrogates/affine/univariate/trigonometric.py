@@ -3,6 +3,7 @@
 Provides basis functions [1, cos(kx), sin(kx)] on a domain mapped
 to the canonical interval [-pi, pi].
 """
+
 import math
 from typing import Generic
 
@@ -124,11 +125,11 @@ class TrigonometricPolynomial1D(Generic[Array]):
         """
         can_samples = self._map_to_canonical(samples)
         k = self._half_indices  # shape (1, K)
-        scale_inv_sq = 1.0 / self._scale ** 2
+        scale_inv_sq = 1.0 / self._scale**2
         return self._bkd.hstack(
             (
                 self._bkd.zeros((can_samples.shape[1], 1)),
-                -(k ** 2) * self._bkd.cos(can_samples.T * k) * scale_inv_sq,
-                -(k ** 2) * self._bkd.sin(can_samples.T * k) * scale_inv_sq,
+                -(k**2) * self._bkd.cos(can_samples.T * k) * scale_inv_sq,
+                -(k**2) * self._bkd.sin(can_samples.T * k) * scale_inv_sq,
             )
         )

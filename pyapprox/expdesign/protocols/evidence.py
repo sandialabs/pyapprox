@@ -8,7 +8,7 @@ For OED, we compute evidence for multiple potential observations (outer loop)
 by integrating over prior samples (inner loop).
 """
 
-from typing import Protocol, Generic, runtime_checkable
+from typing import Generic, Protocol, runtime_checkable
 
 from pyapprox.util.backends.protocols import Array, Backend
 

@@ -5,22 +5,21 @@ Provides an analytically-defined Beta distribution that implements
 MarginalWithJacobianProtocol with full autograd support.
 """
 
-from typing import Generic, Any, Tuple, Optional
 import math
+from typing import Any, Generic, Optional, Tuple
 
 import numpy as np
-from scipy import special, stats
+from scipy import stats
 from scipy.special import roots_legendre
 
-from pyapprox.util.backends.protocols import Array, Backend
-from pyapprox.util.hyperparameter import (
-    LogHyperParameter,
-    HyperParameterList,
-)
-from pyapprox.probability.protocols import UniformQuadratureRule01Protocol
 from pyapprox.optimization.rootfinding.newton import (
     NewtonSolver,
-    NewtonSolverResidualProtocol,
+)
+from pyapprox.probability.protocols import UniformQuadratureRule01Protocol
+from pyapprox.util.backends.protocols import Array, Backend
+from pyapprox.util.hyperparameter import (
+    HyperParameterList,
+    LogHyperParameter,
 )
 
 
@@ -221,7 +220,10 @@ class BetaMarginal(Generic[Array]):
 
         # Store scipy distribution for initial guess and rvs
         # Use loc=lb, scale=ub-lb for bounded Beta
-        self._scipy_rv = stats.beta(alpha_val, beta_val, loc=self._lb, scale=self._scale)
+        self._scipy_rv = stats.beta(
+            alpha_val, beta_val,
+            loc=self._lb, scale=self._scale,
+        )
 
     def _setup_quadrature(
         self,
@@ -257,8 +259,10 @@ class BetaMarginal(Generic[Array]):
             integral_val = float(self._bkd.to_numpy(integral))
             raise ValueError(
                 f"Quadrature rule does not integrate Lebesgue measure on [0, 1]. "
-                f"Expected integral of x^2 to be {expected:.10f}, got {integral_val:.10f}. "
-                f"Ensure the quadrature rule has points in [0, 1] and weights sum to 1."
+                f"Expected integral of x^2 to be "
+                f"{expected:.10f}, got {integral_val:.10f}. "
+                "Ensure the quadrature rule has points "
+                "in [0, 1] and weights sum to 1."
             )
 
     def _setup_newton_solver(self) -> None:
@@ -417,7 +421,8 @@ class BetaMarginal(Generic[Array]):
         beta = self._get_beta()
 
         # Transform integral_0^x to integral_0^1 with substitution t = x*u
-        # integral_0^x t^{a-1}(1-t)^{b-1} dt = x^a * integral_0^1 u^{a-1}(1-x*u)^{b-1} du
+        # integral_0^x t^{a-1}(1-t)^{b-1} dt
+        # = x^a * integral_0^1 u^{a-1}(1-x*u)^{b-1} du
         # Note: simpler is just evaluating the integrand at quadrature points
         # scaled by x
         quadx = samples_1d[:, None] * self._quadx_01[None, :]
@@ -612,7 +617,8 @@ class BetaMarginal(Generic[Array]):
 
         variance = scale^2 * alpha * beta / ((alpha + beta)^2 * (alpha + beta + 1))
 
-        For Beta on [0, 1], this is alpha * beta / ((alpha + beta)^2 * (alpha + beta + 1)).
+        For Beta on [0, 1], this is
+        alpha * beta / ((alpha + beta)^2 * (alpha + beta + 1)).
 
         Returns
         -------

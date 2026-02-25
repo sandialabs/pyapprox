@@ -7,15 +7,14 @@ import numpy as np
 import torch
 from numpy.typing import NDArray
 
+from pyapprox.surrogates.affine.basis.kernel_basis import KernelBasis
+from pyapprox.surrogates.kernels.matern import (
+    SquaredExponentialKernel,
+)
 from pyapprox.util.backends.numpy import NumpyBkd
 from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.util.backends.torch import TorchBkd
 from pyapprox.util.test_utils import load_tests  # noqa: F401
-
-from pyapprox.surrogates.kernels.matern import (
-    SquaredExponentialKernel,
-)
-from pyapprox.surrogates.affine.basis.kernel_basis import KernelBasis
 
 
 class TestKernelBasis(Generic[Array], unittest.TestCase):
@@ -115,16 +114,20 @@ class TestKernelBasis(Generic[Array], unittest.TestCase):
             nvars,
             bkd,
         )
-        centers = bkd.asarray([
-            [0.0, 1.0, -1.0],
-            [0.0, 1.0, -1.0],
-        ])
+        centers = bkd.asarray(
+            [
+                [0.0, 1.0, -1.0],
+                [0.0, 1.0, -1.0],
+            ]
+        )
         basis = KernelBasis(kernel, centers)
 
-        points = bkd.asarray([
-            [-1.0, 0.0, 0.5, 2.0],
-            [-1.0, 0.0, 0.5, 2.0],
-        ])
+        points = bkd.asarray(
+            [
+                [-1.0, 0.0, 0.5, 2.0],
+                [-1.0, 0.0, 0.5, 2.0],
+            ]
+        )
         vals = basis(points)
 
         bkd.assert_allclose(

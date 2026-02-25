@@ -2,11 +2,11 @@
 
 from typing import Generic, Tuple
 
-from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.surrogates.affine.univariate.piecewisepoly import (
     PiecewiseLinear,
     PiecewiseQuadratic,
 )
+from pyapprox.util.backends.protocols import Array, Backend
 
 
 class PiecewiseDensityBasis(Generic[Array]):

@@ -16,13 +16,12 @@ import numpy as np
 import torch
 from numpy.typing import NDArray
 
-from pyapprox.util.backends.numpy import NumpyBkd
-from pyapprox.util.backends.torch import TorchBkd
-from pyapprox.util.backends.protocols import Array, Backend
-from pyapprox.util.test_utils import load_tests, slow_test  # noqa: F401
-
 from pyapprox.expdesign.benchmarks import LinearGaussianOEDBenchmark
 from pyapprox.expdesign.diagnostics import KLOEDDiagnostics
+from pyapprox.util.backends.numpy import NumpyBkd
+from pyapprox.util.backends.protocols import Array, Backend
+from pyapprox.util.backends.torch import TorchBkd
+from pyapprox.util.test_utils import load_tests, slow_test  # noqa: F401
 
 
 class TestKLOEDConvergenceStandalone(Generic[Array], unittest.TestCase):
@@ -121,7 +120,7 @@ class TestKLOEDConvergenceStandalone(Generic[Array], unittest.TestCase):
         )
 
         # MSE should equal bias^2 + variance
-        expected_mse = bias ** 2 + variance
+        expected_mse = bias**2 + variance
         self._bkd.assert_allclose(
             self._bkd.asarray([mse]),
             self._bkd.asarray([expected_mse]),
@@ -265,9 +264,7 @@ class TestKLOEDConvergenceStandalone(Generic[Array], unittest.TestCase):
 
         weights_uniform = self._bkd.ones((self._nobs, 1)) / self._nobs
         weights_concentrated = self._bkd.zeros((self._nobs, 1))
-        weights_concentrated = self._bkd.asarray(
-            [[1.0], [0.0], [0.0], [0.0], [0.0]]
-        )
+        weights_concentrated = self._bkd.asarray([[1.0], [0.0], [0.0], [0.0], [0.0]])
 
         eig_uniform = diagnostics.exact_eig(weights_uniform)
         eig_concentrated = diagnostics.exact_eig(weights_concentrated)
@@ -276,9 +273,7 @@ class TestKLOEDConvergenceStandalone(Generic[Array], unittest.TestCase):
         self.assertNotAlmostEqual(eig_uniform, eig_concentrated, places=3)
 
 
-class TestKLOEDConvergenceStandaloneNumpy(
-    TestKLOEDConvergenceStandalone[NDArray[Any]]
-):
+class TestKLOEDConvergenceStandaloneNumpy(TestKLOEDConvergenceStandalone[NDArray[Any]]):
     """NumPy backend tests."""
 
     __test__ = True
@@ -287,9 +282,7 @@ class TestKLOEDConvergenceStandaloneNumpy(
         return NumpyBkd()
 
 
-class TestKLOEDConvergenceStandaloneTorch(
-    TestKLOEDConvergenceStandalone[torch.Tensor]
-):
+class TestKLOEDConvergenceStandaloneTorch(TestKLOEDConvergenceStandalone[torch.Tensor]):
     """PyTorch backend tests."""
 
     __test__ = True

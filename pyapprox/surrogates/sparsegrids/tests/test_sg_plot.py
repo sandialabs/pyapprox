@@ -6,6 +6,7 @@ Numpy-only tests using matplotlib Agg backend.
 import unittest
 
 import matplotlib
+
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import numpy as np
@@ -22,8 +23,7 @@ class TestPlotSparseGridPoints(unittest.TestCase):
     def test_2d_selected_only(self) -> None:
         """2D plot with selected samples only, no candidates."""
         fig, ax = plt.subplots()
-        selected = np.array([[0.0, 0.5, -0.5, 1.0],
-                             [0.0, 0.5, -0.5, -1.0]])
+        selected = np.array([[0.0, 0.5, -0.5, 1.0], [0.0, 0.5, -0.5, -1.0]])
         result = plot_sparse_grid_points(ax, selected)
         self.assertIn("selected", result)
         self.assertIsNotNone(result["selected"])
@@ -64,7 +64,8 @@ class TestPlotSparseGridPoints(unittest.TestCase):
         fig, ax = plt.subplots()
         selected = np.array([[0.0, 1.0], [0.0, 1.0]])
         plot_sparse_grid_points(
-            ax, selected,
+            ax,
+            selected,
             axis_labels=["$z_1$", "$z_2$"],
             title="Test Grid",
         )

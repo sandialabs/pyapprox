@@ -1,13 +1,12 @@
 from typing import Generic
-from pyapprox.util.backends.protocols import Array, Backend
+
 from pyapprox.pde.time.implicit_steppers.protocols import (
     ImplicitODEResidualProtocol,
 )
+from pyapprox.util.backends.protocols import Array, Backend
 
 
-class NonLinearDecoupledODE(
-    Generic[Array], ImplicitODEResidualProtocol[Array]
-):
+class NonLinearDecoupledODE(Generic[Array], ImplicitODEResidualProtocol[Array]):
     """
     Nonlinear decoupled ODE system.
 
@@ -40,9 +39,7 @@ class NonLinearDecoupledODE(
         Initial condition for the ODE system.
     """
 
-    def __init__(
-        self, nstates: int, transient_coef: bool, bkd: Backend[Array]
-    ):
+    def __init__(self, nstates: int, transient_coef: bool, bkd: Backend[Array]):
         self._nstates = nstates
         self._transient_coef = transient_coef
         self._bkd = bkd

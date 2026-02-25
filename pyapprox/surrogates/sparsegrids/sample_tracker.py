@@ -6,7 +6,6 @@ subspaces, tracking unique samples, and distributing values.
 
 from typing import Generic, List, Optional, Set
 
-from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.surrogates.affine.indices.basis_generator import (
     BasisIndexGenerator,
 )
@@ -16,6 +15,7 @@ from pyapprox.surrogates.sparsegrids.subspace import (
 from pyapprox.surrogates.sparsegrids.subspace_factory import (
     SubspaceFactoryProtocol,
 )
+from pyapprox.util.backends.protocols import Array, Backend
 
 
 class SampleTracker(Generic[Array]):
@@ -118,9 +118,7 @@ class SampleTracker(Generic[Array]):
         if len(unique_local) == 0:
             return None
         samples = subspace.get_samples()
-        idx_array = self._bkd.asarray(
-            unique_local, dtype=self._bkd.int64_dtype()
-        )
+        idx_array = self._bkd.asarray(unique_local, dtype=self._bkd.int64_dtype())
         return samples[:, idx_array]
 
     def append_new_values(self, values: Array) -> None:
@@ -190,15 +188,11 @@ class SampleTracker(Generic[Array]):
                     unique_local, dtype=self._bkd.int64_dtype()
                 )
                 n_new = len(unique_local)
-                result[:, global_idx : global_idx + n_new] = (
-                    samples[:, idx_array]
-                )
+                result[:, global_idx : global_idx + n_new] = samples[:, idx_array]
                 global_idx += n_new
         return result
 
-    def n_filtered_unique_samples(
-        self, positions: Optional[Set[int]] = None
-    ) -> int:
+    def n_filtered_unique_samples(self, positions: Optional[Set[int]] = None) -> int:
         """Count unique samples for a filtered set of positions.
 
         Parameters
@@ -256,9 +250,7 @@ class SampleTracker(Generic[Array]):
                     unique_local, dtype=self._bkd.int64_dtype()
                 )
                 n_new = len(unique_local)
-                result[:, out_idx : out_idx + n_new] = (
-                    samples[:, idx_array]
-                )
+                result[:, out_idx : out_idx + n_new] = samples[:, idx_array]
                 out_idx += n_new
         return result
 
@@ -297,9 +289,9 @@ class SampleTracker(Generic[Array]):
                 global_idx += n_new
                 continue
             if n_new > 0:
-                result[:, out_idx : out_idx + n_new] = (
-                    self._values[:, global_idx : global_idx + n_new]
-                )
+                result[:, out_idx : out_idx + n_new] = self._values[
+                    :, global_idx : global_idx + n_new
+                ]
                 out_idx += n_new
                 global_idx += n_new
         return result

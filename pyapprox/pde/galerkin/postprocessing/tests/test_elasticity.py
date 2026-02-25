@@ -32,7 +32,11 @@ class TestStrainRecoveryQuad(unittest.TestCase):
         ux = 0.1 * coordx
         uy = np.zeros_like(coordy)
         exx, eyy, exy = strain_from_displacement_2d(
-            coordx, coordy, conn, ux, uy,
+            coordx,
+            coordy,
+            conn,
+            ux,
+            uy,
         )
         np.testing.assert_allclose(exx, [0.1], atol=1e-14)
         np.testing.assert_allclose(eyy, [0.0], atol=1e-14)
@@ -44,7 +48,11 @@ class TestStrainRecoveryQuad(unittest.TestCase):
         ux = np.zeros_like(coordx)
         uy = 0.2 * coordy
         exx, eyy, exy = strain_from_displacement_2d(
-            coordx, coordy, conn, ux, uy,
+            coordx,
+            coordy,
+            conn,
+            ux,
+            uy,
         )
         np.testing.assert_allclose(exx, [0.0], atol=1e-14)
         np.testing.assert_allclose(eyy, [0.2], atol=1e-14)
@@ -57,7 +65,11 @@ class TestStrainRecoveryQuad(unittest.TestCase):
         ux = gamma * coordy
         uy = np.zeros_like(coordy)
         exx, eyy, exy = strain_from_displacement_2d(
-            coordx, coordy, conn, ux, uy,
+            coordx,
+            coordy,
+            conn,
+            ux,
+            uy,
         )
         np.testing.assert_allclose(exx, [0.0], atol=1e-14)
         np.testing.assert_allclose(eyy, [0.0], atol=1e-14)
@@ -70,7 +82,11 @@ class TestStrainRecoveryQuad(unittest.TestCase):
         ux = -theta * coordy
         uy = theta * coordx
         exx, eyy, exy = strain_from_displacement_2d(
-            coordx, coordy, conn, ux, uy,
+            coordx,
+            coordy,
+            conn,
+            ux,
+            uy,
         )
         np.testing.assert_allclose(exx, [0.0], atol=1e-14)
         np.testing.assert_allclose(eyy, [0.0], atol=1e-14)
@@ -85,7 +101,11 @@ class TestStrainRecoveryQuad(unittest.TestCase):
         ux = 0.1 * coordx
         uy = -0.05 * coordy
         exx, eyy, exy = strain_from_displacement_2d(
-            coordx, coordy, conn, ux, uy,
+            coordx,
+            coordy,
+            conn,
+            ux,
+            uy,
         )
         np.testing.assert_allclose(exx, [0.1], atol=1e-14)
         np.testing.assert_allclose(eyy, [-0.05], atol=1e-14)
@@ -106,7 +126,11 @@ class TestStrainRecoveryTri(unittest.TestCase):
         ux = 0.1 * coordx
         uy = np.zeros(3)
         exx, eyy, exy = strain_from_displacement_2d(
-            coordx, coordy, conn, ux, uy,
+            coordx,
+            coordy,
+            conn,
+            ux,
+            uy,
         )
         np.testing.assert_allclose(exx, [0.1], atol=1e-14)
         np.testing.assert_allclose(eyy, [0.0], atol=1e-14)
@@ -118,7 +142,11 @@ class TestStrainRecoveryTri(unittest.TestCase):
         ux = gamma * coordy
         uy = np.zeros(3)
         exx, eyy, exy = strain_from_displacement_2d(
-            coordx, coordy, conn, ux, uy,
+            coordx,
+            coordy,
+            conn,
+            ux,
+            uy,
         )
         np.testing.assert_allclose(exx, [0.0], atol=1e-14)
         np.testing.assert_allclose(eyy, [0.0], atol=1e-14)
@@ -138,7 +166,11 @@ class TestStressFromStrain(unittest.TestCase):
         eyy = np.array([0.0])
         exy = np.array([0.0])
         sxx, syy, sxy = stress_from_strain_2d(
-            exx, eyy, exy, np.array([lam]), np.array([mu]),
+            exx,
+            eyy,
+            exy,
+            np.array([lam]),
+            np.array([mu]),
         )
         # sigma_xx = (lam + 2*mu) * e
         expected_sxx = (lam + 2 * mu) * e
@@ -156,7 +188,11 @@ class TestStressFromStrain(unittest.TestCase):
         eyy = np.array([0.0])
         exy = np.array([gamma_half])
         sxx, syy, sxy = stress_from_strain_2d(
-            exx, eyy, exy, np.array([lam]), np.array([mu]),
+            exx,
+            eyy,
+            exy,
+            np.array([lam]),
+            np.array([mu]),
         )
         np.testing.assert_allclose(sxx, [0.0], atol=1e-14)
         np.testing.assert_allclose(syy, [0.0], atol=1e-14)
@@ -195,7 +231,13 @@ class TestVonMisesStress(unittest.TestCase):
         mu_arr = np.array([mu_val])
 
         vm = von_mises_stress_2d(
-            coordx, coordy, conn, ux, uy, lam_arr, mu_arr,
+            coordx,
+            coordy,
+            conn,
+            ux,
+            uy,
+            lam_arr,
+            mu_arr,
         )
 
         # For uniaxial: sxx = (lam+2mu)*e, syy = lam*e, sxy = 0
@@ -217,7 +259,13 @@ class TestVonMisesStress(unittest.TestCase):
         mu_arr = np.array([mu_val])
 
         vm = von_mises_stress_2d(
-            coordx, coordy, conn, ux, uy, lam_arr, mu_arr,
+            coordx,
+            coordy,
+            conn,
+            ux,
+            uy,
+            lam_arr,
+            mu_arr,
         )
 
         tau = 2 * mu_val * gamma  # sxy = 2*mu*exy, exy = gamma
@@ -235,7 +283,13 @@ class TestVonMisesStress(unittest.TestCase):
         mu_arr = np.array([5000.0])
 
         vm = von_mises_stress_2d(
-            coordx, coordy, conn, ux, uy, lam_arr, mu_arr,
+            coordx,
+            coordy,
+            conn,
+            ux,
+            uy,
+            lam_arr,
+            mu_arr,
         )
         np.testing.assert_allclose(vm, [0.0], atol=1e-14)
 
@@ -255,7 +309,13 @@ class TestVonMisesStress(unittest.TestCase):
         mu_arr = np.array([5000.0])
 
         vm = von_mises_stress_2d(
-            coordx, coordy, conn, ux, uy, lam_arr, mu_arr,
+            coordx,
+            coordy,
+            conn,
+            ux,
+            uy,
+            lam_arr,
+            mu_arr,
         )
         # sxx = syy = 2*mu*e = 10; VM = |sxx| = 10
         sxx = 2.0 * 5000.0 * e
@@ -277,7 +337,13 @@ class TestVonMisesStress(unittest.TestCase):
         mu_arr = np.full(2, mu)
 
         vm = von_mises_stress_2d(
-            coordx, coordy, conn, ux, uy, lam_arr, mu_arr,
+            coordx,
+            coordy,
+            conn,
+            ux,
+            uy,
+            lam_arr,
+            mu_arr,
         )
         # Both elements should have identical von Mises
         np.testing.assert_allclose(vm[0], vm[1], rtol=1e-14)
@@ -294,9 +360,13 @@ class TestVonMisesStress(unittest.TestCase):
         conn = np.array([[0, 1, 2, 3, 4]])
         with self.assertRaises(ValueError):
             von_mises_stress_2d(
-                coordx, coordy, conn,
-                np.zeros(5), np.zeros(5),
-                np.array([1.0]), np.array([1.0]),
+                coordx,
+                coordy,
+                conn,
+                np.zeros(5),
+                np.zeros(5),
+                np.array([1.0]),
+                np.array([1.0]),
             )
 
 
@@ -305,26 +375,30 @@ class TestVonMisesWithFEMSolve(unittest.TestCase):
 
     def test_cantilever_beam_stress_positive(self):
         """Von Mises stress is non-negative and nonzero for loaded beam."""
-        from pyapprox.util.backends.numpy import NumpyBkd
-        from pyapprox.pde.galerkin.mesh import UnstructuredMesh2D
-        from pyapprox.pde.galerkin.basis import VectorLagrangeBasis
-        from pyapprox.pde.galerkin.physics import (
-            CompositeLinearElasticity,
-        )
-        from pyapprox.pde.galerkin.boundary.implementations import (
-            DirichletBC, NeumannBC,
-        )
-        from pyapprox.pde.galerkin.solvers import SteadyStateSolver
+        from skfem.models.elasticity import lame_parameters
+
         from pyapprox.benchmarks.instances.pde.cantilever_beam import (
             _DEFAULT_MESH_PATH,
         )
-        from skfem.models.elasticity import lame_parameters
+        from pyapprox.pde.galerkin.basis import VectorLagrangeBasis
+        from pyapprox.pde.galerkin.boundary.implementations import (
+            DirichletBC,
+            NeumannBC,
+        )
+        from pyapprox.pde.galerkin.mesh import UnstructuredMesh2D
+        from pyapprox.pde.galerkin.physics import (
+            CompositeLinearElasticity,
+        )
+        from pyapprox.pde.galerkin.solvers import SteadyStateSolver
+        from pyapprox.util.backends.numpy import NumpyBkd
 
         bkd = NumpyBkd()
-        L, H, q0 = 100.0, 30.0, 10.0
+        L, _H, q0 = 100.0, 30.0, 10.0
 
         mesh = UnstructuredMesh2D(
-            _DEFAULT_MESH_PATH, bkd, rescale_origin=(0.0, 0.0),
+            _DEFAULT_MESH_PATH,
+            bkd,
+            rescale_origin=(0.0, 0.0),
         )
         basis = VectorLagrangeBasis(mesh, degree=1)
         skm = mesh.skfem_mesh()
@@ -338,20 +412,28 @@ class TestVonMisesWithFEMSolve(unittest.TestCase):
         }
 
         bc_left = DirichletBC(
-            basis, "left_edge",
-            lambda c, t=0.0: np.zeros(c.shape[1]), bkd,
+            basis,
+            "left_edge",
+            lambda c, t=0.0: np.zeros(c.shape[1]),
+            bkd,
         )
         bc_top = NeumannBC(
-            basis, "top_edge",
-            lambda c, t=0.0: np.vstack([
-                np.zeros(c.shape[1]), -q0 * c[0] / L,
-            ]),
+            basis,
+            "top_edge",
+            lambda c, t=0.0: np.vstack(
+                [
+                    np.zeros(c.shape[1]),
+                    -q0 * c[0] / L,
+                ]
+            ),
             bkd,
         )
 
         physics = CompositeLinearElasticity(
-            basis=basis, material_map=material_map,
-            element_materials=sub_elems, bkd=bkd,
+            basis=basis,
+            material_map=material_map,
+            element_materials=sub_elems,
+            bkd=bkd,
             boundary_conditions=[bc_left, bc_top],
         )
         solver = SteadyStateSolver(physics, tol=1e-10, max_iter=1)
@@ -372,7 +454,13 @@ class TestVonMisesWithFEMSolve(unittest.TestCase):
             mu_arr[sub_elems[name]] = mu_i
 
         vm = von_mises_stress_2d(
-            coordx, coordy, conn, ux, uy, lam_arr, mu_arr,
+            coordx,
+            coordy,
+            conn,
+            ux,
+            uy,
+            lam_arr,
+            mu_arr,
         )
 
         # All non-negative
@@ -383,7 +471,8 @@ class TestVonMisesWithFEMSolve(unittest.TestCase):
         elem_centers_x = np.mean(coordx[conn], axis=1)
         max_stress_elem = np.argmax(vm)
         self.assertLess(
-            elem_centers_x[max_stress_elem], L / 2,
+            elem_centers_x[max_stress_elem],
+            L / 2,
             "Max stress should be near the clamped end",
         )
 

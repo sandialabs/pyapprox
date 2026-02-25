@@ -13,7 +13,8 @@ from pyapprox.util.backends.protocols import Array, Backend
 
 
 class RosenbrockFunction(Generic[Array]):
-    """Rosenbrock function: f(x) = sum_{i=1}^{n-1} [100(x_{i+1} - x_i^2)^2 + (1 - x_i)^2].
+    """Rosenbrock function: f(x) = sum_{i=1}^{n-1} [100(x_{i+1} - x_i^2)^2 + (1 -
+    x_i)^2].
 
     The global minimum is at x = (1, 1, ..., 1) with f(x*) = 0.
 
@@ -70,9 +71,9 @@ class RosenbrockFunction(Generic[Array]):
         bkd = self._bkd
         result = bkd.zeros((1, samples.shape[1]))
         for i in range(self._nvars - 1):
-            xi = samples[i:i+1, :]
-            xi1 = samples[i+1:i+2, :]
-            result = result + 100 * (xi1 - xi**2)**2 + (1 - xi)**2
+            xi = samples[i : i + 1, :]
+            xi1 = samples[i + 1 : i + 2, :]
+            result = result + 100 * (xi1 - xi**2) ** 2 + (1 - xi) ** 2
         return result
 
     def jacobian(self, sample: Array) -> Array:
@@ -110,24 +111,24 @@ class RosenbrockFunction(Generic[Array]):
             # d/dx_i of [(1 - x_i)^2] = -2 * (1 - x_i)
             grad_i = -400 * xi * (xi1 - xi**2) - 2 * (1 - xi)
             grad = bkd.reshape(
-                bkd.hstack([
-                    grad[0, :i],
-                    bkd.asarray([grad[0, i] + grad_i]),
-                    grad[0, i+1:]
-                ]),
-                (1, self._nvars)
+                bkd.hstack(
+                    [grad[0, :i], bkd.asarray([grad[0, i] + grad_i]), grad[0, i + 1 :]]
+                ),
+                (1, self._nvars),
             )
 
             # Gradient contribution for x_{i+1}
             # d/dx_{i+1} of [100(x_{i+1} - x_i^2)^2] = 200 * (x_{i+1} - x_i^2)
             grad_i1 = 200 * (xi1 - xi**2)
             grad = bkd.reshape(
-                bkd.hstack([
-                    grad[0, :i+1],
-                    bkd.asarray([grad[0, i+1] + grad_i1]),
-                    grad[0, i+2:] if i+2 < self._nvars else bkd.array([])
-                ]),
-                (1, self._nvars)
+                bkd.hstack(
+                    [
+                        grad[0, : i + 1],
+                        bkd.asarray([grad[0, i + 1] + grad_i1]),
+                        grad[0, i + 2 :] if i + 2 < self._nvars else bkd.array([]),
+                    ]
+                ),
+                (1, self._nvars),
             )
 
         return grad
@@ -157,9 +158,7 @@ class RosenbrockFunction(Generic[Array]):
                 f"sample must have shape ({self._nvars}, 1), got {sample.shape}"
             )
         if vec.ndim != 2 or vec.shape != (self._nvars, 1):
-            raise ValueError(
-                f"vec must have shape ({self._nvars}, 1), got {vec.shape}"
-            )
+            raise ValueError(f"vec must have shape ({self._nvars}, 1), got {vec.shape}")
 
         bkd = self._bkd
         n = self._nvars
@@ -187,24 +186,28 @@ class RosenbrockFunction(Generic[Array]):
             contrib_i = H_ii * vi + H_ii1 * vi1
             result_i_old = result[i, 0]
             result = bkd.reshape(
-                bkd.hstack([
-                    result[:i, 0],
-                    bkd.asarray([result_i_old + contrib_i]),
-                    result[i+1:, 0]
-                ]),
-                (n, 1)
+                bkd.hstack(
+                    [
+                        result[:i, 0],
+                        bkd.asarray([result_i_old + contrib_i]),
+                        result[i + 1 :, 0],
+                    ]
+                ),
+                (n, 1),
             )
 
             # Contribution to result[i+1]
             contrib_i1 = H_ii1 * vi + H_i1i1 * vi1
             result_i1_old = result[i + 1, 0]
             result = bkd.reshape(
-                bkd.hstack([
-                    result[:i+1, 0],
-                    bkd.asarray([result_i1_old + contrib_i1]),
-                    result[i+2:, 0] if i + 2 < n else bkd.array([])
-                ]),
-                (n, 1)
+                bkd.hstack(
+                    [
+                        result[: i + 1, 0],
+                        bkd.asarray([result_i1_old + contrib_i1]),
+                        result[i + 2 :, 0] if i + 2 < n else bkd.array([]),
+                    ]
+                ),
+                (n, 1),
             )
 
         return result

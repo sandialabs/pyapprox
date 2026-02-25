@@ -1,40 +1,33 @@
 """Tests for ACV search classes."""
 
-from typing import Any, Generic, Tuple
 import unittest
+from typing import Generic, Tuple
 
 import numpy as np
-from numpy.typing import NDArray
 import torch
 
-from pyapprox.util.backends.protocols import Array
-from pyapprox.util.backends.numpy import NumpyBkd
-from pyapprox.util.backends.torch import TorchBkd
-from pyapprox.util.test_utils import load_tests  # noqa: F401
-
-from pyapprox.statest.statistics import MultiOutputMean
 from pyapprox.statest.acv.search import (
-    SearchResult,
     ACVSearch,
 )
 from pyapprox.statest.acv.strategies import (
     DefaultRecursionStrategy,
     ListRecursionStrategy,
-    TreeDepthRecursionStrategy,
-)
-from pyapprox.statest.strategies import (
-    AllModelsStrategy,
-    FixedSubsetStrategy,
-    AllSubsetsStrategy,
-    AllQoIStrategy,
-    FixedQoIStrategy,
-    AllQoISubsetsStrategy,
 )
 from pyapprox.statest.acv.variants import (
-    GMFEstimator,
     GISEstimator,
+    GMFEstimator,
     GRDEstimator,
 )
+from pyapprox.statest.statistics import MultiOutputMean
+from pyapprox.statest.strategies import (
+    AllQoIStrategy,
+    AllQoISubsetsStrategy,
+    AllSubsetsStrategy,
+    FixedSubsetStrategy,
+)
+from pyapprox.util.backends.protocols import Array
+from pyapprox.util.backends.torch import TorchBkd
+from pyapprox.util.test_utils import load_tests  # noqa: F401
 
 
 class TestACVSearch(Generic[Array], unittest.TestCase):
@@ -220,9 +213,7 @@ class TestACVSearch(Generic[Array], unittest.TestCase):
         # The selected allocation should be the best one
         successful = result.successful_allocations()
         if len(successful) > 1:
-            best_obj = float(
-                self._bkd.to_numpy(result.allocation.objective_value)[0]
-            )
+            best_obj = float(self._bkd.to_numpy(result.allocation.objective_value)[0])
             for _, alloc in successful:
                 obj = float(self._bkd.to_numpy(alloc.objective_value)[0])
                 self.assertGreaterEqual(obj, best_obj)

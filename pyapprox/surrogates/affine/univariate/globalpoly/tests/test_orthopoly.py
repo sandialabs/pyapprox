@@ -5,16 +5,16 @@ from abc import ABC, abstractmethod
 
 import numpy as np
 
-from pyapprox.util.backends.numpy import NumpyBkd
 from pyapprox.surrogates.affine.univariate.globalpoly import (
-    LegendrePolynomial1D,
-    JacobiPolynomial1D,
     Chebyshev1stKindPolynomial1D,
     Chebyshev2ndKindPolynomial1D,
-    HermitePolynomial1D,
-    GaussQuadratureRule,
     GaussLobattoQuadratureRule,
+    GaussQuadratureRule,
+    HermitePolynomial1D,
+    JacobiPolynomial1D,
+    LegendrePolynomial1D,
 )
+from pyapprox.util.backends.numpy import NumpyBkd
 
 
 class _OrthonormalPolynomialTestBase(ABC):
@@ -182,9 +182,7 @@ class TestJacobiPolynomial(_OrthonormalPolynomialTestBase, unittest.TestCase):
         return lambda x: (1 - x) ** 1.0 * (1 + x) ** 2.0
 
 
-class TestChebyshev1stKindPolynomial(
-    _OrthonormalPolynomialTestBase, unittest.TestCase
-):
+class TestChebyshev1stKindPolynomial(_OrthonormalPolynomialTestBase, unittest.TestCase):
     """Tests for Chebyshev polynomials of the first kind."""
 
     __test__ = True
@@ -219,19 +217,15 @@ class TestChebyshev1stKindPolynomial(
         # Check orthogonality (off-diagonal should be zero)
         off_diag_mask = ~bkd.to_numpy(bkd.eye(nterms)).astype(bool)
         off_diag = mass[off_diag_mask]
-        bkd.assert_allclose(
-            off_diag, bkd.zeros(off_diag.shape), rtol=1e-10, atol=1e-10
-        )
+        bkd.assert_allclose(off_diag, bkd.zeros(off_diag.shape), rtol=1e-10, atol=1e-10)
 
         # Check normalization: T_0 integrates to pi, rest to pi/2
-        expected_diag = np.array([np.pi] + [np.pi/2] * (nterms - 1))
+        expected_diag = np.array([np.pi] + [np.pi / 2] * (nterms - 1))
         actual_diag = bkd.get_diagonal(mass)
         bkd.assert_allclose(actual_diag, expected_diag, rtol=1e-10, atol=1e-10)
 
 
-class TestChebyshev2ndKindPolynomial(
-    _OrthonormalPolynomialTestBase, unittest.TestCase
-):
+class TestChebyshev2ndKindPolynomial(_OrthonormalPolynomialTestBase, unittest.TestCase):
     """Tests for Chebyshev polynomials of the second kind."""
 
     __test__ = True

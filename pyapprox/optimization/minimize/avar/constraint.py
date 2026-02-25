@@ -7,10 +7,10 @@ s_i + t - f_i(x) >= 0 for all i.
 
 from typing import Generic
 
-from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.optimization.minimize.minimax.protocols import (
     MultiQoIObjectiveProtocol,
 )
+from pyapprox.util.backends.protocols import Array, Backend
 
 
 class AVaRConstraint(Generic[Array]):
@@ -101,8 +101,8 @@ class AVaRConstraint(Generic[Array]):
             Constraint values. Shape: (nqoi, 1)
         """
         t = sample[0, 0]
-        s = sample[1:1 + self._nscenarios]  # Shape: (nscenarios, 1)
-        x = sample[1 + self._nscenarios:]  # Shape: (nmodel_vars, 1)
+        s = sample[1 : 1 + self._nscenarios]  # Shape: (nscenarios, 1)
+        x = sample[1 + self._nscenarios :]  # Shape: (nmodel_vars, 1)
         f_vals = self._model(x)  # Shape: (nqoi, 1)
         return t + s - f_vals
 
@@ -125,12 +125,12 @@ class AVaRConstraint(Generic[Array]):
         Array
             Jacobian matrix. Shape: (nqoi, nvars)
         """
-        x = sample[1 + self._nscenarios:]  # Shape: (nmodel_vars, 1)
+        x = sample[1 + self._nscenarios :]  # Shape: (nmodel_vars, 1)
         model_jac = self._model.jacobian(x)  # Shape: (nqoi, nmodel_vars)
 
         nqoi = self._nscenarios
         nvars = self.nvars()
-        nmodel_vars = self._model.nvars()
+        self._model.nvars()
 
         jac = self._bkd.zeros((nqoi, nvars))
 
@@ -142,6 +142,6 @@ class AVaRConstraint(Generic[Array]):
             jac[i, 1 + i] = 1.0
 
         # Derivative w.r.t. x: -df_i/dx
-        jac[:, 1 + nqoi:] = -model_jac
+        jac[:, 1 + nqoi :] = -model_jac
 
         return jac

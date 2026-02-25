@@ -3,29 +3,27 @@
 import unittest
 from typing import Type
 
-import numpy as np
 from numpy.typing import NDArray
 
-from pyapprox.util.backends.numpy import NumpyBkd
-from pyapprox.util.backends.protocols import Backend
-
-from pyapprox.surrogates.affine.indices.priority_queue import (
-    PriorityQueue,
-)
-from pyapprox.surrogates.affine.indices.refinement import (
-    UnitCostFunction,
-    LevelCostFunction,
-    ExponentialCostFunction,
-    LevelRefinementCriteria,
-    CostWeightedRefinementCriteria,
-)
 from pyapprox.surrogates.affine.indices.basis_generator import (
     BasisIndexGenerator,
 )
 from pyapprox.surrogates.affine.indices.growth_rules import (
-    LinearGrowthRule,
     ClenshawCurtisGrowthRule,
+    LinearGrowthRule,
 )
+from pyapprox.surrogates.affine.indices.priority_queue import (
+    PriorityQueue,
+)
+from pyapprox.surrogates.affine.indices.refinement import (
+    CostWeightedRefinementCriteria,
+    ExponentialCostFunction,
+    LevelCostFunction,
+    LevelRefinementCriteria,
+    UnitCostFunction,
+)
+from pyapprox.util.backends.numpy import NumpyBkd
+from pyapprox.util.backends.protocols import Backend
 
 
 class _BaseAdaptiveTest:

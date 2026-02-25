@@ -8,7 +8,7 @@ OED requires computing expectations over:
 These protocols define how to generate samples and weights for quadrature.
 """
 
-from typing import Protocol, Generic, Tuple, runtime_checkable
+from typing import Generic, Protocol, Tuple, runtime_checkable
 
 from pyapprox.util.backends.protocols import Array, Backend
 

@@ -9,11 +9,11 @@ from typing import Generic
 
 import numpy as np
 
-from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.probability.covariance import (
     DenseCholeskyCovarianceOperator,
 )
 from pyapprox.probability.gaussian.core import GaussianLogPDFCore
+from pyapprox.util.backends.protocols import Array, Backend
 
 
 class DenseCholeskyMultivariateGaussian(Generic[Array]):
@@ -50,9 +50,7 @@ class DenseCholeskyMultivariateGaussian(Generic[Array]):
 
         # Validate mean shape
         if mean.shape != (self._nvars, 1):
-            raise ValueError(
-                f"mean must have shape (nvars, 1), got {mean.shape}"
-            )
+            raise ValueError(f"mean must have shape (nvars, 1), got {mean.shape}")
 
         # Validate covariance shape
         if covariance.shape != (self._nvars, self._nvars):
@@ -144,7 +142,8 @@ class DenseCholeskyMultivariateGaussian(Generic[Array]):
         Array
             Random samples. Shape: (nvars, nsamples)
         """
-        # Generate standard normal samples (explicitly float64 for backend compatibility)
+        # Generate standard normal samples (explicitly float64 for backend
+        # compatibility)
         std_normal = self._bkd.asarray(
             np.random.normal(0, 1, (self._nvars, nsamples)).astype(np.float64)
         )
@@ -212,9 +211,7 @@ class DenseCholeskyMultivariateGaussian(Generic[Array]):
         """
         return -self._cov_op.covariance_inverse()
 
-    def kl_divergence(
-        self, other: "DenseCholeskyMultivariateGaussian"
-    ) -> float:
+    def kl_divergence(self, other: "DenseCholeskyMultivariateGaussian") -> float:
         """
         Compute KL divergence KL(self || other).
 

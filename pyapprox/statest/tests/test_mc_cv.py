@@ -11,14 +11,13 @@ import numpy as np
 import torch
 from numpy.typing import NDArray
 
-from pyapprox.util.backends.protocols import Array, Backend
+from pyapprox.statest.cv_estimator import CVEstimator
+from pyapprox.statest.mc_estimator import MCEstimator
+from pyapprox.statest.statistics import MultiOutputMean
 from pyapprox.util.backends.numpy import NumpyBkd
+from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.util.backends.torch import TorchBkd
 from pyapprox.util.test_utils import load_tests  # noqa: F401
-
-from pyapprox.statest.statistics import MultiOutputMean
-from pyapprox.statest.mc_estimator import MCEstimator
-from pyapprox.statest.cv_estimator import CVEstimator
 
 
 class TestMCEstimator(Generic[Array], unittest.TestCase):
@@ -43,8 +42,7 @@ class TestMCEstimator(Generic[Array], unittest.TestCase):
         costs = self._bkd.array([1.0])
         est = MCEstimator(stat, costs)
         self._bkd.assert_allclose(
-            self._bkd.asarray([est._nmodels]),
-            self._bkd.asarray([nmodels])
+            self._bkd.asarray([est._nmodels]), self._bkd.asarray([nmodels])
         )
 
     def test_allocate_samples(self) -> None:
@@ -61,7 +59,7 @@ class TestMCEstimator(Generic[Array], unittest.TestCase):
         # With cost=2.0 and target_cost=100, nsamples = floor(100/2) = 50
         self._bkd.assert_allclose(
             self._bkd.asarray([est._rounded_nsamples_per_model[0]]),
-            self._bkd.asarray([50])
+            self._bkd.asarray([50]),
         )
 
     def test_optimized_covariance(self) -> None:
@@ -78,7 +76,7 @@ class TestMCEstimator(Generic[Array], unittest.TestCase):
         # Shape should be (nqoi, nqoi)
         self._bkd.assert_allclose(
             self._bkd.asarray([opt_cov.shape[0], opt_cov.shape[1]]),
-            self._bkd.asarray([nqoi, nqoi])
+            self._bkd.asarray([nqoi, nqoi]),
         )
 
     def test_generate_samples_per_model(self) -> None:
@@ -99,17 +97,14 @@ class TestMCEstimator(Generic[Array], unittest.TestCase):
         samples = est.generate_samples_per_model(rvs)
         # Should return list with one entry
         self._bkd.assert_allclose(
-            self._bkd.asarray([len(samples)]),
-            self._bkd.asarray([1])
+            self._bkd.asarray([len(samples)]), self._bkd.asarray([1])
         )
         # Shape should be (nvars, nsamples)
         self._bkd.assert_allclose(
-            self._bkd.asarray([samples[0].shape[0]]),
-            self._bkd.asarray([nvars])
+            self._bkd.asarray([samples[0].shape[0]]), self._bkd.asarray([nvars])
         )
         self._bkd.assert_allclose(
-            self._bkd.asarray([samples[0].shape[1]]),
-            self._bkd.asarray([100])
+            self._bkd.asarray([samples[0].shape[1]]), self._bkd.asarray([100])
         )
 
     def test_call(self) -> None:
@@ -184,8 +179,7 @@ class TestCVEstimator(Generic[Array], unittest.TestCase):
         lowfi_stats = self._bkd.zeros((nmodels - 1, nqoi))
         est = CVEstimator(stat, costs, lowfi_stats)
         self._bkd.assert_allclose(
-            self._bkd.asarray([est._nmodels]),
-            self._bkd.asarray([nmodels])
+            self._bkd.asarray([est._nmodels]), self._bkd.asarray([nmodels])
         )
 
     def test_init_lowfi_stats_wrong_shape_raises(self) -> None:
@@ -216,7 +210,7 @@ class TestCVEstimator(Generic[Array], unittest.TestCase):
         # nsamples = floor(90 / 3) = 30
         self._bkd.assert_allclose(
             self._bkd.asarray([est._rounded_npartition_samples[0]]),
-            self._bkd.asarray([30])
+            self._bkd.asarray([30]),
         )
 
     def test_generate_samples_per_model(self) -> None:
@@ -238,14 +232,12 @@ class TestCVEstimator(Generic[Array], unittest.TestCase):
         samples = est.generate_samples_per_model(rvs)
         # Should return list with nmodels entries
         self._bkd.assert_allclose(
-            self._bkd.asarray([len(samples)]),
-            self._bkd.asarray([nmodels])
+            self._bkd.asarray([len(samples)]), self._bkd.asarray([nmodels])
         )
         # All should have same shape since CV uses same samples for all models
         for i in range(nmodels):
             self._bkd.assert_allclose(
-                self._bkd.asarray([samples[i].shape[0]]),
-                self._bkd.asarray([nvars])
+                self._bkd.asarray([samples[i].shape[0]]), self._bkd.asarray([nvars])
             )
 
     def test_weights(self) -> None:
@@ -285,8 +277,7 @@ class TestCVEstimator(Generic[Array], unittest.TestCase):
         result = est(values_per_model)
         # Result should be scalar-ish (nqoi,)
         self._bkd.assert_allclose(
-            self._bkd.asarray([result.shape[0]]),
-            self._bkd.asarray([nqoi])
+            self._bkd.asarray([result.shape[0]]), self._bkd.asarray([nqoi])
         )
 
     def test_call_wrong_type_raises(self) -> None:

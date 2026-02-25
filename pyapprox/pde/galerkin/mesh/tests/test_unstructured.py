@@ -8,12 +8,12 @@ import numpy as np
 import torch
 from numpy.typing import NDArray
 
-from pyapprox.pde.galerkin.mesh.unstructured import UnstructuredMesh2D
 from pyapprox.pde.galerkin.basis import VectorLagrangeBasis
+from pyapprox.pde.galerkin.mesh.unstructured import UnstructuredMesh2D
 from pyapprox.pde.galerkin.protocols.mesh import GalerkinMeshProtocol
 from pyapprox.util.backends.numpy import NumpyBkd
-from pyapprox.util.backends.torch import TorchBkd
 from pyapprox.util.backends.protocols import Array
+from pyapprox.util.backends.torch import TorchBkd
 from pyapprox.util.test_utils import load_tests  # noqa: F401
 
 # Path to the beam mesh JSON
@@ -45,9 +45,7 @@ class TestUnstructuredMesh2D(Generic[Array], unittest.TestCase):
         self.assertEqual(mesh.ndim(), 2)
 
     def test_rescale_to_origin(self):
-        mesh = UnstructuredMesh2D(
-            _BEAM_MESH_PATH, self._bkd, rescale_origin=(0.0, 0.0)
-        )
+        mesh = UnstructuredMesh2D(_BEAM_MESH_PATH, self._bkd, rescale_origin=(0.0, 0.0))
         nodes_np = self._bkd.to_numpy(mesh.nodes())
         x_min, y_min = nodes_np[0].min(), nodes_np[1].min()
         x_max, y_max = nodes_np[0].max(), nodes_np[1].max()
@@ -63,9 +61,7 @@ class TestUnstructuredMesh2D(Generic[Array], unittest.TestCase):
         )
 
     def test_boundary_nodes_left_edge(self):
-        mesh = UnstructuredMesh2D(
-            _BEAM_MESH_PATH, self._bkd, rescale_origin=(0.0, 0.0)
-        )
+        mesh = UnstructuredMesh2D(_BEAM_MESH_PATH, self._bkd, rescale_origin=(0.0, 0.0))
         left_nodes = mesh.boundary_nodes("left_edge")
         left_np = self._bkd.to_numpy(left_nodes)
         nodes_np = self._bkd.to_numpy(mesh.nodes())
@@ -131,9 +127,7 @@ class TestUnstructuredMesh2D(Generic[Array], unittest.TestCase):
         self.assertIsInstance(mesh, GalerkinMeshProtocol)
 
     def test_vector_lagrange_basis_construction(self):
-        mesh = UnstructuredMesh2D(
-            _BEAM_MESH_PATH, self._bkd, rescale_origin=(0.0, 0.0)
-        )
+        mesh = UnstructuredMesh2D(_BEAM_MESH_PATH, self._bkd, rescale_origin=(0.0, 0.0))
         basis = VectorLagrangeBasis(mesh, degree=1)
         # 2D vector basis: 2 DOFs per node
         self.assertEqual(basis.ndofs(), 2 * mesh.nnodes())

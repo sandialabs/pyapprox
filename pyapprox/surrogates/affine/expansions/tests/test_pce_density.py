@@ -18,11 +18,6 @@ import torch
 from numpy.typing import NDArray
 from scipy import stats
 
-from pyapprox.util.backends.numpy import NumpyBkd
-from pyapprox.util.backends.torch import TorchBkd
-from pyapprox.util.backends.protocols import Array, Backend
-from pyapprox.util.test_utils import load_tests  # noqa: F401
-
 from pyapprox.probability import GaussianMarginal, UniformMarginal
 from pyapprox.surrogates.affine.expansions import (
     create_pce_from_marginals,
@@ -30,13 +25,17 @@ from pyapprox.surrogates.affine.expansions import (
 from pyapprox.surrogates.affine.expansions.pce_density import (
     UnivariatePCEDensity,
 )
-from pyapprox.surrogates.affine.univariate.globalpoly.monomial_conversion import (
-    convert_orthonormal_to_monomials_1d,
-)
 from pyapprox.surrogates.affine.univariate.globalpoly import (
     HermitePolynomial1D,
     LegendrePolynomial1D,
 )
+from pyapprox.surrogates.affine.univariate.globalpoly.monomial_conversion import (
+    convert_orthonormal_to_monomials_1d,
+)
+from pyapprox.util.backends.numpy import NumpyBkd
+from pyapprox.util.backends.protocols import Array, Backend
+from pyapprox.util.backends.torch import TorchBkd
+from pyapprox.util.test_utils import load_tests  # noqa: F401
 
 
 class TestMonomialConversion(Generic[Array], unittest.TestCase):
@@ -373,8 +372,9 @@ class TestConvergenceGaussian(Generic[Array], unittest.TestCase):
         pce_vals = bkd.to_numpy(pce(test_pts)[0])
         true_vals = self._target_func(test_xi)
         max_approx_err = np.max(np.abs(pce_vals - true_vals))
-        self.assertLess(max_approx_err, 1e-5,
-                        f"PCE approximation error too large: {max_approx_err}")
+        self.assertLess(
+            max_approx_err, 1e-5, f"PCE approximation error too large: {max_approx_err}"
+        )
 
         density = UnivariatePCEDensity(pce, marginal)
 
@@ -409,9 +409,7 @@ class TestConvergenceGaussian(Generic[Array], unittest.TestCase):
         prev_pdf = None
         l1_diffs = []
         for P in orders:
-            pce_P = _build_pce_for_function(
-                self._target_func, marginal, P, bkd
-            )
+            pce_P = _build_pce_for_function(self._target_func, marginal, P, bkd)
             density_P = UnivariatePCEDensity(pce_P, marginal)
             pdf_P = bkd.to_numpy(density_P.pdf(y_2d)[0])
             if prev_pdf is not None:
@@ -425,14 +423,14 @@ class TestConvergenceGaussian(Generic[Array], unittest.TestCase):
             if l1_diffs[ii - 1] < 1e-10:
                 continue
             self.assertLess(
-                l1_diffs[ii], l1_diffs[ii - 1],
+                l1_diffs[ii],
+                l1_diffs[ii - 1],
                 f"L1 diff not decreasing: "
-                f"P={orders[ii]}->{orders[ii+1]} ({l1_diffs[ii]:.6f}) >= "
-                f"P={orders[ii-1]}->{orders[ii]} ({l1_diffs[ii-1]:.6f})",
+                f"P={orders[ii]}->{orders[ii + 1]} ({l1_diffs[ii]:.6f}) >= "
+                f"P={orders[ii - 1]}->{orders[ii]} ({l1_diffs[ii - 1]:.6f})",
             )
         # Final consecutive difference should be small
-        self.assertLess(l1_diffs[-1], 0.01,
-                        f"Final L1 diff too large: {l1_diffs[-1]}")
+        self.assertLess(l1_diffs[-1], 0.01, f"Final L1 diff too large: {l1_diffs[-1]}")
 
 
 class TestConvergenceGaussianNumpy(TestConvergenceGaussian[NDArray[Any]]):
@@ -475,8 +473,9 @@ class TestConvergenceUniform(Generic[Array], unittest.TestCase):
         pce_vals = bkd.to_numpy(pce(test_pts)[0])
         true_vals = self._target_func(test_xi)
         max_approx_err = np.max(np.abs(pce_vals - true_vals))
-        self.assertLess(max_approx_err, 1e-5,
-                        f"PCE approximation error too large: {max_approx_err}")
+        self.assertLess(
+            max_approx_err, 1e-5, f"PCE approximation error too large: {max_approx_err}"
+        )
 
         density = UnivariatePCEDensity(pce, marginal)
 
@@ -511,9 +510,7 @@ class TestConvergenceUniform(Generic[Array], unittest.TestCase):
         prev_pdf = None
         l1_diffs = []
         for P in orders:
-            pce_P = _build_pce_for_function(
-                self._target_func, marginal, P, bkd
-            )
+            pce_P = _build_pce_for_function(self._target_func, marginal, P, bkd)
             density_P = UnivariatePCEDensity(pce_P, marginal)
             pdf_P = bkd.to_numpy(density_P.pdf(y_2d)[0])
             if prev_pdf is not None:
@@ -527,14 +524,14 @@ class TestConvergenceUniform(Generic[Array], unittest.TestCase):
             if l1_diffs[ii - 1] < 1e-10:
                 continue
             self.assertLess(
-                l1_diffs[ii], l1_diffs[ii - 1],
+                l1_diffs[ii],
+                l1_diffs[ii - 1],
                 f"L1 diff not decreasing: "
-                f"P={orders[ii]}->{orders[ii+1]} ({l1_diffs[ii]:.6f}) >= "
-                f"P={orders[ii-1]}->{orders[ii]} ({l1_diffs[ii-1]:.6f})",
+                f"P={orders[ii]}->{orders[ii + 1]} ({l1_diffs[ii]:.6f}) >= "
+                f"P={orders[ii - 1]}->{orders[ii]} ({l1_diffs[ii - 1]:.6f})",
             )
         # Final consecutive difference should be small
-        self.assertLess(l1_diffs[-1], 0.01,
-                        f"Final L1 diff too large: {l1_diffs[-1]}")
+        self.assertLess(l1_diffs[-1], 0.01, f"Final L1 diff too large: {l1_diffs[-1]}")
 
 
 class TestConvergenceUniformNumpy(TestConvergenceUniform[NDArray[Any]]):

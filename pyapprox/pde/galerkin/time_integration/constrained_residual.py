@@ -20,8 +20,8 @@ from typing import Generic
 import numpy as np
 from scipy.sparse import issparse
 
-from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.pde.sparse_utils import apply_dirichlet_rows, solve_maybe_sparse
+from pyapprox.util.backends.protocols import Array, Backend
 
 
 class ConstrainedTimeStepResidual(Generic[Array]):

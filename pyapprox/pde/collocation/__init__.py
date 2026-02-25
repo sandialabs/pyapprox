@@ -9,19 +9,19 @@ collocation methods with:
 """
 
 from pyapprox.pde.collocation.protocols import (
-    MeshProtocol,
-    TransformProtocol,
-    MeshWithTransformProtocol,
     BasisProtocol,
     BasisWithQuadratureProtocol,
+    BoundaryConditionProtocol,
     FieldProtocol,
     FieldWithJacobianProtocol,
-    PhysicsProtocol,
-    PhysicsWithParamJacobianProtocol,
-    PhysicsWithHVPProtocol,
-    LinearSolverProtocol,
     IterativeSolverProtocol,
-    BoundaryConditionProtocol,
+    LinearSolverProtocol,
+    MeshProtocol,
+    MeshWithTransformProtocol,
+    PhysicsProtocol,
+    PhysicsWithHVPProtocol,
+    PhysicsWithParamJacobianProtocol,
+    TransformProtocol,
 )
 
 __all__ = [

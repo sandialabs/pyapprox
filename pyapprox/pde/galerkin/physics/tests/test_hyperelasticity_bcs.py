@@ -4,29 +4,28 @@ Tests Neumann, Robin, and mixed BC combinations in 1D and 2D using
 manufactured solutions with non-zero boundary values.
 """
 
-from typing import Any, Generic
-
 import unittest
+from typing import Any, Generic
 
 import numpy as np
 from numpy.typing import NDArray
 
-from pyapprox.util.backends.numpy import NumpyBkd
-from pyapprox.util.backends.protocols import Array, Backend
+from pyapprox.pde.collocation.physics.stress_models.neo_hookean import (
+    NeoHookeanStress,
+)
+from pyapprox.pde.galerkin.basis import VectorLagrangeBasis
+from pyapprox.pde.galerkin.manufactured.adapter import (
+    GalerkinHyperelasticityAdapter,
+    create_hyperelasticity_manufactured_test,
+)
 from pyapprox.pde.galerkin.mesh import (
     StructuredMesh1D,
     StructuredMesh2D,
 )
-from pyapprox.pde.galerkin.basis import VectorLagrangeBasis
 from pyapprox.pde.galerkin.physics import HyperelasticityPhysics
 from pyapprox.pde.galerkin.solvers.steady_state import SteadyStateSolver
-from pyapprox.pde.galerkin.manufactured.adapter import (
-    create_hyperelasticity_manufactured_test,
-    GalerkinHyperelasticityAdapter,
-)
-from pyapprox.pde.collocation.physics.stress_models.neo_hookean import (
-    NeoHookeanStress,
-)
+from pyapprox.util.backends.numpy import NumpyBkd
+from pyapprox.util.backends.protocols import Array, Backend
 
 
 def _get_exact_displacement(funcs, basis, bkd):
@@ -72,9 +71,7 @@ class TestHyperelasticityBCs1DBase(Generic[Array], unittest.TestCase):
         basis = VectorLagrangeBasis(mesh, degree=degree)
         adapter = GalerkinHyperelasticityAdapter(basis, functions, bkd)
         body_force = adapter.forcing_for_galerkin()
-        bc_set = adapter.create_boundary_conditions(
-            bc_types, robin_alpha=robin_alpha
-        )
+        bc_set = adapter.create_boundary_conditions(bc_types, robin_alpha=robin_alpha)
         physics = HyperelasticityPhysics(
             basis=basis,
             stress_model=self._stress,
@@ -86,9 +83,7 @@ class TestHyperelasticityBCs1DBase(Generic[Array], unittest.TestCase):
 
     def _check_newton_solve(self, physics, functions, basis, tol=1e-4):
         exact = _get_exact_displacement(functions, basis, self._bkd)
-        solver = SteadyStateSolver(
-            physics, tol=1e-10, max_iter=20, line_search=True
-        )
+        solver = SteadyStateSolver(physics, tol=1e-10, max_iter=20, line_search=True)
         init_guess = self._bkd.asarray(exact + 0.005)
         result = solver.solve(init_guess)
         self.assertTrue(
@@ -99,7 +94,8 @@ class TestHyperelasticityBCs1DBase(Generic[Array], unittest.TestCase):
         u_norm = np.linalg.norm(exact)
         rel_error = np.linalg.norm(u_np - exact) / max(u_norm, 1e-30)
         self.assertLess(
-            rel_error, tol,
+            rel_error,
+            tol,
             f"Newton solve rel error: {rel_error:.2e}",
         )
 
@@ -128,9 +124,7 @@ class TestHyperelasticityBCs1DBase(Generic[Array], unittest.TestCase):
         self.assertLess(res_norm, 1e-3)
 
 
-class TestHyperelasticityBCs1DNumpy(
-    TestHyperelasticityBCs1DBase[NDArray[Any]]
-):
+class TestHyperelasticityBCs1DNumpy(TestHyperelasticityBCs1DBase[NDArray[Any]]):
     __test__ = True
 
     def bkd(self) -> NumpyBkd:
@@ -139,11 +133,10 @@ class TestHyperelasticityBCs1DNumpy(
 
 try:
     import torch
+
     from pyapprox.util.backends.torch import TorchBkd
 
-    class TestHyperelasticityBCs1DTorch(
-        TestHyperelasticityBCs1DBase[torch.Tensor]
-    ):
+    class TestHyperelasticityBCs1DTorch(TestHyperelasticityBCs1DBase[torch.Tensor]):
         __test__ = True
 
         def bkd(self) -> TorchBkd:
@@ -187,8 +180,7 @@ class TestHyperelasticityBCs2DBase(Generic[Array], unittest.TestCase):
             "0.05*x**2*(1-x)*y**2*(1-y) + 0.01*x*y",
         ]
 
-    def _setup_problem(self, bc_types, nx=12, ny=12, degree=2,
-                       robin_alpha=1.0):
+    def _setup_problem(self, bc_types, nx=12, ny=12, degree=2, robin_alpha=1.0):
         bkd = self._bkd
         functions, nvars = create_hyperelasticity_manufactured_test(
             bounds=[0.0, 1.0, 0.0, 1.0],
@@ -196,15 +188,11 @@ class TestHyperelasticityBCs2DBase(Generic[Array], unittest.TestCase):
             stress_model=self._stress,
             bkd=bkd,
         )
-        mesh = StructuredMesh2D(
-            nx=nx, ny=ny, bounds=[[0.0, 1.0], [0.0, 1.0]], bkd=bkd
-        )
+        mesh = StructuredMesh2D(nx=nx, ny=ny, bounds=[[0.0, 1.0], [0.0, 1.0]], bkd=bkd)
         basis = VectorLagrangeBasis(mesh, degree=degree)
         adapter = GalerkinHyperelasticityAdapter(basis, functions, bkd)
         body_force = adapter.forcing_for_galerkin()
-        bc_set = adapter.create_boundary_conditions(
-            bc_types, robin_alpha=robin_alpha
-        )
+        bc_set = adapter.create_boundary_conditions(bc_types, robin_alpha=robin_alpha)
         physics = HyperelasticityPhysics(
             basis=basis,
             stress_model=self._stress,
@@ -216,9 +204,7 @@ class TestHyperelasticityBCs2DBase(Generic[Array], unittest.TestCase):
 
     def _check_newton_solve(self, physics, functions, basis, tol=1e-3):
         exact = _get_exact_displacement(functions, basis, self._bkd)
-        solver = SteadyStateSolver(
-            physics, tol=1e-10, max_iter=20, line_search=True
-        )
+        solver = SteadyStateSolver(physics, tol=1e-10, max_iter=20, line_search=True)
         init_guess = self._bkd.asarray(exact + 0.005)
         result = solver.solve(init_guess)
         self.assertTrue(
@@ -229,36 +215,29 @@ class TestHyperelasticityBCs2DBase(Generic[Array], unittest.TestCase):
         u_norm = np.linalg.norm(exact)
         rel_error = np.linalg.norm(u_np - exact) / max(u_norm, 1e-30)
         self.assertLess(
-            rel_error, tol,
+            rel_error,
+            tol,
             f"Newton solve rel error: {rel_error:.2e}",
         )
 
     def test_bc_mixed_DN_2d(self) -> None:
         """Dirichlet left/bottom, Neumann right/top."""
-        physics, functions, basis = self._setup_problem(
-            ["D", "N", "D", "N"]
-        )
+        physics, functions, basis = self._setup_problem(["D", "N", "D", "N"])
         self._check_newton_solve(physics, functions, basis)
 
     def test_bc_mixed_DR_2d(self) -> None:
         """Dirichlet left/bottom, Robin right/top."""
-        physics, functions, basis = self._setup_problem(
-            ["D", "R", "D", "R"]
-        )
+        physics, functions, basis = self._setup_problem(["D", "R", "D", "R"])
         self._check_newton_solve(physics, functions, basis)
 
     def test_bc_mixed_DNR_2d(self) -> None:
         """Dirichlet left, Neumann right, Dirichlet bottom, Robin top."""
-        physics, functions, basis = self._setup_problem(
-            ["D", "N", "D", "R"]
-        )
+        physics, functions, basis = self._setup_problem(["D", "N", "D", "R"])
         self._check_newton_solve(physics, functions, basis)
 
     def test_bc_residual_at_exact_mixed_2d(self) -> None:
         """Residual at exact solution should be small with mixed BCs."""
-        physics, functions, basis = self._setup_problem(
-            ["D", "N", "D", "R"]
-        )
+        physics, functions, basis = self._setup_problem(["D", "N", "D", "R"])
         exact = _get_exact_displacement(functions, basis, self._bkd)
         state = self._bkd.asarray(exact)
         res = physics.residual(state, 0.0)
@@ -266,9 +245,7 @@ class TestHyperelasticityBCs2DBase(Generic[Array], unittest.TestCase):
         self.assertLess(res_norm, 1e-3)
 
 
-class TestHyperelasticityBCs2DNumpy(
-    TestHyperelasticityBCs2DBase[NDArray[Any]]
-):
+class TestHyperelasticityBCs2DNumpy(TestHyperelasticityBCs2DBase[NDArray[Any]]):
     __test__ = True
 
     def bkd(self) -> NumpyBkd:
@@ -277,11 +254,10 @@ class TestHyperelasticityBCs2DNumpy(
 
 try:
     import torch
+
     from pyapprox.util.backends.torch import TorchBkd
 
-    class TestHyperelasticityBCs2DTorch(
-        TestHyperelasticityBCs2DBase[torch.Tensor]
-    ):
+    class TestHyperelasticityBCs2DTorch(TestHyperelasticityBCs2DBase[torch.Tensor]):
         __test__ = True
 
         def bkd(self) -> TorchBkd:

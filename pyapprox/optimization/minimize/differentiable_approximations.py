@@ -299,9 +299,7 @@ class SmoothLogBasedMaxFunction(DifferentiableApproximationBase[Array]):
         exp_x = bkd.exp(x_div_eps[middle_idx])
         # d/dx [exp(x/eps) / (eps * (1 + exp(x/eps))^2)]
         # = (exp(x/eps) * (1 - exp(x/eps))) / (eps^2 * (1 + exp(x/eps))^3)
-        deriv3[middle_idx] = (
-            exp_x * (1 - exp_x) / (self._eps**2 * (exp_x + 1) ** 3)
-        )
+        deriv3[middle_idx] = exp_x * (1 - exp_x) / (self._eps**2 * (exp_x + 1) ** 3)
 
         return deriv3
 

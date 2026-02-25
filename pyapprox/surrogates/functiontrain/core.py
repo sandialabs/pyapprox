@@ -2,8 +2,8 @@
 
 from typing import Dict, Generic, List, Self, Tuple
 
-from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.surrogates.affine.protocols import BasisExpansionProtocol
+from pyapprox.util.backends.protocols import Array, Backend
 
 
 class FunctionTrainCore(Generic[Array]):
@@ -112,9 +112,7 @@ class FunctionTrainCore(Generic[Array]):
             If indices are out of bounds.
         """
         if ii < 0 or ii >= self._r_left:
-            raise IndexError(
-                f"Left rank index {ii} out of bounds [0, {self._r_left})"
-            )
+            raise IndexError(f"Left rank index {ii} out of bounds [0, {self._r_left})")
         if jj < 0 or jj >= self._r_right:
             raise IndexError(
                 f"Right rank index {jj} out of bounds [0, {self._r_right})"
@@ -295,9 +293,7 @@ class FunctionTrainCore(Generic[Array]):
         nqoi = self.nqoi()
 
         if nparams == 0:
-            return self._bkd.zeros(
-                (self._r_left, self._r_right, nsamples, nqoi, 0)
-            )
+            return self._bkd.zeros((self._r_left, self._r_right, nsamples, nqoi, 0))
 
         # Build Jacobian using list accumulation then stack
         # We need shape (r_left, r_right, nsamples, nqoi, nparams)
@@ -318,9 +314,7 @@ class FunctionTrainCore(Generic[Array]):
                     if hasattr(bexp, "jacobian_wrt_params"):
                         bexp_jac = bexp.jacobian_wrt_params(sample_1d)
                     else:
-                        bexp_jac = self._linear_jacobian_wrt_params(
-                            bexp, sample_1d
-                        )
+                        bexp_jac = self._linear_jacobian_wrt_params(bexp, sample_1d)
                     # bexp_jac has shape (nsamples, nqoi, bexp_nparams)
 
                     # Find starting index for this expansion's params
@@ -334,14 +328,10 @@ class FunctionTrainCore(Generic[Array]):
 
                     parts = []
                     if param_idx > 0:
-                        parts.append(
-                            self._bkd.zeros((nsamples, nqoi, param_idx))
-                        )
+                        parts.append(self._bkd.zeros((nsamples, nqoi, param_idx)))
                     parts.append(bexp_jac)
                     if remaining > 0:
-                        parts.append(
-                            self._bkd.zeros((nsamples, nqoi, remaining))
-                        )
+                        parts.append(self._bkd.zeros((nsamples, nqoi, remaining)))
 
                     pos_jac = self._bkd.concatenate(parts, axis=2)
 
@@ -401,9 +391,10 @@ class FunctionTrainCore(Generic[Array]):
         nsamples = phi.shape[0]
         nterms = bexp.nterms()
         nqoi = bexp.nqoi()
-        nparams = bexp.nparams()
+        bexp.nparams()
 
-        # For linear, nparams = nterms * nqoi (row-major: all terms for q=0, then q=1, etc.)
+        # For linear, nparams = nterms * nqoi (row-major: all terms for q=0, then q=1,
+        # etc.)
         # jac[s, q, l + q*nterms] = phi[s, l]
         jac_parts = []
         for qq in range(nqoi):
@@ -489,9 +480,7 @@ class FunctionTrainCore(Generic[Array]):
                 result[ii, jj] = jac[:, :, 0]
         return result
 
-    def eval_cached(
-        self, sample_1d: Array, cache: "Dict[int, Array]"
-    ) -> Array:
+    def eval_cached(self, sample_1d: Array, cache: "Dict[int, Array]") -> Array:
         """Evaluate core using cached basis matrices.
 
         Parameters

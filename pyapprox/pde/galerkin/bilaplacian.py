@@ -10,17 +10,17 @@ The bilaplacian prior is used as a Gaussian process approximation for
 Bayesian inverse problems.
 """
 
-from typing import Generic, Optional, List
+from typing import Generic, List, Optional
 
 import numpy as np
 
-from pyapprox.util.backends.protocols import Array, Backend
+from pyapprox.pde.galerkin.boundary.implementations import RobinBC
 from pyapprox.pde.galerkin.protocols.basis import GalerkinBasisProtocol
 from pyapprox.pde.galerkin.protocols.boundary import RobinBCProtocol
-from pyapprox.pde.galerkin.boundary.implementations import RobinBC
+from pyapprox.util.backends.protocols import Array, Backend
 
 try:
-    from skfem import asm, BilinearForm, solve, condense
+    from skfem import BilinearForm, asm, condense, solve
     from skfem.helpers import dot, grad, mul
     from skfem.models.poisson import mass
 except ImportError:
@@ -197,9 +197,7 @@ class BiLaplacianPrior(Generic[Array]):
         empty_D = np.empty(0, dtype=int)
         for ii in range(nsamples):
             rhs = sqrt_lumped * white_noise[:, ii]
-            samples[:, ii] = solve(
-                *condense(self._stiffness, rhs, D=empty_D)
-            )
+            samples[:, ii] = solve(*condense(self._stiffness, rhs, D=empty_D))
 
         return self._bkd.asarray(samples.astype(np.float64))
 
@@ -228,6 +226,5 @@ class BiLaplacianPrior(Generic[Array]):
     def __repr__(self) -> str:
         ndofs = self._basis.ndofs()
         return (
-            f"BiLaplacianPrior(ndofs={ndofs}, "
-            f"gamma={self._gamma}, delta={self._delta})"
+            f"BiLaplacianPrior(ndofs={ndofs}, gamma={self._gamma}, delta={self._delta})"
         )

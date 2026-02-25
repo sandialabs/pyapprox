@@ -14,16 +14,15 @@ import numpy as np
 import torch
 from numpy.typing import NDArray
 
-from pyapprox.util.backends.numpy import NumpyBkd
-from pyapprox.util.backends.torch import TorchBkd
-from pyapprox.util.backends.protocols import Array
-from pyapprox.util.test_utils import load_tests  # noqa: F401
-
 from pyapprox.expdesign.statistics import (
     SampleAverageMean,
-    SampleAverageStdev,
     SampleAverageMeanPlusStdev,
+    SampleAverageStdev,
 )
+from pyapprox.util.backends.numpy import NumpyBkd
+from pyapprox.util.backends.protocols import Array
+from pyapprox.util.backends.torch import TorchBkd
+from pyapprox.util.test_utils import load_tests  # noqa: F401
 
 
 class TestSampleAverageMeanPlusStdev(Generic[Array], unittest.TestCase):
@@ -42,9 +41,7 @@ class TestSampleAverageMeanPlusStdev(Generic[Array], unittest.TestCase):
         self._nvars = 4
 
         # Create test data: (nqoi, nsamples)
-        self._values = self._bkd.asarray(
-            np.random.randn(self._nqoi, self._nsamples)
-        )
+        self._values = self._bkd.asarray(np.random.randn(self._nqoi, self._nsamples))
         # Uniform weights summing to 1: (1, nsamples)
         self._weights = self._bkd.asarray(
             np.full((1, self._nsamples), 1.0 / self._nsamples)
@@ -79,9 +76,8 @@ class TestSampleAverageMeanPlusStdev(Generic[Array], unittest.TestCase):
         stdev_stat = SampleAverageStdev(self._bkd)
 
         result = stat(self._values, self._weights)
-        expected = (
-            mean_stat(self._values, self._weights)
-            + factor * stdev_stat(self._values, self._weights)
+        expected = mean_stat(self._values, self._weights) + factor * stdev_stat(
+            self._values, self._weights
         )
 
         self.assertEqual(result.shape, (self._nqoi, 1))
@@ -102,9 +98,7 @@ class TestSampleAverageMeanPlusStdev(Generic[Array], unittest.TestCase):
         factor = 2.5
         stat = SampleAverageMeanPlusStdev(factor, self._bkd)
 
-        jac_analytical = stat.jacobian(
-            self._values, self._jac_values, self._weights
-        )
+        jac_analytical = stat.jacobian(self._values, self._jac_values, self._weights)
         jac_fd = self._finite_diff_jacobian(
             stat, self._values, self._weights, self._jac_values
         )
@@ -120,11 +114,9 @@ class TestSampleAverageMeanPlusStdev(Generic[Array], unittest.TestCase):
         stdev_stat = SampleAverageStdev(self._bkd)
 
         result = stat.jacobian(self._values, self._jac_values, self._weights)
-        expected = (
-            mean_stat.jacobian(self._values, self._jac_values, self._weights)
-            + factor
-            * stdev_stat.jacobian(self._values, self._jac_values, self._weights)
-        )
+        expected = mean_stat.jacobian(
+            self._values, self._jac_values, self._weights
+        ) + factor * stdev_stat.jacobian(self._values, self._jac_values, self._weights)
 
         self._bkd.assert_allclose(result, expected, rtol=1e-12)
 
@@ -149,9 +141,7 @@ class TestSampleAverageMeanPlusStdev(Generic[Array], unittest.TestCase):
         self.assertEqual(result.shape, (1, 1))
 
 
-class TestSampleAverageMeanPlusStdevNumpy(
-    TestSampleAverageMeanPlusStdev[NDArray[Any]]
-):
+class TestSampleAverageMeanPlusStdevNumpy(TestSampleAverageMeanPlusStdev[NDArray[Any]]):
     """NumPy backend tests."""
 
     __test__ = True
@@ -160,9 +150,7 @@ class TestSampleAverageMeanPlusStdevNumpy(
         return NumpyBkd()
 
 
-class TestSampleAverageMeanPlusStdevTorch(
-    TestSampleAverageMeanPlusStdev[torch.Tensor]
-):
+class TestSampleAverageMeanPlusStdevTorch(TestSampleAverageMeanPlusStdev[torch.Tensor]):
     """PyTorch backend tests."""
 
     __test__ = True

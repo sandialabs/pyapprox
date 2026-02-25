@@ -5,20 +5,21 @@ This module provides utilities to decompose composed kernels into their
 base separable kernel and variance scaling factor.
 """
 
-from typing import Tuple, TYPE_CHECKING
-from pyapprox.util.backends.protocols import Array, Backend
-from pyapprox.surrogates.kernels.protocols import (
-    KernelProtocol,
-    SeparableKernelProtocol,
-)
+from typing import Tuple
+
 from pyapprox.surrogates.kernels.composition import (
     ProductKernel,
     SumKernel,
 )
-from pyapprox.surrogates.kernels.scalings import PolynomialScaling
 from pyapprox.surrogates.kernels.iid_gaussian_noise import (
     IIDGaussianNoise,
 )
+from pyapprox.surrogates.kernels.protocols import (
+    KernelProtocol,
+    SeparableKernelProtocol,
+)
+from pyapprox.surrogates.kernels.scalings import PolynomialScaling
+from pyapprox.util.backends.protocols import Array, Backend
 
 
 def _decompose_kernel(
@@ -69,8 +70,8 @@ def _decompose_kernel(
     """
     # Case 0: SumKernel - strip IIDGaussianNoise and recurse on the signal part
     if isinstance(kernel, SumKernel):
-        k1 = getattr(kernel, '_kernel1', None)
-        k2 = getattr(kernel, '_kernel2', None)
+        k1 = getattr(kernel, "_kernel1", None)
+        k2 = getattr(kernel, "_kernel2", None)
         if k1 is not None and k2 is not None:
             for signal, noise in [(k1, k2), (k2, k1)]:
                 if isinstance(noise, IIDGaussianNoise):
@@ -87,8 +88,8 @@ def _decompose_kernel(
     # Case 2: ProductKernel - check for PolynomialScaling * SeparableKernel
     if isinstance(kernel, ProductKernel):
         # Access components (private API)
-        k1 = getattr(kernel, '_kernel1', None)
-        k2 = getattr(kernel, '_kernel2', None)
+        k1 = getattr(kernel, "_kernel1", None)
+        k2 = getattr(kernel, "_kernel2", None)
 
         if k1 is None or k2 is None:
             raise TypeError(

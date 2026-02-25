@@ -14,8 +14,8 @@ Reference:
     Prentice-Hall, 1971.
 """
 
-from typing import Callable, Generic, Tuple
 import math
+from typing import Callable, Generic, Tuple
 
 from pyapprox.util.backends.protocols import Array, Backend
 
@@ -76,7 +76,7 @@ class StroudCdD2(Generic[Array]):
             samples[dim, 2 * dim + 1] = -r
 
         # Equal weights summing to volume of [-1,1]^d = 2^d
-        volume = 2.0 ** d
+        volume = 2.0**d
         weights = self._bkd.full((nsamples,), volume / nsamples)
 
         return samples, weights
@@ -123,12 +123,12 @@ class StroudCdD3(Generic[Array]):
 
     def nsamples(self) -> int:
         """Return the number of samples."""
-        return 2 ** self._nvars
+        return 2**self._nvars
 
     def _build_rule(self) -> Tuple[Array, Array]:
         """Build cubature points and weights."""
         d = self._nvars
-        nsamples = 2 ** d
+        nsamples = 2**d
 
         # r = 1/sqrt(3) for [-1,1]^d
         r = 1.0 / math.sqrt(3.0)
@@ -144,7 +144,7 @@ class StroudCdD3(Generic[Array]):
                     samples[dim, idx] = -r
 
         # Equal weights summing to volume of [-1,1]^d = 2^d
-        volume = 2.0 ** d
+        volume = 2.0**d
         weights = self._bkd.full((nsamples,), volume / nsamples)
 
         return samples, weights
@@ -192,7 +192,7 @@ class StroudCdD5(Generic[Array]):
 
     def nsamples(self) -> int:
         """Return the number of samples."""
-        return 2 * self._nvars ** 2 + 1
+        return 2 * self._nvars**2 + 1
 
     def _build_rule(self) -> Tuple[Array, Array]:
         """Build cubature points and weights.
@@ -241,7 +241,7 @@ class StroudCdD5(Generic[Array]):
                         idx += 1
 
         # Scale weights by volume to integrate over [-1, 1]^d
-        volume = 2.0 ** d
+        volume = 2.0**d
         weights = weights * volume
 
         return samples, weights

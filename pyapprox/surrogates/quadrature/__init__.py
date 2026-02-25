@@ -22,29 +22,26 @@ Protocols:
 
 from typing import Tuple
 
-from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.probability.protocols import MarginalProtocol
-
-from .protocols import (
-    UnivariateQuadratureRuleProtocol,
-    MultivariateQuadratureRuleProtocol,
-    ParameterizedQuadratureRuleProtocol,
-    AdaptiveQuadratureRuleProtocol,
-)
-
-from .tensor_product import (
-    TensorProductQuadratureRule,
-    ParameterizedTensorProductQuadratureRule,
-)
-
-from .probability_measure_factory import (
-    ProbabilityMeasureQuadratureFactory,
-)
+from pyapprox.util.backends.protocols import Array, Backend
 
 from .cubature import (
     StroudCdD2,
     StroudCdD3,
     StroudCdD5,
+)
+from .probability_measure_factory import (
+    ProbabilityMeasureQuadratureFactory,
+)
+from .protocols import (
+    AdaptiveQuadratureRuleProtocol,
+    MultivariateQuadratureRuleProtocol,
+    ParameterizedQuadratureRuleProtocol,
+    UnivariateQuadratureRuleProtocol,
+)
+from .tensor_product import (
+    ParameterizedTensorProductQuadratureRule,
+    TensorProductQuadratureRule,
 )
 
 

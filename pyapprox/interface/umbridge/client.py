@@ -15,14 +15,14 @@ import os
 import signal
 import subprocess
 import time
-from typing import Any, Dict, Generic, IO, List, Optional, Tuple
+from typing import IO, Any, Dict, Generic, List, Optional, Tuple
 
 from pyapprox.util.backends.protocols import Array, Backend
 
 # Try to import umbridge - it's an optional dependency
 try:
-    import umbridge
     import requests  # type: ignore[import-untyped]
+    import umbridge
 
     UMBRIDGE_AVAILABLE = True
 except ImportError:
@@ -179,9 +179,7 @@ class UMBridgeModel(Generic[Array]):
             Parameters in UMBridge format [[p1, p2, ...]].
         """
         if sample.ndim != 2 or sample.shape[1] != 1:
-            raise ValueError(
-                f"Expected sample shape (nvars, 1), got {sample.shape}"
-            )
+            raise ValueError(f"Expected sample shape (nvars, 1), got {sample.shape}")
         return [self._bkd.to_numpy(sample[:, 0]).tolist()]
 
     def __call__(self, samples: Array) -> Array:
@@ -246,9 +244,7 @@ class UMBridgeModel(Generic[Array]):
         for qq in range(nqoi):
             sens = [0.0] * nqoi
             sens[qq] = 1.0
-            grad = self._model.gradient(
-                qq, 0, parameters, sens, config=self._config
-            )
+            grad = self._model.gradient(qq, 0, parameters, sens, config=self._config)
             jacobian[qq, :] = self._bkd.asarray(grad)
 
         return jacobian
@@ -312,9 +308,7 @@ class UMBridgeModel(Generic[Array]):
             raise RuntimeError("Model does not support apply_hessian")
 
         if self.nqoi() != 1:
-            raise ValueError(
-                f"HVP only defined for nqoi=1, got nqoi={self.nqoi()}"
-            )
+            raise ValueError(f"HVP only defined for nqoi=1, got nqoi={self.nqoi()}")
 
         parameters = self._to_parameters(sample)
         vec_list = self._bkd.to_numpy(vec[:, 0]).tolist()

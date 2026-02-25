@@ -10,13 +10,13 @@ In non-conservative form:
     du/dt = nu * d^2u/dx^2 - u * du/dx + f
 """
 
-from typing import Generic, Optional, Callable, Union
+from typing import Callable, Optional, Union
 
-from pyapprox.util.backends.protocols import Array, Backend
+from pyapprox.pde.collocation.physics.base import AbstractScalarPhysics
 from pyapprox.pde.collocation.protocols.basis import (
     TensorProductBasisProtocol,
 )
-from pyapprox.pde.collocation.physics.base import AbstractScalarPhysics
+from pyapprox.util.backends.protocols import Array, Backend
 
 
 class BurgersPhysics1D(AbstractScalarPhysics[Array]):
@@ -113,8 +113,7 @@ class BurgersPhysics1D(AbstractScalarPhysics[Array]):
         Array
             Residual. Shape: (npts,)
         """
-        bkd = self._bkd
-        npts = self.npts()
+        self.npts()
 
         # First and second derivatives
         du_dx = self._D1 @ state
@@ -137,9 +136,7 @@ class BurgersPhysics1D(AbstractScalarPhysics[Array]):
                 # Variable viscosity: d/dx(nu * du/dx) = nu * d^2u/dx^2 + dnu/dx * du/dx
                 dnu_dx = self._D1 @ self._viscosity_array
                 residual = (
-                    -state * du_dx
-                    + self._viscosity_array * d2u_dx2
-                    + dnu_dx * du_dx
+                    -state * du_dx + self._viscosity_array * d2u_dx2 + dnu_dx * du_dx
                 )
         else:
             # Non-conservative form: nu * d^2u/dx^2 - u * du/dx
@@ -148,9 +145,7 @@ class BurgersPhysics1D(AbstractScalarPhysics[Array]):
             else:
                 dnu_dx = self._D1 @ self._viscosity_array
                 residual = (
-                    self._viscosity_array * d2u_dx2
-                    + dnu_dx * du_dx
-                    - state * du_dx
+                    self._viscosity_array * d2u_dx2 + dnu_dx * du_dx - state * du_dx
                 )
 
         # Add forcing

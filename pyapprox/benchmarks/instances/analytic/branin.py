@@ -4,15 +4,15 @@ Standard 2D Branin (Branin-Hoo) function for optimization with three
 known global minima.
 """
 
-from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.benchmarks.benchmark import Benchmark, BoxDomain
-from pyapprox.benchmarks.ground_truth import OptimizationGroundTruth
-from pyapprox.benchmarks.registry import BenchmarkRegistry
 from pyapprox.benchmarks.functions.algebraic.branin import (
-    BraninFunction,
     BRANIN_GLOBAL_MINIMUM,
     BRANIN_MINIMIZERS,
+    BraninFunction,
 )
+from pyapprox.benchmarks.ground_truth import OptimizationGroundTruth
+from pyapprox.benchmarks.registry import BenchmarkRegistry
+from pyapprox.util.backends.protocols import Array, Backend
 
 
 class BraninBenchmark:
@@ -81,10 +81,12 @@ def branin_2d(
     solutions of simultaneous nonlinear equations."
     """
     # Convert minimizers to array format (nvars, n_minimizers)
-    minimizers = bkd.array([
-        [m[0] for m in BRANIN_MINIMIZERS],
-        [m[1] for m in BRANIN_MINIMIZERS],
-    ])
+    minimizers = bkd.array(
+        [
+            [m[0] for m in BRANIN_MINIMIZERS],
+            [m[1] for m in BRANIN_MINIMIZERS],
+        ]
+    )
 
     inner = Benchmark(
         _name="branin_2d",

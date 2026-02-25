@@ -9,15 +9,15 @@ mesh provides non-identity gradient_factors(), physical derivative matrices
 are computed by applying gradient factors to scale reference derivatives.
 """
 
-from typing import Generic, List, Tuple, Optional, Dict
+from typing import Dict, Generic, List, Optional, Tuple
 
-from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.pde.collocation.protocols.basis import (
     DerivativeMatrix1DProtocol,
 )
 from pyapprox.pde.collocation.protocols.mesh import (
     MeshWithTransformProtocol,
 )
+from pyapprox.util.backends.protocols import Array, Backend
 
 
 class TensorProductBasis(Generic[Array]):

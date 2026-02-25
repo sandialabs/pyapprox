@@ -7,33 +7,31 @@ import numpy as np
 import torch
 from numpy.typing import NDArray
 
-from pyapprox.util.backends.numpy import NumpyBkd
-from pyapprox.util.backends.protocols import Array, Backend
-from pyapprox.util.backends.torch import TorchBkd
-from pyapprox.util.test_utils import load_tests  # noqa: F401
-
-from pyapprox.surrogates.affine.univariate import MonomialBasis1D
+from pyapprox.surrogates.affine.basis import MultiIndexBasis
+from pyapprox.surrogates.affine.expansions import BasisExpansion
 from pyapprox.surrogates.affine.indices import (
     compute_hyperbolic_indices,
 )
-from pyapprox.surrogates.affine.basis import MultiIndexBasis
-from pyapprox.surrogates.affine.expansions import BasisExpansion
-
-from pyapprox.surrogates.mfnets.nodes import (
-    LeafMFNetNode,
-    RootMFNetNode,
-)
-from pyapprox.surrogates.mfnets.edges import MFNetEdge
-from pyapprox.surrogates.mfnets.network import MFNet
+from pyapprox.surrogates.affine.univariate import MonomialBasis1D
 from pyapprox.surrogates.mfnets.discrepancy import (
     MultiplicativeAdditiveDiscrepancy,
+)
+from pyapprox.surrogates.mfnets.edges import MFNetEdge
+from pyapprox.surrogates.mfnets.fitters.gradient_fitter import (
+    MFNetGradientFitter,
 )
 from pyapprox.surrogates.mfnets.losses import (
     MFNetNegLogLikelihoodLoss,
 )
-from pyapprox.surrogates.mfnets.fitters.gradient_fitter import (
-    MFNetGradientFitter,
+from pyapprox.surrogates.mfnets.network import MFNet
+from pyapprox.surrogates.mfnets.nodes import (
+    LeafMFNetNode,
+    RootMFNetNode,
 )
+from pyapprox.util.backends.numpy import NumpyBkd
+from pyapprox.util.backends.protocols import Array, Backend
+from pyapprox.util.backends.torch import TorchBkd
+from pyapprox.util.test_utils import load_tests  # noqa: F401
 
 
 def _create_expansion(
@@ -102,9 +100,7 @@ class TestMFNetGradientFitter(Generic[Array], unittest.TestCase):
         true_scale = bkd.asarray(np.random.randn(scale_nterms, 1))
         true_delta = bkd.asarray(np.random.randn(delta_nterms, 1))
 
-        true_net = _build_two_node_mfnet(
-            bkd, true_leaf, true_scale, true_delta
-        )
+        true_net = _build_two_node_mfnet(bkd, true_leaf, true_scale, true_delta)
 
         # Generate training data
         np.random.seed(42)
@@ -144,9 +140,7 @@ class TestMFNetGradientFitter(Generic[Array], unittest.TestCase):
         init_scale = bkd.asarray(np.random.randn(scale_nterms, 1) * 0.1)
         init_delta = bkd.asarray(np.random.randn(delta_nterms, 1) * 0.1)
 
-        fit_net = _build_two_node_mfnet(
-            bkd, init_leaf, init_scale, init_delta
-        )
+        fit_net = _build_two_node_mfnet(bkd, init_leaf, init_scale, init_delta)
 
         fitter = MFNetGradientFitter(bkd)
         result = fitter.fit(fit_net, samples, values)
@@ -161,6 +155,7 @@ class TestMFNetGradientFitter(Generic[Array], unittest.TestCase):
 
 
 # --- Concrete backend test classes ---
+
 
 class TestGradientFitterNumpy(TestMFNetGradientFitter[NDArray[Any]]):
     def bkd(self) -> NumpyBkd:

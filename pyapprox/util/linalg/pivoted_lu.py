@@ -128,9 +128,7 @@ class PivotedLUFactorizer(Generic[Array]):
             return it  # fallback
         else:
             # Choose pivot with maximum magnitude
-            return int(
-                self._bkd.argmax(self._bkd.abs(self._LU_factor[it:, it]))
-            ) + it
+            return int(self._bkd.argmax(self._bkd.abs(self._LU_factor[it:, it]))) + it
 
     def _terminate(self, it: int) -> bool:
         """Check if factorization should terminate at iteration it."""
@@ -189,12 +187,8 @@ class PivotedLUFactorizer(Generic[Array]):
             self._init_pivots = init_pivots
         self._ncompleted_pivots = 0
         self._LU_factor = self._bkd.copy(self._Amat)
-        self._seq_pivots = self._bkd.arange(
-            self._nrows, dtype=self._bkd.int64_dtype()
-        )
-        self._pivots = self._bkd.arange(
-            self._nrows, dtype=self._bkd.int64_dtype()
-        )
+        self._seq_pivots = self._bkd.arange(self._nrows, dtype=self._bkd.int64_dtype())
+        self._pivots = self._bkd.arange(self._nrows, dtype=self._bkd.int64_dtype())
         return self.update(npivots)
 
     def update(self, npivots: int) -> Tuple[Array, Array]:
@@ -260,8 +254,7 @@ class PivotedLUFactorizer(Generic[Array]):
             [
                 self._seq_pivots,
                 self._bkd.arange(
-                    self._nrows, self._nrows + nnew,
-                    dtype=self._bkd.int64_dtype()
+                    self._nrows, self._nrows + nnew, dtype=self._bkd.int64_dtype()
                 ),
             ]
         )
@@ -269,8 +262,7 @@ class PivotedLUFactorizer(Generic[Array]):
             [
                 self._pivots,
                 self._bkd.arange(
-                    self._nrows, self._nrows + nnew,
-                    dtype=self._bkd.int64_dtype()
+                    self._nrows, self._nrows + nnew, dtype=self._bkd.int64_dtype()
                 ),
             ]
         )
@@ -284,9 +276,7 @@ class PivotedLUFactorizer(Generic[Array]):
             row_vector = self._LU_factor[it : it + 1, it + 1 :]
             LU_extra[:, it + 1 :] -= col_vector @ row_vector
 
-        self._LU_factor = self._bkd.concatenate(
-            [self._LU_factor, LU_extra], axis=0
-        )
+        self._LU_factor = self._bkd.concatenate([self._LU_factor, LU_extra], axis=0)
         self._nrows += nnew
 
     def add_columns(self, new_cols: Array) -> None:
@@ -321,9 +311,7 @@ class PivotedLUFactorizer(Generic[Array]):
 
             new_cols[next_idx:, :] -= col_vector @ new_cols[it : it + 1, :]
 
-        self._LU_factor = self._bkd.concatenate(
-            [self._LU_factor, new_cols], axis=1
-        )
+        self._LU_factor = self._bkd.concatenate([self._LU_factor, new_cols], axis=1)
         self._ncols += new_cols.shape[1]
 
     def undo_preconditioning(
@@ -407,9 +395,7 @@ class PivotedLUFactorizer(Generic[Array]):
 
     def __repr__(self) -> str:
         if self.npivots() == 0:
-            return (
-                f"PivotedLUFactorizer(nrows={self._nrows}, ncols={self._ncols})"
-            )
+            return f"PivotedLUFactorizer(nrows={self._nrows}, ncols={self._ncols})"
         return (
             f"PivotedLUFactorizer(nrows={self._nrows}, ncols={self._ncols}, "
             f"npivots={self.npivots()}, msg={self.termination_message()})"

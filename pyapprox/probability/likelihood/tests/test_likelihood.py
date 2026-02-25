@@ -6,21 +6,20 @@ import unittest
 from typing import Any, Generic
 
 import numpy as np
+import torch
 from numpy.typing import NDArray
 from scipy import stats
-import torch
 
-from pyapprox.util.backends.protocols import Array, Backend
-from pyapprox.util.backends.numpy import NumpyBkd
-from pyapprox.util.backends.torch import TorchBkd
-from pyapprox.util.test_utils import load_tests
 from pyapprox.probability.covariance import (
     DenseCholeskyCovarianceOperator,
 )
 from pyapprox.probability.likelihood import (
-    GaussianLogLikelihood,
     DiagonalGaussianLogLikelihood,
+    GaussianLogLikelihood,
 )
+from pyapprox.util.backends.numpy import NumpyBkd
+from pyapprox.util.backends.protocols import Array, Backend
+from pyapprox.util.backends.torch import TorchBkd
 
 
 class TestGaussianLogLikelihood(Generic[Array], unittest.TestCase):
@@ -97,9 +96,7 @@ class TestGaussianLogLikelihood(Generic[Array], unittest.TestCase):
         obs = self._bkd.asarray([[1.0], [2.0], [3.0]])
         self.likelihood.set_observations(obs)
 
-        model = self._bkd.asarray(
-            [[1.0, 1.1, 0.9], [2.0, 2.1, 1.9], [3.0, 3.1, 2.9]]
-        )
+        model = self._bkd.asarray([[1.0, 1.1, 0.9], [2.0, 2.1, 1.9], [3.0, 3.1, 2.9]])
         logpdf = self.likelihood.logpdf(model)
         # logpdf returns (1, nsamples)
         self.assertEqual(logpdf.shape, (1, 3))
@@ -292,27 +289,19 @@ class TestDiagonalGaussianLogLikelihood(Generic[Array], unittest.TestCase):
 
     def test_logpdf_vectorized_shape(self) -> None:
         """Test vectorized logpdf returns correct shape."""
-        model = self._bkd.asarray(
-            [[1.0, 1.1, 1.2], [2.0, 2.1, 2.2], [3.0, 3.1, 3.2]]
-        )
-        obs = self._bkd.asarray(
-            [[1.0, 1.5], [2.0, 2.5], [3.0, 3.5]]
-        )
+        model = self._bkd.asarray([[1.0, 1.1, 1.2], [2.0, 2.1, 2.2], [3.0, 3.1, 3.2]])
+        obs = self._bkd.asarray([[1.0, 1.5], [2.0, 2.5], [3.0, 3.5]])
         logpdf = self.likelihood.logpdf_vectorized(model, obs)
         self.assertEqual(logpdf.shape, (3, 2))
 
     def test_logpdf_vectorized_matches_loop(self) -> None:
         """Test vectorized matches sequential set_observations + logpdf."""
-        model = self._bkd.asarray(
-            [[1.0, 1.1], [2.0, 2.1], [3.0, 3.1]]
-        )
-        obs = self._bkd.asarray(
-            [[1.0, 1.2], [2.0, 2.2], [3.0, 3.2]]
-        )
+        model = self._bkd.asarray([[1.0, 1.1], [2.0, 2.1], [3.0, 3.1]])
+        obs = self._bkd.asarray([[1.0, 1.2], [2.0, 2.2], [3.0, 3.2]])
         logpdf_vec = self.likelihood.logpdf_vectorized(model, obs)
 
         for j in range(obs.shape[1]):
-            self.likelihood.set_observations(obs[:, j:j+1])
+            self.likelihood.set_observations(obs[:, j : j + 1])
             logpdf_seq = self.likelihood.logpdf(model)
             self._bkd.assert_allclose(
                 self._bkd.reshape(logpdf_vec[:, j], (1, -1)),
@@ -326,12 +315,8 @@ class TestDiagonalGaussianLogLikelihood(Generic[Array], unittest.TestCase):
         noise_op = DenseCholeskyCovarianceOperator(noise_cov, self._bkd)
         full_lik = GaussianLogLikelihood(noise_op, self._bkd)
 
-        model = self._bkd.asarray(
-            [[1.0, 1.1], [2.0, 2.1], [3.0, 3.1]]
-        )
-        obs = self._bkd.asarray(
-            [[1.0, 1.2], [2.0, 2.2], [3.0, 3.2]]
-        )
+        model = self._bkd.asarray([[1.0, 1.1], [2.0, 2.1], [3.0, 3.1]])
+        obs = self._bkd.asarray([[1.0, 1.2], [2.0, 2.2], [3.0, 3.2]])
 
         logpdf_diag = self.likelihood.logpdf_vectorized(model, obs)
         logpdf_full = full_lik.logpdf_vectorized(model, obs)
@@ -524,7 +509,9 @@ class TestParallelDiagonalGaussianLogLikelihood(Generic[Array], unittest.TestCas
         )
 
         model = self._bkd.asarray([[1.0, 1.1, 1.2], [2.0, 2.1, 2.2], [3.0, 3.1, 3.2]])
-        obs = self._bkd.asarray([[1.0, 1.5, 1.2, 1.3], [2.0, 2.5, 2.2, 2.3], [3.0, 3.5, 3.2, 3.3]])
+        obs = self._bkd.asarray(
+            [[1.0, 1.5, 1.2, 1.3], [2.0, 2.5, 2.2, 2.3], [3.0, 3.5, 3.2, 3.3]]
+        )
 
         result_seq = seq_lik.logpdf_vectorized(model, obs)
         result_par = par_lik.logpdf_vectorized(model, obs)
@@ -619,14 +606,10 @@ class TestMultiExperimentLogLikelihood(Generic[Array], unittest.TestCase):
         lik = DiagonalGaussianLogLikelihood(
             self._bkd.asarray(self.noise_var), self._bkd
         )
-        obs = self._bkd.asarray(
-            [[1.0, 1.2, 1.1], [2.0, 2.2, 2.1], [3.0, 3.2, 3.1]]
-        )
+        obs = self._bkd.asarray([[1.0, 1.2, 1.1], [2.0, 2.2, 2.1], [3.0, 3.2, 3.1]])
         multi = MultiExperimentLogLikelihood(lik, obs, self._bkd)
 
-        model = self._bkd.asarray(
-            [[1.0, 1.1], [2.0, 2.1], [3.0, 3.1]]
-        )
+        model = self._bkd.asarray([[1.0, 1.1], [2.0, 2.1], [3.0, 3.1]])
         result = multi.logpdf(model)
         self.assertEqual(result.shape, (1, 2))
 
@@ -642,9 +625,7 @@ class TestMultiExperimentLogLikelihood(Generic[Array], unittest.TestCase):
         obs = self._bkd.asarray([[1.0], [2.0], [3.0]])
         multi = MultiExperimentLogLikelihood(lik, obs, self._bkd)
 
-        model = self._bkd.asarray(
-            [[1.0, 1.1, 1.2], [2.0, 2.1, 2.2], [3.0, 3.1, 3.2]]
-        )
+        model = self._bkd.asarray([[1.0, 1.1, 1.2], [2.0, 2.1, 2.2], [3.0, 3.1, 3.2]])
         result_multi = multi.logpdf(model)
 
         lik.set_observations(obs)
@@ -661,20 +642,16 @@ class TestMultiExperimentLogLikelihood(Generic[Array], unittest.TestCase):
         lik = DiagonalGaussianLogLikelihood(
             self._bkd.asarray(self.noise_var), self._bkd
         )
-        obs = self._bkd.asarray(
-            [[1.0, 1.2, 1.1], [2.0, 2.2, 2.1], [3.0, 3.2, 3.1]]
-        )
+        obs = self._bkd.asarray([[1.0, 1.2, 1.1], [2.0, 2.2, 2.1], [3.0, 3.2, 3.1]])
         multi = MultiExperimentLogLikelihood(lik, obs, self._bkd)
 
-        model = self._bkd.asarray(
-            [[1.0, 1.1], [2.0, 2.1], [3.0, 3.1]]
-        )
+        model = self._bkd.asarray([[1.0, 1.1], [2.0, 2.1], [3.0, 3.1]])
         result_multi = multi.logpdf(model)
 
         # Manual loop
         total = self._bkd.zeros((1, 2))
         for j in range(obs.shape[1]):
-            lik.set_observations(obs[:, j:j+1])
+            lik.set_observations(obs[:, j : j + 1])
             total = total + lik.logpdf(model)
 
         self._bkd.assert_allclose(result_multi, total, rtol=1e-12)
@@ -688,9 +665,7 @@ class TestMultiExperimentLogLikelihood(Generic[Array], unittest.TestCase):
         lik = DiagonalGaussianLogLikelihood(
             self._bkd.asarray(self.noise_var), self._bkd
         )
-        obs = self._bkd.asarray(
-            [[1.0, 1.2], [2.0, 2.2], [3.0, 3.2]]
-        )
+        obs = self._bkd.asarray([[1.0, 1.2], [2.0, 2.2], [3.0, 3.2]])
         multi = MultiExperimentLogLikelihood(lik, obs, self._bkd)
 
         self.assertEqual(multi.nobs(), 3)

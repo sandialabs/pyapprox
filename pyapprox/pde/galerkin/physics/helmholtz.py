@@ -11,19 +11,19 @@ This is a frequency-domain wave equation that arises in acoustics,
 electromagnetics, and other wave phenomena.
 """
 
-from typing import Generic, Optional, Callable, List, Union
+from typing import Callable, List, Optional, Union
 
 import numpy as np
 
-from pyapprox.util.backends.protocols import Array, Backend
-from pyapprox.pde.galerkin.protocols.basis import GalerkinBasisProtocol
-from pyapprox.pde.galerkin.protocols.boundary import BoundaryConditionProtocol
 from pyapprox.pde.galerkin.physics.galerkin_base import GalerkinPhysicsBase
 from pyapprox.pde.galerkin.physics.helpers import ScalarMassAssembler
+from pyapprox.pde.galerkin.protocols.basis import GalerkinBasisProtocol
+from pyapprox.pde.galerkin.protocols.boundary import BoundaryConditionProtocol
+from pyapprox.util.backends.protocols import Array, Backend
 
 # Import skfem for assembly
 try:
-    from skfem import asm, LinearForm, BilinearForm
+    from skfem import BilinearForm, LinearForm, asm
     from skfem.helpers import dot, grad
 except ImportError:
     raise ImportError(
@@ -269,8 +269,4 @@ class Helmholtz(GalerkinPhysicsBase[Array]):
         return self._basis.interpolate(func)
 
     def __repr__(self) -> str:
-        return (
-            f"Helmholtz("
-            f"nstates={self.nstates()}, "
-            f"wavenumber={self._wavenumber})"
-        )
+        return f"Helmholtz(nstates={self.nstates()}, wavenumber={self._wavenumber})"

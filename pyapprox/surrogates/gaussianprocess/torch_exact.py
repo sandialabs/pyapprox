@@ -11,16 +11,17 @@ computes derivatives through the computational graph using bkd.jacobian.
 """
 
 from typing import Optional
+
 import torch
 
-from pyapprox.util.backends.torch import TorchBkd
-from pyapprox.util.backends.validation import validate_backends
 from pyapprox.surrogates.gaussianprocess.exact import (
     ExactGaussianProcess,
 )
 from pyapprox.surrogates.gaussianprocess.mean_functions import (
     MeanFunction,
 )
+from pyapprox.util.backends.torch import TorchBkd
+from pyapprox.util.backends.validation import validate_backends
 
 
 class TorchExactGaussianProcess(ExactGaussianProcess[torch.Tensor]):
@@ -97,11 +98,11 @@ class TorchExactGaussianProcess(ExactGaussianProcess[torch.Tensor]):
         bkd = TorchBkd()
 
         # Validate that kernel uses TorchBkd
-        if hasattr(kernel, '_bkd'):
+        if hasattr(kernel, "_bkd"):
             validate_backends([bkd, kernel._bkd])
 
         # Validate that mean function uses TorchBkd
-        if mean_function is not None and hasattr(mean_function, '_bkd'):
+        if mean_function is not None and hasattr(mean_function, "_bkd"):
             validate_backends([bkd, mean_function._bkd])
 
         super().__init__(kernel, nvars, bkd, mean_function, nugget)

@@ -3,15 +3,15 @@
 import unittest
 from typing import Generic
 
-from pyapprox.util.backends.protocols import Array, Backend
-from pyapprox.util.backends.numpy import NumpyBkd
 from pyapprox.pde.collocation.mesh.base import (
     MeshData,
-    compute_cartesian_product,
     compute_boundary_indices_1d,
     compute_boundary_indices_2d,
     compute_boundary_indices_3d,
+    compute_cartesian_product,
 )
+from pyapprox.util.backends.numpy import NumpyBkd
+from pyapprox.util.backends.protocols import Array, Backend
 
 
 class TestMeshBase(Generic[Array], unittest.TestCase):

@@ -9,8 +9,9 @@ on autograd-tracked coefficient values.
 """
 
 import copy
+from typing import TYPE_CHECKING, List, Tuple
+
 import numpy as np
-from typing import List, Tuple, TYPE_CHECKING
 
 from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.util.cartesian import cartesian_product, outer_product
@@ -214,9 +215,7 @@ def add_constant_to_pce(
     # Build new coefficient array preserving autograd graph
     new_row = coef[const_idx, :] + constant
     new_coef = bkd.concatenate(
-        [coef[:const_idx, :],
-         bkd.reshape(new_row, (1, -1)),
-         coef[const_idx + 1:, :]],
+        [coef[:const_idx, :], bkd.reshape(new_row, (1, -1)), coef[const_idx + 1 :, :]],
         axis=0,
     )
     result.set_coefficients(new_coef)
@@ -253,10 +252,7 @@ def _nentries_square_triangular(N: int) -> int:
 
 def _nentries_rectangular_triangular(M: int, N: int) -> int:
     """Number of entries in lower triangular part of M x N matrix (M >= N)."""
-    return (
-        _nentries_square_triangular(M)
-        - _nentries_square_triangular(M - N)
-    )
+    return _nentries_square_triangular(M) - _nentries_square_triangular(M - N)
 
 
 def _flattened_lower_tri_index(ii: int, jj: int, M: int, N: int) -> int:
@@ -327,13 +323,11 @@ def _compute_product_coeffs_1d(
         product_coefs_1d.append([])
         for d1 in range(max_degree1 + 1):
             for d2 in range(min(d1 + 1, max_degree2 + 1)):
-                product_vals = (
-                    ortho_basis_matrix[:, d1] * ortho_basis_matrix[:, d2]
-                )
+                product_vals = ortho_basis_matrix[:, d1] * ortho_basis_matrix[:, d2]
                 # Spectral projection: c_k = Σ_j w_j * product(x_j) * ψ_k(x_j)
                 coefs = (
                     (w_quad * product_vals)[:, None].T
-                    @ ortho_basis_matrix[:, :d1 + d2 + 1]
+                    @ ortho_basis_matrix[:, : d1 + d2 + 1]
                 ).T  # shape (d1+d2+1, 1)
                 product_coefs_1d[-1].append(coefs)
 
@@ -379,7 +373,8 @@ def _compute_multivariate_orthonormal_basis_product(
             if pii < pjj:
                 pii, pjj = pjj, pii
             kk = _flattened_lower_tri_index(
-                pii, pjj,
+                pii,
+                pjj,
                 int(max_degrees1[dd]) + 1,
                 int(max_degrees2[dd]) + 1,
             )
@@ -391,9 +386,7 @@ def _compute_multivariate_orthonormal_basis_product(
         ]
 
         if len(coefs_1d) >= 2:
-            product_coefs = bkd.ravel(
-                outer_product(bkd, coefs_1d)
-            )[:, None]
+            product_coefs = bkd.ravel(outer_product(bkd, coefs_1d))[:, None]
             active_product_indices = cartesian_product(bkd, indices_1d)
         else:
             # Single active variable: no need for outer/cartesian product
@@ -417,7 +410,7 @@ def _compute_multivariate_orthonormal_basis_product(
                 (1, active_product_indices.shape[1]),
                 dtype=bkd.int64_dtype(),
             )
-            row = row + active_product_indices[idx_in_active:idx_in_active + 1, :]
+            row = row + active_product_indices[idx_in_active : idx_in_active + 1, :]
             rows.append((int(dd), row))
 
         for dd_int, row in rows:
@@ -435,7 +428,7 @@ def _compute_multivariate_orthonormal_basis_product(
             if dd in active_set:
                 index_rows.append(
                     active_product_indices[
-                        active_idx_map[dd]:active_idx_map[dd] + 1, :
+                        active_idx_map[dd] : active_idx_map[dd] + 1, :
                     ]
                 )
             else:
@@ -502,9 +495,7 @@ def _multiply_multivariate_orthonormal_polynomial_expansions(
             )
             # Scale by both input coefficients (preserves autograd)
             product_coefs_iijj = (
-                product_coefs
-                * poly_coefficients1[ii, :]
-                * poly_coefficients2[jj, :]
+                product_coefs * poly_coefficients1[ii, :] * poly_coefficients2[jj, :]
             )
             basis_coefs.append(product_coefs_iijj)
             basis_indices.append(product_indices)
@@ -549,15 +540,13 @@ def multiply_pce(
     )
 
     # Use original (non-copied) coefficients to preserve autograd graph
-    new_indices, new_coeffs = (
-        _multiply_multivariate_orthonormal_polynomial_expansions(
-            bkd,
-            product_coefs_1d,
-            poly1.get_indices(),
-            poly1.get_coefficients(),
-            poly2.get_indices(),
-            poly2.get_coefficients(),
-        )
+    new_indices, new_coeffs = _multiply_multivariate_orthonormal_polynomial_expansions(
+        bkd,
+        product_coefs_1d,
+        poly1.get_indices(),
+        poly1.get_coefficients(),
+        poly2.get_indices(),
+        poly2.get_coefficients(),
     )
 
     return _create_result_pce(pce1, new_indices, new_coeffs)
@@ -593,9 +582,7 @@ def pce_power(
         If order is negative.
     """
     if not isinstance(order, int):
-        raise TypeError(
-            f"Power order must be an integer, got {type(order).__name__}"
-        )
+        raise TypeError(f"Power order must be an integer, got {type(order).__name__}")
     if order < 0:
         raise ValueError(f"Power order must be non-negative, got {order}")
 
@@ -604,9 +591,7 @@ def pce_power(
     if order == 0:
         # Return constant 1 polynomial
         result = copy.deepcopy(pce)
-        const_indices = bkd.zeros(
-            (pce.nvars(), 1), dtype=bkd.int64_dtype()
-        )
+        const_indices = bkd.zeros((pce.nvars(), 1), dtype=bkd.int64_dtype())
         result._basis.set_indices(const_indices)
         result._initialize_coefficients()
         ones_coef = bkd.ones((1, pce.nqoi()))

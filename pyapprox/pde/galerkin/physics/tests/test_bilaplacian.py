@@ -1,28 +1,25 @@
 """Tests for BiLaplacianPrior."""
 
+import unittest
 from typing import Any, Generic
 
-import unittest
-
 import numpy as np
-from numpy.typing import NDArray
 from scipy.sparse import issparse
 
-from pyapprox.util.backends.numpy import NumpyBkd
-from pyapprox.util.backends.protocols import Array, Backend
+from pyapprox.pde.galerkin.basis.lagrange import LagrangeBasis
+from pyapprox.pde.galerkin.bilaplacian import BiLaplacianPrior
+from pyapprox.pde.galerkin.boundary.implementations import RobinBC
 from pyapprox.pde.galerkin.mesh.structured import (
     StructuredMesh1D,
     StructuredMesh2D,
 )
-from pyapprox.pde.galerkin.basis.lagrange import LagrangeBasis
-from pyapprox.pde.galerkin.boundary.implementations import RobinBC
-from pyapprox.pde.galerkin.bilaplacian import BiLaplacianPrior
-
+from pyapprox.util.backends.numpy import NumpyBkd
+from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.util.test_utils import load_tests  # noqa: F401
 
 try:
-    from skfem import MeshQuad, Basis
-    from skfem.element import ElementQuad1
+    from skfem import Basis, MeshQuad  # noqa: F401
+    from skfem.element import ElementQuad1  # noqa: F401
 except ImportError:
     raise ImportError("scikit-fem required for tests")
 
@@ -47,14 +44,10 @@ class _SkfemMeshWrapper(Generic[Array]):
         return self._skfem_mesh.nvertices
 
     def nodes(self) -> Array:
-        return self._bkd.asarray(
-            self._skfem_mesh.p.astype(np.float64)
-        )
+        return self._bkd.asarray(self._skfem_mesh.p.astype(np.float64))
 
     def elements(self) -> Array:
-        return self._bkd.asarray(
-            self._skfem_mesh.t.astype(np.int64)
-        )
+        return self._bkd.asarray(self._skfem_mesh.t.astype(np.int64))
 
     def skfem_mesh(self) -> Any:
         return self._skfem_mesh
@@ -74,9 +67,7 @@ class TestBiLaplacianPrior(unittest.TestCase):
     def _make_legacy_mesh_and_basis(self):
         """Create mesh matching legacy get_mesh([0,1,0,1], 1)."""
         skfem_mesh = (
-            MeshQuad.init_tensor(
-                np.linspace(0, 1, 3), np.linspace(0, 1, 3)
-            )
+            MeshQuad.init_tensor(np.linspace(0, 1, 3), np.linspace(0, 1, 3))
             .refined(1)
             .with_boundaries(
                 {
@@ -145,9 +136,7 @@ class TestBiLaplacianPrior(unittest.TestCase):
 
     def test_sample_shape_2d(self):
         """Samples have correct shape (ndofs, nsamples)."""
-        mesh = StructuredMesh2D(
-            nx=4, ny=4, bounds=[[0, 1], [0, 1]], bkd=self._bkd
-        )
+        mesh = StructuredMesh2D(nx=4, ny=4, bounds=[[0, 1], [0, 1]], bkd=self._bkd)
         basis = LagrangeBasis(mesh, degree=1)
         prior = BiLaplacianPrior.with_uniform_robin(
             basis, gamma=1.0, delta=0.5, bkd=self._bkd
@@ -172,9 +161,7 @@ class TestBiLaplacianPrior(unittest.TestCase):
 
     def test_stiffness_spd_2d(self):
         """Stiffness matrix is symmetric positive definite."""
-        mesh = StructuredMesh2D(
-            nx=3, ny=3, bounds=[[0, 1], [0, 1]], bkd=self._bkd
-        )
+        mesh = StructuredMesh2D(nx=3, ny=3, bounds=[[0, 1], [0, 1]], bkd=self._bkd)
         basis = LagrangeBasis(mesh, degree=1)
         prior = BiLaplacianPrior.with_uniform_robin(
             basis, gamma=1.0, delta=0.5, bkd=self._bkd
@@ -210,9 +197,7 @@ class TestBiLaplacianPrior(unittest.TestCase):
 
     def test_zero_mean(self):
         """Samples have approximately zero mean."""
-        mesh = StructuredMesh2D(
-            nx=4, ny=4, bounds=[[0, 1], [0, 1]], bkd=self._bkd
-        )
+        mesh = StructuredMesh2D(nx=4, ny=4, bounds=[[0, 1], [0, 1]], bkd=self._bkd)
         basis = LagrangeBasis(mesh, degree=1)
         prior = BiLaplacianPrior.with_uniform_robin(
             basis, gamma=1.0, delta=0.5, bkd=self._bkd
@@ -233,9 +218,7 @@ class TestBiLaplacianPrior(unittest.TestCase):
         so y-direction variance at interior nodes should be different from
         x-direction behavior.
         """
-        mesh = StructuredMesh2D(
-            nx=8, ny=8, bounds=[[0, 1], [0, 1]], bkd=self._bkd
-        )
+        mesh = StructuredMesh2D(nx=8, ny=8, bounds=[[0, 1], [0, 1]], bkd=self._bkd)
         basis = LagrangeBasis(mesh, degree=1)
 
         # Isotropic
@@ -255,9 +238,7 @@ class TestBiLaplacianPrior(unittest.TestCase):
             anisotropic_tensor=aniso,
         )
         rng_aniso = np.random.default_rng(42)
-        samples_aniso = self._bkd.to_numpy(
-            prior_aniso.rvs(500, rng=rng_aniso)
-        )
+        samples_aniso = self._bkd.to_numpy(prior_aniso.rvs(500, rng=rng_aniso))
 
         # Anisotropic samples should have different variance than isotropic
         var_iso = np.var(samples_iso, axis=1)
@@ -273,9 +254,7 @@ class TestBiLaplacianPrior(unittest.TestCase):
         Larger gamma and delta increase the stiffness (stronger diffusion
         and reaction), resulting in smaller sample variance.
         """
-        mesh = StructuredMesh2D(
-            nx=4, ny=4, bounds=[[0, 1], [0, 1]], bkd=self._bkd
-        )
+        mesh = StructuredMesh2D(nx=4, ny=4, bounds=[[0, 1], [0, 1]], bkd=self._bkd)
         basis = LagrangeBasis(mesh, degree=1)
 
         # Small gamma*delta -> weaker stiffness -> larger variance
@@ -303,9 +282,7 @@ class TestBiLaplacianPrior(unittest.TestCase):
 
     def test_custom_robin_alpha(self):
         """Custom robin_alpha produces different samples than default."""
-        mesh = StructuredMesh2D(
-            nx=4, ny=4, bounds=[[0, 1], [0, 1]], bkd=self._bkd
-        )
+        mesh = StructuredMesh2D(nx=4, ny=4, bounds=[[0, 1], [0, 1]], bkd=self._bkd)
         basis = LagrangeBasis(mesh, degree=1)
 
         prior_default = BiLaplacianPrior.with_uniform_robin(
@@ -327,33 +304,28 @@ class TestBiLaplacianPrior(unittest.TestCase):
 
     def test_custom_boundary_conditions(self):
         """Constructor accepts user-created RobinBC list."""
-        mesh = StructuredMesh2D(
-            nx=4, ny=4, bounds=[[0, 1], [0, 1]], bkd=self._bkd
-        )
+        mesh = StructuredMesh2D(nx=4, ny=4, bounds=[[0, 1], [0, 1]], bkd=self._bkd)
         basis = LagrangeBasis(mesh, degree=1)
 
         # Only apply Robin BC on left and right
         robin_bcs = [
             RobinBC(basis, "left", alpha=1.0, value_func=0.0, bkd=self._bkd),
-            RobinBC(
-                basis, "right", alpha=1.0, value_func=0.0, bkd=self._bkd
-            ),
+            RobinBC(basis, "right", alpha=1.0, value_func=0.0, bkd=self._bkd),
         ]
         prior = BiLaplacianPrior(
-            basis, gamma=1.0, delta=0.5, bkd=self._bkd,
+            basis,
+            gamma=1.0,
+            delta=0.5,
+            bkd=self._bkd,
             boundary_conditions=robin_bcs,
         )
         rng = np.random.default_rng(42)
         samples = prior.rvs(3, rng=rng)
-        self.assertEqual(
-            self._bkd.to_numpy(samples).shape, (basis.ndofs(), 3)
-        )
+        self.assertEqual(self._bkd.to_numpy(samples).shape, (basis.ndofs(), 3))
 
     def test_rng_reproducibility(self):
         """Using the same rng seed produces identical samples."""
-        mesh = StructuredMesh2D(
-            nx=4, ny=4, bounds=[[0, 1], [0, 1]], bkd=self._bkd
-        )
+        mesh = StructuredMesh2D(nx=4, ny=4, bounds=[[0, 1], [0, 1]], bkd=self._bkd)
         basis = LagrangeBasis(mesh, degree=1)
         prior = BiLaplacianPrior.with_uniform_robin(
             basis, gamma=1.0, delta=0.5, bkd=self._bkd
@@ -372,9 +344,7 @@ class TestBiLaplacianPrior(unittest.TestCase):
 
     def test_invalid_anisotropic_tensor_shape(self):
         """Raises ValueError for wrong anisotropic_tensor shape."""
-        mesh = StructuredMesh2D(
-            nx=4, ny=4, bounds=[[0, 1], [0, 1]], bkd=self._bkd
-        )
+        mesh = StructuredMesh2D(nx=4, ny=4, bounds=[[0, 1], [0, 1]], bkd=self._bkd)
         basis = LagrangeBasis(mesh, degree=1)
 
         with self.assertRaises(ValueError):

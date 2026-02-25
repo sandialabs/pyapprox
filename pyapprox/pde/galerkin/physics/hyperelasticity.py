@@ -21,28 +21,28 @@ Uses the NeoHookeanStress model from the collocation module for stress
 and tangent computation at quadrature points.
 """
 
-from typing import Optional, Callable, List
+from typing import Callable, List, Optional
 
 import numpy as np
 from scipy.sparse import csr_matrix
 
-from pyapprox.util.backends.protocols import Array, Backend
-from pyapprox.util.backends.numpy import NumpyBkd
-from pyapprox.pde.sparse_utils import solve_maybe_sparse
-from pyapprox.pde.galerkin.protocols.boundary import (
-    BoundaryConditionProtocol,
+from pyapprox.pde.collocation.physics.stress_models.protocols import (
+    StressModelProtocol,
+    StressModelWithTangentProtocol,
 )
 from pyapprox.pde.galerkin.basis.vector_lagrange import (
     VectorLagrangeBasis,
 )
 from pyapprox.pde.galerkin.physics.galerkin_base import GalerkinPhysicsBase
-from pyapprox.pde.collocation.physics.stress_models.protocols import (
-    StressModelProtocol,
-    StressModelWithTangentProtocol,
+from pyapprox.pde.galerkin.protocols.boundary import (
+    BoundaryConditionProtocol,
 )
+from pyapprox.pde.sparse_utils import solve_maybe_sparse
+from pyapprox.util.backends.numpy import NumpyBkd
+from pyapprox.util.backends.protocols import Array, Backend
 
 try:
-    from skfem import asm, LinearForm, BilinearForm
+    from skfem import BilinearForm, LinearForm, asm
 except ImportError:
     raise ImportError(
         "scikit-fem is required for Galerkin module. "
@@ -83,9 +83,7 @@ class HyperelasticityPhysics(GalerkinPhysicsBase[Array]):
         stress_model: StressModelProtocol[Array],
         bkd: Backend[Array],
         body_force: Optional[Callable] = None,
-        boundary_conditions: Optional[
-            List[BoundaryConditionProtocol[Array]]
-        ] = None,
+        boundary_conditions: Optional[List[BoundaryConditionProtocol[Array]]] = None,
     ):
         super().__init__(basis, bkd, boundary_conditions)
         self._stress_model = stress_model
@@ -135,9 +133,7 @@ class HyperelasticityPhysics(GalerkinPhysicsBase[Array]):
         state_np = self._bkd.to_numpy(state)
         return skfem_basis.interpolate(state_np)
 
-    def _assemble_internal_force(
-        self, state: Array, time: float
-    ) -> Array:
+    def _assemble_internal_force(self, state: Array, time: float) -> Array:
         """Assemble internal force vector.
 
         Computes: integral P(F):Grad(v) dX
@@ -196,9 +192,7 @@ class HyperelasticityPhysics(GalerkinPhysicsBase[Array]):
                 # w.u_prev.grad shape: (3, 3, nelem, nquad)
                 F = tuple(
                     tuple(
-                        (1.0 if i == j else 0.0)
-                        + w.u_prev.grad[i, j]
-                        for j in range(3)
+                        (1.0 if i == j else 0.0) + w.u_prev.grad[i, j] for j in range(3)
                     )
                     for i in range(3)
                 )
@@ -239,14 +233,10 @@ class HyperelasticityPhysics(GalerkinPhysicsBase[Array]):
             if len(x_shape) == 3:
                 n, nelem, nquad = x_shape
                 x_flat = x.reshape(n, -1)
-                force_flat = np.asarray(
-                    body_force_func(x_flat, current_time)
-                )
+                force_flat = np.asarray(body_force_func(x_flat, current_time))
                 force = force_flat.reshape(ndim, nelem, nquad)
             else:
-                force = np.asarray(
-                    body_force_func(x, current_time)
-                )
+                force = np.asarray(body_force_func(x, current_time))
             return sum(force[i] * v[i] for i in range(ndim))
 
         load_np = asm(LinearForm(load_form), skfem_basis)
@@ -280,9 +270,7 @@ class HyperelasticityPhysics(GalerkinPhysicsBase[Array]):
 
         return load - internal_force - bc_stiffness @ state
 
-    def _assemble_tangent_stiffness(
-        self, state: Array, time: float
-    ) -> Array:
+    def _assemble_tangent_stiffness(self, state: Array, time: float) -> Array:
         """Assemble tangent stiffness matrix.
 
         Computes: K_ij = integral A_iJkL * dv_i/dX_J * du_k/dX_L dX
@@ -292,9 +280,7 @@ class HyperelasticityPhysics(GalerkinPhysicsBase[Array]):
         Raises NotImplementedError if stress model does not implement
         StressModelWithTangentProtocol.
         """
-        if not isinstance(
-            self._stress_model, StressModelWithTangentProtocol
-        ):
+        if not isinstance(self._stress_model, StressModelWithTangentProtocol):
             raise NotImplementedError(
                 "Tangent stiffness requires a stress model implementing "
                 "StressModelWithTangentProtocol. The provided model "
@@ -327,22 +313,15 @@ class HyperelasticityPhysics(GalerkinPhysicsBase[Array]):
                 F12 = w.u_prev.grad[0, 1]
                 F21 = w.u_prev.grad[1, 0]
                 F22 = 1.0 + w.u_prev.grad[1, 1]
-                A = stress_model.compute_tangent_2d(
-                    F11, F12, F21, F22, numpy_bkd
-                )
+                A = stress_model.compute_tangent_2d(F11, F12, F21, F22, numpy_bkd)
                 # K[du, v] = sum_{i,J,k,L} A_{iJkL} * dv_i/dX_J * du_k/dX_L
                 result = 0.0
                 for i in range(2):
                     for J in range(2):
                         for k in range(2):
                             for L in range(2):
-                                key = f"A_{i+1}{J+1}{k+1}{L+1}"
-                                result = (
-                                    result
-                                    + A[key]
-                                    * v.grad[i, J]
-                                    * u.grad[k, L]
-                                )
+                                key = f"A_{i + 1}{J + 1}{k + 1}{L + 1}"
+                                result = result + A[key] * v.grad[i, J] * u.grad[k, L]
                 return result
 
             K_np = asm(

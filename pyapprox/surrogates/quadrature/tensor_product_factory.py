@@ -13,10 +13,10 @@ with :class:`~pyapprox.surrogates.quadrature.TensorProductQuadratureRule`.
 
 from typing import Callable, Generic, List, Tuple
 
-from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.surrogates.quadrature.tensor_product import (
     TensorProductQuadratureRule,
 )
+from pyapprox.util.backends.protocols import Array, Backend
 
 
 class _LebesgueMappedQuadratureRule(Generic[Array]):
@@ -161,10 +161,8 @@ class TensorProductQuadratureFactory(Generic[Array]):
             lb_i = float(self._domain[i, 0])
             ub_i = float(self._domain[i, 1])
             marginal = UniformMarginal(lower=lb_i, upper=ub_i, bkd=bkd)
-            rules.append(
-                lambda n, m=marginal: gauss_quadrature_rule(m, n, bkd)
-            )
-            volume *= (ub_i - lb_i)
+            rules.append(lambda n, m=marginal: gauss_quadrature_rule(m, n, bkd))
+            volume *= ub_i - lb_i
 
         tp = TensorProductQuadratureRule(bkd, rules, npts)
         return _LebesgueMappedQuadratureRule(tp, volume, bkd)

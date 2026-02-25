@@ -15,18 +15,17 @@ import numpy as np
 import torch
 from numpy.typing import NDArray
 
-from pyapprox.util.backends.numpy import NumpyBkd
-from pyapprox.util.backends.torch import TorchBkd
-from pyapprox.util.backends.protocols import Array
-from pyapprox.util.test_utils import load_tests
-from pyapprox.expdesign.local.design_matrices import (
-    LeastSquaresDesignMatrices,
-    QuantileDesignMatrices,
-)
 from pyapprox.expdesign.local.criteria import (
     DOptimalCriterion,
     DOptimalQuantileCriterion,
 )
+from pyapprox.expdesign.local.design_matrices import (
+    LeastSquaresDesignMatrices,
+    QuantileDesignMatrices,
+)
+from pyapprox.util.backends.numpy import NumpyBkd
+from pyapprox.util.backends.protocols import Array
+from pyapprox.util.backends.torch import TorchBkd
 
 
 class TestDOptimalCriterion(Generic[Array], unittest.TestCase):
@@ -118,9 +117,7 @@ class TestDOptimalCriterion(Generic[Array], unittest.TestCase):
 
     def test_quantile_heteroscedastic_jacobian(self):
         """Test D-optimal Jacobian for heteroscedastic quantile regression."""
-        dm = QuantileDesignMatrices(
-            self._design_factors, self._bkd, self._noise_mult
-        )
+        dm = QuantileDesignMatrices(self._design_factors, self._bkd, self._noise_mult)
         crit = DOptimalQuantileCriterion(dm, self._bkd)
 
         jac = crit.jacobian(self._weights)

@@ -7,21 +7,19 @@ import numpy as np
 import torch
 from numpy.typing import NDArray
 
-from pyapprox.util.backends.numpy import NumpyBkd
-from pyapprox.util.backends.torch import TorchBkd
-from pyapprox.util.backends.protocols import Array, Backend
-from pyapprox.util.test_utils import load_tests  # noqa: F401
-
-from pyapprox.surrogates.affine.univariate import create_bases_1d
-from pyapprox.surrogates.affine.indices import compute_hyperbolic_indices
+from pyapprox.probability import UniformMarginal
 from pyapprox.surrogates.affine.basis import OrthonormalPolynomialBasis
 from pyapprox.surrogates.affine.expansions import BasisExpansion
-from pyapprox.probability import UniformMarginal
-
+from pyapprox.surrogates.affine.indices import compute_hyperbolic_indices
+from pyapprox.surrogates.affine.univariate import create_bases_1d
 from pyapprox.surrogates.functiontrain.core import FunctionTrainCore
 from pyapprox.surrogates.functiontrain.pce_core import (
     PCEFunctionTrainCore,
 )
+from pyapprox.util.backends.numpy import NumpyBkd
+from pyapprox.util.backends.protocols import Array, Backend
+from pyapprox.util.backends.torch import TorchBkd
+from pyapprox.util.test_utils import load_tests  # noqa: F401
 
 
 class TestPCEFunctionTrainCore(Generic[Array], unittest.TestCase):
@@ -130,7 +128,7 @@ class TestPCEFunctionTrainCore(Generic[Array], unittest.TestCase):
         bkd = self._bkd
         r_left, r_right = 2, 2
         max_level = 2
-        nterms = max_level + 1
+        max_level + 1
 
         # Create known coefficients
         coefficients = [
@@ -197,7 +195,7 @@ class TestPCEFunctionTrainCore(Generic[Array], unittest.TestCase):
         """Test expected_core returns Θ^{(0)}."""
         bkd = self._bkd
         max_level = 2
-        nterms = max_level + 1
+        max_level + 1
         coefficients = [[bkd.asarray([[1.5], [0.0], [0.0]])]]
         core = self._create_core_with_coefficients(1, 1, max_level, coefficients)
         pce_core = PCEFunctionTrainCore(core)

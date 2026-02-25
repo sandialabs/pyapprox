@@ -173,7 +173,9 @@ class GalerkinLameParameterization(Generic[Array]):
         return self._bkd.stack(cols, axis=1)
 
     def initial_param_jacobian(
-        self, physics: object, params_1d: Array,
+        self,
+        physics: object,
+        params_1d: Array,
     ) -> Array:
         """Return d(u_0)/dp = 0 (IC does not depend on material params).
 
@@ -189,9 +191,7 @@ class GalerkinLameParameterization(Generic[Array]):
         Array
             Zero matrix. Shape: ``(nstates, 2*nmaterials)``.
         """
-        return self._bkd.asarray(
-            np.zeros((physics.nstates(), self.nparams()))
-        )
+        return self._bkd.asarray(np.zeros((physics.nstates(), self.nparams())))
 
 
 def create_galerkin_lame_parameterization(

@@ -17,8 +17,8 @@ ParallelDiagonalGaussianLogLikelihood
 """
 
 from .gaussian import (
-    GaussianLogLikelihood,
     DiagonalGaussianLogLikelihood,
+    GaussianLogLikelihood,
     MultiExperimentLogLikelihood,
 )
 from .model_based import ModelBasedLogLikelihood

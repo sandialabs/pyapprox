@@ -5,49 +5,50 @@ Tests basic properties (symmetry, positive semi-definiteness),
 analytical comparisons, and error handling.
 """
 import unittest
-from typing import Generic, Any
+from typing import Any, Generic
+
 import numpy as np
 import torch
 from numpy.typing import NDArray
 
-from pyapprox.util.backends.protocols import Backend, Array
-from pyapprox.util.backends.numpy import NumpyBkd
-from pyapprox.util.backends.torch import TorchBkd
-from pyapprox.util.test_utils import load_tests  # noqa: F401
-from pyapprox.surrogates.kernels.matern import (
-    SquaredExponentialKernel,
-    Matern52Kernel,
-)
-from pyapprox.surrogates.kernels.composition import (
-    ProductKernel,
-    SeparableProductKernel,
-)
+from pyapprox.probability.univariate import UniformMarginal
 from pyapprox.surrogates.gaussianprocess import ExactGaussianProcess
 from pyapprox.surrogates.gaussianprocess.mean_functions import (
-    ZeroMean,
     ConstantMean,
+    ZeroMean,
+)
+from pyapprox.surrogates.gaussianprocess.statistics.integrals import (
+    SeparableKernelIntegralCalculator,
+)
+from pyapprox.surrogates.gaussianprocess.statistics.integrals_1d import (
+    compute_conditional_P_1d,
+    compute_lambda_1d,
+    compute_nu_1d,
+    compute_P_1d,
+    compute_Pi_1d,
+    compute_tau_1d,
+    compute_u_1d,
+    compute_xi1_1d,
 )
 from pyapprox.surrogates.gaussianprocess.statistics.validation import (
     validate_separable_kernel,
     validate_zero_mean,
 )
-from pyapprox.surrogates.gaussianprocess.statistics.integrals_1d import (
-    compute_tau_1d,
-    compute_P_1d,
-    compute_u_1d,
-    compute_nu_1d,
-    compute_lambda_1d,
-    compute_Pi_1d,
-    compute_xi1_1d,
-    compute_conditional_P_1d,
+from pyapprox.surrogates.kernels.composition import (
+    ProductKernel,
+    SeparableProductKernel,
 )
-from pyapprox.surrogates.gaussianprocess.statistics.integrals import (
-    SeparableKernelIntegralCalculator,
+from pyapprox.surrogates.kernels.matern import (
+    Matern52Kernel,
+    SquaredExponentialKernel,
 )
 from pyapprox.surrogates.sparsegrids.basis_factory import (
     create_basis_factories,
 )
-from pyapprox.probability.univariate import UniformMarginal
+from pyapprox.util.backends.numpy import NumpyBkd
+from pyapprox.util.backends.protocols import Array, Backend
+from pyapprox.util.backends.torch import TorchBkd
+from pyapprox.util.test_utils import load_tests  # noqa: F401
 
 
 class TestIntegrals1D(Generic[Array], unittest.TestCase):
@@ -393,7 +394,8 @@ class TestConditionalP1D(Generic[Array], unittest.TestCase):
         diff = P_diag - P_tilde_diag
         self.assertTrue(
             self._bkd.all_bool(diff >= -1e-12),
-            f"P_diag - P_tilde_diag should be >= 0, got min = {float(self._bkd.to_numpy(self._bkd.min(diff)))}"
+            "P_diag - P_tilde_diag should be >= 0, "
+            f"got min = {float(self._bkd.to_numpy(self._bkd.min(diff)))}"
         )
 
 

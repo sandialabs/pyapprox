@@ -2,26 +2,27 @@
 
 Ports legacy tests from pyapprox/surrogates/affine/tests/test_kle.py.
 """
+
 import unittest
 from typing import Any, Generic
 
 import numpy as np
-from numpy.typing import NDArray
 import torch
+from numpy.typing import NDArray
 
-from pyapprox.util.backends.protocols import Array, Backend
-from pyapprox.util.backends.numpy import NumpyBkd
-from pyapprox.util.backends.torch import TorchBkd
-from pyapprox.surrogates.kernels.matern import ExponentialKernel
-from pyapprox.surrogates.kle.mesh_kle import MeshKLE
-from pyapprox.surrogates.kle.data_driven_kle import DataDrivenKLE
-from pyapprox.surrogates.kle.pca import PrincipalComponentAnalysis
 from pyapprox.surrogates.affine.univariate.globalpoly import (
     LegendrePolynomial1D,
 )
 from pyapprox.surrogates.affine.univariate.globalpoly.quadrature import (
     GaussQuadratureRule,
 )
+from pyapprox.surrogates.kernels.matern import ExponentialKernel
+from pyapprox.surrogates.kle.data_driven_kle import DataDrivenKLE
+from pyapprox.surrogates.kle.mesh_kle import MeshKLE
+from pyapprox.surrogates.kle.pca import PrincipalComponentAnalysis
+from pyapprox.util.backends.numpy import NumpyBkd
+from pyapprox.util.backends.protocols import Array, Backend
+from pyapprox.util.backends.torch import TorchBkd
 
 
 def _gauss_legendre_quad(lb, ub, npts, bkd):
@@ -59,7 +60,7 @@ class TestDataDrivenKLE(Generic[Array], unittest.TestCase):
         level = 6
         len_scale, sigma = 1.0, 1.0
         lb, ub = 0.0, 2.0
-        npts = 2 ** level + 1
+        npts = 2**level + 1
 
         mesh_coords, quad_weights = _gauss_legendre_quad(lb, ub, npts, bkd)
 
@@ -67,22 +68,28 @@ class TestDataDrivenKLE(Generic[Array], unittest.TestCase):
         kernel = ExponentialKernel(lenscale_arr, (0.01, 100.0), 1, bkd)
 
         kle = MeshKLE(
-            mesh_coords, kernel, sigma=sigma, nterms=nterms,
-            quad_weights=None, bkd=bkd,
+            mesh_coords,
+            kernel,
+            sigma=sigma,
+            nterms=nterms,
+            quad_weights=None,
+            bkd=bkd,
         )
 
         nsamples = 10000
-        samples = bkd.asarray(
-            np.random.normal(0.0, 1.0, (nterms, nsamples))
-        )
+        samples = bkd.asarray(np.random.normal(0.0, 1.0, (nterms, nsamples)))
         kle_realizations = kle(samples)
 
         kle_data = DataDrivenKLE(
-            kle_realizations, nterms=nterms, bkd=bkd,
+            kle_realizations,
+            nterms=nterms,
+            bkd=bkd,
         )
         bkd.assert_allclose(
-            kle_data._sqrt_eig_vals, kle._sqrt_eig_vals,
-            atol=1e-2, rtol=1e-2,
+            kle_data._sqrt_eig_vals,
+            kle._sqrt_eig_vals,
+            atol=1e-2,
+            rtol=1e-2,
         )
 
     def test_data_driven_kle_with_weights(self) -> None:
@@ -96,7 +103,7 @@ class TestDataDrivenKLE(Generic[Array], unittest.TestCase):
         level = 6
         len_scale, sigma = 1.0, 1.0
         lb, ub = 0.0, 2.0
-        npts = 2 ** level + 1
+        npts = 2**level + 1
 
         mesh_coords, quad_weights = _gauss_legendre_quad(lb, ub, npts, bkd)
 
@@ -104,23 +111,29 @@ class TestDataDrivenKLE(Generic[Array], unittest.TestCase):
         kernel = ExponentialKernel(lenscale_arr, (0.01, 100.0), 1, bkd)
 
         kle = MeshKLE(
-            mesh_coords, kernel, sigma=sigma, nterms=nterms,
-            quad_weights=quad_weights, bkd=bkd,
+            mesh_coords,
+            kernel,
+            sigma=sigma,
+            nterms=nterms,
+            quad_weights=quad_weights,
+            bkd=bkd,
         )
 
         nsamples = 10000
-        samples = bkd.asarray(
-            np.random.normal(0.0, 1.0, (nterms, nsamples))
-        )
+        samples = bkd.asarray(np.random.normal(0.0, 1.0, (nterms, nsamples)))
         kle_realizations = kle(samples)
 
         kle_data = DataDrivenKLE(
-            kle_realizations, nterms=nterms,
-            quad_weights=quad_weights, bkd=bkd,
+            kle_realizations,
+            nterms=nterms,
+            quad_weights=quad_weights,
+            bkd=bkd,
         )
         bkd.assert_allclose(
-            kle_data._sqrt_eig_vals, kle._sqrt_eig_vals,
-            atol=1e-2, rtol=1e-2,
+            kle_data._sqrt_eig_vals,
+            kle._sqrt_eig_vals,
+            atol=1e-2,
+            rtol=1e-2,
         )
 
 
@@ -209,7 +222,6 @@ class TestPCATorch(TestPCA[torch.Tensor]):
 
 
 from pyapprox.util.test_utils import load_tests  # noqa: F401
-
 
 if __name__ == "__main__":
     loader = unittest.TestLoader()

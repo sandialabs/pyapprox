@@ -2,11 +2,11 @@
 
 from typing import Generic
 
-from pyapprox.util.backends.protocols import Array, Backend
-from pyapprox.surrogates.functiontrain.functiontrain import FunctionTrain
 from pyapprox.optimization.minimize.scipy.scipy_result import (
     ScipyOptimizerResultWrapper,
 )
+from pyapprox.surrogates.functiontrain.functiontrain import FunctionTrain
+from pyapprox.util.backends.protocols import Array, Backend
 
 
 class MSEFitterResult(Generic[Array]):

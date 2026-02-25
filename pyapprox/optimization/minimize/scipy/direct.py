@@ -1,27 +1,27 @@
 from typing import Generic, Optional, Self, Union, cast
 
 import numpy as np
-from scipy.optimize import direct, Bounds
+from scipy.optimize import Bounds, direct
 
-from pyapprox.util.backends.protocols import Array, Backend
-from pyapprox.optimization.minimize.scipy.scipy_result import (
-    ScipyOptimizerResultWrapper,
-)
 from pyapprox.interface.functions.numpy.numpy_function_factory import (
     numpy_function_wrapper_factory,
 )
-from pyapprox.optimization.minimize.objective.validation import (
-    validate_objective,
-)
 from pyapprox.interface.functions.numpy.wrappers import (
-    NumpyFunctionWrapper,
-    NumpyFunctionWithJacobianWrapper,
     NumpyFunctionWithJacobianAndHVPWrapper,
     NumpyFunctionWithJacobianAndWHVPWrapper,
+    NumpyFunctionWithJacobianWrapper,
+    NumpyFunctionWrapper,
 )
 from pyapprox.interface.functions.protocols.function import (
     FunctionProtocol,
 )
+from pyapprox.optimization.minimize.objective.validation import (
+    validate_objective,
+)
+from pyapprox.optimization.minimize.scipy.scipy_result import (
+    ScipyOptimizerResultWrapper,
+)
+from pyapprox.util.backends.protocols import Array, Backend
 
 _WrappedObjective = Union[
     NumpyFunctionWrapper[Array],
@@ -82,9 +82,7 @@ class ScipyDirectOptimizer(Generic[Array]):
 
         if objective is not None:
             if bounds is None:
-                raise ValueError(
-                    "bounds must be provided when objective is provided"
-                )
+                raise ValueError("bounds must be provided when objective is provided")
             self.bind(objective, bounds)
 
     def bind(
@@ -127,9 +125,7 @@ class ScipyDirectOptimizer(Generic[Array]):
         assert self._objective is not None
         return self._objective.bkd()
 
-    def _convert_bounds(
-        self, bounds: Array, nvars: int, bkd: Backend[Array]
-    ) -> Bounds:
+    def _convert_bounds(self, bounds: Array, nvars: int, bkd: Backend[Array]) -> Bounds:
         if bounds is None:
             return Bounds(
                 np.full((nvars,), -np.inf),
@@ -138,18 +134,14 @@ class ScipyDirectOptimizer(Generic[Array]):
         np_bounds = bkd.to_numpy(bounds)
         return Bounds(np_bounds[:, 0], np_bounds[:, 1])
 
-    def minimize(
-        self, init_guess: Array
-    ) -> ScipyOptimizerResultWrapper[Array]:
+    def minimize(self, init_guess: Array) -> ScipyOptimizerResultWrapper[Array]:
         if not self._is_bound:
             raise RuntimeError("Optimizer not bound. Call bind() first.")
         assert self._objective is not None
         assert self._bounds is not None
 
         kwargs = {
-            "func": lambda x: float(
-                self._objective(x[:, None])[:, 0]
-            ),
+            "func": lambda x: float(self._objective(x[:, None])[:, 0]),
             "bounds": self._bounds,
             "maxiter": self._maxiter,
             "vol_tol": self._vol_tol,
@@ -164,8 +156,6 @@ class ScipyDirectOptimizer(Generic[Array]):
         scipy_result = direct(**kwargs)
 
         if self._raise_on_failure and not scipy_result.success:
-            raise RuntimeError(
-                f"DIRECT optimization failed: {scipy_result.message}"
-            )
+            raise RuntimeError(f"DIRECT optimization failed: {scipy_result.message}")
 
         return ScipyOptimizerResultWrapper(scipy_result, self.bkd())

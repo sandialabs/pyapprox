@@ -5,7 +5,7 @@ AVaR optimization minimizes the average of the worst (1-alpha) fraction of
 outcomes across multiple objectives.
 """
 
-from typing import Protocol, Generic, runtime_checkable
+from typing import Generic, Protocol, runtime_checkable
 
 from pyapprox.util.backends.protocols import Array, Backend
 

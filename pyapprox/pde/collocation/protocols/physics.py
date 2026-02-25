@@ -6,10 +6,10 @@ Defines a 3-level protocol hierarchy for PDE physics:
 3. PhysicsWithHVPProtocol - adds Hessian-vector products (for second-order)
 """
 
-from typing import Protocol, Generic, runtime_checkable, Tuple
+from typing import Generic, Protocol, Tuple, runtime_checkable
 
-from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.pde.collocation.protocols.basis import BasisProtocol
+from pyapprox.util.backends.protocols import Array, Backend
 
 
 @runtime_checkable

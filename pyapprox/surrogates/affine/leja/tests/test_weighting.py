@@ -7,11 +7,10 @@ import torch
 from numpy.typing import NDArray
 from scipy import stats
 
-from pyapprox.util.backends.numpy import NumpyBkd
-from pyapprox.util.backends.torch import TorchBkd
-from pyapprox.util.backends.protocols import Array, Backend
-from pyapprox.util.test_utils import load_tests
 from pyapprox.probability import ScipyContinuousMarginal
+from pyapprox.util.backends.numpy import NumpyBkd
+from pyapprox.util.backends.protocols import Array, Backend
+from pyapprox.util.backends.torch import TorchBkd
 
 
 class TestChristoffelWeighting(Generic[Array], unittest.TestCase):

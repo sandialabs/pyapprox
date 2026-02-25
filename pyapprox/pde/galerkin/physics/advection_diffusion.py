@@ -20,20 +20,20 @@ where:
     f = forcing/source term
 """
 
-from typing import Generic, Optional, Callable, List, Union, Tuple
+from typing import Callable, List, Optional, Tuple, Union
 
 import numpy as np
 from scipy.sparse import csr_matrix
 
-from pyapprox.util.backends.protocols import Array, Backend
-from pyapprox.pde.galerkin.protocols.basis import GalerkinBasisProtocol
-from pyapprox.pde.galerkin.protocols.boundary import BoundaryConditionProtocol
 from pyapprox.pde.galerkin.physics.galerkin_base import GalerkinPhysicsBase
 from pyapprox.pde.galerkin.physics.helpers import ScalarMassAssembler
+from pyapprox.pde.galerkin.protocols.basis import GalerkinBasisProtocol
+from pyapprox.pde.galerkin.protocols.boundary import BoundaryConditionProtocol
+from pyapprox.util.backends.protocols import Array, Backend
 
 # Import skfem for assembly
 try:
-    from skfem import asm, LinearForm, BilinearForm
+    from skfem import BilinearForm, LinearForm, asm
     from skfem.helpers import dot, grad
 except ImportError:
     raise ImportError(
@@ -158,7 +158,9 @@ class AdvectionDiffusionReaction(GalerkinPhysicsBase[Array]):
                 self._reaction_coeff = float(reaction)
                 self._reaction_is_linear = True
                 self._reaction_func = lambda x, u: self._reaction_coeff * u
-                self._reaction_deriv = lambda x, u: np.full_like(u, self._reaction_coeff)
+                self._reaction_deriv = lambda x, u: np.full_like(
+                    u, self._reaction_coeff
+                )
             elif isinstance(reaction, tuple):
                 # Tuple of (R, R')
                 self._reaction_func, self._reaction_deriv = reaction
@@ -255,7 +257,11 @@ class AdvectionDiffusionReaction(GalerkinPhysicsBase[Array]):
 
         # Add advection if present
         if self._velocity is not None:
-            vel_np = self._bkd.to_numpy(self._velocity) if not callable(self._velocity) else None
+            vel_np = (
+                self._bkd.to_numpy(self._velocity)
+                if not callable(self._velocity)
+                else None
+            )
 
             conservative = self._conservative
 
@@ -275,11 +281,14 @@ class AdvectionDiffusionReaction(GalerkinPhysicsBase[Array]):
             stiffness = stiffness + advection
 
         # Cache if linear problem with constant coefficients
-        if self.is_linear() and not callable(self._diffusivity) and not callable(self._velocity):
+        if (
+            self.is_linear()
+            and not callable(self._diffusivity)
+            and not callable(self._velocity)
+        ):
             self._stiffness_cached = stiffness
 
         return stiffness
-
 
     def _assemble_load(self, state: Array, time: float) -> Array:
         """Assemble load vector b.
@@ -294,7 +303,9 @@ class AdvectionDiffusionReaction(GalerkinPhysicsBase[Array]):
         state_np = self._bkd.to_numpy(state)
 
         # Start with forcing contribution
-        if self._forcing is None and (self._reaction_func is None or self._reaction_is_linear):
+        if self._forcing is None and (
+            self._reaction_func is None or self._reaction_is_linear
+        ):
             # No forcing and no nonlinear reaction - use cached zero vector
             if self._load_cached is not None:
                 return self._load_cached
@@ -351,9 +362,7 @@ class AdvectionDiffusionReaction(GalerkinPhysicsBase[Array]):
                     react = reaction_func(x_np, u_prev)
                 return react * v
 
-            load_np += asm(
-                LinearForm(reaction_form), skfem_basis, u_prev=state_interp
-            )
+            load_np += asm(LinearForm(reaction_form), skfem_basis, u_prev=state_interp)
 
         return self._bkd.asarray(load_np.astype(np.float64))
 

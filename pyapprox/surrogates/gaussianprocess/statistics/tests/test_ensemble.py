@@ -4,36 +4,38 @@ Tests for GP ensemble uncertainty quantification.
 Tests the GaussianProcessEnsemble class for sampling GP realizations and
 computing the distribution of Sobol sensitivity indices.
 """
+
 import math
 import unittest
-from typing import Generic, Any, List
+from typing import Any, Generic, List
+
 import numpy as np
 import torch
 from numpy.typing import NDArray
 
-from pyapprox.util.backends.protocols import Backend, Array
-from pyapprox.util.backends.numpy import NumpyBkd
-from pyapprox.util.backends.torch import TorchBkd
-from pyapprox.util.test_utils import load_tests, slow_test  # noqa: F401
-from pyapprox.surrogates.kernels.matern import SquaredExponentialKernel
-from pyapprox.surrogates.kernels.composition import (
-    SeparableProductKernel,
-)
-from pyapprox.surrogates.gaussianprocess import ExactGaussianProcess
 from pyapprox.probability.univariate.uniform import UniformMarginal
-from pyapprox.surrogates.sparsegrids.basis_factory import (
-    create_basis_factories,
-)
+from pyapprox.surrogates.gaussianprocess import ExactGaussianProcess
 from pyapprox.surrogates.gaussianprocess.statistics import (
-    SeparableKernelIntegralCalculator,
     GaussianProcessStatistics,
-)
-from pyapprox.surrogates.gaussianprocess.statistics.sensitivity import (
-    GaussianProcessSensitivity,
+    SeparableKernelIntegralCalculator,
 )
 from pyapprox.surrogates.gaussianprocess.statistics.ensemble import (
     GaussianProcessEnsemble,
 )
+from pyapprox.surrogates.gaussianprocess.statistics.sensitivity import (
+    GaussianProcessSensitivity,
+)
+from pyapprox.surrogates.kernels.composition import (
+    SeparableProductKernel,
+)
+from pyapprox.surrogates.kernels.matern import SquaredExponentialKernel
+from pyapprox.surrogates.sparsegrids.basis_factory import (
+    create_basis_factories,
+)
+from pyapprox.util.backends.numpy import NumpyBkd
+from pyapprox.util.backends.protocols import Array, Backend
+from pyapprox.util.backends.torch import TorchBkd
+from pyapprox.util.test_utils import load_tests, slow_test  # noqa: F401
 
 
 def _create_quadrature_bases(
@@ -78,9 +80,9 @@ class TestGaussianProcessEnsemble(Generic[Array], unittest.TestCase):
         self._X_train = self._bkd.array(X_train_np)
         # Use backend math operations, shape: (nqoi, n_train)
         self._y_train = self._bkd.reshape(
-            self._bkd.sin(math.pi * self._X_train[0, :]) *
-            self._bkd.cos(math.pi * self._X_train[1, :]),
-            (1, -1)
+            self._bkd.sin(math.pi * self._X_train[0, :])
+            * self._bkd.cos(math.pi * self._X_train[1, :]),
+            (1, -1),
         )
 
         self._gp.fit(self._X_train, self._y_train)
@@ -93,9 +95,7 @@ class TestGaussianProcessEnsemble(Generic[Array], unittest.TestCase):
 
         # Create quadrature bases using sparse grid infrastructure
         self._nquad_points = 30
-        bases = _create_quadrature_bases(
-            self._marginals, self._nquad_points, self._bkd
-        )
+        bases = _create_quadrature_bases(self._marginals, self._nquad_points, self._bkd)
 
         # Create calculator, statistics, and sensitivity
         self._calc = SeparableKernelIntegralCalculator(
@@ -105,9 +105,7 @@ class TestGaussianProcessEnsemble(Generic[Array], unittest.TestCase):
         self._sens = GaussianProcessSensitivity(self._stats)
 
         # Create ensemble
-        self._ensemble = GaussianProcessEnsemble(
-            self._gp, self._sens, sampler=None
-        )
+        self._ensemble = GaussianProcessEnsemble(self._gp, self._sens, sampler=None)
 
     def bkd(self) -> Backend[Array]:
         """Override in derived classes."""
@@ -164,11 +162,13 @@ class TestGaussianProcessEnsemble(Generic[Array], unittest.TestCase):
         # For each sample point, compute distance to all training points
         min_distances = []
         for j in range(sample_points.shape[1]):
-            sample_j = sample_points[:, j:j+1]  # Shape: (2, 1)
+            sample_j = sample_points[:, j : j + 1]  # Shape: (2, 1)
             # Squared distances
             diff = X_train - sample_j  # Shape: (2, n_train)
             sq_dists = self._bkd.sum(diff * diff, axis=0)  # Shape: (n_train,)
-            min_dist = float(self._bkd.to_numpy(self._bkd.min(self._bkd.sqrt(sq_dists))))
+            min_dist = float(
+                self._bkd.to_numpy(self._bkd.min(self._bkd.sqrt(sq_dists)))
+            )
             min_distances.append(min_dist)
 
         # At least half of sample points should be at distance > 0.01 from training
@@ -236,9 +236,7 @@ class TestGaussianProcessEnsemble(Generic[Array], unittest.TestCase):
             self.assertGreaterEqual(
                 min_val, 0.0 - 1e-10, f"S_{i} has min={min_val} < 0"
             )
-            self.assertLessEqual(
-                max_val, 1.0 + 1e-10, f"S_{i} has max={max_val} > 1"
-            )
+            self.assertLessEqual(max_val, 1.0 + 1e-10, f"S_{i} has max={max_val} > 1")
 
     def test_reproducibility_with_seed(self) -> None:
         """Test that using the same seed gives identical results."""
@@ -251,8 +249,10 @@ class TestGaussianProcessEnsemble(Generic[Array], unittest.TestCase):
 
         for i in range(self._ensemble.nvars()):
             self._bkd.assert_allclose(
-                S_dist1[i], S_dist2[i], rtol=1e-10,
-                err_msg=f"S_{i} not reproducible with same seed"
+                S_dist1[i],
+                S_dist2[i],
+                rtol=1e-10,
+                err_msg=f"S_{i} not reproducible with same seed",
             )
 
 
@@ -311,7 +311,8 @@ class TestZeroVarianceAtTraining(Generic[Array], unittest.TestCase):
         std_test = float(bkd.to_numpy(std_at_test[0, 0]))
 
         self.assertGreater(
-            std_test, 1e-3,
+            std_test,
+            1e-3,
             f"GP std away from training should be non-zero, got {std_test}",
         )
 
@@ -401,16 +402,15 @@ class TestMCConvergence(Generic[Array], unittest.TestCase):
 
         # Allow significant tolerance since MC is stochastic
         self.assertGreater(
-            actual_ratio, expected_ratio * 0.2,
+            actual_ratio,
+            expected_ratio * 0.2,
             f"MC error not decreasing as expected: errors={errors}, "
-            f"actual_ratio={actual_ratio:.2f}, expected_ratio≈{expected_ratio:.2f}"
+            f"actual_ratio={actual_ratio:.2f}, expected_ratio≈{expected_ratio:.2f}",
         )
 
 
 # NumPy backend tests
-class TestGaussianProcessEnsembleNumpy(
-    TestGaussianProcessEnsemble[NDArray[Any]]
-):
+class TestGaussianProcessEnsembleNumpy(TestGaussianProcessEnsemble[NDArray[Any]]):
     """NumPy backend tests."""
 
     __test__ = True
@@ -438,9 +438,7 @@ class TestMCConvergenceNumpy(TestMCConvergence[NDArray[Any]]):
 
 
 # PyTorch backend tests
-class TestGaussianProcessEnsembleTorch(
-    TestGaussianProcessEnsemble[torch.Tensor]
-):
+class TestGaussianProcessEnsembleTorch(TestGaussianProcessEnsemble[torch.Tensor]):
     """PyTorch backend tests."""
 
     __test__ = True

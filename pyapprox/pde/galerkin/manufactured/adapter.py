@@ -5,32 +5,32 @@ Bridges the existing manufactured solution infrastructure in
 Galerkin boundary conditions and physics implementations.
 """
 
-from typing import Generic, List, Tuple, Callable, Optional, Dict
+from typing import Callable, Dict, Generic, List, Optional, Tuple
 
 import numpy as np
 
-from pyapprox.util.backends.protocols import Array, Backend
-from pyapprox.pde.galerkin.protocols.basis import GalerkinBasisProtocol
-from pyapprox.pde.galerkin.boundary import (
-    DirichletBC,
-    NeumannBC,
-    RobinBC,
-    BoundaryConditionSet,
-    canonical_boundary_normal,
-)
 from pyapprox.pde.collocation.manufactured_solutions import (
     ManufacturedAdvectionDiffusionReaction,
     ManufacturedHelmholtz,
 )
-from pyapprox.pde.collocation.manufactured_solutions.linear_elasticity import (
-    ManufacturedLinearElasticityEquations,
-)
 from pyapprox.pde.collocation.manufactured_solutions.hyperelasticity import (
     ManufacturedHyperelasticityEquations,
+)
+from pyapprox.pde.collocation.manufactured_solutions.linear_elasticity import (
+    ManufacturedLinearElasticityEquations,
 )
 from pyapprox.pde.collocation.physics.stress_models.protocols import (
     SymbolicStressModelProtocol,
 )
+from pyapprox.pde.galerkin.boundary import (
+    BoundaryConditionSet,
+    DirichletBC,
+    NeumannBC,
+    RobinBC,
+    canonical_boundary_normal,
+)
+from pyapprox.pde.galerkin.protocols.basis import GalerkinBasisProtocol
+from pyapprox.util.backends.protocols import Array, Backend
 
 
 class GalerkinManufacturedSolutionAdapter(Generic[Array]):
@@ -183,12 +183,14 @@ class GalerkinManufacturedSolutionAdapter(Generic[Array]):
         forcing_func = self._functions["forcing"]
 
         if self._time_dependent:
+
             def adapted_forcing(x, time):
                 vals = forcing_func(x, time)
                 if hasattr(vals, "shape") and vals.ndim > 1:
                     return vals[:, 0] if vals.shape[1] == 1 else vals
                 return vals
         else:
+
             def adapted_forcing(x):
                 vals = forcing_func(x)
                 if hasattr(vals, "shape") and vals.ndim > 1:
@@ -276,10 +278,7 @@ class GalerkinManufacturedSolutionAdapter(Generic[Array]):
                 else:
                     u_vals = sol_func(coords)
                 if u_vals.ndim > 1:
-                    u_vals = (
-                        u_vals[:, 0] if u_vals.shape[1] == 1
-                        else u_vals.flatten()
-                    )
+                    u_vals = u_vals[:, 0] if u_vals.shape[1] == 1 else u_vals.flatten()
                 # v * u · n
                 advective_flux_dot_n = np.sum(vel * u_vals * normal, axis=0)
                 result -= advective_flux_dot_n
@@ -293,12 +292,14 @@ class GalerkinManufacturedSolutionAdapter(Generic[Array]):
         sol_func = self._functions["solution"]
 
         if self._time_dependent:
+
             def value_func(x, t):
                 vals = sol_func(x, t)
                 if hasattr(vals, "shape") and vals.ndim > 1:
                     return vals[:, 0] if vals.shape[1] == 1 else vals
                 return vals
         else:
+
             def value_func(x, t=None):
                 vals = sol_func(x)
                 if hasattr(vals, "shape") and vals.ndim > 1:
@@ -318,9 +319,11 @@ class GalerkinManufacturedSolutionAdapter(Generic[Array]):
         """Create a Neumann BC from the manufactured solution."""
 
         if self._time_dependent:
+
             def neumann_value(x, t):
                 return self._compute_natural_bc_value(boundary_index, x, t)
         else:
+
             def neumann_value(x, t=None):
                 return self._compute_natural_bc_value(boundary_index, x)
 
@@ -344,6 +347,7 @@ class GalerkinManufacturedSolutionAdapter(Generic[Array]):
         sol_func = self._functions["solution"]
 
         if self._time_dependent:
+
             def robin_value(x, t):
                 u_vals = sol_func(x, t)
                 if hasattr(u_vals, "shape") and u_vals.ndim > 1:
@@ -351,6 +355,7 @@ class GalerkinManufacturedSolutionAdapter(Generic[Array]):
                 nat_bc = self._compute_natural_bc_value(boundary_index, x, t)
                 return alpha * u_vals + nat_bc
         else:
+
             def robin_value(x, t=None):
                 u_vals = sol_func(x)
                 if hasattr(u_vals, "shape") and u_vals.ndim > 1:
@@ -398,9 +403,7 @@ class GalerkinManufacturedSolutionAdapter(Generic[Array]):
 
         bc_set = BoundaryConditionSet(self._bkd)
 
-        for i, (bc_type, boundary_name) in enumerate(
-            zip(bc_types, boundary_names)
-        ):
+        for i, (bc_type, boundary_name) in enumerate(zip(bc_types, boundary_names)):
             if bc_type == "D":
                 bc = self._create_dirichlet_bc(boundary_name, i)
                 bc_set.add_dirichlet(bc)
@@ -672,19 +675,19 @@ class GalerkinHyperelasticityAdapter(Generic[Array]):
         time_dep = self._time_dependent
 
         if time_dep:
+
             def adapted_forcing(x, time):
                 vals = forcing_func(x, time)  # (npts, ncomponents)
                 return vals.T  # (ncomponents, npts) = (ndim, npts)
         else:
+
             def adapted_forcing(x, time=0.0):
                 vals = forcing_func(x)  # (npts, ncomponents)
                 return vals.T  # (ncomponents, npts) = (ndim, npts)
 
         return adapted_forcing
 
-    def _create_dirichlet_bc(
-        self, boundary_name: str
-    ) -> DirichletBC[Array]:
+    def _create_dirichlet_bc(self, boundary_name: str) -> DirichletBC[Array]:
         """Create a Dirichlet BC for vector-valued displacement.
 
         Handles the interleaved DOF ordering: DOF j corresponds to
@@ -854,9 +857,7 @@ class GalerkinHyperelasticityAdapter(Generic[Array]):
 
         bc_set = BoundaryConditionSet(self._bkd)
 
-        for i, (bc_type, boundary_name) in enumerate(
-            zip(bc_types, boundary_names)
-        ):
+        for i, (bc_type, boundary_name) in enumerate(zip(bc_types, boundary_names)):
             if bc_type == "D":
                 bc = self._create_dirichlet_bc(boundary_name)
                 bc_set.add_dirichlet(bc)
@@ -868,8 +869,7 @@ class GalerkinHyperelasticityAdapter(Generic[Array]):
                 bc_set.add_robin(bc)
             else:
                 raise ValueError(
-                    f"Unknown BC type '{bc_type}'. "
-                    "Valid types: 'D', 'N', 'R'"
+                    f"Unknown BC type '{bc_type}'. Valid types: 'D', 'N', 'R'"
                 )
 
         return bc_set

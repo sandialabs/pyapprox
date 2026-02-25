@@ -6,15 +6,15 @@ boilerplate, handling node classification, model creation, and validation.
 
 from typing import Any, Dict, List, Optional, Tuple, Union
 
-from pyapprox.util.backends.protocols import Array, Backend
+from pyapprox.surrogates.mfnets.edges import MFNetEdge
 from pyapprox.surrogates.mfnets.network import MFNet
 from pyapprox.surrogates.mfnets.nodes import (
     LeafMFNetNode,
     MFNetNode,
     RootMFNetNode,
 )
-from pyapprox.surrogates.mfnets.edges import MFNetEdge
 from pyapprox.surrogates.mfnets.registry import create_node_model
+from pyapprox.util.backends.protocols import Array, Backend
 
 
 def build_chain_mfnet(
@@ -93,36 +93,65 @@ def build_chain_mfnet(
 
     # Node 0: leaf
     leaf_model = create_node_model(
-        leaf_model_name, bkd, nvars=nvars, nqoi=nqoi,
-        max_level=leaf_level, **lkw,
+        leaf_model_name,
+        bkd,
+        nvars=nvars,
+        nqoi=nqoi,
+        max_level=leaf_level,
+        **lkw,
     )
-    net.add_node(LeafMFNetNode(
-        0, leaf_model, noise_std=noise_std_list[0],
-        bkd=bkd, fixed_noise_std=fixed_noise_std,
-    ))
+    net.add_node(
+        LeafMFNetNode(
+            0,
+            leaf_model,
+            noise_std=noise_std_list[0],
+            bkd=bkd,
+            fixed_noise_std=fixed_noise_std,
+        )
+    )
 
     # Interior nodes (1 through nnodes-2)
     for i in range(1, nnodes - 1):
         model = create_node_model(
-            interior_model_name, bkd, nvars_x=nvars, nqoi=nqoi,
-            nscaled_qoi=nqoi, scale_level=scale_level,
-            delta_level=delta_level, **ikw,
+            interior_model_name,
+            bkd,
+            nvars_x=nvars,
+            nqoi=nqoi,
+            nscaled_qoi=nqoi,
+            scale_level=scale_level,
+            delta_level=delta_level,
+            **ikw,
         )
-        net.add_node(MFNetNode(
-            i, model, noise_std=noise_std_list[i],
-            bkd=bkd, fixed_noise_std=fixed_noise_std,
-        ))
+        net.add_node(
+            MFNetNode(
+                i,
+                model,
+                noise_std=noise_std_list[i],
+                bkd=bkd,
+                fixed_noise_std=fixed_noise_std,
+            )
+        )
 
     # Node nnodes-1: root
     root_model = create_node_model(
-        interior_model_name, bkd, nvars_x=nvars, nqoi=nqoi,
-        nscaled_qoi=nqoi, scale_level=scale_level,
-        delta_level=delta_level, **ikw,
+        interior_model_name,
+        bkd,
+        nvars_x=nvars,
+        nqoi=nqoi,
+        nscaled_qoi=nqoi,
+        scale_level=scale_level,
+        delta_level=delta_level,
+        **ikw,
     )
-    net.add_node(RootMFNetNode(
-        nnodes - 1, root_model, noise_std=noise_std_list[nnodes - 1],
-        bkd=bkd, fixed_noise_std=fixed_noise_std,
-    ))
+    net.add_node(
+        RootMFNetNode(
+            nnodes - 1,
+            root_model,
+            noise_std=noise_std_list[nnodes - 1],
+            bkd=bkd,
+            fixed_noise_std=fixed_noise_std,
+        )
+    )
 
     # Chain edges: 0->1, 1->2, ..., (N-2)->(N-1)
     for i in range(nnodes - 1):
@@ -195,7 +224,7 @@ def build_dag_mfnet(
     # Collect all node IDs and compute in-degree / out-degree
     all_node_ids: set[int] = set()
     children_of: Dict[int, List[int]] = {}  # parent -> list of children
-    parents_of: Dict[int, List[int]] = {}   # child -> list of parents
+    parents_of: Dict[int, List[int]] = {}  # child -> list of parents
     for child_id, parent_id in edges:
         all_node_ids.add(child_id)
         all_node_ids.add(parent_id)
@@ -231,12 +260,21 @@ def build_dag_mfnet(
             level = cfg.get("leaf_level", default_leaf_level)
             model_name = cfg.get("model_name", default_leaf_model_name)
             model = create_node_model(
-                model_name, bkd, nvars=nvars, nqoi=nqoi, max_level=level,
+                model_name,
+                bkd,
+                nvars=nvars,
+                nqoi=nqoi,
+                max_level=level,
             )
-            net.add_node(LeafMFNetNode(
-                nid, model, noise_std=noise,
-                bkd=bkd, fixed_noise_std=fixed,
-            ))
+            net.add_node(
+                LeafMFNetNode(
+                    nid,
+                    model,
+                    noise_std=noise,
+                    bkd=bkd,
+                    fixed_noise_std=fixed,
+                )
+            )
         else:
             # Interior or root: discrepancy model
             # Compute nscaled_qoi from children
@@ -247,21 +285,35 @@ def build_dag_mfnet(
             d_level = cfg.get("delta_level", default_delta_level)
             model_name = cfg.get("model_name", default_interior_model_name)
             model = create_node_model(
-                model_name, bkd, nvars_x=nvars, nqoi=nqoi,
-                nscaled_qoi=nscaled_qoi, scale_level=s_level,
+                model_name,
+                bkd,
+                nvars_x=nvars,
+                nqoi=nqoi,
+                nscaled_qoi=nscaled_qoi,
+                scale_level=s_level,
                 delta_level=d_level,
             )
 
             if nid in root_ids:
-                net.add_node(RootMFNetNode(
-                    nid, model, noise_std=noise,
-                    bkd=bkd, fixed_noise_std=fixed,
-                ))
+                net.add_node(
+                    RootMFNetNode(
+                        nid,
+                        model,
+                        noise_std=noise,
+                        bkd=bkd,
+                        fixed_noise_std=fixed,
+                    )
+                )
             else:
-                net.add_node(MFNetNode(
-                    nid, model, noise_std=noise,
-                    bkd=bkd, fixed_noise_std=fixed,
-                ))
+                net.add_node(
+                    MFNetNode(
+                        nid,
+                        model,
+                        noise_std=noise,
+                        bkd=bkd,
+                        fixed_noise_std=fixed,
+                    )
+                )
 
     # Add edges
     for child_id, parent_id in edges:

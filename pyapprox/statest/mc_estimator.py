@@ -8,9 +8,8 @@ from typing import Callable, Generic, List, Tuple, Union
 
 import numpy as np
 
-from pyapprox.util.backends.protocols import Array, Backend
-
 from pyapprox.statest.statistics import MultiOutputStatistic
+from pyapprox.util.backends.protocols import Array, Backend
 
 
 class MCEstimator(Generic[Array]):
@@ -52,9 +51,7 @@ class MCEstimator(Generic[Array]):
         self, stat: MultiOutputStatistic[Array], costs: Union[List, Array]
     ) -> Tuple[MultiOutputStatistic[Array], Array]:
         if not isinstance(stat, MultiOutputStatistic):
-            raise ValueError(
-                "stat must be an instance of MultiOutputStatistic"
-            )
+            raise ValueError("stat must be an instance of MultiOutputStatistic")
 
         costs = self._bkd.atleast_1d(self._bkd.asarray(costs))
         if costs.ndim != 1:
@@ -71,16 +68,12 @@ class MCEstimator(Generic[Array]):
         val = self._bkd.log(eigvals[eigvals > 1e-14]).sum()
         return val
 
-    def _covariance_from_npartition_samples(
-        self, npartition_samples: Array
-    ) -> Array:
+    def _covariance_from_npartition_samples(self, npartition_samples: Array) -> Array:
         """
         Get the variance of the Monte Carlo estimator from costs and cov
         and npartition_samples
         """
-        return self._stat.high_fidelity_estimator_covariance(
-            npartition_samples[0]
-        )
+        return self._stat.high_fidelity_estimator_covariance(npartition_samples[0])
 
     def nsamples_per_model(self) -> Array:
         """Return the number of samples allocated to each model.
@@ -126,9 +119,7 @@ class MCEstimator(Generic[Array]):
         )
         self._optimized_covariance = est_covariance
         optimized_criteria = self._optimization_criteria(est_covariance)
-        self._rounded_target_cost = (
-            self._costs[0] * self._rounded_nsamples_per_model[0]
-        )
+        self._rounded_target_cost = self._costs[0] * self._rounded_nsamples_per_model[0]
         self._optimized_criteria = optimized_criteria
 
     def generate_samples_per_model(self, rvs: Callable) -> List[Array]:
@@ -220,9 +211,7 @@ class MCEstimator(Generic[Array]):
                 values[0][:, bootstrapped_indices]
             )
             bootstrap_mean = estimator_vals.mean(axis=0)
-            bootstrap_covar = self._bkd.cov(
-                estimator_vals, rowvar=False, ddof=1
-            )
+            bootstrap_covar = self._bkd.cov(estimator_vals, rowvar=False, ddof=1)
         return bootstrap_mean, bootstrap_covar
 
     def __repr__(self) -> str:

@@ -8,46 +8,43 @@ Tests use typing array convention: (nqoi, nsamples) for outputs.
 """
 
 import unittest
-from functools import partial
 from typing import Any, Dict, List, Optional
 
 import numpy as np
 import torch
 from unittest_parametrize import ParametrizedTestCase, parametrize
 
-from pyapprox.util.backends.torch import TorchBkd
-from pyapprox.util.backends.protocols import Array, Backend
-from pyapprox.util.test_utils import (
-    load_tests,  # noqa: F401
-    slow_test,
-    slower_test,
-    allocate_with_allocator,
-)
-
-from pyapprox.statest.statistics import (
-    MultiOutputMean,
-    MultiOutputVariance,
-    MultiOutputMeanAndVariance,
-)
-from pyapprox.statest.mc_estimator import MCEstimator
-from pyapprox.statest.cv_estimator import CVEstimator
-from pyapprox.statest.acv.variants import (
-    GMFEstimator,
-    GISEstimator,
-    GRDEstimator,
-    MFMCEstimator,
-    MLMCEstimator,
-    ACVEstimator,
-)
-from pyapprox.statest.acv.search import ACVSearch
-from pyapprox.statest.acv.strategies import TreeDepthRecursionStrategy
 from pyapprox.benchmarks.functions.multifidelity.multioutput_ensemble import (
     MultiOutputModelEnsemble,
 )
 from pyapprox.benchmarks.functions.multifidelity.polynomial_ensemble import (
     PolynomialEnsemble,
 )
-
+from pyapprox.statest.acv.search import ACVSearch
+from pyapprox.statest.acv.strategies import TreeDepthRecursionStrategy
+from pyapprox.statest.acv.variants import (
+    ACVEstimator,
+    GISEstimator,
+    GMFEstimator,
+    GRDEstimator,
+    MFMCEstimator,
+    MLMCEstimator,
+)
+from pyapprox.statest.cv_estimator import CVEstimator
+from pyapprox.statest.mc_estimator import MCEstimator
+from pyapprox.statest.statistics import (
+    MultiOutputMean,
+    MultiOutputMeanAndVariance,
+    MultiOutputVariance,
+)
+from pyapprox.util.backends.protocols import Array, Backend
+from pyapprox.util.backends.torch import TorchBkd
+from pyapprox.util.test_utils import (
+    allocate_with_allocator,
+    load_tests,  # noqa: F401
+    slow_test,
+    slower_test,
+)
 
 # Helper functions for setting up test subproblems
 
@@ -294,34 +291,156 @@ TEST_CASES = [
     ([0], [0, 1], None, "mc", "mean_variance", None, None, 2e4, 2000, "mc_mean_var"),
     ([0, 1, 2], [0, 1], None, "cv", "mean", None, None, 2e4, 2000, "cv_mean"),
     ([0, 1, 2], [0, 1], None, "cv", "variance", None, None, 2e4, 2000, "cv_variance"),
-    ([0, 1, 2], [0, 2], None, "cv", "mean_variance", None, None, 5e4, 2000, "cv_mean_var"),
+    (
+        [0, 1, 2],
+        [0, 2],
+        None,
+        "cv",
+        "mean_variance",
+        None,
+        None,
+        5e4,
+        2000,
+        "cv_mean_var",
+    ),
     ([0, 1, 2], [0], [0, 1], "grd", "mean", None, None, 2e4, 2000, "grd_mean_01"),
-    ([0, 1, 2], [0, 1], [0, 1], "grd", "mean", None, None, 2e4, 2000, "grd_mean_01_2qoi"),
+    (
+        [0, 1, 2],
+        [0, 1],
+        [0, 1],
+        "grd",
+        "mean",
+        None,
+        None,
+        2e4,
+        2000,
+        "grd_mean_01_2qoi",
+    ),
     ([0, 1, 2], [0, 1], [0, 0], "grd", "mean", None, None, 2e4, 2000, "grd_mean_00"),
     ([0, 1], [0, 1, 2], [0], "grd", "variance", None, None, 2e4, 2000, "grd_var_2mod"),
-    ([0, 1, 2], [0, 1], [0, 1], "grd", "variance", None, None, 2e4, 2000, "grd_var_3mod"),
-    ([0, 1, 2], [0, 1], [0, 1], "grd", "mean_variance", None, None, 5e4, 2000, "grd_mean_var"),
+    (
+        [0, 1, 2],
+        [0, 1],
+        [0, 1],
+        "grd",
+        "variance",
+        None,
+        None,
+        2e4,
+        2000,
+        "grd_var_3mod",
+    ),
+    (
+        [0, 1, 2],
+        [0, 1],
+        [0, 1],
+        "grd",
+        "mean_variance",
+        None,
+        None,
+        5e4,
+        2000,
+        "grd_mean_var",
+    ),
     ([0, 1, 2], [0], [0, 1], "gis", "mean", None, None, 2e4, 2000, "gis_mean"),
     ([0, 1, 2], [0, 1, 2], [0, 0], "gmf", "mean", None, None, 2e4, 2000, "gmf_mean_00"),
-    ([0, 1, 2], [0, 1, 2], [0, 0], "gmf", "mean", None, None, 1e4, 10, "gmf_mean_00_fast"),
+    (
+        [0, 1, 2],
+        [0, 1, 2],
+        [0, 0],
+        "gmf",
+        "mean",
+        None,
+        None,
+        1e4,
+        10,
+        "gmf_mean_00_fast",
+    ),
     ([0, 1, 2], [0, 1, 2], [0, 1], "gmf", "mean", 2, None, 5e4, 100, "gmf_mean_tree2"),
     ([0, 1, 2], [0, 1, 2], [0, 1], "gmf", "mean", None, 3, 1e4, 100, "gmf_mean_max3"),
     # Skip test case 17 (BestEstimator with list of est_types)
     ([0, 1, 2], [0, 1, 2], [0, 1], "grd", "mean", None, 3, 2e4, 2000, "grd_mean_max3"),
-    ([0, 1, 2], [1], [0, 1], "grd", "variance", None, 3, 2e4, 2000, "grd_var_1qoi_max3"),
+    (
+        [0, 1, 2],
+        [1],
+        [0, 1],
+        "grd",
+        "variance",
+        None,
+        3,
+        2e4,
+        2000,
+        "grd_var_1qoi_max3",
+    ),
     ([0, 1], [0, 2], [0], "gmf", "mean", None, None, 2e4, 2000, "gmf_mean_2mod"),
     ([0, 1], [0], [0], "gmf", "variance", None, None, 2e4, 2000, "gmf_var_2mod_1qoi"),
-    ([0, 1], [0, 2], [0], "gmf", "variance", None, None, 2e4, 2000, "gmf_var_2mod_2qoi"),
-    ([0, 1, 2], [0], [0, 0], "gmf", "variance", None, None, 2e4, 2000, "gmf_var_3mod_1qoi"),
-    # Skipped: ([0, 1, 2], [0, 2], [0, 0], "gmf", "variance", ...) - optimizer convergence issue
-    ([0, 1], [0], [0], "gmf", "mean_variance", None, None, 2e4, 2000, "gmf_mean_var_2mod"),
+    (
+        [0, 1],
+        [0, 2],
+        [0],
+        "gmf",
+        "variance",
+        None,
+        None,
+        2e4,
+        2000,
+        "gmf_var_2mod_2qoi",
+    ),
+    (
+        [0, 1, 2],
+        [0],
+        [0, 0],
+        "gmf",
+        "variance",
+        None,
+        None,
+        2e4,
+        2000,
+        "gmf_var_3mod_1qoi",
+    ),
+    # Skipped: ([0, 1, 2], [0, 2], [0, 0], "gmf", "variance", ...) - optimizer
+    # convergence issue
+    (
+        [0, 1],
+        [0],
+        [0],
+        "gmf",
+        "mean_variance",
+        None,
+        None,
+        2e4,
+        2000,
+        "gmf_mean_var_2mod",
+    ),
     ([0, 1, 2], [0], None, "mfmc", "mean", None, None, 2e4, 2000, "mfmc_mean"),
     ([0, 1, 2], [0], None, "mlmc", "mean", None, None, 5e4, 2000, "mlmc_mean_1qoi"),
     ([0, 1, 2], [0, 1], None, "mlmc", "mean", None, None, 5e4, 2000, "mlmc_mean_2qoi"),
     ([0, 1, 2], [0], None, "mlmc", "variance", None, None, 2e4, 2000, "mlmc_variance"),
-    ([0, 1, 2], [0], None, "mlmc", "mean_variance", None, None, 1e4, 100, "mlmc_mean_var"),
+    (
+        [0, 1, 2],
+        [0],
+        None,
+        "mlmc",
+        "mean_variance",
+        None,
+        None,
+        1e4,
+        100,
+        "mlmc_mean_var",
+    ),
     ([0], [0, 1, 2], None, "mc", "variance", None, None, 2e4, 2000, "mc_variance_3qoi"),
-    ([0, 1, 2], [0, 1], [0, 1], "gmf", "variance", None, None, 7e4, 2000, "gmf_var_highcost"),
+    (
+        [0, 1, 2],
+        [0, 1],
+        [0, 1],
+        "gmf",
+        "variance",
+        None,
+        None,
+        7e4,
+        2000,
+        "gmf_var_highcost",
+    ),
 ]
 
 
@@ -399,7 +518,11 @@ class TestEstimatorVariances(ParametrizedTestCase):
 
         # Use ACVSearch when tree_depth is specified for ACV estimators
         if tree_depth is not None and est_type in ("gmf", "grd", "gis"):
-            est_class_map = {"gmf": GMFEstimator, "grd": GRDEstimator, "gis": GISEstimator}
+            est_class_map = {
+                "gmf": GMFEstimator,
+                "grd": GRDEstimator,
+                "gis": GISEstimator,
+            }
             search = ACVSearch(
                 stat,
                 costs,
@@ -409,19 +532,22 @@ class TestEstimatorVariances(ParametrizedTestCase):
             result = search.search(target_cost=target_cost, allow_failures=True)
             est = result.estimator
         else:
-            est = get_estimator(est_type, stat, costs, max_nmodels=max_nmodels, **kwargs)
+            est = get_estimator(
+                est_type, stat, costs, max_nmodels=max_nmodels, **kwargs
+            )
 
             # Configure optimizer with higher maxiter for convergence (matches legacy)
             if hasattr(est, "get_default_optimizer"):
+                from pyapprox.optimization.minimize.chained.chained_optimizer import (
+                    ChainedOptimizer,
+                )
                 from pyapprox.optimization.minimize.scipy.diffevol import (
                     ScipyDifferentialEvolutionOptimizer,
                 )
                 from pyapprox.optimization.minimize.scipy.trust_constr import (
                     ScipyTrustConstrOptimizer,
                 )
-                from pyapprox.optimization.minimize.chained.chained_optimizer import (
-                    ChainedOptimizer,
-                )
+
                 global_optimizer = ScipyDifferentialEvolutionOptimizer(
                     maxiter=3, raise_on_failure=False
                 )
@@ -464,8 +590,15 @@ class TestEstimatorVariances(ParametrizedTestCase):
     ) -> None:
         """Test estimator variance matches MC estimate."""
         self._check_estimator_variances(
-            model_idx, qoi_idx, rec_idx, est_type, stat_type,
-            tree, maxmod, cost, ntrials
+            model_idx,
+            qoi_idx,
+            rec_idx,
+            est_type,
+            stat_type,
+            tree,
+            maxmod,
+            cost,
+            ntrials,
         )
 
 

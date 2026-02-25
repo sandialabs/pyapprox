@@ -9,19 +9,19 @@ from typing import Dict, Generic, List
 
 import numpy as np
 
-from pyapprox.util.backends.protocols import Array, Backend
-from pyapprox.util.hyperparameter import HyperParameterList
-from pyapprox.probability.copula.bivariate.protocols import (
-    BivariateCopulaProtocol,
-)
 from pyapprox.probability.copula.bivariate.gaussian import (
     BivariateGaussianCopula,
 )
+from pyapprox.probability.copula.bivariate.protocols import (
+    BivariateCopulaProtocol,
+)
 from pyapprox.probability.copula.vine.helpers import (
-    precision_bandwidth,
     compute_dvine_partial_correlations,
     correlation_from_partial_correlations,
+    precision_bandwidth,
 )
+from pyapprox.util.backends.protocols import Array, Backend
+from pyapprox.util.hyperparameter import HyperParameterList
 
 
 class DVineCopula(Generic[Array]):
@@ -53,25 +53,19 @@ class DVineCopula(Generic[Array]):
         bkd: Backend[Array],
     ) -> None:
         if nvars < 2 and truncation_level > 0:
-            raise ValueError(
-                f"nvars must be >= 2 for non-zero truncation, got {nvars}"
-            )
+            raise ValueError(f"nvars must be >= 2 for non-zero truncation, got {nvars}")
         if truncation_level < 0 or truncation_level > nvars - 1:
             raise ValueError(
-                f"truncation_level must be in [0, {nvars - 1}], "
-                f"got {truncation_level}"
+                f"truncation_level must be in [0, {nvars - 1}], got {truncation_level}"
             )
         for t in range(1, truncation_level + 1):
             if t not in pair_copulas:
-                raise ValueError(
-                    f"pair_copulas missing tree level {t}"
-                )
+                raise ValueError(f"pair_copulas missing tree level {t}")
             expected = nvars - t
             actual = len(pair_copulas[t])
             if actual != expected:
                 raise ValueError(
-                    f"Tree {t} requires {expected} pair copulas, "
-                    f"got {actual}"
+                    f"Tree {t} requires {expected} pair copulas, got {actual}"
                 )
             for e, copula in enumerate(pair_copulas[t]):
                 if not isinstance(copula, BivariateCopulaProtocol):
@@ -115,9 +109,7 @@ class DVineCopula(Generic[Array]):
         """Return the combined hyperparameter list."""
         return self._hyp_list
 
-    def pair_copula(
-        self, tree: int, edge: int
-    ) -> BivariateCopulaProtocol[Array]:
+    def pair_copula(self, tree: int, edge: int) -> BivariateCopulaProtocol[Array]:
         """Return the pair copula at the given tree level and edge."""
         return self._pair_copulas[tree][edge]
 
@@ -132,13 +124,10 @@ class DVineCopula(Generic[Array]):
         """Validate that input is 2D with shape (nvars, nsamples)."""
         if u.ndim != 2:
             raise ValueError(
-                f"Expected 2D array with shape ({self._nvars}, nsamples), "
-                f"got {u.ndim}D"
+                f"Expected 2D array with shape ({self._nvars}, nsamples), got {u.ndim}D"
             )
         if u.shape[0] != self._nvars:
-            raise ValueError(
-                f"Expected {self._nvars} variables, got {u.shape[0]}"
-            )
+            raise ValueError(f"Expected {self._nvars} variables, got {u.shape[0]}")
 
     def logpdf(self, u: Array) -> Array:
         """
@@ -209,21 +198,15 @@ class DVineCopula(Generic[Array]):
         n = self._nvars
         T = self._truncation_level
 
-        w = self._bkd.asarray(
-            np.random.uniform(0, 1, (n, nsamples)).astype(np.float64)
-        )
+        w = self._bkd.asarray(np.random.uniform(0, 1, (n, nsamples)).astype(np.float64))
 
         if T == 0:
             return w
 
         # V_fwd[t][e] = u_e conditioned on e-1,...,e-t (predecessors)
         # V_bwd[t][e] = u_e conditioned on e+1,...,e+t (successors)
-        V_fwd: Dict[int, Dict[int, Array]] = {
-            t_: {} for t_ in range(T + 1)
-        }
-        V_bwd: Dict[int, Dict[int, Array]] = {
-            t_: {} for t_ in range(T + 1)
-        }
+        V_fwd: Dict[int, Dict[int, Array]] = {t_: {} for t_ in range(T + 1)}
+        V_bwd: Dict[int, Dict[int, Array]] = {t_: {} for t_ in range(T + 1)}
 
         # Variable 0
         u_0 = w[0:1, :]
@@ -264,9 +247,7 @@ class DVineCopula(Generic[Array]):
                     V_bwd[t][i - t] = pair_cop.h_function(left, right)
 
         # Assemble result
-        result = self._bkd.concatenate(
-            [V_fwd[0][i] for i in range(n)], axis=0
-        )
+        result = self._bkd.concatenate([V_fwd[0][i] for i in range(n)], axis=0)
         return result
 
     def to_correlation_matrix(self) -> Array:
@@ -360,8 +341,7 @@ class DVineCopula(Generic[Array]):
         pair_copulas: Dict[int, List[BivariateCopulaProtocol[Array]]] = {}
         for t in range(1, k + 1):
             pair_copulas[t] = [
-                BivariateGaussianCopula(rho, bkd)
-                for rho in partial_corrs[t]
+                BivariateGaussianCopula(rho, bkd) for rho in partial_corrs[t]
             ]
 
         return cls(pair_copulas, n, k, bkd)

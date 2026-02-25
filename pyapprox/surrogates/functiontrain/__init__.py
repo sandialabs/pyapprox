@@ -5,8 +5,23 @@ that represent multivariate functions as sequences of univariate basis
 expansions connected via tensor contractions.
 """
 
+from pyapprox.surrogates.functiontrain.additive import (
+    ConstantExpansion,
+    create_additive_functiontrain,
+)
+from pyapprox.surrogates.functiontrain.als_fitter import (
+    ALSFitter,
+    ALSFitterResult,
+)
 from pyapprox.surrogates.functiontrain.core import FunctionTrainCore
+from pyapprox.surrogates.functiontrain.fitters import (
+    MSEFitter,
+    MSEFitterResult,
+)
 from pyapprox.surrogates.functiontrain.functiontrain import FunctionTrain
+from pyapprox.surrogates.functiontrain.losses import (
+    FunctionTrainMSELoss,
+)
 from pyapprox.surrogates.functiontrain.pce_core import (
     PCEFunctionTrainCore,
 )
@@ -15,27 +30,12 @@ from pyapprox.surrogates.functiontrain.pce_functiontrain import (
     create_pce_functiontrain,
     create_uniform_pce_functiontrain,
 )
-from pyapprox.surrogates.functiontrain.additive import (
-    create_additive_functiontrain,
-    ConstantExpansion,
-)
-from pyapprox.surrogates.functiontrain.als_fitter import (
-    ALSFitter,
-    ALSFitterResult,
-)
-from pyapprox.surrogates.functiontrain.losses import (
-    FunctionTrainMSELoss,
-)
-from pyapprox.surrogates.functiontrain.fitters import (
-    MSEFitter,
-    MSEFitterResult,
-)
 from pyapprox.surrogates.functiontrain.statistics.marginalization import (
-    FunctionTrainMarginalization,
     FTDimensionReducer,
+    FunctionTrainMarginalization,
+    all_marginals_1d,
     marginal_1d,
     marginal_2d,
-    all_marginals_1d,
 )
 
 __all__ = [

@@ -4,41 +4,47 @@ import unittest
 from typing import Any, Generic
 
 import numpy as np
-from numpy.typing import NDArray
 import torch
+from numpy.typing import NDArray
 
-from pyapprox.util.backends.protocols import Array, Backend
-from pyapprox.util.backends.numpy import NumpyBkd
-from pyapprox.util.backends.torch import TorchBkd
-from pyapprox.util.test_utils import load_tests  # noqa: F401
-from pyapprox.interface.functions.protocols import (
-    FunctionProtocol,
-    FunctionWithJacobianProtocol,
+from pyapprox.benchmarks.instances.pde.pressurized_cylinder import (
+    hyperelastic_pressurized_cylinder_2d,
+    pressurized_cylinder_2d,
 )
+from pyapprox.benchmarks.protocols import BenchmarkWithPriorProtocol
+from pyapprox.benchmarks.registry import BenchmarkRegistry
 from pyapprox.interface.functions.derivative_checks.derivative_checker import (
     DerivativeChecker,
 )
 from pyapprox.interface.functions.fromcallable.jacobian import (
     FunctionWithJacobianFromCallable,
 )
-from pyapprox.benchmarks.protocols import BenchmarkWithPriorProtocol
-from pyapprox.benchmarks.instances.pde.pressurized_cylinder import (
-    hyperelastic_pressurized_cylinder_2d,
-    pressurized_cylinder_2d,
+from pyapprox.interface.functions.protocols import (
+    FunctionProtocol,
+    FunctionWithJacobianProtocol,
 )
-from pyapprox.benchmarks.registry import BenchmarkRegistry
+from pyapprox.util.backends.numpy import NumpyBkd
+from pyapprox.util.backends.protocols import Array, Backend
+from pyapprox.util.backends.torch import TorchBkd
+from pyapprox.util.test_utils import load_tests  # noqa: F401
 
 
-def _make_benchmark(bkd, qoi="outer_radial_displacement",
-                    npts_r=10, npts_theta=10, num_kle_terms=2):
+def _make_benchmark(
+    bkd, qoi="outer_radial_displacement", npts_r=10, npts_theta=10, num_kle_terms=2
+):
     """Helper for creating benchmarks with small defaults for fast tests."""
     return pressurized_cylinder_2d(
-        bkd, qoi=qoi,
-        npts_r=npts_r, npts_theta=npts_theta,
-        r_inner=1.0, r_outer=2.0,
-        E_mean=1.0, poisson_ratio=0.3,
+        bkd,
+        qoi=qoi,
+        npts_r=npts_r,
+        npts_theta=npts_theta,
+        r_inner=1.0,
+        r_outer=2.0,
+        E_mean=1.0,
+        poisson_ratio=0.3,
         inner_pressure=1.0,
-        num_kle_terms=num_kle_terms, sigma=0.3,
+        num_kle_terms=num_kle_terms,
+        sigma=0.3,
         weld_r_fraction=0.25,
     )
 
@@ -125,8 +131,11 @@ class TestPressurizedCylinder2DBenchmark(Generic[Array], unittest.TestCase):
         """All 3 QoIs return nqoi=1 and shape (1,1)."""
         bkd = self._bkd
         sample = bkd.zeros((2, 1))
-        for qoi in ["outer_radial_displacement",
-                     "average_hoop_stress", "strain_energy"]:
+        for qoi in [
+            "outer_radial_displacement",
+            "average_hoop_stress",
+            "strain_energy",
+        ]:
             bm = _make_benchmark(bkd, qoi)
             fwd = bm.function()
             self.assertEqual(fwd.nqoi(), 1, f"Failed for qoi={qoi}")
@@ -150,7 +159,8 @@ class TestPressurizedCylinder2DBenchmark(Generic[Array], unittest.TestCase):
         bounds = bm.domain().bounds()
         self.assertEqual(bounds.shape, (2, 2))
         bkd.assert_allclose(
-            bounds, bkd.array([[-4.0, 4.0], [-4.0, 4.0]]),
+            bounds,
+            bkd.array([[-4.0, 4.0], [-4.0, 4.0]]),
         )
 
     # --- Protocol compliance ---
@@ -176,10 +186,16 @@ class TestPressurizedCylinder2DBenchmark(Generic[Array], unittest.TestCase):
         bkd = self._bkd
         sample = bkd.zeros((2, 1))
         bm_coarse = _make_benchmark(
-            bkd, "outer_radial_displacement", npts_r=8, npts_theta=8,
+            bkd,
+            "outer_radial_displacement",
+            npts_r=8,
+            npts_theta=8,
         )
         bm_fine = _make_benchmark(
-            bkd, "outer_radial_displacement", npts_r=14, npts_theta=14,
+            bkd,
+            "outer_radial_displacement",
+            npts_r=14,
+            npts_theta=14,
         )
         val_coarse = bm_coarse.function()(sample)
         val_fine = bm_fine.function()(sample)
@@ -234,19 +250,28 @@ class TestPressurizedCylinder2DBenchmarkTorch(
 # Hyperelastic benchmark tests
 # ======================================================================
 
+
 def _make_hyperelastic_benchmark(
-    bkd, qoi="outer_radial_displacement",
-    npts_r=10, npts_theta=10, num_kle_terms=2,
+    bkd,
+    qoi="outer_radial_displacement",
+    npts_r=10,
+    npts_theta=10,
+    num_kle_terms=2,
     inner_pressure=1.0,
 ):
     """Helper for creating hyperelastic benchmarks with small defaults."""
     return hyperelastic_pressurized_cylinder_2d(
-        bkd, qoi=qoi,
-        npts_r=npts_r, npts_theta=npts_theta,
-        r_inner=1.0, r_outer=2.0,
-        E_mean=1.0, poisson_ratio=0.3,
+        bkd,
+        qoi=qoi,
+        npts_r=npts_r,
+        npts_theta=npts_theta,
+        r_inner=1.0,
+        r_outer=2.0,
+        E_mean=1.0,
+        poisson_ratio=0.3,
         inner_pressure=inner_pressure,
-        num_kle_terms=num_kle_terms, sigma=0.3,
+        num_kle_terms=num_kle_terms,
+        sigma=0.3,
         weld_r_fraction=0.25,
     )
 
@@ -269,7 +294,8 @@ def _check_hyperelastic_jacobian(test_case, bkd, fwd, num_kle_terms=2):
 
 
 class TestHyperelasticPressurizedCylinder2D(
-    Generic[Array], unittest.TestCase,
+    Generic[Array],
+    unittest.TestCase,
 ):
     __test__ = False
 
@@ -305,23 +331,32 @@ class TestHyperelasticPressurizedCylinder2D(
         """At low pressure, linear and hyperelastic produce similar QoI."""
         bkd = self._bkd
         sample = bkd.zeros((2, 1))
-        bm_linear = _make_benchmark(
-            bkd, "outer_radial_displacement",
-            npts_r=10, npts_theta=10,
+        _make_benchmark(
+            bkd,
+            "outer_radial_displacement",
+            npts_r=10,
+            npts_theta=10,
         )
         bm_hyper = _make_hyperelastic_benchmark(
-            bkd, "outer_radial_displacement",
-            npts_r=10, npts_theta=10,
+            bkd,
+            "outer_radial_displacement",
+            npts_r=10,
+            npts_theta=10,
             inner_pressure=1e-3,
         )
         # Also need low pressure for linear
         bm_linear_low = pressurized_cylinder_2d(
-            bkd, qoi="outer_radial_displacement",
-            npts_r=10, npts_theta=10,
-            r_inner=1.0, r_outer=2.0,
-            E_mean=1.0, poisson_ratio=0.3,
+            bkd,
+            qoi="outer_radial_displacement",
+            npts_r=10,
+            npts_theta=10,
+            r_inner=1.0,
+            r_outer=2.0,
+            E_mean=1.0,
+            poisson_ratio=0.3,
             inner_pressure=1e-3,
-            num_kle_terms=2, sigma=0.3,
+            num_kle_terms=2,
+            sigma=0.3,
         )
         val_linear = bm_linear_low.function()(sample)
         val_hyper = bm_hyper.function()(sample)
@@ -333,8 +368,11 @@ class TestHyperelasticPressurizedCylinder2D(
         """Each QoI produces scalar (1,1) with working Jacobian."""
         bkd = self._bkd
         sample = bkd.zeros((2, 1))
-        for qoi in ["outer_radial_displacement",
-                     "average_hoop_stress", "strain_energy"]:
+        for qoi in [
+            "outer_radial_displacement",
+            "average_hoop_stress",
+            "strain_energy",
+        ]:
             bm = _make_hyperelastic_benchmark(bkd, qoi)
             fwd = bm.function()
             self.assertEqual(fwd.nqoi(), 1, f"Failed for qoi={qoi}")
@@ -349,10 +387,16 @@ class TestHyperelasticPressurizedCylinder2D(
         bkd = self._bkd
         sample = bkd.zeros((2, 1))
         bm_coarse = _make_hyperelastic_benchmark(
-            bkd, "outer_radial_displacement", npts_r=8, npts_theta=8,
+            bkd,
+            "outer_radial_displacement",
+            npts_r=8,
+            npts_theta=8,
         )
         bm_fine = _make_hyperelastic_benchmark(
-            bkd, "outer_radial_displacement", npts_r=14, npts_theta=14,
+            bkd,
+            "outer_radial_displacement",
+            npts_r=14,
+            npts_theta=14,
         )
         val_coarse = bm_coarse.function()(sample)
         val_fine = bm_fine.function()(sample)
@@ -364,7 +408,8 @@ class TestHyperelasticPressurizedCylinder2D(
         """BenchmarkRegistry.get works for hyperelastic cylinder."""
         bkd = self._bkd
         bm = BenchmarkRegistry.get(
-            "pressurized_cylinder_2d_hyperelastic", bkd,
+            "pressurized_cylinder_2d_hyperelastic",
+            bkd,
         )
         fwd = bm.function()
         result = fwd(bkd.zeros((2, 1)))

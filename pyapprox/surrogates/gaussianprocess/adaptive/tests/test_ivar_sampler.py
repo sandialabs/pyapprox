@@ -57,9 +57,7 @@ class TestIVARSampler(Generic[Array], unittest.TestCase):
         np.random.seed(42)
 
     def _make_kernel(self) -> KernelProtocol[Array]:
-        return SquaredExponentialKernel(
-            [0.3], (0.01, 10.0), 1, self._bkd
-        )
+        return SquaredExponentialKernel([0.3], (0.01, 10.0), 1, self._bkd)
 
     def test_protocol_compliance(self) -> None:
         bkd = self._bkd
@@ -158,9 +156,7 @@ class TestIVARSampler(Generic[Array], unittest.TestCase):
         bkd = self._bkd
         np.random.seed(1)
         ncandidates = 20
-        candidates = bkd.asarray(
-            np.linspace(0, 1, ncandidates).reshape(1, -1)
-        )
+        candidates = bkd.asarray(np.linspace(0, 1, ncandidates).reshape(1, -1))
         kernel = self._make_kernel()
         P = _compute_P_monte_carlo(kernel, candidates, bkd, nquad=500)
         nsamples = 6
@@ -228,9 +224,7 @@ class TestIVARSampler(Generic[Array], unittest.TestCase):
         bkd = self._bkd
         ncandidates = 31
         nsamples = 7
-        candidates = bkd.asarray(
-            np.linspace(0, 1, ncandidates).reshape(1, -1)
-        )
+        candidates = bkd.asarray(np.linspace(0, 1, ncandidates).reshape(1, -1))
         kernel = self._make_kernel()
         P = _compute_P_monte_carlo(kernel, candidates, bkd, nquad=500)
 
@@ -240,10 +234,12 @@ class TestIVARSampler(Generic[Array], unittest.TestCase):
         sampler_opt.set_kernel(kernel)
         sampler_opt.set_initial_pivots([ncandidates // 2])
         opt_samples = sampler_opt.select_samples(nsamples - 1)
-        opt_all = bkd.hstack([
-            candidates[:, ncandidates // 2: ncandidates // 2 + 1],
-            opt_samples,
-        ])
+        opt_all = bkd.hstack(
+            [
+                candidates[:, ncandidates // 2 : ncandidates // 2 + 1],
+                opt_samples,
+            ]
+        )
 
         # Brute-force selection: at each step pick the candidate with
         # the best (lowest) brute-force objective
@@ -260,9 +256,7 @@ class TestIVARSampler(Generic[Array], unittest.TestCase):
                     continue
                 obj = float(
                     bkd.to_numpy(
-                        bkd.reshape(
-                            sampler_bf._brute_force_objective(ii), (1,)
-                        )
+                        bkd.reshape(sampler_bf._brute_force_objective(ii), (1,))
                     )[0]
                 )
                 if obj < best_obj:
@@ -289,9 +283,7 @@ class TestIVARSampler(Generic[Array], unittest.TestCase):
         """
         bkd = self._bkd
         ncandidates = 20
-        candidates = bkd.asarray(
-            np.linspace(0, 1, ncandidates).reshape(1, -1)
-        )
+        candidates = bkd.asarray(np.linspace(0, 1, ncandidates).reshape(1, -1))
         kernel = self._make_kernel()
         P = _compute_P_monte_carlo(kernel, candidates, bkd, nquad=500)
         nsamples = 6
@@ -303,9 +295,7 @@ class TestIVARSampler(Generic[Array], unittest.TestCase):
         sampler1.set_kernel(kernel)
         sampler1.set_initial_pivots([init_pivot])
         s1 = sampler1.select_samples(nsamples - 1)
-        all1 = bkd.hstack([
-            candidates[:, init_pivot: init_pivot + 1], s1
-        ])
+        all1 = bkd.hstack([candidates[:, init_pivot : init_pivot + 1], s1])
 
         # Method 2: normal select that happens to pick the same first point
         # We verify by checking the initial pivot is in selected_indices
@@ -317,8 +307,7 @@ class TestIVARSampler(Generic[Array], unittest.TestCase):
         cand_np = bkd.to_numpy(candidates)
         for j in range(all1_np.shape[1]):
             found = any(
-                np.allclose(all1_np[:, j], cand_np[:, k])
-                for k in range(ncandidates)
+                np.allclose(all1_np[:, j], cand_np[:, k]) for k in range(ncandidates)
             )
             self.assertTrue(found, f"Sample {j} not in candidates")
 

@@ -56,7 +56,8 @@ class MorrisSensitivityAnalysis(Generic[Array]):
     The method computes three statistics:
     - mu: Mean elementary effect (can cancel for non-monotonic functions)
     - mu_star: Mean absolute elementary effect (primary importance measure)
-    - sigma: Standard deviation of elementary effects (indicates nonlinearity/interactions)
+    - sigma: Standard deviation of elementary effects (indicates
+    nonlinearity/interactions)
 
     Parameters
     ----------
@@ -126,9 +127,7 @@ class MorrisSensitivityAnalysis(Generic[Array]):
             Shape (nvars, nvars+1) - the trajectory samples in [0, 1].
         """
         delta = self._nlevels / ((self._nlevels - 1) * 2)
-        samples_1d = self._bkd.linspace(
-            self._eps, 1 - self._eps, self._nlevels
-        )
+        samples_1d = self._bkd.linspace(self._eps, 1 - self._eps, self._nlevels)
 
         initial_point = self._bkd.asarray(
             np.random.choice(self._bkd.to_numpy(samples_1d), self._nvars)
@@ -140,9 +139,7 @@ class MorrisSensitivityAnalysis(Generic[Array]):
         trajectory[:, 0] = initial_point
         for ii in range(self._nvars):
             trajectory[:, ii + 1] = self._bkd.copy(trajectory[:, ii])
-            if (trajectory[ii, ii] - delta) >= 0 and (
-                trajectory[ii, ii] + delta
-            ) <= 1:
+            if (trajectory[ii, ii] - delta) >= 0 and (trajectory[ii, ii] + delta) <= 1:
                 trajectory[ii, ii + 1] += shifts[ii, ii]
             elif (trajectory[ii, ii] - delta) >= 0:
                 trajectory[ii, ii + 1] -= delta
@@ -173,9 +170,7 @@ class MorrisSensitivityAnalysis(Generic[Array]):
             Shape (nvars, ntrajectories * (nvars + 1)) - selected samples.
         """
         ncandidate_trajectories = candidate_samples.shape[0]
-        distances = self._bkd.zeros(
-            (ncandidate_trajectories, ncandidate_trajectories)
-        )
+        distances = self._bkd.zeros((ncandidate_trajectories, ncandidate_trajectories))
         for ii in range(ncandidate_trajectories):
             for jj in range(ii + 1):
                 distances[ii, jj] = float(
@@ -192,8 +187,7 @@ class MorrisSensitivityAnalysis(Generic[Array]):
         for index in get_combinations:
             # Use math.sqrt since we're working with Python floats
             sum_sq = sum(
-                float(distances[ix[0], ix[1]]) ** 2
-                for ix in combinations(index, 2)
+                float(distances[ix[0], ix[1]]) ** 2 for ix in combinations(index, 2)
             )
             value = math.sqrt(sum_sq)
             if value > best_value:
@@ -201,9 +195,7 @@ class MorrisSensitivityAnalysis(Generic[Array]):
                 best_index = index
 
         assert best_index is not None
-        samples = self._bkd.hstack(
-            [candidate_samples[ii, :, :] for ii in best_index]
-        )
+        samples = self._bkd.hstack([candidate_samples[ii, :, :] for ii in best_index])
         return samples
 
     def generate_samples(
@@ -292,16 +284,12 @@ class MorrisSensitivityAnalysis(Generic[Array]):
             trajectory_samples = self._samples[:, start:end]
             # Compute signed delta for each variable
             delta = abs_delta * self._bkd.sign(
-                self._bkd.diag(
-                    trajectory_samples[:, 1:] - trajectory_samples[:, :-1]
-                )
+                self._bkd.diag(trajectory_samples[:, 1:] - trajectory_samples[:, :-1])
             )
             delta = self._bkd.reshape(delta, (self._nvars, 1))
             # Elementary effect = (f(x+delta) - f(x)) / delta
             traj_values = values[:, start:end]
-            self._elem_effects[:, ii, :] = (
-                self._bkd.diff(traj_values, axis=1).T / delta
-            )
+            self._elem_effects[:, ii, :] = self._bkd.diff(traj_values, axis=1).T / delta
 
     def _compute_sensitivity_indices(self) -> None:
         """Compute mu, mu_star, and sigma from elementary effects."""

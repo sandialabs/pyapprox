@@ -9,20 +9,19 @@ from typing import Literal, Optional
 
 from pyapprox.util.backends.protocols import Array, Backend
 
-from ..likelihood import GaussianOEDInnerLoopLikelihood
-from .prediction_objective import PredictionOEDObjective
 from ..deviation import (
-    DeviationMeasure,
-    StandardDeviationMeasure,
-    EntropicDeviationMeasure,
     AVaRDeviationMeasure,
+    DeviationMeasure,
+    EntropicDeviationMeasure,
+    StandardDeviationMeasure,
 )
+from ..likelihood import GaussianOEDInnerLoopLikelihood
 from ..statistics import (
-    SampleStatistic,
     SampleAverageMean,
     SampleAverageVariance,
+    SampleStatistic,
 )
-
+from .prediction_objective import PredictionOEDObjective
 
 DeviationType = Literal["stdev", "entropic", "avar"]
 RiskType = Literal["mean", "variance"]
@@ -106,8 +105,7 @@ def create_risk_measure(
         return SampleAverageVariance(bkd)
     else:
         raise ValueError(
-            f"Unknown risk type: {risk_type}. "
-            f"Expected one of: mean, variance"
+            f"Unknown risk type: {risk_type}. Expected one of: mean, variance"
         )
 
 

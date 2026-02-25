@@ -1,4 +1,4 @@
-from abc import ABC, abstractmethod
+from abc import abstractmethod
 from typing import Generic
 
 from pyapprox.util.backends.protocols import Array, Backend
@@ -95,8 +95,7 @@ class StateEquationsWithAutoGrad(Generic[Array]):
         """
         if param.shape != (self.nparams(),):
             raise ValueError(
-                f"param has shape {param.shape} but must have "
-                f"shape {(self.nparams(),)}"
+                f"param has shape {param.shape} but must have shape {(self.nparams(),)}"
             )
         self._param = param
 
@@ -198,8 +197,7 @@ class StateEquationsWithAutoGrad(Generic[Array]):
         """
         if state.shape != (self.nstates(),):
             raise ValueError(
-                f"state has shape {state.shape} but must have "
-                f"shape {(self.nstates(),)}"
+                f"state has shape {state.shape} but must have shape {(self.nstates(),)}"
             )
         jac = self._bkd.jacobian(  # type: ignore
             lambda p: self._value(state, p), param
@@ -229,8 +227,7 @@ class StateEquationsWithAutoGrad(Generic[Array]):
         """
         if state.shape != (self.nstates(),):
             raise ValueError(
-                f"state has shape {state.shape} but must have "
-                f"shape {(self.nstates(),)}"
+                f"state has shape {state.shape} but must have shape {(self.nstates(),)}"
             )
         jac = self._bkd.jacobian(  # type: ignore
             lambda y: self._value(y, param), state

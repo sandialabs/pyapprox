@@ -8,11 +8,11 @@ This is formulated as a minimax problem where each prediction point
 contributes one objective value.
 """
 
-from typing import Generic, Optional
+from typing import Generic
 
-from pyapprox.util.backends.protocols import Array, Backend
-from pyapprox.expdesign.local.protocols import DesignMatricesProtocol
 from pyapprox.expdesign.local.adjoint import AdjointModel
+from pyapprox.expdesign.local.protocols import DesignMatricesProtocol
+from pyapprox.util.backends.protocols import Array, Backend
 
 from .base import LocalOEDCriterionBase
 

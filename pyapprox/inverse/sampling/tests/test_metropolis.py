@@ -3,19 +3,19 @@ Tests for Metropolis-Hastings MCMC samplers.
 """
 
 import unittest
-from typing import Generic, Any
+from typing import Any, Generic
 
 import numpy as np
-from numpy.typing import NDArray
 import torch
+from numpy.typing import NDArray
 
-from pyapprox.util.backends.protocols import Array, Backend
-from pyapprox.util.backends.numpy import NumpyBkd
-from pyapprox.util.backends.torch import TorchBkd
 from pyapprox.inverse.sampling import (
-    MetropolisHastingsSampler,
     AdaptiveMetropolisSampler,
+    MetropolisHastingsSampler,
 )
+from pyapprox.util.backends.numpy import NumpyBkd
+from pyapprox.util.backends.protocols import Array, Backend
+from pyapprox.util.backends.torch import TorchBkd
 
 
 class TestMetropolisHastingsSamplerBase(Generic[Array], unittest.TestCase):
@@ -37,9 +37,7 @@ class TestMetropolisHastingsSamplerBase(Generic[Array], unittest.TestCase):
             return self.bkd().asarray(-0.5 * np.sum(samples_np**2, axis=0))
 
         self.log_posterior = log_posterior
-        self.sampler = MetropolisHastingsSampler(
-            log_posterior, self.nvars, self.bkd()
-        )
+        self.sampler = MetropolisHastingsSampler(log_posterior, self.nvars, self.bkd())
 
     def test_nvars(self) -> None:
         """Test nvars returns correct value."""
@@ -93,9 +91,7 @@ class TestMetropolisHastingsSamplerBase(Generic[Array], unittest.TestCase):
         self.sampler.set_proposal_covariance(new_cov)
         cov = self.sampler.proposal_covariance()
         cov_np = self.bkd().to_numpy(cov)
-        np.testing.assert_array_almost_equal(
-            cov_np, np.array([[0.5, 0.0], [0.0, 0.5]])
-        )
+        np.testing.assert_array_almost_equal(cov_np, np.array([[0.5, 0.0], [0.0, 0.5]]))
 
     def test_wrong_proposal_cov_shape_raises(self) -> None:
         """Test wrong proposal covariance shape raises error."""
@@ -259,9 +255,6 @@ class TestMetropolisWithBoundsTorch(TestMetropolisWithBounds[torch.Tensor]):
 
     def bkd(self) -> Backend[torch.Tensor]:
         return self._bkd
-
-
-from pyapprox.util.test_utils import load_tests
 
 
 if __name__ == "__main__":

@@ -9,10 +9,10 @@ Reference: Dixon et al. (2024), SIAM/ASA JUQ
 import math
 from typing import Callable, Generic, List, Sequence
 
-from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.benchmarks.functions.multifidelity.statistics_mixin import (
     MultifidelityStatisticsMixin,
 )
+from pyapprox.util.backends.protocols import Array, Backend
 
 
 class MultiOutputModelFunction(Generic[Array]):
@@ -102,27 +102,33 @@ class MultiOutputModelEnsemble(MultifidelityStatisticsMixin[Array], Generic[Arra
         def f0(samples: Array) -> Array:
             # samples: (1, nsamples), output: (3, nsamples)
             x = samples[0, :]  # (nsamples,)
-            return self._bkd.vstack([
-                math.sqrt(11) * x**5,
-                x**4,
-                self._bkd.sin(2 * math.pi * x),
-            ])
+            return self._bkd.vstack(
+                [
+                    math.sqrt(11) * x**5,
+                    x**4,
+                    self._bkd.sin(2 * math.pi * x),
+                ]
+            )
 
         def f1(samples: Array) -> Array:
             x = samples[0, :]
-            return self._bkd.vstack([
-                math.sqrt(7) * x**3,
-                math.sqrt(7) * x**2,
-                self._bkd.cos(2 * math.pi * x + math.pi / 2),
-            ])
+            return self._bkd.vstack(
+                [
+                    math.sqrt(7) * x**3,
+                    math.sqrt(7) * x**2,
+                    self._bkd.cos(2 * math.pi * x + math.pi / 2),
+                ]
+            )
 
         def f2(samples: Array) -> Array:
             x = samples[0, :]
-            return self._bkd.vstack([
-                math.sqrt(3) / 2 * x**2,
-                math.sqrt(3) / 2 * x,
-                self._bkd.cos(2 * math.pi * x + math.pi / 4),
-            ])
+            return self._bkd.vstack(
+                [
+                    math.sqrt(3) / 2 * x**2,
+                    math.sqrt(3) / 2 * x,
+                    self._bkd.cos(2 * math.pi * x + math.pi / 4),
+                ]
+            )
 
         return [
             MultiOutputModelFunction(self._bkd, f0, self._nqoi),
@@ -172,105 +178,105 @@ class MultiOutputModelEnsemble(MultifidelityStatisticsMixin[Array], Generic[Arra
         Array
             Means of shape (nmodels, nqoi).
         """
-        return self._bkd.array([
-            [math.sqrt(11) / 6, 1 / 5, 0.0],
-            [math.sqrt(7) / 4, math.sqrt(7) / 3, 0.0],
-            [1 / (2 * math.sqrt(3)), math.sqrt(3) / 4, 0.0],
-        ])
+        return self._bkd.array(
+            [
+                [math.sqrt(11) / 6, 1 / 5, 0.0],
+                [math.sqrt(7) / 4, math.sqrt(7) / 3, 0.0],
+                [1 / (2 * math.sqrt(3)), math.sqrt(3) / 4, 0.0],
+            ]
+        )
 
     def _cov_block_11(self) -> Array:
         """Covariance matrix for model 0."""
         c13 = (
-            -math.sqrt(11)
-            * (15 - 10 * math.pi**2 + 2 * math.pi**4)
-            / (4 * math.pi**5)
+            -math.sqrt(11) * (15 - 10 * math.pi**2 + 2 * math.pi**4) / (4 * math.pi**5)
         )
         c23 = (3 - math.pi**2) / (2 * math.pi**3)
-        return self._bkd.array([
-            [25 / 36, math.sqrt(11) / 15.0, c13],
-            [math.sqrt(11) / 15.0, 16 / 225, c23],
-            [c13, c23, 1 / 2],
-        ])
+        return self._bkd.array(
+            [
+                [25 / 36, math.sqrt(11) / 15.0, c13],
+                [math.sqrt(11) / 15.0, 16 / 225, c23],
+                [c13, c23, 1 / 2],
+            ]
+        )
 
     def _cov_block_22(self) -> Array:
         """Covariance matrix for model 1."""
         c13 = math.sqrt(7) * (-3 + 2 * math.pi**2) / (4 * math.pi**3)
         c23 = math.sqrt(7) / (2 * math.pi)
-        return self._bkd.array([
-            [9 / 16, 7 / 12, c13],
-            [7 / 12, 28 / 45, c23],
-            [c13, c23, 1 / 2],
-        ])
+        return self._bkd.array(
+            [
+                [9 / 16, 7 / 12, c13],
+                [7 / 12, 28 / 45, c23],
+                [c13, c23, 1 / 2],
+            ]
+        )
 
     def _cov_block_33(self) -> Array:
         """Covariance matrix for model 2."""
         c13 = math.sqrt(3 / 2) * (1 + math.pi) / (4 * math.pi**2)
         c23 = math.sqrt(3 / 2) / (4 * math.pi)
-        return self._bkd.array([
-            [1 / 15, 1 / 16, c13],
-            [1 / 16, 1 / 16, c23],
-            [c13, c23, 1 / 2],
-        ])
+        return self._bkd.array(
+            [
+                [1 / 15, 1 / 16, c13],
+                [1 / 16, 1 / 16, c23],
+                [c13, c23, 1 / 2],
+            ]
+        )
 
     def _cov_block_12(self) -> Array:
         """Cross-covariance between model 0 and model 1."""
-        c13 = (
-            math.sqrt(11)
-            * (15 - 10 * math.pi**2 + 2 * math.pi**4)
-            / (4 * math.pi**5)
-        )
+        c13 = math.sqrt(11) * (15 - 10 * math.pi**2 + 2 * math.pi**4) / (4 * math.pi**5)
         c31 = math.sqrt(7) * (3 - 2 * math.pi**2) / (4 * math.pi**3)
-        return self._bkd.array([
-            [5 * math.sqrt(77) / 72, 5 * math.sqrt(77) / 72, c13],
+        return self._bkd.array(
             [
-                3 * math.sqrt(7) / 40,
-                8 / (15 * math.sqrt(7)),
-                (-3 + math.pi**2) / (2 * math.pi**3),
-            ],
-            [c31, -math.sqrt(7) / (2 * math.pi), -1 / 2],
-        ])
+                [5 * math.sqrt(77) / 72, 5 * math.sqrt(77) / 72, c13],
+                [
+                    3 * math.sqrt(7) / 40,
+                    8 / (15 * math.sqrt(7)),
+                    (-3 + math.pi**2) / (2 * math.pi**3),
+                ],
+                [c31, -math.sqrt(7) / (2 * math.pi), -1 / 2],
+            ]
+        )
 
     def _cov_block_13(self) -> Array:
         """Cross-covariance between model 0 and model 2."""
         c13 = (
             math.sqrt(11 / 2)
-            * (
-                15
-                + math.pi
-                * (-15 + math.pi * (-10 + math.pi * (5 + 2 * math.pi)))
-            )
+            * (15 + math.pi * (-15 + math.pi * (-10 + math.pi * (5 + 2 * math.pi))))
             / (4 * math.pi**5)
         )
         c23 = (-3 + (-1 + math.pi) * math.pi * (3 + math.pi)) / (
             2 * math.sqrt(2) * math.pi**4
         )
-        return self._bkd.array([
-            [5 * math.sqrt(11 / 3) / 48, 5 * math.sqrt(11 / 3) / 56, c13],
-            [4 / (35 * math.sqrt(3)), 1 / (10 * math.sqrt(3)), c23],
+        return self._bkd.array(
             [
-                -math.sqrt(3) / (4 * math.pi),
-                -math.sqrt(3) / (4 * math.pi),
-                -1 / (2 * math.sqrt(2)),
-            ],
-        ])
+                [5 * math.sqrt(11 / 3) / 48, 5 * math.sqrt(11 / 3) / 56, c13],
+                [4 / (35 * math.sqrt(3)), 1 / (10 * math.sqrt(3)), c23],
+                [
+                    -math.sqrt(3) / (4 * math.pi),
+                    -math.sqrt(3) / (4 * math.pi),
+                    -1 / (2 * math.sqrt(2)),
+                ],
+            ]
+        )
 
     def _cov_block_23(self) -> Array:
         """Cross-covariance between model 1 and model 2."""
-        c13 = (
-            math.sqrt(7 / 2)
-            * (-3 + 3 * math.pi + 2 * math.pi**2)
-            / (4 * math.pi**3)
-        )
+        c13 = math.sqrt(7 / 2) * (-3 + 3 * math.pi + 2 * math.pi**2) / (4 * math.pi**3)
         c23 = math.sqrt(7 / 2) * (1 + math.pi) / (2 * math.pi**2)
-        return self._bkd.array([
-            [math.sqrt(7 / 3) / 8, 3 * math.sqrt(21) / 80, c13],
-            [2 * math.sqrt(7 / 3) / 15, math.sqrt(7 / 3) / 8, c23],
+        return self._bkd.array(
             [
-                math.sqrt(3) / (4 * math.pi),
-                math.sqrt(3) / (4 * math.pi),
-                1 / (2 * math.sqrt(2)),
-            ],
-        ])
+                [math.sqrt(7 / 3) / 8, 3 * math.sqrt(21) / 80, c13],
+                [2 * math.sqrt(7 / 3) / 15, math.sqrt(7 / 3) / 8, c23],
+                [
+                    math.sqrt(3) / (4 * math.pi),
+                    math.sqrt(3) / (4 * math.pi),
+                    1 / (2 * math.sqrt(2)),
+                ],
+            ]
+        )
 
     def covariance_matrix(self) -> Array:
         """Return full covariance matrix for all models and QoI.
@@ -306,9 +312,7 @@ class MultiOutputModelEnsemble(MultifidelityStatisticsMixin[Array], Generic[Arra
 
         return cov
 
-    def covariance_subproblem(
-        self, model_idx: List[int], qoi_idx: List[int]
-    ) -> Array:
+    def covariance_subproblem(self, model_idx: List[int], qoi_idx: List[int]) -> Array:
         """Extract covariance submatrix for subset of models and QoI.
 
         Parameters
@@ -367,6 +371,7 @@ class MultiOutputModelEnsemble(MultifidelityStatisticsMixin[Array], Generic[Arra
                 def submodel(samples: Array) -> Array:
                     full_output = model(samples)  # (nqoi, nsamples)
                     return self._bkd.vstack([full_output[q, :] for q in qoi])
+
                 return submodel
 
             result.append(make_submodel(base_model, qoi_idx))
@@ -389,9 +394,7 @@ class MultiOutputModelEnsemble(MultifidelityStatisticsMixin[Array], Generic[Arra
         all_costs = self.costs()
         return self._bkd.array([float(all_costs[i]) for i in model_idx])
 
-    def means_subproblem(
-        self, model_idx: List[int], qoi_idx: List[int]
-    ) -> Array:
+    def means_subproblem(self, model_idx: List[int], qoi_idx: List[int]) -> Array:
         """Get means for subset of models and QoI.
 
         Parameters
@@ -447,28 +450,34 @@ class PSDMultiOutputModelEnsemble(MultiOutputModelEnsemble[Array]):
         def f0(samples: Array) -> Array:
             # samples: (1, nsamples), output: (3, nsamples)
             x = samples[0, :]  # (nsamples,)
-            return self._bkd.vstack([
-                math.sqrt(11) * x**5,
-                x**4 + eps0 * self._bkd.cos(2.2 * math.pi * x),
-                self._bkd.sin(2 * math.pi * x),
-            ])
+            return self._bkd.vstack(
+                [
+                    math.sqrt(11) * x**5,
+                    x**4 + eps0 * self._bkd.cos(2.2 * math.pi * x),
+                    self._bkd.sin(2 * math.pi * x),
+                ]
+            )
 
         def f1(samples: Array) -> Array:
             x = samples[0, :]
-            return self._bkd.vstack([
-                math.sqrt(7) * x**3,
-                math.sqrt(7) * x**2,
-                self._bkd.cos((2 + eps1) * math.pi * x + math.pi / 2),
-            ])
+            return self._bkd.vstack(
+                [
+                    math.sqrt(7) * x**3,
+                    math.sqrt(7) * x**2,
+                    self._bkd.cos((2 + eps1) * math.pi * x + math.pi / 2),
+                ]
+            )
 
         def f2(samples: Array) -> Array:
             x = samples[0, :]
-            return self._bkd.vstack([
-                math.sqrt(3) / 2 * x**2 + x,
-                math.sqrt(3) / 2 * x
-                + self._bkd.cos(math.pi * x * 2.0 + 2.1) * eps2,
-                self._bkd.cos(2 * math.pi * x + math.pi / 4),
-            ])
+            return self._bkd.vstack(
+                [
+                    math.sqrt(3) / 2 * x**2 + x,
+                    math.sqrt(3) / 2 * x
+                    + self._bkd.cos(math.pi * x * 2.0 + 2.1) * eps2,
+                    self._bkd.cos(2 * math.pi * x + math.pi / 4),
+                ]
+            )
 
         return [
             MultiOutputModelFunction(self._bkd, f0, self._nqoi),

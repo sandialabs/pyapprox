@@ -15,18 +15,17 @@ import numpy as np
 import torch
 from numpy.typing import NDArray
 
-from pyapprox.util.backends.numpy import NumpyBkd
-from pyapprox.util.backends.torch import TorchBkd
-from pyapprox.util.backends.protocols import Array, Backend
-from pyapprox.util.test_utils import load_tests  # noqa: F401
+from pyapprox.expdesign.objective import DOptimalLinearModelObjective
 from pyapprox.interface.functions.derivative_checks.derivative_checker import (
     DerivativeChecker,
 )
 from pyapprox.interface.functions.fromcallable.hessian import (
     FunctionWithJacobianAndHVPFromCallable,
 )
-
-from pyapprox.expdesign.objective import DOptimalLinearModelObjective
+from pyapprox.util.backends.numpy import NumpyBkd
+from pyapprox.util.backends.protocols import Array, Backend
+from pyapprox.util.backends.torch import TorchBkd
+from pyapprox.util.test_utils import load_tests  # noqa: F401
 
 
 class TestDOptimalStandalone(Generic[Array], unittest.TestCase):
@@ -82,9 +81,7 @@ class TestDOptimalStandalone(Generic[Array], unittest.TestCase):
                 w = samples[:, ii : ii + 1]  # (nobs, 1)
                 val = obj(w)  # (1, 1)
                 results.append(val[0, 0])
-            return self._bkd.reshape(
-                self._bkd.stack(results), (1, nsamples)
-            )
+            return self._bkd.reshape(self._bkd.stack(results), (1, nsamples))
 
         def jacobian_fun(sample: Array) -> Array:
             # sample: (nvars, 1) = (nobs, 1)
@@ -161,9 +158,7 @@ class TestDOptimalStandalone(Generic[Array], unittest.TestCase):
     def test_different_weights(self):
         """Test with non-uniform weights."""
         np.random.seed(123)
-        weights = self._bkd.asarray(
-            np.random.dirichlet(np.ones(self._nobs))[:, None]
-        )
+        weights = self._bkd.asarray(np.random.dirichlet(np.ones(self._nobs))[:, None])
 
         obj = self._create_objective()
         result = obj(weights)
@@ -176,15 +171,9 @@ class TestDOptimalStandalone(Generic[Array], unittest.TestCase):
         self.assertEqual(hess.shape, (1, self._nobs, self._nobs))
 
         # Check finite
-        self.assertTrue(
-            np.isfinite(self._bkd.to_numpy(result)).all()
-        )
-        self.assertTrue(
-            np.isfinite(self._bkd.to_numpy(jac)).all()
-        )
-        self.assertTrue(
-            np.isfinite(self._bkd.to_numpy(hess)).all()
-        )
+        self.assertTrue(np.isfinite(self._bkd.to_numpy(result)).all())
+        self.assertTrue(np.isfinite(self._bkd.to_numpy(jac)).all())
+        self.assertTrue(np.isfinite(self._bkd.to_numpy(hess)).all())
 
     def test_scalar_validation(self):
         """Test that non-scalar covariances raise error."""

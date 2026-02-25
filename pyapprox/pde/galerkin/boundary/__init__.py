@@ -5,12 +5,12 @@ that satisfy the protocols defined in protocols.boundary.
 """
 
 from pyapprox.pde.galerkin.boundary.implementations import (
+    BoundaryConditionSet,
     CallableDirichletBC,
-    DirichletBC,
     DirectDirichletBC,
+    DirichletBC,
     NeumannBC,
     RobinBC,
-    BoundaryConditionSet,
 )
 from pyapprox.pde.galerkin.boundary.manufactured import (
     ManufacturedSolutionBC,

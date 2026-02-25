@@ -15,17 +15,16 @@ import numpy as np
 import torch
 from numpy.typing import NDArray
 
-from pyapprox.util.backends.numpy import NumpyBkd
-from pyapprox.util.backends.torch import TorchBkd
-from pyapprox.util.backends.protocols import Array
-from pyapprox.util.test_utils import load_tests
-from pyapprox.expdesign.local.design_matrices import (
-    LeastSquaresDesignMatrices,
-)
 from pyapprox.expdesign.local.criteria import (
     GOptimalCriterion,
     ROptimalCriterion,
 )
+from pyapprox.expdesign.local.design_matrices import (
+    LeastSquaresDesignMatrices,
+)
+from pyapprox.util.backends.numpy import NumpyBkd
+from pyapprox.util.backends.protocols import Array
+from pyapprox.util.backends.torch import TorchBkd
 
 
 class TestGOptimalCriterion(Generic[Array], unittest.TestCase):
@@ -50,9 +49,7 @@ class TestGOptimalCriterion(Generic[Array], unittest.TestCase):
         self._pred_factors = self._bkd.asarray(
             np.random.randn(self._npred_pts, self._ndesign_vars)
         )
-        self._noise_mult = self._bkd.asarray(
-            0.5 + np.random.rand(self._ndesign_pts)
-        )
+        self._noise_mult = self._bkd.asarray(0.5 + np.random.rand(self._ndesign_pts))
 
         # Random weights on simplex
         raw_weights = np.random.uniform(0, 1, (self._ndesign_pts, 1))
@@ -99,13 +96,14 @@ class TestGOptimalCriterion(Generic[Array], unittest.TestCase):
         self.assertEqual(crit.nvars(), self._ndesign_pts)
 
     def test_hvp_not_available(self):
-        """Test that HVP is not available for G-optimal (optional methods convention)."""
+        """Test that HVP is not available for G-optimal (optional methods
+        convention)."""
         dm = LeastSquaresDesignMatrices(
             self._design_factors, self._bkd, self._noise_mult
         )
         crit = GOptimalCriterion(dm, self._pred_factors, self._bkd)
 
-        self.assertFalse(hasattr(crit, 'hvp'))
+        self.assertFalse(hasattr(crit, "hvp"))
 
     def test_values_are_positive(self):
         """Test that prediction variances are positive."""
@@ -146,9 +144,7 @@ class TestGOptimalCriterionNumpy(TestGOptimalCriterion[NDArray[Any]]):
 
         numerical_jac = self._bkd.asarray(numerical_jac)
         # Use both rtol and atol since some values can be very small
-        self._bkd.assert_allclose(
-            analytical_jac, numerical_jac, rtol=1e-5, atol=1e-8
-        )
+        self._bkd.assert_allclose(analytical_jac, numerical_jac, rtol=1e-5, atol=1e-8)
 
     def test_homoscedastic_case(self):
         """Test G-optimal for homoscedastic noise."""
@@ -192,9 +188,7 @@ class TestROptimalCriterion(Generic[Array], unittest.TestCase):
         self._pred_factors = self._bkd.asarray(
             np.random.randn(self._npred_pts, self._ndesign_vars)
         )
-        self._noise_mult = self._bkd.asarray(
-            0.5 + np.random.rand(self._ndesign_pts)
-        )
+        self._noise_mult = self._bkd.asarray(0.5 + np.random.rand(self._ndesign_pts))
 
         raw_weights = np.random.uniform(0, 1, (self._ndesign_pts, 1))
         self._weights = self._bkd.asarray(raw_weights / raw_weights.sum())
@@ -246,7 +240,6 @@ class TestROptimalCriterionNumpy(TestROptimalCriterion[NDArray[Any]]):
 
     def bkd(self) -> NumpyBkd:
         return NumpyBkd()
-
 
 
 class TestROptimalCriterionTorch(TestROptimalCriterion[torch.Tensor]):

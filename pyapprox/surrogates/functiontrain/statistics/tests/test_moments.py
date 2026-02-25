@@ -1,34 +1,32 @@
 """Tests for FunctionTrainMoments."""
 
 import unittest
-from typing import Any, Generic, List, Optional, Tuple
+from typing import Any, Generic, List, Optional
 
 import numpy as np
 import torch
 from numpy.typing import NDArray
 
-from pyapprox.util.backends.numpy import NumpyBkd
-from pyapprox.util.backends.torch import TorchBkd
-from pyapprox.util.backends.protocols import Array, Backend
-from pyapprox.util.test_utils import load_tests  # noqa: F401
-
-from pyapprox.surrogates.affine.univariate import create_bases_1d
-from pyapprox.surrogates.affine.indices import compute_hyperbolic_indices
+from pyapprox.benchmarks.functions.genz import GaussianPeakFunction
+from pyapprox.probability import UniformMarginal
 from pyapprox.surrogates.affine.basis import OrthonormalPolynomialBasis
 from pyapprox.surrogates.affine.expansions import BasisExpansion
-from pyapprox.probability import UniformMarginal
-
-from pyapprox.surrogates.functiontrain.core import FunctionTrainCore
+from pyapprox.surrogates.affine.indices import compute_hyperbolic_indices
+from pyapprox.surrogates.affine.univariate import create_bases_1d
 from pyapprox.surrogates.functiontrain import (
+    ALSFitter,
     FunctionTrain,
     PCEFunctionTrain,
-    ALSFitter,
     create_uniform_pce_functiontrain,
 )
+from pyapprox.surrogates.functiontrain.core import FunctionTrainCore
 from pyapprox.surrogates.functiontrain.statistics import (
     FunctionTrainMoments,
 )
-from pyapprox.benchmarks.functions.genz import GaussianPeakFunction
+from pyapprox.util.backends.numpy import NumpyBkd
+from pyapprox.util.backends.protocols import Array, Backend
+from pyapprox.util.backends.torch import TorchBkd
+from pyapprox.util.test_utils import load_tests  # noqa: F401
 
 
 class TestFunctionTrainMoments(Generic[Array], unittest.TestCase):
@@ -114,7 +112,9 @@ class TestFunctionTrainMoments(Generic[Array], unittest.TestCase):
             bkd.asarray([[c2], [0.0], [0.0]]),
             bkd.asarray([[c3], [0.0], [0.0]]),
         ]
-        pce_ft = self._create_rank1_pce_ft(nvars=3, max_level=2, coefficients=coefficients)
+        pce_ft = self._create_rank1_pce_ft(
+            nvars=3, max_level=2, coefficients=coefficients
+        )
         moments = FunctionTrainMoments(pce_ft)
 
         expected_mean = c1 * c2 * c3
@@ -127,14 +127,15 @@ class TestFunctionTrainMoments(Generic[Array], unittest.TestCase):
             bkd.asarray([[2.0], [0.0], [0.0]]),
             bkd.asarray([[3.0], [0.0], [0.0]]),
         ]
-        pce_ft = self._create_rank1_pce_ft(nvars=2, max_level=2, coefficients=coefficients)
+        pce_ft = self._create_rank1_pce_ft(
+            nvars=2, max_level=2, coefficients=coefficients
+        )
         moments = FunctionTrainMoments(pce_ft)
 
         bkd.assert_allclose(moments.variance(), bkd.asarray([0.0]), atol=1e-12)
 
     def test_variance_non_negative(self) -> None:
         """Test variance is non-negative."""
-        bkd = self._bkd
         pce_ft = self._create_rank1_pce_ft(nvars=3, max_level=3)
         moments = FunctionTrainMoments(pce_ft)
 
@@ -152,7 +153,6 @@ class TestFunctionTrainMoments(Generic[Array], unittest.TestCase):
 
     def test_second_moment_geq_mean_squared(self) -> None:
         """Test E[f²] >= E[f]² (since Var >= 0)."""
-        bkd = self._bkd
         pce_ft = self._create_rank1_pce_ft(nvars=3, max_level=3)
         moments = FunctionTrainMoments(pce_ft)
 
@@ -178,7 +178,9 @@ class TestFunctionTrainMoments(Generic[Array], unittest.TestCase):
             bkd.asarray([[2.0], [1.0]]),
             bkd.asarray([[2.0], [1.0]]),
         ]
-        pce_ft = self._create_rank1_pce_ft(nvars=3, max_level=1, coefficients=coefficients)
+        pce_ft = self._create_rank1_pce_ft(
+            nvars=3, max_level=1, coefficients=coefficients
+        )
         moments = FunctionTrainMoments(pce_ft)
 
         expected_mean = 2.0 * 2.0 * 2.0
@@ -200,7 +202,9 @@ class TestFunctionTrainMoments(Generic[Array], unittest.TestCase):
             bkd.asarray([[a0], [a1]]),
             bkd.asarray([[b0], [b1]]),
         ]
-        pce_ft = self._create_rank1_pce_ft(nvars=2, max_level=1, coefficients=coefficients)
+        pce_ft = self._create_rank1_pce_ft(
+            nvars=2, max_level=1, coefficients=coefficients
+        )
         moments = FunctionTrainMoments(pce_ft)
 
         expected_mean = a0 * b0
@@ -211,7 +215,9 @@ class TestFunctionTrainMoments(Generic[Array], unittest.TestCase):
         bkd.assert_allclose(
             moments.second_moment(), bkd.asarray([expected_second_moment]), rtol=1e-12
         )
-        bkd.assert_allclose(moments.variance(), bkd.asarray([expected_variance]), rtol=1e-12)
+        bkd.assert_allclose(
+            moments.variance(), bkd.asarray([expected_variance]), rtol=1e-12
+        )
 
     def test_mean_higher_degree_polynomial(self) -> None:
         """Test mean with higher degree polynomials.
@@ -222,7 +228,9 @@ class TestFunctionTrainMoments(Generic[Array], unittest.TestCase):
         bkd = self._bkd
         theta = [1.5, 2.0, -0.5, 0.3]
         coefficients = [bkd.asarray([[t] for t in theta])]
-        pce_ft = self._create_rank1_pce_ft(nvars=1, max_level=3, coefficients=coefficients)
+        pce_ft = self._create_rank1_pce_ft(
+            nvars=1, max_level=3, coefficients=coefficients
+        )
         moments = FunctionTrainMoments(pce_ft)
 
         expected_mean = theta[0]
@@ -239,11 +247,15 @@ class TestFunctionTrainMoments(Generic[Array], unittest.TestCase):
         bkd = self._bkd
         theta = [1.5, 2.0, -0.5, 0.3]
         coefficients = [bkd.asarray([[t] for t in theta])]
-        pce_ft = self._create_rank1_pce_ft(nvars=1, max_level=3, coefficients=coefficients)
+        pce_ft = self._create_rank1_pce_ft(
+            nvars=1, max_level=3, coefficients=coefficients
+        )
         moments = FunctionTrainMoments(pce_ft)
 
-        expected_variance = theta[1]**2 + theta[2]**2 + theta[3]**2
-        bkd.assert_allclose(moments.variance(), bkd.asarray([expected_variance]), rtol=1e-12)
+        expected_variance = theta[1] ** 2 + theta[2] ** 2 + theta[3] ** 2
+        bkd.assert_allclose(
+            moments.variance(), bkd.asarray([expected_variance]), rtol=1e-12
+        )
 
     def test_mean_multivariable_higher_degree(self) -> None:
         """Test mean of product of higher-degree polynomials.
@@ -258,7 +270,9 @@ class TestFunctionTrainMoments(Generic[Array], unittest.TestCase):
             bkd.asarray([[t] for t in a]),
             bkd.asarray([[t] for t in b]),
         ]
-        pce_ft = self._create_rank1_pce_ft(nvars=2, max_level=2, coefficients=coefficients)
+        pce_ft = self._create_rank1_pce_ft(
+            nvars=2, max_level=2, coefficients=coefficients
+        )
         moments = FunctionTrainMoments(pce_ft)
 
         expected_mean = a[0] * b[0]
@@ -266,7 +280,6 @@ class TestFunctionTrainMoments(Generic[Array], unittest.TestCase):
 
     def test_caching(self) -> None:
         """Test mean and second_moment are cached."""
-        bkd = self._bkd
         pce_ft = self._create_rank1_pce_ft(nvars=2, max_level=2)
         moments = FunctionTrainMoments(pce_ft)
 
@@ -284,7 +297,9 @@ class TestFunctionTrainMoments(Generic[Array], unittest.TestCase):
         # f(x) = 1 + 2*P_1(x) + 3*P_2(x)
         # where P_i are orthonormal Legendre polynomials
         coefficients = [bkd.asarray([[1.0], [2.0], [3.0]])]
-        pce_ft = self._create_rank1_pce_ft(nvars=1, max_level=2, coefficients=coefficients)
+        pce_ft = self._create_rank1_pce_ft(
+            nvars=1, max_level=2, coefficients=coefficients
+        )
         moments = FunctionTrainMoments(pce_ft)
 
         # Mean = θ^{(0)} = 1.0
@@ -309,7 +324,9 @@ class TestFunctionTrainMoments(Generic[Array], unittest.TestCase):
             bkd.asarray([[a0], [a1]]),
             bkd.asarray([[b0], [b1]]),
         ]
-        pce_ft = self._create_rank1_pce_ft(nvars=2, max_level=1, coefficients=coefficients)
+        pce_ft = self._create_rank1_pce_ft(
+            nvars=2, max_level=1, coefficients=coefficients
+        )
         moments = FunctionTrainMoments(pce_ft)
 
         expected_mean = a0 * b0
@@ -320,11 +337,12 @@ class TestFunctionTrainMoments(Generic[Array], unittest.TestCase):
         bkd.assert_allclose(
             moments.second_moment(), bkd.asarray([expected_second_moment]), rtol=1e-12
         )
-        bkd.assert_allclose(moments.variance(), bkd.asarray([expected_variance]), rtol=1e-12)
+        bkd.assert_allclose(
+            moments.variance(), bkd.asarray([expected_variance]), rtol=1e-12
+        )
 
     def test_output_shapes(self) -> None:
         """Test output arrays have correct shapes."""
-        bkd = self._bkd
         pce_ft = self._create_rank1_pce_ft(nvars=3, max_level=2)
         moments = FunctionTrainMoments(pce_ft)
 
@@ -333,9 +351,7 @@ class TestFunctionTrainMoments(Generic[Array], unittest.TestCase):
         self.assertEqual(moments.variance().shape, (1,))
         self.assertEqual(moments.std().shape, (1,))
 
-    def _create_uniform_pce_01(
-        self, max_level: int
-    ) -> BasisExpansion[Array]:
+    def _create_uniform_pce_01(self, max_level: int) -> BasisExpansion[Array]:
         """Create univariate PCE on [0, 1] interval."""
         bkd = self._bkd
         marginals = [UniformMarginal(0.0, 1.0, bkd)]
@@ -390,12 +406,11 @@ class TestFunctionTrainMoments(Generic[Array], unittest.TestCase):
         test_samples = bkd.asarray(np.random.uniform(0, 1, (nvars, nsamples_test)))
         test_values = genz_func(test_samples)
         ft_predictions = fitted_ft(test_samples)
-        fit_error = bkd.sqrt(
-            bkd.mean((ft_predictions - test_values) ** 2)
-        ) / bkd.sqrt(bkd.mean(test_values ** 2))
+        fit_error = bkd.sqrt(bkd.mean((ft_predictions - test_values) ** 2)) / bkd.sqrt(
+            bkd.mean(test_values**2)
+        )
         self.assertTrue(
-            float(fit_error) < 1e-6,
-            f"FT fit error {float(fit_error):.2e} exceeds 1e-6"
+            float(fit_error) < 1e-6, f"FT fit error {float(fit_error):.2e} exceeds 1e-6"
         )
 
         # Wrap in PCEFunctionTrain and compute moments
@@ -409,15 +424,13 @@ class TestFunctionTrainMoments(Generic[Array], unittest.TestCase):
         # Mean error < 1e-8
         mean_error = abs(float(ft_mean[0]) - exact_mean) / abs(exact_mean)
         self.assertTrue(
-            mean_error < 1e-8,
-            f"Mean relative error {mean_error:.2e} exceeds 1e-8"
+            mean_error < 1e-8, f"Mean relative error {mean_error:.2e} exceeds 1e-8"
         )
 
         # Variance error < 1e-5
         var_error = abs(float(ft_var[0]) - exact_var) / abs(exact_var)
         self.assertTrue(
-            var_error < 1e-5,
-            f"Variance relative error {var_error:.2e} exceeds 1e-5"
+            var_error < 1e-5, f"Variance relative error {var_error:.2e} exceeds 1e-5"
         )
 
 

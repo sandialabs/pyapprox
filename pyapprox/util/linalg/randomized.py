@@ -33,8 +33,8 @@ adjust_sign_svd
     Ensure uniqueness of SVD by sign adjustment.
 """
 
-from typing import Generic, Callable, Tuple
 from abc import ABC, abstractmethod
+from typing import Callable, Generic, Tuple
 
 import numpy as np
 
@@ -570,9 +570,7 @@ class DoublePassRandomizedSVD(RandomizedSVD[Array]):
     def _check_matvec(self, matvec: MatVecOperator[Array]):
         """Validate that the operator is symmetric."""
         if not isinstance(matvec, SymmetricMatVecOperator):
-            raise ValueError(
-                "matvec must be an instance of SymmetricMatVecOperator"
-            )
+            raise ValueError("matvec must be an instance of SymmetricMatVecOperator")
 
     def compute(self, rank: int) -> Tuple[Array, Array, Array]:
         """
@@ -685,9 +683,7 @@ def randomized_symmetric_eigendecomposition(
     nsamples = rank + noversampling
 
     # Random matrix for sampling column space
-    omega = bkd.asarray(
-        np.random.normal(0, 1, (nvars, nsamples)).astype(np.float64)
-    )
+    omega = bkd.asarray(np.random.normal(0, 1, (nvars, nsamples)).astype(np.float64))
 
     # Sample column space: Y = A @ omega
     Y = apply_operator(omega)

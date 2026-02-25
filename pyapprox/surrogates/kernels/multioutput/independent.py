@@ -6,11 +6,11 @@ outputs using separate kernels for each output. The resulting kernel matrix has
 a block-diagonal structure.
 """
 
-from typing import List, Union, Optional, Generic
+from typing import Generic, List, Optional, Union
 
+from pyapprox.surrogates.kernels.protocols import Kernel
 from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.util.hyperparameter import HyperParameterList
-from pyapprox.surrogates.kernels.protocols import Kernel
 
 
 class IndependentMultiOutputKernel(Generic[Array]):
@@ -106,8 +106,7 @@ class IndependentMultiOutputKernel(Generic[Array]):
 
         # Combine hyperparameter lists from all kernels
         self._hyp_list = sum(
-            [k.hyp_list() for k in kernels],
-            HyperParameterList([], bkd=self._bkd)
+            [k.hyp_list() for k in kernels], HyperParameterList([], bkd=self._bkd)
         )
 
     def bkd(self) -> Backend[Array]:
@@ -248,7 +247,9 @@ class IndependentMultiOutputKernel(Generic[Array]):
             for i in range(self._noutputs):
                 n1 = n1_sizes[i]
                 n2 = n2_sizes[i]
-                K_full[row_offset:row_offset+n1, col_offset:col_offset+n2] = diagonal_blocks[i]
+                K_full[row_offset : row_offset + n1, col_offset : col_offset + n2] = (
+                    diagonal_blocks[i]
+                )
                 row_offset += n1
                 col_offset += n2
 
@@ -288,7 +289,7 @@ class IndependentMultiOutputKernel(Generic[Array]):
 
         # Check all kernels support parameter Jacobian
         for i, kernel in enumerate(self._kernels):
-            if not hasattr(kernel, 'jacobian_wrt_params'):
+            if not hasattr(kernel, "jacobian_wrt_params"):
                 raise NotImplementedError(
                     f"Kernel {i} does not support jacobian_wrt_params"
                 )
@@ -314,11 +315,12 @@ class IndependentMultiOutputKernel(Generic[Array]):
             n_i = n_sizes[i]
             nparams_i = jacs[i].shape[2]
 
-            # Fill in block [row_offset:row_offset+n_i, row_offset:row_offset+n_i, param_offset:param_offset+nparams_i]
+            # Fill in block [row_offset:row_offset+n_i, row_offset:row_offset+n_i,
+            # param_offset:param_offset+nparams_i]
             jac_full[
-                row_offset:row_offset+n_i,
-                row_offset:row_offset+n_i,
-                param_offset:param_offset+nparams_i
+                row_offset : row_offset + n_i,
+                row_offset : row_offset + n_i,
+                param_offset : param_offset + nparams_i,
             ] = jacs[i]
 
             row_offset += n_i

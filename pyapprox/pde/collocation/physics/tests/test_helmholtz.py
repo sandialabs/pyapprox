@@ -1,28 +1,29 @@
 """Tests for Helmholtz physics implementation."""
 
-import unittest
 import math
+import unittest
+
 import numpy as np
 
-from pyapprox.util.backends.numpy import NumpyBkd
-from pyapprox.util.test_utils import load_tests  # noqa: F401
+from pyapprox.optimization.rootfinding.newton import NewtonSolver
 from pyapprox.pde.collocation.basis import ChebyshevBasis1D
-from pyapprox.pde.collocation.mesh import (
-    create_uniform_mesh_1d,
-    TransformedMesh1D,
-)
 from pyapprox.pde.collocation.boundary import (
     zero_dirichlet_bc,
+)
+from pyapprox.pde.collocation.mesh import (
+    TransformedMesh1D,
+    create_uniform_mesh_1d,
 )
 from pyapprox.pde.collocation.physics.helmholtz import (
     HelmholtzPhysics,
     create_helmholtz,
 )
 from pyapprox.pde.collocation.physics.tests.test_utils import (
-    PhysicsTestBase,
     PhysicsNewtonResidual,
+    PhysicsTestBase,
 )
-from pyapprox.optimization.rootfinding.newton import NewtonSolver
+from pyapprox.util.backends.numpy import NumpyBkd
+from pyapprox.util.test_utils import load_tests  # noqa: F401
 
 
 class TestHelmholtzPhysics(PhysicsTestBase):
@@ -90,7 +91,7 @@ class TestHelmholtzPhysics(PhysicsTestBase):
 
         # Compute forcing for -Laplacian(u) + k^2*u = f
         # f = (pi^2 + k^2) * sin(pi*x)
-        forcing = (math.pi ** 2 + k_sq) * bkd.sin(math.pi * nodes)
+        forcing = (math.pi**2 + k_sq) * bkd.sin(math.pi * nodes)
 
         physics = HelmholtzPhysics(
             basis, bkd, wave_number_sq=k_sq, forcing=lambda t: forcing
@@ -115,8 +116,8 @@ class TestHelmholtzPhysics(PhysicsTestBase):
         # f = 2 + k^2*(1-x^2)
         k_sq = 1.0
         nodes = basis.nodes()
-        exact_solution = 1.0 - nodes ** 2
-        forcing = 2.0 + k_sq * (1.0 - nodes ** 2)
+        exact_solution = 1.0 - nodes**2
+        forcing = 2.0 + k_sq * (1.0 - nodes**2)
 
         physics = HelmholtzPhysics(
             basis, bkd, wave_number_sq=k_sq, forcing=lambda t: forcing
@@ -151,6 +152,7 @@ class TestHelmholtzPhysics(PhysicsTestBase):
         self.assertEqual(physics.ncomponents(), 1)
         self.assertEqual(physics.nstates(), npts)
         self.assertAlmostEqual(physics.wave_number_sq(), 2.0)
+
 
 if __name__ == "__main__":
     unittest.main()

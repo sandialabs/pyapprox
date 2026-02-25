@@ -7,14 +7,13 @@ import numpy as np
 import torch
 from numpy.typing import NDArray
 
-from pyapprox.util.backends.numpy import NumpyBkd
-from pyapprox.util.backends.torch import TorchBkd
-from pyapprox.util.backends.protocols import Array, Backend
-from pyapprox.util.test_utils import load_tests, slow_test  # noqa: F401
-
 from pyapprox.expdesign.benchmarks.lotka_volterra import (
     LotkaVolterraOEDBenchmark,
 )
+from pyapprox.util.backends.numpy import NumpyBkd
+from pyapprox.util.backends.protocols import Array, Backend
+from pyapprox.util.backends.torch import TorchBkd
+from pyapprox.util.test_utils import load_tests, slow_test  # noqa: F401
 
 
 class TestLotkaVolterraOEDBenchmark(Generic[Array], unittest.TestCase):
@@ -110,18 +109,14 @@ class TestLotkaVolterraOEDBenchmark(Generic[Array], unittest.TestCase):
         self.assertEqual(pred.shape, (5, 3))
 
 
-class TestLotkaVolterraOEDBenchmarkNumpy(
-    TestLotkaVolterraOEDBenchmark[NDArray[Any]]
-):
+class TestLotkaVolterraOEDBenchmarkNumpy(TestLotkaVolterraOEDBenchmark[NDArray[Any]]):
     __test__ = True
 
     def bkd(self) -> NumpyBkd:
         return NumpyBkd()
 
 
-class TestLotkaVolterraOEDBenchmarkTorch(
-    TestLotkaVolterraOEDBenchmark[torch.Tensor]
-):
+class TestLotkaVolterraOEDBenchmarkTorch(TestLotkaVolterraOEDBenchmark[torch.Tensor]):
     __test__ = True
 
     def bkd(self) -> TorchBkd:

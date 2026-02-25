@@ -27,18 +27,17 @@ select_mean_verifier, select_variance_verifier
     Choose estimation strategy from benchmark properties (budget-adapted).
 """
 
-from typing import Protocol, Optional, Any
+from typing import Any, Optional, Protocol
 
 import numpy as np
 
-from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.benchmarks.protocols import (
     HasEstimatedEvaluationCost,
 )
 from pyapprox.interface.functions.derivative_checks.derivative_checker import (
     DerivativeChecker,
 )
-
+from pyapprox.util.backends.protocols import Array, Backend
 
 # ---------------------------------------------------------------------------
 # Strategy protocols

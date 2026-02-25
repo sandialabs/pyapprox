@@ -2,8 +2,8 @@
 
 from typing import Dict, Generic, List, Self
 
-from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.surrogates.functiontrain.core import FunctionTrainCore
+from pyapprox.util.backends.protocols import Array, Backend
 
 
 class FunctionTrain(Generic[Array]):
@@ -48,15 +48,13 @@ class FunctionTrain(Generic[Array]):
         # First core must have left rank = 1
         if self._cores[0].ranks()[0] != 1:
             raise ValueError(
-                f"First rank of first core must be 1, "
-                f"got {self._cores[0].ranks()[0]}"
+                f"First rank of first core must be 1, got {self._cores[0].ranks()[0]}"
             )
 
         # Last core must have right rank = 1
         if self._cores[-1].ranks()[1] != 1:
             raise ValueError(
-                f"Second rank of last core must be 1, "
-                f"got {self._cores[-1].ranks()[1]}"
+                f"Second rank of last core must be 1, got {self._cores[-1].ranks()[1]}"
             )
 
         # Interior cores must have matching ranks
@@ -66,7 +64,7 @@ class FunctionTrain(Generic[Array]):
             if r_right != r_left_next:
                 raise ValueError(
                     f"Core {ii} right rank ({r_right}) doesn't match "
-                    f"core {ii+1} left rank ({r_left_next})"
+                    f"core {ii + 1} left rank ({r_left_next})"
                 )
 
     def bkd(self) -> Backend[Array]:
@@ -230,9 +228,7 @@ class FunctionTrain(Generic[Array]):
             Right product. Shape: (r_{core_id+1}, 1, nsamples, nqoi)
         """
         if core_id >= self.nvars() - 1 or core_id < 0:
-            raise ValueError(
-                f"core_id must be in [0, nvars-2], got {core_id}"
-            )
+            raise ValueError(f"core_id must be in [0, nvars-2], got {core_id}")
 
         values = self._cores[core_id + 1](samples[core_id + 1 : core_id + 2])
         for ii in range(core_id + 2, self.nvars()):
@@ -316,15 +312,11 @@ class FunctionTrain(Generic[Array]):
             for jj in range(r_right):
                 # R[jj, 0, :, qq] has shape (nsamples,)
                 # fun_jacs[0][jj] has shape (nsamples, nterms)
-                jac_parts.append(
-                    Rmat[jj, 0, :, qq : qq + 1] * fun_jacs[0][jj]
-                )
+                jac_parts.append(Rmat[jj, 0, :, qq : qq + 1] * fun_jacs[0][jj])
             jacs.append(self._bkd.hstack(jac_parts))
         return jacs
 
-    def _interior_core_jacobian(
-        self, samples: Array, core_id: int
-    ) -> List[Array]:
+    def _interior_core_jacobian(self, samples: Array, core_id: int) -> List[Array]:
         """Jacobian for interior core (both left and right products).
 
         Shape: f = L · G_k · R
@@ -488,9 +480,7 @@ class FunctionTrain(Generic[Array]):
             # weights: (r_left, r_right, nsamples, nqoi)
             # core_jac: (r_left, r_right, nsamples, nqoi, core_nparams)
             # result: (nsamples, nqoi, core_nparams)
-            core_contribution = self._bkd.einsum(
-                "ijkl,ijklm->klm", weights, core_jac
-            )
+            core_contribution = self._bkd.einsum("ijkl,ijklm->klm", weights, core_jac)
 
             jac_parts.append(core_contribution)
 
@@ -562,12 +552,8 @@ class FunctionTrain(Generic[Array]):
         # Backward sweep: compute right products R_k = G_{k+1} * ... * G_{d-1}
         # R_{d-1} doesn't exist (no cores to the right of last core)
         # R_{d-2} = G_{d-1}
-        right_products: List[Array] = [
-            self._bkd.zeros((1,))
-        ] * nvars  # placeholder
-        right_products[nvars - 2] = self._cores[nvars - 1](
-            samples[nvars - 1 : nvars]
-        )
+        right_products: List[Array] = [self._bkd.zeros((1,))] * nvars  # placeholder
+        right_products[nvars - 2] = self._cores[nvars - 1](samples[nvars - 1 : nvars])
         for kk in range(nvars - 3, -1, -1):
             # R_k = G_{k+1} * R_{k+1}
             right_products[kk] = self._bkd.einsum(
@@ -633,9 +619,7 @@ class FunctionTrain(Generic[Array]):
         jac_batch = self.jacobian_batch(sample)  # (1, nqoi, nvars)
         return jac_batch[0, :, :]  # (nqoi, nvars)
 
-    def eval_cached(
-        self, samples: Array, cache: Dict[int, Array]
-    ) -> Array:
+    def eval_cached(self, samples: Array, cache: Dict[int, Array]) -> Array:
         """Evaluate using cached basis matrices.
 
         Parameters
@@ -677,9 +661,7 @@ class FunctionTrain(Generic[Array]):
             ft_jacobian_wrt_params_cached,
         )
 
-        return ft_jacobian_wrt_params_cached(
-            self._cores, samples, cache, self._bkd
-        )
+        return ft_jacobian_wrt_params_cached(self._cores, samples, cache, self._bkd)
 
     def __repr__(self) -> str:
         return (

@@ -85,12 +85,14 @@ class CoupledSpringsResidual(Generic[Array]):
         """
         x1, y1, x2, y2 = state
         m1, m2, k1, k2, L1, L2, b1, b2 = self._param[:8]
-        return self._bkd.hstack([
-            y1,
-            (-b1 * y1 - k1 * (x1 - L1) + k2 * (x2 - x1 - L2)) / m1,
-            y2,
-            (-b2 * y2 - k2 * (x2 - x1 - L2)) / m2,
-        ])
+        return self._bkd.hstack(
+            [
+                y1,
+                (-b1 * y1 - k1 * (x1 - L1) + k2 * (x2 - x1 - L2)) / m1,
+                y2,
+                (-b2 * y2 - k2 * (x2 - x1 - L2)) / m2,
+            ]
+        )
 
     def jacobian(self, state: Array) -> Array:
         """
@@ -110,12 +112,15 @@ class CoupledSpringsResidual(Generic[Array]):
         m1, m2, k1, k2, L1, L2, b1, b2 = self._param[:8]
         zero = x1 * 0.0
         one = x1 * 0.0 + 1.0
-        return self._bkd.stack([
-            self._bkd.hstack([zero, one, zero, zero]),
-            self._bkd.hstack([(-k1 - k2) / m1, -b1 / m1, k2 / m1, zero]),
-            self._bkd.hstack([zero, zero, zero, one]),
-            self._bkd.hstack([k2 / m2, zero, -k2 / m2, -b2 / m2]),
-        ], axis=0)
+        return self._bkd.stack(
+            [
+                self._bkd.hstack([zero, one, zero, zero]),
+                self._bkd.hstack([(-k1 - k2) / m1, -b1 / m1, k2 / m1, zero]),
+                self._bkd.hstack([zero, zero, zero, one]),
+                self._bkd.hstack([k2 / m2, zero, -k2 / m2, -b2 / m2]),
+            ],
+            axis=0,
+        )
 
     def mass_matrix(self, nstates: int) -> Array:
         """Return the identity mass matrix."""
@@ -146,29 +151,39 @@ class CoupledSpringsResidual(Generic[Array]):
         numer2 = -b2 * y2 - k2 * (x2 - x1 - L2)
 
         row0 = self._bkd.zeros((self._nparams,))
-        row1 = self._bkd.hstack([
-            -numer1 / m1**2,
-            zero,
-            -(x1 - L1) / m1,
-            (x2 - x1 - L2) / m1,
-            k1 / m1,
-            -k2 / m1,
-            -y1 / m1,
-            zero,
-            zero, zero, zero, zero,
-        ])
+        row1 = self._bkd.hstack(
+            [
+                -numer1 / m1**2,
+                zero,
+                -(x1 - L1) / m1,
+                (x2 - x1 - L2) / m1,
+                k1 / m1,
+                -k2 / m1,
+                -y1 / m1,
+                zero,
+                zero,
+                zero,
+                zero,
+                zero,
+            ]
+        )
         row2 = self._bkd.zeros((self._nparams,))
-        row3 = self._bkd.hstack([
-            zero,
-            -numer2 / m2**2,
-            zero,
-            -(x2 - x1 - L2) / m2,
-            zero,
-            k2 / m2,
-            zero,
-            -y2 / m2,
-            zero, zero, zero, zero,
-        ])
+        row3 = self._bkd.hstack(
+            [
+                zero,
+                -numer2 / m2**2,
+                zero,
+                -(x2 - x1 - L2) / m2,
+                zero,
+                k2 / m2,
+                zero,
+                -y2 / m2,
+                zero,
+                zero,
+                zero,
+                zero,
+            ]
+        )
         return self._bkd.stack([row0, row1, row2, row3], axis=0)
 
     def initial_param_jacobian(self) -> Array:
@@ -178,10 +193,12 @@ class CoupledSpringsResidual(Generic[Array]):
         The last 4 parameters are initial conditions, so this is -I
         for those columns.
         """
-        return self._bkd.hstack([
-            self._bkd.zeros((self._nstates, 8)),
-            -self._bkd.eye(4),
-        ])
+        return self._bkd.hstack(
+            [
+                self._bkd.zeros((self._nstates, 8)),
+                -self._bkd.eye(4),
+            ]
+        )
 
     def __repr__(self) -> str:
         return f"{self.__class__.__name__}(nparams={self._nparams})"

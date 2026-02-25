@@ -14,12 +14,11 @@ from typing import Generic
 
 import numpy as np
 
-from pyapprox.util.backends.protocols import Array, Backend
-from pyapprox.util.hyperparameter import HyperParameterList
 from pyapprox.probability.copula.correlation.protocols import (
     CorrelationParameterizationProtocol,
 )
-
+from pyapprox.util.backends.protocols import Array, Backend
+from pyapprox.util.hyperparameter import HyperParameterList
 
 _SQRT2 = math.sqrt(2.0)
 
@@ -48,9 +47,7 @@ class GaussianCopula(Generic[Array]):
         correlation_param: CorrelationParameterizationProtocol[Array],
         bkd: Backend[Array],
     ):
-        if not isinstance(
-            correlation_param, CorrelationParameterizationProtocol
-        ):
+        if not isinstance(correlation_param, CorrelationParameterizationProtocol):
             raise TypeError(
                 "correlation_param must satisfy "
                 "CorrelationParameterizationProtocol, "
@@ -83,13 +80,10 @@ class GaussianCopula(Generic[Array]):
         """Validate that input is 2D with correct shape."""
         if u.ndim != 2:
             raise ValueError(
-                f"Expected 2D array with shape (nvars, nsamples), "
-                f"got {u.ndim}D"
+                f"Expected 2D array with shape (nvars, nsamples), got {u.ndim}D"
             )
         if u.shape[0] != self.nvars():
-            raise ValueError(
-                f"Expected {self.nvars()} variables, got {u.shape[0]}"
-            )
+            raise ValueError(f"Expected {self.nvars()} variables, got {u.shape[0]}")
 
     def _standard_normal_invcdf(self, u: Array) -> Array:
         """
@@ -170,9 +164,7 @@ class GaussianCopula(Generic[Array]):
             Samples in (0,1)^d. Shape: (nvars, nsamples)
         """
         eps = self._bkd.asarray(
-            np.random.normal(0, 1, (self.nvars(), nsamples)).astype(
-                np.float64
-            )
+            np.random.normal(0, 1, (self.nvars(), nsamples)).astype(np.float64)
         )
         z = self._corr_param.sample_transform(eps)
         return self._standard_normal_cdf(z)

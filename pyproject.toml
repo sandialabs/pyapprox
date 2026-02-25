@@ -101,10 +101,11 @@ exclude_also = [
 ]
 
 [tool.ruff]
-line-length = 79
+line-length = 88
 
 [tool.ruff.lint]
 select = ["E", "F", "W", "I"]
+ignore = ["E402"]  # intentional lazy imports to reduce module load times
 
 [tool.mypy]
 strict = true

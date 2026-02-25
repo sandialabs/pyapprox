@@ -19,22 +19,22 @@ from typing import Callable, Dict, List, Optional, Tuple
 import numpy as np
 from scipy.sparse import csr_matrix
 
-from pyapprox.util.backends.protocols import Array, Backend
-from pyapprox.util.backends.numpy import NumpyBkd
-from pyapprox.pde.sparse_utils import solve_maybe_sparse
-from pyapprox.pde.galerkin.protocols.boundary import (
-    BoundaryConditionProtocol,
+from pyapprox.pde.collocation.physics.stress_models.neo_hookean import (
+    NeoHookeanStress,
 )
 from pyapprox.pde.galerkin.basis.vector_lagrange import (
     VectorLagrangeBasis,
 )
 from pyapprox.pde.galerkin.physics.galerkin_base import GalerkinPhysicsBase
-from pyapprox.pde.collocation.physics.stress_models.neo_hookean import (
-    NeoHookeanStress,
+from pyapprox.pde.galerkin.protocols.boundary import (
+    BoundaryConditionProtocol,
 )
+from pyapprox.pde.sparse_utils import solve_maybe_sparse
+from pyapprox.util.backends.numpy import NumpyBkd
+from pyapprox.util.backends.protocols import Array, Backend
 
 try:
-    from skfem import asm, LinearForm, BilinearForm
+    from skfem import BilinearForm, LinearForm, asm
     from skfem.models.elasticity import lame_parameters
 except ImportError:
     raise ImportError(
@@ -92,9 +92,7 @@ class CompositeHyperelasticityPhysics(GalerkinPhysicsBase[Array]):
         poisson_ratio: float,
         bkd: Backend[Array],
         body_force: Optional[Callable] = None,
-        boundary_conditions: Optional[
-            List[BoundaryConditionProtocol[Array]]
-        ] = None,
+        boundary_conditions: Optional[List[BoundaryConditionProtocol[Array]]] = None,
     ) -> "CompositeHyperelasticityPhysics[Array]":
         """Create from uniform material properties.
 
@@ -118,9 +116,7 @@ class CompositeHyperelasticityPhysics(GalerkinPhysicsBase[Array]):
         element_materials: Dict[str, np.ndarray],
         bkd: Backend[Array],
         body_force: Optional[Callable] = None,
-        boundary_conditions: Optional[
-            List[BoundaryConditionProtocol[Array]]
-        ] = None,
+        boundary_conditions: Optional[List[BoundaryConditionProtocol[Array]]] = None,
     ):
         super().__init__(basis, bkd, boundary_conditions)
         self._body_force = body_force
@@ -141,9 +137,7 @@ class CompositeHyperelasticityPhysics(GalerkinPhysicsBase[Array]):
                     f"-1 < nu < 0.5, got {nu}"
                 )
             if name not in self._element_materials:
-                raise ValueError(
-                    f"Material '{name}' has no element assignment"
-                )
+                raise ValueError(f"Material '{name}' has no element assignment")
 
         # Build element-wise Lame parameter arrays: (nelems,)
         nelems = basis.skfem_basis().mesh.nelements
@@ -197,9 +191,7 @@ class CompositeHyperelasticityPhysics(GalerkinPhysicsBase[Array]):
         state_np = self._bkd.to_numpy(state)
         return skfem_basis.interpolate(state_np)
 
-    def _assemble_internal_force(
-        self, state: Array, time: float
-    ) -> Array:
+    def _assemble_internal_force(self, state: Array, time: float) -> Array:
         """Assemble internal force: integral P(F):Grad(v) dX.
 
         Uses element-wise Lame parameters for the Neo-Hookean stress.
@@ -208,7 +200,6 @@ class CompositeHyperelasticityPhysics(GalerkinPhysicsBase[Array]):
         state_interp = self._interpolate_state(state)
         ndim = self.ndim()
         lam_qp, mu_qp = self._lame_qp()
-        numpy_bkd = self._numpy_bkd
 
         if ndim == 1:
 
@@ -269,9 +260,7 @@ class CompositeHyperelasticityPhysics(GalerkinPhysicsBase[Array]):
             def internal_force_3d(v, w):
                 F = tuple(
                     tuple(
-                        (1.0 if i == j else 0.0)
-                        + w.u_prev.grad[i, j]
-                        for j in range(3)
+                        (1.0 if i == j else 0.0) + w.u_prev.grad[i, j] for j in range(3)
                     )
                     for i in range(3)
                 )
@@ -298,15 +287,21 @@ class CompositeHyperelasticityPhysics(GalerkinPhysicsBase[Array]):
                 cof33 = F11 * F22 - F12 * F21
 
                 P = (
-                    (w.mu * F11 + coef * cof11 / J,
-                     w.mu * F12 + coef * cof21 / J,
-                     w.mu * F13 + coef * cof31 / J),
-                    (w.mu * F21 + coef * cof12 / J,
-                     w.mu * F22 + coef * cof22 / J,
-                     w.mu * F23 + coef * cof32 / J),
-                    (w.mu * F31 + coef * cof13 / J,
-                     w.mu * F32 + coef * cof23 / J,
-                     w.mu * F33 + coef * cof33 / J),
+                    (
+                        w.mu * F11 + coef * cof11 / J,
+                        w.mu * F12 + coef * cof21 / J,
+                        w.mu * F13 + coef * cof31 / J,
+                    ),
+                    (
+                        w.mu * F21 + coef * cof12 / J,
+                        w.mu * F22 + coef * cof22 / J,
+                        w.mu * F23 + coef * cof32 / J,
+                    ),
+                    (
+                        w.mu * F31 + coef * cof13 / J,
+                        w.mu * F32 + coef * cof23 / J,
+                        w.mu * F33 + coef * cof33 / J,
+                    ),
                 )
 
                 result = 0.0
@@ -344,22 +339,16 @@ class CompositeHyperelasticityPhysics(GalerkinPhysicsBase[Array]):
             if len(x_shape) == 3:
                 n, nelem, nquad = x_shape
                 x_flat = x.reshape(n, -1)
-                force_flat = np.asarray(
-                    body_force_func(x_flat, current_time)
-                )
+                force_flat = np.asarray(body_force_func(x_flat, current_time))
                 force = force_flat.reshape(ndim, nelem, nquad)
             else:
-                force = np.asarray(
-                    body_force_func(x, current_time)
-                )
+                force = np.asarray(body_force_func(x, current_time))
             return sum(force[i] * v[i] for i in range(ndim))
 
         load_np = asm(LinearForm(load_form), skfem_basis)
         return self._bkd.asarray(load_np.astype(np.float64))
 
-    def _assemble_tangent_stiffness(
-        self, state: Array, time: float
-    ) -> Array:
+    def _assemble_tangent_stiffness(self, state: Array, time: float) -> Array:
         """Assemble tangent stiffness: K[du, v] = integral A:Grad(du):Grad(v) dX.
 
         A_iJkL = dP_iJ/dF_kL with element-wise Lame parameters.
@@ -375,9 +364,7 @@ class CompositeHyperelasticityPhysics(GalerkinPhysicsBase[Array]):
                 F = 1.0 + w.u_prev.grad[0, 0]
                 J = F
                 ln_J = np.log(J)
-                dPdF = w.mu + (
-                    w.mu + w.lam * (1.0 - ln_J)
-                ) / (J ** 2)
+                dPdF = w.mu + (w.mu + w.lam * (1.0 - ln_J)) / (J**2)
                 return dPdF * v.grad[0, 0] * u.grad[0, 0]
 
             K_np = asm(
@@ -400,27 +387,27 @@ class CompositeHyperelasticityPhysics(GalerkinPhysicsBase[Array]):
                 ln_J = np.log(J)
 
                 beta = (w.lam * ln_J - w.mu) / J
-                gamma = (w.mu + w.lam * (1.0 - ln_J)) / (J ** 2)
+                gamma = (w.mu + w.lam * (1.0 - ln_J)) / (J**2)
 
                 # Build tangent A_iJkL inline and contract
                 # A_iJkL * v.grad[i,J] * u.grad[k,L]
                 A = {
-                    "A_1111": w.mu + gamma * F22 ** 2,
+                    "A_1111": w.mu + gamma * F22**2,
                     "A_1112": -gamma * F21 * F22,
                     "A_1121": -gamma * F12 * F22,
                     "A_1122": beta + gamma * F11 * F22,
                     "A_1211": -gamma * F22 * F21,
-                    "A_1212": w.mu + gamma * F21 ** 2,
+                    "A_1212": w.mu + gamma * F21**2,
                     "A_1221": -beta + gamma * F12 * F21,
                     "A_1222": -gamma * F11 * F21,
                     "A_2111": -gamma * F22 * F12,
                     "A_2112": -beta + gamma * F21 * F12,
-                    "A_2121": w.mu + gamma * F12 ** 2,
+                    "A_2121": w.mu + gamma * F12**2,
                     "A_2122": -gamma * F11 * F12,
                     "A_2211": beta + gamma * F22 * F11,
                     "A_2212": -gamma * F21 * F11,
                     "A_2221": -gamma * F12 * F11,
-                    "A_2222": w.mu + gamma * F11 ** 2,
+                    "A_2222": w.mu + gamma * F11**2,
                 }
 
                 result = 0.0
@@ -428,12 +415,9 @@ class CompositeHyperelasticityPhysics(GalerkinPhysicsBase[Array]):
                     for Jidx in range(2):
                         for k in range(2):
                             for L in range(2):
-                                key = f"A_{i+1}{Jidx+1}{k+1}{L+1}"
+                                key = f"A_{i + 1}{Jidx + 1}{k + 1}{L + 1}"
                                 result = (
-                                    result
-                                    + A[key]
-                                    * v.grad[i, Jidx]
-                                    * u.grad[k, L]
+                                    result + A[key] * v.grad[i, Jidx] * u.grad[k, L]
                                 )
                 return result
 
@@ -446,9 +430,7 @@ class CompositeHyperelasticityPhysics(GalerkinPhysicsBase[Array]):
             )
 
         else:
-            raise NotImplementedError(
-                f"Tangent stiffness not available for {ndim}D."
-            )
+            raise NotImplementedError(f"Tangent stiffness not available for {ndim}D.")
 
         return K_np
 
@@ -505,7 +487,9 @@ class CompositeHyperelasticityPhysics(GalerkinPhysicsBase[Array]):
     # -----------------------------------------------------------------
 
     def set_lame_parameters(
-        self, lam_per_elem: np.ndarray, mu_per_elem: np.ndarray,
+        self,
+        lam_per_elem: np.ndarray,
+        mu_per_elem: np.ndarray,
     ) -> None:
         """Set per-element Lame parameters directly.
 
@@ -557,8 +541,7 @@ class CompositeHyperelasticityPhysics(GalerkinPhysicsBase[Array]):
 
     def __repr__(self) -> str:
         materials_str = ", ".join(
-            f"{name}: E={E}, nu={nu}"
-            for name, (E, nu) in self._material_map.items()
+            f"{name}: E={E}, nu={nu}" for name, (E, nu) in self._material_map.items()
         )
         return (
             f"CompositeHyperelasticityPhysics("

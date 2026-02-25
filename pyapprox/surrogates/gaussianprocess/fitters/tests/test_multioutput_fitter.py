@@ -1,32 +1,32 @@
 """Tests for MultiOutputGP fitters."""
 
 import unittest
-from typing import Generic, Any
+from typing import Any, Generic
 
 import numpy as np
 import torch
 from numpy.typing import NDArray
 
-from pyapprox.util.backends.protocols import Array, Backend
-from pyapprox.util.backends.numpy import NumpyBkd
-from pyapprox.util.backends.torch import TorchBkd
-from pyapprox.surrogates.kernels.matern import Matern52Kernel
-from pyapprox.surrogates.kernels.scalings import PolynomialScaling
-from pyapprox.surrogates.kernels.iid_gaussian_noise import (
-    IIDGaussianNoise,
-)
-from pyapprox.surrogates.kernels.multioutput import (
-    IndependentMultiOutputKernel,
+from pyapprox.surrogates.gaussianprocess.fitters import (
+    GPFitResult,
+    GPOptimizedFitResult,
+    MultiOutputGPFixedHyperparameterFitter,
+    MultiOutputGPMaximumLikelihoodFitter,
 )
 from pyapprox.surrogates.gaussianprocess.multioutput import (
     MultiOutputGP,
 )
-from pyapprox.surrogates.gaussianprocess.fitters import (
-    MultiOutputGPFixedHyperparameterFitter,
-    MultiOutputGPMaximumLikelihoodFitter,
-    GPFitResult,
-    GPOptimizedFitResult,
+from pyapprox.surrogates.kernels.iid_gaussian_noise import (
+    IIDGaussianNoise,
 )
+from pyapprox.surrogates.kernels.matern import Matern52Kernel
+from pyapprox.surrogates.kernels.multioutput import (
+    IndependentMultiOutputKernel,
+)
+from pyapprox.surrogates.kernels.scalings import PolynomialScaling
+from pyapprox.util.backends.numpy import NumpyBkd
+from pyapprox.util.backends.protocols import Array, Backend
+from pyapprox.util.backends.torch import TorchBkd
 from pyapprox.util.test_utils import load_tests  # noqa: F401
 
 
@@ -75,11 +75,17 @@ class TestMultiOutputGPFixedFitter(Generic[Array], unittest.TestCase):
                 fixed=fixed,
             )
             constant = PolynomialScaling(
-                [1.0], (0.1, 10.0), self._bkd, nvars=self.nvars,
+                [1.0],
+                (0.1, 10.0),
+                self._bkd,
+                nvars=self.nvars,
                 fixed=fixed,
             )
             noise = IIDGaussianNoise(
-                0.1, (1e-4, 1.0), self._bkd, fixed=fixed,
+                0.1,
+                (1e-4, 1.0),
+                self._bkd,
+                fixed=fixed,
             )
             kernel = constant * matern + noise
             kernels.append(kernel)
@@ -130,16 +136,12 @@ class TestMultiOutputGPFixedFitter(Generic[Array], unittest.TestCase):
         self.assertIsNone(result.optimization_result())
 
 
-class TestMultiOutputGPFixedFitterNumpy(
-    TestMultiOutputGPFixedFitter[NDArray[Any]]
-):
+class TestMultiOutputGPFixedFitterNumpy(TestMultiOutputGPFixedFitter[NDArray[Any]]):
     def bkd(self) -> NumpyBkd:
         return NumpyBkd()
 
 
-class TestMultiOutputGPFixedFitterTorch(
-    TestMultiOutputGPFixedFitter[torch.Tensor]
-):
+class TestMultiOutputGPFixedFitterTorch(TestMultiOutputGPFixedFitter[torch.Tensor]):
     def bkd(self) -> TorchBkd:
         torch.set_default_dtype(torch.float64)
         return TorchBkd()
@@ -179,6 +181,7 @@ class TestMultiOutputGPMLFitterTorch(unittest.TestCase):
         from pyapprox.surrogates.gaussianprocess.torch_multioutput import (
             TorchMultiOutputGP,
         )
+
         kernels = []
         for _ in range(self.noutputs):
             matern = Matern52Kernel(
@@ -189,11 +192,17 @@ class TestMultiOutputGPMLFitterTorch(unittest.TestCase):
                 fixed=fixed,
             )
             constant = PolynomialScaling(
-                [1.0], (0.1, 10.0), self._bkd, nvars=self.nvars,
+                [1.0],
+                (0.1, 10.0),
+                self._bkd,
+                nvars=self.nvars,
                 fixed=fixed,
             )
             noise = IIDGaussianNoise(
-                0.1, (1e-4, 1.0), self._bkd, fixed=fixed,
+                0.1,
+                (1e-4, 1.0),
+                self._bkd,
+                fixed=fixed,
             )
             kernel = constant * matern + noise
             kernels.append(kernel)
@@ -220,9 +229,7 @@ class TestMultiOutputGPMLFitterTorch(unittest.TestCase):
     def test_ml_original_not_modified(self) -> None:
         """Original GP must NOT be modified by ML fitter."""
         gp = self._make_gp()
-        hyps_before = self._bkd.to_numpy(
-            gp.hyp_list().get_values()
-        ).copy()
+        hyps_before = self._bkd.to_numpy(gp.hyp_list().get_values()).copy()
 
         fitter = MultiOutputGPMaximumLikelihoodFitter(self._bkd)
         fitter.fit(gp, self.X_train_list, self.y_train_list)

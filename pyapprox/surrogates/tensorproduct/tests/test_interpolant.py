@@ -9,18 +9,17 @@ from typing import Any, Generic
 import torch
 from numpy.typing import NDArray
 
-from pyapprox.util.backends.numpy import NumpyBkd
-from pyapprox.util.backends.torch import TorchBkd
-from pyapprox.util.backends.protocols import Array, Backend
-from pyapprox.util.test_utils import load_tests
-from pyapprox.surrogates.tensorproduct import TensorProductInterpolant
+from pyapprox.interface.functions.derivative_checks.derivative_checker import (
+    DerivativeChecker,
+)
 from pyapprox.surrogates.affine.univariate import (
     LagrangeBasis1D,
     LegendrePolynomial1D,
 )
-from pyapprox.interface.functions.derivative_checks.derivative_checker import (
-    DerivativeChecker,
-)
+from pyapprox.surrogates.tensorproduct import TensorProductInterpolant
+from pyapprox.util.backends.numpy import NumpyBkd
+from pyapprox.util.backends.protocols import Array, Backend
+from pyapprox.util.backends.torch import TorchBkd
 
 
 class TestTensorProductInterpolant(Generic[Array], unittest.TestCase):
@@ -62,9 +61,7 @@ class TestTensorProductInterpolant(Generic[Array], unittest.TestCase):
         """Test initialization with different nterms per dimension."""
         basis0 = self._make_basis()
         basis1 = self._make_basis()
-        interp = TensorProductInterpolant(
-            self._bkd, [basis0, basis1], [3, 4]
-        )
+        interp = TensorProductInterpolant(self._bkd, [basis0, basis1], [3, 4])
         self.assertEqual(interp.nvars(), 2)
         self.assertEqual(interp.nsamples(), 12)  # 3 * 4
 
@@ -122,10 +119,12 @@ class TestTensorProductInterpolant(Generic[Array], unittest.TestCase):
         interp.set_values(values)
 
         # Evaluate at random points
-        test_pts = self._bkd.asarray([
-            [0.0, 0.3, -0.5, 0.7],
-            [0.0, -0.2, 0.4, 0.1],
-        ])
+        test_pts = self._bkd.asarray(
+            [
+                [0.0, 0.3, -0.5, 0.7],
+                [0.0, -0.2, 0.4, 0.1],
+            ]
+        )
         result = interp(test_pts)  # (nqoi, npoints)
         expected = test_pts[0:1, :] ** 2 + test_pts[1:2, :] ** 2  # (1, npoints)
 
@@ -172,7 +171,9 @@ class TestTensorProductInterpolant(Generic[Array], unittest.TestCase):
         """Test hessian returns correct shape."""
         interp = self._make_interpolant(3, 4)
         samples = interp.get_samples()
-        values = self._bkd.zeros((1, samples.shape[1]))  # (nqoi, nsamples), nqoi must be 1
+        values = self._bkd.zeros(
+            (1, samples.shape[1])
+        )  # (nqoi, nsamples), nqoi must be 1
         interp.set_values(values)
 
         sample = self._bkd.asarray([[0.0], [0.0], [0.0]])
@@ -183,7 +184,9 @@ class TestTensorProductInterpolant(Generic[Array], unittest.TestCase):
         """Test hvp returns correct shape."""
         interp = self._make_interpolant(3, 4)
         samples = interp.get_samples()
-        values = self._bkd.zeros((1, samples.shape[1]))  # (nqoi, nsamples), nqoi must be 1
+        values = self._bkd.zeros(
+            (1, samples.shape[1])
+        )  # (nqoi, nsamples), nqoi must be 1
         interp.set_values(values)
 
         sample = self._bkd.asarray([[0.0], [0.0], [0.0]])
@@ -344,18 +347,14 @@ class TestTensorProductInterpolant(Generic[Array], unittest.TestCase):
 # Concrete test classes
 
 
-class TestTensorProductInterpolantNumpy(
-    TestTensorProductInterpolant[NDArray[Any]]
-):
+class TestTensorProductInterpolantNumpy(TestTensorProductInterpolant[NDArray[Any]]):
     """NumPy backend tests."""
 
     def bkd(self) -> NumpyBkd:
         return NumpyBkd()
 
 
-class TestTensorProductInterpolantTorch(
-    TestTensorProductInterpolant[torch.Tensor]
-):
+class TestTensorProductInterpolantTorch(TestTensorProductInterpolant[torch.Tensor]):
     """PyTorch backend tests."""
 
     def setUp(self) -> None:

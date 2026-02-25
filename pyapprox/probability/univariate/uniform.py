@@ -5,8 +5,8 @@ Provides an analytically-defined Uniform distribution that implements
 MarginalWithJacobianProtocol.
 """
 
-from typing import Generic, Any, Tuple
 import math
+from typing import Any, Generic, Tuple
 
 import numpy as np
 
@@ -275,9 +275,7 @@ class UniformMarginal(Generic[Array]):
         usamples = np.random.uniform(lower_val, upper_val, nsamples)
         return self._bkd.reshape(self._bkd.asarray(usamples), (1, nsamples))
 
-    def _rvs_given_random_states(
-        self, nsamples: int, random_states: Any
-    ) -> Array:
+    def _rvs_given_random_states(self, nsamples: int, random_states: Any) -> Array:
         """
         Generate random samples using provided random states.
 

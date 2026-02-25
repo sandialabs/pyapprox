@@ -6,15 +6,15 @@ import unittest
 from typing import Any, Generic
 
 import numpy as np
-from numpy.typing import NDArray
 import torch
+from numpy.typing import NDArray
 
-from pyapprox.util.backends.protocols import Array, Backend
-from pyapprox.util.backends.numpy import NumpyBkd
-from pyapprox.util.backends.torch import TorchBkd
 from pyapprox.inverse.sampling.dram import (
     DelayedRejectionAdaptiveMetropolis,
 )
+from pyapprox.util.backends.numpy import NumpyBkd
+from pyapprox.util.backends.protocols import Array, Backend
+from pyapprox.util.backends.torch import TorchBkd
 
 
 class TestDRAMBase(Generic[Array], unittest.TestCase):
@@ -216,9 +216,6 @@ class TestDRAMConvergenceTorch(TestDRAMConvergence[torch.Tensor]):
 
     def bkd(self) -> TorchBkd:
         return self._bkd
-
-
-from pyapprox.util.test_utils import load_tests
 
 
 if __name__ == "__main__":

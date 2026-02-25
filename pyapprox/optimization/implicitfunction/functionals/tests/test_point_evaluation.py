@@ -7,21 +7,21 @@ import numpy as np
 import torch
 from numpy.typing import NDArray
 
-from pyapprox.util.backends.protocols import Array, Backend
-from pyapprox.util.backends.numpy import NumpyBkd
-from pyapprox.util.backends.torch import TorchBkd
-from pyapprox.util.test_utils import load_tests  # noqa: F401
-from pyapprox.pde.collocation.basis import ChebyshevBasis1D
-from pyapprox.pde.collocation.mesh import (
-    AffineTransform1D,
-    TransformedMesh1D,
-)
 from pyapprox.optimization.implicitfunction.functionals.point_evaluation import (
     PointEvaluationFunctional,
 )
 from pyapprox.optimization.implicitfunction.functionals.protocols import (
     ParameterizedFunctionalWithJacobianProtocol,
 )
+from pyapprox.pde.collocation.basis import ChebyshevBasis1D
+from pyapprox.pde.collocation.mesh import (
+    AffineTransform1D,
+    TransformedMesh1D,
+)
+from pyapprox.util.backends.numpy import NumpyBkd
+from pyapprox.util.backends.protocols import Array, Backend
+from pyapprox.util.backends.torch import TorchBkd
+from pyapprox.util.test_utils import load_tests  # noqa: F401
 
 
 class TestPointEvaluationFunctional(Generic[Array], unittest.TestCase):
@@ -45,20 +45,26 @@ class TestPointEvaluationFunctional(Generic[Array], unittest.TestCase):
         bkd = self._bkd
         eval_point = 0.7
         func = PointEvaluationFunctional(
-            self._basis, eval_point, self._nparams, bkd,
+            self._basis,
+            eval_point,
+            self._nparams,
+            bkd,
         )
         # u(x) = x^3 at collocation nodes
-        state = bkd.reshape(self._phys_pts ** 3, (self._npts, 1))
+        state = bkd.reshape(self._phys_pts**3, (self._npts, 1))
         param = bkd.zeros((self._nparams, 1))
         result = func(state, param)
-        expected = bkd.asarray([[eval_point ** 3]])
+        expected = bkd.asarray([[eval_point**3]])
         bkd.assert_allclose(result, expected, atol=1e-12)
 
     def test_boundary_evaluation_left(self) -> None:
         """Evaluation at x=0 recovers state at left boundary node."""
         bkd = self._bkd
         func = PointEvaluationFunctional(
-            self._basis, 0.0, self._nparams, bkd,
+            self._basis,
+            0.0,
+            self._nparams,
+            bkd,
         )
         np.random.seed(42)
         state_vals = bkd.array(np.random.randn(self._npts))
@@ -73,7 +79,10 @@ class TestPointEvaluationFunctional(Generic[Array], unittest.TestCase):
         """Evaluation at x=L recovers state at right boundary node."""
         bkd = self._bkd
         func = PointEvaluationFunctional(
-            self._basis, self._length, self._nparams, bkd,
+            self._basis,
+            self._length,
+            self._nparams,
+            bkd,
         )
         np.random.seed(42)
         state_vals = bkd.array(np.random.randn(self._npts))
@@ -87,7 +96,10 @@ class TestPointEvaluationFunctional(Generic[Array], unittest.TestCase):
         """State Jacobian is independent of the state vector (linear)."""
         bkd = self._bkd
         func = PointEvaluationFunctional(
-            self._basis, 0.7, self._nparams, bkd,
+            self._basis,
+            0.7,
+            self._nparams,
+            bkd,
         )
         param = bkd.zeros((self._nparams, 1))
         state1 = bkd.zeros((self._npts, 1))
@@ -100,7 +112,10 @@ class TestPointEvaluationFunctional(Generic[Array], unittest.TestCase):
         """State Jacobian has correct shape (1, nstates)."""
         bkd = self._bkd
         func = PointEvaluationFunctional(
-            self._basis, 0.5, self._nparams, bkd,
+            self._basis,
+            0.5,
+            self._nparams,
+            bkd,
         )
         param = bkd.zeros((self._nparams, 1))
         state = bkd.zeros((self._npts, 1))
@@ -111,7 +126,10 @@ class TestPointEvaluationFunctional(Generic[Array], unittest.TestCase):
         """Point evaluation returns a scalar QoI."""
         bkd = self._bkd
         func = PointEvaluationFunctional(
-            self._basis, 0.5, self._nparams, bkd,
+            self._basis,
+            0.5,
+            self._nparams,
+            bkd,
         )
         self.assertEqual(func.nqoi(), 1)
 
@@ -119,7 +137,10 @@ class TestPointEvaluationFunctional(Generic[Array], unittest.TestCase):
         """Functional does not depend on parameters."""
         bkd = self._bkd
         func = PointEvaluationFunctional(
-            self._basis, 0.5, self._nparams, bkd,
+            self._basis,
+            0.5,
+            self._nparams,
+            bkd,
         )
         state = bkd.ones((self._npts, 1))
         param = bkd.ones((self._nparams, 1))
@@ -131,7 +152,10 @@ class TestPointEvaluationFunctional(Generic[Array], unittest.TestCase):
         """Satisfies ParameterizedFunctionalWithJacobianProtocol."""
         bkd = self._bkd
         func = PointEvaluationFunctional(
-            self._basis, 0.5, self._nparams, bkd,
+            self._basis,
+            0.5,
+            self._nparams,
+            bkd,
         )
         self.assertIsInstance(func, ParameterizedFunctionalWithJacobianProtocol)
 
@@ -140,27 +164,26 @@ class TestPointEvaluationFunctional(Generic[Array], unittest.TestCase):
         bkd = self._bkd
         eval_point = 1.3
         func = PointEvaluationFunctional(
-            self._basis, eval_point, self._nparams, bkd,
+            self._basis,
+            eval_point,
+            self._nparams,
+            bkd,
         )
         # degree npts-2 should be exact (well within interpolation capacity)
         deg = self._npts - 2
-        state = bkd.reshape(self._phys_pts ** deg, (self._npts, 1))
+        state = bkd.reshape(self._phys_pts**deg, (self._npts, 1))
         param = bkd.zeros((self._nparams, 1))
         result = func(state, param)
-        expected = bkd.asarray([[eval_point ** deg]])
+        expected = bkd.asarray([[eval_point**deg]])
         bkd.assert_allclose(result, expected, atol=1e-10)
 
 
-class TestPointEvaluationFunctionalNumpy(
-    TestPointEvaluationFunctional[NDArray[Any]]
-):
+class TestPointEvaluationFunctionalNumpy(TestPointEvaluationFunctional[NDArray[Any]]):
     def bkd(self) -> NumpyBkd:
         return NumpyBkd()
 
 
-class TestPointEvaluationFunctionalTorch(
-    TestPointEvaluationFunctional[torch.Tensor]
-):
+class TestPointEvaluationFunctionalTorch(TestPointEvaluationFunctional[torch.Tensor]):
     def setUp(self) -> None:
         torch.set_default_dtype(torch.float64)
         super().setUp()

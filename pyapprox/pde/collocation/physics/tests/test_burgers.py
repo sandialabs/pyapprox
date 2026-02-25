@@ -1,36 +1,36 @@
 """Tests for Burgers physics implementation."""
 
-import unittest
 import math
+import unittest
+
 import numpy as np
 
-from pyapprox.util.backends.numpy import NumpyBkd
-from pyapprox.util.test_utils import load_tests  # noqa: F401
+from pyapprox.optimization.rootfinding.newton import NewtonSolver
 from pyapprox.pde.collocation.basis import ChebyshevBasis1D
-from pyapprox.pde.collocation.mesh import (
-    create_uniform_mesh_1d,
-    TransformedMesh1D,
-)
 from pyapprox.pde.collocation.boundary import (
-    constant_dirichlet_bc,
     zero_dirichlet_bc,
+)
+from pyapprox.pde.collocation.manufactured_solutions.burgers import (
+    ManufacturedBurgers1D,
+)
+from pyapprox.pde.collocation.mesh import (
+    TransformedMesh1D,
+    create_uniform_mesh_1d,
 )
 from pyapprox.pde.collocation.physics.burgers import (
     BurgersPhysics1D,
     create_burgers_1d,
 )
 from pyapprox.pde.collocation.physics.tests.test_utils import (
-    PhysicsTestBase,
     PhysicsNewtonResidual,
-)
-from pyapprox.optimization.rootfinding.newton import NewtonSolver
-from pyapprox.pde.collocation.manufactured_solutions.burgers import (
-    ManufacturedBurgers1D,
+    PhysicsTestBase,
 )
 from pyapprox.pde.collocation.time_integration import (
     CollocationModel,
     TimeIntegrationConfig,
 )
+from pyapprox.util.backends.numpy import NumpyBkd
+from pyapprox.util.test_utils import load_tests  # noqa: F401
 
 
 class TestBurgersPhysics(PhysicsTestBase):
@@ -64,9 +64,7 @@ class TestBurgersPhysics(PhysicsTestBase):
 
         basis = ChebyshevBasis1D(mesh, bkd)
 
-        physics = BurgersPhysics1D(
-            basis, bkd, viscosity=0.05, conservative=False
-        )
+        physics = BurgersPhysics1D(basis, bkd, viscosity=0.05, conservative=False)
 
         state = bkd.array(0.5 + 0.3 * np.random.randn(physics.nstates()))
 
@@ -83,9 +81,7 @@ class TestBurgersPhysics(PhysicsTestBase):
 
         forcing = 0.5 * bkd.sin(math.pi * nodes)
 
-        physics = BurgersPhysics1D(
-            basis, bkd, viscosity=0.1, forcing=lambda t: forcing
-        )
+        physics = BurgersPhysics1D(basis, bkd, viscosity=0.1, forcing=lambda t: forcing)
 
         state = bkd.array(0.5 + 0.3 * np.random.randn(physics.nstates()))
 
@@ -116,9 +112,7 @@ class TestBurgersPhysics(PhysicsTestBase):
         if forcing.ndim == 2:
             forcing = forcing[:, 0]
 
-        physics = BurgersPhysics1D(
-            basis, bkd, viscosity=nu, forcing=lambda t: forcing
-        )
+        physics = BurgersPhysics1D(basis, bkd, viscosity=nu, forcing=lambda t: forcing)
 
         # Get exact solution
         exact_solution = man_sol.functions["solution"](nodes[None, :])
@@ -148,12 +142,12 @@ class TestBurgersPhysics(PhysicsTestBase):
 
         # u = x^2
         nodes = basis.nodes()
-        u = nodes ** 2
+        u = nodes**2
 
         residual = physics.residual(u, time=0.0)
 
         # Expected: nu * d²(x²)/dx² - x² * d(x²)/dx = nu*2 - x²*2x = 2*nu - 2*x³
-        expected = 2.0 * nu - 2.0 * nodes ** 3
+        expected = 2.0 * nu - 2.0 * nodes**3
         bkd.assert_allclose(residual, expected, atol=1e-10)
 
     def test_solve_steady_from_wrong_initial_guess(self):
@@ -183,9 +177,7 @@ class TestBurgersPhysics(PhysicsTestBase):
         if forcing.ndim == 2:
             forcing = forcing[:, 0]
 
-        physics = BurgersPhysics1D(
-            basis, bkd, viscosity=nu, forcing=lambda t: forcing
-        )
+        physics = BurgersPhysics1D(basis, bkd, viscosity=nu, forcing=lambda t: forcing)
 
         # Set boundary conditions: u(-1) = 0, u(1) = 0
         left_idx = mesh.boundary_indices(0)
@@ -253,9 +245,7 @@ class TestBurgersPhysics(PhysicsTestBase):
             forcing_2d = man_sol.functions["forcing"](nodes[None, :], t)
             return forcing_2d[:, 0] if forcing_2d.ndim == 2 else forcing_2d
 
-        physics = BurgersPhysics1D(
-            basis, bkd, viscosity=nu, forcing=get_forcing
-        )
+        physics = BurgersPhysics1D(basis, bkd, viscosity=nu, forcing=get_forcing)
 
         # Set homogeneous Dirichlet BCs (sin(pi*x) = 0 at x = ±1)
         left_idx = mesh.boundary_indices(0)
@@ -313,9 +303,7 @@ class TestBurgersPhysics(PhysicsTestBase):
             forcing_2d = man_sol.functions["forcing"](nodes[None, :], t)
             return forcing_2d[:, 0] if forcing_2d.ndim == 2 else forcing_2d
 
-        physics = BurgersPhysics1D(
-            basis, bkd, viscosity=nu, forcing=get_forcing
-        )
+        physics = BurgersPhysics1D(basis, bkd, viscosity=nu, forcing=get_forcing)
 
         left_idx = mesh.boundary_indices(0)
         right_idx = mesh.boundary_indices(1)
@@ -382,7 +370,7 @@ class TestBurgersPhysics(PhysicsTestBase):
 
         # For diffusion-dominated, solution should decay like exp(-nu*pi²*t)
         # This is approximate since there's still some nonlinear convection
-        decay_rate = nu * math.pi ** 2
+        decay_rate = nu * math.pi**2
         expected_decay = math.exp(-decay_rate * 0.5)
 
         # Check that solution has decayed

@@ -16,11 +16,11 @@ from typing import Generic, List
 
 import sympy as sp
 
-from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.pde.collocation.manufactured_solutions.base import (
     ManufacturedSolution,
     VectorSolutionMixin,
 )
+from pyapprox.util.backends.protocols import Array, Backend
 
 
 class ManufacturedLinearElasticityEquations(
@@ -84,9 +84,7 @@ class ManufacturedLinearElasticityEquations(
         oned: bool = False,
     ):
         if nvars not in (1, 2):
-            raise ValueError(
-                f"Linear elasticity requires nvars in (1, 2), got {nvars}"
-            )
+            raise ValueError(f"Linear elasticity requires nvars in (1, 2), got {nvars}")
         if len(sol_strs) != nvars:
             raise ValueError(
                 f"Linear elasticity requires {nvars} solution components, "

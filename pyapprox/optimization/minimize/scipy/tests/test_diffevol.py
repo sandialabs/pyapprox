@@ -1,23 +1,21 @@
 import unittest
-from typing import Generic, Any
+from typing import Any, Generic
 
-from numpy.typing import NDArray
 import torch
+from numpy.typing import NDArray
 
-from pyapprox.util.backends.protocols import Array, Backend
-from pyapprox.util.backends.numpy import NumpyBkd
-from pyapprox.util.backends.torch import TorchBkd
-from pyapprox.optimization.minimize.scipy.diffevol import (
-    ScipyDifferentialEvolutionOptimizer,
-)
 from pyapprox.interface.functions.fromcallable.function import (
     FunctionFromCallable,
 )
+from pyapprox.optimization.minimize.scipy.diffevol import (
+    ScipyDifferentialEvolutionOptimizer,
+)
+from pyapprox.util.backends.numpy import NumpyBkd
+from pyapprox.util.backends.protocols import Array, Backend
+from pyapprox.util.backends.torch import TorchBkd
 
 
-class TestScipyDifferentialEvolutionOptimizer(
-    Generic[Array], unittest.TestCase
-):
+class TestScipyDifferentialEvolutionOptimizer(Generic[Array], unittest.TestCase):
     __test__ = False
 
     def bkd(self) -> Backend[Array]:
@@ -25,13 +23,12 @@ class TestScipyDifferentialEvolutionOptimizer(
         Override this method in derived classes to provide the specific
         backend.
         """
-        raise NotImplementedError(
-            "Derived classes must implement this method."
-        )
+        raise NotImplementedError("Derived classes must implement this method.")
 
     def test_optimizer_with_quadratic_objective(self) -> None:
         """
-        Test the ScipyDifferentialEvolutionOptimizer class with a simple quadratic objective.
+        Test the ScipyDifferentialEvolutionOptimizer class with a simple quadratic
+        objective.
         """
         bkd = self.bkd()
 
@@ -88,17 +85,13 @@ class TestScipyDifferentialEvolutionOptimizer(
         def value_function(x: Array) -> Array:
             return bkd.stack([x[0] ** 2 + x[1] ** 2], axis=0)
 
-        objective = FunctionFromCallable(
-            nqoi=1, nvars=2, fun=value_function, bkd=bkd
-        )
+        objective = FunctionFromCallable(nqoi=1, nvars=2, fun=value_function, bkd=bkd)
 
         bounds = bkd.array([[-5.0, 5.0], [-5.0, 5.0]])
         init_guess = bkd.asarray([[1.0, 1.0]])
 
         # Create optimizer without objective/bounds
-        optimizer = ScipyDifferentialEvolutionOptimizer(
-            maxiter=100, seed=42, tol=1e-6
-        )
+        optimizer = ScipyDifferentialEvolutionOptimizer(maxiter=100, seed=42, tol=1e-6)
         self.assertFalse(optimizer.is_bound())
 
         # Should raise RuntimeError if minimizing without binding
@@ -127,9 +120,7 @@ class TestScipyDifferentialEvolutionOptimizer(
         bounds = bkd.array([[-5.0, 5.0]])
 
         # Create and bind optimizer
-        optimizer = ScipyDifferentialEvolutionOptimizer(
-            maxiter=500, seed=42, tol=1e-8
-        )
+        optimizer = ScipyDifferentialEvolutionOptimizer(maxiter=500, seed=42, tol=1e-8)
         optimizer.bind(obj, bounds)
         self.assertTrue(optimizer.is_bound())
 
@@ -151,9 +142,7 @@ class TestScipyDifferentialEvolutionOptimizer(
         def value_function(x: Array) -> Array:
             return bkd.stack([x[0] ** 2 + x[1] ** 2], axis=0)
 
-        objective = FunctionFromCallable(
-            nqoi=1, nvars=2, fun=value_function, bkd=bkd
-        )
+        objective = FunctionFromCallable(nqoi=1, nvars=2, fun=value_function, bkd=bkd)
 
         bounds = bkd.array([[-5.0, 5.0], [-5.0, 5.0]])
         init_guess = bkd.asarray([[1.0, 1.0]])
@@ -213,9 +202,7 @@ class TestScipyDifferentialEvolutionOptimizerTorch(
 
 
 # Custom test loader to exclude the base class
-def load_tests(
-    loader: unittest.TestLoader, tests, pattern: str
-) -> unittest.TestSuite:
+def load_tests(loader: unittest.TestLoader, tests, pattern: str) -> unittest.TestSuite:
     """
     Custom test loader to exclude the base class
     ContinuousScipyRandomVariable1D.

@@ -6,12 +6,15 @@ deviation are functions of the conditioning variable.
 """
 
 import math
-from typing import Generic
+from typing import TYPE_CHECKING, Generic
 
 import numpy as np
 
 from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.util.hyperparameter import HyperParameterList
+
+if TYPE_CHECKING:
+    from pyapprox.probability.univariate.gaussian import GaussianMarginal
 
 
 class ConditionalGaussian(Generic[Array]):
@@ -64,9 +67,7 @@ class ConditionalGaussian(Generic[Array]):
 
         # Validate that both functions have nqoi=1
         if mean_func.nqoi() != 1:
-            raise ValueError(
-                f"mean_func must have nqoi=1, got {mean_func.nqoi()}"
-            )
+            raise ValueError(f"mean_func must have nqoi=1, got {mean_func.nqoi()}")
         if log_stdev_func.nqoi() != 1:
             raise ValueError(
                 f"log_stdev_func must have nqoi=1, got {log_stdev_func.nqoi()}"
@@ -303,9 +304,7 @@ class ConditionalGaussian(Generic[Array]):
 
         # Chain rule: d(logpdf)/d(params_mean) = dlogpdf/dmean * dmean/dparams
         # dlogpdf_dmean: (1, nsamples) -> need (nsamples, 1, 1) for broadcasting
-        dlogpdf_dmean_expanded = self._bkd.reshape(
-            dlogpdf_dmean.T, (nsamples, 1, 1)
-        )
+        dlogpdf_dmean_expanded = self._bkd.reshape(dlogpdf_dmean.T, (nsamples, 1, 1))
         jac_mean_params = (
             dlogpdf_dmean_expanded * dmean_dparams
         )  # (nsamples, 1, n_mean_params)
@@ -367,8 +366,9 @@ class ConditionalGaussian(Generic[Array]):
         m_p = prior.mean_value()  # float
         s_p = prior.std()  # float
         return (
-            math.log(s_p) - log_s_q
-            + (s_q ** 2 + (mean_q - m_p) ** 2) / (2.0 * s_p ** 2)
+            math.log(s_p)
+            - log_s_q
+            + (s_q**2 + (mean_q - m_p) ** 2) / (2.0 * s_p**2)
             - 0.5
         )
 
@@ -377,6 +377,7 @@ class ConditionalGaussian(Generic[Array]):
         from pyapprox.probability.univariate.gaussian import (
             GaussianMarginal,
         )
+
         return GaussianMarginal(0.0, 1.0, self._bkd)
 
     def _reparameterize_jacobian_wrt_params(
@@ -414,14 +415,10 @@ class ConditionalGaussian(Generic[Array]):
 
         # dz/d(log_stdev_params) = stdev * base * d(log_stdev)/d(params)
         # stdev * base: (1, nsamples) -> (nsamples, 1, 1)
-        scale = self._bkd.reshape(
-            (stdev * base_samples).T, (nsamples, 1, 1)
-        )
+        scale = self._bkd.reshape((stdev * base_samples).T, (nsamples, 1, 1))
         jac_stdev_params = scale * dlogstdev_dparams
 
-        return self._bkd.concatenate(
-            [dmean_dparams, jac_stdev_params], axis=2
-        )
+        return self._bkd.concatenate([dmean_dparams, jac_stdev_params], axis=2)
 
     def __repr__(self) -> str:
         """Return string representation."""

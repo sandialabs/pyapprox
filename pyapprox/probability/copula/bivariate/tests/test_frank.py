@@ -8,20 +8,19 @@ import torch
 from numpy.typing import NDArray
 from scipy import stats
 
-from pyapprox.util.backends.protocols import Array, Backend
-from pyapprox.util.backends.numpy import NumpyBkd
-from pyapprox.util.backends.torch import TorchBkd
 from pyapprox.probability.copula.bivariate.frank import (
     FrankCopula,
 )
 from pyapprox.probability.copula.bivariate.protocols import (
     BivariateCopulaProtocol,
 )
+from pyapprox.util.backends.numpy import NumpyBkd
+from pyapprox.util.backends.protocols import Array, Backend
+from pyapprox.util.backends.torch import TorchBkd
 from pyapprox.util.test_utils import load_tests  # noqa: F401
 
 
-def _frank_cdf_reference(u1: np.ndarray, u2: np.ndarray,
-                          theta: float) -> np.ndarray:
+def _frank_cdf_reference(u1: np.ndarray, u2: np.ndarray, theta: float) -> np.ndarray:
     """Reference Frank CDF (test helper only)."""
     e1 = np.exp(-theta * u1)
     e2 = np.exp(-theta * u2)
@@ -48,9 +47,7 @@ class TestFrankCopula(Generic[Array], unittest.TestCase):
 
     def test_logpdf_shape(self) -> None:
         np.random.seed(42)
-        u = self._bkd.asarray(
-            np.random.uniform(0.01, 0.99, (2, 20)).astype(np.float64)
-        )
+        u = self._bkd.asarray(np.random.uniform(0.01, 0.99, (2, 20)).astype(np.float64))
         result = self._copula.logpdf(u)
         self.assertEqual(result.shape, (1, 20))
 
@@ -123,9 +120,7 @@ class TestFrankCopula(Generic[Array], unittest.TestCase):
         samples_np = self._bkd.to_numpy(samples)
 
         tau_stat, _ = stats.kendalltau(samples_np[0], samples_np[1])
-        tau_expected = float(
-            self._bkd.to_numpy(self._copula.kendall_tau())
-        )
+        tau_expected = float(self._bkd.to_numpy(self._copula.kendall_tau()))
         np.testing.assert_allclose(tau_stat, tau_expected, atol=0.03)
 
     def test_kendall_tau_value(self) -> None:
@@ -133,6 +128,7 @@ class TestFrankCopula(Generic[Array], unittest.TestCase):
         tau = self._copula.kendall_tau()
         # For theta=5, compute D_1(5) numerically
         from scipy.integrate import quad
+
         D1, _ = quad(lambda t: t / (np.exp(t) - 1.0), 0, self._theta)
         D1 /= self._theta
         expected = 1.0 - 4.0 / self._theta * (1.0 - D1)
@@ -146,9 +142,7 @@ class TestFrankCopula(Generic[Array], unittest.TestCase):
         """Negative theta (negative dependence) should work."""
         copula = FrankCopula(-3.0, self._bkd)
         np.random.seed(42)
-        u = self._bkd.asarray(
-            np.random.uniform(0.05, 0.95, (2, 20)).astype(np.float64)
-        )
+        u = self._bkd.asarray(np.random.uniform(0.05, 0.95, (2, 20)).astype(np.float64))
         result = copula.logpdf(u)
         self.assertEqual(result.shape, (1, 20))
 
@@ -162,9 +156,7 @@ class TestFrankCopula(Generic[Array], unittest.TestCase):
             self._copula.logpdf(u_1d)
 
     def test_input_validation_wrong_nvars(self) -> None:
-        u = self._bkd.asarray(
-            np.random.uniform(0.01, 0.99, (3, 10)).astype(np.float64)
-        )
+        u = self._bkd.asarray(np.random.uniform(0.01, 0.99, (3, 10)).astype(np.float64))
         with self.assertRaises(ValueError):
             self._copula.logpdf(u)
 

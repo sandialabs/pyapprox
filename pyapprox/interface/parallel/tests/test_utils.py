@@ -9,7 +9,6 @@ from numpy.typing import NDArray
 from pyapprox.util.backends.numpy import NumpyBkd
 from pyapprox.util.backends.protocols import Array
 from pyapprox.util.backends.torch import TorchBkd
-from pyapprox.util.test_utils import load_tests
 
 
 class TestBatchSplitter(Generic[Array], unittest.TestCase):
@@ -79,9 +78,7 @@ class TestBatchSplitter(Generic[Array], unittest.TestCase):
         combined = splitter.combine_outputs([output1, output2], axis=1)
 
         self.assertEqual(combined.shape, (2, 4))
-        expected = self._bkd.asarray(
-            [[1.0, 2.0, 5.0, 6.0], [3.0, 4.0, 7.0, 8.0]]
-        )
+        expected = self._bkd.asarray([[1.0, 2.0, 5.0, 6.0], [3.0, 4.0, 7.0, 8.0]])
         self.assertTrue(self._bkd.allclose(combined, expected))
 
     def test_combine_jacobians(self):
@@ -99,12 +96,8 @@ class TestBatchSplitter(Generic[Array], unittest.TestCase):
         combined = splitter.combine_jacobians([jac1, jac2, jac3])
 
         self.assertEqual(combined.shape, (3, 2, 3))  # (nsamples, nqoi, nvars)
-        self.assertTrue(
-            self._bkd.allclose(combined[0], self._bkd.ones((2, 3)))
-        )
-        self.assertTrue(
-            self._bkd.allclose(combined[1], self._bkd.ones((2, 3)) * 2)
-        )
+        self.assertTrue(self._bkd.allclose(combined[0], self._bkd.ones((2, 3))))
+        self.assertTrue(self._bkd.allclose(combined[1], self._bkd.ones((2, 3)) * 2))
 
     def test_combine_hessians(self):
         """Test combining hessians into batch format."""

@@ -6,10 +6,6 @@ from typing import Any, Generic
 import torch
 from numpy.typing import NDArray
 
-from pyapprox.util.backends.numpy import NumpyBkd
-from pyapprox.util.backends.torch import TorchBkd
-from pyapprox.util.backends.protocols import Array, Backend
-from pyapprox.util.test_utils import load_tests  # noqa: F401
 from pyapprox.pde.collocation.basis.chebyshev.basis_1d import (
     ChebyshevBasis1D,
 )
@@ -23,6 +19,10 @@ from pyapprox.pde.collocation.quadrature.collocation_quadrature import (
 from pyapprox.surrogates.affine.univariate.globalpoly.quadrature import (
     ClenshawCurtisQuadratureRule,
 )
+from pyapprox.util.backends.numpy import NumpyBkd
+from pyapprox.util.backends.protocols import Array, Backend
+from pyapprox.util.backends.torch import TorchBkd
+from pyapprox.util.test_utils import load_tests  # noqa: F401
 
 
 class TestCollocationQuadrature(Generic[Array], unittest.TestCase):
@@ -84,7 +84,7 @@ class TestCollocationQuadrature(Generic[Array], unittest.TestCase):
         nodes = basis.nodes()
 
         for degree in range(npts):
-            f = nodes ** degree
+            f = nodes**degree
             computed = bkd.sum(w * f)
             # integral of x^d from -1 to 1
             if degree % 2 == 1:
@@ -107,13 +107,11 @@ class TestCollocationQuadrature(Generic[Array], unittest.TestCase):
         a_sub, b_sub = -0.5, 0.7
 
         for degree in range(npts):
-            f = nodes ** degree
+            f = nodes**degree
             w = quad.weights(a_sub, b_sub)
             computed = bkd.sum(w * f)
             # integral of x^d from a to b = (b^{d+1} - a^{d+1}) / (d+1)
-            exact = (
-                b_sub ** (degree + 1) - a_sub ** (degree + 1)
-            ) / (degree + 1)
+            exact = (b_sub ** (degree + 1) - a_sub ** (degree + 1)) / (degree + 1)
             bkd.assert_allclose(
                 bkd.asarray([computed]),
                 bkd.asarray([exact]),
@@ -143,13 +141,11 @@ class TestCollocationQuadrature(Generic[Array], unittest.TestCase):
         phys_nodes = basis.mesh().points()[0, :]
 
         # integral_0^L x^2 dx = L^3 / 3
-        f = phys_nodes ** 2
+        f = phys_nodes**2
         w = quad.full_domain_weights()
         computed = bkd.sum(w * f)
-        exact = L ** 3 / 3.0
-        bkd.assert_allclose(
-            bkd.asarray([computed]), bkd.asarray([exact]), atol=1e-10
-        )
+        exact = L**3 / 3.0
+        bkd.assert_allclose(bkd.asarray([computed]), bkd.asarray([exact]), atol=1e-10)
 
     def test_zero_width_interval(self) -> None:
         """Weights for zero-width interval are all zero."""
@@ -169,27 +165,21 @@ class TestCollocationQuadrature(Generic[Array], unittest.TestCase):
         phys_nodes = basis.mesh().points()[0, :]
 
         # integral_{0.5}^{1.5} x^2 dx = (1.5^3 - 0.5^3) / 3
-        f = phys_nodes ** 2
+        f = phys_nodes**2
         w = quad.weights(0.5, 1.5)
         computed = bkd.sum(w * f)
-        exact = (1.5 ** 3 - 0.5 ** 3) / 3.0
-        bkd.assert_allclose(
-            bkd.asarray([computed]), bkd.asarray([exact]), atol=1e-10
-        )
+        exact = (1.5**3 - 0.5**3) / 3.0
+        bkd.assert_allclose(bkd.asarray([computed]), bkd.asarray([exact]), atol=1e-10)
 
 
-class TestCollocationQuadratureNumpy(
-    TestCollocationQuadrature[NDArray[Any]]
-):
+class TestCollocationQuadratureNumpy(TestCollocationQuadrature[NDArray[Any]]):
     """NumPy backend tests."""
 
     def bkd(self) -> NumpyBkd:
         return NumpyBkd()
 
 
-class TestCollocationQuadratureTorch(
-    TestCollocationQuadrature[torch.Tensor]
-):
+class TestCollocationQuadratureTorch(TestCollocationQuadrature[torch.Tensor]):
     """PyTorch backend tests."""
 
     def bkd(self) -> TorchBkd:

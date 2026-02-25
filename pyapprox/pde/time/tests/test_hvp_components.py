@@ -13,24 +13,21 @@ import unittest
 from typing import Generic
 
 import numpy as np
-import sympy as sp
 
-from pyapprox.util.backends.protocols import Array, Backend
-from pyapprox.util.backends.numpy import NumpyBkd
-from pyapprox.util.test_utils import load_tests
+from pyapprox.interface.functions.derivative_checks.derivative_checker import (
+    DerivativeChecker,
+)
 from pyapprox.pde.time.benchmarks.linear_ode import (
     QuadraticODEResidual,
-)
-from pyapprox.pde.time.implicit_steppers.backward_euler import (
-    BackwardEulerResidual,
 )
 from pyapprox.pde.time.explicit_steppers.forward_euler import (
     ForwardEulerResidual,
 )
-from pyapprox.interface.functions.derivative_checks.derivative_checker import (
-    DerivativeChecker,
+from pyapprox.pde.time.implicit_steppers.backward_euler import (
+    BackwardEulerResidual,
 )
-
+from pyapprox.util.backends.numpy import NumpyBkd
+from pyapprox.util.backends.protocols import Array, Backend
 
 # =============================================================================
 # Sympy Analytical Solutions
@@ -204,7 +201,6 @@ class ODEResidualHVPWrapper(Generic[Array]):
         # For quadratic ODE: df/dy = A + 2*p[0]*diag(y)
         # d²f/dy² is a tensor, but contracted with λ gives a matrix
         # For diagonal Hessian: d/dy_j [λ^T · df/dy]_i = λ_i * 2*p[0] * δ_{ij}
-        nstates = state.shape[0] if state.ndim == 1 else state.shape[0]
         p0 = float(self._residual._param[0, 0])
         # Result is diagonal: 2*p[0]*diag(λ)
         return 2.0 * p0 * self._bkd.diag(self._adj_state.flatten())
@@ -380,8 +376,7 @@ class TestAnalyticalSolutions(Generic[Array], unittest.TestCase):
             TimeIntegrator,
         )
 
-        # Setup
-        nstates = 1  # Scalar ODE for easier verification
+        # Setup (scalar ODE for easier verification)
         a = -0.5
         Amat = bkd.asarray(np.array([[a]]))
         ode_residual = QuadraticODEResidual(Amat, bkd)
@@ -413,19 +408,17 @@ class TestAnalyticalSolutions(Generic[Array], unittest.TestCase):
             self.assertLess(
                 error,
                 1e-10,
-                f"Backward Euler forward solve error at t={float(times[n]):.2f}: {error:.2e}",
+                f"BE forward solve error at "
+                f"t={float(times[n]):.2f}: {error:.2e}",
             )
 
     def test_backward_euler_adjoint_solve(self) -> None:
         """Test Backward Euler adjoint solve matches analytical solution."""
         bkd = self.bkd()
         from pyapprox.optimization.rootfinding.newton import NewtonSolver
+        from pyapprox.pde.time.functionals.endpoint import EndpointFunctional
         from pyapprox.pde.time.implicit_steppers.integrator import (
             TimeIntegrator,
-        )
-        from pyapprox.pde.time.functionals.endpoint import EndpointFunctional
-        from pyapprox.pde.time.operator.time_adjoint_hvp import (
-            TimeAdjointOperatorWithHVP,
         )
 
         # Setup
@@ -464,7 +457,9 @@ class TestAnalyticalSolutions(Generic[Array], unittest.TestCase):
         p = [0.1, 0.2]
         fwd_sols_ana = fwd_sols_num[0, :].flatten()
         dQdy_final = 1.0  # dQ/dy = 1 for endpoint functional Q = y(T)
-        adj_sols_ana = sympy_adjoint_backward_euler(fwd_sols_ana, deltat, p, a, dQdy_final)
+        adj_sols_ana = sympy_adjoint_backward_euler(
+            fwd_sols_ana, deltat, p, a, dQdy_final
+        )
 
         # Compare
         for n in range(len(times)):
@@ -472,7 +467,8 @@ class TestAnalyticalSolutions(Generic[Array], unittest.TestCase):
             self.assertLess(
                 error,
                 1e-10,
-                f"Backward Euler adjoint solve error at t={float(times[n]):.2f}: {error:.2e}",
+                f"BE adjoint solve error at "
+                f"t={float(times[n]):.2f}: {error:.2e}",
             )
 
     def test_forward_euler_forward_solve(self) -> None:
@@ -484,7 +480,6 @@ class TestAnalyticalSolutions(Generic[Array], unittest.TestCase):
         )
 
         # Setup
-        nstates = 1
         a = -0.5
         Amat = bkd.asarray(np.array([[a]]))
         ode_residual = QuadraticODEResidual(Amat, bkd)
@@ -516,7 +511,8 @@ class TestAnalyticalSolutions(Generic[Array], unittest.TestCase):
             self.assertLess(
                 error,
                 1e-10,
-                f"Forward Euler forward solve error at t={float(times[n]):.2f}: {error:.2e}",
+                f"FE forward solve error at "
+                f"t={float(times[n]):.2f}: {error:.2e}",
             )
 
 

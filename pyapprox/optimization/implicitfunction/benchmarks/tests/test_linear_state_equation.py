@@ -1,16 +1,15 @@
 import unittest
-from typing import Generic, Any
+from typing import Any, Generic
 
-import numpy as np
 import torch
 from numpy.typing import NDArray
 
-from pyapprox.util.backends.protocols import Backend, Array
-from pyapprox.util.backends.numpy import NumpyBkd
-from pyapprox.util.backends.torch import TorchBkd
 from pyapprox.optimization.implicitfunction.benchmarks.linear_state_equation import (
     LinearStateEquation,
 )
+from pyapprox.util.backends.numpy import NumpyBkd
+from pyapprox.util.backends.protocols import Array, Backend
+from pyapprox.util.backends.torch import TorchBkd
 
 
 class TestLinearStateEquation(Generic[Array], unittest.TestCase):
@@ -37,9 +36,7 @@ class TestLinearStateEquation(Generic[Array], unittest.TestCase):
         """
         Override this method in derived classes to provide the backend.
         """
-        raise NotImplementedError(
-            "Derived classes must implement this method."
-        )
+        raise NotImplementedError("Derived classes must implement this method.")
 
     def test_initialization(self) -> None:
         """
@@ -65,9 +62,7 @@ class TestLinearStateEquation(Generic[Array], unittest.TestCase):
         Test that initialization fails with inconsistent dimensions.
         """
         # Amat has 2 rows but bvec has 3 rows
-        bad_bvec = self.bkd().reshape(
-            self.bkd().array([1.0, 2.0, 3.0]), (3, 1)
-        )
+        bad_bvec = self.bkd().reshape(self.bkd().array([1.0, 2.0, 3.0]), (3, 1))
         with self.assertRaises(ValueError):
             LinearStateEquation(self.Amat, bad_bvec, self.bkd())
 
@@ -255,9 +250,6 @@ class TestLinearStateEquationTorch(TestLinearStateEquation[torch.Tensor]):
 
     def bkd(self) -> TorchBkd:
         return self._bkd
-
-
-from pyapprox.util.test_utils import load_tests
 
 
 if __name__ == "__main__":

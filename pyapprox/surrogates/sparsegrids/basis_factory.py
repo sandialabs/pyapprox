@@ -30,25 +30,19 @@ Design notes:
 """
 
 from functools import partial
-from typing import Any, Callable, Dict, Generic, List, Optional, Protocol, Tuple, runtime_checkable
+from typing import (
+    Any,
+    Callable,
+    Dict,
+    Generic,
+    List,
+    Optional,
+    Protocol,
+    Tuple,
+    runtime_checkable,
+)
 
-from pyapprox.util.backends.protocols import Array, Backend
-from pyapprox.surrogates.affine.protocols import (
-    Basis1DProtocol,
-    InterpolationBasis1DProtocol,
-    OrthonormalPolynomial1DProtocol,
-)
-from pyapprox.surrogates.affine.univariate.lagrange import LagrangeBasis1D
-from pyapprox.surrogates.affine.univariate.transforms import (
-    Univariate1DTransformProtocol,
-    get_transform_from_marginal,
-)
-from pyapprox.surrogates.affine.univariate.registry import (
-    _lookup_analytical,
-)
-from pyapprox.surrogates.affine.univariate.globalpoly.quadrature import (
-    ClenshawCurtisQuadratureRule,
-)
+from pyapprox.probability.protocols import MarginalProtocol
 from pyapprox.surrogates.affine.leja.protocols import (
     LejaSequence1DProtocol,
     LejaWeightingProtocol,
@@ -58,8 +52,22 @@ from pyapprox.surrogates.affine.leja.weighting import (
     ChristoffelWeighting,
     PDFWeighting,
 )
-from pyapprox.probability.protocols import MarginalProtocol
-
+from pyapprox.surrogates.affine.protocols import (
+    Basis1DProtocol,
+    InterpolationBasis1DProtocol,
+)
+from pyapprox.surrogates.affine.univariate.globalpoly.quadrature import (
+    ClenshawCurtisQuadratureRule,
+)
+from pyapprox.surrogates.affine.univariate.lagrange import LagrangeBasis1D
+from pyapprox.surrogates.affine.univariate.registry import (
+    _lookup_analytical,
+)
+from pyapprox.surrogates.affine.univariate.transforms import (
+    Univariate1DTransformProtocol,
+    get_transform_from_marginal,
+)
+from pyapprox.util.backends.protocols import Array, Backend
 
 # Type alias for factory creators
 # Using Any for return type since factories are generic over Array type
@@ -282,12 +290,11 @@ class LejaLagrangeFactory(Generic[Array]):
             poly = entry.polynomial_factory(self._marginal, self._bkd)
         else:
             # Fallback for custom marginals
-            from pyapprox.surrogates.affine.univariate.globalpoly.continuous_numeric import (
+            from pyapprox.surrogates.affine.univariate.globalpoly.continuous_numeric import (  # noqa: E501
                 ContinuousNumericOrthonormalPolynomial1D,
             )
-            poly = ContinuousNumericOrthonormalPolynomial1D(
-                self._marginal, self._bkd
-            )
+
+            poly = ContinuousNumericOrthonormalPolynomial1D(self._marginal, self._bkd)
 
         bounds = get_bounds_from_marginal(self._marginal, self._eps)
         self._transform = get_transform_from_marginal(self._marginal, self._bkd)
@@ -303,9 +310,7 @@ class LejaLagrangeFactory(Generic[Array]):
             raise ValueError(f"Unknown weighting: {self._weighting_type}")
 
         # Create Leja sequence in canonical domain
-        self._leja_seq = LejaSequence1D(
-            self._bkd, poly, weighting, bounds=bounds
-        )
+        self._leja_seq = LejaSequence1D(self._bkd, poly, weighting, bounds=bounds)
 
         return self._leja_seq
 
@@ -399,9 +404,7 @@ class ClenshawCurtisLagrangeFactory(Generic[Array]):
             self._cc_rule = ClenshawCurtisQuadratureRule(
                 self._bkd, store=True, prob_measure=True
             )
-            self._transform = get_transform_from_marginal(
-                self._marginal, self._bkd
-            )
+            self._transform = get_transform_from_marginal(self._marginal, self._bkd)
 
     def create_basis(self) -> LagrangeBasis1D[Array]:
         """Create a Lagrange basis with user-domain Clenshaw-Curtis quadrature.
@@ -495,9 +498,9 @@ class PiecewiseFactory(Generic[Array]):
         from pyapprox.surrogates.affine.univariate.piecewisepoly import (
             DynamicPiecewiseBasis,
             EquidistantNodeGenerator,
+            PiecewiseCubic,
             PiecewiseLinear,
             PiecewiseQuadratic,
-            PiecewiseCubic,
         )
 
         bounds = get_bounds_from_marginal(self._marginal, self._eps)

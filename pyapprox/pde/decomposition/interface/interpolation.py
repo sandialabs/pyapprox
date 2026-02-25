@@ -41,8 +41,8 @@ def lagrange_interpolation_matrix(
         l_j = bkd.ones((n_target,))
         for k in range(n_source):
             if k != j:
-                l_j = l_j * (target_pts - source_pts[k]) / (
-                    source_pts[j] - source_pts[k]
+                l_j = (
+                    l_j * (target_pts - source_pts[k]) / (source_pts[j] - source_pts[k])
                 )
         interp_matrix[:, j] = l_j
 
@@ -117,9 +117,7 @@ class InterpolationOperator(Generic[Array]):
         return self._matrix @ source_values
 
     def __repr__(self) -> str:
-        return (
-            f"InterpolationOperator({self._n_source} -> {self._n_target} points)"
-        )
+        return f"InterpolationOperator({self._n_source} -> {self._n_target} points)"
 
 
 class RestrictionOperator(Generic[Array]):
@@ -202,6 +200,4 @@ class RestrictionOperator(Generic[Array]):
         return self._matrix @ target_values
 
     def __repr__(self) -> str:
-        return (
-            f"RestrictionOperator({self._n_target} -> {self._n_source} points)"
-        )
+        return f"RestrictionOperator({self._n_target} -> {self._n_source} points)"

@@ -6,21 +6,22 @@ Jacobian accuracy using DerivativeChecker.
 """
 
 import unittest
-from typing import Generic, Any
+from typing import Any, Generic
+
 import numpy as np
 import torch
 from numpy.typing import NDArray
 
-from pyapprox.util.backends.protocols import Backend, Array
-from pyapprox.util.backends.numpy import NumpyBkd
-from pyapprox.util.backends.torch import TorchBkd
-from pyapprox.surrogates.gaussianprocess.mean_functions import (
-    ZeroMean,
-    ConstantMean
-)
 from pyapprox.interface.functions.derivative_checks.derivative_checker import (
-    DerivativeChecker
+    DerivativeChecker,
 )
+from pyapprox.surrogates.gaussianprocess.mean_functions import (
+    ConstantMean,
+    ZeroMean,
+)
+from pyapprox.util.backends.numpy import NumpyBkd
+from pyapprox.util.backends.protocols import Array, Backend
+from pyapprox.util.backends.torch import TorchBkd
 
 
 class TestMeanFunctions(Generic[Array], unittest.TestCase):
@@ -58,9 +59,7 @@ class TestMeanFunctions(Generic[Array], unittest.TestCase):
         self.assertEqual(m.shape, (1, self.n_points))
 
         # Check all zeros
-        self.assertTrue(
-            self.bkd().all_bool(m == 0.0)
-        )
+        self.assertTrue(self.bkd().all_bool(m == 0.0))
 
     def test_zero_mean_hyperparameters(self) -> None:
         """Test ZeroMean has no hyperparameters."""
@@ -259,7 +258,7 @@ class TestMeanFunctions(Generic[Array], unittest.TestCase):
             params[:, None],  # Shape: (nactive, 1)
             fd_eps=fd_eps,
             relative=True,
-            verbosity=0
+            verbosity=0,
         )
 
         # Get gradient error
@@ -267,8 +266,11 @@ class TestMeanFunctions(Generic[Array], unittest.TestCase):
 
         # Minimum error should be small
         min_error = float(self.bkd().min(grad_error))
-        self.assertLess(min_error, 1e-6,
-                       f"Minimum gradient relative error {min_error} exceeds threshold")
+        self.assertLess(
+            min_error,
+            1e-6,
+            f"Minimum gradient relative error {min_error} exceeds threshold",
+        )
 
     def test_constant_mean_updates(self) -> None:
         """Test ConstantMean updates when hyperparameters change."""
@@ -290,6 +292,7 @@ class TestMeanFunctions(Generic[Array], unittest.TestCase):
 
 
 # ========== Backend-Specific Test Classes ==========
+
 
 class TestMeanFunctionsNumpy(TestMeanFunctions[NDArray[Any]]):
     """Test mean functions with NumPy backend."""
@@ -317,7 +320,6 @@ class TestMeanFunctionsTorch(TestMeanFunctions[torch.Tensor]):
 
 
 from pyapprox.util.test_utils import load_tests  # noqa: F401
-
 
 if __name__ == "__main__":
     loader = unittest.TestLoader()

@@ -10,7 +10,8 @@ This catches formula errors early and serves as executable documentation.
 """
 
 import unittest
-from sympy import symbols, expand, simplify, MatrixSymbol, Transpose
+
+from sympy import MatrixSymbol, Transpose, expand, simplify, symbols
 
 
 class TestMeanOfGPMeanFormulas(unittest.TestCase):
@@ -138,17 +139,11 @@ class TestVarianceOfVarianceFormulas(unittest.TestCase):
         )
 
         # Apply mu_i = mu_k, omega_ii = omega_kk
-        E_Xi2_Xk2_equal = E_Xi2_Xk2_general.subs(
-            [(mu_k, mu_i), (omega_kk, omega_ii)]
-        )
+        E_Xi2_Xk2_equal = E_Xi2_Xk2_general.subs([(mu_k, mu_i), (omega_kk, omega_ii)])
         E_Xi2_Xk2_simplified = simplify(E_Xi2_Xk2_equal)
 
         # Target: 4*mu_i²*omega_ik + 2*omega_ik² + (mu_i² + omega_ii)²
-        target = (
-            4 * mu_i**2 * omega_ik
-            + 2 * omega_ik**2
-            + (mu_i**2 + omega_ii) ** 2
-        )
+        target = 4 * mu_i**2 * omega_ik + 2 * omega_ik**2 + (mu_i**2 + omega_ii) ** 2
 
         self.assertEqual(simplify(E_Xi2_Xk2_simplified - target), 0)
 
@@ -195,7 +190,8 @@ class TestVarianceOfVarianceFormulas(unittest.TestCase):
         E_XiXjXk2_equal = E_XiXjXk2.subs(mu_j, mu_i)
 
         # Target after mu_i = mu_j substitution
-        # 2*mu_i*omega_jk*mu_k + 2*mu_i*omega_ik*mu_k = 2*mu_i*mu_k*(omega_jk + omega_ik)
+        # 2*mu_i*omega_jk*mu_k + 2*mu_i*omega_ik*mu_k = 2*mu_i*mu_k*(omega_jk +
+        # omega_ik)
         target = (
             2 * mu_i * mu_k * (omega_jk + omega_ik)
             + 2 * omega_ik * omega_jk
@@ -248,17 +244,11 @@ class TestVarianceOfVarianceFormulas(unittest.TestCase):
 
         # Expected correct form: η⁴ + 6η²ς²s² + 3ς⁴s⁴
         expected_correct = (
-            eta**4
-            + 6 * eta**2 * varsigma_sq * s_sq
-            + 3 * varsigma_sq**2 * s_sq**2
+            eta**4 + 6 * eta**2 * varsigma_sq * s_sq + 3 * varsigma_sq**2 * s_sq**2
         )
 
         # Wrong form (typo): η⁴ + 6η²ς²s² + 3ς²s²
-        wrong_form = (
-            eta**4
-            + 6 * eta**2 * varsigma_sq * s_sq
-            + 3 * varsigma_sq * s_sq
-        )
+        wrong_form = eta**4 + 6 * eta**2 * varsigma_sq * s_sq + 3 * varsigma_sq * s_sq
 
         # Verify correct formula matches
         self.assertEqual(simplify(vartheta3_expanded - expected_correct), 0)
@@ -398,12 +388,7 @@ class TestVarianceOfVarianceFormulas(unittest.TestCase):
         product = expand(C_star_xw * C_star_xz)
 
         # Expected: C_xw*C_xz - C_xw*tAt_xz - C_xz*tAt_xw + tAt_xw*tAt_xz
-        expected = (
-            C_xw * C_xz
-            - C_xw * tAt_xz
-            - C_xz * tAt_xw
-            + tAt_xw * tAt_xz
-        )
+        expected = C_xw * C_xz - C_xw * tAt_xz - C_xz * tAt_xw + tAt_xw * tAt_xz
 
         self.assertEqual(simplify(product - expected), 0)
 
@@ -451,10 +436,7 @@ class TestVarianceOfVarianceFormulas(unittest.TestCase):
         # beta_Gamma = βᵀΓ where Γᵢ = ∫∫ C(xᵢ,z)C(z,v) dF²
         # xi_2 = λᵀA⁻¹τ where λᵢ = ∫∫ C(x,z)C(x,xᵢ) dF²
         # The difference is which argument of C contains the training point
-        self.assertNotEqual(
-            correct_term.subs(beta_P_beta, xi_3),
-            wrong_term
-        )
+        self.assertNotEqual(correct_term.subs(beta_P_beta, xi_3), wrong_term)
 
 
 class TestConditionalPFormulas(unittest.TestCase):
@@ -482,22 +464,21 @@ class TestConditionalPFormulas(unittest.TestCase):
 
         This test verifies this factorization symbolically with actual assertions.
         """
-        from sympy import symbols, Function, exp, simplify
-        from sympy import sqrt, pi
+        from sympy import exp, pi, simplify, sqrt, symbols
 
         # Define symbolic variables
-        x, z = symbols('x z', real=True)
-        x_i, x_j = symbols('x_i x_j', real=True)  # Training points
-        ell = symbols('ell', positive=True)  # Length scale
+        x, z = symbols("x z", real=True)
+        x_i, x_j = symbols("x_i x_j", real=True)  # Training points
+        ell = symbols("ell", positive=True)  # Length scale
 
         # Use concrete Gaussian kernel for numerical verification
         # k(a, b) = exp(-(a-b)²/(2ℓ²))
         def gaussian_kernel(a, b):
-            return exp(-(a - b)**2 / (2 * ell**2))
+            return exp(-((a - b) ** 2) / (2 * ell**2))
 
         # Standard normal density
-        rho_x = exp(-x**2 / 2) / sqrt(2 * pi)
-        rho_z = exp(-z**2 / 2) / sqrt(2 * pi)
+        rho_x = exp(-(x**2) / 2) / sqrt(2 * pi)
+        rho_z = exp(-(z**2) / 2) / sqrt(2 * pi)
 
         # For a concrete case, verify numerically that P̃ = τ τᵀ
         # τ_i = ∫ k(x, x_i) ρ(x) dx
@@ -519,9 +500,10 @@ class TestConditionalPFormulas(unittest.TestCase):
 
         # ASSERTION: The integrands are identical
         self.assertEqual(
-            diff, 0,
+            diff,
+            0,
             f"P̃ integrand should equal τ_i integrand × τ_j integrand, "
-            f"but diff = {diff}"
+            f"but diff = {diff}",
         )
 
     def test_conditional_P_vs_standard_P_no_factorization(self) -> None:
@@ -534,15 +516,15 @@ class TestConditionalPFormulas(unittest.TestCase):
         The key point: k(x, x_i) * k(x, x_j) cannot be written as f(x_i) * g(x_j)
         because x appears in both factors.
         """
-        from sympy import symbols, exp, simplify
+        from sympy import exp, simplify, symbols
 
-        x = symbols('x', real=True)
-        x_i, x_j = symbols('x_i x_j', real=True)
-        ell = symbols('ell', positive=True)
+        x = symbols("x", real=True)
+        x_i, x_j = symbols("x_i x_j", real=True)
+        ell = symbols("ell", positive=True)
 
         # Gaussian kernel
-        k_xi = exp(-(x - x_i)**2 / (2 * ell**2))
-        k_xj = exp(-(x - x_j)**2 / (2 * ell**2))
+        k_xi = exp(-((x - x_i) ** 2) / (2 * ell**2))
+        k_xj = exp(-((x - x_j) ** 2) / (2 * ell**2))
 
         # Standard P integrand
         P_integrand = k_xi * k_xj
@@ -572,12 +554,12 @@ class TestConditionalPFormulas(unittest.TestCase):
         By Cauchy-Schwarz (or Jensen's inequality): E[X²] >= E[X]²
         Therefore: P_{k,ii} >= P̃_{k,ii}
         """
-        from sympy import symbols, expand
+        from sympy import expand, symbols
 
         # Symbolic representation
-        E_X = symbols('E_X', real=True, positive=True)  # τ_i = E[k(x, x_i)]
-        E_X2 = symbols('E_X2', real=True, positive=True)  # E[k(x, x_i)²]
-        Var_X = symbols('Var_X', real=True, positive=True)  # Var[k(x, x_i)]
+        E_X = symbols("E_X", real=True, positive=True)  # τ_i = E[k(x, x_i)]
+        symbols("E_X2", real=True, positive=True)  # E[k(x, x_i)²]
+        Var_X = symbols("Var_X", real=True, positive=True)  # Var[k(x, x_i)]
 
         # Variance definition: Var[X] = E[X²] - E[X]²
         # Rearranging: E[X²] = Var[X] + E[X]²
@@ -588,10 +570,7 @@ class TestConditionalPFormulas(unittest.TestCase):
 
         # Verify the algebraic identity
         diff = expand(E_X2_expanded - E_X**2)
-        self.assertEqual(
-            diff, Var_X,
-            "E[X²] - E[X]² should equal Var[X]"
-        )
+        self.assertEqual(diff, Var_X, "E[X²] - E[X]² should equal Var[X]")
 
     def test_conditional_P_special_case_all_conditioned(self) -> None:
         """
@@ -600,10 +579,10 @@ class TestConditionalPFormulas(unittest.TestCase):
         index = [1, 1, ..., 1] means all dimensions use standard P_k.
         The product ∏_k P_k gives the full P matrix.
         """
-        from sympy import symbols, MatrixSymbol
+        from sympy import MatrixSymbol, symbols
 
         N = symbols("N", integer=True, positive=True)
-        d = symbols("d", integer=True, positive=True)
+        symbols("d", integer=True, positive=True)
 
         # When all dims are conditioned, we use P_k for each dimension
         # P_p = ∏_k P_k = P (standard Hadamard product formula)
@@ -623,7 +602,7 @@ class TestConditionalPFormulas(unittest.TestCase):
         The Hadamard product of outer products gives another outer product:
         ∏_k (τ_k τ_k^T) = (∏_k τ_k) (∏_k τ_k)^T = τ τ^T
         """
-        from sympy import symbols, MatrixSymbol, Transpose
+        from sympy import MatrixSymbol, Transpose, symbols
 
         N = symbols("N", integer=True, positive=True)
 

@@ -4,12 +4,10 @@ Computes the exact Jacobian of the DtN residual w.r.t. interface DOFs.
 Each column requires solving subdomain problems with perturbed interface values.
 """
 
-from typing import Generic, Dict, List
+from typing import Generic
 
-from pyapprox.util.backends.protocols import Array, Backend
-from pyapprox.pde.decomposition.protocols.interface import InterfaceProtocol
-from pyapprox.pde.decomposition.subdomain.wrapper import SubdomainWrapper
 from pyapprox.pde.decomposition.solver.dtn_residual import DtNResidual
+from pyapprox.util.backends.protocols import Array, Backend
 
 
 class DtNJacobian(Generic[Array]):
@@ -145,7 +143,7 @@ class DtNJacobianExact(Generic[Array]):
         # For each interface where flux is computed
         for i_row, interface_id_row in enumerate(interface_ids):
             row_start = int(offsets[i_row])
-            row_end = int(offsets[i_row + 1])
+            int(offsets[i_row + 1])
             interface = interfaces[interface_id_row]
             left_id, right_id = interface.subdomain_ids()
 

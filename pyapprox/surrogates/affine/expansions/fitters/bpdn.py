@@ -2,12 +2,12 @@
 
 from typing import Generic
 
-from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.optimization.linear.sparse import BasisPursuitDenoisingSolver
-from pyapprox.surrogates.affine.protocols import BasisExpansionProtocol
 from pyapprox.surrogates.affine.expansions.fitters.results import (
     SparseResult,
 )
+from pyapprox.surrogates.affine.protocols import BasisExpansionProtocol
+from pyapprox.util.backends.protocols import Array, Backend
 
 
 class BPDNFitter(Generic[Array]):
@@ -101,9 +101,7 @@ class BPDNFitter(Generic[Array]):
 
         # Validate single QoI
         if values.shape[0] != 1:
-            raise ValueError(
-                f"BPDNFitter only supports nqoi=1, got {values.shape[0]}"
-            )
+            raise ValueError(f"BPDNFitter only supports nqoi=1, got {values.shape[0]}")
 
         # Get basis matrix: (nsamples, nterms)
         Phi = expansion.basis_matrix(samples)

@@ -6,13 +6,13 @@ import unittest
 from typing import Any, Generic
 
 import numpy as np
-from numpy.typing import NDArray
 import torch
+from numpy.typing import NDArray
 
-from pyapprox.util.backends.protocols import Array, Backend
-from pyapprox.util.backends.numpy import NumpyBkd
-from pyapprox.util.backends.torch import TorchBkd
 from pyapprox.inverse.bayesnet.network import GaussianNetwork
+from pyapprox.util.backends.numpy import NumpyBkd
+from pyapprox.util.backends.protocols import Array, Backend
+from pyapprox.util.backends.torch import TorchBkd
 
 
 class TestGaussianNetworkBase(Generic[Array], unittest.TestCase):
@@ -50,8 +50,12 @@ class TestGaussianNetworkBase(Generic[Array], unittest.TestCase):
         offset = self.bkd().asarray(np.array([0.0]))
         noise_cov = self.bkd().asarray(np.array([[0.5]]))
         network.add_node(
-            1, nvars=1, parents=[0],
-            cpd_coefficients=[A], cpd_offset=offset, cpd_noise_cov=noise_cov
+            1,
+            nvars=1,
+            parents=[0],
+            cpd_coefficients=[A],
+            cpd_offset=offset,
+            cpd_noise_cov=noise_cov,
         )
 
         self.assertEqual(set(network.nodes()), {0, 1})
@@ -65,14 +69,17 @@ class TestGaussianNetworkBase(Generic[Array], unittest.TestCase):
 
         # X0: root with N(0, 1)
         network.add_node(
-            0, nvars=1,
+            0,
+            nvars=1,
             prior_mean=self.bkd().asarray(np.array([0.0])),
             prior_cov=self.bkd().asarray(np.array([[1.0]])),
         )
 
         # X1 = X0 + noise
         network.add_node(
-            1, nvars=1, parents=[0],
+            1,
+            nvars=1,
+            parents=[0],
             cpd_coefficients=[self.bkd().asarray(np.array([[1.0]]))],
             cpd_offset=self.bkd().asarray(np.array([0.0])),
             cpd_noise_cov=self.bkd().asarray(np.array([[0.5]])),
@@ -80,7 +87,9 @@ class TestGaussianNetworkBase(Generic[Array], unittest.TestCase):
 
         # X2 = X1 + noise
         network.add_node(
-            2, nvars=1, parents=[1],
+            2,
+            nvars=1,
+            parents=[1],
             cpd_coefficients=[self.bkd().asarray(np.array([[1.0]]))],
             cpd_offset=self.bkd().asarray(np.array([0.0])),
             cpd_noise_cov=self.bkd().asarray(np.array([[0.5]])),
@@ -94,12 +103,15 @@ class TestGaussianNetworkBase(Generic[Array], unittest.TestCase):
         network = GaussianNetwork(self.bkd())
 
         network.add_node(
-            0, nvars=1,
+            0,
+            nvars=1,
             prior_mean=self.bkd().asarray(np.array([0.0])),
             prior_cov=self.bkd().asarray(np.array([[1.0]])),
         )
         network.add_node(
-            1, nvars=1, parents=[0],
+            1,
+            nvars=1,
+            parents=[0],
             cpd_coefficients=[self.bkd().asarray(np.array([[1.0]]))],
             cpd_noise_cov=self.bkd().asarray(np.array([[0.5]])),
         )
@@ -120,12 +132,15 @@ class TestGaussianNetworkBase(Generic[Array], unittest.TestCase):
         network = GaussianNetwork(self.bkd())
 
         network.add_node(
-            0, nvars=1,
+            0,
+            nvars=1,
             prior_mean=self.bkd().asarray(np.array([0.0])),
             prior_cov=self.bkd().asarray(np.array([[1.0]])),
         )
         network.add_node(
-            1, nvars=1, parents=[0],
+            1,
+            nvars=1,
+            parents=[0],
             cpd_coefficients=[self.bkd().asarray(np.array([[1.0]]))],
             cpd_offset=self.bkd().asarray(np.array([1.0])),
             cpd_noise_cov=self.bkd().asarray(np.array([[0.5]])),
@@ -158,8 +173,12 @@ class TestGaussianNetworkBase(Generic[Array], unittest.TestCase):
         offset = self.bkd().asarray(np.zeros(2))
         noise_cov = self.bkd().asarray(np.eye(2) * 0.1)
         network.add_node(
-            1, nvars=2, parents=[0],
-            cpd_coefficients=[A], cpd_offset=offset, cpd_noise_cov=noise_cov
+            1,
+            nvars=2,
+            parents=[0],
+            cpd_coefficients=[A],
+            cpd_offset=offset,
+            cpd_noise_cov=noise_cov,
         )
 
         self.assertEqual(network.get_node_nvars(0), 2)
@@ -171,12 +190,14 @@ class TestGaussianNetworkBase(Generic[Array], unittest.TestCase):
 
         # Two root nodes
         network.add_node(
-            0, nvars=1,
+            0,
+            nvars=1,
             prior_mean=self.bkd().asarray(np.array([0.0])),
             prior_cov=self.bkd().asarray(np.array([[1.0]])),
         )
         network.add_node(
-            1, nvars=1,
+            1,
+            nvars=1,
             prior_mean=self.bkd().asarray(np.array([1.0])),
             prior_cov=self.bkd().asarray(np.array([[1.0]])),
         )
@@ -185,7 +206,9 @@ class TestGaussianNetworkBase(Generic[Array], unittest.TestCase):
         A0 = self.bkd().asarray(np.array([[0.5]]))
         A1 = self.bkd().asarray(np.array([[0.5]]))
         network.add_node(
-            2, nvars=1, parents=[0, 1],
+            2,
+            nvars=1,
+            parents=[0, 1],
             cpd_coefficients=[A0, A1],
             cpd_noise_cov=self.bkd().asarray(np.array([[0.1]])),
         )
@@ -203,7 +226,8 @@ class TestGaussianNetworkBase(Generic[Array], unittest.TestCase):
         """Test string representation."""
         network = GaussianNetwork(self.bkd())
         network.add_node(
-            0, nvars=1,
+            0,
+            nvars=1,
             prior_mean=self.bkd().asarray(np.array([0.0])),
             prior_cov=self.bkd().asarray(np.array([[1.0]])),
         )
@@ -234,9 +258,6 @@ class TestGaussianNetworkTorch(TestGaussianNetworkBase[torch.Tensor]):
 
     def bkd(self) -> TorchBkd:
         return self._bkd
-
-
-from pyapprox.util.test_utils import load_tests
 
 
 if __name__ == "__main__":

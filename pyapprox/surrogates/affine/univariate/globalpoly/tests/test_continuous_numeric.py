@@ -18,25 +18,23 @@ import torch
 from numpy.typing import NDArray
 from scipy import stats
 
-from pyapprox.util.backends.numpy import NumpyBkd
-from pyapprox.util.backends.torch import TorchBkd
-from pyapprox.util.backends.protocols import Array, Backend
-from pyapprox.util.test_utils import load_tests
-
-from pyapprox.surrogates.affine.univariate.globalpoly import (
-    ContinuousNumericOrthonormalPolynomial1D,
-    JacobiPolynomial1D,
-    LegendrePolynomial1D,
-    HermitePolynomial1D,
-    LaguerrePolynomial1D,
-)
 from pyapprox.probability.univariate import (
     BetaMarginal,
-    UniformMarginal,
-    GaussianMarginal,
     GammaMarginal,
+    GaussianMarginal,
     ScipyContinuousMarginal,
+    UniformMarginal,
 )
+from pyapprox.surrogates.affine.univariate.globalpoly import (
+    ContinuousNumericOrthonormalPolynomial1D,
+    HermitePolynomial1D,
+    JacobiPolynomial1D,
+    LaguerrePolynomial1D,
+    LegendrePolynomial1D,
+)
+from pyapprox.util.backends.numpy import NumpyBkd
+from pyapprox.util.backends.protocols import Array, Backend
+from pyapprox.util.backends.torch import TorchBkd
 
 
 class MarginalTestCase(NamedTuple):
@@ -120,9 +118,7 @@ BOUNDED_MARGINAL_TEST_CASES: List[MarginalTestCase] = [
     # Arcsine distribution (Beta(0.5, 0.5) equivalent)
     MarginalTestCase(
         name="Arcsine on [0, 1]",
-        marginal_factory=lambda bkd: ScipyContinuousMarginal(
-            stats.arcsine(), bkd
-        ),
+        marginal_factory=lambda bkd: ScipyContinuousMarginal(stats.arcsine(), bkd),
     ),
     # Truncated normal (bounded)
     MarginalTestCase(
@@ -140,15 +136,11 @@ BOUNDED_MARGINAL_TEST_CASES: List[MarginalTestCase] = [
     # Power-law distributions (bounded)
     MarginalTestCase(
         name="Power-law a=2 on [0, 1]",
-        marginal_factory=lambda bkd: ScipyContinuousMarginal(
-            stats.powerlaw(2.0), bkd
-        ),
+        marginal_factory=lambda bkd: ScipyContinuousMarginal(stats.powerlaw(2.0), bkd),
     ),
     MarginalTestCase(
         name="Power-law a=0.5 on [0, 1]",
-        marginal_factory=lambda bkd: ScipyContinuousMarginal(
-            stats.powerlaw(0.5), bkd
-        ),
+        marginal_factory=lambda bkd: ScipyContinuousMarginal(stats.powerlaw(0.5), bkd),
     ),
 ]
 
@@ -228,9 +220,7 @@ UNBOUNDED_MARGINAL_TEST_CASES: List[MarginalTestCase] = [
 ]
 
 
-class TestContinuousNumericOrthonormalPolynomial1D(
-    Generic[Array], unittest.TestCase
-):
+class TestContinuousNumericOrthonormalPolynomial1D(Generic[Array], unittest.TestCase):
     """Base class for ContinuousNumericOrthonormalPolynomial1D tests."""
 
     __test__ = False
@@ -507,12 +497,8 @@ class TestContinuousNumericOrthonormalPolynomial1D(
 
         # For 'a' coefficients (column 0), use absolute tolerance since they're ~0
         # For 'b' coefficients (column 1), use relative tolerance
-        self._bkd.assert_allclose(
-            numeric_ab[:, 0], hermite_ab[:, 0], rtol=0, atol=1e-5
-        )
-        self._bkd.assert_allclose(
-            numeric_ab[:, 1], hermite_ab[:, 1], rtol=1e-6, atol=0
-        )
+        self._bkd.assert_allclose(numeric_ab[:, 0], hermite_ab[:, 0], rtol=0, atol=1e-5)
+        self._bkd.assert_allclose(numeric_ab[:, 1], hermite_ab[:, 1], rtol=1e-6, atol=0)
 
     def test_matches_laguerre_for_gamma_unit_scale(self) -> None:
         """Numeric polynomials for Gamma(shape, 1) should match Laguerre.

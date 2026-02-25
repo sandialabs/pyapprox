@@ -9,7 +9,7 @@ For least squares regression with noise variance sigma^2:
 where phi_k are basis function values at design point k.
 """
 
-from typing import Protocol, Generic, runtime_checkable
+from typing import Generic, Protocol, runtime_checkable
 
 from pyapprox.util.backends.protocols import Array, Backend
 

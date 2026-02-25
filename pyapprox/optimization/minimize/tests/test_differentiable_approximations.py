@@ -14,17 +14,16 @@ import numpy as np
 import torch
 from numpy.typing import NDArray
 
-from pyapprox.util.backends.numpy import NumpyBkd
-from pyapprox.util.backends.torch import TorchBkd
-from pyapprox.util.backends.protocols import Array, Backend
-from pyapprox.util.test_utils import load_tests  # noqa: F401
-
 from pyapprox.optimization.minimize.differentiable_approximations import (
     DifferentiableApproximationProtocol,
+    SmoothLogBasedLeftHeavisideFunction,
     SmoothLogBasedMaxFunction,
     SmoothLogBasedRightHeavisideFunction,
-    SmoothLogBasedLeftHeavisideFunction,
 )
+from pyapprox.util.backends.numpy import NumpyBkd
+from pyapprox.util.backends.protocols import Array, Backend
+from pyapprox.util.backends.torch import TorchBkd
+from pyapprox.util.test_utils import load_tests  # noqa: F401
 
 
 class TestDifferentiableApproximations(Generic[Array], unittest.TestCase):
@@ -145,7 +144,9 @@ class TestDifferentiableApproximations(Generic[Array], unittest.TestCase):
         h = 1e-5
 
         # Finite difference approximation of second derivative
-        fd_deriv2 = (func.first_derivative(x + h) - func.first_derivative(x - h)) / (2 * h)
+        fd_deriv2 = (func.first_derivative(x + h) - func.first_derivative(x - h)) / (
+            2 * h
+        )
         analytical_deriv2 = func.second_derivative(x)
 
         bkd.assert_allclose(analytical_deriv2, fd_deriv2, rtol=1e-4)
@@ -212,7 +213,9 @@ class TestDifferentiableApproximations(Generic[Array], unittest.TestCase):
         x = bkd.asarray([[-1.0, -0.5, 0.0, 0.5, 1.0]])
         h = 1e-5
 
-        fd_deriv2 = (func.first_derivative(x + h) - func.first_derivative(x - h)) / (2 * h)
+        fd_deriv2 = (func.first_derivative(x + h) - func.first_derivative(x - h)) / (
+            2 * h
+        )
         analytical_deriv2 = func.second_derivative(x)
 
         bkd.assert_allclose(analytical_deriv2, fd_deriv2, rtol=1e-4, atol=1e-10)
@@ -266,7 +269,9 @@ class TestDifferentiableApproximations(Generic[Array], unittest.TestCase):
         x = bkd.asarray([[-1.0, -0.5, 0.0, 0.5, 1.0]])
         h = 1e-5
 
-        fd_deriv2 = (func.first_derivative(x + h) - func.first_derivative(x - h)) / (2 * h)
+        fd_deriv2 = (func.first_derivative(x + h) - func.first_derivative(x - h)) / (
+            2 * h
+        )
         analytical_deriv2 = func.second_derivative(x)
 
         bkd.assert_allclose(analytical_deriv2, fd_deriv2, rtol=1e-4, atol=1e-10)
@@ -383,9 +388,7 @@ class TestDifferentiableApproximations(Generic[Array], unittest.TestCase):
 
         # Right Heaviside: H(x+shift) instead of H(x)
         # Transition at x = -shift instead of x = 0
-        func_right = SmoothLogBasedRightHeavisideFunction(
-            bkd, eps=eps, shift=shift
-        )
+        func_right = SmoothLogBasedRightHeavisideFunction(bkd, eps=eps, shift=shift)
 
         # At x = -shift, value should be 0.5
         x_right_transition = bkd.asarray([[-shift]])
@@ -396,9 +399,7 @@ class TestDifferentiableApproximations(Generic[Array], unittest.TestCase):
         # Left Heaviside: evaluates right Heaviside at -x
         # So H_left(x) = H_right(-x) with shift = H_right(-x + shift)
         # Transition occurs when -x + shift = 0, i.e., x = shift
-        func_left = SmoothLogBasedLeftHeavisideFunction(
-            bkd, eps=eps, shift=shift
-        )
+        func_left = SmoothLogBasedLeftHeavisideFunction(bkd, eps=eps, shift=shift)
 
         # At x = shift, value should be 0.5
         x_left_transition = bkd.asarray([[shift]])

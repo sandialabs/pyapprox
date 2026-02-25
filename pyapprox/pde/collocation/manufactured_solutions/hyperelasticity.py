@@ -9,9 +9,6 @@ Supports 1D, 2D, and 3D.
 
 from typing import Generic, List
 
-import sympy as sp
-
-from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.pde.collocation.manufactured_solutions.base import (
     ManufacturedSolution,
     VectorSolutionMixin,
@@ -19,6 +16,7 @@ from pyapprox.pde.collocation.manufactured_solutions.base import (
 from pyapprox.pde.collocation.physics.stress_models.protocols import (
     SymbolicStressModelProtocol,
 )
+from pyapprox.util.backends.protocols import Array, Backend
 
 
 class ManufacturedHyperelasticityEquations(
@@ -64,9 +62,7 @@ class ManufacturedHyperelasticityEquations(
         if nvars not in (1, 2, 3):
             raise ValueError(f"Unsupported dimension: {nvars}")
         if len(sol_strs) != nvars:
-            raise ValueError(
-                f"Need {nvars} solution components, got {len(sol_strs)}"
-            )
+            raise ValueError(f"Need {nvars} solution components, got {len(sol_strs)}")
         self._stress_model = stress_model
         super().__init__(sol_strs, nvars, bkd, oned)
 
@@ -98,9 +94,7 @@ class ManufacturedHyperelasticityEquations(
         div_P = P_expr.diff(x)
 
         # Forcing: f = -div(P) so that div(P) + f = 0
-        self._expressions["forcing"] = [
-            self._expressions["forcing"][0] - div_P
-        ]
+        self._expressions["forcing"] = [self._expressions["forcing"][0] - div_P]
 
     def _sympy_expressions_2d(self) -> None:
         """Build 2D expressions: dP_iJ/dX_J + f_i = 0."""
@@ -115,9 +109,7 @@ class ManufacturedHyperelasticityEquations(
         F22 = 1 + v_expr.diff(y)
 
         # PK1 stress
-        P11, P12, P21, P22 = self._stress_model.sympy_stress_2d(
-            F11, F12, F21, F22
-        )
+        P11, P12, P21, P22 = self._stress_model.sympy_stress_2d(F11, F12, F21, F22)
 
         # Store flux (stress tensor)
         tau = [[P11, P12], [P21, P22]]
@@ -159,7 +151,5 @@ class ManufacturedHyperelasticityEquations(
         forc_exprs = []
         for i in range(3):
             div_P_i = sum(P[i][j].diff(coords[j]) for j in range(3))
-            forc_exprs.append(
-                self._expressions["forcing"][i] - div_P_i
-            )
+            forc_exprs.append(self._expressions["forcing"][i] - div_P_i)
         self._expressions["forcing"] = forc_exprs

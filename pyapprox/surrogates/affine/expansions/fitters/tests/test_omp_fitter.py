@@ -15,26 +15,24 @@ import numpy as np
 import torch
 from numpy.typing import NDArray
 
-from pyapprox.util.backends.numpy import NumpyBkd
-from pyapprox.util.backends.torch import TorchBkd
-from pyapprox.util.backends.protocols import Array, Backend
-from pyapprox.util.test_utils import load_tests  # noqa: F401
-
+from pyapprox.optimization.linear.sparse import OMPTerminationFlag
+from pyapprox.probability import UniformMarginal
+from pyapprox.surrogates.affine.basis import OrthonormalPolynomialBasis
+from pyapprox.surrogates.affine.expansions import BasisExpansion
 from pyapprox.surrogates.affine.expansions.fitters.omp import (
     OMPFitter,
 )
 from pyapprox.surrogates.affine.expansions.fitters.results import (
     OMPResult,
 )
-from pyapprox.optimization.linear.sparse import OMPTerminationFlag
-
-from pyapprox.surrogates.affine.univariate import create_bases_1d
 from pyapprox.surrogates.affine.indices import (
     compute_hyperbolic_indices,
 )
-from pyapprox.surrogates.affine.basis import OrthonormalPolynomialBasis
-from pyapprox.surrogates.affine.expansions import BasisExpansion
-from pyapprox.probability import UniformMarginal
+from pyapprox.surrogates.affine.univariate import create_bases_1d
+from pyapprox.util.backends.numpy import NumpyBkd
+from pyapprox.util.backends.protocols import Array, Backend
+from pyapprox.util.backends.torch import TorchBkd
+from pyapprox.util.test_utils import load_tests  # noqa: F401
 
 
 class TestOMPFitter(Generic[Array], unittest.TestCase):
@@ -287,9 +285,7 @@ class TestOMPFitter(Generic[Array], unittest.TestCase):
 
         # Create decaying coefficients: c_k = 1 / (k+1)^2
         # This gives coefficients like [1, 0.25, 0.11, 0.0625, ...]
-        true_coef = self._bkd.asarray(
-            [[1.0 / ((k + 1) ** 2)] for k in range(nterms)]
-        )
+        true_coef = self._bkd.asarray([[1.0 / ((k + 1) ** 2)] for k in range(nterms)])
         target_expansion = target_expansion.with_params(true_coef)
 
         # Generate training samples (more samples than coefficients)

@@ -1,18 +1,18 @@
 """Coupled springs 2-mass ODE benchmark instance."""
 
-from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.benchmarks.benchmark import BoxDomain
-from pyapprox.benchmarks.ground_truth import ODEGroundTruth
-from pyapprox.benchmarks.registry import BenchmarkRegistry
 from pyapprox.benchmarks.functions.ode import ODEBenchmark, ODETimeConfig
-from pyapprox.pde.time.benchmarks.coupled_springs import (
-    CoupledSpringsResidual,
-)
-from pyapprox.probability.univariate.uniform import UniformMarginal
-from pyapprox.probability.joint.independent import IndependentJoint
+from pyapprox.benchmarks.ground_truth import ODEGroundTruth
 from pyapprox.benchmarks.instances.ode.lotka_volterra import (
     ODEBenchmarkWrapper,
 )
+from pyapprox.benchmarks.registry import BenchmarkRegistry
+from pyapprox.pde.time.benchmarks.coupled_springs import (
+    CoupledSpringsResidual,
+)
+from pyapprox.probability.joint.independent import IndependentJoint
+from pyapprox.probability.univariate.uniform import UniformMarginal
+from pyapprox.util.backends.protocols import Array, Backend
 
 
 def coupled_springs_2mass(
@@ -56,26 +56,23 @@ def coupled_springs_2mass(
     # Prior ranges from legacy code (specific per-parameter bounds)
     # [min, max] pairs for each parameter
     prior_ranges = [
-        (0.9, 1.1),    # m_1
-        (1.4, 1.6),    # m_2
-        (7.0, 9.0),    # k_1
+        (0.9, 1.1),  # m_1
+        (1.4, 1.6),  # m_2
+        (7.0, 9.0),  # k_1
         (39.0, 41.0),  # k_2
-        (0.4, 0.6),    # L_1
-        (0.9, 1.1),    # L_2
-        (0.7, 0.9),    # b_1
-        (0.4, 0.6),    # b_2
-        (0.4, 0.6),    # x_1_0
-        (-0.1, 0.1),   # y_1_0
-        (2.2, 2.3),    # x_2_0
-        (-0.1, 0.1),   # y_2_0
+        (0.4, 0.6),  # L_1
+        (0.9, 1.1),  # L_2
+        (0.7, 0.9),  # b_1
+        (0.4, 0.6),  # b_2
+        (0.4, 0.6),  # x_1_0
+        (-0.1, 0.1),  # y_1_0
+        (2.2, 2.3),  # x_2_0
+        (-0.1, 0.1),  # y_2_0
     ]
 
     # Build prior from ranges
     prior = IndependentJoint(
-        [
-            UniformMarginal(lo, hi, bkd)
-            for lo, hi in prior_ranges
-        ],
+        [UniformMarginal(lo, hi, bkd) for lo, hi in prior_ranges],
         bkd,
     )
 
@@ -83,7 +80,9 @@ def coupled_springs_2mass(
     bounds = bkd.array(prior_ranges)
 
     # Nominal parameters (center of prior) - shape (nparams, 1)
-    nominal_parameters = bkd.array([(lo + hi) / 2 for lo, hi in prior_ranges]).reshape(-1, 1)
+    nominal_parameters = bkd.array([(lo + hi) / 2 for lo, hi in prior_ranges]).reshape(
+        -1, 1
+    )
 
     # Initial condition from parameters (last 4 params are initial conditions)
     # Shape: (nstates, 1)

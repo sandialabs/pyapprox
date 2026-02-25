@@ -19,21 +19,24 @@ import numpy as np
 import torch
 from numpy.typing import NDArray
 
-from pyapprox.util.backends.numpy import NumpyBkd
-from pyapprox.util.backends.torch import TorchBkd
-from pyapprox.util.backends.protocols import Array, Backend
-from pyapprox.util.test_utils import load_tests, slow_test, slower_test  # noqa: F401
-
 from pyapprox.expdesign.analytical import (
-    ConjugateGaussianOEDExpectedStdDev,
-    ConjugateGaussianOEDExpectedEntropicDev,
     ConjugateGaussianOEDExpectedAVaRDev,
+    ConjugateGaussianOEDExpectedEntropicDev,
     ConjugateGaussianOEDExpectedKLDivergence,
-    ConjugateGaussianOEDForLogNormalExpectedStdDev,
+    ConjugateGaussianOEDExpectedStdDev,
     ConjugateGaussianOEDForLogNormalAVaRStdDev,
+    ConjugateGaussianOEDForLogNormalExpectedStdDev,
 )
 from pyapprox.inverse.conjugate.gaussian import DenseGaussianConjugatePosterior
 from pyapprox.inverse.pushforward.gaussian import GaussianPushforward
+from pyapprox.util.backends.numpy import NumpyBkd
+from pyapprox.util.backends.protocols import Array, Backend
+from pyapprox.util.backends.torch import TorchBkd
+from pyapprox.util.test_utils import (  # noqa: F401
+    load_tests,
+    slow_test,
+    slower_test,
+)
 
 
 class TestConjugateMCExactStandalone(Generic[Array], unittest.TestCase):
@@ -50,8 +53,8 @@ class TestConjugateMCExactStandalone(Generic[Array], unittest.TestCase):
 
         # Problem dimensions
         self._nvars = 3  # Number of parameters
-        self._nobs = 4   # Number of observations
-        self._nqoi = 1   # Scalar QoI for pushforward
+        self._nobs = 4  # Number of observations
+        self._nqoi = 1  # Scalar QoI for pushforward
 
         # Create test problem
         self._prior_mean = self._bkd.zeros((self._nvars, 1))
@@ -134,9 +137,7 @@ class TestConjugateMCExactStandalone(Generic[Array], unittest.TestCase):
                 self._prior_mean, self._prior_cov, self._qoi_mat, *args, self._bkd
             )
         else:
-            utility = cls(
-                self._prior_mean, self._prior_cov, self._qoi_mat, self._bkd
-            )
+            utility = cls(self._prior_mean, self._prior_cov, self._qoi_mat, self._bkd)
         utility.set_observation_matrix(self._obs_mat)
         utility.set_noise_covariance(self._noise_cov)
         return utility
@@ -162,7 +163,8 @@ class TestConjugateMCExactStandalone(Generic[Array], unittest.TestCase):
         # Compare
         rel_error = abs(mc_expected_stdev - exact_expected_stdev) / exact_expected_stdev
         self.assertLess(
-            rel_error, rtol,
+            rel_error,
+            rtol,
             f"MC expected std dev ({mc_expected_stdev:.6f}) does not match "
             f"exact ({exact_expected_stdev:.6f}), relative error: {rel_error:.4f}",
         )
@@ -191,7 +193,8 @@ class TestConjugateMCExactStandalone(Generic[Array], unittest.TestCase):
         # Compare
         rel_error = abs(mc_expected - exact) / exact
         self.assertLess(
-            rel_error, rtol,
+            rel_error,
+            rtol,
             f"MC entropic deviation ({mc_expected:.6f}) does not match "
             f"exact ({exact:.6f}), relative error: {rel_error:.4f}",
         )
@@ -263,7 +266,8 @@ class TestConjugateMCExactStandalone(Generic[Array], unittest.TestCase):
         # Compare
         rel_error = abs(mc_expected - exact) / exact
         self.assertLess(
-            rel_error, rtol,
+            rel_error,
+            rtol,
             f"MC AVaR deviation ({mc_expected:.6f}) does not match "
             f"exact ({exact:.6f}), relative error: {rel_error:.4f}",
         )
@@ -272,7 +276,8 @@ class TestConjugateMCExactStandalone(Generic[Array], unittest.TestCase):
     def test_expected_kl_mc_vs_exact(self) -> None:
         """Test MC average of KL divergence matches exact formula.
 
-        NOTE: The exact formula computes E[KL(posterior_pushforward || prior_pushforward)]
+        NOTE: The exact formula computes E[KL(posterior_pushforward ||
+        prior_pushforward)]
         in the pushforward space (QoI space), NOT in the parameter space.
         So MC must compute KL between pushforwards, not between parameter distributions.
         """
@@ -327,26 +332,30 @@ class TestConjugateMCExactStandalone(Generic[Array], unittest.TestCase):
             # Compute KL(posterior_push || prior_push) in pushforward space
             nqoi = self._nqoi
             kl = 0.5 * (
-                float(bkd.trace(bkd.dot(prior_push_cov_inv, post_push_cov)))
-                - nqoi
+                float(bkd.trace(bkd.dot(prior_push_cov_inv, post_push_cov))) - nqoi
             )
             _, log_det_prior_push = bkd.slogdet(prior_push_cov)
             _, log_det_post_push = bkd.slogdet(post_push_cov)
             kl += 0.5 * (float(log_det_prior_push) - float(log_det_post_push))
             diff = prior_push_mean - post_push_mean
-            kl += 0.5 * float(bkd.to_numpy(bkd.dot(diff.T, bkd.dot(prior_push_cov_inv, diff)))[0, 0])
+            kl += 0.5 * float(
+                bkd.to_numpy(bkd.dot(diff.T, bkd.dot(prior_push_cov_inv, diff)))[0, 0]
+            )
             kl_values.append(kl)
 
         mc_expected_kl = np.mean(kl_values)
 
         # Compute exact
-        utility = self._create_analytical_utility(ConjugateGaussianOEDExpectedKLDivergence)
+        utility = self._create_analytical_utility(
+            ConjugateGaussianOEDExpectedKLDivergence
+        )
         exact = utility.value()
 
         # Compare
         rel_error = abs(mc_expected_kl - exact) / exact
         self.assertLess(
-            rel_error, rtol,
+            rel_error,
+            rtol,
             f"MC expected KL ({mc_expected_kl:.6f}) does not match "
             f"exact ({exact:.6f}), relative error: {rel_error:.4f}",
         )
@@ -409,7 +418,8 @@ class TestConjugateMCExactStandalone(Generic[Array], unittest.TestCase):
         # Compare
         rel_error = abs(mc_expected - exact) / exact
         self.assertLess(
-            rel_error, rtol,
+            rel_error,
+            rtol,
             f"MC lognormal expected std ({mc_expected:.6f}) does not match "
             f"exact ({exact:.6f}), relative error: {rel_error:.4f}",
         )
@@ -473,11 +483,17 @@ class TestConjugateMCExactStandalone(Generic[Array], unittest.TestCase):
         """Test all analytical utilities return finite values."""
         utilities = [
             self._create_analytical_utility(ConjugateGaussianOEDExpectedStdDev),
-            self._create_analytical_utility(ConjugateGaussianOEDExpectedEntropicDev, 2.0),
+            self._create_analytical_utility(
+                ConjugateGaussianOEDExpectedEntropicDev, 2.0
+            ),
             self._create_analytical_utility(ConjugateGaussianOEDExpectedAVaRDev, 0.75),
             self._create_analytical_utility(ConjugateGaussianOEDExpectedKLDivergence),
-            self._create_analytical_utility(ConjugateGaussianOEDForLogNormalExpectedStdDev),
-            self._create_analytical_utility(ConjugateGaussianOEDForLogNormalAVaRStdDev, 0.5),
+            self._create_analytical_utility(
+                ConjugateGaussianOEDForLogNormalExpectedStdDev
+            ),
+            self._create_analytical_utility(
+                ConjugateGaussianOEDForLogNormalAVaRStdDev, 0.5
+            ),
         ]
 
         for utility in utilities:
@@ -488,9 +504,7 @@ class TestConjugateMCExactStandalone(Generic[Array], unittest.TestCase):
             )
 
 
-class TestConjugateMCExactStandaloneNumpy(
-    TestConjugateMCExactStandalone[NDArray[Any]]
-):
+class TestConjugateMCExactStandaloneNumpy(TestConjugateMCExactStandalone[NDArray[Any]]):
     """NumPy backend tests."""
 
     __test__ = True
@@ -499,9 +513,7 @@ class TestConjugateMCExactStandaloneNumpy(
         return NumpyBkd()
 
 
-class TestConjugateMCExactStandaloneTorch(
-    TestConjugateMCExactStandalone[torch.Tensor]
-):
+class TestConjugateMCExactStandaloneTorch(TestConjugateMCExactStandalone[torch.Tensor]):
     """PyTorch backend tests."""
 
     __test__ = True

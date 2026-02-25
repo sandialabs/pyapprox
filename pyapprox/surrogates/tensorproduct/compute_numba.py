@@ -62,7 +62,6 @@ def tp_eval_numba(
     # Start: current = values_flat reshaped conceptually as
     #   (nqoi, n0*n1*...*n_{D-1})
     # We'll contract the last dim first.
-    cur_size = total_terms  # = remaining * n_d for current step
 
     # Workspace: double-buffer to avoid extra allocation
     # Max workspace size: nqoi * max(total_terms, npoints * total_terms / min_n)
@@ -90,7 +89,6 @@ def tp_eval_numba(
     remaining = total_terms
     src = buf_a
     dst = buf_b
-    src_stride2 = 1  # inner stride (after the n_d axis in flat layout)
 
     for d in range(nvars - 1, -1, -1):
         n_d = nterms_1d_arr[d]
@@ -124,8 +122,7 @@ def tp_eval_numba(
                         acc = 0.0
                         for k in range(n_d):
                             acc += (
-                                src[src_off + k * npoints + p]
-                                * basis_vals_pad[d, p, k]
+                                src[src_off + k * npoints + p] * basis_vals_pad[d, p, k]
                             )
                         dst[dst_off + p] = acc
 

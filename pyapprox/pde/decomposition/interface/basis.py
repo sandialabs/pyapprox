@@ -6,10 +6,10 @@ with Gauss-Legendre quadrature points (strictly interior to [-1,1]).
 
 from typing import Generic, Tuple
 
-from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.surrogates.affine.univariate.globalpoly import (
     LegendrePolynomial1D,
 )
+from pyapprox.util.backends.protocols import Array, Backend
 
 
 class LegendreInterfaceBasis1D(Generic[Array]):
@@ -43,9 +43,7 @@ class LegendreInterfaceBasis1D(Generic[Array]):
         physical_bounds: Tuple[float, float],
     ):
         if degree < 1:
-            raise ValueError(
-                f"degree must be >= 1 for at least 1 DOF, got {degree}"
-            )
+            raise ValueError(f"degree must be >= 1 for at least 1 DOF, got {degree}")
 
         self._bkd = bkd
         self._degree = degree
@@ -220,8 +218,10 @@ class LegendreInterfaceBasis1D(Generic[Array]):
             l_j = self._bkd.ones((neval,))
             for k in range(self._ndofs):
                 if k != j:
-                    l_j = l_j * (ref_pts - self._ref_points[k]) / (
-                        self._ref_points[j] - self._ref_points[k]
+                    l_j = (
+                        l_j
+                        * (ref_pts - self._ref_points[k])
+                        / (self._ref_points[j] - self._ref_points[k])
                     )
             lagrange_vals[:, j] = l_j
 
@@ -251,8 +251,10 @@ class LegendreInterfaceBasis1D(Generic[Array]):
             l_j = self._bkd.ones((neval,))
             for k in range(self._ndofs):
                 if k != j:
-                    l_j = l_j * (ref_pts - self._ref_points[k]) / (
-                        self._ref_points[j] - self._ref_points[k]
+                    l_j = (
+                        l_j
+                        * (ref_pts - self._ref_points[k])
+                        / (self._ref_points[j] - self._ref_points[k])
                     )
             interp_matrix[:, j] = l_j
 
@@ -424,8 +426,9 @@ class LegendreInterfaceBasis2D(Generic[Array]):
             )
         return coeffs
 
-    def evaluate_at_points(self, coeffs: Array, physical_pts_y: Array,
-                           physical_pts_z: Array) -> Array:
+    def evaluate_at_points(
+        self, coeffs: Array, physical_pts_y: Array, physical_pts_z: Array
+    ) -> Array:
         """Evaluate interface function at arbitrary physical points.
 
         Uses tensor product Lagrange interpolation.
@@ -445,7 +448,6 @@ class LegendreInterfaceBasis2D(Generic[Array]):
             Function values at tensor product of eval points.
             Shape: (n_eval_y * n_eval_z,)
         """
-        bkd = self._bkd
         n_eval_y = physical_pts_y.shape[0]
         n_eval_z = physical_pts_z.shape[0]
         n_eval = n_eval_y * n_eval_z

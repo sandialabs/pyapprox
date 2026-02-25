@@ -5,10 +5,9 @@ This module provides functions to visualize kernel matrices as heatmaps.
 For multi-output kernels, it draws red boxes around each kernel block.
 """
 
-from typing import Tuple, List, Optional, Union
-import numpy as np
+from typing import List, Optional, Tuple
 
-from pyapprox.util.backends.protocols import Array
+import numpy as np
 
 
 def plot_kernel_matrix_heatmap(
@@ -19,7 +18,7 @@ def plot_kernel_matrix_heatmap(
     block_sizes: Optional[List[int]] = None,
     cmap: str = "viridis",
     colorbar: bool = True,
-    **imshow_kwargs
+    **imshow_kwargs,
 ):
     """
     Plot the kernel matrix as a heatmap.
@@ -53,7 +52,7 @@ def plot_kernel_matrix_heatmap(
     x = np.linspace(bounds[0], bounds[1], npts)
 
     # Check if kernel is multi-output by checking for noutputs method
-    is_multi_output = hasattr(kernel, 'noutputs') and kernel.noutputs() > 1
+    is_multi_output = hasattr(kernel, "noutputs") and kernel.noutputs() > 1
 
     if is_multi_output:
         # For multi-output kernels, create list of sample arrays
@@ -61,8 +60,10 @@ def plot_kernel_matrix_heatmap(
         nvars = kernel.nvars()
 
         # Create sample points for each output (same points for all)
-        X_single = kernel._bkd.array(x.reshape(1, -1)) if nvars == 1 else kernel._bkd.array(
-            np.tile(x.reshape(1, -1), (nvars, 1))[:, :npts]
+        X_single = (
+            kernel._bkd.array(x.reshape(1, -1))
+            if nvars == 1
+            else kernel._bkd.array(np.tile(x.reshape(1, -1), (nvars, 1))[:, :npts])
         )
         X_list = [X_single for _ in range(noutputs)]
 
@@ -82,9 +83,7 @@ def plot_kernel_matrix_heatmap(
             X = kernel._bkd.array(x.reshape(1, -1))
         else:
             # For multi-dimensional, use same values for each dimension
-            X = kernel._bkd.array(
-                np.tile(x.reshape(1, -1), (nvars, 1))[:, :npts]
-            )
+            X = kernel._bkd.array(np.tile(x.reshape(1, -1), (nvars, 1))[:, :npts])
 
         # Compute kernel matrix
         K = kernel(X, X)
@@ -92,24 +91,27 @@ def plot_kernel_matrix_heatmap(
         block_sizes = None
 
     # Plot heatmap
-    im = ax.imshow(K_plot, cmap=cmap, aspect='auto', **imshow_kwargs)
+    im = ax.imshow(K_plot, cmap=cmap, aspect="auto", **imshow_kwargs)
 
     # Add colorbar
     if colorbar:
         from matplotlib import pyplot as plt
+
         plt.colorbar(im, ax=ax)
 
     # Draw block boundaries for multi-output kernels
     if block_sizes is not None and len(block_sizes) > 1:
         _draw_block_boundaries(ax, block_sizes)
 
-    ax.set_xlabel('Sample index')
-    ax.set_ylabel('Sample index')
+    ax.set_xlabel("Sample index")
+    ax.set_ylabel("Sample index")
 
     return im
 
 
-def _draw_block_boundaries(ax, block_sizes: List[int], color: str = 'red', linewidth: float = 2.0):
+def _draw_block_boundaries(
+    ax, block_sizes: List[int], color: str = "red", linewidth: float = 2.0
+):
     """
     Draw red boxes around kernel blocks.
 
@@ -144,17 +146,13 @@ def _draw_block_boundaries(ax, block_sizes: List[int], color: str = 'red', linew
                 height,
                 fill=False,
                 edgecolor=color,
-                linewidth=linewidth
+                linewidth=linewidth,
             )
             ax.add_patch(rect)
 
 
 def plot_kernel_matrix_surface(
-    kernel,
-    bounds: Tuple[float, float],
-    ax,
-    npts: int = 50,
-    **kwargs
+    kernel, bounds: Tuple[float, float], ax, npts: int = 50, **kwargs
 ):
     """
     Plot the kernel matrix as a 3D surface.
@@ -189,9 +187,7 @@ def plot_kernel_matrix_surface(
     if nvars == 1:
         X = kernel._bkd.array(x.reshape(1, -1))
     else:
-        X = kernel._bkd.array(
-            np.tile(x.reshape(1, -1), (nvars, 1))[:, :npts]
-        )
+        X = kernel._bkd.array(np.tile(x.reshape(1, -1), (nvars, 1))[:, :npts])
 
     # Compute kernel matrix
     K = kernel(X, X)
@@ -203,8 +199,8 @@ def plot_kernel_matrix_surface(
     # Plot surface
     surf = ax.plot_surface(xx, yy, K_plot, **kwargs)
 
-    ax.set_xlabel('Sample index i')
-    ax.set_ylabel('Sample index j')
-    ax.set_zlabel('K(x_i, x_j)')
+    ax.set_xlabel("Sample index i")
+    ax.set_ylabel("Sample index j")
+    ax.set_zlabel("K(x_i, x_j)")
 
     return surf

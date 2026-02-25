@@ -1,17 +1,18 @@
 """Tests for Chebyshev derivative matrix."""
 
 import unittest
-import numpy as np
 from typing import Generic
 
-from pyapprox.util.backends.protocols import Array, Backend
-from pyapprox.util.backends.numpy import NumpyBkd
-from pyapprox.pde.collocation.basis.chebyshev.nodes import (
-    ChebyshevGaussLobattoNodes1D,
-)
+import numpy as np
+
 from pyapprox.pde.collocation.basis.chebyshev.derivative import (
     ChebyshevDerivativeMatrix1D,
 )
+from pyapprox.pde.collocation.basis.chebyshev.nodes import (
+    ChebyshevGaussLobattoNodes1D,
+)
+from pyapprox.util.backends.numpy import NumpyBkd
+from pyapprox.util.backends.protocols import Array, Backend
 
 
 class TestChebyshevDerivative(Generic[Array], unittest.TestCase):
@@ -98,7 +99,7 @@ class TestChebyshevDerivative(Generic[Array], unittest.TestCase):
         D = deriv_comp.compute(nodes)
 
         # f(x) = x^2, f'(x) = 2x
-        f = nodes ** 2
+        f = nodes**2
         df = D @ f
         expected = 2.0 * nodes
         bkd.assert_allclose(df, expected, atol=1e-11)
@@ -114,9 +115,9 @@ class TestChebyshevDerivative(Generic[Array], unittest.TestCase):
         D = deriv_comp.compute(nodes)
 
         # f(x) = x^3, f'(x) = 3x^2
-        f = nodes ** 3
+        f = nodes**3
         df = D @ f
-        expected = 3.0 * nodes ** 2
+        expected = 3.0 * nodes**2
         bkd.assert_allclose(df, expected, atol=1e-10)
 
     def test_polynomial_exactness(self):
@@ -132,7 +133,7 @@ class TestChebyshevDerivative(Generic[Array], unittest.TestCase):
         # For degree d polynomial (d < n), derivative should be exact
         for degree in range(npts):
             # f(x) = x^degree
-            f = nodes ** degree
+            f = nodes**degree
             df_computed = D @ f
 
             # f'(x) = degree * x^(degree-1) for degree > 0
@@ -155,7 +156,7 @@ class TestChebyshevDerivative(Generic[Array], unittest.TestCase):
         D2 = D @ D
 
         # f(x) = x^3, f''(x) = 6x
-        f = nodes ** 3
+        f = nodes**3
         d2f = D2 @ f
         expected = 6.0 * nodes
         bkd.assert_allclose(d2f, expected, atol=1e-9)

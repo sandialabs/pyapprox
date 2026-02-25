@@ -5,20 +5,20 @@ The relaxed solver treats design weights as continuous variables in [0, 1]
 with a sum-to-one constraint, using trust-region constrained optimization.
 """
 
-from typing import Generic, Optional, Tuple
 from dataclasses import dataclass
+from typing import Generic, Optional, Tuple
 
 import numpy as np
 
-from pyapprox.util.backends.protocols import Array, Backend
-from pyapprox.expdesign.protocols.objective import OEDObjectiveProtocol
 from pyapprox.expdesign.objective import KLOEDObjective
-from pyapprox.optimization.minimize.scipy.trust_constr import (
-    ScipyTrustConstrOptimizer,
-)
+from pyapprox.expdesign.protocols.objective import OEDObjectiveProtocol
 from pyapprox.optimization.minimize.constraints.linear import (
     PyApproxLinearConstraint,
 )
+from pyapprox.optimization.minimize.scipy.trust_constr import (
+    ScipyTrustConstrOptimizer,
+)
+from pyapprox.util.backends.protocols import Array, Backend
 
 
 @dataclass
@@ -91,9 +91,7 @@ class OEDObjectiveWrapper(Generic[Array]):
             weights = samples[:, j : j + 1]  # (nobs, 1)
             val = self._objective(weights)  # (1, 1)
             results.append(val[0, 0])
-        return self._bkd.reshape(
-            self._bkd.asarray(results), (1, nsamples)
-        )
+        return self._bkd.reshape(self._bkd.asarray(results), (1, nsamples))
 
     def jacobian(self, sample: Array) -> Array:
         """Compute Jacobian at a single sample.
@@ -172,9 +170,7 @@ class RelaxedOEDSolver(Generic[Array]):
         ub = self._bkd.asarray([1.0])
         return PyApproxLinearConstraint(A, lb, ub, self._bkd)
 
-    def solve(
-        self, init_weights: Optional[Array] = None
-    ) -> Tuple[Array, float]:
+    def solve(self, init_weights: Optional[Array] = None) -> Tuple[Array, float]:
         """Solve the relaxed OED problem.
 
         Parameters
@@ -271,9 +267,7 @@ class RelaxedOEDSolver(Generic[Array]):
         if best_weights is None:
             # Fallback to uniform if all failed
             best_weights = self._bkd.ones((self._nobs, 1)) / self._nobs
-            best_value = float(
-                self._bkd.to_numpy(self._objective(best_weights))[0, 0]
-            )
+            best_value = float(self._bkd.to_numpy(self._objective(best_weights))[0, 0])
 
         return best_weights, best_value
 
@@ -305,9 +299,7 @@ class RelaxedKLOEDSolver(RelaxedOEDSolver[Array]):
         super().__init__(objective, config)
         self._kl_objective = objective
 
-    def solve(
-        self, init_weights: Optional[Array] = None
-    ) -> Tuple[Array, float]:
+    def solve(self, init_weights: Optional[Array] = None) -> Tuple[Array, float]:
         """Solve the relaxed KL-OED problem.
 
         Parameters
@@ -326,9 +318,7 @@ class RelaxedKLOEDSolver(RelaxedOEDSolver[Array]):
         optimal_weights, _ = super().solve(init_weights)
 
         # Compute EIG at optimal
-        optimal_eig = self._kl_objective.expected_information_gain(
-            optimal_weights
-        )
+        optimal_eig = self._kl_objective.expected_information_gain(optimal_weights)
 
         return optimal_weights, optimal_eig
 
@@ -378,8 +368,6 @@ class RelaxedKLOEDSolver(RelaxedOEDSolver[Array]):
         if best_weights is None:
             # Fallback to uniform if all failed
             best_weights = self._bkd.ones((self._nobs, 1)) / self._nobs
-            best_eig = self._kl_objective.expected_information_gain(
-                best_weights
-            )
+            best_eig = self._kl_objective.expected_information_gain(best_weights)
 
         return best_weights, best_eig

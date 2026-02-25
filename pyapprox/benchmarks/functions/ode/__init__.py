@@ -1,13 +1,13 @@
 """ODE benchmark wrapper classes."""
 
 from pyapprox.benchmarks.functions.ode.ode_benchmark import (
-    ODEBenchmark,
-    ODETimeConfig,
-    ODEQoIFunction,
-    ODEFunctionalProtocol,
     AllStatesEndpointODEFunctional,
-    SingleStateEndpointODEFunctional,
     MaxODEFunctional,
+    ODEBenchmark,
+    ODEFunctionalProtocol,
+    ODEQoIFunction,
+    ODETimeConfig,
+    SingleStateEndpointODEFunctional,
 )
 
 __all__ = [

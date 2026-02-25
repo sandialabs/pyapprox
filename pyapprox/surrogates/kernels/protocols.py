@@ -1,11 +1,17 @@
 from abc import ABC, abstractmethod
-from typing import Generic, Protocol, runtime_checkable
+from typing import TYPE_CHECKING, Generic, Protocol, runtime_checkable
 
+from pyapprox.util.backends.protocols import Array, Backend
+from pyapprox.util.backends.validation import validate_backend
 from pyapprox.util.hyperparameter.hyperparameter_list import (
     HyperParameterList,
 )
-from pyapprox.util.backends.protocols import Array, Backend
-from pyapprox.util.backends.validation import validate_backend
+
+if TYPE_CHECKING:
+    from pyapprox.surrogates.kernels.composition import (
+        ProductKernel,
+        SumKernel,
+    )
 
 
 @runtime_checkable
@@ -134,9 +140,7 @@ class KernelHasHVPWrtX1Protocol(Protocol, Generic[Array]):
     For full protocol including jacobian, use KernelWithJacobianAndHVPWrtX1Protocol.
     """
 
-    def hvp_wrt_x1(
-        self, X1: Array, X2: Array, direction: Array
-    ) -> Array:
+    def hvp_wrt_x1(self, X1: Array, X2: Array, direction: Array) -> Array:
         """
         Compute Hessian-vector product of kernel w.r.t. first argument.
 
@@ -169,8 +173,6 @@ class KernelHasHVPWrtX1Protocol(Protocol, Generic[Array]):
         Hessian tensor, making it memory-efficient for high dimensions.
         """
         ...
-
-
 
 
 @runtime_checkable
@@ -210,6 +212,7 @@ class KernelWithJacobianProtocol(
     KernelProtocol[Array], KernelHasJacobianProtocol[Array], Protocol
 ):
     """Kernel with jacobian w.r.t. input X1."""
+
     pass
 
 
@@ -219,6 +222,7 @@ class KernelWithJacobianAndHVPWrtX1Protocol(
     Protocol,
 ):
     """Kernel with both jacobian and hvp_wrt_x1 (second derivative w.r.t. X1)."""
+
     pass
 
 
@@ -228,6 +232,7 @@ class KernelWithParameterJacobianProtocol(
     Protocol,
 ):
     """Kernel with jacobian_wrt_params."""
+
     pass
 
 
@@ -237,6 +242,7 @@ class KernelWithParameterJacobianAndHVPProtocol(
     Protocol,
 ):
     """Kernel with both jacobian_wrt_params and hvp_wrt_params."""
+
     pass
 
 
@@ -246,6 +252,7 @@ class KernelWithJacobianAndParameterJacobianProtocol(
     Protocol,
 ):
     """Kernel with jacobian (w.r.t. X1) and jacobian_wrt_params."""
+
     pass
 
 
@@ -254,7 +261,9 @@ class KernelWithFullDerivativesProtocol(
     KernelWithParameterJacobianAndHVPProtocol[Array],
     Protocol,
 ):
-    """Kernel with all derivative methods: jacobian, hvp_wrt_x1, jacobian_wrt_params, hvp_wrt_params."""
+    """Kernel with all derivative methods: jacobian, hvp_wrt_x1, jacobian_wrt_params,
+    hvp_wrt_params."""
+
     pass
 
 

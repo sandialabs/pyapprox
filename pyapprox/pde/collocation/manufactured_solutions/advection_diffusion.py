@@ -5,16 +5,16 @@ Provides manufactured solution classes for verifying ADR physics implementations
 
 from typing import Generic, List, Optional
 
-from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.pde.collocation.manufactured_solutions.base import (
     ManufacturedSolution,
     ScalarSolutionMixin,
 )
 from pyapprox.pde.collocation.manufactured_solutions.mixins import (
+    AdvectionMixin,
     DiffusionMixin,
     ReactionMixin,
-    AdvectionMixin,
 )
+from pyapprox.util.backends.protocols import Array, Backend
 
 
 class ManufacturedAdvectionDiffusionReaction(

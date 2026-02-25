@@ -7,9 +7,6 @@ import numpy as np
 import torch
 from numpy.typing import NDArray
 
-from pyapprox.util.backends.protocols import Array, Backend
-from pyapprox.util.backends.numpy import NumpyBkd
-from pyapprox.util.backends.torch import TorchBkd
 from pyapprox.probability.copula.correlation.cholesky import (
     CholeskyCorrelationParameterization,
 )
@@ -20,6 +17,9 @@ from pyapprox.probability.copula.kl_divergence import (
 from pyapprox.probability.gaussian.dense import (
     DenseCholeskyMultivariateGaussian,
 )
+from pyapprox.util.backends.numpy import NumpyBkd
+from pyapprox.util.backends.protocols import Array, Backend
+from pyapprox.util.backends.torch import TorchBkd
 from pyapprox.util.test_utils import load_tests  # noqa: F401
 
 
@@ -72,9 +72,7 @@ class TestGaussianCopulaKL(Generic[Array], unittest.TestCase):
         mvn_p = DenseCholeskyMultivariateGaussian(mean_zero, sigma_p, self._bkd)
         mvn_q = DenseCholeskyMultivariateGaussian(mean_zero, sigma_q, self._bkd)
 
-        copula_kl = gaussian_copula_kl_divergence(
-            self._copula_p, self._copula_q
-        )
+        copula_kl = gaussian_copula_kl_divergence(self._copula_p, self._copula_q)
         mvn_kl = mvn_p.kl_divergence(mvn_q)
 
         self._bkd.assert_allclose(
@@ -106,11 +104,7 @@ class TestGaussianCopulaKL(Generic[Array], unittest.TestCase):
         #            = 0.5 * (tr(Sigma_p) - d - log|Sigma_p|)
         sigma_p = self._copula_p.correlation_param().correlation_matrix()
         log_det_p = self._copula_p.correlation_param().log_det()
-        expected = 0.5 * (
-            self._bkd.sum(self._bkd.get_diagonal(sigma_p))
-            - self._nvars
-            - log_det_p
-        )
+        0.5 * (self._bkd.sum(self._bkd.get_diagonal(sigma_p)) - self._nvars - log_det_p)
         # For correlation matrix, tr(Sigma_p) = d, so this simplifies to
         # KL(p || I) = 0.5 * (d - d - log|Sigma_p|) = -0.5 * log|Sigma_p|
         expected_simple = -0.5 * log_det_p

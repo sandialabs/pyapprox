@@ -1,21 +1,21 @@
 """Multifidelity benchmark instances."""
 
-from pyapprox.benchmarks.instances.multifidelity.polynomial_ensemble import (
-    polynomial_ensemble_5model,
-    polynomial_ensemble_3model,
-)
-from pyapprox.benchmarks.instances.multifidelity.multioutput_ensemble import (
-    multioutput_ensemble_3x3,
-    psd_multioutput_ensemble_3x3,
-)
-from pyapprox.benchmarks.instances.multifidelity.tunable_ensemble import (
-    tunable_ensemble_3model,
-)
 from pyapprox.benchmarks.instances.multifidelity.branin_ensemble import (
     branin_ensemble_3model,
 )
 from pyapprox.benchmarks.instances.multifidelity.forrester_ensemble import (
     forrester_ensemble_2model,
+)
+from pyapprox.benchmarks.instances.multifidelity.multioutput_ensemble import (
+    multioutput_ensemble_3x3,
+    psd_multioutput_ensemble_3x3,
+)
+from pyapprox.benchmarks.instances.multifidelity.polynomial_ensemble import (
+    polynomial_ensemble_3model,
+    polynomial_ensemble_5model,
+)
+from pyapprox.benchmarks.instances.multifidelity.tunable_ensemble import (
+    tunable_ensemble_3model,
 )
 
 __all__ = [

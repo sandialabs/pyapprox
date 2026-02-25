@@ -13,9 +13,9 @@ from .criterion import (
 )
 from .design_matrices import DesignMatricesProtocol
 from .solver import (
-    OptimizerResultProtocol,
-    OptimizerProtocol,
     LocalOEDSolverProtocol,
+    OptimizerProtocol,
+    OptimizerResultProtocol,
 )
 
 __all__ = [

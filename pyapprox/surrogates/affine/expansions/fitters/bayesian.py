@@ -2,10 +2,10 @@
 
 from typing import Generic, Optional
 
-from pyapprox.util.backends.protocols import Array, Backend
-from pyapprox.surrogates.affine.protocols import BasisExpansionProtocol
 from pyapprox.inverse.conjugate import DenseGaussianConjugatePosterior
 from pyapprox.probability.gaussian import DenseCholeskyMultivariateGaussian
+from pyapprox.surrogates.affine.protocols import BasisExpansionProtocol
+from pyapprox.util.backends.protocols import Array, Backend
 
 
 class BayesianConjugateResult(Generic[Array]):

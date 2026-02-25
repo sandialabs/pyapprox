@@ -7,8 +7,8 @@ than full gradient descent for FunctionTrain surrogates.
 
 from typing import Generic, List
 
-from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.surrogates.functiontrain.functiontrain import FunctionTrain
+from pyapprox.util.backends.protocols import Array, Backend
 
 
 class ALSFitterResult(Generic[Array]):
@@ -141,17 +141,13 @@ class ALSFitter(Generic[Array]):
 
         if samples.shape[0] != nvars:
             raise ValueError(
-                f"samples has {samples.shape[0]} variables, "
-                f"surrogate expects {nvars}"
+                f"samples has {samples.shape[0]} variables, surrogate expects {nvars}"
             )
         if values.shape[0] != nqoi:
-            raise ValueError(
-                f"values has {values.shape[0]} QoIs, " f"surrogate has {nqoi}"
-            )
+            raise ValueError(f"values has {values.shape[0]} QoIs, surrogate has {nqoi}")
         if values.shape[1] != nsamples:
             raise ValueError(
-                f"values has {values.shape[1]} samples, "
-                f"samples has {nsamples}"
+                f"values has {values.shape[1]} samples, samples has {nsamples}"
             )
 
         # Work on a copy of the surrogate
@@ -171,9 +167,7 @@ class ALSFitter(Generic[Array]):
         for sweep in range(self._max_sweeps):
             # Forward sweep through all cores
             for core_id in range(nvars):
-                current_ft = self._solve_core(
-                    current_ft, samples, values, core_id
-                )
+                current_ft = self._solve_core(current_ft, samples, values, core_id)
 
             # Compute residual after sweep
             pred = current_ft(samples)

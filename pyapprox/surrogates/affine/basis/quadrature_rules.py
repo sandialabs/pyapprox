@@ -5,12 +5,12 @@ multivariate functions using tensor products of univariate rules.
 """
 
 from abc import ABC, abstractmethod
-from typing import Generic, List, Optional, Tuple, Callable
+from typing import Callable, Generic, List, Tuple
 
-from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.surrogates.affine.protocols import (
     OrthonormalPolynomial1DProtocol,
 )
+from pyapprox.util.backends.protocols import Array, Backend
 
 
 class QuadratureRule(ABC, Generic[Array]):
@@ -104,9 +104,7 @@ class TensorProductQuadratureRule(QuadratureRule[Array], Generic[Array]):
 
         # Build tensor product grid
         grids = self._bkd.meshgrid(*points_1d, indexing="ij")
-        points = self._bkd.stack(
-            [self._bkd.flatten(g) for g in grids], axis=0
-        )
+        points = self._bkd.stack([self._bkd.flatten(g) for g in grids], axis=0)
 
         # Tensor product of weights
         weights = weights_1d[0]

@@ -1,12 +1,12 @@
 """Protocol definitions for statistical estimators."""
 
 from typing import (
-    Protocol,
-    runtime_checkable,
+    Callable,
     Generic,
     List,
+    Protocol,
     Tuple,
-    Callable,
+    runtime_checkable,
 )
 
 from pyapprox.util.backends.protocols import Array, Backend
@@ -40,9 +40,7 @@ class StatisticProtocol(Protocol, Generic[Array]):
         """Return the covariance of the high-fidelity estimator."""
         ...
 
-    def compute_pilot_quantities(
-        self, pilot_values: List[Array]
-    ) -> Tuple[Array, ...]:
+    def compute_pilot_quantities(self, pilot_values: List[Array]) -> Tuple[Array, ...]:
         """Compute quantities from pilot samples."""
         ...
 
@@ -71,9 +69,7 @@ class EstimatorProtocol(Protocol, Generic[Array]):
         """Find optimal sample allocation for given budget."""
         ...
 
-    def generate_samples_per_model(
-        self, rvs: Callable[[int], Array]
-    ) -> List[Array]:
+    def generate_samples_per_model(self, rvs: Callable[[int], Array]) -> List[Array]:
         """Generate samples for each model."""
         ...
 
@@ -89,9 +85,7 @@ class EstimatorProtocol(Protocol, Generic[Array]):
         """Return the number of samples allocated to each model."""
         ...
 
-    def bootstrap(
-        self, values: List[Array], nbootstraps: int
-    ) -> Tuple[Array, Array]:
+    def bootstrap(self, values: List[Array], nbootstraps: int) -> Tuple[Array, Array]:
         """Estimate variance using bootstrapping."""
         ...
 
@@ -103,9 +97,7 @@ class CVEstimatorProtocol(EstimatorProtocol[Array], Protocol):
     Extends EstimatorProtocol with control variate specific methods.
     """
 
-    def insert_pilot_values(
-        self, values_per_model: List[Array]
-    ) -> List[Array]:
+    def insert_pilot_values(self, values_per_model: List[Array]) -> List[Array]:
         """Insert pilot values into model values."""
         ...
 

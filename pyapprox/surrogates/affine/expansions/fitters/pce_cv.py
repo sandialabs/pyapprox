@@ -8,20 +8,20 @@ integer levels to multi-index arrays.
 
 from typing import Generic, List, Optional
 
-from pyapprox.util.backends.protocols import Array, Backend
-from pyapprox.surrogates.affine.protocols import (
-    BasisExpansionProtocol,
-    MultiIndexBasisProtocol,
-    IndexSequenceProtocol,
-)
 from pyapprox.surrogates.affine.expansions.crossvalidation import (
-    leave_one_out_lsq_cross_validation,
-    leave_many_out_lsq_cross_validation,
     get_random_k_fold_sample_indices,
+    leave_many_out_lsq_cross_validation,
+    leave_one_out_lsq_cross_validation,
 )
 from pyapprox.surrogates.affine.expansions.fitters.results import (
     CVSelectionResult,
 )
+from pyapprox.surrogates.affine.protocols import (
+    BasisExpansionProtocol,
+    IndexSequenceProtocol,
+    MultiIndexBasisProtocol,
+)
+from pyapprox.util.backends.protocols import Array, Backend
 
 
 class PCEDegreeSelectionFitter(Generic[Array]):

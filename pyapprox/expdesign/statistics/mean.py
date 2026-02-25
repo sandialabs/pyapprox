@@ -6,8 +6,8 @@ Computes the weighted mean: E[f] = sum_i w_i * f_i
 
 from typing import Generic
 
-from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.expdesign.statistics.base import SampleStatistic
+from pyapprox.util.backends.protocols import Array, Backend
 
 
 class SampleAverageMean(SampleStatistic[Array], Generic[Array]):
@@ -46,9 +46,7 @@ class SampleAverageMean(SampleStatistic[Array], Generic[Array]):
         # values @ weights.T gives (nqoi, 1)
         return values @ weights.T
 
-    def _jacobian(
-        self, values: Array, jac_values: Array, weights: Array
-    ) -> Array:
+    def _jacobian(self, values: Array, jac_values: Array, weights: Array) -> Array:
         """
         Compute Jacobian of mean.
 

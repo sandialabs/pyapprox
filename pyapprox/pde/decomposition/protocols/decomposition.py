@@ -6,15 +6,15 @@ Defines DomainDecompositionProtocol which manages the full decomposition:
 - DOF indexing for global interface vector
 """
 
-from typing import Protocol, Generic, runtime_checkable
+from typing import Generic, Protocol, runtime_checkable
 
-from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.pde.decomposition.protocols.interface import (
     InterfaceProtocol,
 )
 from pyapprox.pde.decomposition.protocols.subdomain import (
     SubdomainSolverProtocol,
 )
+from pyapprox.util.backends.protocols import Array, Backend
 
 
 @runtime_checkable
@@ -91,9 +91,7 @@ class DomainDecompositionProtocol(Protocol, Generic[Array]):
         """Return total number of interface DOFs across all interfaces."""
         ...
 
-    def extract_interface_dofs(
-        self, global_dofs: Array, interface_id: int
-    ) -> Array:
+    def extract_interface_dofs(self, global_dofs: Array, interface_id: int) -> Array:
         """Extract DOFs for one interface from global DOF vector.
 
         Parameters

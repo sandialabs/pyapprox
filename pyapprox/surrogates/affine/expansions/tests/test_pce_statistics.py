@@ -13,17 +13,15 @@ import numpy as np
 import torch
 from numpy.typing import NDArray
 
-from pyapprox.util.backends.numpy import NumpyBkd
-from pyapprox.util.backends.torch import TorchBkd
-from pyapprox.util.backends.protocols import Array, Backend
-from pyapprox.util.test_utils import load_tests
-
 from pyapprox.probability.univariate import UniformMarginal
-from pyapprox.surrogates.affine.univariate import create_bases_1d
 from pyapprox.surrogates.affine.expansions import (
     create_pce,
     pce_statistics,
 )
+from pyapprox.surrogates.affine.univariate import create_bases_1d
+from pyapprox.util.backends.numpy import NumpyBkd
+from pyapprox.util.backends.protocols import Array, Backend
+from pyapprox.util.backends.torch import TorchBkd
 
 
 class TestPCEMeanVariance(Generic[Array], unittest.TestCase):
@@ -95,7 +93,7 @@ class TestPCEMeanVariance(Generic[Array], unittest.TestCase):
         nsamples = 100
         samples = bkd.asarray(np.random.uniform(-1, 1, (2, nsamples)))
         x, y = samples[0, :], samples[1, :]
-        values = bkd.reshape(x + y + x*y, (1, -1))
+        values = bkd.reshape(x + y + x * y, (1, -1))
         pce.fit(samples, values)
 
         std = pce.std()
@@ -115,14 +113,14 @@ class TestPCEMeanVariance(Generic[Array], unittest.TestCase):
         nsamples = 100
         samples = bkd.asarray(np.random.uniform(-1, 1, (2, nsamples)))
         x, y = samples[0, :], samples[1, :]
-        values = bkd.reshape(1.0 + x + y + x*y, (1, -1))
+        values = bkd.reshape(1.0 + x + y + x * y, (1, -1))
         pce.fit(samples, values)
 
         mean = pce.mean()
         var = pce.variance()
 
         bkd.assert_allclose(mean, bkd.asarray([1.0]), atol=1e-10)
-        bkd.assert_allclose(var, bkd.asarray([7.0/9.0]), atol=1e-10)
+        bkd.assert_allclose(var, bkd.asarray([7.0 / 9.0]), atol=1e-10)
 
 
 class TestPCEMeanVarianceNumpy(TestPCEMeanVariance[NDArray[Any]]):
@@ -172,10 +170,12 @@ class TestPCECovariance(Generic[Array], unittest.TestCase):
         nsamples = 100
         samples = bkd.asarray(np.random.uniform(-1, 1, (2, nsamples)))
         x, y = samples[0, :], samples[1, :]
-        values = bkd.vstack([
-            bkd.reshape(x + y, (1, -1)),
-            bkd.reshape(x*y, (1, -1)),
-        ])
+        values = bkd.vstack(
+            [
+                bkd.reshape(x + y, (1, -1)),
+                bkd.reshape(x * y, (1, -1)),
+            ]
+        )
         pce.fit(samples, values)
 
         cov = pce.covariance()
@@ -261,7 +261,7 @@ class TestSobolIndices(Generic[Array], unittest.TestCase):
         nsamples = 100
         samples = bkd.asarray(np.random.uniform(-1, 1, (2, nsamples)))
         x, y = samples[0, :], samples[1, :]
-        values = bkd.reshape(x + y + x*y, (1, -1))
+        values = bkd.reshape(x + y + x * y, (1, -1))
         pce.fit(samples, values)
 
         total_indices = pce.total_sobol_indices()
@@ -281,7 +281,7 @@ class TestSobolIndices(Generic[Array], unittest.TestCase):
         nsamples = 100
         samples = bkd.asarray(np.random.uniform(-1, 1, (2, nsamples)))
         x, y = samples[0, :], samples[1, :]
-        values = bkd.reshape(x + y + x*y, (1, -1))
+        values = bkd.reshape(x + y + x * y, (1, -1))
         pce.fit(samples, values)
 
         main_indices = pce.main_effect_sobol_indices()
@@ -301,7 +301,7 @@ class TestSobolIndices(Generic[Array], unittest.TestCase):
         nsamples = 100
         samples = bkd.asarray(np.random.uniform(-1, 1, (2, nsamples)))
         x, y = samples[0, :], samples[1, :]
-        values = bkd.reshape(x + 2*y, (1, -1))
+        values = bkd.reshape(x + 2 * y, (1, -1))
         pce.fit(samples, values)
 
         main_indices = pce.main_effect_sobol_indices()
@@ -312,9 +312,7 @@ class TestSobolIndices(Generic[Array], unittest.TestCase):
 
         # Main effects should sum to 1
         bkd.assert_allclose(
-            bkd.reshape(bkd.sum(main_indices), (1,)),
-            bkd.asarray([1.0]),
-            atol=1e-10
+            bkd.reshape(bkd.sum(main_indices), (1,)), bkd.asarray([1.0]), atol=1e-10
         )
 
     def test_analytical_sobol_indices(self):
@@ -332,7 +330,7 @@ class TestSobolIndices(Generic[Array], unittest.TestCase):
         nsamples = 100
         samples = bkd.asarray(np.random.uniform(-1, 1, (2, nsamples)))
         x, y = samples[0, :], samples[1, :]
-        values = bkd.reshape(x + 2*y, (1, -1))
+        values = bkd.reshape(x + 2 * y, (1, -1))
         pce.fit(samples, values)
 
         main_indices = pce.main_effect_sobol_indices()
@@ -406,7 +404,7 @@ class TestInteractionSobolIndices(Generic[Array], unittest.TestCase):
         nsamples = 100
         samples = bkd.asarray(np.random.uniform(-1, 1, (2, nsamples)))
         x, y = samples[0, :], samples[1, :]
-        values = bkd.reshape(x*y, (1, -1))
+        values = bkd.reshape(x * y, (1, -1))
         pce.fit(samples, values)
 
         # Interaction index S_{0,1} should be ~1 (all variance from interaction)
@@ -429,7 +427,7 @@ class TestInteractionSobolIndices(Generic[Array], unittest.TestCase):
         nsamples = 100
         samples = bkd.asarray(np.random.uniform(-1, 1, (2, nsamples)))
         x, y = samples[0, :], samples[1, :]
-        values = bkd.reshape(x + y + x*y, (1, -1))
+        values = bkd.reshape(x + y + x * y, (1, -1))
         pce.fit(samples, values)
 
         main_indices = pce.main_effect_sobol_indices()
@@ -437,9 +435,7 @@ class TestInteractionSobolIndices(Generic[Array], unittest.TestCase):
 
         # S_x + S_y + S_{xy} should equal 1
         total = bkd.sum(main_indices) + bkd.sum(interaction)
-        bkd.assert_allclose(
-            bkd.reshape(total, (1,)), bkd.asarray([1.0]), atol=1e-10
-        )
+        bkd.assert_allclose(bkd.reshape(total, (1,)), bkd.asarray([1.0]), atol=1e-10)
 
 
 class TestInteractionSobolIndicesNumpy(TestInteractionSobolIndices[NDArray[Any]]):
@@ -489,7 +485,7 @@ class TestPCEStatisticsFunctions(Generic[Array], unittest.TestCase):
         nsamples = 50
         samples = bkd.asarray(np.random.uniform(-1, 1, (2, nsamples)))
         x, y = samples[0, :], samples[1, :]
-        values = bkd.reshape(x + y + x*y, (1, -1))
+        values = bkd.reshape(x + y + x * y, (1, -1))
         pce.fit(samples, values)
 
         # Compare function outputs to method outputs
@@ -497,12 +493,11 @@ class TestPCEStatisticsFunctions(Generic[Array], unittest.TestCase):
         bkd.assert_allclose(pce_statistics.variance(pce), pce.variance())
         bkd.assert_allclose(pce_statistics.std(pce), pce.std())
         bkd.assert_allclose(
-            pce_statistics.total_sobol_indices(pce),
-            pce.total_sobol_indices()
+            pce_statistics.total_sobol_indices(pce), pce.total_sobol_indices()
         )
         bkd.assert_allclose(
             pce_statistics.main_effect_sobol_indices(pce),
-            pce.main_effect_sobol_indices()
+            pce.main_effect_sobol_indices(),
         )
 
 

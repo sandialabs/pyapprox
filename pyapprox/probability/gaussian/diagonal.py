@@ -9,9 +9,9 @@ from typing import Generic
 
 import numpy as np
 
-from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.probability.covariance import DiagonalCovarianceOperator
 from pyapprox.probability.gaussian.core import GaussianLogPDFCore
+from pyapprox.util.backends.protocols import Array, Backend
 
 
 class DiagonalMultivariateGaussian(Generic[Array]):
@@ -41,24 +41,19 @@ class DiagonalMultivariateGaussian(Generic[Array]):
     >>> samples = dist.rvs(100)
     """
 
-    def __init__(
-        self, mean: Array, variances: Array, bkd: Backend[Array]
-    ):
+    def __init__(self, mean: Array, variances: Array, bkd: Backend[Array]):
         self._bkd = bkd
         self._mean = mean
         self._nvars = mean.shape[0]
 
         # Validate mean shape
         if mean.shape != (self._nvars, 1):
-            raise ValueError(
-                f"mean must have shape (nvars, 1), got {mean.shape}"
-            )
+            raise ValueError(f"mean must have shape (nvars, 1), got {mean.shape}")
 
         # Validate variances shape
         if variances.shape != (self._nvars,):
             raise ValueError(
-                f"variances must have shape ({self._nvars},), "
-                f"got {variances.shape}"
+                f"variances must have shape ({self._nvars},), got {variances.shape}"
             )
 
         # Create covariance operator
@@ -156,9 +151,7 @@ class DiagonalMultivariateGaussian(Generic[Array]):
             Random samples. Shape: (nvars, nsamples)
         """
         # Generate standard normal samples
-        std_normal = self._bkd.asarray(
-            np.random.normal(0, 1, (self._nvars, nsamples))
-        )
+        std_normal = self._bkd.asarray(np.random.normal(0, 1, (self._nvars, nsamples)))
         # Transform: sigma * z + mean
         return self._cov_op.apply(std_normal) + self._mean
 
@@ -215,9 +208,7 @@ class DiagonalMultivariateGaussian(Generic[Array]):
         residuals = samples - self._mean
         return self._logpdf_core.compute_gradient(residuals)
 
-    def kl_divergence(
-        self, other: "DiagonalMultivariateGaussian"
-    ) -> float:
+    def kl_divergence(self, other: "DiagonalMultivariateGaussian") -> float:
         """
         Compute KL divergence KL(self || other).
 
@@ -240,14 +231,12 @@ class DiagonalMultivariateGaussian(Generic[Array]):
         # KL = 0.5 * sum_i (var1_i/var2_i + (m2_i-m1_i)^2/var2_i - 1
         #                   + log(var2_i) - log(var1_i))
         trace_term = self._bkd.sum(var1 / var2)
-        quad_term = self._bkd.sum(mean_diff[:, 0]**2 / var2)
+        quad_term = self._bkd.sum(mean_diff[:, 0] ** 2 / var2)
         log_det_term = self._bkd.sum(self._bkd.log(var2)) - self._bkd.sum(
             self._bkd.log(var1)
         )
 
-        return float(
-            0.5 * (trace_term + quad_term - self._nvars + log_det_term)
-        )
+        return float(0.5 * (trace_term + quad_term - self._nvars + log_det_term))
 
     def __repr__(self) -> str:
         """Return string representation."""

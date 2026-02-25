@@ -62,9 +62,9 @@ class PiecewiseQuadratic(Generic[Array]):
         elem_idx = bkd.clip(elem_idx, 0, n_elements - 1)
 
         # Get node indices for each element
-        left_idx = 2 * elem_idx      # even: 0, 2, 4, ...
-        mid_idx = left_idx + 1       # odd: 1, 3, 5, ...
-        right_idx = left_idx + 2     # even: 2, 4, 6, ...
+        left_idx = 2 * elem_idx  # even: 0, 2, 4, ...
+        mid_idx = left_idx + 1  # odd: 1, 3, 5, ...
+        right_idx = left_idx + 2  # even: 2, 4, 6, ...
 
         # Get node values
         xl = nodes[left_idx]
@@ -75,19 +75,13 @@ class PiecewiseQuadratic(Generic[Array]):
         pt_indices = bkd.arange(npts)
 
         # Left basis (at even node): L_0(x) = (x-xm)(x-xr) / (xl-xm)(xl-xr)
-        vals[pt_indices, left_idx] = (
-            (xx - xm) / (xl - xm) * (xx - xr) / (xl - xr)
-        )
+        vals[pt_indices, left_idx] = (xx - xm) / (xl - xm) * (xx - xr) / (xl - xr)
 
         # Middle basis (at odd node): L_1(x) = (x-xl)(x-xr) / (xm-xl)(xm-xr)
-        vals[pt_indices, mid_idx] = (
-            (xx - xl) / (xm - xl) * (xx - xr) / (xm - xr)
-        )
+        vals[pt_indices, mid_idx] = (xx - xl) / (xm - xl) * (xx - xr) / (xm - xr)
 
         # Right basis (at even node): L_2(x) = (x-xl)(x-xm) / (xr-xl)(xr-xm)
-        vals[pt_indices, right_idx] = (
-            (xx - xl) / (xr - xl) * (xx - xm) / (xr - xm)
-        )
+        vals[pt_indices, right_idx] = (xx - xl) / (xr - xl) * (xx - xm) / (xr - xm)
 
         return vals
 
@@ -113,14 +107,10 @@ class PiecewiseQuadratic(Generic[Array]):
                 continue
             if ii < nnodes - 2:
                 xl, xm, xr = self._nodes[ii : ii + 3]
-                weights[ii] += ((xr - xl) * (2 * xl - 3 * xm + xr)) / (
-                    6 * (xl - xm)
-                )
+                weights[ii] += ((xr - xl) * (2 * xl - 3 * xm + xr)) / (6 * (xl - xm))
             if ii > 1:
                 xl, xm, xr = self._nodes[ii - 2 : ii + 1]
-                weights[ii] += ((xl - xr) * (xl - 3 * xm + 2 * xr)) / (
-                    6 * (xm - xr)
-                )
+                weights[ii] += ((xl - xr) * (xl - 3 * xm + 2 * xr)) / (6 * (xm - xr))
         return self._bkd.asarray(weights)
 
     def quadrature_rule(self) -> Tuple[Array, Array]:

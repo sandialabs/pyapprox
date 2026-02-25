@@ -1,28 +1,28 @@
 """Multifidelity test function ensembles."""
 
+from pyapprox.benchmarks.functions.multifidelity.branin_ensemble import (
+    BraninEnsemble,
+    BraninModelFunction,
+)
+from pyapprox.benchmarks.functions.multifidelity.forrester_ensemble import (
+    ForresterEnsemble,
+    ForresterModelFunction,
+)
+from pyapprox.benchmarks.functions.multifidelity.multioutput_ensemble import (
+    MultiOutputModelEnsemble,
+    MultiOutputModelFunction,
+    PSDMultiOutputModelEnsemble,
+)
+from pyapprox.benchmarks.functions.multifidelity.polynomial_ensemble import (
+    PolynomialEnsemble,
+    PolynomialModelFunction,
+)
 from pyapprox.benchmarks.functions.multifidelity.statistics_mixin import (
     MultifidelityStatisticsMixin,
 )
-from pyapprox.benchmarks.functions.multifidelity.polynomial_ensemble import (
-    PolynomialModelFunction,
-    PolynomialEnsemble,
-)
-from pyapprox.benchmarks.functions.multifidelity.multioutput_ensemble import (
-    MultiOutputModelFunction,
-    MultiOutputModelEnsemble,
-    PSDMultiOutputModelEnsemble,
-)
 from pyapprox.benchmarks.functions.multifidelity.tunable_ensemble import (
-    TunableModelFunction,
     TunableModelEnsemble,
-)
-from pyapprox.benchmarks.functions.multifidelity.branin_ensemble import (
-    BraninModelFunction,
-    BraninEnsemble,
-)
-from pyapprox.benchmarks.functions.multifidelity.forrester_ensemble import (
-    ForresterModelFunction,
-    ForresterEnsemble,
+    TunableModelFunction,
 )
 
 __all__ = [

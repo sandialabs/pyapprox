@@ -4,18 +4,18 @@ A basis expansion represents a function as a linear combination of basis
 functions: f(x) = Σ_i c_i φ_i(x).
 """
 
-from typing import Generic, Optional, Self, Union
+from typing import Generic, Optional, Self
 
+from pyapprox.surrogates.affine.protocols import (
+    BasisHasHessianProtocol,
+    BasisHasJacobianProtocol,
+    BasisProtocol,
+    LinearSystemSolverProtocol,
+)
 from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.util.hyperparameter import (
     HyperParameter,
     HyperParameterList,
-)
-from pyapprox.surrogates.affine.protocols import (
-    BasisProtocol,
-    BasisHasJacobianProtocol,
-    BasisHasHessianProtocol,
-    LinearSystemSolverProtocol,
 )
 
 
@@ -116,8 +116,7 @@ class BasisExpansion(Generic[Array]):
             coef = self._bkd.reshape(coef, (-1, 1))
         if coef.shape != (self.nterms(), self._nqoi):
             raise ValueError(
-                f"Expected shape ({self.nterms()}, {self._nqoi}), "
-                f"got {coef.shape}"
+                f"Expected shape ({self.nterms()}, {self._nqoi}), got {coef.shape}"
             )
         self._coef = coef
         if self._hyp_list is not None:
@@ -480,14 +479,13 @@ class BasisExpansion(Generic[Array]):
             values = self._bkd.reshape(values, (1, -1))
 
         if values.shape[0] != self._nqoi:
-            raise ValueError(
-                f"Expected {self._nqoi} QoIs, got {values.shape[0]}"
-            )
+            raise ValueError(f"Expected {self._nqoi} QoIs, got {values.shape[0]}")
 
         active_solver = solver if solver is not None else self._solver
         if active_solver is None:
             # Use default least squares
             from pyapprox.optimization.linear import LeastSquaresSolver
+
             active_solver = LeastSquaresSolver(self._bkd)
 
         # Evaluate basis at training samples

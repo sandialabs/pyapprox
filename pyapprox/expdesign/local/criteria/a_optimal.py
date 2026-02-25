@@ -9,9 +9,9 @@ This is equivalent to sum_i e_i^T @ Cov @ e_i where e_i are unit vectors.
 
 from typing import Generic
 
-from pyapprox.util.backends.protocols import Array, Backend
-from pyapprox.expdesign.local.protocols import DesignMatricesProtocol
 from pyapprox.expdesign.local.adjoint import AdjointModel
+from pyapprox.expdesign.local.protocols import DesignMatricesProtocol
+from pyapprox.util.backends.protocols import Array, Backend
 
 from .base import LocalOEDCriterionBase
 

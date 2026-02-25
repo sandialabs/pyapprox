@@ -9,26 +9,25 @@ from typing import Any, Generic, List
 import torch
 from numpy.typing import NDArray
 
-from pyapprox.util.backends.numpy import NumpyBkd
-from pyapprox.util.backends.torch import TorchBkd
-from pyapprox.util.backends.protocols import Array, Backend
-from pyapprox.util.test_utils import load_tests  # noqa: F401
-
+from pyapprox.interface.functions.derivative_checks.derivative_checker import (
+    DerivativeChecker,
+)
+from pyapprox.probability import UniformMarginal
+from pyapprox.surrogates.affine.indices import LinearGrowthRule
+from pyapprox.surrogates.sparsegrids.basis_factory import (
+    BasisFactoryProtocol,
+    GaussLagrangeFactory,
+)
 from pyapprox.surrogates.sparsegrids.isotropic_fitter import (
     IsotropicSparseGridFitter,
 )
 from pyapprox.surrogates.sparsegrids.subspace_factory import (
     TensorProductSubspaceFactory,
 )
-from pyapprox.surrogates.sparsegrids.basis_factory import (
-    BasisFactoryProtocol,
-    GaussLagrangeFactory,
-)
-from pyapprox.probability import UniformMarginal
-from pyapprox.surrogates.affine.indices import LinearGrowthRule
-from pyapprox.interface.functions.derivative_checks.derivative_checker import (
-    DerivativeChecker,
-)
+from pyapprox.util.backends.numpy import NumpyBkd
+from pyapprox.util.backends.protocols import Array, Backend
+from pyapprox.util.backends.torch import TorchBkd
+from pyapprox.util.test_utils import load_tests  # noqa: F401
 
 
 class TestSparseGridDerivatives(Generic[Array], unittest.TestCase):
@@ -49,12 +48,8 @@ class TestSparseGridDerivatives(Generic[Array], unittest.TestCase):
             GaussLagrangeFactory(marginal, self._bkd) for _ in range(nvars)
         ]
         growth = LinearGrowthRule(scale=1, shift=1)
-        tp_factory = TensorProductSubspaceFactory(
-            self._bkd, factories, growth
-        )
-        fitter = IsotropicSparseGridFitter(
-            self._bkd, tp_factory, level
-        )
+        tp_factory = TensorProductSubspaceFactory(self._bkd, factories, growth)
+        fitter = IsotropicSparseGridFitter(self._bkd, tp_factory, level)
         samples = fitter.get_samples()
         values = func(samples)
         result = fitter.fit(values)
@@ -62,6 +57,7 @@ class TestSparseGridDerivatives(Generic[Array], unittest.TestCase):
 
     def test_jacobian_linear_function(self) -> None:
         """Test Jacobian of linear function is constant."""
+
         def func(s: Array) -> Array:
             return self._bkd.reshape(s[0, :] + 2 * s[1, :], (1, -1))
 
@@ -81,9 +77,10 @@ class TestSparseGridDerivatives(Generic[Array], unittest.TestCase):
 
     def test_jacobian_quadratic_function(self) -> None:
         """Test Jacobian of quadratic function."""
+
         def func(s: Array) -> Array:
             x, y = s[0, :], s[1, :]
-            return self._bkd.reshape(x ** 2 + x * y, (1, -1))
+            return self._bkd.reshape(x**2 + x * y, (1, -1))
 
         surrogate = self._build_surrogate(2, 3, func)
 
@@ -101,10 +98,9 @@ class TestSparseGridDerivatives(Generic[Array], unittest.TestCase):
 
     def test_jacobian_3d_function(self) -> None:
         """Test Jacobian of 3D function."""
+
         def func(s: Array) -> Array:
-            return self._bkd.reshape(
-                s[0, :] + s[1, :] + s[2, :], (1, -1)
-            )
+            return self._bkd.reshape(s[0, :] + s[1, :] + s[2, :], (1, -1))
 
         surrogate = self._build_surrogate(3, 2, func)
 
@@ -122,6 +118,7 @@ class TestSparseGridDerivatives(Generic[Array], unittest.TestCase):
 
     def test_derivative_checker_passes(self) -> None:
         """Test that DerivativeChecker passes for sparse grid function."""
+
         def func(s: Array) -> Array:
             return self._bkd.reshape(s[0, :] ** 2 + s[1, :] ** 2, (1, -1))
 
@@ -137,6 +134,7 @@ class TestSparseGridDerivatives(Generic[Array], unittest.TestCase):
 
     def test_hessian_vector_product(self) -> None:
         """Test HVP computation."""
+
         def func(s: Array) -> Array:
             return self._bkd.reshape(s[0, :] ** 2 + s[1, :] ** 2, (1, -1))
 
@@ -154,6 +152,7 @@ class TestSparseGridDerivatives(Generic[Array], unittest.TestCase):
 
     def test_weighted_hvp(self) -> None:
         """Test weighted HVP computation."""
+
         def func(s: Array) -> Array:
             return self._bkd.reshape(s[0, :] ** 2 + s[1, :] ** 2, (1, -1))
 
@@ -172,9 +171,10 @@ class TestSparseGridDerivatives(Generic[Array], unittest.TestCase):
 
     def test_hessian_via_derivative_checker(self) -> None:
         """Test Hessian via DerivativeChecker errors[1] for nqoi=1."""
+
         def func(s: Array) -> Array:
             x, y = s[0, :], s[1, :]
-            return self._bkd.reshape(x ** 2 + x * y + y ** 2, (1, -1))
+            return self._bkd.reshape(x**2 + x * y + y**2, (1, -1))
 
         surrogate = self._build_surrogate(2, 3, func)
 
@@ -188,9 +188,10 @@ class TestSparseGridDerivatives(Generic[Array], unittest.TestCase):
 
     def test_whvp_via_derivative_checker(self) -> None:
         """Test WHVP via DerivativeChecker for nqoi=2 with weights."""
+
         def func(s: Array) -> Array:
             x, y = s[0, :], s[1, :]
-            return self._bkd.stack([x ** 2 + y, x * y], axis=0)
+            return self._bkd.stack([x**2 + y, x * y], axis=0)
 
         surrogate = self._build_surrogate(2, 3, func)
 
@@ -198,9 +199,7 @@ class TestSparseGridDerivatives(Generic[Array], unittest.TestCase):
         weights = self._bkd.asarray([[0.6, 0.4]])
 
         checker = DerivativeChecker(surrogate)
-        errors = checker.check_derivatives(
-            test_pt, verbosity=0, weights=weights
-        )
+        errors = checker.check_derivatives(test_pt, verbosity=0, weights=weights)
 
         self.assertEqual(len(errors), 2)
         whvp_error = float(checker.error_ratio(errors[1]).item())

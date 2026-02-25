@@ -20,11 +20,11 @@ from typing import Generic, List
 
 import sympy as sp
 
-from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.pde.collocation.manufactured_solutions.base import (
     ManufacturedSolution,
     VectorSolutionMixin,
 )
+from pyapprox.util.backends.protocols import Array, Backend
 
 
 class ManufacturedShallowWave(
@@ -80,7 +80,9 @@ class ManufacturedShallowWave(
         if nvars not in (1, 2):
             raise ValueError("ShallowWave requires nvars=1 or nvars=2")
         if len(mom_strs) != nvars:
-            raise ValueError(f"Expected {nvars} momentum components, got {len(mom_strs)}")
+            raise ValueError(
+                f"Expected {nvars} momentum components, got {len(mom_strs)}"
+            )
 
         self._depth_str = depth_str
         self._mom_strs = mom_strs
@@ -137,7 +139,7 @@ class ManufacturedShallowWave(
         self, cartesian_symbs: List[sp.Symbol], bed_expr: sp.Expr
     ) -> None:
         """Build expressions for 2D shallow water equations."""
-        x, y = cartesian_symbs[0], cartesian_symbs[1]
+        _x, _y = cartesian_symbs[0], cartesian_symbs[1]
         h, uh, vh = self._expressions["solution"]
 
         # Cross momentum term
@@ -156,10 +158,7 @@ class ManufacturedShallowWave(
         # Forcing = div(flux) = dF_x/dx + dF_y/dy
         forc_exprs = []
         for ii in range(self._nvars + 1):
-            forc = sum(
-                flux.diff(s)
-                for flux, s in zip(flux_exprs[ii], cartesian_symbs)
-            )
+            forc = sum(flux.diff(s) for flux, s in zip(flux_exprs[ii], cartesian_symbs))
             forc_exprs.append(forc.simplify())
 
         # Add bed slope source terms for momentum equations

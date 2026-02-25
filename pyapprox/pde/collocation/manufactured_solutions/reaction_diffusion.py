@@ -13,11 +13,8 @@ The reaction is provided via a SymbolicReactionProtocol object that can be
 shared between the manufactured solution and the physics class.
 """
 
-from typing import Generic, List, Tuple, Any, Dict, Callable, TYPE_CHECKING
+from typing import TYPE_CHECKING, Generic, List
 
-import sympy as sp
-
-from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.pde.collocation.manufactured_solutions.base import (
     ManufacturedSolution,
     VectorSolutionMixin,
@@ -25,6 +22,7 @@ from pyapprox.pde.collocation.manufactured_solutions.base import (
 from pyapprox.pde.collocation.manufactured_solutions.mixins import (
     DiffusionMixin,
 )
+from pyapprox.util.backends.protocols import Array, Backend
 
 if TYPE_CHECKING:
     from pyapprox.pde.collocation.physics.reaction_diffusion import (
@@ -91,7 +89,7 @@ class ManufacturedTwoSpeciesReactionDiffusion(
             raise ValueError("TwoSpeciesReactionDiffusion requires 2 species")
         if len(diff_strs) != 2:
             raise ValueError("Expected 2 diffusion coefficients")
-        if not hasattr(reaction, 'sympy_expressions'):
+        if not hasattr(reaction, "sympy_expressions"):
             raise TypeError(
                 "reaction must implement SymbolicReactionProtocol "
                 "(must have sympy_expressions method)"
@@ -104,16 +102,12 @@ class ManufacturedTwoSpeciesReactionDiffusion(
     def sympy_diffusion_expressions(self) -> None:
         """Build diffusion expressions for both species."""
         # Diffusion for species 0
-        diff_expr0, _, flux_exprs0, forc_expr0 = (
-            self._sympy_diffusion_expressions(
-                self._diff_strs[0], self._expressions["solution"][0]
-            )
+        diff_expr0, _, flux_exprs0, forc_expr0 = self._sympy_diffusion_expressions(
+            self._diff_strs[0], self._expressions["solution"][0]
         )
         # Diffusion for species 1
-        diff_expr1, _, flux_exprs1, forc_expr1 = (
-            self._sympy_diffusion_expressions(
-                self._diff_strs[1], self._expressions["solution"][1]
-            )
+        diff_expr1, _, flux_exprs1, forc_expr1 = self._sympy_diffusion_expressions(
+            self._diff_strs[1], self._expressions["solution"][1]
         )
 
         forc_exprs = [forc_expr0, forc_expr1]

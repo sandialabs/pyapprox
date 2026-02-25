@@ -25,26 +25,25 @@ For the exact manufactured solution with correct forcing, residual = 0.
 import unittest
 from typing import Any, Generic
 
-import numpy as np
 import torch
 from numpy.typing import NDArray
 from unittest_parametrize import ParametrizedTestCase, parametrize
 
-from pyapprox.util.backends.protocols import Array, Backend
-from pyapprox.util.backends.numpy import NumpyBkd
-from pyapprox.util.backends.torch import TorchBkd
-from pyapprox.util.test_utils import load_tests  # noqa: F401
+from pyapprox.interface.functions.derivative_checks.derivative_checker import (
+    DerivativeChecker,
+)
 from pyapprox.pde.collocation.basis import ChebyshevBasis2D
+from pyapprox.pde.collocation.manufactured_solutions import (
+    ManufacturedShallowShelfVelocityEquations,
+)
 from pyapprox.pde.collocation.mesh import (
     TransformedMesh2D,
 )
 from pyapprox.pde.collocation.physics import ShallowShelfVelocityPhysics
-from pyapprox.pde.collocation.manufactured_solutions import (
-    ManufacturedShallowShelfVelocityEquations,
-)
-from pyapprox.interface.functions.derivative_checks.derivative_checker import (
-    DerivativeChecker,
-)
+from pyapprox.util.backends.numpy import NumpyBkd
+from pyapprox.util.backends.protocols import Array, Backend
+from pyapprox.util.backends.torch import TorchBkd
+from pyapprox.util.test_utils import load_tests  # noqa: F401
 
 
 class PhysicsDerivativeWrapper(Generic[Array]):
@@ -76,9 +75,11 @@ class PhysicsDerivativeWrapper(Generic[Array]):
         # samples shape: (nvars, nsamples), return (nqoi, nsamples)
         if samples.ndim == 2:
             return self._backend.stack(
-                [self._physics.residual(samples[:, i], self._time)
-                 for i in range(samples.shape[1])],
-                axis=1
+                [
+                    self._physics.residual(samples[:, i], self._time)
+                    for i in range(samples.shape[1])
+                ],
+                axis=1,
             )
         # Single sample: return (nqoi, 1)
         return self._physics.residual(samples, self._time).reshape(-1, 1)
@@ -105,7 +106,7 @@ class TestManufacturedShallowShelf2D(Generic[Array], unittest.TestCase):
         mesh = TransformedMesh2D(npts_1d, npts_1d, bkd)
 
         basis = ChebyshevBasis2D(mesh, bkd)
-        npts = basis.npts()
+        basis.npts()
 
         # Normalized parameters for numerical stability
         A = 1.0
@@ -126,7 +127,7 @@ class TestManufacturedShallowShelf2D(Generic[Array], unittest.TestCase):
         # Get nodes using meshgrid
         nodes_x = basis.nodes_x()
         nodes_y = basis.nodes_y()
-        X, Y = bkd.meshgrid(nodes_x, nodes_y, indexing='xy')
+        X, Y = bkd.meshgrid(nodes_x, nodes_y, indexing="xy")
         X_flat = X.flatten()
         Y_flat = Y.flatten()
         nodes_2d = bkd.stack([X_flat, Y_flat], axis=0)
@@ -149,7 +150,8 @@ class TestManufacturedShallowShelf2D(Generic[Array], unittest.TestCase):
 
         # Create physics with forcing
         physics = ShallowShelfVelocityPhysics(
-            basis, bkd,
+            basis,
+            bkd,
             depth=depth_vals,
             bed=bed_vals,
             friction=friction_vals,
@@ -172,7 +174,7 @@ class TestManufacturedShallowShelf2D(Generic[Array], unittest.TestCase):
         mesh = TransformedMesh2D(npts_1d, npts_1d, bkd)
 
         basis = ChebyshevBasis2D(mesh, bkd)
-        npts = basis.npts()
+        basis.npts()
 
         # Normalized parameters
         A = 1.0
@@ -192,7 +194,7 @@ class TestManufacturedShallowShelf2D(Generic[Array], unittest.TestCase):
 
         nodes_x = basis.nodes_x()
         nodes_y = basis.nodes_y()
-        X, Y = bkd.meshgrid(nodes_x, nodes_y, indexing='xy')
+        X, Y = bkd.meshgrid(nodes_x, nodes_y, indexing="xy")
         nodes_2d = bkd.stack([X.flatten(), Y.flatten()], axis=0)
 
         exact_sol_vals = man_sol.functions["solution"](nodes_2d)
@@ -204,7 +206,8 @@ class TestManufacturedShallowShelf2D(Generic[Array], unittest.TestCase):
         friction_vals = man_sol.functions["friction"](nodes_2d).flatten()
 
         physics = ShallowShelfVelocityPhysics(
-            basis, bkd,
+            basis,
+            bkd,
             depth=depth_vals,
             bed=bed_vals,
             friction=friction_vals,
@@ -244,7 +247,7 @@ class TestManufacturedShallowShelf2D(Generic[Array], unittest.TestCase):
 
         nodes_x = basis.nodes_x()
         nodes_y = basis.nodes_y()
-        X, Y = bkd.meshgrid(nodes_x, nodes_y, indexing='xy')
+        X, Y = bkd.meshgrid(nodes_x, nodes_y, indexing="xy")
         nodes_2d = bkd.stack([X.flatten(), Y.flatten()], axis=0)
 
         exact_sol_vals = man_sol.functions["solution"](nodes_2d)
@@ -256,7 +259,8 @@ class TestManufacturedShallowShelf2D(Generic[Array], unittest.TestCase):
         friction_vals = man_sol.functions["friction"](nodes_2d).flatten()
 
         physics = ShallowShelfVelocityPhysics(
-            basis, bkd,
+            basis,
+            bkd,
             depth=depth_vals,
             bed=bed_vals,
             friction=friction_vals,
@@ -314,7 +318,7 @@ class TestShallowShelf2DParameterized(ParametrizedTestCase):
 
         nodes_x = basis.nodes_x()
         nodes_y = basis.nodes_y()
-        X, Y = bkd.meshgrid(nodes_x, nodes_y, indexing='xy')
+        X, Y = bkd.meshgrid(nodes_x, nodes_y, indexing="xy")
         nodes_2d = bkd.stack([X.flatten(), Y.flatten()], axis=0)
 
         exact_sol_vals = man_sol.functions["solution"](nodes_2d)
@@ -326,7 +330,8 @@ class TestShallowShelf2DParameterized(ParametrizedTestCase):
         friction_vals = man_sol.functions["friction"](nodes_2d).flatten()
 
         physics = ShallowShelfVelocityPhysics(
-            basis, bkd,
+            basis,
+            bkd,
             depth=depth_vals,
             bed=bed_vals,
             friction=friction_vals,
@@ -344,14 +349,10 @@ class TestShallowShelf2DParameterized(ParametrizedTestCase):
         if forcing_norm > 1e-10:
             rel_residual = res_norm / forcing_norm
             self.assertLess(
-                rel_residual, 1e-5,
-                f"Relative residual {rel_residual:.4e} too large"
+                rel_residual, 1e-5, f"Relative residual {rel_residual:.4e} too large"
             )
         else:
-            self.assertLess(
-                res_norm, 1e-6,
-                f"Residual norm {res_norm:.4e} too large"
-            )
+            self.assertLess(res_norm, 1e-6, f"Residual norm {res_norm:.4e} too large")
 
     @parametrize(
         "name,u_str,v_str,npts_1d",
@@ -385,7 +386,7 @@ class TestShallowShelf2DParameterized(ParametrizedTestCase):
 
         nodes_x = basis.nodes_x()
         nodes_y = basis.nodes_y()
-        X, Y = bkd.meshgrid(nodes_x, nodes_y, indexing='xy')
+        X, Y = bkd.meshgrid(nodes_x, nodes_y, indexing="xy")
         nodes_2d = bkd.stack([X.flatten(), Y.flatten()], axis=0)
 
         exact_sol_vals = man_sol.functions["solution"](nodes_2d)
@@ -397,7 +398,8 @@ class TestShallowShelf2DParameterized(ParametrizedTestCase):
         friction_vals = man_sol.functions["friction"](nodes_2d).flatten()
 
         physics = ShallowShelfVelocityPhysics(
-            basis, bkd,
+            basis,
+            bkd,
             depth=depth_vals,
             bed=bed_vals,
             friction=friction_vals,
@@ -414,9 +416,7 @@ class TestShallowShelf2DParameterized(ParametrizedTestCase):
 
 
 # Concrete backend implementations
-class TestManufacturedShallowShelf2DNumpy(
-    TestManufacturedShallowShelf2D[NDArray[Any]]
-):
+class TestManufacturedShallowShelf2DNumpy(TestManufacturedShallowShelf2D[NDArray[Any]]):
     """NumPy backend tests for 2D Shallow Shelf."""
 
     __test__ = True
@@ -425,9 +425,7 @@ class TestManufacturedShallowShelf2DNumpy(
         return NumpyBkd()
 
 
-class TestManufacturedShallowShelf2DTorch(
-    TestManufacturedShallowShelf2D[torch.Tensor]
-):
+class TestManufacturedShallowShelf2DTorch(TestManufacturedShallowShelf2D[torch.Tensor]):
     """PyTorch backend tests for 2D Shallow Shelf."""
 
     __test__ = True

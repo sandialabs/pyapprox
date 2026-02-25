@@ -57,9 +57,7 @@ class DenseCholeskyCovarianceOperator(Generic[Array]):
 
         # Compute inverse of Cholesky factor via triangular solve
         identity = bkd.eye(self._nvars)
-        self._cov_sqrt_inv = bkd.solve_triangular(
-            self._cov_sqrt, identity, lower=True
-        )
+        self._cov_sqrt_inv = bkd.solve_triangular(self._cov_sqrt, identity, lower=True)
 
         # Compute inverse covariance: Cov^{-1} = L^{-T} @ L^{-1}
         self._cov_inv = self._cov_sqrt_inv.T @ self._cov_sqrt_inv

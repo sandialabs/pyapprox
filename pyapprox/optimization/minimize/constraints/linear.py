@@ -1,7 +1,8 @@
 from typing import Generic
 
-from pyapprox.util.backends.protocols import Array, Backend
 from scipy.optimize import LinearConstraint as ScipyLinearConstraint
+
+from pyapprox.util.backends.protocols import Array, Backend
 
 
 class PyApproxLinearConstraint(Generic[Array]):

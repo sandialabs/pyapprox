@@ -6,7 +6,9 @@ by converting them to Polynomial Chaos Expansions.
 
 from typing import Generic, List, Sequence
 
-from pyapprox.util.backends.protocols import Array, Backend
+from pyapprox.sensitivity.variance_based.pce import (
+    PolynomialChaosSensitivityAnalysis,
+)
 from pyapprox.surrogates.affine.univariate import OrthonormalPolynomial1D
 from pyapprox.surrogates.sparsegrids.combination_surrogate import (
     CombinationSurrogate,
@@ -14,9 +16,7 @@ from pyapprox.surrogates.sparsegrids.combination_surrogate import (
 from pyapprox.surrogates.sparsegrids.converters.pce import (
     SparseGridToPCEConverter,
 )
-from pyapprox.sensitivity.variance_based.pce import (
-    PolynomialChaosSensitivityAnalysis,
-)
+from pyapprox.util.backends.protocols import Array, Backend
 
 
 class SparseGridSensitivityAnalysis(Generic[Array]):
@@ -61,9 +61,7 @@ class SparseGridSensitivityAnalysis(Generic[Array]):
         self._orthonormal_bases_1d = list(orthonormal_bases_1d)
 
         # Convert sparse grid to PCE
-        converter = SparseGridToPCEConverter(
-            self._bkd, self._orthonormal_bases_1d
-        )
+        converter = SparseGridToPCEConverter(self._bkd, self._orthonormal_bases_1d)
         pce = converter.convert(sparse_grid)
 
         # Create PCE sensitivity analysis

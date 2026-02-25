@@ -7,8 +7,8 @@ nodes in the network.
 import math
 from typing import Dict, Generic, List
 
-from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.surrogates.mfnets.network import MFNet
+from pyapprox.util.backends.protocols import Array, Backend
 
 
 class MFNetNegLogLikelihoodLoss(Generic[Array]):

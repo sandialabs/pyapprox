@@ -4,17 +4,17 @@ Provides implementations of Dirichlet, Neumann, and Robin boundary conditions
 that integrate with scikit-fem for assembly.
 """
 
-from typing import Generic, List, Optional, Callable, Union
+from typing import Callable, Generic, List, Optional, Union
 
 import numpy as np
 from scipy.sparse import issparse
 
-from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.pde.galerkin.protocols.basis import GalerkinBasisProtocol
 from pyapprox.pde.sparse_utils import apply_dirichlet_rows
+from pyapprox.util.backends.protocols import Array, Backend
 
 try:
-    from skfem import asm, LinearForm, BilinearForm, Basis
+    from skfem import Basis, BilinearForm, LinearForm, asm
 except ImportError:
     raise ImportError(
         "scikit-fem is required for Galerkin module. "
@@ -117,9 +117,7 @@ class DirichletBC(Generic[Array]):
 
         return self._bkd.asarray(values_np.astype(np.float64))
 
-    def apply_to_residual(
-        self, residual: Array, state: Array, time: float
-    ) -> Array:
+    def apply_to_residual(self, residual: Array, state: Array, time: float) -> Array:
         """Apply Dirichlet BC to residual.
 
         Sets residual[dof] = state[dof] - g(x, t) for boundary DOFs.
@@ -148,9 +146,7 @@ class DirichletBC(Generic[Array]):
 
         return self._bkd.asarray(res_np)
 
-    def apply_to_jacobian(
-        self, jacobian, state: Array, time: float
-    ):
+    def apply_to_jacobian(self, jacobian, state: Array, time: float):
         """Apply Dirichlet BC to Jacobian.
 
         Sets Jacobian rows to identity for boundary DOFs.
@@ -182,7 +178,10 @@ class DirichletBC(Generic[Array]):
             return self._bkd.asarray(jac_np)
 
     def apply_to_param_jacobian(
-        self, param_jacobian: Array, state: Array, time: float,
+        self,
+        param_jacobian: Array,
+        state: Array,
+        time: float,
     ) -> Array:
         """Apply Dirichlet BC to parameter Jacobian.
 
@@ -469,12 +468,14 @@ class RobinBC(Generic[Array]):
         """
         bndry_basis = self._get_boundary_basis()
         alpha = self._alpha
-        ncomps = getattr(self._basis, 'ncomponents', lambda: 1)()
+        ncomps = getattr(self._basis, "ncomponents", lambda: 1)()
 
         if ncomps > 1:
+
             def robin_bilinear(u, v, w):
                 return alpha * sum(u[i] * v[i] for i in range(ncomps))
         else:
+
             def robin_bilinear(u, v, w):
                 return alpha * u * v
 
@@ -538,9 +539,7 @@ class RobinBC(Generic[Array]):
 
         return self._bkd.asarray(load_np.astype(np.float64))
 
-    def apply_to_residual(
-        self, residual: Array, state: Array, time: float
-    ) -> Array:
+    def apply_to_residual(self, residual: Array, state: Array, time: float) -> Array:
         """Apply Robin BC to residual.
 
         For residual form, adds: alpha * u - g contribution on boundary.
@@ -596,9 +595,7 @@ class RobinBC(Generic[Array]):
 
         return self._bkd.asarray(res_np.astype(np.float64))
 
-    def apply_to_jacobian(
-        self, jacobian: Array, state: Array, time: float
-    ) -> Array:
+    def apply_to_jacobian(self, jacobian: Array, state: Array, time: float) -> Array:
         """Apply Robin BC to Jacobian.
 
         Adds: alpha * integral_{Gamma} u * phi ds to Jacobian.
@@ -659,7 +656,9 @@ class BoundaryConditionSet(Generic[Array]):
         """Return number of Robin BCs."""
         return len(self._robin_bcs)
 
-    def all_conditions(self) -> List[Union[DirichletBC[Array], NeumannBC[Array], RobinBC[Array]]]:
+    def all_conditions(
+        self,
+    ) -> List[Union[DirichletBC[Array], NeumannBC[Array], RobinBC[Array]]]:
         """Return all boundary conditions as a flat list.
 
         The order is: Dirichlet, then Neumann, then Robin.
@@ -682,9 +681,7 @@ class BoundaryConditionSet(Generic[Array]):
         for bc in self._dirichlet_bcs:
             all_dofs.append(self._bkd.to_numpy(bc.boundary_dofs()))
 
-        return self._bkd.asarray(
-            np.concatenate(all_dofs).astype(np.int64)
-        )
+        return self._bkd.asarray(np.concatenate(all_dofs).astype(np.int64))
 
     def dirichlet_values(self, time: float = 0.0) -> Array:
         """Return all Dirichlet values at given time."""
@@ -695,13 +692,9 @@ class BoundaryConditionSet(Generic[Array]):
         for bc in self._dirichlet_bcs:
             all_vals.append(self._bkd.to_numpy(bc.boundary_values(time)))
 
-        return self._bkd.asarray(
-            np.concatenate(all_vals).astype(np.float64)
-        )
+        return self._bkd.asarray(np.concatenate(all_vals).astype(np.float64))
 
-    def apply_to_residual(
-        self, residual: Array, state: Array, time: float
-    ) -> Array:
+    def apply_to_residual(self, residual: Array, state: Array, time: float) -> Array:
         """Apply all boundary conditions to residual."""
         res = residual
 
@@ -715,9 +708,7 @@ class BoundaryConditionSet(Generic[Array]):
 
         return res
 
-    def apply_to_jacobian(
-        self, jacobian: Array, state: Array, time: float
-    ) -> Array:
+    def apply_to_jacobian(self, jacobian: Array, state: Array, time: float) -> Array:
         """Apply all boundary conditions to Jacobian."""
         jac = jacobian
 
@@ -794,12 +785,8 @@ class DirectDirichletBC(Generic[Array]):
         bkd: Backend[Array],
     ):
         self._bkd = bkd
-        self._dof_indices = bkd.asarray(
-            np.asarray(dof_indices, dtype=np.int64)
-        )
-        self._values = bkd.asarray(
-            np.asarray(values, dtype=np.float64)
-        )
+        self._dof_indices = bkd.asarray(np.asarray(dof_indices, dtype=np.int64))
+        self._values = bkd.asarray(np.asarray(values, dtype=np.float64))
 
     def bkd(self) -> Backend[Array]:
         """Return the computational backend."""
@@ -813,9 +800,7 @@ class DirectDirichletBC(Generic[Array]):
         """Return Dirichlet values (constant, ignores time)."""
         return self._values
 
-    def apply_to_residual(
-        self, residual: Array, state: Array, time: float
-    ) -> Array:
+    def apply_to_residual(self, residual: Array, state: Array, time: float) -> Array:
         """Apply Dirichlet BC to residual.
 
         Sets residual[dof] = state[dof] - value for boundary DOFs.
@@ -827,9 +812,7 @@ class DirectDirichletBC(Generic[Array]):
         res_np[dofs_np] = state_np[dofs_np] - vals_np
         return self._bkd.asarray(res_np)
 
-    def apply_to_jacobian(
-        self, jacobian, state: Array, time: float
-    ):
+    def apply_to_jacobian(self, jacobian, state: Array, time: float):
         """Apply Dirichlet BC to Jacobian.
 
         Sets Jacobian rows to identity for boundary DOFs.
@@ -876,9 +859,7 @@ class CallableDirichletBC(Generic[Array]):
         bkd: Backend[Array],
     ):
         self._bkd = bkd
-        self._dof_indices = bkd.asarray(
-            np.asarray(dof_indices, dtype=np.int64)
-        )
+        self._dof_indices = bkd.asarray(np.asarray(dof_indices, dtype=np.int64))
         self._value_func = value_func
 
     def bkd(self) -> Backend[Array]:
@@ -894,9 +875,7 @@ class CallableDirichletBC(Generic[Array]):
         vals = self._value_func(time)
         return self._bkd.asarray(np.asarray(vals, dtype=np.float64))
 
-    def apply_to_residual(
-        self, residual: Array, state: Array, time: float
-    ) -> Array:
+    def apply_to_residual(self, residual: Array, state: Array, time: float) -> Array:
         """Apply Dirichlet BC to residual.
 
         Sets residual[dof] = state[dof] - value(time) for boundary DOFs.
@@ -908,9 +887,7 @@ class CallableDirichletBC(Generic[Array]):
         res_np[dofs_np] = state_np[dofs_np] - vals_np
         return self._bkd.asarray(res_np)
 
-    def apply_to_jacobian(
-        self, jacobian, state: Array, time: float
-    ):
+    def apply_to_jacobian(self, jacobian, state: Array, time: float):
         """Apply Dirichlet BC to Jacobian.
 
         Sets Jacobian rows to identity for boundary DOFs.

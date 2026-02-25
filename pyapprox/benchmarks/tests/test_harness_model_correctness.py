@@ -7,22 +7,22 @@ PDE benchmarks (expensive) are gated behind ``@slow_test`` /
 ``@slower_test`` decorators.
 """
 
+import unittest
 from typing import Any, Generic
 
-import unittest
-
-import numpy as np
 from numpy.typing import NDArray
 
-from pyapprox.util.backends.protocols import Array
-from pyapprox.util.backends.numpy import NumpyBkd
-from pyapprox.util.test_utils import load_tests, slow_test, slower_test  # noqa: F401
-from pyapprox.benchmarks.registry import BenchmarkRegistry
-from pyapprox.benchmarks.protocols import HasJacobian
 import pyapprox.benchmarks.instances  # noqa: F401
-
+from pyapprox.benchmarks.protocols import HasJacobian
+from pyapprox.benchmarks.registry import BenchmarkRegistry
 from pyapprox.benchmarks.tests.harnesses import verify_jacobian_fd
-
+from pyapprox.util.backends.numpy import NumpyBkd
+from pyapprox.util.backends.protocols import Array
+from pyapprox.util.test_utils import (  # noqa: F401
+    load_tests,
+    slow_test,
+    slower_test,
+)
 
 # ---------------------------------------------------------------------------
 # Analytic benchmarks — fast
@@ -75,6 +75,7 @@ class TestAnalyticJacobians(Generic[Array], unittest.TestCase):
 def _make_analytic_test(name: str):
     def test_method(self):
         self._run_jacobian_check(name)
+
     test_method.__name__ = f"test_jacobian_{name}"
     test_method.__qualname__ = f"TestAnalyticJacobians.test_jacobian_{name}"
     return test_method
@@ -115,6 +116,7 @@ class TestPDEFastJacobians(Generic[Array], unittest.TestCase):
 def _make_pde_fast_test(name: str):
     def test_method(self):
         self._run_jacobian_check(name)
+
     test_method.__name__ = f"test_jacobian_{name}"
     test_method.__qualname__ = f"TestPDEFastJacobians.test_jacobian_{name}"
     return test_method
@@ -155,6 +157,7 @@ class TestPDESlowJacobians(Generic[Array], unittest.TestCase):
 def _make_pde_slow_test(name: str):
     def test_method(self):
         self._run_jacobian_check(name)
+
     test_method.__name__ = f"test_jacobian_{name}"
     test_method.__qualname__ = f"TestPDESlowJacobians.test_jacobian_{name}"
     return test_method
@@ -179,9 +182,7 @@ class TestJacobianCoverage(unittest.TestCase):
 
     def test_all_jacobian_benchmarks_covered(self):
         bkd = NumpyBkd()
-        registered = set(
-            BenchmarkRegistry.names_satisfying(HasJacobian, bkd=bkd)
-        )
+        registered = set(BenchmarkRegistry.names_satisfying(HasJacobian, bkd=bkd))
         covered = set(
             _ANALYTIC_JACOBIAN_NAMES
             + _PDE_FAST_JACOBIAN_NAMES

@@ -4,14 +4,14 @@ Provides common functionality for PDE physics implementations.
 """
 
 from abc import ABC, abstractmethod
-from typing import Generic, List, Tuple, Optional
+from typing import Generic, List, Tuple
 
-from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.pde.collocation.protocols import (
-    BCDofClassification,
     BasisProtocol,
+    BCDofClassification,
     BoundaryConditionProtocol,
 )
+from pyapprox.util.backends.protocols import Array, Backend
 
 
 class AbstractPhysics(ABC, Generic[Array]):

@@ -7,12 +7,12 @@ This module provides quadrature rule classes including:
 """
 
 import math
-from typing import Generic, Tuple, Optional
+from typing import Generic, Tuple
 
-from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.surrogates.affine.univariate.globalpoly.orthopoly_base import (
     OrthonormalPolynomial1D,
 )
+from pyapprox.util.backends.protocols import Array, Backend
 
 
 class GaussQuadratureRule(Generic[Array]):
@@ -185,9 +185,7 @@ class ClenshawCurtisQuadratureRule(Generic[Array]):
             return 1
         return 2**level + 1
 
-    def _hierarchical_to_nodal_index(
-        self, level: int, ll: int, ii: int
-    ) -> int:
+    def _hierarchical_to_nodal_index(self, level: int, ll: int, ii: int) -> int:
         """Convert hierarchical index to nodal index in quadrature rule."""
         nindices = self._growth_rule(level)
         # mid point
@@ -210,9 +208,7 @@ class ClenshawCurtisQuadratureRule(Generic[Array]):
         quad_rule_indices = []
         nprevious_hier_indices = 0
         for ll in range(level + 1):
-            nhierarchical_indices = (
-                self._growth_rule(ll) - nprevious_hier_indices
-            )
+            nhierarchical_indices = self._growth_rule(ll) - nprevious_hier_indices
             for ii in range(nhierarchical_indices):
                 quad_index = self._hierarchical_to_nodal_index(level, ll, ii)
                 quad_rule_indices.append(quad_index)
@@ -233,13 +229,15 @@ class ClenshawCurtisQuadratureRule(Generic[Array]):
         # Fix numerical precision at boundaries and midpoint using concatenation
         # (avoids in-place assignment which isn't supported in all backends)
         mid = nsamples // 2
-        x = self._bkd.concatenate([
-            self._bkd.asarray([-1.0]),
-            x[1:mid],
-            self._bkd.asarray([0.0]),
-            x[mid + 1 : -1],
-            self._bkd.asarray([1.0]),
-        ])
+        x = self._bkd.concatenate(
+            [
+                self._bkd.asarray([-1.0]),
+                x[1:mid],
+                self._bkd.asarray([0.0]),
+                x[mid + 1 : -1],
+                self._bkd.asarray([1.0]),
+            ]
+        )
 
         # Compute weights using Clenshaw-Curtis formula
         wt_factor = 1.0 / 2.0
@@ -267,11 +265,13 @@ class ClenshawCurtisQuadratureRule(Generic[Array]):
         )
 
         # Build weights array using concatenation
-        w = self._bkd.concatenate([
-            self._bkd.asarray([boundary_wt]),
-            interior_wts,
-            self._bkd.asarray([boundary_wt]),
-        ])
+        w = self._bkd.concatenate(
+            [
+                self._bkd.asarray([boundary_wt]),
+                interior_wts,
+                self._bkd.asarray([boundary_wt]),
+            ]
+        )
 
         return x, w
 

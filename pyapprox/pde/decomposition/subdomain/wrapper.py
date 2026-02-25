@@ -7,14 +7,14 @@ Wraps an existing PDE physics solver to provide DtN-specific capabilities:
 - Computing flux Jacobian w.r.t. interface DOFs (for Newton solver)
 """
 
-from typing import Generic, Dict, List, Optional, Union
+from typing import Dict, Generic, List, Optional
 
-from pyapprox.util.backends.protocols import Array, Backend
-from pyapprox.pde.collocation.protocols.physics import PhysicsProtocol
 from pyapprox.pde.collocation.boundary.dirichlet import DirichletBC
+from pyapprox.pde.collocation.protocols.physics import PhysicsProtocol
 from pyapprox.pde.decomposition.protocols.interface import (
     InterfaceProtocol,
 )
+from pyapprox.util.backends.protocols import Array, Backend
 
 
 class SubdomainWrapper(Generic[Array]):
@@ -99,7 +99,7 @@ class SubdomainWrapper(Generic[Array]):
         Delegates to the underlying physics object.
         """
         # Check if physics has ncomponents method
-        if hasattr(self._physics, 'ncomponents'):
+        if hasattr(self._physics, "ncomponents"):
             return self._physics.ncomponents()
         return 1  # Default to scalar
 
@@ -353,7 +353,7 @@ class SubdomainWrapper(Generic[Array]):
         normal = interface.normal(self._subdomain_id)
 
         # Check if physics implements compute_interface_flux
-        if hasattr(self._physics, 'compute_interface_flux'):
+        if hasattr(self._physics, "compute_interface_flux"):
             # Delegate to physics-specific flux computation
             boundary_flux = self._physics.compute_interface_flux(
                 self._solution, boundary_indices, normal
@@ -369,9 +369,7 @@ class SubdomainWrapper(Generic[Array]):
 
         return interface_flux
 
-    def _compute_default_flux(
-        self, boundary_indices: Array, normal: Array
-    ) -> Array:
+    def _compute_default_flux(self, boundary_indices: Array, normal: Array) -> Array:
         """Compute default gradient-based flux.
 
         Computes grad(u) · n for each component (without diffusion coefficient).
@@ -480,9 +478,7 @@ class SubdomainWrapper(Generic[Array]):
         perturbed_coeffs = self._bkd.copy(
             self._interface_coeffs[perturbed_interface_id]
         )
-        perturbed_coeffs[dof_index] = (
-            perturbed_coeffs[dof_index] + self._fd_epsilon
-        )
+        perturbed_coeffs[dof_index] = perturbed_coeffs[dof_index] + self._fd_epsilon
 
         # Set perturbed interface values and solve
         self.set_interface_dirichlet(perturbed_interface_id, perturbed_coeffs)

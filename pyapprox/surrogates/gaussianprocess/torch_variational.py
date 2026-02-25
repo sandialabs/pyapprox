@@ -7,24 +7,23 @@ and for prediction Jacobians.
 """
 
 from typing import Optional
+
 import torch
 
-from pyapprox.util.backends.torch import TorchBkd
-from pyapprox.util.backends.validation import validate_backends
-from pyapprox.surrogates.gaussianprocess.variational import (
-    VariationalGaussianProcess,
-)
 from pyapprox.surrogates.gaussianprocess.inducing_samples import (
     InducingSamples,
 )
 from pyapprox.surrogates.gaussianprocess.mean_functions import (
     MeanFunction,
 )
+from pyapprox.surrogates.gaussianprocess.variational import (
+    VariationalGaussianProcess,
+)
+from pyapprox.util.backends.torch import TorchBkd
+from pyapprox.util.backends.validation import validate_backends
 
 
-class TorchVariationalGaussianProcess(
-    VariationalGaussianProcess[torch.Tensor]
-):
+class TorchVariationalGaussianProcess(VariationalGaussianProcess[torch.Tensor]):
     """
     PyTorch Variational GP with autograd-based derivatives.
 
@@ -56,14 +55,12 @@ class TorchVariationalGaussianProcess(
     ) -> None:
         bkd = TorchBkd()
 
-        if hasattr(kernel, '_bkd'):
+        if hasattr(kernel, "_bkd"):
             validate_backends([bkd, kernel._bkd])
-        if mean_function is not None and hasattr(mean_function, '_bkd'):
+        if mean_function is not None and hasattr(mean_function, "_bkd"):
             validate_backends([bkd, mean_function._bkd])
 
-        super().__init__(
-            kernel, nvars, inducing_samples, bkd, mean_function, nugget
-        )
+        super().__init__(kernel, nvars, inducing_samples, bkd, mean_function, nugget)
 
     def _setup_derivative_methods(self) -> None:
         """Bind autograd-based prediction Jacobian methods."""

@@ -6,21 +6,13 @@ from typing import Any, Generic
 import torch
 from numpy.typing import NDArray
 
-from pyapprox.util.backends.numpy import NumpyBkd
-from pyapprox.util.backends.torch import TorchBkd
-from pyapprox.util.backends.protocols import Array, Backend
-from pyapprox.util.test_utils import load_tests
-
-from pyapprox.interface.functions.protocols.function import (
-    FunctionProtocol,
-)
-from pyapprox.benchmarks.functions.multifidelity.polynomial_ensemble import (
-    PolynomialModelFunction,
-    PolynomialEnsemble,
-)
 from pyapprox.benchmarks.functions.multifidelity.multioutput_ensemble import (
     MultiOutputModelEnsemble,
     PSDMultiOutputModelEnsemble,
+)
+from pyapprox.benchmarks.functions.multifidelity.polynomial_ensemble import (
+    PolynomialEnsemble,
+    PolynomialModelFunction,
 )
 from pyapprox.benchmarks.functions.multifidelity.statistics_mixin import (
     MultifidelityStatisticsMixin,
@@ -29,22 +21,28 @@ from pyapprox.benchmarks.functions.multifidelity.tunable_ensemble import (
     TunableModelEnsemble,
 )
 from pyapprox.benchmarks.instances.multifidelity import (
-    polynomial_ensemble_5model,
-    polynomial_ensemble_3model,
     multioutput_ensemble_3x3,
+    polynomial_ensemble_3model,
+    polynomial_ensemble_5model,
     psd_multioutput_ensemble_3x3,
     tunable_ensemble_3model,
 )
 from pyapprox.benchmarks.protocols import (
+    HasEnsembleCovariance,
+    HasEnsembleMeans,
     HasEnsembleModels,
+    HasEstimatedEvaluationCost,
     HasModelCosts,
     HasPrior,
-    HasEnsembleMeans,
-    HasEnsembleCovariance,
     HasSmoothness,
-    HasEstimatedEvaluationCost,
 )
 from pyapprox.benchmarks.registry import BenchmarkRegistry
+from pyapprox.interface.functions.protocols.function import (
+    FunctionProtocol,
+)
+from pyapprox.util.backends.numpy import NumpyBkd
+from pyapprox.util.backends.protocols import Array, Backend
+from pyapprox.util.backends.torch import TorchBkd
 
 
 class TestPolynomialModelFunction(Generic[Array], unittest.TestCase):
@@ -233,7 +231,7 @@ class TestPolynomialEnsemble(Generic[Array], unittest.TestCase):
         ensemble = PolynomialEnsemble(self._bkd, nmodels=5)
         means = ensemble.means()
         # E[x^k] = 1/(k+1), degrees are 5, 4, 3, 2, 1
-        expected = self._bkd.array([1/6, 1/5, 1/4, 1/3, 1/2])
+        expected = self._bkd.array([1 / 6, 1 / 5, 1 / 4, 1 / 3, 1 / 2])
         self._bkd.assert_allclose(means, expected, rtol=1e-12)
 
     def test_variances_shape(self) -> None:
@@ -302,7 +300,7 @@ class TestMultifidelityBenchmarkInstances(Generic[Array], unittest.TestCase):
         # High fidelity mean is E[x^5] = 1/6
         self._bkd.assert_allclose(
             means[0:1, 0:1],
-            self._bkd.asarray([[1/6]]),
+            self._bkd.asarray([[1 / 6]]),
             rtol=1e-12,
         )
 
@@ -460,7 +458,8 @@ class TestMultiOutputModelEnsemble(Generic[Array], unittest.TestCase):
         W_sub = ensemble.covariance_of_centered_values_kronecker_product_subproblem(
             model_idx, qoi_idx
         )
-        # Shape: (nsub_models * nsub_qoi^2, nsub_models * nsub_qoi^2) = (2*4, 2*4) = (8, 8)
+        # Shape: (nsub_models * nsub_qoi^2, nsub_models * nsub_qoi^2) = (2*4, 2*4) = (8,
+        # 8)
         self.assertEqual(W_sub.shape, (8, 8))
         # Verify symmetry
         self._bkd.assert_allclose(W_sub, W_sub.T, rtol=1e-10)
@@ -474,7 +473,8 @@ class TestMultiOutputModelEnsemble(Generic[Array], unittest.TestCase):
         B_sub = ensemble.covariance_of_mean_and_variance_estimators_subproblem(
             model_idx, qoi_idx
         )
-        # Shape: (nsub_models * nsub_qoi, nsub_models * nsub_qoi^2) = (2*2, 2*4) = (4, 8)
+        # Shape: (nsub_models * nsub_qoi, nsub_models * nsub_qoi^2) = (2*2, 2*4) = (4,
+        # 8)
         self.assertEqual(B_sub.shape, (4, 8))
 
 
@@ -581,9 +581,7 @@ class TestTunableModelEnsemble(Generic[Array], unittest.TestCase):
         """Test means are zero when no shifts applied."""
         ensemble = TunableModelEnsemble(theta1=1.0, bkd=self._bkd)
         means = ensemble.means()
-        self._bkd.assert_allclose(
-            means, self._bkd.zeros((3, 1)), atol=1e-14
-        )
+        self._bkd.assert_allclose(means, self._bkd.zeros((3, 1)), atol=1e-14)
 
     def test_covariance_shape(self) -> None:
         """Test covariance has correct shape."""
@@ -619,12 +617,11 @@ class TestTunableModelEnsemble(Generic[Array], unittest.TestCase):
     def test_covariance_vs_numerical(self) -> None:
         """Test analytical covariance matches numerical estimate."""
         import numpy as np
+
         ensemble = TunableModelEnsemble(theta1=1.0, bkd=self._bkd)
         np.random.seed(42)
         nsamples = 100000
-        samples = self._bkd.asarray(
-            np.random.uniform(-1, 1, (2, nsamples))
-        )
+        samples = self._bkd.asarray(np.random.uniform(-1, 1, (2, nsamples)))
         vals = []
         for model in ensemble.models():
             vals.append(model(samples)[0, :])  # (nsamples,)
@@ -634,12 +631,9 @@ class TestTunableModelEnsemble(Generic[Array], unittest.TestCase):
         for i in range(3):
             for j in range(3):
                 numerical_cov[i, j] = self._bkd.mean(
-                    (vals_array[i, :] - means[i])
-                    * (vals_array[j, :] - means[j])
+                    (vals_array[i, :] - means[i]) * (vals_array[j, :] - means[j])
                 )
-        self._bkd.assert_allclose(
-            ensemble.covariance(), numerical_cov, rtol=5e-2
-        )
+        self._bkd.assert_allclose(ensemble.covariance(), numerical_cov, rtol=5e-2)
 
 
 class TestMultiOutputEnsembleInstance(Generic[Array], unittest.TestCase):
@@ -1009,18 +1003,14 @@ class TestPSDMultiOutputEnsembleInstanceTorch(
         return TorchBkd()
 
 
-class TestTunableEnsembleInstanceNumpy(
-    TestTunableEnsembleInstance[NDArray[Any]]
-):
+class TestTunableEnsembleInstanceNumpy(TestTunableEnsembleInstance[NDArray[Any]]):
     """NumPy backend tests for tunable_ensemble_3model instance."""
 
     def bkd(self) -> NumpyBkd:
         return NumpyBkd()
 
 
-class TestTunableEnsembleInstanceTorch(
-    TestTunableEnsembleInstance[torch.Tensor]
-):
+class TestTunableEnsembleInstanceTorch(TestTunableEnsembleInstance[torch.Tensor]):
     """PyTorch backend tests for tunable_ensemble_3model instance."""
 
     def bkd(self) -> TorchBkd:

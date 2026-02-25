@@ -17,26 +17,20 @@ import numpy as np
 import torch
 from numpy.typing import NDArray
 
+from pyapprox.expdesign import (
+    LinearGaussianOEDBenchmark,
+    NonLinearGaussianOEDBenchmark,
+    PredictionOEDDiagnostics,
+    create_prediction_oed_diagnostics,
+    create_prediction_oed_objective,
+)
 from pyapprox.util.backends.numpy import NumpyBkd
-from pyapprox.util.backends.torch import TorchBkd
 from pyapprox.util.backends.protocols import Array, Backend
+from pyapprox.util.backends.torch import TorchBkd
 from pyapprox.util.test_utils import (
     load_tests,  # noqa: F401
     slow_test,
     slower_test,
-)
-
-from pyapprox.expdesign import (
-    create_prediction_oed_objective,
-    LinearGaussianOEDBenchmark,
-    NonLinearGaussianOEDBenchmark,
-    GaussianOEDInnerLoopLikelihood,
-    PredictionOEDObjective,
-    StandardDeviationMeasure,
-    EntropicDeviationMeasure,
-    SampleAverageMean,
-    create_prediction_oed_diagnostics,
-    PredictionOEDDiagnostics,
 )
 
 
@@ -128,7 +122,9 @@ class TestPredictionOEDConvergenceStandalone(Generic[Array], unittest.TestCase):
             noise_variances = self._bkd.asarray(np.array([0.1, 0.15, 0.2]))
             outer_shapes = self._bkd.asarray(np.random.randn(self._nobs, self._nouter))
             inner_shapes = self._bkd.asarray(np.random.randn(self._nobs, ninner))
-            latent_samples = self._bkd.asarray(np.random.randn(self._nobs, self._nouter))
+            latent_samples = self._bkd.asarray(
+                np.random.randn(self._nobs, self._nouter)
+            )
             qoi_vals = self._bkd.asarray(np.random.randn(ninner, self._npred))
 
             objective = create_prediction_oed_objective(
@@ -166,7 +162,9 @@ class TestPredictionOEDConvergenceStandalone(Generic[Array], unittest.TestCase):
             noise_variances = self._bkd.asarray(np.array([0.1, 0.15, 0.2]))
             outer_shapes = self._bkd.asarray(np.random.randn(self._nobs, self._nouter))
             inner_shapes = self._bkd.asarray(np.random.randn(self._nobs, ninner))
-            latent_samples = self._bkd.asarray(np.random.randn(self._nobs, self._nouter))
+            latent_samples = self._bkd.asarray(
+                np.random.randn(self._nobs, self._nouter)
+            )
             qoi_vals = self._bkd.asarray(np.random.randn(ninner, self._npred))
 
             objective = create_prediction_oed_objective(
@@ -287,7 +285,8 @@ class TestPredictionOEDConvergenceStandalone(Generic[Array], unittest.TestCase):
         self.assertTrue(np.isfinite(val_mean_np))
         self.assertTrue(np.isfinite(val_var_np))
 
-        # Mean risk gives the expected deviation, variance risk gives variance of deviation
+        # Mean risk gives the expected deviation, variance risk gives variance of
+        # deviation
         # These are different quantities
         self.assertNotAlmostEqual(val_mean_np, val_var_np, places=3)
 
@@ -414,12 +413,8 @@ class TestNonLinearPredictionOEDConvergence(Generic[Array], unittest.TestCase):
         """Test AVaR std dev increases with higher beta (more risk averse)."""
         benchmark = self._create_benchmark()
 
-        diag_low = create_prediction_oed_diagnostics(
-            benchmark, "avar_stdev", beta=0.3
-        )
-        diag_high = create_prediction_oed_diagnostics(
-            benchmark, "avar_stdev", beta=0.7
-        )
+        diag_low = create_prediction_oed_diagnostics(benchmark, "avar_stdev", beta=0.3)
+        diag_high = create_prediction_oed_diagnostics(benchmark, "avar_stdev", beta=0.7)
 
         weights = self._bkd.ones((2, 1)) / 2
 

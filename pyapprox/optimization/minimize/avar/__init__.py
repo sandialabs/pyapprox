@@ -22,10 +22,10 @@ For alpha -> 1, AVaR approaches the maximum (minimax case).
 For alpha = 0, AVaR equals the mean.
 """
 
-from .protocols import AVaRSlackObjectiveProtocol
-from .objective import AVaRObjective
 from .constraint import AVaRConstraint
+from .objective import AVaRObjective
 from .optimizer import AVaROptimizer
+from .protocols import AVaRSlackObjectiveProtocol
 
 __all__ = [
     # Protocols

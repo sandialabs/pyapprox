@@ -1,17 +1,18 @@
 from typing import Generic
-from pyapprox.util.backends.protocols import Array, Backend
-from pyapprox.optimization.implicitfunction.state_equations.protocols import (
-    ParameterizedStateEquationWithJacobianAndHVPProtocol,
-)
+
 from pyapprox.optimization.implicitfunction.functionals.protocols import (
     ParameterizedFunctionalWithJacobianAndHVPProtocol,
-)
-from pyapprox.optimization.implicitfunction.operator.storage import (
-    AdjointOperatorStorage,
 )
 from pyapprox.optimization.implicitfunction.operator.operator_with_jacobian import (
     AdjointOperatorWithJacobian,
 )
+from pyapprox.optimization.implicitfunction.operator.storage import (
+    AdjointOperatorStorage,
+)
+from pyapprox.optimization.implicitfunction.state_equations.protocols import (
+    ParameterizedStateEquationWithJacobianAndHVPProtocol,
+)
+from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.util.backends.validation import validate_backends
 
 
@@ -35,21 +36,21 @@ class AdjointOperatorWithJacobianAndHVP(Generic[Array]):
         Parameters
         ----------
         state_eq : AdjointParameterizedStateEquationProtocol
-            Residual equation object implementing the adjoint residual equation protocol.
+            Residual equation object implementing the adjoint residual equation
+            protocol.
         functional : ParameterizedFunctionalWithJacobianAndHVPProtocol
             Functional object implementing the adjoint functional protocol.
 
         Raises
         ------
         TypeError
-            If the residual equation or functional are not valid instances of their respective protocols.
+            If the residual equation or functional are not valid instances of their
+            respective protocols.
         """
         self._validate_state_eq(state_eq)
         self._validate_functional(functional)
         validate_backends([functional.bkd(), state_eq.bkd()])
-        self._jacobian_operator = AdjointOperatorWithJacobian(
-            state_eq, functional
-        )
+        self._jacobian_operator = AdjointOperatorWithJacobian(state_eq, functional)
         self._bkd = self._jacobian_operator.bkd()
         self._state_eq = state_eq
         self._functional = functional
@@ -296,9 +297,7 @@ class AdjointOperatorWithJacobianAndHVP(Generic[Array]):
         qps_hvp = self._functional.param_state_hvp(fwd_state, param, wvec)
         if qps_hvp.ndim != 2 or qps_hvp.shape[1] != 1:
             raise RuntimeError("qps_hvp must be a 2D array with shape[1] == 1")
-        rps_hvp = self._state_eq.param_state_hvp(
-            fwd_state, param, adj_state, wvec
-        )
+        rps_hvp = self._state_eq.param_state_hvp(fwd_state, param, adj_state, wvec)
         if rps_hvp.ndim != 2 or rps_hvp.shape[1] != 1:
             raise RuntimeError("rps_hvp must be a 2D array with shape[1] == 1")
         return qps_hvp + rps_hvp
@@ -328,9 +327,7 @@ class AdjointOperatorWithJacobianAndHVP(Generic[Array]):
         qpp_hvp = self._functional.param_param_hvp(fwd_state, param, vvec)
         if qpp_hvp.ndim != 2 or qpp_hvp.shape[1] != 1:
             raise RuntimeError("qpp_hvp must be a 2D array with shape[1] == 1")
-        rpp_hvp = self._state_eq.param_param_hvp(
-            fwd_state, param, adj_state, vvec
-        )
+        rpp_hvp = self._state_eq.param_param_hvp(fwd_state, param, adj_state, vvec)
         if rpp_hvp.ndim != 2 or rpp_hvp.shape[1] != 1:
             raise RuntimeError(
                 "rpp_hvp returned by {0} must be a 2D array with shape[1] == 1".format(
@@ -374,9 +371,7 @@ class AdjointOperatorWithJacobianAndHVP(Generic[Array]):
         return self._bkd.solve(
             drdy.T,
             self._lagrangian_state_state_hvp(fwd_state, param, adj_state, wvec)
-            - self._lagrangian_state_param_hvp(
-                fwd_state, param, adj_state, vvec
-            ),
+            - self._lagrangian_state_param_hvp(fwd_state, param, adj_state, vvec),
         )
 
     def _get_adjoint_state(self, init_fwd_state: Array, param: Array) -> Array:
@@ -387,9 +382,7 @@ class AdjointOperatorWithJacobianAndHVP(Generic[Array]):
             fwd_state = self._jacobian_operator._get_forward_state(
                 init_fwd_state, param
             )
-            adj_state = self._jacobian_operator.solve_adjoint_equation(
-                fwd_state, param
-            )
+            adj_state = self._jacobian_operator.solve_adjoint_equation(fwd_state, param)
             self.storage().set_adjoint_state(adj_state)
         return self.storage().get_adjoint_state()
 
@@ -418,9 +411,7 @@ class AdjointOperatorWithJacobianAndHVP(Generic[Array]):
             )
 
         # Load or compute forward state
-        fwd_state = self._jacobian_operator._get_forward_state(
-            init_fwd_state, param
-        )
+        fwd_state = self._jacobian_operator._get_forward_state(init_fwd_state, param)
 
         # Load or compute adjoint state
         adj_state = self._get_adjoint_state(init_fwd_state, param)
@@ -429,9 +420,7 @@ class AdjointOperatorWithJacobianAndHVP(Generic[Array]):
         drdy = self.storage().get_state_eq_state_jacobian()
 
         # Load or compute drdp (parameter Jacobian)
-        drdp = self._jacobian_operator._get_state_eq_param_jacobian(
-            fwd_state, param
-        )
+        drdp = self._jacobian_operator._get_state_eq_param_jacobian(fwd_state, param)
 
         # Compute forward Hessian state
         wvec = self._forward_hessian_solve(fwd_state, param, drdy, drdp, vvec)
@@ -440,12 +429,8 @@ class AdjointOperatorWithJacobianAndHVP(Generic[Array]):
         svec = self._adjoint_hessian_solve(
             fwd_state, param, adj_state, drdy, wvec, vvec
         )
-        lps_hvp = self._lagrangian_param_state_hvp(
-            fwd_state, param, adj_state, wvec
-        )
-        lpp_hvp = self._lagrangian_param_param_hvp(
-            fwd_state, param, adj_state, vvec
-        )
+        lps_hvp = self._lagrangian_param_state_hvp(fwd_state, param, adj_state, wvec)
+        lpp_hvp = self._lagrangian_param_param_hvp(fwd_state, param, adj_state, vvec)
         hvp = drdp.T @ svec - lps_hvp + lpp_hvp
         return hvp
 

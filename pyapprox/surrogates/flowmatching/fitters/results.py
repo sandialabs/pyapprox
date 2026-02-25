@@ -46,6 +46,4 @@ class FlowMatchingFitResult(Generic[Array]):
         return self._surrogate(samples)  # type: ignore[operator]
 
     def __repr__(self) -> str:
-        return (
-            f"FlowMatchingFitResult(loss={self._training_loss:.6e})"
-        )
+        return f"FlowMatchingFitResult(loss={self._training_loss:.6e})"

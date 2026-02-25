@@ -2,8 +2,8 @@
 
 from typing import Generic, List, Optional
 
-from pyapprox.util.backends.protocols import Array
 from pyapprox.surrogates.mfnets.network import MFNet
+from pyapprox.util.backends.protocols import Array
 
 
 class MFNetGradientFitResult(Generic[Array]):

@@ -4,13 +4,13 @@ Standard Rosenbrock function benchmarks for optimization with known
 global minimum.
 """
 
-from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.benchmarks.benchmark import Benchmark, BoxDomain
-from pyapprox.benchmarks.ground_truth import OptimizationGroundTruth
-from pyapprox.benchmarks.registry import BenchmarkRegistry
 from pyapprox.benchmarks.functions.algebraic.rosenbrock import (
     RosenbrockFunction,
 )
+from pyapprox.benchmarks.ground_truth import OptimizationGroundTruth
+from pyapprox.benchmarks.registry import BenchmarkRegistry
+from pyapprox.util.backends.protocols import Array, Backend
 
 
 class RosenbrockBenchmark:

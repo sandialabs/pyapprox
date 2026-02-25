@@ -7,14 +7,9 @@ import numpy as np
 import torch
 from numpy.typing import NDArray
 
-from pyapprox.util.backends.numpy import NumpyBkd
-from pyapprox.util.backends.torch import TorchBkd
-from pyapprox.util.backends.protocols import Array, Backend
-from pyapprox.util.test_utils import load_tests  # noqa: F401
-
-from pyapprox.surrogates.affine.univariate import create_bases_1d
-from pyapprox.surrogates.affine.indices import (
-    compute_hyperbolic_indices,
+from pyapprox.probability import (
+    GaussianMarginal,
+    UniformMarginal,
 )
 from pyapprox.surrogates.affine.basis import (
     OrthonormalPolynomialBasis,
@@ -22,10 +17,14 @@ from pyapprox.surrogates.affine.basis import (
 from pyapprox.surrogates.affine.expansions import (
     PolynomialChaosExpansion,
 )
-from pyapprox.probability import (
-    UniformMarginal,
-    GaussianMarginal,
+from pyapprox.surrogates.affine.indices import (
+    compute_hyperbolic_indices,
 )
+from pyapprox.surrogates.affine.univariate import create_bases_1d
+from pyapprox.util.backends.numpy import NumpyBkd
+from pyapprox.util.backends.protocols import Array, Backend
+from pyapprox.util.backends.torch import TorchBkd
+from pyapprox.util.test_utils import load_tests  # noqa: F401
 
 
 class TestPCEArithmetic(Generic[Array], unittest.TestCase):
@@ -54,12 +53,8 @@ class TestPCEArithmetic(Generic[Array], unittest.TestCase):
         bkd = self._bkd
         pce1 = self._create_pce(nvars, level1, nqoi)
         pce2 = self._create_pce(nvars, level2, nqoi)
-        coef1 = bkd.asarray(
-            np.random.randn(pce1.nterms(), nqoi).astype(np.float64)
-        )
-        coef2 = bkd.asarray(
-            np.random.randn(pce2.nterms(), nqoi).astype(np.float64)
-        )
+        coef1 = bkd.asarray(np.random.randn(pce1.nterms(), nqoi).astype(np.float64))
+        coef2 = bkd.asarray(np.random.randn(pce2.nterms(), nqoi).astype(np.float64))
         pce1.set_coefficients(coef1)
         pce2.set_coefficients(coef2)
         return pce1, pce2
@@ -105,18 +100,14 @@ class TestPCEArithmetic(Generic[Array], unittest.TestCase):
         pce1, _ = self._create_pce_pair(2, 3, 3)
         pce3 = pce1 + 5.0
         samples = self._random_samples(2)
-        self._bkd.assert_allclose(
-            pce3(samples), pce1(samples) + 5.0, rtol=1e-12
-        )
+        self._bkd.assert_allclose(pce3(samples), pce1(samples) + 5.0, rtol=1e-12)
 
     def test_radd_scalar(self):
         """constant + pce."""
         pce1, _ = self._create_pce_pair(2, 3, 3)
         pce3 = 3 + pce1
         samples = self._random_samples(2)
-        self._bkd.assert_allclose(
-            pce3(samples), 3.0 + pce1(samples), rtol=1e-12
-        )
+        self._bkd.assert_allclose(pce3(samples), 3.0 + pce1(samples), rtol=1e-12)
 
     def test_add_multi_qoi(self):
         """pce1 + pce2 with nqoi > 1."""
@@ -145,18 +136,14 @@ class TestPCEArithmetic(Generic[Array], unittest.TestCase):
         pce1, _ = self._create_pce_pair(2, 3, 3)
         pce3 = pce1 - 7.0
         samples = self._random_samples(2)
-        self._bkd.assert_allclose(
-            pce3(samples), pce1(samples) - 7.0, rtol=1e-12
-        )
+        self._bkd.assert_allclose(pce3(samples), pce1(samples) - 7.0, rtol=1e-12)
 
     def test_rsub_scalar(self):
         """constant - pce."""
         pce1, _ = self._create_pce_pair(2, 3, 3)
         pce3 = 4 - pce1
         samples = self._random_samples(2)
-        self._bkd.assert_allclose(
-            pce3(samples), 4.0 - pce1(samples), rtol=1e-12
-        )
+        self._bkd.assert_allclose(pce3(samples), 4.0 - pce1(samples), rtol=1e-12)
 
     # ------------------------------------------------------------------
     # Multiplication
@@ -194,18 +181,14 @@ class TestPCEArithmetic(Generic[Array], unittest.TestCase):
         pce1, _ = self._create_pce_pair(2, 3, 3)
         pce3 = pce1 * 3.0
         samples = self._random_samples(2)
-        self._bkd.assert_allclose(
-            pce3(samples), pce1(samples) * 3.0, rtol=1e-12
-        )
+        self._bkd.assert_allclose(pce3(samples), pce1(samples) * 3.0, rtol=1e-12)
 
     def test_rmul_scalar(self):
         """constant * pce."""
         pce1, _ = self._create_pce_pair(2, 3, 3)
         pce3 = 2 * pce1
         samples = self._random_samples(2)
-        self._bkd.assert_allclose(
-            pce3(samples), 2.0 * pce1(samples), rtol=1e-12
-        )
+        self._bkd.assert_allclose(pce3(samples), 2.0 * pce1(samples), rtol=1e-12)
 
     # ------------------------------------------------------------------
     # Power
@@ -214,7 +197,7 @@ class TestPCEArithmetic(Generic[Array], unittest.TestCase):
     def test_pow_0(self):
         """pce ** 0 = constant 1."""
         pce1, _ = self._create_pce_pair(2, 3, 3)
-        pce0 = pce1 ** 0
+        pce0 = pce1**0
         samples = self._random_samples(2)
         expected = self._bkd.ones((1, samples.shape[1]))
         self._bkd.assert_allclose(pce0(samples), expected, rtol=1e-12)
@@ -222,29 +205,23 @@ class TestPCEArithmetic(Generic[Array], unittest.TestCase):
     def test_pow_1(self):
         """pce ** 1 = pce."""
         pce1, _ = self._create_pce_pair(2, 3, 3)
-        pce_1 = pce1 ** 1
+        pce_1 = pce1**1
         samples = self._random_samples(2)
-        self._bkd.assert_allclose(
-            pce_1(samples), pce1(samples), rtol=1e-12
-        )
+        self._bkd.assert_allclose(pce_1(samples), pce1(samples), rtol=1e-12)
 
     def test_pow_2(self):
         """pce ** 2."""
         pce1, _ = self._create_pce_pair(1, 3, 3)
-        pce2 = pce1 ** 2
+        pce2 = pce1**2
         samples = self._random_samples(1)
-        self._bkd.assert_allclose(
-            pce2(samples), pce1(samples) ** 2, rtol=1e-12
-        )
+        self._bkd.assert_allclose(pce2(samples), pce1(samples) ** 2, rtol=1e-12)
 
     def test_pow_3(self):
         """pce ** 3."""
         pce1, _ = self._create_pce_pair(1, 3, 3)
-        pce3 = pce1 ** 3
+        pce3 = pce1**3
         samples = self._random_samples(1)
-        self._bkd.assert_allclose(
-            pce3(samples), pce1(samples) ** 3, rtol=1e-10
-        )
+        self._bkd.assert_allclose(pce3(samples), pce1(samples) ** 3, rtol=1e-10)
 
     # ------------------------------------------------------------------
     # Composite expressions
@@ -268,9 +245,7 @@ class TestPCEArithmetic(Generic[Array], unittest.TestCase):
         pce2 = self._create_pce(1, 3)
         pce3 = self._create_pce(1, 2)
         for p in [pce1, pce2, pce3]:
-            coef = bkd.asarray(
-                np.random.randn(p.nterms(), 1).astype(np.float64)
-            )
+            coef = bkd.asarray(np.random.randn(p.nterms(), 1).astype(np.float64))
             p.set_coefficients(coef)
         result = (pce1 + pce2) * pce3
         samples = self._random_samples(1)
@@ -296,9 +271,7 @@ class TestPCEArithmetic(Generic[Array], unittest.TestCase):
         basis_g = OrthonormalPolynomialBasis(bases_g, bkd, idx)
         pce_u = PolynomialChaosExpansion(basis_u, bkd)
         pce_g = PolynomialChaosExpansion(basis_g, bkd)
-        coef = bkd.asarray(
-            np.random.randn(pce_u.nterms(), 1).astype(np.float64)
-        )
+        coef = bkd.asarray(np.random.randn(pce_u.nterms(), 1).astype(np.float64))
         pce_u.set_coefficients(coef)
         pce_g.set_coefficients(coef)
         with self.assertRaises(TypeError):
@@ -323,7 +296,7 @@ class TestPCEArithmetic(Generic[Array], unittest.TestCase):
         """Non-integer power raises TypeError."""
         pce1, _ = self._create_pce_pair(1, 3, 3)
         with self.assertRaises(TypeError):
-            pce1 ** 2.5
+            pce1**2.5
 
     # ------------------------------------------------------------------
     # Immutability
@@ -391,12 +364,9 @@ class TestAutogradPCEArithmetic(unittest.TestCase):
         bkd = self._bkd
         pce1 = self._create_pce(1, 3)
         pce2 = self._create_pce(1, 3)
-        samples = bkd.asarray(
-            np.random.uniform(-1, 1, (1, 5)).astype(np.float64)
-        )
+        samples = bkd.asarray(np.random.uniform(-1, 1, (1, 5)).astype(np.float64))
 
-        coef1 = torch.randn(pce1.nterms(), 1, dtype=torch.float64,
-                            requires_grad=True)
+        coef1 = torch.randn(pce1.nterms(), 1, dtype=torch.float64, requires_grad=True)
 
         def func(c):
             pce1.set_coefficients(c)
@@ -412,16 +382,11 @@ class TestAutogradPCEArithmetic(unittest.TestCase):
         bkd = self._bkd
         pce1 = self._create_pce(1, 2)
         pce2 = self._create_pce(1, 2)
-        coef2 = bkd.asarray(
-            np.random.randn(pce2.nterms(), 1).astype(np.float64)
-        )
+        coef2 = bkd.asarray(np.random.randn(pce2.nterms(), 1).astype(np.float64))
         pce2.set_coefficients(coef2)
-        samples = bkd.asarray(
-            np.random.uniform(-1, 1, (1, 5)).astype(np.float64)
-        )
+        samples = bkd.asarray(np.random.uniform(-1, 1, (1, 5)).astype(np.float64))
 
-        coef1 = torch.randn(pce1.nterms(), 1, dtype=torch.float64,
-                            requires_grad=True)
+        coef1 = torch.randn(pce1.nterms(), 1, dtype=torch.float64, requires_grad=True)
 
         def func(c):
             pce1.set_coefficients(c)

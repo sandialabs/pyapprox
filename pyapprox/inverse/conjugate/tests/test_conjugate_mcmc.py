@@ -9,21 +9,20 @@ import unittest
 from typing import Any, Generic
 
 import numpy as np
-from numpy.typing import NDArray
 import torch
-from scipy.special import gammaln
+from numpy.typing import NDArray
 
-from pyapprox.util.backends.protocols import Array, Backend
-from pyapprox.util.backends.numpy import NumpyBkd
-from pyapprox.util.backends.torch import TorchBkd
-from pyapprox.inverse.sampling import (
-    MetropolisHastingsSampler,
-    AdaptiveMetropolisSampler,
-    HamiltonianMonteCarlo,
-)
 from pyapprox.inverse.conjugate.beta import BetaConjugatePosterior
 from pyapprox.inverse.conjugate.dirichlet import DirichletConjugatePosterior
 from pyapprox.inverse.conjugate.gaussian import DenseGaussianConjugatePosterior
+from pyapprox.inverse.sampling import (
+    AdaptiveMetropolisSampler,
+    HamiltonianMonteCarlo,
+    MetropolisHastingsSampler,
+)
+from pyapprox.util.backends.numpy import NumpyBkd
+from pyapprox.util.backends.protocols import Array, Backend
+from pyapprox.util.backends.torch import TorchBkd
 
 
 class TestBetaConjugateMCMC(Generic[Array], unittest.TestCase):
@@ -43,14 +42,12 @@ class TestBetaConjugateMCMC(Generic[Array], unittest.TestCase):
         # 5 successes, 3 failures
 
         # Analytical posterior using existing conjugate class
-        conjugate = BetaConjugatePosterior(
-            alpha=1.0, beta=1.0, bkd=self.bkd()
-        )
+        conjugate = BetaConjugatePosterior(alpha=1.0, beta=1.0, bkd=self.bkd())
         conjugate.compute(obs)
         true_mean = conjugate.posterior_mean()
         true_var = conjugate.posterior_variance()
         alpha_post = conjugate.posterior_alpha()  # 1 + 5 = 6
-        beta_post = conjugate.posterior_beta()    # 1 + 3 = 4
+        beta_post = conjugate.posterior_beta()  # 1 + 3 = 4
 
         # Define log posterior for MCMC (Beta(6, 4))
         def log_posterior(samples: Array) -> Array:
@@ -59,10 +56,7 @@ class TestBetaConjugateMCMC(Generic[Array], unittest.TestCase):
             # Clip to avoid log(0)
             p = np.clip(p, 1e-10, 1 - 1e-10)
             # Beta log pdf: (a-1)log(p) + (b-1)log(1-p) - log(B(a,b))
-            log_pdf = (
-                (alpha_post - 1) * np.log(p)
-                + (beta_post - 1) * np.log(1 - p)
-            )
+            log_pdf = (alpha_post - 1) * np.log(p) + (beta_post - 1) * np.log(1 - p)
             return self.bkd().asarray(log_pdf)
 
         sampler = MetropolisHastingsSampler(
@@ -85,12 +79,14 @@ class TestBetaConjugateMCMC(Generic[Array], unittest.TestCase):
 
         # Compare to analytical values
         self.assertLess(
-            np.abs(sample_mean - true_mean), 0.05,
-            f"Sample mean {sample_mean:.4f} should be close to {true_mean:.4f}"
+            np.abs(sample_mean - true_mean),
+            0.05,
+            f"Sample mean {sample_mean:.4f} should be close to {true_mean:.4f}",
         )
         self.assertLess(
-            np.abs(sample_var - true_var), 0.01,
-            f"Sample var {sample_var:.4f} should be close to {true_var:.4f}"
+            np.abs(sample_var - true_var),
+            0.01,
+            f"Sample var {sample_var:.4f} should be close to {true_var:.4f}",
         )
 
     def test_beta_posterior_with_more_data(self) -> None:
@@ -98,9 +94,9 @@ class TestBetaConjugateMCMC(Generic[Array], unittest.TestCase):
         np.random.seed(123)
 
         # More data: 15 successes, 5 failures
-        obs = self.bkd().asarray(np.array([
-            [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0]
-        ]))
+        obs = self.bkd().asarray(
+            np.array([[1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0]])
+        )
 
         conjugate = BetaConjugatePosterior(
             alpha=2.0, beta=2.0, bkd=self.bkd()
@@ -108,15 +104,12 @@ class TestBetaConjugateMCMC(Generic[Array], unittest.TestCase):
         conjugate.compute(obs)
         true_mean = conjugate.posterior_mean()
         alpha_post = conjugate.posterior_alpha()  # 2 + 15 = 17
-        beta_post = conjugate.posterior_beta()    # 2 + 5 = 7
+        beta_post = conjugate.posterior_beta()  # 2 + 5 = 7
 
         def log_posterior(samples: Array) -> Array:
             samples_np = self.bkd().to_numpy(samples)
             p = np.clip(samples_np[0, :], 1e-10, 1 - 1e-10)
-            log_pdf = (
-                (alpha_post - 1) * np.log(p)
-                + (beta_post - 1) * np.log(1 - p)
-            )
+            log_pdf = (alpha_post - 1) * np.log(p) + (beta_post - 1) * np.log(1 - p)
             return self.bkd().asarray(log_pdf)
 
         sampler = AdaptiveMetropolisSampler(
@@ -133,8 +126,9 @@ class TestBetaConjugateMCMC(Generic[Array], unittest.TestCase):
 
         sample_mean = np.mean(samples_np)
         self.assertLess(
-            np.abs(sample_mean - true_mean), 0.03,
-            f"Sample mean {sample_mean:.4f} should be close to {true_mean:.4f}"
+            np.abs(sample_mean - true_mean),
+            0.03,
+            f"Sample mean {sample_mean:.4f} should be close to {true_mean:.4f}",
         )
 
 
@@ -204,16 +198,19 @@ class TestDirichletConjugateMCMC(Generic[Array], unittest.TestCase):
 
         # Compare to true Dirichlet means
         self.assertLess(
-            np.abs(p1_mean - true_mean[0]), 0.05,
-            f"p1 mean {p1_mean:.3f} should be close to {true_mean[0]:.3f}"
+            np.abs(p1_mean - true_mean[0]),
+            0.05,
+            f"p1 mean {p1_mean:.3f} should be close to {true_mean[0]:.3f}",
         )
         self.assertLess(
-            np.abs(p2_mean - true_mean[1]), 0.05,
-            f"p2 mean {p2_mean:.3f} should be close to {true_mean[1]:.3f}"
+            np.abs(p2_mean - true_mean[1]),
+            0.05,
+            f"p2 mean {p2_mean:.3f} should be close to {true_mean[1]:.3f}",
         )
         self.assertLess(
-            np.abs(p3_mean - true_mean[2]), 0.05,
-            f"p3 mean {p3_mean:.3f} should be close to {true_mean[2]:.3f}"
+            np.abs(p3_mean - true_mean[2]),
+            0.05,
+            f"p3 mean {p3_mean:.3f} should be close to {true_mean[2]:.3f}",
         )
 
 
@@ -260,7 +257,7 @@ class TestGaussianConjugateMCMC(Generic[Array], unittest.TestCase):
             log_pdf = np.zeros(nsamples)
 
             for i in range(nsamples):
-                x = samples_np[:, i:i+1]
+                x = samples_np[:, i : i + 1]
                 # Log prior
                 diff = x - self.bkd().to_numpy(prior_mean)
                 log_prior = -0.5 * float(diff.T @ prior_prec @ diff)
@@ -300,12 +297,14 @@ class TestGaussianConjugateMCMC(Generic[Array], unittest.TestCase):
 
         # Compare to analytical posterior
         np.testing.assert_array_less(
-            np.abs(sample_mean - true_post_mean), 0.3,
-            "Sample mean should be close to analytical posterior mean"
+            np.abs(sample_mean - true_post_mean),
+            0.3,
+            "Sample mean should be close to analytical posterior mean",
         )
         np.testing.assert_array_less(
-            np.abs(sample_cov - true_post_cov), 0.3,
-            "Sample covariance should be close to analytical posterior covariance"
+            np.abs(sample_cov - true_post_cov),
+            0.3,
+            "Sample covariance should be close to analytical posterior covariance",
         )
 
     def test_gaussian_conjugate_adaptive(self) -> None:
@@ -338,7 +337,7 @@ class TestGaussianConjugateMCMC(Generic[Array], unittest.TestCase):
             # Prior: N(0, 4)
             log_prior = -0.5 * x**2 / 4.0
             # Likelihood: N(x, 1) at y=2
-            log_like = -0.5 * (x - 2.0)**2 / 1.0
+            log_like = -0.5 * (x - 2.0) ** 2 / 1.0
             return self.bkd().asarray(log_prior + log_like)
 
         sampler = AdaptiveMetropolisSampler(
@@ -356,12 +355,14 @@ class TestGaussianConjugateMCMC(Generic[Array], unittest.TestCase):
         sample_var = np.var(samples_np)
 
         self.assertLess(
-            np.abs(sample_mean - true_mean), 0.1,
-            f"Sample mean {sample_mean:.3f} should be close to {true_mean:.3f}"
+            np.abs(sample_mean - true_mean),
+            0.1,
+            f"Sample mean {sample_mean:.3f} should be close to {true_mean:.3f}",
         )
         self.assertLess(
-            np.abs(sample_var - true_var), 0.1,
-            f"Sample var {sample_var:.3f} should be close to {true_var:.3f}"
+            np.abs(sample_var - true_var),
+            0.1,
+            f"Sample var {sample_var:.3f} should be close to {true_var:.3f}",
         )
 
 
@@ -428,9 +429,6 @@ class TestGaussianConjugateMCMCTorch(TestGaussianConjugateMCMC[torch.Tensor]):
 
     def bkd(self) -> TorchBkd:
         return self._bkd
-
-
-from pyapprox.util.test_utils import load_tests
 
 
 if __name__ == "__main__":

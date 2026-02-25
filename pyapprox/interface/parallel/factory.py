@@ -5,7 +5,7 @@ with parallel batch execution capabilities, and a make_parallel
 convenience function.
 """
 
-from typing import Callable, Generic, Optional, Union
+from typing import Generic, Optional, Union
 
 from pyapprox.interface.parallel.batch_utils import BatchSplitter
 from pyapprox.interface.parallel.config import (
@@ -48,9 +48,9 @@ class ParallelFunctionWrapper(Generic[Array]):
     ) -> None:
         self._function = function
         self._config = config or ParallelConfig()
-        self._backend: Union[
-            ParallelBackendProtocol, SequentialBackend
-        ] = self._config.get_parallel_backend()
+        self._backend: Union[ParallelBackendProtocol, SequentialBackend] = (
+            self._config.get_parallel_backend()
+        )
         self._setup_derivative_methods()
 
     def _setup_derivative_methods(self) -> None:
@@ -255,9 +255,7 @@ class ParallelFunctionWrapper(Generic[Array]):
         hvps = [transfer.from_numpy(h) for h in hvps_np]
         return splitter.combine_hvps(hvps)
 
-    def _whvp_batch(
-        self, samples: Array, vecs: Array, weights: Array
-    ) -> Array:
+    def _whvp_batch(self, samples: Array, vecs: Array, weights: Array) -> Array:
         """Compute weighted HVPs at multiple samples in parallel.
 
         Parameters

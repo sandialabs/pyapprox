@@ -21,14 +21,14 @@ Examples
 """
 
 from .function import FunctionProtocol
+from .hessian import (
+    FunctionWithJacobianAndHVPProtocol,
+    FunctionWithJacobianAndWHVPProtocol,
+    FunctionWithJVPAndHVPProtocol,
+)
 from .jacobian import (
     FunctionWithJacobianProtocol,
     FunctionWithJVPProtocol,
-)
-from .hessian import (
-    FunctionWithJacobianAndHVPProtocol,
-    FunctionWithJVPAndHVPProtocol,
-    FunctionWithJacobianAndWHVPProtocol,
 )
 
 __all__ = [

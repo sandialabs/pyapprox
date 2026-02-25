@@ -8,7 +8,8 @@ Used to normalize GP training outputs for numerical stability while
 providing predictions and statistics in the original output space.
 """
 
-from typing import Generic, Optional, Protocol, runtime_checkable
+from typing import Generic, Protocol, runtime_checkable
+
 from pyapprox.util.backends.protocols import Array, Backend
 
 
@@ -85,9 +86,7 @@ class OutputStandardScaler(Generic[Array]):
         Backend for numerical operations.
     """
 
-    def __init__(
-        self, mean: Array, std: Array, bkd: Backend[Array]
-    ) -> None:
+    def __init__(self, mean: Array, std: Array, bkd: Backend[Array]) -> None:
         self._mean = mean
         self._std = std
         self._bkd = bkd
@@ -135,9 +134,7 @@ class OutputStandardScaler(Generic[Array]):
         return (y - self._mean[:, None]) / self._std[:, None]
 
     @staticmethod
-    def from_data(
-        y: Array, bkd: Backend[Array]
-    ) -> "OutputStandardScaler[Array]":
+    def from_data(y: Array, bkd: Backend[Array]) -> "OutputStandardScaler[Array]":
         """Create scaler from training data.
 
         Computes per-output mean and standard deviation. Outputs with
@@ -162,9 +159,7 @@ class OutputStandardScaler(Generic[Array]):
 
     def __repr__(self) -> str:
         """Return string representation."""
-        return (
-            f"OutputStandardScaler(mean={self._mean}, std={self._std})"
-        )
+        return f"OutputStandardScaler(mean={self._mean}, std={self._std})"
 
 
 class IdentityOutputTransform(Generic[Array]):

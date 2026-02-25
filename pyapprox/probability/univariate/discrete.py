@@ -4,7 +4,7 @@ Discrete univariate distributions.
 Provides discrete distributions that implement MarginalProtocol.
 """
 
-from typing import Generic, Any, Tuple
+from typing import Any, Generic, Tuple
 
 import numpy as np
 

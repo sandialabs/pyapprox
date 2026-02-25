@@ -22,8 +22,8 @@ from typing import Generic, Optional
 import numpy as np
 from scipy.sparse import issparse
 
-from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.pde.sparse_utils import solve_maybe_sparse
+from pyapprox.util.backends.protocols import Array, Backend
 
 
 class StokesTimeStepResidual(Generic[Array]):
@@ -46,8 +46,7 @@ class StokesTimeStepResidual(Generic[Array]):
     def __init__(self, physics, method: str = "backward_euler"):
         if method not in ("backward_euler", "crank_nicolson"):
             raise ValueError(
-                f"method must be 'backward_euler' or 'crank_nicolson', "
-                f"got '{method}'"
+                f"method must be 'backward_euler' or 'crank_nicolson', got '{method}'"
             )
         self._physics = physics
         self._bkd = physics.bkd()
@@ -95,9 +94,7 @@ class StokesTimeStepResidual(Generic[Array]):
 
         return M
 
-    def set_time(
-        self, time: float, deltat: float, prev_state: Array
-    ) -> None:
+    def set_time(self, time: float, deltat: float, prev_state: Array) -> None:
         """Set the current time step parameters.
 
         Parameters

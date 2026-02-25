@@ -39,7 +39,7 @@ Example::
     quad_pts = transform.map_from_canonical(canonical_quad_pts)
 """
 
-from typing import Generic, Protocol, Tuple, runtime_checkable
+from typing import Generic, Protocol, runtime_checkable
 
 from pyapprox.util.backends.protocols import Array, Backend
 
@@ -339,7 +339,8 @@ def get_transform_from_marginal(
 
     raise ValueError(
         f"Cannot determine transform for marginal type {type(marginal).__name__}. "
-        "Register it with register_analytical_marginal() or ensure is_bounded() is defined."
+        "Register it with register_analytical_marginal() "
+        "or ensure is_bounded() is defined."
     )
 
 

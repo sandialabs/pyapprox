@@ -7,18 +7,18 @@ estimators with known analytical or numerical statistics.
 
 from typing import Generic, List
 
-from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.benchmarks.benchmark import BoxDomain
-from pyapprox.benchmarks.registry import BenchmarkRegistry
 from pyapprox.benchmarks.functions.multifidelity.multioutput_ensemble import (
     MultiOutputModelEnsemble,
     PSDMultiOutputModelEnsemble,
 )
+from pyapprox.benchmarks.registry import BenchmarkRegistry
 from pyapprox.interface.functions.protocols.function import (
     FunctionProtocol,
 )
-from pyapprox.probability.univariate.uniform import UniformMarginal
 from pyapprox.probability.joint.independent import IndependentJoint
+from pyapprox.probability.univariate.uniform import UniformMarginal
+from pyapprox.util.backends.protocols import Array, Backend
 
 
 class MultiOutputEnsembleBenchmark(Generic[Array]):

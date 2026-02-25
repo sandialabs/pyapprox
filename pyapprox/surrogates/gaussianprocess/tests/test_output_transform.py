@@ -12,29 +12,27 @@ Tests verify:
 
 import math
 import unittest
-from typing import Generic, Any
+from typing import Any, Generic
 
 import numpy as np
 import torch
 from numpy.typing import NDArray
 
-from pyapprox.util.backends.protocols import Backend, Array
-from pyapprox.util.backends.numpy import NumpyBkd
-from pyapprox.util.backends.torch import TorchBkd
-from pyapprox.util.test_utils import load_tests  # noqa: F401
-
+from pyapprox.surrogates.gaussianprocess import ExactGaussianProcess
 from pyapprox.surrogates.gaussianprocess.output_transform import (
-    OutputStandardScaler,
     IdentityOutputTransform,
-)
-from pyapprox.surrogates.kernels.matern import (
-    SquaredExponentialKernel,
+    OutputStandardScaler,
 )
 from pyapprox.surrogates.kernels.composition import (
     SeparableProductKernel,
 )
-from pyapprox.surrogates.gaussianprocess import ExactGaussianProcess
-
+from pyapprox.surrogates.kernels.matern import (
+    SquaredExponentialKernel,
+)
+from pyapprox.util.backends.numpy import NumpyBkd
+from pyapprox.util.backends.protocols import Array, Backend
+from pyapprox.util.backends.torch import TorchBkd
+from pyapprox.util.test_utils import load_tests  # noqa: F401
 
 _NUGGET = 1e-10
 
@@ -45,8 +43,7 @@ def _make_training_data(
     np.random.seed(42)
     X_train = bkd.array(np.random.rand(nvars, n_train) * 2 - 1)
     y_train = bkd.reshape(
-        10.0 * bkd.sin(math.pi * X_train[0, :])
-        + 5.0,  # non-trivial mean and std
+        10.0 * bkd.sin(math.pi * X_train[0, :]) + 5.0,  # non-trivial mean and std
         (1, -1),
     )
     return X_train, y_train
@@ -157,16 +154,12 @@ class TestOutputTransform(Generic[Array], unittest.TestCase):
         y_scaled = scaler.inverse_transform(y_train)
 
         # GP with transform (fits on original, internally scales)
-        gp_t = ExactGaussianProcess(
-            kernel_t, nvars=2, bkd=bkd, nugget=_NUGGET
-        )
+        gp_t = ExactGaussianProcess(kernel_t, nvars=2, bkd=bkd, nugget=_NUGGET)
         gp_t.hyp_list().set_all_inactive()
         gp_t.fit(X_train, y_train, output_transform=scaler)
 
         # Raw GP (fits on manually scaled data)
-        gp_r = ExactGaussianProcess(
-            kernel_r, nvars=2, bkd=bkd, nugget=_NUGGET
-        )
+        gp_r = ExactGaussianProcess(kernel_r, nvars=2, bkd=bkd, nugget=_NUGGET)
         gp_r.hyp_list().set_all_inactive()
         gp_r.fit(X_train, y_scaled)
 
@@ -192,15 +185,11 @@ class TestOutputTransform(Generic[Array], unittest.TestCase):
         scaler = OutputStandardScaler.from_data(y_train, bkd)
         y_scaled = scaler.inverse_transform(y_train)
 
-        gp_t = ExactGaussianProcess(
-            kernel_t, nvars=2, bkd=bkd, nugget=_NUGGET
-        )
+        gp_t = ExactGaussianProcess(kernel_t, nvars=2, bkd=bkd, nugget=_NUGGET)
         gp_t.hyp_list().set_all_inactive()
         gp_t.fit(X_train, y_train, output_transform=scaler)
 
-        gp_r = ExactGaussianProcess(
-            kernel_r, nvars=2, bkd=bkd, nugget=_NUGGET
-        )
+        gp_r = ExactGaussianProcess(kernel_r, nvars=2, bkd=bkd, nugget=_NUGGET)
         gp_r.hyp_list().set_all_inactive()
         gp_r.fit(X_train, y_scaled)
 
@@ -224,15 +213,11 @@ class TestOutputTransform(Generic[Array], unittest.TestCase):
         scaler = OutputStandardScaler.from_data(y_train, bkd)
         y_scaled = scaler.inverse_transform(y_train)
 
-        gp_t = ExactGaussianProcess(
-            kernel_t, nvars=2, bkd=bkd, nugget=_NUGGET
-        )
+        gp_t = ExactGaussianProcess(kernel_t, nvars=2, bkd=bkd, nugget=_NUGGET)
         gp_t.hyp_list().set_all_inactive()
         gp_t.fit(X_train, y_train, output_transform=scaler)
 
-        gp_r = ExactGaussianProcess(
-            kernel_r, nvars=2, bkd=bkd, nugget=_NUGGET
-        )
+        gp_r = ExactGaussianProcess(kernel_r, nvars=2, bkd=bkd, nugget=_NUGGET)
         gp_r.hyp_list().set_all_inactive()
         gp_r.fit(X_train, y_scaled)
 

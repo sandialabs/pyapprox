@@ -22,38 +22,40 @@ the exact s² cancellation (A_K = s²C + σ²I ≠ s²(C + σ²I) when σ² ≠ 
 import math
 import unittest
 from itertools import product as iterproduct
-from typing import Generic, Any, List
+from typing import Any, Generic, List
 
 import numpy as np
 import torch
 from numpy.typing import NDArray
 
-from pyapprox.util.backends.protocols import Backend, Array
-from pyapprox.util.backends.numpy import NumpyBkd
-from pyapprox.util.backends.torch import TorchBkd
-from pyapprox.util.test_utils import load_tests  # noqa: F401
-from pyapprox.util.test_utils import slow_test, slower_test
-from pyapprox.surrogates.kernels.matern import (
-    SquaredExponentialKernel,
-)
-from pyapprox.surrogates.kernels.composition import (
-    SeparableProductKernel,
-)
-from pyapprox.surrogates.kernels.scalings import PolynomialScaling
-from pyapprox.surrogates.kernels import IIDGaussianNoise
-from pyapprox.surrogates.gaussianprocess import ExactGaussianProcess
 from pyapprox.probability.univariate.uniform import UniformMarginal
-from pyapprox.surrogates.sparsegrids.basis_factory import (
-    create_basis_factories,
-)
+from pyapprox.surrogates.gaussianprocess import ExactGaussianProcess
 from pyapprox.surrogates.gaussianprocess.statistics import (
-    SeparableKernelIntegralCalculator,
     GaussianProcessStatistics,
+    SeparableKernelIntegralCalculator,
 )
 from pyapprox.surrogates.gaussianprocess.statistics.sensitivity import (
     GaussianProcessSensitivity,
 )
-
+from pyapprox.surrogates.kernels import IIDGaussianNoise
+from pyapprox.surrogates.kernels.composition import (
+    SeparableProductKernel,
+)
+from pyapprox.surrogates.kernels.matern import (
+    SquaredExponentialKernel,
+)
+from pyapprox.surrogates.kernels.scalings import PolynomialScaling
+from pyapprox.surrogates.sparsegrids.basis_factory import (
+    create_basis_factories,
+)
+from pyapprox.util.backends.numpy import NumpyBkd
+from pyapprox.util.backends.protocols import Array, Backend
+from pyapprox.util.backends.torch import TorchBkd
+from pyapprox.util.test_utils import (
+    load_tests,  # noqa: F401
+    slow_test,
+    slower_test,
+)
 
 # ===================================================================
 # Helpers
@@ -77,8 +79,7 @@ def _create_separable_kernel(
     length_scales: List[float], bkd: Backend[Array]
 ) -> SeparableProductKernel[Array]:
     kernels_1d = [
-        SquaredExponentialKernel([ls], (0.1, 10.0), 1, bkd)
-        for ls in length_scales
+        SquaredExponentialKernel([ls], (0.1, 10.0), 1, bkd) for ls in length_scales
     ]
     return SeparableProductKernel(kernels_1d, bkd)
 
@@ -90,9 +91,7 @@ def _create_scaled_kernel(
 ) -> Any:
     base = _create_separable_kernel(length_scales, bkd)
     nvars = len(length_scales)
-    scaling = PolynomialScaling(
-        [s_value], (0.01, 100.0), bkd, nvars=nvars, fixed=False
-    )
+    scaling = PolynomialScaling([s_value], (0.01, 100.0), bkd, nvars=nvars, fixed=False)
     return scaling * base
 
 
@@ -116,8 +115,8 @@ def _create_stats(
     gp: Any, marginals: List[Any], nquad: int, bkd: Backend[Array]
 ) -> GaussianProcessStatistics[Array]:
     bases = _create_quadrature_bases(marginals, nquad, bkd)
-    calc: SeparableKernelIntegralCalculator[Array] = (
-        SeparableKernelIntegralCalculator(gp, bases, marginals, bkd=bkd)
+    calc: SeparableKernelIntegralCalculator[Array] = SeparableKernelIntegralCalculator(
+        gp, bases, marginals, bkd=bkd
     )
     return GaussianProcessStatistics(gp, calc)
 
@@ -126,8 +125,8 @@ def _create_sensitivity(
     gp: Any, marginals: List[Any], nquad: int, bkd: Backend[Array]
 ) -> GaussianProcessSensitivity[Array]:
     bases = _create_quadrature_bases(marginals, nquad, bkd)
-    calc: SeparableKernelIntegralCalculator[Array] = (
-        SeparableKernelIntegralCalculator(gp, bases, marginals, bkd=bkd)
+    calc: SeparableKernelIntegralCalculator[Array] = SeparableKernelIntegralCalculator(
+        gp, bases, marginals, bkd=bkd
     )
     stats = GaussianProcessStatistics(gp, calc)
     return GaussianProcessSensitivity(stats)
@@ -187,9 +186,7 @@ class TestIntegralCalculatorDecomposition(Generic[Array], unittest.TestCase):
         gp_C = _fit_gp(kernel_C, nvars, X_train, y_train, self._bkd)
         bases_C = _create_quadrature_bases(marginals, nquad, self._bkd)
         self._calc_C: SeparableKernelIntegralCalculator[Array] = (
-            SeparableKernelIntegralCalculator(
-                gp_C, bases_C, marginals, bkd=self._bkd
-            )
+            SeparableKernelIntegralCalculator(gp_C, bases_C, marginals, bkd=self._bkd)
         )
 
         # Scaled GP (K = s²C kernel, s=2.5)
@@ -197,9 +194,7 @@ class TestIntegralCalculatorDecomposition(Generic[Array], unittest.TestCase):
         gp_K = _fit_gp(kernel_K, nvars, X_train, y_train, self._bkd)
         bases_K = _create_quadrature_bases(marginals, nquad, self._bkd)
         self._calc_K: SeparableKernelIntegralCalculator[Array] = (
-            SeparableKernelIntegralCalculator(
-                gp_K, bases_K, marginals, bkd=self._bkd
-            )
+            SeparableKernelIntegralCalculator(gp_K, bases_K, marginals, bkd=self._bkd)
         )
 
     def test_tau_identical(self) -> None:
@@ -210,9 +205,7 @@ class TestIntegralCalculatorDecomposition(Generic[Array], unittest.TestCase):
 
     def test_P_identical(self) -> None:
         """Calculator returns identical P for C and K = s²C."""
-        self._bkd.assert_allclose(
-            self._calc_K.P(), self._calc_C.P(), rtol=1e-12
-        )
+        self._bkd.assert_allclose(self._calc_K.P(), self._calc_C.P(), rtol=1e-12)
 
     def test_u_identical(self) -> None:
         """Calculator returns identical u for C and K = s²C."""
@@ -232,9 +225,7 @@ class TestIntegralCalculatorDecomposition(Generic[Array], unittest.TestCase):
 
     def test_Pi_identical(self) -> None:
         """Calculator returns identical Π for C and K = s²C."""
-        self._bkd.assert_allclose(
-            self._calc_K.Pi(), self._calc_C.Pi(), rtol=1e-12
-        )
+        self._bkd.assert_allclose(self._calc_K.Pi(), self._calc_C.Pi(), rtol=1e-12)
 
     def test_xi1_identical(self) -> None:
         """Calculator returns identical ξ₁ for C and K = s²C."""
@@ -388,18 +379,14 @@ class TestStatisticsScalingEndToEnd(Generic[Array], unittest.TestCase):
             )
 
 
-class TestStatisticsScalingEndToEndNumpy(
-    TestStatisticsScalingEndToEnd[NDArray[Any]]
-):
+class TestStatisticsScalingEndToEndNumpy(TestStatisticsScalingEndToEnd[NDArray[Any]]):
     __test__ = True
 
     def bkd(self) -> NumpyBkd:
         return NumpyBkd()
 
 
-class TestStatisticsScalingEndToEndTorch(
-    TestStatisticsScalingEndToEnd[torch.Tensor]
-):
+class TestStatisticsScalingEndToEndTorch(TestStatisticsScalingEndToEnd[torch.Tensor]):
     __test__ = True
 
     def bkd(self) -> TorchBkd:
@@ -433,14 +420,10 @@ class TestAlphaScaling(Generic[Array], unittest.TestCase):
         self._s2 = s * s
 
         kernel_C = _create_separable_kernel(length_scales, self._bkd)
-        self._gp_C = _fit_gp(
-            kernel_C, nvars, X_train, y_train, self._bkd
-        )
+        self._gp_C = _fit_gp(kernel_C, nvars, X_train, y_train, self._bkd)
 
         kernel_K = _create_scaled_kernel(s, length_scales, self._bkd)
-        self._gp_K = _fit_gp(
-            kernel_K, nvars, X_train, y_train, self._bkd
-        )
+        self._gp_K = _fit_gp(kernel_K, nvars, X_train, y_train, self._bkd)
 
     def test_alpha_K_equals_s_minus_2_alpha_C(self) -> None:
         """α_K = s⁻² α_C (exact with nugget ≈ 0)."""
@@ -502,12 +485,8 @@ class TestStatisticsVsMonteCarlo(Generic[Array], unittest.TestCase):
         # Test with s=2.0 to catch scaling bugs
         s = 2.0
         kernel = _create_scaled_kernel(s, length_scales, self._bkd)
-        self._gp = _fit_gp(
-            kernel, self._nvars, X_train, y_train, self._bkd
-        )
-        self._stats = _create_stats(
-            self._gp, self._marginals, self._nquad, self._bkd
-        )
+        self._gp = _fit_gp(kernel, self._nvars, X_train, y_train, self._bkd)
+        self._stats = _create_stats(self._gp, self._marginals, self._nquad, self._bkd)
 
         # Generate MC samples from Uniform[-1,1]^2
         np.random.seed(123)
@@ -538,9 +517,7 @@ class TestStatisticsVsMonteCarlo(Generic[Array], unittest.TestCase):
         np.random.seed(7777)
 
         # Build tensor product quadrature grid
-        bases = _create_quadrature_bases(
-            self._marginals, self._nquad, self._bkd
-        )
+        bases = _create_quadrature_bases(self._marginals, self._nquad, self._bkd)
         pts_1d = []
         wts_1d = []
         for b in bases:
@@ -610,18 +587,14 @@ class TestStatisticsVsMonteCarlo(Generic[Array], unittest.TestCase):
         )
 
 
-class TestStatisticsVsMonteCarloNumpy(
-    TestStatisticsVsMonteCarlo[NDArray[Any]]
-):
+class TestStatisticsVsMonteCarloNumpy(TestStatisticsVsMonteCarlo[NDArray[Any]]):
     __test__ = True
 
     def bkd(self) -> NumpyBkd:
         return NumpyBkd()
 
 
-class TestStatisticsVsMonteCarloTorch(
-    TestStatisticsVsMonteCarlo[torch.Tensor]
-):
+class TestStatisticsVsMonteCarloTorch(TestStatisticsVsMonteCarlo[torch.Tensor]):
     __test__ = True
 
     def bkd(self) -> TorchBkd:
@@ -660,7 +633,7 @@ def _mc_sobol_indices(
     grid = list(iterproduct(*pts_1d))
     wgrid = list(iterproduct(*wts_1d))
     Z_np = np.array(grid).T
-    w_np = np.prod(np.array(wgrid), axis=1)
+    np.prod(np.array(wgrid), axis=1)
     Z = bkd.array(Z_np)
     nq = Z.shape[1]
 
@@ -738,9 +711,9 @@ def _mc_sobol_indices(
             shape = [1] * F.ndim
             shape[dim] = n_per_dim[dim]
             w_dim = w_list[dim].reshape(shape)
-            E_no_i = np.sum(w_dim * F, axis=dim)      # shape without dim
-            E2_no_i = np.sum(w_dim * F**2, axis=dim)   # E[f²|z_{~i}]
-            var_given_not_i = E2_no_i - E_no_i**2       # Var[f|z_{~i}]
+            E_no_i = np.sum(w_dim * F, axis=dim)  # shape without dim
+            E2_no_i = np.sum(w_dim * F**2, axis=dim)  # E[f²|z_{~i}]
+            var_given_not_i = E2_no_i - E_no_i**2  # Var[f|z_{~i}]
 
             # Average Var[f|z_{~i}] over z_{~i}
             # Build weight for remaining dims
@@ -748,9 +721,7 @@ def _mc_sobol_indices(
             remaining_axes.remove(dim)
             w_remaining = np.array(1.0)
             for ax in remaining_axes:
-                w_remaining = np.multiply.outer(
-                    w_remaining, w_list[ax]
-                )
+                w_remaining = np.multiply.outer(w_remaining, w_list[ax])
             w_remaining = w_remaining.reshape(var_given_not_i.shape)
             total_var_dim[r] = np.sum(w_remaining * var_given_not_i)
 
@@ -784,23 +755,18 @@ class TestSensitivityEndToEnd(Generic[Array], unittest.TestCase):
 
         s = 2.0
         kernel = _create_scaled_kernel(s, length_scales, self._bkd)
-        gp = _fit_gp(
-            kernel, self._nvars, X_train, y_train, self._bkd
-        )
+        gp = _fit_gp(kernel, self._nvars, X_train, y_train, self._bkd)
         self._gp = gp
-        self._sens = _create_sensitivity(
-            gp, self._marginals, self._nquad, self._bkd
-        )
+        self._sens = _create_sensitivity(gp, self._marginals, self._nquad, self._bkd)
 
     def test_main_effects_nonnegative(self) -> None:
         """Each main effect index should be ≥ 0."""
         indices = self._sens.main_effect_indices()
         for dim, val in indices.items():
-            val_float = float(
-                self._bkd.to_numpy(self._bkd.asarray([val]))[0]
-            )
+            val_float = float(self._bkd.to_numpy(self._bkd.asarray([val]))[0])
             self.assertGreaterEqual(
-                val_float, -1e-6,
+                val_float,
+                -1e-6,
                 f"Main effect for dim {dim} negative: {val_float}",
             )
 
@@ -808,11 +774,10 @@ class TestSensitivityEndToEnd(Generic[Array], unittest.TestCase):
         """Sum of main effect indices should be ≤ 1."""
         indices = self._sens.main_effect_indices()
         total = sum(indices.values())
-        total_float = float(
-            self._bkd.to_numpy(self._bkd.asarray([total]))[0]
-        )
+        total_float = float(self._bkd.to_numpy(self._bkd.asarray([total]))[0])
         self.assertLessEqual(
-            total_float, 1.0 + 1e-6,
+            total_float,
+            1.0 + 1e-6,
             f"Main effects sum > 1: {total_float}",
         )
 
@@ -824,7 +789,8 @@ class TestSensitivityEndToEnd(Generic[Array], unittest.TestCase):
             m = float(self._bkd.to_numpy(self._bkd.asarray([main[dim]]))[0])
             t = float(self._bkd.to_numpy(self._bkd.asarray([total[dim]]))[0])
             self.assertGreaterEqual(
-                t, m - 1e-6,
+                t,
+                m - 1e-6,
                 f"Total effect < main effect for dim {dim}: T={t}, S={m}",
             )
 
@@ -832,11 +798,10 @@ class TestSensitivityEndToEnd(Generic[Array], unittest.TestCase):
         """Sum of total effect indices should be ≥ 1."""
         indices = self._sens.total_effect_indices()
         total = sum(indices.values())
-        total_float = float(
-            self._bkd.to_numpy(self._bkd.asarray([total]))[0]
-        )
+        total_float = float(self._bkd.to_numpy(self._bkd.asarray([total]))[0])
         self.assertGreaterEqual(
-            total_float, 1.0 - 1e-6,
+            total_float,
+            1.0 - 1e-6,
             f"Total effects sum < 1: {total_float}",
         )
 
@@ -852,27 +817,25 @@ class TestSensitivityEndToEnd(Generic[Array], unittest.TestCase):
             self._bkd.assert_allclose(
                 self._bkd.asarray([formula_main[dim]]),
                 self._bkd.asarray([mc_main[dim]]),
-                rtol=0.05, atol=0.01,
+                rtol=0.05,
+                atol=0.01,
             )
             self._bkd.assert_allclose(
                 self._bkd.asarray([formula_total[dim]]),
                 self._bkd.asarray([mc_total[dim]]),
-                rtol=0.05, atol=0.01,
+                rtol=0.05,
+                atol=0.01,
             )
 
 
-class TestSensitivityEndToEndNumpy(
-    TestSensitivityEndToEnd[NDArray[Any]]
-):
+class TestSensitivityEndToEndNumpy(TestSensitivityEndToEnd[NDArray[Any]]):
     __test__ = True
 
     def bkd(self) -> NumpyBkd:
         return NumpyBkd()
 
 
-class TestSensitivityEndToEndTorch(
-    TestSensitivityEndToEnd[torch.Tensor]
-):
+class TestSensitivityEndToEndTorch(TestSensitivityEndToEnd[torch.Tensor]):
     __test__ = True
 
     def bkd(self) -> TorchBkd:
@@ -915,12 +878,14 @@ class TestSensitivityWithNugget(Generic[Array], unittest.TestCase):
         noise = IIDGaussianNoise(0.1, (0.01, 1.0), self._bkd, fixed=True)
         kernel = signal_kernel + noise
         gp = _fit_gp(
-            kernel, self._nvars, X_train, y_train, self._bkd,
+            kernel,
+            self._nvars,
+            X_train,
+            y_train,
+            self._bkd,
         )
         self._gp = gp
-        self._sens = _create_sensitivity(
-            gp, self._marginals, self._nquad, self._bkd
-        )
+        self._sens = _create_sensitivity(gp, self._marginals, self._nquad, self._bkd)
 
     def test_properties(self) -> None:
         """Basic Sobol index properties hold with nonzero nugget."""
@@ -932,16 +897,12 @@ class TestSensitivityWithNugget(Generic[Array], unittest.TestCase):
             t = float(self._bkd.to_numpy(self._bkd.asarray([total[dim]]))[0])
             self.assertGreaterEqual(m, -1e-6, f"S_{dim} negative: {m}")
             self.assertGreaterEqual(t, -1e-6, f"T_{dim} negative: {t}")
-            self.assertGreaterEqual(
-                t, m - 1e-6, f"T_{dim} < S_{dim}: T={t}, S={m}"
-            )
+            self.assertGreaterEqual(t, m - 1e-6, f"T_{dim} < S_{dim}: T={t}, S={m}")
 
-        main_sum = float(self._bkd.to_numpy(
-            self._bkd.asarray([sum(main.values())])
-        )[0])
-        total_sum = float(self._bkd.to_numpy(
-            self._bkd.asarray([sum(total.values())])
-        )[0])
+        main_sum = float(self._bkd.to_numpy(self._bkd.asarray([sum(main.values())]))[0])
+        total_sum = float(
+            self._bkd.to_numpy(self._bkd.asarray([sum(total.values())]))[0]
+        )
         self.assertLessEqual(main_sum, 1.0 + 1e-6)
         self.assertGreaterEqual(total_sum, 1.0 - 1e-6)
 
@@ -949,7 +910,10 @@ class TestSensitivityWithNugget(Generic[Array], unittest.TestCase):
     def test_sobol_indices_vs_mc(self) -> None:
         """Individual main and total Sobol indices match MC with nugget."""
         mc_main, mc_total = _mc_sobol_indices(
-            self._gp, self._marginals, self._nquad, self._bkd,
+            self._gp,
+            self._marginals,
+            self._nquad,
+            self._bkd,
         )
         formula_main = self._sens.main_effect_indices()
         formula_total = self._sens.total_effect_indices()
@@ -957,27 +921,25 @@ class TestSensitivityWithNugget(Generic[Array], unittest.TestCase):
             self._bkd.assert_allclose(
                 self._bkd.asarray([formula_main[dim]]),
                 self._bkd.asarray([mc_main[dim]]),
-                rtol=0.05, atol=0.01,
+                rtol=0.05,
+                atol=0.01,
             )
             self._bkd.assert_allclose(
                 self._bkd.asarray([formula_total[dim]]),
                 self._bkd.asarray([mc_total[dim]]),
-                rtol=0.05, atol=0.01,
+                rtol=0.05,
+                atol=0.01,
             )
 
 
-class TestSensitivityWithNuggetNumpy(
-    TestSensitivityWithNugget[NDArray[Any]]
-):
+class TestSensitivityWithNuggetNumpy(TestSensitivityWithNugget[NDArray[Any]]):
     __test__ = True
 
     def bkd(self) -> NumpyBkd:
         return NumpyBkd()
 
 
-class TestSensitivityWithNuggetTorch(
-    TestSensitivityWithNugget[torch.Tensor]
-):
+class TestSensitivityWithNuggetTorch(TestSensitivityWithNugget[torch.Tensor]):
     __test__ = True
 
     def bkd(self) -> TorchBkd:

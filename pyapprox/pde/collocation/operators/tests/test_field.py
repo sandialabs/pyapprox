@@ -3,20 +3,20 @@
 import unittest
 from typing import Generic
 
-from pyapprox.util.backends.protocols import Array, Backend
-from pyapprox.util.backends.numpy import NumpyBkd
-from pyapprox.util.test_utils import load_tests  # noqa: F401
 from pyapprox.pde.collocation.basis import ChebyshevBasis1D
 from pyapprox.pde.collocation.mesh import (
     TransformedMesh1D,
 )
 from pyapprox.pde.collocation.operators import (
     Field,
-    scalar_field,
-    input_field,
     constant_field,
+    input_field,
+    scalar_field,
     zero_field,
 )
+from pyapprox.util.backends.numpy import NumpyBkd
+from pyapprox.util.backends.protocols import Array, Backend
+from pyapprox.util.test_utils import load_tests  # noqa: F401
 
 
 class TestField(Generic[Array], unittest.TestCase):
@@ -264,7 +264,7 @@ class TestFieldArithmetic(Generic[Array], unittest.TestCase):
         npts = basis.npts()
 
         f = input_field(basis, bkd, bkd.ones((npts,)) * 2.0)
-        result = f ** 3
+        result = f**3
 
         bkd.assert_allclose(result.as_flat(), bkd.ones((npts,)) * 8.0, atol=1e-14)
 
@@ -333,7 +333,7 @@ class TestFieldJacobian(Generic[Array], unittest.TestCase):
         npts = basis.npts()
 
         f = input_field(basis, bkd, bkd.ones((npts,)) * 2.0)
-        result = f ** 3
+        result = f**3
 
         jac = result.get_jacobian()
 

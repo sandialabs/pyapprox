@@ -7,16 +7,18 @@ a field map (e.g., KLE), converted to Lame parameters with fixed Poisson ratio.
 
 from typing import Callable, Optional
 
-from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.pde.collocation.basis import ChebyshevBasis1D
+from pyapprox.pde.collocation.boundary import (
+    constant_dirichlet_bc,
+    flux_neumann_bc,
+    zero_dirichlet_bc,
+)
+from pyapprox.pde.collocation.forward_models.steady import (
+    SteadyForwardModel,
+)
 from pyapprox.pde.collocation.mesh import (
     AffineTransform1D,
     TransformedMesh1D,
-)
-from pyapprox.pde.collocation.boundary import (
-    flux_neumann_bc,
-    zero_dirichlet_bc,
-    constant_dirichlet_bc,
 )
 from pyapprox.pde.collocation.physics.hyperelasticity import (
     HyperelasticityPhysics,
@@ -30,9 +32,7 @@ from pyapprox.pde.field_maps.protocol import (
 from pyapprox.pde.parameterizations.hyperelastic_lame import (
     create_hyperelastic_youngs_modulus_parameterization,
 )
-from pyapprox.pde.collocation.forward_models.steady import (
-    SteadyForwardModel,
-)
+from pyapprox.util.backends.protocols import Array, Backend
 
 
 def create_hyperelastic_bar_1d(
@@ -91,9 +91,7 @@ def create_hyperelastic_bar_1d(
 
     # Convert E_mean to Lame parameters
     dmu_dE = 1.0 / (2.0 * (1.0 + poisson_ratio))
-    dlam_dE = poisson_ratio / (
-        (1.0 + poisson_ratio) * (1.0 - 2.0 * poisson_ratio)
-    )
+    dlam_dE = poisson_ratio / ((1.0 + poisson_ratio) * (1.0 - 2.0 * poisson_ratio))
     mu_init = E_mean * dmu_dE
     lamda_init = E_mean * dlam_dE
 
@@ -115,18 +113,28 @@ def create_hyperelastic_bar_1d(
     right_normals = mesh.boundary_normals(1)
     traction_val = 0.0 if traction is None else traction
     bc_right = flux_neumann_bc(
-        bkd, right_idx, right_normals, physics, traction_val,
+        bkd,
+        right_idx,
+        right_normals,
+        physics,
+        traction_val,
     )
 
     physics.set_boundary_conditions([bc_left, bc_right])
 
     # Parameterization
     param = create_hyperelastic_youngs_modulus_parameterization(
-        bkd, basis, field_map, poisson_ratio,
+        bkd,
+        basis,
+        field_map,
+        poisson_ratio,
     )
 
     init_state = bkd.zeros((npts,))
     return SteadyForwardModel(
-        physics, bkd, init_state,
-        functional=functional, parameterization=param,
+        physics,
+        bkd,
+        init_state,
+        functional=functional,
+        parameterization=param,
     )

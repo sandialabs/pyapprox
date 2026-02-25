@@ -7,17 +7,17 @@ import numpy as np
 import torch
 from numpy.typing import NDArray
 
-from pyapprox.util.backends.numpy import NumpyBkd
-from pyapprox.util.backends.protocols import Array, Backend
-from pyapprox.util.backends.torch import TorchBkd
-from pyapprox.util.test_utils import load_tests  # noqa: F401
-from pyapprox.surrogates.affine.expansions.pce_marginalize import (
-    PCEDimensionReducer,
-)
 from pyapprox.interface.functions.marginalize import (
     DimensionReducerProtocol,
     FunctionMarginalizer,
 )
+from pyapprox.surrogates.affine.expansions.pce_marginalize import (
+    PCEDimensionReducer,
+)
+from pyapprox.util.backends.numpy import NumpyBkd
+from pyapprox.util.backends.protocols import Array, Backend
+from pyapprox.util.backends.torch import TorchBkd
+from pyapprox.util.test_utils import load_tests  # noqa: F401
 
 
 class TestPCEDimensionReducer(Generic[Array], unittest.TestCase):
@@ -54,10 +54,7 @@ class TestPCEDimensionReducer(Generic[Array], unittest.TestCase):
         )
 
         nquad = 5
-        rules = [
-            lambda n, m=m: gauss_quadrature_rule(m, n, bkd)
-            for m in marginals
-        ]
+        rules = [lambda n, m=m: gauss_quadrature_rule(m, n, bkd) for m in marginals]
         quad = TensorProductQuadratureRule(bkd, rules, [nquad] * 3)
         pts, wts = quad()
 
@@ -149,9 +146,7 @@ class TestPCEDimensionReducer(Generic[Array], unittest.TestCase):
         # E[g] = E[1 + x] = 1 (for Uniform[-1,1])
         bkd.assert_allclose(sub_pce_0.mean(), bkd.asarray([1.0]), rtol=1e-10)
         # Var[g] = Var[x] = 1/3 for Uniform[-1,1]
-        bkd.assert_allclose(
-            sub_pce_0.variance(), bkd.asarray([1.0 / 3.0]), rtol=1e-10
-        )
+        bkd.assert_allclose(sub_pce_0.variance(), bkd.asarray([1.0 / 3.0]), rtol=1e-10)
 
         # reduce_pce([0,1]) gives h(x,y) = 1 + x + 2y + xy
         sub_pce_01 = reducer.reduce_pce([0, 1])
@@ -165,9 +160,6 @@ class TestPCEDimensionReducer(Generic[Array], unittest.TestCase):
 
     def test_equivalence_with_quadrature(self) -> None:
         """PCE analytical marginalization matches quadrature-based."""
-        from pyapprox.probability.univariate.uniform import (
-            UniformMarginal,
-        )
         from pyapprox.surrogates.quadrature.probability_measure_factory import (
             ProbabilityMeasureQuadratureFactory,
         )
@@ -177,9 +169,7 @@ class TestPCEDimensionReducer(Generic[Array], unittest.TestCase):
         reducer = PCEDimensionReducer(pce, bkd)
 
         # Build quadrature-based marginalizer
-        quad_factory = ProbabilityMeasureQuadratureFactory(
-            marginals, [10, 10, 10], bkd
-        )
+        quad_factory = ProbabilityMeasureQuadratureFactory(marginals, [10, 10, 10], bkd)
         marginalizer = FunctionMarginalizer(pce, quad_factory, bkd)
 
         np.random.seed(123)
@@ -232,16 +222,12 @@ class TestPCEDimensionReducer(Generic[Array], unittest.TestCase):
         self.assertIsInstance(reducer, DimensionReducerProtocol)
 
 
-class TestPCEDimensionReducerNumpy(
-    TestPCEDimensionReducer[NDArray[Any]]
-):
+class TestPCEDimensionReducerNumpy(TestPCEDimensionReducer[NDArray[Any]]):
     def bkd(self) -> NumpyBkd:
         return NumpyBkd()
 
 
-class TestPCEDimensionReducerTorch(
-    TestPCEDimensionReducer[torch.Tensor]
-):
+class TestPCEDimensionReducerTorch(TestPCEDimensionReducer[torch.Tensor]):
     def bkd(self) -> TorchBkd:
         torch.set_default_dtype(torch.float64)
         return TorchBkd()

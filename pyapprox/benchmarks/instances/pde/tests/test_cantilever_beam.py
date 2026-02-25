@@ -1,27 +1,24 @@
 """Integration tests for the cantilever beam benchmark instances."""
 
 import unittest
-from typing import Any, Generic
 
 import numpy as np
-from numpy.typing import NDArray
 
-from pyapprox.util.backends.protocols import Array, Backend
+from pyapprox.benchmarks.instances.pde.cantilever_beam import (
+    MESH_PATHS,
+    CompositeBeam1DForwardModel,
+    cantilever_beam_1d,
+    cantilever_beam_1d_spde,
+    cantilever_beam_2d_linear,
+    cantilever_beam_2d_linear_spde,
+    cantilever_beam_2d_neohookean,
+    cantilever_beam_2d_neohookean_spde,
+)
+from pyapprox.benchmarks.protocols import BenchmarkWithPriorProtocol
+from pyapprox.benchmarks.registry import BenchmarkRegistry
+from pyapprox.interface.functions.protocols import FunctionProtocol
 from pyapprox.util.backends.numpy import NumpyBkd
 from pyapprox.util.test_utils import load_tests, slower_test  # noqa: F401
-from pyapprox.interface.functions.protocols import FunctionProtocol
-from pyapprox.benchmarks.protocols import BenchmarkWithPriorProtocol
-from pyapprox.benchmarks.instances.pde.cantilever_beam import (
-    cantilever_beam_1d,
-    CompositeBeam1DForwardModel,
-    cantilever_beam_2d_linear,
-    cantilever_beam_2d_neohookean,
-    cantilever_beam_1d_spde,
-    cantilever_beam_2d_linear_spde,
-    cantilever_beam_2d_neohookean_spde,
-    MESH_PATHS,
-)
-from pyapprox.benchmarks.registry import BenchmarkRegistry
 
 _TEST_MESH = MESH_PATHS[2]  # h=2 for fast tests
 
@@ -32,7 +29,6 @@ _TEST_MESH = MESH_PATHS[2]  # h=2 for fast tests
 
 
 class TestCantileverBeam1D(unittest.TestCase):
-
     @classmethod
     def setUpClass(cls):
         cls._bkd = NumpyBkd()
@@ -72,7 +68,6 @@ class TestCantileverBeam1D(unittest.TestCase):
         self.assertEqual(result.shape, (3, 3))
 
     def test_prior_and_domain(self):
-        bkd = self._bkd
         bm = self._bm3
         np.random.seed(42)
         samples = bm.prior().rvs(5)
@@ -106,15 +101,18 @@ class TestCantileverBeam1D(unittest.TestCase):
 
 
 class TestCantileverBeam2DLinear(unittest.TestCase):
-
     @classmethod
     def setUpClass(cls):
         cls._bkd = NumpyBkd()
         cls._bm1 = cantilever_beam_2d_linear(
-            cls._bkd, num_kle_terms=1, mesh_path=_TEST_MESH,
+            cls._bkd,
+            num_kle_terms=1,
+            mesh_path=_TEST_MESH,
         )
         cls._bm3 = cantilever_beam_2d_linear(
-            cls._bkd, num_kle_terms=3, mesh_path=_TEST_MESH,
+            cls._bkd,
+            num_kle_terms=3,
+            mesh_path=_TEST_MESH,
         )
 
     def test_evaluate_at_zero(self):
@@ -161,18 +159,25 @@ class TestCantileverBeam2DLinear(unittest.TestCase):
 
 
 class TestCantileverBeam2DNeoHookean(unittest.TestCase):
-
     @classmethod
     def setUpClass(cls):
         cls._bkd = NumpyBkd()
         cls._bm1 = cantilever_beam_2d_neohookean(
-            cls._bkd, num_kle_terms=1, mesh_path=_TEST_MESH,
+            cls._bkd,
+            num_kle_terms=1,
+            mesh_path=_TEST_MESH,
         )
         cls._bm_lin_small = cantilever_beam_2d_linear(
-            cls._bkd, num_kle_terms=1, q0=0.1, mesh_path=_TEST_MESH,
+            cls._bkd,
+            num_kle_terms=1,
+            q0=0.1,
+            mesh_path=_TEST_MESH,
         )
         cls._bm_neo_small = cantilever_beam_2d_neohookean(
-            cls._bkd, num_kle_terms=1, q0=0.1, mesh_path=_TEST_MESH,
+            cls._bkd,
+            num_kle_terms=1,
+            q0=0.1,
+            mesh_path=_TEST_MESH,
         )
 
     def test_evaluate_at_zero(self):
@@ -211,7 +216,6 @@ class TestCantileverBeam2DNeoHookean(unittest.TestCase):
 
 
 class TestCantileverBeam1DSPDE(unittest.TestCase):
-
     @classmethod
     def setUpClass(cls):
         cls._bkd = NumpyBkd()
@@ -248,7 +252,6 @@ class TestCantileverBeam1DSPDE(unittest.TestCase):
         self.assertEqual(result.shape, (3, 3))
 
     def test_prior_and_domain(self):
-        bkd = self._bkd
         bm = self._bm3
         np.random.seed(42)
         samples = bm.prior().rvs(5)
@@ -282,15 +285,18 @@ class TestCantileverBeam1DSPDE(unittest.TestCase):
 
 
 class TestCantileverBeam2DLinearSPDE(unittest.TestCase):
-
     @classmethod
     def setUpClass(cls):
         cls._bkd = NumpyBkd()
         cls._bm1 = cantilever_beam_2d_linear_spde(
-            cls._bkd, num_kle_terms=1, mesh_path=_TEST_MESH,
+            cls._bkd,
+            num_kle_terms=1,
+            mesh_path=_TEST_MESH,
         )
         cls._bm3 = cantilever_beam_2d_linear_spde(
-            cls._bkd, num_kle_terms=3, mesh_path=_TEST_MESH,
+            cls._bkd,
+            num_kle_terms=3,
+            mesh_path=_TEST_MESH,
         )
 
     def test_evaluate_at_zero(self):
@@ -337,18 +343,25 @@ class TestCantileverBeam2DLinearSPDE(unittest.TestCase):
 
 
 class TestCantileverBeam2DNeoHookeanSPDE(unittest.TestCase):
-
     @classmethod
     def setUpClass(cls):
         cls._bkd = NumpyBkd()
         cls._bm1 = cantilever_beam_2d_neohookean_spde(
-            cls._bkd, num_kle_terms=1, mesh_path=_TEST_MESH,
+            cls._bkd,
+            num_kle_terms=1,
+            mesh_path=_TEST_MESH,
         )
         cls._bm_lin_small = cantilever_beam_2d_linear_spde(
-            cls._bkd, num_kle_terms=1, q0=0.1, mesh_path=_TEST_MESH,
+            cls._bkd,
+            num_kle_terms=1,
+            q0=0.1,
+            mesh_path=_TEST_MESH,
         )
         cls._bm_neo_small = cantilever_beam_2d_neohookean_spde(
-            cls._bkd, num_kle_terms=1, q0=0.1, mesh_path=_TEST_MESH,
+            cls._bkd,
+            num_kle_terms=1,
+            q0=0.1,
+            mesh_path=_TEST_MESH,
         )
 
     def test_evaluate_at_zero(self):
@@ -399,11 +412,19 @@ class TestFEMvsAnalytical(unittest.TestCase):
         L, H, q0, skin_t = 100.0, 30.0, 10.0, 5.0
 
         fem_model = CompositeBeam1DForwardModel(
-            nx=100, length=L, height=H, skin_thickness=skin_t,
-            load_func=lambda x: q0 * x / L, bkd=bkd,
+            nx=100,
+            length=L,
+            height=H,
+            skin_thickness=skin_t,
+            load_func=lambda x: q0 * x / L,
+            bkd=bkd,
         )
         analytical_model = CantileverBeam1DAnalytical(
-            length=L, height=H, skin_thickness=skin_t, q0=q0, bkd=bkd,
+            length=L,
+            height=H,
+            skin_thickness=skin_t,
+            q0=q0,
+            bkd=bkd,
         )
 
         np.random.seed(42)
@@ -432,8 +453,11 @@ class TestFEMvsAnalytical(unittest.TestCase):
 
         bkd = NumpyBkd()
         model = CantileverBeam1DAnalytical(
-            length=100.0, height=30.0, skin_thickness=5.0,
-            q0=10.0, bkd=bkd,
+            length=100.0,
+            height=30.0,
+            skin_thickness=5.0,
+            q0=10.0,
+            bkd=bkd,
         )
 
         sample = bkd.asarray([[20000.0], [5000.0]])

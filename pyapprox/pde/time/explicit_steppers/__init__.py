@@ -7,15 +7,15 @@ from pyapprox.pde.time.explicit_steppers.heun import (
     HeunResidual,
 )
 from pyapprox.pde.time.explicit_steppers.protocols import (
-    ODEResidualProtocol,
-    ODEResidualWithParamJacobianProtocol,
-    ODEResidualWithHVPProtocol,
-    TimeSteppingResidualProtocol,
     AdjointEnabledTimeSteppingResidualProtocol,
-    HVPEnabledTimeSteppingResidualProtocol,
-    TimeSteppingResidualBase,
     # Legacy alias
     ExplicitODEResidualProtocol,
+    HVPEnabledTimeSteppingResidualProtocol,
+    ODEResidualProtocol,
+    ODEResidualWithHVPProtocol,
+    ODEResidualWithParamJacobianProtocol,
+    TimeSteppingResidualBase,
+    TimeSteppingResidualProtocol,
 )
 
 __all__ = [

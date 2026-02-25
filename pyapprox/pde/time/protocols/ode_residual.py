@@ -14,7 +14,7 @@ ODEResidualWithHVPProtocol
     Adds HVP methods for Hessian-vector products.
 """
 
-from typing import Protocol, Generic, runtime_checkable
+from typing import Generic, Protocol, runtime_checkable
 
 from pyapprox.util.backends.protocols import Array, Backend
 
@@ -147,23 +147,17 @@ class ODEResidualWithParamJacobianProtocol(Protocol, Generic[Array]):
         Jacobian of initial condition with respect to parameters.
     """
 
-    def bkd(self) -> Backend[Array]:
-        ...
+    def bkd(self) -> Backend[Array]: ...
 
-    def __call__(self, state: Array) -> Array:
-        ...
+    def __call__(self, state: Array) -> Array: ...
 
-    def set_time(self, time: float) -> None:
-        ...
+    def set_time(self, time: float) -> None: ...
 
-    def jacobian(self, state: Array) -> Array:
-        ...
+    def jacobian(self, state: Array) -> Array: ...
 
-    def mass_matrix(self, nstates: int) -> Array:
-        ...
+    def mass_matrix(self, nstates: int) -> Array: ...
 
-    def apply_mass_matrix(self, vec: Array) -> Array:
-        ...
+    def apply_mass_matrix(self, vec: Array) -> Array: ...
 
     def nparams(self) -> int:
         """
@@ -241,39 +235,27 @@ class ODEResidualWithHVPProtocol(Protocol, Generic[Array]):
         (d^2f/dp^2)v contracted with lambda
     """
 
-    def bkd(self) -> Backend[Array]:
-        ...
+    def bkd(self) -> Backend[Array]: ...
 
-    def __call__(self, state: Array) -> Array:
-        ...
+    def __call__(self, state: Array) -> Array: ...
 
-    def set_time(self, time: float) -> None:
-        ...
+    def set_time(self, time: float) -> None: ...
 
-    def jacobian(self, state: Array) -> Array:
-        ...
+    def jacobian(self, state: Array) -> Array: ...
 
-    def mass_matrix(self, nstates: int) -> Array:
-        ...
+    def mass_matrix(self, nstates: int) -> Array: ...
 
-    def apply_mass_matrix(self, vec: Array) -> Array:
-        ...
+    def apply_mass_matrix(self, vec: Array) -> Array: ...
 
-    def nparams(self) -> int:
-        ...
+    def nparams(self) -> int: ...
 
-    def set_param(self, param: Array) -> None:
-        ...
+    def set_param(self, param: Array) -> None: ...
 
-    def param_jacobian(self, state: Array) -> Array:
-        ...
+    def param_jacobian(self, state: Array) -> Array: ...
 
-    def initial_param_jacobian(self) -> Array:
-        ...
+    def initial_param_jacobian(self) -> Array: ...
 
-    def state_state_hvp(
-        self, state: Array, adj_state: Array, wvec: Array
-    ) -> Array:
+    def state_state_hvp(self, state: Array, adj_state: Array, wvec: Array) -> Array:
         """
         Compute (d^2f/dy^2)w contracted with adjoint state.
 
@@ -293,9 +275,7 @@ class ODEResidualWithHVPProtocol(Protocol, Generic[Array]):
         """
         ...
 
-    def state_param_hvp(
-        self, state: Array, adj_state: Array, vvec: Array
-    ) -> Array:
+    def state_param_hvp(self, state: Array, adj_state: Array, vvec: Array) -> Array:
         """
         Compute (d^2f/dydp)v contracted with adjoint state.
 
@@ -315,9 +295,7 @@ class ODEResidualWithHVPProtocol(Protocol, Generic[Array]):
         """
         ...
 
-    def param_state_hvp(
-        self, state: Array, adj_state: Array, wvec: Array
-    ) -> Array:
+    def param_state_hvp(self, state: Array, adj_state: Array, wvec: Array) -> Array:
         """
         Compute (d^2f/dpdy)w contracted with adjoint state.
 
@@ -337,9 +315,7 @@ class ODEResidualWithHVPProtocol(Protocol, Generic[Array]):
         """
         ...
 
-    def param_param_hvp(
-        self, state: Array, adj_state: Array, vvec: Array
-    ) -> Array:
+    def param_param_hvp(self, state: Array, adj_state: Array, vvec: Array) -> Array:
         """
         Compute (d^2f/dp^2)v contracted with adjoint state.
 

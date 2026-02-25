@@ -93,7 +93,10 @@ def basis_jacobian_torch(
     nsamples = vals_1d[0].shape[0]
     nterms = indices.shape[1]
     ones = torch.ones(
-        nsamples, nterms, dtype=vals_1d[0].dtype, device=vals_1d[0].device,
+        nsamples,
+        nterms,
+        dtype=vals_1d[0].dtype,
+        device=vals_1d[0].device,
     )
 
     prefix: List[torch.Tensor] = [torch.empty(0)] * nvars
@@ -145,7 +148,10 @@ def basis_hessian_torch(
     nsamples = vals_1d[0].shape[0]
     nterms = indices.shape[1]
     ones = torch.ones(
-        nsamples, nterms, dtype=vals_1d[0].dtype, device=vals_1d[0].device,
+        nsamples,
+        nterms,
+        dtype=vals_1d[0].dtype,
+        device=vals_1d[0].device,
     )
 
     # Prefix/suffix for leave-one-out products
@@ -160,8 +166,12 @@ def basis_hessian_torch(
         suffix[dd] = suffix[dd + 1] * gathered_vals[dd + 1]
 
     result = torch.zeros(
-        nsamples, nterms, nvars, nvars,
-        dtype=vals_1d[0].dtype, device=vals_1d[0].device,
+        nsamples,
+        nterms,
+        nvars,
+        nvars,
+        dtype=vals_1d[0].dtype,
+        device=vals_1d[0].device,
     )
 
     for dd in range(nvars):

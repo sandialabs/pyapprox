@@ -11,21 +11,19 @@ This module provides full adjoint support for gradient computation dQ/dp
 via the adjoint method.
 """
 
-from typing import Tuple
-
-from pyapprox.util.backends.protocols import Array
 from pyapprox.pde.sparse_utils import solve_maybe_sparse
 from pyapprox.pde.time.protocols import (
     TimeSteppingResidualBase,
-    ODEResidualProtocol,
 )
+from pyapprox.util.backends.protocols import Array
 
 
 class CrankNicolsonResidual(TimeSteppingResidualBase[Array]):
     """
     Crank-Nicolson time stepping residual.
 
-    Residual: R(y_n) = M·(y_n - y_{n-1}) - (Δt/2)·[f(y_{n-1}, t_{n-1}) + f(y_n, t_n)] = 0
+    Residual: R(y_n) = M·(y_n - y_{n-1}) - (Δt/2)·[f(y_{n-1}, t_{n-1}) + f(y_n, t_n)] =
+    0
 
     This is a second-order implicit method (A-stable).
 
@@ -64,10 +62,9 @@ class CrankNicolsonResidual(TimeSteppingResidualBase[Array]):
         self._residual.set_time(self._time + self._deltat)
         next_res = self._residual(state)
 
-        return (
-            self._residual.apply_mass_matrix(state - self._prev_state)
-            - 0.5 * self._deltat * (current_res + next_res)
-        )
+        return self._residual.apply_mass_matrix(
+            state - self._prev_state
+        ) - 0.5 * self._deltat * (current_res + next_res)
 
     def jacobian(self, state: Array) -> Array:
         """
@@ -86,10 +83,9 @@ class CrankNicolsonResidual(TimeSteppingResidualBase[Array]):
             Jacobian matrix. Shape: (nstates, nstates)
         """
         self._residual.set_time(self._time + self._deltat)
-        return (
-            self._residual.mass_matrix(state.shape[0])
-            - 0.5 * self._deltat * self._residual.jacobian(state)
-        )
+        return self._residual.mass_matrix(
+            state.shape[0]
+        ) - 0.5 * self._deltat * self._residual.jacobian(state)
 
     # =========================================================================
     # Sensitivity Protocol Methods
@@ -193,9 +189,7 @@ class CrankNicolsonResidual(TimeSteppingResidualBase[Array]):
             - 0.5 * self._deltat * self._residual.jacobian(fsol_n)
         ).T
 
-    def adjoint_off_diag_jacobian(
-        self, fsol_n: Array, deltat_np1: float
-    ) -> Array:
+    def adjoint_off_diag_jacobian(self, fsol_n: Array, deltat_np1: float) -> Array:
         """
         Compute the off-diagonal Jacobian for adjoint coupling.
 
@@ -248,6 +242,7 @@ class CrankNicolsonResidual(TimeSteppingResidualBase[Array]):
         from pyapprox.surrogates.affine.univariate.piecewisepoly import (
             PiecewiseLinear,
         )
+
         return PiecewiseLinear
 
     # =========================================================================
@@ -297,8 +292,10 @@ class CrankNicolsonResidual(TimeSteppingResidualBase[Array]):
         Note: The f(y_{n-1}) term doesn't contribute because y_{n-1} is fixed.
         """
         self._residual.set_time(self._time + self._deltat)
-        return -0.5 * self._deltat * self._residual.state_state_hvp(
-            fsol_n, adj_state, wvec
+        return (
+            -0.5
+            * self._deltat
+            * self._residual.state_state_hvp(fsol_n, adj_state, wvec)
         )
 
     def _state_param_hvp(
@@ -415,8 +412,10 @@ class CrankNicolsonResidual(TimeSteppingResidualBase[Array]):
             Hessian contribution. Shape: (nstates,)
         """
         # Time is set for t_n (because we're evaluating f at y_n)
-        return -0.5 * self._deltat * self._residual.state_state_hvp(
-            fsol_n, adj_state, wvec
+        return (
+            -0.5
+            * self._deltat
+            * self._residual.state_state_hvp(fsol_n, adj_state, wvec)
         )
 
     def _prev_state_param_hvp(
@@ -445,8 +444,10 @@ class CrankNicolsonResidual(TimeSteppingResidualBase[Array]):
         Array
             Mixed Hessian contribution. Shape: (nstates,)
         """
-        return -0.5 * self._deltat * self._residual.state_param_hvp(
-            fsol_n, adj_state, vvec
+        return (
+            -0.5
+            * self._deltat
+            * self._residual.state_param_hvp(fsol_n, adj_state, vvec)
         )
 
     def _prev_param_state_hvp(
@@ -472,6 +473,8 @@ class CrankNicolsonResidual(TimeSteppingResidualBase[Array]):
         Array
             Mixed Hessian contribution. Shape: (nparams,)
         """
-        return -0.5 * self._deltat * self._residual.param_state_hvp(
-            fsol_n, adj_state, wvec
+        return (
+            -0.5
+            * self._deltat
+            * self._residual.param_state_hvp(fsol_n, adj_state, wvec)
         )

@@ -1,22 +1,22 @@
 """Tests for GalerkinBCMixin."""
 
 import unittest
-from typing import Generic, Any
+from typing import Any, Generic
 
 import numpy as np
 from numpy.typing import NDArray
 from scipy.sparse import csr_matrix
 
-from pyapprox.util.backends.protocols import Array, Backend
-from pyapprox.util.backends.numpy import NumpyBkd
-from pyapprox.pde.galerkin.mesh import StructuredMesh1D
 from pyapprox.pde.galerkin.basis import LagrangeBasis
 from pyapprox.pde.galerkin.boundary.implementations import (
     DirichletBC,
     NeumannBC,
     RobinBC,
 )
+from pyapprox.pde.galerkin.mesh import StructuredMesh1D
 from pyapprox.pde.galerkin.physics.bc_mixin import GalerkinBCMixin
+from pyapprox.util.backends.numpy import NumpyBkd
+from pyapprox.util.backends.protocols import Array, Backend
 
 
 class _ConcreteMixinUser(GalerkinBCMixin[Array], Generic[Array]):
@@ -214,9 +214,7 @@ class TestGalerkinBCMixin(Generic[Array], unittest.TestCase):
         residual = np.ones(n)
         state = np.zeros(n)
         result = user._apply_dirichlet_to_residual(residual, state, 0.0)
-        result_np = self._bkd.to_numpy(
-            self._bkd.asarray(result)
-        )
+        result_np = self._bkd.to_numpy(self._bkd.asarray(result))
         # Dirichlet DOF (index 0) should have residual = state - g = 0 - 0 = 0
         self._bkd.assert_allclose(
             self._bkd.asarray([result_np[0]]),
@@ -302,9 +300,7 @@ class TestGalerkinBCMixin(Generic[Array], unittest.TestCase):
         residual = np.ones(n)
         jacobian = csr_matrix(np.eye(n))
         state = np.zeros(n)
-        res, jac = user.apply_boundary_conditions(
-            residual, jacobian, state, 0.0
-        )
+        res, jac = user.apply_boundary_conditions(residual, jacobian, state, 0.0)
         # Robin should have modified right boundary
         # Dirichlet should have replaced left boundary row
         res_np = self._bkd.to_numpy(self._bkd.asarray(res))
@@ -325,9 +321,7 @@ class TestGalerkinBCMixin(Generic[Array], unittest.TestCase):
         n = basis.ndofs()
         jacobian = csr_matrix(2.0 * np.eye(n))
         state = np.zeros(n)
-        res, jac = user.apply_boundary_conditions(
-            None, jacobian, state, 0.0
-        )
+        res, jac = user.apply_boundary_conditions(None, jacobian, state, 0.0)
         self.assertIsNone(res)
         self.assertIsNotNone(jac)
 
@@ -343,9 +337,7 @@ class TestGalerkinBCMixin(Generic[Array], unittest.TestCase):
         n = basis.ndofs()
         residual = np.ones(n)
         state = np.zeros(n)
-        res, jac = user.apply_boundary_conditions(
-            residual, None, state, 0.0
-        )
+        res, jac = user.apply_boundary_conditions(residual, None, state, 0.0)
         self.assertIsNotNone(res)
         self.assertIsNone(jac)
 
@@ -358,7 +350,6 @@ class TestGalerkinBCMixinNumpy(TestGalerkinBCMixin[NDArray[Any]]):
 
 
 from pyapprox.util.test_utils import load_tests  # noqa: F401
-
 
 if __name__ == "__main__":
     unittest.main()

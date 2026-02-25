@@ -151,8 +151,10 @@ def basis_hessian_numba(
 
                 # Off-diagonal: d < k only, then use symmetry
                 for kk in range(dd + 1, nvars):
-                    val = (derivs_1d[dd, ss, indices[dd, tt]]
-                           * derivs_1d[kk, ss, indices[kk, tt]])
+                    val = (
+                        derivs_1d[dd, ss, indices[dd, tt]]
+                        * derivs_1d[kk, ss, indices[kk, tt]]
+                    )
                     for ll in range(nvars):
                         if ll != dd and ll != kk:
                             val *= vals_1d[ll, ss, indices[ll, tt]]

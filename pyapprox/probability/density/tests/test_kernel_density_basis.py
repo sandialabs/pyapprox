@@ -8,24 +8,23 @@ import numpy as np
 import torch
 from numpy.typing import NDArray
 
-from pyapprox.util.backends.numpy import NumpyBkd
-from pyapprox.util.backends.protocols import Array, Backend
-from pyapprox.util.backends.torch import TorchBkd
-from pyapprox.util.test_utils import load_tests  # noqa: F401
-
-from pyapprox.surrogates.kernels.matern import (
-    SquaredExponentialKernel,
-)
-from pyapprox.surrogates.affine.basis.kernel_basis import KernelBasis
 from pyapprox.probability.density.kernel_density_basis import (
     KernelDensityBasis,
 )
 from pyapprox.probability.density.protocols import (
     DensityBasisProtocol,
 )
+from pyapprox.surrogates.affine.basis.kernel_basis import KernelBasis
 from pyapprox.surrogates.affine.expansions.pce_density import (
     composite_gauss_legendre,
 )
+from pyapprox.surrogates.kernels.matern import (
+    SquaredExponentialKernel,
+)
+from pyapprox.util.backends.numpy import NumpyBkd
+from pyapprox.util.backends.protocols import Array, Backend
+from pyapprox.util.backends.torch import TorchBkd
+from pyapprox.util.test_utils import load_tests  # noqa: F401
 
 
 class TestKernelDensityBasis(Generic[Array], unittest.TestCase):
@@ -38,7 +37,10 @@ class TestKernelDensityBasis(Generic[Array], unittest.TestCase):
         self._bkd = self.bkd()
 
     def _make_basis(
-        self, ncenters: int = 5, lenscale: float = 0.5, y_min: float = -2.0,
+        self,
+        ncenters: int = 5,
+        lenscale: float = 0.5,
+        y_min: float = -2.0,
         y_max: float = 2.0,
     ) -> KernelDensityBasis:
         bkd = self._bkd
@@ -48,9 +50,7 @@ class TestKernelDensityBasis(Generic[Array], unittest.TestCase):
             1,
             bkd,
         )
-        centers = bkd.reshape(
-            bkd.linspace(y_min, y_max, ncenters), (1, -1)
-        )
+        centers = bkd.reshape(bkd.linspace(y_min, y_max, ncenters), (1, -1))
         kb = KernelBasis(kernel, centers)
         return KernelDensityBasis(kb)
 
@@ -72,17 +72,18 @@ class TestKernelDensityBasis(Generic[Array], unittest.TestCase):
         """Verify mass matrix entries match the closed-form formula."""
         bkd = self._bkd
         lenscale = 0.5
-        basis = self._make_basis(ncenters=3, lenscale=lenscale,
-                                  y_min=0.0, y_max=2.0)
+        basis = self._make_basis(ncenters=3, lenscale=lenscale, y_min=0.0, y_max=2.0)
         M = basis.mass_matrix()
         centers = basis.kernel_basis().centers()
         mu = bkd.to_numpy(centers[0])
-        l = lenscale
+        ls = lenscale
 
         for ii in range(3):
             for jj in range(3):
-                expected = l * math.sqrt(math.pi) * math.exp(
-                    -(mu[ii] - mu[jj])**2 / (4.0 * l**2)
+                expected = (
+                    ls
+                    * math.sqrt(math.pi)
+                    * math.exp(-((mu[ii] - mu[jj]) ** 2) / (4.0 * ls**2))
                 )
                 bkd.assert_allclose(
                     bkd.asarray([float(bkd.to_numpy(M[ii, jj]))]),
@@ -93,8 +94,7 @@ class TestKernelDensityBasis(Generic[Array], unittest.TestCase):
     def test_mass_matrix_vs_numerical(self) -> None:
         """Verify analytical mass matrix against numerical integration."""
         bkd = self._bkd
-        basis = self._make_basis(ncenters=4, lenscale=0.3,
-                                  y_min=-1.0, y_max=1.0)
+        basis = self._make_basis(ncenters=4, lenscale=0.3, y_min=-1.0, y_max=1.0)
         M = basis.mass_matrix()
         n = basis.nbasis()
         y_min, y_max = basis.domain()
@@ -125,7 +125,6 @@ class TestKernelDensityBasis(Generic[Array], unittest.TestCase):
         bkd.assert_allclose(M, bkd.transpose(M, (1, 0)), rtol=1e-14)
 
     def test_protocol_conformance(self) -> None:
-        bkd = self._bkd
         basis = self._make_basis()
         assert isinstance(basis, DensityBasisProtocol)
 
@@ -145,6 +144,7 @@ class TestKernelDensityBasis(Generic[Array], unittest.TestCase):
         """Should reject non-SE kernels."""
         bkd = self._bkd
         from pyapprox.surrogates.kernels.matern import Matern32Kernel
+
         kernel = Matern32Kernel(
             bkd.asarray([1.0]),
             (0.1, 10.0),

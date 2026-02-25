@@ -11,12 +11,11 @@ For minimization, we return -EIG.
 
 from typing import Generic, Optional
 
-from pyapprox.util.backends.protocols import Array, Backend
+from pyapprox.expdesign.evidence import LogEvidence
 from pyapprox.expdesign.likelihood import (
     GaussianOEDInnerLoopLikelihood,
-    GaussianOEDOuterLoopLikelihood,
 )
-from pyapprox.expdesign.evidence import LogEvidence
+from pyapprox.util.backends.protocols import Array, Backend
 
 
 class KLOEDObjective(Generic[Array]):
@@ -244,9 +243,7 @@ class KLOEDObjective(Generic[Array]):
         jac_diff = jac_log_like_true - jac_log_evidence  # (nouter, nobs)
 
         # Apply quadrature weights
-        jac_eig = self._bkd.sum(
-            self._outer_quad_weights[:, None] * jac_diff, axis=0
-        )
+        jac_eig = self._bkd.sum(self._outer_quad_weights[:, None] * jac_diff, axis=0)
 
         # Return -d/dw EIG for minimization
         return self._bkd.reshape(-jac_eig, (1, self._nobs))

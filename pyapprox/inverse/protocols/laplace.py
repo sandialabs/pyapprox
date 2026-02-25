@@ -10,7 +10,7 @@ for linear models. Laplace approximation is used when the forward model
 is nonlinear.
 """
 
-from typing import Protocol, Generic, runtime_checkable
+from typing import Generic, Protocol, runtime_checkable
 
 from pyapprox.util.backends.protocols import Array, Backend
 

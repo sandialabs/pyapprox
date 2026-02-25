@@ -6,20 +6,20 @@ Wraps a constrained optimizer to solve min_x max_i f_i(x).
 
 from typing import Generic, Optional, Sequence
 
-from pyapprox.util.backends.protocols import Array, Backend
-from pyapprox.optimization.minimize.scipy.trust_constr import (
-    ScipyTrustConstrOptimizer,
+from pyapprox.optimization.minimize.constraints.protocols import (
+    NonlinearConstraintProtocolWithJacobian,
 )
 from pyapprox.optimization.minimize.scipy.scipy_result import (
     ScipyOptimizerResultWrapper,
 )
-from pyapprox.optimization.minimize.constraints.protocols import (
-    NonlinearConstraintProtocolWithJacobian,
+from pyapprox.optimization.minimize.scipy.trust_constr import (
+    ScipyTrustConstrOptimizer,
 )
+from pyapprox.util.backends.protocols import Array, Backend
 
-from .protocols import MultiQoIObjectiveProtocol
-from .objective import MinimaxObjective
 from .constraint import MinimaxConstraint
+from .objective import MinimaxObjective
+from .protocols import MultiQoIObjectiveProtocol
 
 
 class MinimaxOptimizer(Generic[Array]):
@@ -56,7 +56,9 @@ class MinimaxOptimizer(Generic[Array]):
         self,
         model: MultiQoIObjectiveProtocol[Array],
         bounds: Array,
-        constraints: Optional[Sequence[NonlinearConstraintProtocolWithJacobian[Array]]] = None,
+        constraints: Optional[
+            Sequence[NonlinearConstraintProtocolWithJacobian[Array]]
+        ] = None,
         verbosity: int = 0,
         maxiter: Optional[int] = None,
         gtol: Optional[float] = None,
@@ -110,7 +112,7 @@ class MinimaxOptimizer(Generic[Array]):
             Optimization result. The optima includes [t, x] where t is the
             minimax value and x are the optimal variables.
         """
-        nmodel_vars = self._model.nvars()
+        self._model.nvars()
 
         if init_guess is None:
             # Initialize x at center of bounds

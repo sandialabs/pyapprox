@@ -3,6 +3,18 @@
 These functions implement FunctionWithJacobianAndHVPProtocol directly.
 """
 
+from pyapprox.benchmarks.functions.algebraic.branin import (
+    BRANIN_GLOBAL_MINIMUM,
+    BRANIN_MINIMIZERS,
+    BraninFunction,
+)
+from pyapprox.benchmarks.functions.algebraic.cantilever_beam import (
+    CantileverBeam1DAnalytical,
+    HomogeneousBeam1DAnalytical,
+)
+from pyapprox.benchmarks.functions.algebraic.cantilever_beam_2d import (
+    CantileverBeam2DAnalytical,
+)
 from pyapprox.benchmarks.functions.algebraic.ishigami import (
     IshigamiFunction,
     IshigamiSensitivityIndices,
@@ -13,18 +25,6 @@ from pyapprox.benchmarks.functions.algebraic.rosenbrock import (
 from pyapprox.benchmarks.functions.algebraic.sobol_g import (
     SobolGFunction,
     SobolGSensitivityIndices,
-)
-from pyapprox.benchmarks.functions.algebraic.branin import (
-    BraninFunction,
-    BRANIN_GLOBAL_MINIMUM,
-    BRANIN_MINIMIZERS,
-)
-from pyapprox.benchmarks.functions.algebraic.cantilever_beam import (
-    CantileverBeam1DAnalytical,
-    HomogeneousBeam1DAnalytical,
-)
-from pyapprox.benchmarks.functions.algebraic.cantilever_beam_2d import (
-    CantileverBeam2DAnalytical,
 )
 
 __all__ = [

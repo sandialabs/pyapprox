@@ -3,17 +3,17 @@ Tests for Dirichlet conjugate posterior.
 """
 
 import unittest
-from typing import Generic, Any
+from typing import Any, Generic
 
 import numpy as np
-from numpy.typing import NDArray
 import torch
+from numpy.typing import NDArray
 from scipy import stats
 
-from pyapprox.util.backends.protocols import Array, Backend
-from pyapprox.util.backends.numpy import NumpyBkd
-from pyapprox.util.backends.torch import TorchBkd
 from pyapprox.inverse.conjugate.dirichlet import DirichletConjugatePosterior
+from pyapprox.util.backends.numpy import NumpyBkd
+from pyapprox.util.backends.protocols import Array, Backend
+from pyapprox.util.backends.torch import TorchBkd
 
 
 class TestDirichletConjugateBase(Generic[Array], unittest.TestCase):
@@ -147,9 +147,6 @@ class TestDirichletConjugateVsScipyTorch(TestDirichletConjugateVsScipy[torch.Ten
 
     def bkd(self) -> Backend[torch.Tensor]:
         return self._bkd
-
-
-from pyapprox.util.test_utils import load_tests
 
 
 if __name__ == "__main__":

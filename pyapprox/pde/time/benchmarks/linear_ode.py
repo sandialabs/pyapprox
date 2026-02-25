@@ -159,9 +159,7 @@ class LinearODEResidual(Generic[Array]):
     # HVP Methods for second-order adjoints
     # =========================================================================
 
-    def state_state_hvp(
-        self, state: Array, adj_state: Array, wvec: Array
-    ) -> Array:
+    def state_state_hvp(self, state: Array, adj_state: Array, wvec: Array) -> Array:
         """
         Compute (d^2f/dy^2)·w contracted with adjoint.
 
@@ -169,9 +167,7 @@ class LinearODEResidual(Generic[Array]):
         """
         return self._bkd.zeros(state.shape)
 
-    def state_param_hvp(
-        self, state: Array, adj_state: Array, vvec: Array
-    ) -> Array:
+    def state_param_hvp(self, state: Array, adj_state: Array, vvec: Array) -> Array:
         """
         Compute (d^2f/dy dp)·v contracted with adjoint.
 
@@ -179,9 +175,7 @@ class LinearODEResidual(Generic[Array]):
         """
         return self._bkd.zeros(state.shape)
 
-    def param_state_hvp(
-        self, state: Array, adj_state: Array, wvec: Array
-    ) -> Array:
+    def param_state_hvp(self, state: Array, adj_state: Array, wvec: Array) -> Array:
         """
         Compute (d^2f/dp dy)·w contracted with adjoint.
 
@@ -189,9 +183,7 @@ class LinearODEResidual(Generic[Array]):
         """
         return self._bkd.zeros((self._nparams,))
 
-    def param_param_hvp(
-        self, state: Array, adj_state: Array, vvec: Array
-    ) -> Array:
+    def param_param_hvp(self, state: Array, adj_state: Array, vvec: Array) -> Array:
         """
         Compute (d^2f/dp^2)·v contracted with adjoint.
 
@@ -336,9 +328,7 @@ class QuadraticODEResidual(Generic[Array]):
     # HVP Methods - Non-zero for quadratic ODE
     # =========================================================================
 
-    def state_state_hvp(
-        self, state: Array, adj_state: Array, wvec: Array
-    ) -> Array:
+    def state_state_hvp(self, state: Array, adj_state: Array, wvec: Array) -> Array:
         """
         Compute λᵀ·(d²f/dy²)·w.
 
@@ -356,9 +346,7 @@ class QuadraticODEResidual(Generic[Array]):
         p0 = float(self._param[0, 0])
         return 2.0 * p0 * adj_state * wvec
 
-    def state_param_hvp(
-        self, state: Array, adj_state: Array, vvec: Array
-    ) -> Array:
+    def state_param_hvp(self, state: Array, adj_state: Array, vvec: Array) -> Array:
         """
         Compute λᵀ·(d²f/dy dp)·v.
 
@@ -376,9 +364,7 @@ class QuadraticODEResidual(Generic[Array]):
         v0 = float(vvec[0, 0]) if vvec.ndim == 2 else float(vvec[0])
         return 2.0 * adj_state * state * v0
 
-    def param_state_hvp(
-        self, state: Array, adj_state: Array, wvec: Array
-    ) -> Array:
+    def param_state_hvp(self, state: Array, adj_state: Array, wvec: Array) -> Array:
         """
         Compute λᵀ·(d²f/dp dy)·w.
 
@@ -393,9 +379,7 @@ class QuadraticODEResidual(Generic[Array]):
         result[0] = 2.0 * float(self._bkd.sum(adj_state * state * wvec))
         return result
 
-    def param_param_hvp(
-        self, state: Array, adj_state: Array, vvec: Array
-    ) -> Array:
+    def param_param_hvp(self, state: Array, adj_state: Array, vvec: Array) -> Array:
         """
         Compute λᵀ·(d²f/dp²)·v.
 

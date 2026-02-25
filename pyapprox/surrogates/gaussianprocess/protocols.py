@@ -6,25 +6,22 @@ for Gaussian Process regression. All GPs support mean, standard deviation,
 and covariance predictions.
 """
 
-from typing import Protocol, Optional, runtime_checkable, Generic
+from typing import Generic, Optional, Protocol, runtime_checkable
 
-from pyapprox.surrogates.gaussianprocess.output_transform import (
-    OutputAffineTransformProtocol,
-)
-from pyapprox.surrogates.gaussianprocess.input_transform import (
-    InputAffineTransformProtocol,
-)
-from pyapprox.surrogates.gaussianprocess.input_transform import (
-    InputAffineTransformProtocol,
-)
-from pyapprox.util.backends.protocols import Array, Backend
-from pyapprox.surrogates.kernels.protocols import Kernel
-from pyapprox.util.hyperparameter import HyperParameterList
-from pyapprox.surrogates.gaussianprocess.data import GPTrainingData
-from pyapprox.util.linalg.cholesky_factor import CholeskyFactor
 from pyapprox.optimization.minimize.protocols import (
     BindableOptimizerProtocol,
 )
+from pyapprox.surrogates.gaussianprocess.data import GPTrainingData
+from pyapprox.surrogates.gaussianprocess.input_transform import (
+    InputAffineTransformProtocol,
+)
+from pyapprox.surrogates.gaussianprocess.output_transform import (
+    OutputAffineTransformProtocol,
+)
+from pyapprox.surrogates.kernels.protocols import Kernel
+from pyapprox.util.backends.protocols import Array, Backend
+from pyapprox.util.hyperparameter import HyperParameterList
+from pyapprox.util.linalg.cholesky_factor import CholeskyFactor
 
 
 @runtime_checkable
@@ -328,10 +325,7 @@ class TrainableGPProtocol(PredictiveGPProtocol[Array], Protocol):
         """
         ...
 
-    def set_optimizer(
-        self,
-        optimizer: BindableOptimizerProtocol[Array]
-    ) -> None:
+    def set_optimizer(self, optimizer: BindableOptimizerProtocol[Array]) -> None:
         """
         Set the optimizer for hyperparameter optimization during fit().
 

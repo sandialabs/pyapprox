@@ -15,24 +15,23 @@ import numpy as np
 import torch
 from numpy.typing import NDArray
 
-from pyapprox.util.backends.numpy import NumpyBkd
-from pyapprox.util.backends.torch import TorchBkd
-from pyapprox.util.backends.protocols import Array, Backend
-from pyapprox.util.test_utils import load_tests
-from pyapprox.expdesign.local.design_matrices import (
-    LeastSquaresDesignMatrices,
-)
 from pyapprox.expdesign.local.criteria import (
-    DOptimalCriterion,
     AOptimalCriterion,
+    DOptimalCriterion,
     GOptimalCriterion,
     ROptimalCriterion,
 )
-from pyapprox.expdesign.local.solver import (
-    ScipyLocalOEDSolver,
-    MinimaxLocalOEDSolver,
-    AVaRLocalOEDSolver,
+from pyapprox.expdesign.local.design_matrices import (
+    LeastSquaresDesignMatrices,
 )
+from pyapprox.expdesign.local.solver import (
+    AVaRLocalOEDSolver,
+    MinimaxLocalOEDSolver,
+    ScipyLocalOEDSolver,
+)
+from pyapprox.util.backends.numpy import NumpyBkd
+from pyapprox.util.backends.protocols import Array, Backend
+from pyapprox.util.backends.torch import TorchBkd
 
 
 class TestScipyLocalOEDSolver(Generic[Array], unittest.TestCase):
@@ -71,9 +70,7 @@ class TestScipyLocalOEDSolver(Generic[Array], unittest.TestCase):
         self.assertTrue(
             self._bkd.allclose(weight_sum, self._bkd.asarray(1.0), atol=1e-6)
         )
-        self.assertTrue(
-            self._bkd.all_bool(optimal_weights >= -1e-8)
-        )
+        self.assertTrue(self._bkd.all_bool(optimal_weights >= -1e-8))
 
     def test_a_optimal_solver(self) -> None:
         """Test solver with A-optimal criterion (has HVP)."""
@@ -92,9 +89,7 @@ class TestScipyLocalOEDSolver(Generic[Array], unittest.TestCase):
         self.assertTrue(
             self._bkd.allclose(weight_sum, self._bkd.asarray(1.0), atol=1e-6)
         )
-        self.assertTrue(
-            self._bkd.all_bool(optimal_weights >= -1e-8)
-        )
+        self.assertTrue(self._bkd.all_bool(optimal_weights >= -1e-8))
 
     def test_raises_for_vector_criterion(self) -> None:
         """Test that solver raises error for vector criteria."""
@@ -102,9 +97,7 @@ class TestScipyLocalOEDSolver(Generic[Array], unittest.TestCase):
 
         # Create G-optimal criterion (vector output)
         npred_pts = 3
-        pred_factors = self._bkd.asarray(
-            np.random.randn(npred_pts, self._ndesign_vars)
-        )
+        pred_factors = self._bkd.asarray(np.random.randn(npred_pts, self._ndesign_vars))
 
         crit = GOptimalCriterion(dm, pred_factors, self._bkd)
 
@@ -126,8 +119,8 @@ class TestScipyLocalOEDSolver(Generic[Array], unittest.TestCase):
         result = solver.get_result()
 
         # Check result has expected methods
-        self.assertTrue(hasattr(result, 'success'))
-        self.assertTrue(hasattr(result, 'optima'))
+        self.assertTrue(hasattr(result, "success"))
+        self.assertTrue(hasattr(result, "optima"))
 
 
 class TestMinimaxLocalOEDSolver(Generic[Array], unittest.TestCase):
@@ -173,9 +166,7 @@ class TestMinimaxLocalOEDSolver(Generic[Array], unittest.TestCase):
         self.assertTrue(
             self._bkd.allclose(weight_sum, self._bkd.asarray(1.0), atol=1e-6)
         )
-        self.assertTrue(
-            self._bkd.all_bool(optimal_weights >= -1e-8)
-        )
+        self.assertTrue(self._bkd.all_bool(optimal_weights >= -1e-8))
 
     def test_get_minimax_value(self) -> None:
         """Test that minimax value can be retrieved."""

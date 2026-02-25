@@ -5,16 +5,16 @@ Provides an analytically-defined Gaussian distribution that implements
 MarginalWithJacobianProtocol.
 """
 
-from typing import Generic, Any
 import math
+from typing import Any, Generic
 
 import numpy as np
 
 from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.util.hyperparameter import (
     HyperParameter,
-    LogHyperParameter,
     HyperParameterList,
+    LogHyperParameter,
 )
 
 
@@ -454,7 +454,8 @@ class GaussianMarginal(Generic[Array]):
         v1 = s1 * s1
         v2 = s2 * s2
         return (
-            self._bkd.log(s2) - self._bkd.log(s1)
+            self._bkd.log(s2)
+            - self._bkd.log(s1)
             + (v1 + (m1 - m2) ** 2) / (2.0 * v2)
             - 0.5
         )
@@ -463,10 +464,7 @@ class GaussianMarginal(Generic[Array]):
         """Check equality with another GaussianMarginal."""
         if not isinstance(other, GaussianMarginal):
             return False
-        return (
-            self.mean_value() == other.mean_value()
-            and self.std() == other.std()
-        )
+        return self.mean_value() == other.mean_value() and self.std() == other.std()
 
     def __repr__(self) -> str:
         """Return string representation."""

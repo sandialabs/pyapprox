@@ -4,16 +4,16 @@ All dispatch loops use Robin-first ordering to handle the fact that
 RobinBC structurally satisfies DirichletBCProtocol.
 """
 
-from typing import Generic, Tuple, Optional
+from typing import Generic, Optional, Tuple
 
 import numpy as np
 
-from pyapprox.util.backends.protocols import Array
 from pyapprox.pde.galerkin.protocols.boundary import (
     DirichletBCProtocol,
     NeumannBCProtocol,
     RobinBCProtocol,
 )
+from pyapprox.util.backends.protocols import Array
 
 
 class GalerkinBCMixin(Generic[Array]):
@@ -26,9 +26,7 @@ class GalerkinBCMixin(Generic[Array]):
     ``EulerBernoulliBeamFEM`` and ``StokesPhysics`` set them directly.
     """
 
-    def _apply_bc_to_stiffness(
-        self, stiffness: Array, time: float
-    ) -> Array:
+    def _apply_bc_to_stiffness(self, stiffness: Array, time: float) -> Array:
         """Apply Robin BC contributions to stiffness matrix.
 
         Parameters
@@ -70,9 +68,7 @@ class GalerkinBCMixin(Generic[Array]):
                 load = bc.apply_to_load(load, time)
         return load
 
-    def dirichlet_dof_info(
-        self, time: float
-    ) -> Tuple[Array, Array]:
+    def dirichlet_dof_info(self, time: float) -> Tuple[Array, Array]:
         """Return Dirichlet DOF indices and their exact values.
 
         Collects information from all Dirichlet boundary conditions
@@ -103,12 +99,8 @@ class GalerkinBCMixin(Generic[Array]):
                 all_vals.append(vals_np)
         if all_dofs:
             return (
-                self._bkd.asarray(
-                    np.concatenate(all_dofs).astype(np.int64)
-                ),
-                self._bkd.asarray(
-                    np.concatenate(all_vals).astype(np.float64)
-                ),
+                self._bkd.asarray(np.concatenate(all_dofs).astype(np.int64)),
+                self._bkd.asarray(np.concatenate(all_vals).astype(np.float64)),
             )
         return (
             self._bkd.asarray(np.array([], dtype=np.int64)),
@@ -198,9 +190,7 @@ class GalerkinBCMixin(Generic[Array]):
                 continue
             if isinstance(bc, DirichletBCProtocol):
                 if hasattr(bc, "apply_to_param_jacobian"):
-                    pjac = bc.apply_to_param_jacobian(
-                        pjac, state, time
-                    )
+                    pjac = bc.apply_to_param_jacobian(pjac, state, time)
         return pjac
 
     def apply_boundary_conditions(

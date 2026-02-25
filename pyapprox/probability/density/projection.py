@@ -2,15 +2,15 @@
 
 from typing import Generic, Optional
 
-from pyapprox.util.backends.protocols import Array, Backend
-from pyapprox.probability.density.protocols import DensityBasisProtocol
-from pyapprox.probability.density.kernel_density_basis import (
-    KernelDensityBasis,
-)
-from pyapprox.probability.density._fitters import LinearDensityFitter
 from pyapprox.optimization.minimize.protocols import (
     BindableOptimizerProtocol,
 )
+from pyapprox.probability.density._fitters import LinearDensityFitter
+from pyapprox.probability.density.kernel_density_basis import (
+    KernelDensityBasis,
+)
+from pyapprox.probability.density.protocols import DensityBasisProtocol
+from pyapprox.util.backends.protocols import Array, Backend
 
 
 class ProjectionDensityFitter(Generic[Array]):
@@ -34,8 +34,7 @@ class ProjectionDensityFitter(Generic[Array]):
     def __init__(self, basis: DensityBasisProtocol[Array]) -> None:
         if not isinstance(basis, DensityBasisProtocol):
             raise TypeError(
-                f"basis must satisfy DensityBasisProtocol, "
-                f"got {type(basis).__name__}"
+                f"basis must satisfy DensityBasisProtocol, got {type(basis).__name__}"
             )
         self._basis = basis
         self._bkd = basis.bkd()
@@ -165,8 +164,7 @@ class ISEOptimizingFitter(Generic[Array]):
     ) -> None:
         if not isinstance(basis, KernelDensityBasis):
             raise TypeError(
-                f"basis must be KernelDensityBasis, "
-                f"got {type(basis).__name__}"
+                f"basis must be KernelDensityBasis, got {type(basis).__name__}"
             )
         self._basis = basis
         self._bkd = basis.bkd()
@@ -206,15 +204,16 @@ class ISEOptimizingFitter(Generic[Array]):
         if self._optimizer is not None:
             optimizer = self._optimizer.copy()
         else:
+            from pyapprox.optimization.minimize.chained.chained_optimizer import (
+                ChainedOptimizer,
+            )
             from pyapprox.optimization.minimize.scipy.diffevol import (
                 ScipyDifferentialEvolutionOptimizer,
             )
             from pyapprox.optimization.minimize.scipy.trust_constr import (
                 ScipyTrustConstrOptimizer,
             )
-            from pyapprox.optimization.minimize.chained.chained_optimizer import (
-                ChainedOptimizer,
-            )
+
             optimizer = ChainedOptimizer(
                 ScipyDifferentialEvolutionOptimizer(maxiter=50),
                 ScipyTrustConstrOptimizer(verbosity=0, maxiter=200),

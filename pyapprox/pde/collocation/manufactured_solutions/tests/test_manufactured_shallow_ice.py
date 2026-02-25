@@ -28,23 +28,23 @@ import torch
 from numpy.typing import NDArray
 from unittest_parametrize import ParametrizedTestCase, parametrize
 
-from pyapprox.util.backends.protocols import Array, Backend
-from pyapprox.util.backends.numpy import NumpyBkd
-from pyapprox.util.backends.torch import TorchBkd
-from pyapprox.util.test_utils import load_tests  # noqa: F401
-from pyapprox.pde.collocation.basis import ChebyshevBasis1D
-from pyapprox.pde.collocation.mesh import (
-    create_uniform_mesh_1d,
-    TransformedMesh1D,
-)
-from pyapprox.pde.collocation.boundary import constant_dirichlet_bc
-from pyapprox.pde.collocation.physics import ShallowIcePhysics
-from pyapprox.pde.collocation.manufactured_solutions import (
-    ManufacturedShallowIce,
-)
 from pyapprox.interface.functions.derivative_checks.derivative_checker import (
     DerivativeChecker,
 )
+from pyapprox.pde.collocation.basis import ChebyshevBasis1D
+from pyapprox.pde.collocation.boundary import constant_dirichlet_bc
+from pyapprox.pde.collocation.manufactured_solutions import (
+    ManufacturedShallowIce,
+)
+from pyapprox.pde.collocation.mesh import (
+    TransformedMesh1D,
+    create_uniform_mesh_1d,
+)
+from pyapprox.pde.collocation.physics import ShallowIcePhysics
+from pyapprox.util.backends.numpy import NumpyBkd
+from pyapprox.util.backends.protocols import Array, Backend
+from pyapprox.util.backends.torch import TorchBkd
+from pyapprox.util.test_utils import load_tests  # noqa: F401
 
 
 class PhysicsDerivativeWrapper(Generic[Array]):
@@ -76,9 +76,11 @@ class PhysicsDerivativeWrapper(Generic[Array]):
         # samples shape: (nvars, nsamples), return (nqoi, nsamples)
         if samples.ndim == 2:
             return self._backend.stack(
-                [self._physics.residual(samples[:, i], self._time)
-                 for i in range(samples.shape[1])],
-                axis=1
+                [
+                    self._physics.residual(samples[:, i], self._time)
+                    for i in range(samples.shape[1])
+                ],
+                axis=1,
             )
         # Single sample: return (nqoi, 1)
         return self._physics.residual(samples, self._time).reshape(-1, 1)
@@ -130,19 +132,14 @@ class TestManufacturedShallowIce1D(Generic[Array], unittest.TestCase):
 
         # Create physics with manufactured forcing
         physics = ShallowIcePhysics(
-            basis, bkd, bed=bed, friction=1.0, A=A, rho=rho,
-            forcing=lambda t: forcing
+            basis, bkd, bed=bed, friction=1.0, A=A, rho=rho, forcing=lambda t: forcing
         )
 
         # Set Dirichlet BCs at boundaries
         left_idx = mesh.boundary_indices(0)
         right_idx = mesh.boundary_indices(1)
-        bc_left = constant_dirichlet_bc(
-            bkd, left_idx, float(u_exact[int(left_idx)])
-        )
-        bc_right = constant_dirichlet_bc(
-            bkd, right_idx, float(u_exact[int(right_idx)])
-        )
+        bc_left = constant_dirichlet_bc(bkd, left_idx, float(u_exact[int(left_idx)]))
+        bc_right = constant_dirichlet_bc(bkd, right_idx, float(u_exact[int(right_idx)]))
         physics.set_boundary_conditions([bc_left, bc_right])
 
         residual = physics.residual(u_exact, 0.0)
@@ -187,8 +184,7 @@ class TestManufacturedShallowIce1D(Generic[Array], unittest.TestCase):
         bed = man_sol.functions["bed"](nodes.reshape(1, -1))
 
         physics = ShallowIcePhysics(
-            basis, bkd, bed=bed, friction=1.0, A=A, rho=rho,
-            forcing=lambda t: forcing
+            basis, bkd, bed=bed, friction=1.0, A=A, rho=rho, forcing=lambda t: forcing
         )
 
         wrapper = PhysicsDerivativeWrapper(physics)
@@ -227,18 +223,13 @@ class TestManufacturedShallowIce1D(Generic[Array], unittest.TestCase):
         bed = man_sol.functions["bed"](nodes.reshape(1, -1))
 
         physics = ShallowIcePhysics(
-            basis, bkd, bed=bed, friction=1.0, A=A, rho=rho,
-            forcing=lambda t: forcing
+            basis, bkd, bed=bed, friction=1.0, A=A, rho=rho, forcing=lambda t: forcing
         )
 
         left_idx = mesh.boundary_indices(0)
         right_idx = mesh.boundary_indices(1)
-        bc_left = constant_dirichlet_bc(
-            bkd, left_idx, float(u_exact[int(left_idx)])
-        )
-        bc_right = constant_dirichlet_bc(
-            bkd, right_idx, float(u_exact[int(right_idx)])
-        )
+        bc_left = constant_dirichlet_bc(bkd, left_idx, float(u_exact[int(left_idx)]))
+        bc_right = constant_dirichlet_bc(bkd, right_idx, float(u_exact[int(right_idx)]))
         physics.set_boundary_conditions([bc_left, bc_right])
 
         residual = physics.residual(u_exact, 0.0)
@@ -270,9 +261,7 @@ class TestShallowIce1DParameterized(ParametrizedTestCase):
             ("quartic_profile", "2 + 0.25*(1 - x**2)**2", "0.1*x", "1.0", 30),
         ],
     )
-    def test_shallow_ice_1d_residual(
-        self, name, sol_str, bed_str, friction_str, npts
-    ):
+    def test_shallow_ice_1d_residual(self, name, sol_str, bed_str, friction_str, npts):
         """Test 1D Shallow Ice residual for parameterized cases."""
         bkd = self.bkd()
         mesh = TransformedMesh1D(npts, bkd)
@@ -302,18 +291,19 @@ class TestShallowIce1DParameterized(ParametrizedTestCase):
         bed = man_sol.functions["bed"](nodes.reshape(1, -1))
 
         physics = ShallowIcePhysics(
-            basis, bkd, bed=bed, friction=friction, A=A, rho=rho,
-            forcing=lambda t: forcing
+            basis,
+            bkd,
+            bed=bed,
+            friction=friction,
+            A=A,
+            rho=rho,
+            forcing=lambda t: forcing,
         )
 
         left_idx = mesh.boundary_indices(0)
         right_idx = mesh.boundary_indices(1)
-        bc_left = constant_dirichlet_bc(
-            bkd, left_idx, float(u_exact[int(left_idx)])
-        )
-        bc_right = constant_dirichlet_bc(
-            bkd, right_idx, float(u_exact[int(right_idx)])
-        )
+        bc_left = constant_dirichlet_bc(bkd, left_idx, float(u_exact[int(left_idx)]))
+        bc_right = constant_dirichlet_bc(bkd, right_idx, float(u_exact[int(right_idx)]))
         physics.set_boundary_conditions([bc_left, bc_right])
 
         residual = physics.residual(u_exact, 0.0)
@@ -366,8 +356,7 @@ class TestShallowIce1DParameterized(ParametrizedTestCase):
         bed = man_sol.functions["bed"](nodes.reshape(1, -1))
 
         physics = ShallowIcePhysics(
-            basis, bkd, bed=bed, friction=1.0, A=A, rho=rho,
-            forcing=lambda t: forcing
+            basis, bkd, bed=bed, friction=1.0, A=A, rho=rho, forcing=lambda t: forcing
         )
 
         wrapper = PhysicsDerivativeWrapper(physics)
@@ -377,9 +366,7 @@ class TestShallowIce1DParameterized(ParametrizedTestCase):
 
 
 # Concrete backend implementations
-class TestManufacturedShallowIce1DNumpy(
-    TestManufacturedShallowIce1D[NDArray[Any]]
-):
+class TestManufacturedShallowIce1DNumpy(TestManufacturedShallowIce1D[NDArray[Any]]):
     """NumPy backend tests for 1D Shallow Ice."""
 
     __test__ = True
@@ -388,9 +375,7 @@ class TestManufacturedShallowIce1DNumpy(
         return NumpyBkd()
 
 
-class TestManufacturedShallowIce1DTorch(
-    TestManufacturedShallowIce1D[torch.Tensor]
-):
+class TestManufacturedShallowIce1DTorch(TestManufacturedShallowIce1D[torch.Tensor]):
     """PyTorch backend tests for 1D Shallow Ice."""
 
     __test__ = True

@@ -4,11 +4,11 @@ This module implements the AETCMC class which uses a simpler Monte Carlo-based
 approach for sample allocation in the exploitation phase.
 """
 
-from typing import Generic, List, Tuple, Optional, Callable, Any, Dict
 from functools import partial
+from typing import Any, Callable, Dict, List, Optional, Tuple
 
-from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.statest.aetc.base import AETC
+from pyapprox.util.backends.protocols import Array, Backend
 
 
 class AETCMC(AETC[Array]):
@@ -76,9 +76,7 @@ class AETCMC(AETC[Array]):
         exploit_cost = bkd.sum(costs_S)
 
         assert len(asketch.shape) == 2
-        k2 = exploit_cost * bkd.trace(
-            bkd.multidot([asketch.T, Sigma_S, asketch])
-        )
+        k2 = exploit_cost * bkd.trace(bkd.multidot([asketch.T, Sigma_S, asketch]))
 
         return k2, 1 / exploit_cost * bkd.ones((1,))
 
@@ -116,16 +114,16 @@ class AETCMC(AETC[Array]):
         samples = rvs(nsamples)
 
         # All models use the same samples
-        samples_per_model = [samples for _ in range(len(self._bkd.to_numpy(best_subset)))]
+        samples_per_model = [
+            samples for _ in range(len(self._bkd.to_numpy(best_subset)))
+        ]
 
         # Convert to HF-indexed subset
         best_subset_HF = [int(s) + 1 for s in self._bkd.to_numpy(best_subset)]
 
         return samples_per_model, best_subset_HF
 
-    def find_exploit_mean(
-        self, values_per_model: List[Array], result: Tuple
-    ) -> Array:
+    def find_exploit_mean(self, values_per_model: List[Array], result: Tuple) -> Array:
         """Compute exploitation mean estimate using MC approach.
 
         Parameters
@@ -152,9 +150,7 @@ class AETCMC(AETC[Array]):
         )  # (nmodels, nqoi)
 
         # Compute weighted sum
-        product = bkd.squeeze(
-            bkd.dot(beta_best_S.T, values_stacked[:, :1])
-        )
+        product = bkd.squeeze(bkd.dot(beta_best_S.T, values_stacked[:, :1]))
 
         return beta_Sp[0, 0] + product
 

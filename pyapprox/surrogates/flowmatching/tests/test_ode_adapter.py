@@ -7,21 +7,20 @@ import numpy as np
 import torch
 from numpy.typing import NDArray
 
-from pyapprox.util.backends.numpy import NumpyBkd
-from pyapprox.util.backends.protocols import Array, Backend
-from pyapprox.util.backends.torch import TorchBkd
-from pyapprox.pde.time.protocols.ode_residual import (
-    ODEResidualProtocol,
-)
 from pyapprox.pde.time.explicit_steppers.forward_euler import (
     ForwardEulerResidual,
 )
 from pyapprox.pde.time.explicit_steppers.heun import HeunResidual
-
+from pyapprox.pde.time.protocols.ode_residual import (
+    ODEResidualProtocol,
+)
 from pyapprox.surrogates.flowmatching.ode_adapter import (
     FlowODEResidual,
     integrate_flow,
 )
+from pyapprox.util.backends.numpy import NumpyBkd
+from pyapprox.util.backends.protocols import Array, Backend
+from pyapprox.util.backends.torch import TorchBkd
 
 
 class TestFlowODEResidual(Generic[Array], unittest.TestCase):
@@ -50,7 +49,7 @@ class TestFlowODEResidual(Generic[Array], unittest.TestCase):
         c_val = bkd.array([[2.0], [-1.0]])  # (2, 1)
 
         def const_vf(vf_input):
-            ns = vf_input.shape[1]
+            vf_input.shape[1]
             return c_val * bkd.ones_like(vf_input[0:1, :])  # (2, ns)
 
         res = FlowODEResidual(const_vf, bkd)
@@ -80,8 +79,7 @@ class TestFlowODEResidual(Generic[Array], unittest.TestCase):
             # vf_input: (1 + d + m, 1)
             # Return last m rows as output (d=1, m=1: row index 2)
             d = 1
-            m = 1
-            c_part = vf_input[1 + d:, :]  # (m, 1)
+            c_part = vf_input[1 + d :, :]  # (m, 1)
             return c_part  # (1, 1) since d=m=1
 
         c_val = bkd.array([[3.0]])  # (1, 1)
@@ -146,29 +144,39 @@ class TestIntegrateFlow(Generic[Array], unittest.TestCase):
         x0 = bkd.array([[0.0, 1.0], [0.0, 2.0]])  # (2, 2)
         T = 1.0
         result = integrate_flow(
-            const_vf, x0, 0.0, T, n_steps=10, bkd=bkd,
+            const_vf,
+            x0,
+            0.0,
+            T,
+            n_steps=10,
+            bkd=bkd,
             stepper_cls=ForwardEulerResidual,
         )
 
         # x(T) = x0 + c * T
-        expected = bkd.array([[0.0 + 1.0, 1.0 + 1.0],
-                              [0.0 - 0.5, 2.0 - 0.5]])
+        expected = bkd.array([[0.0 + 1.0, 1.0 + 1.0], [0.0 - 0.5, 2.0 - 0.5]])
         bkd.assert_allclose(result, expected, rtol=1e-10)
 
     def test_constant_vf_with_conditioning(self) -> None:
         """v(t,x,c) returns c as the velocity."""
         bkd = self._bkd
-        d, m = 1, 1
+        d, _m = 1, 1
 
         def cond_vf(vf_input):
             # vf_input: (1+d+m, ns) = (3, ns)
-            return vf_input[1 + d:, :]  # c part, shape (1, ns)
+            return vf_input[1 + d :, :]  # c part, shape (1, ns)
 
         x0 = bkd.array([[0.0, 0.0]])  # (1, 2)
         c = bkd.array([[2.0, -1.0]])  # (1, 2)
         T = 1.0
         result = integrate_flow(
-            cond_vf, x0, 0.0, T, n_steps=10, bkd=bkd, c=c,
+            cond_vf,
+            x0,
+            0.0,
+            T,
+            n_steps=10,
+            bkd=bkd,
+            c=c,
             stepper_cls=ForwardEulerResidual,
         )
         expected = bkd.array([[2.0, -1.0]])
@@ -190,7 +198,12 @@ class TestIntegrateFlow(Generic[Array], unittest.TestCase):
         steps_list = [10, 20, 40, 80]
         for ns in steps_list:
             result = integrate_flow(
-                linear_vf, x0, 0.0, T, n_steps=ns, bkd=bkd,
+                linear_vf,
+                x0,
+                0.0,
+                T,
+                n_steps=ns,
+                bkd=bkd,
                 stepper_cls=ForwardEulerResidual,
             )
             err = abs(float(bkd.to_numpy(result[0, 0])) - exact)
@@ -216,7 +229,12 @@ class TestIntegrateFlow(Generic[Array], unittest.TestCase):
         steps_list = [10, 20, 40, 80]
         for ns in steps_list:
             result = integrate_flow(
-                linear_vf, x0, 0.0, T, n_steps=ns, bkd=bkd,
+                linear_vf,
+                x0,
+                0.0,
+                T,
+                n_steps=ns,
+                bkd=bkd,
                 stepper_cls=HeunResidual,
             )
             err = abs(float(bkd.to_numpy(result[0, 0])) - exact)
@@ -249,7 +267,12 @@ class TestIntegrateFlow(Generic[Array], unittest.TestCase):
         x0 = bkd.array([[0.0, 1.0, 2.0]])  # (1, 3)
         T = 0.5
         result = integrate_flow(
-            const_vf, x0, 0.0, T, n_steps=10, bkd=bkd,
+            const_vf,
+            x0,
+            0.0,
+            T,
+            n_steps=10,
+            bkd=bkd,
             stepper_cls=ForwardEulerResidual,
         )
         expected = bkd.array([[0.5, 1.5, 2.5]])

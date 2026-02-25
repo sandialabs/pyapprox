@@ -177,9 +177,7 @@ class DOptimalLinearModelObjective(Generic[Array]):
         # = a_i^T @ Y^{-1} @ a_i (since trace of outer product)
         A = self._design_matrix
         # Efficient: (A @ inv_Y) * A summed over columns = diag(A @ inv_Y @ A^T)
-        jac_log_det = self._bkd.sum(
-            self._bkd.dot(A, inv_Y) * A, axis=1
-        ) * const
+        jac_log_det = self._bkd.sum(self._bkd.dot(A, inv_Y) * A, axis=1) * const
 
         return self._bkd.reshape(-0.5 * jac_log_det, (1, self._nobs))
 

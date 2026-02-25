@@ -9,21 +9,20 @@ Functions are in a separate module to avoid circular imports.
 
 from typing import Sequence, Union
 
-from pyapprox.util.backends.protocols import Backend
 from pyapprox.surrogates.affine.protocols import (
-    IndexGrowthRuleProtocol,
     AdmissibilityCriteriaProtocol,
     Basis1DProtocol,
+    IndexGrowthRuleProtocol,
 )
 from pyapprox.surrogates.sparsegrids.basis_factory import BasisFactoryProtocol
+from pyapprox.util.backends.protocols import Backend
 
 
 def validate_backend(bkd: object, param_name: str = "bkd") -> None:
     """Validate that bkd satisfies Backend protocol."""
     if not isinstance(bkd, Backend):
         raise TypeError(
-            f"{param_name} must satisfy Backend protocol, "
-            f"got {type(bkd).__name__}"
+            f"{param_name} must satisfy Backend protocol, got {type(bkd).__name__}"
         )
 
 
@@ -73,8 +72,7 @@ def validate_basis1d(basis: object, param_name: str = "univariate_basis") -> Non
     """Validate that basis satisfies Basis1DProtocol."""
     if not isinstance(basis, Basis1DProtocol):
         raise TypeError(
-            f"{param_name} must satisfy Basis1DProtocol, "
-            f"got {type(basis).__name__}"
+            f"{param_name} must satisfy Basis1DProtocol, got {type(basis).__name__}"
         )
 
 

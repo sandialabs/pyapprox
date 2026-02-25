@@ -43,13 +43,9 @@ class TransientMSEFunctional(Generic[Array]):
         validate_backend(bkd)
         self._nstates = nstates
         self._noise_std = noise_std
-        self._obs_state_indices = bkd.asarray(
-            [tup[0] for tup in obs_tuples], dtype=int
-        )
+        self._obs_state_indices = bkd.asarray([tup[0] for tup in obs_tuples], dtype=int)
         self._obs_time_indices = [tup[1] for tup in obs_tuples]
-        self._nobs = sum(
-            [indices.shape[0] for indices in self._obs_time_indices]
-        )
+        self._nobs = sum([indices.shape[0] for indices in self._obs_time_indices])
         # If noise_std is None, sigma is a parameter
         self._nparams = nresidual_params + self.nunique_params()
         self._bkd = bkd
@@ -125,9 +121,7 @@ class TransientMSEFunctional(Generic[Array]):
             Predicted observations. Shape: (nobs,)
         """
         obs = []
-        for state_idx, time_idx in zip(
-            self._obs_state_indices, self._obs_time_indices
-        ):
+        for state_idx, time_idx in zip(self._obs_state_indices, self._obs_time_indices):
             obs.append(sol[int(state_idx)][time_idx])
         return self._bkd.hstack(obs)
 
@@ -149,9 +143,7 @@ class TransientMSEFunctional(Generic[Array]):
         """
         self.set_param(param)
         pred_obs = self._observations_from_solution(sol)
-        mse = self._bkd.sum((pred_obs - self._obs) ** 2) / (
-            2.0 * self._sigma**2
-        )
+        mse = self._bkd.sum((pred_obs - self._obs) ** 2) / (2.0 * self._sigma**2)
         return self._bkd.atleast_2d(mse)
 
     def state_jacobian(self, sol: Array, param: Array) -> Array:
@@ -176,14 +168,11 @@ class TransientMSEFunctional(Generic[Array]):
         dqdu = self._bkd.zeros(sol.shape)
         dqdu = self._bkd.copy(dqdu)
         idx = 0
-        for state_idx, time_idx in zip(
-            self._obs_state_indices, self._obs_time_indices
-        ):
+        for state_idx, time_idx in zip(self._obs_state_indices, self._obs_time_indices):
             state_idx = int(state_idx)
             n_obs_at_state = time_idx.shape[0]
             dqdu[state_idx, time_idx] = (
-                sol[state_idx, time_idx]
-                - self._obs[idx : idx + n_obs_at_state]
+                sol[state_idx, time_idx] - self._obs[idx : idx + n_obs_at_state]
             ) / self._sigma**2
             idx += n_obs_at_state
         return dqdu
@@ -278,22 +267,17 @@ class TransientMSEFunctional(Generic[Array]):
                 state_idx = int(state_idx)
                 # Find the position in obs array
                 idx = 0
-                for si, ti in zip(
-                    self._obs_state_indices, self._obs_time_indices
-                ):
+                for si, ti in zip(self._obs_state_indices, self._obs_time_indices):
                     if int(si) == state_idx:
                         break
                     idx += ti.shape[0]
 
                 if time_idx in obs_time_idx:
                     local_idx = list(obs_time_idx).index(time_idx)
-                    resid = (
-                        float(sol[state_idx, time_idx])
-                        - float(self._obs[idx + local_idx])
+                    resid = float(sol[state_idx, time_idx]) - float(
+                        self._obs[idx + local_idx]
                     )
-                    hvp[state_idx, 0] = (
-                        -2.0 * resid * v_sigma / self._sigma**3
-                    )
+                    hvp[state_idx, 0] = -2.0 * resid * v_sigma / self._sigma**3
 
         return hvp
 
@@ -316,27 +300,22 @@ class TransientMSEFunctional(Generic[Array]):
             ):
                 state_idx = int(state_idx)
                 idx = 0
-                for si, ti in zip(
-                    self._obs_state_indices, self._obs_time_indices
-                ):
+                for si, ti in zip(self._obs_state_indices, self._obs_time_indices):
                     if int(si) == state_idx:
                         break
                     idx += ti.shape[0]
 
                 if time_idx in obs_time_idx:
                     local_idx = list(obs_time_idx).index(time_idx)
-                    resid = (
-                        float(sol[state_idx, time_idx])
-                        - float(self._obs[idx + local_idx])
+                    resid = float(sol[state_idx, time_idx]) - float(
+                        self._obs[idx + local_idx]
                     )
                     w_state = float(wvec[state_idx, 0])
                     hvp[0, 0] += -2.0 * resid * w_state / self._sigma**3
 
         return hvp
 
-    def param_param_hvp(
-        self, sol: Array, param: Array, vvec: Array
-    ) -> Array:
+    def param_param_hvp(self, sol: Array, param: Array, vvec: Array) -> Array:
         """
         Compute (d^2Q/dp^2)·v.
 

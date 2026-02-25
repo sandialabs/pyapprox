@@ -2,19 +2,17 @@
 Tests for TorchExactGaussianProcess with autograd derivatives.
 """
 
-import unittest
 import math
+import unittest
 
 import torch
 
-from pyapprox.surrogates.kernels.torch_matern import TorchMaternKernel
-from pyapprox.surrogates.kernels import Matern52Kernel
+from pyapprox.surrogates.gaussianprocess.exact import ExactGaussianProcess
 from pyapprox.surrogates.gaussianprocess.torch_exact import (
-    TorchExactGaussianProcess
+    TorchExactGaussianProcess,
 )
-from pyapprox.surrogates.gaussianprocess.exact import (
-    ExactGaussianProcess
-)
+from pyapprox.surrogates.kernels import Matern52Kernel
+from pyapprox.surrogates.kernels.torch_matern import TorchMaternKernel
 from pyapprox.util.backends.torch import TorchBkd
 
 
@@ -23,8 +21,7 @@ def _make_gp(nu=2.5, nvars=1, lenscale=None, nugget=1e-6):
     if lenscale is None:
         lenscale = [1.0] * nvars
     kernel = TorchMaternKernel(
-        nu=nu, lenscale=lenscale,
-        lenscale_bounds=(0.1, 10.0), nvars=nvars
+        nu=nu, lenscale=lenscale, lenscale_bounds=(0.1, 10.0), nvars=nvars
     )
     gp = TorchExactGaussianProcess(kernel, nvars=nvars, nugget=nugget)
     # TorchMaternKernel lacks jacobian_wrt_params, so fix all params
@@ -142,19 +139,17 @@ class TestTorchExactGaussianProcess(unittest.TestCase):
 
         jac_fd = (f_plus - f_minus) / (2 * eps)
 
-        self.assertTrue(torch.allclose(
-            jac[0, 0], jac_fd, rtol=1e-4, atol=1e-5
-        ))
+        self.assertTrue(torch.allclose(jac[0, 0], jac_fd, rtol=1e-4, atol=1e-5))
 
     def test_hvp_not_available(self):
         """Test that hvp method is not available (torch.cdist limitation)."""
         gp = _make_gp(nvars=2, lenscale=[1.0, 1.0])
 
         # HVP should not be available due to torch.cdist limitation
-        self.assertFalse(hasattr(gp, 'hvp'))
+        self.assertFalse(hasattr(gp, "hvp"))
 
         # Jacobian should still be available
-        self.assertTrue(hasattr(gp, 'jacobian'))
+        self.assertTrue(hasattr(gp, "jacobian"))
 
     def test_neg_log_marginal_likelihood(self):
         """Test NLML computation."""
@@ -241,14 +236,10 @@ class TestTorchExactGaussianProcess(unittest.TestCase):
 
         # Create both GPs with same hyperparameters
         torch_kernel = TorchMaternKernel(
-            nu=2.5, lenscale=[1.0],
-            lenscale_bounds=(0.1, 10.0), nvars=1
+            nu=2.5, lenscale=[1.0], lenscale_bounds=(0.1, 10.0), nvars=1
         )
         ref_kernel = Matern52Kernel(
-            lenscale=[1.0],
-            lenscale_bounds=(0.1, 10.0),
-            nvars=1,
-            bkd=bkd
+            lenscale=[1.0], lenscale_bounds=(0.1, 10.0), nvars=1, bkd=bkd
         )
 
         torch_gp = TorchExactGaussianProcess(torch_kernel, nvars=1)
@@ -271,9 +262,7 @@ class TestTorchExactGaussianProcess(unittest.TestCase):
         ref_pred = ref_gp.predict(X_test)
 
         # Predictions should match to high precision
-        self.assertTrue(torch.allclose(
-            torch_pred, ref_pred, rtol=1e-6, atol=1e-6
-        ))
+        self.assertTrue(torch.allclose(torch_pred, ref_pred, rtol=1e-6, atol=1e-6))
 
     def test_matches_matern52_jacobian(self):
         """Test autograd Jacobian matches analytical Jacobian from Matern52."""
@@ -281,14 +270,10 @@ class TestTorchExactGaussianProcess(unittest.TestCase):
 
         # Create both GPs
         torch_kernel = TorchMaternKernel(
-            nu=2.5, lenscale=[1.0],
-            lenscale_bounds=(0.1, 10.0), nvars=1
+            nu=2.5, lenscale=[1.0], lenscale_bounds=(0.1, 10.0), nvars=1
         )
         ref_kernel = Matern52Kernel(
-            lenscale=[1.0],
-            lenscale_bounds=(0.1, 10.0),
-            nvars=1,
-            bkd=bkd
+            lenscale=[1.0], lenscale_bounds=(0.1, 10.0), nvars=1, bkd=bkd
         )
 
         torch_gp = TorchExactGaussianProcess(torch_kernel, nvars=1)
@@ -311,14 +296,12 @@ class TestTorchExactGaussianProcess(unittest.TestCase):
         ref_jac = ref_gp.jacobian(X_test)
 
         # Jacobians should match to high precision
-        self.assertTrue(torch.allclose(
-            torch_jac, ref_jac, rtol=1e-5, atol=1e-6
-        ))
+        self.assertTrue(torch.allclose(torch_jac, ref_jac, rtol=1e-5, atol=1e-6))
 
     def test_jacobian_derivative_checker(self):
         """Test Jacobian using DerivativeChecker with finite differences."""
         from pyapprox.interface.functions.derivative_checks.derivative_checker import (
-            DerivativeChecker
+            DerivativeChecker,
         )
 
         bkd = TorchBkd()
@@ -342,33 +325,38 @@ class TestTorchExactGaussianProcess(unittest.TestCase):
 
         # Check Jacobian accuracy
         errors = checker.check_derivatives(
-            x0,
-            fd_eps=fd_eps,
-            relative=True,
-            verbosity=0
+            x0, fd_eps=fd_eps, relative=True, verbosity=0
         )
 
         # Get Jacobian error (first element of errors list)
         jac_error = errors[0]
 
         # All errors should be finite
-        self.assertTrue(bkd.all_bool(bkd.isfinite(jac_error)),
-                       "Jacobian errors contain non-finite values")
+        self.assertTrue(
+            bkd.all_bool(bkd.isfinite(jac_error)),
+            "Jacobian errors contain non-finite values",
+        )
 
         # Minimum error should be small, showing accuracy with optimal step size
         min_error = float(bkd.min(jac_error))
-        self.assertLess(min_error, 1e-6,
-                       f"Minimum Jacobian relative error {min_error} exceeds threshold")
+        self.assertLess(
+            min_error,
+            1e-6,
+            f"Minimum Jacobian relative error {min_error} exceeds threshold",
+        )
 
         # Test that error ratio (min/max) is very small, indicating good convergence
         error_ratio = float(checker.error_ratio(jac_error))
-        self.assertLess(error_ratio, 1e-6,
-                       f"Error ratio {error_ratio:.2e} suggests poor convergence")
+        self.assertLess(
+            error_ratio,
+            1e-6,
+            f"Error ratio {error_ratio:.2e} suggests poor convergence",
+        )
 
     def test_jacobian_derivative_checker_higher_nu(self):
         """Test Jacobian using DerivativeChecker for higher half-integer nu."""
         from pyapprox.interface.functions.derivative_checks.derivative_checker import (
-            DerivativeChecker
+            DerivativeChecker,
         )
 
         bkd = TorchBkd()
@@ -390,36 +378,38 @@ class TestTorchExactGaussianProcess(unittest.TestCase):
 
         # Check Jacobian accuracy
         errors = checker.check_derivatives(
-            x0,
-            fd_eps=fd_eps,
-            relative=True,
-            verbosity=0
+            x0, fd_eps=fd_eps, relative=True, verbosity=0
         )
 
         jac_error = errors[0]
         min_error = float(bkd.min(jac_error))
 
         # Jacobian should be accurate
-        self.assertLess(min_error, 1e-6,
-                       f"Minimum Jacobian error {min_error} for nu=3.5 exceeds threshold")
+        self.assertLess(
+            min_error,
+            1e-6,
+            f"Minimum Jacobian error {min_error} for nu=3.5 exceeds threshold",
+        )
 
         # Error ratio should be small, indicating good convergence
         error_ratio = float(checker.error_ratio(jac_error))
-        self.assertLess(error_ratio, 1e-6,
-                       f"Error ratio {error_ratio:.2e} for nu=3.5 suggests poor convergence")
-
+        self.assertLess(
+            error_ratio,
+            1e-6,
+            f"Error ratio {error_ratio:.2e} for nu=3.5 suggests poor convergence",
+        )
 
     def test_optimization_via_autograd(self):
-        """Test hyperparameter optimization works via autograd (no analytical gradients)."""
+        """Test hyperparameter optimization works via autograd (no analytical
+        gradients)."""
         from pyapprox.surrogates.gaussianprocess.gp_loss import (
-            GPNegativeLogMarginalLikelihoodLoss
+            GPNegativeLogMarginalLikelihoodLoss,
         )
 
         # TorchMaternKernel lacks jacobian_wrt_params, so optimization
         # must use autograd through loss.__call__()
         kernel = TorchMaternKernel(
-            nu=2.5, lenscale=[0.5],
-            lenscale_bounds=(0.1, 10.0), nvars=1
+            nu=2.5, lenscale=[0.5], lenscale_bounds=(0.1, 10.0), nvars=1
         )
         gp = TorchExactGaussianProcess(kernel, nvars=1)
         # Leave params active so optimization runs
@@ -432,9 +422,11 @@ class TestTorchExactGaussianProcess(unittest.TestCase):
         loss = GPNegativeLogMarginalLikelihoodLoss(gp, (X_train, y_train))
         gp._configure_loss(loss)
 
-        self.assertFalse(hasattr(kernel, 'jacobian_wrt_params'))
-        self.assertTrue(hasattr(loss, 'jacobian'),
-                       "Autograd jacobian should be bound by _configure_loss")
+        self.assertFalse(hasattr(kernel, "jacobian_wrt_params"))
+        self.assertTrue(
+            hasattr(loss, "jacobian"),
+            "Autograd jacobian should be bound by _configure_loss",
+        )
 
         # Compute loss and gradient
         params = gp.hyp_list().get_active_values()
@@ -450,8 +442,7 @@ class TestTorchExactGaussianProcess(unittest.TestCase):
     def test_fit_optimizes_hyperparameters(self):
         """Test that fit() optimizes hyperparameters using autograd gradients."""
         kernel = TorchMaternKernel(
-            nu=2.5, lenscale=[0.3],
-            lenscale_bounds=(0.1, 10.0), nvars=1
+            nu=2.5, lenscale=[0.3], lenscale_bounds=(0.1, 10.0), nvars=1
         )
         gp = TorchExactGaussianProcess(kernel, nvars=1)
         # Leave params active for optimization
@@ -468,7 +459,7 @@ class TestTorchExactGaussianProcess(unittest.TestCase):
         # Hyperparameters should have changed during optimization
         self.assertFalse(
             torch.allclose(initial_lenscale, final_lenscale),
-            "Hyperparameters should change during optimization"
+            "Hyperparameters should change during optimization",
         )
 
         # Predictions should be reasonable
@@ -476,8 +467,9 @@ class TestTorchExactGaussianProcess(unittest.TestCase):
         mean = gp.predict(X_test)
         y_true = torch.sin(X_test[0])[None, :]
         error = torch.abs(mean - y_true).mean()
-        self.assertLess(float(error), 0.5,
-                       f"Mean prediction error {float(error)} too large")
+        self.assertLess(
+            float(error), 0.5, f"Mean prediction error {float(error)} too large"
+        )
 
 
 if __name__ == "__main__":

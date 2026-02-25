@@ -197,9 +197,7 @@ class GaussianParameterSweeper(Generic[Array]):
         for ii in range(nsweeps):
             rotation_vec = self._rotation_mat[:, ii : ii + 1]
             y_samples = self.canonical_sweep_samples(rotation_vec)
-            self._canonical_active_samples[ii, :] = self._bkd.reshape(
-                y_samples, (-1,)
-            )
+            self._canonical_active_samples[ii, :] = self._bkd.reshape(y_samples, (-1,))
 
             start = ii * self._nsamples_per_sweep
             end = (ii + 1) * self._nsamples_per_sweep

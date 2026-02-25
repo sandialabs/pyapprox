@@ -13,23 +13,23 @@ precision residuals (< 1e-12).
 import unittest
 from typing import Generic
 
-from pyapprox.util.backends.protocols import Array, Backend
-from pyapprox.util.backends.numpy import NumpyBkd
-from pyapprox.util.test_utils import load_tests  # noqa: F401
-from pyapprox.pde.collocation.basis import ChebyshevBasis2D
-from pyapprox.pde.collocation.mesh import (
-    create_uniform_mesh_2d,
-    TransformedMesh2D,
-)
-from pyapprox.pde.collocation.boundary import zero_dirichlet_bc
-from pyapprox.pde.collocation.physics import LinearElasticityPhysics
-from pyapprox.pde.collocation.time_integration import CollocationModel
-from pyapprox.pde.collocation.manufactured_solutions import (
-    ManufacturedLinearElasticityEquations,
-)
 from pyapprox.interface.functions.derivative_checks.derivative_checker import (
     DerivativeChecker,
 )
+from pyapprox.pde.collocation.basis import ChebyshevBasis2D
+from pyapprox.pde.collocation.boundary import zero_dirichlet_bc
+from pyapprox.pde.collocation.manufactured_solutions import (
+    ManufacturedLinearElasticityEquations,
+)
+from pyapprox.pde.collocation.mesh import (
+    TransformedMesh2D,
+    create_uniform_mesh_2d,
+)
+from pyapprox.pde.collocation.physics import LinearElasticityPhysics
+from pyapprox.pde.collocation.time_integration import CollocationModel
+from pyapprox.util.backends.numpy import NumpyBkd
+from pyapprox.util.backends.protocols import Array, Backend
+from pyapprox.util.test_utils import load_tests  # noqa: F401
 
 
 class PhysicsDerivativeWrapper(Generic[Array]):
@@ -117,7 +117,7 @@ class TestLinearElasticity(Generic[Array], unittest.TestCase):
         # Construct mesh nodes with 'xy' indexing
         nodes_x = basis.nodes_x()
         nodes_y = basis.nodes_y()
-        xx, yy = bkd.meshgrid(nodes_x, nodes_y, indexing='xy')
+        xx, yy = bkd.meshgrid(nodes_x, nodes_y, indexing="xy")
         nodes = bkd.stack([xx.flatten(), yy.flatten()], axis=0)
 
         # Get exact solution and forcing
@@ -163,9 +163,7 @@ class TestLinearElasticity(Generic[Array], unittest.TestCase):
                 boundary_indices.add(idx)
                 boundary_indices.add(idx + npts)  # v component
 
-        interior_indices = [
-            i for i in range(2 * npts) if i not in boundary_indices
-        ]
+        interior_indices = [i for i in range(2 * npts) if i not in boundary_indices]
         interior_residual = bkd.asarray([residual_with_bc[i] for i in interior_indices])
 
         # Machine precision residual for polynomial solution
@@ -242,7 +240,7 @@ class TestLinearElasticity(Generic[Array], unittest.TestCase):
         # Construct mesh nodes
         nodes_x = basis.nodes_x()
         nodes_y = basis.nodes_y()
-        xx, yy = bkd.meshgrid(nodes_x, nodes_y, indexing='xy')
+        xx, yy = bkd.meshgrid(nodes_x, nodes_y, indexing="xy")
         nodes = bkd.stack([xx.flatten(), yy.flatten()], axis=0)
 
         u_exact = man_sol.functions["solution"](nodes)

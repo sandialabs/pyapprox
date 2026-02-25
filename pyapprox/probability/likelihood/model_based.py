@@ -7,13 +7,13 @@ parameter-to-log-likelihood object.
 
 from typing import Generic
 
-from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.interface.functions.protocols.function import (
     FunctionProtocol,
 )
 from pyapprox.probability.protocols.likelihood import (
     LogLikelihoodProtocol,
 )
+from pyapprox.util.backends.protocols import Array, Backend
 
 
 class ModelBasedLogLikelihood(Generic[Array]):
@@ -69,8 +69,7 @@ class ModelBasedLogLikelihood(Generic[Array]):
     ) -> None:
         if not isinstance(model, FunctionProtocol):
             raise TypeError(
-                "model must satisfy FunctionProtocol, "
-                f"got {type(model).__name__}"
+                f"model must satisfy FunctionProtocol, got {type(model).__name__}"
             )
         if not isinstance(noise_likelihood, LogLikelihoodProtocol):
             raise TypeError(
@@ -215,9 +214,7 @@ class ModelBasedLogLikelihood(Generic[Array]):
         """
         return self._jacobian(sample).T
 
-    def _logpdf_vectorized(
-        self, parameters: Array, observations: Array
-    ) -> Array:
+    def _logpdf_vectorized(self, parameters: Array, observations: Array) -> Array:
         """
         Batched log-likelihood evaluation.
 
@@ -236,9 +233,7 @@ class ModelBasedLogLikelihood(Generic[Array]):
             Log-likelihood matrix. Shape: (n_param_samples, n_obs_samples)
         """
         model_outputs = self._model(parameters)
-        return self._noise_likelihood.logpdf_vectorized(
-            model_outputs, observations
-        )
+        return self._noise_likelihood.logpdf_vectorized(model_outputs, observations)
 
     def _set_design_weights(self, weights: Array) -> None:
         """

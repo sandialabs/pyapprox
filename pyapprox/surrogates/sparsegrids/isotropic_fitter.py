@@ -6,11 +6,20 @@ collects unique samples, and fits a CombinationSurrogate.
 
 from typing import Dict, Generic, List, Optional, Tuple, Union
 
-from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.surrogates.affine.indices import HyperbolicIndexGenerator
+from pyapprox.surrogates.sparsegrids.candidate_info import ConfigIdx
+from pyapprox.surrogates.sparsegrids.combination_surrogate import (
+    CombinationSurrogate,
+)
+from pyapprox.surrogates.sparsegrids.fit_result import (
+    IsotropicSparseGridFitResult,
+)
+from pyapprox.surrogates.sparsegrids.sample_tracker import (
+    SampleTracker,
+)
 from pyapprox.surrogates.sparsegrids.smolyak import (
-    compute_smolyak_coefficients,
     _index_to_tuple,
+    compute_smolyak_coefficients,
 )
 from pyapprox.surrogates.sparsegrids.subspace import (
     TensorProductSubspace,
@@ -18,16 +27,7 @@ from pyapprox.surrogates.sparsegrids.subspace import (
 from pyapprox.surrogates.sparsegrids.subspace_factory import (
     SubspaceFactoryProtocol,
 )
-from pyapprox.surrogates.sparsegrids.sample_tracker import (
-    SampleTracker,
-)
-from pyapprox.surrogates.sparsegrids.combination_surrogate import (
-    CombinationSurrogate,
-)
-from pyapprox.surrogates.sparsegrids.fit_result import (
-    IsotropicSparseGridFitResult,
-)
-from pyapprox.surrogates.sparsegrids.candidate_info import ConfigIdx
+from pyapprox.util.backends.protocols import Array, Backend
 
 
 class IsotropicSparseGridFitter(Generic[Array]):
@@ -93,14 +93,12 @@ class IsotropicSparseGridFitter(Generic[Array]):
             dtype=self._bkd.int64_dtype(),
         )
         for j, subspace in enumerate(self._subspaces):
-            physical_indices[: self._nvars_physical, j] = (
-                subspace.get_index()
-            )
+            physical_indices[: self._nvars_physical, j] = subspace.get_index()
             # Fill config dims from full index
             full_idx_arr = indices[:, j]
-            physical_indices[self._nvars_physical :, j] = (
-                full_idx_arr[self._nvars_physical :]
-            )
+            physical_indices[self._nvars_physical :, j] = full_idx_arr[
+                self._nvars_physical :
+            ]
         self._indices = indices
         self._smolyak_coefs = compute_smolyak_coefficients(indices, bkd)
 
@@ -109,9 +107,7 @@ class IsotropicSparseGridFitter(Generic[Array]):
         config_idx = self._get_config_idx(full_index)
 
         if config_idx not in self._trackers:
-            self._trackers[config_idx] = SampleTracker(
-                self._bkd, self._factory
-            )
+            self._trackers[config_idx] = SampleTracker(self._bkd, self._factory)
 
         tracker = self._trackers[config_idx]
         subspace = self._factory(full_index)
@@ -177,9 +173,7 @@ class IsotropicSparseGridFitter(Generic[Array]):
             Unique values, or None if fit() has not been called.
         """
         # Check if any tracker has values
-        has_values = any(
-            t.nqoi() is not None for t in self._trackers.values()
-        )
+        has_values = any(t.nqoi() is not None for t in self._trackers.values())
         if not has_values:
             return None
 
@@ -231,9 +225,7 @@ class IsotropicSparseGridFitter(Generic[Array]):
             indices=self._indices,
         )
 
-        nsamples = sum(
-            t.n_unique_samples() for t in self._trackers.values()
-        )
+        nsamples = sum(t.n_unique_samples() for t in self._trackers.values())
 
         return IsotropicSparseGridFitResult(
             surrogate=surrogate,

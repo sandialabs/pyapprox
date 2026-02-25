@@ -3,12 +3,13 @@ Tests for Lotka-Volterra ODE residual with HVP support.
 
 Uses TimeAdjointDerivativeChecker for all derivative tests.
 """
+
 import unittest
 
-from pyapprox.util.backends.numpy import NumpyBkd
 from pyapprox.pde.time.benchmarks.lotka_volterra import (
     LotkaVolterraResidual,
 )
+from pyapprox.util.backends.numpy import NumpyBkd
 
 
 class TestLotkaVolterraResidual(unittest.TestCase):
@@ -20,12 +21,9 @@ class TestLotkaVolterraResidual(unittest.TestCase):
         self._nspecies = 3
         self._residual = LotkaVolterraResidual(self._nspecies, self._bkd)
 
-        self._params = self._bkd.array([
-            0.5, 0.6, 0.7,
-            1.0, 0.1, 0.2,
-            0.1, 1.0, 0.1,
-            0.2, 0.1, 1.0
-        ])
+        self._params = self._bkd.array(
+            [0.5, 0.6, 0.7, 1.0, 0.1, 0.2, 0.1, 1.0, 0.1, 0.2, 0.1, 1.0]
+        )
         self._residual.set_param(self._params)
         self._residual.set_time(0.0)
 
@@ -53,25 +51,17 @@ class TestLotkaVolterraResidual(unittest.TestCase):
         wvec = self._bkd.array([0.1, 0.2, 0.15])
         vvec = self._bkd.ones(12) * 0.1
 
-        ss = self._residual.state_state_hvp(
-            self._state, self._adj_state, wvec
-        )
+        ss = self._residual.state_state_hvp(self._state, self._adj_state, wvec)
         self.assertEqual(ss.shape, (self._nspecies,))
 
-        sp = self._residual.state_param_hvp(
-            self._state, self._adj_state, vvec
-        )
+        sp = self._residual.state_param_hvp(self._state, self._adj_state, vvec)
         self.assertEqual(sp.shape, (self._nspecies,))
 
-        ps = self._residual.param_state_hvp(
-            self._state, self._adj_state, wvec
-        )
+        ps = self._residual.param_state_hvp(self._state, self._adj_state, wvec)
         nparams = self._nspecies + self._nspecies**2
         self.assertEqual(ps.shape, (nparams,))
 
-        pp = self._residual.param_param_hvp(
-            self._state, self._adj_state, vvec
-        )
+        pp = self._residual.param_param_hvp(self._state, self._adj_state, vvec)
         self.assertEqual(pp.shape, (nparams,))
 
     def test_mass_matrix_is_identity(self):
@@ -91,24 +81,21 @@ class TestLotkaVolterraWithTimeAdjoint(unittest.TestCase):
         self._deltat = 0.1
         self._nsteps = 5
 
-        self._params = self._bkd.array([
-            0.5, 0.6, 0.7,
-            1.0, 0.1, 0.2,
-            0.1, 1.0, 0.1,
-            0.2, 0.1, 1.0
-        ])
+        self._params = self._bkd.array(
+            [0.5, 0.6, 0.7, 1.0, 0.1, 0.2, 0.1, 1.0, 0.1, 0.2, 0.1, 1.0]
+        )
         self._init_state = self._bkd.array([0.3, 0.4, 0.3])
 
     def _create_operator_with_endpoint(self):
         """Create TimeAdjointOperatorWithHVP with EndpointFunctional."""
+        from pyapprox.optimization.rootfinding.newton import NewtonSolver
+        from pyapprox.pde.time.functionals.endpoint import EndpointFunctional
         from pyapprox.pde.time.implicit_steppers.backward_euler import (
             BackwardEulerResidual,
         )
-        from pyapprox.optimization.rootfinding.newton import NewtonSolver
         from pyapprox.pde.time.implicit_steppers.integrator import (
             TimeIntegrator,
         )
-        from pyapprox.pde.time.functionals.endpoint import EndpointFunctional
         from pyapprox.pde.time.operator import TimeAdjointOperatorWithHVP
 
         residual = LotkaVolterraResidual(self._nspecies, self._bkd)
@@ -132,14 +119,14 @@ class TestLotkaVolterraWithTimeAdjoint(unittest.TestCase):
 
     def _create_operator_with_mse(self):
         """Create TimeAdjointOperatorWithHVP with TransientMSEFunctional."""
+        from pyapprox.optimization.rootfinding.newton import NewtonSolver
+        from pyapprox.pde.time.functionals.mse import TransientMSEFunctional
         from pyapprox.pde.time.implicit_steppers.backward_euler import (
             BackwardEulerResidual,
         )
-        from pyapprox.optimization.rootfinding.newton import NewtonSolver
         from pyapprox.pde.time.implicit_steppers.integrator import (
             TimeIntegrator,
         )
-        from pyapprox.pde.time.functionals.mse import TransientMSEFunctional
         from pyapprox.pde.time.operator import TimeAdjointOperatorWithHVP
 
         residual = LotkaVolterraResidual(self._nspecies, self._bkd)
@@ -183,9 +170,7 @@ class TestLotkaVolterraWithTimeAdjoint(unittest.TestCase):
         checker._assert_derivatives_close(errors, 1e-5, "ODE jacobian")
 
         # Check ODE param jacobian
-        errors = checker.check_ode_param_jacobian(
-            self._init_state, param_2d, time=0.0
-        )
+        errors = checker.check_ode_param_jacobian(self._init_state, param_2d, time=0.0)
         checker._assert_derivatives_close(errors, 1e-5, "ODE param_jacobian")
 
         # Check ODE HVPs

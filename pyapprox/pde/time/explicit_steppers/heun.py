@@ -13,13 +13,10 @@ This module provides full adjoint support for gradient computation dQ/dp
 via the adjoint method.
 """
 
-from typing import Tuple
-
-from pyapprox.util.backends.protocols import Array
 from pyapprox.pde.time.protocols import (
     TimeSteppingResidualBase,
-    ODEResidualProtocol,
 )
+from pyapprox.util.backends.protocols import Array
 
 
 class HeunResidual(TimeSteppingResidualBase[Array]):
@@ -74,10 +71,9 @@ class HeunResidual(TimeSteppingResidualBase[Array]):
         self._residual.set_time(self._time + self._deltat)
         k2 = self._residual(next_state)
 
-        return (
-            self._residual.apply_mass_matrix(state - self._prev_state)
-            - 0.5 * self._deltat * (k1 + k2)
-        )
+        return self._residual.apply_mass_matrix(
+            state - self._prev_state
+        ) - 0.5 * self._deltat * (k1 + k2)
 
     def jacobian(self, state: Array) -> Array:
         """
@@ -148,10 +144,7 @@ class HeunResidual(TimeSteppingResidualBase[Array]):
         mass = self._residual.mass_matrix(fsol_nm1.shape[0])
 
         # dR/dy_{n-1} = -(M + (Δt/2)·(J1 + J2·(M + Δt·J1)))
-        return -(
-            mass
-            + 0.5 * deltat * (k1_jac + k2_jac @ (mass + deltat * k1_jac))
-        )
+        return -(mass + 0.5 * deltat * (k1_jac + k2_jac @ (mass + deltat * k1_jac)))
 
     # =========================================================================
     # Adjoint Methods
@@ -195,7 +188,9 @@ class HeunResidual(TimeSteppingResidualBase[Array]):
 
         # Chain rule: dk2/dp = ∂f/∂p + ∂f/∂y · Δt · dk1/dp
         jac = -(
-            0.5 * self._deltat * (
+            0.5
+            * self._deltat
+            * (
                 k1_param_jac
                 + k2_param_jac
                 + self._deltat * (k2_state_jac @ k1_param_jac)
@@ -221,9 +216,7 @@ class HeunResidual(TimeSteppingResidualBase[Array]):
         """
         return self._residual.mass_matrix(fsol_n.shape[0]).T
 
-    def adjoint_off_diag_jacobian(
-        self, fsol_n: Array, deltat_np1: float
-    ) -> Array:
+    def adjoint_off_diag_jacobian(self, fsol_n: Array, deltat_np1: float) -> Array:
         """
         Compute the off-diagonal Jacobian for adjoint coupling.
 
@@ -261,8 +254,7 @@ class HeunResidual(TimeSteppingResidualBase[Array]):
 
         # dR/dy_{n-1} for Heun: -(M + (Δt/2)·(J_1 + J_2·(I + Δt·J_1)))
         jac = -(
-            mass
-            + 0.5 * deltat_np1 * (k1_jac + k2_jac @ (mass + deltat_np1 * k1_jac))
+            mass + 0.5 * deltat_np1 * (k1_jac + k2_jac @ (mass + deltat_np1 * k1_jac))
         )
         return jac.T
 
@@ -293,6 +285,7 @@ class HeunResidual(TimeSteppingResidualBase[Array]):
         from pyapprox.surrogates.affine.univariate.piecewisepoly import (
             PiecewiseLinear,
         )
+
         return PiecewiseLinear
 
     # =========================================================================
@@ -363,9 +356,7 @@ class HeunResidual(TimeSteppingResidualBase[Array]):
         # We need: (J2^T · adj)^T · (dt · H1 · w) = (J2^T · adj)^T · dt · H1 · w
         # So we need to compute H1 · w with adjoint = J2^T · adj
         J2_T_adj = J2.T @ adj_state
-        k2_term2 = dt * self._residual.state_state_hvp(
-            fsol_nm1, J2_T_adj, wvec
-        )
+        k2_term2 = dt * self._residual.state_state_hvp(fsol_nm1, J2_T_adj, wvec)
 
         # Flatten k1_ss_hvp for consistent addition
         result = k1_ss_hvp.flatten() + k2_term1 + k2_term2.flatten()
@@ -473,7 +464,7 @@ class HeunResidual(TimeSteppingResidualBase[Array]):
                          + J_z · dt · (∂²f/∂p∂y)|_y        -- Term 3
         """
         dt = self._deltat
-        bkd = self._residual.bkd()
+        self._residual.bkd()
 
         # Stage 1
         self._residual.set_time(self._time)
@@ -506,7 +497,8 @@ class HeunResidual(TimeSteppingResidualBase[Array]):
         H_z_dz_dy_w = self._residual.state_state_hvp(z, adj_state, dz_dy_w)
         # H_z_dz_dy_w is scalar (nstates=1) or vector (nstates,)
         # df/dp|_y is (nstates, nparams)
-        # Result: df/dp|_y^T · H_z_dz_dy_w = (nparams, nstates) @ (nstates,) = (nparams,)
+        # Result: df/dp|_y^T · H_z_dz_dy_w = (nparams, nstates) @ (nstates,) =
+        # (nparams,)
         k2_term2 = dt * (dk1_dp.T @ H_z_dz_dy_w.reshape(-1, 1))
 
         # Term 3: J_z · dt · (∂²f/∂p∂y)|_y · w
@@ -601,7 +593,8 @@ class HeunResidual(TimeSteppingResidualBase[Array]):
         k2_term4 = dt * self._residual.param_param_hvp(fsol_nm1, J2_T_adj, vvec)
 
         # Term 5 (NEW): ∂J_z/∂p · v · dt · dk1_dp
-        # This is the contribution from d/dp[J_z] when differentiating J_z · dt · ∂f/∂p|_y.
+        # This is the contribution from d/dp[J_z] when differentiating J_z · dt ·
+        # ∂f/∂p|_y.
         # dJ_z/dp = ∂J_z/∂p + H_z · dz/dp
         # The ∂J_z/∂p part gives this term (H_z · dz/dp is already in Term 3).
         # ∂J_z/∂p = ∂²f/(∂y∂p)|_z, which is state_param_hvp(z, adj, v).

@@ -3,19 +3,19 @@
 Provides mesh construction for 2D domains with tensor-product structure.
 """
 
-from typing import Generic, Tuple, Optional, List
+from typing import Generic, List, Optional, Tuple
 
-from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.pde.collocation.mesh.base import (
     MeshData,
     MeshDataWithTransform,
-    compute_cartesian_product,
     compute_boundary_indices_2d,
+    compute_cartesian_product,
 )
 from pyapprox.pde.collocation.mesh.transforms.affine import (
     AffineTransform2D,
 )
 from pyapprox.pde.collocation.protocols.mesh import TransformProtocol
+from pyapprox.util.backends.protocols import Array, Backend
 
 
 class CartesianMesh2D(Generic[Array]):
@@ -54,9 +54,7 @@ class CartesianMesh2D(Generic[Array]):
         self._npts_per_dim = (npts_x, npts_y)
 
         # Reference points via Cartesian product: shape (2, npts_x * npts_y)
-        self._reference_points = compute_cartesian_product(
-            reference_pts_1d, bkd
-        )
+        self._reference_points = compute_cartesian_product(reference_pts_1d, bkd)
 
         # Compute physical points
         if transform is not None:
@@ -65,9 +63,7 @@ class CartesianMesh2D(Generic[Array]):
             self._points = bkd.copy(self._reference_points)
 
         # Compute boundary indices
-        self._boundary_indices = compute_boundary_indices_2d(
-            npts_x, npts_y, bkd
-        )
+        self._boundary_indices = compute_boundary_indices_2d(npts_x, npts_y, bkd)
 
         # Store transform data if available
         if transform is not None:

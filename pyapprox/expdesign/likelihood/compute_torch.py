@@ -9,6 +9,7 @@ Each function mirrors the corresponding function in compute.py but uses
 torch operations directly. The has_latent: bool flag replaces Optional[Array]
 to avoid suboptimal torch.compile handling of Optional types.
 """
+
 import math
 
 import torch
@@ -42,15 +43,17 @@ def logpdf_matrix_torch(
     inv_var = design_weights[:, 0] / base_variances
 
     # Log normalization as scalar tensor (preserves autograd graph)
-    log_det = (
-        torch.sum(torch.log(base_variances))
-        - torch.sum(torch.log(design_weights))
+    log_det = torch.sum(torch.log(base_variances)) - torch.sum(
+        torch.log(design_weights)
     )
-    log_norm = torch.tensor(
-        -0.5 * nobs * math.log(2 * math.pi),
-        dtype=design_weights.dtype,
-        device=design_weights.device,
-    ) - 0.5 * log_det
+    log_norm = (
+        torch.tensor(
+            -0.5 * nobs * math.log(2 * math.pi),
+            dtype=design_weights.dtype,
+            device=design_weights.device,
+        )
+        - 0.5 * log_det
+    )
 
     # residuals: (nobs, ninner, nouter)
     residuals = obs[:, None, :] - shapes[:, :, None]

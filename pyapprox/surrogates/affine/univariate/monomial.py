@@ -71,7 +71,7 @@ class MonomialBasis1D(Generic[Array]):
             If samples is not 2D with shape (1, nsamples).
         """
         powers = self._bkd.reshape(self._bkd.arange(self._nterms), (1, -1))
-        return samples.T ** powers
+        return samples.T**powers
 
     def jacobian_batch(self, samples: Array) -> Array:
         """Evaluate first derivatives of monomial basis.

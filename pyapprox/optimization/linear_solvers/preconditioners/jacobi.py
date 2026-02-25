@@ -69,9 +69,7 @@ class JacobiPreconditioner(Generic[Array]):
             Preconditioned vector. Shape: (n,)
         """
         if self._inv_diag is None:
-            raise RuntimeError(
-                "Preconditioner not set up. Call setup(A) first."
-            )
+            raise RuntimeError("Preconditioner not set up. Call setup(A) first.")
         return self._inv_diag * r
 
 
@@ -119,9 +117,7 @@ class BlockJacobiPreconditioner(Generic[Array]):
         bs = self._block_size
 
         if n % bs != 0:
-            raise ValueError(
-                f"Matrix size {n} not divisible by block size {bs}"
-            )
+            raise ValueError(f"Matrix size {n} not divisible by block size {bs}")
 
         self._nblocks = n // bs
         # Store inverted blocks: (nblocks, bs, bs)
@@ -132,9 +128,7 @@ class BlockJacobiPreconditioner(Generic[Array]):
             end = start + bs
             block = A[start:end, start:end]
             # Invert each block
-            inv_block = bkd.solve(
-                block, bkd.eye(bs)
-            )
+            inv_block = bkd.solve(block, bkd.eye(bs))
             self._inv_blocks[i, :, :] = inv_block
 
     def apply(self, r: Array) -> Array:
@@ -151,9 +145,7 @@ class BlockJacobiPreconditioner(Generic[Array]):
             Preconditioned vector. Shape: (n,)
         """
         if self._inv_blocks is None:
-            raise RuntimeError(
-                "Preconditioner not set up. Call setup(A) first."
-            )
+            raise RuntimeError("Preconditioner not set up. Call setup(A) first.")
 
         bkd = self._bkd
         bs = self._block_size
@@ -169,9 +161,7 @@ class BlockJacobiPreconditioner(Generic[Array]):
         return result
 
 
-def jacobi_preconditioner(
-    A: Array, bkd: Backend[Array]
-) -> JacobiPreconditioner[Array]:
+def jacobi_preconditioner(A: Array, bkd: Backend[Array]) -> JacobiPreconditioner[Array]:
     """Create a Jacobi preconditioner for the given matrix.
 
     Parameters

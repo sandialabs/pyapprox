@@ -73,14 +73,10 @@ class ConditionalDenseCholGaussian(Generic[Array]):
             raise ValueError("chol_offdiag_func must be None for d=1")
 
         if mean_func.nvars() != log_chol_diag_func.nvars():
-            raise ValueError(
-                "mean_func and log_chol_diag_func must have same nvars"
-            )
+            raise ValueError("mean_func and log_chol_diag_func must have same nvars")
         if chol_offdiag_func is not None:
             if mean_func.nvars() != chol_offdiag_func.nvars():
-                raise ValueError(
-                    "all parameter functions must have same nvars"
-                )
+                raise ValueError("all parameter functions must have same nvars")
 
         # Precompute lower-triangular indices for off-diagonal elements
         # Row-major order: (1,0), (2,0), (2,1), (3,0), ...
@@ -182,13 +178,9 @@ class ConditionalDenseCholGaussian(Generic[Array]):
         if y.ndim != 2:
             raise ValueError(f"y must be 2D, got {y.ndim}D")
         if x.shape[0] != self.nvars():
-            raise ValueError(
-                f"x first dim must be {self.nvars()}, got {x.shape[0]}"
-            )
+            raise ValueError(f"x first dim must be {self.nvars()}, got {x.shape[0]}")
         if y.shape[0] != self._d:
-            raise ValueError(
-                f"y first dim must be {self._d}, got {y.shape[0]}"
-            )
+            raise ValueError(f"y first dim must be {self._d}, got {y.shape[0]}")
         if x.shape[1] != y.shape[1]:
             raise ValueError("x and y must have same number of samples")
 
@@ -227,7 +219,7 @@ class ConditionalDenseCholGaussian(Generic[Array]):
         )  # (nsamples, d, 1)
         whitened = whitened_3d[:, :, 0]  # (nsamples, d)
 
-        sq_mahal = bkd.sum(whitened ** 2, axis=1)  # (nsamples,)
+        sq_mahal = bkd.sum(whitened**2, axis=1)  # (nsamples,)
         log_det_L = bkd.sum(log_diag, axis=0)  # (nsamples,)
 
         logpdf = -0.5 * d * self._log_2pi - log_det_L - 0.5 * sq_mahal
@@ -247,9 +239,7 @@ class ConditionalDenseCholGaussian(Generic[Array]):
             Random samples. Shape: (d, nsamples)
         """
         nsamples = x.shape[1]
-        base = self._bkd.asarray(
-            np.random.randn(self._d, nsamples).astype(np.float64)
-        )
+        base = self._bkd.asarray(np.random.randn(self._d, nsamples).astype(np.float64))
         return self.reparameterize(x, base)
 
     def reparameterize(self, x: Array, base_samples: Array) -> Array:
@@ -271,15 +261,15 @@ class ConditionalDenseCholGaussian(Generic[Array]):
         """
         self._sync_param_funcs()
         bkd = self._bkd
-        d = self._d
 
         mean = self._mean_func(x)  # (d, nsamples)
         L_batch = self._build_chol_factor(x)  # (nsamples, d, d)
 
         # Batch L @ eps via einsum: (nsamples,d,d) x (d,nsamples) -> (d,nsamples)
-        # eps.T -> (nsamples, d); einsum 'nij,nj->ni' -> (nsamples, d); .T -> (d, nsamples)
+        # eps.T -> (nsamples, d); einsum 'nij,nj->ni' -> (nsamples, d); .T -> (d,
+        # nsamples)
         eps_T = base_samples.T  # (nsamples, d)
-        Leps = bkd.einsum('nij,nj->ni', L_batch, eps_T)  # (nsamples, d)
+        Leps = bkd.einsum("nij,nj->ni", L_batch, eps_T)  # (nsamples, d)
 
         return mean + Leps.T  # (d, nsamples)
 
@@ -315,8 +305,8 @@ class ConditionalDenseCholGaussian(Generic[Array]):
         # Trace term: tr(Sigma_p^{-1} L_q L_q^T) per sample
         # = sum_{ij} (Sigma_p^{-1} @ L_q)_{ij} * (L_q)_{ij}
         # Sigma_p_inv @ L_batch: einsum 'ij,njk->nik'
-        SinvL = bkd.einsum('ij,njk->nik', cov_p_inv, L_batch)  # (N,d,d)
-        trace_term = bkd.einsum('nij,nij->n', SinvL, L_batch)  # (N,)
+        SinvL = bkd.einsum("ij,njk->nik", cov_p_inv, L_batch)  # (N,d,d)
+        trace_term = bkd.einsum("nij,nij->n", SinvL, L_batch)  # (N,)
 
         # Quadratic term: (mu_p - mu_q)^T Sigma_p^{-1} (mu_p - mu_q)
         mean_diff = mean_p - mean_q  # (d, nsamples)
@@ -345,13 +335,14 @@ class ConditionalDenseCholGaussian(Generic[Array]):
         """
         self._sync_param_funcs()
         L_batch = self._build_chol_factor(x)  # (nsamples, d, d)
-        return self._bkd.einsum('nij,nkj->nik', L_batch, L_batch)
+        return self._bkd.einsum("nij,nkj->nik", L_batch, L_batch)
 
     def base_distribution(self):
         """Return the base distribution for reparameterization: N(0, I_d)."""
         from pyapprox.probability.gaussian.dense import (
             DenseCholeskyMultivariateGaussian,
         )
+
         return DenseCholeskyMultivariateGaussian(
             self._bkd.zeros((self._d, 1)),
             self._bkd.eye(self._d),
@@ -359,10 +350,7 @@ class ConditionalDenseCholGaussian(Generic[Array]):
         )
 
     def __repr__(self) -> str:
-        return (
-            f"ConditionalDenseCholGaussian(nvars={self.nvars()}, "
-            f"nqoi={self.nqoi()})"
-        )
+        return f"ConditionalDenseCholGaussian(nvars={self.nvars()}, nqoi={self.nqoi()})"
 
 
 class ConditionalLowRankCholGaussian(Generic[Array]):
@@ -417,29 +405,23 @@ class ConditionalLowRankCholGaussian(Generic[Array]):
 
         if log_diag_func.nqoi() != d:
             raise ValueError(
-                f"log_diag_func must have nqoi={d}, "
-                f"got {log_diag_func.nqoi()}"
+                f"log_diag_func must have nqoi={d}, got {log_diag_func.nqoi()}"
             )
         if rank > 0:
             if factor_func is None:
                 raise ValueError("factor_func required for rank > 0")
             if factor_func.nqoi() != d * rank:
                 raise ValueError(
-                    f"factor_func must have nqoi={d * rank}, "
-                    f"got {factor_func.nqoi()}"
+                    f"factor_func must have nqoi={d * rank}, got {factor_func.nqoi()}"
                 )
         elif factor_func is not None:
             raise ValueError("factor_func must be None for rank=0")
 
         if mean_func.nvars() != log_diag_func.nvars():
-            raise ValueError(
-                "mean_func and log_diag_func must have same nvars"
-            )
+            raise ValueError("mean_func and log_diag_func must have same nvars")
         if factor_func is not None:
             if mean_func.nvars() != factor_func.nvars():
-                raise ValueError(
-                    "all parameter functions must have same nvars"
-                )
+                raise ValueError("all parameter functions must have same nvars")
 
         self._log_2pi = math.log(2.0 * math.pi)
         self._setup_methods()
@@ -515,13 +497,9 @@ class ConditionalLowRankCholGaussian(Generic[Array]):
         if y.ndim != 2:
             raise ValueError(f"y must be 2D, got {y.ndim}D")
         if x.shape[0] != self.nvars():
-            raise ValueError(
-                f"x first dim must be {self.nvars()}, got {x.shape[0]}"
-            )
+            raise ValueError(f"x first dim must be {self.nvars()}, got {x.shape[0]}")
         if y.shape[0] != self._d:
-            raise ValueError(
-                f"y first dim must be {self._d}, got {y.shape[0]}"
-            )
+            raise ValueError(f"y first dim must be {self._d}, got {y.shape[0]}")
         if x.shape[1] != y.shape[1]:
             raise ValueError("x and y must have same number of samples")
 
@@ -552,13 +530,13 @@ class ConditionalLowRankCholGaussian(Generic[Array]):
         mean = self._mean_func(x)  # (d, nsamples)
         diag_vals, V_batch = self._build_D_V(x)
         log_diag = self._log_diag_func(x)  # (d, nsamples)
-        D2 = diag_vals ** 2  # (d, nsamples)
+        D2 = diag_vals**2  # (d, nsamples)
 
         residuals = y - mean  # (d, nsamples)
 
         if r == 0:
             # Diagonal case: Sigma = D^2
-            whitened_sq = residuals ** 2 / D2  # (d, nsamples)
+            whitened_sq = residuals**2 / D2  # (d, nsamples)
             sq_mahal = bkd.sum(whitened_sq, axis=0)  # (nsamples,)
             log_det = 2.0 * bkd.sum(log_diag, axis=0)  # (nsamples,)
         else:
@@ -566,21 +544,17 @@ class ConditionalLowRankCholGaussian(Generic[Array]):
             # where M = I_r + V^T D^{-2} V, shape (N, r, r)
             Dinv2 = 1.0 / D2  # (d, nsamples)
             # D^{-2} V: (N, d, r)
-            Dinv2_V = V_batch * bkd.reshape(
-                Dinv2.T, (nsamples, d, 1)
-            )  # (N, d, r)
+            Dinv2_V = V_batch * bkd.reshape(Dinv2.T, (nsamples, d, 1))  # (N, d, r)
             # M = I_r + V^T D^{-2} V: batch (N, r, r)
-            M_batch = bkd.reshape(
-                bkd.eye(r), (1, r, r)
-            ) + bkd.einsum('nji,njk->nik', V_batch, Dinv2_V)  # (N, r, r)
+            M_batch = bkd.reshape(bkd.eye(r), (1, r, r)) + bkd.einsum(
+                "nji,njk->nik", V_batch, Dinv2_V
+            )  # (N, r, r)
             L_M = bkd.cholesky(M_batch)  # (N, r, r)
 
             # Sigma^{-1} res via Woodbury
             Dinv2_res = residuals * Dinv2  # (d, nsamples)
             # V^T D^{-2} res: (N, r)
-            VtDinv2_res = bkd.einsum(
-                'nji,jn->ni', V_batch, Dinv2_res
-            )  # (N, r)
+            VtDinv2_res = bkd.einsum("nji,jn->ni", V_batch, Dinv2_res)  # (N, r)
             # Solve M w = V^T D^{-2} res via Cholesky
             rhs = bkd.reshape(VtDinv2_res, (nsamples, r, 1))
             w = bkd.solve_triangular(L_M, rhs, lower=True)
@@ -588,13 +562,9 @@ class ConditionalLowRankCholGaussian(Generic[Array]):
                 bkd.moveaxis(L_M, -2, -1), w, lower=False
             )  # (N, r, 1)
             # D^{-2} V @ w: (N, d)
-            Dinv2Vw = bkd.einsum(
-                'nij,nj->ni', Dinv2_V, w[:, :, 0]
-            )  # (N, d)
+            Dinv2Vw = bkd.einsum("nij,nj->ni", Dinv2_V, w[:, :, 0])  # (N, d)
             Sinv_res = Dinv2_res - Dinv2Vw.T  # (d, nsamples)
-            sq_mahal = bkd.sum(
-                residuals * Sinv_res, axis=0
-            )  # (nsamples,)
+            sq_mahal = bkd.sum(residuals * Sinv_res, axis=0)  # (nsamples,)
 
             # log det via matrix det lemma: log|D^2+VV^T| = log|M| + log|D^2|
             _, log_det_M = bkd.slogdet(M_batch)  # (N,)
@@ -633,9 +603,7 @@ class ConditionalLowRankCholGaussian(Generic[Array]):
             Random samples. Shape: (d, nsamples)
         """
         nsamples = x.shape[1]
-        base = self._bkd.asarray(
-            np.random.randn(self._d, nsamples).astype(np.float64)
-        )
+        base = self._bkd.asarray(np.random.randn(self._d, nsamples).astype(np.float64))
         return self.reparameterize(x, base)
 
     def reparameterize(self, x: Array, base_samples: Array) -> Array:
@@ -662,7 +630,7 @@ class ConditionalLowRankCholGaussian(Generic[Array]):
         L_batch = self._build_chol_factor(x)  # (nsamples, d, d)
 
         eps_T = base_samples.T  # (nsamples, d)
-        Leps = bkd.einsum('nij,nj->ni', L_batch, eps_T)  # (nsamples, d)
+        Leps = bkd.einsum("nij,nj->ni", L_batch, eps_T)  # (nsamples, d)
 
         return mean + Leps.T  # (d, nsamples)
 
@@ -690,7 +658,7 @@ class ConditionalLowRankCholGaussian(Generic[Array]):
         mean_q = self._mean_func(x)  # (d, nsamples)
         log_diag = self._log_diag_func(x)  # (d, nsamples)
         diag_vals, V_batch = self._build_D_V(x)
-        D2 = diag_vals ** 2  # (d, nsamples)
+        D2 = diag_vals**2  # (d, nsamples)
 
         mean_p = prior.mean()  # (d, 1)
         cov_p_inv = prior.covariance_inverse()  # (d, d)
@@ -705,19 +673,13 @@ class ConditionalLowRankCholGaussian(Generic[Array]):
         # = tr(Sigma_p^{-1} diag(D^2)) + tr(Sigma_p^{-1} V V^T)
         # First part: sum_i Sigma_p_inv[i,i] * D^2[i]
         diag_Sinv = bkd.diag(cov_p_inv)  # (d,)
-        trace_diag = bkd.sum(
-            bkd.reshape(diag_Sinv, (d, 1)) * D2, axis=0
-        )  # (nsamples,)
+        trace_diag = bkd.sum(bkd.reshape(diag_Sinv, (d, 1)) * D2, axis=0)  # (nsamples,)
 
         if r > 0:
             # tr(Sigma_p^{-1} V V^T) per sample
             # = sum_{ij} (Sigma_p^{-1} V)_{ij} * V_{ij}
-            SinvV = bkd.einsum(
-                'ij,njk->nik', cov_p_inv, V_batch
-            )  # (N,d,r)
-            trace_lr = bkd.einsum(
-                'nij,nij->n', SinvV, V_batch
-            )  # (N,)
+            SinvV = bkd.einsum("ij,njk->nik", cov_p_inv, V_batch)  # (N,d,r)
+            trace_lr = bkd.einsum("nij,nij->n", SinvV, V_batch)  # (N,)
             trace_term = trace_diag + trace_lr
         else:
             trace_term = trace_diag
@@ -728,12 +690,10 @@ class ConditionalLowRankCholGaussian(Generic[Array]):
             # Matrix determinant lemma:
             # log|D^2 + VV^T| = log|I_r + V^T D^{-2} V| + log|D^2|
             Dinv2 = 1.0 / D2  # (d, nsamples)
-            Dinv2_V = V_batch * bkd.reshape(
-                Dinv2.T, (nsamples, d, 1)
-            )  # (N, d, r)
-            M_batch = bkd.reshape(
-                bkd.eye(r), (1, r, r)
-            ) + bkd.einsum('nji,njk->nik', V_batch, Dinv2_V)  # (N,r,r)
+            Dinv2_V = V_batch * bkd.reshape(Dinv2.T, (nsamples, d, 1))  # (N, d, r)
+            M_batch = bkd.reshape(bkd.eye(r), (1, r, r)) + bkd.einsum(
+                "nji,njk->nik", V_batch, Dinv2_V
+            )  # (N,r,r)
             _, log_det_M = bkd.slogdet(M_batch)  # (N,)
             log_det_q = log_det_q_diag + log_det_M
         else:
@@ -764,14 +724,14 @@ class ConditionalLowRankCholGaussian(Generic[Array]):
         d = self._d
         nsamples = x.shape[1]
         diag_vals, V_batch = self._build_D_V(x)
-        D2 = diag_vals ** 2  # (d, nsamples)
+        D2 = diag_vals**2  # (d, nsamples)
 
         # D^2 as batch diagonal: (nsamples, d) -> (nsamples, d, d)
         eye_batch = bkd.reshape(bkd.eye(d), (1, d, d))  # (1, d, d)
         cov = eye_batch * bkd.reshape(D2.T, (nsamples, d, 1))  # broadcast
 
         if V_batch is not None:
-            cov = cov + bkd.einsum('nij,nkj->nik', V_batch, V_batch)
+            cov = cov + bkd.einsum("nij,nkj->nik", V_batch, V_batch)
 
         return cov
 
@@ -780,6 +740,7 @@ class ConditionalLowRankCholGaussian(Generic[Array]):
         from pyapprox.probability.gaussian.dense import (
             DenseCholeskyMultivariateGaussian,
         )
+
         return DenseCholeskyMultivariateGaussian(
             self._bkd.zeros((self._d, 1)),
             self._bkd.eye(self._d),

@@ -12,14 +12,14 @@ from typing import Generic, Optional
 
 import numpy as np
 
-from pyapprox.util.backends.protocols import Array, Backend
-from pyapprox.surrogates.affine.protocols import BasisExpansionProtocol
-from pyapprox.surrogates.affine.expansions.fitters.results import (
-    DirectSolverResult,
-)
 from pyapprox.optimization.minimize.scipy.trust_constr import (
     ScipyTrustConstrOptimizer,
 )
+from pyapprox.surrogates.affine.expansions.fitters.results import (
+    DirectSolverResult,
+)
+from pyapprox.surrogates.affine.protocols import BasisExpansionProtocol
+from pyapprox.util.backends.protocols import Array, Backend
 
 
 class EntropicLoss(Generic[Array]):
@@ -139,9 +139,7 @@ class EntropicLoss(Generic[Array]):
             Jacobian. Shape: (1, nterms)
         """
         if sample.ndim != 2 or sample.shape[1] != 1:
-            raise ValueError(
-                f"sample must have shape (nvars, 1), got {sample.shape}"
-            )
+            raise ValueError(f"sample must have shape (nvars, 1), got {sample.shape}")
         beta = self._beta
         pred_values = self._bkd.dot(self._basis_mat, sample)  # (nsamples, 1)
         residuals = self._train_values - pred_values  # (nsamples, 1)
@@ -151,11 +149,14 @@ class EntropicLoss(Generic[Array]):
         # = (-exp(beta*r) + 1) / beta
         # = (1 - exp(beta*r)) / beta
         # grad = Phi.T @ (w * (1 - exp(beta*r))) / beta
-        grad = self._bkd.einsum(
-            "i,ij->j",
-            (self._weights * (1.0 - self._bkd.exp(beta_r)))[:, 0],
-            self._basis_mat,
-        ) / beta
+        grad = (
+            self._bkd.einsum(
+                "i,ij->j",
+                (self._weights * (1.0 - self._bkd.exp(beta_r)))[:, 0],
+                self._basis_mat,
+            )
+            / beta
+        )
         return self._bkd.reshape(grad, (1, -1))
 
     def hvp(self, sample: Array, vec: Array) -> Array:
@@ -174,13 +175,9 @@ class EntropicLoss(Generic[Array]):
             Hessian-vector product. Shape: (nterms, 1)
         """
         if sample.ndim != 2 or sample.shape[1] != 1:
-            raise ValueError(
-                f"sample must have shape (nvars, 1), got {sample.shape}"
-            )
+            raise ValueError(f"sample must have shape (nvars, 1), got {sample.shape}")
         if vec.ndim != 2 or vec.shape[1] != 1:
-            raise ValueError(
-                f"vec must have shape (nvars, 1), got {vec.shape}"
-            )
+            raise ValueError(f"vec must have shape (nvars, 1), got {vec.shape}")
         beta = self._beta
         pred_values = self._bkd.dot(self._basis_mat, sample)  # (nsamples, 1)
         residuals = self._train_values - pred_values  # (nsamples, 1)
@@ -276,9 +273,7 @@ class EntropicFitter(Generic[Array]):
 
         nqoi = values.shape[0]
         if nqoi != 1:
-            raise ValueError(
-                f"EntropicFitter only supports nqoi=1, got nqoi={nqoi}"
-            )
+            raise ValueError(f"EntropicFitter only supports nqoi=1, got nqoi={nqoi}")
 
         # Get basis matrix: (nsamples, nterms)
         Phi = expansion.basis_matrix(samples)

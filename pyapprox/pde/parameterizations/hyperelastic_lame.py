@@ -7,13 +7,13 @@ residual_mu/lamda_sensitivity methods (same as YoungModulusParameterization).
 
 from typing import Generic, List
 
-from pyapprox.util.backends.protocols import Array, Backend
-from pyapprox.pde.field_maps.protocol import (
-    FieldMapProtocol,
-)
 from pyapprox.pde.collocation.protocols.basis import (
     TensorProductBasisProtocol,
 )
+from pyapprox.pde.field_maps.protocol import (
+    FieldMapProtocol,
+)
+from pyapprox.util.backends.protocols import Array, Backend
 
 
 class HyperelasticYoungsModulusParameterization(Generic[Array]):
@@ -100,8 +100,7 @@ class HyperelasticYoungsModulusParameterization(Generic[Array]):
             dP_dmu = stress_model.stress_sensitivity_mu_1d(F, self._bkd)
             dP_dlam = stress_model.stress_sensitivity_lamda_1d(F, self._bkd)
             dP_dp = (
-                dP_dmu[:, None] * self._dmu_dE
-                + dP_dlam[:, None] * self._dlam_dE
+                dP_dmu[:, None] * self._dmu_dE + dP_dlam[:, None] * self._dlam_dE
             ) * fm_jac
             return Dx @ dP_dp
         # 2D: delegate to physics sensitivity methods
@@ -114,17 +113,14 @@ class HyperelasticYoungsModulusParameterization(Generic[Array]):
             delta_E = fm_jac[:, j]
             delta_mu = delta_E * self._dmu_dE
             delta_lam = delta_E * self._dlam_dE
-            col = (
-                physics.residual_mu_sensitivity(state, time, delta_mu)
-                + physics.residual_lamda_sensitivity(state, time, delta_lam)
-            )
+            col = physics.residual_mu_sensitivity(
+                state, time, delta_mu
+            ) + physics.residual_lamda_sensitivity(state, time, delta_lam)
             for k in range(nstates):
                 result[k, j] = col[k]
         return result
 
-    def _initial_param_jacobian(
-        self, physics: object, params_1d: Array
-    ) -> Array:
+    def _initial_param_jacobian(self, physics: object, params_1d: Array) -> Array:
         """Return d(initial_state)/d(params). Shape: (nstates, nparams)."""
         return self._bkd.zeros((physics.nstates(), self.nparams()))
 
@@ -152,8 +148,7 @@ class HyperelasticYoungsModulusParameterization(Generic[Array]):
             dP_dmu = stress_model.stress_sensitivity_mu_1d(F, bkd)
             dP_dlam = stress_model.stress_sensitivity_lamda_1d(F, bkd)
             dP_dp = (
-                dP_dmu[:, None] * self._dmu_dE
-                + dP_dlam[:, None] * self._dlam_dE
+                dP_dmu[:, None] * self._dmu_dE + dP_dlam[:, None] * self._dlam_dE
             ) * fm_jac
             return normals[:, 0:1] * dP_dp[bc_indices, :]
         # 2D: bc_indices are state indices (mesh_idx + component*npts)
@@ -171,15 +166,23 @@ class HyperelasticYoungsModulusParameterization(Generic[Array]):
         F22 = (1.0 + Dy @ v)[mesh_idx]
         # PK1 stress sensitivity w.r.t. mu and lambda at boundary
         dP_mu = stress_model.stress_sensitivity_mu_2d(
-            F11, F12, F21, F22, bkd,
+            F11,
+            F12,
+            F21,
+            F22,
+            bkd,
         )  # (dP11, dP12, dP21, dP22)
         dP_lam = stress_model.stress_sensitivity_lamda_2d(
-            F11, F12, F21, F22, bkd,
+            F11,
+            F12,
+            F21,
+            F22,
+            bkd,
         )
         # dP_iJ/dE = dP_iJ/dmu * dmu/dE + dP_iJ/dlam * dlam/dE
         # For component comp: t_comp = P_{comp+1,1}*nx + P_{comp+1,2}*ny
         # Index into (dP11,dP12,dP21,dP22): comp=0 -> (0,1), comp=1 -> (2,3)
-        i1 = 2 * comp      # P_{comp+1,1}
+        i1 = 2 * comp  # P_{comp+1,1}
         i2 = 2 * comp + 1  # P_{comp+1,2}
         dP_i1_dE = dP_mu[i1] * self._dmu_dE + dP_lam[i1] * self._dlam_dE
         dP_i2_dE = dP_mu[i2] * self._dmu_dE + dP_lam[i2] * self._dlam_dE
@@ -210,10 +213,7 @@ def create_hyperelastic_youngs_modulus_parameterization(
     poisson_ratio : float
         Fixed Poisson ratio.
     """
-    D_matrices = [
-        basis.derivative_matrix(1, dim)
-        for dim in range(basis.ndim())
-    ]
+    D_matrices = [basis.derivative_matrix(1, dim) for dim in range(basis.ndim())]
     return HyperelasticYoungsModulusParameterization(
         field_map, D_matrices, bkd, poisson_ratio
     )

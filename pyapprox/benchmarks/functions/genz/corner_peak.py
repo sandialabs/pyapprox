@@ -124,9 +124,7 @@ class CornerPeakFunction(Generic[Array]):
                 f"sample must have shape ({self._nvars}, 1), got {sample.shape}"
             )
         if vec.ndim != 2 or vec.shape != (self._nvars, 1):
-            raise ValueError(
-                f"vec must have shape ({self._nvars}, 1), got {vec.shape}"
-            )
+            raise ValueError(f"vec must have shape ({self._nvars}, 1), got {vec.shape}")
         bkd = self._bkd
         D = self._nvars
         s = 1.0 + bkd.sum(self._c * sample)
@@ -158,11 +156,8 @@ class CornerPeakFunction(Generic[Array]):
             )
         return float(self._corner_peak_integrate_recursive(0.0, self._nvars))
 
-    def _corner_peak_integrate_recursive(
-        self, integral: float, D: int
-    ) -> Array:
+    def _corner_peak_integrate_recursive(self, integral: float, D: int) -> Array:
         """Recursively compute the integral."""
-        bkd = self._bkd
         if D == 0:
             return 1.0 / (1.0 + integral)
         c_val = self._c[D - 1, 0]
@@ -171,8 +166,6 @@ class CornerPeakFunction(Generic[Array]):
             / (D * c_val)
             * (
                 self._corner_peak_integrate_recursive(integral, D - 1)
-                - self._corner_peak_integrate_recursive(
-                    integral + c_val, D - 1
-                )
+                - self._corner_peak_integrate_recursive(integral + c_val, D - 1)
             )
         )

@@ -7,6 +7,7 @@ Converts a multi-QoI objective into constraints t >= f_i(x) for minimax.
 from typing import Generic
 
 from pyapprox.util.backends.protocols import Array, Backend
+
 from .protocols import MultiQoIObjectiveProtocol
 
 

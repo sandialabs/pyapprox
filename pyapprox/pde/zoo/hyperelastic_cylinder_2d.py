@@ -12,14 +12,16 @@ converted to Lame parameters with fixed Poisson ratio.
 import math
 from typing import Callable, Optional
 
-from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.pde.collocation.basis import ChebyshevBasis2D
-from pyapprox.pde.collocation.mesh import TransformedMesh2D
-from pyapprox.pde.collocation.mesh.transforms import PolarTransform
 from pyapprox.pde.collocation.boundary import zero_dirichlet_bc
 from pyapprox.pde.collocation.boundary.hyperelastic_traction import (
     hyperelastic_traction_neumann_bc,
 )
+from pyapprox.pde.collocation.forward_models.steady import (
+    SteadyForwardModel,
+)
+from pyapprox.pde.collocation.mesh import TransformedMesh2D
+from pyapprox.pde.collocation.mesh.transforms import PolarTransform
 from pyapprox.pde.collocation.physics.hyperelasticity import (
     HyperelasticityPhysics,
 )
@@ -32,9 +34,7 @@ from pyapprox.pde.field_maps.protocol import (
 from pyapprox.pde.parameterizations.hyperelastic_lame import (
     create_hyperelastic_youngs_modulus_parameterization,
 )
-from pyapprox.pde.collocation.forward_models.steady import (
-    SteadyForwardModel,
-)
+from pyapprox.util.backends.protocols import Array, Backend
 
 
 def create_hyperelastic_pressurized_cylinder_2d(
@@ -95,16 +95,16 @@ def create_hyperelastic_pressurized_cylinder_2d(
     """
     # Mesh and basis on quarter-annulus
     transform = PolarTransform(
-        (r_inner, r_outer), (0.0, math.pi / 2.0), bkd,
+        (r_inner, r_outer),
+        (0.0, math.pi / 2.0),
+        bkd,
     )
     mesh = TransformedMesh2D(npts_r, npts_theta, bkd, transform)
     basis = ChebyshevBasis2D(mesh, bkd)
 
     # Convert E_mean to Lame parameters
     dmu_dE = 1.0 / (2.0 * (1.0 + poisson_ratio))
-    dlam_dE = poisson_ratio / (
-        (1.0 + poisson_ratio) * (1.0 - 2.0 * poisson_ratio)
-    )
+    dlam_dE = poisson_ratio / ((1.0 + poisson_ratio) * (1.0 - 2.0 * poisson_ratio))
     mu_init = E_mean * dmu_dE
     lamda_init = E_mean * dlam_dE
 
@@ -113,7 +113,10 @@ def create_hyperelastic_pressurized_cylinder_2d(
 
     # Physics
     physics = HyperelasticityPhysics(
-        basis, bkd, stress_model, forcing=forcing,
+        basis,
+        bkd,
+        stress_model,
+        forcing=forcing,
     )
 
     # Derivative matrices for traction BCs
@@ -133,26 +136,50 @@ def create_hyperelastic_pressurized_cylinder_2d(
     outer_idx = mesh.boundary_indices(1)
     outer_normals = mesh.boundary_normals(1)
     for comp in (0, 1):
-        bcs.append(hyperelastic_traction_neumann_bc(
-            bkd, outer_idx, outer_normals, D_matrices,
-            stress_model, npts, comp, values=0.0,
-        ))
+        bcs.append(
+            hyperelastic_traction_neumann_bc(
+                bkd,
+                outer_idx,
+                outer_normals,
+                D_matrices,
+                stress_model,
+                npts,
+                comp,
+                values=0.0,
+            )
+        )
 
     # (b) Bottom (bnd 2, theta=0): shear-free traction t_x=0 (component 0)
     bottom_idx = mesh.boundary_indices(2)
     bottom_normals = mesh.boundary_normals(2)
-    bcs.append(hyperelastic_traction_neumann_bc(
-        bkd, bottom_idx, bottom_normals, D_matrices,
-        stress_model, npts, component=0, values=0.0,
-    ))
+    bcs.append(
+        hyperelastic_traction_neumann_bc(
+            bkd,
+            bottom_idx,
+            bottom_normals,
+            D_matrices,
+            stress_model,
+            npts,
+            component=0,
+            values=0.0,
+        )
+    )
 
     # (c) Top (bnd 3, theta=pi/2): shear-free traction t_y=0 (component 1)
     top_idx = mesh.boundary_indices(3)
     top_normals = mesh.boundary_normals(3)
-    bcs.append(hyperelastic_traction_neumann_bc(
-        bkd, top_idx, top_normals, D_matrices,
-        stress_model, npts, component=1, values=0.0,
-    ))
+    bcs.append(
+        hyperelastic_traction_neumann_bc(
+            bkd,
+            top_idx,
+            top_normals,
+            D_matrices,
+            stress_model,
+            npts,
+            component=1,
+            values=0.0,
+        )
+    )
 
     # (d) Inner boundary (bnd 0, r=R_i): pressure loading
     # Traction from pressure: t = -p * n
@@ -160,10 +187,18 @@ def create_hyperelastic_pressurized_cylinder_2d(
     inner_normals = mesh.boundary_normals(0)
     for comp in (0, 1):
         pressure_vals = -inner_pressure * inner_normals[:, comp]
-        bcs.append(hyperelastic_traction_neumann_bc(
-            bkd, inner_idx, inner_normals, D_matrices,
-            stress_model, npts, comp, values=pressure_vals,
-        ))
+        bcs.append(
+            hyperelastic_traction_neumann_bc(
+                bkd,
+                inner_idx,
+                inner_normals,
+                D_matrices,
+                stress_model,
+                npts,
+                comp,
+                values=pressure_vals,
+            )
+        )
 
     # (e) Bottom Dirichlet v=0 (theta=0, v-component offset by npts)
     bottom_v_idx = bottom_idx + npts
@@ -176,11 +211,17 @@ def create_hyperelastic_pressurized_cylinder_2d(
 
     # Parameterization: E field -> Lame parameters
     param = create_hyperelastic_youngs_modulus_parameterization(
-        bkd, basis, field_map, poisson_ratio,
+        bkd,
+        basis,
+        field_map,
+        poisson_ratio,
     )
 
     init_state = bkd.zeros((2 * npts,))
     return SteadyForwardModel(
-        physics, bkd, init_state,
-        functional=functional, parameterization=param,
+        physics,
+        bkd,
+        init_state,
+        functional=functional,
+        parameterization=param,
     )

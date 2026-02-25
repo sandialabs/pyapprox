@@ -6,10 +6,11 @@ validates training data for GP regression.
 """
 
 from typing import Generic, Optional
-from pyapprox.util.backends.protocols import Array, Backend
+
 from pyapprox.surrogates.gaussianprocess.output_transform import (
     OutputAffineTransformProtocol,
 )
+from pyapprox.util.backends.protocols import Array, Backend
 
 
 class GPTrainingData(Generic[Array]):

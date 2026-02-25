@@ -1,18 +1,18 @@
 """Hastings-Powell three-species ecology ODE benchmark instance."""
 
-from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.benchmarks.benchmark import BoxDomain
-from pyapprox.benchmarks.ground_truth import ODEGroundTruth
-from pyapprox.benchmarks.registry import BenchmarkRegistry
 from pyapprox.benchmarks.functions.ode import ODEBenchmark, ODETimeConfig
-from pyapprox.pde.time.benchmarks.hastings_ecology import (
-    HastingsEcologyResidual,
-)
-from pyapprox.probability.univariate.uniform import UniformMarginal
-from pyapprox.probability.joint.independent import IndependentJoint
+from pyapprox.benchmarks.ground_truth import ODEGroundTruth
 from pyapprox.benchmarks.instances.ode.lotka_volterra import (
     ODEBenchmarkWrapper,
 )
+from pyapprox.benchmarks.registry import BenchmarkRegistry
+from pyapprox.pde.time.benchmarks.hastings_ecology import (
+    HastingsEcologyResidual,
+)
+from pyapprox.probability.joint.independent import IndependentJoint
+from pyapprox.probability.univariate.uniform import UniformMarginal
+from pyapprox.util.backends.protocols import Array, Backend
 
 
 def hastings_ecology_3species(
@@ -58,7 +58,9 @@ def hastings_ecology_3species(
     residual = HastingsEcologyResidual(bkd)
 
     # Nominal values from legacy code - shape (nparams, 1)
-    nominal_values = bkd.array([5.0, 3.0, 0.1, 2.0, 0.4, 0.01, 0.75, 0.15, 10.0]).reshape(-1, 1)
+    nominal_values = bkd.array(
+        [5.0, 3.0, 0.1, 2.0, 0.4, 0.01, 0.75, 0.15, 10.0]
+    ).reshape(-1, 1)
 
     # Prior: U[0.95*nominal, 1.05*nominal] for each parameter
     prior_ranges = [
@@ -66,10 +68,7 @@ def hastings_ecology_3species(
     ]
 
     prior = IndependentJoint(
-        [
-            UniformMarginal(lo, hi, bkd)
-            for lo, hi in prior_ranges
-        ],
+        [UniformMarginal(lo, hi, bkd) for lo, hi in prior_ranges],
         bkd,
     )
 

@@ -9,16 +9,40 @@ Provides two classes:
 
 from typing import Callable, Dict, Generic, List, Literal, Optional, Set, Tuple
 
-from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.surrogates.affine.indices import (
+    AdmissibilityCriteria,
     IterativeIndexGenerator,
     PriorityQueue,
-    AdmissibilityCriteria,
+)
+from pyapprox.surrogates.sparsegrids.candidate_info import (
+    CandidateInfo,
+    ConfigIdx,
+)
+from pyapprox.surrogates.sparsegrids.combination_surrogate import (
+    CombinationSurrogate,
+)
+from pyapprox.surrogates.sparsegrids.cost_model import (
+    ConstantCostModel,
+    CostModelProtocol,
+)
+from pyapprox.surrogates.sparsegrids.error_indicators import (
+    ErrorIndicatorProtocol,
+    L2SurrogateDifferenceIndicator,
+)
+from pyapprox.surrogates.sparsegrids.fit_result import (
+    AdaptiveSparseGridFitResult,
+)
+from pyapprox.surrogates.sparsegrids.model_factory import (
+    DictModelFactory,
+    ModelFactoryProtocol,
+)
+from pyapprox.surrogates.sparsegrids.sample_tracker import (
+    SampleTracker,
 )
 from pyapprox.surrogates.sparsegrids.smolyak import (
+    _index_to_tuple,
     compute_smolyak_coefficients,
     smolyak_coefs_with_candidate,
-    _index_to_tuple,
 )
 from pyapprox.surrogates.sparsegrids.subspace import (
     TensorProductSubspace,
@@ -26,31 +50,7 @@ from pyapprox.surrogates.sparsegrids.subspace import (
 from pyapprox.surrogates.sparsegrids.subspace_factory import (
     SubspaceFactoryProtocol,
 )
-from pyapprox.surrogates.sparsegrids.sample_tracker import (
-    SampleTracker,
-)
-from pyapprox.surrogates.sparsegrids.combination_surrogate import (
-    CombinationSurrogate,
-)
-from pyapprox.surrogates.sparsegrids.fit_result import (
-    AdaptiveSparseGridFitResult,
-)
-from pyapprox.surrogates.sparsegrids.candidate_info import (
-    CandidateInfo,
-    ConfigIdx,
-)
-from pyapprox.surrogates.sparsegrids.error_indicators import (
-    ErrorIndicatorProtocol,
-    L2SurrogateDifferenceIndicator,
-)
-from pyapprox.surrogates.sparsegrids.cost_model import (
-    CostModelProtocol,
-    ConstantCostModel,
-)
-from pyapprox.surrogates.sparsegrids.model_factory import (
-    DictModelFactory,
-    ModelFactoryProtocol,
-)
+from pyapprox.util.backends.protocols import Array, Backend
 
 # Sentinel key for single-fidelity grids (nconfig_vars=0)
 _SF_KEY: ConfigIdx = ()
@@ -108,8 +108,8 @@ class MultiFidelityAdaptiveSparseGridFitter(Generic[Array]):
         self._nvars_index = self._nvars_physical + nconfig_vars
 
         # Index generator for tracking selected/candidate indices
-        self._index_gen: IterativeIndexGenerator[Array] = (
-            IterativeIndexGenerator(self._nvars_index, bkd)
+        self._index_gen: IterativeIndexGenerator[Array] = IterativeIndexGenerator(
+            self._nvars_index, bkd
         )
         self._index_gen.set_admissibility_criteria(admissibility)
 
@@ -122,9 +122,7 @@ class MultiFidelityAdaptiveSparseGridFitter(Generic[Array]):
         self._trackers: Dict[ConfigIdx, SampleTracker[Array]] = {}
 
         # Mapping: subspace key -> tracker position for each config group
-        self._tracker_positions: Dict[
-            ConfigIdx, Dict[Tuple[int, ...], int]
-        ] = {}
+        self._tracker_positions: Dict[ConfigIdx, Dict[Tuple[int, ...], int]] = {}
 
         # Priority queue for candidates
         self._candidate_queue: Optional[PriorityQueue[Array]] = None
@@ -138,19 +136,15 @@ class MultiFidelityAdaptiveSparseGridFitter(Generic[Array]):
         """Extract config index from full multi-index."""
         if self._nconfig_vars == 0:
             return _SF_KEY
-        config_part = full_index[self._nvars_physical:]
-        return tuple(
-            int(config_part[i]) for i in range(self._nconfig_vars)
-        )
+        config_part = full_index[self._nvars_physical :]
+        return tuple(int(config_part[i]) for i in range(self._nconfig_vars))
 
     def _create_subspace(self, full_index: Array) -> None:
         """Create a subspace and register with the appropriate tracker."""
         config_idx = self._get_config_idx(full_index)
 
         if config_idx not in self._trackers:
-            self._trackers[config_idx] = SampleTracker(
-                self._bkd, self._factory
-            )
+            self._trackers[config_idx] = SampleTracker(self._bkd, self._factory)
             self._tracker_positions[config_idx] = {}
 
         tracker = self._trackers[config_idx]
@@ -161,8 +155,7 @@ class MultiFidelityAdaptiveSparseGridFitter(Generic[Array]):
         unique_local = tracker.get_unique_local_indices(pos)
         if len(unique_local) == 0:
             raise ValueError(
-                f"Subspace {_index_to_tuple(full_index)} contributes no "
-                f"new samples."
+                f"Subspace {_index_to_tuple(full_index)} contributes no new samples."
             )
 
         key = _index_to_tuple(full_index)
@@ -222,10 +215,7 @@ class MultiFidelityAdaptiveSparseGridFitter(Generic[Array]):
         downward-closed constraints), the next candidate is promoted
         immediately since no new evaluations are needed.
         """
-        while (
-            self._candidate_queue is not None
-            and not self._candidate_queue.empty()
-        ):
+        while self._candidate_queue is not None and not self._candidate_queue.empty():
             priority, error, best_idx = self._candidate_queue.get()
             best_index = self._index_gen._indices[:, best_idx]
 
@@ -279,18 +269,12 @@ class MultiFidelityAdaptiveSparseGridFitter(Generic[Array]):
 
             unique_local = tracker.get_unique_local_indices(pos)
             if len(unique_local) > 0:
-                subspace = self._subspaces[
-                    self._subspace_keys.index(key)
-                ]
+                subspace = self._subspaces[self._subspace_keys.index(key)]
                 subspace_samples = subspace.get_samples()
-                idx_arr = self._bkd.asarray(
-                    unique_local, dtype=self._bkd.int64_dtype()
-                )
+                idx_arr = self._bkd.asarray(unique_local, dtype=self._bkd.int64_dtype())
                 if config_idx not in new_by_config:
                     new_by_config[config_idx] = []
-                new_by_config[config_idx].append(
-                    subspace_samples[:, idx_arr]
-                )
+                new_by_config[config_idx].append(subspace_samples[:, idx_arr])
 
         if not new_by_config:
             return None
@@ -336,12 +320,8 @@ class MultiFidelityAdaptiveSparseGridFitter(Generic[Array]):
         if selected_indices.shape[1] == 0:
             return
 
-        selected_coefs = compute_smolyak_coefficients(
-            selected_indices, self._bkd
-        )
-        selected_subspaces = self._get_subspaces_for_indices(
-            selected_indices
-        )
+        selected_coefs = compute_smolyak_coefficients(selected_indices, self._bkd)
+        selected_subspaces = self._get_subspaces_for_indices(selected_indices)
         selected_surrogate = CombinationSurrogate(
             self._bkd,
             self._nvars_physical,
@@ -367,8 +347,11 @@ class MultiFidelityAdaptiveSparseGridFitter(Generic[Array]):
                 continue
 
             info = self._build_candidate_info(
-                cand_index, cand_subspace,
-                selected_indices, selected_coefs, selected_surrogate,
+                cand_index,
+                cand_subspace,
+                selected_indices,
+                selected_coefs,
+                selected_surrogate,
             )
 
             priority, error = self._error_indicator(info)
@@ -405,9 +388,7 @@ class MultiFidelityAdaptiveSparseGridFitter(Generic[Array]):
         combined_coefs = smolyak_coefs_with_candidate(
             selected_indices, selected_coefs, candidate_index, self._bkd
         )
-        all_subspaces = list(selected_surrogate.subspaces()) + [
-            candidate_subspace
-        ]
+        all_subspaces = list(selected_surrogate.subspaces()) + [candidate_subspace]
         combined_indices = self._bkd.hstack(
             (selected_indices, self._bkd.reshape(candidate_index, (-1, 1)))
         )
@@ -463,9 +444,7 @@ class MultiFidelityAdaptiveSparseGridFitter(Generic[Array]):
                 total += err
         return total
 
-    def result(
-        self, converged: bool = False
-    ) -> AdaptiveSparseGridFitResult[Array]:
+    def result(self, converged: bool = False) -> AdaptiveSparseGridFitResult[Array]:
         """Build result from current state.
 
         Parameters
@@ -480,12 +459,8 @@ class MultiFidelityAdaptiveSparseGridFitter(Generic[Array]):
         assert self._nqoi is not None
 
         selected_indices = self._index_gen.get_selected_indices()
-        selected_coefs = compute_smolyak_coefficients(
-            selected_indices, self._bkd
-        )
-        selected_subspaces = self._get_subspaces_for_indices(
-            selected_indices
-        )
+        selected_coefs = compute_smolyak_coefficients(selected_indices, self._bkd)
+        selected_subspaces = self._get_subspaces_for_indices(selected_indices)
 
         surrogate = CombinationSurrogate(
             self._bkd,
@@ -496,9 +471,7 @@ class MultiFidelityAdaptiveSparseGridFitter(Generic[Array]):
             indices=selected_indices,
         )
 
-        nsamples = sum(
-            t.n_unique_samples() for t in self._trackers.values()
-        )
+        nsamples = sum(t.n_unique_samples() for t in self._trackers.values())
 
         return AdaptiveSparseGridFitResult(
             surrogate=surrogate,
@@ -537,8 +510,7 @@ class MultiFidelityAdaptiveSparseGridFitter(Generic[Array]):
                 return self.result(converged=True)
 
             values = {
-                cfg: model_factory.get_model(cfg)(s)
-                for cfg, s in samples.items()
+                cfg: model_factory.get_model(cfg)(s) for cfg, s in samples.items()
             }
             self.step_values(values)
 
@@ -574,9 +546,7 @@ class MultiFidelityAdaptiveSparseGridFitter(Generic[Array]):
             return set(pos_map.values())
 
         if subset == "selected":
-            index_set: Optional[Array] = (
-                self._index_gen.get_selected_indices()
-            )
+            index_set: Optional[Array] = self._index_gen.get_selected_indices()
         else:
             index_set = self._index_gen.get_candidate_indices()
 
@@ -594,9 +564,7 @@ class MultiFidelityAdaptiveSparseGridFitter(Generic[Array]):
                 result.add(pos_map[key])
         return result
 
-    def get_samples(
-        self, subset: SubsetType = "all"
-    ) -> Dict[ConfigIdx, Array]:
+    def get_samples(self, subset: SubsetType = "all") -> Dict[ConfigIdx, Array]:
         """Return unique samples per config, filtered by subset.
 
         Parameters
@@ -616,9 +584,7 @@ class MultiFidelityAdaptiveSparseGridFitter(Generic[Array]):
                 result[cfg] = tracker.collect_filtered_unique_samples(None)
             else:
                 positions = self._get_tracker_positions(cfg, subset)
-                result[cfg] = tracker.collect_filtered_unique_samples(
-                    positions
-                )
+                result[cfg] = tracker.collect_filtered_unique_samples(positions)
         return result
 
     def get_values(
@@ -643,9 +609,7 @@ class MultiFidelityAdaptiveSparseGridFitter(Generic[Array]):
                 result[cfg] = tracker.collect_filtered_unique_values(None)
             else:
                 positions = self._get_tracker_positions(cfg, subset)
-                result[cfg] = tracker.collect_filtered_unique_values(
-                    positions
-                )
+                result[cfg] = tracker.collect_filtered_unique_values(positions)
         return result
 
     def get_selected_indices(self) -> Array:
@@ -669,9 +633,7 @@ class MultiFidelityAdaptiveSparseGridFitter(Generic[Array]):
         """
         return self._index_gen.get_candidate_indices()
 
-    def cumulative_cost(
-        self, cost_model: Optional[CostModelProtocol] = None
-    ) -> float:
+    def cumulative_cost(self, cost_model: Optional[CostModelProtocol] = None) -> float:
         """Return total cumulative cost of all evaluations.
 
         Parameters
@@ -740,7 +702,9 @@ class SingleFidelityAdaptiveSparseGridFitter(Generic[Array]):
         verbosity: int = 0,
     ) -> None:
         self._fitter = MultiFidelityAdaptiveSparseGridFitter(
-            bkd, factory, admissibility,
+            bkd,
+            factory,
+            admissibility,
             nconfig_vars=0,
             error_indicator=error_indicator,
             verbosity=verbosity,
@@ -773,9 +737,7 @@ class SingleFidelityAdaptiveSparseGridFitter(Generic[Array]):
         """Return sum of errors for candidate subspaces."""
         return self._fitter.current_error()
 
-    def result(
-        self, converged: bool = False
-    ) -> AdaptiveSparseGridFitResult[Array]:
+    def result(self, converged: bool = False) -> AdaptiveSparseGridFitResult[Array]:
         """Build result from current state."""
         return self._fitter.result(converged=converged)
 
@@ -822,9 +784,7 @@ class SingleFidelityAdaptiveSparseGridFitter(Generic[Array]):
         """
         return self._fitter.get_samples(subset)[_SF_KEY]
 
-    def get_values(
-        self, subset: SubsetType = "all"
-    ) -> Optional[Array]:
+    def get_values(self, subset: SubsetType = "all") -> Optional[Array]:
         """Return unique values, filtered by subset.
 
         Parameters
@@ -859,9 +819,7 @@ class SingleFidelityAdaptiveSparseGridFitter(Generic[Array]):
         """
         return self._fitter.get_candidate_indices()
 
-    def cumulative_cost(
-        self, cost_model: Optional[CostModelProtocol] = None
-    ) -> float:
+    def cumulative_cost(self, cost_model: Optional[CostModelProtocol] = None) -> float:
         """Return total cumulative cost of all evaluations.
 
         Parameters

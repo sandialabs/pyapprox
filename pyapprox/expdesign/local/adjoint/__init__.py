@@ -20,8 +20,8 @@ AdjointModel
 """
 
 from .functional import QuadraticFunctional
-from .residual import LinearResidual
 from .model import AdjointModel
+from .residual import LinearResidual
 
 __all__ = [
     "QuadraticFunctional",

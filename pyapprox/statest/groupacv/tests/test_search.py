@@ -1,25 +1,24 @@
 """Tests for GroupACV search classes."""
 
-from typing import Generic, Tuple
 import unittest
+from typing import Generic, Tuple
 
 import numpy as np
 import torch
 
-from pyapprox.util.backends.protocols import Array
-from pyapprox.util.backends.torch import TorchBkd
-from pyapprox.util.test_utils import load_tests  # noqa: F401
-
-from pyapprox.statest.statistics import MultiOutputMean
+from pyapprox.statest.groupacv.mlblue import MLBLUEEstimator
 from pyapprox.statest.groupacv.search import (
     GroupACVSearch,
     GroupACVSearchResult,
 )
-from pyapprox.statest.groupacv.mlblue import MLBLUEEstimator
 from pyapprox.statest.groupacv.variants import (
     GroupACVEstimatorIS,
 )
+from pyapprox.statest.statistics import MultiOutputMean
 from pyapprox.statest.strategies import AllSubsetsStrategy
+from pyapprox.util.backends.protocols import Array
+from pyapprox.util.backends.torch import TorchBkd
+from pyapprox.util.test_utils import load_tests  # noqa: F401
 
 
 class TestGroupACVSearch(Generic[Array], unittest.TestCase):

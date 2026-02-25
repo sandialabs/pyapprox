@@ -2,18 +2,17 @@
 
 import unittest
 
-from pyapprox.util.test_utils import load_tests  # noqa: F401
-
 from pyapprox.statest.strategies import (
     AllModelsStrategy,
-    FixedSubsetStrategy,
-    AllSubsetsStrategy,
-    ListSubsetStrategy,
     AllQoIStrategy,
-    FixedQoIStrategy,
     AllQoISubsetsStrategy,
+    AllSubsetsStrategy,
+    FixedQoIStrategy,
+    FixedSubsetStrategy,
     ListQoIStrategy,
+    ListSubsetStrategy,
 )
+from pyapprox.util.test_utils import load_tests  # noqa: F401
 
 
 class TestModelSubsetStrategy(unittest.TestCase):

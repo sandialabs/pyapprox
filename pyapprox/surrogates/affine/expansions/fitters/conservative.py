@@ -14,8 +14,10 @@ This allows adjusting the constant coefficient to achieve conservativeness.
 
 from typing import Generic, Optional
 
-from pyapprox.util.backends.protocols import Array, Backend
-from pyapprox.surrogates.affine.protocols import BasisExpansionProtocol
+from pyapprox.probability.risk import (
+    AverageValueAtRisk,
+    SafetyMarginRiskMeasure,
+)
 from pyapprox.surrogates.affine.expansions.fitters.least_squares import (
     LeastSquaresFitter,
 )
@@ -25,10 +27,8 @@ from pyapprox.surrogates.affine.expansions.fitters.quantile import (
 from pyapprox.surrogates.affine.expansions.fitters.results import (
     DirectSolverResult,
 )
-from pyapprox.probability.risk import (
-    SafetyMarginRiskMeasure,
-    AverageValueAtRisk,
-)
+from pyapprox.surrogates.affine.protocols import BasisExpansionProtocol
+from pyapprox.util.backends.protocols import Array, Backend
 
 
 class ConservativeLstSqFitter(Generic[Array]):

@@ -5,12 +5,12 @@ This module provides wrappers for:
 - Finite difference derivatives
 """
 
-from pyapprox.interface.wrappers.work_tracker import (
-    WorkTracker,
-    TrackedModel,
-)
 from pyapprox.interface.wrappers.finite_difference import (
     FiniteDifferenceWrapper,
+)
+from pyapprox.interface.wrappers.work_tracker import (
+    TrackedModel,
+    WorkTracker,
 )
 
 __all__ = [

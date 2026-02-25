@@ -8,33 +8,32 @@ import numpy as np
 import torch
 from numpy.typing import NDArray
 
-from pyapprox.util.backends.numpy import NumpyBkd
-from pyapprox.util.backends.protocols import Array, Backend
-from pyapprox.util.backends.torch import TorchBkd
-from pyapprox.util.test_utils import load_tests  # noqa: F401
-from pyapprox.surrogates.kernels.matern import SquaredExponentialKernel
-from pyapprox.surrogates.kernels.composition import (
-    SeparableProductKernel,
+from pyapprox.interface.functions.marginalize import (
+    DimensionReducerProtocol,
+    FunctionMarginalizer,
 )
-from pyapprox.surrogates.gaussianprocess import ExactGaussianProcess
 from pyapprox.probability.univariate.uniform import UniformMarginal
-from pyapprox.surrogates.sparsegrids.basis_factory import (
-    create_basis_factories,
-)
+from pyapprox.surrogates.gaussianprocess import ExactGaussianProcess
 from pyapprox.surrogates.gaussianprocess.statistics import (
     SeparableKernelIntegralCalculator,
-)
-from pyapprox.surrogates.gaussianprocess.statistics.marginalization import (
-    MarginalizedGP,
 )
 from pyapprox.surrogates.gaussianprocess.statistics.gp_dimension_reducer import (
     GPMeanDimensionReducer,
 )
-from pyapprox.interface.functions.marginalize import (
-    DimensionReducerProtocol,
-    FunctionMarginalizer,
-    ReducedFunction,
+from pyapprox.surrogates.gaussianprocess.statistics.marginalization import (
+    MarginalizedGP,
 )
+from pyapprox.surrogates.kernels.composition import (
+    SeparableProductKernel,
+)
+from pyapprox.surrogates.kernels.matern import SquaredExponentialKernel
+from pyapprox.surrogates.sparsegrids.basis_factory import (
+    create_basis_factories,
+)
+from pyapprox.util.backends.numpy import NumpyBkd
+from pyapprox.util.backends.protocols import Array, Backend
+from pyapprox.util.backends.torch import TorchBkd
+from pyapprox.util.test_utils import load_tests  # noqa: F401
 
 
 def _create_quadrature_bases(
@@ -66,9 +65,7 @@ class TestGPMeanDimensionReducer(Generic[Array], unittest.TestCase):
         k3 = SquaredExponentialKernel([0.6], (0.1, 10.0), 1, bkd)
         self._kernel = SeparableProductKernel([k1, k2, k3], bkd)
 
-        self._gp = ExactGaussianProcess(
-            self._kernel, nvars=3, bkd=bkd, nugget=1e-6
-        )
+        self._gp = ExactGaussianProcess(self._kernel, nvars=3, bkd=bkd, nugget=1e-6)
         self._gp.hyp_list().set_all_inactive()
 
         # Training data in [-1, 1]^3
@@ -88,9 +85,7 @@ class TestGPMeanDimensionReducer(Generic[Array], unittest.TestCase):
 
         # Quadrature bases for integral calculator
         nquad = 30
-        self._bases = _create_quadrature_bases(
-            self._marginals, nquad, bkd
-        )
+        self._bases = _create_quadrature_bases(self._marginals, nquad, bkd)
 
         # Integral calculator
         self._calc = SeparableKernelIntegralCalculator(
@@ -112,9 +107,7 @@ class TestGPMeanDimensionReducer(Generic[Array], unittest.TestCase):
 
         # Via MarginalizedGP directly
         marg_gp = MarginalizedGP(self._gp, self._calc, active_dims=[0])
-        expected = bkd.reshape(
-            marg_gp.predict_mean(test_pts), (1, -1)
-        )  # (1, 5)
+        expected = bkd.reshape(marg_gp.predict_mean(test_pts), (1, -1))  # (1, 5)
 
         bkd.assert_allclose(result, expected, rtol=1e-12)
 
@@ -129,9 +122,7 @@ class TestGPMeanDimensionReducer(Generic[Array], unittest.TestCase):
 
         # Via MarginalizedGP directly
         marg_gp = MarginalizedGP(self._gp, self._calc, active_dims=[0, 2])
-        expected = bkd.reshape(
-            marg_gp.predict_mean(test_pts), (1, -1)
-        )
+        expected = bkd.reshape(marg_gp.predict_mean(test_pts), (1, -1))
 
         bkd.assert_allclose(result, expected, rtol=1e-12)
 
@@ -185,16 +176,12 @@ class TestGPMeanDimensionReducer(Generic[Array], unittest.TestCase):
         self.assertEqual(self._reducer.nqoi(), 1)
 
 
-class TestGPMeanDimensionReducerNumpy(
-    TestGPMeanDimensionReducer[NDArray[Any]]
-):
+class TestGPMeanDimensionReducerNumpy(TestGPMeanDimensionReducer[NDArray[Any]]):
     def bkd(self) -> NumpyBkd:
         return NumpyBkd()
 
 
-class TestGPMeanDimensionReducerTorch(
-    TestGPMeanDimensionReducer[torch.Tensor]
-):
+class TestGPMeanDimensionReducerTorch(TestGPMeanDimensionReducer[torch.Tensor]):
     def bkd(self) -> TorchBkd:
         torch.set_default_dtype(torch.float64)
         return TorchBkd()

@@ -15,12 +15,12 @@ Protocols are organized in two groups:
     HasEnsembleMeans, HasEnsembleCovariance
 """
 
-from typing import Protocol, runtime_checkable, Generic, List, Sequence, Any
+from typing import Any, Generic, List, Protocol, Sequence, runtime_checkable
 
-from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.interface.functions.protocols.function import (
     FunctionProtocol,
 )
+from pyapprox.util.backends.protocols import Array, Backend
 
 
 @runtime_checkable

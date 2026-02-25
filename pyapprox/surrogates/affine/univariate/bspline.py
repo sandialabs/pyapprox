@@ -314,7 +314,7 @@ class HierarchicalBSpline1D(Generic[Array]):
         if level == 0:
             return 1
         # 1 + 1 + 2 + 4 + ... + 2^(l-1) = 2^l
-        return 2 ** level
+        return 2**level
 
     def level_index_to_flat(self, level: int, index: int) -> int:
         """Convert (level, index) to flat index.
@@ -352,6 +352,7 @@ class HierarchicalBSpline1D(Generic[Array]):
             return 0, 0
 
         import math
+
         # Find level: flat_idx in [2^(l-1), 2^l)
         level = int(math.floor(math.log2(flat_idx))) + 1
         index = flat_idx - 2 ** (level - 1)
@@ -366,8 +367,8 @@ class HierarchicalBSpline1D(Generic[Array]):
             knots = [0.0] * (p + 1) + [1.0] * (p + 1)
         else:
             # Finer scale knots
-            h = 1.0 / (2 ** level)
-            n_internal = 2 ** level - 1
+            h = 1.0 / (2**level)
+            n_internal = 2**level - 1
 
             knots = [0.0] * (p + 1)
             for i in range(1, n_internal + 1):
@@ -376,9 +377,7 @@ class HierarchicalBSpline1D(Generic[Array]):
 
         return self._bkd.asarray(knots)
 
-    def evaluate_hierarchical(
-        self, samples: Array, level: int, index: int
-    ) -> Array:
+    def evaluate_hierarchical(self, samples: Array, level: int, index: int) -> Array:
         """Evaluate a single hierarchical basis function.
 
         Parameters

@@ -13,13 +13,12 @@ import numpy as np
 import torch
 from numpy.typing import NDArray
 
-from pyapprox.util.backends.numpy import NumpyBkd
-from pyapprox.util.backends.torch import TorchBkd
-from pyapprox.util.backends.protocols import Array, Backend
-from pyapprox.util.test_utils import load_tests  # noqa: F401
-
 from pyapprox.expdesign.benchmarks import LinearGaussianOEDBenchmark
 from pyapprox.expdesign.diagnostics import KLOEDDiagnostics
+from pyapprox.util.backends.numpy import NumpyBkd
+from pyapprox.util.backends.protocols import Array, Backend
+from pyapprox.util.backends.torch import TorchBkd
+from pyapprox.util.test_utils import load_tests  # noqa: F401
 
 
 class TestKLOEDDiagnosticsStandalone(Generic[Array], unittest.TestCase):
@@ -135,7 +134,7 @@ class TestKLOEDDiagnosticsStandalone(Generic[Array], unittest.TestCase):
         self.assertGreaterEqual(variance, 0.0)
 
         # MSE = bias^2 + variance
-        expected_mse = bias ** 2 + variance
+        expected_mse = bias**2 + variance
         self._bkd.assert_allclose(
             self._bkd.asarray([mse]),
             self._bkd.asarray([expected_mse]),
@@ -177,7 +176,7 @@ class TestKLOEDDiagnosticsStandalone(Generic[Array], unittest.TestCase):
     def test_convergence_rate_o1n2(self):
         """Test convergence rate for O(1/n^2) data is approximately 2."""
         sample_counts = [10, 20, 40, 80, 160]
-        values = [1.0 / (n ** 2) for n in sample_counts]
+        values = [1.0 / (n**2) for n in sample_counts]
 
         rate = KLOEDDiagnostics.compute_convergence_rate(sample_counts, values)
 
@@ -205,8 +204,11 @@ class TestKLOEDDiagnosticsStandalone(Generic[Array], unittest.TestCase):
         inner_counts = [10, 20]
 
         values = diagnostics.compute_mse_for_sample_combinations(
-            outer_counts, inner_counts, nrealizations=2,
-            design_weights=weights, base_seed=42
+            outer_counts,
+            inner_counts,
+            nrealizations=2,
+            design_weights=weights,
+            base_seed=42,
         )
 
         # Check structure
@@ -228,7 +230,6 @@ class TestKLOEDDiagnosticsStandalone(Generic[Array], unittest.TestCase):
         diagnostics = self._create_diagnostics()
         self.assertEqual(diagnostics.bkd(), self._bkd)
 
-
     def test_unknown_utility_type_raises(self):
         """Test create_prediction_oed_diagnostics with unknown type."""
         from pyapprox.expdesign.diagnostics import (
@@ -240,9 +241,7 @@ class TestKLOEDDiagnosticsStandalone(Generic[Array], unittest.TestCase):
             create_prediction_oed_diagnostics(benchmark, "nonexistent_type")
 
 
-class TestKLOEDDiagnosticsStandaloneNumpy(
-    TestKLOEDDiagnosticsStandalone[NDArray[Any]]
-):
+class TestKLOEDDiagnosticsStandaloneNumpy(TestKLOEDDiagnosticsStandalone[NDArray[Any]]):
     """NumPy backend tests."""
 
     __test__ = True
@@ -251,9 +250,7 @@ class TestKLOEDDiagnosticsStandaloneNumpy(
         return NumpyBkd()
 
 
-class TestKLOEDDiagnosticsStandaloneTorch(
-    TestKLOEDDiagnosticsStandalone[torch.Tensor]
-):
+class TestKLOEDDiagnosticsStandaloneTorch(TestKLOEDDiagnosticsStandalone[torch.Tensor]):
     """PyTorch backend tests."""
 
     __test__ = True

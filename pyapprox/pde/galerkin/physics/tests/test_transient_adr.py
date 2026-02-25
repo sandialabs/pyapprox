@@ -18,26 +18,25 @@ from typing import List, Tuple
 import numpy as np
 from unittest_parametrize import ParametrizedTestCase, parametrize
 
-from pyapprox.util.backends.numpy import NumpyBkd
-from pyapprox.pde.galerkin.mesh import StructuredMesh1D, StructuredMesh2D
 from pyapprox.pde.galerkin.basis import LagrangeBasis
-from pyapprox.pde.galerkin.physics import AdvectionDiffusionReaction
 from pyapprox.pde.galerkin.manufactured.adapter import (
     GalerkinManufacturedSolutionAdapter,
     create_adr_manufactured_test,
 )
+from pyapprox.pde.galerkin.mesh import StructuredMesh1D, StructuredMesh2D
+from pyapprox.pde.galerkin.physics import AdvectionDiffusionReaction
 from pyapprox.pde.galerkin.time_integration import (
+    ConstrainedTimeStepResidual,
     GalerkinModel,
     GalerkinPhysicsODEAdapter,
-    ConstrainedTimeStepResidual,
     TimeIntegrationConfig,
 )
 from pyapprox.pde.time.implicit_steppers import (
     BackwardEulerResidual,
     CrankNicolsonResidual,
 )
+from pyapprox.util.backends.numpy import NumpyBkd
 from pyapprox.util.test_utils import slow_test
-
 
 # =========================================================================
 # Helpers
@@ -59,8 +58,9 @@ def _has_velocity(vel_strs):
     return not all("1e-16" in v for v in vel_strs)
 
 
-def _setup_1d_problem(bkd, bounds, sol_str, diff_str, react_str, vel_strs,
-                      bndry_types, nx, diffusivity):
+def _setup_1d_problem(
+    bkd, bounds, sol_str, diff_str, react_str, vel_strs, bndry_types, nx, diffusivity
+):
     """Create physics, model, and exact solution for a 1D problem."""
     functions, _ = create_adr_manufactured_test(
         bounds=bounds,
@@ -72,23 +72,15 @@ def _setup_1d_problem(bkd, bounds, sol_str, diff_str, react_str, vel_strs,
         time_dependent=True,
     )
 
-    mesh = StructuredMesh1D(
-        nx=nx, bounds=(bounds[0], bounds[1]), bkd=bkd
-    )
+    mesh = StructuredMesh1D(nx=nx, bounds=(bounds[0], bounds[1]), bkd=bkd)
     basis = LagrangeBasis(mesh, degree=2)
 
     adapter = GalerkinManufacturedSolutionAdapter(
         basis, functions, bkd, time_dependent=True
     )
-    bc_set = adapter.create_boundary_conditions(
-        bndry_types, robin_alpha=1.0
-    )
+    bc_set = adapter.create_boundary_conditions(bndry_types, robin_alpha=1.0)
 
-    velocity = (
-        adapter.velocity_for_galerkin()
-        if _has_velocity(vel_strs)
-        else None
-    )
+    velocity = adapter.velocity_for_galerkin() if _has_velocity(vel_strs) else None
     reaction = _parse_reaction(react_str)
 
     physics = AdvectionDiffusionReaction(
@@ -121,9 +113,7 @@ def _setup_1d_problem(bkd, bounds, sol_str, diff_str, react_str, vel_strs,
 
 # Format: (name, bndry_types, vel_strs, react_str)
 # Fixed: bounds=[0,1], sol_str="(1-x)*x*(1+T)", diff_str="4+1e-16*x"
-TRANSIENT_ADR_1D_CASES: List[
-    Tuple[str, List[str], List[str], str]
-] = [
+TRANSIENT_ADR_1D_CASES: List[Tuple[str, List[str], List[str], str]] = [
     ("1d_DD_noV_noR", ["D", "D"], ["0+1e-16*x"], "0*u"),
     ("1d_DD_noV_R", ["D", "D"], ["0+1e-16*x"], "u**2"),
     ("1d_DD_V_noR", ["D", "D"], ["(1+x)/10"], "0*u"),
@@ -190,7 +180,8 @@ class TestTransientADR1D(ParametrizedTestCase):
         # due to spatial discretization of u^2 term
         tol = 2e-6 if "R" in name and "N" in "".join(bndry_types) else 1e-6
         self.assertLess(
-            rel_error, tol,
+            rel_error,
+            tol,
             f"Test {name}: rel_error={rel_error:.2e} at t={float(times[-1])} "
             f"should be < {tol}",
         )
@@ -203,9 +194,7 @@ class TestTransientADR1D(ParametrizedTestCase):
 # Format: (name, bndry_types, vel_strs)
 # Fixed: bounds=[0,1,0,1], sol_str="(1-x)*x*(1-y)*y*(1+T)",
 #        diff_str="4+1e-16*x+1e-16*y", react_str="0*u"
-TRANSIENT_ADR_2D_CASES: List[
-    Tuple[str, List[str], List[str]]
-] = [
+TRANSIENT_ADR_2D_CASES: List[Tuple[str, List[str], List[str]]] = [
     ("2d_DDDD_noV", ["D", "D", "D", "D"], ["0+1e-16*x", "0+1e-16*y"]),
     ("2d_DDDD_V", ["D", "D", "D", "D"], ["(1+x)/10", "(1+y)/10"]),
     ("2d_DRDN_noV", ["D", "R", "D", "N"], ["0+1e-16*x", "0+1e-16*y"]),
@@ -247,7 +236,8 @@ class TestTransientADR2D(ParametrizedTestCase):
         )
 
         mesh = StructuredMesh2D(
-            nx=16, ny=16,
+            nx=16,
+            ny=16,
             bounds=[(bounds[0], bounds[1]), (bounds[2], bounds[3])],
             bkd=bkd,
         )
@@ -256,15 +246,9 @@ class TestTransientADR2D(ParametrizedTestCase):
         adapter = GalerkinManufacturedSolutionAdapter(
             basis, functions, bkd, time_dependent=True
         )
-        bc_set = adapter.create_boundary_conditions(
-            bndry_types, robin_alpha=1.0
-        )
+        bc_set = adapter.create_boundary_conditions(bndry_types, robin_alpha=1.0)
 
-        velocity = (
-            adapter.velocity_for_galerkin()
-            if _has_velocity(vel_strs)
-            else None
-        )
+        velocity = adapter.velocity_for_galerkin() if _has_velocity(vel_strs) else None
 
         physics = AdvectionDiffusionReaction(
             basis=basis,
@@ -305,7 +289,8 @@ class TestTransientADR2D(ParametrizedTestCase):
             rel_error = np.linalg.norm(u_num - u_exact_final)
 
         self.assertLess(
-            rel_error, 1e-6,
+            rel_error,
+            1e-6,
             f"Test {name}: rel_error={rel_error:.2e} at t={float(times[-1])} "
             f"should be < 1e-6",
         )
@@ -315,9 +300,7 @@ class TestTransientADR2D(ParametrizedTestCase):
 # 1D Transient ADR with Crank-Nicolson
 # =========================================================================
 
-TRANSIENT_ADR_1D_CN_CASES: List[
-    Tuple[str, List[str], List[str], str]
-] = [
+TRANSIENT_ADR_1D_CN_CASES: List[Tuple[str, List[str], List[str], str]] = [
     ("1d_DD_noV_noR_CN", ["D", "D"], ["0+1e-16*x"], "0*u"),
     ("1d_DD_V_noR_CN", ["D", "D"], ["(1+x)/10"], "0*u"),
 ]
@@ -372,7 +355,8 @@ class TestTransientADR1D_CN(ParametrizedTestCase):
             rel_error = np.linalg.norm(u_num - u_exact_final)
 
         self.assertLess(
-            rel_error, 1e-6,
+            rel_error,
+            1e-6,
             f"Test {name}: rel_error={rel_error:.2e} at t={float(times[-1])} "
             f"should be < 1e-6",
         )
@@ -382,9 +366,7 @@ class TestTransientADR1D_CN(ParametrizedTestCase):
 # 2D Transient ADR with Crank-Nicolson
 # =========================================================================
 
-TRANSIENT_ADR_2D_CN_CASES: List[
-    Tuple[str, List[str], List[str]]
-] = [
+TRANSIENT_ADR_2D_CN_CASES: List[Tuple[str, List[str], List[str]]] = [
     ("2d_DDDD_noV_CN", ["D", "D", "D", "D"], ["0+1e-16*x", "0+1e-16*y"]),
 ]
 
@@ -422,7 +404,8 @@ class TestTransientADR2D_CN(ParametrizedTestCase):
         )
 
         mesh = StructuredMesh2D(
-            nx=16, ny=16,
+            nx=16,
+            ny=16,
             bounds=[(bounds[0], bounds[1]), (bounds[2], bounds[3])],
             bkd=bkd,
         )
@@ -431,15 +414,9 @@ class TestTransientADR2D_CN(ParametrizedTestCase):
         adapter = GalerkinManufacturedSolutionAdapter(
             basis, functions, bkd, time_dependent=True
         )
-        bc_set = adapter.create_boundary_conditions(
-            bndry_types, robin_alpha=1.0
-        )
+        bc_set = adapter.create_boundary_conditions(bndry_types, robin_alpha=1.0)
 
-        velocity = (
-            adapter.velocity_for_galerkin()
-            if _has_velocity(vel_strs)
-            else None
-        )
+        velocity = adapter.velocity_for_galerkin() if _has_velocity(vel_strs) else None
 
         physics = AdvectionDiffusionReaction(
             basis=basis,
@@ -480,7 +457,8 @@ class TestTransientADR2D_CN(ParametrizedTestCase):
             rel_error = np.linalg.norm(u_num - u_exact_final)
 
         self.assertLess(
-            rel_error, 1e-6,
+            rel_error,
+            1e-6,
             f"Test {name}: rel_error={rel_error:.2e} at t={float(times[-1])} "
             f"should be < 1e-6",
         )
@@ -496,9 +474,7 @@ class TestTransientADR2D_CN(ParametrizedTestCase):
 # D=0.1, h=0.25 → CFL diffusive: dt < h²/(2D) = 0.3125
 # With |v|=0.5 → CFL advective: dt < h/|v| = 0.5
 # Combined: dt < 0.3125. Use dt=0.01.
-TRANSIENT_ADR_1D_EXPLICIT_CASES: List[
-    Tuple[str, str, List[str], bool]
-] = [
+TRANSIENT_ADR_1D_EXPLICIT_CASES: List[Tuple[str, str, List[str], bool]] = [
     ("1d_DD_noV_FE", "forward_euler", ["0+1e-16*x"], False),
     ("1d_DD_noV_Heun", "heun", ["0+1e-16*x"], False),
     ("1d_DD_V_FE", "forward_euler", ["0.5"], True),
@@ -558,7 +534,8 @@ class TestTransientADRExplicit1D(ParametrizedTestCase):
             rel_error = np.linalg.norm(u_num - u_exact_final)
 
         self.assertLess(
-            rel_error, 1e-5,
+            rel_error,
+            1e-5,
             f"Test {name}: rel_error={rel_error:.2e} at t={float(times[-1])} "
             f"should be < 1e-5",
         )
@@ -656,9 +633,9 @@ class TestManualNewtonWithConstraint(unittest.TestCase):
         rel_error = np.linalg.norm(u_num - u_exact_final) / u_norm
 
         self.assertLess(
-            rel_error, 1e-6,
-            f"Manual Newton: rel_error={rel_error:.2e} at t={t} "
-            f"should be < 1e-6",
+            rel_error,
+            1e-6,
+            f"Manual Newton: rel_error={rel_error:.2e} at t={t} should be < 1e-6",
         )
 
     def test_manual_newton_crank_nicolson(self) -> None:
@@ -734,14 +711,13 @@ class TestManualNewtonWithConstraint(unittest.TestCase):
         rel_error = np.linalg.norm(u_num - u_exact_final) / u_norm
 
         self.assertLess(
-            rel_error, 1e-6,
-            f"Manual Newton CN: rel_error={rel_error:.2e} at t={t} "
-            f"should be < 1e-6",
+            rel_error,
+            1e-6,
+            f"Manual Newton CN: rel_error={rel_error:.2e} at t={t} should be < 1e-6",
         )
 
 
 from pyapprox.util.test_utils import load_tests  # noqa: F401
-
 
 if __name__ == "__main__":
     unittest.main()

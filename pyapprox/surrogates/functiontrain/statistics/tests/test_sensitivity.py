@@ -9,32 +9,30 @@ import numpy as np
 import torch
 from numpy.typing import NDArray
 
-from pyapprox.util.backends.numpy import NumpyBkd
-from pyapprox.util.backends.torch import TorchBkd
-from pyapprox.util.backends.protocols import Array, Backend
-from pyapprox.util.test_utils import load_tests, slow_test  # noqa: F401
-
-from pyapprox.surrogates.affine.univariate import create_bases_1d
-from pyapprox.surrogates.affine.indices import compute_hyperbolic_indices
-from pyapprox.surrogates.affine.basis import OrthonormalPolynomialBasis
-from pyapprox.surrogates.affine.expansions import BasisExpansion
-from pyapprox.probability import UniformMarginal
-
-from pyapprox.surrogates.functiontrain.core import FunctionTrainCore
-from pyapprox.surrogates.functiontrain import (
-    FunctionTrain,
-    PCEFunctionTrain,
-    ALSFitter,
-    create_uniform_pce_functiontrain,
-)
-from pyapprox.surrogates.functiontrain.statistics import (
-    FunctionTrainMoments,
-    FunctionTrainSensitivity,
-)
 from pyapprox.benchmarks.functions.algebraic.ishigami import (
     IshigamiFunction,
     IshigamiSensitivityIndices,
 )
+from pyapprox.probability import UniformMarginal
+from pyapprox.surrogates.affine.basis import OrthonormalPolynomialBasis
+from pyapprox.surrogates.affine.expansions import BasisExpansion
+from pyapprox.surrogates.affine.indices import compute_hyperbolic_indices
+from pyapprox.surrogates.affine.univariate import create_bases_1d
+from pyapprox.surrogates.functiontrain import (
+    ALSFitter,
+    FunctionTrain,
+    PCEFunctionTrain,
+    create_uniform_pce_functiontrain,
+)
+from pyapprox.surrogates.functiontrain.core import FunctionTrainCore
+from pyapprox.surrogates.functiontrain.statistics import (
+    FunctionTrainMoments,
+    FunctionTrainSensitivity,
+)
+from pyapprox.util.backends.numpy import NumpyBkd
+from pyapprox.util.backends.protocols import Array, Backend
+from pyapprox.util.backends.torch import TorchBkd
+from pyapprox.util.test_utils import load_tests, slow_test  # noqa: F401
 
 
 def all_nonempty_subsets(iterable: Sequence[int]) -> chain[tuple[int, ...]]:
@@ -176,7 +174,7 @@ class TestFunctionTrainSensitivity(Generic[Array], unittest.TestCase):
         for k in range(3):
             self.assertTrue(
                 float(total[k]) >= float(main[k]) - 1e-10,
-                f"S_{k}^T = {total[k]} < S_{k} = {main[k]}"
+                f"S_{k}^T = {total[k]} < S_{k} = {main[k]}",
             )
 
     def test_indices_in_unit_interval(self) -> None:
@@ -198,11 +196,17 @@ class TestFunctionTrainSensitivity(Generic[Array], unittest.TestCase):
         bkd = self._bkd
         # f(x) = a0 + a1*P_1(x) with a1 != 0
         coefficients = [bkd.asarray([[1.0], [2.0]])]
-        pce_ft = self._create_rank1_pce_ft(nvars=1, max_level=1, coefficients=coefficients)
+        pce_ft = self._create_rank1_pce_ft(
+            nvars=1, max_level=1, coefficients=coefficients
+        )
         _, sensitivity = self._create_moments_and_sensitivity(pce_ft)
 
-        bkd.assert_allclose(sensitivity.main_effect_index(0), bkd.array([1.0]), rtol=1e-10)
-        bkd.assert_allclose(sensitivity.total_effect_index(0), bkd.array([1.0]), rtol=1e-10)
+        bkd.assert_allclose(
+            sensitivity.main_effect_index(0), bkd.array([1.0]), rtol=1e-10
+        )
+        bkd.assert_allclose(
+            sensitivity.total_effect_index(0), bkd.array([1.0]), rtol=1e-10
+        )
 
     def test_constant_variable_zero_effect(self) -> None:
         """Variable with only constant coefficient has zero main effect."""
@@ -213,13 +217,19 @@ class TestFunctionTrainSensitivity(Generic[Array], unittest.TestCase):
             bkd.asarray([[2.0], [0.0]]),  # x: constant only
             bkd.asarray([[1.0], [1.5]]),  # y: has linear term
         ]
-        pce_ft = self._create_rank1_pce_ft(nvars=2, max_level=1, coefficients=coefficients)
+        pce_ft = self._create_rank1_pce_ft(
+            nvars=2, max_level=1, coefficients=coefficients
+        )
         _, sensitivity = self._create_moments_and_sensitivity(pce_ft)
 
         # S_x should be 0 (only constant term)
-        bkd.assert_allclose(sensitivity.main_effect_index(0), bkd.array([0.0]), atol=1e-12)
+        bkd.assert_allclose(
+            sensitivity.main_effect_index(0), bkd.array([0.0]), atol=1e-12
+        )
         # S_y should be 1 (accounts for all variance)
-        bkd.assert_allclose(sensitivity.main_effect_index(1), bkd.array([1.0]), rtol=1e-10)
+        bkd.assert_allclose(
+            sensitivity.main_effect_index(1), bkd.array([1.0]), rtol=1e-10
+        )
 
     def test_additive_function_analytical(self) -> None:
         """Test analytical Sobol indices for additive-like function.
@@ -238,11 +248,13 @@ class TestFunctionTrainSensitivity(Generic[Array], unittest.TestCase):
             bkd.asarray([[a0], [a1]]),
             bkd.asarray([[b0], [b1]]),
         ]
-        pce_ft = self._create_rank1_pce_ft(nvars=2, max_level=1, coefficients=coefficients)
+        pce_ft = self._create_rank1_pce_ft(
+            nvars=2, max_level=1, coefficients=coefficients
+        )
         moments, sensitivity = self._create_moments_and_sensitivity(pce_ft)
 
         # Analytical variance
-        total_var = (a0**2 + a1**2) * (b0**2 + b1**2) - (a0 * b0)**2
+        total_var = (a0**2 + a1**2) * (b0**2 + b1**2) - (a0 * b0) ** 2
         bkd.assert_allclose(moments.variance(), bkd.asarray([total_var]), rtol=1e-12)
 
         # Main effect variances
@@ -267,9 +279,15 @@ class TestFunctionTrainSensitivity(Generic[Array], unittest.TestCase):
         S_y = V_y / total_var
         S_xy = V_xy / total_var
 
-        bkd.assert_allclose(sensitivity.main_effect_index(0), bkd.asarray([S_x]), rtol=1e-12)
-        bkd.assert_allclose(sensitivity.main_effect_index(1), bkd.asarray([S_y]), rtol=1e-12)
-        bkd.assert_allclose(sensitivity.sobol_index([0, 1]), bkd.asarray([S_xy]), rtol=1e-12)
+        bkd.assert_allclose(
+            sensitivity.main_effect_index(0), bkd.asarray([S_x]), rtol=1e-12
+        )
+        bkd.assert_allclose(
+            sensitivity.main_effect_index(1), bkd.asarray([S_y]), rtol=1e-12
+        )
+        bkd.assert_allclose(
+            sensitivity.sobol_index([0, 1]), bkd.asarray([S_xy]), rtol=1e-12
+        )
 
         # Verify sum = 1
         bkd.assert_allclose(
@@ -284,7 +302,9 @@ class TestFunctionTrainSensitivity(Generic[Array], unittest.TestCase):
             bkd.asarray([[2.0], [1.0]]),
             bkd.asarray([[1.5], [0.3]]),
         ]
-        pce_ft = self._create_rank1_pce_ft(nvars=3, max_level=1, coefficients=coefficients)
+        pce_ft = self._create_rank1_pce_ft(
+            nvars=3, max_level=1, coefficients=coefficients
+        )
         _, sensitivity = self._create_moments_and_sensitivity(pce_ft)
 
         # Compute all Sobol indices
@@ -344,9 +364,7 @@ class TestIshigamiBenchmark(Generic[Array], unittest.TestCase):
         self._bkd = self.bkd()
         np.random.seed(42)
 
-    def _create_uniform_pce_template(
-        self, max_level: int
-    ) -> BasisExpansion[Array]:
+    def _create_uniform_pce_template(self, max_level: int) -> BasisExpansion[Array]:
         """Create univariate PCE template on [-π, π]."""
         bkd = self._bkd
         marginals = [UniformMarginal(-math.pi, math.pi, bkd)]
@@ -376,20 +394,14 @@ class TestIshigamiBenchmark(Generic[Array], unittest.TestCase):
         exact_indices = IshigamiSensitivityIndices(bkd, a=a, b=b)
 
         # Get exact Sobol indices
-        S_exact = [
-            float(exact_indices.main_effects()[i, 0]) for i in range(nvars)
-        ]
-        T_exact = [
-            float(exact_indices.total_effects()[i, 0]) for i in range(nvars)
-        ]
+        S_exact = [float(exact_indices.main_effects()[i, 0]) for i in range(nvars)]
+        T_exact = [float(exact_indices.total_effects()[i, 0]) for i in range(nvars)]
 
         # Create rank-3 FT with degree 12 polynomials
         max_level = 12
         ranks = [3, 3]  # Interior ranks
         pce_template = self._create_uniform_pce_template(max_level)
-        ft_init = create_uniform_pce_functiontrain(
-            pce_template, nvars, ranks, bkd
-        )
+        ft_init = create_uniform_pce_functiontrain(pce_template, nvars, ranks, bkd)
 
         # Generate training samples on [-π, π]³
         nsamples_train = 1500
@@ -410,12 +422,11 @@ class TestIshigamiBenchmark(Generic[Array], unittest.TestCase):
         )
         test_values = ishigami(test_samples)
         ft_predictions = fitted_ft(test_samples)
-        fit_error = bkd.sqrt(
-            bkd.mean((ft_predictions - test_values) ** 2)
-        ) / bkd.sqrt(bkd.mean(test_values ** 2))
+        fit_error = bkd.sqrt(bkd.mean((ft_predictions - test_values) ** 2)) / bkd.sqrt(
+            bkd.mean(test_values**2)
+        )
         self.assertTrue(
-            float(fit_error) < 1e-4,
-            f"FT fit error {float(fit_error):.2e} exceeds 1e-4"
+            float(fit_error) < 1e-4, f"FT fit error {float(fit_error):.2e} exceeds 1e-4"
         )
 
         # Wrap in PCEFunctionTrain and compute sensitivity indices
@@ -435,7 +446,7 @@ class TestIshigamiBenchmark(Generic[Array], unittest.TestCase):
                 rtol=1e-4,
                 atol=1e-4,
                 err_msg=f"S_{i} = {float(S_computed[i]):.4f}, "
-                        f"expected {S_exact[i]:.4f}",
+                f"expected {S_exact[i]:.4f}",
             )
 
         # Verify total effect indices match analytical values
@@ -446,7 +457,7 @@ class TestIshigamiBenchmark(Generic[Array], unittest.TestCase):
                 rtol=1e-4,
                 atol=1e-4,
                 err_msg=f"T_{i} = {float(T_computed[i]):.4f}, "
-                        f"expected {T_exact[i]:.4f}",
+                f"expected {T_exact[i]:.4f}",
             )
 
         # Verify interaction index S_13 (x₁-x₃ interaction)
@@ -459,8 +470,7 @@ class TestIshigamiBenchmark(Generic[Array], unittest.TestCase):
             bkd.asarray([S_13_exact]),
             rtol=1e-4,
             atol=1e-4,
-            err_msg=f"S_13 = {float(S_13_computed[0]):.4f}, "
-                    f"expected {S_13_exact:.4f}",
+            err_msg=f"S_13 = {float(S_13_computed[0]):.4f}, expected {S_13_exact:.4f}",
         )
 
 

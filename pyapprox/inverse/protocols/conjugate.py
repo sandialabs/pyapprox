@@ -6,7 +6,7 @@ When the prior and likelihood belong to the same parametric family,
 the posterior can be computed exactly without approximation.
 """
 
-from typing import Protocol, Generic, Any, runtime_checkable
+from typing import Any, Generic, Protocol, runtime_checkable
 
 from pyapprox.util.backends.protocols import Array, Backend
 

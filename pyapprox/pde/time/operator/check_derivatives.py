@@ -14,9 +14,9 @@ Usage:
     checker = TimeAdjointDerivativeChecker(adjoint_operator)
     checker.check_all_derivatives(init_state, param, tol=1e-6)
 """
-from typing import Optional, Generic, List
 
-from pyapprox.util.backends.protocols import Array, Backend
+from typing import Generic, List, Optional
+
 from pyapprox.interface.functions.derivative_checks.derivative_checker import (
     DerivativeChecker,
 )
@@ -24,6 +24,7 @@ from pyapprox.interface.functions.fromcallable.jacobian import (
     FunctionWithJacobianFromCallable,
     FunctionWithJVPFromCallable,
 )
+from pyapprox.util.backends.protocols import Array
 
 
 class TimeAdjointDerivativeChecker(Generic[Array]):
@@ -505,9 +506,10 @@ class TimeAdjointDerivativeChecker(Generic[Array]):
         def fun(y_nm1_2d):
             y_nm1_1d = self._from_2d(y_nm1_2d)
             self._time_residual.set_time(time, deltat, y_nm1_1d)
-            result = self._time_residual.adjoint_off_diag_jacobian(
-                y_nm1_1d, deltat
-            ).T @ adj_1d
+            result = (
+                self._time_residual.adjoint_off_diag_jacobian(y_nm1_1d, deltat).T
+                @ adj_1d
+            )
             return self._to_2d(result)
 
         def jvp(y_nm1_2d, w_2d):
@@ -620,9 +622,10 @@ class TimeAdjointDerivativeChecker(Generic[Array]):
         def fun(p_2d):
             self._ode_residual.set_param(p_2d)
             self._time_residual.set_time(time, deltat, fsol_nm1_1d)
-            result = self._time_residual.adjoint_off_diag_jacobian(
-                fsol_nm1_1d, deltat
-            ).T @ adj_1d
+            result = (
+                self._time_residual.adjoint_off_diag_jacobian(fsol_nm1_1d, deltat).T
+                @ adj_1d
+            )
             return self._to_2d(result)
 
         def jvp(p_2d, v_2d):
@@ -888,9 +891,7 @@ class TimeAdjointDerivativeChecker(Generic[Array]):
         fwd_sols, time_pts = self._operator._get_forward_trajectory(
             init_state_1d, param_2d
         )
-        adj_sols = self._operator._get_adjoint_trajectory(
-            init_state_1d, param_2d
-        )
+        adj_sols = self._operator._get_adjoint_trajectory(init_state_1d, param_2d)
 
         nstates = init_state_1d.shape[0]
         adj_state = self._bkd.asarray([1.0] + [0.0] * (nstates - 1))
@@ -913,30 +914,22 @@ class TimeAdjointDerivativeChecker(Generic[Array]):
             errors = self.check_ode_state_state_hvp(
                 init_state_1d, adj_state, t, fd_eps, verbosity
             )
-            self._assert_derivatives_close(
-                errors, tol, f"ODE state_state_hvp at t={t}"
-            )
+            self._assert_derivatives_close(errors, tol, f"ODE state_state_hvp at t={t}")
 
             errors = self.check_ode_state_param_hvp(
                 init_state_1d, param_2d, adj_state, t, fd_eps, verbosity
             )
-            self._assert_derivatives_close(
-                errors, tol, f"ODE state_param_hvp at t={t}"
-            )
+            self._assert_derivatives_close(errors, tol, f"ODE state_param_hvp at t={t}")
 
             errors = self.check_ode_param_state_hvp(
                 init_state_1d, param_2d, adj_state, t, fd_eps, verbosity
             )
-            self._assert_derivatives_close(
-                errors, tol, f"ODE param_state_hvp at t={t}"
-            )
+            self._assert_derivatives_close(errors, tol, f"ODE param_state_hvp at t={t}")
 
             errors = self.check_ode_param_param_hvp(
                 init_state_1d, param_2d, adj_state, t, fd_eps, verbosity
             )
-            self._assert_derivatives_close(
-                errors, tol, f"ODE param_param_hvp at t={t}"
-            )
+            self._assert_derivatives_close(errors, tol, f"ODE param_param_hvp at t={t}")
 
         # 2. Check time residual derivatives at each step
         if verbosity > 0:

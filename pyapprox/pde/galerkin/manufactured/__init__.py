@@ -4,8 +4,8 @@ Adapts the collocation manufactured solutions for use with Galerkin tests.
 """
 
 from pyapprox.pde.galerkin.manufactured.adapter import (
-    GalerkinManufacturedSolutionAdapter,
     GalerkinHyperelasticityAdapter,
+    GalerkinManufacturedSolutionAdapter,
     create_adr_manufactured_test,
     create_helmholtz_manufactured_test,
     create_hyperelasticity_manufactured_test,

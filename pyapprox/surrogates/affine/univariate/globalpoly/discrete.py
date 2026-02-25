@@ -10,10 +10,10 @@ probability distributions:
 
 from typing import Generic
 
-from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.surrogates.affine.univariate.globalpoly.orthopoly_base import (
     OrthonormalPolynomial1D,
 )
+from pyapprox.util.backends.protocols import Array, Backend
 
 
 def krawtchouk_recurrence(
@@ -62,9 +62,7 @@ def krawtchouk_recurrence(
     # b_k = sqrt(p*(1-p)*k*(n-k+1)) for k >= 1
     ab[0, 1] = 1.0
     for kk in range(1, nterms):
-        ab[kk, 1] = bkd.sqrt(
-            bkd.asarray([p * (1 - p) * kk * (n_trials - kk + 1)])
-        )[0]
+        ab[kk, 1] = bkd.sqrt(bkd.asarray([p * (1 - p) * kk * (n_trials - kk + 1)]))[0]
 
     return ab
 
@@ -231,9 +229,7 @@ class HahnPolynomial1D(OrthonormalPolynomial1D[Array], Generic[Array]):
         return self._beta
 
     def _get_recursion_coefficients(self, nterms: int) -> Array:
-        return hahn_recurrence(
-            nterms, self._N, self._alpha, self._beta, self._bkd
-        )
+        return hahn_recurrence(nterms, self._N, self._alpha, self._beta, self._bkd)
 
     def __repr__(self) -> str:
         return (
@@ -362,9 +358,7 @@ def discrete_chebyshev_recurrence(
 
     # b_k^2 = 0.25 * N^2 * (1 - (k/N)^2) / (4 - 1/k^2) for k >= 1
     for kk in range(1, nterms):
-        ab[kk, 1] = (
-            0.25 * N * N * (1 - (kk * 1.0 / N) ** 2) / (4 - 1.0 / kk**2)
-        )
+        ab[kk, 1] = 0.25 * N * N * (1 - (kk * 1.0 / N) ** 2) / (4 - 1.0 / kk**2)
     ab[:, 1] = bkd.sqrt(ab[:, 1])
 
     # b_0 = 1 (probability measure)
@@ -373,9 +367,7 @@ def discrete_chebyshev_recurrence(
     return ab
 
 
-class DiscreteChebyshevPolynomial1D(
-    OrthonormalPolynomial1D[Array], Generic[Array]
-):
+class DiscreteChebyshevPolynomial1D(OrthonormalPolynomial1D[Array], Generic[Array]):
     """Discrete Chebyshev orthonormal polynomial basis.
 
     Orthogonal with respect to uniform discrete distribution

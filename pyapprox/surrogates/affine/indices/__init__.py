@@ -1,69 +1,61 @@
 """Multi-index generation for affine surrogates."""
 
-from pyapprox.surrogates.affine.indices.utils import (
-    hash_index,
-    compute_hyperbolic_indices,
-    compute_hyperbolic_level_indices,
-    sort_indices_lexiographically,
-    argsort_indices_lexiographically,
-    indices_pnorm,
-    compute_downward_closure,
-)
-
-from pyapprox.surrogates.affine.indices.admissibility import (
-    AdmissibilityCriteria,
-    MaxLevelCriteria,
-    Max1DLevelsCriteria,
-    MaxIndicesCriteria,
-    CompositeCriteria,
-)
-
-from pyapprox.surrogates.affine.indices.growth_rules import (
-    IndexGrowthRule,
-    LinearGrowthRule,
-    ClenshawCurtisGrowthRule,
-    ConstantGrowthRule,
-    ExponentialGrowthRule,
-    CubicNestedGrowthRule,
-    inverse_growth_rule,
-)
-
-from pyapprox.surrogates.affine.indices.generators import (
-    IndexGenerator,
-    IterativeIndexGenerator,
-    HyperbolicIndexGenerator,
-    IsotropicSparseGridBasisIndexGenerator,
-    HyperbolicIndexSequence,
-    SparseGridIndexSequence,
-)
-
-from pyapprox.surrogates.affine.indices.priority_queue import (
-    PriorityQueue,
-)
-
-from pyapprox.surrogates.affine.indices.refinement import (
-    CostFunction,
-    UnitCostFunction,
-    LevelCostFunction,
-    ExponentialCostFunction,
-    RefinementCriteria,
-    LevelRefinementCriteria,
-    CostWeightedRefinementCriteria,
-)
-
-from pyapprox.surrogates.affine.indices.basis_generator import (
-    BasisIndexGenerator,
-)
-
 from pyapprox.surrogates.affine.indices.adaptive import (
     AdaptiveIndexRefinement,
 )
-
+from pyapprox.surrogates.affine.indices.admissibility import (
+    AdmissibilityCriteria,
+    CompositeCriteria,
+    Max1DLevelsCriteria,
+    MaxIndicesCriteria,
+    MaxLevelCriteria,
+)
+from pyapprox.surrogates.affine.indices.basis_generator import (
+    BasisIndexGenerator,
+)
+from pyapprox.surrogates.affine.indices.generators import (
+    HyperbolicIndexGenerator,
+    HyperbolicIndexSequence,
+    IndexGenerator,
+    IsotropicSparseGridBasisIndexGenerator,
+    IterativeIndexGenerator,
+    SparseGridIndexSequence,
+)
+from pyapprox.surrogates.affine.indices.growth_rules import (
+    ClenshawCurtisGrowthRule,
+    ConstantGrowthRule,
+    CubicNestedGrowthRule,
+    ExponentialGrowthRule,
+    IndexGrowthRule,
+    LinearGrowthRule,
+    inverse_growth_rule,
+)
 from pyapprox.surrogates.affine.indices.plot import (
-    plot_indices_2d,
-    plot_indices_3d,
     format_index_axes,
     plot_index_sets,
+    plot_indices_2d,
+    plot_indices_3d,
+)
+from pyapprox.surrogates.affine.indices.priority_queue import (
+    PriorityQueue,
+)
+from pyapprox.surrogates.affine.indices.refinement import (
+    CostFunction,
+    CostWeightedRefinementCriteria,
+    ExponentialCostFunction,
+    LevelCostFunction,
+    LevelRefinementCriteria,
+    RefinementCriteria,
+    UnitCostFunction,
+)
+from pyapprox.surrogates.affine.indices.utils import (
+    argsort_indices_lexiographically,
+    compute_downward_closure,
+    compute_hyperbolic_indices,
+    compute_hyperbolic_level_indices,
+    hash_index,
+    indices_pnorm,
+    sort_indices_lexiographically,
 )
 
 __all__ = [

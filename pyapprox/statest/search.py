@@ -2,7 +2,7 @@
 
 from dataclasses import dataclass
 from enum import Enum
-from typing import Generic, Optional, TYPE_CHECKING
+from typing import TYPE_CHECKING, Generic, Optional
 
 from pyapprox.util.backends.protocols import Array
 
@@ -41,8 +41,7 @@ class UnifiedSearchResult(Generic[Array]):
     def comparison_summary(self) -> str:
         """Return summary comparing both families."""
         lines = [
-            f"Best overall: {self.best_family.value} "
-            f"(obj={self.best_objective:.6f})"
+            f"Best overall: {self.best_family.value} (obj={self.best_objective:.6f})"
         ]
         if self.acv_result is not None and self.acv_objective is not None:
             lines.append(
@@ -101,9 +100,7 @@ def unified_search(
     # Run ACV search
     if acv_search is not None:
         try:
-            acv_result = acv_search.search(
-                target_cost, allow_failures=allow_failures
-            )
+            acv_result = acv_search.search(target_cost, allow_failures=allow_failures)
             # search() only returns successfully if allocation succeeded
             bkd = acv_search.bkd()
             acv_obj = float(bkd.to_numpy(acv_result.allocation.objective_value)[0])

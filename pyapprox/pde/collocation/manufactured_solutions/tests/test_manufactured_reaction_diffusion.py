@@ -11,34 +11,33 @@ The key design:
 """
 
 import unittest
-from typing import Any, Generic, Tuple
+from typing import Any, Generic
 
-import sympy as sp
 import torch
 from numpy.typing import NDArray
 from unittest_parametrize import ParametrizedTestCase, parametrize
 
-from pyapprox.util.backends.protocols import Array, Backend
-from pyapprox.util.backends.numpy import NumpyBkd
-from pyapprox.util.backends.torch import TorchBkd
-from pyapprox.util.test_utils import load_tests  # noqa: F401
-from pyapprox.pde.collocation.basis import ChebyshevBasis1D
-from pyapprox.pde.collocation.mesh import (
-    create_uniform_mesh_1d,
-    TransformedMesh1D,
-)
-from pyapprox.pde.collocation.boundary import zero_dirichlet_bc
-from pyapprox.pde.collocation.physics import (
-    TwoSpeciesReactionDiffusionPhysics,
-    LinearReaction,
-    FitzHughNagumoReaction,
-)
-from pyapprox.pde.collocation.manufactured_solutions import (
-    ManufacturedTwoSpeciesReactionDiffusion,
-)
 from pyapprox.interface.functions.derivative_checks.derivative_checker import (
     DerivativeChecker,
 )
+from pyapprox.pde.collocation.basis import ChebyshevBasis1D
+from pyapprox.pde.collocation.boundary import zero_dirichlet_bc
+from pyapprox.pde.collocation.manufactured_solutions import (
+    ManufacturedTwoSpeciesReactionDiffusion,
+)
+from pyapprox.pde.collocation.mesh import (
+    TransformedMesh1D,
+    create_uniform_mesh_1d,
+)
+from pyapprox.pde.collocation.physics import (
+    FitzHughNagumoReaction,
+    LinearReaction,
+    TwoSpeciesReactionDiffusionPhysics,
+)
+from pyapprox.util.backends.numpy import NumpyBkd
+from pyapprox.util.backends.protocols import Array, Backend
+from pyapprox.util.backends.torch import TorchBkd
+from pyapprox.util.test_utils import load_tests  # noqa: F401
 
 
 class PhysicsDerivativeWrapper(Generic[Array]):
@@ -70,9 +69,11 @@ class PhysicsDerivativeWrapper(Generic[Array]):
         # samples shape: (nvars, nsamples), return (nqoi, nsamples)
         if samples.ndim == 2:
             return self._backend.stack(
-                [self._physics.residual(samples[:, i], self._time)
-                 for i in range(samples.shape[1])],
-                axis=1
+                [
+                    self._physics.residual(samples[:, i], self._time)
+                    for i in range(samples.shape[1])
+                ],
+                axis=1,
             )
         # Single sample: return (nqoi, 1)
         return self._physics.residual(samples, self._time).reshape(-1, 1)
@@ -103,9 +104,7 @@ class TestManufacturedReactionDiffusion1D(Generic[Array], unittest.TestCase):
         nodes = basis.nodes()
 
         # Linear reaction: R0 = a00*u0 + a01*u1, R1 = a10*u0 + a11*u1
-        reaction = LinearReaction(
-            a00=1.0, a01=-0.5, a10=0.5, a11=-1.0, bkd=bkd
-        )
+        reaction = LinearReaction(a00=1.0, a01=-0.5, a10=0.5, a11=-1.0, bkd=bkd)
 
         # Create manufactured solution with same reaction
         man_sol = ManufacturedTwoSpeciesReactionDiffusion(
@@ -127,8 +126,10 @@ class TestManufacturedReactionDiffusion1D(Generic[Array], unittest.TestCase):
 
         # Create physics with manufactured forcing
         physics = TwoSpeciesReactionDiffusionPhysics(
-            basis, bkd,
-            diffusion0=1.0, diffusion1=0.5,
+            basis,
+            bkd,
+            diffusion0=1.0,
+            diffusion1=0.5,
             reaction=reaction,
             forcing0=lambda t: forcing0,
             forcing1=lambda t: forcing1,
@@ -174,9 +175,7 @@ class TestManufacturedReactionDiffusion1D(Generic[Array], unittest.TestCase):
         basis = ChebyshevBasis1D(mesh, bkd)
         nodes = basis.nodes()
 
-        reaction = LinearReaction(
-            a00=1.0, a01=-0.5, a10=0.5, a11=-1.0, bkd=bkd
-        )
+        reaction = LinearReaction(a00=1.0, a01=-0.5, a10=0.5, a11=-1.0, bkd=bkd)
 
         man_sol = ManufacturedTwoSpeciesReactionDiffusion(
             sol_strs=["(1 - x**2)", "0.5*(1 - x**2)"],
@@ -191,8 +190,10 @@ class TestManufacturedReactionDiffusion1D(Generic[Array], unittest.TestCase):
         forcing = man_sol.functions["forcing"](nodes.reshape(1, -1))
 
         physics = TwoSpeciesReactionDiffusionPhysics(
-            basis, bkd,
-            diffusion0=1.0, diffusion1=0.5,
+            basis,
+            bkd,
+            diffusion0=1.0,
+            diffusion1=0.5,
             reaction=reaction,
             forcing0=lambda t: forcing[:, 0],
             forcing1=lambda t: forcing[:, 1],
@@ -233,8 +234,10 @@ class TestManufacturedReactionDiffusion1D(Generic[Array], unittest.TestCase):
         forcing = man_sol.functions["forcing"](nodes.reshape(1, -1))
 
         physics = TwoSpeciesReactionDiffusionPhysics(
-            basis, bkd,
-            diffusion0=0.01, diffusion1=0.0,
+            basis,
+            bkd,
+            diffusion0=0.01,
+            diffusion1=0.0,
             reaction=reaction,
             forcing0=lambda t: forcing[:, 0],
             forcing1=lambda t: forcing[:, 1],
@@ -291,8 +294,10 @@ class TestManufacturedReactionDiffusion1D(Generic[Array], unittest.TestCase):
         forcing = man_sol.functions["forcing"](nodes.reshape(1, -1))
 
         physics = TwoSpeciesReactionDiffusionPhysics(
-            basis, bkd,
-            diffusion0=0.01, diffusion1=0.0,
+            basis,
+            bkd,
+            diffusion0=0.01,
+            diffusion1=0.0,
             reaction=reaction,
             forcing0=lambda t: forcing[:, 0],
             forcing1=lambda t: forcing[:, 1],
@@ -314,16 +319,66 @@ class TestReactionDiffusion1DParameterized(ParametrizedTestCase):
     @parametrize(
         "name,sol0_str,sol1_str,a00,a01,a10,a11,D0,D1,npts",
         [
-            ("linear_basic", "(1 - x**2)", "0.5*(1 - x**2)",
-             1.0, -0.5, 0.5, -1.0, 1.0, 0.5, 15),
-            ("linear_symmetric", "(1 - x**2)", "(1 - x**2)",
-             -1.0, 0.5, 0.5, -1.0, 1.0, 1.0, 15),
-            ("linear_diagonal", "(1 - x**2)", "0.3*(1 - x**2)",
-             -2.0, 0.0, 0.0, -1.0, 0.5, 0.2, 15),
-            ("quartic_sol", "(1 - x**2)**2", "0.5*(1 - x**2)**2",
-             1.0, -0.5, 0.5, -1.0, 1.0, 0.5, 20),
-            ("higher_diffusion", "(1 - x**2)", "0.5*(1 - x**2)",
-             1.0, -0.5, 0.5, -1.0, 5.0, 2.5, 15),
+            (
+                "linear_basic",
+                "(1 - x**2)",
+                "0.5*(1 - x**2)",
+                1.0,
+                -0.5,
+                0.5,
+                -1.0,
+                1.0,
+                0.5,
+                15,
+            ),
+            (
+                "linear_symmetric",
+                "(1 - x**2)",
+                "(1 - x**2)",
+                -1.0,
+                0.5,
+                0.5,
+                -1.0,
+                1.0,
+                1.0,
+                15,
+            ),
+            (
+                "linear_diagonal",
+                "(1 - x**2)",
+                "0.3*(1 - x**2)",
+                -2.0,
+                0.0,
+                0.0,
+                -1.0,
+                0.5,
+                0.2,
+                15,
+            ),
+            (
+                "quartic_sol",
+                "(1 - x**2)**2",
+                "0.5*(1 - x**2)**2",
+                1.0,
+                -0.5,
+                0.5,
+                -1.0,
+                1.0,
+                0.5,
+                20,
+            ),
+            (
+                "higher_diffusion",
+                "(1 - x**2)",
+                "0.5*(1 - x**2)",
+                1.0,
+                -0.5,
+                0.5,
+                -1.0,
+                5.0,
+                2.5,
+                15,
+            ),
         ],
     )
     def test_linear_reaction_residual(
@@ -352,8 +407,10 @@ class TestReactionDiffusion1DParameterized(ParametrizedTestCase):
         forcing = man_sol.functions["forcing"](nodes.reshape(1, -1))
 
         physics = TwoSpeciesReactionDiffusionPhysics(
-            basis, bkd,
-            diffusion0=D0, diffusion1=D1,
+            basis,
+            bkd,
+            diffusion0=D0,
+            diffusion1=D1,
             reaction=reaction,
             forcing0=lambda t: forcing[:, 0],
             forcing1=lambda t: forcing[:, 1],
@@ -389,14 +446,50 @@ class TestReactionDiffusion1DParameterized(ParametrizedTestCase):
     @parametrize(
         "name,sol0_str,sol1_str,alpha,eps,beta,gamma,D0,npts",
         [
-            ("fhn_basic", "0.5*(1 - x**2)", "0.3*(1 - x**2)",
-             0.1, 0.01, 0.5, 1.0, 0.01, 15),
-            ("fhn_high_alpha", "0.5*(1 - x**2)", "0.3*(1 - x**2)",
-             0.3, 0.01, 0.5, 1.0, 0.01, 15),
-            ("fhn_high_eps", "0.5*(1 - x**2)", "0.3*(1 - x**2)",
-             0.1, 0.1, 0.5, 1.0, 0.01, 15),
-            ("fhn_quartic", "0.3*(1 - x**2)**2", "0.2*(1 - x**2)**2",
-             0.1, 0.01, 0.5, 1.0, 0.01, 20),
+            (
+                "fhn_basic",
+                "0.5*(1 - x**2)",
+                "0.3*(1 - x**2)",
+                0.1,
+                0.01,
+                0.5,
+                1.0,
+                0.01,
+                15,
+            ),
+            (
+                "fhn_high_alpha",
+                "0.5*(1 - x**2)",
+                "0.3*(1 - x**2)",
+                0.3,
+                0.01,
+                0.5,
+                1.0,
+                0.01,
+                15,
+            ),
+            (
+                "fhn_high_eps",
+                "0.5*(1 - x**2)",
+                "0.3*(1 - x**2)",
+                0.1,
+                0.1,
+                0.5,
+                1.0,
+                0.01,
+                15,
+            ),
+            (
+                "fhn_quartic",
+                "0.3*(1 - x**2)**2",
+                "0.2*(1 - x**2)**2",
+                0.1,
+                0.01,
+                0.5,
+                1.0,
+                0.01,
+                20,
+            ),
         ],
     )
     def test_fitzhugh_nagumo_residual(
@@ -427,8 +520,10 @@ class TestReactionDiffusion1DParameterized(ParametrizedTestCase):
         forcing = man_sol.functions["forcing"](nodes.reshape(1, -1))
 
         physics = TwoSpeciesReactionDiffusionPhysics(
-            basis, bkd,
-            diffusion0=D0, diffusion1=0.0,
+            basis,
+            bkd,
+            diffusion0=D0,
+            diffusion1=0.0,
             reaction=reaction,
             forcing0=lambda t: forcing[:, 0],
             forcing1=lambda t: forcing[:, 1],
@@ -492,8 +587,10 @@ class TestReactionDiffusion1DParameterized(ParametrizedTestCase):
         forcing = man_sol.functions["forcing"](nodes.reshape(1, -1))
 
         physics = TwoSpeciesReactionDiffusionPhysics(
-            basis, bkd,
-            diffusion0=1.0, diffusion1=0.5,
+            basis,
+            bkd,
+            diffusion0=1.0,
+            diffusion1=0.5,
             reaction=reaction,
             forcing0=lambda t: forcing[:, 0],
             forcing1=lambda t: forcing[:, 1],

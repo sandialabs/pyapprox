@@ -4,23 +4,20 @@ Tests run on both NumPy and PyTorch backends using the base class pattern.
 """
 
 import unittest
-from typing import Any, Generic, Tuple
+from typing import Any, Generic
 
-import numpy as np
 import torch
 from numpy.typing import NDArray
 
-from pyapprox.util.backends.numpy import NumpyBkd
-from pyapprox.util.backends.torch import TorchBkd
-from pyapprox.util.backends.protocols import Array, Backend
-from pyapprox.util.test_utils import load_tests
-
 from pyapprox.surrogates.affine.univariate.lagrange import (
     LagrangeBasis1D,
-    univariate_lagrange_polynomial,
     univariate_lagrange_first_derivative,
+    univariate_lagrange_polynomial,
     univariate_lagrange_second_derivative,
 )
+from pyapprox.util.backends.numpy import NumpyBkd
+from pyapprox.util.backends.protocols import Array, Backend
+from pyapprox.util.backends.torch import TorchBkd
 
 
 class TestLagrangeBasis1D(Generic[Array], unittest.TestCase):
@@ -366,9 +363,7 @@ class TestLagrangeFunctions(Generic[Array], unittest.TestCase):
         abscissa = self._bkd.asarray([-1.0, 0.0, 1.0])
         samples = self._bkd.asarray([0.5, -0.5])
 
-        derivs = univariate_lagrange_first_derivative(
-            abscissa, samples, self._bkd
-        )
+        derivs = univariate_lagrange_first_derivative(abscissa, samples, self._bkd)
 
         self.assertEqual(derivs.shape[0], 2)  # nsamples
         self.assertEqual(derivs.shape[1], 3)  # nabscissa
@@ -378,9 +373,7 @@ class TestLagrangeFunctions(Generic[Array], unittest.TestCase):
         abscissa = self._bkd.asarray([-1.0, 0.0, 1.0])
         samples = self._bkd.asarray([0.5, -0.5])
 
-        derivs = univariate_lagrange_second_derivative(
-            abscissa, samples, self._bkd
-        )
+        derivs = univariate_lagrange_second_derivative(abscissa, samples, self._bkd)
 
         self.assertEqual(derivs.shape[0], 2)  # nsamples
         self.assertEqual(derivs.shape[1], 3)  # nabscissa

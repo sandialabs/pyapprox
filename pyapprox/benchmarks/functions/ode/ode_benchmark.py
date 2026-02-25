@@ -6,13 +6,19 @@ them with the benchmark registry system.
 
 from dataclasses import dataclass
 from typing import (
-    Generic, Optional, TypeVar, Any, List, Protocol, Tuple, Union,
+    Any,
+    Generic,
+    Optional,
+    Protocol,
+    Tuple,
+    TypeVar,
+    Union,
     runtime_checkable,
 )
 
-from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.benchmarks.benchmark import BoxDomain
 from pyapprox.benchmarks.ground_truth import ODEGroundTruth
+from pyapprox.util.backends.protocols import Array, Backend
 
 GT = TypeVar("GT")
 
@@ -109,7 +115,9 @@ class MaxODEFunctional(Generic[Array]):
 
 
 def _create_functional_from_string(
-    name: str, nstates: int, bkd: Backend[Array],
+    name: str,
+    nstates: int,
+    bkd: Backend[Array],
 ) -> ODEFunctionalProtocol[Array]:
     """Create a functional object from a string name.
 
@@ -280,21 +288,25 @@ class ODEQoIFunction(Generic[Array]):
             from pyapprox.pde.time.implicit_steppers.backward_euler import (
                 BackwardEulerResidual,
             )
+
             return BackwardEulerResidual(residual)
         elif self._stepper_type == "forward_euler":
             from pyapprox.pde.time.explicit_steppers.forward_euler import (
                 ForwardEulerResidual,
             )
+
             return ForwardEulerResidual(residual)
         elif self._stepper_type == "heun":
             from pyapprox.pde.time.explicit_steppers.heun import (
                 HeunResidual,
             )
+
             return HeunResidual(residual)
         elif self._stepper_type == "crank_nicolson":
             from pyapprox.pde.time.implicit_steppers.crank_nicolson import (
                 CrankNicolsonResidual,
             )
+
             return CrankNicolsonResidual(residual)
         else:
             raise ValueError(f"Unknown stepper type: {self._stepper_type}")
@@ -464,21 +476,25 @@ class ODEBenchmark(Generic[Array, GT]):
             from pyapprox.pde.time.implicit_steppers.backward_euler import (
                 BackwardEulerResidual,
             )
+
             return BackwardEulerResidual(self._residual)
         elif stepper == "forward_euler":
             from pyapprox.pde.time.explicit_steppers.forward_euler import (
                 ForwardEulerResidual,
             )
+
             return ForwardEulerResidual(self._residual)
         elif stepper == "heun":
             from pyapprox.pde.time.explicit_steppers.heun import (
                 HeunResidual,
             )
+
             return HeunResidual(self._residual)
         elif stepper == "crank_nicolson":
             from pyapprox.pde.time.implicit_steppers.crank_nicolson import (
                 CrankNicolsonResidual,
             )
+
             return CrankNicolsonResidual(self._residual)
         else:
             raise ValueError(f"Unknown stepper type: {stepper}")
@@ -524,6 +540,8 @@ class ODEBenchmark(Generic[Array, GT]):
         """
         if isinstance(functional, str):
             functional = _create_functional_from_string(
-                functional, self.nstates(), self._domain.bkd(),
+                functional,
+                self.nstates(),
+                self._domain.bkd(),
             )
         return ODEQoIFunction(self, functional=functional, stepper=stepper)

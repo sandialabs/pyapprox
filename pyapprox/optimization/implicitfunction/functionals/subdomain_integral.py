@@ -7,13 +7,13 @@ projected to collocation nodes.
 
 from typing import Callable, Generic, Optional, Tuple
 
-from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.pde.collocation.basis.chebyshev.basis_1d import (
     ChebyshevBasis1D,
 )
 from pyapprox.pde.collocation.quadrature.collocation_quadrature import (
     CollocationQuadrature1D,
 )
+from pyapprox.util.backends.protocols import Array, Backend
 
 
 class SubdomainIntegralFunctional(Generic[Array]):
@@ -65,13 +65,9 @@ class SubdomainIntegralFunctional(Generic[Array]):
         ] = None,
     ) -> None:
         if coefficient is None and integrand is None:
-            raise ValueError(
-                "Exactly one of coefficient or integrand must be provided"
-            )
+            raise ValueError("Exactly one of coefficient or integrand must be provided")
         if coefficient is not None and integrand is not None:
-            raise ValueError(
-                "Exactly one of coefficient or integrand must be provided"
-            )
+            raise ValueError("Exactly one of coefficient or integrand must be provided")
 
         self._bkd = bkd
         self._nparams = nparams
@@ -84,9 +80,7 @@ class SubdomainIntegralFunctional(Generic[Array]):
             self._weights = quad.full_domain_weights()
         else:
             if a_sub is None or b_sub is None:
-                raise ValueError(
-                    "Both a_sub and b_sub must be provided, or both None"
-                )
+                raise ValueError("Both a_sub and b_sub must be provided, or both None")
             self._weights = quad.weights(a_sub, b_sub)
 
         self._nstates = self._weights.shape[0]

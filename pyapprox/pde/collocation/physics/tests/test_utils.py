@@ -7,15 +7,11 @@ and NewtonSolver.
 import unittest
 from typing import Generic
 
-from pyapprox.util.backends.protocols import Array, Backend
-from pyapprox.pde.collocation.physics.base import AbstractPhysics
 from pyapprox.interface.functions.derivative_checks.derivative_checker import (
     DerivativeChecker,
 )
-from pyapprox.optimization.rootfinding.newton import (
-    NewtonSolver,
-    NewtonSolverResidualProtocol,
-)
+from pyapprox.pde.collocation.physics.base import AbstractPhysics
+from pyapprox.util.backends.protocols import Array, Backend
 
 
 class PhysicsDerivativeWrapper(Generic[Array]):

@@ -1,10 +1,11 @@
 """Candidate generator for adaptive GP sampling."""
 
-import numpy as np
 from typing import Generic
 
-from pyapprox.util.backends.protocols import Array, Backend
+import numpy as np
+
 from pyapprox.expdesign.quadrature import SobolSampler
+from pyapprox.util.backends.protocols import Array, Backend
 
 
 class HybridSobolRandomCandidateGenerator(Generic[Array]):
@@ -71,12 +72,14 @@ class HybridSobolRandomCandidateGenerator(Generic[Array]):
 
         if n_sobol > 0:
             sobol = SobolSampler(
-                self._nvars, bkd, scramble=True, seed=self._seed,
+                self._nvars,
+                bkd,
+                scramble=True,
+                seed=self._seed,
             )
             sobol_pts, _ = sobol.sample(n_sobol)
             sobol_scaled = (
-                self._lower[:, None]
-                + sobol_pts * (self._upper - self._lower)[:, None]
+                self._lower[:, None] + sobol_pts * (self._upper - self._lower)[:, None]
             )
             parts.append(sobol_scaled)
 

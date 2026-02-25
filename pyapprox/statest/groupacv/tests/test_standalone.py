@@ -9,46 +9,48 @@ import unittest
 from typing import Any, Generic
 
 import numpy as np
-from numpy.typing import NDArray
 import torch
+from numpy.typing import NDArray
 from unittest_parametrize import ParametrizedTestCase, parametrize
 
-from pyapprox.util.backends.numpy import NumpyBkd
-from pyapprox.util.backends.torch import TorchBkd
-from pyapprox.util.backends.protocols import Array
-from pyapprox.util.test_utils import load_tests  # noqa: F401
-
-from pyapprox.statest.groupacv import (
-    get_model_subsets,
-    _get_allocation_matrix_is,
-    _get_allocation_matrix_nested,
-    _nest_subsets,
-    GroupACVEstimatorIS,
-    GroupACVEstimatorNested,
-    MLBLUEEstimator,
-    GroupACVTraceObjective,
-    GroupACVLogDetObjective,
-    MLBLUEObjective,
-    GroupACVCostConstraint,
-    MLBLUESPDAllocationOptimizer,
-)
-from pyapprox.statest.groupacv.allocation import GroupACVAllocationResult
-from pyapprox.statest.acv import MFMCEstimator, GMFEstimator
-from pyapprox.statest.acv.variants import _allocate_samples_mfmc
 from pyapprox.benchmarks.functions.multifidelity.multioutput_ensemble import (
     MultiOutputModelEnsemble,
     PSDMultiOutputModelEnsemble,
 )
-from pyapprox.statest.statistics import (
-    MultiOutputVariance,
-    MultiOutputMeanAndVariance,
-)
-from pyapprox.util.optional_deps import package_available
-from pyapprox.statest.statistics import MultiOutputMean
 from pyapprox.interface.functions.derivative_checks.derivative_checker import (
     DerivativeChecker,
 )
-from pyapprox.util.test_utils import slower_test, allocate_with_allocator
+from pyapprox.statest.acv import GMFEstimator, MFMCEstimator
+from pyapprox.statest.acv.variants import _allocate_samples_mfmc
+from pyapprox.statest.groupacv import (
+    GroupACVCostConstraint,
+    GroupACVEstimatorIS,
+    GroupACVEstimatorNested,
+    GroupACVLogDetObjective,
+    GroupACVTraceObjective,
+    MLBLUEEstimator,
+    MLBLUEObjective,
+    MLBLUESPDAllocationOptimizer,
+    _get_allocation_matrix_is,
+    _get_allocation_matrix_nested,
+    _nest_subsets,
+    get_model_subsets,
+)
+from pyapprox.statest.groupacv.allocation import GroupACVAllocationResult
+from pyapprox.statest.statistics import (
+    MultiOutputMean,
+    MultiOutputMeanAndVariance,
+    MultiOutputVariance,
+)
+from pyapprox.util.backends.numpy import NumpyBkd
+from pyapprox.util.backends.protocols import Array
+from pyapprox.util.backends.torch import TorchBkd
+from pyapprox.util.optional_deps import package_available
+from pyapprox.util.test_utils import (
+    allocate_with_allocator,
+    load_tests,  # noqa: F401
+    slower_test,
+)
 
 
 def _make_groupacv_allocation(est, npartition_samples):
@@ -264,9 +266,7 @@ class TestGroupACVEstimator(Generic[Array], unittest.TestCase):
         est.set_allocation(allocation)
 
         samples_per_model = est.generate_samples_per_model(
-            lambda n: self._bkd.arange(int(n), dtype=self._bkd.double_dtype())[
-                None, :
-            ]
+            lambda n: self._bkd.arange(int(n), dtype=self._bkd.double_dtype())[None, :]
         )
         for ii in range(est.nmodels()):
             self._bkd.assert_allclose(
@@ -275,9 +275,7 @@ class TestGroupACVEstimator(Generic[Array], unittest.TestCase):
             )
 
         # values shape is (nqoi, nsamples) - same as samples but with nqoi rows
-        values_per_model = [
-            (ii + 1) * s for ii, s in enumerate(samples_per_model)
-        ]
+        values_per_model = [(ii + 1) * s for ii, s in enumerate(samples_per_model)]
         values_per_subset = est._separate_values_per_model(values_per_model)
 
         test_samples = self._bkd.arange(
@@ -285,16 +283,12 @@ class TestGroupACVEstimator(Generic[Array], unittest.TestCase):
             dtype=self._bkd.double_dtype(),
         )[None, :]
         # test_values shape is (nqoi, nsamples)
-        test_values = [
-            (ii + 1) * test_samples for ii in range(est.nmodels())
-        ]
+        [(ii + 1) * test_samples for ii in range(est.nmodels())]
 
         for ii in range(est.nsubsets()):
             active_partitions = self._bkd.where(est._allocation_mat[ii] == 1)[0]
-            indices = (
-                self._bkd.arange(
-                    test_samples.shape[1], dtype=self._bkd.int64_dtype()
-                )
+            (
+                self._bkd.arange(test_samples.shape[1], dtype=self._bkd.int64_dtype())
                 .reshape(est.npartitions(), NN)[active_partitions]
                 .flatten()
             )
@@ -330,7 +324,9 @@ class TestGroupACVEstimatorTorch(TestGroupACVEstimator[torch.Tensor]):
         return TorchBkd()
 
 
-class TestGroupACVObjectiveDerivativesTorchOnly(ParametrizedTestCase, unittest.TestCase):
+class TestGroupACVObjectiveDerivativesTorchOnly(
+    ParametrizedTestCase, unittest.TestCase
+):
     """Test derivative correctness for GroupACV objectives using DerivativeChecker.
 
     These tests only run with Torch backend because the base objectives use
@@ -609,16 +605,12 @@ class TestMLBLUEObjectiveDerivatives(
         assert isinstance(obj, GroupACVTraceObjective)
 
 
-class TestMLBLUEObjectiveDerivativesNumpy(
-    TestMLBLUEObjectiveDerivatives[NDArray[Any]]
-):
+class TestMLBLUEObjectiveDerivativesNumpy(TestMLBLUEObjectiveDerivatives[NDArray[Any]]):
     def bkd(self) -> NumpyBkd:
         return NumpyBkd()
 
 
-class TestMLBLUEObjectiveDerivativesTorch(
-    TestMLBLUEObjectiveDerivatives[torch.Tensor]
-):
+class TestMLBLUEObjectiveDerivativesTorch(TestMLBLUEObjectiveDerivatives[torch.Tensor]):
     def bkd(self) -> TorchBkd:
         torch.set_default_dtype(torch.float64)
         return TorchBkd()
@@ -639,14 +631,10 @@ class TestRestrictionMatrices(Generic[Array], unittest.TestCase):
     def test_restriction_matrices_nqoi_1(self):
         """Test restriction matrices with nqoi=1."""
         qoi_idx = [0]
-        costs = self._bkd.array(
-            [1, 0.5, 0.25], dtype=self._bkd.double_dtype()
-        )
+        costs = self._bkd.array([1, 0.5, 0.25], dtype=self._bkd.double_dtype())
         stat = MultiOutputMean(len(qoi_idx), self._bkd)
         subsets = [[0, 1, 2], [1], [2]]
-        subsets = [
-            self._bkd.array(s, dtype=self._bkd.int64_dtype()) for s in subsets
-        ]
+        subsets = [self._bkd.array(s, dtype=self._bkd.int64_dtype()) for s in subsets]
         est = GroupACVEstimatorNested(stat, costs, model_subsets=subsets)
 
         # Vector containing model ids
@@ -656,29 +644,23 @@ class TestRestrictionMatrices(Generic[Array], unittest.TestCase):
         cnt = 0
         for ii in range(len(subsets)):
             recovered = (est._R[:, cnt : cnt + len(subsets[ii])].T @ Lvec)[:, 0]
-            expected = self._bkd.asarray(
-                subsets[ii], dtype=self._bkd.double_dtype()
-            )
+            expected = self._bkd.asarray(subsets[ii], dtype=self._bkd.double_dtype())
             self._bkd.assert_allclose(recovered, expected)
             cnt += len(subsets[ii])
 
     def test_restriction_matrices_nqoi_2(self):
         """Test restriction matrices with nqoi=2."""
         qoi_idx = [0, 1]
-        costs = self._bkd.array(
-            [1, 0.5, 0.25], dtype=self._bkd.double_dtype()
-        )
+        costs = self._bkd.array([1, 0.5, 0.25], dtype=self._bkd.double_dtype())
         stat = MultiOutputMean(len(qoi_idx), self._bkd)
         subsets = [[0, 1, 2], [1], [2]]
-        subsets = [
-            self._bkd.array(s, dtype=self._bkd.int64_dtype()) for s in subsets
-        ]
+        subsets = [self._bkd.array(s, dtype=self._bkd.int64_dtype()) for s in subsets]
         est = GroupACVEstimatorNested(stat, costs, model_subsets=subsets)
 
         # Vector containing flattened model qoi ids
-        Lvec = self._bkd.arange(
-            3 * len(qoi_idx), dtype=self._bkd.double_dtype()
-        )[:, None]
+        Lvec = self._bkd.arange(3 * len(qoi_idx), dtype=self._bkd.double_dtype())[
+            :, None
+        ]
 
         # Check restriction matrix recovers all correct qoi of all subset model ids
         self._bkd.assert_allclose(
@@ -733,7 +715,7 @@ class TestMLBLUESPDAllocationOptimizer(
         d = self._bkd.sqrt(self._bkd.diag(cov))
         cov = cov / self._bkd.outer(d, d)
         costs = self._bkd.array(
-            [1.0 / (10 ** i) for i in range(nmodels)],
+            [1.0 / (10**i) for i in range(nmodels)],
             dtype=self._bkd.double_dtype(),
         )
 
@@ -765,9 +747,7 @@ class TestMLBLUESPDAllocationOptimizer(
         )
 
         # Check that all sample counts are non-negative
-        self.assertTrue(
-            float(self._bkd.min(result.npartition_samples)) >= -1e-10
-        )
+        self.assertTrue(float(self._bkd.min(result.npartition_samples)) >= -1e-10)
 
     @parametrize(
         "nmodels",
@@ -844,9 +824,7 @@ class TestPilotSampleInsertion(Generic[Array], ParametrizedTestCase):
         cov = self._bkd.array(np.random.normal(0, 1, (nmodels, nmodels)))
         cov = cov.T @ cov
         cov = self._covariance_to_correlation(cov)
-        costs = self._bkd.flip(
-            self._bkd.logspace(-nmodels + 1, 0, nmodels)
-        )
+        costs = self._bkd.flip(self._bkd.logspace(-nmodels + 1, 0, nmodels))
         stat = MultiOutputMean(1, self._bkd)
         stat.set_pilot_quantities(cov)
         return MLBLUEEstimator(stat, costs, reg_blue=1e-10)
@@ -856,11 +834,11 @@ class TestPilotSampleInsertion(Generic[Array], ParametrizedTestCase):
         from pyapprox.optimization.minimize.chained.chained_optimizer import (
             ChainedOptimizer,
         )
-        from pyapprox.optimization.minimize.scipy.trust_constr import (
-            ScipyTrustConstrOptimizer,
-        )
         from pyapprox.optimization.minimize.scipy.diffevol import (
             ScipyDifferentialEvolutionOptimizer,
+        )
+        from pyapprox.optimization.minimize.scipy.trust_constr import (
+            ScipyTrustConstrOptimizer,
         )
 
         global_opt = ScipyDifferentialEvolutionOptimizer(
@@ -907,9 +885,7 @@ class TestPilotSampleInsertion(Generic[Array], ParametrizedTestCase):
             # Get covariance and create value generator
             cov = est._stat._cov
             chol_factor = self._bkd.cholesky(cov)
-            exact_means = self._bkd.arange(
-                nmodels, dtype=self._bkd.double_dtype()
-            )
+            exact_means = self._bkd.arange(nmodels, dtype=self._bkd.double_dtype())
 
             # Sample generator with nmodels variables (required for correlation)
             def rvs(n: int) -> Array:
@@ -938,7 +914,8 @@ class TestPilotSampleInsertion(Generic[Array], ParametrizedTestCase):
                 rvs, npilot_samples
             )
 
-            # Generate values without pilot - shape (nqoi, nsamples) = (1, nsamples_for_model)
+            # Generate values without pilot - shape (nqoi, nsamples) = (1,
+            # nsamples_for_model)
             values_per_model_wo_pilot = [
                 self._generate_correlated_values(
                     chol_factor,
@@ -1136,9 +1113,7 @@ class TestMFMCNestedEstimation(Generic[Array], ParametrizedTestCase):
             (2, [0, 1], "mean_variance"),
         ],
     )
-    def test_mfmc_nested_estimation(
-        self, nmodels: int, qoi_idx: list, stat_type: str
-    ):
+    def test_mfmc_nested_estimation(self, nmodels: int, qoi_idx: list, stat_type: str):
         """Test GroupACV matches GMF for nested MFMC estimation.
 
         When GroupACV uses MFMC subsets and the same sample allocation as
@@ -1201,8 +1176,7 @@ class TestMFMCNestedEstimation(Generic[Array], ParametrizedTestCase):
         samples_per_model = gmf_est.generate_samples_per_model(rvs)
         # Values shape: (nqoi, nsamples) - samples in columns
         values_per_model = [
-            model(samples)
-            for model, samples in zip(models, samples_per_model)
+            model(samples) for model, samples in zip(models, samples_per_model)
         ]
 
         # Compute GMF estimate (expects samples in columns)
@@ -1211,12 +1185,11 @@ class TestMFMCNestedEstimation(Generic[Array], ParametrizedTestCase):
         # Apply GMF sample allocation to GroupACV
         # Create GroupACV allocation from GMF allocation
         gmf_npartition = gmf_est.npartition_samples()
-        groupacv_allocation = _make_groupacv_allocation(
-            groupacv_est, gmf_npartition
-        )
+        groupacv_allocation = _make_groupacv_allocation(groupacv_est, gmf_npartition)
         groupacv_est.set_allocation(groupacv_allocation)
 
-        # Compute GroupACV estimate (now expects samples in columns like other typing code)
+        # Compute GroupACV estimate (now expects samples in columns like other typing
+        # code)
         groupacv_est_val = groupacv_est(values_per_model)
 
         # Check covariances match (use default bkd.allclose tolerances)
@@ -1238,6 +1211,7 @@ class TestMFMCNestedEstimation(Generic[Array], ParametrizedTestCase):
 
 class TestMFMCNestedEstimationTorchOnly(TestMFMCNestedEstimation[torch.Tensor]):
     """Torch-only test since GMF optimization requires bkd.jacobian."""
+
     def bkd(self) -> TorchBkd:
         torch.set_default_dtype(torch.float64)
         return TorchBkd()
@@ -1274,9 +1248,7 @@ class TestSigmaMatrixMonteCarlo(Generic[Array], ParametrizedTestCase):
         models = ensemble.models_subproblem(model_idx, qoi_idx)
         return ensemble, cov, costs, models
 
-    def _check_sigma_matrix_of_estimator(
-        self, est, ntrials: int, models: list
-    ):
+    def _check_sigma_matrix_of_estimator(self, est, ntrials: int, models: list):
         """Check sigma matrix and estimator variance via Monte Carlo.
 
         Parameters
@@ -1289,9 +1261,7 @@ class TestSigmaMatrixMonteCarlo(Generic[Array], ParametrizedTestCase):
             List of model functions.
         """
         # Get analytical values
-        est_var = est._covariance_from_npartition_samples(
-            est.npartition_samples()
-        )
+        est_var = est._covariance_from_npartition_samples(est.npartition_samples())
         Sigma = est._sigma(est.npartition_samples())
 
         subset_vars_list = []
@@ -1301,8 +1271,7 @@ class TestSigmaMatrixMonteCarlo(Generic[Array], ParametrizedTestCase):
             samples_per_model = est.generate_samples_per_model(self._rvs)
             # Values shape: (nqoi, nsamples) for typing convention
             values_per_model = [
-                models[ii](samples_per_model[ii])
-                for ii in range(est.nmodels())
+                models[ii](samples_per_model[ii]) for ii in range(est.nmodels())
             ]
             subset_values = est._separate_values_per_model(values_per_model)
 
@@ -1370,9 +1339,7 @@ class TestSigmaMatrixMonteCarlo(Generic[Array], ParametrizedTestCase):
         # Create model subsets for 3 models
         if nmodels == 3:
             model_subsets = [[0, 1], [1, 2], [2]]
-            model_subsets = [
-                self._bkd.asarray(s, dtype=int) for s in model_subsets
-            ]
+            model_subsets = [self._bkd.asarray(s, dtype=int) for s in model_subsets]
         else:
             model_subsets = None
 
@@ -1424,9 +1391,7 @@ class TestSigmaMatrixMonteCarlo(Generic[Array], ParametrizedTestCase):
     ):
         """Test sigma matrix via Monte Carlo validation."""
         np.random.seed(1)
-        self._check_sigma_matrix(
-            nmodels, ntrials, group_type, stat_name, qoi_idx
-        )
+        self._check_sigma_matrix(nmodels, ntrials, group_type, stat_name, qoi_idx)
 
 
 class TestSigmaMatrixMonteCarloNumpy(TestSigmaMatrixMonteCarlo[NDArray[Any]]):
@@ -1469,11 +1434,11 @@ class TestGradientOptimization(Generic[Array], ParametrizedTestCase):
         from pyapprox.optimization.minimize.chained.chained_optimizer import (
             ChainedOptimizer,
         )
-        from pyapprox.optimization.minimize.scipy.trust_constr import (
-            ScipyTrustConstrOptimizer,
-        )
         from pyapprox.optimization.minimize.scipy.diffevol import (
             ScipyDifferentialEvolutionOptimizer,
+        )
+        from pyapprox.optimization.minimize.scipy.trust_constr import (
+            ScipyTrustConstrOptimizer,
         )
 
         global_opt = ScipyDifferentialEvolutionOptimizer(
@@ -1504,16 +1469,12 @@ class TestGradientOptimization(Generic[Array], ParametrizedTestCase):
             Number of quantities of interest.
         """
         # Create random covariance matrix
-        cov = self._bkd.array(
-            np.random.normal(0, 1, (nmodels * nqoi, nmodels * nqoi))
-        )
+        cov = self._bkd.array(np.random.normal(0, 1, (nmodels * nqoi, nmodels * nqoi)))
         cov = cov.T @ cov
         cov = self._covariance_to_correlation(cov)
 
         target_cost = 100.0
-        costs = self._bkd.flip(
-            self._bkd.logspace(-nmodels + 1, 0, nmodels)
-        )
+        costs = self._bkd.flip(self._bkd.logspace(-nmodels + 1, 0, nmodels))
 
         from pyapprox.statest.groupacv.allocation import (
             GroupACVAllocationOptimizer,
@@ -1564,12 +1525,8 @@ class TestGradientOptimization(Generic[Array], ParametrizedTestCase):
         )  # default tolerance like legacy
 
         # Check that sample counts are valid (non-negative)
-        self.assertTrue(
-            float(self._bkd.min(gest.npartition_samples())) >= 0
-        )
-        self.assertTrue(
-            float(self._bkd.min(mlest.npartition_samples())) >= 0
-        )
+        self.assertTrue(float(self._bkd.min(gest.npartition_samples())) >= 0)
+        self.assertTrue(float(self._bkd.min(mlest.npartition_samples())) >= 0)
 
         # Check cost constraint is satisfied
         gest_cost = gest._estimator_cost(gest.npartition_samples())
@@ -1586,17 +1543,13 @@ class TestGradientOptimization(Generic[Array], ParametrizedTestCase):
             (3, 1, 2),
         ],
     )
-    def test_gradient_optimization(
-        self, nmodels: int, min_nhf_samples: int, nqoi: int
-    ):
+    def test_gradient_optimization(self, nmodels: int, min_nhf_samples: int, nqoi: int):
         """Test full optimization loop with GroupACVAllocationOptimizer."""
         np.random.seed(1)
         self._check_gradient_optimization(nmodels, min_nhf_samples, nqoi)
 
 
-class TestGradientOptimizationTorchOnly(
-    TestGradientOptimization[torch.Tensor]
-):
+class TestGradientOptimizationTorchOnly(TestGradientOptimization[torch.Tensor]):
     """Torch-only test since optimization requires bkd.jacobian."""
 
     def bkd(self) -> TorchBkd:
@@ -1642,9 +1595,7 @@ class TestGroupACVAllocationOptimizer(
 
         self.assertIsInstance(result, GroupACVAllocationResult)
         self.assertTrue(result.success)
-        self.assertTrue(
-            float(self._bkd.min(result.npartition_samples)) >= 0
-        )
+        self.assertTrue(float(self._bkd.min(result.npartition_samples)) >= 0)
 
     def test_allocator_with_custom_optimizer(self):
         """Test that custom optimizer is used."""
@@ -1674,9 +1625,7 @@ class TestGroupACVAllocationOptimizer(
         result = allocator.optimize(target_cost=target_cost, min_nhf_samples=1)
 
         actual_cost = est._estimator_cost(result.npartition_samples)
-        self.assertLessEqual(
-            float(self._bkd.to_numpy(actual_cost)), target_cost + 1e-6
-        )
+        self.assertLessEqual(float(self._bkd.to_numpy(actual_cost)), target_cost + 1e-6)
 
     def test_allocator_with_mlblue_objective(self):
         """Test allocator with MLBLUEObjective for analytical derivatives."""
@@ -1714,9 +1663,7 @@ class TestGroupACVAllocationOptimizer(
         est.set_allocation(result)
 
         # Verify allocation is stored
-        self._bkd.assert_allclose(
-            est.npartition_samples(), result.npartition_samples
-        )
+        self._bkd.assert_allclose(est.npartition_samples(), result.npartition_samples)
 
         # Verify covariance can be computed
         cov = est.covariance()
@@ -1739,9 +1686,7 @@ class TestGroupACVAllocationOptimizer(
         result = allocator.optimize(target_cost=100, min_nhf_samples=1)
 
         self.assertTrue(result.success)
-        self.assertEqual(
-            result.npartition_samples.shape[0], est.npartitions()
-        )
+        self.assertEqual(result.npartition_samples.shape[0], est.npartitions())
 
 
 class TestGroupACVAllocationOptimizerTorchOnly(
@@ -1788,11 +1733,11 @@ class TestGroupACVRecoversMLBLUE(
         from pyapprox.optimization.minimize.chained.chained_optimizer import (
             ChainedOptimizer,
         )
-        from pyapprox.optimization.minimize.scipy.trust_constr import (
-            ScipyTrustConstrOptimizer,
-        )
         from pyapprox.optimization.minimize.scipy.diffevol import (
             ScipyDifferentialEvolutionOptimizer,
+        )
+        from pyapprox.optimization.minimize.scipy.trust_constr import (
+            ScipyTrustConstrOptimizer,
         )
 
         global_opt = ScipyDifferentialEvolutionOptimizer(
@@ -1831,9 +1776,7 @@ class TestGroupACVRecoversMLBLUE(
         cov = self._covariance_to_correlation(cov)
 
         target_cost = 100.0
-        costs = self._bkd.flip(
-            self._bkd.logspace(-nmodels + 1, 0, nmodels)
-        )
+        costs = self._bkd.flip(self._bkd.logspace(-nmodels + 1, 0, nmodels))
 
         # Create GroupACV estimator (uses IS partitions like MLBLUE)
         stat_g = MultiOutputMean(1, self._bkd)
@@ -1873,9 +1816,7 @@ class TestGroupACVRecoversMLBLUE(
         mlblue_est.set_allocation(mlblue_result)
 
         # Both should have same number of partitions (IS uses 2^nmodels - 1)
-        self.assertEqual(
-            groupacv_est.npartitions(), mlblue_est.npartitions()
-        )
+        self.assertEqual(groupacv_est.npartitions(), mlblue_est.npartitions())
 
         # Covariances at same allocation should match
         groupacv_cov = groupacv_est._covariance_from_npartition_samples(
@@ -1893,11 +1834,11 @@ class TestGroupACVRecoversMLBLUE(
             rtol=1e-2,  # Allow some tolerance due to optimization
         )
 
-    @unittest.skipIf(not HAS_CVXPY, "cvxpy not installed")
     @parametrize(
         "nmodels",
         [(2,), (3,)],
     )
+    @unittest.skipIf(not HAS_CVXPY, "cvxpy not installed")
     def test_groupacv_autograd_recovers_mlblue_spd(self, nmodels: int):
         """Test GroupACV with autograd matches MLBLUE SPD optimization.
 
@@ -1917,9 +1858,7 @@ class TestGroupACVRecoversMLBLUE(
         cov = self._covariance_to_correlation(cov)
 
         target_cost = 100.0
-        costs = self._bkd.flip(
-            self._bkd.logspace(-nmodels + 1, 0, nmodels)
-        )
+        costs = self._bkd.flip(self._bkd.logspace(-nmodels + 1, 0, nmodels))
 
         # Create GroupACV estimator
         stat_g = MultiOutputMean(1, self._bkd)
@@ -1968,9 +1907,7 @@ class TestGroupACVRecoversMLBLUE(
         )
 
 
-class TestGroupACVRecoversMLBLUETorchOnly(
-    TestGroupACVRecoversMLBLUE[torch.Tensor]
-):
+class TestGroupACVRecoversMLBLUETorchOnly(TestGroupACVRecoversMLBLUE[torch.Tensor]):
     """Torch-only test since autograd optimization requires torch."""
 
     def bkd(self) -> TorchBkd:

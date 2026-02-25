@@ -2,8 +2,8 @@
 
 from typing import Generic
 
-from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.surrogates.affine.protocols import BasisExpansionProtocol
+from pyapprox.util.backends.protocols import Array, Backend
 
 
 class BasisExpansionMSELoss(Generic[Array]):
@@ -71,7 +71,7 @@ class BasisExpansionMSELoss(Generic[Array]):
         """
         params_2d = self._reshape_params(params)  # (nterms, nqoi)
         residual = self._Phi @ params_2d - self._values.T  # (nsamples, nqoi)
-        mse = 0.5 * self._bkd.sum(residual ** 2) / self._nsamples
+        mse = 0.5 * self._bkd.sum(residual**2) / self._nsamples
         return self._bkd.reshape(mse, (1, 1))
 
     def jacobian(self, sample: Array) -> Array:

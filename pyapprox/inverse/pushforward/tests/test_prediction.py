@@ -3,18 +3,18 @@ Tests for Gaussian prediction (posterior pushforward).
 """
 
 import unittest
-from typing import Generic, Any
+from typing import Any, Generic
 
 import numpy as np
-from numpy.typing import NDArray
 import torch
+from numpy.typing import NDArray
 
-from pyapprox.util.backends.protocols import Array, Backend
-from pyapprox.util.backends.numpy import NumpyBkd
-from pyapprox.util.backends.torch import TorchBkd
-from pyapprox.inverse.pushforward.prediction import DenseGaussianPrediction
-from pyapprox.inverse.pushforward.gaussian import GaussianPushforward
 from pyapprox.inverse.conjugate.gaussian import DenseGaussianConjugatePosterior
+from pyapprox.inverse.pushforward.gaussian import GaussianPushforward
+from pyapprox.inverse.pushforward.prediction import DenseGaussianPrediction
+from pyapprox.util.backends.numpy import NumpyBkd
+from pyapprox.util.backends.protocols import Array, Backend
+from pyapprox.util.backends.torch import TorchBkd
 
 
 class TestDenseGaussianPredictionBase(Generic[Array], unittest.TestCase):
@@ -33,14 +33,10 @@ class TestDenseGaussianPredictionBase(Generic[Array], unittest.TestCase):
         self.npred = 2
 
         # Observation model matrix
-        self.obs_matrix = self.bkd().asarray(
-            [[1.0, 0.5, 0.0], [0.0, 0.5, 1.0]]
-        )
+        self.obs_matrix = self.bkd().asarray([[1.0, 0.5, 0.0], [0.0, 0.5, 1.0]])
 
         # Prediction model matrix
-        self.pred_matrix = self.bkd().asarray(
-            [[1.0, 1.0, 0.0], [0.0, 1.0, 1.0]]
-        )
+        self.pred_matrix = self.bkd().asarray([[1.0, 1.0, 0.0], [0.0, 1.0, 1.0]])
 
         # Prior
         self.prior_mean = self.bkd().zeros((self.nvars, 1))
@@ -109,8 +105,8 @@ class TestDenseGaussianPredictionBase(Generic[Array], unittest.TestCase):
         """Test pushforward_variable returns a Gaussian distribution."""
         self.predictor.compute(self.obs)
         pf_var = self.predictor.pushforward_variable()
-        self.assertTrue(hasattr(pf_var, 'logpdf'))
-        self.assertTrue(hasattr(pf_var, 'rvs'))
+        self.assertTrue(hasattr(pf_var, "logpdf"))
+        self.assertTrue(hasattr(pf_var, "rvs"))
 
 
 class TestDenseGaussianPredictionVsNaive(Generic[Array], unittest.TestCase):
@@ -129,7 +125,6 @@ class TestDenseGaussianPredictionVsNaive(Generic[Array], unittest.TestCase):
         """
         nvars = 2
         nobs = 2
-        npred = 1
 
         # Observation model
         obs_matrix = self.bkd().asarray([[1.0, 0.5], [0.5, 1.0]])
@@ -165,9 +160,7 @@ class TestDenseGaussianPredictionVsNaive(Generic[Array], unittest.TestCase):
         post_cov = posterior_solver.posterior_covariance()
 
         # Step 2: Push posterior through prediction model
-        pushforward = GaussianPushforward(
-            pred_matrix, post_mean, post_cov, self.bkd()
-        )
+        pushforward = GaussianPushforward(pred_matrix, post_mean, post_cov, self.bkd())
         pred_mean_naive = self.bkd().to_numpy(pushforward.mean())
         pred_cov_naive = self.bkd().to_numpy(pushforward.covariance())
 
@@ -311,9 +304,6 @@ class TestDenseGaussianPredictionValidationTorch(
 
     def bkd(self) -> Backend[torch.Tensor]:
         return self._bkd
-
-
-from pyapprox.util.test_utils import load_tests
 
 
 if __name__ == "__main__":

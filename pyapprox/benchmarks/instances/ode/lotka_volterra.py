@@ -1,15 +1,15 @@
 """Lotka-Volterra 3-species ODE benchmark instance."""
 
-from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.benchmarks.benchmark import BoxDomain
+from pyapprox.benchmarks.functions.ode import ODEBenchmark, ODETimeConfig
 from pyapprox.benchmarks.ground_truth import ODEGroundTruth
 from pyapprox.benchmarks.registry import BenchmarkRegistry
-from pyapprox.benchmarks.functions.ode import ODEBenchmark, ODETimeConfig
 from pyapprox.pde.time.benchmarks.lotka_volterra import (
     LotkaVolterraResidual,
 )
-from pyapprox.probability.univariate.uniform import UniformMarginal
 from pyapprox.probability.joint.independent import IndependentJoint
+from pyapprox.probability.univariate.uniform import UniformMarginal
+from pyapprox.util.backends.protocols import Array, Backend
 
 
 class ODEBenchmarkWrapper:

@@ -12,26 +12,27 @@ Uses Taylor-Hood elements: P2 velocity, P1 pressure.
 State vector layout: [vel_dofs | pres_dofs].
 """
 
-from typing import Generic, Optional, Callable, List, Tuple
+from typing import Callable, Generic, List, Optional, Tuple
 
 import numpy as np
-from scipy.sparse import block_diag as sp_block_diag, csr_matrix
+from scipy.sparse import block_diag as sp_block_diag
+from scipy.sparse import csr_matrix
 
-from pyapprox.util.backends.protocols import Array, Backend
-from pyapprox.pde.sparse_utils import solve_maybe_sparse
+from pyapprox.pde.galerkin.basis.lagrange import LagrangeBasis
 from pyapprox.pde.galerkin.basis.vector_lagrange import (
     VectorLagrangeBasis,
 )
-from pyapprox.pde.galerkin.basis.lagrange import LagrangeBasis
-from pyapprox.pde.galerkin.physics.bc_mixin import GalerkinBCMixin
 from pyapprox.pde.galerkin.boundary.implementations import (
     CallableDirichletBC,
 )
+from pyapprox.pde.galerkin.physics.bc_mixin import GalerkinBCMixin
+from pyapprox.pde.sparse_utils import solve_maybe_sparse
+from pyapprox.util.backends.protocols import Array, Backend
 
 try:
-    from skfem import asm, LinearForm, BilinearForm, Basis, bmat
-    from skfem.models.poisson import vector_laplace
+    from skfem import Basis, BilinearForm, LinearForm, asm, bmat
     from skfem.models.general import divergence
+    from skfem.models.poisson import vector_laplace
 except ImportError:
     raise ImportError(
         "scikit-fem is required for Galerkin module. "
@@ -132,13 +133,9 @@ class StokesPhysics(GalerkinBCMixin[Array], Generic[Array]):
             for idx in range(nvars):
                 # Extract DOF indices for this component
                 if nvars >= 2:
-                    dofnames = (
-                        self._vel_skfem_basis.get_dofs().obj.element.dofnames
-                    )
+                    dofnames = self._vel_skfem_basis.get_dofs().obj.element.dofnames
                     skip = dofnames[nvars - idx - 1]
-                    bndry_dofs = self._vel_skfem_basis.get_dofs(
-                        bndry_name, skip=skip
-                    )
+                    bndry_dofs = self._vel_skfem_basis.get_dofs(bndry_name, skip=skip)
                 else:
                     bndry_dofs = self._vel_skfem_basis.get_dofs(bndry_name)
 
@@ -154,13 +151,16 @@ class StokesPhysics(GalerkinBCMixin[Array], Generic[Array]):
                         if vals.ndim == 2:
                             return vals[:, comp_idx]
                         return vals
+
                     return value_func
 
-                bcs.append(CallableDirichletBC(
-                    dof_arr,
-                    _make_vel_value_func(bndry_func, coords, idx),
-                    self._bkd,
-                ))
+                bcs.append(
+                    CallableDirichletBC(
+                        dof_arr,
+                        _make_vel_value_func(bndry_func, coords, idx),
+                        self._bkd,
+                    )
+                )
 
         for bndry_name, bndry_func in self._pres_dirichlet_bcs:
             p_dofs = self._pres_skfem_basis.get_dofs(bndry_name)
@@ -177,13 +177,16 @@ class StokesPhysics(GalerkinBCMixin[Array], Generic[Array]):
                     if vals.ndim == 2:
                         return vals.flatten()
                     return vals
+
                 return value_func
 
-            bcs.append(CallableDirichletBC(
-                shifted_p_dofs,
-                _make_pres_value_func(bndry_func, coords),
-                self._bkd,
-            ))
+            bcs.append(
+                CallableDirichletBC(
+                    shifted_p_dofs,
+                    _make_pres_value_func(bndry_func, coords),
+                    self._bkd,
+                )
+            )
 
         return bcs
 
@@ -239,7 +242,7 @@ class StokesPhysics(GalerkinBCMixin[Array], Generic[Array]):
         B = self._assemble_divergence()
 
         if self._navier_stokes and state_np is not None:
-            vel_state = state_np[:self.vel_ndofs()]
+            vel_state = state_np[: self.vel_ndofs()]
             vel_interp = self._vel_skfem_basis.interpolate(vel_state)
             A_nl = asm(
                 BilinearForm(self._ns_linearized_form),
@@ -377,9 +380,8 @@ class StokesPhysics(GalerkinBCMixin[Array], Generic[Array]):
         u = w["u_prev"]
         du = u.grad
         if u.shape[0] == 2:
-            return (
-                v[0] * (u[0] * du[0][0] + u[1] * du[0][1])
-                + v[1] * (u[0] * du[1][0] + u[1] * du[1][1])
+            return v[0] * (u[0] * du[0][0] + u[1] * du[0][1]) + v[1] * (
+                u[0] * du[1][0] + u[1] * du[1][1]
             )
         if u.shape[0] == 1:
             return v[0] * (u[0] * du[0][0])
@@ -411,8 +413,8 @@ class StokesPhysics(GalerkinBCMixin[Array], Generic[Array]):
             Spatial residual. Shape: (nstates,)
         """
         state_np = self._bkd.to_numpy(state)
-        vel_state = state_np[:self.vel_ndofs()]
-        pres_state = state_np[self.vel_ndofs():]
+        vel_state = state_np[: self.vel_ndofs()]
+        pres_state = state_np[self.vel_ndofs() :]
 
         A = self._assemble_viscous_stiffness()
         B = self._assemble_divergence()
@@ -553,15 +555,11 @@ class StokesPhysics(GalerkinBCMixin[Array], Generic[Array]):
 
         if rhs_np.ndim == 1:
             result = np.zeros_like(rhs_np)
-            result[:n_vel] = solve_maybe_sparse(
-                self._bkd, M_vel, rhs_np[:n_vel]
-            )
+            result[:n_vel] = solve_maybe_sparse(self._bkd, M_vel, rhs_np[:n_vel])
             result[n_vel:] = rhs_np[n_vel:]
         else:
             result = np.zeros_like(rhs_np)
-            result[:n_vel, :] = np.linalg.solve(
-                M_vel.toarray(), rhs_np[:n_vel, :]
-            )
+            result[:n_vel, :] = np.linalg.solve(M_vel.toarray(), rhs_np[:n_vel, :])
             result[n_vel:, :] = rhs_np[n_vel:, :]
 
         return self._bkd.asarray(result.astype(np.float64))

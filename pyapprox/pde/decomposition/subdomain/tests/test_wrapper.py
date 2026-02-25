@@ -1,28 +1,23 @@
 """Tests for SubdomainWrapper class."""
 
 import unittest
-import math
 
-from pyapprox.util.backends.numpy import NumpyBkd
-from pyapprox.util.test_utils import load_tests  # noqa: F401
 from pyapprox.pde.collocation.basis import ChebyshevBasis1D
 from pyapprox.pde.collocation.mesh import TransformedMesh1D
-from pyapprox.pde.collocation.boundary import (
-    constant_dirichlet_bc,
-    DirichletBC,
-)
 from pyapprox.pde.collocation.physics.advection_diffusion import (
     create_steady_diffusion,
 )
-from pyapprox.pde.decomposition.subdomain.wrapper import (
-    SubdomainWrapper,
-)
+from pyapprox.pde.decomposition.interface import Interface1D
 from pyapprox.pde.decomposition.subdomain.flux import (
     FluxComputer,
     compute_flux_mismatch,
     flux_mismatch_norm,
 )
-from pyapprox.pde.decomposition.interface import Interface1D
+from pyapprox.pde.decomposition.subdomain.wrapper import (
+    SubdomainWrapper,
+)
+from pyapprox.util.backends.numpy import NumpyBkd
+from pyapprox.util.test_utils import load_tests  # noqa: F401
 
 
 class TestSubdomainWrapperBasic(unittest.TestCase):
@@ -40,8 +35,9 @@ class TestSubdomainWrapperBasic(unittest.TestCase):
         physics = create_steady_diffusion(basis, bkd, diffusion=1.0)
 
         # Create a 1D interface at x=0.5
-        interface = Interface1D(bkd, interface_id=0, subdomain_ids=(0, 1),
-                                interface_point=0.5)
+        interface = Interface1D(
+            bkd, interface_id=0, subdomain_ids=(0, 1), interface_point=0.5
+        )
 
         wrapper = SubdomainWrapper(
             bkd,
@@ -62,8 +58,9 @@ class TestSubdomainWrapperBasic(unittest.TestCase):
         basis = ChebyshevBasis1D(mesh, bkd)
         physics = create_steady_diffusion(basis, bkd, diffusion=1.0)
 
-        interface = Interface1D(bkd, interface_id=0, subdomain_ids=(0, 1),
-                                interface_point=0.5)
+        interface = Interface1D(
+            bkd, interface_id=0, subdomain_ids=(0, 1), interface_point=0.5
+        )
 
         wrapper = SubdomainWrapper(
             bkd, subdomain_id=0, physics=physics, interfaces={0: interface}
@@ -86,8 +83,9 @@ class TestSubdomainWrapperBasic(unittest.TestCase):
         basis = ChebyshevBasis1D(mesh, bkd)
         physics = create_steady_diffusion(basis, bkd, diffusion=1.0)
 
-        interface = Interface1D(bkd, interface_id=0, subdomain_ids=(0, 1),
-                                interface_point=0.5)
+        interface = Interface1D(
+            bkd, interface_id=0, subdomain_ids=(0, 1), interface_point=0.5
+        )
 
         wrapper = SubdomainWrapper(
             bkd, subdomain_id=0, physics=physics, interfaces={0: interface}
@@ -114,7 +112,7 @@ class TestFluxComputer(unittest.TestCase):
 
         # u = x^2, du/dx = 2x
         nodes = basis.nodes()
-        u = nodes ** 2
+        u = nodes**2
 
         grad = flux_computer.compute_gradient(u)
 
@@ -136,7 +134,7 @@ class TestFluxComputer(unittest.TestCase):
 
         # u = x^2, du/dx = 2x
         nodes = basis.nodes()
-        u = nodes ** 2
+        u = nodes**2
 
         # Chebyshev nodes are ordered from x=-1 (index 0) to x=1 (index npts-1)
         # Compute flux at right boundary x=1 (index = npts-1)
@@ -192,6 +190,7 @@ class TestFluxMismatch(unittest.TestCase):
 
         # mismatch = [4, 4], norm = sqrt(32) = 4*sqrt(2)
         import numpy as np
+
         expected = np.sqrt(32)
         self.assertAlmostEqual(norm, expected, places=10)
 

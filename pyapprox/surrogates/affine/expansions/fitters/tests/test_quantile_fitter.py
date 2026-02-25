@@ -14,25 +14,23 @@ import numpy as np
 import torch
 from numpy.typing import NDArray
 
-from pyapprox.util.backends.numpy import NumpyBkd
-from pyapprox.util.backends.torch import TorchBkd
-from pyapprox.util.backends.protocols import Array, Backend
-from pyapprox.util.test_utils import load_tests  # noqa: F401
-
+from pyapprox.probability import UniformMarginal
+from pyapprox.surrogates.affine.basis import OrthonormalPolynomialBasis
+from pyapprox.surrogates.affine.expansions import BasisExpansion
 from pyapprox.surrogates.affine.expansions.fitters.quantile import (
     QuantileFitter,
 )
 from pyapprox.surrogates.affine.expansions.fitters.results import (
     DirectSolverResult,
 )
-
-from pyapprox.surrogates.affine.univariate import create_bases_1d
 from pyapprox.surrogates.affine.indices import (
     compute_hyperbolic_indices,
 )
-from pyapprox.surrogates.affine.basis import OrthonormalPolynomialBasis
-from pyapprox.surrogates.affine.expansions import BasisExpansion
-from pyapprox.probability import UniformMarginal
+from pyapprox.surrogates.affine.univariate import create_bases_1d
+from pyapprox.util.backends.numpy import NumpyBkd
+from pyapprox.util.backends.protocols import Array, Backend
+from pyapprox.util.backends.torch import TorchBkd
+from pyapprox.util.test_utils import load_tests  # noqa: F401
 
 
 class TestQuantileFitter(Generic[Array], unittest.TestCase):
@@ -196,7 +194,9 @@ class TestQuantileFitter(Generic[Array], unittest.TestCase):
             residuals = values - predictions  # (1, nsamples)
 
             # Fraction of residuals below zero should approximately equal tau
-            below_zero = bkd.asarray(residuals[0, :] < 0, dtype=bkd.asarray([0.0]).dtype)
+            below_zero = bkd.asarray(
+                residuals[0, :] < 0, dtype=bkd.asarray([0.0]).dtype
+            )
             fraction_below = bkd.sum(below_zero) / nsamples
 
             # Allow some tolerance since we have finite samples

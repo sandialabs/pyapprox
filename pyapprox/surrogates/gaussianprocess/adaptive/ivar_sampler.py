@@ -2,8 +2,6 @@
 
 from typing import Generic
 
-import numpy as np
-
 from pyapprox.surrogates.gaussianprocess.statistics.protocols import (
     KernelIntegralCalculatorProtocol,
 )
@@ -47,9 +45,7 @@ class IVARSampler(Generic[Array]):
         self._K: Array | None = None
         self._P: Array | None = None
         self._cholesky: IncrementalCholeskyFactorization[Array] | None = None
-        self._integral_calc: KernelIntegralCalculatorProtocol[Array] | None = (
-            None
-        )
+        self._integral_calc: KernelIntegralCalculatorProtocol[Array] | None = None
         self._best_obj_vals: list[float] = []
 
     def bkd(self) -> Backend[Array]:
@@ -152,9 +148,7 @@ class IVARSampler(Generic[Array]):
             Kmat = self._K[idx, :][:, idx]
             Pmat = self._P[idx, :][:, idx]
             obj = -bkd.trace(bkd.solve(Kmat, Pmat))
-            self._best_obj_vals.append(
-                float(bkd.to_numpy(bkd.reshape(obj, (1,)))[0])
-            )
+            self._best_obj_vals.append(float(bkd.to_numpy(bkd.reshape(obj, (1,)))[0]))
 
         for _ in range(nsamples):
             obj_vals = self._compute_objective()
@@ -207,7 +201,7 @@ class IVARSampler(Generic[Array]):
             vals[useful_arr] = -P_diag / K_diag
             return vals
 
-        L = self._cholesky.L()
+        self._cholesky.L()
         L_inv = self._cholesky.L_inv()
         pivots = self._selected_indices
 
@@ -228,9 +222,7 @@ class IVARSampler(Generic[Array]):
 
         valid_candidates = []
         valid_local = []
-        for ii, (idx, is_valid) in enumerate(
-            zip(valid_indices_np, valid_mask_np)
-        ):
+        for ii, (idx, is_valid) in enumerate(zip(valid_indices_np, valid_mask_np)):
             if is_valid:
                 valid_candidates.append(int(idx))
                 valid_local.append(ii)
@@ -255,7 +247,7 @@ class IVARSampler(Generic[Array]):
         # Incremental IVAR terms
         term1 = bkd.sum(C.T * (P_11 @ C.T), axis=0)
         term2 = 2.0 * bkd.sum(C.T / L_22 * P_12, axis=0)
-        term3 = P_22 / L_22 ** 2
+        term3 = P_22 / L_22**2
 
         # Absolute objective: matches legacy formula
         # vals = -(-baseline + term1 + term2 + term3)
@@ -311,7 +303,5 @@ class IVARSampler(Generic[Array]):
         """Return the list of selected candidate indices."""
         return list(self._selected_indices)
 
-    def add_additional_training_samples(
-        self, new_samples: Array
-    ) -> None:
+    def add_additional_training_samples(self, new_samples: Array) -> None:
         """No-op: tracking is handled internally by select_samples."""

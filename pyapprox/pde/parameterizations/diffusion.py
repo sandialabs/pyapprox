@@ -2,13 +2,13 @@
 
 from typing import Callable, Generic, List, Optional
 
-from pyapprox.util.backends.protocols import Array, Backend
-from pyapprox.pde.field_maps.protocol import (
-    FieldMapProtocol,
-)
 from pyapprox.pde.collocation.protocols.basis import (
     TensorProductBasisProtocol,
 )
+from pyapprox.pde.field_maps.protocol import (
+    FieldMapProtocol,
+)
+from pyapprox.util.backends.protocols import Array, Backend
 
 
 class DiffusionParameterization(Generic[Array]):
@@ -41,7 +41,9 @@ class DiffusionParameterization(Generic[Array]):
         self._field_map = field_map
         self._D_matrices = derivative_matrices
         self._bkd = bkd
-        self._time_mod = time_modulation if time_modulation is not None else lambda t: 1.0
+        self._time_mod = (
+            time_modulation if time_modulation is not None else lambda t: 1.0
+        )
 
         # Dynamic binding: param_jacobian only if field_map has jacobian
         if hasattr(self._field_map, "jacobian"):
@@ -115,9 +117,7 @@ class DiffusionParameterization(Generic[Array]):
             grad_u_dot_n = grad_u_dot_n + grad_u_d[bc_indices] * normals[:, d]
         return -grad_u_dot_n[:, None] * dD_dp
 
-    def _initial_param_jacobian(
-        self, physics: object, params_1d: Array
-    ) -> Array:
+    def _initial_param_jacobian(self, physics: object, params_1d: Array) -> Array:
         """Return d(initial_state)/d(params). Shape: (nstates, nparams)."""
         npts = physics.npts()
         return self._bkd.zeros((npts, self.nparams()))
@@ -142,10 +142,5 @@ def create_diffusion_parameterization(
     time_modulation : Callable, optional
         Time modulation factor.
     """
-    D_matrices = [
-        basis.derivative_matrix(1, dim)
-        for dim in range(basis.ndim())
-    ]
-    return DiffusionParameterization(
-        field_map, D_matrices, bkd, time_modulation
-    )
+    D_matrices = [basis.derivative_matrix(1, dim) for dim in range(basis.ndim())]
+    return DiffusionParameterization(field_map, D_matrices, bkd, time_modulation)

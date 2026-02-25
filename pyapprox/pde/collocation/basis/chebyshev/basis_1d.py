@@ -4,19 +4,18 @@ Convenience wrapper combining Chebyshev nodes and derivative matrices
 with the tensor product basis infrastructure.
 """
 
-from typing import Generic, Optional, Tuple
+from typing import Generic, Tuple
 
-from pyapprox.util.backends.protocols import Array, Backend
-from pyapprox.pde.collocation.basis.tensor_product import (
-    TensorProductBasis,
-)
 from pyapprox.pde.collocation.basis.chebyshev.derivative import (
     ChebyshevDerivativeMatrix1D,
+)
+from pyapprox.pde.collocation.basis.tensor_product import (
+    TensorProductBasis,
 )
 from pyapprox.pde.collocation.protocols.mesh import (
     MeshWithTransformProtocol,
 )
-from pyapprox.pde.collocation.mesh.transformed import TransformedMesh1D
+from pyapprox.util.backends.protocols import Array, Backend
 
 
 class ChebyshevBasis1D(Generic[Array]):

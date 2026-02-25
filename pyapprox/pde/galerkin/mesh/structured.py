@@ -11,7 +11,13 @@ from pyapprox.util.backends.protocols import Array, Backend
 
 # Import skfem for mesh construction
 try:
-    from skfem import MeshLine, MeshQuad, MeshTri, MeshHex, MeshTet
+    from skfem import (
+        MeshHex,
+        MeshLine,
+        MeshQuad,
+        MeshTet,  # noqa: F401
+        MeshTri,  # noqa: F401
+    )
 except ImportError:
     raise ImportError(
         "scikit-fem is required for Galerkin module. "
@@ -64,9 +70,7 @@ class StructuredMesh1D(Generic[Array]):
 
         # Cache nodes as backend array
         self._nodes = bkd.asarray(self._skfem_mesh.p.astype(np.float64))
-        self._bounds = bkd.asarray(
-            np.array([[xmin, xmax]], dtype=np.float64)
-        )
+        self._bounds = bkd.asarray(np.array([[xmin, xmax]], dtype=np.float64))
 
     def bkd(self) -> Backend[Array]:
         """Return the computational backend."""
@@ -127,8 +131,7 @@ class StructuredMesh1D(Generic[Array]):
             return self._bkd.asarray(np.array([self._nx], dtype=np.int64))
         else:
             raise ValueError(
-                f"Unknown boundary_id '{boundary_id}'. "
-                "Valid options: 'left', 'right'"
+                f"Unknown boundary_id '{boundary_id}'. Valid options: 'left', 'right'"
             )
 
     def shape(self) -> Tuple[int]:
@@ -216,13 +219,10 @@ class StructuredMesh2D(Generic[Array]):
                 np.linspace(xmin, xmax, nx + 1),
                 np.linspace(ymin, ymax, ny + 1),
             )
-            self._skfem_mesh = quad_mesh.to_meshtri().with_boundaries(
-                boundary_defs
-            )
+            self._skfem_mesh = quad_mesh.to_meshtri().with_boundaries(boundary_defs)
         else:
             raise ValueError(
-                f"Unknown element_type '{element_type}'. "
-                "Valid options: 'quad', 'tri'"
+                f"Unknown element_type '{element_type}'. Valid options: 'quad', 'tri'"
             )
 
         # Cache nodes as backend array
@@ -404,21 +404,16 @@ class StructuredMesh3D(Generic[Array]):
                 np.linspace(ymin, ymax, ny + 1),
                 np.linspace(zmin, zmax, nz + 1),
             )
-            self._skfem_mesh = hex_mesh.to_meshtet().with_boundaries(
-                boundary_defs
-            )
+            self._skfem_mesh = hex_mesh.to_meshtet().with_boundaries(boundary_defs)
         else:
             raise ValueError(
-                f"Unknown element_type '{element_type}'. "
-                "Valid options: 'hex', 'tet'"
+                f"Unknown element_type '{element_type}'. Valid options: 'hex', 'tet'"
             )
 
         # Cache nodes as backend array
         self._nodes = bkd.asarray(self._skfem_mesh.p.astype(np.float64))
         self._bounds = bkd.asarray(
-            np.array(
-                [[xmin, xmax], [ymin, ymax], [zmin, zmax]], dtype=np.float64
-            )
+            np.array([[xmin, xmax], [ymin, ymax], [zmin, zmax]], dtype=np.float64)
         )
 
     def bkd(self) -> Backend[Array]:

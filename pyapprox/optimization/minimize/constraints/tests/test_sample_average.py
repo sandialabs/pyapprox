@@ -11,13 +11,12 @@ Tests cover:
 import unittest
 from typing import Any, Generic
 
-import numpy as np
 import torch
 from numpy.typing import NDArray
 
 from pyapprox.util.backends.numpy import NumpyBkd
-from pyapprox.util.backends.torch import TorchBkd
 from pyapprox.util.backends.protocols import Array
+from pyapprox.util.backends.torch import TorchBkd
 from pyapprox.util.test_utils import load_tests  # noqa: F401
 
 
@@ -42,18 +41,18 @@ class _QuadraticModel(Generic[Array]):
     def __call__(self, samples):
         x1 = samples[0:1, :]
         x2 = samples[1:2, :]
-        return self._bkd.concatenate(
-            [x1**2 + x2, x2**2 + x1], axis=0
-        )
+        return self._bkd.concatenate([x1**2 + x2, x2**2 + x1], axis=0)
 
     def jacobian(self, sample):
         x1 = sample[0, 0]
         x2 = sample[1, 0]
         zero = 0.0 * x1
-        return self._bkd.asarray([
-            [2.0 * x1 + zero, 1.0 + zero],
-            [1.0 + zero, 2.0 * x2 + zero],
-        ])
+        return self._bkd.asarray(
+            [
+                [2.0 * x1 + zero, 1.0 + zero],
+                [1.0 + zero, 2.0 * x2 + zero],
+            ]
+        )
 
 
 class _NoJacModel(Generic[Array]):
@@ -96,10 +95,10 @@ class TestSampleAverageConstraint(Generic[Array], unittest.TestCase):
         constraint_lb=None,
         constraint_ub=None,
     ):
+        from pyapprox.expdesign.statistics import SampleAverageMean
         from pyapprox.optimization.minimize.constraints.sample_average import (
             SampleAverageConstraint,
         )
-        from pyapprox.expdesign.statistics import SampleAverageMean
 
         bkd = self._bkd
         if model is None:
@@ -232,7 +231,6 @@ class TestSampleAverageConstraint(Generic[Array], unittest.TestCase):
             def __call__(self, values, weights):
                 return values[:, 0:1]
 
-        bkd = self._bkd
         con = self._make_constraint(stat=NoJacStat())
         self.assertFalse(hasattr(con, "jacobian"))
 
@@ -329,12 +327,14 @@ class TestSampleAverageConstraint(Generic[Array], unittest.TestCase):
 
         # Simple 3-point quadrature on X, Y, E, R (random vars, indices 0-3)
         # Just use nominal values as "quadrature points" for simplicity
-        quad_samples = bkd.asarray([
-            [500.0, 490.0, 510.0],   # X
-            [1000.0, 990.0, 1010.0], # Y
-            [2.9e7, 2.9e7, 2.9e7],   # E
-            [40000.0, 40000.0, 40000.0],  # R
-        ])
+        quad_samples = bkd.asarray(
+            [
+                [500.0, 490.0, 510.0],  # X
+                [1000.0, 990.0, 1010.0],  # Y
+                [2.9e7, 2.9e7, 2.9e7],  # E
+                [40000.0, 40000.0, 40000.0],  # R
+            ]
+        )
         quad_weights = bkd.asarray([1.0 / 3, 1.0 / 3, 1.0 / 3])
 
         stat = SampleAverageMean(bkd)
@@ -369,9 +369,7 @@ class TestSampleAverageConstraint(Generic[Array], unittest.TestCase):
         self.assertLessEqual(ratio, 1e-5)
 
 
-class TestSampleAverageConstraintNumpy(
-    TestSampleAverageConstraint[NDArray[Any]]
-):
+class TestSampleAverageConstraintNumpy(TestSampleAverageConstraint[NDArray[Any]]):
     """NumPy backend tests."""
 
     __test__ = True
@@ -380,9 +378,7 @@ class TestSampleAverageConstraintNumpy(
         return NumpyBkd()
 
 
-class TestSampleAverageConstraintTorch(
-    TestSampleAverageConstraint[torch.Tensor]
-):
+class TestSampleAverageConstraintTorch(TestSampleAverageConstraint[torch.Tensor]):
     """PyTorch backend tests."""
 
     __test__ = True

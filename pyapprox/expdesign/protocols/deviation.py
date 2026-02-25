@@ -5,7 +5,7 @@ Deviation measures quantify uncertainty in predictions given observations,
 such as standard deviation, entropic deviation, or AVaR deviation.
 """
 
-from typing import Protocol, Generic, runtime_checkable
+from typing import Generic, Protocol, runtime_checkable
 
 from pyapprox.util.backends.protocols import Array, Backend
 

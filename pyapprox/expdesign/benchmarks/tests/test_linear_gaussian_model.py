@@ -20,17 +20,16 @@ import numpy as np
 import torch
 from numpy.typing import NDArray
 
-from pyapprox.util.backends.numpy import NumpyBkd
-from pyapprox.util.backends.torch import TorchBkd
-from pyapprox.util.backends.protocols import Array, Backend
-from pyapprox.util.test_utils import load_tests  # noqa: F401
-
-from pyapprox.expdesign.benchmarks.linear_gaussian_model import (
-    LinearGaussianOEDModel,
-)
 from pyapprox.expdesign.benchmarks.linear_gaussian import (
     LinearGaussianOEDBenchmark,
 )
+from pyapprox.expdesign.benchmarks.linear_gaussian_model import (
+    LinearGaussianOEDModel,
+)
+from pyapprox.util.backends.numpy import NumpyBkd
+from pyapprox.util.backends.protocols import Array, Backend
+from pyapprox.util.backends.torch import TorchBkd
+from pyapprox.util.test_utils import load_tests  # noqa: F401
 
 
 class TestLinearGaussianOEDModel(Generic[Array], unittest.TestCase):
@@ -45,23 +44,33 @@ class TestLinearGaussianOEDModel(Generic[Array], unittest.TestCase):
         self._bkd = self.bkd()
 
     def _make_isotropic_model(
-        self, nobs: int = 5, nparams: int = 3,
-        noise_std: float = 0.5, prior_std: float = 0.5,
+        self,
+        nobs: int = 5,
+        nparams: int = 3,
+        noise_std: float = 0.5,
+        prior_std: float = 0.5,
     ) -> LinearGaussianOEDModel[Array]:
         """Build an isotropic model for testing."""
         bkd = self._bkd
         np.random.seed(123)
         A = bkd.asarray(np.random.randn(nobs, nparams))
         prior_mean = bkd.zeros((nparams, 1))
-        prior_cov = bkd.eye(nparams) * prior_std ** 2
-        noise_cov = bkd.eye(nobs) * noise_std ** 2
+        prior_cov = bkd.eye(nparams) * prior_std**2
+        noise_cov = bkd.eye(nobs) * noise_std**2
         locations = bkd.linspace(0.0, 1.0, nobs)
         return LinearGaussianOEDModel(
-            A, prior_mean, prior_cov, noise_cov, bkd, locations,
+            A,
+            prior_mean,
+            prior_cov,
+            noise_cov,
+            bkd,
+            locations,
         )
 
     def _make_nonisotropic_model(
-        self, nobs: int = 4, nparams: int = 3,
+        self,
+        nobs: int = 4,
+        nparams: int = 3,
     ) -> LinearGaussianOEDModel[Array]:
         """Build a non-isotropic model for testing."""
         bkd = self._bkd
@@ -75,7 +84,11 @@ class TestLinearGaussianOEDModel(Generic[Array], unittest.TestCase):
         noise_diag = np.array([0.1, 0.2, 0.3, 0.4])
         noise_cov = bkd.diag(bkd.asarray(noise_diag))
         return LinearGaussianOEDModel(
-            A, prior_mean, prior_cov, noise_cov, bkd,
+            A,
+            prior_mean,
+            prior_cov,
+            noise_cov,
+            bkd,
         )
 
     # ==========================================================================
@@ -122,7 +135,12 @@ class TestLinearGaussianOEDModel(Generic[Array], unittest.TestCase):
         locations = bkd.linspace(0.0, 1.0, 5)  # wrong: should be 3
         with self.assertRaises(ValueError):
             LinearGaussianOEDModel(
-                A, prior_mean, prior_cov, noise_cov, bkd, locations,
+                A,
+                prior_mean,
+                prior_cov,
+                noise_cov,
+                bkd,
+                locations,
             )
 
     # ==========================================================================
@@ -152,7 +170,11 @@ class TestLinearGaussianOEDModel(Generic[Array], unittest.TestCase):
         prior_cov = bkd.eye(2)
         noise_cov = bkd.eye(3)
         model = LinearGaussianOEDModel(
-            A, prior_mean, prior_cov, noise_cov, bkd,
+            A,
+            prior_mean,
+            prior_cov,
+            noise_cov,
+            bkd,
         )
         self.assertIsNone(model.design_locations())
 
@@ -165,17 +187,21 @@ class TestLinearGaussianOEDModel(Generic[Array], unittest.TestCase):
         bkd = self._bkd
         nobs, nparams = 5, 3
         noise_std, prior_std = 0.5, 0.5
-        ratio = prior_std ** 2 / noise_std ** 2
+        ratio = prior_std**2 / noise_std**2
 
         np.random.seed(99)
         A_np = np.random.randn(nobs, nparams)
         A = bkd.asarray(A_np)
         prior_mean = bkd.zeros((nparams, 1))
-        prior_cov = bkd.eye(nparams) * prior_std ** 2
-        noise_cov = bkd.eye(nobs) * noise_std ** 2
+        prior_cov = bkd.eye(nparams) * prior_std**2
+        noise_cov = bkd.eye(nobs) * noise_std**2
 
         model = LinearGaussianOEDModel(
-            A, prior_mean, prior_cov, noise_cov, bkd,
+            A,
+            prior_mean,
+            prior_cov,
+            noise_cov,
+            bkd,
         )
 
         # Uniform weights
@@ -203,7 +229,11 @@ class TestLinearGaussianOEDModel(Generic[Array], unittest.TestCase):
         noise_std, prior_std = 0.5, 0.5
 
         benchmark = LinearGaussianOEDBenchmark(
-            nobs, degree, noise_std, prior_std, bkd,
+            nobs,
+            degree,
+            noise_std,
+            prior_std,
+            bkd,
         )
         model = benchmark.model()
 
@@ -222,17 +252,21 @@ class TestLinearGaussianOEDModel(Generic[Array], unittest.TestCase):
         bkd = self._bkd
         nobs, nparams = 6, 3
         noise_std, prior_std = 0.3, 1.0
-        ratio = prior_std ** 2 / noise_std ** 2
+        ratio = prior_std**2 / noise_std**2
 
         np.random.seed(77)
         A_np = np.random.randn(nobs, nparams)
         A = bkd.asarray(A_np)
         prior_mean = bkd.zeros((nparams, 1))
-        prior_cov = bkd.eye(nparams) * prior_std ** 2
-        noise_cov = bkd.eye(nobs) * noise_std ** 2
+        prior_cov = bkd.eye(nparams) * prior_std**2
+        noise_cov = bkd.eye(nobs) * noise_std**2
 
         model = LinearGaussianOEDModel(
-            A, prior_mean, prior_cov, noise_cov, bkd,
+            A,
+            prior_mean,
+            prior_cov,
+            noise_cov,
+            bkd,
         )
 
         np.random.seed(88)
@@ -351,11 +385,15 @@ class TestLinearGaussianOEDModel(Generic[Array], unittest.TestCase):
         np.random.seed(123)
         A = bkd.asarray(np.random.randn(nobs, nparams))
         prior_mean = bkd.zeros((nparams, 1))
-        prior_cov = bkd.eye(nparams) * prior_std ** 2
+        prior_cov = bkd.eye(nparams) * prior_std**2
         noise_cov = bkd.eye(nobs) * 0.25
 
         model = LinearGaussianOEDModel(
-            A, prior_mean, prior_cov, noise_cov, bkd,
+            A,
+            prior_mean,
+            prior_cov,
+            noise_cov,
+            bkd,
         )
 
         # Model approach: L_prior @ z + prior_mean
@@ -379,11 +417,15 @@ class TestLinearGaussianOEDModel(Generic[Array], unittest.TestCase):
         np.random.seed(111)
         A = bkd.asarray(np.random.randn(nobs, nparams))
         prior_mean = bkd.zeros((nparams, 1))
-        prior_cov = bkd.eye(nparams) * prior_std ** 2
-        noise_cov = bkd.eye(nobs) * noise_std ** 2
+        prior_cov = bkd.eye(nparams) * prior_std**2
+        noise_cov = bkd.eye(nobs) * noise_std**2
 
         model = LinearGaussianOEDModel(
-            A, prior_mean, prior_cov, noise_cov, bkd,
+            A,
+            prior_mean,
+            prior_cov,
+            noise_cov,
+            bkd,
         )
 
         _, _, y_noisy_model = model.generate_noisy_observations(nsamples, seed)
@@ -435,9 +477,7 @@ class TestLinearGaussianOEDModel(Generic[Array], unittest.TestCase):
         )
 
 
-class TestLinearGaussianOEDModelNumpy(
-    TestLinearGaussianOEDModel[NDArray[Any]]
-):
+class TestLinearGaussianOEDModelNumpy(TestLinearGaussianOEDModel[NDArray[Any]]):
     """NumPy backend tests."""
 
     __test__ = True
@@ -446,9 +486,7 @@ class TestLinearGaussianOEDModelNumpy(
         return NumpyBkd()
 
 
-class TestLinearGaussianOEDModelTorch(
-    TestLinearGaussianOEDModel[torch.Tensor]
-):
+class TestLinearGaussianOEDModelTorch(TestLinearGaussianOEDModel[torch.Tensor]):
     """PyTorch backend tests."""
 
     __test__ = True

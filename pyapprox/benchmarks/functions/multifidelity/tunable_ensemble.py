@@ -8,10 +8,10 @@ but using the typing Backend protocol.
 import math
 from typing import Callable, Generic, List, Optional, Sequence
 
-from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.benchmarks.functions.multifidelity.statistics_mixin import (
     MultifidelityStatisticsMixin,
 )
+from pyapprox.util.backends.protocols import Array, Backend
 
 
 class TunableModelFunction(Generic[Array]):
@@ -133,20 +133,28 @@ class TunableModelEnsemble(MultifidelityStatisticsMixin[Array], Generic[Array]):
         def m1(samples: Array) -> Array:
             """Second highest fidelity model (degree 3 polynomial)."""
             x, y = samples[0, :], samples[1, :]
-            result = self._A1 * (
-                self._bkd.cos(self._bkd.asarray(self._theta1)) * x**3
-                + self._bkd.sin(self._bkd.asarray(self._theta1)) * y**3
-            ) + self._shifts[0]
+            result = (
+                self._A1
+                * (
+                    self._bkd.cos(self._bkd.asarray(self._theta1)) * x**3
+                    + self._bkd.sin(self._bkd.asarray(self._theta1)) * y**3
+                )
+                + self._shifts[0]
+            )
             # Typing convention: (nqoi, nsamples) = (1, nsamples)
             return result[None, :]
 
         def m2(samples: Array) -> Array:
             """Lowest fidelity model (degree 1 polynomial)."""
             x, y = samples[0, :], samples[1, :]
-            result = self._A2 * (
-                self._bkd.cos(self._bkd.asarray(self._theta2)) * x
-                + self._bkd.sin(self._bkd.asarray(self._theta2)) * y
-            ) + self._shifts[1]
+            result = (
+                self._A2
+                * (
+                    self._bkd.cos(self._bkd.asarray(self._theta2)) * x
+                    + self._bkd.sin(self._bkd.asarray(self._theta2)) * y
+                )
+                + self._shifts[1]
+            )
             # Typing convention: (nqoi, nsamples) = (1, nsamples)
             return result[None, :]
 
@@ -166,7 +174,10 @@ class TunableModelEnsemble(MultifidelityStatisticsMixin[Array], Generic[Array]):
 
         # Cov(m0, m1)
         cov_np[0, 1] = (
-            self._A0 * self._A1 / 9 * (
+            self._A0
+            * self._A1
+            / 9
+            * (
                 math.sin(self._theta0) * math.sin(self._theta1)
                 + math.cos(self._theta0) * math.cos(self._theta1)
             )
@@ -175,7 +186,10 @@ class TunableModelEnsemble(MultifidelityStatisticsMixin[Array], Generic[Array]):
 
         # Cov(m0, m2)
         cov_np[0, 2] = (
-            self._A0 * self._A2 / 7 * (
+            self._A0
+            * self._A2
+            / 7
+            * (
                 math.sin(self._theta0) * math.sin(self._theta2)
                 + math.cos(self._theta0) * math.cos(self._theta2)
             )
@@ -184,7 +198,10 @@ class TunableModelEnsemble(MultifidelityStatisticsMixin[Array], Generic[Array]):
 
         # Cov(m1, m2)
         cov_np[1, 2] = (
-            self._A1 * self._A2 / 5 * (
+            self._A1
+            * self._A2
+            / 5
+            * (
                 math.sin(self._theta1) * math.sin(self._theta2)
                 + math.cos(self._theta1) * math.cos(self._theta2)
             )
@@ -231,11 +248,7 @@ class TunableModelEnsemble(MultifidelityStatisticsMixin[Array], Generic[Array]):
         Array
             Means of shape (nmodels, 1).
         """
-        return self._bkd.asarray([
-            [0.0],
-            [self._shifts[0]],
-            [self._shifts[1]]
-        ])
+        return self._bkd.asarray([[0.0], [self._shifts[0]], [self._shifts[1]]])
 
     def costs(self) -> Array:
         """Return default costs for each model.
@@ -261,5 +274,6 @@ class TunableModelEnsemble(MultifidelityStatisticsMixin[Array], Generic[Array]):
             Samples of shape (2, nsamples).
         """
         import numpy as np
+
         samples = np.random.uniform(-1, 1, (2, nsamples))
         return self._bkd.asarray(samples)

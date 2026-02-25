@@ -5,26 +5,24 @@ Tests for GammaMarginal distribution.
 import unittest
 from typing import Any, Generic, Tuple
 
-import numpy as np
+import torch
 from numpy.typing import NDArray
 from scipy import stats
-import torch
 
-from pyapprox.util.backends.protocols import Array, Backend
-from pyapprox.util.backends.numpy import NumpyBkd
-from pyapprox.util.backends.torch import TorchBkd
-from pyapprox.util.test_utils import load_tests
-from pyapprox.probability.univariate import GammaMarginal
 from pyapprox.interface.functions.derivative_checks.derivative_checker import (
     DerivativeChecker,
 )
 from pyapprox.interface.functions.fromcallable.jacobian import (
     FunctionWithJacobianFromCallable,
 )
+from pyapprox.probability.univariate import GammaMarginal
 from pyapprox.surrogates.affine.univariate.globalpoly import (
-    LegendrePolynomial1D,
     GaussQuadratureRule,
+    LegendrePolynomial1D,
 )
+from pyapprox.util.backends.numpy import NumpyBkd
+from pyapprox.util.backends.protocols import Array, Backend
+from pyapprox.util.backends.torch import TorchBkd
 
 
 class GaussLegendreQuadrature01(Generic[Array]):
@@ -219,9 +217,7 @@ class TestGammaMarginal(Generic[Array], unittest.TestCase):
         jacobian = self._dist.invcdf_jacobian(probs)
         quantiles = self._dist.invcdf(probs)
         pdf_at_quantiles = self._dist(quantiles)
-        self.assertTrue(
-            self._bkd.allclose(jacobian, 1.0 / pdf_at_quantiles, rtol=1e-6)
-        )
+        self.assertTrue(self._bkd.allclose(jacobian, 1.0 / pdf_at_quantiles, rtol=1e-6))
 
     def test_logpdf_jacobian_derivative_checker(self) -> None:
         """Test logpdf Jacobian using DerivativeChecker."""
@@ -289,7 +285,9 @@ class TestGammaMarginal(Generic[Array], unittest.TestCase):
         """Test ppf is alias for invcdf."""
         probs = self._bkd.asarray([[0.25, 0.5, 0.75]])
         self.assertTrue(
-            self._bkd.allclose(self._dist.ppf(probs), self._dist.invcdf(probs), rtol=1e-10)
+            self._bkd.allclose(
+                self._dist.ppf(probs), self._dist.invcdf(probs), rtol=1e-10
+            )
         )
 
 
@@ -331,9 +329,7 @@ class TestGammaMarginalAutograd(unittest.TestCase):
         rate = 1.0 / self._scale
         expected_grad = (self._shape - 1.0) / samples.detach() - rate
 
-        self.assertTrue(
-            torch.allclose(samples.grad, expected_grad, rtol=1e-6)
-        )
+        self.assertTrue(torch.allclose(samples.grad, expected_grad, rtol=1e-6))
 
     def test_pdf_gradient_wrt_samples(self) -> None:
         """Test autograd gradient of pdf w.r.t. sample values."""
@@ -349,9 +345,7 @@ class TestGammaMarginalAutograd(unittest.TestCase):
         logpdf_grad = (self._shape - 1.0) / samples.detach() - rate
         expected_grad = pdf_vals * logpdf_grad
 
-        self.assertTrue(
-            torch.allclose(samples.grad, expected_grad, rtol=1e-6)
-        )
+        self.assertTrue(torch.allclose(samples.grad, expected_grad, rtol=1e-6))
 
 
 if __name__ == "__main__":

@@ -7,7 +7,6 @@ It also has no transforms.
 
 from typing import Generic, List, Optional, Union
 
-from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.optimization.minimize.protocols import (
     BindableOptimizerProtocol,
 )
@@ -15,6 +14,7 @@ from pyapprox.surrogates.gaussianprocess.fitters.results import (
     GPFitResult,
     GPOptimizedFitResult,
 )
+from pyapprox.util.backends.protocols import Array, Backend
 
 
 class MultiOutputGPFixedHyperparameterFitter(Generic[Array]):
@@ -140,6 +140,7 @@ class MultiOutputGPMaximumLikelihoodFitter(Generic[Array]):
         from pyapprox.surrogates.gaussianprocess.gp_loss import (
             GPNegativeLogMarginalLikelihoodLoss,
         )
+
         loss = GPNegativeLogMarginalLikelihoodLoss(
             clone, (clone._X_train_list, clone._y_train_stacked)
         )
@@ -153,15 +154,14 @@ class MultiOutputGPMaximumLikelihoodFitter(Generic[Array]):
             from pyapprox.optimization.minimize.scipy.trust_constr import (
                 ScipyTrustConstrOptimizer,
             )
+
             optimizer = ScipyTrustConstrOptimizer(verbosity=0, maxiter=1000)
 
         optimizer.bind(loss, bounds)
 
         init_guess = clone.hyp_list().get_active_values()
         if len(init_guess.shape) == 1:
-            init_guess = self._bkd.reshape(
-                init_guess, (len(init_guess), 1)
-            )
+            init_guess = self._bkd.reshape(init_guess, (len(init_guess), 1))
 
         opt_result = optimizer.minimize(init_guess)
 

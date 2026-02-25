@@ -5,7 +5,7 @@ Defines the interface for bivariate copulas including h-functions
 (conditional CDFs) needed for vine copula construction.
 """
 
-from typing import Protocol, Generic, runtime_checkable
+from typing import Generic, Protocol, runtime_checkable
 
 from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.util.hyperparameter import HyperParameterList

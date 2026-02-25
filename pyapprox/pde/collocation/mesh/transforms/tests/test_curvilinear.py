@@ -4,17 +4,17 @@ import math
 import unittest
 from typing import Generic
 
-from pyapprox.util.backends.protocols import Array, Backend
-from pyapprox.util.backends.numpy import NumpyBkd
-from pyapprox.pde.collocation.mesh.transforms.polar import PolarTransform
-from pyapprox.pde.collocation.mesh.transforms.spherical import (
-    SphericalTransform,
-)
-from pyapprox.pde.collocation.mesh.transforms.chained import ChainedTransform
 from pyapprox.pde.collocation.mesh.transforms.affine import (
     AffineTransform2D,
     AffineTransform3D,
 )
+from pyapprox.pde.collocation.mesh.transforms.chained import ChainedTransform
+from pyapprox.pde.collocation.mesh.transforms.polar import PolarTransform
+from pyapprox.pde.collocation.mesh.transforms.spherical import (
+    SphericalTransform,
+)
+from pyapprox.util.backends.numpy import NumpyBkd
+from pyapprox.util.backends.protocols import Array, Backend
 
 
 class TestPolarTransform(Generic[Array], unittest.TestCase):
@@ -91,8 +91,7 @@ class TestPolarTransform(Generic[Array], unittest.TestCase):
         jac_mat = transform.jacobian_matrix(ref_pts)
         jac_det = transform.jacobian_determinant(ref_pts)
         det_from_mat = (
-            jac_mat[:, 0, 0] * jac_mat[:, 1, 1]
-            - jac_mat[:, 0, 1] * jac_mat[:, 1, 0]
+            jac_mat[:, 0, 0] * jac_mat[:, 1, 1] - jac_mat[:, 0, 1] * jac_mat[:, 1, 0]
         )
         bkd.assert_allclose(det_from_mat, jac_det, atol=1e-14)
 
@@ -104,8 +103,7 @@ class TestPolarTransform(Generic[Array], unittest.TestCase):
         jac_mat = transform_ref.jacobian_matrix(ref_pts_std)
         jac_det = transform_ref.jacobian_determinant(ref_pts_std)
         det_from_mat = (
-            jac_mat[:, 0, 0] * jac_mat[:, 1, 1]
-            - jac_mat[:, 0, 1] * jac_mat[:, 1, 0]
+            jac_mat[:, 0, 0] * jac_mat[:, 1, 1] - jac_mat[:, 0, 1] * jac_mat[:, 1, 0]
         )
         bkd.assert_allclose(det_from_mat, jac_det, atol=1e-14)
 
@@ -186,16 +184,20 @@ class TestPolarTransform(Generic[Array], unittest.TestCase):
         r_mid = (r_min + r_max) / 2
         theta_mid = (theta_min + theta_max) / 2
 
-        expected_x = bkd.asarray([
-            r_min * math.cos(theta_min),
-            r_max * math.cos(theta_max),
-            r_mid * math.cos(theta_mid),
-        ])
-        expected_y = bkd.asarray([
-            r_min * math.sin(theta_min),
-            r_max * math.sin(theta_max),
-            r_mid * math.sin(theta_mid),
-        ])
+        expected_x = bkd.asarray(
+            [
+                r_min * math.cos(theta_min),
+                r_max * math.cos(theta_max),
+                r_mid * math.cos(theta_mid),
+            ]
+        )
+        expected_y = bkd.asarray(
+            [
+                r_min * math.sin(theta_min),
+                r_max * math.sin(theta_max),
+                r_mid * math.sin(theta_mid),
+            ]
+        )
         bkd.assert_allclose(phys_pts[0, :], expected_x, atol=1e-14)
         bkd.assert_allclose(phys_pts[1, :], expected_y, atol=1e-14)
 
@@ -234,7 +236,11 @@ class TestSphericalTransform(Generic[Array], unittest.TestCase):
         )
 
         ref_pts = bkd.asarray(
-            [[1.0, 2.0, 3.0], [0.0, math.pi / 4, -math.pi / 4], [math.pi / 4, math.pi / 2, math.pi / 3]]
+            [
+                [1.0, 2.0, 3.0],
+                [0.0, math.pi / 4, -math.pi / 4],
+                [math.pi / 4, math.pi / 2, math.pi / 3],
+            ]
         )
         phys_pts = transform.map_to_physical(ref_pts)
         ref_pts_back = transform.map_to_reference(phys_pts)
@@ -249,7 +255,11 @@ class TestSphericalTransform(Generic[Array], unittest.TestCase):
         )
 
         ref_pts = bkd.asarray(
-            [[1.0, 2.0, 3.0], [0.0, math.pi / 4, math.pi / 2], [math.pi / 4, math.pi / 2, math.pi / 3]]
+            [
+                [1.0, 2.0, 3.0],
+                [0.0, math.pi / 4, math.pi / 2],
+                [math.pi / 4, math.pi / 2, math.pi / 3],
+            ]
         )
         jac_det = transform.jacobian_determinant(ref_pts)
 
@@ -267,7 +277,11 @@ class TestSphericalTransform(Generic[Array], unittest.TestCase):
         )
 
         ref_pts = bkd.asarray(
-            [[1.0, 2.0, 3.0], [0.0, math.pi / 4, math.pi / 2], [math.pi / 4, math.pi / 2, math.pi / 3]]
+            [
+                [1.0, 2.0, 3.0],
+                [0.0, math.pi / 4, math.pi / 2],
+                [math.pi / 4, math.pi / 2, math.pi / 3],
+            ]
         )
         scale = transform.scale_factors(ref_pts)
 
@@ -313,9 +327,7 @@ class TestSphericalTransform(Generic[Array], unittest.TestCase):
 
         # elevation out of [0, pi]
         with self.assertRaises(ValueError):
-            SphericalTransform(
-                (0.0, 1.0), (-math.pi, math.pi), (-0.1, math.pi), bkd
-            )
+            SphericalTransform((0.0, 1.0), (-math.pi, math.pi), (-0.1, math.pi), bkd)
 
         with self.assertRaises(ValueError):
             SphericalTransform(

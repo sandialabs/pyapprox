@@ -6,7 +6,7 @@ experimental design for linear regression models. The design is specified
 by a probability measure over candidate design points.
 """
 
-from typing import Protocol, Generic, runtime_checkable
+from typing import Generic, Protocol, runtime_checkable
 
 from pyapprox.util.backends.protocols import Array, Backend
 

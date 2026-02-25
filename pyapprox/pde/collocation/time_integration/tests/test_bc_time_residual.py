@@ -5,28 +5,28 @@ import unittest
 from typing import Generic
 
 from numpy.typing import NDArray
-from pyapprox.util.backends.protocols import Array, Backend
-from pyapprox.util.backends.numpy import NumpyBkd
-from pyapprox.util.test_utils import load_tests  # noqa: F401
+
 from pyapprox.pde.collocation.basis import ChebyshevBasis1D
-from pyapprox.pde.collocation.mesh import (
-    create_uniform_mesh_1d,
-    TransformedMesh1D,
-)
 from pyapprox.pde.collocation.boundary import (
     zero_dirichlet_bc,
-    constant_dirichlet_bc,
+)
+from pyapprox.pde.collocation.mesh import (
+    TransformedMesh1D,
+    create_uniform_mesh_1d,
 )
 from pyapprox.pde.collocation.physics import (
     AdvectionDiffusionReaction,
 )
 from pyapprox.pde.collocation.time_integration import (
-    PhysicsToODEResidualAdapter,
     BCEnforcingTimeResidual,
+    PhysicsToODEResidualAdapter,
 )
 from pyapprox.pde.time.implicit_steppers.backward_euler import (
     BackwardEulerResidual,
 )
+from pyapprox.util.backends.numpy import NumpyBkd
+from pyapprox.util.backends.protocols import Array, Backend
+from pyapprox.util.test_utils import load_tests  # noqa: F401
 
 
 class TestBCEnforcingTimeResidual(Generic[Array], unittest.TestCase):
@@ -84,7 +84,7 @@ class TestBCEnforcingTimeResidual(Generic[Array], unittest.TestCase):
         physics = s["physics"]
         adapter = s["adapter"]
         state = s["state"]
-        npts = s["npts"]
+        s["npts"]
 
         deltat = 0.05
         t_n = 0.1
@@ -224,9 +224,7 @@ class TestBCEnforcingTimeResidual(Generic[Array], unittest.TestCase):
         self.assertLess(res_norm, 1e-10)
 
 
-class TestBCEnforcingTimeResidualNumpy(
-    TestBCEnforcingTimeResidual[NDArray]
-):
+class TestBCEnforcingTimeResidualNumpy(TestBCEnforcingTimeResidual[NDArray]):
     __test__ = True
 
     def bkd(self):

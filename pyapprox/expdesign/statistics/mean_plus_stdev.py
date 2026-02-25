@@ -13,10 +13,10 @@ TODO: Investigate consolidating SampleStatistic classes
 
 from typing import Generic
 
-from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.expdesign.statistics.base import SampleStatistic
 from pyapprox.expdesign.statistics.mean import SampleAverageMean
 from pyapprox.expdesign.statistics.variance import SampleAverageStdev
+from pyapprox.util.backends.protocols import Array, Backend
 
 
 class SampleAverageMeanPlusStdev(SampleStatistic[Array], Generic[Array]):
@@ -59,14 +59,11 @@ class SampleAverageMeanPlusStdev(SampleStatistic[Array], Generic[Array]):
         Array
             Statistic value. Shape: (nqoi, 1)
         """
-        return (
-            self._mean_stat(values, weights)
-            + self._safety_factor * self._stdev_stat(values, weights)
-        )
+        return self._mean_stat(
+            values, weights
+        ) + self._safety_factor * self._stdev_stat(values, weights)
 
-    def _jacobian(
-        self, values: Array, jac_values: Array, weights: Array
-    ) -> Array:
+    def _jacobian(self, values: Array, jac_values: Array, weights: Array) -> Array:
         """
         Compute Jacobian of mean + factor * stdev.
 
@@ -84,11 +81,9 @@ class SampleAverageMeanPlusStdev(SampleStatistic[Array], Generic[Array]):
         Array
             Jacobian. Shape: (nqoi, nvars)
         """
-        return (
-            self._mean_stat.jacobian(values, jac_values, weights)
-            + self._safety_factor
-            * self._stdev_stat.jacobian(values, jac_values, weights)
-        )
+        return self._mean_stat.jacobian(
+            values, jac_values, weights
+        ) + self._safety_factor * self._stdev_stat.jacobian(values, jac_values, weights)
 
     def __repr__(self) -> str:
         return f"SampleAverageMeanPlusStdev(factor={self._safety_factor})"

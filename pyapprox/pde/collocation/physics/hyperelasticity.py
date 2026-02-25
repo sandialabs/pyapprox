@@ -10,10 +10,6 @@ satisfies StressModelProtocol.
 
 from typing import Callable, Generic, List, Optional, Tuple
 
-from pyapprox.util.backends.protocols import Array, Backend
-from pyapprox.pde.collocation.protocols.basis import (
-    TensorProductBasisProtocol,
-)
 from pyapprox.pde.collocation.physics.base import AbstractVectorPhysics
 from pyapprox.pde.collocation.physics.stress_models.protocols import (
     StressModelProtocol,
@@ -21,6 +17,10 @@ from pyapprox.pde.collocation.physics.stress_models.protocols import (
 from pyapprox.pde.collocation.physics.stress_models.registry import (
     create_stress_model,
 )
+from pyapprox.pde.collocation.protocols.basis import (
+    TensorProductBasisProtocol,
+)
+from pyapprox.util.backends.protocols import Array, Backend
 
 
 class HyperelasticityPhysics(AbstractVectorPhysics[Array], Generic[Array]):
@@ -66,9 +66,7 @@ class HyperelasticityPhysics(AbstractVectorPhysics[Array], Generic[Array]):
         self._ndim = ndim
 
         # Precompute first-order derivative matrices
-        self._D: List[Array] = [
-            basis.derivative_matrix(1, dim) for dim in range(ndim)
-        ]
+        self._D: List[Array] = [basis.derivative_matrix(1, dim) for dim in range(ndim)]
 
     def stress_model(self) -> StressModelProtocol[Array]:
         """Return the stress model."""
@@ -86,13 +84,9 @@ class HyperelasticityPhysics(AbstractVectorPhysics[Array], Generic[Array]):
         mu_values : float or Array
             Shear modulus values. Must be positive.
         """
-        min_val = float(self._bkd.min(
-            self._bkd.asarray(mu_values).ravel()
-        ))
+        min_val = float(self._bkd.min(self._bkd.asarray(mu_values).ravel()))
         if min_val <= 0.0:
-            raise ValueError(
-                f"mu must be positive; found min {min_val:.2e}"
-            )
+            raise ValueError(f"mu must be positive; found min {min_val:.2e}")
         self._stress_model.set_mu(mu_values)
 
     def set_lamda(self, lamda_values) -> None:
@@ -103,13 +97,9 @@ class HyperelasticityPhysics(AbstractVectorPhysics[Array], Generic[Array]):
         lamda_values : float or Array
             Lame's first parameter values. Must be non-negative.
         """
-        min_val = float(self._bkd.min(
-            self._bkd.asarray(lamda_values).ravel()
-        ))
+        min_val = float(self._bkd.min(self._bkd.asarray(lamda_values).ravel()))
         if min_val < 0.0:
-            raise ValueError(
-                f"lamda must be non-negative; found min {min_val:.2e}"
-            )
+            raise ValueError(f"lamda must be non-negative; found min {min_val:.2e}")
         self._stress_model.set_lamda(lamda_values)
 
     def _get_forcing(self, time: float) -> Array:
@@ -137,9 +127,7 @@ class HyperelasticityPhysics(AbstractVectorPhysics[Array], Generic[Array]):
             Displacement components, each shape (npts,).
         """
         npts = self.npts()
-        return tuple(
-            state[i * npts : (i + 1) * npts] for i in range(self._ndim)
-        )
+        return tuple(state[i * npts : (i + 1) * npts] for i in range(self._ndim))
 
     # ------------------------------------------------------------------
     # Flux computation (PK1 stress)
@@ -176,9 +164,7 @@ class HyperelasticityPhysics(AbstractVectorPhysics[Array], Generic[Array]):
             )
             return [[P11, P12], [P21, P22]]
         else:
-            raise NotImplementedError(
-                "compute_flux only implemented for 1D and 2D"
-            )
+            raise NotImplementedError("compute_flux only implemented for 1D and 2D")
 
     def compute_flux_jacobian(self, state: Array):
         """Compute d(flux)/d(state).
@@ -207,9 +193,7 @@ class HyperelasticityPhysics(AbstractVectorPhysics[Array], Generic[Array]):
             F12 = Dy @ u
             F21 = Dx @ v
             F22 = 1.0 + Dy @ v
-            A = self._stress_model.compute_tangent_2d(
-                F11, F12, F21, F22, bkd
-            )
+            A = self._stress_model.compute_tangent_2d(F11, F12, F21, F22, bkd)
             D = [Dx, Dy]
             result = []
             for i in range(2):
@@ -219,10 +203,10 @@ class HyperelasticityPhysics(AbstractVectorPhysics[Array], Generic[Array]):
                     jac = bkd.copy(jac)
                     for k in range(2):
                         for ll in range(2):
-                            key = f"A_{i+1}{jj+1}{k+1}{ll+1}"
+                            key = f"A_{i + 1}{jj + 1}{k + 1}{ll + 1}"
                             contrib = bkd.diag(A[key]) @ D[ll]
-                            jac[:, k * npts:(k + 1) * npts] = (
-                                jac[:, k * npts:(k + 1) * npts] + contrib
+                            jac[:, k * npts : (k + 1) * npts] = (
+                                jac[:, k * npts : (k + 1) * npts] + contrib
                             )
                     row.append(jac)
                 result.append(row)
@@ -268,10 +252,8 @@ class HyperelasticityPhysics(AbstractVectorPhysics[Array], Generic[Array]):
             F12 = Dy @ u
             F21 = Dx @ v
             F22 = 1.0 + Dy @ v
-            dP11, dP12, dP21, dP22 = (
-                self._stress_model.stress_sensitivity_mu_2d(
-                    F11, F12, F21, F22, bkd
-                )
+            dP11, dP12, dP21, dP22 = self._stress_model.stress_sensitivity_mu_2d(
+                F11, F12, F21, F22, bkd
             )
             sens_u = Dx @ (dP11 * delta_mu) + Dy @ (dP12 * delta_mu)
             sens_v = Dx @ (dP21 * delta_mu) + Dy @ (dP22 * delta_mu)
@@ -313,10 +295,8 @@ class HyperelasticityPhysics(AbstractVectorPhysics[Array], Generic[Array]):
             F12 = Dy @ u
             F21 = Dx @ v
             F22 = 1.0 + Dy @ v
-            dP11, dP12, dP21, dP22 = (
-                self._stress_model.stress_sensitivity_lamda_2d(
-                    F11, F12, F21, F22, bkd
-                )
+            dP11, dP12, dP21, dP22 = self._stress_model.stress_sensitivity_lamda_2d(
+                F11, F12, F21, F22, bkd
             )
             sens_u = Dx @ (dP11 * delta_lam) + Dy @ (dP12 * delta_lam)
             sens_v = Dx @ (dP21 * delta_lam) + Dy @ (dP22 * delta_lam)
@@ -423,9 +403,7 @@ class HyperelasticityPhysics(AbstractVectorPhysics[Array], Generic[Array]):
         fy = forcing[npts : 2 * npts]
         fz = forcing[2 * npts :]
 
-        return bkd.concatenate([
-            div_P_x + fx, div_P_y + fy, div_P_z + fz
-        ])
+        return bkd.concatenate([div_P_x + fx, div_P_y + fy, div_P_z + fz])
 
     # ------------------------------------------------------------------
     # Jacobian computation
@@ -499,9 +477,7 @@ class HyperelasticityPhysics(AbstractVectorPhysics[Array], Generic[Array]):
             raise NotImplementedError(
                 "Stress model does not provide 2D tangent modulus."
             )
-        A = self._stress_model.compute_tangent_2d(
-            F11, F12, F21, F22, bkd
-        )
+        A = self._stress_model.compute_tangent_2d(F11, F12, F21, F22, bkd)
 
         D = [Dx, Dy]
 
@@ -517,23 +493,17 @@ class HyperelasticityPhysics(AbstractVectorPhysics[Array], Generic[Array]):
         for a in range(2):  # equation component (1-indexed: a+1)
             row_blocks = []
             for b in range(2):  # state component (1-indexed: b+1)
-                block = bkd.zeros(
-                    (self.npts(), self.npts())
-                )
+                block = bkd.zeros((self.npts(), self.npts()))
                 for jj in range(2):  # stress column index J (1-indexed: jj+1)
                     for ll in range(2):  # gradient column index L
-                        key = f"A_{a+1}{jj+1}{b+1}{ll+1}"
+                        key = f"A_{a + 1}{jj + 1}{b + 1}{ll + 1}"
                         block = block + D[jj] @ bkd.diag(A[key]) @ D[ll]
                 row_blocks.append(block)
             blocks.append(row_blocks)
 
         # Assemble [[J_uu, J_uv], [J_vu, J_vv]]
-        top_row = bkd.concatenate(
-            [blocks[0][0], blocks[0][1]], axis=1
-        )
-        bottom_row = bkd.concatenate(
-            [blocks[1][0], blocks[1][1]], axis=1
-        )
+        top_row = bkd.concatenate([blocks[0][0], blocks[0][1]], axis=1)
+        bottom_row = bkd.concatenate([blocks[1][0], blocks[1][1]], axis=1)
         return bkd.concatenate([top_row, bottom_row], axis=0)
 
     def _jacobian_3d(self, state: Array) -> Array:

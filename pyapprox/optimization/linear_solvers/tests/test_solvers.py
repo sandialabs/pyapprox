@@ -3,9 +3,6 @@
 import unittest
 from typing import Generic
 
-from pyapprox.util.backends.protocols import Array, Backend
-from pyapprox.util.backends.numpy import NumpyBkd
-from pyapprox.util.test_utils import load_tests  # noqa: F401
 from pyapprox.optimization.linear_solvers.direct import (
     DirectSolver,
     direct_solve,
@@ -19,11 +16,14 @@ from pyapprox.optimization.linear_solvers.iterative.pcg import (
     pcg_solve,
 )
 from pyapprox.optimization.linear_solvers.preconditioners.jacobi import (
-    JacobiPreconditioner,
     BlockJacobiPreconditioner,
-    jacobi_preconditioner,
+    JacobiPreconditioner,
     block_jacobi_preconditioner,
+    jacobi_preconditioner,
 )
+from pyapprox.util.backends.numpy import NumpyBkd
+from pyapprox.util.backends.protocols import Array, Backend
+from pyapprox.util.test_utils import load_tests  # noqa: F401
 
 
 class TestDirectSolver(Generic[Array], unittest.TestCase):
@@ -345,12 +345,14 @@ class TestBlockJacobiPreconditioner(Generic[Array], unittest.TestCase):
         """Test block Jacobi with 2x2 blocks."""
         bkd = self.bkd()
         # 4x4 matrix with 2x2 blocks
-        A = bkd.array([
-            [4.0, 1.0, 0.0, 0.0],
-            [1.0, 3.0, 0.0, 0.0],
-            [0.0, 0.0, 2.0, 0.5],
-            [0.0, 0.0, 0.5, 2.0],
-        ])
+        A = bkd.array(
+            [
+                [4.0, 1.0, 0.0, 0.0],
+                [1.0, 3.0, 0.0, 0.0],
+                [0.0, 0.0, 2.0, 0.5],
+                [0.0, 0.0, 0.5, 2.0],
+            ]
+        )
         r = bkd.array([5.0, 4.0, 2.5, 2.5])
 
         precond = BlockJacobiPreconditioner(bkd, block_size=2)
@@ -372,12 +374,14 @@ class TestBlockJacobiPreconditioner(Generic[Array], unittest.TestCase):
     def test_factory_function(self):
         """Test block Jacobi factory function."""
         bkd = self.bkd()
-        A = bkd.array([
-            [4.0, 1.0, 0.0, 0.0],
-            [1.0, 3.0, 0.0, 0.0],
-            [0.0, 0.0, 2.0, 0.5],
-            [0.0, 0.0, 0.5, 2.0],
-        ])
+        A = bkd.array(
+            [
+                [4.0, 1.0, 0.0, 0.0],
+                [1.0, 3.0, 0.0, 0.0],
+                [0.0, 0.0, 2.0, 0.5],
+                [0.0, 0.0, 0.5, 2.0],
+            ]
+        )
         r = bkd.array([5.0, 4.0, 2.5, 2.5])
 
         precond = block_jacobi_preconditioner(A, bkd, block_size=2)

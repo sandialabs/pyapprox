@@ -92,21 +92,13 @@ class PiecewiseLinear(Generic[Array]):
         Tuple[Array, Array]
             Quadrature points and weights.
         """
-        quadrature_points = (
-            self._nodes
-        )  # For non-constant basis, points are the nodes
-        quadrature_weights = self._bkd.zeros(
-            self._nodes.shape
-        )  # Use zeros with shape
+        quadrature_points = self._nodes  # For non-constant basis, points are the nodes
+        quadrature_weights = self._bkd.zeros(self._nodes.shape)  # Use zeros with shape
         for ii in range(self._nodes.shape[0]):
             if ii > 0:
-                quadrature_weights[ii] += 0.5 * (
-                    self._nodes[ii] - self._nodes[ii - 1]
-                )
+                quadrature_weights[ii] += 0.5 * (self._nodes[ii] - self._nodes[ii - 1])
             if ii < self._nodes.shape[0] - 1:
-                quadrature_weights[ii] += 0.5 * (
-                    self._nodes[ii + 1] - self._nodes[ii]
-                )
+                quadrature_weights[ii] += 0.5 * (self._nodes[ii + 1] - self._nodes[ii])
         return quadrature_points, quadrature_weights
 
     def nodes(self) -> Array:

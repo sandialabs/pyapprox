@@ -10,7 +10,6 @@ existing code.
 """
 
 from typing import (
-    Callable,
     Dict,
     Generic,
     Optional,
@@ -22,9 +21,9 @@ from typing import (
 
 import numpy as np
 
-from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.probability.joint.independent import IndependentJoint
 from pyapprox.probability.univariate.gaussian import GaussianMarginal
+from pyapprox.util.backends.protocols import Array, Backend
 
 
 @runtime_checkable
@@ -340,9 +339,7 @@ def get_sampler(name: str) -> Type[SamplerStrategy]:
     """
     if name not in _SAMPLER_STRATEGIES:
         available = list(_SAMPLER_STRATEGIES.keys())
-        raise ValueError(
-            f"Unknown sampler: '{name}'. Available: {available}"
-        )
+        raise ValueError(f"Unknown sampler: '{name}'. Available: {available}")
     return _SAMPLER_STRATEGIES[name]
 
 

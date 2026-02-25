@@ -21,17 +21,17 @@ from typing import Callable, Dict, List, Optional, Tuple
 
 import numpy as np
 
-from pyapprox.util.backends.protocols import Array, Backend
-from pyapprox.pde.sparse_utils import solve_maybe_sparse
+from pyapprox.pde.galerkin.basis.vector_lagrange import VectorLagrangeBasis
+from pyapprox.pde.galerkin.physics.galerkin_base import GalerkinPhysicsBase
 from pyapprox.pde.galerkin.protocols.boundary import (
     BoundaryConditionProtocol,
 )
-from pyapprox.pde.galerkin.basis.vector_lagrange import VectorLagrangeBasis
-from pyapprox.pde.galerkin.physics.galerkin_base import GalerkinPhysicsBase
+from pyapprox.pde.sparse_utils import solve_maybe_sparse
+from pyapprox.util.backends.protocols import Array, Backend
 
 try:
-    from skfem import asm, LinearForm, BilinearForm
-    from skfem.helpers import sym_grad, ddot, eye, trace
+    from skfem import BilinearForm, LinearForm, asm
+    from skfem.helpers import ddot, eye, sym_grad, trace
     from skfem.models.elasticity import lame_parameters
 except ImportError:
     raise ImportError(
@@ -48,9 +48,8 @@ def _elastic_form(u, v, w):
     """
     eps_u = sym_grad(u)
     eps_v = sym_grad(v)
-    return (
-        w.lam * ddot(eye(trace(eps_u), eps_u.shape[0]), eps_v)
-        + 2.0 * w.mu * ddot(eps_u, eps_v)
+    return w.lam * ddot(eye(trace(eps_u), eps_u.shape[0]), eps_v) + 2.0 * w.mu * ddot(
+        eps_u, eps_v
     )
 
 
@@ -102,9 +101,7 @@ class CompositeLinearElasticity(GalerkinPhysicsBase[Array]):
         poisson_ratio: float,
         bkd: Backend[Array],
         body_force: Optional[Callable] = None,
-        boundary_conditions: Optional[
-            List[BoundaryConditionProtocol[Array]]
-        ] = None,
+        boundary_conditions: Optional[List[BoundaryConditionProtocol[Array]]] = None,
     ) -> "CompositeLinearElasticity[Array]":
         """Create from uniform material properties.
 
@@ -144,9 +141,7 @@ class CompositeLinearElasticity(GalerkinPhysicsBase[Array]):
         element_materials: Dict[str, np.ndarray],
         bkd: Backend[Array],
         body_force: Optional[Callable] = None,
-        boundary_conditions: Optional[
-            List[BoundaryConditionProtocol[Array]]
-        ] = None,
+        boundary_conditions: Optional[List[BoundaryConditionProtocol[Array]]] = None,
     ):
         super().__init__(basis, bkd, boundary_conditions)
         self._body_force = body_force
@@ -166,9 +161,7 @@ class CompositeLinearElasticity(GalerkinPhysicsBase[Array]):
                     f"-1 < nu < 0.5, got {nu}"
                 )
             if name not in self._element_materials:
-                raise ValueError(
-                    f"Material '{name}' has no element assignment"
-                )
+                raise ValueError(f"Material '{name}' has no element assignment")
 
         # Build element-wise Lame parameter arrays
         nelems = basis.skfem_basis().mesh.nelements
@@ -198,8 +191,10 @@ class CompositeLinearElasticity(GalerkinPhysicsBase[Array]):
             lam_i = np.zeros((nelems, nquad))
             lam_i[elem_idx, :] = 1.0
             K_lam_i = asm(
-                _elastic_form, skfem_basis,
-                lam=lam_i, mu=np.zeros((nelems, nquad)),
+                _elastic_form,
+                skfem_basis,
+                lam=lam_i,
+                mu=np.zeros((nelems, nquad)),
             )
             self._K_lam_per_material.append(K_lam_i)
 
@@ -207,8 +202,10 @@ class CompositeLinearElasticity(GalerkinPhysicsBase[Array]):
             mu_i = np.zeros((nelems, nquad))
             mu_i[elem_idx, :] = 1.0
             K_mu_i = asm(
-                _elastic_form, skfem_basis,
-                lam=np.zeros((nelems, nquad)), mu=mu_i,
+                _elastic_form,
+                skfem_basis,
+                lam=np.zeros((nelems, nquad)),
+                mu=mu_i,
             )
             self._K_mu_per_material.append(K_mu_i)
 
@@ -267,7 +264,10 @@ class CompositeLinearElasticity(GalerkinPhysicsBase[Array]):
         skfem_basis = self._basis.skfem_basis()
         lam, mu = self._lame_data()
         self._stiffness_cached = asm(
-            _elastic_form, skfem_basis, lam=lam, mu=mu,
+            _elastic_form,
+            skfem_basis,
+            lam=lam,
+            mu=mu,
         )
         return self._stiffness_cached
 
@@ -301,9 +301,7 @@ class CompositeLinearElasticity(GalerkinPhysicsBase[Array]):
                 if len(x_shape) == 3:
                     n, nelem, nquad = x_shape
                     x_flat = x.reshape(n, -1)
-                    force_flat = np.asarray(
-                        body_force_func(x_flat, current_time)
-                    )
+                    force_flat = np.asarray(body_force_func(x_flat, current_time))
                     force = force_flat.reshape(ndim, nelem, nquad)
                 else:
                     force = np.asarray(body_force_func(x, current_time))
@@ -437,7 +435,9 @@ class CompositeLinearElasticity(GalerkinPhysicsBase[Array]):
     # -----------------------------------------------------------------
 
     def residual_lam_sensitivity(
-        self, state: Array, material_idx: int,
+        self,
+        state: Array,
+        material_idx: int,
     ) -> Array:
         """Sensitivity of spatial residual w.r.t. lambda for a material.
 
@@ -460,7 +460,9 @@ class CompositeLinearElasticity(GalerkinPhysicsBase[Array]):
         return -(self._K_lam_per_material[material_idx] @ state)
 
     def residual_mu_sensitivity(
-        self, state: Array, material_idx: int,
+        self,
+        state: Array,
+        material_idx: int,
     ) -> Array:
         """Sensitivity of spatial residual w.r.t. mu for a material.
 
@@ -487,7 +489,9 @@ class CompositeLinearElasticity(GalerkinPhysicsBase[Array]):
     # -----------------------------------------------------------------
 
     def set_lame_parameters(
-        self, lam_per_elem: np.ndarray, mu_per_elem: np.ndarray,
+        self,
+        lam_per_elem: np.ndarray,
+        mu_per_elem: np.ndarray,
     ) -> None:
         """Set per-element Lame parameters directly and invalidate cache.
 
@@ -506,8 +510,7 @@ class CompositeLinearElasticity(GalerkinPhysicsBase[Array]):
 
     def __repr__(self) -> str:
         materials_str = ", ".join(
-            f"{name}: E={E}, nu={nu}"
-            for name, (E, nu) in self._material_map.items()
+            f"{name}: E={E}, nu={nu}" for name, (E, nu) in self._material_map.items()
         )
         return (
             f"CompositeLinearElasticity("

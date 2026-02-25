@@ -1,41 +1,36 @@
 """Linear algebra utilities for PyApprox typing module."""
 
-from pyapprox.util.linalg.indexing import (
-    extract_submatrix,
-)
-
 from pyapprox.util.linalg.cholesky_factor import (
     CholeskyFactor,
 )
-
-from pyapprox.util.linalg.protocols import (
-    PivotedFactorizerProtocol,
-    IncrementalFactorizerProtocol,
+from pyapprox.util.linalg.indexing import (
+    extract_submatrix,
 )
-
 from pyapprox.util.linalg.pivoted_lu import (
     PivotedLUFactorizer,
-    swap_rows,
     get_final_pivots_from_sequential_pivots,
+    swap_rows,
 )
-
 from pyapprox.util.linalg.pivoted_qr import (
     PivotedQRFactorizer,
 )
-
+from pyapprox.util.linalg.protocols import (
+    IncrementalFactorizerProtocol,
+    PivotedFactorizerProtocol,
+)
 from pyapprox.util.linalg.randomized import (
-    MatVecOperator,
-    SymmetricMatVecOperator,
     DenseMatVecOperator,
     DenseSymmetricMatVecOperator,
+    DoublePassRandomizedSVD,
     FunctionMatVecOperator,
     FunctionSymmetricMatVecOperator,
+    MatVecOperator,
     RandomizedSVD,
     SinglePassRandomizedSVD,
-    DoublePassRandomizedSVD,
-    randomized_symmetric_eigendecomposition,
+    SymmetricMatVecOperator,
     adjust_sign_svd,
     get_low_rank_matrix,
+    randomized_symmetric_eigendecomposition,
 )
 
 __all__ = [

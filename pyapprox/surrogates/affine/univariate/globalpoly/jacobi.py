@@ -14,10 +14,10 @@ from typing import Generic, Tuple
 
 from scipy import special as sp
 
-from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.surrogates.affine.univariate.globalpoly.orthopoly_base import (
     OrthonormalPolynomial1D,
 )
+from pyapprox.util.backends.protocols import Array, Backend
 
 
 def jacobi_recurrence(
@@ -88,9 +88,7 @@ def jacobi_recurrence(
     if ncoefs > 2:
         inds = bkd.arange(2, ncoefs)
         ab[2:, 0] /= (2.0 * inds + alpha + beta) * (2 * inds + alpha + beta + 2.0)
-        ab[2:, 1] = (
-            4 * inds * (inds + alpha) * (inds + beta) * (inds + alpha + beta)
-        )
+        ab[2:, 1] = 4 * inds * (inds + alpha) * (inds + beta) * (inds + alpha + beta)
         ab[2:, 1] /= (
             (2.0 * inds + alpha + beta) ** 2
             * (2.0 * inds + alpha + beta + 1.0)
@@ -134,9 +132,7 @@ class JacobiPolynomial1D(OrthonormalPolynomial1D[Array], Generic[Array]):
             bkd=self._bkd,
         )
 
-    def gauss_lobatto_quadrature_rule(
-        self, npoints: int
-    ) -> Tuple[Array, Array]:
+    def gauss_lobatto_quadrature_rule(self, npoints: int) -> Tuple[Array, Array]:
         """Compute Gauss-Lobatto quadrature rule.
 
         Gauss-Lobatto quadrature includes the endpoints [-1, 1].
@@ -173,9 +169,7 @@ class JacobiPolynomial1D(OrthonormalPolynomial1D[Array], Generic[Array]):
             (self._alpha + self._beta + 1.0) * math.log(2.0)
             + self._bkd.gammaln(self._bkd.asarray(self._alpha) + 1.0)
             + self._bkd.gammaln(self._bkd.asarray(self._beta) + 1.0)
-            - self._bkd.gammaln(
-                self._bkd.asarray(self._alpha + self._beta) + 2.0
-            )
+            - self._bkd.gammaln(self._bkd.asarray(self._alpha + self._beta) + 2.0)
         )
 
         # Modify last coefficients for Lobatto rule

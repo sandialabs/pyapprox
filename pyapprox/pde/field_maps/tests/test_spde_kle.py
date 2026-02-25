@@ -184,56 +184,90 @@ convergence toward it.
 Summary
 -------
 
-=========================  =============================================  ====================  ====================  ===========================================================
-Test                       Compares                                       Type                  Tolerance             What it validates
-=========================  =============================================  ====================  ====================  ===========================================================
-Internal consistency       SPDE formula vs dense covariance eigenvalues   Algebraic identity    1e-10                 Eigenvalue formula gamma^2/(tau^2 mu_k^2) is correct
-Asymptotic convergence     SPDE vs Nystrom on growing domains             Trend                 5% at L=40, monotone  SPDE Green's function approaches stationary kernel
-Nystrom vs Galerkin        Two kernel discretizations                     Cross-validation      5e-3                  Kernel parameterization and both discretizations are correct
-=========================  =============================================  ====================  ====================  ===========================================================
+========================= =============================================
+==================== ====================
+===========================================================
+Test Compares Type Tolerance What it validates
+========================= =============================================
+==================== ====================
+===========================================================
+Internal consistency SPDE formula vs dense covariance eigenvalues Algebraic identity
+1e-10 Eigenvalue formula gamma^2/(tau^2 mu_k^2) is correct
+Asymptotic convergence SPDE vs Nystrom on growing domains Trend 5% at L=40, monotone
+SPDE Green's function approaches stationary kernel
+Nystrom vs Galerkin Two kernel discretizations Cross-validation 5e-3 Kernel
+parameterization and both discretizations are correct
+========================= =============================================
+==================== ====================
+===========================================================
 """
 
 import unittest
 
 import numpy as np
 
-from pyapprox.util.backends.numpy import NumpyBkd
-from pyapprox.util.test_utils import load_tests  # noqa: F401
-from pyapprox.surrogates.kle.protocols import KLEProtocol
+from pyapprox.pde.field_maps.kle_factory import (
+    create_fem_galerkin_kle,
+    create_fem_nystrom_nodes_kle,
+    create_spde_lognormal_kle_field_map,
+    create_spde_matern_kle,
+)
+from pyapprox.pde.galerkin.basis.lagrange import LagrangeBasis
 from pyapprox.pde.galerkin.mesh.structured import (
     StructuredMesh1D,
     StructuredMesh2D,
 )
-from pyapprox.pde.galerkin.basis.lagrange import LagrangeBasis
-from pyapprox.pde.field_maps.kle_factory import (
-    create_spde_matern_kle,
-    create_spde_lognormal_kle_field_map,
-    create_fem_nystrom_nodes_kle,
-    create_fem_galerkin_kle,
-)
+from pyapprox.surrogates.kle.protocols import KLEProtocol
+from pyapprox.util.backends.numpy import NumpyBkd
+from pyapprox.util.test_utils import load_tests  # noqa: F401
 
 
-def _make_2d_kle(bkd, n_modes=5, nx=10, ny=10, gamma=1.0, delta=1.0,
-                 sigma=1.0, xi=None, mean_field=0.0):
+def _make_2d_kle(
+    bkd,
+    n_modes=5,
+    nx=10,
+    ny=10,
+    gamma=1.0,
+    delta=1.0,
+    sigma=1.0,
+    xi=None,
+    mean_field=0.0,
+):
     """Create an SPDE Matern KLE on a unit square mesh."""
     mesh = StructuredMesh2D(
-        nx=nx, ny=ny, bounds=[[0, 1], [0, 1]], bkd=bkd,
+        nx=nx,
+        ny=ny,
+        bounds=[[0, 1], [0, 1]],
+        bkd=bkd,
     )
     basis = LagrangeBasis(mesh, degree=1)
     return create_spde_matern_kle(
-        basis, n_modes=n_modes, gamma=gamma, delta=delta,
-        sigma=sigma, bkd=bkd, xi=xi, mean_field=mean_field,
+        basis,
+        n_modes=n_modes,
+        gamma=gamma,
+        delta=delta,
+        sigma=sigma,
+        bkd=bkd,
+        xi=xi,
+        mean_field=mean_field,
     ), basis
 
 
-def _make_1d_kle(bkd, n_modes=5, nx=20, gamma=1.0, delta=1.0,
-                 sigma=1.0, xi=None, mean_field=0.0):
+def _make_1d_kle(
+    bkd, n_modes=5, nx=20, gamma=1.0, delta=1.0, sigma=1.0, xi=None, mean_field=0.0
+):
     """Create an SPDE Matern KLE on [0, 1]."""
     mesh = StructuredMesh1D(nx=nx, bounds=(0.0, 1.0), bkd=bkd)
     basis = LagrangeBasis(mesh, degree=1)
     return create_spde_matern_kle(
-        basis, n_modes=n_modes, gamma=gamma, delta=delta,
-        sigma=sigma, bkd=bkd, xi=xi, mean_field=mean_field,
+        basis,
+        n_modes=n_modes,
+        gamma=gamma,
+        delta=delta,
+        sigma=sigma,
+        bkd=bkd,
+        xi=xi,
+        mean_field=mean_field,
     ), basis
 
 
@@ -281,8 +315,13 @@ class TestSPDEMaternKLE(unittest.TestCase):
         """
         sigma = 1.0
         kle, basis = _make_2d_kle(
-            self._bkd, n_modes=30, nx=10, ny=10,
-            gamma=1.0, delta=1.0, sigma=sigma,
+            self._bkd,
+            n_modes=30,
+            nx=10,
+            ny=10,
+            gamma=1.0,
+            delta=1.0,
+            sigma=sigma,
         )
         var = self._bkd.to_numpy(kle.pointwise_variance())
 
@@ -290,15 +329,19 @@ class TestSPDEMaternKLE(unittest.TestCase):
         coords = self._bkd.to_numpy(basis.dof_coordinates())
         margin = 0.15
         interior = (
-            (coords[0] > margin) & (coords[0] < 1 - margin) &
-            (coords[1] > margin) & (coords[1] < 1 - margin)
+            (coords[0] > margin)
+            & (coords[0] < 1 - margin)
+            & (coords[1] > margin)
+            & (coords[1] < 1 - margin)
         )
         interior_var = var[interior]
         mean_interior_var = np.mean(interior_var)
 
         # Average interior variance should be close to sigma^2
         self.assertAlmostEqual(
-            mean_interior_var, sigma ** 2, delta=0.3,
+            mean_interior_var,
+            sigma**2,
+            delta=0.3,
         )
 
     def test_robin_bc_affects_boundary_variance(self) -> None:
@@ -308,10 +351,17 @@ class TestSPDEMaternKLE(unittest.TestCase):
         distributions, showing the Robin BC is active.
         """
         kle_default, _ = _make_2d_kle(
-            self._bkd, n_modes=15, nx=8, ny=8,
+            self._bkd,
+            n_modes=15,
+            nx=8,
+            ny=8,
         )
         kle_large_xi, _ = _make_2d_kle(
-            self._bkd, n_modes=15, nx=8, ny=8, xi=10.0,
+            self._bkd,
+            n_modes=15,
+            nx=8,
+            ny=8,
+            xi=10.0,
         )
 
         var_default = self._bkd.to_numpy(kle_default.pointwise_variance())
@@ -337,7 +387,10 @@ class TestSPDEMaternKLE(unittest.TestCase):
         mean_val = 2.5
         n_modes = 5
         kle, basis = _make_2d_kle(
-            self._bkd, n_modes=n_modes, nx=6, ny=6,
+            self._bkd,
+            n_modes=n_modes,
+            nx=6,
+            ny=6,
             mean_field=mean_val,
         )
         coef = self._bkd.zeros((n_modes, 1))
@@ -349,7 +402,9 @@ class TestSPDEMaternKLE(unittest.TestCase):
         """correlation_length() returns sqrt(gamma/delta)."""
         gamma, delta = 4.0, 1.0
         kle, _ = _make_1d_kle(
-            self._bkd, gamma=gamma, delta=delta,
+            self._bkd,
+            gamma=gamma,
+            delta=delta,
         )
         expected = np.sqrt(gamma / delta)
         self.assertAlmostEqual(kle.correlation_length(), expected, places=12)
@@ -378,8 +433,12 @@ class TestSPDEMaternKLE(unittest.TestCase):
         mesh = StructuredMesh1D(nx=80, bounds=(0.0, 10.0), bkd=bkd)
         basis = LagrangeBasis(mesh, degree=1)
         kle = create_spde_matern_kle(
-            basis, n_modes=n_modes, gamma=0.01, delta=1.0,
-            sigma=1.0, bkd=bkd,
+            basis,
+            n_modes=n_modes,
+            gamma=0.01,
+            delta=1.0,
+            sigma=1.0,
+            bkd=bkd,
         )
 
         # Draw many samples
@@ -394,10 +453,12 @@ class TestSPDEMaternKLE(unittest.TestCase):
         ref_samples = samples[mid_idx, :]
         distances = np.abs(coords[0] - coords[0, mid_idx])
 
-        corr = np.array([
-            np.corrcoef(ref_samples, samples[j, :])[0, 1]
-            for j in range(samples.shape[0])
-        ])
+        corr = np.array(
+            [
+                np.corrcoef(ref_samples, samples[j, :])[0, 1]
+                for j in range(samples.shape[0])
+            ]
+        )
 
         # Correlation at distance 0 should be ~1
         self.assertGreater(corr[mid_idx], 0.95)
@@ -428,14 +489,22 @@ class TestSPDEMaternKLE(unittest.TestCase):
         bkd = self._bkd
         n_modes = 3
         mesh = StructuredMesh2D(
-            nx=8, ny=8, bounds=[[0, 1], [0, 1]], bkd=bkd,
+            nx=8,
+            ny=8,
+            bounds=[[0, 1], [0, 1]],
+            bkd=bkd,
         )
         basis = LagrangeBasis(mesh, degree=1)
         mean_log = bkd.zeros((basis.ndofs(),))
 
         tfm = create_spde_lognormal_kle_field_map(
-            basis, mean_log, bkd,
-            n_modes=n_modes, gamma=1.0, delta=1.0, sigma=0.3,
+            basis,
+            mean_log,
+            bkd,
+            n_modes=n_modes,
+            gamma=1.0,
+            delta=1.0,
+            sigma=0.3,
         )
         self.assertEqual(tfm.nvars(), n_modes)
         params = bkd.zeros((n_modes,))
@@ -447,14 +516,22 @@ class TestSPDEMaternKLE(unittest.TestCase):
         bkd = self._bkd
         n_modes = 3
         mesh = StructuredMesh2D(
-            nx=6, ny=6, bounds=[[0, 1], [0, 1]], bkd=bkd,
+            nx=6,
+            ny=6,
+            bounds=[[0, 1], [0, 1]],
+            bkd=bkd,
         )
         basis = LagrangeBasis(mesh, degree=1)
         mean_log = bkd.zeros((basis.ndofs(),))
 
         tfm = create_spde_lognormal_kle_field_map(
-            basis, mean_log, bkd,
-            n_modes=n_modes, gamma=1.0, delta=1.0, sigma=0.5,
+            basis,
+            mean_log,
+            bkd,
+            n_modes=n_modes,
+            gamma=1.0,
+            delta=1.0,
+            sigma=0.5,
         )
         np.random.seed(42)
         for _ in range(5):
@@ -471,8 +548,13 @@ class TestSPDEMaternKLE(unittest.TestCase):
         mean_log = bkd.linspace(0.0, 1.0, basis.ndofs())
 
         tfm = create_spde_lognormal_kle_field_map(
-            basis, mean_log, bkd,
-            n_modes=n_modes, gamma=1.0, delta=1.0, sigma=0.3,
+            basis,
+            mean_log,
+            bkd,
+            n_modes=n_modes,
+            gamma=1.0,
+            delta=1.0,
+            sigma=0.3,
         )
         params = bkd.zeros((n_modes,))
         result = tfm(params)
@@ -505,10 +587,18 @@ class TestSPDEMaternKLE(unittest.TestCase):
         kernel = Matern32Kernel(lenscale, (0.01, 100.0), 1, bkd)
 
         kle_nystrom = create_fem_nystrom_nodes_kle(
-            skfem_basis, kernel, nterms=n_modes, sigma=1.0, bkd=bkd,
+            skfem_basis,
+            kernel,
+            nterms=n_modes,
+            sigma=1.0,
+            bkd=bkd,
         )
         kle_galerkin = create_fem_galerkin_kle(
-            skfem_basis, kernel, nterms=n_modes, sigma=1.0, bkd=bkd,
+            skfem_basis,
+            kernel,
+            nterms=n_modes,
+            sigma=1.0,
+            bkd=bkd,
         )
 
         bkd.assert_allclose(
@@ -537,11 +627,11 @@ class TestSPDEMaternKLE(unittest.TestCase):
         from skfem import asm
         from skfem.models.poisson import mass
 
-        from pyapprox.pde.galerkin.bilaplacian import (
-            BiLaplacianPrior,
-        )
         from pyapprox.pde.field_maps.kle_factory import (
             _compute_spde_tau_squared,
+        )
+        from pyapprox.pde.galerkin.bilaplacian import (
+            BiLaplacianPrior,
         )
 
         bkd = self._bkd
@@ -554,7 +644,11 @@ class TestSPDEMaternKLE(unittest.TestCase):
 
         xi = np.sqrt(gamma * delta)
         prior = BiLaplacianPrior.with_uniform_robin(
-            basis, gamma=gamma, delta=delta, bkd=bkd, robin_alpha=xi,
+            basis,
+            gamma=gamma,
+            delta=delta,
+            bkd=bkd,
+            robin_alpha=xi,
         )
         A = prior.stiffness_matrix()
         M = asm(mass, basis.skfem_basis())
@@ -567,7 +661,7 @@ class TestSPDEMaternKLE(unittest.TestCase):
         tau_sq = _compute_spde_tau_squared(sigma, gamma, delta, d)
 
         # Formula eigenvalues: lambda_k = gamma^2 / (tau^2 * mu_k^2)
-        lambda_formula = gamma ** 2 / (tau_sq * mu_vals ** 2)
+        lambda_formula = gamma**2 / (tau_sq * mu_vals**2)
         lambda_formula = np.sort(lambda_formula)[::-1]
 
         # Dense A_inv: solve A @ A_inv = I column by column
@@ -580,7 +674,7 @@ class TestSPDEMaternKLE(unittest.TestCase):
             A_inv[:, j] = spsolve(A, e_j)
 
         # Dense covariance: Sigma = (gamma^2/tau^2) * A_inv @ M @ A_inv
-        Sigma = (gamma ** 2 / tau_sq) * A_inv @ M_dense @ A_inv
+        Sigma = (gamma**2 / tau_sq) * A_inv @ M_dense @ A_inv
 
         # Eigenvalues of Sigma @ M
         # Sigma @ M is not symmetric, so use eig not eigvalsh
@@ -626,14 +720,21 @@ class TestSPDEMaternKLE(unittest.TestCase):
             skfem_basis = basis.skfem_basis()
 
             kle_spde = create_spde_matern_kle(
-                basis, n_modes=n_modes, gamma=gamma, delta=delta,
-                sigma=sigma, bkd=bkd,
+                basis,
+                n_modes=n_modes,
+                gamma=gamma,
+                delta=delta,
+                sigma=sigma,
+                bkd=bkd,
             )
 
             lenscale = bkd.array([rho])
             kernel = Matern32Kernel(lenscale, (0.01, 500.0), 1, bkd)
             kle_nystrom = create_fem_nystrom_nodes_kle(
-                skfem_basis, kernel, nterms=n_modes, sigma=sigma,
+                skfem_basis,
+                kernel,
+                nterms=n_modes,
+                sigma=sigma,
                 bkd=bkd,
             )
 
@@ -645,14 +746,16 @@ class TestSPDEMaternKLE(unittest.TestCase):
         # Errors must decrease monotonically as domain grows
         for i in range(len(max_errors) - 1):
             self.assertLess(
-                max_errors[i + 1], max_errors[i],
-                f"L={domain_sizes[i+1]}: max_err={max_errors[i+1]:.4f} "
+                max_errors[i + 1],
+                max_errors[i],
+                f"L={domain_sizes[i + 1]}: max_err={max_errors[i + 1]:.4f} "
                 f">= L={domain_sizes[i]}: max_err={max_errors[i]:.4f}",
             )
 
         # At L=40, error should be modest (< 5%)
         self.assertLess(
-            max_errors[2], 0.05,
+            max_errors[2],
+            0.05,
             f"L=40: max_err={max_errors[2]:.4f} >= 0.05",
         )
 

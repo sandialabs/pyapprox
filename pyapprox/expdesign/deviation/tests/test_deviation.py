@@ -15,19 +15,18 @@ import numpy as np
 import torch
 from numpy.typing import NDArray
 
-from pyapprox.util.backends.numpy import NumpyBkd
-from pyapprox.util.backends.torch import TorchBkd
-from pyapprox.util.backends.protocols import Array
-from pyapprox.util.test_utils import load_tests  # noqa: F401
-
-from pyapprox.expdesign.likelihood import GaussianOEDInnerLoopLikelihood
-from pyapprox.expdesign.evidence import Evidence
 from pyapprox.expdesign.deviation import (
-    DeviationMeasure,
-    StandardDeviationMeasure,
-    EntropicDeviationMeasure,
     AVaRDeviationMeasure,
+    DeviationMeasure,
+    EntropicDeviationMeasure,
+    StandardDeviationMeasure,
 )
+from pyapprox.expdesign.evidence import Evidence
+from pyapprox.expdesign.likelihood import GaussianOEDInnerLoopLikelihood
+from pyapprox.util.backends.numpy import NumpyBkd
+from pyapprox.util.backends.protocols import Array
+from pyapprox.util.backends.torch import TorchBkd
+from pyapprox.util.test_utils import load_tests  # noqa: F401
 
 
 class TestDeviationMeasures(Generic[Array], unittest.TestCase):
@@ -47,9 +46,7 @@ class TestDeviationMeasures(Generic[Array], unittest.TestCase):
         self._npred = 2
 
         np.random.seed(42)
-        self._noise_variances = self._bkd.asarray(
-            np.array([0.1, 0.2, 0.15])
-        )
+        self._noise_variances = self._bkd.asarray(np.array([0.1, 0.2, 0.15]))
         self._shapes_inner = self._bkd.asarray(
             np.random.randn(self._nobs, self._ninner)
         )
@@ -60,9 +57,7 @@ class TestDeviationMeasures(Generic[Array], unittest.TestCase):
             np.random.uniform(0.5, 1.5, (self._nobs, 1))
         )
         # QoI values at inner samples
-        self._qoi_vals = self._bkd.asarray(
-            np.random.randn(self._ninner, self._npred)
-        )
+        self._qoi_vals = self._bkd.asarray(np.random.randn(self._ninner, self._npred))
 
         # Create inner likelihood and evidence
         self._likelihood = GaussianOEDInnerLoopLikelihood(
@@ -133,9 +128,7 @@ class TestDeviationMeasures(Generic[Array], unittest.TestCase):
         values = stdev(self._design_weights)
         # Values should be near zero (clamped to sqrt(1e-16) = 1e-8 plus
         # numerical precision effects)
-        self.assertTrue(
-            self._bkd.all_bool(values < 1e-6)
-        )
+        self.assertTrue(self._bkd.all_bool(values < 1e-6))
 
     # --- EntropicDeviationMeasure Tests ---
 
@@ -163,7 +156,7 @@ class TestDeviationMeasures(Generic[Array], unittest.TestCase):
         stdev = StandardDeviationMeasure(self._npred, self._bkd)
         self._setup_deviation(stdev)
         stdev_vals = stdev(self._design_weights)
-        var_vals = stdev_vals ** 2
+        var_vals = stdev_vals**2
 
         # Small alpha
         alpha = 0.01
@@ -211,9 +204,7 @@ class TestDeviationMeasures(Generic[Array], unittest.TestCase):
     def test_avar_constant_qoi(self):
         """Test AVaR deviation with constant QoI (should be near zero)."""
         # Use large delta for better accuracy with constant data
-        avar = AVaRDeviationMeasure(
-            self._npred, 0.8, self._bkd, delta=1000
-        )
+        avar = AVaRDeviationMeasure(self._npred, 0.8, self._bkd, delta=1000)
         avar.set_evidence(self._evidence)
 
         # Set constant QoI values
@@ -285,6 +276,7 @@ class TestDeviationMeasuresTorch(TestDeviationMeasures[torch.Tensor]):
         """Test AVaR Jacobian using PyTorch autodiff."""
         # torch.compile donated buffers conflict with autograd jacobian
         import torch._functorch.config as _ftconfig
+
         _ftconfig.donated_buffer = False
         avar = AVaRDeviationMeasure(self._npred, 0.8, self._bkd, delta=100)
         self._setup_deviation(avar)

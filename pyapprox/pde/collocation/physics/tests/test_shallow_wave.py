@@ -1,17 +1,17 @@
 """Tests for Shallow Water equations physics implementation."""
 
-import unittest
 import math
-import numpy as np
+import unittest
 
-from pyapprox.util.backends.numpy import NumpyBkd
-from pyapprox.util.test_utils import load_tests  # noqa: F401
 from pyapprox.pde.collocation.basis import ChebyshevBasis1D
-from pyapprox.pde.collocation.mesh import (
-    create_uniform_mesh_1d,
-    TransformedMesh1D,
-)
 from pyapprox.pde.collocation.boundary import constant_dirichlet_bc
+from pyapprox.pde.collocation.manufactured_solutions import (
+    ManufacturedShallowWave,
+)
+from pyapprox.pde.collocation.mesh import (
+    TransformedMesh1D,
+    create_uniform_mesh_1d,
+)
 from pyapprox.pde.collocation.physics.shallow_wave import (
     ShallowWavePhysics,
     create_shallow_wave,
@@ -23,9 +23,8 @@ from pyapprox.pde.collocation.time_integration import (
     CollocationModel,
     TimeIntegrationConfig,
 )
-from pyapprox.pde.collocation.manufactured_solutions import (
-    ManufacturedShallowWave,
-)
+from pyapprox.util.backends.numpy import NumpyBkd
+from pyapprox.util.test_utils import load_tests  # noqa: F401
 
 
 class TestShallowWavePhysics(PhysicsTestBase):
@@ -95,8 +94,7 @@ class TestShallowWavePhysics(PhysicsTestBase):
         forcing = bkd.hstack([f_h, f_hu])
 
         physics = ShallowWavePhysics(
-            basis, bkd, bed=bed, g=9.81,
-            forcing=lambda t: forcing
+            basis, bkd, bed=bed, g=9.81, forcing=lambda t: forcing
         )
 
         h = 2.0 + 0.3 * bkd.cos(math.pi * nodes)
@@ -217,7 +215,7 @@ class TestShallowWavePhysics(PhysicsTestBase):
         mesh = TransformedMesh1D(npts, bkd)
 
         basis = ChebyshevBasis1D(mesh, bkd)
-        nodes = basis.nodes()
+        basis.nodes()
 
         # Flat bed, quiescent state (uniform depth, zero velocity)
         bed = bkd.zeros((npts,))
@@ -282,9 +280,7 @@ class TestShallowWavePhysics(PhysicsTestBase):
 
         bed = man_sol.functions["bed"](nodes[None, :]).flatten()
 
-        physics = ShallowWavePhysics(
-            basis, bkd, bed=bed, g=9.81, forcing=forcing_fn
-        )
+        physics = ShallowWavePhysics(basis, bkd, bed=bed, g=9.81, forcing=forcing_fn)
 
         # Set Dirichlet BCs for h and hu at both boundaries
         left_idx = bc_mesh.boundary_indices(0)
@@ -295,9 +291,7 @@ class TestShallowWavePhysics(PhysicsTestBase):
             return float(sol[int(bnd_idx), comp_idx])
 
         # h boundaries
-        bc_h_left = constant_dirichlet_bc(
-            bkd, left_idx, get_bc_val(0, left_idx, 0.0)
-        )
+        bc_h_left = constant_dirichlet_bc(bkd, left_idx, get_bc_val(0, left_idx, 0.0))
         bc_h_right = constant_dirichlet_bc(
             bkd, right_idx, get_bc_val(0, right_idx, 0.0)
         )
@@ -316,9 +310,7 @@ class TestShallowWavePhysics(PhysicsTestBase):
 
     def _run_transient_shallow_wave(self, method, atol):
         """Run transient shallow wave test with given method and tolerance."""
-        bkd, npts, nodes, man_sol, physics = (
-            self._setup_transient_shallow_wave()
-        )
+        bkd, npts, nodes, man_sol, physics = self._setup_transient_shallow_wave()
         model = CollocationModel(physics, bkd)
 
         sol0 = man_sol.functions["solution"](nodes[None, :], 0.0)

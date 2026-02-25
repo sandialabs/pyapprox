@@ -12,10 +12,10 @@ where likelihood[i, j] = p(obs_j | theta_i, design).
 
 from typing import Generic, Optional
 
-from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.expdesign.protocols.likelihood import (
     OEDInnerLoopLikelihoodProtocol,
 )
+from pyapprox.util.backends.protocols import Array, Backend
 
 
 class Evidence(Generic[Array]):
@@ -133,14 +133,13 @@ class Evidence(Generic[Array]):
 
         if self._has_fused_evidence_jacobian:
             return self._loglike.evidence_jacobian(
-                design_weights, quad_weighted_like,
+                design_weights,
+                quad_weighted_like,
             )
 
         # Fallback: separate jacobian_matrix + einsum
         loglike_jac = self._loglike.jacobian_matrix(design_weights)
-        return self._bkd.einsum(
-            "io,iok->ok", quad_weighted_like, loglike_jac
-        )
+        return self._bkd.einsum("io,iok->ok", quad_weighted_like, loglike_jac)
 
     @property
     def quad_weighted_like_vals(self) -> Array:
@@ -172,7 +171,8 @@ class Evidence(Generic[Array]):
         Compute the Jacobian of quad_weighted_like_vals w.r.t. design weights.
 
         This computes:
-            d/dw [quad_weights[i] * like[i,j]] = quad_weights[i] * like[i,j] * d/dw loglike[i,j]
+            d/dw [quad_weights[i] * like[i,j]] = quad_weights[i] * like[i,j] * d/dw
+            loglike[i,j]
 
         Parameters
         ----------
@@ -190,7 +190,8 @@ class Evidence(Generic[Array]):
         # Shape: (ninner, nouter, nobs)
         loglike_jac = self._loglike.jacobian_matrix(design_weights)
 
-        # d/dw [quad_weights[i] * like[i,j]] = quad_weights[i] * like[i,j] * loglike_jac[i,j,k]
+        # d/dw [quad_weights[i] * like[i,j]] = quad_weights[i] * like[i,j] *
+        # loglike_jac[i,j,k]
         quad_weighted_like = self.quad_weighted_like_vals
         return quad_weighted_like[:, :, None] * loglike_jac
 
@@ -347,7 +348,8 @@ class LogEvidence(Generic[Array]):
 
         if self._has_fused_evidence_jacobian:
             evidence_jac = self._loglike.evidence_jacobian(
-                design_weights, quad_weighted_like,
+                design_weights,
+                quad_weighted_like,
             )
         else:
             # Fallback: separate jacobian_matrix + einsum

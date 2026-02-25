@@ -22,11 +22,11 @@ formula, allowing exact validation of numerical estimates.
 
 from typing import Generic
 
-from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.benchmarks.registry import BenchmarkRegistry
 from pyapprox.interface.functions.fromcallable.function import (
     FunctionFromCallable,
 )
+from pyapprox.util.backends.protocols import Array, Backend
 
 from .linear_gaussian import _build_vandermonde
 from .linear_gaussian_model import LinearGaussianOEDModel
@@ -87,17 +87,25 @@ class LinearGaussianPredOEDBenchmark(Generic[Array]):
         nparams = A.shape[1]
 
         prior_mean = bkd.zeros((nparams, 1))
-        prior_cov = bkd.eye(nparams) * prior_std ** 2
-        noise_cov = bkd.eye(nobs) * noise_std ** 2
+        prior_cov = bkd.eye(nparams) * prior_std**2
+        noise_cov = bkd.eye(nobs) * noise_std**2
 
         self._model = LinearGaussianOEDModel(
-            A, prior_mean, prior_cov, noise_cov, bkd, obs_locations,
+            A,
+            prior_mean,
+            prior_cov,
+            noise_cov,
+            bkd,
+            obs_locations,
         )
 
         # QoI-specific setup: linear QoI = B @ theta
         self._qoi_locations = bkd.linspace(-2.0 / 3.0, 2.0 / 3.0, npred)
         self._qoi_matrix = _build_vandermonde(
-            self._qoi_locations, min_degree, degree, bkd,
+            self._qoi_locations,
+            min_degree,
+            degree,
+            bkd,
         )
         self._qoi_quad_weights = bkd.full((npred, 1), 1.0 / npred)
 
@@ -119,7 +127,7 @@ class LinearGaussianPredOEDBenchmark(Generic[Array]):
 
     def noise_var(self) -> float:
         """Noise variance."""
-        return self._noise_std ** 2
+        return self._noise_std**2
 
     def noise_std(self) -> float:
         """Noise standard deviation."""
@@ -127,7 +135,7 @@ class LinearGaussianPredOEDBenchmark(Generic[Array]):
 
     def prior_var(self) -> float:
         """Prior variance."""
-        return self._prior_std ** 2
+        return self._prior_std**2
 
     def prior_std(self) -> float:
         """Prior standard deviation."""
@@ -168,7 +176,10 @@ class LinearGaussianPredOEDBenchmark(Generic[Array]):
             return bkd.dot(B, samples)
 
         return FunctionFromCallable(
-            self._npred, self._model.nparams(), _pred_fun, bkd,
+            self._npred,
+            self._model.nparams(),
+            _pred_fun,
+            bkd,
         )
 
     def qoi_matrix(self) -> Array:
@@ -329,5 +340,10 @@ def _linear_gaussian_pred_oed_factory(
     bkd: Backend[Array],
 ) -> LinearGaussianPredOEDBenchmark:
     return LinearGaussianPredOEDBenchmark(
-        nobs=10, degree=3, noise_std=1.0, prior_std=1.0, npred=3, bkd=bkd,
+        nobs=10,
+        degree=3,
+        noise_std=1.0,
+        prior_std=1.0,
+        npred=3,
+        bkd=bkd,
     )

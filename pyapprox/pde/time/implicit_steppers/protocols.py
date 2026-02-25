@@ -9,13 +9,13 @@ For new code, prefer importing from ``pyapprox.pde.time.protocols``.
 
 # Re-export from unified protocols for backward compatibility
 from pyapprox.pde.time.protocols import (
-    ODEResidualProtocol,
-    ODEResidualWithParamJacobianProtocol,
-    ODEResidualWithHVPProtocol,
-    TimeSteppingResidualProtocol,
     AdjointEnabledTimeSteppingResidualProtocol,
     HVPEnabledTimeSteppingResidualProtocol,
+    ODEResidualProtocol,
+    ODEResidualWithHVPProtocol,
+    ODEResidualWithParamJacobianProtocol,
     TimeSteppingResidualBase,
+    TimeSteppingResidualProtocol,
 )
 
 # Legacy aliases for backward compatibility

@@ -184,9 +184,7 @@ class GaussianMixtureLogPosterior(Generic[Array]):
         # Numerically stable log-sum-exp
         log_half = np.log(0.5)
         max_log = np.maximum(log_p1, log_p2)
-        result = max_log + np.log(
-            np.exp(log_p1 - max_log) + np.exp(log_p2 - max_log)
-        )
+        result = max_log + np.log(np.exp(log_p1 - max_log) + np.exp(log_p2 - max_log))
         return self._bkd.asarray(result + log_half)
 
     def true_mean(self) -> float:
@@ -216,9 +214,7 @@ class GaussianMixtureLogPosterior(Generic[Array]):
             Variance of mixture.
         """
         mean = self.true_mean()
-        second_moment = (
-            self._sigma**2 + 0.5 * (self._mu1**2 + self._mu2**2)
-        )
+        second_moment = self._sigma**2 + 0.5 * (self._mu1**2 + self._mu2**2)
         return second_moment - mean**2
 
 
@@ -255,9 +251,7 @@ class CorrelatedGaussianLogPosterior(Generic[Array]):
         # Precompute for efficiency
         self._prec = np.linalg.inv(cov_np)
         sign, logdet = np.linalg.slogdet(cov_np)
-        self._log_norm = -0.5 * (
-            self._nvars * np.log(2 * np.pi) + logdet
-        )
+        self._log_norm = -0.5 * (self._nvars * np.log(2 * np.pi) + logdet)
 
     def bkd(self) -> Backend[Array]:
         return self._bkd

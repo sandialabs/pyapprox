@@ -4,27 +4,26 @@ Tests Dirichlet, Neumann, Robin BCs and the ManufacturedSolutionBC factory.
 """
 
 import unittest
-from typing import Generic, Any
+from typing import Any, Generic
 
 import numpy as np
 from numpy.typing import NDArray
 
-from pyapprox.util.backends.protocols import Array, Backend
-from pyapprox.util.backends.numpy import NumpyBkd
+from pyapprox.pde.galerkin.basis import LagrangeBasis
+from pyapprox.pde.galerkin.boundary import (
+    BoundaryConditionSet,
+    DirichletBC,
+    ManufacturedSolutionBC,
+    NeumannBC,
+    RobinBC,
+    canonical_boundary_normal,
+)
 from pyapprox.pde.galerkin.mesh import (
     StructuredMesh1D,
     StructuredMesh2D,
 )
-from pyapprox.pde.galerkin.basis import LagrangeBasis
-from pyapprox.pde.galerkin.boundary import (
-    DirichletBC,
-    NeumannBC,
-    RobinBC,
-    BoundaryConditionSet,
-    ManufacturedSolutionBC,
-    canonical_boundary_normal,
-)
-
+from pyapprox.util.backends.numpy import NumpyBkd
+from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.util.test_utils import load_tests  # noqa: F401
 
 
@@ -59,9 +58,7 @@ class TestDirichletBCBase(TestBoundaryConditionsBase[Array]):
 
         # Check boundary values
         values = bc.boundary_values(time=0.0)
-        expected = self.bkd_inst.asarray(
-            np.array([1.5], dtype=np.float64)
-        )
+        expected = self.bkd_inst.asarray(np.array([1.5], dtype=np.float64))
         self.bkd_inst.assert_allclose(values, expected)
 
     def test_1d_function_dirichlet(self) -> None:
@@ -133,7 +130,8 @@ class TestDirichletBCBase(TestBoundaryConditionsBase[Array]):
     def test_2d_dirichlet_multiple_boundaries(self) -> None:
         """Test Dirichlet BC on multiple boundaries in 2D."""
         mesh = StructuredMesh2D(
-            nx=3, ny=3,
+            nx=3,
+            ny=3,
             bounds=[[0.0, 1.0], [0.0, 1.0]],
             bkd=self.bkd_inst,
         )
@@ -163,9 +161,7 @@ class TestNeumannBCBase(TestBoundaryConditionsBase[Array]):
 
         # Check flux values
         values = bc.flux_values(time=0.0)
-        expected = self.bkd_inst.asarray(
-            np.array([1.0], dtype=np.float64)
-        )
+        expected = self.bkd_inst.asarray(np.array([1.0], dtype=np.float64))
         self.bkd_inst.assert_allclose(values, expected)
 
     def test_1d_neumann_apply_to_load(self) -> None:
@@ -375,7 +371,8 @@ class TestManufacturedSolutionBCBase(TestBoundaryConditionsBase[Array]):
     def test_2d_all_dirichlet(self) -> None:
         """Test 2D manufactured solution BCs."""
         mesh = StructuredMesh2D(
-            nx=5, ny=5,
+            nx=5,
+            ny=5,
             bounds=[[0.0, 1.0], [0.0, 1.0]],
             bkd=self.bkd_inst,
         )
@@ -428,6 +425,7 @@ class TestManufacturedSolutionBCBase(TestBoundaryConditionsBase[Array]):
 
 
 # Concrete test classes for each backend
+
 
 class TestDirichletBCNumpy(TestDirichletBCBase[NDArray[Any]]):
     """NumPy backend tests for DirichletBC."""
@@ -510,6 +508,7 @@ class TestManufacturedSolutionBCNumpy(TestManufacturedSolutionBCBase[NDArray[Any
 # Try to import torch for dual-backend testing
 try:
     import torch
+
     from pyapprox.util.backends.torch import TorchBkd
 
     class TestDirichletBCTorch(TestDirichletBCBase[torch.Tensor]):

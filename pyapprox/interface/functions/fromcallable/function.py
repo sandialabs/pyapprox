@@ -1,14 +1,10 @@
-from abc import ABC, abstractmethod
-from typing import Generic, Callable, Any
+from typing import Callable, Generic
 
-from pyapprox.util.backends.protocols import Array, Backend
-from pyapprox.interface.functions.protocols.function import (
-    FunctionProtocol,
-)
 from pyapprox.interface.functions.protocols.validation import (
     validate_samples,
     validate_values,
 )
+from pyapprox.util.backends.protocols import Array, Backend
 
 
 class FunctionFromCallable(Generic[Array]):

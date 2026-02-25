@@ -3,27 +3,27 @@
 Wraps scikit-fem element and basis objects with backend abstraction.
 """
 
-from typing import Generic, Callable, Any
+from typing import Any, Callable, Generic
 
 import numpy as np
 
-from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.pde.galerkin.protocols.mesh import GalerkinMeshProtocol
+from pyapprox.util.backends.protocols import Array, Backend
 
 # Import skfem for basis construction
 try:
     from skfem import Basis
     from skfem.element import (
+        ElementHex1,
+        ElementHex2,
         ElementLineP1,
         ElementLineP2,
         ElementQuad1,
         ElementQuad2,
-        ElementTriP1,
-        ElementTriP2,
-        ElementHex1,
-        ElementHex2,
         ElementTetP1,
         ElementTetP2,
+        ElementTriP1,
+        ElementTriP2,
     )
 except ImportError:
     raise ImportError(
@@ -170,7 +170,6 @@ class LagrangeBasis(Generic[Array]):
 
         # Use skfem's probes for evaluation
         # This finds the elements containing each point and evaluates
-        from skfem import Functional
 
         skfem_mesh = self._mesh.skfem_mesh()
 
@@ -208,9 +207,7 @@ class LagrangeBasis(Generic[Array]):
             else:
                 # For higher degree, use skfem's doflocs
                 dof_locs_np = self._skfem_basis.doflocs
-                self._dof_locs = self._bkd.asarray(
-                    dof_locs_np.astype(np.float64)
-                )
+                self._dof_locs = self._bkd.asarray(dof_locs_np.astype(np.float64))
 
         return self._dof_locs
 
@@ -233,7 +230,7 @@ class LagrangeBasis(Generic[Array]):
         else:
             # For higher degree, use skfem's get_dofs
             # The boundary name mapping depends on mesh type
-            skfem_mesh = self._mesh.skfem_mesh()
+            self._mesh.skfem_mesh()
 
             # Try to get facets for boundary
             try:

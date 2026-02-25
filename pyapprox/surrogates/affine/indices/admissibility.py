@@ -17,10 +17,10 @@ True
 """
 
 from abc import ABC, abstractmethod
-from typing import Generic, List, Optional, TYPE_CHECKING
+from typing import TYPE_CHECKING, Generic, List, Optional
 
-from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.surrogates.affine.indices.utils import indices_pnorm
+from pyapprox.util.backends.protocols import Array, Backend
 
 if TYPE_CHECKING:
     from pyapprox.surrogates.affine.indices.generators import (

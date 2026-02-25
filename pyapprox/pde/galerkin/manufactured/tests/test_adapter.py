@@ -5,24 +5,23 @@ Galerkin finite element boundary conditions and physics.
 """
 
 import unittest
-from typing import Generic, Any
+from typing import Any, Generic
 
 import numpy as np
 from numpy.typing import NDArray
 
-from pyapprox.util.backends.protocols import Array, Backend
-from pyapprox.util.backends.numpy import NumpyBkd
-from pyapprox.pde.galerkin.mesh import (
-    StructuredMesh1D,
-    StructuredMesh2D,
-)
 from pyapprox.pde.galerkin.basis import LagrangeBasis
 from pyapprox.pde.galerkin.manufactured import (
     GalerkinManufacturedSolutionAdapter,
     create_adr_manufactured_test,
     create_helmholtz_manufactured_test,
 )
-
+from pyapprox.pde.galerkin.mesh import (
+    StructuredMesh1D,
+    StructuredMesh2D,
+)
+from pyapprox.util.backends.numpy import NumpyBkd
+from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.util.test_utils import load_tests  # noqa: F401
 
 
@@ -90,9 +89,7 @@ class TestADRManufacturedBase(TestGalerkinManufacturedAdapterBase[Array]):
             bkd=self.bkd_inst,
         )
 
-        adapter = GalerkinManufacturedSolutionAdapter(
-            basis, functions, self.bkd_inst
-        )
+        adapter = GalerkinManufacturedSolutionAdapter(basis, functions, self.bkd_inst)
 
         bc_set = adapter.create_boundary_conditions(["D", "D"])
 
@@ -114,9 +111,7 @@ class TestADRManufacturedBase(TestGalerkinManufacturedAdapterBase[Array]):
             bkd=self.bkd_inst,
         )
 
-        adapter = GalerkinManufacturedSolutionAdapter(
-            basis, functions, self.bkd_inst
-        )
+        adapter = GalerkinManufacturedSolutionAdapter(basis, functions, self.bkd_inst)
 
         bc_set = adapter.create_boundary_conditions(["D", "N"])
 
@@ -137,9 +132,7 @@ class TestADRManufacturedBase(TestGalerkinManufacturedAdapterBase[Array]):
             bkd=self.bkd_inst,
         )
 
-        adapter = GalerkinManufacturedSolutionAdapter(
-            basis, functions, self.bkd_inst
-        )
+        adapter = GalerkinManufacturedSolutionAdapter(basis, functions, self.bkd_inst)
 
         bc_set = adapter.create_boundary_conditions(["R", "R"], robin_alpha=1.0)
 
@@ -159,9 +152,7 @@ class TestADRManufacturedBase(TestGalerkinManufacturedAdapterBase[Array]):
             bkd=self.bkd_inst,
         )
 
-        adapter = GalerkinManufacturedSolutionAdapter(
-            basis, functions, self.bkd_inst
-        )
+        adapter = GalerkinManufacturedSolutionAdapter(basis, functions, self.bkd_inst)
 
         forcing = adapter.forcing_for_galerkin()
 
@@ -186,9 +177,7 @@ class TestADRManufacturedBase(TestGalerkinManufacturedAdapterBase[Array]):
             bkd=self.bkd_inst,
         )
 
-        adapter = GalerkinManufacturedSolutionAdapter(
-            basis, functions, self.bkd_inst
-        )
+        adapter = GalerkinManufacturedSolutionAdapter(basis, functions, self.bkd_inst)
 
         sol = adapter.solution_function()
 
@@ -203,7 +192,8 @@ class TestADRManufacturedBase(TestGalerkinManufacturedAdapterBase[Array]):
     def test_adapter_2d_creates_4_bcs(self) -> None:
         """Test adapter creates 4 boundary conditions in 2D."""
         mesh = StructuredMesh2D(
-            nx=5, ny=5,
+            nx=5,
+            ny=5,
             bounds=[[0.0, 1.0], [0.0, 1.0]],
             bkd=self.bkd_inst,
         )
@@ -218,9 +208,7 @@ class TestADRManufacturedBase(TestGalerkinManufacturedAdapterBase[Array]):
             bkd=self.bkd_inst,
         )
 
-        adapter = GalerkinManufacturedSolutionAdapter(
-            basis, functions, self.bkd_inst
-        )
+        adapter = GalerkinManufacturedSolutionAdapter(basis, functions, self.bkd_inst)
 
         bc_set = adapter.create_boundary_conditions(["D", "D", "D", "D"])
 
@@ -240,9 +228,7 @@ class TestADRManufacturedBase(TestGalerkinManufacturedAdapterBase[Array]):
             bkd=self.bkd_inst,
         )
 
-        adapter = GalerkinManufacturedSolutionAdapter(
-            basis, functions, self.bkd_inst
-        )
+        adapter = GalerkinManufacturedSolutionAdapter(basis, functions, self.bkd_inst)
 
         with self.assertRaises(ValueError):
             adapter.create_boundary_conditions(["X", "D"])
@@ -261,9 +247,7 @@ class TestADRManufacturedBase(TestGalerkinManufacturedAdapterBase[Array]):
             bkd=self.bkd_inst,
         )
 
-        adapter = GalerkinManufacturedSolutionAdapter(
-            basis, functions, self.bkd_inst
-        )
+        adapter = GalerkinManufacturedSolutionAdapter(basis, functions, self.bkd_inst)
 
         with self.assertRaises(ValueError):
             adapter.create_boundary_conditions(["D"])  # Need 2 for 1D
@@ -315,9 +299,7 @@ class TestHelmholtzManufacturedBase(TestGalerkinManufacturedAdapterBase[Array]):
             bkd=self.bkd_inst,
         )
 
-        adapter = GalerkinManufacturedSolutionAdapter(
-            basis, functions, self.bkd_inst
-        )
+        adapter = GalerkinManufacturedSolutionAdapter(basis, functions, self.bkd_inst)
 
         bc_set = adapter.create_boundary_conditions(["D", "D"])
 
@@ -325,6 +307,7 @@ class TestHelmholtzManufacturedBase(TestGalerkinManufacturedAdapterBase[Array]):
 
 
 # Concrete test classes for each backend
+
 
 class TestADRManufacturedNumpy(TestADRManufacturedBase[NDArray[Any]]):
     """NumPy backend tests for ADR manufactured solutions."""
@@ -355,6 +338,7 @@ class TestHelmholtzManufacturedNumpy(TestHelmholtzManufacturedBase[NDArray[Any]]
 # Try to import torch for dual-backend testing
 try:
     import torch
+
     from pyapprox.util.backends.torch import TorchBkd
 
     class TestADRManufacturedTorch(TestADRManufacturedBase[torch.Tensor]):
@@ -369,9 +353,7 @@ try:
         def bkd(self) -> Backend[torch.Tensor]:
             return self._bkd
 
-    class TestHelmholtzManufacturedTorch(
-        TestHelmholtzManufacturedBase[torch.Tensor]
-    ):
+    class TestHelmholtzManufacturedTorch(TestHelmholtzManufacturedBase[torch.Tensor]):
         """PyTorch backend tests for Helmholtz manufactured solutions."""
 
         __test__ = True

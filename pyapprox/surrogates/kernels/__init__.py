@@ -66,44 +66,44 @@ Multi-output kernel:
 >>> K = mo_kernel(X_list)  # Shape: (15, 15)
 """
 
-from .protocols import (
-    KernelProtocol,
-    KernelHasJacobianProtocol,
-    KernelHasParameterJacobianProtocol,
-    KernelHasHVPWrtX1Protocol,
-    KernelHasHVPWrtParamsProtocol,
-    KernelWithJacobianProtocol,
-    KernelWithJacobianAndHVPWrtX1Protocol,
-    KernelWithParameterJacobianProtocol,
-    KernelWithParameterJacobianAndHVPProtocol,
-    KernelWithJacobianAndParameterJacobianProtocol,
-    KernelWithFullDerivativesProtocol,
-    SeparableKernelProtocol,
-    Kernel,
-)
-from .matern import (
-    MaternKernel,
-    SquaredExponentialKernel,
-    Matern52Kernel,
-    Matern32Kernel,
-    ExponentialKernel,
-)
 from .composition import (
     CompositionKernel,
     ProductKernel,
-    SumKernel,
     SeparableProductKernel,
+    SumKernel,
 )
 from .iid_gaussian_noise import IIDGaussianNoise
-from .scalings import (
-    ScalingFunctionProtocol,
-    PolynomialScaling,
+from .matern import (
+    ExponentialKernel,
+    Matern32Kernel,
+    Matern52Kernel,
+    MaternKernel,
+    SquaredExponentialKernel,
 )
 from .multioutput import (
-    MultiOutputKernelProtocol,
     IndependentMultiOutputKernel,
     LinearCoregionalizationKernel,
     MultiLevelKernel,
+    MultiOutputKernelProtocol,
+)
+from .protocols import (
+    Kernel,
+    KernelHasHVPWrtParamsProtocol,
+    KernelHasHVPWrtX1Protocol,
+    KernelHasJacobianProtocol,
+    KernelHasParameterJacobianProtocol,
+    KernelProtocol,
+    KernelWithFullDerivativesProtocol,
+    KernelWithJacobianAndHVPWrtX1Protocol,
+    KernelWithJacobianAndParameterJacobianProtocol,
+    KernelWithJacobianProtocol,
+    KernelWithParameterJacobianAndHVPProtocol,
+    KernelWithParameterJacobianProtocol,
+    SeparableKernelProtocol,
+)
+from .scalings import (
+    PolynomialScaling,
+    ScalingFunctionProtocol,
 )
 
 __all__ = [

@@ -50,22 +50,16 @@ class PiecewiseQuadratic(Generic[Array]):
             if ii % 2 == 1:
                 xl, xm, xr = self._nodes[ii - 1 : ii + 2]
                 II = self._bkd.nonzero((xx >= xl) & (xx <= xr))[0]
-                vals[II, ii] = (
-                    (xx[II] - xl) / (xm - xl) * (xx[II] - xr) / (xm - xr)
-                )
+                vals[II, ii] = (xx[II] - xl) / (xm - xl) * (xx[II] - xr) / (xm - xr)
                 continue
             if ii < nnodes - 2:
                 xl, xm, xr = self._nodes[ii : ii + 3]
                 II = self._bkd.nonzero((xx >= xl) & (xx <= xr))[0]
-                vals[II, ii] = (
-                    (xx[II] - xm) / (xl - xm) * (xx[II] - xr) / (xl - xr)
-                )
+                vals[II, ii] = (xx[II] - xm) / (xl - xm) * (xx[II] - xr) / (xl - xr)
             if ii > 1:
                 xl, xm, xr = self._nodes[ii - 2 : ii + 1]
                 II = self._bkd.nonzero((xx >= xl) & (xx <= xr))[0]
-                vals[II, ii] = (
-                    (xx[II] - xl) / (xr - xl) * (xx[II] - xm) / (xr - xm)
-                )
+                vals[II, ii] = (xx[II] - xl) / (xr - xl) * (xx[II] - xm) / (xr - xm)
         return vals
 
     def _quadrature_weights(self) -> Array:
@@ -90,14 +84,10 @@ class PiecewiseQuadratic(Generic[Array]):
                 continue
             if ii < nnodes - 2:
                 xl, xm, xr = self._nodes[ii : ii + 3]
-                weights[ii] += ((xr - xl) * (2 * xl - 3 * xm + xr)) / (
-                    6 * (xl - xm)
-                )
+                weights[ii] += ((xr - xl) * (2 * xl - 3 * xm + xr)) / (6 * (xl - xm))
             if ii > 1:
                 xl, xm, xr = self._nodes[ii - 2 : ii + 1]
-                weights[ii] += ((xl - xr) * (xl - 3 * xm + 2 * xr)) / (
-                    6 * (xm - xr)
-                )
+                weights[ii] += ((xl - xr) * (xl - 3 * xm + 2 * xr)) / (6 * (xm - xr))
         return self._bkd.asarray(weights)
 
     def quadrature_rule(self) -> Tuple[Array, Array]:

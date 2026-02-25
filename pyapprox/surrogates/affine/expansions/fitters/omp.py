@@ -2,12 +2,12 @@
 
 from typing import Generic, List, Optional
 
-from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.optimization.linear.sparse import OMPTerminationFlag
-from pyapprox.surrogates.affine.protocols import BasisExpansionProtocol
 from pyapprox.surrogates.affine.expansions.fitters.results import (
     OMPResult,
 )
+from pyapprox.surrogates.affine.protocols import BasisExpansionProtocol
+from pyapprox.util.backends.protocols import Array, Backend
 
 
 class OMPFitter(Generic[Array]):
@@ -95,9 +95,7 @@ class OMPFitter(Generic[Array]):
 
         # Validate single QoI
         if values.shape[0] != 1:
-            raise ValueError(
-                f"OMPFitter only supports nqoi=1, got {values.shape[0]}"
-            )
+            raise ValueError(f"OMPFitter only supports nqoi=1, got {values.shape[0]}")
 
         # Get basis matrix: (nsamples, nterms)
         Phi = expansion.basis_matrix(samples)
@@ -118,18 +116,14 @@ class OMPFitter(Generic[Array]):
         # Precompute column norms for correlation normalization
         col_norms = bkd.norm(Phi, axis=0)
         # Avoid division by zero
-        col_norms = bkd.where(
-            col_norms > 1e-14, col_norms, bkd.ones_like(col_norms)
-        )
+        col_norms = bkd.where(col_norms > 1e-14, col_norms, bkd.ones_like(col_norms))
 
         # Store the active coefficients for final assignment
         active_coef: Optional[Array] = None
 
         for iteration in range(self._max_nonzeros):
             # Find column most correlated with residual
-            correlations = bkd.abs(
-                bkd.dot(Phi.T, residual)[:, 0]
-            ) / col_norms
+            correlations = bkd.abs(bkd.dot(Phi.T, residual)[:, 0]) / col_norms
 
             # Zero out already selected columns
             for idx in active_indices:

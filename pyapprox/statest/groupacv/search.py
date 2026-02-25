@@ -2,21 +2,21 @@
 
 from dataclasses import dataclass
 from typing import (
+    TYPE_CHECKING,
     Generic,
     Iterator,
     List,
     Optional,
     Tuple,
     Type,
-    TYPE_CHECKING,
 )
 
-from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.statest.strategies import ModelSubsetStrategy, QoISubsetStrategy
+from pyapprox.util.backends.protocols import Array, Backend
 
 if TYPE_CHECKING:
-    from pyapprox.statest.groupacv.base import BaseGroupACVEstimator
     from pyapprox.statest.groupacv.allocation import GroupACVAllocationResult
+    from pyapprox.statest.groupacv.base import BaseGroupACVEstimator
     from pyapprox.statest.statistics import MultiOutputStatistic
 
 
@@ -26,7 +26,9 @@ class GroupACVSearchResult(Generic[Array]):
 
     estimator: "BaseGroupACVEstimator[Array]"
     allocation: "GroupACVAllocationResult[Array]"
-    all_allocations: List[Tuple["BaseGroupACVEstimator[Array]", "GroupACVAllocationResult[Array]"]]
+    all_allocations: List[
+        Tuple["BaseGroupACVEstimator[Array]", "GroupACVAllocationResult[Array]"]
+    ]
 
     # Search configuration
     estimator_classes: List[Type["BaseGroupACVEstimator[Array]"]]
@@ -93,8 +95,11 @@ class GroupACVSearch(Generic[Array]):
         optimizer: Optional[object] = None,
         objective: Optional[object] = None,
     ) -> None:
-        from pyapprox.statest.strategies import AllModelsStrategy, AllQoIStrategy
         from pyapprox.statest.groupacv.mlblue import MLBLUEEstimator
+        from pyapprox.statest.strategies import (
+            AllModelsStrategy,
+            AllQoIStrategy,
+        )
 
         self._stat = stat
         self._costs = costs

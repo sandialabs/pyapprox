@@ -14,8 +14,8 @@ from pyapprox.pde.decomposition.interface.basis import (
     LegendreInterfaceBasis2D,
 )
 from pyapprox.pde.decomposition.interface.interface import (
-    Interface1D,
     Interface,
+    Interface1D,
     Interface2D,
 )
 from pyapprox.pde.decomposition.interface.interpolation import (

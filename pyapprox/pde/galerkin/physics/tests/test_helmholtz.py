@@ -12,26 +12,26 @@ no velocity, and reaction R(u) = -k^2*u so that the forcing matches.
 """
 
 import unittest
-from typing import Generic, Any, List, Tuple, Callable, Dict
+from typing import Any, Callable, Dict, Generic, List, Tuple
 
 import numpy as np
 from numpy.typing import NDArray
 from scipy.sparse import issparse
 from unittest_parametrize import ParametrizedTestCase, parametrize
 
-from pyapprox.util.backends.protocols import Array, Backend
-from pyapprox.util.backends.numpy import NumpyBkd
-from pyapprox.pde.galerkin.mesh import StructuredMesh1D, StructuredMesh2D
-from pyapprox.pde.galerkin.basis import LagrangeBasis
-from pyapprox.pde.galerkin.physics import Helmholtz
-from pyapprox.pde.galerkin.solvers import SteadyStateSolver
-from pyapprox.pde.galerkin.manufactured import (
-    GalerkinManufacturedSolutionAdapter,
-)
 from pyapprox.pde.collocation.manufactured_solutions import (
     ManufacturedAdvectionDiffusionReaction,
     ManufacturedHelmholtz,
 )
+from pyapprox.pde.galerkin.basis import LagrangeBasis
+from pyapprox.pde.galerkin.manufactured import (
+    GalerkinManufacturedSolutionAdapter,
+)
+from pyapprox.pde.galerkin.mesh import StructuredMesh1D, StructuredMesh2D
+from pyapprox.pde.galerkin.physics import Helmholtz
+from pyapprox.pde.galerkin.solvers import SteadyStateSolver
+from pyapprox.util.backends.numpy import NumpyBkd
+from pyapprox.util.backends.protocols import Array, Backend
 
 
 def _create_screened_poisson_manufactured(
@@ -103,9 +103,7 @@ class TestHelmholtzBase(Generic[Array], unittest.TestCase):
         """Test mass matrix is symmetric in 1D."""
         mesh = StructuredMesh1D(nx=10, bounds=(0.0, 1.0), bkd=self.bkd_inst)
         basis = LagrangeBasis(mesh, degree=1)
-        physics = Helmholtz(
-            basis=basis, wavenumber=2*np.pi, bkd=self.bkd_inst
-        )
+        physics = Helmholtz(basis=basis, wavenumber=2 * np.pi, bkd=self.bkd_inst)
 
         M = physics.mass_matrix()
         M_np = M.toarray() if issparse(M) else self.bkd_inst.to_numpy(M)
@@ -116,9 +114,7 @@ class TestHelmholtzBase(Generic[Array], unittest.TestCase):
         """Test stiffness matrix is symmetric in 1D."""
         mesh = StructuredMesh1D(nx=10, bounds=(0.0, 1.0), bkd=self.bkd_inst)
         basis = LagrangeBasis(mesh, degree=1)
-        physics = Helmholtz(
-            basis=basis, wavenumber=2*np.pi, bkd=self.bkd_inst
-        )
+        physics = Helmholtz(basis=basis, wavenumber=2 * np.pi, bkd=self.bkd_inst)
 
         u0 = self.bkd_inst.asarray(np.zeros(physics.nstates()))
         jac = physics.jacobian(u0, 0.0)
@@ -132,9 +128,7 @@ class TestHelmholtzBase(Generic[Array], unittest.TestCase):
         """Test residual has correct shape."""
         mesh = StructuredMesh1D(nx=10, bounds=(0.0, 1.0), bkd=self.bkd_inst)
         basis = LagrangeBasis(mesh, degree=1)
-        physics = Helmholtz(
-            basis=basis, wavenumber=2*np.pi, bkd=self.bkd_inst
-        )
+        physics = Helmholtz(basis=basis, wavenumber=2 * np.pi, bkd=self.bkd_inst)
 
         u0 = physics.initial_condition(lambda x: np.sin(np.pi * x[0]))
         res = physics.residual(u0, 0.0)
@@ -145,9 +139,7 @@ class TestHelmholtzBase(Generic[Array], unittest.TestCase):
         """Test Jacobian has correct shape."""
         mesh = StructuredMesh1D(nx=10, bounds=(0.0, 1.0), bkd=self.bkd_inst)
         basis = LagrangeBasis(mesh, degree=1)
-        physics = Helmholtz(
-            basis=basis, wavenumber=2*np.pi, bkd=self.bkd_inst
-        )
+        physics = Helmholtz(basis=basis, wavenumber=2 * np.pi, bkd=self.bkd_inst)
 
         u0 = physics.initial_condition(lambda x: np.sin(np.pi * x[0]))
         jac = physics.jacobian(u0, 0.0)
@@ -160,9 +152,7 @@ class TestHelmholtzBase(Generic[Array], unittest.TestCase):
             nx=5, ny=5, bounds=[[0.0, 1.0], [0.0, 1.0]], bkd=self.bkd_inst
         )
         basis = LagrangeBasis(mesh, degree=1)
-        physics = Helmholtz(
-            basis=basis, wavenumber=np.pi, bkd=self.bkd_inst
-        )
+        physics = Helmholtz(basis=basis, wavenumber=np.pi, bkd=self.bkd_inst)
 
         # Initial condition
         u0 = physics.initial_condition(
@@ -184,7 +174,7 @@ class TestHelmholtzBase(Generic[Array], unittest.TestCase):
             return np.ones(x.shape[1])
 
         physics = Helmholtz(
-            basis=basis, wavenumber=2*np.pi, forcing=forcing, bkd=self.bkd_inst
+            basis=basis, wavenumber=2 * np.pi, forcing=forcing, bkd=self.bkd_inst
         )
 
         u0 = self.bkd_inst.asarray(np.zeros(physics.nstates()))
@@ -210,11 +200,11 @@ class TestHelmholtzBase(Generic[Array], unittest.TestCase):
 
         # Point source in the middle
         def forcing(x):
-            return np.exp(-100 * (x[0] - 0.5)**2)
+            return np.exp(-100 * (x[0] - 0.5) ** 2)
 
         physics = Helmholtz(
             basis=basis,
-            wavenumber=2*np.pi,  # wavelength = 1
+            wavenumber=2 * np.pi,  # wavelength = 1
             forcing=forcing,
             bkd=self.bkd_inst,
         )
@@ -242,6 +232,7 @@ class TestHelmholtzNumpy(TestHelmholtzBase[NDArray[Any]]):
 # Try to import torch for dual-backend testing
 try:
     import torch
+
     from pyapprox.util.backends.torch import TorchBkd
 
     class TestHelmholtzTorch(TestHelmholtzBase[torch.Tensor]):
@@ -270,16 +261,19 @@ except ImportError:
 # ---------------------------------------------------------------------------
 
 # Format: (name, bounds, sol_str, sqwavenum_str, bndry_types)
-HELMHOLTZ_MANUFACTURED_CASES: List[
-    Tuple[str, List[float], str, str, List[str]]
-] = [
+HELMHOLTZ_MANUFACTURED_CASES: List[Tuple[str, List[float], str, str, List[str]]] = [
     # 1D linear solution, constant k^2, all Dirichlet
     ("1d_lin_DD", [0.0, 1.0], "x", "4+1e-16*x", ["D", "D"]),
     # 1D quadratic solution, x-dependent k^2, Neumann-Robin
     ("1d_quad_NR", [0.0, 1.0], "x**2", "1*x", ["N", "R"]),
     # 2D quartic solution, nearly constant k^2, mixed BCs
-    ("2d_x2y2_DDRN", [0.0, 0.5, 0.0, 1.0], "y**2*x**2", "1+1e-16*x",
-     ["D", "D", "R", "N"]),
+    (
+        "2d_x2y2_DDRN",
+        [0.0, 0.5, 0.0, 1.0],
+        "y**2*x**2",
+        "1+1e-16*x",
+        ["D", "D", "R", "N"],
+    ),
 ]
 
 
@@ -325,12 +319,11 @@ class TestParametrizedHelmholtzManufactured(ParametrizedTestCase):
 
         # Create mesh and P2 basis
         if nvars == 1:
-            mesh = StructuredMesh1D(
-                nx=10, bounds=(bounds[0], bounds[1]), bkd=bkd
-            )
+            mesh = StructuredMesh1D(nx=10, bounds=(bounds[0], bounds[1]), bkd=bkd)
         else:
             mesh = StructuredMesh2D(
-                nx=5, ny=5,
+                nx=5,
+                ny=5,
                 bounds=[[bounds[0], bounds[1]], [bounds[2], bounds[3]]],
                 bkd=bkd,
             )
@@ -362,9 +355,7 @@ class TestParametrizedHelmholtzManufactured(ParametrizedTestCase):
         u_num = bkd.to_numpy(result.solution)
         u_exact = exact_sol_func(dof_coords)
         if u_exact.ndim > 1:
-            u_exact = (
-                u_exact[:, 0] if u_exact.shape[1] == 1 else u_exact.flatten()
-            )
+            u_exact = u_exact[:, 0] if u_exact.shape[1] == 1 else u_exact.flatten()
 
         # Compute relative error
         u_norm = np.linalg.norm(u_exact)
@@ -375,13 +366,11 @@ class TestParametrizedHelmholtzManufactured(ParametrizedTestCase):
 
         # P2 elements should exactly reproduce polynomial solutions ≤ degree 2
         self.assertLess(
-            rel_error, 1e-8,
-            f"Test {name}: rel_error={rel_error:.2e} should be < 1e-8"
+            rel_error, 1e-8, f"Test {name}: rel_error={rel_error:.2e} should be < 1e-8"
         )
 
 
 from pyapprox.util.test_utils import load_tests  # noqa: F401
-
 
 if __name__ == "__main__":
     unittest.main()

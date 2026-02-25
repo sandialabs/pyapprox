@@ -7,9 +7,6 @@ as an ObjectiveProtocol for optimizer binding.
 
 from typing import Generic, Optional
 
-from pyapprox.util.backends.protocols import Array, Backend
-from pyapprox.util.hyperparameter import HyperParameterList
-
 from pyapprox.surrogates.flowmatching.protocols import (
     ProbabilityPathProtocol,
     TimeWeightProtocol,
@@ -17,6 +14,8 @@ from pyapprox.surrogates.flowmatching.protocols import (
 from pyapprox.surrogates.flowmatching.quad_data import (
     FlowMatchingQuadData,
 )
+from pyapprox.util.backends.protocols import Array, Backend
+from pyapprox.util.hyperparameter import HyperParameterList
 
 
 class UniformWeight(Generic[Array]):
@@ -151,9 +150,7 @@ class CFMLoss(Generic[Array]):
         Array
             Scalar loss value.
         """
-        return self._bkd.sum(
-            weights * self.integrand(vf, path, t, x0, x1, c)
-        )
+        return self._bkd.sum(weights * self.integrand(vf, path, t, x0, x1, c))
 
 
 class FlowMatchingObjective(Generic[Array]):
@@ -193,14 +190,10 @@ class FlowMatchingObjective(Generic[Array]):
 
         # Pre-compute vf_input and target field (they don't depend on params)
         x_t = path.interpolate(quad_data.t(), quad_data.x0(), quad_data.x1())
-        self._u_t = path.target_field(
-            quad_data.t(), quad_data.x0(), quad_data.x1()
-        )
+        self._u_t = path.target_field(quad_data.t(), quad_data.x0(), quad_data.x1())
 
         if quad_data.c() is not None:
-            self._vf_input = bkd.vstack(
-                [quad_data.t(), x_t, quad_data.c()]
-            )
+            self._vf_input = bkd.vstack([quad_data.t(), x_t, quad_data.c()])
         else:
             self._vf_input = bkd.vstack([quad_data.t(), x_t])
 
@@ -281,8 +274,8 @@ class FlowMatchingObjective(Generic[Array]):
         # Phi: (n_quad, nterms), coef: (nterms, d), U: (d, n_quad)
         Phi = self._vf.basis_matrix(self._vf_input)  # type: ignore[union-attr]
         coef = self._vf.get_coefficients()  # type: ignore[union-attr]
-        nterms = Phi.shape[1]
-        d = self._u_t.shape[0]
+        Phi.shape[1]
+        self._u_t.shape[0]
 
         # residual: (n_quad, d) = Phi @ coef - U^T
         residual = Phi @ coef - self._u_t.T  # (n_quad, d)

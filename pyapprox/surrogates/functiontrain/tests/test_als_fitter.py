@@ -7,22 +7,20 @@ import numpy as np
 import torch
 from numpy.typing import NDArray
 
-from pyapprox.util.backends.numpy import NumpyBkd
-from pyapprox.util.backends.torch import TorchBkd
-from pyapprox.util.backends.protocols import Array, Backend
-from pyapprox.util.test_utils import load_tests  # noqa: F401
-
-from pyapprox.surrogates.affine.univariate import create_bases_1d
-from pyapprox.surrogates.affine.indices import compute_hyperbolic_indices
+from pyapprox.probability import UniformMarginal
 from pyapprox.surrogates.affine.basis import OrthonormalPolynomialBasis
 from pyapprox.surrogates.affine.expansions import BasisExpansion
-from pyapprox.probability import UniformMarginal
-
+from pyapprox.surrogates.affine.indices import compute_hyperbolic_indices
+from pyapprox.surrogates.affine.univariate import create_bases_1d
 from pyapprox.surrogates.functiontrain import (
+    ALSFitter,
     FunctionTrain,
     create_additive_functiontrain,
-    ALSFitter,
 )
+from pyapprox.util.backends.numpy import NumpyBkd
+from pyapprox.util.backends.protocols import Array, Backend
+from pyapprox.util.backends.torch import TorchBkd
+from pyapprox.util.test_utils import load_tests  # noqa: F401
 
 
 class TestALSFitter(Generic[Array], unittest.TestCase):
@@ -54,8 +52,7 @@ class TestALSFitter(Generic[Array], unittest.TestCase):
         """Create an additive FunctionTrain for testing."""
         bkd = self._bkd
         univariate_bases = [
-            self._create_univariate_expansion(max_level, nqoi)
-            for _ in range(nvars)
+            self._create_univariate_expansion(max_level, nqoi) for _ in range(nvars)
         ]
         return create_additive_functiontrain(univariate_bases, bkd, nqoi)
 
@@ -276,7 +273,7 @@ class TestALSFitter(Generic[Array], unittest.TestCase):
 
         # With very tight tolerance and few sweeps - may not converge
         fitter_strict = ALSFitter(bkd, max_sweeps=1, tol=1e-20)
-        result_strict = fitter_strict.fit(ft, samples, values)
+        fitter_strict.fit(ft, samples, values)
 
         # With loose tolerance - should converge
         fitter_loose = ALSFitter(bkd, max_sweeps=10, tol=1.0)

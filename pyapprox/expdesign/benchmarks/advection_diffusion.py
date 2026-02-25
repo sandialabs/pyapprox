@@ -6,28 +6,32 @@ log-normal random field provides forcing. Parameters control the KLE
 coefficients, inlet velocity shape, and Reynolds number.
 """
 
-from typing import Generic, Callable, List, Tuple
+from typing import Generic, Tuple
 
 import numpy as np
 
-from pyapprox.util.backends.protocols import Array, Backend
-from pyapprox.probability.univariate.uniform import UniformMarginal
-from pyapprox.probability.univariate.gaussian import GaussianMarginal
-from pyapprox.probability.joint.independent import IndependentJoint
 from pyapprox.benchmarks.registry import BenchmarkRegistry
 from pyapprox.interface.functions.fromcallable.function import (
     FunctionFromCallable,
 )
+from pyapprox.probability.joint.independent import IndependentJoint
+from pyapprox.probability.univariate.gaussian import GaussianMarginal
+from pyapprox.probability.univariate.uniform import UniformMarginal
+from pyapprox.util.backends.protocols import Array, Backend
 
 
 def _build_obstructed_mesh(bkd, nrefine):
     """Create the obstructed domain mesh."""
     from pyapprox.pde.galerkin.mesh.obstructed import ObstructedMesh2D
+
     xintervals = np.array([0, 2 / 7, 3 / 7, 4 / 7, 5 / 7, 1.0])
     yintervals = np.linspace(0, 1, 5)
     obstruction_indices = np.array([3, 6, 13], dtype=int)
     return ObstructedMesh2D(
-        xintervals, yintervals, obstruction_indices, bkd,
+        xintervals,
+        yintervals,
+        obstruction_indices,
+        bkd,
         nrefine=nrefine,
     )
 
@@ -72,7 +76,9 @@ def _solve_stokes(mesh, bkd, reynolds_num, vel_shape_params):
     viscosity = 1.0 / reynolds_num
 
     stokes = StokesPhysics(
-        vel_basis, pres_basis, bkd,
+        vel_basis,
+        pres_basis,
+        bkd,
         navier_stokes=True,
         viscosity=viscosity,
         vel_dirichlet_bcs=vel_bcs,
@@ -86,7 +92,12 @@ def _solve_stokes(mesh, bkd, reynolds_num, vel_shape_params):
 
 
 def _extract_velocity_callable(
-    sol, stokes, vel_basis, pres_basis, adr_basis, bkd,
+    sol,
+    stokes,
+    vel_basis,
+    pres_basis,
+    adr_basis,
+    bkd,
 ):
     """Extract velocity from Stokes solution as callable for ADR.
 
@@ -106,9 +117,12 @@ def _extract_velocity_callable(
     # Get skfem basis for velocity components (scalar P2)
     vel_skfem = vel_basis.skfem_basis()
     from skfem import Basis
+
     scalar_elem = vel_skfem.elem.elem
     scalar_vel_basis = Basis(
-        vel_basis.mesh().skfem_mesh(), scalar_elem, intorder=4,
+        vel_basis.mesh().skfem_mesh(),
+        scalar_elem,
+        intorder=4,
     )
 
     # Interpolate velocity components onto ADR mesh nodes
@@ -213,11 +227,14 @@ class ObstructedAdvectionDiffusionOEDBenchmark(Generic[Array]):
         self._adr_mesh = _build_obstructed_mesh(bkd, nadvec_diff_refine)
 
         from pyapprox.pde.galerkin.basis.lagrange import LagrangeBasis
+
         self._adr_basis = LagrangeBasis(self._adr_mesh, degree=1)
 
         # Create KLE forcing map
         self._kle_map = _create_kle_forcing(
-            self._adr_basis, nkle_terms, bkd,
+            self._adr_basis,
+            nkle_terms,
+            bkd,
         )
 
         # Set up sensor locations (regular grid in non-obstructed region)
@@ -245,19 +262,25 @@ class ObstructedAdvectionDiffusionOEDBenchmark(Generic[Array]):
             return self._evaluate_prediction(samples)
 
         self._obs_model = FunctionFromCallable(
-            nqoi_obs, self._nparams, obs_callable, bkd,
+            nqoi_obs,
+            self._nparams,
+            obs_callable,
+            bkd,
         )
         self._pred_model = FunctionFromCallable(
-            nqoi_pred, self._nparams, pred_callable, bkd,
+            nqoi_pred,
+            self._nparams,
+            pred_callable,
+            bkd,
         )
 
     def _solve_forward(self, params_np):
         """Full forward solve for a single parameter vector."""
-        from pyapprox.pde.galerkin.physics.advection_diffusion import (
-            AdvectionDiffusionReaction,
-        )
         from pyapprox.pde.galerkin.boundary.implementations import (
             RobinBC,
+        )
+        from pyapprox.pde.galerkin.physics.advection_diffusion import (
+            AdvectionDiffusionReaction,
         )
         from pyapprox.pde.galerkin.time_integration.galerkin_model import (
             GalerkinModel,
@@ -267,20 +290,27 @@ class ObstructedAdvectionDiffusionOEDBenchmark(Generic[Array]):
         bkd = self._bkd
 
         # Extract parameters
-        kle_params = params_np[:self._nkle_terms]
+        kle_params = params_np[: self._nkle_terms]
         vel_shape_a = float(params_np[self._nkle_terms])
         vel_shape_b = float(params_np[self._nkle_terms + 1])
         reynolds_num = float(params_np[self._nkle_terms + 2])
 
         # Solve Stokes for velocity
         sol, stokes, vel_basis, pres_basis = _solve_stokes(
-            self._stokes_mesh, bkd, reynolds_num,
+            self._stokes_mesh,
+            bkd,
+            reynolds_num,
             [vel_shape_a, vel_shape_b],
         )
 
         # Extract velocity callable
         vel_callable = _extract_velocity_callable(
-            sol, stokes, vel_basis, pres_basis, self._adr_basis, bkd,
+            sol,
+            stokes,
+            vel_basis,
+            pres_basis,
+            self._adr_basis,
+            bkd,
         )
 
         # Evaluate KLE forcing at KLE params (1D input for field map)
@@ -323,7 +353,8 @@ class ObstructedAdvectionDiffusionOEDBenchmark(Generic[Array]):
             newton_maxiter=5,
         )
         solutions, times = model.solve_transient(
-            bkd.asarray(ic), config,
+            bkd.asarray(ic),
+            config,
         )
 
         return solutions, times

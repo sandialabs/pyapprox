@@ -1,15 +1,15 @@
 from typing import Generic, Protocol, runtime_checkable
 
-from pyapprox.util.backends.protocols import Array, Backend
+from pyapprox.optimization.implicitfunction.functionals.protocols import (
+    ParameterizedFunctionalWithJacobianProtocol,
+)
 from pyapprox.optimization.implicitfunction.operator.storage import (
     AdjointOperatorStorage,
 )
 from pyapprox.optimization.implicitfunction.state_equations.protocols import (
     ParameterizedStateEquationWithJacobianProtocol,
 )
-from pyapprox.optimization.implicitfunction.functionals.protocols import (
-    ParameterizedFunctionalWithJacobianProtocol,
-)
+from pyapprox.util.backends.protocols import Array, Backend
 
 
 @runtime_checkable

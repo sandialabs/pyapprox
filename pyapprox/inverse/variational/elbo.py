@@ -72,7 +72,7 @@ class ELBOObjective(Generic[Array]):
         self._setup_derivative_methods()
 
     def _setup_derivative_methods(self) -> None:
-        if hasattr(self._bkd, 'jacobian'):
+        if hasattr(self._bkd, "jacobian"):
             self.jacobian = self._jacobian_autograd
 
     def bkd(self) -> Backend[Array]:
@@ -110,16 +110,14 @@ class ELBOObjective(Generic[Array]):
         """
         self._var_dist.hyp_list().set_active_values(params[:, 0])
 
-        label_nodes = self._joint_nodes[:self._nlabel_dims, :]
-        base_nodes = self._joint_nodes[self._nlabel_dims:, :]
+        label_nodes = self._joint_nodes[: self._nlabel_dims, :]
+        base_nodes = self._joint_nodes[self._nlabel_dims :, :]
 
         z = self._var_dist.reparameterize(label_nodes, base_nodes)
         log_lik = self._log_lik_fn(z, label_nodes)
 
-        if hasattr(self._var_dist, 'kl_divergence'):
-            kl_terms = self._var_dist.kl_divergence(
-                label_nodes, self._prior
-            )
+        if hasattr(self._var_dist, "kl_divergence"):
+            kl_terms = self._var_dist.kl_divergence(label_nodes, self._prior)
         else:
             # MC fallback
             log_q = self._var_dist.logpdf(label_nodes, z)
@@ -189,6 +187,7 @@ def make_single_problem_elbo(
     -------
     ELBOObjective
     """
+
     def wrapped_log_lik(z: Array, labels: Array) -> Array:
         return log_likelihood_fn(z)
 
@@ -200,8 +199,13 @@ def make_single_problem_elbo(
     joint_nodes = bkd.concatenate([dummy_labels, base_nodes], axis=0)
 
     return ELBOObjective(
-        var_distribution, wrapped_log_lik, prior,
-        joint_nodes, base_weights, nlabel_dims=nlabel_dims, bkd=bkd,
+        var_distribution,
+        wrapped_log_lik,
+        prior,
+        joint_nodes,
+        base_weights,
+        nlabel_dims=nlabel_dims,
+        bkd=bkd,
     )
 
 
@@ -274,11 +278,16 @@ def make_discrete_group_elbo(
     def joint_log_lik(z: Array, label_nodes: Array) -> Array:
         parts = []
         for k in range(K):
-            z_k = z[:, k * M:(k + 1) * M]
+            z_k = z[:, k * M : (k + 1) * M]
             parts.append(log_likelihood_fns[k](z_k))
         return bkd.concatenate(parts, axis=1)
 
     return ELBOObjective(
-        var_distribution, joint_log_lik, prior,
-        joint_nodes, joint_weights, nlabel_dims=nlabel_dims, bkd=bkd,
+        var_distribution,
+        joint_log_lik,
+        prior,
+        joint_nodes,
+        joint_weights,
+        nlabel_dims=nlabel_dims,
+        bkd=bkd,
     )

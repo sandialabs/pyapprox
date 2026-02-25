@@ -5,40 +5,40 @@ a local model and the network combines low-fidelity and high-fidelity
 data through a directed acyclic graph.
 """
 
-from pyapprox.surrogates.mfnets.protocols import (
-    LinearNodeModelProtocol,
-    NodeModelProtocol,
-    NodeModelWithParamJacobianProtocol,
-)
-from pyapprox.surrogates.mfnets.nodes import (
-    LeafMFNetNode,
-    MFNetNode,
-    RootMFNetNode,
-)
-from pyapprox.surrogates.mfnets.edges import MFNetEdge
-from pyapprox.surrogates.mfnets.network import MFNet
-from pyapprox.surrogates.mfnets.discrepancy import (
-    MultiplicativeAdditiveDiscrepancy,
-)
-from pyapprox.surrogates.mfnets.losses import (
-    MFNetNegLogLikelihoodLoss,
-)
-from pyapprox.surrogates.mfnets.registry import (
-    create_node_model,
-    list_node_models,
-    register_node_model,
-)
 from pyapprox.surrogates.mfnets.builders import (
     build_chain_mfnet,
     build_dag_mfnet,
+)
+from pyapprox.surrogates.mfnets.discrepancy import (
+    MultiplicativeAdditiveDiscrepancy,
+)
+from pyapprox.surrogates.mfnets.edges import MFNetEdge
+from pyapprox.surrogates.mfnets.fitters.composite_fitter import (
+    MFNetCompositeFitResult,
+    MFNetCompositeFitter,
 )
 from pyapprox.surrogates.mfnets.helpers import (
     generate_synthetic_data,
     randomize_coefficients,
 )
-from pyapprox.surrogates.mfnets.fitters.composite_fitter import (
-    MFNetCompositeFitResult,
-    MFNetCompositeFitter,
+from pyapprox.surrogates.mfnets.losses import (
+    MFNetNegLogLikelihoodLoss,
+)
+from pyapprox.surrogates.mfnets.network import MFNet
+from pyapprox.surrogates.mfnets.nodes import (
+    LeafMFNetNode,
+    MFNetNode,
+    RootMFNetNode,
+)
+from pyapprox.surrogates.mfnets.protocols import (
+    LinearNodeModelProtocol,
+    NodeModelProtocol,
+    NodeModelWithParamJacobianProtocol,
+)
+from pyapprox.surrogates.mfnets.registry import (
+    create_node_model,
+    list_node_models,
+    register_node_model,
 )
 
 __all__ = [

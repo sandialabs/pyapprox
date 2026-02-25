@@ -1,17 +1,17 @@
 import unittest
-from typing import Generic, Any
+from typing import Any, Generic
 
 import numpy as np
 import torch
 from numpy.typing import NDArray
-
-from pyapprox.util.backends.protocols import Array, Backend
-from pyapprox.util.backends.numpy import NumpyBkd
-from pyapprox.util.backends.torch import TorchBkd
 from scipy.optimize import LinearConstraint as ScipyLinearConstraint
+
 from pyapprox.optimization.minimize.constraints.linear import (
     PyApproxLinearConstraint,
 )
+from pyapprox.util.backends.numpy import NumpyBkd
+from pyapprox.util.backends.protocols import Array, Backend
+from pyapprox.util.backends.torch import TorchBkd
 
 
 class TestPyApproxLinearConstraint(Generic[Array], unittest.TestCase):
@@ -22,9 +22,7 @@ class TestPyApproxLinearConstraint(Generic[Array], unittest.TestCase):
         Override this method in derived classes to provide the specific
         backend.
         """
-        raise NotImplementedError(
-            "Derived classes must implement this method."
-        )
+        raise NotImplementedError("Derived classes must implement this method.")
 
     def test_generic_linear_constraint(self) -> None:
         """
@@ -66,9 +64,7 @@ class TestPyApproxLinearConstraint(Generic[Array], unittest.TestCase):
         np.testing.assert_allclose(scipy_constraint.ub, [5.0, 6.0])
 
 
-class TestPyApproxLinearConstraintNumpy(
-    TestPyApproxLinearConstraint[NDArray[Any]]
-):
+class TestPyApproxLinearConstraintNumpy(TestPyApproxLinearConstraint[NDArray[Any]]):
     def setUp(self) -> None:
         self._bkd = NumpyBkd()
         super().setUp()
@@ -77,9 +73,7 @@ class TestPyApproxLinearConstraintNumpy(
         return self._bkd
 
 
-class TestPyApproxLinearConstraintTorch(
-    TestPyApproxLinearConstraint[torch.Tensor]
-):
+class TestPyApproxLinearConstraintTorch(TestPyApproxLinearConstraint[torch.Tensor]):
     def setUp(self) -> None:
         torch.set_default_dtype(torch.float64)
         self._bkd = TorchBkd()
@@ -90,9 +84,7 @@ class TestPyApproxLinearConstraintTorch(
 
 
 # Custom test loader to exclude the base class
-def load_tests(
-    loader: unittest.TestLoader, tests, pattern: str
-) -> unittest.TestSuite:
+def load_tests(loader: unittest.TestLoader, tests, pattern: str) -> unittest.TestSuite:
     """
     Custom test loader to exclude the base class
     ContinuousScipyRandomVariable1D.

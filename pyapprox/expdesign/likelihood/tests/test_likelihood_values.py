@@ -18,15 +18,14 @@ import torch
 from numpy.typing import NDArray
 from unittest_parametrize import ParametrizedTestCase, parametrize
 
-from pyapprox.util.backends.numpy import NumpyBkd
-from pyapprox.util.backends.torch import TorchBkd
-from pyapprox.util.backends.protocols import Array, Backend
-from pyapprox.util.test_utils import load_tests  # noqa: F401
-
 from pyapprox.expdesign.likelihood import (
-    GaussianOEDOuterLoopLikelihood,
     GaussianOEDInnerLoopLikelihood,
+    GaussianOEDOuterLoopLikelihood,
 )
+from pyapprox.util.backends.numpy import NumpyBkd
+from pyapprox.util.backends.protocols import Array, Backend
+from pyapprox.util.backends.torch import TorchBkd
+from pyapprox.util.test_utils import load_tests  # noqa: F401
 
 
 class TestLikelihoodValuesStandalone(
@@ -48,9 +47,7 @@ class TestLikelihoodValuesStandalone(
         self._ninner = 10
         self._nouter = 5
 
-    def _manual_gaussian_logpdf(
-        self, residuals: Array, variances: Array
-    ) -> Array:
+    def _manual_gaussian_logpdf(self, residuals: Array, variances: Array) -> Array:
         """Compute Gaussian log-pdf manually for verification.
 
         log N(r | 0, diag(v)) = -0.5 * (n*log(2*pi) + sum(log(v)) + sum(r^2/v))
@@ -120,9 +117,7 @@ class TestLikelihoodValuesStandalone(
             (5, 20),
         ],
     )
-    def test_outer_likelihood_gaussian_formula(
-        self, nobs: int, nouter: int
-    ) -> None:
+    def test_outer_likelihood_gaussian_formula(self, nobs: int, nouter: int) -> None:
         """Test outer likelihood values match manual Gaussian log-pdf."""
         likelihood, noise_variances, shapes, observations = (
             self._create_outer_likelihood(nobs, nouter)
@@ -150,18 +145,14 @@ class TestLikelihoodValuesStandalone(
 
     def test_outer_likelihood_shape(self) -> None:
         """Test outer likelihood output shape is (1, nouter)."""
-        likelihood, _, _, _ = self._create_outer_likelihood(
-            self._nobs, self._nouter
-        )
+        likelihood, _, _, _ = self._create_outer_likelihood(self._nobs, self._nouter)
         weights = self._bkd.ones((self._nobs, 1)) / self._nobs
         result = likelihood(weights)
         self.assertEqual(result.shape, (1, self._nouter))
 
     def test_outer_likelihood_jacobian_shape(self) -> None:
         """Test outer likelihood Jacobian shape is (nouter, nobs)."""
-        likelihood, _, _, _ = self._create_outer_likelihood(
-            self._nobs, self._nouter
-        )
+        likelihood, _, _, _ = self._create_outer_likelihood(self._nobs, self._nouter)
         weights = self._bkd.ones((self._nobs, 1)) / self._nobs
         jac = likelihood.jacobian(weights)
         self.assertEqual(jac.shape, (self._nouter, self._nobs))
@@ -388,7 +379,9 @@ class TestLikelihoodValuesStandalone(
         weights = bkd.asarray(np.random.uniform(0.5, 1.5, (nobs, 1)))
 
         outer_log_like = outer_likelihood(weights)  # (1, nouter)
-        inner_log_like_matrix = inner_likelihood.logpdf_matrix(weights)  # (nouter, nouter)
+        inner_log_like_matrix = inner_likelihood.logpdf_matrix(
+            weights
+        )  # (nouter, nouter)
 
         # Diagonal of inner matrix should match outer values
         diagonal = bkd.diag(inner_log_like_matrix)
@@ -396,9 +389,7 @@ class TestLikelihoodValuesStandalone(
 
     def test_likelihood_values_finite(self) -> None:
         """Test all likelihood values are finite."""
-        likelihood, _, _, _ = self._create_outer_likelihood(
-            self._nobs, self._nouter
-        )
+        likelihood, _, _, _ = self._create_outer_likelihood(self._nobs, self._nouter)
         bkd = self._bkd
 
         np.random.seed(456)
@@ -423,9 +414,7 @@ class TestLikelihoodValuesStandalone(
         self.assertTrue(np.all(np.isfinite(log_like_np)))
 
 
-class TestLikelihoodValuesStandaloneNumpy(
-    TestLikelihoodValuesStandalone[NDArray[Any]]
-):
+class TestLikelihoodValuesStandaloneNumpy(TestLikelihoodValuesStandalone[NDArray[Any]]):
     """NumPy backend tests."""
 
     __test__ = True
@@ -434,9 +423,7 @@ class TestLikelihoodValuesStandaloneNumpy(
         return NumpyBkd()
 
 
-class TestLikelihoodValuesStandaloneTorch(
-    TestLikelihoodValuesStandalone[torch.Tensor]
-):
+class TestLikelihoodValuesStandaloneTorch(TestLikelihoodValuesStandalone[torch.Tensor]):
     """PyTorch backend tests."""
 
     __test__ = True

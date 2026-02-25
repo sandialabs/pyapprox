@@ -6,27 +6,21 @@ from typing import Any, Generic
 import torch
 from numpy.typing import NDArray
 
-from pyapprox.util.backends.numpy import NumpyBkd
-from pyapprox.util.backends.torch import TorchBkd
-from pyapprox.util.backends.protocols import Array, Backend
-from pyapprox.util.test_utils import load_tests
-
-from pyapprox.benchmarks.protocols import (
-    DomainProtocol,
-    GroundTruthProtocol,
-    BenchmarkProtocol,
-)
-from pyapprox.benchmarks.ground_truth import (
-    SensitivityGroundTruth,
-    OptimizationGroundTruth,
-    QuadratureGroundTruth,
-)
 from pyapprox.benchmarks.benchmark import (
     BoxDomain,
-    Benchmark,
-    BenchmarkWithPrior,
+)
+from pyapprox.benchmarks.ground_truth import (
+    OptimizationGroundTruth,
+    QuadratureGroundTruth,
+    SensitivityGroundTruth,
+)
+from pyapprox.benchmarks.protocols import (
+    DomainProtocol,
 )
 from pyapprox.benchmarks.registry import BenchmarkRegistry
+from pyapprox.util.backends.numpy import NumpyBkd
+from pyapprox.util.backends.protocols import Array, Backend
+from pyapprox.util.backends.torch import TorchBkd
 
 
 class TestGroundTruth(unittest.TestCase):

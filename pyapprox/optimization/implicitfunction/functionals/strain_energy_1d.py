@@ -8,16 +8,16 @@ dW/du = (w * dpsi) @ Dx.
 
 from typing import Callable, Generic, Optional, Tuple
 
-from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.pde.collocation.basis.chebyshev.basis_1d import (
     ChebyshevBasis1D,
-)
-from pyapprox.pde.collocation.quadrature.collocation_quadrature import (
-    CollocationQuadrature1D,
 )
 from pyapprox.pde.collocation.physics.stress_models.neo_hookean import (
     NeoHookeanStress,
 )
+from pyapprox.pde.collocation.quadrature.collocation_quadrature import (
+    CollocationQuadrature1D,
+)
+from pyapprox.util.backends.protocols import Array, Backend
 
 
 class StrainEnergyFunctional1D(Generic[Array]):
@@ -59,9 +59,7 @@ class StrainEnergyFunctional1D(Generic[Array]):
         basis: ChebyshevBasis1D[Array],
         nparams: int,
         bkd: Backend[Array],
-        energy_density: Callable[
-            [Array, Backend[Array]], Tuple[Array, Array]
-        ],
+        energy_density: Callable[[Array, Backend[Array]], Tuple[Array, Array]],
         a_sub: Optional[float] = None,
         b_sub: Optional[float] = None,
         deformation_gradient: bool = False,
@@ -81,9 +79,7 @@ class StrainEnergyFunctional1D(Generic[Array]):
             self._weights = quad.full_domain_weights()
         else:
             if a_sub is None or b_sub is None:
-                raise ValueError(
-                    "Both a_sub and b_sub must be provided, or both None"
-                )
+                raise ValueError("Both a_sub and b_sub must be provided, or both None")
             self._weights = quad.weights(a_sub, b_sub)
 
     def bkd(self) -> Backend[Array]:
@@ -188,16 +184,20 @@ def create_linear_strain_energy_1d(
     a_sub, b_sub : float, optional
         Integration bounds. None for full domain.
     """
-    def energy_density(
-        epsilon: Array, bkd: Backend[Array]
-    ) -> Tuple[Array, Array]:
-        psi = 0.5 * E * epsilon ** 2
+
+    def energy_density(epsilon: Array, bkd: Backend[Array]) -> Tuple[Array, Array]:
+        psi = 0.5 * E * epsilon**2
         dpsi = E * epsilon
         return psi, dpsi
 
     return StrainEnergyFunctional1D(
-        basis, nparams, bkd, energy_density,
-        a_sub=a_sub, b_sub=b_sub, deformation_gradient=False,
+        basis,
+        nparams,
+        bkd,
+        energy_density,
+        a_sub=a_sub,
+        b_sub=b_sub,
+        deformation_gradient=False,
     )
 
 
@@ -233,15 +233,18 @@ def create_neo_hookean_strain_energy_1d(
     """
     stress_model = NeoHookeanStress(lamda=lamda, mu=mu)
 
-    def energy_density(
-        F: Array, bkd: Backend[Array]
-    ) -> Tuple[Array, Array]:
+    def energy_density(F: Array, bkd: Backend[Array]) -> Tuple[Array, Array]:
         ln_F = bkd.log(F)
-        psi = mu / 2.0 * (F ** 2 - 1.0 - 2.0 * ln_F) + lamda / 2.0 * ln_F ** 2
+        psi = mu / 2.0 * (F**2 - 1.0 - 2.0 * ln_F) + lamda / 2.0 * ln_F**2
         P = stress_model.compute_stress_1d(F, bkd)
         return psi, P
 
     return StrainEnergyFunctional1D(
-        basis, nparams, bkd, energy_density,
-        a_sub=a_sub, b_sub=b_sub, deformation_gradient=True,
+        basis,
+        nparams,
+        bkd,
+        energy_density,
+        a_sub=a_sub,
+        b_sub=b_sub,
+        deformation_gradient=True,
     )

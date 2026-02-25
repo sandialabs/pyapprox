@@ -10,35 +10,34 @@ The periodic case is skipped (known legacy bug).
 """
 
 import unittest
-from typing import Generic, Any, List, Tuple
+from typing import Any, Generic, List, Tuple
 
 import numpy as np
 from numpy.typing import NDArray
 from scipy.sparse import issparse
 from unittest_parametrize import ParametrizedTestCase, parametrize
 
-from pyapprox.util.backends.protocols import Array, Backend
-from pyapprox.util.backends.numpy import NumpyBkd
-from pyapprox.pde.galerkin.mesh import StructuredMesh1D
-from pyapprox.pde.galerkin.basis import LagrangeBasis
-from pyapprox.pde.galerkin.physics.burgers import BurgersPhysics
-from pyapprox.pde.galerkin.solvers import SteadyStateSolver
-from pyapprox.pde.galerkin.manufactured.adapter import (
-    GalerkinManufacturedSolutionAdapter,
-)
+from pyapprox.optimization.rootfinding.newton import NewtonSolver
 from pyapprox.pde.collocation.manufactured_solutions.burgers import (
     ManufacturedBurgers1D,
 )
+from pyapprox.pde.galerkin.basis import LagrangeBasis
+from pyapprox.pde.galerkin.manufactured.adapter import (
+    GalerkinManufacturedSolutionAdapter,
+)
+from pyapprox.pde.galerkin.mesh import StructuredMesh1D
+from pyapprox.pde.galerkin.physics.burgers import BurgersPhysics
+from pyapprox.pde.galerkin.solvers import SteadyStateSolver
 from pyapprox.pde.galerkin.time_integration import (
-    GalerkinPhysicsODEAdapter,
     ConstrainedTimeStepResidual,
+    GalerkinPhysicsODEAdapter,
 )
 from pyapprox.pde.time.implicit_steppers import (
     BackwardEulerResidual,
     CrankNicolsonResidual,
 )
-from pyapprox.optimization.rootfinding.newton import NewtonSolver
-
+from pyapprox.util.backends.numpy import NumpyBkd
+from pyapprox.util.backends.protocols import Array, Backend
 
 # =========================================================================
 # Part A: Unit Tests
@@ -55,9 +54,7 @@ class TestBurgersBase(Generic[Array], unittest.TestCase):
 
     def setUp(self) -> None:
         self.bkd_inst = self.bkd()
-        self.mesh = StructuredMesh1D(
-            nx=10, bounds=(0.0, 1.0), bkd=self.bkd_inst
-        )
+        self.mesh = StructuredMesh1D(nx=10, bounds=(0.0, 1.0), bkd=self.bkd_inst)
         self.basis = LagrangeBasis(self.mesh, degree=2)
         self.physics = BurgersPhysics(
             basis=self.basis,
@@ -120,6 +117,7 @@ class TestBurgersNumpy(TestBurgersBase[NDArray[Any]]):
 
 try:
     import torch
+
     from pyapprox.util.backends.torch import TorchBkd
 
     class TestBurgersTorch(TestBurgersBase[torch.Tensor]):
@@ -190,9 +188,7 @@ class TestParametrizedBurgersSteady(ParametrizedTestCase):
         nx = 8 * 2**3  # 64 elements (nrefine=3 with base 8)
 
         # Create mesh and basis (P2 elements)
-        mesh = StructuredMesh1D(
-            nx=nx, bounds=(bounds[0], bounds[1]), bkd=bkd
-        )
+        mesh = StructuredMesh1D(nx=nx, bounds=(bounds[0], bounds[1]), bkd=bkd)
         basis = LagrangeBasis(mesh, degree=2)
 
         # Create manufactured solution
@@ -200,12 +196,8 @@ class TestParametrizedBurgersSteady(ParametrizedTestCase):
         funcs = man_sol.functions
 
         # Create adapter and boundary conditions
-        adapter = GalerkinManufacturedSolutionAdapter(
-            basis, funcs, bkd
-        )
-        bc_set = adapter.create_boundary_conditions(
-            bndry_types, robin_alpha=1.0
-        )
+        adapter = GalerkinManufacturedSolutionAdapter(basis, funcs, bkd)
+        bc_set = adapter.create_boundary_conditions(bndry_types, robin_alpha=1.0)
 
         # Get functions for physics
         exact_sol_func = adapter.solution_function()
@@ -233,9 +225,7 @@ class TestParametrizedBurgersSteady(ParametrizedTestCase):
         init_guess = bkd.asarray(u_exact_vals + 1.0)
 
         # Solve with Newton
-        solver = SteadyStateSolver(
-            physics, tol=1e-12, max_iter=10, line_search=True
-        )
+        solver = SteadyStateSolver(physics, tol=1e-12, max_iter=10, line_search=True)
         result = solver.solve(init_guess)
 
         self.assertTrue(
@@ -253,7 +243,8 @@ class TestParametrizedBurgersSteady(ParametrizedTestCase):
             rel_error = np.linalg.norm(u_num - u_exact_vals)
 
         self.assertLess(
-            rel_error, 1e-8,
+            rel_error,
+            1e-8,
             f"Test {name}: rel_error={rel_error:.2e} should be < 1e-8",
         )
 
@@ -264,9 +255,7 @@ class TestParametrizedBurgersSteady(ParametrizedTestCase):
 
 
 # Format: (name, bounds, bndry_types, sol_str, visc_str)
-BURGERS_TRANSIENT_CASES: List[
-    Tuple[str, List[float], List[str], str, str, str]
-] = [
+BURGERS_TRANSIENT_CASES: List[Tuple[str, List[float], List[str], str, str, str]] = [
     (
         "DD_BE",
         [0.0, 1.0],
@@ -312,9 +301,7 @@ class TestParametrizedBurgersTransient(ParametrizedTestCase):
         nx = 8 * 2**3  # 64 elements
 
         # Create mesh and basis (P2 elements)
-        mesh = StructuredMesh1D(
-            nx=nx, bounds=(bounds[0], bounds[1]), bkd=bkd
-        )
+        mesh = StructuredMesh1D(nx=nx, bounds=(bounds[0], bounds[1]), bkd=bkd)
         basis = LagrangeBasis(mesh, degree=2)
 
         # Create manufactured solution (time-dependent)
@@ -325,9 +312,7 @@ class TestParametrizedBurgersTransient(ParametrizedTestCase):
         adapter = GalerkinManufacturedSolutionAdapter(
             basis, funcs, bkd, time_dependent=True
         )
-        bc_set = adapter.create_boundary_conditions(
-            bndry_types, robin_alpha=1.0
-        )
+        bc_set = adapter.create_boundary_conditions(bndry_types, robin_alpha=1.0)
 
         # Get functions for physics
         # Use full forcing (includes du/dT) for transient Galerkin
@@ -401,14 +386,13 @@ class TestParametrizedBurgersTransient(ParametrizedTestCase):
         # Transient tolerance is looser than steady-state due to
         # backward Euler temporal discretization error (dt=1.0)
         self.assertLess(
-            rel_error, 1e-6,
-            f"Test {name}: rel_error={rel_error:.2e} at t={t} "
-            f"should be < 1e-6",
+            rel_error,
+            1e-6,
+            f"Test {name}: rel_error={rel_error:.2e} at t={t} should be < 1e-6",
         )
 
 
 from pyapprox.util.test_utils import load_tests  # noqa: F401
-
 
 if __name__ == "__main__":
     unittest.main()

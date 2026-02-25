@@ -11,7 +11,6 @@ from typing import Generic, Optional, Tuple
 
 import numpy as np
 
-from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.pde.collocation.mesh.base import (
     compute_boundary_indices_1d,
     compute_boundary_indices_2d,
@@ -19,6 +18,7 @@ from pyapprox.pde.collocation.mesh.base import (
     compute_cartesian_product,
 )
 from pyapprox.pde.collocation.protocols.mesh import TransformProtocol
+from pyapprox.util.backends.protocols import Array, Backend
 
 
 def _chebyshev_gauss_lobatto_points(npts: int, bkd: Backend[Array]) -> Array:
@@ -164,7 +164,7 @@ class TransformedMesh1D(Generic[Array]):
         if boundary_id == 0:
             return self._bkd.asarray([[-1.0]])  # left: -x direction
         elif boundary_id == 1:
-            return self._bkd.asarray([[1.0]])   # right: +x direction
+            return self._bkd.asarray([[1.0]])  # right: +x direction
         raise ValueError(f"boundary_id must be 0 or 1 for 1D mesh, got {boundary_id}")
 
 
@@ -312,9 +312,9 @@ class TransformedMesh2D(Generic[Array]):
         # Boundaries: 0=left(-x), 1=right(+x), 2=bottom(-y), 3=top(+y)
         ref_normals = {
             0: self._bkd.asarray([-1.0, 0.0]),  # left: -x direction
-            1: self._bkd.asarray([1.0, 0.0]),   # right: +x direction
+            1: self._bkd.asarray([1.0, 0.0]),  # right: +x direction
             2: self._bkd.asarray([0.0, -1.0]),  # bottom: -y direction
-            3: self._bkd.asarray([0.0, 1.0]),   # top: +y direction
+            3: self._bkd.asarray([0.0, 1.0]),  # top: +y direction
         }
         n_ref = ref_normals[boundary_id]
 
@@ -324,9 +324,7 @@ class TransformedMesh2D(Generic[Array]):
 
         if self._transform is None:
             # Identity transform: normals are constant
-            return self._bkd.tile(
-                n_ref.reshape(1, 2), (nboundary, 1)
-            )
+            return self._bkd.tile(n_ref.reshape(1, 2), (nboundary, 1))
 
         # For curvilinear transforms, compute n = J^{-T} @ n_ref / |...|
         # at each boundary point
@@ -347,10 +345,9 @@ class TransformedMesh2D(Generic[Array]):
 
             # J^{-1} = (1/det) * [[J[1,1], -J[0,1]], [-J[1,0], J[0,0]]]
             # J^{-T} = (1/det) * [[J[1,1], -J[1,0]], [-J[0,1], J[0,0]]]
-            J_inv_T = self._bkd.asarray([
-                [J[1, 1] / det, -J[1, 0] / det],
-                [-J[0, 1] / det, J[0, 0] / det]
-            ])
+            J_inv_T = self._bkd.asarray(
+                [[J[1, 1] / det, -J[1, 0] / det], [-J[0, 1] / det, J[0, 0] / det]]
+            )
 
             # n = J^{-T} @ n_ref
             n_phys = J_inv_T @ n_ref
@@ -525,9 +522,7 @@ class TransformedMesh3D(Generic[Array]):
         nboundary = boundary_idx.shape[0]
 
         if self._transform is None:
-            return self._bkd.tile(
-                n_ref.reshape(1, 3), (nboundary, 1)
-            )
+            return self._bkd.tile(n_ref.reshape(1, 3), (nboundary, 1))
 
         # For curvilinear: n = J^{-T} @ n_ref / |...|
         normals = self._bkd.zeros((nboundary, 3))

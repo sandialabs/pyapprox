@@ -103,9 +103,7 @@ def expand_scope(
     # Map current variables to target indices
     for i, var_id in enumerate(var_ids):
         if var_id not in target_var_ids:
-            raise ValueError(
-                f"Variable {var_id} not in target scope {target_var_ids}"
-            )
+            raise ValueError(f"Variable {var_id} not in target scope {target_var_ids}")
 
         target_idx = target_var_ids.index(var_id)
         src_start = sum(nvars_per_var[:i])
@@ -131,9 +129,9 @@ def expand_scope(
 
             prec_np = bkd.to_numpy(precision)
             new_prec_np = bkd.to_numpy(new_precision)
-            new_prec_np[tgt_start:tgt_end, tgt_start_j:tgt_end_j] = (
-                prec_np[src_start:src_end, src_start_j:src_end_j]
-            )
+            new_prec_np[tgt_start:tgt_end, tgt_start_j:tgt_end_j] = prec_np[
+                src_start:src_end, src_start_j:src_end_j
+            ]
             new_precision = bkd.asarray(new_prec_np)
 
     return new_precision, new_shift

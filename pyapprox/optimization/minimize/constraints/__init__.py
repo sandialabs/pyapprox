@@ -23,13 +23,13 @@ Examples
 >>> constraint = PyApproxLinearConstraint(A, lb, ub, bkd)
 """
 
+from .linear import PyApproxLinearConstraint
 from .protocols import (
     LinearConstraintProtocol,
     NonlinearConstraintProtocol,
     NonlinearConstraintProtocolWithJacobian,
     NonlinearConstraintProtocolWithJacobianAndWHVP,
 )
-from .linear import PyApproxLinearConstraint
 from .sample_average import SampleAverageConstraint
 from .validation import validate_linear_constraint
 

@@ -5,13 +5,13 @@ The canonical location is now:
 """
 
 from pyapprox.surrogates.affine.univariate.piecewisepoly import (
-    PiecewiseLinear,
-    PiecewiseQuadratic,
-    PiecewiseCubic,
     PiecewiseConstantLeft,
-    PiecewiseConstantRight,
     PiecewiseConstantMidpoint,
+    PiecewiseConstantRight,
+    PiecewiseCubic,
+    PiecewiseLinear,
     PiecewisePolynomialProtocol,
+    PiecewiseQuadratic,
 )
 
 __all__ = [

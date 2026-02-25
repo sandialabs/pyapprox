@@ -7,8 +7,8 @@ with respect to design weights.
 """
 
 from .gaussian import (
-    GaussianOEDOuterLoopLikelihood,
     GaussianOEDInnerLoopLikelihood,
+    GaussianOEDOuterLoopLikelihood,
 )
 from .parallel_gaussian import (
     ParallelGaussianOEDInnerLoopLikelihood,

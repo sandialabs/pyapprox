@@ -49,22 +49,6 @@ Transform to standard normal:
 """
 
 # Protocols
-from .protocols import (
-    DistributionProtocol,
-    MarginalProtocol,
-    MarginalWithJacobianProtocol,
-    JointDistributionProtocol,
-    SqrtCovarianceOperatorProtocol,
-    CovarianceOperatorProtocol,
-    DiagonalCovarianceOperatorProtocol,
-    TransformProtocol,
-    InvertibleTransformProtocol,
-    TransformWithJacobianProtocol,
-    LogLikelihoodProtocol,
-    GaussianLogLikelihoodProtocol,
-    VectorizedLogLikelihoodProtocol,
-)
-
 # Covariance operators
 from .covariance import (
     DenseCholeskyCovarianceOperator,
@@ -72,25 +56,26 @@ from .covariance import (
     OperatorBasedCovarianceOperator,
 )
 
-# Univariate distributions
-from .univariate import (
-    BetaMarginal,
-    CustomDiscreteMarginal,
-    DiscreteChebyshevMarginal,
-    GammaMarginal,
-    GaussianMarginal,
-    UniformMarginal,
-    ScipyContinuousMarginal,
-    ScipyDiscreteMarginal,
+# Density estimation
+from .density import (
+    DensityBasisProtocol,
+    DensityFitterProtocol,
+    ISEOptimizingFitter,
+    KDEFitter,
+    KernelDensityBasis,
+    LinearDensityFitter,
+    PiecewiseDensityBasis,
+    ProjectionDensityFitter,
+    PushforwardDensity,
 )
 
 # Multivariate Gaussian distributions
 from .gaussian import (
-    GaussianLogPDFCore,
     DenseCholeskyMultivariateGaussian,
     DiagonalMultivariateGaussian,
-    OperatorBasedMultivariateGaussian,
     GaussianCanonicalForm,
+    GaussianLogPDFCore,
+    OperatorBasedMultivariateGaussian,
     compute_normalization,
     plot_gaussian_2d_contour,
 )
@@ -98,6 +83,33 @@ from .gaussian import (
 # Joint distributions
 from .joint import (
     IndependentJoint,
+)
+
+# Likelihood functions
+from .likelihood import (
+    DiagonalGaussianLogLikelihood,
+    GaussianLogLikelihood,
+    ModelBasedLogLikelihood,
+)
+from .protocols import (
+    CovarianceOperatorProtocol,
+    DiagonalCovarianceOperatorProtocol,
+    DistributionProtocol,
+    GaussianLogLikelihoodProtocol,
+    InvertibleTransformProtocol,
+    JointDistributionProtocol,
+    LogLikelihoodProtocol,
+    MarginalProtocol,
+    MarginalWithJacobianProtocol,
+    SqrtCovarianceOperatorProtocol,
+    TransformProtocol,
+    TransformWithJacobianProtocol,
+    VectorizedLogLikelihoodProtocol,
+)
+
+# Risk measures
+from .risk import (
+    GaussianAnalyticalRiskMeasures,
 )
 
 # Transforms
@@ -109,29 +121,16 @@ from .transforms import (
     RosenblattTransform,
 )
 
-# Likelihood functions
-from .likelihood import (
-    GaussianLogLikelihood,
-    DiagonalGaussianLogLikelihood,
-    ModelBasedLogLikelihood,
-)
-
-# Risk measures
-from .risk import (
-    GaussianAnalyticalRiskMeasures,
-)
-
-# Density estimation
-from .density import (
-    DensityBasisProtocol,
-    DensityFitterProtocol,
-    PiecewiseDensityBasis,
-    KernelDensityBasis,
-    LinearDensityFitter,
-    KDEFitter,
-    ProjectionDensityFitter,
-    ISEOptimizingFitter,
-    PushforwardDensity,
+# Univariate distributions
+from .univariate import (
+    BetaMarginal,
+    CustomDiscreteMarginal,
+    DiscreteChebyshevMarginal,
+    GammaMarginal,
+    GaussianMarginal,
+    ScipyContinuousMarginal,
+    ScipyDiscreteMarginal,
+    UniformMarginal,
 )
 
 __all__ = [

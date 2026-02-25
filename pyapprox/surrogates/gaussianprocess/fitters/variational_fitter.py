@@ -5,14 +5,6 @@ Uses VariationalGPELBOLoss for hyperparameter optimization.
 
 from typing import Generic, Optional
 
-from pyapprox.util.backends.protocols import Array, Backend
-from pyapprox.surrogates.gaussianprocess.input_transform import (
-    InputAffineTransformProtocol,
-    IdentityInputTransform,
-)
-from pyapprox.surrogates.gaussianprocess.output_transform import (
-    OutputAffineTransformProtocol,
-)
 from pyapprox.optimization.minimize.protocols import (
     BindableOptimizerProtocol,
 )
@@ -20,6 +12,14 @@ from pyapprox.surrogates.gaussianprocess.fitters.results import (
     GPFitResult,
     GPOptimizedFitResult,
 )
+from pyapprox.surrogates.gaussianprocess.input_transform import (
+    IdentityInputTransform,
+    InputAffineTransformProtocol,
+)
+from pyapprox.surrogates.gaussianprocess.output_transform import (
+    OutputAffineTransformProtocol,
+)
+from pyapprox.util.backends.protocols import Array, Backend
 
 
 class VariationalGPFixedHyperparameterFitter(Generic[Array]):
@@ -41,12 +41,8 @@ class VariationalGPFixedHyperparameterFitter(Generic[Array]):
     def __init__(
         self,
         bkd: Backend[Array],
-        output_transform: Optional[
-            OutputAffineTransformProtocol[Array]
-        ] = None,
-        input_transform: Optional[
-            InputAffineTransformProtocol[Array]
-        ] = None,
+        output_transform: Optional[OutputAffineTransformProtocol[Array]] = None,
+        input_transform: Optional[InputAffineTransformProtocol[Array]] = None,
     ):
         self._bkd = bkd
         self._output_transform = output_transform
@@ -84,9 +80,7 @@ class VariationalGPFixedHyperparameterFitter(Generic[Array]):
         if self._input_transform is not None:
             clone._input_transform = self._input_transform
         else:
-            clone._input_transform = IdentityInputTransform(
-                gp.nvars(), self._bkd
-            )
+            clone._input_transform = IdentityInputTransform(gp.nvars(), self._bkd)
 
         X_scaled = clone._input_transform.transform(X_train)
         y_scaled = y_train
@@ -126,12 +120,8 @@ class VariationalGPMaximumLikelihoodFitter(Generic[Array]):
         self,
         bkd: Backend[Array],
         optimizer: Optional[BindableOptimizerProtocol[Array]] = None,
-        output_transform: Optional[
-            OutputAffineTransformProtocol[Array]
-        ] = None,
-        input_transform: Optional[
-            InputAffineTransformProtocol[Array]
-        ] = None,
+        output_transform: Optional[OutputAffineTransformProtocol[Array]] = None,
+        input_transform: Optional[InputAffineTransformProtocol[Array]] = None,
     ):
         self._bkd = bkd
         self._optimizer = optimizer
@@ -170,9 +160,7 @@ class VariationalGPMaximumLikelihoodFitter(Generic[Array]):
         if self._input_transform is not None:
             clone._input_transform = self._input_transform
         else:
-            clone._input_transform = IdentityInputTransform(
-                gp.nvars(), self._bkd
-            )
+            clone._input_transform = IdentityInputTransform(gp.nvars(), self._bkd)
 
         X_scaled = clone._input_transform.transform(X_train)
         y_scaled = y_train
@@ -197,9 +185,8 @@ class VariationalGPMaximumLikelihoodFitter(Generic[Array]):
         from pyapprox.surrogates.gaussianprocess.variational_loss import (
             VariationalGPELBOLoss,
         )
-        loss = VariationalGPELBOLoss(
-            clone, (clone._data.X(), clone._data.y())
-        )
+
+        loss = VariationalGPELBOLoss(clone, (clone._data.X(), clone._data.y()))
         clone._configure_loss(loss)
 
         bounds = clone.hyp_list().get_active_bounds()
@@ -210,15 +197,14 @@ class VariationalGPMaximumLikelihoodFitter(Generic[Array]):
             from pyapprox.optimization.minimize.scipy.trust_constr import (
                 ScipyTrustConstrOptimizer,
             )
+
             optimizer = ScipyTrustConstrOptimizer(verbosity=0, maxiter=1000)
 
         optimizer.bind(loss, bounds)
 
         init_guess = clone.hyp_list().get_active_values()
         if len(init_guess.shape) == 1:
-            init_guess = self._bkd.reshape(
-                init_guess, (len(init_guess), 1)
-            )
+            init_guess = self._bkd.reshape(init_guess, (len(init_guess), 1))
 
         opt_result = optimizer.minimize(init_guess)
 

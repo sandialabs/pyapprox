@@ -5,9 +5,7 @@ This module provides concrete implementations of BaseGroupACVEstimator:
     - GroupACVEstimatorNested: Nested sampling estimator
 """
 
-from typing import List, TYPE_CHECKING
-
-from pyapprox.util.backends.protocols import Array
+from typing import TYPE_CHECKING, List
 
 from pyapprox.statest.groupacv.base import BaseGroupACVEstimator
 from pyapprox.statest.groupacv.utils import (
@@ -15,9 +13,10 @@ from pyapprox.statest.groupacv.utils import (
     _get_allocation_matrix_nested,
     _nest_subsets,
 )
+from pyapprox.util.backends.protocols import Array
 
 if TYPE_CHECKING:
-    from pyapprox.statest.statistics import MultiOutputStatistic
+    pass
 
 
 class GroupACVEstimatorIS(BaseGroupACVEstimator[Array]):
@@ -82,9 +81,7 @@ class GroupACVEstimatorNested(BaseGroupACVEstimator[Array]):
         Whether to use pseudo-inverse. Default is True.
     """
 
-    def _preprocess_model_subsets(
-        self, model_subsets: List[Array]
-    ) -> List[Array]:
+    def _preprocess_model_subsets(self, model_subsets: List[Array]) -> List[Array]:
         """Preprocess model subsets for nested sampling.
 
         Filters out the zero subset (if present) and nests the remaining

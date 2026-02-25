@@ -31,14 +31,14 @@ Sample-based risk measures:
 from .gaussian import GaussianAnalyticalRiskMeasures
 from .lognormal import LogNormalAnalyticalRiskMeasures
 from .measures import (
-    RiskMeasureProtocol,
-    RiskMeasureBase,
-    SafetyMarginRiskMeasure,
-    ValueAtRisk,
     AverageValueAtRisk,
-    EntropicRisk,
-    UtilitySSD,
     DisutilitySSD,
+    EntropicRisk,
+    RiskMeasureBase,
+    RiskMeasureProtocol,
+    SafetyMarginRiskMeasure,
+    UtilitySSD,
+    ValueAtRisk,
 )
 
 __all__ = [

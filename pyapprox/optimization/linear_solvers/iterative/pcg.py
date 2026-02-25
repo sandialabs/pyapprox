@@ -4,12 +4,12 @@ Implements PCG algorithm for symmetric positive definite systems with
 optional preconditioning.
 """
 
-from typing import Generic, Optional, Tuple, Callable
+from typing import Callable, Generic, Optional, Tuple
 
-from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.optimization.linear_solvers.protocols import (
     PreconditionerProtocol,
 )
+from pyapprox.util.backends.protocols import Array, Backend
 
 
 class PreconditionedConjugateGradient(Generic[Array]):

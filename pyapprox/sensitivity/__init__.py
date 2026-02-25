@@ -8,29 +8,29 @@ This module provides variance-based sensitivity analysis methods including:
 - Morris screening
 """
 
+from pyapprox.sensitivity.plots import (
+    plot_interaction_values,
+    plot_main_effects,
+    plot_morris_screening,
+    plot_sensitivity_indices_with_confidence_intervals,
+    plot_sensitivity_summary,
+    plot_total_effects,
+)
 from pyapprox.sensitivity.protocols import (
     SensitivityAnalysisProtocol,
-    SensitivityAnalysisWithSobolIndicesProtocol,
     SensitivityAnalysisWithMomentsProtocol,
-)
-from pyapprox.sensitivity.variance_based import (
-    VarianceBasedSensitivityAnalysis,
-    PolynomialChaosSensitivityAnalysis,
-    SparseGridSensitivityAnalysis,
-    SampleBasedSensitivityAnalysis,
-    MonteCarloSensitivityAnalysis,
-    SobolSequenceSensitivityAnalysis,
-    HaltonSequenceSensitivityAnalysis,
-    BinBasedSensitivityAnalysis,
+    SensitivityAnalysisWithSobolIndicesProtocol,
 )
 from pyapprox.sensitivity.screening import MorrisSensitivityAnalysis
-from pyapprox.sensitivity.plots import (
-    plot_main_effects,
-    plot_total_effects,
-    plot_interaction_values,
-    plot_sensitivity_indices_with_confidence_intervals,
-    plot_morris_screening,
-    plot_sensitivity_summary,
+from pyapprox.sensitivity.variance_based import (
+    BinBasedSensitivityAnalysis,
+    HaltonSequenceSensitivityAnalysis,
+    MonteCarloSensitivityAnalysis,
+    PolynomialChaosSensitivityAnalysis,
+    SampleBasedSensitivityAnalysis,
+    SobolSequenceSensitivityAnalysis,
+    SparseGridSensitivityAnalysis,
+    VarianceBasedSensitivityAnalysis,
 )
 
 __all__ = [

@@ -1,22 +1,22 @@
 import unittest
-from typing import Generic, Any
+from typing import Any, Generic
 
-from numpy.typing import NDArray
 import torch
+from numpy.typing import NDArray
 
-from pyapprox.util.backends.protocols import Array, Backend
-from pyapprox.util.backends.numpy import NumpyBkd
-from pyapprox.util.backends.torch import TorchBkd
 from pyapprox.optimization.rootfinding.newton import NewtonSolver
-from pyapprox.pde.time.implicit_steppers.backward_euler import (
-    BackwardEulerResidual,
-)
 from pyapprox.pde.time.benchmarks.nonlinear_decoupled import (
     NonLinearDecoupledODE,
+)
+from pyapprox.pde.time.implicit_steppers.backward_euler import (
+    BackwardEulerResidual,
 )
 from pyapprox.pde.time.implicit_steppers.integrator import (
     ImplicitTimeIntegrator,
 )
+from pyapprox.util.backends.numpy import NumpyBkd
+from pyapprox.util.backends.protocols import Array, Backend
+from pyapprox.util.backends.torch import TorchBkd
 
 
 class TestImplicitTimeIntegration(Generic[Array], unittest.TestCase):
@@ -27,9 +27,7 @@ class TestImplicitTimeIntegration(Generic[Array], unittest.TestCase):
         Override this method in derived classes to provide the specific
         backend.
         """
-        raise NotImplementedError(
-            "Derived classes must implement this method."
-        )
+        raise NotImplementedError("Derived classes must implement this method.")
 
     def test_decoupled_nonlinear_ode_backward_euler(self) -> None:
         """
@@ -55,14 +53,12 @@ class TestImplicitTimeIntegration(Generic[Array], unittest.TestCase):
         newton_solver = NewtonSolver(backward_euler_residual)
 
         # Create the implicit time integrator
-        time_integrator: ImplicitTimeIntegrator[Array] = (
-            ImplicitTimeIntegrator(
-                init_time=init_time,
-                final_time=final_time,
-                deltat=deltat,
-                newton_solver=newton_solver,
-                verbosity=0,
-            )
+        time_integrator: ImplicitTimeIntegrator[Array] = ImplicitTimeIntegrator(
+            init_time=init_time,
+            final_time=final_time,
+            deltat=deltat,
+            newton_solver=newton_solver,
+            verbosity=0,
         )
 
         # Initial state
@@ -113,9 +109,7 @@ class TestImplicitTimeIntegration(Generic[Array], unittest.TestCase):
 
 
 # Derived test class for NumPy backend
-class TestImplicitTimeIntegrationNumpy(
-    TestImplicitTimeIntegration[NDArray[Any]]
-):
+class TestImplicitTimeIntegrationNumpy(TestImplicitTimeIntegration[NDArray[Any]]):
     def setUp(self) -> None:
         self._bkd = NumpyBkd()
         super().setUp()
@@ -125,9 +119,7 @@ class TestImplicitTimeIntegrationNumpy(
 
 
 # Derived test class for PyTorch backend
-class TestImplicitTimeIntegrationTorch(
-    TestImplicitTimeIntegration[torch.Tensor]
-):
+class TestImplicitTimeIntegrationTorch(TestImplicitTimeIntegration[torch.Tensor]):
     def setUp(self) -> None:
         torch.set_default_dtype(torch.float64)
         self._bkd = TorchBkd()
@@ -135,9 +127,6 @@ class TestImplicitTimeIntegrationTorch(
 
     def bkd(self) -> Backend[torch.Tensor]:
         return self._bkd
-
-
-from pyapprox.util.test_utils import load_tests
 
 
 if __name__ == "__main__":

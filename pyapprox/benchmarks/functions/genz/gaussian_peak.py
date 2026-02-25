@@ -134,9 +134,7 @@ class GaussianPeakFunction(Generic[Array]):
                 f"sample must have shape ({self._nvars}, 1), got {sample.shape}"
             )
         if vec.ndim != 2 or vec.shape != (self._nvars, 1):
-            raise ValueError(
-                f"vec must have shape ({self._nvars}, 1), got {vec.shape}"
-            )
+            raise ValueError(f"vec must have shape ({self._nvars}, 1), got {vec.shape}")
         bkd = self._bkd
         t = sample - self._w  # (nvars, 1)
         c2 = self._c**2  # (nvars, 1)
@@ -193,13 +191,12 @@ class GaussianPeakFunction(Generic[Array]):
         # Effective c for f^scale is sqrt(scale) * c
         c_eff = math.sqrt(scale) * c_np
 
-        # Integral = prod_i sqrt(pi)/(2*c_eff_i) * (erf(c_eff_i*w_i) + erf(c_eff_i*(1-w_i)))
+        # Integral = prod_i sqrt(pi)/(2*c_eff_i) * (erf(c_eff_i*w_i) +
+        # erf(c_eff_i*(1-w_i)))
         erf_terms = scipy.special.erf(c_eff * w_np) + scipy.special.erf(
             c_eff * (1.0 - w_np)
         )
-        integral = float(
-            (math.sqrt(math.pi) / (2.0 * c_eff) * erf_terms).prod()
-        )
+        integral = float((math.sqrt(math.pi) / (2.0 * c_eff) * erf_terms).prod())
         return integral
 
     def mean(self) -> float:

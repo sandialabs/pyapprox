@@ -1,23 +1,10 @@
 import unittest
-from typing import Generic, Any
+from typing import Any, Generic
 
 import numpy as np
 import torch
 from numpy.typing import NDArray
 
-from pyapprox.util.backends.protocols import Backend, Array
-from pyapprox.util.backends.numpy import NumpyBkd
-from pyapprox.util.backends.torch import TorchBkd
-from pyapprox.surrogates.kernels.composition import (
-    ProductKernel,
-    SumKernel,
-    SeparableProductKernel,
-)
-from pyapprox.surrogates.kernels.matern import (
-    Matern52Kernel,
-    Matern32Kernel,
-    SquaredExponentialKernel,
-)
 from pyapprox.interface.functions.derivative_checks.derivative_checker import (
     DerivativeChecker,
 )
@@ -27,6 +14,19 @@ from pyapprox.interface.functions.fromcallable.hessian import (
 from pyapprox.surrogates.gaussianprocess.exact import (
     ExactGaussianProcess,
 )
+from pyapprox.surrogates.kernels.composition import (
+    ProductKernel,
+    SeparableProductKernel,
+    SumKernel,
+)
+from pyapprox.surrogates.kernels.matern import (
+    Matern32Kernel,
+    Matern52Kernel,
+    SquaredExponentialKernel,
+)
+from pyapprox.util.backends.numpy import NumpyBkd
+from pyapprox.util.backends.protocols import Array, Backend
+from pyapprox.util.backends.torch import TorchBkd
 from pyapprox.util.test_utils import slow_test
 
 
@@ -49,18 +49,8 @@ class TestProductKernel(Generic[Array], unittest.TestCase):
         self.nsamples2 = 4
 
         # Create two Matern kernels for composition
-        self.kernel1 = Matern52Kernel(
-            [1.0, 1.0],
-            (0.1, 10.0),
-            self.nvars,
-            self.bkd()
-        )
-        self.kernel2 = Matern32Kernel(
-            [0.5, 0.5],
-            (0.1, 10.0),
-            self.nvars,
-            self.bkd()
-        )
+        self.kernel1 = Matern52Kernel([1.0, 1.0], (0.1, 10.0), self.nvars, self.bkd())
+        self.kernel2 = Matern32Kernel([0.5, 0.5], (0.1, 10.0), self.nvars, self.bkd())
 
         # Create sample data
         self.X1 = self.bkd().array(np.random.randn(self.nvars, self.nsamples1))
@@ -70,9 +60,7 @@ class TestProductKernel(Generic[Array], unittest.TestCase):
         """
         Override this method in derived classes to provide the backend.
         """
-        raise NotImplementedError(
-            "Derived classes must implement this method."
-        )
+        raise NotImplementedError("Derived classes must implement this method.")
 
     def test_initialization(self) -> None:
         """
@@ -92,12 +80,7 @@ class TestProductKernel(Generic[Array], unittest.TestCase):
         else:
             other_bkd = NumpyBkd()
 
-        kernel_other = Matern52Kernel(
-            [1.0, 1.0],
-            (0.1, 10.0),
-            self.nvars,
-            other_bkd
-        )
+        kernel_other = Matern52Kernel([1.0, 1.0], (0.1, 10.0), self.nvars, other_bkd)
 
         with self.assertRaises(ValueError) as context:
             ProductKernel(self.kernel1, kernel_other)
@@ -192,7 +175,9 @@ class TestProductKernel(Generic[Array], unittest.TestCase):
         jac = product.jacobian_wrt_params(self.X1)
 
         # Check shape
-        nparams_total = self.kernel1.hyp_list().nparams() + self.kernel2.hyp_list().nparams()
+        nparams_total = (
+            self.kernel1.hyp_list().nparams() + self.kernel2.hyp_list().nparams()
+        )
         self.assertEqual(jac.shape, (self.nsamples1, self.nsamples1, nparams_total))
 
         # Check finiteness
@@ -251,18 +236,8 @@ class TestSumKernel(Generic[Array], unittest.TestCase):
         self.nsamples2 = 4
 
         # Create two Matern kernels for composition
-        self.kernel1 = Matern52Kernel(
-            [1.0, 1.0],
-            (0.1, 10.0),
-            self.nvars,
-            self.bkd()
-        )
-        self.kernel2 = Matern32Kernel(
-            [0.5, 0.5],
-            (0.1, 10.0),
-            self.nvars,
-            self.bkd()
-        )
+        self.kernel1 = Matern52Kernel([1.0, 1.0], (0.1, 10.0), self.nvars, self.bkd())
+        self.kernel2 = Matern32Kernel([0.5, 0.5], (0.1, 10.0), self.nvars, self.bkd())
 
         # Create sample data
         self.X1 = self.bkd().array(np.random.randn(self.nvars, self.nsamples1))
@@ -272,9 +247,7 @@ class TestSumKernel(Generic[Array], unittest.TestCase):
         """
         Override this method in derived classes to provide the backend.
         """
-        raise NotImplementedError(
-            "Derived classes must implement this method."
-        )
+        raise NotImplementedError("Derived classes must implement this method.")
 
     def test_initialization(self) -> None:
         """
@@ -294,12 +267,7 @@ class TestSumKernel(Generic[Array], unittest.TestCase):
         else:
             other_bkd = NumpyBkd()
 
-        kernel_other = Matern52Kernel(
-            [1.0, 1.0],
-            (0.1, 10.0),
-            self.nvars,
-            other_bkd
-        )
+        kernel_other = Matern52Kernel([1.0, 1.0], (0.1, 10.0), self.nvars, other_bkd)
 
         with self.assertRaises(ValueError) as context:
             SumKernel(self.kernel1, kernel_other)
@@ -392,7 +360,9 @@ class TestSumKernel(Generic[Array], unittest.TestCase):
         jac = sum_kernel.jacobian_wrt_params(self.X1)
 
         # Check shape
-        nparams_total = self.kernel1.hyp_list().nparams() + self.kernel2.hyp_list().nparams()
+        nparams_total = (
+            self.kernel1.hyp_list().nparams() + self.kernel2.hyp_list().nparams()
+        )
         self.assertEqual(jac.shape, (self.nsamples1, self.nsamples1, nparams_total))
 
         # Check finiteness
@@ -448,15 +418,9 @@ class TestNestedComposition(Generic[Array], unittest.TestCase):
         self.nsamples = 5
 
         # Create three kernels
-        self.k1 = Matern52Kernel(
-            [1.0, 1.0], (0.1, 10.0), self.nvars, self.bkd()
-        )
-        self.k2 = Matern32Kernel(
-            [0.5, 0.5], (0.1, 10.0), self.nvars, self.bkd()
-        )
-        self.k3 = Matern32Kernel(
-            [2.0, 2.0], (0.1, 10.0), self.nvars, self.bkd()
-        )
+        self.k1 = Matern52Kernel([1.0, 1.0], (0.1, 10.0), self.nvars, self.bkd())
+        self.k2 = Matern32Kernel([0.5, 0.5], (0.1, 10.0), self.nvars, self.bkd())
+        self.k3 = Matern32Kernel([2.0, 2.0], (0.1, 10.0), self.nvars, self.bkd())
 
         self.X = self.bkd().array(np.random.randn(self.nvars, self.nsamples))
 
@@ -464,9 +428,7 @@ class TestNestedComposition(Generic[Array], unittest.TestCase):
         """
         Override this method in derived classes to provide the backend.
         """
-        raise NotImplementedError(
-            "Derived classes must implement this method."
-        )
+        raise NotImplementedError("Derived classes must implement this method.")
 
     def test_nested_sum_product(self) -> None:
         """
@@ -576,19 +538,11 @@ class TestSeparableProductKernel(Generic[Array], unittest.TestCase):
         # Verify each element manually
         for i in range(3):
             for j in range(2):
-                k1_val = k1(
-                    bkd.array([[X1[0, i]]]),
-                    bkd.array([[X2[0, j]]])
-                )
-                k2_val = k2(
-                    bkd.array([[X1[1, i]]]),
-                    bkd.array([[X2[1, j]]])
-                )
+                k1_val = k1(bkd.array([[X1[0, i]]]), bkd.array([[X2[0, j]]]))
+                k2_val = k2(bkd.array([[X1[1, i]]]), bkd.array([[X2[1, j]]]))
                 expected = k1_val[0, 0] * k2_val[0, 0]
                 bkd.assert_allclose(
-                    bkd.asarray([K[i, j]]),
-                    bkd.asarray([expected]),
-                    rtol=1e-12
+                    bkd.asarray([K[i, j]]), bkd.asarray([expected]), rtol=1e-12
                 )
 
     def test_nvars(self) -> None:
@@ -633,7 +587,8 @@ class TestSeparableProductKernel(Generic[Array], unittest.TestCase):
         bkd.assert_allclose(diag, expected, rtol=1e-12)
 
     def test_jacobian_wrt_params(self) -> None:
-        """Test jacobian_wrt_params for SeparableProductKernel using DerivativeChecker."""
+        """Test jacobian_wrt_params for SeparableProductKernel using
+        DerivativeChecker."""
         bkd = self._bkd
 
         k1 = SquaredExponentialKernel([1.0], (0.01, 100.0), 1, bkd)
@@ -713,7 +668,7 @@ class TestSeparableProductKernel(Generic[Array], unittest.TestCase):
 
         # Training data
         X_train = bkd.array(np.random.uniform(-2, 2, (nvars, ntrain)))
-        y_train_np = (
+        (
             np.sin(2 * np.random.RandomState(42).uniform(-2, 2, ntrain))
             * np.cos(np.random.RandomState(43).uniform(-2, 2, ntrain))
         )
@@ -1009,7 +964,6 @@ class TestSeparableKernelProtocolTorch(TestSeparableKernelProtocol[torch.Tensor]
 
 
 from pyapprox.util.test_utils import load_tests  # noqa: F401, E402
-
 
 if __name__ == "__main__":
     loader = unittest.TestLoader()

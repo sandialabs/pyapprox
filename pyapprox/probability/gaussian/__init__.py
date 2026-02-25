@@ -16,11 +16,11 @@ OperatorBasedMultivariateGaussian
     Multivariate Gaussian with operator-based covariance.
 """
 
+from .canonical import GaussianCanonicalForm, compute_normalization
 from .core import GaussianLogPDFCore
 from .dense import DenseCholeskyMultivariateGaussian
 from .diagonal import DiagonalMultivariateGaussian
 from .operator import OperatorBasedMultivariateGaussian
-from .canonical import GaussianCanonicalForm, compute_normalization
 from .plot import plot_gaussian_2d_contour
 
 __all__ = [

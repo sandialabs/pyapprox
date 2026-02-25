@@ -113,9 +113,7 @@ class TestLejaSequence1D(Generic[Array], unittest.TestCase):
     def _create_leja(self) -> LejaSequence1D[Array]:
         poly = LegendrePolynomial1D(self._bkd)
         weighting = ChristoffelWeighting(self._bkd)
-        return LejaSequence1D(
-            self._bkd, poly, weighting, bounds=(-1.0, 1.0)
-        )
+        return LejaSequence1D(self._bkd, poly, weighting, bounds=(-1.0, 1.0))
 
     def test_quadrature_rule_shape(self) -> None:
         """Test that quadrature_rule returns correct shapes."""
@@ -194,9 +192,7 @@ class TestLejaObjective(Generic[Array], unittest.TestCase):
             marginal = UniformMarginal(-1.0, 1.0, self._bkd)
             pdf_1d, pdf_jac_1d = _make_pdf_wrappers(marginal, self._bkd)
             weighting = PDFWeighting(self._bkd, pdf_1d, pdf_jac_1d)
-        objective = LejaObjective(
-            self._bkd, poly, weighting, bounds=(-1.0, 1.0)
-        )
+        objective = LejaObjective(self._bkd, poly, weighting, bounds=(-1.0, 1.0))
         initial = self._bkd.asarray([[0.1, 0.9]])
         objective.set_sequence(initial)
         return objective
@@ -350,7 +346,10 @@ class TestTwoPointLejaSequence1D(Generic[Array], unittest.TestCase):
         poly = LegendrePolynomial1D(self._bkd)
         weighting = ChristoffelWeighting(self._bkd)
         return LejaSequence1D(
-            self._bkd, poly, weighting, bounds=(-1.0, 1.0),
+            self._bkd,
+            poly,
+            weighting,
+            bounds=(-1.0, 1.0),
             objective_class=TwoPointLejaObjective,
         )
 
@@ -463,11 +462,12 @@ class TestOnePointLejaIntegration(
         exact: float,
     ) -> None:
         """Test that 5-point one-point Leja sequence exactly integrates x^4."""
-        poly, weighting = self._create_poly_and_weighting(
-            poly_type, weighting_type
-        )
+        poly, weighting = self._create_poly_and_weighting(poly_type, weighting_type)
         leja = LejaSequence1D(
-            self._bkd, poly, weighting, bounds=bounds,
+            self._bkd,
+            poly,
+            weighting,
+            bounds=bounds,
             objective_class=LejaObjective,
         )
         samples, weights = leja.quadrature_rule(5)
@@ -552,11 +552,12 @@ class TestTwoPointLejaIntegration(
         exact: float,
     ) -> None:
         """Test that 5-point two-point Leja sequence exactly integrates x^4."""
-        poly, weighting = self._create_poly_and_weighting(
-            poly_type, weighting_type
-        )
+        poly, weighting = self._create_poly_and_weighting(poly_type, weighting_type)
         leja = LejaSequence1D(
-            self._bkd, poly, weighting, bounds=bounds,
+            self._bkd,
+            poly,
+            weighting,
+            bounds=bounds,
             objective_class=TwoPointLejaObjective,
         )
         samples, weights = leja.quadrature_rule(5)
@@ -583,30 +584,22 @@ class TestLejaObjectiveNumpy(TestLejaObjective[NDArray[Any]]):
         return NumpyBkd()
 
 
-class TestTwoPointLejaObjectiveNumpy(
-    TestTwoPointLejaObjective[NDArray[Any]]
-):
+class TestTwoPointLejaObjectiveNumpy(TestTwoPointLejaObjective[NDArray[Any]]):
     def bkd(self) -> NumpyBkd:
         return NumpyBkd()
 
 
-class TestTwoPointLejaSequence1DNumpy(
-    TestTwoPointLejaSequence1D[NDArray[Any]]
-):
+class TestTwoPointLejaSequence1DNumpy(TestTwoPointLejaSequence1D[NDArray[Any]]):
     def bkd(self) -> NumpyBkd:
         return NumpyBkd()
 
 
-class TestOnePointLejaIntegrationNumpy(
-    TestOnePointLejaIntegration[NDArray[Any]]
-):
+class TestOnePointLejaIntegrationNumpy(TestOnePointLejaIntegration[NDArray[Any]]):
     def bkd(self) -> NumpyBkd:
         return NumpyBkd()
 
 
-class TestTwoPointLejaIntegrationNumpy(
-    TestTwoPointLejaIntegration[NDArray[Any]]
-):
+class TestTwoPointLejaIntegrationNumpy(TestTwoPointLejaIntegration[NDArray[Any]]):
     def bkd(self) -> NumpyBkd:
         return NumpyBkd()
 
@@ -632,9 +625,7 @@ class TestLejaObjectiveTorch(TestLejaObjective[torch.Tensor]):
         super().setUp()
 
 
-class TestTwoPointLejaObjectiveTorch(
-    TestTwoPointLejaObjective[torch.Tensor]
-):
+class TestTwoPointLejaObjectiveTorch(TestTwoPointLejaObjective[torch.Tensor]):
     def bkd(self) -> TorchBkd:
         return TorchBkd()
 
@@ -643,9 +634,7 @@ class TestTwoPointLejaObjectiveTorch(
         super().setUp()
 
 
-class TestTwoPointLejaSequence1DTorch(
-    TestTwoPointLejaSequence1D[torch.Tensor]
-):
+class TestTwoPointLejaSequence1DTorch(TestTwoPointLejaSequence1D[torch.Tensor]):
     def bkd(self) -> TorchBkd:
         return TorchBkd()
 
@@ -654,9 +643,7 @@ class TestTwoPointLejaSequence1DTorch(
         super().setUp()
 
 
-class TestOnePointLejaIntegrationTorch(
-    TestOnePointLejaIntegration[torch.Tensor]
-):
+class TestOnePointLejaIntegrationTorch(TestOnePointLejaIntegration[torch.Tensor]):
     def bkd(self) -> TorchBkd:
         return TorchBkd()
 
@@ -665,9 +652,7 @@ class TestOnePointLejaIntegrationTorch(
         super().setUp()
 
 
-class TestTwoPointLejaIntegrationTorch(
-    TestTwoPointLejaIntegration[torch.Tensor]
-):
+class TestTwoPointLejaIntegrationTorch(TestTwoPointLejaIntegration[torch.Tensor]):
     def bkd(self) -> TorchBkd:
         return TorchBkd()
 

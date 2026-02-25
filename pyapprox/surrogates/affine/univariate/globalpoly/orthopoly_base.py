@@ -6,7 +6,7 @@ OrthonormalPolynomial1D and implement _get_recursion_coefficients.
 """
 
 from abc import abstractmethod
-from typing import Generic, Tuple, Optional
+from typing import Generic, Optional, Tuple
 
 from pyapprox.util.backends.protocols import Array, Backend
 
@@ -225,9 +225,7 @@ class OrthonormalPolynomial1D(Generic[Array]):
             Number of polynomial terms.
         """
         if self._rcoefs is None or self._ncoefs() < nterms:
-            self._rcoefs = self._bkd.array(
-                self._get_recursion_coefficients(nterms)
-            )
+            self._rcoefs = self._bkd.array(self._get_recursion_coefficients(nterms))
         elif self._ncoefs() >= nterms:
             self._rcoefs = self._rcoefs[:nterms, :]
 
@@ -264,9 +262,7 @@ class OrthonormalPolynomial1D(Generic[Array]):
         """
         if self._rcoefs is None:
             raise ValueError("Must set nterms before evaluation")
-        return evaluate_orthonormal_polynomial_1d(
-            self._rcoefs, self._bkd, samples
-        )
+        return evaluate_orthonormal_polynomial_1d(self._rcoefs, self._bkd, samples)
 
     def jacobian_batch(self, samples: Array) -> Array:
         """Evaluate first derivatives of basis functions.

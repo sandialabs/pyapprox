@@ -38,8 +38,11 @@ class ParallelConfig:
     """
 
     backend: Literal[
-        "joblib_processes", "joblib_threads", "futures",
-        "mpire", "sequential",
+        "joblib_processes",
+        "joblib_threads",
+        "futures",
+        "mpire",
+        "sequential",
     ] = "joblib_processes"
     n_jobs: int = -1
     chunk_size: Optional[int] = None
@@ -64,11 +67,7 @@ class ParallelConfig:
                 JoblibBackend,
             )
 
-            prefer = (
-                "threads"
-                if self.backend == "joblib_threads"
-                else "processes"
-            )
+            prefer = "threads" if self.backend == "joblib_threads" else "processes"
             return JoblibBackend(
                 n_jobs=self.n_jobs,
                 prefer=prefer,

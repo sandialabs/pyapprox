@@ -3,7 +3,7 @@
 Enforces u = g(x, t) on the boundary.
 """
 
-from typing import Generic, Callable, Union, Optional
+from typing import Callable, Generic, Union
 
 from pyapprox.util.backends.protocols import Array, Backend
 
@@ -84,9 +84,7 @@ class DirichletBC(Generic[Array]):
             return self._values_func(time)
         return self._constant_values
 
-    def apply_to_residual(
-        self, residual: Array, state: Array, time: float
-    ) -> Array:
+    def apply_to_residual(self, residual: Array, state: Array, time: float) -> Array:
         """Apply Dirichlet BC to residual.
 
         Sets residual at boundary points to: u - g
@@ -112,9 +110,7 @@ class DirichletBC(Generic[Array]):
             residual[idx[i]] = state[idx[i]] - g[i]
         return residual
 
-    def apply_to_jacobian(
-        self, jacobian: Array, state: Array, time: float
-    ) -> Array:
+    def apply_to_jacobian(self, jacobian: Array, state: Array, time: float) -> Array:
         """Apply Dirichlet BC to Jacobian.
 
         Sets Jacobian rows at boundary points to identity rows.
@@ -145,7 +141,10 @@ class DirichletBC(Generic[Array]):
         return jacobian
 
     def apply_to_param_jacobian(
-        self, param_jacobian: Array, state: Array, time: float,
+        self,
+        param_jacobian: Array,
+        state: Array,
+        time: float,
         physical_sensitivities=None,
     ) -> Array:
         """Apply Dirichlet BC to parameter Jacobian.

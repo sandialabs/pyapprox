@@ -6,7 +6,7 @@ for use in local OED criteria.
 """
 
 from abc import ABC, abstractmethod
-from typing import Generic, Optional, Dict, Tuple
+from typing import Dict, Generic, Optional, Tuple
 
 from pyapprox.util.backends.protocols import Array, Backend
 
@@ -145,9 +145,7 @@ class DesignMatricesBase(ABC, Generic[Array]):
             M0 matrix. Shape: (ndesign_vars, ndesign_vars)
         """
         if not self._cache_valid("M0", design_weights):
-            M0 = self._bkd.einsum(
-                "i,ijk->jk", design_weights[:, 0], self._M0k
-            )
+            M0 = self._bkd.einsum("i,ijk->jk", design_weights[:, 0], self._M0k)
             self._cache["M0"] = (self._bkd.copy(design_weights), M0)
         return self._cache["M0"][1]
 
@@ -168,9 +166,7 @@ class DesignMatricesBase(ABC, Generic[Array]):
             M1 matrix. Shape: (ndesign_vars, ndesign_vars)
         """
         if not self._cache_valid("M1", design_weights):
-            M1 = self._bkd.einsum(
-                "i,ijk->jk", design_weights[:, 0], self._M1k
-            )
+            M1 = self._bkd.einsum("i,ijk->jk", design_weights[:, 0], self._M1k)
             self._cache["M1"] = (self._bkd.copy(design_weights), M1)
         return self._cache["M1"][1]
 

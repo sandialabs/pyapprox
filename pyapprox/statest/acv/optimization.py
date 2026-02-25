@@ -6,8 +6,8 @@ This module provides:
 - ACVObjective and ACVPartitionConstraint for sample allocation optimization
 """
 
-from abc import abstractmethod, ABC
-from typing import Generic, List, TYPE_CHECKING
+from abc import ABC, abstractmethod
+from typing import TYPE_CHECKING, Generic, List
 
 import numpy as np
 
@@ -88,9 +88,7 @@ def _combine_acv_samples(
     return samples_per_model
 
 
-def _get_allocation_matrix_gmf(
-    recursion_index: Array, bkd: Backend[Array]
-) -> Array:
+def _get_allocation_matrix_gmf(recursion_index: Array, bkd: Backend[Array]) -> Array:
     nmodels = len(recursion_index) + 1
     mat = bkd.zeros((nmodels, 2 * nmodels))
     for ii in range(nmodels):
@@ -103,9 +101,7 @@ def _get_allocation_matrix_gmf(
     return mat
 
 
-def _get_allocation_matrix_acvis(
-    recursion_index: Array, bkd: Backend[Array]
-) -> Array:
+def _get_allocation_matrix_acvis(recursion_index: Array, bkd: Backend[Array]) -> Array:
     nmodels = len(recursion_index) + 1
     mat = bkd.zeros((nmodels, 2 * nmodels))
     for ii in range(nmodels):
@@ -117,17 +113,13 @@ def _get_allocation_matrix_acvis(
     return mat
 
 
-def _get_allocation_matrix_acvrd(
-    recursion_index: Array, bkd: Backend[Array]
-) -> Array:
+def _get_allocation_matrix_acvrd(recursion_index: Array, bkd: Backend[Array]) -> Array:
     nmodels = len(recursion_index) + 1
     allocation_mat = bkd.zeros((nmodels, 2 * nmodels))
     for ii in range(nmodels):
         allocation_mat[ii, 2 * ii + 1] = 1
     for ii in range(1, nmodels):
-        allocation_mat[:, 2 * ii] = allocation_mat[
-            :, recursion_index[ii - 1] * 2 + 1
-        ]
+        allocation_mat[:, 2 * ii] = allocation_mat[:, recursion_index[ii - 1] * 2 + 1]
     return allocation_mat
 
 
@@ -161,6 +153,7 @@ class ACVObjective(ABC, Generic[Array]):
 
     def set_estimator(self, est: "ACVEstimator"):
         from pyapprox.statest.acv.base import ACVEstimator
+
         if not isinstance(est, ACVEstimator):
             raise ValueError("est must be an instance of ACVEstimator")
         self._est = est
@@ -172,9 +165,7 @@ class ACVObjective(ABC, Generic[Array]):
 
     def _objective_value(self, partition_ratios: Array) -> Array:
         if partition_ratios.shape[1] != 1:
-            raise ValueError(
-                "partition_ratios must be a 2D array with one column"
-            )
+            raise ValueError("partition_ratios must be a 2D array with one column")
         est_covariance = self._est._covariance_from_partition_ratios(
             self._target_cost, partition_ratios[:, 0]
         )
@@ -212,6 +203,7 @@ class ACVPartitionConstraint(Generic[Array]):
         target_cost: float,
     ):
         from pyapprox.statest.acv.base import ACVEstimator
+
         if not isinstance(est, ACVEstimator):
             raise ValueError("est must be an instance of ACVEstimator")
         self._est = est
@@ -248,9 +240,8 @@ class ACVPartitionConstraint(Generic[Array]):
         return self._eval_constraint(partition_ratios[:, 0])[:, None]
 
     def jacobian(self, partition_ratios: Array) -> Array:
-        return self._bkd.jacobian(
-            self._eval_constraint, partition_ratios[:, 0]
-        )
+        return self._bkd.jacobian(self._eval_constraint, partition_ratios[:, 0])
+
     # Note: whvp is intentionally not implemented.
     # Legacy code sets apply_hessian_implemented() -> False
     # to let scipy use finite difference for constraint hessians.

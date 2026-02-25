@@ -13,29 +13,28 @@ from typing import List, Tuple
 import numpy as np
 from unittest_parametrize import ParametrizedTestCase, parametrize
 
-from pyapprox.util.backends.numpy import NumpyBkd
-from pyapprox.util.test_utils import load_tests, slow_test  # noqa: F401
-from pyapprox.pde.galerkin.mesh import StructuredMesh1D, StructuredMesh2D
+from pyapprox.optimization.rootfinding.newton import NewtonSolver
+from pyapprox.pde.collocation.physics.stress_models.neo_hookean import (
+    NeoHookeanStress,
+)
 from pyapprox.pde.galerkin.basis import VectorLagrangeBasis
-from pyapprox.pde.galerkin.physics import HyperelasticityPhysics
 from pyapprox.pde.galerkin.boundary.implementations import DirichletBC
 from pyapprox.pde.galerkin.manufactured.adapter import (
-    create_hyperelasticity_manufactured_test,
     GalerkinHyperelasticityAdapter,
+    create_hyperelasticity_manufactured_test,
 )
+from pyapprox.pde.galerkin.mesh import StructuredMesh1D, StructuredMesh2D
+from pyapprox.pde.galerkin.physics import HyperelasticityPhysics
 from pyapprox.pde.galerkin.time_integration import (
-    GalerkinPhysicsODEAdapter,
     ConstrainedTimeStepResidual,
+    GalerkinPhysicsODEAdapter,
 )
 from pyapprox.pde.time.implicit_steppers import (
     BackwardEulerResidual,
     CrankNicolsonResidual,
 )
-from pyapprox.optimization.rootfinding.newton import NewtonSolver
-from pyapprox.pde.collocation.physics.stress_models.neo_hookean import (
-    NeoHookeanStress,
-)
-
+from pyapprox.util.backends.numpy import NumpyBkd
+from pyapprox.util.test_utils import load_tests, slow_test  # noqa: F401
 
 # =========================================================================
 # Helpers
@@ -48,6 +47,7 @@ def _make_vector_dirichlet_value_func(sol_func, ndim):
     The manufactured solution returns (npts, ncomponents).
     For vector DOFs (interleaved), DOF j corresponds to component j % ndim.
     """
+
     def value_func(coords, time):
         nbndry_dofs = coords.shape[1]
         vals = sol_func(coords, time)  # (nbndry_dofs, ncomponents)
@@ -99,28 +99,35 @@ class TestTransientHyperelasticity1D(ParametrizedTestCase):
         sol_strs = ["0.1*x**2*(1-x)**2*(1+T)"]
 
         functions, nvars = create_hyperelasticity_manufactured_test(
-            bounds=[0.0, 1.0], sol_strs=sol_strs,
-            stress_model=stress, bkd=bkd,
+            bounds=[0.0, 1.0],
+            sol_strs=sol_strs,
+            stress_model=stress,
+            bkd=bkd,
         )
 
         mesh = StructuredMesh1D(nx=30, bounds=(0.0, 1.0), bkd=bkd)
         basis = VectorLagrangeBasis(mesh, degree=2)
 
         adapter = GalerkinHyperelasticityAdapter(
-            basis, functions, bkd, time_dependent=True,
+            basis,
+            functions,
+            bkd,
+            time_dependent=True,
         )
         body_force = adapter.forcing_for_galerkin()
 
         sol_func = functions["solution"]
         value_func = _make_vector_dirichlet_value_func(sol_func, nvars)
         bc_list = [
-            DirichletBC(basis, bname, value_func, bkd)
-            for bname in ["left", "right"]
+            DirichletBC(basis, bname, value_func, bkd) for bname in ["left", "right"]
         ]
 
         physics = HyperelasticityPhysics(
-            basis=basis, stress_model=stress, bkd=bkd,
-            body_force=body_force, boundary_conditions=bc_list,
+            basis=basis,
+            stress_model=stress,
+            bkd=bkd,
+            body_force=body_force,
+            boundary_conditions=bc_list,
         )
 
         # Time stepping
@@ -134,9 +141,7 @@ class TestTransientHyperelasticity1D(ParametrizedTestCase):
         newton = NewtonSolver(constrained)
         newton.set_options(maxiters=20, atol=1e-10, rtol=0.0)
 
-        y = bkd.asarray(
-            _get_exact_displacement(functions, basis, bkd, time=0.0)
-        )
+        y = bkd.asarray(_get_exact_displacement(functions, basis, bkd, time=0.0))
 
         dt = 0.1
         nsteps = 5
@@ -161,7 +166,10 @@ class TestTransientHyperelasticity1D(ParametrizedTestCase):
 
         # Compare to exact at final time
         u_exact_final = _get_exact_displacement(
-            functions, basis, bkd, time=t,
+            functions,
+            basis,
+            bkd,
+            time=t,
         )
         u_num = bkd.to_numpy(y)
 
@@ -172,9 +180,9 @@ class TestTransientHyperelasticity1D(ParametrizedTestCase):
             rel_error = np.linalg.norm(u_num - u_exact_final)
 
         self.assertLess(
-            rel_error, 1e-5,
-            f"Test {name}: rel_error={rel_error:.2e} at t={t} "
-            f"should be < 1e-5",
+            rel_error,
+            1e-5,
+            f"Test {name}: rel_error={rel_error:.2e} at t={t} should be < 1e-5",
         )
 
 
@@ -207,19 +215,25 @@ class TestTransientHyperelasticity2D(ParametrizedTestCase):
         ]
 
         functions, nvars = create_hyperelasticity_manufactured_test(
-            bounds=[0.0, 1.0, 0.0, 1.0], sol_strs=sol_strs,
-            stress_model=stress, bkd=bkd,
+            bounds=[0.0, 1.0, 0.0, 1.0],
+            sol_strs=sol_strs,
+            stress_model=stress,
+            bkd=bkd,
         )
 
         mesh = StructuredMesh2D(
-            nx=12, ny=12,
+            nx=12,
+            ny=12,
             bounds=[[0.0, 1.0], [0.0, 1.0]],
             bkd=bkd,
         )
         basis = VectorLagrangeBasis(mesh, degree=2)
 
         adapter = GalerkinHyperelasticityAdapter(
-            basis, functions, bkd, time_dependent=True,
+            basis,
+            functions,
+            bkd,
+            time_dependent=True,
         )
         body_force = adapter.forcing_for_galerkin()
 
@@ -231,8 +245,11 @@ class TestTransientHyperelasticity2D(ParametrizedTestCase):
         ]
 
         physics = HyperelasticityPhysics(
-            basis=basis, stress_model=stress, bkd=bkd,
-            body_force=body_force, boundary_conditions=bc_list,
+            basis=basis,
+            stress_model=stress,
+            bkd=bkd,
+            body_force=body_force,
+            boundary_conditions=bc_list,
         )
 
         # Time stepping
@@ -246,9 +263,7 @@ class TestTransientHyperelasticity2D(ParametrizedTestCase):
         newton = NewtonSolver(constrained)
         newton.set_options(maxiters=20, atol=1e-10, rtol=0.0)
 
-        y = bkd.asarray(
-            _get_exact_displacement(functions, basis, bkd, time=0.0)
-        )
+        y = bkd.asarray(_get_exact_displacement(functions, basis, bkd, time=0.0))
 
         dt = 0.1
         nsteps = 5
@@ -273,7 +288,10 @@ class TestTransientHyperelasticity2D(ParametrizedTestCase):
 
         # Compare to exact at final time
         u_exact_final = _get_exact_displacement(
-            functions, basis, bkd, time=t,
+            functions,
+            basis,
+            bkd,
+            time=t,
         )
         u_num = bkd.to_numpy(y)
 
@@ -284,9 +302,9 @@ class TestTransientHyperelasticity2D(ParametrizedTestCase):
             rel_error = np.linalg.norm(u_num - u_exact_final)
 
         self.assertLess(
-            rel_error, 2e-4,
-            f"Test {name}: rel_error={rel_error:.2e} at t={t} "
-            f"should be < 2e-4",
+            rel_error,
+            2e-4,
+            f"Test {name}: rel_error={rel_error:.2e} at t={t} should be < 2e-4",
         )
 
 

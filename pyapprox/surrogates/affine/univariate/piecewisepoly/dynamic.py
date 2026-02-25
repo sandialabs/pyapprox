@@ -205,9 +205,7 @@ class DynamicPiecewiseBasis(Generic[Array]):
         # Handle 1-point case: constant basis with weight = domain width
         if self._nterms == 1:
             a, b = self._node_gen._bounds
-            points = self._bkd.reshape(
-                self._bkd.asarray([(a + b) / 2.0]), (1, 1)
-            )
+            points = self._bkd.reshape(self._bkd.asarray([(a + b) / 2.0]), (1, 1))
             weights = self._bkd.reshape(self._bkd.asarray([b - a]), (1, 1))
             return points, weights
 

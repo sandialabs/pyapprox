@@ -17,19 +17,12 @@ import numpy as np
 import torch
 from numpy.typing import NDArray
 
-from pyapprox.util.backends.numpy import NumpyBkd
-from pyapprox.util.backends.torch import TorchBkd
-from pyapprox.util.backends.protocols import Array, Backend
-from pyapprox.util.test_utils import load_tests  # noqa: F401
-
-from pyapprox.surrogates.affine.univariate import create_bases_1d
-from pyapprox.surrogates.affine.indices import compute_hyperbolic_indices
+from pyapprox.probability import UniformMarginal
 from pyapprox.surrogates.affine.basis import OrthonormalPolynomialBasis
 from pyapprox.surrogates.affine.expansions import BasisExpansion
-from pyapprox.probability import UniformMarginal
-
+from pyapprox.surrogates.affine.indices import compute_hyperbolic_indices
+from pyapprox.surrogates.affine.univariate import create_bases_1d
 from pyapprox.surrogates.functiontrain import (
-    FunctionTrain,
     create_additive_functiontrain,
     create_pce_functiontrain,
 )
@@ -39,6 +32,10 @@ from pyapprox.surrogates.functiontrain.compute import (
     ft_eval_cached,
     ft_jacobian_wrt_params_cached,
 )
+from pyapprox.util.backends.numpy import NumpyBkd
+from pyapprox.util.backends.protocols import Array, Backend
+from pyapprox.util.backends.torch import TorchBkd
+from pyapprox.util.test_utils import load_tests  # noqa: F401
 
 
 class TestCacheBasisMatrices(Generic[Array], unittest.TestCase):
@@ -60,9 +57,7 @@ class TestCacheBasisMatrices(Generic[Array], unittest.TestCase):
         rank = 3
         max_level = 4
         marginals = [UniformMarginal(-1.0, 1.0, bkd) for _ in range(nvars)]
-        ft = create_pce_functiontrain(
-            marginals, max_level, [rank] * (nvars - 1), bkd
-        )
+        ft = create_pce_functiontrain(marginals, max_level, [rank] * (nvars - 1), bkd)
         nsamples = 20
         samples = bkd.asarray(np.random.uniform(-1, 1, (nvars, nsamples)))
 
@@ -85,9 +80,7 @@ class TestCacheBasisMatrices(Generic[Array], unittest.TestCase):
             indices = compute_hyperbolic_indices(1, 3, 1.0, bkd)
             basis = OrthonormalPolynomialBasis([bases_1d[k]], bkd, indices)
             exp = BasisExpansion(basis, bkd, nqoi=1)
-            exp.set_coefficients(
-                bkd.asarray(np.random.randn(exp.nterms(), 1))
-            )
+            exp.set_coefficients(bkd.asarray(np.random.randn(exp.nterms(), 1)))
             univariate_bases.append(exp)
         ft = create_additive_functiontrain(univariate_bases, bkd)
 
@@ -162,8 +155,7 @@ class TestCoreEvalCached(Generic[Array], unittest.TestCase):
         nvars = 3
         max_level = 4
         marginals = [UniformMarginal(-1.0, 1.0, bkd) for _ in range(nvars)]
-        ft = create_pce_functiontrain(marginals, max_level, [3, 3], bkd,
-                                       init_scale=0.5)
+        ft = create_pce_functiontrain(marginals, max_level, [3, 3], bkd, init_scale=0.5)
         nsamples = 30
         samples = bkd.asarray(np.random.uniform(-1, 1, (nvars, nsamples)))
         cache = cache_basis_matrices(ft.cores(), samples, bkd)
@@ -185,9 +177,7 @@ class TestCoreEvalCached(Generic[Array], unittest.TestCase):
             indices = compute_hyperbolic_indices(1, 3, 1.0, bkd)
             basis = OrthonormalPolynomialBasis([bases_1d[k]], bkd, indices)
             exp = BasisExpansion(basis, bkd, nqoi=1)
-            exp.set_coefficients(
-                bkd.asarray(np.random.randn(exp.nterms(), 1))
-            )
+            exp.set_coefficients(bkd.asarray(np.random.randn(exp.nterms(), 1)))
             univariate_bases.append(exp)
         ft = create_additive_functiontrain(univariate_bases, bkd)
         nsamples = 20
@@ -257,9 +247,7 @@ class TestFTEvalCached(Generic[Array], unittest.TestCase):
             indices = compute_hyperbolic_indices(1, 3, 1.0, bkd)
             basis = OrthonormalPolynomialBasis([bases_1d[k]], bkd, indices)
             exp = BasisExpansion(basis, bkd, nqoi=1)
-            exp.set_coefficients(
-                bkd.asarray(np.random.randn(exp.nterms(), 1))
-            )
+            exp.set_coefficients(bkd.asarray(np.random.randn(exp.nterms(), 1)))
             univariate_bases.append(exp)
         ft = create_additive_functiontrain(univariate_bases, bkd)
         nsamples = 50
@@ -357,9 +345,7 @@ class TestFTJacobianCached(Generic[Array], unittest.TestCase):
             indices = compute_hyperbolic_indices(1, 3, 1.0, bkd)
             basis = OrthonormalPolynomialBasis([bases_1d[k]], bkd, indices)
             exp = BasisExpansion(basis, bkd, nqoi=1)
-            exp.set_coefficients(
-                bkd.asarray(np.random.randn(exp.nterms(), 1))
-            )
+            exp.set_coefficients(bkd.asarray(np.random.randn(exp.nterms(), 1)))
             univariate_bases.append(exp)
         ft = create_additive_functiontrain(univariate_bases, bkd)
         nsamples = 30
@@ -422,9 +408,7 @@ class TestFTJacobianCached(Generic[Array], unittest.TestCase):
         bkd.assert_allclose(cached_eval, ref_eval, rtol=1e-12)
 
         ref_jac = ft_new.jacobian_wrt_params(samples)
-        cached_jac = ft_jacobian_wrt_params_cached(
-            ft_new.cores(), samples, cache, bkd
-        )
+        cached_jac = ft_jacobian_wrt_params_cached(ft_new.cores(), samples, cache, bkd)
         bkd.assert_allclose(cached_jac, ref_jac, rtol=1e-12)
 
     def test_varying_ranks(self) -> None:
@@ -443,9 +427,7 @@ class TestFTJacobianCached(Generic[Array], unittest.TestCase):
         bkd.assert_allclose(cached_eval, ref_eval, rtol=1e-12)
 
         ref_jac = ft.jacobian_wrt_params(samples)
-        cached_jac = ft_jacobian_wrt_params_cached(
-            ft.cores(), samples, cache, bkd
-        )
+        cached_jac = ft_jacobian_wrt_params_cached(ft.cores(), samples, cache, bkd)
         bkd.assert_allclose(cached_jac, ref_jac, rtol=1e-12)
 
 

@@ -5,20 +5,18 @@ Tests for univariate distributions.
 import unittest
 from typing import Any, Generic
 
-import numpy as np
+import torch
 from numpy.typing import NDArray
 from scipy import stats
-import torch
 
-from pyapprox.util.backends.protocols import Array, Backend
-from pyapprox.util.backends.numpy import NumpyBkd
-from pyapprox.util.backends.torch import TorchBkd
-from pyapprox.util.test_utils import load_tests
 from pyapprox.probability.univariate import (
     GaussianMarginal,
     ScipyContinuousMarginal,
     ScipyDiscreteMarginal,
 )
+from pyapprox.util.backends.numpy import NumpyBkd
+from pyapprox.util.backends.protocols import Array, Backend
+from pyapprox.util.backends.torch import TorchBkd
 
 
 class TestGaussianMarginal(Generic[Array], unittest.TestCase):
@@ -134,9 +132,7 @@ class TestGaussianMarginal(Generic[Array], unittest.TestCase):
         jacobian = self.dist.invcdf_jacobian(probs)
         quantiles = self.dist.invcdf(probs)
         pdf_at_quantiles = self.dist(quantiles)
-        self.assertTrue(
-            self._bkd.allclose(jacobian, 1.0 / pdf_at_quantiles, rtol=1e-6)
-        )
+        self.assertTrue(self._bkd.allclose(jacobian, 1.0 / pdf_at_quantiles, rtol=1e-6))
 
     def test_equality(self) -> None:
         """Test equality comparison."""

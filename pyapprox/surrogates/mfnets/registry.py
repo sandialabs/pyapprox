@@ -24,9 +24,7 @@ def register_node_model(name: str, factory: Callable[..., Any]) -> None:
     _NODE_MODEL_REGISTRY[name] = factory
 
 
-def create_node_model(
-    name: str, bkd: Backend[Array], **kwargs: Any
-) -> Any:
+def create_node_model(name: str, bkd: Backend[Array], **kwargs: Any) -> Any:
     """Create a node model by registered name.
 
     Parameters
@@ -50,9 +48,7 @@ def create_node_model(
     """
     if name not in _NODE_MODEL_REGISTRY:
         available = ", ".join(sorted(_NODE_MODEL_REGISTRY.keys()))
-        raise KeyError(
-            f"Unknown node model: '{name}'. Available: {available}"
-        )
+        raise KeyError(f"Unknown node model: '{name}'. Available: {available}")
     return _NODE_MODEL_REGISTRY[name](bkd=bkd, **kwargs)
 
 
@@ -63,6 +59,7 @@ def list_node_models() -> List[str]:
 
 # --- Built-in factories ---
 
+
 def _basis_expansion_factory(
     bkd: Backend[Array],
     nvars: int = 1,
@@ -71,12 +68,12 @@ def _basis_expansion_factory(
     **kwargs: Any,
 ) -> Any:
     """Create a BasisExpansion with monomial basis."""
-    from pyapprox.surrogates.affine.univariate import MonomialBasis1D
+    from pyapprox.surrogates.affine.basis import MultiIndexBasis
+    from pyapprox.surrogates.affine.expansions import BasisExpansion
     from pyapprox.surrogates.affine.indices import (
         compute_hyperbolic_indices,
     )
-    from pyapprox.surrogates.affine.basis import MultiIndexBasis
-    from pyapprox.surrogates.affine.expansions import BasisExpansion
+    from pyapprox.surrogates.affine.univariate import MonomialBasis1D
 
     bases_1d = [MonomialBasis1D(bkd) for _ in range(nvars)]
     indices = compute_hyperbolic_indices(nvars, max_level, 1.0, bkd)
@@ -108,13 +105,9 @@ def _multiplicative_additive_factory(
     delta = _basis_expansion_factory(
         bkd, nvars=nvars_x, nqoi=nqoi, max_level=delta_level
     )
-    return MultiplicativeAdditiveDiscrepancy(
-        scalings, delta, nscaled_qoi, bkd
-    )
+    return MultiplicativeAdditiveDiscrepancy(scalings, delta, nscaled_qoi, bkd)
 
 
 # Auto-register built-ins
 register_node_model("basis_expansion", _basis_expansion_factory)
-register_node_model(
-    "multiplicative_additive", _multiplicative_additive_factory
-)
+register_node_model("multiplicative_additive", _multiplicative_additive_factory)

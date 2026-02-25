@@ -6,17 +6,17 @@ records species 0 and 2 at all time points; the prediction model
 records species 1 at every other time point.
 """
 
-from typing import Generic, List, Tuple
+from typing import Generic, Tuple
 
-from pyapprox.util.backends.protocols import Array, Backend
+from pyapprox.benchmarks.functions.ode import (
+    ODEFunctionalProtocol,
+    ODEQoIFunction,
+)
 from pyapprox.benchmarks.instances.ode.lotka_volterra import (
     lotka_volterra_3species,
 )
-from pyapprox.benchmarks.functions.ode import (
-    ODEQoIFunction,
-    ODEFunctionalProtocol,
-)
 from pyapprox.benchmarks.registry import BenchmarkRegistry
+from pyapprox.util.backends.protocols import Array, Backend
 
 
 class ObservationFunctional(Generic[Array]):
@@ -91,7 +91,9 @@ class LotkaVolterraOEDBenchmark(Generic[Array]):
     ) -> None:
         self._bkd = bkd
         self._wrapper = lotka_volterra_3species(
-            bkd, final_time=final_time, deltat=deltat,
+            bkd,
+            final_time=final_time,
+            deltat=deltat,
         )
         inner = self._wrapper._inner
 
@@ -99,22 +101,29 @@ class LotkaVolterraOEDBenchmark(Generic[Array]):
         ntimes = tc.ntimes()
 
         obs_functional: ODEFunctionalProtocol[Array] = ObservationFunctional(
-            ntimes, bkd,
+            ntimes,
+            bkd,
         )
         pred_functional: ODEFunctionalProtocol[Array] = PredictionFunctional(
             ntimes,
         )
 
         self._obs_model = ODEQoIFunction(
-            inner, functional=obs_functional, stepper=stepper,
+            inner,
+            functional=obs_functional,
+            stepper=stepper,
         )
         self._pred_model = ODEQoIFunction(
-            inner, functional=pred_functional, stepper=stepper,
+            inner,
+            functional=pred_functional,
+            stepper=stepper,
         )
 
         # Precompute time arrays
         self._solution_times = bkd.linspace(
-            tc.init_time, tc.final_time, ntimes,
+            tc.init_time,
+            tc.final_time,
+            ntimes,
         )
         self._observation_times = self._solution_times
         pred_indices = list(range(1, ntimes, 2))
@@ -171,14 +180,10 @@ class LotkaVolterraOEDBenchmark(Generic[Array]):
         pred_results = []
 
         for ii in range(nsamples):
-            param = samples[:, ii: ii + 1]
+            param = samples[:, ii : ii + 1]
             solutions, times = self._obs_model.solve_trajectory(param)
-            obs_results.append(
-                self._obs_model._functional(solutions, times)
-            )
-            pred_results.append(
-                self._pred_model._functional(solutions, times)
-            )
+            obs_results.append(self._obs_model._functional(solutions, times))
+            pred_results.append(self._pred_model._functional(solutions, times))
 
         return (
             self._bkd.stack(obs_results, axis=1),

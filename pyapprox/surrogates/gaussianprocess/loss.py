@@ -6,11 +6,10 @@ computes the negative log marginal likelihood and its gradients for use
 with typing.optimization.minimize optimizers.
 """
 
-import numpy as np
-from typing import Generic, Optional
-from pyapprox.util.backends.protocols import Array, Backend
+from typing import Generic
+
 from pyapprox.surrogates.gaussianprocess.exact import ExactGaussianProcess
-from pyapprox.util.hyperparameter import HyperParameterList
+from pyapprox.util.backends.protocols import Array, Backend
 
 
 class NegativeLogMarginalLikelihoodLoss(Generic[Array]):
@@ -86,12 +85,7 @@ class NegativeLogMarginalLikelihoodLoss(Generic[Array]):
     ...     hvp_result = loss.hvp(params, direction)
     """
 
-    def __init__(
-        self,
-        gp: ExactGaussianProcess[Array],
-        X_train: Array,
-        y_train: Array
-    ):
+    def __init__(self, gp: ExactGaussianProcess[Array], X_train: Array, y_train: Array):
         self._gp = gp
         self._X_train = X_train
         self._y_train = y_train
@@ -154,8 +148,8 @@ class NegativeLogMarginalLikelihoodLoss(Generic[Array]):
         mean = self._gp._mean
 
         # Check kernel support for Jacobian (required for gradient-based optimization)
-        has_kernel_jacobian = hasattr(kernel, 'jacobian_wrt_params')
-        has_mean_jacobian = hasattr(mean, 'jacobian_wrt_params')
+        has_kernel_jacobian = hasattr(kernel, "jacobian_wrt_params")
+        hasattr(mean, "jacobian_wrt_params")
 
         if not has_kernel_jacobian:
             raise ValueError(
@@ -264,7 +258,7 @@ class NegativeLogMarginalLikelihoodLoss(Generic[Array]):
         # 1. Compute gradients w.r.t. kernel hyperparameters
         kernel = self._gp._kernel
         if kernel_hyps.nparams() > 0:
-            if not hasattr(kernel, 'jacobian_wrt_params'):
+            if not hasattr(kernel, "jacobian_wrt_params"):
                 raise NotImplementedError(
                     f"Kernel {type(kernel).__name__} does not implement "
                     "jacobian_wrt_params() method required for gradient computation"
@@ -280,17 +274,19 @@ class NegativeLogMarginalLikelihoodLoss(Generic[Array]):
 
             # term1[i] = α^T @ K_grad[:,:,i] @ α for all i
             # Using einsum: sum over both n_train dimensions
-            term1 = self._bkd.einsum('ji,ijk,jk->k',
-                                      alpha_vec.T, K_grad, alpha_vec)
+            term1 = self._bkd.einsum("ji,ijk,jk->k", alpha_vec.T, K_grad, alpha_vec)
 
             # term2[i] = trace(K^{-1} @ K_grad[:,:,i]) for all i
             # Batch solve: K^{-1} @ K_grad
-            K_grad_flat = self._bkd.reshape(K_grad, (n_train, n_train * n_kernel_params))
+            K_grad_flat = self._bkd.reshape(
+                K_grad, (n_train, n_train * n_kernel_params)
+            )
             Kinv_K_grad_flat = cholesky.solve(K_grad_flat)
-            Kinv_K_grad = self._bkd.reshape(Kinv_K_grad_flat,
-                                             (n_train, n_train, n_kernel_params))
+            Kinv_K_grad = self._bkd.reshape(
+                Kinv_K_grad_flat, (n_train, n_train, n_kernel_params)
+            )
             # Compute trace for each parameter: sum of diagonal elements
-            term2 = self._bkd.einsum('iik->k', Kinv_K_grad)
+            term2 = self._bkd.einsum("iik->k", Kinv_K_grad)
 
             # Gradient for all kernel parameters
             # ∂(-log p)/∂θ = 0.5 * (trace(K^{-1} @ dK) - α^T @ dK @ α)
@@ -310,7 +306,7 @@ class NegativeLogMarginalLikelihoodLoss(Generic[Array]):
             # Vectorized gradient for all mean parameters at once
             # alpha shape: (nqoi, n_train), mean_jac shape: (nparams_mean, 1, n_train)
             # grad[i] = -sum over n_train: alpha[k, j] * mean_jac[i, k, j]
-            grad_mean = -self._bkd.einsum('kj,ikj->i', alpha, mean_jac)
+            grad_mean = -self._bkd.einsum("kj,ikj->i", alpha, mean_jac)
             grad_parts.append(grad_mean)
 
         # Concatenate all gradient parts to get FULL gradient (all params)
@@ -337,7 +333,8 @@ class NegativeLogMarginalLikelihoodLoss(Generic[Array]):
 
     def _hvp(self, params: Array, direction: Array) -> Array:
         """
-        Compute Hessian-vector product of NLML w.r.t. hyperparameters using adjoint method.
+        Compute Hessian-vector product of NLML w.r.t. hyperparameters using adjoint
+        method.
 
         Ultra-fast vectorized implementation using the adjoint method that computes
         H·v where H is the Hessian of the negative log marginal likelihood with
@@ -385,7 +382,8 @@ class NegativeLogMarginalLikelihoodLoss(Generic[Array]):
         3. Compute: W_kinv = W @ K^{-1} = K^{-1} D_V K^{-1} (reuse Cholesky)
         4. For each i: hvp_i = -tr(∂K/∂θ_i @ W_kinv) (vectorized trace)
 
-        Total: O(n³) Cholesky + O(pn²) gradient computation + O(n³) solve + O(pn²) traces
+        Total: O(n³) Cholesky + O(pn²) gradient computation + O(n³) solve + O(pn²)
+        traces
         """
         # Ensure params and direction are 1D
         if len(params.shape) == 2 and params.shape[1] == 1:
@@ -436,15 +434,16 @@ class NegativeLogMarginalLikelihoodLoss(Generic[Array]):
             K_grad = kernel.jacobian_wrt_params(self._X_train)
 
             # Compute directional derivative of K: D_V = Σ_j v_j * ∂K/∂θ_j
-            # Using einsum for vectorization: D_V[i,j] = Σ_k K_grad[i,j,k] * direction[k]
-            D_V = self._bkd.einsum('ijk,k->ij', K_grad, kernel_direction)
+            # Using einsum for vectorization: D_V[i,j] = Σ_k K_grad[i,j,k] *
+            # direction[k]
+            D_V = self._bkd.einsum("ijk,k->ij", K_grad, kernel_direction)
 
             # Solve: K^{-1} D_V (single solve!)
             Kinv_DV = cholesky.solve(D_V)
 
             # Compute HVP directly without forming full Hessian
             # dDV[i,j,param_i] = Σ_j (∂²K/∂θ_i∂θ_j) * v[j]
-            if hasattr(kernel, 'hvp_wrt_params'):
+            if hasattr(kernel, "hvp_wrt_params"):
                 dDV = kernel.hvp_wrt_params(self._X_train, kernel_direction)
             else:
                 raise NotImplementedError(
@@ -458,15 +457,21 @@ class NegativeLogMarginalLikelihoodLoss(Generic[Array]):
             # Reshape to (n_train, n_train * n_kernel_params), solve, reshape back
             dDV_flat = self._bkd.reshape(dDV, (n_train, n_train * n_kernel_params))
             Kinv_dDV_flat = cholesky.solve(dDV_flat)
-            Kinv_dDV = self._bkd.reshape(Kinv_dDV_flat, (n_train, n_train, n_kernel_params))
+            Kinv_dDV = self._bkd.reshape(
+                Kinv_dDV_flat, (n_train, n_train, n_kernel_params)
+            )
 
             # Precompute shared quantities
             Kinv_DV_alpha = Kinv_DV @ alpha_vec  # Shape: (n_train, 1)
 
             # Solve K X = K_grad for all parameters (batched)
-            K_grad_flat = self._bkd.reshape(K_grad, (n_train, n_train * n_kernel_params))
+            K_grad_flat = self._bkd.reshape(
+                K_grad, (n_train, n_train * n_kernel_params)
+            )
             Kinv_K_grad_flat = cholesky.solve(K_grad_flat)
-            Kinv_K_grad = self._bkd.reshape(Kinv_K_grad_flat, (n_train, n_train, n_kernel_params))
+            Kinv_K_grad = self._bkd.reshape(
+                Kinv_K_grad_flat, (n_train, n_train, n_kernel_params)
+            )
 
             # ADJOINT METHOD: Compute ALL HVP components at once using einsum
             #
@@ -476,36 +481,44 @@ class NegativeLogMarginalLikelihoodLoss(Generic[Array]):
             # For term1, we need K^{-1} ∂K/∂θ_i K^{-1} for all i
             # We solve K X = (K^{-1} ∂K/∂θ_i)^T for all i using batched solve
             # Trick: Transpose each slice by swapping dimensions, then solve all at once
-            # Kinv_K_grad has shape (n, n, p), we need to transpose to (n, n, p) with [i,j] -> [j,i]
+            # Kinv_K_grad has shape (n, n, p), we need to transpose to (n, n, p) with
+            # [i,j] -> [j,i]
             # This is equivalent to swapping first two dimensions
-            Kinv_K_grad_T = self._bkd.transpose(Kinv_K_grad, (1, 0, 2))  # Shape: (n, n, p)
+            Kinv_K_grad_T = self._bkd.transpose(
+                Kinv_K_grad, (1, 0, 2)
+            )  # Shape: (n, n, p)
             # Flatten to (n, n*p) for batched solve
-            Kinv_K_grad_T_flat = self._bkd.reshape(Kinv_K_grad_T, (n_train, n_train * n_kernel_params))
+            Kinv_K_grad_T_flat = self._bkd.reshape(
+                Kinv_K_grad_T, (n_train, n_train * n_kernel_params)
+            )
             # Solve K X = Kinv_K_grad^T for all parameters at once
             Kinv_K_grad_Kinv_T_flat = cholesky.solve(Kinv_K_grad_T_flat)
             # Reshape back to (n, n, p)
-            Kinv_K_grad_Kinv_T = self._bkd.reshape(Kinv_K_grad_Kinv_T_flat,
-                                                    (n_train, n_train, n_kernel_params))
+            Kinv_K_grad_Kinv_T = self._bkd.reshape(
+                Kinv_K_grad_Kinv_T_flat, (n_train, n_train, n_kernel_params)
+            )
             # Transpose back to get K^{-1} ∂K/∂θ_i K^{-1}
             Kinv_K_grad_Kinv = self._bkd.transpose(Kinv_K_grad_Kinv_T, (1, 0, 2))
 
             # term1[i] = -0.5 * tr(D_V @ Kinv_K_grad_Kinv[:,:,i])
             #          = -0.5 * sum_{jk} D_V[j,k] * Kinv_K_grad_Kinv[j,k,i]
-            term1 = -0.5 * self._bkd.einsum('ij,ijk->k', D_V, Kinv_K_grad_Kinv)
+            term1 = -0.5 * self._bkd.einsum("ij,ijk->k", D_V, Kinv_K_grad_Kinv)
 
             # term2[i] = 0.5 * tr(Kinv_dDV[:,:,i])
             #          = 0.5 * sum_j Kinv_dDV[j,j,i]
-            term2 = 0.5 * self._bkd.einsum('iik->k', Kinv_dDV)
+            term2 = 0.5 * self._bkd.einsum("iik->k", Kinv_dDV)
 
             # term3[i] = α^T ∂K/∂θ_i K^{-1} D_V α
             #          = sum_{jk} alpha[j] * K_grad[j,k,i] * (Kinv_DV_alpha)[k]
-            term3 = self._bkd.einsum('j,jki,k->i',
-                                      alpha_vec[:, 0], K_grad, Kinv_DV_alpha[:, 0])
+            term3 = self._bkd.einsum(
+                "j,jki,k->i", alpha_vec[:, 0], K_grad, Kinv_DV_alpha[:, 0]
+            )
 
             # term4[i] = -0.5 * α^T ∂D_V/∂θ_i α
             #          = -0.5 * sum_{jk} alpha[j] * dDV[j,k,i] * alpha[k]
-            term4 = -0.5 * self._bkd.einsum('j,jki,k->i',
-                                             alpha_vec[:, 0], dDV, alpha_vec[:, 0])
+            term4 = -0.5 * self._bkd.einsum(
+                "j,jki,k->i", alpha_vec[:, 0], dDV, alpha_vec[:, 0]
+            )
 
             # Total HVP for kernel parameters (vectorized!)
             hvp_kernel = term1 + term2 + term3 + term4
@@ -524,9 +537,7 @@ class NegativeLogMarginalLikelihoodLoss(Generic[Array]):
             # Shape: (nparams_mean, n_train, 1)
 
             # Compute directional derivative for mean using full direction
-            D_V_mean = self._bkd.einsum('ijk,i->jk',
-                                         mean_jac,
-                                         mean_direction)
+            D_V_mean = self._bkd.einsum("ijk,i->jk", mean_jac, mean_direction)
             # Shape: (n_train, 1)
 
             # Solve: K^{-1} D_V_mean
@@ -536,7 +547,7 @@ class NegativeLogMarginalLikelihoodLoss(Generic[Array]):
             # mean_jac shape: (nparams_mean, n_train, 1)
             # Kinv_DV_mean shape: (n_train, 1)
             # Result: sum over n_train and 1 dimensions
-            hvp_mean = self._bkd.einsum('ijk,jk->i', mean_jac, Kinv_DV_mean)
+            hvp_mean = self._bkd.einsum("ijk,jk->i", mean_jac, Kinv_DV_mean)
             hvp_parts.append(hvp_mean)
 
         # Concatenate all HVP parts to get FULL HVP (all params)

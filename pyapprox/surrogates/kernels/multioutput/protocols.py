@@ -5,7 +5,7 @@ This module defines the interface for multi-output kernels that can model
 covariance across multiple outputs or quantities of interest.
 """
 
-from typing import Protocol, runtime_checkable, Generic, List, Union, Optional
+from typing import Generic, List, Optional, Protocol, Union, runtime_checkable
 
 from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.util.hyperparameter import HyperParameterList

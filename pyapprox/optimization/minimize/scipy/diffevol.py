@@ -1,14 +1,19 @@
-from typing import Generic, Union, Optional, Literal, Self, Tuple, cast
+from typing import Generic, Literal, Optional, Self, Tuple, Union, cast
 
 import numpy as np
-from scipy.optimize import differential_evolution, Bounds
+from scipy.optimize import Bounds, differential_evolution
 
-from pyapprox.util.backends.protocols import Array, Backend
-from pyapprox.optimization.minimize.scipy.scipy_result import (
-    ScipyOptimizerResultWrapper,
-)
 from pyapprox.interface.functions.numpy.numpy_function_factory import (
     numpy_function_wrapper_factory,
+)
+from pyapprox.interface.functions.numpy.wrappers import (
+    NumpyFunctionWithJacobianAndHVPWrapper,
+    NumpyFunctionWithJacobianAndWHVPWrapper,
+    NumpyFunctionWithJacobianWrapper,
+    NumpyFunctionWrapper,
+)
+from pyapprox.interface.functions.protocols.function import (
+    FunctionProtocol,
 )
 from pyapprox.optimization.minimize.constraints.protocols import (
     SequenceOfConstraintProtocols,
@@ -22,16 +27,10 @@ from pyapprox.optimization.minimize.objective.validation import (
 from pyapprox.optimization.minimize.scipy.scipy_constraint_factory import (
     convert_constraints,
 )
-from pyapprox.interface.functions.numpy.wrappers import (
-    NumpyFunctionWrapper,
-    NumpyFunctionWithJacobianWrapper,
-    NumpyFunctionWithJacobianAndHVPWrapper,
-    NumpyFunctionWithJacobianAndWHVPWrapper,
+from pyapprox.optimization.minimize.scipy.scipy_result import (
+    ScipyOptimizerResultWrapper,
 )
-from pyapprox.interface.functions.protocols.function import (
-    FunctionProtocol,
-)
-
+from pyapprox.util.backends.protocols import Array, Backend
 
 StrategyType = Literal[
     "best1bin",
@@ -156,9 +155,7 @@ class ScipyDifferentialEvolutionOptimizer(Generic[Array]):
         # Backward compatible: if objective/bounds provided, bind immediately
         if objective is not None:
             if bounds is None:
-                raise ValueError(
-                    "bounds must be provided when objective is provided"
-                )
+                raise ValueError("bounds must be provided when objective is provided")
             self.bind(objective, bounds, constraints)
 
     def bind(
@@ -252,9 +249,7 @@ class ScipyDifferentialEvolutionOptimizer(Generic[Array]):
         assert self._objective is not None
         return self._objective.bkd()
 
-    def _convert_bounds(
-        self, bounds: Array, nvars: int, bkd: Backend[Array]
-    ) -> Bounds:
+    def _convert_bounds(self, bounds: Array, nvars: int, bkd: Backend[Array]) -> Bounds:
         """Convert bounds to a SciPy-compatible format.
 
         Parameters
@@ -280,9 +275,7 @@ class ScipyDifferentialEvolutionOptimizer(Generic[Array]):
         np_bounds = bkd.to_numpy(bounds)
         return Bounds(np_bounds[:, 0], np_bounds[:, 1], keep_feasible=True)
 
-    def minimize(
-        self, init_guess: Array
-    ) -> ScipyOptimizerResultWrapper[Array]:
+    def minimize(self, init_guess: Array) -> ScipyOptimizerResultWrapper[Array]:
         """Perform the optimization.
 
         Parameters

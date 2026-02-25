@@ -4,7 +4,7 @@ Defines interfaces for fields (scalar and vector) on meshes and
 differential operators.
 """
 
-from typing import Protocol, Generic, runtime_checkable, Optional
+from typing import Generic, Optional, Protocol, runtime_checkable
 
 from pyapprox.util.backends.protocols import Array, Backend
 

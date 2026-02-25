@@ -4,23 +4,21 @@ Provides functions to create boundary conditions from manufactured solutions
 for verifying Galerkin finite element implementations.
 """
 
-from typing import Generic, List, Callable, Tuple, Optional
+from typing import Callable, Generic, List, Optional
 
 import numpy as np
 
-from pyapprox.util.backends.protocols import Array, Backend
-from pyapprox.pde.galerkin.protocols.basis import GalerkinBasisProtocol
 from pyapprox.pde.galerkin.boundary.implementations import (
+    BoundaryConditionSet,
     DirichletBC,
     NeumannBC,
     RobinBC,
-    BoundaryConditionSet,
 )
+from pyapprox.pde.galerkin.protocols.basis import GalerkinBasisProtocol
+from pyapprox.util.backends.protocols import Array, Backend
 
 
-def canonical_boundary_normal(
-    boundary_index: int, samples: np.ndarray
-) -> np.ndarray:
+def canonical_boundary_normal(boundary_index: int, samples: np.ndarray) -> np.ndarray:
     """Compute outward unit normal for canonical rectangular domain boundaries.
 
     For a rectangular domain [x0, x1] x [y0, y1] x ..., the boundaries are:
@@ -169,9 +167,11 @@ class ManufacturedSolutionBC(Generic[Array]):
         time_dep = self._time_dependent
 
         if time_dep:
+
             def value_func(x, t):
                 return sol_func(x, t)
         else:
+
             def value_func(x, t=None):
                 return sol_func(x)
 
@@ -196,9 +196,11 @@ class ManufacturedSolutionBC(Generic[Array]):
             return canonical_boundary_normal(boundary_index, x)
 
         if time_dep:
+
             def neumann_value(x, t):
                 return _compute_normal_flux(flux_func, normal_func, x, t)
         else:
+
             def neumann_value(x, t=None):
                 return _compute_normal_flux(flux_func, normal_func, x)
 
@@ -225,11 +227,13 @@ class ManufacturedSolutionBC(Generic[Array]):
             return canonical_boundary_normal(boundary_index, x)
 
         if time_dep:
+
             def robin_value(x, t):
                 u_val = sol_func(x, t)
                 flux_dot_n = _compute_normal_flux(flux_func, normal_func, x, t)
                 return alpha * u_val - flux_dot_n
         else:
+
             def robin_value(x, t=None):
                 u_val = sol_func(x)
                 flux_dot_n = _compute_normal_flux(flux_func, normal_func, x)
@@ -280,9 +284,7 @@ class ManufacturedSolutionBC(Generic[Array]):
 
         bc_set = BoundaryConditionSet(self._bkd)
 
-        for i, (bc_type, boundary_name) in enumerate(
-            zip(bc_types, boundary_names)
-        ):
+        for i, (bc_type, boundary_name) in enumerate(zip(bc_types, boundary_names)):
             if bc_type == "D":
                 bc = self._create_dirichlet_bc(boundary_name, i)
                 bc_set.add_dirichlet(bc)

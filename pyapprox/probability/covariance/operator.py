@@ -6,7 +6,7 @@ covariance is defined implicitly (e.g., infinite-dimensional fields,
 kernel operators).
 """
 
-from typing import Generic, Callable, Optional
+from typing import Callable, Generic, Optional
 
 from pyapprox.util.backends.protocols import Array, Backend
 
@@ -83,9 +83,7 @@ class OperatorBasedCovarianceOperator(Generic[Array]):
             apply_sqrt_transpose if apply_sqrt_transpose else apply_sqrt
         )
         self._apply_sqrt_inv_transpose = (
-            apply_sqrt_inv_transpose
-            if apply_sqrt_inv_transpose
-            else apply_sqrt_inv
+            apply_sqrt_inv_transpose if apply_sqrt_inv_transpose else apply_sqrt_inv
         )
 
     def bkd(self) -> Backend[Array]:

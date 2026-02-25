@@ -10,11 +10,11 @@ from .elastic_bar_1d import (
 from .hyperelastic_bar_1d import (
     create_hyperelastic_bar_1d,
 )
-from .pressurized_cylinder_2d import (
-    create_linear_pressurized_cylinder_2d,
-)
 from .hyperelastic_cylinder_2d import (
     create_hyperelastic_pressurized_cylinder_2d,
+)
+from .pressurized_cylinder_2d import (
+    create_linear_pressurized_cylinder_2d,
 )
 
 __all__ = [

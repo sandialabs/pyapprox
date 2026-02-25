@@ -1,21 +1,19 @@
 import unittest
-from typing import Generic, Any
+from typing import Generic
 
 import torch
-import numpy as np
-from numpy.typing import NDArray
 
-from pyapprox.util.backends.protocols import Array, Backend
-from pyapprox.util.backends.numpy import NumpyBkd
-from pyapprox.util.backends.torch import TorchBkd
 from pyapprox.surrogates.basis.piecewisepoly import (
     PiecewiseConstantLeft,
     PiecewiseConstantMidpoint,
     PiecewiseConstantRight,
+    PiecewiseCubic,
     PiecewiseLinear,
     PiecewiseQuadratic,
-    PiecewiseCubic,
 )
+from pyapprox.util.backends.numpy import NumpyBkd
+from pyapprox.util.backends.protocols import Array, Backend
+from pyapprox.util.backends.torch import TorchBkd
 
 
 class TestPiecewisePolynomialBasis(Generic[Array], unittest.TestCase):
@@ -26,9 +24,7 @@ class TestPiecewisePolynomialBasis(Generic[Array], unittest.TestCase):
         Override this method in derived classes to provide the specific
         backend.
         """
-        raise NotImplementedError(
-            "Derived classes must implement this method."
-        )
+        raise NotImplementedError("Derived classes must implement this method.")
 
     def test_piecewise_linear(self) -> None:
         """
@@ -37,7 +33,9 @@ class TestPiecewisePolynomialBasis(Generic[Array], unittest.TestCase):
         """
         nodes = self.bkd().asarray([0.0, 0.5, 1.0])
         xx = self.bkd().linspace(0.0, 1.0, 100)
-        linear_function = lambda x: x
+
+        def linear_function(x):
+            return x
 
         # Create PiecewiseLinear instance
         piecewise_linear = PiecewiseLinear(nodes, self.bkd())
@@ -48,14 +46,10 @@ class TestPiecewisePolynomialBasis(Generic[Array], unittest.TestCase):
 
         # Check interpolation
         expected_values = linear_function(xx)
-        self.bkd().assert_allclose(
-            interpolated_values, expected_values, atol=1e-7
-        )
+        self.bkd().assert_allclose(interpolated_values, expected_values, atol=1e-7)
 
         # Check quadrature rule
-        quadrature_points, quadrature_weights = (
-            piecewise_linear.quadrature_rule()
-        )
+        quadrature_points, quadrature_weights = piecewise_linear.quadrature_rule()
         integral = quadrature_weights @ linear_function(quadrature_points)
         expected_integral = 0.5  # Integral of f(x) = x over [0, 1]
         self.assertAlmostEqual(integral, expected_integral, places=7)
@@ -67,7 +61,9 @@ class TestPiecewisePolynomialBasis(Generic[Array], unittest.TestCase):
         """
         nodes = self.bkd().asarray([0.0, 0.5, 1.0])
         xx = self.bkd().linspace(0.0, 1.0, 100)
-        quadratic_function = lambda x: x**2
+
+        def quadratic_function(x):
+            return x**2
 
         # Create PiecewiseQuadratic instance
         piecewise_quadratic = PiecewiseQuadratic(nodes, self.bkd())
@@ -78,14 +74,10 @@ class TestPiecewisePolynomialBasis(Generic[Array], unittest.TestCase):
 
         # Check interpolation
         expected_values = quadratic_function(xx)
-        self.bkd().assert_allclose(
-            interpolated_values, expected_values, atol=1e-7
-        )
+        self.bkd().assert_allclose(interpolated_values, expected_values, atol=1e-7)
 
         # Check quadrature rule
-        quadrature_points, quadrature_weights = (
-            piecewise_quadratic.quadrature_rule()
-        )
+        quadrature_points, quadrature_weights = piecewise_quadratic.quadrature_rule()
         integral = quadrature_weights @ quadratic_function(quadrature_points)
         expected_integral = 1 / 3  # Integral of f(x) = x^2 over [0, 1]
         self.assertAlmostEqual(integral, expected_integral, places=7)
@@ -97,7 +89,9 @@ class TestPiecewisePolynomialBasis(Generic[Array], unittest.TestCase):
         """
         nodes = self.bkd().asarray([0.0, 0.25, 0.5, 1.0])
         xx = self.bkd().linspace(0.0, 1.0, 100)
-        cubic_function = lambda x: x**3
+
+        def cubic_function(x):
+            return x**3
 
         # Create PiecewiseCubic instance
         piecewise_cubic = PiecewiseCubic(nodes, self.bkd())
@@ -108,14 +102,10 @@ class TestPiecewisePolynomialBasis(Generic[Array], unittest.TestCase):
 
         # Check interpolation
         expected_values = cubic_function(xx)
-        self.bkd().assert_allclose(
-            interpolated_values, expected_values, atol=1e-7
-        )
+        self.bkd().assert_allclose(interpolated_values, expected_values, atol=1e-7)
 
         # Check quadrature rule
-        quadrature_points, quadrature_weights = (
-            piecewise_cubic.quadrature_rule()
-        )
+        quadrature_points, quadrature_weights = piecewise_cubic.quadrature_rule()
         integral = quadrature_weights @ cubic_function(quadrature_points)
         expected_integral = 0.25  # Integral of f(x) = x^3 over [0, 1]
         self.assertAlmostEqual(integral, expected_integral, places=7)
@@ -129,9 +119,7 @@ class TestPiecewisePolynomialConvergence(Generic[Array], unittest.TestCase):
         Override this method in derived classes to provide the specific
         backend.
         """
-        raise NotImplementedError(
-            "Derived classes must implement this method."
-        )
+        raise NotImplementedError("Derived classes must implement this method.")
 
     def setUp(self) -> None:
         self.target_function = lambda x: x**4  # Polynomial degree 4
@@ -322,9 +310,7 @@ class TestPiecewisePolynomialBasisTorch(
 
 
 # Derived test class for NumPy backend
-class TestPiecewisePolynomialConvergenceNumpy(
-    TestPiecewisePolynomialConvergence
-):
+class TestPiecewisePolynomialConvergenceNumpy(TestPiecewisePolynomialConvergence):
     def setUp(self) -> None:
         self._bkd = NumpyBkd()
         super().setUp()
@@ -334,9 +320,7 @@ class TestPiecewisePolynomialConvergenceNumpy(
 
 
 # Derived test class for PyTorch backend
-class TestPiecewisePolynomialConvergenceTorch(
-    TestPiecewisePolynomialConvergence
-):
+class TestPiecewisePolynomialConvergenceTorch(TestPiecewisePolynomialConvergence):
     def setUp(self) -> None:
         torch.set_default_dtype(torch.float64)
         self._bkd = TorchBkd()
@@ -347,7 +331,6 @@ class TestPiecewisePolynomialConvergenceTorch(
 
 
 from pyapprox.util.test_utils import load_tests
-
 
 # Main block to explicitly run tests using the custom loader
 if __name__ == "__main__":

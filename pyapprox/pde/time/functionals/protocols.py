@@ -213,9 +213,7 @@ class TransientFunctionalWithJacobianAndHVPProtocol(Protocol, Generic[Array]):
         """
         ...
 
-    def param_param_hvp(
-        self, sol: Array, param: Array, vvec: Array
-    ) -> Array:
+    def param_param_hvp(self, sol: Array, param: Array, vvec: Array) -> Array:
         """
         Compute (d^2Q/dp^2)·v.
 

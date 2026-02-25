@@ -7,32 +7,31 @@ orthonormal with respect to the input probability measure.
 
 from typing import Generic, List, Optional, Union
 
-from pyapprox.util.backends.protocols import Array, Backend
-from pyapprox.surrogates.affine.protocols import (
-    LinearSystemSolverProtocol,
-    PhysicalDomainBasis1DProtocol,
-)
 from pyapprox.surrogates.affine.basis import (
     OrthonormalPolynomialBasis,
 )
-from pyapprox.surrogates.affine.indices import (
-    compute_hyperbolic_indices,
-)
 from pyapprox.surrogates.affine.expansions.base import BasisExpansion
-from pyapprox.surrogates.affine.univariate.factory import (
-    create_basis_1d,
-)
-from pyapprox.surrogates.affine.univariate.transformed import (
-    TransformedBasis1D,
-    NativeBasis1D,
-)
 from pyapprox.surrogates.affine.expansions.pce_arithmetic import (
-    add_pce,
     add_constant_to_pce,
+    add_pce,
     multiply_pce,
     multiply_pce_by_constant,
     pce_power,
 )
+from pyapprox.surrogates.affine.indices import (
+    compute_hyperbolic_indices,
+)
+from pyapprox.surrogates.affine.protocols import (
+    LinearSystemSolverProtocol,
+)
+from pyapprox.surrogates.affine.univariate.factory import (
+    create_basis_1d,
+)
+from pyapprox.surrogates.affine.univariate.transformed import (
+    NativeBasis1D,
+    TransformedBasis1D,
+)
+from pyapprox.util.backends.protocols import Array, Backend
 
 
 class PolynomialChaosExpansion(BasisExpansion[Array], Generic[Array]):
@@ -76,8 +75,7 @@ class PolynomialChaosExpansion(BasisExpansion[Array], Generic[Array]):
     ):
         if not isinstance(basis, OrthonormalPolynomialBasis):
             raise TypeError(
-                f"basis must be OrthonormalPolynomialBasis, "
-                f"got {type(basis).__name__}"
+                f"basis must be OrthonormalPolynomialBasis, got {type(basis).__name__}"
             )
         super().__init__(basis, bkd, nqoi, solver)
 
@@ -121,7 +119,7 @@ class PolynomialChaosExpansion(BasisExpansion[Array], Generic[Array]):
         """
         const_idx = self._get_constant_index()
         # Sum of squared coefficients excluding constant
-        coef_sq = self._coef ** 2
+        coef_sq = self._coef**2
         total = self._bkd.sum(coef_sq, axis=0)
         # Subtract constant term squared
         return total - coef_sq[const_idx, :]
@@ -149,10 +147,9 @@ class PolynomialChaosExpansion(BasisExpansion[Array], Generic[Array]):
         const_idx = self._get_constant_index()
         # coef: (nterms, nqoi)
         # Remove constant term
-        coef_nonconstant = self._bkd.concatenate([
-            self._coef[:const_idx, :],
-            self._coef[const_idx+1:, :]
-        ], axis=0)
+        coef_nonconstant = self._bkd.concatenate(
+            [self._coef[:const_idx, :], self._coef[const_idx + 1 :, :]], axis=0
+        )
         # Cov = coef^T @ coef
         return self._bkd.dot(coef_nonconstant.T, coef_nonconstant)
 
@@ -172,9 +169,7 @@ class PolynomialChaosExpansion(BasisExpansion[Array], Generic[Array]):
         coef = self._coef
 
         # Avoid division by zero
-        var_safe = self._bkd.where(
-            var > 0, var, self._bkd.ones_like(var)
-        )
+        var_safe = self._bkd.where(var > 0, var, self._bkd.ones_like(var))
 
         total_indices = self._bkd.zeros((self.nvars(), self.nqoi()))
 
@@ -182,11 +177,10 @@ class PolynomialChaosExpansion(BasisExpansion[Array], Generic[Array]):
             # Terms that depend on variable dd
             depends_on_dd = indices[dd, :] > 0
             # Sum of squared coefficients for those terms
-            coef_sq = coef ** 2
+            coef_sq = coef**2
             mask = self._bkd.asarray(depends_on_dd, dtype=self._bkd.default_dtype())
             contribution = self._bkd.sum(
-                coef_sq * self._bkd.reshape(mask, (-1, 1)),
-                axis=0
+                coef_sq * self._bkd.reshape(mask, (-1, 1)), axis=0
             )
             total_indices[dd, :] = contribution / var_safe
 
@@ -194,7 +188,7 @@ class PolynomialChaosExpansion(BasisExpansion[Array], Generic[Array]):
         total_indices = self._bkd.where(
             self._bkd.reshape(var, (1, -1)) > 0,
             total_indices,
-            self._bkd.zeros_like(total_indices)
+            self._bkd.zeros_like(total_indices),
         )
         return total_indices
 
@@ -214,9 +208,7 @@ class PolynomialChaosExpansion(BasisExpansion[Array], Generic[Array]):
         coef = self._coef
 
         # Avoid division by zero
-        var_safe = self._bkd.where(
-            var > 0, var, self._bkd.ones_like(var)
-        )
+        var_safe = self._bkd.where(var > 0, var, self._bkd.ones_like(var))
 
         main_indices = self._bkd.zeros((self.nvars(), self.nqoi()))
 
@@ -228,13 +220,10 @@ class PolynomialChaosExpansion(BasisExpansion[Array], Generic[Array]):
             other_vars_zero = index_sum == indices[dd, :]
             main_effect_terms = depends_on_dd & other_vars_zero
 
-            coef_sq = coef ** 2
-            mask = self._bkd.asarray(
-                main_effect_terms, dtype=self._bkd.default_dtype()
-            )
+            coef_sq = coef**2
+            mask = self._bkd.asarray(main_effect_terms, dtype=self._bkd.default_dtype())
             contribution = self._bkd.sum(
-                coef_sq * self._bkd.reshape(mask, (-1, 1)),
-                axis=0
+                coef_sq * self._bkd.reshape(mask, (-1, 1)), axis=0
             )
             main_indices[dd, :] = contribution / var_safe
 
@@ -242,7 +231,7 @@ class PolynomialChaosExpansion(BasisExpansion[Array], Generic[Array]):
         main_indices = self._bkd.where(
             self._bkd.reshape(var, (1, -1)) > 0,
             main_indices,
-            self._bkd.zeros_like(main_indices)
+            self._bkd.zeros_like(main_indices),
         )
         return main_indices
 
@@ -306,9 +295,7 @@ class PolynomialChaosExpansion(BasisExpansion[Array], Generic[Array]):
             return add_pce(self, other, sign=-1.0)
         return NotImplemented
 
-    def __rsub__(
-        self, other: Union[float, int]
-    ) -> "PolynomialChaosExpansion[Array]":
+    def __rsub__(self, other: Union[float, int]) -> "PolynomialChaosExpansion[Array]":
         if isinstance(other, (float, int)):
             result = multiply_pce_by_constant(self, -1.0)
             return add_constant_to_pce(result, float(other))
@@ -409,7 +396,8 @@ def get_basis_from_marginal(
     >>> # Uniform on [0, 2]
     >>> basis = get_basis_from_marginal(UniformMarginal(0.0, 2.0, bkd), bkd)
     >>> # Beta(2, 5) on [0.5, 1.5]
-    >>> basis = get_basis_from_marginal(BetaMarginal(2.0, 5.0, bkd, lb=0.5, ub=1.5), bkd)
+    >>> basis = get_basis_from_marginal(BetaMarginal(2.0, 5.0, bkd, lb=0.5, ub=1.5),
+    bkd)
     """
     return create_basis_1d(marginal, bkd)
 

@@ -1,42 +1,42 @@
 """Tests for reaction-diffusion physics implementations."""
 
-import unittest
 import math
+import unittest
+
 import numpy as np
 
-from pyapprox.util.backends.numpy import NumpyBkd
-from pyapprox.util.test_utils import load_tests  # noqa: F401
+from pyapprox.optimization.rootfinding.newton import NewtonSolver
 from pyapprox.pde.collocation.basis import ChebyshevBasis1D
-from pyapprox.pde.collocation.mesh import (
-    create_uniform_mesh_1d,
-    TransformedMesh1D,
-)
 from pyapprox.pde.collocation.boundary import (
     zero_dirichlet_bc,
-    constant_dirichlet_bc,
 )
-from pyapprox.pde.collocation.physics.reaction_diffusion import (
-    TwoSpeciesReactionDiffusionPhysics,
-    LinearReaction,
-    FitzHughNagumoReaction,
-    create_two_species_reaction_diffusion,
+from pyapprox.pde.collocation.manufactured_solutions import (
+    ManufacturedTwoSpeciesReactionDiffusion,
+)
+from pyapprox.pde.collocation.mesh import (
+    TransformedMesh1D,
+    create_uniform_mesh_1d,
 )
 from pyapprox.pde.collocation.physics.fitzhugh_nagumo import (
     FitzHughNagumoPhysics,
     create_fitzhugh_nagumo,
 )
-from pyapprox.pde.collocation.physics.tests.test_utils import (
-    PhysicsTestBase,
-    PhysicsNewtonResidual,
+from pyapprox.pde.collocation.physics.reaction_diffusion import (
+    FitzHughNagumoReaction,
+    LinearReaction,
+    TwoSpeciesReactionDiffusionPhysics,
+    create_two_species_reaction_diffusion,
 )
-from pyapprox.optimization.rootfinding.newton import NewtonSolver
+from pyapprox.pde.collocation.physics.tests.test_utils import (
+    PhysicsNewtonResidual,
+    PhysicsTestBase,
+)
 from pyapprox.pde.collocation.time_integration import (
     CollocationModel,
     TimeIntegrationConfig,
 )
-from pyapprox.pde.collocation.manufactured_solutions import (
-    ManufacturedTwoSpeciesReactionDiffusion,
-)
+from pyapprox.util.backends.numpy import NumpyBkd
+from pyapprox.util.test_utils import load_tests  # noqa: F401
 
 
 class TestTwoSpeciesReactionDiffusion(PhysicsTestBase):
@@ -102,8 +102,10 @@ class TestTwoSpeciesReactionDiffusion(PhysicsTestBase):
         forcing1 = bkd.cos(math.pi * nodes)
 
         physics = TwoSpeciesReactionDiffusionPhysics(
-            basis, bkd,
-            diffusion0=0.1, diffusion1=0.1,
+            basis,
+            bkd,
+            diffusion0=0.1,
+            diffusion1=0.1,
             reaction=reaction,
             forcing0=lambda t: forcing0,
             forcing1=lambda t: forcing1,
@@ -128,7 +130,7 @@ class TestTwoSpeciesReactionDiffusion(PhysicsTestBase):
         # D1 * u1'' = D1 * (-pi^2) * cos(pi*x) = f1
         D0 = 0.1
         D1 = 0.05
-        pi_sq = math.pi ** 2
+        pi_sq = math.pi**2
 
         exact_u0 = bkd.sin(math.pi * nodes)
         exact_u1 = bkd.cos(math.pi * nodes)
@@ -141,8 +143,10 @@ class TestTwoSpeciesReactionDiffusion(PhysicsTestBase):
         reaction = LinearReaction(0.0, 0.0, 0.0, 0.0, bkd)
 
         physics = TwoSpeciesReactionDiffusionPhysics(
-            basis, bkd,
-            diffusion0=D0, diffusion1=D1,
+            basis,
+            bkd,
+            diffusion0=D0,
+            diffusion1=D1,
             reaction=reaction,
             forcing0=lambda t: forcing0,
             forcing1=lambda t: forcing1,
@@ -166,8 +170,8 @@ class TestTwoSpeciesReactionDiffusion(PhysicsTestBase):
         D0 = 0.1
         D1 = 0.05
 
-        exact_u0 = 1.0 - nodes ** 2
-        exact_u1 = 1.0 - nodes ** 2
+        exact_u0 = 1.0 - nodes**2
+        exact_u1 = 1.0 - nodes**2
         exact_solution = bkd.hstack([exact_u0, exact_u1])
 
         forcing0 = bkd.full((npts,), D0 * 2.0)
@@ -176,8 +180,10 @@ class TestTwoSpeciesReactionDiffusion(PhysicsTestBase):
         reaction = LinearReaction(0.0, 0.0, 0.0, 0.0, bkd)
 
         physics = TwoSpeciesReactionDiffusionPhysics(
-            basis, bkd,
-            diffusion0=D0, diffusion1=D1,
+            basis,
+            bkd,
+            diffusion0=D0,
+            diffusion1=D1,
             reaction=reaction,
             forcing0=lambda t: forcing0,
             forcing1=lambda t: forcing1,
@@ -196,9 +202,9 @@ class TestTwoSpeciesReactionDiffusion(PhysicsTestBase):
         bc_u1_left = zero_dirichlet_bc(bkd, bkd.array([npts + left_idx]))
         bc_u1_right = zero_dirichlet_bc(bkd, bkd.array([npts + right_idx]))
 
-        physics.set_boundary_conditions([
-            bc_u0_left, bc_u0_right, bc_u1_left, bc_u1_right
-        ])
+        physics.set_boundary_conditions(
+            [bc_u0_left, bc_u0_right, bc_u1_left, bc_u1_right]
+        )
 
         # Newton solve from wrong initial guess using NewtonSolver
         initial_guess = bkd.zeros((2 * npts,))
@@ -220,8 +226,10 @@ class TestTwoSpeciesReactionDiffusion(PhysicsTestBase):
         reaction = LinearReaction(0.0, 0.0, 0.0, 0.0, bkd)
 
         physics = create_two_species_reaction_diffusion(
-            basis, bkd,
-            diffusion0=0.1, diffusion1=0.05,
+            basis,
+            bkd,
+            diffusion0=0.1,
+            diffusion1=0.05,
             reaction=reaction,
         )
 
@@ -257,7 +265,9 @@ class TestTwoSpeciesReactionDiffusion(PhysicsTestBase):
         bc_u0_right = zero_dirichlet_bc(bkd, bkd.array([right_idx]))
         bc_u1_left = zero_dirichlet_bc(bkd, bkd.array([npts + left_idx]))
         bc_u1_right = zero_dirichlet_bc(bkd, bkd.array([npts + right_idx]))
-        physics.set_boundary_conditions([bc_u0_left, bc_u0_right, bc_u1_left, bc_u1_right])
+        physics.set_boundary_conditions(
+            [bc_u0_left, bc_u0_right, bc_u1_left, bc_u1_right]
+        )
 
         model = CollocationModel(physics, bkd)
 
@@ -277,8 +287,8 @@ class TestTwoSpeciesReactionDiffusion(PhysicsTestBase):
         solutions, times = model.solve_transient(state0, config)
 
         # Exact solutions at final time
-        u0_exact = math.exp(-D0 * math.pi ** 2 * final_time) * bkd.sin(math.pi * nodes)
-        u1_exact = math.exp(-D1 * math.pi ** 2 * final_time) * bkd.sin(math.pi * nodes)
+        u0_exact = math.exp(-D0 * math.pi**2 * final_time) * bkd.sin(math.pi * nodes)
+        u1_exact = math.exp(-D1 * math.pi**2 * final_time) * bkd.sin(math.pi * nodes)
         exact_final = bkd.hstack([u0_exact, u1_exact])
 
         bkd.assert_allclose(solutions[:, -1], exact_final, rtol=0.02, atol=1e-10)
@@ -322,8 +332,13 @@ class TestTwoSpeciesReactionDiffusion(PhysicsTestBase):
             return forcing[:, 1]
 
         physics = TwoSpeciesReactionDiffusionPhysics(
-            basis, bkd, diffusion0=D0, diffusion1=D1,
-            reaction=reaction, forcing0=forcing0_fn, forcing1=forcing1_fn
+            basis,
+            bkd,
+            diffusion0=D0,
+            diffusion1=D1,
+            reaction=reaction,
+            forcing0=forcing0_fn,
+            forcing1=forcing1_fn,
         )
 
         left_idx = mesh.boundary_indices(0)
@@ -352,9 +367,7 @@ class TestTwoSpeciesReactionDiffusion(PhysicsTestBase):
         solutions, times = model.solve_transient(state0, config)
         t_final = float(bkd.to_numpy(times[-1]))
         u_exact_final = man_sol.functions["solution"](nodes[None, :], t_final)
-        exact_final = bkd.concatenate(
-            [u_exact_final[:, 0], u_exact_final[:, 1]]
-        )
+        exact_final = bkd.concatenate([u_exact_final[:, 0], u_exact_final[:, 1]])
 
         bkd.assert_allclose(solutions[:, -1], exact_final, atol=1e-8)
 
@@ -376,8 +389,7 @@ class TestFitzHughNagumoPhysics(PhysicsTestBase):
         basis = ChebyshevBasis1D(mesh, bkd)
 
         physics = FitzHughNagumoPhysics(
-            basis, bkd, diffusion_v=1e-3,
-            alpha=0.1, eps=0.01, beta=0.5, gamma=1.0
+            basis, bkd, diffusion_v=1e-3, alpha=0.1, eps=0.01, beta=0.5, gamma=1.0
         )
 
         # State in reasonable FHN range
@@ -396,8 +408,7 @@ class TestFitzHughNagumoPhysics(PhysicsTestBase):
 
         # Different parameter values
         physics = FitzHughNagumoPhysics(
-            basis, bkd, diffusion_v=5e-4,
-            alpha=0.2, eps=0.1, beta=1.0, gamma=0.5
+            basis, bkd, diffusion_v=5e-4, alpha=0.2, eps=0.1, beta=1.0, gamma=0.5
         )
 
         np.random.seed(123)
@@ -414,8 +425,7 @@ class TestFitzHughNagumoPhysics(PhysicsTestBase):
         basis = ChebyshevBasis1D(mesh, bkd)
 
         physics = FitzHughNagumoPhysics(
-            basis, bkd,
-            alpha=0.15, eps=0.02, beta=0.6, gamma=0.9
+            basis, bkd, alpha=0.15, eps=0.02, beta=0.6, gamma=0.9
         )
 
         self.assertAlmostEqual(physics.alpha(), 0.15)
@@ -451,8 +461,7 @@ class TestFitzHughNagumoPhysics(PhysicsTestBase):
         basis = ChebyshevBasis1D(mesh, bkd)
 
         physics = create_fitzhugh_nagumo(
-            basis, bkd, diffusion_v=1e-3,
-            alpha=0.1, eps=0.01
+            basis, bkd, diffusion_v=1e-3, alpha=0.1, eps=0.01
         )
 
         self.assertEqual(physics.ncomponents(), 2)
@@ -488,14 +497,13 @@ class TestFitzHughNagumoPhysics(PhysicsTestBase):
         nodes = basis.nodes()
 
         physics = FitzHughNagumoPhysics(
-            basis, bkd, diffusion_v=1e-2,
-            alpha=0.1, eps=0.01, beta=0.5, gamma=1.0
+            basis, bkd, diffusion_v=1e-2, alpha=0.1, eps=0.01, beta=0.5, gamma=1.0
         )
 
         model = CollocationModel(physics, bkd)
 
         # Initial condition: small localized excitation
-        v0 = 0.5 * bkd.exp(-10.0 * nodes ** 2)  # Excitatory variable
+        v0 = 0.5 * bkd.exp(-10.0 * nodes**2)  # Excitatory variable
         w0 = bkd.zeros((npts,))  # Recovery variable starts at rest
         state0 = bkd.hstack([v0, w0])
 

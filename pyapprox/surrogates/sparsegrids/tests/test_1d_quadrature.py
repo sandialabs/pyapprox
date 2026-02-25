@@ -81,8 +81,11 @@ def create_marginal(
         return GaussianMarginal(params["mean"], params["stdev"], bkd)
     elif mtype == "beta":
         return BetaMarginal(
-            params["alpha"], params["beta"], bkd,
-            lb=params.get("lb", 0.0), ub=params.get("ub", 1.0)
+            params["alpha"],
+            params["beta"],
+            bkd,
+            lb=params.get("lb", 0.0),
+            ub=params.get("ub", 1.0),
         )
     elif mtype == "gamma":
         return GammaMarginal(params["shape"], params["scale"], bkd)
@@ -90,9 +93,7 @@ def create_marginal(
         raise ValueError(f"Unknown marginal type: {mtype}")
 
 
-def get_analytical_moments(
-    mtype: str, params: Dict[str, float]
-) -> Tuple[float, float]:
+def get_analytical_moments(mtype: str, params: Dict[str, float]) -> Tuple[float, float]:
     """Get analytical E[X] and E[X^2] for a marginal distribution.
 
     Returns
@@ -155,9 +156,7 @@ def get_analytical_moments(
 # =============================================================================
 
 
-class TestGaussQuadrature1D(
-    Generic[Array], ParametrizedTestCase, unittest.TestCase
-):
+class TestGaussQuadrature1D(Generic[Array], ParametrizedTestCase, unittest.TestCase):
     """Parametrized tests for 1D Gauss quadrature rules.
 
     Tests verify that Gauss quadrature rules for various probability measures
@@ -217,9 +216,7 @@ class TestGaussQuadrature1D(
         "name,mtype,params",
         MARGINAL_CONFIGS,
     )
-    def test_mean_exact(
-        self, name: str, mtype: str, params: Dict[str, float]
-    ) -> None:
+    def test_mean_exact(self, name: str, mtype: str, params: Dict[str, float]) -> None:
         """Test mean is exact: sum(w_i * x_i) = E[X] with 1+ points.
 
         Gauss quadrature with n points is exact for polynomials up to
@@ -356,11 +353,11 @@ class TestGaussQuadrature1D(
                 assert not isinstance(ub_check, bool)  # for mypy
                 self.assertTrue(
                     self._bkd.all_bool(lb_check),
-                    f"Points below lower bound for {name} with {npoints} points"
+                    f"Points below lower bound for {name} with {npoints} points",
                 )
                 self.assertTrue(
                     self._bkd.all_bool(ub_check),
-                    f"Points above upper bound for {name} with {npoints} points"
+                    f"Points above upper bound for {name} with {npoints} points",
                 )
 
             elif mtype == "beta":
@@ -371,11 +368,11 @@ class TestGaussQuadrature1D(
                 assert not isinstance(ub_check, bool)  # for mypy
                 self.assertTrue(
                     self._bkd.all_bool(lb_check),
-                    f"Points below lower bound for {name} with {npoints} points"
+                    f"Points below lower bound for {name} with {npoints} points",
                 )
                 self.assertTrue(
                     self._bkd.all_bool(ub_check),
-                    f"Points above upper bound for {name} with {npoints} points"
+                    f"Points above upper bound for {name} with {npoints} points",
                 )
 
             elif mtype == "gamma":
@@ -383,7 +380,7 @@ class TestGaussQuadrature1D(
                 assert not isinstance(lb_check, bool)  # for mypy
                 self.assertTrue(
                     self._bkd.all_bool(lb_check),
-                    f"Points below 0 for {name} with {npoints} points"
+                    f"Points below 0 for {name} with {npoints} points",
                 )
 
             # Gaussian has infinite support, so no bounds to check

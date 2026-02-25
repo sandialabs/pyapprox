@@ -5,7 +5,7 @@ Defines:
 - InterfaceProtocol: interface between two subdomains
 """
 
-from typing import Protocol, Generic, runtime_checkable, Tuple
+from typing import Generic, Protocol, Tuple, runtime_checkable
 
 from pyapprox.util.backends.protocols import Array, Backend
 

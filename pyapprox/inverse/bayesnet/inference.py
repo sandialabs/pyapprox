@@ -5,9 +5,10 @@ This module provides sum-product variable elimination for exact inference
 in linear-Gaussian graphical models.
 """
 
-from typing import Dict, Generic, List, Optional, Set, Tuple
+from typing import Dict, List, Optional, Set
 
 from pyapprox.util.backends.protocols import Array, Backend
+
 from .factor import GaussianFactor
 from .network import GaussianNetwork
 
@@ -96,9 +97,7 @@ def sum_product_variable_elimination(
     current_factors = list(factors)
 
     for var_id in elim_order:
-        current_factors = sum_product_eliminate_variable(
-            current_factors, var_id, bkd
-        )
+        current_factors = sum_product_eliminate_variable(current_factors, var_id, bkd)
 
     if not current_factors:
         raise ValueError("No factors remain after elimination")
@@ -150,8 +149,7 @@ def cond_prob_variable_elimination(
         for factor in factors:
             # Check which evidence variables are in this factor's scope
             evidence_in_scope = [
-                var_id for var_id in evidence.keys()
-                if var_id in factor.var_ids()
+                var_id for var_id in evidence.keys() if var_id in factor.var_ids()
             ]
 
             if evidence_in_scope:
@@ -198,9 +196,7 @@ def cond_prob_variable_elimination(
 
     # Normalize the result
     canonical = result.canonical().normalize()
-    return GaussianFactor(
-        canonical, result.var_ids(), result.nvars_per_var(), bkd
-    )
+    return GaussianFactor(canonical, result.var_ids(), result.nvars_per_var(), bkd)
 
 
 def compute_marginal(

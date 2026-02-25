@@ -9,10 +9,10 @@ Likelihood: obs_i ~ Bernoulli(p)
 Posterior: p | obs ~ Beta(alpha + sum(obs), beta + n - sum(obs))
 """
 
-from typing import Generic, Optional, Any
 import math
+from typing import Any, Generic, Optional
 
-from scipy.special import gammaln, betaln
+from scipy.special import betaln
 
 from pyapprox.util.backends.protocols import Array, Backend
 
@@ -218,7 +218,11 @@ class BetaConjugatePosterior(Generic[Array]):
     def __repr__(self) -> str:
         """Return string representation."""
         if self._alpha_post is None:
-            return f"BetaConjugatePosterior(alpha={self._alpha_prior}, beta={self._beta_prior})"
+            return (
+                f"BetaConjugatePosterior("
+                f"alpha={self._alpha_prior}, "
+                f"beta={self._beta_prior})"
+            )
         return (
             f"BetaConjugatePosterior(posterior_alpha={self._alpha_post:.2f}, "
             f"posterior_beta={self._beta_post:.2f})"

@@ -26,18 +26,18 @@ Examples
 >>> func = convert_to_function_of_parameters(param_func, fixed_param)
 """
 
+from .factory import convert_to_function_of_parameters
 from .protocols import (
     ParameterizedFunctionProtocol,
-    ParameterizedFunctionWithJacobianProtocol,
     ParameterizedFunctionWithJacobianAndHVPProtocol,
+    ParameterizedFunctionWithJacobianProtocol,
 )
+from .validation import validate_parameterized_function
 from .wrappers import (
     FunctionOfParameters,
     FunctionOfParametersWithJacobian,
     FunctionOfParametersWithJacobianAndHVP,
 )
-from .factory import convert_to_function_of_parameters
-from .validation import validate_parameterized_function
 
 __all__ = [
     "ParameterizedFunctionProtocol",

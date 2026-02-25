@@ -13,8 +13,8 @@ Available indicators:
 
 from typing import Generic, Protocol, Tuple, runtime_checkable
 
-from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.surrogates.sparsegrids.candidate_info import CandidateInfo
+from pyapprox.util.backends.protocols import Array, Backend
 
 
 @runtime_checkable
@@ -32,8 +32,7 @@ class ErrorIndicatorProtocol(Protocol[Array]):
         (priority, error) where higher priority means refine sooner.
     """
 
-    def __call__(self, info: CandidateInfo[Array]) -> Tuple[float, float]:
-        ...
+    def __call__(self, info: CandidateInfo[Array]) -> Tuple[float, float]: ...
 
 
 class L2SurrogateDifferenceIndicator(Generic[Array]):
@@ -73,10 +72,7 @@ class L2SurrogateDifferenceIndicator(Generic[Array]):
 
         error = float(
             self._bkd.to_numpy(
-                self._bkd.sqrt(
-                    self._bkd.sum(diff * diff)
-                    / max(nsamples, 1)
-                )
+                self._bkd.sqrt(self._bkd.sum(diff * diff) / max(nsamples, 1))
             )
         )
         return (error, error)
@@ -119,10 +115,7 @@ class L2NewSamplesIndicator(Generic[Array]):
 
         error = float(
             self._bkd.to_numpy(
-                self._bkd.sqrt(
-                    self._bkd.sum(diff * diff)
-                    / max(nsamples, 1)
-                )
+                self._bkd.sqrt(self._bkd.sum(diff * diff) / max(nsamples, 1))
             )
         )
         return (error, error)
@@ -166,9 +159,7 @@ class VarianceChangeIndicator(Generic[Array]):
         )
         var_change = float(
             self._bkd.to_numpy(
-                self._bkd.max(
-                    self._bkd.sqrt(self._bkd.abs(new_var - old_var))
-                )
+                self._bkd.max(self._bkd.sqrt(self._bkd.abs(new_var - old_var)))
             )
         )
         error = mean_change + var_change

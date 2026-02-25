@@ -5,7 +5,7 @@ and Jacobians.
 """
 
 from dataclasses import dataclass
-from typing import Protocol, Generic, List, runtime_checkable, Tuple
+from typing import Generic, List, Protocol, runtime_checkable
 
 from pyapprox.util.backends.protocols import Array, Backend
 
@@ -38,6 +38,7 @@ class BCDofClassification:
         Natural BCs in Galerkin are assembled into the weak form
         without row replacement.
     """
+
     essential: list
     row_replaced: list
 
@@ -71,9 +72,7 @@ class BoundaryConditionProtocol(Protocol, Generic[Array]):
         """
         ...
 
-    def apply_to_residual(
-        self, residual: Array, state: Array, time: float
-    ) -> Array:
+    def apply_to_residual(self, residual: Array, state: Array, time: float) -> Array:
         """Apply boundary condition to residual.
 
         Modifies rows of residual corresponding to boundary points.
@@ -94,9 +93,7 @@ class BoundaryConditionProtocol(Protocol, Generic[Array]):
         """
         ...
 
-    def apply_to_jacobian(
-        self, jacobian: Array, state: Array, time: float
-    ) -> Array:
+    def apply_to_jacobian(self, jacobian: Array, state: Array, time: float) -> Array:
         """Apply boundary condition to Jacobian.
 
         Modifies rows of Jacobian corresponding to boundary points.
@@ -155,7 +152,10 @@ class BoundaryConditionWithParamJacobianProtocol(Protocol, Generic[Array]):
     ) -> Array: ...
 
     def apply_to_param_jacobian(
-        self, param_jacobian: Array, state: Array, time: float,
+        self,
+        param_jacobian: Array,
+        state: Array,
+        time: float,
         physical_sensitivities=None,
     ) -> Array:
         """Apply boundary condition to parameter Jacobian.

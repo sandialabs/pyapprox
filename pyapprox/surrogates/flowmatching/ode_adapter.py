@@ -17,15 +17,15 @@ for a batch of initial conditions.
 
 from typing import Generic, Optional, Type
 
-from pyapprox.util.backends.protocols import Array, Backend
+from pyapprox.optimization.rootfinding.newton import NewtonSolver
 from pyapprox.pde.time.explicit_steppers.forward_euler import (
     ForwardEulerResidual,
 )
 from pyapprox.pde.time.explicit_steppers.heun import HeunResidual
-from pyapprox.optimization.rootfinding.newton import NewtonSolver
 from pyapprox.pde.time.implicit_steppers.integrator import (
     TimeIntegrator,
 )
+from pyapprox.util.backends.protocols import Array, Backend
 
 
 class FlowODEResidual(Generic[Array]):
@@ -299,13 +299,32 @@ def integrate_flow(
 
     if stepper_cls is ForwardEulerResidual:
         return _integrate_euler_batch(
-            vf, x0_batch, t_start, dt, n_steps, bkd, c,
+            vf,
+            x0_batch,
+            t_start,
+            dt,
+            n_steps,
+            bkd,
+            c,
         )
     elif stepper_cls is HeunResidual:
         return _integrate_heun_batch(
-            vf, x0_batch, t_start, dt, n_steps, bkd, c,
+            vf,
+            x0_batch,
+            t_start,
+            dt,
+            n_steps,
+            bkd,
+            c,
         )
     else:
         return _integrate_persample_fallback(
-            vf, x0_batch, t_start, t_end, dt, bkd, c, stepper_cls,
+            vf,
+            x0_batch,
+            t_start,
+            t_end,
+            dt,
+            bkd,
+            c,
+            stepper_cls,
         )

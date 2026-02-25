@@ -9,25 +9,24 @@ from typing import Generic
 
 import numpy as np
 
-from pyapprox.util.backends.protocols import Array, Backend
-from pyapprox.util.backends.numpy import NumpyBkd
-from pyapprox.util.test_utils import load_tests
 from pyapprox.optimization.rootfinding.newton import NewtonSolver
 from pyapprox.pde.time.benchmarks.linear_ode import LinearODEResidual
+from pyapprox.pde.time.explicit_steppers.forward_euler import (
+    ForwardEulerResidual,
+)
+from pyapprox.pde.time.explicit_steppers.heun import HeunResidual
+from pyapprox.pde.time.functionals.endpoint import EndpointFunctional
 from pyapprox.pde.time.implicit_steppers.backward_euler import (
     BackwardEulerResidual,
 )
 from pyapprox.pde.time.implicit_steppers.crank_nicolson import (
     CrankNicolsonResidual,
 )
-from pyapprox.pde.time.explicit_steppers.forward_euler import (
-    ForwardEulerResidual,
-)
-from pyapprox.pde.time.explicit_steppers.heun import HeunResidual
 from pyapprox.pde.time.implicit_steppers.integrator import (
     TimeIntegrator,
 )
-from pyapprox.pde.time.functionals.endpoint import EndpointFunctional
+from pyapprox.util.backends.numpy import NumpyBkd
+from pyapprox.util.backends.protocols import Array, Backend
 
 
 class TestAdjointJacobian(Generic[Array], unittest.TestCase):
@@ -87,9 +86,7 @@ class TestAdjointJacobian(Generic[Array], unittest.TestCase):
 
         return fd_grad
 
-    def _check_gradient_stepper(
-        self, stepper_class, tol: float = 1e-5
-    ) -> None:
+    def _check_gradient_stepper(self, stepper_class, tol: float = 1e-5) -> None:
         """Check gradient for a given stepper class."""
         bkd = self.bkd()
         ode_residual, nstates, nparams = self._create_linear_ode_problem()
@@ -104,9 +101,7 @@ class TestAdjointJacobian(Generic[Array], unittest.TestCase):
         init_time = 0.0
         final_time = 1.0
         deltat = 0.1
-        integrator = TimeIntegrator(
-            init_time, final_time, deltat, newton_solver
-        )
+        integrator = TimeIntegrator(init_time, final_time, deltat, newton_solver)
 
         # Create functional
         functional = EndpointFunctional(
@@ -138,7 +133,7 @@ class TestAdjointJacobian(Generic[Array], unittest.TestCase):
             float(error),
             tol,
             f"Gradient error {float(error):.2e} exceeds tolerance {tol:.2e} "
-            f"for {stepper_class.__name__}"
+            f"for {stepper_class.__name__}",
         )
 
     def test_backward_euler_gradient(self) -> None:

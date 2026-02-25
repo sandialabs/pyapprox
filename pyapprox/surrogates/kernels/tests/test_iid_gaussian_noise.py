@@ -1,20 +1,20 @@
 import unittest
-from typing import Generic, Any
+from typing import Any, Generic
 
 import numpy as np
 import torch
 from numpy.typing import NDArray
 
-from pyapprox.util.backends.protocols import Backend, Array
-from pyapprox.util.backends.numpy import NumpyBkd
-from pyapprox.util.backends.torch import TorchBkd
-from pyapprox.surrogates.kernels.iid_gaussian_noise import IIDGaussianNoise
 from pyapprox.interface.functions.derivative_checks.derivative_checker import (
     DerivativeChecker,
 )
 from pyapprox.interface.functions.fromcallable.hessian import (
     FunctionWithJacobianFromCallable,
 )
+from pyapprox.surrogates.kernels.iid_gaussian_noise import IIDGaussianNoise
+from pyapprox.util.backends.numpy import NumpyBkd
+from pyapprox.util.backends.protocols import Array, Backend
+from pyapprox.util.backends.torch import TorchBkd
 
 
 class TestIIDGaussianNoise(Generic[Array], unittest.TestCase):
@@ -39,9 +39,7 @@ class TestIIDGaussianNoise(Generic[Array], unittest.TestCase):
 
         # Create kernel
         self.kernel = IIDGaussianNoise(
-            self.noise_variance,
-            self.variance_bounds,
-            self.bkd()
+            self.noise_variance, self.variance_bounds, self.bkd()
         )
 
         # Create sample data
@@ -52,19 +50,13 @@ class TestIIDGaussianNoise(Generic[Array], unittest.TestCase):
         """
         Override this method in derived classes to provide the backend.
         """
-        raise NotImplementedError(
-            "Derived classes must implement this method."
-        )
+        raise NotImplementedError("Derived classes must implement this method.")
 
     def test_initialization(self) -> None:
         """
         Test IIDGaussianNoise initialization.
         """
-        kernel = IIDGaussianNoise(
-            self.noise_variance,
-            self.variance_bounds,
-            self.bkd()
-        )
+        kernel = IIDGaussianNoise(self.noise_variance, self.variance_bounds, self.bkd())
         self.assertIsNotNone(kernel.bkd())
         self.assertEqual(kernel.nvars(), 0)  # No spatial dependence
 
@@ -174,7 +166,7 @@ class TestIIDGaussianNoise(Generic[Array], unittest.TestCase):
             self.kernel.hyp_list().nactive_params(),
             kernel_func_params,
             kernel_jac_params,
-            self.bkd()
+            self.bkd(),
         )
 
         checker = DerivativeChecker(func_with_jac)
@@ -196,21 +188,13 @@ class TestIIDGaussianNoise(Generic[Array], unittest.TestCase):
 
         # Check diagonal entries
         for i in range(self.nsamples1):
-            self.assertAlmostEqual(
-                float(jac[i, i, 0]),
-                self.noise_variance,
-                places=10
-            )
+            self.assertAlmostEqual(float(jac[i, i, 0]), self.noise_variance, places=10)
 
         # Check off-diagonal entries are zero
         for i in range(self.nsamples1):
             for j in range(self.nsamples1):
                 if i != j:
-                    self.assertAlmostEqual(
-                        float(jac[i, j, 0]),
-                        0.0,
-                        places=10
-                    )
+                    self.assertAlmostEqual(float(jac[i, j, 0]), 0.0, places=10)
 
     def test_hyperparameter_update(self) -> None:
         """
@@ -222,9 +206,7 @@ class TestIIDGaussianNoise(Generic[Array], unittest.TestCase):
         # Update noise level
         new_noise = 0.5
         # LogHyperParameter expects log values
-        self.kernel.hyp_list().set_active_values(
-            self.bkd().array([np.log(new_noise)])
-        )
+        self.kernel.hyp_list().set_active_values(self.bkd().array([np.log(new_noise)]))
 
         # Get new kernel matrix
         K_after = self.kernel(self.X1)
@@ -234,9 +216,7 @@ class TestIIDGaussianNoise(Generic[Array], unittest.TestCase):
         self.bkd().assert_allclose(K_after, expected)
 
         # Should be different from before
-        self.assertFalse(
-            self.bkd().allclose(K_before, K_after)
-        )
+        self.assertFalse(self.bkd().allclose(K_before, K_after))
 
     def test_composition_with_matern(self) -> None:
         """
@@ -247,12 +227,7 @@ class TestIIDGaussianNoise(Generic[Array], unittest.TestCase):
         from pyapprox.surrogates.kernels.matern import Matern52Kernel
 
         # Create a Matern kernel
-        matern = Matern52Kernel(
-            [1.0, 1.0],
-            (0.1, 10.0),
-            self.nvars,
-            self.bkd()
-        )
+        matern = Matern52Kernel([1.0, 1.0], (0.1, 10.0), self.nvars, self.bkd())
 
         # Sum: typical GP kernel
         gp_kernel = matern + self.kernel
@@ -271,12 +246,7 @@ class TestIIDGaussianNoise(Generic[Array], unittest.TestCase):
         """
         from pyapprox.surrogates.kernels.matern import Matern52Kernel
 
-        matern = Matern52Kernel(
-            [1.0, 1.0],
-            (0.1, 10.0),
-            self.nvars,
-            self.bkd()
-        )
+        matern = Matern52Kernel([1.0, 1.0], (0.1, 10.0), self.nvars, self.bkd())
 
         # Sum: typical GP kernel
         gp_kernel = matern + self.kernel
@@ -292,10 +262,7 @@ class TestIIDGaussianNoise(Generic[Array], unittest.TestCase):
         Test that fixed hyperparameters are not optimized.
         """
         fixed_kernel = IIDGaussianNoise(
-            self.noise_variance,
-            self.variance_bounds,
-            self.bkd(),
-            fixed=True
+            self.noise_variance, self.variance_bounds, self.bkd(), fixed=True
         )
 
         # Fixed kernels should have 0 active parameters
@@ -336,7 +303,11 @@ class TestIIDGaussianNoise(Generic[Array], unittest.TestCase):
         # Test points
         X1 = self.bkd().array(np.random.randn(self.nvars, 3))
         X2 = self.bkd().array(np.random.randn(self.nvars, 4))
-        direction = self.bkd().array(np.random.randn(self.nvars,))  # Shape (nvars,)
+        direction = self.bkd().array(
+            np.random.randn(
+                self.nvars,
+            )
+        )  # Shape (nvars,)
 
         # Compute HVP
         hvp = self.kernel.hvp_wrt_x1(X1, X2, direction)
@@ -347,9 +318,7 @@ class TestIIDGaussianNoise(Generic[Array], unittest.TestCase):
 
         # All values should be zero
         zeros = self.bkd().zeros(expected_shape)
-        self.assertTrue(
-            self.bkd().allclose(hvp, zeros, atol=1e-15)
-        )
+        self.assertTrue(self.bkd().allclose(hvp, zeros, atol=1e-15))
 
 
 # NumPy implementation
@@ -374,7 +343,6 @@ class TestIIDGaussianNoiseTorch(TestIIDGaussianNoise[torch.Tensor]):
 
 
 from pyapprox.util.test_utils import load_tests
-
 
 if __name__ == "__main__":
     loader = unittest.TestLoader()

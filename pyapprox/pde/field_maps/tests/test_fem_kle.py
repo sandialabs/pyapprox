@@ -12,21 +12,20 @@ factory functions depend on skfem, which is a PDE-layer dependency.
 import unittest
 
 import numpy as np
-from skfem import MeshLine, Basis, ElementLineP1
-from skfem import asm
+from skfem import Basis, ElementLineP1, MeshLine, asm
 from skfem.models.poisson import mass
 
-from pyapprox.util.backends.numpy import NumpyBkd
-from pyapprox.util.test_utils import load_tests  # noqa: F401
-from pyapprox.surrogates.kernels.matern import ExponentialKernel
-from pyapprox.surrogates.kle.analytical import (
-    AnalyticalExponentialKLE1D,
-)
 from pyapprox.pde.field_maps.kle_factory import (
     create_fem_galerkin_kle,
     create_fem_nystrom_nodes_kle,
     create_fem_nystrom_quadrature_kle,
 )
+from pyapprox.surrogates.kernels.matern import ExponentialKernel
+from pyapprox.surrogates.kle.analytical import (
+    AnalyticalExponentialKLE1D,
+)
+from pyapprox.util.backends.numpy import NumpyBkd
+from pyapprox.util.test_utils import load_tests  # noqa: F401
 
 
 def _make_1d_setup(nelems=25, nterms=3, corr_len=1.0, dom_len=2.0):
@@ -48,7 +47,10 @@ def _make_1d_setup(nelems=25, nterms=3, corr_len=1.0, dom_len=2.0):
     kernel = ExponentialKernel(lenscale, (0.01, 100.0), 1, bkd)
 
     analytical = AnalyticalExponentialKLE1D(
-        corr_len=corr_len, sigma2=1.0, dom_len=dom_len, nterms=nterms,
+        corr_len=corr_len,
+        sigma2=1.0,
+        dom_len=dom_len,
+        nterms=nterms,
     )
     return basis, kernel, analytical, bkd, nterms
 
@@ -65,7 +67,11 @@ class TestFEMKLE(unittest.TestCase):
         """GalerkinKLE eigenvalues converge to analytical values."""
         basis, kernel, analytical, bkd, nterms = _make_1d_setup(nelems=30)
         kle = create_fem_galerkin_kle(
-            basis, kernel, nterms=nterms, sigma=1.0, bkd=bkd,
+            basis,
+            kernel,
+            nterms=nterms,
+            sigma=1.0,
+            bkd=bkd,
         )
         exact_eig = analytical.eigenvalues()
         bkd.assert_allclose(kle.eigenvalues(), bkd.array(exact_eig), rtol=5e-3)
@@ -74,7 +80,11 @@ class TestFEMKLE(unittest.TestCase):
         """GalerkinKLE eigenvectors are M-orthonormal."""
         basis, kernel, analytical, bkd, nterms = _make_1d_setup(nelems=25)
         kle = create_fem_galerkin_kle(
-            basis, kernel, nterms=nterms, sigma=1.0, bkd=bkd,
+            basis,
+            kernel,
+            nterms=nterms,
+            sigma=1.0,
+            bkd=bkd,
         )
 
         M = asm(mass, basis)
@@ -90,7 +100,11 @@ class TestFEMKLE(unittest.TestCase):
         """GalerkinKLE has correct output shapes."""
         basis, kernel, _, bkd, nterms = _make_1d_setup(nelems=20)
         kle = create_fem_galerkin_kle(
-            basis, kernel, nterms=nterms, sigma=1.0, bkd=bkd,
+            basis,
+            kernel,
+            nterms=nterms,
+            sigma=1.0,
+            bkd=bkd,
         )
         ndofs = basis.N
         self.assertEqual(kle.eigenvalues().shape, (nterms,))
@@ -110,7 +124,11 @@ class TestFEMKLE(unittest.TestCase):
         """Nystrom-at-nodes eigenvalues converge to analytical values."""
         basis, kernel, analytical, bkd, nterms = _make_1d_setup(nelems=30)
         kle = create_fem_nystrom_nodes_kle(
-            basis, kernel, nterms=nterms, sigma=1.0, bkd=bkd,
+            basis,
+            kernel,
+            nterms=nterms,
+            sigma=1.0,
+            bkd=bkd,
         )
         exact_eig = analytical.eigenvalues()
         bkd.assert_allclose(kle.eigenvalues(), bkd.array(exact_eig), rtol=5e-3)
@@ -119,7 +137,11 @@ class TestFEMKLE(unittest.TestCase):
         """Nystrom-at-nodes eigenvectors are orthonormal under lumped mass."""
         basis, kernel, _, bkd, nterms = _make_1d_setup(nelems=25)
         kle = create_fem_nystrom_nodes_kle(
-            basis, kernel, nterms=nterms, sigma=1.0, bkd=bkd,
+            basis,
+            kernel,
+            nterms=nterms,
+            sigma=1.0,
+            bkd=bkd,
         )
 
         # Lumped mass weights
@@ -135,7 +157,11 @@ class TestFEMKLE(unittest.TestCase):
         """Nystrom-at-nodes has correct output shapes."""
         basis, kernel, _, bkd, nterms = _make_1d_setup(nelems=20)
         kle = create_fem_nystrom_nodes_kle(
-            basis, kernel, nterms=nterms, sigma=1.0, bkd=bkd,
+            basis,
+            kernel,
+            nterms=nterms,
+            sigma=1.0,
+            bkd=bkd,
         )
         nnodes = basis.mesh.p.shape[1]
         self.assertEqual(kle.eigenvalues().shape, (nterms,))
@@ -148,7 +174,11 @@ class TestFEMKLE(unittest.TestCase):
         """Nystrom-at-quadrature eigenvalues converge to analytical values."""
         basis, kernel, analytical, bkd, nterms = _make_1d_setup(nelems=20)
         kle = create_fem_nystrom_quadrature_kle(
-            basis, kernel, nterms=nterms, sigma=1.0, bkd=bkd,
+            basis,
+            kernel,
+            nterms=nterms,
+            sigma=1.0,
+            bkd=bkd,
         )
         exact_eig = analytical.eigenvalues()
         bkd.assert_allclose(kle.eigenvalues(), bkd.array(exact_eig), rtol=5e-3)
@@ -157,7 +187,11 @@ class TestFEMKLE(unittest.TestCase):
         """Nystrom-at-quadrature eigenvectors are orthonormal under dx weights."""
         basis, kernel, _, bkd, nterms = _make_1d_setup(nelems=20)
         kle = create_fem_nystrom_quadrature_kle(
-            basis, kernel, nterms=nterms, sigma=1.0, bkd=bkd,
+            basis,
+            kernel,
+            nterms=nterms,
+            sigma=1.0,
+            bkd=bkd,
         )
 
         w = bkd.asarray(basis.dx.ravel())
@@ -170,7 +204,11 @@ class TestFEMKLE(unittest.TestCase):
         """Nystrom-at-quadrature has correct output shapes."""
         basis, kernel, _, bkd, nterms = _make_1d_setup(nelems=20)
         kle = create_fem_nystrom_quadrature_kle(
-            basis, kernel, nterms=nterms, sigma=1.0, bkd=bkd,
+            basis,
+            kernel,
+            nterms=nterms,
+            sigma=1.0,
+            bkd=bkd,
         )
         nquad_total = basis.dx.size
         self.assertEqual(kle.eigenvalues().shape, (nterms,))
@@ -184,21 +222,37 @@ class TestFEMKLE(unittest.TestCase):
         basis, kernel, _, bkd, nterms = _make_1d_setup(nelems=30)
 
         kle_galerkin = create_fem_galerkin_kle(
-            basis, kernel, nterms=nterms, sigma=1.0, bkd=bkd,
+            basis,
+            kernel,
+            nterms=nterms,
+            sigma=1.0,
+            bkd=bkd,
         )
         kle_nodes = create_fem_nystrom_nodes_kle(
-            basis, kernel, nterms=nterms, sigma=1.0, bkd=bkd,
+            basis,
+            kernel,
+            nterms=nterms,
+            sigma=1.0,
+            bkd=bkd,
         )
         kle_quad = create_fem_nystrom_quadrature_kle(
-            basis, kernel, nterms=nterms, sigma=1.0, bkd=bkd,
+            basis,
+            kernel,
+            nterms=nterms,
+            sigma=1.0,
+            bkd=bkd,
         )
 
         # All should agree to within discretization error
         bkd.assert_allclose(
-            kle_galerkin.eigenvalues(), kle_nodes.eigenvalues(), rtol=5e-3,
+            kle_galerkin.eigenvalues(),
+            kle_nodes.eigenvalues(),
+            rtol=5e-3,
         )
         bkd.assert_allclose(
-            kle_galerkin.eigenvalues(), kle_quad.eigenvalues(), rtol=5e-3,
+            kle_galerkin.eigenvalues(),
+            kle_quad.eigenvalues(),
+            rtol=5e-3,
         )
 
     def test_eigenvalue_convergence_with_refinement(self) -> None:
@@ -209,7 +263,10 @@ class TestFEMKLE(unittest.TestCase):
         dom_len = 2.0
 
         analytical = AnalyticalExponentialKLE1D(
-            corr_len=corr_len, sigma2=1.0, dom_len=dom_len, nterms=nterms,
+            corr_len=corr_len,
+            sigma2=1.0,
+            dom_len=dom_len,
+            nterms=nterms,
         )
         exact_eig = bkd.array(analytical.eigenvalues())
 
@@ -220,7 +277,11 @@ class TestFEMKLE(unittest.TestCase):
             lenscale = bkd.array([corr_len])
             kernel = ExponentialKernel(lenscale, (0.01, 100.0), 1, bkd)
             kle = create_fem_nystrom_nodes_kle(
-                basis, kernel, nterms=nterms, sigma=1.0, bkd=bkd,
+                basis,
+                kernel,
+                nterms=nterms,
+                sigma=1.0,
+                bkd=bkd,
             )
             err = float(bkd.max(bkd.abs(kle.eigenvalues() - exact_eig) / exact_eig))
             errors.append(err)
@@ -233,7 +294,11 @@ class TestFEMKLE(unittest.TestCase):
         """GalerkinKLE eigenvalues are all positive."""
         basis, kernel, _, bkd, nterms = _make_1d_setup(nelems=20)
         kle = create_fem_galerkin_kle(
-            basis, kernel, nterms=nterms, sigma=1.0, bkd=bkd,
+            basis,
+            kernel,
+            nterms=nterms,
+            sigma=1.0,
+            bkd=bkd,
         )
         self.assertTrue(bkd.all_bool(kle.eigenvalues() > 0))
 

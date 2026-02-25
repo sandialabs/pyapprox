@@ -39,58 +39,58 @@ Basic D-optimal design:
     >>> optimal_weights = solver.construct()
 """
 
-from .protocols import (
-    LocalOEDCriterionProtocol,
-    LocalOEDCriterionWithHVPProtocol,
-    DesignMatricesProtocol,
-    OptimizerResultProtocol,
-    OptimizerProtocol,
-    LocalOEDSolverProtocol,
+from .adjoint import (
+    AdjointModel,
+    LinearResidual,
+    QuadraticFunctional,
+)
+from .criteria import (
+    # A-optimal
+    AOptimalCriterion,
+    AOptimalLeastSquaresCriterion,
+    AOptimalQuantileCriterion,
+    # C-optimal
+    COptimalCriterion,
+    COptimalLeastSquaresCriterion,
+    COptimalQuantileCriterion,
+    # D-optimal
+    DOptimalCriterion,
+    DOptimalLeastSquaresCriterion,
+    DOptimalQuantileCriterion,
+    # G-optimal (minimax)
+    GOptimalCriterion,
+    GOptimalLeastSquaresCriterion,
+    # I-optimal
+    IOptimalCriterion,
+    IOptimalLeastSquaresCriterion,
+    LocalOEDCriterionBase,
+    # R-optimal (AVaR)
+    ROptimalCriterion,
+    ROptimalLeastSquaresCriterion,
 )
 from .design_matrices import (
     DesignMatricesBase,
     LeastSquaresDesignMatrices,
     QuantileDesignMatrices,
 )
-from .criteria import (
-    LocalOEDCriterionBase,
-    # D-optimal
-    DOptimalCriterion,
-    DOptimalLeastSquaresCriterion,
-    DOptimalQuantileCriterion,
-    # C-optimal
-    COptimalCriterion,
-    COptimalLeastSquaresCriterion,
-    COptimalQuantileCriterion,
-    # A-optimal
-    AOptimalCriterion,
-    AOptimalLeastSquaresCriterion,
-    AOptimalQuantileCriterion,
-    # I-optimal
-    IOptimalCriterion,
-    IOptimalLeastSquaresCriterion,
-    # G-optimal (minimax)
-    GOptimalCriterion,
-    GOptimalLeastSquaresCriterion,
-    # R-optimal (AVaR)
-    ROptimalCriterion,
-    ROptimalLeastSquaresCriterion,
+from .factory import (
+    create_criterion,
+    create_design_matrices,
+    create_solver,
 )
-from .adjoint import (
-    QuadraticFunctional,
-    LinearResidual,
-    AdjointModel,
+from .protocols import (
+    DesignMatricesProtocol,
+    LocalOEDCriterionProtocol,
+    LocalOEDCriterionWithHVPProtocol,
+    LocalOEDSolverProtocol,
+    OptimizerProtocol,
+    OptimizerResultProtocol,
 )
 from .solver import (
-    LocalOEDSolverBase,
-    ScipyLocalOEDSolver,
-    MinimaxLocalOEDSolver,
     AVaRLocalOEDSolver,
-)
-from .factory import (
-    create_design_matrices,
-    create_criterion,
-    create_solver,
+    LocalOEDSolverBase,
+    MinimaxLocalOEDSolver,
+    ScipyLocalOEDSolver,
 )
 
 __all__ = [

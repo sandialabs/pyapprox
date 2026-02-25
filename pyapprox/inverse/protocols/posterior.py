@@ -10,7 +10,7 @@ This is used for:
 - Laplace approximation (via Hessian at MAP)
 """
 
-from typing import Protocol, Generic, runtime_checkable, Optional
+from typing import Generic, Optional, Protocol, runtime_checkable
 
 from pyapprox.util.backends.protocols import Array, Backend
 
@@ -113,9 +113,7 @@ class LogUnNormalizedPosteriorProtocol(Protocol, Generic[Array]):
         """
         ...
 
-    def maximum_aposteriori_point(
-        self, initial_guess: Optional[Array] = None
-    ) -> Array:
+    def maximum_aposteriori_point(self, initial_guess: Optional[Array] = None) -> Array:
         """
         Find the maximum a posteriori (MAP) point.
 

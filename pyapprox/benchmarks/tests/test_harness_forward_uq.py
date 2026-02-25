@@ -5,31 +5,27 @@ Uses ``verify_forward_uq_mean`` and ``verify_forward_uq_variance`` from
 ``HasReferenceVariance`` against Monte Carlo estimates.
 """
 
+import unittest
 from typing import Any, Generic
 
-import unittest
-
-import numpy as np
 from numpy.typing import NDArray
 
-from pyapprox.util.backends.protocols import Array
-from pyapprox.util.backends.numpy import NumpyBkd
-from pyapprox.util.test_utils import load_tests, slow_test  # noqa: F401
-from pyapprox.benchmarks.registry import BenchmarkRegistry
+import pyapprox.benchmarks.instances  # noqa: F401
 from pyapprox.benchmarks.protocols import (
+    HasPrior,
     HasReferenceMean,
     HasReferenceVariance,
-    HasPrior,
 )
-import pyapprox.benchmarks.instances  # noqa: F401
-
+from pyapprox.benchmarks.registry import BenchmarkRegistry
 from pyapprox.benchmarks.tests.harnesses import (
-    verify_forward_uq_mean,
-    verify_forward_uq_variance,
     MCMeanEstimator,
     MCVarianceEstimator,
+    verify_forward_uq_mean,
+    verify_forward_uq_variance,
 )
-
+from pyapprox.util.backends.numpy import NumpyBkd
+from pyapprox.util.backends.protocols import Array
+from pyapprox.util.test_utils import load_tests, slow_test  # noqa: F401
 
 # Benchmarks with HasReferenceMean + HasPrior
 _MEAN_BENCHMARK_NAMES = [
@@ -77,6 +73,7 @@ class TestForwardUQMean(Generic[Array], unittest.TestCase):
 def _make_mean_test(name: str):
     def test_method(self):
         self._run_mean_check(name)
+
     test_method.__name__ = f"test_mean_{name}"
     test_method.__qualname__ = f"TestForwardUQMean.test_mean_{name}"
     return test_method
@@ -122,6 +119,7 @@ class TestForwardUQVariance(Generic[Array], unittest.TestCase):
 def _make_variance_test(name: str):
     def test_method(self):
         self._run_variance_check(name)
+
     test_method.__name__ = f"test_variance_{name}"
     test_method.__qualname__ = f"TestForwardUQVariance.test_variance_{name}"
     return test_method
@@ -166,10 +164,9 @@ class TestForwardUQMeanNightly(Generic[Array], unittest.TestCase):
 def _make_nightly_mean_test(name: str):
     def test_method(self):
         self._run_mean_check(name)
+
     test_method.__name__ = f"test_mean_nightly_{name}"
-    test_method.__qualname__ = (
-        f"TestForwardUQMeanNightly.test_mean_nightly_{name}"
-    )
+    test_method.__qualname__ = f"TestForwardUQMeanNightly.test_mean_nightly_{name}"
     return test_method
 
 
@@ -211,6 +208,7 @@ class TestForwardUQVarianceNightly(Generic[Array], unittest.TestCase):
 def _make_nightly_variance_test(name: str):
     def test_method(self):
         self._run_variance_check(name)
+
     test_method.__name__ = f"test_variance_nightly_{name}"
     test_method.__qualname__ = (
         f"TestForwardUQVarianceNightly.test_variance_nightly_{name}"
@@ -226,9 +224,7 @@ for _name in _VARIANCE_BENCHMARK_NAMES:
     )
 
 
-class TestForwardUQVarianceNightlyNumpy(
-    TestForwardUQVarianceNightly[NDArray[Any]]
-):
+class TestForwardUQVarianceNightlyNumpy(TestForwardUQVarianceNightly[NDArray[Any]]):
     def bkd(self) -> NumpyBkd:
         return NumpyBkd()
 
@@ -244,9 +240,7 @@ class TestForwardUQCoverage(unittest.TestCase):
     def test_all_mean_benchmarks_covered(self):
         bkd = NumpyBkd()
         registered = set(
-            BenchmarkRegistry.names_satisfying(
-                HasReferenceMean, HasPrior, bkd=bkd
-            )
+            BenchmarkRegistry.names_satisfying(HasReferenceMean, HasPrior, bkd=bkd)
         )
         covered = set(_MEAN_BENCHMARK_NAMES)
         missing = registered - covered
@@ -259,9 +253,7 @@ class TestForwardUQCoverage(unittest.TestCase):
     def test_all_variance_benchmarks_covered(self):
         bkd = NumpyBkd()
         registered = set(
-            BenchmarkRegistry.names_satisfying(
-                HasReferenceVariance, HasPrior, bkd=bkd
-            )
+            BenchmarkRegistry.names_satisfying(HasReferenceVariance, HasPrior, bkd=bkd)
         )
         covered = set(_VARIANCE_BENCHMARK_NAMES)
         missing = registered - covered

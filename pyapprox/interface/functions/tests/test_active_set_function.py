@@ -12,13 +12,12 @@ Tests cover:
 import unittest
 from typing import Any, Generic
 
-import numpy as np
 import torch
 from numpy.typing import NDArray
 
 from pyapprox.util.backends.numpy import NumpyBkd
-from pyapprox.util.backends.torch import TorchBkd
 from pyapprox.util.backends.protocols import Array
+from pyapprox.util.backends.torch import TorchBkd
 from pyapprox.util.test_utils import load_tests  # noqa: F401
 
 
@@ -38,9 +37,7 @@ class TestActiveSetFunction(Generic[Array], unittest.TestCase):
         self._bkd = self.bkd()
         self._beam = CantileverBeam2DAnalytical(length=100.0, bkd=self._bkd)
         # Nominal: X=500, Y=1000, E=2.9e7, R=40000, w=2.5, t=3.0
-        self._nominal = self._bkd.asarray(
-            [500.0, 1000.0, 2.9e7, 40000.0, 2.5, 3.0]
-        )
+        self._nominal = self._bkd.asarray([500.0, 1000.0, 2.9e7, 40000.0, 2.5, 3.0])
         # Keep only design variables w (idx=4) and t (idx=5)
         self._keep = [4, 5]
 
@@ -71,9 +68,16 @@ class TestActiveSetFunction(Generic[Array], unittest.TestCase):
         result = asf(reduced_sample)
 
         # Compare with full model
-        full_sample = bkd.asarray([
-            [500.0], [1000.0], [2.9e7], [40000.0], [2.5], [3.0],
-        ])
+        full_sample = bkd.asarray(
+            [
+                [500.0],
+                [1000.0],
+                [2.9e7],
+                [40000.0],
+                [2.5],
+                [3.0],
+            ]
+        )
         expected = self._beam(full_sample)
 
         bkd.assert_allclose(result, expected, rtol=1e-12)
@@ -89,11 +93,9 @@ class TestActiveSetFunction(Generic[Array], unittest.TestCase):
 
         # Verify each sample
         for ii in range(2):
-            single = samples[:, ii:ii + 1]
+            single = samples[:, ii : ii + 1]
             expected = asf(single)
-            bkd.assert_allclose(
-                result[:, ii:ii + 1], expected, rtol=1e-12
-            )
+            bkd.assert_allclose(result[:, ii : ii + 1], expected, rtol=1e-12)
 
     def test_jacobian_shape(self):
         """Jacobian has shape (nqoi, n_keep)."""
@@ -111,14 +113,19 @@ class TestActiveSetFunction(Generic[Array], unittest.TestCase):
         jac_reduced = asf.jacobian(sample)
 
         # Full Jacobian
-        full_sample = bkd.asarray([
-            [500.0], [1000.0], [2.9e7], [40000.0], [2.5], [3.0],
-        ])
+        full_sample = bkd.asarray(
+            [
+                [500.0],
+                [1000.0],
+                [2.9e7],
+                [40000.0],
+                [2.5],
+                [3.0],
+            ]
+        )
         jac_full = self._beam.jacobian(full_sample)
 
-        bkd.assert_allclose(
-            jac_reduced, jac_full[:, [4, 5]], rtol=1e-12
-        )
+        bkd.assert_allclose(jac_reduced, jac_full[:, [4, 5]], rtol=1e-12)
 
     def test_jacobian_derivative_checker(self):
         """Validate Jacobian via DerivativeChecker."""
@@ -171,9 +178,7 @@ class TestActiveSetFunction(Generic[Array], unittest.TestCase):
         )
 
         bkd = self._bkd
-        constraints = CantileverBeam2DConstraints(
-            self._beam, 40000.0, 2.2535
-        )
+        constraints = CantileverBeam2DConstraints(self._beam, 40000.0, 2.2535)
         asf = self._make_asf(function=constraints)
 
         sample = bkd.asarray([[2.5], [3.0]])

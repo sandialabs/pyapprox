@@ -4,35 +4,34 @@ Provides a high-level interface for solving time-dependent PDEs using
 spectral collocation with various time integration methods.
 """
 
-from typing import Generic, Optional, Callable, Tuple
+from typing import Generic, Optional, Tuple
 
-from pyapprox.util.backends.protocols import Array, Backend
+from pyapprox.optimization.rootfinding.newton import NewtonSolver
 from pyapprox.pde.collocation.protocols import PhysicsProtocol
+from pyapprox.pde.collocation.time_integration.bc_time_residual_adapter import (
+    BCEnforcingTimeResidual,
+)
 from pyapprox.pde.collocation.time_integration.physics_adapter import (
     PhysicsToODEResidualAdapter,
 )
 from pyapprox.pde.parameterizations.protocol import (
     ParameterizationProtocol,
 )
-from pyapprox.pde.collocation.time_integration.bc_time_residual_adapter import (
-    BCEnforcingTimeResidual,
-)
 from pyapprox.pde.time.config import TimeIntegrationConfig
+from pyapprox.pde.time.explicit_steppers.forward_euler import (
+    ForwardEulerResidual,
+)
+from pyapprox.pde.time.explicit_steppers.heun import HeunResidual
 from pyapprox.pde.time.implicit_steppers.backward_euler import (
     BackwardEulerResidual,
 )
 from pyapprox.pde.time.implicit_steppers.crank_nicolson import (
     CrankNicolsonResidual,
 )
-from pyapprox.pde.time.explicit_steppers.forward_euler import (
-    ForwardEulerResidual,
-)
-from pyapprox.pde.time.explicit_steppers.heun import HeunResidual
 from pyapprox.pde.time.implicit_steppers.integrator import (
     TimeIntegrator,
 )
-from pyapprox.optimization.rootfinding.newton import NewtonSolver
-
+from pyapprox.util.backends.protocols import Array, Backend
 
 _STEPPER_REGISTRY = {
     "backward_euler": BackwardEulerResidual,
@@ -244,9 +243,7 @@ class CollocationModel(Generic[Array]):
             for _ in range(10):
                 state_new = state + alpha * delta
                 res_new = self._adapter(state_new)
-                res_new = self._apply_bc_to_residual(
-                    res_new, state_new, 0.0
-                )
+                res_new = self._apply_bc_to_residual(res_new, state_new, 0.0)
                 if float(bkd.norm(res_new)) < res_norm:
                     break
                 alpha *= 0.5
@@ -300,9 +297,7 @@ class CollocationModel(Generic[Array]):
         # Build pipeline: adapter → stepper → BC residual → Newton → integrator
         stepper_cls = _STEPPER_REGISTRY[config.method]
         stepper = stepper_cls(self._adapter)
-        bc_residual = BCEnforcingTimeResidual(
-            stepper, self._physics, self._bkd
-        )
+        bc_residual = BCEnforcingTimeResidual(stepper, self._physics, self._bkd)
         newton = NewtonSolver(bc_residual)
         newton.set_options(
             maxiters=config.newton_maxiter,

@@ -9,14 +9,11 @@ This module provides full adjoint support for gradient computation dQ/dp
 via the adjoint method.
 """
 
-from typing import Tuple
-
-from pyapprox.util.backends.protocols import Array
 from pyapprox.pde.sparse_utils import solve_maybe_sparse
 from pyapprox.pde.time.protocols import (
     TimeSteppingResidualBase,
-    ODEResidualProtocol,
 )
+from pyapprox.util.backends.protocols import Array
 
 
 class BackwardEulerResidual(TimeSteppingResidualBase[Array]):
@@ -55,10 +52,9 @@ class BackwardEulerResidual(TimeSteppingResidualBase[Array]):
             Residual value. Shape: (nstates,)
         """
         self._residual.set_time(self._time + self._deltat)
-        return (
-            self._residual.apply_mass_matrix(state - self._prev_state)
-            - self._deltat * self._residual(state)
-        )
+        return self._residual.apply_mass_matrix(
+            state - self._prev_state
+        ) - self._deltat * self._residual(state)
 
     def jacobian(self, state: Array) -> Array:
         """
@@ -170,9 +166,7 @@ class BackwardEulerResidual(TimeSteppingResidualBase[Array]):
             - self._deltat * self._residual.jacobian(fsol_n)
         ).T
 
-    def adjoint_off_diag_jacobian(
-        self, fsol_n: Array, deltat_np1: float
-    ) -> Array:
+    def adjoint_off_diag_jacobian(self, fsol_n: Array, deltat_np1: float) -> Array:
         """
         Compute the off-diagonal Jacobian for adjoint coupling.
 
@@ -220,6 +214,7 @@ class BackwardEulerResidual(TimeSteppingResidualBase[Array]):
         from pyapprox.surrogates.affine.univariate.piecewisepoly import (
             PiecewiseConstantRight,
         )
+
         return PiecewiseConstantRight
 
     # =========================================================================
@@ -239,9 +234,7 @@ class BackwardEulerResidual(TimeSteppingResidualBase[Array]):
         For Backward Euler: d²R/dy² = -Δt·(d²f/dy²)
         """
         self._residual.set_time(self._time + self._deltat)
-        return -self._deltat * self._residual.state_state_hvp(
-            fsol_n, adj_state, wvec
-        )
+        return -self._deltat * self._residual.state_state_hvp(fsol_n, adj_state, wvec)
 
     def _state_param_hvp(
         self,
@@ -256,9 +249,7 @@ class BackwardEulerResidual(TimeSteppingResidualBase[Array]):
         For Backward Euler: d²R/dydp = -Δt·(d²f/dydp)
         """
         self._residual.set_time(self._time + self._deltat)
-        return -self._deltat * self._residual.state_param_hvp(
-            fsol_n, adj_state, vvec
-        )
+        return -self._deltat * self._residual.state_param_hvp(fsol_n, adj_state, vvec)
 
     def _param_state_hvp(
         self,
@@ -273,9 +264,7 @@ class BackwardEulerResidual(TimeSteppingResidualBase[Array]):
         For Backward Euler: d²R/dpdy = -Δt·(d²f/dpdy)
         """
         self._residual.set_time(self._time + self._deltat)
-        return -self._deltat * self._residual.param_state_hvp(
-            fsol_n, adj_state, wvec
-        )
+        return -self._deltat * self._residual.param_state_hvp(fsol_n, adj_state, wvec)
 
     def _param_param_hvp(
         self,
@@ -290,6 +279,4 @@ class BackwardEulerResidual(TimeSteppingResidualBase[Array]):
         For Backward Euler: d²R/dp² = -Δt·(d²f/dp²)
         """
         self._residual.set_time(self._time + self._deltat)
-        return -self._deltat * self._residual.param_param_hvp(
-            fsol_n, adj_state, vvec
-        )
+        return -self._deltat * self._residual.param_param_hvp(fsol_n, adj_state, vvec)

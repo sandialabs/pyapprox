@@ -7,24 +7,23 @@ via a general-purpose optimizer.
 import copy
 from typing import Generic, Optional
 
-from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.optimization.minimize.protocols import (
     BindableOptimizerProtocol,
-)
-
-from pyapprox.surrogates.flowmatching.protocols import (
-    ProbabilityPathProtocol,
 )
 from pyapprox.surrogates.flowmatching.cfm_loss import (
     CFMLoss,
     FlowMatchingObjective,
 )
-from pyapprox.surrogates.flowmatching.quad_data import (
-    FlowMatchingQuadData,
-)
 from pyapprox.surrogates.flowmatching.fitters.results import (
     FlowMatchingFitResult,
 )
+from pyapprox.surrogates.flowmatching.protocols import (
+    ProbabilityPathProtocol,
+)
+from pyapprox.surrogates.flowmatching.quad_data import (
+    FlowMatchingQuadData,
+)
+from pyapprox.util.backends.protocols import Array, Backend
 
 
 class OptimizerFitter(Generic[Array]):
@@ -83,9 +82,7 @@ class OptimizerFitter(Generic[Array]):
         fitted_vf = copy.deepcopy(vf)
 
         # Create objective wrapping loss + quad data
-        objective = FlowMatchingObjective(
-            fitted_vf, path, loss, quad_data, bkd
-        )
+        objective = FlowMatchingObjective(fitted_vf, path, loss, quad_data, bkd)
 
         # Get bounds from VF hyperparameter list
         bounds = fitted_vf.hyp_list().get_active_bounds()  # type: ignore[union-attr]
@@ -97,9 +94,8 @@ class OptimizerFitter(Generic[Array]):
             from pyapprox.optimization.minimize.scipy.trust_constr import (
                 ScipyTrustConstrOptimizer,
             )
-            optimizer = ScipyTrustConstrOptimizer(
-                verbosity=0, maxiter=1000
-            )
+
+            optimizer = ScipyTrustConstrOptimizer(verbosity=0, maxiter=1000)
 
         # Bind and minimize
         optimizer.bind(objective, bounds)
@@ -120,12 +116,15 @@ class OptimizerFitter(Generic[Array]):
         # Compute final loss
         qd = quad_data
         final_loss_val = loss(
-            fitted_vf, path, qd.t(), qd.x0(), qd.x1(),
-            qd.weights(), qd.c(),
+            fitted_vf,
+            path,
+            qd.t(),
+            qd.x0(),
+            qd.x1(),
+            qd.weights(),
+            qd.c(),
         )
-        final_loss = float(
-            bkd.to_numpy(bkd.reshape(final_loss_val, (1,)))[0]
-        )
+        final_loss = float(bkd.to_numpy(bkd.reshape(final_loss_val, (1,)))[0])
 
         return FlowMatchingFitResult(
             surrogate=fitted_vf,

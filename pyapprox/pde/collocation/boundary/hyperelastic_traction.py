@@ -8,10 +8,10 @@ nonlinear in the deformation gradient.
 Factory functions create RobinBC objects wrapping this operator.
 """
 
-from typing import Generic, List, Union, Callable
+from typing import Callable, Generic, List, Union
 
-from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.pde.collocation.boundary.robin import RobinBC
+from pyapprox.util.backends.protocols import Array, Backend
 
 
 class HyperelasticTractionNormalOperator(Generic[Array]):
@@ -141,9 +141,7 @@ class HyperelasticTractionNormalOperator(Generic[Array]):
 
         # Compute tangent at all points, then subset to boundary
         F11, F12, F21, F22 = self._compute_F_full(state)
-        A_full = self._stress_model.compute_tangent_2d(
-            F11, F12, F21, F22, bkd
-        )
+        A_full = self._stress_model.compute_tangent_2d(F11, F12, F21, F22, bkd)
         A = {k: v[idx] for k, v in A_full.items()}
 
         # Map (i,J) to key index: i in {1,2}, J in {1,2}
@@ -173,8 +171,8 @@ class HyperelasticTractionNormalOperator(Generic[Array]):
                     for b in range(self._nboundary):
                         mesh_idx = int(idx[b])
                         coeff = n_vec[J_idx][b] * A_vals[b]
-                        jac[b, k_idx * npts: (k_idx + 1) * npts] = (
-                            jac[b, k_idx * npts: (k_idx + 1) * npts]
+                        jac[b, k_idx * npts : (k_idx + 1) * npts] = (
+                            jac[b, k_idx * npts : (k_idx + 1) * npts]
                             + coeff * D[L_idx][mesh_idx, :]
                         )
 
@@ -220,8 +218,13 @@ def hyperelastic_traction_neumann_bc(
         Traction Neumann BC as Robin with alpha=0, beta=1.
     """
     normal_op = HyperelasticTractionNormalOperator(
-        bkd, mesh_boundary_indices, normals, derivative_matrices,
-        stress_model, npts, component,
+        bkd,
+        mesh_boundary_indices,
+        normals,
+        derivative_matrices,
+        stress_model,
+        npts,
+        component,
     )
     state_indices = mesh_boundary_indices + component * npts
     return RobinBC(bkd, state_indices, normal_op, 0.0, 1.0, values)
@@ -272,8 +275,13 @@ def hyperelastic_traction_robin_bc(
         Robin BC with hyperelastic traction normal operator.
     """
     normal_op = HyperelasticTractionNormalOperator(
-        bkd, mesh_boundary_indices, normals, derivative_matrices,
-        stress_model, npts, component,
+        bkd,
+        mesh_boundary_indices,
+        normals,
+        derivative_matrices,
+        stress_model,
+        npts,
+        component,
     )
     state_indices = mesh_boundary_indices + component * npts
     return RobinBC(bkd, state_indices, normal_op, alpha, beta, values)

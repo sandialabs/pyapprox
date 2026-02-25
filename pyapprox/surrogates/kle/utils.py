@@ -67,9 +67,7 @@ def sort_eigenpairs(
     """
     # Sort by eigenvalue descending, then by magnitude of first
     # eigenvector entry (for tie-breaking across platforms)
-    rounded_vals = bkd.asarray(
-        np.round(bkd.to_numpy(eig_vals), decimals=12)
-    )
+    rounded_vals = bkd.asarray(np.round(bkd.to_numpy(eig_vals), decimals=12))
     tuples = zip(
         bkd.arange(nterms, dtype=int),
         rounded_vals,
@@ -201,9 +199,7 @@ def eigendecomposition_weighted(
     # Undo symmetrization
     eig_vecs = (1.0 / sqrt_weights[:, None]) * sym_eig_vecs
     # Sort with tie-breaking and adjust signs
-    eig_vals, eig_vecs = sort_eigenpairs(
-        sym_eig_vals, eig_vecs, nterms, bkd
-    )
+    eig_vals, eig_vecs = sort_eigenpairs(sym_eig_vals, eig_vecs, nterms, bkd)
     eig_vecs = adjust_sign_eig(eig_vecs, bkd)
     return eig_vals, eig_vecs
 
@@ -253,9 +249,7 @@ def eigendecomposition_generalized(
         M_np = M_np.toarray()
     N = A_np.shape[0]
     if nterms < N:
-        eig_vals_np, eig_vecs_np = eigsh(
-            A_np, k=nterms, M=M_np, which="LM"
-        )
+        eig_vals_np, eig_vecs_np = eigsh(A_np, k=nterms, M=M_np, which="LM")
     else:
         eig_vals_np, eig_vecs_np = scipy_eigh(A_np, M_np)
     eig_vals = bkd.asarray(eig_vals_np)

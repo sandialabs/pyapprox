@@ -7,13 +7,13 @@ state Jacobian.
 
 from typing import Generic
 
-from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.pde.collocation.basis.chebyshev.basis_1d import (
     ChebyshevBasis1D,
 )
 from pyapprox.pde.decomposition.interface.interpolation import (
     lagrange_interpolation_matrix,
 )
+from pyapprox.util.backends.protocols import Array, Backend
 
 
 class PointEvaluationFunctional(Generic[Array]):

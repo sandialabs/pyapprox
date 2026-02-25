@@ -15,13 +15,15 @@ https://doi.org/10.1016/j.cpc.2009.09.018
 from abc import abstractmethod
 from typing import Generic, List, Optional, Tuple
 
-from pyapprox.util.backends.protocols import Array, Backend
-from pyapprox.expdesign.quadrature.halton import DistributionWithInvCDF
+from pyapprox.expdesign.quadrature.halton import (
+    DistributionWithInvCDF,
+    HaltonSampler,
+)
 from pyapprox.expdesign.quadrature.sobol import SobolSampler
-from pyapprox.expdesign.quadrature.halton import HaltonSampler
 from pyapprox.sensitivity.variance_based.base import (
     VarianceBasedSensitivityAnalysis,
 )
+from pyapprox.util.backends.protocols import Array, Backend
 
 
 class SampleBasedSensitivityAnalysis(
@@ -147,21 +149,15 @@ class SampleBasedSensitivityAnalysis(
             Order: [A, B, A_B^{I_1}, A_B^{I_2}, ...]
         """
         if not hasattr(self, "_interaction_terms"):
-            self.set_interaction_terms_of_interest(
-                self._default_interaction_terms()
-            )
+            self.set_interaction_terms_of_interest(self._default_interaction_terms())
         self._samplesA, self._samplesB = self._get_AB_samples(nsamples)
         self._samplesAB = []
         for ii in range(self._interaction_terms.shape[1]):
             sobol_index = self._interaction_terms[:, ii]
             self._samplesAB.append(self._sobol_index_samples(sobol_index))
-        return self._bkd.hstack(
-            [self._samplesA, self._samplesB] + self._samplesAB
-        )
+        return self._bkd.hstack([self._samplesA, self._samplesB] + self._samplesAB)
 
-    def _unpack_values(
-        self, values: Array
-    ) -> Tuple[Array, Array, List[Array]]:
+    def _unpack_values(self, values: Array) -> Tuple[Array, Array, List[Array]]:
         """Unpack function values into A, B, and AB components.
 
         Parameters
@@ -189,9 +185,7 @@ class SampleBasedSensitivityAnalysis(
         cnt += self._samplesB.shape[1]
         valuesAB: List[Array] = []
         for ii in range(self._interaction_terms.shape[1]):
-            valuesAB.append(
-                values[:, cnt : cnt + self._samplesAB[ii].shape[1]]
-            )
+            valuesAB.append(values[:, cnt : cnt + self._samplesAB[ii].shape[1]])
             cnt += self._samplesAB[ii].shape[1]
         return valuesA, valuesB, valuesAB
 

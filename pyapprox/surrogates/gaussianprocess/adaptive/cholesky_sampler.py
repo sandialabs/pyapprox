@@ -58,7 +58,8 @@ class CholeskySampler(Generic[Array]):
         return self._bkd
 
     def set_weight_function(
-        self, weight_function: FunctionProtocol[Array] | None,
+        self,
+        weight_function: FunctionProtocol[Array] | None,
     ) -> None:
         """Set a weight function for biasing pivot selection.
 
@@ -141,7 +142,8 @@ class CholeskySampler(Generic[Array]):
             )
         else:
             self._factorizer.factorize(
-                0, pivot_weights=self._pivot_weights,
+                0,
+                pivot_weights=self._pivot_weights,
             )
 
     def select_samples(self, nsamples: int) -> Array:
@@ -179,14 +181,15 @@ class CholeskySampler(Generic[Array]):
         n_total = len(self._selected_indices) + nsamples
         if len(self._selected_indices) == 0:
             self._factorizer.factorize(
-                n_total, pivot_weights=self._pivot_weights,
+                n_total,
+                pivot_weights=self._pivot_weights,
             )
         else:
             self._factorizer.update(n_total)
 
         # Extract new pivot indices
         all_pivots = self._factorizer.pivots()
-        new_pivot_indices = all_pivots[len(self._selected_indices):]
+        new_pivot_indices = all_pivots[len(self._selected_indices) :]
 
         # Convert to Python ints for tracking
         new_pivots_np = self._bkd.to_numpy(new_pivot_indices)
@@ -195,7 +198,5 @@ class CholeskySampler(Generic[Array]):
 
         return self._candidates[:, new_pivot_indices]
 
-    def add_additional_training_samples(
-        self, new_samples: Array
-    ) -> None:
+    def add_additional_training_samples(self, new_samples: Array) -> None:
         """No-op: tracking is handled internally by select_samples."""

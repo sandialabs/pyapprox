@@ -6,8 +6,8 @@ Computes sqrt(Var[qoi | obs]) = sqrt(E[qoi^2 | obs] - E[qoi | obs]^2).
 
 from typing import Generic
 
-from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.expdesign.deviation.base import DeviationMeasure
+from pyapprox.util.backends.protocols import Array
 
 
 class StandardDeviationMeasure(DeviationMeasure[Array], Generic[Array]):
@@ -35,13 +35,9 @@ class StandardDeviationMeasure(DeviationMeasure[Array], Generic[Array]):
             Second moment. Shape: (npred, nouter)
         """
         # E[qoi_q^2 | obs_o] = sum_i qoi[i, q]^2 * like[i, o] * quad_weight[i]
-        return self._bkd.einsum(
-            "iq,io->qo", self._qoi_vals ** 2, quad_weighted_like_vals
-        )
+        return self._bkd.einsum("iq,io->qo", self._qoi_vals**2, quad_weighted_like_vals)
 
-    def _second_moment_jac(
-        self, quad_weighted_like_vals_jac: Array
-    ) -> Array:
+    def _second_moment_jac(self, quad_weighted_like_vals_jac: Array) -> Array:
         """
         Compute Jacobian of second moment w.r.t. design weights.
 
@@ -56,7 +52,7 @@ class StandardDeviationMeasure(DeviationMeasure[Array], Generic[Array]):
             Jacobian of second moment. Shape: (npred, nouter, nvars)
         """
         return self._bkd.einsum(
-            "iq,iod->qod", self._qoi_vals ** 2, quad_weighted_like_vals_jac
+            "iq,iod->qod", self._qoi_vals**2, quad_weighted_like_vals_jac
         )
 
     def _evaluate(self, design_weights: Array) -> Array:
@@ -77,19 +73,15 @@ class StandardDeviationMeasure(DeviationMeasure[Array], Generic[Array]):
         evidences = self._evidence(design_weights).T  # (nouter, 1)
 
         # Normalized quad-weighted likelihoods
-        normalized_like = (
-            self._evidence.quad_weighted_like_vals / evidences[:, 0]
-        )
+        normalized_like = self._evidence.quad_weighted_like_vals / evidences[:, 0]
 
         # Compute variance = E[qoi^2] - E[qoi]^2
         first_mom = self._first_moment(normalized_like)
         second_mom = self._second_moment(normalized_like)
-        variance = second_mom - first_mom ** 2
+        variance = second_mom - first_mom**2
 
         # Avoid small negative values due to numerical precision
-        variance = self._bkd.maximum(
-            variance, self._bkd.full(variance.shape, 1e-16)
-        )
+        variance = self._bkd.maximum(variance, self._bkd.full(variance.shape, 1e-16))
 
         # Return standard deviation, flattened
         stdev = self._bkd.sqrt(variance)
@@ -122,16 +114,15 @@ class StandardDeviationMeasure(DeviationMeasure[Array], Generic[Array]):
         )  # (ninner, nouter, nvars)
 
         # Normalized quantities
-        normalized_like = (
-            self._evidence.quad_weighted_like_vals / evidences[:, 0]
-        )
+        normalized_like = self._evidence.quad_weighted_like_vals / evidences[:, 0]
 
         # Compute moments
         first_mom = self._first_moment(normalized_like)  # (npred, nouter)
-        second_mom = self._second_moment(normalized_like)  # (npred, nouter)
+        self._second_moment(normalized_like)  # (npred, nouter)
 
         # Jacobian of normalized quad-weighted likelihood
-        # d/dw (like / evidence) = (d like / dw) / evidence - like * (d evidence / dw) / evidence^2
+        # d/dw (like / evidence) = (d like / dw) / evidence - like * (d evidence / dw) /
+        # evidence^2
         normalized_like_jac = (
             like_jac / evidences[None, :, 0, None]
             - self._evidence.quad_weighted_like_vals[:, :, None]
@@ -148,9 +139,7 @@ class StandardDeviationMeasure(DeviationMeasure[Array], Generic[Array]):
         )  # (npred, nouter, nvars)
 
         # Jacobian of variance = d(second_mom)/dw - 2 * first_mom * d(first_mom)/dw
-        variance_jac = (
-            second_mom_jac - 2.0 * first_mom[:, :, None] * first_mom_jac
-        )
+        variance_jac = second_mom_jac - 2.0 * first_mom[:, :, None] * first_mom_jac
 
         # Reshape to (npred * nouter, nvars)
         variance_jac = self._bkd.reshape(

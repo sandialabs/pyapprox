@@ -16,21 +16,20 @@ import torch
 from numpy.typing import NDArray
 from unittest_parametrize import ParametrizedTestCase, parametrize
 
-from pyapprox.util.backends.numpy import NumpyBkd
-from pyapprox.util.backends.torch import TorchBkd
-from pyapprox.util.backends.protocols import Array, Backend
-from pyapprox.util.test_utils import load_tests  # noqa: F401
+from pyapprox.expdesign import (
+    PredictionOEDObjective,
+    create_prediction_oed_objective,
+)
 from pyapprox.interface.functions.derivative_checks.derivative_checker import (
     DerivativeChecker,
 )
 from pyapprox.interface.functions.fromcallable.jacobian import (
     FunctionWithJacobianFromCallable,
 )
-
-from pyapprox.expdesign import (
-    create_prediction_oed_objective,
-    PredictionOEDObjective,
-)
+from pyapprox.util.backends.numpy import NumpyBkd
+from pyapprox.util.backends.protocols import Array, Backend
+from pyapprox.util.backends.torch import TorchBkd
+from pyapprox.util.test_utils import load_tests  # noqa: F401
 
 
 class TestPredictionOEDGradientsStandalone(Generic[Array], ParametrizedTestCase):
@@ -59,9 +58,7 @@ class TestPredictionOEDGradientsStandalone(Generic[Array], ParametrizedTestCase)
         qoi_vals = bkd.asarray(np.random.randn(self._ninner, self._npred))
         return noise_variances, outer_shapes, inner_shapes, latent_samples, qoi_vals
 
-    def _create_derivative_checker_function(
-        self, obj: PredictionOEDObjective[Array]
-    ):
+    def _create_derivative_checker_function(self, obj: PredictionOEDObjective[Array]):
         """Wrap objective for DerivativeChecker compatibility.
 
         DerivativeChecker expects:
@@ -81,9 +78,7 @@ class TestPredictionOEDGradientsStandalone(Generic[Array], ParametrizedTestCase)
                 w = samples[:, ii : ii + 1]  # (nobs, 1)
                 val = obj(w)  # (1, 1)
                 results.append(val[0, 0])
-            return self._bkd.reshape(
-                self._bkd.stack(results), (1, nsamples)
-            )
+            return self._bkd.reshape(self._bkd.stack(results), (1, nsamples))
 
         def jacobian_fun(sample: Array) -> Array:
             # sample: (nvars, 1) = (nobs, 1)

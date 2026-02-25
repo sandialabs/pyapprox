@@ -12,7 +12,7 @@ The key equations from the paper:
 """
 
 import sympy as sp
-from sympy import symbols, Matrix, Function, diff, simplify, pprint, Eq
+from sympy import diff
 
 
 def derive_single_step_hvp():
@@ -31,15 +31,15 @@ def derive_single_step_hvp():
     print("=" * 70)
 
     # Symbols
-    y = sp.Symbol('y')  # state
-    u = sp.Symbol('u')  # parameter
-    v = sp.Symbol('v')  # direction
+    y = sp.Symbol("y")  # state
+    sp.Symbol("u")  # parameter
+    sp.Symbol("v")  # direction
 
     # Generic implicit constraint: c(y, u) = 0
     # For backward Euler: c = y - y_{n-1} - dt*f(y, u)
 
     # Use a specific quadratic ODE: f(y, u) = a*y + u[0]*y^2 + u[1]
-    a, u0, u1, dt, y_nm1 = sp.symbols('a u_0 u_1 dt y_{n-1}', real=True)
+    a, u0, u1, dt, y_nm1 = sp.symbols("a u_0 u_1 dt y_{n-1}", real=True)
 
     # ODE residual (right-hand side)
     f = a * y + u0 * y**2 + u1
@@ -66,7 +66,7 @@ def derive_single_step_hvp():
     d2Rdydu1 = diff(R, y, u1)
     d2Rdu0dy = diff(R, u0, y)
     d2Rdu02 = diff(R, u0, u0)
-    d2Rdu0u1 = diff(R, u0, u1)
+    diff(R, u0, u1)
     d2Rdu12 = diff(R, u1, u1)
 
     print("\n3. Second derivatives:")
@@ -92,11 +92,11 @@ def derive_two_step_hvp():
     print("=" * 70)
 
     # Symbols
-    y0, y1, y2 = sp.symbols('y_0 y_1 y_2', real=True)
-    p0, p1 = sp.symbols('p_0 p_1', real=True)  # parameters
-    v0, v1 = sp.symbols('v_0 v_1', real=True)  # direction
-    dt = sp.Symbol('dt', positive=True)
-    a = sp.Symbol('a', real=True)  # linear coefficient
+    y0, y1, y2 = sp.symbols("y_0 y_1 y_2", real=True)
+    p0, p1 = sp.symbols("p_0 p_1", real=True)  # parameters
+    v0, v1 = sp.symbols("v_0 v_1", real=True)  # direction
+    dt = sp.Symbol("dt", positive=True)
+    a = sp.Symbol("a", real=True)  # linear coefficient
 
     # Quadratic ODE: f(y, p) = a*y + p0*y^2 + p1
     def f(y):
@@ -142,7 +142,7 @@ def derive_two_step_hvp():
     print("\n3. Forward sensitivity solve:")
     print("   w_0 = 0 (initial condition fixed)")
     print("   w_1 = -(dR_1/dy_1)^{-1} · [dR_1/dy_0 · w_0 + dR_1/dp · v]")
-    print(f"       = -(dR_1/dy_1)^{{-1}} · (dR_1/dp_0 · v_0 + dR_1/dp_1 · v_1)")
+    print("       = -(dR_1/dy_1)^{-1} · (dR_1/dp_0 · v_0 + dR_1/dp_1 · v_1)")
     print(f"       = -({dR1dp0} · v_0 + {dR1dp1} · v_1) / ({dR1dy1})")
 
     print("\n4. Adjoint equations:")
@@ -171,7 +171,7 @@ def derive_two_step_hvp():
     print("   d²Q/dy² = 0, d²Q/dy dp = 0")
     print("   RHS = λ^T · d²R/dy² · w - λ^T · d²R/dy dp · v")
     print(f"       = λ · ({d2R2dy22}) · w - λ · ({d2R2dy2dp0}) · v_0")
-    print(f"       = -2 dt p_0 λ w + 2 dt y λ v_0")
+    print("       = -2 dt p_0 λ w + 2 dt y λ v_0")
 
     return
 
@@ -187,11 +187,11 @@ def verify_hvp_formula():
     import numpy as np
 
     # Problem setup
-    a = -0.5   # stability coefficient
-    dt = 0.1   # time step
-    y0 = 1.0   # initial condition
-    p0 = 0.1   # quadratic coefficient
-    p1 = 0.2   # constant forcing
+    a = -0.5  # stability coefficient
+    dt = 0.1  # time step
+    y0 = 1.0  # initial condition
+    p0 = 0.1  # quadratic coefficient
+    p1 = 0.2  # constant forcing
     v = np.array([1.0, 0.0])  # direction
 
     def f(y, p):
@@ -207,7 +207,7 @@ def verify_hvp_formula():
         return 2 * p[0]
 
     def d2f_dydp(y, p):
-        return np.array([2*y, 0.0])
+        return np.array([2 * y, 0.0])
 
     # Forward solve: y1 = y0 + dt*f(y1, p)
     # Solve: y1 - y0 - dt*(a*y1 + p0*y1^2 + p1) = 0
@@ -220,10 +220,10 @@ def verify_hvp_formula():
     C_coef = y0 + dt * p[1]
 
     # Solve quadratic (take the larger root for stability)
-    disc = B_coef**2 - 4*A_coef*C_coef
-    y1 = (-B_coef - np.sqrt(disc)) / (2*A_coef) if A_coef != 0 else -C_coef/B_coef
+    disc = B_coef**2 - 4 * A_coef * C_coef
+    y1 = (-B_coef - np.sqrt(disc)) / (2 * A_coef) if A_coef != 0 else -C_coef / B_coef
 
-    print(f"\n1. Forward solution:")
+    print("\n1. Forward solution:")
     print(f"   y_0 = {y0}")
     print(f"   y_1 = {y1:.6f}")
 
@@ -233,14 +233,15 @@ def verify_hvp_formula():
 
     # Gradient via finite difference
     eps = 1e-6
+
     def solve_forward(p_val):
         A = dt * p_val[0]
         B = dt * a - 1
         C = y0 + dt * p_val[1]
         if abs(A) < 1e-12:
             return -C / B
-        disc = B**2 - 4*A*C
-        return (-B - np.sqrt(disc)) / (2*A)
+        disc = B**2 - 4 * A * C
+        return (-B - np.sqrt(disc)) / (2 * A)
 
     # Gradient dQ/dp where Q = y_1 (endpoint)
     grad_fd = np.zeros(2)
@@ -249,9 +250,9 @@ def verify_hvp_formula():
         p_plus[i] += eps
         p_minus = p.copy()
         p_minus[i] -= eps
-        grad_fd[i] = (solve_forward(p_plus) - solve_forward(p_minus)) / (2*eps)
+        grad_fd[i] = (solve_forward(p_plus) - solve_forward(p_minus)) / (2 * eps)
 
-    print(f"\n2. Gradient (FD):")
+    print("\n2. Gradient (FD):")
     print(f"   dQ/dp = [{grad_fd[0]:.6f}, {grad_fd[1]:.6f}]")
 
     # Forward sensitivity w = dy/dp · v
@@ -261,7 +262,7 @@ def verify_hvp_formula():
     dRdp = -dt * df_dp(y1, p)
     w1 = -dRdp @ v / dRdy
 
-    print(f"\n3. Forward sensitivity:")
+    print("\n3. Forward sensitivity:")
     print(f"   dR/dy = {dRdy:.6f}")
     print(f"   dR/dp = [{dRdp[0]:.6f}, {dRdp[1]:.6f}]")
     print(f"   w_1 = dy/dp · v = {w1:.6f}")
@@ -284,23 +285,23 @@ def verify_hvp_formula():
             pp[j] += eps
             pm = p_plus.copy()
             pm[j] -= eps
-            g_plus[j] = (solve_forward(pp) - solve_forward(pm)) / (2*eps)
+            g_plus[j] = (solve_forward(pp) - solve_forward(pm)) / (2 * eps)
 
             pp = p_minus.copy()
             pp[j] += eps
             pm = p_minus.copy()
             pm[j] -= eps
-            g_minus[j] = (solve_forward(pp) - solve_forward(pm)) / (2*eps)
-        hvp_fd[i] = (g_plus @ v - g_minus @ v) / (2*eps)
+            g_minus[j] = (solve_forward(pp) - solve_forward(pm)) / (2 * eps)
+        hvp_fd[i] = (g_plus @ v - g_minus @ v) / (2 * eps)
 
-    print(f"\n4. HVP (FD):")
+    print("\n4. HVP (FD):")
     print(f"   d²Q/dp² · v = [{hvp_fd[0]:.6f}, {hvp_fd[1]:.6f}]")
 
     # Now compute HVP via Algorithm 4.1
     # Step 1: y already computed
     # Step 2: λ solves (dR/dy)^T λ = -dQ/dy = -1
     lam = -1.0 / dRdy
-    print(f"\n5. Adjoint:")
+    print("\n5. Adjoint:")
     print(f"   λ = {lam:.6f}")
 
     # Step 3: w already computed (forward sensitivity)
@@ -314,7 +315,7 @@ def verify_hvp_formula():
     rhs_s = Lyy * w1 - Lyu @ v
     s = rhs_s / dRdy  # Note: (dR/dy)^T = dR/dy for scalar
 
-    print(f"\n6. Second adjoint:")
+    print("\n6. Second adjoint:")
     print(f"   ∇_{{yy}}L = {Lyy:.6f}")
     print(f"   ∇_{{yu}}L = [{Lyu[0]:.6f}, {Lyu[1]:.6f}]")
     print(f"   RHS = {rhs_s:.6f}")
@@ -327,12 +328,15 @@ def verify_hvp_formula():
 
     hvp_analytical = dRdp * s - Luy * w1 + Luu @ v
 
-    print(f"\n7. HVP accumulation:")
-    print(f"   (dR/dp)^T · s = [{dRdp[0]*s:.6f}, {dRdp[1]*s:.6f}]")
-    print(f"   ∇_{{uy}}L · w = [{Luy[0]*w1:.6f}, {Luy[1]*w1:.6f}]")
+    print("\n7. HVP accumulation:")
+    print(f"   (dR/dp)^T · s = [{dRdp[0] * s:.6f}, {dRdp[1] * s:.6f}]")
+    print(f"   ∇_{{uy}}L · w = [{Luy[0] * w1:.6f}, {Luy[1] * w1:.6f}]")
     print(f"   HVP (analytical) = [{hvp_analytical[0]:.6f}, {hvp_analytical[1]:.6f}]")
     print(f"   HVP (FD)         = [{hvp_fd[0]:.6f}, {hvp_fd[1]:.6f}]")
-    print(f"   Error = [{abs(hvp_analytical[0] - hvp_fd[0]):.2e}, {abs(hvp_analytical[1] - hvp_fd[1]):.2e}]")
+    print(
+        f" Error = [{abs(hvp_analytical[0] - hvp_fd[0]):.2e}, {abs(hvp_analytical[1] -
+        hvp_fd[1]):.2e}]"
+    )
 
     return hvp_analytical, hvp_fd
 
@@ -377,7 +381,7 @@ def verify_two_step_hvp():
         return 2 * p[0]
 
     def d2f_dydp(y, p):
-        return np.array([2*y, 0.0])
+        return np.array([2 * y, 0.0])
 
     def solve_be_step(y_prev, p):
         """Solve Backward Euler step."""
@@ -386,8 +390,8 @@ def verify_two_step_hvp():
         C = y_prev + dt * p[1]
         if abs(A) < 1e-12:
             return -C / B
-        disc = B**2 - 4*A*C
-        return (-B - np.sqrt(disc)) / (2*A)
+        disc = B**2 - 4 * A * C
+        return (-B - np.sqrt(disc)) / (2 * A)
 
     def solve_forward(p_val):
         """Solve two steps forward."""
@@ -398,7 +402,7 @@ def verify_two_step_hvp():
     # Forward solve
     sol = solve_forward(p)
     y1, y2 = sol[1], sol[2]
-    print(f"\n1. Forward solution:")
+    print("\n1. Forward solution:")
     print(f"   y_0 = {y0:.6f}")
     print(f"   y_1 = {y1:.6f}")
     print(f"   y_2 = {y2:.6f}")
@@ -413,9 +417,9 @@ def verify_two_step_hvp():
         p_plus[i] += eps
         p_minus = p.copy()
         p_minus[i] -= eps
-        grad_fd[i] = (solve_forward(p_plus)[2] - solve_forward(p_minus)[2]) / (2*eps)
+        grad_fd[i] = (solve_forward(p_plus)[2] - solve_forward(p_minus)[2]) / (2 * eps)
 
-    print(f"\n2. Gradient (FD):")
+    print("\n2. Gradient (FD):")
     print(f"   dQ/dp = [{grad_fd[0]:.6f}, {grad_fd[1]:.6f}]")
 
     # HVP via FD
@@ -433,17 +437,17 @@ def verify_two_step_hvp():
             pp[j] += eps
             pm = p_plus.copy()
             pm[j] -= eps
-            g_plus[j] = (solve_forward(pp)[2] - solve_forward(pm)[2]) / (2*eps)
+            g_plus[j] = (solve_forward(pp)[2] - solve_forward(pm)[2]) / (2 * eps)
 
             pp = p_minus.copy()
             pp[j] += eps
             pm = p_minus.copy()
             pm[j] -= eps
-            g_minus[j] = (solve_forward(pp)[2] - solve_forward(pm)[2]) / (2*eps)
+            g_minus[j] = (solve_forward(pp)[2] - solve_forward(pm)[2]) / (2 * eps)
 
-        hvp_fd[i] = (g_plus @ v - g_minus @ v) / (2*eps)
+        hvp_fd[i] = (g_plus @ v - g_minus @ v) / (2 * eps)
 
-    print(f"\n3. HVP (FD):")
+    print("\n3. HVP (FD):")
     print(f"   H·v = [{hvp_fd[0]:.6f}, {hvp_fd[1]:.6f}]")
 
     # Now implement Algorithm 4.1/6.2
@@ -468,7 +472,7 @@ def verify_two_step_hvp():
     # At n=0: λ_0 = -(-1)·λ_1 / 1 (mass matrix is 1)
     lam0 = lam1  # Simplified for scalar case
 
-    print(f"\n4. Adjoint solution:")
+    print("\n4. Adjoint solution:")
     print(f"   λ_2 = {lam2:.6f}")
     print(f"   λ_1 = {lam1:.6f}")
     print(f"   λ_0 = {lam0:.6f}")
@@ -476,9 +480,12 @@ def verify_two_step_hvp():
     # Verify gradient via adjoint
     # dQ/dp = Σ_n (dR_n/dp)^T λ_n
     grad_adj = dR1dp * lam1 + dR2dp * lam2
-    print(f"\n5. Gradient (adjoint):")
+    print("\n5. Gradient (adjoint):")
     print(f"   dQ/dp = [{grad_adj[0]:.6f}, {grad_adj[1]:.6f}]")
-    print(f"   Error = [{abs(grad_adj[0] - grad_fd[0]):.2e}, {abs(grad_adj[1] - grad_fd[1]):.2e}]")
+    print(
+        f" Error = [{abs(grad_adj[0] - grad_fd[0]):.2e}, {abs(grad_adj[1] -
+        grad_fd[1]):.2e}]"
+    )
 
     # Step 3: Forward sensitivity
     # My convention: dR_1/dy_1·w_1 + dR_1/dy_0·w_0 + dR_1/dp·v = 0
@@ -491,7 +498,7 @@ def verify_two_step_hvp():
     # w_2: dR_2/dy_2·w_2 + dR_2/dy_1·w_1 + dR_2/dp·v = 0
     w2 = -(dR2dy1 * w1 + dR2dp @ v) / dR2dy2
 
-    print(f"\n6. Forward sensitivity (w = dy/dp·v):")
+    print("\n6. Forward sensitivity (w = dy/dp·v):")
     print(f"   w_0 = {w0:.6f}")
     print(f"   w_1 = {w1:.6f}")
     print(f"   w_2 = {w2:.6f}")
@@ -509,7 +516,7 @@ def verify_two_step_hvp():
     rhs_s2 = -Lyy2 * w2 - Lyu2 @ v
     s2 = rhs_s2 / dR2dy2
 
-    print(f"\n7. Second adjoint at n=2 (CORRECTED):")
+    print("\n7. Second adjoint at n=2 (CORRECTED):")
     print(f"   ∇_{{yy}}L_2 = {Lyy2:.6f}")
     print(f"   ∇_{{yu}}L_2 = [{Lyu2[0]:.6f}, {Lyu2[1]:.6f}]")
     print(f"   RHS = -∇_{{yy}}L·w - ∇_{{yu}}L·v = {rhs_s2:.6f}")
@@ -522,7 +529,7 @@ def verify_two_step_hvp():
     rhs_s1 = -dR2dy1 * s2 - Lyy1 * w1 - Lyu1 @ v
     s1 = rhs_s1 / dR1dy1
 
-    print(f"\n8. Second adjoint at n=1 (CORRECTED):")
+    print("\n8. Second adjoint at n=1 (CORRECTED):")
     print(f"   ∇_{{yy}}L_1 = {Lyy1:.6f}")
     print(f"   ∇_{{yu}}L_1 = [{Lyu1[0]:.6f}, {Lyu1[1]:.6f}]")
     print(f"   RHS = {rhs_s1:.6f}")
@@ -542,7 +549,7 @@ def verify_two_step_hvp():
 
     hvp_corrected = hvp_term1 + hvp_term2 + hvp_term3 + hvp_term4
 
-    print(f"\n9. HVP accumulation (CORRECTED):")
+    print("\n9. HVP accumulation (CORRECTED):")
     print(f"   (dR_1/dp)^T s_1 = [{hvp_term1[0]:.6f}, {hvp_term1[1]:.6f}]")
     print(f"   (dR_2/dp)^T s_2 = [{hvp_term2[0]:.6f}, {hvp_term2[1]:.6f}]")
     print(f"   +∇_{{uy}}L_1·w_1 = [{hvp_term3[0]:.6f}, {hvp_term3[1]:.6f}]")

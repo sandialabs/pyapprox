@@ -4,7 +4,7 @@ These mixins add specific PDE terms (diffusion, reaction, advection)
 to manufactured solution classes.
 """
 
-from typing import List, Tuple, Any, Dict, Callable
+from typing import Any, Callable, Dict, List, Tuple
 
 import sympy as sp
 
@@ -48,17 +48,12 @@ class DiffusionMixin:
         cartesian_symbs = self.cartesian_symbols()
         diff_expr = sp.sympify(diff_str)
         # Gradient = grad(u)
-        gradient_exprs = [
-            sol_expr.diff(symb, 1) for symb in cartesian_symbs
-        ]
+        gradient_exprs = [sol_expr.diff(symb, 1) for symb in cartesian_symbs]
         # Flux = -D * grad(u)
-        flux_exprs = [
-            -diff_expr * g for g in gradient_exprs
-        ]
+        flux_exprs = [-diff_expr * g for g in gradient_exprs]
         # Forcing = div(flux) = sum(d/dx_i(-D * du/dx_i))
         forc_expr = sum(
-            flux.diff(symb, 1)
-            for flux, symb in zip(flux_exprs, cartesian_symbs)
+            flux.diff(symb, 1) for flux, symb in zip(flux_exprs, cartesian_symbs)
         )
         return diff_expr, gradient_exprs, flux_exprs, forc_expr
 
@@ -155,9 +150,7 @@ class AdvectionMixin:
             )
             self._expressions["forcing"] += advection_expr
             # Conservative flux = v * u
-            flux_exprs = [
-                vel_expr * sol_expr for vel_expr in vel_exprs
-            ]
+            flux_exprs = [vel_expr * sol_expr for vel_expr in vel_exprs]
             self._set_expression("flux", flux_exprs, self._sol_str)
         else:
             # Non-conservative: forcing += v . grad(u)

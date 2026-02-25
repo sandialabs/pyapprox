@@ -11,16 +11,15 @@ to independent uniform [0,1] samples using the conditional CDFs:
 Combined with the inverse normal CDF, this gives independent standard normals.
 """
 
-from typing import Generic, Tuple, Optional, Callable
+from typing import Callable, Generic, Optional
 
 import numpy as np
 from scipy import stats
 
-from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.optimization.rootfinding.bisection import (
     BisectionSearch,
-    BisectionResidualProtocol,
 )
+from pyapprox.util.backends.protocols import Array, Backend
 
 
 class RosenblattTransform(Generic[Array]):
@@ -78,8 +77,7 @@ class RosenblattTransform(Generic[Array]):
         """Validate that input is 2D with shape (nvars, nsamples)."""
         if samples.ndim != 2:
             raise ValueError(
-                f"Expected 2D array with shape (nvars, nsamples), "
-                f"got {samples.ndim}D"
+                f"Expected 2D array with shape (nvars, nsamples), got {samples.ndim}D"
             )
         if samples.shape[0] != self._nvars:
             raise ValueError(
@@ -148,9 +146,7 @@ class RosenblattTransform(Generic[Array]):
         self._validate_input(samples)
         uniform = self.map_to_uniform(samples)
         # Clip to avoid infinities
-        uniform_np = np.clip(
-            self._bkd.to_numpy(uniform), 1e-15, 1.0 - 1e-15
-        )
+        uniform_np = np.clip(self._bkd.to_numpy(uniform), 1e-15, 1.0 - 1e-15)
         return self._bkd.asarray(self._standard_normal.ppf(uniform_np))
 
     def map_from_uniform(self, uniform_samples: Array) -> Array:
@@ -235,9 +231,7 @@ class RosenblattTransform(Generic[Array]):
                         point[j] = 0  # Will be integrated
                     return float(self._marginal_pdf_by_integration(point, 0))
 
-                u[0], _ = integrate.quad(
-                    integrand, bounds[0, 0], x_np[0], limit=50
-                )
+                u[0], _ = integrate.quad(integrand, bounds[0, 0], x_np[0], limit=50)
             else:
                 # F_{i|1,...,i-1}(x_i | x_1, ..., x_{i-1})
                 # = integral f(x_1,...,x_i,*) / f(x_1,...,x_{i-1},*)
@@ -272,9 +266,7 @@ class RosenblattTransform(Generic[Array]):
 
             try:
                 bisection = BisectionSearch(residual)
-                search_bounds = self._bkd.asarray(
-                    [[bounds[0, i]], [bounds[1, i]]]
-                ).T
+                search_bounds = self._bkd.asarray([[bounds[0, i]], [bounds[1, i]]]).T
                 result = bisection.solve(search_bounds, maxiters=50, atol=1e-10)
                 x[i] = float(result[0])
             except RuntimeError:
@@ -289,9 +281,8 @@ class RosenblattTransform(Generic[Array]):
 
         f_i(x_i) = integral f(x) dx_{-i}
         """
-        from scipy import integrate
 
-        bounds = self._bkd.to_numpy(self._bounds)
+        self._bkd.to_numpy(self._bounds)
 
         # This is a placeholder - actual implementation needs
         # proper multivariate integration
@@ -313,9 +304,7 @@ class RosenblattTransform(Generic[Array]):
             point[dim] = t
             return self._marginal_pdf_by_integration(point, dim)
 
-        result, _ = integrate.quad(
-            integrand, bounds[0, dim], x, limit=50
-        )
+        result, _ = integrate.quad(integrand, bounds[0, dim], x, limit=50)
         return result
 
     def _conditional_cdf_numerical(self, x: Array, dim: int) -> float:

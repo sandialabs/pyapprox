@@ -1,4 +1,4 @@
-from typing import Protocol, Generic, runtime_checkable, cast
+from typing import Generic, Protocol, cast, runtime_checkable
 
 from pyapprox.util.backends.protocols import Array, Backend
 
@@ -39,15 +39,13 @@ class BisectionSearch(Generic[Array]):
             idx1 = self._bkd.nonzero(
                 cast(
                     Array,
-                    self._bkd.sign(residual_center)
-                    == self._bkd.sign(residual_lb),
+                    self._bkd.sign(residual_center) == self._bkd.sign(residual_lb),
                 )
             )[0]
             idx2 = self._bkd.nonzero(
                 cast(
                     Array,
-                    self._bkd.sign(residual_center)
-                    != self._bkd.sign(residual_lb),
+                    self._bkd.sign(residual_center) != self._bkd.sign(residual_lb),
                 )
             )[0]
             lb[idx1] = center[idx1]

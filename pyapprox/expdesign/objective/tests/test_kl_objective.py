@@ -14,13 +14,12 @@ import numpy as np
 import torch
 from numpy.typing import NDArray
 
-from pyapprox.util.backends.numpy import NumpyBkd
-from pyapprox.util.backends.torch import TorchBkd
-from pyapprox.util.backends.protocols import Array
-from pyapprox.util.test_utils import load_tests  # noqa: F401
-
 from pyapprox.expdesign.likelihood import GaussianOEDInnerLoopLikelihood
 from pyapprox.expdesign.objective import KLOEDObjective
+from pyapprox.util.backends.numpy import NumpyBkd
+from pyapprox.util.backends.protocols import Array
+from pyapprox.util.backends.torch import TorchBkd
+from pyapprox.util.test_utils import load_tests  # noqa: F401
 
 
 class TestKLOEDObjective(Generic[Array], unittest.TestCase):
@@ -39,9 +38,7 @@ class TestKLOEDObjective(Generic[Array], unittest.TestCase):
         self._nouter = 10
 
         np.random.seed(42)
-        self._noise_variances = self._bkd.asarray(
-            np.array([0.1, 0.2, 0.15])
-        )
+        self._noise_variances = self._bkd.asarray(np.array([0.1, 0.2, 0.15]))
 
         # Model outputs (shapes)
         self._outer_shapes = self._bkd.asarray(
@@ -123,7 +120,6 @@ class TestKLOEDObjective(Generic[Array], unittest.TestCase):
             self._bkd.asarray([expected_eig]),
             rtol=1e-10,
         )
-
 
 
 class TestKLOEDObjectiveNumpy(TestKLOEDObjective[NDArray[Any]]):

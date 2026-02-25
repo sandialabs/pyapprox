@@ -1,9 +1,9 @@
 from typing import Generic
 
-from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.interface.functions.protocols.validation import (
     validate_sample,
 )
+from pyapprox.util.backends.protocols import Array, Backend
 
 
 class AdjointOperatorStorage(Generic[Array]):

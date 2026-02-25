@@ -8,7 +8,7 @@ to dense for linear solves and boundary condition application.
 import warnings
 
 import numpy as np
-from scipy.sparse import issparse, csc_matrix
+from scipy.sparse import csc_matrix, issparse
 from scipy.sparse.linalg import spsolve
 
 
@@ -72,9 +72,7 @@ def solve_maybe_sparse(bkd, A, b):
         If A is not 2D or b is not 1D, or dimensions are incompatible.
     """
     if A.shape[0] != A.shape[1]:
-        raise ValueError(
-            f"A must be square, got shape {A.shape}"
-        )
+        raise ValueError(f"A must be square, got shape {A.shape}")
     if issparse(A):
         return bkd.solve_sparse(A, b)
     return bkd.solve(A, b)

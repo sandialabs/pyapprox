@@ -5,18 +5,19 @@ This module provides the MultiLevelKernel, which is a convenience wrapper around
 DAGMultiOutputKernel for the special case of sequential (hierarchical) structures.
 """
 
-from typing import List, Union, Optional, Generic, Tuple, Dict
+from typing import Dict, Generic, List, Optional, Tuple, Union
+
 import networkx as nx
 
-from pyapprox.util.backends.protocols import Array, Backend
-from pyapprox.util.hyperparameter import HyperParameterList
+from pyapprox.surrogates.kernels.multioutput.dag_kernel import (
+    DAGMultiOutputKernel,
+)
 from pyapprox.surrogates.kernels.protocols import Kernel
 from pyapprox.surrogates.kernels.scalings import (
     ScalingFunctionProtocol,
 )
-from pyapprox.surrogates.kernels.multioutput.dag_kernel import (
-    DAGMultiOutputKernel,
-)
+from pyapprox.util.backends.protocols import Array, Backend
+from pyapprox.util.hyperparameter import HyperParameterList
 
 
 class MultiLevelKernel(Generic[Array]):
@@ -94,7 +95,8 @@ class MultiLevelKernel(Generic[Array]):
     DAGMultiOutputKernel and requires all discrepancy kernels and
     scalings to implement ``jacobian_wrt_params``.
 
-    ``hvp_wrt_params`` is not implemented (inherited limitation from DAGMultiOutputKernel).
+    ``hvp_wrt_params`` is not implemented (inherited limitation from
+    DAGMultiOutputKernel).
     """
 
     def __init__(
@@ -229,9 +231,7 @@ class MultiLevelKernel(Generic[Array]):
         return self._dag_kernel(X1_list, X2_list, block_format)
 
     def jacobian_wrt_params(
-        self,
-        X1_list: List[Array],
-        X2_list: Optional[List[Array]] = None
+        self, X1_list: List[Array], X2_list: Optional[List[Array]] = None
     ) -> Array:
         """
         Compute Jacobian of kernel matrix w.r.t. hyperparameters.
@@ -265,6 +265,6 @@ class MultiLevelKernel(Generic[Array]):
             f"MultiLevelKernel(\n"
             f"  nlevels={self._nlevels},\n"
             f"  nvars={self.nvars()},\n"
-            f"  sequential_structure=0->1->...->{self._nlevels-1}\n"
+            f"  sequential_structure=0->1->...->{self._nlevels - 1}\n"
             f")"
         )

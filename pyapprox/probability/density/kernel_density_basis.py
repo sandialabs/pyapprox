@@ -3,13 +3,13 @@
 import math
 from typing import Generic, Tuple
 
-from pyapprox.util.backends.protocols import Array, Backend
-from pyapprox.util.hyperparameter.hyperparameter_list import (
-    HyperParameterList,
-)
 from pyapprox.surrogates.affine.basis.kernel_basis import KernelBasis
 from pyapprox.surrogates.kernels.matern import (
     SquaredExponentialKernel,
+)
+from pyapprox.util.backends.protocols import Array, Backend
+from pyapprox.util.hyperparameter.hyperparameter_list import (
+    HyperParameterList,
 )
 
 
@@ -43,8 +43,7 @@ class KernelDensityBasis(Generic[Array]):
             )
         if kernel_basis.nvars() != 1:
             raise ValueError(
-                f"KernelDensityBasis requires nvars=1, "
-                f"got {kernel_basis.nvars()}"
+                f"KernelDensityBasis requires nvars=1, got {kernel_basis.nvars()}"
             )
         self._kernel_basis = kernel_basis
         self._kernel = kernel
@@ -75,8 +74,8 @@ class KernelDensityBasis(Generic[Array]):
         bkd = self._bkd
         centers = self._kernel_basis.centers()
         centers_1d = centers[0]
-        l = self._lenscale()[0]
-        margin = 4.0 * l
+        ls = self._lenscale()[0]
+        margin = 4.0 * ls
         c_min = bkd.min(centers_1d)
         c_max = bkd.max(centers_1d)
         return (
@@ -118,16 +117,16 @@ class KernelDensityBasis(Generic[Array]):
         bkd = self._bkd
         centers = self._kernel_basis.centers()
         mu = centers[0]  # (ncenters,)
-        l = self._lenscale()[0]  # user-space length scale (scalar array)
+        ls = self._lenscale()[0]  # user-space length scale (scalar array)
 
         # Compute pairwise squared distances between centers
         mu_i = bkd.reshape(mu, (-1, 1))  # (n, 1)
         mu_j = bkd.reshape(mu, (1, -1))  # (1, n)
         diff_sq = (mu_i - mu_j) ** 2  # (n, n)
 
-        # M_ij = l * sqrt(pi) * exp(-(mu_i - mu_j)^2 / (4*l^2))
-        coeff = l * math.sqrt(math.pi)
-        M = coeff * bkd.exp(-diff_sq / (4.0 * l**2))
+        # M_ij = ls * sqrt(pi) * exp(-(mu_i - mu_j)^2 / (4*ls^2))
+        coeff = ls * math.sqrt(math.pi)
+        M = coeff * bkd.exp(-diff_sq / (4.0 * ls**2))
         return M
 
 

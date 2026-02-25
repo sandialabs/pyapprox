@@ -2,10 +2,10 @@
 
 from typing import Generic, List
 
-from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.pde.parameterizations.protocol import (
     ParameterizationProtocol,
 )
+from pyapprox.util.backends.protocols import Array, Backend
 
 
 class CompositeParameterization(Generic[Array]):
@@ -62,12 +62,8 @@ class CompositeParameterization(Generic[Array]):
             del self.initial_param_jacobian
 
         # bc_flux_param_sensitivity: only if ALL parts have it
-        if all(
-            hasattr(p, "bc_flux_param_sensitivity") for p in self._parts
-        ):
-            self.bc_flux_param_sensitivity = (
-                self._bc_flux_param_sensitivity
-            )
+        if all(hasattr(p, "bc_flux_param_sensitivity") for p in self._parts):
+            self.bc_flux_param_sensitivity = self._bc_flux_param_sensitivity
         elif hasattr(self, "bc_flux_param_sensitivity"):
             del self.bc_flux_param_sensitivity
 
@@ -90,14 +86,13 @@ class CompositeParameterization(Generic[Array]):
         for ii, part in enumerate(self._parts):
             offset = self._offsets[ii]
             np_i = part.nparams()
-            part.apply(physics, params_1d[offset:offset + np_i])
+            part.apply(physics, params_1d[offset : offset + np_i])
 
     def append(self, part: ParameterizationProtocol[Array]) -> None:
         """Append a parameterization. Re-binds optional methods."""
         if not isinstance(part, ParameterizationProtocol):
             raise TypeError(
-                f"part must satisfy ParameterizationProtocol, "
-                f"got {type(part).__name__}"
+                f"part must satisfy ParameterizationProtocol, got {type(part).__name__}"
             )
         self._parts.append(part)
         self._recompute_offsets()
@@ -117,21 +112,19 @@ class CompositeParameterization(Generic[Array]):
         for ii, part in enumerate(self._parts):
             offset = self._offsets[ii]
             np_i = part.nparams()
-            sub_params = params_1d[offset:offset + np_i]
+            sub_params = params_1d[offset : offset + np_i]
             block = part.param_jacobian(physics, state, time, sub_params)
             for col in range(np_i):
                 for row in range(npts):
                     result[row, offset + col] = block[row, col]
         return result
 
-    def _initial_param_jacobian(
-        self, physics: object, params_1d: Array
-    ) -> Array:
+    def _initial_param_jacobian(self, physics: object, params_1d: Array) -> Array:
         """Block-column assembly of initial param Jacobian."""
         # Get npts from first part's result
         first_offset = self._offsets[0]
         np_0 = self._parts[0].nparams()
-        sub_params_0 = params_1d[first_offset:first_offset + np_0]
+        sub_params_0 = params_1d[first_offset : first_offset + np_0]
         block_0 = self._parts[0].initial_param_jacobian(physics, sub_params_0)
         npts = block_0.shape[0]
 
@@ -146,7 +139,7 @@ class CompositeParameterization(Generic[Array]):
             part = self._parts[ii]
             offset = self._offsets[ii]
             np_i = part.nparams()
-            sub_params = params_1d[offset:offset + np_i]
+            sub_params = params_1d[offset : offset + np_i]
             block = part.initial_param_jacobian(physics, sub_params)
             for col in range(np_i):
                 for row in range(npts):
@@ -168,8 +161,8 @@ class CompositeParameterization(Generic[Array]):
         for ii, part in enumerate(self._parts):
             offset = self._offsets[ii]
             np_i = part.nparams()
-            sub_params = params_1d[offset:offset + np_i]
-            sub_vvec = vvec[offset:offset + np_i]
+            sub_params = params_1d[offset : offset + np_i]
+            sub_vvec = vvec[offset : offset + np_i]
             sub_result = part.param_param_hvp(
                 physics, state, time, sub_params, adj_state, sub_vvec
             )
@@ -192,8 +185,8 @@ class CompositeParameterization(Generic[Array]):
         for ii, part in enumerate(self._parts):
             offset = self._offsets[ii]
             np_i = part.nparams()
-            sub_params = params_1d[offset:offset + np_i]
-            sub_vvec = vvec[offset:offset + np_i]
+            sub_params = params_1d[offset : offset + np_i]
+            sub_vvec = vvec[offset : offset + np_i]
             sub_result = part.state_param_hvp(
                 physics, state, time, sub_params, adj_state, sub_vvec
             )
@@ -216,7 +209,7 @@ class CompositeParameterization(Generic[Array]):
         for ii, part in enumerate(self._parts):
             offset = self._offsets[ii]
             np_i = part.nparams()
-            sub_params = params_1d[offset:offset + np_i]
+            sub_params = params_1d[offset : offset + np_i]
             sub_result = part.param_state_hvp(
                 physics, state, time, sub_params, adj_state, wvec
             )
@@ -240,7 +233,7 @@ class CompositeParameterization(Generic[Array]):
         for ii, part in enumerate(self._parts):
             offset = self._offsets[ii]
             np_i = part.nparams()
-            sub_params = params_1d[offset:offset + np_i]
+            sub_params = params_1d[offset : offset + np_i]
             block = part.bc_flux_param_sensitivity(
                 physics, state, time, sub_params, bc_indices, normals
             )

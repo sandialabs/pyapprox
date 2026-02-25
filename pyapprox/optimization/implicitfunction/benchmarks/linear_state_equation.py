@@ -1,9 +1,10 @@
 from typing import Generic
-from pyapprox.util.backends.protocols import Array, Backend
-from pyapprox.util.backends.validation import validate_backend
+
 from pyapprox.interface.functions.protocols.validation import (
     validate_sample,
 )
+from pyapprox.util.backends.protocols import Array, Backend
+from pyapprox.util.backends.validation import validate_backend
 
 
 class LinearStateEquation(Generic[Array]):
@@ -39,7 +40,8 @@ class LinearStateEquation(Generic[Array]):
         Raises
         ------
         ValueError
-            If `bvec` is not a 1D array or if the dimensions of `Amat` and `bvec` are inconsistent.
+            If `bvec` is not a 1D array or if the dimensions of `Amat` and `bvec` are
+            inconsistent.
         """
         validate_backend(bkd)
         self._bkd = bkd

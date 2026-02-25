@@ -3,9 +3,6 @@
 import unittest
 from typing import Generic
 
-from pyapprox.util.backends.protocols import Array, Backend
-from pyapprox.util.backends.numpy import NumpyBkd
-from pyapprox.util.test_utils import load_tests  # noqa: F401
 from pyapprox.pde.collocation.basis import (
     ChebyshevBasis1D,
     ChebyshevBasis2D,
@@ -15,14 +12,16 @@ from pyapprox.pde.collocation.mesh import (
     TransformedMesh2D,
 )
 from pyapprox.pde.collocation.operators import (
-    input_field,
     Gradient,
-    Divergence,
     Laplacian,
-    gradient,
     divergence,
+    gradient,
+    input_field,
     laplacian,
 )
+from pyapprox.util.backends.numpy import NumpyBkd
+from pyapprox.util.backends.protocols import Array, Backend
+from pyapprox.util.test_utils import load_tests  # noqa: F401
 
 
 class TestGradient(Generic[Array], unittest.TestCase):
@@ -60,7 +59,7 @@ class TestGradient(Generic[Array], unittest.TestCase):
 
         # f(x) = x^2, df/dx = 2x
         nodes = basis.nodes()
-        f = input_field(basis, bkd, nodes ** 2)
+        f = input_field(basis, bkd, nodes**2)
 
         grad_f = gradient(f, basis, bkd)
 
@@ -84,7 +83,7 @@ class TestGradient(Generic[Array], unittest.TestCase):
 
         # f(x,y) = x^2 + y^2
         # df/dx = 2x, df/dy = 2y
-        f_values = xx ** 2 + yy ** 2
+        f_values = xx**2 + yy**2
         f = input_field(basis, bkd, f_values)
 
         grad_f = gradient(f, basis, bkd)
@@ -143,8 +142,8 @@ class TestDivergence(Generic[Array], unittest.TestCase):
         yy = bkd.repeat(y, npts_x)
 
         # v = (x^2, y^2), div(v) = 2x + 2y
-        v_x = input_field(basis, bkd, xx ** 2)
-        v_y = input_field(basis, bkd, yy ** 2)
+        v_x = input_field(basis, bkd, xx**2)
+        v_y = input_field(basis, bkd, yy**2)
 
         div_v = divergence([v_x, v_y], basis, bkd)
 
@@ -170,7 +169,7 @@ class TestLaplacian(Generic[Array], unittest.TestCase):
 
         # f(x) = x^2, nabla^2 f = 2
         nodes = basis.nodes()
-        f = input_field(basis, bkd, nodes ** 2)
+        f = input_field(basis, bkd, nodes**2)
 
         lap_f = laplacian(f, basis, bkd)
 
@@ -186,7 +185,7 @@ class TestLaplacian(Generic[Array], unittest.TestCase):
 
         # f(x) = x^3, nabla^2 f = 6x
         nodes = basis.nodes()
-        f = input_field(basis, bkd, nodes ** 3)
+        f = input_field(basis, bkd, nodes**3)
 
         lap_f = laplacian(f, basis, bkd)
 
@@ -210,7 +209,7 @@ class TestLaplacian(Generic[Array], unittest.TestCase):
         yy = bkd.repeat(y, npts_x)
 
         # f(x,y) = x^2 + y^2, nabla^2 f = 2 + 2 = 4
-        f_values = xx ** 2 + yy ** 2
+        f_values = xx**2 + yy**2
         f = input_field(basis, bkd, f_values)
 
         lap_f = laplacian(f, basis, bkd)
@@ -237,12 +236,12 @@ class TestLaplacian(Generic[Array], unittest.TestCase):
         # d^2f/dx^2 = 2*y^2
         # d^2f/dy^2 = 2*x^2
         # nabla^2 f = 2*y^2 + 2*x^2
-        f_values = xx ** 2 * yy ** 2
+        f_values = xx**2 * yy**2
         f = input_field(basis, bkd, f_values)
 
         lap_f = laplacian(f, basis, bkd)
 
-        expected = 2.0 * yy ** 2 + 2.0 * xx ** 2
+        expected = 2.0 * yy**2 + 2.0 * xx**2
         bkd.assert_allclose(lap_f.as_flat(), expected, atol=1e-9)
 
 
@@ -261,7 +260,7 @@ class TestOperatorClasses(Generic[Array], unittest.TestCase):
 
         basis = ChebyshevBasis1D(mesh, bkd)
         nodes = basis.nodes()
-        f = input_field(basis, bkd, nodes ** 2)
+        f = input_field(basis, bkd, nodes**2)
 
         # Class interface
         grad_op = Gradient(basis, bkd)
@@ -281,7 +280,7 @@ class TestOperatorClasses(Generic[Array], unittest.TestCase):
 
         basis = ChebyshevBasis1D(mesh, bkd)
         nodes = basis.nodes()
-        f = input_field(basis, bkd, nodes ** 3)
+        f = input_field(basis, bkd, nodes**3)
 
         # Class interface
         lap_op = Laplacian(basis, bkd)
@@ -290,9 +289,7 @@ class TestOperatorClasses(Generic[Array], unittest.TestCase):
         # Function interface
         result_func = laplacian(f, basis, bkd)
 
-        bkd.assert_allclose(
-            result_class.as_flat(), result_func.as_flat(), atol=1e-14
-        )
+        bkd.assert_allclose(result_class.as_flat(), result_func.as_flat(), atol=1e-14)
 
 
 class TestGradientNumpy(TestGradient):

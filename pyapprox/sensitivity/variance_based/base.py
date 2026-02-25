@@ -8,12 +8,12 @@ from abc import ABC, abstractmethod
 from itertools import combinations
 from typing import Generic
 
-from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.surrogates.affine.indices import (
     HyperbolicIndexGenerator,
-    hash_index,
     argsort_indices_lexiographically,
+    hash_index,
 )
+from pyapprox.util.backends.protocols import Array, Backend
 
 
 class VarianceBasedSensitivityAnalysis(ABC, Generic[Array]):
@@ -61,14 +61,10 @@ class VarianceBasedSensitivityAnalysis(ABC, Generic[Array]):
             Shape (nvars, nterms) - binary indicator of which variables
             are active in each interaction term.
         """
-        gen = HyperbolicIndexGenerator(
-            self.nvars(), order, 1.0, bkd=self._bkd
-        )
+        gen = HyperbolicIndexGenerator(self.nvars(), order, 1.0, bkd=self._bkd)
         interaction_terms = gen.get_indices()
         # Keep only terms where max degree is 1 (binary indicators)
-        mask = self._bkd.where(
-            self._bkd.max(interaction_terms, axis=0) == 1
-        )[0]
+        mask = self._bkd.where(self._bkd.max(interaction_terms, axis=0) == 1)[0]
         interaction_terms = interaction_terms[:, mask]
         return interaction_terms
 
@@ -76,9 +72,7 @@ class VarianceBasedSensitivityAnalysis(ABC, Generic[Array]):
         """Return default interaction terms (main + pairwise)."""
         return self.isotropic_interaction_terms(2)
 
-    def set_interaction_terms_of_interest(
-        self, interaction_terms: Array
-    ) -> None:
+    def set_interaction_terms_of_interest(self, interaction_terms: Array) -> None:
         """Set the interaction terms for which to compute Sobol indices.
 
         Parameters
@@ -94,13 +88,9 @@ class VarianceBasedSensitivityAnalysis(ABC, Generic[Array]):
             If interaction_terms does not include all main effect indices.
         """
         # Check that all main effects are included
-        main_effect_indices = interaction_terms[
-            :, interaction_terms.sum(axis=0) == 1
-        ]
+        main_effect_indices = interaction_terms[:, interaction_terms.sum(axis=0) == 1]
         if main_effect_indices.shape[1] != self.nvars():
-            raise ValueError(
-                "interaction_terms must contain all main effect indices"
-            )
+            raise ValueError("interaction_terms must contain all main effect indices")
         self._interaction_terms = interaction_terms
 
     def interaction_terms(self) -> Array:
@@ -135,9 +125,7 @@ class VarianceBasedSensitivityAnalysis(ABC, Generic[Array]):
         Array
             Shape (nterms, nqoi) - corrected Sobol indices.
         """
-        idx = argsort_indices_lexiographically(
-            self._interaction_terms, self._bkd
-        )
+        idx = argsort_indices_lexiographically(self._interaction_terms, self._bkd)
         sobol_indices = self._bkd.copy(interaction_variances)
         sobol_indices_dict: dict[str, int] = {}
 
@@ -154,9 +142,7 @@ class VarianceBasedSensitivityAnalysis(ABC, Generic[Array]):
             if nactive_vars > 1:
                 for jj in range(nactive_vars - 1):
                     for subset in combinations(active_vars, jj + 1):
-                        subset_key = hash_index(
-                            self._bkd.asarray(subset), self._bkd
-                        )
+                        subset_key = hash_index(self._bkd.asarray(subset), self._bkd)
                         sobol_indices[idx[ii]] -= sobol_indices[
                             sobol_indices_dict[subset_key]
                         ]

@@ -8,8 +8,8 @@ This module provides least squares based solvers:
 
 from typing import Generic, Optional
 
-from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.optimization.linear.base import LinearSystemSolver
+from pyapprox.util.backends.protocols import Array, Backend
 
 
 class LeastSquaresSolver(LinearSystemSolver[Array], Generic[Array]):
@@ -152,9 +152,7 @@ class LinearlyConstrainedLstSqSolver(LinearSystemSolver[Array], Generic[Array]):
         self._constraint_matrix = constraint_matrix
         self._constraint_vector = constraint_vector
         if constraint_vector.ndim == 1:
-            self._constraint_vector = self._bkd.reshape(
-                constraint_vector, (-1, 1)
-            )
+            self._constraint_vector = self._bkd.reshape(constraint_vector, (-1, 1))
 
     def _solve(self, basis_matrix: Array, values: Array) -> Array:
         """Solve constrained least squares problem via KKT system.

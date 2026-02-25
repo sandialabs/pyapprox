@@ -9,22 +9,22 @@ functionality: multi-index tracking, growth rules, and quadrature.
 
 from typing import Generic, List, Optional, Union
 
-from pyapprox.util.backends.protocols import Array, Backend
-from pyapprox.util.cartesian import outer_product_weights
 from pyapprox.surrogates.affine.protocols import (
     IndexGrowthRuleProtocol,
     InterpolationBasis1DProtocol,
 )
-from pyapprox.surrogates.tensorproduct import TensorProductInterpolant
+from pyapprox.surrogates.sparsegrids.basis_factory import BasisFactoryProtocol
 from pyapprox.surrogates.sparsegrids.basis_setup import (
     compute_npts_from_growth_rule,
 )
-from pyapprox.surrogates.sparsegrids.basis_factory import BasisFactoryProtocol
 from pyapprox.surrogates.sparsegrids.validation import (
     validate_backend,
     validate_basis_factories,
     validate_growth_rules,
 )
+from pyapprox.surrogates.tensorproduct import TensorProductInterpolant
+from pyapprox.util.backends.protocols import Array, Backend
+from pyapprox.util.cartesian import outer_product_weights
 
 
 class TensorProductSubspace(Generic[Array]):
@@ -354,7 +354,4 @@ class TensorProductSubspace(Generic[Array]):
 
     def __repr__(self) -> str:
         index_str = ",".join(str(int(i)) for i in self._index)
-        return (
-            f"TensorProductSubspace(index=[{index_str}], "
-            f"nsamples={self.nsamples()})"
-        )
+        return f"TensorProductSubspace(index=[{index_str}], nsamples={self.nsamples()})"

@@ -10,20 +10,20 @@ where i = (i_0, ..., i_{nvars-1}) is a multi-index and φ_j^{(d)} is the
 j-th univariate basis function in dimension d.
 """
 
-from abc import ABC, abstractmethod
-from typing import Generic, List, Optional, Tuple, Union
+from abc import ABC
+from typing import Generic, List, Optional
 
-from pyapprox.util.backends.protocols import Array, Backend
-from pyapprox.surrogates.affine.protocols import (
-    Basis1DProtocol,
-    Basis1DHasJacobianProtocol,
-    Basis1DHasHessianProtocol,
-)
 from pyapprox.surrogates.affine.basis.dispatch import (
     get_basis_eval_impl,
-    get_basis_jacobian_impl,
     get_basis_hessian_impl,
+    get_basis_jacobian_impl,
 )
+from pyapprox.surrogates.affine.protocols import (
+    Basis1DHasHessianProtocol,
+    Basis1DHasJacobianProtocol,
+    Basis1DProtocol,
+)
+from pyapprox.util.backends.protocols import Array, Backend
 
 
 class MultiIndexBasis(ABC, Generic[Array]):
@@ -64,12 +64,10 @@ class MultiIndexBasis(ABC, Generic[Array]):
         # Resolve dispatch at init time based on backend type
         self._eval_impl = get_basis_eval_impl(bkd)
         self._jacobian_impl = (
-            get_basis_jacobian_impl(bkd)
-            if self._jacobian_supported else None
+            get_basis_jacobian_impl(bkd) if self._jacobian_supported else None
         )
         self._hessian_impl = (
-            get_basis_hessian_impl(bkd)
-            if self._hessian_supported else None
+            get_basis_hessian_impl(bkd) if self._hessian_supported else None
         )
 
         if indices is not None:
@@ -113,8 +111,7 @@ class MultiIndexBasis(ABC, Generic[Array]):
             raise ValueError("indices must be 2D array")
         if indices.shape[0] != self.nvars():
             raise ValueError(
-                f"indices must have shape ({self.nvars()}, nterms), "
-                f"got {indices.shape}"
+                f"indices must have shape ({self.nvars()}, nterms), got {indices.shape}"
             )
 
         self._indices = indices
@@ -238,7 +235,10 @@ class MultiIndexBasis(ABC, Generic[Array]):
 
         basis_vals_1d = self._basis_vals_1d(samples)
         return self._eval_impl(
-            basis_vals_1d, self._indices, self.nvars(), self._bkd,
+            basis_vals_1d,
+            self._indices,
+            self.nvars(),
+            self._bkd,
         )
 
     def jacobian_batch(self, samples: Array) -> Array:
@@ -270,8 +270,11 @@ class MultiIndexBasis(ABC, Generic[Array]):
         basis_vals_1d = self._basis_vals_1d(samples)
         basis_derivs_1d = self._basis_jacobians_1d(samples)
         return self._jacobian_impl(
-            basis_vals_1d, basis_derivs_1d,
-            self._indices, self.nvars(), self._bkd,
+            basis_vals_1d,
+            basis_derivs_1d,
+            self._indices,
+            self.nvars(),
+            self._bkd,
         )
 
     def hessian_batch(self, samples: Array) -> Array:
@@ -281,7 +284,8 @@ class MultiIndexBasis(ABC, Generic[Array]):
             ∂²φ_i/∂x_d² = (∂²φ_{i_d}^{(d)}/∂x_d²) ∏_{l≠d} φ_{i_l}^{(l)}
 
         For off-diagonal terms (d ≠ k):
-            ∂²φ_i/∂x_d∂x_k = (∂φ_{i_d}^{(d)}/∂x_d)(∂φ_{i_k}^{(k)}/∂x_k) ∏_{l≠d,k} φ_{i_l}^{(l)}
+            ∂²φ_i/∂x_d∂x_k = (∂φ_{i_d}^{(d)}/∂x_d)(∂φ_{i_k}^{(k)}/∂x_k) ∏_{l≠d,k}
+            φ_{i_l}^{(l)}
 
         Parameters
         ----------
@@ -308,12 +312,15 @@ class MultiIndexBasis(ABC, Generic[Array]):
         basis_hess_1d = self._basis_hessians_1d(samples)
 
         return self._hessian_impl(
-            basis_vals_1d, basis_derivs_1d, basis_hess_1d,
-            self._indices, self.nvars(), self._bkd,
+            basis_vals_1d,
+            basis_derivs_1d,
+            basis_hess_1d,
+            self._indices,
+            self.nvars(),
+            self._bkd,
         )
 
     def __repr__(self) -> str:
         return (
-            f"{self.__class__.__name__}(nvars={self.nvars()}, "
-            f"nterms={self.nterms()})"
+            f"{self.__class__.__name__}(nvars={self.nvars()}, nterms={self.nterms()})"
         )

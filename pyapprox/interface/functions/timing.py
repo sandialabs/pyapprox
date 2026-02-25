@@ -163,8 +163,7 @@ class FunctionTimer:
         for name, timer in self._timers.items():
             if timer.call_count() > 0:
                 parts.append(
-                    f"{name}(n={timer.total_evals()}, "
-                    f"median={timer.median():.4f}s)"
+                    f"{name}(n={timer.total_evals()}, median={timer.median():.4f}s)"
                 )
         if not parts:
             return "FunctionTimer(empty)"
@@ -220,9 +219,7 @@ class TimedFunction(Generic[Array]):
         n_evals = samples.shape[1]
         t0 = time.perf_counter()
         result: Array = self._function(samples)
-        self._timer.get("__call__").record(
-            time.perf_counter() - t0, n_evals
-        )
+        self._timer.get("__call__").record(time.perf_counter() - t0, n_evals)
         return result
 
     def __repr__(self) -> str:
@@ -255,9 +252,7 @@ class TimedFunctionWithJacobian(TimedFunction[Array]):
         n_evals = samples.shape[1]
         t0 = time.perf_counter()
         result: Array = self._function.jacobian_batch(samples)
-        self._timer.get("jacobian_batch").record(
-            time.perf_counter() - t0, n_evals
-        )
+        self._timer.get("jacobian_batch").record(time.perf_counter() - t0, n_evals)
         return result
 
     def __repr__(self) -> str:
@@ -290,9 +285,7 @@ class TimedFunctionWithJacobianAndHVP(TimedFunctionWithJacobian[Array]):
         n_evals = samples.shape[1]
         t0 = time.perf_counter()
         result: Array = self._function.hvp_batch(samples, vecs)
-        self._timer.get("hvp_batch").record(
-            time.perf_counter() - t0, n_evals
-        )
+        self._timer.get("hvp_batch").record(time.perf_counter() - t0, n_evals)
         return result
 
     def _hessian_batch(self, samples: Array) -> Array:
@@ -300,9 +293,7 @@ class TimedFunctionWithJacobianAndHVP(TimedFunctionWithJacobian[Array]):
         n_evals = samples.shape[1]
         t0 = time.perf_counter()
         result: Array = self._function.hessian_batch(samples)
-        self._timer.get("hessian_batch").record(
-            time.perf_counter() - t0, n_evals
-        )
+        self._timer.get("hessian_batch").record(time.perf_counter() - t0, n_evals)
         return result
 
     def __repr__(self) -> str:
@@ -332,9 +323,7 @@ class TimedFunctionWithJVP(TimedFunction[Array]):
         return f"TimedFunctionWithJVP({self._function!r})"
 
 
-class TimedFunctionWithJacobianAndWHVP(
-    TimedFunctionWithJacobianAndHVP[Array]
-):
+class TimedFunctionWithJacobianAndWHVP(TimedFunctionWithJacobianAndHVP[Array]):
     """Timing wrapper for FunctionWithJacobianAndWHVPProtocol objects.
 
     Extends TimedFunctionWithJacobianAndHVP so that hvp timing is
@@ -357,16 +346,12 @@ class TimedFunctionWithJacobianAndWHVP(
         self._timer.get("whvp").record(time.perf_counter() - t0, 1)
         return result
 
-    def _whvp_batch(
-        self, samples: Array, vecs: Array, weights: Array
-    ) -> Array:
+    def _whvp_batch(self, samples: Array, vecs: Array, weights: Array) -> Array:
         """Compute batch weighted HVPs and record timing."""
         n_evals = samples.shape[1]
         t0 = time.perf_counter()
         result: Array = self._function.whvp_batch(samples, vecs, weights)
-        self._timer.get("whvp_batch").record(
-            time.perf_counter() - t0, n_evals
-        )
+        self._timer.get("whvp_batch").record(time.perf_counter() - t0, n_evals)
         return result
 
     def __repr__(self) -> str:
@@ -409,8 +394,7 @@ def timed(
     """
     if not isinstance(function, FunctionProtocol):
         raise TypeError(
-            f"function must satisfy FunctionProtocol, "
-            f"got {type(function).__name__}"
+            f"function must satisfy FunctionProtocol, got {type(function).__name__}"
         )
     if isinstance(function, FunctionWithJacobianAndWHVPProtocol):
         return TimedFunctionWithJacobianAndWHVP(function, timer)

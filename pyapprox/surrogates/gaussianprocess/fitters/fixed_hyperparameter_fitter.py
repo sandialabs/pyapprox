@@ -5,17 +5,17 @@ Analogous to LeastSquaresFitter for basis expansions.
 
 from typing import Generic, Optional
 
-from pyapprox.util.backends.protocols import Array, Backend
+from pyapprox.surrogates.gaussianprocess.fitters.results import (
+    GPFitResult,
+)
 from pyapprox.surrogates.gaussianprocess.input_transform import (
-    InputAffineTransformProtocol,
     IdentityInputTransform,
+    InputAffineTransformProtocol,
 )
 from pyapprox.surrogates.gaussianprocess.output_transform import (
     OutputAffineTransformProtocol,
 )
-from pyapprox.surrogates.gaussianprocess.fitters.results import (
-    GPFitResult,
-)
+from pyapprox.util.backends.protocols import Array, Backend
 
 
 class GPFixedHyperparameterFitter(Generic[Array]):
@@ -50,12 +50,8 @@ class GPFixedHyperparameterFitter(Generic[Array]):
     def __init__(
         self,
         bkd: Backend[Array],
-        output_transform: Optional[
-            OutputAffineTransformProtocol[Array]
-        ] = None,
-        input_transform: Optional[
-            InputAffineTransformProtocol[Array]
-        ] = None,
+        output_transform: Optional[OutputAffineTransformProtocol[Array]] = None,
+        input_transform: Optional[InputAffineTransformProtocol[Array]] = None,
     ):
         self._bkd = bkd
         self._output_transform = output_transform
@@ -98,9 +94,7 @@ class GPFixedHyperparameterFitter(Generic[Array]):
         if self._input_transform is not None:
             clone._input_transform = self._input_transform
         else:
-            clone._input_transform = IdentityInputTransform(
-                gp.nvars(), self._bkd
-            )
+            clone._input_transform = IdentityInputTransform(gp.nvars(), self._bkd)
 
         # Transform data
         X_scaled = clone._input_transform.transform(X_train)

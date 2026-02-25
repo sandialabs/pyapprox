@@ -74,11 +74,7 @@ class IshigamiFunction(Generic[Array]):
         x2 = samples[1:2, :]
         x3 = samples[2:3, :]
         bkd = self._bkd
-        return (
-            bkd.sin(x1)
-            + self._a * bkd.sin(x2) ** 2
-            + self._b * x3**4 * bkd.sin(x1)
-        )
+        return bkd.sin(x1) + self._a * bkd.sin(x2) ** 2 + self._b * x3**4 * bkd.sin(x1)
 
     def jacobian(self, sample: Array) -> Array:
         """Compute Jacobian at a single sample.
@@ -99,9 +95,7 @@ class IshigamiFunction(Generic[Array]):
             If sample is not 2D with shape (3, 1).
         """
         if sample.ndim != 2 or sample.shape != (3, 1):
-            raise ValueError(
-                f"sample must have shape (3, 1), got {sample.shape}"
-            )
+            raise ValueError(f"sample must have shape (3, 1), got {sample.shape}")
 
         x1 = sample[0, 0]
         x2 = sample[1, 0]
@@ -112,9 +106,7 @@ class IshigamiFunction(Generic[Array]):
         df_dx2 = 2 * self._a * bkd.sin(x2) * bkd.cos(x2)
         df_dx3 = 4 * self._b * x3**3 * bkd.sin(x1)
 
-        return bkd.stack(
-            [bkd.asarray([df_dx1, df_dx2, df_dx3])], axis=0
-        )
+        return bkd.stack([bkd.asarray([df_dx1, df_dx2, df_dx3])], axis=0)
 
     def hvp(self, sample: Array, vec: Array) -> Array:
         """Compute Hessian-vector product at a single sample.
@@ -139,9 +131,7 @@ class IshigamiFunction(Generic[Array]):
             If sample or vec is not 2D with shape (3, 1).
         """
         if sample.ndim != 2 or sample.shape != (3, 1):
-            raise ValueError(
-                f"sample must have shape (3, 1), got {sample.shape}"
-            )
+            raise ValueError(f"sample must have shape (3, 1), got {sample.shape}")
         if vec.ndim != 2 or vec.shape != (3, 1):
             raise ValueError(f"vec must have shape (3, 1), got {vec.shape}")
 
@@ -248,9 +238,7 @@ class IshigamiSensitivityIndices(Generic[Array]):
         D_123 = 0.0
 
         # Total variance
-        self._variance = bkd.asarray(
-            [D_1 + D_2 + D_3 + D_12 + D_13 + D_23 + D_123]
-        )
+        self._variance = bkd.asarray([D_1 + D_2 + D_3 + D_12 + D_13 + D_23 + D_123])
         var = D_1 + D_2 + D_3 + D_12 + D_13 + D_23 + D_123
 
         # Main effects (first-order Sobol indices): S_i = D_i / Var(f)
@@ -267,25 +255,27 @@ class IshigamiSensitivityIndices(Generic[Array]):
 
         # All Sobol indices (main effects and interactions)
         # Order: D_1, D_2, D_3, D_12, D_13, D_23, D_123
-        self._sobol_indices = bkd.asarray([
-            [D_1 / var],
-            [D_2 / var],
-            [D_3 / var],
-            [D_12 / var],
-            [D_13 / var],
-            [D_23 / var],
-            [D_123 / var],
-        ])
+        self._sobol_indices = bkd.asarray(
+            [
+                [D_1 / var],
+                [D_2 / var],
+                [D_3 / var],
+                [D_12 / var],
+                [D_13 / var],
+                [D_23 / var],
+                [D_123 / var],
+            ]
+        )
 
         # Interaction indices (binary representation of which variables are involved)
         # Shape: (nvars, nindices)
         self._interaction_indices: List[List[int]] = [
-            [0],        # x1
-            [1],        # x2
-            [2],        # x3
-            [0, 1],     # x1, x2
-            [0, 2],     # x1, x3
-            [1, 2],     # x2, x3
+            [0],  # x1
+            [1],  # x2
+            [2],  # x3
+            [0, 1],  # x1, x2
+            [0, 2],  # x1, x3
+            [1, 2],  # x2, x3
             [0, 1, 2],  # x1, x2, x3
         ]
 
@@ -352,7 +342,7 @@ class IshigamiSensitivityIndices(Generic[Array]):
         """
         bkd = self._bkd
         nvars = self.nvars()
-        nindices = len(self._interaction_indices)
+        len(self._interaction_indices)
         # Build as list of columns, then stack
         columns = []
         for compressed_index in self._interaction_indices:

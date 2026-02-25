@@ -1,4 +1,5 @@
 from typing import Generic, Tuple
+
 from pyapprox.util.backends.protocols import Array, Backend
 
 

@@ -5,9 +5,9 @@ and defines any additional protocols specific to tensor product operations.
 """
 
 from pyapprox.surrogates.affine.protocols import (
-    InterpolationBasis1DProtocol,
-    Basis1DHasJacobianProtocol,
     Basis1DHasHessianProtocol,
+    Basis1DHasJacobianProtocol,
+    InterpolationBasis1DProtocol,
 )
 
 __all__ = [

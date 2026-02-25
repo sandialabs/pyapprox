@@ -2,9 +2,9 @@
 
 from typing import Generic
 
+from pyapprox.expdesign.quadrature import SobolSampler
 from pyapprox.surrogates.kernels.protocols import KernelProtocol
 from pyapprox.util.backends.protocols import Array, Backend
-from pyapprox.expdesign.quadrature import SobolSampler
 
 
 class SobolAdaptiveSampler(Generic[Array]):
@@ -35,7 +35,10 @@ class SobolAdaptiveSampler(Generic[Array]):
         self._nvars = nvars
         self._bkd = bkd
         self._sobol = SobolSampler(
-            nvars, bkd, scramble=True, seed=seed,
+            nvars,
+            bkd,
+            scramble=True,
+            seed=seed,
         )
         if scaled_bounds is not None:
             if scaled_bounds.shape != (nvars, 2):
@@ -67,15 +70,10 @@ class SobolAdaptiveSampler(Generic[Array]):
             Selected samples of shape (nvars, nsamples) in scaled space.
         """
         pts, _ = self._sobol.sample(nsamples)
-        return (
-            self._lower[:, None]
-            + pts * (self._upper - self._lower)[:, None]
-        )
+        return self._lower[:, None] + pts * (self._upper - self._lower)[:, None]
 
     def set_kernel(self, kernel: KernelProtocol[Array]) -> None:
         """No-op: Sobol sampler does not use kernel information."""
 
-    def add_additional_training_samples(
-        self, new_samples: Array
-    ) -> None:
+    def add_additional_training_samples(self, new_samples: Array) -> None:
         """No-op: Sobol sampler does not track training samples."""

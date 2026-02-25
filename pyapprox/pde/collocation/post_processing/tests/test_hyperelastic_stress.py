@@ -5,38 +5,38 @@ import unittest
 from typing import Any, Generic
 
 import numpy as np
-from numpy.typing import NDArray
 import torch
+from numpy.typing import NDArray
 
-from pyapprox.util.backends.protocols import Array, Backend
-from pyapprox.util.backends.numpy import NumpyBkd
-from pyapprox.util.backends.torch import TorchBkd
-from pyapprox.util.test_utils import load_tests  # noqa: F401
 from pyapprox.pde.collocation.basis import ChebyshevBasis2D
-from pyapprox.pde.collocation.mesh import TransformedMesh2D
-from pyapprox.pde.collocation.mesh.transforms import PolarTransform
-from pyapprox.pde.collocation.physics.stress_models import (
-    NeoHookeanStress,
-)
-from pyapprox.pde.collocation.physics.hyperelasticity import (
-    HyperelasticityPhysics,
-)
 from pyapprox.pde.collocation.boundary import zero_dirichlet_bc
 from pyapprox.pde.collocation.boundary.hyperelastic_traction import (
     hyperelastic_traction_neumann_bc,
 )
-from pyapprox.pde.collocation.time_integration.collocation_model import (
-    CollocationModel,
+from pyapprox.pde.collocation.mesh import TransformedMesh2D
+from pyapprox.pde.collocation.mesh.transforms import PolarTransform
+from pyapprox.pde.collocation.physics.hyperelasticity import (
+    HyperelasticityPhysics,
+)
+from pyapprox.pde.collocation.physics.stress_models import (
+    NeoHookeanStress,
 )
 from pyapprox.pde.collocation.post_processing.stress import (
     HyperelasticStressPostProcessor2D,
     StressPostProcessor2D,
 )
-
+from pyapprox.pde.collocation.time_integration.collocation_model import (
+    CollocationModel,
+)
+from pyapprox.util.backends.numpy import NumpyBkd
+from pyapprox.util.backends.protocols import Array, Backend
+from pyapprox.util.backends.torch import TorchBkd
+from pyapprox.util.test_utils import load_tests  # noqa: F401
 
 # ======================================================================
 # Helpers
 # ======================================================================
+
 
 def _setup_hyperelastic_processor(bkd, npts_r=8, npts_theta=8):
     """Create HyperelasticStressPostProcessor2D on a quarter-annulus."""
@@ -44,7 +44,9 @@ def _setup_hyperelastic_processor(bkd, npts_r=8, npts_theta=8):
     lamda, mu = 0.5769, 0.3846  # E=1, nu=0.3
 
     transform = PolarTransform(
-        (r_inner, r_outer), (0.0, math.pi / 2.0), bkd,
+        (r_inner, r_outer),
+        (0.0, math.pi / 2.0),
+        bkd,
     )
     mesh = TransformedMesh2D(npts_r, npts_theta, bkd, transform)
     basis = ChebyshevBasis2D(mesh, bkd)
@@ -59,12 +61,17 @@ def _setup_hyperelastic_processor(bkd, npts_r=8, npts_theta=8):
     )
 
     proc = HyperelasticStressPostProcessor2D(
-        Dx, Dy, stress_model, bkd, curvilinear_basis=curv_basis,
+        Dx,
+        Dy,
+        stress_model,
+        bkd,
+        curvilinear_basis=curv_basis,
     )
 
     # Also create linear processor for comparison
     linear_proc = StressPostProcessor2D(
-        Dx, Dy,
+        Dx,
+        Dy,
         get_lamda=lambda: bkd.asarray([lamda] * npts),
         get_mu=lambda: bkd.asarray([mu] * npts),
         bkd=bkd,
@@ -72,11 +79,17 @@ def _setup_hyperelastic_processor(bkd, npts_r=8, npts_theta=8):
     )
 
     return {
-        "proc": proc, "linear_proc": linear_proc,
+        "proc": proc,
+        "linear_proc": linear_proc,
         "stress_model": stress_model,
-        "mesh": mesh, "basis": basis, "transform": transform,
-        "npts": npts, "Dx": Dx, "Dy": Dy,
-        "lamda": lamda, "mu": mu,
+        "mesh": mesh,
+        "basis": basis,
+        "transform": transform,
+        "npts": npts,
+        "Dx": Dx,
+        "Dy": Dy,
+        "lamda": lamda,
+        "mu": mu,
     }
 
 
@@ -84,8 +97,10 @@ def _setup_hyperelastic_processor(bkd, npts_r=8, npts_theta=8):
 # Tests
 # ======================================================================
 
+
 class TestHyperelasticStressPostProcessor2D(
-    Generic[Array], unittest.TestCase,
+    Generic[Array],
+    unittest.TestCase,
 ):
     __test__ = False
 
@@ -111,7 +126,11 @@ class TestHyperelasticStressPostProcessor2D(
         # Direct computation
         F11, F12, F21, F22 = proc._compute_F(state)
         P11, P12, P21, P22 = setup["stress_model"].compute_stress_2d(
-            F11, F12, F21, F22, bkd,
+            F11,
+            F12,
+            F21,
+            F22,
+            bkd,
         )
         J = F11 * F22 - F12 * F21
         inv_J = 1.0 / J
@@ -142,12 +161,8 @@ class TestHyperelasticStressPostProcessor2D(
         J = F11 * F22 - F12 * F21
         ln_J = bkd.log(J)
         # Plane strain: F33=1, so I1 includes +1.0
-        I1 = F11 ** 2 + F12 ** 2 + F21 ** 2 + F22 ** 2 + 1.0
-        W_direct = (
-            0.5 * mu * (I1 - 3.0)
-            - mu * ln_J
-            + 0.5 * lamda * ln_J ** 2
-        )
+        I1 = F11**2 + F12**2 + F21**2 + F22**2 + 1.0
+        W_direct = 0.5 * mu * (I1 - 3.0) - mu * ln_J + 0.5 * lamda * ln_J**2
 
         bkd.assert_allclose(W, W_direct, rtol=1e-12)
 
@@ -190,16 +205,22 @@ class TestHyperelasticStressPostProcessor2D(
             sxx_p, sxy_p, syy_p = proc.cartesian_stress(state_p)
             sxx_m, sxy_m, syy_m = proc.cartesian_stress(state_m)
             bkd.assert_allclose(
-                dsxx[:, dof], (sxx_p - sxx_m) / (2.0 * eps),
-                rtol=1e-5, atol=1e-8,
+                dsxx[:, dof],
+                (sxx_p - sxx_m) / (2.0 * eps),
+                rtol=1e-5,
+                atol=1e-8,
             )
             bkd.assert_allclose(
-                dsxy[:, dof], (sxy_p - sxy_m) / (2.0 * eps),
-                rtol=1e-5, atol=1e-8,
+                dsxy[:, dof],
+                (sxy_p - sxy_m) / (2.0 * eps),
+                rtol=1e-5,
+                atol=1e-8,
             )
             bkd.assert_allclose(
-                dsyy[:, dof], (syy_p - syy_m) / (2.0 * eps),
-                rtol=1e-5, atol=1e-8,
+                dsyy[:, dof],
+                (syy_p - syy_m) / (2.0 * eps),
+                rtol=1e-5,
+                atol=1e-8,
             )
 
     def test_hoop_stress_jacobian_fd(self):
@@ -223,9 +244,7 @@ class TestHyperelasticStressPostProcessor2D(
             state_p[dof] = state_p[dof] + eps
             state_m = bkd.copy(state)
             state_m[dof] = state_m[dof] - eps
-            fd = (
-                proc.hoop_stress(state_p) - proc.hoop_stress(state_m)
-            ) / (2.0 * eps)
+            fd = (proc.hoop_stress(state_p) - proc.hoop_stress(state_m)) / (2.0 * eps)
             bkd.assert_allclose(jac[:, dof], fd, rtol=1e-5, atol=1e-8)
 
     def test_strain_energy_density_jacobian_fd(self):
@@ -265,7 +284,9 @@ class TestHyperelasticStressPostProcessor2D(
 
         # Solve a pressurized quarter-annulus BVP
         physics = HyperelasticityPhysics(
-            basis, bkd, setup["stress_model"],
+            basis,
+            bkd,
+            setup["stress_model"],
         )
         D_matrices = [setup["Dx"], setup["Dy"]]
 
@@ -274,20 +295,36 @@ class TestHyperelasticStressPostProcessor2D(
         for comp in (0, 1):
             outer_idx = mesh.boundary_indices(1)
             outer_normals = mesh.boundary_normals(1)
-            bcs.append(hyperelastic_traction_neumann_bc(
-                bkd, outer_idx, outer_normals, D_matrices,
-                setup["stress_model"], npts, comp, values=0.0,
-            ))
+            bcs.append(
+                hyperelastic_traction_neumann_bc(
+                    bkd,
+                    outer_idx,
+                    outer_normals,
+                    D_matrices,
+                    setup["stress_model"],
+                    npts,
+                    comp,
+                    values=0.0,
+                )
+            )
         # Inner wall: pressure t = -p*n (both components)
         pressure = 0.01
         for comp in (0, 1):
             inner_idx = mesh.boundary_indices(0)
             inner_normals = mesh.boundary_normals(0)
             pn = -pressure * inner_normals[:, comp]
-            bcs.append(hyperelastic_traction_neumann_bc(
-                bkd, inner_idx, inner_normals, D_matrices,
-                setup["stress_model"], npts, comp, values=pn,
-            ))
+            bcs.append(
+                hyperelastic_traction_neumann_bc(
+                    bkd,
+                    inner_idx,
+                    inner_normals,
+                    D_matrices,
+                    setup["stress_model"],
+                    npts,
+                    comp,
+                    values=pn,
+                )
+            )
         # Bottom (bnd 2): v=0 (symmetry)
         bot_idx = mesh.boundary_indices(2)
         bcs.append(zero_dirichlet_bc(bkd, bot_idx + npts))
@@ -309,8 +346,10 @@ class TestHyperelasticStressPostProcessor2D(
         bkd = self._bkd
         setup = _setup_hyperelastic_processor(bkd)
         proc_no_curv = HyperelasticStressPostProcessor2D(
-            setup["Dx"], setup["Dy"],
-            setup["stress_model"], bkd,
+            setup["Dx"],
+            setup["Dy"],
+            setup["stress_model"],
+            bkd,
         )
         np.random.seed(42)
         state = bkd.array(np.random.randn(2 * setup["npts"]) * 0.005)

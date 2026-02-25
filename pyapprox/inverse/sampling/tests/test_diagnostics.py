@@ -6,20 +6,19 @@ import unittest
 from typing import Any, Generic
 
 import numpy as np
-from numpy.typing import NDArray
 import torch
+from numpy.typing import NDArray
 
-from pyapprox.util.backends.protocols import Array, Backend
-from pyapprox.util.backends.numpy import NumpyBkd
-from pyapprox.util.backends.torch import TorchBkd
 from pyapprox.inverse.sampling.diagnostics import (
+    MCMCDiagnostics,
     autocorrelation,
-    integrated_autocorrelation_time,
+    compute_diagnostics,
     effective_sample_size,
     rhat,
-    compute_diagnostics,
-    MCMCDiagnostics,
 )
+from pyapprox.util.backends.numpy import NumpyBkd
+from pyapprox.util.backends.protocols import Array, Backend
+from pyapprox.util.backends.torch import TorchBkd
 
 
 class TestAutocorrelationBase(Generic[Array], unittest.TestCase):
@@ -273,9 +272,6 @@ class TestComputeDiagnosticsTorch(TestComputeDiagnosticsBase[torch.Tensor]):
 
     def bkd(self) -> TorchBkd:
         return self._bkd
-
-
-from pyapprox.util.test_utils import load_tests
 
 
 if __name__ == "__main__":

@@ -3,6 +3,7 @@
 import inspect
 from dataclasses import dataclass
 from typing import (
+    TYPE_CHECKING,
     Callable,
     Generic,
     Iterator,
@@ -10,29 +11,28 @@ from typing import (
     Optional,
     Tuple,
     Type,
-    TYPE_CHECKING,
 )
 
 if TYPE_CHECKING:
     from pyapprox.statest.acv.base import ACVEstimator
 
-from pyapprox.util.backends.protocols import Array, Backend
-from pyapprox.statest.statistics import MultiOutputStatistic
 from pyapprox.statest.acv.allocation import (
-    Allocator,
     ACVAllocationResult,
+    Allocator,
     default_allocator_factory,
 )
 from pyapprox.statest.acv.strategies import (
-    RecursionIndexStrategy,
     DefaultRecursionStrategy,
+    RecursionIndexStrategy,
 )
+from pyapprox.statest.statistics import MultiOutputStatistic
 from pyapprox.statest.strategies import (
-    ModelSubsetStrategy,
     AllModelsStrategy,
-    QoISubsetStrategy,
     AllQoIStrategy,
+    ModelSubsetStrategy,
+    QoISubsetStrategy,
 )
+from pyapprox.util.backends.protocols import Array, Backend
 
 
 @dataclass
@@ -158,9 +158,7 @@ class ACVSearch(Generic[Array]):
         subset_costs = self._bkd.array([costs_np[i] for i in model_indices])
         sig = inspect.signature(est_class.__init__)
         if "recursion_index" in sig.parameters:
-            return est_class(
-                subset_stat, subset_costs, recursion_index=recursion_idx
-            )
+            return est_class(subset_stat, subset_costs, recursion_index=recursion_idx)
         return est_class(subset_stat, subset_costs)
 
     def search(
@@ -193,7 +191,12 @@ class ACVSearch(Generic[Array]):
             Tuple["ACVEstimator[Array]", ACVAllocationResult[Array]]
         ] = []
 
-        for est_class, model_indices, qoi_indices, recursion_idx in self._iter_configs():
+        for (
+            est_class,
+            model_indices,
+            qoi_indices,
+            recursion_idx,
+        ) in self._iter_configs():
             estimator = self._create_estimator(
                 est_class, model_indices, qoi_indices, recursion_idx
             )
@@ -211,9 +214,7 @@ class ACVSearch(Generic[Array]):
 
     def _build_search_result(
         self,
-        all_allocations: List[
-            Tuple["ACVEstimator[Array]", ACVAllocationResult[Array]]
-        ],
+        all_allocations: List[Tuple["ACVEstimator[Array]", ACVAllocationResult[Array]]],
     ) -> SearchResult[Array]:
         """Build result, selecting best allocation."""
         sorted_allocs = sorted(

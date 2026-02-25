@@ -7,18 +7,18 @@ from pyapprox.pde.time.implicit_steppers.crank_nicolson import (
     CrankNicolsonResidual,
 )
 from pyapprox.pde.time.implicit_steppers.protocols import (
-    ODEResidualProtocol,
-    ODEResidualWithParamJacobianProtocol,
-    ODEResidualWithHVPProtocol,
-    TimeSteppingResidualProtocol,
+    AdjointEnabledImplicitTimeSteppingResidualProtocol,
     AdjointEnabledTimeSteppingResidualProtocol,
     HVPEnabledTimeSteppingResidualProtocol,
-    TimeSteppingResidualBase,
     # Legacy aliases
     ImplicitODEResidualProtocol,
-    ImplicitTimeSteppingResidualProtocol,
-    AdjointEnabledImplicitTimeSteppingResidualProtocol,
     ImplicitTimeSteppingResidualBase,
+    ImplicitTimeSteppingResidualProtocol,
+    ODEResidualProtocol,
+    ODEResidualWithHVPProtocol,
+    ODEResidualWithParamJacobianProtocol,
+    TimeSteppingResidualBase,
+    TimeSteppingResidualProtocol,
 )
 
 __all__ = [

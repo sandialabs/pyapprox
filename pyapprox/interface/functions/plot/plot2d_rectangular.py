@@ -1,17 +1,18 @@
-from typing import Any, Sequence, Union, Tuple, Generic
+from typing import Any, Generic, Sequence, Tuple, Union
 
 import matplotlib.pyplot as plt
-from mpl_toolkits.mplot3d import Axes3D  # type: ignore
-from matplotlib.contour import QuadContourSet
 from matplotlib.axes import Axes
+from matplotlib.contour import QuadContourSet
 from matplotlib.figure import Figure
-from pyapprox.util.backends.protocols import Array, Backend
+from mpl_toolkits.mplot3d import Axes3D  # type: ignore
+
 from pyapprox.interface.functions.protocols.function import (
     FunctionProtocol,
 )
 from pyapprox.interface.functions.protocols.validation import (
     validate_function,
 )
+from pyapprox.util.backends.protocols import Array, Backend
 
 
 def meshgrid_samples(
@@ -45,12 +46,9 @@ def meshgrid_samples(
     """
     if len(plot_limits) != 4:
         raise ValueError(
-            "plot_limits must have exactly 4 entries: "
-            "[x_min, x_max, y_min, y_max]."
+            "plot_limits must have exactly 4 entries: [x_min, x_max, y_min, y_max]."
         )
-    num_pts_1d = (
-        [num_pts_1d] * 2 if isinstance(num_pts_1d, int) else num_pts_1d
-    )
+    num_pts_1d = [num_pts_1d] * 2 if isinstance(num_pts_1d, int) else num_pts_1d
     space_fn = bkd.logspace if logspace else bkd.linspace
     x = space_fn(plot_limits[0], plot_limits[1], num_pts_1d[0])
     y = space_fn(plot_limits[2], plot_limits[3], num_pts_1d[1])
@@ -94,12 +92,9 @@ class Plotter2DRectangularDomain(Generic[Array]):
     def _validate_plot_limits(self, plot_limits: Union[Sequence[Any], Array]):
         if len(plot_limits) != 4:
             raise ValueError(
-                "plot_limits must have exactly 4 entries: "
-                "[x_min, x_max, y_min, y_max]."
+                "plot_limits must have exactly 4 entries: [x_min, x_max, y_min, y_max]."
             )
-        if self._bkd.any_bool(
-            ~self._bkd.isfinite(self._bkd.asarray(plot_limits))
-        ):
+        if self._bkd.any_bool(~self._bkd.isfinite(self._bkd.asarray(plot_limits))):
             raise ValueError(f"plot limits {plot_limits} must be finite")
 
     def plot_surface(

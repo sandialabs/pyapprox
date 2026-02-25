@@ -6,25 +6,24 @@ import unittest
 from typing import Any, Generic
 
 import numpy as np
+import torch
 from numpy.typing import NDArray
 from scipy import stats
-import torch
 
-from pyapprox.util.backends.protocols import Array, Backend
-from pyapprox.util.backends.numpy import NumpyBkd
-from pyapprox.util.backends.torch import TorchBkd
-from pyapprox.util.test_utils import load_tests
-from pyapprox.probability.gaussian import (
-    GaussianLogPDFCore,
-    DenseCholeskyMultivariateGaussian,
-    DiagonalMultivariateGaussian,
-    OperatorBasedMultivariateGaussian,
-    GaussianCanonicalForm,
-)
 from pyapprox.probability.covariance import (
     DenseCholeskyCovarianceOperator,
     OperatorBasedCovarianceOperator,
 )
+from pyapprox.probability.gaussian import (
+    DenseCholeskyMultivariateGaussian,
+    DiagonalMultivariateGaussian,
+    GaussianCanonicalForm,
+    GaussianLogPDFCore,
+    OperatorBasedMultivariateGaussian,
+)
+from pyapprox.util.backends.numpy import NumpyBkd
+from pyapprox.util.backends.protocols import Array, Backend
+from pyapprox.util.backends.torch import TorchBkd
 
 
 class TestGaussianLogPDFCore(Generic[Array], unittest.TestCase):
@@ -105,9 +104,7 @@ class TestDenseCholeskyMultivariateGaussian(Generic[Array], unittest.TestCase):
         self._bkd = self.bkd()
         self.mean = self._bkd.asarray([[1.0], [2.0]])
         self.cov = self._bkd.asarray([[1.0, 0.5], [0.5, 1.0]])
-        self.dist = DenseCholeskyMultivariateGaussian(
-            self.mean, self.cov, self._bkd
-        )
+        self.dist = DenseCholeskyMultivariateGaussian(self.mean, self.cov, self._bkd)
 
     def test_nvars(self) -> None:
         """Test nvars returns correct dimension."""
@@ -205,9 +202,7 @@ class TestDenseCholeskyMultivariateGaussian(Generic[Array], unittest.TestCase):
     def test_invalid_cov_shape(self) -> None:
         """Test invalid covariance shape raises error."""
         with self.assertRaises(ValueError):
-            DenseCholeskyMultivariateGaussian(
-                self.mean, self._bkd.eye(3), self._bkd
-            )
+            DenseCholeskyMultivariateGaussian(self.mean, self._bkd.eye(3), self._bkd)
 
     def test_logpdf_shape(self) -> None:
         """Test logpdf returns (1, nsamples) not (nsamples,)."""
@@ -253,9 +248,7 @@ class TestDiagonalMultivariateGaussian(Generic[Array], unittest.TestCase):
         self._bkd = self.bkd()
         self.mean = self._bkd.asarray([[1.0], [2.0], [3.0]])
         self.variances = self._bkd.asarray([1.0, 4.0, 9.0])
-        self.dist = DiagonalMultivariateGaussian(
-            self.mean, self.variances, self._bkd
-        )
+        self.dist = DiagonalMultivariateGaussian(self.mean, self.variances, self._bkd)
 
     def test_nvars(self) -> None:
         """Test nvars returns correct dimension."""
@@ -371,9 +364,7 @@ class TestOperatorBasedMultivariateGaussian(Generic[Array], unittest.TestCase):
             nvars=self.nvars,
             bkd=self._bkd,
         )
-        self.dist = OperatorBasedMultivariateGaussian(
-            self.mean, self.cov_op, self._bkd
-        )
+        self.dist = OperatorBasedMultivariateGaussian(self.mean, self.cov_op, self._bkd)
 
     def test_nvars(self) -> None:
         """Test nvars returns correct dimension."""
@@ -404,9 +395,7 @@ class TestOperatorBasedMultivariateGaussian(Generic[Array], unittest.TestCase):
         """Test mismatched mean and cov_op dimensions."""
         wrong_mean = self._bkd.zeros((5, 1))
         with self.assertRaises(ValueError):
-            OperatorBasedMultivariateGaussian(
-                wrong_mean, self.cov_op, self._bkd
-            )
+            OperatorBasedMultivariateGaussian(wrong_mean, self.cov_op, self._bkd)
 
     def test_logpdf_shape(self) -> None:
         """Test logpdf returns (1, nsamples) not (nsamples,)."""
@@ -459,9 +448,7 @@ class TestCrossValidation(Generic[Array], unittest.TestCase):
 
     def test_dense_vs_diagonal_for_diagonal_cov(self) -> None:
         """Test dense and diagonal implementations agree for diagonal cov."""
-        dense = DenseCholeskyMultivariateGaussian(
-            self.mean, self.cov, self._bkd
-        )
+        dense = DenseCholeskyMultivariateGaussian(self.mean, self.cov, self._bkd)
         diagonal = DiagonalMultivariateGaussian(
             self.mean, self._bkd.get_diagonal(self.cov), self._bkd
         )
@@ -471,9 +458,7 @@ class TestCrossValidation(Generic[Array], unittest.TestCase):
         logpdf_dense = dense.logpdf(samples)
         logpdf_diagonal = diagonal.logpdf(samples)
 
-        self.assertTrue(
-            self._bkd.allclose(logpdf_dense, logpdf_diagonal, rtol=1e-6)
-        )
+        self.assertTrue(self._bkd.allclose(logpdf_dense, logpdf_diagonal, rtol=1e-6))
 
     def test_dense_vs_operator_for_identity_cov(self) -> None:
         """Test dense and operator implementations agree for identity cov."""
@@ -492,17 +477,17 @@ class TestCrossValidation(Generic[Array], unittest.TestCase):
 
         # Use deterministic samples
         samples = self._bkd.asarray(
-            [[0.1, -0.5, 1.2, 0.3, -0.8],
-             [0.2, 0.7, -0.3, 0.9, 0.1],
-             [-0.4, 0.2, 0.5, -0.6, 0.4]]
+            [
+                [0.1, -0.5, 1.2, 0.3, -0.8],
+                [0.2, 0.7, -0.3, 0.9, 0.1],
+                [-0.4, 0.2, 0.5, -0.6, 0.4],
+            ]
         )
 
         logpdf_dense = dense.logpdf(samples)
         logpdf_operator = operator.logpdf(samples)
 
-        self.assertTrue(
-            self._bkd.allclose(logpdf_dense, logpdf_operator, rtol=1e-6)
-        )
+        self.assertTrue(self._bkd.allclose(logpdf_dense, logpdf_operator, rtol=1e-6))
 
 
 class TestCrossValidationNumpy(TestCrossValidation[NDArray[Any]]):
@@ -555,9 +540,7 @@ class TestGaussianCanonicalForm(Generic[Array], unittest.TestCase):
         logpdf_canonical = self.canonical.logpdf(samples)
         logpdf_dense = dense.logpdf(samples)
 
-        self.assertTrue(
-            self._bkd.allclose(logpdf_canonical, logpdf_dense, rtol=1e-6)
-        )
+        self.assertTrue(self._bkd.allclose(logpdf_canonical, logpdf_dense, rtol=1e-6))
 
     def test_multiply_same(self) -> None:
         """Test multiplying distribution with itself."""
@@ -570,9 +553,7 @@ class TestGaussianCanonicalForm(Generic[Array], unittest.TestCase):
             )
         )
         self.assertTrue(
-            self._bkd.allclose(
-                product.shift(), 2 * self.canonical.shift(), rtol=1e-6
-            )
+            self._bkd.allclose(product.shift(), 2 * self.canonical.shift(), rtol=1e-6)
         )
 
     def test_multiply_normalized(self) -> None:

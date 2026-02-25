@@ -8,21 +8,19 @@ from typing import Any, Generic
 import torch
 from numpy.typing import NDArray
 
-from pyapprox.util.backends.numpy import NumpyBkd
-from pyapprox.util.backends.torch import TorchBkd
-from pyapprox.util.backends.protocols import Array, Backend
-from pyapprox.util.test_utils import load_tests
-
-from pyapprox.optimization.minimize.minimax import (
-    MinimaxOptimizer,
-    MinimaxObjective,
-    MinimaxConstraint,
-)
 from pyapprox.optimization.minimize.avar import (
-    AVaROptimizer,
-    AVaRObjective,
     AVaRConstraint,
+    AVaRObjective,
+    AVaROptimizer,
 )
+from pyapprox.optimization.minimize.minimax import (
+    MinimaxConstraint,
+    MinimaxObjective,
+    MinimaxOptimizer,
+)
+from pyapprox.util.backends.numpy import NumpyBkd
+from pyapprox.util.backends.protocols import Array, Backend
+from pyapprox.util.backends.torch import TorchBkd
 
 
 class SimpleMultiQoI(Generic[Array]):

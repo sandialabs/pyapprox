@@ -7,8 +7,8 @@ a given probability distribution with uniform quadrature weights.
 
 from typing import Generic, Optional, Tuple
 
-from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.probability.protocols import DistributionProtocol
+from pyapprox.util.backends.protocols import Array, Backend
 
 
 class MonteCarloSampler(Generic[Array]):

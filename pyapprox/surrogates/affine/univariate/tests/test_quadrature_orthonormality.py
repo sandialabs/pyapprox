@@ -18,24 +18,22 @@ import numpy as np
 import torch
 from numpy.typing import NDArray
 
-from pyapprox.util.backends.numpy import NumpyBkd
-from pyapprox.util.backends.torch import TorchBkd
-from pyapprox.util.backends.protocols import Array, Backend
-from pyapprox.util.test_utils import load_tests
-
 from pyapprox.surrogates.affine.univariate.globalpoly import (
-    JacobiPolynomial1D,
-    LegendrePolynomial1D,
+    CharlierPolynomial1D,
     Chebyshev1stKindPolynomial1D,
     Chebyshev2ndKindPolynomial1D,
-    HermitePolynomial1D,
-    LaguerrePolynomial1D,
-    KrawtchoukPolynomial1D,
-    CharlierPolynomial1D,
-    HahnPolynomial1D,
     DiscreteChebyshevPolynomial1D,
     DiscreteNumericOrthonormalPolynomial1D,
+    HahnPolynomial1D,
+    HermitePolynomial1D,
+    JacobiPolynomial1D,
+    KrawtchoukPolynomial1D,
+    LaguerrePolynomial1D,
+    LegendrePolynomial1D,
 )
+from pyapprox.util.backends.numpy import NumpyBkd
+from pyapprox.util.backends.protocols import Array, Backend
+from pyapprox.util.backends.torch import TorchBkd
 
 
 class TestQuadratureOrthonormalityBase(Generic[Array], unittest.TestCase):
@@ -289,13 +287,11 @@ class TestQuadratureOrthonormalityBase(Generic[Array], unittest.TestCase):
 
             # Check diagonals match expected classical normalization
             # G[0,0] = pi, G[i,i] = pi/2 for i > 0
-            expected_diag = self._bkd.asarray(
-                [math.pi] + [math.pi / 2] * (nterms - 1)
+            expected_diag = self._bkd.asarray([math.pi] + [math.pi / 2] * (nterms - 1))
+            actual_diag = self._bkd.asarray([gramian[i, i] for i in range(nterms)])
+            self._bkd.assert_allclose(
+                actual_diag, expected_diag, rtol=1e-10, atol=1e-12
             )
-            actual_diag = self._bkd.asarray(
-                [gramian[i, i] for i in range(nterms)]
-            )
-            self._bkd.assert_allclose(actual_diag, expected_diag, rtol=1e-10, atol=1e-12)
 
             # Off-diagonals should be ~0
             for i in range(nterms):
@@ -324,10 +320,10 @@ class TestQuadratureOrthonormalityBase(Generic[Array], unittest.TestCase):
 
             # All diagonals should be pi/2
             expected_diag = self._bkd.asarray([math.pi / 2] * nterms)
-            actual_diag = self._bkd.asarray(
-                [gramian[i, i] for i in range(nterms)]
+            actual_diag = self._bkd.asarray([gramian[i, i] for i in range(nterms)])
+            self._bkd.assert_allclose(
+                actual_diag, expected_diag, rtol=1e-10, atol=1e-12
             )
-            self._bkd.assert_allclose(actual_diag, expected_diag, rtol=1e-10, atol=1e-12)
 
             # Off-diagonals should be ~0
             for i in range(nterms):
@@ -345,11 +341,12 @@ class TestQuadratureOrthonormalityBase(Generic[Array], unittest.TestCase):
     def _binomial_pmf(self, k: int, n: int, p: float) -> float:
         """Compute binomial probability mass function."""
         from scipy.special import comb
-        return comb(n, k, exact=True) * (p ** k) * ((1 - p) ** (n - k))
+
+        return comb(n, k, exact=True) * (p**k) * ((1 - p) ** (n - k))
 
     def _poisson_pmf(self, k: int, mu: float) -> float:
         """Compute Poisson probability mass function."""
-        return (mu ** k) * np.exp(-mu) / math.factorial(k)
+        return (mu**k) * np.exp(-mu) / math.factorial(k)
 
     def test_krawtchouk_gramian_is_identity(self) -> None:
         """Krawtchouk polynomials orthonormal w.r.t. binomial distribution."""
@@ -361,9 +358,7 @@ class TestQuadratureOrthonormalityBase(Generic[Array], unittest.TestCase):
             poly.set_nterms(nterms)
 
             # Discrete quadrature: sample at k = 0, 1, ..., n_trials
-            k_vals = self._bkd.asarray(
-                [float(k) for k in range(n_trials + 1)]
-            )
+            k_vals = self._bkd.asarray([float(k) for k in range(n_trials + 1)])
             weights = self._bkd.asarray(
                 [self._binomial_pmf(k, n_trials, p) for k in range(n_trials + 1)]
             )
@@ -465,9 +460,7 @@ class TestQuadratureOrthonormalityBase(Generic[Array], unittest.TestCase):
         weights = self._bkd.ones((8,)) / 8
 
         for nterms in [3, 5, 7]:
-            poly = DiscreteNumericOrthonormalPolynomial1D(
-                self._bkd, samples, weights
-            )
+            poly = DiscreteNumericOrthonormalPolynomial1D(self._bkd, samples, weights)
             poly.set_nterms(nterms)
 
             # Evaluate at the sample points
@@ -488,9 +481,7 @@ class TestQuadratureOrthonormalityBase(Generic[Array], unittest.TestCase):
         weights = weights_raw / self._bkd.sum(weights_raw)
 
         for nterms in [3, 4, 5]:
-            poly = DiscreteNumericOrthonormalPolynomial1D(
-                self._bkd, samples, weights
-            )
+            poly = DiscreteNumericOrthonormalPolynomial1D(self._bkd, samples, weights)
             poly.set_nterms(nterms)
 
             # Evaluate at the sample points
@@ -531,9 +522,7 @@ class TestQuadratureOrthonormalityBase(Generic[Array], unittest.TestCase):
         gramian_lanczos = lanczos_vals.T @ (
             self._bkd.reshape(weights, (-1, 1)) * lanczos_vals
         )
-        gramian_dc = dc_vals.T @ (
-            self._bkd.reshape(weights, (-1, 1)) * dc_vals
-        )
+        gramian_dc = dc_vals.T @ (self._bkd.reshape(weights, (-1, 1)) * dc_vals)
 
         expected = self._bkd.eye(nterms)
         self._bkd.assert_allclose(gramian_lanczos, expected, rtol=1e-10, atol=1e-12)
@@ -635,9 +624,7 @@ class TestQuadratureOrthonormalityBase(Generic[Array], unittest.TestCase):
         x, w = poly.gauss_quadrature_rule(1)
 
         # For Binomial(10, 0.5): mean = 5
-        self._bkd.assert_allclose(
-            x, self._bkd.asarray([[n_trials * p]]), atol=1e-12
-        )
+        self._bkd.assert_allclose(x, self._bkd.asarray([[n_trials * p]]), atol=1e-12)
         self._bkd.assert_allclose(w, self._bkd.asarray([[1.0]]), atol=1e-14)
 
     def test_charlier_one_point_quadrature(self) -> None:
@@ -660,9 +647,7 @@ class TestQuadratureOrthonormalityBase(Generic[Array], unittest.TestCase):
 
         # For uniform on {0, 1, ..., N-1}: mean = (N-1)/2
         expected_mean = (N - 1) / 2.0
-        self._bkd.assert_allclose(
-            x, self._bkd.asarray([[expected_mean]]), atol=1e-12
-        )
+        self._bkd.assert_allclose(x, self._bkd.asarray([[expected_mean]]), atol=1e-12)
         self._bkd.assert_allclose(w, self._bkd.asarray([[1.0]]), atol=1e-14)
 
     def test_hahn_one_point_quadrature(self) -> None:
@@ -692,15 +677,11 @@ class TestQuadratureOrthonormalityBase(Generic[Array], unittest.TestCase):
 
         # a[0] = (beta - alpha) / (alpha + beta + 2)
         expected_x = (beta - alpha) / (alpha + beta + 2.0)
-        self._bkd.assert_allclose(
-            x, self._bkd.asarray([[expected_x]]), atol=1e-14
-        )
+        self._bkd.assert_allclose(x, self._bkd.asarray([[expected_x]]), atol=1e-14)
         self._bkd.assert_allclose(w, self._bkd.asarray([[1.0]]), atol=1e-14)
 
 
-class TestQuadratureOrthonormalityNumpy(
-    TestQuadratureOrthonormalityBase[NDArray[Any]]
-):
+class TestQuadratureOrthonormalityNumpy(TestQuadratureOrthonormalityBase[NDArray[Any]]):
     """NumPy backend tests for quadrature and orthonormality."""
 
     __test__ = True
@@ -709,9 +690,7 @@ class TestQuadratureOrthonormalityNumpy(
         return NumpyBkd()
 
 
-class TestQuadratureOrthonormalityTorch(
-    TestQuadratureOrthonormalityBase[torch.Tensor]
-):
+class TestQuadratureOrthonormalityTorch(TestQuadratureOrthonormalityBase[torch.Tensor]):
     """PyTorch backend tests for quadrature and orthonormality."""
 
     __test__ = True

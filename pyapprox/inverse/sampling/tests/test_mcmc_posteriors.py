@@ -9,25 +9,25 @@ import unittest
 from typing import Any, Generic
 
 import numpy as np
-from numpy.typing import NDArray
 import torch
+from numpy.typing import NDArray
 
-from pyapprox.util.backends.protocols import Array, Backend
-from pyapprox.util.backends.numpy import NumpyBkd
-from pyapprox.util.backends.torch import TorchBkd
 from pyapprox.inverse.sampling import (
-    MetropolisHastingsSampler,
     AdaptiveMetropolisSampler,
-    HamiltonianMonteCarlo,
     DelayedRejectionAdaptiveMetropolis,
+    HamiltonianMonteCarlo,
+    MetropolisHastingsSampler,
     effective_sample_size,
     rhat,
 )
 from pyapprox.inverse.sampling.tests.test_distributions import (
     BananaLogPosterior,
-    GaussianMixtureLogPosterior,
     CorrelatedGaussianLogPosterior,
+    GaussianMixtureLogPosterior,
 )
+from pyapprox.util.backends.numpy import NumpyBkd
+from pyapprox.util.backends.protocols import Array, Backend
+from pyapprox.util.backends.torch import TorchBkd
 
 
 class TestMCMCPosteriorBase(Generic[Array], unittest.TestCase):
@@ -50,9 +50,7 @@ class TestMCMCPosteriorBase(Generic[Array], unittest.TestCase):
             target,
             nvars=2,
             bkd=self.bkd(),
-            proposal_cov=self.bkd().asarray(
-                np.array([[0.5, 0.0], [0.0, 0.5]])
-            ),
+            proposal_cov=self.bkd().asarray(np.array([[0.5, 0.0], [0.0, 0.5]])),
         )
 
         result = sampler.sample(nsamples=2000, burn=500)
@@ -62,8 +60,9 @@ class TestMCMCPosteriorBase(Generic[Array], unittest.TestCase):
         sample_mean = np.mean(samples_np, axis=1)
         true_mean = target.true_mean()
         np.testing.assert_array_less(
-            np.abs(sample_mean - true_mean), 0.3,
-            "Sample mean should be close to true mean"
+            np.abs(sample_mean - true_mean),
+            0.3,
+            "Sample mean should be close to true mean",
         )
 
     def test_correlated_gaussian_adaptive(self) -> None:
@@ -89,16 +88,18 @@ class TestMCMCPosteriorBase(Generic[Array], unittest.TestCase):
         sample_mean = np.mean(samples_np, axis=1)
         true_mean = target.true_mean()
         np.testing.assert_array_less(
-            np.abs(sample_mean - true_mean), 0.2,
-            "Sample mean should be close to true mean"
+            np.abs(sample_mean - true_mean),
+            0.2,
+            "Sample mean should be close to true mean",
         )
 
         # Check covariance (more relaxed tolerance)
         sample_cov = np.cov(samples_np)
         true_cov = target.true_covariance()
         np.testing.assert_array_less(
-            np.abs(sample_cov - true_cov), 0.4,
-            "Sample covariance should be close to true covariance"
+            np.abs(sample_cov - true_cov),
+            0.4,
+            "Sample covariance should be close to true covariance",
         )
 
     def test_correlated_gaussian_hmc(self) -> None:
@@ -128,8 +129,9 @@ class TestMCMCPosteriorBase(Generic[Array], unittest.TestCase):
         sample_mean = np.mean(samples_np, axis=1)
         true_mean = target.true_mean()
         np.testing.assert_array_less(
-            np.abs(sample_mean - true_mean), 0.2,
-            "HMC sample mean should be close to true mean"
+            np.abs(sample_mean - true_mean),
+            0.2,
+            "HMC sample mean should be close to true mean",
         )
 
     def test_correlated_gaussian_dram(self) -> None:
@@ -156,17 +158,16 @@ class TestMCMCPosteriorBase(Generic[Array], unittest.TestCase):
         sample_mean = np.mean(samples_np, axis=1)
         true_mean = target.true_mean()
         np.testing.assert_array_less(
-            np.abs(sample_mean - true_mean), 0.3,
-            "DRAM sample mean should be close to true mean"
+            np.abs(sample_mean - true_mean),
+            0.3,
+            "DRAM sample mean should be close to true mean",
         )
 
     def test_banana_distribution_hmc(self) -> None:
         """Test HMC on banana-shaped (non-Gaussian) distribution."""
         np.random.seed(111)
 
-        target = BananaLogPosterior(
-            self.bkd(), mu0=0.0, mu1=0.0, s0=1.0, s1=1.0
-        )
+        target = BananaLogPosterior(self.bkd(), mu0=0.0, mu1=0.0, s0=1.0, s1=1.0)
 
         sampler = HamiltonianMonteCarlo(
             target,
@@ -186,23 +187,21 @@ class TestMCMCPosteriorBase(Generic[Array], unittest.TestCase):
 
         # x0 marginal is Gaussian with mean mu0
         self.assertLess(
-            np.abs(sample_mean[0] - true_mean[0]), 0.3,
-            "x0 mean should be close to mu0"
+            np.abs(sample_mean[0] - true_mean[0]), 0.3, "x0 mean should be close to mu0"
         )
 
         # x1 marginal has mean s0^2 + mu0^2 + mu1
         self.assertLess(
-            np.abs(sample_mean[1] - true_mean[1]), 0.5,
-            "x1 mean should be close to s0^2 + mu0^2 + mu1"
+            np.abs(sample_mean[1] - true_mean[1]),
+            0.5,
+            "x1 mean should be close to s0^2 + mu0^2 + mu1",
         )
 
     def test_banana_distribution_dram(self) -> None:
         """Test DRAM on banana-shaped distribution."""
         np.random.seed(222)
 
-        target = BananaLogPosterior(
-            self.bkd(), mu0=0.0, mu1=0.0, s0=1.0, s1=0.5
-        )
+        target = BananaLogPosterior(self.bkd(), mu0=0.0, mu1=0.0, s0=1.0, s1=0.5)
 
         sampler = DelayedRejectionAdaptiveMetropolis(
             target,
@@ -227,9 +226,7 @@ class TestMCMCPosteriorBase(Generic[Array], unittest.TestCase):
         np.random.seed(333)
 
         # Use modes that are not too far apart for easier mixing
-        target = GaussianMixtureLogPosterior(
-            self.bkd(), mu1=-1.5, mu2=1.5, sigma=1.0
-        )
+        target = GaussianMixtureLogPosterior(self.bkd(), mu1=-1.5, mu2=1.5, sigma=1.0)
 
         sampler = AdaptiveMetropolisSampler(
             target,
@@ -248,8 +245,9 @@ class TestMCMCPosteriorBase(Generic[Array], unittest.TestCase):
 
         # Mean should be close to 0 (average of -1.5 and 1.5)
         self.assertLess(
-            np.abs(sample_mean - true_mean), 0.5,
-            "Sample mean should be close to true mean for mixture"
+            np.abs(sample_mean - true_mean),
+            0.5,
+            "Sample mean should be close to true mean for mixture",
         )
 
     def test_diagnostics_on_converged_chain(self) -> None:
@@ -276,10 +274,7 @@ class TestMCMCPosteriorBase(Generic[Array], unittest.TestCase):
         ess_np = self.bkd().to_numpy(ess)
 
         # ESS should be at least 10% of nsamples for HMC
-        self.assertTrue(
-            np.all(ess_np > 100),
-            f"ESS should be > 100, got {ess_np}"
-        )
+        self.assertTrue(np.all(ess_np > 100), f"ESS should be > 100, got {ess_np}")
 
     def test_multiple_chains_rhat(self) -> None:
         """Test R-hat diagnostic with multiple chains."""
@@ -299,9 +294,7 @@ class TestMCMCPosteriorBase(Generic[Array], unittest.TestCase):
                 proposal_cov=self.bkd().asarray(np.array([[0.5]])),
             )
             initial = self.bkd().asarray(np.array([[start]]))
-            result = sampler.sample(
-                nsamples=1000, burn=200, initial_state=initial
-            )
+            result = sampler.sample(nsamples=1000, burn=200, initial_state=initial)
             chains.append(result.samples)
 
         # Stack chains
@@ -315,8 +308,7 @@ class TestMCMCPosteriorBase(Generic[Array], unittest.TestCase):
 
         # R-hat should be close to 1 for converged chains
         self.assertTrue(
-            np.all(r_hat_np < 1.2),
-            f"R-hat should be < 1.2, got {r_hat_np}"
+            np.all(r_hat_np < 1.2), f"R-hat should be < 1.2, got {r_hat_np}"
         )
 
 
@@ -341,9 +333,6 @@ class TestMCMCPosteriorTorch(TestMCMCPosteriorBase[torch.Tensor]):
 
     def bkd(self) -> TorchBkd:
         return self._bkd
-
-
-from pyapprox.util.test_utils import load_tests
 
 
 if __name__ == "__main__":

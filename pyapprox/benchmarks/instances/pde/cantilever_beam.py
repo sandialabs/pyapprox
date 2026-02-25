@@ -15,13 +15,29 @@ Model hierarchy:
 """
 
 import os
-from typing import Callable, Dict, Generic, List, Optional, Tuple
+from typing import (
+    TYPE_CHECKING,
+    Callable,
+    Dict,
+    Generic,
+    List,
+    Optional,
+    Tuple,
+)
+
+if TYPE_CHECKING:
+    from pyapprox.expdesign.benchmarks.linear_gaussian_model import (
+        LinearGaussianOEDModel,
+    )
 
 import numpy as np
 
 # Default mesh path relative to this package
 _DATA_DIR = os.path.join(
-    os.path.dirname(__file__), os.pardir, os.pardir, "data",
+    os.path.dirname(__file__),
+    os.pardir,
+    os.pardir,
+    "data",
 )
 _DEFAULT_MESH_PATH = os.path.normpath(
     os.path.join(_DATA_DIR, "cantilever_beam_2d_with_holes_h_0_5.json")
@@ -30,34 +46,40 @@ _DEFAULT_MESH_PATH = os.path.normpath(
 # Mesh paths by refinement level (h = characteristic element size)
 MESH_PATHS = {
     0.5: _DEFAULT_MESH_PATH,
-    1: os.path.normpath(os.path.join(_DATA_DIR, "cantilever_beam_2d_with_holes_h_1.json")),
-    2: os.path.normpath(os.path.join(_DATA_DIR, "cantilever_beam_2d_with_holes_h_2.json")),
-    4: os.path.normpath(os.path.join(_DATA_DIR, "cantilever_beam_2d_with_holes_h_4.json")),
+    1: os.path.normpath(
+        os.path.join(_DATA_DIR, "cantilever_beam_2d_with_holes_h_1.json")
+    ),
+    2: os.path.normpath(
+        os.path.join(_DATA_DIR, "cantilever_beam_2d_with_holes_h_2.json")
+    ),
+    4: os.path.normpath(
+        os.path.join(_DATA_DIR, "cantilever_beam_2d_with_holes_h_4.json")
+    ),
 }
 
-from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.benchmarks.benchmark import BenchmarkWithPrior, BoxDomain
 from pyapprox.benchmarks.ground_truth import SensitivityGroundTruth
-from pyapprox.benchmarks.registry import BenchmarkRegistry
-from pyapprox.probability.univariate.gaussian import GaussianMarginal
-from pyapprox.probability.joint.independent import IndependentJoint
-from pyapprox.surrogates.kernels.matern import (
-    SquaredExponentialKernel,
+from pyapprox.benchmarks.instances.pde.elastic_bar import (
+    PDEBenchmarkWrapper,
 )
-from pyapprox.surrogates.kle.mesh_kle import MeshKLE
-from pyapprox.pde.field_maps.mesh_kle_field_map import MeshKLEFieldMap
-from pyapprox.pde.field_maps.transformed import TransformedFieldMap
+from pyapprox.benchmarks.registry import BenchmarkRegistry
 from pyapprox.pde.field_maps.kle_factory import (
     create_lognormal_kle_field_map,
     create_spde_lognormal_kle_field_map,
 )
+from pyapprox.pde.field_maps.mesh_kle_field_map import MeshKLEFieldMap
+from pyapprox.pde.field_maps.transformed import TransformedFieldMap
 from pyapprox.pde.galerkin.basis.lagrange import LagrangeBasis
-from pyapprox.benchmarks.instances.pde.elastic_bar import (
-    PDEBenchmarkWrapper,
+from pyapprox.probability.joint.independent import IndependentJoint
+from pyapprox.probability.univariate.gaussian import GaussianMarginal
+from pyapprox.surrogates.kernels.matern import (
+    SquaredExponentialKernel,
 )
+from pyapprox.surrogates.kle.mesh_kle import MeshKLE
+from pyapprox.util.backends.protocols import Array, Backend
 
 try:
-    from skfem.models.elasticity import lame_parameters
+    from skfem.models.elasticity import lame_parameters  # noqa: F401  # noqa: F401
 except ImportError:
     raise ImportError(
         "scikit-fem is required for cantilever beam benchmarks. "
@@ -122,7 +144,10 @@ def _create_subdomain_kle_field_maps(
     ndim = skfem_mesh.p.shape[0]
     lenscale = bkd.full((ndim,), correlation_length)
     kernel = SquaredExponentialKernel(
-        lenscale, (0.01, 10.0), ndim, bkd,
+        lenscale,
+        (0.01, 10.0),
+        ndim,
+        bkd,
     )
 
     field_maps = []
@@ -144,25 +169,31 @@ def _create_subdomain_kle_field_maps(
         for e in elem_idx:
             verts = skfem_mesh.p[:, skfem_mesh.t[:, e]]
             x, y = verts[0], verts[1]
-            area = 0.5 * abs(sum(
-                x[i] * y[(i + 1) % nverts] - x[(i + 1) % nverts] * y[i]
-                for i in range(nverts)
-            ))
+            area = 0.5 * abs(
+                sum(
+                    x[i] * y[(i + 1) % nverts] - x[(i + 1) % nverts] * y[i]
+                    for i in range(nverts)
+                )
+            )
             for n in skfem_mesh.t[:, e]:
                 sub_w[node_to_local[int(n)]] += area / nverts
 
         mean_log = bkd.full((n_nodes,), mean_log_E)
 
         mesh_kle = MeshKLE(
-            bkd.asarray(coords_sub), kernel,
-            sigma=sigma, mean_field=0.0,
+            bkd.asarray(coords_sub),
+            kernel,
+            sigma=sigma,
+            mean_field=0.0,
             nterms=num_kle_terms,
             quad_weights=bkd.asarray(sub_w),
             bkd=bkd,
         )
 
         inner = MeshKLEFieldMap(
-            bkd, mean_log, mesh_kle.weighted_eigenvectors(),
+            bkd,
+            mean_log,
+            mesh_kle.weighted_eigenvectors(),
         )
         fm = TransformedFieldMap(
             inner,
@@ -217,8 +248,7 @@ class _SkfemSubmesh(Generic[Array]):
         bndries = self._skfem_mesh.boundaries or {}
         if boundary_id not in bndries:
             raise ValueError(
-                f"Unknown boundary '{boundary_id}'. "
-                f"Available: {list(bndries.keys())}"
+                f"Unknown boundary '{boundary_id}'. Available: {list(bndries.keys())}"
             )
         facet_idx = bndries[boundary_id]
         node_idx = np.unique(self._skfem_mesh.facets[:, facet_idx])
@@ -275,7 +305,7 @@ def _create_subdomain_spde_kle_field_maps(
         a global nodal array before interpolation).
     """
     # SPDE params: l_c = sqrt(gamma/delta)
-    gamma = correlation_length ** 2
+    gamma = correlation_length**2
     delta = 1.0
 
     field_maps = []
@@ -295,8 +325,12 @@ def _create_subdomain_spde_kle_field_maps(
         mean_log = bkd.full((n_nodes,), mean_log_E)
 
         fm = create_spde_lognormal_kle_field_map(
-            basis, mean_log, bkd,
-            n_modes=num_kle_terms, gamma=gamma, delta=delta,
+            basis,
+            mean_log,
+            bkd,
+            n_modes=num_kle_terms,
+            gamma=gamma,
+            delta=delta,
             sigma=sigma,
         )
         field_maps.append(fm)
@@ -351,7 +385,7 @@ def _kle_to_lame_arrays(
 
     offset = 0
     for i, name in enumerate(subdomain_names):
-        xi = kle_params_1d[offset:offset + num_kle_terms]
+        xi = kle_params_1d[offset : offset + num_kle_terms]
         E_sub = bkd.to_numpy(field_maps[i](bkd.asarray(xi)))
         E_nodal[subdomain_node_indices[i]] = E_sub
         offset += num_kle_terms
@@ -478,7 +512,8 @@ class CantileverBeam2DForwardModel(Generic[Array]):
         for ii in range(nsamples):
             xi = samples_np[:, ii]
             lam_arr, mu_arr = _kle_to_lame_arrays(
-                xi, self._field_maps,
+                xi,
+                self._field_maps,
                 self._subdomain_node_indices,
                 self._subdomain_elements,
                 self._subdomain_names,
@@ -502,8 +537,13 @@ class CantileverBeam2DForwardModel(Generic[Array]):
             lam_elem = np.mean(lam_arr, axis=1)
             mu_elem = np.mean(mu_arr, axis=1)
             vm = von_mises_stress_2d(
-                self._coordx, self._coordy, self._connectivity,
-                ux, uy, lam_elem, mu_elem,
+                self._coordx,
+                self._coordy,
+                self._connectivity,
+                ux,
+                uy,
+                lam_elem,
+                mu_elem,
             )
             results[1, ii] = np.sum(vm * self._element_areas)
 
@@ -574,8 +614,11 @@ class CompositeBeam1DForwardModel(Generic[Array]):
 
         # Build beam once; set_EI updates stiffness per sample
         self._beam = EulerBernoulliBeamFEM(
-            nx=nx, length=length, EI=1.0,
-            load_func=load_func, bkd=bkd,
+            nx=nx,
+            length=length,
+            EI=1.0,
+            load_func=load_func,
+            bkd=bkd,
         )
 
     def bkd(self) -> Backend[Array]:
@@ -612,10 +655,8 @@ class CompositeBeam1DForwardModel(Generic[Array]):
 
         for ii in range(nsamples):
             E_eff = (
-                (self._A_skin * samples_np[0, ii]
-                 + self._A_core * samples_np[1, ii])
-                / (self._A_skin + self._A_core)
-            )
+                self._A_skin * samples_np[0, ii] + self._A_core * samples_np[1, ii]
+            ) / (self._A_skin + self._A_core)
             EI = E_eff * self._I_rect
             self._beam.set_EI(EI)
             results[0, ii] = self._beam.tip_deflection()
@@ -627,7 +668,8 @@ class CompositeBeam1DForwardModel(Generic[Array]):
 
 
 class CantileverBeam1DKLEForwardModel(Generic[Array]):
-    """Forward model: KLE coefficients -> [tip deflection, integrated stress, max curvature].
+    """Forward model: KLE coefficients -> [tip deflection, integrated stress, max
+    curvature].
 
     Wraps EulerBernoulliBeamFEM with a KLE field map for bending stiffness
     EI(x). The KLE parameterizes log(EI) on the 1D mesh.
@@ -657,8 +699,11 @@ class CantileverBeam1DKLEForwardModel(Generic[Array]):
 
         # Build beam once; set_EI updates stiffness per sample
         self._beam = EulerBernoulliBeamFEM(
-            nx=nx, length=length, EI=EI_mean,
-            load_func=load_func, bkd=bkd,
+            nx=nx,
+            length=length,
+            EI=EI_mean,
+            load_func=load_func,
+            bkd=bkd,
         )
 
     def bkd(self) -> Backend[Array]:
@@ -671,7 +716,8 @@ class CantileverBeam1DKLEForwardModel(Generic[Array]):
         return 3
 
     def __call__(self, samples: Array) -> Array:
-        """Evaluate: KLE coefficients -> [tip deflection, integrated stress, max curvature].
+        """Evaluate: KLE coefficients -> [tip deflection, integrated stress, max
+        curvature].
 
         Parameters
         ----------
@@ -696,9 +742,7 @@ class CantileverBeam1DKLEForwardModel(Generic[Array]):
 
         for ii in range(nsamples):
             xi = samples_np[:, ii]
-            EI_field = bkd.to_numpy(
-                self._field_map(bkd.asarray(xi))
-            )
+            EI_field = bkd.to_numpy(self._field_map(bkd.asarray(xi)))
             self._beam.set_EI(EI_field)
             results[0, ii] = self._beam.tip_deflection()
             curv = self._beam.curvature_at_elements()
@@ -707,9 +751,7 @@ class CantileverBeam1DKLEForwardModel(Generic[Array]):
                 EI_elem = 0.5 * (EI_field[:-1] + EI_field[1:])
             else:
                 EI_elem = EI_field
-            results[1, ii] = np.sum(
-                EI_elem * curv * self._stress_coeff * le
-            )
+            results[1, ii] = np.sum(EI_elem * curv * self._stress_coeff * le)
             results[2, ii] = float(np.max(curv))
 
         return bkd.asarray(results)
@@ -756,7 +798,9 @@ def cantilever_beam_1d(
     """
     # Create KLE field map on element midpoints
     midpoints = np.linspace(
-        length / (2 * nx), length - length / (2 * nx), nx,
+        length / (2 * nx),
+        length - length / (2 * nx),
+        nx,
     )
     mesh_coords = bkd.asarray(midpoints[np.newaxis, :])  # (1, nx)
     # Normalize to [0, 1] for KLE
@@ -777,8 +821,13 @@ def cantilever_beam_1d(
     load_func = lambda x: q0 * x / length  # noqa: E731
 
     fwd = CantileverBeam1DKLEForwardModel(
-        nx=nx, length=length, height=height, EI_mean=EI_mean,
-        load_func=load_func, field_map=field_map, bkd=bkd,
+        nx=nx,
+        length=length,
+        height=height,
+        EI_mean=EI_mean,
+        load_func=load_func,
+        field_map=field_map,
+        bkd=bkd,
     )
 
     prior = IndependentJoint(
@@ -789,7 +838,7 @@ def cantilever_beam_1d(
     domain = BoxDomain(_bounds=bounds, _bkd=bkd)
 
     inner = BenchmarkWithPrior(
-        _name=f"cantilever_beam_1d_tip_displacement",
+        _name="cantilever_beam_1d_tip_displacement",
         _function=fwd,
         _domain=domain,
         _ground_truth=SensitivityGroundTruth(),
@@ -834,7 +883,7 @@ def _find_dof(basis, target_x, target_y, comp, bkd):
             continue
         x_coord = dof_coords[0, i]
         y_coord = dof_coords[1, i]
-        dist = (x_coord - target_x)**2 + (y_coord - target_y)**2
+        dist = (x_coord - target_x) ** 2 + (y_coord - target_y) ** 2
         if dist < best_dist:
             best_dist = dist
             best_dof = i
@@ -888,12 +937,14 @@ def cantilever_beam_2d_linear(
         Correlation length for KLE kernel (in normalized coordinates).
     """
     from skfem import Basis as SkfemBasis
-    from pyapprox.pde.galerkin.mesh import UnstructuredMesh2D
+
     from pyapprox.pde.galerkin.basis import VectorLagrangeBasis
-    from pyapprox.pde.galerkin.physics import CompositeLinearElasticity
     from pyapprox.pde.galerkin.boundary.implementations import (
-        DirichletBC, NeumannBC,
+        DirichletBC,
+        NeumannBC,
     )
+    from pyapprox.pde.galerkin.mesh import UnstructuredMesh2D
+    from pyapprox.pde.galerkin.physics import CompositeLinearElasticity
     from pyapprox.pde.galerkin.solvers.steady_state import (
         SteadyStateSolver,
     )
@@ -916,8 +967,14 @@ def cantilever_beam_2d_linear(
     # KLE field maps per subdomain (at mesh nodes)
     mean_log_E = float(np.log(E_mean))
     field_maps, subdomain_node_indices = _create_subdomain_kle_field_maps(
-        skfem_mesh, subdomain_elements, subdomain_names, bkd,
-        num_kle_terms, sigma, correlation_length, mean_log_E,
+        skfem_mesh,
+        subdomain_elements,
+        subdomain_names,
+        bkd,
+        num_kle_terms,
+        sigma,
+        correlation_length,
+        mean_log_E,
     )
 
     # Boundary conditions: clamped left, traction on top
@@ -1027,13 +1084,15 @@ def cantilever_beam_2d_neohookean(
         Correlation length for KLE kernel (in normalized coordinates).
     """
     from skfem import Basis as SkfemBasis
-    from pyapprox.pde.galerkin.mesh import UnstructuredMesh2D
+
     from pyapprox.pde.galerkin.basis import VectorLagrangeBasis
+    from pyapprox.pde.galerkin.boundary.implementations import (
+        DirichletBC,
+        NeumannBC,
+    )
+    from pyapprox.pde.galerkin.mesh import UnstructuredMesh2D
     from pyapprox.pde.galerkin.physics import (
         CompositeHyperelasticityPhysics,
-    )
-    from pyapprox.pde.galerkin.boundary.implementations import (
-        DirichletBC, NeumannBC,
     )
     from pyapprox.pde.galerkin.solvers.steady_state import (
         SteadyStateSolver,
@@ -1055,8 +1114,14 @@ def cantilever_beam_2d_neohookean(
 
     mean_log_E = float(np.log(E_mean))
     field_maps, subdomain_node_indices = _create_subdomain_kle_field_maps(
-        skfem_mesh, subdomain_elements, subdomain_names, bkd,
-        num_kle_terms, sigma, correlation_length, mean_log_E,
+        skfem_mesh,
+        subdomain_elements,
+        subdomain_names,
+        bkd,
+        num_kle_terms,
+        sigma,
+        correlation_length,
+        mean_log_E,
     )
 
     def zero_dirichlet(coords, time=0.0):
@@ -1084,7 +1149,10 @@ def cantilever_beam_2d_neohookean(
     )
 
     solver = SteadyStateSolver(
-        physics, tol=1e-10, max_iter=50, line_search=True,
+        physics,
+        tol=1e-10,
+        max_iter=50,
+        line_search=True,
     )
     tip_dof = _find_tip_dof(basis, length, height, bkd)
 
@@ -1172,20 +1240,30 @@ def cantilever_beam_1d_spde(
     mesh = StructuredMesh1D(nx=nx, bounds=(0.0, 1.0), bkd=bkd)
     basis = LagrangeBasis(mesh, degree=1)
 
-    gamma = correlation_length ** 2
+    gamma = correlation_length**2
     delta = 1.0
     mean_log = bkd.full((basis.ndofs(),), float(np.log(EI_mean)))
 
     field_map = create_spde_lognormal_kle_field_map(
-        basis, mean_log, bkd,
-        n_modes=num_kle_terms, gamma=gamma, delta=delta, sigma=sigma,
+        basis,
+        mean_log,
+        bkd,
+        n_modes=num_kle_terms,
+        gamma=gamma,
+        delta=delta,
+        sigma=sigma,
     )
 
     load_func = lambda x: q0 * x / length  # noqa: E731
 
     fwd = CantileverBeam1DKLEForwardModel(
-        nx=nx, length=length, height=height, EI_mean=EI_mean,
-        load_func=load_func, field_map=field_map, bkd=bkd,
+        nx=nx,
+        length=length,
+        height=height,
+        EI_mean=EI_mean,
+        load_func=load_func,
+        field_map=field_map,
+        bkd=bkd,
     )
 
     prior = IndependentJoint(
@@ -1252,12 +1330,14 @@ def cantilever_beam_2d_linear_spde(
         Correlation length for the SPDE Matern field.
     """
     from skfem import Basis as SkfemBasis
-    from pyapprox.pde.galerkin.mesh import UnstructuredMesh2D
+
     from pyapprox.pde.galerkin.basis import VectorLagrangeBasis
-    from pyapprox.pde.galerkin.physics import CompositeLinearElasticity
     from pyapprox.pde.galerkin.boundary.implementations import (
-        DirichletBC, NeumannBC,
+        DirichletBC,
+        NeumannBC,
     )
+    from pyapprox.pde.galerkin.mesh import UnstructuredMesh2D
+    from pyapprox.pde.galerkin.physics import CompositeLinearElasticity
     from pyapprox.pde.galerkin.solvers.steady_state import (
         SteadyStateSolver,
     )
@@ -1277,8 +1357,14 @@ def cantilever_beam_2d_linear_spde(
 
     mean_log_E = float(np.log(E_mean))
     field_maps, subdomain_node_indices = _create_subdomain_spde_kle_field_maps(
-        skfem_mesh, subdomain_elements, subdomain_names, bkd,
-        num_kle_terms, sigma, correlation_length, mean_log_E,
+        skfem_mesh,
+        subdomain_elements,
+        subdomain_names,
+        bkd,
+        num_kle_terms,
+        sigma,
+        correlation_length,
+        mean_log_E,
     )
 
     def zero_dirichlet(coords, time=0.0):
@@ -1387,13 +1473,15 @@ def cantilever_beam_2d_neohookean_spde(
         Correlation length for the SPDE Matern field.
     """
     from skfem import Basis as SkfemBasis
-    from pyapprox.pde.galerkin.mesh import UnstructuredMesh2D
+
     from pyapprox.pde.galerkin.basis import VectorLagrangeBasis
+    from pyapprox.pde.galerkin.boundary.implementations import (
+        DirichletBC,
+        NeumannBC,
+    )
+    from pyapprox.pde.galerkin.mesh import UnstructuredMesh2D
     from pyapprox.pde.galerkin.physics import (
         CompositeHyperelasticityPhysics,
-    )
-    from pyapprox.pde.galerkin.boundary.implementations import (
-        DirichletBC, NeumannBC,
     )
     from pyapprox.pde.galerkin.solvers.steady_state import (
         SteadyStateSolver,
@@ -1414,8 +1502,14 @@ def cantilever_beam_2d_neohookean_spde(
 
     mean_log_E = float(np.log(E_mean))
     field_maps, subdomain_node_indices = _create_subdomain_spde_kle_field_maps(
-        skfem_mesh, subdomain_elements, subdomain_names, bkd,
-        num_kle_terms, sigma, correlation_length, mean_log_E,
+        skfem_mesh,
+        subdomain_elements,
+        subdomain_names,
+        bkd,
+        num_kle_terms,
+        sigma,
+        correlation_length,
+        mean_log_E,
     )
 
     def zero_dirichlet(coords, time=0.0):
@@ -1443,7 +1537,10 @@ def cantilever_beam_2d_neohookean_spde(
     )
 
     solver = SteadyStateSolver(
-        physics, tol=1e-10, max_iter=50, line_search=True,
+        physics,
+        tol=1e-10,
+        max_iter=50,
+        line_search=True,
     )
     tip_dof = _find_tip_dof(basis, length, height, bkd)
 
@@ -1551,20 +1648,20 @@ class CantileverBeam2DLoadOEDBenchmark(Generic[Array]):
         noise_std: float = 0.01,
         sensor_xs: Optional[Array] = None,
     ) -> None:
-        from skfem import Basis as SkfemBasis
-        from pyapprox.pde.galerkin.mesh import UnstructuredMesh2D
+        from pyapprox.expdesign.benchmarks.linear_gaussian_model import (
+            LinearGaussianOEDModel,
+        )
         from pyapprox.pde.galerkin.basis import VectorLagrangeBasis
+        from pyapprox.pde.galerkin.boundary.implementations import (
+            DirichletBC,
+            NeumannBC,
+        )
+        from pyapprox.pde.galerkin.mesh import UnstructuredMesh2D
         from pyapprox.pde.galerkin.physics import (
             CompositeLinearElasticity,
         )
-        from pyapprox.pde.galerkin.boundary.implementations import (
-            DirichletBC, NeumannBC,
-        )
         from pyapprox.pde.galerkin.solvers.steady_state import (
             SteadyStateSolver,
-        )
-        from pyapprox.expdesign.benchmarks.linear_gaussian_model import (
-            LinearGaussianOEDModel,
         )
 
         self._bkd = bkd
@@ -1574,10 +1671,12 @@ class CantileverBeam2DLoadOEDBenchmark(Generic[Array]):
 
         # ---- Build FEM ----
         mesh = UnstructuredMesh2D(
-            mesh_path, bkd, rescale_origin=(0.0, 0.0),
+            mesh_path,
+            bkd,
+            rescale_origin=(0.0, 0.0),
         )
         basis = VectorLagrangeBasis(mesh, degree=1)
-        skfem_mesh = mesh.skfem_mesh()
+        mesh.skfem_mesh()
         subdomain_names = mesh.subdomain_names()
         subdomain_elements = {
             name: mesh.subdomain_elements(name) for name in subdomain_names
@@ -1588,9 +1687,7 @@ class CantileverBeam2DLoadOEDBenchmark(Generic[Array]):
 
         bc_left = DirichletBC(basis, "left_edge", zero_dirichlet, bkd)
 
-        material_map = {
-            name: (E_mean, poisson_ratio) for name in subdomain_names
-        }
+        material_map = {name: (E_mean, poisson_ratio) for name in subdomain_names}
 
         # ---- Solve two unit load cases ----
         def _make_traction(traction_func):
@@ -1649,11 +1746,16 @@ class CantileverBeam2DLoadOEDBenchmark(Generic[Array]):
             prior_mean = bkd.zeros((nparams, 1))
         if prior_covariance is None:
             prior_covariance = bkd.eye(nparams)
-        noise_cov = bkd.eye(nobs) * noise_std ** 2
+        noise_cov = bkd.eye(nobs) * noise_std**2
 
         # ---- Create LinearGaussianOEDModel ----
         self._model = LinearGaussianOEDModel(
-            A, prior_mean, prior_covariance, noise_cov, bkd, sensor_xs,
+            A,
+            prior_mean,
+            prior_covariance,
+            noise_cov,
+            bkd,
+            sensor_xs,
         )
         self._basis = basis
 
@@ -1720,25 +1822,33 @@ class CantileverBeam2DLoadOEDBenchmark(Generic[Array]):
         return self._model.d_optimal_objective(weights)
 
     def generate_observation_data(
-        self, nsamples: int, seed: int = 42,
+        self,
+        nsamples: int,
+        seed: int = 42,
     ) -> tuple[Array, Array]:
         """Generate noiseless observations."""
         return self._model.generate_observation_data(nsamples, seed)
 
     def generate_noisy_observations(
-        self, nsamples: int, seed: int = 42,
+        self,
+        nsamples: int,
+        seed: int = 42,
     ) -> tuple[Array, Array, Array]:
         """Generate noisy observations."""
         return self._model.generate_noisy_observations(nsamples, seed)
 
     def generate_parameter_samples(
-        self, nsamples: int, seed: int = 42,
+        self,
+        nsamples: int,
+        seed: int = 42,
     ) -> Array:
         """Generate parameter samples from the prior."""
         return self._model.generate_parameter_samples(nsamples, seed)
 
     def generate_latent_samples(
-        self, nsamples: int, seed: int = 42,
+        self,
+        nsamples: int,
+        seed: int = 42,
     ) -> Array:
         """Generate latent noise samples for reparameterization."""
         return self._model.generate_latent_samples(nsamples, seed)
@@ -1762,8 +1872,7 @@ def _cantilever_beam_1d_factory(bkd: Backend[Array]) -> PDEBenchmarkWrapper:
     "cantilever_beam_2d_linear",
     category="pde",
     description=(
-        "2D linear elastic cantilever beam with per-subdomain KLE "
-        "Young's modulus"
+        "2D linear elastic cantilever beam with per-subdomain KLE Young's modulus"
     ),
 )
 def _cantilever_beam_2d_linear_factory(
@@ -1776,8 +1885,7 @@ def _cantilever_beam_2d_linear_factory(
     "cantilever_beam_2d_neohookean",
     category="pde",
     description=(
-        "2D Neo-Hookean cantilever beam with per-subdomain KLE "
-        "Young's modulus"
+        "2D Neo-Hookean cantilever beam with per-subdomain KLE Young's modulus"
     ),
 )
 def _cantilever_beam_2d_neohookean_factory(
@@ -1790,8 +1898,7 @@ def _cantilever_beam_2d_neohookean_factory(
     "cantilever_beam_1d_spde",
     category="pde",
     description=(
-        "1D Euler-Bernoulli cantilever beam with SPDE Matern KLE "
-        "bending stiffness"
+        "1D Euler-Bernoulli cantilever beam with SPDE Matern KLE bending stiffness"
     ),
 )
 def _cantilever_beam_1d_spde_factory(

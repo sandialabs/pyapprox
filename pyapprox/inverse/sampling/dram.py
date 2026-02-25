@@ -14,16 +14,16 @@ Haario, H., Laine, M., Mira, A., and Saksman, E. (2006).
 Statistics and Computing, 16(4), 339-354.
 """
 
-from typing import Callable, Generic, Optional, Tuple
+from typing import Callable, Optional, Tuple
 
 import numpy as np
 
-from pyapprox.util.backends.protocols import Array, Backend
-from pyapprox.probability.gaussian import DenseCholeskyMultivariateGaussian
 from pyapprox.inverse.sampling.metropolis import (
     AdaptiveMetropolisSampler,
     MCMCResult,
 )
+from pyapprox.probability.gaussian import DenseCholeskyMultivariateGaussian
+from pyapprox.util.backends.protocols import Array, Backend
 
 
 class DelayedRejectionAdaptiveMetropolis(AdaptiveMetropolisSampler[Array]):
@@ -95,9 +95,7 @@ class DelayedRejectionAdaptiveMetropolis(AdaptiveMetropolisSampler[Array]):
     def _update_dr_proposal(self) -> None:
         """Update the delayed rejection proposal distribution."""
         dr_cov = self._dr_scale * self._proposal_cov
-        zero_mean = self._bkd.asarray(
-            np.zeros((self._nvars, 1), dtype=np.float64)
-        )
+        zero_mean = self._bkd.asarray(np.zeros((self._nvars, 1), dtype=np.float64))
         try:
             self._dr_proposal_dist = DenseCholeskyMultivariateGaussian(
                 zero_mean, dr_cov, self._bkd
@@ -206,9 +204,7 @@ class DelayedRejectionAdaptiveMetropolis(AdaptiveMetropolisSampler[Array]):
 
         # Initialize
         if initial_state is None:
-            current = self._bkd.asarray(
-                np.zeros((self._nvars, 1), dtype=np.float64)
-            )
+            current = self._bkd.asarray(np.zeros((self._nvars, 1), dtype=np.float64))
         else:
             if initial_state.shape != (self._nvars, 1):
                 raise ValueError(
@@ -238,9 +234,8 @@ class DelayedRejectionAdaptiveMetropolis(AdaptiveMetropolisSampler[Array]):
             if bounds is not None:
                 bounds_np = self._bkd.to_numpy(bounds)
                 proposal_np = self._bkd.to_numpy(proposal)
-                in_bounds = (
-                    np.all(proposal_np[:, 0] >= bounds_np[:, 0])
-                    and np.all(proposal_np[:, 0] <= bounds_np[:, 1])
+                in_bounds = np.all(proposal_np[:, 0] >= bounds_np[:, 0]) and np.all(
+                    proposal_np[:, 0] <= bounds_np[:, 1]
                 )
 
             if not in_bounds:
@@ -266,14 +261,12 @@ class DelayedRejectionAdaptiveMetropolis(AdaptiveMetropolisSampler[Array]):
                     n_accepted += 1
             else:
                 # First proposal rejected - try delayed rejection
-                new_state, new_logpost, dr_accepted = (
-                    self._delayed_rejection_step(
-                        current,
-                        current_logpost,
-                        proposal,
-                        proposal_logpost,
-                        log_alpha,
-                    )
+                new_state, new_logpost, dr_accepted = self._delayed_rejection_step(
+                    current,
+                    current_logpost,
+                    proposal,
+                    proposal_logpost,
+                    log_alpha,
                 )
 
                 if dr_accepted:
@@ -294,8 +287,7 @@ class DelayedRejectionAdaptiveMetropolis(AdaptiveMetropolisSampler[Array]):
             # Adapt proposal covariance
             if (
                 i >= self._adaptation_start
-                and (i - self._adaptation_start) % self._adaptation_interval
-                == 0
+                and (i - self._adaptation_start) % self._adaptation_interval == 0
             ):
                 self._adapt_proposal(sample_cov)
 

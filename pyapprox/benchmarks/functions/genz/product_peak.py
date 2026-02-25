@@ -134,9 +134,7 @@ class ProductPeakFunction(Generic[Array]):
                 f"sample must have shape ({self._nvars}, 1), got {sample.shape}"
             )
         if vec.ndim != 2 or vec.shape != (self._nvars, 1):
-            raise ValueError(
-                f"vec must have shape ({self._nvars}, 1), got {vec.shape}"
-            )
+            raise ValueError(f"vec must have shape ({self._nvars}, 1), got {vec.shape}")
         bkd = self._bkd
         t = sample - self._w  # (nvars, 1)
         g = 1.0 / self._c**2 + t**2  # (nvars, 1)
@@ -167,7 +165,5 @@ class ProductPeakFunction(Generic[Array]):
         # Integral = prod_i c_i * (arctan(c_i*(1-w_i)) + arctan(c_i*w_i))
         c = self._c[:, 0]
         w = self._w[:, 0]
-        integral = bkd.prod(
-            c * (bkd.arctan(c * (1.0 - w)) + bkd.arctan(c * w))
-        )
+        integral = bkd.prod(c * (bkd.arctan(c * (1.0 - w)) + bkd.arctan(c * w)))
         return float(integral)

@@ -4,23 +4,20 @@ import unittest
 
 import numpy as np
 
-from pyapprox.util.backends.numpy import NumpyBkd
 from pyapprox.surrogates.affine.univariate import (
-    LaguerrePolynomial1D,
-    laguerre_recurrence,
-    KrawtchoukPolynomial1D,
-    krawtchouk_recurrence,
-    HahnPolynomial1D,
-    hahn_recurrence,
     CharlierPolynomial1D,
-    charlier_recurrence,
     DiscreteChebyshevPolynomial1D,
-    discrete_chebyshev_recurrence,
     DiscreteNumericOrthonormalPolynomial1D,
-    WeightedSamplePolynomial1D,
-    lanczos_recursion,
+    HahnPolynomial1D,
+    KrawtchoukPolynomial1D,
+    LaguerrePolynomial1D,
     LegendrePolynomial1D,
+    WeightedSamplePolynomial1D,
+    hahn_recurrence,
+    laguerre_recurrence,
+    lanczos_recursion,
 )
+from pyapprox.util.backends.numpy import NumpyBkd
 
 
 class OrthopolyTestBase:

@@ -6,31 +6,30 @@ physics.residual_lam_sensitivity() and residual_mu_sensitivity().
 """
 
 import unittest
-from typing import Generic, Any
+from typing import Any, Generic
 
 import numpy as np
 from numpy.typing import NDArray
 from scipy.sparse import issparse
 
-from pyapprox.util.backends.protocols import Array, Backend
-from pyapprox.util.backends.numpy import NumpyBkd
-from pyapprox.pde.galerkin.mesh import StructuredMesh2D
-from pyapprox.pde.galerkin.basis import VectorLagrangeBasis
-from pyapprox.pde.galerkin.physics.composite_linear_elasticity import (
-    CompositeLinearElasticity as LinearElasticity,
-)
-from pyapprox.pde.galerkin.solvers import SteadyStateSolver
-from pyapprox.pde.galerkin.boundary.implementations import DirichletBC
-from pyapprox.pde.parameterizations.galerkin_lame import (
-    GalerkinLameParameterization,
-    create_galerkin_lame_parameterization,
-)
 from pyapprox.interface.functions.derivative_checks.derivative_checker import (
     DerivativeChecker,
 )
 from pyapprox.interface.functions.fromcallable.jacobian import (
     FunctionWithJacobianFromCallable,
 )
+from pyapprox.pde.galerkin.basis import VectorLagrangeBasis
+from pyapprox.pde.galerkin.boundary.implementations import DirichletBC
+from pyapprox.pde.galerkin.mesh import StructuredMesh2D
+from pyapprox.pde.galerkin.physics.composite_linear_elasticity import (
+    CompositeLinearElasticity as LinearElasticity,
+)
+from pyapprox.pde.galerkin.solvers import SteadyStateSolver
+from pyapprox.pde.parameterizations.galerkin_lame import (
+    create_galerkin_lame_parameterization,
+)
+from pyapprox.util.backends.numpy import NumpyBkd
+from pyapprox.util.backends.protocols import Array, Backend
 
 
 def _to_dense(mat):
@@ -48,7 +47,8 @@ def _make_physics(
 ) -> "LinearElasticity[Array]":
     """Create a 2D LinearElasticity with constant body force and all-Dirichlet BCs."""
     mesh = StructuredMesh2D(
-        nx=5, ny=5,
+        nx=5,
+        ny=5,
         bounds=[[0.0, 1.0], [0.0, 1.0]],
         bkd=bkd,
     )
@@ -95,17 +95,13 @@ class TestLinearElasticityAdjointBase(Generic[Array], unittest.TestCase):
     def test_nparams(self) -> None:
         """Parameterization nparams() returns 2 (E, nu) for single material."""
         physics = _make_physics(self.bkd_inst)
-        param = create_galerkin_lame_parameterization(
-            physics, self.bkd_inst
-        )
+        param = create_galerkin_lame_parameterization(physics, self.bkd_inst)
         self.assertEqual(param.nparams(), 2)
 
     def test_param_jacobian_shape(self) -> None:
         """param_jacobian returns shape (nstates, 2)."""
         physics = _make_physics(self.bkd_inst)
-        param = create_galerkin_lame_parameterization(
-            physics, self.bkd_inst
-        )
+        param = create_galerkin_lame_parameterization(physics, self.bkd_inst)
         n = physics.nstates()
         u = self.bkd_inst.asarray(np.ones(n) * 0.01)
         params_1d = self.bkd_inst.asarray(np.array([1.0, 0.3]))
@@ -116,9 +112,7 @@ class TestLinearElasticityAdjointBase(Generic[Array], unittest.TestCase):
     def test_initial_param_jacobian_is_zero(self) -> None:
         """initial_param_jacobian returns all zeros."""
         physics = _make_physics(self.bkd_inst)
-        param = create_galerkin_lame_parameterization(
-            physics, self.bkd_inst
-        )
+        param = create_galerkin_lame_parameterization(physics, self.bkd_inst)
         params_1d = self.bkd_inst.asarray(np.array([1.0, 0.3]))
         ipj = param.initial_param_jacobian(physics, params_1d)
         ipj_np = self.bkd_inst.to_numpy(ipj)
@@ -130,14 +124,10 @@ class TestLinearElasticityAdjointBase(Generic[Array], unittest.TestCase):
     def test_apply_changes_stiffness(self) -> None:
         """Stiffness matrix changes after parameterization.apply() with new (E, nu)."""
         physics = _make_physics(self.bkd_inst, E=1.0, nu=0.3)
-        param = create_galerkin_lame_parameterization(
-            physics, self.bkd_inst
-        )
+        param = create_galerkin_lame_parameterization(physics, self.bkd_inst)
         K1 = _to_dense(physics.stiffness_matrix()).copy()
 
-        param.apply(
-            physics, self.bkd_inst.asarray(np.array([2.0, 0.25]))
-        )
+        param.apply(physics, self.bkd_inst.asarray(np.array([2.0, 0.25])))
         K2 = _to_dense(physics.stiffness_matrix())
 
         diff = np.linalg.norm(K2 - K1)
@@ -156,7 +146,10 @@ class TestLinearElasticityAdjointBase(Generic[Array], unittest.TestCase):
 
         # Solve for the state at base parameters
         solver = SteadyStateSolver(
-            physics, tol=1e-12, max_iter=5, line_search=False,
+            physics,
+            tol=1e-12,
+            max_iter=5,
+            line_search=False,
         )
         result = solver.solve_linear()
         self.assertTrue(result.converged)
@@ -180,9 +173,7 @@ class TestLinearElasticityAdjointBase(Generic[Array], unittest.TestCase):
             # Raw param_jacobian (no BC enforcement)
             pj_raw = param.param_jacobian(physics, u, 0.0, p)
             # Apply BC enforcement
-            pj = physics._apply_dirichlet_to_param_jacobian(
-                pj_raw, u, 0.0
-            )
+            pj = physics._apply_dirichlet_to_param_jacobian(pj_raw, u, 0.0)
             param.apply(physics, bkd.asarray(np.array([E0, nu0])))
             return pj
 
@@ -212,7 +203,10 @@ class TestLinearElasticityAdjointBase(Generic[Array], unittest.TestCase):
 
         # Solve forward problem at base params
         solver = SteadyStateSolver(
-            physics, tol=1e-12, max_iter=5, line_search=False,
+            physics,
+            tol=1e-12,
+            max_iter=5,
+            line_search=False,
         )
         result = solver.solve_linear()
         self.assertTrue(result.converged)
@@ -229,7 +223,10 @@ class TestLinearElasticityAdjointBase(Generic[Array], unittest.TestCase):
                 p = params[:, ii]
                 param.apply(physics, p)
                 r = SteadyStateSolver(
-                    physics, tol=1e-12, max_iter=5, line_search=False,
+                    physics,
+                    tol=1e-12,
+                    max_iter=5,
+                    line_search=False,
                 ).solve_linear()
                 u_np = bkd.to_numpy(r.solution)
                 Q = c_np @ u_np
@@ -241,7 +238,10 @@ class TestLinearElasticityAdjointBase(Generic[Array], unittest.TestCase):
             p = params[:, 0]
             param.apply(physics, p)
             r = SteadyStateSolver(
-                physics, tol=1e-12, max_iter=5, line_search=False,
+                physics,
+                tol=1e-12,
+                max_iter=5,
+                line_search=False,
             ).solve_linear()
             u_sol = r.solution
 
@@ -250,9 +250,7 @@ class TestLinearElasticityAdjointBase(Generic[Array], unittest.TestCase):
             lam_np = np.linalg.solve(J_np.T, -c_np)
 
             # Parameterization param_jacobian (raw) + BC enforcement
-            dF_dp_raw = bkd.to_numpy(
-                param.param_jacobian(physics, u_sol, 0.0, p)
-            )
+            dF_dp_raw = bkd.to_numpy(param.param_jacobian(physics, u_sol, 0.0, p))
             dF_dp = bkd.to_numpy(
                 physics._apply_dirichlet_to_param_jacobian(
                     bkd.asarray(dF_dp_raw), u_sol, 0.0
@@ -277,9 +275,7 @@ class TestLinearElasticityAdjointBase(Generic[Array], unittest.TestCase):
         self.assertLessEqual(ratio, 1e-6)
 
 
-class TestLinearElasticityAdjointNumpy(
-    TestLinearElasticityAdjointBase[NDArray[Any]]
-):
+class TestLinearElasticityAdjointNumpy(TestLinearElasticityAdjointBase[NDArray[Any]]):
     """NumPy backend tests."""
 
     __test__ = True
@@ -294,6 +290,7 @@ class TestLinearElasticityAdjointNumpy(
 
 try:
     import torch
+
     from pyapprox.util.backends.torch import TorchBkd
 
     class TestLinearElasticityAdjointTorch(
@@ -332,7 +329,6 @@ except ImportError:
 
 
 from pyapprox.util.test_utils import load_tests  # noqa: F401
-
 
 if __name__ == "__main__":
     unittest.main()

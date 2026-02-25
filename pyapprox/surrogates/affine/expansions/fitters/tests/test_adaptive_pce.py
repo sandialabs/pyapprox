@@ -12,11 +12,9 @@ import numpy as np
 import torch
 from numpy.typing import NDArray
 
-from pyapprox.util.backends.numpy import NumpyBkd
-from pyapprox.util.backends.torch import TorchBkd
-from pyapprox.util.backends.protocols import Array, Backend
-from pyapprox.util.test_utils import load_tests  # noqa: F401
-
+from pyapprox.probability import UniformMarginal
+from pyapprox.surrogates.affine.basis import OrthonormalPolynomialBasis
+from pyapprox.surrogates.affine.expansions import BasisExpansion
 from pyapprox.surrogates.affine.expansions.fitters.adaptive_pce import (
     AdaptivePCEFitter,
     AdaptivePCEResult,
@@ -25,13 +23,12 @@ from pyapprox.surrogates.affine.expansions.fitters.adaptive_pce import (
 from pyapprox.surrogates.affine.indices.utils import (
     compute_downward_closure,
     compute_hyperbolic_indices,
-    sort_indices_lexiographically,
 )
-
 from pyapprox.surrogates.affine.univariate import create_bases_1d
-from pyapprox.surrogates.affine.basis import OrthonormalPolynomialBasis
-from pyapprox.surrogates.affine.expansions import BasisExpansion
-from pyapprox.probability import UniformMarginal
+from pyapprox.util.backends.numpy import NumpyBkd
+from pyapprox.util.backends.protocols import Array, Backend
+from pyapprox.util.backends.torch import TorchBkd
+from pyapprox.util.test_utils import load_tests  # noqa: F401
 
 
 class TestAdaptivePCEFitter(Generic[Array], unittest.TestCase):
@@ -79,11 +76,11 @@ class TestAdaptivePCEFitter(Generic[Array], unittest.TestCase):
         true_coefs = bkd.zeros((true_nterms, 1))
 
         # Set specific nonzero coefficients
-        true_coefs[0, 0] = 1.0   # constant
-        true_coefs[1, 0] = 0.5   # x1 term
+        true_coefs[0, 0] = 1.0  # constant
+        true_coefs[1, 0] = 0.5  # x1 term
         true_coefs[2, 0] = -0.3  # x2 term
-        true_coefs[3, 0] = 0.8   # x1^2 term
-        true_coefs[5, 0] = 0.4   # x2^2 term
+        true_coefs[3, 0] = 0.8  # x1^2 term
+        true_coefs[5, 0] = 0.4  # x2^2 term
         target_expansion.set_coefficients(true_coefs)
 
         # Generate well-overdetermined training data
@@ -94,9 +91,7 @@ class TestAdaptivePCEFitter(Generic[Array], unittest.TestCase):
 
         # Run adaptive fitter starting at degree 2, with large ceiling
         fit_expansion = self._create_expansion(nvars, max_level=5)
-        fitter = AdaptivePCEFitter(
-            bkd, initial_level=2, max_level=5
-        )
+        fitter = AdaptivePCEFitter(bkd, initial_level=2, max_level=5)
         result = fitter.fit(fit_expansion, samples, values)
 
         # Verify accuracy on test data
@@ -134,9 +129,7 @@ class TestAdaptivePCEFitter(Generic[Array], unittest.TestCase):
         expansion = self._create_expansion(nvars, max_level=5)
         ntrain = 150
         samples = bkd.asarray(np.random.uniform(-1, 1, (nvars, ntrain)))
-        values = bkd.reshape(
-            samples[0, :] ** 2 + samples[1, :] ** 2, (1, -1)
-        )
+        values = bkd.reshape(samples[0, :] ** 2 + samples[1, :] ** 2, (1, -1))
 
         fitter = AdaptivePCEFitter(bkd, initial_level=2, max_level=5)
         result = fitter.fit(expansion, samples, values)
@@ -175,19 +168,13 @@ class TestAdaptivePCEFitter(Generic[Array], unittest.TestCase):
         ntrain = 150
         np.random.seed(42)
         samples = bkd.asarray(np.random.uniform(-1, 1, (nvars, ntrain)))
-        values = bkd.reshape(
-            samples[0, :] ** 2 + samples[1, :] ** 2, (1, -1)
-        )
+        values = bkd.reshape(samples[0, :] ** 2 + samples[1, :] ** 2, (1, -1))
 
-        fitter1 = AdaptivePCEFitter(
-            bkd, initial_level=2, max_level=5, num_expansions=1
-        )
+        fitter1 = AdaptivePCEFitter(bkd, initial_level=2, max_level=5, num_expansions=1)
         result1 = fitter1.fit(expansion1, samples, values)
 
         np.random.seed(42)
-        fitter3 = AdaptivePCEFitter(
-            bkd, initial_level=2, max_level=5, num_expansions=3
-        )
+        fitter3 = AdaptivePCEFitter(bkd, initial_level=2, max_level=5, num_expansions=3)
         result3 = fitter3.fit(expansion3, samples, values)
 
         # Both should produce reasonable results
@@ -203,9 +190,7 @@ class TestAdaptivePCEFitter(Generic[Array], unittest.TestCase):
         expansion = self._create_expansion(nvars, max_level=5)
         ntrain = 150
         samples = bkd.asarray(np.random.uniform(-1, 1, (nvars, ntrain)))
-        values = bkd.reshape(
-            samples[0, :] ** 2 + samples[1, :] ** 2, (1, -1)
-        )
+        values = bkd.reshape(samples[0, :] ** 2 + samples[1, :] ** 2, (1, -1))
 
         fitter = AdaptivePCEFitter(bkd, initial_level=2, max_level=5)
         result = fitter.fit(expansion, samples, values)
@@ -223,13 +208,9 @@ class TestAdaptivePCEFitter(Generic[Array], unittest.TestCase):
         expansion = self._create_expansion(nvars, max_level=5)
         ntrain = 150
         samples = bkd.asarray(np.random.uniform(-1, 1, (nvars, ntrain)))
-        values = bkd.reshape(
-            samples[0, :] ** 3 + samples[1, :] ** 3, (1, -1)
-        )
+        values = bkd.reshape(samples[0, :] ** 3 + samples[1, :] ** 3, (1, -1))
 
-        fitter = AdaptivePCEFitter(
-            bkd, initial_level=2, max_level=max_level
-        )
+        fitter = AdaptivePCEFitter(bkd, initial_level=2, max_level=max_level)
         result = fitter.fit(expansion, samples, values)
 
         final = result.final_indices()
@@ -257,9 +238,7 @@ class TestAdaptivePCEFitter(Generic[Array], unittest.TestCase):
         result = fitter.fit(expansion, samples, values)
 
         # History includes init + up to max_iter outer iterations
-        self.assertLessEqual(
-            len(result.cv_scores_history()), max_iter + 1
-        )
+        self.assertLessEqual(len(result.cv_scores_history()), max_iter + 1)
 
     def test_fitted_surrogate_evaluates(self) -> None:
         """Result evaluates correctly on test data."""
@@ -360,9 +339,7 @@ class TestAdaptivePCEFitter(Generic[Array], unittest.TestCase):
         # Sparse function: only depends on x1
         values = bkd.reshape(samples[0, :] ** 2, (1, -1))
 
-        fitter = AdaptivePCEFitter(
-            bkd, initial_level=2, max_level=5, verbosity=0
-        )
+        fitter = AdaptivePCEFitter(bkd, initial_level=2, max_level=5, verbosity=0)
         result = fitter.fit(expansion, samples, values)
 
         # Should achieve good accuracy

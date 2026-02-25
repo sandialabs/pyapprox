@@ -7,15 +7,15 @@ Defines protocols for:
 - DomainDecompositionProtocol: full decomposition setup
 """
 
+from pyapprox.pde.decomposition.protocols.decomposition import (
+    DomainDecompositionProtocol,
+)
 from pyapprox.pde.decomposition.protocols.interface import (
     InterfaceBasisProtocol,
     InterfaceProtocol,
 )
 from pyapprox.pde.decomposition.protocols.subdomain import (
     SubdomainSolverProtocol,
-)
-from pyapprox.pde.decomposition.protocols.decomposition import (
-    DomainDecompositionProtocol,
 )
 
 __all__ = [

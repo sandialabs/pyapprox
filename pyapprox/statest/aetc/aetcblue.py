@@ -4,18 +4,18 @@ This module implements the AETCBLUE class which uses MLBLUEEstimator
 for optimal sample allocation in the exploitation phase.
 """
 
-from typing import Generic, List, Tuple, Optional, Callable, Any, Dict
 from functools import partial
+from typing import Any, Callable, Dict, List, Optional, Tuple
 
-from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.statest.aetc.base import AETC
-from pyapprox.statest.statistics import MultiOutputMean
 from pyapprox.statest.groupacv import (
-    MLBLUEEstimator,
     GroupACVAllocationOptimizer,
     GroupACVAllocationResult,
+    MLBLUEEstimator,
     default_groupacv_optimizer,
 )
+from pyapprox.statest.statistics import MultiOutputMean
+from pyapprox.util.backends.protocols import Array, Backend
 
 
 class AETCBLUE(AETC[Array]):
@@ -133,7 +133,7 @@ class AETCBLUE(AETC[Array]):
         # which is NOT the same as logdet(covariance). Legacy uses
         # k2 = est.optimized_criteria().squeeze() * target_cost
         criteria = est.optimized_criteria()
-        if hasattr(criteria, 'squeeze'):
+        if hasattr(criteria, "squeeze"):
             criteria = criteria.squeeze()
         elif criteria.ndim > 0:
             criteria = criteria.ravel()[0]
@@ -221,9 +221,7 @@ class AETCBLUE(AETC[Array]):
 
         return samples_per_model, best_subset_HF
 
-    def find_exploit_mean(
-        self, values_per_model: List[Array], result: Tuple
-    ) -> Array:
+    def find_exploit_mean(self, values_per_model: List[Array], result: Tuple) -> Array:
         """Compute exploitation mean estimate using MLBLUE.
 
         Parameters
@@ -245,7 +243,7 @@ class AETCBLUE(AETC[Array]):
         # Use MLBLUE estimator to compute the weighted estimate
         product = est(values_per_model)
         # Handle both scalar and array returns
-        if hasattr(product, 'item'):
+        if hasattr(product, "item"):
             product = product.item()
         elif product.ndim > 0:
             product = product.flatten()[0]

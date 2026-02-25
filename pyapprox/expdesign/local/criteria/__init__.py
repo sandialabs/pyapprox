@@ -11,29 +11,29 @@ This module provides optimality criteria for experimental design:
 - R-optimal: Minimize risk-based prediction variance (AVaR)
 """
 
-from .base import LocalOEDCriterionBase
-from .d_optimal import (
-    DOptimalCriterion,
-    DOptimalLeastSquaresCriterion,
-    DOptimalQuantileCriterion,
-)
-from .c_optimal import (
-    COptimalCriterion,
-    COptimalLeastSquaresCriterion,
-    COptimalQuantileCriterion,
-)
 from .a_optimal import (
     AOptimalCriterion,
     AOptimalLeastSquaresCriterion,
     AOptimalQuantileCriterion,
 )
-from .i_optimal import (
-    IOptimalCriterion,
-    IOptimalLeastSquaresCriterion,
+from .base import LocalOEDCriterionBase
+from .c_optimal import (
+    COptimalCriterion,
+    COptimalLeastSquaresCriterion,
+    COptimalQuantileCriterion,
+)
+from .d_optimal import (
+    DOptimalCriterion,
+    DOptimalLeastSquaresCriterion,
+    DOptimalQuantileCriterion,
 )
 from .g_optimal import (
     GOptimalCriterion,
     GOptimalLeastSquaresCriterion,
+)
+from .i_optimal import (
+    IOptimalCriterion,
+    IOptimalLeastSquaresCriterion,
 )
 from .r_optimal import (
     ROptimalCriterion,

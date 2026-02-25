@@ -13,8 +13,8 @@ For heteroscedastic noise:
 
 from typing import Generic
 
-from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.expdesign.local.protocols import DesignMatricesProtocol
+from pyapprox.util.backends.protocols import Array, Backend
 
 from .base import LocalOEDCriterionBase
 

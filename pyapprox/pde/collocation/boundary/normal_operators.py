@@ -9,10 +9,10 @@ Provides operators that compute normal-direction terms at boundary points:
 
 from typing import Generic, List
 
-from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.pde.collocation.protocols.boundary import (
     FluxProviderProtocol,
 )
+from pyapprox.util.backends.protocols import Array, Backend
 
 
 class GradientNormalOperator(Generic[Array]):
@@ -188,10 +188,7 @@ class FluxNormalOperator(Generic[Array]):
         for d, jac_d in enumerate(flux_jac_components):
             for i in range(self._nboundary_pts):
                 idx = int(self._boundary_indices[i])
-                result[i, :] = (
-                    result[i, :]
-                    + self._normals[i, d] * jac_d[idx, :]
-                )
+                result[i, :] = result[i, :] + self._normals[i, d] * jac_d[idx, :]
         return result
 
 
@@ -272,26 +269,14 @@ class TractionNormalOperator(Generic[Array]):
 
             if component == 0:
                 # d(t_x)/d(u)
-                jac[i, :npts] = (
-                    nx_i * lam_2mu * Dx[idx, :]
-                    + ny_i * mu * Dy[idx, :]
-                )
+                jac[i, :npts] = nx_i * lam_2mu * Dx[idx, :] + ny_i * mu * Dy[idx, :]
                 # d(t_x)/d(v)
-                jac[i, npts:] = (
-                    nx_i * lam * Dy[idx, :]
-                    + ny_i * mu * Dx[idx, :]
-                )
+                jac[i, npts:] = nx_i * lam * Dy[idx, :] + ny_i * mu * Dx[idx, :]
             else:
                 # d(t_y)/d(u)
-                jac[i, :npts] = (
-                    nx_i * mu * Dy[idx, :]
-                    + ny_i * lam * Dx[idx, :]
-                )
+                jac[i, :npts] = nx_i * mu * Dy[idx, :] + ny_i * lam * Dx[idx, :]
                 # d(t_y)/d(v)
-                jac[i, npts:] = (
-                    nx_i * mu * Dx[idx, :]
-                    + ny_i * lam_2mu * Dy[idx, :]
-                )
+                jac[i, npts:] = nx_i * mu * Dx[idx, :] + ny_i * lam_2mu * Dy[idx, :]
 
         self._jacobian = jac
 

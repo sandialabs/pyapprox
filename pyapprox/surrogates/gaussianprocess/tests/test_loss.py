@@ -6,24 +6,25 @@ on gradient accuracy using DerivativeChecker.
 """
 
 import unittest
-from typing import Generic, Any
+from typing import Any, Generic
+
 import numpy as np
 import torch
 from numpy.typing import NDArray
 
-from pyapprox.util.backends.protocols import Backend, Array
-from pyapprox.util.backends.numpy import NumpyBkd
-from pyapprox.util.backends.torch import TorchBkd
-from pyapprox.surrogates.kernels.matern import Matern52Kernel
-from pyapprox.surrogates.gaussianprocess import (
-    ExactGaussianProcess,
-    ZeroMean,
-    ConstantMean,
-    NegativeLogMarginalLikelihoodLoss
-)
 from pyapprox.interface.functions.derivative_checks.derivative_checker import (
-    DerivativeChecker
+    DerivativeChecker,
 )
+from pyapprox.surrogates.gaussianprocess import (
+    ConstantMean,
+    ExactGaussianProcess,
+    NegativeLogMarginalLikelihoodLoss,
+    ZeroMean,
+)
+from pyapprox.surrogates.kernels.matern import Matern52Kernel
+from pyapprox.util.backends.numpy import NumpyBkd
+from pyapprox.util.backends.protocols import Array, Backend
+from pyapprox.util.backends.torch import TorchBkd
 
 
 class TestNLMLLoss(Generic[Array], unittest.TestCase):
@@ -43,18 +44,15 @@ class TestNLMLLoss(Generic[Array], unittest.TestCase):
 
         # Create training data
         X_train_np = np.random.randn(self.nvars, self.n_train)
-        y_train_np = np.sin(X_train_np[0, :] + X_train_np[1, :])[None, :]  # Shape: (1, n_train)
+        y_train_np = np.sin(X_train_np[0, :] + X_train_np[1, :])[
+            None, :
+        ]  # Shape: (1, n_train)
 
         self.X_train = self.bkd().array(X_train_np)
         self.y_train = self.bkd().array(y_train_np)
 
         # Create kernel with optimizable hyperparameters
-        self.kernel = Matern52Kernel(
-            [1.0, 1.0],
-            (0.1, 10.0),
-            self.nvars,
-            self.bkd()
-        )
+        self.kernel = Matern52Kernel([1.0, 1.0], (0.1, 10.0), self.nvars, self.bkd())
 
     def bkd(self) -> Backend[Array]:
         """Override in derived classes."""
@@ -62,12 +60,7 @@ class TestNLMLLoss(Generic[Array], unittest.TestCase):
 
     def test_initialization(self) -> None:
         """Test loss initialization."""
-        gp = ExactGaussianProcess(
-            self.kernel,
-            self.nvars,
-            self.bkd(),
-            nugget=0.1
-        )
+        gp = ExactGaussianProcess(self.kernel, self.nvars, self.bkd(), nugget=0.1)
 
         loss = NegativeLogMarginalLikelihoodLoss(gp, self.X_train, self.y_train)
 
@@ -77,12 +70,7 @@ class TestNLMLLoss(Generic[Array], unittest.TestCase):
 
     def test_loss_evaluation(self) -> None:
         """Test basic loss evaluation."""
-        gp = ExactGaussianProcess(
-            self.kernel,
-            self.nvars,
-            self.bkd(),
-            nugget=0.1
-        )
+        gp = ExactGaussianProcess(self.kernel, self.nvars, self.bkd(), nugget=0.1)
 
         loss = NegativeLogMarginalLikelihoodLoss(gp, self.X_train, self.y_train)
 
@@ -101,12 +89,7 @@ class TestNLMLLoss(Generic[Array], unittest.TestCase):
 
     def test_loss_changes_with_hyperparameters(self) -> None:
         """Test that loss changes when hyperparameters change."""
-        gp = ExactGaussianProcess(
-            self.kernel,
-            self.nvars,
-            self.bkd(),
-            nugget=0.1
-        )
+        gp = ExactGaussianProcess(self.kernel, self.nvars, self.bkd(), nugget=0.1)
 
         loss = NegativeLogMarginalLikelihoodLoss(gp, self.X_train, self.y_train)
 
@@ -123,12 +106,7 @@ class TestNLMLLoss(Generic[Array], unittest.TestCase):
 
     def test_jacobian_shape(self) -> None:
         """Test Jacobian output shape."""
-        gp = ExactGaussianProcess(
-            self.kernel,
-            self.nvars,
-            self.bkd(),
-            nugget=0.1
-        )
+        gp = ExactGaussianProcess(self.kernel, self.nvars, self.bkd(), nugget=0.1)
 
         loss = NegativeLogMarginalLikelihoodLoss(gp, self.X_train, self.y_train)
 
@@ -146,7 +124,7 @@ class TestNLMLLoss(Generic[Array], unittest.TestCase):
             self.nvars,
             self.bkd(),
             mean_function=ZeroMean(self.bkd()),
-            nugget=0.1
+            nugget=0.1,
         )
 
         loss = NegativeLogMarginalLikelihoodLoss(gp, self.X_train, self.y_train)
@@ -165,25 +143,33 @@ class TestNLMLLoss(Generic[Array], unittest.TestCase):
             params[:, None],  # Shape: (nactive, 1)
             fd_eps=fd_eps,
             relative=True,
-            verbosity=0
+            verbosity=0,
         )
 
         # Get gradient error (first element of errors list)
         grad_error = errors[0]
 
         # All errors should be finite
-        self.assertTrue(self.bkd().all_bool(self.bkd().isfinite(grad_error)),
-                       "Gradient errors contain non-finite values")
+        self.assertTrue(
+            self.bkd().all_bool(self.bkd().isfinite(grad_error)),
+            "Gradient errors contain non-finite values",
+        )
 
         # Minimum error should be small
         min_error = float(self.bkd().min(grad_error))
-        self.assertLess(min_error, 1e-6,
-                       f"Minimum gradient relative error {min_error} exceeds threshold")
+        self.assertLess(
+            min_error,
+            1e-6,
+            f"Minimum gradient relative error {min_error} exceeds threshold",
+        )
 
         # Error ratio should indicate good convergence
         error_ratio = float(checker.error_ratio(grad_error))
-        self.assertLess(error_ratio, 1e-6,
-                       f"Error ratio {error_ratio:.2e} suggests poor convergence")
+        self.assertLess(
+            error_ratio,
+            1e-6,
+            f"Error ratio {error_ratio:.2e} suggests poor convergence",
+        )
 
     def test_gradient_with_constant_mean(self) -> None:
         """Test gradient computation with ConstantMean function."""
@@ -191,11 +177,7 @@ class TestNLMLLoss(Generic[Array], unittest.TestCase):
         constant_mean = ConstantMean(0.5, (-10.0, 10.0), self.bkd())
 
         gp = ExactGaussianProcess(
-            self.kernel,
-            self.nvars,
-            self.bkd(),
-            mean_function=constant_mean,
-            nugget=0.1
+            self.kernel, self.nvars, self.bkd(), mean_function=constant_mean, nugget=0.1
         )
 
         loss = NegativeLogMarginalLikelihoodLoss(gp, self.X_train, self.y_train)
@@ -214,42 +196,42 @@ class TestNLMLLoss(Generic[Array], unittest.TestCase):
 
         # Check gradient accuracy
         errors = checker.check_derivatives(
-            params[:, None],
-            fd_eps=fd_eps,
-            relative=True,
-            verbosity=0
+            params[:, None], fd_eps=fd_eps, relative=True, verbosity=0
         )
 
         grad_error = errors[0]
 
         # All errors should be finite
-        self.assertTrue(self.bkd().all_bool(self.bkd().isfinite(grad_error)),
-                       "Gradient errors contain non-finite values")
+        self.assertTrue(
+            self.bkd().all_bool(self.bkd().isfinite(grad_error)),
+            "Gradient errors contain non-finite values",
+        )
 
         # Minimum error should be small
         min_error = float(self.bkd().min(grad_error))
-        self.assertLess(min_error, 1e-6,
-                       f"Minimum gradient relative error {min_error} exceeds threshold")
+        self.assertLess(
+            min_error,
+            1e-6,
+            f"Minimum gradient relative error {min_error} exceeds threshold",
+        )
 
         # Error ratio should indicate good convergence
         error_ratio = float(checker.error_ratio(grad_error))
-        self.assertLess(error_ratio, 1e-6,
-                       f"Error ratio {error_ratio:.2e} suggests poor convergence")
+        self.assertLess(
+            error_ratio,
+            1e-6,
+            f"Error ratio {error_ratio:.2e} suggests poor convergence",
+        )
 
     def test_gradient_different_noise_levels(self) -> None:
         """Test gradient with different noise variance levels."""
         for noise_var in [1e-6, 0.01, 0.1, 1.0]:
             with self.subTest(nugget=noise_var):
                 gp = ExactGaussianProcess(
-                    self.kernel,
-                    self.nvars,
-                    self.bkd(),
-                    nugget=noise_var
+                    self.kernel, self.nvars, self.bkd(), nugget=noise_var
                 )
 
-                loss = NegativeLogMarginalLikelihoodLoss(
-                    gp, self.X_train, self.y_train
-                )
+                loss = NegativeLogMarginalLikelihoodLoss(gp, self.X_train, self.y_train)
 
                 params = gp.hyp_list().get_active_values()
                 grad = loss.jacobian(params)
@@ -263,12 +245,7 @@ class TestNLMLLoss(Generic[Array], unittest.TestCase):
         X_small = self.X_train[:, :3]
         y_small = self.y_train[:, :3]  # Shape: (1, 3)
 
-        gp = ExactGaussianProcess(
-            self.kernel,
-            self.nvars,
-            self.bkd(),
-            nugget=0.1
-        )
+        gp = ExactGaussianProcess(self.kernel, self.nvars, self.bkd(), nugget=0.1)
 
         loss = NegativeLogMarginalLikelihoodLoss(gp, X_small, y_small)
 
@@ -280,10 +257,7 @@ class TestNLMLLoss(Generic[Array], unittest.TestCase):
         fd_eps = self.bkd().flip(self.bkd().logspace(-14, 0, 15))
 
         errors = checker.check_derivatives(
-            params[:, None],
-            fd_eps=fd_eps,
-            relative=True,
-            verbosity=0
+            params[:, None], fd_eps=fd_eps, relative=True, verbosity=0
         )
 
         grad_error = errors[0]
@@ -304,12 +278,7 @@ class TestNLMLLoss(Generic[Array], unittest.TestCase):
             np.sin(X_large_np[0, :] + X_large_np[1, :])[None, :]  # Shape: (1, 50)
         )
 
-        gp = ExactGaussianProcess(
-            self.kernel,
-            self.nvars,
-            self.bkd(),
-            nugget=0.1
-        )
+        gp = ExactGaussianProcess(self.kernel, self.nvars, self.bkd(), nugget=0.1)
 
         loss = NegativeLogMarginalLikelihoodLoss(gp, X_large, y_large)
 
@@ -321,10 +290,7 @@ class TestNLMLLoss(Generic[Array], unittest.TestCase):
         fd_eps = self.bkd().flip(self.bkd().logspace(-14, 0, 15))
 
         errors = checker.check_derivatives(
-            params[:, None],
-            fd_eps=fd_eps,
-            relative=True,
-            verbosity=0
+            params[:, None], fd_eps=fd_eps, relative=True, verbosity=0
         )
 
         grad_error = errors[0]
@@ -338,12 +304,7 @@ class TestNLMLLoss(Generic[Array], unittest.TestCase):
 
     def test_repr(self) -> None:
         """Test string representation."""
-        gp = ExactGaussianProcess(
-            self.kernel,
-            self.nvars,
-            self.bkd(),
-            nugget=0.1
-        )
+        gp = ExactGaussianProcess(self.kernel, self.nvars, self.bkd(), nugget=0.1)
 
         loss = NegativeLogMarginalLikelihoodLoss(gp, self.X_train, self.y_train)
 
@@ -375,7 +336,6 @@ class TestNLMLLossTorch(TestNLMLLoss[torch.Tensor]):
 
 
 from pyapprox.util.test_utils import load_tests  # noqa: F401
-
 
 if __name__ == "__main__":
     loader = unittest.TestLoader()

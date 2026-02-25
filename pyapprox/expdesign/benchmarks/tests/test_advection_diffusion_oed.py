@@ -8,12 +8,11 @@ import unittest
 
 import numpy as np
 
-from pyapprox.util.backends.numpy import NumpyBkd
-from pyapprox.util.test_utils import load_tests, slow_test  # noqa: F401
-
 from pyapprox.expdesign.benchmarks.advection_diffusion import (
     ObstructedAdvectionDiffusionOEDBenchmark,
 )
+from pyapprox.util.backends.numpy import NumpyBkd
+from pyapprox.util.test_utils import load_tests, slow_test  # noqa: F401
 
 
 class TestAdvectionDiffusionOEDBenchmark(unittest.TestCase):

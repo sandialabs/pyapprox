@@ -9,10 +9,10 @@ from typing import Generic
 
 import numpy as np
 
-from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.probability.covariance import OperatorBasedCovarianceOperator
-from pyapprox.probability.protocols import SqrtCovarianceOperatorProtocol
 from pyapprox.probability.gaussian.core import GaussianLogPDFCore
+from pyapprox.probability.protocols import SqrtCovarianceOperatorProtocol
+from pyapprox.util.backends.protocols import Array, Backend
 
 
 class OperatorBasedMultivariateGaussian(Generic[Array]):
@@ -66,9 +66,7 @@ class OperatorBasedMultivariateGaussian(Generic[Array]):
 
         # Validate mean shape
         if mean.shape != (self._nvars, 1):
-            raise ValueError(
-                f"mean must have shape (nvars, 1), got {mean.shape}"
-            )
+            raise ValueError(f"mean must have shape (nvars, 1), got {mean.shape}")
 
         # Validate covariance operator dimension
         if cov_op.nvars() != self._nvars:
@@ -179,9 +177,7 @@ class OperatorBasedMultivariateGaussian(Generic[Array]):
             Random samples. Shape: (nvars, nsamples)
         """
         # Generate standard normal samples
-        std_normal = self._bkd.asarray(
-            np.random.normal(0, 1, (self._nvars, nsamples))
-        )
+        std_normal = self._bkd.asarray(np.random.normal(0, 1, (self._nvars, nsamples)))
         # Transform: L @ z + mean
         return self._cov_op.apply(std_normal) + self._mean
 

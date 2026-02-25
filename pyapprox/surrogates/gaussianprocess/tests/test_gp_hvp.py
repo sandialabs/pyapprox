@@ -9,9 +9,13 @@ import numpy as np
 import torch
 from numpy.typing import NDArray
 
-from pyapprox.util.backends.numpy import NumpyBkd
-from pyapprox.util.backends.torch import TorchBkd
-from pyapprox.util.backends.protocols import Array
+from pyapprox.interface.functions.derivative_checks.derivative_checker import (
+    DerivativeChecker,
+)
+from pyapprox.interface.functions.fromcallable.hessian import (
+    FunctionWithJacobianAndHVPFromCallable,
+)
+from pyapprox.surrogates.gaussianprocess import ExactGaussianProcess
 from pyapprox.surrogates.kernels import (
     Matern32Kernel,
     Matern52Kernel,
@@ -19,16 +23,9 @@ from pyapprox.surrogates.kernels import (
 )
 from pyapprox.surrogates.kernels.iid_gaussian_noise import IIDGaussianNoise
 from pyapprox.surrogates.kernels.scalings import PolynomialScaling
-from pyapprox.surrogates.gaussianprocess import ExactGaussianProcess
-from pyapprox.interface.functions.derivative_checks.derivative_checker import (
-    DerivativeChecker
-)
-from pyapprox.interface.functions.fromcallable.hessian import (
-    FunctionWithJacobianAndHVPFromCallable
-)
-
-
-from pyapprox.util.test_utils import load_tests
+from pyapprox.util.backends.numpy import NumpyBkd
+from pyapprox.util.backends.protocols import Array
+from pyapprox.util.backends.torch import TorchBkd
 
 
 class TestGPHVP(Generic[Array], unittest.TestCase):
@@ -53,20 +50,19 @@ class TestGPHVP(Generic[Array], unittest.TestCase):
             lenscale=length_scale,
             lenscale_bounds=(0.1, 10.0),
             nvars=self._nvars,
-            bkd=self._bkd
+            bkd=self._bkd,
         )
 
         # Create GP
         self._gp = ExactGaussianProcess(
-            kernel=self._kernel,
-            nvars=self._nvars,
-            bkd=self._bkd,
-            nugget=0.01
+            kernel=self._kernel, nvars=self._nvars, bkd=self._bkd, nugget=0.01
         )
 
         # Generate training data
         X_train = self._bkd.array(np.random.randn(self._nvars, self._n_train))
-        y_train = self._bkd.array(np.random.randn(1, self._n_train))  # Shape: (1, n_train)
+        y_train = self._bkd.array(
+            np.random.randn(1, self._n_train)
+        )  # Shape: (1, n_train)
 
         # Fit GP
         self._gp.fit(X_train, y_train)
@@ -92,12 +88,11 @@ class TestGPHVP(Generic[Array], unittest.TestCase):
         hvp2 = self._gp.hvp(x, v * a)
 
         # hvp2 should be a * hvp1
-        self.assertTrue(
-            self._bkd.allclose(hvp2, hvp1 * a, rtol=1e-6, atol=1e-8)
-        )
+        self.assertTrue(self._bkd.allclose(hvp2, hvp1 * a, rtol=1e-6, atol=1e-8))
 
     def test_hvp_with_derivative_checker(self):
         """Test HVP using DerivativeChecker with finite differences."""
+
         # Create a function wrapper for the GP
         def value_function(x):
             # x shape: (nvars, 1)
@@ -125,7 +120,7 @@ class TestGPHVP(Generic[Array], unittest.TestCase):
             fun=value_function,
             jacobian=jacobian_function,
             hvp=hvp_function,
-            bkd=self._bkd
+            bkd=self._bkd,
         )
 
         # Create derivative checker
@@ -139,25 +134,18 @@ class TestGPHVP(Generic[Array], unittest.TestCase):
 
         # Check derivatives
         errors = checker.check_derivatives(
-            x0,
-            fd_eps=fd_eps,
-            relative=True,
-            verbosity=0
+            x0, fd_eps=fd_eps, relative=True, verbosity=0
         )
 
         # Verify Jacobian is correct
         jac_error = errors[0]
-        self.assertTrue(
-            self._bkd.all_bool(self._bkd.isfinite(jac_error))
-        )
+        self.assertTrue(self._bkd.all_bool(self._bkd.isfinite(jac_error)))
         jac_ratio = float(checker.error_ratio(jac_error))
         self.assertLess(jac_ratio, 1e-6, f"Jacobian error ratio: {jac_ratio}")
 
         # Verify HVP is correct
         hvp_error = errors[1]
-        self.assertTrue(
-            self._bkd.all_bool(self._bkd.isfinite(hvp_error))
-        )
+        self.assertTrue(self._bkd.all_bool(self._bkd.isfinite(hvp_error)))
         hvp_ratio = float(checker.error_ratio(hvp_error))
         self.assertLess(hvp_ratio, 1e-6, f"HVP error ratio: {hvp_ratio}")
 
@@ -174,15 +162,12 @@ class TestGPHVP(Generic[Array], unittest.TestCase):
 
         # Each row should match single-sample computation
         for i in range(3):
-            x_i = X[:, i:i+1]
-            v_i = V[:, i:i+1]
+            x_i = X[:, i : i + 1]
+            v_i = V[:, i : i + 1]
             hvp_i_single = self._gp.hvp(x_i, v_i)  # (nvars, 1)
 
             self._bkd.assert_allclose(
-                hvp[i, :],
-                hvp_i_single[:, 0],
-                rtol=1e-10,
-                atol=1e-12
+                hvp[i, :], hvp_i_single[:, 0], rtol=1e-10, atol=1e-12
             )
 
     def test_hvp_zero_direction(self):
@@ -194,9 +179,7 @@ class TestGPHVP(Generic[Array], unittest.TestCase):
 
         # Should be zero
         zero_hvp = self._bkd.zeros((self._nvars, 1))
-        self.assertTrue(
-            self._bkd.allclose(hvp, zero_hvp, atol=1e-12)
-        )
+        self.assertTrue(self._bkd.allclose(hvp, zero_hvp, atol=1e-12))
 
     def test_hvp_coordinate_directions(self):
         """Test HVP in coordinate directions."""
@@ -225,9 +208,7 @@ class TestGPHVP(Generic[Array], unittest.TestCase):
         """Test that HVP raises error when GP not fitted."""
         # Create unfitted GP
         gp_unfitted = ExactGaussianProcess(
-            kernel=self._kernel,
-            nvars=self._nvars,
-            bkd=self._bkd
+            kernel=self._kernel, nvars=self._nvars, bkd=self._bkd
         )
 
         x = self._bkd.array([[0.5], [0.5]])
@@ -273,21 +254,23 @@ class TestGPHVPCompositionKernels(Generic[Array], unittest.TestCase):
 
         # Create sample data
         self.X_train = self._bkd.array(np.random.randn(self.nvars, self.n_train))
-        self.y_train = self._bkd.array(np.random.randn(1, self.n_train))  # Shape: (1, n_train)
+        self.y_train = self._bkd.array(
+            np.random.randn(1, self.n_train)
+        )  # Shape: (1, n_train)
 
     def _create_matern_kernel(self, nu: float):
         """Create Matern kernel for given nu value."""
         if nu == 1.5:
             return Matern32Kernel(
-                [1.0]*self.nvars, (0.1, 10.0), self.nvars, self._bkd
+                [1.0] * self.nvars, (0.1, 10.0), self.nvars, self._bkd
             )
         elif nu == 2.5:
             return Matern52Kernel(
-                [1.0]*self.nvars, (0.1, 10.0), self.nvars, self._bkd
+                [1.0] * self.nvars, (0.1, 10.0), self.nvars, self._bkd
             )
         elif nu == np.inf:
             return SquaredExponentialKernel(
-                [1.0]*self.nvars, (0.1, 10.0), self.nvars, self._bkd
+                [1.0] * self.nvars, (0.1, 10.0), self.nvars, self._bkd
             )
         else:
             raise ValueError(f"Unsupported nu value: {nu}")
@@ -333,7 +316,7 @@ class TestGPHVPCompositionKernels(Generic[Array], unittest.TestCase):
             fun=mean_func,
             jacobian=jac_func,
             hvp=lambda x, v: gp.hvp(x, v),
-            bkd=self._bkd
+            bkd=self._bkd,
         )
 
         checker = DerivativeChecker(func_with_hvp)
@@ -341,17 +324,13 @@ class TestGPHVPCompositionKernels(Generic[Array], unittest.TestCase):
 
         # Verify Jacobian is correct
         jac_error = errors[0]
-        self.assertTrue(
-            self._bkd.all_bool(self._bkd.isfinite(jac_error))
-        )
+        self.assertTrue(self._bkd.all_bool(self._bkd.isfinite(jac_error)))
         jac_ratio = float(checker.error_ratio(jac_error))
         self.assertLess(jac_ratio, 2e-6, f"Jacobian error ratio: {jac_ratio}")
 
         # Verify HVP is correct
         hvp_error = errors[1]
-        self.assertTrue(
-            self._bkd.all_bool(self._bkd.isfinite(hvp_error))
-        )
+        self.assertTrue(self._bkd.all_bool(self._bkd.isfinite(hvp_error)))
         hvp_ratio = float(checker.error_ratio(hvp_error))
         self.assertLess(hvp_ratio, 2e-6, f"HVP error ratio: {hvp_ratio}")
 

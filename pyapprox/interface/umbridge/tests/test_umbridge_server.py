@@ -8,8 +8,8 @@ Run this file directly to start the server:
 from typing import Any, Dict, List
 
 try:
-    import umbridge
     import numpy as np
+    import umbridge
 
     UMBRIDGE_AVAILABLE = True
 except ImportError:

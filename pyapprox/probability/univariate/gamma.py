@@ -5,22 +5,20 @@ Provides an analytically-defined Gamma distribution that implements
 MarginalWithJacobianProtocol with full autograd support.
 """
 
-from typing import Generic, Any, Tuple, Optional
 import math
+from typing import Any, Generic, Optional, Tuple
 
 import numpy as np
-from scipy import special
 
-from pyapprox.util.backends.protocols import Array, Backend
-from pyapprox.util.hyperparameter import (
-    LogHyperParameter,
-    HyperParameterList,
+from pyapprox.optimization.rootfinding.newton import (
+    NewtonSolver,
 )
 from pyapprox.probability.protocols import UniformQuadratureRule01Protocol
 from pyapprox.probability.univariate.beta import ScipyGaussLegendreQuadrature01
-from pyapprox.optimization.rootfinding.newton import (
-    NewtonSolver,
-    NewtonSolverResidualProtocol,
+from pyapprox.util.backends.protocols import Array, Backend
+from pyapprox.util.hyperparameter import (
+    HyperParameterList,
+    LogHyperParameter,
 )
 
 
@@ -184,8 +182,10 @@ class GammaMarginal(Generic[Array]):
             integral_val = float(self._bkd.to_numpy(integral))
             raise ValueError(
                 f"Quadrature rule does not integrate Lebesgue measure on [0, 1]. "
-                f"Expected integral of x^2 to be {expected:.10f}, got {integral_val:.10f}. "
-                f"Ensure the quadrature rule has points in [0, 1] and weights sum to 1."
+                f"Expected integral of x^2 to be "
+                f"{expected:.10f}, got {integral_val:.10f}. "
+                "Ensure the quadrature rule has points "
+                "in [0, 1] and weights sum to 1."
             )
 
     def _setup_newton_solver(self) -> None:

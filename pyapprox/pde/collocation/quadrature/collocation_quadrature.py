@@ -8,7 +8,6 @@ ChebyshevCollocationBasis._set_quadrature_weights_at_mesh_pts().
 
 from typing import Generic, cast
 
-from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.pde.collocation.basis.chebyshev.basis_1d import (
     ChebyshevBasis1D,
 )
@@ -21,6 +20,7 @@ from pyapprox.surrogates.affine.univariate.globalpoly.jacobi import (
 from pyapprox.surrogates.affine.univariate.globalpoly.quadrature import (
     GaussQuadratureRule,
 )
+from pyapprox.util.backends.protocols import Array, Backend
 
 
 class CollocationQuadrature1D(Generic[Array]):
@@ -43,9 +43,7 @@ class CollocationQuadrature1D(Generic[Array]):
         Computational backend.
     """
 
-    def __init__(
-        self, basis: ChebyshevBasis1D[Array], bkd: Backend[Array]
-    ) -> None:
+    def __init__(self, basis: ChebyshevBasis1D[Array], bkd: Backend[Array]) -> None:
         self._bkd = bkd
         self._basis = basis
         self._ref_nodes = basis.nodes()  # shape (npts,)
@@ -58,7 +56,7 @@ class CollocationQuadrature1D(Generic[Array]):
         poly.set_nterms(n_gl)
         gl_rule = GaussQuadratureRule(poly)
         gl_pts, gl_wts = gl_rule(n_gl)
-        self._gl_pts = gl_pts[0, :]       # shape (n_gl,)
+        self._gl_pts = gl_pts[0, :]  # shape (n_gl,)
         self._gl_wts = gl_wts[:, 0] * 2.0  # probability -> Lebesgue
 
     def bkd(self) -> Backend[Array]:
@@ -91,9 +89,7 @@ class CollocationQuadrature1D(Generic[Array]):
             xi_a = xi_a_arr[0, 0]
             xi_b = xi_b_arr[0, 0]
             # Jacobian determinant (constant for affine)
-            jac_det = transform.jacobian_determinant(
-                bkd.asarray([[0.0]])
-            )[0]
+            jac_det = transform.jacobian_determinant(bkd.asarray([[0.0]]))[0]
         else:
             xi_a = a_sub
             xi_b = b_sub

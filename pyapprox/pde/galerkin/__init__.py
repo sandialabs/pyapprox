@@ -12,70 +12,62 @@ the weak formulation with mass matrices: M*du/dt = F(u,t) instead of
 the strong form du/dt = f(u,t).
 """
 
-from pyapprox.pde.galerkin.protocols import (
-    # Mesh protocols
-    GalerkinMeshProtocol,
-    StructuredMeshProtocol,
-    # Basis protocols
-    GalerkinBasisProtocol,
-    VectorBasisProtocol,
-    # Physics protocols
-    GalerkinPhysicsProtocol,
-    # Boundary condition protocols
-    BoundaryConditionProtocol,
-    DirichletBCProtocol,
-    NeumannBCProtocol,
-    RobinBCProtocol,
+from pyapprox.pde.galerkin.basis import (
+    LagrangeBasis,
+    VectorLagrangeBasis,
 )
-
+from pyapprox.pde.galerkin.bilaplacian import BiLaplacianPrior
+from pyapprox.pde.galerkin.boundary import (
+    CallableDirichletBC,
+    DirectDirichletBC,
+)
 from pyapprox.pde.galerkin.mesh import (
     StructuredMesh1D,
     StructuredMesh2D,
     StructuredMesh3D,
     UnstructuredMesh2D,
 )
-
-from pyapprox.pde.galerkin.basis import (
-    LagrangeBasis,
-    VectorLagrangeBasis,
-)
-
 from pyapprox.pde.galerkin.physics import (
-    GalerkinBCMixin,
-    GalerkinPhysicsBase,
-    ScalarMassAssembler,
     AdvectionDiffusionReaction,
-    LinearAdvectionDiffusionReaction,
     BurgersPhysics,
-    Helmholtz,
-    CompositeLinearElasticity,
-    LinearElasticity,
-    HyperelasticityPhysics,
     CompositeHyperelasticityPhysics,
+    CompositeLinearElasticity,
     EulerBernoulliBeamAnalytical,
     EulerBernoulliBeamFEM,
+    GalerkinBCMixin,
+    GalerkinPhysicsBase,
+    Helmholtz,
+    HyperelasticityPhysics,
+    LinearAdvectionDiffusionReaction,
+    LinearElasticity,
+    ScalarMassAssembler,
     StokesPhysics,
 )
-
-from pyapprox.pde.galerkin.bilaplacian import BiLaplacianPrior
-
-from pyapprox.pde.galerkin.boundary import (
-    DirectDirichletBC,
-    CallableDirichletBC,
+from pyapprox.pde.galerkin.postprocessing import (
+    strain_from_displacement_2d,
+    stress_from_strain_2d,
+    von_mises_stress_2d,
 )
-
-from pyapprox.pde.galerkin.time_integration import (
-    GalerkinPhysicsODEAdapter,
+from pyapprox.pde.galerkin.protocols import (
+    # Boundary condition protocols
+    BoundaryConditionProtocol,
+    DirichletBCProtocol,
+    # Basis protocols
+    GalerkinBasisProtocol,
+    # Mesh protocols
+    GalerkinMeshProtocol,
+    # Physics protocols
+    GalerkinPhysicsProtocol,
+    NeumannBCProtocol,
+    RobinBCProtocol,
+    StructuredMeshProtocol,
+    VectorBasisProtocol,
 )
-
 from pyapprox.pde.galerkin.solvers import (
     SteadyStateSolver,
 )
-
-from pyapprox.pde.galerkin.postprocessing import (
-    von_mises_stress_2d,
-    strain_from_displacement_2d,
-    stress_from_strain_2d,
+from pyapprox.pde.galerkin.time_integration import (
+    GalerkinPhysicsODEAdapter,
 )
 
 __all__ = [

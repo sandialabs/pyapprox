@@ -2,30 +2,29 @@
 
 import math
 import unittest
-from typing import Generic, Any
+from typing import Any, Generic
 
 import numpy as np
-from numpy.typing import NDArray
 import torch
+from numpy.typing import NDArray
 
-from pyapprox.util.backends.protocols import Array, Backend
-from pyapprox.util.backends.numpy import NumpyBkd
-from pyapprox.util.backends.torch import TorchBkd
-from pyapprox.util.test_utils import load_tests  # noqa: F401
 from pyapprox.interface.functions.derivative_checks.derivative_checker import (
     DerivativeChecker,
 )
 from pyapprox.interface.functions.fromcallable.jacobian import (
     FunctionWithJacobianFromCallable,
 )
-from pyapprox.pde.field_maps.protocol import (
-    FieldMapProtocol,
-)
 from pyapprox.pde.field_maps.basis_expansion import (
     BasisExpansion,
 )
+from pyapprox.pde.field_maps.kle_factory import (
+    create_lognormal_kle_field_map,
+)
 from pyapprox.pde.field_maps.mesh_kle_field_map import (
     MeshKLEFieldMap,
+)
+from pyapprox.pde.field_maps.protocol import (
+    FieldMapProtocol,
 )
 from pyapprox.pde.field_maps.scalar import (
     ScalarAmplitude,
@@ -33,9 +32,10 @@ from pyapprox.pde.field_maps.scalar import (
 from pyapprox.pde.field_maps.transformed import (
     TransformedFieldMap,
 )
-from pyapprox.pde.field_maps.kle_factory import (
-    create_lognormal_kle_field_map,
-)
+from pyapprox.util.backends.numpy import NumpyBkd
+from pyapprox.util.backends.protocols import Array, Backend
+from pyapprox.util.backends.torch import TorchBkd
+from pyapprox.util.test_utils import load_tests  # noqa: F401
 
 
 class TestFieldMaps(Generic[Array], unittest.TestCase):
@@ -167,7 +167,7 @@ class TestFieldMaps(Generic[Array], unittest.TestCase):
     def test_mesh_kle_field_map_isinstance(self) -> None:
         """MeshKLEFieldMap satisfies FieldMapProtocol."""
         bkd = self._bkd
-        npts, nterms = 4, 2
+        _npts, _nterms = 4, 2
         mean = bkd.array([1.0, 2.0, 3.0, 4.0])
         W = bkd.array([[2.0, 0.0], [0.0, 1.0], [0.0, 0.0], [0.0, 0.0]])
         fm = MeshKLEFieldMap(bkd, mean, W)
@@ -206,11 +206,16 @@ class TestFieldMaps(Generic[Array], unittest.TestCase):
     def test_mesh_kle_field_map_jacobian_fd(self) -> None:
         """MeshKLEFieldMap.jacobian matches FD via DerivativeChecker."""
         bkd = self._bkd
-        npts, nterms = 5, 2
-        W = bkd.array([
-            [1.0, 0.5], [0.3, -0.2], [0.0, 1.0],
-            [-0.5, 0.1], [0.8, 0.4],
-        ])
+        npts, _nterms = 5, 2
+        W = bkd.array(
+            [
+                [1.0, 0.5],
+                [0.3, -0.2],
+                [0.0, 1.0],
+                [-0.5, 0.1],
+                [0.8, 0.4],
+            ]
+        )
         mean = bkd.linspace(0.0, 1.0, npts)
         fm = MeshKLEFieldMap(bkd, mean, W)
 
@@ -341,8 +346,11 @@ class TestFieldMaps(Generic[Array], unittest.TestCase):
         mesh_coords = bkd.linspace(0.0, 1.0, npts)[None, :]  # (1, npts)
         mean_log = bkd.zeros((npts,))
         tfm = create_lognormal_kle_field_map(
-            mesh_coords, mean_log, bkd,
-            num_kle_terms=num_kle_terms, sigma=0.3,
+            mesh_coords,
+            mean_log,
+            bkd,
+            num_kle_terms=num_kle_terms,
+            sigma=0.3,
         )
         self.assertEqual(tfm.nvars(), num_kle_terms)
         self.assertTrue(isinstance(tfm, FieldMapProtocol))
@@ -357,8 +365,11 @@ class TestFieldMaps(Generic[Array], unittest.TestCase):
         mesh_coords = bkd.linspace(0.0, 1.0, npts)[None, :]
         mean_log = bkd.array([0.5, 1.0, 0.2, -0.1, 0.3, 0.8, 0.0, -0.5])
         tfm = create_lognormal_kle_field_map(
-            mesh_coords, mean_log, bkd,
-            num_kle_terms=2, sigma=0.3,
+            mesh_coords,
+            mean_log,
+            bkd,
+            num_kle_terms=2,
+            sigma=0.3,
         )
         params = bkd.zeros((2,))
         result = tfm(params)
@@ -372,8 +383,11 @@ class TestFieldMaps(Generic[Array], unittest.TestCase):
         mesh_coords = bkd.linspace(0.0, 1.0, npts)[None, :]
         mean_log = bkd.zeros((npts,))
         tfm = create_lognormal_kle_field_map(
-            mesh_coords, mean_log, bkd,
-            num_kle_terms=2, sigma=0.5,
+            mesh_coords,
+            mean_log,
+            bkd,
+            num_kle_terms=2,
+            sigma=0.5,
         )
         np.random.seed(42)
         for _ in range(5):
@@ -390,8 +404,11 @@ class TestFieldMaps(Generic[Array], unittest.TestCase):
         mesh_coords = bkd.linspace(0.0, 1.0, npts)[None, :]
         mean_log = bkd.full((npts,), 0.5)
         tfm = create_lognormal_kle_field_map(
-            mesh_coords, mean_log, bkd,
-            num_kle_terms=num_kle_terms, sigma=0.3,
+            mesh_coords,
+            mean_log,
+            bkd,
+            num_kle_terms=num_kle_terms,
+            sigma=0.3,
         )
 
         wrapper = FunctionWithJacobianFromCallable(
@@ -487,8 +504,11 @@ class TestFieldMapsTorch(TestFieldMaps[torch.Tensor]):
         mesh_coords = bkd.linspace(0.0, 1.0, npts)[None, :]
         mean_log = bkd.full((npts,), 0.5)
         tfm = create_lognormal_kle_field_map(
-            mesh_coords, mean_log, bkd,
-            num_kle_terms=num_kle_terms, sigma=0.3,
+            mesh_coords,
+            mean_log,
+            bkd,
+            num_kle_terms=num_kle_terms,
+            sigma=0.3,
         )
 
         params = torch.tensor([0.3, -0.2], dtype=torch.float64)

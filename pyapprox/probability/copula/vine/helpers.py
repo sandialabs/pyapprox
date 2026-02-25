@@ -122,9 +122,7 @@ def correlation_from_partial_correlations(
 
     for t in range(1, nvars):
         for e in range(nvars - t):
-            if t in partial_correlations and e < len(
-                partial_correlations[t]
-            ):
+            if t in partial_correlations and e < len(partial_correlations[t]):
                 rho_partial = partial_correlations[t][e]
             else:
                 rho_partial = 0.0
@@ -146,9 +144,7 @@ def correlation_from_partial_correlations(
                 b = r_tS @ R_inner_inv @ r_tS
                 c = r_0S @ R_inner_inv @ r_tS
 
-                r = c + rho_partial * bkd.sqrt(
-                    (1.0 - a) * (1.0 - b)
-                )
+                r = c + rho_partial * bkd.sqrt((1.0 - a) * (1.0 - b))
                 R[e, e + t] = r
                 R[e + t, e] = r
 

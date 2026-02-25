@@ -17,22 +17,22 @@ from typing import Generic, Optional
 
 import numpy as np
 
-from pyapprox.util.backends.protocols import Array, Backend
-from pyapprox.surrogates.affine.protocols import BasisExpansionProtocol
-from pyapprox.surrogates.affine.expansions.fitters.results import (
-    DirectSolverResult,
-)
-from pyapprox.surrogates.affine.expansions.fitters.least_squares import (
-    LeastSquaresFitter,
+from pyapprox.optimization.minimize.differentiable_approximations import (
+    DifferentiableApproximationBase,
+    SmoothLogBasedLeftHeavisideFunction,
+    SmoothLogBasedMaxFunction,
 )
 from pyapprox.optimization.minimize.scipy.trust_constr import (
     ScipyTrustConstrOptimizer,
 )
-from pyapprox.optimization.minimize.differentiable_approximations import (
-    SmoothLogBasedMaxFunction,
-    SmoothLogBasedLeftHeavisideFunction,
-    DifferentiableApproximationBase,
+from pyapprox.surrogates.affine.expansions.fitters.least_squares import (
+    LeastSquaresFitter,
 )
+from pyapprox.surrogates.affine.expansions.fitters.results import (
+    DirectSolverResult,
+)
+from pyapprox.surrogates.affine.protocols import BasisExpansionProtocol
+from pyapprox.util.backends.protocols import Array, Backend
 
 
 class FSDObjective(Generic[Array]):
@@ -355,12 +355,13 @@ class StochasticDominanceConstraint(Generic[Array]):
 
         # h''(f_m - f_n) term
         diff_surrogate = surrogate_values - f_n.T  # (nsamples, nconstraints)
-        hder2_surr = self._smooth_func.second_derivative(diff_surrogate.T)  # (ncons, nsamp)
+        hder2_surr = self._smooth_func.second_derivative(
+            diff_surrogate.T
+        )  # (ncons, nsamp)
 
         # fder1: (nconstraints, nsamples, nterms)
         fder1 = (
-            surrogate_jac[None, :, :]
-            - surrogate_jac[self._constraint_indices, None, :]
+            surrogate_jac[None, :, :] - surrogate_jac[self._constraint_indices, None, :]
         )
 
         # Compute Phi @ v for each sample
@@ -486,9 +487,7 @@ class FSDFitter(Generic[Array]):
             values = bkd.reshape(values, (1, -1))
 
         if values.shape[0] != 1:
-            raise ValueError(
-                f"FSDFitter only supports nqoi=1, got {values.shape[0]}"
-            )
+            raise ValueError(f"FSDFitter only supports nqoi=1, got {values.shape[0]}")
 
         # Get basis matrix: (nsamples, nterms)
         Phi = expansion.basis_matrix(samples)
@@ -647,9 +646,7 @@ class SSDFitter(Generic[Array]):
             values = bkd.reshape(values, (1, -1))
 
         if values.shape[0] != 1:
-            raise ValueError(
-                f"SSDFitter only supports nqoi=1, got {values.shape[0]}"
-            )
+            raise ValueError(f"SSDFitter only supports nqoi=1, got {values.shape[0]}")
 
         # Get basis matrix: (nsamples, nterms)
         Phi = expansion.basis_matrix(samples)

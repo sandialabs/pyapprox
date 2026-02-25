@@ -28,8 +28,8 @@ Mathematical Reference
 See docs/plans/gp_integration/04_marginalization.qmd for derivations.
 """
 
-from typing import Generic, Sequence, List
-from pyapprox.util.backends.protocols import Array, Backend
+from typing import Generic, List, Sequence
+
 from pyapprox.surrogates.gaussianprocess.protocols import (
     PredictiveGPProtocol,
 )
@@ -40,6 +40,7 @@ from pyapprox.surrogates.gaussianprocess.statistics.integrals_1d import (
     compute_tau_1d,
     compute_u_1d,
 )
+from pyapprox.util.backends.protocols import Array, Backend
 
 
 class MarginalizedGP(Generic[Array]):
@@ -54,7 +55,8 @@ class MarginalizedGP(Generic[Array]):
 
     The marginalized GP has:
     - Mean: m̃*(z_p) = (t_p(z_p) ⊙ τ_~p)^T A^{-1} y
-    - Variance: C̃*(z_p, z_p) = u_~p · C_p(z_p, z_p) - (t_p(z_p) ⊙ τ_~p)^T A^{-1} (t_p(z_p) ⊙ τ_~p)
+    - Variance: C̃*(z_p, z_p) = u_~p · C_p(z_p, z_p) - (t_p(z_p) ⊙ τ_~p)^T A^{-1}
+    (t_p(z_p) ⊙ τ_~p)
 
     where:
     - p is the set of active dimensions (kept)
@@ -149,9 +151,7 @@ class MarginalizedGP(Generic[Array]):
             raise ValueError("active_dims must not be empty")
 
         if len(active_dims_list) != len(set(active_dims_list)):
-            raise ValueError(
-                f"active_dims contains duplicates: {active_dims_list}"
-            )
+            raise ValueError(f"active_dims contains duplicates: {active_dims_list}")
 
         for dim in active_dims_list:
             if dim < 0 or dim >= nvars:
@@ -249,7 +249,7 @@ class MarginalizedGP(Generic[Array]):
                 self._calc._quad_weights[dim],
                 self._calc._get_train_samples_1d(dim),
                 self._calc._get_kernel_callable(dim),
-                bkd
+                bkd,
             )
             tau_not_p = tau_not_p * tau_1d
 
@@ -275,7 +275,7 @@ class MarginalizedGP(Generic[Array]):
                 self._calc._quad_samples[dim],
                 self._calc._quad_weights[dim],
                 self._calc._get_kernel_callable(dim),
-                bkd
+                bkd,
             )
             u_not_p = u_not_p * u_1d
 
@@ -312,7 +312,7 @@ class MarginalizedGP(Generic[Array]):
             train_samples_1d = self._calc._get_train_samples_1d(dim)
 
             # Get test samples in this dimension: shape (1, n_test)
-            z_dim = z_p[idx:idx+1, :]
+            z_dim = z_p[idx : idx + 1, :]
 
             # Compute kernel for this dimension: shape (n_test, N)
             t_dim = kernel_1d(z_dim, train_samples_1d)
@@ -378,7 +378,7 @@ class MarginalizedGP(Generic[Array]):
             kernel_1d = self._calc._get_kernel_callable(dim)
 
             # Get test samples in this dimension: shape (1, n_test)
-            z_dim = z_p[idx:idx+1, :]
+            z_dim = z_p[idx : idx + 1, :]
 
             # Compute kernel diagonal: C_k(z, z) for each test point
             # kernel returns (n_test, n_test), we need the diagonal

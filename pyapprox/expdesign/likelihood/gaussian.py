@@ -8,12 +8,12 @@ including vectorized evaluation and Jacobians w.r.t. design weights.
 import math
 from typing import Generic, Optional
 
-from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.expdesign.likelihood.dispatch import (
-    get_logpdf_matrix_impl,
-    get_jacobian_matrix_impl,
     get_evidence_jacobian_impl,
+    get_jacobian_matrix_impl,
+    get_logpdf_matrix_impl,
 )
+from pyapprox.util.backends.protocols import Array, Backend
 
 
 class GaussianOEDOuterLoopLikelihood(Generic[Array]):
@@ -149,10 +149,10 @@ class GaussianOEDOuterLoopLikelihood(Generic[Array]):
         """
         if self._design_weights is None:
             raise ValueError("Must call set_design_weights first")
-        # log|Cov| = sum(log(base_var / weights)) = sum(log(base_var)) - sum(log(weights))
-        log_det = (
-            self._bkd.sum(self._bkd.log(self._base_variances))
-            - self._bkd.sum(self._bkd.log(self._design_weights))
+        # log|Cov| = sum(log(base_var / weights)) = sum(log(base_var)) -
+        # sum(log(weights))
+        log_det = self._bkd.sum(self._bkd.log(self._base_variances)) - self._bkd.sum(
+            self._bkd.log(self._design_weights)
         )
         const = self._bkd.asarray(-0.5 * self._nobs * math.log(2 * math.pi))
         return const - 0.5 * log_det
@@ -180,9 +180,7 @@ class GaussianOEDOuterLoopLikelihood(Generic[Array]):
         log_norm = self._compute_log_normalization()
 
         # Squared Mahalanobis distance: sum_i (residual_i^2 * inv_var_i)
-        squared_dist = self._bkd.sum(
-            self._residuals**2 * inv_var[:, None], axis=0
-        )
+        squared_dist = self._bkd.sum(self._residuals**2 * inv_var[:, None], axis=0)
 
         result = log_norm - 0.5 * squared_dist
         return self._bkd.reshape(result, (1, -1))
@@ -192,7 +190,8 @@ class GaussianOEDOuterLoopLikelihood(Generic[Array]):
         Jacobian of log-likelihood w.r.t. design weights.
 
         The Jacobian has two components:
-        1. Quadratic term: d/dw (-0.5 * r^2 / (var/w)) = 0.5 * r^2 * w / var^2 * (-var/w^2)
+        1. Quadratic term: d/dw (-0.5 * r^2 / (var/w)) = 0.5 * r^2 * w / var^2 *
+        (-var/w^2)
                                                        = -0.5 * r^2 / (var * w)
         2. Determinant term: d/dw (-0.5 * log(var/w)) = 0.5 / w
         3. Reparameterization term (if using reparam trick)
@@ -212,7 +211,7 @@ class GaussianOEDOuterLoopLikelihood(Generic[Array]):
         if self._residuals is None:
             raise ValueError("Must call set_shapes and set_observations first")
 
-        inv_var = self._compute_weighted_inv_variance()
+        self._compute_weighted_inv_variance()
 
         # Component 1: Quadratic term
         # d/dw_k log p = d/dw_k (-0.5 * sum_i r_i^2 * w_i / var_i)
@@ -234,7 +233,10 @@ class GaussianOEDOuterLoopLikelihood(Generic[Array]):
             jac = jac + 0.5 * (
                 self._residuals.T
                 * self._latent_samples.T
-                / (self._bkd.sqrt(self._base_variances) * self._bkd.sqrt(design_weights.T))
+                / (
+                    self._bkd.sqrt(self._base_variances)
+                    * self._bkd.sqrt(design_weights.T)
+                )
             )
 
         return jac
@@ -386,8 +388,11 @@ class GaussianOEDInnerLoopLikelihood(Generic[Array]):
             raise ValueError("Must call set_shapes and set_observations first")
 
         return self._logpdf_impl(
-            self._shapes, self._observations, self._base_variances,
-            design_weights, self._bkd,
+            self._shapes,
+            self._observations,
+            self._base_variances,
+            design_weights,
+            self._bkd,
         )
 
     def jacobian_matrix(self, design_weights: Array) -> Array:
@@ -409,8 +414,12 @@ class GaussianOEDInnerLoopLikelihood(Generic[Array]):
             raise ValueError("Must call set_shapes and set_observations first")
 
         return self._jacobian_impl(
-            self._shapes, self._observations, self._latent_samples,
-            self._base_variances, design_weights, self._bkd,
+            self._shapes,
+            self._observations,
+            self._latent_samples,
+            self._base_variances,
+            design_weights,
+            self._bkd,
         )
 
     def evidence_jacobian(
@@ -442,8 +451,12 @@ class GaussianOEDInnerLoopLikelihood(Generic[Array]):
             raise ValueError("Must call set_shapes and set_observations first")
 
         return self._evidence_jacobian_impl(
-            self._shapes, self._observations, self._latent_samples,
-            self._base_variances, design_weights, quad_weighted_like,
+            self._shapes,
+            self._observations,
+            self._latent_samples,
+            self._base_variances,
+            design_weights,
+            quad_weighted_like,
             self._bkd,
         )
 

@@ -2,6 +2,7 @@
 
 Ported from pyapprox.multifidelity._optim to remove legacy dependency.
 """
+
 from __future__ import annotations
 
 from functools import reduce
@@ -13,37 +14,31 @@ from numpy.typing import NDArray
 
 
 class ModelTree:
-    def __init__(
-        self, root: int, children: list | NDArray = []
-    ) -> None:
-        if type(children) == np.ndarray:
+    def __init__(self, root: int, children: list | NDArray = []) -> None:
+        if isinstance(children, np.ndarray):
             children = list(children)
         self.children: list = children
         for ii in range(len(self.children)):
-            if type(self.children[ii]) != ModelTree:
+            if not isinstance(self.children[ii], ModelTree):
                 self.children[ii] = ModelTree(self.children[ii])
         self.root = root
 
     def num_nodes(self) -> int:
         nnodes = 1
         for child in self.children:
-            if type(child) == ModelTree:
+            if isinstance(child, ModelTree):
                 nnodes += child.num_nodes()
             else:
                 nnodes += 1
         return nnodes
 
     def to_index(self) -> NDArray:
-        index: List[Optional[int]] = [
-            None for ii in range(self.num_nodes())
-        ]
+        index: List[Optional[int]] = [None for ii in range(self.num_nodes())]
         index[0] = self.root
         self._to_index_recusive(index, self)
         return np.array(index)
 
-    def _to_index_recusive(
-        self, index: List[Optional[int]], root: ModelTree
-    ) -> None:
+    def _to_index_recusive(self, index: List[Optional[int]], root: ModelTree) -> None:
         for child in root.children:
             index[child.root] = root.root
             self._to_index_recusive(index, child)

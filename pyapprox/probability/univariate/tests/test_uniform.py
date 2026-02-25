@@ -6,21 +6,14 @@ import unittest
 from typing import Any, Generic
 
 import numpy as np
+import torch
 from numpy.typing import NDArray
 from scipy import stats
-import torch
 
-from pyapprox.util.backends.protocols import Array, Backend
-from pyapprox.util.backends.numpy import NumpyBkd
-from pyapprox.util.backends.torch import TorchBkd
-from pyapprox.util.test_utils import load_tests
 from pyapprox.probability.univariate import UniformMarginal
-from pyapprox.interface.functions.derivative_checks.derivative_checker import (
-    DerivativeChecker,
-)
-from pyapprox.interface.functions.fromcallable.jacobian import (
-    FunctionWithJacobianFromCallable,
-)
+from pyapprox.util.backends.numpy import NumpyBkd
+from pyapprox.util.backends.protocols import Array, Backend
+from pyapprox.util.backends.torch import TorchBkd
 
 
 class TestUniformMarginal(Generic[Array], unittest.TestCase):
@@ -36,7 +29,9 @@ class TestUniformMarginal(Generic[Array], unittest.TestCase):
         self._lower = -1.0
         self._upper = 2.0
         self._dist = UniformMarginal(self._lower, self._upper, self._bkd)
-        self._scipy_dist = stats.uniform(loc=self._lower, scale=self._upper - self._lower)
+        self._scipy_dist = stats.uniform(
+            loc=self._lower, scale=self._upper - self._lower
+        )
 
     def test_nvars(self) -> None:
         """Test nvars returns 1."""
@@ -92,7 +87,9 @@ class TestUniformMarginal(Generic[Array], unittest.TestCase):
         """Test invcdf matches scipy ppf."""
         probs = self._bkd.asarray([[0.0, 0.25, 0.5, 0.75, 1.0]])
         invcdf_vals = self._dist.invcdf(probs)
-        expected = self._bkd.asarray([self._scipy_dist.ppf([0.0, 0.25, 0.5, 0.75, 1.0])])
+        expected = self._bkd.asarray(
+            [self._scipy_dist.ppf([0.0, 0.25, 0.5, 0.75, 1.0])]
+        )
         self.assertTrue(self._bkd.allclose(invcdf_vals, expected, rtol=1e-10))
 
     def test_cdf_invcdf_inverse(self) -> None:
@@ -287,7 +284,9 @@ class TestUniformMarginal(Generic[Array], unittest.TestCase):
         """Test ppf is alias for invcdf."""
         probs = self._bkd.asarray([[0.25, 0.5, 0.75]])
         self.assertTrue(
-            self._bkd.allclose(self._dist.ppf(probs), self._dist.invcdf(probs), rtol=1e-10)
+            self._bkd.allclose(
+                self._dist.ppf(probs), self._dist.invcdf(probs), rtol=1e-10
+            )
         )
 
 

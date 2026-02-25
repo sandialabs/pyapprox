@@ -38,9 +38,7 @@ class PivotedQRFactorizer(Generic[Array]):
         """Return the computational backend."""
         return self._bkd
 
-    def factorize(
-        self, matrix: Array, k: int = None
-    ) -> Tuple[Array, Array, Array]:
+    def factorize(self, matrix: Array, k: int = None) -> Tuple[Array, Array, Array]:
         """Perform pivoted QR factorization.
 
         Computes A[:, pivots] = Q @ R with column pivoting.
@@ -67,9 +65,7 @@ class PivotedQRFactorizer(Generic[Array]):
         import scipy.linalg
 
         mat_np = self._bkd.to_numpy(matrix)
-        Q_np, R_np, pivots_np = scipy.linalg.qr(
-            mat_np, pivoting=True, mode='economic'
-        )
+        Q_np, R_np, pivots_np = scipy.linalg.qr(mat_np, pivoting=True, mode="economic")
 
         Q = self._bkd.asarray(Q_np)
         R = self._bkd.asarray(R_np)

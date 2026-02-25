@@ -7,10 +7,9 @@ and identically distributed Gaussian noise in Gaussian process regression.
 
 from typing import Tuple
 
-from pyapprox.util.hyperparameter import LogHyperParameter
-from pyapprox.util.hyperparameter import HyperParameterList
-from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.surrogates.kernels.protocols import Kernel
+from pyapprox.util.backends.protocols import Array, Backend
+from pyapprox.util.hyperparameter import HyperParameterList, LogHyperParameter
 
 
 class IIDGaussianNoise(Kernel):
@@ -221,7 +220,8 @@ class IIDGaussianNoise(Kernel):
         ∂K/∂θ = σ² * I
         ∂²K/∂θ² = σ² * I
 
-        Since there's only one parameter, HVP is just the Hessian times the scalar direction.
+        Since there's only one parameter, HVP is just the Hessian times the scalar
+        direction.
 
         Parameters
         ----------

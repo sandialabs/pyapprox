@@ -95,13 +95,11 @@ class PolynomialModelFunction(Generic[Array]):
         """
         if sample.shape[1] != 1:
             raise ValueError(
-                f"hvp expects single sample with shape (1, 1), "
-                f"got shape {sample.shape}"
+                f"hvp expects single sample with shape (1, 1), got shape {sample.shape}"
             )
         if vec.shape[1] != 1:
             raise ValueError(
-                f"hvp expects direction vector with shape (1, 1), "
-                f"got shape {vec.shape}"
+                f"hvp expects direction vector with shape (1, 1), got shape {vec.shape}"
             )
         x = sample[0, 0]
         v = vec[0, 0]
@@ -157,8 +155,7 @@ class PolynomialEnsemble(Generic[Array]):
         self._nmodels = nmodels
         # Create models: degrees 5, 4, 3, 2, 1 for nmodels=5
         self._models = [
-            PolynomialModelFunction(bkd, degree=nmodels - k)
-            for k in range(nmodels)
+            PolynomialModelFunction(bkd, degree=nmodels - k) for k in range(nmodels)
         ]
 
     def bkd(self) -> Backend[Array]:

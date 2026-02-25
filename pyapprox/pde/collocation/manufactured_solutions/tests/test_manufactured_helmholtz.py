@@ -26,29 +26,30 @@ import torch
 from numpy.typing import NDArray
 from unittest_parametrize import ParametrizedTestCase, parametrize
 
-from pyapprox.util.backends.protocols import Array, Backend
-from pyapprox.util.backends.numpy import NumpyBkd
-from pyapprox.util.backends.torch import TorchBkd
-from pyapprox.util.test_utils import load_tests  # noqa: F401
+from pyapprox.interface.functions.derivative_checks.derivative_checker import (
+    DerivativeChecker,
+)
 from pyapprox.pde.collocation.basis import (
     ChebyshevBasis1D,
     ChebyshevBasis2D,
 )
-from pyapprox.pde.collocation.mesh import (
-    create_uniform_mesh_1d,
-    create_uniform_mesh_2d,
-
-    TransformedMesh1D, TransformedMesh2D,)
 from pyapprox.pde.collocation.boundary import (
     zero_dirichlet_bc,
 )
-from pyapprox.pde.collocation.physics import HelmholtzPhysics
 from pyapprox.pde.collocation.manufactured_solutions import (
     ManufacturedHelmholtz,
 )
-from pyapprox.interface.functions.derivative_checks.derivative_checker import (
-    DerivativeChecker,
+from pyapprox.pde.collocation.mesh import (
+    TransformedMesh1D,
+    TransformedMesh2D,
+    create_uniform_mesh_1d,
+    create_uniform_mesh_2d,
 )
+from pyapprox.pde.collocation.physics import HelmholtzPhysics
+from pyapprox.util.backends.numpy import NumpyBkd
+from pyapprox.util.backends.protocols import Array, Backend
+from pyapprox.util.backends.torch import TorchBkd
+from pyapprox.util.test_utils import load_tests  # noqa: F401
 
 
 class PhysicsDerivativeWrapper(Generic[Array]):
@@ -80,9 +81,11 @@ class PhysicsDerivativeWrapper(Generic[Array]):
         # samples shape: (nvars, nsamples), return (nqoi, nsamples)
         if samples.ndim == 2:
             return self._backend.stack(
-                [self._physics.residual(samples[:, i], self._time)
-                 for i in range(samples.shape[1])],
-                axis=1
+                [
+                    self._physics.residual(samples[:, i], self._time)
+                    for i in range(samples.shape[1])
+                ],
+                axis=1,
             )
         # Single sample: return (nqoi, 1)
         return self._physics.residual(samples, self._time).reshape(-1, 1)
@@ -205,9 +208,7 @@ class TestManufacturedHelmholtz2D(Generic[Array], unittest.TestCase):
         mesh = TransformedMesh2D(npts_x, npts_y, bkd)
 
         basis = ChebyshevBasis2D(mesh, bkd)
-        mesh = create_uniform_mesh_2d(
-            (npts_x, npts_y), (-1.0, 1.0, -1.0, 1.0), bkd
-        )
+        mesh = create_uniform_mesh_2d((npts_x, npts_y), (-1.0, 1.0, -1.0, 1.0), bkd)
 
         k2 = 1.0
         man_sol = ManufacturedHelmholtz(
@@ -220,7 +221,7 @@ class TestManufacturedHelmholtz2D(Generic[Array], unittest.TestCase):
 
         nodes_x = basis.nodes_x()
         nodes_y = basis.nodes_y()
-        xx, yy = bkd.meshgrid(nodes_x, nodes_y, indexing='xy')
+        xx, yy = bkd.meshgrid(nodes_x, nodes_y, indexing="xy")
         nodes = bkd.stack([xx.flatten(), yy.flatten()], axis=0)
         u_exact = man_sol.functions["solution"](nodes)
         forcing = man_sol.functions["forcing"](nodes)
@@ -246,12 +247,8 @@ class TestManufacturedHelmholtz2D(Generic[Array], unittest.TestCase):
         for side in range(4):
             for idx in mesh.boundary_indices(side):
                 boundary_indices.add(int(idx))
-        interior_indices = [
-            i for i in range(basis.npts()) if i not in boundary_indices
-        ]
-        interior_residual = bkd.asarray(
-            [residual_with_bc[i] for i in interior_indices]
-        )
+        interior_indices = [i for i in range(basis.npts()) if i not in boundary_indices]
+        interior_residual = bkd.asarray([residual_with_bc[i] for i in interior_indices])
 
         bkd.assert_allclose(
             interior_residual, bkd.zeros(interior_residual.shape), atol=1e-10
@@ -339,9 +336,7 @@ class TestHelmholtz2DParameterized(ParametrizedTestCase):
         mesh = TransformedMesh2D(npts_x, npts_y, bkd)
 
         basis = ChebyshevBasis2D(mesh, bkd)
-        mesh = create_uniform_mesh_2d(
-            (npts_x, npts_y), (-1.0, 1.0, -1.0, 1.0), bkd
-        )
+        mesh = create_uniform_mesh_2d((npts_x, npts_y), (-1.0, 1.0, -1.0, 1.0), bkd)
 
         man_sol = ManufacturedHelmholtz(
             sol_str=sol_str,
@@ -353,7 +348,7 @@ class TestHelmholtz2DParameterized(ParametrizedTestCase):
 
         nodes_x = basis.nodes_x()
         nodes_y = basis.nodes_y()
-        xx, yy = bkd.meshgrid(nodes_x, nodes_y, indexing='xy')
+        xx, yy = bkd.meshgrid(nodes_x, nodes_y, indexing="xy")
         nodes = bkd.stack([xx.flatten(), yy.flatten()], axis=0)
         u_exact = man_sol.functions["solution"](nodes)
         forcing = man_sol.functions["forcing"](nodes)
@@ -379,12 +374,8 @@ class TestHelmholtz2DParameterized(ParametrizedTestCase):
         for side in range(4):
             for idx in mesh.boundary_indices(side):
                 boundary_indices.add(int(idx))
-        interior_indices = [
-            i for i in range(basis.npts()) if i not in boundary_indices
-        ]
-        interior_residual = bkd.asarray(
-            [residual_with_bc[i] for i in interior_indices]
-        )
+        interior_indices = [i for i in range(basis.npts()) if i not in boundary_indices]
+        interior_residual = bkd.asarray([residual_with_bc[i] for i in interior_indices])
 
         bkd.assert_allclose(
             interior_residual,

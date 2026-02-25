@@ -6,18 +6,17 @@ import unittest
 from typing import Any, Generic
 
 import numpy as np
-from numpy.typing import NDArray
 import torch
+from numpy.typing import NDArray
 
-from pyapprox.util.backends.protocols import Array, Backend
-from pyapprox.util.backends.numpy import NumpyBkd
-from pyapprox.util.backends.torch import TorchBkd
-from pyapprox.inverse.bayesnet.network import GaussianNetwork
 from pyapprox.inverse.bayesnet.inference import (
-    cond_prob_variable_elimination,
     compute_marginal,
     compute_posterior,
 )
+from pyapprox.inverse.bayesnet.network import GaussianNetwork
+from pyapprox.util.backends.numpy import NumpyBkd
+from pyapprox.util.backends.protocols import Array, Backend
+from pyapprox.util.backends.torch import TorchBkd
 
 
 class TestVariableEliminationBase(Generic[Array], unittest.TestCase):
@@ -34,14 +33,17 @@ class TestVariableEliminationBase(Generic[Array], unittest.TestCase):
 
         # X0 ~ N(0, 1)
         network.add_node(
-            0, nvars=1,
+            0,
+            nvars=1,
             prior_mean=self.bkd().asarray(np.array([0.0])),
             prior_cov=self.bkd().asarray(np.array([[1.0]])),
         )
 
         # X1 = X0 + noise, noise ~ N(0, 0.5)
         network.add_node(
-            1, nvars=1, parents=[0],
+            1,
+            nvars=1,
+            parents=[0],
             cpd_coefficients=[self.bkd().asarray(np.array([[1.0]]))],
             cpd_offset=self.bkd().asarray(np.array([0.0])),
             cpd_noise_cov=self.bkd().asarray(np.array([[0.5]])),
@@ -58,12 +60,8 @@ class TestVariableEliminationBase(Generic[Array], unittest.TestCase):
         mean, cov = marginal.to_moments()
 
         # X0 ~ N(0, 1)
-        np.testing.assert_allclose(
-            self.bkd().to_numpy(mean), [0.0], rtol=1e-6
-        )
-        np.testing.assert_allclose(
-            self.bkd().to_numpy(cov), [[1.0]], rtol=1e-6
-        )
+        np.testing.assert_allclose(self.bkd().to_numpy(mean), [0.0], rtol=1e-6)
+        np.testing.assert_allclose(self.bkd().to_numpy(cov), [[1.0]], rtol=1e-6)
 
     def test_compute_marginal_child(self) -> None:
         """Test computing marginal of child node."""
@@ -76,12 +74,8 @@ class TestVariableEliminationBase(Generic[Array], unittest.TestCase):
         # X1 = X0 + noise
         # E[X1] = E[X0] = 0
         # Var[X1] = Var[X0] + Var[noise] = 1 + 0.5 = 1.5
-        np.testing.assert_allclose(
-            self.bkd().to_numpy(mean), [0.0], rtol=1e-6
-        )
-        np.testing.assert_allclose(
-            self.bkd().to_numpy(cov), [[1.5]], rtol=1e-6
-        )
+        np.testing.assert_allclose(self.bkd().to_numpy(mean), [0.0], rtol=1e-6)
+        np.testing.assert_allclose(self.bkd().to_numpy(cov), [[1.5]], rtol=1e-6)
 
     def test_compute_joint(self) -> None:
         """Test computing joint distribution."""
@@ -92,9 +86,7 @@ class TestVariableEliminationBase(Generic[Array], unittest.TestCase):
         mean, cov = joint.to_moments()
 
         # Joint mean
-        np.testing.assert_allclose(
-            self.bkd().to_numpy(mean), [0.0, 0.0], rtol=1e-6
-        )
+        np.testing.assert_allclose(self.bkd().to_numpy(mean), [0.0, 0.0], rtol=1e-6)
 
         # Joint covariance:
         # Var[X0] = 1
@@ -140,21 +132,26 @@ class TestVariableEliminationBase(Generic[Array], unittest.TestCase):
 
         # X0 ~ N(0, 1)
         network.add_node(
-            0, nvars=1,
+            0,
+            nvars=1,
             prior_mean=self.bkd().asarray(np.array([0.0])),
             prior_cov=self.bkd().asarray(np.array([[1.0]])),
         )
 
         # X1 = X0 + noise1
         network.add_node(
-            1, nvars=1, parents=[0],
+            1,
+            nvars=1,
+            parents=[0],
             cpd_coefficients=[self.bkd().asarray(np.array([[1.0]]))],
             cpd_noise_cov=self.bkd().asarray(np.array([[0.5]])),
         )
 
         # X2 = X1 + noise2
         network.add_node(
-            2, nvars=1, parents=[1],
+            2,
+            nvars=1,
+            parents=[1],
             cpd_coefficients=[self.bkd().asarray(np.array([[1.0]]))],
             cpd_noise_cov=self.bkd().asarray(np.array([[0.5]])),
         )
@@ -178,7 +175,9 @@ class TestVariableEliminationBase(Generic[Array], unittest.TestCase):
 
         # Add another node for richer example
         network.add_node(
-            2, nvars=1, parents=[1],
+            2,
+            nvars=1,
+            parents=[1],
             cpd_coefficients=[self.bkd().asarray(np.array([[1.0]]))],
             cpd_noise_cov=self.bkd().asarray(np.array([[0.5]])),
         )
@@ -201,19 +200,23 @@ class TestVariableEliminationBase(Generic[Array], unittest.TestCase):
 
         # Two independent roots
         network.add_node(
-            0, nvars=1,
+            0,
+            nvars=1,
             prior_mean=self.bkd().asarray(np.array([0.0])),
             prior_cov=self.bkd().asarray(np.array([[1.0]])),
         )
         network.add_node(
-            1, nvars=1,
+            1,
+            nvars=1,
             prior_mean=self.bkd().asarray(np.array([0.0])),
             prior_cov=self.bkd().asarray(np.array([[1.0]])),
         )
 
         # X2 = X0 + X1 + noise
         network.add_node(
-            2, nvars=1, parents=[0, 1],
+            2,
+            nvars=1,
+            parents=[0, 1],
             cpd_coefficients=[
                 self.bkd().asarray(np.array([[1.0]])),
                 self.bkd().asarray(np.array([[1.0]])),
@@ -247,12 +250,15 @@ class TestVariableEliminationBase(Generic[Array], unittest.TestCase):
         noise_var = 0.5
 
         network.add_node(
-            0, nvars=1,
+            0,
+            nvars=1,
             prior_mean=self.bkd().asarray(np.array([0.0])),
             prior_cov=self.bkd().asarray(np.array([[prior_var]])),
         )
         network.add_node(
-            1, nvars=1, parents=[0],
+            1,
+            nvars=1,
+            parents=[0],
             cpd_coefficients=[self.bkd().asarray(np.array([[1.0]]))],
             cpd_noise_cov=self.bkd().asarray(np.array([[noise_var]])),
         )
@@ -305,9 +311,6 @@ class TestVariableEliminationTorch(TestVariableEliminationBase[torch.Tensor]):
 
     def bkd(self) -> TorchBkd:
         return self._bkd
-
-
-from pyapprox.util.test_utils import load_tests
 
 
 if __name__ == "__main__":

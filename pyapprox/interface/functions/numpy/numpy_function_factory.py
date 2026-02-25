@@ -1,23 +1,22 @@
-from typing import Union, overload, cast
+from typing import Union, cast, overload
 
-from pyapprox.util.backends.protocols import Array
+from pyapprox.interface.functions.numpy.wrappers import (
+    NumpyFunctionWithJacobianAndHVPWrapper,
+    NumpyFunctionWithJacobianAndWHVPWrapper,
+    NumpyFunctionWithJacobianWrapper,
+    NumpyFunctionWrapper,
+)
 from pyapprox.interface.functions.protocols.function import (
     FunctionProtocol,
-)
-from pyapprox.interface.functions.protocols.jacobian import (
-    FunctionWithJacobianProtocol,
 )
 from pyapprox.interface.functions.protocols.hessian import (
     FunctionWithJacobianAndHVPProtocol,
     FunctionWithJacobianAndWHVPProtocol,
 )
-from pyapprox.interface.functions.numpy.wrappers import (
-    NumpyFunctionWrapper,
-    NumpyFunctionWithJacobianWrapper,
-    NumpyFunctionWithJacobianAndHVPWrapper,
-    NumpyFunctionWithJacobianAndWHVPWrapper,
+from pyapprox.interface.functions.protocols.jacobian import (
+    FunctionWithJacobianProtocol,
 )
-
+from pyapprox.util.backends.protocols import Array
 
 # The type checker (e.g., mypy) processes overloads from top
 # to bottom, and it uses the first matching overload to determine
@@ -53,7 +52,9 @@ def numpy_function_wrapper_factory(
 ) -> NumpyFunctionWrapper[Array]: ...
 
 
-def numpy_function_wrapper_factory(function: FunctionProtocol[Array]) -> Union[
+def numpy_function_wrapper_factory(
+    function: FunctionProtocol[Array],
+) -> Union[
     NumpyFunctionWrapper[Array],
     NumpyFunctionWithJacobianWrapper[Array],
     NumpyFunctionWithJacobianAndHVPWrapper[Array],

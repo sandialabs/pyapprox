@@ -15,17 +15,17 @@ from pyapprox.surrogates.functiontrain.pce_core import (
 from pyapprox.surrogates.functiontrain.pce_functiontrain import (
     PCEFunctionTrain,
 )
+from pyapprox.surrogates.functiontrain.statistics.marginalization import (
+    FunctionTrainMarginalization,
+    all_marginals_1d,
+    marginal_1d,
+    marginal_2d,
+)
 from pyapprox.surrogates.functiontrain.statistics.moments import (
     FunctionTrainMoments,
 )
 from pyapprox.surrogates.functiontrain.statistics.sensitivity import (
     FunctionTrainSensitivity,
-)
-from pyapprox.surrogates.functiontrain.statistics.marginalization import (
-    FunctionTrainMarginalization,
-    marginal_1d,
-    marginal_2d,
-    all_marginals_1d,
 )
 
 __all__ = [

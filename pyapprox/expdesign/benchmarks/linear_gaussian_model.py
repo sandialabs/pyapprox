@@ -27,7 +27,6 @@ from typing import Generic, Optional
 
 import numpy as np
 
-from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.interface.functions.fromcallable.function import (
     FunctionFromCallable,
 )
@@ -37,6 +36,7 @@ from pyapprox.inverse.conjugate.gaussian import (
 from pyapprox.probability.gaussian import (
     DenseCholeskyMultivariateGaussian,
 )
+from pyapprox.util.backends.protocols import Array, Backend
 
 
 class LinearGaussianOEDModel(Generic[Array]):
@@ -155,7 +155,9 @@ class LinearGaussianOEDModel(Generic[Array]):
     def prior(self) -> DenseCholeskyMultivariateGaussian[Array]:
         """Return the prior as a Gaussian distribution."""
         return DenseCholeskyMultivariateGaussian(
-            self._prior_mean, self._prior_covariance, self._bkd,
+            self._prior_mean,
+            self._prior_covariance,
+            self._bkd,
         )
 
     def observation_model(self) -> FunctionFromCallable[Array]:
@@ -171,7 +173,10 @@ class LinearGaussianOEDModel(Generic[Array]):
             return bkd.dot(A, samples)
 
         return FunctionFromCallable(
-            self._nobs, self._nparams, _obs_fun, bkd,
+            self._nobs,
+            self._nparams,
+            _obs_fun,
+            bkd,
         )
 
     def exact_eig(self, weights: Array) -> float:

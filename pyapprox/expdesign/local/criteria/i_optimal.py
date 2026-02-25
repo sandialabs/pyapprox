@@ -10,9 +10,9 @@ where B = integral phi(x) @ phi(x)^T dP(x) is the integrated basis matrix.
 
 from typing import Generic, Optional
 
-from pyapprox.util.backends.protocols import Array, Backend
-from pyapprox.expdesign.local.protocols import DesignMatricesProtocol
 from pyapprox.expdesign.local.adjoint import AdjointModel
+from pyapprox.expdesign.local.protocols import DesignMatricesProtocol
+from pyapprox.util.backends.protocols import Array, Backend
 
 from .base import LocalOEDCriterionBase
 

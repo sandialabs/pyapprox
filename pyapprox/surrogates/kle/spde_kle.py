@@ -65,7 +65,7 @@ the boundary mass :math:`M_\partial` is a lower-order correction that does
 not affect the interior eigenvalues at leading order.
 """
 
-from typing import Generic, Optional, Union
+from typing import Generic, Union
 
 import numpy as np
 
@@ -162,9 +162,7 @@ class SPDEMaternKLE(Generic[Array]):
         if coef.ndim != 2:
             raise ValueError(f"coef.ndim={coef.ndim} but should be 2")
         if coef.shape[0] != self._nterms:
-            raise ValueError(
-                f"coef.shape[0]={coef.shape[0]} != nterms={self._nterms}"
-            )
+            raise ValueError(f"coef.shape[0]={coef.shape[0]} != nterms={self._nterms}")
         return self._mean_field[:, None] + self._eig_vecs @ coef
 
     def bkd(self) -> Backend[Array]:
@@ -217,7 +215,7 @@ class SPDEMaternKLE(Generic[Array]):
         """
         # weighted_eigvecs already includes sqrt(lam)*sigma
         # so sum of squares gives sigma^2 * sum(lam_k * phi_k^2)
-        return self._bkd.sum(self._eig_vecs ** 2, axis=1)
+        return self._bkd.sum(self._eig_vecs**2, axis=1)
 
     def __repr__(self) -> str:
         return (

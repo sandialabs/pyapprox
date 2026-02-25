@@ -9,14 +9,14 @@ from typing import Generic, List
 
 import numpy as np
 
-from pyapprox.util.backends.protocols import Array, Backend
-from pyapprox.surrogates.affine.expansions.pce import (
-    PolynomialChaosExpansion,
-)
+from pyapprox.interface.functions.marginalize import ReducedFunction
 from pyapprox.surrogates.affine.basis import (
     OrthonormalPolynomialBasis,
 )
-from pyapprox.interface.functions.marginalize import ReducedFunction
+from pyapprox.surrogates.affine.expansions.pce import (
+    PolynomialChaosExpansion,
+)
+from pyapprox.util.backends.protocols import Array, Backend
 
 
 class PCEDimensionReducer(Generic[Array]):
@@ -57,9 +57,7 @@ class PCEDimensionReducer(Generic[Array]):
         """Return the number of quantities of interest."""
         return self._pce.nqoi()
 
-    def reduce(
-        self, keep_indices: List[int]
-    ) -> ReducedFunction[Array]:
+    def reduce(self, keep_indices: List[int]) -> ReducedFunction[Array]:
         """Reduce to the specified variables via analytical marginalization.
 
         Parameters
@@ -78,9 +76,7 @@ class PCEDimensionReducer(Generic[Array]):
             len(keep_indices), self.nqoi(), reduced_pce.__call__, self._bkd
         )
 
-    def reduce_pce(
-        self, keep_indices: List[int]
-    ) -> PolynomialChaosExpansion[Array]:
+    def reduce_pce(self, keep_indices: List[int]) -> PolynomialChaosExpansion[Array]:
         """Build a reduced PCE by marginalizing out non-kept variables.
 
         Parameters
@@ -100,9 +96,7 @@ class PCEDimensionReducer(Generic[Array]):
         coef = pce.get_coefficients()  # (nterms, nqoi)
         nvars = pce.nvars()
 
-        marginalize_indices = sorted(
-            set(range(nvars)) - set(keep_indices)
-        )
+        marginalize_indices = sorted(set(range(nvars)) - set(keep_indices))
 
         if not marginalize_indices:
             return pce
@@ -114,14 +108,12 @@ class PCEDimensionReducer(Generic[Array]):
         # Find surviving terms: all marginalized dims must have degree 0
         surviving_mask = np.ones(indices_np.shape[1], dtype=bool)
         for dim in marginalize_indices:
-            surviving_mask &= (indices_np[dim, :] == 0)
+            surviving_mask &= indices_np[dim, :] == 0
 
         surviving_idx = np.where(surviving_mask)[0]
 
         # Sub-indices for kept dims only: (n_keep, n_surviving)
-        sub_indices_np = indices_np[np.array(keep_indices), :][
-            :, surviving_idx
-        ]
+        sub_indices_np = indices_np[np.array(keep_indices), :][:, surviving_idx]
         sub_indices = bkd.asarray(sub_indices_np, dtype=bkd.int64_dtype())
 
         # Sub-coefficients: (n_surviving, nqoi)
@@ -135,9 +127,7 @@ class PCEDimensionReducer(Generic[Array]):
         sub_basis = OrthonormalPolynomialBasis(sub_bases_1d, bkd, sub_indices)
 
         # Build new PCE with sub-basis and sub-coefficients
-        sub_pce = PolynomialChaosExpansion(
-            sub_basis, bkd, nqoi=pce.nqoi()
-        )
+        sub_pce = PolynomialChaosExpansion(sub_basis, bkd, nqoi=pce.nqoi())
         sub_pce.set_coefficients(sub_coef)
 
         return sub_pce

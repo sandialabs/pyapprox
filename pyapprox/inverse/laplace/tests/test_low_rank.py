@@ -3,18 +3,18 @@ Tests for low-rank Laplace posterior.
 """
 
 import unittest
-from typing import Generic, Any
+from typing import Any, Generic
 
 import numpy as np
-from numpy.typing import NDArray
 import torch
+from numpy.typing import NDArray
 
-from pyapprox.util.backends.protocols import Array, Backend
-from pyapprox.util.backends.numpy import NumpyBkd
-from pyapprox.util.backends.torch import TorchBkd
-from pyapprox.probability.covariance import DenseCholeskyCovarianceOperator
-from pyapprox.inverse.laplace.low_rank import LowRankLaplacePosterior
 from pyapprox.inverse.laplace.full_rank import DenseLaplacePosterior
+from pyapprox.inverse.laplace.low_rank import LowRankLaplacePosterior
+from pyapprox.probability.covariance import DenseCholeskyCovarianceOperator
+from pyapprox.util.backends.numpy import NumpyBkd
+from pyapprox.util.backends.protocols import Array, Backend
+from pyapprox.util.backends.torch import TorchBkd
 
 
 class TestLowRankLaplacePosteriorBase(Generic[Array], unittest.TestCase):
@@ -40,11 +40,14 @@ class TestLowRankLaplacePosteriorBase(Generic[Array], unittest.TestCase):
         # Misfit Hessian (symmetric positive semi-definite)
         # Create a low-rank Hessian for testing
         # Use numpy array to ensure float64 dtype
-        V_np = np.array([
-            [1.0, 0.5, 0.0, 0.0, 0.0],
-            [0.5, 1.0, 0.3, 0.0, 0.0],
-            [0.0, 0.3, 1.0, 0.0, 0.0],
-        ], dtype=np.float64).T
+        V_np = np.array(
+            [
+                [1.0, 0.5, 0.0, 0.0, 0.0],
+                [0.5, 1.0, 0.3, 0.0, 0.0],
+                [0.0, 0.3, 1.0, 0.0, 0.0],
+            ],
+            dtype=np.float64,
+        ).T
         D_np = np.diag(np.array([3.0, 2.0, 1.0], dtype=np.float64))
         hess_np = V_np @ D_np @ V_np.T
         self.hess_matrix = self.bkd().asarray(hess_np)
@@ -144,8 +147,8 @@ class TestLowRankLaplacePosteriorBase(Generic[Array], unittest.TestCase):
         full_rank_laplace.compute(noversampling=5)
 
         post = full_rank_laplace.posterior_variable()
-        self.assertTrue(hasattr(post, 'logpdf'))
-        self.assertTrue(hasattr(post, 'rvs'))
+        self.assertTrue(hasattr(post, "logpdf"))
+        self.assertTrue(hasattr(post, "rvs"))
 
 
 class TestLowRankVsFullRank(Generic[Array], unittest.TestCase):
@@ -169,11 +172,14 @@ class TestLowRankVsFullRank(Generic[Array], unittest.TestCase):
         prior_sqrt = DenseCholeskyCovarianceOperator(prior_cov, self.bkd())
 
         # Symmetric positive definite Hessian (use numpy for float64)
-        hess_np = np.array([
-            [3.0, 0.5, 0.1],
-            [0.5, 2.0, 0.3],
-            [0.1, 0.3, 1.5],
-        ], dtype=np.float64)
+        hess_np = np.array(
+            [
+                [3.0, 0.5, 0.1],
+                [0.5, 2.0, 0.3],
+                [0.1, 0.3, 1.5],
+            ],
+            dtype=np.float64,
+        )
         hess = self.bkd().asarray(hess_np)
 
         # Full-rank dense Laplace
@@ -315,9 +321,6 @@ class TestLowRankLaplacePosteriorValidationTorch(
 
     def bkd(self) -> Backend[torch.Tensor]:
         return self._bkd
-
-
-from pyapprox.util.test_utils import load_tests
 
 
 if __name__ == "__main__":

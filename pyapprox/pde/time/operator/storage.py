@@ -81,9 +81,7 @@ class TimeTrajectoryStorage(Generic[Array]):
     # Forward Trajectory
     # =========================================================================
 
-    def set_forward_trajectory(
-        self, sols: Array, times: Array
-    ) -> None:
+    def set_forward_trajectory(self, sols: Array, times: Array) -> None:
         """
         Set the forward solution trajectory.
 
@@ -207,9 +205,7 @@ class TimeTrajectoryStorage(Generic[Array]):
             Second adjoint solutions. Shape: (nstates, ntimes)
         """
         if not self.has_second_adjoint_trajectory():
-            raise AttributeError(
-                "must call set_second_adjoint_trajectory first"
-            )
+            raise AttributeError("must call set_second_adjoint_trajectory first")
         return self._second_adjoint_sols
 
     # =========================================================================

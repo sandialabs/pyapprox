@@ -1,13 +1,11 @@
-from typing import Union
-
 from pyapprox.interface.functions.protocols.function import (
     FunctionProtocol,
 )
-from pyapprox.interface.functions.protocols.jacobian import (
-    FunctionWithJacobianProtocol,
-)
 from pyapprox.interface.functions.protocols.hessian import (
     FunctionWithJacobianAndHVPProtocol,
+)
+from pyapprox.interface.functions.protocols.jacobian import (
+    FunctionWithJacobianProtocol,
 )
 
 ObjectiveProtocol = FunctionProtocol

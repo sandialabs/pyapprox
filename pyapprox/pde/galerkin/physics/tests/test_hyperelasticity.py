@@ -6,31 +6,30 @@ Tests:
 - Newton solve recovers exact solution (1D, 2D)
 """
 
-from typing import Any, Generic
-
 import unittest
+from typing import Any, Generic
 
 import numpy as np
 from numpy.typing import NDArray
 from scipy.sparse import issparse
 
-from pyapprox.util.backends.numpy import NumpyBkd
-from pyapprox.util.backends.protocols import Array, Backend
+from pyapprox.pde.collocation.physics.stress_models.neo_hookean import (
+    NeoHookeanStress,
+)
+from pyapprox.pde.galerkin.basis import VectorLagrangeBasis
+from pyapprox.pde.galerkin.boundary.implementations import DirichletBC
+from pyapprox.pde.galerkin.manufactured.adapter import (
+    GalerkinHyperelasticityAdapter,
+    create_hyperelasticity_manufactured_test,
+)
 from pyapprox.pde.galerkin.mesh import (
     StructuredMesh1D,
     StructuredMesh2D,
 )
-from pyapprox.pde.galerkin.basis import VectorLagrangeBasis
 from pyapprox.pde.galerkin.physics import HyperelasticityPhysics
-from pyapprox.pde.galerkin.boundary.implementations import DirichletBC
 from pyapprox.pde.galerkin.solvers.steady_state import SteadyStateSolver
-from pyapprox.pde.galerkin.manufactured.adapter import (
-    create_hyperelasticity_manufactured_test,
-    GalerkinHyperelasticityAdapter,
-)
-from pyapprox.pde.collocation.physics.stress_models.neo_hookean import (
-    NeoHookeanStress,
-)
+from pyapprox.util.backends.numpy import NumpyBkd
+from pyapprox.util.backends.protocols import Array, Backend
 
 
 def _to_dense(mat, bkd):
@@ -51,6 +50,7 @@ def _make_vector_dirichlet_value_func(sol_func, ndim):
     The manufactured solution returns (npts, ncomponents).
     For interleaved DOFs: DOF j corresponds to component j % ndim.
     """
+
     def value_func(coords, time=0.0):
         nbndry_dofs = coords.shape[1]
         vals = sol_func(coords)  # (nbndry_dofs, ncomponents)
@@ -58,6 +58,7 @@ def _make_vector_dirichlet_value_func(sol_func, ndim):
         for j in range(nbndry_dofs):
             result[j] = vals[j, j % ndim]
         return result
+
     return value_func
 
 
@@ -111,12 +112,9 @@ class TestHyperelasticity1DBase(Generic[Array], unittest.TestCase):
 
         adapter = GalerkinHyperelasticityAdapter(basis, functions, bkd)
         body_force = adapter.forcing_for_galerkin()
-        value_func = _make_vector_dirichlet_value_func(
-            functions["solution"], nvars
-        )
+        value_func = _make_vector_dirichlet_value_func(functions["solution"], nvars)
         bc_list = [
-            DirichletBC(basis, name, value_func, bkd)
-            for name in ["left", "right"]
+            DirichletBC(basis, name, value_func, bkd) for name in ["left", "right"]
         ]
 
         physics = HyperelasticityPhysics(
@@ -136,7 +134,8 @@ class TestHyperelasticity1DBase(Generic[Array], unittest.TestCase):
         res = physics.residual(state, 0.0)
         res_norm = float(np.linalg.norm(self._bkd.to_numpy(res)))
         self.assertLess(
-            res_norm, 1e-4,
+            res_norm,
+            1e-4,
             f"1D residual at exact solution too large: {res_norm:.2e}",
         )
 
@@ -158,11 +157,10 @@ class TestHyperelasticity1DBase(Generic[Array], unittest.TestCase):
                 physics.residual(self._bkd.asarray(state_pert), 0.0)
             )
             fd_jac[:, j] = (res_pert - res0) / eps
-        rel_err = np.max(np.abs(jac - fd_jac)) / (
-            np.max(np.abs(fd_jac)) + 1e-30
-        )
+        rel_err = np.max(np.abs(jac - fd_jac)) / (np.max(np.abs(fd_jac)) + 1e-30)
         self.assertLess(
-            rel_err, 1e-4,
+            rel_err,
+            1e-4,
             f"1D Jacobian FD rel error too large: {rel_err:.2e}",
         )
 
@@ -171,9 +169,7 @@ class TestHyperelasticity1DBase(Generic[Array], unittest.TestCase):
         physics, functions, basis = self._setup_1d_problem(nx=40, degree=2)
         exact = _get_exact_displacement(functions, basis, self._bkd)
 
-        solver = SteadyStateSolver(
-            physics, tol=1e-10, max_iter=20, line_search=True
-        )
+        solver = SteadyStateSolver(physics, tol=1e-10, max_iter=20, line_search=True)
         init_guess = self._bkd.asarray(exact + 0.01)
         result = solver.solve(init_guess)
 
@@ -188,31 +184,31 @@ class TestHyperelasticity1DBase(Generic[Array], unittest.TestCase):
         else:
             rel_error = np.linalg.norm(u_num - exact)
         self.assertLess(
-            rel_error, 1e-6,
+            rel_error,
+            1e-6,
             f"1D Newton solve rel error: {rel_error:.2e}",
         )
 
 
 class TestHyperelasticity1DNumpy(TestHyperelasticity1DBase[NDArray[Any]]):
     __test__ = True
+
     def bkd(self) -> NumpyBkd:
         return NumpyBkd()
 
 
 try:
     import torch
+
     from pyapprox.util.backends.torch import TorchBkd
 
-    class TestHyperelasticity1DTorch(
-        TestHyperelasticity1DBase[torch.Tensor]
-    ):
+    class TestHyperelasticity1DTorch(TestHyperelasticity1DBase[torch.Tensor]):
         __test__ = True
+
         def bkd(self) -> TorchBkd:
             return TorchBkd()
 
-        @unittest.skip(
-            "sparse solve not available on CPU with TorchBkd"
-        )
+        @unittest.skip("sparse solve not available on CPU with TorchBkd")
         def test_newton_solve_1d(self) -> None:
             pass
 except ImportError:
@@ -253,7 +249,8 @@ class TestHyperelasticity2DBase(Generic[Array], unittest.TestCase):
         )
 
         mesh = StructuredMesh2D(
-            nx=nx, ny=ny,
+            nx=nx,
+            ny=ny,
             bounds=[[0.0, 1.0], [0.0, 1.0]],
             bkd=bkd,
         )
@@ -261,9 +258,7 @@ class TestHyperelasticity2DBase(Generic[Array], unittest.TestCase):
 
         adapter = GalerkinHyperelasticityAdapter(basis, functions, bkd)
         body_force = adapter.forcing_for_galerkin()
-        value_func = _make_vector_dirichlet_value_func(
-            functions["solution"], nvars
-        )
+        value_func = _make_vector_dirichlet_value_func(functions["solution"], nvars)
         bc_list = [
             DirichletBC(basis, name, value_func, bkd)
             for name in ["left", "right", "bottom", "top"]
@@ -286,15 +281,14 @@ class TestHyperelasticity2DBase(Generic[Array], unittest.TestCase):
         res = physics.residual(state, 0.0)
         res_norm = float(np.linalg.norm(self._bkd.to_numpy(res)))
         self.assertLess(
-            res_norm, 1e-4,
+            res_norm,
+            1e-4,
             f"2D residual at exact solution too large: {res_norm:.2e}",
         )
 
     def test_jacobian_fd_check_2d(self) -> None:
         """2D analytical Jacobian matches finite differences."""
-        physics, functions, basis = self._setup_2d_problem(
-            nx=3, ny=3, degree=1
-        )
+        physics, functions, basis = self._setup_2d_problem(nx=3, ny=3, degree=1)
         n = physics.nstates()
         np.random.seed(42)
         state = self._bkd.asarray(0.01 * np.random.randn(n))
@@ -310,24 +304,19 @@ class TestHyperelasticity2DBase(Generic[Array], unittest.TestCase):
                 physics.residual(self._bkd.asarray(state_pert), 0.0)
             )
             fd_jac[:, j] = (res_pert - res0) / eps
-        rel_err = np.max(np.abs(jac - fd_jac)) / (
-            np.max(np.abs(fd_jac)) + 1e-30
-        )
+        rel_err = np.max(np.abs(jac - fd_jac)) / (np.max(np.abs(fd_jac)) + 1e-30)
         self.assertLess(
-            rel_err, 1e-4,
+            rel_err,
+            1e-4,
             f"2D Jacobian FD rel error too large: {rel_err:.2e}",
         )
 
     def test_newton_solve_2d(self) -> None:
         """2D Newton solve recovers exact manufactured solution."""
-        physics, functions, basis = self._setup_2d_problem(
-            nx=12, ny=12, degree=2
-        )
+        physics, functions, basis = self._setup_2d_problem(nx=12, ny=12, degree=2)
         exact = _get_exact_displacement(functions, basis, self._bkd)
 
-        solver = SteadyStateSolver(
-            physics, tol=1e-10, max_iter=20, line_search=True
-        )
+        solver = SteadyStateSolver(physics, tol=1e-10, max_iter=20, line_search=True)
         init_guess = self._bkd.asarray(exact + 0.01)
         result = solver.solve(init_guess)
 
@@ -342,31 +331,31 @@ class TestHyperelasticity2DBase(Generic[Array], unittest.TestCase):
         else:
             rel_error = np.linalg.norm(u_num - exact)
         self.assertLess(
-            rel_error, 1e-4,
+            rel_error,
+            1e-4,
             f"2D Newton solve rel error: {rel_error:.2e}",
         )
 
 
 class TestHyperelasticity2DNumpy(TestHyperelasticity2DBase[NDArray[Any]]):
     __test__ = True
+
     def bkd(self) -> NumpyBkd:
         return NumpyBkd()
 
 
 try:
     import torch
+
     from pyapprox.util.backends.torch import TorchBkd
 
-    class TestHyperelasticity2DTorch(
-        TestHyperelasticity2DBase[torch.Tensor]
-    ):
+    class TestHyperelasticity2DTorch(TestHyperelasticity2DBase[torch.Tensor]):
         __test__ = True
+
         def bkd(self) -> TorchBkd:
             return TorchBkd()
 
-        @unittest.skip(
-            "sparse solve not available on CPU with TorchBkd"
-        )
+        @unittest.skip("sparse solve not available on CPU with TorchBkd")
         def test_newton_solve_2d(self) -> None:
             pass
 except ImportError:
@@ -410,7 +399,9 @@ class TestHyperelasticity3DBase(Generic[Array], unittest.TestCase):
         )
 
         mesh = StructuredMesh3D(
-            nx=3, ny=3, nz=3,
+            nx=3,
+            ny=3,
+            nz=3,
             bounds=[[0.0, 1.0], [0.0, 1.0], [0.0, 1.0]],
             bkd=bkd,
         )
@@ -418,13 +409,9 @@ class TestHyperelasticity3DBase(Generic[Array], unittest.TestCase):
 
         adapter = GalerkinHyperelasticityAdapter(basis, functions, bkd)
         body_force = adapter.forcing_for_galerkin()
-        value_func = _make_vector_dirichlet_value_func(
-            functions["solution"], nvars
-        )
+        value_func = _make_vector_dirichlet_value_func(functions["solution"], nvars)
         bc_names = ["left", "right", "bottom", "top", "front", "back"]
-        bc_list = [
-            DirichletBC(basis, name, value_func, bkd) for name in bc_names
-        ]
+        bc_list = [DirichletBC(basis, name, value_func, bkd) for name in bc_names]
 
         physics = HyperelasticityPhysics(
             basis=basis,
@@ -439,13 +426,15 @@ class TestHyperelasticity3DBase(Generic[Array], unittest.TestCase):
         res = physics.residual(state, 0.0)
         res_norm = float(np.linalg.norm(bkd.to_numpy(res)))
         self.assertLess(
-            res_norm, 1e-3,
+            res_norm,
+            1e-3,
             f"3D residual at exact solution too large: {res_norm:.2e}",
         )
 
 
 class TestHyperelasticity3DNumpy(TestHyperelasticity3DBase[NDArray[Any]]):
     __test__ = True
+
     def bkd(self) -> NumpyBkd:
         return NumpyBkd()
 
@@ -474,9 +463,7 @@ class TestHyperelasticityShapes(unittest.TestCase):
     def test_2d_shapes(self) -> None:
         bkd = NumpyBkd()
         stress = NeoHookeanStress(1.0, 1.0)
-        mesh = StructuredMesh2D(
-            nx=3, ny=3, bounds=[[0.0, 1.0], [0.0, 1.0]], bkd=bkd
-        )
+        mesh = StructuredMesh2D(nx=3, ny=3, bounds=[[0.0, 1.0], [0.0, 1.0]], bkd=bkd)
         basis = VectorLagrangeBasis(mesh, degree=1)
         physics = HyperelasticityPhysics(basis, stress, bkd)
         n = physics.nstates()
@@ -489,9 +476,7 @@ class TestHyperelasticityShapes(unittest.TestCase):
     def test_mass_matrix_symmetric(self) -> None:
         bkd = NumpyBkd()
         stress = NeoHookeanStress(1.0, 1.0)
-        mesh = StructuredMesh2D(
-            nx=4, ny=4, bounds=[[0.0, 1.0], [0.0, 1.0]], bkd=bkd
-        )
+        mesh = StructuredMesh2D(nx=4, ny=4, bounds=[[0.0, 1.0], [0.0, 1.0]], bkd=bkd)
         basis = VectorLagrangeBasis(mesh, degree=1)
         physics = HyperelasticityPhysics(basis, stress, bkd)
         M = _to_dense(physics.mass_matrix(), bkd)
@@ -501,9 +486,7 @@ class TestHyperelasticityShapes(unittest.TestCase):
         """With no body force, u=0 gives zero residual (F=I, P=0)."""
         bkd = NumpyBkd()
         stress = NeoHookeanStress(1.0, 1.0)
-        mesh = StructuredMesh2D(
-            nx=3, ny=3, bounds=[[0.0, 1.0], [0.0, 1.0]], bkd=bkd
-        )
+        mesh = StructuredMesh2D(nx=3, ny=3, bounds=[[0.0, 1.0], [0.0, 1.0]], bkd=bkd)
         basis = VectorLagrangeBasis(mesh, degree=1)
         physics = HyperelasticityPhysics(basis, stress, bkd)
         state = bkd.asarray(np.zeros(physics.nstates()))
@@ -513,10 +496,13 @@ class TestHyperelasticityShapes(unittest.TestCase):
     def test_tangent_not_available_3d(self) -> None:
         """3D tangent stiffness raises NotImplementedError."""
         from pyapprox.pde.galerkin.mesh import StructuredMesh3D
+
         bkd = NumpyBkd()
         stress = NeoHookeanStress(1.0, 1.0)
         mesh = StructuredMesh3D(
-            nx=2, ny=2, nz=2,
+            nx=2,
+            ny=2,
+            nz=2,
             bounds=[[0.0, 1.0], [0.0, 1.0], [0.0, 1.0]],
             bkd=bkd,
         )

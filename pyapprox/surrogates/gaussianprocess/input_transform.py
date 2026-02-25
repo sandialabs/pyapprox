@@ -13,6 +13,7 @@ paths use the transform unconditionally.
 """
 
 from typing import Generic, Protocol, runtime_checkable
+
 from pyapprox.util.backends.protocols import Array, Backend
 
 
@@ -161,9 +162,7 @@ class InputStandardScaler(Generic[Array]):
         Backend for numerical operations.
     """
 
-    def __init__(
-        self, mean: Array, std: Array, bkd: Backend[Array]
-    ) -> None:
+    def __init__(self, mean: Array, std: Array, bkd: Backend[Array]) -> None:
         self._mean = mean
         self._std = std
         self._bkd = bkd
@@ -225,9 +224,7 @@ class InputStandardScaler(Generic[Array]):
         return self._bkd.outer(inv_std, inv_std)
 
     @staticmethod
-    def from_data(
-        z: Array, bkd: Backend[Array]
-    ) -> "InputStandardScaler[Array]":
+    def from_data(z: Array, bkd: Backend[Array]) -> "InputStandardScaler[Array]":
         """Create scaler from training data.
 
         Computes per-dimension mean and standard deviation. Dimensions
@@ -252,9 +249,7 @@ class InputStandardScaler(Generic[Array]):
 
     def __repr__(self) -> str:
         """Return string representation."""
-        return (
-            f"InputStandardScaler(mean={self._mean}, std={self._std})"
-        )
+        return f"InputStandardScaler(mean={self._mean}, std={self._std})"
 
 
 class InputBoundsScaler(Generic[Array]):
@@ -348,6 +343,4 @@ class InputBoundsScaler(Generic[Array]):
 
     def __repr__(self) -> str:
         """Return string representation."""
-        return (
-            f"InputBoundsScaler(scale={self._scale}, shift={self._shift})"
-        )
+        return f"InputBoundsScaler(scale={self._scale}, shift={self._shift})"

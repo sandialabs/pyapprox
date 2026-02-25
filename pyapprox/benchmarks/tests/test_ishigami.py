@@ -7,23 +7,21 @@ from typing import Any, Generic
 import torch
 from numpy.typing import NDArray
 
-from pyapprox.util.backends.numpy import NumpyBkd
-from pyapprox.util.backends.torch import TorchBkd
-from pyapprox.util.backends.protocols import Array, Backend
-from pyapprox.util.test_utils import load_tests
-
+from pyapprox.benchmarks.functions.algebraic.ishigami import (
+    IshigamiFunction,
+)
+from pyapprox.interface.functions.derivative_checks.derivative_checker import (
+    DerivativeChecker,
+)
 from pyapprox.interface.functions.protocols.function import (
     FunctionProtocol,
 )
 from pyapprox.interface.functions.protocols.hessian import (
     FunctionWithJacobianAndHVPProtocol,
 )
-from pyapprox.interface.functions.derivative_checks.derivative_checker import (
-    DerivativeChecker,
-)
-from pyapprox.benchmarks.functions.algebraic.ishigami import (
-    IshigamiFunction,
-)
+from pyapprox.util.backends.numpy import NumpyBkd
+from pyapprox.util.backends.protocols import Array, Backend
+from pyapprox.util.backends.torch import TorchBkd
 
 
 class TestIshigamiFunction(Generic[Array], unittest.TestCase):
@@ -70,11 +68,13 @@ class TestIshigamiFunction(Generic[Array], unittest.TestCase):
         """Test evaluation at multiple samples."""
         func = IshigamiFunction(self._bkd)
         pi = math.pi
-        samples = self._bkd.array([
-            [0.0, pi/2, pi/2],
-            [0.0, pi/2, 0.0],
-            [0.0, 0.0, 0.0],
-        ])
+        samples = self._bkd.array(
+            [
+                [0.0, pi / 2, pi / 2],
+                [0.0, pi / 2, 0.0],
+                [0.0, 0.0, 0.0],
+            ]
+        )
         result = func(samples)
         self.assertEqual(result.shape, (1, 3))
         # f(0,0,0) = 0
@@ -156,7 +156,7 @@ class TestIshigamiFunction(Generic[Array], unittest.TestCase):
     def test_custom_parameters(self) -> None:
         """Test custom a and b parameters."""
         func = IshigamiFunction(self._bkd, a=5.0, b=0.2)
-        sample = self._bkd.array([[0.0], [math.pi/2], [0.0]])
+        sample = self._bkd.array([[0.0], [math.pi / 2], [0.0]])
         result = func(sample)
         # f(0, pi/2, 0) = sin(0) + 5*sin^2(pi/2) + 0.2*0*sin(0) = 0 + 5 + 0 = 5
         expected = self._bkd.array([[5.0]])

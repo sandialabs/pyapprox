@@ -11,11 +11,12 @@ The dispatch layer in dispatch.py handles the backend conversion.
 Note: This module requires numba. If numba is not available, importing
 this module will raise ImportError, which dispatch.py handles gracefully.
 """
+
 import math
 
 import numpy as np
 from numba import njit, prange
-from numba.core.types import optional, Array as NumbaArray  # noqa: F401
+from numba.core.types import optional  # noqa: F401
 
 
 @njit(cache=True, parallel=True)
@@ -62,9 +63,7 @@ def logpdf_matrix_numba(
     # Compute log normalization
     log_det = 0.0
     for k in range(nobs):
-        log_det += math.log(base_variances[k]) - math.log(
-            design_weights[k, 0]
-        )
+        log_det += math.log(base_variances[k]) - math.log(design_weights[k, 0])
     log_norm = -0.5 * nobs * math.log(2.0 * math.pi) - 0.5 * log_det
 
     for i in prange(ninner):
@@ -200,9 +199,7 @@ def fused_evidence_jacobian_numba(
                 r = obs[k, j] - shapes[k, i]
                 jac_val = -0.5 * r * r / var_k + det_term
                 if has_latent:
-                    jac_val += (
-                        0.5 * r * latent_samples[k, j] / sqrt_var_w
-                    )
+                    jac_val += 0.5 * r * latent_samples[k, j] / sqrt_var_w
                 acc += quad_weighted_like[i, j] * jac_val
             result[j, k] += acc
 

@@ -3,10 +3,10 @@
 from pyapprox.pde.collocation.mesh.base import (
     MeshData,
     MeshDataWithTransform,
-    compute_cartesian_product,
     compute_boundary_indices_1d,
     compute_boundary_indices_2d,
     compute_boundary_indices_3d,
+    compute_cartesian_product,
 )
 from pyapprox.pde.collocation.mesh.cartesian_1d import (
     CartesianMesh1D,
@@ -20,15 +20,15 @@ from pyapprox.pde.collocation.mesh.cartesian_3d import (
     CartesianMesh3D,
     create_uniform_mesh_3d,
 )
-from pyapprox.pde.collocation.mesh.transforms import (
-    AffineTransform1D,
-    AffineTransform2D,
-    AffineTransform3D,
-)
 from pyapprox.pde.collocation.mesh.transformed import (
     TransformedMesh1D,
     TransformedMesh2D,
     TransformedMesh3D,
+)
+from pyapprox.pde.collocation.mesh.transforms import (
+    AffineTransform1D,
+    AffineTransform2D,
+    AffineTransform3D,
 )
 
 __all__ = [

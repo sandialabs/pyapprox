@@ -11,25 +11,23 @@ import numpy as np
 import torch
 from numpy.typing import NDArray
 
-from pyapprox.util.backends.numpy import NumpyBkd
-from pyapprox.util.backends.torch import TorchBkd
-from pyapprox.util.backends.protocols import Array, Backend
-from pyapprox.util.test_utils import load_tests  # noqa: F401
-
-from pyapprox.surrogates.affine.univariate import create_bases_1d
-from pyapprox.surrogates.affine.indices import compute_hyperbolic_indices
-from pyapprox.surrogates.affine.basis import OrthonormalPolynomialBasis
-from pyapprox.surrogates.affine.expansions import BasisExpansion
-from pyapprox.probability import UniformMarginal
-
-from pyapprox.surrogates.functiontrain import (
-    FunctionTrain,
-    create_additive_functiontrain,
-    FunctionTrainMSELoss,
-)
 from pyapprox.interface.functions.derivative_checks.derivative_checker import (
     DerivativeChecker,
 )
+from pyapprox.probability import UniformMarginal
+from pyapprox.surrogates.affine.basis import OrthonormalPolynomialBasis
+from pyapprox.surrogates.affine.expansions import BasisExpansion
+from pyapprox.surrogates.affine.indices import compute_hyperbolic_indices
+from pyapprox.surrogates.affine.univariate import create_bases_1d
+from pyapprox.surrogates.functiontrain import (
+    FunctionTrain,
+    FunctionTrainMSELoss,
+    create_additive_functiontrain,
+)
+from pyapprox.util.backends.numpy import NumpyBkd
+from pyapprox.util.backends.protocols import Array, Backend
+from pyapprox.util.backends.torch import TorchBkd
+from pyapprox.util.test_utils import load_tests  # noqa: F401
 
 
 class TestFunctionTrainMSELoss(Generic[Array], unittest.TestCase):
@@ -61,8 +59,7 @@ class TestFunctionTrainMSELoss(Generic[Array], unittest.TestCase):
         """Create an additive FunctionTrain for testing."""
         bkd = self._bkd
         univariate_bases = [
-            self._create_univariate_expansion(max_level, nqoi)
-            for _ in range(nvars)
+            self._create_univariate_expansion(max_level, nqoi) for _ in range(nvars)
         ]
         return create_additive_functiontrain(univariate_bases, bkd, nqoi)
 
@@ -325,9 +322,7 @@ class TestFunctionTrainMSELossTorch(TestFunctionTrainMSELoss[torch.Tensor]):
         autograd_grad = torch.autograd.functional.jacobian(loss_from_params, params)
         # Shape: (nparams,)
 
-        bkd.assert_allclose(
-            analytical_grad[0, :], autograd_grad, rtol=1e-10
-        )
+        bkd.assert_allclose(analytical_grad[0, :], autograd_grad, rtol=1e-10)
 
 
 if __name__ == "__main__":

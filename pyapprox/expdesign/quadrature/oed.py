@@ -7,8 +7,8 @@ samples from the joint prior-data distribution.
 
 from typing import Generic, Optional, Tuple
 
-from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.expdesign.protocols import QuadratureSamplerProtocol
+from pyapprox.util.backends.protocols import Array, Backend
 
 
 class OEDQuadratureSampler(Generic[Array]):
@@ -65,9 +65,8 @@ class OEDQuadratureSampler(Generic[Array]):
         if noise_sampler is None:
             # Default to Halton with normal transform for noise
             from pyapprox.expdesign.quadrature.halton import HaltonSampler
-            noise_sampler = HaltonSampler(
-                nobs, bkd, transform_to_normal=True, seed=42
-            )
+
+            noise_sampler = HaltonSampler(nobs, bkd, transform_to_normal=True, seed=42)
         self._noise_sampler = noise_sampler
 
     def bkd(self) -> Backend[Array]:
@@ -119,9 +118,7 @@ class OEDQuadratureSampler(Generic[Array]):
         """
         return self._prior_sampler.sample(nsamples)
 
-    def sample_joint(
-        self, nsamples: int
-    ) -> Tuple[Array, Array, Array]:
+    def sample_joint(self, nsamples: int) -> Tuple[Array, Array, Array]:
         """
         Sample from joint prior-data distribution.
 

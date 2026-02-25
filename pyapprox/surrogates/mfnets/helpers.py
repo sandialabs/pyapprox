@@ -8,8 +8,8 @@ from typing import List, Tuple
 
 import numpy as np
 
-from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.surrogates.mfnets.network import MFNet
+from pyapprox.util.backends.protocols import Array, Backend
 
 
 def generate_synthetic_data(
@@ -57,9 +57,7 @@ def generate_synthetic_data(
 
     for node_id in network.topo_order():
         n = nsamples_per_node[node_id]
-        s = bkd.asarray(
-            np.random.uniform(domain[0], domain[1], (nvars, n))
-        )
+        s = bkd.asarray(np.random.uniform(domain[0], domain[1], (nvars, n)))
         v = network.subgraph_values(s, node_id)
         if noise_std > 0:
             v = v + bkd.asarray(np.random.randn(*v.shape) * noise_std)
@@ -99,22 +97,16 @@ def randomize_coefficients(
         model = network.node(node_id).model()
 
         # MultiplicativeAdditiveDiscrepancy: set sub-model coefficients
-        if hasattr(model, 'scaling_models') and hasattr(model, 'delta_model'):
+        if hasattr(model, "scaling_models") and hasattr(model, "delta_model"):
             for sm in model.scaling_models():
-                if hasattr(sm, 'set_coefficients') and hasattr(sm, 'nterms'):
-                    coef = bkd.asarray(
-                        np.random.randn(sm.nterms(), sm.nqoi()) * scale
-                    )
+                if hasattr(sm, "set_coefficients") and hasattr(sm, "nterms"):
+                    coef = bkd.asarray(np.random.randn(sm.nterms(), sm.nqoi()) * scale)
                     sm.set_coefficients(coef)
             dm = model.delta_model()
-            if hasattr(dm, 'set_coefficients') and hasattr(dm, 'nterms'):
-                coef = bkd.asarray(
-                    np.random.randn(dm.nterms(), dm.nqoi()) * scale
-                )
+            if hasattr(dm, "set_coefficients") and hasattr(dm, "nterms"):
+                coef = bkd.asarray(np.random.randn(dm.nterms(), dm.nqoi()) * scale)
                 dm.set_coefficients(coef)
         # Simple model with set_coefficients (e.g., BasisExpansion)
-        elif hasattr(model, 'set_coefficients') and hasattr(model, 'nterms'):
-            coef = bkd.asarray(
-                np.random.randn(model.nterms(), model.nqoi()) * scale
-            )
+        elif hasattr(model, "set_coefficients") and hasattr(model, "nterms"):
+            coef = bkd.asarray(np.random.randn(model.nterms(), model.nqoi()) * scale)
             model.set_coefficients(coef)

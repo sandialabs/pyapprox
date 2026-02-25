@@ -9,21 +9,21 @@ Import from the new location instead:
 
 # Re-export from new location for backward compatibility
 from pyapprox.optimization.linear import (
-    # Base
-    LinearSystemSolver,
-    SingleQoiSolverMixin,
+    BasisPursuitDenoisingSolver,
+    BasisPursuitSolver,
+    ExpectileRegressionSolver,
     # Least squares
     LeastSquaresSolver,
-    RidgeRegressionSolver,
     LinearlyConstrainedLstSqSolver,
+    # Base
+    LinearSystemSolver,
     # Sparse
     OMPSolver,
     OMPTerminationFlag,
-    BasisPursuitSolver,
-    BasisPursuitDenoisingSolver,
     # Quantile
     QuantileRegressionSolver,
-    ExpectileRegressionSolver,
+    RidgeRegressionSolver,
+    SingleQoiSolverMixin,
 )
 
 __all__ = [

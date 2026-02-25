@@ -88,8 +88,7 @@ class AffineTransform(Generic[Array]):
         """Validate that input is 2D with shape (nvars, nsamples)."""
         if samples.ndim != 2:
             raise ValueError(
-                f"Expected 2D array with shape (nvars, nsamples), "
-                f"got {samples.ndim}D"
+                f"Expected 2D array with shape (nvars, nsamples), got {samples.ndim}D"
             )
         if samples.shape[0] != self._nvars:
             raise ValueError(
@@ -147,9 +146,7 @@ class AffineTransform(Generic[Array]):
 
         return self._loc[:, None] + self._scale[:, None] * canonical_samples
 
-    def map_to_canonical_with_jacobian(
-        self, samples: Array
-    ) -> Tuple[Array, Array]:
+    def map_to_canonical_with_jacobian(self, samples: Array) -> Tuple[Array, Array]:
         """
         Transform to canonical space with Jacobian diagonal.
 
@@ -176,9 +173,7 @@ class AffineTransform(Generic[Array]):
         nsamples = canonical.shape[1]
 
         # Jacobian is constant: 1/scale, broadcast to nsamples
-        jacobian_diag = self._bkd.tile(
-            self._inv_scale[:, None], (1, nsamples)
-        )
+        jacobian_diag = self._bkd.tile(self._inv_scale[:, None], (1, nsamples))
 
         return canonical, jacobian_diag
 
@@ -211,9 +206,7 @@ class AffineTransform(Generic[Array]):
         nsamples = samples.shape[1]
 
         # Jacobian is constant: scale, broadcast to nsamples
-        jacobian_diag = self._bkd.tile(
-            self._scale[:, None], (1, nsamples)
-        )
+        jacobian_diag = self._bkd.tile(self._scale[:, None], (1, nsamples))
 
         return samples, jacobian_diag
 
@@ -244,9 +237,7 @@ class AffineTransform(Generic[Array]):
         nsamples = samples.shape[1]
 
         log_det = -float(self._bkd.sum(self._bkd.log(self._scale)))
-        return self._bkd.reshape(
-            self._bkd.full((nsamples,), log_det), (1, -1)
-        )
+        return self._bkd.reshape(self._bkd.full((nsamples,), log_det), (1, -1))
 
     def log_det_jacobian_from_canonical(self, canonical_samples: Array) -> Array:
         """
@@ -273,9 +264,7 @@ class AffineTransform(Generic[Array]):
         nsamples = canonical_samples.shape[1]
 
         log_det = float(self._bkd.sum(self._bkd.log(self._scale)))
-        return self._bkd.reshape(
-            self._bkd.full((nsamples,), log_det), (1, -1)
-        )
+        return self._bkd.reshape(self._bkd.full((nsamples,), log_det), (1, -1))
 
     def __repr__(self) -> str:
         """Return string representation."""

@@ -5,32 +5,32 @@ from pyapprox.pde.collocation.boundary.dirichlet import (
     constant_dirichlet_bc,
     zero_dirichlet_bc,
 )
-from pyapprox.pde.collocation.boundary.neumann import (
-    NeumannBC,
-    zero_neumann_bc,
-)
-from pyapprox.pde.collocation.boundary.normal_operators import (
-    GradientNormalOperator,
-    FluxNormalOperator,
-    TractionNormalOperator,
-)
 from pyapprox.pde.collocation.boundary.hyperelastic_traction import (
     HyperelasticTractionNormalOperator,
     hyperelastic_traction_neumann_bc,
     hyperelastic_traction_robin_bc,
 )
-from pyapprox.pde.collocation.boundary.robin import (
-    RobinBC,
-    homogeneous_robin_bc,
-    gradient_robin_bc,
-    flux_robin_bc,
-    gradient_neumann_bc,
-    flux_neumann_bc,
-    traction_robin_bc,
-    traction_neumann_bc,
+from pyapprox.pde.collocation.boundary.neumann import (
+    NeumannBC,
+    zero_neumann_bc,
+)
+from pyapprox.pde.collocation.boundary.normal_operators import (
+    FluxNormalOperator,
+    GradientNormalOperator,
+    TractionNormalOperator,
 )
 from pyapprox.pde.collocation.boundary.periodic import (
     PeriodicBC,
+)
+from pyapprox.pde.collocation.boundary.robin import (
+    RobinBC,
+    flux_neumann_bc,
+    flux_robin_bc,
+    gradient_neumann_bc,
+    gradient_robin_bc,
+    homogeneous_robin_bc,
+    traction_neumann_bc,
+    traction_robin_bc,
 )
 
 __all__ = [

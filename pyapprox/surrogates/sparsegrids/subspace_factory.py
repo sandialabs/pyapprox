@@ -4,18 +4,18 @@ Extracts subspace creation logic from the old CombinationSparseGrid class
 into a standalone factory, enabling clean separation of build and evaluate.
 """
 
-from typing import Generic, List, Optional, Protocol, Union, runtime_checkable
+from typing import Generic, List, Protocol, Union, runtime_checkable
 
-from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.surrogates.affine.protocols import (
     IndexGrowthRuleProtocol,
-)
-from pyapprox.surrogates.sparsegrids.subspace import (
-    TensorProductSubspace,
 )
 from pyapprox.surrogates.sparsegrids.basis_factory import (
     BasisFactoryProtocol,
 )
+from pyapprox.surrogates.sparsegrids.subspace import (
+    TensorProductSubspace,
+)
+from pyapprox.util.backends.protocols import Array, Backend
 
 
 @runtime_checkable
@@ -70,9 +70,7 @@ class TensorProductSubspaceFactory(Generic[Array]):
         self,
         bkd: Backend[Array],
         basis_factories: List[BasisFactoryProtocol[Array]],
-        growth_rules: Union[
-            IndexGrowthRuleProtocol, List[IndexGrowthRuleProtocol]
-        ],
+        growth_rules: Union[IndexGrowthRuleProtocol, List[IndexGrowthRuleProtocol]],
     ) -> None:
         self._bkd = bkd
         self._basis_factories = basis_factories
@@ -82,14 +80,11 @@ class TensorProductSubspaceFactory(Generic[Array]):
         if isinstance(growth_rules, list):
             self._growth_rules = growth_rules
         else:
-            self._growth_rules = [
-                growth_rules for _ in range(self._nvars_physical)
-            ]
+            self._growth_rules = [growth_rules for _ in range(self._nvars_physical)]
 
         # Detect nested
         self._is_nested = all(
-            getattr(f, "is_nested", lambda: False)()
-            for f in basis_factories
+            getattr(f, "is_nested", lambda: False)() for f in basis_factories
         )
 
     def __call__(self, approx_index: Array) -> TensorProductSubspace[Array]:

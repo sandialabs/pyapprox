@@ -44,7 +44,7 @@ class GaussianAnalyticalRiskMeasures:
 
     def variance(self) -> float:
         """Return the variance of the distribution."""
-        return self._sigma ** 2
+        return self._sigma**2
 
     def stdev(self) -> float:
         """Return the standard deviation of the distribution."""
@@ -88,7 +88,7 @@ class GaussianAnalyticalRiskMeasures:
         The entropic risk measure is NOT positively homogeneous, meaning
         R(t*X) != t*R(X). This can lead to scale-dependent preferences.
         """
-        return self._mu + alpha * self._sigma ** 2 / 2.0
+        return self._mu + alpha * self._sigma**2 / 2.0
 
     def AVaR(self, beta: float) -> float:
         """
@@ -116,6 +116,6 @@ class GaussianAnalyticalRiskMeasures:
         "Calculating AVaR and bPOE for common probability distributions
         with application to portfolio optimization and density estimation"
         """
-        return self._mu + self._sigma * stats.norm.pdf(
-            stats.norm.ppf(beta)
-        ) / (1.0 - beta)
+        return self._mu + self._sigma * stats.norm.pdf(stats.norm.ppf(beta)) / (
+            1.0 - beta
+        )

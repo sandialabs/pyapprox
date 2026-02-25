@@ -7,27 +7,27 @@ import numpy as np
 import torch
 from numpy.typing import NDArray
 
-from pyapprox.util.backends.protocols import Array, Backend
-from pyapprox.util.backends.numpy import NumpyBkd
-from pyapprox.util.backends.torch import TorchBkd
-from pyapprox.util.test_utils import load_tests  # noqa: F401
+from pyapprox.interface.functions.derivative_checks.derivative_checker import (
+    DerivativeChecker,
+)
+from pyapprox.interface.functions.fromcallable.jacobian import (
+    FunctionWithJacobianFromCallable,
+)
+from pyapprox.optimization.implicitfunction.functionals.protocols import (
+    ParameterizedFunctionalWithJacobianProtocol,
+)
+from pyapprox.optimization.implicitfunction.functionals.subdomain_integral import (
+    SubdomainIntegralFunctional,
+)
 from pyapprox.pde.collocation.basis import ChebyshevBasis1D
 from pyapprox.pde.collocation.mesh import (
     AffineTransform1D,
     TransformedMesh1D,
 )
-from pyapprox.optimization.implicitfunction.functionals.subdomain_integral import (
-    SubdomainIntegralFunctional,
-)
-from pyapprox.optimization.implicitfunction.functionals.protocols import (
-    ParameterizedFunctionalWithJacobianProtocol,
-)
-from pyapprox.interface.functions.fromcallable.jacobian import (
-    FunctionWithJacobianFromCallable,
-)
-from pyapprox.interface.functions.derivative_checks.derivative_checker import (
-    DerivativeChecker,
-)
+from pyapprox.util.backends.numpy import NumpyBkd
+from pyapprox.util.backends.protocols import Array, Backend
+from pyapprox.util.backends.torch import TorchBkd
+from pyapprox.util.test_utils import load_tests  # noqa: F401
 
 
 class TestSubdomainIntegralFunctional(Generic[Array], unittest.TestCase):
@@ -51,7 +51,10 @@ class TestSubdomainIntegralFunctional(Generic[Array], unittest.TestCase):
         bkd = self._bkd
         coeff = bkd.ones((self._npts,))
         func = SubdomainIntegralFunctional(
-            self._basis, self._nparams, bkd, coefficient=coeff,
+            self._basis,
+            self._nparams,
+            bkd,
+            coefficient=coeff,
         )
         state = bkd.ones((self._npts, 1))
         param = bkd.zeros((self._nparams, 1))
@@ -64,12 +67,15 @@ class TestSubdomainIntegralFunctional(Generic[Array], unittest.TestCase):
         bkd = self._bkd
         coeff = bkd.ones((self._npts,))
         func = SubdomainIntegralFunctional(
-            self._basis, self._nparams, bkd, coefficient=coeff,
+            self._basis,
+            self._nparams,
+            bkd,
+            coefficient=coeff,
         )
-        state = bkd.reshape(self._phys_pts ** 2, (self._npts, 1))
+        state = bkd.reshape(self._phys_pts**2, (self._npts, 1))
         param = bkd.zeros((self._nparams, 1))
         result = func(state, param)
-        expected = bkd.asarray([[self._length ** 3 / 3.0]])
+        expected = bkd.asarray([[self._length**3 / 3.0]])
         bkd.assert_allclose(result, expected, atol=1e-12)
 
     def test_weighted_polynomial(self) -> None:
@@ -77,12 +83,15 @@ class TestSubdomainIntegralFunctional(Generic[Array], unittest.TestCase):
         bkd = self._bkd
         coeff = self._phys_pts  # c(x) = x
         func = SubdomainIntegralFunctional(
-            self._basis, self._nparams, bkd, coefficient=coeff,
+            self._basis,
+            self._nparams,
+            bkd,
+            coefficient=coeff,
         )
         state = bkd.reshape(self._phys_pts, (self._npts, 1))  # u = x
         param = bkd.zeros((self._nparams, 1))
         result = func(state, param)
-        expected = bkd.asarray([[self._length ** 3 / 3.0]])
+        expected = bkd.asarray([[self._length**3 / 3.0]])
         bkd.assert_allclose(result, expected, atol=1e-12)
 
     def test_linear_jacobian_constant(self) -> None:
@@ -90,7 +99,10 @@ class TestSubdomainIntegralFunctional(Generic[Array], unittest.TestCase):
         bkd = self._bkd
         coeff = bkd.ones((self._npts,))
         func = SubdomainIntegralFunctional(
-            self._basis, self._nparams, bkd, coefficient=coeff,
+            self._basis,
+            self._nparams,
+            bkd,
+            coefficient=coeff,
         )
         param = bkd.zeros((self._nparams, 1))
         state1 = bkd.zeros((self._npts, 1))
@@ -104,13 +116,17 @@ class TestSubdomainIntegralFunctional(Generic[Array], unittest.TestCase):
         bkd = self._bkd
         coeff = bkd.ones((self._npts,))
         func = SubdomainIntegralFunctional(
-            self._basis, self._nparams, bkd,
-            a_sub=0.5, b_sub=1.5, coefficient=coeff,
+            self._basis,
+            self._nparams,
+            bkd,
+            a_sub=0.5,
+            b_sub=1.5,
+            coefficient=coeff,
         )
-        state = bkd.reshape(self._phys_pts ** 2, (self._npts, 1))
+        state = bkd.reshape(self._phys_pts**2, (self._npts, 1))
         param = bkd.zeros((self._nparams, 1))
         result = func(state, param)
-        expected = bkd.asarray([[(1.5 ** 3 - 0.5 ** 3) / 3.0]])
+        expected = bkd.asarray([[(1.5**3 - 0.5**3) / 3.0]])
         bkd.assert_allclose(result, expected, atol=1e-11)
 
     def test_full_domain_default(self) -> None:
@@ -118,13 +134,20 @@ class TestSubdomainIntegralFunctional(Generic[Array], unittest.TestCase):
         bkd = self._bkd
         coeff = bkd.ones((self._npts,))
         func_default = SubdomainIntegralFunctional(
-            self._basis, self._nparams, bkd, coefficient=coeff,
+            self._basis,
+            self._nparams,
+            bkd,
+            coefficient=coeff,
         )
         func_explicit = SubdomainIntegralFunctional(
-            self._basis, self._nparams, bkd,
-            a_sub=0.0, b_sub=self._length, coefficient=coeff,
+            self._basis,
+            self._nparams,
+            bkd,
+            a_sub=0.0,
+            b_sub=self._length,
+            coefficient=coeff,
         )
-        state = bkd.reshape(self._phys_pts ** 2, (self._npts, 1))
+        state = bkd.reshape(self._phys_pts**2, (self._npts, 1))
         param = bkd.zeros((self._nparams, 1))
         r1 = func_default(state, param)
         r2 = func_explicit(state, param)
@@ -135,10 +158,13 @@ class TestSubdomainIntegralFunctional(Generic[Array], unittest.TestCase):
         bkd = self._bkd
 
         def integrand(u, bkd):
-            return u ** 2, 2.0 * u
+            return u**2, 2.0 * u
 
         func = SubdomainIntegralFunctional(
-            self._basis, self._nparams, bkd, integrand=integrand,
+            self._basis,
+            self._nparams,
+            bkd,
+            integrand=integrand,
         )
         param = bkd.zeros((self._nparams, 1))
 
@@ -150,7 +176,11 @@ class TestSubdomainIntegralFunctional(Generic[Array], unittest.TestCase):
             return func.state_jacobian(sample, param)
 
         wrapper = FunctionWithJacobianFromCallable(
-            nqoi=1, nvars=self._npts, fun=fun, jacobian=jac, bkd=bkd,
+            nqoi=1,
+            nvars=self._npts,
+            fun=fun,
+            jacobian=jac,
+            bkd=bkd,
         )
         np.random.seed(42)
         state = bkd.reshape(
@@ -158,9 +188,7 @@ class TestSubdomainIntegralFunctional(Generic[Array], unittest.TestCase):
             (self._npts, 1),
         )
         checker = DerivativeChecker(wrapper)
-        errors = checker.check_derivatives(
-            state, direction=None, relative=True
-        )[0]
+        errors = checker.check_derivatives(state, direction=None, relative=True)[0]
         self.assertLessEqual(checker.error_ratio(errors), 1e-6)
 
     def test_nonlinear_value(self) -> None:
@@ -168,17 +196,20 @@ class TestSubdomainIntegralFunctional(Generic[Array], unittest.TestCase):
         bkd = self._bkd
 
         def integrand(u, bkd):
-            return u ** 2, 2.0 * u
+            return u**2, 2.0 * u
 
         func = SubdomainIntegralFunctional(
-            self._basis, self._nparams, bkd, integrand=integrand,
+            self._basis,
+            self._nparams,
+            bkd,
+            integrand=integrand,
         )
         # u(x) = x^2, so g(u) = u^2 = x^4
-        state = bkd.reshape(self._phys_pts ** 2, (self._npts, 1))
+        state = bkd.reshape(self._phys_pts**2, (self._npts, 1))
         param = bkd.zeros((self._nparams, 1))
         result = func(state, param)
         # integral x^4 dx from 0 to L = L^5/5
-        expected = bkd.asarray([[self._length ** 5 / 5.0]])
+        expected = bkd.asarray([[self._length**5 / 5.0]])
         bkd.assert_allclose(result, expected, atol=1e-11)
 
     def test_protocol_compliance(self) -> None:
@@ -186,7 +217,10 @@ class TestSubdomainIntegralFunctional(Generic[Array], unittest.TestCase):
         bkd = self._bkd
         coeff = bkd.ones((self._npts,))
         func = SubdomainIntegralFunctional(
-            self._basis, self._nparams, bkd, coefficient=coeff,
+            self._basis,
+            self._nparams,
+            bkd,
+            coefficient=coeff,
         )
         self.assertIsInstance(func, ParameterizedFunctionalWithJacobianProtocol)
 
@@ -195,7 +229,9 @@ class TestSubdomainIntegralFunctional(Generic[Array], unittest.TestCase):
         bkd = self._bkd
         with self.assertRaises(ValueError):
             SubdomainIntegralFunctional(
-                self._basis, self._nparams, bkd,
+                self._basis,
+                self._nparams,
+                bkd,
             )
 
     def test_validation_both_provided(self) -> None:
@@ -203,7 +239,9 @@ class TestSubdomainIntegralFunctional(Generic[Array], unittest.TestCase):
         bkd = self._bkd
         with self.assertRaises(ValueError):
             SubdomainIntegralFunctional(
-                self._basis, self._nparams, bkd,
+                self._basis,
+                self._nparams,
+                bkd,
                 coefficient=bkd.ones((self._npts,)),
                 integrand=lambda u, bkd: (u, bkd.ones_like(u)),
             )
@@ -213,7 +251,10 @@ class TestSubdomainIntegralFunctional(Generic[Array], unittest.TestCase):
         bkd = self._bkd
         coeff = bkd.ones((self._npts,))
         func = SubdomainIntegralFunctional(
-            self._basis, self._nparams, bkd, coefficient=coeff,
+            self._basis,
+            self._nparams,
+            bkd,
+            coefficient=coeff,
         )
         state = bkd.ones((self._npts, 1))
         param = bkd.ones((self._nparams, 1))

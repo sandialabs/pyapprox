@@ -6,22 +6,22 @@ Wraps a constrained optimizer to solve min_x AVaR_alpha[f_i(x)].
 
 from typing import Generic, Optional, Sequence
 
-from pyapprox.util.backends.protocols import Array, Backend
-from pyapprox.optimization.minimize.scipy.trust_constr import (
-    ScipyTrustConstrOptimizer,
-)
-from pyapprox.optimization.minimize.scipy.scipy_result import (
-    ScipyOptimizerResultWrapper,
-)
 from pyapprox.optimization.minimize.constraints.protocols import (
     NonlinearConstraintProtocolWithJacobian,
 )
 from pyapprox.optimization.minimize.minimax.protocols import (
     MultiQoIObjectiveProtocol,
 )
+from pyapprox.optimization.minimize.scipy.scipy_result import (
+    ScipyOptimizerResultWrapper,
+)
+from pyapprox.optimization.minimize.scipy.trust_constr import (
+    ScipyTrustConstrOptimizer,
+)
+from pyapprox.util.backends.protocols import Array, Backend
 
-from .objective import AVaRObjective
 from .constraint import AVaRConstraint
+from .objective import AVaRObjective
 
 
 class AVaROptimizer(Generic[Array]):
@@ -115,9 +115,7 @@ class AVaROptimizer(Generic[Array]):
         s_bounds = self._bkd.full((self._nscenarios, 2), 0.0)
         s_bounds[:, 1] = float("inf")
 
-        self._bounds = self._bkd.vstack(
-            [t_bounds, s_bounds, self._original_bounds]
-        )
+        self._bounds = self._bkd.vstack([t_bounds, s_bounds, self._original_bounds])
 
     def minimize(
         self, init_guess: Optional[Array] = None
@@ -139,7 +137,7 @@ class AVaROptimizer(Generic[Array]):
             - s are the excess slack values
             - x are the optimal variables
         """
-        nmodel_vars = self._model.nvars()
+        self._model.nvars()
 
         if init_guess is None:
             # Initialize x at center of bounds
@@ -162,9 +160,7 @@ class AVaROptimizer(Generic[Array]):
         init_full = self._bkd.vstack([init_t, init_s, init_x])
 
         # Collect all constraints
-        all_constraints = [self._avar_constraint] + list(
-            self._additional_constraints
-        )
+        all_constraints = [self._avar_constraint] + list(self._additional_constraints)
 
         # Create optimizer
         optimizer = ScipyTrustConstrOptimizer(
@@ -195,7 +191,7 @@ class AVaROptimizer(Generic[Array]):
         Array
             Original variables x. Shape: (nmodel_vars, 1)
         """
-        return optima[1 + self._nscenarios:]
+        return optima[1 + self._nscenarios :]
 
     def get_var_value(self, optima: Array) -> Array:
         """
@@ -245,4 +241,4 @@ class AVaROptimizer(Generic[Array]):
         Array
             Excess slack values s. Shape: (nscenarios, 1)
         """
-        return optima[1:1 + self._nscenarios]
+        return optima[1 : 1 + self._nscenarios]

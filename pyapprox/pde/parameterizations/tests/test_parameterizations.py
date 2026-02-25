@@ -2,16 +2,11 @@
 
 import math
 import unittest
-from typing import Generic, Any
+from typing import Any, Generic
 
-import numpy as np
-from numpy.typing import NDArray
 import torch
+from numpy.typing import NDArray
 
-from pyapprox.util.backends.protocols import Array, Backend
-from pyapprox.util.backends.numpy import NumpyBkd
-from pyapprox.util.backends.torch import TorchBkd
-from pyapprox.util.test_utils import load_tests  # noqa: F401
 from pyapprox.interface.functions.derivative_checks.derivative_checker import (
     DerivativeChecker,
 )
@@ -19,28 +14,28 @@ from pyapprox.interface.functions.fromcallable.jacobian import (
     FunctionWithJacobianFromCallable,
 )
 from pyapprox.pde.collocation.basis import ChebyshevBasis1D
-from pyapprox.pde.collocation.mesh import (
-    create_uniform_mesh_1d,
-    TransformedMesh1D,
-)
 from pyapprox.pde.collocation.boundary import zero_dirichlet_bc
-from pyapprox.pde.collocation.physics.advection_diffusion import (
-    AdvectionDiffusionReaction,
-)
 from pyapprox.pde.collocation.forward_models.steady import (
     SteadyForwardModel,
+)
+from pyapprox.pde.collocation.mesh import (
+    TransformedMesh1D,
+    create_uniform_mesh_1d,
+)
+from pyapprox.pde.collocation.physics.advection_diffusion import (
+    AdvectionDiffusionReaction,
 )
 from pyapprox.pde.field_maps.basis_expansion import (
     BasisExpansion,
 )
+from pyapprox.pde.field_maps.kle_factory import (
+    create_lognormal_kle_field_map,
+)
 from pyapprox.pde.field_maps.scalar import (
     ScalarAmplitude,
 )
-from pyapprox.pde.field_maps.protocol import (
-    FieldMapProtocol,
-)
-from pyapprox.pde.parameterizations.protocol import (
-    ParameterizationProtocol,
+from pyapprox.pde.parameterizations.composite import (
+    CompositeParameterization,
 )
 from pyapprox.pde.parameterizations.diffusion import (
     DiffusionParameterization,
@@ -49,15 +44,16 @@ from pyapprox.pde.parameterizations.diffusion import (
 from pyapprox.pde.parameterizations.forcing import (
     ForcingParameterization,
 )
+from pyapprox.pde.parameterizations.protocol import (
+    ParameterizationProtocol,
+)
 from pyapprox.pde.parameterizations.reaction import (
     ReactionParameterization,
 )
-from pyapprox.pde.parameterizations.composite import (
-    CompositeParameterization,
-)
-from pyapprox.pde.field_maps.kle_factory import (
-    create_lognormal_kle_field_map,
-)
+from pyapprox.util.backends.numpy import NumpyBkd
+from pyapprox.util.backends.protocols import Array, Backend
+from pyapprox.util.backends.torch import TorchBkd
+from pyapprox.util.test_utils import load_tests  # noqa: F401
 
 
 def _create_diffusion_physics_and_basis(bkd, npts=20):
@@ -67,10 +63,14 @@ def _create_diffusion_physics_and_basis(bkd, npts=20):
     mesh_obj = create_uniform_mesh_1d(npts, (-1.0, 1.0), bkd)
     nodes = basis.nodes()
 
-    forcing = lambda t: (math.pi ** 2) * bkd.sin(math.pi * nodes)
+    def forcing(t):
+        return (math.pi**2) * bkd.sin(math.pi * nodes)
 
     physics = AdvectionDiffusionReaction(
-        basis, bkd, diffusion=1.0, forcing=forcing,
+        basis,
+        bkd,
+        diffusion=1.0,
+        forcing=forcing,
     )
 
     left_idx = mesh_obj.boundary_indices(0)
@@ -134,8 +134,11 @@ class TestParameterizations(Generic[Array], unittest.TestCase):
         mesh_coords = ((nodes + 1.0) / 2.0)[None, :]
         mean_log = bkd.zeros((npts,))
         fm = create_lognormal_kle_field_map(
-            mesh_coords, mean_log, bkd,
-            num_kle_terms=num_kle_terms, sigma=0.3,
+            mesh_coords,
+            mean_log,
+            bkd,
+            num_kle_terms=num_kle_terms,
+            sigma=0.3,
         )
         dp = create_diffusion_parameterization(bkd, basis, fm)
 
@@ -315,8 +318,11 @@ class TestParameterizations(Generic[Array], unittest.TestCase):
         mesh_coords = ((nodes + 1.0) / 2.0)[None, :]
         mean_log = bkd.zeros((npts,))
         fm_d = create_lognormal_kle_field_map(
-            mesh_coords, mean_log, bkd,
-            num_kle_terms=num_kle_terms, sigma=0.3,
+            mesh_coords,
+            mean_log,
+            bkd,
+            num_kle_terms=num_kle_terms,
+            sigma=0.3,
         )
         dp = create_diffusion_parameterization(bkd, basis, fm_d)
 
@@ -469,9 +475,15 @@ class TestParameterizationsTorch(TestParameterizations[torch.Tensor]):
         mesh = TransformedMesh1D(npts, bkd)
         basis = ChebyshevBasis1D(mesh, bkd)
         nodes = basis.nodes()
-        forcing = lambda t: (math.pi ** 2) * bkd.sin(math.pi * nodes)
+
+        def forcing(t):
+            return (math.pi**2) * bkd.sin(math.pi * nodes)
+
         physics = AdvectionDiffusionReaction(
-            basis, bkd, diffusion=1.0, forcing=forcing,
+            basis,
+            bkd,
+            diffusion=1.0,
+            forcing=forcing,
         )
 
         phi0 = bkd.ones((npts,))
@@ -489,9 +501,7 @@ class TestParameterizationsTorch(TestParameterizations[torch.Tensor]):
             dp.apply(physics, p)
             return physics.residual(state, time)
 
-        autograd_jac = torch.autograd.functional.jacobian(
-            torch_residual, params
-        )
+        autograd_jac = torch.autograd.functional.jacobian(torch_residual, params)
         dp.apply(physics, params)
         analytical_jac = dp.param_jacobian(physics, state, time, params)
         bkd.assert_allclose(analytical_jac, autograd_jac, atol=1e-12)
@@ -499,6 +509,7 @@ class TestParameterizationsTorch(TestParameterizations[torch.Tensor]):
 
 class TestCompositeWithSteadyForwardModel(Generic[Array], unittest.TestCase):
     """Integration test: CompositeParameterization with SteadyForwardModel."""
+
     __test__ = False
 
     def bkd(self) -> Backend[Array]:
@@ -515,8 +526,11 @@ class TestCompositeWithSteadyForwardModel(Generic[Array], unittest.TestCase):
         mesh_coords = ((nodes + 1.0) / 2.0)[None, :]
         mean_log = bkd.zeros((npts,))
         fm_d = create_lognormal_kle_field_map(
-            mesh_coords, mean_log, bkd,
-            num_kle_terms=num_kle_terms, sigma=0.3,
+            mesh_coords,
+            mean_log,
+            bkd,
+            num_kle_terms=num_kle_terms,
+            sigma=0.3,
         )
         dp = create_diffusion_parameterization(bkd, basis, fm_d)
 
@@ -526,9 +540,7 @@ class TestCompositeWithSteadyForwardModel(Generic[Array], unittest.TestCase):
 
         comp = CompositeParameterization([dp, fp], bkd)
         init_state = bkd.zeros((npts,))
-        fwd = SteadyForwardModel(
-            physics, bkd, init_state, parameterization=comp
-        )
+        fwd = SteadyForwardModel(physics, bkd, init_state, parameterization=comp)
         return fwd
 
     def test_nvars_is_sum(self) -> None:

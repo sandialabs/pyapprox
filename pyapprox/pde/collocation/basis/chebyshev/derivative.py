@@ -68,7 +68,7 @@ class ChebyshevDerivativeMatrix1D(Generic[Array]):
         # Compute D[i,j] = (c_i/c_j) / (x_i - x_j) for i != j
         # Using outer operations for full vectorization
         X = nodes[:, None] - nodes[None, :]  # (npts, npts) differences
-        C = c[:, None] / c[None, :]          # (npts, npts) weight ratios
+        C = c[:, None] / c[None, :]  # (npts, npts) weight ratios
 
         # Create mask for diagonal (where X = 0)
         diag_idx = bkd.arange(npts)

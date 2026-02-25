@@ -9,12 +9,11 @@ has been renamed to clarify it's an exact conjugate solution,
 not the Laplace approximation for nonlinear models.
 """
 
-from typing import Generic, Optional
 import math
+from typing import Generic, Optional
 
-from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.probability.gaussian import DenseCholeskyMultivariateGaussian
-from pyapprox.probability.covariance import DenseCholeskyCovarianceOperator
+from pyapprox.util.backends.protocols import Array, Backend
 
 
 def _compute_expected_kl_divergence(
@@ -204,7 +203,8 @@ class DenseGaussianConjugatePosterior(Generic[Array]):
             obs = self._bkd.reshape(obs, (self._nobs, 1))
         if obs.shape[0] != self._nobs:
             raise ValueError(
-                f"obs has wrong shape {obs.shape}, expected ({self._nobs}, nexperiments)"
+                f"obs has wrong shape {obs.shape}, "
+                f"expected ({self._nobs}, nexperiments)"
             )
         self._obs = obs
         nexperiments = obs.shape[1]
@@ -376,4 +376,7 @@ class DenseGaussianConjugatePosterior(Generic[Array]):
 
     def __repr__(self) -> str:
         """Return string representation."""
-        return f"DenseGaussianConjugatePosterior(nvars={self._nvars}, nobs={self._nobs})"
+        return (
+            f"DenseGaussianConjugatePosterior("
+            f"nvars={self._nvars}, nobs={self._nobs})"
+        )

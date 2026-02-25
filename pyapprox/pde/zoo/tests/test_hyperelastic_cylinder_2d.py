@@ -12,63 +12,63 @@ import math
 import unittest
 from typing import Any, Generic
 
-import numpy as np
-from numpy.typing import NDArray
 import torch
+from numpy.typing import NDArray
 
-from pyapprox.util.backends.protocols import Array, Backend
-from pyapprox.util.backends.numpy import NumpyBkd
-from pyapprox.util.backends.torch import TorchBkd
-from pyapprox.util.test_utils import load_tests  # noqa: F401
-from pyapprox.interface.functions.protocols import (
-    FunctionWithJacobianProtocol,
-)
 from pyapprox.interface.functions.derivative_checks.derivative_checker import (
     DerivativeChecker,
 )
 from pyapprox.interface.functions.fromcallable.jacobian import (
     FunctionWithJacobianFromCallable,
 )
+from pyapprox.interface.functions.protocols import (
+    FunctionWithJacobianProtocol,
+)
+from pyapprox.optimization.implicitfunction.functionals.elasticity_2d import (
+    OuterWallRadialDisplacementFunctional,
+)
 from pyapprox.pde.collocation.basis import ChebyshevBasis2D
-from pyapprox.pde.collocation.mesh import TransformedMesh2D
-from pyapprox.pde.collocation.mesh.transforms import PolarTransform
-from pyapprox.pde.collocation.boundary import zero_dirichlet_bc
 from pyapprox.pde.collocation.boundary.dirichlet import DirichletBC
 from pyapprox.pde.collocation.boundary.hyperelastic_traction import (
     hyperelastic_traction_neumann_bc,
 )
+from pyapprox.pde.collocation.manufactured_solutions.hyperelasticity import (
+    ManufacturedHyperelasticityEquations,
+)
+from pyapprox.pde.collocation.mesh import TransformedMesh2D
+from pyapprox.pde.collocation.mesh.transforms import PolarTransform
 from pyapprox.pde.collocation.physics.hyperelasticity import (
     HyperelasticityPhysics,
 )
 from pyapprox.pde.collocation.physics.stress_models import (
     NeoHookeanStress,
 )
-from pyapprox.pde.collocation.manufactured_solutions.hyperelasticity import (
-    ManufacturedHyperelasticityEquations,
-)
 from pyapprox.pde.collocation.time_integration import CollocationModel
+from pyapprox.pde.field_maps.kle_factory import (
+    create_lognormal_kle_field_map,
+)
 from pyapprox.pde.zoo.hyperelastic_cylinder_2d import (
     create_hyperelastic_pressurized_cylinder_2d,
 )
 from pyapprox.pde.zoo.pressurized_cylinder_2d import (
     create_linear_pressurized_cylinder_2d,
 )
-from pyapprox.pde.field_maps.kle_factory import (
-    create_lognormal_kle_field_map,
-)
-from pyapprox.optimization.implicitfunction.functionals.elasticity_2d import (
-    OuterWallRadialDisplacementFunctional,
-)
-
+from pyapprox.util.backends.numpy import NumpyBkd
+from pyapprox.util.backends.protocols import Array, Backend
+from pyapprox.util.backends.torch import TorchBkd
+from pyapprox.util.test_utils import load_tests  # noqa: F401
 
 # ======================================================================
 # Helpers
 # ======================================================================
 
+
 def _setup_polar_mesh_and_basis(bkd, npts_r, npts_theta, r_inner, r_outer):
     """Create polar mesh and 2D Chebyshev basis on quarter-annulus."""
     transform = PolarTransform(
-        (r_inner, r_outer), (0.0, math.pi / 2.0), bkd,
+        (r_inner, r_outer),
+        (0.0, math.pi / 2.0),
+        bkd,
     )
     mesh = TransformedMesh2D(npts_r, npts_theta, bkd, transform)
     basis = ChebyshevBasis2D(mesh, bkd)
@@ -92,8 +92,11 @@ def _make_kle_field_map_2d(bkd, mesh, num_kle_terms=2):
 
     mean_log = bkd.zeros((npts,))
     return create_lognormal_kle_field_map(
-        mesh_coords, mean_log, bkd,
-        num_kle_terms=num_kle_terms, sigma=0.3,
+        mesh_coords,
+        mean_log,
+        bkd,
+        num_kle_terms=num_kle_terms,
+        sigma=0.3,
     )
 
 
@@ -106,13 +109,19 @@ def _make_outer_wall_functional(bkd, mesh, npts, nparams):
     cos_theta = outer_pts[0, :] / r
     sin_theta = outer_pts[1, :] / r
     return OuterWallRadialDisplacementFunctional(
-        outer_idx, cos_theta, sin_theta, npts, nparams, bkd,
+        outer_idx,
+        cos_theta,
+        sin_theta,
+        npts,
+        nparams,
+        bkd,
     )
 
 
 # ======================================================================
 # Test class
 # ======================================================================
+
 
 class TestHyperelasticCylinder2D(Generic[Array], unittest.TestCase):
     """Tests for 2D hyperelastic pressurized cylinder."""
@@ -137,7 +146,11 @@ class TestHyperelasticCylinder2D(Generic[Array], unittest.TestCase):
         lamda_val, mu_val = 1.0, 1.0
 
         mesh, basis = _setup_polar_mesh_and_basis(
-            bkd, npts_r, npts_theta, r_inner, r_outer,
+            bkd,
+            npts_r,
+            npts_theta,
+            r_inner,
+            r_outer,
         )
         npts = basis.npts()
         pts = mesh.points()
@@ -157,11 +170,14 @@ class TestHyperelasticCylinder2D(Generic[Array], unittest.TestCase):
         )
 
         u_exact = man_sol.functions["solution"](pts)  # (npts, 2)
-        forcing = man_sol.functions["forcing"](pts)    # (npts, 2)
+        forcing = man_sol.functions["forcing"](pts)  # (npts, 2)
         forcing_flat = bkd.concatenate([forcing[:, 0], forcing[:, 1]])
 
         physics = HyperelasticityPhysics(
-            basis, bkd, stress_model, forcing=lambda t: forcing_flat,
+            basis,
+            bkd,
+            stress_model,
+            forcing=lambda t: forcing_flat,
         )
 
         # All-Dirichlet BCs on all 4 sides, both components
@@ -179,7 +195,9 @@ class TestHyperelasticCylinder2D(Generic[Array], unittest.TestCase):
         model = CollocationModel(physics, bkd)
         exact_flat = bkd.concatenate([u_exact[:, 0], u_exact[:, 1]])
         sol = model.solve_steady(
-            bkd.zeros((2 * npts,)), tol=1e-10, maxiter=50,
+            bkd.zeros((2 * npts,)),
+            tol=1e-10,
+            maxiter=50,
         )
         bkd.assert_allclose(sol, exact_flat, atol=1e-7)
 
@@ -195,7 +213,11 @@ class TestHyperelasticCylinder2D(Generic[Array], unittest.TestCase):
         lamda_val, mu_val = 1.5, 0.8
 
         mesh, basis = _setup_polar_mesh_and_basis(
-            bkd, npts_r, npts_theta, r_inner, r_outer,
+            bkd,
+            npts_r,
+            npts_theta,
+            r_inner,
+            r_outer,
         )
         npts = basis.npts()
         pts = mesh.points()
@@ -218,12 +240,15 @@ class TestHyperelasticCylinder2D(Generic[Array], unittest.TestCase):
         )
 
         u_exact = man_sol.functions["solution"](pts)  # (npts, 2)
-        forcing = man_sol.functions["forcing"](pts)    # (npts, 2)
+        forcing = man_sol.functions["forcing"](pts)  # (npts, 2)
         forcing_flat = bkd.concatenate([forcing[:, 0], forcing[:, 1]])
         flux = man_sol.functions["flux"](pts)  # (2, npts, 2)
 
         physics = HyperelasticityPhysics(
-            basis, bkd, stress_model, forcing=lambda t: forcing_flat,
+            basis,
+            bkd,
+            stress_model,
+            forcing=lambda t: forcing_flat,
         )
 
         bcs = []
@@ -238,10 +263,18 @@ class TestHyperelasticCylinder2D(Generic[Array], unittest.TestCase):
                 flux[comp, inner_idx_np, 0] * inner_normals[:, 0]
                 + flux[comp, inner_idx_np, 1] * inner_normals[:, 1]
             )
-            bcs.append(hyperelastic_traction_neumann_bc(
-                bkd, inner_idx, inner_normals, D_matrices,
-                stress_model, npts, comp, values=traction_vals,
-            ))
+            bcs.append(
+                hyperelastic_traction_neumann_bc(
+                    bkd,
+                    inner_idx,
+                    inner_normals,
+                    D_matrices,
+                    stress_model,
+                    npts,
+                    comp,
+                    values=traction_vals,
+                )
+            )
 
         # Outer (bnd 1): traction with exact manufactured PK1 traction
         outer_idx = mesh.boundary_indices(1)
@@ -252,10 +285,18 @@ class TestHyperelasticCylinder2D(Generic[Array], unittest.TestCase):
                 flux[comp, outer_idx_np, 0] * outer_normals[:, 0]
                 + flux[comp, outer_idx_np, 1] * outer_normals[:, 1]
             )
-            bcs.append(hyperelastic_traction_neumann_bc(
-                bkd, outer_idx, outer_normals, D_matrices,
-                stress_model, npts, comp, values=traction_vals,
-            ))
+            bcs.append(
+                hyperelastic_traction_neumann_bc(
+                    bkd,
+                    outer_idx,
+                    outer_normals,
+                    D_matrices,
+                    stress_model,
+                    npts,
+                    comp,
+                    values=traction_vals,
+                )
+            )
 
         # Bottom (bnd 2): traction t_x (comp 0), Dirichlet v (comp 1)
         bottom_idx = mesh.boundary_indices(2)
@@ -265,10 +306,18 @@ class TestHyperelasticCylinder2D(Generic[Array], unittest.TestCase):
             flux[0, bottom_idx_np, 0] * bottom_normals[:, 0]
             + flux[0, bottom_idx_np, 1] * bottom_normals[:, 1]
         )
-        bcs.append(hyperelastic_traction_neumann_bc(
-            bkd, bottom_idx, bottom_normals, D_matrices,
-            stress_model, npts, component=0, values=traction_bottom_x,
-        ))
+        bcs.append(
+            hyperelastic_traction_neumann_bc(
+                bkd,
+                bottom_idx,
+                bottom_normals,
+                D_matrices,
+                stress_model,
+                npts,
+                component=0,
+                values=traction_bottom_x,
+            )
+        )
         bottom_v_idx = bottom_idx + npts
         bottom_v_exact = u_exact[bottom_idx_np, 1]
         bcs.append(DirichletBC(bkd, bottom_v_idx, bottom_v_exact))
@@ -283,17 +332,27 @@ class TestHyperelasticCylinder2D(Generic[Array], unittest.TestCase):
             flux[1, top_idx_np, 0] * top_normals[:, 0]
             + flux[1, top_idx_np, 1] * top_normals[:, 1]
         )
-        bcs.append(hyperelastic_traction_neumann_bc(
-            bkd, top_idx, top_normals, D_matrices,
-            stress_model, npts, component=1, values=traction_top_y,
-        ))
+        bcs.append(
+            hyperelastic_traction_neumann_bc(
+                bkd,
+                top_idx,
+                top_normals,
+                D_matrices,
+                stress_model,
+                npts,
+                component=1,
+                values=traction_top_y,
+            )
+        )
 
         physics.set_boundary_conditions(bcs)
 
         model = CollocationModel(physics, bkd)
         exact_flat = bkd.concatenate([u_exact[:, 0], u_exact[:, 1]])
         sol = model.solve_steady(
-            bkd.zeros((2 * npts,)), tol=1e-10, maxiter=50,
+            bkd.zeros((2 * npts,)),
+            tol=1e-10,
+            maxiter=50,
         )
         bkd.assert_allclose(sol, exact_flat, atol=1e-7)
 
@@ -312,32 +371,48 @@ class TestHyperelasticCylinder2D(Generic[Array], unittest.TestCase):
         num_kle_terms = 2
 
         mesh, basis = _setup_polar_mesh_and_basis(
-            bkd, npts_r, npts_theta, r_inner, r_outer,
+            bkd,
+            npts_r,
+            npts_theta,
+            r_inner,
+            r_outer,
         )
         npts = basis.npts()
         field_map = _make_kle_field_map_2d(bkd, mesh, num_kle_terms)
 
         functional_hyper = _make_outer_wall_functional(
-            bkd, mesh, npts, num_kle_terms,
+            bkd,
+            mesh,
+            npts,
+            num_kle_terms,
         )
         functional_linear = _make_outer_wall_functional(
-            bkd, mesh, npts, num_kle_terms,
+            bkd,
+            mesh,
+            npts,
+            num_kle_terms,
         )
 
         fwd_hyper = create_hyperelastic_pressurized_cylinder_2d(
             bkd=bkd,
-            npts_r=npts_r, npts_theta=npts_theta,
-            r_inner=r_inner, r_outer=r_outer,
-            E_mean=E_mean, poisson_ratio=nu,
+            npts_r=npts_r,
+            npts_theta=npts_theta,
+            r_inner=r_inner,
+            r_outer=r_outer,
+            E_mean=E_mean,
+            poisson_ratio=nu,
             inner_pressure=pressure,
             field_map=field_map,
             functional=functional_hyper,
         )
         fwd_linear = create_linear_pressurized_cylinder_2d(
             bkd=bkd,
-            npts_r=npts_r, npts_theta=npts_theta,
-            r_inner=r_inner, r_outer=r_outer,
-            E_mean=E_mean, poisson_ratio=nu,
+            npts_r=npts_r,
+            npts_theta=npts_theta,
+            r_inner=r_inner,
+            r_outer=r_outer,
+            E_mean=E_mean,
+            poisson_ratio=nu,
             inner_pressure=pressure,
             field_map=field_map,
             functional=functional_linear,
@@ -364,15 +439,22 @@ class TestHyperelasticCylinder2D(Generic[Array], unittest.TestCase):
         num_kle_terms = 2
 
         mesh, basis = _setup_polar_mesh_and_basis(
-            bkd, npts_r, npts_theta, r_inner, r_outer,
+            bkd,
+            npts_r,
+            npts_theta,
+            r_inner,
+            r_outer,
         )
         field_map = _make_kle_field_map_2d(bkd, mesh, num_kle_terms)
 
         fwd = create_hyperelastic_pressurized_cylinder_2d(
             bkd=bkd,
-            npts_r=npts_r, npts_theta=npts_theta,
-            r_inner=r_inner, r_outer=r_outer,
-            E_mean=E_mean, poisson_ratio=nu,
+            npts_r=npts_r,
+            npts_theta=npts_theta,
+            r_inner=r_inner,
+            r_outer=r_outer,
+            E_mean=E_mean,
+            poisson_ratio=nu,
             inner_pressure=pressure,
             field_map=field_map,
         )
@@ -404,15 +486,22 @@ class TestHyperelasticCylinder2D(Generic[Array], unittest.TestCase):
         num_kle_terms = 2
 
         mesh, basis = _setup_polar_mesh_and_basis(
-            bkd, npts_r, npts_theta, r_inner, r_outer,
+            bkd,
+            npts_r,
+            npts_theta,
+            r_inner,
+            r_outer,
         )
         field_map = _make_kle_field_map_2d(bkd, mesh, num_kle_terms)
 
         fwd = create_hyperelastic_pressurized_cylinder_2d(
             bkd=bkd,
-            npts_r=npts_r, npts_theta=npts_theta,
-            r_inner=r_inner, r_outer=r_outer,
-            E_mean=1.0, poisson_ratio=0.3,
+            npts_r=npts_r,
+            npts_theta=npts_theta,
+            r_inner=r_inner,
+            r_outer=r_outer,
+            E_mean=1.0,
+            poisson_ratio=0.3,
             inner_pressure=1.0,
             field_map=field_map,
         )
@@ -435,16 +524,13 @@ class TestHyperelasticCylinder2D(Generic[Array], unittest.TestCase):
 # Backend-specific test classes
 # ======================================================================
 
-class TestHyperelasticCylinder2DNumpy(
-    TestHyperelasticCylinder2D[NDArray[Any]]
-):
+
+class TestHyperelasticCylinder2DNumpy(TestHyperelasticCylinder2D[NDArray[Any]]):
     def bkd(self) -> NumpyBkd:
         return NumpyBkd()
 
 
-class TestHyperelasticCylinder2DTorch(
-    TestHyperelasticCylinder2D[torch.Tensor]
-):
+class TestHyperelasticCylinder2DTorch(TestHyperelasticCylinder2D[torch.Tensor]):
     def bkd(self) -> TorchBkd:
         torch.set_default_dtype(torch.float64)
         return TorchBkd()

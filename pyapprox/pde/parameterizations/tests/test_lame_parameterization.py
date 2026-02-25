@@ -13,14 +13,9 @@ import math
 import unittest
 from typing import Any, Generic
 
-import numpy as np
-from numpy.typing import NDArray
 import torch
+from numpy.typing import NDArray
 
-from pyapprox.util.backends.protocols import Array, Backend
-from pyapprox.util.backends.numpy import NumpyBkd
-from pyapprox.util.backends.torch import TorchBkd
-from pyapprox.util.test_utils import load_tests  # noqa: F401
 from pyapprox.interface.functions.derivative_checks.derivative_checker import (
     DerivativeChecker,
 )
@@ -29,7 +24,6 @@ from pyapprox.interface.functions.fromcallable.jacobian import (
 )
 from pyapprox.pde.collocation.basis import ChebyshevBasis2D
 from pyapprox.pde.collocation.mesh import (
-    create_uniform_mesh_2d,
     TransformedMesh2D,
 )
 from pyapprox.pde.collocation.physics import LinearElasticityPhysics
@@ -39,13 +33,17 @@ from pyapprox.pde.field_maps.basis_expansion import (
 from pyapprox.pde.field_maps.protocol import (
     FieldMapProtocol,
 )
-from pyapprox.pde.parameterizations.protocol import (
-    ParameterizationProtocol,
-)
 from pyapprox.pde.parameterizations.lame import (
     YoungModulusParameterization,
     create_youngs_modulus_parameterization,
 )
+from pyapprox.pde.parameterizations.protocol import (
+    ParameterizationProtocol,
+)
+from pyapprox.util.backends.numpy import NumpyBkd
+from pyapprox.util.backends.protocols import Array, Backend
+from pyapprox.util.backends.torch import TorchBkd
+from pyapprox.util.test_utils import load_tests  # noqa: F401
 
 
 def _create_elasticity_physics_and_basis(bkd, npts_1d=6):
@@ -60,10 +58,12 @@ def _create_elasticity_physics_and_basis(bkd, npts_1d=6):
     nodes = bkd.stack([xx.flatten(), yy.flatten()], axis=0)
 
     # Constant forcing for a non-trivial problem
-    forcing_flat = bkd.concatenate([
-        bkd.ones((npts,)),
-        bkd.zeros((npts,)),
-    ])
+    forcing_flat = bkd.concatenate(
+        [
+            bkd.ones((npts,)),
+            bkd.zeros((npts,)),
+        ]
+    )
 
     physics = LinearElasticityPhysics(
         basis, bkd, lamda=1.0, mu=1.0, forcing=lambda t: forcing_flat
@@ -201,10 +201,12 @@ class TestLameParameterization(Generic[Array], unittest.TestCase):
 
         # Non-trivial state
         y = nodes[1, :]
-        state = bkd.concatenate([
-            bkd.sin(math.pi * x) * bkd.cos(math.pi * y) * 0.1,
-            bkd.cos(math.pi * x) * bkd.sin(math.pi * y) * 0.1,
-        ])
+        state = bkd.concatenate(
+            [
+                bkd.sin(math.pi * x) * bkd.cos(math.pi * y) * 0.1,
+                bkd.cos(math.pi * x) * bkd.sin(math.pi * y) * 0.1,
+            ]
+        )
         time = 0.0
 
         def residual_of_params(samples):

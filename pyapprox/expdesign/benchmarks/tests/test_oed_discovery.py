@@ -13,21 +13,19 @@ import numpy as np
 import torch
 from numpy.typing import NDArray
 
-from pyapprox.util.backends.numpy import NumpyBkd
-from pyapprox.util.backends.torch import TorchBkd
-from pyapprox.util.backends.protocols import Array, Backend
-from pyapprox.util.test_utils import load_tests  # noqa: F401
-
-from pyapprox.benchmarks.registry import BenchmarkRegistry
-from pyapprox.benchmarks.protocols import (
-    HasObservationModel,
-    HasPredictionModel,
-    HasExactEIG,
-    HasPrior,
-)
-
 # Ensure all OED benchmarks are registered by importing the package
 import pyapprox.expdesign.benchmarks  # noqa: F401
+from pyapprox.benchmarks.protocols import (
+    HasExactEIG,
+    HasObservationModel,
+    HasPredictionModel,
+    HasPrior,
+)
+from pyapprox.benchmarks.registry import BenchmarkRegistry
+from pyapprox.util.backends.numpy import NumpyBkd
+from pyapprox.util.backends.protocols import Array, Backend
+from pyapprox.util.backends.torch import TorchBkd
+from pyapprox.util.test_utils import load_tests  # noqa: F401
 
 
 class TestOEDDiscovery(Generic[Array], unittest.TestCase):
@@ -43,7 +41,8 @@ class TestOEDDiscovery(Generic[Array], unittest.TestCase):
 
     def test_has_observation_model_names(self):
         names = BenchmarkRegistry.names_satisfying(
-            HasObservationModel, bkd=self._bkd,
+            HasObservationModel,
+            bkd=self._bkd,
         )
         for expected in [
             "linear_gaussian_oed",
@@ -55,7 +54,9 @@ class TestOEDDiscovery(Generic[Array], unittest.TestCase):
 
     def test_has_observation_model_and_prior(self):
         names = BenchmarkRegistry.names_satisfying(
-            HasObservationModel, HasPrior, bkd=self._bkd,
+            HasObservationModel,
+            HasPrior,
+            bkd=self._bkd,
         )
         for expected in [
             "linear_gaussian_oed",
@@ -67,7 +68,10 @@ class TestOEDDiscovery(Generic[Array], unittest.TestCase):
 
     def test_has_prediction_model_names(self):
         names = BenchmarkRegistry.names_satisfying(
-            HasObservationModel, HasPredictionModel, HasPrior, bkd=self._bkd,
+            HasObservationModel,
+            HasPredictionModel,
+            HasPrior,
+            bkd=self._bkd,
         )
         for expected in [
             "nonlinear_gaussian_oed",
@@ -79,7 +83,8 @@ class TestOEDDiscovery(Generic[Array], unittest.TestCase):
 
     def test_has_exact_eig_names(self):
         names = BenchmarkRegistry.names_satisfying(
-            HasExactEIG, bkd=self._bkd,
+            HasExactEIG,
+            bkd=self._bkd,
         )
         self.assertIn("linear_gaussian_oed", names)
         # Benchmarks without exact_eig should not appear

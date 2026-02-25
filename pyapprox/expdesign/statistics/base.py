@@ -100,9 +100,7 @@ class SampleStatistic(ABC, Generic[Array]):
             )
         return result
 
-    def _jacobian(
-        self, values: Array, jac_values: Array, weights: Array
-    ) -> Array:
+    def _jacobian(self, values: Array, jac_values: Array, weights: Array) -> Array:
         """
         Compute Jacobian of statistic (subclass implementation).
 
@@ -124,9 +122,7 @@ class SampleStatistic(ABC, Generic[Array]):
             f"{self.__class__.__name__} does not implement jacobian"
         )
 
-    def jacobian(
-        self, values: Array, jac_values: Array, weights: Array
-    ) -> Array:
+    def jacobian(self, values: Array, jac_values: Array, weights: Array) -> Array:
         """
         Compute Jacobian of statistic w.r.t. upstream variables via chain rule.
 
@@ -151,8 +147,7 @@ class SampleStatistic(ABC, Generic[Array]):
         result = self._jacobian(values, jac_values, weights)
         if result.shape != (nqoi, nvars):
             raise ValueError(
-                f"_jacobian returned shape {result.shape}, "
-                f"expected ({nqoi}, {nvars})"
+                f"_jacobian returned shape {result.shape}, expected ({nqoi}, {nvars})"
             )
         return result
 

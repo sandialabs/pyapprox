@@ -26,15 +26,15 @@ Example with custom optimizer settings:
     leja = LejaSequence1D(bkd, basis, weighting, bounds, optimizer=optimizer)
 """
 
-from typing import Callable, Dict, Generic, Optional, Tuple, Type, Union, Any
+from typing import Callable, Dict, Generic, Optional, Tuple, Type
+
 import numpy as np
 
-from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.surrogates.affine.protocols import Basis1DProtocol
+from pyapprox.util.backends.protocols import Array, Backend
 
 from .protocols import (
     LejaWeightingProtocol,
-    LejaWeightingWithJacobianProtocol,
 )
 
 
@@ -61,7 +61,10 @@ class ScipyTrustConstrMinimizer:
     >>> optimizer = ScipyTrustConstrMinimizer(gtol=1e-8, maxiter=500)
     >>> # leja = LejaSequence1D(bkd, basis, weighting, bounds, optimizer=optimizer)
     """
-    # todo: delete this class and use scipy wrapper in typing.optimization.minimize as default, but leja should accept anything that meets the minimizer protocol, so we can change optimizers if the user desires
+
+    # todo: delete this class and use scipy wrapper in typing.optimization.minimize as
+    # default, but leja should accept anything that meets the minimizer protocol, so we
+    # can change optimizers if the user desires
     def __init__(
         self,
         gtol: Optional[float] = None,
@@ -77,6 +80,7 @@ class ScipyTrustConstrMinimizer:
         from pyapprox.optimization.minimize.scipy.trust_constr import (
             ScipyTrustConstrOptimizer,
         )
+
         return ScipyTrustConstrOptimizer(
             objective=objective,
             bounds=bounds,
@@ -86,10 +90,7 @@ class ScipyTrustConstrMinimizer:
         )
 
     def __repr__(self) -> str:
-        return (
-            f"ScipyTrustConstrMinimizer(gtol={self._gtol}, "
-            f"maxiter={self._maxiter})"
-        )
+        return f"ScipyTrustConstrMinimizer(gtol={self._gtol}, maxiter={self._maxiter})"
 
 
 class LejaObjective(Generic[Array]):
@@ -215,7 +216,7 @@ class LejaObjective(Generic[Array]):
 
         pvals = basis_mat @ self._coefficients
         residual = new_basis - pvals
-        vals = -weights * self._bkd.sum(residual ** 2, axis=1)[:, None]
+        vals = -weights * self._bkd.sum(residual**2, axis=1)[:, None]
         return vals.T
 
     def jacobian(self, sample: Array) -> Array:
@@ -263,7 +264,7 @@ class LejaObjective(Generic[Array]):
 
         # d/dx (-w * r^2) = -w' * r^2 - 2 * w * r * r'
         jac = self._bkd.sum(
-            residual ** 2 * weight_jac + 2 * weight * residual * residual_jac,
+            residual**2 * weight_jac + 2 * weight * residual * residual_jac,
             axis=1,
         )
         return -jac[None, :]
@@ -314,10 +315,7 @@ class LejaObjective(Generic[Array]):
         return iterates_arr, bounds_list
 
     def __repr__(self) -> str:
-        return (
-            f"LejaObjective(nsamples={self.nsamples()}, "
-            f"bounds={self._bounds})"
-        )
+        return f"LejaObjective(nsamples={self.nsamples()}, bounds={self._bounds})"
 
 
 class TwoPointLejaObjective(LejaObjective[Array]):
@@ -388,9 +386,7 @@ class TwoPointLejaObjective(LejaObjective[Array]):
         basis_mat = basis_vals[:, :-2]
         new_basis = basis_vals[:, -2:]
 
-        sqrt_weights = self._bkd.sqrt(
-            self._weighting(flat_samples, basis_mat)
-        )
+        sqrt_weights = self._bkd.sqrt(self._weighting(flat_samples, basis_mat))
         pvals = basis_mat @ self._coefficients
         residuals = sqrt_weights * (new_basis - pvals)
 
@@ -426,9 +422,7 @@ class TwoPointLejaObjective(LejaObjective[Array]):
         bderivs = basis_jac[:, -2:]
         pderivs = basis_jac[:, :-2] @ self._coefficients
 
-        sqrt_weights = self._bkd.sqrt(
-            self._weighting(flat_sample, basis_vals[:, :-2])
-        )
+        sqrt_weights = self._bkd.sqrt(self._weighting(flat_sample, basis_vals[:, :-2]))
 
         # Compute weight jacobian for sqrt_weights
         if hasattr(self._weighting, "jacobian"):
@@ -449,8 +443,7 @@ class TwoPointLejaObjective(LejaObjective[Array]):
         # Determinant and its jacobian
         # det = r[0,0]*r[1,1] - r[0,1]*r[1,0]
         determinant = (
-            residuals[:1, 0] * residuals[1:, 1]
-            - residuals[:1, 1] * residuals[1:, 0]
+            residuals[:1, 0] * residuals[1:, 1] - residuals[:1, 1] * residuals[1:, 0]
         )
         determinant_jac = self._bkd.stack(
             (
@@ -482,18 +475,15 @@ class TwoPointLejaObjective(LejaObjective[Array]):
             for jj in range(ii + 1, iterates_1d.shape[1]):
                 iterates.append(
                     self._bkd.vstack(
-                        (iterates_1d[:, ii:ii+1], iterates_1d[:, jj:jj+1])
+                        (iterates_1d[:, ii : ii + 1], iterates_1d[:, jj : jj + 1])
                     )
                 )
-                bounds.append(
-                    self._bkd.vstack((bounds_1d[ii], bounds_1d[jj]))
-                )
+                bounds.append(self._bkd.vstack((bounds_1d[ii], bounds_1d[jj])))
         return self._bkd.hstack(iterates), bounds
 
     def __repr__(self) -> str:
         return (
-            f"TwoPointLejaObjective(nsamples={self.nsamples()}, "
-            f"bounds={self._bounds})"
+            f"TwoPointLejaObjective(nsamples={self.nsamples()}, bounds={self._bounds})"
         )
 
 
@@ -747,7 +737,4 @@ class LejaSequence1D(Generic[Array]):
         self._cache_weights_for_current_sequence()
 
     def __repr__(self) -> str:
-        return (
-            f"LejaSequence1D(npoints={self.npoints()}, "
-            f"bounds={self._bounds})"
-        )
+        return f"LejaSequence1D(npoints={self.npoints()}, bounds={self._bounds})"

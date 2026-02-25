@@ -10,13 +10,13 @@ where x are the spatial variables and q are child outputs.
 
 from typing import Any, Generic, List
 
-from pyapprox.util.backends.protocols import Array, Backend
-from pyapprox.util.hyperparameter import HyperParameterList
 from pyapprox.surrogates.mfnets.protocols import (
     LinearNodeModelProtocol,
     NodeModelProtocol,
     NodeModelWithParamJacobianProtocol,
 )
+from pyapprox.util.backends.protocols import Array, Backend
+from pyapprox.util.hyperparameter import HyperParameterList
 
 
 class MultiplicativeAdditiveDiscrepancy(Generic[Array]):
@@ -55,8 +55,7 @@ class MultiplicativeAdditiveDiscrepancy(Generic[Array]):
         for sm in scaling_models:
             if sm.nqoi() != nscaled_qoi:
                 raise ValueError(
-                    f"Each scaling model must have nqoi={nscaled_qoi}, "
-                    f"got {sm.nqoi()}"
+                    f"Each scaling model must have nqoi={nscaled_qoi}, got {sm.nqoi()}"
                 )
         self._bkd = bkd
         self._scalings = scaling_models
@@ -75,22 +74,16 @@ class MultiplicativeAdditiveDiscrepancy(Generic[Array]):
 
     def _setup_optional_methods(self) -> None:
         """Bind jacobian_wrt_params / basis_matrix if sub-models support it."""
-        all_have_jac = (
-            isinstance(self._delta, NodeModelWithParamJacobianProtocol)
-            and all(
-                isinstance(s, NodeModelWithParamJacobianProtocol)
-                for s in self._scalings
-            )
+        all_have_jac = isinstance(
+            self._delta, NodeModelWithParamJacobianProtocol
+        ) and all(
+            isinstance(s, NodeModelWithParamJacobianProtocol) for s in self._scalings
         )
         if all_have_jac:
             self.jacobian_wrt_params = self._jacobian_wrt_params
 
-        all_linear = (
-            isinstance(self._delta, LinearNodeModelProtocol)
-            and all(
-                isinstance(s, LinearNodeModelProtocol)
-                for s in self._scalings
-            )
+        all_linear = isinstance(self._delta, LinearNodeModelProtocol) and all(
+            isinstance(s, LinearNodeModelProtocol) for s in self._scalings
         )
         if all_linear:
             self.basis_matrix = self._basis_matrix
@@ -134,8 +127,8 @@ class MultiplicativeAdditiveDiscrepancy(Generic[Array]):
         Array
             Output values. Shape: ``(nqoi, nsamples)``
         """
-        x = samples[:self._delta.nvars()]  # (delta_nvars, nsamples)
-        q = samples[self._delta.nvars():]  # (nscaled_qoi, nsamples)
+        x = samples[: self._delta.nvars()]  # (delta_nvars, nsamples)
+        q = samples[self._delta.nvars() :]  # (nscaled_qoi, nsamples)
 
         # delta(x): (nqoi, nsamples)
         values = self._delta(x)
@@ -145,7 +138,7 @@ class MultiplicativeAdditiveDiscrepancy(Generic[Array]):
             # scaling(x): (nscaled_qoi, nsamples) — one scale per child dim
             scale = scaling(x)  # (nscaled_qoi, nsamples)
             # sum_j scale[j] * q[j] over child dims
-            values[ii:ii+1] = values[ii:ii+1] + self._bkd.sum(
+            values[ii : ii + 1] = values[ii : ii + 1] + self._bkd.sum(
                 scale * q, axis=0, keepdims=True
             )
 
@@ -154,9 +147,9 @@ class MultiplicativeAdditiveDiscrepancy(Generic[Array]):
     def _sync_from_hyp_list(self) -> None:
         """Propagate hyp_list values to sub-models."""
         for sm in self._scalings:
-            if hasattr(sm, '_sync_from_hyp_list'):
+            if hasattr(sm, "_sync_from_hyp_list"):
                 sm._sync_from_hyp_list()
-        if hasattr(self._delta, '_sync_from_hyp_list'):
+        if hasattr(self._delta, "_sync_from_hyp_list"):
             self._delta._sync_from_hyp_list()
 
     def _jacobian_wrt_params(self, samples: Array) -> Array:
@@ -172,8 +165,8 @@ class MultiplicativeAdditiveDiscrepancy(Generic[Array]):
         Array
             Shape: ``(nsamples, nqoi, nactive_params)``
         """
-        x = samples[:self._delta.nvars()]
-        q = samples[self._delta.nvars():]
+        x = samples[: self._delta.nvars()]
+        q = samples[self._delta.nvars() :]
         nsamples = samples.shape[1]
         nqoi = self.nqoi()
         nactive = self._hyp_list.nactive_params()
@@ -193,10 +186,9 @@ class MultiplicativeAdditiveDiscrepancy(Generic[Array]):
             for jj in range(self._nscaled_qoi):
                 # scale_jac[:, jj, :]: (nsamples, n_scale_active)
                 # q[jj, :]: (nsamples,)
-                jac[:, ii, param_offset:param_offset + n_scale_active] = (
-                    jac[:, ii, param_offset:param_offset + n_scale_active]
-                    + scale_jac[:, jj, :]
-                    * q[jj:jj+1, :].T  # (nsamples, 1)
+                jac[:, ii, param_offset : param_offset + n_scale_active] = (
+                    jac[:, ii, param_offset : param_offset + n_scale_active]
+                    + scale_jac[:, jj, :] * q[jj : jj + 1, :].T  # (nsamples, 1)
                 )
             param_offset += n_scale_active
 
@@ -204,7 +196,7 @@ class MultiplicativeAdditiveDiscrepancy(Generic[Array]):
         # delta.jacobian_wrt_params(x): (nsamples, nqoi, n_delta_active)
         delta_jac = self._delta.jacobian_wrt_params(x)  # type: ignore[attr-defined]
         n_delta_active = delta_jac.shape[2]
-        jac[:, :, param_offset:param_offset + n_delta_active] = delta_jac
+        jac[:, :, param_offset : param_offset + n_delta_active] = delta_jac
 
         return jac
 
@@ -228,8 +220,8 @@ class MultiplicativeAdditiveDiscrepancy(Generic[Array]):
             Design matrix. Shape: ``(nsamples, total_nterms)``
             where total_nterms = nqoi * (sum_j nterms_scale_j + nterms_delta)
         """
-        x = samples[:self._delta.nvars()]
-        q = samples[self._delta.nvars():]
+        x = samples[: self._delta.nvars()]
+        q = samples[self._delta.nvars() :]
 
         columns = []
         for ii, scaling in enumerate(self._scalings):
@@ -238,7 +230,7 @@ class MultiplicativeAdditiveDiscrepancy(Generic[Array]):
             # Multiply each column by corresponding child output
             for jj in range(self._nscaled_qoi):
                 # phi_scale * q[jj]: (nsamples, nterms_scale)
-                columns.append(phi_scale * q[jj:jj+1, :].T)
+                columns.append(phi_scale * q[jj : jj + 1, :].T)
 
         # Delta basis: (nsamples, nterms_delta)
         phi_delta = self._delta.basis_matrix(x)  # type: ignore[attr-defined]
@@ -271,14 +263,14 @@ class MultiplicativeAdditiveDiscrepancy(Generic[Array]):
         offset = 0
         for sm in self._scalings:
             n = sm.hyp_list().nparams()
-            sm_coef = coef[offset:offset + n]
+            sm_coef = coef[offset : offset + n]
             sm_nterms = sm_coef.shape[0] // self._nscaled_qoi
             sm.set_coefficients(  # type: ignore[attr-defined]
                 self._bkd.reshape(sm_coef, (sm_nterms, self._nscaled_qoi))
             )
             offset += n
         n_delta = self._delta.hyp_list().nparams()
-        delta_coef = coef[offset:offset + n_delta]
+        delta_coef = coef[offset : offset + n_delta]
         delta_nterms = delta_coef.shape[0] // self.nqoi()
         self._delta.set_coefficients(  # type: ignore[attr-defined]
             self._bkd.reshape(delta_coef, (delta_nterms, self.nqoi()))

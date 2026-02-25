@@ -6,36 +6,36 @@ and LinearCoregionalizationKernel with a single GP handling all outputs.
 """
 
 import unittest
-from typing import Generic, Any
+from typing import Any, Generic
 
 import numpy as np
 import torch
 from numpy.typing import NDArray
 
-from pyapprox.util.backends.protocols import Backend, Array
-from pyapprox.util.backends.numpy import NumpyBkd
-from pyapprox.util.backends.torch import TorchBkd
+from pyapprox.interface.functions.derivative_checks.derivative_checker import (
+    DerivativeChecker,
+)
+from pyapprox.surrogates.gaussianprocess.gp_loss import (
+    GPNegativeLogMarginalLikelihoodLoss,
+)
+from pyapprox.surrogates.gaussianprocess.multioutput import MultiOutputGP
+from pyapprox.surrogates.gaussianprocess.torch_multioutput import (
+    TorchMultiOutputGP,
+)
+from pyapprox.surrogates.kernels.iid_gaussian_noise import IIDGaussianNoise
 from pyapprox.surrogates.kernels.matern import (
     Matern52Kernel,
     SquaredExponentialKernel,
 )
-from pyapprox.surrogates.kernels.multioutput.multilevel import MultiLevelKernel
-from pyapprox.surrogates.kernels.scalings import PolynomialScaling
-from pyapprox.surrogates.kernels.iid_gaussian_noise import IIDGaussianNoise
 from pyapprox.surrogates.kernels.multioutput import (
     IndependentMultiOutputKernel,
     LinearCoregionalizationKernel,
 )
-from pyapprox.surrogates.gaussianprocess.multioutput import MultiOutputGP
-from pyapprox.surrogates.gaussianprocess.gp_loss import (
-    GPNegativeLogMarginalLikelihoodLoss,
-)
-from pyapprox.interface.functions.derivative_checks.derivative_checker import (
-    DerivativeChecker,
-)
-from pyapprox.surrogates.gaussianprocess.torch_multioutput import (
-    TorchMultiOutputGP,
-)
+from pyapprox.surrogates.kernels.multioutput.multilevel import MultiLevelKernel
+from pyapprox.surrogates.kernels.scalings import PolynomialScaling
+from pyapprox.util.backends.numpy import NumpyBkd
+from pyapprox.util.backends.protocols import Array, Backend
+from pyapprox.util.backends.torch import TorchBkd
 
 
 class TestMultiOutputGPWithIndependentKernel(Generic[Array], unittest.TestCase):
@@ -95,12 +95,11 @@ class TestMultiOutputGPWithIndependentKernel(Generic[Array], unittest.TestCase):
         kernels = []
         for i in range(self.noutputs):
             matern = Matern52Kernel(
-                [1.0] * self.nvars,
-                (0.1, 10.0),
-                self.nvars,
-                self.bkd()
+                [1.0] * self.nvars, (0.1, 10.0), self.nvars, self.bkd()
             )
-            constant = PolynomialScaling([1.0], (0.1, 10.0), self.bkd(), nvars=self.nvars)
+            constant = PolynomialScaling(
+                [1.0], (0.1, 10.0), self.bkd(), nvars=self.nvars
+            )
             noise = IIDGaussianNoise(1e-14, (1e-16, 1e-12), self.bkd())
             kernel = constant * matern + noise
             kernels.append(kernel)
@@ -129,8 +128,9 @@ class TestMultiOutputGPWithIndependentKernel(Generic[Array], unittest.TestCase):
             # Check interpolation error
             error_i = self.bkd().abs(y_pred_i - y_true_i)
             max_error_i = self.bkd().max(error_i).item()
-            self.assertLess(max_error_i, 1e-6,
-                           f"Output {i} error {max_error_i:.2e} exceeds 1e-6")
+            self.assertLess(
+                max_error_i, 1e-6, f"Output {i} error {max_error_i:.2e} exceeds 1e-6"
+            )
 
             # Verify correct function: output 0 = sin, output 1 = cos
             y_pred_i_np = self.bkd().to_numpy(y_pred_i)
@@ -138,14 +138,16 @@ class TestMultiOutputGPWithIndependentKernel(Generic[Array], unittest.TestCase):
                 # Output 0: sin(x1 + x2)
                 expected = np.sin(X_train_np[0, :] + X_train_np[1, :])
                 func_error = np.abs(y_pred_i_np - expected)
-                self.assertLess(np.max(func_error), 1e-6,
-                               f"Output 0 does not match sin(x1+x2)")
+                self.assertLess(
+                    np.max(func_error), 1e-6, "Output 0 does not match sin(x1+x2)"
+                )
             elif i == 1:
                 # Output 1: cos(x1 - x2)
                 expected = np.cos(X_train_np[0, :] - X_train_np[1, :])
                 func_error = np.abs(y_pred_i_np - expected)
-                self.assertLess(np.max(func_error), 1e-6,
-                               f"Output 1 does not match cos(x1-x2)")
+                self.assertLess(
+                    np.max(func_error), 1e-6, "Output 1 does not match cos(x1-x2)"
+                )
 
     def test_prediction_at_new_points(self) -> None:
         """
@@ -171,10 +173,7 @@ class TestMultiOutputGPWithIndependentKernel(Generic[Array], unittest.TestCase):
         kernels = []
         for i in range(self.noutputs):
             matern = Matern52Kernel(
-                [1.0] * self.nvars,
-                (0.1, 10.0),
-                self.nvars,
-                self.bkd()
+                [1.0] * self.nvars, (0.1, 10.0), self.nvars, self.bkd()
             )
             kernels.append(matern)
 
@@ -250,10 +249,7 @@ class TestMultiOutputGPWithIndependentKernel(Generic[Array], unittest.TestCase):
         kernels = []
         for i in range(self.noutputs):
             matern = Matern52Kernel(
-                [1.0] * self.nvars,
-                (0.1, 10.0),
-                self.nvars,
-                self.bkd()
+                [1.0] * self.nvars, (0.1, 10.0), self.nvars, self.bkd()
             )
             kernels.append(matern)
 
@@ -275,8 +271,9 @@ class TestMultiOutputGPWithIndependentKernel(Generic[Array], unittest.TestCase):
                     K_ij = K[row_start:row_end, col_start:col_end]
                     K_ij_abs = self.bkd().abs(K_ij)
                     max_val = self.bkd().max(K_ij_abs).item()
-                    self.assertLess(max_val, 1e-10,
-                                   f"Off-diagonal block [{i},{j}] not zero")
+                    self.assertLess(
+                        max_val, 1e-10, f"Off-diagonal block [{i},{j}] not zero"
+                    )
 
 
 class TestMultiOutputGPWithLMCKernel(Generic[Array], unittest.TestCase):
@@ -327,12 +324,11 @@ class TestMultiOutputGPWithLMCKernel(Generic[Array], unittest.TestCase):
         base_kernels = []
         for q in range(2):  # 2 components
             matern = Matern52Kernel(
-                [1.0] * self.nvars,
-                (0.1, 10.0),
-                self.nvars,
-                self.bkd()
+                [1.0] * self.nvars, (0.1, 10.0), self.nvars, self.bkd()
             )
-            constant = PolynomialScaling([1.0], (0.1, 10.0), self.bkd(), nvars=self.nvars)
+            constant = PolynomialScaling(
+                [1.0], (0.1, 10.0), self.bkd(), nvars=self.nvars
+            )
             kernel = constant * matern
             base_kernels.append(kernel)
 
@@ -347,9 +343,7 @@ class TestMultiOutputGPWithLMCKernel(Generic[Array], unittest.TestCase):
 
         # Create LMC kernel
         lmc_kernel = LinearCoregionalizationKernel(
-            base_kernels,
-            coreg_matrices,
-            self.noutputs
+            base_kernels, coreg_matrices, self.noutputs
         )
 
         # Create and fit GP (with fixed hyperparameters for interpolation test)
@@ -372,8 +366,11 @@ class TestMultiOutputGPWithLMCKernel(Generic[Array], unittest.TestCase):
             error_i = self.bkd().abs(y_pred_i - y_true_i)
             max_error_i = self.bkd().max(error_i).item()
 
-            self.assertLess(max_error_i, 1e-6,
-                           f"LMC output {i} error {max_error_i:.2e} exceeds 1e-6")
+            self.assertLess(
+                max_error_i,
+                1e-6,
+                f"LMC output {i} error {max_error_i:.2e} exceeds 1e-6",
+            )
 
     def test_lmc_captures_correlations(self) -> None:
         """Test that LMC kernel has non-zero off-diagonal blocks."""
@@ -381,22 +378,13 @@ class TestMultiOutputGPWithLMCKernel(Generic[Array], unittest.TestCase):
         X_train, _ = self._create_test_data(n_train)
 
         # Create base kernel
-        matern = Matern52Kernel(
-            [1.0] * self.nvars,
-            (0.1, 10.0),
-            self.nvars,
-            self.bkd()
-        )
+        matern = Matern52Kernel([1.0] * self.nvars, (0.1, 10.0), self.nvars, self.bkd())
 
         # Coregionalization matrix with correlation
         B_np = np.array([[1.0, 0.7], [0.7, 1.0]])
         B = self.bkd().array(B_np)
 
-        lmc_kernel = LinearCoregionalizationKernel(
-            [matern],
-            [B],
-            self.noutputs
-        )
+        lmc_kernel = LinearCoregionalizationKernel([matern], [B], self.noutputs)
 
         # Get kernel blocks
         X_list = [X_train] * self.noutputs
@@ -407,8 +395,9 @@ class TestMultiOutputGPWithLMCKernel(Generic[Array], unittest.TestCase):
         K_01_abs = self.bkd().abs(K_01)
         max_val = self.bkd().max(K_01_abs).item()
 
-        self.assertGreater(max_val, 0.01,
-                          "LMC should have non-zero output correlations")
+        self.assertGreater(
+            max_val, 0.01, "LMC should have non-zero output correlations"
+        )
 
 
 class TestMultiOutputGPWithIndependentKernelNumpy(
@@ -438,9 +427,7 @@ class TestMultiOutputGPWithIndependentKernelTorch(
         return self._bkd
 
 
-class TestMultiOutputGPWithLMCKernelNumpy(
-    TestMultiOutputGPWithLMCKernel[NDArray[Any]]
-):
+class TestMultiOutputGPWithLMCKernelNumpy(TestMultiOutputGPWithLMCKernel[NDArray[Any]]):
     """NumPy backend tests for LMC."""
 
     def setUp(self) -> None:
@@ -451,9 +438,7 @@ class TestMultiOutputGPWithLMCKernelNumpy(
         return self._bkd
 
 
-class TestMultiOutputGPWithLMCKernelTorch(
-    TestMultiOutputGPWithLMCKernel[torch.Tensor]
-):
+class TestMultiOutputGPWithLMCKernelTorch(TestMultiOutputGPWithLMCKernel[torch.Tensor]):
     """PyTorch backend tests for LMC."""
 
     def setUp(self) -> None:
@@ -480,9 +465,7 @@ class TestMultiOutputGPOptimization(unittest.TestCase):
         X = self._bkd.array(X_np)
         y1 = np.sin(X_np[0, :] + X_np[1, :])
         y2 = np.cos(X_np[0, :] - X_np[1, :])
-        y_stacked = self._bkd.array(
-            np.concatenate([y1, y2])[:, np.newaxis]
-        )
+        y_stacked = self._bkd.array(np.concatenate([y1, y2])[:, np.newaxis])
         return X, y_stacked
 
     def test_independent_kernel_optimization(self) -> None:
@@ -493,8 +476,7 @@ class TestMultiOutputGPOptimization(unittest.TestCase):
         kernels = []
         for _ in range(self.noutputs):
             matern = Matern52Kernel(
-                [0.3] * self.nvars, (0.1, 10.0),
-                self.nvars, self._bkd
+                [0.3] * self.nvars, (0.1, 10.0), self.nvars, self._bkd
             )
             constant = PolynomialScaling(
                 [1.0], (0.1, 10.0), self._bkd, nvars=self.nvars
@@ -512,7 +494,7 @@ class TestMultiOutputGPOptimization(unittest.TestCase):
         final_params = gp.hyp_list().get_active_values()
         self.assertFalse(
             self._bkd.allclose(initial_params, final_params),
-            "Hyperparameters should change during optimization"
+            "Hyperparameters should change during optimization",
         )
 
     def test_lmc_kernel_optimization(self) -> None:
@@ -523,8 +505,7 @@ class TestMultiOutputGPOptimization(unittest.TestCase):
         base_kernels = []
         for _ in range(2):
             matern = Matern52Kernel(
-                [0.3] * self.nvars, (0.1, 10.0),
-                self.nvars, self._bkd
+                [0.3] * self.nvars, (0.1, 10.0), self.nvars, self._bkd
             )
             constant = PolynomialScaling(
                 [1.0], (0.1, 10.0), self._bkd, nvars=self.nvars
@@ -548,7 +529,7 @@ class TestMultiOutputGPOptimization(unittest.TestCase):
         final_params = gp.hyp_list().get_active_values()
         self.assertFalse(
             self._bkd.allclose(initial_params, final_params),
-            "Hyperparameters should change during optimization"
+            "Hyperparameters should change during optimization",
         )
 
     def test_independent_kernel_loss_gradient_accuracy(self) -> None:
@@ -559,13 +540,8 @@ class TestMultiOutputGPOptimization(unittest.TestCase):
 
         kernels = []
         for _ in range(self.noutputs):
-            matern = Matern52Kernel(
-                [1.0] * self.nvars, (0.1, 10.0),
-                self.nvars, bkd
-            )
-            constant = PolynomialScaling(
-                [1.0], (0.1, 10.0), bkd, nvars=self.nvars
-            )
+            matern = Matern52Kernel([1.0] * self.nvars, (0.1, 10.0), self.nvars, bkd)
+            constant = PolynomialScaling([1.0], (0.1, 10.0), bkd, nvars=self.nvars)
             kernels.append(constant * matern)
 
         mo_kernel = IndependentMultiOutputKernel(kernels)
@@ -574,9 +550,7 @@ class TestMultiOutputGPOptimization(unittest.TestCase):
         X_list = [X_train] * self.noutputs
         gp._fit_internal(X_list, y_stacked)
 
-        loss = GPNegativeLogMarginalLikelihoodLoss(
-            gp, (X_list, y_stacked)
-        )
+        loss = GPNegativeLogMarginalLikelihoodLoss(gp, (X_list, y_stacked))
         gp._configure_loss(loss)
 
         checker = DerivativeChecker(loss)
@@ -597,12 +571,16 @@ class TestMultiOutputGPOptimization(unittest.TestCase):
             "Gradient errors contain non-finite values",
         )
         min_error = float(bkd.min(grad_error))
-        self.assertLess(min_error, 1e-6,
-                       f"Min gradient error {min_error} exceeds threshold")
+        self.assertLess(
+            min_error, 1e-6, f"Min gradient error {min_error} exceeds threshold"
+        )
 
         error_ratio = float(checker.error_ratio(grad_error))
-        self.assertLess(error_ratio, 1e-6,
-                       f"Error ratio {error_ratio:.2e} suggests poor convergence")
+        self.assertLess(
+            error_ratio,
+            1e-6,
+            f"Error ratio {error_ratio:.2e} suggests poor convergence",
+        )
 
     def test_lmc_kernel_loss_gradient_accuracy(self) -> None:
         """Test loss gradient accuracy with DerivativeChecker for LMC kernel."""
@@ -612,13 +590,8 @@ class TestMultiOutputGPOptimization(unittest.TestCase):
 
         base_kernels = []
         for _ in range(2):
-            matern = Matern52Kernel(
-                [1.0] * self.nvars, (0.1, 10.0),
-                self.nvars, bkd
-            )
-            constant = PolynomialScaling(
-                [1.0], (0.1, 10.0), bkd, nvars=self.nvars
-            )
+            matern = Matern52Kernel([1.0] * self.nvars, (0.1, 10.0), self.nvars, bkd)
+            constant = PolynomialScaling([1.0], (0.1, 10.0), bkd, nvars=self.nvars)
             base_kernels.append(constant * matern)
 
         B1 = bkd.array(np.array([[1.0, 0.5], [0.5, 1.0]]))
@@ -632,9 +605,7 @@ class TestMultiOutputGPOptimization(unittest.TestCase):
         X_list = [X_train] * self.noutputs
         gp._fit_internal(X_list, y_stacked)
 
-        loss = GPNegativeLogMarginalLikelihoodLoss(
-            gp, (X_list, y_stacked)
-        )
+        loss = GPNegativeLogMarginalLikelihoodLoss(gp, (X_list, y_stacked))
         gp._configure_loss(loss)
 
         checker = DerivativeChecker(loss)
@@ -655,12 +626,16 @@ class TestMultiOutputGPOptimization(unittest.TestCase):
             "Gradient errors contain non-finite values",
         )
         min_error = float(bkd.min(grad_error))
-        self.assertLess(min_error, 1e-6,
-                       f"Min gradient error {min_error} exceeds threshold")
+        self.assertLess(
+            min_error, 1e-6, f"Min gradient error {min_error} exceeds threshold"
+        )
 
         error_ratio = float(checker.error_ratio(grad_error))
-        self.assertLess(error_ratio, 1e-6,
-                       f"Error ratio {error_ratio:.2e} suggests poor convergence")
+        self.assertLess(
+            error_ratio,
+            1e-6,
+            f"Error ratio {error_ratio:.2e} suggests poor convergence",
+        )
 
 
 class TestTorchMultiOutputGPWithMultiLevelKernel(unittest.TestCase):
@@ -703,9 +678,7 @@ class TestTorchMultiOutputGPWithMultiLevelKernel(unittest.TestCase):
             for _ in range(self.nlevels)
         ]
         scalings = [
-            PolynomialScaling(
-                [1.0], (-3.0, 3.0), bkd, nvars=self.nvars, fixed=False
-            )
+            PolynomialScaling([1.0], (-3.0, 3.0), bkd, nvars=self.nvars, fixed=False)
             for _ in range(self.nlevels - 1)
         ]
         return MultiLevelKernel(level_kernels, scalings)
@@ -723,8 +696,7 @@ class TestTorchMultiOutputGPWithMultiLevelKernel(unittest.TestCase):
         gp._configure_loss(loss)
 
         self.assertTrue(
-            hasattr(loss, 'jacobian'),
-            "Autograd jacobian should be bound on loss"
+            hasattr(loss, "jacobian"), "Autograd jacobian should be bound on loss"
         )
 
         checker = DerivativeChecker(loss)
@@ -746,14 +718,14 @@ class TestTorchMultiOutputGPWithMultiLevelKernel(unittest.TestCase):
         )
         min_error = float(bkd.min(grad_error))
         self.assertLess(
-            min_error, 1e-6,
-            f"Min gradient error {min_error} exceeds threshold"
+            min_error, 1e-6, f"Min gradient error {min_error} exceeds threshold"
         )
 
         error_ratio = float(checker.error_ratio(grad_error))
         self.assertLess(
-            error_ratio, 1e-6,
-            f"Error ratio {error_ratio:.2e} suggests poor convergence"
+            error_ratio,
+            1e-6,
+            f"Error ratio {error_ratio:.2e} suggests poor convergence",
         )
 
     def test_fit_with_different_X_per_level(self) -> None:
@@ -769,12 +741,11 @@ class TestTorchMultiOutputGPWithMultiLevelKernel(unittest.TestCase):
         final_params = gp.hyp_list().get_active_values()
         self.assertFalse(
             self._bkd.allclose(initial_params, final_params),
-            "Hyperparameters should change during optimization"
+            "Hyperparameters should change during optimization",
         )
 
 
 from pyapprox.util.test_utils import load_tests  # noqa: F401
-
 
 if __name__ == "__main__":
     loader = unittest.TestLoader()

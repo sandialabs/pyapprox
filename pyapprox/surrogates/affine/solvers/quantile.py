@@ -6,11 +6,11 @@ This module provides solvers for quantile regression:
 
 from typing import Generic, Optional
 
-from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.surrogates.affine.solvers.base import (
     LinearSystemSolver,
     SingleQoiSolverMixin,
 )
+from pyapprox.util.backends.protocols import Array, Backend
 
 
 class QuantileRegressionSolver(
@@ -98,8 +98,8 @@ class QuantileRegressionSolver(
         """
         self._validate_single_qoi(values)
 
-        from scipy.optimize import linprog
         import numpy as np
+        from scipy.optimize import linprog
 
         bkd = self._bkd
         A = bkd.to_numpy(basis_matrix)
@@ -109,26 +109,28 @@ class QuantileRegressionSolver(
 
         # Decision variables: [c (nterms), u (nsamples), v (nsamples)]
         # Objective: 0*c + τ*u + (1-τ)*v
-        c_obj = np.concatenate([
-            np.zeros(nterms),
-            tau * np.ones(nsamples),
-            (1 - tau) * np.ones(nsamples),
-        ])
+        c_obj = np.concatenate(
+            [
+                np.zeros(nterms),
+                tau * np.ones(nsamples),
+                (1 - tau) * np.ones(nsamples),
+            ]
+        )
 
         # Equality constraints: Φc + u - v = y
         # [A, I, -I] @ [c; u; v] = y
-        A_eq = np.hstack([
-            A,
-            np.eye(nsamples),
-            -np.eye(nsamples),
-        ])
+        A_eq = np.hstack(
+            [
+                A,
+                np.eye(nsamples),
+                -np.eye(nsamples),
+            ]
+        )
         b_eq = y
 
         # Bounds: c unbounded, u >= 0, v >= 0
         bounds = (
-            [(None, None)] * nterms +
-            [(0, None)] * nsamples +
-            [(0, None)] * nsamples
+            [(None, None)] * nterms + [(0, None)] * nsamples + [(0, None)] * nsamples
         )
 
         result = linprog(
@@ -141,9 +143,7 @@ class QuantileRegressionSolver(
         )
 
         if not result.success:
-            raise RuntimeError(
-                f"Quantile regression failed: {result.message}"
-            )
+            raise RuntimeError(f"Quantile regression failed: {result.message}")
 
         coef = result.x[:nterms]
         return bkd.asarray(coef.reshape(-1, 1))
@@ -186,9 +186,7 @@ class ExpectileRegressionSolver(
     def _validate_expectile(self, expectile: float) -> None:
         """Validate expectile is in (0, 1)."""
         if not 0 < expectile < 1:
-            raise ValueError(
-                f"Expectile must be in (0, 1), got {expectile}"
-            )
+            raise ValueError(f"Expectile must be in (0, 1), got {expectile}")
 
     def set_expectile(self, expectile: float) -> None:
         """Set target expectile.
@@ -244,9 +242,9 @@ class ExpectileRegressionSolver(
             sqrt_w = bkd.sqrt(weights)
             A_weighted = A * bkd.reshape(sqrt_w, (-1, 1))
             y_weighted = y * sqrt_w
-            coef = bkd.lstsq(
-                A_weighted, bkd.reshape(y_weighted, (-1, 1)), rcond=None
-            )[:, 0]
+            coef = bkd.lstsq(A_weighted, bkd.reshape(y_weighted, (-1, 1)), rcond=None)[
+                :, 0
+            ]
 
             # Check convergence
             if bkd.norm(coef - coef_old) < self._tol:

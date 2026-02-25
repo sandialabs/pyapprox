@@ -15,29 +15,25 @@ from typing import Callable, Optional
 
 import numpy as np
 
-from pyapprox.util.backends.protocols import Array, Backend
-from pyapprox.util.backends.numpy import NumpyBkd
-
 from pyapprox.expdesign.likelihood.compute import (
-    logpdf_matrix_vectorized,
-    jacobian_matrix_vectorized,
     evidence_jacobian_vectorized,
+    jacobian_matrix_vectorized,
+    logpdf_matrix_vectorized,
 )
-
+from pyapprox.util.backends.numpy import NumpyBkd
+from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.util.optional_deps import package_available
 
 HAS_NUMBA = package_available("numba")
 if HAS_NUMBA:
     from pyapprox.expdesign.likelihood.compute_numba import (
-        logpdf_matrix_numba,
-        jacobian_matrix_numba,
         fused_evidence_jacobian_numba,
+        jacobian_matrix_numba,
+        logpdf_matrix_numba,
     )
 
 
-LogpdfMatrixImpl = Callable[
-    [Array, Array, Array, Array, Backend[Array]], Array
-]
+LogpdfMatrixImpl = Callable[[Array, Array, Array, Array, Backend[Array]], Array]
 
 JacobianMatrixImpl = Callable[
     [Array, Array, Optional[Array], Array, Array, Backend[Array]], Array
@@ -66,6 +62,7 @@ def _is_torch(bkd: Backend[Array]) -> bool:
     """Check if the backend is PyTorch."""
     try:
         from pyapprox.util.backends.torch import TorchBkd
+
         return isinstance(bkd, TorchBkd)
     except ImportError:
         return False
@@ -73,9 +70,11 @@ def _is_torch(bkd: Backend[Array]) -> bool:
 
 # --- torch.compile wrapper factories ---
 
+
 def _make_compiled_logpdf() -> LogpdfMatrixImpl:
     """Create a torch.compile-wrapped logpdf_matrix implementation."""
     import torch
+
     from pyapprox.expdesign.likelihood.compute_torch import (
         logpdf_matrix_torch,
     )
@@ -97,6 +96,7 @@ def _make_compiled_logpdf() -> LogpdfMatrixImpl:
 def _make_compiled_jacobian() -> JacobianMatrixImpl:
     """Create a torch.compile-wrapped jacobian_matrix implementation."""
     import torch
+
     from pyapprox.expdesign.likelihood.compute_torch import (
         jacobian_matrix_torch,
     )
@@ -114,12 +114,17 @@ def _make_compiled_jacobian() -> JacobianMatrixImpl:
         has_latent = latent_samples is not None
         if not has_latent:
             import torch as _torch
+
             latent_samples_t = _torch.zeros_like(obs)
         else:
             latent_samples_t = latent_samples
         return compiled_fn(
-            shapes, obs, latent_samples_t,
-            base_variances, design_weights, has_latent,
+            shapes,
+            obs,
+            latent_samples_t,
+            base_variances,
+            design_weights,
+            has_latent,
         )
 
     return impl
@@ -128,9 +133,10 @@ def _make_compiled_jacobian() -> JacobianMatrixImpl:
 def _make_compiled_evidence_jacobian() -> EvidenceJacobianImpl:
     """Create a torch.compile-wrapped evidence jacobian implementation."""
     import torch
+
     from pyapprox.expdesign.likelihood.compute_torch import (
-        jacobian_matrix_torch,
         evidence_jacobian_torch,
+        jacobian_matrix_torch,
     )
 
     compiled_jac = torch.compile(jacobian_matrix_torch)
@@ -148,12 +154,17 @@ def _make_compiled_evidence_jacobian() -> EvidenceJacobianImpl:
         has_latent = latent_samples is not None
         if not has_latent:
             import torch as _torch
+
             latent_samples_t = _torch.zeros_like(obs)
         else:
             latent_samples_t = latent_samples
         loglike_jac = compiled_jac(
-            shapes, obs, latent_samples_t,
-            base_variances, design_weights, has_latent,
+            shapes,
+            obs,
+            latent_samples_t,
+            base_variances,
+            design_weights,
+            has_latent,
         )
         return compiled_ev_jac(loglike_jac, quad_weighted_like)
 
@@ -161,6 +172,7 @@ def _make_compiled_evidence_jacobian() -> EvidenceJacobianImpl:
 
 
 # --- Public dispatch functions ---
+
 
 def get_logpdf_matrix_impl(
     bkd: Backend[Array],
@@ -184,6 +196,7 @@ def get_logpdf_matrix_impl(
         (shapes, obs, base_variances, design_weights, bkd) -> Array
     """
     if _is_numpy(bkd) and HAS_NUMBA:
+
         def impl(
             shapes: Array,
             obs: Array,
@@ -192,8 +205,12 @@ def get_logpdf_matrix_impl(
             bkd: Backend[Array],
         ) -> Array:
             return logpdf_matrix_numba(
-                shapes, obs, base_variances, design_weights,
+                shapes,
+                obs,
+                base_variances,
+                design_weights,
             )
+
         return impl
     if _is_torch(bkd):
         return _make_compiled_logpdf()
@@ -222,6 +239,7 @@ def get_jacobian_matrix_impl(
         (shapes, obs, latent_samples, base_variances, design_weights, bkd) -> Array
     """
     if _is_numpy(bkd) and HAS_NUMBA:
+
         def impl(
             shapes: Array,
             obs: Array,
@@ -237,9 +255,14 @@ def get_jacobian_matrix_impl(
             else:
                 latent_samples_np = latent_samples
             return jacobian_matrix_numba(
-                shapes, obs, latent_samples_np,
-                base_variances, design_weights, has_latent,
+                shapes,
+                obs,
+                latent_samples_np,
+                base_variances,
+                design_weights,
+                has_latent,
             )
+
         return impl
     if _is_torch(bkd):
         return _make_compiled_jacobian()
@@ -268,6 +291,7 @@ def get_evidence_jacobian_impl(
          quad_weighted_like, bkd) -> Array
     """
     if _is_numpy(bkd) and HAS_NUMBA:
+
         def impl(
             shapes: Array,
             obs: Array,
@@ -283,10 +307,15 @@ def get_evidence_jacobian_impl(
             else:
                 latent_samples_np = latent_samples
             return fused_evidence_jacobian_numba(
-                shapes, obs, latent_samples_np,
-                base_variances, design_weights,
-                quad_weighted_like, has_latent,
+                shapes,
+                obs,
+                latent_samples_np,
+                base_variances,
+                design_weights,
+                quad_weighted_like,
+                has_latent,
             )
+
         return impl
 
     if _is_torch(bkd):
@@ -302,7 +331,13 @@ def get_evidence_jacobian_impl(
         bkd: Backend[Array],
     ) -> Array:
         loglike_jac = jacobian_matrix_vectorized(
-            shapes, obs, latent_samples, base_variances, design_weights, bkd,
+            shapes,
+            obs,
+            latent_samples,
+            base_variances,
+            design_weights,
+            bkd,
         )
         return evidence_jacobian_vectorized(loglike_jac, quad_weighted_like, bkd)
+
     return vectorized_impl

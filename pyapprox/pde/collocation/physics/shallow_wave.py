@@ -19,13 +19,13 @@ where:
     f = forcing/source terms
 """
 
-from typing import Generic, Optional, Callable, Union, Tuple
+from typing import Callable, Optional, Tuple
 
-from pyapprox.util.backends.protocols import Array, Backend
+from pyapprox.pde.collocation.physics.base import AbstractVectorPhysics
 from pyapprox.pde.collocation.protocols.basis import (
     TensorProductBasisProtocol,
 )
-from pyapprox.pde.collocation.physics.base import AbstractVectorPhysics
+from pyapprox.util.backends.protocols import Array, Backend
 
 
 class ShallowWavePhysics(AbstractVectorPhysics[Array]):
@@ -76,7 +76,7 @@ class ShallowWavePhysics(AbstractVectorPhysics[Array]):
         self._g = g
         self._forcing_func = forcing
 
-        npts = basis.npts()
+        basis.npts()
 
         # Precompute derivative matrices
         self._D1_matrices = [basis.derivative_matrix(1, dim) for dim in range(ndim)]
@@ -125,12 +125,12 @@ class ShallowWavePhysics(AbstractVectorPhysics[Array]):
         ndim = self._basis.ndim()
 
         h = state[:npts]
-        hu = state[npts:2*npts]
+        hu = state[npts : 2 * npts]
 
         if ndim == 1:
             return (h, hu)
         else:
-            hv = state[2*npts:3*npts]
+            hv = state[2 * npts : 3 * npts]
             return (h, hu, hv)
 
     def _combine_state(self, *components: Array) -> Array:
@@ -154,10 +154,8 @@ class ShallowWavePhysics(AbstractVectorPhysics[Array]):
         Array
             Residual. Shape: (ncomponents * npts,)
         """
-        bkd = self._bkd
-        npts = self.npts()
+        self.npts()
         ndim = self._basis.ndim()
-        g = self._g
 
         if ndim == 1:
             h, hu = self._split_state(state)
@@ -185,13 +183,13 @@ class ShallowWavePhysics(AbstractVectorPhysics[Array]):
         res_h = -D @ hu
 
         # Momentum: d(hu)/dt = -d(hu^2 + 0.5*g*h^2)/dx - g*h*db/dx + f_hu
-        flux_u = hu * u + 0.5 * g * h ** 2
+        flux_u = hu * u + 0.5 * g * h**2
         res_hu = -D @ flux_u - g * h * self._bed_gradient[0]
 
         # Add forcing to all components
         forcing = self._get_forcing(time)
         res_h = res_h + forcing[:npts]
-        res_hu = res_hu + forcing[npts:2*npts]
+        res_hu = res_hu + forcing[npts : 2 * npts]
 
         return self._combine_state(res_h, res_hu)
 
@@ -216,7 +214,7 @@ class ShallowWavePhysics(AbstractVectorPhysics[Array]):
         res_h = -Dx @ hu - Dy @ hv
 
         # x-momentum: d(hu)/dt = -d(hu^2 + 0.5*g*h^2)/dx - d(huv)/dy - g*h*db/dx
-        g_hsq = 0.5 * g * h ** 2
+        g_hsq = 0.5 * g * h**2
         flux_uu = hu * u + g_hsq
         flux_uv = hu * v
         res_hu = -Dx @ flux_uu - Dy @ flux_uv - g * h * self._bed_gradient[0]
@@ -229,8 +227,8 @@ class ShallowWavePhysics(AbstractVectorPhysics[Array]):
         # Add forcing to all components
         forcing = self._get_forcing(time)
         res_h = res_h + forcing[:npts]
-        res_hu = res_hu + forcing[npts:2*npts]
-        res_hv = res_hv + forcing[2*npts:3*npts]
+        res_hu = res_hu + forcing[npts : 2 * npts]
+        res_hv = res_hv + forcing[2 * npts : 3 * npts]
 
         return self._combine_state(res_h, res_hu, res_hv)
 
@@ -249,7 +247,6 @@ class ShallowWavePhysics(AbstractVectorPhysics[Array]):
         Array
             Jacobian matrix. Shape: (ncomponents * npts, ncomponents * npts)
         """
-        bkd = self._bkd
         ndim = self._basis.ndim()
 
         if ndim == 1:
@@ -267,7 +264,7 @@ class ShallowWavePhysics(AbstractVectorPhysics[Array]):
         D = self._D1_matrices[0]
 
         u = hu / h
-        u2 = u ** 2
+        u2 = u**2
 
         # Jacobian is 2x2 block matrix:
         # [[J_hh, J_h_hu], [J_hu_h, J_hu_hu]]
@@ -278,7 +275,7 @@ class ShallowWavePhysics(AbstractVectorPhysics[Array]):
         # res_h = -D @ hu doesn't depend on h
 
         # J_h_hu = d(res_h)/d(hu) = -D
-        jacobian[:npts, npts:2*npts] = -D
+        jacobian[:npts, npts : 2 * npts] = -D
 
         # J_hu_h = d(res_hu)/dh
         # res_hu = -D @ (hu*u + 0.5*g*h^2) - g*h*db/dx
@@ -286,16 +283,14 @@ class ShallowWavePhysics(AbstractVectorPhysics[Array]):
         # d/dh = -D @ (-hu^2/h^2 + g*h) - g*db/dx
         #      = -D @ (-u^2 + g*h) - g*db/dx
         #      = D @ diag(u^2) - g*D @ diag(h) - g*diag(db/dx)
-        jacobian[npts:2*npts, :npts] = (
-            D @ bkd.diag(u2)
-            - g * D @ bkd.diag(h)
-            - g * bkd.diag(self._bed_gradient[0])
+        jacobian[npts : 2 * npts, :npts] = (
+            D @ bkd.diag(u2) - g * D @ bkd.diag(h) - g * bkd.diag(self._bed_gradient[0])
         )
 
         # J_hu_hu = d(res_hu)/d(hu)
         # res_hu = -D @ (hu^2/h + 0.5*g*h^2) - g*h*db/dx
         # d/d(hu) = -D @ (2*hu/h) = -2*D @ diag(u)
-        jacobian[npts:2*npts, npts:2*npts] = -2.0 * D @ bkd.diag(u)
+        jacobian[npts : 2 * npts, npts : 2 * npts] = -2.0 * D @ bkd.diag(u)
 
         return jacobian
 
@@ -309,8 +304,8 @@ class ShallowWavePhysics(AbstractVectorPhysics[Array]):
 
         u = hu / h
         v = hv / h
-        u2 = u ** 2
-        v2 = v ** 2
+        u2 = u**2
+        v2 = v**2
         uv = u * v
 
         # Jacobian is 3x3 block matrix
@@ -318,43 +313,49 @@ class ShallowWavePhysics(AbstractVectorPhysics[Array]):
 
         # Row 1: d(res_h)/d(h, hu, hv)
         # res_h = -Dx @ hu - Dy @ hv
-        jacobian[:npts, npts:2*npts] = -Dx  # d/d(hu)
-        jacobian[:npts, 2*npts:3*npts] = -Dy  # d/d(hv)
+        jacobian[:npts, npts : 2 * npts] = -Dx  # d/d(hu)
+        jacobian[:npts, 2 * npts : 3 * npts] = -Dy  # d/d(hv)
 
         # Row 2: d(res_hu)/d(h, hu, hv)
         # res_hu = -Dx @ (hu*u + 0.5*g*h^2) - Dy @ (hu*v) - g*h*db/dx
         #        = -Dx @ (hu^2/h + 0.5*g*h^2) - Dy @ (hu*hv/h) - g*h*db/dx
 
         # d/dh: -Dx @ (-u^2 + g*h) - Dy @ (-uv) - g*db/dx
-        jacobian[npts:2*npts, :npts] = (
-            Dx @ bkd.diag(u2) - g * Dx @ bkd.diag(h)
+        jacobian[npts : 2 * npts, :npts] = (
+            Dx @ bkd.diag(u2)
+            - g * Dx @ bkd.diag(h)
             + Dy @ bkd.diag(uv)
             - g * bkd.diag(self._bed_gradient[0])
         )
 
         # d/d(hu): -Dx @ (2*u) - Dy @ (v) = -2*Dx @ diag(u) - Dy @ diag(v)
-        jacobian[npts:2*npts, npts:2*npts] = -2.0 * Dx @ bkd.diag(u) - Dy @ bkd.diag(v)
+        jacobian[npts : 2 * npts, npts : 2 * npts] = -2.0 * Dx @ bkd.diag(
+            u
+        ) - Dy @ bkd.diag(v)
 
         # d/d(hv): -Dy @ (u) = -Dy @ diag(u/h) @ diag(h) ... wait
         # hu*v = hu * hv/h, so d/d(hv) = hu/h = u
-        jacobian[npts:2*npts, 2*npts:3*npts] = -Dy @ bkd.diag(u)
+        jacobian[npts : 2 * npts, 2 * npts : 3 * npts] = -Dy @ bkd.diag(u)
 
         # Row 3: d(res_hv)/d(h, hu, hv)
         # res_hv = -Dx @ (hv*u) - Dy @ (hv*v + 0.5*g*h^2) - g*h*db/dy
         #        = -Dx @ (hv*hu/h) - Dy @ (hv^2/h + 0.5*g*h^2) - g*h*db/dy
 
         # d/dh: -Dx @ (-uv) - Dy @ (-v^2 + g*h) - g*db/dy
-        jacobian[2*npts:3*npts, :npts] = (
+        jacobian[2 * npts : 3 * npts, :npts] = (
             Dx @ bkd.diag(uv)
-            + Dy @ bkd.diag(v2) - g * Dy @ bkd.diag(h)
+            + Dy @ bkd.diag(v2)
+            - g * Dy @ bkd.diag(h)
             - g * bkd.diag(self._bed_gradient[1])
         )
 
         # d/d(hu): -Dx @ (v) = -Dx @ diag(hv/h) / ... = -Dx @ diag(v)
-        jacobian[2*npts:3*npts, npts:2*npts] = -Dx @ bkd.diag(v)
+        jacobian[2 * npts : 3 * npts, npts : 2 * npts] = -Dx @ bkd.diag(v)
 
         # d/d(hv): -Dx @ (u) - Dy @ (2*v) = -Dx @ diag(u) - 2*Dy @ diag(v)
-        jacobian[2*npts:3*npts, 2*npts:3*npts] = -Dx @ bkd.diag(u) - 2.0 * Dy @ bkd.diag(v)
+        jacobian[2 * npts : 3 * npts, 2 * npts : 3 * npts] = -Dx @ bkd.diag(
+            u
+        ) - 2.0 * Dy @ bkd.diag(v)
 
         return jacobian
 
@@ -389,7 +390,7 @@ class ShallowWavePhysics(AbstractVectorPhysics[Array]):
         """
         bkd = self._bkd
         ndim = self._basis.ndim()
-        nboundary = boundary_indices.shape[0]
+        boundary_indices.shape[0]
         g = self._g
 
         if ndim == 1:

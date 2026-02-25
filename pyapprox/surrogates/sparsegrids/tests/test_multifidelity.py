@@ -61,7 +61,6 @@ from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.util.backends.torch import TorchBkd
 from pyapprox.util.test_utils import load_tests  # noqa: F401
 
-
 # =============================================================================
 # Helpers
 # =============================================================================
@@ -83,12 +82,10 @@ def _make_cosine_models(
                 bkd.cos(math.pi * (samples[0, :] + 1) / 2 + eps),
                 (1, -1),
             )
+
         return model
 
-    return {
-        (alpha,): _make_model(epsilons[alpha])
-        for alpha in epsilons
-    }
+    return {(alpha,): _make_model(epsilons[alpha]) for alpha in epsilons}
 
 
 def _make_mf_fitter(
@@ -108,9 +105,7 @@ def _make_mf_fitter(
     growth = LinearGrowthRule(scale=1, shift=1)
     tp_factory = TensorProductSubspaceFactory(bkd, factories, growth)
     # max_1d_levels: [max_physical_level, max_config_level]
-    max_1d = bkd.asarray(
-        [max_level, max_config_level], dtype=bkd.int64_dtype()
-    )
+    max_1d = bkd.asarray([max_level, max_config_level], dtype=bkd.int64_dtype())
     admis = CompositeCriteria(
         MaxLevelCriteria(max_level=max_level, pnorm=1.0, bkd=bkd),
         Max1DLevelsCriteria(max_1d, bkd),
@@ -134,9 +129,7 @@ def _make_sf_fitter(
     factories = [GaussLagrangeFactory(marginal, bkd)]
     growth = LinearGrowthRule(scale=1, shift=1)
     tp_factory = TensorProductSubspaceFactory(bkd, factories, growth)
-    admis = MaxLevelCriteria(
-        max_level=max_level, pnorm=1.0, bkd=bkd
-    )
+    admis = MaxLevelCriteria(max_level=max_level, pnorm=1.0, bkd=bkd)
     return SingleFidelityAdaptiveSparseGridFitter(bkd, tp_factory, admis)
 
 
@@ -163,9 +156,7 @@ class TestMFIsotropic(Generic[Array], unittest.TestCase):
         marginal = UniformMarginal(-1.0, 1.0, self._bkd)
         factories = [GaussLagrangeFactory(marginal, self._bkd)]
         growth = LinearGrowthRule(scale=1, shift=1)
-        tp_factory = TensorProductSubspaceFactory(
-            self._bkd, factories, growth
-        )
+        tp_factory = TensorProductSubspaceFactory(self._bkd, factories, growth)
         return IsotropicSparseGridFitter(
             self._bkd, tp_factory, level=level, nconfig_vars=1
         )
@@ -193,9 +184,7 @@ class TestMFIsotropic(Generic[Array], unittest.TestCase):
         test_pts = self._bkd.array([[0.5]])
         out = result.surrogate(test_pts)
         self.assertEqual(out.shape[0], 1)
-        self.assertTrue(
-            bool(self._bkd.all_bool(self._bkd.isfinite(out)))
-        )
+        self.assertTrue(bool(self._bkd.all_bool(self._bkd.isfinite(out))))
 
     def test_mf_isotropic_nsamples_counts_across_configs(self) -> None:
         """result.nsamples equals sum across all config groups."""
@@ -288,7 +277,8 @@ class TestMFAdaptive(Generic[Array], unittest.TestCase):
             L2SurrogateDifferenceIndicator(self._bkd),
         )
         fitter_cw = _make_mf_fitter(
-            self._bkd, max_level=3,
+            self._bkd,
+            max_level=3,
             cost_model=cost_model,
             error_indicator=indicator,
         )
@@ -342,17 +332,13 @@ class TestMFAdaptive(Generic[Array], unittest.TestCase):
         marginal = UniformMarginal(-1.0, 1.0, self._bkd)
         factories_iso = [GaussLagrangeFactory(marginal, self._bkd)]
         growth = LinearGrowthRule(scale=1, shift=1)
-        tp_factory_iso = TensorProductSubspaceFactory(
-            self._bkd, factories_iso, growth
-        )
+        tp_factory_iso = TensorProductSubspaceFactory(self._bkd, factories_iso, growth)
         iso_fitter = IsotropicSparseGridFitter(
             self._bkd, tp_factory_iso, level=level, nconfig_vars=1
         )
         iso_samples = iso_fitter.get_samples()
         assert isinstance(iso_samples, dict)
-        iso_values = {
-            cfg: models[cfg](s) for cfg, s in iso_samples.items()
-        }
+        iso_values = {cfg: models[cfg](s) for cfg, s in iso_samples.items()}
         iso_result = iso_fitter.fit(iso_values)
 
         # Build adaptive MF grid with ConstantCostModel
@@ -363,9 +349,7 @@ class TestMFAdaptive(Generic[Array], unittest.TestCase):
             max_config_level=1,
             cost_model=ConstantCostModel(),
         )
-        ada_result = ada_fitter.refine_to_tolerance(
-            factory, tol=1e-14, max_steps=10
-        )
+        ada_result = ada_fitter.refine_to_tolerance(factory, tol=1e-14, max_steps=10)
 
         # Both should give similar evaluation at test points
         test_pts = self._bkd.array([[0.3, -0.5, 0.8]])
@@ -478,9 +462,7 @@ class TestTimedAndMeasured(Generic[Array], unittest.TestCase):
         )
 
         # Run a few steps using timed_factory as the model_factory
-        result = fitter.refine_to_tolerance(
-            timed_factory, tol=1e-6, max_steps=10
-        )
+        fitter.refine_to_tolerance(timed_factory, tol=1e-6, max_steps=10)
 
         # After refinement, at least one config should have recorded timings
         all_timers = timed_factory.all_timers()
@@ -536,22 +518,16 @@ class TestMFConvergence(Generic[Array], unittest.TestCase):
             self._bkd,
             max_level=10,
         )
-        result = fitter.refine_to_tolerance(
-            factory, tol=1e-10, max_steps=15
-        )
+        result = fitter.refine_to_tolerance(factory, tol=1e-10, max_steps=15)
 
         # Evaluate the high-fidelity model at test points
         np.random.seed(42)
-        test_pts = self._bkd.asarray(
-            np.random.uniform(-1, 1, (1, 50))
-        )
+        test_pts = self._bkd.asarray(np.random.uniform(-1, 1, (1, 50)))
         exact = models[(1,)](test_pts)
         approx = result.surrogate(test_pts)
 
         max_err = float(
-            self._bkd.to_numpy(
-                self._bkd.max(self._bkd.abs(exact - approx))
-            )
+            self._bkd.to_numpy(self._bkd.max(self._bkd.abs(exact - approx)))
         )
         self.assertLess(max_err, 1e-6)
 
@@ -571,9 +547,7 @@ class TestMFConvergence(Generic[Array], unittest.TestCase):
             cost_model=cost_model,
             error_indicator=indicator,
         )
-        result = fitter.refine_to_tolerance(
-            factory, tol=1e-8, max_steps=15
-        )
+        result = fitter.refine_to_tolerance(factory, tol=1e-8, max_steps=15)
 
         # Count selected indices per config level
         indices = result.indices
@@ -600,14 +574,10 @@ class TestMFConvergence(Generic[Array], unittest.TestCase):
 
         # SF fitter with enough levels to converge
         sf_fitter = _make_sf_fitter(self._bkd, max_level=10)
-        sf_result = sf_fitter.refine_to_tolerance(
-            hf_model, tol=1e-12, max_steps=15
-        )
+        sf_result = sf_fitter.refine_to_tolerance(hf_model, tol=1e-12, max_steps=15)
 
         np.random.seed(42)
-        test_pts = self._bkd.asarray(
-            np.random.uniform(-1, 1, (1, 20))
-        )
+        test_pts = self._bkd.asarray(np.random.uniform(-1, 1, (1, 20)))
         exact = hf_model(test_pts)
         approx = sf_result.surrogate(test_pts)
         self._bkd.assert_allclose(approx, exact, rtol=1e-6)
@@ -666,10 +636,9 @@ class TestCandidateInfoFields(Generic[Array], unittest.TestCase):
             from pyapprox.surrogates.sparsegrids.smolyak import (
                 compute_smolyak_coefficients,
             )
+
             sel_indices = mf._index_gen.get_selected_indices()
-            sel_coefs = compute_smolyak_coefficients(
-                sel_indices, self._bkd
-            )
+            sel_coefs = compute_smolyak_coefficients(sel_indices, self._bkd)
             sel_subspaces = mf._get_subspaces_for_indices(sel_indices)
             sel_surr = CombinationSurrogate(
                 self._bkd,
@@ -685,13 +654,17 @@ class TestCandidateInfoFields(Generic[Array], unittest.TestCase):
                 from pyapprox.surrogates.sparsegrids.smolyak import (
                     _index_to_tuple,
                 )
+
                 cand_key = _index_to_tuple(cand_idx)
                 sub_pos = mf._subspace_keys.index(cand_key)
                 cand_sub = mf._subspaces[sub_pos]
                 if cand_sub.get_values() is not None:
                     info = mf._build_candidate_info(
-                        cand_idx, cand_sub,
-                        sel_indices, sel_coefs, sel_surr,
+                        cand_idx,
+                        cand_sub,
+                        sel_indices,
+                        sel_coefs,
+                        sel_surr,
                     )
                     self.assertIsNone(info.config_idx)
                     # Costs should still be populated
@@ -710,13 +683,12 @@ class TestCandidateInfoFields(Generic[Array], unittest.TestCase):
 
         # Build CandidateInfo for a candidate
         from pyapprox.surrogates.sparsegrids.smolyak import (
-            compute_smolyak_coefficients,
             _index_to_tuple,
+            compute_smolyak_coefficients,
         )
+
         sel_indices = fitter._index_gen.get_selected_indices()
-        sel_coefs = compute_smolyak_coefficients(
-            sel_indices, self._bkd
-        )
+        sel_coefs = compute_smolyak_coefficients(sel_indices, self._bkd)
         sel_subspaces = fitter._get_subspaces_for_indices(sel_indices)
         sel_surr = CombinationSurrogate(
             self._bkd,
@@ -738,8 +710,11 @@ class TestCandidateInfoFields(Generic[Array], unittest.TestCase):
                     cand_sub = fitter._subspaces[sub_pos]
                     if cand_sub.get_values() is not None:
                         info = fitter._build_candidate_info(
-                            cand_idx, cand_sub,
-                            sel_indices, sel_coefs, sel_surr,
+                            cand_idx,
+                            cand_sub,
+                            sel_indices,
+                            sel_coefs,
+                            sel_surr,
                         )
                         self.assertIsNotNone(info.model_cost)
                         self.assertIsNotNone(info.subspace_cost)
@@ -760,13 +735,12 @@ class TestCandidateInfoFields(Generic[Array], unittest.TestCase):
         fitter.step_values(values)
 
         from pyapprox.surrogates.sparsegrids.smolyak import (
-            compute_smolyak_coefficients,
             _index_to_tuple,
+            compute_smolyak_coefficients,
         )
+
         sel_indices = fitter._index_gen.get_selected_indices()
-        sel_coefs = compute_smolyak_coefficients(
-            sel_indices, self._bkd
-        )
+        sel_coefs = compute_smolyak_coefficients(sel_indices, self._bkd)
         sel_subspaces = fitter._get_subspaces_for_indices(sel_indices)
         sel_surr = CombinationSurrogate(
             self._bkd,
@@ -787,8 +761,11 @@ class TestCandidateInfoFields(Generic[Array], unittest.TestCase):
                     cand_sub = fitter._subspaces[sub_pos]
                     if cand_sub.get_values() is not None:
                         info = fitter._build_candidate_info(
-                            cand_idx, cand_sub,
-                            sel_indices, sel_coefs, sel_surr,
+                            cand_idx,
+                            cand_sub,
+                            sel_indices,
+                            sel_coefs,
+                            sel_surr,
                         )
                         self.assertIsNotNone(info.new_samples)
                         self.assertGreater(info.new_samples.shape[1], 0)

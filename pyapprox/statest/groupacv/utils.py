@@ -5,7 +5,7 @@ allocation matrix construction, and covariance block computation.
 """
 
 from itertools import combinations
-from typing import List, TYPE_CHECKING
+from typing import TYPE_CHECKING, List
 
 import numpy as np
 
@@ -50,9 +50,7 @@ def get_model_subsets(
     return subsets
 
 
-def _get_allocation_matrix_is(
-    subsets: List[Array], bkd: Backend[Array]
-) -> Array:
+def _get_allocation_matrix_is(subsets: List[Array], bkd: Backend[Array]) -> Array:
     """
     Get allocation matrix for independent sampling.
 
@@ -73,17 +71,13 @@ def _get_allocation_matrix_is(
     """
     nsubsets = len(subsets)
     npartitions = nsubsets
-    allocation_mat = bkd.full(
-        (nsubsets, npartitions), 0.0, dtype=bkd.double_dtype()
-    )
+    allocation_mat = bkd.full((nsubsets, npartitions), 0.0, dtype=bkd.double_dtype())
     for ii, subset in enumerate(subsets):
         allocation_mat[ii, ii] = 1.0
     return allocation_mat
 
 
-def _get_allocation_matrix_nested(
-    subsets: List[Array], bkd: Backend[Array]
-) -> Array:
+def _get_allocation_matrix_nested(subsets: List[Array], bkd: Backend[Array]) -> Array:
     """
     Get allocation matrix for nested sampling.
 
@@ -104,17 +98,13 @@ def _get_allocation_matrix_nested(
     """
     nsubsets = len(subsets)
     npartitions = nsubsets
-    allocation_mat = bkd.full(
-        (nsubsets, npartitions), 0.0, dtype=bkd.double_dtype()
-    )
+    allocation_mat = bkd.full((nsubsets, npartitions), 0.0, dtype=bkd.double_dtype())
     for ii, subset in enumerate(subsets):
         allocation_mat[ii, : ii + 1] = 1.0
     return allocation_mat
 
 
-def _nest_subsets(
-    subsets: List[Array], nmodels: int, bkd: Backend[Array]
-) -> tuple:
+def _nest_subsets(subsets: List[Array], nmodels: int, bkd: Backend[Array]) -> tuple:
     """
     Reorder subsets for nested sampling configuration.
 
@@ -186,10 +176,7 @@ def _grouped_acv_sigma_block(
     zero_block = stat.bkd().full((nsubset0, nsubset1), 0.0)
     if (nsamples_subset0 * nsamples_subset1) == 0:
         return zero_block
-    if (
-        nsamples_subset0 < stat.min_nsamples()
-        or nsamples_subset1 < stat.min_nsamples()
-    ):
+    if nsamples_subset0 < stat.min_nsamples() or nsamples_subset1 < stat.min_nsamples():
         return zero_block
     block = stat._group_acv_sigma_block(
         subset0,

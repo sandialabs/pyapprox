@@ -1,14 +1,14 @@
-from typing import Optional, Generic
+from typing import Generic, Optional
 
 import numpy as np
 
-from pyapprox.util.backends.protocols import Array
 from pyapprox.interface.functions.protocols.jacobian import (
     FunctionWithJVPProtocol,
 )
 from pyapprox.interface.functions.protocols.validation import (
     validate_sample,
 )
+from pyapprox.util.backends.protocols import Array
 
 
 class JVPChecker(Generic[Array]):

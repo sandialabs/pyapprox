@@ -4,12 +4,11 @@ Tests for DAGMultiOutputKernel.
 
 import unittest
 from typing import Any, Generic
+
+import networkx as nx
 import numpy as np
 from numpy.typing import NDArray
-import networkx as nx
 
-from pyapprox.util.backends.protocols import Array, Backend
-from pyapprox.util.backends.numpy import NumpyBkd
 from pyapprox.surrogates.kernels import (
     Matern32Kernel,
     Matern52Kernel,
@@ -19,6 +18,8 @@ from pyapprox.surrogates.kernels.multioutput import (
     DAGMultiOutputKernel,
 )
 from pyapprox.surrogates.kernels.scalings import PolynomialScaling
+from pyapprox.util.backends.numpy import NumpyBkd
+from pyapprox.util.backends.protocols import Array, Backend
 
 
 def create_matern_kernel(nu, lenscale, lenscale_bounds, nvars, bkd):
@@ -377,7 +378,8 @@ class TestDAGMultiOutputKernel(Generic[Array], unittest.TestCase):
         K_inv = np.linalg.inv(K_np)
 
         # Extract blocks: each model has n_samples rows/cols
-        # Block [1, 2] corresponds to rows [n_samples:2*n_samples, 2*n_samples:3*n_samples]
+        # Block [1, 2] corresponds to rows
+        # [n_samples:2*n_samples, 2*n_samples:3*n_samples]
         K_inv_12 = K_inv[n_samples:2*n_samples, 2*n_samples:3*n_samples]
         K_inv_21 = K_inv[2*n_samples:3*n_samples, n_samples:2*n_samples]
 
@@ -385,11 +387,17 @@ class TestDAGMultiOutputKernel(Generic[Array], unittest.TestCase):
         # Therefore, precision matrix blocks K_inv[1, 2] and K_inv[2, 1] should be zero
         np.testing.assert_allclose(
             K_inv_12, 0.0, atol=1e-10,
-            err_msg="Precision matrix K_inv[1,2] should be zero (conditional independence)"
+            err_msg=(
+                "Precision K_inv[1,2] should be zero "
+                "(conditional independence)"
+            ),
         )
         np.testing.assert_allclose(
             K_inv_21, 0.0, atol=1e-10,
-            err_msg="Precision matrix K_inv[2,1] should be zero (conditional independence)"
+            err_msg=(
+                "Precision K_inv[2,1] should be zero "
+                "(conditional independence)"
+            ),
         )
 
 
@@ -398,7 +406,6 @@ class TestDAGMultiOutputKernelNumpy(TestDAGMultiOutputKernel[NDArray[Any]]):
         return NumpyBkd()
 
 
-from pyapprox.util.test_utils import load_tests
 
 
 if __name__ == "__main__":

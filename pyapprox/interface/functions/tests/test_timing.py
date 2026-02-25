@@ -13,15 +13,6 @@ from pyapprox.benchmarks.functions.algebraic.ishigami import (
 from pyapprox.interface.functions.fromcallable.function import (
     FunctionFromCallable,
 )
-from pyapprox.interface.functions.protocols.function import (
-    FunctionProtocol,
-)
-from pyapprox.interface.functions.protocols.hessian import (
-    FunctionWithJacobianAndHVPProtocol,
-)
-from pyapprox.interface.functions.protocols.jacobian import (
-    FunctionWithJacobianProtocol,
-)
 from pyapprox.interface.functions.timing import (
     FunctionTimer,
     MethodTimer,
@@ -34,7 +25,6 @@ from pyapprox.util.backends.numpy import NumpyBkd
 from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.util.backends.torch import TorchBkd
 from pyapprox.util.test_utils import load_tests  # noqa: F401
-
 
 # ---------------------------------------------------------------------------
 # Test fixtures
@@ -292,9 +282,7 @@ class TestTimedWrapper(Generic[Array], unittest.TestCase):
 
     def test_different_methods_different_times(self) -> None:
         """Each method has distinct sleep time; verify ordering."""
-        fn = SleepFunction(
-            self._bkd, call_time=0.05, jac_time=0.08, hvp_time=0.06
-        )
+        fn = SleepFunction(self._bkd, call_time=0.05, jac_time=0.08, hvp_time=0.06)
         w = timed(fn)
         sample = self._bkd.zeros((2, 1))
         vec = self._bkd.ones((2, 1))
@@ -371,9 +359,7 @@ class TestTimedWrapper(Generic[Array], unittest.TestCase):
         fn = SleepFunction(self._bkd)
         w = timed(fn)
         self.assertIsInstance(w, TimedFunctionWithJacobianAndHVP)
-        self.assertTrue(
-            isinstance(w, TimedFunctionWithJacobian)
-        )
+        self.assertTrue(isinstance(w, TimedFunctionWithJacobian))
         self.assertTrue(isinstance(w, TimedFunction))
 
         # Plain FunctionProtocol should NOT get jacobian

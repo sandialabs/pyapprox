@@ -7,9 +7,11 @@ physics as ParameterizedStateEquationWithJacobianProtocol) and SteadyForwardMode
 
 from typing import Generic, Optional
 
-from pyapprox.util.backends.protocols import Array, Backend
-from pyapprox.pde.collocation.time_integration.collocation_model import (
-    CollocationModel,
+from pyapprox.optimization.implicitfunction.functionals.protocols import (
+    ParameterizedFunctionalWithJacobianProtocol,
+)
+from pyapprox.optimization.implicitfunction.functionals.subset_of_states import (
+    SubsetOfStatesAdjointFunctional,
 )
 from pyapprox.optimization.implicitfunction.operator.operator_with_jacobian import (
     AdjointOperatorWithJacobian,
@@ -17,15 +19,13 @@ from pyapprox.optimization.implicitfunction.operator.operator_with_jacobian impo
 from pyapprox.optimization.implicitfunction.operator.sensitivities import (
     VectorAdjointOperatorWithJacobian,
 )
-from pyapprox.optimization.implicitfunction.functionals.subset_of_states import (
-    SubsetOfStatesAdjointFunctional,
-)
-from pyapprox.optimization.implicitfunction.functionals.protocols import (
-    ParameterizedFunctionalWithJacobianProtocol,
+from pyapprox.pde.collocation.time_integration.collocation_model import (
+    CollocationModel,
 )
 from pyapprox.pde.parameterizations.protocol import (
     ParameterizationProtocol,
 )
+from pyapprox.util.backends.protocols import Array, Backend
 
 
 class CollocationStateEquationAdapter(Generic[Array]):
@@ -215,7 +215,9 @@ class CollocationStateEquationAdapter(Generic[Array]):
                     bc, state_1d, param[:, 0], 0.0
                 )
                 pjac = bc.apply_to_param_jacobian(
-                    pjac, state_1d, 0.0,
+                    pjac,
+                    state_1d,
+                    0.0,
                     physical_sensitivities=phys_sens,
                 )
         return pjac
@@ -227,16 +229,17 @@ class CollocationStateEquationAdapter(Generic[Array]):
         bc_flux_param_sensitivity. Only applies to BCs whose normal operator
         has coefficient dependence (e.g., flux Neumann with parameterized D).
         """
-        if (self._parameterization is None
-                or not hasattr(
-                    self._parameterization, "bc_flux_param_sensitivity"
-                )):
+        if self._parameterization is None or not hasattr(
+            self._parameterization, "bc_flux_param_sensitivity"
+        ):
             return None
         if not hasattr(bc, "normal_operator"):
             return None
         normal_op = bc.normal_operator()
-        if not (hasattr(normal_op, "has_coefficient_dependence")
-                and normal_op.has_coefficient_dependence()):
+        if not (
+            hasattr(normal_op, "has_coefficient_dependence")
+            and normal_op.has_coefficient_dependence()
+        ):
             return None
         bc_idx = bc.boundary_indices()
         normals = normal_op.normals()
@@ -274,9 +277,7 @@ class SteadyForwardModel(Generic[Array]):
         physics,
         bkd: Backend[Array],
         init_state: Array,
-        functional: Optional[
-            ParameterizedFunctionalWithJacobianProtocol[Array]
-        ] = None,
+        functional: Optional[ParameterizedFunctionalWithJacobianProtocol[Array]] = None,
         parameterization: Optional[ParameterizationProtocol[Array]] = None,
     ):
         if parameterization is not None and not isinstance(
@@ -312,11 +313,8 @@ class SteadyForwardModel(Generic[Array]):
 
         # Dynamic binding for jacobian
         has_param_jac = (
-            (parameterization is not None
-             and hasattr(parameterization, "param_jacobian"))
-            or (parameterization is None
-                and hasattr(physics, "param_jacobian"))
-        )
+            parameterization is not None and hasattr(parameterization, "param_jacobian")
+        ) or (parameterization is None and hasattr(physics, "param_jacobian"))
         if has_param_jac:
             self.jacobian = self._jacobian
 
@@ -377,11 +375,11 @@ class SteadyForwardModel(Generic[Array]):
         nqoi = self.nqoi()
         result = bkd.zeros((nqoi, nsamples))
         for ii in range(nsamples):
-            param = samples[:, ii:ii+1]
+            param = samples[:, ii : ii + 1]
             sol = self._state_eq.solve(self._init_state_2d, param)
             qoi = self._functional(sol, param)
             if qoi.ndim == 2:
-                result[:, ii:ii+1] = qoi
+                result[:, ii : ii + 1] = qoi
             else:
                 result[:, ii] = qoi
         return result

@@ -9,11 +9,11 @@ from typing import Generic, List, Optional
 
 import numpy as np
 
-from pyapprox.util.backends.protocols import Array, Backend
-from pyapprox.interface.parallel import ParallelConfig
 from pyapprox.expdesign.likelihood.gaussian import (
     GaussianOEDOuterLoopLikelihood,
 )
+from pyapprox.interface.parallel import ParallelConfig
+from pyapprox.util.backends.protocols import Array, Backend
 
 
 def _compute_outer_chunk_logpdf(
@@ -43,8 +43,8 @@ def _compute_outer_chunk_logpdf(
         Log-likelihood values. Shape: (ninner, chunk_nouter)
     """
     nobs = shapes.shape[0]
-    ninner = shapes.shape[1]
-    chunk_nouter = obs_chunk.shape[1]
+    shapes.shape[1]
+    obs_chunk.shape[1]
 
     # Compute residuals: (nobs, ninner, chunk_nouter)
     residuals = obs_chunk[:, None, :] - shapes[:, :, None]
@@ -93,9 +93,9 @@ def _compute_outer_chunk_jacobian(
     np.ndarray
         Jacobian values. Shape: (ninner, chunk_nouter, nobs)
     """
-    nobs = shapes.shape[0]
-    ninner = shapes.shape[1]
-    chunk_nouter = obs_chunk.shape[1]
+    shapes.shape[0]
+    shapes.shape[1]
+    obs_chunk.shape[1]
 
     # Compute residuals: (nobs, ninner, chunk_nouter)
     residuals = obs_chunk[:, None, :] - shapes[:, :, None]
@@ -112,8 +112,10 @@ def _compute_outer_chunk_jacobian(
         reparam_term = 0.5 * (
             residuals
             * latent_chunk[:, None, :]
-            / (np.sqrt(base_variances[:, None, None])
-               * np.sqrt(design_weights[:, :, None]))
+            / (
+                np.sqrt(base_variances[:, None, None])
+                * np.sqrt(design_weights[:, :, None])
+            )
         )
         jac = jac + reparam_term
 
@@ -229,6 +231,7 @@ class ParallelGaussianOEDInnerLoopLikelihood(Generic[Array]):
         n_jobs = self._parallel_config.n_jobs
         if n_jobs == -1:
             import os
+
             n_jobs = os.cpu_count() or 1
         return max(1, n_jobs)
 
@@ -386,8 +389,10 @@ class ParallelGaussianOEDInnerLoopLikelihood(Generic[Array]):
             reparam_term = 0.5 * (
                 residuals
                 * self._latent_samples[:, None, :]
-                / (self._bkd.sqrt(self._base_variances[:, None, None])
-                   * self._bkd.sqrt(self._design_weights[:, :, None]))
+                / (
+                    self._bkd.sqrt(self._base_variances[:, None, None])
+                    * self._bkd.sqrt(self._design_weights[:, :, None])
+                )
             )
             jac = jac + reparam_term
 

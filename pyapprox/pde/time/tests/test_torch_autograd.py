@@ -17,30 +17,27 @@ versions for comparison.
 import unittest
 
 import torch
-import numpy as np
 
-from pyapprox.util.backends.torch import TorchBkd
 from pyapprox.optimization.rootfinding.newton import NewtonSolver
 from pyapprox.pde.time.benchmarks.linear_ode import (
-    LinearODEResidual,
     QuadraticODEResidual,
 )
+from pyapprox.pde.time.explicit_steppers.forward_euler import (
+    ForwardEulerResidual,
+)
+from pyapprox.pde.time.explicit_steppers.heun import HeunResidual
+from pyapprox.pde.time.functionals.endpoint import EndpointFunctional
 from pyapprox.pde.time.implicit_steppers.backward_euler import (
     BackwardEulerResidual,
 )
 from pyapprox.pde.time.implicit_steppers.crank_nicolson import (
     CrankNicolsonResidual,
 )
-from pyapprox.pde.time.explicit_steppers.forward_euler import (
-    ForwardEulerResidual,
-)
-from pyapprox.pde.time.explicit_steppers.heun import HeunResidual
 from pyapprox.pde.time.implicit_steppers.integrator import TimeIntegrator
-from pyapprox.pde.time.functionals.endpoint import EndpointFunctional
 from pyapprox.pde.time.operator.time_adjoint_hvp import (
     TimeAdjointOperatorWithHVP,
 )
-
+from pyapprox.util.backends.torch import TorchBkd
 
 # =============================================================================
 # Autograd-compatible forward simulation functions
@@ -95,9 +92,7 @@ def heun_step_autograd(y, param, Amat, dt):
     return y + 0.5 * dt * (k1 + k2)
 
 
-def crank_nicolson_step_autograd(
-    y, param, Amat, dt, max_iter=20, tol=1e-12
-):
+def crank_nicolson_step_autograd(y, param, Amat, dt, max_iter=20, tol=1e-12):
     """Crank-Nicolson step via Newton iteration (differentiable)."""
     y_new = y.clone()
 
@@ -158,9 +153,7 @@ class TestTorchAutogradComparison(unittest.TestCase):
         torch.manual_seed(42)
         self._bkd = TorchBkd()
         self._tol = 1e-8
-        self._Amat = torch.tensor(
-            [[-0.5, 0.1], [0.2, -0.3]], dtype=torch.float64
-        )
+        self._Amat = torch.tensor([[-0.5, 0.1], [0.2, -0.3]], dtype=torch.float64)
         self._dt = 0.1
         self._nsteps = 3
 
@@ -232,9 +225,7 @@ class TestTorchAutogradComparison(unittest.TestCase):
         bkd = self._bkd
         stepper_name = self._stepper_name(stepper_class)
 
-        operator, ode_residual = self._create_quadratic_ode_operator(
-            stepper_class
-        )
+        operator, ode_residual = self._create_quadratic_ode_operator(stepper_class)
 
         param = bkd.asarray([[0.1], [0.5]])
         init_state = bkd.asarray([1.0, 0.5])
@@ -245,9 +236,7 @@ class TestTorchAutogradComparison(unittest.TestCase):
         analytical_jac = operator.jacobian(init_state, param)
 
         # Compute autograd Jacobian
-        autograd_jac = self._compute_autograd_jacobian(
-            stepper_name, init_state, param
-        )
+        autograd_jac = self._compute_autograd_jacobian(stepper_name, init_state, param)
 
         # Compare
         analytical_flat = analytical_jac.flatten()
@@ -261,7 +250,7 @@ class TestTorchAutogradComparison(unittest.TestCase):
             rel_error,
             self._tol,
             f"Jacobian error {rel_error:.2e} exceeds {self._tol:.2e} "
-            f"for {stepper_class.__name__}"
+            f"for {stepper_class.__name__}",
         )
 
     def _check_hvp_stepper(self, stepper_class):
@@ -269,9 +258,7 @@ class TestTorchAutogradComparison(unittest.TestCase):
         bkd = self._bkd
         stepper_name = self._stepper_name(stepper_class)
 
-        operator, ode_residual = self._create_quadratic_ode_operator(
-            stepper_class
-        )
+        operator, ode_residual = self._create_quadratic_ode_operator(stepper_class)
 
         param = bkd.asarray([[0.1], [0.5]])
         init_state = bkd.asarray([1.0, 0.5])
@@ -291,9 +278,7 @@ class TestTorchAutogradComparison(unittest.TestCase):
         analytical_hvp = operator.hvp(init_state, param, vvec)
 
         # Compute autograd HVP
-        autograd_hvp = self._compute_autograd_hvp(
-            stepper_name, init_state, param, vvec
-        )
+        autograd_hvp = self._compute_autograd_hvp(stepper_name, init_state, param, vvec)
 
         # Compare
         analytical_flat = analytical_hvp.flatten()
@@ -307,7 +292,7 @@ class TestTorchAutogradComparison(unittest.TestCase):
             rel_error,
             self._tol,
             f"HVP error {rel_error:.2e} exceeds {self._tol:.2e} "
-            f"for {stepper_class.__name__}"
+            f"for {stepper_class.__name__}",
         )
 
     # =========================================================================
@@ -360,9 +345,7 @@ class TestTorchAutogradComparison(unittest.TestCase):
         stepper_class = BackwardEulerResidual
         stepper_name = self._stepper_name(stepper_class)
 
-        operator, ode_residual = self._create_quadratic_ode_operator(
-            stepper_class
-        )
+        operator, ode_residual = self._create_quadratic_ode_operator(stepper_class)
 
         param = bkd.asarray([[0.1], [0.5]])
         init_state = bkd.asarray([1.0, 0.5])
@@ -384,16 +367,12 @@ class TestTorchAutogradComparison(unittest.TestCase):
             )
 
             # Compare
-            error = float(
-                torch.max(torch.abs(analytical_hvp.flatten() - autograd_hvp))
-            )
+            error = float(torch.max(torch.abs(analytical_hvp.flatten() - autograd_hvp)))
             norm = float(torch.max(torch.abs(autograd_hvp))) + 1e-12
             rel_error = error / norm
 
             self.assertLess(
-                rel_error,
-                self._tol,
-                f"HVP error {rel_error:.2e} for seed {seed}"
+                rel_error, self._tol, f"HVP error {rel_error:.2e} for seed {seed}"
             )
 
     def test_jacobian_matches_hvp_with_basis_vectors(self):
@@ -401,9 +380,7 @@ class TestTorchAutogradComparison(unittest.TestCase):
         bkd = self._bkd
         stepper_class = BackwardEulerResidual
 
-        operator, ode_residual = self._create_quadratic_ode_operator(
-            stepper_class
-        )
+        operator, ode_residual = self._create_quadratic_ode_operator(stepper_class)
 
         param = bkd.asarray([[0.1], [0.5]])
         init_state = bkd.asarray([1.0, 0.5])
@@ -439,18 +416,12 @@ class TestTorchAutogradComparison(unittest.TestCase):
             hvp_ei = operator.hvp(init_state, param, ei)
 
             # Compare with column of Hessian
-            error = float(
-                torch.max(torch.abs(hvp_ei.flatten() - hessian_fd[:, ii]))
-            )
+            error = float(torch.max(torch.abs(hvp_ei.flatten() - hessian_fd[:, ii])))
             norm = float(torch.max(torch.abs(hessian_fd[:, ii]))) + 1e-12
             rel_error = error / norm
 
             # Use slightly relaxed tolerance for FD comparison
-            self.assertLess(
-                rel_error,
-                1e-5,
-                f"HVP·e_{ii} error {rel_error:.2e}"
-            )
+            self.assertLess(rel_error, 1e-5, f"HVP·e_{ii} error {rel_error:.2e}")
 
 
 if __name__ == "__main__":

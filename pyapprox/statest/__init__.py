@@ -12,61 +12,61 @@ estimators including:
 - MLMCEstimator: Multi-level Monte Carlo estimator
 """
 
-from pyapprox.statest.protocols import (
-    StatisticProtocol,
-    EstimatorProtocol,
-)
-from pyapprox.statest.statistics import (
-    MultiOutputStatistic,
-    MultiOutputMean,
-    MultiOutputVariance,
-    MultiOutputMeanAndVariance,
-)
-from pyapprox.statest.strategies import (
-    ModelSubsetStrategy,
-    AllModelsStrategy,
-    FixedSubsetStrategy,
-    AllSubsetsStrategy,
-    ListSubsetStrategy,
-    QoISubsetStrategy,
-    AllQoIStrategy,
-    FixedQoIStrategy,
-    AllQoISubsetsStrategy,
-    ListQoIStrategy,
-)
-from pyapprox.statest.mc_estimator import MCEstimator
-from pyapprox.statest.cv_estimator import CVEstimator
 from pyapprox.statest.acv import (
     ACVEstimator,
-    GMFEstimator,
     GISEstimator,
+    GMFEstimator,
     GRDEstimator,
     MFMCEstimator,
     MLMCEstimator,
 )
+from pyapprox.statest.aetc import AETC, AETCBLUE, AETCMC
+from pyapprox.statest.cv_estimator import CVEstimator
 from pyapprox.statest.groupacv import (
     BaseGroupACVEstimator,
+    GroupACVCostConstraint,
     GroupACVEstimatorIS,
     GroupACVEstimatorNested,
-    MLBLUEEstimator,
+    GroupACVLogDetObjective,
     GroupACVObjective,
     GroupACVTraceObjective,
-    GroupACVLogDetObjective,
+    MLBLUEEstimator,
     MLBLUEObjective,
-    GroupACVCostConstraint,
-    get_model_subsets,
     default_groupacv_optimizer,
+    get_model_subsets,
 )
+from pyapprox.statest.mc_estimator import MCEstimator
 from pyapprox.statest.plotting import (
     plot_allocation,
     plot_estimator_variance_reductions,
     plot_recursion_dag,
 )
-from pyapprox.statest.aetc import AETC, AETCBLUE, AETCMC
+from pyapprox.statest.protocols import (
+    EstimatorProtocol,
+    StatisticProtocol,
+)
 from pyapprox.statest.search import (
     EstimatorFamily,
     UnifiedSearchResult,
     unified_search,
+)
+from pyapprox.statest.statistics import (
+    MultiOutputMean,
+    MultiOutputMeanAndVariance,
+    MultiOutputStatistic,
+    MultiOutputVariance,
+)
+from pyapprox.statest.strategies import (
+    AllModelsStrategy,
+    AllQoIStrategy,
+    AllQoISubsetsStrategy,
+    AllSubsetsStrategy,
+    FixedQoIStrategy,
+    FixedSubsetStrategy,
+    ListQoIStrategy,
+    ListSubsetStrategy,
+    ModelSubsetStrategy,
+    QoISubsetStrategy,
 )
 
 __all__ = [

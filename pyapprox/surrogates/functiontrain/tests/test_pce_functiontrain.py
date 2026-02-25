@@ -7,28 +7,26 @@ import numpy as np
 import torch
 from numpy.typing import NDArray
 
-from pyapprox.util.backends.numpy import NumpyBkd
-from pyapprox.util.backends.torch import TorchBkd
-from pyapprox.util.backends.protocols import Array, Backend
-from pyapprox.util.test_utils import load_tests  # noqa: F401
-
-from pyapprox.surrogates.affine.univariate import create_bases_1d
-from pyapprox.surrogates.affine.indices import compute_hyperbolic_indices
+from pyapprox.probability import (
+    BetaMarginal,
+    GaussianMarginal,
+    UniformMarginal,
+)
 from pyapprox.surrogates.affine.basis import OrthonormalPolynomialBasis
 from pyapprox.surrogates.affine.expansions import BasisExpansion
-from pyapprox.probability import (
-    UniformMarginal,
-    GaussianMarginal,
-    BetaMarginal,
-)
-
-from pyapprox.surrogates.functiontrain.core import FunctionTrainCore
+from pyapprox.surrogates.affine.indices import compute_hyperbolic_indices
+from pyapprox.surrogates.affine.univariate import create_bases_1d
 from pyapprox.surrogates.functiontrain import (
     FunctionTrain,
     PCEFunctionTrain,
     PCEFunctionTrainCore,
     create_pce_functiontrain,
 )
+from pyapprox.surrogates.functiontrain.core import FunctionTrainCore
+from pyapprox.util.backends.numpy import NumpyBkd
+from pyapprox.util.backends.protocols import Array, Backend
+from pyapprox.util.backends.torch import TorchBkd
+from pyapprox.util.test_utils import load_tests  # noqa: F401
 
 
 class TestPCEFunctionTrain(Generic[Array], unittest.TestCase):
@@ -54,9 +52,7 @@ class TestPCEFunctionTrain(Generic[Array], unittest.TestCase):
         basis = OrthonormalPolynomialBasis(bases_1d, bkd, indices)
         return BasisExpansion(basis, bkd, nqoi=nqoi)
 
-    def _create_rank1_ft(
-        self, nvars: int, max_level: int
-    ) -> FunctionTrain[Array]:
+    def _create_rank1_ft(self, nvars: int, max_level: int) -> FunctionTrain[Array]:
         """Create a rank-1 FunctionTrain with random PCE coefficients."""
         bkd = self._bkd
         nterms = max_level + 1
@@ -174,9 +170,9 @@ class TestCreatePceFunctiontrain(Generic[Array], unittest.TestCase):
         """Test construction with mixed marginals (Legendre, Hermite, Jacobi)."""
         bkd = self._bkd
         marginals = [
-            UniformMarginal(-1.0, 1.0, bkd),   # Legendre
-            GaussianMarginal(0.0, 1.0, bkd),   # Hermite
-            BetaMarginal(2.0, 5.0, bkd),       # Jacobi
+            UniformMarginal(-1.0, 1.0, bkd),  # Legendre
+            GaussianMarginal(0.0, 1.0, bkd),  # Hermite
+            BetaMarginal(2.0, 5.0, bkd),  # Jacobi
         ]
         ft = create_pce_functiontrain(marginals, max_level=5, ranks=[2, 2], bkd=bkd)
 
@@ -195,11 +191,13 @@ class TestCreatePceFunctiontrain(Generic[Array], unittest.TestCase):
 
         # Create samples in each variable's domain
         nsamples = 10
-        samples = bkd.vstack([
-            bkd.asarray(np.random.uniform(-1, 1, nsamples)),   # Uniform [-1, 1]
-            bkd.asarray(np.random.randn(nsamples)),           # Gaussian
-            bkd.asarray(np.random.beta(2.0, 5.0, nsamples)),  # Beta [0, 1]
-        ])
+        samples = bkd.vstack(
+            [
+                bkd.asarray(np.random.uniform(-1, 1, nsamples)),  # Uniform [-1, 1]
+                bkd.asarray(np.random.randn(nsamples)),  # Gaussian
+                bkd.asarray(np.random.beta(2.0, 5.0, nsamples)),  # Beta [0, 1]
+            ]
+        )
 
         result = ft(samples)
         self.assertEqual(result.shape, (1, nsamples))
@@ -253,9 +251,7 @@ class TestCreatePceFunctiontrain(Generic[Array], unittest.TestCase):
         bkd = self._bkd
         marginals = [UniformMarginal(-1.0, 1.0, bkd) for _ in range(3)]
         with self.assertRaises(ValueError) as ctx:
-            create_pce_functiontrain(
-                marginals, max_level=[3, 4], ranks=[2, 2], bkd=bkd
-            )
+            create_pce_functiontrain(marginals, max_level=[3, 4], ranks=[2, 2], bkd=bkd)
         self.assertIn("max_level", str(ctx.exception).lower())
 
     def test_init_scale_zero(self) -> None:

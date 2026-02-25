@@ -1,14 +1,15 @@
 from typing import Generic
-from pyapprox.util.backends.protocols import Array, Backend
-from pyapprox.optimization.implicitfunction.state_equations.protocols import (
-    ParameterizedStateEquationWithJacobianProtocol,
-)
+
 from pyapprox.optimization.implicitfunction.functionals.protocols import (
     ParameterizedFunctionalWithJacobianProtocol,
 )
 from pyapprox.optimization.implicitfunction.operator.storage import (
     AdjointOperatorStorage,
 )
+from pyapprox.optimization.implicitfunction.state_equations.protocols import (
+    ParameterizedStateEquationWithJacobianProtocol,
+)
+from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.util.backends.validation import validate_backends
 
 
@@ -72,9 +73,7 @@ class VectorAdjointOperatorWithJacobian(Generic[Array]):
             If the state equation is not a valid instance of
             ParameterizedStateEquationWithJacobianProtocol.
         """
-        if not isinstance(
-            state_eq, ParameterizedStateEquationWithJacobianProtocol
-        ):
+        if not isinstance(state_eq, ParameterizedStateEquationWithJacobianProtocol):
             raise TypeError(
                 "state_eq must be an instance of "
                 "ParameterizedStateEquationWithJacobianProtocol."
@@ -97,9 +96,7 @@ class VectorAdjointOperatorWithJacobian(Generic[Array]):
             If the functional is not a valid instance of
             ParameterizedFunctionalWithJacobianProtocol.
         """
-        if not isinstance(
-            functional, ParameterizedFunctionalWithJacobianProtocol
-        ):
+        if not isinstance(functional, ParameterizedFunctionalWithJacobianProtocol):
             raise TypeError(
                 "functional must be an instance of "
                 "ParameterizedFunctionalWithJacobianProtocol."

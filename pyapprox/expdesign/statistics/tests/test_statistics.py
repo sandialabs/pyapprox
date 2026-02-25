@@ -13,22 +13,21 @@ from typing import Any, Generic
 
 import numpy as np
 import torch
-from scipy import stats
 from numpy.typing import NDArray
-
-from pyapprox.util.backends.numpy import NumpyBkd
-from pyapprox.util.backends.torch import TorchBkd
-from pyapprox.util.backends.protocols import Array
-from pyapprox.util.test_utils import load_tests  # noqa: F401
+from scipy import stats
 
 from pyapprox.expdesign.statistics import (
-    SampleAverageMean,
-    SampleAverageVariance,
-    SampleAverageStdev,
     SampleAverageEntropicRisk,
+    SampleAverageMean,
     SampleAverageSmoothedAVaR,
+    SampleAverageStdev,
+    SampleAverageVariance,
 )
 from pyapprox.probability.risk import GaussianAnalyticalRiskMeasures
+from pyapprox.util.backends.numpy import NumpyBkd
+from pyapprox.util.backends.protocols import Array
+from pyapprox.util.backends.torch import TorchBkd
+from pyapprox.util.test_utils import load_tests  # noqa: F401
 
 
 class TestSampleStatistics(Generic[Array], unittest.TestCase):
@@ -47,9 +46,7 @@ class TestSampleStatistics(Generic[Array], unittest.TestCase):
         self._nvars = 4
 
         # Create test data: (nqoi, nsamples)
-        self._values = self._bkd.asarray(
-            np.random.randn(self._nqoi, self._nsamples)
-        )
+        self._values = self._bkd.asarray(np.random.randn(self._nqoi, self._nsamples))
         # Uniform weights summing to 1: (1, nsamples)
         self._weights = self._bkd.asarray(
             np.full((1, self._nsamples), 1.0 / self._nsamples)
@@ -59,9 +56,7 @@ class TestSampleStatistics(Generic[Array], unittest.TestCase):
             np.random.randn(self._nqoi, self._nsamples, self._nvars)
         )
 
-    def _finite_diff_jacobian(
-        self, stat, values, weights, eps=1e-6, jac_values=None
-    ):
+    def _finite_diff_jacobian(self, stat, values, weights, eps=1e-6, jac_values=None):
         """Compute Jacobian via finite differences."""
         if jac_values is None:
             jac_values = self._jac_values
@@ -93,21 +88,15 @@ class TestSampleStatistics(Generic[Array], unittest.TestCase):
 
         self.assertEqual(result.shape, (self._nqoi, 1))
         self.assertTrue(
-            self._bkd.allclose(
-                result, self._bkd.asarray(expected), rtol=1e-12
-            )
+            self._bkd.allclose(result, self._bkd.asarray(expected), rtol=1e-12)
         )
 
     def test_mean_jacobian(self):
         """Test mean Jacobian against finite differences."""
         stat = SampleAverageMean(self._bkd)
 
-        jac_analytical = stat.jacobian(
-            self._values, self._jac_values, self._weights
-        )
-        jac_fd = self._finite_diff_jacobian(
-            stat, self._values, self._weights
-        )
+        jac_analytical = stat.jacobian(self._values, self._jac_values, self._weights)
+        jac_fd = self._finite_diff_jacobian(stat, self._values, self._weights)
 
         self.assertEqual(jac_analytical.shape, (self._nqoi, self._nvars))
         self.assertTrue(
@@ -128,21 +117,15 @@ class TestSampleStatistics(Generic[Array], unittest.TestCase):
 
         self.assertEqual(result.shape, (self._nqoi, 1))
         self.assertTrue(
-            self._bkd.allclose(
-                result, self._bkd.asarray(expected), rtol=1e-12
-            )
+            self._bkd.allclose(result, self._bkd.asarray(expected), rtol=1e-12)
         )
 
     def test_variance_jacobian(self):
         """Test variance Jacobian against finite differences."""
         stat = SampleAverageVariance(self._bkd)
 
-        jac_analytical = stat.jacobian(
-            self._values, self._jac_values, self._weights
-        )
-        jac_fd = self._finite_diff_jacobian(
-            stat, self._values, self._weights
-        )
+        jac_analytical = stat.jacobian(self._values, self._jac_values, self._weights)
+        jac_fd = self._finite_diff_jacobian(stat, self._values, self._weights)
 
         self.assertEqual(jac_analytical.shape, (self._nqoi, self._nvars))
         self.assertTrue(
@@ -158,20 +141,14 @@ class TestSampleStatistics(Generic[Array], unittest.TestCase):
         stdev = std_stat(self._values, self._weights)
 
         self.assertEqual(stdev.shape, (self._nqoi, 1))
-        self.assertTrue(
-            self._bkd.allclose(stdev, self._bkd.sqrt(variance), rtol=1e-12)
-        )
+        self.assertTrue(self._bkd.allclose(stdev, self._bkd.sqrt(variance), rtol=1e-12))
 
     def test_stdev_jacobian(self):
         """Test stdev Jacobian against finite differences."""
         stat = SampleAverageStdev(self._bkd)
 
-        jac_analytical = stat.jacobian(
-            self._values, self._jac_values, self._weights
-        )
-        jac_fd = self._finite_diff_jacobian(
-            stat, self._values, self._weights
-        )
+        jac_analytical = stat.jacobian(self._values, self._jac_values, self._weights)
+        jac_fd = self._finite_diff_jacobian(stat, self._values, self._weights)
 
         self.assertEqual(jac_analytical.shape, (self._nqoi, self._nvars))
         self.assertTrue(
@@ -192,9 +169,7 @@ class TestSampleStatistics(Generic[Array], unittest.TestCase):
 
         self.assertEqual(result.shape, (self._nqoi, 1))
         self.assertTrue(
-            self._bkd.allclose(
-                result, self._bkd.asarray(expected[:, None]), rtol=1e-10
-            )
+            self._bkd.allclose(result, self._bkd.asarray(expected[:, None]), rtol=1e-10)
         )
 
     def test_entropic_risk_jacobian(self):
@@ -202,12 +177,8 @@ class TestSampleStatistics(Generic[Array], unittest.TestCase):
         alpha = 2.0
         stat = SampleAverageEntropicRisk(alpha, self._bkd)
 
-        jac_analytical = stat.jacobian(
-            self._values, self._jac_values, self._weights
-        )
-        jac_fd = self._finite_diff_jacobian(
-            stat, self._values, self._weights
-        )
+        jac_analytical = stat.jacobian(self._values, self._jac_values, self._weights)
+        jac_fd = self._finite_diff_jacobian(stat, self._values, self._weights)
 
         self.assertEqual(jac_analytical.shape, (self._nqoi, self._nvars))
         self.assertTrue(
@@ -254,9 +225,7 @@ class TestSampleStatistics(Generic[Array], unittest.TestCase):
         values_single = self._values[0:1, :]
         jac_single = self._jac_values[0:1, :, :]
 
-        jac_analytical = stat.jacobian(
-            values_single, jac_single, self._weights
-        )
+        jac_analytical = stat.jacobian(values_single, jac_single, self._weights)
         jac_fd = self._finite_diff_jacobian(
             stat, values_single, self._weights, eps=1e-5, jac_values=jac_single
         )
@@ -282,9 +251,7 @@ class TestSampleStatistics(Generic[Array], unittest.TestCase):
         mean_val = mean_stat(values_single, self._weights)
 
         # With high delta, smoothed AVaR should be close to mean
-        self.assertTrue(
-            self._bkd.allclose(avar_val, mean_val, rtol=1e-2)
-        )
+        self.assertTrue(self._bkd.allclose(avar_val, mean_val, rtol=1e-2))
 
     def test_shape_validation(self):
         """Test that shape validation raises for invalid inputs."""
@@ -311,9 +278,7 @@ class TestSampleStatistics(Generic[Array], unittest.TestCase):
         stat = SampleAverageMean(self._bkd)
         estimate = stat(values, weights)
 
-        self.assertTrue(
-            self._bkd.allclose(estimate[0, 0], exact_value, rtol=1e-2)
-        )
+        self.assertTrue(self._bkd.allclose(estimate[0, 0], exact_value, rtol=1e-2))
 
     def test_gaussian_variance_analytical(self):
         """Test variance matches analytical Gaussian variance (from legacy)."""
@@ -329,9 +294,7 @@ class TestSampleStatistics(Generic[Array], unittest.TestCase):
         stat = SampleAverageVariance(self._bkd)
         estimate = stat(values, weights)
 
-        self.assertTrue(
-            self._bkd.allclose(estimate[0, 0], exact_value, rtol=1e-2)
-        )
+        self.assertTrue(self._bkd.allclose(estimate[0, 0], exact_value, rtol=1e-2))
 
     def test_gaussian_stdev_analytical(self):
         """Test stdev matches analytical Gaussian stdev (from legacy test)."""
@@ -347,9 +310,7 @@ class TestSampleStatistics(Generic[Array], unittest.TestCase):
         stat = SampleAverageStdev(self._bkd)
         estimate = stat(values, weights)
 
-        self.assertTrue(
-            self._bkd.allclose(estimate[0, 0], exact_value, rtol=1e-2)
-        )
+        self.assertTrue(self._bkd.allclose(estimate[0, 0], exact_value, rtol=1e-2))
 
     def test_gaussian_entropic_analytical(self):
         """Test entropic risk matches analytical Gaussian (from legacy)."""
@@ -366,9 +327,7 @@ class TestSampleStatistics(Generic[Array], unittest.TestCase):
         stat = SampleAverageEntropicRisk(alpha, self._bkd)
         estimate = stat(values, weights)
 
-        self.assertTrue(
-            self._bkd.allclose(estimate[0, 0], exact_value, rtol=1e-2)
-        )
+        self.assertTrue(self._bkd.allclose(estimate[0, 0], exact_value, rtol=1e-2))
 
     def test_gaussian_avar_analytical(self):
         """Test AVaR matches analytical Gaussian AVaR (from legacy test).
@@ -389,9 +348,7 @@ class TestSampleStatistics(Generic[Array], unittest.TestCase):
         stat = SampleAverageSmoothedAVaR(beta, self._bkd, delta=100000)
         estimate = stat(values, weights)
 
-        self.assertTrue(
-            self._bkd.allclose(estimate[0, 0], exact_avar, rtol=2e-5)
-        )
+        self.assertTrue(self._bkd.allclose(estimate[0, 0], exact_avar, rtol=2e-5))
 
     def test_avar_multiple_qoi_homogeneity(self):
         """Test AVaR positive homogeneity: R(tZ) = tR(Z) (from legacy)."""
@@ -411,9 +368,7 @@ class TestSampleStatistics(Generic[Array], unittest.TestCase):
         estimate = stat(values, weights)
 
         expected = self._bkd.asarray([[exact_avar], [2 * exact_avar]])
-        self.assertTrue(
-            self._bkd.allclose(estimate, expected, rtol=2e-5)
-        )
+        self.assertTrue(self._bkd.allclose(estimate, expected, rtol=2e-5))
 
 
 class TestSampleStatisticsNumpy(TestSampleStatistics[NDArray[Any]]):

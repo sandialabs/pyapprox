@@ -10,20 +10,20 @@ from typing import Generic, Tuple
 
 import numpy as np
 
-from pyapprox.util.backends.protocols import Array, Backend
+from pyapprox.optimization.rootfinding.newton import NewtonSolver
 from pyapprox.pde.galerkin.protocols.physics import (
     GalerkinPhysicsProtocol,
 )
-from pyapprox.pde.galerkin.time_integration.physics_adapter import (
-    GalerkinPhysicsODEAdapter,
+from pyapprox.pde.galerkin.solvers.steady_state import SteadyStateSolver
+from pyapprox.pde.galerkin.time_integration.constrained_residual import (
+    ConstrainedTimeStepResidual,
 )
 from pyapprox.pde.galerkin.time_integration.explicit_adapter import (
     GalerkinExplicitODEAdapter,
 )
-from pyapprox.pde.galerkin.time_integration.constrained_residual import (
-    ConstrainedTimeStepResidual,
+from pyapprox.pde.galerkin.time_integration.physics_adapter import (
+    GalerkinPhysicsODEAdapter,
 )
-from pyapprox.pde.galerkin.solvers.steady_state import SteadyStateSolver
 from pyapprox.pde.time.config import TimeIntegrationConfig
 from pyapprox.pde.time.explicit_steppers import (
     ForwardEulerResidual,
@@ -33,8 +33,7 @@ from pyapprox.pde.time.implicit_steppers import (
     BackwardEulerResidual,
     CrankNicolsonResidual,
 )
-from pyapprox.optimization.rootfinding.newton import NewtonSolver
-
+from pyapprox.util.backends.protocols import Array, Backend
 
 _STEPPER_MAP = {
     "forward_euler": ForwardEulerResidual,
@@ -122,14 +121,10 @@ class GalerkinModel(Generic[Array]):
         RuntimeError
             If Newton iteration fails to converge.
         """
-        solver = SteadyStateSolver(
-            self._physics, tol=tol, max_iter=maxiter
-        )
+        solver = SteadyStateSolver(self._physics, tol=tol, max_iter=maxiter)
         result = solver.solve(initial_guess, time=time)
         if not result.converged:
-            raise RuntimeError(
-                f"Newton iteration failed to converge: {result.message}"
-            )
+            raise RuntimeError(f"Newton iteration failed to converge: {result.message}")
         return result.solution
 
     def solve_transient(
@@ -207,9 +202,7 @@ class GalerkinModel(Generic[Array]):
                     state_np = bkd.to_numpy(state).copy()
                     d_vals_np = bkd.to_numpy(d_vals)
                     state_np[d_dofs_np] = d_vals_np
-                    state = bkd.asarray(
-                        state_np.astype(np.float64)
-                    )
+                    state = bkd.asarray(state_np.astype(np.float64))
             else:
                 t_np1 = t_n + dt
                 # Set stepper with unmodified prev_state (has g(t_n)
@@ -287,15 +280,11 @@ class GalerkinModel(Generic[Array]):
 
         if is_explicit:
             lumped = getattr(config, "lumped_mass", False)
-            adapter = GalerkinExplicitODEAdapter(
-                self._physics, lumped_mass=lumped
-            )
+            adapter = GalerkinExplicitODEAdapter(self._physics, lumped_mass=lumped)
             return stepper_cls(adapter), None, is_explicit
         else:
             stepper = stepper_cls(self._adapter)
-            constrained = ConstrainedTimeStepResidual(
-                stepper, self._adapter
-            )
+            constrained = ConstrainedTimeStepResidual(stepper, self._adapter)
             return stepper, constrained, is_explicit
 
     def __repr__(self) -> str:

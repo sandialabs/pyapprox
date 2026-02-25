@@ -108,15 +108,16 @@ class IncrementalCholeskyFactorization(Generic[Array]):
         # Build new L
         zeros_col = bkd.zeros((n, 1))
         top_row = bkd.hstack([self._L, zeros_col])
-        bot_row = bkd.hstack([bkd.reshape(l_21_flat, (1, -1)),
-                               bkd.reshape(l_22, (1, 1))])
+        bot_row = bkd.hstack(
+            [bkd.reshape(l_21_flat, (1, -1)), bkd.reshape(l_22, (1, 1))]
+        )
         self._L = bkd.vstack([top_row, bot_row])
 
         # Build new L_inv using block inverse formula:
         # L_inv_new = [[L_inv,                  0       ],
         #              [-1/l_22 * l_21^T L_inv,  1/l_22  ]]
         l_22_inv = 1.0 / l_22
-        zeros_row = bkd.zeros((1, n))
+        bkd.zeros((1, n))
         # -l_22_inv * l_21^T @ L_inv
         bot_left = -l_22_inv * (l_21_flat @ self._L_inv)
         bot_left = bkd.reshape(bot_left, (1, n))

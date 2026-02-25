@@ -8,7 +8,7 @@ The primary objective is the expected information gain (EIG):
 This is the KL divergence between posterior and prior, averaged over data.
 """
 
-from typing import Protocol, Generic, runtime_checkable
+from typing import Generic, Protocol, runtime_checkable
 
 from pyapprox.util.backends.protocols import Array, Backend
 

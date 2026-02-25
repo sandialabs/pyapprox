@@ -16,10 +16,10 @@ AVaRLocalOEDSolver
     For R-optimal designs (risk-based AVaR).
 """
 
-from .base import LocalOEDSolverBase
-from .scipy_solver import ScipyLocalOEDSolver
-from .minimax_solver import MinimaxLocalOEDSolver
 from .avar_solver import AVaRLocalOEDSolver
+from .base import LocalOEDSolverBase
+from .minimax_solver import MinimaxLocalOEDSolver
+from .scipy_solver import ScipyLocalOEDSolver
 
 __all__ = [
     "LocalOEDSolverBase",

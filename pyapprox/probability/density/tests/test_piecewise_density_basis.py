@@ -7,11 +7,6 @@ import numpy as np
 import torch
 from numpy.typing import NDArray
 
-from pyapprox.util.backends.numpy import NumpyBkd
-from pyapprox.util.backends.protocols import Array, Backend
-from pyapprox.util.backends.torch import TorchBkd
-from pyapprox.util.test_utils import load_tests  # noqa: F401
-
 from pyapprox.probability.density.piecewise_density_basis import (
     PiecewiseDensityBasis,
 )
@@ -21,6 +16,10 @@ from pyapprox.probability.density.protocols import (
 from pyapprox.surrogates.affine.expansions.pce_density import (
     composite_gauss_legendre,
 )
+from pyapprox.util.backends.numpy import NumpyBkd
+from pyapprox.util.backends.protocols import Array, Backend
+from pyapprox.util.backends.torch import TorchBkd
+from pyapprox.util.test_utils import load_tests  # noqa: F401
 
 
 class TestPiecewiseDensityBasis(Generic[Array], unittest.TestCase):
@@ -202,16 +201,12 @@ class TestPiecewiseDensityBasis(Generic[Array], unittest.TestCase):
         bkd.assert_allclose(row_sums, bkd.ones(50), rtol=1e-12)
 
 
-class TestPiecewiseDensityBasisNumpy(
-    TestPiecewiseDensityBasis[NDArray[Any]]
-):
+class TestPiecewiseDensityBasisNumpy(TestPiecewiseDensityBasis[NDArray[Any]]):
     def bkd(self) -> NumpyBkd:
         return NumpyBkd()
 
 
-class TestPiecewiseDensityBasisTorch(
-    TestPiecewiseDensityBasis[torch.Tensor]
-):
+class TestPiecewiseDensityBasisTorch(TestPiecewiseDensityBasis[torch.Tensor]):
     def bkd(self) -> TorchBkd:
         torch.set_default_dtype(torch.float64)
         return TorchBkd()

@@ -23,29 +23,27 @@ import torch
 from numpy.typing import NDArray
 from unittest_parametrize import ParametrizedTestCase, parametrize
 
-from pyapprox.util.backends.numpy import NumpyBkd
-from pyapprox.util.backends.protocols import Array, Backend
-from pyapprox.util.backends.torch import TorchBkd
-
-from pyapprox.probability import UniformMarginal, GaussianMarginal
-from pyapprox.surrogates.affine.univariate import create_bases_1d
+from pyapprox.probability import GaussianMarginal, UniformMarginal
+from pyapprox.surrogates.affine.basis import OrthonormalPolynomialBasis
+from pyapprox.surrogates.affine.expansions import BasisExpansion
 from pyapprox.surrogates.affine.indices import (
     compute_hyperbolic_indices,
 )
-from pyapprox.surrogates.affine.basis import OrthonormalPolynomialBasis
-from pyapprox.surrogates.affine.expansions import BasisExpansion
-
-from pyapprox.surrogates.flowmatching.linear_path import LinearPath
+from pyapprox.surrogates.affine.univariate import create_bases_1d
 from pyapprox.surrogates.flowmatching.cfm_loss import CFMLoss
-from pyapprox.surrogates.flowmatching.quad_data import (
-    FlowMatchingQuadData,
-)
 from pyapprox.surrogates.flowmatching.fitters.least_squares import (
     LeastSquaresFitter,
 )
 from pyapprox.surrogates.flowmatching.fitters.optimizer import (
     OptimizerFitter,
 )
+from pyapprox.surrogates.flowmatching.linear_path import LinearPath
+from pyapprox.surrogates.flowmatching.quad_data import (
+    FlowMatchingQuadData,
+)
+from pyapprox.util.backends.numpy import NumpyBkd
+from pyapprox.util.backends.protocols import Array, Backend
+from pyapprox.util.backends.torch import TorchBkd
 
 
 def _make_vf(bkd, d, degree, m=0):
@@ -88,11 +86,9 @@ def _build_polynomial_vf_setup(bkd, d, degree, n_per_dim=6, m=0):
     quad_pts, quad_wts = quad_basis.tensor_product_quadrature(npts)
     # quad_pts: (nvars_total, n_quad), quad_wts: (n_quad,)
 
-    t_all = quad_pts[0:1, :]         # (1, n_quad)
-    x_t_all = quad_pts[1:1 + d, :]   # (d, n_quad)
-    c_all = (
-        quad_pts[1 + d:, :] if m > 0 else None
-    )  # (m, n_quad) or None
+    t_all = quad_pts[0:1, :]  # (1, n_quad)
+    x_t_all = quad_pts[1 : 1 + d, :]  # (d, n_quad)
+    c_all = quad_pts[1 + d :, :] if m > 0 else None  # (m, n_quad) or None
 
     # Evaluate true VF: u_t = true_vf(t, x_t [, c])
     u_t = true_vf(quad_pts)  # (d, n_quad)
@@ -105,15 +101,18 @@ def _build_polynomial_vf_setup(bkd, d, degree, n_per_dim=6, m=0):
     path = LinearPath(bkd)
     loss = CFMLoss(bkd)
     quad_data = FlowMatchingQuadData(
-        t=t_all, x0=x0_all, x1=x1_all,
-        weights=quad_wts, bkd=bkd, c=c_all,
+        t=t_all,
+        x0=x0_all,
+        x1=x1_all,
+        weights=quad_wts,
+        bkd=bkd,
+        c=c_all,
     )
 
     return vf, path, loss, quad_data, true_coef
 
 
-class TestPolynomialVFRecovery(Generic[Array], ParametrizedTestCase,
-                               unittest.TestCase):
+class TestPolynomialVFRecovery(Generic[Array], ParametrizedTestCase, unittest.TestCase):
     __test__ = False
 
     def bkd(self) -> Backend[Array]:
@@ -127,7 +126,9 @@ class TestPolynomialVFRecovery(Generic[Array], ParametrizedTestCase,
         """Lstsq should exactly recover a polynomial VF of matching degree."""
         bkd = self._bkd
         vf, path, loss, qd, true_coef = _build_polynomial_vf_setup(
-            bkd, d, degree,
+            bkd,
+            d,
+            degree,
         )
         result = LeastSquaresFitter(bkd).fit(vf, path, loss, qd)
         self.assertLess(result.training_loss(), 1e-10)
@@ -148,7 +149,9 @@ class TestPolynomialVFRecovery(Generic[Array], ParametrizedTestCase,
         """Both fitters should produce similar coefficients."""
         bkd = self._bkd
         vf, path, loss, qd, true_coef = _build_polynomial_vf_setup(
-            bkd, d, degree,
+            bkd,
+            d,
+            degree,
         )
 
         lstsq_result = LeastSquaresFitter(bkd).fit(vf, path, loss, qd)
@@ -166,7 +169,10 @@ class TestPolynomialVFRecovery(Generic[Array], ParametrizedTestCase,
         """Recovery should work with conditioning variables present."""
         bkd = self._bkd
         vf, path, loss, qd, true_coef = _build_polynomial_vf_setup(
-            bkd, d, degree=1, m=1,
+            bkd,
+            d,
+            degree=1,
+            m=1,
         )
         result = LeastSquaresFitter(bkd).fit(vf, path, loss, qd)
         self.assertLess(result.training_loss(), 1e-10)
@@ -175,16 +181,12 @@ class TestPolynomialVFRecovery(Generic[Array], ParametrizedTestCase,
         bkd.assert_allclose(fitted_coef, true_coef, atol=1e-8)
 
 
-class TestPolynomialVFRecoveryNumpy(
-    TestPolynomialVFRecovery[NDArray[Any]]
-):
+class TestPolynomialVFRecoveryNumpy(TestPolynomialVFRecovery[NDArray[Any]]):
     def bkd(self) -> NumpyBkd:
         return NumpyBkd()
 
 
-class TestPolynomialVFRecoveryTorch(
-    TestPolynomialVFRecovery[torch.Tensor]
-):
+class TestPolynomialVFRecoveryTorch(TestPolynomialVFRecovery[torch.Tensor]):
     def bkd(self) -> TorchBkd:
         torch.set_default_dtype(torch.float64)
         return TorchBkd()

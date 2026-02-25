@@ -1,8 +1,8 @@
-from typing import Any, Optional, Union, Sequence, List, Tuple, overload, cast
+from typing import Any, List, Optional, Sequence, Tuple, Union, cast
 
-from numpy.typing import NDArray
 import numpy as np
 import scipy
+from numpy.typing import NDArray
 from scipy.sparse import csc_matrix
 from scipy.sparse.linalg import spsolve
 
@@ -146,7 +146,10 @@ class NumpyBkd(Backend[NDArray[Any]]):  # Specify NDArray type
         return np.reshape(array, newshape)
 
     @staticmethod
-    def transpose(array: NDArray[Any], axes: Optional[Sequence[int]] = None) -> NDArray[Any]:
+    def transpose(
+        array: NDArray[Any],
+        axes: Optional[Sequence[int]] = None,
+    ) -> NDArray[Any]:
         return np.transpose(array, axes)
 
     @staticmethod
@@ -349,8 +352,9 @@ class NumpyBkd(Backend[NDArray[Any]]):  # Specify NDArray type
 
         if not _issparse(Amat):
             raise TypeError(
-                f"solve_sparse requires a scipy sparse matrix, got {type(Amat).__name__}. "
-                "Use solve() for dense matrices."
+                "solve_sparse requires a scipy sparse matrix,"
+                f" got {type(Amat).__name__}."
+                " Use solve() for dense matrices."
             )
         A_csc = csc_matrix(Amat) if Amat.format != "csc" else Amat
         return spsolve(A_csc, bvec)
@@ -559,10 +563,6 @@ class NumpyBkd(Backend[NDArray[Any]]):  # Specify NDArray type
         array: NDArray[Any], axis: Optional[int] = None
     ) -> NDArray[Any]:
         return np.asarray(np.argmax(array, axis=axis))
-
-    @staticmethod
-    def int64_dtype() -> Any:
-        return np.int64
 
     @staticmethod
     def where(

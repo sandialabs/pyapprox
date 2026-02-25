@@ -16,33 +16,31 @@ import torch
 from numpy.typing import NDArray
 from unittest_parametrize import ParametrizedTestCase, parametrize
 
-from pyapprox.util.backends.numpy import NumpyBkd
-from pyapprox.util.backends.protocols import Array, Backend
-from pyapprox.util.backends.torch import TorchBkd
-
-from pyapprox.probability import UniformMarginal, GaussianMarginal
-from pyapprox.surrogates.affine.univariate import create_bases_1d
+from pyapprox.pde.time.explicit_steppers.heun import HeunResidual
+from pyapprox.probability import GaussianMarginal, UniformMarginal
+from pyapprox.surrogates.affine.basis import OrthonormalPolynomialBasis
+from pyapprox.surrogates.affine.expansions import BasisExpansion
 from pyapprox.surrogates.affine.indices import (
     compute_hyperbolic_indices,
 )
-from pyapprox.surrogates.affine.basis import OrthonormalPolynomialBasis
-from pyapprox.surrogates.affine.expansions import BasisExpansion
-
-from pyapprox.surrogates.flowmatching.linear_path import LinearPath
+from pyapprox.surrogates.affine.univariate import create_bases_1d
 from pyapprox.surrogates.flowmatching.cfm_loss import CFMLoss
-from pyapprox.surrogates.flowmatching.quad_data import (
-    FlowMatchingQuadData,
-)
 from pyapprox.surrogates.flowmatching.fitters.least_squares import (
     LeastSquaresFitter,
 )
 from pyapprox.surrogates.flowmatching.fitters.optimizer import (
     OptimizerFitter,
 )
+from pyapprox.surrogates.flowmatching.linear_path import LinearPath
 from pyapprox.surrogates.flowmatching.ode_adapter import (
     integrate_flow,
 )
-from pyapprox.pde.time.explicit_steppers.heun import HeunResidual
+from pyapprox.surrogates.flowmatching.quad_data import (
+    FlowMatchingQuadData,
+)
+from pyapprox.util.backends.numpy import NumpyBkd
+from pyapprox.util.backends.protocols import Array, Backend
+from pyapprox.util.backends.torch import TorchBkd
 
 
 def _gaussian_params(d):
@@ -78,25 +76,25 @@ def _build_transport_setup(bkd, d, degree, n_per_dim=6):
     quad_marginals += [GaussianMarginal(0.0, 1.0, bkd)] * d
     quad_bases_1d = create_bases_1d(quad_marginals, bkd)
     quad_basis = OrthonormalPolynomialBasis(quad_bases_1d, bkd)
-    quad_pts, quad_wts = quad_basis.tensor_product_quadrature(
-        [n_per_dim] * (1 + d)
-    )
+    quad_pts, quad_wts = quad_basis.tensor_product_quadrature([n_per_dim] * (1 + d))
 
     t_all = quad_pts[0:1, :]
-    z0_all = quad_pts[1:1 + d, :]
+    z0_all = quad_pts[1 : 1 + d, :]
     x1_all = L @ z0_all + mu
 
     path = LinearPath(bkd)
     loss = CFMLoss(bkd)
     quad_data = FlowMatchingQuadData(
-        t=t_all, x0=z0_all, x1=x1_all,
-        weights=quad_wts, bkd=bkd,
+        t=t_all,
+        x0=z0_all,
+        x1=x1_all,
+        weights=quad_wts,
+        bkd=bkd,
     )
     return vf, path, loss, quad_data, mu, L
 
 
-class TestGaussianTransport(Generic[Array], ParametrizedTestCase,
-                            unittest.TestCase):
+class TestGaussianTransport(Generic[Array], ParametrizedTestCase, unittest.TestCase):
     __test__ = False
 
     def bkd(self) -> Backend[Array]:
@@ -118,10 +116,11 @@ class TestGaussianTransport(Generic[Array], ParametrizedTestCase,
 
         for i in range(len(losses) - 1):
             self.assertGreater(
-                losses[i], losses[i + 1],
+                losses[i],
+                losses[i + 1],
                 f"Loss did not decrease from degree {degrees[i]} "
-                f"({losses[i]:.2e}) to {degrees[i+1]} "
-                f"({losses[i+1]:.2e})",
+                f"({losses[i]:.2e}) to {degrees[i + 1]} "
+                f"({losses[i + 1]:.2e})",
             )
         self.assertLess(losses[-1], 1e-4)
 
@@ -131,12 +130,8 @@ class TestGaussianTransport(Generic[Array], ParametrizedTestCase,
         bkd = self._bkd
         for deg in [2, 4]:
             vf, path, loss, qd, _, _ = _build_transport_setup(bkd, d, deg)
-            lstsq_loss = LeastSquaresFitter(bkd).fit(
-                vf, path, loss, qd
-            ).training_loss()
-            opt_loss = OptimizerFitter(bkd).fit(
-                vf, path, loss, qd
-            ).training_loss()
+            lstsq_loss = LeastSquaresFitter(bkd).fit(vf, path, loss, qd).training_loss()
+            opt_loss = OptimizerFitter(bkd).fit(vf, path, loss, qd).training_loss()
             self.assertLess(opt_loss, max(lstsq_loss * 100, 1e-4))
 
     @parametrize("d", [(1,), (2,)])
@@ -144,24 +139,27 @@ class TestGaussianTransport(Generic[Array], ParametrizedTestCase,
         """ODE-integrated samples match target mean and cov."""
         bkd = self._bkd
         vf, path, loss, qd, mu, L = _build_transport_setup(bkd, d, degree=4)
-        fitted_vf = LeastSquaresFitter(bkd).fit(
-            vf, path, loss, qd
-        ).surrogate()
+        fitted_vf = LeastSquaresFitter(bkd).fit(vf, path, loss, qd).surrogate()
 
         np.random.seed(123)
         nsamples = 5000
-        x0_samples = bkd.array(
-            np.random.randn(d, nsamples).tolist()
-        )
+        x0_samples = bkd.array(np.random.randn(d, nsamples).tolist())
         x1_samples = integrate_flow(
-            fitted_vf, x0_samples, 0.0, 1.0, n_steps=50, bkd=bkd,
+            fitted_vf,
+            x0_samples,
+            0.0,
+            1.0,
+            n_steps=50,
+            bkd=bkd,
             stepper_cls=HeunResidual,
         )
 
         x1_np = bkd.to_numpy(x1_samples)
         sample_mean = np.mean(x1_np, axis=1, keepdims=True)
         bkd.assert_allclose(
-            bkd.array(sample_mean.tolist()), mu, atol=0.05,
+            bkd.array(sample_mean.tolist()),
+            mu,
+            atol=0.05,
         )
 
         L_np = bkd.to_numpy(L)

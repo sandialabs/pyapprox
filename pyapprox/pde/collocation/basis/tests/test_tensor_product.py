@@ -3,21 +3,21 @@
 import unittest
 from typing import Generic
 
-from pyapprox.util.backends.protocols import Array, Backend
-from pyapprox.util.backends.numpy import NumpyBkd
-from pyapprox.util.test_utils import load_tests  # noqa: F401
 from pyapprox.pde.collocation.basis import (
-    TensorProductBasis,
-    ChebyshevDerivativeMatrix1D,
     ChebyshevBasis1D,
     ChebyshevBasis2D,
     ChebyshevBasis3D,
+    ChebyshevDerivativeMatrix1D,
+    TensorProductBasis,
 )
 from pyapprox.pde.collocation.mesh import (
     TransformedMesh1D,
     TransformedMesh2D,
     TransformedMesh3D,
 )
+from pyapprox.util.backends.numpy import NumpyBkd
+from pyapprox.util.backends.protocols import Array, Backend
+from pyapprox.util.test_utils import load_tests  # noqa: F401
 
 
 class TestTensorProductBasis(Generic[Array], unittest.TestCase):

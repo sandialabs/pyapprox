@@ -5,9 +5,9 @@ from typing import Generic, Optional
 from skfem import asm
 from skfem.models.poisson import mass
 
-from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.pde.galerkin.protocols.basis import GalerkinBasisProtocol
 from pyapprox.pde.sparse_utils import solve_maybe_sparse
+from pyapprox.util.backends.protocols import Array, Backend
 
 
 class ScalarMassAssembler(Generic[Array]):

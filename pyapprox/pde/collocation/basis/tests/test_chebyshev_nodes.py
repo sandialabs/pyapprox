@@ -1,14 +1,15 @@
 """Tests for Chebyshev-Gauss-Lobatto nodes."""
 
 import unittest
-import numpy as np
 from typing import Generic
 
-from pyapprox.util.backends.protocols import Array, Backend
-from pyapprox.util.backends.numpy import NumpyBkd
+import numpy as np
+
 from pyapprox.pde.collocation.basis.chebyshev.nodes import (
     ChebyshevGaussLobattoNodes1D,
 )
+from pyapprox.util.backends.numpy import NumpyBkd
+from pyapprox.util.backends.protocols import Array, Backend
 
 
 class TestChebyshevNodes(Generic[Array], unittest.TestCase):
@@ -103,6 +104,7 @@ class TestChebyshevNodes(Generic[Array], unittest.TestCase):
 
         # x_j = cos(j * pi / (n-1))
         import numpy as np
+
         expected = np.cos(np.arange(npts) * np.pi / (npts - 1))
         expected_arr = bkd.asarray(expected)
         bkd.assert_allclose(nodes, expected_arr, atol=1e-14)

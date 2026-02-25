@@ -1,33 +1,29 @@
 """Tests for physics implementations."""
 
+import math
 import unittest
 from typing import Generic
-import math
 
-from pyapprox.util.backends.protocols import Array, Backend
-from pyapprox.util.backends.numpy import NumpyBkd
-from pyapprox.util.test_utils import load_tests  # noqa: F401
 from pyapprox.pde.collocation.basis import ChebyshevBasis1D
-from pyapprox.pde.collocation.mesh import (
-    create_uniform_mesh_1d,
-    TransformedMesh1D,
-)
 from pyapprox.pde.collocation.boundary import (
     constant_dirichlet_bc,
     zero_dirichlet_bc,
-    DirichletBC,
+)
+from pyapprox.pde.collocation.manufactured_solutions import (
+    ManufacturedAdvectionDiffusionReaction,
+)
+from pyapprox.pde.collocation.mesh import (
+    TransformedMesh1D,
+    create_uniform_mesh_1d,
 )
 from pyapprox.pde.collocation.physics.advection_diffusion import (
     AdvectionDiffusionReaction,
-    create_steady_diffusion,
     create_advection_diffusion,
+    create_steady_diffusion,
 )
 from pyapprox.pde.collocation.time_integration import (
     CollocationModel,
     TimeIntegrationConfig,
-)
-from pyapprox.pde.collocation.manufactured_solutions import (
-    ManufacturedAdvectionDiffusionReaction,
 )
 from pyapprox.pde.field_maps.basis_expansion import (
     BasisExpansion,
@@ -35,6 +31,9 @@ from pyapprox.pde.field_maps.basis_expansion import (
 from pyapprox.pde.parameterizations.diffusion import (
     create_diffusion_parameterization,
 )
+from pyapprox.util.backends.numpy import NumpyBkd
+from pyapprox.util.backends.protocols import Array, Backend
+from pyapprox.util.test_utils import load_tests  # noqa: F401
 
 
 class TestAdvectionDiffusionReaction(Generic[Array], unittest.TestCase):
@@ -61,7 +60,7 @@ class TestAdvectionDiffusionReaction(Generic[Array], unittest.TestCase):
 
         # u = x^2
         nodes = basis.nodes()
-        u = nodes ** 2
+        u = nodes**2
 
         residual = physics.residual(u, time=0.0)
 
@@ -179,9 +178,7 @@ class TestAdvectionDiffusionReaction(Generic[Array], unittest.TestCase):
         basis = ChebyshevBasis1D(mesh, bkd)
 
         forcing = bkd.ones((npts,)) * 3.0
-        physics = AdvectionDiffusionReaction(
-            basis, bkd, forcing=lambda t: forcing
-        )
+        physics = AdvectionDiffusionReaction(basis, bkd, forcing=lambda t: forcing)
 
         u = bkd.zeros((npts,))
 
@@ -485,9 +482,7 @@ class TestAdvectionDiffusionReactionNumpy(TestAdvectionDiffusionReaction):
         return NumpyBkd()
 
 
-class TestDiffusionParameterizationNumpy(
-    TestDiffusionParameterization
-):
+class TestDiffusionParameterizationNumpy(TestDiffusionParameterization):
     __test__ = True
 
     def bkd(self) -> Backend[Array]:

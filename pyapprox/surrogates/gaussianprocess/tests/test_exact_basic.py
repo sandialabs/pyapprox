@@ -5,30 +5,32 @@ Tests initialization, fitting, prediction, mean functions, and plotting.
 """
 import math
 import unittest
-from typing import Generic, Any
+from typing import Any, Generic
+
+import matplotlib
 import numpy as np
 import torch
 from numpy.typing import NDArray
-import matplotlib
+
 matplotlib.use('Agg')  # Use non-interactive backend for testing
 import matplotlib.pyplot as plt
 
-from pyapprox.util.backends.protocols import Backend, Array
-from pyapprox.util.backends.numpy import NumpyBkd
-from pyapprox.util.backends.torch import TorchBkd
-from pyapprox.surrogates.kernels.matern import (
-    MaternKernel,
-    Matern52Kernel,
-)
-from pyapprox.surrogates.gaussianprocess import (
-    ExactGaussianProcess,
-    ZeroMean,
-    ConstantMean
-)
 from pyapprox.interface.functions.plot.plot1d import Plotter1D
 from pyapprox.interface.functions.plot.plot2d_rectangular import (
-    Plotter2DRectangularDomain
+    Plotter2DRectangularDomain,
 )
+from pyapprox.surrogates.gaussianprocess import (
+    ConstantMean,
+    ExactGaussianProcess,
+    ZeroMean,
+)
+from pyapprox.surrogates.kernels.matern import (
+    Matern52Kernel,
+    MaternKernel,
+)
+from pyapprox.util.backends.numpy import NumpyBkd
+from pyapprox.util.backends.protocols import Array, Backend
+from pyapprox.util.backends.torch import TorchBkd
 
 
 class TestExactGPBasic(Generic[Array], unittest.TestCase):
@@ -49,7 +51,9 @@ class TestExactGPBasic(Generic[Array], unittest.TestCase):
 
         # Create training data
         X_train_np = np.random.randn(self.nvars, self.n_train)
-        y_train_np = np.sin(X_train_np[0, :] + X_train_np[1, :])[None, :]  # Shape: (1, n_train)
+        y_train_np = np.sin(
+            X_train_np[0, :] + X_train_np[1, :]
+        )[None, :]  # Shape: (1, n_train)
 
         self.X_train = self.bkd().array(X_train_np)
         self.y_train = self.bkd().array(y_train_np)
@@ -265,7 +269,7 @@ class TestExactGPBasic(Generic[Array], unittest.TestCase):
             gp.neg_log_marginal_likelihood()
 
     def test_exact_interpolation_minimal_noise(self) -> None:
-        """Test that GP exactly interpolates noiseless data with minimal noise variance."""
+        """Test GP exactly interpolates noiseless data."""
         # Use zero noise variance (no nugget term) to test exact interpolation
         gp = ExactGaussianProcess(
             self.kernel,
@@ -296,7 +300,7 @@ class TestExactGPBasic(Generic[Array], unittest.TestCase):
 
     def test_polynomial_approximation_accuracy(self) -> None:
         """Test that GP can accurately approximate a low-degree polynomial."""
-        # Define a simple quadratic polynomial: f(x1, x2) = 1 + x1 + x2 + 0.5*x1^2 + 0.5*x2^2
+        # f(x1, x2) = 1 + x1 + x2 + 0.5*x1^2 + 0.5*x2^2
         def polynomial(X: np.ndarray) -> np.ndarray:
             """Evaluate polynomial at input locations."""
             x1 = X[0, :]
@@ -351,11 +355,13 @@ class TestExactGPBasic(Generic[Array], unittest.TestCase):
         # With dense training data and appropriate kernel, error should be very small
         # This demonstrates GP's ability to approximate smooth functions
         self.assertLess(max_abs_error, 1e-3,
-                       f"Polynomial approximation max error {max_abs_error:.6e} exceeds threshold")
+                       f"Poly approx max error "
+                       f"{max_abs_error:.6e} exceeds threshold")
 
         # Mean error should be even smaller
         self.assertLess(mean_abs_error, 1e-4,
-                       f"Polynomial approximation mean error {mean_abs_error:.6e} exceeds threshold")
+                       f"Poly approx mean error "
+                       f"{mean_abs_error:.6e} exceeds threshold")
 
     def test_plot_1d_gp_mean(self) -> None:
         """Test plotting 1D GP mean function using Plotter1D."""
@@ -377,7 +383,9 @@ class TestExactGPBasic(Generic[Array], unittest.TestCase):
 
         # Create 1D training data
         X_train_1d = self.bkd().reshape(self.bkd().linspace(-2, 2, 10), (1, -1))
-        y_train_1d = self.bkd().reshape(self.bkd().sin(X_train_1d[0, :]), (1, -1))  # Shape: (1, n_train)
+        y_train_1d = self.bkd().reshape(
+            self.bkd().sin(X_train_1d[0, :]), (1, -1)
+        )
 
         gp.fit(X_train_1d, y_train_1d)
 
@@ -476,7 +484,6 @@ class TestExactGPBasicTorch(TestExactGPBasic[torch.Tensor]):
 
 
 from pyapprox.util.test_utils import load_tests  # noqa: F401
-
 
 if __name__ == "__main__":
     loader = unittest.TestLoader()

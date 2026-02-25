@@ -6,8 +6,8 @@ Computes entropic_risk[qoi | obs] - E[qoi | obs].
 
 from typing import Generic
 
-from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.expdesign.deviation.base import DeviationMeasure
+from pyapprox.util.backends.protocols import Array, Backend
 
 
 class EntropicDeviationMeasure(DeviationMeasure[Array], Generic[Array]):
@@ -15,7 +15,8 @@ class EntropicDeviationMeasure(DeviationMeasure[Array], Generic[Array]):
     Entropic deviation of QoI prediction.
 
     Computes:
-        EntropicDev[qoi | obs] = (1/alpha) * log(E[exp(alpha * qoi) | obs]) - E[qoi | obs]
+        EntropicDev[qoi | obs] = (1/alpha) * log(E[exp(alpha * qoi) | obs]) - E[qoi |
+        obs]
 
     where expectations are taken over the posterior (likelihood-weighted prior).
 
@@ -29,9 +30,7 @@ class EntropicDeviationMeasure(DeviationMeasure[Array], Generic[Array]):
         Computational backend.
     """
 
-    def __init__(
-        self, npred: int, alpha: float, bkd: Backend[Array]
-    ) -> None:
+    def __init__(self, npred: int, alpha: float, bkd: Backend[Array]) -> None:
         super().__init__(npred, bkd)
         self.set_alpha(alpha)
 
@@ -115,9 +114,7 @@ class EntropicDeviationMeasure(DeviationMeasure[Array], Generic[Array]):
         evidences = self._evidence(design_weights).T  # (nouter, 1)
 
         # Normalized quad-weighted likelihoods
-        normalized_like = (
-            self._evidence.quad_weighted_like_vals / evidences[:, 0]
-        )
+        normalized_like = self._evidence.quad_weighted_like_vals / evidences[:, 0]
 
         # Compute entropic risk and mean
         entropic = self._entropic_risk(normalized_like)  # (npred, nouter)
@@ -151,9 +148,7 @@ class EntropicDeviationMeasure(DeviationMeasure[Array], Generic[Array]):
         )  # (ninner, nouter, nvars)
 
         # Normalized quantities
-        normalized_like = (
-            self._evidence.quad_weighted_like_vals / evidences[:, 0]
-        )
+        normalized_like = self._evidence.quad_weighted_like_vals / evidences[:, 0]
 
         # Jacobian of normalized quad-weighted likelihood
         # d/dw (like / evidence) = (d like / dw) / evidence
@@ -169,9 +164,7 @@ class EntropicDeviationMeasure(DeviationMeasure[Array], Generic[Array]):
         entropic_jac = self._entropic_risk_jac(
             normalized_like, normalized_like_jac
         )  # (npred, nouter, nvars)
-        mean_jac = self._first_moment_jac(
-            normalized_like_jac
-        )  # (npred, nouter, nvars)
+        mean_jac = self._first_moment_jac(normalized_like_jac)  # (npred, nouter, nvars)
 
         # Jacobian of deviation = d(entropic)/dw - d(mean)/dw
         deviation_jac = entropic_jac - mean_jac

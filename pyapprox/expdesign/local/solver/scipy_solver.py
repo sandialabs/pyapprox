@@ -7,16 +7,16 @@ for scalar criteria (D, A, C, I-optimal).
 
 from typing import Generic, Optional
 
-from pyapprox.util.backends.protocols import Array, Backend
-from pyapprox.optimization.minimize.scipy.trust_constr import (
-    ScipyTrustConstrOptimizer,
+from pyapprox.expdesign.local.protocols.criterion import (
+    LocalOEDCriterionProtocol,
 )
 from pyapprox.optimization.minimize.scipy.scipy_result import (
     ScipyOptimizerResultWrapper,
 )
-from pyapprox.expdesign.local.protocols.criterion import (
-    LocalOEDCriterionProtocol,
+from pyapprox.optimization.minimize.scipy.trust_constr import (
+    ScipyTrustConstrOptimizer,
 )
+from pyapprox.util.backends.protocols import Array, Backend
 
 from .base import LocalOEDSolverBase
 
@@ -122,7 +122,5 @@ class ScipyLocalOEDSolver(LocalOEDSolverBase[Array], Generic[Array]):
             If construct() has not been called yet.
         """
         if not hasattr(self, "_result"):
-            raise AttributeError(
-                "No result available. Call construct() first."
-            )
+            raise AttributeError("No result available. Call construct() first.")
         return self._result

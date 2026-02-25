@@ -18,7 +18,7 @@ TransformWithJacobianProtocol
     Transform with Jacobian for change of variables.
 """
 
-from typing import Protocol, Generic, runtime_checkable, Tuple
+from typing import Generic, Protocol, Tuple, runtime_checkable
 
 from pyapprox.util.backends.protocols import Array, Backend
 
@@ -88,14 +88,11 @@ class InvertibleTransformProtocol(Protocol, Generic[Array]):
         Transform from canonical (target) space back to original.
     """
 
-    def bkd(self) -> Backend[Array]:
-        ...
+    def bkd(self) -> Backend[Array]: ...
 
-    def nvars(self) -> int:
-        ...
+    def nvars(self) -> int: ...
 
-    def map_to_canonical(self, samples: Array) -> Array:
-        ...
+    def map_to_canonical(self, samples: Array) -> Array: ...
 
     def map_from_canonical(self, canonical_samples: Array) -> Array:
         """
@@ -134,21 +131,15 @@ class TransformWithJacobianProtocol(Protocol, Generic[Array]):
         Inverse transform with Jacobian.
     """
 
-    def bkd(self) -> Backend[Array]:
-        ...
+    def bkd(self) -> Backend[Array]: ...
 
-    def nvars(self) -> int:
-        ...
+    def nvars(self) -> int: ...
 
-    def map_to_canonical(self, samples: Array) -> Array:
-        ...
+    def map_to_canonical(self, samples: Array) -> Array: ...
 
-    def map_from_canonical(self, canonical_samples: Array) -> Array:
-        ...
+    def map_from_canonical(self, canonical_samples: Array) -> Array: ...
 
-    def map_to_canonical_with_jacobian(
-        self, samples: Array
-    ) -> Tuple[Array, Array]:
+    def map_to_canonical_with_jacobian(self, samples: Array) -> Tuple[Array, Array]:
         """
         Transform to canonical space with Jacobian.
 

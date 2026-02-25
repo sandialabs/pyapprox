@@ -13,16 +13,16 @@ import numpy as np
 import torch
 from numpy.typing import NDArray
 
-from pyapprox.util.backends.protocols import Array, Backend
-from pyapprox.util.backends.numpy import NumpyBkd
-from pyapprox.util.backends.torch import TorchBkd
-from pyapprox.util.test_utils import load_tests  # noqa: F401
-from pyapprox.pde.collocation.physics.stress_models.neo_hookean import (
-    NeoHookeanStress,
-)
 from pyapprox.interface.functions.derivative_checks.derivative_checker import (
     DerivativeChecker,
 )
+from pyapprox.pde.collocation.physics.stress_models.neo_hookean import (
+    NeoHookeanStress,
+)
+from pyapprox.util.backends.numpy import NumpyBkd
+from pyapprox.util.backends.protocols import Array, Backend
+from pyapprox.util.backends.torch import TorchBkd
+from pyapprox.util.test_utils import load_tests  # noqa: F401
 
 
 class _StressOfMu(Generic[Array]):
@@ -58,14 +58,22 @@ class _StressOfMu(Generic[Array]):
                 mu_val = float(samples[0, i])
                 model = NeoHookeanStress(self._lamda, mu_val)
                 P = model.compute_stress_2d(
-                    self._F11, self._F12, self._F21, self._F22, bkd,
+                    self._F11,
+                    self._F12,
+                    self._F21,
+                    self._F22,
+                    bkd,
                 )
                 cols.append(bkd.concatenate(list(P)))
             return bkd.stack(cols, axis=1)
         mu_val = float(samples[0])
         model = NeoHookeanStress(self._lamda, mu_val)
         P = model.compute_stress_2d(
-            self._F11, self._F12, self._F21, self._F22, bkd,
+            self._F11,
+            self._F12,
+            self._F21,
+            self._F22,
+            bkd,
         )
         return bkd.concatenate(list(P)).reshape(-1, 1)
 
@@ -77,7 +85,11 @@ class _StressOfMu(Generic[Array]):
             mu_val = float(sample[0])
         model = NeoHookeanStress(self._lamda, mu_val)
         dP = model.stress_sensitivity_mu_2d(
-            self._F11, self._F12, self._F21, self._F22, bkd,
+            self._F11,
+            self._F12,
+            self._F21,
+            self._F22,
+            bkd,
         )
         return bkd.concatenate(list(dP)).reshape(-1, 1)
 
@@ -111,14 +123,22 @@ class _StressOfLamda(Generic[Array]):
                 lam_val = float(samples[0, i])
                 model = NeoHookeanStress(lam_val, self._mu)
                 P = model.compute_stress_2d(
-                    self._F11, self._F12, self._F21, self._F22, bkd,
+                    self._F11,
+                    self._F12,
+                    self._F21,
+                    self._F22,
+                    bkd,
                 )
                 cols.append(bkd.concatenate(list(P)))
             return bkd.stack(cols, axis=1)
         lam_val = float(samples[0])
         model = NeoHookeanStress(lam_val, self._mu)
         P = model.compute_stress_2d(
-            self._F11, self._F12, self._F21, self._F22, bkd,
+            self._F11,
+            self._F12,
+            self._F21,
+            self._F22,
+            bkd,
         )
         return bkd.concatenate(list(P)).reshape(-1, 1)
 
@@ -130,7 +150,11 @@ class _StressOfLamda(Generic[Array]):
             lam_val = float(sample[0])
         model = NeoHookeanStress(lam_val, self._mu)
         dP = model.stress_sensitivity_lamda_2d(
-            self._F11, self._F12, self._F21, self._F22, bkd,
+            self._F11,
+            self._F12,
+            self._F21,
+            self._F22,
+            bkd,
         )
         return bkd.concatenate(list(dP)).reshape(-1, 1)
 
@@ -212,10 +236,8 @@ class TestNeoHookeanSensitivity2D(Generic[Array], unittest.TestCase):
         F21 = bkd.zeros((npts,))
         F22 = bkd.ones((npts,))
 
-        dP11, dP12, dP21, dP22 = (
-            self._stress_model.stress_sensitivity_lamda_2d(
-                F11, F12, F21, F22, bkd
-            )
+        dP11, dP12, dP21, dP22 = self._stress_model.stress_sensitivity_lamda_2d(
+            F11, F12, F21, F22, bkd
         )
 
         zeros = bkd.zeros((npts,))
@@ -233,9 +255,7 @@ class TestNeoHookeanSensitivity2D(Generic[Array], unittest.TestCase):
 
         # 1D
         dP_dmu_1d = self._stress_model.stress_sensitivity_mu_1d(F_vals, bkd)
-        dP_dlam_1d = self._stress_model.stress_sensitivity_lamda_1d(
-            F_vals, bkd
-        )
+        dP_dlam_1d = self._stress_model.stress_sensitivity_lamda_1d(F_vals, bkd)
 
         # 2D with diagonal F: F11=F, F22=1, F12=F21=0
         F11 = F_vals
@@ -243,29 +263,21 @@ class TestNeoHookeanSensitivity2D(Generic[Array], unittest.TestCase):
         F21 = bkd.zeros((npts,))
         F22 = bkd.ones((npts,))
 
-        dP_mu = self._stress_model.stress_sensitivity_mu_2d(
-            F11, F12, F21, F22, bkd
-        )
-        dP_lam = self._stress_model.stress_sensitivity_lamda_2d(
-            F11, F12, F21, F22, bkd
-        )
+        dP_mu = self._stress_model.stress_sensitivity_mu_2d(F11, F12, F21, F22, bkd)
+        dP_lam = self._stress_model.stress_sensitivity_lamda_2d(F11, F12, F21, F22, bkd)
 
         bkd.assert_allclose(dP_mu[0], dP_dmu_1d, rtol=1e-12)
         bkd.assert_allclose(dP_lam[0], dP_dlam_1d, rtol=1e-12)
 
 
-class TestNeoHookeanSensitivity2DNumpy(
-    TestNeoHookeanSensitivity2D[NDArray[Any]]
-):
+class TestNeoHookeanSensitivity2DNumpy(TestNeoHookeanSensitivity2D[NDArray[Any]]):
     __test__ = True
 
     def bkd(self) -> NumpyBkd:
         return NumpyBkd()
 
 
-class TestNeoHookeanSensitivity2DTorch(
-    TestNeoHookeanSensitivity2D[torch.Tensor]
-):
+class TestNeoHookeanSensitivity2DTorch(TestNeoHookeanSensitivity2D[torch.Tensor]):
     __test__ = True
 
     def bkd(self) -> TorchBkd:

@@ -15,8 +15,8 @@ Functional: Q = y2 (endpoint)
 Lagrangian: L = Q + λ1*R1 + λ2*R2
 """
 
-import sympy as sp
 import numpy as np
+import sympy as sp
 
 # Define symbols
 a, dt = sp.symbols('a dt', real=True)
@@ -162,13 +162,13 @@ print("="*60)
 # 2. Accumulates: dR/dp^T * s + qps_hvp + rps_hvp + rpp_hvp
 
 # Let's trace what the implementation does
-from pyapprox.util.backends.numpy import NumpyBkd
+from pyapprox.optimization.rootfinding.newton import NewtonSolver
 from pyapprox.pde.time.benchmarks.linear_ode import QuadraticODEResidual
 from pyapprox.pde.time.explicit_steppers.forward_euler import ForwardEulerResidual
-from pyapprox.optimization.rootfinding.newton import NewtonSolver
-from pyapprox.pde.time.implicit_steppers.integrator import TimeIntegrator
 from pyapprox.pde.time.functionals.endpoint import EndpointFunctional
+from pyapprox.pde.time.implicit_steppers.integrator import TimeIntegrator
 from pyapprox.pde.time.operator.time_adjoint_hvp import TimeAdjointOperatorWithHVP
+from pyapprox.util.backends.numpy import NumpyBkd
 
 bkd = NumpyBkd
 
@@ -201,7 +201,9 @@ adj_sols = integrator.solve_adjoint(fwd_sols, times, param_np)
 
 vvec_np = bkd.asarray(np.array([[1.0], [0.0]]))
 w_sols = operator._solve_forward_sensitivity(fwd_sols, times, param_np, vvec_np)
-s_sols = operator._solve_second_adjoint(fwd_sols, adj_sols, w_sols, times, param_np, vvec_np)
+s_sols = operator._solve_second_adjoint(
+    fwd_sols, adj_sols, w_sols, times, param_np, vvec_np
+)
 
 print("\nImplementation values:")
 print(f"fwd_sols = {fwd_sols.flatten()}")
@@ -225,7 +227,11 @@ print(f"s_sols = {s_sols.flatten()}")
 operator.storage()._clear()
 hvp_impl = operator.hvp(init_state, param_np, vvec_np)
 print(f"\nHVP from operator: {hvp_impl.flatten()}")
-print(f"Expected HVP (SymPy): [{float(hvp_p0.subs(vals)):.6f}, {float(hvp_p1.subs(vals)):.6f}]")
+print(
+    f"Expected HVP (SymPy): "
+    f"[{float(hvp_p0.subs(vals)):.6f}, "
+    f"{float(hvp_p1.subs(vals)):.6f}]"
+)
 
 # Trace the accumulation
 print("\nAccumulation trace:")
@@ -279,7 +285,7 @@ print(f"Expected Term 1a (n=1, p0): {float(term1a_p0.subs(vals)):.6f}")
 print(f"Expected Term 2 (n=2, p0): {float(term2_n2_p0.subs(vals)):.6f}")
 print(f"Sum: {float(hvp_p0.subs(vals)):.6f}")
 print()
-print(f"Implementation gets:")
+print("Implementation gets:")
 print(f"  Step 1: dR^T * s = {s1_contrib[0, 0]:.6f} (should be ~0?)")
 print(f"  Step 2: dR^T * s = {s2_contrib[0, 0]:.6f}")
 print(f"  Step 2: rps_hvp = {rps_hvp_2[0]:.6f}")

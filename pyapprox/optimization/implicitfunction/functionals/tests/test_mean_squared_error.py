@@ -1,16 +1,15 @@
 import unittest
-from typing import Generic, Any
+from typing import Any, Generic
 
-import numpy as np
 import torch
 from numpy.typing import NDArray
 
-from pyapprox.util.backends.protocols import Backend, Array
-from pyapprox.util.backends.numpy import NumpyBkd
-from pyapprox.util.backends.torch import TorchBkd
 from pyapprox.optimization.implicitfunction.functionals.mean_squared_error import (
     MSEFunctional,
 )
+from pyapprox.util.backends.numpy import NumpyBkd
+from pyapprox.util.backends.protocols import Array, Backend
+from pyapprox.util.backends.torch import TorchBkd
 
 
 class TestMSEFunctional(Generic[Array], unittest.TestCase):
@@ -28,17 +27,13 @@ class TestMSEFunctional(Generic[Array], unittest.TestCase):
         """
         self.nstates = 3
         self.nparams = 2
-        self.obs = self.bkd().reshape(
-            self.bkd().array([1.0, 2.0, 3.0]), (3, 1)
-        )
+        self.obs = self.bkd().reshape(self.bkd().array([1.0, 2.0, 3.0]), (3, 1))
 
     def bkd(self) -> Backend:
         """
         Override this method in derived classes to provide the backend.
         """
-        raise NotImplementedError(
-            "Derived classes must implement this method."
-        )
+        raise NotImplementedError("Derived classes must implement this method.")
 
     def test_initialization(self) -> None:
         """
@@ -77,9 +72,7 @@ class TestMSEFunctional(Generic[Array], unittest.TestCase):
         func = MSEFunctional(self.nstates, self.nparams, self.bkd())
         func.set_observations(self.obs)
 
-        state = self.bkd().reshape(
-            self.bkd().array([2.0, 3.0, 4.0]), (3, 1)
-        )
+        state = self.bkd().reshape(self.bkd().array([2.0, 3.0, 4.0]), (3, 1))
         param = self.bkd().zeros((2, 1))  # Not used in MSE
 
         result = func(state, param)
@@ -99,17 +92,13 @@ class TestMSEFunctional(Generic[Array], unittest.TestCase):
         func = MSEFunctional(self.nstates, self.nparams, self.bkd())
         func.set_observations(self.obs)
 
-        state = self.bkd().reshape(
-            self.bkd().array([2.0, 3.0, 5.0]), (3, 1)
-        )
+        state = self.bkd().reshape(self.bkd().array([2.0, 3.0, 5.0]), (3, 1))
         param = self.bkd().zeros((2, 1))
 
         jac = func.state_jacobian(state, param)
 
         # Expected: (state - obs)^T = ([2, 3, 5] - [1, 2, 3])^T = [1, 1, 2]^T
-        expected = self.bkd().reshape(
-            self.bkd().array([[1.0, 1.0, 2.0]]), (1, 3)
-        )
+        expected = self.bkd().reshape(self.bkd().array([[1.0, 1.0, 2.0]]), (1, 3))
         self.bkd().assert_allclose(jac, expected)
 
     def test_param_jacobian(self) -> None:
@@ -237,9 +226,7 @@ class TestMSEFunctionalTorch(TestMSEFunctional[torch.Tensor]):
 
 
 # Custom test loader to exclude the base class
-def load_tests(
-    loader: unittest.TestLoader, tests, pattern: str
-) -> unittest.TestSuite:
+def load_tests(loader: unittest.TestLoader, tests, pattern: str) -> unittest.TestSuite:
     """
     Custom test loader to exclude the base class MSEFunctional.
     """

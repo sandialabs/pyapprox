@@ -6,25 +6,22 @@ import unittest
 from typing import Any, Generic
 
 import numpy as np
+import torch
 from numpy.typing import NDArray
 from scipy import stats
-import torch
-
-from pyapprox.util.backends.protocols import Array, Backend
-from pyapprox.util.backends.numpy import NumpyBkd
-from pyapprox.util.backends.torch import TorchBkd
-from pyapprox.util.test_utils import load_tests
 from unittest_parametrize import ParametrizedTestCase, parametrize
 
+from pyapprox.probability.joint import IndependentJoint
 from pyapprox.probability.univariate import (
-    ScipyContinuousMarginal,
-    GaussianMarginal,
     BetaMarginal,
     GammaMarginal,
+    GaussianMarginal,
+    ScipyContinuousMarginal,
     UniformMarginal,
 )
-from pyapprox.probability.joint import IndependentJoint
-
+from pyapprox.util.backends.numpy import NumpyBkd
+from pyapprox.util.backends.protocols import Array, Backend
+from pyapprox.util.backends.torch import TorchBkd
 
 # Marginal combination test cases: (name, marginal_types)
 # Each marginal_type is a tuple of (class, *args) for construction
@@ -109,9 +106,7 @@ class TestIndependentJoint(Generic[Array], unittest.TestCase):
             logpdf_expected = logpdf_expected + marginal.logpdf(row_2d)
         logpdf_expected = self._bkd.flatten(logpdf_expected)
 
-        self.assertTrue(
-            self._bkd.allclose(logpdf_joint, logpdf_expected, rtol=1e-6)
-        )
+        self.assertTrue(self._bkd.allclose(logpdf_joint, logpdf_expected, rtol=1e-6))
 
     def test_pdf_exp_logpdf(self) -> None:
         """Test pdf = exp(logpdf)."""
@@ -246,8 +241,7 @@ class TestIndependentJointGaussian(Generic[Array], unittest.TestCase):
         self.means = [0.0, 1.0, 2.0]
         self.stds = [1.0, 2.0, 0.5]
         self.marginals = [
-            GaussianMarginal(m, s, self._bkd)
-            for m, s in zip(self.means, self.stds)
+            GaussianMarginal(m, s, self._bkd) for m, s in zip(self.means, self.stds)
         ]
         self.joint = IndependentJoint(self.marginals, self._bkd)
 
@@ -270,9 +264,7 @@ class TestIndependentJointGaussian(Generic[Array], unittest.TestCase):
         samples_np = self._bkd.to_numpy(samples)
         logpdf_scipy = self._bkd.asarray(scipy_dist.logpdf(samples_np.T))
 
-        self.assertTrue(
-            self._bkd.allclose(logpdf_ours, logpdf_scipy, rtol=1e-6)
-        )
+        self.assertTrue(self._bkd.allclose(logpdf_ours, logpdf_scipy, rtol=1e-6))
 
     def test_mean_matches_marginal_means(self) -> None:
         """Test mean matches marginal means."""
@@ -287,18 +279,14 @@ class TestIndependentJointGaussian(Generic[Array], unittest.TestCase):
         self.assertTrue(self._bkd.allclose(var, expected, rtol=1e-6))
 
 
-class TestIndependentJointGaussianNumpy(
-    TestIndependentJointGaussian[NDArray[Any]]
-):
+class TestIndependentJointGaussianNumpy(TestIndependentJointGaussian[NDArray[Any]]):
     """NumPy backend tests for IndependentJoint with Gaussian marginals."""
 
     def bkd(self) -> NumpyBkd:
         return NumpyBkd()
 
 
-class TestIndependentJointGaussianTorch(
-    TestIndependentJointGaussian[torch.Tensor]
-):
+class TestIndependentJointGaussianTorch(TestIndependentJointGaussian[torch.Tensor]):
     """PyTorch backend tests for IndependentJoint with Gaussian marginals."""
 
     def bkd(self) -> TorchBkd:
@@ -333,12 +321,11 @@ class TestIndependentJointSingleVariable(Generic[Array], unittest.TestCase):
         samples = self._bkd.asarray([[0.0, 1.0, -1.0]])
 
         logpdf_joint = self.joint.logpdf(samples)
-        # Marginal expects 2D input (1, nsamples), joint samples is already (1, nsamples)
+        # Marginal expects 2D input (1, nsamples), joint samples is already (1,
+        # nsamples)
         logpdf_marginal = self._bkd.flatten(self.marginal.logpdf(samples))
 
-        self.assertTrue(
-            self._bkd.allclose(logpdf_joint, logpdf_marginal, rtol=1e-6)
-        )
+        self.assertTrue(self._bkd.allclose(logpdf_joint, logpdf_marginal, rtol=1e-6))
 
 
 class TestIndependentJointSingleVariableNumpy(
@@ -407,18 +394,14 @@ class TestIndependentJointProtocol(Generic[Array], unittest.TestCase):
         self.assertEqual(corr.shape, (2, 2))
 
 
-class TestIndependentJointProtocolNumpy(
-    TestIndependentJointProtocol[NDArray[Any]]
-):
+class TestIndependentJointProtocolNumpy(TestIndependentJointProtocol[NDArray[Any]]):
     """NumPy backend tests for JointDistributionProtocol compliance."""
 
     def bkd(self) -> NumpyBkd:
         return NumpyBkd()
 
 
-class TestIndependentJointProtocolTorch(
-    TestIndependentJointProtocol[torch.Tensor]
-):
+class TestIndependentJointProtocolTorch(TestIndependentJointProtocol[torch.Tensor]):
     """PyTorch backend tests for JointDistributionProtocol compliance."""
 
     def bkd(self) -> TorchBkd:
@@ -686,7 +669,8 @@ class TestIndependentJointLogpdfJacobian(Generic[Array], unittest.TestCase):
         self.assertEqual(jac.shape, (3, 1, 2))
 
     def test_logpdf_jacobian_vs_numerical(self) -> None:
-        """Test logpdf_jacobian against numerical derivatives using DerivativeChecker."""
+        """Test logpdf_jacobian against numerical derivatives using
+        DerivativeChecker."""
         from pyapprox.interface.functions.derivative_checks.derivative_checker import (
             DerivativeChecker,
         )
@@ -804,7 +788,8 @@ class TestIndependentJointPdfJacobian(Generic[Array], unittest.TestCase):
             self._bkd.assert_allclose(batch_jac[ii, 0, :], single_jac[0, :])
 
     def test_jacobian_product_rule(self) -> None:
-        """Test jacobian follows product rule: d/dx_i[prod_j p_j] = p'_i * prod_{j!=i} p_j."""
+        """Test jacobian follows product rule: d/dx_i[prod_j p_j] = p'_i * prod_{j!=i}
+        p_j."""
         sample = self._bkd.asarray([[0.3], [1.2]])
         jac = self.joint.jacobian(sample)
 
@@ -926,9 +911,7 @@ class TestIndependentJointJacobianCombinations(
         "name,marginal_specs",
         MARGINAL_COMBOS,
     )
-    def test_logpdf_jacobian_batch_shape(
-        self, name: str, marginal_specs: list
-    ) -> None:
+    def test_logpdf_jacobian_batch_shape(self, name: str, marginal_specs: list) -> None:
         """Test logpdf_jacobian_batch shape for different marginal combinations."""
         nsamples = 5
         joint = self._create_joint(marginal_specs)
@@ -965,9 +948,7 @@ class TestIndependentJointJacobianCombinations(
         "name,marginal_specs",
         MARGINAL_COMBOS,
     )
-    def test_jacobian_batch_consistency(
-        self, name: str, marginal_specs: list
-    ) -> None:
+    def test_jacobian_batch_consistency(self, name: str, marginal_specs: list) -> None:
         """Test jacobian_batch matches single jacobian."""
         joint = self._create_joint(marginal_specs)
         samples = self._create_samples(joint, 3)

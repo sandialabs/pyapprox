@@ -3,13 +3,13 @@ from typing import Generic
 
 import torch
 
-from pyapprox.util.backends.protocols import Array, Backend
-from pyapprox.util.backends.numpy import NumpyBkd
-from pyapprox.util.backends.torch import TorchBkd
 from pyapprox.optimization.rootfinding.bisection import (
-    BisectionSearch,
     BisectionResidualProtocol,
+    BisectionSearch,
 )
+from pyapprox.util.backends.numpy import NumpyBkd
+from pyapprox.util.backends.protocols import Array, Backend
+from pyapprox.util.backends.torch import TorchBkd
 
 
 class TestBisectionSearch(Generic[Array], unittest.TestCase):
@@ -19,9 +19,7 @@ class TestBisectionSearch(Generic[Array], unittest.TestCase):
         """
         Override this method in derived classes to provide the specific backend.
         """
-        raise NotImplementedError(
-            "Derived classes must implement this method."
-        )
+        raise NotImplementedError("Derived classes must implement this method.")
 
     def test_bisection_search(self) -> None:
         """
@@ -78,9 +76,7 @@ class TestBisectionSearchTorch(TestBisectionSearch[torch.Tensor]):
 
 
 # Custom test loader to exclude the base class
-def load_tests(
-    loader: unittest.TestLoader, tests, pattern: str
-) -> unittest.TestSuite:
+def load_tests(loader: unittest.TestLoader, tests, pattern: str) -> unittest.TestSuite:
     """
     Custom test loader to exclude the base class
     ContinuousScipyRandomVariable1D.

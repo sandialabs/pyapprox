@@ -3,7 +3,7 @@ Tests for Gaussian analytical risk measures.
 """
 
 import unittest
-import numpy as np
+
 from scipy import stats
 
 from pyapprox.probability.risk import GaussianAnalyticalRiskMeasures
@@ -23,7 +23,7 @@ class TestGaussianAnalyticalRiskMeasures(unittest.TestCase):
 
     def test_variance(self):
         """Test variance returns sigma^2."""
-        self.assertAlmostEqual(self.risk.variance(), self.sigma ** 2)
+        self.assertAlmostEqual(self.risk.variance(), self.sigma**2)
 
     def test_stdev(self):
         """Test stdev returns sigma."""
@@ -38,7 +38,7 @@ class TestGaussianAnalyticalRiskMeasures(unittest.TestCase):
     def test_entropic(self):
         """Test entropic risk formula."""
         alpha = 0.5
-        expected = self.mu + alpha * self.sigma ** 2 / 2.0
+        expected = self.mu + alpha * self.sigma**2 / 2.0
         self.assertAlmostEqual(self.risk.entropic(alpha), expected)
 
     def test_avar_standard_normal(self):

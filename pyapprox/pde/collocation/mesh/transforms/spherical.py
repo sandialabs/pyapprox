@@ -185,19 +185,19 @@ class SphericalTransform(Generic[Array]):
         jac = self._bkd.zeros((npts, 3, 3))
 
         # dx/dr, dx/daz, dx/del
-        jac[:, 0, 0] = sin_el * cos_az       # dx/dr
+        jac[:, 0, 0] = sin_el * cos_az  # dx/dr
         jac[:, 0, 1] = -r * sin_el * sin_az  # dx/daz
-        jac[:, 0, 2] = r * cos_el * cos_az   # dx/del
+        jac[:, 0, 2] = r * cos_el * cos_az  # dx/del
 
         # dy/dr, dy/daz, dy/del
-        jac[:, 1, 0] = sin_el * sin_az       # dy/dr
-        jac[:, 1, 1] = r * sin_el * cos_az   # dy/daz
-        jac[:, 1, 2] = r * cos_el * sin_az   # dy/del
+        jac[:, 1, 0] = sin_el * sin_az  # dy/dr
+        jac[:, 1, 1] = r * sin_el * cos_az  # dy/daz
+        jac[:, 1, 2] = r * cos_el * sin_az  # dy/del
 
         # dz/dr, dz/daz, dz/del
-        jac[:, 2, 0] = cos_el                # dz/dr
-        jac[:, 2, 1] = 0.0                   # dz/daz
-        jac[:, 2, 2] = -r * sin_el           # dz/del
+        jac[:, 2, 0] = cos_el  # dz/dr
+        jac[:, 2, 1] = 0.0  # dz/daz
+        jac[:, 2, 2] = -r * sin_el  # dz/del
 
         return jac
 
@@ -282,9 +282,7 @@ class SphericalTransform(Generic[Array]):
         e_r = self._bkd.stack([sin_el * cos_az, sin_el * sin_az, cos_el], axis=1)
 
         # e_az = (-sin(az), cos(az), 0)
-        e_az = self._bkd.stack(
-            [-sin_az, cos_az, self._bkd.zeros((npts,))], axis=1
-        )
+        e_az = self._bkd.stack([-sin_az, cos_az, self._bkd.zeros((npts,))], axis=1)
 
         # e_el = (cos(el)*cos(az), cos(el)*sin(az), -sin(el))
         e_el = self._bkd.stack([cos_el * cos_az, cos_el * sin_az, -sin_el], axis=1)

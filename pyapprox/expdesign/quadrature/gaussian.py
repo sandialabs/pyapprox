@@ -7,12 +7,12 @@ to create tensor product Gauss-Hermite quadrature for standard normal distributi
 
 from typing import Generic, Optional, Tuple
 
-from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.surrogates.affine.univariate import (
-    HermitePolynomial1D,
     GaussQuadratureRule,
+    HermitePolynomial1D,
 )
 from pyapprox.surrogates.quadrature import TensorProductQuadratureRule
+from pyapprox.util.backends.protocols import Array, Backend
 
 
 class GaussianQuadratureSampler(Generic[Array]):
@@ -138,4 +138,4 @@ class GaussianQuadratureSampler(Generic[Array]):
         int
             Total number of points (npoints_1d ** nvars).
         """
-        return self._npoints_1d ** self._nvars
+        return self._npoints_1d**self._nvars

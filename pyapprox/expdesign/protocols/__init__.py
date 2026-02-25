@@ -6,25 +6,25 @@ evidence computation, objectives, quadrature samplers, sample statistics,
 deviation measures, and prediction objectives.
 """
 
-from .likelihood import (
-    OEDOuterLoopLikelihoodProtocol,
-    OEDInnerLoopLikelihoodProtocol,
-)
+from .deviation import DeviationMeasureProtocol
 from .evidence import (
     EvidenceProtocol,
     LogEvidenceProtocol,
 )
-from .objective import (
-    OEDObjectiveProtocol,
-    KLOEDObjectiveProtocol,
+from .likelihood import (
+    OEDInnerLoopLikelihoodProtocol,
+    OEDOuterLoopLikelihoodProtocol,
 )
+from .objective import (
+    KLOEDObjectiveProtocol,
+    OEDObjectiveProtocol,
+)
+from .prediction import PredictionOEDObjectiveProtocol
 from .quadrature import (
-    QuadratureSamplerProtocol,
     OEDQuadratureSamplerProtocol,
+    QuadratureSamplerProtocol,
 )
 from .statistics import SampleStatisticProtocol
-from .deviation import DeviationMeasureProtocol
-from .prediction import PredictionOEDObjectiveProtocol
 
 __all__ = [
     # Likelihood protocols

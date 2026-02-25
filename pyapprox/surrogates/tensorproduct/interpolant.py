@@ -7,18 +7,18 @@ InterpolationBasis1DProtocol.
 
 from typing import Generic, List, Optional, Sequence, cast
 
+from pyapprox.surrogates.tensorproduct.dispatch import (
+    get_tp_eval_impl,
+)
+from pyapprox.surrogates.tensorproduct.protocols import (
+    Basis1DHasHessianProtocol,
+    Basis1DHasJacobianProtocol,
+    InterpolationBasis1DProtocol,
+)
 from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.util.cartesian import (
     cartesian_product_indices,
     cartesian_product_samples,
-)
-from pyapprox.surrogates.tensorproduct.protocols import (
-    InterpolationBasis1DProtocol,
-    Basis1DHasJacobianProtocol,
-    Basis1DHasHessianProtocol,
-)
-from pyapprox.surrogates.tensorproduct.dispatch import (
-    get_tp_eval_impl,
 )
 
 
@@ -237,7 +237,10 @@ class TensorProductInterpolant(Generic[Array]):
 
         basis_vals_1d = self._basis_vals_1d(samples)
         return self._tp_eval_impl(
-            basis_vals_1d, self._values, self._nterms_1d, self._bkd,
+            basis_vals_1d,
+            self._values,
+            self._nterms_1d,
+            self._bkd,
         )
 
     # Derivative support methods
@@ -404,8 +407,7 @@ class TensorProductInterpolant(Generic[Array]):
                 for dd in range(nvars):
                     if dd != dim1 and dd != dim2:
                         interp_deriv = (
-                            interp_deriv
-                            * basis_vals_1d[dd][0, self._tp_indices[dd, :]]
+                            interp_deriv * basis_vals_1d[dd][0, self._tp_indices[dd, :]]
                         )
 
                 val = self._bkd.dot(interp_deriv, values_q)
@@ -477,8 +479,7 @@ class TensorProductInterpolant(Generic[Array]):
                 for dd in range(nvars):
                     if dd != dim1 and dd != dim2:
                         interp_deriv = (
-                            interp_deriv
-                            * basis_vals_1d[dd][0, self._tp_indices[dd, :]]
+                            interp_deriv * basis_vals_1d[dd][0, self._tp_indices[dd, :]]
                         )
 
                 H_ij = self._bkd.dot(interp_deriv, values_q)
@@ -489,7 +490,10 @@ class TensorProductInterpolant(Generic[Array]):
         return result
 
     def _hvp_for_qoi(
-        self, sample: Array, vec: Array, qoi_idx: int,
+        self,
+        sample: Array,
+        vec: Array,
+        qoi_idx: int,
         basis_vals_1d: List[Array],
         basis_derivs_1d: List[Array],
         basis_hess_1d: List[Array],
@@ -523,8 +527,7 @@ class TensorProductInterpolant(Generic[Array]):
                 for dd in range(nvars):
                     if dd != dim1 and dd != dim2:
                         interp_deriv = (
-                            interp_deriv
-                            * basis_vals_1d[dd][0, self._tp_indices[dd, :]]
+                            interp_deriv * basis_vals_1d[dd][0, self._tp_indices[dd, :]]
                         )
 
                 H_ij = self._bkd.dot(interp_deriv, values_q)
@@ -579,8 +582,7 @@ class TensorProductInterpolant(Generic[Array]):
         for qoi_idx in range(nqoi):
             w = weights_flat[qoi_idx]
             hvp_q = self._hvp_for_qoi(
-                sample, vec, qoi_idx,
-                basis_vals_1d, basis_derivs_1d, basis_hess_1d
+                sample, vec, qoi_idx, basis_vals_1d, basis_derivs_1d, basis_hess_1d
             )
             result = result + w * hvp_q
 

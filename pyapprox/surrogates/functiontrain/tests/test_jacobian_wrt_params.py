@@ -14,29 +14,27 @@ import numpy as np
 import torch
 from numpy.typing import NDArray
 
-from pyapprox.util.backends.numpy import NumpyBkd
-from pyapprox.util.backends.torch import TorchBkd
-from pyapprox.util.backends.protocols import Array, Backend
-from pyapprox.util.test_utils import load_tests  # noqa: F401
-
-from pyapprox.surrogates.affine.univariate import create_bases_1d
-from pyapprox.surrogates.affine.indices import compute_hyperbolic_indices
-from pyapprox.surrogates.affine.basis import OrthonormalPolynomialBasis
-from pyapprox.surrogates.affine.expansions import BasisExpansion
-from pyapprox.probability import UniformMarginal
-
-from pyapprox.surrogates.functiontrain.core import FunctionTrainCore
-from pyapprox.surrogates.functiontrain.functiontrain import FunctionTrain
-from pyapprox.surrogates.functiontrain.additive import (
-    create_additive_functiontrain,
-    ConstantExpansion,
-)
 from pyapprox.interface.functions.derivative_checks.derivative_checker import (
     DerivativeChecker,
 )
 from pyapprox.interface.functions.fromcallable.jacobian import (
     FunctionWithJacobianFromCallable,
 )
+from pyapprox.probability import UniformMarginal
+from pyapprox.surrogates.affine.basis import OrthonormalPolynomialBasis
+from pyapprox.surrogates.affine.expansions import BasisExpansion
+from pyapprox.surrogates.affine.indices import compute_hyperbolic_indices
+from pyapprox.surrogates.affine.univariate import create_bases_1d
+from pyapprox.surrogates.functiontrain.additive import (
+    ConstantExpansion,
+    create_additive_functiontrain,
+)
+from pyapprox.surrogates.functiontrain.core import FunctionTrainCore
+from pyapprox.surrogates.functiontrain.functiontrain import FunctionTrain
+from pyapprox.util.backends.numpy import NumpyBkd
+from pyapprox.util.backends.protocols import Array, Backend
+from pyapprox.util.backends.torch import TorchBkd
+from pyapprox.util.test_utils import load_tests  # noqa: F401
 
 
 class TestConstantExpansionJacobian(Generic[Array], unittest.TestCase):
@@ -186,7 +184,8 @@ class TestFunctionTrainCoreJacobian(Generic[Array], unittest.TestCase):
             new_core = core.with_params(params[:, 0])
             # core jacobian: (r_left, r_right, nsamples, nqoi, nparams)
             jac = new_core.jacobian_wrt_params(samples)
-            # Extract (nsamples, nqoi, nparams) then return (nqoi, nparams) for single sample
+            # Extract (nsamples, nqoi, nparams) then return (nqoi, nparams) for single
+            # sample
             return jac[0, 0, 0, :, :]  # (nqoi, nparams)
 
         function_obj = FunctionWithJacobianFromCallable(
@@ -235,8 +234,7 @@ class TestFunctionTrainJacobian(Generic[Array], unittest.TestCase):
         """Create an additive FunctionTrain for testing."""
         bkd = self._bkd
         univariate_bases = [
-            self._create_univariate_expansion(max_level, nqoi)
-            for _ in range(nvars)
+            self._create_univariate_expansion(max_level, nqoi) for _ in range(nvars)
         ]
         return create_additive_functiontrain(univariate_bases, bkd, nqoi)
 
@@ -471,8 +469,7 @@ class TestFunctionTrainJacobianAutograd(unittest.TestCase):
     ) -> FunctionTrain[torch.Tensor]:
         bkd = self._bkd
         univariate_bases = [
-            self._create_univariate_expansion(max_level, nqoi)
-            for _ in range(nvars)
+            self._create_univariate_expansion(max_level, nqoi) for _ in range(nvars)
         ]
         return create_additive_functiontrain(univariate_bases, bkd, nqoi)
 

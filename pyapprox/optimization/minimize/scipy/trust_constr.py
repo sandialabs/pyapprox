@@ -1,29 +1,29 @@
 from typing import Generic, Optional, Self, Union, cast
 
 import numpy as np
-from scipy.optimize import Bounds, minimize as scipy_minimize
+from scipy.optimize import Bounds
+from scipy.optimize import minimize as scipy_minimize
 
-from pyapprox.util.backends.protocols import Array, Backend
+from pyapprox.interface.functions.numpy.numpy_function_factory import (
+    numpy_function_wrapper_factory,
+)
+from pyapprox.interface.functions.numpy.wrappers import (
+    NumpyFunctionWithJacobianAndHVPWrapper,
+    NumpyFunctionWithJacobianAndWHVPWrapper,
+    NumpyFunctionWithJacobianWrapper,
+    NumpyFunctionWrapper,
+)
 from pyapprox.optimization.minimize.constraints.protocols import (
     SequenceOfConstraintProtocols,
 )
 from pyapprox.optimization.minimize.constraints.validation import (
     validate_constraints,
 )
-from pyapprox.optimization.minimize.objective.validation import (
-    validate_objective,
-)
 from pyapprox.optimization.minimize.objective.protocols import (
     ObjectiveProtocol,
 )
-from pyapprox.interface.functions.numpy.numpy_function_factory import (
-    numpy_function_wrapper_factory,
-)
-from pyapprox.interface.functions.numpy.wrappers import (
-    NumpyFunctionWrapper,
-    NumpyFunctionWithJacobianWrapper,
-    NumpyFunctionWithJacobianAndHVPWrapper,
-    NumpyFunctionWithJacobianAndWHVPWrapper,
+from pyapprox.optimization.minimize.objective.validation import (
+    validate_objective,
 )
 from pyapprox.optimization.minimize.scipy.scipy_constraint_factory import (
     convert_constraints,
@@ -31,6 +31,7 @@ from pyapprox.optimization.minimize.scipy.scipy_constraint_factory import (
 from pyapprox.optimization.minimize.scipy.scipy_result import (
     ScipyOptimizerResultWrapper,
 )
+from pyapprox.util.backends.protocols import Array, Backend
 
 # Type alias for the wrapped objective returned by numpy_function_wrapper_factory
 _WrappedObjective = Union[
@@ -129,9 +130,7 @@ class ScipyTrustConstrOptimizer(Generic[Array]):
         # Backward compatible: if objective/bounds provided, bind immediately
         if objective is not None:
             if bounds is None:
-                raise ValueError(
-                    "bounds must be provided when objective is provided"
-                )
+                raise ValueError("bounds must be provided when objective is provided")
             self.bind(objective, bounds, constraints)
 
     def bind(
@@ -220,9 +219,7 @@ class ScipyTrustConstrOptimizer(Generic[Array]):
         assert self._objective is not None
         return self._objective.bkd()
 
-    def _convert_bounds(
-        self, bounds: Array, nvars: int, bkd: Backend[Array]
-    ) -> Bounds:
+    def _convert_bounds(self, bounds: Array, nvars: int, bkd: Backend[Array]) -> Bounds:
         """Convert bounds to a SciPy-compatible Bounds object.
 
         Parameters
@@ -287,9 +284,7 @@ class ScipyTrustConstrOptimizer(Generic[Array]):
             else None
         )
         hessp = (
-            self._objective_hessp_from_hvp
-            if hasattr(self._objective, "hvp")
-            else None
+            self._objective_hessp_from_hvp if hasattr(self._objective, "hvp") else None
         )
 
         scipy_result = scipy_minimize(

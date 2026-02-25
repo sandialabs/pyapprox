@@ -5,19 +5,16 @@ Provides tools to create lower-dimensional FunctionTrains by integrating out
 existing statistics modules like FunctionTrainMoments and FunctionTrainSensitivity.
 """
 
-from typing import Any, Generic, List, Optional, Sequence, Union
+from typing import Generic, List, Optional, Sequence, Union
 
-from pyapprox.util.backends.protocols import Array, Backend
+from pyapprox.interface.functions.marginalize import ReducedFunction
 from pyapprox.surrogates.affine.protocols import BasisExpansionProtocol
-from pyapprox.surrogates.functiontrain.core import FunctionTrainCore
 from pyapprox.surrogates.functiontrain import FunctionTrain
+from pyapprox.surrogates.functiontrain.core import FunctionTrainCore
 from pyapprox.surrogates.functiontrain.pce_functiontrain import (
     PCEFunctionTrain,
 )
-from pyapprox.surrogates.functiontrain.pce_core import (
-    PCEFunctionTrainCore,
-)
-from pyapprox.interface.functions.marginalize import ReducedFunction
+from pyapprox.util.backends.protocols import Array, Backend
 
 
 class FunctionTrainMarginalization(Generic[Array]):
@@ -54,9 +51,7 @@ class FunctionTrainMarginalization(Generic[Array]):
 
     def __init__(self, pce_ft: PCEFunctionTrain[Array]) -> None:
         if not isinstance(pce_ft, PCEFunctionTrain):
-            raise TypeError(
-                f"Expected PCEFunctionTrain, got {type(pce_ft).__name__}"
-            )
+            raise TypeError(f"Expected PCEFunctionTrain, got {type(pce_ft).__name__}")
         self._pce_ft = pce_ft
         self._bkd = pce_ft.bkd()
 
@@ -95,9 +90,7 @@ class FunctionTrainMarginalization(Generic[Array]):
         # Validate indices
         for idx in var_indices:
             if idx < 0 or idx >= nvars:
-                raise IndexError(
-                    f"Variable index {idx} out of bounds [0, {nvars})"
-                )
+                raise IndexError(f"Variable index {idx} out of bounds [0, {nvars})")
 
         # Check not marginalizing all variables
         unique_indices = set(var_indices)
@@ -121,8 +114,8 @@ class FunctionTrainMarginalization(Generic[Array]):
 
         # Find contiguous groups of variables to marginalize
         # and identify the surviving neighbor for each group
-        sorted_indices = sorted(unique_indices)
-        keep_indices = sorted(set(range(nvars)) - unique_indices)
+        sorted(unique_indices)
+        sorted(set(range(nvars)) - unique_indices)
 
         # Process each variable to marginalize
         # Strategy: replace each marginalized core with None (placeholder),
@@ -131,9 +124,7 @@ class FunctionTrainMarginalization(Generic[Array]):
 
         # Mark marginalized positions with their expected cores
         # Use a mixed list: FunctionTrainCore for kept, Array for marginalized
-        mixed_cores: List[Union[FunctionTrainCore[Array], Array]] = list(
-            working_cores
-        )
+        mixed_cores: List[Union[FunctionTrainCore[Array], Array]] = list(working_cores)
         for k in unique_indices:
             mixed_cores[k] = expected_cores[k]  # Replace with expected core matrix
 
@@ -192,7 +183,8 @@ class FunctionTrainMarginalization(Generic[Array]):
 
         Notes
         -----
-        The returned FunctionTrain has variables reindexed 0, 1, ..., len(keep_indices)-1
+        The returned FunctionTrain has variables reindexed 0, 1, ...,
+        len(keep_indices)-1
         in the same order as keep_indices. Original indices are not preserved.
 
         Example: marginal([2, 0]) returns 2-variable FT where:
@@ -227,7 +219,7 @@ class FunctionTrainMarginalization(Generic[Array]):
             coef[i, j, ℓ] = coefficient of basis ℓ in expansion (i,j)
         """
         r_left, r_right = core.ranks()
-        nterms = core.get_nterms(0, 0)  # All expansions have same nterms
+        core.get_nterms(0, 0)  # All expansions have same nterms
 
         rows = []
         for ii in range(r_left):
@@ -263,7 +255,7 @@ class FunctionTrainMarginalization(Generic[Array]):
             New core with transformed coefficients.
         """
         coef = self._extract_coef_tensor(core)  # (r_left, r_right, nterms)
-        new_coef = self._bkd.einsum('ijl,jk->ikl', coef, matrix)
+        new_coef = self._bkd.einsum("ijl,jk->ikl", coef, matrix)
         return self._build_core_from_coefficients(core, new_coef)
 
     def _multiply_coefficients_left(
@@ -290,7 +282,7 @@ class FunctionTrainMarginalization(Generic[Array]):
             New core with transformed coefficients.
         """
         coef = self._extract_coef_tensor(core)  # (r_left, r_right, nterms)
-        new_coef = self._bkd.einsum('ki,ijl->kjl', matrix, coef)
+        new_coef = self._bkd.einsum("ki,ijl->kjl", matrix, coef)
         return self._build_core_from_coefficients(core, new_coef)
 
     def _build_core_from_coefficients(
@@ -336,9 +328,7 @@ class FunctionTrainMarginalization(Generic[Array]):
 # =============================================================================
 
 
-def marginal_1d(
-    pce_ft: PCEFunctionTrain[Array], var_idx: int
-) -> FunctionTrain[Array]:
+def marginal_1d(pce_ft: PCEFunctionTrain[Array], var_idx: int) -> FunctionTrain[Array]:
     """Create 1D marginal FunctionTrain for a single variable.
 
     Parameters
@@ -457,9 +447,7 @@ class FTDimensionReducer(Generic[Array]):
         """Return the number of quantities of interest."""
         return self._pce_ft.nqoi()
 
-    def reduce(
-        self, keep_indices: List[int]
-    ) -> ReducedFunction[Array]:
+    def reduce(self, keep_indices: List[int]) -> ReducedFunction[Array]:
         """Reduce to the specified variables via analytical marginalization.
 
         Parameters

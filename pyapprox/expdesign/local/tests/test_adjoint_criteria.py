@@ -16,18 +16,17 @@ import numpy as np
 import torch
 from numpy.typing import NDArray
 
-from pyapprox.util.backends.numpy import NumpyBkd
-from pyapprox.util.backends.torch import TorchBkd
-from pyapprox.util.backends.protocols import Array
-from pyapprox.util.test_utils import load_tests
+from pyapprox.expdesign.local.criteria import (
+    AOptimalCriterion,
+    COptimalCriterion,
+    IOptimalCriterion,
+)
 from pyapprox.expdesign.local.design_matrices import (
     LeastSquaresDesignMatrices,
 )
-from pyapprox.expdesign.local.criteria import (
-    COptimalCriterion,
-    AOptimalCriterion,
-    IOptimalCriterion,
-)
+from pyapprox.util.backends.numpy import NumpyBkd
+from pyapprox.util.backends.protocols import Array
+from pyapprox.util.backends.torch import TorchBkd
 
 
 class TestCOptimalCriterion(Generic[Array], unittest.TestCase):
@@ -48,9 +47,7 @@ class TestCOptimalCriterion(Generic[Array], unittest.TestCase):
         self._design_factors = self._bkd.asarray(
             np.random.randn(self._ndesign_pts, self._ndesign_vars)
         )
-        self._noise_mult = self._bkd.asarray(
-            0.5 + np.random.rand(self._ndesign_pts)
-        )
+        self._noise_mult = self._bkd.asarray(0.5 + np.random.rand(self._ndesign_pts))
 
         # C-optimal vector
         self._vec = self._bkd.asarray(np.ones(self._ndesign_vars))
@@ -60,9 +57,7 @@ class TestCOptimalCriterion(Generic[Array], unittest.TestCase):
         self._weights = self._bkd.asarray(raw_weights / raw_weights.sum())
 
         # Direction for HVP tests
-        self._direction = self._bkd.asarray(
-            np.random.randn(self._ndesign_pts, 1)
-        )
+        self._direction = self._bkd.asarray(np.random.randn(self._ndesign_pts, 1))
 
     def test_value_shape(self):
         """Test that C-optimal value has correct shape."""
@@ -103,7 +98,7 @@ class TestCOptimalCriterion(Generic[Array], unittest.TestCase):
             self._design_factors, self._bkd, self._noise_mult
         )
         crit = COptimalCriterion(dm, self._vec, self._bkd)
-        self.assertTrue(hasattr(crit, 'hvp'))
+        self.assertTrue(hasattr(crit, "hvp"))
 
     def test_nvars_nqoi(self):
         """Test nvars and nqoi properties."""
@@ -191,16 +186,12 @@ class TestAOptimalCriterion(Generic[Array], unittest.TestCase):
         self._design_factors = self._bkd.asarray(
             np.random.randn(self._ndesign_pts, self._ndesign_vars)
         )
-        self._noise_mult = self._bkd.asarray(
-            0.5 + np.random.rand(self._ndesign_pts)
-        )
+        self._noise_mult = self._bkd.asarray(0.5 + np.random.rand(self._ndesign_pts))
 
         raw_weights = np.random.uniform(0, 1, (self._ndesign_pts, 1))
         self._weights = self._bkd.asarray(raw_weights / raw_weights.sum())
 
-        self._direction = self._bkd.asarray(
-            np.random.randn(self._ndesign_pts, 1)
-        )
+        self._direction = self._bkd.asarray(np.random.randn(self._ndesign_pts, 1))
 
     def test_value_shape(self):
         """Test that A-optimal value has correct shape."""
@@ -303,9 +294,7 @@ class TestAOptimalCriterionNumpy(TestAOptimalCriterion[NDArray[Any]]):
         M1_inv = self._bkd.inv(M1)
         expected = self._bkd.trace(M1_inv)
 
-        self._bkd.assert_allclose(
-            val, self._bkd.reshape(expected, (1, 1)), rtol=1e-12
-        )
+        self._bkd.assert_allclose(val, self._bkd.reshape(expected, (1, 1)), rtol=1e-12)
 
 
 class TestAOptimalCriterionTorch(TestAOptimalCriterion[torch.Tensor]):
@@ -340,16 +329,12 @@ class TestIOptimalCriterion(Generic[Array], unittest.TestCase):
         self._pred_factors = self._bkd.asarray(
             np.random.randn(self._npred_pts, self._ndesign_vars)
         )
-        self._noise_mult = self._bkd.asarray(
-            0.5 + np.random.rand(self._ndesign_pts)
-        )
+        self._noise_mult = self._bkd.asarray(0.5 + np.random.rand(self._ndesign_pts))
 
         raw_weights = np.random.uniform(0, 1, (self._ndesign_pts, 1))
         self._weights = self._bkd.asarray(raw_weights / raw_weights.sum())
 
-        self._direction = self._bkd.asarray(
-            np.random.randn(self._ndesign_pts, 1)
-        )
+        self._direction = self._bkd.asarray(np.random.randn(self._ndesign_pts, 1))
 
     def test_value_shape(self):
         """Test that I-optimal value has correct shape."""

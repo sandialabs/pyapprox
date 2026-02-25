@@ -16,44 +16,42 @@ Tests verify:
 
 import math
 import unittest
-from itertools import product as iterproduct
-from typing import Generic, Any, List
+from typing import Any, Generic, List
 
 import numpy as np
 import torch
 from numpy.typing import NDArray
 
-from pyapprox.util.backends.protocols import Backend, Array
-from pyapprox.util.backends.numpy import NumpyBkd
-from pyapprox.util.backends.torch import TorchBkd
-from pyapprox.util.test_utils import load_tests  # noqa: F401
-from pyapprox.util.test_utils import slow_test
-
+from pyapprox.probability.univariate.uniform import UniformMarginal
+from pyapprox.surrogates.gaussianprocess import ExactGaussianProcess
 from pyapprox.surrogates.gaussianprocess.input_transform import (
-    InputStandardScaler,
-    InputBoundsScaler,
     IdentityInputTransform,
+    InputBoundsScaler,
+    InputStandardScaler,
 )
 from pyapprox.surrogates.gaussianprocess.output_transform import (
     OutputStandardScaler,
 )
-from pyapprox.surrogates.kernels.matern import (
-    SquaredExponentialKernel,
+from pyapprox.surrogates.gaussianprocess.statistics import (
+    GaussianProcessStatistics,
+    SeparableKernelIntegralCalculator,
 )
 from pyapprox.surrogates.kernels.composition import (
     SeparableProductKernel,
 )
+from pyapprox.surrogates.kernels.matern import (
+    SquaredExponentialKernel,
+)
 from pyapprox.surrogates.kernels.scalings import PolynomialScaling
-from pyapprox.surrogates.gaussianprocess import ExactGaussianProcess
-from pyapprox.probability.univariate.uniform import UniformMarginal
 from pyapprox.surrogates.sparsegrids.basis_factory import (
     create_basis_factories,
 )
-from pyapprox.surrogates.gaussianprocess.statistics import (
-    SeparableKernelIntegralCalculator,
-    GaussianProcessStatistics,
+from pyapprox.util.backends.numpy import NumpyBkd
+from pyapprox.util.backends.protocols import Array, Backend
+from pyapprox.util.backends.torch import TorchBkd
+from pyapprox.util.test_utils import (
+    load_tests,  # noqa: F401
 )
-
 
 _NUGGET = 1e-10
 
@@ -89,8 +87,7 @@ def _make_training_data_different_scales(
     X_raw[1, :] *= 0.01
     X_train = bkd.array(X_raw)
     y_train = bkd.reshape(
-        bkd.sin(X_train[0, :] / 1000.0 * math.pi)
-        + 100.0 * X_train[1, :],
+        bkd.sin(X_train[0, :] / 1000.0 * math.pi) + 100.0 * X_train[1, :],
         (1, -1),
     )
     return X_train, y_train
@@ -127,8 +124,7 @@ class TestInputTransformUnit(Generic[Array], unittest.TestCase):
     def test_standard_scaler_from_data(self) -> None:
         """from_data computes correct mean and std."""
         bkd = self._bkd
-        z = bkd.array([[1.0, 3.0, 5.0, 7.0],
-                        [10.0, 20.0, 30.0, 40.0]])
+        z = bkd.array([[1.0, 3.0, 5.0, 7.0], [10.0, 20.0, 30.0, 40.0]])
         scaler = InputStandardScaler.from_data(z, bkd)
 
         expected_mean = bkd.mean(z, axis=1)
@@ -140,21 +136,21 @@ class TestInputTransformUnit(Generic[Array], unittest.TestCase):
     def test_standard_scaler_zero_variance(self) -> None:
         """Constant dimension gets std=1.0."""
         bkd = self._bkd
-        z = bkd.array([[5.0, 5.0, 5.0],
-                        [1.0, 2.0, 3.0]])
+        z = bkd.array([[5.0, 5.0, 5.0], [1.0, 2.0, 3.0]])
         scaler = InputStandardScaler.from_data(z, bkd)
 
         bkd.assert_allclose(
-            scaler.scale(),
-            bkd.array([1.0, bkd.std(z[1:2, :], axis=1)[0]])
+            scaler.scale(), bkd.array([1.0, bkd.std(z[1:2, :], axis=1)[0]])
         )
 
     def test_standard_scaler_roundtrip(self) -> None:
         """transform then inverse_transform gives back original."""
         bkd = self._bkd
         np.random.seed(42)
-        z = bkd.array(np.random.randn(3, 20) * np.array([[1], [100], [0.01]])
-                       + np.array([[0], [50], [0.5]]))
+        z = bkd.array(
+            np.random.randn(3, 20) * np.array([[1], [100], [0.01]])
+            + np.array([[0], [50], [0.5]])
+        )
         scaler = InputStandardScaler.from_data(z, bkd)
 
         z_scaled = scaler.transform(z)
@@ -165,17 +161,14 @@ class TestInputTransformUnit(Generic[Array], unittest.TestCase):
         """Scaled data has mean≈0, std≈1."""
         bkd = self._bkd
         np.random.seed(42)
-        z = bkd.array(np.random.randn(2, 100) * np.array([[10], [0.1]])
-                       + np.array([[50], [-3]]))
+        z = bkd.array(
+            np.random.randn(2, 100) * np.array([[10], [0.1]]) + np.array([[50], [-3]])
+        )
         scaler = InputStandardScaler.from_data(z, bkd)
         z_scaled = scaler.transform(z)
 
-        bkd.assert_allclose(
-            bkd.mean(z_scaled, axis=1), bkd.zeros(2), atol=1e-10
-        )
-        bkd.assert_allclose(
-            bkd.std(z_scaled, axis=1), bkd.ones(2), atol=1e-10
-        )
+        bkd.assert_allclose(bkd.mean(z_scaled, axis=1), bkd.zeros(2), atol=1e-10)
+        bkd.assert_allclose(bkd.std(z_scaled, axis=1), bkd.ones(2), atol=1e-10)
 
     def test_bounds_scaler_maps_corners(self) -> None:
         """BoundsScaler maps [lb,ub] to [0,1]."""
@@ -186,10 +179,8 @@ class TestInputTransformUnit(Generic[Array], unittest.TestCase):
 
         lb_2d = bkd.reshape(lb, (2, 1))
         ub_2d = bkd.reshape(ub, (2, 1))
-        bkd.assert_allclose(scaler.transform(lb_2d),
-                            bkd.zeros((2, 1)), atol=1e-12)
-        bkd.assert_allclose(scaler.transform(ub_2d),
-                            bkd.ones((2, 1)), atol=1e-12)
+        bkd.assert_allclose(scaler.transform(lb_2d), bkd.zeros((2, 1)), atol=1e-12)
+        bkd.assert_allclose(scaler.transform(ub_2d), bkd.ones((2, 1)), atol=1e-12)
 
     def test_bounds_scaler_roundtrip(self) -> None:
         """transform then inverse_transform gives back original."""
@@ -210,9 +201,7 @@ class TestInputTransformUnit(Generic[Array], unittest.TestCase):
         std = bkd.array([2.0, 5.0])
         scaler = InputStandardScaler(mean, std, bkd)
 
-        bkd.assert_allclose(
-            scaler.jacobian_factor(), bkd.array([0.5, 0.2])
-        )
+        bkd.assert_allclose(scaler.jacobian_factor(), bkd.array([0.5, 0.2]))
 
     def test_hessian_factor(self) -> None:
         """hessian_factor returns outer product of 1/scale."""
@@ -263,17 +252,13 @@ class TestGPInputTransform(Generic[Array], unittest.TestCase):
 
         # GP with transform
         kernel_t = _create_kernel(bkd)
-        gp_t = ExactGaussianProcess(
-            kernel_t, nvars=2, bkd=bkd, nugget=_NUGGET
-        )
+        gp_t = ExactGaussianProcess(kernel_t, nvars=2, bkd=bkd, nugget=_NUGGET)
         gp_t.hyp_list().set_all_inactive()
         gp_t.fit(X_train, y_train, input_transform=scaler)
 
         # Raw GP on manually scaled data
         kernel_r = _create_kernel(bkd)
-        gp_r = ExactGaussianProcess(
-            kernel_r, nvars=2, bkd=bkd, nugget=_NUGGET
-        )
+        gp_r = ExactGaussianProcess(kernel_r, nvars=2, bkd=bkd, nugget=_NUGGET)
         gp_r.hyp_list().set_all_inactive()
         gp_r.fit(X_scaled, y_train)
 
@@ -295,16 +280,12 @@ class TestGPInputTransform(Generic[Array], unittest.TestCase):
         X_scaled = scaler.transform(X_train)
 
         kernel_t = _create_kernel(bkd)
-        gp_t = ExactGaussianProcess(
-            kernel_t, nvars=2, bkd=bkd, nugget=_NUGGET
-        )
+        gp_t = ExactGaussianProcess(kernel_t, nvars=2, bkd=bkd, nugget=_NUGGET)
         gp_t.hyp_list().set_all_inactive()
         gp_t.fit(X_train, y_train, input_transform=scaler)
 
         kernel_r = _create_kernel(bkd)
-        gp_r = ExactGaussianProcess(
-            kernel_r, nvars=2, bkd=bkd, nugget=_NUGGET
-        )
+        gp_r = ExactGaussianProcess(kernel_r, nvars=2, bkd=bkd, nugget=_NUGGET)
         gp_r.hyp_list().set_all_inactive()
         gp_r.fit(X_scaled, y_train)
 
@@ -325,16 +306,12 @@ class TestGPInputTransform(Generic[Array], unittest.TestCase):
         X_scaled = scaler.transform(X_train)
 
         kernel_t = _create_kernel(bkd)
-        gp_t = ExactGaussianProcess(
-            kernel_t, nvars=2, bkd=bkd, nugget=_NUGGET
-        )
+        gp_t = ExactGaussianProcess(kernel_t, nvars=2, bkd=bkd, nugget=_NUGGET)
         gp_t.hyp_list().set_all_inactive()
         gp_t.fit(X_train, y_train, input_transform=scaler)
 
         kernel_r = _create_kernel(bkd)
-        gp_r = ExactGaussianProcess(
-            kernel_r, nvars=2, bkd=bkd, nugget=_NUGGET
-        )
+        gp_r = ExactGaussianProcess(kernel_r, nvars=2, bkd=bkd, nugget=_NUGGET)
         gp_r.hyp_list().set_all_inactive()
         gp_r.fit(X_scaled, y_train)
 
@@ -355,16 +332,12 @@ class TestGPInputTransform(Generic[Array], unittest.TestCase):
         X_scaled = scaler.transform(X_train)
 
         kernel_t = _create_kernel(bkd)
-        gp_t = ExactGaussianProcess(
-            kernel_t, nvars=2, bkd=bkd, nugget=_NUGGET
-        )
+        gp_t = ExactGaussianProcess(kernel_t, nvars=2, bkd=bkd, nugget=_NUGGET)
         gp_t.hyp_list().set_all_inactive()
         gp_t.fit(X_train, y_train, input_transform=scaler)
 
         kernel_r = _create_kernel(bkd)
-        gp_r = ExactGaussianProcess(
-            kernel_r, nvars=2, bkd=bkd, nugget=_NUGGET
-        )
+        gp_r = ExactGaussianProcess(kernel_r, nvars=2, bkd=bkd, nugget=_NUGGET)
         gp_r.hyp_list().set_all_inactive()
         gp_r.fit(X_scaled, y_train)
 
@@ -390,16 +363,12 @@ class TestGPInputTransform(Generic[Array], unittest.TestCase):
         X_scaled = scaler.transform(X_train)
 
         kernel_t = _create_kernel(bkd)
-        gp_t = ExactGaussianProcess(
-            kernel_t, nvars=2, bkd=bkd, nugget=_NUGGET
-        )
+        gp_t = ExactGaussianProcess(kernel_t, nvars=2, bkd=bkd, nugget=_NUGGET)
         gp_t.hyp_list().set_all_inactive()
         gp_t.fit(X_train, y_train, input_transform=scaler)
 
         kernel_r = _create_kernel(bkd)
-        gp_r = ExactGaussianProcess(
-            kernel_r, nvars=2, bkd=bkd, nugget=_NUGGET
-        )
+        gp_r = ExactGaussianProcess(kernel_r, nvars=2, bkd=bkd, nugget=_NUGGET)
         gp_r.hyp_list().set_all_inactive()
         gp_r.fit(X_scaled, y_train)
 
@@ -424,21 +393,17 @@ class TestGPInputTransform(Generic[Array], unittest.TestCase):
         X_scaled = scaler.transform(X_train)
 
         kernel_t = _create_kernel(bkd)
-        gp_t = ExactGaussianProcess(
-            kernel_t, nvars=2, bkd=bkd, nugget=_NUGGET
-        )
+        gp_t = ExactGaussianProcess(kernel_t, nvars=2, bkd=bkd, nugget=_NUGGET)
         gp_t.hyp_list().set_all_inactive()
         gp_t.fit(X_train, y_train, input_transform=scaler)
 
         kernel_r = _create_kernel(bkd)
-        gp_r = ExactGaussianProcess(
-            kernel_r, nvars=2, bkd=bkd, nugget=_NUGGET
-        )
+        gp_r = ExactGaussianProcess(kernel_r, nvars=2, bkd=bkd, nugget=_NUGGET)
         gp_r.hyp_list().set_all_inactive()
         gp_r.fit(X_scaled, y_train)
 
         # Check hvp is available
-        if not hasattr(gp_t, 'hvp'):
+        if not hasattr(gp_t, "hvp"):
             self.skipTest("Kernel does not support HVP")
 
         np.random.seed(99)
@@ -462,9 +427,7 @@ class TestGPInputTransform(Generic[Array], unittest.TestCase):
         bkd = self._bkd
         X_train, y_train = _make_training_data(bkd)
 
-        gp = ExactGaussianProcess(
-            _create_kernel(bkd), nvars=2, bkd=bkd, nugget=_NUGGET
-        )
+        gp = ExactGaussianProcess(_create_kernel(bkd), nvars=2, bkd=bkd, nugget=_NUGGET)
         gp.hyp_list().set_all_inactive()
         gp.fit(X_train, y_train)
 
@@ -483,9 +446,7 @@ class TestGPInputTransform(Generic[Array], unittest.TestCase):
 
         scaler = InputStandardScaler.from_data(X_train, bkd)
 
-        gp = ExactGaussianProcess(
-            _create_kernel(bkd), nvars=2, bkd=bkd, nugget=_NUGGET
-        )
+        gp = ExactGaussianProcess(_create_kernel(bkd), nvars=2, bkd=bkd, nugget=_NUGGET)
         gp.hyp_list().set_all_inactive()
         gp.fit(X_train, y_train, input_transform=scaler)
 
@@ -519,9 +480,7 @@ def _create_quadrature_bases(
     return bases
 
 
-class TestStatisticsWithBothTransformsVsMC(
-    Generic[Array], unittest.TestCase
-):
+class TestStatisticsWithBothTransformsVsMC(Generic[Array], unittest.TestCase):
     """Verify GP statistics with both input and output transforms vs MC.
 
     This is the strongest integration test: fits a GP with both
@@ -556,17 +515,14 @@ class TestStatisticsWithBothTransformsVsMC(
         k1 = SquaredExponentialKernel([1.0], (0.1, 10.0), 1, bkd)
         k2 = SquaredExponentialKernel([1.0], (0.1, 10.0), 1, bkd)
         base_kernel = SeparableProductKernel([k1, k2], bkd)
-        scaling = PolynomialScaling(
-            [s], (0.01, 100.0), bkd, nvars=2, fixed=False
-        )
+        scaling = PolynomialScaling([s], (0.01, 100.0), bkd, nvars=2, fixed=False)
         kernel = scaling * base_kernel
 
-        gp = ExactGaussianProcess(
-            kernel, nvars=2, bkd=bkd, nugget=_NUGGET
-        )
+        gp = ExactGaussianProcess(kernel, nvars=2, bkd=bkd, nugget=_NUGGET)
         gp.hyp_list().set_all_inactive()
         gp.fit(
-            X_train, y_train,
+            X_train,
+            y_train,
             input_transform=input_scaler,
             output_transform=output_scaler,
         )
@@ -586,13 +542,9 @@ class TestStatisticsWithBothTransformsVsMC(
         ]
 
         # Create statistics
-        bases = _create_quadrature_bases(
-            self._marginals, self._nquad, bkd
-        )
+        bases = _create_quadrature_bases(self._marginals, self._nquad, bkd)
         calc: SeparableKernelIntegralCalculator[Array] = (
-            SeparableKernelIntegralCalculator(
-                gp, bases, self._marginals, bkd=bkd
-            )
+            SeparableKernelIntegralCalculator(gp, bases, self._marginals, bkd=bkd)
         )
         self._stats = GaussianProcessStatistics(gp, calc)
 
@@ -608,13 +560,9 @@ class TestStatisticsWithBothTransformsVsMC(
         k1_ref = SquaredExponentialKernel([1.0], (0.1, 10.0), 1, bkd)
         k2_ref = SquaredExponentialKernel([1.0], (0.1, 10.0), 1, bkd)
         base_kernel_ref = SeparableProductKernel([k1_ref, k2_ref], bkd)
-        scaling_ref = PolynomialScaling(
-            [s], (0.01, 100.0), bkd, nvars=2, fixed=False
-        )
+        scaling_ref = PolynomialScaling([s], (0.01, 100.0), bkd, nvars=2, fixed=False)
         kernel_ref = scaling_ref * base_kernel_ref
-        gp_ref = ExactGaussianProcess(
-            kernel_ref, nvars=2, bkd=bkd, nugget=_NUGGET
-        )
+        gp_ref = ExactGaussianProcess(kernel_ref, nvars=2, bkd=bkd, nugget=_NUGGET)
         gp_ref.hyp_list().set_all_inactive()
         gp_ref.fit(X_scaled, y_train, output_transform=output_scaler)
 
@@ -636,13 +584,9 @@ class TestStatisticsWithBothTransformsVsMC(
             UniformMarginal(s_x1_min, s_x1_max, bkd),
             UniformMarginal(s_x2_min, s_x2_max, bkd),
         ]
-        bases_ref = _create_quadrature_bases(
-            marginals_ref, self._nquad, bkd
-        )
+        bases_ref = _create_quadrature_bases(marginals_ref, self._nquad, bkd)
         calc_ref: SeparableKernelIntegralCalculator[Array] = (
-            SeparableKernelIntegralCalculator(
-                gp_ref, bases_ref, marginals_ref, bkd=bkd
-            )
+            SeparableKernelIntegralCalculator(gp_ref, bases_ref, marginals_ref, bkd=bkd)
         )
         self._stats_ref = GaussianProcessStatistics(gp_ref, calc_ref)
 

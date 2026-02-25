@@ -9,15 +9,13 @@ from typing import Any, Generic
 import torch
 from numpy.typing import NDArray
 
-from pyapprox.util.backends.numpy import NumpyBkd
-from pyapprox.util.backends.torch import TorchBkd
-from pyapprox.util.backends.protocols import Array, Backend
-from pyapprox.util.test_utils import load_tests
-
 from pyapprox.surrogates.affine.univariate.bspline import (
     BSpline1D,
     HierarchicalBSpline1D,
 )
+from pyapprox.util.backends.numpy import NumpyBkd
+from pyapprox.util.backends.protocols import Array, Backend
+from pyapprox.util.backends.torch import TorchBkd
 
 
 class TestBSpline1D(Generic[Array], unittest.TestCase):
@@ -330,9 +328,7 @@ class TestHierarchicalBSpline1D(Generic[Array], unittest.TestCase):
             samples_center, level=0, index=0
         )
 
-        self._bkd.assert_allclose(
-            analytic.reshape(-1), fd_deriv.reshape(-1), rtol=1e-5
-        )
+        self._bkd.assert_allclose(analytic.reshape(-1), fd_deriv.reshape(-1), rtol=1e-5)
 
     def test_repr(self) -> None:
         """Test string representation."""

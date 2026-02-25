@@ -6,14 +6,13 @@ from typing import Any, Generic
 import torch
 from numpy.typing import NDArray
 
-from pyapprox.util.backends.numpy import NumpyBkd
-from pyapprox.util.backends.protocols import Array, Backend
-from pyapprox.util.backends.torch import TorchBkd
-
 from pyapprox.surrogates.flowmatching.linear_path import LinearPath
 from pyapprox.surrogates.flowmatching.protocols import (
     ProbabilityPathProtocol,
 )
+from pyapprox.util.backends.numpy import NumpyBkd
+from pyapprox.util.backends.protocols import Array, Backend
+from pyapprox.util.backends.torch import TorchBkd
 
 
 class TestLinearPath(Generic[Array], unittest.TestCase):
@@ -54,9 +53,7 @@ class TestLinearPath(Generic[Array], unittest.TestCase):
     def test_alpha_plus_sigma_equals_one(self) -> None:
         t = self._bkd.array([[0.0, 0.25, 0.5, 0.75, 1.0]])
         result = self._path.alpha(t) + self._path.sigma(t)
-        self._bkd.assert_allclose(
-            result, self._bkd.ones_like(t), rtol=1e-12
-        )
+        self._bkd.assert_allclose(result, self._bkd.ones_like(t), rtol=1e-12)
 
     def test_interpolate_at_t0_returns_x0(self) -> None:
         t = self._bkd.array([[0.0, 0.0]])
@@ -130,9 +127,7 @@ class TestLinearPath(Generic[Array], unittest.TestCase):
         t_plus = self._bkd.array([[t_val + dt]])
         t_minus = self._bkd.array([[t_val - dt]])
 
-        fd = (self._path.alpha(t_plus) - self._path.alpha(t_minus)) / (
-            2.0 * dt
-        )
+        fd = (self._path.alpha(t_plus) - self._path.alpha(t_minus)) / (2.0 * dt)
         analytical = self._path.d_alpha(t)
         self._bkd.assert_allclose(fd, analytical, rtol=1e-6)
 
@@ -143,9 +138,7 @@ class TestLinearPath(Generic[Array], unittest.TestCase):
         t_plus = self._bkd.array([[t_val + dt]])
         t_minus = self._bkd.array([[t_val - dt]])
 
-        fd = (self._path.sigma(t_plus) - self._path.sigma(t_minus)) / (
-            2.0 * dt
-        )
+        fd = (self._path.sigma(t_plus) - self._path.sigma(t_minus)) / (2.0 * dt)
         analytical = self._path.d_sigma(t)
         self._bkd.assert_allclose(fd, analytical, rtol=1e-6)
 
@@ -155,9 +148,7 @@ class TestLinearPath(Generic[Array], unittest.TestCase):
         x0 = self._bkd.array([[1.0, 2.0, 3.0]])
         x1 = self._bkd.array([[4.0, 5.0, 6.0]])
 
-        u_general = (
-            self._path.d_alpha(t) * x1 + self._path.d_sigma(t) * x0
-        )
+        u_general = self._path.d_alpha(t) * x1 + self._path.d_sigma(t) * x0
         u_target = self._path.target_field(t, x0, x1)
         self._bkd.assert_allclose(u_general, u_target, rtol=1e-12)
 

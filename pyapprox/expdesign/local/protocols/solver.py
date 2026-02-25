@@ -5,7 +5,7 @@ Solvers find optimal design weights by minimizing a criterion subject to
 simplex constraints (sum = 1, weights >= 0).
 """
 
-from typing import Protocol, Generic, runtime_checkable, Optional
+from typing import Generic, Optional, Protocol, runtime_checkable
 
 from pyapprox.util.backends.protocols import Array, Backend
 

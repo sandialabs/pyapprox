@@ -5,23 +5,22 @@ as the manual time-stepping loop for all 4 integration methods.
 """
 
 import unittest
-from typing import List
 
 import numpy as np
 from unittest_parametrize import ParametrizedTestCase, parametrize
 
-from pyapprox.util.backends.numpy import NumpyBkd
-from pyapprox.pde.galerkin.mesh import StructuredMesh1D
 from pyapprox.pde.galerkin.basis import LagrangeBasis
-from pyapprox.pde.galerkin.physics import AdvectionDiffusionReaction
 from pyapprox.pde.galerkin.manufactured.adapter import (
     GalerkinManufacturedSolutionAdapter,
     create_adr_manufactured_test,
 )
+from pyapprox.pde.galerkin.mesh import StructuredMesh1D
+from pyapprox.pde.galerkin.physics import AdvectionDiffusionReaction
 from pyapprox.pde.galerkin.time_integration import (
     GalerkinModel,
     TimeIntegrationConfig,
 )
+from pyapprox.util.backends.numpy import NumpyBkd
 from pyapprox.util.test_utils import slow_test
 
 
@@ -107,7 +106,8 @@ class TestGalerkinModelImplicit(ParametrizedTestCase):
         rel_error = np.linalg.norm(u_num - u_exact_final) / u_norm
 
         self.assertLess(
-            rel_error, 1e-6,
+            rel_error,
+            1e-6,
             f"Method {method}: rel_error={rel_error:.2e} should be < 1e-6",
         )
 
@@ -154,13 +154,13 @@ class TestGalerkinModelExplicit(ParametrizedTestCase):
         rel_error = np.linalg.norm(u_num - u_exact_final) / u_norm
 
         self.assertLess(
-            rel_error, 1e-10,
+            rel_error,
+            1e-10,
             f"Method {method}: rel_error={rel_error:.2e} should be < 1e-10",
         )
 
 
 from pyapprox.util.test_utils import load_tests  # noqa: F401
-
 
 if __name__ == "__main__":
     unittest.main()

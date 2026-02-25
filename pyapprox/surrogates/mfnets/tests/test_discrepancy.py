@@ -7,27 +7,25 @@ import numpy as np
 import torch
 from numpy.typing import NDArray
 
-from pyapprox.util.backends.numpy import NumpyBkd
-from pyapprox.util.backends.protocols import Array, Backend
-from pyapprox.util.backends.torch import TorchBkd
-from pyapprox.util.test_utils import load_tests  # noqa: F401
-
-from pyapprox.surrogates.affine.univariate import MonomialBasis1D
-from pyapprox.surrogates.affine.indices import (
-    compute_hyperbolic_indices,
-)
-from pyapprox.surrogates.affine.basis import MultiIndexBasis
-from pyapprox.surrogates.affine.expansions import BasisExpansion
 from pyapprox.interface.functions.derivative_checks.derivative_checker import (
     DerivativeChecker,
 )
 from pyapprox.interface.functions.fromcallable.jacobian import (
     FunctionWithJacobianFromCallable,
 )
-
+from pyapprox.surrogates.affine.basis import MultiIndexBasis
+from pyapprox.surrogates.affine.expansions import BasisExpansion
+from pyapprox.surrogates.affine.indices import (
+    compute_hyperbolic_indices,
+)
+from pyapprox.surrogates.affine.univariate import MonomialBasis1D
 from pyapprox.surrogates.mfnets.discrepancy import (
     MultiplicativeAdditiveDiscrepancy,
 )
+from pyapprox.util.backends.numpy import NumpyBkd
+from pyapprox.util.backends.protocols import Array, Backend
+from pyapprox.util.backends.torch import TorchBkd
+from pyapprox.util.test_utils import load_tests  # noqa: F401
 
 
 def _create_expansion(
@@ -40,9 +38,7 @@ def _create_expansion(
     return BasisExpansion(basis, bkd, nqoi=nqoi)
 
 
-class TestMultiplicativeAdditiveDiscrepancy(
-    Generic[Array], unittest.TestCase
-):
+class TestMultiplicativeAdditiveDiscrepancy(Generic[Array], unittest.TestCase):
     __test__ = False
 
     def bkd(self) -> Backend[Array]:
@@ -66,21 +62,15 @@ class TestMultiplicativeAdditiveDiscrepancy(
         for ii in range(nqoi):
             sm = _create_expansion(bkd, nvars_x, nscaled_qoi, scale_level)
             np.random.seed(100 + ii)
-            sm.set_coefficients(
-                bkd.asarray(np.random.randn(sm.nterms(), nscaled_qoi))
-            )
+            sm.set_coefficients(bkd.asarray(np.random.randn(sm.nterms(), nscaled_qoi)))
             scalings.append(sm)
 
         # Delta model
         delta = _create_expansion(bkd, nvars_x, nqoi, delta_level)
         np.random.seed(200)
-        delta.set_coefficients(
-            bkd.asarray(np.random.randn(delta.nterms(), nqoi))
-        )
+        delta.set_coefficients(bkd.asarray(np.random.randn(delta.nterms(), nqoi)))
 
-        return MultiplicativeAdditiveDiscrepancy(
-            scalings, delta, nscaled_qoi, bkd
-        )
+        return MultiplicativeAdditiveDiscrepancy(scalings, delta, nscaled_qoi, bkd)
 
     def test_construction(self) -> None:
         disc = self._create_discrepancy()
@@ -110,9 +100,7 @@ class TestMultiplicativeAdditiveDiscrepancy(
     def test_eval_multi_qoi(self) -> None:
         """Test with nqoi=2, nscaled_qoi=1."""
         bkd = self._bkd
-        disc = self._create_discrepancy(
-            nvars_x=1, nqoi=2, nscaled_qoi=1
-        )
+        disc = self._create_discrepancy(nvars_x=1, nqoi=2, nscaled_qoi=1)
         self.assertEqual(disc.nvars(), 2)
         self.assertEqual(disc.nqoi(), 2)
 
@@ -126,9 +114,10 @@ class TestMultiplicativeAdditiveDiscrepancy(
         disc = self._create_discrepancy()
         hyps = disc.hyp_list()
         # Total params = sum(scaling params) + delta params
-        expected = sum(
-            s.hyp_list().nparams() for s in disc.scaling_models()
-        ) + disc.delta_model().hyp_list().nparams()
+        expected = (
+            sum(s.hyp_list().nparams() for s in disc.scaling_models())
+            + disc.delta_model().hyp_list().nparams()
+        )
         self.assertEqual(hyps.nparams(), expected)
 
     def test_jacobian_wrt_params_with_derivative_checker(self) -> None:
@@ -158,7 +147,7 @@ class TestMultiplicativeAdditiveDiscrepancy(
             disc._sync_from_hyp_list()
             vals = disc(fixed_samples)  # (nqoi, nsamples)
             # Weighted sum over QoI: (1, nsamples)
-            weighted = (weights.T @ vals)  # (1, nsamples)
+            weighted = weights.T @ vals  # (1, nsamples)
             return weighted.T  # (nsamples, 1)
 
         def jac_fn(params: Array) -> Array:
@@ -190,9 +179,7 @@ class TestMultiplicativeAdditiveDiscrepancy(
     def test_jacobian_wrt_params_multi_qoi(self) -> None:
         """Validate jacobian_wrt_params for nqoi=2."""
         bkd = self._bkd
-        disc = self._create_discrepancy(
-            nvars_x=1, nqoi=2, nscaled_qoi=1
-        )
+        disc = self._create_discrepancy(nvars_x=1, nqoi=2, nscaled_qoi=1)
 
         np.random.seed(42)
         nsamples = 4
@@ -210,7 +197,7 @@ class TestMultiplicativeAdditiveDiscrepancy(
             disc.hyp_list().set_active_values(p)
             disc._sync_from_hyp_list()
             vals = disc(fixed_samples)  # (nqoi, nsamples)
-            weighted = (weights.T @ vals)  # (1, nsamples)
+            weighted = weights.T @ vals  # (1, nsamples)
             return weighted.T  # (nsamples, 1)
 
         def jac_fn(params: Array) -> Array:
@@ -222,8 +209,11 @@ class TestMultiplicativeAdditiveDiscrepancy(
             return wj  # (nsamples, nactive)
 
         wrapped = FunctionWithJacobianFromCallable(
-            nqoi=nsamples, nvars=nactive,
-            fun=eval_fn, jacobian=jac_fn, bkd=bkd,
+            nqoi=nsamples,
+            nvars=nactive,
+            fun=eval_fn,
+            jacobian=jac_fn,
+            bkd=bkd,
         )
         checker = DerivativeChecker(wrapped)
 
@@ -237,9 +227,7 @@ class TestMultiplicativeAdditiveDiscrepancy(
     def test_basis_matrix_consistency(self) -> None:
         """basis_matrix @ coefficients should equal __call__ output."""
         bkd = self._bkd
-        disc = self._create_discrepancy(
-            nvars_x=1, nqoi=1, nscaled_qoi=1
-        )
+        disc = self._create_discrepancy(nvars_x=1, nqoi=1, nscaled_qoi=1)
 
         np.random.seed(99)
         samples = bkd.asarray(np.random.uniform(-1, 1, (2, 10)))
@@ -257,16 +245,13 @@ class TestMultiplicativeAdditiveDiscrepancy(
 
 # --- Concrete backend test classes ---
 
-class TestDiscrepancyNumpy(
-    TestMultiplicativeAdditiveDiscrepancy[NDArray[Any]]
-):
+
+class TestDiscrepancyNumpy(TestMultiplicativeAdditiveDiscrepancy[NDArray[Any]]):
     def bkd(self) -> NumpyBkd:
         return NumpyBkd()
 
 
-class TestDiscrepancyTorch(
-    TestMultiplicativeAdditiveDiscrepancy[torch.Tensor]
-):
+class TestDiscrepancyTorch(TestMultiplicativeAdditiveDiscrepancy[torch.Tensor]):
     def bkd(self) -> TorchBkd:
         torch.set_default_dtype(torch.float64)
         return TorchBkd()

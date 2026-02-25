@@ -3,22 +3,23 @@
 Ports the trigonometric polynomial test from legacy
 pyapprox/surrogates/affine/tests/test_basis.py.
 """
+
 import unittest
 from typing import Any, Generic
 
 import numpy as np
-from numpy.typing import NDArray
 import torch
+from numpy.typing import NDArray
 
-from pyapprox.util.backends.protocols import Array, Backend
-from pyapprox.util.backends.numpy import NumpyBkd
-from pyapprox.util.backends.torch import TorchBkd
-from pyapprox.surrogates.affine.univariate.trigonometric import (
-    TrigonometricPolynomial1D,
-)
 from pyapprox.surrogates.affine.expansions.trigonometric import (
     TrigonometricExpansion,
 )
+from pyapprox.surrogates.affine.univariate.trigonometric import (
+    TrigonometricPolynomial1D,
+)
+from pyapprox.util.backends.numpy import NumpyBkd
+from pyapprox.util.backends.protocols import Array, Backend
+from pyapprox.util.backends.torch import TorchBkd
 
 
 class TestTrigonometricBasis(Generic[Array], unittest.TestCase):
@@ -119,11 +120,11 @@ class TestTrigonometricBasis(Generic[Array], unittest.TestCase):
         jac = trig_basis.jacobian_batch(samples)
 
         for i in range(samples.shape[1]):
-            x = samples[:, i:i+1]
+            x = samples[:, i : i + 1]
             xph = x + h
             xmh = x - h
             fd = (trig_basis(xph) - trig_basis(xmh)) / (2 * h)
-            bkd.assert_allclose(jac[i:i+1, :], fd, atol=1e-6)
+            bkd.assert_allclose(jac[i : i + 1, :], fd, atol=1e-6)
 
     def test_hessian_batch(self) -> None:
         """Test second derivatives against finite differences."""
@@ -138,14 +139,13 @@ class TestTrigonometricBasis(Generic[Array], unittest.TestCase):
         hess = trig_basis.hessian_batch(samples)
 
         for i in range(samples.shape[1]):
-            x = samples[:, i:i+1]
+            x = samples[:, i : i + 1]
             xph = x + h
             xmh = x - h
-            fd = (
-                trig_basis.jacobian_batch(xph) -
-                trig_basis.jacobian_batch(xmh)
-            ) / (2 * h)
-            bkd.assert_allclose(hess[i:i+1, :], fd, atol=1e-4)
+            fd = (trig_basis.jacobian_batch(xph) - trig_basis.jacobian_batch(xmh)) / (
+                2 * h
+            )
+            bkd.assert_allclose(hess[i : i + 1, :], fd, atol=1e-4)
 
 
 class TestTrigonometricBasisNumpy(TestTrigonometricBasis[NDArray[Any]]):
@@ -163,7 +163,6 @@ class TestTrigonometricBasisTorch(TestTrigonometricBasis[torch.Tensor]):
 
 
 from pyapprox.util.test_utils import load_tests  # noqa: F401
-
 
 if __name__ == "__main__":
     loader = unittest.TestLoader()

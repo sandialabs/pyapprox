@@ -71,12 +71,8 @@ class TestMultiOutputIVARSampler(Generic[Array], unittest.TestCase):
         ]
         # Constant scalings: rho_0(x) = 2.0, rho_1(x) = -3.0
         scalings = [
-            PolynomialScaling(
-                [2.0], (-3.0, 3.0), bkd, nvars=nvars, fixed=True
-            ),
-            PolynomialScaling(
-                [-3.0], (-3.0, 3.0), bkd, nvars=nvars, fixed=True
-            ),
+            PolynomialScaling([2.0], (-3.0, 3.0), bkd, nvars=nvars, fixed=True),
+            PolynomialScaling([-3.0], (-3.0, 3.0), bkd, nvars=nvars, fixed=True),
         ]
         kernel = MultiLevelKernel(kernels, scalings)
         # Fix all hyperparameters (no optimization)
@@ -88,8 +84,7 @@ class TestMultiOutputIVARSampler(Generic[Array], unittest.TestCase):
         bkd = self._bkd
         nmodels = 3
         return [
-            bkd.linspace(0, 1, ncandidates_per_model)[None, :]
-            for _ in range(nmodels)
+            bkd.linspace(0, 1, ncandidates_per_model)[None, :] for _ in range(nmodels)
         ]
 
     def test_multioutput_ivar_select_samples(self) -> None:
@@ -114,10 +109,7 @@ class TestMultiOutputIVARSampler(Generic[Array], unittest.TestCase):
             candidates_list, costs, bkd, nugget=0, nquad_samples=10000
         )
         # Initial pivot: midpoint of highest-fidelity output (last output)
-        init_pivot = (
-            ncandidates_per_model * (nmodels - 1)
-            + ncandidates_per_model // 2
-        )
+        init_pivot = ncandidates_per_model * (nmodels - 1) + ncandidates_per_model // 2
         sampler.set_initial_pivots([init_pivot])
         sampler.set_kernel(kernel)
 
@@ -135,9 +127,7 @@ class TestMultiOutputIVARSampler(Generic[Array], unittest.TestCase):
         self.assertEqual(total_selected, nsamples)
 
         # Check all samples are from candidates
-        for ii, (samples, candidates) in enumerate(
-            zip(samples_list, candidates_list)
-        ):
+        for ii, (samples, candidates) in enumerate(zip(samples_list, candidates_list)):
             cand_np = bkd.to_numpy(candidates)
             samp_np = bkd.to_numpy(samples)
             for j in range(samp_np.shape[1]):
@@ -178,10 +168,7 @@ class TestMultiOutputIVARSampler(Generic[Array], unittest.TestCase):
             candidates_list, costs, bkd, nugget=0, nquad_samples=5000
         )
         # Initial pivot: midpoint of highest-fidelity (last) output
-        init_pivot = (
-            ncandidates_per_model * (nmodels - 1)
-            + ncandidates_per_model // 2
-        )
+        init_pivot = ncandidates_per_model * (nmodels - 1) + ncandidates_per_model // 2
         sampler.set_initial_pivots([init_pivot])
         sampler.set_kernel(kernel)
 
@@ -204,9 +191,7 @@ class TestMultiOutputIVARSampler(Generic[Array], unittest.TestCase):
                 train_y_list.append(bkd.zeros((1, 1)))
             else:
                 train_X_list.append(all_samples_list[ii])
-                train_y_list.append(
-                    bkd.zeros((1, all_samples_list[ii].shape[1]))
-                )
+                train_y_list.append(bkd.zeros((1, all_samples_list[ii].shape[1])))
 
         # Fit GP with zero values (mimics legacy test)
         gp = MultiOutputGP(kernel, nugget=1e-10)
@@ -242,25 +227,17 @@ class TestMultiOutputIVARSampler(Generic[Array], unittest.TestCase):
         actual_obj = sampler.best_obj_vals()[-1]
         bkd.assert_allclose(
             bkd.asarray([actual_obj]),
-            bkd.asarray(
-                [float(bkd.to_numpy(
-                    bkd.reshape(expected_obj, (1,))
-                )[0])]
-            ),
+            bkd.asarray([float(bkd.to_numpy(bkd.reshape(expected_obj, (1,)))[0])]),
             rtol=5e-2,
         )
 
 
-class TestMultiOutputIVARSamplerNumpy(
-    TestMultiOutputIVARSampler[NDArray[Any]]
-):
+class TestMultiOutputIVARSamplerNumpy(TestMultiOutputIVARSampler[NDArray[Any]]):
     def bkd(self) -> NumpyBkd:
         return NumpyBkd()
 
 
-class TestMultiOutputIVARSamplerTorch(
-    TestMultiOutputIVARSampler[torch.Tensor]
-):
+class TestMultiOutputIVARSamplerTorch(TestMultiOutputIVARSampler[torch.Tensor]):
     def bkd(self) -> TorchBkd:
         return TorchBkd()
 

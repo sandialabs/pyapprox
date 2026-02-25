@@ -13,11 +13,11 @@ https://doi.org/10.1111/risa.12555
 import warnings
 from typing import Dict, Generic, List, Optional, Tuple
 
-from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.probability.protocols import JointDistributionProtocol
 from pyapprox.sensitivity.variance_based.base import (
     VarianceBasedSensitivityAnalysis,
 )
+from pyapprox.util.backends.protocols import Array, Backend
 
 
 class BinBasedSensitivityAnalysis(
@@ -529,7 +529,9 @@ class BinBasedSensitivityAnalysis(
             main_effects_list.append(self._bkd.to_numpy(self.main_effects()))
 
         # Stack all bootstrap results
-        all_effects = np.stack(main_effects_list, axis=0)  # (nbootstraps+1, nvars, nqoi)
+        all_effects = np.stack(
+            main_effects_list, axis=0
+        )  # (nbootstraps+1, nvars, nqoi)
 
         # Compute statistics
         stats = {

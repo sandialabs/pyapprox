@@ -6,20 +6,18 @@ from typing import Any, Generic
 import torch
 from numpy.typing import NDArray
 
-from pyapprox.util.backends.numpy import NumpyBkd
-from pyapprox.util.backends.torch import TorchBkd
-from pyapprox.util.backends.protocols import Array, Backend
-from pyapprox.util.test_utils import load_tests
-
 from pyapprox.benchmarks.instances.quadrature import (
-    genz_oscillatory_2d,
-    genz_product_peak_2d,
     genz_corner_peak_2d,
     genz_gaussian_peak_2d,
-    genz_oscillatory_5d,
     genz_gaussian_peak_5d,
+    genz_oscillatory_2d,
+    genz_oscillatory_5d,
+    genz_product_peak_2d,
 )
 from pyapprox.benchmarks.registry import BenchmarkRegistry
+from pyapprox.util.backends.numpy import NumpyBkd
+from pyapprox.util.backends.protocols import Array, Backend
+from pyapprox.util.backends.torch import TorchBkd
 
 
 class TestGenzOscillatory2D(Generic[Array], unittest.TestCase):
@@ -66,7 +64,7 @@ class TestGenzOscillatory2D(Generic[Array], unittest.TestCase):
         gt = benchmark.ground_truth()
         self.assertIn("integral", gt.available())
         # Integral should be a finite number
-        self.assertTrue(abs(gt.integral) < float('inf'))
+        self.assertTrue(abs(gt.integral) < float("inf"))
 
     def test_function_evaluation(self) -> None:
         """Test function can be evaluated."""
@@ -253,36 +251,42 @@ class TestBenchmarkRegistryQuadrature(unittest.TestCase):
 # NumPy backend tests
 class TestGenzOscillatory2DNumpy(TestGenzOscillatory2D[NDArray[Any]]):
     """NumPy backend tests."""
+
     def bkd(self) -> NumpyBkd:
         return NumpyBkd()
 
 
 class TestGenzProductPeak2DNumpy(TestGenzProductPeak2D[NDArray[Any]]):
     """NumPy backend tests."""
+
     def bkd(self) -> NumpyBkd:
         return NumpyBkd()
 
 
 class TestGenzCornerPeak2DNumpy(TestGenzCornerPeak2D[NDArray[Any]]):
     """NumPy backend tests."""
+
     def bkd(self) -> NumpyBkd:
         return NumpyBkd()
 
 
 class TestGenzGaussianPeak2DNumpy(TestGenzGaussianPeak2D[NDArray[Any]]):
     """NumPy backend tests."""
+
     def bkd(self) -> NumpyBkd:
         return NumpyBkd()
 
 
 class TestGenzOscillatory5DNumpy(TestGenzOscillatory5D[NDArray[Any]]):
     """NumPy backend tests."""
+
     def bkd(self) -> NumpyBkd:
         return NumpyBkd()
 
 
 class TestGenzGaussianPeak5DNumpy(TestGenzGaussianPeak5D[NDArray[Any]]):
     """NumPy backend tests."""
+
     def bkd(self) -> NumpyBkd:
         return NumpyBkd()
 
@@ -290,6 +294,7 @@ class TestGenzGaussianPeak5DNumpy(TestGenzGaussianPeak5D[NDArray[Any]]):
 # PyTorch backend tests
 class TestGenzOscillatory2DTorch(TestGenzOscillatory2D[torch.Tensor]):
     """PyTorch backend tests."""
+
     def bkd(self) -> TorchBkd:
         torch.set_default_dtype(torch.float64)
         return TorchBkd()
@@ -297,6 +302,7 @@ class TestGenzOscillatory2DTorch(TestGenzOscillatory2D[torch.Tensor]):
 
 class TestGenzProductPeak2DTorch(TestGenzProductPeak2D[torch.Tensor]):
     """PyTorch backend tests."""
+
     def bkd(self) -> TorchBkd:
         torch.set_default_dtype(torch.float64)
         return TorchBkd()
@@ -304,6 +310,7 @@ class TestGenzProductPeak2DTorch(TestGenzProductPeak2D[torch.Tensor]):
 
 class TestGenzCornerPeak2DTorch(TestGenzCornerPeak2D[torch.Tensor]):
     """PyTorch backend tests."""
+
     def bkd(self) -> TorchBkd:
         torch.set_default_dtype(torch.float64)
         return TorchBkd()
@@ -311,6 +318,7 @@ class TestGenzCornerPeak2DTorch(TestGenzCornerPeak2D[torch.Tensor]):
 
 class TestGenzGaussianPeak2DTorch(TestGenzGaussianPeak2D[torch.Tensor]):
     """PyTorch backend tests."""
+
     def bkd(self) -> TorchBkd:
         torch.set_default_dtype(torch.float64)
         return TorchBkd()
@@ -318,6 +326,7 @@ class TestGenzGaussianPeak2DTorch(TestGenzGaussianPeak2D[torch.Tensor]):
 
 class TestGenzOscillatory5DTorch(TestGenzOscillatory5D[torch.Tensor]):
     """PyTorch backend tests."""
+
     def bkd(self) -> TorchBkd:
         torch.set_default_dtype(torch.float64)
         return TorchBkd()
@@ -325,6 +334,7 @@ class TestGenzOscillatory5DTorch(TestGenzOscillatory5D[torch.Tensor]):
 
 class TestGenzGaussianPeak5DTorch(TestGenzGaussianPeak5D[torch.Tensor]):
     """PyTorch backend tests."""
+
     def bkd(self) -> TorchBkd:
         torch.set_default_dtype(torch.float64)
         return TorchBkd()

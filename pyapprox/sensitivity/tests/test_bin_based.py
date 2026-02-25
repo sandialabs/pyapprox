@@ -13,27 +13,26 @@ import numpy as np
 import torch
 from numpy.typing import NDArray
 
-from pyapprox.util.backends.numpy import NumpyBkd
-from pyapprox.util.backends.torch import TorchBkd
-from pyapprox.util.backends.protocols import Array, Backend
-from pyapprox.util.test_utils import (
-    load_tests,  # noqa: F401
-    slow_test,
-    slower_test,
-)
-
-from pyapprox.benchmarks.instances.sensitivity import (
-    ishigami_3d,
-    sobol_g_4d,
-)
 from pyapprox.benchmarks.functions.algebraic.ishigami import (
     IshigamiFunction,
     IshigamiSensitivityIndices,
+)
+from pyapprox.benchmarks.instances.sensitivity import (
+    ishigami_3d,
+    sobol_g_4d,
 )
 from pyapprox.probability import UniformMarginal
 from pyapprox.probability.joint.independent import IndependentJoint
 from pyapprox.sensitivity.variance_based.bin_based import (
     BinBasedSensitivityAnalysis,
+)
+from pyapprox.util.backends.numpy import NumpyBkd
+from pyapprox.util.backends.protocols import Array, Backend
+from pyapprox.util.backends.torch import TorchBkd
+from pyapprox.util.test_utils import (
+    load_tests,  # noqa: F401
+    slow_test,
+    slower_test,
 )
 
 
@@ -492,7 +491,7 @@ class TestIshigamiBenchmark(Generic[Array], unittest.TestCase):
                 bkd.asarray([computed]),
                 bkd.asarray([expected]),
                 rtol=2.5e-2,
-                err_msg=f"S_{i+1} = {computed:.4f}, expected {expected:.4f}",
+                err_msg=f"S_{i + 1} = {computed:.4f}, expected {expected:.4f}",
             )
 
         # S_3 = 0 exactly, use atol

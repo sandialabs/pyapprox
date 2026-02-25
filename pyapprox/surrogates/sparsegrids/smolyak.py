@@ -18,10 +18,10 @@ from typing import Set, Tuple
 
 import numpy as np
 
-from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.surrogates.sparsegrids.smolyak_dispatch import (
     get_smolyak_impl,
 )
+from pyapprox.util.backends.protocols import Array, Backend
 
 
 def _index_to_tuple(index: Array) -> Tuple[int, ...]:
@@ -108,9 +108,7 @@ def compute_smolyak_coefficients(
 
     # Dispatch to best available implementation
     impl = get_smolyak_impl()
-    np_coefs = impl(
-        np_indices, np_shifts, np_signs, nvars, nsubspaces, nshifts
-    )
+    np_coefs = impl(np_indices, np_shifts, np_signs, nvars, nsubspaces, nshifts)
 
     return bkd.asarray(np_coefs)
 
@@ -226,9 +224,7 @@ def smolyak_coefs_with_candidate(
     Array
         Smolyak coefficients for selected + candidate, shape (nselected + 1,).
     """
-    combined = bkd.hstack(
-        (selected_indices, bkd.reshape(candidate_index, (-1, 1)))
-    )
+    combined = bkd.hstack((selected_indices, bkd.reshape(candidate_index, (-1, 1))))
     return compute_smolyak_coefficients(combined, bkd)
 
 

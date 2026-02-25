@@ -6,18 +6,18 @@ import unittest
 from typing import Any, Generic
 
 import numpy as np
-from numpy.typing import NDArray
 import torch
+from numpy.typing import NDArray
 
-from pyapprox.util.backends.protocols import Array, Backend
-from pyapprox.util.backends.numpy import NumpyBkd
-from pyapprox.util.backends.torch import TorchBkd
-from pyapprox.util.test_utils import load_tests  # noqa: F401
 from pyapprox.probability.copula.vine.helpers import (
-    precision_bandwidth,
     compute_dvine_partial_correlations,
     correlation_from_partial_correlations,
+    precision_bandwidth,
 )
+from pyapprox.util.backends.numpy import NumpyBkd
+from pyapprox.util.backends.protocols import Array, Backend
+from pyapprox.util.backends.torch import TorchBkd
+from pyapprox.util.test_utils import load_tests  # noqa: F401
 
 
 class TestHelpersBase(Generic[Array], unittest.TestCase):
@@ -166,9 +166,7 @@ class TestHelpersBase(Generic[Array], unittest.TestCase):
         n = 4
 
         pc = compute_dvine_partial_correlations(R, n - 1, self._bkd)
-        R_recovered = correlation_from_partial_correlations(
-            pc, n, self._bkd
-        )
+        R_recovered = correlation_from_partial_correlations(pc, n, self._bkd)
 
         self._bkd.assert_allclose(R_recovered, R, rtol=1e-10)
 
@@ -185,9 +183,7 @@ class TestHelpersBase(Generic[Array], unittest.TestCase):
         n = 5
 
         pc = compute_dvine_partial_correlations(R, n - 1, self._bkd)
-        R_recovered = correlation_from_partial_correlations(
-            pc, n, self._bkd
-        )
+        R_recovered = correlation_from_partial_correlations(pc, n, self._bkd)
 
         self._bkd.assert_allclose(R_recovered, R, rtol=1e-8)
 

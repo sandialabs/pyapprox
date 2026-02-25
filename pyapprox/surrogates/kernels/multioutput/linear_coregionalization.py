@@ -5,11 +5,11 @@ This module provides the LinearCoregionalizationKernel, which models correlation
 between outputs using the linear model of coregionalization formulation.
 """
 
-from typing import List, Union, Optional, Generic, Tuple
+from typing import Generic, List, Optional, Union
 
+from pyapprox.surrogates.kernels.protocols import Kernel
 from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.util.hyperparameter import HyperParameterList
-from pyapprox.surrogates.kernels.protocols import Kernel
 
 
 class LinearCoregionalizationKernel(Generic[Array]):
@@ -54,7 +54,8 @@ class LinearCoregionalizationKernel(Generic[Array]):
     Examples
     --------
     >>> from pyapprox.surrogates.kernels import MaternKernel
-    >>> from pyapprox.surrogates.kernels.multioutput import LinearCoregionalizationKernel
+    >>> from pyapprox.surrogates.kernels.multioutput import
+    LinearCoregionalizationKernel
     >>> from pyapprox.util.backends.numpy import NumpyBkd
     >>> import numpy as np
     >>> bkd = NumpyBkd()
@@ -143,8 +144,7 @@ class LinearCoregionalizationKernel(Generic[Array]):
 
         # Combine hyperparameter lists from all kernels
         self._hyp_list = sum(
-            [k.hyp_list() for k in kernels],
-            HyperParameterList([], bkd=self._bkd)
+            [k.hyp_list() for k in kernels], HyperParameterList([], bkd=self._bkd)
         )
 
     def bkd(self) -> Backend[Array]:
@@ -194,9 +194,7 @@ class LinearCoregionalizationKernel(Generic[Array]):
         """
         return self._nvars
 
-    def _kronecker_product_kernel_block(
-        self, B: Array, K: Array
-    ) -> List[List[Array]]:
+    def _kronecker_product_kernel_block(self, B: Array, K: Array) -> List[List[Array]]:
         """
         Compute Kronecker product B ⊗ K.
 

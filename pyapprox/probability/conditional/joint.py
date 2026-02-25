@@ -9,11 +9,11 @@ import functools
 import operator
 from typing import Generic, List
 
-from pyapprox.util.backends.protocols import Array, Backend
-from pyapprox.util.hyperparameter import HyperParameterList
 from pyapprox.probability.conditional.protocols import (
     ConditionalDistributionProtocol,
 )
+from pyapprox.util.backends.protocols import Array, Backend
+from pyapprox.util.hyperparameter import HyperParameterList
 
 
 class ConditionalIndependentJoint(Generic[Array]):
@@ -246,8 +246,7 @@ class ConditionalIndependentJoint(Generic[Array]):
 
         ys = self._split_y(y)
         jacs = [
-            c.logpdf_jacobian_wrt_params(x, yi)
-            for c, yi in zip(self._conditionals, ys)
+            c.logpdf_jacobian_wrt_params(x, yi) for c, yi in zip(self._conditionals, ys)
         ]
 
         # Concatenate along parameter axis
@@ -273,7 +272,7 @@ class ConditionalIndependentJoint(Generic[Array]):
         offset = 0
         for c in self._conditionals:
             nq = c.nqoi()
-            base_slice = base_samples[offset:offset + nq, :]
+            base_slice = base_samples[offset : offset + nq, :]
             parts.append(c.reparameterize(x, base_slice))
             offset += nq
         return self._bkd.vstack(parts)
@@ -305,6 +304,7 @@ class ConditionalIndependentJoint(Generic[Array]):
         from pyapprox.probability.joint.independent import (
             IndependentJoint,
         )
+
         bases = [c.base_distribution() for c in self._conditionals]
         return IndependentJoint(bases, self._bkd)
 

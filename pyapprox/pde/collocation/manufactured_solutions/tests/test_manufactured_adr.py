@@ -11,44 +11,42 @@ degree n-1 are exactly represented. We use degree <= 4 to ensure machine
 precision residuals even with moderate grid sizes.
 """
 
-import unittest
 import math
+import unittest
 from typing import Generic
 
-from pyapprox.util.backends.protocols import Array, Backend
-from pyapprox.util.backends.numpy import NumpyBkd
-from pyapprox.util.test_utils import load_tests  # noqa: F401
+from pyapprox.interface.functions.derivative_checks.derivative_checker import (
+    DerivativeChecker,
+)
 from pyapprox.pde.collocation.basis import (
     ChebyshevBasis1D,
     ChebyshevBasis2D,
     ChebyshevBasis3D,
 )
+from pyapprox.pde.collocation.boundary import (
+    zero_dirichlet_bc,
+)
+from pyapprox.pde.collocation.manufactured_solutions import (
+    ManufacturedAdvectionDiffusionReaction,
+)
 from pyapprox.pde.collocation.mesh import (
-    create_uniform_mesh_1d,
-    create_uniform_mesh_2d,
-    create_uniform_mesh_3d,
     AffineTransform1D,
     TransformedMesh1D,
     TransformedMesh2D,
     TransformedMesh3D,
-)
-from pyapprox.pde.collocation.boundary import (
-    DirichletBC,
-    constant_dirichlet_bc,
-    zero_dirichlet_bc,
+    create_uniform_mesh_1d,
+    create_uniform_mesh_2d,
+    create_uniform_mesh_3d,
 )
 from pyapprox.pde.collocation.physics import AdvectionDiffusionReaction
 from pyapprox.pde.collocation.time_integration import (
     CollocationModel,
     TimeIntegrationConfig,
 )
-from pyapprox.pde.collocation.manufactured_solutions import (
-    ManufacturedAdvectionDiffusionReaction,
-)
-from pyapprox.interface.functions.derivative_checks.derivative_checker import (
-    DerivativeChecker,
-)
+from pyapprox.util.backends.numpy import NumpyBkd
+from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.util.cartesian import cartesian_product_samples
+from pyapprox.util.test_utils import load_tests  # noqa: F401
 
 
 class PhysicsDerivativeWrapper(Generic[Array]):
@@ -352,9 +350,7 @@ class TestManufacturedADR1D(Generic[Array], unittest.TestCase):
 
         basis = ChebyshevBasis1D(mesh, bkd)
 
-        physics = AdvectionDiffusionReaction(
-            basis, bkd, diffusion=1.0, reaction=-1.0
-        )
+        physics = AdvectionDiffusionReaction(basis, bkd, diffusion=1.0, reaction=-1.0)
 
         wrapper = PhysicsDerivativeWrapper(physics, bkd)
         sample = bkd.asarray([[math.sin(float(i) / npts) for i in range(npts)]]).T
@@ -394,7 +390,8 @@ class TestManufacturedADR1D(Generic[Array], unittest.TestCase):
 
         velocity = [bkd.ones((npts,))]
         physics = AdvectionDiffusionReaction(
-            basis, bkd,
+            basis,
+            bkd,
             diffusion=0.1,
             velocity=velocity,
             reaction=-0.5,
@@ -439,7 +436,8 @@ class TestManufacturedADR1D(Generic[Array], unittest.TestCase):
 
         velocity = [bkd.ones((npts,))]
         physics = AdvectionDiffusionReaction(
-            basis, bkd,
+            basis,
+            bkd,
             diffusion=0.1,
             velocity=velocity,
             reaction=-0.5,
@@ -503,7 +501,7 @@ class TestManufacturedADR2D(Generic[Array], unittest.TestCase):
         # Use 'xy' indexing for compatibility with Kronecker product structure
         nodes_x = basis.nodes_x()
         nodes_y = basis.nodes_y()
-        xx, yy = bkd.meshgrid(nodes_x, nodes_y, indexing='xy')
+        xx, yy = bkd.meshgrid(nodes_x, nodes_y, indexing="xy")
         nodes = bkd.stack([xx.flatten(), yy.flatten()], axis=0)  # (2, npts)
         u_exact = man_sol.functions["solution"](nodes)
         forcing = man_sol.functions["forcing"](nodes)
@@ -530,13 +528,13 @@ class TestManufacturedADR2D(Generic[Array], unittest.TestCase):
         for side in range(4):
             for idx in mesh.boundary_indices(side):
                 boundary_indices.add(idx)
-        interior_indices = [
-            i for i in range(basis.npts()) if i not in boundary_indices
-        ]
+        interior_indices = [i for i in range(basis.npts()) if i not in boundary_indices]
         interior_residual = bkd.asarray([residual_with_bc[i] for i in interior_indices])
 
         # Machine precision residual for polynomial solution
-        bkd.assert_allclose(interior_residual, bkd.zeros(interior_residual.shape), atol=1e-12)
+        bkd.assert_allclose(
+            interior_residual, bkd.zeros(interior_residual.shape), atol=1e-12
+        )
 
     def test_steady_diffusion_jacobian_2d(self):
         """Test Jacobian for 2D diffusion."""
@@ -579,7 +577,7 @@ class TestManufacturedADR2D(Generic[Array], unittest.TestCase):
 
         nodes_x = basis.nodes_x()
         nodes_y = basis.nodes_y()
-        xx, yy = bkd.meshgrid(nodes_x, nodes_y, indexing='xy')
+        xx, yy = bkd.meshgrid(nodes_x, nodes_y, indexing="xy")
         nodes = bkd.stack([xx.flatten(), yy.flatten()], axis=0)
         u_exact = man_sol.functions["solution"](nodes)
         forcing = man_sol.functions["forcing"](nodes)
@@ -628,7 +626,7 @@ class TestManufacturedADR2D(Generic[Array], unittest.TestCase):
         # Use 'xy' indexing for compatibility with Kronecker product structure
         nodes_x = basis.nodes_x()
         nodes_y = basis.nodes_y()
-        xx, yy = bkd.meshgrid(nodes_x, nodes_y, indexing='xy')
+        xx, yy = bkd.meshgrid(nodes_x, nodes_y, indexing="xy")
         nodes = bkd.stack([xx.flatten(), yy.flatten()], axis=0)
         u_exact = man_sol.functions["solution"](nodes)
         forcing = man_sol.functions["forcing"](nodes)
@@ -656,13 +654,13 @@ class TestManufacturedADR2D(Generic[Array], unittest.TestCase):
         for side in range(4):
             for idx in mesh.boundary_indices(side):
                 boundary_indices.add(idx)
-        interior_indices = [
-            i for i in range(basis.npts()) if i not in boundary_indices
-        ]
+        interior_indices = [i for i in range(basis.npts()) if i not in boundary_indices]
         interior_residual = bkd.asarray([residual_with_bc[i] for i in interior_indices])
 
         # Machine precision residual for polynomial solution
-        bkd.assert_allclose(interior_residual, bkd.zeros(interior_residual.shape), atol=1e-12)
+        bkd.assert_allclose(
+            interior_residual, bkd.zeros(interior_residual.shape), atol=1e-12
+        )
 
 
 class TestManufacturedADRTransient(Generic[Array], unittest.TestCase):
@@ -711,7 +709,10 @@ class TestManufacturedADRTransient(Generic[Array], unittest.TestCase):
 
         # The forcing includes both spatial and temporal terms
         physics = AdvectionDiffusionReaction(
-            basis, bkd, diffusion=1.0, forcing=lambda t: man_sol.functions["forcing"](nodes, t)
+            basis,
+            bkd,
+            diffusion=1.0,
+            forcing=lambda t: man_sol.functions["forcing"](nodes, t),
         )
 
         left_idx = mesh.boundary_indices(0)
@@ -762,7 +763,10 @@ class TestManufacturedADRTransient(Generic[Array], unittest.TestCase):
         u_exact_end = man_sol.functions["solution"](nodes, time_end)
 
         physics = AdvectionDiffusionReaction(
-            basis, bkd, diffusion=1.0, forcing=lambda t: man_sol.functions["forcing"](nodes, t)
+            basis,
+            bkd,
+            diffusion=1.0,
+            forcing=lambda t: man_sol.functions["forcing"](nodes, t),
         )
 
         left_idx = mesh.boundary_indices(0)
@@ -784,7 +788,9 @@ class TestManufacturedADRTransient(Generic[Array], unittest.TestCase):
 
         # Final solution should match exact
         u_final = solutions[:, -1]
-        bkd.assert_allclose(u_final, u_exact_end, atol=1e-3)  # Time discretization error
+        bkd.assert_allclose(
+            u_final, u_exact_end, atol=1e-3
+        )  # Time discretization error
 
 
 class TestManufacturedADR1DNumpy(TestManufacturedADR1D):
@@ -845,7 +851,9 @@ class TestADR1DParameterized(ParametrizedTestCase):
         "name,sol_str,diff,vel,react,npts,domain",
         ADR_1D_STEADY_CASES,
     )
-    def test_steady_adr_1d_residual(self, name, sol_str, diff, vel, react, npts, domain):
+    def test_steady_adr_1d_residual(
+        self, name, sol_str, diff, vel, react, npts, domain
+    ):
         """Test residual = 0 at manufactured solution for various configurations."""
         bkd = self.bkd()
 
@@ -879,7 +887,8 @@ class TestADR1DParameterized(ParametrizedTestCase):
         # Create physics with velocity array
         velocity = [vel[0] * bkd.ones((npts,))] if vel[0] != 0 else None
         physics = AdvectionDiffusionReaction(
-            basis, bkd,
+            basis,
+            bkd,
             diffusion=diff,
             velocity=velocity,
             reaction=react,
@@ -939,7 +948,8 @@ class TestADR1DParameterized(ParametrizedTestCase):
 
         velocity = [vel[0] * bkd.ones((npts,))] if vel[0] != 0 else None
         physics = AdvectionDiffusionReaction(
-            basis, bkd,
+            basis,
+            bkd,
             diffusion=diff,
             velocity=velocity,
             reaction=react,
@@ -998,7 +1008,7 @@ class TestADR2DParameterized(ParametrizedTestCase):
 
         nodes_x = basis.nodes_x()
         nodes_y = basis.nodes_y()
-        xx, yy = bkd.meshgrid(nodes_x, nodes_y, indexing='xy')
+        xx, yy = bkd.meshgrid(nodes_x, nodes_y, indexing="xy")
         nodes = bkd.stack([xx.flatten(), yy.flatten()], axis=0)
         u_exact = man_sol.functions["solution"](nodes)
         forcing = man_sol.functions["forcing"](nodes)
@@ -1012,7 +1022,8 @@ class TestADR2DParameterized(ParametrizedTestCase):
             ]
 
         physics = AdvectionDiffusionReaction(
-            basis, bkd,
+            basis,
+            bkd,
             diffusion=diff,
             velocity=velocity,
             forcing=lambda t: forcing,
@@ -1035,17 +1046,18 @@ class TestADR2DParameterized(ParametrizedTestCase):
         for side in range(4):
             for idx in mesh.boundary_indices(side):
                 boundary_indices.add(idx)
-        interior_indices = [
-            i for i in range(basis.npts()) if i not in boundary_indices
-        ]
+        interior_indices = [i for i in range(basis.npts()) if i not in boundary_indices]
         interior_residual = bkd.asarray([residual_bc[i] for i in interior_indices])
 
-        bkd.assert_allclose(interior_residual, bkd.zeros(interior_residual.shape), atol=1e-10)
+        bkd.assert_allclose(
+            interior_residual, bkd.zeros(interior_residual.shape), atol=1e-10
+        )
 
 
 # =============================================================================
 # 3D ADR Tests
 # =============================================================================
+
 
 class TestManufacturedADR3D(Generic[Array], unittest.TestCase):
     """Test ADR manufactured solutions in 3D.
@@ -1065,14 +1077,17 @@ class TestManufacturedADR3D(Generic[Array], unittest.TestCase):
     def test_steady_diffusion_residual_3d(self):
         """Test residual = 0 for 3D steady diffusion.
 
-        Uses polynomial solution u = (1-x**2)*(1-y**2)*(1-z**2) (degree 2 in each direction).
+        Uses polynomial solution u = (1-x**2)*(1-y**2)*(1-z**2) (degree 2 in each
+        direction).
         """
         bkd = self.bkd()
         npts_x, npts_y, npts_z = 6, 6, 6
         mesh = TransformedMesh3D(npts_x, npts_y, npts_z, bkd)
 
         basis = ChebyshevBasis3D(mesh, bkd)
-        mesh = create_uniform_mesh_3d((npts_x, npts_y, npts_z), (-1.0, 1.0, -1.0, 1.0, -1.0, 1.0), bkd)
+        mesh = create_uniform_mesh_3d(
+            (npts_x, npts_y, npts_z), (-1.0, 1.0, -1.0, 1.0, -1.0, 1.0), bkd
+        )
 
         # Polynomial manufactured solution: u = (1-x**2)*(1-y**2)*(1-z**2)
         # Degree 2 in each direction, zero on all boundaries
@@ -1115,13 +1130,13 @@ class TestManufacturedADR3D(Generic[Array], unittest.TestCase):
         for side in range(6):
             for idx in mesh.boundary_indices(side):
                 boundary_indices.add(int(idx))
-        interior_indices = [
-            i for i in range(basis.npts()) if i not in boundary_indices
-        ]
+        interior_indices = [i for i in range(basis.npts()) if i not in boundary_indices]
         interior_residual = bkd.asarray([residual_with_bc[i] for i in interior_indices])
 
         # Machine precision residual for polynomial solution
-        bkd.assert_allclose(interior_residual, bkd.zeros(interior_residual.shape), atol=1e-12)
+        bkd.assert_allclose(
+            interior_residual, bkd.zeros(interior_residual.shape), atol=1e-12
+        )
 
     def test_steady_diffusion_jacobian_3d(self):
         """Test Jacobian for 3D diffusion."""
@@ -1146,14 +1161,17 @@ class TestManufacturedADR3D(Generic[Array], unittest.TestCase):
     def test_advection_diffusion_3d(self):
         """Test residual for 3D advection-diffusion.
 
-        Uses polynomial solution u = (1-x**2)*(1-y**2)*(1-z**2)*x (degree 3 in x, 2 in y,z).
+        Uses polynomial solution u = (1-x**2)*(1-y**2)*(1-z**2)*x (degree 3 in x, 2 in
+        y,z).
         """
         bkd = self.bkd()
         npts_x, npts_y, npts_z = 8, 6, 6
         mesh = TransformedMesh3D(npts_x, npts_y, npts_z, bkd)
 
         basis = ChebyshevBasis3D(mesh, bkd)
-        mesh = create_uniform_mesh_3d((npts_x, npts_y, npts_z), (-1.0, 1.0, -1.0, 1.0, -1.0, 1.0), bkd)
+        mesh = create_uniform_mesh_3d(
+            (npts_x, npts_y, npts_z), (-1.0, 1.0, -1.0, 1.0, -1.0, 1.0), bkd
+        )
 
         # Polynomial with advection: degree 3 in x, degree 2 in y,z
         man_sol = ManufacturedAdvectionDiffusionReaction(
@@ -1195,13 +1213,13 @@ class TestManufacturedADR3D(Generic[Array], unittest.TestCase):
         for side in range(6):
             for idx in mesh.boundary_indices(side):
                 boundary_indices.add(int(idx))
-        interior_indices = [
-            i for i in range(basis.npts()) if i not in boundary_indices
-        ]
+        interior_indices = [i for i in range(basis.npts()) if i not in boundary_indices]
         interior_residual = bkd.asarray([residual_with_bc[i] for i in interior_indices])
 
         # Machine precision residual for polynomial solution
-        bkd.assert_allclose(interior_residual, bkd.zeros(interior_residual.shape), atol=1e-12)
+        bkd.assert_allclose(
+            interior_residual, bkd.zeros(interior_residual.shape), atol=1e-12
+        )
 
 
 class TestManufacturedADR3DNumpy(TestManufacturedADR3D):
@@ -1216,9 +1234,21 @@ class TestManufacturedADR3DNumpy(TestManufacturedADR3D):
 # ADR 3D test cases for parameterized tests
 ADR_3D_STEADY_CASES = [
     # (name, sol_str, diff, vel, npts)
-    ("diffusion_only", "(1 - x**2)*(1 - y**2)*(1 - z**2)", 1.0, [0.0, 0.0, 0.0], (5, 5, 5)),
+    (
+        "diffusion_only",
+        "(1 - x**2)*(1 - y**2)*(1 - z**2)",
+        1.0,
+        [0.0, 0.0, 0.0],
+        (5, 5, 5),
+    ),
     ("diff_4", "(1 - x**2)*(1 - y**2)*(1 - z**2)", 4.0, [0.0, 0.0, 0.0], (5, 5, 5)),
-    ("with_advection", "(1 - x**2)*(1 - y**2)*(1 - z**2)*x", 0.1, [1.0, 0.5, 0.2], (6, 5, 5)),
+    (
+        "with_advection",
+        "(1 - x**2)*(1 - y**2)*(1 - z**2)*x",
+        0.1,
+        [1.0, 0.5, 0.2],
+        (6, 5, 5),
+    ),
 ]
 
 
@@ -1267,7 +1297,8 @@ class TestADR3DParameterized(ParametrizedTestCase):
             ]
 
         physics = AdvectionDiffusionReaction(
-            basis, bkd,
+            basis,
+            bkd,
             diffusion=diff,
             velocity=velocity,
             forcing=lambda t: forcing,
@@ -1290,12 +1321,12 @@ class TestADR3DParameterized(ParametrizedTestCase):
         for side in range(6):
             for idx in mesh.boundary_indices(side):
                 boundary_indices.add(int(idx))
-        interior_indices = [
-            i for i in range(basis.npts()) if i not in boundary_indices
-        ]
+        interior_indices = [i for i in range(basis.npts()) if i not in boundary_indices]
         interior_residual = bkd.asarray([residual_bc[i] for i in interior_indices])
 
-        bkd.assert_allclose(interior_residual, bkd.zeros(interior_residual.shape), atol=1e-10)
+        bkd.assert_allclose(
+            interior_residual, bkd.zeros(interior_residual.shape), atol=1e-10
+        )
 
 
 if __name__ == "__main__":

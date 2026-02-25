@@ -10,16 +10,16 @@ Used for:
 - Laplace approximation (via Hessian at MAP)
 """
 
-from typing import Generic, Optional, Callable
+from typing import Callable, Generic, Optional
 
 import numpy as np
 from scipy import optimize
 
-from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.probability.protocols import (
-    LogLikelihoodProtocol,
     DistributionProtocol,
+    LogLikelihoodProtocol,
 )
+from pyapprox.util.backends.protocols import Array, Backend
 
 
 class LogUnNormalizedPosterior(Generic[Array]):
@@ -181,7 +181,7 @@ class LogUnNormalizedPosterior(Generic[Array]):
         # Likelihood gradient w.r.t. model output
         if likelihood_gradient_fn is not None:
             dloglike_doutput = likelihood_gradient_fn(model_output)
-        elif hasattr(self._likelihood, 'gradient'):
+        elif hasattr(self._likelihood, "gradient"):
             dloglike_doutput = self._likelihood.gradient(model_output)
         else:
             raise ValueError(
@@ -201,7 +201,7 @@ class LogUnNormalizedPosterior(Generic[Array]):
         # Prior gradient
         if prior_logpdf_jacobian_fn is not None:
             dlogprior_dtheta = prior_logpdf_jacobian_fn(sample)
-        elif hasattr(self._prior, 'logpdf_jacobian'):
+        elif hasattr(self._prior, "logpdf_jacobian"):
             dlogprior_dtheta = self._prior.logpdf_jacobian(sample)
         else:
             # Use finite differences
@@ -258,13 +258,16 @@ class LogUnNormalizedPosterior(Generic[Array]):
         # Prior Hessian
         if prior_logpdf_hessian_fn is not None:
             H_prior = prior_logpdf_hessian_fn(sample)
-        elif hasattr(self._prior, 'logpdf_hessian'):
+        elif hasattr(self._prior, "logpdf_hessian"):
             H_prior = self._prior.logpdf_hessian(sample)
         else:
             # Use finite differences
             def logprior_fn(s):
                 return self._prior.logpdf(s)[:, None]
-            jac_fn = lambda s: self._finite_diff_jacobian(logprior_fn, s).T
+
+            def jac_fn(s):
+                return self._finite_diff_jacobian(logprior_fn, s).T
+
             H_prior = self._finite_diff_jacobian(jac_fn, sample)
 
         return H_like + H_prior
@@ -337,7 +340,7 @@ class LogUnNormalizedPosterior(Generic[Array]):
             MAP estimate. Shape: (nvars, 1)
         """
         if initial_guess is None:
-            if hasattr(self._prior, 'mean'):
+            if hasattr(self._prior, "mean"):
                 initial_guess = self._prior.mean()
             else:
                 initial_guess = self._bkd.zeros((self._nvars, 1))
@@ -354,8 +357,9 @@ class LogUnNormalizedPosterior(Generic[Array]):
         scipy_bounds = None
         if bounds is not None:
             bounds_np = self._bkd.to_numpy(bounds)
-            scipy_bounds = [(bounds_np[i, 0], bounds_np[i, 1])
-                           for i in range(self._nvars)]
+            scipy_bounds = [
+                (bounds_np[i, 0], bounds_np[i, 1]) for i in range(self._nvars)
+            ]
 
         # Optimize
         opt_options = options or {}
@@ -403,8 +407,9 @@ class LogUnNormalizedPosterior(Generic[Array]):
             x_plus = x_np.copy()
             x_plus[i, 0] += eps
             f_plus = fn(self._bkd.asarray(x_plus))
-            jac[:, i] = (self._bkd.to_numpy(f_plus) -
-                        self._bkd.to_numpy(f0)).flatten() / eps
+            jac[:, i] = (
+                self._bkd.to_numpy(f_plus) - self._bkd.to_numpy(f0)
+            ).flatten() / eps
 
         return self._bkd.asarray(jac)
 

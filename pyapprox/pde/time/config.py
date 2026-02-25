@@ -33,9 +33,9 @@ class TimeIntegrationConfig:
         Verbosity level. Default: 0
     """
 
-    method: Literal[
-        "forward_euler", "backward_euler", "crank_nicolson", "heun"
-    ] = "backward_euler"
+    method: Literal["forward_euler", "backward_euler", "crank_nicolson", "heun"] = (
+        "backward_euler"
+    )
     init_time: float = 0.0
     final_time: float = 1.0
     deltat: float = 0.01

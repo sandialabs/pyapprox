@@ -1,18 +1,18 @@
 from typing import Generic, Optional, Self, cast
 
-from pyapprox.util.backends.protocols import Array, Backend
-from pyapprox.optimization.minimize.protocols import (
-    BindableOptimizerProtocol,
+from pyapprox.optimization.minimize.constraints.protocols import (
+    SequenceOfConstraintProtocols,
 )
 from pyapprox.optimization.minimize.objective.protocols import (
     ObjectiveProtocol,
 )
-from pyapprox.optimization.minimize.constraints.protocols import (
-    SequenceOfConstraintProtocols,
+from pyapprox.optimization.minimize.protocols import (
+    BindableOptimizerProtocol,
 )
 from pyapprox.optimization.minimize.scipy.scipy_result import (
     ScipyOptimizerResultWrapper,
 )
+from pyapprox.util.backends.protocols import Array, Backend
 
 
 class ChainedOptimizer(Generic[Array]):
@@ -102,10 +102,7 @@ class ChainedOptimizer(Generic[Array]):
         bool
             True if both optimizers are bound, False otherwise.
         """
-        return (
-            self._global_optimizer.is_bound()
-            and self._local_optimizer.is_bound()
-        )
+        return self._global_optimizer.is_bound() and self._local_optimizer.is_bound()
 
     def copy(self) -> Self:
         """Return an unbound copy with same options.
@@ -140,9 +137,7 @@ class ChainedOptimizer(Generic[Array]):
             raise RuntimeError("Optimizer not bound. Call bind() first.")
         return self._global_optimizer.bkd()
 
-    def minimize(
-        self, init_guess: Array
-    ) -> ScipyOptimizerResultWrapper[Array]:
+    def minimize(self, init_guess: Array) -> ScipyOptimizerResultWrapper[Array]:
         """Perform optimization using the chained approach.
 
         Parameters

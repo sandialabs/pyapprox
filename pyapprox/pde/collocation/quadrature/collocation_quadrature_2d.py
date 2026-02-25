@@ -8,7 +8,6 @@ correctly.
 
 from typing import Generic, Optional, Tuple
 
-from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.pde.collocation.basis.chebyshev.basis_1d import (
     ChebyshevBasis1D,
 )
@@ -19,6 +18,7 @@ from pyapprox.pde.collocation.mesh import TransformedMesh1D
 from pyapprox.pde.collocation.quadrature.collocation_quadrature import (
     CollocationQuadrature1D,
 )
+from pyapprox.util.backends.protocols import Array, Backend
 
 
 class CollocationQuadrature2D(Generic[Array]):
@@ -42,9 +42,7 @@ class CollocationQuadrature2D(Generic[Array]):
         Computational backend.
     """
 
-    def __init__(
-        self, basis: ChebyshevBasis2D[Array], bkd: Backend[Array]
-    ) -> None:
+    def __init__(self, basis: ChebyshevBasis2D[Array], bkd: Backend[Array]) -> None:
         self._bkd = bkd
         self._basis = basis
         npts_x, npts_y = basis.npts_per_dim()
@@ -110,9 +108,7 @@ class CollocationQuadrature2D(Generic[Array]):
 
         return self._tensor_product_with_jacobian(w_x, w_y)
 
-    def _tensor_product_with_jacobian(
-        self, w_x: Array, w_y: Array
-    ) -> Array:
+    def _tensor_product_with_jacobian(self, w_x: Array, w_y: Array) -> Array:
         """Tensor-product 1D weights and multiply by 2D Jacobian determinant.
 
         Uses first-dim-fastest ordering matching ``compute_cartesian_product``.

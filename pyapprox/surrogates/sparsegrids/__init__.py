@@ -16,58 +16,65 @@ Key functions:
 - is_downward_closed: Check index set validity
 """
 
-from .smolyak import (
-    compute_smolyak_coefficients,
-    is_downward_closed,
-    get_subspace_neighbors,
-    check_admissibility,
-)
-
-from .subspace import TensorProductSubspace
-
-# New fitter/surrogate architecture
-from .combination_surrogate import CombinationSurrogate
-from .isotropic_fitter import IsotropicSparseGridFitter
 from .adaptive_fitter import (
     MultiFidelityAdaptiveSparseGridFitter,
     SingleFidelityAdaptiveSparseGridFitter,
     SubsetType,
 )
-from .fit_result import (
-    IsotropicSparseGridFitResult,
-    AdaptiveSparseGridFitResult,
-)
-from .error_indicators import (
-    ErrorIndicatorProtocol,
-    L2SurrogateDifferenceIndicator,
-    L2NewSamplesIndicator,
-    VarianceChangeIndicator,
-    CostWeightedIndicator,
-)
-from .candidate_info import CandidateInfo, ConfigIdx
-from .cost_model import CostModelProtocol, ConstantCostModel, ExponentialConfigCostModel, MeasuredCostModel
-from .model_factory import ModelFactoryProtocol, DictModelFactory, TimedModelFactory
-from .subspace_factory import SubspaceFactoryProtocol, TensorProductSubspaceFactory
-from .sample_tracker import SampleTracker
-
-
-from .plot import plot_sparse_grid_points
-
-from .converters import (
-    SparseGridToPCEConverter,
-    TensorProductSubspaceToPCEConverter,
-)
-
 from .basis_factory import (
     BasisFactoryProtocol,
     GaussLagrangeFactory,
     LejaLagrangeFactory,
     PiecewiseFactory,
     PrebuiltBasisFactory,
+    create_bases_from_marginals,
+    create_basis_factories,
     get_bounds_from_marginal,
     get_transform_from_marginal,
-    create_basis_factories,
-    create_bases_from_marginals,
+)
+from .candidate_info import CandidateInfo, ConfigIdx
+
+# New fitter/surrogate architecture
+from .combination_surrogate import CombinationSurrogate
+from .converters import (
+    SparseGridToPCEConverter,
+    TensorProductSubspaceToPCEConverter,
+)
+from .cost_model import (
+    ConstantCostModel,
+    CostModelProtocol,
+    ExponentialConfigCostModel,
+    MeasuredCostModel,
+)
+from .error_indicators import (
+    CostWeightedIndicator,
+    ErrorIndicatorProtocol,
+    L2NewSamplesIndicator,
+    L2SurrogateDifferenceIndicator,
+    VarianceChangeIndicator,
+)
+from .fit_result import (
+    AdaptiveSparseGridFitResult,
+    IsotropicSparseGridFitResult,
+)
+from .isotropic_fitter import IsotropicSparseGridFitter
+from .model_factory import (
+    DictModelFactory,
+    ModelFactoryProtocol,
+    TimedModelFactory,
+)
+from .plot import plot_sparse_grid_points
+from .sample_tracker import SampleTracker
+from .smolyak import (
+    check_admissibility,
+    compute_smolyak_coefficients,
+    get_subspace_neighbors,
+    is_downward_closed,
+)
+from .subspace import TensorProductSubspace
+from .subspace_factory import (
+    SubspaceFactoryProtocol,
+    TensorProductSubspaceFactory,
 )
 
 __all__ = [

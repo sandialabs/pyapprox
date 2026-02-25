@@ -4,31 +4,30 @@ import math
 import unittest
 from typing import Any, Generic
 
-import numpy as np
-from numpy.typing import NDArray
 import torch
+from numpy.typing import NDArray
 
-from pyapprox.util.backends.protocols import Array, Backend
-from pyapprox.util.backends.numpy import NumpyBkd
-from pyapprox.util.backends.torch import TorchBkd
-from pyapprox.util.test_utils import load_tests  # noqa: F401
 from pyapprox.pde.collocation.basis import ChebyshevBasis2D
-from pyapprox.pde.collocation.mesh import TransformedMesh2D
-from pyapprox.pde.collocation.mesh.transforms import PolarTransform
 from pyapprox.pde.collocation.boundary import (
     traction_neumann_bc,
     zero_dirichlet_bc,
 )
+from pyapprox.pde.collocation.mesh import TransformedMesh2D
+from pyapprox.pde.collocation.mesh.transforms import PolarTransform
 from pyapprox.pde.collocation.physics import LinearElasticityPhysics
-from pyapprox.pde.collocation.time_integration import CollocationModel
 from pyapprox.pde.collocation.post_processing.stress import (
     StressPostProcessor2D,
 )
-
+from pyapprox.pde.collocation.time_integration import CollocationModel
+from pyapprox.util.backends.numpy import NumpyBkd
+from pyapprox.util.backends.protocols import Array, Backend
+from pyapprox.util.backends.torch import TorchBkd
+from pyapprox.util.test_utils import load_tests  # noqa: F401
 
 # ======================================================================
 # Helpers
 # ======================================================================
+
 
 def _setup_lame_problem(bkd, npts_r=12, npts_theta=12):
     """Set up and solve the Lame analytical problem on a quarter-annulus."""
@@ -38,20 +37,23 @@ def _setup_lame_problem(bkd, npts_r=12, npts_theta=12):
     poisson_ratio = 0.3
 
     dmu_dE = 1.0 / (2.0 * (1.0 + poisson_ratio))
-    dlam_dE = poisson_ratio / (
-        (1.0 + poisson_ratio) * (1.0 - 2.0 * poisson_ratio)
-    )
+    dlam_dE = poisson_ratio / ((1.0 + poisson_ratio) * (1.0 - 2.0 * poisson_ratio))
     mu = E_mean * dmu_dE
     lamda = E_mean * dlam_dE
 
     transform = PolarTransform(
-        (r_inner, r_outer), (0.0, math.pi / 2.0), bkd,
+        (r_inner, r_outer),
+        (0.0, math.pi / 2.0),
+        bkd,
     )
     mesh = TransformedMesh2D(npts_r, npts_theta, bkd, transform)
     basis = ChebyshevBasis2D(mesh, bkd)
 
     physics = LinearElasticityPhysics(
-        basis, bkd, lamda=lamda, mu=mu,
+        basis,
+        bkd,
+        lamda=lamda,
+        mu=mu,
     )
 
     # Apply cylinder BCs
@@ -65,33 +67,69 @@ def _setup_lame_problem(bkd, npts_r=12, npts_theta=12):
     outer_idx = mesh.boundary_indices(1)
     outer_normals = mesh.boundary_normals(1)
     for comp in (0, 1):
-        bcs.append(traction_neumann_bc(
-            bkd, outer_idx, outer_normals, D_matrices,
-            lamda, mu, npts, comp, values=0.0,
-        ))
+        bcs.append(
+            traction_neumann_bc(
+                bkd,
+                outer_idx,
+                outer_normals,
+                D_matrices,
+                lamda,
+                mu,
+                npts,
+                comp,
+                values=0.0,
+            )
+        )
 
     bottom_idx = mesh.boundary_indices(2)
     bottom_normals = mesh.boundary_normals(2)
-    bcs.append(traction_neumann_bc(
-        bkd, bottom_idx, bottom_normals, D_matrices,
-        lamda, mu, npts, component=0, values=0.0,
-    ))
+    bcs.append(
+        traction_neumann_bc(
+            bkd,
+            bottom_idx,
+            bottom_normals,
+            D_matrices,
+            lamda,
+            mu,
+            npts,
+            component=0,
+            values=0.0,
+        )
+    )
 
     top_idx = mesh.boundary_indices(3)
     top_normals = mesh.boundary_normals(3)
-    bcs.append(traction_neumann_bc(
-        bkd, top_idx, top_normals, D_matrices,
-        lamda, mu, npts, component=1, values=0.0,
-    ))
+    bcs.append(
+        traction_neumann_bc(
+            bkd,
+            top_idx,
+            top_normals,
+            D_matrices,
+            lamda,
+            mu,
+            npts,
+            component=1,
+            values=0.0,
+        )
+    )
 
     inner_idx = mesh.boundary_indices(0)
     inner_normals = mesh.boundary_normals(0)
     for comp in (0, 1):
         pressure_vals = -pressure * inner_normals[:, comp]
-        bcs.append(traction_neumann_bc(
-            bkd, inner_idx, inner_normals, D_matrices,
-            lamda, mu, npts, comp, values=pressure_vals,
-        ))
+        bcs.append(
+            traction_neumann_bc(
+                bkd,
+                inner_idx,
+                inner_normals,
+                D_matrices,
+                lamda,
+                mu,
+                npts,
+                comp,
+                values=pressure_vals,
+            )
+        )
 
     bottom_v_idx = bottom_idx + npts
     bcs.append(zero_dirichlet_bc(bkd, bottom_v_idx))
@@ -108,7 +146,8 @@ def _setup_lame_problem(bkd, npts_r=12, npts_theta=12):
         mesh.reference_points(),
     )
     proc = StressPostProcessor2D(
-        D_matrices[0], D_matrices[1],
+        D_matrices[0],
+        D_matrices[1],
         get_lamda=lambda: bkd.asarray([lamda] * npts),
         get_mu=lambda: bkd.asarray([mu] * npts),
         bkd=bkd,
@@ -116,10 +155,19 @@ def _setup_lame_problem(bkd, npts_r=12, npts_theta=12):
     )
 
     return {
-        "state": state, "proc": proc, "mesh": mesh, "basis": basis,
-        "transform": transform, "r_inner": r_inner, "r_outer": r_outer,
-        "pressure": pressure, "lamda": lamda, "mu": mu, "npts": npts,
-        "bkd": bkd, "D_matrices": D_matrices,
+        "state": state,
+        "proc": proc,
+        "mesh": mesh,
+        "basis": basis,
+        "transform": transform,
+        "r_inner": r_inner,
+        "r_outer": r_outer,
+        "pressure": pressure,
+        "lamda": lamda,
+        "mu": mu,
+        "npts": npts,
+        "bkd": bkd,
+        "D_matrices": D_matrices,
     }
 
 
@@ -130,18 +178,19 @@ def _lame_stresses(bkd, pts, r_inner, r_outer, pressure):
     """
     x = pts[0, :]
     y = pts[1, :]
-    r = bkd.sqrt(x ** 2 + y ** 2)
+    r = bkd.sqrt(x**2 + y**2)
     Ri, Ro = r_inner, r_outer
-    A = pressure * Ri ** 2 / (Ro ** 2 - Ri ** 2)
-    B = -pressure * Ri ** 2 * Ro ** 2 / (Ro ** 2 - Ri ** 2)
-    sigma_rr = A + B / r ** 2
-    sigma_tt = A - B / r ** 2
+    A = pressure * Ri**2 / (Ro**2 - Ri**2)
+    B = -pressure * Ri**2 * Ro**2 / (Ro**2 - Ri**2)
+    sigma_rr = A + B / r**2
+    sigma_tt = A - B / r**2
     return sigma_rr, sigma_tt
 
 
 # ======================================================================
 # Tests
 # ======================================================================
+
 
 class TestStressPostProcessor2D(Generic[Array], unittest.TestCase):
     __test__ = False
@@ -159,7 +208,11 @@ class TestStressPostProcessor2D(Generic[Array], unittest.TestCase):
         sigma_tt = setup["proc"].hoop_stress(setup["state"])
         pts = setup["mesh"].points()
         _, sigma_tt_exact = _lame_stresses(
-            bkd, pts, setup["r_inner"], setup["r_outer"], setup["pressure"],
+            bkd,
+            pts,
+            setup["r_inner"],
+            setup["r_outer"],
+            setup["pressure"],
         )
         bkd.assert_allclose(sigma_tt, sigma_tt_exact, rtol=1e-6)
 
@@ -170,7 +223,11 @@ class TestStressPostProcessor2D(Generic[Array], unittest.TestCase):
         sigma_rr = setup["proc"].radial_stress(setup["state"])
         pts = setup["mesh"].points()
         sigma_rr_exact, _ = _lame_stresses(
-            bkd, pts, setup["r_inner"], setup["r_outer"], setup["pressure"],
+            bkd,
+            pts,
+            setup["r_inner"],
+            setup["r_outer"],
+            setup["pressure"],
         )
         bkd.assert_allclose(sigma_rr, sigma_rr_exact, atol=1e-6)
 
@@ -201,9 +258,7 @@ class TestStressPostProcessor2D(Generic[Array], unittest.TestCase):
             state_p[dof] = state_p[dof] + eps
             state_m = bkd.copy(state)
             state_m[dof] = state_m[dof] - eps
-            fd = (proc.hoop_stress(state_p) - proc.hoop_stress(state_m)) / (
-                2.0 * eps
-            )
+            fd = (proc.hoop_stress(state_p) - proc.hoop_stress(state_m)) / (2.0 * eps)
             bkd.assert_allclose(jac[:, dof], fd, rtol=1e-5, atol=1e-8)
 
     def test_strain_energy_density_jacobian_fd(self):
@@ -256,7 +311,8 @@ class TestStressPostProcessor2D(Generic[Array], unittest.TestCase):
         bkd = self._bkd
         setup = _setup_lame_problem(bkd)
         proc_no_curv = StressPostProcessor2D(
-            setup["D_matrices"][0], setup["D_matrices"][1],
+            setup["D_matrices"][0],
+            setup["D_matrices"][1],
             get_lamda=lambda: bkd.asarray([setup["lamda"]] * setup["npts"]),
             get_mu=lambda: bkd.asarray([setup["mu"]] * setup["npts"]),
             bkd=bkd,

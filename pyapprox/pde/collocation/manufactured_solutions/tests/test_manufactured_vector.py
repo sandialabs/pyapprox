@@ -18,15 +18,15 @@ from typing import Generic, Tuple
 
 import sympy as sp
 
-from pyapprox.util.backends.protocols import Array, Backend
-from pyapprox.util.backends.numpy import NumpyBkd
-from pyapprox.util.test_utils import load_tests  # noqa: F401
 from pyapprox.pde.collocation.manufactured_solutions import (
-    ManufacturedShallowWave,
-    ManufacturedTwoSpeciesReactionDiffusion,
     ManufacturedShallowShelfVelocityEquations,
+    ManufacturedShallowWave,
     ManufacturedStokes,
+    ManufacturedTwoSpeciesReactionDiffusion,
 )
+from pyapprox.util.backends.numpy import NumpyBkd
+from pyapprox.util.backends.protocols import Array, Backend
+from pyapprox.util.test_utils import load_tests  # noqa: F401
 
 
 class QuadraticLinearCoupledReaction(Generic[Array]):
@@ -49,16 +49,14 @@ class QuadraticLinearCoupledReaction(Generic[Array]):
         R1 = u1 + u0
         return R0, R1
 
-    def jacobian(
-        self, u0: Array, u1: Array
-    ) -> Tuple[Array, Array, Array, Array]:
+    def jacobian(self, u0: Array, u1: Array) -> Tuple[Array, Array, Array, Array]:
         """Compute Jacobian of reaction."""
         bkd = self._bkd
         npts = u0.shape[0]
-        dR0_du0 = 2 * u0          # d(u0²)/du0
+        dR0_du0 = 2 * u0  # d(u0²)/du0
         dR0_du1 = bkd.full((npts,), -1.0)  # d(-u1)/du1
-        dR1_du0 = bkd.full((npts,), 1.0)   # d(u0)/du0
-        dR1_du1 = bkd.full((npts,), 1.0)   # d(u1)/du1
+        dR1_du0 = bkd.full((npts,), 1.0)  # d(u0)/du0
+        dR1_du1 = bkd.full((npts,), 1.0)  # d(u1)/du1
         return dR0_du0, dR0_du1, dR1_du0, dR1_du1
 
     def sympy_expressions(
@@ -164,7 +162,7 @@ class TestManufacturedShallowWave(Generic[Array], unittest.TestCase):
         # Create test points
         x = bkd.linspace(-0.9, 0.9, 5)
         y = bkd.linspace(-0.9, 0.9, 5)
-        xx, yy = bkd.meshgrid(x, y, indexing='xy')
+        xx, yy = bkd.meshgrid(x, y, indexing="xy")
         nodes = bkd.stack([xx.flatten(), yy.flatten()], axis=0)
 
         sol = man_sol.functions["solution"](nodes)
@@ -272,7 +270,7 @@ class TestManufacturedTwoSpeciesReactionDiffusion(Generic[Array], unittest.TestC
         )
         x = bkd.linspace(-0.9, 0.9, 5)
         y = bkd.linspace(-0.9, 0.9, 5)
-        xx, yy = bkd.meshgrid(x, y, indexing='xy')
+        xx, yy = bkd.meshgrid(x, y, indexing="xy")
         nodes = bkd.stack([xx.flatten(), yy.flatten()], axis=0)
 
         sol = man_sol.functions["solution"](nodes)
@@ -345,7 +343,7 @@ class TestManufacturedShallowShelf(Generic[Array], unittest.TestCase):
         # Create test points (avoid boundary for strain rate singularity)
         x = bkd.linspace(-0.8, 0.8, 5)
         y = bkd.linspace(-0.8, 0.8, 5)
-        xx, yy = bkd.meshgrid(x, y, indexing='xy')
+        xx, yy = bkd.meshgrid(x, y, indexing="xy")
         nodes = bkd.stack([xx.flatten(), yy.flatten()], axis=0)
 
         sol = man_sol.functions["solution"](nodes)
@@ -415,7 +413,7 @@ class TestManufacturedStokes(Generic[Array], unittest.TestCase):
         )
         x = bkd.linspace(-0.9, 0.9, 5)
         y = bkd.linspace(-0.9, 0.9, 5)
-        xx, yy = bkd.meshgrid(x, y, indexing='xy')
+        xx, yy = bkd.meshgrid(x, y, indexing="xy")
         nodes = bkd.stack([xx.flatten(), yy.flatten()], axis=0)
 
         sol = man_sol.functions["solution"](nodes)
@@ -444,7 +442,7 @@ class TestManufacturedStokes(Generic[Array], unittest.TestCase):
         )
         x = bkd.linspace(-0.9, 0.9, 5)
         y = bkd.linspace(-0.9, 0.9, 5)
-        xx, yy = bkd.meshgrid(x, y, indexing='xy')
+        xx, yy = bkd.meshgrid(x, y, indexing="xy")
         nodes = bkd.stack([xx.flatten(), yy.flatten()], axis=0)
 
         # Get pressure forcing (should be zero for divergence-free flow)

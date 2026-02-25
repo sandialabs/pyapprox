@@ -32,23 +32,23 @@ import torch
 from numpy.typing import NDArray
 from unittest_parametrize import ParametrizedTestCase, parametrize
 
-from pyapprox.util.backends.protocols import Array, Backend
-from pyapprox.util.backends.numpy import NumpyBkd
-from pyapprox.util.backends.torch import TorchBkd
-from pyapprox.util.test_utils import load_tests  # noqa: F401
-from pyapprox.pde.collocation.basis import ChebyshevBasis1D
-from pyapprox.pde.collocation.mesh import (
-    create_uniform_mesh_1d,
-    TransformedMesh1D,
-)
-from pyapprox.pde.collocation.boundary import zero_dirichlet_bc
-from pyapprox.pde.collocation.physics import BurgersPhysics1D
-from pyapprox.pde.collocation.manufactured_solutions import (
-    ManufacturedBurgers1D,
-)
 from pyapprox.interface.functions.derivative_checks.derivative_checker import (
     DerivativeChecker,
 )
+from pyapprox.pde.collocation.basis import ChebyshevBasis1D
+from pyapprox.pde.collocation.boundary import zero_dirichlet_bc
+from pyapprox.pde.collocation.manufactured_solutions import (
+    ManufacturedBurgers1D,
+)
+from pyapprox.pde.collocation.mesh import (
+    TransformedMesh1D,
+    create_uniform_mesh_1d,
+)
+from pyapprox.pde.collocation.physics import BurgersPhysics1D
+from pyapprox.util.backends.numpy import NumpyBkd
+from pyapprox.util.backends.protocols import Array, Backend
+from pyapprox.util.backends.torch import TorchBkd
+from pyapprox.util.test_utils import load_tests  # noqa: F401
 
 
 class PhysicsDerivativeWrapper(Generic[Array]):
@@ -80,9 +80,11 @@ class PhysicsDerivativeWrapper(Generic[Array]):
         # samples shape: (nvars, nsamples), return (nqoi, nsamples)
         if samples.ndim == 2:
             return self._backend.stack(
-                [self._physics.residual(samples[:, i], self._time)
-                 for i in range(samples.shape[1])],
-                axis=1
+                [
+                    self._physics.residual(samples[:, i], self._time)
+                    for i in range(samples.shape[1])
+                ],
+                axis=1,
             )
         # Single sample: return (nqoi, 1)
         return self._physics.residual(samples, self._time).reshape(-1, 1)
@@ -125,9 +127,7 @@ class TestManufacturedBurgers1D(Generic[Array], unittest.TestCase):
         u_exact = man_sol.functions["solution"](nodes.reshape(1, -1))
         forcing = man_sol.functions["forcing"](nodes.reshape(1, -1))
 
-        physics = BurgersPhysics1D(
-            basis, bkd, viscosity=nu, forcing=lambda t: forcing
-        )
+        physics = BurgersPhysics1D(basis, bkd, viscosity=nu, forcing=lambda t: forcing)
 
         bcs = [
             zero_dirichlet_bc(bkd, mesh.boundary_indices(0)),
@@ -168,9 +168,7 @@ class TestManufacturedBurgers1D(Generic[Array], unittest.TestCase):
         u_exact = man_sol.functions["solution"](nodes.reshape(1, -1))
         forcing = man_sol.functions["forcing"](nodes.reshape(1, -1))
 
-        physics = BurgersPhysics1D(
-            basis, bkd, viscosity=nu, forcing=lambda t: forcing
-        )
+        physics = BurgersPhysics1D(basis, bkd, viscosity=nu, forcing=lambda t: forcing)
 
         bcs = [
             zero_dirichlet_bc(bkd, mesh.boundary_indices(0)),
@@ -206,9 +204,7 @@ class TestManufacturedBurgers1D(Generic[Array], unittest.TestCase):
         u_exact = man_sol.functions["solution"](nodes.reshape(1, -1))
         forcing = man_sol.functions["forcing"](nodes.reshape(1, -1))
 
-        physics = BurgersPhysics1D(
-            basis, bkd, viscosity=nu, forcing=lambda t: forcing
-        )
+        physics = BurgersPhysics1D(basis, bkd, viscosity=nu, forcing=lambda t: forcing)
 
         bcs = [
             zero_dirichlet_bc(bkd, mesh.boundary_indices(0)),
@@ -251,8 +247,7 @@ class TestManufacturedBurgers1D(Generic[Array], unittest.TestCase):
 
         # Use non-conservative form
         physics = BurgersPhysics1D(
-            basis, bkd, viscosity=nu, forcing=lambda t: forcing,
-            conservative=False
+            basis, bkd, viscosity=nu, forcing=lambda t: forcing, conservative=False
         )
 
         bcs = [

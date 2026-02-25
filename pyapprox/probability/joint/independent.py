@@ -5,17 +5,17 @@ Provides joint distributions where all marginals are independent.
 The joint PDF is the product of marginal PDFs.
 """
 
-from typing import Generic, Sequence, List, Optional, Union
+from typing import Generic, List, Optional, Sequence
 
 import numpy as np
 
-from pyapprox.util.backends.protocols import Array, Backend
-from pyapprox.util.hyperparameter import HyperParameterList
-from pyapprox.probability.protocols import MarginalProtocol
 from pyapprox.interface.functions.plot.plot1d import Plotter1D
 from pyapprox.interface.functions.plot.plot2d_rectangular import (
     Plotter2DRectangularDomain,
 )
+from pyapprox.probability.protocols import MarginalProtocol
+from pyapprox.util.backends.protocols import Array, Backend
+from pyapprox.util.hyperparameter import HyperParameterList
 
 
 class IndependentJoint(Generic[Array]):
@@ -421,9 +421,7 @@ class IndependentJoint(Generic[Array]):
                 # Fallback: use sampling
                 samples = marginal.rvs(10000)
                 mean = float(self._bkd.sum(samples) / 10000)
-                variances.append(
-                    float(self._bkd.sum((samples - mean) ** 2) / 10000)
-                )
+                variances.append(float(self._bkd.sum((samples - mean) ** 2) / 10000))
         return self._bkd.asarray(variances)
 
     def covariance(self) -> Array:
@@ -584,9 +582,7 @@ class IndependentJoint(Generic[Array]):
 
             return ReducedFunction(1, 1, fn, bkd)
 
-        def _make_2d_fn(
-            row_idx: int, col_idx: int
-        ) -> ReducedFunction[Array]:
+        def _make_2d_fn(row_idx: int, col_idx: int) -> ReducedFunction[Array]:
             marg_row = self._marginals[row_idx]
             marg_col = self._marginals[col_idx]
 
@@ -597,9 +593,7 @@ class IndependentJoint(Generic[Array]):
 
         functions_1d = [_make_1d_fn(i) for i in range(self._nvars)]
         functions_2d = {
-            (i, j): _make_2d_fn(i, j)
-            for i in range(self._nvars)
-            for j in range(i)
+            (i, j): _make_2d_fn(i, j) for i in range(self._nvars) for j in range(i)
         }
         return PairPlotter.from_functions(
             functions_1d, functions_2d, plot_limits, bkd, variable_names
@@ -763,7 +757,7 @@ class IndependentJoint(Generic[Array]):
             where total_nparams = sum of nparams across all marginals.
         """
         self._validate_input(samples)
-        nsamples = samples.shape[1]
+        samples.shape[1]
 
         jac_list = []
         for i, marginal in enumerate(self._marginals):
@@ -780,4 +774,9 @@ class IndependentJoint(Generic[Array]):
         return f"IndependentJoint(nvars={self._nvars})"
 
 
-# TODO: does use of float destroy autograd for torch. If so remove its use from all modules. Write tests just for TorchBkd that check autograd compute the jacobian of the logpdf correctly with respect to the distribution shape parameters, e.g Gaussian covariance, BetaMarginal a, and B. Do for all classes in typing.probability that have a logpdf, except  ScipyMarginals which will not be differentiable with autograd because the wrap scipy.
+# TODO: does use of float destroy autograd for torch. If so remove its use from all
+# modules. Write tests just for TorchBkd that check autograd compute the jacobian of the
+# logpdf correctly with respect to the distribution shape parameters, e.g Gaussian
+# covariance, BetaMarginal a, and B. Do for all classes in typing.probability that have
+# a logpdf, except ScipyMarginals which will not be differentiable with autograd because
+# the wrap scipy.

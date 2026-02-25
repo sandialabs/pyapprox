@@ -15,21 +15,21 @@ Linear form (residual/load):
     f*v - ν*grad(u_prev)·grad(v) - v*u_prev*du_prev/dx
 """
 
-from typing import Generic, Optional, Callable, List, Union
+from typing import Callable, Generic, List, Optional, Union
 
 import numpy as np
 from scipy.sparse import csr_matrix
 
-from pyapprox.util.backends.protocols import Array, Backend
+from pyapprox.pde.galerkin.physics.galerkin_base import GalerkinPhysicsBase
+from pyapprox.pde.galerkin.physics.helpers import ScalarMassAssembler
 from pyapprox.pde.galerkin.protocols.basis import GalerkinBasisProtocol
 from pyapprox.pde.galerkin.protocols.boundary import (
     BoundaryConditionProtocol,
 )
-from pyapprox.pde.galerkin.physics.galerkin_base import GalerkinPhysicsBase
-from pyapprox.pde.galerkin.physics.helpers import ScalarMassAssembler
+from pyapprox.util.backends.protocols import Array, Backend
 
 try:
-    from skfem import asm, LinearForm, BilinearForm
+    from skfem import BilinearForm, LinearForm, asm
     from skfem.helpers import dot, grad
 except ImportError:
     raise ImportError(
@@ -72,9 +72,7 @@ class BurgersPhysics(GalerkinPhysicsBase[Array], Generic[Array]):
         viscosity: Union[float, Callable],
         bkd: Backend[Array],
         forcing: Optional[Callable] = None,
-        boundary_conditions: Optional[
-            List[BoundaryConditionProtocol[Array]]
-        ] = None,
+        boundary_conditions: Optional[List[BoundaryConditionProtocol[Array]]] = None,
     ):
         super().__init__(basis, bkd, boundary_conditions)
         self._mass = ScalarMassAssembler(basis, bkd)
@@ -92,9 +90,7 @@ class BurgersPhysics(GalerkinPhysicsBase[Array], Generic[Array]):
         else:
             return np.full(coords.shape[-1], self._viscosity)
 
-    def _get_forcing(
-        self, coords: np.ndarray, time: float = 0.0
-    ) -> np.ndarray:
+    def _get_forcing(self, coords: np.ndarray, time: float = 0.0) -> np.ndarray:
         """Get forcing values at given coordinates."""
         if self._forcing is None:
             return np.zeros(coords.shape[-1])
@@ -123,9 +119,7 @@ class BurgersPhysics(GalerkinPhysicsBase[Array], Generic[Array]):
         state_np = self._bkd.to_numpy(state)
         state_interp = skfem_basis.interpolate(state_np)
 
-        visc_const = (
-            self._viscosity if not callable(self._viscosity) else None
-        )
+        visc_const = self._viscosity if not callable(self._viscosity) else None
 
         def bilinear_form(u, v, w):
             if visc_const is not None:
@@ -138,9 +132,7 @@ class BurgersPhysics(GalerkinPhysicsBase[Array], Generic[Array]):
                 + v * u * w.u_prev.grad[0]
             )
 
-        return asm(
-            BilinearForm(bilinear_form), skfem_basis, u_prev=state_interp
-        )
+        return asm(BilinearForm(bilinear_form), skfem_basis, u_prev=state_interp)
 
     def _assemble_load(self, state: Array, time: float) -> Array:
         """Assemble Newton-linearized load vector.
@@ -154,10 +146,7 @@ class BurgersPhysics(GalerkinPhysicsBase[Array], Generic[Array]):
         state_np = self._bkd.to_numpy(state)
         state_interp = skfem_basis.interpolate(state_np)
 
-        visc_const = (
-            self._viscosity if not callable(self._viscosity) else None
-        )
-        forcing_func = self._forcing
+        visc_const = self._viscosity if not callable(self._viscosity) else None
         current_time = time
 
         def linear_form(v, w):
@@ -182,9 +171,7 @@ class BurgersPhysics(GalerkinPhysicsBase[Array], Generic[Array]):
                 - v * w.u_prev * w.u_prev.grad[0]
             )
 
-        load_np = asm(
-            LinearForm(linear_form), skfem_basis, u_prev=state_interp
-        )
+        load_np = asm(LinearForm(linear_form), skfem_basis, u_prev=state_interp)
         return self._bkd.asarray(load_np.astype(np.float64))
 
     def spatial_residual(self, state: Array, time: float) -> Array:
@@ -244,8 +231,4 @@ class BurgersPhysics(GalerkinPhysicsBase[Array], Generic[Array]):
         return self._basis.interpolate(func)
 
     def __repr__(self) -> str:
-        return (
-            f"BurgersPhysics("
-            f"nstates={self.nstates()}, "
-            f"viscosity={self._viscosity})"
-        )
+        return f"BurgersPhysics(nstates={self.nstates()}, viscosity={self._viscosity})"

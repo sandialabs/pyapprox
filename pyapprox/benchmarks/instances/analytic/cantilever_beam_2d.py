@@ -7,16 +7,16 @@ and Uniform marginals for cross-section dimensions (w, t).
 Matches the legacy CantileverBeamModel variable distributions.
 """
 
-from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.benchmarks.benchmark import BenchmarkWithPrior, BoxDomain
-from pyapprox.benchmarks.ground_truth import SensitivityGroundTruth
-from pyapprox.benchmarks.registry import BenchmarkRegistry
 from pyapprox.benchmarks.functions.algebraic.cantilever_beam_2d import (
     CantileverBeam2DAnalytical,
 )
+from pyapprox.benchmarks.ground_truth import SensitivityGroundTruth
+from pyapprox.benchmarks.registry import BenchmarkRegistry
+from pyapprox.probability.joint.independent import IndependentJoint
 from pyapprox.probability.univariate.gaussian import GaussianMarginal
 from pyapprox.probability.univariate.uniform import UniformMarginal
-from pyapprox.probability.joint.independent import IndependentJoint
+from pyapprox.util.backends.protocols import Array, Backend
 
 
 def cantilever_beam_2d_analytical(
@@ -45,25 +45,27 @@ def cantilever_beam_2d_analytical(
     # Same distributions as the legacy CantileverBeamModel
     prior = IndependentJoint(
         [
-            GaussianMarginal(500.0, 100.0, bkd),       # X: horizontal load
-            GaussianMarginal(1000.0, 100.0, bkd),      # Y: vertical load
-            GaussianMarginal(2.9e7, 1.45e6, bkd),      # E: Young's modulus
-            GaussianMarginal(40000.0, 2000.0, bkd),     # R: yield stress
-            UniformMarginal(1.0, 4.0, bkd),             # w: width
-            UniformMarginal(1.0, 4.0, bkd),             # t: depth
+            GaussianMarginal(500.0, 100.0, bkd),  # X: horizontal load
+            GaussianMarginal(1000.0, 100.0, bkd),  # Y: vertical load
+            GaussianMarginal(2.9e7, 1.45e6, bkd),  # E: Young's modulus
+            GaussianMarginal(40000.0, 2000.0, bkd),  # R: yield stress
+            UniformMarginal(1.0, 4.0, bkd),  # w: width
+            UniformMarginal(1.0, 4.0, bkd),  # t: depth
         ],
         bkd,
     )
 
     # Bounds: 4-sigma for Gaussians, exact for Uniforms
-    bounds = bkd.array([
-        [100.0, 900.0],           # X
-        [600.0, 1400.0],          # Y
-        [2.32e7, 3.48e7],         # E
-        [32000.0, 48000.0],       # R
-        [1.0, 4.0],              # w
-        [1.0, 4.0],              # t
-    ])
+    bounds = bkd.array(
+        [
+            [100.0, 900.0],  # X
+            [600.0, 1400.0],  # Y
+            [2.32e7, 3.48e7],  # E
+            [32000.0, 48000.0],  # R
+            [1.0, 4.0],  # w
+            [1.0, 4.0],  # t
+        ]
+    )
     domain = BoxDomain(_bounds=bounds, _bkd=bkd)
 
     return BenchmarkWithPrior(
@@ -83,8 +85,7 @@ def cantilever_beam_2d_analytical(
     "cantilever_beam_2d_analytical",
     category="analytic",
     description=(
-        "Analytical 2D cantilever beam with closed-form max stress "
-        "and tip displacement"
+        "Analytical 2D cantilever beam with closed-form max stress and tip displacement"
     ),
 )
 def _cantilever_beam_2d_analytical_factory(

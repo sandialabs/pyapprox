@@ -1,12 +1,12 @@
-from typing import Union, Tuple, List, Optional
+from typing import List, Optional
 
 from pyapprox.util.backends.protocols import (
     Array,
-    Backend,
     ArrayProtocol,
+    Backend,
 )
-from pyapprox.util.hyperparameter.hyperparameter import HyperParameter
 from pyapprox.util.backends.validation import validate_backends
+from pyapprox.util.hyperparameter.hyperparameter import HyperParameter
 
 
 class HyperParameterList:
@@ -25,7 +25,7 @@ class HyperParameterList:
     def __init__(
         self,
         hyperparam_list: List[HyperParameter],
-        bkd: Optional[Backend[Array]] = None
+        bkd: Optional[Backend[Array]] = None,
     ):
         """Initialize the HyperParameterList."""
         self._validate_hyperparameters(hyperparam_list, bkd)
@@ -35,9 +35,7 @@ class HyperParameterList:
         elif bkd is not None:
             self._bkd = bkd
         else:
-            raise ValueError(
-                "Backend must be provided for empty hyperparameter list"
-            )
+            raise ValueError("Backend must be provided for empty hyperparameter list")
 
     def bkd(self) -> Backend[Array]:
         """
@@ -51,9 +49,7 @@ class HyperParameterList:
         return self._bkd
 
     def _validate_hyperparameters(
-        self,
-        hyperparam_list: List[HyperParameter],
-        bkd: Optional[Backend[Array]]
+        self, hyperparam_list: List[HyperParameter], bkd: Optional[Backend[Array]]
     ) -> None:
         """
         Validate the list of hyperparameters.
@@ -61,9 +57,7 @@ class HyperParameterList:
         Ensures that all hyperparameters use the same backend and are valid.
         """
         if not hyperparam_list and bkd is None:
-            raise ValueError(
-                "Backend must be provided for empty hyperparameter list"
-            )
+            raise ValueError("Backend must be provided for empty hyperparameter list")
 
         # Ensure all hyperparameters use the same backend (skip if empty)
         if hyperparam_list:
@@ -92,8 +86,7 @@ class HyperParameterList:
         cnt = 0
         for hyp in self._hyperparam_list:
             hyp_indices = self._bkd.nonzero(
-                (active_indices >= cnt)
-                & (active_indices < cnt + hyp.nparams())
+                (active_indices >= cnt) & (active_indices < cnt + hyp.nparams())
             )[0]
             hyp.set_active_indices(active_indices[hyp_indices] - cnt)
             cnt += hyp.nparams()
@@ -171,9 +164,7 @@ class HyperParameterList:
         if not self._hyperparam_list:
             return self._bkd.array([])
 
-        return self._bkd.hstack(
-            [hyp.get_values() for hyp in self._hyperparam_list]
-        )
+        return self._bkd.hstack([hyp.get_values() for hyp in self._hyperparam_list])
 
     def set_values(self, values: Array) -> None:
         """
@@ -201,9 +192,7 @@ class HyperParameterList:
         if not self._hyperparam_list:
             return self._bkd.array([]).reshape((0, 2))
 
-        return self._bkd.vstack(
-            [hyp.get_bounds() for hyp in self._hyperparam_list]
-        )
+        return self._bkd.vstack([hyp.get_bounds() for hyp in self._hyperparam_list])
 
     def get_active_values(self) -> ArrayProtocol:
         """
@@ -317,9 +306,7 @@ class HyperParameterList:
         """
         cnt = 0
         for hyp in self._hyperparam_list:
-            hyp.set_active_values(
-                active_params[cnt : cnt + hyp.nactive_params()]
-            )
+            hyp.set_active_values(active_params[cnt : cnt + hyp.nactive_params()])
             cnt += hyp.nactive_params()
 
     def __add__(self, hyp_list: "HyperParameterList") -> "HyperParameterList":
@@ -336,9 +323,7 @@ class HyperParameterList:
         result : HyperParameterList
             Combined HyperParameterList.
         """
-        return self.__class__(
-            self._hyperparam_list + hyp_list.hyperparameters()
-        )
+        return self.__class__(self._hyperparam_list + hyp_list.hyperparameters())
 
     def __radd__(self, hyp_list: "HyperParameterList") -> "HyperParameterList":
         """
@@ -354,9 +339,7 @@ class HyperParameterList:
         result : HyperParameterList
             Combined HyperParameterList.
         """
-        return self.__class__(
-            hyp_list.hyperparameters() + self._hyperparam_list
-        )
+        return self.__class__(hyp_list.hyperparameters() + self._hyperparam_list)
 
     def __str__(self) -> str:
         """

@@ -34,8 +34,10 @@ from pyapprox.surrogates.kernels.matern import (
 from pyapprox.util.backends.numpy import NumpyBkd
 from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.util.backends.torch import TorchBkd
-from pyapprox.util.test_utils import load_tests  # noqa: F401
-from pyapprox.util.test_utils import slow_test
+from pyapprox.util.test_utils import (
+    load_tests,  # noqa: F401
+    slow_test,
+)
 
 
 def _sin_function(samples: Any, bkd: Backend[Any]) -> Any:
@@ -48,7 +50,7 @@ def _quadratic_function(samples: Any, bkd: Backend[Any]) -> Any:
 
     Input shape: (nvars, nsamples), output shape: (1, nsamples).
     """
-    return bkd.reshape(bkd.sum(samples ** 2, 0), (1, -1))
+    return bkd.reshape(bkd.sum(samples**2, 0), (1, -1))
 
 
 class TestAdaptiveGPBuilder(Generic[Array], unittest.TestCase):
@@ -64,9 +66,7 @@ class TestAdaptiveGPBuilder(Generic[Array], unittest.TestCase):
         np.random.seed(42)
 
     def _make_kernel(self) -> SquaredExponentialKernel:
-        return SquaredExponentialKernel(
-            [0.5], (0.01, 10.0), 1, self._bkd
-        )
+        return SquaredExponentialKernel([0.5], (0.01, 10.0), 1, self._bkd)
 
     def _make_sobol_builder(self) -> AdaptiveGPBuilder[Array]:
         bkd = self._bkd
@@ -91,18 +91,14 @@ class TestAdaptiveGPBuilder(Generic[Array], unittest.TestCase):
         bkd = self._bkd
         builder = self._make_sobol_builder()
         schedule = ConstantSamplingSchedule(5, 15)
-        gp = builder.run(
-            lambda s: _sin_function(s, bkd), schedule
-        )
+        gp = builder.run(lambda s: _sin_function(s, bkd), schedule)
         self.assertIsInstance(gp, ExactGaussianProcess)
 
     def test_step_returns_samples_and_gp(self) -> None:
         """step() returns (samples, gp) tuple."""
         bkd = self._bkd
         builder = self._make_sobol_builder()
-        samples, gp = builder.step(
-            lambda s: _sin_function(s, bkd), 5
-        )
+        samples, gp = builder.step(lambda s: _sin_function(s, bkd), 5)
         self.assertEqual(samples.shape, (1, 5))
         self.assertIsInstance(gp, ExactGaussianProcess)
 
@@ -115,7 +111,10 @@ class TestAdaptiveGPBuilder(Generic[Array], unittest.TestCase):
         """
         bkd = self._bkd
         builder = self._make_sobol_builder()
-        fun = lambda s: _sin_function(s, bkd)
+
+        def fun(s):
+            return _sin_function(s, bkd)
+
         _, gp1 = builder.step(fun, 5)
         _, gp2 = builder.step(fun, 5)
         self.assertIsNot(gp1, gp2)
@@ -128,7 +127,9 @@ class TestAdaptiveGPBuilder(Generic[Array], unittest.TestCase):
         """
         bkd = self._bkd
         builder = self._make_sobol_builder()
-        fun = lambda s: _sin_function(s, bkd)
+
+        def fun(s):
+            return _sin_function(s, bkd)
 
         test_X = bkd.asarray(np.linspace(0.0, 1.0, 50).reshape(1, -1))
         test_y = _sin_function(test_X, bkd)
@@ -160,7 +161,9 @@ class TestAdaptiveGPBuilder(Generic[Array], unittest.TestCase):
         """Manual step_samples/step_values loop works."""
         bkd = self._bkd
         builder = self._make_sobol_builder()
-        fun = lambda s: _sin_function(s, bkd)
+
+        def fun(s):
+            return _sin_function(s, bkd)
 
         samples = builder.step_samples(5)
         self.assertEqual(samples.shape, (1, 5))
@@ -192,7 +195,10 @@ class TestAdaptiveGPBuilder(Generic[Array], unittest.TestCase):
         """1 sample per step works."""
         bkd = self._bkd
         builder = self._make_sobol_builder()
-        fun = lambda s: _sin_function(s, bkd)
+
+        def fun(s):
+            return _sin_function(s, bkd)
+
         _, gp = builder.step(fun, 1)
         self.assertIsInstance(gp, ExactGaussianProcess)
 
@@ -212,7 +218,9 @@ class TestAdaptiveGPBuilder(Generic[Array], unittest.TestCase):
         sampler = CholeskySampler(candidates, bkd)
         sampler.set_kernel(kernel)
         builder = AdaptiveGPBuilder(kernel, sampler, bkd, noise_variance=1e-6)
-        fun = lambda s: _quadratic_function(s, bkd)
+
+        def fun(s):
+            return _quadratic_function(s, bkd)
 
         # Initial kernel params (before any fitting)
         initial_params = bkd.to_numpy(kernel.hyp_list().get_values()).copy()
@@ -224,12 +232,12 @@ class TestAdaptiveGPBuilder(Generic[Array], unittest.TestCase):
         # Verify HP optimization changed kernel from initial
         self.assertFalse(
             np.allclose(initial_params, kernel_params_1),
-            "Kernel params should change after first step"
+            "Kernel params should change after first step",
         )
 
         # Step 2: HP optimization may change kernel again
         _, gp2 = builder.step(fun, 5)
-        kernel_params_2 = bkd.to_numpy(gp2.hyp_list().get_values()).copy()
+        bkd.to_numpy(gp2.hyp_list().get_values()).copy()
 
         # The kernel should have been updated on the sampler
         # (even if params happen to be similar, the GP was re-created)
@@ -252,7 +260,9 @@ class TestAdaptiveGPBuilder(Generic[Array], unittest.TestCase):
         sampler.set_kernel(kernel)
         builder = AdaptiveGPBuilder(kernel, sampler, bkd)
 
-        fun = lambda s: _sin_function(s, bkd)
+        def fun(s):
+            return _sin_function(s, bkd)
+
         builder.step(fun, 5)
         with self.assertRaises(ValueError):
             builder.step(fun, 1)
@@ -291,9 +301,7 @@ class TestAdaptiveGPBuilder(Generic[Array], unittest.TestCase):
         # Match legacy: lengthscale bounds [0.1, 1.0], not [0.01, 10.0]
         # This prevents the lengthscale from growing too large after
         # HP optimization, which would make the kernel matrix low-rank
-        kernel = SquaredExponentialKernel(
-            [1.0], (0.1, 1.0), 1, bkd
-        )
+        kernel = SquaredExponentialKernel([1.0], (0.1, 1.0), 1, bkd)
         # Match legacy: domain [-1, 1] and 2000 candidates
         # Legacy uses half Halton, half random - we use all random for simplicity
         candidates = bkd.asarray(2.0 * np.random.rand(1, 2000) - 1.0)
@@ -302,7 +310,10 @@ class TestAdaptiveGPBuilder(Generic[Array], unittest.TestCase):
         builder = AdaptiveGPBuilder(kernel, sampler, bkd, noise_variance=1e-6)
 
         schedule = ListSamplingSchedule([8, 3])
-        fun = lambda s: _quadratic_function(s, bkd)
+
+        def fun(s):
+            return _quadratic_function(s, bkd)
+
         gp = builder.run(fun, schedule)
 
         # Verify correct number of training samples (8 + 3 = 11)
@@ -334,7 +345,8 @@ class TestAdaptiveGPBuilder(Generic[Array], unittest.TestCase):
         sampler.set_kernel(kernel)
         builder = AdaptiveGPBuilder(kernel, sampler, bkd, noise_variance=1e-6)
 
-        fun = lambda s: _sin_function(s, bkd)
+        def fun(s):
+            return _sin_function(s, bkd)
 
         # Step through manually like legacy build()
         for nsamples in [5, 3, 2]:
@@ -366,13 +378,17 @@ class TestAdaptiveGPBuilder(Generic[Array], unittest.TestCase):
         # Sobol sampler operates in [0, 1] scaled space
         sampler = SobolAdaptiveSampler(1, bkd)
         builder = AdaptiveGPBuilder(
-            kernel, sampler, bkd,
+            kernel,
+            sampler,
+            bkd,
             input_transform=input_transform,
             noise_variance=1e-6,
         )
 
         # Function defined in user space [2, 5]
-        fun = lambda s: _sin_function(s, bkd)
+        def fun(s):
+            return _sin_function(s, bkd)
+
         _, gp = builder.step(fun, 10)
 
         # GP should have input transform
@@ -403,13 +419,17 @@ class TestAdaptiveGPBuilder(Generic[Array], unittest.TestCase):
         kernel = self._make_kernel()
         sampler = SobolAdaptiveSampler(1, bkd)
         builder = AdaptiveGPBuilder(
-            kernel, sampler, bkd,
+            kernel,
+            sampler,
+            bkd,
             input_transform=input_transform,
             noise_variance=1e-6,
         )
 
         # sin function in user space
-        fun = lambda s: _sin_function(s, bkd)
+        def fun(s):
+            return _sin_function(s, bkd)
+
         schedule = ConstantSamplingSchedule(10, 20)
         gp = builder.run(fun, schedule)
 
@@ -432,11 +452,11 @@ class TestAdaptiveGPBuilder(Generic[Array], unittest.TestCase):
         the returned GP and produces mean values consistent with Monte Carlo.
         """
         bkd = self._bkd
-        from pyapprox.surrogates.gaussianprocess.statistics import (
-            SeparableKernelIntegralCalculator,
-            GaussianProcessStatistics,
-        )
         from pyapprox.probability.univariate.uniform import UniformMarginal
+        from pyapprox.surrogates.gaussianprocess.statistics import (
+            GaussianProcessStatistics,
+            SeparableKernelIntegralCalculator,
+        )
         from pyapprox.surrogates.sparsegrids.basis_factory import (
             create_basis_factories,
         )
@@ -446,7 +466,9 @@ class TestAdaptiveGPBuilder(Generic[Array], unittest.TestCase):
         sampler = SobolAdaptiveSampler(1, bkd)
         builder = AdaptiveGPBuilder(kernel, sampler, bkd, noise_variance=1e-6)
 
-        fun = lambda s: _sin_function(s, bkd)
+        def fun(s):
+            return _sin_function(s, bkd)
+
         schedule = ConstantSamplingSchedule(10, 30)
         gp = builder.run(fun, schedule)
 
@@ -459,9 +481,7 @@ class TestAdaptiveGPBuilder(Generic[Array], unittest.TestCase):
         calc: SeparableKernelIntegralCalculator[Any] = (
             SeparableKernelIntegralCalculator(gp, bases, marginals, bkd=bkd)
         )
-        stats: GaussianProcessStatistics[Any] = GaussianProcessStatistics(
-            gp, calc
-        )
+        stats: GaussianProcessStatistics[Any] = GaussianProcessStatistics(gp, calc)
 
         # Compute mean via statistics
         gp_mean = stats.mean_of_mean()
@@ -494,7 +514,9 @@ class TestAdaptiveGPBuilder(Generic[Array], unittest.TestCase):
         sampler = SobolAdaptiveSampler(1, bkd)
         builder = AdaptiveGPBuilder(kernel, sampler, bkd, noise_variance=1e-6)
 
-        fun = lambda s: _quadratic_function(s, bkd)
+        def fun(s):
+            return _quadratic_function(s, bkd)
+
         schedule = ConstantSamplingSchedule(10, 20)
         gp = builder.run(fun, schedule)
 

@@ -1,29 +1,29 @@
 """Tests for VariationalGP fitters."""
 
 import unittest
-from typing import Generic, Any
+from typing import Any, Generic
 
 import numpy as np
 import torch
 from numpy.typing import NDArray
 from scipy.stats import qmc
 
-from pyapprox.util.backends.protocols import Array, Backend
-from pyapprox.util.backends.numpy import NumpyBkd
-from pyapprox.util.backends.torch import TorchBkd
-from pyapprox.surrogates.kernels.matern import Matern52Kernel
-from pyapprox.surrogates.gaussianprocess.variational import (
-    VariationalGaussianProcess,
+from pyapprox.surrogates.gaussianprocess.fitters import (
+    GPFitResult,
+    GPOptimizedFitResult,
+    VariationalGPFixedHyperparameterFitter,
+    VariationalGPMaximumLikelihoodFitter,
 )
 from pyapprox.surrogates.gaussianprocess.inducing_samples import (
     InducingSamples,
 )
-from pyapprox.surrogates.gaussianprocess.fitters import (
-    VariationalGPFixedHyperparameterFitter,
-    VariationalGPMaximumLikelihoodFitter,
-    GPFitResult,
-    GPOptimizedFitResult,
+from pyapprox.surrogates.gaussianprocess.variational import (
+    VariationalGaussianProcess,
 )
+from pyapprox.surrogates.kernels.matern import Matern52Kernel
+from pyapprox.util.backends.numpy import NumpyBkd
+from pyapprox.util.backends.protocols import Array, Backend
+from pyapprox.util.backends.torch import TorchBkd
 from pyapprox.util.test_utils import load_tests  # noqa: F401
 
 
@@ -109,9 +109,7 @@ class TestVariationalGPFitters(Generic[Array], unittest.TestCase):
 
         mean = fitted.predict(self.X_test)
         self.assertEqual(mean.shape, (1, 5))
-        self.assertTrue(
-            self._bkd.all_bool(self._bkd.isfinite(mean))
-        )
+        self.assertTrue(self._bkd.all_bool(self._bkd.isfinite(mean)))
 
     def test_fixed_original_not_modified(self) -> None:
         """Original GP must NOT be modified."""
@@ -150,9 +148,7 @@ class TestVariationalGPFitters(Generic[Array], unittest.TestCase):
     def test_ml_original_not_modified(self) -> None:
         """Original GP must NOT be modified by ML fitter."""
         gp = self._make_gp(kernel_fixed=False)
-        hyps_before = self._bkd.to_numpy(
-            gp.hyp_list().get_values()
-        ).copy()
+        hyps_before = self._bkd.to_numpy(gp.hyp_list().get_values()).copy()
 
         fitter = VariationalGPMaximumLikelihoodFitter(self._bkd)
         fitter.fit(gp, self.X_train, self.y_train)
@@ -180,16 +176,12 @@ class TestVariationalGPFitters(Generic[Array], unittest.TestCase):
         self.assertFalse(np.allclose(initial, optimized, atol=1e-10))
 
 
-class TestVariationalGPFittersNumpy(
-    TestVariationalGPFitters[NDArray[Any]]
-):
+class TestVariationalGPFittersNumpy(TestVariationalGPFitters[NDArray[Any]]):
     def bkd(self) -> NumpyBkd:
         return NumpyBkd()
 
 
-class TestVariationalGPFittersTorch(
-    TestVariationalGPFitters[torch.Tensor]
-):
+class TestVariationalGPFittersTorch(TestVariationalGPFitters[torch.Tensor]):
     def bkd(self) -> TorchBkd:
         torch.set_default_dtype(torch.float64)
         return TorchBkd()

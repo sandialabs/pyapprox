@@ -1,20 +1,19 @@
 from typing import (
-    Protocol,
-    runtime_checkable,
-    Union,
     Any,
-    TypeVar,
     Generic,
+    List,
     Optional,
+    Protocol,
     Sequence,
     Tuple,
-    List,
+    TypeVar,
+    Union,
     overload,
+    runtime_checkable,
 )
 
 # from typing_extensions import SupportsIndex
 from numpy.typing import NDArray
-
 
 # Define generic types for arrays
 Array = TypeVar("Array", bound="ArrayProtocol")
@@ -54,21 +53,13 @@ class ArrayProtocol(Protocol):
 
     def __rpow__(self: Array, other: Union[float, Array]) -> Array: ...
 
-    def __gt__(
-        self: Array, other: Union[float, Array]
-    ) -> Union[bool, Array]: ...
+    def __gt__(self: Array, other: Union[float, Array]) -> Union[bool, Array]: ...
 
-    def __lt__(
-        self: Array, other: Union[float, Array]
-    ) -> Union[bool, Array]: ...
+    def __lt__(self: Array, other: Union[float, Array]) -> Union[bool, Array]: ...
 
-    def __ge__(
-        self: Array, other: Union[float, Array]
-    ) -> Union[bool, Array]: ...
+    def __ge__(self: Array, other: Union[float, Array]) -> Union[bool, Array]: ...
 
-    def __le__(
-        self: Array, other: Union[float, Array]
-    ) -> Union[bool, Array]: ...
+    def __le__(self: Array, other: Union[float, Array]) -> Union[bool, Array]: ...
 
     def __matmul__(self: Array, other: Array) -> Array: ...
 
@@ -214,9 +205,7 @@ class Backend(Protocol, Generic[Array]):
         ...
 
     @staticmethod
-    def meshgrid(
-        *arrays: Array, indexing: str = "xy"
-    ) -> Tuple[Array, ...]:
+    def meshgrid(*arrays: Array, indexing: str = "xy") -> Tuple[Array, ...]:
         """Create coordinate grids from 1D arrays.
 
         Parameters
@@ -291,17 +280,13 @@ class Backend(Protocol, Generic[Array]):
     ) -> Array: ...
 
     @staticmethod
-    def zeros(
-        shape: Tuple[int, ...], dtype: Optional[Any] = None
-    ) -> Array: ...
+    def zeros(shape: Tuple[int, ...], dtype: Optional[Any] = None) -> Array: ...
 
     @staticmethod
     def ones(shape: Tuple[int, ...], dtype: Optional[Any] = None) -> Array: ...
 
     @staticmethod
-    def empty(
-        shape: Tuple[int, ...], dtype: Optional[Any] = None
-    ) -> Array: ...
+    def empty(shape: Tuple[int, ...], dtype: Optional[Any] = None) -> Array: ...
 
     # @staticmethod
     # def arange(
@@ -651,9 +636,7 @@ class Backend(Protocol, Generic[Array]):
         ...
 
     @staticmethod
-    def svd(
-        array: Array, full_matrices: bool = True
-    ) -> Tuple[Array, Array, Array]:
+    def svd(array: Array, full_matrices: bool = True) -> Tuple[Array, Array, Array]:
         """Compute singular value decomposition: U, S, Vh = svd(A)."""
         ...
 

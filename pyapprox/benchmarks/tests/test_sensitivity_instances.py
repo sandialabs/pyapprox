@@ -7,14 +7,12 @@ from typing import Any, Generic
 import torch
 from numpy.typing import NDArray
 
-from pyapprox.util.backends.numpy import NumpyBkd
-from pyapprox.util.backends.torch import TorchBkd
-from pyapprox.util.backends.protocols import Array, Backend
-from pyapprox.util.test_utils import load_tests
-
+from pyapprox.benchmarks.instances.sensitivity import ishigami_3d
 from pyapprox.benchmarks.protocols import BenchmarkWithPriorProtocol
 from pyapprox.benchmarks.registry import BenchmarkRegistry
-from pyapprox.benchmarks.instances.sensitivity import ishigami_3d
+from pyapprox.util.backends.numpy import NumpyBkd
+from pyapprox.util.backends.protocols import Array, Backend
+from pyapprox.util.backends.torch import TorchBkd
 
 
 class TestIshigami3DBenchmark(Generic[Array], unittest.TestCase):
@@ -140,12 +138,8 @@ class TestIshigami3DBenchmark(Generic[Array], unittest.TestCase):
 
         # Check all samples are within bounds
         for i in range(3):
-            self.assertTrue(
-                self._bkd.all_bool(samples[i, :] >= bounds[i, 0])
-            )
-            self.assertTrue(
-                self._bkd.all_bool(samples[i, :] <= bounds[i, 1])
-            )
+            self.assertTrue(self._bkd.all_bool(samples[i, :] >= bounds[i, 0]))
+            self.assertTrue(self._bkd.all_bool(samples[i, :] <= bounds[i, 1]))
 
     def test_function_evaluation_at_prior_samples(self) -> None:
         """Test function can be evaluated at prior samples."""
@@ -189,10 +183,7 @@ class TestBenchmarkRegistrySensitivity(unittest.TestCase):
         """Test ishigami_3d is in analytic category."""
         from pyapprox.benchmarks.instances import analytic  # noqa: F401
 
-        self.assertIn(
-            "ishigami_3d",
-            BenchmarkRegistry.list_category("analytic")
-        )
+        self.assertIn("ishigami_3d", BenchmarkRegistry.list_category("analytic"))
 
 
 if __name__ == "__main__":

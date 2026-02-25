@@ -10,31 +10,28 @@ This package defines the core interfaces (protocols) for:
 All protocols are @runtime_checkable for duck typing support.
 """
 
+from .covariance import (
+    CovarianceOperatorProtocol,
+    DiagonalCovarianceOperatorProtocol,
+    SqrtCovarianceOperatorProtocol,
+)
 from .distribution import (
     DistributionProtocol,
+    JointDistributionProtocol,
     MarginalProtocol,
     MarginalWithJacobianProtocol,
     MarginalWithParamJacobianProtocol,
-    JointDistributionProtocol,
     UniformQuadratureRule01Protocol,
 )
-
-from .covariance import (
-    SqrtCovarianceOperatorProtocol,
-    CovarianceOperatorProtocol,
-    DiagonalCovarianceOperatorProtocol,
-)
-
-from .transform import (
-    TransformProtocol,
-    InvertibleTransformProtocol,
-    TransformWithJacobianProtocol,
-)
-
 from .likelihood import (
-    LogLikelihoodProtocol,
     GaussianLogLikelihoodProtocol,
+    LogLikelihoodProtocol,
     VectorizedLogLikelihoodProtocol,
+)
+from .transform import (
+    InvertibleTransformProtocol,
+    TransformProtocol,
+    TransformWithJacobianProtocol,
 )
 
 __all__ = [

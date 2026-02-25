@@ -29,20 +29,20 @@ have identical values there. This gives artificially zero variation in the
 computed statistics.
 """
 
-from typing import Generic, Optional, Tuple, Dict
+from typing import Dict, Generic, Optional, Tuple
 
 import numpy as np
 
-from pyapprox.util.backends.protocols import Array, Backend
+from pyapprox.expdesign.protocols.quadrature import (
+    QuadratureSamplerProtocol,
+)
 from pyapprox.surrogates.gaussianprocess.protocols import (
     PredictiveGPProtocol,
 )
 from pyapprox.surrogates.gaussianprocess.statistics.sensitivity import (
     GaussianProcessSensitivity,
 )
-from pyapprox.expdesign.protocols.quadrature import (
-    QuadratureSamplerProtocol,
-)
+from pyapprox.util.backends.protocols import Array, Backend
 
 
 class GaussianProcessEnsemble(Generic[Array]):
@@ -231,7 +231,9 @@ class GaussianProcessEnsemble(Generic[Array]):
         mean = bkd.reshape(mean, (-1,))  # Shape: (n_sample_points,)
 
         # Get posterior covariance
-        cov = self._gp.predict_covariance(sample_points)  # (n_sample_points, n_sample_points)
+        cov = self._gp.predict_covariance(
+            sample_points
+        )  # (n_sample_points, n_sample_points)
 
         # Ensure symmetry and add small nugget for numerical stability
         cov = 0.5 * (cov + cov.T)
@@ -261,7 +263,8 @@ class GaussianProcessEnsemble(Generic[Array]):
 
         # Transform: f = μ + L @ ε
         # mean shape: (n_sample_points,), broadcast to all realizations
-        # L @ epsilon: (n_sample_points, n_sample_points) @ (n_sample_points, n_realizations)
+        # L @ epsilon: (n_sample_points, n_sample_points) @ (n_sample_points,
+        # n_realizations)
         #            = (n_sample_points, n_realizations)
         realizations_T = L @ epsilon + bkd.reshape(mean, (-1, 1))
 
@@ -270,9 +273,7 @@ class GaussianProcessEnsemble(Generic[Array]):
 
         return realizations, sample_points, weights
 
-    def _compute_variance_from_samples(
-        self, values: Array, weights: Array
-    ) -> Array:
+    def _compute_variance_from_samples(self, values: Array, weights: Array) -> Array:
         """
         Compute weighted variance from samples.
 

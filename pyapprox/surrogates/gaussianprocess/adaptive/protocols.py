@@ -80,9 +80,7 @@ class AdaptiveSamplerProtocol(Protocol, Generic[Array]):
         """
         ...
 
-    def add_additional_training_samples(
-        self, new_samples: Array
-    ) -> None:
+    def add_additional_training_samples(self, new_samples: Array) -> None:
         """Update internal state after new training samples are added.
 
         Parameters

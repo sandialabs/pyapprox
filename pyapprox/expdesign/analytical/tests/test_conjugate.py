@@ -13,19 +13,18 @@ import numpy as np
 import torch
 from numpy.typing import NDArray
 
-from pyapprox.util.backends.numpy import NumpyBkd
-from pyapprox.util.backends.torch import TorchBkd
-from pyapprox.util.backends.protocols import Array, Backend
-from pyapprox.util.test_utils import load_tests  # noqa: F401
-
 from pyapprox.expdesign.analytical import (
-    ConjugateGaussianOEDExpectedStdDev,
-    ConjugateGaussianOEDExpectedEntropicDev,
     ConjugateGaussianOEDExpectedAVaRDev,
+    ConjugateGaussianOEDExpectedEntropicDev,
     ConjugateGaussianOEDExpectedKLDivergence,
-    ConjugateGaussianOEDForLogNormalExpectedStdDev,
+    ConjugateGaussianOEDExpectedStdDev,
     ConjugateGaussianOEDForLogNormalAVaRStdDev,
+    ConjugateGaussianOEDForLogNormalExpectedStdDev,
 )
+from pyapprox.util.backends.numpy import NumpyBkd
+from pyapprox.util.backends.protocols import Array, Backend
+from pyapprox.util.backends.torch import TorchBkd
+from pyapprox.util.test_utils import load_tests  # noqa: F401
 
 
 class TestConjugateGaussianOEDStandalone(Generic[Array], unittest.TestCase):
@@ -60,9 +59,7 @@ class TestConjugateGaussianOEDStandalone(Generic[Array], unittest.TestCase):
                 self._prior_mean, self._prior_cov, self._qoi_mat, *args, self._bkd
             )
         else:
-            utility = cls(
-                self._prior_mean, self._prior_cov, self._qoi_mat, self._bkd
-            )
+            utility = cls(self._prior_mean, self._prior_cov, self._qoi_mat, self._bkd)
         utility.set_observation_matrix(self._obs_mat)
         utility.set_noise_covariance(self._noise_cov)
         return utility
@@ -170,8 +167,12 @@ class TestConjugateGaussianOEDStandalone(Generic[Array], unittest.TestCase):
         beta1 = 0.3
         beta2 = 0.7
 
-        utility1 = self._create_utility(ConjugateGaussianOEDForLogNormalAVaRStdDev, beta1)
-        utility2 = self._create_utility(ConjugateGaussianOEDForLogNormalAVaRStdDev, beta2)
+        utility1 = self._create_utility(
+            ConjugateGaussianOEDForLogNormalAVaRStdDev, beta1
+        )
+        utility2 = self._create_utility(
+            ConjugateGaussianOEDForLogNormalAVaRStdDev, beta2
+        )
 
         value1 = utility1.value()
         value2 = utility2.value()

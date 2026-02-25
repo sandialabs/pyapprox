@@ -8,15 +8,14 @@ from typing import Generic, List, Union
 
 import numpy as np
 
-from pyapprox.util.backends.protocols import Array, Backend
-
-from pyapprox.statest.statistics import MultiOutputStatistic
 from pyapprox.statest.acv.base import ACVEstimator
 from pyapprox.statest.acv.optimization import (
-    _get_allocation_matrix_gmf,
     _get_allocation_matrix_acvis,
     _get_allocation_matrix_acvrd,
+    _get_allocation_matrix_gmf,
 )
+from pyapprox.statest.statistics import MultiOutputStatistic
+from pyapprox.util.backends.protocols import Array, Backend
 
 
 def _covariance_to_correlation(cov: Array, bkd: Backend[Array]) -> Array:
@@ -50,9 +49,7 @@ def _variance_reduction(get_rsquared, cov, nsample_ratios):
     return 1 - get_rsquared(cov, nsample_ratios)
 
 
-def _check_mfmc_model_costs_and_correlations(
-    costs: Array, corr: Array
-) -> bool:
+def _check_mfmc_model_costs_and_correlations(costs: Array, corr: Array) -> bool:
     """
     Check that the model costs and correlations satisfy equation 3.12
     in MFMC paper.
@@ -105,9 +102,7 @@ def _get_rsquared_mfmc(cov: Array, nsample_ratios: Array):
         p1 = (nsample_ratios[ii] - nsample_ratios[ii - 1]) / (
             nsample_ratios[ii] * nsample_ratios[ii - 1]
         )
-        p1 *= (
-            cov[0, ii + 1] / (cov[0, 0] * cov[ii + 1, ii + 1]) * cov[0, ii + 1]
-        )
+        p1 *= cov[0, ii + 1] / (cov[0, 0] * cov[ii + 1, ii + 1]) * cov[0, ii + 1]
         rsquared += p1
     return rsquared
 
@@ -174,9 +169,7 @@ def _allocate_samples_mfmc(
     return bkd.atleast_1d(nsample_ratios), log_variance
 
 
-def _get_sample_allocation_matrix_mfmc(
-    nmodels: int, bkd: Backend[Array]
-) -> Array:
+def _get_sample_allocation_matrix_mfmc(nmodels: int, bkd: Backend[Array]) -> Array:
     mat = bkd.zeros((nmodels, 2 * nmodels))
     mat[0, 1:] = 1
     for ii in range(1, nmodels):
@@ -270,9 +263,7 @@ def _allocate_samples_mlmc(
     # compute the variance of the discrepancy
     var_deltas = bkd.empty(nmodels)
     for ii in range(nmodels - 1):
-        var_deltas[ii] = (
-            cov[ii, ii] + cov[ii + 1, ii + 1] - 2 * cov[ii, ii + 1]
-        )
+        var_deltas[ii] = cov[ii, ii] + cov[ii + 1, ii + 1] - 2 * cov[ii, ii + 1]
     var_deltas[nmodels - 1] = cov[nmodels - 1, nmodels - 1]
 
     # compute the cost of one sample of the discrepancy
@@ -315,9 +306,7 @@ def _allocate_samples_mlmc(
     return bkd.atleast_1d(nsample_ratios), log_variance
 
 
-def _get_sample_allocation_matrix_mlmc(
-    nmodels: int, bkd: Backend[Array]
-) -> Array:
+def _get_sample_allocation_matrix_mlmc(nmodels: int, bkd: Backend[Array]) -> Array:
     r"""
     Get the sample allocation matrix
 
@@ -345,9 +334,7 @@ class GMFEstimator(ACVEstimator[Array], Generic[Array]):
     """Generalized Multifidelity (GMF) estimator."""
 
     def _create_allocation_matrix(self, recursion_index: Array) -> Array:
-        self._allocation_mat = _get_allocation_matrix_gmf(
-            recursion_index, self._bkd
-        )
+        self._allocation_mat = _get_allocation_matrix_gmf(recursion_index, self._bkd)
 
 
 class GISEstimator(ACVEstimator[Array], Generic[Array]):
@@ -356,9 +343,7 @@ class GISEstimator(ACVEstimator[Array], Generic[Array]):
     """
 
     def _create_allocation_matrix(self, recursion_index: Array) -> Array:
-        self._allocation_mat = _get_allocation_matrix_acvis(
-            recursion_index, self._bkd
-        )
+        self._allocation_mat = _get_allocation_matrix_acvis(recursion_index, self._bkd)
 
 
 class GRDEstimator(ACVEstimator[Array], Generic[Array]):
@@ -367,9 +352,7 @@ class GRDEstimator(ACVEstimator[Array], Generic[Array]):
     """
 
     def _create_allocation_matrix(self, recursion_index: Array) -> Array:
-        self._allocation_mat = _get_allocation_matrix_acvrd(
-            recursion_index, self._bkd
-        )
+        self._allocation_mat = _get_allocation_matrix_acvrd(recursion_index, self._bkd)
 
 
 class MFMCEstimator(GMFEstimator[Array], Generic[Array]):
@@ -411,9 +394,7 @@ class MFMCEstimator(GMFEstimator[Array], Generic[Array]):
             target_cost,
             self._bkd,
         )
-        nsample_ratios = self._native_ratios_to_npartition_ratios(
-            nsample_ratios
-        )
+        nsample_ratios = self._native_ratios_to_npartition_ratios(nsample_ratios)
         return nsample_ratios, val
 
     def _allocate_samples_analytical(self, target_cost: float):
@@ -441,9 +422,7 @@ class MFMCEstimator(GMFEstimator[Array], Generic[Array]):
         return partition_ratios, objective_value
 
     def _native_ratios_to_npartition_ratios(self, ratios: Array):
-        partition_ratios = self._bkd.hstack(
-            (ratios[0] - 1, self._bkd.diff(ratios))
-        )
+        partition_ratios = self._bkd.hstack((ratios[0] - 1, self._bkd.diff(ratios)))
         return partition_ratios
 
     def _get_allocation_matrix(self):
@@ -481,18 +460,14 @@ class MLMCEstimator(GRDEstimator[Array], Generic[Array]):
         # raise NotImplementedError("check weights size is correct")
         return -self._bkd.ones(cf.shape)
 
-    def _covariance_from_npartition_samples(
-        self, npartition_samples: Array
-    ) -> Array:
+    def _covariance_from_npartition_samples(self, npartition_samples: Array) -> Array:
         CF, cf = self._get_discrepancy_covariances(npartition_samples)
         weights = self._weights(CF, cf)
         # cannot use formulation of variance that uses optimal weights
         # must use the more general expression below, e.g. Equation 8
         # from Dixon 2024.
         return self._covariance_non_optimal_weights(
-            self._stat.high_fidelity_estimator_covariance(
-                npartition_samples[0]
-            ),
+            self._stat.high_fidelity_estimator_covariance(npartition_samples[0]),
             weights,
             CF,
             cf,
@@ -508,9 +483,7 @@ class MLMCEstimator(GRDEstimator[Array], Generic[Array]):
             target_cost,
             self._bkd,
         )
-        partition_ratios = self._native_ratios_to_npartition_ratios(
-            nsample_ratios
-        )
+        partition_ratios = self._native_ratios_to_npartition_ratios(nsample_ratios)
         return partition_ratios, val
 
     def _allocate_samples_analytical(self, target_cost: float):

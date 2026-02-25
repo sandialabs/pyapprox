@@ -10,60 +10,60 @@ The surrogate is not modified during fitting - instead, a new instance
 is returned with the fitted parameters (immutable pattern).
 """
 
-from pyapprox.surrogates.affine.expansions.fitters.results import (
-    DirectSolverResult,
-    SparseResult,
-    OMPResult,
-    CVSelectionResult,
+from pyapprox.surrogates.affine.expansions.fitters.adaptive_pce import (
+    AdaptivePCEFitter,
+    AdaptivePCEResult,
 )
-from pyapprox.surrogates.affine.expansions.fitters.least_squares import (
-    LeastSquaresFitter,
-)
-from pyapprox.surrogates.affine.expansions.fitters.ridge import (
-    RidgeFitter,
-)
-from pyapprox.surrogates.affine.expansions.fitters.bpdn import (
-    BPDNFitter,
-)
-from pyapprox.surrogates.affine.expansions.fitters.omp import (
-    OMPFitter,
+from pyapprox.surrogates.affine.expansions.fitters.basis_pursuit import (
+    BasisPursuitFitter,
 )
 from pyapprox.surrogates.affine.expansions.fitters.bayesian import (
     BayesianConjugateFitter,
     BayesianConjugateResult,
 )
-from pyapprox.surrogates.affine.expansions.fitters.quantile import (
-    QuantileFitter,
-)
-from pyapprox.surrogates.affine.expansions.fitters.basis_pursuit import (
-    BasisPursuitFitter,
-)
-from pyapprox.surrogates.affine.expansions.fitters.gradient_enhanced import (
-    GradientEnhancedPCEFitter,
-)
-from pyapprox.surrogates.affine.expansions.fitters.entropic import (
-    EntropicLoss,
-    EntropicFitter,
+from pyapprox.surrogates.affine.expansions.fitters.bpdn import (
+    BPDNFitter,
 )
 from pyapprox.surrogates.affine.expansions.fitters.conservative import (
     ConservativeLstSqFitter,
     ConservativeQuantileFitter,
 )
-from pyapprox.surrogates.affine.expansions.fitters.stochastic_dominance import (
-    FSDObjective,
-    StochasticDominanceConstraint,
-    FSDFitter,
-    SSDFitter,
+from pyapprox.surrogates.affine.expansions.fitters.entropic import (
+    EntropicFitter,
+    EntropicLoss,
 )
-from pyapprox.surrogates.affine.expansions.fitters.pce_cv import (
-    PCEDegreeSelectionFitter,
+from pyapprox.surrogates.affine.expansions.fitters.gradient_enhanced import (
+    GradientEnhancedPCEFitter,
+)
+from pyapprox.surrogates.affine.expansions.fitters.least_squares import (
+    LeastSquaresFitter,
+)
+from pyapprox.surrogates.affine.expansions.fitters.omp import (
+    OMPFitter,
 )
 from pyapprox.surrogates.affine.expansions.fitters.omp_cv import (
     OMPCVFitter,
 )
-from pyapprox.surrogates.affine.expansions.fitters.adaptive_pce import (
-    AdaptivePCEFitter,
-    AdaptivePCEResult,
+from pyapprox.surrogates.affine.expansions.fitters.pce_cv import (
+    PCEDegreeSelectionFitter,
+)
+from pyapprox.surrogates.affine.expansions.fitters.quantile import (
+    QuantileFitter,
+)
+from pyapprox.surrogates.affine.expansions.fitters.results import (
+    CVSelectionResult,
+    DirectSolverResult,
+    OMPResult,
+    SparseResult,
+)
+from pyapprox.surrogates.affine.expansions.fitters.ridge import (
+    RidgeFitter,
+)
+from pyapprox.surrogates.affine.expansions.fitters.stochastic_dominance import (
+    FSDFitter,
+    FSDObjective,
+    SSDFitter,
+    StochasticDominanceConstraint,
 )
 
 __all__ = [

@@ -15,30 +15,30 @@ This factorization enables efficient computation of multidimensional integrals
 by reducing them to products of 1D integrals.
 """
 
-from pyapprox.surrogates.gaussianprocess.statistics.protocols import (
-    KernelIntegralCalculatorProtocol,
+from pyapprox.surrogates.gaussianprocess.statistics.ensemble import (
+    GaussianProcessEnsemble,
 )
-from pyapprox.surrogates.gaussianprocess.statistics.validation import (
-    validate_separable_kernel,
-    validate_zero_mean,
+from pyapprox.surrogates.gaussianprocess.statistics.gp_dimension_reducer import (
+    GPMeanDimensionReducer,
 )
 from pyapprox.surrogates.gaussianprocess.statistics.integrals import (
     SeparableKernelIntegralCalculator,
 )
+from pyapprox.surrogates.gaussianprocess.statistics.marginalization import (
+    MarginalizedGP,
+)
 from pyapprox.surrogates.gaussianprocess.statistics.moments import (
     GaussianProcessStatistics,
+)
+from pyapprox.surrogates.gaussianprocess.statistics.protocols import (
+    KernelIntegralCalculatorProtocol,
 )
 from pyapprox.surrogates.gaussianprocess.statistics.sensitivity import (
     GaussianProcessSensitivity,
 )
-from pyapprox.surrogates.gaussianprocess.statistics.ensemble import (
-    GaussianProcessEnsemble,
-)
-from pyapprox.surrogates.gaussianprocess.statistics.marginalization import (
-    MarginalizedGP,
-)
-from pyapprox.surrogates.gaussianprocess.statistics.gp_dimension_reducer import (
-    GPMeanDimensionReducer,
+from pyapprox.surrogates.gaussianprocess.statistics.validation import (
+    validate_separable_kernel,
+    validate_zero_mean,
 )
 
 __all__ = [

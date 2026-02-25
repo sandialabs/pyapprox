@@ -4,14 +4,13 @@ This module provides the MLBLUEEstimator class, a specialized GroupACV
 estimator for Multi-Level Best Linear Unbiased Estimation.
 """
 
-from typing import List, TYPE_CHECKING
+from typing import TYPE_CHECKING, List
 
 import numpy as np
 
-from pyapprox.util.backends.protocols import Array
-
-from pyapprox.statest.groupacv.variants import GroupACVEstimatorIS
 from pyapprox.statest.groupacv.optimization import MLBLUEObjective
+from pyapprox.statest.groupacv.variants import GroupACVEstimatorIS
+from pyapprox.util.backends.protocols import Array
 
 if TYPE_CHECKING:
     from pyapprox.statest.statistics import MultiOutputStatistic
@@ -88,10 +87,7 @@ class MLBLUEEstimator(GroupACVEstimatorIS[Array]):
         return submats
 
     def _psi_matrix(self, npartition_samples):
-        psi = (
-            self._bkd.eye(self.nmodels() * self._stat.nstats())
-            * self._reg_blue
-        )
+        psi = self._bkd.eye(self.nmodels() * self._stat.nstats()) * self._reg_blue
         psi += (self._psi_blocks_flat @ npartition_samples).reshape(
             (
                 self.nmodels() * self._stat.nstats(),

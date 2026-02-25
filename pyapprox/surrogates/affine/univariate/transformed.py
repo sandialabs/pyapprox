@@ -37,10 +37,10 @@ Example
 
 from typing import Generic, Tuple
 
-from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.surrogates.affine.univariate.transforms import (
     Univariate1DTransformProtocol,
 )
+from pyapprox.util.backends.protocols import Array, Backend
 
 
 class TransformedBasis1D(Generic[Array]):
@@ -154,7 +154,10 @@ class TransformedBasis1D(Generic[Array]):
         canonical = self._transform.map_to_canonical(samples)
         # Chain rule: d/dx_phys = d/dx_can * dx_can/dx_phys
         # jacobian_factor = dx_can/dx_phys = 1/scale
-        return self._polynomial.jacobian_batch(canonical) * self._transform.jacobian_factor()
+        return (
+            self._polynomial.jacobian_batch(canonical)
+            * self._transform.jacobian_factor()
+        )
 
     def hessian_batch(self, samples: Array) -> Array:
         """Evaluate second derivatives at physical domain sample points.
@@ -175,7 +178,7 @@ class TransformedBasis1D(Generic[Array]):
         canonical = self._transform.map_to_canonical(samples)
         # Chain rule twice: d²/dx_phys² = d²/dx_can² * (dx_can/dx_phys)²
         jac_factor = self._transform.jacobian_factor()
-        return self._polynomial.hessian_batch(canonical) * (jac_factor ** 2)
+        return self._polynomial.hessian_batch(canonical) * (jac_factor**2)
 
     def derivatives(self, samples: Array, order: int) -> Array:
         """Evaluate derivatives of specified order at physical domain samples.
@@ -196,7 +199,7 @@ class TransformedBasis1D(Generic[Array]):
             return self(samples)
         canonical = self._transform.map_to_canonical(samples)
         jac_factor = self._transform.jacobian_factor()
-        return self._polynomial.derivatives(canonical, order) * (jac_factor ** order)
+        return self._polynomial.derivatives(canonical, order) * (jac_factor**order)
 
     def gauss_quadrature_rule(self, npoints: int) -> Tuple[Array, Array]:
         """Compute Gaussian quadrature rule in physical domain.

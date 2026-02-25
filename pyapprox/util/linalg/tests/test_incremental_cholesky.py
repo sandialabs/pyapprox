@@ -80,9 +80,7 @@ class TestIncrementalCholesky(Generic[Array], unittest.TestCase):
         fact = IncrementalCholeskyFactorization(K, bkd)
         fact.add_pivot(2)
         fact.add_pivot(0)
-        bkd.assert_allclose(
-            fact.pivots(), bkd.asarray([2, 0])
-        )
+        bkd.assert_allclose(fact.pivots(), bkd.asarray([2, 0]))
 
     def test_reset(self) -> None:
         """reset() clears all state."""
@@ -106,7 +104,8 @@ class TestIncrementalCholesky(Generic[Array], unittest.TestCase):
         fact.reset()
         fact.add_pivot(0)
         bkd.assert_allclose(
-            fact.L(), bkd.asarray([[bkd.sqrt(bkd.asarray([2.0]))[0]]]),
+            fact.L(),
+            bkd.asarray([[bkd.sqrt(bkd.asarray([2.0]))[0]]]),
             rtol=1e-12,
         )
 
@@ -130,9 +129,7 @@ class TestIncrementalCholesky(Generic[Array], unittest.TestCase):
         with warnings.catch_warnings(record=True) as w:
             warnings.simplefilter("always")
             fact.add_pivot(1)
-            self.assertTrue(
-                any("degenerate" in str(x.message) for x in w)
-            )
+            self.assertTrue(any("degenerate" in str(x.message) for x in w))
         # Pivot was skipped, so npivots remains 1
         self.assertEqual(fact.npivots(), 1)
 

@@ -4,10 +4,10 @@ Provides helper functions and classes for computing interface fluxes
 in DtN domain decomposition.
 """
 
-from typing import Generic, Optional
+from typing import Generic
 
-from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.pde.collocation.protocols.basis import BasisProtocol
+from pyapprox.util.backends.protocols import Array, Backend
 
 
 class FluxComputer(Generic[Array]):
@@ -93,9 +93,7 @@ class FluxComputer(Generic[Array]):
         # grad·n since the sign convention depends on residual formulation)
         return self._diffusion * flux
 
-    def compute_flux_derivative(
-        self, indices: Array, normal: Array
-    ) -> Array:
+    def compute_flux_derivative(self, indices: Array, normal: Array) -> Array:
         """Compute derivative of flux w.r.t. state (Jacobian).
 
         For flux = D * grad(u) · n, the Jacobian is:
@@ -126,8 +124,7 @@ class FluxComputer(Generic[Array]):
                 idx_int = int(idx)
                 for j in range(nstates):
                     flux_jac[i, j] = (
-                        flux_jac[i, j]
-                        + float(normal[dim]) * D_dim[idx_int, j]
+                        flux_jac[i, j] + float(normal[dim]) * D_dim[idx_int, j]
                     )
 
         return self._diffusion * flux_jac

@@ -29,33 +29,30 @@ Weighting strategies:
 - CompositeWeighting: Combine multiple weightings
 """
 
+from .multivariate import (
+    FeketeSampler,
+    LejaSampler,
+    WeightedLejaSampler,
+)
 from .protocols import (
+    FeketeSamplerProtocol,
+    LejaSamplerProtocol,
+    # Sequence protocols
+    LejaSequence1DProtocol,
     # Weighting protocols
     LejaWeightingProtocol,
     LejaWeightingWithJacobianProtocol,
-    # Sequence protocols
-    LejaSequence1DProtocol,
-    LejaSamplerProtocol,
-    FeketeSamplerProtocol,
 )
-
+from .univariate import (
+    LejaObjective,
+    LejaSequence1D,
+    ScipyTrustConstrMinimizer,
+    TwoPointLejaObjective,
+)
 from .weighting import (
     ChristoffelWeighting,
-    PDFWeighting,
     CompositeWeighting,
-)
-
-from .univariate import (
-    ScipyTrustConstrMinimizer,
-    LejaObjective,
-    TwoPointLejaObjective,
-    LejaSequence1D,
-)
-
-from .multivariate import (
-    LejaSampler,
-    FeketeSampler,
-    WeightedLejaSampler,
+    PDFWeighting,
 )
 
 __all__ = [

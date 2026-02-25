@@ -1,7 +1,7 @@
 """Allocation result types for statistical estimators."""
 
 from dataclasses import dataclass
-from typing import Protocol, Generic, runtime_checkable
+from typing import Generic, Protocol, runtime_checkable
 
 from pyapprox.util.backends.protocols import Array
 

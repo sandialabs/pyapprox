@@ -1,24 +1,25 @@
-from typing import Sequence, List, Union, cast, Any
 from functools import partial
+from typing import Any, List, Union, cast
 
 import numpy as np
 from scipy.optimize import (
-    NonlinearConstraint,
     LinearConstraint as ScipyLinearConstraint,
 )
+from scipy.optimize import (
+    NonlinearConstraint,
+)
 
-from pyapprox.util.backends.protocols import Array, Backend
+from pyapprox.interface.functions.numpy.numpy_function_factory import (
+    numpy_function_wrapper_factory,
+)
 from pyapprox.optimization.minimize.constraints.linear import (
     PyApproxLinearConstraint,
 )
 from pyapprox.optimization.minimize.constraints.protocols import (
-    SequenceOfConstraintProtocols,
     NonlinearConstraintProtocol,
-    NonlinearConstraintProtocolWithJacobianAndWHVP,
+    SequenceOfConstraintProtocols,
 )
-from pyapprox.interface.functions.numpy.numpy_function_factory import (
-    numpy_function_wrapper_factory,
-)
+from pyapprox.util.backends.protocols import Array
 
 
 def _numpy_constraint_hess_from_whvp(
@@ -31,9 +32,7 @@ def _numpy_constraint_hess_from_whvp(
     for ii in range(nvars):
         vec = np.zeros((nvars, 1))
         vec[ii] = 1.0
-        actions.append(
-            constraint.whvp(sample[:, None], vec, weights[:, None])[:, 0]
-        )
+        actions.append(constraint.whvp(sample[:, None], vec, weights[:, None])[:, 0])
     return np.stack(actions, axis=1)
 
 
@@ -72,9 +71,7 @@ def convert_constraints(
                 constraint.bkd().to_numpy(constraint.lb()),
                 constraint.bkd().to_numpy(constraint.ub()),
                 lambda x: (
-                    con.jacobian(x[:, None])
-                    if hasattr(con, "jacobian")
-                    else "2-point"
+                    con.jacobian(x[:, None]) if hasattr(con, "jacobian") else "2-point"
                 ),
                 (
                     partial(_numpy_constraint_hess_from_whvp, con)

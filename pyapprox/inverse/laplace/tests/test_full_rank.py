@@ -3,17 +3,17 @@ Tests for full-rank Laplace posterior.
 """
 
 import unittest
-from typing import Generic, Any
+from typing import Any, Generic
 
 import numpy as np
-from numpy.typing import NDArray
 import torch
+from numpy.typing import NDArray
 
-from pyapprox.util.backends.protocols import Array, Backend
-from pyapprox.util.backends.numpy import NumpyBkd
-from pyapprox.util.backends.torch import TorchBkd
-from pyapprox.inverse.laplace.full_rank import DenseLaplacePosterior
 from pyapprox.inverse.conjugate.gaussian import DenseGaussianConjugatePosterior
+from pyapprox.inverse.laplace.full_rank import DenseLaplacePosterior
+from pyapprox.util.backends.numpy import NumpyBkd
+from pyapprox.util.backends.protocols import Array, Backend
+from pyapprox.util.backends.torch import TorchBkd
 
 
 class TestDenseLaplacePosteriorBase(Generic[Array], unittest.TestCase):
@@ -32,18 +32,22 @@ class TestDenseLaplacePosteriorBase(Generic[Array], unittest.TestCase):
         self.map_point = self.bkd().asarray([[1.0], [2.0], [3.0]])
 
         # Prior precision
-        self.prior_precision = self.bkd().asarray([
-            [1.0, 0.0, 0.0],
-            [0.0, 1.0, 0.0],
-            [0.0, 0.0, 1.0],
-        ])
+        self.prior_precision = self.bkd().asarray(
+            [
+                [1.0, 0.0, 0.0],
+                [0.0, 1.0, 0.0],
+                [0.0, 0.0, 1.0],
+            ]
+        )
 
         # Likelihood Hessian (from some nonlinear model)
-        self.likelihood_hessian = self.bkd().asarray([
-            [2.0, 0.5, 0.1],
-            [0.5, 3.0, 0.2],
-            [0.1, 0.2, 1.0],
-        ])
+        self.likelihood_hessian = self.bkd().asarray(
+            [
+                [2.0, 0.5, 0.1],
+                [0.5, 3.0, 0.2],
+                [0.1, 0.2, 1.0],
+            ]
+        )
 
         self.laplace = DenseLaplacePosterior(
             self.map_point,
@@ -108,8 +112,8 @@ class TestDenseLaplacePosteriorBase(Generic[Array], unittest.TestCase):
         """Test posterior_variable returns a Gaussian distribution."""
         self.laplace.compute()
         post = self.laplace.posterior_variable()
-        self.assertTrue(hasattr(post, 'logpdf'))
-        self.assertTrue(hasattr(post, 'rvs'))
+        self.assertTrue(hasattr(post, "logpdf"))
+        self.assertTrue(hasattr(post, "rvs"))
 
 
 class TestDenseLaplacePosteriorVsConjugate(Generic[Array], unittest.TestCase):
@@ -151,7 +155,7 @@ class TestDenseLaplacePosteriorVsConjugate(Generic[Array], unittest.TestCase):
             A, prior_mean, prior_cov, noise_cov, self.bkd()
         )
         conjugate.compute(obs)
-        conj_mean = self.bkd().to_numpy(conjugate.posterior_mean())
+        self.bkd().to_numpy(conjugate.posterior_mean())
         conj_cov = self.bkd().to_numpy(conjugate.posterior_covariance())
 
         # Laplace solution
@@ -283,9 +287,6 @@ class TestDenseLaplacePosteriorValidationTorch(
 
     def bkd(self) -> Backend[torch.Tensor]:
         return self._bkd
-
-
-from pyapprox.util.test_utils import load_tests
 
 
 if __name__ == "__main__":

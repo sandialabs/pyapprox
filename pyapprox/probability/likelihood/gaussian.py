@@ -4,16 +4,21 @@ Gaussian likelihood functions.
 Provides Gaussian log-likelihood functions for Bayesian inference.
 """
 
-from typing import Generic, Optional
 import math
+from typing import TYPE_CHECKING, Generic, Optional
 
 import numpy as np
 
-from pyapprox.util.backends.protocols import Array, Backend
+from pyapprox.probability.covariance import DiagonalCovarianceOperator
 from pyapprox.probability.protocols.covariance import (
     SqrtCovarianceOperatorProtocol,
 )
-from pyapprox.probability.covariance import DiagonalCovarianceOperator
+from pyapprox.util.backends.protocols import Array, Backend
+
+if TYPE_CHECKING:
+    from pyapprox.probability.protocols.likelihood import (
+        VectorizedLogLikelihoodProtocol,
+    )
 
 
 class GaussianLogLikelihood(Generic[Array]):
@@ -146,9 +151,7 @@ class GaussianLogLikelihood(Generic[Array]):
             If observations not set or model_outputs has wrong shape
         """
         if self._observations is None:
-            raise ValueError(
-                "Observations not set. Call set_observations first."
-            )
+            raise ValueError("Observations not set. Call set_observations first.")
 
         self._validate_model_outputs(model_outputs)
 
@@ -168,9 +171,7 @@ class GaussianLogLikelihood(Generic[Array]):
         result = self._log_norm_const - 0.5 * squared_dist
         return self._bkd.reshape(result, (1, -1))
 
-    def logpdf_vectorized(
-        self, model_outputs: Array, observations: Array
-    ) -> Array:
+    def logpdf_vectorized(self, model_outputs: Array, observations: Array) -> Array:
         """
         Batched log-likelihood evaluation.
 
@@ -206,9 +207,7 @@ class GaussianLogLikelihood(Generic[Array]):
         # model_outputs: (nobs, n_model) -> (nobs, n_model, 1)
         # observations: (nobs, n_obs) -> (nobs, 1, n_obs)
         # residuals: (nobs, n_model, n_obs)
-        residuals = (
-            observations[:, None, :] - model_outputs[:, :, None]
-        )
+        residuals = observations[:, None, :] - model_outputs[:, :, None]
 
         if self._design_weights is not None:
             residuals = residuals * self._design_weights[:, None, None]
@@ -437,9 +436,7 @@ class DiagonalGaussianLogLikelihood(Generic[Array]):
                 residuals**2 * weighted_inv_var[:, None], axis=0
             )
         else:
-            squared_dist = self._bkd.sum(
-                residuals**2 * self._inv_var[:, None], axis=0
-            )
+            squared_dist = self._bkd.sum(residuals**2 * self._inv_var[:, None], axis=0)
 
         result = self._log_norm_const - 0.5 * squared_dist
         return self._bkd.reshape(result, (1, -1))
@@ -515,9 +512,7 @@ class DiagonalGaussianLogLikelihood(Generic[Array]):
         residuals = self._observations - model_outputs
         return self._inv_var[:, None] * residuals
 
-    def logpdf_vectorized(
-        self, model_outputs: Array, observations: Array
-    ) -> Array:
+    def logpdf_vectorized(self, model_outputs: Array, observations: Array) -> Array:
         """
         Batched log-likelihood evaluation.
 
@@ -646,13 +641,9 @@ class MultiExperimentLogLikelihood(Generic[Array]):
             Total log-likelihood per sample. Shape: ``(1, nsamples)``
         """
         # (nsamples, nexperiments)
-        matrix = self._base.logpdf_vectorized(
-            model_outputs, self._observations
-        )
+        matrix = self._base.logpdf_vectorized(model_outputs, self._observations)
         # Sum across experiments → (nsamples,) → (1, nsamples)
-        return self._bkd.reshape(
-            self._bkd.sum(matrix, axis=1), (1, -1)
-        )
+        return self._bkd.reshape(self._bkd.sum(matrix, axis=1), (1, -1))
 
     def __repr__(self) -> str:
         """Return string representation."""
@@ -660,4 +651,3 @@ class MultiExperimentLogLikelihood(Generic[Array]):
             f"MultiExperimentLogLikelihood("
             f"nobs={self.nobs()}, nexperiments={self.nexperiments()})"
         )
-

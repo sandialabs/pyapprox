@@ -1,31 +1,28 @@
 """Tests for ACV search strategies."""
 
-from typing import Any, Generic
 import unittest
+from typing import Any, Generic
 
-from numpy.typing import NDArray
 import torch
-
-from pyapprox.util.backends.protocols import Array
-from pyapprox.util.backends.numpy import NumpyBkd
-from pyapprox.util.backends.torch import TorchBkd
-from pyapprox.util.test_utils import load_tests  # noqa: F401
+from numpy.typing import NDArray
 
 from pyapprox.statest.acv.strategies import (
-    RecursionIndexStrategy,
     DefaultRecursionStrategy,
     FixedRecursionStrategy,
+    HierarchicalPermutationRecursionStrategy,
     ListRecursionStrategy,
     TreeDepthRecursionStrategy,
-    HierarchicalPermutationRecursionStrategy,
 )
 from pyapprox.statest.strategies import (
-    ModelSubsetStrategy,
     AllModelsStrategy,
-    FixedSubsetStrategy,
     AllSubsetsStrategy,
+    FixedSubsetStrategy,
     ListSubsetStrategy,
 )
+from pyapprox.util.backends.numpy import NumpyBkd
+from pyapprox.util.backends.protocols import Array
+from pyapprox.util.backends.torch import TorchBkd
+from pyapprox.util.test_utils import load_tests  # noqa: F401
 
 
 class TestRecursionIndexStrategy(Generic[Array], unittest.TestCase):

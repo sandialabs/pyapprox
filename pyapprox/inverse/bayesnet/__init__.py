@@ -10,18 +10,18 @@ The implementation reuses GaussianCanonicalForm from the probability module
 for efficient factor operations.
 """
 
-from .factor import GaussianFactor
-from .scope import (
-    get_unique_variable_blocks,
-    expand_scope,
-    get_partition_indices,
-)
 from .conversions import convert_cpd_to_canonical
-from .network import GaussianNetwork
+from .factor import GaussianFactor
 from .inference import (
+    cond_prob_variable_elimination,
     sum_product_eliminate_variable,
     sum_product_variable_elimination,
-    cond_prob_variable_elimination,
+)
+from .network import GaussianNetwork
+from .scope import (
+    expand_scope,
+    get_partition_indices,
+    get_unique_variable_blocks,
 )
 
 __all__ = [

@@ -3,17 +3,16 @@ Tests for Gaussian conjugate posterior.
 """
 
 import unittest
-from typing import Generic, Any
+from typing import Any, Generic
 
 import numpy as np
-from numpy.typing import NDArray
 import torch
-from scipy import stats
+from numpy.typing import NDArray
 
-from pyapprox.util.backends.protocols import Array, Backend
-from pyapprox.util.backends.numpy import NumpyBkd
-from pyapprox.util.backends.torch import TorchBkd
 from pyapprox.inverse.conjugate.gaussian import DenseGaussianConjugatePosterior
+from pyapprox.util.backends.numpy import NumpyBkd
+from pyapprox.util.backends.protocols import Array, Backend
+from pyapprox.util.backends.torch import TorchBkd
 
 
 class TestDenseGaussianConjugateBase(Generic[Array], unittest.TestCase):
@@ -31,9 +30,7 @@ class TestDenseGaussianConjugateBase(Generic[Array], unittest.TestCase):
         self.nobs = 3
 
         # Linear model: y = A @ x + offset
-        self.A = self.bkd().asarray(
-            [[1.0, 0.5], [0.5, 1.0], [1.0, 1.0]]
-        )
+        self.A = self.bkd().asarray([[1.0, 0.5], [0.5, 1.0], [1.0, 1.0]])
         self.offset = self.bkd().zeros((self.nobs, 1))
 
         # Prior
@@ -109,8 +106,8 @@ class TestDenseGaussianConjugateBase(Generic[Array], unittest.TestCase):
         self.solver.compute(self.obs)
         post = self.solver.posterior_variable()
         # Check it has the expected methods
-        self.assertTrue(hasattr(post, 'logpdf'))
-        self.assertTrue(hasattr(post, 'rvs'))
+        self.assertTrue(hasattr(post, "logpdf"))
+        self.assertTrue(hasattr(post, "rvs"))
 
     def test_compute_not_called_raises(self) -> None:
         """Test accessing results before compute raises error."""
@@ -228,9 +225,6 @@ class TestDenseGaussianConjugateAnalyticalTorch(
 
     def bkd(self) -> Backend[torch.Tensor]:
         return self._bkd
-
-
-from pyapprox.util.test_utils import load_tests
 
 
 if __name__ == "__main__":

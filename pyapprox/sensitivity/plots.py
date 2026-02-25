@@ -129,9 +129,7 @@ def plot_total_effects(
     width = 0.95
     locations = np.arange(total_effects_np.shape[0])
     p = ax.bar(locations - width / 2, total_effects_np, width, align="edge")
-    labels = [
-        f"${rv}_{{{ii + 1}}}$" for ii in range(total_effects_np.shape[0])
-    ]
+    labels = [f"${rv}_{{{ii + 1}}}$" for ii in range(total_effects_np.shape[0])]
     ax.set_xticks(locations)
     ax.set_xticklabels(labels, rotation=0)
     return p

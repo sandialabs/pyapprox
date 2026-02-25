@@ -6,31 +6,32 @@ total effect Sobol indices from fitted GPs.
 """
 import math
 import unittest
-from typing import Generic, Any, List
+from typing import Any, Generic, List
+
 import numpy as np
 import torch
 from numpy.typing import NDArray
 
-from pyapprox.util.backends.protocols import Backend, Array
-from pyapprox.util.backends.numpy import NumpyBkd
-from pyapprox.util.backends.torch import TorchBkd
-from pyapprox.util.test_utils import load_tests, slow_test  # noqa: F401
-from pyapprox.surrogates.kernels.matern import SquaredExponentialKernel
-from pyapprox.surrogates.kernels.composition import (
-    SeparableProductKernel,
-)
-from pyapprox.surrogates.gaussianprocess import ExactGaussianProcess
 from pyapprox.probability.univariate.uniform import UniformMarginal
-from pyapprox.surrogates.sparsegrids.basis_factory import (
-    create_basis_factories,
-)
+from pyapprox.surrogates.gaussianprocess import ExactGaussianProcess
 from pyapprox.surrogates.gaussianprocess.statistics import (
-    SeparableKernelIntegralCalculator,
     GaussianProcessStatistics,
+    SeparableKernelIntegralCalculator,
 )
 from pyapprox.surrogates.gaussianprocess.statistics.sensitivity import (
     GaussianProcessSensitivity,
 )
+from pyapprox.surrogates.kernels.composition import (
+    SeparableProductKernel,
+)
+from pyapprox.surrogates.kernels.matern import SquaredExponentialKernel
+from pyapprox.surrogates.sparsegrids.basis_factory import (
+    create_basis_factories,
+)
+from pyapprox.util.backends.numpy import NumpyBkd
+from pyapprox.util.backends.protocols import Array, Backend
+from pyapprox.util.backends.torch import TorchBkd
+from pyapprox.util.test_utils import load_tests, slow_test  # noqa: F401
 
 
 def _create_quadrature_bases(
@@ -439,7 +440,10 @@ class TestKnownFunctions(Generic[Array], unittest.TestCase):
         self.assertLess(
             S_0 + S_1,
             0.3,
-            msg=f"Sum of main effects {S_0 + S_1} should be small for multiplicative function",
+            msg=(
+                f"Sum of main effects {S_0 + S_1} "
+                "should be small for multiplicative function"
+            ),
         )
 
         # T_0 and T_1 should be similar (symmetric function)
@@ -456,7 +460,8 @@ class TestIshigamiBenchmark(Generic[Array], unittest.TestCase):
     Test GP sensitivity indices against Ishigami function benchmark.
 
     The Ishigami function is a smooth function with analytically known Sobol
-    indices. It's defined on [-pi, pi]^3 with f(x) = sin(x1) + a*sin^2(x2) + b*x3^4*sin(x1).
+    indices. It's defined on [-pi, pi]^3 with
+    f(x) = sin(x1) + a*sin^2(x2) + b*x3^4*sin(x1).
 
     We use a=0, b=1 to get cross terms between x1 and x3 while keeping the
     function simple enough for the GP to approximate well.
@@ -753,7 +758,10 @@ class TestConditionalPAndU(Generic[Array], unittest.TestCase):
             cond_var,
             mean_var,
             rtol=1e-10,
-            err_msg="Conditional variance with full conditioning should equal mean of variance",
+            err_msg=(
+                "Conditional variance with full "
+                "conditioning should equal mean of variance"
+            ),
         )
 
 

@@ -6,13 +6,10 @@ New stress models can be added without modifying existing code.
 
 from typing import Any, Callable, Dict, List
 
-
 _STRESS_MODEL_REGISTRY: Dict[str, Callable[..., Any]] = {}
 
 
-def register_stress_model(
-    name: str, factory: Callable[..., Any]
-) -> None:
+def register_stress_model(name: str, factory: Callable[..., Any]) -> None:
     """Register a stress model factory.
 
     Parameters
@@ -29,9 +26,7 @@ def register_stress_model(
         If name is already registered.
     """
     if name in _STRESS_MODEL_REGISTRY:
-        raise ValueError(
-            f"Stress model '{name}' is already registered."
-        )
+        raise ValueError(f"Stress model '{name}' is already registered.")
     _STRESS_MODEL_REGISTRY[name] = factory
 
 
@@ -57,9 +52,7 @@ def create_stress_model(name: str, **kwargs: Any) -> Any:
     """
     if name not in _STRESS_MODEL_REGISTRY:
         available = ", ".join(sorted(_STRESS_MODEL_REGISTRY.keys()))
-        raise KeyError(
-            f"Unknown stress model: '{name}'. Available: {available}"
-        )
+        raise KeyError(f"Unknown stress model: '{name}'. Available: {available}")
     return _STRESS_MODEL_REGISTRY[name](**kwargs)
 
 

@@ -9,11 +9,6 @@ from typing import Any, Generic
 import torch
 from numpy.typing import NDArray
 
-from pyapprox.util.backends.numpy import NumpyBkd
-from pyapprox.util.backends.protocols import Array, Backend
-from pyapprox.util.backends.torch import TorchBkd
-from pyapprox.util.test_utils import load_tests  # noqa: F401
-
 from pyapprox.probability.univariate import (
     BetaMarginal,
     GaussianMarginal,
@@ -23,17 +18,20 @@ from pyapprox.surrogates.affine.univariate import LegendrePolynomial1D
 from pyapprox.surrogates.affine.univariate.lagrange import LagrangeBasis1D
 from pyapprox.surrogates.sparsegrids.basis_factory import (
     BasisFactoryProtocol,
+    ClenshawCurtisLagrangeFactory,
     GaussLagrangeFactory,
     LejaLagrangeFactory,
-    ClenshawCurtisLagrangeFactory,
     PrebuiltBasisFactory,
-    create_basis_factories,
     create_bases_from_marginals,
+    create_basis_factories,
     get_bounds_from_marginal,
-    get_transform_from_marginal,
     get_registered_basis_types,
+    get_transform_from_marginal,
 )
-
+from pyapprox.util.backends.numpy import NumpyBkd
+from pyapprox.util.backends.protocols import Array, Backend
+from pyapprox.util.backends.torch import TorchBkd
+from pyapprox.util.test_utils import load_tests  # noqa: F401
 
 # =============================================================================
 # GaussLagrangeFactory tests
@@ -657,8 +655,7 @@ class TestClenshawCurtisLagrangeFactory(Generic[Array], unittest.TestCase):
             for i in range(npoints_curr):
                 pt = float(pts_curr[0, i])
                 found = any(
-                    abs(float(pts_next[0, j]) - pt) < 1e-12
-                    for j in range(npoints_next)
+                    abs(float(pts_next[0, j]) - pt) < 1e-12 for j in range(npoints_next)
                 )
                 self.assertTrue(
                     found,
@@ -814,9 +811,7 @@ class TestBasisFactoryRegistry(Generic[Array], unittest.TestCase):
     def test_create_basis_factories_clenshaw_curtis(self) -> None:
         """Test create_basis_factories with clenshaw_curtis type via registry."""
         marginals = [UniformMarginal(0.0, 1.0, self._bkd)]
-        factories = create_basis_factories(
-            marginals, self._bkd, "clenshaw_curtis"
-        )
+        factories = create_basis_factories(marginals, self._bkd, "clenshaw_curtis")
 
         self.assertEqual(len(factories), 1)
         self.assertIsInstance(factories[0], ClenshawCurtisLagrangeFactory)

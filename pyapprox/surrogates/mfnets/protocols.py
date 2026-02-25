@@ -74,9 +74,7 @@ class NodeModelWithParamJacobianProtocol(
 
 
 @runtime_checkable
-class LinearNodeModelProtocol(
-    NodeModelProtocol[Array], Protocol, Generic[Array]
-):
+class LinearNodeModelProtocol(NodeModelProtocol[Array], Protocol, Generic[Array]):
     """Extension for node models linear in their coefficients.
 
     Enables ALS direct solve via least squares on the basis matrix.

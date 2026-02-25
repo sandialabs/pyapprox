@@ -17,19 +17,18 @@ import torch
 from numpy.typing import NDArray
 from unittest_parametrize import ParametrizedTestCase, parametrize
 
-from pyapprox.util.backends.numpy import NumpyBkd
-from pyapprox.util.backends.torch import TorchBkd
-from pyapprox.util.backends.protocols import Array, Backend
-from pyapprox.util.test_utils import load_tests  # noqa: F401
+from pyapprox.expdesign.evidence import Evidence, LogEvidence
+from pyapprox.expdesign.likelihood import GaussianOEDInnerLoopLikelihood
 from pyapprox.interface.functions.derivative_checks.derivative_checker import (
     DerivativeChecker,
 )
 from pyapprox.interface.functions.fromcallable.jacobian import (
     FunctionWithJacobianFromCallable,
 )
-
-from pyapprox.expdesign.evidence import Evidence, LogEvidence
-from pyapprox.expdesign.likelihood import GaussianOEDInnerLoopLikelihood
+from pyapprox.util.backends.numpy import NumpyBkd
+from pyapprox.util.backends.protocols import Array, Backend
+from pyapprox.util.backends.torch import TorchBkd
+from pyapprox.util.test_utils import load_tests  # noqa: F401
 
 
 class TestEvidenceGradientsStandalone(
@@ -297,7 +296,8 @@ class TestEvidenceGradientsStandalone(
 
         inner_loglike.set_shapes(inner_shapes)
         inner_loglike.set_observations(observations)
-        # NOTE: Do NOT set latent_samples (see _create_likelihood_and_evidence docstring)
+        # NOTE: Do NOT set latent_samples (see _create_likelihood_and_evidence
+        # docstring)
 
         log_evidence = LogEvidence(inner_loglike, None, bkd)
         weights = bkd.ones((nobs, 1)) / nobs

@@ -85,9 +85,7 @@ def _node_first_derivs(
         row_sum = 0.0
         for j in range(n):
             if j != m:
-                val = bary_weights[j] / (
-                    bary_weights[m] * (abscissa[m] - abscissa[j])
-                )
+                val = bary_weights[j] / (bary_weights[m] * (abscissa[m] - abscissa[j]))
                 D1[m, j] = val
                 row_sum += val
             else:

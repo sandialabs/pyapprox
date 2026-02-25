@@ -7,8 +7,8 @@ work with any object implementing PCEStatisticsProtocol.
 
 from typing import List, Tuple
 
-from pyapprox.util.backends.protocols import Array
 from pyapprox.surrogates.affine.protocols import PCEStatisticsProtocol
+from pyapprox.util.backends.protocols import Array
 
 
 def get_constant_index(pce: PCEStatisticsProtocol[Array]) -> int:
@@ -71,7 +71,7 @@ def variance(pce: PCEStatisticsProtocol[Array]) -> Array:
     bkd = pce.bkd()
     const_idx = get_constant_index(pce)
     coef = pce.get_coefficients()
-    coef_sq = coef ** 2
+    coef_sq = coef**2
     total = bkd.sum(coef_sq, axis=0)
     return total - coef_sq[const_idx, :]
 
@@ -112,10 +112,9 @@ def covariance(pce: PCEStatisticsProtocol[Array]) -> Array:
     coef = pce.get_coefficients()
 
     # Remove constant term
-    coef_nonconstant = bkd.concatenate([
-        coef[:const_idx, :],
-        coef[const_idx+1:, :]
-    ], axis=0)
+    coef_nonconstant = bkd.concatenate(
+        [coef[:const_idx, :], coef[const_idx + 1 :, :]], axis=0
+    )
 
     return bkd.dot(coef_nonconstant.T, coef_nonconstant)
 
@@ -149,19 +148,14 @@ def total_sobol_indices(pce: PCEStatisticsProtocol[Array]) -> Array:
 
     for dd in range(nvars):
         depends_on_dd = indices[dd, :] > 0
-        coef_sq = coef ** 2
+        coef_sq = coef**2
         mask = bkd.asarray(depends_on_dd, dtype=bkd.default_dtype())
-        contribution = bkd.sum(
-            coef_sq * bkd.reshape(mask, (-1, 1)),
-            axis=0
-        )
+        contribution = bkd.sum(coef_sq * bkd.reshape(mask, (-1, 1)), axis=0)
         total_indices[dd, :] = contribution / var_safe
 
     # Set to zero where variance is zero
     total_indices = bkd.where(
-        bkd.reshape(var, (1, -1)) > 0,
-        total_indices,
-        bkd.zeros_like(total_indices)
+        bkd.reshape(var, (1, -1)) > 0, total_indices, bkd.zeros_like(total_indices)
     )
     return total_indices
 
@@ -200,19 +194,14 @@ def main_effect_sobol_indices(pce: PCEStatisticsProtocol[Array]) -> Array:
         other_vars_zero = index_sum == indices[dd, :]
         main_effect_terms = depends_on_dd & other_vars_zero
 
-        coef_sq = coef ** 2
+        coef_sq = coef**2
         mask = bkd.asarray(main_effect_terms, dtype=bkd.default_dtype())
-        contribution = bkd.sum(
-            coef_sq * bkd.reshape(mask, (-1, 1)),
-            axis=0
-        )
+        contribution = bkd.sum(coef_sq * bkd.reshape(mask, (-1, 1)), axis=0)
         main_indices[dd, :] = contribution / var_safe
 
     # Set to zero where variance is zero
     main_indices = bkd.where(
-        bkd.reshape(var, (1, -1)) > 0,
-        main_indices,
-        bkd.zeros_like(main_indices)
+        bkd.reshape(var, (1, -1)) > 0, main_indices, bkd.zeros_like(main_indices)
     )
     return main_indices
 
@@ -265,18 +254,15 @@ def interaction_sobol_indices(
                 # Variable must be inactive
                 active_mask = active_mask & (indices[dd, :] == 0)
 
-        coef_sq = coef ** 2
+        coef_sq = coef**2
         mask = bkd.asarray(active_mask, dtype=bkd.default_dtype())
-        contribution = bkd.sum(
-            coef_sq * bkd.reshape(mask, (-1, 1)),
-            axis=0
-        )
+        contribution = bkd.sum(coef_sq * bkd.reshape(mask, (-1, 1)), axis=0)
         interaction_indices[ii, :] = contribution / var_safe
 
     # Set to zero where variance is zero
     interaction_indices = bkd.where(
         bkd.reshape(var, (1, -1)) > 0,
         interaction_indices,
-        bkd.zeros_like(interaction_indices)
+        bkd.zeros_like(interaction_indices),
     )
     return interaction_indices

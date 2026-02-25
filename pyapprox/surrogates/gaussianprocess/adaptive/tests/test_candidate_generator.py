@@ -49,9 +49,7 @@ class TestCandidateGenerator(Generic[Array], unittest.TestCase):
     def test_custom_bounds(self) -> None:
         bkd = self._bkd
         bounds = bkd.asarray([[-1.0, 1.0], [0.0, 2.0]])
-        gen = HybridSobolRandomCandidateGenerator(
-            2, bkd, scaled_bounds=bounds
-        )
+        gen = HybridSobolRandomCandidateGenerator(2, bkd, scaled_bounds=bounds)
         candidates = gen.generate(200)
         self.assertTrue(bkd.all_bool(candidates[0, :] >= -1.0))
         self.assertTrue(bkd.all_bool(candidates[0, :] <= 1.0))
@@ -68,9 +66,7 @@ class TestCandidateGenerator(Generic[Array], unittest.TestCase):
     def test_invalid_bounds_shape(self) -> None:
         bounds = self._bkd.asarray([[0.0, 1.0]])
         with self.assertRaises(ValueError):
-            HybridSobolRandomCandidateGenerator(
-                2, self._bkd, scaled_bounds=bounds
-            )
+            HybridSobolRandomCandidateGenerator(2, self._bkd, scaled_bounds=bounds)
 
 
 class TestCandidateGeneratorNumpy(TestCandidateGenerator[NDArray[Any]]):

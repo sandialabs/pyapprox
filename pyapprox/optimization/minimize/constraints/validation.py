@@ -1,12 +1,10 @@
-from typing import Sequence, Any, List
+from typing import Any, List, Sequence
 
-from pyapprox.optimization.minimize.constraints.protocols import (
-    NonlinearConstraintProtocol,
-    NonlinearConstraintProtocolWithJacobian,
-    NonlinearConstraintProtocolWithJacobianAndWHVP,
-)
 from pyapprox.optimization.minimize.constraints.linear import (
     PyApproxLinearConstraint,
+)
+from pyapprox.optimization.minimize.constraints.protocols import (
+    NonlinearConstraintProtocol,
 )
 
 
@@ -97,5 +95,6 @@ def validate_constraints(constraints: Sequence[Any]) -> None:
                 f"NonlinearConstraintProtocol or PyApproxLinearConstraint. "
                 f"Got an object of type {type(obj).__name__}. "
                 f"For NonlinearConstraintProtocol, missing methods: {missing}. "
-                f"Required methods: bkd(), nvars(), nqoi(), __call__(samples), lb(), ub()."
+                "Required methods: bkd(), nvars(), nqoi(), "
+                "__call__(samples), lb(), ub()."
             )

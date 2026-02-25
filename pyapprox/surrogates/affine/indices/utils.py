@@ -5,7 +5,6 @@ including hashing, sorting, and computing hyperbolic index sets.
 """
 
 import itertools
-from typing import Generic
 
 import numpy as np
 
@@ -116,9 +115,7 @@ def compute_hyperbolic_indices(
     return bkd.hstack(indices_list)
 
 
-def argsort_indices_lexiographically(
-    indices: Array, bkd: Backend[Array]
-) -> Array:
+def argsort_indices_lexiographically(indices: Array, bkd: Backend[Array]) -> Array:
     """Return indices that would sort multi-indices lexicographically.
 
     Sorts by total level first, then lexicographically.
@@ -147,9 +144,7 @@ def argsort_indices_lexiographically(
     return bkd.asarray(np.lexsort(index_tuple), dtype=bkd.int64_dtype())
 
 
-def sort_indices_lexiographically(
-    indices: Array, bkd: Backend[Array]
-) -> Array:
+def sort_indices_lexiographically(indices: Array, bkd: Backend[Array]) -> Array:
     """Sort multi-indices lexicographically.
 
     Sorts by total level first, then lexicographically within each level.

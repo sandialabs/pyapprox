@@ -14,29 +14,27 @@ import numpy as np
 import torch
 from numpy.typing import NDArray
 
-from pyapprox.util.backends.numpy import NumpyBkd
-from pyapprox.util.backends.torch import TorchBkd
-from pyapprox.util.backends.protocols import Array, Backend
-from pyapprox.util.test_utils import load_tests  # noqa: F401
-
-from pyapprox.surrogates.affine.univariate import create_bases_1d
-from pyapprox.surrogates.affine.indices import compute_hyperbolic_indices
-from pyapprox.surrogates.affine.basis import OrthonormalPolynomialBasis
-from pyapprox.surrogates.affine.expansions import BasisExpansion
-from pyapprox.probability import UniformMarginal
-
-from pyapprox.surrogates.functiontrain.core import FunctionTrainCore
-from pyapprox.surrogates.functiontrain.functiontrain import FunctionTrain
-from pyapprox.surrogates.functiontrain.additive import (
-    create_additive_functiontrain,
-    ConstantExpansion,
-)
 from pyapprox.interface.functions.derivative_checks.derivative_checker import (
     DerivativeChecker,
 )
 from pyapprox.interface.functions.fromcallable.jacobian import (
     FunctionWithJacobianFromCallable,
 )
+from pyapprox.probability import UniformMarginal
+from pyapprox.surrogates.affine.basis import OrthonormalPolynomialBasis
+from pyapprox.surrogates.affine.expansions import BasisExpansion
+from pyapprox.surrogates.affine.indices import compute_hyperbolic_indices
+from pyapprox.surrogates.affine.univariate import create_bases_1d
+from pyapprox.surrogates.functiontrain.additive import (
+    ConstantExpansion,
+    create_additive_functiontrain,
+)
+from pyapprox.surrogates.functiontrain.core import FunctionTrainCore
+from pyapprox.surrogates.functiontrain.functiontrain import FunctionTrain
+from pyapprox.util.backends.numpy import NumpyBkd
+from pyapprox.util.backends.protocols import Array, Backend
+from pyapprox.util.backends.torch import TorchBkd
+from pyapprox.util.test_utils import load_tests  # noqa: F401
 
 
 class TestConstantExpansionInputJacobian(Generic[Array], unittest.TestCase):
@@ -222,8 +220,7 @@ class TestFunctionTrainInputJacobian(Generic[Array], unittest.TestCase):
         """Create an additive FunctionTrain for testing."""
         bkd = self._bkd
         univariate_bases = [
-            self._create_univariate_expansion(max_level, nqoi)
-            for _ in range(nvars)
+            self._create_univariate_expansion(max_level, nqoi) for _ in range(nvars)
         ]
         return create_additive_functiontrain(univariate_bases, bkd, nqoi)
 
@@ -433,9 +430,7 @@ class TestFunctionTrainCoreInputJacobianNumpy(
         return NumpyBkd()
 
 
-class TestFunctionTrainInputJacobianNumpy(
-    TestFunctionTrainInputJacobian[NDArray[Any]]
-):
+class TestFunctionTrainInputJacobianNumpy(TestFunctionTrainInputJacobian[NDArray[Any]]):
     __test__ = True
 
     def bkd(self) -> NumpyBkd:
@@ -469,9 +464,7 @@ class TestFunctionTrainCoreInputJacobianTorch(
         super().setUp()
 
 
-class TestFunctionTrainInputJacobianTorch(
-    TestFunctionTrainInputJacobian[torch.Tensor]
-):
+class TestFunctionTrainInputJacobianTorch(TestFunctionTrainInputJacobian[torch.Tensor]):
     __test__ = True
 
     def bkd(self) -> TorchBkd:
@@ -506,8 +499,7 @@ class TestFunctionTrainInputJacobianAutograd(unittest.TestCase):
     ) -> FunctionTrain[torch.Tensor]:
         bkd = self._bkd
         univariate_bases = [
-            self._create_univariate_expansion(max_level, nqoi)
-            for _ in range(nvars)
+            self._create_univariate_expansion(max_level, nqoi) for _ in range(nvars)
         ]
         return create_additive_functiontrain(univariate_bases, bkd, nqoi)
 
@@ -541,9 +533,7 @@ class TestFunctionTrainInputJacobianAutograd(unittest.TestCase):
             # autograd_jac shape: (nqoi, nvars, 1) -> squeeze to (nqoi, nvars)
             autograd_jac = autograd_jac.squeeze(-1)
 
-            bkd.assert_allclose(
-                analytical_jac[ii], autograd_jac, rtol=1e-10
-            )
+            bkd.assert_allclose(analytical_jac[ii], autograd_jac, rtol=1e-10)
 
     def test_jacobian_matches_autograd_multi_qoi(self) -> None:
         """Test analytical jacobian matches autograd with multiple QoIs."""
@@ -575,9 +565,7 @@ class TestFunctionTrainInputJacobianAutograd(unittest.TestCase):
             # autograd_jac shape: (nqoi, nvars, 1) -> squeeze to (nqoi, nvars)
             autograd_jac = autograd_jac.squeeze(-1)
 
-            bkd.assert_allclose(
-                analytical_jac[ii], autograd_jac, rtol=1e-10
-            )
+            bkd.assert_allclose(analytical_jac[ii], autograd_jac, rtol=1e-10)
 
 
 if __name__ == "__main__":

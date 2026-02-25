@@ -6,16 +6,27 @@ instances with standard normal KLE priors and configurable QoI functionals.
 
 from typing import Any, Tuple
 
-from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.benchmarks.benchmark import BenchmarkWithPrior, BoxDomain
 from pyapprox.benchmarks.ground_truth import SensitivityGroundTruth
 from pyapprox.benchmarks.registry import BenchmarkRegistry
-from pyapprox.probability.univariate.gaussian import GaussianMarginal
-from pyapprox.probability.joint.independent import IndependentJoint
+from pyapprox.optimization.implicitfunction.functionals.point_evaluation import (
+    PointEvaluationFunctional,
+)
+from pyapprox.optimization.implicitfunction.functionals.strain_energy_1d import (
+    StrainEnergyFunctional1D,
+    create_linear_strain_energy_1d,
+    create_neo_hookean_strain_energy_1d,
+)
+from pyapprox.optimization.implicitfunction.functionals.subdomain_integral import (
+    SubdomainIntegralFunctional,
+)
 from pyapprox.pde.collocation.basis import ChebyshevBasis1D
 from pyapprox.pde.collocation.mesh import (
     AffineTransform1D,
     TransformedMesh1D,
+)
+from pyapprox.pde.collocation.physics.stress_models.neo_hookean import (
+    NeoHookeanStress,
 )
 from pyapprox.pde.field_maps.kle_factory import (
     create_lognormal_kle_field_map,
@@ -26,20 +37,9 @@ from pyapprox.pde.zoo.elastic_bar_1d import (
 from pyapprox.pde.zoo.hyperelastic_bar_1d import (
     create_hyperelastic_bar_1d,
 )
-from pyapprox.optimization.implicitfunction.functionals.point_evaluation import (
-    PointEvaluationFunctional,
-)
-from pyapprox.optimization.implicitfunction.functionals.subdomain_integral import (
-    SubdomainIntegralFunctional,
-)
-from pyapprox.optimization.implicitfunction.functionals.strain_energy_1d import (
-    StrainEnergyFunctional1D,
-    create_linear_strain_energy_1d,
-    create_neo_hookean_strain_energy_1d,
-)
-from pyapprox.pde.collocation.physics.stress_models.neo_hookean import (
-    NeoHookeanStress,
-)
+from pyapprox.probability.joint.independent import IndependentJoint
+from pyapprox.probability.univariate.gaussian import GaussianMarginal
+from pyapprox.util.backends.protocols import Array, Backend
 
 
 class PDEBenchmarkWrapper:
@@ -94,7 +94,9 @@ def _make_kle_field_map(
     mesh_coords = (physical_pts - x_min) / length  # normalize to [0, 1]
     mean_log = bkd.zeros((npts,))
     return create_lognormal_kle_field_map(
-        mesh_coords, mean_log, bkd,
+        mesh_coords,
+        mean_log,
+        bkd,
         num_kle_terms=num_kle_terms,
         sigma=sigma,
         correlation_length=correlation_length,
@@ -102,12 +104,13 @@ def _make_kle_field_map(
 
 
 def _lame_from_E(
-    E_mean: float, poisson_ratio: float,
+    E_mean: float,
+    poisson_ratio: float,
 ) -> Tuple[float, float]:
     """Convert Young's modulus and Poisson ratio to Lame parameters."""
     mu = E_mean / (2.0 * (1.0 + poisson_ratio))
-    lamda = E_mean * poisson_ratio / (
-        (1.0 + poisson_ratio) * (1.0 - 2.0 * poisson_ratio)
+    lamda = (
+        E_mean * poisson_ratio / ((1.0 + poisson_ratio) * (1.0 - 2.0 * poisson_ratio))
     )
     return lamda, mu
 
@@ -131,18 +134,31 @@ def _make_functional(
     if qoi == "average_displacement":
         coeff = bkd.ones((npts,)) / length
         return SubdomainIntegralFunctional(
-            basis, nparams, bkd, coefficient=coeff,
+            basis,
+            nparams,
+            bkd,
+            coefficient=coeff,
         )
 
     if qoi == "average_stress":
         return _make_average_stress_functional(
-            basis, nparams, bkd, constitutive, length,
-            E_mean, poisson_ratio,
+            basis,
+            nparams,
+            bkd,
+            constitutive,
+            length,
+            E_mean,
+            poisson_ratio,
         )
 
     if qoi == "strain_energy":
         return _make_strain_energy_functional(
-            basis, nparams, bkd, constitutive, E_mean, poisson_ratio,
+            basis,
+            nparams,
+            bkd,
+            constitutive,
+            E_mean,
+            poisson_ratio,
         )
 
     raise ValueError(
@@ -167,12 +183,16 @@ def _make_average_stress_functional(
         E_over_L = E_mean * inv_L
 
         def energy_density_linear(
-            epsilon: Array, bkd: Backend[Array],
+            epsilon: Array,
+            bkd: Backend[Array],
         ) -> Tuple[Array, Array]:
             return E_over_L * epsilon, E_over_L * bkd.ones_like(epsilon)
 
         return StrainEnergyFunctional1D(
-            basis, nparams, bkd, energy_density_linear,
+            basis,
+            nparams,
+            bkd,
+            energy_density_linear,
             deformation_gradient=False,
         )
 
@@ -182,14 +202,18 @@ def _make_average_stress_functional(
     inv_L = 1.0 / length
 
     def energy_density_hyperelastic(
-        F: Array, bkd: Backend[Array],
+        F: Array,
+        bkd: Backend[Array],
     ) -> Tuple[Array, Array]:
         P = stress_model.compute_stress_1d(F, bkd)
         C = stress_model.compute_tangent_1d(F, bkd)
         return inv_L * P, inv_L * C
 
     return StrainEnergyFunctional1D(
-        basis, nparams, bkd, energy_density_hyperelastic,
+        basis,
+        nparams,
+        bkd,
+        energy_density_hyperelastic,
         deformation_gradient=True,
     )
 
@@ -205,11 +229,18 @@ def _make_strain_energy_functional(
     """Create strain energy functional."""
     if constitutive == "linear":
         return create_linear_strain_energy_1d(
-            basis, nparams, bkd, E_mean,
+            basis,
+            nparams,
+            bkd,
+            E_mean,
         )
     lamda, mu = _lame_from_E(E_mean, poisson_ratio)
     return create_neo_hookean_strain_energy_1d(
-        basis, nparams, bkd, lamda, mu,
+        basis,
+        nparams,
+        bkd,
+        lamda,
+        mu,
     )
 
 
@@ -271,8 +302,7 @@ def elastic_bar_1d(
     """
     if constitutive not in ("linear", "hyperelastic"):
         raise ValueError(
-            f"constitutive must be 'linear' or 'hyperelastic', "
-            f"got {constitutive!r}"
+            f"constitutive must be 'linear' or 'hyperelastic', got {constitutive!r}"
         )
 
     # Mesh and basis
@@ -282,30 +312,49 @@ def elastic_bar_1d(
 
     # KLE field map
     field_map = _make_kle_field_map(
-        bkd, mesh, num_kle_terms, sigma, correlation_length,
+        bkd,
+        mesh,
+        num_kle_terms,
+        sigma,
+        correlation_length,
     )
 
     # QoI functional
     functional = _make_functional(
-        basis, num_kle_terms, bkd, qoi, constitutive,
-        length, E_mean, poisson_ratio,
+        basis,
+        num_kle_terms,
+        bkd,
+        qoi,
+        constitutive,
+        length,
+        E_mean,
+        poisson_ratio,
     )
 
     # Forward model via zoo factory
     forcing = lambda t: bkd.ones((npts,))  # noqa: E731
     if constitutive == "linear":
         fwd = create_linear_elastic_bar_1d(
-            bkd=bkd, npts=npts, length=length,
-            E_mean_field=E_mean, forcing=forcing,
-            field_map=field_map, traction=traction,
+            bkd=bkd,
+            npts=npts,
+            length=length,
+            E_mean_field=E_mean,
+            forcing=forcing,
+            field_map=field_map,
+            traction=traction,
             functional=functional,
         )
     else:
         fwd = create_hyperelastic_bar_1d(
-            bkd=bkd, npts=npts, length=length,
-            E_mean=E_mean, poisson_ratio=poisson_ratio,
-            forcing=forcing, field_map=field_map,
-            traction=traction, functional=functional,
+            bkd=bkd,
+            npts=npts,
+            length=length,
+            E_mean=E_mean,
+            poisson_ratio=poisson_ratio,
+            forcing=forcing,
+            field_map=field_map,
+            traction=traction,
+            functional=functional,
         )
 
     # Prior: iid standard normal
@@ -332,9 +381,7 @@ def elastic_bar_1d(
         _prior=prior,
         _description=description,
     )
-    estimated_cost = (
-        2.4e-04 if constitutive == "linear" else 1.1e-03
-    )
+    estimated_cost = 2.4e-04 if constitutive == "linear" else 1.1e-03
     return PDEBenchmarkWrapper(inner, estimated_cost=estimated_cost)
 
 
@@ -353,8 +400,7 @@ def _elastic_bar_1d_linear_factory(
     "elastic_bar_1d_hyperelastic",
     category="pde",
     description=(
-        "1D hyperelastic (Neo-Hookean) bar with KLE-parameterized "
-        "Young's modulus"
+        "1D hyperelastic (Neo-Hookean) bar with KLE-parameterized Young's modulus"
     ),
 )
 def _elastic_bar_1d_hyperelastic_factory(

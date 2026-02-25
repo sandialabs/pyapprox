@@ -5,7 +5,7 @@ Defines the interface for different strategies of representing and
 computing with correlation matrices in copula models.
 """
 
-from typing import Protocol, Generic, runtime_checkable
+from typing import Generic, Protocol, runtime_checkable
 
 from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.util.hyperparameter import HyperParameterList

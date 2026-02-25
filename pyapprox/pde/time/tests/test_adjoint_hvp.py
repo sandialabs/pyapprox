@@ -10,35 +10,34 @@ from typing import Generic
 
 import numpy as np
 
-from pyapprox.util.backends.protocols import Array, Backend
-from pyapprox.util.test_utils import load_tests
-from pyapprox.util.backends.numpy import NumpyBkd
+from pyapprox.interface.functions.derivative_checks.derivative_checker import (
+    DerivativeChecker,
+)
 from pyapprox.optimization.rootfinding.newton import NewtonSolver
 from pyapprox.pde.time.benchmarks.linear_ode import (
     LinearODEResidual,
     QuadraticODEResidual,
 )
+from pyapprox.pde.time.explicit_steppers.forward_euler import (
+    ForwardEulerResidual,
+)
+from pyapprox.pde.time.explicit_steppers.heun import HeunResidual
+from pyapprox.pde.time.functionals.endpoint import EndpointFunctional
+from pyapprox.pde.time.functionals.mse import TransientMSEFunctional
 from pyapprox.pde.time.implicit_steppers.backward_euler import (
     BackwardEulerResidual,
 )
 from pyapprox.pde.time.implicit_steppers.crank_nicolson import (
     CrankNicolsonResidual,
 )
-from pyapprox.pde.time.explicit_steppers.forward_euler import (
-    ForwardEulerResidual,
-)
-from pyapprox.pde.time.explicit_steppers.heun import HeunResidual
 from pyapprox.pde.time.implicit_steppers.integrator import (
     TimeIntegrator,
 )
-from pyapprox.pde.time.functionals.endpoint import EndpointFunctional
-from pyapprox.pde.time.functionals.mse import TransientMSEFunctional
 from pyapprox.pde.time.operator.time_adjoint_hvp import (
     TimeAdjointOperatorWithHVP,
 )
-from pyapprox.interface.functions.derivative_checks.derivative_checker import (
-    DerivativeChecker,
-)
+from pyapprox.util.backends.numpy import NumpyBkd
+from pyapprox.util.backends.protocols import Array, Backend
 
 
 class TimeAdjointOperatorWrapper(Generic[Array]):
@@ -66,7 +65,8 @@ class TimeAdjointOperatorWrapper(Generic[Array]):
         return 1
 
     def nvars(self) -> int:
-        """Number of variables (parameters) - required by FunctionWithJacobianProtocol."""
+        """Number of variables (parameters) - required by
+        FunctionWithJacobianProtocol."""
         return self._operator.nparams()
 
     def nparams(self) -> int:
@@ -143,7 +143,7 @@ class TestAdjointHVP(Generic[Array], unittest.TestCase):
         eps: float = 1e-6,
     ) -> Array:
         """Compute HVP using finite difference of the Jacobian."""
-        bkd = self.bkd()
+        self.bkd()
 
         # Compute Jacobian at param + eps*v and param - eps*v
         param_plus = param + eps * vvec
@@ -182,9 +182,7 @@ class TestAdjointHVP(Generic[Array], unittest.TestCase):
         init_time = 0.0
         final_time = 1.0
         deltat = 0.1
-        integrator = TimeIntegrator(
-            init_time, final_time, deltat, newton_solver
-        )
+        integrator = TimeIntegrator(init_time, final_time, deltat, newton_solver)
 
         # Create MSE functional with observations
         obs_tuples = [(0, bkd.asarray([5, 10], dtype=int))]
@@ -202,10 +200,12 @@ class TestAdjointHVP(Generic[Array], unittest.TestCase):
         init_state = bkd.asarray(np.array([1.0, 0.5]))
 
         fwd_sols, times = integrator.solve(init_state)
-        obs = bkd.asarray([
-            float(fwd_sols[0, 5]) + 0.1,
-            float(fwd_sols[0, 10]) - 0.1,
-        ])
+        obs = bkd.asarray(
+            [
+                float(fwd_sols[0, 5]) + 0.1,
+                float(fwd_sols[0, 10]) - 0.1,
+            ]
+        )
         functional.set_observations(obs)
 
         # Create HVP operator
@@ -235,7 +235,7 @@ class TestAdjointHVP(Generic[Array], unittest.TestCase):
             jac_ratio,
             error_ratio_tol,
             f"Jacobian error ratio {jac_ratio:.2e} exceeds {error_ratio_tol:.2e} "
-            f"for {stepper_class.__name__} with linear ODE + MSE"
+            f"for {stepper_class.__name__} with linear ODE + MSE",
         )
 
         # Check HVP error ratio
@@ -245,7 +245,7 @@ class TestAdjointHVP(Generic[Array], unittest.TestCase):
             hvp_ratio,
             error_ratio_tol,
             f"HVP error ratio {hvp_ratio:.2e} exceeds {error_ratio_tol:.2e} "
-            f"for {stepper_class.__name__} with linear ODE + MSE"
+            f"for {stepper_class.__name__} with linear ODE + MSE",
         )
 
     def _check_hvp_stepper_quadratic_ode(
@@ -271,9 +271,7 @@ class TestAdjointHVP(Generic[Array], unittest.TestCase):
         init_time = 0.0
         final_time = 0.3  # 3 steps with deltat=0.1
         deltat = 0.1
-        integrator = TimeIntegrator(
-            init_time, final_time, deltat, newton_solver
-        )
+        integrator = TimeIntegrator(init_time, final_time, deltat, newton_solver)
 
         # Create endpoint functional
         functional = EndpointFunctional(
@@ -314,7 +312,7 @@ class TestAdjointHVP(Generic[Array], unittest.TestCase):
             jac_ratio,
             error_ratio_tol,
             f"Jacobian error ratio {jac_ratio:.2e} exceeds {error_ratio_tol:.2e} "
-            f"for {stepper_class.__name__} with quadratic ODE"
+            f"for {stepper_class.__name__} with quadratic ODE",
         )
 
         # Check HVP error ratio
@@ -324,7 +322,7 @@ class TestAdjointHVP(Generic[Array], unittest.TestCase):
             hvp_ratio,
             error_ratio_tol,
             f"HVP error ratio {hvp_ratio:.2e} exceeds {error_ratio_tol:.2e} "
-            f"for {stepper_class.__name__} with quadratic ODE"
+            f"for {stepper_class.__name__} with quadratic ODE",
         )
 
     def test_backward_euler_hvp_linear_ode_mse(self) -> None:
@@ -393,9 +391,7 @@ class TestAdjointHVP(Generic[Array], unittest.TestCase):
         init_time = 0.0
         final_time = 0.3  # 3 steps with deltat=0.1
         deltat = 0.1
-        integrator = TimeIntegrator(
-            init_time, final_time, deltat, newton_solver
-        )
+        integrator = TimeIntegrator(init_time, final_time, deltat, newton_solver)
 
         # Create MSE functional with observations
         # Note: indices must be within range [0, ntimes-1] = [0, 3]
@@ -416,10 +412,12 @@ class TestAdjointHVP(Generic[Array], unittest.TestCase):
         fwd_sols, times = integrator.solve(init_state)
 
         # Create noisy observations at time indices 1 and 3
-        obs = bkd.asarray([
-            float(fwd_sols[0, 1]) + 0.05,
-            float(fwd_sols[0, 3]) - 0.03,
-        ])
+        obs = bkd.asarray(
+            [
+                float(fwd_sols[0, 1]) + 0.05,
+                float(fwd_sols[0, 3]) - 0.03,
+            ]
+        )
         functional.set_observations(obs)
 
         # Create HVP operator
@@ -449,7 +447,7 @@ class TestAdjointHVP(Generic[Array], unittest.TestCase):
             jac_ratio,
             error_ratio_tol,
             f"Jacobian error ratio {jac_ratio:.2e} exceeds {error_ratio_tol:.2e} "
-            f"for {stepper_class.__name__} with quadratic ODE + MSE"
+            f"for {stepper_class.__name__} with quadratic ODE + MSE",
         )
 
         # Check HVP error ratio
@@ -459,7 +457,7 @@ class TestAdjointHVP(Generic[Array], unittest.TestCase):
             hvp_ratio,
             error_ratio_tol,
             f"HVP error ratio {hvp_ratio:.2e} exceeds {error_ratio_tol:.2e} "
-            f"for {stepper_class.__name__} with quadratic ODE + MSE"
+            f"for {stepper_class.__name__} with quadratic ODE + MSE",
         )
 
     def test_backward_euler_hvp_quadratic_ode_mse(self) -> None:

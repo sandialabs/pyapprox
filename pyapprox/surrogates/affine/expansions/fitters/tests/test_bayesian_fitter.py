@@ -7,21 +7,19 @@ import numpy as np
 import torch
 from numpy.typing import NDArray
 
-from pyapprox.util.backends.numpy import NumpyBkd
-from pyapprox.util.backends.torch import TorchBkd
-from pyapprox.util.backends.protocols import Array, Backend
-from pyapprox.util.test_utils import load_tests  # noqa: F401
-
+from pyapprox.optimization.linear import RidgeRegressionSolver
+from pyapprox.probability import UniformMarginal
+from pyapprox.surrogates.affine.basis import OrthonormalPolynomialBasis
+from pyapprox.surrogates.affine.expansions import BasisExpansion
 from pyapprox.surrogates.affine.expansions.fitters.bayesian import (
     BayesianConjugateFitter,
 )
-from pyapprox.optimization.linear import RidgeRegressionSolver
-
-from pyapprox.surrogates.affine.univariate import create_bases_1d
 from pyapprox.surrogates.affine.indices import compute_hyperbolic_indices
-from pyapprox.surrogates.affine.basis import OrthonormalPolynomialBasis
-from pyapprox.surrogates.affine.expansions import BasisExpansion
-from pyapprox.probability import UniformMarginal
+from pyapprox.surrogates.affine.univariate import create_bases_1d
+from pyapprox.util.backends.numpy import NumpyBkd
+from pyapprox.util.backends.protocols import Array, Backend
+from pyapprox.util.backends.torch import TorchBkd
+from pyapprox.util.test_utils import load_tests  # noqa: F401
 
 
 class TestBayesianConjugateFitter(Generic[Array], unittest.TestCase):
@@ -83,9 +81,7 @@ class TestBayesianConjugateFitter(Generic[Array], unittest.TestCase):
         samples = self._bkd.asarray(np.random.uniform(-1, 1, (2, 30)))
         values = self._bkd.asarray(np.random.randn(1, 30))
 
-        fitter = BayesianConjugateFitter(
-            self._bkd, prior_var=1.0, noise_var=0.1
-        )
+        fitter = BayesianConjugateFitter(self._bkd, prior_var=1.0, noise_var=0.1)
         result = fitter.fit(expansion, samples, values)
 
         cov = result.posterior_covariance()
@@ -98,9 +94,7 @@ class TestBayesianConjugateFitter(Generic[Array], unittest.TestCase):
         samples = self._bkd.asarray(np.random.uniform(-1, 1, (2, 30)))
         values = self._bkd.asarray(np.random.randn(1, 30))
 
-        fitter = BayesianConjugateFitter(
-            self._bkd, prior_var=1.0, noise_var=0.1
-        )
+        fitter = BayesianConjugateFitter(self._bkd, prior_var=1.0, noise_var=0.1)
         result = fitter.fit(expansion, samples, values)
 
         # Sample from posterior
@@ -117,9 +111,7 @@ class TestBayesianConjugateFitter(Generic[Array], unittest.TestCase):
         samples = self._bkd.asarray(np.random.uniform(-1, 1, (2, 30)))
         values = self._bkd.asarray(np.random.randn(1, 30))
 
-        fitter = BayesianConjugateFitter(
-            self._bkd, prior_var=1.0, noise_var=0.1
-        )
+        fitter = BayesianConjugateFitter(self._bkd, prior_var=1.0, noise_var=0.1)
         result = fitter.fit(expansion, samples, values)
 
         # Evaluate fitted surrogate
@@ -135,9 +127,7 @@ class TestBayesianConjugateFitter(Generic[Array], unittest.TestCase):
         samples = self._bkd.asarray(np.random.uniform(-1, 1, (2, 20)))
         values = self._bkd.asarray(np.random.randn(1, 20))
 
-        fitter = BayesianConjugateFitter(
-            self._bkd, prior_var=1.0, noise_var=0.1
-        )
+        fitter = BayesianConjugateFitter(self._bkd, prior_var=1.0, noise_var=0.1)
         result = fitter.fit(expansion, samples, values)
 
         evidence = result.evidence()
@@ -149,27 +139,21 @@ class TestBayesianConjugateFitter(Generic[Array], unittest.TestCase):
         samples = self._bkd.asarray(np.random.uniform(-1, 1, (2, 30)))
         values_1d = self._bkd.asarray(np.random.randn(30))  # 1D
 
-        fitter = BayesianConjugateFitter(
-            self._bkd, prior_var=1.0, noise_var=0.1
-        )
+        fitter = BayesianConjugateFitter(self._bkd, prior_var=1.0, noise_var=0.1)
         result = fitter.fit(expansion, samples, values_1d)
 
         # Should work
         self.assertEqual(result.posterior_mean().shape, (expansion.nterms(), 1))
 
 
-class TestBayesianConjugateFitterNumpy(
-    TestBayesianConjugateFitter[NDArray[Any]]
-):
+class TestBayesianConjugateFitterNumpy(TestBayesianConjugateFitter[NDArray[Any]]):
     __test__ = True
 
     def bkd(self) -> NumpyBkd:
         return NumpyBkd()
 
 
-class TestBayesianConjugateFitterTorch(
-    TestBayesianConjugateFitter[torch.Tensor]
-):
+class TestBayesianConjugateFitterTorch(TestBayesianConjugateFitter[torch.Tensor]):
     __test__ = True
 
     def bkd(self) -> TorchBkd:

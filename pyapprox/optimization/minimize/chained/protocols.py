@@ -1,9 +1,9 @@
-from typing import Protocol, Generic, Optional, runtime_checkable
+from typing import Generic, Protocol, runtime_checkable
 
-from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.optimization.minimize.scipy.scipy_result import (
     ScipyOptimizerResultWrapper,
 )
+from pyapprox.util.backends.protocols import Array, Backend
 
 
 @runtime_checkable
@@ -13,9 +13,7 @@ class OptimizerProtocol(Protocol, Generic[Array]):
     to be compatible with the ChainedOptimizer.
     """
 
-    def minimize(
-        self, init_guess: Array
-    ) -> ScipyOptimizerResultWrapper[Array]:
+    def minimize(self, init_guess: Array) -> ScipyOptimizerResultWrapper[Array]:
         """
         Perform the optimization.
 

@@ -4,7 +4,7 @@ Defines interfaces for boundary conditions that modify PDE residuals
 and Jacobians in the finite element context.
 """
 
-from typing import Protocol, Generic, runtime_checkable, Tuple
+from typing import Generic, Protocol, runtime_checkable
 
 from pyapprox.util.backends.protocols import Array, Backend
 
@@ -31,9 +31,7 @@ class BoundaryConditionProtocol(Protocol, Generic[Array]):
         """
         ...
 
-    def apply_to_residual(
-        self, residual: Array, state: Array, time: float
-    ) -> Array:
+    def apply_to_residual(self, residual: Array, state: Array, time: float) -> Array:
         """Apply boundary condition to residual.
 
         Modifies rows of residual corresponding to boundary DOFs.
@@ -54,9 +52,7 @@ class BoundaryConditionProtocol(Protocol, Generic[Array]):
         """
         ...
 
-    def apply_to_jacobian(
-        self, jacobian: Array, state: Array, time: float
-    ) -> Array:
+    def apply_to_jacobian(self, jacobian: Array, state: Array, time: float) -> Array:
         """Apply boundary condition to Jacobian.
 
         Modifies rows of Jacobian corresponding to boundary DOFs.

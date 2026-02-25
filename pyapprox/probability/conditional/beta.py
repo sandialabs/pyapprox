@@ -6,12 +6,15 @@ are functions of the conditioning variable.
 """
 
 import math
-from typing import Generic, Tuple
+from typing import TYPE_CHECKING, Generic, Tuple
 
 import numpy as np
 
 from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.util.hyperparameter import HyperParameterList
+
+if TYPE_CHECKING:
+    from pyapprox.probability.univariate.beta import BetaMarginal
 
 
 class ConditionalBeta(Generic[Array]):
@@ -105,12 +108,8 @@ class ConditionalBeta(Generic[Array]):
 
         points_11, weights_11 = roots_legendre(nquad_samples)
         # Transform from [-1, 1] to [0, 1]
-        self._quadx_01 = self._bkd.asarray(
-            ((points_11 + 1.0) / 2.0).tolist()
-        )
-        self._quadw_01 = self._bkd.asarray(
-            (weights_11 / 2.0).tolist()
-        )
+        self._quadx_01 = self._bkd.asarray(((points_11 + 1.0) / 2.0).tolist())
+        self._quadw_01 = self._bkd.asarray((weights_11 / 2.0).tolist())
 
     def _setup_methods(self) -> None:
         """Bind optional methods based on component capabilities."""
@@ -263,9 +262,7 @@ class ConditionalBeta(Generic[Array]):
             )
 
         nsamples = x.shape[1]
-        base = self._bkd.asarray(
-            np.random.uniform(0.0, 1.0, (1, nsamples))
-        )
+        base = self._bkd.asarray(np.random.uniform(0.0, 1.0, (1, nsamples)))
         return self.reparameterize(x, base)
 
     def _logpdf_jacobian_wrt_x(self, x: Array, y: Array) -> Array:
@@ -319,7 +316,8 @@ class ConditionalBeta(Generic[Array]):
         dlogalpha_dx = self._log_alpha_func.jacobian(x)  # (1, nvars)
         dlogbeta_dx = self._log_beta_func.jacobian(x)  # (1, nvars)
 
-        # Chain rule (Jacobian correction from scale is constant, doesn't affect derivative)
+        # Chain rule (Jacobian correction from scale is constant, doesn't affect
+        # derivative)
         result = dlogpdf_dlogalpha * dlogalpha_dx + dlogpdf_dlogbeta * dlogbeta_dx
 
         return result  # (1, nvars)
@@ -376,7 +374,8 @@ class ConditionalBeta(Generic[Array]):
             x
         )  # (nsamples, 1, n_beta_params)
 
-        # Chain rule (Jacobian correction from scale is constant, doesn't affect derivative)
+        # Chain rule (Jacobian correction from scale is constant, doesn't affect
+        # derivative)
         # dlogpdf_dlogalpha: (1, nsamples) -> need (nsamples, 1, 1) for broadcasting
         dlogpdf_dlogalpha_expanded = self._bkd.reshape(
             dlogpdf_dlogalpha.T, (nsamples, 1, 1)
@@ -399,9 +398,7 @@ class ConditionalBeta(Generic[Array]):
 
         return self._bkd.hstack([jac_alpha, jac_beta])  # (nsamples, nparams)
 
-    def _betainc_array(
-        self, samples_1d: Array, alpha: Array, beta_v: Array
-    ) -> Array:
+    def _betainc_array(self, samples_1d: Array, alpha: Array, beta_v: Array) -> Array:
         """Regularized incomplete beta function with array-valued params.
 
         Computes I_x(a, b) via Gauss-Legendre quadrature. All operations
@@ -427,9 +424,8 @@ class ConditionalBeta(Generic[Array]):
         quadw = samples_1d[:, None] * self._quadw_01[None, :]
 
         # Integrand: t^{a-1} (1-t)^{b-1}, alpha/beta: (N,) -> (N, 1)
-        integrand_vals = (
-            quadx ** (alpha[:, None] - 1.0)
-            * (1.0 - quadx) ** (beta_v[:, None] - 1.0)
+        integrand_vals = quadx ** (alpha[:, None] - 1.0) * (1.0 - quadx) ** (
+            beta_v[:, None] - 1.0
         )
         integral = self._bkd.sum(integrand_vals * quadw, axis=1)  # (N,)
 
@@ -441,9 +437,7 @@ class ConditionalBeta(Generic[Array]):
         )
         return integral / self._bkd.exp(log_beta_func)
 
-    def _beta_pdf_array(
-        self, samples_1d: Array, alpha: Array, beta_v: Array
-    ) -> Array:
+    def _beta_pdf_array(self, samples_1d: Array, alpha: Array, beta_v: Array) -> Array:
         """Beta PDF with array-valued parameters.
 
         Parameters
@@ -535,11 +529,11 @@ class ConditionalBeta(Generic[Array]):
         a2 = self._bkd.asarray([prior.alpha()])  # (1,)
         b2 = self._bkd.asarray([prior.beta()])  # (1,)
         log_B = lambda a, b: (  # noqa: E731
-            self._bkd.gammaln(a) + self._bkd.gammaln(b)
-            - self._bkd.gammaln(a + b)
+            self._bkd.gammaln(a) + self._bkd.gammaln(b) - self._bkd.gammaln(a + b)
         )
         return (
-            log_B(a2, b2) - log_B(a1, b1)
+            log_B(a2, b2)
+            - log_B(a1, b1)
             + (a1 - a2) * self._bkd.digamma(a1)
             + (b1 - b2) * self._bkd.digamma(b1)
             + (a2 - a1 + b2 - b1) * self._bkd.digamma(a1 + b1)
@@ -550,6 +544,7 @@ class ConditionalBeta(Generic[Array]):
         from pyapprox.probability.univariate.uniform import (
             UniformMarginal,
         )
+
         return UniformMarginal(0.0, 1.0, self._bkd)
 
     def __repr__(self) -> str:

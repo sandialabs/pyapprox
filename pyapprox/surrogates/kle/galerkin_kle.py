@@ -1,11 +1,11 @@
 """KLE via Galerkin projection: C_h Phi = M Phi Lambda."""
 
-from typing import Generic, Optional, Union
+from typing import Generic, Union
 
 import numpy as np
 
-from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.surrogates.kle.utils import eigendecomposition_generalized
+from pyapprox.util.backends.protocols import Array, Backend
 
 
 class GalerkinKLE(Generic[Array]):
@@ -65,7 +65,10 @@ class GalerkinKLE(Generic[Array]):
             self._mean_field = mean_field
 
         eig_vals, eig_vecs = eigendecomposition_generalized(
-            cov_matrix, mass_matrix, nterms, bkd,
+            cov_matrix,
+            mass_matrix,
+            nterms,
+            bkd,
         )
         self._eig_vals = eig_vals
         self._sqrt_eig_vals = bkd.sqrt(eig_vals)
@@ -88,9 +91,7 @@ class GalerkinKLE(Generic[Array]):
         if coef.ndim != 2:
             raise ValueError(f"coef.ndim={coef.ndim} but should be 2")
         if coef.shape[0] != self._nterms:
-            raise ValueError(
-                f"coef.shape[0]={coef.shape[0]} != nterms={self._nterms}"
-            )
+            raise ValueError(f"coef.shape[0]={coef.shape[0]} != nterms={self._nterms}")
         return self._mean_field[:, None] + self._eig_vecs @ coef
 
     def bkd(self) -> Backend[Array]:
@@ -125,8 +126,4 @@ class GalerkinKLE(Generic[Array]):
         return self._mean_field
 
     def __repr__(self) -> str:
-        return (
-            f"{self.__class__.__name__}("
-            f"nterms={self._nterms}, "
-            f"sigma={self._sigma})"
-        )
+        return f"{self.__class__.__name__}(nterms={self._nterms}, sigma={self._sigma})"

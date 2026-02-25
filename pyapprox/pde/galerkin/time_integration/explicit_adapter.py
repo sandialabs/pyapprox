@@ -64,7 +64,11 @@ class GalerkinExplicitODEAdapter(Generic[Array]):
     def _setup_mass(self, physics) -> None:
         """Build and factor the BC-modified mass matrix."""
         M_raw = physics.mass_matrix()
-        M_np = M_raw.toarray().copy() if issparse(M_raw) else self._bkd.to_numpy(M_raw).copy()
+        M_np = (
+            M_raw.toarray().copy()
+            if issparse(M_raw)
+            else self._bkd.to_numpy(M_raw).copy()
+        )
         d_dofs = self._d_dof_indices_np
 
         if len(d_dofs) > 0:

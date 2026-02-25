@@ -6,16 +6,16 @@ with the tensor product basis infrastructure for 2D domains.
 
 from typing import Generic, Tuple
 
-from pyapprox.util.backends.protocols import Array, Backend
-from pyapprox.pde.collocation.basis.tensor_product import (
-    TensorProductBasis,
-)
 from pyapprox.pde.collocation.basis.chebyshev.derivative import (
     ChebyshevDerivativeMatrix1D,
+)
+from pyapprox.pde.collocation.basis.tensor_product import (
+    TensorProductBasis,
 )
 from pyapprox.pde.collocation.protocols.mesh import (
     MeshWithTransformProtocol,
 )
+from pyapprox.util.backends.protocols import Array, Backend
 
 
 class ChebyshevBasis2D(Generic[Array]):

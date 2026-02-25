@@ -1,8 +1,7 @@
 """Convenience functions for solving OED problems."""
 
-from typing import Literal, Optional, Tuple
+from typing import Optional, Tuple
 
-from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.expdesign.objective.factory import (
     create_kl_oed_objective_from_data,
 )
@@ -11,7 +10,9 @@ from pyapprox.expdesign.objective.prediction_factory import (
     RiskType,
     create_prediction_oed_objective,
 )
-from .relaxed import RelaxedKLOEDSolver, RelaxedOEDSolver, RelaxedOEDConfig
+from pyapprox.util.backends.protocols import Array, Backend
+
+from .relaxed import RelaxedKLOEDSolver, RelaxedOEDConfig, RelaxedOEDSolver
 
 
 def solve_kl_oed(
@@ -109,8 +110,12 @@ def solve_prediction_oed(
         Objective value at optimal design.
     """
     objective = create_prediction_oed_objective(
-        noise_variances, outer_shapes, inner_shapes,
-        latent_samples, qoi_vals, bkd,
+        noise_variances,
+        outer_shapes,
+        inner_shapes,
+        latent_samples,
+        qoi_vals,
+        bkd,
         deviation_type=deviation_type,
         risk_type=risk_type,
         noise_stat_type=noise_stat_type,

@@ -1,23 +1,25 @@
 """Tests for time integration module."""
 
-import unittest
 import math
+import unittest
 from typing import Generic
 
-from pyapprox.util.backends.protocols import Array, Backend
-from pyapprox.util.backends.numpy import NumpyBkd
-from pyapprox.util.test_utils import load_tests  # noqa: F401
 from pyapprox.pde.collocation.basis import ChebyshevBasis1D
-from pyapprox.pde.collocation.mesh import (
-    create_uniform_mesh_1d,
-    TransformedMesh1D,
-)
 from pyapprox.pde.collocation.boundary import (
     constant_dirichlet_bc,
     zero_dirichlet_bc,
 )
+from pyapprox.pde.collocation.mesh import (
+    TransformedMesh1D,
+    create_uniform_mesh_1d,
+)
 from pyapprox.pde.collocation.physics import (
     AdvectionDiffusionReaction,
+)
+from pyapprox.pde.collocation.time_integration import (
+    CollocationModel,
+    PhysicsToODEResidualAdapter,
+    TimeIntegrationConfig,
 )
 from pyapprox.pde.field_maps.basis_expansion import (
     BasisExpansion,
@@ -25,11 +27,9 @@ from pyapprox.pde.field_maps.basis_expansion import (
 from pyapprox.pde.parameterizations.diffusion import (
     create_diffusion_parameterization,
 )
-from pyapprox.pde.collocation.time_integration import (
-    PhysicsToODEResidualAdapter,
-    CollocationModel,
-    TimeIntegrationConfig,
-)
+from pyapprox.util.backends.numpy import NumpyBkd
+from pyapprox.util.backends.protocols import Array, Backend
+from pyapprox.util.test_utils import load_tests  # noqa: F401
 
 
 class TestPhysicsToODEResidualAdapter(Generic[Array], unittest.TestCase):
@@ -163,12 +163,8 @@ class TestPhysicsToODEResidualAdapter(Generic[Array], unittest.TestCase):
         )
 
         # Boundary rows should be identity-like after applying BCs
-        bkd.assert_allclose(
-            jacobian_with_bc[0, :], bkd.eye(npts)[0, :], atol=1e-14
-        )
-        bkd.assert_allclose(
-            jacobian_with_bc[-1, :], bkd.eye(npts)[-1, :], atol=1e-14
-        )
+        bkd.assert_allclose(jacobian_with_bc[0, :], bkd.eye(npts)[0, :], atol=1e-14)
+        bkd.assert_allclose(jacobian_with_bc[-1, :], bkd.eye(npts)[-1, :], atol=1e-14)
 
     def test_adapter_param_jacobian_available(self):
         """Test that param_jacobian is available via parameterization."""
@@ -184,9 +180,7 @@ class TestPhysicsToODEResidualAdapter(Generic[Array], unittest.TestCase):
         fm = BasisExpansion(bkd, 1.0, [phi0])
         param = create_diffusion_parameterization(bkd, basis, fm)
 
-        adapter = PhysicsToODEResidualAdapter(
-            physics, bkd, parameterization=param
-        )
+        adapter = PhysicsToODEResidualAdapter(physics, bkd, parameterization=param)
 
         # Should have param_jacobian
         self.assertTrue(hasattr(adapter, "param_jacobian"))
@@ -261,11 +255,10 @@ class TestCollocationModel(Generic[Array], unittest.TestCase):
         nodes = basis.nodes()
 
         # Forcing f such that D*laplacian(u) + f = 0 for u = sin(pi*x)
-        forcing = lambda t: (math.pi ** 2) * bkd.sin(math.pi * nodes)
+        def forcing(t):
+            return (math.pi**2) * bkd.sin(math.pi * nodes)
 
-        physics = AdvectionDiffusionReaction(
-            basis, bkd, diffusion=D, forcing=forcing
-        )
+        physics = AdvectionDiffusionReaction(basis, bkd, diffusion=D, forcing=forcing)
 
         # BCs: u(-1) = 0, u(1) = 0 (consistent with sin(pi*x))
         left_idx = mesh.boundary_indices(0)
@@ -433,7 +426,7 @@ class TestCollocationModel(Generic[Array], unittest.TestCase):
         solutions, times = model.solve_transient(u0, config)
 
         # Exact solution: exp(-D * pi^2 * t) * sin(pi*x)
-        u_exact_final = math.exp(-D * math.pi ** 2 * 0.5) * bkd.sin(math.pi * nodes)
+        u_exact_final = math.exp(-D * math.pi**2 * 0.5) * bkd.sin(math.pi * nodes)
 
         # Should be reasonably close
         # Use atol for boundary points which are near zero

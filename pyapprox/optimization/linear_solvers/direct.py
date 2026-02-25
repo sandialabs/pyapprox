@@ -44,9 +44,7 @@ class DirectSolver(Generic[Array]):
         return self._bkd.solve(A, b)
 
 
-def direct_solve(
-    A: Array, b: Array, bkd: Backend[Array]
-) -> Array:
+def direct_solve(A: Array, b: Array, bkd: Backend[Array]) -> Array:
     """Solve linear system Ax = b directly (functional interface).
 
     Parameters

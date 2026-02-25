@@ -4,7 +4,7 @@ This module defines protocols for solvers that find coefficients
 for basis expansions by solving linear systems: Φc = y.
 """
 
-from typing import Protocol, Generic, Optional, runtime_checkable
+from typing import Generic, Protocol, runtime_checkable
 
 from pyapprox.util.backends.protocols import Array, Backend
 

@@ -1,4 +1,5 @@
 from typing import Generic, Tuple
+
 from pyapprox.util.backends.protocols import Array, Backend
 
 
@@ -59,8 +60,8 @@ class PiecewiseConstantRight(Generic[Array]):
         Tuple[Array, Array]
             Quadrature points and weights.
         """
-        quadrature_points, quadrature_weights = (
-            self._quadrature_rule_from_nodes(self._nodes)
+        quadrature_points, quadrature_weights = self._quadrature_rule_from_nodes(
+            self._nodes
         )
         return quadrature_points, quadrature_weights
 
@@ -78,9 +79,7 @@ class PiecewiseConstantRight(Generic[Array]):
         Tuple[Array, Array]
             Quadrature points and weights.
         """
-        quadrature_points = nodes[
-            1:
-        ]  # Points are the right endpoints of intervals
+        quadrature_points = nodes[1:]  # Points are the right endpoints of intervals
         quadrature_weights = self._bkd.diff(nodes)[
             :, None
         ]  # Differences between consecutive nodes

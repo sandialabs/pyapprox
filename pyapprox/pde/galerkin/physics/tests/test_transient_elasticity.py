@@ -10,26 +10,25 @@ from typing import List, Tuple
 import numpy as np
 from unittest_parametrize import ParametrizedTestCase, parametrize
 
-from pyapprox.util.backends.numpy import NumpyBkd
-from pyapprox.pde.galerkin.mesh import StructuredMesh2D
+from pyapprox.optimization.rootfinding.newton import NewtonSolver
 from pyapprox.pde.galerkin.basis import VectorLagrangeBasis
-from pyapprox.pde.galerkin.physics.composite_linear_elasticity import (
-    CompositeLinearElasticity as LinearElasticity,
-)
 from pyapprox.pde.galerkin.boundary import DirichletBC
 from pyapprox.pde.galerkin.manufactured.adapter import (
     create_elasticity_manufactured_test,
 )
+from pyapprox.pde.galerkin.mesh import StructuredMesh2D
+from pyapprox.pde.galerkin.physics.composite_linear_elasticity import (
+    CompositeLinearElasticity as LinearElasticity,
+)
 from pyapprox.pde.galerkin.time_integration import (
-    GalerkinPhysicsODEAdapter,
     ConstrainedTimeStepResidual,
+    GalerkinPhysicsODEAdapter,
 )
 from pyapprox.pde.time.implicit_steppers import (
     BackwardEulerResidual,
     CrankNicolsonResidual,
 )
-from pyapprox.optimization.rootfinding.newton import NewtonSolver
-
+from pyapprox.util.backends.numpy import NumpyBkd
 
 # =========================================================================
 # Helpers
@@ -51,6 +50,7 @@ def _make_vector_dirichlet_value_func(sol_func, ndim):
     The value_func must return (nbndry_dofs,) with the correct component
     value for each DOF.
     """
+
     def value_func(coords, time):
         # coords: (ndim, nbndry_dofs) — coordinates of boundary DOFs
         # For vector basis, DOFs are interleaved, so DOF j corresponds
@@ -131,7 +131,8 @@ class TestTransientElasticity2D(ParametrizedTestCase):
 
         # Mesh and basis
         mesh = StructuredMesh2D(
-            nx=10, ny=10,
+            nx=10,
+            ny=10,
             bounds=[[0.0, 1.0], [0.0, 1.0]],
             bkd=bkd,
         )
@@ -185,9 +186,7 @@ class TestTransientElasticity2D(ParametrizedTestCase):
         newton = NewtonSolver(constrained)
         newton.set_options(maxiters=20, atol=1e-10, rtol=0.0)
 
-        y = bkd.asarray(
-            _get_exact_displacement(functions, basis, bkd, time=0.0)
-        )
+        y = bkd.asarray(_get_exact_displacement(functions, basis, bkd, time=0.0))
 
         dt = 0.1
         nsteps = 5
@@ -221,14 +220,13 @@ class TestTransientElasticity2D(ParametrizedTestCase):
             rel_error = np.linalg.norm(u_num - u_exact_final)
 
         self.assertLess(
-            rel_error, 1e-5,
-            f"Test {name}: rel_error={rel_error:.2e} at t={t} "
-            f"should be < 1e-5",
+            rel_error,
+            1e-5,
+            f"Test {name}: rel_error={rel_error:.2e} at t={t} should be < 1e-5",
         )
 
 
 from pyapprox.util.test_utils import load_tests  # noqa: F401
-
 
 if __name__ == "__main__":
     unittest.main()

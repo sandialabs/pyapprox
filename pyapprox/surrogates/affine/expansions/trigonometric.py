@@ -4,12 +4,13 @@ Linear combination of trigonometric basis functions:
 f(x) = sum_i c_i * phi_i(x)
 where phi_i are [1, cos(kx), sin(kx)] on [-pi, pi].
 """
+
 from typing import Generic, Optional
 
-from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.surrogates.affine.univariate.trigonometric import (
     TrigonometricPolynomial1D,
 )
+from pyapprox.util.backends.protocols import Array, Backend
 
 
 class TrigonometricExpansion(Generic[Array]):
@@ -61,9 +62,7 @@ class TrigonometricExpansion(Generic[Array]):
             Coefficients for each basis function.
         """
         if coef.shape[0] != self.nterms():
-            raise ValueError(
-                f"coef.shape[0]={coef.shape[0]} != nterms={self.nterms()}"
-            )
+            raise ValueError(f"coef.shape[0]={coef.shape[0]} != nterms={self.nterms()}")
         self._coef = coef
         self._nqoi = coef.shape[1]
 

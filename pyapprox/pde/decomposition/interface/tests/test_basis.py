@@ -1,12 +1,13 @@
 """Tests for interface basis implementations."""
 
-import numpy as np
 import unittest
 
-from pyapprox.util.backends.numpy import NumpyBkd
+import numpy as np
+
 from pyapprox.pde.decomposition.interface.basis import (
     LegendreInterfaceBasis1D,
 )
+from pyapprox.util.backends.numpy import NumpyBkd
 
 
 class TestLegendreInterfaceBasis1D(unittest.TestCase):
@@ -37,7 +38,9 @@ class TestLegendreInterfaceBasis1D(unittest.TestCase):
 
     def test_reference_points_exclude_endpoints(self):
         """Test that Gauss-Legendre points are strictly interior to [-1, 1]."""
-        basis = LegendreInterfaceBasis1D(self.bkd, degree=4, physical_bounds=(-1.0, 1.0))
+        basis = LegendreInterfaceBasis1D(
+            self.bkd, degree=4, physical_bounds=(-1.0, 1.0)
+        )
         ref_pts = basis.reference_points()
 
         # Shape should be (1, npts) where npts = degree + 1 = 5

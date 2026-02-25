@@ -11,10 +11,10 @@ The approach introduces a slack variable t and reformulates as:
 This allows using standard constrained optimization solvers.
 """
 
-from .protocols import MultiQoIObjectiveProtocol, SlackBasedObjectiveProtocol
-from .objective import MinimaxObjective
 from .constraint import MinimaxConstraint
+from .objective import MinimaxObjective
 from .optimizer import MinimaxOptimizer
+from .protocols import MultiQoIObjectiveProtocol, SlackBasedObjectiveProtocol
 
 __all__ = [
     # Protocols

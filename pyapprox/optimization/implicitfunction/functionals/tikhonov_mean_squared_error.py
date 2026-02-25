@@ -1,7 +1,7 @@
-from pyapprox.util.backends.protocols import Array
 from pyapprox.optimization.implicitfunction.functionals.mean_squared_error import (
     MSEFunctional,
 )
+from pyapprox.util.backends.protocols import Array
 
 
 class TikhonovMSEFunctional(MSEFunctional):
@@ -34,9 +34,7 @@ class TikhonovMSEFunctional(MSEFunctional):
         """
         return param.T
 
-    def param_param_hvp(
-        self, state: Array, param: Array, vvec: Array
-    ) -> Array:
+    def param_param_hvp(self, state: Array, param: Array, vvec: Array) -> Array:
         """
         Compute the Hessian-vector product with respect to the parameters.
 

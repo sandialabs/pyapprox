@@ -4,22 +4,22 @@ This module defines all protocol interfaces used in the Galerkin
 discretization of PDEs using scikit-fem.
 """
 
-from pyapprox.pde.galerkin.protocols.mesh import (
-    GalerkinMeshProtocol,
-    StructuredMeshProtocol,
-)
 from pyapprox.pde.galerkin.protocols.basis import (
     GalerkinBasisProtocol,
     VectorBasisProtocol,
-)
-from pyapprox.pde.galerkin.protocols.physics import (
-    GalerkinPhysicsProtocol,
 )
 from pyapprox.pde.galerkin.protocols.boundary import (
     BoundaryConditionProtocol,
     DirichletBCProtocol,
     NeumannBCProtocol,
     RobinBCProtocol,
+)
+from pyapprox.pde.galerkin.protocols.mesh import (
+    GalerkinMeshProtocol,
+    StructuredMeshProtocol,
+)
+from pyapprox.pde.galerkin.protocols.physics import (
+    GalerkinPhysicsProtocol,
 )
 
 __all__ = [

@@ -8,10 +8,10 @@ discrete or continuous probability measures:
 
 from typing import Generic, Optional
 
-from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.surrogates.affine.univariate.globalpoly.orthopoly_base import (
     OrthonormalPolynomial1D,
 )
+from pyapprox.util.backends.protocols import Array, Backend
 
 
 def lanczos_recursion(
@@ -51,9 +51,7 @@ def lanczos_recursion(
     """
     nsamples = len(samples)
     if nterms > nsamples:
-        raise ValueError(
-            f"Cannot compute {nterms} terms from {nsamples} samples"
-        )
+        raise ValueError(f"Cannot compute {nterms} terms from {nsamples} samples")
 
     # Normalize weights
     weights = weights / bkd.sum(weights)
@@ -61,7 +59,7 @@ def lanczos_recursion(
     ab = bkd.zeros((nterms, 2))
 
     # Initialize with weighted samples
-    sqrt_weights = bkd.sqrt(weights)
+    bkd.sqrt(weights)
 
     # Store polynomial values at sample points
     # p_{-1} = 0, p_0 = 1/sqrt(sum(weights)) = 1 (normalized)
@@ -88,7 +86,7 @@ def lanczos_recursion(
         norm_sq = bkd.sum(weights * p_next * p_next)
         if norm_sq < ortho_tol:
             raise ValueError(
-                f"Lanczos breakdown at term {nn+1}: norm^2 = {float(norm_sq)}"
+                f"Lanczos breakdown at term {nn + 1}: norm^2 = {float(norm_sq)}"
             )
 
         ab[nn + 1, 1] = bkd.sqrt(bkd.asarray([norm_sq]))[0]

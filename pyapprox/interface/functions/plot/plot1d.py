@@ -1,4 +1,4 @@
-from typing import Any, List, Sequence, Generic, Union, Tuple
+from typing import Any, Generic, List, Sequence, Tuple, Union
 
 import matplotlib.pyplot as plt
 from matplotlib.axes import Axes
@@ -40,12 +40,8 @@ class Plotter1D(Generic[Array]):
 
     def _validate_plot_limits(self, plot_limits: Union[Sequence[Any], Array]):
         if len(plot_limits) != 2:
-            raise ValueError(
-                "plot_limits must have exactly 2 entries: [x_min, x_max]."
-            )
-        if self._bkd.any_bool(
-            ~self._bkd.isfinite(self._bkd.asarray(plot_limits))
-        ):
+            raise ValueError("plot_limits must have exactly 2 entries: [x_min, x_max].")
+        if self._bkd.any_bool(~self._bkd.isfinite(self._bkd.asarray(plot_limits))):
             raise ValueError(f"plot limits {plot_limits} must be finite")
 
     def plot(

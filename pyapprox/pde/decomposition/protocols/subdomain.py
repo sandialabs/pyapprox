@@ -7,7 +7,7 @@ to provide DtN-specific capabilities:
 - Computing flux Jacobians for Newton iteration
 """
 
-from typing import Protocol, Generic, runtime_checkable, List
+from typing import Generic, List, Protocol, runtime_checkable
 
 from pyapprox.util.backends.protocols import Array, Backend
 

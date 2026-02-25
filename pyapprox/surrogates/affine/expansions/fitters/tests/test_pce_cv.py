@@ -11,30 +11,28 @@ import numpy as np
 import torch
 from numpy.typing import NDArray
 
-from pyapprox.util.backends.numpy import NumpyBkd
-from pyapprox.util.backends.torch import TorchBkd
-from pyapprox.util.backends.protocols import Array, Backend
-from pyapprox.util.test_utils import load_tests  # noqa: F401
-
+from pyapprox.probability import UniformMarginal
+from pyapprox.surrogates.affine.basis import OrthonormalPolynomialBasis
+from pyapprox.surrogates.affine.expansions import BasisExpansion
 from pyapprox.surrogates.affine.expansions.fitters.pce_cv import (
     PCEDegreeSelectionFitter,
 )
 from pyapprox.surrogates.affine.expansions.fitters.results import (
     CVSelectionResult,
 )
-
-from pyapprox.surrogates.affine.univariate import create_bases_1d
 from pyapprox.surrogates.affine.indices import (
-    compute_hyperbolic_indices,
     HyperbolicIndexSequence,
     SparseGridIndexSequence,
+    compute_hyperbolic_indices,
 )
 from pyapprox.surrogates.affine.indices.growth_rules import (
     LinearGrowthRule,
 )
-from pyapprox.surrogates.affine.basis import OrthonormalPolynomialBasis
-from pyapprox.surrogates.affine.expansions import BasisExpansion
-from pyapprox.probability import UniformMarginal
+from pyapprox.surrogates.affine.univariate import create_bases_1d
+from pyapprox.util.backends.numpy import NumpyBkd
+from pyapprox.util.backends.protocols import Array, Backend
+from pyapprox.util.backends.torch import TorchBkd
+from pyapprox.util.test_utils import load_tests  # noqa: F401
 
 
 class TestPCEDegreeSelectionFitter(Generic[Array], unittest.TestCase):
@@ -75,9 +73,7 @@ class TestPCEDegreeSelectionFitter(Generic[Array], unittest.TestCase):
 
         # level 1 should have large error, levels >= 2 should be near zero
         cv_scores = result.cv_scores()
-        bkd.assert_allclose(
-            cv_scores[1:2], bkd.zeros(1), atol=1e-12
-        )
+        bkd.assert_allclose(cv_scores[1:2], bkd.zeros(1), atol=1e-12)
         # level 1 CV score should be much larger
         self.assertGreater(float(cv_scores[0]), 1e-2)
         # selected level should be >= 2 (exact choice among >=2 is noise)
@@ -100,9 +96,7 @@ class TestPCEDegreeSelectionFitter(Generic[Array], unittest.TestCase):
 
         # levels 1-2 should have large error, levels >= 3 near zero
         cv_scores = result.cv_scores()
-        bkd.assert_allclose(
-            cv_scores[2:3], bkd.zeros(1), atol=1e-12
-        )
+        bkd.assert_allclose(cv_scores[2:3], bkd.zeros(1), atol=1e-12)
         self.assertGreater(float(cv_scores[0]), 1e-2)
         self.assertGreaterEqual(result.best_label(), 3)
 
@@ -114,9 +108,7 @@ class TestPCEDegreeSelectionFitter(Generic[Array], unittest.TestCase):
         ntrain = 50
         samples = bkd.asarray(np.random.uniform(-1, 1, (nvars, ntrain)))
         # f(x,y) = x^2 + y^2 -> degree 2 polynomial
-        values = bkd.reshape(
-            samples[0, :] ** 2 + samples[1, :] ** 2, (1, -1)
-        )
+        values = bkd.reshape(samples[0, :] ** 2 + samples[1, :] ** 2, (1, -1))
 
         index_seq = HyperbolicIndexSequence(nvars, 1.0, bkd)
         fitter = PCEDegreeSelectionFitter(
@@ -152,9 +144,7 @@ class TestPCEDegreeSelectionFitter(Generic[Array], unittest.TestCase):
         values = bkd.reshape(samples[0, :] ** 2, (1, -1))
 
         index_seq = HyperbolicIndexSequence(nvars, 1.0, bkd)
-        fitter = PCEDegreeSelectionFitter(
-            bkd, levels=levels, index_sequence=index_seq
-        )
+        fitter = PCEDegreeSelectionFitter(bkd, levels=levels, index_sequence=index_seq)
         result = fitter.fit(expansion, samples, values)
 
         self.assertEqual(result.cv_scores().shape[0], len(levels))
@@ -166,15 +156,11 @@ class TestPCEDegreeSelectionFitter(Generic[Array], unittest.TestCase):
         expansion = self._create_expansion(nvars, max_level=10)
         ntrain = 8  # Very few samples
         samples = bkd.asarray(np.random.uniform(-1, 1, (nvars, ntrain)))
-        values = bkd.reshape(
-            samples[0, :] + samples[1, :], (1, -1)
-        )
+        values = bkd.reshape(samples[0, :] + samples[1, :], (1, -1))
 
         # Level 10 has (10+1)*(10+2)/2 = 66 terms >> 8 samples
         index_seq = HyperbolicIndexSequence(nvars, 1.0, bkd)
-        fitter = PCEDegreeSelectionFitter(
-            bkd, levels=[1, 10], index_sequence=index_seq
-        )
+        fitter = PCEDegreeSelectionFitter(bkd, levels=[1, 10], index_sequence=index_seq)
         result = fitter.fit(expansion, samples, values)
 
         # Level 10 should be inf, so level 1 is selected
@@ -206,8 +192,7 @@ class TestPCEDegreeSelectionFitter(Generic[Array], unittest.TestCase):
 
         index_seq = HyperbolicIndexSequence(nvars, 1.0, bkd)
         fitter = PCEDegreeSelectionFitter(
-            bkd, levels=[1, 2, 3, 4, 5],
-            index_sequence=index_seq, alpha=1e-6
+            bkd, levels=[1, 2, 3, 4, 5], index_sequence=index_seq, alpha=1e-6
         )
         result = fitter.fit(expansion, samples, values)
 
@@ -225,8 +210,7 @@ class TestPCEDegreeSelectionFitter(Generic[Array], unittest.TestCase):
 
         index_seq = HyperbolicIndexSequence(nvars, 1.0, bkd)
         fitter = PCEDegreeSelectionFitter(
-            bkd, levels=[1, 2, 3, 4, 5],
-            index_sequence=index_seq, nfolds=5
+            bkd, levels=[1, 2, 3, 4, 5], index_sequence=index_seq, nfolds=5
         )
         result = fitter.fit(expansion, samples, values)
 
@@ -265,9 +249,7 @@ class TestPCEDegreeSelectionFitter(Generic[Array], unittest.TestCase):
         nvars = 1
         index_seq = HyperbolicIndexSequence(nvars, 1.0, bkd)
         with self.assertRaises(ValueError):
-            PCEDegreeSelectionFitter(
-                bkd, levels=[], index_sequence=index_seq
-            )
+            PCEDegreeSelectionFitter(bkd, levels=[], index_sequence=index_seq)
 
     def test_all_params_stored(self) -> None:
         """All candidate params are stored in result."""
@@ -280,9 +262,7 @@ class TestPCEDegreeSelectionFitter(Generic[Array], unittest.TestCase):
         values = bkd.reshape(samples[0, :] ** 2, (1, -1))
 
         index_seq = HyperbolicIndexSequence(nvars, 1.0, bkd)
-        fitter = PCEDegreeSelectionFitter(
-            bkd, levels=levels, index_sequence=index_seq
-        )
+        fitter = PCEDegreeSelectionFitter(bkd, levels=levels, index_sequence=index_seq)
         result = fitter.fit(expansion, samples, values)
 
         self.assertEqual(len(result.all_params()), len(levels))
@@ -295,9 +275,7 @@ class TestPCEDegreeSelectionFitter(Generic[Array], unittest.TestCase):
         ntrain = 80
         samples = bkd.asarray(np.random.uniform(-1, 1, (nvars, ntrain)))
         # f(x,y) = x^2 + y^2 -> degree 2 polynomial
-        values = bkd.reshape(
-            samples[0, :] ** 2 + samples[1, :] ** 2, (1, -1)
-        )
+        values = bkd.reshape(samples[0, :] ** 2 + samples[1, :] ** 2, (1, -1))
 
         # Use LinearGrowthRule(1,1) so sparse grid level = total degree
         index_seq = SparseGridIndexSequence(
@@ -311,9 +289,7 @@ class TestPCEDegreeSelectionFitter(Generic[Array], unittest.TestCase):
         self.assertEqual(result.best_label(), 2)
 
 
-class TestPCEDegreeSelectionFitterNumpy(
-    TestPCEDegreeSelectionFitter[NDArray[Any]]
-):
+class TestPCEDegreeSelectionFitterNumpy(TestPCEDegreeSelectionFitter[NDArray[Any]]):
     """NumPy backend tests."""
 
     __test__ = True
@@ -322,9 +298,7 @@ class TestPCEDegreeSelectionFitterNumpy(
         return NumpyBkd()
 
 
-class TestPCEDegreeSelectionFitterTorch(
-    TestPCEDegreeSelectionFitter[torch.Tensor]
-):
+class TestPCEDegreeSelectionFitterTorch(TestPCEDegreeSelectionFitter[torch.Tensor]):
     """PyTorch backend tests."""
 
     __test__ = True

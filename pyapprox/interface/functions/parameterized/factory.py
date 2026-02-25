@@ -1,8 +1,9 @@
 from typing import Union
+
 from pyapprox.interface.functions.parameterized.protocols import (
     ParameterizedFunctionProtocol,
-    ParameterizedFunctionWithJacobianProtocol,
     ParameterizedFunctionWithJacobianAndHVPProtocol,
+    ParameterizedFunctionWithJacobianProtocol,
 )
 from pyapprox.interface.functions.parameterized.wrappers import (
     FunctionOfParameters,
@@ -10,10 +11,10 @@ from pyapprox.interface.functions.parameterized.wrappers import (
     FunctionOfParametersWithJacobianAndHVP,
     _FunctionOfParameters,
 )
-from pyapprox.util.backends.protocols import Array
 from pyapprox.interface.functions.protocols.function import (
     FunctionProtocol,
 )
+from pyapprox.util.backends.protocols import Array
 
 
 def convert_to_function_of_parameters(
@@ -37,7 +38,8 @@ def convert_to_function_of_parameters(
 
     Returns
     -------
-    Union[FunctionOfParameters, FunctionOfParametersWithJacobian, FunctionOfParametersWithHVP]
+    Union[FunctionOfParameters, FunctionOfParametersWithJacobian,
+    FunctionOfParametersWithHVP]
         An instance of the appropriate FunctionOfParameters class.
     """
     if isinstance(param_fun, ParameterizedFunctionWithJacobianAndHVPProtocol):

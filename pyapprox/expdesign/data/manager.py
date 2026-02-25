@@ -7,9 +7,7 @@ run OED optimization many times using saved data.
 """
 
 import pickle
-from typing import Any, Dict, Generic, Optional
-
-import numpy as np
+from typing import Any, Dict, Generic
 
 from pyapprox.util.backends.protocols import Array, Backend
 
@@ -81,9 +79,7 @@ class OEDDataManager(Generic[Array]):
             "outloop_samples": self._bkd.to_numpy(outerloop_samples),
             "outloop_shapes": self._bkd.to_numpy(outerloop_shapes),
             "outloop_quad_weights": self._bkd.to_numpy(outerloop_weights),
-            "observation_locations": self._bkd.to_numpy(
-                observation_locations
-            ),
+            "observation_locations": self._bkd.to_numpy(observation_locations),
             "inloop_samples": self._bkd.to_numpy(innerloop_samples),
             "inloop_shapes": self._bkd.to_numpy(innerloop_shapes),
             "inloop_quad_weights": self._bkd.to_numpy(innerloop_weights),
@@ -94,9 +90,7 @@ class OEDDataManager(Generic[Array]):
             pickle.dump(data, f)
 
         # Also store in memory
-        self._data = {
-            k: self._bkd.asarray(v) for k, v in data.items()
-        }
+        self._data = {k: self._bkd.asarray(v) for k, v in data.items()}
 
     def load_data(self, filename: str) -> None:
         """
@@ -110,9 +104,7 @@ class OEDDataManager(Generic[Array]):
         with open(filename, "rb") as f:
             raw_data = pickle.load(f)
 
-        self._data = {
-            k: self._bkd.asarray(v) for k, v in raw_data.items()
-        }
+        self._data = {k: self._bkd.asarray(v) for k, v in raw_data.items()}
 
     def get(self, name: str) -> Array:
         """
@@ -139,9 +131,7 @@ class OEDDataManager(Generic[Array]):
         """
         if name not in self._data:
             available = list(self._data.keys())
-            raise KeyError(
-                f"'{name}' not found. Available: {available}"
-            )
+            raise KeyError(f"'{name}' not found. Available: {available}")
         return self._data[name]
 
     def nobservations(self) -> int:

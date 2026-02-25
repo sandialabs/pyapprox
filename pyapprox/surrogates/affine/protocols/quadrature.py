@@ -18,7 +18,7 @@ signature. The protocols here provide additional options for sparse grid and
 interpolation contexts where stateful bases are used.
 """
 
-from typing import Protocol, Generic, Tuple, runtime_checkable
+from typing import Generic, Protocol, Tuple, runtime_checkable
 
 from pyapprox.util.backends.protocols import Array, Backend
 

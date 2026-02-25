@@ -20,37 +20,41 @@ import torch
 from numpy.typing import NDArray
 
 from pyapprox.util.backends.numpy import NumpyBkd
-from pyapprox.util.backends.torch import TorchBkd
 from pyapprox.util.backends.protocols import Array
+from pyapprox.util.backends.torch import TorchBkd
+from pyapprox.util.optional_deps import package_available
 from pyapprox.util.test_utils import load_tests  # noqa: F401
 
+if not package_available("numba"):
+    raise unittest.SkipTest("numba not installed")
+
+from pyapprox.probability import GaussianMarginal, UniformMarginal
+from pyapprox.surrogates.affine.basis import OrthonormalPolynomialBasis
 from pyapprox.surrogates.affine.basis.compute import (
     basis_eval_vectorized,
-    basis_jacobian_vectorized,
     basis_hessian_vectorized,
+    basis_jacobian_vectorized,
 )
 from pyapprox.surrogates.affine.basis.compute_numba import (
     basis_eval_numba,
-    basis_jacobian_numba,
     basis_hessian_numba,
+    basis_jacobian_numba,
 )
 from pyapprox.surrogates.affine.basis.compute_torch import (
     basis_eval_torch,
-    basis_jacobian_torch,
     basis_hessian_torch,
+    basis_jacobian_torch,
 )
 from pyapprox.surrogates.affine.basis.dispatch import (
-    get_basis_eval_impl,
-    get_basis_jacobian_impl,
-    get_basis_hessian_impl,
     _stack_1d_arrays_for_numba,
+    get_basis_eval_impl,
+    get_basis_hessian_impl,
+    get_basis_jacobian_impl,
 )
-from pyapprox.surrogates.affine.basis import OrthonormalPolynomialBasis
-from pyapprox.surrogates.affine.univariate import create_bases_1d
 from pyapprox.surrogates.affine.indices import (
     compute_hyperbolic_indices,
 )
-from pyapprox.probability import UniformMarginal, GaussianMarginal
+from pyapprox.surrogates.affine.univariate import create_bases_1d
 
 
 def _make_basis_data_numpy(nvars, max_level, nsamples):
@@ -71,12 +75,12 @@ def _make_basis_data_numpy(nvars, max_level, nsamples):
     samples = bkd.asarray(np.random.uniform(-0.9, 0.9, (nvars, nsamples)))
 
     # Evaluate univariate bases
-    vals_1d = [bases_1d[dd](samples[dd:dd+1, :]) for dd in range(nvars)]
+    vals_1d = [bases_1d[dd](samples[dd : dd + 1, :]) for dd in range(nvars)]
     derivs_1d = [
-        bases_1d[dd].jacobian_batch(samples[dd:dd+1, :]) for dd in range(nvars)
+        bases_1d[dd].jacobian_batch(samples[dd : dd + 1, :]) for dd in range(nvars)
     ]
     hess_1d = [
-        bases_1d[dd].hessian_batch(samples[dd:dd+1, :]) for dd in range(nvars)
+        bases_1d[dd].hessian_batch(samples[dd : dd + 1, :]) for dd in range(nvars)
     ]
 
     return vals_1d, derivs_1d, hess_1d, indices, bkd
@@ -85,6 +89,7 @@ def _make_basis_data_numpy(nvars, max_level, nsamples):
 # ---------------------------------------------------------------------------
 # Numba kernel tests
 # ---------------------------------------------------------------------------
+
 
 class TestNumbaKernels(unittest.TestCase):
     """Test Numba kernels match vectorized implementations."""
@@ -102,7 +107,11 @@ class TestNumbaKernels(unittest.TestCase):
         stacked = _stack_1d_arrays_for_numba(vals_1d)
         indices_np = np.asarray(indices)
         result_numba = basis_eval_numba(
-            stacked, indices_np, nvars, vals_1d[0].shape[0], indices_np.shape[1],
+            stacked,
+            indices_np,
+            nvars,
+            vals_1d[0].shape[0],
+            indices_np.shape[1],
         )
 
         bkd.assert_allclose(result_numba, result_vec, rtol=1e-12)
@@ -117,7 +126,11 @@ class TestNumbaKernels(unittest.TestCase):
         stacked = _stack_1d_arrays_for_numba(vals_1d)
         indices_np = np.asarray(indices)
         result_numba = basis_eval_numba(
-            stacked, indices_np, nvars, vals_1d[0].shape[0], indices_np.shape[1],
+            stacked,
+            indices_np,
+            nvars,
+            vals_1d[0].shape[0],
+            indices_np.shape[1],
         )
 
         bkd.assert_allclose(result_numba, result_vec, rtol=1e-12)
@@ -128,15 +141,23 @@ class TestNumbaKernels(unittest.TestCase):
         nvars = 2
 
         result_vec = basis_jacobian_vectorized(
-            vals_1d, derivs_1d, indices, nvars, bkd,
+            vals_1d,
+            derivs_1d,
+            indices,
+            nvars,
+            bkd,
         )
 
         stacked_vals = _stack_1d_arrays_for_numba(vals_1d)
         stacked_derivs = _stack_1d_arrays_for_numba(derivs_1d)
         indices_np = np.asarray(indices)
         result_numba = basis_jacobian_numba(
-            stacked_vals, stacked_derivs, indices_np,
-            nvars, vals_1d[0].shape[0], indices_np.shape[1],
+            stacked_vals,
+            stacked_derivs,
+            indices_np,
+            nvars,
+            vals_1d[0].shape[0],
+            indices_np.shape[1],
         )
 
         bkd.assert_allclose(result_numba, result_vec, rtol=1e-12)
@@ -147,15 +168,23 @@ class TestNumbaKernels(unittest.TestCase):
         nvars = 4
 
         result_vec = basis_jacobian_vectorized(
-            vals_1d, derivs_1d, indices, nvars, bkd,
+            vals_1d,
+            derivs_1d,
+            indices,
+            nvars,
+            bkd,
         )
 
         stacked_vals = _stack_1d_arrays_for_numba(vals_1d)
         stacked_derivs = _stack_1d_arrays_for_numba(derivs_1d)
         indices_np = np.asarray(indices)
         result_numba = basis_jacobian_numba(
-            stacked_vals, stacked_derivs, indices_np,
-            nvars, vals_1d[0].shape[0], indices_np.shape[1],
+            stacked_vals,
+            stacked_derivs,
+            indices_np,
+            nvars,
+            vals_1d[0].shape[0],
+            indices_np.shape[1],
         )
 
         bkd.assert_allclose(result_numba, result_vec, rtol=1e-12)
@@ -163,12 +192,19 @@ class TestNumbaKernels(unittest.TestCase):
     def test_hessian_small(self):
         """Numba hessian matches vectorized for 2D, level 3."""
         vals_1d, derivs_1d, hess_1d, indices, bkd = _make_basis_data_numpy(
-            2, 3, 15,
+            2,
+            3,
+            15,
         )
         nvars = 2
 
         result_vec = basis_hessian_vectorized(
-            vals_1d, derivs_1d, hess_1d, indices, nvars, bkd,
+            vals_1d,
+            derivs_1d,
+            hess_1d,
+            indices,
+            nvars,
+            bkd,
         )
 
         stacked_vals = _stack_1d_arrays_for_numba(vals_1d)
@@ -176,8 +212,13 @@ class TestNumbaKernels(unittest.TestCase):
         stacked_hess = _stack_1d_arrays_for_numba(hess_1d)
         indices_np = np.asarray(indices)
         result_numba = basis_hessian_numba(
-            stacked_vals, stacked_derivs, stacked_hess, indices_np,
-            nvars, vals_1d[0].shape[0], indices_np.shape[1],
+            stacked_vals,
+            stacked_derivs,
+            stacked_hess,
+            indices_np,
+            nvars,
+            vals_1d[0].shape[0],
+            indices_np.shape[1],
         )
 
         bkd.assert_allclose(result_numba, result_vec, rtol=1e-12)
@@ -185,12 +226,19 @@ class TestNumbaKernels(unittest.TestCase):
     def test_hessian_higher_dim(self):
         """Numba hessian matches vectorized for 3D, level 2."""
         vals_1d, derivs_1d, hess_1d, indices, bkd = _make_basis_data_numpy(
-            3, 2, 10,
+            3,
+            2,
+            10,
         )
         nvars = 3
 
         result_vec = basis_hessian_vectorized(
-            vals_1d, derivs_1d, hess_1d, indices, nvars, bkd,
+            vals_1d,
+            derivs_1d,
+            hess_1d,
+            indices,
+            nvars,
+            bkd,
         )
 
         stacked_vals = _stack_1d_arrays_for_numba(vals_1d)
@@ -198,8 +246,13 @@ class TestNumbaKernels(unittest.TestCase):
         stacked_hess = _stack_1d_arrays_for_numba(hess_1d)
         indices_np = np.asarray(indices)
         result_numba = basis_hessian_numba(
-            stacked_vals, stacked_derivs, stacked_hess, indices_np,
-            nvars, vals_1d[0].shape[0], indices_np.shape[1],
+            stacked_vals,
+            stacked_derivs,
+            stacked_hess,
+            indices_np,
+            nvars,
+            vals_1d[0].shape[0],
+            indices_np.shape[1],
         )
 
         bkd.assert_allclose(result_numba, result_vec, rtol=1e-12)
@@ -207,7 +260,9 @@ class TestNumbaKernels(unittest.TestCase):
     def test_hessian_symmetry(self):
         """Numba hessian is symmetric."""
         vals_1d, derivs_1d, hess_1d, indices, bkd = _make_basis_data_numpy(
-            3, 2, 10,
+            3,
+            2,
+            10,
         )
         nvars = 3
 
@@ -216,8 +271,13 @@ class TestNumbaKernels(unittest.TestCase):
         stacked_hess = _stack_1d_arrays_for_numba(hess_1d)
         indices_np = np.asarray(indices)
         result = basis_hessian_numba(
-            stacked_vals, stacked_derivs, stacked_hess, indices_np,
-            nvars, vals_1d[0].shape[0], indices_np.shape[1],
+            stacked_vals,
+            stacked_derivs,
+            stacked_hess,
+            indices_np,
+            nvars,
+            vals_1d[0].shape[0],
+            indices_np.shape[1],
         )
 
         for dd in range(nvars):
@@ -228,6 +288,7 @@ class TestNumbaKernels(unittest.TestCase):
 # ---------------------------------------------------------------------------
 # Torch kernel tests
 # ---------------------------------------------------------------------------
+
 
 class TestTorchKernels(unittest.TestCase):
     """Test torch-native kernels match vectorized implementations."""
@@ -253,7 +314,9 @@ class TestTorchKernels(unittest.TestCase):
         result_torch = basis_eval_torch(vals_torch, indices_torch)
 
         self._bkd_np.assert_allclose(
-            result_vec, result_torch.numpy(), rtol=1e-12,
+            result_vec,
+            result_torch.numpy(),
+            rtol=1e-12,
         )
 
     def test_jacobian_matches_vectorized(self):
@@ -262,29 +325,44 @@ class TestTorchKernels(unittest.TestCase):
         nvars = 3
 
         result_vec = basis_jacobian_vectorized(
-            vals_1d, derivs_1d, indices, nvars, bkd,
+            vals_1d,
+            derivs_1d,
+            indices,
+            nvars,
+            bkd,
         )
 
         vals_torch = self._to_torch(vals_1d)
         derivs_torch = self._to_torch(derivs_1d)
         indices_torch = torch.from_numpy(np.asarray(indices))
         result_torch = basis_jacobian_torch(
-            vals_torch, derivs_torch, indices_torch,
+            vals_torch,
+            derivs_torch,
+            indices_torch,
         )
 
         self._bkd_np.assert_allclose(
-            result_vec, result_torch.numpy(), rtol=1e-12,
+            result_vec,
+            result_torch.numpy(),
+            rtol=1e-12,
         )
 
     def test_hessian_matches_vectorized(self):
         """Torch hessian matches vectorized for 2D, level 3."""
         vals_1d, derivs_1d, hess_1d, indices, bkd = _make_basis_data_numpy(
-            2, 3, 15,
+            2,
+            3,
+            15,
         )
         nvars = 2
 
         result_vec = basis_hessian_vectorized(
-            vals_1d, derivs_1d, hess_1d, indices, nvars, bkd,
+            vals_1d,
+            derivs_1d,
+            hess_1d,
+            indices,
+            nvars,
+            bkd,
         )
 
         vals_torch = self._to_torch(vals_1d)
@@ -292,17 +370,24 @@ class TestTorchKernels(unittest.TestCase):
         hess_torch = self._to_torch(hess_1d)
         indices_torch = torch.from_numpy(np.asarray(indices))
         result_torch = basis_hessian_torch(
-            vals_torch, derivs_torch, hess_torch, indices_torch,
+            vals_torch,
+            derivs_torch,
+            hess_torch,
+            indices_torch,
         )
 
         self._bkd_np.assert_allclose(
-            result_vec, result_torch.numpy(), rtol=1e-12,
+            result_vec,
+            result_torch.numpy(),
+            rtol=1e-12,
         )
 
     def test_hessian_symmetry(self):
         """Torch hessian is symmetric."""
         vals_1d, derivs_1d, hess_1d, indices, _ = _make_basis_data_numpy(
-            3, 2, 10,
+            3,
+            2,
+            10,
         )
         nvars = 3
 
@@ -311,19 +396,24 @@ class TestTorchKernels(unittest.TestCase):
         hess_torch = self._to_torch(hess_1d)
         indices_torch = torch.from_numpy(np.asarray(indices))
         result = basis_hessian_torch(
-            vals_torch, derivs_torch, hess_torch, indices_torch,
+            vals_torch,
+            derivs_torch,
+            hess_torch,
+            indices_torch,
         )
 
         for dd in range(nvars):
             for kk in range(dd + 1, nvars):
                 self._bkd_torch.assert_allclose(
-                    result[:, :, dd, kk], result[:, :, kk, dd],
+                    result[:, :, dd, kk],
+                    result[:, :, kk, dd],
                 )
 
 
 # ---------------------------------------------------------------------------
 # Dispatch selection tests
 # ---------------------------------------------------------------------------
+
 
 class TestDispatchSelection(unittest.TestCase):
     """Test dispatch selects correct implementation per backend type."""
@@ -368,6 +458,7 @@ class TestDispatchSelection(unittest.TestCase):
 # ---------------------------------------------------------------------------
 # Integration tests (dual-backend, full round-trip through MultiIndexBasis)
 # ---------------------------------------------------------------------------
+
 
 class _TestBasisDispatchIntegration(Generic[Array], unittest.TestCase):
     """Dual-backend integration tests for dispatch through MultiIndexBasis.
@@ -454,7 +545,10 @@ class _TestBasisDispatchIntegration(Generic[Array], unittest.TestCase):
 
             fd_jac = (basis(samples_plus) - basis(samples_minus)) / (2 * eps)
             self._bkd.assert_allclose(
-                jac[:, :, dd], fd_jac, rtol=1e-5, atol=1e-7,
+                jac[:, :, dd],
+                fd_jac,
+                rtol=1e-5,
+                atol=1e-7,
             )
 
     def test_hessian_finite_difference(self):
@@ -479,7 +573,10 @@ class _TestBasisDispatchIntegration(Generic[Array], unittest.TestCase):
 
             fd_hess_row = (jac_plus - jac_minus) / (2 * eps)
             self._bkd.assert_allclose(
-                hess[:, :, dd, :], fd_hess_row, rtol=1e-4, atol=1e-6,
+                hess[:, :, dd, :],
+                fd_hess_row,
+                rtol=1e-4,
+                atol=1e-6,
             )
 
     def test_hessian_symmetry(self):
@@ -495,7 +592,8 @@ class _TestBasisDispatchIntegration(Generic[Array], unittest.TestCase):
         for dd in range(3):
             for kk in range(dd + 1, 3):
                 self._bkd.assert_allclose(
-                    hess[:, :, dd, kk], hess[:, :, kk, dd],
+                    hess[:, :, dd, kk],
+                    hess[:, :, kk, dd],
                 )
 
     def test_mixed_bases(self):
@@ -510,10 +608,14 @@ class _TestBasisDispatchIntegration(Generic[Array], unittest.TestCase):
         basis = OrthonormalPolynomialBasis(bases_1d, bkd, indices)
 
         nsamples = 10
-        samples = bkd.asarray(np.column_stack([
-            np.random.uniform(-1, 1, nsamples),
-            np.random.normal(0, 1, nsamples),
-        ]).T)
+        samples = bkd.asarray(
+            np.column_stack(
+                [
+                    np.random.uniform(-1, 1, nsamples),
+                    np.random.normal(0, 1, nsamples),
+                ]
+            ).T
+        )
 
         values = basis(samples)
         self.assertEqual(values.shape, (nsamples, basis.nterms()))

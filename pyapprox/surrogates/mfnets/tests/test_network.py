@@ -7,24 +7,22 @@ import numpy as np
 import torch
 from numpy.typing import NDArray
 
-from pyapprox.util.backends.numpy import NumpyBkd
-from pyapprox.util.backends.protocols import Array, Backend
-from pyapprox.util.backends.torch import TorchBkd
-from pyapprox.util.test_utils import load_tests  # noqa: F401
-
-from pyapprox.surrogates.affine.univariate import MonomialBasis1D
+from pyapprox.surrogates.affine.basis import MultiIndexBasis
+from pyapprox.surrogates.affine.expansions import BasisExpansion
 from pyapprox.surrogates.affine.indices import (
     compute_hyperbolic_indices,
 )
-from pyapprox.surrogates.affine.basis import MultiIndexBasis
-from pyapprox.surrogates.affine.expansions import BasisExpansion
-
+from pyapprox.surrogates.affine.univariate import MonomialBasis1D
+from pyapprox.surrogates.mfnets.edges import MFNetEdge
+from pyapprox.surrogates.mfnets.network import MFNet
 from pyapprox.surrogates.mfnets.nodes import (
     LeafMFNetNode,
     RootMFNetNode,
 )
-from pyapprox.surrogates.mfnets.edges import MFNetEdge
-from pyapprox.surrogates.mfnets.network import MFNet
+from pyapprox.util.backends.numpy import NumpyBkd
+from pyapprox.util.backends.protocols import Array, Backend
+from pyapprox.util.backends.torch import TorchBkd
+from pyapprox.util.test_utils import load_tests  # noqa: F401
 
 
 def _create_monomial_expansion(
@@ -72,12 +70,8 @@ class TestMFNet(Generic[Array], unittest.TestCase):
         )
 
         net = MFNet(nvars=1, bkd=bkd)
-        net.add_node(
-            LeafMFNetNode(0, leaf_model, noise_std=0.1, bkd=bkd)
-        )
-        net.add_node(
-            RootMFNetNode(1, root_model, noise_std=0.1, bkd=bkd)
-        )
+        net.add_node(LeafMFNetNode(0, leaf_model, noise_std=0.1, bkd=bkd))
+        net.add_node(RootMFNetNode(1, root_model, noise_std=0.1, bkd=bkd))
         net.add_edge(MFNetEdge(child_node_id=0, parent_node_id=1, bkd=bkd))
         net.validate()
         return net, leaf_model, root_model
@@ -138,9 +132,7 @@ class TestMFNet(Generic[Array], unittest.TestCase):
         # Each node: model params + noise_std param
         node0 = net.node(0)
         node1 = net.node(1)
-        expected_nparams = (
-            node0.hyp_list().nparams() + node1.hyp_list().nparams()
-        )
+        expected_nparams = node0.hyp_list().nparams() + node1.hyp_list().nparams()
         self.assertEqual(hyps.nparams(), expected_nparams)
 
     def test_not_validated_raises(self) -> None:
@@ -165,11 +157,10 @@ class TestMFNet(Generic[Array], unittest.TestCase):
 
         # Mid: f1(x, q0), nvars=2, nqoi=1 (interior node)
         from pyapprox.surrogates.mfnets.nodes import MFNetNode
+
         mid_model = _create_monomial_expansion(bkd, nvars=2, nqoi=1)
         np.random.seed(20)
-        mid_model.set_coefficients(
-            bkd.asarray(np.random.randn(mid_model.nterms(), 1))
-        )
+        mid_model.set_coefficients(bkd.asarray(np.random.randn(mid_model.nterms(), 1)))
 
         # Root: f2(x, q1), nvars=2, nqoi=1
         root_model = _create_monomial_expansion(bkd, nvars=2, nqoi=1)
@@ -228,6 +219,7 @@ class TestMFNet(Generic[Array], unittest.TestCase):
 
 
 # --- Concrete backend test classes ---
+
 
 class TestMFNetNumpy(TestMFNet[NDArray[Any]]):
     def bkd(self) -> NumpyBkd:

@@ -7,17 +7,17 @@ f_l(x) = A*f_h(x) + B*(x-0.5) + C. Domain: x in [0, 1].
 
 from typing import Generic, List
 
-from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.benchmarks.benchmark import BoxDomain
-from pyapprox.benchmarks.registry import BenchmarkRegistry
 from pyapprox.benchmarks.functions.multifidelity.forrester_ensemble import (
     ForresterEnsemble,
 )
+from pyapprox.benchmarks.registry import BenchmarkRegistry
 from pyapprox.interface.functions.protocols.function import (
     FunctionProtocol,
 )
-from pyapprox.probability.univariate.uniform import UniformMarginal
 from pyapprox.probability.joint.independent import IndependentJoint
+from pyapprox.probability.univariate.uniform import UniformMarginal
+from pyapprox.util.backends.protocols import Array, Backend
 
 
 class ForresterEnsembleBenchmark(Generic[Array]):

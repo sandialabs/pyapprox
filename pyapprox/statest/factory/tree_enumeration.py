@@ -7,13 +7,13 @@ This module ports the tree enumeration logic from the legacy module
 `pyapprox/multifidelity/_optim.py` with proper type hints and backend support.
 """
 
-from typing import Generic, Iterator, List, Optional, Union
 from itertools import product
+from typing import Generic, Iterator, List, Optional, Union
 
 import numpy as np
 
-from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.util.backends.numpy import NumpyBkd
+from pyapprox.util.backends.protocols import Array, Backend
 
 
 class ModelTree(Generic[Array]):
@@ -136,9 +136,7 @@ class ModelTree(Generic[Array]):
         return f"{self.__class__.__name__}(root={self._root}, index={index_np})"
 
 
-def _update_list_for_reduce(
-    mylist: tuple, indices: tuple
-) -> tuple:
+def _update_list_for_reduce(mylist: tuple, indices: tuple) -> tuple:
     """Helper function for building sub-children lists.
 
     Used with functools.reduce to partition children into groups.
@@ -296,8 +294,7 @@ def get_acv_recursion_indices(
 
     if depth > nmodels - 1:
         raise ValueError(
-            f"Depth {depth} exceeds number of lower-fidelity models "
-            f"({nmodels - 1})"
+            f"Depth {depth} exceeds number of lower-fidelity models ({nmodels - 1})"
         )
 
     # Generate trees with LF models as children of root (HF = model 0)

@@ -1,17 +1,18 @@
 """Tests for PeriodicReiszGaussianRandomField."""
+
 import unittest
 from typing import Any, Generic
 
 import numpy as np
-from numpy.typing import NDArray
 import torch
+from numpy.typing import NDArray
 
-from pyapprox.util.backends.protocols import Array, Backend
-from pyapprox.util.backends.numpy import NumpyBkd
-from pyapprox.util.backends.torch import TorchBkd
 from pyapprox.surrogates.kle.periodic_random_field import (
     PeriodicReiszGaussianRandomField,
 )
+from pyapprox.util.backends.numpy import NumpyBkd
+from pyapprox.util.backends.protocols import Array, Backend
+from pyapprox.util.backends.torch import TorchBkd
 
 
 class TestPeriodicRandomField(Generic[Array], unittest.TestCase):
@@ -33,7 +34,12 @@ class TestPeriodicRandomField(Generic[Array], unittest.TestCase):
         npts = 20
 
         field = PeriodicReiszGaussianRandomField(
-            sigma, tau, gamma, neigs, bounds, bkd,
+            sigma,
+            tau,
+            gamma,
+            neigs,
+            bounds,
+            bkd,
         )
         domain_samples = bkd.linspace(0.0, 1.0, npts)[None, :]
         field.set_domain_samples(domain_samples)
@@ -52,7 +58,12 @@ class TestPeriodicRandomField(Generic[Array], unittest.TestCase):
         npts = 15
 
         field = PeriodicReiszGaussianRandomField(
-            sigma, tau, gamma, neigs, bounds, bkd,
+            sigma,
+            tau,
+            gamma,
+            neigs,
+            bounds,
+            bkd,
         )
         domain_samples = bkd.linspace(0.0, 1.0, npts)[None, :]
         field.set_domain_samples(domain_samples)
@@ -70,7 +81,12 @@ class TestPeriodicRandomField(Generic[Array], unittest.TestCase):
         npts = 20
 
         field = PeriodicReiszGaussianRandomField(
-            sigma, tau, gamma, neigs, bounds, bkd,
+            sigma,
+            tau,
+            gamma,
+            neigs,
+            bounds,
+            bkd,
         )
         domain_samples = bkd.linspace(0.0, 1.0, npts)[None, :]
         field.set_domain_samples(domain_samples)
@@ -80,9 +96,7 @@ class TestPeriodicRandomField(Generic[Array], unittest.TestCase):
         self.assertEqual(result.shape, (npts, nsamples))
 
         # Different realizations should generally differ
-        self.assertFalse(
-            bkd.all_bool(result[:, 0] == result[:, 1])
-        )
+        self.assertFalse(bkd.all_bool(result[:, 0] == result[:, 1]))
 
     def test_periodic_field_eigenvalue_decay(self) -> None:
         """Test that eigenvalues decay with increasing k."""
@@ -92,7 +106,12 @@ class TestPeriodicRandomField(Generic[Array], unittest.TestCase):
         bounds = bkd.array([0.0, 1.0])
 
         field = PeriodicReiszGaussianRandomField(
-            sigma, tau, gamma, neigs, bounds, bkd,
+            sigma,
+            tau,
+            gamma,
+            neigs,
+            bounds,
+            bkd,
         )
 
         eigs = field._eigs[:, 0]  # shape (neigs,)
@@ -110,7 +129,12 @@ class TestPeriodicRandomField(Generic[Array], unittest.TestCase):
         neigs = 5
         bounds = bkd.array([0.0, 1.0])
         field = PeriodicReiszGaussianRandomField(
-            1.0, 1.0, 2.0, neigs, bounds, bkd,
+            1.0,
+            1.0,
+            2.0,
+            neigs,
+            bounds,
+            bkd,
         )
         self.assertEqual(field.nterms(), 2 * neigs)
 
@@ -120,7 +144,12 @@ class TestPeriodicRandomField(Generic[Array], unittest.TestCase):
         neigs = 3
         bounds = bkd.array([0.0, 1.0])
         field = PeriodicReiszGaussianRandomField(
-            1.0, 1.0, 2.0, neigs, bounds, bkd,
+            1.0,
+            1.0,
+            2.0,
+            neigs,
+            bounds,
+            bkd,
         )
         domain_samples = bkd.linspace(0.0, 1.0, 10)[None, :]
         field.set_domain_samples(domain_samples)
@@ -145,7 +174,6 @@ class TestPeriodicRandomFieldTorch(TestPeriodicRandomField[torch.Tensor]):
 
 
 from pyapprox.util.test_utils import load_tests  # noqa: F401
-
 
 if __name__ == "__main__":
     loader = unittest.TestLoader()

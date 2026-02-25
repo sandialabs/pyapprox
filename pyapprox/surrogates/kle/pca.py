@@ -2,8 +2,8 @@
 
 from typing import Generic, Optional
 
-from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.surrogates.kle.data_driven_kle import DataDrivenKLE
+from pyapprox.util.backends.protocols import Array, Backend
 
 
 class PrincipalComponentAnalysis(DataDrivenKLE[Array], Generic[Array]):
@@ -35,7 +35,12 @@ class PrincipalComponentAnalysis(DataDrivenKLE[Array], Generic[Array]):
             snapshots - bkd.mean(snapshots, axis=1)[:, None]
         ) / bkd.max(snapshots, axis=1)[:, None]
         super().__init__(
-            normalized_snapshots, 0.0, False, nterms, quad_weights, bkd=bkd,
+            normalized_snapshots,
+            0.0,
+            False,
+            nterms,
+            quad_weights,
+            bkd=bkd,
         )
 
     def reduce_state(self, state: Array) -> Array:

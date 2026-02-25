@@ -5,25 +5,24 @@ This module provides GP classes that handle multiple outputs using
 multi-output kernels (IndependentMultiOutputKernel or LinearCoregionalizationKernel).
 """
 
-from typing import List, Optional, Tuple, Union, Generic
 import copy
 import math
-import numpy as np
+from typing import Generic, List, Optional, Tuple, Union
 
-from pyapprox.util.backends.protocols import Array, Backend
-from pyapprox.util.linalg.cholesky_factor import CholeskyFactor
-from pyapprox.surrogates.kernels.multioutput import (
-    IndependentMultiOutputKernel,
-    LinearCoregionalizationKernel,
-    MultiLevelKernel,
-    DAGMultiOutputKernel,
-)
-from pyapprox.surrogates.gaussianprocess.multioutput_data import (
-    MultiOutputGPTrainingData
-)
 from pyapprox.optimization.minimize.protocols import (
     BindableOptimizerProtocol,
 )
+from pyapprox.surrogates.gaussianprocess.multioutput_data import (
+    MultiOutputGPTrainingData,
+)
+from pyapprox.surrogates.kernels.multioutput import (
+    DAGMultiOutputKernel,
+    IndependentMultiOutputKernel,
+    LinearCoregionalizationKernel,
+    MultiLevelKernel,
+)
+from pyapprox.util.backends.protocols import Array, Backend
+from pyapprox.util.linalg.cholesky_factor import CholeskyFactor
 
 
 class MultiOutputGP(Generic[Array]):
@@ -147,15 +146,13 @@ class MultiOutputGP(Generic[Array]):
         clone._is_fitted = False
         clone._cholesky = None  # type: ignore[attr-defined]
         clone._alpha = None  # type: ignore[attr-defined]
-        if hasattr(clone, '_X_train_list'):
+        if hasattr(clone, "_X_train_list"):
             clone._X_train_list = None  # type: ignore[assignment]
-        if hasattr(clone, '_y_train_stacked'):
+        if hasattr(clone, "_y_train_stacked"):
             clone._y_train_stacked = None  # type: ignore[assignment]
         return clone
 
-    def _copy_fitted_state_from(
-        self, other: "MultiOutputGP[Array]"
-    ) -> None:
+    def _copy_fitted_state_from(self, other: "MultiOutputGP[Array]") -> None:
         """Copy all fitted state from another GP into self.
 
         Parameters
@@ -170,9 +167,7 @@ class MultiOutputGP(Generic[Array]):
         self._X_train_list = other._X_train_list
         self._y_train_stacked = other._y_train_stacked
         # Copy optimized hyperparameters
-        self._kernel.hyp_list().set_values(
-            other._kernel.hyp_list().get_values()
-        )
+        self._kernel.hyp_list().set_values(other._kernel.hyp_list().get_values())
 
     def bkd(self) -> Backend[Array]:
         """
@@ -185,7 +180,9 @@ class MultiOutputGP(Generic[Array]):
         """
         return self._bkd
 
-    def kernel(self) -> Union[IndependentMultiOutputKernel, LinearCoregionalizationKernel]:
+    def kernel(
+        self,
+    ) -> Union[IndependentMultiOutputKernel, LinearCoregionalizationKernel]:
         """
         Return the multi-output kernel.
 
@@ -207,9 +204,7 @@ class MultiOutputGP(Generic[Array]):
         """
         return self._kernel.hyp_list()
 
-    def set_optimizer(
-        self, optimizer: BindableOptimizerProtocol[Array]
-    ) -> None:
+    def set_optimizer(self, optimizer: BindableOptimizerProtocol[Array]) -> None:
         """Set the optimizer for hyperparameter optimization during fit().
 
         .. deprecated::
@@ -316,9 +311,7 @@ class MultiOutputGP(Generic[Array]):
         return self._data
 
     def fit(
-        self,
-        X_train_list: List[Array],
-        y_train: Union[List[Array], Array]
+        self, X_train_list: List[Array], y_train: Union[List[Array], Array]
     ) -> None:
         """Fit GP to data and optimize active hyperparameters.
 
@@ -375,6 +368,7 @@ class MultiOutputGP(Generic[Array]):
         from pyapprox.surrogates.gaussianprocess.fitters.multioutput_fitter import (
             MultiOutputGPMaximumLikelihoodFitter,
         )
+
         fitter = MultiOutputGPMaximumLikelihoodFitter(
             bkd=self._bkd,
             optimizer=self._optimizer,
@@ -390,9 +384,7 @@ class MultiOutputGP(Generic[Array]):
         pass
 
     def _fit_internal(
-        self,
-        X_train_list: List[Array],
-        y_train: Union[List[Array], Array]
+        self, X_train_list: List[Array], y_train: Union[List[Array], Array]
     ) -> None:
         """Internal fit: store data, compute Cholesky, compute alpha.
 
@@ -442,7 +434,7 @@ class MultiOutputGP(Generic[Array]):
             for X in X_train_list:
                 n_i = X.shape[1]
                 y_i = self._bkd.reshape(
-                    y_train_stacked[offset:offset + n_i, 0], (1, n_i)
+                    y_train_stacked[offset : offset + n_i, 0], (1, n_i)
                 )
                 y_list.append(y_i)
                 offset += n_i
@@ -529,7 +521,7 @@ class MultiOutputGP(Generic[Array]):
         result = []
         offset = 0
         for n_i in n_samples_list:
-            arr_i = self._bkd.reshape(stacked[offset:offset + n_i, 0], (1, n_i))
+            arr_i = self._bkd.reshape(stacked[offset : offset + n_i, 0], (1, n_i))
             result.append(arr_i)
             offset += n_i
         return result
@@ -627,9 +619,7 @@ class MultiOutputGP(Generic[Array]):
         K_star_star_diag = self._bkd.concatenate(diag_blocks, axis=0)
 
         # Solve: v = L^{-1} @ K_star^T
-        v = self._bkd.solve_triangular(
-            self._cholesky.factor(), K_star.T, lower=True
-        )
+        v = self._bkd.solve_triangular(self._cholesky.factor(), K_star.T, lower=True)
 
         # Posterior variance: σ²* = K** - v^T @ v
         # v^T @ v is computed as sum of v * v along rows
@@ -648,9 +638,7 @@ class MultiOutputGP(Generic[Array]):
 
         return mean, std
 
-    def predict_covariance(
-        self, X_test_list: List[Array]
-    ) -> Tuple[List[Array], Array]:
+    def predict_covariance(self, X_test_list: List[Array]) -> Tuple[List[Array], Array]:
         """
         Predict mean and full covariance matrix.
 
@@ -697,9 +685,7 @@ class MultiOutputGP(Generic[Array]):
         K_star_star = self._kernel(X_test_list, block_format=False)
 
         # Solve: v = L^{-1} @ K_star^T
-        v = self._bkd.solve_triangular(
-            self._cholesky.factor(), K_star.T, lower=True
-        )
+        v = self._bkd.solve_triangular(self._cholesky.factor(), K_star.T, lower=True)
 
         # Posterior covariance: Σ* = K** - v^T @ v
         cov = K_star_star - v.T @ v

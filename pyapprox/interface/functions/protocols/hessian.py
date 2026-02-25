@@ -1,12 +1,6 @@
-from typing import Protocol, runtime_checkable, Generic, Union, Any
+from typing import Any, Generic, Protocol, Union, runtime_checkable
 
 from pyapprox.util.backends.protocols import Array, Backend
-from pyapprox.interface.functions.protocols.function import (
-    FunctionProtocol,
-)
-from pyapprox.interface.functions.protocols.jacobian import (
-    FunctionWithJacobianProtocol,
-)
 
 
 @runtime_checkable

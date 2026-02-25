@@ -2,7 +2,13 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Generic, Optional, Protocol, runtime_checkable
+from typing import (
+    TYPE_CHECKING,
+    Generic,
+    Optional,
+    Protocol,
+    runtime_checkable,
+)
 
 from pyapprox.util.backends.protocols import Array, Backend
 

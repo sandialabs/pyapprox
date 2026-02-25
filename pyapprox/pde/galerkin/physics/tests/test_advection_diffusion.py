@@ -9,23 +9,23 @@ This module contains:
 """
 
 import unittest
-from typing import Generic, Any, List, Tuple
+from typing import Any, Generic, List, Tuple
 
 import numpy as np
 from numpy.typing import NDArray
 from scipy.sparse import issparse
 from unittest_parametrize import ParametrizedTestCase, parametrize
 
-from pyapprox.util.backends.protocols import Array, Backend
-from pyapprox.util.backends.numpy import NumpyBkd
+from pyapprox.pde.galerkin.basis import LagrangeBasis
 from pyapprox.pde.galerkin.mesh import (
     StructuredMesh1D,
     StructuredMesh2D,
     StructuredMesh3D,
 )
-from pyapprox.pde.galerkin.basis import LagrangeBasis
 from pyapprox.pde.galerkin.physics import LinearAdvectionDiffusionReaction
 from pyapprox.pde.galerkin.solvers import SteadyStateSolver
+from pyapprox.util.backends.numpy import NumpyBkd
+from pyapprox.util.backends.protocols import Array, Backend
 
 
 class TestLinearADRBase(Generic[Array], unittest.TestCase):
@@ -158,7 +158,9 @@ class TestLinearADRBase(Generic[Array], unittest.TestCase):
     def test_3d_physics(self) -> None:
         """Test physics works in 3D."""
         mesh = StructuredMesh3D(
-            nx=3, ny=3, nz=3,
+            nx=3,
+            ny=3,
+            nz=3,
             bounds=[(0.0, 1.0), (0.0, 1.0), (0.0, 1.0)],
             bkd=self.bkd_inst,
         )
@@ -184,7 +186,9 @@ class TestLinearADRBase(Generic[Array], unittest.TestCase):
     def test_3d_mass_matrix_symmetric(self) -> None:
         """Test mass matrix is symmetric in 3D."""
         mesh = StructuredMesh3D(
-            nx=3, ny=3, nz=3,
+            nx=3,
+            ny=3,
+            nz=3,
             bounds=[(0.0, 1.0), (0.0, 1.0), (0.0, 1.0)],
             bkd=self.bkd_inst,
         )
@@ -201,7 +205,9 @@ class TestLinearADRBase(Generic[Array], unittest.TestCase):
     def test_3d_stiffness_symmetric(self) -> None:
         """Test stiffness matrix is symmetric in 3D (pure diffusion)."""
         mesh = StructuredMesh3D(
-            nx=3, ny=3, nz=3,
+            nx=3,
+            ny=3,
+            nz=3,
             bounds=[(0.0, 1.0), (0.0, 1.0), (0.0, 1.0)],
             bkd=self.bkd_inst,
         )
@@ -221,7 +227,9 @@ class TestLinearADRBase(Generic[Array], unittest.TestCase):
     def test_3d_steady_state_solve(self) -> None:
         """Test steady-state solve in 3D."""
         mesh = StructuredMesh3D(
-            nx=3, ny=3, nz=3,
+            nx=3,
+            ny=3,
+            nz=3,
             bounds=[(0.0, 1.0), (0.0, 1.0), (0.0, 1.0)],
             bkd=self.bkd_inst,
         )
@@ -269,7 +277,9 @@ class TestLinearADRBase(Generic[Array], unittest.TestCase):
         mesh_sizes = [10, 20, 40]
 
         for nx in mesh_sizes:
-            mesh = StructuredMesh1D(nx=nx, bounds=(bounds[0], bounds[1]), bkd=self.bkd_inst)
+            mesh = StructuredMesh1D(
+                nx=nx, bounds=(bounds[0], bounds[1]), bkd=self.bkd_inst
+            )
             basis = LagrangeBasis(mesh, degree=1)
 
             physics = LinearAdvectionDiffusionReaction(
@@ -287,7 +297,7 @@ class TestLinearADRBase(Generic[Array], unittest.TestCase):
             u_num = self.bkd_inst.to_numpy(result.solution)
             dof_locs = self.bkd_inst.to_numpy(basis.dof_coordinates())
             u_ex = u_exact(dof_locs)
-            error = np.sqrt(np.mean((u_num - u_ex)**2))
+            error = np.sqrt(np.mean((u_num - u_ex) ** 2))
             errors.append(error)
 
         # Check convergence rate (should be ~2 for P1 elements)
@@ -325,7 +335,8 @@ class TestLinearADRBase(Generic[Array], unittest.TestCase):
 
         for n in mesh_sizes:
             mesh = StructuredMesh2D(
-                nx=n, ny=n,
+                nx=n,
+                ny=n,
                 bounds=[(0.0, 1.0), (0.0, 1.0)],
                 bkd=self.bkd_inst,
             )
@@ -346,7 +357,7 @@ class TestLinearADRBase(Generic[Array], unittest.TestCase):
             u_num = self.bkd_inst.to_numpy(result.solution)
             dof_locs = self.bkd_inst.to_numpy(basis.dof_coordinates())
             u_ex = u_exact(dof_locs)
-            error = np.sqrt(np.mean((u_num - u_ex)**2))
+            error = np.sqrt(np.mean((u_num - u_ex) ** 2))
             errors.append(error)
 
         # Check convergence rate
@@ -384,7 +395,9 @@ class TestLinearADRBase(Generic[Array], unittest.TestCase):
 
         for n in mesh_sizes:
             mesh = StructuredMesh3D(
-                nx=n, ny=n, nz=n,
+                nx=n,
+                ny=n,
+                nz=n,
                 bounds=[(0.0, 1.0), (0.0, 1.0), (0.0, 1.0)],
                 bkd=self.bkd_inst,
             )
@@ -405,7 +418,7 @@ class TestLinearADRBase(Generic[Array], unittest.TestCase):
             u_num = self.bkd_inst.to_numpy(result.solution)
             dof_locs = self.bkd_inst.to_numpy(basis.dof_coordinates())
             u_ex = u_exact(dof_locs)
-            error = np.sqrt(np.mean((u_num - u_ex)**2))
+            error = np.sqrt(np.mean((u_num - u_ex) ** 2))
             errors.append(error)
 
         # Check convergence rate
@@ -541,7 +554,7 @@ class TestParametrizedADR1DConvergence(ParametrizedTestCase):
             dof_coords = bkd.to_numpy(basis.dof_coordinates())
             u_num = bkd.to_numpy(result.solution)
             u_ex = u_exact(dof_coords)
-            error = np.sqrt(np.mean((u_num - u_ex)**2))
+            error = np.sqrt(np.mean((u_num - u_ex) ** 2))
             errors.append(error)
 
         # Check convergence rate (should be ~3 for P2 elements in L2 norm)
@@ -553,7 +566,7 @@ class TestParametrizedADR1DConvergence(ParametrizedTestCase):
         min_expected_rate = 2.5 if has_advection else 2.8
         self.assertTrue(
             np.all(rates > min_expected_rate),
-            f"Test {name}: rates={rates} should be > {min_expected_rate}"
+            f"Test {name}: rates={rates} should be > {min_expected_rate}",
         )
 
 
@@ -617,7 +630,8 @@ class TestParametrizedADR2DConvergence(ParametrizedTestCase):
 
         for n in mesh_sizes:
             mesh = StructuredMesh2D(
-                nx=n, ny=n,
+                nx=n,
+                ny=n,
                 bounds=[(0.0, 1.0), (0.0, 1.0)],
                 bkd=bkd,
             )
@@ -639,7 +653,7 @@ class TestParametrizedADR2DConvergence(ParametrizedTestCase):
             dof_coords = bkd.to_numpy(basis.dof_coordinates())
             u_num = bkd.to_numpy(result.solution)
             u_ex = u_exact(dof_coords)
-            error = np.sqrt(np.mean((u_num - u_ex)**2))
+            error = np.sqrt(np.mean((u_num - u_ex) ** 2))
             errors.append(error)
 
         # Check convergence rate (should be ~3 for P2 elements)
@@ -651,7 +665,7 @@ class TestParametrizedADR2DConvergence(ParametrizedTestCase):
         min_expected_rate = 2.3 if has_advection else 2.5
         self.assertTrue(
             np.all(rates > min_expected_rate),
-            f"Test {name}: rates={rates} should be > {min_expected_rate}"
+            f"Test {name}: rates={rates} should be > {min_expected_rate}",
         )
 
 
@@ -671,6 +685,7 @@ class TestLinearADRNumpy(TestLinearADRBase[NDArray[Any]]):
 # Try to import torch for dual-backend testing
 try:
     import torch
+
     from pyapprox.util.backends.torch import TorchBkd
 
     class TestLinearADRTorch(TestLinearADRBase[torch.Tensor]):
@@ -784,23 +799,98 @@ ADR_1D_EXACT_CASES: List[Tuple[str, List[float], List[str], str, float, str, flo
 
 # 2D exact reproduction test cases with various BCs
 # Format: (name, bounds, bndry_types, sol_str, diffusivity, vel_strs, reaction)
-# vel_strs: velocity strings for manufactured solution (["1e-16*x", "1e-16*y"] = no advection)
+# vel_strs: velocity strings for manufactured solution (["1e-16*x", "1e-16*y"] = no
+# advection)
 # reaction: reaction coefficient (0.0 = no reaction, positive = source)
-ADR_2D_EXACT_CASES: List[Tuple[str, List[float], List[str], str, float, List[str], float]] = [
+ADR_2D_EXACT_CASES: List[
+    Tuple[str, List[float], List[str], str, float, List[str], float]
+] = [
     # Linear solution, all Dirichlet
-    ("2d_lin_DDDD", [0.0, 1.0, 0.0, 1.0], ["D", "D", "D", "D"], "x+2*y", 4.0, ["1e-16*x", "1e-16*y"], 0.0),
+    (
+        "2d_lin_DDDD",
+        [0.0, 1.0, 0.0, 1.0],
+        ["D", "D", "D", "D"],
+        "x+2*y",
+        4.0,
+        ["1e-16*x", "1e-16*y"],
+        0.0,
+    ),
     # Linear solution, mixed BCs
-    ("2d_lin_DRDN", [0.0, 1.0, 0.0, 1.0], ["D", "R", "D", "N"], "x+2*y", 4.0, ["1e-16*x", "1e-16*y"], 0.0),
-    ("2d_lin_NRDR", [0.0, 1.0, 0.0, 1.0], ["N", "R", "D", "R"], "x+2*y", 4.0, ["1e-16*x", "1e-16*y"], 0.0),
+    (
+        "2d_lin_DRDN",
+        [0.0, 1.0, 0.0, 1.0],
+        ["D", "R", "D", "N"],
+        "x+2*y",
+        4.0,
+        ["1e-16*x", "1e-16*y"],
+        0.0,
+    ),
+    (
+        "2d_lin_NRDR",
+        [0.0, 1.0, 0.0, 1.0],
+        ["N", "R", "D", "R"],
+        "x+2*y",
+        4.0,
+        ["1e-16*x", "1e-16*y"],
+        0.0,
+    ),
     # Quadratic solution x*y
-    ("2d_xy_DDDD", [0.0, 1.0, 0.0, 1.0], ["D", "D", "D", "D"], "x*y", 4.0, ["1e-16*x", "1e-16*y"], 0.0),
-    ("2d_xy_DRDD", [0.0, 1.0, 0.0, 1.0], ["D", "R", "D", "D"], "x*y", 4.0, ["1e-16*x", "1e-16*y"], 0.0),
+    (
+        "2d_xy_DDDD",
+        [0.0, 1.0, 0.0, 1.0],
+        ["D", "D", "D", "D"],
+        "x*y",
+        4.0,
+        ["1e-16*x", "1e-16*y"],
+        0.0,
+    ),
+    (
+        "2d_xy_DRDD",
+        [0.0, 1.0, 0.0, 1.0],
+        ["D", "R", "D", "D"],
+        "x*y",
+        4.0,
+        ["1e-16*x", "1e-16*y"],
+        0.0,
+    ),
     # Quadratic solution x^2 + y^2
-    ("2d_quad_DDDD", [0.0, 1.0, 0.0, 1.0], ["D", "D", "D", "D"], "x**2+y**2", 4.0, ["1e-16*x", "1e-16*y"], 0.0),
-    ("2d_quad_DRDN", [0.0, 1.0, 0.0, 1.0], ["D", "R", "D", "N"], "x**2+y**2", 4.0, ["1e-16*x", "1e-16*y"], 0.0),
+    (
+        "2d_quad_DDDD",
+        [0.0, 1.0, 0.0, 1.0],
+        ["D", "D", "D", "D"],
+        "x**2+y**2",
+        4.0,
+        ["1e-16*x", "1e-16*y"],
+        0.0,
+    ),
+    (
+        "2d_quad_DRDN",
+        [0.0, 1.0, 0.0, 1.0],
+        ["D", "R", "D", "N"],
+        "x**2+y**2",
+        4.0,
+        ["1e-16*x", "1e-16*y"],
+        0.0,
+    ),
     # Higher-order quadratic x^2*y^2
-    ("2d_x2y2_DDDD", [0.0, 1.0, 0.0, 1.0], ["D", "D", "D", "D"], "x**2*y**2", 1.0, ["1e-16*x", "1e-16*y"], 0.0),
-    ("2d_x2y2_DRDD", [0.0, 1.0, 0.0, 1.0], ["D", "R", "D", "D"], "x**2*y**2", 1.0, ["1e-16*x", "1e-16*y"], 0.0),
+    (
+        "2d_x2y2_DDDD",
+        [0.0, 1.0, 0.0, 1.0],
+        ["D", "D", "D", "D"],
+        "x**2*y**2",
+        1.0,
+        ["1e-16*x", "1e-16*y"],
+        0.0,
+    ),
+    (
+        "2d_x2y2_DRDD",
+        [0.0, 1.0, 0.0, 1.0],
+        ["D", "R", "D", "D"],
+        "x**2*y**2",
+        1.0,
+        ["1e-16*x", "1e-16*y"],
+        0.0,
+    ),
 ]
 
 
@@ -898,15 +988,17 @@ class TestParametrizedADR1DExact(ParametrizedTestCase):
 
         # P2 elements should exactly reproduce linear solutions
         self.assertLess(
-            rel_error, 1e-8,
-            f"Test {name}: rel_error={rel_error:.2e} should be < 1e-8"
+            rel_error, 1e-8, f"Test {name}: rel_error={rel_error:.2e} should be < 1e-8"
         )
 
 
 # 1D conservative advection exact reproduction test cases
-# Only cases with velocity are meaningful (conservative = non-conservative without advection)
+# Only cases with velocity are meaningful (conservative = non-conservative without
+# advection)
 # Format: (name, bounds, bndry_types, sol_str, diffusivity, vel_str, reaction)
-ADR_1D_CONSERVATIVE_CASES: List[Tuple[str, List[float], List[str], str, float, str, float]] = [
+ADR_1D_CONSERVATIVE_CASES: List[
+    Tuple[str, List[float], List[str], str, float, str, float]
+] = [
     ("1d_cons_DN_vel_nor", [0.0, 1.0], ["D", "N"], "x", 4.0, "(1+x)/10", 0.0),
     ("1d_cons_RD_vel_r2", [0.0, 1.0], ["R", "D"], "x", 4.0, "(1+x)/10", 2.0),
     ("1d_cons_RR_vel_nor", [0.0, 1.0], ["R", "R"], "x", 4.0, "(1+x)/10", 0.0),
@@ -960,7 +1052,10 @@ class TestParametrizedADR1DConservative(ParametrizedTestCase):
         )
 
         adapter = GalerkinManufacturedSolutionAdapter(
-            basis, functions, bkd, conservative=True,
+            basis,
+            functions,
+            bkd,
+            conservative=True,
         )
         bc_set = adapter.create_boundary_conditions(bndry_types, robin_alpha=1.0)
 
@@ -995,8 +1090,7 @@ class TestParametrizedADR1DConservative(ParametrizedTestCase):
             rel_error = np.linalg.norm(u_num - u_exact)
 
         self.assertLess(
-            rel_error, 1e-8,
-            f"Test {name}: rel_error={rel_error:.2e} should be < 1e-8"
+            rel_error, 1e-8, f"Test {name}: rel_error={rel_error:.2e} should be < 1e-8"
         )
 
 
@@ -1031,7 +1125,8 @@ class TestParametrizedADR2DExact(ParametrizedTestCase):
 
         # Create mesh and basis
         mesh = StructuredMesh2D(
-            nx=nx, ny=ny,
+            nx=nx,
+            ny=ny,
             bounds=[
                 (bounds[0], bounds[1]),
                 (bounds[2], bounds[3]),
@@ -1097,13 +1192,11 @@ class TestParametrizedADR2DExact(ParametrizedTestCase):
 
         # P2 elements should exactly reproduce quadratic solutions
         self.assertLess(
-            rel_error, 1e-8,
-            f"Test {name}: rel_error={rel_error:.2e} should be < 1e-8"
+            rel_error, 1e-8, f"Test {name}: rel_error={rel_error:.2e} should be < 1e-8"
         )
 
 
 from pyapprox.util.test_utils import load_tests  # noqa: F401
-
 
 if __name__ == "__main__":
     unittest.main()

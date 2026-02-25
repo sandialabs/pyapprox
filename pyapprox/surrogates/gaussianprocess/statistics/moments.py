@@ -18,19 +18,20 @@ private ``_*_scaled()`` methods that operate in scaled (kernel) space.
 """
 
 from typing import Generic, Optional
-from pyapprox.util.backends.protocols import Array, Backend
+
 from pyapprox.surrogates.gaussianprocess.output_transform import (
     OutputAffineTransformProtocol,
 )
 from pyapprox.surrogates.gaussianprocess.protocols import (
     PredictiveGPProtocol,
 )
-from pyapprox.surrogates.gaussianprocess.statistics.protocols import (
-    KernelIntegralCalculatorProtocol,
-)
 from pyapprox.surrogates.gaussianprocess.statistics.decompose import (
     _decompose_kernel,
 )
+from pyapprox.surrogates.gaussianprocess.statistics.protocols import (
+    KernelIntegralCalculatorProtocol,
+)
+from pyapprox.util.backends.protocols import Array, Backend
 
 
 class GaussianProcessStatistics(Generic[Array]):
@@ -88,7 +89,9 @@ class GaussianProcessStatistics(Generic[Array]):
     ... )
     >>> # Assume gp is a fitted GP with separable kernel
     >>> # and marginals is a list of marginal distributions
-    >>> calc = SeparableKernelIntegralCalculator(gp, marginals, nquad_points=50, bkd=bkd)
+    >>> calc = SeparableKernelIntegralCalculator(
+    ...     gp, marginals, nquad_points=50, bkd=bkd
+    ... )
     >>> stats = GaussianProcessStatistics(gp, calc)
     >>> mean_of_mean = stats.mean_of_mean()
     >>> var_of_mean = stats.variance_of_mean()
@@ -234,8 +237,6 @@ class GaussianProcessStatistics(Generic[Array]):
         s4 = s2 * s2
         P_C = self._calc.P()        # Shape: (n_train, n_train)
         P_K = s4 * P_C              # s⁴ P_C
-        tau_K = self._calc.tau_K()   # s² τ_C, shape: (n_train,)
-        u_K = s2 * self._calc.u()   # s² u_C, scalar
 
         # Compute A^{-1} y (already have as alpha)
         alpha = self._gp.alpha()  # Shape: (nqoi, n_train)
@@ -290,7 +291,6 @@ class GaussianProcessStatistics(Generic[Array]):
         P_C = self._calc.P()
         P_K = s4 * P_C
         tau_K = self._calc.tau_K()        # s² τ_C
-        u_K = s2 * self._calc.u()         # s² u_C
         nu_K = s4 * self._calc.nu()       # s⁴ ν_C
         Pi_K = s4 * s2 * self._calc.Pi()  # s⁶ Π_C
         xi1_K = s4 * self._calc.xi1()     # s⁴ ξ₁_C
@@ -306,7 +306,8 @@ class GaussianProcessStatistics(Generic[Array]):
             alpha_1d = self._bkd.reshape(alpha, (-1,))  # Shape: (n_train,)
         else:
             raise NotImplementedError(
-                "variance_of_variance currently only supports single-output GPs (nqoi=1)"
+                "variance_of_variance currently only supports "
+                "single-output GPs (nqoi=1)"
             )
 
         # β_K = A⁻¹ τ_K

@@ -7,9 +7,9 @@ Standard deviation: StdDev[f] = sqrt(Var[f])
 
 from typing import Generic
 
-from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.expdesign.statistics.base import SampleStatistic
 from pyapprox.expdesign.statistics.mean import SampleAverageMean
+from pyapprox.util.backends.protocols import Array, Backend
 
 
 class SampleAverageVariance(SampleStatistic[Array], Generic[Array]):
@@ -69,9 +69,7 @@ class SampleAverageVariance(SampleStatistic[Array], Generic[Array]):
         # (diff**2) * weights -> (nqoi, nsamples), sum over samples
         return (diff**2) @ weights.T  # (nqoi, 1)
 
-    def _jacobian(
-        self, values: Array, jac_values: Array, weights: Array
-    ) -> Array:
+    def _jacobian(self, values: Array, jac_values: Array, weights: Array) -> Array:
         """
         Compute Jacobian of variance.
 
@@ -148,9 +146,7 @@ class SampleAverageStdev(SampleAverageVariance, Generic[Array]):
         """
         return self._bkd.sqrt(super()._values(values, weights))
 
-    def _jacobian(
-        self, values: Array, jac_values: Array, weights: Array
-    ) -> Array:
+    def _jacobian(self, values: Array, jac_values: Array, weights: Array) -> Array:
         """
         Compute Jacobian of standard deviation.
 

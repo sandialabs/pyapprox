@@ -9,11 +9,11 @@ posterior by finding the MAP point and using the Hessian of the
 negative log-posterior as the precision matrix.
 """
 
+from .full_rank import DenseLaplacePosterior
 from .hessian_operators import (
     ApplyNegLogLikelihoodHessian,
     PriorConditionedHessianMatVec,
 )
-from .full_rank import DenseLaplacePosterior
 from .low_rank import LowRankLaplacePosterior
 
 __all__ = [

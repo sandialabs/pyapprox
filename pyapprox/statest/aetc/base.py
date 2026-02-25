@@ -4,12 +4,12 @@ This module implements the AETC (Adaptive Efficient Test Collection) base class
 for multi-fidelity Monte Carlo estimation with explore/exploit phases.
 """
 
-from typing import Generic, List, Tuple, Optional, Callable, Any, Dict
 from functools import partial
+from typing import Any, Callable, Dict, Generic, List, Optional, Tuple
 
+from pyapprox.statest.groupacv.utils import get_model_subsets
 from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.util.linalg import extract_submatrix
-from pyapprox.statest.groupacv.utils import get_model_subsets
 
 
 class AETC(Generic[Array]):
@@ -85,7 +85,8 @@ class AETC(Generic[Array]):
         sigma_S_sq : Array
             Estimated residual variance (scalar as 0-d array).
         X_Sp : Array
-            Design matrix with leading column of ones, shape (nsamples, ncovariates + 1).
+            Design matrix with leading column of ones, shape (nsamples, ncovariates +
+            1).
         """
         bkd = self._bkd
         # Input is (ncovariates, nsamples), transpose to (nsamples, ncovariates)
@@ -236,9 +237,7 @@ class AETC(Generic[Array]):
         nmodels = len(costs_S)
 
         # k1 = sigma_S_sq * trace(x_Sp @ x_Sp.T @ inv(Lambda_Sp))
-        k1 = sigma_S_sq * bkd.trace(
-            bkd.multidot([x_Sp, x_Sp.T, bkd.inv(Lambda_Sp)])
-        )
+        k1 = sigma_S_sq * bkd.trace(bkd.multidot([x_Sp, x_Sp.T, bkd.inv(Lambda_Sp)]))
 
         # Build Sigma_Sp: zeros with Sigma_S in lower-right block
         Sigma_Sp = bkd.zeros((Sigma_S.shape[0] + 1, Sigma_S.shape[1] + 1))
@@ -248,9 +247,7 @@ class AETC(Generic[Array]):
         if nmodels == 1:
             exploit_cost = bkd.sum(costs_S)
             nsamples_per_subset = 1.0 / exploit_cost
-            k2 = exploit_cost * bkd.trace(
-                bkd.multidot([Sigma_Sp, beta_Sp, beta_Sp.T])
-            )
+            k2 = exploit_cost * bkd.trace(bkd.multidot([Sigma_Sp, beta_Sp, beta_Sp.T]))
             return k1, k2, nsamples_per_subset * bkd.ones((1,))
 
         # General case: use subclass-specific _find_k2
@@ -351,10 +348,9 @@ class AETC(Generic[Array]):
 
         # Estimate optimal exploration rate (Equation 4.34)
         explore_rate = bkd.maximum(
-            total_budget / (
-                explore_cost + bkd.sqrt(
-                    explore_cost * k2 / (k1 + alpha ** (-nsamples))
-                )
+            total_budget
+            / (
+                explore_cost + bkd.sqrt(explore_cost * k2 / (k1 + alpha ** (-nsamples)))
             ),
             bkd.asarray(nsamples, dtype=float),
         )
@@ -599,9 +595,7 @@ class AETC(Generic[Array]):
                 values = bkd.hstack([values, new_values_stacked])
 
             nexplore_samples_prev = nexplore_samples
-            result = self._explore_step(
-                total_budget, lf_model_subsets, values, alpha
-            )
+            result = self._explore_step(total_budget, lf_model_subsets, values, alpha)
             nexplore_samples = result[0]
             last_result = result
 
@@ -616,9 +610,7 @@ class AETC(Generic[Array]):
         """
         raise NotImplementedError("Subclasses must implement get_exploit_samples")
 
-    def find_exploit_mean(
-        self, values_per_model: List[Array], result: Tuple
-    ) -> Array:
+    def find_exploit_mean(self, values_per_model: List[Array], result: Tuple) -> Array:
         """Compute exploitation mean estimate.
 
         Must be implemented by subclasses.

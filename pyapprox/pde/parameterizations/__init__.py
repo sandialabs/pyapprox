@@ -1,5 +1,5 @@
-from pyapprox.pde.parameterizations.protocol import (
-    ParameterizationProtocol,
+from pyapprox.pde.parameterizations.composite import (
+    CompositeParameterization,
 )
 from pyapprox.pde.parameterizations.diffusion import (
     DiffusionParameterization,
@@ -8,11 +8,9 @@ from pyapprox.pde.parameterizations.diffusion import (
 from pyapprox.pde.parameterizations.forcing import (
     ForcingParameterization,
 )
-from pyapprox.pde.parameterizations.reaction import (
-    ReactionParameterization,
-)
-from pyapprox.pde.parameterizations.composite import (
-    CompositeParameterization,
+from pyapprox.pde.parameterizations.galerkin_lame import (
+    GalerkinLameParameterization,
+    create_galerkin_lame_parameterization,
 )
 from pyapprox.pde.parameterizations.hyperelastic_lame import (
     HyperelasticYoungsModulusParameterization,
@@ -22,9 +20,11 @@ from pyapprox.pde.parameterizations.lame import (
     YoungModulusParameterization,
     create_youngs_modulus_parameterization,
 )
-from pyapprox.pde.parameterizations.galerkin_lame import (
-    GalerkinLameParameterization,
-    create_galerkin_lame_parameterization,
+from pyapprox.pde.parameterizations.protocol import (
+    ParameterizationProtocol,
+)
+from pyapprox.pde.parameterizations.reaction import (
+    ReactionParameterization,
 )
 
 __all__ = [

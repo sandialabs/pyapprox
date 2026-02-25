@@ -11,10 +11,10 @@ from dataclasses import dataclass
 from itertools import permutations
 from typing import Generic, List
 
-from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.statest.factory.tree_enumeration import (
     get_acv_recursion_indices,
 )
+from pyapprox.util.backends.protocols import Array, Backend
 
 
 class RecursionIndexStrategy(ABC, Generic[Array]):

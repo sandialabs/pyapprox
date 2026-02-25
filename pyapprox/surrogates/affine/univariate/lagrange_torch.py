@@ -115,9 +115,7 @@ def lagrange_jacobian_torch(
     nabscissa = abscissa.shape[0]
     nsamples = samples.shape[0]
     if nabscissa == 1:
-        return torch.zeros(
-            (nsamples, 1), dtype=samples.dtype, device=samples.device
-        )
+        return torch.zeros((nsamples, 1), dtype=samples.dtype, device=samples.device)
 
     diffs = samples[:, None] - abscissa[None, :]
 
@@ -172,9 +170,7 @@ def lagrange_hessian_torch(
     nabscissa = abscissa.shape[0]
     nsamples = samples.shape[0]
     if nabscissa == 1:
-        return torch.zeros(
-            (nsamples, 1), dtype=samples.dtype, device=samples.device
-        )
+        return torch.zeros((nsamples, 1), dtype=samples.dtype, device=samples.device)
 
     diffs = samples[:, None] - abscissa[None, :]
 

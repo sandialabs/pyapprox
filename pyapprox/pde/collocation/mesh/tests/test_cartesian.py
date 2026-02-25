@@ -3,19 +3,19 @@
 import unittest
 from typing import Generic
 
-from pyapprox.util.backends.protocols import Array, Backend
-from pyapprox.util.backends.numpy import NumpyBkd
 from pyapprox.pde.collocation.mesh import (
+    AffineTransform1D,
+    AffineTransform2D,
+    AffineTransform3D,
     CartesianMesh1D,
     CartesianMesh2D,
     CartesianMesh3D,
     create_uniform_mesh_1d,
     create_uniform_mesh_2d,
     create_uniform_mesh_3d,
-    AffineTransform1D,
-    AffineTransform2D,
-    AffineTransform3D,
 )
+from pyapprox.util.backends.numpy import NumpyBkd
+from pyapprox.util.backends.protocols import Array, Backend
 
 
 class TestCartesianMesh(Generic[Array], unittest.TestCase):
@@ -164,9 +164,7 @@ class TestCartesianMesh(Generic[Array], unittest.TestCase):
         self.assertEqual(mesh.npts(), npts_x * npts_y * npts_z)
         self.assertEqual(mesh.npts_per_dim(), (npts_x, npts_y, npts_z))
         self.assertEqual(mesh.nboundaries(), 6)
-        self.assertEqual(
-            mesh.points().shape, (3, npts_x * npts_y * npts_z)
-        )
+        self.assertEqual(mesh.points().shape, (3, npts_x * npts_y * npts_z))
 
     def test_mesh_3d_with_transform(self):
         """Test 3D mesh with affine transform."""
@@ -177,9 +175,7 @@ class TestCartesianMesh(Generic[Array], unittest.TestCase):
             bkd.linspace(-1.0, 1.0, npts_y),
             bkd.linspace(-1.0, 1.0, npts_z),
         ]
-        transform = AffineTransform3D(
-            (0.0, 2.0, 0.0, 3.0, 0.0, 4.0), bkd
-        )
+        transform = AffineTransform3D((0.0, 2.0, 0.0, 3.0, 0.0, 4.0), bkd)
         mesh = CartesianMesh3D(ref_pts, bkd, transform)
 
         pts = mesh.points()
@@ -221,9 +217,7 @@ class TestCartesianMesh(Generic[Array], unittest.TestCase):
     def test_create_uniform_mesh_3d(self):
         """Test uniform 3D mesh factory function."""
         bkd = self.bkd()
-        mesh = create_uniform_mesh_3d(
-            (2, 3, 2), (0.0, 2.0, 0.0, 3.0, 0.0, 4.0), bkd
-        )
+        mesh = create_uniform_mesh_3d((2, 3, 2), (0.0, 2.0, 0.0, 3.0, 0.0, 4.0), bkd)
 
         self.assertEqual(mesh.npts(), 12)
         pts = mesh.points()

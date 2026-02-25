@@ -102,9 +102,7 @@ class TimedModelFactory:
             n_evals = samples.shape[1]
             t0 = time.perf_counter()
             result = model(samples)
-            fn_timer.get("__call__").record(
-                time.perf_counter() - t0, n_evals
-            )
+            fn_timer.get("__call__").record(time.perf_counter() - t0, n_evals)
             return result
 
         return timed_model

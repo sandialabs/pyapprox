@@ -10,18 +10,18 @@ where:
 - f: forcing/source term (field)
 """
 
-from typing import List, Optional, Callable
+from typing import Callable, List, Optional
 
-from pyapprox.util.backends.protocols import Array, Backend
+from pyapprox.pde.collocation.operators.differential import (
+    Divergence,
+    Gradient,
+    Laplacian,
+)
+from pyapprox.pde.collocation.physics.base import AbstractScalarPhysics
 from pyapprox.pde.collocation.protocols.basis import (
     TensorProductBasisProtocol,
 )
-from pyapprox.pde.collocation.physics.base import AbstractScalarPhysics
-from pyapprox.pde.collocation.operators.differential import (
-    Laplacian,
-    Gradient,
-    Divergence,
-)
+from pyapprox.util.backends.protocols import Array, Backend
 
 
 class AdvectionDiffusionReaction(AbstractScalarPhysics[Array]):
@@ -70,7 +70,9 @@ class AdvectionDiffusionReaction(AbstractScalarPhysics[Array]):
 
         # Store diffusion coefficient
         self._diffusion_value = diffusion if diffusion is not None else 0.0
-        self._is_variable_diffusion = not isinstance(self._diffusion_value, (int, float))
+        self._is_variable_diffusion = not isinstance(
+            self._diffusion_value, (int, float)
+        )
         if isinstance(self._diffusion_value, (int, float)):
             self._diffusion_array = bkd.full((npts,), float(self._diffusion_value))
             self._has_diffusion = self._diffusion_value != 0.0
@@ -95,9 +97,8 @@ class AdvectionDiffusionReaction(AbstractScalarPhysics[Array]):
             self._reaction_array = bkd.full((npts,), float(self._reaction_value))
         else:
             self._reaction_array = self._reaction_value
-        self._has_reaction = (
-            reaction is not None
-            and not (isinstance(reaction, (int, float)) and reaction == 0.0)
+        self._has_reaction = reaction is not None and not (
+            isinstance(reaction, (int, float)) and reaction == 0.0
         )
         self._reaction_func: Optional[Callable[[float], Array]] = None
 
@@ -189,9 +190,7 @@ class AdvectionDiffusionReaction(AbstractScalarPhysics[Array]):
             result = result + grad_delta_D[dim] * grad_u_dim
         return result
 
-    def residual_reaction_sensitivity(
-        self, state: Array, time: float
-    ) -> Array:
+    def residual_reaction_sensitivity(self, state: Array, time: float) -> Array:
         """Compute d(residual)/d(r_field) pointwise = state.
 
         Parameters
@@ -450,9 +449,7 @@ def create_steady_diffusion(
     AdvectionDiffusionReaction
         Physics for steady diffusion.
     """
-    return AdvectionDiffusionReaction(
-        basis, bkd, diffusion=diffusion, forcing=forcing
-    )
+    return AdvectionDiffusionReaction(basis, bkd, diffusion=diffusion, forcing=forcing)
 
 
 def create_advection_diffusion(

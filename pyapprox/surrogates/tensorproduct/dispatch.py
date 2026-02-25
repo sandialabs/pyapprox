@@ -13,12 +13,11 @@ from typing import Callable, List
 
 import numpy as np
 
-from pyapprox.util.backends.protocols import Array, Backend
-from pyapprox.util.backends.numpy import NumpyBkd
-
 from pyapprox.surrogates.tensorproduct.compute import (
     tp_eval_vectorized,
 )
+from pyapprox.util.backends.numpy import NumpyBkd
+from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.util.optional_deps import package_available
 
 _HAS_NUMBA = package_available("numba")
@@ -27,12 +26,11 @@ _HAS_NUMBA = package_available("numba")
 def _is_torch(bkd: Backend[Array]) -> bool:
     """Check if backend is PyTorch; import deferred to avoid torch load time."""
     from pyapprox.util.backends.torch import TorchBkd
+
     return isinstance(bkd, TorchBkd)
 
 
-TpEvalImpl = Callable[
-    [List[Array], Array, List[int], Backend[Array]], Array
-]
+TpEvalImpl = Callable[[List[Array], Array, List[int], Backend[Array]], Array]
 
 
 def _make_numba_tp_eval() -> TpEvalImpl:
@@ -83,9 +81,11 @@ def _make_compiled_tp_eval() -> TpEvalImpl:
     during torch.compile tracing.
     """
     import torch
+
     from pyapprox.surrogates.tensorproduct.compute_torch import (
         tp_eval_torch,
     )
+
     compiled_fn = torch.compile(tp_eval_torch)
 
     def impl(

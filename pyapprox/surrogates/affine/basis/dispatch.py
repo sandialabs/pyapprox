@@ -14,22 +14,20 @@ from typing import Callable, List
 
 import numpy as np
 
-from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.util.backends.numpy import NumpyBkd
+from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.util.optional_deps import package_available
 
 _HAS_NUMBA = package_available("numba")
 
 from pyapprox.surrogates.affine.basis.compute import (
     basis_eval_vectorized,
-    basis_jacobian_vectorized,
     basis_hessian_vectorized,
+    basis_jacobian_vectorized,
 )
 
 # Type aliases for dispatch callables
-BasisEvalImpl = Callable[
-    [List[Array], Array, int, Backend[Array]], Array
-]
+BasisEvalImpl = Callable[[List[Array], Array, int, Backend[Array]], Array]
 
 BasisJacobianImpl = Callable[
     [List[Array], List[Array], Array, int, Backend[Array]], Array
@@ -48,6 +46,7 @@ def _is_numpy(bkd: Backend[Array]) -> bool:
 def _is_torch(bkd: Backend[Array]) -> bool:
     """Check if backend is PyTorch; import deferred to avoid torch load time."""
     from pyapprox.util.backends.torch import TorchBkd
+
     return isinstance(bkd, TorchBkd)
 
 
@@ -71,11 +70,12 @@ def _stack_1d_arrays_for_numba(
     max_nterms = max(v.shape[1] for v in vals_1d)
     stacked = np.zeros((nvars, nsamples, max_nterms))
     for dd in range(nvars):
-        stacked[dd, :, :vals_1d[dd].shape[1]] = vals_1d[dd]
+        stacked[dd, :, : vals_1d[dd].shape[1]] = vals_1d[dd]
     return stacked
 
 
 # --- Public dispatch functions ---
+
 
 def get_basis_eval_impl(bkd: Backend[Array]) -> BasisEvalImpl:
     """Get the basis evaluation implementation for the given backend.
@@ -109,8 +109,13 @@ def get_basis_eval_impl(bkd: Backend[Array]) -> BasisEvalImpl:
             nsamples = vals_1d[0].shape[0]
             nterms = indices_np.shape[1]
             return basis_eval_numba(
-                stacked, indices_np, nvars, nsamples, nterms,
+                stacked,
+                indices_np,
+                nvars,
+                nsamples,
+                nterms,
             )
+
         return impl
 
     if _is_torch(bkd):
@@ -151,9 +156,14 @@ def get_basis_jacobian_impl(bkd: Backend[Array]) -> BasisJacobianImpl:
             nsamples = vals_1d[0].shape[0]
             nterms = indices_np.shape[1]
             return basis_jacobian_numba(
-                stacked_vals, stacked_derivs, indices_np,
-                nvars, nsamples, nterms,
+                stacked_vals,
+                stacked_derivs,
+                indices_np,
+                nvars,
+                nsamples,
+                nterms,
             )
+
         return impl
 
     if _is_torch(bkd):
@@ -196,9 +206,15 @@ def get_basis_hessian_impl(bkd: Backend[Array]) -> BasisHessianImpl:
             nsamples = vals_1d[0].shape[0]
             nterms = indices_np.shape[1]
             return basis_hessian_numba(
-                stacked_vals, stacked_derivs, stacked_hess, indices_np,
-                nvars, nsamples, nterms,
+                stacked_vals,
+                stacked_derivs,
+                stacked_hess,
+                indices_np,
+                nvars,
+                nsamples,
+                nterms,
             )
+
         return impl
 
     if _is_torch(bkd):
@@ -209,12 +225,15 @@ def get_basis_hessian_impl(bkd: Backend[Array]) -> BasisHessianImpl:
 
 # --- torch.compile wrapper factories ---
 
+
 def _make_compiled_eval() -> BasisEvalImpl:
     """Create a torch.compile-wrapped basis eval implementation."""
     import torch
+
     from pyapprox.surrogates.affine.basis.compute_torch import (
         basis_eval_torch,
     )
+
     compiled_fn = torch.compile(basis_eval_torch)
 
     def impl(
@@ -224,15 +243,18 @@ def _make_compiled_eval() -> BasisEvalImpl:
         bkd: Backend[Array],
     ) -> Array:
         return compiled_fn(vals_1d, indices)
+
     return impl
 
 
 def _make_compiled_jacobian() -> BasisJacobianImpl:
     """Create a torch.compile-wrapped basis Jacobian implementation."""
     import torch
+
     from pyapprox.surrogates.affine.basis.compute_torch import (
         basis_jacobian_torch,
     )
+
     compiled_fn = torch.compile(basis_jacobian_torch)
 
     def impl(
@@ -243,15 +265,18 @@ def _make_compiled_jacobian() -> BasisJacobianImpl:
         bkd: Backend[Array],
     ) -> Array:
         return compiled_fn(vals_1d, derivs_1d, indices)
+
     return impl
 
 
 def _make_compiled_hessian() -> BasisHessianImpl:
     """Create a torch.compile-wrapped basis Hessian implementation."""
     import torch
+
     from pyapprox.surrogates.affine.basis.compute_torch import (
         basis_hessian_torch,
     )
+
     compiled_fn = torch.compile(basis_hessian_torch)
 
     def impl(
@@ -263,4 +288,5 @@ def _make_compiled_hessian() -> BasisHessianImpl:
         bkd: Backend[Array],
     ) -> Array:
         return compiled_fn(vals_1d, derivs_1d, hess_1d, indices)
+
     return impl

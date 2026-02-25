@@ -1,4 +1,5 @@
-from typing import Union, Tuple
+from typing import Tuple, Union
+
 from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.util.hyperparameter.hyperparameter import HyperParameter
 

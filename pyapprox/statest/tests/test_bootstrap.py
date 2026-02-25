@@ -17,33 +17,32 @@ import numpy as np
 import torch
 from unittest_parametrize import ParametrizedTestCase, parametrize
 
-from pyapprox.util.backends.torch import TorchBkd
-from pyapprox.util.test_utils import (
-    load_tests,  # noqa: F401
-    slow_test,
-    slower_test,
-    allocate_with_allocator,
-)
-
-from pyapprox.statest.statistics import (
-    MultiOutputMean,
-    MultiOutputVariance,
-    MultiOutputMeanAndVariance,
-)
-from pyapprox.statest.mc_estimator import MCEstimator
-from pyapprox.statest.cv_estimator import CVEstimator
-from pyapprox.statest.acv.variants import (
-    GMFEstimator,
-    GISEstimator,
-    GRDEstimator,
-    MFMCEstimator,
-    MLMCEstimator,
+from pyapprox.benchmarks.functions.multifidelity.multioutput_ensemble import (
+    MultiOutputModelEnsemble,
 )
 from pyapprox.benchmarks.functions.multifidelity.polynomial_ensemble import (
     PolynomialEnsemble,
 )
-from pyapprox.benchmarks.functions.multifidelity.multioutput_ensemble import (
-    MultiOutputModelEnsemble,
+from pyapprox.statest.acv.variants import (
+    GISEstimator,
+    GMFEstimator,
+    GRDEstimator,
+    MFMCEstimator,
+    MLMCEstimator,
+)
+from pyapprox.statest.cv_estimator import CVEstimator
+from pyapprox.statest.mc_estimator import MCEstimator
+from pyapprox.statest.statistics import (
+    MultiOutputMean,
+    MultiOutputMeanAndVariance,
+    MultiOutputVariance,
+)
+from pyapprox.util.backends.torch import TorchBkd
+from pyapprox.util.test_utils import (
+    allocate_with_allocator,
+    load_tests,  # noqa: F401
+    slow_test,
+    slower_test,
 )
 
 
@@ -102,9 +101,7 @@ def _setup_pilot_quantities(stat_type: str, nmodels: int, nqoi: int, bkd):
     return pilot_args
 
 
-def _compute_mc_estimator_variance(
-    bkd, ensemble, est, ntrials: int
-) -> torch.Tensor:
+def _compute_mc_estimator_variance(bkd, ensemble, est, ntrials: int) -> torch.Tensor:
     """Compute MC estimate of estimator variance using polynomial ensemble."""
     models = ensemble.models()
     nmodels = ensemble.nmodels()
@@ -117,8 +114,7 @@ def _compute_mc_estimator_variance(
     for _ in range(ntrials):
         samples_per_model = est.generate_samples_per_model(rvs)
         values_per_model = [
-            model(samples)
-            for model, samples in zip(models, samples_per_model)
+            model(samples) for model, samples in zip(models, samples_per_model)
         ]
         # MCEstimator takes a single array, not a list
         if nmodels == 1:
@@ -194,9 +190,7 @@ class TestBootstrapEstimator(ParametrizedTestCase):
 
         # Compare to analytical covariance
         analytical_cov = est.optimized_covariance()
-        self._bkd.assert_allclose(
-            bootstrap_cov, analytical_cov, atol=1e-1, rtol=3e-1
-        )
+        self._bkd.assert_allclose(bootstrap_cov, analytical_cov, atol=1e-1, rtol=3e-1)
 
     @parametrize(
         "est_type,target_cost",
@@ -249,9 +243,7 @@ class TestBootstrapEstimator(ParametrizedTestCase):
         bootstrap_mean, bootstrap_cov = est.bootstrap(values_per_model, nbootstraps)
         analytical_cov = est.optimized_covariance()
 
-        self._bkd.assert_allclose(
-            bootstrap_cov, analytical_cov, atol=1e-1, rtol=5e-1
-        )
+        self._bkd.assert_allclose(bootstrap_cov, analytical_cov, atol=1e-1, rtol=5e-1)
 
 
 class TestEstimatorVariance(ParametrizedTestCase):
@@ -378,8 +370,7 @@ class TestEstimatorVariance(ParametrizedTestCase):
         for _ in range(ntrials):
             samples_per_model = est.generate_samples_per_model(rvs)
             values_per_model = [
-                model(samples)
-                for model, samples in zip(models, samples_per_model)
+                model(samples) for model, samples in zip(models, samples_per_model)
             ]
             est_val = est(values_per_model)
             estimates.append(est_val)
@@ -487,8 +478,7 @@ class TestPilotQuantities(ParametrizedTestCase):
 
         np.random.seed(789)
         pilot_values = [
-            self._bkd.asarray(np.random.randn(nqoi, nsamples))
-            for _ in range(nmodels)
+            self._bkd.asarray(np.random.randn(nqoi, nsamples)) for _ in range(nmodels)
         ]
 
         stat = MultiOutputMean(nqoi, self._bkd)
@@ -583,8 +573,7 @@ class TestInsertPilotSamples(ParametrizedTestCase):
         ]
 
         pilot_values = [
-            self._bkd.ones((nqoi, npilot)) * (ii + 1)
-            for ii in range(nmodels)
+            self._bkd.ones((nqoi, npilot)) * (ii + 1) for ii in range(nmodels)
         ]
         sample_values = [
             self._bkd.ones((nqoi, max(0, nsamples_per_model[ii] - npilot))) * (ii + 10)
@@ -594,8 +583,7 @@ class TestInsertPilotSamples(ParametrizedTestCase):
         combined = est.insert_pilot_values(pilot_values, sample_values)
 
         self._bkd.assert_allclose(
-            self._bkd.asarray([len(combined)]),
-            self._bkd.asarray([nmodels])
+            self._bkd.asarray([len(combined)]), self._bkd.asarray([nmodels])
         )
 
 

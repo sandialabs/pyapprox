@@ -1,4 +1,3 @@
-from typing import Union, Tuple
 from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.util.hyperparameter.hyperparameter import HyperParameter
 
@@ -18,7 +17,8 @@ class CholeskyHyperParameter(HyperParameter[Array]):
     user_values : Array
         Full Cholesky factor provided by the user.
     user_bounds : Array
-        Flattened bounds corresponding to the nonzero elements of the lower triangular part.
+        Flattened bounds corresponding to the nonzero elements of the lower triangular
+        part.
     bkd : Backend
         Backend for numerical computations.
     fixed : bool, optional

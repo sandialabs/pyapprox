@@ -10,15 +10,15 @@ This module separates allocation optimization from estimation, providing:
 import copy
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
-from typing import Any, Generic, List, Optional, TYPE_CHECKING
+from typing import TYPE_CHECKING, Any, Generic, List, Optional
 
 from pyapprox.util.backends.protocols import Array, Backend
 
 if TYPE_CHECKING:
-    from pyapprox.statest.acv.base import ACVEstimator
     from pyapprox.optimization.minimize.protocols import (
         BindableOptimizerProtocol,
     )
+    from pyapprox.statest.acv.base import ACVEstimator
     from pyapprox.statest.acv.optimization import (
         ACVObjective,
         ACVPartitionConstraint,
@@ -100,14 +100,14 @@ def _clone_estimator_for_torch(
     ACVEstimator
         A shallow copy backed by TorchBkd.
     """
-    from pyapprox.util.backends.torch import TorchBkd
+    import torch
+
     from pyapprox.statest.statistics import (
         MultiOutputMean,
-        MultiOutputVariance,
         MultiOutputMeanAndVariance,
+        MultiOutputVariance,
     )
-
-    import torch
+    from pyapprox.util.backends.torch import TorchBkd
 
     torch_bkd = TorchBkd()
     clone = copy.copy(estimator)
@@ -119,15 +119,12 @@ def _clone_estimator_for_torch(
     # Create fresh torch stat with re-derived pilot quantities
     nqoi = estimator._stat.nqoi()
     stat = estimator._stat
+
     def _to_torch_double(arr):
-        return torch_bkd.asarray(
-            estimator._bkd.to_numpy(arr), dtype=torch.double
-        )
+        return torch_bkd.asarray(estimator._bkd.to_numpy(arr), dtype=torch.double)
 
     if isinstance(stat, MultiOutputMeanAndVariance):
-        clone._stat = MultiOutputMeanAndVariance(
-            nqoi, torch_bkd, tril=stat._tril
-        )
+        clone._stat = MultiOutputMeanAndVariance(nqoi, torch_bkd, tril=stat._tril)
         clone._stat.set_pilot_quantities(
             _to_torch_double(stat._cov),
             _to_torch_double(stat._W),
@@ -146,8 +143,7 @@ def _clone_estimator_for_torch(
         )
     else:
         raise TypeError(
-            f"Unsupported stat type for torch optimization: "
-            f"{type(stat).__name__}"
+            f"Unsupported stat type for torch optimization: {type(stat).__name__}"
         )
 
     # Convert allocation matrix
@@ -255,14 +251,14 @@ class ACVAllocator(Allocator[Array]):
         return self._default_optimizer()
 
     def _default_optimizer(self) -> Any:
+        from pyapprox.optimization.minimize.chained.chained_optimizer import (
+            ChainedOptimizer,
+        )
         from pyapprox.optimization.minimize.scipy.diffevol import (
             ScipyDifferentialEvolutionOptimizer,
         )
         from pyapprox.optimization.minimize.scipy.trust_constr import (
             ScipyTrustConstrOptimizer,
-        )
-        from pyapprox.optimization.minimize.chained.chained_optimizer import (
-            ChainedOptimizer,
         )
 
         return ChainedOptimizer(
@@ -360,9 +356,7 @@ class ACVAllocator(Allocator[Array]):
         bounds = self._est.get_npartition_bounds(target_cost)
         optimizer.bind(objective, bounds, constraints)
         init_iterate = self._bkd.full((self._est._nmodels - 1, 1), 1.0)
-        init_iterate = self._ensure_feasible_init(
-            init_iterate, constraint, bounds
-        )
+        init_iterate = self._ensure_feasible_init(init_iterate, constraint, bounds)
         return optimizer.minimize(init_iterate)
 
     def _ensure_feasible_init(
@@ -581,9 +575,7 @@ def _is_chain_recursion_index(recursion_index: Array, bkd: Backend[Array]) -> bo
         True if the recursion index is a chain (sequential).
     """
     nmodels_minus_1 = recursion_index.shape[0]
-    return bool(bkd.allclose(
-        recursion_index, bkd.arange(nmodels_minus_1, dtype=int)
-    ))
+    return bool(bkd.allclose(recursion_index, bkd.arange(nmodels_minus_1, dtype=int)))
 
 
 class _MFMCAnalyticalProxyAllocator(Allocator[Array]):
@@ -610,9 +602,7 @@ class _MFMCAnalyticalProxyAllocator(Allocator[Array]):
                 target_cost, "Budget too small for one sample per model"
             )
         try:
-            partition_ratios, objective_value = self._allocate_analytical(
-                target_cost
-            )
+            partition_ratios, objective_value = self._allocate_analytical(target_cost)
         except Exception:
             return ACVAllocator(self._est).allocate(target_cost)
 
@@ -655,9 +645,7 @@ class _MFMCAnalyticalProxyAllocator(Allocator[Array]):
             self._est._compute_nsamples_per_model(npartition_samples), dtype=int
         )
         actual_cost = float(
-            self._bkd.to_numpy(
-                self._bkd.sum(nsamples_per_model * self._est._costs)
-            )
+            self._bkd.to_numpy(self._bkd.sum(nsamples_per_model * self._est._costs))
         )
         return ACVAllocationResult(
             partition_ratios=partition_ratios,
@@ -712,9 +700,7 @@ class _MLMCAnalyticalProxyAllocator(Allocator[Array]):
                 target_cost, "Budget too small for one sample per model"
             )
         try:
-            partition_ratios, objective_value = self._allocate_analytical(
-                target_cost
-            )
+            partition_ratios, objective_value = self._allocate_analytical(target_cost)
         except Exception:
             return ACVAllocator(self._est).allocate(target_cost)
 
@@ -732,9 +718,7 @@ class _MLMCAnalyticalProxyAllocator(Allocator[Array]):
         # Same logic as MLMCEstimator._native_ratios_to_npartition_ratios
         partition_ratios = [nsample_ratios[0] - 1]
         for ii in range(1, len(nsample_ratios)):
-            partition_ratios.append(
-                nsample_ratios[ii] - partition_ratios[ii - 1]
-            )
+            partition_ratios.append(nsample_ratios[ii] - partition_ratios[ii - 1])
         partition_ratios = self._bkd.hstack(partition_ratios)
         objective_value = self._bkd.atleast_1d(log_variance)
         return partition_ratios, objective_value
@@ -760,9 +744,7 @@ class _MLMCAnalyticalProxyAllocator(Allocator[Array]):
             self._est._compute_nsamples_per_model(npartition_samples), dtype=int
         )
         actual_cost = float(
-            self._bkd.to_numpy(
-                self._bkd.sum(nsamples_per_model * self._est._costs)
-            )
+            self._bkd.to_numpy(self._bkd.sum(nsamples_per_model * self._est._costs))
         )
         return ACVAllocationResult(
             partition_ratios=partition_ratios,

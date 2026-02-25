@@ -5,13 +5,12 @@ GroupACV sample allocation optimization.
 """
 
 from abc import ABC, abstractmethod
-from typing import Generic, TYPE_CHECKING
+from typing import TYPE_CHECKING, Generic
 
 import numpy as np
 
-from pyapprox.util.backends.protocols import Array, Backend
-
 from pyapprox.statest.groupacv.utils import _grouped_acv_sigma
+from pyapprox.util.backends.protocols import Array, Backend
 
 if TYPE_CHECKING:
     from pyapprox.statest.groupacv.base import GroupACVEstimator
@@ -113,6 +112,7 @@ class GroupACVObjective(ABC, Generic[Array]):
         )
         return jac[None, ...]
 
+
 class GroupACVTraceObjective(GroupACVObjective[Array]):
     """Trace objective for GroupACV optimization.
 
@@ -121,9 +121,7 @@ class GroupACVTraceObjective(GroupACVObjective[Array]):
 
     def _objective_wrapper(self, npartition_samples_1d: Array) -> Array:
         trace = self._bkd.trace(
-            self._est._covariance_from_npartition_samples(
-                npartition_samples_1d
-            )
+            self._est._covariance_from_npartition_samples(npartition_samples_1d)
         )
         # conversion below is necessary for torch
         return self._bkd.hstack((trace,))[:, None]
@@ -136,9 +134,7 @@ class GroupACVLogDetObjective(GroupACVObjective[Array]):
     """
 
     def _objective_wrapper(self, npartition_samples_1d: Array) -> Array:
-        cov = self._est._covariance_from_npartition_samples(
-            npartition_samples_1d
-        )
+        cov = self._est._covariance_from_npartition_samples(npartition_samples_1d)
         sign, logdet = self._bkd.slogdet(cov)
         if logdet < -1e16:
             # when cov is singular logdet returns np.inf
@@ -219,12 +215,10 @@ class MLBLUEObjective(GroupACVTraceObjective):
         psi_inv = self._est._inv(psi_matrix)
         Rmats = self._est._restriction_matrices
         hess = [
-            [0 for jj in range(len(Sigma_blocks))]
-            for ii in range(len(Sigma_blocks))
+            [0 for jj in range(len(Sigma_blocks))] for ii in range(len(Sigma_blocks))
         ]
         sigma_invs = [
-            self._est._inv(Sigma_blocks[ii][ii])
-            for ii in range(len(Sigma_blocks))
+            self._est._inv(Sigma_blocks[ii][ii]) for ii in range(len(Sigma_blocks))
         ]
         psi_derivs = [
             self._bkd.multidot((Rmats[ii], sigma_invs[ii], Rmats[ii].T))
@@ -344,11 +338,9 @@ class GroupACVCostConstraint(Generic[Array]):
         """Evaluate constraint values from 1D input."""
         return self._bkd.array(
             [
-                self._target_cost
-                - self._est._estimator_cost(npartition_samples_1d),
+                self._target_cost - self._est._estimator_cost(npartition_samples_1d),
                 self._bkd.sum(
-                    self._est._partitions_per_model[0]
-                    * npartition_samples_1d
+                    self._est._partitions_per_model[0] * npartition_samples_1d
                 )
                 - self._min_nhf_samples,
             ]
@@ -415,9 +407,7 @@ class GroupACVCostConstraint(Generic[Array]):
             )
         )
 
-    def whvp(
-        self, npartition_samples: Array, vec: Array, weights: Array
-    ) -> Array:
+    def whvp(self, npartition_samples: Array, vec: Array, weights: Array) -> Array:
         """
         Compute weighted Hessian-vector product.
 

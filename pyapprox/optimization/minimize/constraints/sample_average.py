@@ -177,7 +177,7 @@ class SampleAverageConstraint(Generic[Array]):
         # jac_values: (nqoi, n_quad_pts, n_design)
         jac_values = bkd.zeros((nqoi, n_quad, n_design))
         for qq in range(n_quad):
-            single_sample = full_samples[:, qq:qq + 1]
+            single_sample = full_samples[:, qq : qq + 1]
             # Full jacobian: (nqoi, nvars_full)
             jac_full = self._model.jacobian(single_sample)  # type: ignore[union-attr]
             # Extract design columns: (nqoi, n_design)

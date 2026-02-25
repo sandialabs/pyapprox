@@ -57,9 +57,7 @@ class ObstructedMesh2D(Generic[Array]):
 
         # Full vertices via cartesian product (x varies fastest)
         xx, yy = np.meshgrid(xintervals, yintervals, indexing="xy")
-        self._full_vertices = np.vstack(
-            [xx.ravel(), yy.ravel()]
-        ).astype(np.float64)
+        self._full_vertices = np.vstack([xx.ravel(), yy.ravel()]).astype(np.float64)
 
         # Full connectivity (4, ncells) — clockwise from bottom-left
         self._full_connectivity = self._generate_connectivity(nx, ny)
@@ -82,7 +80,9 @@ class ObstructedMesh2D(Generic[Array]):
         )
 
     def _generate_connectivity(
-        self, nx: int, ny: int,
+        self,
+        nx: int,
+        ny: int,
     ) -> np.ndarray:
         """Generate full quad connectivity for an nx × ny vertex grid."""
         t = []
@@ -96,7 +96,9 @@ class ObstructedMesh2D(Generic[Array]):
         return np.array(t, dtype=np.int64).T
 
     def _obstruction_boundary(
-        self, obstruction_idx: int, x: np.ndarray,
+        self,
+        obstruction_idx: int,
+        x: np.ndarray,
     ) -> np.ndarray:
         """Test whether points lie on the boundary of an obstruction."""
         eps = 1e-8
@@ -119,7 +121,8 @@ class ObstructedMesh2D(Generic[Array]):
         }
         for ii, idx in enumerate(self._obstruction_indices):
             defs[f"obs{ii}"] = partial(
-                self._obstruction_boundary, idx,
+                self._obstruction_boundary,
+                idx,
             )
         return defs
 

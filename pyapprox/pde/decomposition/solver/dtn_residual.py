@@ -6,11 +6,11 @@ The residual is the flux mismatch across all interfaces:
 At convergence, R = 0 (flux conservation).
 """
 
-from typing import Generic, Dict, List
+from typing import Dict, Generic, List
 
-from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.pde.decomposition.protocols.interface import InterfaceProtocol
 from pyapprox.pde.decomposition.subdomain.wrapper import SubdomainWrapper
+from pyapprox.util.backends.protocols import Array, Backend
 
 
 class DtNResidual(Generic[Array]):
@@ -106,7 +106,7 @@ class DtNResidual(Generic[Array]):
         global_dofs = bkd.zeros((self._total_dofs,))
         for i, interface_id in enumerate(self._interface_ids):
             start = int(self._interface_dof_offsets[i])
-            end = int(self._interface_dof_offsets[i + 1])
+            int(self._interface_dof_offsets[i + 1])
             coeffs = interface_coeffs[interface_id]
             for j, val in enumerate(coeffs):
                 global_dofs[start + j] = val

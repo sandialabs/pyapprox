@@ -7,11 +7,9 @@ optimizer.
 
 from typing import Generic, List, Optional
 
-from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.optimization.minimize.protocols import (
     BindableOptimizerProtocol,
 )
-from pyapprox.surrogates.mfnets.network import MFNet
 from pyapprox.surrogates.mfnets.fitters.als_fitter import (
     MFNetALSFitter,
 )
@@ -22,6 +20,8 @@ from pyapprox.surrogates.mfnets.fitters.results import (
     MFNetALSFitResult,
     MFNetGradientFitResult,
 )
+from pyapprox.surrogates.mfnets.network import MFNet
+from pyapprox.util.backends.protocols import Array, Backend
 
 
 class MFNetCompositeFitResult(Generic[Array]):

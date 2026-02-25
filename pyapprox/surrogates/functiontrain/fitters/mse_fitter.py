@@ -6,18 +6,18 @@ Follows the GP optimizer pattern from gaussianprocess/exact.py.
 
 from typing import Generic, Optional
 
-from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.optimization.minimize.protocols import (
     BindableOptimizerProtocol,
 )
 from pyapprox.optimization.minimize.scipy.trust_constr import (
     ScipyTrustConstrOptimizer,
 )
-from pyapprox.surrogates.functiontrain.functiontrain import FunctionTrain
-from pyapprox.surrogates.functiontrain.losses import FunctionTrainMSELoss
 from pyapprox.surrogates.functiontrain.fitters.results import (
     MSEFitterResult,
 )
+from pyapprox.surrogates.functiontrain.functiontrain import FunctionTrain
+from pyapprox.surrogates.functiontrain.losses import FunctionTrainMSELoss
+from pyapprox.util.backends.protocols import Array, Backend
 
 
 class MSEFitter(Generic[Array]):
@@ -55,9 +55,7 @@ class MSEFitter(Generic[Array]):
         """Return computational backend."""
         return self._bkd
 
-    def set_optimizer(
-        self, optimizer: BindableOptimizerProtocol[Array]
-    ) -> None:
+    def set_optimizer(self, optimizer: BindableOptimizerProtocol[Array]) -> None:
         """Set custom optimizer.
 
         Parameters
@@ -123,17 +121,13 @@ class MSEFitter(Generic[Array]):
 
         if samples.shape[0] != nvars:
             raise ValueError(
-                f"samples has {samples.shape[0]} variables, "
-                f"surrogate expects {nvars}"
+                f"samples has {samples.shape[0]} variables, surrogate expects {nvars}"
             )
         if values.shape[0] != nqoi:
-            raise ValueError(
-                f"values has {values.shape[0]} QoIs, surrogate has {nqoi}"
-            )
+            raise ValueError(f"values has {values.shape[0]} QoIs, surrogate has {nqoi}")
         if values.shape[1] != nsamples:
             raise ValueError(
-                f"values has {values.shape[1]} samples, "
-                f"samples has {nsamples}"
+                f"values has {values.shape[1]} samples, samples has {nsamples}"
             )
 
         nparams = surrogate.nparams()
@@ -143,13 +137,12 @@ class MSEFitter(Generic[Array]):
             # Compute loss for the fixed surrogate
             loss_fn = FunctionTrainMSELoss(surrogate, samples, values, self._bkd)
             init_params = self._bkd.zeros((0, 1))
-            final_loss = float(
-                self._bkd.to_numpy(loss_fn(init_params)[0, 0])
-            )
+            final_loss = float(self._bkd.to_numpy(loss_fn(init_params)[0, 0]))
             # Create a dummy result
             from pyapprox.optimization.minimize.scipy.scipy_result import (
                 ScipyOptimizerResultWrapper,
             )
+
             dummy_result = ScipyOptimizerResultWrapper(
                 x=init_params,
                 fun=self._bkd.asarray([[final_loss]]),
@@ -170,9 +163,7 @@ class MSEFitter(Generic[Array]):
         if self._optimizer is not None:
             optimizer = self._optimizer.copy()
         else:
-            optimizer = ScipyTrustConstrOptimizer(
-                verbosity=0, maxiter=1000
-            )
+            optimizer = ScipyTrustConstrOptimizer(verbosity=0, maxiter=1000)
 
         # Get bounds (default to unbounded)
         if bounds is None:
@@ -196,9 +187,7 @@ class MSEFitter(Generic[Array]):
         fitted_surrogate = surrogate.with_params(optimal_params)
 
         # Compute final loss
-        final_loss = float(
-            self._bkd.to_numpy(loss(optimal_params)[0, 0])
-        )
+        final_loss = float(self._bkd.to_numpy(loss(optimal_params)[0, 0]))
 
         return MSEFitterResult(
             surrogate=fitted_surrogate,
@@ -220,6 +209,7 @@ class MSEFitter(Generic[Array]):
             Bounds array. Shape: (nparams, 2)
         """
         import numpy as np
+
         bounds = np.full((nparams, 2), [-np.inf, np.inf])
         return self._bkd.asarray(bounds)
 

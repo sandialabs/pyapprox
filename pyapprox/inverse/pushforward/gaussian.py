@@ -8,8 +8,8 @@ of the resulting distribution.
 
 from typing import Generic, Optional
 
-from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.probability.gaussian import DenseCholeskyMultivariateGaussian
+from pyapprox.util.backends.protocols import Array, Backend
 
 
 class GaussianPushforward(Generic[Array]):
@@ -96,8 +96,7 @@ class GaussianPushforward(Generic[Array]):
             offset = bkd.zeros((self._nqoi, 1))
         if offset.shape != (self._nqoi, 1):
             raise ValueError(
-                f"offset has wrong shape {offset.shape}, "
-                f"expected ({self._nqoi}, 1)"
+                f"offset has wrong shape {offset.shape}, expected ({self._nqoi}, 1)"
             )
         self._offset = offset
 

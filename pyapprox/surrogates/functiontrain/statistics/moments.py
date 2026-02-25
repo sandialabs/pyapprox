@@ -2,10 +2,10 @@
 
 from typing import Generic, Optional
 
-from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.surrogates.functiontrain.pce_functiontrain import (
     PCEFunctionTrain,
 )
+from pyapprox.util.backends.protocols import Array, Backend
 
 
 class FunctionTrainMoments(Generic[Array]):
@@ -40,9 +40,7 @@ class FunctionTrainMoments(Generic[Array]):
 
     def __init__(self, pce_ft: PCEFunctionTrain[Array]) -> None:
         if not isinstance(pce_ft, PCEFunctionTrain):
-            raise TypeError(
-                f"Expected PCEFunctionTrain, got {type(pce_ft).__name__}"
-            )
+            raise TypeError(f"Expected PCEFunctionTrain, got {type(pce_ft).__name__}")
         self._pce_ft = pce_ft
         self._bkd = pce_ft.bkd()
         self._mean_cache: Optional[Array] = None

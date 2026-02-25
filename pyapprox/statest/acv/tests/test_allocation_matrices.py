@@ -11,30 +11,29 @@ import unittest
 from typing import Any, Generic, List
 
 import numpy as np
-from numpy.typing import NDArray
 import torch
+from numpy.typing import NDArray
 from unittest_parametrize import ParametrizedTestCase, parametrize
 
-from pyapprox.util.backends.numpy import NumpyBkd
-from pyapprox.util.backends.torch import TorchBkd
-from pyapprox.util.backends.protocols import Array, Backend
-from pyapprox.util.test_utils import load_tests  # noqa: F401
-
+from pyapprox.statest.acv.optimization import (
+    _get_allocation_matrix_acvis,
+    _get_allocation_matrix_acvrd,
+    _get_allocation_matrix_gmf,
+)
+from pyapprox.statest.acv.variants import (
+    GISEstimator,
+    GMFEstimator,
+    GRDEstimator,
+)
 from pyapprox.statest.statistics import (
     MultiOutputMean,
     _get_nsamples_intersect,
     _get_nsamples_subset,
 )
-from pyapprox.statest.acv.optimization import (
-    _get_allocation_matrix_gmf,
-    _get_allocation_matrix_acvis,
-    _get_allocation_matrix_acvrd,
-)
-from pyapprox.statest.acv.variants import (
-    GMFEstimator,
-    GISEstimator,
-    GRDEstimator,
-)
+from pyapprox.util.backends.numpy import NumpyBkd
+from pyapprox.util.backends.protocols import Array, Backend
+from pyapprox.util.backends.torch import TorchBkd
+from pyapprox.util.test_utils import load_tests  # noqa: F401
 
 
 class TestGRDAllocationMatrices(Generic[Array], ParametrizedTestCase):
@@ -107,9 +106,7 @@ class TestGRDAllocationMatrices(Generic[Array], ParametrizedTestCase):
 
         # Compare with direct computation
         expected_mat = _get_allocation_matrix_acvrd(recursion_index, self._bkd)
-        self._bkd.assert_allclose(
-            est._allocation_mat, expected_mat, rtol=1e-12
-        )
+        self._bkd.assert_allclose(est._allocation_mat, expected_mat, rtol=1e-12)
 
 
 class TestGMFAllocationMatrices(Generic[Array], ParametrizedTestCase):
@@ -180,9 +177,7 @@ class TestGMFAllocationMatrices(Generic[Array], ParametrizedTestCase):
         est = GMFEstimator(stat, costs, recursion_index=recursion_index)
 
         expected_mat = _get_allocation_matrix_gmf(recursion_index, self._bkd)
-        self._bkd.assert_allclose(
-            est._allocation_mat, expected_mat, rtol=1e-12
-        )
+        self._bkd.assert_allclose(est._allocation_mat, expected_mat, rtol=1e-12)
 
 
 class TestGISAllocationMatrices(Generic[Array], ParametrizedTestCase):
@@ -253,9 +248,7 @@ class TestGISAllocationMatrices(Generic[Array], ParametrizedTestCase):
         est = GISEstimator(stat, costs, recursion_index=recursion_index)
 
         expected_mat = _get_allocation_matrix_acvis(recursion_index, self._bkd)
-        self._bkd.assert_allclose(
-            est._allocation_mat, expected_mat, rtol=1e-12
-        )
+        self._bkd.assert_allclose(est._allocation_mat, expected_mat, rtol=1e-12)
 
 
 class TestNsamplesIntersectAndSubset(Generic[Array], unittest.TestCase):
@@ -272,7 +265,6 @@ class TestNsamplesIntersectAndSubset(Generic[Array], unittest.TestCase):
 
     def test_nsamples_intersect_grd_4models(self) -> None:
         """Test _get_nsamples_intersect with 4-model GRD allocation."""
-        nmodels = 4
         recursion_index = self._bkd.array([0, 1, 2], dtype=int)
         allocation_mat = _get_allocation_matrix_acvrd(recursion_index, self._bkd)
 
@@ -297,7 +289,6 @@ class TestNsamplesIntersectAndSubset(Generic[Array], unittest.TestCase):
 
     def test_nsamples_subset_grd_4models(self) -> None:
         """Test _get_nsamples_subset with 4-model GRD allocation."""
-        nmodels = 4
         recursion_index = self._bkd.array([0, 1, 2], dtype=int)
         allocation_mat = _get_allocation_matrix_acvrd(recursion_index, self._bkd)
 
@@ -328,9 +319,7 @@ class TestGISAllocationMatricesNumpy(TestGISAllocationMatrices[NDArray[Any]]):
         return NumpyBkd()
 
 
-class TestNsamplesIntersectAndSubsetNumpy(
-    TestNsamplesIntersectAndSubset[NDArray[Any]]
-):
+class TestNsamplesIntersectAndSubsetNumpy(TestNsamplesIntersectAndSubset[NDArray[Any]]):
     def bkd(self) -> NumpyBkd:
         return NumpyBkd()
 
@@ -356,9 +345,7 @@ class TestGISAllocationMatricesTorch(TestGISAllocationMatrices[torch.Tensor]):
         return TorchBkd()
 
 
-class TestNsamplesIntersectAndSubsetTorch(
-    TestNsamplesIntersectAndSubset[torch.Tensor]
-):
+class TestNsamplesIntersectAndSubsetTorch(TestNsamplesIntersectAndSubset[torch.Tensor]):
     def bkd(self) -> TorchBkd:
         torch.set_default_dtype(torch.float64)
         return TorchBkd()

@@ -149,8 +149,7 @@ class UnstructuredMesh2D(Generic[Array]):
                 else []
             )
             raise ValueError(
-                f"Unknown boundary_id '{boundary_id}'. "
-                f"Available: {available}"
+                f"Unknown boundary_id '{boundary_id}'. Available: {available}"
             )
         facet_indices = self._skfem_mesh.boundaries[boundary_id]
         node_indices = np.unique(self._skfem_mesh.facets[:, facet_indices])

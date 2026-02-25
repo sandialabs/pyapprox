@@ -6,17 +6,17 @@ estimators (MLMC, MFMC, ACV) with known analytical statistics.
 
 from typing import Generic, List
 
-from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.benchmarks.benchmark import BoxDomain
-from pyapprox.benchmarks.registry import BenchmarkRegistry
 from pyapprox.benchmarks.functions.multifidelity.polynomial_ensemble import (
     PolynomialEnsemble,
 )
+from pyapprox.benchmarks.registry import BenchmarkRegistry
 from pyapprox.interface.functions.protocols.function import (
     FunctionProtocol,
 )
-from pyapprox.probability.univariate.uniform import UniformMarginal
 from pyapprox.probability.joint.independent import IndependentJoint
+from pyapprox.probability.univariate.uniform import UniformMarginal
+from pyapprox.util.backends.protocols import Array, Backend
 
 
 class PolynomialEnsembleBenchmark(Generic[Array]):

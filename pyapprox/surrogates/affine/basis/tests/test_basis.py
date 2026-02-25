@@ -6,25 +6,23 @@ from typing import Type
 import numpy as np
 from numpy.typing import NDArray
 
-from pyapprox.util.backends.numpy import NumpyBkd
-from pyapprox.util.backends.protocols import Backend
-
-from pyapprox.surrogates.affine.univariate import (
-    create_bases_1d,
+from pyapprox.probability import (
+    GaussianMarginal,
+    UniformMarginal,
+)
+from pyapprox.surrogates.affine.basis import (
+    FixedTensorProductQuadratureRule,
+    OrthonormalPolynomialBasis,
+    TensorProductQuadratureRule,
 )
 from pyapprox.surrogates.affine.indices import (
     compute_hyperbolic_indices,
 )
-from pyapprox.surrogates.affine.basis import (
-    MultiIndexBasis,
-    OrthonormalPolynomialBasis,
-    TensorProductQuadratureRule,
-    FixedTensorProductQuadratureRule,
+from pyapprox.surrogates.affine.univariate import (
+    create_bases_1d,
 )
-from pyapprox.probability import (
-    UniformMarginal,
-    GaussianMarginal,
-)
+from pyapprox.util.backends.numpy import NumpyBkd
+from pyapprox.util.backends.protocols import Backend
 
 
 class _BaseBasisTest:
@@ -129,9 +127,7 @@ class TestMultiIndexBasis(_BaseBasisTest, unittest.TestCase):
             jac_minus = basis.jacobian_batch(samples_minus)
 
             fd_hess_row = (jac_plus - jac_minus) / (2 * eps)
-            bkd.assert_allclose(
-                hess[:, :, dd, :], fd_hess_row, rtol=1e-4, atol=1e-6
-            )
+            bkd.assert_allclose(hess[:, :, dd, :], fd_hess_row, rtol=1e-4, atol=1e-6)
 
     def test_hessian_batch_symmetry(self):
         """Test that Hessian is symmetric."""
@@ -325,10 +321,9 @@ class TestMixedBases(_BaseBasisTest, unittest.TestCase):
         # Should work with samples in appropriate ranges
         nsamples = 10
         # Legendre: [-1, 1], Hermite: any real
-        samples = bkd.asarray([
-            np.random.uniform(-1, 1, nsamples),
-            np.random.normal(0, 1, nsamples)
-        ])
+        samples = bkd.asarray(
+            [np.random.uniform(-1, 1, nsamples), np.random.normal(0, 1, nsamples)]
+        )
 
         values = basis(samples)
         self.assertEqual(values.shape, (nsamples, basis.nterms()))

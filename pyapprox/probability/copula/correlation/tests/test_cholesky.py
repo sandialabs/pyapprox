@@ -7,12 +7,12 @@ import numpy as np
 import torch
 from numpy.typing import NDArray
 
-from pyapprox.util.backends.protocols import Array, Backend
-from pyapprox.util.backends.numpy import NumpyBkd
-from pyapprox.util.backends.torch import TorchBkd
 from pyapprox.probability.copula.correlation.cholesky import (
     CholeskyCorrelationParameterization,
 )
+from pyapprox.util.backends.numpy import NumpyBkd
+from pyapprox.util.backends.protocols import Array, Backend
+from pyapprox.util.backends.torch import TorchBkd
 from pyapprox.util.test_utils import load_tests  # noqa: F401
 
 
@@ -39,9 +39,7 @@ class TestCholeskyCorrelation(Generic[Array], unittest.TestCase):
     def test_correlation_matrix_unit_diagonal(self) -> None:
         sigma = self._corr_param.correlation_matrix()
         diag = self._bkd.get_diagonal(sigma)
-        self._bkd.assert_allclose(
-            diag, self._bkd.ones((self._nvars,)), rtol=1e-12
-        )
+        self._bkd.assert_allclose(diag, self._bkd.ones((self._nvars,)), rtol=1e-12)
 
     def test_correlation_matrix_positive_definite(self) -> None:
         sigma = self._corr_param.correlation_matrix()
@@ -72,7 +70,7 @@ class TestCholeskyCorrelation(Generic[Array], unittest.TestCase):
 
         expected = self._bkd.zeros((10,))
         for k in range(10):
-            zk = z[:, k:k + 1]
+            zk = z[:, k : k + 1]
             expected[k] = (zk.T @ sigma_inv_minus_I @ zk)[0, 0]
 
         actual = self._corr_param.quad_form(z)
@@ -89,9 +87,7 @@ class TestCholeskyCorrelation(Generic[Array], unittest.TestCase):
         # Empirical covariance should approximate Sigma
         z_np = self._bkd.to_numpy(z)
         empirical_cov = np.cov(z_np)
-        expected_sigma = self._bkd.to_numpy(
-            self._corr_param.correlation_matrix()
-        )
+        expected_sigma = self._bkd.to_numpy(self._corr_param.correlation_matrix())
         np_bkd = NumpyBkd()
         np_bkd.assert_allclose(empirical_cov, expected_sigma, atol=0.03)
 
@@ -123,9 +119,7 @@ class TestCholeskyCorrelation(Generic[Array], unittest.TestCase):
         # For 2D: L = [[1, 0], [rho, sqrt(1-rho^2)]]
         # Free param is just L_{10} = rho
         chol_lower = self._bkd.asarray([rho])
-        corr_param = CholeskyCorrelationParameterization(
-            chol_lower, 2, self._bkd
-        )
+        corr_param = CholeskyCorrelationParameterization(chol_lower, 2, self._bkd)
         sigma = corr_param.correlation_matrix()
         expected = self._bkd.asarray([[1.0, rho], [rho, 1.0]])
         self._bkd.assert_allclose(sigma, expected, rtol=1e-12)
@@ -135,9 +129,7 @@ class TestCholeskyCorrelation(Generic[Array], unittest.TestCase):
         d = 3
         nparams = d * (d - 1) // 2
         chol_lower = self._bkd.zeros((nparams,))
-        corr_param = CholeskyCorrelationParameterization(
-            chol_lower, d, self._bkd
-        )
+        corr_param = CholeskyCorrelationParameterization(chol_lower, d, self._bkd)
         sigma = corr_param.correlation_matrix()
         expected = self._bkd.eye(d)
         self._bkd.assert_allclose(sigma, expected, rtol=1e-12)

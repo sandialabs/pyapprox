@@ -7,23 +7,23 @@ import unittest
 from typing import Any, Generic
 
 import numpy as np
-from numpy.typing import NDArray
 import torch
+from numpy.typing import NDArray
 
-from pyapprox.util.backends.protocols import Array, Backend
-from pyapprox.util.backends.numpy import NumpyBkd
-from pyapprox.util.backends.torch import TorchBkd
-from pyapprox.probability.univariate import UniformMarginal
-from pyapprox.probability.gaussian.dense import (
-    DenseCholeskyMultivariateGaussian,
-)
 from pyapprox.probability.conditional.multivariate_gaussian import (
     ConditionalDenseCholGaussian,
     ConditionalLowRankCholGaussian,
 )
+from pyapprox.probability.gaussian.dense import (
+    DenseCholeskyMultivariateGaussian,
+)
+from pyapprox.probability.univariate import UniformMarginal
 from pyapprox.surrogates.affine.expansions.pce import (
     create_pce_from_marginals,
 )
+from pyapprox.util.backends.numpy import NumpyBkd
+from pyapprox.util.backends.protocols import Array, Backend
+from pyapprox.util.backends.torch import TorchBkd
 
 
 def _make_expansion(bkd, nvars_in, degree, nqoi, coeff=0.0):
@@ -41,16 +41,27 @@ def _make_dense_chol(bkd, nvars_in, d, degree, mean=0.0, log_diag=0.0):
     """Create a ConditionalDenseCholGaussian."""
     mean_func = _make_expansion(bkd, nvars_in, degree, nqoi=d, coeff=mean)
     log_chol_diag_func = _make_expansion(
-        bkd, nvars_in, degree, nqoi=d, coeff=log_diag,
+        bkd,
+        nvars_in,
+        degree,
+        nqoi=d,
+        coeff=log_diag,
     )
     n_offdiag = d * (d - 1) // 2
     chol_offdiag_func = None
     if d > 1:
         chol_offdiag_func = _make_expansion(
-            bkd, nvars_in, degree, nqoi=n_offdiag, coeff=0.0,
+            bkd,
+            nvars_in,
+            degree,
+            nqoi=n_offdiag,
+            coeff=0.0,
         )
     return ConditionalDenseCholGaussian(
-        mean_func, log_chol_diag_func, chol_offdiag_func, bkd,
+        mean_func,
+        log_chol_diag_func,
+        chol_offdiag_func,
+        bkd,
     )
 
 
@@ -58,15 +69,27 @@ def _make_low_rank(bkd, nvars_in, d, rank, degree, mean=0.0, log_diag=0.0):
     """Create a ConditionalLowRankCholGaussian."""
     mean_func = _make_expansion(bkd, nvars_in, degree, nqoi=d, coeff=mean)
     log_diag_func = _make_expansion(
-        bkd, nvars_in, degree, nqoi=d, coeff=log_diag,
+        bkd,
+        nvars_in,
+        degree,
+        nqoi=d,
+        coeff=log_diag,
     )
     factor_func = None
     if rank > 0:
         factor_func = _make_expansion(
-            bkd, nvars_in, degree, nqoi=d * rank, coeff=0.0,
+            bkd,
+            nvars_in,
+            degree,
+            nqoi=d * rank,
+            coeff=0.0,
         )
     return ConditionalLowRankCholGaussian(
-        mean_func, log_diag_func, factor_func, rank, bkd,
+        mean_func,
+        log_diag_func,
+        factor_func,
+        rank,
+        bkd,
     )
 
 
@@ -86,7 +109,7 @@ class TestDenseCholBase(Generic[Array], unittest.TestCase):
         cond = _make_dense_chol(bkd, nvars_in=2, d=3, degree=1)
         self.assertEqual(cond.nvars(), 2)
         self.assertEqual(cond.nqoi(), 3)
-        self.assertTrue(hasattr(cond, 'hyp_list'))
+        self.assertTrue(hasattr(cond, "hyp_list"))
 
     def test_logpdf_shape(self) -> None:
         bkd = self._bkd
@@ -117,7 +140,9 @@ class TestDenseCholBase(Generic[Array], unittest.TestCase):
         d = 2
         cond = _make_dense_chol(bkd, nvars_in=1, d=d, degree=0)
         prior = DenseCholeskyMultivariateGaussian(
-            bkd.zeros((d, 1)), bkd.eye(d), bkd,
+            bkd.zeros((d, 1)),
+            bkd.eye(d),
+            bkd,
         )
         x = bkd.zeros((1, 5))
         kl = cond.kl_divergence(x, prior)
@@ -130,8 +155,12 @@ class TestDenseCholBase(Generic[Array], unittest.TestCase):
         log_stdev_val = 0.3
         stdev = math.exp(log_stdev_val)
         cond = _make_dense_chol(
-            bkd, nvars_in=1, d=1, degree=0,
-            mean=mean_val, log_diag=log_stdev_val,
+            bkd,
+            nvars_in=1,
+            d=1,
+            degree=0,
+            mean=mean_val,
+            log_diag=log_stdev_val,
         )
         x = bkd.zeros((1, 3))
         y = bkd.asarray([[0.0, 1.0, 2.0]])
@@ -150,6 +179,7 @@ class TestDenseCholBase(Generic[Array], unittest.TestCase):
     def test_d2_logpdf_constant_params(self) -> None:
         """d=2 with constant params matches multivariate_normal logpdf."""
         from scipy.stats import multivariate_normal
+
         bkd = self._bkd
         mean = np.array([1.0, -0.5])
         L = np.array([[1.5, 0.0], [0.3, 0.8]])
@@ -160,13 +190,9 @@ class TestDenseCholBase(Generic[Array], unittest.TestCase):
         cond._mean_func.set_coefficients(bkd.asarray(mean.reshape(1, 2)))
         # Set log_chol_diag coefficients
         log_diag = np.log(np.diag(L))
-        cond._log_chol_diag_func.set_coefficients(
-            bkd.asarray(log_diag.reshape(1, 2))
-        )
+        cond._log_chol_diag_func.set_coefficients(bkd.asarray(log_diag.reshape(1, 2)))
         # Set offdiag coefficient
-        cond._chol_offdiag_func.set_coefficients(
-            bkd.asarray(np.array([[L[1, 0]]]))
-        )
+        cond._chol_offdiag_func.set_coefficients(bkd.asarray(np.array([[L[1, 0]]])))
 
         x = bkd.zeros((1, 4))
         y_np = np.array([[0.0, 1.0, 2.0, -1.0], [0.5, -0.5, 0.0, 1.0]])
@@ -182,7 +208,8 @@ class TestDenseCholBase(Generic[Array], unittest.TestCase):
             )
 
     def test_kl_matches_fixed_gaussian(self) -> None:
-        """KL with constant params matches DenseCholeskyMultivariateGaussian.kl_divergence."""
+        """KL with constant params matches
+        DenseCholeskyMultivariateGaussian.kl_divergence."""
         bkd = self._bkd
         d = 2
         mean_q = np.array([0.5, -0.3])
@@ -194,15 +221,14 @@ class TestDenseCholBase(Generic[Array], unittest.TestCase):
         cond._log_chol_diag_func.set_coefficients(
             bkd.asarray(np.log(np.diag(L_q)).reshape(1, 2))
         )
-        cond._chol_offdiag_func.set_coefficients(
-            bkd.asarray(np.array([[L_q[1, 0]]]))
-        )
+        cond._chol_offdiag_func.set_coefficients(bkd.asarray(np.array([[L_q[1, 0]]])))
 
         mean_p = np.array([0.0, 0.0])
         cov_p = np.array([[1.0, 0.2], [0.2, 1.5]])
         prior = DenseCholeskyMultivariateGaussian(
             bkd.asarray(mean_p.reshape(2, 1)),
-            bkd.asarray(cov_p), bkd,
+            bkd.asarray(cov_p),
+            bkd,
         )
 
         x = bkd.zeros((1, 3))
@@ -211,7 +237,8 @@ class TestDenseCholBase(Generic[Array], unittest.TestCase):
         # Reference KL
         q_fixed = DenseCholeskyMultivariateGaussian(
             bkd.asarray(mean_q.reshape(2, 1)),
-            bkd.asarray(cov_q), bkd,
+            bkd.asarray(cov_q),
+            bkd,
         )
         kl_ref = q_fixed.kl_divergence(prior)
 
@@ -229,7 +256,9 @@ class TestDenseCholBase(Generic[Array], unittest.TestCase):
         d = 2
         # Prior = N(0, I)
         prior = DenseCholeskyMultivariateGaussian(
-            bkd.zeros((d, 1)), bkd.eye(d), bkd,
+            bkd.zeros((d, 1)),
+            bkd.eye(d),
+            bkd,
         )
         # Variational with mean=0, L=I (log_diag=0, offdiag=0)
         cond = _make_dense_chol(bkd, nvars_in=1, d=d, degree=0)
@@ -250,9 +279,7 @@ class TestDenseCholBase(Generic[Array], unittest.TestCase):
         cond._log_chol_diag_func.set_coefficients(
             bkd.asarray(np.log(np.diag(L)).reshape(1, 2))
         )
-        cond._chol_offdiag_func.set_coefficients(
-            bkd.asarray(np.array([[L[1, 0]]]))
-        )
+        cond._chol_offdiag_func.set_coefficients(bkd.asarray(np.array([[L[1, 0]]])))
 
         x = bkd.zeros((1, 3))
         eps = bkd.asarray(np.array([[1.0, 0.0, -1.0], [0.5, 1.0, -0.5]]))
@@ -296,7 +323,7 @@ class TestLowRankBase(Generic[Array], unittest.TestCase):
         self.assertEqual(cond.nvars(), 2)
         self.assertEqual(cond.nqoi(), 3)
         self.assertEqual(cond.rank(), 1)
-        self.assertTrue(hasattr(cond, 'hyp_list'))
+        self.assertTrue(hasattr(cond, "hyp_list"))
 
     def test_shapes(self) -> None:
         bkd = self._bkd
@@ -304,7 +331,9 @@ class TestLowRankBase(Generic[Array], unittest.TestCase):
         r = 1
         cond = _make_low_rank(bkd, nvars_in=1, d=d, rank=r, degree=0)
         prior = DenseCholeskyMultivariateGaussian(
-            bkd.zeros((d, 1)), bkd.eye(d), bkd,
+            bkd.zeros((d, 1)),
+            bkd.eye(d),
+            bkd,
         )
         x = bkd.zeros((1, 5))
         y = bkd.zeros((d, 5))
@@ -327,9 +356,7 @@ class TestLowRankBase(Generic[Array], unittest.TestCase):
 
         cond = _make_low_rank(bkd, nvars_in=1, d=d, rank=0, degree=0)
         cond._mean_func.set_coefficients(bkd.asarray(mean.reshape(1, 2)))
-        cond._log_diag_func.set_coefficients(
-            bkd.asarray(log_diag.reshape(1, 2))
-        )
+        cond._log_diag_func.set_coefficients(bkd.asarray(log_diag.reshape(1, 2)))
 
         x = bkd.zeros((1, 3))
         y = bkd.asarray(np.array([[0.0, 1.0, 2.0], [0.5, -0.5, 0.0]]))
@@ -352,7 +379,9 @@ class TestLowRankBase(Generic[Array], unittest.TestCase):
         bkd = self._bkd
         d = 2
         prior = DenseCholeskyMultivariateGaussian(
-            bkd.zeros((d, 1)), bkd.eye(d), bkd,
+            bkd.zeros((d, 1)),
+            bkd.eye(d),
+            bkd,
         )
         cond = _make_low_rank(bkd, nvars_in=1, d=d, rank=0, degree=0)
         x = bkd.zeros((1, 3))
@@ -373,8 +402,8 @@ class TestLowRankBase(Generic[Array], unittest.TestCase):
         L_target = np.linalg.cholesky(cov_target)
         # Choose D = diag(L), then VV^T = cov - D^2 = offdiag part
         D_diag = np.diag(L_target)
-        D2 = np.diag(D_diag ** 2)
-        remainder = cov_target - D2
+        D2 = np.diag(D_diag**2)
+        cov_target - D2
         # remainder = V V^T where V is (d, d)
         # Use Cholesky of remainder (it's PSD since cov > D^2 elementwise)
         # Actually remainder may not be PSD. Let's use a different approach.
@@ -387,22 +416,19 @@ class TestLowRankBase(Generic[Array], unittest.TestCase):
 
         cond = _make_low_rank(bkd, nvars_in=1, d=d, rank=d, degree=0)
         cond._mean_func.set_coefficients(bkd.asarray(mean_q.reshape(1, 2)))
-        cond._log_diag_func.set_coefficients(
-            bkd.asarray(np.log(D_diag).reshape(1, 2))
-        )
+        cond._log_diag_func.set_coefficients(bkd.asarray(np.log(D_diag).reshape(1, 2)))
         # factor_func: nqoi = d*rank = 4, flat V column-major
         # V_batch = reshape(flat_V.T, (N, d, r)) so flat_V is (d*r, N)
         # flat_V[:, n] = V.flatten() in row-major order since reshape is (N, d, r)
         V_flat = V.flatten()  # row-major: [V[0,0], V[0,1], V[1,0], V[1,1]]
-        cond._factor_func.set_coefficients(
-            bkd.asarray(V_flat.reshape(1, d * d))
-        )
+        cond._factor_func.set_coefficients(bkd.asarray(V_flat.reshape(1, d * d)))
 
         mean_p = np.array([0.0, 0.0])
         cov_p = np.array([[1.0, 0.2], [0.2, 1.5]])
         prior = DenseCholeskyMultivariateGaussian(
             bkd.asarray(mean_p.reshape(2, 1)),
-            bkd.asarray(cov_p), bkd,
+            bkd.asarray(cov_p),
+            bkd,
         )
 
         x = bkd.zeros((1, 1))
@@ -412,7 +438,8 @@ class TestLowRankBase(Generic[Array], unittest.TestCase):
         cov_q_actual = np.diag(D_diag**2) + V @ V.T
         q_fixed = DenseCholeskyMultivariateGaussian(
             bkd.asarray(mean_q.reshape(2, 1)),
-            bkd.asarray(cov_q_actual), bkd,
+            bkd.asarray(cov_q_actual),
+            bkd,
         )
         kl_ref = q_fixed.kl_divergence(prior)
 
@@ -432,17 +459,13 @@ class TestLowRankBase(Generic[Array], unittest.TestCase):
 
         cond = _make_low_rank(bkd, nvars_in=1, d=d, rank=0, degree=0)
         cond._mean_func.set_coefficients(bkd.asarray(mean.reshape(1, 2)))
-        cond._log_diag_func.set_coefficients(
-            bkd.asarray(log_diag.reshape(1, 2))
-        )
+        cond._log_diag_func.set_coefficients(bkd.asarray(log_diag.reshape(1, 2)))
 
         x = bkd.zeros((1, 3))
         eps = bkd.asarray(np.array([[1.0, 0.0, -1.0], [0.5, 1.0, -0.5]]))
         z = cond.reparameterize(x, eps)
 
-        expected = bkd.asarray(mean.reshape(2, 1)) + bkd.asarray(
-            np.diag(stdevs)
-        ) @ eps
+        expected = bkd.asarray(mean.reshape(2, 1)) + bkd.asarray(np.diag(stdevs)) @ eps
         bkd.assert_allclose(z, expected, rtol=1e-10)
 
     def test_base_distribution(self) -> None:

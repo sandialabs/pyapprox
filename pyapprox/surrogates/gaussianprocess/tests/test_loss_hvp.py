@@ -16,22 +16,18 @@ import numpy as np
 import torch
 from numpy.typing import NDArray
 
-from pyapprox.util.backends.numpy import NumpyBkd
-from pyapprox.util.backends.torch import TorchBkd
-from pyapprox.util.backends.protocols import Array
-from pyapprox.surrogates.kernels import SquaredExponentialKernel
-from pyapprox.surrogates.gaussianprocess import (
-    ExactGaussianProcess,
-    ConstantMean,
-    NegativeLogMarginalLikelihoodLoss
-)
 from pyapprox.interface.functions.derivative_checks.derivative_checker import (
-    DerivativeChecker
+    DerivativeChecker,
 )
-
-
-from pyapprox.util.test_utils import load_tests
-
+from pyapprox.surrogates.gaussianprocess import (
+    ConstantMean,
+    ExactGaussianProcess,
+    NegativeLogMarginalLikelihoodLoss,
+)
+from pyapprox.surrogates.kernels import SquaredExponentialKernel
+from pyapprox.util.backends.numpy import NumpyBkd
+from pyapprox.util.backends.protocols import Array
+from pyapprox.util.backends.torch import TorchBkd
 
 # HVP is currently disabled due to suspected bug - see loss.py
 HVP_DISABLED_REASON = (
@@ -65,15 +61,12 @@ class TestLossHVP(Generic[Array], unittest.TestCase):
             lenscale=length_scale,
             lenscale_bounds=(0.1, 10.0),
             nvars=self._nvars,
-            bkd=self._bkd
+            bkd=self._bkd,
         )
 
         # Create GP
         self._gp = ExactGaussianProcess(
-            kernel=self._kernel,
-            nvars=self._nvars,
-            bkd=self._bkd,
-            nugget=0.01
+            kernel=self._kernel, nvars=self._nvars, bkd=self._bkd, nugget=0.01
         )
 
         # Generate training data
@@ -81,9 +74,7 @@ class TestLossHVP(Generic[Array], unittest.TestCase):
         y_train = self._bkd.array(np.random.randn(1, self._n_train))
 
         # Create loss function
-        self._loss = NegativeLogMarginalLikelihoodLoss(
-            self._gp, X_train, y_train
-        )
+        self._loss = NegativeLogMarginalLikelihoodLoss(self._gp, X_train, y_train)
 
         # Get initial parameters
         self._params = self._gp.hyp_list().get_active_values()
@@ -108,9 +99,7 @@ class TestLossHVP(Generic[Array], unittest.TestCase):
         hvp2 = self._loss.hvp(self._params, direction * a)
 
         # hvp2 should be a * hvp1
-        self.assertTrue(
-            self._bkd.allclose(hvp2, hvp1 * a, rtol=1e-6, atol=1e-8)
-        )
+        self.assertTrue(self._bkd.allclose(hvp2, hvp1 * a, rtol=1e-6, atol=1e-8))
 
     def test_hvp_zero_direction(self):
         """Test HVP with zero direction vector."""
@@ -121,9 +110,7 @@ class TestLossHVP(Generic[Array], unittest.TestCase):
 
         # Should be zero
         zero_hvp = self._bkd.zeros((nactive, 1))
-        self.assertTrue(
-            self._bkd.allclose(hvp, zero_hvp, atol=1e-12)
-        )
+        self.assertTrue(self._bkd.allclose(hvp, zero_hvp, atol=1e-12))
 
     def test_hvp_with_derivative_checker(self):
         """Test HVP using DerivativeChecker with finite differences."""
@@ -142,26 +129,18 @@ class TestLossHVP(Generic[Array], unittest.TestCase):
 
         # Check derivatives
         errors = checker.check_derivatives(
-            params_2d,
-            direction=direction,
-            fd_eps=fd_eps,
-            relative=True,
-            verbosity=0
+            params_2d, direction=direction, fd_eps=fd_eps, relative=True, verbosity=0
         )
 
         # Verify Jacobian is correct
         jac_error = errors[0]
-        self.assertTrue(
-            self._bkd.all_bool(self._bkd.isfinite(jac_error))
-        )
+        self.assertTrue(self._bkd.all_bool(self._bkd.isfinite(jac_error)))
         jac_ratio = float(checker.error_ratio(jac_error))
         self.assertLess(jac_ratio, 1e-6, f"Jacobian error ratio: {jac_ratio}")
 
         # Verify HVP is correct
         hvp_error = errors[1]
-        self.assertTrue(
-            self._bkd.all_bool(self._bkd.isfinite(hvp_error))
-        )
+        self.assertTrue(self._bkd.all_bool(self._bkd.isfinite(hvp_error)))
         hvp_ratio = float(checker.error_ratio(hvp_error))
         self.assertLess(hvp_ratio, 1e-6, f"HVP error ratio: {hvp_ratio}")
 
@@ -199,7 +178,7 @@ class TestLossHVP(Generic[Array], unittest.TestCase):
             nvars=self._nvars,
             bkd=self._bkd,
             mean_function=mean,
-            nugget=0.01
+            nugget=0.01,
         )
 
         X_train = self._bkd.array(np.random.randn(self._nvars, self._n_train))

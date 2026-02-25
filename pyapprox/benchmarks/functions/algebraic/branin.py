@@ -81,11 +81,7 @@ class BraninFunction(Generic[Array]):
         bkd = self._bkd
 
         term = x2 - self._b * x1**2 + self._c * x1 - self._r
-        result = (
-            self._a * term**2
-            + self._s * (1 - self._t) * bkd.cos(x1)
-            + self._s
-        )
+        result = self._a * term**2 + self._s * (1 - self._t) * bkd.cos(x1) + self._s
         return result
 
     def jacobian(self, sample: Array) -> Array:
@@ -107,9 +103,7 @@ class BraninFunction(Generic[Array]):
             If sample is not 2D with shape (2, 1).
         """
         if sample.ndim != 2 or sample.shape != (2, 1):
-            raise ValueError(
-                f"sample must have shape (2, 1), got {sample.shape}"
-            )
+            raise ValueError(f"sample must have shape (2, 1), got {sample.shape}")
 
         x1 = sample[0, 0]
         x2 = sample[1, 0]
@@ -120,10 +114,7 @@ class BraninFunction(Generic[Array]):
 
         # df/dx1 = 2*a*term*(-2*b*x1 + c) - s*(1-t)*sin(x1)
         dterm_dx1 = -2 * self._b * x1 + self._c
-        df_dx1 = (
-            2 * self._a * term * dterm_dx1
-            - self._s * (1 - self._t) * bkd.sin(x1)
-        )
+        df_dx1 = 2 * self._a * term * dterm_dx1 - self._s * (1 - self._t) * bkd.sin(x1)
 
         # df/dx2 = 2*a*term
         df_dx2 = 2 * self._a * term
@@ -151,13 +142,9 @@ class BraninFunction(Generic[Array]):
             If sample or vec is not 2D with shape (2, 1).
         """
         if sample.ndim != 2 or sample.shape != (2, 1):
-            raise ValueError(
-                f"sample must have shape (2, 1), got {sample.shape}"
-            )
+            raise ValueError(f"sample must have shape (2, 1), got {sample.shape}")
         if vec.ndim != 2 or vec.shape != (2, 1):
-            raise ValueError(
-                f"vec must have shape (2, 1), got {vec.shape}"
-            )
+            raise ValueError(f"vec must have shape (2, 1), got {vec.shape}")
 
         x1 = sample[0, 0]
         x2 = sample[1, 0]

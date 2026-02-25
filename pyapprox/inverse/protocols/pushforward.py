@@ -9,7 +9,7 @@ gives:
 This is used to propagate posterior uncertainty through prediction models.
 """
 
-from typing import Protocol, Generic, Any, runtime_checkable
+from typing import Any, Generic, Protocol, runtime_checkable
 
 from pyapprox.util.backends.protocols import Array, Backend
 

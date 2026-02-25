@@ -16,22 +16,21 @@ import torch
 from numpy.typing import NDArray
 from scipy import stats
 
-from pyapprox.util.backends.numpy import NumpyBkd
-from pyapprox.util.backends.torch import TorchBkd
-from pyapprox.util.backends.protocols import Array, Backend
-from pyapprox.util.test_utils import load_tests
-from pyapprox.probability.conditional.gamma import ConditionalGamma
-from pyapprox.probability.univariate import UniformMarginal
-from pyapprox.surrogates.affine.univariate import create_bases_1d
-from pyapprox.surrogates.affine.indices import compute_hyperbolic_indices
-from pyapprox.surrogates.affine.basis import OrthonormalPolynomialBasis
-from pyapprox.surrogates.affine.expansions import BasisExpansion
 from pyapprox.interface.functions.derivative_checks.derivative_checker import (
     DerivativeChecker,
 )
 from pyapprox.interface.functions.fromcallable.jacobian import (
     FunctionWithJacobianFromCallable,
 )
+from pyapprox.probability.conditional.gamma import ConditionalGamma
+from pyapprox.probability.univariate import UniformMarginal
+from pyapprox.surrogates.affine.basis import OrthonormalPolynomialBasis
+from pyapprox.surrogates.affine.expansions import BasisExpansion
+from pyapprox.surrogates.affine.indices import compute_hyperbolic_indices
+from pyapprox.surrogates.affine.univariate import create_bases_1d
+from pyapprox.util.backends.numpy import NumpyBkd
+from pyapprox.util.backends.protocols import Array, Backend
+from pyapprox.util.backends.torch import TorchBkd
 
 
 class TestConditionalGamma(Generic[Array], unittest.TestCase):
@@ -78,7 +77,6 @@ class TestConditionalGamma(Generic[Array], unittest.TestCase):
 
     def test_basic_properties(self):
         """Test basic properties of ConditionalGamma."""
-        bkd = self._bkd
         cond = self._create_conditional_gamma(nvars=2)
 
         self.assertEqual(cond.nvars(), 2)
@@ -128,9 +126,7 @@ class TestConditionalGamma(Generic[Array], unittest.TestCase):
             bkd.to_numpy(y[0, :]), a=shape_val, scale=scale_val
         )
 
-        bkd.assert_allclose(
-            log_probs[0, :], bkd.asarray(scipy_log_probs), rtol=1e-10
-        )
+        bkd.assert_allclose(log_probs[0, :], bkd.asarray(scipy_log_probs), rtol=1e-10)
 
     def test_rvs_shape(self):
         """Test rvs output shape."""

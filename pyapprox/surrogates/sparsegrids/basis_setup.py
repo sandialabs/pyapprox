@@ -9,12 +9,12 @@ in tensor product constructions, handling:
 
 from typing import Callable, List, Tuple, Union, cast
 
-from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.surrogates.affine.protocols import (
     Basis1DProtocol,
     IndexGrowthRuleProtocol,
 )
 from pyapprox.surrogates.affine.univariate.lagrange import LagrangeBasis1D
+from pyapprox.util.backends.protocols import Array, Backend
 
 
 def compute_npts_from_growth_rule(
@@ -51,8 +51,7 @@ def compute_npts_from_growth_rule(
     # Handle per-dimension growth rules
     if len(growth_rules) != nvars:
         raise ValueError(
-            f"growth_rules list length ({len(growth_rules)}) must match "
-            f"nvars ({nvars})"
+            f"growth_rules list length ({len(growth_rules)}) must match nvars ({nvars})"
         )
     return [growth_rules[dim](int(index[dim])) for dim in range(nvars)]
 
@@ -91,43 +90,45 @@ def get_quadrature_rule(
     This allows the quadrature rule to be used without manual initialization.
     """
     # Check for gauss_quadrature_rule (orthogonal polys, LagrangeBasis1D)
-    if hasattr(basis, 'gauss_quadrature_rule'):
-        gauss_rule = getattr(basis, 'gauss_quadrature_rule')
+    if hasattr(basis, "gauss_quadrature_rule"):
+        gauss_rule = getattr(basis, "gauss_quadrature_rule")
 
         # For bases with set_nterms, wrap to ensure initialization
-        if hasattr(basis, 'set_nterms'):
+        if hasattr(basis, "set_nterms"):
+
             def wrapped_gauss_rule(npoints: int) -> Tuple[Array, Array]:
                 # Ensure basis has enough terms for the quadrature
                 if basis.nterms() < npoints:
                     basis.set_nterms(npoints)
                 result: Tuple[Array, Array] = gauss_rule(npoints)
                 return result
+
             return wrapped_gauss_rule
         else:
             # LagrangeBasis1D doesn't need set_nterms
-            return cast(
-                Callable[[int], Tuple[Array, Array]],
-                gauss_rule
-            )
+            return cast(Callable[[int], Tuple[Array, Array]], gauss_rule)
 
     # Check for quadrature_rule() with no args (piecewise polys, DynamicPiecewiseBasis)
-    if hasattr(basis, 'quadrature_rule'):
-        quad_method = getattr(basis, 'quadrature_rule')
+    if hasattr(basis, "quadrature_rule"):
+        quad_method = getattr(basis, "quadrature_rule")
 
         # For bases with set_nterms (like DynamicPiecewiseBasis), ensure init
-        if hasattr(basis, 'set_nterms'):
+        if hasattr(basis, "set_nterms"):
+
             def wrapped_dynamic_quadrature(npoints: int) -> Tuple[Array, Array]:
                 # Ensure basis has correct nterms
                 if basis.nterms() != npoints:
                     basis.set_nterms(npoints)
                 result: Tuple[Array, Array] = quad_method()
                 return result
+
             return wrapped_dynamic_quadrature
         else:
             # Fixed-node piecewise poly, ignore npoints
             def wrapped_fixed_quadrature(npoints: int) -> Tuple[Array, Array]:
                 result: Tuple[Array, Array] = quad_method()
                 return result
+
             return wrapped_fixed_quadrature
 
     raise TypeError(

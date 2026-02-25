@@ -6,31 +6,29 @@ from typing import Any, Generic
 import torch
 from numpy.typing import NDArray
 
-from pyapprox.util.backends.numpy import NumpyBkd
-from pyapprox.util.backends.protocols import Array, Backend
-from pyapprox.util.backends.torch import TorchBkd
-
-from pyapprox.probability import UniformMarginal, GaussianMarginal
-from pyapprox.surrogates.affine.univariate import create_bases_1d
+from pyapprox.probability import GaussianMarginal, UniformMarginal
+from pyapprox.surrogates.affine.basis import OrthonormalPolynomialBasis
+from pyapprox.surrogates.affine.expansions import BasisExpansion
 from pyapprox.surrogates.affine.indices import (
     compute_hyperbolic_indices,
 )
-from pyapprox.surrogates.affine.basis import OrthonormalPolynomialBasis
-from pyapprox.surrogates.affine.expansions import BasisExpansion
-
-from pyapprox.surrogates.flowmatching.linear_path import LinearPath
+from pyapprox.surrogates.affine.univariate import create_bases_1d
 from pyapprox.surrogates.flowmatching.cfm_loss import (
     CFMLoss,
     FlowMatchingObjective,
     UniformWeight,
 )
+from pyapprox.surrogates.flowmatching.linear_path import LinearPath
+from pyapprox.surrogates.flowmatching.protocols import (
+    CFMLossProtocol,
+    TimeWeightProtocol,
+)
 from pyapprox.surrogates.flowmatching.quad_data import (
     FlowMatchingQuadData,
 )
-from pyapprox.surrogates.flowmatching.protocols import (
-    TimeWeightProtocol,
-    CFMLossProtocol,
-)
+from pyapprox.util.backends.numpy import NumpyBkd
+from pyapprox.util.backends.protocols import Array, Backend
+from pyapprox.util.backends.torch import TorchBkd
 
 
 def _make_vf(bkd: Backend[Array], d: int, degree: int, m: int = 0):
@@ -100,13 +98,10 @@ class TestCFMLoss(Generic[Array], unittest.TestCase):
         path = LinearPath(bkd)
         loss = CFMLoss(bkd)
 
-        d = 2
         ns = 5
         t = bkd.array([[0.1, 0.3, 0.5, 0.7, 0.9]])
-        x0 = bkd.array([[1.0, 2.0, 3.0, 4.0, 5.0],
-                         [0.5, 1.5, 2.5, 3.5, 4.5]])
-        x1 = bkd.array([[6.0, 7.0, 8.0, 9.0, 10.0],
-                         [5.5, 6.5, 7.5, 8.5, 9.5]])
+        x0 = bkd.array([[1.0, 2.0, 3.0, 4.0, 5.0], [0.5, 1.5, 2.5, 3.5, 4.5]])
+        x1 = bkd.array([[6.0, 7.0, 8.0, 9.0, 10.0], [5.5, 6.5, 7.5, 8.5, 9.5]])
         weights = bkd.ones_like(t[0, :]) / ns
 
         # Create a "perfect" VF that returns exactly x1 - x0
@@ -230,21 +225,23 @@ class TestFlowMatchingObjective(Generic[Array], unittest.TestCase):
         fd_grad = bkd.zeros((nparams,))
         for i in range(nparams):
             params_plus = bkd.array(
-                [p + (eps if j == i else 0.0)
-                 for j, p in enumerate(bkd.to_numpy(params))]
+                [
+                    p + (eps if j == i else 0.0)
+                    for j, p in enumerate(bkd.to_numpy(params))
+                ]
             )
             params_minus = bkd.array(
-                [p - (eps if j == i else 0.0)
-                 for j, p in enumerate(bkd.to_numpy(params))]
+                [
+                    p - (eps if j == i else 0.0)
+                    for j, p in enumerate(bkd.to_numpy(params))
+                ]
             )
             f_plus = obj(params_plus)
             f_minus = obj(params_minus)
             fd_val = (f_plus[0, 0] - f_minus[0, 0]) / (2.0 * eps)
             fd_grad = _set_element(bkd, fd_grad, i, fd_val)
 
-        self._bkd.assert_allclose(
-            grad[0, :], fd_grad, rtol=1e-5, atol=1e-8
-        )
+        self._bkd.assert_allclose(grad[0, :], fd_grad, rtol=1e-5, atol=1e-8)
 
     def test_jacobian_vs_fd_multidim(self) -> None:
         """Verify gradient for d=2 VF."""
@@ -260,21 +257,23 @@ class TestFlowMatchingObjective(Generic[Array], unittest.TestCase):
         fd_grad = bkd.zeros((nparams,))
         for i in range(nparams):
             params_plus = bkd.array(
-                [p + (eps if j == i else 0.0)
-                 for j, p in enumerate(bkd.to_numpy(params))]
+                [
+                    p + (eps if j == i else 0.0)
+                    for j, p in enumerate(bkd.to_numpy(params))
+                ]
             )
             params_minus = bkd.array(
-                [p - (eps if j == i else 0.0)
-                 for j, p in enumerate(bkd.to_numpy(params))]
+                [
+                    p - (eps if j == i else 0.0)
+                    for j, p in enumerate(bkd.to_numpy(params))
+                ]
             )
             f_plus = obj(params_plus)
             f_minus = obj(params_minus)
             fd_val = (f_plus[0, 0] - f_minus[0, 0]) / (2.0 * eps)
             fd_grad = _set_element(bkd, fd_grad, i, fd_val)
 
-        self._bkd.assert_allclose(
-            grad[0, :], fd_grad, rtol=1e-5, atol=1e-8
-        )
+        self._bkd.assert_allclose(grad[0, :], fd_grad, rtol=1e-5, atol=1e-8)
 
     def test_jacobian_with_partial_active_params(self) -> None:
         """Verify gradient with some params fixed (inactive)."""
@@ -288,9 +287,7 @@ class TestFlowMatchingObjective(Generic[Array], unittest.TestCase):
 
         # Fix the first 2 parameters
         nparams_total = vf.hyp_list().nparams()
-        active_idx = bkd.array(
-            list(range(2, nparams_total)), dtype=int
-        )
+        active_idx = bkd.array(list(range(2, nparams_total)), dtype=int)
         vf.hyp_list().set_active_indices(active_idx)
 
         obj = FlowMatchingObjective(vf, path, loss, qd, bkd)
@@ -306,21 +303,23 @@ class TestFlowMatchingObjective(Generic[Array], unittest.TestCase):
         fd_grad = bkd.zeros((nactive,))
         for i in range(nactive):
             params_plus = bkd.array(
-                [p + (eps if j == i else 0.0)
-                 for j, p in enumerate(bkd.to_numpy(params))]
+                [
+                    p + (eps if j == i else 0.0)
+                    for j, p in enumerate(bkd.to_numpy(params))
+                ]
             )
             params_minus = bkd.array(
-                [p - (eps if j == i else 0.0)
-                 for j, p in enumerate(bkd.to_numpy(params))]
+                [
+                    p - (eps if j == i else 0.0)
+                    for j, p in enumerate(bkd.to_numpy(params))
+                ]
             )
             f_plus = obj(params_plus)
             f_minus = obj(params_minus)
             fd_val = (f_plus[0, 0] - f_minus[0, 0]) / (2.0 * eps)
             fd_grad = _set_element(bkd, fd_grad, i, fd_val)
 
-        self._bkd.assert_allclose(
-            grad[0, :], fd_grad, rtol=1e-5, atol=1e-8
-        )
+        self._bkd.assert_allclose(grad[0, :], fd_grad, rtol=1e-5, atol=1e-8)
 
     def test_jacobian_with_conditioning(self) -> None:
         """Verify gradient with conditioning variables."""
@@ -337,21 +336,23 @@ class TestFlowMatchingObjective(Generic[Array], unittest.TestCase):
         fd_grad = bkd.zeros((nparams,))
         for i in range(nparams):
             params_plus = bkd.array(
-                [p + (eps if j == i else 0.0)
-                 for j, p in enumerate(bkd.to_numpy(params))]
+                [
+                    p + (eps if j == i else 0.0)
+                    for j, p in enumerate(bkd.to_numpy(params))
+                ]
             )
             params_minus = bkd.array(
-                [p - (eps if j == i else 0.0)
-                 for j, p in enumerate(bkd.to_numpy(params))]
+                [
+                    p - (eps if j == i else 0.0)
+                    for j, p in enumerate(bkd.to_numpy(params))
+                ]
             )
             f_plus = obj(params_plus)
             f_minus = obj(params_minus)
             fd_val = (f_plus[0, 0] - f_minus[0, 0]) / (2.0 * eps)
             fd_grad = _set_element(bkd, fd_grad, i, fd_val)
 
-        self._bkd.assert_allclose(
-            grad[0, :], fd_grad, rtol=1e-5, atol=1e-8
-        )
+        self._bkd.assert_allclose(grad[0, :], fd_grad, rtol=1e-5, atol=1e-8)
 
     def test_nvars_and_nqoi(self) -> None:
         obj, vf = self._make_objective()
@@ -361,7 +362,6 @@ class TestFlowMatchingObjective(Generic[Array], unittest.TestCase):
 
 def _set_element(bkd, arr, idx, val):
     """Backend-agnostic element assignment helper."""
-    import numpy as np
     arr_np = bkd.to_numpy(arr).copy()
     arr_np[idx] = float(bkd.to_numpy(bkd.reshape(val, (1,)))[0])
     return bkd.array(arr_np.tolist())

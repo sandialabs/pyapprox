@@ -3,7 +3,6 @@ from typing import Any
 from pyapprox.interface.functions.protocols.function import (
     FunctionProtocol,
 )
-
 from pyapprox.util.backends.protocols import Array
 
 
@@ -52,8 +51,7 @@ def validate_values(nqoi: int, samples: Array, values: Array) -> None:
     expected_shape = (nqoi, samples.shape[1])
     if values.shape != expected_shape:
         raise ValueError(
-            f"Invalid values shape: expected {expected_shape}, "
-            f"got {values.shape}."
+            f"Invalid values shape: expected {expected_shape}, got {values.shape}."
         )
 
 
@@ -86,22 +84,18 @@ def validate_sample(nvars: int, samples: Array) -> None:
     actual_shape = samples.shape
     if actual_shape != expected_shape:
         raise ValueError(
-            f"Invalid sample shape: expected {expected_shape}, "
-            f"got {actual_shape}."
+            f"Invalid sample shape: expected {expected_shape}, got {actual_shape}."
         )
 
 
 def validate_jacobian(nqoi: int, nvars: int, jac: Array) -> None:
     if jac.shape != (nqoi, nvars):
         raise ValueError(
-            f"Jacobian shape mismatch: expected ({nqoi, nvars}), "
-            f"got {jac.shape}"
+            f"Jacobian shape mismatch: expected ({nqoi, nvars}), got {jac.shape}"
         )
 
 
-def validate_jacobian_batch(
-    nqoi: int, nvars: int, nsamples: int, jac: Array
-) -> None:
+def validate_jacobian_batch(nqoi: int, nvars: int, nsamples: int, jac: Array) -> None:
     """Validate batch Jacobian output shape.
 
     Parameters
@@ -123,8 +117,7 @@ def validate_jacobian_batch(
     expected_shape = (nsamples, nqoi, nvars)
     if jac.shape != expected_shape:
         raise ValueError(
-            f"Jacobian batch shape mismatch: expected {expected_shape}, "
-            f"got {jac.shape}"
+            f"Jacobian batch shape mismatch: expected {expected_shape}, got {jac.shape}"
         )
 
 
@@ -163,9 +156,7 @@ def validate_vector_for_apply(nvars: int, vec: Array) -> None:
 
 def validate_hvp(nvars: int, hvp: Array) -> None:
     if hvp.shape != (nvars, 1):
-        raise ValueError(
-            f"Hvp shape mismatch: expected " f"({nvars, 1}), got {hvp.shape}"
-        )
+        raise ValueError(f"Hvp shape mismatch: expected ({nvars, 1}), got {hvp.shape}")
 
 
 def validate_function(function: Any) -> None:
@@ -185,14 +176,11 @@ def validate_1d_array(nvars: int, samples: Array) -> None:
     actual_shape = samples.shape
     if actual_shape != expected_shape:
         raise ValueError(
-            f"Invalid sample shape: expected {expected_shape}, "
-            f"got {actual_shape}."
+            f"Invalid sample shape: expected {expected_shape}, got {actual_shape}."
         )
 
 
-def validate_hessian_batch(
-    nqoi: int, nvars: int, nsamples: int, hess: Array
-) -> None:
+def validate_hessian_batch(nqoi: int, nvars: int, nsamples: int, hess: Array) -> None:
     """Validate batch Hessian output shape.
 
     Parameters
@@ -214,8 +202,7 @@ def validate_hessian_batch(
     expected_shape = (nsamples, nqoi, nvars, nvars)
     if hess.shape != expected_shape:
         raise ValueError(
-            f"Hessian batch shape mismatch: expected {expected_shape}, "
-            f"got {hess.shape}"
+            f"Hessian batch shape mismatch: expected {expected_shape}, got {hess.shape}"
         )
 
 
@@ -239,6 +226,5 @@ def validate_hvp_batch(nvars: int, nsamples: int, hvps: Array) -> None:
     expected_shape = (nsamples, nvars)
     if hvps.shape != expected_shape:
         raise ValueError(
-            f"HVP batch shape mismatch: expected {expected_shape}, "
-            f"got {hvps.shape}"
+            f"HVP batch shape mismatch: expected {expected_shape}, got {hvps.shape}"
         )

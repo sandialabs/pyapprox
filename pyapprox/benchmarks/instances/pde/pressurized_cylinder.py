@@ -7,46 +7,45 @@ strain energy.
 """
 
 import math
-from typing import Optional, Tuple
 
-from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.benchmarks.benchmark import BenchmarkWithPrior, BoxDomain
 from pyapprox.benchmarks.ground_truth import SensitivityGroundTruth
+from pyapprox.benchmarks.instances.pde.elastic_bar import (
+    PDEBenchmarkWrapper,
+)
 from pyapprox.benchmarks.registry import BenchmarkRegistry
-from pyapprox.probability.univariate.gaussian import GaussianMarginal
-from pyapprox.probability.joint.independent import IndependentJoint
+from pyapprox.optimization.implicitfunction.functionals.elasticity_2d import (
+    AverageHoopStressFunctional,
+    HyperelasticAverageHoopStressFunctional,
+    OuterWallRadialDisplacementFunctional,
+    StrainEnergyFunctional2D,
+)
 from pyapprox.pde.collocation.basis import ChebyshevBasis2D
 from pyapprox.pde.collocation.mesh import TransformedMesh2D
 from pyapprox.pde.collocation.mesh.transforms import PolarTransform
-from pyapprox.pde.collocation.quadrature import (
-    CollocationQuadrature2D,
+from pyapprox.pde.collocation.physics import LinearElasticityPhysics
+from pyapprox.pde.collocation.physics.stress_models import (
+    NeoHookeanStress,
 )
 from pyapprox.pde.collocation.post_processing.stress import (
     HyperelasticStressPostProcessor2D,
     StressPostProcessor2D,
 )
-from pyapprox.pde.collocation.physics import LinearElasticityPhysics
-from pyapprox.pde.collocation.physics.stress_models import (
-    NeoHookeanStress,
+from pyapprox.pde.collocation.quadrature import (
+    CollocationQuadrature2D,
 )
 from pyapprox.pde.field_maps.kle_factory import (
     create_lognormal_kle_field_map,
 )
-from pyapprox.pde.zoo.pressurized_cylinder_2d import (
-    create_linear_pressurized_cylinder_2d,
-)
 from pyapprox.pde.zoo.hyperelastic_cylinder_2d import (
     create_hyperelastic_pressurized_cylinder_2d,
 )
-from pyapprox.benchmarks.instances.pde.elastic_bar import (
-    PDEBenchmarkWrapper,
+from pyapprox.pde.zoo.pressurized_cylinder_2d import (
+    create_linear_pressurized_cylinder_2d,
 )
-from pyapprox.optimization.implicitfunction.functionals.elasticity_2d import (
-    OuterWallRadialDisplacementFunctional,
-    AverageHoopStressFunctional,
-    HyperelasticAverageHoopStressFunctional,
-    StrainEnergyFunctional2D,
-)
+from pyapprox.probability.joint.independent import IndependentJoint
+from pyapprox.probability.univariate.gaussian import GaussianMarginal
+from pyapprox.util.backends.protocols import Array, Backend
 
 
 def _make_kle_field_map_2d(
@@ -71,8 +70,11 @@ def _make_kle_field_map_2d(
     mesh_coords = bkd.stack([x_norm, y_norm], axis=0)
     mean_log = bkd.zeros((npts,))
     return create_lognormal_kle_field_map(
-        mesh_coords, mean_log, bkd,
-        num_kle_terms=num_kle_terms, sigma=sigma,
+        mesh_coords,
+        mean_log,
+        bkd,
+        num_kle_terms=num_kle_terms,
+        sigma=sigma,
     )
 
 
@@ -93,7 +95,8 @@ def _make_functional(
     curv_basis = transform.unit_curvilinear_basis(mesh.reference_points())
 
     proc = StressPostProcessor2D(
-        Dx, Dy,
+        Dx,
+        Dy,
         get_lamda=lambda: physics._lambda_array,
         get_mu=lambda: physics._mu_array,
         bkd=bkd,
@@ -105,11 +108,16 @@ def _make_functional(
         pts = mesh.points()
         outer_pts_x = pts[0, :][outer_idx]
         outer_pts_y = pts[1, :][outer_idx]
-        r_outer = bkd.sqrt(outer_pts_x ** 2 + outer_pts_y ** 2)
+        r_outer = bkd.sqrt(outer_pts_x**2 + outer_pts_y**2)
         cos_theta = outer_pts_x / r_outer
         sin_theta = outer_pts_y / r_outer
         return OuterWallRadialDisplacementFunctional(
-            outer_idx, cos_theta, sin_theta, npts, nparams, bkd,
+            outer_idx,
+            cos_theta,
+            sin_theta,
+            npts,
+            nparams,
+            bkd,
         )
 
     if qoi == "average_hoop_stress":
@@ -120,7 +128,11 @@ def _make_functional(
         w_sub = quad.weights(x_bounds=(-1.0, xi_b))
         area = float(bkd.sum(w_sub))
         return AverageHoopStressFunctional(
-            proc, w_sub, area, nparams, bkd,
+            proc,
+            w_sub,
+            area,
+            nparams,
+            bkd,
         )
 
     if qoi == "strain_energy":
@@ -152,7 +164,8 @@ def _make_hyperelastic_functional(
     curv_basis = transform.unit_curvilinear_basis(mesh.reference_points())
 
     proc = HyperelasticStressPostProcessor2D(
-        Dx, Dy,
+        Dx,
+        Dy,
         stress_model=stress_model,
         bkd=bkd,
         curvilinear_basis=curv_basis,
@@ -163,11 +176,16 @@ def _make_hyperelastic_functional(
         pts = mesh.points()
         outer_pts_x = pts[0, :][outer_idx]
         outer_pts_y = pts[1, :][outer_idx]
-        r_outer = bkd.sqrt(outer_pts_x ** 2 + outer_pts_y ** 2)
+        r_outer = bkd.sqrt(outer_pts_x**2 + outer_pts_y**2)
         cos_theta = outer_pts_x / r_outer
         sin_theta = outer_pts_y / r_outer
         return OuterWallRadialDisplacementFunctional(
-            outer_idx, cos_theta, sin_theta, npts, nparams, bkd,
+            outer_idx,
+            cos_theta,
+            sin_theta,
+            npts,
+            nparams,
+            bkd,
         )
 
     if qoi == "average_hoop_stress":
@@ -176,7 +194,11 @@ def _make_hyperelastic_functional(
         w_sub = quad.weights(x_bounds=(-1.0, xi_b))
         area = float(bkd.sum(w_sub))
         return HyperelasticAverageHoopStressFunctional(
-            proc, w_sub, area, nparams, bkd,
+            proc,
+            w_sub,
+            area,
+            nparams,
+            bkd,
         )
 
     if qoi == "strain_energy":
@@ -248,7 +270,9 @@ def pressurized_cylinder_2d(
     """
     # Mesh and basis
     transform = PolarTransform(
-        (r_inner, r_outer), (0.0, math.pi / 2.0), bkd,
+        (r_inner, r_outer),
+        (0.0, math.pi / 2.0),
+        bkd,
     )
     mesh = TransformedMesh2D(npts_r, npts_theta, bkd, transform)
     basis = ChebyshevBasis2D(mesh, bkd)
@@ -262,19 +286,26 @@ def pressurized_cylinder_2d(
     # The real physics is created inside the zoo factory with the same
     # initial Lame parameters.
     dmu_dE = 1.0 / (2.0 * (1.0 + poisson_ratio))
-    dlam_dE = poisson_ratio / (
-        (1.0 + poisson_ratio) * (1.0 - 2.0 * poisson_ratio)
-    )
+    dlam_dE = poisson_ratio / ((1.0 + poisson_ratio) * (1.0 - 2.0 * poisson_ratio))
     mu_init = E_mean * dmu_dE
     lamda_init = E_mean * dlam_dE
     physics = LinearElasticityPhysics(
-        basis, bkd, lamda=lamda_init, mu=mu_init,
+        basis,
+        bkd,
+        lamda=lamda_init,
+        mu=mu_init,
     )
 
     # QoI functional
     functional = _make_functional(
-        bkd, qoi, physics, basis, mesh, transform,
-        num_kle_terms, weld_r_fraction,
+        bkd,
+        qoi,
+        physics,
+        basis,
+        mesh,
+        transform,
+        num_kle_terms,
+        weld_r_fraction,
     )
 
     # Forward model via zoo factory
@@ -323,8 +354,7 @@ def pressurized_cylinder_2d(
     "pressurized_cylinder_2d_linear",
     category="pde",
     description=(
-        "2D linear elastic pressurized cylinder with "
-        "KLE-parameterized Young's modulus"
+        "2D linear elastic pressurized cylinder with KLE-parameterized Young's modulus"
     ),
 )
 def _pressurized_cylinder_2d_linear_factory(
@@ -390,7 +420,9 @@ def hyperelastic_pressurized_cylinder_2d(
     """
     # Mesh and basis
     transform = PolarTransform(
-        (r_inner, r_outer), (0.0, math.pi / 2.0), bkd,
+        (r_inner, r_outer),
+        (0.0, math.pi / 2.0),
+        bkd,
     )
     mesh = TransformedMesh2D(npts_r, npts_theta, bkd, transform)
     basis = ChebyshevBasis2D(mesh, bkd)
@@ -400,17 +432,21 @@ def hyperelastic_pressurized_cylinder_2d(
 
     # Create stress model for functionals (same Lame params as zoo factory)
     dmu_dE = 1.0 / (2.0 * (1.0 + poisson_ratio))
-    dlam_dE = poisson_ratio / (
-        (1.0 + poisson_ratio) * (1.0 - 2.0 * poisson_ratio)
-    )
+    dlam_dE = poisson_ratio / ((1.0 + poisson_ratio) * (1.0 - 2.0 * poisson_ratio))
     mu_init = E_mean * dmu_dE
     lamda_init = E_mean * dlam_dE
     stress_model = NeoHookeanStress(lamda=lamda_init, mu=mu_init)
 
     # QoI functional
     functional = _make_hyperelastic_functional(
-        bkd, qoi, stress_model, basis, mesh, transform,
-        num_kle_terms, weld_r_fraction,
+        bkd,
+        qoi,
+        stress_model,
+        basis,
+        mesh,
+        transform,
+        num_kle_terms,
+        weld_r_fraction,
     )
 
     # Forward model via zoo factory
@@ -459,8 +495,7 @@ def hyperelastic_pressurized_cylinder_2d(
     "pressurized_cylinder_2d_hyperelastic",
     category="pde",
     description=(
-        "2D hyperelastic pressurized cylinder with "
-        "KLE-parameterized Young's modulus"
+        "2D hyperelastic pressurized cylinder with KLE-parameterized Young's modulus"
     ),
 )
 def _pressurized_cylinder_2d_hyperelastic_factory(

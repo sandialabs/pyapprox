@@ -5,20 +5,21 @@ Provides shared computation for Gaussian log-PDF that can be reused
 across distributions and likelihoods.
 """
 
-from typing import Generic
 import math
+from typing import Generic
 
-from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.probability.protocols import (
     SqrtCovarianceOperatorProtocol,
 )
+from pyapprox.util.backends.protocols import Array, Backend
 
 
 class GaussianLogPDFCore(Generic[Array]):
     """
     Shared computation for multivariate Gaussian log-PDF.
 
-    Computes: log p(x | mean, Cov) = -0.5 * ||L^{-1}(x-mean)||^2 - log|L| - n/2*log(2*pi)
+    Computes: log p(x | mean, Cov) = -0.5 * ||L^{-1}(x-mean)||^2 - log|L| -
+    n/2*log(2*pi)
 
     where Cov = L @ L.T.
 
@@ -48,8 +49,7 @@ class GaussianLogPDFCore(Generic[Array]):
 
         # Compute constant term: -n/2*log(2*pi) - log|L|
         self._log_const = (
-            -0.5 * self._nvars * math.log(2 * math.pi)
-            - cov_op.log_determinant()
+            -0.5 * self._nvars * math.log(2 * math.pi) - cov_op.log_determinant()
         )
 
     def bkd(self) -> Backend[Array]:

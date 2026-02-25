@@ -5,13 +5,13 @@ Provides transforms to/from standard normal space using the
 probability integral transform (CDF/inverse CDF).
 """
 
-from typing import Generic, Tuple, List
+from typing import Generic, List, Tuple
 
 import numpy as np
 from scipy import stats
 
-from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.probability.protocols import MarginalProtocol
+from pyapprox.util.backends.protocols import Array, Backend
 
 
 class GaussianTransform(Generic[Array]):
@@ -78,9 +78,7 @@ class GaussianTransform(Generic[Array]):
                 f"Expected 2D array with shape (1, nsamples), got {samples.ndim}D"
             )
         if samples.shape[0] != 1:
-            raise ValueError(
-                f"Expected 1 variable, got {samples.shape[0]}"
-            )
+            raise ValueError(f"Expected 1 variable, got {samples.shape[0]}")
 
     def map_to_canonical(self, samples: Array) -> Array:
         """
@@ -139,18 +137,14 @@ class GaussianTransform(Generic[Array]):
         self._validate_input(canonical_samples)
 
         # Get uniform samples via standard normal CDF
-        probs_np = self._standard_normal.cdf(
-            self._bkd.to_numpy(canonical_samples)
-        )
+        probs_np = self._standard_normal.cdf(self._bkd.to_numpy(canonical_samples))
         probs = self._bkd.asarray(probs_np)
         probs = self._bkd.reshape(probs, (1, -1))
 
         # Transform to marginal space - marginal.invcdf expects (1, nsamples)
         return self._marginal.invcdf(probs)
 
-    def map_to_canonical_with_jacobian(
-        self, samples: Array
-    ) -> Tuple[Array, Array]:
+    def map_to_canonical_with_jacobian(self, samples: Array) -> Tuple[Array, Array]:
         """
         Transform to standard normal with Jacobian.
 
@@ -291,8 +285,7 @@ class IndependentGaussianTransform(Generic[Array]):
         """Validate that input is 2D with shape (nvars, nsamples)."""
         if samples.ndim != 2:
             raise ValueError(
-                f"Expected 2D array with shape (nvars, nsamples), "
-                f"got {samples.ndim}D"
+                f"Expected 2D array with shape (nvars, nsamples), got {samples.ndim}D"
             )
         if samples.shape[0] != self._nvars:
             raise ValueError(
@@ -359,9 +352,7 @@ class IndependentGaussianTransform(Generic[Array]):
 
         return self._bkd.stack(samples_list, axis=0)
 
-    def map_to_canonical_with_jacobian(
-        self, samples: Array
-    ) -> Tuple[Array, Array]:
+    def map_to_canonical_with_jacobian(self, samples: Array) -> Tuple[Array, Array]:
         """
         Transform to standard normal with Jacobian diagonal.
 
@@ -461,14 +452,10 @@ class IndependentGaussianTransform(Generic[Array]):
             If input is not 2D with correct shape
         """
         _, jacobian_diag = self.map_to_canonical_with_jacobian(samples)
-        result = self._bkd.sum(
-            self._bkd.log(self._bkd.abs(jacobian_diag)), axis=0
-        )
+        result = self._bkd.sum(self._bkd.log(self._bkd.abs(jacobian_diag)), axis=0)
         return self._bkd.reshape(result, (1, -1))
 
-    def log_det_jacobian_from_canonical(
-        self, canonical_samples: Array
-    ) -> Array:
+    def log_det_jacobian_from_canonical(self, canonical_samples: Array) -> Array:
         """
         Compute log absolute determinant of Jacobian (from canonical).
 
@@ -487,12 +474,8 @@ class IndependentGaussianTransform(Generic[Array]):
         ValueError
             If input is not 2D with correct shape
         """
-        _, jacobian_diag = self.map_from_canonical_with_jacobian(
-            canonical_samples
-        )
-        result = self._bkd.sum(
-            self._bkd.log(self._bkd.abs(jacobian_diag)), axis=0
-        )
+        _, jacobian_diag = self.map_from_canonical_with_jacobian(canonical_samples)
+        result = self._bkd.sum(self._bkd.log(self._bkd.abs(jacobian_diag)), axis=0)
         return self._bkd.reshape(result, (1, -1))
 
     def __repr__(self) -> str:

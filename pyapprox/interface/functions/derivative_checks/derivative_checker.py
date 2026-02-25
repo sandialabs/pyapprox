@@ -1,34 +1,31 @@
 from typing import (
-    Protocol,
-    Optional,
-    runtime_checkable,
     Generic,
-    Union,
     List,
-    cast,
+    Optional,
+    Union,
 )
 
-from pyapprox.util.backends.protocols import Array, Backend
-from pyapprox.interface.functions.protocols.jacobian import (
-    function_has_jacobian_or_jvp,
-    FunctionWithJacobianOrJVPProtocol,
+from pyapprox.interface.functions.derivative_checks.base import (
+    JVPChecker,
+)
+from pyapprox.interface.functions.derivative_checks.wrappers import (
+    BatchHessianProtocol,
+    BatchJacobianProtocol,
+    FunctionWithJVP,
+    FunctionWithJVPFromHVP,
+    SingleSampleFromBatchHessian,
+    SingleSampleFromBatchJacobian,
 )
 from pyapprox.interface.functions.protocols.hessian import (
     FunctionWithHVPAndJacobianOrJVPProtocol,
     FunctionWithJacobianAndWHVPProtocol,
     function_has_hvp_and_jacobian_or_jvp,
 )
-from pyapprox.interface.functions.derivative_checks.base import (
-    JVPChecker,
+from pyapprox.interface.functions.protocols.jacobian import (
+    FunctionWithJacobianOrJVPProtocol,
+    function_has_jacobian_or_jvp,
 )
-from pyapprox.interface.functions.derivative_checks.wrappers import (
-    FunctionWithJVP,
-    FunctionWithJVPFromHVP,
-    SingleSampleFromBatchJacobian,
-    SingleSampleFromBatchHessian,
-    BatchJacobianProtocol,
-    BatchHessianProtocol,
-)
+from pyapprox.util.backends.protocols import Array, Backend
 
 
 class DerivativeChecker(Generic[Array]):
@@ -229,9 +226,7 @@ class BatchDerivativeChecker(Generic[Array]):
             List of error arrays: [jacobian_batch_errors, hessian_batch_errors]
             hessian_batch_errors only included if hessian_batch is available.
         """
-        errors = [
-            self.check_jacobian_batch(fd_eps, direction, relative, verbosity)
-        ]
+        errors = [self.check_jacobian_batch(fd_eps, direction, relative, verbosity)]
         if hasattr(self._fun, "hessian_batch"):
             errors.append(
                 self.check_hessian_batch(fd_eps, direction, relative, verbosity)

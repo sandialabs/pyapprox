@@ -9,8 +9,8 @@ Likelihood: obs ~ Multinomial(n, p)
 Posterior: p | obs ~ Dirichlet(alpha_1 + count_1, ..., alpha_K + count_K)
 """
 
-from typing import Generic, Optional, Any
 import math
+from typing import Any, Generic, Optional
 
 from scipy.special import gammaln
 
@@ -229,5 +229,13 @@ class DirichletConjugatePosterior(Generic[Array]):
     def __repr__(self) -> str:
         """Return string representation."""
         if self._alphas_post is None:
-            return f"DirichletConjugatePosterior(K={self._K}, alphas_prior={self._alphas_prior})"
-        return f"DirichletConjugatePosterior(K={self._K}, alphas_post={self._alphas_post})"
+            return (
+                f"DirichletConjugatePosterior("
+                f"K={self._K}, "
+                f"alphas_prior={self._alphas_prior})"
+            )
+        return (
+            f"DirichletConjugatePosterior("
+            f"K={self._K}, "
+            f"alphas_post={self._alphas_post})"
+        )

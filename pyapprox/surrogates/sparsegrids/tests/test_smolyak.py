@@ -44,8 +44,7 @@ class TestSmolyakCoefficients(Generic[Array], unittest.TestCase):
     def test_2d_level_1(self):
         """Test Smolyak coefficients for 2D level 1."""
         # 2D level 1: (0,0), (1,0), (0,1)
-        indices = self._bkd.asarray([[0, 1, 0],
-                                     [0, 0, 1]])
+        indices = self._bkd.asarray([[0, 1, 0], [0, 0, 1]])
         coefs = compute_smolyak_coefficients(indices, self._bkd)
 
         # Expected: c_{0,0} = 1 - 1 - 1 = -1, c_{1,0} = 1, c_{0,1} = 1
@@ -58,14 +57,12 @@ class TestSmolyakCoefficients(Generic[Array], unittest.TestCase):
     def test_coefficients_sum_to_one(self):
         """Test that Smolyak coefficients sum to 1."""
         # 2D level 2
-        indices = self._bkd.asarray([[0, 1, 0, 2, 1, 0],
-                                     [0, 0, 1, 0, 1, 2]])
+        indices = self._bkd.asarray([[0, 1, 0, 2, 1, 0], [0, 0, 1, 0, 1, 2]])
         coefs = compute_smolyak_coefficients(indices, self._bkd)
 
         # Sum should be 1
         self._bkd.assert_allclose(
-            self._bkd.asarray([float(self._bkd.sum(coefs))]),
-            self._bkd.asarray([1.0])
+            self._bkd.asarray([float(self._bkd.sum(coefs))]), self._bkd.asarray([1.0])
         )
 
 
@@ -105,15 +102,13 @@ class TestDownwardClosed(Generic[Array], unittest.TestCase):
     def test_downward_closed_set(self):
         """Test that a proper set is detected as downward closed."""
         # Valid: (0,0), (1,0), (0,1)
-        indices = self._bkd.asarray([[0, 1, 0],
-                                     [0, 0, 1]])
+        indices = self._bkd.asarray([[0, 1, 0], [0, 0, 1]])
         self.assertTrue(is_downward_closed(indices, self._bkd))
 
     def test_not_downward_closed(self):
         """Test that an improper set is detected."""
         # Invalid: (0,0), (2,0) - missing (1,0)
-        indices = self._bkd.asarray([[0, 2],
-                                     [0, 0]])
+        indices = self._bkd.asarray([[0, 2], [0, 0]])
         self.assertFalse(is_downward_closed(indices, self._bkd))
 
 
@@ -153,8 +148,7 @@ class TestAdmissibility(Generic[Array], unittest.TestCase):
     def test_admissible_candidate(self):
         """Test admissible candidate detection."""
         # Existing: (0,0), (1,0), (0,1)
-        existing = self._bkd.asarray([[0, 1, 0],
-                                      [0, 0, 1]])
+        existing = self._bkd.asarray([[0, 1, 0], [0, 0, 1]])
 
         # (1,1) is admissible: predecessors (0,1) and (1,0) exist
         candidate = self._bkd.asarray([1, 1])
@@ -163,8 +157,7 @@ class TestAdmissibility(Generic[Array], unittest.TestCase):
     def test_inadmissible_candidate(self):
         """Test inadmissible candidate detection."""
         # Existing: (0,0), (1,0)
-        existing = self._bkd.asarray([[0, 1],
-                                      [0, 0]])
+        existing = self._bkd.asarray([[0, 1], [0, 0]])
 
         # (1,1) is not admissible: predecessor (0,1) missing
         candidate = self._bkd.asarray([1, 1])
@@ -214,14 +207,12 @@ class TestSmolyakMathematicalProperties(Generic[Array], unittest.TestCase):
         - e=(1,1): (0,0)+(1,1)=(1,1) not in K -> +0
         Total: 1 - 1 - 1 + 0 = -1
         """
-        indices = self._bkd.asarray([[0, 1, 0],
-                                     [0, 0, 1]])
+        indices = self._bkd.asarray([[0, 1, 0], [0, 0, 1]])
         coefs = compute_smolyak_coefficients(indices, self._bkd)
 
         # Verify (0,0) coefficient is -1
         self._bkd.assert_allclose(
-            self._bkd.asarray([float(coefs[0])]),
-            self._bkd.asarray([-1.0])
+            self._bkd.asarray([float(coefs[0])]), self._bkd.asarray([-1.0])
         )
 
     def test_telescoping_property_1d_various_levels(self):
@@ -249,8 +240,7 @@ class TestSmolyakMathematicalProperties(Generic[Array], unittest.TestCase):
             # 2D level 2
             [[0, 1, 0, 2, 1, 0], [0, 0, 1, 0, 1, 2]],
             # 2D level 3
-            [[0, 1, 0, 2, 1, 0, 3, 2, 1, 0],
-             [0, 0, 1, 0, 1, 2, 0, 1, 2, 3]],
+            [[0, 1, 0, 2, 1, 0, 3, 2, 1, 0], [0, 0, 1, 0, 1, 2, 0, 1, 2, 3]],
             # 3D level 1
             [[0, 1, 0, 0], [0, 0, 1, 0], [0, 0, 0, 1]],
         ]
@@ -261,28 +251,22 @@ class TestSmolyakMathematicalProperties(Generic[Array], unittest.TestCase):
             coef_sum = float(self._bkd.sum(coefs))
 
             self._bkd.assert_allclose(
-                self._bkd.asarray([coef_sum]),
-                self._bkd.asarray([1.0])
+                self._bkd.asarray([coef_sum]), self._bkd.asarray([1.0])
             )
 
     def test_boundary_indices_have_coefficient_one(self):
         """Indices on the boundary (no forward neighbors in set) have coef=1."""
         # 2D level 2: boundary indices are (2,0), (1,1), (0,2)
-        indices = self._bkd.asarray([[0, 1, 0, 2, 1, 0],
-                                     [0, 0, 1, 0, 1, 2]])
+        indices = self._bkd.asarray([[0, 1, 0, 2, 1, 0], [0, 0, 1, 0, 1, 2]])
         coefs = compute_smolyak_coefficients(indices, self._bkd)
 
         # Indices 3, 4, 5 are boundary: (2,0), (1,1), (0,2)
-        self._bkd.assert_allclose(
-            coefs[3:6],
-            self._bkd.asarray([1.0, 1.0, 1.0])
-        )
+        self._bkd.assert_allclose(coefs[3:6], self._bkd.asarray([1.0, 1.0, 1.0]))
 
     def test_negative_coefficients_exist(self):
         """Some interior indices have negative coefficients."""
         # 2D level 1: (0,0) has coefficient -1
-        indices = self._bkd.asarray([[0, 1, 0],
-                                     [0, 0, 1]])
+        indices = self._bkd.asarray([[0, 1, 0], [0, 0, 1]])
         coefs = compute_smolyak_coefficients(indices, self._bkd)
 
         # At least one coefficient should be negative

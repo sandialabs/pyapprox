@@ -4,15 +4,14 @@ This module provides allocation optimizers specialized for MLBLUE,
 including the semidefinite programming (SPD) optimizer that uses cvxpy.
 """
 
-from typing import Generic, Optional, TYPE_CHECKING
+from typing import TYPE_CHECKING, Generic, Optional
 
-from pyapprox.util.backends.protocols import Array
-from pyapprox.util.optional_deps import import_optional_dependency
-
+from pyapprox.statest.groupacv.allocation import GroupACVAllocationResult
 from pyapprox.statest.groupacv.optimization import (
     MLBLUEObjective,
 )
-from pyapprox.statest.groupacv.allocation import GroupACVAllocationResult
+from pyapprox.util.backends.protocols import Array
+from pyapprox.util.optional_deps import import_optional_dependency
 
 if TYPE_CHECKING:
     from pyapprox.statest.groupacv.mlblue import MLBLUEEstimator
@@ -186,9 +185,7 @@ class MLBLUESPDAllocationOptimizer(Generic[Array]):
             If statistics has multiple outputs or solver fails.
         """
         if self._est._stat.nstats() != 1:
-            raise RuntimeError(
-                "SPD solver only works for single outputs (nstats=1)"
-            )
+            raise RuntimeError("SPD solver only works for single outputs (nstats=1)")
 
         # Define cvxpy variables
         t_cvxpy = self._cvxpy.Variable(nonneg=True)
@@ -205,8 +202,7 @@ class MLBLUESPDAllocationOptimizer(Generic[Array]):
         # Build constraints
         constraints = [
             subset_costs @ nsps_cvxpy <= target_cost,
-            self._est._partitions_per_model[0] @ nsps_cvxpy
-            >= min_nhf_samples,
+            self._est._partitions_per_model[0] @ nsps_cvxpy >= min_nhf_samples,
         ]
 
         # Optional low-fidelity sample constraints
@@ -218,9 +214,7 @@ class MLBLUESPDAllocationOptimizer(Generic[Array]):
                 )
 
         # SPD constraint: the Schur complement matrix must be positive semidefinite
-        constraints.append(
-            self._cvxpy_spd_constraint(nsps_cvxpy, t_cvxpy) >> 0
-        )
+        constraints.append(self._cvxpy_spd_constraint(nsps_cvxpy, t_cvxpy) >> 0)
 
         # Solve the problem
         prob = self._cvxpy.Problem(obj, constraints)

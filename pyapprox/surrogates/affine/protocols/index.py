@@ -15,7 +15,7 @@ Growth rule protocols:
     IndexGrowthRuleProtocol - univariate level-to-degree mapping
 """
 
-from typing import Generic, Protocol, runtime_checkable, Optional, List
+from typing import Generic, Optional, Protocol, runtime_checkable
 
 from pyapprox.util.backends.protocols import Array, Backend
 
@@ -238,9 +238,7 @@ class CompositeAdmissibilityCriteriaProtocol(Protocol, Generic[Array]):
         Check if an index satisfies all criteria.
     """
 
-    def add_criteria(
-        self, criteria: AdmissibilityCriteriaProtocol[Array]
-    ) -> None:
+    def add_criteria(self, criteria: AdmissibilityCriteriaProtocol[Array]) -> None:
         """Add a criteria to the composite."""
         ...
 

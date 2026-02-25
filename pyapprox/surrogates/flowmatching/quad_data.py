@@ -57,34 +57,24 @@ class FlowMatchingQuadData(Generic[Array]):
         w_shape = self._weights.shape
 
         if len(t_shape) != 2 or t_shape[0] != 1:
-            raise ValueError(
-                f"t must have shape (1, n_quad), got {t_shape}"
-            )
+            raise ValueError(f"t must have shape (1, n_quad), got {t_shape}")
         n_quad = t_shape[1]
 
         if len(x0_shape) != 2 or x0_shape[1] != n_quad:
-            raise ValueError(
-                f"x0 must have shape (d, {n_quad}), got {x0_shape}"
-            )
+            raise ValueError(f"x0 must have shape (d, {n_quad}), got {x0_shape}")
         if len(x1_shape) != 2 or x1_shape[1] != n_quad:
-            raise ValueError(
-                f"x1 must have shape (d, {n_quad}), got {x1_shape}"
-            )
+            raise ValueError(f"x1 must have shape (d, {n_quad}), got {x1_shape}")
         if x0_shape[0] != x1_shape[0]:
             raise ValueError(
                 f"x0 and x1 must have same first dimension, "
                 f"got {x0_shape[0]} and {x1_shape[0]}"
             )
         if len(w_shape) != 1 or w_shape[0] != n_quad:
-            raise ValueError(
-                f"weights must have shape ({n_quad},), got {w_shape}"
-            )
+            raise ValueError(f"weights must have shape ({n_quad},), got {w_shape}")
         if self._c is not None:
             c_shape = self._c.shape
             if len(c_shape) != 2 or c_shape[1] != n_quad:
-                raise ValueError(
-                    f"c must have shape (m, {n_quad}), got {c_shape}"
-                )
+                raise ValueError(f"c must have shape (m, {n_quad}), got {c_shape}")
 
     def t(self) -> Array:
         """Time quadrature points, shape ``(1, n_quad)``."""

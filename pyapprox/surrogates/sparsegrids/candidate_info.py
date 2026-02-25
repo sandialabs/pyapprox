@@ -7,10 +7,10 @@ a candidate subspace without accessing grid internals.
 from dataclasses import dataclass
 from typing import Generic, List, Optional, Tuple
 
-from pyapprox.util.backends.protocols import Array
 from pyapprox.surrogates.sparsegrids.subspace import (
     TensorProductSubspace,
 )
+from pyapprox.util.backends.protocols import Array
 
 # Type alias for config indices (tuple of ints)
 ConfigIdx = Tuple[int, ...]

@@ -7,9 +7,7 @@ import numpy as np
 from pyapprox.util.backends.protocols import Array, Backend
 
 
-def _swap_rows(
-    matrix: Array, ii: int, jj: int, bkd: Backend[Array]
-) -> None:
+def _swap_rows(matrix: Array, ii: int, jj: int, bkd: Backend[Array]) -> None:
     """Swap rows ii and jj of a 1D array in place."""
     indices = bkd.asarray([ii, jj], dtype=bkd.int64_dtype())
     swap_indices = bkd.asarray([jj, ii], dtype=bkd.int64_dtype())
@@ -82,9 +80,7 @@ class PivotedCholeskyFactorizer(Generic[Array]):
         """
         bkd = self._bkd
         if npivots > self._nrows:
-            raise ValueError(
-                "Number of pivots requested exceeds number of matrix rows"
-            )
+            raise ValueError("Number of pivots requested exceeds number of matrix rows")
         self._init_pivots = init_pivots
         self._pivot_weights = pivot_weights
         self._ncompleted_pivots = 0
@@ -131,20 +127,19 @@ class PivotedCholeskyFactorizer(Generic[Array]):
                 self._diag[self._pivots_arr[ii]]
             )
 
-            self._L[self._pivots_arr[ii + 1:], ii] = (
-                Amat[self._pivots_arr[ii + 1:], self._pivots_arr[ii]]
-                - self._L[self._pivots_arr[ii + 1:], :ii]
+            self._L[self._pivots_arr[ii + 1 :], ii] = (
+                Amat[self._pivots_arr[ii + 1 :], self._pivots_arr[ii]]
+                - self._L[self._pivots_arr[ii + 1 :], :ii]
                 @ self._L[self._pivots_arr[ii], :ii]
             ) / self._L[self._pivots_arr[ii], ii]
 
-            self._diag[self._pivots_arr[ii + 1:]] -= (
-                self._L[self._pivots_arr[ii + 1:], ii] ** 2
+            self._diag[self._pivots_arr[ii + 1 :]] -= (
+                self._L[self._pivots_arr[ii + 1 :], ii] ** 2
             )
 
             self._ncompleted_pivots += 1
             rel_error = (
-                bkd.sum(self._diag[self._pivots_arr[ii + 1:]])
-                / self._init_error
+                bkd.sum(self._diag[self._pivots_arr[ii + 1 :]]) / self._init_error
             )
             if rel_error < self._tol:
                 self._termination_flag = 1
@@ -160,48 +155,62 @@ class PivotedCholeskyFactorizer(Generic[Array]):
         assert self._diag is not None
 
         if self._init_pivots is not None and ii < len(self._init_pivots):
-            return int(bkd.to_numpy(
-                bkd.where(
-                    self._pivots_arr == self._init_pivots[ii]
-                )[0][0:1]
-            )[0])
+            return int(
+                bkd.to_numpy(
+                    bkd.where(self._pivots_arr == self._init_pivots[ii])[0][0:1]
+                )[0]
+            )
 
         if self._econ:
             if self._pivot_weights is None:
-                return int(bkd.to_numpy(bkd.reshape(
-                    bkd.argmax(
-                        self._diag[self._pivots_arr[ii:]]
-                    ) + ii, (1,)
-                ))[0])
-            return int(bkd.to_numpy(bkd.reshape(
-                bkd.argmax(
-                    self._pivot_weights[self._pivots_arr[ii:]]
-                    * self._diag[self._pivots_arr[ii:]]
-                ) + ii, (1,)
-            ))[0])
+                return int(
+                    bkd.to_numpy(
+                        bkd.reshape(
+                            bkd.argmax(self._diag[self._pivots_arr[ii:]]) + ii, (1,)
+                        )
+                    )[0]
+                )
+            return int(
+                bkd.to_numpy(
+                    bkd.reshape(
+                        bkd.argmax(
+                            self._pivot_weights[self._pivots_arr[ii:]]
+                            * self._diag[self._pivots_arr[ii:]]
+                        )
+                        + ii,
+                        (1,),
+                    )
+                )[0]
+            )
 
         assert self._L is not None
         schur_complement = (
-            Amat[np.ix_(
-                bkd.to_numpy(self._pivots_arr[ii:]),
-                bkd.to_numpy(self._pivots_arr[ii:]),
-            )]
+            Amat[
+                np.ix_(
+                    bkd.to_numpy(self._pivots_arr[ii:]),
+                    bkd.to_numpy(self._pivots_arr[ii:]),
+                )
+            ]
             - self._L[self._pivots_arr[ii:], :ii]
             @ self._L[self._pivots_arr[ii:], :ii].T
         )
         schur_diag = bkd.diag(schur_complement)
-        pivot = int(bkd.to_numpy(bkd.reshape(
-            bkd.argmax(
-                bkd.norm(schur_complement, axis=0) ** 2 / schur_diag
-            ) + ii, (1,)
-        ))[0])
+        pivot = int(
+            bkd.to_numpy(
+                bkd.reshape(
+                    bkd.argmax(bkd.norm(schur_complement, axis=0) ** 2 / schur_diag)
+                    + ii,
+                    (1,),
+                )
+            )[0]
+        )
         return pivot
 
     def pivots(self) -> Array:
         """Return pivot indices."""
         if self._pivots_arr is None:
             raise RuntimeError("Must call factorize() first")
-        return self._pivots_arr[:self._ncompleted_pivots]
+        return self._pivots_arr[: self._ncompleted_pivots]
 
     def npivots(self) -> int:
         """Return number of completed pivots."""
@@ -211,7 +220,7 @@ class PivotedCholeskyFactorizer(Generic[Array]):
         """Return the L factor of shape (nrows, npivots)."""
         if self._L is None:
             raise RuntimeError("Must call factorize() first")
-        return self._L[:, :self._ncompleted_pivots]
+        return self._L[:, : self._ncompleted_pivots]
 
     def success(self) -> bool:
         """Return True if factorization completed without errors."""

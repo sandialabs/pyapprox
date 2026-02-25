@@ -20,22 +20,21 @@ algorithm instead.
 """
 
 import math
-from abc import ABC, abstractmethod
 from typing import Callable, Generic, Optional, Protocol, Tuple, runtime_checkable
 
 import numpy as np
 
-from pyapprox.util.backends.protocols import Array, Backend
+from pyapprox.surrogates.affine.univariate.globalpoly.jacobi import (
+    LegendrePolynomial1D,
+)
 from pyapprox.surrogates.affine.univariate.globalpoly.orthopoly_base import (
     OrthonormalPolynomial1D,
     evaluate_orthonormal_polynomial_1d,
 )
-from pyapprox.surrogates.affine.univariate.globalpoly.jacobi import (
-    LegendrePolynomial1D,
-)
 from pyapprox.surrogates.affine.univariate.globalpoly.quadrature import (
     GaussQuadratureRule,
 )
+from pyapprox.util.backends.protocols import Array, Backend
 
 
 @runtime_checkable
@@ -442,10 +441,12 @@ class _ContinuousNumericOrthonormalPolynomial1DBase(
 
     Domain Conventions
     ------------------
-    - For bounded marginals: polynomials are defined on [-1, 1] (canonical).
-      Samples must be in canonical domain [-1, 1]. Use BoundedContinuousNumericOrthonormalPolynomial1D.
-    - For unbounded marginals: polynomials are defined on the physical domain
-      of the random variable (no transformation). Use UnboundedContinuousNumericOrthonormalPolynomial1D.
+    - For bounded marginals: polynomials are defined on [-1, 1]
+      (canonical). Samples must be in canonical domain [-1, 1].
+      Use BoundedContinuousNumericOrthonormalPolynomial1D.
+    - For unbounded marginals: polynomials are defined on the
+      physical domain of the random variable (no transformation).
+      Use UnboundedContinuousNumericOrthonormalPolynomial1D.
 
     This is an internal base class. Use BoundedContinuousNumericOrthonormalPolynomial1D
     or UnboundedContinuousNumericOrthonormalPolynomial1D instead.
@@ -621,7 +622,8 @@ class BoundedContinuousNumericOrthonormalPolynomial1D(
     Parameters
     ----------
     marginal : Any
-        The continuous marginal distribution. Must be bounded (is_bounded() returns True).
+        The continuous marginal distribution. Must be bounded
+        (is_bounded() returns True).
         Must have:
         - __call__(samples) method returning PDF values
         - is_bounded() method returning True
@@ -655,9 +657,12 @@ class BoundedContinuousNumericOrthonormalPolynomial1D(
     ):
         if not marginal.is_bounded():
             raise ValueError(
-                f"BoundedContinuousNumericOrthonormalPolynomial1D requires bounded marginal, "
-                f"got {type(marginal).__name__} with is_bounded()=False. "
-                f"Use UnboundedContinuousNumericOrthonormalPolynomial1D instead."
+                "BoundedContinuousNumericOrthonormal"
+                "Polynomial1D requires bounded marginal"
+                f", got {type(marginal).__name__} with "
+                "is_bounded()=False. Use Unbounded"
+                "ContinuousNumericOrthonormal"
+                "Polynomial1D instead."
             )
         super().__init__(marginal, bkd, nquad_points)
 
@@ -677,7 +682,8 @@ class UnboundedContinuousNumericOrthonormalPolynomial1D(
     Parameters
     ----------
     marginal : Any
-        The continuous marginal distribution. Must be unbounded (is_bounded() returns False).
+        The continuous marginal distribution. Must be unbounded
+        (is_bounded() returns False).
         Must have:
         - __call__(samples) method returning PDF values
         - is_bounded() method returning False
@@ -720,9 +726,12 @@ class UnboundedContinuousNumericOrthonormalPolynomial1D(
     ):
         if marginal.is_bounded():
             raise ValueError(
-                f"UnboundedContinuousNumericOrthonormalPolynomial1D requires unbounded marginal, "
-                f"got {type(marginal).__name__} with is_bounded()=True. "
-                f"Use BoundedContinuousNumericOrthonormalPolynomial1D instead."
+                "UnboundedContinuousNumericOrthonormal"
+                "Polynomial1D requires unbounded "
+                f"marginal, got {type(marginal).__name__}"
+                " with is_bounded()=True. Use Bounded"
+                "ContinuousNumericOrthonormal"
+                "Polynomial1D instead."
             )
         super().__init__(marginal, bkd, nquad_points, integrator_options)
 

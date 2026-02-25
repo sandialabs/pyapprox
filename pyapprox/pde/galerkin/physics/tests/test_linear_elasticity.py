@@ -1,24 +1,25 @@
 """Tests for LinearElasticity physics."""
 
 import unittest
-from typing import Generic, Any
+from typing import Any, Generic
 
 import numpy as np
 from numpy.typing import NDArray
 from scipy.sparse import issparse
 
-from pyapprox.util.backends.protocols import Array, Backend
-from pyapprox.util.backends.numpy import NumpyBkd
+from pyapprox.pde.galerkin.basis import VectorLagrangeBasis
 from pyapprox.pde.galerkin.mesh import (
     StructuredMesh1D,
     StructuredMesh2D,
     StructuredMesh3D,
 )
-from pyapprox.pde.galerkin.basis import VectorLagrangeBasis
 from pyapprox.pde.galerkin.physics.composite_linear_elasticity import (
     CompositeLinearElasticity,
 )
 from pyapprox.pde.galerkin.solvers import SteadyStateSolver
+from pyapprox.util.backends.numpy import NumpyBkd
+from pyapprox.util.backends.protocols import Array, Backend
+
 
 def _to_dense(mat, bkd):
     """Convert a matrix (possibly sparse) to a dense numpy array."""
@@ -45,7 +46,9 @@ class TestLinearElasticityBase(Generic[Array], unittest.TestCase):
     def test_1d_stiffness_symmetric(self) -> None:
         """Test stiffness matrix is symmetric in 1D."""
         mesh = StructuredMesh1D(
-            nx=5, bounds=(0.0, 1.0), bkd=self.bkd_inst,
+            nx=5,
+            bounds=(0.0, 1.0),
+            bkd=self.bkd_inst,
         )
         basis = VectorLagrangeBasis(mesh, degree=1)
         physics = LinearElasticity.from_uniform(
@@ -61,7 +64,9 @@ class TestLinearElasticityBase(Generic[Array], unittest.TestCase):
     def test_1d_residual_shape(self) -> None:
         """Test residual has correct shape in 1D."""
         mesh = StructuredMesh1D(
-            nx=5, bounds=(0.0, 1.0), bkd=self.bkd_inst,
+            nx=5,
+            bounds=(0.0, 1.0),
+            bkd=self.bkd_inst,
         )
         basis = VectorLagrangeBasis(mesh, degree=1)
         physics = LinearElasticity.from_uniform(
@@ -77,7 +82,9 @@ class TestLinearElasticityBase(Generic[Array], unittest.TestCase):
     def test_1d_rigid_body_motion(self) -> None:
         """Test that constant displacement gives zero stiffness action in 1D."""
         mesh = StructuredMesh1D(
-            nx=5, bounds=(0.0, 1.0), bkd=self.bkd_inst,
+            nx=5,
+            bounds=(0.0, 1.0),
+            bkd=self.bkd_inst,
         )
         basis = VectorLagrangeBasis(mesh, degree=1)
         physics = LinearElasticity.from_uniform(
@@ -102,6 +109,7 @@ class TestLinearElasticityBase(Generic[Array], unittest.TestCase):
         for a bug where 1D DOFs were returned empty.
         """
         from skfem.models.elasticity import lame_parameters as _lame
+
         from pyapprox.pde.galerkin.boundary.implementations import (
             DirichletBC,
         )
@@ -121,7 +129,9 @@ class TestLinearElasticityBase(Generic[Array], unittest.TestCase):
         )
 
         mesh = StructuredMesh1D(
-            nx=10, bounds=(0.0, 1.0), bkd=self.bkd_inst,
+            nx=10,
+            bounds=(0.0, 1.0),
+            bkd=self.bkd_inst,
         )
         basis = VectorLagrangeBasis(mesh, degree=2)
 
@@ -153,9 +163,7 @@ class TestLinearElasticityBase(Generic[Array], unittest.TestCase):
             bkd=self.bkd_inst,
         )
 
-        solver = SteadyStateSolver(
-            physics, tol=1e-12, max_iter=5, line_search=False
-        )
+        solver = SteadyStateSolver(physics, tol=1e-12, max_iter=5, line_search=False)
         u0 = self.bkd_inst.asarray(np.zeros(physics.nstates()))
         result = solver.solve(u0)
 
@@ -173,14 +181,16 @@ class TestLinearElasticityBase(Generic[Array], unittest.TestCase):
             exact[i] = sol_vals[i, i % nvars]
         rel_error = np.linalg.norm(u_np - exact) / np.linalg.norm(exact)
         self.assertLess(
-            rel_error, 1e-8,
+            rel_error,
+            1e-8,
             f"1D manufactured solution rel error: {rel_error:.2e}",
         )
 
     def test_2d_stiffness_symmetric(self) -> None:
         """Test stiffness matrix is symmetric in 2D."""
         mesh = StructuredMesh2D(
-            nx=5, ny=5,
+            nx=5,
+            ny=5,
             bounds=[[0.0, 1.0], [0.0, 1.0]],
             bkd=self.bkd_inst,
         )
@@ -200,7 +210,8 @@ class TestLinearElasticityBase(Generic[Array], unittest.TestCase):
     def test_2d_mass_matrix_symmetric(self) -> None:
         """Test mass matrix is symmetric in 2D."""
         mesh = StructuredMesh2D(
-            nx=5, ny=5,
+            nx=5,
+            ny=5,
             bounds=[[0.0, 1.0], [0.0, 1.0]],
             bkd=self.bkd_inst,
         )
@@ -220,7 +231,8 @@ class TestLinearElasticityBase(Generic[Array], unittest.TestCase):
     def test_2d_residual_shape(self) -> None:
         """Test residual has correct shape in 2D."""
         mesh = StructuredMesh2D(
-            nx=5, ny=5,
+            nx=5,
+            ny=5,
             bounds=[[0.0, 1.0], [0.0, 1.0]],
             bkd=self.bkd_inst,
         )
@@ -240,7 +252,8 @@ class TestLinearElasticityBase(Generic[Array], unittest.TestCase):
     def test_2d_jacobian_shape(self) -> None:
         """Test Jacobian has correct shape in 2D."""
         mesh = StructuredMesh2D(
-            nx=5, ny=5,
+            nx=5,
+            ny=5,
             bounds=[[0.0, 1.0], [0.0, 1.0]],
             bkd=self.bkd_inst,
         )
@@ -260,7 +273,9 @@ class TestLinearElasticityBase(Generic[Array], unittest.TestCase):
     def test_3d_stiffness_symmetric(self) -> None:
         """Test stiffness matrix is symmetric in 3D."""
         mesh = StructuredMesh3D(
-            nx=3, ny=3, nz=3,
+            nx=3,
+            ny=3,
+            nz=3,
             bounds=[[0.0, 1.0], [0.0, 1.0], [0.0, 1.0]],
             bkd=self.bkd_inst,
         )
@@ -280,7 +295,9 @@ class TestLinearElasticityBase(Generic[Array], unittest.TestCase):
     def test_3d_mass_matrix_symmetric(self) -> None:
         """Test mass matrix is symmetric in 3D."""
         mesh = StructuredMesh3D(
-            nx=3, ny=3, nz=3,
+            nx=3,
+            ny=3,
+            nz=3,
             bounds=[[0.0, 1.0], [0.0, 1.0], [0.0, 1.0]],
             bkd=self.bkd_inst,
         )
@@ -300,7 +317,9 @@ class TestLinearElasticityBase(Generic[Array], unittest.TestCase):
     def test_3d_residual_shape(self) -> None:
         """Test residual has correct shape in 3D."""
         mesh = StructuredMesh3D(
-            nx=3, ny=3, nz=3,
+            nx=3,
+            ny=3,
+            nz=3,
             bounds=[[0.0, 1.0], [0.0, 1.0], [0.0, 1.0]],
             bkd=self.bkd_inst,
         )
@@ -320,7 +339,9 @@ class TestLinearElasticityBase(Generic[Array], unittest.TestCase):
     def test_3d_jacobian_shape(self) -> None:
         """Test Jacobian has correct shape in 3D."""
         mesh = StructuredMesh3D(
-            nx=3, ny=3, nz=3,
+            nx=3,
+            ny=3,
+            nz=3,
             bounds=[[0.0, 1.0], [0.0, 1.0], [0.0, 1.0]],
             bkd=self.bkd_inst,
         )
@@ -340,7 +361,8 @@ class TestLinearElasticityBase(Generic[Array], unittest.TestCase):
     def test_2d_with_body_force(self) -> None:
         """Test 2D elasticity with body force."""
         mesh = StructuredMesh2D(
-            nx=5, ny=5,
+            nx=5,
+            ny=5,
             bounds=[[0.0, 1.0], [0.0, 1.0]],
             bkd=self.bkd_inst,
         )
@@ -370,7 +392,9 @@ class TestLinearElasticityBase(Generic[Array], unittest.TestCase):
     def test_3d_with_body_force(self) -> None:
         """Test 3D elasticity with body force."""
         mesh = StructuredMesh3D(
-            nx=3, ny=3, nz=3,
+            nx=3,
+            ny=3,
+            nz=3,
             bounds=[[0.0, 1.0], [0.0, 1.0], [0.0, 1.0]],
             bkd=self.bkd_inst,
         )
@@ -400,7 +424,8 @@ class TestLinearElasticityBase(Generic[Array], unittest.TestCase):
     def test_lame_parameters(self) -> None:
         """Test Lame parameter computation."""
         mesh = StructuredMesh2D(
-            nx=3, ny=3,
+            nx=3,
+            ny=3,
             bounds=[[0.0, 1.0], [0.0, 1.0]],
             bkd=self.bkd_inst,
         )
@@ -428,7 +453,8 @@ class TestLinearElasticityBase(Generic[Array], unittest.TestCase):
     def test_poisson_ratio_validation(self) -> None:
         """Test that invalid Poisson ratios raise errors."""
         mesh = StructuredMesh2D(
-            nx=3, ny=3,
+            nx=3,
+            ny=3,
             bounds=[[0.0, 1.0], [0.0, 1.0]],
             bkd=self.bkd_inst,
         )
@@ -462,7 +488,8 @@ class TestLinearElasticityBase(Generic[Array], unittest.TestCase):
         nu = 0.3  # Poisson's ratio
 
         mesh = StructuredMesh2D(
-            nx=5, ny=5,
+            nx=5,
+            ny=5,
             bounds=[[0.0, 1.0], [0.0, 1.0]],
             bkd=self.bkd_inst,
         )
@@ -495,7 +522,9 @@ class TestLinearElasticityBase(Generic[Array], unittest.TestCase):
         nu = 0.25  # Poisson's ratio
 
         mesh = StructuredMesh3D(
-            nx=3, ny=3, nz=3,
+            nx=3,
+            ny=3,
+            nz=3,
             bounds=[[0.0, 1.0], [0.0, 1.0], [0.0, 1.0]],
             bkd=self.bkd_inst,
         )
@@ -531,7 +560,8 @@ class TestLinearElasticityBase(Generic[Array], unittest.TestCase):
         nu = 0.3
 
         mesh = StructuredMesh2D(
-            nx=5, ny=5,
+            nx=5,
+            ny=5,
             bounds=[[0.0, 1.0], [0.0, 1.0]],
             bkd=self.bkd_inst,
         )
@@ -565,7 +595,9 @@ class TestLinearElasticityBase(Generic[Array], unittest.TestCase):
         nu = 0.25
 
         mesh = StructuredMesh3D(
-            nx=3, ny=3, nz=3,
+            nx=3,
+            ny=3,
+            nz=3,
             bounds=[[0.0, 1.0], [0.0, 1.0], [0.0, 1.0]],
             bkd=self.bkd_inst,
         )
@@ -611,6 +643,7 @@ class TestLinearElasticityNumpy(TestLinearElasticityBase[NDArray[Any]]):
 # Try to import torch for dual-backend testing
 try:
     import torch
+
     from pyapprox.util.backends.torch import TorchBkd
 
     class TestLinearElasticityTorch(TestLinearElasticityBase[torch.Tensor]):
@@ -625,17 +658,12 @@ try:
         def bkd(self) -> Backend[torch.Tensor]:
             return self._bkd
 
-        @unittest.skip(
-            "sparse solve not available on CPU with TorchBkd"
-        )
+        @unittest.skip("sparse solve not available on CPU with TorchBkd")
         def test_1d_manufactured_solution(self) -> None:
             pass
 
 except ImportError:
     pass
-
-
-from pyapprox.util.test_utils import load_tests
 
 
 if __name__ == "__main__":

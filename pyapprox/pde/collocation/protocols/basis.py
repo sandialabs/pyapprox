@@ -3,11 +3,10 @@
 Defines interfaces for polynomial bases used in collocation discretization.
 """
 
-from typing import Protocol, Generic, runtime_checkable, Tuple
+from typing import Generic, Protocol, Tuple, runtime_checkable
 
-from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.pde.collocation.protocols.mesh import MeshProtocol
-
+from pyapprox.util.backends.protocols import Array, Backend
 
 # =============================================================================
 # Extensibility Protocols for 1D Components

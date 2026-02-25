@@ -174,18 +174,18 @@ def _register_builtins() -> None:
     # Import here to avoid circular imports
     from pyapprox.probability import (
         BetaMarginal,
+        CustomDiscreteMarginal,
         GammaMarginal,
         GaussianMarginal,
-        UniformMarginal,
         ScipyDiscreteMarginal,
-        CustomDiscreteMarginal,
+        UniformMarginal,
     )
     from pyapprox.surrogates.affine.univariate.globalpoly import (
+        CharlierPolynomial1D,
         HermitePolynomial1D,
         JacobiPolynomial1D,
         LaguerrePolynomial1D,
         LegendrePolynomial1D,
-        CharlierPolynomial1D,
     )
     from pyapprox.surrogates.affine.univariate.globalpoly.numeric import (
         DiscreteNumericOrthonormalPolynomial1D,

@@ -184,7 +184,8 @@ class EllipticalTransform(Generic[Array]):
         Notes
         -----
         The inverse mapping uses:
-            u = arcsinh(sqrt((r - a^2) / (2*a^2) + sqrt(((r - a^2)/(2*a^2))^2 + y^2/a^2)))
+            u = arcsinh(sqrt((r - a^2) / (2*a^2) + sqrt(((r - a^2)/(2*a^2))^2 +
+            y^2/a^2)))
         where r = x^2 + y^2, but a simpler approach uses:
             cosh(u) = (r1 + r2) / (2a)
             sinh(u) = (r1 - r2) / (2a)
@@ -250,10 +251,10 @@ class EllipticalTransform(Generic[Array]):
         # dx/du = a*sinh(u)*cos(v), dx/dv = -a*cosh(u)*sin(v)
         # dy/du = a*cosh(u)*sin(v), dy/dv = a*sinh(u)*cos(v)
         jac_ellip = self._bkd.zeros((npts, 2, 2))
-        jac_ellip[:, 0, 0] = a * sinh_u * cos_v   # dx/du
+        jac_ellip[:, 0, 0] = a * sinh_u * cos_v  # dx/du
         jac_ellip[:, 0, 1] = -a * cosh_u * sin_v  # dx/dv
-        jac_ellip[:, 1, 0] = a * cosh_u * sin_v   # dy/du
-        jac_ellip[:, 1, 1] = a * sinh_u * cos_v   # dy/dv
+        jac_ellip[:, 1, 0] = a * cosh_u * sin_v  # dy/du
+        jac_ellip[:, 1, 1] = a * sinh_u * cos_v  # dy/dv
 
         if self._from_reference:
             # Chain rule: J_total = J_ellip @ J_affine
@@ -326,7 +327,7 @@ class EllipticalTransform(Generic[Array]):
             Column 0: h_u
             Column 1: h_v
         """
-        npts = reference_pts.shape[1]
+        reference_pts.shape[1]
 
         if self._from_reference:
             elliptical_pts = self._ref_to_elliptical(reference_pts)

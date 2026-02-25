@@ -7,32 +7,30 @@ from typing import Any, Generic
 import torch
 from numpy.typing import NDArray
 
-from pyapprox.util.backends.numpy import NumpyBkd
-from pyapprox.util.backends.protocols import Array, Backend
-from pyapprox.util.backends.torch import TorchBkd
-
-from pyapprox.probability import UniformMarginal, GaussianMarginal
-from pyapprox.surrogates.affine.univariate import create_bases_1d
+from pyapprox.probability import GaussianMarginal, UniformMarginal
+from pyapprox.surrogates.affine.basis import OrthonormalPolynomialBasis
+from pyapprox.surrogates.affine.expansions import BasisExpansion
 from pyapprox.surrogates.affine.indices import (
     compute_hyperbolic_indices,
 )
-from pyapprox.surrogates.affine.basis import OrthonormalPolynomialBasis
-from pyapprox.surrogates.affine.expansions import BasisExpansion
-
-from pyapprox.surrogates.flowmatching.linear_path import LinearPath
+from pyapprox.surrogates.affine.univariate import create_bases_1d
 from pyapprox.surrogates.flowmatching.cfm_loss import CFMLoss
-from pyapprox.surrogates.flowmatching.quad_data import (
-    FlowMatchingQuadData,
-)
-from pyapprox.surrogates.flowmatching.fitters.results import (
-    FlowMatchingFitResult,
-)
 from pyapprox.surrogates.flowmatching.fitters.least_squares import (
     LeastSquaresFitter,
 )
 from pyapprox.surrogates.flowmatching.fitters.optimizer import (
     OptimizerFitter,
 )
+from pyapprox.surrogates.flowmatching.fitters.results import (
+    FlowMatchingFitResult,
+)
+from pyapprox.surrogates.flowmatching.linear_path import LinearPath
+from pyapprox.surrogates.flowmatching.quad_data import (
+    FlowMatchingQuadData,
+)
+from pyapprox.util.backends.numpy import NumpyBkd
+from pyapprox.util.backends.protocols import Array, Backend
+from pyapprox.util.backends.torch import TorchBkd
 
 
 def _make_vf(bkd, d, degree, m=0):
@@ -50,6 +48,7 @@ def _make_vf(bkd, d, degree, m=0):
 def _make_linear_quad_data(bkd, d, ns, m=0):
     """Create quad data for a simple linear transport x0 -> x1 = x0 + 1."""
     import numpy as np
+
     np.random.seed(42)
     t_vals = np.linspace(0.05, 0.95, ns)
     t = bkd.array([t_vals.tolist()])  # (1, ns)
@@ -106,9 +105,7 @@ class TestLeastSquaresFitter(Generic[Array], unittest.TestCase):
         # Fitted should be different (nonzero coefficients)
         fitted_vf = result.surrogate()
         fitted_coef = fitted_vf.get_coefficients()  # type: ignore[union-attr]
-        norm = float(bkd.to_numpy(
-            bkd.sum(fitted_coef * fitted_coef)
-        ))
+        norm = float(bkd.to_numpy(bkd.sum(fitted_coef * fitted_coef)))
         self.assertGreater(norm, 1e-6)
 
     def test_surrogate_callable(self) -> None:
@@ -195,7 +192,7 @@ class TestOptimizerFitter(Generic[Array], unittest.TestCase):
         orig_coef = copy.deepcopy(vf.get_coefficients())
 
         fitter = OptimizerFitter(bkd)
-        result = fitter.fit(vf, path, loss, qd)
+        fitter.fit(vf, path, loss, qd)
 
         bkd.assert_allclose(vf.get_coefficients(), orig_coef, rtol=1e-12)
 

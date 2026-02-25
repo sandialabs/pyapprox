@@ -7,8 +7,8 @@ and its derivatives with respect to state x and parameters w.
 
 from typing import Generic
 
-from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.expdesign.local.protocols import DesignMatricesProtocol
+from pyapprox.util.backends.protocols import Array, Backend
 
 
 class QuadraticFunctional(Generic[Array]):
@@ -107,9 +107,7 @@ class QuadraticFunctional(Generic[Array]):
         # For each k: state^T @ M0k[k] @ state
         return self._bkd.einsum("i,kij,j->k", state, M0k, state)
 
-    def state_state_hvp(
-        self, state: Array, params: Array, wvec: Array
-    ) -> Array:
+    def state_state_hvp(self, state: Array, params: Array, wvec: Array) -> Array:
         """
         Hessian-vector product d^2J/dx^2 @ w = 2 * M0 @ w.
 
@@ -130,9 +128,7 @@ class QuadraticFunctional(Generic[Array]):
         M0 = self._design_matrices.M0(params)
         return 2 * M0 @ wvec
 
-    def param_param_hvp(
-        self, state: Array, params: Array, vvec: Array
-    ) -> Array:
+    def param_param_hvp(self, state: Array, params: Array, vvec: Array) -> Array:
         """
         Hessian-vector product d^2J/dw^2 @ v = 0 (J is linear in w).
 
@@ -152,9 +148,7 @@ class QuadraticFunctional(Generic[Array]):
         """
         return self._bkd.zeros((self.nparams(),))
 
-    def state_param_hvp(
-        self, state: Array, params: Array, vvec: Array
-    ) -> Array:
+    def state_param_hvp(self, state: Array, params: Array, vvec: Array) -> Array:
         """
         Mixed Hessian-vector product d^2J/dx dw @ v.
 
@@ -179,9 +173,7 @@ class QuadraticFunctional(Generic[Array]):
         # sum_k v_k * 2 * M0k[k] @ state
         return 2 * self._bkd.einsum("k,kij,j->i", vvec, M0k, state)
 
-    def param_state_hvp(
-        self, state: Array, params: Array, wvec: Array
-    ) -> Array:
+    def param_state_hvp(self, state: Array, params: Array, wvec: Array) -> Array:
         """
         Mixed Hessian-vector product d^2J/dw dx @ w.
 

@@ -9,17 +9,12 @@ from numpy.typing import NDArray
 from pyapprox.util.backends.numpy import NumpyBkd
 from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.util.backends.torch import TorchBkd
-from pyapprox.util.test_utils import load_tests
 
 
 class JacobianMixinFunction(Generic[Array]):
     """Test function using ParallelJacobianMixin."""
 
     def __init__(self, bkd: Backend[Array]):
-        from pyapprox.interface.parallel.mixins import (
-            ParallelJacobianMixin,
-        )
-
         self._bkd = bkd
         # Add mixin methods dynamically
         self._parallel_config = None
@@ -41,10 +36,6 @@ class JacobianMixinFunction(Generic[Array]):
         return 2 * sample.T
 
     def set_parallel_config(self, config):
-        from pyapprox.interface.parallel.mixins import (
-            ParallelJacobianMixin,
-        )
-
         self._parallel_config = config
         self._parallel_backend = config.get_parallel_backend()
 
@@ -156,18 +147,14 @@ class TestParallelMixins(Generic[Array], unittest.TestCase):
         for i in range(3):
             sample = samples[:, i : i + 1]
             expected = func.jacobian(sample)
-            self.assertTrue(
-                self._bkd.allclose(jacobians[i], expected, rtol=1e-10)
-            )
+            self.assertTrue(self._bkd.allclose(jacobians[i], expected, rtol=1e-10))
 
     def test_jacobian_mixin_parallel(self):
         """Test jacobian mixin with parallel config."""
         from pyapprox.interface.parallel.config import ParallelConfig
 
         func = JacobianMixinFunction(self._bkd)
-        func.set_parallel_config(
-            ParallelConfig(backend="joblib_processes", n_jobs=2)
-        )
+        func.set_parallel_config(ParallelConfig(backend="joblib_processes", n_jobs=2))
 
         samples = self._bkd.asarray([[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]])
         jacobians = func.jacobian_batch(samples)
@@ -199,9 +186,7 @@ class TestParallelMixins(Generic[Array], unittest.TestCase):
         from pyapprox.interface.parallel.config import ParallelConfig
 
         func = HVPMixinFunction(self._bkd)
-        func.set_parallel_config(
-            ParallelConfig(backend="joblib_processes", n_jobs=2)
-        )
+        func.set_parallel_config(ParallelConfig(backend="joblib_processes", n_jobs=2))
 
         samples = self._bkd.asarray([[1.0, 2.0], [3.0, 4.0]])
         vecs = self._bkd.asarray([[1.0, 0.0], [0.0, 1.0]])
@@ -216,16 +201,14 @@ class TestParallelMixins(Generic[Array], unittest.TestCase):
     def test_jacobian_mixin_with_mpire(self):
         """Test jacobian mixin with mpire backend."""
         try:
-            import mpire
+            import mpire  # noqa: F401
         except ImportError:
             self.skipTest("mpire not installed")
 
         from pyapprox.interface.parallel.config import ParallelConfig
 
         func = JacobianMixinFunction(self._bkd)
-        func.set_parallel_config(
-            ParallelConfig(backend="mpire", n_jobs=2)
-        )
+        func.set_parallel_config(ParallelConfig(backend="mpire", n_jobs=2))
 
         samples = self._bkd.asarray([[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]])
         jacobians = func.jacobian_batch(samples)

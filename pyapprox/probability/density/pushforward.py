@@ -7,12 +7,12 @@ xi-space.
 
 from typing import Generic, Optional
 
-from pyapprox.util.backends.protocols import Array, Backend
-from pyapprox.probability.density.protocols import DensityBasisProtocol
 from pyapprox.probability.density._fitters import (
     DensityFitterProtocol,
     LinearDensityFitter,
 )
+from pyapprox.probability.density.protocols import DensityBasisProtocol
+from pyapprox.util.backends.protocols import Array, Backend
 
 
 class PushforwardDensity(Generic[Array]):
@@ -54,8 +54,7 @@ class PushforwardDensity(Generic[Array]):
     ) -> None:
         if not isinstance(basis, DensityBasisProtocol):
             raise TypeError(
-                f"basis must satisfy DensityBasisProtocol, "
-                f"got {type(basis).__name__}"
+                f"basis must satisfy DensityBasisProtocol, got {type(basis).__name__}"
             )
         self._basis = basis
         self._bkd = basis.bkd()
@@ -75,7 +74,8 @@ class PushforwardDensity(Generic[Array]):
         self._load_vector = bkd.dot(Phi, weights)  # (nbasis,)
         self._mass_matrix = basis.mass_matrix()  # (nbasis, nbasis)
         self._coefficients = fitter.fit(
-            self._mass_matrix, self._load_vector,
+            self._mass_matrix,
+            self._load_vector,
         )
 
     def bkd(self) -> Backend[Array]:

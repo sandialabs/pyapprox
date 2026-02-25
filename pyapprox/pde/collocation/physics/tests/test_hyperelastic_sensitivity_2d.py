@@ -13,19 +13,19 @@ import numpy as np
 import torch
 from numpy.typing import NDArray
 
-from pyapprox.util.backends.protocols import Array, Backend
-from pyapprox.util.backends.numpy import NumpyBkd
-from pyapprox.util.backends.torch import TorchBkd
-from pyapprox.util.test_utils import load_tests  # noqa: F401
+from pyapprox.interface.functions.derivative_checks.derivative_checker import (
+    DerivativeChecker,
+)
 from pyapprox.pde.collocation.basis import ChebyshevBasis2D
 from pyapprox.pde.collocation.mesh import TransformedMesh2D
 from pyapprox.pde.collocation.physics import HyperelasticityPhysics
 from pyapprox.pde.collocation.physics.stress_models.neo_hookean import (
     NeoHookeanStress,
 )
-from pyapprox.interface.functions.derivative_checks.derivative_checker import (
-    DerivativeChecker,
-)
+from pyapprox.util.backends.numpy import NumpyBkd
+from pyapprox.util.backends.protocols import Array, Backend
+from pyapprox.util.backends.torch import TorchBkd
+from pyapprox.util.test_utils import load_tests  # noqa: F401
 
 
 def _setup_2d_hyperelastic(bkd, npts_1d=6, lamda=1.0, mu=1.0):
@@ -62,8 +62,10 @@ class _ResidualOfState(Generic[Array]):
         bkd = self._bkd
         if samples.ndim == 2:
             return bkd.stack(
-                [self._physics.residual(samples[:, i], self._time)
-                 for i in range(samples.shape[1])],
+                [
+                    self._physics.residual(samples[:, i], self._time)
+                    for i in range(samples.shape[1])
+                ],
                 axis=1,
             )
         return self._physics.residual(samples, self._time).reshape(-1, 1)
@@ -103,9 +105,7 @@ class _ResidualOfMu(Generic[Array]):
             cols = []
             for i in range(samples.shape[1]):
                 self._physics.set_mu(samples[:, i])
-                cols.append(
-                    self._physics.residual(self._state, self._time)
-                )
+                cols.append(self._physics.residual(self._state, self._time))
             self._physics.set_mu(self._mu_base)
             return bkd.stack(cols, axis=1)
         self._physics.set_mu(samples)
@@ -127,7 +127,9 @@ class _ResidualOfMu(Generic[Array]):
             delta = bkd.copy(delta)
             delta[j] = 1.0
             col = self._physics.residual_mu_sensitivity(
-                self._state, self._time, delta,
+                self._state,
+                self._time,
+                delta,
             )
             for k in range(nstates):
                 jac[k, j] = col[k]
@@ -160,9 +162,7 @@ class _ResidualOfLamda(Generic[Array]):
             cols = []
             for i in range(samples.shape[1]):
                 self._physics.set_lamda(samples[:, i])
-                cols.append(
-                    self._physics.residual(self._state, self._time)
-                )
+                cols.append(self._physics.residual(self._state, self._time))
             self._physics.set_lamda(self._lam_base)
             return bkd.stack(cols, axis=1)
         self._physics.set_lamda(samples)
@@ -184,7 +184,9 @@ class _ResidualOfLamda(Generic[Array]):
             delta = bkd.copy(delta)
             delta[j] = 1.0
             col = self._physics.residual_lamda_sensitivity(
-                self._state, self._time, delta,
+                self._state,
+                self._time,
+                delta,
             )
             for k in range(nstates):
                 jac[k, j] = col[k]
@@ -248,7 +250,10 @@ class TestHyperelasticSensitivity2D(Generic[Array], unittest.TestCase):
         bkd = self._bkd
         lamda, mu = 2.0, 1.5
         physics, basis = _setup_2d_hyperelastic(
-            bkd, npts_1d=6, lamda=lamda, mu=mu,
+            bkd,
+            npts_1d=6,
+            lamda=lamda,
+            mu=mu,
         )
         npts = basis.npts()
         nstates = physics.nstates()
@@ -273,7 +278,10 @@ class TestHyperelasticSensitivity2D(Generic[Array], unittest.TestCase):
         bkd = self._bkd
         lamda, mu = 2.0, 1.5
         physics, basis = _setup_2d_hyperelastic(
-            bkd, npts_1d=6, lamda=lamda, mu=mu,
+            bkd,
+            npts_1d=6,
+            lamda=lamda,
+            mu=mu,
         )
         npts = basis.npts()
         nstates = physics.nstates()
@@ -331,23 +339,20 @@ class TestHyperelasticSensitivity2D(Generic[Array], unittest.TestCase):
                 checker = DerivativeChecker(wrapper)
                 errors = checker.check_derivatives(sample, verbosity=0)
                 self.assertLessEqual(
-                    float(checker.error_ratio(errors[0])), 1e-5,
-                    f"Flux Jacobian check failed for P_{i+1}{jj+1}",
+                    float(checker.error_ratio(errors[0])),
+                    1e-5,
+                    f"Flux Jacobian check failed for P_{i + 1}{jj + 1}",
                 )
 
 
-class TestHyperelasticSensitivity2DNumpy(
-    TestHyperelasticSensitivity2D[NDArray[Any]]
-):
+class TestHyperelasticSensitivity2DNumpy(TestHyperelasticSensitivity2D[NDArray[Any]]):
     __test__ = True
 
     def bkd(self) -> NumpyBkd:
         return NumpyBkd()
 
 
-class TestHyperelasticSensitivity2DTorch(
-    TestHyperelasticSensitivity2D[torch.Tensor]
-):
+class TestHyperelasticSensitivity2DTorch(TestHyperelasticSensitivity2D[torch.Tensor]):
     __test__ = True
 
     def bkd(self) -> TorchBkd:

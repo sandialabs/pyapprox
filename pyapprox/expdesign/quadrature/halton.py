@@ -5,7 +5,7 @@ This module provides a Halton sequence sampler using scipy.stats.qmc,
 with optional transformation to arbitrary distributions via inverse CDF.
 """
 
-from typing import Generic, Optional, Tuple, Protocol, runtime_checkable
+from typing import Generic, Optional, Protocol, Tuple, runtime_checkable
 
 import numpy as np
 

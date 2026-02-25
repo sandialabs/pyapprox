@@ -105,7 +105,7 @@ class ScipyOptimizerResultWrapper(Generic[Array]):
         str
             Message describing why the optimizer terminated.
         """
-        return getattr(self._scipy_result, 'message', 'No message available')
+        return getattr(self._scipy_result, "message", "No message available")
 
     def __repr__(self) -> str:
         """

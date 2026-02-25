@@ -7,6 +7,7 @@ once the kernel matrix is formed.
 """
 
 from typing import Generic, Tuple
+
 from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.util.hyperparameter import HyperParameterList
 
@@ -51,7 +52,7 @@ class GPNegativeLogMarginalLikelihoodLoss(Generic[Array]):
     def __init__(
         self,
         gp,  # Union[ExactGaussianProcess, MultiOutputGP]
-        fit_args: Tuple
+        fit_args: Tuple,
     ):
         self._gp = gp
         self._fit_args = fit_args
@@ -105,13 +106,17 @@ class GPNegativeLogMarginalLikelihoodLoss(Generic[Array]):
 
         # Return as (1, 1) array, preserving autograd graph
         # nll may be a scalar tensor; reshape preserves the graph
-        nll_array = self._bkd.reshape(nll, (1,)) if hasattr(nll, 'shape') else self._bkd.array([nll])
+        nll_array = (
+            self._bkd.reshape(nll, (1,))
+            if hasattr(nll, "shape")
+            else self._bkd.array([nll])
+        )
         return self._bkd.reshape(nll_array, (1, 1))
 
     def _setup_derivative_methods(self) -> None:
         """Bind jacobian method if kernel supports analytical gradients."""
         kernel = self._gp._kernel
-        if hasattr(kernel, 'jacobian_wrt_params'):
+        if hasattr(kernel, "jacobian_wrt_params"):
             self.jacobian = self._jacobian_analytical
 
     def _jacobian_analytical(self, params: Array) -> Array:
@@ -158,7 +163,8 @@ class GPNegativeLogMarginalLikelihoodLoss(Generic[Array]):
             K_grad = kernel.jacobian_wrt_params(X_data)
             n_kernel_params = K_grad.shape[2]
 
-            # alpha shape: (nqoi, n_train) for single-output or (n_total, 1) for multi-output
+            # alpha shape: (nqoi, n_train) for single-output or (n_total, 1) for
+            # multi-output
             # For single-output, transpose to (n_train, nqoi) for matrix ops
             if alpha.shape[0] < alpha.shape[1]:
                 # Single-output: alpha is (nqoi, n_train), need (n_train, nqoi)
@@ -180,7 +186,7 @@ class GPNegativeLogMarginalLikelihoodLoss(Generic[Array]):
                 grad_values.append(grad_i)
 
         # 2. Mean function hyperparameter gradients (if mean exists)
-        if hasattr(self._gp, '_mean'):
+        if hasattr(self._gp, "_mean"):
             mean_hyps = self._gp._mean.hyp_list()
 
             if mean_hyps.nparams() > 0:
@@ -193,7 +199,8 @@ class GPNegativeLogMarginalLikelihoodLoss(Generic[Array]):
                 mean_jac = self._gp._mean.jacobian_wrt_params(X_data)
 
                 for i in range(mean_hyps.nparams()):
-                    # mean_jac[i] has shape (1, n_train), alpha has shape (nqoi, n_train)
+                    # mean_jac[i] has shape (1, n_train), alpha has shape (nqoi,
+                    # n_train)
                     dm_dtheta = mean_jac[i, :, :]  # Shape: (1, n_train)
                     grad_mean_i = -self._bkd.sum(alpha * dm_dtheta)
                     grad_values.append(grad_mean_i)

@@ -99,9 +99,7 @@ class AdaptiveGPBuilder(Generic[Array]):
         """
         samples_scaled = self._sampler.select_samples(nsamples)
         if self._input_transform is not None:
-            samples_user = self._input_transform.inverse_transform(
-                samples_scaled
-            )
+            samples_user = self._input_transform.inverse_transform(samples_scaled)
         else:
             samples_user = samples_scaled
         self._last_samples_user = samples_user
@@ -128,9 +126,7 @@ class AdaptiveGPBuilder(Generic[Array]):
             A new fitted GP with transforms applied.
         """
         if self._last_samples_user is None:
-            raise RuntimeError(
-                "Must call step_samples() before step_values()"
-            )
+            raise RuntimeError("Must call step_samples() before step_values()")
         new_X_user = self._last_samples_user
 
         # Accumulate data
@@ -204,9 +200,7 @@ class AdaptiveGPBuilder(Generic[Array]):
         assert gp is not None, "Schedule produced no steps"
         return gp
 
-    def _create_and_fit_gp(
-        self, optimize: bool
-    ) -> ExactGaussianProcess[Array]:
+    def _create_and_fit_gp(self, optimize: bool) -> ExactGaussianProcess[Array]:
         """Create a new ExactGaussianProcess and fit it."""
         assert self._X_user is not None
         assert self._y_user is not None

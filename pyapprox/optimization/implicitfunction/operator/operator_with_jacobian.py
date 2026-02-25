@@ -1,15 +1,15 @@
 from typing import Generic
 
-from pyapprox.util.backends.protocols import Array, Backend
-from pyapprox.optimization.implicitfunction.state_equations.protocols import (
-    ParameterizedStateEquationWithJacobianProtocol,
-)
 from pyapprox.optimization.implicitfunction.functionals.protocols import (
     ParameterizedFunctionalWithJacobianProtocol,
 )
 from pyapprox.optimization.implicitfunction.operator.storage import (
     AdjointOperatorStorage,
 )
+from pyapprox.optimization.implicitfunction.state_equations.protocols import (
+    ParameterizedStateEquationWithJacobianProtocol,
+)
+from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.util.backends.validation import validate_backends
 
 
@@ -32,7 +32,8 @@ class AdjointOperatorWithJacobian(Generic[Array]):
         Parameters
         ----------
         state_eq : ParameterizedStateEquationWithJacobianProtocol
-            State equation object implementing the parameterized state equation protocol.
+            State equation object implementing the parameterized state equation
+            protocol.
         functional : ParameterizedFunctionalWithJacobianProtocol
             Functional object implementing the parameterized functional protocol.
 
@@ -69,9 +70,7 @@ class AdjointOperatorWithJacobian(Generic[Array]):
             If the state equation is not a valid instance of "
         "ParameterizedStateEquationWithJacobianProtocol.
         """
-        if not isinstance(
-            state_eq, ParameterizedStateEquationWithJacobianProtocol
-        ):
+        if not isinstance(state_eq, ParameterizedStateEquationWithJacobianProtocol):
             raise TypeError(
                 "state_eq must be an instance of "
                 "ParameterizedStateEquationWithJacobianProtocol."
@@ -94,9 +93,7 @@ class AdjointOperatorWithJacobian(Generic[Array]):
             If the functional is not a valid instance of "
             "ParameterizedFunctionalWithJacobianProtocol or nqoi != 1.
         """
-        if not isinstance(
-            functional, ParameterizedFunctionalWithJacobianProtocol
-        ):
+        if not isinstance(functional, ParameterizedFunctionalWithJacobianProtocol):
             raise TypeError(
                 "functional must be an instance of "
                 "ParameterizedFunctionalWithJacobianProtocol."
@@ -216,9 +213,7 @@ class AdjointOperatorWithJacobian(Generic[Array]):
             self._storage.set_forward_state(fwd_state)
         return self._storage.get_forward_state()
 
-    def _get_state_eq_param_jacobian(
-        self, fwd_state: Array, param: Array
-    ) -> Array:
+    def _get_state_eq_param_jacobian(self, fwd_state: Array, param: Array) -> Array:
         """
         Get the parameter Jacobian of the state equation, computing it if necessary.
 
@@ -259,8 +254,7 @@ class AdjointOperatorWithJacobian(Generic[Array]):
         adj_state = self.solve_adjoint_equation(fwd_state, param)
         drdp = self._get_state_eq_param_jacobian(fwd_state, param)
         jacobian = (
-            self._functional.param_jacobian(fwd_state, param)
-            + adj_state.T @ drdp
+            self._functional.param_jacobian(fwd_state, param) + adj_state.T @ drdp
         )
         return jacobian
 

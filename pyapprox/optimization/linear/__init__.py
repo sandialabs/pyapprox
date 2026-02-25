@@ -32,23 +32,20 @@ from pyapprox.optimization.linear.base import (
     LinearSystemSolver,
     SingleQoiSolverMixin,
 )
-
 from pyapprox.optimization.linear.least_squares import (
     LeastSquaresSolver,
-    RidgeRegressionSolver,
     LinearlyConstrainedLstSqSolver,
+    RidgeRegressionSolver,
 )
-
+from pyapprox.optimization.linear.quantile import (
+    ExpectileRegressionSolver,
+    QuantileRegressionSolver,
+)
 from pyapprox.optimization.linear.sparse import (
+    BasisPursuitDenoisingSolver,
+    BasisPursuitSolver,
     OMPSolver,
     OMPTerminationFlag,
-    BasisPursuitSolver,
-    BasisPursuitDenoisingSolver,
-)
-
-from pyapprox.optimization.linear.quantile import (
-    QuantileRegressionSolver,
-    ExpectileRegressionSolver,
 )
 
 __all__ = [

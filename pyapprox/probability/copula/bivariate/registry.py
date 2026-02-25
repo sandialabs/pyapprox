@@ -7,23 +7,19 @@ New copula families can be registered via `register_bivariate_copula`.
 
 from typing import Any, Callable, Dict, List
 
-from pyapprox.util.backends.protocols import Array, Backend
-from pyapprox.probability.copula.bivariate.protocols import (
-    BivariateCopulaProtocol,
-)
-from pyapprox.probability.copula.bivariate.gaussian import (
-    BivariateGaussianCopula,
-)
 from pyapprox.probability.copula.bivariate.clayton import (
     ClaytonCopula,
 )
 from pyapprox.probability.copula.bivariate.frank import (
     FrankCopula,
 )
+from pyapprox.probability.copula.bivariate.gaussian import (
+    BivariateGaussianCopula,
+)
 from pyapprox.probability.copula.bivariate.gumbel import (
     GumbelCopula,
 )
-
+from pyapprox.util.backends.protocols import Array, Backend
 
 # Factory type: takes (bkd, **kwargs) and returns a BivariateCopulaProtocol
 _CopulaFactory = Callable[..., Any]
@@ -45,9 +41,7 @@ def register_bivariate_copula(name: str, factory: _CopulaFactory) -> None:
     _REGISTRY[name] = factory
 
 
-def create_bivariate_copula(
-    name: str, bkd: Backend[Array], **kwargs: Any
-) -> Any:
+def create_bivariate_copula(name: str, bkd: Backend[Array], **kwargs: Any) -> Any:
     """
     Create a bivariate copula by name.
 
@@ -72,10 +66,7 @@ def create_bivariate_copula(
     """
     if name not in _REGISTRY:
         available = ", ".join(sorted(_REGISTRY.keys()))
-        raise KeyError(
-            f"Unknown bivariate copula: '{name}'. "
-            f"Available: {available}"
-        )
+        raise KeyError(f"Unknown bivariate copula: '{name}'. Available: {available}")
     return _REGISTRY[name](bkd=bkd, **kwargs)
 
 

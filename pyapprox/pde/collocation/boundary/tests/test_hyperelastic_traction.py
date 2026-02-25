@@ -15,12 +15,10 @@ import numpy as np
 import torch
 from numpy.typing import NDArray
 
-from pyapprox.util.backends.protocols import Array, Backend
-from pyapprox.util.backends.numpy import NumpyBkd
-from pyapprox.util.backends.torch import TorchBkd
-from pyapprox.util.test_utils import load_tests  # noqa: F401
+from pyapprox.interface.functions.derivative_checks.derivative_checker import (
+    DerivativeChecker,
+)
 from pyapprox.pde.collocation.basis import ChebyshevBasis2D
-from pyapprox.pde.collocation.mesh import TransformedMesh2D
 from pyapprox.pde.collocation.boundary.hyperelastic_traction import (
     HyperelasticTractionNormalOperator,
     hyperelastic_traction_neumann_bc,
@@ -29,12 +27,14 @@ from pyapprox.pde.collocation.boundary.normal_operators import (
     TractionNormalOperator,
 )
 from pyapprox.pde.collocation.boundary.robin import RobinBC
+from pyapprox.pde.collocation.mesh import TransformedMesh2D
 from pyapprox.pde.collocation.physics.stress_models.neo_hookean import (
     NeoHookeanStress,
 )
-from pyapprox.interface.functions.derivative_checks.derivative_checker import (
-    DerivativeChecker,
-)
+from pyapprox.util.backends.numpy import NumpyBkd
+from pyapprox.util.backends.protocols import Array, Backend
+from pyapprox.util.backends.torch import TorchBkd
+from pyapprox.util.test_utils import load_tests  # noqa: F401
 
 
 class _TractionOfState(Generic[Array]):
@@ -63,8 +63,7 @@ class _TractionOfState(Generic[Array]):
         bkd = self._bkd
         if samples.ndim == 2:
             return bkd.stack(
-                [self._operator(samples[:, i])
-                 for i in range(samples.shape[1])],
+                [self._operator(samples[:, i]) for i in range(samples.shape[1])],
                 axis=1,
             )
         return self._operator(samples).reshape(-1, 1)
@@ -103,8 +102,13 @@ class TestHyperelasticTraction(Generic[Array], unittest.TestCase):
         normals = mesh.boundary_normals(0)
 
         op = HyperelasticTractionNormalOperator(
-            bkd, left_idx, normals, [Dx, Dy],
-            stress_model, npts, component,
+            bkd,
+            left_idx,
+            normals,
+            [Dx, Dy],
+            stress_model,
+            npts,
+            component,
         )
         return op, mesh, basis, stress_model
 
@@ -163,9 +167,7 @@ class TestHyperelasticTraction(Generic[Array], unittest.TestCase):
             npts = basis.npts()
             state = bkd.zeros((2 * npts,))
             traction = op(state)
-            bkd.assert_allclose(
-                traction, bkd.zeros(traction.shape), atol=1e-14
-            )
+            bkd.assert_allclose(traction, bkd.zeros(traction.shape), atol=1e-14)
 
     def test_factory_creates_robin_bc(self):
         """hyperelastic_traction_neumann_bc returns RobinBC with correct indices."""
@@ -184,13 +186,20 @@ class TestHyperelasticTraction(Generic[Array], unittest.TestCase):
 
         for comp in [0, 1]:
             bc = hyperelastic_traction_neumann_bc(
-                bkd, left_idx, normals, [Dx, Dy],
-                stress_model, npts, comp,
+                bkd,
+                left_idx,
+                normals,
+                [Dx, Dy],
+                stress_model,
+                npts,
+                comp,
             )
             self.assertIsInstance(bc, RobinBC)
             expected_indices = left_idx + comp * npts
             bkd.assert_allclose(
-                bc.boundary_indices(), expected_indices, atol=0,
+                bc.boundary_indices(),
+                expected_indices,
+                atol=0,
             )
 
     def test_linear_limit(self):
@@ -214,12 +223,23 @@ class TestHyperelasticTraction(Generic[Array], unittest.TestCase):
 
         for comp in [0, 1]:
             hyper_op = HyperelasticTractionNormalOperator(
-                bkd, left_idx, normals, [Dx, Dy],
-                stress_model, npts, comp,
+                bkd,
+                left_idx,
+                normals,
+                [Dx, Dy],
+                stress_model,
+                npts,
+                comp,
             )
             linear_op = TractionNormalOperator(
-                bkd, left_idx, normals, [Dx, Dy],
-                lamda, mu, comp, npts,
+                bkd,
+                left_idx,
+                normals,
+                [Dx, Dy],
+                lamda,
+                mu,
+                comp,
+                npts,
             )
 
             t_hyper = hyper_op(state)
@@ -232,18 +252,14 @@ class TestHyperelasticTraction(Generic[Array], unittest.TestCase):
         self.assertTrue(op.has_coefficient_dependence())
 
 
-class TestHyperelasticTractionNumpy(
-    TestHyperelasticTraction[NDArray[Any]]
-):
+class TestHyperelasticTractionNumpy(TestHyperelasticTraction[NDArray[Any]]):
     __test__ = True
 
     def bkd(self) -> NumpyBkd:
         return NumpyBkd()
 
 
-class TestHyperelasticTractionTorch(
-    TestHyperelasticTraction[torch.Tensor]
-):
+class TestHyperelasticTractionTorch(TestHyperelasticTraction[torch.Tensor]):
     __test__ = True
 
     def bkd(self) -> TorchBkd:

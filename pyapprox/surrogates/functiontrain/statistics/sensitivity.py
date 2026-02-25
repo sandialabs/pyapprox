@@ -2,10 +2,10 @@
 
 from typing import Generic, List, Optional, Sequence, Tuple
 
-from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.surrogates.functiontrain.statistics.moments import (
     FunctionTrainMoments,
 )
+from pyapprox.util.backends.protocols import Array, Backend
 
 
 class FunctionTrainSensitivity(Generic[Array]):
@@ -166,8 +166,7 @@ class FunctionTrainSensitivity(Generic[Array]):
             theta_ell = core.coefficient_matrix(ell)
             # c_ell = L̄_k · Θ_k^{(ℓ)} · R̄_k (scalar)
             c_ell = self._bkd.dot(
-                self._bkd.dot(left[var_idx], theta_ell),
-                right[var_idx]
+                self._bkd.dot(left[var_idx], theta_ell), right[var_idx]
             )
             V_k = V_k + self._bkd.reshape(c_ell, (1,)) ** 2
 
@@ -220,10 +219,7 @@ class FunctionTrainSensitivity(Generic[Array]):
         core = self._pce_ft.pce_cores()[var_idx]
 
         delta_M = core.delta_kron_core()
-        V_T = self._bkd.dot(
-            self._bkd.dot(left[var_idx], delta_M),
-            right[var_idx]
-        )
+        V_T = self._bkd.dot(self._bkd.dot(left[var_idx], delta_M), right[var_idx])
         return self._bkd.reshape(V_T, (1,))
 
     def total_effect_index(self, var_idx: int) -> Array:
@@ -309,6 +305,4 @@ class FunctionTrainSensitivity(Generic[Array]):
         """Validate variable index is in bounds."""
         nvars = self._pce_ft.nvars()
         if var_idx < 0 or var_idx >= nvars:
-            raise IndexError(
-                f"Variable index {var_idx} out of bounds [0, {nvars})"
-            )
+            raise IndexError(f"Variable index {var_idx} out of bounds [0, {nvars})")

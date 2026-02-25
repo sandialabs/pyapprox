@@ -15,25 +15,24 @@ import numpy as np
 import torch
 from numpy.typing import NDArray
 
-from pyapprox.util.backends.numpy import NumpyBkd
-from pyapprox.util.backends.torch import TorchBkd
-from pyapprox.util.backends.protocols import Array, Backend
-from pyapprox.util.test_utils import load_tests
-from pyapprox.probability.conditional.gaussian import ConditionalGaussian
-from pyapprox.probability.conditional.joint import ConditionalIndependentJoint
-from pyapprox.probability.univariate import UniformMarginal
-from pyapprox.surrogates.affine.univariate import create_bases_1d
-from pyapprox.surrogates.affine.indices import compute_hyperbolic_indices
-from pyapprox.surrogates.affine.basis import OrthonormalPolynomialBasis
-from pyapprox.surrogates.affine.expansions import BasisExpansion
 from pyapprox.interface.functions.derivative_checks.derivative_checker import (
     DerivativeChecker,
 )
 from pyapprox.interface.functions.fromcallable.jacobian import (
     FunctionWithJacobianFromCallable,
 )
-from pyapprox.probability.univariate.gaussian import GaussianMarginal
+from pyapprox.probability.conditional.gaussian import ConditionalGaussian
+from pyapprox.probability.conditional.joint import ConditionalIndependentJoint
 from pyapprox.probability.joint.independent import IndependentJoint
+from pyapprox.probability.univariate import UniformMarginal
+from pyapprox.probability.univariate.gaussian import GaussianMarginal
+from pyapprox.surrogates.affine.basis import OrthonormalPolynomialBasis
+from pyapprox.surrogates.affine.expansions import BasisExpansion
+from pyapprox.surrogates.affine.indices import compute_hyperbolic_indices
+from pyapprox.surrogates.affine.univariate import create_bases_1d
+from pyapprox.util.backends.numpy import NumpyBkd
+from pyapprox.util.backends.protocols import Array, Backend
+from pyapprox.util.backends.torch import TorchBkd
 
 
 class TestConditionalIndependentJoint(Generic[Array], unittest.TestCase):
@@ -85,7 +84,6 @@ class TestConditionalIndependentJoint(Generic[Array], unittest.TestCase):
 
     def test_basic_properties(self):
         """Test basic properties of ConditionalIndependentJoint."""
-        bkd = self._bkd
         joint = self._create_joint(nvars=2, nconditionals=3)
 
         self.assertEqual(joint.nvars(), 2)
@@ -171,8 +169,12 @@ class TestConditionalIndependentJoint(Generic[Array], unittest.TestCase):
         self.assertEqual(z.shape, (2, 3))
 
         # Compute expected values manually: mean + exp(log_s) * base
-        z1_expected = bkd.asarray([[2.0 + 0.5 * 1.0, 2.0 + 0.5 * (-1.0), 2.0 + 0.5 * 0.5]])
-        z2_expected = bkd.asarray([[5.0 + 1.5 * 0.0, 5.0 + 1.5 * 2.0, 5.0 + 1.5 * (-0.5)]])
+        z1_expected = bkd.asarray(
+            [[2.0 + 0.5 * 1.0, 2.0 + 0.5 * (-1.0), 2.0 + 0.5 * 0.5]]
+        )
+        z2_expected = bkd.asarray(
+            [[5.0 + 1.5 * 0.0, 5.0 + 1.5 * 2.0, 5.0 + 1.5 * (-0.5)]]
+        )
         expected = bkd.vstack([z1_expected, z2_expected])
 
         bkd.assert_allclose(z, expected, rtol=1e-12)
@@ -342,7 +344,6 @@ class TestConditionalIndependentJoint(Generic[Array], unittest.TestCase):
 
     def test_base_distribution_is_independent_joint(self):
         """Test base_distribution returns IndependentJoint."""
-        bkd = self._bkd
         joint = self._create_joint(nvars=2, nconditionals=2)
 
         base = joint.base_distribution()

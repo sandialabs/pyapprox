@@ -9,8 +9,8 @@ from .kl_diagnostics import KLOEDDiagnostics
 from .prediction_diagnostics import (
     PredictionOEDDiagnostics,
     create_prediction_oed_diagnostics,
-    register_utility,
     get_registered_utility_types,
+    register_utility,
 )
 
 __all__ = [

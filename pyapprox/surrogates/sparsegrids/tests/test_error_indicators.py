@@ -7,15 +7,13 @@ Tests run on both NumPy and PyTorch backends.
 """
 
 import unittest
-from typing import Any, Generic, List, Tuple
+from typing import Any, Generic, Tuple
 
-import numpy as np
 import torch
 from numpy.typing import NDArray
 
 from pyapprox.probability import UniformMarginal
 from pyapprox.surrogates.affine.indices import (
-    HyperbolicIndexGenerator,
     LinearGrowthRule,
 )
 from pyapprox.surrogates.sparsegrids.basis_factory import (
@@ -40,12 +38,7 @@ from pyapprox.surrogates.sparsegrids.sample_tracker import (
     SampleTracker,
 )
 from pyapprox.surrogates.sparsegrids.smolyak import (
-    _index_to_tuple,
     compute_smolyak_coefficients,
-    smolyak_coefs_with_candidate,
-)
-from pyapprox.surrogates.sparsegrids.subspace import (
-    TensorProductSubspace,
 )
 from pyapprox.surrogates.sparsegrids.subspace_factory import (
     TensorProductSubspaceFactory,
@@ -54,7 +47,6 @@ from pyapprox.util.backends.numpy import NumpyBkd
 from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.util.backends.torch import TorchBkd
 from pyapprox.util.test_utils import load_tests  # noqa: F401
-
 
 # =============================================================================
 # Helper: build CandidateInfo from a selected index set + candidate
@@ -106,9 +98,7 @@ def _build_candidate_info(
     sel_indices = sel_result.indices
 
     # Create candidate subspace
-    candidate_index = bkd.asarray(
-        list(candidate_index_tuple), dtype=bkd.int64_dtype()
-    )
+    candidate_index = bkd.asarray(list(candidate_index_tuple), dtype=bkd.int64_dtype())
     candidate_subspace = tp_factory(candidate_index)
 
     # Build tracker to get new samples
@@ -135,9 +125,7 @@ def _build_candidate_info(
     tracker.distribute_values_to_subspaces()
 
     # Build sel+candidate surrogate
-    combined_indices = bkd.hstack(
-        (sel_indices, bkd.reshape(candidate_index, (-1, 1)))
-    )
+    combined_indices = bkd.hstack((sel_indices, bkd.reshape(candidate_index, (-1, 1))))
     combined_coefs = compute_smolyak_coefficients(combined_indices, bkd)
 
     # Collect all subspaces (selected + candidate)
@@ -189,8 +177,11 @@ class TestL2SurrogateDifference(Generic[Array], unittest.TestCase):
             return self._bkd.reshape(samples[0, :] + samples[1, :], (1, -1))
 
         info = _build_candidate_info(
-            self._bkd, nvars=2, selected_level=1,
-            candidate_index_tuple=(2, 0), target_fn=target_fn,
+            self._bkd,
+            nvars=2,
+            selected_level=1,
+            candidate_index_tuple=(2, 0),
+            target_fn=target_fn,
         )
         indicator = L2SurrogateDifferenceIndicator(self._bkd)
         priority, error = indicator(info)
@@ -205,11 +196,14 @@ class TestL2SurrogateDifference(Generic[Array], unittest.TestCase):
 
         def target_fn(samples: Array) -> Array:
             x, y = samples[0, :], samples[1, :]
-            return self._bkd.reshape(x ** 4 + y ** 4, (1, -1))
+            return self._bkd.reshape(x**4 + y**4, (1, -1))
 
         info = _build_candidate_info(
-            self._bkd, nvars=2, selected_level=1,
-            candidate_index_tuple=(2, 0), target_fn=target_fn,
+            self._bkd,
+            nvars=2,
+            selected_level=1,
+            candidate_index_tuple=(2, 0),
+            target_fn=target_fn,
         )
         indicator = L2SurrogateDifferenceIndicator(self._bkd)
         priority, error = indicator(info)
@@ -220,11 +214,14 @@ class TestL2SurrogateDifference(Generic[Array], unittest.TestCase):
 
         def target_fn(samples: Array) -> Array:
             x, y = samples[0, :], samples[1, :]
-            return self._bkd.reshape(x ** 2 + y ** 2, (1, -1))
+            return self._bkd.reshape(x**2 + y**2, (1, -1))
 
         info = _build_candidate_info(
-            self._bkd, nvars=2, selected_level=1,
-            candidate_index_tuple=(2, 0), target_fn=target_fn,
+            self._bkd,
+            nvars=2,
+            selected_level=1,
+            candidate_index_tuple=(2, 0),
+            target_fn=target_fn,
         )
         indicator = L2SurrogateDifferenceIndicator(self._bkd)
         priority, error = indicator(info)
@@ -275,8 +272,11 @@ class TestL2NewSamples(Generic[Array], unittest.TestCase):
             return self._bkd.reshape(samples[0, :] + samples[1, :], (1, -1))
 
         info = _build_candidate_info(
-            self._bkd, nvars=2, selected_level=1,
-            candidate_index_tuple=(2, 0), target_fn=target_fn,
+            self._bkd,
+            nvars=2,
+            selected_level=1,
+            candidate_index_tuple=(2, 0),
+            target_fn=target_fn,
         )
         indicator = L2NewSamplesIndicator(self._bkd)
         priority, error = indicator(info)
@@ -287,11 +287,14 @@ class TestL2NewSamples(Generic[Array], unittest.TestCase):
 
         def target_fn(samples: Array) -> Array:
             x, y = samples[0, :], samples[1, :]
-            return self._bkd.reshape(x ** 4 + y ** 4, (1, -1))
+            return self._bkd.reshape(x**4 + y**4, (1, -1))
 
         info = _build_candidate_info(
-            self._bkd, nvars=2, selected_level=1,
-            candidate_index_tuple=(2, 0), target_fn=target_fn,
+            self._bkd,
+            nvars=2,
+            selected_level=1,
+            candidate_index_tuple=(2, 0),
+            target_fn=target_fn,
         )
         indicator = L2NewSamplesIndicator(self._bkd)
         priority, error = indicator(info)
@@ -343,8 +346,11 @@ class TestVarianceChange(Generic[Array], unittest.TestCase):
             return self._bkd.full((1, samples.shape[1]), 5.0)
 
         info = _build_candidate_info(
-            self._bkd, nvars=2, selected_level=1,
-            candidate_index_tuple=(2, 0), target_fn=target_fn,
+            self._bkd,
+            nvars=2,
+            selected_level=1,
+            candidate_index_tuple=(2, 0),
+            target_fn=target_fn,
         )
         indicator = VarianceChangeIndicator(self._bkd)
         priority, error = indicator(info)
@@ -361,8 +367,11 @@ class TestVarianceChange(Generic[Array], unittest.TestCase):
             return self._bkd.reshape(samples[0, :], (1, -1))
 
         info = _build_candidate_info(
-            self._bkd, nvars=2, selected_level=1,
-            candidate_index_tuple=(2, 0), target_fn=target_fn,
+            self._bkd,
+            nvars=2,
+            selected_level=1,
+            candidate_index_tuple=(2, 0),
+            target_fn=target_fn,
         )
         indicator = VarianceChangeIndicator(self._bkd)
         priority, error = indicator(info)
@@ -374,11 +383,14 @@ class TestVarianceChange(Generic[Array], unittest.TestCase):
 
         def target_fn(samples: Array) -> Array:
             x, y = samples[0, :], samples[1, :]
-            return self._bkd.reshape(x ** 4 + y ** 4, (1, -1))
+            return self._bkd.reshape(x**4 + y**4, (1, -1))
 
         info = _build_candidate_info(
-            self._bkd, nvars=2, selected_level=1,
-            candidate_index_tuple=(2, 0), target_fn=target_fn,
+            self._bkd,
+            nvars=2,
+            selected_level=1,
+            candidate_index_tuple=(2, 0),
+            target_fn=target_fn,
         )
         indicator = VarianceChangeIndicator(self._bkd)
         priority, error = indicator(info)
@@ -396,15 +408,16 @@ class TestVarianceChange(Generic[Array], unittest.TestCase):
             return self._bkd.reshape(samples[0, :], (1, -1))
 
         info = _build_candidate_info(
-            self._bkd, nvars=2, selected_level=0,
-            candidate_index_tuple=(1, 0), target_fn=target_fn,
+            self._bkd,
+            nvars=2,
+            selected_level=0,
+            candidate_index_tuple=(1, 0),
+            target_fn=target_fn,
         )
 
         # Verify the variance of sel+candidate surrogate
         var_new = info.sel_plus_candidate_surrogate.variance()
-        self._bkd.assert_allclose(
-            var_new, self._bkd.asarray([1.0 / 3.0]), rtol=1e-10
-        )
+        self._bkd.assert_allclose(var_new, self._bkd.asarray([1.0 / 3.0]), rtol=1e-10)
 
     def test_variance_of_x_squared_is_4_over_45(self) -> None:
         """Variance of x^2 on [-1,1]^2 should be 4/45.
@@ -419,16 +432,17 @@ class TestVarianceChange(Generic[Array], unittest.TestCase):
         # Level 1 has {(0,0),(1,0),(0,1)} — captures x up to degree 2
         # Add (2,0) to capture x^2 exactly
         info = _build_candidate_info(
-            self._bkd, nvars=2, selected_level=1,
-            candidate_index_tuple=(2, 0), target_fn=target_fn,
+            self._bkd,
+            nvars=2,
+            selected_level=1,
+            candidate_index_tuple=(2, 0),
+            target_fn=target_fn,
         )
 
         # The sel+candidate should have the correct variance
         var_new = info.sel_plus_candidate_surrogate.variance()
         expected = 4.0 / 45.0
-        self._bkd.assert_allclose(
-            var_new, self._bkd.asarray([expected]), rtol=1e-10
-        )
+        self._bkd.assert_allclose(var_new, self._bkd.asarray([expected]), rtol=1e-10)
 
 
 class TestVarianceChangeNumpy(TestVarianceChange[NDArray[Any]]):
@@ -470,12 +484,15 @@ class TestCostWeighted(Generic[Array], unittest.TestCase):
 
         def target_fn(samples: Array) -> Array:
             x, y = samples[0, :], samples[1, :]
-            return self._bkd.reshape(x ** 2 + y ** 2, (1, -1))
+            return self._bkd.reshape(x**2 + y**2, (1, -1))
 
         cost = 10.0
         info = _build_candidate_info(
-            self._bkd, nvars=2, selected_level=1,
-            candidate_index_tuple=(2, 0), target_fn=target_fn,
+            self._bkd,
+            nvars=2,
+            selected_level=1,
+            candidate_index_tuple=(2, 0),
+            target_fn=target_fn,
             subspace_cost=cost,
         )
 
@@ -503,11 +520,14 @@ class TestCostWeighted(Generic[Array], unittest.TestCase):
 
         def target_fn(samples: Array) -> Array:
             x, y = samples[0, :], samples[1, :]
-            return self._bkd.reshape(x ** 2 + y ** 2, (1, -1))
+            return self._bkd.reshape(x**2 + y**2, (1, -1))
 
         info = _build_candidate_info(
-            self._bkd, nvars=2, selected_level=1,
-            candidate_index_tuple=(2, 0), target_fn=target_fn,
+            self._bkd,
+            nvars=2,
+            selected_level=1,
+            candidate_index_tuple=(2, 0),
+            target_fn=target_fn,
             subspace_cost=None,
         )
 
@@ -527,16 +547,22 @@ class TestCostWeighted(Generic[Array], unittest.TestCase):
 
         def target_fn(samples: Array) -> Array:
             x, y = samples[0, :], samples[1, :]
-            return self._bkd.reshape(x ** 4 + y ** 4, (1, -1))
+            return self._bkd.reshape(x**4 + y**4, (1, -1))
 
         info_low_cost = _build_candidate_info(
-            self._bkd, nvars=2, selected_level=1,
-            candidate_index_tuple=(2, 0), target_fn=target_fn,
+            self._bkd,
+            nvars=2,
+            selected_level=1,
+            candidate_index_tuple=(2, 0),
+            target_fn=target_fn,
             subspace_cost=1.0,
         )
         info_high_cost = _build_candidate_info(
-            self._bkd, nvars=2, selected_level=1,
-            candidate_index_tuple=(2, 0), target_fn=target_fn,
+            self._bkd,
+            nvars=2,
+            selected_level=1,
+            candidate_index_tuple=(2, 0),
+            target_fn=target_fn,
             subspace_cost=100.0,
         )
 
@@ -562,16 +588,22 @@ class TestCostWeighted(Generic[Array], unittest.TestCase):
         # High-degree function: large error at level 1
         def hard_fn(samples: Array) -> Array:
             x, y = samples[0, :], samples[1, :]
-            return self._bkd.reshape(x ** 4 + y ** 4, (1, -1))
+            return self._bkd.reshape(x**4 + y**4, (1, -1))
 
         info_easy = _build_candidate_info(
-            self._bkd, nvars=2, selected_level=1,
-            candidate_index_tuple=(2, 0), target_fn=easy_fn,
+            self._bkd,
+            nvars=2,
+            selected_level=1,
+            candidate_index_tuple=(2, 0),
+            target_fn=easy_fn,
             subspace_cost=1.0,
         )
         info_hard = _build_candidate_info(
-            self._bkd, nvars=2, selected_level=1,
-            candidate_index_tuple=(2, 0), target_fn=hard_fn,
+            self._bkd,
+            nvars=2,
+            selected_level=1,
+            candidate_index_tuple=(2, 0),
+            target_fn=hard_fn,
             subspace_cost=1.0,
         )
 

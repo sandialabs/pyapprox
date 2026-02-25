@@ -2,11 +2,10 @@
 
 import unittest
 
-from pyapprox.util.test_utils import load_tests
-
 # Check for optional dependencies
 try:
-    import mpire
+    import mpire  # noqa: F401
+
     HAS_MPIRE = True
 except ImportError:
     HAS_MPIRE = False
@@ -206,11 +205,11 @@ class TestProtocolCompliance(unittest.TestCase):
 
     def test_joblib_protocol(self):
         """Test JoblibBackend implements protocol."""
-        from pyapprox.interface.parallel.protocols import (
-            ParallelBackendProtocol,
-        )
         from pyapprox.interface.parallel.joblib_backend import (
             JoblibBackend,
+        )
+        from pyapprox.interface.parallel.protocols import (
+            ParallelBackendProtocol,
         )
 
         backend = JoblibBackend(n_jobs=2)
@@ -219,24 +218,23 @@ class TestProtocolCompliance(unittest.TestCase):
     @unittest.skipUnless(HAS_MPIRE, "mpire not installed")
     def test_mpire_protocol(self):
         """Test MpireBackend implements protocol."""
-        from pyapprox.interface.parallel.protocols import (
-            ParallelBackendProtocol,
-        )
         from pyapprox.interface.parallel.mpire_backend import (
             MpireBackend,
+        )
+        from pyapprox.interface.parallel.protocols import (
+            ParallelBackendProtocol,
         )
 
         backend = MpireBackend(n_jobs=2)
         self.assertTrue(isinstance(backend, ParallelBackendProtocol))
 
-
     def test_futures_protocol(self):
         """Test FuturesBackend implements protocol."""
-        from pyapprox.interface.parallel.protocols import (
-            ParallelBackendProtocol,
-        )
         from pyapprox.interface.parallel.futures_backend import (
             FuturesBackend,
+        )
+        from pyapprox.interface.parallel.protocols import (
+            ParallelBackendProtocol,
         )
 
         backend = FuturesBackend(n_jobs=2)

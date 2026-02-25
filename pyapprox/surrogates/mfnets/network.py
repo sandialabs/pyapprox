@@ -10,10 +10,10 @@ from typing import Any, Dict, Generic, List, Optional
 
 import networkx as nx
 
+from pyapprox.surrogates.mfnets.edges import MFNetEdge
+from pyapprox.surrogates.mfnets.nodes import MFNetNode
 from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.util.hyperparameter import HyperParameterList
-from pyapprox.surrogates.mfnets.nodes import MFNetNode
-from pyapprox.surrogates.mfnets.edges import MFNetEdge
 
 
 class MFNet(Generic[Array]):
@@ -57,8 +57,7 @@ class MFNet(Generic[Array]):
         """Total QoI: sum of root nodes' nqoi."""
         self._check_validated()
         return sum(
-            self._graph.nodes[nid]["node"].model().nqoi()
-            for nid in self._root_ids
+            self._graph.nodes[nid]["node"].model().nqoi() for nid in self._root_ids
         )
 
     def graph(self) -> nx.DiGraph:
@@ -73,9 +72,7 @@ class MFNet(Generic[Array]):
             The node to add.
         """
         if not isinstance(node, MFNetNode):
-            raise TypeError(
-                f"node must be MFNetNode, got {type(node).__name__}"
-            )
+            raise TypeError(f"node must be MFNetNode, got {type(node).__name__}")
         self._graph.add_node(node.node_id(), node=node)
         self._validated = False
 
@@ -88,12 +85,8 @@ class MFNet(Generic[Array]):
             The edge to add. Direction: child -> parent.
         """
         if not isinstance(edge, MFNetEdge):
-            raise TypeError(
-                f"edge must be MFNetEdge, got {type(edge).__name__}"
-            )
-        self._graph.add_edge(
-            edge.child_node_id(), edge.parent_node_id(), edge=edge
-        )
+            raise TypeError(f"edge must be MFNetEdge, got {type(edge).__name__}")
+        self._graph.add_edge(edge.child_node_id(), edge.parent_node_id(), edge=edge)
         self._validated = False
 
     def validate(self) -> None:
@@ -124,12 +117,10 @@ class MFNet(Generic[Array]):
 
         # Classify nodes
         self._leaf_ids = [
-            nid for nid in self._topo_order
-            if self._graph.nodes[nid]["node"].is_leaf()
+            nid for nid in self._topo_order if self._graph.nodes[nid]["node"].is_leaf()
         ]
         self._root_ids = [
-            nid for nid in self._topo_order
-            if self._graph.nodes[nid]["node"].is_root()
+            nid for nid in self._topo_order if self._graph.nodes[nid]["node"].is_root()
         ]
 
         # Validate edges
@@ -166,9 +157,7 @@ class MFNet(Generic[Array]):
     def nodes(self) -> List[MFNetNode[Array]]:
         """Return all nodes in topological order."""
         self._check_validated()
-        return [
-            self._graph.nodes[nid]["node"] for nid in self._topo_order
-        ]
+        return [self._graph.nodes[nid]["node"] for nid in self._topo_order]
 
     def node(self, node_id: int) -> MFNetNode[Array]:
         """Return a specific node by id."""
@@ -259,9 +248,7 @@ class MFNet(Generic[Array]):
         stacked_child = self._bkd.vstack(child_val_parts)
 
         # Augmented input: [x_active; child_outputs]
-        augmented = self._bkd.vstack(
-            [samples[active_vars], stacked_child]
-        )
+        augmented = self._bkd.vstack([samples[active_vars], stacked_child])
 
         values = node.model()(augmented)
         cache[node_id] = values
@@ -283,16 +270,13 @@ class MFNet(Generic[Array]):
         self._check_validated()
         cache: Dict[int, Array] = {}
         root_vals = [
-            self.subgraph_values(samples, nid, cache)
-            for nid in self._root_ids
+            self.subgraph_values(samples, nid, cache) for nid in self._root_ids
         ]
         return self._bkd.vstack(root_vals)
 
     def _check_validated(self) -> None:
         if not self._validated:
-            raise RuntimeError(
-                "MFNet has not been validated. Call validate() first."
-            )
+            raise RuntimeError("MFNet has not been validated. Call validate() first.")
 
     def _sync_from_hyp_list(self) -> None:
         """Sync all node models from the aggregated hyp_list.
@@ -310,5 +294,5 @@ class MFNet(Generic[Array]):
         for node_id in self._topo_order:
             node = self._graph.nodes[node_id]["node"]
             model = node.model()
-            if hasattr(model, '_sync_from_hyp_list'):
+            if hasattr(model, "_sync_from_hyp_list"):
                 model._sync_from_hyp_list()

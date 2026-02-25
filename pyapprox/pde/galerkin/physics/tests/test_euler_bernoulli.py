@@ -8,22 +8,22 @@ Tests the analytical and FEM implementations using:
 - Tip deflection agreement between analytical and FEM
 """
 
+import unittest
 from typing import Any, Generic
 
 import numpy as np
+import torch
 from numpy.typing import NDArray
 from scipy.sparse import issparse
-import torch
-import unittest
 
-from pyapprox.util.backends.numpy import NumpyBkd
-from pyapprox.util.backends.torch import TorchBkd
-from pyapprox.util.backends.protocols import Array
-from pyapprox.util.test_utils import load_tests  # noqa: F401
 from pyapprox.pde.galerkin.physics.euler_bernoulli import (
     EulerBernoulliBeamAnalytical,
     EulerBernoulliBeamFEM,
 )
+from pyapprox.util.backends.numpy import NumpyBkd
+from pyapprox.util.backends.protocols import Array
+from pyapprox.util.backends.torch import TorchBkd
+from pyapprox.util.test_utils import load_tests  # noqa: F401
 
 
 def _to_dense(mat):
@@ -717,7 +717,9 @@ class TestEulerBernoulliVaryingEI(Generic[Array], unittest.TestCase):
         for i in range(len(diffs) - 1):
             self.assertLess(
                 diffs[i + 1], diffs[i],
-                f"Not converging: diff[{i+1}]={diffs[i+1]:.2e} >= diff[{i}]={diffs[i]:.2e}",
+                f"Not converging: diff[{i+1}]="
+                f"{diffs[i+1]:.2e} >= "
+                f"diff[{i}]={diffs[i]:.2e}",
             )
         # Final refinement difference should be small (O(h^2) convergence)
         self.assertLess(diffs[-1], 5e-6)

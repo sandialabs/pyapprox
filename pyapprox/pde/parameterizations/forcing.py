@@ -2,10 +2,10 @@
 
 from typing import Callable, Generic, Optional
 
-from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.pde.field_maps.protocol import (
     FieldMapProtocol,
 )
+from pyapprox.util.backends.protocols import Array, Backend
 
 
 class ForcingParameterization(Generic[Array]):
@@ -34,7 +34,9 @@ class ForcingParameterization(Generic[Array]):
             )
         self._field_map = field_map
         self._bkd = bkd
-        self._time_mod = time_modulation if time_modulation is not None else lambda t: 1.0
+        self._time_mod = (
+            time_modulation if time_modulation is not None else lambda t: 1.0
+        )
 
         # Dynamic binding: param_jacobian only if field_map has jacobian
         if hasattr(self._field_map, "jacobian"):
@@ -68,9 +70,7 @@ class ForcingParameterization(Generic[Array]):
         mod = self._time_mod(time)
         return fm_jac * mod
 
-    def _initial_param_jacobian(
-        self, physics: object, params_1d: Array
-    ) -> Array:
+    def _initial_param_jacobian(self, physics: object, params_1d: Array) -> Array:
         """Return d(initial_state)/d(params). Shape: (nstates, nparams)."""
         npts = physics.npts()
         return self._bkd.zeros((npts, self.nparams()))

@@ -158,6 +158,6 @@ def load_tests(
     for group in cast(Iterable[Iterable[unittest.TestCase]], tests):
         for test in group:
             # Check __dict__ directly to avoid inheritance issues
-            if test.__class__.__dict__.get('__test__', True):
+            if test.__class__.__dict__.get("__test__", True):
                 suite.addTest(test)
     return suite

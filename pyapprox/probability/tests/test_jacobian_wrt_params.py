@@ -7,30 +7,29 @@ Uses parametrized tests to validate analytical Jacobians against:
 """
 
 import unittest
-from typing import Any, Callable
+from typing import Callable
 
 import numpy as np
 import torch
 from torch.autograd.functional import jacobian as torch_jacobian
 from unittest_parametrize import ParametrizedTestCase, parametrize
 
-from pyapprox.util.backends.protocols import Array, Backend
-from pyapprox.util.backends.numpy import NumpyBkd
-from pyapprox.util.backends.torch import TorchBkd
-from pyapprox.util.test_utils import load_tests
-from pyapprox.probability.univariate import (
-    GaussianMarginal,
-    UniformMarginal,
-    BetaMarginal,
-    GammaMarginal,
-)
-from pyapprox.probability.joint import IndependentJoint
 from pyapprox.interface.functions.derivative_checks.derivative_checker import (
     DerivativeChecker,
 )
 from pyapprox.interface.functions.fromcallable.jacobian import (
     FunctionWithJacobianFromCallable,
 )
+from pyapprox.probability.joint import IndependentJoint
+from pyapprox.probability.univariate import (
+    BetaMarginal,
+    GammaMarginal,
+    GaussianMarginal,
+    UniformMarginal,
+)
+from pyapprox.util.backends.numpy import NumpyBkd
+from pyapprox.util.backends.protocols import Array, Backend
+from pyapprox.util.backends.torch import TorchBkd
 
 
 def create_gaussian(bkd: Backend[Array]) -> GaussianMarginal:
@@ -73,9 +72,7 @@ class TestParamJacobianDerivativeChecker(ParametrizedTestCase):
         "name,factory,expected_nparams",
         DISTRIBUTIONS,
     )
-    def test_nparams(
-        self, name: str, factory: Callable, expected_nparams: int
-    ) -> None:
+    def test_nparams(self, name: str, factory: Callable, expected_nparams: int) -> None:
         """Test nparams returns expected value."""
         bkd = NumpyBkd()
         dist = factory(bkd)

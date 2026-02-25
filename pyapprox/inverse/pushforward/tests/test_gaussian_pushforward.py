@@ -3,16 +3,16 @@ Tests for Gaussian pushforward.
 """
 
 import unittest
-from typing import Generic, Any
+from typing import Any, Generic
 
 import numpy as np
-from numpy.typing import NDArray
 import torch
+from numpy.typing import NDArray
 
-from pyapprox.util.backends.protocols import Array, Backend
-from pyapprox.util.backends.numpy import NumpyBkd
-from pyapprox.util.backends.torch import TorchBkd
 from pyapprox.inverse.pushforward.gaussian import GaussianPushforward
+from pyapprox.util.backends.numpy import NumpyBkd
+from pyapprox.util.backends.protocols import Array, Backend
+from pyapprox.util.backends.torch import TorchBkd
 
 
 class TestGaussianPushforwardBase(Generic[Array], unittest.TestCase):
@@ -30,9 +30,7 @@ class TestGaussianPushforwardBase(Generic[Array], unittest.TestCase):
         self.nqoi = 2
 
         # Linear transformation matrix (full rank for positive definite output)
-        self.matrix = self.bkd().asarray(
-            [[1.0, 0.5], [0.5, 1.0]]
-        )
+        self.matrix = self.bkd().asarray([[1.0, 0.5], [0.5, 1.0]])
 
         # Input Gaussian
         self.mean = self.bkd().asarray([[1.0], [2.0]])
@@ -42,9 +40,7 @@ class TestGaussianPushforwardBase(Generic[Array], unittest.TestCase):
         self.offset = self.bkd().asarray([[0.1], [0.2]])
 
         # Create pushforward without offset
-        self.pf = GaussianPushforward(
-            self.matrix, self.mean, self.cov, self.bkd()
-        )
+        self.pf = GaussianPushforward(self.matrix, self.mean, self.cov, self.bkd())
 
         # Create pushforward with offset
         self.pf_offset = GaussianPushforward(
@@ -85,8 +81,8 @@ class TestGaussianPushforwardBase(Generic[Array], unittest.TestCase):
     def test_pushforward_variable_returns_gaussian(self) -> None:
         """Test pushforward_variable returns a Gaussian distribution."""
         pf_var = self.pf.pushforward_variable()
-        self.assertTrue(hasattr(pf_var, 'logpdf'))
-        self.assertTrue(hasattr(pf_var, 'rvs'))
+        self.assertTrue(hasattr(pf_var, "logpdf"))
+        self.assertTrue(hasattr(pf_var, "rvs"))
 
 
 class TestGaussianPushforwardAnalytical(Generic[Array], unittest.TestCase):
@@ -131,21 +127,15 @@ class TestGaussianPushforwardAnalytical(Generic[Array], unittest.TestCase):
         nvars = 3
         matrix = self.bkd().eye(nvars)
         mean = self.bkd().asarray([[1.0], [2.0], [3.0]])
-        cov = self.bkd().asarray(
-            [[1.0, 0.2, 0.1], [0.2, 1.0, 0.3], [0.1, 0.3, 1.0]]
-        )
+        cov = self.bkd().asarray([[1.0, 0.2, 0.1], [0.2, 1.0, 0.3], [0.1, 0.3, 1.0]])
 
         pf = GaussianPushforward(matrix, mean, cov, self.bkd())
 
         pf_mean = self.bkd().to_numpy(pf.mean())
         pf_cov = self.bkd().to_numpy(pf.covariance())
 
-        np.testing.assert_array_almost_equal(
-            pf_mean, self.bkd().to_numpy(mean)
-        )
-        np.testing.assert_array_almost_equal(
-            pf_cov, self.bkd().to_numpy(cov)
-        )
+        np.testing.assert_array_almost_equal(pf_mean, self.bkd().to_numpy(mean))
+        np.testing.assert_array_almost_equal(pf_cov, self.bkd().to_numpy(cov))
 
     def test_scalar_output(self) -> None:
         """Test pushforward to 1D output."""
@@ -272,9 +262,6 @@ class TestGaussianPushforwardValidationTorch(
 
     def bkd(self) -> Backend[torch.Tensor]:
         return self._bkd
-
-
-from pyapprox.util.test_utils import load_tests
 
 
 if __name__ == "__main__":

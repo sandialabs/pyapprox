@@ -17,12 +17,12 @@ from .conjugate import (
 )
 from .forward_model import (
     ObservationOperatorProtocol,
-    ObservationOperatorWithJacobianProtocol,
     ObservationOperatorWithHessianProtocol,
+    ObservationOperatorWithJacobianProtocol,
 )
 from .laplace import (
-    LaplacePosteriorProtocol,
     HessianMatVecOperatorProtocol,
+    LaplacePosteriorProtocol,
 )
 from .posterior import (
     LogUnNormalizedPosteriorProtocol,

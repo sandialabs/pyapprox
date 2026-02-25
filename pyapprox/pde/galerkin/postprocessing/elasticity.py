@@ -33,12 +33,28 @@ def _shape_function_derivatives_quad(xi: float, eta: float) -> tuple:
     dN_dxi : np.ndarray, shape (4,)
     dN_deta : np.ndarray, shape (4,)
     """
-    dN_dxi = np.array([
-        -(1 - eta), (1 - eta), (1 + eta), -(1 + eta),
-    ]) / 4.0
-    dN_deta = np.array([
-        -(1 - xi), -(1 + xi), (1 + xi), (1 - xi),
-    ]) / 4.0
+    dN_dxi = (
+        np.array(
+            [
+                -(1 - eta),
+                (1 - eta),
+                (1 + eta),
+                -(1 + eta),
+            ]
+        )
+        / 4.0
+    )
+    dN_deta = (
+        np.array(
+            [
+                -(1 - xi),
+                -(1 + xi),
+                (1 + xi),
+                (1 - xi),
+            ]
+        )
+        / 4.0
+    )
     return dN_dxi, dN_deta
 
 
@@ -217,7 +233,11 @@ def von_mises_stress_2d(
     ... )
     """
     exx, eyy, exy = strain_from_displacement_2d(
-        coordx, coordy, connectivity, ux, uy,
+        coordx,
+        coordy,
+        connectivity,
+        ux,
+        uy,
     )
     sxx, syy, sxy = stress_from_strain_2d(exx, eyy, exy, lam, mu)
     return np.sqrt(sxx**2 - sxx * syy + syy**2 + 3.0 * sxy**2)

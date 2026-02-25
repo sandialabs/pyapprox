@@ -57,24 +57,16 @@ class WeightedSumFunctional(Generic[Array]):
     def state_jacobian(self, state: Array, param: Array) -> Array:
         return self._weights.T
 
-    def param_param_hvp(
-        self, state: Array, param: Array, vvec: Array
-    ) -> Array:
+    def param_param_hvp(self, state: Array, param: Array, vvec: Array) -> Array:
         return self._bkd.zeros((self.nparams(), 1))
 
-    def state_state_hvp(
-        self, state: Array, param: Array, vvec: Array
-    ) -> Array:
+    def state_state_hvp(self, state: Array, param: Array, vvec: Array) -> Array:
         return self._bkd.zeros((self.nstates(), 1))
 
-    def param_state_hvp(
-        self, state: Array, param: Array, vvec: Array
-    ) -> Array:
+    def param_state_hvp(self, state: Array, param: Array, vvec: Array) -> Array:
         return self._bkd.zeros((self.nparams(), 1))
 
-    def state_param_hvp(
-        self, state: Array, param: Array, vvec: Array
-    ) -> Array:
+    def state_param_hvp(self, state: Array, param: Array, vvec: Array) -> Array:
         return self._bkd.zeros((self.nstates(), 1))
 
     def __repr__(self) -> str:

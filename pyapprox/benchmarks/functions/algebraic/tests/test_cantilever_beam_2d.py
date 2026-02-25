@@ -1,21 +1,20 @@
 """Tests for the analytical 2D cantilever beam model."""
 
-from typing import Any, Generic
 import unittest
+from typing import Any, Generic
 
-import numpy as np
-from numpy.typing import NDArray
 import torch
+from numpy.typing import NDArray
 
-from pyapprox.util.backends.numpy import NumpyBkd
-from pyapprox.util.backends.torch import TorchBkd
-from pyapprox.util.backends.protocols import Array
-from pyapprox.util.test_utils import load_tests  # noqa: F401
 from pyapprox.benchmarks.functions.algebraic.cantilever_beam_2d import (
     CantileverBeam2DAnalytical,
     CantileverBeam2DConstraints,
     CantileverBeam2DObjective,
 )
+from pyapprox.util.backends.numpy import NumpyBkd
+from pyapprox.util.backends.protocols import Array
+from pyapprox.util.backends.torch import TorchBkd
+from pyapprox.util.test_utils import load_tests  # noqa: F401
 
 
 class TestCantileverBeam2DAnalytical(Generic[Array], unittest.TestCase):
@@ -30,14 +29,16 @@ class TestCantileverBeam2DAnalytical(Generic[Array], unittest.TestCase):
 
     def _nominal_sample(self) -> Array:
         """Return a nominal sample (X, Y, E, R, w, t)."""
-        return self._bkd.array([
-            [500.0],
-            [1000.0],
-            [2.9e7],
-            [40000.0],
-            [2.5],
-            [3.0],
-        ])
+        return self._bkd.array(
+            [
+                [500.0],
+                [1000.0],
+                [2.9e7],
+                [40000.0],
+                [2.5],
+                [3.0],
+            ]
+        )
 
     def test_output_shape(self):
         """Verify output shape for single and batch evaluations."""
@@ -122,12 +123,14 @@ class TestCantileverBeam2DAnalytical(Generic[Array], unittest.TestCase):
         w, t = sample[4, 0], sample[5, 0]
         L = 100.0
 
-        legacy_stress_constraint = (
-            1.0 - 6.0 * L / (w * t) * (X / w + Y / t) / R
-        )
+        legacy_stress_constraint = 1.0 - 6.0 * L / (w * t) * (X / w + Y / t) / R
         legacy_disp_constraint = (
-            1.0 - 4.0 * L**3 / (E * w * t)
-            * bkd.sqrt(bkd.asarray([X**2 / w**4 + Y**2 / t**4]))[0] / D0
+            1.0
+            - 4.0
+            * L**3
+            / (E * w * t)
+            * bkd.sqrt(bkd.asarray([X**2 / w**4 + Y**2 / t**4]))[0]
+            / D0
         )
 
         bkd.assert_allclose(
@@ -178,9 +181,16 @@ class TestCantileverBeam2DConstraints(Generic[Array], unittest.TestCase):
         self._model = CantileverBeam2DConstraints(beam, self._R, self._D0)
 
     def _nominal_sample(self) -> Array:
-        return self._bkd.array([
-            [500.0], [1000.0], [2.9e7], [40000.0], [2.5], [3.0],
-        ])
+        return self._bkd.array(
+            [
+                [500.0],
+                [1000.0],
+                [2.9e7],
+                [40000.0],
+                [2.5],
+                [3.0],
+            ]
+        )
 
     def test_output_shape(self):
         """Verify output shape."""
@@ -256,9 +266,16 @@ class TestCantileverBeam2DObjective(Generic[Array], unittest.TestCase):
         self._model = CantileverBeam2DObjective(self._bkd)
 
     def _nominal_sample(self) -> Array:
-        return self._bkd.array([
-            [500.0], [1000.0], [2.9e7], [40000.0], [2.5], [3.0],
-        ])
+        return self._bkd.array(
+            [
+                [500.0],
+                [1000.0],
+                [2.9e7],
+                [40000.0],
+                [2.5],
+                [3.0],
+            ]
+        )
 
     def test_output_shape(self):
         result = self._model(self._nominal_sample())
@@ -316,15 +333,15 @@ class TestCantileverBeam2DObjectiveTorch(
 class TestCantileverBeam2DRegistry(unittest.TestCase):
     def test_registry_access(self):
         """Verify benchmark is accessible from registry."""
+        # Trigger registration
+        import pyapprox.benchmarks.instances.analytic.cantilever_beam_2d  # noqa: F401
         from pyapprox.benchmarks.registry import BenchmarkRegistry
         from pyapprox.util.backends.numpy import NumpyBkd
 
-        # Trigger registration
-        import pyapprox.benchmarks.instances.analytic.cantilever_beam_2d  # noqa: F401
-
         bkd = NumpyBkd()
         bm = BenchmarkRegistry.get(
-            "cantilever_beam_2d_analytical", bkd=bkd,
+            "cantilever_beam_2d_analytical",
+            bkd=bkd,
         )
         func = bm.function()
         self.assertEqual(func.nvars(), 6)

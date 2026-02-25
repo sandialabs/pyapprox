@@ -11,9 +11,9 @@ the Newton residual/Jacobian).
 
 from typing import Generic, Tuple
 
-from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.pde.time.protocols.base import TimeSteppingResidualBase
 from pyapprox.pde.time.protocols.ode_residual import ODEResidualProtocol
+from pyapprox.util.backends.protocols import Array, Backend
 
 
 class BCEnforcingTimeResidual(Generic[Array]):
@@ -52,16 +52,10 @@ class BCEnforcingTimeResidual(Generic[Array]):
         if hasattr(self._inner, "param_jacobian"):
             self.param_jacobian = self._param_jacobian_impl
             self.adjoint_diag_jacobian = self._adjoint_diag_jacobian_impl
-            self.adjoint_off_diag_jacobian = (
-                self._adjoint_off_diag_jacobian_impl
-            )
-            self.adjoint_initial_condition = (
-                self._adjoint_initial_condition_impl
-            )
+            self.adjoint_off_diag_jacobian = self._adjoint_off_diag_jacobian_impl
+            self.adjoint_initial_condition = self._adjoint_initial_condition_impl
             if hasattr(self._inner, "initial_param_jacobian"):
-                self.initial_param_jacobian = (
-                    self._initial_param_jacobian_impl
-                )
+                self.initial_param_jacobian = self._initial_param_jacobian_impl
         if hasattr(self._inner, "state_state_hvp"):
             self.state_state_hvp = self._state_state_hvp_impl
             self.state_param_hvp = self._state_param_hvp_impl
@@ -80,9 +74,7 @@ class BCEnforcingTimeResidual(Generic[Array]):
         """Return the computational backend."""
         return self._bkd
 
-    def set_time(
-        self, time: float, deltat: float, prev_state: Array
-    ) -> None:
+    def set_time(self, time: float, deltat: float, prev_state: Array) -> None:
         """Set time stepping context and track t_{n+1}."""
         self._inner.set_time(time, deltat, prev_state)
         self._t_np1 = time + deltat
@@ -131,9 +123,7 @@ class BCEnforcingTimeResidual(Generic[Array]):
         Symmetric to the adjoint fix: adjoint zeros columns of B_n^T,
         forward zeros rows of B_n.
         """
-        result = self._inner.sensitivity_off_diag_jacobian(
-            fsol_nm1, fsol_n, deltat
-        )
+        result = self._inner.sensitivity_off_diag_jacobian(fsol_nm1, fsol_n, deltat)
         result = self._bkd.copy(result)
         for idx in self._row_replaced:
             result[idx, :] = 0.0
@@ -167,14 +157,10 @@ class BCEnforcingTimeResidual(Generic[Array]):
         dqdu_0 = self.zero_adjoint_rhs(dqdu_0)
         mass = self._inner._residual.mass_matrix(fsol_0.shape[0]).T
         mass = self._physics.apply_bc_to_mass(mass)
-        drduT_offdiag = self._adjoint_off_diag_jacobian_impl(
-            fsol_0, deltat_1
-        )
+        drduT_offdiag = self._adjoint_off_diag_jacobian_impl(fsol_0, deltat_1)
         return self._bkd.solve(mass, -drduT_offdiag @ asol_1 - dqdu_0)
 
-    def quadrature_samples_weights(
-        self, times: Array
-    ) -> Tuple[Array, Array]:
+    def quadrature_samples_weights(self, times: Array) -> Tuple[Array, Array]:
         """Compute quadrature rule consistent with time discretization."""
         return self._inner.quadrature_samples_weights(times)
 
@@ -182,9 +168,7 @@ class BCEnforcingTimeResidual(Generic[Array]):
     # BC zeroing helpers
     # =========================================================================
 
-    def _zero_bc_rows(
-        self, matrix: Array, zero_bc_rows: bool = True
-    ) -> Array:
+    def _zero_bc_rows(self, matrix: Array, zero_bc_rows: bool = True) -> Array:
         """Zero rows at row-replaced DOFs.
 
         Parameters
@@ -205,9 +189,7 @@ class BCEnforcingTimeResidual(Generic[Array]):
                     matrix[idx, :] = 0.0
         return matrix
 
-    def zero_adjoint_rhs(
-        self, dqdu: Array, zero_essential: bool = True
-    ) -> Array:
+    def zero_adjoint_rhs(self, dqdu: Array, zero_essential: bool = True) -> Array:
         """Zero dQ/dy at essential (Dirichlet) BC DOFs.
 
         Parameters
@@ -236,9 +218,7 @@ class BCEnforcingTimeResidual(Generic[Array]):
     # Adjoint methods (conditionally bound)
     # =========================================================================
 
-    def _param_jacobian_impl(
-        self, fsol_nm1: Array, fsol_n: Array
-    ) -> Array:
+    def _param_jacobian_impl(self, fsol_nm1: Array, fsol_n: Array) -> Array:
         """Compute parameter Jacobian dR/dp with BC corrections."""
         result = self._inner.param_jacobian(fsol_nm1, fsol_n)
         if hasattr(self._physics, "boundary_conditions"):
@@ -247,7 +227,9 @@ class BCEnforcingTimeResidual(Generic[Array]):
                     bc, fsol_n, self._t_np1
                 )
                 result = bc.apply_to_param_jacobian(
-                    result, fsol_n, self._t_np1,
+                    result,
+                    fsol_n,
+                    self._t_np1,
                     physical_sensitivities=phys_sens,
                 )
         else:
@@ -267,14 +249,14 @@ class BCEnforcingTimeResidual(Generic[Array]):
         if not hasattr(bc, "normal_operator"):
             return None
         normal_op = bc.normal_operator()
-        if not (hasattr(normal_op, "has_coefficient_dependence")
-                and normal_op.has_coefficient_dependence()):
+        if not (
+            hasattr(normal_op, "has_coefficient_dependence")
+            and normal_op.has_coefficient_dependence()
+        ):
             return None
         bc_idx = bc.boundary_indices()
         normals = normal_op.normals()
-        dflux_n_dp = native.bc_flux_param_sensitivity(
-            state_1d, time, bc_idx, normals
-        )
+        dflux_n_dp = native.bc_flux_param_sensitivity(state_1d, time, bc_idx, normals)
         if dflux_n_dp is None:
             return None
         return {"dflux_n_dp": dflux_n_dp}
@@ -339,9 +321,7 @@ class BCEnforcingTimeResidual(Generic[Array]):
 
         Second derivatives of replaced BC rows are zero for all BC types.
         """
-        result = self._inner.state_state_hvp(
-            fsol_nm1, fsol_n, adj_state, wvec
-        )
+        result = self._inner.state_state_hvp(fsol_nm1, fsol_n, adj_state, wvec)
         result = self._bkd.copy(result)
         for idx in self._row_replaced:
             result[idx] = 0.0
@@ -358,9 +338,7 @@ class BCEnforcingTimeResidual(Generic[Array]):
 
         Second derivatives of replaced BC rows are zero for all BC types.
         """
-        result = self._inner.state_param_hvp(
-            fsol_nm1, fsol_n, adj_state, vvec
-        )
+        result = self._inner.state_param_hvp(fsol_nm1, fsol_n, adj_state, vvec)
         result = self._bkd.copy(result)
         for idx in self._row_replaced:
             result[idx] = 0.0
@@ -374,9 +352,7 @@ class BCEnforcingTimeResidual(Generic[Array]):
         wvec: Array,
     ) -> Array:
         """Compute (d^2R/dp dy_n)w contracted with adjoint."""
-        return self._inner.param_state_hvp(
-            fsol_nm1, fsol_n, adj_state, wvec
-        )
+        return self._inner.param_state_hvp(fsol_nm1, fsol_n, adj_state, wvec)
 
     def _param_param_hvp_impl(
         self,
@@ -386,9 +362,7 @@ class BCEnforcingTimeResidual(Generic[Array]):
         vvec: Array,
     ) -> Array:
         """Compute (d^2R/dp^2)v contracted with adjoint."""
-        return self._inner.param_param_hvp(
-            fsol_nm1, fsol_n, adj_state, vvec
-        )
+        return self._inner.param_param_hvp(fsol_nm1, fsol_n, adj_state, vvec)
 
     def __repr__(self) -> str:
         return (

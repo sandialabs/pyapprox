@@ -16,25 +16,25 @@ IsotropicSparseGridBasisIndexGenerator
 """
 
 from abc import ABC, abstractmethod
-from typing import Generic, List, Optional, Dict, Union
+from typing import Dict, Generic, List, Optional, Union
 
-from pyapprox.util.backends.protocols import Array, Backend
+from pyapprox.surrogates.affine.indices.admissibility import (
+    AdmissibilityCriteria,
+    CompositeCriteria,
+    Max1DLevelsCriteria,
+    MaxLevelCriteria,
+)
+from pyapprox.surrogates.affine.indices.growth_rules import (
+    IndexGrowthRule,
+    LinearGrowthRule,
+)
 from pyapprox.surrogates.affine.indices.utils import (
     compute_hyperbolic_indices,
     hash_index,
     indices_pnorm,
     sort_indices_lexiographically,
 )
-from pyapprox.surrogates.affine.indices.admissibility import (
-    AdmissibilityCriteria,
-    MaxLevelCriteria,
-    Max1DLevelsCriteria,
-    CompositeCriteria,
-)
-from pyapprox.surrogates.affine.indices.growth_rules import (
-    IndexGrowthRule,
-    LinearGrowthRule,
-)
+from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.util.cartesian import cartesian_product_indices
 
 
@@ -197,7 +197,11 @@ class IndexGenerator(ABC, Generic[Array]):
         return indices
 
     def __repr__(self) -> str:
-        return f"{self.__class__.__name__}(nvars={self.nvars()}, nindices={self.nindices()})"
+        return (
+            f"{self.__class__.__name__}"
+            f"(nvars={self.nvars()}, "
+            f"nindices={self.nindices()})"
+        )
 
 
 class IterativeIndexGenerator(IndexGenerator[Array], Generic[Array]):

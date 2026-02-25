@@ -9,13 +9,13 @@ parameterization for all elasticity types.
 
 from typing import Generic, List
 
-from pyapprox.util.backends.protocols import Array, Backend
-from pyapprox.pde.field_maps.protocol import (
-    FieldMapProtocol,
-)
 from pyapprox.pde.collocation.protocols.basis import (
     TensorProductBasisProtocol,
 )
+from pyapprox.pde.field_maps.protocol import (
+    FieldMapProtocol,
+)
+from pyapprox.util.backends.protocols import Array, Backend
 
 
 class YoungModulusParameterization(Generic[Array]):
@@ -103,17 +103,14 @@ class YoungModulusParameterization(Generic[Array]):
             delta_E = fm_jac[:, j]
             delta_mu = delta_E * self._dmu_dE
             delta_lam = delta_E * self._dlam_dE
-            col = (
-                physics.residual_mu_sensitivity(state, time, delta_mu)
-                + physics.residual_lamda_sensitivity(state, time, delta_lam)
-            )
+            col = physics.residual_mu_sensitivity(
+                state, time, delta_mu
+            ) + physics.residual_lamda_sensitivity(state, time, delta_lam)
             for k in range(nstates):
                 result[k, j] = col[k]
         return result
 
-    def _initial_param_jacobian(
-        self, physics: object, params_1d: Array
-    ) -> Array:
+    def _initial_param_jacobian(self, physics: object, params_1d: Array) -> Array:
         """Return d(initial_state)/d(params). Shape: (nstates, nparams)."""
         return self._bkd.zeros((physics.nstates(), self.nparams()))
 
@@ -159,13 +156,11 @@ class YoungModulusParameterization(Generic[Array]):
 
         # d(traction)/dE at boundary
         dtx_dE = (
-            (2.0 * exx * nx + 2.0 * exy * ny) * self._dmu_dE
-            + trace_e * nx * self._dlam_dE
-        )
+            2.0 * exx * nx + 2.0 * exy * ny
+        ) * self._dmu_dE + trace_e * nx * self._dlam_dE
         dty_dE = (
-            (2.0 * exy * nx + 2.0 * eyy * ny) * self._dmu_dE
-            + trace_e * ny * self._dlam_dE
-        )
+            2.0 * exy * nx + 2.0 * eyy * ny
+        ) * self._dmu_dE + trace_e * ny * self._dlam_dE
 
         # d(traction)/dp = d(traction)/dE * dE/dp
         dE_dp_bc = fm_jac[bc_indices, :]  # (n_bc, nparams)
@@ -195,10 +190,5 @@ def create_youngs_modulus_parameterization(
     poisson_ratio : float
         Fixed Poisson ratio.
     """
-    D_matrices = [
-        basis.derivative_matrix(1, dim)
-        for dim in range(basis.ndim())
-    ]
-    return YoungModulusParameterization(
-        field_map, D_matrices, bkd, poisson_ratio
-    )
+    D_matrices = [basis.derivative_matrix(1, dim) for dim in range(basis.ndim())]
+    return YoungModulusParameterization(field_map, D_matrices, bkd, poisson_ratio)

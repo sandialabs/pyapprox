@@ -12,11 +12,11 @@ where:
 
 from typing import Generic, Optional
 
-from pyapprox.util.backends.protocols import Array, Backend
-from pyapprox.expdesign.likelihood import GaussianOEDInnerLoopLikelihood
-from pyapprox.expdesign.evidence import Evidence
 from pyapprox.expdesign.deviation.base import DeviationMeasure
+from pyapprox.expdesign.evidence import Evidence
+from pyapprox.expdesign.likelihood import GaussianOEDInnerLoopLikelihood
 from pyapprox.expdesign.statistics.base import SampleStatistic
+from pyapprox.util.backends.protocols import Array, Backend
 
 
 class PredictionOEDObjective(Generic[Array]):
@@ -204,9 +204,7 @@ class PredictionOEDObjective(Generic[Array]):
 
         # Reshape to (npred, nouter)
         # deviations[q, o] = deviation of prediction q for outer sample o
-        deviations = self._bkd.reshape(
-            deviations_flat, (self._npred, self._nouter)
-        )
+        deviations = self._bkd.reshape(deviations_flat, (self._npred, self._nouter))
 
         # Apply risk measure over predictions
         # risk_measure expects (nqoi, nsamples) with weights (1, nsamples)
@@ -220,9 +218,7 @@ class PredictionOEDObjective(Generic[Array]):
         # noise_stat expects (nqoi, nsamples) with weights (1, nsamples)
         # Here: nqoi = 1, nsamples = nouter
         # risk_values.T shape: (1, nouter), outer_weights shape: (1, nouter)
-        outer_weights = self._bkd.reshape(
-            self._outer_quad_weights, (1, self._nouter)
-        )
+        outer_weights = self._bkd.reshape(self._outer_quad_weights, (1, self._nouter))
         objective = self._noise_stat(risk_values.T, outer_weights)
 
         return objective
@@ -249,9 +245,7 @@ class PredictionOEDObjective(Generic[Array]):
         # deviation_jac_flat shape: (npred * nouter, nobs)
 
         # Reshape deviations to (npred, nouter)
-        deviations = self._bkd.reshape(
-            deviations_flat, (self._npred, self._nouter)
-        )
+        deviations = self._bkd.reshape(deviations_flat, (self._npred, self._nouter))
 
         # Reshape Jacobian to (npred, nouter, nobs)
         deviation_jac = self._bkd.reshape(
@@ -268,9 +262,7 @@ class PredictionOEDObjective(Generic[Array]):
         # For jacobian: need (nqoi, nsamples, nvars) = (nouter, npred, nobs)
         # deviation_jac shape: (npred, nouter, nobs)
         # transpose to (nouter, npred, nobs)
-        deviation_jac_transposed = self._bkd.einsum(
-            "ijk->jik", deviation_jac
-        )
+        deviation_jac_transposed = self._bkd.einsum("ijk->jik", deviation_jac)
         risk_jac = self._risk_measure.jacobian(
             deviations.T, deviation_jac_transposed, self._qoi_quad_weights
         )
@@ -279,13 +271,9 @@ class PredictionOEDObjective(Generic[Array]):
         # Apply noise stat over data realizations
         # noise_stat expects (nqoi, nsamples) with weights (1, nsamples)
         # nqoi = 1, nsamples = nouter
-        outer_weights = self._bkd.reshape(
-            self._outer_quad_weights, (1, self._nouter)
-        )
+        outer_weights = self._bkd.reshape(self._outer_quad_weights, (1, self._nouter))
         # For noise_stat jacobian: values (1, nouter), jac (1, nouter, nobs)
-        risk_jac_3d = self._bkd.reshape(
-            risk_jac, (self._nouter, 1, self._nobs)
-        )
+        risk_jac_3d = self._bkd.reshape(risk_jac, (self._nouter, 1, self._nobs))
         # transpose to (nqoi=1, nsamples=nouter, nvars=nobs)
         risk_jac_3d = self._bkd.einsum("ijk->jik", risk_jac_3d)
         objective_jac = self._noise_stat.jacobian(

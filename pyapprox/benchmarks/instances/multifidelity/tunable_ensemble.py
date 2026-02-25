@@ -6,17 +6,17 @@ for testing multifidelity estimators with tunable correlation structure.
 
 from typing import Generic, List
 
-from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.benchmarks.benchmark import BoxDomain
-from pyapprox.benchmarks.registry import BenchmarkRegistry
 from pyapprox.benchmarks.functions.multifidelity.tunable_ensemble import (
     TunableModelEnsemble,
 )
+from pyapprox.benchmarks.registry import BenchmarkRegistry
 from pyapprox.interface.functions.protocols.function import (
     FunctionProtocol,
 )
-from pyapprox.probability.univariate.uniform import UniformMarginal
 from pyapprox.probability.joint.independent import IndependentJoint
+from pyapprox.probability.univariate.uniform import UniformMarginal
+from pyapprox.util.backends.protocols import Array, Backend
 
 
 class TunableEnsembleBenchmark(Generic[Array]):
@@ -98,9 +98,7 @@ def tunable_ensemble_3model(
         The benchmark instance.
     """
     ensemble = TunableModelEnsemble(theta1=theta1, bkd=bkd)
-    domain = BoxDomain(
-        _bounds=bkd.array([[-1.0, 1.0], [-1.0, 1.0]]), _bkd=bkd
-    )
+    domain = BoxDomain(_bounds=bkd.array([[-1.0, 1.0], [-1.0, 1.0]]), _bkd=bkd)
     prior = IndependentJoint(
         [UniformMarginal(-1.0, 1.0, bkd), UniformMarginal(-1.0, 1.0, bkd)],
         bkd,

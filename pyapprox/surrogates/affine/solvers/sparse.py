@@ -5,14 +5,14 @@ This module provides solvers for sparse coefficient recovery:
 - BasisPursuitSolver: L1 minimization via linear programming
 """
 
-from typing import Generic, Optional, Tuple
 from enum import IntEnum
+from typing import Generic, Optional
 
-from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.surrogates.affine.solvers.base import (
     LinearSystemSolver,
     SingleQoiSolverMixin,
 )
+from pyapprox.util.backends.protocols import Array, Backend
 
 
 class OMPTerminationFlag(IntEnum):
@@ -23,9 +23,7 @@ class OMPTerminationFlag(IntEnum):
     COLUMNS_DEPENDENT = 2  # Selected columns not independent
 
 
-class OMPSolver(
-    SingleQoiSolverMixin, LinearSystemSolver[Array], Generic[Array]
-):
+class OMPSolver(SingleQoiSolverMixin, LinearSystemSolver[Array], Generic[Array]):
     """Orthogonal Matching Pursuit solver for sparse solutions.
 
     Greedy algorithm that iteratively:
@@ -113,15 +111,11 @@ class OMPSolver(
         # Precompute column norms for correlation
         col_norms = bkd.norm(basis_matrix, axis=0)
         # Avoid division by zero
-        col_norms = bkd.where(
-            col_norms > 1e-14, col_norms, bkd.ones_like(col_norms)
-        )
+        col_norms = bkd.where(col_norms > 1e-14, col_norms, bkd.ones_like(col_norms))
 
         for iteration in range(self._max_nonzeros):
             # Find column most correlated with residual
-            correlations = bkd.abs(
-                bkd.dot(basis_matrix.T, residual)[:, 0]
-            ) / col_norms
+            correlations = bkd.abs(bkd.dot(basis_matrix.T, residual)[:, 0]) / col_norms
             # Zero out already selected columns
             for idx in active_indices:
                 correlations[idx] = 0.0
@@ -220,8 +214,8 @@ class BasisPursuitSolver(
         self._validate_single_qoi(values)
 
         # Import scipy for LP solver
-        from scipy.optimize import linprog
         from scipy import sparse
+        from scipy.optimize import linprog
 
         bkd = self._bkd
         A = bkd.to_numpy(basis_matrix)
@@ -347,7 +341,7 @@ class BasisPursuitDenoisingSolver(
         nterms = A.shape[1]
 
         # Precompute column norms squared
-        col_norms_sq = bkd.sum(A ** 2, axis=0)
+        col_norms_sq = bkd.sum(A**2, axis=0)
 
         # Initialize coefficients
         coef = bkd.zeros((nterms,))

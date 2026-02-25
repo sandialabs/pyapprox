@@ -7,13 +7,13 @@ simplex constraints (sum = 1, weights >= 0).
 
 from typing import Generic, Optional
 
-from pyapprox.util.backends.protocols import Array, Backend
-from pyapprox.optimization.minimize.constraints.linear import (
-    PyApproxLinearConstraint,
-)
 from pyapprox.expdesign.local.protocols.criterion import (
     LocalOEDCriterionProtocol,
 )
+from pyapprox.optimization.minimize.constraints.linear import (
+    PyApproxLinearConstraint,
+)
+from pyapprox.util.backends.protocols import Array, Backend
 
 
 class LocalOEDSolverBase(Generic[Array]):

@@ -7,35 +7,33 @@ Tests use typing array convention: (nqoi, nsamples) for outputs.
 """
 
 import unittest
-from typing import List
 
 import numpy as np
 import torch
 from unittest_parametrize import ParametrizedTestCase, parametrize
 
-from pyapprox.util.backends.torch import TorchBkd
-from pyapprox.util.test_utils import load_tests, slow_test  # noqa: F401
-
-from pyapprox.statest.statistics import MultiOutputMean
-from pyapprox.statest.acv.optimization import (
-    ACVLogDeterminantObjective,
-    ACVPartitionConstraint,
-)
-from pyapprox.statest.acv.variants import (
-    GMFEstimator,
-    GISEstimator,
-    GRDEstimator,
-    MFMCEstimator,
-    MLMCEstimator,
-    _allocate_samples_mfmc,
-    _allocate_samples_mlmc,
-)
 from pyapprox.benchmarks.functions.multifidelity.polynomial_ensemble import (
     PolynomialEnsemble,
 )
 from pyapprox.interface.functions.derivative_checks.derivative_checker import (
     DerivativeChecker,
 )
+from pyapprox.statest.acv.optimization import (
+    ACVLogDeterminantObjective,
+    ACVPartitionConstraint,
+)
+from pyapprox.statest.acv.variants import (
+    GISEstimator,
+    GMFEstimator,
+    GRDEstimator,
+    MFMCEstimator,
+    MLMCEstimator,
+    _allocate_samples_mfmc,
+    _allocate_samples_mlmc,
+)
+from pyapprox.statest.statistics import MultiOutputMean
+from pyapprox.util.backends.torch import TorchBkd
+from pyapprox.util.test_utils import load_tests, slow_test  # noqa: F401
 
 
 class TestACVLogDeterminantObjectiveGradients(ParametrizedTestCase):
@@ -50,9 +48,7 @@ class TestACVLogDeterminantObjectiveGradients(ParametrizedTestCase):
         torch.set_default_dtype(torch.float64)
         self._bkd = TorchBkd()
 
-    def _create_estimator(
-        self, est_type: str, nmodels: int = 3, nqoi: int = 1
-    ):
+    def _create_estimator(self, est_type: str, nmodels: int = 3, nqoi: int = 1):
         """Create estimator for testing."""
         ensemble = PolynomialEnsemble(self._bkd, nmodels=nmodels)
         cov = ensemble.covariance_matrix()
@@ -328,9 +324,7 @@ class TestMLMCOptimalSolutionGradients(unittest.TestCase):
             CF, cf = est._get_discrepancy_covariances(npartition_samples)
             weights = est._weights(CF, cf)
             return est._covariance_non_optimal_weights(
-                est._stat.high_fidelity_estimator_covariance(
-                    npartition_samples[0]
-                ),
+                est._stat.high_fidelity_estimator_covariance(npartition_samples[0]),
                 weights,
                 CF,
                 cf,
@@ -356,7 +350,6 @@ class TestMLMCOptimalSolutionGradients(unittest.TestCase):
     @slow_test
     def test_mlmc_objective_value_at_optimum(self) -> None:
         """Test MLMC objective value matches analytical solution."""
-        nmodels = 3
         target_cost = 81.0
 
         costs = self._bkd.array([6.0, 3.0, 1.0])
@@ -380,9 +373,7 @@ class TestMLMCOptimalSolutionGradients(unittest.TestCase):
             CF, cf = est._get_discrepancy_covariances(npartition_samples)
             weights = est._weights(CF, cf)
             return est._covariance_non_optimal_weights(
-                est._stat.high_fidelity_estimator_covariance(
-                    npartition_samples[0]
-                ),
+                est._stat.high_fidelity_estimator_covariance(npartition_samples[0]),
                 weights,
                 CF,
                 cf,
@@ -452,9 +443,7 @@ class TestDerivativeCheckerConvergence(ParametrizedTestCase):
         fd_eps = self._bkd.flip(self._bkd.logspace(-12, 0, 13))
 
         checker = DerivativeChecker(objective)
-        errors = checker.check_derivatives(
-            partition_ratios, fd_eps=fd_eps, verbosity=0
-        )
+        errors = checker.check_derivatives(partition_ratios, fd_eps=fd_eps, verbosity=0)
 
         # Error ratio should show second-order convergence (~0.25)
         ratio = checker.error_ratio(errors[0])

@@ -6,20 +6,11 @@ import unittest
 from typing import Any, Generic
 
 import numpy as np
-from numpy.typing import NDArray
 import torch
+from numpy.typing import NDArray
 
-from pyapprox.util.backends.protocols import Array, Backend
-from pyapprox.util.backends.numpy import NumpyBkd
-from pyapprox.util.backends.torch import TorchBkd
-from pyapprox.util.test_utils import load_tests  # noqa: F401
-from pyapprox.probability.likelihood import (
-    DiagonalGaussianLogLikelihood,
-    GaussianLogLikelihood,
-    ModelBasedLogLikelihood,
-)
-from pyapprox.probability.covariance import (
-    DenseCholeskyCovarianceOperator,
+from pyapprox.interface.functions.derivative_checks.derivative_checker import (
+    DerivativeChecker,
 )
 from pyapprox.interface.functions.fromcallable.function import (
     FunctionFromCallable,
@@ -27,9 +18,18 @@ from pyapprox.interface.functions.fromcallable.function import (
 from pyapprox.interface.functions.fromcallable.jacobian import (
     FunctionWithJacobianFromCallable,
 )
-from pyapprox.interface.functions.derivative_checks.derivative_checker import (
-    DerivativeChecker,
+from pyapprox.probability.covariance import (
+    DenseCholeskyCovarianceOperator,
 )
+from pyapprox.probability.likelihood import (
+    DiagonalGaussianLogLikelihood,
+    GaussianLogLikelihood,
+    ModelBasedLogLikelihood,
+)
+from pyapprox.util.backends.numpy import NumpyBkd
+from pyapprox.util.backends.protocols import Array, Backend
+from pyapprox.util.backends.torch import TorchBkd
+from pyapprox.util.test_utils import load_tests  # noqa: F401
 
 
 class LinearModel(Generic[Array]):
@@ -94,9 +94,7 @@ class TestModelBasedDiagonalGaussian(Generic[Array], unittest.TestCase):
         self._A = self._bkd.asarray([[1.0, 2.0], [3.0, 4.0]])
         self._model = LinearModel(self._A, self._bkd)
         self._noise_var = self._bkd.asarray([0.01, 0.02])
-        self._noise_lik = DiagonalGaussianLogLikelihood(
-            self._noise_var, self._bkd
-        )
+        self._noise_lik = DiagonalGaussianLogLikelihood(self._noise_var, self._bkd)
         self._composed = ModelBasedLogLikelihood(
             self._model, self._noise_lik, self._bkd
         )
@@ -115,9 +113,7 @@ class TestModelBasedDiagonalGaussian(Generic[Array], unittest.TestCase):
     def test_call_is_logpdf(self) -> None:
         """__call__ is an alias for logpdf."""
         params = self._bkd.asarray([[0.5], [0.3]])
-        self._bkd.assert_allclose(
-            self._composed(params), self._composed.logpdf(params)
-        )
+        self._bkd.assert_allclose(self._composed(params), self._composed.logpdf(params))
 
     def test_logpdf_shape(self) -> None:
         """logpdf returns shape (1, nsamples)."""
@@ -135,10 +131,10 @@ class TestModelBasedDiagonalGaussian(Generic[Array], unittest.TestCase):
         self.assertEqual(result.shape, (1, nsamples))
         # Verify each sample individually
         for i in range(nsamples):
-            p_i = self._bkd.asarray(params_np[:, i:i+1])
+            p_i = self._bkd.asarray(params_np[:, i : i + 1])
             expected_i = self._composed.logpdf(p_i)
             self._bkd.assert_allclose(
-                self._bkd.asarray(result[:, i:i+1]),
+                self._bkd.asarray(result[:, i : i + 1]),
                 expected_i,
             )
 
@@ -158,6 +154,7 @@ class TestModelBasedDiagonalGaussian(Generic[Array], unittest.TestCase):
 
     def test_jacobian_derivative_checker(self) -> None:
         """Validate jacobian via DerivativeChecker."""
+
         # Wrap as FunctionWithJacobianFromCallable for DerivativeChecker
         def logpdf_fn(params: Array) -> Array:
             return self._composed.logpdf(params)
@@ -166,8 +163,10 @@ class TestModelBasedDiagonalGaussian(Generic[Array], unittest.TestCase):
             return self._composed.jacobian(sample)
 
         wrapper = FunctionWithJacobianFromCallable(
-            nqoi=1, nvars=2,
-            fun=logpdf_fn, jacobian=jac_fn,
+            nqoi=1,
+            nvars=2,
+            fun=logpdf_fn,
+            jacobian=jac_fn,
             bkd=self._bkd,
         )
         checker = DerivativeChecker(wrapper)
@@ -224,8 +223,8 @@ class TestModelBasedDiagonalGaussian(Generic[Array], unittest.TestCase):
         # Check against loop
         for i in range(3):
             for j in range(4):
-                p_i = self._bkd.asarray(params[:, i:i+1])
-                o_j = obs[:, j:j+1]
+                p_i = self._bkd.asarray(params[:, i : i + 1])
+                o_j = obs[:, j : j + 1]
                 self._noise_lik.set_observations(o_j)
                 expected_ij = self._noise_lik.logpdf(self._model(p_i))
                 self._bkd.assert_allclose(
@@ -249,7 +248,8 @@ class TestModelBasedDiagonalGaussian(Generic[Array], unittest.TestCase):
         # They should differ
         self.assertFalse(
             np.allclose(
-                float(logpdf_weighted), float(logpdf_unweighted),
+                float(logpdf_weighted),
+                float(logpdf_unweighted),
                 atol=1e-14,
             )
         )
@@ -271,16 +271,12 @@ class TestModelBasedDiagonalGaussian(Generic[Array], unittest.TestCase):
         self.assertIs(self._composed.noise_likelihood(), self._noise_lik)
 
 
-class TestModelBasedDiagonalGaussianNumpy(
-    TestModelBasedDiagonalGaussian[NDArray[Any]]
-):
+class TestModelBasedDiagonalGaussianNumpy(TestModelBasedDiagonalGaussian[NDArray[Any]]):
     def bkd(self) -> NumpyBkd:
         return NumpyBkd()
 
 
-class TestModelBasedDiagonalGaussianTorch(
-    TestModelBasedDiagonalGaussian[torch.Tensor]
-):
+class TestModelBasedDiagonalGaussianTorch(TestModelBasedDiagonalGaussian[torch.Tensor]):
     def bkd(self) -> TorchBkd:
         return TorchBkd()
 
@@ -300,15 +296,11 @@ class TestModelBasedDenseGaussian(Generic[Array], unittest.TestCase):
     def setUp(self) -> None:
         self._bkd = self.bkd()
         # Linear model: 2 inputs -> 3 outputs
-        self._A = self._bkd.asarray(
-            [[1.0, 2.0], [3.0, 4.0], [0.5, 1.5]]
-        )
+        self._A = self._bkd.asarray([[1.0, 2.0], [3.0, 4.0], [0.5, 1.5]])
         self._model = LinearModel(self._A, self._bkd)
         # Correlated noise covariance
         cov_np = np.array(
-            [[0.04, 0.01, 0.005],
-             [0.01, 0.03, 0.008],
-             [0.005, 0.008, 0.02]]
+            [[0.04, 0.01, 0.005], [0.01, 0.03, 0.008], [0.005, 0.008, 0.02]]
         )
         noise_cov_op = DenseCholeskyCovarianceOperator(
             self._bkd.asarray(cov_np), self._bkd
@@ -336,6 +328,7 @@ class TestModelBasedDenseGaussian(Generic[Array], unittest.TestCase):
 
     def test_jacobian_derivative_checker(self) -> None:
         """Validate jacobian via DerivativeChecker."""
+
         def logpdf_fn(params: Array) -> Array:
             return self._composed.logpdf(params)
 
@@ -343,8 +336,10 @@ class TestModelBasedDenseGaussian(Generic[Array], unittest.TestCase):
             return self._composed.jacobian(sample)
 
         wrapper = FunctionWithJacobianFromCallable(
-            nqoi=1, nvars=2,
-            fun=logpdf_fn, jacobian=jac_fn,
+            nqoi=1,
+            nvars=2,
+            fun=logpdf_fn,
+            jacobian=jac_fn,
             bkd=self._bkd,
         )
         checker = DerivativeChecker(wrapper)
@@ -377,9 +372,7 @@ class TestModelBasedDenseGaussian(Generic[Array], unittest.TestCase):
     def test_logpdf_vectorized_shape(self) -> None:
         """logpdf_vectorized returns shape (n_params, n_obs)."""
         params = self._bkd.asarray([[0.5, 1.0], [0.3, 0.7]])
-        obs = self._bkd.asarray(
-            [[1.0, 1.1, 1.2], [2.0, 2.1, 2.2], [1.5, 1.6, 1.7]]
-        )
+        obs = self._bkd.asarray([[1.0, 1.1, 1.2], [2.0, 2.1, 2.2], [1.5, 1.6, 1.7]])
         result = self._composed.logpdf_vectorized(params, obs)
         self.assertEqual(result.shape, (2, 3))
 
@@ -388,16 +381,12 @@ class TestModelBasedDenseGaussian(Generic[Array], unittest.TestCase):
         self.assertEqual(self._composed.nobs(), 3)
 
 
-class TestModelBasedDenseGaussianNumpy(
-    TestModelBasedDenseGaussian[NDArray[Any]]
-):
+class TestModelBasedDenseGaussianNumpy(TestModelBasedDenseGaussian[NDArray[Any]]):
     def bkd(self) -> NumpyBkd:
         return NumpyBkd()
 
 
-class TestModelBasedDenseGaussianTorch(
-    TestModelBasedDenseGaussian[torch.Tensor]
-):
+class TestModelBasedDenseGaussianTorch(TestModelBasedDenseGaussian[torch.Tensor]):
     def bkd(self) -> TorchBkd:
         return TorchBkd()
 
@@ -420,7 +409,8 @@ class TestModelBasedValidation(Generic[Array], unittest.TestCase):
     def test_dimension_mismatch_raises(self) -> None:
         """ValueError when model.nqoi() != noise_likelihood.nobs()."""
         model = FunctionFromCallable(
-            nqoi=3, nvars=2,
+            nqoi=3,
+            nvars=2,
             fun=lambda x: self._bkd.zeros((3, x.shape[1])),
             bkd=self._bkd,
         )
@@ -471,16 +461,12 @@ class TestModelBasedValidation(Generic[Array], unittest.TestCase):
         self.assertTrue(hasattr(composed, "set_design_weights"))
 
 
-class TestModelBasedValidationNumpy(
-    TestModelBasedValidation[NDArray[Any]]
-):
+class TestModelBasedValidationNumpy(TestModelBasedValidation[NDArray[Any]]):
     def bkd(self) -> NumpyBkd:
         return NumpyBkd()
 
 
-class TestModelBasedValidationTorch(
-    TestModelBasedValidation[torch.Tensor]
-):
+class TestModelBasedValidationTorch(TestModelBasedValidation[torch.Tensor]):
     def bkd(self) -> TorchBkd:
         return TorchBkd()
 
@@ -498,9 +484,7 @@ class TestModelBasedAutograd(unittest.TestCase):
         A = self._bkd.asarray([[1.0, 2.0], [3.0, 4.0]])
         self._model = LinearModel(A, self._bkd)
         noise_var = self._bkd.asarray([0.01, 0.02])
-        self._noise_lik = DiagonalGaussianLogLikelihood(
-            noise_var, self._bkd
-        )
+        self._noise_lik = DiagonalGaussianLogLikelihood(noise_var, self._bkd)
         self._composed = ModelBasedLogLikelihood(
             self._model, self._noise_lik, self._bkd
         )
@@ -514,17 +498,13 @@ class TestModelBasedAutograd(unittest.TestCase):
         def logpdf_for_autograd(params: torch.Tensor) -> torch.Tensor:
             return self._composed.logpdf(params).squeeze()
 
-        autograd_jac = torch.autograd.functional.jacobian(
-            logpdf_for_autograd, sample
-        )
+        autograd_jac = torch.autograd.functional.jacobian(logpdf_for_autograd, sample)
         # autograd_jac has shape (nvars, 1) from the (nvars, 1) input
         autograd_jac_2d = autograd_jac.reshape(1, -1)
 
         analytical_jac = self._composed.jacobian(sample)
 
-        self._bkd.assert_allclose(
-            analytical_jac, autograd_jac_2d, rtol=1e-10
-        )
+        self._bkd.assert_allclose(analytical_jac, autograd_jac_2d, rtol=1e-10)
 
 
 if __name__ == "__main__":

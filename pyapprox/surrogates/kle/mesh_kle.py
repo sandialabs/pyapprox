@@ -4,12 +4,12 @@ from typing import Generic, Optional, Union
 
 import numpy as np
 
-from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.surrogates.kernels.protocols import KernelProtocol
 from pyapprox.surrogates.kle.utils import (
     eigendecomposition_unweighted,
     eigendecomposition_weighted,
 )
+from pyapprox.util.backends.protocols import Array, Backend
 
 
 class MeshKLE(Generic[Array]):
@@ -89,8 +89,7 @@ class MeshKLE(Generic[Array]):
             raise ValueError("bkd must be provided")
         if not isinstance(kernel, KernelProtocol):
             raise TypeError(
-                f"kernel must satisfy KernelProtocol, "
-                f"got {type(kernel).__name__}"
+                f"kernel must satisfy KernelProtocol, got {type(kernel).__name__}"
             )
         self._bkd = bkd
         self._mesh_coords = mesh_coords
@@ -99,9 +98,7 @@ class MeshKLE(Generic[Array]):
         self._use_log = use_log
         self._quad_weights = quad_weights
         if quad_weights is not None and quad_weights.ndim != 1:
-            raise ValueError(
-                f"quad_weights must be 1D, got ndim={quad_weights.ndim}"
-            )
+            raise ValueError(f"quad_weights must be 1D, got ndim={quad_weights.ndim}")
 
         # Set mean field
         ncoords = mesh_coords.shape[1]
@@ -114,9 +111,7 @@ class MeshKLE(Generic[Array]):
         if nterms is None:
             nterms = ncoords
         if nterms > ncoords:
-            raise ValueError(
-                f"nterms={nterms} exceeds ncoords={ncoords}"
-            )
+            raise ValueError(f"nterms={nterms} exceeds ncoords={ncoords}")
         self._nterms = nterms
 
         # Compute basis
@@ -157,13 +152,9 @@ class MeshKLE(Generic[Array]):
         if coef.ndim != 2:
             raise ValueError(f"coef.ndim={coef.ndim} but should be 2")
         if coef.shape[0] != self._nterms:
-            raise ValueError(
-                f"coef.shape[0]={coef.shape[0]} != nterms={self._nterms}"
-            )
+            raise ValueError(f"coef.shape[0]={coef.shape[0]} != nterms={self._nterms}")
         if self._use_log:
-            return self._bkd.exp(
-                self._mean_field[:, None] + self._eig_vecs @ coef
-            )
+            return self._bkd.exp(self._mean_field[:, None] + self._eig_vecs @ coef)
         return self._mean_field[:, None] + self._eig_vecs @ coef
 
     def bkd(self) -> Backend[Array]:
@@ -191,15 +182,11 @@ class MeshKLE(Generic[Array]):
 
     def eigenvalues(self) -> Array:
         """Return eigenvalues, shape (nterms,)."""
-        return self._sqrt_eig_vals ** 2
+        return self._sqrt_eig_vals**2
 
     def mean_field(self) -> Array:
         """Return the mean field, shape (ncoords,)."""
         return self._mean_field
 
     def __repr__(self) -> str:
-        return (
-            f"{self.__class__.__name__}("
-            f"nterms={self._nterms}, "
-            f"sigma={self._sigma})"
-        )
+        return f"{self.__class__.__name__}(nterms={self._nterms}, sigma={self._sigma})"

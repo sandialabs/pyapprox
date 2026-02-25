@@ -6,14 +6,14 @@ for orthonormal polynomial bases with quadrature support.
 
 from typing import Generic, List, Optional, Tuple
 
-from pyapprox.util.backends.protocols import Array, Backend
+from pyapprox.surrogates.affine.basis.multiindex import MultiIndexBasis
 from pyapprox.surrogates.affine.protocols import (
     PhysicalDomainBasis1DProtocol,
 )
-from pyapprox.surrogates.affine.basis.multiindex import MultiIndexBasis
 from pyapprox.surrogates.affine.univariate.globalpoly.orthopoly_base import (
     OrthonormalPolynomial1D,
 )
+from pyapprox.util.backends.protocols import Array, Backend
 
 
 class OrthonormalPolynomialBasis(MultiIndexBasis[Array], Generic[Array]):
@@ -120,9 +120,7 @@ class OrthonormalPolynomialBasis(MultiIndexBasis[Array], Generic[Array]):
 
         # Build tensor product
         grids = self._bkd.meshgrid(*points_1d, indexing="ij")
-        points = self._bkd.stack(
-            [self._bkd.flatten(g) for g in grids], axis=0
-        )
+        points = self._bkd.stack([self._bkd.flatten(g) for g in grids], axis=0)
 
         # Tensor product of weights
         weights = weights_1d[0]
@@ -135,6 +133,5 @@ class OrthonormalPolynomialBasis(MultiIndexBasis[Array], Generic[Array]):
 
     def __repr__(self) -> str:
         return (
-            f"OrthonormalPolynomialBasis(nvars={self.nvars()}, "
-            f"nterms={self.nterms()})"
+            f"OrthonormalPolynomialBasis(nvars={self.nvars()}, nterms={self.nterms()})"
         )

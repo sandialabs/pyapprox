@@ -40,9 +40,7 @@ class SubsetOfStatesAdjointFunctional(Generic[Array]):
         self._nstates = nstates
         self._nparams = nparams
         if subset.shape[0] > self.nstates():
-            raise ValueError(
-                "subset index must be smaller than self.nstates()"
-            )
+            raise ValueError("subset index must be smaller than self.nstates()")
         self._subset = subset
         self._bkd = backend
 

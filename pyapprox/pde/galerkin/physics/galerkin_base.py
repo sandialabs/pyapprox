@@ -7,12 +7,12 @@ spatial_residual() and spatial_jacobian().
 
 from typing import Generic, List, Optional
 
-from pyapprox.util.backends.protocols import Array, Backend
+from pyapprox.pde.galerkin.physics.bc_mixin import GalerkinBCMixin
 from pyapprox.pde.galerkin.protocols.basis import GalerkinBasisProtocol
 from pyapprox.pde.galerkin.protocols.boundary import (
     BoundaryConditionProtocol,
 )
-from pyapprox.pde.galerkin.physics.bc_mixin import GalerkinBCMixin
+from pyapprox.util.backends.protocols import Array, Backend
 
 
 class GalerkinPhysicsBase(GalerkinBCMixin[Array], Generic[Array]):
@@ -38,9 +38,7 @@ class GalerkinPhysicsBase(GalerkinBCMixin[Array], Generic[Array]):
         self,
         basis: GalerkinBasisProtocol[Array],
         bkd: Backend[Array],
-        boundary_conditions: Optional[
-            List[BoundaryConditionProtocol[Array]]
-        ] = None,
+        boundary_conditions: Optional[List[BoundaryConditionProtocol[Array]]] = None,
     ):
         self._basis = basis
         self._bkd = bkd

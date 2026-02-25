@@ -29,14 +29,15 @@ The main effect index for variable i uses p = {i} (only z_i conditioned).
 The total effect index for variable i uses p = {all except i}.
 """
 
-from typing import Generic, Dict, Union
-from pyapprox.util.backends.protocols import Array, Backend
-from pyapprox.surrogates.gaussianprocess.statistics.moments import (
-    GaussianProcessStatistics,
-)
+from typing import Dict, Generic, Union
+
 from pyapprox.surrogates.gaussianprocess.statistics.integrals import (
     SeparableKernelIntegralCalculator,
 )
+from pyapprox.surrogates.gaussianprocess.statistics.moments import (
+    GaussianProcessStatistics,
+)
+from pyapprox.util.backends.protocols import Array, Backend
 
 
 class GaussianProcessSensitivity(Generic[Array]):
@@ -83,7 +84,8 @@ class GaussianProcessSensitivity(Generic[Array]):
         self._stats = gp_stats
         self._bkd = gp_stats.bkd()
 
-        # Get the integral calculator from stats - must be SeparableKernelIntegralCalculator
+        # Get the integral calculator from stats
+        # - must be SeparableKernelIntegralCalculator
         # to access the 1D kernel components for nvars
         calc = gp_stats._calc
         if not isinstance(calc, SeparableKernelIntegralCalculator):
@@ -153,7 +155,8 @@ class GaussianProcessSensitivity(Generic[Array]):
             alpha_1d = self._bkd.reshape(alpha, (-1,))  # Shape: (n_train,)
         else:
             raise NotImplementedError(
-                "conditional_variance currently only supports single-output GPs (nqoi=1)"
+                "conditional_variance currently only "
+                "supports single-output GPs (nqoi=1)"
             )
 
         # ζ_p = αᵀ P_K_p α

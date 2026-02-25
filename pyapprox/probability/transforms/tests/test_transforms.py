@@ -6,17 +6,15 @@ import unittest
 from typing import Any, Generic
 
 import numpy as np
+import torch
 from numpy.typing import NDArray
 from scipy import stats
-import torch
 
-from pyapprox.util.backends.protocols import Array, Backend
-from pyapprox.util.backends.numpy import NumpyBkd
-from pyapprox.util.backends.torch import TorchBkd
-from pyapprox.util.test_utils import load_tests
-from pyapprox.probability.univariate import (
-    ScipyContinuousMarginal,
-    GaussianMarginal,
+from pyapprox.interface.functions.derivative_checks.derivative_checker import (
+    DerivativeChecker,
+)
+from pyapprox.interface.functions.fromcallable.jacobian import (
+    FunctionWithJacobianFromCallable,
 )
 from pyapprox.probability.transforms import (
     AffineTransform,
@@ -25,12 +23,13 @@ from pyapprox.probability.transforms import (
     NatafTransform,
     RosenblattTransform,
 )
-from pyapprox.interface.functions.derivative_checks.derivative_checker import (
-    DerivativeChecker,
+from pyapprox.probability.univariate import (
+    GaussianMarginal,
+    ScipyContinuousMarginal,
 )
-from pyapprox.interface.functions.fromcallable.jacobian import (
-    FunctionWithJacobianFromCallable,
-)
+from pyapprox.util.backends.numpy import NumpyBkd
+from pyapprox.util.backends.protocols import Array, Backend
+from pyapprox.util.backends.torch import TorchBkd
 
 
 class TestAffineTransform(Generic[Array], unittest.TestCase):
@@ -204,9 +203,7 @@ class TestGaussianTransform(Generic[Array], unittest.TestCase):
 
         # jac_to * jac_from should be close to 1
         expected = self._bkd.asarray([[1.0]])
-        self.assertTrue(
-            self._bkd.allclose(jac_to * jac_from, expected, rtol=1e-5)
-        )
+        self.assertTrue(self._bkd.allclose(jac_to * jac_from, expected, rtol=1e-5))
 
     def test_jacobian_derivative_checker(self) -> None:
         """Test Jacobian using DerivativeChecker."""
@@ -248,7 +245,6 @@ class TestGaussianTransformTorch(TestGaussianTransform[torch.Tensor]):
     def bkd(self) -> TorchBkd:
         torch.set_default_dtype(torch.float64)
         return TorchBkd()
-
 
 
 class TestIndependentGaussianTransform(Generic[Array], unittest.TestCase):
@@ -403,18 +399,14 @@ class TestAffineTransformProtocol(Generic[Array], unittest.TestCase):
         self.assertEqual(jac.shape, (2, 2))
 
 
-class TestAffineTransformProtocolNumpy(
-    TestAffineTransformProtocol[NDArray[Any]]
-):
+class TestAffineTransformProtocolNumpy(TestAffineTransformProtocol[NDArray[Any]]):
     """NumPy backend tests for AffineTransform protocol."""
 
     def bkd(self) -> NumpyBkd:
         return NumpyBkd()
 
 
-class TestAffineTransformProtocolTorch(
-    TestAffineTransformProtocol[torch.Tensor]
-):
+class TestAffineTransformProtocolTorch(TestAffineTransformProtocol[torch.Tensor]):
     """PyTorch backend tests for AffineTransform protocol."""
 
     def bkd(self) -> TorchBkd:
@@ -456,18 +448,14 @@ class TestGaussianTransformProtocol(Generic[Array], unittest.TestCase):
         self.assertEqual(x.shape, (1, 3))
 
 
-class TestGaussianTransformProtocolNumpy(
-    TestGaussianTransformProtocol[NDArray[Any]]
-):
+class TestGaussianTransformProtocolNumpy(TestGaussianTransformProtocol[NDArray[Any]]):
     """NumPy backend tests for GaussianTransform protocol."""
 
     def bkd(self) -> NumpyBkd:
         return NumpyBkd()
 
 
-class TestGaussianTransformProtocolTorch(
-    TestGaussianTransformProtocol[torch.Tensor]
-):
+class TestGaussianTransformProtocolTorch(TestGaussianTransformProtocol[torch.Tensor]):
     """PyTorch backend tests for GaussianTransform protocol."""
 
     def bkd(self) -> TorchBkd:
@@ -490,9 +478,7 @@ class TestNatafTransform(Generic[Array], unittest.TestCase):
             GaussianMarginal(0.0, 1.0, self._bkd),
         ]
         self.correlation = self._bkd.asarray([[1.0, 0.5], [0.5, 1.0]])
-        self.transform = NatafTransform(
-            self.marginals, self.correlation, self._bkd
-        )
+        self.transform = NatafTransform(self.marginals, self.correlation, self._bkd)
 
     def test_nvars(self) -> None:
         """Test nvars returns correct dimension."""
@@ -613,9 +599,7 @@ class TestNatafTransformNonGaussian(Generic[Array], unittest.TestCase):
             ScipyContinuousMarginal(stats.beta(2, 5), self._bkd),
         ]
         self.correlation = self._bkd.asarray([[1.0, 0.3], [0.3, 1.0]])
-        self.transform = NatafTransform(
-            self.marginals, self.correlation, self._bkd
-        )
+        self.transform = NatafTransform(self.marginals, self.correlation, self._bkd)
 
     def test_nvars(self) -> None:
         """Test nvars returns correct dimension."""
@@ -672,18 +656,14 @@ class TestNatafTransformNonGaussian(Generic[Array], unittest.TestCase):
             )
 
 
-class TestNatafTransformNonGaussianNumpy(
-    TestNatafTransformNonGaussian[NDArray[Any]]
-):
+class TestNatafTransformNonGaussianNumpy(TestNatafTransformNonGaussian[NDArray[Any]]):
     """NumPy backend tests for NatafTransform with non-Gaussian marginals."""
 
     def bkd(self) -> NumpyBkd:
         return NumpyBkd()
 
 
-class TestNatafTransformNonGaussianTorch(
-    TestNatafTransformNonGaussian[torch.Tensor]
-):
+class TestNatafTransformNonGaussianTorch(TestNatafTransformNonGaussian[torch.Tensor]):
     """PyTorch backend tests for NatafTransform with non-Gaussian marginals."""
 
     def bkd(self) -> TorchBkd:
@@ -716,10 +696,7 @@ class TestRosenblattTransform(Generic[Array], unittest.TestCase):
             for i in range(nsamples):
                 x = samples_np[:, i] - self.mean
                 exponent = -0.5 * x @ self.cov_inv @ x
-                pdf_vals[i] = (
-                    np.exp(exponent)
-                    / (2 * np.pi * np.sqrt(self.cov_det))
-                )
+                pdf_vals[i] = np.exp(exponent) / (2 * np.pi * np.sqrt(self.cov_det))
             return self._bkd.asarray(pdf_vals)
 
         self.joint_pdf = joint_pdf

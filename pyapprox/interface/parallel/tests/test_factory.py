@@ -9,7 +9,6 @@ from numpy.typing import NDArray
 from pyapprox.util.backends.numpy import NumpyBkd
 from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.util.backends.torch import TorchBkd
-from pyapprox.util.test_utils import load_tests
 
 
 class MockFunction(Generic[Array]):
@@ -127,9 +126,7 @@ class TestParallelFunctionWrapper(Generic[Array], unittest.TestCase):
         for i in range(3):
             sample = samples[:, i : i + 1]
             expected = func.jacobian(sample)
-            self.assertTrue(
-                self._bkd.allclose(jacobians[i], expected, rtol=1e-10)
-            )
+            self.assertTrue(self._bkd.allclose(jacobians[i], expected, rtol=1e-10))
 
     def test_hessian_batch(self):
         """Test parallel hessian batch computation."""
@@ -263,7 +260,7 @@ class TestParallelFunctionWrapper(Generic[Array], unittest.TestCase):
     def test_parallel_execution_mpire(self):
         """Test actual parallel execution with mpire."""
         try:
-            import mpire
+            import mpire  # noqa: F401
         except ImportError:
             self.skipTest("mpire not installed")
 
@@ -286,9 +283,7 @@ class TestParallelFunctionWrapper(Generic[Array], unittest.TestCase):
         from pyapprox.interface.parallel.factory import make_parallel
 
         func = MockFunction(self._bkd)
-        parallel_func = make_parallel(
-            func, backend="joblib_processes", n_jobs=2
-        )
+        parallel_func = make_parallel(func, backend="joblib_processes", n_jobs=2)
 
         samples = self._bkd.asarray(
             [
@@ -308,9 +303,7 @@ class TestParallelFunctionWrapper(Generic[Array], unittest.TestCase):
         from pyapprox.interface.parallel.factory import make_parallel
 
         func = MockFunction(self._bkd)
-        parallel_func = make_parallel(
-            func, backend="joblib_processes", n_jobs=4
-        )
+        parallel_func = make_parallel(func, backend="joblib_processes", n_jobs=4)
 
         sample = self._bkd.asarray([[1.0], [2.0]])
         result = parallel_func(sample)
@@ -336,13 +329,9 @@ class TestParallelFunctionWrapper(Generic[Array], unittest.TestCase):
         from pyapprox.interface.parallel.factory import make_parallel
 
         func = MockMultiOutputFunction(self._bkd)
-        parallel_func = make_parallel(
-            func, backend="joblib_processes", n_jobs=2
-        )
+        parallel_func = make_parallel(func, backend="joblib_processes", n_jobs=2)
 
-        samples = self._bkd.asarray(
-            [[1.0, 2.0, 3.0, 4.0], [5.0, 6.0, 7.0, 8.0]]
-        )
+        samples = self._bkd.asarray([[1.0, 2.0, 3.0, 4.0], [5.0, 6.0, 7.0, 8.0]])
 
         par_result = parallel_func(samples)
         seq_result = func(samples)

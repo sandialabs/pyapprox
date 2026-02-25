@@ -16,14 +16,17 @@ import torch
 from numpy.typing import NDArray
 from unittest_parametrize import ParametrizedTestCase, parametrize
 
-from pyapprox.util.backends.protocols import Array, Backend
-from pyapprox.util.backends.numpy import NumpyBkd
-from pyapprox.util.backends.torch import TorchBkd
-from pyapprox.util.test_utils import load_tests  # noqa: F401
+from pyapprox.interface.functions.derivative_checks.derivative_checker import (
+    DerivativeChecker,
+)
 from pyapprox.pde.collocation.basis import (
     ChebyshevBasis1D,
     ChebyshevBasis2D,
     ChebyshevBasis3D,
+)
+from pyapprox.pde.collocation.boundary import zero_dirichlet_bc
+from pyapprox.pde.collocation.manufactured_solutions.hyperelasticity import (
+    ManufacturedHyperelasticityEquations,
 )
 from pyapprox.pde.collocation.mesh import (
     AffineTransform1D,
@@ -36,7 +39,6 @@ from pyapprox.pde.collocation.mesh import (
     create_uniform_mesh_2d,
     create_uniform_mesh_3d,
 )
-from pyapprox.pde.collocation.boundary import zero_dirichlet_bc
 from pyapprox.pde.collocation.physics.hyperelasticity import (
     HyperelasticityPhysics,
 )
@@ -44,12 +46,10 @@ from pyapprox.pde.collocation.physics.stress_models import (
     NeoHookeanStress,
 )
 from pyapprox.pde.collocation.time_integration import CollocationModel
-from pyapprox.pde.collocation.manufactured_solutions.hyperelasticity import (
-    ManufacturedHyperelasticityEquations,
-)
-from pyapprox.interface.functions.derivative_checks.derivative_checker import (
-    DerivativeChecker,
-)
+from pyapprox.util.backends.numpy import NumpyBkd
+from pyapprox.util.backends.protocols import Array, Backend
+from pyapprox.util.backends.torch import TorchBkd
+from pyapprox.util.test_utils import load_tests  # noqa: F401
 
 
 class PhysicsDerivativeWrapper(Generic[Array]):
@@ -90,6 +90,7 @@ class PhysicsDerivativeWrapper(Generic[Array]):
 # Helper: create basis and mesh for [0,1]^d
 # ------------------------------------------------------------------
 
+
 def _setup_1d(npts, bkd):
     """Create 1D basis on [0,1] and return basis, mesh_bc, nodes."""
     transform = AffineTransform1D((0.0, 1.0), bkd)
@@ -105,18 +106,14 @@ def _setup_2d(npts_x, npts_y, bkd):
     transform = AffineTransform2D((0.0, 1.0, 0.0, 1.0), bkd)
     mesh = TransformedMesh2D(npts_x, npts_y, bkd, transform)
     basis = ChebyshevBasis2D(mesh, bkd)
-    mesh_bc = create_uniform_mesh_2d(
-        (npts_x, npts_y), (0.0, 1.0, 0.0, 1.0), bkd
-    )
+    mesh_bc = create_uniform_mesh_2d((npts_x, npts_y), (0.0, 1.0, 0.0, 1.0), bkd)
     nodes = mesh.points()  # (2, npts)
     return basis, mesh_bc, nodes
 
 
 def _setup_3d(npts_x, npts_y, npts_z, bkd):
     """Create 3D basis on [0,1]^3 and return basis, mesh_bc, nodes."""
-    transform = AffineTransform3D(
-        (0.0, 1.0, 0.0, 1.0, 0.0, 1.0), bkd
-    )
+    transform = AffineTransform3D((0.0, 1.0, 0.0, 1.0, 0.0, 1.0), bkd)
     mesh = TransformedMesh3D(npts_x, npts_y, npts_z, bkd, transform)
     basis = ChebyshevBasis3D(mesh, bkd)
     mesh_bc = create_uniform_mesh_3d(
@@ -128,18 +125,14 @@ def _setup_3d(npts_x, npts_y, npts_z, bkd):
     return basis, mesh_bc, nodes
 
 
-def _apply_homogeneous_dirichlet_bcs(
-    physics, mesh_bc, npts, ndim, bkd
-):
+def _apply_homogeneous_dirichlet_bcs(physics, mesh_bc, npts, ndim, bkd):
     """Apply zero Dirichlet BCs on all boundaries for all components."""
     nboundaries = mesh_bc.nboundaries()
     bcs = []
     for side in range(nboundaries):
         boundary_idx = mesh_bc.boundary_indices(side)
         for comp in range(ndim):
-            bc_idx = bkd.asarray(
-                [int(idx) + comp * npts for idx in boundary_idx]
-            )
+            bc_idx = bkd.asarray([int(idx) + comp * npts for idx in boundary_idx])
             bcs.append(zero_dirichlet_bc(bkd, bc_idx))
     physics.set_boundary_conditions(bcs)
 
@@ -152,14 +145,13 @@ def _get_interior_indices(mesh_bc, npts, ndim):
         for idx in mesh_bc.boundary_indices(side):
             for comp in range(ndim):
                 boundary_indices.add(int(idx) + comp * npts)
-    return [
-        i for i in range(ndim * npts) if i not in boundary_indices
-    ]
+    return [i for i in range(ndim * npts) if i not in boundary_indices]
 
 
 # ------------------------------------------------------------------
 # 1D tests
 # ------------------------------------------------------------------
+
 
 class TestHyperelasticity1D(Generic[Array], unittest.TestCase):
     """Test 1D hyperelasticity with Neo-Hookean manufactured solutions."""
@@ -211,9 +203,7 @@ class TestHyperelasticity1D(Generic[Array], unittest.TestCase):
         interior = _get_interior_indices(mesh_bc, npts, 1)
         interior_res = bkd.asarray([residual_bc[i] for i in interior])
 
-        bkd.assert_allclose(
-            interior_res, bkd.zeros(interior_res.shape), atol=1e-8
-        )
+        bkd.assert_allclose(interior_res, bkd.zeros(interior_res.shape), atol=1e-8)
 
     def test_jacobian_1d(self):
         """Jacobian correctness via DerivativeChecker."""
@@ -226,9 +216,7 @@ class TestHyperelasticity1D(Generic[Array], unittest.TestCase):
         physics = HyperelasticityPhysics(basis, bkd, stress)
         wrapper = PhysicsDerivativeWrapper(physics)
         nstates = physics.nstates()
-        sample = bkd.asarray(
-            [[0.01 * float(i) for i in range(nstates)]]
-        ).T
+        sample = bkd.asarray([[0.01 * float(i) for i in range(nstates)]]).T
 
         # Use smaller fd_eps to avoid log(negative) from large perturbations
         np.random.seed(42)
@@ -266,9 +254,7 @@ class TestHyperelasticity1D(Generic[Array], unittest.TestCase):
 
         model = CollocationModel(physics, bkd)
         initial_guess = bkd.zeros((npts,))
-        u_numerical = model.solve_steady(
-            initial_guess, tol=1e-10, maxiter=50
-        )
+        u_numerical = model.solve_steady(initial_guess, tol=1e-10, maxiter=50)
 
         bkd.assert_allclose(u_numerical, u_exact_flat, atol=1e-8)
 
@@ -276,6 +262,7 @@ class TestHyperelasticity1D(Generic[Array], unittest.TestCase):
 # ------------------------------------------------------------------
 # 2D tests
 # ------------------------------------------------------------------
+
 
 class TestHyperelasticity2D(Generic[Array], unittest.TestCase):
     """Test 2D hyperelasticity with Neo-Hookean manufactured solutions."""
@@ -325,9 +312,7 @@ class TestHyperelasticity2D(Generic[Array], unittest.TestCase):
         interior = _get_interior_indices(mesh_bc, npts, 2)
         interior_res = bkd.asarray([residual_bc[i] for i in interior])
 
-        bkd.assert_allclose(
-            interior_res, bkd.zeros(interior_res.shape), atol=1e-8
-        )
+        bkd.assert_allclose(interior_res, bkd.zeros(interior_res.shape), atol=1e-8)
 
     def test_jacobian_2d(self):
         """Jacobian correctness via DerivativeChecker."""
@@ -340,9 +325,7 @@ class TestHyperelasticity2D(Generic[Array], unittest.TestCase):
         physics = HyperelasticityPhysics(basis, bkd, stress)
         wrapper = PhysicsDerivativeWrapper(physics)
         nstates = physics.nstates()
-        sample = bkd.asarray(
-            [[0.01 * float(i) for i in range(nstates)]]
-        ).T
+        sample = bkd.asarray([[0.01 * float(i) for i in range(nstates)]]).T
 
         # Use smaller fd_eps to avoid log(negative) from large perturbations
         np.random.seed(42)
@@ -384,9 +367,7 @@ class TestHyperelasticity2D(Generic[Array], unittest.TestCase):
 
         model = CollocationModel(physics, bkd)
         initial_guess = bkd.zeros((2 * npts,))
-        u_numerical = model.solve_steady(
-            initial_guess, tol=1e-10, maxiter=50
-        )
+        u_numerical = model.solve_steady(initial_guess, tol=1e-10, maxiter=50)
 
         bkd.assert_allclose(u_numerical, u_exact_flat, atol=1e-7)
 
@@ -394,6 +375,7 @@ class TestHyperelasticity2D(Generic[Array], unittest.TestCase):
 # ------------------------------------------------------------------
 # 3D tests (residual only, no Jacobian/solve)
 # ------------------------------------------------------------------
+
 
 class TestHyperelasticity3D(Generic[Array], unittest.TestCase):
     """Test 3D hyperelasticity residual with manufactured solutions."""
@@ -409,9 +391,7 @@ class TestHyperelasticity3D(Generic[Array], unittest.TestCase):
         npts_x, npts_y, npts_z = 6, 6, 6
 
         stress = NeoHookeanStress(lamda=1.0, mu=1.0)
-        basis, mesh_bc, nodes = _setup_3d(
-            npts_x, npts_y, npts_z, bkd
-        )
+        basis, mesh_bc, nodes = _setup_3d(npts_x, npts_y, npts_z, bkd)
 
         man_sol = ManufacturedHyperelasticityEquations(
             sol_strs=[
@@ -429,12 +409,8 @@ class TestHyperelasticity3D(Generic[Array], unittest.TestCase):
         forcing = man_sol.functions["forcing"](nodes)
 
         npts = basis.npts()
-        u_exact_flat = bkd.concatenate(
-            [u_exact[:, i] for i in range(3)]
-        )
-        forcing_flat = bkd.concatenate(
-            [forcing[:, i] for i in range(3)]
-        )
+        u_exact_flat = bkd.concatenate([u_exact[:, i] for i in range(3)])
+        forcing_flat = bkd.concatenate([forcing[:, i] for i in range(3)])
 
         physics = HyperelasticityPhysics(
             basis, bkd, stress, forcing=lambda t: forcing_flat
@@ -450,14 +426,13 @@ class TestHyperelasticity3D(Generic[Array], unittest.TestCase):
         interior = _get_interior_indices(mesh_bc, npts, 3)
         interior_res = bkd.asarray([residual[i] for i in interior])
 
-        bkd.assert_allclose(
-            interior_res, bkd.zeros(interior_res.shape), atol=1e-7
-        )
+        bkd.assert_allclose(interior_res, bkd.zeros(interior_res.shape), atol=1e-7)
 
 
 # ------------------------------------------------------------------
 # Parameterized tests
 # ------------------------------------------------------------------
+
 
 class TestHyperelasticityParameterized(ParametrizedTestCase):
     """Parameterized tests for residual and Jacobian."""
@@ -496,9 +471,7 @@ class TestHyperelasticityParameterized(ParametrizedTestCase):
         physics = HyperelasticityPhysics(
             basis, bkd, stress, forcing=lambda t: forcing_flat
         )
-        _apply_homogeneous_dirichlet_bcs(
-            physics, mesh_bc, basis.npts(), 1, bkd
-        )
+        _apply_homogeneous_dirichlet_bcs(physics, mesh_bc, basis.npts(), 1, bkd)
 
         residual = physics.residual(u_exact_flat, 0.0)
         jacobian = physics.jacobian(u_exact_flat, 0.0)
@@ -509,9 +482,7 @@ class TestHyperelasticityParameterized(ParametrizedTestCase):
         interior = _get_interior_indices(mesh_bc, basis.npts(), 1)
         interior_res = bkd.asarray([residual_bc[i] for i in interior])
 
-        bkd.assert_allclose(
-            interior_res, bkd.zeros(interior_res.shape), atol=1e-8
-        )
+        bkd.assert_allclose(interior_res, bkd.zeros(interior_res.shape), atol=1e-8)
 
     @parametrize(
         "name,u_str,v_str,lamda,mu,npts_1d",
@@ -534,9 +505,7 @@ class TestHyperelasticityParameterized(ParametrizedTestCase):
             ),
         ],
     )
-    def test_residual_2d(
-        self, name, u_str, v_str, lamda, mu, npts_1d
-    ):
+    def test_residual_2d(self, name, u_str, v_str, lamda, mu, npts_1d):
         """Parameterized 2D residual test."""
         bkd = self.bkd()
         stress = NeoHookeanStress(lamda=lamda, mu=mu)
@@ -571,9 +540,7 @@ class TestHyperelasticityParameterized(ParametrizedTestCase):
         interior = _get_interior_indices(mesh_bc, npts, 2)
         interior_res = bkd.asarray([residual_bc[i] for i in interior])
 
-        bkd.assert_allclose(
-            interior_res, bkd.zeros(interior_res.shape), atol=1e-8
-        )
+        bkd.assert_allclose(interior_res, bkd.zeros(interior_res.shape), atol=1e-8)
 
     @parametrize(
         "name,lamda,mu,npts_1d",
@@ -597,9 +564,7 @@ class TestHyperelasticityParameterized(ParametrizedTestCase):
         physics = HyperelasticityPhysics(basis, bkd, stress)
         wrapper = PhysicsDerivativeWrapper(physics)
         nstates = physics.nstates()
-        sample = bkd.asarray(
-            [[0.01 * float(i) for i in range(nstates)]]
-        ).T
+        sample = bkd.asarray([[0.01 * float(i) for i in range(nstates)]]).T
 
         # Use smaller fd_eps to avoid log(negative) from large perturbations
         np.random.seed(42)
@@ -613,18 +578,15 @@ class TestHyperelasticityParameterized(ParametrizedTestCase):
 # Concrete backend classes
 # ------------------------------------------------------------------
 
-class TestHyperelasticity1DNumpy(
-    TestHyperelasticity1D[NDArray[Any]]
-):
+
+class TestHyperelasticity1DNumpy(TestHyperelasticity1D[NDArray[Any]]):
     __test__ = True
 
     def bkd(self):
         return NumpyBkd()
 
 
-class TestHyperelasticity1DTorch(
-    TestHyperelasticity1D[torch.Tensor]
-):
+class TestHyperelasticity1DTorch(TestHyperelasticity1D[torch.Tensor]):
     __test__ = True
 
     def bkd(self):
@@ -634,18 +596,14 @@ class TestHyperelasticity1DTorch(
         torch.set_default_dtype(torch.float64)
 
 
-class TestHyperelasticity2DNumpy(
-    TestHyperelasticity2D[NDArray[Any]]
-):
+class TestHyperelasticity2DNumpy(TestHyperelasticity2D[NDArray[Any]]):
     __test__ = True
 
     def bkd(self):
         return NumpyBkd()
 
 
-class TestHyperelasticity2DTorch(
-    TestHyperelasticity2D[torch.Tensor]
-):
+class TestHyperelasticity2DTorch(TestHyperelasticity2D[torch.Tensor]):
     __test__ = True
 
     def bkd(self):
@@ -655,18 +613,14 @@ class TestHyperelasticity2DTorch(
         torch.set_default_dtype(torch.float64)
 
 
-class TestHyperelasticity3DNumpy(
-    TestHyperelasticity3D[NDArray[Any]]
-):
+class TestHyperelasticity3DNumpy(TestHyperelasticity3D[NDArray[Any]]):
     __test__ = True
 
     def bkd(self):
         return NumpyBkd()
 
 
-class TestHyperelasticity3DTorch(
-    TestHyperelasticity3D[torch.Tensor]
-):
+class TestHyperelasticity3DTorch(TestHyperelasticity3D[torch.Tensor]):
     __test__ = True
 
     def bkd(self):

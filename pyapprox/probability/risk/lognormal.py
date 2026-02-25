@@ -46,7 +46,7 @@ class LogNormalAnalyticalRiskMeasures:
         float
             E[exp(X)] = exp(mu + sigma^2/2)
         """
-        return np.exp(self._mu + self._sigma ** 2 / 2)
+        return np.exp(self._mu + self._sigma**2 / 2)
 
     def std(self) -> float:
         """
@@ -108,13 +108,11 @@ class LogNormalAnalyticalRiskMeasures:
         mean = self.mean()
         if beta == 0:
             return mean
-        quantile = np.exp(
-            self._mu + self._sigma * np.sqrt(2) * erfinv(2 * beta - 1)
-        )
+        quantile = np.exp(self._mu + self._sigma * np.sqrt(2) * erfinv(2 * beta - 1))
         return (
             mean
             * stats.norm.cdf(
-                (self._mu + self._sigma ** 2 - np.log(quantile)) / self._sigma
+                (self._mu + self._sigma**2 - np.log(quantile)) / self._sigma
             )
             / (1 - beta)
         )
@@ -138,7 +136,7 @@ class LogNormalAnalyticalRiskMeasures:
         vals[idx] = (
             self.mean()
             * stats.norm.cdf(
-                (np.log(eta[idx]) - self._mu - self._sigma ** 2) / self._sigma
+                (np.log(eta[idx]) - self._mu - self._sigma**2) / self._sigma
             )
             / self._marginal.cdf(eta[idx])
         )
@@ -163,7 +161,7 @@ class LogNormalAnalyticalRiskMeasures:
         vals[idx] = (
             self.mean()
             * stats.norm.cdf(
-                -(np.log(eta[idx]) - self._mu - self._sigma ** 2) / self._sigma
+                -(np.log(eta[idx]) - self._mu - self._sigma**2) / self._sigma
             )
             / (1 - self._marginal.cdf(eta[idx]))
         )
@@ -199,9 +197,7 @@ class LogNormalAnalyticalRiskMeasures:
         ndarray
             SSD disutility values.
         """
-        return (1 - self._marginal.cdf(-eta)) * (
-            eta + self._expectation_gte_eta(-eta)
-        )
+        return (1 - self._marginal.cdf(-eta)) * (eta + self._expectation_gte_eta(-eta))
 
     def kl_divergence(self, mu2: float, sigma2: float) -> float:
         """
@@ -226,7 +222,7 @@ class LogNormalAnalyticalRiskMeasures:
         #   log(s2/s1) + (s1^2 + (mu1-mu2)^2)/(2*s2^2) - 0.5
         return (
             np.log(sigma2 / self._sigma)
-            + (self._sigma ** 2 + (self._mu - mu2) ** 2) / (2 * sigma2 ** 2)
+            + (self._sigma**2 + (self._mu - mu2) ** 2) / (2 * sigma2**2)
             - 0.5
         )
 

@@ -10,46 +10,44 @@ basis operates directly, avoiding coordinate transformation issues.
 """
 
 import unittest
-import math
-import numpy as np
 from typing import Generic
 
-from pyapprox.util.backends.protocols import Array, Backend
-from pyapprox.util.backends.numpy import NumpyBkd
-from pyapprox.util.test_utils import load_tests  # noqa: F401
+from pyapprox.interface.functions.derivative_checks.derivative_checker import (
+    DerivativeChecker,
+)
 from pyapprox.pde.collocation.basis import (
     ChebyshevBasis1D,
     ChebyshevBasis2D,
     ChebyshevBasis3D,
+)
+from pyapprox.pde.collocation.boundary import (
+    DirichletBC,
+    zero_dirichlet_bc,
 )
 from pyapprox.pde.collocation.mesh import (
     TransformedMesh1D,
     TransformedMesh2D,
     TransformedMesh3D,
 )
-from pyapprox.pde.collocation.boundary import (
-    DirichletBC,
-    zero_dirichlet_bc,
-)
 from pyapprox.pde.collocation.physics.advection_diffusion import (
     create_steady_diffusion,
 )
 from pyapprox.pde.decomposition.interface import (
-    Interface1D,
     Interface,
+    Interface1D,
     Interface2D,
     LegendreInterfaceBasis1D,
     LegendreInterfaceBasis2D,
 )
-from pyapprox.pde.decomposition.subdomain import SubdomainWrapper
 from pyapprox.pde.decomposition.solver import (
-    DtNResidual,
     DtNJacobian,
+    DtNResidual,
     DtNSolver,
 )
-from pyapprox.interface.functions.derivative_checks.derivative_checker import (
-    DerivativeChecker,
-)
+from pyapprox.pde.decomposition.subdomain import SubdomainWrapper
+from pyapprox.util.backends.numpy import NumpyBkd
+from pyapprox.util.backends.protocols import Array, Backend
+from pyapprox.util.test_utils import load_tests  # noqa: F401
 
 
 class DtNResidualDerivativeWrapper(Generic[Array]):
@@ -166,7 +164,8 @@ class TestDtNSolver1DSimple(unittest.TestCase):
 
         # For subdomain 0, we want to solve on the left half
         # The Chebyshev nodes are on [-1, 1], at index 0 is x=1, at index n-1 is x=-1
-        # So for left subdomain, right boundary (interface at x=0) needs special handling
+        # So for left subdomain, right boundary (interface at x=0) needs special
+        # handling
 
         # Actually, let's use a simpler approach: use the full domain [-1, 1]
         # and just have Dirichlet BCs at the boundaries
@@ -174,7 +173,7 @@ class TestDtNSolver1DSimple(unittest.TestCase):
         # Subdomain 0: Use full Chebyshev grid, but set u(-1)=0 and u(0)=lambda
         mesh0 = TransformedMesh1D(npts, bkd)
         basis0 = ChebyshevBasis1D(mesh0, bkd)
-        nodes0 = basis0.nodes()  # x=1 at index 0, x=-1 at index npts-1
+        basis0.nodes()  # x=1 at index 0, x=-1 at index npts-1
 
         # Forcing: f = 2 (constant)
         forcing0 = bkd.full((npts,), 2.0)
@@ -233,7 +232,8 @@ class TestDtNSolver1DSimple(unittest.TestCase):
         # Flux conservation at interface:
         # From subdomain 0: flux = u'(1) * n0 = (lambda/2) * (+1) = lambda/2
         # From subdomain 1: flux = u'(-1) * n1 = ((1-lambda)/2) * (-1) = -(1-lambda)/2
-        # Total flux: lambda/2 - (1-lambda)/2 = lambda/2 - 1/2 + lambda/2 = lambda - 1/2 = 0
+        # Total flux: lambda/2 - (1-lambda)/2 = lambda/2 - 1/2 + lambda/2 = lambda - 1/2
+        # = 0
         # => lambda = 0.5 ✓
 
         # Let's implement this
@@ -307,8 +307,11 @@ class TestDtNSolver1DSimple(unittest.TestCase):
         res = residual(exact_dofs)
         res_norm = float(bkd.norm(res))
 
-        self.assertLess(res_norm, 1e-10,
-                        f"Residual norm {res_norm} should be < 1e-10 at exact solution")
+        self.assertLess(
+            res_norm,
+            1e-10,
+            f"Residual norm {res_norm} should be < 1e-10 at exact solution",
+        )
 
     def test_solver_converges_from_wrong_initial_guess(self):
         """Test solver converges from non-exact initial guess."""
@@ -333,8 +336,9 @@ class TestDtNSolver1DSimple(unittest.TestCase):
 
         computed = float(result.interface_dofs[0])
         exact = problem["exact_interface_value"]
-        self.assertAlmostEqual(computed, exact, places=8,
-                               msg=f"Computed {computed} != exact {exact}")
+        self.assertAlmostEqual(
+            computed, exact, places=8, msg=f"Computed {computed} != exact {exact}"
+        )
 
 
 class TestDtNSolver1DWithForcing(unittest.TestCase):
@@ -365,7 +369,8 @@ class TestDtNSolver1DWithForcing(unittest.TestCase):
 
     Flux conservation:
     flux_0 = u'(1) = lambda/2 - 2 (normal +1)
-    flux_1 = u'(-1) = -lambda/2 + 2 (normal -1), so contribution = -(-lambda/2 + 2) = lambda/2 - 2
+    flux_1 = u'(-1) = -lambda/2 + 2 (normal -1), so contribution = -(-lambda/2 + 2) =
+    lambda/2 - 2
     Total = (lambda/2 - 2) + (lambda/2 - 2) = lambda - 4 = 0
     => lambda = 4
 
@@ -397,8 +402,11 @@ class TestDtNSolver1DWithForcing(unittest.TestCase):
         left_bc0 = zero_dirichlet_bc(bkd, bkd.asarray([npts - 1]))  # u(-1) = 0
 
         wrapper0 = SubdomainWrapper(
-            bkd, subdomain_id=0, physics=physics0,
-            interfaces={0: interface}, external_bcs=[left_bc0]
+            bkd,
+            subdomain_id=0,
+            physics=physics0,
+            interfaces={0: interface},
+            external_bcs=[left_bc0],
         )
         wrapper0.set_interface_boundary_indices(0, bkd.asarray([0]))  # interface at x=1
 
@@ -412,10 +420,15 @@ class TestDtNSolver1DWithForcing(unittest.TestCase):
         right_bc1 = zero_dirichlet_bc(bkd, bkd.asarray([0]))  # u(1) = 0
 
         wrapper1 = SubdomainWrapper(
-            bkd, subdomain_id=1, physics=physics1,
-            interfaces={0: interface}, external_bcs=[right_bc1]
+            bkd,
+            subdomain_id=1,
+            physics=physics1,
+            interfaces={0: interface},
+            external_bcs=[right_bc1],
         )
-        wrapper1.set_interface_boundary_indices(0, bkd.asarray([npts - 1]))  # interface at x=-1
+        wrapper1.set_interface_boundary_indices(
+            0, bkd.asarray([npts - 1])
+        )  # interface at x=-1
 
         interface.set_subdomain_boundary_points(0, bkd.asarray([1.0]))
         interface.set_subdomain_boundary_points(1, bkd.asarray([-1.0]))
@@ -445,8 +458,7 @@ class TestDtNSolver1DWithForcing(unittest.TestCase):
         res = residual(exact_dofs)
         res_norm = float(bkd.norm(res))
 
-        self.assertLess(res_norm, 1e-10,
-                        f"Residual {res_norm} should be < 1e-10")
+        self.assertLess(res_norm, 1e-10, f"Residual {res_norm} should be < 1e-10")
 
     def test_solver_finds_correct_interface_value(self):
         """Test solver finds correct non-trivial interface value."""
@@ -515,22 +527,28 @@ class TestDtNSolverThreeSubdomains(unittest.TestCase):
         bkd = self.bkd
         npts = self.npts
 
-        interface0 = Interface1D(bkd, interface_id=0, subdomain_ids=(0, 1),
-                                 interface_point=0.0)
-        interface1 = Interface1D(bkd, interface_id=1, subdomain_ids=(1, 2),
-                                 interface_point=0.0)
+        interface0 = Interface1D(
+            bkd, interface_id=0, subdomain_ids=(0, 1), interface_point=0.0
+        )
+        interface1 = Interface1D(
+            bkd, interface_id=1, subdomain_ids=(1, 2), interface_point=0.0
+        )
 
         # Subdomain 0
         mesh0 = TransformedMesh1D(npts, bkd)
         basis0 = ChebyshevBasis1D(mesh0, bkd)
         forcing0 = bkd.zeros((npts,))
-        physics0 = create_steady_diffusion(basis0, bkd, diffusion=1.0,
-                                           forcing=lambda t: forcing0)
+        physics0 = create_steady_diffusion(
+            basis0, bkd, diffusion=1.0, forcing=lambda t: forcing0
+        )
         left_bc0 = zero_dirichlet_bc(bkd, bkd.asarray([npts - 1]))
 
         wrapper0 = SubdomainWrapper(
-            bkd, subdomain_id=0, physics=physics0,
-            interfaces={0: interface0}, external_bcs=[left_bc0]
+            bkd,
+            subdomain_id=0,
+            physics=physics0,
+            interfaces={0: interface0},
+            external_bcs=[left_bc0],
         )
         wrapper0.set_interface_boundary_indices(0, bkd.asarray([0]))
 
@@ -538,12 +556,16 @@ class TestDtNSolverThreeSubdomains(unittest.TestCase):
         mesh1 = TransformedMesh1D(npts, bkd)
         basis1 = ChebyshevBasis1D(mesh1, bkd)
         forcing1 = bkd.zeros((npts,))
-        physics1 = create_steady_diffusion(basis1, bkd, diffusion=1.0,
-                                           forcing=lambda t: forcing1)
+        physics1 = create_steady_diffusion(
+            basis1, bkd, diffusion=1.0, forcing=lambda t: forcing1
+        )
 
         wrapper1 = SubdomainWrapper(
-            bkd, subdomain_id=1, physics=physics1,
-            interfaces={0: interface0, 1: interface1}, external_bcs=[]
+            bkd,
+            subdomain_id=1,
+            physics=physics1,
+            interfaces={0: interface0, 1: interface1},
+            external_bcs=[],
         )
         wrapper1.set_interface_boundary_indices(0, bkd.asarray([npts - 1]))
         wrapper1.set_interface_boundary_indices(1, bkd.asarray([0]))
@@ -552,13 +574,17 @@ class TestDtNSolverThreeSubdomains(unittest.TestCase):
         mesh2 = TransformedMesh1D(npts, bkd)
         basis2 = ChebyshevBasis1D(mesh2, bkd)
         forcing2 = bkd.zeros((npts,))
-        physics2 = create_steady_diffusion(basis2, bkd, diffusion=1.0,
-                                           forcing=lambda t: forcing2)
+        physics2 = create_steady_diffusion(
+            basis2, bkd, diffusion=1.0, forcing=lambda t: forcing2
+        )
         right_bc2 = DirichletBC(bkd, bkd.asarray([0]), bkd.asarray([1.0]))
 
         wrapper2 = SubdomainWrapper(
-            bkd, subdomain_id=2, physics=physics2,
-            interfaces={1: interface1}, external_bcs=[right_bc2]
+            bkd,
+            subdomain_id=2,
+            physics=physics2,
+            interfaces={1: interface1},
+            external_bcs=[right_bc2],
         )
         wrapper2.set_interface_boundary_indices(1, bkd.asarray([npts - 1]))
 
@@ -633,31 +659,42 @@ class TestDtNJacobian(unittest.TestCase):
         """Create a simple two-subdomain problem for testing."""
         bkd = self.bkd
 
-        interface = Interface1D(bkd, interface_id=0, subdomain_ids=(0, 1),
-                                interface_point=0.0)
+        interface = Interface1D(
+            bkd, interface_id=0, subdomain_ids=(0, 1), interface_point=0.0
+        )
 
         mesh0 = TransformedMesh1D(npts, bkd)
         basis0 = ChebyshevBasis1D(mesh0, bkd)
         forcing0 = bkd.full((npts,), forcing_value)
-        physics0 = create_steady_diffusion(basis0, bkd, diffusion=1.0,
-                                           forcing=lambda t: forcing0)
+        physics0 = create_steady_diffusion(
+            basis0, bkd, diffusion=1.0, forcing=lambda t: forcing0
+        )
         left_bc0 = zero_dirichlet_bc(bkd, bkd.asarray([npts - 1]))
 
-        wrapper0 = SubdomainWrapper(bkd, subdomain_id=0, physics=physics0,
-                                    interfaces={0: interface},
-                                    external_bcs=[left_bc0])
+        wrapper0 = SubdomainWrapper(
+            bkd,
+            subdomain_id=0,
+            physics=physics0,
+            interfaces={0: interface},
+            external_bcs=[left_bc0],
+        )
         wrapper0.set_interface_boundary_indices(0, bkd.asarray([0]))
 
         mesh1 = TransformedMesh1D(npts, bkd)
         basis1 = ChebyshevBasis1D(mesh1, bkd)
         forcing1 = bkd.full((npts,), forcing_value)
-        physics1 = create_steady_diffusion(basis1, bkd, diffusion=1.0,
-                                           forcing=lambda t: forcing1)
+        physics1 = create_steady_diffusion(
+            basis1, bkd, diffusion=1.0, forcing=lambda t: forcing1
+        )
         right_bc1 = zero_dirichlet_bc(bkd, bkd.asarray([0]))
 
-        wrapper1 = SubdomainWrapper(bkd, subdomain_id=1, physics=physics1,
-                                    interfaces={0: interface},
-                                    external_bcs=[right_bc1])
+        wrapper1 = SubdomainWrapper(
+            bkd,
+            subdomain_id=1,
+            physics=physics1,
+            interfaces={0: interface},
+            external_bcs=[right_bc1],
+        )
         wrapper1.set_interface_boundary_indices(0, bkd.asarray([npts - 1]))
 
         interface.set_subdomain_boundary_points(0, bkd.asarray([1.0]))
@@ -666,7 +703,8 @@ class TestDtNJacobian(unittest.TestCase):
         interface_dof_offsets = bkd.asarray([0, 1])
 
         residual = DtNResidual(
-            bkd, interfaces={0: interface},
+            bkd,
+            interfaces={0: interface},
             subdomain_solvers={0: wrapper0, 1: wrapper1},
             interface_dof_offsets=interface_dof_offsets,
         )
@@ -677,34 +715,46 @@ class TestDtNJacobian(unittest.TestCase):
         """Create a three-subdomain problem for testing (2 interface DOFs)."""
         bkd = self.bkd
 
-        interface0 = Interface1D(bkd, interface_id=0, subdomain_ids=(0, 1),
-                                 interface_point=0.0)
-        interface1 = Interface1D(bkd, interface_id=1, subdomain_ids=(1, 2),
-                                 interface_point=0.0)
+        interface0 = Interface1D(
+            bkd, interface_id=0, subdomain_ids=(0, 1), interface_point=0.0
+        )
+        interface1 = Interface1D(
+            bkd, interface_id=1, subdomain_ids=(1, 2), interface_point=0.0
+        )
 
         # Subdomain 0
         mesh0 = TransformedMesh1D(npts, bkd)
         basis0 = ChebyshevBasis1D(mesh0, bkd)
         forcing0 = bkd.zeros((npts,))
-        physics0 = create_steady_diffusion(basis0, bkd, diffusion=1.0,
-                                           forcing=lambda t: forcing0)
+        physics0 = create_steady_diffusion(
+            basis0, bkd, diffusion=1.0, forcing=lambda t: forcing0
+        )
         left_bc0 = zero_dirichlet_bc(bkd, bkd.asarray([npts - 1]))
 
-        wrapper0 = SubdomainWrapper(bkd, subdomain_id=0, physics=physics0,
-                                    interfaces={0: interface0},
-                                    external_bcs=[left_bc0])
+        wrapper0 = SubdomainWrapper(
+            bkd,
+            subdomain_id=0,
+            physics=physics0,
+            interfaces={0: interface0},
+            external_bcs=[left_bc0],
+        )
         wrapper0.set_interface_boundary_indices(0, bkd.asarray([0]))
 
         # Subdomain 1 (middle, no external BCs)
         mesh1 = TransformedMesh1D(npts, bkd)
         basis1 = ChebyshevBasis1D(mesh1, bkd)
         forcing1 = bkd.zeros((npts,))
-        physics1 = create_steady_diffusion(basis1, bkd, diffusion=1.0,
-                                           forcing=lambda t: forcing1)
+        physics1 = create_steady_diffusion(
+            basis1, bkd, diffusion=1.0, forcing=lambda t: forcing1
+        )
 
-        wrapper1 = SubdomainWrapper(bkd, subdomain_id=1, physics=physics1,
-                                    interfaces={0: interface0, 1: interface1},
-                                    external_bcs=[])
+        wrapper1 = SubdomainWrapper(
+            bkd,
+            subdomain_id=1,
+            physics=physics1,
+            interfaces={0: interface0, 1: interface1},
+            external_bcs=[],
+        )
         wrapper1.set_interface_boundary_indices(0, bkd.asarray([npts - 1]))
         wrapper1.set_interface_boundary_indices(1, bkd.asarray([0]))
 
@@ -712,13 +762,18 @@ class TestDtNJacobian(unittest.TestCase):
         mesh2 = TransformedMesh1D(npts, bkd)
         basis2 = ChebyshevBasis1D(mesh2, bkd)
         forcing2 = bkd.zeros((npts,))
-        physics2 = create_steady_diffusion(basis2, bkd, diffusion=1.0,
-                                           forcing=lambda t: forcing2)
+        physics2 = create_steady_diffusion(
+            basis2, bkd, diffusion=1.0, forcing=lambda t: forcing2
+        )
         right_bc2 = DirichletBC(bkd, bkd.asarray([0]), bkd.asarray([1.0]))
 
-        wrapper2 = SubdomainWrapper(bkd, subdomain_id=2, physics=physics2,
-                                    interfaces={1: interface1},
-                                    external_bcs=[right_bc2])
+        wrapper2 = SubdomainWrapper(
+            bkd,
+            subdomain_id=2,
+            physics=physics2,
+            interfaces={1: interface1},
+            external_bcs=[right_bc2],
+        )
         wrapper2.set_interface_boundary_indices(1, bkd.asarray([npts - 1]))
 
         interface0.set_subdomain_boundary_points(0, bkd.asarray([1.0]))
@@ -755,8 +810,9 @@ class TestDtNJacobian(unittest.TestCase):
 
         # Check that minimum error is small
         min_error = float(bkd.min(errors[0]))
-        self.assertLess(min_error, 1e-5,
-                        f"Jacobian error {min_error:.2e} exceeds tolerance 1e-5")
+        self.assertLess(
+            min_error, 1e-5, f"Jacobian error {min_error:.2e} exceeds tolerance 1e-5"
+        )
 
     def test_jacobian_derivative_checker_2dof(self):
         """Test Jacobian using DerivativeChecker with 2 interface DOFs."""
@@ -778,8 +834,9 @@ class TestDtNJacobian(unittest.TestCase):
             errors = checker.check_derivatives(sample, verbosity=0)
 
             min_error = float(bkd.min(errors[0]))
-            self.assertLess(min_error, 1e-5,
-                            f"Jacobian error {min_error:.2e} at {test_dofs}")
+            self.assertLess(
+                min_error, 1e-5, f"Jacobian error {min_error:.2e} at {test_dofs}"
+            )
 
     def test_jacobian_error_ratio(self):
         """Test error ratio from DerivativeChecker is small.
@@ -799,8 +856,9 @@ class TestDtNJacobian(unittest.TestCase):
 
         # The error_ratio method computes min/max
         error_ratio = checker.error_ratio(errors[0])
-        self.assertLess(error_ratio, 1e-3,
-                        f"Error ratio {error_ratio:.2e} should be < 1e-3")
+        self.assertLess(
+            error_ratio, 1e-3, f"Error ratio {error_ratio:.2e} should be < 1e-3"
+        )
 
     def test_jacobian_symmetry_for_symmetric_problem(self):
         """Test Jacobian is symmetric for symmetric problems.
@@ -825,8 +883,11 @@ class TestDtNJacobian(unittest.TestCase):
         sym_error = float(bkd.norm(J - J.T))
         J_norm = float(bkd.norm(J))
         relative_sym_error = sym_error / J_norm if J_norm > 1e-14 else sym_error
-        self.assertLess(relative_sym_error, 1e-5,
-                        f"Jacobian not symmetric: relative ||J - J^T|| = {relative_sym_error}")
+        self.assertLess(
+            relative_sym_error,
+            1e-5,
+            f"Jacobian not symmetric: relative ||J - J^T|| = {relative_sym_error}",
+        )
 
 
 class TestDtNSolver2D(unittest.TestCase):
@@ -887,8 +948,9 @@ class TestDtNSolver2D(unittest.TestCase):
         mesh0 = TransformedMesh2D(npts_x, npts_y, bkd)
         basis0 = ChebyshevBasis2D(mesh0, bkd)
         forcing0 = bkd.zeros((basis0.npts(),))
-        physics0 = create_steady_diffusion(basis0, bkd, diffusion=1.0,
-                                           forcing=lambda t: forcing0)
+        physics0 = create_steady_diffusion(
+            basis0, bkd, diffusion=1.0, forcing=lambda t: forcing0
+        )
 
         bounds0 = self._compute_boundary_indices_2d(npts_x, npts_y)
         nodes_x0 = basis0.nodes_x()
@@ -903,7 +965,9 @@ class TestDtNSolver2D(unittest.TestCase):
         top_bc0 = DirichletBC(bkd, bounds0["top"], x_phys0)
 
         wrapper0 = SubdomainWrapper(
-            bkd, subdomain_id=0, physics=physics0,
+            bkd,
+            subdomain_id=0,
+            physics=physics0,
             interfaces={0: interface},
             external_bcs=[left_bc0, bottom_bc0, top_bc0],
         )
@@ -914,8 +978,9 @@ class TestDtNSolver2D(unittest.TestCase):
         mesh1 = TransformedMesh2D(npts_x, npts_y, bkd)
         basis1 = ChebyshevBasis2D(mesh1, bkd)
         forcing1 = bkd.zeros((basis1.npts(),))
-        physics1 = create_steady_diffusion(basis1, bkd, diffusion=1.0,
-                                           forcing=lambda t: forcing1)
+        physics1 = create_steady_diffusion(
+            basis1, bkd, diffusion=1.0, forcing=lambda t: forcing1
+        )
 
         bounds1 = self._compute_boundary_indices_2d(npts_x, npts_y)
         nodes_x1 = basis1.nodes_x()
@@ -928,7 +993,9 @@ class TestDtNSolver2D(unittest.TestCase):
         top_bc1 = DirichletBC(bkd, bounds1["top"], x_phys1)
 
         wrapper1 = SubdomainWrapper(
-            bkd, subdomain_id=1, physics=physics1,
+            bkd,
+            subdomain_id=1,
+            physics=physics1,
             interfaces={0: interface},
             external_bcs=[right_bc1, bottom_bc1, top_bc1],
         )
@@ -980,8 +1047,11 @@ class TestDtNSolver2D(unittest.TestCase):
         res = residual(interface_dofs)
         res_norm = float(bkd.norm(res))
 
-        self.assertLess(res_norm, 1e-6,
-                        f"Residual norm {res_norm} should be < 1e-6 at exact solution")
+        self.assertLess(
+            res_norm,
+            1e-6,
+            f"Residual norm {res_norm} should be < 1e-6 at exact solution",
+        )
 
     def test_solver_converges_2d(self):
         """Test solver converges to correct interface values from wrong guess."""
@@ -1004,8 +1074,9 @@ class TestDtNSolver2D(unittest.TestCase):
         expected_values = bkd.full(computed_values.shape, exact_value)
 
         max_error = float(bkd.max(bkd.abs(computed_values - expected_values)))
-        self.assertLess(max_error, 1e-6,
-                        f"Max interface error {max_error} should be < 1e-6")
+        self.assertLess(
+            max_error, 1e-6, f"Max interface error {max_error} should be < 1e-6"
+        )
 
     def test_jacobian_2d(self):
         """Test Jacobian using DerivativeChecker for 2D problem."""
@@ -1024,8 +1095,9 @@ class TestDtNSolver2D(unittest.TestCase):
         errors = checker.check_derivatives(sample, verbosity=0)
 
         min_error = float(bkd.min(errors[0]))
-        self.assertLess(min_error, 1e-4,
-                        f"Jacobian error {min_error:.2e} exceeds tolerance 1e-4")
+        self.assertLess(
+            min_error, 1e-4, f"Jacobian error {min_error:.2e} exceeds tolerance 1e-4"
+        )
 
 
 class TestDtNSolver3D(unittest.TestCase):
@@ -1089,9 +1161,12 @@ class TestDtNSolver3D(unittest.TestCase):
         back = bkd.asarray(back)
 
         return {
-            "left": left, "right": right,
-            "bottom": bottom, "top": top,
-            "front": front, "back": back,
+            "left": left,
+            "right": right,
+            "bottom": bottom,
+            "top": top,
+            "front": front,
+            "back": back,
         }
 
     def _create_3d_problem_linear_solution(self, npts=4):
@@ -1131,8 +1206,9 @@ class TestDtNSolver3D(unittest.TestCase):
         mesh0 = TransformedMesh3D(npts_x, npts_y, npts_z, bkd)
         basis0 = ChebyshevBasis3D(mesh0, bkd)
         forcing0 = bkd.zeros((basis0.npts(),))
-        physics0 = create_steady_diffusion(basis0, bkd, diffusion=1.0,
-                                           forcing=lambda t: forcing0)
+        physics0 = create_steady_diffusion(
+            basis0, bkd, diffusion=1.0, forcing=lambda t: forcing0
+        )
 
         bounds0 = self._compute_boundary_indices_3d(npts_x, npts_y, npts_z)
         nodes_x0 = basis0.nodes_x()
@@ -1177,7 +1253,9 @@ class TestDtNSolver3D(unittest.TestCase):
         back_bc0 = DirichletBC(bkd, bounds0["back"], back_vals0)
 
         wrapper0 = SubdomainWrapper(
-            bkd, subdomain_id=0, physics=physics0,
+            bkd,
+            subdomain_id=0,
+            physics=physics0,
             interfaces={0: interface},
             external_bcs=[left_bc0, bottom_bc0, top_bc0, front_bc0, back_bc0],
         )
@@ -1188,14 +1266,17 @@ class TestDtNSolver3D(unittest.TestCase):
         mesh1 = TransformedMesh3D(npts_x, npts_y, npts_z, bkd)
         basis1 = ChebyshevBasis3D(mesh1, bkd)
         forcing1 = bkd.zeros((basis1.npts(),))
-        physics1 = create_steady_diffusion(basis1, bkd, diffusion=1.0,
-                                           forcing=lambda t: forcing1)
+        physics1 = create_steady_diffusion(
+            basis1, bkd, diffusion=1.0, forcing=lambda t: forcing1
+        )
 
         bounds1 = self._compute_boundary_indices_3d(npts_x, npts_y, npts_z)
         nodes_x1 = basis1.nodes_x()
         x_phys1 = 0.5 * (nodes_x1 + 1)
 
-        right_bc1 = DirichletBC(bkd, bounds1["right"], bkd.full((npts_y * npts_z,), 1.0))
+        right_bc1 = DirichletBC(
+            bkd, bounds1["right"], bkd.full((npts_y * npts_z,), 1.0)
+        )
 
         bottom_vals1 = bkd.zeros((npts_x * npts_z,))
         idx = 0
@@ -1230,7 +1311,9 @@ class TestDtNSolver3D(unittest.TestCase):
         back_bc1 = DirichletBC(bkd, bounds1["back"], back_vals1)
 
         wrapper1 = SubdomainWrapper(
-            bkd, subdomain_id=1, physics=physics1,
+            bkd,
+            subdomain_id=1,
+            physics=physics1,
             interfaces={0: interface},
             external_bcs=[right_bc1, bottom_bc1, top_bc1, front_bc1, back_bc1],
         )
@@ -1276,8 +1359,11 @@ class TestDtNSolver3D(unittest.TestCase):
         res = residual(interface_dofs)
         res_norm = float(bkd.norm(res))
 
-        self.assertLess(res_norm, 1e-5,
-                        f"Residual norm {res_norm} should be < 1e-5 at exact solution")
+        self.assertLess(
+            res_norm,
+            1e-5,
+            f"Residual norm {res_norm} should be < 1e-5 at exact solution",
+        )
 
     def test_solver_converges_3d(self):
         """Test solver converges for 3D problem."""
@@ -1298,8 +1384,9 @@ class TestDtNSolver3D(unittest.TestCase):
         expected_values = bkd.full(computed_values.shape, exact_value)
 
         max_error = float(bkd.max(bkd.abs(computed_values - expected_values)))
-        self.assertLess(max_error, 1e-5,
-                        f"Max interface error {max_error} should be < 1e-5")
+        self.assertLess(
+            max_error, 1e-5, f"Max interface error {max_error} should be < 1e-5"
+        )
 
 
 class TestVectorPhysicsFlux(unittest.TestCase):
@@ -1352,8 +1439,8 @@ class TestVectorPhysicsFlux(unittest.TestCase):
         npts = 10
 
         from pyapprox.pde.collocation.physics.reaction_diffusion import (
-            TwoSpeciesReactionDiffusionPhysics,
             LinearReaction,
+            TwoSpeciesReactionDiffusionPhysics,
         )
 
         mesh = TransformedMesh1D(npts, bkd)
@@ -1403,7 +1490,7 @@ class TestVectorPhysicsFlux(unittest.TestCase):
         # Stress: sigma_xx = lambda + 2*mu = 3, sigma_xy = 0, sigma_yy = lambda = 1
         # Traction for n = [1, 0]: t_x = sigma_xx = 3, t_y = sigma_xy = 0
         nodes_x = basis.nodes_x()
-        nodes_y = basis.nodes_y()
+        basis.nodes_y()
         npts_total = basis.npts()
 
         # u(x,y) = x, v(x,y) = 0
@@ -1494,10 +1581,12 @@ class TestVectorInterfaceComponents(unittest.TestCase):
         # Evaluate with component-stacked coefficients
         # First component: all zeros
         # Second component: all ones
-        coeffs = bkd.concatenate([
-            bkd.zeros((ndofs,)),
-            bkd.ones((ndofs,)),
-        ])
+        coeffs = bkd.concatenate(
+            [
+                bkd.zeros((ndofs,)),
+                bkd.ones((ndofs,)),
+            ]
+        )
 
         values = interface.evaluate(coeffs)
         npts = interface.npts()

@@ -50,9 +50,7 @@ class NeoHookeanStress(Generic[Array]):
     # Numerical stress computation (StressModelProtocol)
     # ------------------------------------------------------------------
 
-    def compute_stress_1d(
-        self, F: Array, bkd: Backend[Array]
-    ) -> Array:
+    def compute_stress_1d(self, F: Array, bkd: Backend[Array]) -> Array:
         """Compute 1D PK1 stress P = mu*F + (lamda*ln(J) - mu)/J.
 
         In 1D, J = F and F^{-T} = 1/F.
@@ -154,26 +152,20 @@ class NeoHookeanStress(Generic[Array]):
     # Tangent modulus (StressModelWithTangentProtocol)
     # ------------------------------------------------------------------
 
-    def compute_tangent_1d(
-        self, F: Array, bkd: Backend[Array]
-    ) -> Array:
+    def compute_tangent_1d(self, F: Array, bkd: Backend[Array]) -> Array:
         """Compute 1D tangent dP/dF.
 
         dP/dF = mu + (mu + lamda*(1 - ln J)) / J^2
         """
         J = F
         ln_J = bkd.log(J)
-        return self._mu + (
-            self._mu + self._lamda * (1.0 - ln_J)
-        ) / (J ** 2)
+        return self._mu + (self._mu + self._lamda * (1.0 - ln_J)) / (J**2)
 
     # ------------------------------------------------------------------
     # Material parameter sensitivities (1D)
     # ------------------------------------------------------------------
 
-    def stress_sensitivity_mu_1d(
-        self, F: Array, bkd: Backend[Array]
-    ) -> Array:
+    def stress_sensitivity_mu_1d(self, F: Array, bkd: Backend[Array]) -> Array:
         """Compute dP/dmu in 1D.
 
         From P = mu*F + (lamda*ln(J) - mu)/J:
@@ -181,9 +173,7 @@ class NeoHookeanStress(Generic[Array]):
         """
         return F - 1.0 / F
 
-    def stress_sensitivity_lamda_1d(
-        self, F: Array, bkd: Backend[Array]
-    ) -> Array:
+    def stress_sensitivity_lamda_1d(self, F: Array, bkd: Backend[Array]) -> Array:
         """Compute dP/dlambda in 1D.
 
         From P = mu*F + (lamda*ln(J) - mu)/J:
@@ -292,29 +282,29 @@ class NeoHookeanStress(Generic[Array]):
         ln_J = bkd.log(J)
 
         beta = (self._lamda * ln_J - self._mu) / J
-        gamma = (self._mu + self._lamda * (1.0 - ln_J)) / (J ** 2)
+        gamma = (self._mu + self._lamda * (1.0 - ln_J)) / (J**2)
 
         return {
             # dP_11/dF_kL
-            "A_1111": self._mu + gamma * F22 ** 2,
+            "A_1111": self._mu + gamma * F22**2,
             "A_1112": -gamma * F21 * F22,
             "A_1121": -gamma * F12 * F22,
             "A_1122": beta + gamma * F11 * F22,
             # dP_12/dF_kL
             "A_1211": -gamma * F22 * F21,
-            "A_1212": self._mu + gamma * F21 ** 2,
+            "A_1212": self._mu + gamma * F21**2,
             "A_1221": -beta + gamma * F12 * F21,
             "A_1222": -gamma * F11 * F21,
             # dP_21/dF_kL
             "A_2111": -gamma * F22 * F12,
             "A_2112": -beta + gamma * F21 * F12,
-            "A_2121": self._mu + gamma * F12 ** 2,
+            "A_2121": self._mu + gamma * F12**2,
             "A_2122": -gamma * F11 * F12,
             # dP_22/dF_kL
             "A_2211": beta + gamma * F22 * F11,
             "A_2212": -gamma * F21 * F11,
             "A_2221": -gamma * F12 * F11,
-            "A_2222": self._mu + gamma * F11 ** 2,
+            "A_2222": self._mu + gamma * F11**2,
         }
 
     # ------------------------------------------------------------------
@@ -323,10 +313,12 @@ class NeoHookeanStress(Generic[Array]):
 
     def sympy_stress_1d(self, F_expr: sp.Expr) -> sp.Expr:
         """Return symbolic 1D PK1 stress."""
-        lamda = sp.Rational(self._lamda) if self._lamda == int(self._lamda) \
+        lamda = (
+            sp.Rational(self._lamda)
+            if self._lamda == int(self._lamda)
             else sp.Float(self._lamda)
-        mu = sp.Rational(self._mu) if self._mu == int(self._mu) \
-            else sp.Float(self._mu)
+        )
+        mu = sp.Rational(self._mu) if self._mu == int(self._mu) else sp.Float(self._mu)
         J = F_expr
         return mu * F_expr + (lamda * sp.log(J) - mu) / J
 
@@ -338,10 +330,12 @@ class NeoHookeanStress(Generic[Array]):
         F22: sp.Expr,
     ) -> Tuple[sp.Expr, sp.Expr, sp.Expr, sp.Expr]:
         """Return symbolic 2D PK1 stress expressions."""
-        lamda = sp.Rational(self._lamda) if self._lamda == int(self._lamda) \
+        lamda = (
+            sp.Rational(self._lamda)
+            if self._lamda == int(self._lamda)
             else sp.Float(self._lamda)
-        mu = sp.Rational(self._mu) if self._mu == int(self._mu) \
-            else sp.Float(self._mu)
+        )
+        mu = sp.Rational(self._mu) if self._mu == int(self._mu) else sp.Float(self._mu)
 
         J = F11 * F22 - F12 * F21
         coef = lamda * sp.log(J) - mu
@@ -363,10 +357,12 @@ class NeoHookeanStress(Generic[Array]):
         F: Tuple[Tuple[sp.Expr, ...], ...],
     ) -> Tuple[Tuple[sp.Expr, ...], ...]:
         """Return symbolic 3D PK1 stress expressions."""
-        lamda = sp.Rational(self._lamda) if self._lamda == int(self._lamda) \
+        lamda = (
+            sp.Rational(self._lamda)
+            if self._lamda == int(self._lamda)
             else sp.Float(self._lamda)
-        mu = sp.Rational(self._mu) if self._mu == int(self._mu) \
-            else sp.Float(self._mu)
+        )
+        mu = sp.Rational(self._mu) if self._mu == int(self._mu) else sp.Float(self._mu)
 
         F11, F12, F13 = F[0]
         F21, F22, F23 = F[1]

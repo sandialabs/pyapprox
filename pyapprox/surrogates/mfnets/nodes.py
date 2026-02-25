@@ -6,12 +6,12 @@ about which global input variables the node uses.
 
 from typing import Generic, List, Optional, Tuple
 
+from pyapprox.surrogates.mfnets.protocols import NodeModelProtocol
 from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.util.hyperparameter import (
     HyperParameterList,
     LogHyperParameter,
 )
-from pyapprox.surrogates.mfnets.protocols import NodeModelProtocol
 
 
 class MFNetNode(Generic[Array]):
@@ -60,8 +60,7 @@ class MFNetNode(Generic[Array]):
             raise ValueError("node_id must be non-negative")
         if not isinstance(model, NodeModelProtocol):
             raise TypeError(
-                f"model must satisfy NodeModelProtocol, "
-                f"got {type(model).__name__}"
+                f"model must satisfy NodeModelProtocol, got {type(model).__name__}"
             )
         self._bkd = bkd
         self._node_id = node_id
@@ -121,9 +120,7 @@ class MFNetNode(Generic[Array]):
     def hyp_list(self) -> HyperParameterList:
         """Aggregate of model hyp_list + noise_std hyperparameter."""
         model_hyps = self._model.hyp_list().hyperparameters()
-        return HyperParameterList(
-            model_hyps + [self._noise_std_hyp], self._bkd
-        )
+        return HyperParameterList(model_hyps + [self._noise_std_hyp], self._bkd)
 
     def validate(self, nvars_global: int) -> None:
         """Validate this node's configuration.

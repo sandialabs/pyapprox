@@ -3,7 +3,7 @@
 Defines interfaces for computational meshes supporting 1D, 2D, and 3D domains.
 """
 
-from typing import Protocol, Generic, runtime_checkable, Tuple
+from typing import Generic, Protocol, Tuple, runtime_checkable
 
 from pyapprox.util.backends.protocols import Array, Backend
 

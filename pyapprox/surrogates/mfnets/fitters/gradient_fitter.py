@@ -6,20 +6,20 @@ loss over all active hyperparameters.
 
 from typing import Generic, List, Optional
 
-from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.optimization.minimize.protocols import (
     BindableOptimizerProtocol,
 )
 from pyapprox.optimization.minimize.scipy.trust_constr import (
     ScipyTrustConstrOptimizer,
 )
-from pyapprox.surrogates.mfnets.network import MFNet
-from pyapprox.surrogates.mfnets.losses import (
-    MFNetNegLogLikelihoodLoss,
-)
 from pyapprox.surrogates.mfnets.fitters.results import (
     MFNetGradientFitResult,
 )
+from pyapprox.surrogates.mfnets.losses import (
+    MFNetNegLogLikelihoodLoss,
+)
+from pyapprox.surrogates.mfnets.network import MFNet
+from pyapprox.util.backends.protocols import Array, Backend
 
 
 class MFNetGradientFitter(Generic[Array]):
@@ -47,9 +47,7 @@ class MFNetGradientFitter(Generic[Array]):
     def bkd(self) -> Backend[Array]:
         return self._bkd
 
-    def set_optimizer(
-        self, optimizer: BindableOptimizerProtocol[Array]
-    ) -> None:
+    def set_optimizer(self, optimizer: BindableOptimizerProtocol[Array]) -> None:
         self._optimizer = optimizer
 
     def fit(
@@ -83,14 +81,8 @@ class MFNetGradientFitter(Generic[Array]):
 
         nactive = loss.nvars()
         if nactive == 0:
-            final_loss = float(
-                bkd.to_numpy(
-                    loss(bkd.zeros((0, 1)))[0, 0]
-                )
-            )
-            return MFNetGradientFitResult(
-                surrogate=network, loss_value=final_loss
-            )
+            final_loss = float(bkd.to_numpy(loss(bkd.zeros((0, 1)))[0, 0]))
+            return MFNetGradientFitResult(surrogate=network, loss_value=final_loss)
 
         # Get bounds from hyp_list
         bounds = network.hyp_list().get_active_bounds()
@@ -99,9 +91,7 @@ class MFNetGradientFitter(Generic[Array]):
         if self._optimizer is not None:
             optimizer = self._optimizer.copy()
         else:
-            optimizer = ScipyTrustConstrOptimizer(
-                verbosity=0, maxiter=1000
-            )
+            optimizer = ScipyTrustConstrOptimizer(verbosity=0, maxiter=1000)
 
         # Bind and minimize
         optimizer.bind(loss, bounds)

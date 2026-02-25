@@ -9,19 +9,9 @@ import unittest
 from typing import Any, Generic
 
 import numpy as np
-from numpy.typing import NDArray
 import torch
+from numpy.typing import NDArray
 
-from pyapprox.util.backends.protocols import Array, Backend
-from pyapprox.util.backends.numpy import NumpyBkd
-from pyapprox.util.backends.torch import TorchBkd
-from pyapprox.probability.univariate import UniformMarginal
-from pyapprox.probability.univariate.gaussian import GaussianMarginal
-from pyapprox.probability.conditional.gaussian import ConditionalGaussian
-from pyapprox.surrogates.affine.univariate import create_bases_1d
-from pyapprox.surrogates.affine.indices import compute_hyperbolic_indices
-from pyapprox.surrogates.affine.basis import OrthonormalPolynomialBasis
-from pyapprox.surrogates.affine.expansions import BasisExpansion
 from pyapprox.interface.functions.protocols.function import (
     FunctionProtocol,
 )
@@ -29,6 +19,16 @@ from pyapprox.inverse.variational.elbo import (
     ELBOObjective,
     make_single_problem_elbo,
 )
+from pyapprox.probability.conditional.gaussian import ConditionalGaussian
+from pyapprox.probability.univariate import UniformMarginal
+from pyapprox.probability.univariate.gaussian import GaussianMarginal
+from pyapprox.surrogates.affine.basis import OrthonormalPolynomialBasis
+from pyapprox.surrogates.affine.expansions import BasisExpansion
+from pyapprox.surrogates.affine.indices import compute_hyperbolic_indices
+from pyapprox.surrogates.affine.univariate import create_bases_1d
+from pyapprox.util.backends.numpy import NumpyBkd
+from pyapprox.util.backends.protocols import Array, Backend
+from pyapprox.util.backends.torch import TorchBkd
 
 
 def _make_degree0_expansion(bkd: Backend, coeff: float = 0.0) -> BasisExpansion:
@@ -71,7 +71,7 @@ class TestELBOBase(Generic[Array], unittest.TestCase):
         def log_likelihood_fn(z: Array) -> Array:
             obs = bkd.ones((1, 1))
             diff = z - obs
-            return -0.5 * diff ** 2
+            return -0.5 * diff**2
 
         np.random.seed(42)
         nsamples = 50
@@ -79,7 +79,12 @@ class TestELBOBase(Generic[Array], unittest.TestCase):
         weights = bkd.full((1, nsamples), 1.0 / nsamples)
 
         return make_single_problem_elbo(
-            cond, log_likelihood_fn, prior, base_samples, weights, bkd,
+            cond,
+            log_likelihood_fn,
+            prior,
+            base_samples,
+            weights,
+            bkd,
         )
 
     def test_elbo_returns_correct_shape(self) -> None:
@@ -117,7 +122,7 @@ class TestELBONumpy(TestELBOBase[NDArray[Any]], unittest.TestCase):
 
     def test_elbo_no_jacobian_numpy(self) -> None:
         elbo = self._make_simple_elbo()
-        self.assertFalse(hasattr(elbo, 'jacobian'))
+        self.assertFalse(hasattr(elbo, "jacobian"))
 
 
 class TestELBOTorch(TestELBOBase[torch.Tensor], unittest.TestCase):
@@ -127,7 +132,7 @@ class TestELBOTorch(TestELBOBase[torch.Tensor], unittest.TestCase):
 
     def test_elbo_jacobian_shape(self) -> None:
         elbo = self._make_simple_elbo()
-        self.assertTrue(hasattr(elbo, 'jacobian'))
+        self.assertTrue(hasattr(elbo, "jacobian"))
         params = self._bkd.zeros((elbo.nvars(), 1))
         jac = elbo.jacobian(params)
         self.assertEqual(jac.shape, (1, elbo.nvars()))
@@ -136,14 +141,13 @@ class TestELBOTorch(TestELBOBase[torch.Tensor], unittest.TestCase):
         from pyapprox.interface.functions.derivative_checks.derivative_checker import (
             DerivativeChecker,
         )
+
         elbo = self._make_simple_elbo()
         checker = DerivativeChecker(elbo)
         sample = self._bkd.zeros((elbo.nvars(), 1))
         errors = checker.check_derivatives(sample, verbosity=0)
         ratio = checker.error_ratio(errors[0])
-        self.assertLessEqual(
-            float(self._bkd.flatten(ratio)[0]), 1e-5
-        )
+        self.assertLessEqual(float(self._bkd.flatten(ratio)[0]), 1e-5)
 
 
 from pyapprox.util.test_utils import load_tests  # noqa: F401

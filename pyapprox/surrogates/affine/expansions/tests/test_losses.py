@@ -7,26 +7,24 @@ import numpy as np
 import torch
 from numpy.typing import NDArray
 
-from pyapprox.util.backends.numpy import NumpyBkd
-from pyapprox.util.backends.torch import TorchBkd
-from pyapprox.util.backends.protocols import Array, Backend
-from pyapprox.util.test_utils import load_tests  # noqa: F401
-
-from pyapprox.surrogates.affine.expansions.losses import (
-    BasisExpansionMSELoss,
-)
-from pyapprox.surrogates.affine.expansions.fitters import (
-    LeastSquaresFitter,
-)
 from pyapprox.optimization.minimize.scipy.trust_constr import (
     ScipyTrustConstrOptimizer,
 )
-
-from pyapprox.surrogates.affine.univariate import create_bases_1d
-from pyapprox.surrogates.affine.indices import compute_hyperbolic_indices
+from pyapprox.probability import UniformMarginal
 from pyapprox.surrogates.affine.basis import OrthonormalPolynomialBasis
 from pyapprox.surrogates.affine.expansions import BasisExpansion
-from pyapprox.probability import UniformMarginal
+from pyapprox.surrogates.affine.expansions.fitters import (
+    LeastSquaresFitter,
+)
+from pyapprox.surrogates.affine.expansions.losses import (
+    BasisExpansionMSELoss,
+)
+from pyapprox.surrogates.affine.indices import compute_hyperbolic_indices
+from pyapprox.surrogates.affine.univariate import create_bases_1d
+from pyapprox.util.backends.numpy import NumpyBkd
+from pyapprox.util.backends.protocols import Array, Backend
+from pyapprox.util.backends.torch import TorchBkd
+from pyapprox.util.test_utils import load_tests  # noqa: F401
 
 
 class TestBasisExpansionMSELoss(Generic[Array], unittest.TestCase):
@@ -60,7 +58,7 @@ class TestBasisExpansionMSELoss(Generic[Array], unittest.TestCase):
         Phi = expansion.basis_matrix(samples)
         params_2d = self._bkd.reshape(params[:, 0], (-1, 1))
         residual = Phi @ params_2d - values.T
-        expected = 0.5 * float(self._bkd.sum(residual ** 2)) / 20
+        expected = 0.5 * float(self._bkd.sum(residual**2)) / 20
 
         actual = float(loss(params)[0, 0])
         self._bkd.assert_allclose(
@@ -89,13 +87,10 @@ class TestBasisExpansionMSELoss(Generic[Array], unittest.TestCase):
             p_plus[i, 0] = p_plus[i, 0] + eps
             p_minus[i, 0] = p_minus[i, 0] - eps
             fd_grad.append(
-                (float(loss(p_plus)[0, 0]) - float(loss(p_minus)[0, 0]))
-                / (2 * eps)
+                (float(loss(p_plus)[0, 0]) - float(loss(p_minus)[0, 0])) / (2 * eps)
             )
 
-        self._bkd.assert_allclose(
-            analytical, self._bkd.asarray(fd_grad), rtol=1e-5
-        )
+        self._bkd.assert_allclose(analytical, self._bkd.asarray(fd_grad), rtol=1e-5)
 
     def test_hvp_matches_finite_difference(self) -> None:
         """HVP matches finite difference of gradient."""
@@ -134,10 +129,12 @@ class TestBasisExpansionMSELoss(Generic[Array], unittest.TestCase):
 
         optimizer = ScipyTrustConstrOptimizer(maxiter=1000, gtol=1e-10)
         nvars = loss.nvars()
-        bounds = self._bkd.hstack([
-            self._bkd.full((nvars, 1), -1e10),
-            self._bkd.full((nvars, 1), 1e10),
-        ])
+        bounds = self._bkd.hstack(
+            [
+                self._bkd.full((nvars, 1), -1e10),
+                self._bkd.full((nvars, 1), 1e10),
+            ]
+        )
         optimizer.bind(loss, bounds)
 
         init_params = self._bkd.zeros((nvars, 1))

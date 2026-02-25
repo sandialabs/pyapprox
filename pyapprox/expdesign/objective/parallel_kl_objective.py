@@ -7,12 +7,12 @@ ParallelGaussianOEDInnerLoopLikelihood for evidence computation.
 
 from typing import Generic, Optional
 
-from pyapprox.util.backends.protocols import Array, Backend
-from pyapprox.interface.parallel import ParallelConfig
+from pyapprox.expdesign.evidence import LogEvidence
 from pyapprox.expdesign.likelihood import (
     ParallelGaussianOEDInnerLoopLikelihood,
 )
-from pyapprox.expdesign.evidence import LogEvidence
+from pyapprox.interface.parallel import ParallelConfig
+from pyapprox.util.backends.protocols import Array, Backend
 
 
 class ParallelKLOEDObjective(Generic[Array]):
@@ -185,9 +185,7 @@ class ParallelKLOEDObjective(Generic[Array]):
 
         jac_diff = jac_log_like_true - jac_log_evidence
 
-        jac_eig = self._bkd.sum(
-            self._outer_quad_weights[:, None] * jac_diff, axis=0
-        )
+        jac_eig = self._bkd.sum(self._outer_quad_weights[:, None] * jac_diff, axis=0)
 
         return self._bkd.reshape(-jac_eig, (1, self._nobs))
 

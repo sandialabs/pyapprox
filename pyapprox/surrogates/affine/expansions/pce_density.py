@@ -12,7 +12,6 @@ import numpy as np
 from numpy.polynomial import polynomial as nppoly
 from numpy.polynomial.legendre import leggauss
 
-from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.surrogates.affine.expansions.pce import (
     PolynomialChaosExpansion,
 )
@@ -22,6 +21,7 @@ from pyapprox.surrogates.affine.univariate.globalpoly.monomial_conversion import
 from pyapprox.surrogates.affine.univariate.transformed import (
     TransformedBasis1D,
 )
+from pyapprox.util.backends.protocols import Array, Backend
 
 
 class UnivariatePCEDensity(Generic[Array]):
@@ -56,9 +56,7 @@ class UnivariatePCEDensity(Generic[Array]):
                 f"UnivariatePCEDensity requires nvars=1, got {pce.nvars()}"
             )
         if pce.nqoi() != 1:
-            raise ValueError(
-                f"UnivariatePCEDensity requires nqoi=1, got {pce.nqoi()}"
-            )
+            raise ValueError(f"UnivariatePCEDensity requires nqoi=1, got {pce.nqoi()}")
 
         self._pce = pce
         self._bkd = pce.bkd()
@@ -80,8 +78,7 @@ class UnivariatePCEDensity(Generic[Array]):
             poly = basis_1d.polynomial()
 
         self._jacobian_factor = (
-            self._transform.jacobian_factor() if self._transform is not None
-            else 1.0
+            self._transform.jacobian_factor() if self._transform is not None else 1.0
         )
 
         # Determine canonical domain bounds for root filtering.
@@ -92,16 +89,16 @@ class UnivariatePCEDensity(Generic[Array]):
             lb_phys = marginal.lower()
             ub_phys = marginal.upper()
             if self._transform is not None:
-                lb_can = float(self._bkd.to_numpy(
-                    self._transform.map_to_canonical(
-                        self._bkd.asarray([[lb_phys]])
-                    )
-                ).ravel()[0])
-                ub_can = float(self._bkd.to_numpy(
-                    self._transform.map_to_canonical(
-                        self._bkd.asarray([[ub_phys]])
-                    )
-                ).ravel()[0])
+                lb_can = float(
+                    self._bkd.to_numpy(
+                        self._transform.map_to_canonical(self._bkd.asarray([[lb_phys]]))
+                    ).ravel()[0]
+                )
+                ub_can = float(
+                    self._bkd.to_numpy(
+                        self._transform.map_to_canonical(self._bkd.asarray([[ub_phys]]))
+                    ).ravel()[0]
+                )
                 self._can_lb = min(lb_can, ub_can)
                 self._can_ub = max(lb_can, ub_can)
             else:
@@ -245,9 +242,7 @@ class UnivariatePCEDensity(Generic[Array]):
             Density values. Shape: (npoints,).
         """
         # Map to physical domain for marginal evaluation
-        xi_2d = self._bkd.reshape(
-            self._bkd.asarray(xi_canonical), (1, -1)
-        )
+        xi_2d = self._bkd.reshape(self._bkd.asarray(xi_canonical), (1, -1))
         if self._transform is not None:
             x_phys = self._transform.map_from_canonical(xi_2d)
         else:
@@ -306,9 +301,7 @@ class UnivariatePCEDensity(Generic[Array]):
                 if abs_gp > tol_deriv:
                     pdf_vals[ii] += f_xi[jj] / abs_gp
 
-        return self._bkd.reshape(
-            self._bkd.asarray(pdf_vals), (1, npoints)
-        )
+        return self._bkd.reshape(self._bkd.asarray(pdf_vals), (1, npoints))
 
     def moments_exact(self, max_order: int) -> Array:
         """Compute exact moments E[Y^m] via Gaussian quadrature in xi-space.
@@ -378,22 +371,20 @@ class UnivariatePCEDensity(Generic[Array]):
 
             # Map to canonical domain
             if self._transform is not None:
-                lb_can = float(self._bkd.to_numpy(
-                    self._transform.map_to_canonical(
-                        self._bkd.asarray([[lb_phys]])
-                    )
-                ).ravel()[0])
-                ub_can = float(self._bkd.to_numpy(
-                    self._transform.map_to_canonical(
-                        self._bkd.asarray([[ub_phys]])
-                    )
-                ).ravel()[0])
+                lb_can = float(
+                    self._bkd.to_numpy(
+                        self._transform.map_to_canonical(self._bkd.asarray([[lb_phys]]))
+                    ).ravel()[0]
+                )
+                ub_can = float(
+                    self._bkd.to_numpy(
+                        self._transform.map_to_canonical(self._bkd.asarray([[ub_phys]]))
+                    ).ravel()[0]
+                )
             else:
                 lb_can, ub_can = lb_phys, ub_phys
 
-            xi_np = np.linspace(
-                min(lb_can, ub_can), max(lb_can, ub_can), npts
-            )
+            xi_np = np.linspace(min(lb_can, ub_can), max(lb_can, ub_can), npts)
 
         # Evaluate g in monomial form (faster than full PCE evaluation)
         g_np = np.polynomial.polynomial.polyval(xi_np, self._mono_np)

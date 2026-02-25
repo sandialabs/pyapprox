@@ -26,25 +26,22 @@ import numpy as np
 import torch
 from numpy.typing import NDArray
 
-from pyapprox.util.backends.numpy import NumpyBkd
-from pyapprox.util.backends.torch import TorchBkd
-from pyapprox.util.backends.protocols import Array, Backend
-from pyapprox.util.hyperparameter import HyperParameterList
-from pyapprox.surrogates.kernels import (
-    SquaredExponentialKernel,
-    Matern52Kernel,
-    Matern32Kernel,
-    Kernel,
-)
-from pyapprox.surrogates.kernels.iid_gaussian_noise import IIDGaussianNoise
-from pyapprox.surrogates.gaussianprocess import ExactGaussianProcess
-from pyapprox.surrogates.gaussianprocess.loss import (
-    NegativeLogMarginalLikelihoodLoss
-)
 from pyapprox.optimization.minimize.scipy.trust_constr import (
     ScipyTrustConstrOptimizer,
 )
-
+from pyapprox.surrogates.gaussianprocess import ExactGaussianProcess
+from pyapprox.surrogates.gaussianprocess.loss import NegativeLogMarginalLikelihoodLoss
+from pyapprox.surrogates.kernels import (
+    Kernel,
+    Matern32Kernel,
+    Matern52Kernel,
+    SquaredExponentialKernel,
+)
+from pyapprox.surrogates.kernels.iid_gaussian_noise import IIDGaussianNoise
+from pyapprox.util.backends.numpy import NumpyBkd
+from pyapprox.util.backends.protocols import Array
+from pyapprox.util.backends.torch import TorchBkd
+from pyapprox.util.hyperparameter import HyperParameterList
 
 # HVP is currently disabled due to suspected bug - see loss.py
 HVP_DISABLED_REASON = (
@@ -86,7 +83,6 @@ class MockKernelNoHVP(Kernel):
     # Deliberately NOT implementing hvp_wrt_params to test dynamic binding
 
 
-from pyapprox.util.test_utils import load_tests
 
 
 class TestLossDynamicBinding(Generic[Array], unittest.TestCase):
@@ -257,7 +253,8 @@ class TestLossDynamicBinding(Generic[Array], unittest.TestCase):
         )
 
     def test_composition_kernel_no_hvp_when_one_missing(self):
-        """Test that composed kernel lacks hvp_wrt_params when one component doesn't have it."""
+        """Test composed kernel lacks hvp_wrt_params
+        when one component doesn't have it."""
         # Product of RBF (has hvp) and MockKernelNoHVP (no hvp)
         k_with = self._create_rbf_kernel()
         k_without = self._create_kernel_without_hvp()
@@ -442,7 +439,8 @@ class TestLossDynamicBinding(Generic[Array], unittest.TestCase):
         scipy_result = result.get_raw_result()
         self.assertEqual(
             scipy_result.nhev, 0,
-            f"Optimizer should NOT use HVP when unavailable, but nhev={scipy_result.nhev}"
+            "Optimizer should NOT use HVP when "
+            f"unavailable, but nhev={scipy_result.nhev}"
         )
         # Jacobian should still be evaluated
         self.assertGreater(

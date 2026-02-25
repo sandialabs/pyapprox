@@ -2,10 +2,10 @@
 
 from typing import List
 
-from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.surrogates.affine.protocols import BasisExpansionProtocol
 from pyapprox.surrogates.functiontrain.core import FunctionTrainCore
 from pyapprox.surrogates.functiontrain.functiontrain import FunctionTrain
+from pyapprox.util.backends.protocols import Array, Backend
 
 
 class ConstantExpansion:

@@ -6,23 +6,21 @@ from typing import Any, Generic
 import torch
 from numpy.typing import NDArray
 
-from pyapprox.util.backends.numpy import NumpyBkd
-from pyapprox.util.backends.torch import TorchBkd
-from pyapprox.util.backends.protocols import Array, Backend
-from pyapprox.util.test_utils import load_tests
-
+from pyapprox.benchmarks.functions.algebraic.rosenbrock import (
+    RosenbrockFunction,
+)
+from pyapprox.interface.functions.derivative_checks.derivative_checker import (
+    DerivativeChecker,
+)
 from pyapprox.interface.functions.protocols.function import (
     FunctionProtocol,
 )
 from pyapprox.interface.functions.protocols.hessian import (
     FunctionWithJacobianAndHVPProtocol,
 )
-from pyapprox.interface.functions.derivative_checks.derivative_checker import (
-    DerivativeChecker,
-)
-from pyapprox.benchmarks.functions.algebraic.rosenbrock import (
-    RosenbrockFunction,
-)
+from pyapprox.util.backends.numpy import NumpyBkd
+from pyapprox.util.backends.protocols import Array, Backend
+from pyapprox.util.backends.torch import TorchBkd
 
 
 class TestRosenbrockFunction(Generic[Array], unittest.TestCase):
@@ -87,10 +85,12 @@ class TestRosenbrockFunction(Generic[Array], unittest.TestCase):
     def test_evaluation_batch(self) -> None:
         """Test evaluation at multiple samples."""
         func = RosenbrockFunction(self._bkd, nvars=2)
-        samples = self._bkd.array([
-            [1.0, 0.0, -1.0],
-            [1.0, 0.0, 2.0],
-        ])
+        samples = self._bkd.array(
+            [
+                [1.0, 0.0, -1.0],
+                [1.0, 0.0, 2.0],
+            ]
+        )
         result = func(samples)
         self.assertEqual(result.shape, (1, 3))
         # f(1,1) = 0

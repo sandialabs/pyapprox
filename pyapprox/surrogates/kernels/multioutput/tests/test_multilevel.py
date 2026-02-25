@@ -4,11 +4,10 @@ Tests for MultiLevelKernel with new scaling functions.
 
 import unittest
 from typing import Any, Generic
+
 import numpy as np
 from numpy.typing import NDArray
 
-from pyapprox.util.backends.protocols import Array, Backend
-from pyapprox.util.backends.numpy import NumpyBkd
 from pyapprox.surrogates.kernels.matern import Matern52Kernel
 from pyapprox.surrogates.kernels.multioutput import (
     MultiLevelKernel,
@@ -16,6 +15,8 @@ from pyapprox.surrogates.kernels.multioutput import (
 from pyapprox.surrogates.kernels.scalings import (
     PolynomialScaling,
 )
+from pyapprox.util.backends.numpy import NumpyBkd
+from pyapprox.util.backends.protocols import Array, Backend
 
 
 class TestMultiLevelKernel(Generic[Array], unittest.TestCase):
@@ -280,9 +281,18 @@ class TestMultiLevelKernel(Generic[Array], unittest.TestCase):
         # Use constant scalings (PolynomialScaling with degree 0)
         from pyapprox.surrogates.kernels.scalings import PolynomialScaling
         scalings = [
-            PolynomialScaling([0.9], (0.5, 1.5), self._bkd, nvars=self._nvars),   # 0 -> 1
-            PolynomialScaling([0.85], (0.5, 1.5), self._bkd, nvars=self._nvars),  # 1 -> 2
-            PolynomialScaling([0.8], (0.5, 1.5), self._bkd, nvars=self._nvars),   # 2 -> 3
+            PolynomialScaling(  # 0 -> 1
+                [0.9], (0.5, 1.5), self._bkd,
+                nvars=self._nvars,
+            ),
+            PolynomialScaling(  # 1 -> 2
+                [0.85], (0.5, 1.5), self._bkd,
+                nvars=self._nvars,
+            ),
+            PolynomialScaling(  # 2 -> 3
+                [0.8], (0.5, 1.5), self._bkd,
+                nvars=self._nvars,
+            ),
         ]
 
         ml_kernel = MultiLevelKernel(kernels, scalings)
@@ -315,29 +325,29 @@ class TestMultiLevelKernel(Generic[Array], unittest.TestCase):
         # Verify conditional independence structure
         np.testing.assert_allclose(
             K_inv_02, 0.0, atol=1e-10,
-            err_msg="Precision K_inv[0,2] should be zero (level 0 independent of 2 given 1)"
+            err_msg="K_inv[0,2] should be zero",
         )
         np.testing.assert_allclose(
             K_inv_20, 0.0, atol=1e-10,
-            err_msg="Precision K_inv[2,0] should be zero (level 2 independent of 0 given 1)"
+            err_msg="K_inv[2,0] should be zero",
         )
 
         np.testing.assert_allclose(
             K_inv_03, 0.0, atol=1e-10,
-            err_msg="Precision K_inv[0,3] should be zero (level 0 independent of 3 given 1,2)"
+            err_msg="K_inv[0,3] should be zero",
         )
         np.testing.assert_allclose(
             K_inv_30, 0.0, atol=1e-10,
-            err_msg="Precision K_inv[3,0] should be zero (level 3 independent of 0 given 1,2)"
+            err_msg="K_inv[3,0] should be zero",
         )
 
         np.testing.assert_allclose(
             K_inv_13, 0.0, atol=1e-10,
-            err_msg="Precision K_inv[1,3] should be zero (level 1 independent of 3 given 2)"
+            err_msg="K_inv[1,3] should be zero",
         )
         np.testing.assert_allclose(
             K_inv_31, 0.0, atol=1e-10,
-            err_msg="Precision K_inv[3,1] should be zero (level 3 independent of 1 given 2)"
+            err_msg="K_inv[3,1] should be zero",
         )
 
         # Verify that adjacent blocks are NOT zero (sanity check)
@@ -377,11 +387,11 @@ class TestMultiLevelKernelOptimizeTorch(unittest.TestCase):
 
     def test_optimize_hyperparameters(self):
         """Test hyperparameter optimization for multilevel kernel GP."""
-        from pyapprox.surrogates.gaussianprocess.torch_multioutput import (
-            TorchMultiOutputGP,
-        )
         from pyapprox.surrogates.gaussianprocess.fitters import (
             MultiOutputGPMaximumLikelihoodFitter,
+        )
+        from pyapprox.surrogates.gaussianprocess.torch_multioutput import (
+            TorchMultiOutputGP,
         )
 
         np.random.seed(42)
@@ -427,7 +437,6 @@ class TestMultiLevelKernelOptimizeTorch(unittest.TestCase):
 
 
 from pyapprox.util.test_utils import load_tests  # noqa: F401
-
 
 if __name__ == "__main__":
     unittest.main()

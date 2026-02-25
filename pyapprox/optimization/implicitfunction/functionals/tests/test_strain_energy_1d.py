@@ -7,29 +7,28 @@ import numpy as np
 import torch
 from numpy.typing import NDArray
 
-from pyapprox.util.backends.protocols import Array, Backend
-from pyapprox.util.backends.numpy import NumpyBkd
-from pyapprox.util.backends.torch import TorchBkd
-from pyapprox.util.test_utils import load_tests  # noqa: F401
+from pyapprox.interface.functions.derivative_checks.derivative_checker import (
+    DerivativeChecker,
+)
+from pyapprox.interface.functions.fromcallable.jacobian import (
+    FunctionWithJacobianFromCallable,
+)
+from pyapprox.optimization.implicitfunction.functionals.protocols import (
+    ParameterizedFunctionalWithJacobianProtocol,
+)
+from pyapprox.optimization.implicitfunction.functionals.strain_energy_1d import (
+    create_linear_strain_energy_1d,
+    create_neo_hookean_strain_energy_1d,
+)
 from pyapprox.pde.collocation.basis import ChebyshevBasis1D
 from pyapprox.pde.collocation.mesh import (
     AffineTransform1D,
     TransformedMesh1D,
 )
-from pyapprox.optimization.implicitfunction.functionals.strain_energy_1d import (
-    StrainEnergyFunctional1D,
-    create_linear_strain_energy_1d,
-    create_neo_hookean_strain_energy_1d,
-)
-from pyapprox.optimization.implicitfunction.functionals.protocols import (
-    ParameterizedFunctionalWithJacobianProtocol,
-)
-from pyapprox.interface.functions.fromcallable.jacobian import (
-    FunctionWithJacobianFromCallable,
-)
-from pyapprox.interface.functions.derivative_checks.derivative_checker import (
-    DerivativeChecker,
-)
+from pyapprox.util.backends.numpy import NumpyBkd
+from pyapprox.util.backends.protocols import Array, Backend
+from pyapprox.util.backends.torch import TorchBkd
+from pyapprox.util.test_utils import load_tests  # noqa: F401
 
 
 class TestStrainEnergyFunctional1D(Generic[Array], unittest.TestCase):
@@ -64,19 +63,25 @@ class TestStrainEnergyFunctional1D(Generic[Array], unittest.TestCase):
         bkd = self._bkd
         eps = 0.05
         func = create_linear_strain_energy_1d(
-            self._basis, self._nparams, bkd, self._E,
+            self._basis,
+            self._nparams,
+            bkd,
+            self._E,
         )
         state = bkd.reshape(eps * self._phys_pts, (self._npts, 1))
         param = bkd.zeros((self._nparams, 1))
         result = func(state, param)
-        expected = bkd.asarray([[0.5 * self._E * eps ** 2 * self._length]])
+        expected = bkd.asarray([[0.5 * self._E * eps**2 * self._length]])
         bkd.assert_allclose(result, expected, atol=1e-12)
 
     def test_zero_displacement_zero_energy(self) -> None:
         """Zero displacement gives zero strain energy."""
         bkd = self._bkd
         func = create_linear_strain_energy_1d(
-            self._basis, self._nparams, bkd, self._E,
+            self._basis,
+            self._nparams,
+            bkd,
+            self._E,
         )
         state = bkd.zeros((self._npts, 1))
         param = bkd.zeros((self._nparams, 1))
@@ -88,25 +93,32 @@ class TestStrainEnergyFunctional1D(Generic[Array], unittest.TestCase):
         """u(x) = x^2: eps = 2x, W = integral (1/2)*E*(2x)^2 dx = 2*E*L^3/3."""
         bkd = self._bkd
         func = create_linear_strain_energy_1d(
-            self._basis, self._nparams, bkd, self._E,
+            self._basis,
+            self._nparams,
+            bkd,
+            self._E,
         )
-        state = bkd.reshape(self._phys_pts ** 2, (self._npts, 1))
+        state = bkd.reshape(self._phys_pts**2, (self._npts, 1))
         param = bkd.zeros((self._nparams, 1))
         result = func(state, param)
         # integral_0^L (1/2)*E*(2x)^2 dx = 2*E*L^3/3
-        expected = bkd.asarray([[2.0 * self._E * self._length ** 3 / 3.0]])
+        expected = bkd.asarray([[2.0 * self._E * self._length**3 / 3.0]])
         bkd.assert_allclose(result, expected, atol=1e-11)
 
     def test_linear_jacobian_derivative_checker(self) -> None:
         """DerivativeChecker validates linear elastic state Jacobian."""
         bkd = self._bkd
         func = create_linear_strain_energy_1d(
-            self._basis, self._nparams, bkd, self._E,
+            self._basis,
+            self._nparams,
+            bkd,
+            self._E,
         )
         param = bkd.zeros((self._nparams, 1))
 
         wrapper = FunctionWithJacobianFromCallable(
-            nqoi=1, nvars=self._npts,
+            nqoi=1,
+            nvars=self._npts,
             fun=lambda s: func(s, param),
             jacobian=lambda s: func.state_jacobian(s, param),
             bkd=bkd,
@@ -118,9 +130,7 @@ class TestStrainEnergyFunctional1D(Generic[Array], unittest.TestCase):
             (self._npts, 1),
         )
         checker = DerivativeChecker(wrapper)
-        errors = checker.check_derivatives(
-            state, direction=None, relative=True
-        )[0]
+        errors = checker.check_derivatives(state, direction=None, relative=True)[0]
         self.assertLessEqual(checker.error_ratio(errors), 1e-6)
 
     # ------------------------------------------------------------------
@@ -132,7 +142,11 @@ class TestStrainEnergyFunctional1D(Generic[Array], unittest.TestCase):
         bkd = self._bkd
         lamda, mu = self._lame_params(self._E, self._nu)
         func = create_neo_hookean_strain_energy_1d(
-            self._basis, self._nparams, bkd, lamda, mu,
+            self._basis,
+            self._nparams,
+            bkd,
+            lamda,
+            mu,
         )
         state = bkd.zeros((self._npts, 1))
         param = bkd.zeros((self._nparams, 1))
@@ -145,7 +159,11 @@ class TestStrainEnergyFunctional1D(Generic[Array], unittest.TestCase):
         bkd = self._bkd
         lamda, mu = self._lame_params(self._E, self._nu)
         func = create_neo_hookean_strain_energy_1d(
-            self._basis, self._nparams, bkd, lamda, mu,
+            self._basis,
+            self._nparams,
+            bkd,
+            lamda,
+            mu,
         )
         eps = 0.05
         state = bkd.reshape(eps * self._phys_pts, (self._npts, 1))
@@ -155,7 +173,7 @@ class TestStrainEnergyFunctional1D(Generic[Array], unittest.TestCase):
         # psi(F) = mu/2*(F^2-1-2*ln(F)) + lam/2*(ln(F))^2
         F = 1.0 + eps
         ln_F = np.log(F)
-        psi = mu / 2.0 * (F ** 2 - 1.0 - 2.0 * ln_F) + lamda / 2.0 * ln_F ** 2
+        psi = mu / 2.0 * (F**2 - 1.0 - 2.0 * ln_F) + lamda / 2.0 * ln_F**2
         expected = bkd.asarray([[psi * self._length]])
         bkd.assert_allclose(result, expected, atol=1e-12)
 
@@ -164,12 +182,17 @@ class TestStrainEnergyFunctional1D(Generic[Array], unittest.TestCase):
         bkd = self._bkd
         lamda, mu = self._lame_params(self._E, self._nu)
         func = create_neo_hookean_strain_energy_1d(
-            self._basis, self._nparams, bkd, lamda, mu,
+            self._basis,
+            self._nparams,
+            bkd,
+            lamda,
+            mu,
         )
         param = bkd.zeros((self._nparams, 1))
 
         wrapper = FunctionWithJacobianFromCallable(
-            nqoi=1, nvars=self._npts,
+            nqoi=1,
+            nvars=self._npts,
             fun=lambda s: func(s, param),
             jacobian=lambda s: func.state_jacobian(s, param),
             bkd=bkd,
@@ -194,14 +217,21 @@ class TestStrainEnergyFunctional1D(Generic[Array], unittest.TestCase):
         eps = 0.001  # very small strain
 
         func_nh = create_neo_hookean_strain_energy_1d(
-            self._basis, self._nparams, bkd, lamda, mu,
+            self._basis,
+            self._nparams,
+            bkd,
+            lamda,
+            mu,
         )
         # Linear elastic with effective modulus = lamda + 2*mu (plane strain 1D)
         # Actually for 1D: linearized Neo-Hookean gives
         # P ~ (lamda + 2*mu)*eps at small eps, so psi ~ (lamda+2mu)/2 * eps^2
         E_eff = lamda + 2.0 * mu
         func_lin = create_linear_strain_energy_1d(
-            self._basis, self._nparams, bkd, E_eff,
+            self._basis,
+            self._nparams,
+            bkd,
+            E_eff,
         )
 
         state = bkd.reshape(eps * self._phys_pts, (self._npts, 1))
@@ -221,20 +251,27 @@ class TestStrainEnergyFunctional1D(Generic[Array], unittest.TestCase):
         eps = 0.05
         half_L = self._length / 2.0
         func_half = create_linear_strain_energy_1d(
-            self._basis, self._nparams, bkd, self._E,
-            a_sub=0.0, b_sub=half_L,
+            self._basis,
+            self._nparams,
+            bkd,
+            self._E,
+            a_sub=0.0,
+            b_sub=half_L,
         )
         state = bkd.reshape(eps * self._phys_pts, (self._npts, 1))
         param = bkd.zeros((self._nparams, 1))
         result = func_half(state, param)
-        expected = bkd.asarray([[0.5 * self._E * eps ** 2 * half_L]])
+        expected = bkd.asarray([[0.5 * self._E * eps**2 * half_L]])
         bkd.assert_allclose(result, expected, atol=1e-12)
 
     def test_factory_linear(self) -> None:
         """Linear factory creates a valid functional."""
         bkd = self._bkd
         func = create_linear_strain_energy_1d(
-            self._basis, self._nparams, bkd, self._E,
+            self._basis,
+            self._nparams,
+            bkd,
+            self._E,
         )
         self.assertEqual(func.nqoi(), 1)
         self.assertEqual(func.nstates(), self._npts)
@@ -246,7 +283,11 @@ class TestStrainEnergyFunctional1D(Generic[Array], unittest.TestCase):
         bkd = self._bkd
         lamda, mu = self._lame_params(self._E, self._nu)
         func = create_neo_hookean_strain_energy_1d(
-            self._basis, self._nparams, bkd, lamda, mu,
+            self._basis,
+            self._nparams,
+            bkd,
+            lamda,
+            mu,
         )
         self.assertEqual(func.nqoi(), 1)
         self.assertEqual(func.nstates(), self._npts)
@@ -256,7 +297,10 @@ class TestStrainEnergyFunctional1D(Generic[Array], unittest.TestCase):
         """Linear strain energy satisfies the protocol."""
         bkd = self._bkd
         func = create_linear_strain_energy_1d(
-            self._basis, self._nparams, bkd, self._E,
+            self._basis,
+            self._nparams,
+            bkd,
+            self._E,
         )
         self.assertIsInstance(func, ParameterizedFunctionalWithJacobianProtocol)
 
@@ -265,7 +309,11 @@ class TestStrainEnergyFunctional1D(Generic[Array], unittest.TestCase):
         bkd = self._bkd
         lamda, mu = self._lame_params(self._E, self._nu)
         func = create_neo_hookean_strain_energy_1d(
-            self._basis, self._nparams, bkd, lamda, mu,
+            self._basis,
+            self._nparams,
+            bkd,
+            lamda,
+            mu,
         )
         self.assertIsInstance(func, ParameterizedFunctionalWithJacobianProtocol)
 
@@ -273,7 +321,10 @@ class TestStrainEnergyFunctional1D(Generic[Array], unittest.TestCase):
         """Strain energy functional has no parameter dependence."""
         bkd = self._bkd
         func = create_linear_strain_energy_1d(
-            self._basis, self._nparams, bkd, self._E,
+            self._basis,
+            self._nparams,
+            bkd,
+            self._E,
         )
         state = bkd.ones((self._npts, 1))
         param = bkd.ones((self._nparams, 1))
@@ -282,16 +333,12 @@ class TestStrainEnergyFunctional1D(Generic[Array], unittest.TestCase):
         bkd.assert_allclose(jac, expected)
 
 
-class TestStrainEnergyFunctional1DNumpy(
-    TestStrainEnergyFunctional1D[NDArray[Any]]
-):
+class TestStrainEnergyFunctional1DNumpy(TestStrainEnergyFunctional1D[NDArray[Any]]):
     def bkd(self) -> NumpyBkd:
         return NumpyBkd()
 
 
-class TestStrainEnergyFunctional1DTorch(
-    TestStrainEnergyFunctional1D[torch.Tensor]
-):
+class TestStrainEnergyFunctional1DTorch(TestStrainEnergyFunctional1D[torch.Tensor]):
     def setUp(self) -> None:
         torch.set_default_dtype(torch.float64)
         super().setUp()

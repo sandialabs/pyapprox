@@ -11,17 +11,16 @@ import numpy as np
 import torch
 from numpy.typing import NDArray
 
-from pyapprox.util.backends.numpy import NumpyBkd
-from pyapprox.util.backends.torch import TorchBkd
-from pyapprox.util.backends.protocols import Array, Backend
-from pyapprox.util.test_utils import load_tests  # noqa: F401
-
 from pyapprox.surrogates.affine.expansions.crossvalidation import (
-    get_random_k_fold_sample_indices,
-    leave_one_out_lsq_cross_validation,
-    leave_many_out_lsq_cross_validation,
     get_cross_validation_rsquared,
+    get_random_k_fold_sample_indices,
+    leave_many_out_lsq_cross_validation,
+    leave_one_out_lsq_cross_validation,
 )
+from pyapprox.util.backends.numpy import NumpyBkd
+from pyapprox.util.backends.protocols import Array, Backend
+from pyapprox.util.backends.torch import TorchBkd
+from pyapprox.util.test_utils import load_tests  # noqa: F401
 
 
 class TestCrossValidation(Generic[Array], unittest.TestCase):
@@ -78,20 +77,17 @@ class TestCrossValidation(Generic[Array], unittest.TestCase):
         # Brute-force LOO
         true_cv_errors = bkd.zeros(cv_errors.shape)
         for ii in range(nsamples):
-            samples_ii = bkd.hstack((samples[:, :ii], samples[:, ii + 1:]))
+            samples_ii = bkd.hstack((samples[:, :ii], samples[:, ii + 1 :]))
             basis_mat_ii = samples_ii.T ** bkd.arange(degree + 1)
-            values_ii = bkd.vstack((values[:ii], values[ii + 1:]))
+            values_ii = bkd.vstack((values[:ii], values[ii + 1 :]))
             coef_ii = bkd.lstsq(
-                basis_mat_ii.T @ basis_mat_ii
-                + alpha * bkd.eye(basis_mat.shape[1]),
+                basis_mat_ii.T @ basis_mat_ii + alpha * bkd.eye(basis_mat.shape[1]),
                 basis_mat_ii.T @ values_ii,
             )
             true_cv_errors[ii] = basis_mat[ii] @ coef_ii - values[ii]
 
         bkd.assert_allclose(cv_errors, true_cv_errors)
-        expected_score = bkd.sqrt(
-            bkd.sum(true_cv_errors**2, axis=0) / nsamples
-        )
+        expected_score = bkd.sqrt(bkd.sum(true_cv_errors**2, axis=0) / nsamples)
         bkd.assert_allclose(cv_score, expected_score)
 
     def test_leave_many_out_lsq_cross_validation(self) -> None:
@@ -121,8 +117,7 @@ class TestCrossValidation(Generic[Array], unittest.TestCase):
             K[fold_sample_indices[kk]] = False
             basis_mat_kk = basis_mat[K, :]
             gram_mat_kk = (
-                basis_mat_kk.T @ basis_mat_kk
-                + bkd.eye(basis_mat_kk.shape[1]) * alpha
+                basis_mat_kk.T @ basis_mat_kk + bkd.eye(basis_mat_kk.shape[1]) * alpha
             )
             values_kk = basis_mat_kk.T @ values[K, :]
             coef_kk = bkd.lstsq(gram_mat_kk, values_kk)

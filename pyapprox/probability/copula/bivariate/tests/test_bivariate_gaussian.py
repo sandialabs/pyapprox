@@ -9,9 +9,6 @@ import torch
 from numpy.typing import NDArray
 from scipy import stats
 
-from pyapprox.util.backends.protocols import Array, Backend
-from pyapprox.util.backends.numpy import NumpyBkd
-from pyapprox.util.backends.torch import TorchBkd
 from pyapprox.probability.copula.bivariate.gaussian import (
     BivariateGaussianCopula,
 )
@@ -22,11 +19,15 @@ from pyapprox.probability.copula.correlation.cholesky import (
     CholeskyCorrelationParameterization,
 )
 from pyapprox.probability.copula.gaussian import GaussianCopula
+from pyapprox.util.backends.numpy import NumpyBkd
+from pyapprox.util.backends.protocols import Array, Backend
+from pyapprox.util.backends.torch import TorchBkd
 from pyapprox.util.test_utils import load_tests  # noqa: F401
 
 
-def _scipy_bivariate_normal_cdf(z1: np.ndarray, z2: np.ndarray,
-                                rho: float) -> np.ndarray:
+def _scipy_bivariate_normal_cdf(
+    z1: np.ndarray, z2: np.ndarray, rho: float
+) -> np.ndarray:
     """Reference bivariate normal CDF using scipy (test helper only)."""
     cov = np.array([[1.0, rho], [rho, 1.0]])
     points = np.column_stack([z1.ravel(), z2.ravel()])
@@ -52,9 +53,7 @@ class TestBivariateGaussianCopula(Generic[Array], unittest.TestCase):
 
     def test_logpdf_shape(self) -> None:
         np.random.seed(42)
-        u = self._bkd.asarray(
-            np.random.uniform(0.01, 0.99, (2, 20)).astype(np.float64)
-        )
+        u = self._bkd.asarray(np.random.uniform(0.01, 0.99, (2, 20)).astype(np.float64))
         result = self._copula.logpdf(u)
         self.assertEqual(result.shape, (1, 20))
 
@@ -62,9 +61,7 @@ class TestBivariateGaussianCopula(Generic[Array], unittest.TestCase):
         """With rho=0, the copula density is 1 (log c = 0)."""
         copula = BivariateGaussianCopula(0.0, self._bkd)
         np.random.seed(42)
-        u = self._bkd.asarray(
-            np.random.uniform(0.01, 0.99, (2, 50)).astype(np.float64)
-        )
+        u = self._bkd.asarray(np.random.uniform(0.01, 0.99, (2, 50)).astype(np.float64))
         result = copula.logpdf(u)
         expected = self._bkd.zeros((1, 50))
         self._bkd.assert_allclose(result, expected, atol=1e-10)
@@ -81,7 +78,7 @@ class TestBivariateGaussianCopula(Generic[Array], unittest.TestCase):
         pdf_np = self._bkd.to_numpy(self._bkd.exp(logpdf))[0]
 
         # d^2C/du1du2 via finite differences on scipy bivariate normal CDF
-        z = stats.norm.ppf(u_np)
+        stats.norm.ppf(u_np)
         z_pp = stats.norm.ppf(u_np + np.array([[eps], [eps]]))
         z_pm = stats.norm.ppf(u_np + np.array([[eps], [-eps]]))
         z_mp = stats.norm.ppf(u_np + np.array([[-eps], [eps]]))
@@ -100,15 +97,11 @@ class TestBivariateGaussianCopula(Generic[Array], unittest.TestCase):
         """BivariateGaussianCopula.logpdf matches GaussianCopula(d=2).logpdf."""
         rho = self._rho
         chol_lower = self._bkd.asarray([rho])
-        corr_param = CholeskyCorrelationParameterization(
-            chol_lower, 2, self._bkd
-        )
+        corr_param = CholeskyCorrelationParameterization(chol_lower, 2, self._bkd)
         mv_copula = GaussianCopula(corr_param, self._bkd)
 
         np.random.seed(42)
-        u = self._bkd.asarray(
-            np.random.uniform(0.01, 0.99, (2, 50)).astype(np.float64)
-        )
+        u = self._bkd.asarray(np.random.uniform(0.01, 0.99, (2, 50)).astype(np.float64))
 
         bivar_logpdf = self._copula.logpdf(u)
         mv_logpdf = mv_copula.logpdf(u)
@@ -187,9 +180,7 @@ class TestBivariateGaussianCopula(Generic[Array], unittest.TestCase):
             self._copula.logpdf(u_1d)
 
     def test_input_validation_wrong_nvars(self) -> None:
-        u = self._bkd.asarray(
-            np.random.uniform(0.01, 0.99, (3, 10)).astype(np.float64)
-        )
+        u = self._bkd.asarray(np.random.uniform(0.01, 0.99, (3, 10)).astype(np.float64))
         with self.assertRaises(ValueError):
             self._copula.logpdf(u)
 
@@ -197,32 +188,24 @@ class TestBivariateGaussianCopula(Generic[Array], unittest.TestCase):
         """Negative correlation should work correctly."""
         copula = BivariateGaussianCopula(-0.5, self._bkd)
         np.random.seed(42)
-        u = self._bkd.asarray(
-            np.random.uniform(0.05, 0.95, (2, 20)).astype(np.float64)
-        )
+        u = self._bkd.asarray(np.random.uniform(0.05, 0.95, (2, 20)).astype(np.float64))
         result = copula.logpdf(u)
         self.assertEqual(result.shape, (1, 20))
 
         # Cross-validate with multivariate
         chol_lower = self._bkd.asarray([-0.5])
-        corr_param = CholeskyCorrelationParameterization(
-            chol_lower, 2, self._bkd
-        )
+        corr_param = CholeskyCorrelationParameterization(chol_lower, 2, self._bkd)
         mv_copula = GaussianCopula(corr_param, self._bkd)
         mv_logpdf = mv_copula.logpdf(u)
         self._bkd.assert_allclose(result, mv_logpdf, rtol=1e-10)
 
 
-class TestBivariateGaussianCopulaNumpy(
-    TestBivariateGaussianCopula[NDArray[Any]]
-):
+class TestBivariateGaussianCopulaNumpy(TestBivariateGaussianCopula[NDArray[Any]]):
     def bkd(self) -> NumpyBkd:
         return NumpyBkd()
 
 
-class TestBivariateGaussianCopulaTorch(
-    TestBivariateGaussianCopula[torch.Tensor]
-):
+class TestBivariateGaussianCopulaTorch(TestBivariateGaussianCopula[torch.Tensor]):
     def bkd(self) -> TorchBkd:
         torch.set_default_dtype(torch.float64)
         return TorchBkd()

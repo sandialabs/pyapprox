@@ -9,7 +9,7 @@ using symbolic expressions. The class automatically:
 """
 
 from abc import ABC, abstractmethod
-from typing import Callable, Dict, Generic, List, Optional, Tuple
+from typing import Dict, Generic, List, Optional, Tuple
 
 import numpy as np
 import sympy as sp
@@ -230,7 +230,8 @@ class BaseSympyTransform(Generic[Array], ABC):
 
         if max_rel_error > rtol:
             raise ValueError(
-                f"Inverse mapping inconsistent: max relative error = {max_rel_error:.2e}. "
+                "Inverse mapping inconsistent: "
+                f"max relative error = {max_rel_error:.2e}. "
                 f"Check that inverse expressions correctly invert forward mapping."
             )
 

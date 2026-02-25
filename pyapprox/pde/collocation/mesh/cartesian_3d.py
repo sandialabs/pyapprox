@@ -3,19 +3,19 @@
 Provides mesh construction for 3D domains with tensor-product structure.
 """
 
-from typing import Generic, Tuple, Optional, List
+from typing import Generic, List, Optional, Tuple
 
-from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.pde.collocation.mesh.base import (
     MeshData,
     MeshDataWithTransform,
-    compute_cartesian_product,
     compute_boundary_indices_3d,
+    compute_cartesian_product,
 )
 from pyapprox.pde.collocation.mesh.transforms.affine import (
     AffineTransform3D,
 )
 from pyapprox.pde.collocation.protocols.mesh import TransformProtocol
+from pyapprox.util.backends.protocols import Array, Backend
 
 
 class CartesianMesh3D(Generic[Array]):
@@ -55,9 +55,7 @@ class CartesianMesh3D(Generic[Array]):
         self._npts_per_dim = (npts_x, npts_y, npts_z)
 
         # Reference points via Cartesian product
-        self._reference_points = compute_cartesian_product(
-            reference_pts_1d, bkd
-        )
+        self._reference_points = compute_cartesian_product(reference_pts_1d, bkd)
 
         # Compute physical points
         if transform is not None:
@@ -99,11 +97,7 @@ class CartesianMesh3D(Generic[Array]):
 
     def npts(self) -> int:
         """Return the total number of mesh points."""
-        return (
-            self._npts_per_dim[0]
-            * self._npts_per_dim[1]
-            * self._npts_per_dim[2]
-        )
+        return self._npts_per_dim[0] * self._npts_per_dim[1] * self._npts_per_dim[2]
 
     def npts_per_dim(self) -> Tuple[int, ...]:
         """Return the number of points in each dimension."""
@@ -147,8 +141,7 @@ class CartesianMesh3D(Generic[Array]):
         """
         if boundary_id < 0 or boundary_id >= 6:
             raise ValueError(
-                f"Invalid boundary_id {boundary_id} for 3D mesh. "
-                "Must be 0-5."
+                f"Invalid boundary_id {boundary_id} for 3D mesh. Must be 0-5."
             )
         return self._boundary_indices[boundary_id]
 

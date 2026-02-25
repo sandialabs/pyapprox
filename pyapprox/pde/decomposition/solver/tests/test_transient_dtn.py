@@ -18,50 +18,49 @@ This is conceptually stitching two domains together at a shared interface.
 """
 
 import unittest
-import numpy as np
-from typing import Callable, Tuple
+from typing import Tuple
 
-from pyapprox.util.backends.protocols import Array, Backend
-from pyapprox.util.backends.numpy import NumpyBkd
-from pyapprox.util.test_utils import load_tests  # noqa: F401
+import numpy as np
+
 from pyapprox.pde.collocation.basis import (
     ChebyshevBasis1D,
     ChebyshevBasis2D,
+    ChebyshevBasis3D,
+)
+from pyapprox.pde.collocation.boundary import (
+    DirichletBC,
+    zero_dirichlet_bc,
 )
 from pyapprox.pde.collocation.mesh import (
     TransformedMesh1D,
     TransformedMesh2D,
     TransformedMesh3D,
 )
-from pyapprox.pde.collocation.boundary import (
-    DirichletBC,
-    zero_dirichlet_bc,
-)
 from pyapprox.pde.collocation.physics.advection_diffusion import (
     AdvectionDiffusionReaction,
-    create_steady_diffusion,
+)
+from pyapprox.pde.collocation.physics.linear_elasticity import (
+    LinearElasticityPhysics,
 )
 from pyapprox.pde.collocation.physics.reaction_diffusion import (
-    TwoSpeciesReactionDiffusionPhysics,
     LinearReaction,
+    TwoSpeciesReactionDiffusionPhysics,
 )
 from pyapprox.pde.decomposition.interface import (
-    Interface1D,
     Interface,
+    Interface1D,
     Interface2D,
     LegendreInterfaceBasis1D,
     LegendreInterfaceBasis2D,
 )
-from pyapprox.pde.collocation.basis import ChebyshevBasis3D
-from pyapprox.pde.collocation.physics.linear_elasticity import (
-    LinearElasticityPhysics,
-    create_linear_elasticity,
-)
-from pyapprox.pde.decomposition.subdomain import SubdomainWrapper
 from pyapprox.pde.decomposition.solver import (
     DtNResidual,
     DtNSolver,
 )
+from pyapprox.pde.decomposition.subdomain import SubdomainWrapper
+from pyapprox.util.backends.numpy import NumpyBkd
+from pyapprox.util.backends.protocols import Array, Backend
+from pyapprox.util.test_utils import load_tests  # noqa: F401
 
 
 class ManufacturedSolution1DWithForcingSymmetric:
@@ -109,6 +108,7 @@ class ManufacturedSolution1DWithForcingSymmetric:
 
     Simpler: use Laplace with time-dependent BCs.
     """
+
     pass
 
 
@@ -358,8 +358,11 @@ class TestTransientDtN1DSimple(unittest.TestCase):
         left_bc0 = zero_dirichlet_bc(bkd, bkd.asarray([0]))
 
         wrapper0 = SubdomainWrapper(
-            bkd, subdomain_id=0, physics=physics0,
-            interfaces={0: interface}, external_bcs=[left_bc0]
+            bkd,
+            subdomain_id=0,
+            physics=physics0,
+            interfaces={0: interface},
+            external_bcs=[left_bc0],
         )
         # Interface at x=1 (index npts-1)
         wrapper0.set_interface_boundary_indices(0, bkd.asarray([npts - 1]))
@@ -380,8 +383,11 @@ class TestTransientDtN1DSimple(unittest.TestCase):
         right_bc1 = zero_dirichlet_bc(bkd, bkd.asarray([npts - 1]))
 
         wrapper1 = SubdomainWrapper(
-            bkd, subdomain_id=1, physics=physics1,
-            interfaces={0: interface}, external_bcs=[right_bc1]
+            bkd,
+            subdomain_id=1,
+            physics=physics1,
+            interfaces={0: interface},
+            external_bcs=[right_bc1],
         )
         # Interface at x=-1 (index 0)
         wrapper1.set_interface_boundary_indices(0, bkd.asarray([0]))
@@ -424,9 +430,12 @@ class TestTransientDtN1DSimple(unittest.TestCase):
         exact_interface = mms.interface_value(0.0)  # lambda = 4*(1+0) = 4
         computed_interface = float(result.interface_dofs[0])
 
-        self.assertAlmostEqual(computed_interface, exact_interface, places=6,
-                               msg=f"Interface: computed={computed_interface}, "
-                                   f"exact={exact_interface}")
+        self.assertAlmostEqual(
+            computed_interface,
+            exact_interface,
+            places=6,
+            msg=f"Interface: computed={computed_interface}, exact={exact_interface}",
+        )
 
     def test_residual_zero_at_exact_solution(self):
         """Test residual is zero at the exact interface solution."""
@@ -447,8 +456,11 @@ class TestTransientDtN1DSimple(unittest.TestCase):
         res = residual(exact_dofs)
         res_norm = float(bkd.norm(res))
 
-        self.assertLess(res_norm, 1e-10,
-                        f"Residual norm {res_norm} should be < 1e-10 at exact solution")
+        self.assertLess(
+            res_norm,
+            1e-10,
+            f"Residual norm {res_norm} should be < 1e-10 at exact solution",
+        )
 
     def test_solution_accuracy_at_collocation_points(self):
         """Verify full solution matches manufactured solution at t=0."""
@@ -481,8 +493,9 @@ class TestTransientDtN1DSimple(unittest.TestCase):
                 exact_sol = mms.solution_sub1(nodes, t)
 
             max_error = float(bkd.max(bkd.abs(computed_sol - exact_sol)))
-            self.assertLess(max_error, 1e-8,
-                            f"Subdomain {sub_id}: max error = {max_error}")
+            self.assertLess(
+                max_error, 1e-8, f"Subdomain {sub_id}: max error = {max_error}"
+            )
 
 
 class TestDtN2DWithForcing(unittest.TestCase):
@@ -554,8 +567,12 @@ class TestDtN2DWithForcing(unittest.TestCase):
             bkd, degree=npts - 1, physical_bounds=(-1.0, 1.0)
         )
         interface = Interface(
-            bkd, interface_id=0, subdomain_ids=(0, 1),
-            basis=interface_basis, normal_direction=0, ambient_dim=2
+            bkd,
+            interface_id=0,
+            subdomain_ids=(0, 1),
+            basis=interface_basis,
+            normal_direction=0,
+            ambient_dim=2,
         )
 
         # Subdomain 0
@@ -582,9 +599,11 @@ class TestDtN2DWithForcing(unittest.TestCase):
         top_bc0 = DirichletBC(bkd, bounds0["top"], top_vals0)
 
         wrapper0 = SubdomainWrapper(
-            bkd, subdomain_id=0, physics=physics0,
+            bkd,
+            subdomain_id=0,
+            physics=physics0,
             interfaces={0: interface},
-            external_bcs=[left_bc0, bottom_bc0, top_bc0]
+            external_bcs=[left_bc0, bottom_bc0, top_bc0],
         )
         wrapper0.set_interface_boundary_indices(0, bounds0["right"])
 
@@ -609,9 +628,11 @@ class TestDtN2DWithForcing(unittest.TestCase):
         top_bc1 = DirichletBC(bkd, bounds1["top"], top_vals1)
 
         wrapper1 = SubdomainWrapper(
-            bkd, subdomain_id=1, physics=physics1,
+            bkd,
+            subdomain_id=1,
+            physics=physics1,
             interfaces={0: interface},
-            external_bcs=[right_bc1, bottom_bc1, top_bc1]
+            external_bcs=[right_bc1, bottom_bc1, top_bc1],
         )
         wrapper1.set_interface_boundary_indices(0, bounds1["left"])
 
@@ -640,8 +661,7 @@ class TestDtN2DWithForcing(unittest.TestCase):
         exact_val = self.exact_lambda
 
         max_error = float(bkd.max(bkd.abs(computed_vals - exact_val)))
-        self.assertLess(max_error, 1e-6,
-                        f"2D interface error = {max_error}")
+        self.assertLess(max_error, 1e-6, f"2D interface error = {max_error}")
 
     def test_2d_residual_zero_at_exact(self):
         """Test residual is zero at exact interface solution."""
@@ -654,8 +674,12 @@ class TestDtN2DWithForcing(unittest.TestCase):
             bkd, degree=npts - 1, physical_bounds=(-1.0, 1.0)
         )
         interface = Interface(
-            bkd, interface_id=0, subdomain_ids=(0, 1),
-            basis=interface_basis, normal_direction=0, ambient_dim=2
+            bkd,
+            interface_id=0,
+            subdomain_ids=(0, 1),
+            basis=interface_basis,
+            normal_direction=0,
+            ambient_dim=2,
         )
 
         mesh0 = TransformedMesh2D(npts, npts, bkd)
@@ -672,15 +696,23 @@ class TestDtN2DWithForcing(unittest.TestCase):
         bounds0 = self._compute_boundary_indices_2d(npts, npts)
         left_bc0 = zero_dirichlet_bc(bkd, bounds0["left"])
 
-        bottom_bc0 = DirichletBC(bkd, bounds0["bottom"],
-                                 bkd.asarray([self._exact_sub0(nodes_x0[i]) for i in range(npts)]))
-        top_bc0 = DirichletBC(bkd, bounds0["top"],
-                              bkd.asarray([self._exact_sub0(nodes_x0[i]) for i in range(npts)]))
+        bottom_bc0 = DirichletBC(
+            bkd,
+            bounds0["bottom"],
+            bkd.asarray([self._exact_sub0(nodes_x0[i]) for i in range(npts)]),
+        )
+        top_bc0 = DirichletBC(
+            bkd,
+            bounds0["top"],
+            bkd.asarray([self._exact_sub0(nodes_x0[i]) for i in range(npts)]),
+        )
 
         wrapper0 = SubdomainWrapper(
-            bkd, subdomain_id=0, physics=physics0,
+            bkd,
+            subdomain_id=0,
+            physics=physics0,
             interfaces={0: interface},
-            external_bcs=[left_bc0, bottom_bc0, top_bc0]
+            external_bcs=[left_bc0, bottom_bc0, top_bc0],
         )
         wrapper0.set_interface_boundary_indices(0, bounds0["right"])
 
@@ -697,15 +729,23 @@ class TestDtN2DWithForcing(unittest.TestCase):
         right_bc1_vals = bkd.full((npts,), 2.0)
         right_bc1 = DirichletBC(bkd, bounds1["right"], right_bc1_vals)
 
-        bottom_bc1 = DirichletBC(bkd, bounds1["bottom"],
-                                 bkd.asarray([self._exact_sub1(nodes_x0[i]) for i in range(npts)]))
-        top_bc1 = DirichletBC(bkd, bounds1["top"],
-                              bkd.asarray([self._exact_sub1(nodes_x0[i]) for i in range(npts)]))
+        bottom_bc1 = DirichletBC(
+            bkd,
+            bounds1["bottom"],
+            bkd.asarray([self._exact_sub1(nodes_x0[i]) for i in range(npts)]),
+        )
+        top_bc1 = DirichletBC(
+            bkd,
+            bounds1["top"],
+            bkd.asarray([self._exact_sub1(nodes_x0[i]) for i in range(npts)]),
+        )
 
         wrapper1 = SubdomainWrapper(
-            bkd, subdomain_id=1, physics=physics1,
+            bkd,
+            subdomain_id=1,
+            physics=physics1,
             interfaces={0: interface},
-            external_bcs=[right_bc1, bottom_bc1, top_bc1]
+            external_bcs=[right_bc1, bottom_bc1, top_bc1],
         )
         wrapper1.set_interface_boundary_indices(0, bounds1["left"])
 
@@ -728,8 +768,11 @@ class TestDtN2DWithForcing(unittest.TestCase):
         res = residual(exact_dofs)
         res_norm = float(bkd.norm(res))
 
-        self.assertLess(res_norm, 1e-10,
-                        f"Residual norm {res_norm} should be < 1e-10 at exact solution")
+        self.assertLess(
+            res_norm,
+            1e-10,
+            f"Residual norm {res_norm} should be < 1e-10 at exact solution",
+        )
 
 
 class TestTransientDtNTwoSpecies(unittest.TestCase):
@@ -763,8 +806,11 @@ class TestTransientDtNTwoSpecies(unittest.TestCase):
 
         # Interface for 2-component system
         interface = Interface1D(
-            bkd, interface_id=0, subdomain_ids=(0, 1),
-            interface_point=0.0, ncomponents=2
+            bkd,
+            interface_id=0,
+            subdomain_ids=(0, 1),
+            interface_point=0.0,
+            ncomponents=2,
         )
 
         # Subdomain 0: [-1, 1] with external BC at x=-1, interface at x=1
@@ -782,8 +828,13 @@ class TestTransientDtNTwoSpecies(unittest.TestCase):
         reaction0 = LinearReaction(0.0, 0.0, 0.0, 0.0, bkd)
 
         physics0 = TwoSpeciesReactionDiffusionPhysics(
-            basis0, bkd, diffusion0=D0, diffusion1=D1,
-            reaction=reaction0, forcing0=forcing0_0, forcing1=forcing0_1
+            basis0,
+            bkd,
+            diffusion0=D0,
+            diffusion1=D1,
+            reaction=reaction0,
+            forcing0=forcing0_0,
+            forcing1=forcing0_1,
         )
 
         # External BC at x=-1 (index 0): u0 = u1 = 0
@@ -793,8 +844,11 @@ class TestTransientDtNTwoSpecies(unittest.TestCase):
         left_bc0 = DirichletBC(bkd, left_indices, left_vals)
 
         wrapper0 = SubdomainWrapper(
-            bkd, subdomain_id=0, physics=physics0,
-            interfaces={0: interface}, external_bcs=[left_bc0]
+            bkd,
+            subdomain_id=0,
+            physics=physics0,
+            interfaces={0: interface},
+            external_bcs=[left_bc0],
         )
         # Interface at x=1 (index npts-1)
         wrapper0.set_interface_boundary_indices(0, bkd.asarray([npts - 1]))
@@ -813,8 +867,13 @@ class TestTransientDtNTwoSpecies(unittest.TestCase):
         reaction1 = LinearReaction(0.0, 0.0, 0.0, 0.0, bkd)
 
         physics1 = TwoSpeciesReactionDiffusionPhysics(
-            basis1, bkd, diffusion0=D0, diffusion1=D1,
-            reaction=reaction1, forcing0=forcing1_0, forcing1=forcing1_1
+            basis1,
+            bkd,
+            diffusion0=D0,
+            diffusion1=D1,
+            reaction=reaction1,
+            forcing0=forcing1_0,
+            forcing1=forcing1_1,
         )
 
         # External BC at x=1 (index npts-1): u0 = u1 = 0
@@ -823,8 +882,11 @@ class TestTransientDtNTwoSpecies(unittest.TestCase):
         right_bc1 = DirichletBC(bkd, right_indices, right_vals)
 
         wrapper1 = SubdomainWrapper(
-            bkd, subdomain_id=1, physics=physics1,
-            interfaces={0: interface}, external_bcs=[right_bc1]
+            bkd,
+            subdomain_id=1,
+            physics=physics1,
+            interfaces={0: interface},
+            external_bcs=[right_bc1],
         )
         # Interface at x=-1 (index 0)
         wrapper1.set_interface_boundary_indices(0, bkd.asarray([0]))
@@ -870,10 +932,18 @@ class TestTransientDtNTwoSpecies(unittest.TestCase):
         computed_u0 = float(result.interface_dofs[0])
         computed_u1 = float(result.interface_dofs[1])
 
-        self.assertAlmostEqual(computed_u0, exact_u0, places=6,
-                               msg=f"u0 at interface: {computed_u0} vs {exact_u0}")
-        self.assertAlmostEqual(computed_u1, exact_u1, places=6,
-                               msg=f"u1 at interface: {computed_u1} vs {exact_u1}")
+        self.assertAlmostEqual(
+            computed_u0,
+            exact_u0,
+            places=6,
+            msg=f"u0 at interface: {computed_u0} vs {exact_u0}",
+        )
+        self.assertAlmostEqual(
+            computed_u1,
+            exact_u1,
+            places=6,
+            msg=f"u1 at interface: {computed_u1} vs {exact_u1}",
+        )
 
     def test_residual_zero_at_exact_solution(self):
         """Test residual is zero at the exact interface solution."""
@@ -895,8 +965,11 @@ class TestTransientDtNTwoSpecies(unittest.TestCase):
         res = residual(exact_dofs)
         res_norm = float(bkd.norm(res))
 
-        self.assertLess(res_norm, 1e-10,
-                        f"Residual norm {res_norm} should be < 1e-10 at exact solution")
+        self.assertLess(
+            res_norm,
+            1e-10,
+            f"Residual norm {res_norm} should be < 1e-10 at exact solution",
+        )
 
     def test_two_species_solution_accuracy(self):
         """Verify full two-species solution matches manufactured solution at t=0."""
@@ -938,10 +1011,12 @@ class TestTransientDtNTwoSpecies(unittest.TestCase):
             max_error_u0 = float(bkd.max(bkd.abs(u0_computed - u0_exact)))
             max_error_u1 = float(bkd.max(bkd.abs(u1_computed - u1_exact)))
 
-            self.assertLess(max_error_u0, 1e-8,
-                            f"Subdomain {sub_id} u0 error = {max_error_u0}")
-            self.assertLess(max_error_u1, 1e-8,
-                            f"Subdomain {sub_id} u1 error = {max_error_u1}")
+            self.assertLess(
+                max_error_u0, 1e-8, f"Subdomain {sub_id} u0 error = {max_error_u0}"
+            )
+            self.assertLess(
+                max_error_u1, 1e-8, f"Subdomain {sub_id} u1 error = {max_error_u1}"
+            )
 
 
 class TestDtN2DVariableDiffusion(unittest.TestCase):
@@ -1051,8 +1126,12 @@ class TestDtN2DVariableDiffusion(unittest.TestCase):
             bkd, degree=npts - 1, physical_bounds=(-1.0, 1.0)
         )
         interface = Interface(
-            bkd, interface_id=0, subdomain_ids=(0, 1),
-            basis=interface_basis, normal_direction=0, ambient_dim=2
+            bkd,
+            interface_id=0,
+            subdomain_ids=(0, 1),
+            basis=interface_basis,
+            normal_direction=0,
+            ambient_dim=2,
         )
 
         mesh0 = TransformedMesh2D(npts, npts, bkd)
@@ -1061,7 +1140,7 @@ class TestDtN2DVariableDiffusion(unittest.TestCase):
         basis1 = ChebyshevBasis2D(mesh1, bkd)
         nodes_x0 = basis0.nodes_x()
         nodes_y0 = basis0.nodes_y()
-        npts_total = basis0.npts()
+        basis0.npts()
 
         bounds0 = self._compute_boundary_indices_2d(npts, npts)
         bounds1 = self._compute_boundary_indices_2d(npts, npts)
@@ -1086,25 +1165,33 @@ class TestDtN2DVariableDiffusion(unittest.TestCase):
         right_bc1 = DirichletBC(bkd, bounds1["right"], right_bc1_vals)
 
         # Y-boundary BCs using exact solutions
-        exact_y_bc0 = bkd.asarray([self._exact_solution_sub0(nodes_x0[i]) for i in range(npts)])
+        exact_y_bc0 = bkd.asarray(
+            [self._exact_solution_sub0(nodes_x0[i]) for i in range(npts)]
+        )
         bottom_bc0 = DirichletBC(bkd, bounds0["bottom"], exact_y_bc0)
         top_bc0 = DirichletBC(bkd, bounds0["top"], exact_y_bc0)
 
-        exact_y_bc1 = bkd.asarray([self._exact_solution_sub1(nodes_x0[i]) for i in range(npts)])
+        exact_y_bc1 = bkd.asarray(
+            [self._exact_solution_sub1(nodes_x0[i]) for i in range(npts)]
+        )
         bottom_bc1 = DirichletBC(bkd, bounds1["bottom"], exact_y_bc1)
         top_bc1 = DirichletBC(bkd, bounds1["top"], exact_y_bc1)
 
         wrapper0 = SubdomainWrapper(
-            bkd, subdomain_id=0, physics=physics0,
+            bkd,
+            subdomain_id=0,
+            physics=physics0,
             interfaces={0: interface},
-            external_bcs=[left_bc0, bottom_bc0, top_bc0]
+            external_bcs=[left_bc0, bottom_bc0, top_bc0],
         )
         wrapper0.set_interface_boundary_indices(0, bounds0["right"])
 
         wrapper1 = SubdomainWrapper(
-            bkd, subdomain_id=1, physics=physics1,
+            bkd,
+            subdomain_id=1,
+            physics=physics1,
             interfaces={0: interface},
-            external_bcs=[right_bc1, bottom_bc1, top_bc1]
+            external_bcs=[right_bc1, bottom_bc1, top_bc1],
         )
         wrapper1.set_interface_boundary_indices(0, bounds1["left"])
 
@@ -1126,8 +1213,11 @@ class TestDtN2DVariableDiffusion(unittest.TestCase):
         res = residual(exact_dofs)
         res_norm = float(bkd.norm(res))
 
-        self.assertLess(res_norm, 1e-9,
-                        f"Residual norm {res_norm} should be < 1e-9 at exact solution")
+        self.assertLess(
+            res_norm,
+            1e-9,
+            f"Residual norm {res_norm} should be < 1e-9 at exact solution",
+        )
 
     def test_variable_diffusion_solver_converges(self):
         """Test DtN solver converges with variable diffusion."""
@@ -1138,8 +1228,12 @@ class TestDtN2DVariableDiffusion(unittest.TestCase):
             bkd, degree=npts - 1, physical_bounds=(-1.0, 1.0)
         )
         interface = Interface(
-            bkd, interface_id=0, subdomain_ids=(0, 1),
-            basis=interface_basis, normal_direction=0, ambient_dim=2
+            bkd,
+            interface_id=0,
+            subdomain_ids=(0, 1),
+            basis=interface_basis,
+            normal_direction=0,
+            ambient_dim=2,
         )
 
         mesh0 = TransformedMesh2D(npts, npts, bkd)
@@ -1168,25 +1262,33 @@ class TestDtN2DVariableDiffusion(unittest.TestCase):
         right_bc1_vals = bkd.full((npts,), self.g)
         right_bc1 = DirichletBC(bkd, bounds1["right"], right_bc1_vals)
 
-        exact_y_bc0 = bkd.asarray([self._exact_solution_sub0(nodes_x0[i]) for i in range(npts)])
+        exact_y_bc0 = bkd.asarray(
+            [self._exact_solution_sub0(nodes_x0[i]) for i in range(npts)]
+        )
         bottom_bc0 = DirichletBC(bkd, bounds0["bottom"], exact_y_bc0)
         top_bc0 = DirichletBC(bkd, bounds0["top"], exact_y_bc0)
 
-        exact_y_bc1 = bkd.asarray([self._exact_solution_sub1(nodes_x0[i]) for i in range(npts)])
+        exact_y_bc1 = bkd.asarray(
+            [self._exact_solution_sub1(nodes_x0[i]) for i in range(npts)]
+        )
         bottom_bc1 = DirichletBC(bkd, bounds1["bottom"], exact_y_bc1)
         top_bc1 = DirichletBC(bkd, bounds1["top"], exact_y_bc1)
 
         wrapper0 = SubdomainWrapper(
-            bkd, subdomain_id=0, physics=physics0,
+            bkd,
+            subdomain_id=0,
+            physics=physics0,
             interfaces={0: interface},
-            external_bcs=[left_bc0, bottom_bc0, top_bc0]
+            external_bcs=[left_bc0, bottom_bc0, top_bc0],
         )
         wrapper0.set_interface_boundary_indices(0, bounds0["right"])
 
         wrapper1 = SubdomainWrapper(
-            bkd, subdomain_id=1, physics=physics1,
+            bkd,
+            subdomain_id=1,
+            physics=physics1,
             interfaces={0: interface},
-            external_bcs=[right_bc1, bottom_bc1, top_bc1]
+            external_bcs=[right_bc1, bottom_bc1, top_bc1],
         )
         wrapper1.set_interface_boundary_indices(0, bounds1["left"])
 
@@ -1213,8 +1315,9 @@ class TestDtN2DVariableDiffusion(unittest.TestCase):
         exact_val = self.exact_lambda  # 0.7
 
         max_error = float(bkd.max(bkd.abs(computed_vals - exact_val)))
-        self.assertLess(max_error, 1e-8,
-                        f"Variable diffusion interface error = {max_error}")
+        self.assertLess(
+            max_error, 1e-8, f"Variable diffusion interface error = {max_error}"
+        )
 
 
 class TestDtN3DScalar(unittest.TestCase):
@@ -1295,9 +1398,12 @@ class TestDtN3DScalar(unittest.TestCase):
         back = bkd.asarray(back)
 
         return {
-            "left": left, "right": right,
-            "bottom": bottom, "top": top,
-            "front": front, "back": back,
+            "left": left,
+            "right": right,
+            "bottom": bottom,
+            "top": top,
+            "front": front,
+            "back": back,
         }
 
     def _exact_solution_sub0(self, x):
@@ -1318,12 +1424,18 @@ class TestDtN3DScalar(unittest.TestCase):
 
         # 2D interface basis for 3D problem
         interface_basis = LegendreInterfaceBasis2D(
-            bkd, degree_y=npts - 1, degree_z=npts - 1,
-            physical_bounds_y=(-1.0, 1.0), physical_bounds_z=(-1.0, 1.0)
+            bkd,
+            degree_y=npts - 1,
+            degree_z=npts - 1,
+            physical_bounds_y=(-1.0, 1.0),
+            physical_bounds_z=(-1.0, 1.0),
         )
         interface = Interface2D(
-            bkd, interface_id=0, subdomain_ids=(0, 1),
-            basis=interface_basis, normal_direction=0
+            bkd,
+            interface_id=0,
+            subdomain_ids=(0, 1),
+            basis=interface_basis,
+            normal_direction=0,
         )
 
         mesh0 = TransformedMesh3D(npts, npts, npts, bkd)
@@ -1352,8 +1464,7 @@ class TestDtN3DScalar(unittest.TestCase):
         left_bc0 = zero_dirichlet_bc(bkd, bounds0["left"])
 
         # External BC: u(1) = g on sub 1
-        right_bc1 = DirichletBC(bkd, bounds1["right"],
-                                bkd.full((npts * npts,), self.g))
+        right_bc1 = DirichletBC(bkd, bounds1["right"], bkd.full((npts * npts,), self.g))
 
         # Y-boundary BCs for sub 0 (u depends only on x)
         bc_vals_y0 = bkd.zeros((npts * npts,))
@@ -1396,16 +1507,20 @@ class TestDtN3DScalar(unittest.TestCase):
         back_bc1 = DirichletBC(bkd, bounds1["back"], bc_vals_z1)
 
         wrapper0 = SubdomainWrapper(
-            bkd, subdomain_id=0, physics=physics0,
+            bkd,
+            subdomain_id=0,
+            physics=physics0,
             interfaces={0: interface},
-            external_bcs=[left_bc0, bottom_bc0, top_bc0, front_bc0, back_bc0]
+            external_bcs=[left_bc0, bottom_bc0, top_bc0, front_bc0, back_bc0],
         )
         wrapper0.set_interface_boundary_indices(0, bounds0["right"])
 
         wrapper1 = SubdomainWrapper(
-            bkd, subdomain_id=1, physics=physics1,
+            bkd,
+            subdomain_id=1,
+            physics=physics1,
             interfaces={0: interface},
-            external_bcs=[right_bc1, bottom_bc1, top_bc1, front_bc1, back_bc1]
+            external_bcs=[right_bc1, bottom_bc1, top_bc1, front_bc1, back_bc1],
         )
         wrapper1.set_interface_boundary_indices(0, bounds1["left"])
 
@@ -1427,8 +1542,7 @@ class TestDtN3DScalar(unittest.TestCase):
         res = residual(exact_dofs)
         res_norm = float(bkd.norm(res))
 
-        self.assertLess(res_norm, 1e-9,
-                        f"3D residual norm {res_norm} should be < 1e-9")
+        self.assertLess(res_norm, 1e-9, f"3D residual norm {res_norm} should be < 1e-9")
 
     def test_3d_scalar_solver_converges(self):
         """Test DtN solver converges for 3D scalar problem."""
@@ -1436,12 +1550,18 @@ class TestDtN3DScalar(unittest.TestCase):
         npts = self.npts
 
         interface_basis = LegendreInterfaceBasis2D(
-            bkd, degree_y=npts - 1, degree_z=npts - 1,
-            physical_bounds_y=(-1.0, 1.0), physical_bounds_z=(-1.0, 1.0)
+            bkd,
+            degree_y=npts - 1,
+            degree_z=npts - 1,
+            physical_bounds_y=(-1.0, 1.0),
+            physical_bounds_z=(-1.0, 1.0),
         )
         interface = Interface2D(
-            bkd, interface_id=0, subdomain_ids=(0, 1),
-            basis=interface_basis, normal_direction=0
+            bkd,
+            interface_id=0,
+            subdomain_ids=(0, 1),
+            basis=interface_basis,
+            normal_direction=0,
         )
 
         mesh0 = TransformedMesh3D(npts, npts, npts, bkd)
@@ -1466,8 +1586,7 @@ class TestDtN3DScalar(unittest.TestCase):
         )
 
         left_bc0 = zero_dirichlet_bc(bkd, bounds0["left"])
-        right_bc1 = DirichletBC(bkd, bounds1["right"],
-                                bkd.full((npts * npts,), self.g))
+        right_bc1 = DirichletBC(bkd, bounds1["right"], bkd.full((npts * npts,), self.g))
 
         bc_vals_y0 = bkd.zeros((npts * npts,))
         idx = 0
@@ -1506,16 +1625,20 @@ class TestDtN3DScalar(unittest.TestCase):
         back_bc1 = DirichletBC(bkd, bounds1["back"], bc_vals_z1)
 
         wrapper0 = SubdomainWrapper(
-            bkd, subdomain_id=0, physics=physics0,
+            bkd,
+            subdomain_id=0,
+            physics=physics0,
             interfaces={0: interface},
-            external_bcs=[left_bc0, bottom_bc0, top_bc0, front_bc0, back_bc0]
+            external_bcs=[left_bc0, bottom_bc0, top_bc0, front_bc0, back_bc0],
         )
         wrapper0.set_interface_boundary_indices(0, bounds0["right"])
 
         wrapper1 = SubdomainWrapper(
-            bkd, subdomain_id=1, physics=physics1,
+            bkd,
+            subdomain_id=1,
+            physics=physics1,
             interfaces={0: interface},
-            external_bcs=[right_bc1, bottom_bc1, top_bc1, front_bc1, back_bc1]
+            external_bcs=[right_bc1, bottom_bc1, top_bc1, front_bc1, back_bc1],
         )
         wrapper1.set_interface_boundary_indices(0, bounds1["left"])
 
@@ -1540,8 +1663,7 @@ class TestDtN3DScalar(unittest.TestCase):
 
         computed_vals = interface.evaluate(result.interface_dofs)
         max_error = float(bkd.max(bkd.abs(computed_vals - self.exact_lambda)))
-        self.assertLess(max_error, 1e-8,
-                        f"3D interface error = {max_error}")
+        self.assertLess(max_error, 1e-8, f"3D interface error = {max_error}")
 
 
 class TestDtN2DVector(unittest.TestCase):
@@ -1572,8 +1694,8 @@ class TestDtN2DVector(unittest.TestCase):
         self.bkd = NumpyBkd()
         self.npts = 6
         self.lamda = 1.0  # Lamé first parameter
-        self.mu = 1.0     # Shear modulus
-        self.g = 2.0      # External BC on sub 1
+        self.mu = 1.0  # Shear modulus
+        self.g = 2.0  # External BC on sub 1
 
     def _compute_boundary_indices_2d(self, npts_x, npts_y):
         """Compute 2D boundary indices (x varies fastest in tensor product ordering)."""
@@ -1611,9 +1733,13 @@ class TestDtN2DVector(unittest.TestCase):
             bkd, degree=npts - 1, physical_bounds=(-1.0, 1.0)
         )
         interface = Interface(
-            bkd, interface_id=0, subdomain_ids=(0, 1),
-            basis=interface_basis, normal_direction=0, ambient_dim=2,
-            ncomponents=2  # Vector-valued
+            bkd,
+            interface_id=0,
+            subdomain_ids=(0, 1),
+            basis=interface_basis,
+            normal_direction=0,
+            ambient_dim=2,
+            ncomponents=2,  # Vector-valued
         )
 
         mesh0 = TransformedMesh2D(npts, npts, bkd)
@@ -1640,39 +1766,56 @@ class TestDtN2DVector(unittest.TestCase):
         left_bc0_uy = zero_dirichlet_bc(bkd, bounds0["left"] + npts_total)
 
         # External BCs for sub 1: u_x(1)=g, u_y(1)=0
-        right_bc1_ux = DirichletBC(bkd, bounds1["right"],
-                                   bkd.full((npts,), self.g))
+        right_bc1_ux = DirichletBC(bkd, bounds1["right"], bkd.full((npts,), self.g))
         right_bc1_uy = zero_dirichlet_bc(bkd, bounds1["right"] + npts_total)
 
         # Y-boundary BCs for sub 0 (u_y=0, u_x depends on x)
-        bc_vals_ux0 = bkd.asarray([self._exact_ux_sub0(nodes_x0[i]) for i in range(npts)])
+        bc_vals_ux0 = bkd.asarray(
+            [self._exact_ux_sub0(nodes_x0[i]) for i in range(npts)]
+        )
         bottom_bc0_ux = DirichletBC(bkd, bounds0["bottom"], bc_vals_ux0)
         top_bc0_ux = DirichletBC(bkd, bounds0["top"], bc_vals_ux0)
         bottom_bc0_uy = zero_dirichlet_bc(bkd, bounds0["bottom"] + npts_total)
         top_bc0_uy = zero_dirichlet_bc(bkd, bounds0["top"] + npts_total)
 
         # Y-boundary BCs for sub 1
-        bc_vals_ux1 = bkd.asarray([self._exact_ux_sub1(nodes_x0[i]) for i in range(npts)])
+        bc_vals_ux1 = bkd.asarray(
+            [self._exact_ux_sub1(nodes_x0[i]) for i in range(npts)]
+        )
         bottom_bc1_ux = DirichletBC(bkd, bounds1["bottom"], bc_vals_ux1)
         top_bc1_ux = DirichletBC(bkd, bounds1["top"], bc_vals_ux1)
         bottom_bc1_uy = zero_dirichlet_bc(bkd, bounds1["bottom"] + npts_total)
         top_bc1_uy = zero_dirichlet_bc(bkd, bounds1["top"] + npts_total)
 
         wrapper0 = SubdomainWrapper(
-            bkd, subdomain_id=0, physics=physics0,
+            bkd,
+            subdomain_id=0,
+            physics=physics0,
             interfaces={0: interface},
-            external_bcs=[left_bc0_ux, left_bc0_uy,
-                          bottom_bc0_ux, top_bc0_ux,
-                          bottom_bc0_uy, top_bc0_uy]
+            external_bcs=[
+                left_bc0_ux,
+                left_bc0_uy,
+                bottom_bc0_ux,
+                top_bc0_ux,
+                bottom_bc0_uy,
+                top_bc0_uy,
+            ],
         )
         wrapper0.set_interface_boundary_indices(0, bounds0["right"])
 
         wrapper1 = SubdomainWrapper(
-            bkd, subdomain_id=1, physics=physics1,
+            bkd,
+            subdomain_id=1,
+            physics=physics1,
             interfaces={0: interface},
-            external_bcs=[right_bc1_ux, right_bc1_uy,
-                          bottom_bc1_ux, top_bc1_ux,
-                          bottom_bc1_uy, top_bc1_uy]
+            external_bcs=[
+                right_bc1_ux,
+                right_bc1_uy,
+                bottom_bc1_ux,
+                top_bc1_ux,
+                bottom_bc1_uy,
+                top_bc1_uy,
+            ],
         )
         wrapper1.set_interface_boundary_indices(0, bounds1["left"])
 
@@ -1693,16 +1836,19 @@ class TestDtN2DVector(unittest.TestCase):
         # Exact interface DOFs: [u_x values, u_y values]
         exact_ux = self.g / 2.0  # lambda = g/2
         ndofs_per_comp = interface.ndofs()
-        exact_dofs = bkd.concatenate([
-            bkd.full((ndofs_per_comp,), exact_ux),  # u_x
-            bkd.zeros((ndofs_per_comp,))  # u_y = 0
-        ])
+        exact_dofs = bkd.concatenate(
+            [
+                bkd.full((ndofs_per_comp,), exact_ux),  # u_x
+                bkd.zeros((ndofs_per_comp,)),  # u_y = 0
+            ]
+        )
 
         res = residual(exact_dofs)
         res_norm = float(bkd.norm(res))
 
-        self.assertLess(res_norm, 1e-8,
-                        f"2D vector residual {res_norm} should be < 1e-8")
+        self.assertLess(
+            res_norm, 1e-8, f"2D vector residual {res_norm} should be < 1e-8"
+        )
 
     def test_2d_vector_solver_converges(self):
         """Test DtN solver converges for 2D vector elasticity."""
@@ -1713,9 +1859,13 @@ class TestDtN2DVector(unittest.TestCase):
             bkd, degree=npts - 1, physical_bounds=(-1.0, 1.0)
         )
         interface = Interface(
-            bkd, interface_id=0, subdomain_ids=(0, 1),
-            basis=interface_basis, normal_direction=0, ambient_dim=2,
-            ncomponents=2
+            bkd,
+            interface_id=0,
+            subdomain_ids=(0, 1),
+            basis=interface_basis,
+            normal_direction=0,
+            ambient_dim=2,
+            ncomponents=2,
         )
 
         mesh0 = TransformedMesh2D(npts, npts, bkd)
@@ -1739,37 +1889,54 @@ class TestDtN2DVector(unittest.TestCase):
         left_bc0_ux = zero_dirichlet_bc(bkd, bounds0["left"])
         left_bc0_uy = zero_dirichlet_bc(bkd, bounds0["left"] + npts_total)
 
-        right_bc1_ux = DirichletBC(bkd, bounds1["right"],
-                                   bkd.full((npts,), self.g))
+        right_bc1_ux = DirichletBC(bkd, bounds1["right"], bkd.full((npts,), self.g))
         right_bc1_uy = zero_dirichlet_bc(bkd, bounds1["right"] + npts_total)
 
-        bc_vals_ux0 = bkd.asarray([self._exact_ux_sub0(nodes_x0[i]) for i in range(npts)])
+        bc_vals_ux0 = bkd.asarray(
+            [self._exact_ux_sub0(nodes_x0[i]) for i in range(npts)]
+        )
         bottom_bc0_ux = DirichletBC(bkd, bounds0["bottom"], bc_vals_ux0)
         top_bc0_ux = DirichletBC(bkd, bounds0["top"], bc_vals_ux0)
         bottom_bc0_uy = zero_dirichlet_bc(bkd, bounds0["bottom"] + npts_total)
         top_bc0_uy = zero_dirichlet_bc(bkd, bounds0["top"] + npts_total)
 
-        bc_vals_ux1 = bkd.asarray([self._exact_ux_sub1(nodes_x0[i]) for i in range(npts)])
+        bc_vals_ux1 = bkd.asarray(
+            [self._exact_ux_sub1(nodes_x0[i]) for i in range(npts)]
+        )
         bottom_bc1_ux = DirichletBC(bkd, bounds1["bottom"], bc_vals_ux1)
         top_bc1_ux = DirichletBC(bkd, bounds1["top"], bc_vals_ux1)
         bottom_bc1_uy = zero_dirichlet_bc(bkd, bounds1["bottom"] + npts_total)
         top_bc1_uy = zero_dirichlet_bc(bkd, bounds1["top"] + npts_total)
 
         wrapper0 = SubdomainWrapper(
-            bkd, subdomain_id=0, physics=physics0,
+            bkd,
+            subdomain_id=0,
+            physics=physics0,
             interfaces={0: interface},
-            external_bcs=[left_bc0_ux, left_bc0_uy,
-                          bottom_bc0_ux, top_bc0_ux,
-                          bottom_bc0_uy, top_bc0_uy]
+            external_bcs=[
+                left_bc0_ux,
+                left_bc0_uy,
+                bottom_bc0_ux,
+                top_bc0_ux,
+                bottom_bc0_uy,
+                top_bc0_uy,
+            ],
         )
         wrapper0.set_interface_boundary_indices(0, bounds0["right"])
 
         wrapper1 = SubdomainWrapper(
-            bkd, subdomain_id=1, physics=physics1,
+            bkd,
+            subdomain_id=1,
+            physics=physics1,
             interfaces={0: interface},
-            external_bcs=[right_bc1_ux, right_bc1_uy,
-                          bottom_bc1_ux, top_bc1_ux,
-                          bottom_bc1_uy, top_bc1_uy]
+            external_bcs=[
+                right_bc1_ux,
+                right_bc1_uy,
+                bottom_bc1_ux,
+                top_bc1_ux,
+                bottom_bc1_uy,
+                top_bc1_uy,
+            ],
         )
         wrapper1.set_interface_boundary_indices(0, bounds1["left"])
 
@@ -1801,10 +1968,8 @@ class TestDtN2DVector(unittest.TestCase):
         max_error_ux = float(bkd.max(bkd.abs(computed_ux - exact_ux)))
         max_error_uy = float(bkd.max(bkd.abs(computed_uy)))
 
-        self.assertLess(max_error_ux, 1e-8,
-                        f"u_x error = {max_error_ux}")
-        self.assertLess(max_error_uy, 1e-8,
-                        f"u_y error = {max_error_uy}")
+        self.assertLess(max_error_ux, 1e-8, f"u_x error = {max_error_ux}")
+        self.assertLess(max_error_uy, 1e-8, f"u_y error = {max_error_uy}")
 
 
 class TestDtN3DWithForcing(unittest.TestCase):
@@ -1885,9 +2050,12 @@ class TestDtN3DWithForcing(unittest.TestCase):
         back = bkd.asarray(back)
 
         return {
-            "left": left, "right": right,
-            "bottom": bottom, "top": top,
-            "front": front, "back": back,
+            "left": left,
+            "right": right,
+            "bottom": bottom,
+            "top": top,
+            "front": front,
+            "back": back,
         }
 
     def _exact_sub0(self, x):
@@ -1927,12 +2095,18 @@ class TestDtN3DWithForcing(unittest.TestCase):
         npts = self.npts
 
         interface_basis = LegendreInterfaceBasis2D(
-            bkd, degree_y=npts - 1, degree_z=npts - 1,
-            physical_bounds_y=(-1.0, 1.0), physical_bounds_z=(-1.0, 1.0)
+            bkd,
+            degree_y=npts - 1,
+            degree_z=npts - 1,
+            physical_bounds_y=(-1.0, 1.0),
+            physical_bounds_z=(-1.0, 1.0),
         )
         interface = Interface2D(
-            bkd, interface_id=0, subdomain_ids=(0, 1),
-            basis=interface_basis, normal_direction=0
+            bkd,
+            interface_id=0,
+            subdomain_ids=(0, 1),
+            basis=interface_basis,
+            normal_direction=0,
         )
 
         mesh0 = TransformedMesh3D(npts, npts, npts, bkd)
@@ -1962,8 +2136,9 @@ class TestDtN3DWithForcing(unittest.TestCase):
         # External BCs
         left_bc0 = zero_dirichlet_bc(bkd, bounds0["left"])
         # u(1) on sub 1 = g - 2 = -2 when g=0
-        right_bc1 = DirichletBC(bkd, bounds1["right"],
-                                bkd.full((npts * npts,), self._exact_sub1(1.0)))
+        right_bc1 = DirichletBC(
+            bkd, bounds1["right"], bkd.full((npts * npts,), self._exact_sub1(1.0))
+        )
 
         # Y-boundary BCs (u depends only on x)
         bc_vals_y0 = bkd.zeros((npts * npts,))
@@ -2003,16 +2178,20 @@ class TestDtN3DWithForcing(unittest.TestCase):
         back_bc1 = DirichletBC(bkd, bounds1["back"], bc_vals_z1)
 
         wrapper0 = SubdomainWrapper(
-            bkd, subdomain_id=0, physics=physics0,
+            bkd,
+            subdomain_id=0,
+            physics=physics0,
             interfaces={0: interface},
-            external_bcs=[left_bc0, bottom_bc0, top_bc0, front_bc0, back_bc0]
+            external_bcs=[left_bc0, bottom_bc0, top_bc0, front_bc0, back_bc0],
         )
         wrapper0.set_interface_boundary_indices(0, bounds0["right"])
 
         wrapper1 = SubdomainWrapper(
-            bkd, subdomain_id=1, physics=physics1,
+            bkd,
+            subdomain_id=1,
+            physics=physics1,
             interfaces={0: interface},
-            external_bcs=[right_bc1, bottom_bc1, top_bc1, front_bc1, back_bc1]
+            external_bcs=[right_bc1, bottom_bc1, top_bc1, front_bc1, back_bc1],
         )
         wrapper1.set_interface_boundary_indices(0, bounds1["left"])
 
@@ -2034,8 +2213,9 @@ class TestDtN3DWithForcing(unittest.TestCase):
         res = residual(exact_dofs)
         res_norm = float(bkd.norm(res))
 
-        self.assertLess(res_norm, 1e-9,
-                        f"3D forcing residual {res_norm} should be < 1e-9")
+        self.assertLess(
+            res_norm, 1e-9, f"3D forcing residual {res_norm} should be < 1e-9"
+        )
 
     def test_3d_forcing_solver_converges(self):
         """Test DtN solver converges for 3D problem with forcing."""
@@ -2043,12 +2223,18 @@ class TestDtN3DWithForcing(unittest.TestCase):
         npts = self.npts
 
         interface_basis = LegendreInterfaceBasis2D(
-            bkd, degree_y=npts - 1, degree_z=npts - 1,
-            physical_bounds_y=(-1.0, 1.0), physical_bounds_z=(-1.0, 1.0)
+            bkd,
+            degree_y=npts - 1,
+            degree_z=npts - 1,
+            physical_bounds_y=(-1.0, 1.0),
+            physical_bounds_z=(-1.0, 1.0),
         )
         interface = Interface2D(
-            bkd, interface_id=0, subdomain_ids=(0, 1),
-            basis=interface_basis, normal_direction=0
+            bkd,
+            interface_id=0,
+            subdomain_ids=(0, 1),
+            basis=interface_basis,
+            normal_direction=0,
         )
 
         mesh0 = TransformedMesh3D(npts, npts, npts, bkd)
@@ -2074,8 +2260,9 @@ class TestDtN3DWithForcing(unittest.TestCase):
         )
 
         left_bc0 = zero_dirichlet_bc(bkd, bounds0["left"])
-        right_bc1 = DirichletBC(bkd, bounds1["right"],
-                                bkd.full((npts * npts,), self._exact_sub1(1.0)))
+        right_bc1 = DirichletBC(
+            bkd, bounds1["right"], bkd.full((npts * npts,), self._exact_sub1(1.0))
+        )
 
         bc_vals_y0 = bkd.zeros((npts * npts,))
         idx = 0
@@ -2114,16 +2301,20 @@ class TestDtN3DWithForcing(unittest.TestCase):
         back_bc1 = DirichletBC(bkd, bounds1["back"], bc_vals_z1)
 
         wrapper0 = SubdomainWrapper(
-            bkd, subdomain_id=0, physics=physics0,
+            bkd,
+            subdomain_id=0,
+            physics=physics0,
             interfaces={0: interface},
-            external_bcs=[left_bc0, bottom_bc0, top_bc0, front_bc0, back_bc0]
+            external_bcs=[left_bc0, bottom_bc0, top_bc0, front_bc0, back_bc0],
         )
         wrapper0.set_interface_boundary_indices(0, bounds0["right"])
 
         wrapper1 = SubdomainWrapper(
-            bkd, subdomain_id=1, physics=physics1,
+            bkd,
+            subdomain_id=1,
+            physics=physics1,
             interfaces={0: interface},
-            external_bcs=[right_bc1, bottom_bc1, top_bc1, front_bc1, back_bc1]
+            external_bcs=[right_bc1, bottom_bc1, top_bc1, front_bc1, back_bc1],
         )
         wrapper1.set_interface_boundary_indices(0, bounds1["left"])
 
@@ -2148,8 +2339,7 @@ class TestDtN3DWithForcing(unittest.TestCase):
 
         computed_vals = interface.evaluate(result.interface_dofs)
         max_error = float(bkd.max(bkd.abs(computed_vals - self.exact_lambda)))
-        self.assertLess(max_error, 1e-8,
-                        f"3D forcing interface error = {max_error}")
+        self.assertLess(max_error, 1e-8, f"3D forcing interface error = {max_error}")
 
 
 class TestTimeSteppingDtN1D(unittest.TestCase):
@@ -2205,8 +2395,11 @@ class TestTimeSteppingDtN1D(unittest.TestCase):
         left_bc0 = zero_dirichlet_bc(bkd, bkd.asarray([0]))
 
         wrapper0 = SubdomainWrapper(
-            bkd, subdomain_id=0, physics=physics0,
-            interfaces={0: interface}, external_bcs=[left_bc0]
+            bkd,
+            subdomain_id=0,
+            physics=physics0,
+            interfaces={0: interface},
+            external_bcs=[left_bc0],
         )
         # Interface at x=1 (index npts-1)
         wrapper0.set_interface_boundary_indices(0, bkd.asarray([npts - 1]))
@@ -2226,8 +2419,11 @@ class TestTimeSteppingDtN1D(unittest.TestCase):
         right_bc1 = zero_dirichlet_bc(bkd, bkd.asarray([npts - 1]))
 
         wrapper1 = SubdomainWrapper(
-            bkd, subdomain_id=1, physics=physics1,
-            interfaces={0: interface}, external_bcs=[right_bc1]
+            bkd,
+            subdomain_id=1,
+            physics=physics1,
+            interfaces={0: interface},
+            external_bcs=[right_bc1],
         )
         # Interface at x=-1 (index 0)
         wrapper1.set_interface_boundary_indices(0, bkd.asarray([0]))
@@ -2277,8 +2473,7 @@ class TestTimeSteppingDtN1D(unittest.TestCase):
 
             result = solver.solve(initial_guess)
 
-            self.assertTrue(result.converged,
-                            f"DtN should converge at t={time}")
+            self.assertTrue(result.converged, f"DtN should converge at t={time}")
 
             computed_interface = float(result.interface_dofs[0])
             error = abs(computed_interface - exact_interface)
@@ -2291,8 +2486,9 @@ class TestTimeSteppingDtN1D(unittest.TestCase):
 
         # All errors should be small
         max_error = max(errors)
-        self.assertLess(max_error, 1e-8,
-                        f"Max interface error across time = {max_error}")
+        self.assertLess(
+            max_error, 1e-8, f"Max interface error across time = {max_error}"
+        )
 
     def test_flux_conservation_over_time(self):
         """Verify flux conservation holds at multiple time steps."""
@@ -2318,8 +2514,9 @@ class TestTimeSteppingDtN1D(unittest.TestCase):
             res = residual(exact_dofs)
             res_norm = float(bkd.norm(res))
 
-            self.assertLess(res_norm, 1e-9,
-                            f"Flux conservation residual at t={t}: {res_norm}")
+            self.assertLess(
+                res_norm, 1e-9, f"Flux conservation residual at t={t}: {res_norm}"
+            )
 
     def test_solution_trajectory(self):
         """Test solution accuracy over a trajectory of time steps."""
@@ -2359,8 +2556,9 @@ class TestTimeSteppingDtN1D(unittest.TestCase):
                     exact_sol = mms.solution_sub1(nodes, t)
 
                 max_error = float(bkd.max(bkd.abs(computed_sol - exact_sol)))
-                self.assertLess(max_error, 1e-7,
-                                f"Sub {sub_id} at t={t}: error = {max_error}")
+                self.assertLess(
+                    max_error, 1e-7, f"Sub {sub_id} at t={t}: error = {max_error}"
+                )
 
 
 # NOTE: Shallow wave DtN tests were removed because shallow water equations

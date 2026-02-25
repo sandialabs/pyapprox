@@ -5,18 +5,25 @@ using control variate sampling with known low-fidelity statistics.
 """
 
 import copy
-from typing import Callable, Generic, List, Optional, Tuple, TYPE_CHECKING, Union
+from typing import (
+    TYPE_CHECKING,
+    Callable,
+    Generic,
+    List,
+    Optional,
+    Tuple,
+    Union,
+)
 
 import numpy as np
 
-from pyapprox.util.backends.protocols import Array
-
+from pyapprox.statest.mc_estimator import MCEstimator
 from pyapprox.statest.statistics import (
+    MultiOutputMeanAndVariance,
     MultiOutputStatistic,
     MultiOutputVariance,
-    MultiOutputMeanAndVariance,
 )
-from pyapprox.statest.mc_estimator import MCEstimator
+from pyapprox.util.backends.protocols import Array
 
 if TYPE_CHECKING:
     from pyapprox.statest.allocation import CVAllocationResult
@@ -145,9 +152,7 @@ class CVEstimator(MCEstimator[Array], Generic[Array]):
     ) -> Tuple[Array, Array]:
         return self._stat._get_cv_discrepancy_covariances(npartition_samples)
 
-    def _covariance_from_nsamples_per_model(
-        self, nsamples_per_model: Array
-    ) -> Array:
+    def _covariance_from_nsamples_per_model(self, nsamples_per_model: Array) -> Array:
         """Compute covariance from nsamples_per_model for CV estimator."""
         CF, cf = self._get_discrepancy_covariances(nsamples_per_model)
         weights = self._weights(CF, cf)
@@ -155,9 +160,7 @@ class CVEstimator(MCEstimator[Array], Generic[Array]):
             nsamples_per_model[0]
         ) + self._bkd.multidot([weights, cf.T])
 
-    def _covariance_from_npartition_samples(
-        self, npartition_samples: Array
-    ) -> Array:
+    def _covariance_from_npartition_samples(self, npartition_samples: Array) -> Array:
         """Compute covariance from npartition_samples.
 
         For CV estimator, npartition_samples = nsamples_per_model.
@@ -201,12 +204,10 @@ class CVEstimator(MCEstimator[Array], Generic[Array]):
         self._optimized_criteria = self._optimization_criteria(
             self._optimized_covariance
         )
-        self._optimized_CF, self._optimized_cf = (
-            self._get_discrepancy_covariances(self._rounded_npartition_samples)
+        self._optimized_CF, self._optimized_cf = self._get_discrepancy_covariances(
+            self._rounded_npartition_samples
         )
-        self._optimized_weights = self._weights(
-            self._optimized_CF, self._optimized_cf
-        )
+        self._optimized_weights = self._weights(self._optimized_CF, self._optimized_cf)
 
     def nsamples_per_model(self) -> Array:
         """Return the number of samples allocated to each model.
@@ -247,12 +248,8 @@ class CVEstimator(MCEstimator[Array], Generic[Array]):
         from pyapprox.statest.allocation import CVAllocationResult
 
         npartition_samples = [target_cost / self._costs.sum()]
-        rounded_npartition_samples = [
-            int(self._bkd.floor(npartition_samples[0]))
-        ]
-        if isinstance(
-            self._stat, (MultiOutputVariance, MultiOutputMeanAndVariance)
-        ):
+        rounded_npartition_samples = [int(self._bkd.floor(npartition_samples[0]))]
+        if isinstance(self._stat, (MultiOutputVariance, MultiOutputMeanAndVariance)):
             min_nhf_samples = 2
         else:
             min_nhf_samples = 1
@@ -393,9 +390,7 @@ class CVEstimator(MCEstimator[Array], Generic[Array]):
         for vals in values_per_model:
             if not isinstance(vals, self._bkd.array_type()):
                 raise ValueError(
-                    "vals must be an instance of {0}".format(
-                        self._bkd.array_type()
-                    )
+                    "vals must be an instance of {0}".format(self._bkd.array_type())
                 )
         return self._estimate(values_per_model, self.optimized_weights())
 
@@ -468,9 +463,7 @@ class CVEstimator(MCEstimator[Array], Generic[Array]):
         if mode not in modes:
             raise ValueError("mode must be in {0}".format(modes))
         if pilot_values is not None and mode not in modes[1:]:
-            raise ValueError(
-                "pilot_values given by mode not in {0}".format(modes[1:])
-            )
+            raise ValueError("pilot_values given by mode not in {0}".format(modes[1:]))
         bootstrap_vals = mode in modes[:2]
         bootstrap_weights = mode in modes[1:]
         nbootstraps = int(nbootstraps)
@@ -489,9 +482,7 @@ class CVEstimator(MCEstimator[Array], Generic[Array]):
                     ),
                     dtype=int,
                 )
-                boostrap_pilot_values = [
-                    vals[:, indices] for vals in pilot_values
-                ]
+                boostrap_pilot_values = [vals[:, indices] for vals in pilot_values]
                 self._stat.set_pilot_quantities(
                     *self._stat.compute_pilot_quantities(boostrap_pilot_values)
                 )
@@ -509,16 +500,12 @@ class CVEstimator(MCEstimator[Array], Generic[Array]):
             )
         estimator_vals = self._bkd.stack(estimator_vals)
         bootstrap_values_mean = estimator_vals.mean(axis=0)
-        bootstrap_values_covar = self._bkd.cov(
-            estimator_vals, rowvar=False, ddof=1
-        )
+        bootstrap_values_covar = self._bkd.cov(estimator_vals, rowvar=False, ddof=1)
         if bootstrap_weights:
             self._stat = self_stat
             weights_list = self._bkd.stack(weights_list)
             bootstrap_weights_mean = weights_list.mean(axis=0)
-            bootstrap_weights_covar = self._bkd.cov(
-                weights_list, rowvar=False, ddof=1
-            )
+            bootstrap_weights_covar = self._bkd.cov(weights_list, rowvar=False, ddof=1)
             return (
                 bootstrap_values_mean,
                 bootstrap_values_covar,

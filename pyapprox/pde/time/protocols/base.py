@@ -5,11 +5,12 @@ Provides shared implementation for all time steppers (Forward Euler,
 Backward Euler, Crank-Nicolson, Heun, etc.).
 """
 
-from typing import Generic, Tuple
 from abc import ABC, abstractmethod
+from typing import Generic, Tuple
 
-from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.pde.sparse_utils import solve_maybe_sparse
+from pyapprox.util.backends.protocols import Array, Backend
+
 from .ode_residual import ODEResidualProtocol
 
 

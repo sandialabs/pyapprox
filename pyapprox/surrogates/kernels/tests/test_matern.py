@@ -1,38 +1,37 @@
 import unittest
-from typing import Generic, Any
+from typing import Any, Generic
 
 import numpy as np
-from numpy.typing import NDArray
 import torch
+from numpy.typing import NDArray
 
-from pyapprox.util.backends.protocols import Backend, Array
-from pyapprox.util.backends.numpy import NumpyBkd
-from pyapprox.util.backends.torch import TorchBkd
-from pyapprox.surrogates.kernels.matern import (
-    MaternKernel,
-    SquaredExponentialKernel,
-    Matern52Kernel,
-    Matern32Kernel,
-    ExponentialKernel,
-)
 from pyapprox.interface.functions.derivative_checks.derivative_checker import (
     DerivativeChecker,
 )
 from pyapprox.interface.functions.fromcallable.hessian import (
-    FunctionWithJacobianFromCallable,
     FunctionWithJacobianAndHVPFromCallable,
+    FunctionWithJacobianFromCallable,
 )
+from pyapprox.surrogates.kernels.matern import (
+    ExponentialKernel,
+    Matern32Kernel,
+    Matern52Kernel,
+    SquaredExponentialKernel,
+)
+from pyapprox.util.backends.numpy import NumpyBkd
+from pyapprox.util.backends.protocols import Array, Backend
+from pyapprox.util.backends.torch import TorchBkd
 
 
 def create_matern_kernel(nu, lenscale, lenscale_bounds, nvars, bkd, fixed=False):
     """Helper to create appropriate Matern kernel based on nu value."""
     if nu == np.inf:
         return SquaredExponentialKernel(lenscale, lenscale_bounds, nvars, bkd, fixed)
-    elif nu == 2.5 or nu == 5/2:
+    elif nu == 2.5 or nu == 5 / 2:
         return Matern52Kernel(lenscale, lenscale_bounds, nvars, bkd, fixed)
-    elif nu == 1.5 or nu == 3/2:
+    elif nu == 1.5 or nu == 3 / 2:
         return Matern32Kernel(lenscale, lenscale_bounds, nvars, bkd, fixed)
-    elif nu == 0.5 or nu == 1/2:
+    elif nu == 0.5 or nu == 1 / 2:
         return ExponentialKernel(lenscale, lenscale_bounds, nvars, bkd, fixed)
     else:
         raise ValueError(f"Unsupported nu value: {nu}")
@@ -46,9 +45,7 @@ class TestMaternKernel(Generic[Array], unittest.TestCase):
         Override this method in derived classes to provide the specific
         backend.
         """
-        raise NotImplementedError(
-            "Derived classes must implement this method."
-        )
+        raise NotImplementedError("Derived classes must implement this method.")
 
     def setUp(self) -> None:
         """
@@ -60,9 +57,7 @@ class TestMaternKernel(Generic[Array], unittest.TestCase):
         # coincident X1/X2 points where the gradient is undefined
         self.X1_exp = self.bkd().array([[0.1, 0.4, 0.9], [0.15, 0.35, 0.65]])
         self.X2_exp = self.bkd().array([[0.0, 0.5, 1.0], [0.0, 0.25, 0.75]])
-        self.lenscale = self.bkd().array(
-            [1.0, 2.0]
-        )  # Vector-valued length scale
+        self.lenscale = self.bkd().array([1.0, 2.0])  # Vector-valued length scale
         self.lenscale_bounds = (0.1, 10.0)
         self.nvars = 2
         self.X1 = self.bkd().array([[0.0, 0.5, 1.0], [0.0, 0.25, 0.75]])
@@ -81,9 +76,7 @@ class TestMaternKernel(Generic[Array], unittest.TestCase):
                 bkd=self.bkd(),
             )
             kernel_matrix = kernel(self.X1, self.X2)
-            self.assertEqual(
-                kernel_matrix.shape, (self.X1.shape[1], self.X2.shape[1])
-            )
+            self.assertEqual(kernel_matrix.shape, (self.X1.shape[1], self.X2.shape[1]))
             self.assertTrue(
                 self.bkd().all_bool(kernel_matrix >= 0)
             )  # Kernel values must be non-negative
@@ -145,9 +138,7 @@ class TestMaternKernel(Generic[Array], unittest.TestCase):
                 @ vec,
                 jacobian=lambda x, _X2=X2: self.bkd().einsum(
                     "ijk,jl->ik",
-                    kernel.jacobian(
-                        self.bkd().reshape(x, (self.nvars, -1)), _X2
-                    ),
+                    kernel.jacobian(self.bkd().reshape(x, (self.nvars, -1)), _X2),
                     vec,
                 ),
                 bkd=self.bkd(),
@@ -187,15 +178,11 @@ class TestMaternKernel(Generic[Array], unittest.TestCase):
             vec = self.bkd().ones((self.X1.shape[1], 1))
 
             def fun(p):
-                kernel.hyp_list().hyperparameters()[0].set_active_values(
-                    p[:, 0]
-                )
+                kernel.hyp_list().hyperparameters()[0].set_active_values(p[:, 0])
                 return kernel(self.X1, self.X1) @ vec
 
             def jac(p):
-                kernel.hyp_list().hyperparameters()[0].set_active_values(
-                    p[:, 0]
-                )
+                kernel.hyp_list().hyperparameters()[0].set_active_values(p[:, 0])
                 return self.bkd().einsum(
                     "ijk,jl->ik",
                     kernel.jacobian_wrt_params(self.X1),
@@ -212,11 +199,7 @@ class TestMaternKernel(Generic[Array], unittest.TestCase):
             # Initialize DerivativeChecker
             checker = DerivativeChecker(function_object)
             # Check derivatives
-            sample = (
-                kernel.hyp_list()
-                .hyperparameters()[0]
-                .get_active_values()[:, None]
-            )
+            sample = kernel.hyp_list().hyperparameters()[0].get_active_values()[:, None]
             errors = checker.check_derivatives(sample, verbosity=0)
             # Assert that the gradient errors are below a tolerance
             self.assertLess(checker.error_ratio(errors[0]), 5e-6)
@@ -273,7 +256,9 @@ class TestMaternKernel(Generic[Array], unittest.TestCase):
                 # Compute kernel value and derivatives for verification
                 K = kernel(x_test, X2)  # Shape (1, n2)
                 jac = kernel.jacobian(x_test, X2)  # Shape (1, n2, nvars)
-                hvp = kernel.hvp_wrt_x1(x_test, X2, direction_flat)  # Shape (1, n2, nvars)
+                hvp = kernel.hvp_wrt_x1(
+                    x_test, X2, direction_flat
+                )  # Shape (1, n2, nvars)
 
                 # Verify shapes
                 self.assertEqual(K.shape, (1, X2.shape[1]))
@@ -281,7 +266,8 @@ class TestMaternKernel(Generic[Array], unittest.TestCase):
                 self.assertEqual(hvp.shape, (1, X2.shape[1], self.nvars))
 
                 # Verify HVP using derivative checker
-                # We need a scalar function for the checker, so we contract with a vector
+                # We need a scalar function for the checker, so we contract with a
+                # vector
                 vec = self.bkd().ones((X2.shape[1], 1))
 
                 def kernel_func(x_shaped, _X2=X2):
@@ -295,17 +281,19 @@ class TestMaternKernel(Generic[Array], unittest.TestCase):
                     x_reshaped = self.bkd().reshape(x_shaped, (self.nvars, 1))
                     jac_val = kernel.jacobian(x_reshaped, _X2)  # Shape (1, n2, nvars)
                     # Contract: (1, n2, nvars) with (n2, 1) -> (1, nvars)
-                    result = self.bkd().einsum('ijk,jl->ik', jac_val, vec)
+                    result = self.bkd().einsum("ijk,jl->ik", jac_val, vec)
                     return result  # Shape (1, nvars)
 
                 def hvp_func(x_shaped, v_shaped, _X2=X2):
                     """HVP contracted with vec: R^nvars x R^nvars -> R^nvars."""
                     x_reshaped = self.bkd().reshape(x_shaped, (self.nvars, 1))
                     v_flat = self.bkd().flatten(v_shaped)  # Shape (nvars,)
-                    hvp_val = kernel.hvp_wrt_x1(x_reshaped, _X2, v_flat)  # Shape (1, n2, nvars)
+                    hvp_val = kernel.hvp_wrt_x1(
+                        x_reshaped, _X2, v_flat
+                    )  # Shape (1, n2, nvars)
                     # Contract: (1, n2, nvars) with (n2, 1) -> (nvars, 1)
                     # einsum 'ijk,jl->ki' gives (nvars, 1) not (1, nvars)
-                    result = self.bkd().einsum('ijk,jl->ki', hvp_val, vec)
+                    result = self.bkd().einsum("ijk,jl->ki", hvp_val, vec)
                     return result  # Shape (nvars, 1)
 
                 # Create function object with HVP
@@ -314,7 +302,7 @@ class TestMaternKernel(Generic[Array], unittest.TestCase):
                     fun=kernel_func,
                     jacobian=jacobian_func,
                     hvp=hvp_func,
-                    bkd=self.bkd()
+                    bkd=self.bkd(),
                 )
 
                 # Create derivative checker
@@ -323,31 +311,23 @@ class TestMaternKernel(Generic[Array], unittest.TestCase):
                 # Check derivatives at test point
                 sample = self.bkd().flatten(x_test)[:, None]  # Shape (nvars, 1)
                 errors = checker.check_derivatives(
-                    sample,
-                    direction=direction,
-                    verbosity=0
+                    sample, direction=direction, verbosity=0
                 )
 
                 # Verify Jacobian is correct
                 jac_error = errors[0]
-                self.assertTrue(
-                    self.bkd().all_bool(self.bkd().isfinite(jac_error))
-                )
+                self.assertTrue(self.bkd().all_bool(self.bkd().isfinite(jac_error)))
                 jac_ratio = float(checker.error_ratio(jac_error))
                 self.assertLess(
-                    jac_ratio, 1e-6,
-                    f"Jacobian error ratio for nu={nu}: {jac_ratio}"
+                    jac_ratio, 1e-6, f"Jacobian error ratio for nu={nu}: {jac_ratio}"
                 )
 
                 # Verify HVP is correct
                 hvp_error = errors[1]
-                self.assertTrue(
-                    self.bkd().all_bool(self.bkd().isfinite(hvp_error))
-                )
+                self.assertTrue(self.bkd().all_bool(self.bkd().isfinite(hvp_error)))
                 hvp_ratio = float(checker.error_ratio(hvp_error))
                 self.assertLess(
-                    hvp_ratio, 5e-5,
-                    f"HVP error ratio for nu={nu}: {hvp_ratio}"
+                    hvp_ratio, 5e-5, f"HVP error ratio for nu={nu}: {hvp_ratio}"
                 )
 
 
@@ -373,7 +353,6 @@ class TestMaternKernelTorch(TestMaternKernel[torch.Tensor]):
 
 
 from pyapprox.util.test_utils import load_tests
-
 
 # Main block to explicitly run tests using the custom loader
 if __name__ == "__main__":

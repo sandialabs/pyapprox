@@ -19,7 +19,8 @@ Kernel Implementations
 Supporting Classes
 ------------------
 - PolynomialScaling: Polynomial scaling functions ρ(x) = c0 + c1*x1 + ... + cd*xd
-- CovarianceHyperParameter: Learnable covariance matrices via hyperspherical parameterization
+- CovarianceHyperParameter: Learnable covariance matrices via hyperspherical
+parameterization
 
 Examples
 --------
@@ -48,16 +49,16 @@ DAG-based autoregressive kernel:
 >>> kernel = DAGMultiOutputKernel(dag, discrepancy_kernels, edge_scalings)
 """
 
-from .protocols import MultiOutputKernelProtocol
-from .independent import IndependentMultiOutputKernel
-from .linear_coregionalization import LinearCoregionalizationKernel
-from .multilevel import MultiLevelKernel
 from ..scalings import (
-    ScalingFunctionProtocol,
     PolynomialScaling,
+    ScalingFunctionProtocol,
 )
 from .covariance_hyperparameter import CovarianceHyperParameter
 from .dag_kernel import DAGMultiOutputKernel
+from .independent import IndependentMultiOutputKernel
+from .linear_coregionalization import LinearCoregionalizationKernel
+from .multilevel import MultiLevelKernel
+from .protocols import MultiOutputKernelProtocol
 
 __all__ = [
     # Protocols

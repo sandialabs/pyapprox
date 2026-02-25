@@ -37,11 +37,13 @@ def validate_objective(objective: Any) -> None:
     Raises
     ------
     TypeError
-        If the objective does not satisfy any of the protocols in UnionOfObjectiveProtocols.
+        If the objective does not satisfy any of the protocols in
+        UnionOfObjectiveProtocols.
     ValueError
         If the objective does not have exactly one quantity of interest (nqoi != 1).
     """
-    # Check the instance against the protocols in order from most complex to least complex
+    # Check the instance against the protocols in order from most complex to least
+    # complex
     if not isinstance(objective, ObjectiveProtocol):
         missing = _missing_protocol_methods(objective, ObjectiveProtocol)
         raise TypeError(

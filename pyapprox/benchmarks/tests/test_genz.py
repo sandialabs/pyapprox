@@ -22,26 +22,24 @@ import numpy as np
 import torch
 from numpy.typing import NDArray
 
-from pyapprox.util.backends.numpy import NumpyBkd
-from pyapprox.util.backends.torch import TorchBkd
-from pyapprox.util.backends.protocols import Array, Backend
-from pyapprox.util.test_utils import load_tests
-
+from pyapprox.benchmarks.functions.genz import (
+    CornerPeakFunction,
+    GaussianPeakFunction,
+    OscillatoryFunction,
+    ProductPeakFunction,
+)
+from pyapprox.interface.functions.derivative_checks.derivative_checker import (
+    DerivativeChecker,
+)
 from pyapprox.interface.functions.protocols.function import (
     FunctionProtocol,
 )
 from pyapprox.interface.functions.protocols.hessian import (
     FunctionWithJacobianAndHVPProtocol,
 )
-from pyapprox.interface.functions.derivative_checks.derivative_checker import (
-    DerivativeChecker,
-)
-from pyapprox.benchmarks.functions.genz import (
-    OscillatoryFunction,
-    ProductPeakFunction,
-    CornerPeakFunction,
-    GaussianPeakFunction,
-)
+from pyapprox.util.backends.numpy import NumpyBkd
+from pyapprox.util.backends.protocols import Array, Backend
+from pyapprox.util.backends.torch import TorchBkd
 
 
 class GenzFunctionTestBase(Generic[Array], unittest.TestCase):
@@ -109,13 +107,15 @@ class GenzFunctionTestBase(Generic[Array], unittest.TestCase):
     def test_evaluation_batch_5d(self) -> None:
         """Test evaluation at multiple samples (5D)."""
         func = self._create_function_5d()
-        samples = self._bkd.array([
-            [0.0, 0.5, 1.0],
-            [0.1, 0.4, 0.9],
-            [0.2, 0.3, 0.8],
-            [0.3, 0.2, 0.7],
-            [0.4, 0.1, 0.6],
-        ])
+        samples = self._bkd.array(
+            [
+                [0.0, 0.5, 1.0],
+                [0.1, 0.4, 0.9],
+                [0.2, 0.3, 0.8],
+                [0.3, 0.2, 0.7],
+                [0.4, 0.1, 0.6],
+            ]
+        )
         result = func(samples)
         self.assertEqual(result.shape, (1, 3))
 
@@ -232,8 +232,7 @@ class GenzFunctionTestBase(Generic[Array], unittest.TestCase):
         mean_log_n = sum(log_n) / n_pts
         mean_log_mse = sum(log_mse) / n_pts
         numerator = sum(
-            (ln - mean_log_n) * (lm - mean_log_mse)
-            for ln, lm in zip(log_n, log_mse)
+            (ln - mean_log_n) * (lm - mean_log_mse) for ln, lm in zip(log_n, log_mse)
         )
         denominator = sum((ln - mean_log_n) ** 2 for ln in log_n)
         slope = numerator / denominator
@@ -265,9 +264,7 @@ class TestOscillatoryFunctionBase(GenzFunctionTestBase[Array]):
 
     def _create_function_5d(self) -> OscillatoryFunction[Array]:
         """Create 5D oscillatory function."""
-        return OscillatoryFunction(
-            self._bkd, c=[1.0, 2.0, 1.5, 0.5, 1.0], w=[0.25] * 5
-        )
+        return OscillatoryFunction(self._bkd, c=[1.0, 2.0, 1.5, 0.5, 1.0], w=[0.25] * 5)
 
     def test_empty_c_raises(self) -> None:
         """Test that empty c raises ValueError."""
@@ -304,9 +301,7 @@ class TestProductPeakFunctionBase(GenzFunctionTestBase[Array]):
 
     def _create_function_5d(self) -> ProductPeakFunction[Array]:
         """Create 5D product peak function."""
-        return ProductPeakFunction(
-            self._bkd, c=[1.0, 2.0, 1.5, 0.5, 1.0], w=[0.5] * 5
-        )
+        return ProductPeakFunction(self._bkd, c=[1.0, 2.0, 1.5, 0.5, 1.0], w=[0.5] * 5)
 
     def test_evaluation_at_center(self) -> None:
         """Test evaluation at peak center."""
@@ -403,9 +398,7 @@ class TestGaussianPeakFunctionBase(GenzFunctionTestBase[Array]):
 
     def _create_function_5d(self) -> GaussianPeakFunction[Array]:
         """Create 5D Gaussian peak function."""
-        return GaussianPeakFunction(
-            self._bkd, c=[1.0, 2.0, 1.5, 0.5, 1.0], w=[0.5] * 5
-        )
+        return GaussianPeakFunction(self._bkd, c=[1.0, 2.0, 1.5, 0.5, 1.0], w=[0.5] * 5)
 
     def test_evaluation_at_center(self) -> None:
         """Test evaluation at peak center."""

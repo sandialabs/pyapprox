@@ -10,7 +10,6 @@ from typing import Generic
 
 import sympy as sp
 
-from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.pde.collocation.manufactured_solutions.base import (
     ManufacturedSolution,
     ScalarSolutionMixin,
@@ -19,6 +18,7 @@ from pyapprox.pde.collocation.manufactured_solutions.mixins import (
     DiffusionMixin,
     ReactionMixin,
 )
+from pyapprox.util.backends.protocols import Array, Backend
 
 
 class ManufacturedHelmholtz(

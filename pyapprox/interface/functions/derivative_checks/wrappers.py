@@ -1,19 +1,16 @@
 from typing import Generic, Optional, Protocol, Union, runtime_checkable
 
-import numpy as np
-
-from pyapprox.util.backends.protocols import Array, Backend
-
-from pyapprox.interface.functions.protocols.jacobian import (
-    FunctionWithJVPProtocol,
-    FunctionWithJacobianOrJVPProtocol,
-    function_has_jacobian_or_jvp,
-)
 from pyapprox.interface.functions.protocols.hessian import (
     FunctionWithHVPAndJacobianOrJVPProtocol,
     FunctionWithJacobianAndWHVPProtocol,
     function_has_hvp_and_jacobian_or_jvp,
 )
+from pyapprox.interface.functions.protocols.jacobian import (
+    FunctionWithJacobianOrJVPProtocol,
+    FunctionWithJVPProtocol,
+    function_has_jacobian_or_jvp,
+)
+from pyapprox.util.backends.protocols import Array, Backend
 
 
 class FunctionWithJVP(Generic[Array]):
@@ -78,8 +75,7 @@ class FunctionWithJVPFromHVP(Generic[Array]):
         self._fun = function
         if weights is None and not hasattr(self._fun, "hvp"):
             raise AttributeError(
-                "weights must be provided if testing the weighted hessian of "
-                "a function"
+                "weights must be provided if testing the weighted hessian of a function"
             )
         self._weights = weights
 
@@ -165,10 +161,7 @@ class SingleSampleFromBatchJacobian(Generic[Array]):
         return jac_batch[0, :, :]  # (nqoi, nvars)
 
     def __repr__(self) -> str:
-        return (
-            f"{self.__class__.__name__}("
-            f"nvars={self.nvars()}, nqoi={self.nqoi()})"
-        )
+        return f"{self.__class__.__name__}(nvars={self.nvars()}, nqoi={self.nqoi()})"
 
 
 class SingleSampleFromBatchHessian(Generic[Array]):
@@ -230,10 +223,7 @@ class SingleSampleFromBatchHessian(Generic[Array]):
         return hess @ vec  # (nvars, 1)
 
     def __repr__(self) -> str:
-        return (
-            f"{self.__class__.__name__}("
-            f"nvars={self.nvars()})"
-        )
+        return f"{self.__class__.__name__}(nvars={self.nvars()})"
 
 
 @runtime_checkable

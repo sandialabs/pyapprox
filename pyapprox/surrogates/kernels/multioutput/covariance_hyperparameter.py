@@ -7,13 +7,13 @@ hyperspherical coordinates. This ensures the resulting matrix is always
 positive definite.
 """
 
-from typing import Tuple, Generic
 import math
+from typing import Generic, Tuple
 
 from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.util.hyperparameter import (
-    HyperParameterList,
     HyperParameter,
+    HyperParameterList,
 )
 
 
@@ -74,7 +74,8 @@ class CovarianceHyperParameter(Generic[Array]):
 
     Examples
     --------
-    >>> from pyapprox.surrogates.kernels.multioutput.covariance_hyperparameter import CovarianceHyperParameter
+    >>> from pyapprox.surrogates.kernels.multioutput.covariance_hyperparameter import
+    CovarianceHyperParameter
     >>> from pyapprox.util.backends.numpy import NumpyBkd
     >>> bkd = NumpyBkd()
     >>> # Create 3x3 covariance hyperparameter

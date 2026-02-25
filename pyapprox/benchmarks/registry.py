@@ -4,10 +4,9 @@ Benchmarks are registered as factory functions that take a backend
 and return a fixed benchmark instance.
 """
 
-from typing import Dict, Callable, Generic, List, Any
+from typing import Any, Callable, Dict, Generic, List
 
 from pyapprox.util.backends.protocols import Array, Backend
-from pyapprox.benchmarks.protocols import BenchmarkProtocol
 
 BenchmarkFactory = Callable[[Backend[Array]], Any]
 
@@ -87,8 +86,7 @@ class BenchmarkRegistry(Generic[Array]):
         """
         if name not in cls._benchmarks:
             raise KeyError(
-                f"Unknown benchmark: {name}. "
-                f"Available: {list(cls._benchmarks.keys())}"
+                f"Unknown benchmark: {name}. Available: {list(cls._benchmarks.keys())}"
             )
         return cls._benchmarks[name](bkd)
 
@@ -114,7 +112,9 @@ class BenchmarkRegistry(Generic[Array]):
 
     @classmethod
     def satisfying(
-        cls, *protocols: type, bkd: Backend[Array],
+        cls,
+        *protocols: type,
+        bkd: Backend[Array],
     ) -> List[Any]:
         """Return benchmark instances satisfying all given protocols.
 
@@ -139,7 +139,9 @@ class BenchmarkRegistry(Generic[Array]):
 
     @classmethod
     def names_satisfying(
-        cls, *protocols: type, bkd: Backend[Array],
+        cls,
+        *protocols: type,
+        bkd: Backend[Array],
     ) -> List[str]:
         """Return names of benchmarks satisfying all given protocols.
 

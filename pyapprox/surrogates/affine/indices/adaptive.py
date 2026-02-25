@@ -6,20 +6,20 @@ adaptive refinement using priority queues and refinement criteria.
 
 from typing import Generic, Optional
 
-from pyapprox.util.backends.protocols import Array, Backend
-from pyapprox.surrogates.affine.indices.priority_queue import (
-    PriorityQueue,
-)
-from pyapprox.surrogates.affine.indices.refinement import (
-    RefinementCriteria,
-    LevelRefinementCriteria,
+from pyapprox.surrogates.affine.indices.basis_generator import (
+    BasisIndexGenerator,
 )
 from pyapprox.surrogates.affine.indices.generators import (
     IterativeIndexGenerator,
 )
-from pyapprox.surrogates.affine.indices.basis_generator import (
-    BasisIndexGenerator,
+from pyapprox.surrogates.affine.indices.priority_queue import (
+    PriorityQueue,
 )
+from pyapprox.surrogates.affine.indices.refinement import (
+    LevelRefinementCriteria,
+    RefinementCriteria,
+)
+from pyapprox.util.backends.protocols import Array, Backend
 
 
 class AdaptiveIndexRefinement(Generic[Array]):
@@ -162,13 +162,13 @@ class AdaptiveIndexRefinement(Generic[Array]):
         self._pending_index = index
 
         # Get basis indices for this subspace
-        basis_indices = self._basis_generator.get_basis_indices(index)
+        self._basis_generator.get_basis_indices(index)
 
         # For now, just return the index as sample (actual implementation
         # would compute quadrature/interpolation points)
         self._pending_samples = self._bkd.asarray(
             [[float(index[d]) for d in range(len(index))]],
-            dtype=self._bkd.float64_dtype()
+            dtype=self._bkd.float64_dtype(),
         ).T
 
         return self._pending_samples

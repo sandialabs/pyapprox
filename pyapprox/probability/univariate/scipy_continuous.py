@@ -5,7 +5,7 @@ Provides a wrapper for SciPy continuous distributions that implements
 MarginalProtocol.
 """
 
-from typing import Generic, Any, Dict, Tuple
+from typing import Any, Dict, Generic, Tuple
 
 import numpy as np
 from scipy.stats import _continuous_distns
@@ -91,9 +91,7 @@ class ScipyContinuousMarginal(Generic[Array]):
             If input is not 2D or has wrong first dimension
         """
         samples_1d = self._validate_input(samples)
-        result = self._bkd.asarray(
-            self._scipy_rv.pdf(self._bkd.to_numpy(samples_1d))
-        )
+        result = self._bkd.asarray(self._scipy_rv.pdf(self._bkd.to_numpy(samples_1d)))
         return self._bkd.reshape(result, (1, -1))
 
     def __call__(self, samples: Array) -> Array:
@@ -145,9 +143,7 @@ class ScipyContinuousMarginal(Generic[Array]):
             If input is not 2D or has wrong first dimension
         """
         samples_1d = self._validate_input(samples)
-        result = self._bkd.asarray(
-            self._scipy_rv.cdf(self._bkd.to_numpy(samples_1d))
-        )
+        result = self._bkd.asarray(self._scipy_rv.cdf(self._bkd.to_numpy(samples_1d)))
         return self._bkd.reshape(result, (1, -1))
 
     def invcdf(self, probs: Array) -> Array:
@@ -249,9 +245,7 @@ class ScipyContinuousMarginal(Generic[Array]):
             shape_names = [n.strip() for n in shape_names.split(",")]
             shape_values = [
                 self._scipy_rv.args[ii]
-                for ii in range(
-                    min(len(self._scipy_rv.args), len(shape_names))
-                )
+                for ii in range(min(len(self._scipy_rv.args), len(shape_names)))
             ]
             shape_values += [
                 self._scipy_rv.kwds[shape_names[ii]]
@@ -267,9 +261,7 @@ class ScipyContinuousMarginal(Generic[Array]):
             for ii in range(len(shapes), len(self._scipy_rv.args))
         ]
         scale_values += [
-            self._scipy_rv.kwds[key]
-            for key in self._scipy_rv.kwds
-            if key not in shapes
+            self._scipy_rv.kwds[key] for key in self._scipy_rv.kwds if key not in shapes
         ]
 
         if len(scale_values) == 0:

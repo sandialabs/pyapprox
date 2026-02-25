@@ -10,7 +10,7 @@ Tests validate:
 """
 
 import unittest
-from typing import Any, Generic, Tuple
+from typing import Any, Generic
 
 import numpy as np
 import torch
@@ -18,23 +18,22 @@ from numpy.typing import NDArray
 from scipy import stats
 from unittest_parametrize import ParametrizedTestCase, parametrize
 
-from pyapprox.util.backends.numpy import NumpyBkd
-from pyapprox.util.backends.torch import TorchBkd
-from pyapprox.util.backends.protocols import Array, Backend
-from pyapprox.util.test_utils import load_tests
-from pyapprox.probability.conditional.beta import ConditionalBeta
-from pyapprox.probability.univariate import UniformMarginal
-from pyapprox.surrogates.affine.univariate import create_bases_1d
-from pyapprox.surrogates.affine.indices import compute_hyperbolic_indices
-from pyapprox.surrogates.affine.basis import OrthonormalPolynomialBasis
-from pyapprox.surrogates.affine.expansions import BasisExpansion
 from pyapprox.interface.functions.derivative_checks.derivative_checker import (
     DerivativeChecker,
 )
 from pyapprox.interface.functions.fromcallable.jacobian import (
     FunctionWithJacobianFromCallable,
 )
+from pyapprox.probability.conditional.beta import ConditionalBeta
+from pyapprox.probability.univariate import UniformMarginal
 from pyapprox.probability.univariate.beta import BetaMarginal
+from pyapprox.surrogates.affine.basis import OrthonormalPolynomialBasis
+from pyapprox.surrogates.affine.expansions import BasisExpansion
+from pyapprox.surrogates.affine.indices import compute_hyperbolic_indices
+from pyapprox.surrogates.affine.univariate import create_bases_1d
+from pyapprox.util.backends.numpy import NumpyBkd
+from pyapprox.util.backends.protocols import Array, Backend
+from pyapprox.util.backends.torch import TorchBkd
 
 # Test configurations for bounds: (name, lb, ub)
 COND_BETA_BOUNDS_CONFIGS = [
@@ -90,7 +89,6 @@ class TestConditionalBeta(Generic[Array], unittest.TestCase):
 
     def test_basic_properties(self):
         """Test basic properties of ConditionalBeta."""
-        bkd = self._bkd
         cond = self._create_conditional_beta(nvars=2)
 
         self.assertEqual(cond.nvars(), 2)
@@ -140,9 +138,7 @@ class TestConditionalBeta(Generic[Array], unittest.TestCase):
             bkd.to_numpy(y[0, :]), a=alpha_val, b=beta_val
         )
 
-        bkd.assert_allclose(
-            log_probs[0, :], bkd.asarray(scipy_log_probs), rtol=1e-10
-        )
+        bkd.assert_allclose(log_probs[0, :], bkd.asarray(scipy_log_probs), rtol=1e-10)
 
     def test_rvs_shape(self):
         """Test rvs output shape."""
@@ -295,12 +291,8 @@ class TestConditionalBeta(Generic[Array], unittest.TestCase):
         bkd = self._bkd
 
         alpha_val, beta_val = 2.5, 3.0
-        log_alpha_func = self._create_basis_expansion(
-            nvars=1, max_level=0, nqoi=1
-        )
-        log_beta_func = self._create_basis_expansion(
-            nvars=1, max_level=0, nqoi=1
-        )
+        log_alpha_func = self._create_basis_expansion(nvars=1, max_level=0, nqoi=1)
+        log_beta_func = self._create_basis_expansion(nvars=1, max_level=0, nqoi=1)
         log_alpha_func.set_coefficients(bkd.asarray([[np.log(alpha_val)]]))
         log_beta_func.set_coefficients(bkd.asarray([[np.log(beta_val)]]))
         cond = ConditionalBeta(log_alpha_func, log_beta_func, bkd)
@@ -316,8 +308,7 @@ class TestConditionalBeta(Generic[Array], unittest.TestCase):
         kl_ref_val = float(bkd.to_numpy(bkd.atleast_1d(kl_ref))[0])
         bkd.assert_allclose(
             kl,
-            bkd.reshape(bkd.asarray([kl_ref_val]), (1, 1))
-            * bkd.ones((1, 3)),
+            bkd.reshape(bkd.asarray([kl_ref_val]), (1, 1)) * bkd.ones((1, 3)),
             rtol=1e-10,
         )
 
@@ -326,12 +317,8 @@ class TestConditionalBeta(Generic[Array], unittest.TestCase):
         bkd = self._bkd
 
         alpha_val, beta_val = 2.0, 5.0
-        log_alpha_func = self._create_basis_expansion(
-            nvars=1, max_level=0, nqoi=1
-        )
-        log_beta_func = self._create_basis_expansion(
-            nvars=1, max_level=0, nqoi=1
-        )
+        log_alpha_func = self._create_basis_expansion(nvars=1, max_level=0, nqoi=1)
+        log_beta_func = self._create_basis_expansion(nvars=1, max_level=0, nqoi=1)
         log_alpha_func.set_coefficients(bkd.asarray([[np.log(alpha_val)]]))
         log_beta_func.set_coefficients(bkd.asarray([[np.log(beta_val)]]))
         cond = ConditionalBeta(log_alpha_func, log_beta_func, bkd)
@@ -343,7 +330,6 @@ class TestConditionalBeta(Generic[Array], unittest.TestCase):
 
     def test_base_distribution_is_uniform(self):
         """base_distribution returns U(0, 1)."""
-        bkd = self._bkd
         cond = self._create_conditional_beta(nvars=1)
 
         base = cond.base_distribution()
@@ -439,6 +425,7 @@ class TestConditionalBetaTorch(TestConditionalBeta[torch.Tensor]):
 
         params = cond.hyp_list().get_active_values()
         from torch.autograd.functional import jacobian as torch_jacobian
+
         jac = torch_jacobian(reparam_from_params, params)
         # Should have non-zero gradients
         self.assertGreater(float(torch.abs(jac).max()), 1e-8)
@@ -488,12 +475,8 @@ class TestConditionalBetaBounded(
         """Test bounds accessor methods."""
         bkd = self.bkd()
         cond = self._create_conditional_beta_with_bounds(nvars=1, lb=lb, ub=ub)
-        bkd.assert_allclose(
-            bkd.asarray([cond.lower()]), bkd.asarray([lb]), atol=1e-10
-        )
-        bkd.assert_allclose(
-            bkd.asarray([cond.upper()]), bkd.asarray([ub]), atol=1e-10
-        )
+        bkd.assert_allclose(bkd.asarray([cond.lower()]), bkd.asarray([lb]), atol=1e-10)
+        bkd.assert_allclose(bkd.asarray([cond.upper()]), bkd.asarray([ub]), atol=1e-10)
         lower, upper = cond.bounds()
         bkd.assert_allclose(
             bkd.asarray([lower, upper]), bkd.asarray([lb, ub]), atol=1e-10

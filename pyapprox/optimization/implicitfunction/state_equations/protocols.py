@@ -1,4 +1,4 @@
-from typing import Protocol, Generic, runtime_checkable
+from typing import Generic, Protocol, runtime_checkable
 
 from pyapprox.util.backends.protocols import Array, Backend
 
@@ -114,9 +114,7 @@ class ParameterizedStateEquationWithJacobianProtocol(Protocol, Generic[Array]):
 
 
 @runtime_checkable
-class ParameterizedStateEquationWithJacobianAndHVPProtocol(
-    Protocol, Generic[Array]
-):
+class ParameterizedStateEquationWithJacobianAndHVPProtocol(Protocol, Generic[Array]):
     """
     Protocol for state equations with Jacobian and Hessian-vector
     product capabilities.

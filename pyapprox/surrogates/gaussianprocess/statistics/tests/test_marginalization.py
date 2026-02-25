@@ -4,30 +4,32 @@ Tests for MarginalizedGP class.
 Tests the MarginalizedGP class for reducing GP dimensionality by integrating
 out selected variables. Includes tests for 1D and 2D marginalization cases.
 """
+
 import math
 import unittest
-from typing import Generic, Any, List
+from typing import Any, Generic, List
+
 import numpy as np
 import torch
 from numpy.typing import NDArray
 
-from pyapprox.util.backends.protocols import Backend, Array
-from pyapprox.util.backends.numpy import NumpyBkd
-from pyapprox.util.backends.torch import TorchBkd
-from pyapprox.util.test_utils import load_tests, slow_test  # noqa: F401
-from pyapprox.surrogates.kernels.matern import SquaredExponentialKernel
-from pyapprox.surrogates.kernels.composition import SeparableProductKernel
-from pyapprox.surrogates.gaussianprocess import ExactGaussianProcess
 from pyapprox.probability.univariate.uniform import UniformMarginal
-from pyapprox.surrogates.sparsegrids.basis_factory import (
-    create_basis_factories,
-)
+from pyapprox.surrogates.gaussianprocess import ExactGaussianProcess
 from pyapprox.surrogates.gaussianprocess.statistics import (
     SeparableKernelIntegralCalculator,
 )
 from pyapprox.surrogates.gaussianprocess.statistics.marginalization import (
     MarginalizedGP,
 )
+from pyapprox.surrogates.kernels.composition import SeparableProductKernel
+from pyapprox.surrogates.kernels.matern import SquaredExponentialKernel
+from pyapprox.surrogates.sparsegrids.basis_factory import (
+    create_basis_factories,
+)
+from pyapprox.util.backends.numpy import NumpyBkd
+from pyapprox.util.backends.protocols import Array, Backend
+from pyapprox.util.backends.torch import TorchBkd
+from pyapprox.util.test_utils import load_tests, slow_test  # noqa: F401
 
 
 def _create_quadrature_bases(
@@ -61,10 +63,7 @@ class TestMarginalizedGP1D(Generic[Array], unittest.TestCase):
         self._kernel = SeparableProductKernel([k1, k2], self._bkd)
 
         self._gp = ExactGaussianProcess(
-            self._kernel,
-            nvars=2,
-            bkd=self._bkd,
-            nugget=1e-6
+            self._kernel, nvars=2, bkd=self._bkd, nugget=1e-6
         )
         # Skip hyperparameter optimization for these tests
         self._gp.hyp_list().set_all_inactive()
@@ -75,9 +74,9 @@ class TestMarginalizedGP1D(Generic[Array], unittest.TestCase):
         self._X_train = self._bkd.array(X_train_np)
         # Use backend math operations, shape: (nqoi, n_train)
         self._y_train = self._bkd.reshape(
-            self._bkd.sin(math.pi * self._X_train[0, :]) +
-            0.5 * self._bkd.cos(math.pi * self._X_train[1, :]),
-            (1, -1)
+            self._bkd.sin(math.pi * self._X_train[0, :])
+            + 0.5 * self._bkd.cos(math.pi * self._X_train[1, :]),
+            (1, -1),
         )
 
         self._gp.fit(self._X_train, self._y_train)
@@ -162,7 +161,7 @@ class TestMarginalizedGP1D(Generic[Array], unittest.TestCase):
         # Variance should be <= u_~p (with small numerical tolerance)
         self.assertTrue(
             self._bkd.all_bool(var <= u_not_p + 1e-10),
-            f"Variance exceeds prior bound u_~p = {u_not_p}"
+            f"Variance exceeds prior bound u_~p = {u_not_p}",
         )
 
     def test_predict_variance_nonnegative(self) -> None:
@@ -174,8 +173,7 @@ class TestMarginalizedGP1D(Generic[Array], unittest.TestCase):
 
         # Variance should be >= 0
         self.assertTrue(
-            self._bkd.all_bool(var >= -1e-10),
-            "Variance has negative values"
+            self._bkd.all_bool(var >= -1e-10), "Variance has negative values"
         )
 
     def test_predict_returns_both(self) -> None:
@@ -227,10 +225,7 @@ class TestMarginalizedGP2D(Generic[Array], unittest.TestCase):
         self._kernel = SeparableProductKernel([k1, k2, k3], self._bkd)
 
         self._gp = ExactGaussianProcess(
-            self._kernel,
-            nvars=3,
-            bkd=self._bkd,
-            nugget=1e-6
+            self._kernel, nvars=3, bkd=self._bkd, nugget=1e-6
         )
         # Skip hyperparameter optimization for these tests
         self._gp.hyp_list().set_all_inactive()
@@ -241,10 +236,10 @@ class TestMarginalizedGP2D(Generic[Array], unittest.TestCase):
         self._X_train = self._bkd.array(X_train_np)
         # Use backend math operations, shape: (nqoi, n_train)
         self._y_train = self._bkd.reshape(
-            self._bkd.sin(math.pi * self._X_train[0, :]) +
-            0.5 * self._bkd.cos(math.pi * self._X_train[1, :]) +
-            0.3 * self._X_train[2, :],
-            (1, -1)
+            self._bkd.sin(math.pi * self._X_train[0, :])
+            + 0.5 * self._bkd.cos(math.pi * self._X_train[1, :])
+            + 0.3 * self._X_train[2, :],
+            (1, -1),
         )
 
         self._gp.fit(self._X_train, self._y_train)
@@ -293,20 +288,24 @@ class TestMarginalizedGP2D(Generic[Array], unittest.TestCase):
     def test_predict_mean_shape(self) -> None:
         """Test predict_mean returns correct shape for 2D input."""
         # 5 test points, 2 active dimensions
-        z_test = self._bkd.array([
-            [-0.5, 0.0, 0.5, -0.3, 0.3],  # Dim 0 values
-            [0.1, -0.2, 0.3, 0.4, -0.1],  # Dim 2 values (mapped to row 1)
-        ])  # Shape (2, 5)
+        z_test = self._bkd.array(
+            [
+                [-0.5, 0.0, 0.5, -0.3, 0.3],  # Dim 0 values
+                [0.1, -0.2, 0.3, 0.4, -0.1],  # Dim 2 values (mapped to row 1)
+            ]
+        )  # Shape (2, 5)
 
         mean = self._marg_gp.predict_mean(z_test)
         self.assertEqual(mean.shape, (5,))
 
     def test_predict_variance_shape(self) -> None:
         """Test predict_variance returns correct shape for 2D input."""
-        z_test = self._bkd.array([
-            [-0.5, 0.0, 0.5],
-            [0.1, -0.2, 0.3],
-        ])  # Shape (2, 3)
+        z_test = self._bkd.array(
+            [
+                [-0.5, 0.0, 0.5],
+                [0.1, -0.2, 0.3],
+            ]
+        )  # Shape (2, 3)
 
         var = self._marg_gp.predict_variance(z_test)
         self.assertEqual(var.shape, (3,))
@@ -318,25 +317,26 @@ class TestMarginalizedGP2D(Generic[Array], unittest.TestCase):
         z0 = self._bkd.linspace(-0.9, 0.9, n_1d)
         z2 = self._bkd.linspace(-0.9, 0.9, n_1d)
         Z0, Z2 = self._bkd.meshgrid(z0, z2)
-        z_test = self._bkd.vstack([
-            self._bkd.flatten(Z0),
-            self._bkd.flatten(Z2)
-        ])  # Shape (2, n_1d^2)
+        z_test = self._bkd.vstack(
+            [self._bkd.flatten(Z0), self._bkd.flatten(Z2)]
+        )  # Shape (2, n_1d^2)
 
         var = self._marg_gp.predict_variance(z_test)
         u_not_p = float(self._bkd.to_numpy(self._marg_gp.u_not_p()))
 
         self.assertTrue(
             self._bkd.all_bool(var <= u_not_p + 1e-10),
-            f"Variance exceeds prior bound u_~p = {u_not_p}"
+            f"Variance exceeds prior bound u_~p = {u_not_p}",
         )
 
     def test_predict_variance_nonnegative(self) -> None:
         """Test variance is non-negative."""
-        z_test = self._bkd.array([
-            [-0.5, 0.0, 0.5],
-            [0.1, -0.2, 0.3],
-        ])
+        z_test = self._bkd.array(
+            [
+                [-0.5, 0.0, 0.5],
+                [0.1, -0.2, 0.3],
+            ]
+        )
 
         var = self._marg_gp.predict_variance(z_test)
         self.assertTrue(self._bkd.all_bool(var >= -1e-10))
@@ -344,10 +344,12 @@ class TestMarginalizedGP2D(Generic[Array], unittest.TestCase):
     def test_non_contiguous_active_dims(self) -> None:
         """Test marginalization with non-contiguous active dims [0, 2]."""
         # This is already our setup, verify it works
-        z_test = self._bkd.array([
-            [0.0],  # Dim 0
-            [0.0],  # Dim 2
-        ])
+        z_test = self._bkd.array(
+            [
+                [0.0],  # Dim 0
+                [0.0],  # Dim 2
+            ]
+        )
         mean, var = self._marg_gp.predict(z_test)
 
         self.assertEqual(mean.shape, (1,))
@@ -376,24 +378,22 @@ class TestMarginalizedGPNumerical(Generic[Array], unittest.TestCase):
         self._kernel = SeparableProductKernel([k1, k2], self._bkd)
 
         self._gp = ExactGaussianProcess(
-            self._kernel,
-            nvars=2,
-            bkd=self._bkd,
-            nugget=1e-6
+            self._kernel, nvars=2, bkd=self._bkd, nugget=1e-6
         )
 
         # Sparse training data (to have non-trivial posterior uncertainty)
         self._n_train = 5
-        X_train_np = np.array([
-            [-0.8, -0.3, 0.0, 0.4, 0.9],
-            [-0.5, 0.5, -0.2, 0.8, 0.0],
-        ])
+        X_train_np = np.array(
+            [
+                [-0.8, -0.3, 0.0, 0.4, 0.9],
+                [-0.5, 0.5, -0.2, 0.8, 0.0],
+            ]
+        )
         self._X_train = self._bkd.array(X_train_np)
         # Use backend math operations, shape: (nqoi, n_train)
         self._y_train = self._bkd.reshape(
-            self._bkd.sin(math.pi * self._X_train[0, :]) +
-            0.5 * self._X_train[1, :],
-            (1, -1)
+            self._bkd.sin(math.pi * self._X_train[0, :]) + 0.5 * self._X_train[1, :],
+            (1, -1),
         )
 
         self._gp.fit(self._X_train, self._y_train)
@@ -466,8 +466,10 @@ class TestMarginalizedGPNumerical(Generic[Array], unittest.TestCase):
 
         # Compare
         bkd.assert_allclose(
-            marg_mean, numerical_mean, rtol=1e-6,
-            err_msg="Marginalized mean differs from numerical integration"
+            marg_mean,
+            numerical_mean,
+            rtol=1e-6,
+            err_msg="Marginalized mean differs from numerical integration",
         )
 
     @slow_test
@@ -514,10 +516,7 @@ class TestMarginalizedGPValidation(Generic[Array], unittest.TestCase):
         self._kernel = SeparableProductKernel([k1, k2], self._bkd)
 
         self._gp = ExactGaussianProcess(
-            self._kernel,
-            nvars=2,
-            bkd=self._bkd,
-            nugget=1e-6
+            self._kernel, nvars=2, bkd=self._bkd, nugget=1e-6
         )
 
         X_train = self._bkd.array(np.random.rand(2, 5) * 2 - 1)
@@ -561,9 +560,7 @@ class TestMarginalizedGPValidation(Generic[Array], unittest.TestCase):
 
     def test_unfitted_gp_raises(self) -> None:
         """Test that unfitted GP raises RuntimeError."""
-        gp_unfitted = ExactGaussianProcess(
-            self._kernel, nvars=2, bkd=self._bkd
-        )
+        gp_unfitted = ExactGaussianProcess(self._kernel, nvars=2, bkd=self._bkd)
 
         with self.assertRaises(RuntimeError):
             MarginalizedGP(gp_unfitted, self._calc, active_dims=[0])
@@ -579,9 +576,7 @@ class TestMarginalizedGPValidation(Generic[Array], unittest.TestCase):
         # u_~p should be 1.0 (no dimensions marginalized)
         u_not_p = float(self._bkd.to_numpy(marg_gp.u_not_p()))
         self._bkd.assert_allclose(
-            self._bkd.asarray([u_not_p]),
-            self._bkd.asarray([1.0]),
-            rtol=1e-12
+            self._bkd.asarray([u_not_p]), self._bkd.asarray([1.0]), rtol=1e-12
         )
 
     def test_active_dims_sorted(self) -> None:
@@ -627,9 +622,7 @@ class TestMarginalizedGP1DSpecialCases(Generic[Array], unittest.TestCase):
 
         marginals = [UniformMarginal(-1.0, 1.0, bkd)]
         bases = _create_quadrature_bases(marginals, 20, bkd)
-        calc = SeparableKernelIntegralCalculator(
-            gp, bases, marginals, bkd=bkd
-        )
+        calc = SeparableKernelIntegralCalculator(gp, bases, marginals, bkd=bkd)
 
         # Marginalize to 1D (keeping the only dimension)
         marg_gp = MarginalizedGP(gp, calc, active_dims=[0])

@@ -27,15 +27,14 @@ import unittest
 import numpy as np
 import torch
 
-from pyapprox.util.backends.torch import TorchBkd
-from pyapprox.util.test_utils import load_tests  # noqa: F401
-
+from pyapprox.expdesign.evidence import Evidence, LogEvidence
 from pyapprox.expdesign.likelihood import (
     GaussianOEDInnerLoopLikelihood,
     GaussianOEDOuterLoopLikelihood,
 )
-from pyapprox.expdesign.evidence import Evidence, LogEvidence
 from pyapprox.expdesign.objective import KLOEDObjective
+from pyapprox.util.backends.torch import TorchBkd
+from pyapprox.util.test_utils import load_tests  # noqa: F401
 
 
 class TestAutogradOuterLikelihood(unittest.TestCase):
@@ -53,19 +52,14 @@ class TestAutogradOuterLikelihood(unittest.TestCase):
         self._nobs = 3
         self._nouter = 10
 
-        self._noise_variances = self._bkd.asarray(
-            np.array([0.1, 0.2, 0.15])
-        )
-        self._shapes = self._bkd.asarray(
-            np.random.randn(self._nobs, self._nouter)
-        )
-        self._obs = self._bkd.asarray(
-            np.random.randn(self._nobs, self._nouter)
-        )
+        self._noise_variances = self._bkd.asarray(np.array([0.1, 0.2, 0.15]))
+        self._shapes = self._bkd.asarray(np.random.randn(self._nobs, self._nouter))
+        self._obs = self._bkd.asarray(np.random.randn(self._nobs, self._nouter))
 
     def _create_likelihood(self):
         like = GaussianOEDOuterLoopLikelihood(
-            self._noise_variances, self._bkd,
+            self._noise_variances,
+            self._bkd,
         )
         like.set_shapes(self._shapes)
         like.set_observations(self._obs)
@@ -74,9 +68,7 @@ class TestAutogradOuterLikelihood(unittest.TestCase):
     def test_autograd_jacobian_matches_analytical(self):
         """torch.autograd.functional.jacobian matches analytical jacobian."""
         like = self._create_likelihood()
-        weights = self._bkd.asarray(
-            np.random.uniform(0.5, 1.5, (self._nobs, 1))
-        )
+        weights = self._bkd.asarray(np.random.uniform(0.5, 1.5, (self._nobs, 1)))
 
         # Analytical jacobian: (nouter, nobs)
         analytical_jac = like.jacobian(weights)
@@ -103,6 +95,7 @@ class TestAutogradEvidence(unittest.TestCase):
         torch.set_default_dtype(torch.float64)
         # torch.compile donated buffers conflict with autograd jacobian
         import torch._functorch.config as _ftconfig
+
         _ftconfig.donated_buffer = False
         self._bkd = TorchBkd()
         np.random.seed(42)
@@ -111,19 +104,14 @@ class TestAutogradEvidence(unittest.TestCase):
         self._ninner = 15
         self._nouter = 10
 
-        self._noise_variances = self._bkd.asarray(
-            np.array([0.1, 0.2, 0.15])
-        )
-        self._shapes = self._bkd.asarray(
-            np.random.randn(self._nobs, self._ninner)
-        )
-        self._obs = self._bkd.asarray(
-            np.random.randn(self._nobs, self._nouter)
-        )
+        self._noise_variances = self._bkd.asarray(np.array([0.1, 0.2, 0.15]))
+        self._shapes = self._bkd.asarray(np.random.randn(self._nobs, self._ninner))
+        self._obs = self._bkd.asarray(np.random.randn(self._nobs, self._nouter))
 
     def _create_evidence(self):
         like = GaussianOEDInnerLoopLikelihood(
-            self._noise_variances, self._bkd,
+            self._noise_variances,
+            self._bkd,
         )
         like.set_shapes(self._shapes)
         like.set_observations(self._obs)
@@ -133,9 +121,7 @@ class TestAutogradEvidence(unittest.TestCase):
     def test_autograd_jacobian_matches_analytical(self):
         """torch.autograd.functional.jacobian matches analytical jacobian."""
         ev = self._create_evidence()
-        weights = self._bkd.asarray(
-            np.random.uniform(0.5, 1.5, (self._nobs, 1))
-        )
+        weights = self._bkd.asarray(np.random.uniform(0.5, 1.5, (self._nobs, 1)))
 
         # Analytical jacobian: (nouter, nobs)
         analytical_jac = ev.jacobian(weights)
@@ -161,6 +147,7 @@ class TestAutogradLogEvidence(unittest.TestCase):
         torch.set_default_dtype(torch.float64)
         # torch.compile donated buffers conflict with autograd jacobian
         import torch._functorch.config as _ftconfig
+
         _ftconfig.donated_buffer = False
         self._bkd = TorchBkd()
         np.random.seed(42)
@@ -169,19 +156,14 @@ class TestAutogradLogEvidence(unittest.TestCase):
         self._ninner = 15
         self._nouter = 10
 
-        self._noise_variances = self._bkd.asarray(
-            np.array([0.1, 0.2, 0.15])
-        )
-        self._shapes = self._bkd.asarray(
-            np.random.randn(self._nobs, self._ninner)
-        )
-        self._obs = self._bkd.asarray(
-            np.random.randn(self._nobs, self._nouter)
-        )
+        self._noise_variances = self._bkd.asarray(np.array([0.1, 0.2, 0.15]))
+        self._shapes = self._bkd.asarray(np.random.randn(self._nobs, self._ninner))
+        self._obs = self._bkd.asarray(np.random.randn(self._nobs, self._nouter))
 
     def _create_log_evidence(self):
         like = GaussianOEDInnerLoopLikelihood(
-            self._noise_variances, self._bkd,
+            self._noise_variances,
+            self._bkd,
         )
         like.set_shapes(self._shapes)
         like.set_observations(self._obs)
@@ -191,9 +173,7 @@ class TestAutogradLogEvidence(unittest.TestCase):
     def test_autograd_jacobian_matches_analytical(self):
         """torch.autograd.functional.jacobian matches analytical jacobian."""
         log_ev = self._create_log_evidence()
-        weights = self._bkd.asarray(
-            np.random.uniform(0.5, 1.5, (self._nobs, 1))
-        )
+        weights = self._bkd.asarray(np.random.uniform(0.5, 1.5, (self._nobs, 1)))
 
         # Analytical jacobian: (nouter, nobs)
         analytical_jac = log_ev.jacobian(weights)
@@ -235,30 +215,28 @@ class TestAutogradKLObjective(unittest.TestCase):
         bkd = self._bkd
         noise_variances = bkd.asarray(np.array([0.1, 0.2, 0.15]))
         inner_loglike = GaussianOEDInnerLoopLikelihood(
-            noise_variances, bkd,
+            noise_variances,
+            bkd,
         )
-        inner_shapes = bkd.asarray(
-            np.random.randn(self._nobs, self._ninner)
-        )
-        outer_shapes = bkd.asarray(
-            np.random.randn(self._nobs, self._nouter)
-        )
-        latent_samples = bkd.asarray(
-            np.random.randn(self._nobs, self._nouter)
-        )
+        inner_shapes = bkd.asarray(np.random.randn(self._nobs, self._ninner))
+        outer_shapes = bkd.asarray(np.random.randn(self._nobs, self._nouter))
+        latent_samples = bkd.asarray(np.random.randn(self._nobs, self._nouter))
 
         return KLOEDObjective(
-            inner_loglike, outer_shapes, latent_samples, inner_shapes,
-            None, None, bkd,
+            inner_loglike,
+            outer_shapes,
+            latent_samples,
+            inner_shapes,
+            None,
+            None,
+            bkd,
         )
 
     def test_autograd_jacobian_matches_analytical(self):
         """torch.autograd.functional.jacobian matches analytical jacobian."""
         obj = self._create_objective()
         np.random.seed(123)
-        weights = self._bkd.asarray(
-            np.random.uniform(0.5, 1.5, (self._nobs, 1))
-        )
+        weights = self._bkd.asarray(np.random.uniform(0.5, 1.5, (self._nobs, 1)))
 
         # Analytical jacobian: (1, nobs)
         analytical_jac = obj.jacobian(weights)

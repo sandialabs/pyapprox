@@ -11,21 +11,20 @@ import numpy as np
 import torch
 from numpy.typing import NDArray
 
-from pyapprox.util.backends.numpy import NumpyBkd
-from pyapprox.util.backends.torch import TorchBkd
-from pyapprox.util.backends.protocols import Array, Backend
-from pyapprox.util.test_utils import load_tests  # noqa: F401
-from pyapprox.util.cartesian import cartesian_product_indices
 from pyapprox.surrogates.tensorproduct import TensorProductInterpolant
 from pyapprox.surrogates.tensorproduct.compute import (
     tp_eval_vectorized,
 )
-from pyapprox.surrogates.tensorproduct.compute_numba import (
-    tp_eval_numba,
-)
-from pyapprox.surrogates.tensorproduct.compute_torch import (
-    tp_eval_torch,
-)
+from pyapprox.util.backends.numpy import NumpyBkd
+from pyapprox.util.backends.protocols import Array, Backend
+from pyapprox.util.backends.torch import TorchBkd
+from pyapprox.util.cartesian import cartesian_product_indices
+from pyapprox.util.optional_deps import package_available
+from pyapprox.util.test_utils import load_tests  # noqa: F401
+
+if not package_available("numba"):
+    raise unittest.SkipTest("numba not installed")
+
 from pyapprox.surrogates.affine.univariate import (
     LagrangeBasis1D,
     LegendrePolynomial1D,
@@ -36,6 +35,12 @@ from pyapprox.surrogates.affine.univariate.piecewisepoly import (
 from pyapprox.surrogates.affine.univariate.piecewisepoly.dynamic import (
     DynamicPiecewiseBasis,
     EquidistantNodeGenerator,
+)
+from pyapprox.surrogates.tensorproduct.compute_numba import (
+    tp_eval_numba,
+)
+from pyapprox.surrogates.tensorproduct.compute_torch import (
+    tp_eval_torch,
 )
 
 
@@ -92,17 +97,11 @@ class TestTpEvalVectorized(Generic[Array], unittest.TestCase):
         tp_indices = cartesian_product_indices(nterms_1d, self._bkd)
 
         np.random.seed(42)
-        test_samples = self._bkd.asarray(
-            np.random.uniform(-1, 1, (nvars, ntest))
-        )
+        test_samples = self._bkd.asarray(np.random.uniform(-1, 1, (nvars, ntest)))
         basis_vals_1d = interp._basis_vals_1d(test_samples)
 
-        expected = _dense_eval(
-            basis_vals_1d, interp._values, tp_indices, self._bkd
-        )
-        result = tp_eval_vectorized(
-            basis_vals_1d, interp._values, nterms_1d, self._bkd
-        )
+        expected = _dense_eval(basis_vals_1d, interp._values, tp_indices, self._bkd)
+        result = tp_eval_vectorized(basis_vals_1d, interp._values, nterms_1d, self._bkd)
         self._bkd.assert_allclose(result, expected, rtol=1e-10)
 
     def test_lagrange_2d_symmetric(self) -> None:
@@ -123,9 +122,7 @@ class TestTpEvalVectorized(Generic[Array], unittest.TestCase):
         bases = _make_lagrange_bases(self._bkd, 3)
         interp = TensorProductInterpolant(self._bkd, bases, [3, 4, 5])
         samples = interp.get_samples()
-        interp.set_values(
-            samples[0:1, :] + samples[1:2, :] + samples[2:3, :]
-        )
+        interp.set_values(samples[0:1, :] + samples[1:2, :] + samples[2:3, :])
         self._run_comparison(interp)
 
     def test_piecewise_2d(self) -> None:
@@ -183,9 +180,7 @@ class TestTpEvalNumba(unittest.TestCase):
         nterms_1d = interp._nterms_1d
 
         np.random.seed(42)
-        test_samples = self._bkd.asarray(
-            np.random.uniform(-1, 1, (nvars, ntest))
-        )
+        test_samples = self._bkd.asarray(np.random.uniform(-1, 1, (nvars, ntest)))
         basis_vals_1d = interp._basis_vals_1d(test_samples)
 
         expected = tp_eval_vectorized(
@@ -209,9 +204,7 @@ class TestTpEvalNumba(unittest.TestCase):
             nqoi,
             npoints,
         )
-        self._bkd.assert_allclose(
-            self._bkd.asarray(result), expected, rtol=1e-10
-        )
+        self._bkd.assert_allclose(self._bkd.asarray(result), expected, rtol=1e-10)
 
     def test_2d_symmetric(self) -> None:
         bases = _make_lagrange_bases(self._bkd, 2)
@@ -231,9 +224,7 @@ class TestTpEvalNumba(unittest.TestCase):
         bases = _make_lagrange_bases(self._bkd, 3)
         interp = TensorProductInterpolant(self._bkd, bases, [3, 4, 5])
         samples = interp.get_samples()
-        interp.set_values(
-            samples[0:1, :] + samples[1:2, :] + samples[2:3, :]
-        )
+        interp.set_values(samples[0:1, :] + samples[1:2, :] + samples[2:3, :])
         self._run_numba_comparison(interp)
 
     def test_5d(self) -> None:
@@ -276,9 +267,7 @@ class TestTpEvalTorchCompile(unittest.TestCase):
         nterms_1d = interp._nterms_1d
 
         np.random.seed(42)
-        test_samples = self._bkd.asarray(
-            np.random.uniform(-1, 1, (nvars, ntest))
-        )
+        test_samples = self._bkd.asarray(np.random.uniform(-1, 1, (nvars, ntest)))
         basis_vals_1d = interp._basis_vals_1d(test_samples)
 
         expected = tp_eval_vectorized(
@@ -305,9 +294,7 @@ class TestTpEvalTorchCompile(unittest.TestCase):
         bases = _make_lagrange_bases(self._bkd, 3)
         interp = TensorProductInterpolant(self._bkd, bases, [3, 4, 5])
         samples = interp.get_samples()
-        interp.set_values(
-            samples[0:1, :] + samples[1:2, :] + samples[2:3, :]
-        )
+        interp.set_values(samples[0:1, :] + samples[1:2, :] + samples[2:3, :])
         self._run_torch_comparison(interp)
 
     def test_1d(self) -> None:

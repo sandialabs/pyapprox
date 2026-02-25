@@ -1,19 +1,17 @@
 from typing import (
     Any,
-    Optional,
-    Union,
-    Sequence,
-    List,
-    Tuple,
-    overload,
-    cast,
     Callable,
+    List,
+    Optional,
+    Sequence,
+    Tuple,
+    Union,
+    cast,
 )
 
 import numpy as np
 import torch
 from numpy.typing import NDArray
-from scipy.sparse import issparse as _scipy_issparse
 
 from pyapprox.util.backends.protocols import Backend
 
@@ -137,7 +135,8 @@ class TorchBkd(Backend[torch.Tensor]):  # Specify torch.Tensor type
     def to_float(array: torch.Tensor) -> float:
         if array.numel() != 1:
             raise ValueError(
-                f"to_float requires a single-element tensor, got shape {tuple(array.shape)}"
+                "to_float requires a single-element tensor,"
+                f" got shape {tuple(array.shape)}"
             )
         return array.detach().item()
 
@@ -160,7 +159,10 @@ class TorchBkd(Backend[torch.Tensor]):  # Specify torch.Tensor type
         return torch.reshape(array, newshape)
 
     @staticmethod
-    def transpose(array: torch.Tensor, axes: Optional[Sequence[int]] = None) -> torch.Tensor:
+    def transpose(
+        array: torch.Tensor,
+        axes: Optional[Sequence[int]] = None,
+    ) -> torch.Tensor:
         if axes is None:
             return array.T
         return array.permute(*axes)

@@ -38,9 +38,7 @@ class EndpointFunctional(Generic[Array]):
     ):
         validate_backend(bkd)
         if state_idx < 0 or state_idx >= nstates:
-            raise ValueError(
-                f"state_idx {state_idx} out of range [0, {nstates})"
-            )
+            raise ValueError(f"state_idx {state_idx} out of range [0, {nstates})")
         self._state_idx = state_idx
         self._nstates = nstates
         self._nparams = nparams
@@ -161,9 +159,7 @@ class EndpointFunctional(Generic[Array]):
         """
         return self._bkd.zeros((self._nparams, 1))
 
-    def param_param_hvp(
-        self, sol: Array, param: Array, vvec: Array
-    ) -> Array:
+    def param_param_hvp(self, sol: Array, param: Array, vvec: Array) -> Array:
         """
         Compute (d^2Q/dp^2)·v.
 

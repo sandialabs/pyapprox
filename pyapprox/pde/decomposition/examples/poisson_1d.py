@@ -13,24 +13,22 @@ which satisfies -u'' = pi^2 * sin(pi*x) with u(0) = u(2) = 0.
 """
 
 import math
-from typing import Tuple, Dict
 
-from pyapprox.util.backends.numpy import NumpyBkd
 from pyapprox.pde.collocation.basis import ChebyshevBasis1D
-from pyapprox.pde.collocation.mesh import TransformedMesh1D
 from pyapprox.pde.collocation.boundary import (
-    DirichletBC,
     zero_dirichlet_bc,
 )
+from pyapprox.pde.collocation.mesh import TransformedMesh1D
 from pyapprox.pde.collocation.physics.advection_diffusion import (
     create_steady_diffusion,
 )
 from pyapprox.pde.decomposition.interface import Interface1D
-from pyapprox.pde.decomposition.subdomain import SubdomainWrapper
 from pyapprox.pde.decomposition.solver import (
     DtNResidual,
     DtNSolver,
 )
+from pyapprox.pde.decomposition.subdomain import SubdomainWrapper
+from pyapprox.util.backends.numpy import NumpyBkd
 
 
 def create_poisson_1d_problem(npts_per_subdomain: int = 10):

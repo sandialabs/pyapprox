@@ -9,13 +9,13 @@ both linear and nonlinear models.
 
 from typing import Optional
 
-from pyapprox.util.backends.protocols import Array, Backend
-from pyapprox.probability.joint.independent import IndependentJoint
-from pyapprox.probability.univariate.gaussian import GaussianMarginal
 from pyapprox.expdesign.likelihood import GaussianOEDInnerLoopLikelihood
 from pyapprox.expdesign.objective.kl_objective import KLOEDObjective
 from pyapprox.expdesign.quadrature.strategies import get_sampler
 from pyapprox.interface.functions.protocols.function import FunctionProtocol
+from pyapprox.probability.joint.independent import IndependentJoint
+from pyapprox.probability.univariate.gaussian import GaussianMarginal
+from pyapprox.util.backends.protocols import Array, Backend
 
 
 def create_kl_oed_objective(
@@ -96,9 +96,7 @@ def create_kl_oed_objective(
     # Build joint distribution for outer loop: [prior, latent]
     # Latent is always standard normal N(0,1) for reparameterization trick
     latent_marginals = [GaussianMarginal(0.0, 1.0, bkd) for _ in range(nobs)]
-    outer_joint = IndependentJoint(
-        list(prior.marginals()) + latent_marginals, bkd
-    )
+    outer_joint = IndependentJoint(list(prior.marginals()) + latent_marginals, bkd)
 
     # Get sampler strategies
     outer_strategy = get_sampler(outer_sampler_type)()
@@ -182,5 +180,3 @@ def create_kl_oed_objective_from_data(
         inner_quad_weights,
         bkd,
     )
-
-

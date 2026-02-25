@@ -43,7 +43,6 @@ from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.util.backends.torch import TorchBkd
 from pyapprox.util.test_utils import load_tests  # noqa: F401
 
-
 # =============================================================================
 # SampleTracker filtered collection tests
 # =============================================================================
@@ -65,18 +64,14 @@ class TestSampleTrackerFiltered(Generic[Array], unittest.TestCase):
         marginal = UniformMarginal(-1.0, 1.0, self._bkd)
         factories = [GaussLagrangeFactory(marginal, self._bkd)] * nvars
         growth = LinearGrowthRule(scale=1, shift=1)
-        tp_factory = TensorProductSubspaceFactory(
-            self._bkd, factories, growth
-        )
+        tp_factory = TensorProductSubspaceFactory(self._bkd, factories, growth)
         tracker = SampleTracker(self._bkd, tp_factory)
 
         # Register a few subspaces manually
         indices_list = []
         positions = []
         for i in range(level + 1):
-            idx = self._bkd.zeros(
-                (nvars,), dtype=self._bkd.int64_dtype()
-            )
+            idx = self._bkd.zeros((nvars,), dtype=self._bkd.int64_dtype())
             idx = self._bkd.copy(idx)
             # set first dim to i
             idx_np = self._bkd.to_numpy(idx).copy()
@@ -113,9 +108,7 @@ class TestSampleTrackerFiltered(Generic[Array], unittest.TestCase):
 
     def test_filter_subset_gives_subset(self) -> None:
         """Filtering to subset of positions gives fewer samples."""
-        tracker, _, _, positions = self._make_tracker_with_subspaces(
-            level=2
-        )
+        tracker, _, _, positions = self._make_tracker_with_subspaces(level=2)
         # Filter to just the first subspace
         subset = {positions[0]}
         n_subset = tracker.n_filtered_unique_samples(subset)
@@ -138,9 +131,7 @@ class TestSampleTrackerFiltered(Generic[Array], unittest.TestCase):
 
         # Add values for each subspace's unique samples
         for pos, idx in zip(positions, indices_list):
-            new_samples = tracker.get_new_samples(
-                pos, tracker._registered[pos]
-            )
+            new_samples = tracker.get_new_samples(pos, tracker._registered[pos])
             if new_samples is not None:
                 tracker.append_new_values(func(new_samples))
 
@@ -166,18 +157,14 @@ class TestSampleTrackerFiltered(Generic[Array], unittest.TestCase):
         self.assertIsNone(result)
 
 
-class TestSampleTrackerFilteredNumpy(
-    TestSampleTrackerFiltered[NDArray[Any]]
-):
+class TestSampleTrackerFilteredNumpy(TestSampleTrackerFiltered[NDArray[Any]]):
     __test__ = True
 
     def bkd(self) -> NumpyBkd:
         return NumpyBkd()
 
 
-class TestSampleTrackerFilteredTorch(
-    TestSampleTrackerFiltered[torch.Tensor]
-):
+class TestSampleTrackerFilteredTorch(TestSampleTrackerFiltered[torch.Tensor]):
     __test__ = True
 
     def bkd(self) -> TorchBkd:
@@ -210,20 +197,12 @@ class TestAdaptiveFitterAccessors(Generic[Array], unittest.TestCase):
         marginal = UniformMarginal(-1.0, 1.0, self._bkd)
         factories = [GaussLagrangeFactory(marginal, self._bkd)] * nvars
         growth = LinearGrowthRule(scale=1, shift=1)
-        tp_factory = TensorProductSubspaceFactory(
-            self._bkd, factories, growth
-        )
-        admis = MaxLevelCriteria(
-            max_level=5, pnorm=1.0, bkd=self._bkd
-        )
-        fitter = SingleFidelityAdaptiveSparseGridFitter(
-            self._bkd, tp_factory, admis
-        )
+        tp_factory = TensorProductSubspaceFactory(self._bkd, factories, growth)
+        admis = MaxLevelCriteria(max_level=5, pnorm=1.0, bkd=self._bkd)
+        fitter = SingleFidelityAdaptiveSparseGridFitter(self._bkd, tp_factory, admis)
 
         def func(s: Array) -> Array:
-            return self._bkd.reshape(
-                s[0] ** 2 + 0.5 * s[1], (1, -1)
-            )
+            return self._bkd.reshape(s[0] ** 2 + 0.5 * s[1], (1, -1))
 
         for _ in range(nsteps):
             samples = fitter.step_samples()
@@ -303,18 +282,14 @@ class TestAdaptiveFitterAccessors(Generic[Array], unittest.TestCase):
             self.assertEqual(fitter.ncandidates(), cand_idx.shape[1])
 
 
-class TestAdaptiveFitterAccessorsNumpy(
-    TestAdaptiveFitterAccessors[NDArray[Any]]
-):
+class TestAdaptiveFitterAccessorsNumpy(TestAdaptiveFitterAccessors[NDArray[Any]]):
     __test__ = True
 
     def bkd(self) -> NumpyBkd:
         return NumpyBkd()
 
 
-class TestAdaptiveFitterAccessorsTorch(
-    TestAdaptiveFitterAccessors[torch.Tensor]
-):
+class TestAdaptiveFitterAccessorsTorch(TestAdaptiveFitterAccessors[torch.Tensor]):
     __test__ = True
 
     def bkd(self) -> TorchBkd:
@@ -352,9 +327,7 @@ class TestMFAdaptiveFitterAccessors(Generic[Array], unittest.TestCase):
         marginal = UniformMarginal(-1.0, 1.0, self._bkd)
         factories = [GaussLagrangeFactory(marginal, self._bkd)]
         growth = LinearGrowthRule(scale=1, shift=1)
-        tp_factory = TensorProductSubspaceFactory(
-            self._bkd, factories, growth
-        )
+        tp_factory = TensorProductSubspaceFactory(self._bkd, factories, growth)
 
         max_1d = self._bkd.asarray([6, 1], dtype=self._bkd.int64_dtype())
         admis = CompositeCriteria(
@@ -363,18 +336,17 @@ class TestMFAdaptiveFitterAccessors(Generic[Array], unittest.TestCase):
         )
 
         fitter = MultiFidelityAdaptiveSparseGridFitter(
-            self._bkd, tp_factory, admis, nconfig_vars=1,
+            self._bkd,
+            tp_factory,
+            admis,
+            nconfig_vars=1,
         )
 
         def model_0(s: Array) -> Array:
-            return self._bkd.reshape(
-                self._bkd.cos(s[0] + 0.5), (1, -1)
-            )
+            return self._bkd.reshape(self._bkd.cos(s[0] + 0.5), (1, -1))
 
         def model_1(s: Array) -> Array:
-            return self._bkd.reshape(
-                self._bkd.cos(s[0]), (1, -1)
-            )
+            return self._bkd.reshape(self._bkd.cos(s[0]), (1, -1))
 
         model_factory = DictModelFactory({(0,): model_0, (1,): model_1})
 
@@ -383,8 +355,7 @@ class TestMFAdaptiveFitterAccessors(Generic[Array], unittest.TestCase):
             if samples is None:
                 break
             values = {
-                cfg: model_factory.get_model(cfg)(s)
-                for cfg, s in samples.items()
+                cfg: model_factory.get_model(cfg)(s) for cfg, s in samples.items()
             }
             fitter.step_values(values)
 
@@ -421,18 +392,14 @@ class TestMFAdaptiveFitterAccessors(Generic[Array], unittest.TestCase):
         self.assertEqual(cost, float(total))
 
 
-class TestMFAdaptiveFitterAccessorsNumpy(
-    TestMFAdaptiveFitterAccessors[NDArray[Any]]
-):
+class TestMFAdaptiveFitterAccessorsNumpy(TestMFAdaptiveFitterAccessors[NDArray[Any]]):
     __test__ = True
 
     def bkd(self) -> NumpyBkd:
         return NumpyBkd()
 
 
-class TestMFAdaptiveFitterAccessorsTorch(
-    TestMFAdaptiveFitterAccessors[torch.Tensor]
-):
+class TestMFAdaptiveFitterAccessorsTorch(TestMFAdaptiveFitterAccessors[torch.Tensor]):
     __test__ = True
 
     def bkd(self) -> TorchBkd:
@@ -464,9 +431,7 @@ class TestIsotropicFitterGetValues(Generic[Array], unittest.TestCase):
         marginal = UniformMarginal(-1.0, 1.0, self._bkd)
         factories = [GaussLagrangeFactory(marginal, self._bkd)] * 2
         growth = LinearGrowthRule(scale=1, shift=1)
-        tp_factory = TensorProductSubspaceFactory(
-            self._bkd, factories, growth
-        )
+        tp_factory = TensorProductSubspaceFactory(self._bkd, factories, growth)
         fitter = IsotropicSparseGridFitter(self._bkd, tp_factory, level=2)
         self.assertIsNone(fitter.get_values())
 
@@ -476,9 +441,7 @@ class TestIsotropicFitterGetValues(Generic[Array], unittest.TestCase):
         marginal = UniformMarginal(-1.0, 1.0, self._bkd)
         factories = [GaussLagrangeFactory(marginal, self._bkd)] * nvars
         growth = LinearGrowthRule(scale=1, shift=1)
-        tp_factory = TensorProductSubspaceFactory(
-            self._bkd, factories, growth
-        )
+        tp_factory = TensorProductSubspaceFactory(self._bkd, factories, growth)
         fitter = IsotropicSparseGridFitter(self._bkd, tp_factory, level=2)
 
         def func(s: Array) -> Array:
@@ -495,18 +458,14 @@ class TestIsotropicFitterGetValues(Generic[Array], unittest.TestCase):
         self._bkd.assert_allclose(got_values, expected, rtol=1e-12)
 
 
-class TestIsotropicFitterGetValuesNumpy(
-    TestIsotropicFitterGetValues[NDArray[Any]]
-):
+class TestIsotropicFitterGetValuesNumpy(TestIsotropicFitterGetValues[NDArray[Any]]):
     __test__ = True
 
     def bkd(self) -> NumpyBkd:
         return NumpyBkd()
 
 
-class TestIsotropicFitterGetValuesTorch(
-    TestIsotropicFitterGetValues[torch.Tensor]
-):
+class TestIsotropicFitterGetValuesTorch(TestIsotropicFitterGetValues[torch.Tensor]):
     __test__ = True
 
     def bkd(self) -> TorchBkd:

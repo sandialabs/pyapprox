@@ -6,10 +6,10 @@ x^rho * exp(-x) on [0, infinity), which corresponds to the Gamma distribution.
 
 from typing import Generic
 
-from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.surrogates.affine.univariate.globalpoly.orthopoly_base import (
     OrthonormalPolynomial1D,
 )
+from pyapprox.util.backends.protocols import Array, Backend
 
 
 def laguerre_recurrence(

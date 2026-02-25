@@ -2,35 +2,33 @@
 
 import math
 import unittest
-from typing import Generic, Any
+from typing import Any, Generic
 
-import numpy as np
-from numpy.typing import NDArray
 import torch
+from numpy.typing import NDArray
 
-from pyapprox.util.backends.protocols import Array, Backend
-from pyapprox.util.backends.numpy import NumpyBkd
-from pyapprox.util.backends.torch import TorchBkd
-from pyapprox.util.test_utils import load_tests  # noqa: F401
-from pyapprox.interface.functions.protocols import (
-    FunctionProtocol,
-    FunctionWithJacobianProtocol,
-    FunctionWithJacobianAndHVPProtocol,
-)
 from pyapprox.interface.functions.derivative_checks.derivative_checker import (
     DerivativeChecker,
 )
 from pyapprox.interface.functions.fromcallable.jacobian import (
     FunctionWithJacobianFromCallable,
 )
+from pyapprox.interface.functions.protocols import (
+    FunctionProtocol,
+    FunctionWithJacobianProtocol,
+)
+from pyapprox.pde.field_maps.kle_factory import (
+    create_lognormal_kle_field_map,
+)
 from pyapprox.pde.time.config import TimeIntegrationConfig
 from pyapprox.pde.zoo.diffusion import (
     create_steady_diffusion_1d,
     create_transient_diffusion_1d,
 )
-from pyapprox.pde.field_maps.kle_factory import (
-    create_lognormal_kle_field_map,
-)
+from pyapprox.util.backends.numpy import NumpyBkd
+from pyapprox.util.backends.protocols import Array, Backend
+from pyapprox.util.backends.torch import TorchBkd
+from pyapprox.util.test_utils import load_tests  # noqa: F401
 
 
 def _make_kle_field_map(bkd, nodes, num_kle_terms=2):
@@ -39,8 +37,11 @@ def _make_kle_field_map(bkd, nodes, num_kle_terms=2):
     mesh_coords = ((nodes + 1.0) / 2.0)[None, :]  # map [-1,1] -> [0,1]
     mean_log = bkd.zeros((npts,))
     return create_lognormal_kle_field_map(
-        mesh_coords, mean_log, bkd,
-        num_kle_terms=num_kle_terms, sigma=0.3,
+        mesh_coords,
+        mean_log,
+        bkd,
+        num_kle_terms=num_kle_terms,
+        sigma=0.3,
     )
 
 
@@ -58,12 +59,15 @@ class TestSteadyDiffusionZoo(Generic[Array], unittest.TestCase):
         npts = 20
         from pyapprox.pde.collocation.basis import ChebyshevBasis1D
         from pyapprox.pde.collocation.mesh import TransformedMesh1D
+
         mesh = TransformedMesh1D(npts, bkd)
         basis = ChebyshevBasis1D(mesh, bkd)
         nodes = basis.nodes()
 
         field_map = _make_kle_field_map(bkd, nodes)
-        forcing = lambda t: (math.pi ** 2) * bkd.sin(math.pi * nodes)
+
+        def forcing(t):
+            return (math.pi**2) * bkd.sin(math.pi * nodes)
 
         return create_steady_diffusion_1d(
             bkd=bkd,
@@ -119,19 +123,19 @@ class TestSteadyDiffusionZoo(Generic[Array], unittest.TestCase):
         bkd = self._bkd
         npts = 20
         from pyapprox.pde.collocation.basis import ChebyshevBasis1D
+        from pyapprox.pde.collocation.boundary import zero_dirichlet_bc
+        from pyapprox.pde.collocation.forward_models.steady import (
+            SteadyForwardModel,
+        )
         from pyapprox.pde.collocation.mesh import (
             TransformedMesh1D,
             create_uniform_mesh_1d,
         )
-        from pyapprox.pde.collocation.boundary import zero_dirichlet_bc
         from pyapprox.pde.collocation.physics.advection_diffusion import (
             AdvectionDiffusionReaction,
         )
         from pyapprox.pde.parameterizations.diffusion import (
             create_diffusion_parameterization,
-        )
-        from pyapprox.pde.collocation.forward_models.steady import (
-            SteadyForwardModel,
         )
 
         mesh = TransformedMesh1D(npts, bkd)
@@ -140,17 +144,24 @@ class TestSteadyDiffusionZoo(Generic[Array], unittest.TestCase):
         nodes = basis.nodes()
 
         field_map = _make_kle_field_map(bkd, nodes)
-        forcing = lambda t: (math.pi ** 2) * bkd.sin(math.pi * nodes)
+
+        def forcing(t):
+            return (math.pi**2) * bkd.sin(math.pi * nodes)
 
         physics = AdvectionDiffusionReaction(
-            basis, bkd, diffusion=1.0, forcing=forcing,
+            basis,
+            bkd,
+            diffusion=1.0,
+            forcing=forcing,
         )
         left_idx = mesh_obj.boundary_indices(0)
         right_idx = mesh_obj.boundary_indices(1)
-        physics.set_boundary_conditions([
-            zero_dirichlet_bc(bkd, left_idx),
-            zero_dirichlet_bc(bkd, right_idx),
-        ])
+        physics.set_boundary_conditions(
+            [
+                zero_dirichlet_bc(bkd, left_idx),
+                zero_dirichlet_bc(bkd, right_idx),
+            ]
+        )
         param = create_diffusion_parameterization(bkd, basis, field_map)
         init_state = bkd.zeros((npts,))
         fwd_manual = SteadyForwardModel(
@@ -164,8 +175,10 @@ class TestSteadyDiffusionZoo(Generic[Array], unittest.TestCase):
             fwd_zoo(samples), fwd_manual(samples), rtol=1e-10, atol=1e-14
         )
         bkd.assert_allclose(
-            fwd_zoo.jacobian(samples), fwd_manual.jacobian(samples),
-            rtol=1e-10, atol=1e-14,
+            fwd_zoo.jacobian(samples),
+            fwd_manual.jacobian(samples),
+            rtol=1e-10,
+            atol=1e-14,
         )
 
     def test_cannot_specify_both_field_map_and_basis_funs(self):
@@ -174,6 +187,7 @@ class TestSteadyDiffusionZoo(Generic[Array], unittest.TestCase):
         npts = 10
         from pyapprox.pde.collocation.basis import ChebyshevBasis1D
         from pyapprox.pde.collocation.mesh import TransformedMesh1D
+
         mesh = TransformedMesh1D(npts, bkd)
         basis = ChebyshevBasis1D(mesh, bkd)
         nodes = basis.nodes()
@@ -205,6 +219,7 @@ class TestTransientDiffusionZoo(Generic[Array], unittest.TestCase):
         npts = 15
         from pyapprox.pde.collocation.basis import ChebyshevBasis1D
         from pyapprox.pde.collocation.mesh import TransformedMesh1D
+
         mesh = TransformedMesh1D(npts, bkd)
         basis = ChebyshevBasis1D(mesh, bkd)
         nodes = basis.nodes()
@@ -262,15 +277,14 @@ class TestTransientDiffusionZoo(Generic[Array], unittest.TestCase):
         )
         checker = DerivativeChecker(wrapper)
         sample = bkd.array([0.1, -0.1])[:, None]
-        errors = checker.check_derivatives(
-            sample, direction=None, relative=True
-        )[0]
+        errors = checker.check_derivatives(sample, direction=None, relative=True)[0]
         ratio = float(bkd.min(errors) / bkd.max(errors))
         self.assertLessEqual(ratio, 1e-5)
 
 
 class TestDiffusionPositivityValidation(Generic[Array], unittest.TestCase):
     """Tests for strict positivity validation in DiffusionParameterization."""
+
     __test__ = False
 
     def bkd(self) -> Backend[Array]:
@@ -292,6 +306,7 @@ class TestDiffusionPositivityValidation(Generic[Array], unittest.TestCase):
         from pyapprox.pde.parameterizations.diffusion import (
             create_diffusion_parameterization,
         )
+
         mesh = TransformedMesh1D(npts, bkd)
         basis = ChebyshevBasis1D(mesh, bkd)
         physics = AdvectionDiffusionReaction(basis, bkd, diffusion=1.0)

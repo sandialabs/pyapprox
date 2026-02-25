@@ -9,10 +9,9 @@ The distribution parameters are functions of x, enabling heteroscedastic
 models where variance (or other parameters) depends on the input.
 """
 
-from typing import Protocol, Generic, runtime_checkable
+from typing import Generic, Protocol, runtime_checkable
 
 from pyapprox.util.backends.protocols import Array, Backend
-from pyapprox.util.hyperparameter import HyperParameterList
 
 
 @runtime_checkable

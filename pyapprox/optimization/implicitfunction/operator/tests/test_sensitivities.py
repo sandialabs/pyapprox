@@ -1,26 +1,25 @@
 import unittest
-from typing import Generic, Any
+from typing import Any, Generic
 
-import numpy as np
-from numpy.typing import NDArray
 import torch
+from numpy.typing import NDArray
 
-from pyapprox.util.backends.protocols import Array, Backend
-from pyapprox.util.backends.numpy import NumpyBkd
-from pyapprox.util.backends.torch import TorchBkd
-from pyapprox.optimization.implicitfunction.benchmarks.wildeys_nonlinear_state_equation import (
+from pyapprox.optimization.implicitfunction.benchmarks.wildeys_nonlinear_state_equation import (  # noqa: E501
     NonLinearCoupledStateEquations,
 )
 from pyapprox.optimization.implicitfunction.functionals.subset_of_states import (
     SubsetOfStatesAdjointFunctional,
 )
+from pyapprox.optimization.implicitfunction.operator.check_derivatives import (
+    ImplicitFunctionDerivativeChecker,
+)
 from pyapprox.optimization.implicitfunction.operator.sensitivities import (
     VectorAdjointOperatorWithJacobian,
 )
 from pyapprox.optimization.rootfinding.newton import NewtonSolverOptions
-from pyapprox.optimization.implicitfunction.operator.check_derivatives import (
-    ImplicitFunctionDerivativeChecker,
-)
+from pyapprox.util.backends.numpy import NumpyBkd
+from pyapprox.util.backends.protocols import Array, Backend
+from pyapprox.util.backends.torch import TorchBkd
 
 
 class TestSensitivities(Generic[Array], unittest.TestCase):
@@ -31,13 +30,12 @@ class TestSensitivities(Generic[Array], unittest.TestCase):
         Override this method in derived classes to provide the specific
         backend.
         """
-        raise NotImplementedError(
-            "Derived classes must implement this method."
-        )
+        raise NotImplementedError("Derived classes must implement this method.")
 
     def test_nonlinear_coupled_residual_vector_functional(self):
         """
-        Test sensitivities for nonlinear coupled residual equations with a vector functional.
+        Test sensitivities for nonlinear coupled residual equations with a vector
+        functional.
         """
         bkd = self.bkd()
 
@@ -91,9 +89,7 @@ class TestSensitivitiesTorch(TestSensitivities[torch.Tensor]):
 
 
 # Custom test loader to exclude the base class
-def load_tests(
-    loader: unittest.TestLoader, tests, pattern: str
-) -> unittest.TestSuite:
+def load_tests(loader: unittest.TestLoader, tests, pattern: str) -> unittest.TestSuite:
     """
     Custom test loader to exclude the base class
     ContinuousScipyRandomVariable1D.

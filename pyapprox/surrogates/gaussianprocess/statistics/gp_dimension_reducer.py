@@ -7,7 +7,7 @@ other dimension-reduction tools.
 
 from typing import Generic, List
 
-from pyapprox.util.backends.protocols import Array, Backend
+from pyapprox.interface.functions.marginalize import ReducedFunction
 from pyapprox.surrogates.gaussianprocess.protocols import (
     PredictiveGPProtocol,
 )
@@ -17,7 +17,7 @@ from pyapprox.surrogates.gaussianprocess.statistics.integrals import (
 from pyapprox.surrogates.gaussianprocess.statistics.marginalization import (
     MarginalizedGP,
 )
-from pyapprox.interface.functions.marginalize import ReducedFunction
+from pyapprox.util.backends.protocols import Array, Backend
 
 
 class GPMeanDimensionReducer(Generic[Array]):
@@ -63,9 +63,7 @@ class GPMeanDimensionReducer(Generic[Array]):
         """Return the number of quantities of interest (always 1)."""
         return 1
 
-    def reduce(
-        self, keep_indices: List[int]
-    ) -> ReducedFunction[Array]:
+    def reduce(self, keep_indices: List[int]) -> ReducedFunction[Array]:
         """Reduce to the specified variables via GP marginalization.
 
         Parameters

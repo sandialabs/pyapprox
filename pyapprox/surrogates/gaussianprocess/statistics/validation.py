@@ -5,23 +5,23 @@ These functions validate that the GP and kernel satisfy the requirements
 for computing statistics using the separable kernel approach.
 """
 
-from pyapprox.util.backends.protocols import Array
-from pyapprox.surrogates.kernels.protocols import (
-    KernelProtocol,
-    SeparableKernelProtocol,
+from pyapprox.surrogates.gaussianprocess.mean_functions import ZeroMean
+from pyapprox.surrogates.gaussianprocess.protocols import (
+    GaussianProcessProtocol,
 )
 from pyapprox.surrogates.kernels.composition import (
     ProductKernel,
     SumKernel,
 )
-from pyapprox.surrogates.kernels.scalings import PolynomialScaling
 from pyapprox.surrogates.kernels.iid_gaussian_noise import (
     IIDGaussianNoise,
 )
-from pyapprox.surrogates.gaussianprocess.protocols import (
-    GaussianProcessProtocol,
+from pyapprox.surrogates.kernels.protocols import (
+    KernelProtocol,
+    SeparableKernelProtocol,
 )
-from pyapprox.surrogates.gaussianprocess.mean_functions import ZeroMean
+from pyapprox.surrogates.kernels.scalings import PolynomialScaling
+from pyapprox.util.backends.protocols import Array
 
 
 def validate_separable_kernel(kernel: KernelProtocol[Array]) -> None:
@@ -68,8 +68,8 @@ def validate_separable_kernel(kernel: KernelProtocol[Array]) -> None:
     """
     # Strip IIDGaussianNoise from SumKernel and validate the signal part
     if isinstance(kernel, SumKernel):
-        k1 = getattr(kernel, '_kernel1', None)
-        k2 = getattr(kernel, '_kernel2', None)
+        k1 = getattr(kernel, "_kernel1", None)
+        k2 = getattr(kernel, "_kernel2", None)
         if k1 is not None and k2 is not None:
             for signal, noise in [(k1, k2), (k2, k1)]:
                 if isinstance(noise, IIDGaussianNoise):
@@ -86,12 +86,15 @@ def validate_separable_kernel(kernel: KernelProtocol[Array]) -> None:
 
     # Check for ProductKernel(PolynomialScaling(degree=0), SeparableKernel)
     if isinstance(kernel, ProductKernel):
-        k1 = getattr(kernel, '_kernel1', None)
-        k2 = getattr(kernel, '_kernel2', None)
+        k1 = getattr(kernel, "_kernel1", None)
+        k2 = getattr(kernel, "_kernel2", None)
         if k1 is not None and k2 is not None:
             for a, b in [(k1, k2), (k2, k1)]:
-                if (isinstance(a, PolynomialScaling) and a.degree() == 0
-                        and isinstance(b, SeparableKernelProtocol)):
+                if (
+                    isinstance(a, PolynomialScaling)
+                    and a.degree() == 0
+                    and isinstance(b, SeparableKernelProtocol)
+                ):
                     return
 
     # Otherwise, kernel is not separable
@@ -143,7 +146,7 @@ def validate_zero_mean(gp: GaussianProcessProtocol[Array]) -> None:
     ValueError: ...
     """
     # Check if GP has a mean method/attribute
-    if not hasattr(gp, 'mean'):
+    if not hasattr(gp, "mean"):
         # No mean attribute - assume zero mean (common default)
         return
 

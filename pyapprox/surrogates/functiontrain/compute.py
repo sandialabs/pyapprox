@@ -12,9 +12,8 @@ Caching uses id(basis_object) as key, which is safe because:
 from collections import defaultdict
 from typing import Dict, List, Tuple
 
-from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.surrogates.functiontrain.core import FunctionTrainCore
-
+from pyapprox.util.backends.protocols import Array, Backend
 
 BasisCache = Dict[int, Array]
 
@@ -111,8 +110,7 @@ def core_eval_cached(
 
         # Stack coefficients: each is (nterms, nqoi)
         coefs_list = [
-            core.get_basisexp(ii, jj).get_coefficients()
-            for ii, jj in members
+            core.get_basisexp(ii, jj).get_coefficients() for ii, jj in members
         ]
         # (group_size, nterms, nqoi)
         coefs_stacked = bkd.stack(coefs_list, axis=0)
@@ -167,9 +165,7 @@ def ft_eval_cached(
 
     # Contract with remaining cores
     for kk in range(1, nvars):
-        core_val = core_eval_cached(
-            cores[kk], samples[kk : kk + 1], cache, bkd
-        )
+        core_val = core_eval_cached(cores[kk], samples[kk : kk + 1], cache, bkd)
         values = bkd.einsum("ijkl, jmkl->imkl", values, core_val)
 
     return values[0, 0].T
@@ -206,13 +202,9 @@ def _forward_backward_sweep(
 
     # Forward sweep: L_k = F_0 * ... * F_k
     left_products: List[Array] = []
-    left_products.append(
-        core_eval_cached(cores[0], samples[:1], cache, bkd)
-    )
+    left_products.append(core_eval_cached(cores[0], samples[:1], cache, bkd))
     for kk in range(1, nvars - 1):
-        core_val = core_eval_cached(
-            cores[kk], samples[kk : kk + 1], cache, bkd
-        )
+        core_val = core_eval_cached(cores[kk], samples[kk : kk + 1], cache, bkd)
         left_products.append(
             bkd.einsum("ijkl, jmkl->imkl", left_products[-1], core_val)
         )
@@ -223,9 +215,7 @@ def _forward_backward_sweep(
         cores[nvars - 1], samples[nvars - 1 : nvars], cache, bkd
     )
     for kk in range(nvars - 3, -1, -1):
-        core_val = core_eval_cached(
-            cores[kk + 1], samples[kk + 1 : kk + 2], cache, bkd
-        )
+        core_val = core_eval_cached(cores[kk + 1], samples[kk + 1 : kk + 2], cache, bkd)
         right_products[kk] = bkd.einsum(
             "ijkl, jmkl->imkl", core_val, right_products[kk + 1]
         )
@@ -298,9 +288,7 @@ def _core_jacobian_direct(
             if nqoi == 1:
                 # Fast path: weight is (nsamples, 1), basis is (nsamples, nterms)
                 # Result slice: (nsamples, 1, nterms)
-                result[:, 0, param_idx : param_idx + nterms] = (
-                    weight * basis_matrix
-                )
+                result[:, 0, param_idx : param_idx + nterms] = weight * basis_matrix
             else:
                 # Multi-QoI: params are (nterms, nqoi).flatten() row-major
                 # c_{i,q} at param index i*nqoi + q
@@ -308,9 +296,7 @@ def _core_jacobian_direct(
                 for qq in range(nqoi):
                     for ll in range(nterms):
                         p = param_idx + ll * nqoi + qq
-                        result[:, qq, p] = (
-                            weight[:, qq] * basis_matrix[:, ll]
-                        )
+                        result[:, qq, p] = weight[:, qq] * basis_matrix[:, ll]
 
             param_idx += bexp_nparams
 
@@ -357,14 +343,10 @@ def ft_jacobian_wrt_params_cached(
             return bkd.zeros((nsamples, nqoi, 0))
         L_weight = bkd.ones((1, nsamples, nqoi))
         R_weight = bkd.ones((1, nsamples, nqoi))
-        return _core_jacobian_direct(
-            core, samples[0:1], cache, L_weight, R_weight, bkd
-        )
+        return _core_jacobian_direct(core, samples[0:1], cache, L_weight, R_weight, bkd)
 
     # Forward-backward sweep
-    left_products, right_products = _forward_backward_sweep(
-        cores, samples, cache, bkd
-    )
+    left_products, right_products = _forward_backward_sweep(cores, samples, cache, bkd)
 
     # Assemble Jacobian: contribution from each core
     jac_parts = []

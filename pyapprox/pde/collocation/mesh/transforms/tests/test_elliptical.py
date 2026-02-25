@@ -6,15 +6,14 @@ from typing import Any, Generic
 
 import numpy as np
 import torch
-
 from numpy.typing import NDArray
 
-from pyapprox.util.backends.protocols import Array, Backend
-from pyapprox.util.backends.numpy import NumpyBkd
-from pyapprox.util.backends.torch import TorchBkd
 from pyapprox.pde.collocation.mesh.transforms.elliptical import (
     EllipticalTransform,
 )
+from pyapprox.util.backends.numpy import NumpyBkd
+from pyapprox.util.backends.protocols import Array, Backend
+from pyapprox.util.backends.torch import TorchBkd
 from pyapprox.util.test_utils import load_tests  # noqa: F401
 
 
@@ -58,10 +57,7 @@ class TestEllipticalTransform(Generic[Array], unittest.TestCase):
         )
 
         # Test points avoiding singularities
-        ref_pts = bkd.asarray([
-            [0.5, 1.0, 1.5],
-            [0.5, 1.0, 2.0]
-        ])
+        ref_pts = bkd.asarray([[0.5, 1.0, 1.5], [0.5, 1.0, 2.0]])
         phys_pts = transform.map_to_physical(ref_pts)
         ref_pts_back = transform.map_to_reference(phys_pts)
 
@@ -115,7 +111,7 @@ class TestEllipticalTransform(Generic[Array], unittest.TestCase):
         # Expected: a^2 * (sinh^2(u) + sin^2(v))
         u = bkd.to_numpy(ref_pts[0, :])
         v = bkd.to_numpy(ref_pts[1, :])
-        expected = a**2 * (np.sinh(u)**2 + np.sin(v)**2)
+        expected = a**2 * (np.sinh(u) ** 2 + np.sin(v) ** 2)
         bkd.assert_allclose(jac_det, bkd.asarray(expected), atol=1e-14)
 
     def test_elliptical_jacobian_matrix_consistency(self):
@@ -132,8 +128,7 @@ class TestEllipticalTransform(Generic[Array], unittest.TestCase):
 
         # Compute determinant from matrix: ad - bc
         det_from_mat = (
-            jac_mat[:, 0, 0] * jac_mat[:, 1, 1]
-            - jac_mat[:, 0, 1] * jac_mat[:, 1, 0]
+            jac_mat[:, 0, 0] * jac_mat[:, 1, 1] - jac_mat[:, 0, 1] * jac_mat[:, 1, 0]
         )
         bkd.assert_allclose(det_from_mat, jac_det, atol=1e-14)
 
@@ -151,7 +146,7 @@ class TestEllipticalTransform(Generic[Array], unittest.TestCase):
         # Expected: h_u = h_v = a * sqrt(sinh^2(u) + sin^2(v))
         u = bkd.to_numpy(ref_pts[0, :])
         v = bkd.to_numpy(ref_pts[1, :])
-        h_expected = a * np.sqrt(np.sinh(u)**2 + np.sin(v)**2)
+        h_expected = a * np.sqrt(np.sinh(u) ** 2 + np.sin(v) ** 2)
 
         bkd.assert_allclose(scale[:, 0], bkd.asarray(h_expected), atol=1e-14)
         bkd.assert_allclose(scale[:, 1], bkd.asarray(h_expected), atol=1e-14)
@@ -257,11 +252,9 @@ class TestEllipticalTransform(Generic[Array], unittest.TestCase):
         semi_minor = a * np.sinh(u_val)
 
         # Check ellipse equation: (x/a_major)^2 + (y/a_minor)^2 = 1
-        ellipse_eq = (x / semi_major)**2 + (y / semi_minor)**2
+        ellipse_eq = (x / semi_major) ** 2 + (y / semi_minor) ** 2
         bkd.assert_allclose(
-            bkd.asarray(ellipse_eq),
-            bkd.ones((len(v_vals),)),
-            atol=1e-12
+            bkd.asarray(ellipse_eq), bkd.ones((len(v_vals),)), atol=1e-12
         )
 
     def test_elliptical_jacobian_via_finite_differences(self):

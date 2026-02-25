@@ -1,25 +1,25 @@
 """Operators module for spectral collocation methods."""
 
-from pyapprox.pde.collocation.operators.jacobian_types import (
-    SparseJacobian,
-    DenseJacobian,
-    DiagJacobian,
-    ZeroJacobian,
+from pyapprox.pde.collocation.operators.differential import (
+    Divergence,
+    Gradient,
+    Laplacian,
+    divergence,
+    gradient,
+    laplacian,
 )
 from pyapprox.pde.collocation.operators.field import (
     Field,
-    scalar_field,
-    input_field,
     constant_field,
+    input_field,
+    scalar_field,
     zero_field,
 )
-from pyapprox.pde.collocation.operators.differential import (
-    Gradient,
-    Divergence,
-    Laplacian,
-    gradient,
-    divergence,
-    laplacian,
+from pyapprox.pde.collocation.operators.jacobian_types import (
+    DenseJacobian,
+    DiagJacobian,
+    SparseJacobian,
+    ZeroJacobian,
 )
 
 __all__ = [

@@ -1,4 +1,5 @@
-from typing import Protocol, Generic, runtime_checkable
+from typing import Generic, Protocol, runtime_checkable
+
 from pyapprox.util.backends.protocols import Array, Backend
 
 
@@ -120,9 +121,7 @@ class ParameterizedFunctionalWithJacobianProtocol(Protocol, Generic[Array]):
 
 
 @runtime_checkable
-class ParameterizedFunctionalWithJacobianAndHVPProtocol(
-    Protocol, Generic[Array]
-):
+class ParameterizedFunctionalWithJacobianAndHVPProtocol(Protocol, Generic[Array]):
     """
     Protocol for functionals with Jacobian and Hessian-vector product
     capabilities.
@@ -237,9 +236,7 @@ class ParameterizedFunctionalWithJacobianAndHVPProtocol(
         """
         ...
 
-    def state_state_hvp(
-        self, state: Array, param: Array, wvec: Array
-    ) -> Array:
+    def state_state_hvp(self, state: Array, param: Array, wvec: Array) -> Array:
         """
         Compute the Hessian-vector product with respect to the state.
 
@@ -259,9 +256,7 @@ class ParameterizedFunctionalWithJacobianAndHVPProtocol(
         """
         ...
 
-    def param_param_hvp(
-        self, state: Array, param: Array, vvec: Array
-    ) -> Array:
+    def param_param_hvp(self, state: Array, param: Array, vvec: Array) -> Array:
         """
         Compute the Hessian-vector product with respect to the parameters.
 
@@ -281,9 +276,7 @@ class ParameterizedFunctionalWithJacobianAndHVPProtocol(
         """
         ...
 
-    def state_param_hvp(
-        self, state: Array, param: Array, vvec: Array
-    ) -> Array:
+    def state_param_hvp(self, state: Array, param: Array, vvec: Array) -> Array:
         """
         Compute the Hessian-vector product with respect to state and parameters.
 
@@ -303,9 +296,7 @@ class ParameterizedFunctionalWithJacobianAndHVPProtocol(
         """
         ...
 
-    def param_state_hvp(
-        self, state: Array, param: Array, wvec: Array
-    ) -> Array:
+    def param_state_hvp(self, state: Array, param: Array, wvec: Array) -> Array:
         """
         Compute the Hessian-vector product with respect to parameters and state.
 

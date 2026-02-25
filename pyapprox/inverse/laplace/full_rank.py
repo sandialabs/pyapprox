@@ -8,8 +8,8 @@ MAP point as the precision matrix.
 
 from typing import Generic, Optional
 
-from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.probability.gaussian import DenseCholeskyMultivariateGaussian
+from pyapprox.util.backends.protocols import Array, Backend
 
 
 class DenseLaplacePosterior(Generic[Array]):

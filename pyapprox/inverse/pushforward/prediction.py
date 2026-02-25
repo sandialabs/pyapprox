@@ -9,8 +9,8 @@ from typing import Generic, Optional
 
 from scipy.linalg import eigh as generalized_eigenvalue_decomp
 
-from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.probability.gaussian import DenseCholeskyMultivariateGaussian
+from pyapprox.util.backends.protocols import Array, Backend
 
 
 class DenseGaussianPrediction(Generic[Array]):
@@ -196,8 +196,7 @@ class DenseGaussianPrediction(Generic[Array]):
 
         # Optimal predictive mean
         self._pred_mean = (
-            ppf_cov_evecs @ (evecs.T @ residual)
-            + self._pred_matrix @ self._prior_mean
+            ppf_cov_evecs @ (evecs.T @ residual) + self._pred_matrix @ self._prior_mean
         )
 
     def mean(self) -> Array:

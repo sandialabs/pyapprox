@@ -7,11 +7,11 @@ C-optimal designs minimize the variance of a linear combination of parameters:
 This is equivalent to x^T @ M0 @ x where M1 @ x = c.
 """
 
-from typing import Generic, Optional
+from typing import Generic
 
-from pyapprox.util.backends.protocols import Array, Backend
-from pyapprox.expdesign.local.protocols import DesignMatricesProtocol
 from pyapprox.expdesign.local.adjoint import AdjointModel
+from pyapprox.expdesign.local.protocols import DesignMatricesProtocol
+from pyapprox.util.backends.protocols import Array, Backend
 
 from .base import LocalOEDCriterionBase
 

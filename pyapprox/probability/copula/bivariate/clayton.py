@@ -72,24 +72,17 @@ class ClaytonCopula(Generic[Array]):
         """Validate that input is 2D with shape (2, nsamples)."""
         if u.ndim != 2:
             raise ValueError(
-                f"Expected 2D array with shape (2, nsamples), "
-                f"got {u.ndim}D"
+                f"Expected 2D array with shape (2, nsamples), got {u.ndim}D"
             )
         if u.shape[0] != 2:
-            raise ValueError(
-                f"Expected 2 variables, got {u.shape[0]}"
-            )
+            raise ValueError(f"Expected 2 variables, got {u.shape[0]}")
 
     def _validate_h_input(self, u1: Array, u2: Array) -> None:
         """Validate h-function inputs."""
         if u1.ndim != 2 or u1.shape[0] != 1:
-            raise ValueError(
-                f"u1 must have shape (1, nsamples), got {u1.shape}"
-            )
+            raise ValueError(f"u1 must have shape (1, nsamples), got {u1.shape}")
         if u2.ndim != 2 or u2.shape[0] != 1:
-            raise ValueError(
-                f"u2 must have shape (1, nsamples), got {u2.shape}"
-            )
+            raise ValueError(f"u2 must have shape (1, nsamples), got {u2.shape}")
 
     def logpdf(self, u: Array) -> Array:
         """
@@ -156,7 +149,8 @@ class ClaytonCopula(Generic[Array]):
         """
         Inverse of h-function (analytical closed form).
 
-        u1 = (( v^{-theta/(1+theta)} * u2^{-theta} - 1 ) * (-1) + u2^{-theta})^{-1/theta}
+        u1 = (( v^{-theta/(1+theta)} * u2^{-theta} - 1 ) * (-1) +
+        u2^{-theta})^{-1/theta}
 
         Derived by solving h(u1, u2) = v for u1:
           v = u2^{-(theta+1)} * A^{-(1+1/theta)}
@@ -208,9 +202,7 @@ class ClaytonCopula(Generic[Array]):
         Array
             Samples in (0,1)^2. Shape: (2, nsamples)
         """
-        w = self._bkd.asarray(
-            np.random.uniform(0, 1, (2, nsamples)).astype(np.float64)
-        )
+        w = self._bkd.asarray(np.random.uniform(0, 1, (2, nsamples)).astype(np.float64))
         u1 = w[0:1, :]
         w2 = w[1:2, :]
         u2 = self.h_inverse(w2, u1)

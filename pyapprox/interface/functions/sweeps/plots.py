@@ -3,12 +3,12 @@
 Provides visualization utilities for parameter sweep results.
 """
 
-from typing import Any, Dict, Generic, Optional
+from typing import Any, Dict, Optional
 
-from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.interface.functions.sweeps.protocols import (
     ParameterSweeperProtocol,
 )
+from pyapprox.util.backends.protocols import Array, Backend
 
 
 def plot_single_qoi_sweep(
@@ -57,9 +57,7 @@ def plot_single_qoi_sweep(
         )
 
     if sweep_id < 0 or sweep_id >= nsweeps:
-        raise ValueError(
-            f"sweep_id {sweep_id} out of range [0, {nsweeps - 1}]"
-        )
+        raise ValueError(f"sweep_id {sweep_id} out of range [0, {nsweeps - 1}]")
 
     start = sweep_id * nsamples_per_sweep
     end = (sweep_id + 1) * nsamples_per_sweep

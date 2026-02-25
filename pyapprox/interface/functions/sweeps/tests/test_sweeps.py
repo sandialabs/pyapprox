@@ -10,15 +10,13 @@ import numpy as np
 import torch
 from numpy.typing import NDArray
 
-from pyapprox.util.backends.numpy import NumpyBkd
-from pyapprox.util.backends.torch import TorchBkd
-from pyapprox.util.backends.protocols import Array
-from pyapprox.util.test_utils import load_tests
-
 from pyapprox.interface.functions.sweeps import (
     BoundedParameterSweeper,
     GaussianParameterSweeper,
 )
+from pyapprox.util.backends.numpy import NumpyBkd
+from pyapprox.util.backends.protocols import Array
+from pyapprox.util.backends.torch import TorchBkd
 
 
 class TestBoundedParameterSweeper(Generic[Array], unittest.TestCase):
@@ -36,9 +34,7 @@ class TestBoundedParameterSweeper(Generic[Array], unittest.TestCase):
     def test_basic_sweep_generation(self):
         """Test basic sweep generation."""
         bounds = self._bkd.asarray([[0.0, 1.0], [0.0, 2.0], [-1.0, 1.0]])
-        sweeper = BoundedParameterSweeper(
-            bounds, nsamples_per_sweep=50, bkd=self._bkd
-        )
+        sweeper = BoundedParameterSweeper(bounds, nsamples_per_sweep=50, bkd=self._bkd)
 
         self.assertEqual(sweeper.nvars(), 3)
         self.assertEqual(sweeper.nsamples_per_sweep(), 50)
@@ -49,9 +45,7 @@ class TestBoundedParameterSweeper(Generic[Array], unittest.TestCase):
     def test_samples_within_bounds(self):
         """Test that all samples are within bounds."""
         bounds = self._bkd.asarray([[0.0, 1.0], [0.0, 2.0], [-1.0, 1.0]])
-        sweeper = BoundedParameterSweeper(
-            bounds, nsamples_per_sweep=100, bkd=self._bkd
-        )
+        sweeper = BoundedParameterSweeper(bounds, nsamples_per_sweep=100, bkd=self._bkd)
 
         samples = sweeper.rvs(nsweeps=10)
         samples_np = self._bkd.to_numpy(samples)
@@ -64,11 +58,9 @@ class TestBoundedParameterSweeper(Generic[Array], unittest.TestCase):
     def test_canonical_active_samples_shape(self):
         """Test that canonical samples have correct shape."""
         bounds = self._bkd.asarray([[0.0, 1.0], [0.0, 1.0]])
-        sweeper = BoundedParameterSweeper(
-            bounds, nsamples_per_sweep=30, bkd=self._bkd
-        )
+        sweeper = BoundedParameterSweeper(bounds, nsamples_per_sweep=30, bkd=self._bkd)
 
-        samples = sweeper.rvs(nsweeps=3)
+        sweeper.rvs(nsweeps=3)
         canonical = sweeper.canonical_active_samples()
 
         self.assertEqual(canonical.shape, (3, 30))
@@ -76,9 +68,7 @@ class TestBoundedParameterSweeper(Generic[Array], unittest.TestCase):
     def test_set_rotation_matrices(self):
         """Test setting custom rotation matrices."""
         bounds = self._bkd.asarray([[0.0, 1.0], [0.0, 1.0]])
-        sweeper = BoundedParameterSweeper(
-            bounds, nsamples_per_sweep=20, bkd=self._bkd
-        )
+        sweeper = BoundedParameterSweeper(bounds, nsamples_per_sweep=20, bkd=self._bkd)
 
         # Set custom rotation matrix (orthogonal vectors)
         rotation = self._bkd.asarray([[1.0, 0.0], [0.0, 1.0]])
@@ -99,9 +89,7 @@ class TestBoundedParameterSweeper(Generic[Array], unittest.TestCase):
     def test_sweep_bounds_computation(self):
         """Test sweep bounds computation."""
         bounds = self._bkd.asarray([[0.0, 1.0], [0.0, 1.0]])
-        sweeper = BoundedParameterSweeper(
-            bounds, nsamples_per_sweep=20, bkd=self._bkd
-        )
+        sweeper = BoundedParameterSweeper(bounds, nsamples_per_sweep=20, bkd=self._bkd)
 
         # Test along a coordinate axis
         rotation_vec = self._bkd.asarray([[1.0], [0.0]])
@@ -128,8 +116,10 @@ class TestGaussianParameterSweeper(Generic[Array], unittest.TestCase):
     def test_basic_sweep_generation(self):
         """Test basic Gaussian sweep generation."""
         mean = self._bkd.asarray([0.0, 1.0, 2.0])
+
         # Identity covariance sqrt
-        cov_sqrt_op = lambda x: x
+        def cov_sqrt_op(x):
+            return x
 
         sweeper = GaussianParameterSweeper(
             mean,
@@ -148,7 +138,9 @@ class TestGaussianParameterSweeper(Generic[Array], unittest.TestCase):
     def test_sweep_centered_at_mean(self):
         """Test that sweep center is at the mean."""
         mean = self._bkd.asarray([1.0, 2.0])
-        cov_sqrt_op = lambda x: x
+
+        def cov_sqrt_op(x):
+            return x
 
         sweeper = GaussianParameterSweeper(
             mean,
@@ -166,7 +158,9 @@ class TestGaussianParameterSweeper(Generic[Array], unittest.TestCase):
     def test_sweep_bounds(self):
         """Test sweep bounds are +-sweep_radius."""
         mean = self._bkd.asarray([0.0, 0.0])
-        cov_sqrt_op = lambda x: x
+
+        def cov_sqrt_op(x):
+            return x
 
         sweeper = GaussianParameterSweeper(
             mean,
@@ -187,7 +181,9 @@ class TestGaussianParameterSweeper(Generic[Array], unittest.TestCase):
         mean = self._bkd.asarray([0.0, 0.0])
         # Cholesky factor for covariance [[1, 0.5], [0.5, 1]]
         L = self._bkd.asarray([[1.0, 0.0], [0.5, 0.866]])
-        cov_sqrt_op = lambda x: L @ x
+
+        def cov_sqrt_op(x):
+            return L @ x
 
         sweeper = GaussianParameterSweeper(
             mean,
@@ -203,7 +199,9 @@ class TestGaussianParameterSweeper(Generic[Array], unittest.TestCase):
     def test_canonical_active_samples_shape(self):
         """Test canonical samples shape."""
         mean = self._bkd.asarray([0.0, 0.0])
-        cov_sqrt_op = lambda x: x
+
+        def cov_sqrt_op(x):
+            return x
 
         sweeper = GaussianParameterSweeper(
             mean,

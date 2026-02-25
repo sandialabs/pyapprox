@@ -178,14 +178,17 @@ class LotkaVolterraResidual(Generic[Array]):
         for ii in range(n):
             # Create a mask and add
             row = self._bkd.zeros((n * n,))
-            row = self._bkd.concatenate([
-                self._bkd.zeros((ii * n,)),
-                -outer_ry_state[ii, :],
-                self._bkd.zeros(((n - ii - 1) * n,))
-            ])
-            jac_A = jac_A + self._bkd.reshape(
-                self._bkd.eye(n)[ii, :], (n, 1)
-            ) * row[None, :]
+            row = self._bkd.concatenate(
+                [
+                    self._bkd.zeros((ii * n,)),
+                    -outer_ry_state[ii, :],
+                    self._bkd.zeros(((n - ii - 1) * n,)),
+                ]
+            )
+            jac_A = (
+                jac_A
+                + self._bkd.reshape(self._bkd.eye(n)[ii, :], (n, 1)) * row[None, :]
+            )
 
         return self._bkd.hstack([jac_r, jac_A])
 
@@ -197,9 +200,7 @@ class LotkaVolterraResidual(Generic[Array]):
     # HVP Methods for second-order adjoints
     # =========================================================================
 
-    def state_state_hvp(
-        self, state: Array, adj_state: Array, wvec: Array
-    ) -> Array:
+    def state_state_hvp(self, state: Array, adj_state: Array, wvec: Array) -> Array:
         """
         Compute lambda^T (d^2f/dy^2) w.
 
@@ -232,9 +233,7 @@ class LotkaVolterraResidual(Generic[Array]):
 
         return -(lr * Aw) - (A.T @ (lr * wvec))
 
-    def state_param_hvp(
-        self, state: Array, adj_state: Array, vvec: Array
-    ) -> Array:
+    def state_param_hvp(self, state: Array, adj_state: Array, vvec: Array) -> Array:
         """
         Compute lambda^T (d^2f/dy dp) v.
 
@@ -288,9 +287,7 @@ class LotkaVolterraResidual(Generic[Array]):
 
         return result_r + result_A
 
-    def param_state_hvp(
-        self, state: Array, adj_state: Array, wvec: Array
-    ) -> Array:
+    def param_state_hvp(self, state: Array, adj_state: Array, wvec: Array) -> Array:
         """
         Compute lambda^T (d^2f/dp dy) w.
 
@@ -314,7 +311,6 @@ class LotkaVolterraResidual(Generic[Array]):
         Array
             HVP result. Shape: (nparams,)
         """
-        n = self._nspecies
         r = self._growth_rates
         A = self._alpha
         y = state
@@ -339,9 +335,7 @@ class LotkaVolterraResidual(Generic[Array]):
 
         return self._bkd.concatenate([result_r, result_A])
 
-    def param_param_hvp(
-        self, state: Array, adj_state: Array, vvec: Array
-    ) -> Array:
+    def param_param_hvp(self, state: Array, adj_state: Array, vvec: Array) -> Array:
         """
         Compute lambda^T (d^2f/dp^2) v.
 

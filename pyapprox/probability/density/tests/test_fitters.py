@@ -9,23 +9,22 @@ import torch
 from numpy.typing import NDArray
 from scipy import stats
 
-from pyapprox.util.backends.numpy import NumpyBkd
-from pyapprox.util.backends.protocols import Array, Backend
-from pyapprox.util.backends.torch import TorchBkd
-from pyapprox.util.test_utils import load_tests  # noqa: F401
-
-from pyapprox.surrogates.kernels.matern import (
-    SquaredExponentialKernel,
-)
-from pyapprox.surrogates.affine.basis.kernel_basis import KernelBasis
-from pyapprox.probability.density.kernel_density_basis import (
-    KernelDensityBasis,
-)
 from pyapprox.probability.density._fitters import (
     DensityFitterProtocol,
     KDEFitter,
     LinearDensityFitter,
 )
+from pyapprox.probability.density.kernel_density_basis import (
+    KernelDensityBasis,
+)
+from pyapprox.surrogates.affine.basis.kernel_basis import KernelBasis
+from pyapprox.surrogates.kernels.matern import (
+    SquaredExponentialKernel,
+)
+from pyapprox.util.backends.numpy import NumpyBkd
+from pyapprox.util.backends.protocols import Array, Backend
+from pyapprox.util.backends.torch import TorchBkd
+from pyapprox.util.test_utils import load_tests  # noqa: F401
 
 
 class TestDensityFitters(Generic[Array], unittest.TestCase):
@@ -73,12 +72,8 @@ class TestDensityFitters(Generic[Array], unittest.TestCase):
         """KDEFitter returns the same result regardless of mass matrix."""
         bkd = self._bkd
         b = bkd.asarray([1.0, 2.0, 3.0])
-        M1 = bkd.asarray([[1.0, 0.0, 0.0],
-                           [0.0, 1.0, 0.0],
-                           [0.0, 0.0, 1.0]])
-        M2 = bkd.asarray([[5.0, 2.0, 1.0],
-                           [2.0, 6.0, 3.0],
-                           [1.0, 3.0, 7.0]])
+        M1 = bkd.asarray([[1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0]])
+        M2 = bkd.asarray([[5.0, 2.0, 1.0], [2.0, 6.0, 3.0], [1.0, 3.0, 7.0]])
         fitter = KDEFitter(bkd)
         d1 = fitter.fit(M1, b)
         d2 = fitter.fit(M2, b)
@@ -101,7 +96,10 @@ class TestDensityFitters(Generic[Array], unittest.TestCase):
 
         # Our SE kernel with l = sigma, centers at data points
         kernel = SquaredExponentialKernel(
-            bkd.asarray([sigma]), (0.01, 100.0), 1, bkd,
+            bkd.asarray([sigma]),
+            (0.01, 100.0),
+            1,
+            bkd,
         )
         centers = bkd.reshape(bkd.asarray(data), (1, -1))
         kb = KernelBasis(kernel, centers)

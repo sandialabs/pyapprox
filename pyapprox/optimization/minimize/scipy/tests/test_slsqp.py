@@ -1,15 +1,16 @@
 import unittest
-from typing import Generic, Any
+from typing import Any, Generic
 
 import numpy as np
-from numpy.typing import NDArray
 import torch
+from numpy.typing import NDArray
 
-from pyapprox.util.backends.protocols import Array, Backend
-from pyapprox.util.backends.numpy import NumpyBkd
-from pyapprox.util.backends.torch import TorchBkd
 from pyapprox.interface.functions.fromcallable.jacobian import (
     FunctionWithJacobianFromCallable,
+)
+from pyapprox.optimization.minimize.benchmarks.evutushenko import (
+    EvtushenkoNonLinearConstraint,
+    EvtushenkoObjective,
 )
 from pyapprox.optimization.minimize.constraints.linear import (
     PyApproxLinearConstraint,
@@ -17,19 +18,16 @@ from pyapprox.optimization.minimize.constraints.linear import (
 from pyapprox.optimization.minimize.scipy.slsqp import (
     ScipySLSQPOptimizer,
 )
-from pyapprox.optimization.minimize.benchmarks.evutushenko import (
-    EvtushenkoObjective,
-    EvtushenkoNonLinearConstraint,
-)
+from pyapprox.util.backends.numpy import NumpyBkd
+from pyapprox.util.backends.protocols import Array, Backend
+from pyapprox.util.backends.torch import TorchBkd
 
 
 class TestScipySLSQPOptimizer(Generic[Array], unittest.TestCase):
     __test__ = False
 
     def bkd(self) -> Backend[Array]:
-        raise NotImplementedError(
-            "Derived classes must implement this method."
-        )
+        raise NotImplementedError("Derived classes must implement this method.")
 
     def test_optimizer_with_quadratic_objective_and_linear_constraints(
         self,
@@ -77,9 +75,7 @@ class TestScipySLSQPOptimizer(Generic[Array], unittest.TestCase):
         bkd.assert_allclose(result.optima(), expected_optima, atol=1e-8)
 
         expected_fun = value_function(expected_optima)
-        bkd.assert_allclose(
-            result.fun(), float(expected_fun[0, 0]), atol=1e-8
-        )
+        bkd.assert_allclose(result.fun(), float(expected_fun[0, 0]), atol=1e-8)
 
         bkd.assert_allclose(
             A @ result.optima()[:, 0] - b, bkd.zeros(b.shape), atol=1e-8
@@ -112,26 +108,18 @@ class TestScipySLSQPOptimizer(Generic[Array], unittest.TestCase):
 
         nonlinear_constraint_value = nonlinear_constraint(result.optima())
         self.assertTrue(
-            bkd.all_bool(
-                nonlinear_constraint_value >= nonlinear_constraint.lb()
-            )
-            and bkd.all_bool(
-                nonlinear_constraint_value <= nonlinear_constraint.ub()
-            )
+            bkd.all_bool(nonlinear_constraint_value >= nonlinear_constraint.lb())
+            and bkd.all_bool(nonlinear_constraint_value <= nonlinear_constraint.ub())
         )
 
         linear_constraint_value = bkd.ones((1, 3)) @ result.optima()
-        bkd.assert_allclose(
-            linear_constraint_value, bkd.ones((1, 1)), atol=1e-8
-        )
+        bkd.assert_allclose(linear_constraint_value, bkd.ones((1, 1)), atol=1e-8)
 
         expected_optima = bkd.array([0.0, 0.0, 1.0])[:, None]
         bkd.assert_allclose(result.optima(), expected_optima, atol=4e-6)
 
         expected_fun = objective(expected_optima)
-        bkd.assert_allclose(
-            result.fun(), expected_fun.item(), atol=1e-8
-        )
+        bkd.assert_allclose(result.fun(), expected_fun.item(), atol=1e-8)
 
     def test_deferred_binding(self) -> None:
         """Test optimizer constructed without objective/bounds."""
@@ -224,9 +212,7 @@ class TestScipySLSQPOptimizer(Generic[Array], unittest.TestCase):
 
         bounds = bkd.array([[-5.0, 5.0]])
 
-        optimizer = ScipySLSQPOptimizer(
-            maxiter=500, ftol=1e-8, disp=False
-        )
+        optimizer = ScipySLSQPOptimizer(maxiter=500, ftol=1e-8, disp=False)
         optimizer.bind(obj, bounds)
         self.assertTrue(optimizer.is_bound())
 
@@ -257,9 +243,7 @@ class TestScipySLSQPOptimizer(Generic[Array], unittest.TestCase):
         bounds = bkd.array([[-5.0, 5.0], [-5.0, 5.0]])
         init_guess = bkd.asarray([[1.0], [1.0]])
 
-        optimizer = ScipySLSQPOptimizer(
-            objective=function, bounds=bounds, maxiter=100
-        )
+        optimizer = ScipySLSQPOptimizer(objective=function, bounds=bounds, maxiter=100)
 
         self.assertTrue(optimizer.is_bound())
 
@@ -349,9 +333,7 @@ class TestScipySLSQPOptimizer(Generic[Array], unittest.TestCase):
         self.assertIn("missing methods", str(context.exception))
 
 
-class TestScipySLSQPOptimizerNumpy(
-    TestScipySLSQPOptimizer[NDArray[Any]]
-):
+class TestScipySLSQPOptimizerNumpy(TestScipySLSQPOptimizer[NDArray[Any]]):
     def setUp(self) -> None:
         self._bkd = NumpyBkd()
         super().setUp()
@@ -360,9 +342,7 @@ class TestScipySLSQPOptimizerNumpy(
         return self._bkd
 
 
-class TestScipySLSQPOptimizerTorch(
-    TestScipySLSQPOptimizer[torch.Tensor]
-):
+class TestScipySLSQPOptimizerTorch(TestScipySLSQPOptimizer[torch.Tensor]):
     def setUp(self) -> None:
         torch.set_default_dtype(torch.float64)
         self._bkd = TorchBkd()
@@ -372,9 +352,7 @@ class TestScipySLSQPOptimizerTorch(
         return self._bkd
 
 
-def load_tests(
-    loader: unittest.TestLoader, tests, pattern: str
-) -> unittest.TestSuite:
+def load_tests(loader: unittest.TestLoader, tests, pattern: str) -> unittest.TestSuite:
     test_suite = unittest.TestSuite()
     for test_class in [
         TestScipySLSQPOptimizerNumpy,

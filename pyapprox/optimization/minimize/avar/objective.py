@@ -89,7 +89,7 @@ class AVaRObjective(Generic[Array]):
             Objective value. Shape: (1, 1)
         """
         t = sample[0, 0]
-        s = sample[1:1 + self._nscenarios, 0]  # Shape: (nscenarios,)
+        s = sample[1 : 1 + self._nscenarios, 0]  # Shape: (nscenarios,)
         obj = t + self._excess_coeff * self._bkd.sum(s)
         return self._bkd.reshape(obj, (1, 1))
 
@@ -109,7 +109,7 @@ class AVaRObjective(Generic[Array]):
         """
         jac = self._bkd.zeros((1, self.nvars()))
         jac[0, 0] = 1.0  # Derivative w.r.t. t
-        jac[0, 1:1 + self._nscenarios] = self._excess_coeff  # Derivatives w.r.t. s_i
+        jac[0, 1 : 1 + self._nscenarios] = self._excess_coeff  # Derivatives w.r.t. s_i
         # Derivatives w.r.t. x are zero
         return jac
 

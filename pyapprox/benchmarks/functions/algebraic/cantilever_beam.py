@@ -29,7 +29,8 @@ from pyapprox.util.backends.protocols import Array, Backend
 
 
 class HomogeneousBeam1DAnalytical(Generic[Array]):
-    """Analytical homogeneous beam: E -> [tip_deflection, integrated_stress, max_curvature].
+    """Analytical homogeneous beam: E -> [tip_deflection, integrated_stress,
+    max_curvature].
 
     Single-material beam with uniform bending stiffness EI = E * I,
     where I = h^3/12 for a rectangular cross-section of height h.
@@ -115,25 +116,28 @@ class HomogeneousBeam1DAnalytical(Generic[Array]):
         """
         bkd = self._bkd
         E = sample[0, 0]
-        I = self._I_rect
+        I_rect = self._I_rect
         L = self._length
         q0 = self._q0
-        EI = E * I
+        EI = E * I_rect
 
-        dtip_dE = -11.0 * q0 * L**4 / (120.0 * EI**2) * I
-        dcurv_dE = -q0 * L**2 / (3.0 * EI**2) * I
+        dtip_dE = -11.0 * q0 * L**4 / (120.0 * EI**2) * I_rect
+        dcurv_dE = -q0 * L**2 / (3.0 * EI**2) * I_rect
 
         zero = 0.0 * E  # keep as array for autograd
 
-        return bkd.asarray([
-            [dtip_dE],
-            [zero],
-            [dcurv_dE],
-        ])
+        return bkd.asarray(
+            [
+                [dtip_dE],
+                [zero],
+                [dcurv_dE],
+            ]
+        )
 
 
 class CantileverBeam1DAnalytical(Generic[Array]):
-    """Analytical composite beam: (E1, E2) -> [tip_deflection, integrated_stress, max_curvature].
+    """Analytical composite beam: (E1, E2) -> [tip_deflection, integrated_stress,
+    max_curvature].
 
     Composite beam with uniform effective bending stiffness computed from
     the rule-of-mixtures:
@@ -168,7 +172,10 @@ class CantileverBeam1DAnalytical(Generic[Array]):
         self._A_skin = 2 * skin_thickness * 1.0
         self._A_core = (height - 2 * skin_thickness) * 1.0
         self._beam = HomogeneousBeam1DAnalytical(
-            length=length, height=height, q0=q0, bkd=bkd,
+            length=length,
+            height=height,
+            q0=q0,
+            bkd=bkd,
         )
 
     def bkd(self) -> Backend[Array]:
@@ -199,10 +206,7 @@ class CantileverBeam1DAnalytical(Generic[Array]):
         """
         E1 = samples[0:1, :]
         E2 = samples[1:2, :]
-        E_eff = (
-            (self._A_skin * E1 + self._A_core * E2)
-            / (self._A_skin + self._A_core)
-        )
+        E_eff = (self._A_skin * E1 + self._A_core * E2) / (self._A_skin + self._A_core)
         return self._beam(E_eff)
 
     def jacobian(self, sample: Array) -> Array:
@@ -223,10 +227,7 @@ class CantileverBeam1DAnalytical(Generic[Array]):
         bkd = self._bkd
         E1 = sample[0:1, :]
         E2 = sample[1:2, :]
-        E_eff = (
-            (self._A_skin * E1 + self._A_core * E2)
-            / (self._A_skin + self._A_core)
-        )
+        E_eff = (self._A_skin * E1 + self._A_core * E2) / (self._A_skin + self._A_core)
 
         # d(QoI)/dE_eff from the homogeneous model, shape (3, 1)
         jac_inner = self._beam.jacobian(E_eff)
@@ -237,5 +238,6 @@ class CantileverBeam1DAnalytical(Generic[Array]):
 
         # Chain rule: (3, 1) * scalar -> (3, 1), concatenate -> (3, 2)
         return bkd.concatenate(
-            [jac_inner * dEeff_dE1, jac_inner * dEeff_dE2], axis=1,
+            [jac_inner * dEeff_dE1, jac_inner * dEeff_dE2],
+            axis=1,
         )

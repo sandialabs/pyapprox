@@ -15,19 +15,19 @@ Factory functions:
 - homogeneous_robin_bc: backward-compatible API
 """
 
-from typing import Generic, Callable, List, Union
+from typing import Callable, Generic, List, Union
 
-from pyapprox.util.backends.protocols import Array, Backend
-from pyapprox.pde.collocation.protocols.boundary import (
-    NormalOperatorProtocol,
-    FluxProviderProtocol,
-)
 from pyapprox.pde.collocation.boundary.normal_operators import (
-    GradientNormalOperator,
     FluxNormalOperator,
+    GradientNormalOperator,
     TractionNormalOperator,
     _LegacyNormalOperator,
 )
+from pyapprox.pde.collocation.protocols.boundary import (
+    FluxProviderProtocol,
+    NormalOperatorProtocol,
+)
+from pyapprox.util.backends.protocols import Array, Backend
 
 
 class RobinBC(Generic[Array]):
@@ -133,9 +133,7 @@ class RobinBC(Generic[Array]):
             return self._values_func(time)
         return self._constant_values
 
-    def apply_to_residual(
-        self, residual: Array, state: Array, time: float
-    ) -> Array:
+    def apply_to_residual(self, residual: Array, state: Array, time: float) -> Array:
         """Apply Robin BC to residual.
 
         Sets residual at boundary points to:
@@ -169,9 +167,7 @@ class RobinBC(Generic[Array]):
             )
         return residual
 
-    def apply_to_jacobian(
-        self, jacobian: Array, state: Array, time: float
-    ) -> Array:
+    def apply_to_jacobian(self, jacobian: Array, state: Array, time: float) -> Array:
         """Apply Robin BC to Jacobian.
 
         Sets Jacobian rows at boundary points to:
@@ -212,7 +208,10 @@ class RobinBC(Generic[Array]):
         return self._normal_operator
 
     def apply_to_param_jacobian(
-        self, param_jacobian: Array, state: Array, time: float,
+        self,
+        param_jacobian: Array,
+        state: Array,
+        time: float,
         physical_sensitivities=None,
     ) -> Array:
         """Apply Robin BC to parameter Jacobian.
@@ -328,9 +327,7 @@ def flux_robin_bc(
     RobinBC
         Robin boundary condition with flux normal operator.
     """
-    normal_op = FluxNormalOperator(
-        bkd, boundary_indices, normals, flux_provider
-    )
+    normal_op = FluxNormalOperator(bkd, boundary_indices, normals, flux_provider)
     return RobinBC(bkd, boundary_indices, normal_op, alpha, beta, values)
 
 
@@ -484,8 +481,14 @@ def traction_robin_bc(
         Robin BC for one displacement component with traction normal operator.
     """
     normal_op = TractionNormalOperator(
-        bkd, mesh_boundary_indices, normals, derivative_matrices,
-        lamda, mu, component, npts
+        bkd,
+        mesh_boundary_indices,
+        normals,
+        derivative_matrices,
+        lamda,
+        mu,
+        component,
+        npts,
     )
     # State indices for this component: offset by component * npts
     state_indices = mesh_boundary_indices + component * npts
@@ -534,6 +537,15 @@ def traction_neumann_bc(
         Traction Neumann BC as Robin with alpha=0, beta=1.
     """
     return traction_robin_bc(
-        bkd, mesh_boundary_indices, normals, derivative_matrices,
-        lamda, mu, npts, component, 0.0, 1.0, values
+        bkd,
+        mesh_boundary_indices,
+        normals,
+        derivative_matrices,
+        lamda,
+        mu,
+        npts,
+        component,
+        0.0,
+        1.0,
+        values,
     )

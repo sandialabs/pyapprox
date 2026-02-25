@@ -8,7 +8,7 @@ for optimal experimental design, including:
 - Latent sample management for reparameterization trick
 """
 
-from typing import Protocol, Generic, runtime_checkable
+from typing import Generic, Protocol, runtime_checkable
 
 from pyapprox.util.backends.protocols import Array, Backend
 

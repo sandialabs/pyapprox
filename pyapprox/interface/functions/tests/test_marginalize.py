@@ -12,20 +12,9 @@ import numpy as np
 import torch
 from numpy.typing import NDArray
 
-from pyapprox.util.backends.numpy import NumpyBkd
-from pyapprox.util.backends.protocols import Array, Backend
-from pyapprox.util.backends.torch import TorchBkd
-from pyapprox.util.test_utils import load_tests  # noqa: F401
 from pyapprox.interface.functions.marginalize import (
     CrossSectionReducer,
     FunctionMarginalizer,
-    MarginalizedFunction,
-)
-from pyapprox.surrogates.quadrature.protocols import (
-    MultivariateQuadratureRuleProtocol,
-)
-from pyapprox.surrogates.quadrature.tensor_product import (
-    TensorProductQuadratureRule,
 )
 from pyapprox.surrogates.affine.univariate.globalpoly.jacobi import (
     JacobiPolynomial1D,
@@ -33,6 +22,16 @@ from pyapprox.surrogates.affine.univariate.globalpoly.jacobi import (
 from pyapprox.surrogates.affine.univariate.globalpoly.quadrature import (
     GaussQuadratureRule,
 )
+from pyapprox.surrogates.quadrature.protocols import (
+    MultivariateQuadratureRuleProtocol,
+)
+from pyapprox.surrogates.quadrature.tensor_product import (
+    TensorProductQuadratureRule,
+)
+from pyapprox.util.backends.numpy import NumpyBkd
+from pyapprox.util.backends.protocols import Array, Backend
+from pyapprox.util.backends.torch import TorchBkd
+from pyapprox.util.test_utils import load_tests  # noqa: F401
 
 
 class _AffineRule(Generic[Array]):
@@ -54,9 +53,7 @@ class _AffineRule(Generic[Array]):
         # Affine map each dimension: x = (ub-lb)/2 * t + (ub+lb)/2
         half_width = (ub - lb) / 2.0
         center = (ub + lb) / 2.0
-        self._samples = (
-            half_width[:, None] * raw_samples + center[:, None]
-        )
+        self._samples = half_width[:, None] * raw_samples + center[:, None]
         # Legendre weights integrate probability measure (1/2)dx on [-1,1],
         # so sum(w_i) = 1. For Lebesgue integral on [lb, ub]:
         # int_lb^ub f(x) dx = (ub-lb) * sum(w_i * f(map(t_i)))
@@ -257,9 +254,7 @@ class TestFunctionMarginalizer(Generic[Array], unittest.TestCase):
 
         for nsamples in [1, 5, 10]:
             marg_1d = marginalizer.marginalize([1])
-            test_pts = bkd.asarray(
-                np.random.uniform(0, 1, (1, nsamples))
-            )
+            test_pts = bkd.asarray(np.random.uniform(0, 1, (1, nsamples)))
             result = marg_1d(test_pts)
             self.assertEqual(result.shape, (1, nsamples))
 
@@ -364,31 +359,23 @@ class TestCrossSectionReducer(Generic[Array], unittest.TestCase):
         bkd.assert_allclose(result, expected, rtol=1e-14)
 
 
-class TestFunctionMarginalizerNumpy(
-    TestFunctionMarginalizer[NDArray[Any]]
-):
+class TestFunctionMarginalizerNumpy(TestFunctionMarginalizer[NDArray[Any]]):
     def bkd(self) -> NumpyBkd:
         return NumpyBkd()
 
 
-class TestFunctionMarginalizerTorch(
-    TestFunctionMarginalizer[torch.Tensor]
-):
+class TestFunctionMarginalizerTorch(TestFunctionMarginalizer[torch.Tensor]):
     def bkd(self) -> TorchBkd:
         torch.set_default_dtype(torch.float64)
         return TorchBkd()
 
 
-class TestCrossSectionReducerNumpy(
-    TestCrossSectionReducer[NDArray[Any]]
-):
+class TestCrossSectionReducerNumpy(TestCrossSectionReducer[NDArray[Any]]):
     def bkd(self) -> NumpyBkd:
         return NumpyBkd()
 
 
-class TestCrossSectionReducerTorch(
-    TestCrossSectionReducer[torch.Tensor]
-):
+class TestCrossSectionReducerTorch(TestCrossSectionReducer[torch.Tensor]):
     def bkd(self) -> TorchBkd:
         torch.set_default_dtype(torch.float64)
         return TorchBkd()

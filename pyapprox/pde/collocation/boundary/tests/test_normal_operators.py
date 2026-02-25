@@ -4,31 +4,31 @@ import unittest
 from typing import Any, Generic
 
 import numpy as np
-from numpy.typing import NDArray
 import torch
+from numpy.typing import NDArray
 
-from pyapprox.util.backends.protocols import Array, Backend
-from pyapprox.util.backends.numpy import NumpyBkd
-from pyapprox.util.backends.torch import TorchBkd
-from pyapprox.util.test_utils import load_tests  # noqa: F401
 from pyapprox.pde.collocation.basis import (
     ChebyshevBasis1D,
     ChebyshevBasis2D,
+)
+from pyapprox.pde.collocation.boundary.normal_operators import (
+    FluxNormalOperator,
+    GradientNormalOperator,
+    TractionNormalOperator,
+    _LegacyNormalOperator,
 )
 from pyapprox.pde.collocation.mesh import (
     TransformedMesh1D,
     TransformedMesh2D,
     create_uniform_mesh_1d,
 )
-from pyapprox.pde.collocation.boundary.normal_operators import (
-    GradientNormalOperator,
-    FluxNormalOperator,
-    TractionNormalOperator,
-    _LegacyNormalOperator,
-)
 from pyapprox.pde.collocation.physics.advection_diffusion import (
     AdvectionDiffusionReaction,
 )
+from pyapprox.util.backends.numpy import NumpyBkd
+from pyapprox.util.backends.protocols import Array, Backend
+from pyapprox.util.backends.torch import TorchBkd
+from pyapprox.util.test_utils import load_tests  # noqa: F401
 
 
 class TestGradientNormalOperator(Generic[Array], unittest.TestCase):
@@ -137,9 +137,7 @@ class TestGradientNormalOperator(Generic[Array], unittest.TestCase):
 
         Dx = basis.derivative_matrix(1, 0)
         Dy = basis.derivative_matrix(1, 1)
-        normal_op = GradientNormalOperator(
-            bkd, left_idx, normals, [Dx, Dy]
-        )
+        normal_op = GradientNormalOperator(bkd, left_idx, normals, [Dx, Dy])
 
         # u = x*y, grad = (y, x), grad.n at x=-1 = y*(-1) + x*0 = -y
         physical_pts = mesh.points()
@@ -236,9 +234,7 @@ class TestFluxNormalOperator(Generic[Array], unittest.TestCase):
             state_pert[j] = state_pert[j] + eps
             f1 = flux_op(state_pert)
             fd_col = (f1 - f0) / eps
-            bkd.assert_allclose(
-                bkd.reshape(jac[:, j], fd_col.shape), fd_col, atol=1e-5
-            )
+            bkd.assert_allclose(bkd.reshape(jac[:, j], fd_col.shape), fd_col, atol=1e-5)
 
 
 class TestLegacyNormalOperator(Generic[Array], unittest.TestCase):
@@ -401,24 +397,28 @@ class TestTractionNormalOperator(Generic[Array], unittest.TestCase):
 # NumPy backend
 class TestGradientNormalOperatorNumpy(TestGradientNormalOperator[NDArray[Any]]):
     __test__ = True
+
     def bkd(self) -> NumpyBkd:
         return NumpyBkd()
 
 
 class TestFluxNormalOperatorNumpy(TestFluxNormalOperator[NDArray[Any]]):
     __test__ = True
+
     def bkd(self) -> NumpyBkd:
         return NumpyBkd()
 
 
 class TestTractionNormalOperatorNumpy(TestTractionNormalOperator[NDArray[Any]]):
     __test__ = True
+
     def bkd(self) -> NumpyBkd:
         return NumpyBkd()
 
 
 class TestLegacyNormalOperatorNumpy(TestLegacyNormalOperator[NDArray[Any]]):
     __test__ = True
+
     def bkd(self) -> NumpyBkd:
         return NumpyBkd()
 
@@ -426,8 +426,10 @@ class TestLegacyNormalOperatorNumpy(TestLegacyNormalOperator[NDArray[Any]]):
 # Torch backend
 class TestGradientNormalOperatorTorch(TestGradientNormalOperator[torch.Tensor]):
     __test__ = True
+
     def bkd(self) -> TorchBkd:
         return TorchBkd()
+
     def setUp(self):
         torch.set_default_dtype(torch.float64)
         self._bkd = self.bkd()
@@ -435,8 +437,10 @@ class TestGradientNormalOperatorTorch(TestGradientNormalOperator[torch.Tensor]):
 
 class TestFluxNormalOperatorTorch(TestFluxNormalOperator[torch.Tensor]):
     __test__ = True
+
     def bkd(self) -> TorchBkd:
         return TorchBkd()
+
     def setUp(self):
         torch.set_default_dtype(torch.float64)
         self._bkd = self.bkd()
@@ -444,8 +448,10 @@ class TestFluxNormalOperatorTorch(TestFluxNormalOperator[torch.Tensor]):
 
 class TestTractionNormalOperatorTorch(TestTractionNormalOperator[torch.Tensor]):
     __test__ = True
+
     def bkd(self) -> TorchBkd:
         return TorchBkd()
+
     def setUp(self):
         torch.set_default_dtype(torch.float64)
         self._bkd = self.bkd()
@@ -453,8 +459,10 @@ class TestTractionNormalOperatorTorch(TestTractionNormalOperator[torch.Tensor]):
 
 class TestLegacyNormalOperatorTorch(TestLegacyNormalOperator[torch.Tensor]):
     __test__ = True
+
     def bkd(self) -> TorchBkd:
         return TorchBkd()
+
     def setUp(self):
         torch.set_default_dtype(torch.float64)
         self._bkd = self.bkd()

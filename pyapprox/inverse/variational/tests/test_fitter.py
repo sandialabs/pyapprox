@@ -4,45 +4,43 @@ import unittest
 from typing import Any, Generic
 
 import numpy as np
-from numpy.typing import NDArray
 import torch
+from numpy.typing import NDArray
 
-from pyapprox.util.backends.protocols import Array, Backend
-from pyapprox.util.backends.numpy import NumpyBkd
-from pyapprox.util.backends.torch import TorchBkd
-from pyapprox.util.test_utils import slow_test
-from pyapprox.probability.univariate import UniformMarginal
-from pyapprox.probability.univariate.gaussian import GaussianMarginal
-from pyapprox.probability.joint.independent import IndependentJoint
+from pyapprox.inverse.variational.elbo import make_single_problem_elbo
+from pyapprox.inverse.variational.fitter import (
+    VariationalFitter,
+    VIFitResult,
+)
+from pyapprox.optimization.minimize.scipy.trust_constr import (
+    ScipyTrustConstrOptimizer,
+)
 from pyapprox.probability.conditional.gaussian import (
     ConditionalGaussian,
 )
 from pyapprox.probability.conditional.joint import (
     ConditionalIndependentJoint,
 )
+from pyapprox.probability.joint.independent import IndependentJoint
 from pyapprox.probability.likelihood.gaussian import (
     DiagonalGaussianLogLikelihood,
     MultiExperimentLogLikelihood,
 )
-from pyapprox.surrogates.affine.univariate import create_bases_1d
+from pyapprox.probability.univariate import UniformMarginal
+from pyapprox.probability.univariate.gaussian import GaussianMarginal
+from pyapprox.surrogates.affine.basis import OrthonormalPolynomialBasis
+from pyapprox.surrogates.affine.expansions.base import BasisExpansion
 from pyapprox.surrogates.affine.indices import (
     compute_hyperbolic_indices,
 )
-from pyapprox.surrogates.affine.basis import OrthonormalPolynomialBasis
-from pyapprox.surrogates.affine.expansions.base import BasisExpansion
-from pyapprox.inverse.variational.elbo import make_single_problem_elbo
-from pyapprox.inverse.variational.fitter import (
-    VIFitResult,
-    VariationalFitter,
-)
-from pyapprox.optimization.minimize.scipy.trust_constr import (
-    ScipyTrustConstrOptimizer,
-)
+from pyapprox.surrogates.affine.univariate import create_bases_1d
+from pyapprox.util.backends.numpy import NumpyBkd
+from pyapprox.util.backends.protocols import Array, Backend
+from pyapprox.util.backends.torch import TorchBkd
+from pyapprox.util.test_utils import slow_test
 
 
-def _make_degree0_expansion(
-    bkd: Backend, coeff: float = 0.0
-) -> BasisExpansion:
+def _make_degree0_expansion(bkd: Backend, coeff: float = 0.0) -> BasisExpansion:
     """Create a degree-0 BasisExpansion (constant function)."""
     marginals = [UniformMarginal(-1.0, 1.0, bkd)]
     bases_1d = create_bases_1d(marginals, bkd)
@@ -74,7 +72,12 @@ def _make_simple_elbo(bkd: Backend):
     weights = bkd.full((1, 200), 1.0 / 200)
 
     elbo = make_single_problem_elbo(
-        var_dist, log_likelihood_fn, prior, base_samples, weights, bkd,
+        var_dist,
+        log_likelihood_fn,
+        prior,
+        base_samples,
+        weights,
+        bkd,
     )
     return elbo, var_dist
 

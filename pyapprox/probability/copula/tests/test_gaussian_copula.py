@@ -8,13 +8,13 @@ import torch
 from numpy.typing import NDArray
 from scipy import stats
 
-from pyapprox.util.backends.protocols import Array, Backend
-from pyapprox.util.backends.numpy import NumpyBkd
-from pyapprox.util.backends.torch import TorchBkd
 from pyapprox.probability.copula.correlation.cholesky import (
     CholeskyCorrelationParameterization,
 )
 from pyapprox.probability.copula.gaussian import GaussianCopula
+from pyapprox.util.backends.numpy import NumpyBkd
+from pyapprox.util.backends.protocols import Array, Backend
+from pyapprox.util.backends.torch import TorchBkd
 from pyapprox.util.test_utils import load_tests  # noqa: F401
 
 
@@ -38,9 +38,7 @@ class TestGaussianCopula(Generic[Array], unittest.TestCase):
     def test_logpdf_shape(self) -> None:
         np.random.seed(42)
         u = self._bkd.asarray(
-            np.random.uniform(0.01, 0.99, (self._nvars, 20)).astype(
-                np.float64
-            )
+            np.random.uniform(0.01, 0.99, (self._nvars, 20)).astype(np.float64)
         )
         result = self._copula.logpdf(u)
         self.assertEqual(result.shape, (1, 20))
@@ -56,9 +54,7 @@ class TestGaussianCopula(Generic[Array], unittest.TestCase):
 
         np.random.seed(42)
         u = self._bkd.asarray(
-            np.random.uniform(0.01, 0.99, (self._nvars, 50)).astype(
-                np.float64
-            )
+            np.random.uniform(0.01, 0.99, (self._nvars, 50)).astype(np.float64)
         )
         result = copula.logpdf(u)
         expected = self._bkd.zeros((1, 50))
@@ -78,9 +74,7 @@ class TestGaussianCopula(Generic[Array], unittest.TestCase):
 
         # Expected: log f_MVN(z; 0, Sigma) - sum_i log f_N(z_i; 0, 1)
         mvn = stats.multivariate_normal(mean=np.zeros(self._nvars), cov=sigma_np)
-        expected_np = mvn.logpdf(z_np.T) - np.sum(
-            stats.norm.logpdf(z_np), axis=0
-        )
+        expected_np = mvn.logpdf(z_np.T) - np.sum(stats.norm.logpdf(z_np), axis=0)
 
         actual = self._copula.logpdf(u)
         actual_np = self._bkd.to_numpy(actual)[0]
@@ -101,9 +95,7 @@ class TestGaussianCopula(Generic[Array], unittest.TestCase):
         """For bivariate Gaussian copula, tau = 2/pi * arcsin(rho)."""
         rho = 0.6
         chol_lower = self._bkd.asarray([rho])
-        corr_param = CholeskyCorrelationParameterization(
-            chol_lower, 2, self._bkd
-        )
+        corr_param = CholeskyCorrelationParameterization(chol_lower, 2, self._bkd)
         copula = GaussianCopula(corr_param, self._bkd)
 
         np.random.seed(42)
@@ -121,9 +113,7 @@ class TestGaussianCopula(Generic[Array], unittest.TestCase):
             self._copula.logpdf(u_1d)
 
     def test_input_validation_wrong_nvars(self) -> None:
-        u = self._bkd.asarray(
-            np.random.uniform(0.01, 0.99, (2, 10)).astype(np.float64)
-        )
+        u = self._bkd.asarray(np.random.uniform(0.01, 0.99, (2, 10)).astype(np.float64))
         with self.assertRaises(ValueError):
             self._copula.logpdf(u)
 

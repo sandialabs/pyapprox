@@ -1,18 +1,18 @@
-from typing import Generic, Any
+from typing import Any, Generic
 
 from numpy.typing import NDArray
 
-from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.interface.functions.protocols.function import (
     FunctionProtocol,
-)
-from pyapprox.interface.functions.protocols.jacobian import (
-    FunctionWithJacobianProtocol,
 )
 from pyapprox.interface.functions.protocols.hessian import (
     FunctionWithJacobianAndHVPProtocol,
     FunctionWithJacobianAndWHVPProtocol,
 )
+from pyapprox.interface.functions.protocols.jacobian import (
+    FunctionWithJacobianProtocol,
+)
+from pyapprox.util.backends.protocols import Array, Backend
 
 
 class NumpyFunctionWrapper(Generic[Array]):
@@ -25,9 +25,7 @@ class NumpyFunctionWrapper(Generic[Array]):
     the function.
     """
 
-    def __init__(
-        self, function: FunctionProtocol[Array], sample_ndim: int = 2
-    ):
+    def __init__(self, function: FunctionProtocol[Array], sample_ndim: int = 2):
         self._bkd = function.bkd()
         self._function = function
         # PyApprox assumes samples are always 2D but numpy functions, e.g. from

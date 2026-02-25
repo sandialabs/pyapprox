@@ -25,20 +25,19 @@ DynamicPiecewiseBasis
     Wrapper providing set_nterms() for piecewise polynomial bases.
 """
 
-from pyapprox.surrogates.affine.univariate.piecewisepoly.linear import (
-    PiecewiseLinear,
-)
-from pyapprox.surrogates.affine.univariate.piecewisepoly.quadratic import (
-    PiecewiseQuadratic,
-)
 from pyapprox.surrogates.affine.univariate.piecewisepoly.cubic import (
     PiecewiseCubic,
+)
+from pyapprox.surrogates.affine.univariate.piecewisepoly.dynamic import (
+    DynamicPiecewiseBasis,
+    EquidistantNodeGenerator,
+    NodeGenerator,
 )
 from pyapprox.surrogates.affine.univariate.piecewisepoly.left_constant import (
     PiecewiseConstantLeft,
 )
-from pyapprox.surrogates.affine.univariate.piecewisepoly.right_constant import (
-    PiecewiseConstantRight,
+from pyapprox.surrogates.affine.univariate.piecewisepoly.linear import (
+    PiecewiseLinear,
 )
 from pyapprox.surrogates.affine.univariate.piecewisepoly.mid_constant import (
     PiecewiseConstantMidpoint,
@@ -46,10 +45,11 @@ from pyapprox.surrogates.affine.univariate.piecewisepoly.mid_constant import (
 from pyapprox.surrogates.affine.univariate.piecewisepoly.protocols import (
     PiecewisePolynomialProtocol,
 )
-from pyapprox.surrogates.affine.univariate.piecewisepoly.dynamic import (
-    NodeGenerator,
-    EquidistantNodeGenerator,
-    DynamicPiecewiseBasis,
+from pyapprox.surrogates.affine.univariate.piecewisepoly.quadratic import (
+    PiecewiseQuadratic,
+)
+from pyapprox.surrogates.affine.univariate.piecewisepoly.right_constant import (
+    PiecewiseConstantRight,
 )
 
 __all__ = [

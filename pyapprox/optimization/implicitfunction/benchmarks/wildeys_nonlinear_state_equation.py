@@ -1,7 +1,8 @@
 from typing import Generic
 
-from pyapprox.util.backends.protocols import Array, Backend
-from pyapprox.util.backends.validation import validate_backend
+from pyapprox.interface.functions.protocols.validation import (
+    validate_sample,
+)
 from pyapprox.optimization.implicitfunction.state_equations.wrappers import (
     ParameterizedStateEquationAsNewtonEquation,
 )
@@ -9,9 +10,8 @@ from pyapprox.optimization.rootfinding.newton import (
     NewtonSolver,
     NewtonSolverOptions,
 )
-from pyapprox.interface.functions.protocols.validation import (
-    validate_sample,
-)
+from pyapprox.util.backends.protocols import Array, Backend
+from pyapprox.util.backends.validation import validate_backend
 
 
 class NonLinearCoupledStateEquations(Generic[Array]):
@@ -203,9 +203,7 @@ class NonLinearCoupledStateEquations(Generic[Array]):
         return self._bkd.stack(
             [
                 self._bkd.hstack([2 * a**self._apow * state[0], 2 * state[1]]),
-                self._bkd.hstack(
-                    [2 * state[0], -2 * b**self._bpow * state[1]]
-                ),
+                self._bkd.hstack([2 * state[0], -2 * b**self._bpow * state[1]]),
             ],
             axis=0,
         )
@@ -304,18 +302,8 @@ class NonLinearCoupledStateEquations(Generic[Array]):
         validate_sample(self.nstates(), state)
         validate_sample(self.nparams(), param)
         a, b = param[:, 0]
-        h11 = (
-            self._apow
-            * (self._apow - 1)
-            * a ** (self._apow - 2)
-            * state[0] ** 2
-        )
-        h22 = (
-            -self._bpow
-            * (self._bpow - 1)
-            * b ** (self._bpow - 2)
-            * state[1] ** 2
-        )
+        h11 = self._apow * (self._apow - 1) * a ** (self._apow - 2) * state[0] ** 2
+        h22 = -self._bpow * (self._bpow - 1) * b ** (self._bpow - 2) * state[1] ** 2
 
         # Compute the Hessian-vector product
         return self._bkd.stack(
@@ -344,22 +332,14 @@ class NonLinearCoupledStateEquations(Generic[Array]):
             [
                 self._bkd.hstack(
                     [
-                        2
-                        * self._apow
-                        * a ** (self._apow - 1)
-                        * state[0, 0]
-                        * va,
+                        2 * self._apow * a ** (self._apow - 1) * state[0, 0] * va,
                         self._bkd.zeros(1),
                     ]
                 ),
                 self._bkd.hstack(
                     [
                         self._bkd.zeros(1),
-                        -2
-                        * self._bpow
-                        * b ** (self._bpow - 1)
-                        * state[1, 0]
-                        * vb,
+                        -2 * self._bpow * b ** (self._bpow - 1) * state[1, 0] * vb,
                     ]
                 ),
             ],
@@ -391,22 +371,14 @@ class NonLinearCoupledStateEquations(Generic[Array]):
             [
                 self._bkd.hstack(
                     [
-                        2
-                        * self._apow
-                        * a ** (self._apow - 1)
-                        * state[0, 0]
-                        * w1,
+                        2 * self._apow * a ** (self._apow - 1) * state[0, 0] * w1,
                         self._bkd.asarray(0.0),
                     ]
                 ),
                 self._bkd.hstack(
                     [
                         self._bkd.asarray(0.0),
-                        -2
-                        * self._bpow
-                        * b ** (self._bpow - 1)
-                        * state[1, 0]
-                        * w2,
+                        -2 * self._bpow * b ** (self._bpow - 1) * state[1, 0] * w2,
                     ]
                 ),
             ],

@@ -19,29 +19,33 @@ import torch
 from numpy.typing import NDArray
 
 from pyapprox.util.backends.numpy import NumpyBkd
-from pyapprox.util.backends.torch import TorchBkd
 from pyapprox.util.backends.protocols import Array
+from pyapprox.util.backends.torch import TorchBkd
+from pyapprox.util.optional_deps import package_available
 from pyapprox.util.test_utils import load_tests  # noqa: F401
 
-from pyapprox.expdesign.likelihood.compute import (
-    logpdf_matrix_vectorized,
-    jacobian_matrix_vectorized,
-    evidence_jacobian_vectorized,
-)
-from pyapprox.expdesign.likelihood.compute_numba import (
-    logpdf_matrix_numba,
-    jacobian_matrix_numba,
-    fused_evidence_jacobian_numba,
-)
-from pyapprox.expdesign.likelihood.dispatch import (
-    get_logpdf_matrix_impl,
-    get_jacobian_matrix_impl,
-    get_evidence_jacobian_impl,
-)
+if not package_available("numba"):
+    raise unittest.SkipTest("numba not installed")
+
+from pyapprox.expdesign.evidence import LogEvidence
 from pyapprox.expdesign.likelihood import (
     GaussianOEDInnerLoopLikelihood,
 )
-from pyapprox.expdesign.evidence import LogEvidence
+from pyapprox.expdesign.likelihood.compute import (
+    evidence_jacobian_vectorized,
+    jacobian_matrix_vectorized,
+    logpdf_matrix_vectorized,
+)
+from pyapprox.expdesign.likelihood.compute_numba import (
+    fused_evidence_jacobian_numba,
+    jacobian_matrix_numba,
+    logpdf_matrix_numba,
+)
+from pyapprox.expdesign.likelihood.dispatch import (
+    get_evidence_jacobian_impl,
+    get_jacobian_matrix_impl,
+    get_logpdf_matrix_impl,
+)
 
 
 class TestNumbaKernels(unittest.TestCase):
@@ -83,12 +87,8 @@ class TestNumbaKernels(unittest.TestCase):
         shapes, obs, bv, dw, _ = self._make_data(10, 50, 50)
         dummy = np.zeros_like(obs)
 
-        result_numba = jacobian_matrix_numba(
-            shapes, obs, dummy, bv, dw, False
-        )
-        result_vec = jacobian_matrix_vectorized(
-            shapes, obs, None, bv, dw, self._bkd
-        )
+        result_numba = jacobian_matrix_numba(shapes, obs, dummy, bv, dw, False)
+        result_vec = jacobian_matrix_vectorized(shapes, obs, None, bv, dw, self._bkd)
 
         self._bkd.assert_allclose(result_numba, result_vec, rtol=1e-12)
 
@@ -96,12 +96,8 @@ class TestNumbaKernels(unittest.TestCase):
         """Test jacobian_matrix Numba vs vectorized with latent samples."""
         shapes, obs, bv, dw, latent = self._make_data(10, 50, 50)
 
-        result_numba = jacobian_matrix_numba(
-            shapes, obs, latent, bv, dw, True
-        )
-        result_vec = jacobian_matrix_vectorized(
-            shapes, obs, latent, bv, dw, self._bkd
-        )
+        result_numba = jacobian_matrix_numba(shapes, obs, latent, bv, dw, True)
+        result_vec = jacobian_matrix_vectorized(shapes, obs, latent, bv, dw, self._bkd)
 
         self._bkd.assert_allclose(result_numba, result_vec, rtol=1e-12)
 
@@ -109,12 +105,8 @@ class TestNumbaKernels(unittest.TestCase):
         """Test jacobian_matrix Numba vs vectorized at medium size."""
         shapes, obs, bv, dw, latent = self._make_data(50, 200, 200)
 
-        result_numba = jacobian_matrix_numba(
-            shapes, obs, latent, bv, dw, True
-        )
-        result_vec = jacobian_matrix_vectorized(
-            shapes, obs, latent, bv, dw, self._bkd
-        )
+        result_numba = jacobian_matrix_numba(shapes, obs, latent, bv, dw, True)
+        result_vec = jacobian_matrix_vectorized(shapes, obs, latent, bv, dw, self._bkd)
 
         self._bkd.assert_allclose(result_numba, result_vec, rtol=1e-12)
 
@@ -131,13 +123,17 @@ class TestNumbaKernels(unittest.TestCase):
         quad_weighted_like = quad_weights[:, None] * like
 
         result_fused = fused_evidence_jacobian_numba(
-            shapes, obs, dummy, bv, dw, quad_weighted_like, False,
+            shapes,
+            obs,
+            dummy,
+            bv,
+            dw,
+            quad_weighted_like,
+            False,
         )
 
         # Reference: separate jacobian + einsum
-        jac = jacobian_matrix_vectorized(
-            shapes, obs, None, bv, dw, self._bkd
-        )
+        jac = jacobian_matrix_vectorized(shapes, obs, None, bv, dw, self._bkd)
         result_ref = evidence_jacobian_vectorized(jac, quad_weighted_like, self._bkd)
 
         self._bkd.assert_allclose(result_fused, result_ref, rtol=1e-12)
@@ -154,13 +150,17 @@ class TestNumbaKernels(unittest.TestCase):
         quad_weighted_like = quad_weights[:, None] * like
 
         result_fused = fused_evidence_jacobian_numba(
-            shapes, obs, latent, bv, dw, quad_weighted_like, True,
+            shapes,
+            obs,
+            latent,
+            bv,
+            dw,
+            quad_weighted_like,
+            True,
         )
 
         # Reference: separate jacobian + einsum
-        jac = jacobian_matrix_vectorized(
-            shapes, obs, latent, bv, dw, self._bkd
-        )
+        jac = jacobian_matrix_vectorized(shapes, obs, latent, bv, dw, self._bkd)
         result_ref = evidence_jacobian_vectorized(jac, quad_weighted_like, self._bkd)
 
         self._bkd.assert_allclose(result_fused, result_ref, rtol=1e-12)
@@ -176,12 +176,16 @@ class TestNumbaKernels(unittest.TestCase):
         quad_weighted_like = quad_weights[:, None] * like
 
         result_fused = fused_evidence_jacobian_numba(
-            shapes, obs, latent, bv, dw, quad_weighted_like, True,
+            shapes,
+            obs,
+            latent,
+            bv,
+            dw,
+            quad_weighted_like,
+            True,
         )
 
-        jac = jacobian_matrix_vectorized(
-            shapes, obs, latent, bv, dw, self._bkd
-        )
+        jac = jacobian_matrix_vectorized(shapes, obs, latent, bv, dw, self._bkd)
         result_ref = evidence_jacobian_vectorized(jac, quad_weighted_like, self._bkd)
 
         self._bkd.assert_allclose(result_fused, result_ref, rtol=1e-11)
@@ -249,23 +253,30 @@ class TestDispatchBranches(unittest.TestCase):
         impl_numba = get_evidence_jacobian_impl(self._bkd_np)
 
         # Compute quad_weighted_like
-        loglike = logpdf_matrix_numba(
-            self._shapes, self._obs, self._bv, self._dw
-        )
+        loglike = logpdf_matrix_numba(self._shapes, self._obs, self._bv, self._dw)
         like = np.exp(loglike)
         ninner = self._shapes.shape[1]
         qw = np.ones(ninner) / ninner
         qwl = qw[:, None] * like
 
         result_numba = impl_numba(
-            self._shapes, self._obs, self._latent,
-            self._bv, self._dw, qwl, self._bkd_np,
+            self._shapes,
+            self._obs,
+            self._latent,
+            self._bv,
+            self._dw,
+            qwl,
+            self._bkd_np,
         )
 
         # Reference: vectorized path
         jac = jacobian_matrix_vectorized(
-            self._shapes, self._obs, self._latent,
-            self._bv, self._dw, self._bkd_np,
+            self._shapes,
+            self._obs,
+            self._latent,
+            self._bv,
+            self._dw,
+            self._bkd_np,
         )
         result_ref = evidence_jacobian_vectorized(jac, qwl, self._bkd_np)
 
@@ -287,18 +298,10 @@ class TestNumbaIntegration(Generic[Array], unittest.TestCase):
         self._nouter = 10
 
         np.random.seed(42)
-        self._noise_variances = self._bkd.asarray(
-            np.array([0.1, 0.2, 0.15])
-        )
-        self._shapes = self._bkd.asarray(
-            np.random.randn(self._nobs, self._ninner)
-        )
-        self._obs = self._bkd.asarray(
-            np.random.randn(self._nobs, self._nouter)
-        )
-        self._latent = self._bkd.asarray(
-            np.random.randn(self._nobs, self._nouter)
-        )
+        self._noise_variances = self._bkd.asarray(np.array([0.1, 0.2, 0.15]))
+        self._shapes = self._bkd.asarray(np.random.randn(self._nobs, self._ninner))
+        self._obs = self._bkd.asarray(np.random.randn(self._nobs, self._nouter))
+        self._latent = self._bkd.asarray(np.random.randn(self._nobs, self._nouter))
         self._design_weights = self._bkd.asarray(
             np.random.uniform(0.5, 1.5, (self._nobs, 1))
         )
@@ -306,7 +309,8 @@ class TestNumbaIntegration(Generic[Array], unittest.TestCase):
     def test_logpdf_matrix_runs(self):
         """Inner loop logpdf_matrix runs without error."""
         like = GaussianOEDInnerLoopLikelihood(
-            self._noise_variances, self._bkd,
+            self._noise_variances,
+            self._bkd,
         )
         like.set_shapes(self._shapes)
         like.set_observations(self._obs)
@@ -316,7 +320,8 @@ class TestNumbaIntegration(Generic[Array], unittest.TestCase):
     def test_jacobian_matrix_runs(self):
         """Inner loop jacobian_matrix runs without error."""
         like = GaussianOEDInnerLoopLikelihood(
-            self._noise_variances, self._bkd,
+            self._noise_variances,
+            self._bkd,
         )
         like.set_shapes(self._shapes)
         like.set_observations(self._obs)
@@ -330,7 +335,8 @@ class TestNumbaIntegration(Generic[Array], unittest.TestCase):
     def test_evidence_jacobian_runs(self):
         """Fused evidence jacobian runs via LogEvidence."""
         like = GaussianOEDInnerLoopLikelihood(
-            self._noise_variances, self._bkd,
+            self._noise_variances,
+            self._bkd,
         )
         like.set_shapes(self._shapes)
         like.set_observations(self._obs)

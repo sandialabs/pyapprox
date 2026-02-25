@@ -10,7 +10,7 @@ The default is ScipyTrustConstrOptimizer. Custom optimizers can be provided via
 a factory callable that accepts (objective, bounds) and returns an optimizer.
 """
 
-from typing import Callable, Generic, List, Optional, Protocol, Tuple, runtime_checkable
+from typing import Generic, Protocol, Tuple, runtime_checkable
 
 from pyapprox.util.backends.protocols import Array, Backend
 
@@ -49,7 +49,9 @@ class LejaWeightingProtocol(Protocol, Generic[Array]):
 class LejaWeightingWithJacobianProtocol(LejaWeightingProtocol[Array], Protocol):
     """Protocol for Leja weighting with Jacobian support."""
 
-    def jacobian(self, samples: Array, basis_values: Array, basis_jacobians: Array) -> Array:
+    def jacobian(
+        self, samples: Array, basis_values: Array, basis_jacobians: Array
+    ) -> Array:
         """Compute Jacobian of weights with respect to samples.
 
         Parameters

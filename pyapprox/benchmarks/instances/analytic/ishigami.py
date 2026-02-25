@@ -6,16 +6,16 @@ analytical Sobol indices.
 
 import math
 
-from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.benchmarks.benchmark import BenchmarkWithPrior, BoxDomain
-from pyapprox.benchmarks.ground_truth import SensitivityGroundTruth
-from pyapprox.benchmarks.registry import BenchmarkRegistry
 from pyapprox.benchmarks.functions.algebraic.ishigami import (
     IshigamiFunction,
     IshigamiSensitivityIndices,
 )
-from pyapprox.probability.univariate.uniform import UniformMarginal
+from pyapprox.benchmarks.ground_truth import SensitivityGroundTruth
+from pyapprox.benchmarks.registry import BenchmarkRegistry
 from pyapprox.probability.joint.independent import IndependentJoint
+from pyapprox.probability.univariate.uniform import UniformMarginal
+from pyapprox.util.backends.protocols import Array, Backend
 
 
 class IshigamiBenchmark:

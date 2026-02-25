@@ -65,9 +65,7 @@ class LinearSystemSolver(ABC, Generic[Array]):
 
         return self._solve(basis_matrix, values)
 
-    def _apply_weights(
-        self, basis_matrix: Array, values: Array
-    ) -> tuple[Array, Array]:
+    def _apply_weights(self, basis_matrix: Array, values: Array) -> tuple[Array, Array]:
         """Apply sample weights to basis matrix and values.
 
         Parameters
@@ -125,6 +123,4 @@ class SingleQoiSolverMixin:
             If nqoi > 1.
         """
         if values.ndim > 1 and values.shape[1] > 1:
-            raise ValueError(
-                f"Solver only supports single QoI, got {values.shape[1]}"
-            )
+            raise ValueError(f"Solver only supports single QoI, got {values.shape[1]}")

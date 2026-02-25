@@ -1,26 +1,24 @@
 """Tests for WorkTracker and TrackedModel."""
 
-import time
 import unittest
 from typing import Any, Generic
 
 import torch
 from numpy.typing import NDArray
 
-from pyapprox.interface.wrappers.work_tracker import (
-    WorkTracker,
-    TrackedModel,
-)
 from pyapprox.interface.functions.fromcallable.function import (
     FunctionFromCallable,
 )
 from pyapprox.interface.functions.fromcallable.jacobian import (
     FunctionWithJacobianFromCallable,
 )
-from pyapprox.util.backends.protocols import Array, Backend
+from pyapprox.interface.wrappers.work_tracker import (
+    TrackedModel,
+    WorkTracker,
+)
 from pyapprox.util.backends.numpy import NumpyBkd
+from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.util.backends.torch import TorchBkd
-from pyapprox.util.test_utils import load_tests
 
 
 class TestWorkTracker(Generic[Array], unittest.TestCase):
@@ -108,9 +106,7 @@ class TestWorkTracker(Generic[Array], unittest.TestCase):
         self.tracker.record("values", 0.5)
         self.tracker.record("values", 0.3)
         wall_times = self.tracker.wall_times("values")
-        self._bkd.assert_allclose(
-            wall_times, self._bkd.asarray([0.5, 0.3])
-        )
+        self._bkd.assert_allclose(wall_times, self._bkd.asarray([0.5, 0.3]))
 
     def test_repr(self) -> None:
         """Test string representation."""
@@ -137,17 +133,13 @@ class TestTrackedModel(Generic[Array], unittest.TestCase):
         def jac(sample: Array) -> Array:
             return 2 * sample.T
 
-        self.model = FunctionFromCallable(
-            nqoi=1, nvars=2, fun=fun, bkd=self._bkd
-        )
+        self.model = FunctionFromCallable(nqoi=1, nvars=2, fun=fun, bkd=self._bkd)
         self.model_with_jac = FunctionWithJacobianFromCallable(
             nqoi=1, nvars=2, fun=fun, jacobian=jac, bkd=self._bkd
         )
         self.tracker = WorkTracker(self._bkd)
         self.tracked = TrackedModel(self.model, self.tracker)
-        self.tracked_with_jac = TrackedModel(
-            self.model_with_jac, self.tracker
-        )
+        self.tracked_with_jac = TrackedModel(self.model_with_jac, self.tracker)
 
     def test_passthrough_nvars_nqoi(self) -> None:
         """Test that nvars and nqoi pass through."""

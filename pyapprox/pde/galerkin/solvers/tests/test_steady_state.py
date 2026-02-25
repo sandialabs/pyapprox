@@ -1,17 +1,17 @@
 """Tests for SteadyStateSolver."""
 
 import unittest
-from typing import Generic, Any
+from typing import Any, Generic
 
 import numpy as np
 from numpy.typing import NDArray
 
-from pyapprox.util.backends.protocols import Array, Backend
-from pyapprox.util.backends.numpy import NumpyBkd
-from pyapprox.pde.galerkin.mesh import StructuredMesh1D, StructuredMesh2D
 from pyapprox.pde.galerkin.basis import LagrangeBasis
+from pyapprox.pde.galerkin.mesh import StructuredMesh1D, StructuredMesh2D
 from pyapprox.pde.galerkin.physics import LinearAdvectionDiffusionReaction
 from pyapprox.pde.galerkin.solvers import SteadyStateSolver
+from pyapprox.util.backends.numpy import NumpyBkd
+from pyapprox.util.backends.protocols import Array, Backend
 
 
 class TestSteadyStateSolverBase(Generic[Array], unittest.TestCase):
@@ -102,11 +102,11 @@ class TestSteadyStateSolverBase(Generic[Array], unittest.TestCase):
         result = solver.solve_linear()
 
         # Check all attributes exist
-        self.assertTrue(hasattr(result, 'solution'))
-        self.assertTrue(hasattr(result, 'converged'))
-        self.assertTrue(hasattr(result, 'iterations'))
-        self.assertTrue(hasattr(result, 'residual_norm'))
-        self.assertTrue(hasattr(result, 'message'))
+        self.assertTrue(hasattr(result, "solution"))
+        self.assertTrue(hasattr(result, "converged"))
+        self.assertTrue(hasattr(result, "iterations"))
+        self.assertTrue(hasattr(result, "residual_norm"))
+        self.assertTrue(hasattr(result, "message"))
 
     def test_2d_steady_state(self) -> None:
         """Test steady-state solve in 2D.
@@ -114,9 +114,7 @@ class TestSteadyStateSolverBase(Generic[Array], unittest.TestCase):
         Uses reaction term to make the problem non-singular.
         """
         mesh = StructuredMesh2D(
-            nx=5, ny=5,
-            bounds=[[0.0, 1.0], [0.0, 1.0]],
-            bkd=self.bkd_inst
+            nx=5, ny=5, bounds=[[0.0, 1.0], [0.0, 1.0]], bkd=self.bkd_inst
         )
         basis = LagrangeBasis(mesh, degree=1)
 
@@ -178,6 +176,7 @@ class TestSteadyStateSolverNumpy(TestSteadyStateSolverBase[NDArray[Any]]):
 # Try to import torch for dual-backend testing
 try:
     import torch
+
     from pyapprox.util.backends.torch import TorchBkd
 
     class TestSteadyStateSolverTorch(TestSteadyStateSolverBase[torch.Tensor]):
@@ -210,9 +209,6 @@ try:
 
 except ImportError:
     pass
-
-
-from pyapprox.util.test_utils import load_tests
 
 
 if __name__ == "__main__":

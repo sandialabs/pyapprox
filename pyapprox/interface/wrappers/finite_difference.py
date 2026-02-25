@@ -5,9 +5,14 @@ and hessian methods to any function implementing FunctionProtocol.
 """
 
 import math
-from typing import Generic, Literal
+from typing import TYPE_CHECKING, Generic, Literal
 
 from pyapprox.util.backends.protocols import Array, Backend
+
+if TYPE_CHECKING:
+    from pyapprox.interface.functions.protocols.function import (
+        FunctionProtocol,
+    )
 
 
 class FiniteDifferenceWrapper(Generic[Array]):
@@ -52,7 +57,7 @@ class FiniteDifferenceWrapper(Generic[Array]):
 
     def __init__(
         self,
-        model: "FunctionProtocol[Array]",  # type: ignore[name-defined]
+        model: "FunctionProtocol[Array]",
         method: Literal["forward", "backward", "centered"] = "centered",
         step: float = _DEFAULT_STEP,
     ) -> None:
@@ -83,7 +88,7 @@ class FiniteDifferenceWrapper(Generic[Array]):
         """Return the number of quantities of interest."""
         return int(self._model.nqoi())
 
-    def wrapped(self) -> "FunctionProtocol[Array]":  # type: ignore[name-defined]
+    def wrapped(self) -> "FunctionProtocol[Array]":
         """Return the wrapped model."""
         return self._model
 
@@ -263,9 +268,7 @@ class FiniteDifferenceWrapper(Generic[Array]):
             If nqoi != 1.
         """
         if self.nqoi() != 1:
-            raise ValueError(
-                f"Hessian only defined for nqoi=1, got nqoi={self.nqoi()}"
-            )
+            raise ValueError(f"Hessian only defined for nqoi=1, got nqoi={self.nqoi()}")
 
         if self._method == "centered":
             return self._centered_hessian(sample)
@@ -345,9 +348,7 @@ class FiniteDifferenceWrapper(Generic[Array]):
             If nqoi != 1.
         """
         if self.nqoi() != 1:
-            raise ValueError(
-                f"HVP only defined for nqoi=1, got nqoi={self.nqoi()}"
-            )
+            raise ValueError(f"HVP only defined for nqoi=1, got nqoi={self.nqoi()}")
 
         if self._method == "centered":
             return self._centered_hvp(sample, vec)

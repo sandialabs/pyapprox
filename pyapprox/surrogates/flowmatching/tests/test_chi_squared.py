@@ -16,33 +16,31 @@ from typing import Any, Generic
 import numpy as np
 import torch
 from numpy.typing import NDArray
-from unittest_parametrize import ParametrizedTestCase, parametrize
+from unittest_parametrize import ParametrizedTestCase
 
+from pyapprox.pde.time.explicit_steppers.heun import HeunResidual
+from pyapprox.probability import GaussianMarginal, UniformMarginal
+from pyapprox.surrogates.affine.basis import OrthonormalPolynomialBasis
+from pyapprox.surrogates.affine.expansions import BasisExpansion
+from pyapprox.surrogates.affine.indices import (
+    compute_hyperbolic_indices,
+)
+from pyapprox.surrogates.affine.univariate import create_bases_1d
+from pyapprox.surrogates.flowmatching.cfm_loss import CFMLoss
+from pyapprox.surrogates.flowmatching.fitters.least_squares import (
+    LeastSquaresFitter,
+)
+from pyapprox.surrogates.flowmatching.linear_path import LinearPath
+from pyapprox.surrogates.flowmatching.ode_adapter import (
+    integrate_flow,
+)
+from pyapprox.surrogates.flowmatching.quad_data import (
+    FlowMatchingQuadData,
+)
 from pyapprox.util.backends.numpy import NumpyBkd
 from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.util.backends.torch import TorchBkd
 from pyapprox.util.test_utils import slow_test
-
-from pyapprox.probability import UniformMarginal, GaussianMarginal
-from pyapprox.surrogates.affine.univariate import create_bases_1d
-from pyapprox.surrogates.affine.indices import (
-    compute_hyperbolic_indices,
-)
-from pyapprox.surrogates.affine.basis import OrthonormalPolynomialBasis
-from pyapprox.surrogates.affine.expansions import BasisExpansion
-
-from pyapprox.surrogates.flowmatching.linear_path import LinearPath
-from pyapprox.surrogates.flowmatching.cfm_loss import CFMLoss
-from pyapprox.surrogates.flowmatching.quad_data import (
-    FlowMatchingQuadData,
-)
-from pyapprox.surrogates.flowmatching.fitters.least_squares import (
-    LeastSquaresFitter,
-)
-from pyapprox.surrogates.flowmatching.ode_adapter import (
-    integrate_flow,
-)
-from pyapprox.pde.time.explicit_steppers.heun import HeunResidual
 
 
 def _build_chi_squared_setup(bkd, degree, n_per_dim=8):
@@ -68,26 +66,26 @@ def _build_chi_squared_setup(bkd, degree, n_per_dim=8):
     quad_marginals += [GaussianMarginal(0.0, 1.0, bkd)]
     quad_bases_1d = create_bases_1d(quad_marginals, bkd)
     quad_basis = OrthonormalPolynomialBasis(quad_bases_1d, bkd)
-    quad_pts, quad_wts = quad_basis.tensor_product_quadrature(
-        [n_per_dim] * 2
-    )
+    quad_pts, quad_wts = quad_basis.tensor_product_quadrature([n_per_dim] * 2)
 
-    t_all = quad_pts[0:1, :]    # (1, n_quad)
-    z0_all = quad_pts[1:2, :]   # (1, n_quad)
-    x1_all = z0_all * z0_all    # chi^2(1): x1 = x0^2
+    t_all = quad_pts[0:1, :]  # (1, n_quad)
+    z0_all = quad_pts[1:2, :]  # (1, n_quad)
+    x1_all = z0_all * z0_all  # chi^2(1): x1 = x0^2
 
     path = LinearPath(bkd)
     loss = CFMLoss(bkd)
     quad_data = FlowMatchingQuadData(
-        t=t_all, x0=z0_all, x1=x1_all,
-        weights=quad_wts, bkd=bkd,
+        t=t_all,
+        x0=z0_all,
+        x1=x1_all,
+        weights=quad_wts,
+        bkd=bkd,
     )
 
     return vf, path, loss, quad_data
 
 
-class TestChiSquared(Generic[Array], ParametrizedTestCase,
-                     unittest.TestCase):
+class TestChiSquared(Generic[Array], ParametrizedTestCase, unittest.TestCase):
     __test__ = False
 
     def bkd(self) -> Backend[Array]:
@@ -108,10 +106,11 @@ class TestChiSquared(Generic[Array], ParametrizedTestCase,
 
         for i in range(len(losses) - 1):
             self.assertGreaterEqual(
-                losses[i], losses[i + 1],
+                losses[i],
+                losses[i + 1],
                 f"Loss did not decrease from degree {degrees[i]} "
-                f"({losses[i]:.2e}) to degree {degrees[i+1]} "
-                f"({losses[i+1]:.2e})",
+                f"({losses[i]:.2e}) to degree {degrees[i + 1]} "
+                f"({losses[i + 1]:.2e})",
             )
 
     @slow_test
@@ -129,7 +128,12 @@ class TestChiSquared(Generic[Array], ParametrizedTestCase,
         x0_samples = bkd.array(x0_np.tolist())
 
         x1_samples = integrate_flow(
-            fitted_vf, x0_samples, 0.0, 1.0, n_steps=50, bkd=bkd,
+            fitted_vf,
+            x0_samples,
+            0.0,
+            1.0,
+            n_steps=50,
+            bkd=bkd,
             stepper_cls=HeunResidual,
         )
 

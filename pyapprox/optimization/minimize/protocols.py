@@ -1,14 +1,14 @@
 """Protocols for bindable optimizers supporting deferred binding."""
 
-from typing import Protocol, Generic, Optional, Self, runtime_checkable
+from typing import Generic, Optional, Protocol, Self, runtime_checkable
 
-from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.optimization.minimize.objective.protocols import (
     ObjectiveProtocol,
 )
 from pyapprox.optimization.minimize.scipy.scipy_result import (
     ScipyOptimizerResultWrapper,
 )
+from pyapprox.util.backends.protocols import Array, Backend
 
 
 @runtime_checkable

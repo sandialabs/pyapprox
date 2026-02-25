@@ -1,23 +1,23 @@
 """Tests for GPFixedHyperparameterFitter."""
 
 import unittest
-from typing import Generic, Any
+from typing import Any, Generic
 
 import numpy as np
 import torch
 from numpy.typing import NDArray
 
-from pyapprox.util.backends.protocols import Array, Backend
-from pyapprox.util.backends.numpy import NumpyBkd
-from pyapprox.util.backends.torch import TorchBkd
-from pyapprox.surrogates.kernels.matern import Matern52Kernel
 from pyapprox.surrogates.gaussianprocess.exact import (
     ExactGaussianProcess,
 )
 from pyapprox.surrogates.gaussianprocess.fitters import (
-    GPFixedHyperparameterFitter,
     GPFitResult,
+    GPFixedHyperparameterFitter,
 )
+from pyapprox.surrogates.kernels.matern import Matern52Kernel
+from pyapprox.util.backends.numpy import NumpyBkd
+from pyapprox.util.backends.protocols import Array, Backend
+from pyapprox.util.backends.torch import TorchBkd
 from pyapprox.util.test_utils import load_tests  # noqa: F401
 
 
@@ -45,12 +45,8 @@ class TestGPFixedHyperparameterFitter(Generic[Array], unittest.TestCase):
         self.X_test = self._bkd.array(X_test_np)
 
     def _make_gp(self) -> ExactGaussianProcess:
-        kernel = Matern52Kernel(
-            [1.0, 1.0], (0.1, 10.0), self.nvars, self._bkd
-        )
-        return ExactGaussianProcess(
-            kernel, self.nvars, self._bkd, nugget=0.1
-        )
+        kernel = Matern52Kernel([1.0, 1.0], (0.1, 10.0), self.nvars, self._bkd)
+        return ExactGaussianProcess(kernel, self.nvars, self._bkd, nugget=0.1)
 
     def test_returns_gp_fit_result(self) -> None:
         """Fitter returns GPFitResult."""
@@ -70,16 +66,12 @@ class TestGPFixedHyperparameterFitter(Generic[Array], unittest.TestCase):
 
         mean = fitted.predict(self.X_test)
         self.assertEqual(mean.shape, (1, self.n_test))
-        self.assertTrue(
-            self._bkd.all_bool(self._bkd.isfinite(mean))
-        )
+        self.assertTrue(self._bkd.all_bool(self._bkd.isfinite(mean)))
 
     def test_original_gp_not_modified(self) -> None:
         """Original GP must NOT be modified by fitter."""
         gp = self._make_gp()
-        hyps_before = self._bkd.to_numpy(
-            gp.hyp_list().get_values()
-        ).copy()
+        hyps_before = self._bkd.to_numpy(gp.hyp_list().get_values()).copy()
 
         fitter = GPFixedHyperparameterFitter(self._bkd)
         fitter.fit(gp, self.X_train, self.y_train)

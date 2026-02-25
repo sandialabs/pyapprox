@@ -93,7 +93,7 @@ class SobolGFunction(Generic[Array]):
         bkd = self._bkd
         result = bkd.ones((1, samples.shape[1]))
         for i in range(self._nvars):
-            xi = samples[i:i+1, :]
+            xi = samples[i : i + 1, :]
             result = result * self._g(xi, self._a[i])
         return result
 
@@ -173,9 +173,7 @@ class SobolGFunction(Generic[Array]):
                 f"sample must have shape ({self._nvars}, 1), got {sample.shape}"
             )
         if vec.ndim != 2 or vec.shape != (self._nvars, 1):
-            raise ValueError(
-                f"vec must have shape ({self._nvars}, 1), got {vec.shape}"
-            )
+            raise ValueError(f"vec must have shape ({self._nvars}, 1), got {vec.shape}")
 
         bkd = self._bkd
         n = self._nvars
