@@ -46,6 +46,14 @@ subtitle: "Validated tutorials for uncertainty quantification"
 | [PACV Concept](pacv_concept.qmd) | How a single recursion index unifies MLMC, MFMC, ACVMF, and ACVIS as special cases of one family |
 | [PACV Analysis](pacv_analysis.qmd) | Formal definition of GMF, GRD, GIS families and the covariance formulas enabling enumeration-based best-estimator selection |
 | [PACV Usage](pacv_usage.qmd) | Configuring PACV estimators, enumerating all valid structures, and selecting the best estimator for a given budget |
+| [MLBLUE Concept](mlblue_concept.qmd) | The multi-level best linear unbiased estimator: optimal weights from a single linear system |
+| [MLBLUE Analysis](mlblue_analysis.qmd) | Deriving the MLBLUE weight matrix, variance bound, and comparison with ACV families |
+| [MLBLUE Usage](mlblue_usage.qmd) | Using the PyApprox MLBLUE API to allocate samples and estimate statistics |
+| [Pilot Studies Concept](pilot_studies_concept.qmd) | Using small pilot samples to estimate the covariance structure needed by multi-fidelity estimators |
+| [Pilot Studies Usage](pilot_studies_usage.qmd) | Running pilot studies with the PyApprox API and feeding results into ACV allocation |
+| [Pilot Studies Analysis](pilot_studies_analysis.qmd) | Analyzing pilot study accuracy and its effect on downstream estimator performance |
+| [Ensemble Selection Concept](ensemble_selection_concept.qmd) | Choosing which subset of available models to include in a multi-fidelity estimator |
+| [Ensemble Selection Usage](ensemble_selection_usage.qmd) | Using the PyApprox ensemble selection API to find the best model subset for a given budget |
 
 ## Inverse UQ
 
@@ -61,7 +69,7 @@ subtitle: "Validated tutorials for uncertainty quantification"
 |----------|-------------|
 | [Introduction to Experimental Design](experimental_design_intro.qmd) | Why sensor placement matters: comparing designs by posterior covariance and Expected Information Gain |
 
-## Bayesian OED
+### KL-Based OED
 
 | Tutorial | Description |
 |----------|-------------|
@@ -70,17 +78,40 @@ subtitle: "Validated tutorials for uncertainty quantification"
 | [Bayesian OED: Gradients](boed_kl_gradients.qmd) | The reparameterization trick, the C1+C2+C3 gradient decomposition, and the corrected Hessian |
 | [Bayesian OED: Convergence](boed_kl_usage.qmd) | Using KLOEDDiagnostics to measure MSE, decompose bias and variance, and confirm convergence |
 | [Bayesian OED: MC vs Halton](boed_kl_qmc.qmd) | Why randomly-shifted Halton sequences reduce MSE compared to i.i.d. MC for the double-loop EIG estimator |
-| [Bayesian OED: Nonlinear Usage](boed_kl_nonlinear_usage.qmd) | Applying EIG-based OED to a Lotka-Volterra predator-prey system — a nonlinear model with no analytic EIG |
+| [Bayesian OED: Nonlinear Usage](boed_kl_nonlinear_usage.qmd) | Applying EIG-based OED to a Lotka-Volterra predator-prey system --- a nonlinear model with no analytic EIG |
 | [Bayesian OED: Design Stability](boed_kl_design_stability.qmd) | Demonstrating that OED designs depend on MC realizations at fixed budget and stabilize as budget grows |
+
+### Goal-Oriented OED
+
+| Tutorial | Description |
+|----------|-------------|
 | [Goal-Oriented OED: Concept](boed_pred_concept.qmd) | Why targeting prediction uncertainty rather than parameter uncertainty changes which experiments are optimal |
 | [Goal-Oriented OED: Gaussian Analysis](boed_pred_gaussian_analysis.qmd) | Closed-form posterior mean distribution, entropic risk deviation, and AVaR deviation for Gaussian push-forwards |
 | [Goal-Oriented OED: Log-Normal Analysis](boed_pred_lognormal_analysis.qmd) | Deriving the distribution and expected AVaR deviation of the standard deviation of a log-normal QoI |
 | [Goal-Oriented OED: Convergence](boed_pred_usage.qmd) | Verifying numerical risk-aware utility estimates converge to analytical values with MC vs. Halton |
 | [Goal-Oriented OED: Nonlinear Usage](boed_pred_nonlinear_usage.qmd) | Comparing std-deviation and entropic deviation objectives for goal-oriented OED on Lotka-Volterra |
+
+### OED Workflows
+
+| Tutorial | Description |
+|----------|-------------|
 | [OED Data Workflow](boed_data_workflow_usage.qmd) | Generating, saving, and reusing expensive model evaluations so OED optimisation avoids re-running the forward model |
 | [Surrogate-Accelerated OED](boed_surrogate_usage.qmd) | Building a sparse-grid surrogate to enable large-sample-budget OED infeasible with the original model |
 
+## Approximation Theory
+
+| Tutorial | Description |
+|----------|-------------|
+| [Lagrange Interpolation](lagrange_interpolation.qmd) | Lagrange basis polynomials, Runge phenomenon, and optimal node placement |
+| [Piecewise Interpolation](piecewise_interpolation.qmd) | Local basis functions for smooth and discontinuous functions |
+| [Tensor Product Interpolation](tensor_product_interpolation.qmd) | Multivariate approximation via Cartesian products of 1D bases |
+| [Gauss Quadrature](gauss_quadrature.qmd) | Optimal nodes from orthogonal polynomials with exponential convergence |
+| [Piecewise Polynomial Quadrature](piecewise_quadrature.qmd) | Rectangle, trapezoid, and Simpson's rules with error derivations |
+| [Leja Sequences](leja_sequences.qmd) | Nested points for adaptive interpolation via greedy determinant maximisation |
+
 ## Surrogate Modeling
+
+### Polynomial Chaos
 
 | Tutorial | Description |
 |----------|-------------|
@@ -88,33 +119,32 @@ subtitle: "Validated tutorials for uncertainty quantification"
 | [Overfitting and Cross-Validation](practical_pce_fitting.qmd) | Choose the polynomial degree using LOO cross-validation |
 | [Sparse Polynomial Approximation](sparse_pce_fitting.qmd) | OMP and BPDN/LASSO for high-dimensional polynomial chaos |
 | [UQ with Polynomial Chaos](uq_with_pce.qmd) | Extract analytical moments, marginal densities, and convergence comparisons from a fitted PCE |
-| [Function Train Surrogates](function_train_surrogates.qmd) | Build intuition for low-rank functions and the function train decomposition |
-| [UQ with Function Trains](uq_with_functiontrain.qmd) | Extract analytical moments, marginal densities, and input marginals from a fitted function train |
 
-## Sparse Grid Interpolation
+### Function Trains
 
 | Tutorial | Description |
 |----------|-------------|
-| [Piecewise Polynomial Quadrature](piecewise_quadrature.qmd) | Rectangle, trapezoid, and Simpson's rules with error derivations |
-| [Gauss Quadrature](gauss_quadrature.qmd) | Optimal nodes from orthogonal polynomials with exponential convergence |
-| [Lagrange Interpolation](lagrange_interpolation.qmd) | Lagrange basis polynomials, Runge phenomenon, and optimal node placement |
-| [Leja Sequences](leja_sequences.qmd) | Nested points for adaptive interpolation via greedy determinant maximisation |
-| [Piecewise Interpolation](piecewise_interpolation.qmd) | Local basis functions for smooth and discontinuous functions |
-| [Tensor Product Interpolation](tensor_product_interpolation.qmd) | Multivariate approximation via Cartesian products of 1D bases |
+| [Function Train Surrogates](function_train_surrogates.qmd) | Build intuition for low-rank functions and the function train decomposition |
+| [UQ with Function Trains](uq_with_functiontrain.qmd) | Extract analytical moments, marginal densities, and input marginals from a fitted function train |
+
+### Sparse Grids
+
+| Tutorial | Description |
+|----------|-------------|
 | [Isotropic Sparse Grids](isotropic_sparse_grids.qmd) | Smolyak combination technique for breaking the curse of dimensionality |
 | [Adaptive Sparse Grids](adaptive_sparse_grids.qmd) | Data-driven refinement for anisotropic functions |
 | [Multifidelity Sparse Grids](multifidelity_sparse_grids.qmd) | Multi-index collocation for model hierarchies with varying cost and accuracy |
 | [Sparse Grid to PCE Conversion](sparse_grid_to_pce_conversion.qmd) | Spectral projection converting Lagrange-based sparse grid interpolants into Polynomial Chaos Expansions |
 | [UQ with Sparse Grids](uq_with_sparse_grids.qmd) | Compute moments from sparse grid quadrature, convert to PCE for Sobol indices, and compare against MC |
 
-## Gaussian Process Surrogates
+### Gaussian Processes
 
 | Tutorial | Description |
 |----------|-------------|
 | [Building a GP Surrogate](gp_surrogate.qmd) | Approximate an expensive model with a Gaussian process and quantify prediction uncertainty |
-| [UQ with Gaussian Processes](uq_with_gp.qmd) | Compute analytical moments, marginal densities, and main effects from a fitted GP — without additional model evaluations |
+| [UQ with Gaussian Processes](uq_with_gp.qmd) | Compute analytical moments, marginal densities, and main effects from a fitted GP --- without additional model evaluations |
 | [Adaptive GP Sampling](adaptive_gp_sampling.qmd) | Choose training points that maximally reduce GP posterior uncertainty using greedy Cholesky and IVAR strategies |
-| [Multi-Fidelity and Multi-Output GPs](multioutput_gp.qmd) | Exploit correlations between model fidelities and between output quantities to build accurate surrogates within a fixed computational budget |
+| [Multi-Fidelity Gaussian Processes](multioutput_gp.qmd) | Exploit correlations between model fidelities to build accurate surrogates within a fixed computational budget |
 
 ## Sensitivity Analysis
 
@@ -128,6 +158,14 @@ subtitle: "Validated tutorials for uncertainty quantification"
 | [Bin-Based Sensitivity](bin_based_sensitivity.qmd) | Variance-based sensitivity indices via binning estimation |
 | [FT Sensitivity: Math](functiontrain_sensitivity_math.qmd) | Deriving Sobol indices analytically from PCE FunctionTrain structure |
 | [FT Sensitivity: Usage](functiontrain_sensitivity.qmd) | Computing Sobol indices analytically with FunctionTrainSensitivity |
+
+## Random Fields
+
+| Tutorial | Description |
+|----------|-------------|
+| [KLE Introduction](kle_introduction.qmd) | Karhunen-Loeve expansion for representing random fields as truncated eigenfunction series |
+| [KLE: Mesh and Data-Driven](kle_mesh_and_data_driven.qmd) | Building KLE from mesh-based covariance or data-driven empirical covariance |
+| [KLE: SPDE Approach](kle_spde.qmd) | Stochastic PDE approach to efficient random field generation |
 
 ## Optimization Under Uncertainty
 

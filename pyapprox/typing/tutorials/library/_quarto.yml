@@ -67,22 +67,26 @@ website:
         - section: "Experimental Design"
           contents:
             - experimental_design_intro.qmd
-        - section: "Bayesian OED"
-          contents:
-            - boed_kl_concept.qmd
-            - boed_kl_estimator.qmd
-            - boed_kl_gradients.qmd
-            - boed_kl_usage.qmd
-            - boed_kl_qmc.qmd
-            - boed_kl_nonlinear_usage.qmd
-            - boed_kl_design_stability.qmd
-            - boed_pred_concept.qmd
-            - boed_pred_gaussian_analysis.qmd
-            - boed_pred_lognormal_analysis.qmd
-            - boed_pred_usage.qmd
-            - boed_pred_nonlinear_usage.qmd
-            - boed_data_workflow_usage.qmd
-            - boed_surrogate_usage.qmd
+            - section: "KL-Based OED"
+              contents:
+                - boed_kl_concept.qmd
+                - boed_kl_estimator.qmd
+                - boed_kl_gradients.qmd
+                - boed_kl_usage.qmd
+                - boed_kl_qmc.qmd
+                - boed_kl_nonlinear_usage.qmd
+                - boed_kl_design_stability.qmd
+            - section: "Goal-Oriented OED"
+              contents:
+                - boed_pred_concept.qmd
+                - boed_pred_gaussian_analysis.qmd
+                - boed_pred_lognormal_analysis.qmd
+                - boed_pred_usage.qmd
+                - boed_pred_nonlinear_usage.qmd
+            - section: "OED Workflows"
+              contents:
+                - boed_data_workflow_usage.qmd
+                - boed_surrogate_usage.qmd
         - section: "Approximation Theory"
           contents:
             - lagrange_interpolation.qmd
@@ -93,25 +97,29 @@ website:
             - leja_sequences.qmd
         - section: "Surrogate Modeling"
           contents:
-            - polynomial_chaos_surrogates.qmd
-            - practical_pce_fitting.qmd
-            - sparse_pce_fitting.qmd
-            - uq_with_pce.qmd
-            - function_train_surrogates.qmd
-            - uq_with_functiontrain.qmd
-        - section: "Sparse Grid Surrogates"
-          contents:
-            - isotropic_sparse_grids.qmd
-            - adaptive_sparse_grids.qmd
-            - multifidelity_sparse_grids.qmd
-            - sparse_grid_to_pce_conversion.qmd
-            - uq_with_sparse_grids.qmd
-        - section: "Gaussian Process Surrogates"
-          contents:
-            - gp_surrogate.qmd
-            - uq_with_gp.qmd
-            - adaptive_gp_sampling.qmd
-            - multioutput_gp.qmd
+            - section: "Polynomial Chaos"
+              contents:
+                - polynomial_chaos_surrogates.qmd
+                - practical_pce_fitting.qmd
+                - sparse_pce_fitting.qmd
+                - uq_with_pce.qmd
+            - section: "Function Trains"
+              contents:
+                - function_train_surrogates.qmd
+                - uq_with_functiontrain.qmd
+            - section: "Sparse Grids"
+              contents:
+                - isotropic_sparse_grids.qmd
+                - adaptive_sparse_grids.qmd
+                - multifidelity_sparse_grids.qmd
+                - sparse_grid_to_pce_conversion.qmd
+                - uq_with_sparse_grids.qmd
+            - section: "Gaussian Processes"
+              contents:
+                - gp_surrogate.qmd
+                - uq_with_gp.qmd
+                - adaptive_gp_sampling.qmd
+                - multioutput_gp.qmd
         - section: "Sensitivity Analysis"
           contents:
             - sensitivity_analysis_concept.qmd
