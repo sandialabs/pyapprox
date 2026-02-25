@@ -35,7 +35,7 @@ from pyapprox.surrogates.affine.univariate.globalpoly.monomial_conversion import
 from pyapprox.util.backends.numpy import NumpyBkd
 from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.util.backends.torch import TorchBkd
-from pyapprox.util.test_utils import load_tests  # noqa: F401
+from pyapprox.util.test_utils import load_tests, slow_test  # noqa: F401
 
 
 class TestMonomialConversion(Generic[Array], unittest.TestCase):
@@ -394,6 +394,7 @@ class TestConvergenceGaussian(Generic[Array], unittest.TestCase):
             rtol=1e-10,
         )
 
+    @slow_test
     def test_l1_convergence(self):
         """Verify PDF converges in L1 as PCE order increases."""
         bkd = self._bkd
@@ -495,6 +496,7 @@ class TestConvergenceUniform(Generic[Array], unittest.TestCase):
             rtol=1e-10,
         )
 
+    @slow_test
     def test_l1_convergence(self):
         """Verify PDF converges in L1 as PCE order increases."""
         bkd = self._bkd

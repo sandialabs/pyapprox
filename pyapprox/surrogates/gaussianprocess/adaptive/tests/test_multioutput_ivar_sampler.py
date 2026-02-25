@@ -33,7 +33,7 @@ from pyapprox.surrogates.kernels.scalings import PolynomialScaling
 from pyapprox.util.backends.numpy import NumpyBkd
 from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.util.backends.torch import TorchBkd
-from pyapprox.util.test_utils import load_tests  # noqa: F401
+from pyapprox.util.test_utils import load_tests, slow_test  # noqa: F401
 
 
 class TestMultiOutputIVARSampler(Generic[Array], unittest.TestCase):
@@ -140,6 +140,7 @@ class TestMultiOutputIVARSampler(Generic[Array], unittest.TestCase):
                     f"Output {ii}, sample {j} not found in candidates",
                 )
 
+    @slow_test
     def test_multioutput_ivar_objective_matches_integrated_variance(
         self,
     ) -> None:

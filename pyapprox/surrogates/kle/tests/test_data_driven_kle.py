@@ -23,6 +23,7 @@ from pyapprox.surrogates.kle.pca import PrincipalComponentAnalysis
 from pyapprox.util.backends.numpy import NumpyBkd
 from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.util.backends.torch import TorchBkd
+from pyapprox.util.test_utils import load_tests, slow_test  # noqa: F401
 
 
 def _gauss_legendre_quad(lb, ub, npts, bkd):
@@ -49,6 +50,7 @@ class TestDataDrivenKLE(Generic[Array], unittest.TestCase):
         np.random.seed(1)
         self._bkd = self.bkd()
 
+    @slow_test
     def test_data_driven_kle_vs_mesh_kle(self) -> None:
         """Port of legacy test_data_driven_kle (part 1).
 
@@ -92,6 +94,7 @@ class TestDataDrivenKLE(Generic[Array], unittest.TestCase):
             rtol=1e-2,
         )
 
+    @slow_test
     def test_data_driven_kle_with_weights(self) -> None:
         """Port of legacy test_data_driven_kle (part 3).
 
@@ -220,8 +223,6 @@ class TestPCATorch(TestPCA[torch.Tensor]):
     def bkd(self) -> TorchBkd:
         return TorchBkd()
 
-
-from pyapprox.util.test_utils import load_tests  # noqa: F401
 
 if __name__ == "__main__":
     loader = unittest.TestLoader()

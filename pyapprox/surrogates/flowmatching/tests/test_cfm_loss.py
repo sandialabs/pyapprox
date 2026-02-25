@@ -29,6 +29,7 @@ from pyapprox.surrogates.flowmatching.quad_data import (
 from pyapprox.util.backends.numpy import NumpyBkd
 from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.util.backends.torch import TorchBkd
+from pyapprox.util.test_utils import slow_test
 
 
 def _make_vf(bkd: Backend[Array], d: int, degree: int, m: int = 0):
@@ -388,6 +389,14 @@ class TestCFMLossTorch(TestCFMLoss[torch.Tensor]):
         torch.set_default_dtype(torch.float64)
         return TorchBkd()
 
+    @slow_test
+    def test_integrand_shape(self) -> None:
+        super().test_integrand_shape()
+
+    @slow_test
+    def test_integrand_shape_with_conditioning(self) -> None:
+        super().test_integrand_shape_with_conditioning()
+
 
 class TestFlowMatchingObjectiveNumpy(TestFlowMatchingObjective[NDArray[Any]]):
     def bkd(self) -> NumpyBkd:
@@ -398,6 +407,10 @@ class TestFlowMatchingObjectiveTorch(TestFlowMatchingObjective[torch.Tensor]):
     def bkd(self) -> TorchBkd:
         torch.set_default_dtype(torch.float64)
         return TorchBkd()
+
+    @slow_test
+    def test_jacobian_vs_fd_multidim(self) -> None:
+        super().test_jacobian_vs_fd_multidim()
 
 
 from pyapprox.util.test_utils import load_tests  # noqa: F401

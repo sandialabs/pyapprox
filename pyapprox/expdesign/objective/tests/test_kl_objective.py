@@ -19,7 +19,7 @@ from pyapprox.expdesign.objective import KLOEDObjective
 from pyapprox.util.backends.numpy import NumpyBkd
 from pyapprox.util.backends.protocols import Array
 from pyapprox.util.backends.torch import TorchBkd
-from pyapprox.util.test_utils import load_tests  # noqa: F401
+from pyapprox.util.test_utils import load_tests, slow_test  # noqa: F401
 
 
 class TestKLOEDObjective(Generic[Array], unittest.TestCase):
@@ -142,6 +142,10 @@ class TestKLOEDObjectiveTorch(TestKLOEDObjective[torch.Tensor]):
     def setUp(self):
         torch.set_default_dtype(torch.float64)
         super().setUp()
+
+    @slow_test
+    def test_jacobian_finite_diff(self):
+        super().test_jacobian_finite_diff()
 
 
 if __name__ == "__main__":

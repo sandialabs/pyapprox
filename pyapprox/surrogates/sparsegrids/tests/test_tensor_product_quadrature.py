@@ -30,7 +30,7 @@ from pyapprox.surrogates.sparsegrids.tests.test_helpers import (
 from pyapprox.util.backends.numpy import NumpyBkd
 from pyapprox.util.backends.protocols import Array
 from pyapprox.util.backends.torch import TorchBkd
-from pyapprox.util.test_utils import load_tests  # noqa: F401
+from pyapprox.util.test_utils import load_tests, slow_test, slower_test  # noqa: F401
 
 # =============================================================================
 # Test Configurations
@@ -92,6 +92,7 @@ class TestTensorProductGauss(Generic[Array], ParametrizedTestCase, unittest.Test
         "name,joint_config,npts_1d",
         TENSOR_PRODUCT_GAUSS_CONFIGS,
     )
+    @slower_test
     def test_interpolation_exact(self, name, joint_config, npts_1d):
         """Tensor product exactly interpolates tensor product PCE."""
         joint = create_test_joint(joint_config, self._bkd)
@@ -213,6 +214,7 @@ class TestTensorProductLeja(Generic[Array], ParametrizedTestCase, unittest.TestC
         "name,joint_config,npts_1d",
         TENSOR_PRODUCT_LEJA_CONFIGS,
     )
+    @slow_test
     def test_integration_exact(self, name, joint_config, npts_1d):
         """Tensor product Leja quadrature computes exact mean."""
         joint = create_test_joint(joint_config, self._bkd)

@@ -39,7 +39,7 @@ from pyapprox.surrogates.sparsegrids.tests.test_helpers import (
 from pyapprox.util.backends.numpy import NumpyBkd
 from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.util.backends.torch import TorchBkd
-from pyapprox.util.test_utils import load_tests  # noqa: F401
+from pyapprox.util.test_utils import load_tests, slow_test  # noqa: F401
 
 
 class TestSparseGridToPCEConverter(Generic[Array], unittest.TestCase):
@@ -494,6 +494,10 @@ class TestSparseGridToPCEConverterTorch(TestSparseGridToPCEConverter[torch.Tenso
 
     def bkd(self) -> TorchBkd:
         return TorchBkd()
+
+    @slow_test
+    def test_3d_conversion(self) -> None:
+        super().test_3d_conversion()
 
 
 class TestTensorProductSubspaceToPCEConverterTorch(

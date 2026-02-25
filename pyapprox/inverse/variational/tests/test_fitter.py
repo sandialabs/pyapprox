@@ -207,5 +207,9 @@ class TestVariationalFitterTorch(
         torch.set_default_dtype(torch.float64)
         return TorchBkd()
 
+    @slow_test
+    def test_fit_custom_init_guess(self) -> None:
+        super().test_fit_custom_init_guess()
+
 
 from pyapprox.util.test_utils import load_tests  # noqa: F401

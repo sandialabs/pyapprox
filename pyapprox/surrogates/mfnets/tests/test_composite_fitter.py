@@ -18,7 +18,12 @@ from pyapprox.surrogates.mfnets.helpers import (
 from pyapprox.util.backends.numpy import NumpyBkd
 from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.util.backends.torch import TorchBkd
-from pyapprox.util.test_utils import load_tests  # noqa: F401
+from pyapprox.util.test_utils import (
+    load_tests,  # noqa: F401
+    slow_test,
+    slower_test,
+    slowest_test,
+)
 
 
 class TestCompositeFitter(Generic[Array], unittest.TestCase):
@@ -30,6 +35,7 @@ class TestCompositeFitter(Generic[Array], unittest.TestCase):
     def setUp(self) -> None:
         self._bkd = self.bkd()
 
+    @slower_test
     def test_composite_recovers_truth(self) -> None:
         """ALS+gradient composite recovers truth from clean data."""
         bkd = self._bkd
@@ -165,6 +171,7 @@ class TestCompositeFitter(Generic[Array], unittest.TestCase):
         # Loss should be finite
         self.assertTrue(np.isfinite(result.loss_value()))
 
+    @slowest_test
     def test_three_node_composite_recovery(self) -> None:
         """Composite fitter recovers 3-node chain."""
         bkd = self._bkd
@@ -215,6 +222,10 @@ class TestCompositeFitter(Generic[Array], unittest.TestCase):
 class TestCompositeFitterNumpy(TestCompositeFitter[NDArray[Any]]):
     def bkd(self) -> NumpyBkd:
         return NumpyBkd()
+
+    @slow_test
+    def test_composite_result_has_both_phases(self) -> None:
+        super().test_composite_result_has_both_phases()
 
 
 class TestCompositeFitterTorch(TestCompositeFitter[torch.Tensor]):

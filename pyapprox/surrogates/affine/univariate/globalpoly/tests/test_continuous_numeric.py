@@ -35,6 +35,7 @@ from pyapprox.surrogates.affine.univariate.globalpoly import (
 from pyapprox.util.backends.numpy import NumpyBkd
 from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.util.backends.torch import TorchBkd
+from pyapprox.util.test_utils import load_tests, slow_test, slower_test  # noqa: F401
 
 
 class MarginalTestCase(NamedTuple):
@@ -333,6 +334,7 @@ class TestContinuousNumericOrthonormalPolynomial1D(Generic[Array], unittest.Test
     # Parametrized tests for bounded marginals
     # =========================================================================
 
+    @slow_test
     def test_bounded_marginals_mc_convergence(self) -> None:
         """Test MC orthonormality convergence for all bounded marginals."""
         for case in BOUNDED_MARGINAL_TEST_CASES:
@@ -349,6 +351,7 @@ class TestContinuousNumericOrthonormalPolynomial1D(Generic[Array], unittest.Test
     # Parametrized tests for unbounded marginals
     # =========================================================================
 
+    @slower_test
     def test_unbounded_marginals_quadrature_orthonormality(self) -> None:
         """Test orthonormality for unbounded marginals using Gauss quadrature.
 

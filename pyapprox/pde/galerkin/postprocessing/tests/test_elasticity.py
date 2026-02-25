@@ -9,6 +9,8 @@ import unittest
 
 import numpy as np
 
+from pyapprox.util.test_utils import slow_test
+
 from pyapprox.pde.galerkin.postprocessing.elasticity import (
     strain_from_displacement_2d,
     stress_from_strain_2d,
@@ -373,6 +375,7 @@ class TestVonMisesStress(unittest.TestCase):
 class TestVonMisesWithFEMSolve(unittest.TestCase):
     """Integration test: von Mises from an actual FEM solve."""
 
+    @slow_test
     def test_cantilever_beam_stress_positive(self):
         """Von Mises stress is non-negative and nonzero for loaded beam."""
         from skfem.models.elasticity import lame_parameters

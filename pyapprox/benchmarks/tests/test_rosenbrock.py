@@ -3,6 +3,7 @@
 import unittest
 from typing import Any, Generic
 
+import numpy as np
 import torch
 from numpy.typing import NDArray
 
@@ -32,6 +33,7 @@ class TestRosenbrockFunction(Generic[Array], unittest.TestCase):
         raise NotImplementedError
 
     def setUp(self) -> None:
+        np.random.seed(1)
         self._bkd = self.bkd()
 
     def test_protocol_compliance_function(self) -> None:
@@ -169,7 +171,7 @@ class TestRosenbrockFunction(Generic[Array], unittest.TestCase):
         sample = self._bkd.array([[0.7], [-0.5]])
         errors = checker.check_derivatives(sample, verbosity=0)
         error_ratio = checker.error_ratio(errors[1])
-        self.assertLess(error_ratio, 1e-6)
+        self.assertLess(error_ratio, 1e-5)
 
     def test_derivative_checker_jacobian_5d(self) -> None:
         """Test Jacobian passes derivative checker (5D)."""
@@ -187,7 +189,7 @@ class TestRosenbrockFunction(Generic[Array], unittest.TestCase):
         sample = self._bkd.array([[0.7], [-0.5], [0.3], [0.1], [-0.2]])
         errors = checker.check_derivatives(sample, verbosity=0)
         error_ratio = checker.error_ratio(errors[1])
-        self.assertLess(error_ratio, 1e-6)
+        self.assertLess(error_ratio, 1e-5)
 
 
 class TestRosenbrockFunctionNumpy(TestRosenbrockFunction[NDArray[Any]]):

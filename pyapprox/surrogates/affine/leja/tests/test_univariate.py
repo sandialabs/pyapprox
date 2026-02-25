@@ -40,7 +40,7 @@ from pyapprox.surrogates.affine.univariate.lagrange import (
 from pyapprox.util.backends.numpy import NumpyBkd
 from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.util.backends.torch import TorchBkd
-from pyapprox.util.test_utils import load_tests  # noqa: F401
+from pyapprox.util.test_utils import load_tests, slow_test  # noqa: F401
 
 
 # =============================================================================
@@ -543,6 +543,7 @@ class TestTwoPointLejaIntegration(
         "name,poly_type,weighting_type,bounds,exact",
         TWO_POINT_COMBOS,
     )
+    @slow_test
     def test_integration_x4(
         self,
         name: str,

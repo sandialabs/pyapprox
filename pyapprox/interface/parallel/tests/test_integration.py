@@ -14,6 +14,7 @@ from numpy.typing import NDArray
 from pyapprox.util.backends.numpy import NumpyBkd
 from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.util.backends.torch import TorchBkd
+from pyapprox.util.test_utils import load_tests, slow_test  # noqa: F401
 
 
 class QuadraticFunction(Generic[Array]):
@@ -174,6 +175,7 @@ class TestIntegration(Generic[Array], unittest.TestCase):
                 analytic_grad = float(jacobians[i, 0, j])
                 self.assertAlmostEqual(numerical_grad, analytic_grad, places=5)
 
+    @slow_test
     def test_backend_switching(self):
         """Test that different backends produce same results."""
         from pyapprox.interface.parallel import make_parallel

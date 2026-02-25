@@ -48,7 +48,7 @@ from pyapprox.pde.zoo.pressurized_cylinder_2d import (
 from pyapprox.util.backends.numpy import NumpyBkd
 from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.util.backends.torch import TorchBkd
-from pyapprox.util.test_utils import load_tests  # noqa: F401
+from pyapprox.util.test_utils import load_tests, slow_test  # noqa: F401
 
 # ======================================================================
 # Helpers
@@ -703,3 +703,11 @@ class TestPressurizedCylinder2DTorch(TestPressurizedCylinder2D[torch.Tensor]):
     def bkd(self) -> TorchBkd:
         torch.set_default_dtype(torch.float64)
         return TorchBkd()
+
+    @slow_test
+    def test_param_jacobian(self):
+        super().test_param_jacobian()
+
+    @slow_test
+    def test_lame_solution(self):
+        super().test_lame_solution()

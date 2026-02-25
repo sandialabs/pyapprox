@@ -26,7 +26,7 @@ from pyapprox.surrogates.functiontrain.statistics import (
 from pyapprox.util.backends.numpy import NumpyBkd
 from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.util.backends.torch import TorchBkd
-from pyapprox.util.test_utils import load_tests  # noqa: F401
+from pyapprox.util.test_utils import load_tests, slow_test  # noqa: F401
 
 
 class TestFunctionTrainMoments(Generic[Array], unittest.TestCase):
@@ -360,6 +360,7 @@ class TestFunctionTrainMoments(Generic[Array], unittest.TestCase):
         basis = OrthonormalPolynomialBasis(bases_1d, bkd, indices)
         return BasisExpansion(basis, bkd, nqoi=1)
 
+    @slow_test
     def test_genz_gaussian_peak_mean_variance(self) -> None:
         """Test FT mean/variance against analytical for Genz Gaussian Peak.
 

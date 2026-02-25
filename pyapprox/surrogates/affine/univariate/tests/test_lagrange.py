@@ -18,6 +18,7 @@ from pyapprox.surrogates.affine.univariate.lagrange import (
 from pyapprox.util.backends.numpy import NumpyBkd
 from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.util.backends.torch import TorchBkd
+from pyapprox.util.test_utils import slow_test
 
 
 class TestLagrangeBasis1D(Generic[Array], unittest.TestCase):
@@ -419,6 +420,10 @@ class TestLagrangeBasis1DTorch(TestLagrangeBasis1D[torch.Tensor]):
 
     def bkd(self) -> TorchBkd:
         return TorchBkd()
+
+    @slow_test
+    def test_call_shape(self) -> None:
+        super().test_call_shape()
 
 
 class TestLagrangeFunctionsTorch(TestLagrangeFunctions[torch.Tensor]):

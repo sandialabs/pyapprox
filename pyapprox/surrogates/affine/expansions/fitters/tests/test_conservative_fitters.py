@@ -35,7 +35,7 @@ from pyapprox.surrogates.affine.univariate import create_bases_1d
 from pyapprox.util.backends.numpy import NumpyBkd
 from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.util.backends.torch import TorchBkd
-from pyapprox.util.test_utils import load_tests  # noqa: F401
+from pyapprox.util.test_utils import load_tests, slow_test  # noqa: F401
 
 
 class TestConservativeFitters(Generic[Array], unittest.TestCase):
@@ -128,6 +128,7 @@ class TestConservativeFitters(Generic[Array], unittest.TestCase):
             self._bkd.asarray([2.5]),
         )
 
+    @slow_test
     def test_lstsq_conservative_500_trials(self) -> None:
         """ConservativeLstSqFitter: risk(surrogate) >= risk(data) for 500 trials.
 
@@ -261,6 +262,7 @@ class TestConservativeFitters(Generic[Array], unittest.TestCase):
             self._bkd.asarray([0.75]),
         )
 
+    @slow_test
     def test_quantile_conservative_500_trials(self) -> None:
         """ConservativeQuantileFitter: risk(surrogate) >= risk(data) for 500 trials.
 
@@ -380,6 +382,10 @@ class TestConservativeFittersTorch(TestConservativeFitters[torch.Tensor]):
     def setUp(self) -> None:
         torch.set_default_dtype(torch.float64)
         super().setUp()
+
+    @slow_test
+    def test_different_quantiles_affect_conservativeness(self) -> None:
+        super().test_different_quantiles_affect_conservativeness()
 
 
 if __name__ == "__main__":

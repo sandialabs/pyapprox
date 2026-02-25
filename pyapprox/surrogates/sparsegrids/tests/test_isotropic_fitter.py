@@ -57,7 +57,12 @@ from pyapprox.surrogates.sparsegrids.tests.test_helpers import (
 from pyapprox.util.backends.numpy import NumpyBkd
 from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.util.backends.torch import TorchBkd
-from pyapprox.util.test_utils import load_tests  # noqa: F401
+from pyapprox.util.test_utils import (  # noqa: F401
+    load_tests,
+    slow_test,
+    slower_test,
+    slowest_test,
+)
 
 # =============================================================================
 # Parametrized test configurations
@@ -229,6 +234,7 @@ class TestIsotropicFitter(Generic[Array], unittest.TestCase):
     def setUp(self) -> None:
         self._bkd = self.bkd()
 
+    @slow_test
     def test_interpolation(self) -> None:
         """Test sparse grid interpolation via PCE with matching index set."""
         from scipy import stats
@@ -473,6 +479,7 @@ class TestFitterInterpolation(Generic[Array], ParametrizedTestCase, unittest.Tes
         "name,joint_config,level",
         GAUSS_INTERPOLATION_CONFIGS,
     )
+    @slow_test
     def test_gauss_interpolation(
         self, name: str, joint_config: str, level: int
     ) -> None:
@@ -513,6 +520,7 @@ class TestFitterInterpolation(Generic[Array], ParametrizedTestCase, unittest.Tes
         "name,joint_config,level",
         CC_INTERPOLATION_CONFIGS,
     )
+    @slower_test
     def test_cc_interpolation(self, name: str, joint_config: str, level: int) -> None:
         """Test Clenshaw-Curtis fitter exactly interpolates PCE."""
         joint = create_test_joint(joint_config, self._bkd)
@@ -658,6 +666,7 @@ class TestFitterMultiQoI(Generic[Array], ParametrizedTestCase, unittest.TestCase
         "name,joint_config,level,nqoi",
         MULTI_QOI_CONFIGS,
     )
+    @slowest_test
     def test_multi_qoi_interpolation(
         self, name: str, joint_config: str, level: int, nqoi: int
     ) -> None:
@@ -752,6 +761,7 @@ class TestFitterPiecewiseInterpolation(
             ("cubic_convergence", "piecewise_cubic", 10.0),
         ],
     )
+    @slower_test
     def test_piecewise_convergence_rate(
         self, name: str, basis_type: str, expected_min_ratio: float
     ) -> None:
@@ -827,6 +837,7 @@ class TestFitterMixedInterpolation(
         "name,joint_config,level,basis_types",
         MIXED_BASIS_INTERPOLATION_CONFIGS,
     )
+    @slow_test
     def test_mixed_interpolation_error(
         self,
         name: str,
@@ -1040,6 +1051,10 @@ class TestFitterDerivativesTorch(TestFitterDerivatives[torch.Tensor]):
     def setUp(self) -> None:
         torch.set_default_dtype(torch.float64)
         super().setUp()
+
+    @slow_test
+    def test_derivative_checker(self) -> None:
+        super().test_derivative_checker()
 
 
 if __name__ == "__main__":

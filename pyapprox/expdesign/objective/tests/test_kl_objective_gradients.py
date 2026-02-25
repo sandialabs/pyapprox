@@ -28,7 +28,7 @@ from pyapprox.interface.functions.fromcallable.jacobian import (
 from pyapprox.util.backends.numpy import NumpyBkd
 from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.util.backends.torch import TorchBkd
-from pyapprox.util.test_utils import load_tests  # noqa: F401
+from pyapprox.util.test_utils import load_tests, slow_test  # noqa: F401
 
 
 class TestKLOEDObjectiveGradientsStandalone(
@@ -271,6 +271,7 @@ class TestKLOEDObjectiveGradientsStandalone(
 
         self._bkd.assert_allclose(result_call, result_eval, rtol=1e-12)
 
+    @slow_test
     def test_deterministic(self) -> None:
         """Test KLOEDObjective evaluation is deterministic."""
         obj = self._create_kl_objective(self._nobs, self._ninner, self._nouter)
@@ -353,6 +354,10 @@ class TestKLOEDObjectiveGradientsStandaloneTorch(
     def bkd(self) -> TorchBkd:
         torch.set_default_dtype(torch.float64)
         return TorchBkd()
+
+    @slow_test
+    def test_eig_increases_with_more_observations(self) -> None:
+        super().test_eig_increases_with_more_observations()
 
 
 if __name__ == "__main__":

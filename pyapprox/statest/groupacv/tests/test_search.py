@@ -18,7 +18,7 @@ from pyapprox.statest.statistics import MultiOutputMean
 from pyapprox.statest.strategies import AllSubsetsStrategy
 from pyapprox.util.backends.protocols import Array
 from pyapprox.util.backends.torch import TorchBkd
-from pyapprox.util.test_utils import load_tests  # noqa: F401
+from pyapprox.util.test_utils import load_tests, slow_test  # noqa: F401
 
 
 class TestGroupACVSearch(Generic[Array], unittest.TestCase):
@@ -60,6 +60,7 @@ class TestGroupACVSearch(Generic[Array], unittest.TestCase):
         self.assertIsInstance(result, GroupACVSearchResult)
         self.assertEqual(result.candidates_evaluated(), 1)
 
+    @slow_test
     def test_multiple_estimator_types(self) -> None:
         """Search multiple estimator types."""
         search = GroupACVSearch(
@@ -71,6 +72,7 @@ class TestGroupACVSearch(Generic[Array], unittest.TestCase):
 
         self.assertEqual(result.candidates_evaluated(), 2)
 
+    @slow_test
     def test_model_subset_search(self) -> None:
         """Model subset search."""
         stat, costs = self._create_stat_and_costs(nmodels=4)
@@ -94,6 +96,7 @@ class TestGroupACVSearch(Generic[Array], unittest.TestCase):
         search = GroupACVSearch(self._stat, self._costs)
         self.assertIs(search.bkd(), self._bkd)
 
+    @slow_test
     def test_search_result_methods(self) -> None:
         """Test GroupACVSearchResult methods."""
         search = GroupACVSearch(

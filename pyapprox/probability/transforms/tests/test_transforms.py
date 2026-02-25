@@ -30,6 +30,7 @@ from pyapprox.probability.univariate import (
 from pyapprox.util.backends.numpy import NumpyBkd
 from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.util.backends.torch import TorchBkd
+from pyapprox.util.test_utils import load_tests, slow_test  # noqa: F401
 
 
 class TestAffineTransform(Generic[Array], unittest.TestCase):
@@ -612,6 +613,7 @@ class TestNatafTransformNonGaussian(Generic[Array], unittest.TestCase):
         x_recovered = self.transform.map_from_canonical(z)
         self.assertTrue(self._bkd.allclose(x, x_recovered, rtol=1e-4))
 
+    @slow_test
     def test_canonical_is_approximately_normal(self) -> None:
         """Test canonical samples are approximately standard normal.
 

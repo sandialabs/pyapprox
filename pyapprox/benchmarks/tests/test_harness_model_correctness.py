@@ -19,6 +19,7 @@ from pyapprox.benchmarks.tests.harnesses import verify_jacobian_fd
 from pyapprox.util.backends.numpy import NumpyBkd
 from pyapprox.util.backends.protocols import Array
 from pyapprox.util.test_utils import (  # noqa: F401
+    slowest_test,
     load_tests,
     slow_test,
     slower_test,
@@ -177,6 +178,7 @@ class TestPDESlowJacobiansNumpy(TestPDESlowJacobians[NDArray[Any]]):
 # ---------------------------------------------------------------------------
 
 
+@slowest_test
 class TestJacobianCoverage(unittest.TestCase):
     """Verify that all HasJacobian benchmarks are covered by harness tests."""
 

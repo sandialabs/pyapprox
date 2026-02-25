@@ -32,7 +32,7 @@ from pyapprox.surrogates.affine.univariate import create_bases_1d
 from pyapprox.util.backends.numpy import NumpyBkd
 from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.util.backends.torch import TorchBkd
-from pyapprox.util.test_utils import load_tests  # noqa: F401
+from pyapprox.util.test_utils import load_tests, slow_test  # noqa: F401
 
 
 class TestOMPFitter(Generic[Array], unittest.TestCase):
@@ -338,6 +338,10 @@ class TestOMPFitterTorch(TestOMPFitter[torch.Tensor]):
     def setUp(self) -> None:
         torch.set_default_dtype(torch.float64)
         super().setUp()
+
+    @slow_test
+    def test_fit_returns_omp_result(self) -> None:
+        super().test_fit_returns_omp_result()
 
 
 if __name__ == "__main__":

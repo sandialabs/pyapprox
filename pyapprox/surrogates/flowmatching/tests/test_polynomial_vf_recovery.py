@@ -44,6 +44,7 @@ from pyapprox.surrogates.flowmatching.quad_data import (
 from pyapprox.util.backends.numpy import NumpyBkd
 from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.util.backends.torch import TorchBkd
+from pyapprox.util.test_utils import slow_test
 
 
 def _make_vf(bkd, d, degree, m=0):
@@ -165,6 +166,7 @@ class TestPolynomialVFRecovery(Generic[Array], ParametrizedTestCase, unittest.Te
         bkd.assert_allclose(lstsq_coef, opt_coef, atol=1e-4)
 
     @parametrize("d", [(1,), (2,)])
+    @slow_test
     def test_with_conditioning(self, d: int) -> None:
         """Recovery should work with conditioning variables present."""
         bkd = self._bkd

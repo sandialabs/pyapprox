@@ -25,7 +25,11 @@ from pyapprox.benchmarks.tests.harnesses import (
 )
 from pyapprox.util.backends.numpy import NumpyBkd
 from pyapprox.util.backends.protocols import Array
-from pyapprox.util.test_utils import load_tests, slow_test  # noqa: F401
+from pyapprox.util.test_utils import (
+    load_tests,  # noqa: F401
+    slow_test,
+    slowest_test,
+)
 
 # Benchmarks with HasReferenceMean + HasPrior
 _MEAN_BENCHMARK_NAMES = [
@@ -234,6 +238,7 @@ class TestForwardUQVarianceNightlyNumpy(TestForwardUQVarianceNightly[NDArray[Any
 # ---------------------------------------------------------------------------
 
 
+@slowest_test
 class TestForwardUQCoverage(unittest.TestCase):
     """Verify all HasReferenceMean/HasReferenceVariance benchmarks covered."""
 

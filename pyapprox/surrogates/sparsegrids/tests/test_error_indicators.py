@@ -46,7 +46,11 @@ from pyapprox.surrogates.sparsegrids.subspace_factory import (
 from pyapprox.util.backends.numpy import NumpyBkd
 from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.util.backends.torch import TorchBkd
-from pyapprox.util.test_utils import load_tests  # noqa: F401
+from pyapprox.util.test_utils import (
+    load_tests,  # noqa: F401
+    slow_test,
+    slower_test,
+)
 
 # =============================================================================
 # Helper: build CandidateInfo from a selected index set + candidate
@@ -247,6 +251,10 @@ class TestL2SurrogateDifferenceTorch(TestL2SurrogateDifference[torch.Tensor]):
     def setUp(self) -> None:
         torch.set_default_dtype(torch.float64)
         super().setUp()
+
+    @slow_test
+    def test_nonzero_for_underresolved_function(self) -> None:
+        super().test_nonzero_for_underresolved_function()
 
 
 # =============================================================================
@@ -479,6 +487,7 @@ class TestCostWeighted(Generic[Array], unittest.TestCase):
     def setUp(self) -> None:
         self._bkd = self.bkd()
 
+    @slower_test
     def test_cost_divides_priority(self) -> None:
         """Cost weighting divides priority by subspace_cost."""
 

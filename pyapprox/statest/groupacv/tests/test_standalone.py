@@ -49,6 +49,7 @@ from pyapprox.util.optional_deps import package_available
 from pyapprox.util.test_utils import (
     allocate_with_allocator,
     load_tests,  # noqa: F401
+    slow_test,
     slower_test,
 )
 
@@ -858,6 +859,7 @@ class TestPilotSampleInsertion(Generic[Array], ParametrizedTestCase):
         "nmodels,min_nhf_samples",
         [(2, 11), (3, 11), (4, 11)],
     )
+    @slow_test
     def test_insert_pilot_samples(self, nmodels: int, min_nhf_samples: int):
         """Test that pilot values can be correctly inserted."""
         from pyapprox.statest.groupacv.allocation import (
@@ -1543,6 +1545,7 @@ class TestGradientOptimization(Generic[Array], ParametrizedTestCase):
             (3, 1, 2),
         ],
     )
+    @slow_test
     def test_gradient_optimization(self, nmodels: int, min_nhf_samples: int, nqoi: int):
         """Test full optimization loop with GroupACVAllocationOptimizer."""
         np.random.seed(1)
@@ -1674,6 +1677,7 @@ class TestGroupACVAllocationOptimizer(
         "nmodels,nqoi",
         [(2, 1), (3, 1), (2, 2)],
     )
+    @slow_test
     def test_allocator_various_configurations(self, nmodels: int, nqoi: int):
         """Test allocator with various model/qoi configurations."""
         from pyapprox.statest.groupacv.allocation import (
@@ -1697,6 +1701,22 @@ class TestGroupACVAllocationOptimizerTorchOnly(
     def bkd(self) -> TorchBkd:
         torch.set_default_dtype(torch.float64)
         return TorchBkd()
+
+    @slow_test
+    def test_allocator_produces_valid_result(self):
+        super().test_allocator_produces_valid_result()
+
+    @slow_test
+    def test_allocator_set_allocation_integration(self):
+        super().test_allocator_set_allocation_integration()
+
+    @slow_test
+    def test_allocator_respects_budget(self):
+        super().test_allocator_respects_budget()
+
+    @slow_test
+    def test_allocator_with_mlblue_objective(self):
+        super().test_allocator_with_mlblue_objective()
 
 
 class TestGroupACVRecoversMLBLUE(
@@ -1757,6 +1777,7 @@ class TestGroupACVRecoversMLBLUE(
         "nmodels",
         [(2,), (3,), (4,)],
     )
+    @slow_test
     def test_groupacv_autograd_recovers_mlblue_analytical(self, nmodels: int):
         """Test GroupACV with autograd jacobian matches MLBLUE analytical jacobian.
 

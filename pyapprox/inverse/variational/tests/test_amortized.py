@@ -635,6 +635,7 @@ class TestAmortizedTorch(TestAmortizedBase[torch.Tensor], unittest.TestCase):
 
     # --- DerivativeChecker tests (Torch-only, require autograd) ---
 
+    @slow_test
     def test_amortized_elbo_derivative_checker(self) -> None:
         """DerivativeChecker on ELBO with ConditionalIndependentJoint."""
         from pyapprox.interface.functions.derivative_checks.derivative_checker import (

@@ -45,7 +45,7 @@ from pyapprox.surrogates.affine.univariate import create_bases_1d
 from pyapprox.util.backends.numpy import NumpyBkd
 from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.util.backends.torch import TorchBkd
-from pyapprox.util.test_utils import load_tests  # noqa: F401
+from pyapprox.util.test_utils import load_tests, slow_test, slower_test  # noqa: F401
 
 
 class TestStochasticDominanceFitters(Generic[Array], unittest.TestCase):
@@ -726,6 +726,14 @@ class TestStochasticDominanceFittersTorch(TestStochasticDominanceFitters[torch.T
     def setUp(self) -> None:
         torch.set_default_dtype(torch.float64)
         super().setUp()
+
+    @slower_test
+    def test_fitted_surrogate_evaluates(self) -> None:
+        super().test_fitted_surrogate_evaluates()
+
+    @slow_test
+    def test_fsd_fitter_with_shift(self) -> None:
+        super().test_fsd_fitter_with_shift()
 
 
 if __name__ == "__main__":

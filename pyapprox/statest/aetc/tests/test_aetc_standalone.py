@@ -22,6 +22,7 @@ from pyapprox.util.test_utils import (
     load_tests,  # noqa: F401
     slow_test,
     slower_test,
+    slowest_test,
 )
 
 
@@ -957,6 +958,7 @@ class TestExploreStep(Generic[Array], unittest.TestCase):
 
         return AETCBLUE(models, ensemble.rvs, costs, oracle_stats=None, bkd=self._bkd)
 
+    @slower_test
     def test_explore_step_returns_tuple(self) -> None:
         """Test _explore_step returns tuple with correct length."""
         aetcblue = self._create_aetcblue()
@@ -971,6 +973,7 @@ class TestExploreStep(Generic[Array], unittest.TestCase):
         self.assertIsInstance(result, tuple)
         self.assertEqual(len(result), 12)
 
+    @slowest_test
     def test_explore_result_structure(self) -> None:
         """Test explore result has correct element types."""
         aetcblue = self._create_aetcblue()
@@ -1048,6 +1051,7 @@ class TestExploitProducesMean(Generic[Array], unittest.TestCase):
 
         return AETCBLUE(models, ensemble.rvs, costs, oracle_stats=None, bkd=self._bkd)
 
+    @slower_test
     def test_exploit_returns_scalar(self) -> None:
         """Test exploit returns a scalar mean value."""
         aetcblue = self._create_aetcblue()
@@ -1068,6 +1072,7 @@ class TestExploitProducesMean(Generic[Array], unittest.TestCase):
             or (hasattr(mean, "shape") and mean.shape == ())
         )
 
+    @slower_test
     def test_exploit_mean_is_finite(self) -> None:
         """Test exploit returns finite mean."""
         aetcblue = self._create_aetcblue()
@@ -1123,6 +1128,7 @@ class TestFullEstimatePipeline(Generic[Array], unittest.TestCase):
 
         return AETCBLUE(models, ensemble.rvs, costs, oracle_stats=None, bkd=self._bkd)
 
+    @slow_test
     def test_estimate_returns_tuple(self) -> None:
         """Test estimate returns (mean, values, result)."""
         aetcblue = self._create_aetcblue()
@@ -1148,6 +1154,7 @@ class TestFullEstimatePipeline(Generic[Array], unittest.TestCase):
         # result_tuple should be tuple
         self.assertIsInstance(result_tuple, tuple)
 
+    @slow_test
     def test_estimate_returns_dict(self) -> None:
         """Test estimate with return_dict=True returns dict."""
         aetcblue = self._create_aetcblue()
@@ -1178,6 +1185,7 @@ class TestFullEstimatePipeline(Generic[Array], unittest.TestCase):
         }
         self.assertEqual(set(result_dict.keys()), expected_keys)
 
+    @slow_test
     def test_sigma_matches_sample_covariance(self) -> None:
         """Test sigma_S from result matches sample covariance (assertion 2.1)."""
         aetcblue = self._create_aetcblue()
@@ -1203,6 +1211,7 @@ class TestFullEstimatePipeline(Generic[Array], unittest.TestCase):
         # sigma_S from result should match
         self._bkd.assert_allclose(result["sigma_S"], expected_sigma_S, rtol=1e-10)
 
+    @slow_test
     def test_blue_variance_formula(self) -> None:
         """Test BLUE_variance is computed correctly (assertions 2.2, 2.3)."""
         from pyapprox.statest.groupacv import MLBLUEEstimator

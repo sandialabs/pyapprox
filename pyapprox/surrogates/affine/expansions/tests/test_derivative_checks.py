@@ -46,6 +46,7 @@ from pyapprox.surrogates.affine.univariate import (
 from pyapprox.util.backends.numpy import NumpyBkd
 from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.util.backends.torch import TorchBkd
+from pyapprox.util.test_utils import load_tests, slow_test  # noqa: F401
 
 
 class TestDerivativeCheckerLegendre(Generic[Array], unittest.TestCase):
@@ -209,6 +210,10 @@ class TestDerivativeCheckerLegendreTorch(TestDerivativeCheckerLegendre[torch.Ten
     def setUp(self):
         torch.set_default_dtype(torch.float64)
         super().setUp()
+
+    @slow_test
+    def test_hessian_1d(self):
+        super().test_hessian_1d()
 
 
 class TestDerivativeCheckerHermite(Generic[Array], unittest.TestCase):
@@ -1055,6 +1060,7 @@ class TestJacobianWrtParams(Generic[Array], unittest.TestCase):
         marginals = [UniformMarginal(-1.0, 1.0, bkd) for _ in range(nvars)]
         return create_pce_from_marginals(marginals, max_level, bkd, nqoi=nqoi)
 
+    @slow_test
     def test_jacobian_wrt_params_1d(self):
         """Test jacobian_wrt_params for 1D expansion with nqoi=1."""
         bkd = self._bkd

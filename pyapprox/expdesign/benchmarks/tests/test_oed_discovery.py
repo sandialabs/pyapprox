@@ -25,7 +25,10 @@ from pyapprox.benchmarks.registry import BenchmarkRegistry
 from pyapprox.util.backends.numpy import NumpyBkd
 from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.util.backends.torch import TorchBkd
-from pyapprox.util.test_utils import load_tests  # noqa: F401
+from pyapprox.util.test_utils import (
+    load_tests,  # noqa: F401
+    slowest_test,
+)
 
 
 class TestOEDDiscovery(Generic[Array], unittest.TestCase):
@@ -39,6 +42,7 @@ class TestOEDDiscovery(Generic[Array], unittest.TestCase):
     def setUp(self):
         self._bkd = self.bkd()
 
+    @slowest_test
     def test_has_observation_model_names(self):
         names = BenchmarkRegistry.names_satisfying(
             HasObservationModel,
@@ -52,6 +56,7 @@ class TestOEDDiscovery(Generic[Array], unittest.TestCase):
         ]:
             self.assertIn(expected, names)
 
+    @slowest_test
     def test_has_observation_model_and_prior(self):
         names = BenchmarkRegistry.names_satisfying(
             HasObservationModel,
@@ -66,6 +71,7 @@ class TestOEDDiscovery(Generic[Array], unittest.TestCase):
         ]:
             self.assertIn(expected, names)
 
+    @slowest_test
     def test_has_prediction_model_names(self):
         names = BenchmarkRegistry.names_satisfying(
             HasObservationModel,
@@ -81,6 +87,7 @@ class TestOEDDiscovery(Generic[Array], unittest.TestCase):
             self.assertIn(expected, names)
         self.assertNotIn("linear_gaussian_oed", names)
 
+    @slowest_test
     def test_has_exact_eig_names(self):
         names = BenchmarkRegistry.names_satisfying(
             HasExactEIG,

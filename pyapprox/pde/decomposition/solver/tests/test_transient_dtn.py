@@ -60,7 +60,7 @@ from pyapprox.pde.decomposition.solver import (
 from pyapprox.pde.decomposition.subdomain import SubdomainWrapper
 from pyapprox.util.backends.numpy import NumpyBkd
 from pyapprox.util.backends.protocols import Array, Backend
-from pyapprox.util.test_utils import load_tests  # noqa: F401
+from pyapprox.util.test_utils import load_tests, slow_test  # noqa: F401
 
 
 class ManufacturedSolution1DWithForcingSymmetric:
@@ -2217,6 +2217,7 @@ class TestDtN3DWithForcing(unittest.TestCase):
             res_norm, 1e-9, f"3D forcing residual {res_norm} should be < 1e-9"
         )
 
+    @slow_test
     def test_3d_forcing_solver_converges(self):
         """Test DtN solver converges for 3D problem with forcing."""
         bkd = self.bkd

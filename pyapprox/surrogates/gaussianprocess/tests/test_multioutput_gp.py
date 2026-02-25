@@ -36,6 +36,7 @@ from pyapprox.surrogates.kernels.scalings import PolynomialScaling
 from pyapprox.util.backends.numpy import NumpyBkd
 from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.util.backends.torch import TorchBkd
+from pyapprox.util.test_utils import slow_test
 
 
 class TestMultiOutputGPWithIndependentKernel(Generic[Array], unittest.TestCase):
@@ -497,6 +498,7 @@ class TestMultiOutputGPOptimization(unittest.TestCase):
             "Hyperparameters should change during optimization",
         )
 
+    @slow_test
     def test_lmc_kernel_optimization(self) -> None:
         """Test optimization with LinearCoregionalizationKernel."""
         n_train = 30

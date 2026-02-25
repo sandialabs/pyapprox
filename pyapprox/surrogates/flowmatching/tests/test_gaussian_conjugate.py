@@ -54,7 +54,7 @@ from pyapprox.surrogates.flowmatching.quad_data import (
 from pyapprox.util.backends.numpy import NumpyBkd
 from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.util.backends.torch import TorchBkd
-from pyapprox.util.test_utils import slow_test
+from pyapprox.util.test_utils import slow_test, slower_test
 
 
 def _conjugate_params(d, m):
@@ -164,6 +164,7 @@ class TestGaussianConjugate(Generic[Array], ParametrizedTestCase, unittest.TestC
         self._bkd = self.bkd()
 
     @parametrize("d,m", [(1, 1), (2, 1)])
+    @slower_test
     def test_loss_decreases_with_degree(self, d: int, m: int) -> None:
         """Training loss decreases monotonically; degree-4 loss < 1e-4."""
         bkd = self._bkd
@@ -190,6 +191,7 @@ class TestGaussianConjugate(Generic[Array], ParametrizedTestCase, unittest.TestC
         self.assertLess(losses[-1], 1e-4)
 
     @parametrize("d,m", [(1, 1)])
+    @slow_test
     def test_fitters_agree(self, d: int, m: int) -> None:
         """Both fitters achieve similar loss."""
         bkd = self._bkd

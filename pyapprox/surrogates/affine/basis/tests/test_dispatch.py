@@ -23,7 +23,7 @@ from pyapprox.util.backends.numpy import NumpyBkd
 from pyapprox.util.backends.protocols import Array
 from pyapprox.util.backends.torch import TorchBkd
 from pyapprox.util.optional_deps import package_available
-from pyapprox.util.test_utils import load_tests  # noqa: F401
+from pyapprox.util.test_utils import load_tests, slow_test  # noqa: F401
 
 if not package_available("numba"):
     raise unittest.SkipTest("numba not installed")
@@ -644,6 +644,26 @@ class TestBasisDispatchIntegrationTorch(
     def setUp(self):
         torch.set_default_dtype(torch.float64)
         super().setUp()
+
+    @slow_test
+    def test_eval_shape(self):
+        super().test_eval_shape()
+
+    @slow_test
+    def test_jacobian_finite_difference(self):
+        super().test_jacobian_finite_difference()
+
+    @slow_test
+    def test_hessian_symmetry(self):
+        super().test_hessian_symmetry()
+
+    @slow_test
+    def test_hessian_finite_difference(self):
+        super().test_hessian_finite_difference()
+
+    @slow_test
+    def test_eval_orthonormality(self):
+        super().test_eval_orthonormality()
 
 
 if __name__ == "__main__":

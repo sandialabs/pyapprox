@@ -22,7 +22,7 @@ from pyapprox.pde.collocation.time_integration import CollocationModel
 from pyapprox.util.backends.numpy import NumpyBkd
 from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.util.backends.torch import TorchBkd
-from pyapprox.util.test_utils import load_tests  # noqa: F401
+from pyapprox.util.test_utils import load_tests, slow_test  # noqa: F401
 
 # ======================================================================
 # Helpers
@@ -334,3 +334,7 @@ class TestStressPostProcessor2DTorch(
     def bkd(self) -> TorchBkd:
         torch.set_default_dtype(torch.float64)
         return TorchBkd()
+
+    @slow_test
+    def test_radial_stress_lame(self):
+        super().test_radial_stress_lame()

@@ -59,7 +59,7 @@ from pyapprox.surrogates.sparsegrids.subspace_factory import (
 from pyapprox.util.backends.numpy import NumpyBkd
 from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.util.backends.torch import TorchBkd
-from pyapprox.util.test_utils import load_tests  # noqa: F401
+from pyapprox.util.test_utils import load_tests, slow_test  # noqa: F401
 
 # =============================================================================
 # Helpers
@@ -388,6 +388,10 @@ class TestMFAdaptiveTorch(TestMFAdaptive[torch.Tensor]):
     def setUp(self) -> None:
         torch.set_default_dtype(torch.float64)
         super().setUp()
+
+    @slow_test
+    def test_mf_adaptive_cost_weighted_indicator(self) -> None:
+        super().test_mf_adaptive_cost_weighted_indicator()
 
 
 # =============================================================================

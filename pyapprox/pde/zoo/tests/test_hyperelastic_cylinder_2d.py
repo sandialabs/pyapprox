@@ -56,7 +56,7 @@ from pyapprox.pde.zoo.pressurized_cylinder_2d import (
 from pyapprox.util.backends.numpy import NumpyBkd
 from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.util.backends.torch import TorchBkd
-from pyapprox.util.test_utils import load_tests  # noqa: F401
+from pyapprox.util.test_utils import load_tests, slow_test  # noqa: F401
 
 # ======================================================================
 # Helpers
@@ -123,6 +123,7 @@ def _make_outer_wall_functional(bkd, mesh, npts, nparams):
 # ======================================================================
 
 
+@slow_test
 class TestHyperelasticCylinder2D(Generic[Array], unittest.TestCase):
     """Tests for 2D hyperelastic pressurized cylinder."""
 

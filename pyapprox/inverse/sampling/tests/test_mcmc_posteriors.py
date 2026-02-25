@@ -28,6 +28,11 @@ from pyapprox.inverse.sampling.tests.test_distributions import (
 from pyapprox.util.backends.numpy import NumpyBkd
 from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.util.backends.torch import TorchBkd
+from pyapprox.util.test_utils import (
+    load_tests,  # noqa: F401
+    slow_test,
+    slower_test,
+)
 
 
 class TestMCMCPosteriorBase(Generic[Array], unittest.TestCase):
@@ -163,6 +168,7 @@ class TestMCMCPosteriorBase(Generic[Array], unittest.TestCase):
             "DRAM sample mean should be close to true mean",
         )
 
+    @slower_test
     def test_banana_distribution_hmc(self) -> None:
         """Test HMC on banana-shaped (non-Gaussian) distribution."""
         np.random.seed(111)
@@ -333,6 +339,10 @@ class TestMCMCPosteriorTorch(TestMCMCPosteriorBase[torch.Tensor]):
 
     def bkd(self) -> TorchBkd:
         return self._bkd
+
+    @slow_test
+    def test_diagnostics_on_converged_chain(self) -> None:
+        super().test_diagnostics_on_converged_chain()
 
 
 if __name__ == "__main__":

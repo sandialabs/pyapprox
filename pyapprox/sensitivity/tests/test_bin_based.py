@@ -419,6 +419,38 @@ class TestBinBasedSensitivityTorch(TestBinBasedSensitivity[torch.Tensor]):
         torch.set_default_dtype(torch.float64)
         super().setUp()
 
+    @slower_test
+    def test_bootstrap_uncertainty(self):
+        super().test_bootstrap_uncertainty()
+
+    @slower_test
+    def test_second_order_indices_ishigami(self):
+        super().test_second_order_indices_ishigami()
+
+    @slow_test
+    def test_custom_nbins(self):
+        super().test_custom_nbins()
+
+    @slow_test
+    def test_main_effects_sobol_g(self):
+        super().test_main_effects_sobol_g()
+
+    @slow_test
+    def test_third_order_indices(self):
+        super().test_third_order_indices()
+
+    @slow_test
+    def test_main_effects_ishigami(self):
+        super().test_main_effects_ishigami()
+
+    @slow_test
+    def test_mean_and_variance(self):
+        super().test_mean_and_variance()
+
+    @slow_test
+    def test_multi_qoi(self):
+        super().test_multi_qoi()
+
 
 class TestIshigamiBenchmark(Generic[Array], unittest.TestCase):
     """Test bin-based sensitivity indices against Ishigami function benchmark.

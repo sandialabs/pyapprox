@@ -23,6 +23,7 @@ from pyapprox.inverse.sampling import (
 from pyapprox.util.backends.numpy import NumpyBkd
 from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.util.backends.torch import TorchBkd
+from pyapprox.util.test_utils import load_tests, slow_test  # noqa: F401
 
 
 class TestBetaConjugateMCMC(Generic[Array], unittest.TestCase):
@@ -222,6 +223,7 @@ class TestGaussianConjugateMCMC(Generic[Array], unittest.TestCase):
     def bkd(self) -> Backend[Array]:
         raise NotImplementedError
 
+    @slow_test
     def test_gaussian_conjugate_metropolis(self) -> None:
         """Test Metropolis-Hastings matches Gaussian posterior mean/cov."""
         np.random.seed(789)

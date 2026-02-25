@@ -19,7 +19,7 @@ from pyapprox.surrogates.affine.expansions.pce_density import (
 from pyapprox.util.backends.numpy import NumpyBkd
 from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.util.backends.torch import TorchBkd
-from pyapprox.util.test_utils import load_tests  # noqa: F401
+from pyapprox.util.test_utils import load_tests, slow_test  # noqa: F401
 
 
 class TestPiecewiseDensityBasis(Generic[Array], unittest.TestCase):
@@ -210,3 +210,7 @@ class TestPiecewiseDensityBasisTorch(TestPiecewiseDensityBasis[torch.Tensor]):
     def bkd(self) -> TorchBkd:
         torch.set_default_dtype(torch.float64)
         return TorchBkd()
+
+    @slow_test
+    def test_mass_matrix_quadratic_vs_numerical(self) -> None:
+        super().test_mass_matrix_quadratic_vs_numerical()

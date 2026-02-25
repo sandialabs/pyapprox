@@ -52,7 +52,7 @@ from pyapprox.surrogates.kernels.matern import (
 from pyapprox.util.backends.numpy import NumpyBkd
 from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.util.backends.torch import TorchBkd
-from pyapprox.util.test_utils import load_tests  # noqa: F401
+from pyapprox.util.test_utils import load_tests, slow_test  # noqa: F401
 
 
 class TestPushforwardDensity(Generic[Array], unittest.TestCase):
@@ -524,3 +524,7 @@ class TestPushforwardDensityTorch(TestPushforwardDensity[torch.Tensor]):
     def bkd(self) -> TorchBkd:
         torch.set_default_dtype(torch.float64)
         return TorchBkd()
+
+    @slow_test
+    def test_l1_convergence_nbasis(self) -> None:
+        super().test_l1_convergence_nbasis()

@@ -28,7 +28,11 @@ from pyapprox.surrogates.mfnets.registry import create_node_model
 from pyapprox.util.backends.numpy import NumpyBkd
 from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.util.backends.torch import TorchBkd
-from pyapprox.util.test_utils import load_tests  # noqa: F401
+from pyapprox.util.test_utils import (
+    load_tests,  # noqa: F401
+    slow_test,
+    slower_test,
+)
 
 
 def _build_two_node_mfnet(
@@ -137,6 +141,7 @@ class TestRecovery(Generic[Array], unittest.TestCase):
         fit_out = result.surrogate()(test_s)
         bkd.assert_allclose(fit_out, true_out, atol=1e-6)
 
+    @slower_test
     def test_gradient_recovers_two_node(self) -> None:
         """Gradient fitter should recover predictions for a 2-node network."""
         bkd = self._bkd
@@ -269,6 +274,10 @@ class TestRecoveryTorch(TestRecovery[torch.Tensor]):
     def bkd(self) -> TorchBkd:
         torch.set_default_dtype(torch.float64)
         return TorchBkd()
+
+    @slow_test
+    def test_als_recovers_three_node_chain(self) -> None:
+        super().test_als_recovers_three_node_chain()
 
 
 if __name__ == "__main__":

@@ -51,7 +51,11 @@ from pyapprox.surrogates.sparsegrids.tests.test_helpers import (
 from pyapprox.util.backends.numpy import NumpyBkd
 from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.util.backends.torch import TorchBkd
-from pyapprox.util.test_utils import load_tests  # noqa: F401
+from pyapprox.util.test_utils import (
+    load_tests,  # noqa: F401
+    slow_test,
+    slower_test,
+)
 
 # =============================================================================
 # Core functionality tests
@@ -172,6 +176,10 @@ class TestAdaptiveFitterTorch(TestAdaptiveFitter[torch.Tensor]):
     def setUp(self) -> None:
         torch.set_default_dtype(torch.float64)
         super().setUp()
+
+    @slow_test
+    def test_3d_adaptive_grid(self) -> None:
+        super().test_3d_adaptive_grid()
 
 
 # =============================================================================
@@ -341,6 +349,7 @@ class TestAdaptiveAnisotropicRecovery(
         "name,joint_config,max_levels_1d,total_degree,growth_type,basis_type",
         ANISOTROPIC_CONFIGS,
     )
+    @slow_test
     def test_recovers_anisotropic_index_set(
         self,
         name: str,
@@ -430,6 +439,7 @@ ADDITIVE_CONFIGS = [
 ]
 
 
+@slower_test
 class TestAdaptiveAdditiveRecovery(
     Generic[Array], ParametrizedTestCase, unittest.TestCase
 ):

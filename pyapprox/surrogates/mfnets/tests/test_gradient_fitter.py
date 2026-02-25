@@ -31,7 +31,10 @@ from pyapprox.surrogates.mfnets.nodes import (
 from pyapprox.util.backends.numpy import NumpyBkd
 from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.util.backends.torch import TorchBkd
-from pyapprox.util.test_utils import load_tests  # noqa: F401
+from pyapprox.util.test_utils import (
+    load_tests,  # noqa: F401
+    slowest_test,
+)
 
 
 def _create_expansion(
@@ -125,6 +128,7 @@ class TestMFNetGradientFitter(Generic[Array], unittest.TestCase):
         self.assertEqual(val.shape[0], 1)
         self.assertEqual(val.shape[1], 1)
 
+    @slowest_test
     def test_gradient_fitter_fits(self) -> None:
         """Fit a 2-node MFNet and verify predictions recover truth."""
         bkd = self._bkd

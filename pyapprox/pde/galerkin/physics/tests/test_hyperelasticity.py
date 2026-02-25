@@ -30,6 +30,7 @@ from pyapprox.pde.galerkin.physics import HyperelasticityPhysics
 from pyapprox.pde.galerkin.solvers.steady_state import SteadyStateSolver
 from pyapprox.util.backends.numpy import NumpyBkd
 from pyapprox.util.backends.protocols import Array, Backend
+from pyapprox.util.test_utils import load_tests, slow_test  # noqa: F401
 
 
 def _to_dense(mat, bkd):
@@ -438,6 +439,10 @@ class TestHyperelasticity3DNumpy(TestHyperelasticity3DBase[NDArray[Any]]):
     def bkd(self) -> NumpyBkd:
         return NumpyBkd()
 
+    @slow_test
+    def test_residual_at_exact_solution_3d(self) -> None:
+        super().test_residual_at_exact_solution_3d()
+
 
 # =========================================================================
 # Shape Tests
@@ -521,6 +526,3 @@ class TestHyperelasticityShapes(unittest.TestCase):
         r = repr(physics)
         self.assertIn("HyperelasticityPhysics", r)
         self.assertIn("NeoHookeanStress", r)
-
-
-from pyapprox.util.test_utils import load_tests  # noqa: F401

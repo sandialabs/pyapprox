@@ -26,7 +26,7 @@ from pyapprox.expdesign.likelihood import GaussianOEDInnerLoopLikelihood
 from pyapprox.util.backends.numpy import NumpyBkd
 from pyapprox.util.backends.protocols import Array
 from pyapprox.util.backends.torch import TorchBkd
-from pyapprox.util.test_utils import load_tests  # noqa: F401
+from pyapprox.util.test_utils import load_tests, slow_test  # noqa: F401
 
 
 class TestDeviationMeasures(Generic[Array], unittest.TestCase):
@@ -272,6 +272,11 @@ class TestDeviationMeasuresTorch(TestDeviationMeasures[torch.Tensor]):
         torch.set_default_dtype(torch.float64)
         super().setUp()
 
+    @slow_test
+    def test_avar_constant_qoi(self):
+        super().test_avar_constant_qoi()
+
+    @slow_test
     def test_avar_jacobian_autodiff(self):
         """Test AVaR Jacobian using PyTorch autodiff."""
         # torch.compile donated buffers conflict with autograd jacobian

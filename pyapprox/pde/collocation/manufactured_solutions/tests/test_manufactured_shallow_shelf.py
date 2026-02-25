@@ -43,7 +43,7 @@ from pyapprox.pde.collocation.physics import ShallowShelfVelocityPhysics
 from pyapprox.util.backends.numpy import NumpyBkd
 from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.util.backends.torch import TorchBkd
-from pyapprox.util.test_utils import load_tests  # noqa: F401
+from pyapprox.util.test_utils import load_tests, slow_test  # noqa: F401
 
 
 class PhysicsDerivativeWrapper(Generic[Array]):
@@ -292,6 +292,7 @@ class TestShallowShelf2DParameterized(ParametrizedTestCase):
             ("variable_depth", "x**2 + y", "x + y**2", "0.0", "1.0 + 0.1*x", "1.0", 45),
         ],
     )
+    @slow_test
     def test_shallow_shelf_2d_residual(
         self, name, u_str, v_str, bed_str, depth_str, friction_str, npts_1d
     ):

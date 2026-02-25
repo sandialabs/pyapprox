@@ -20,6 +20,7 @@ from pyapprox.surrogates.tensorproduct import TensorProductInterpolant
 from pyapprox.util.backends.numpy import NumpyBkd
 from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.util.backends.torch import TorchBkd
+from pyapprox.util.test_utils import slow_test
 
 
 class TestTensorProductInterpolant(Generic[Array], unittest.TestCase):
@@ -363,6 +364,14 @@ class TestTensorProductInterpolantTorch(TestTensorProductInterpolant[torch.Tenso
 
     def bkd(self) -> TorchBkd:
         return TorchBkd()
+
+    @slow_test
+    def test_interpolates_at_nodes(self) -> None:
+        super().test_interpolates_at_nodes()
+
+    @slow_test
+    def test_hessian_shape(self) -> None:
+        super().test_hessian_shape()
 
 
 if __name__ == "__main__":

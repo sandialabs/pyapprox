@@ -56,7 +56,7 @@ from pyapprox.pde.collocation.time_integration import (
 from pyapprox.util.backends.numpy import NumpyBkd
 from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.util.backends.torch import TorchBkd
-from pyapprox.util.test_utils import load_tests  # noqa: F401
+from pyapprox.util.test_utils import load_tests, slow_test  # noqa: F401
 
 
 class PhysicsDerivativeWrapper(Generic[Array]):
@@ -326,6 +326,10 @@ class TestPolarADRTorch(TestPolarADR[torch.Tensor]):
     def setUp(self):
         torch.set_default_dtype(torch.float64)
 
+    @slow_test
+    def test_polar_adr_solve(self):
+        super().test_polar_adr_solve()
+
 
 # =============================================================================
 # Phase 2: Elliptical Transform + ADR Physics Tests
@@ -547,6 +551,7 @@ class TestTransientPolarADR(Generic[Array], unittest.TestCase):
             bcs.append(bc)
         physics.set_boundary_conditions(bcs)
 
+    @slow_test
     def test_transient_polar_backward_euler(self):
         """Test transient polar ADR with backward Euler.
 
@@ -650,6 +655,10 @@ class TestTransientPolarADRTorch(TestTransientPolarADR[torch.Tensor]):
 
     def setUp(self):
         torch.set_default_dtype(torch.float64)
+
+    @slow_test
+    def test_transient_polar_crank_nicolson(self):
+        super().test_transient_polar_crank_nicolson()
 
 
 # =============================================================================
@@ -904,6 +913,10 @@ class TestPolarHelmholtzTorch(TestPolarHelmholtz[torch.Tensor]):
     def setUp(self):
         torch.set_default_dtype(torch.float64)
 
+    @slow_test
+    def test_polar_helmholtz_solve(self):
+        super().test_polar_helmholtz_solve()
+
 
 # =============================================================================
 # Phase 6: Linear Elasticity on Polar Transform Tests
@@ -1079,6 +1092,14 @@ class TestPolarLinearElasticityTorch(TestPolarLinearElasticity[torch.Tensor]):
 
     def setUp(self):
         torch.set_default_dtype(torch.float64)
+
+    @slow_test
+    def test_polar_elasticity_solve(self):
+        super().test_polar_elasticity_solve()
+
+    @slow_test
+    def test_polar_elasticity_residual(self):
+        super().test_polar_elasticity_residual()
 
 
 if __name__ == "__main__":

@@ -19,7 +19,7 @@ from pyapprox.statest.search import (
 from pyapprox.statest.statistics import MultiOutputMean
 from pyapprox.util.backends.protocols import Array
 from pyapprox.util.backends.torch import TorchBkd
-from pyapprox.util.test_utils import load_tests  # noqa: F401
+from pyapprox.util.test_utils import load_tests, slow_test  # noqa: F401
 
 
 class TestUnifiedSearch(Generic[Array], unittest.TestCase):
@@ -69,6 +69,7 @@ class TestUnifiedSearch(Generic[Array], unittest.TestCase):
         self.assertIsNotNone(result.acv_objective)
         self.assertIsNone(result.groupacv_objective)
 
+    @slow_test
     def test_groupacv_only(self) -> None:
         """Search with GroupACV only."""
         groupacv_search = GroupACVSearch(
@@ -89,6 +90,7 @@ class TestUnifiedSearch(Generic[Array], unittest.TestCase):
         self.assertIsNone(result.acv_objective)
         self.assertIsNotNone(result.groupacv_objective)
 
+    @slow_test
     def test_both_families(self) -> None:
         """Search with both ACV and GroupACV."""
         acv_search = ACVSearch(
@@ -123,6 +125,7 @@ class TestUnifiedSearch(Generic[Array], unittest.TestCase):
         self.assertIn("Best overall", summary)
         self.assertIn("ACV best", summary)
 
+    @slow_test
     def test_comparison_summary_both_families(self) -> None:
         """comparison_summary includes both families when both searched."""
         acv_search = ACVSearch(self._stat, self._costs)

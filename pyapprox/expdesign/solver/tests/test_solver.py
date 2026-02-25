@@ -26,7 +26,7 @@ from pyapprox.expdesign.solver import (
 from pyapprox.util.backends.numpy import NumpyBkd
 from pyapprox.util.backends.protocols import Array
 from pyapprox.util.backends.torch import TorchBkd
-from pyapprox.util.test_utils import load_tests  # noqa: F401
+from pyapprox.util.test_utils import load_tests, slow_test  # noqa: F401
 
 
 class TestRelaxedKLOEDSolver(Generic[Array], unittest.TestCase):
@@ -138,6 +138,10 @@ class TestRelaxedKLOEDSolverNumpy(TestRelaxedKLOEDSolver[NDArray[Any]]):
 
     def bkd(self) -> NumpyBkd:
         return NumpyBkd()
+
+    @slow_test
+    def test_solve_multistart(self):
+        super().test_solve_multistart()
 
 
 class TestRelaxedKLOEDSolverTorch(TestRelaxedKLOEDSolver[torch.Tensor]):

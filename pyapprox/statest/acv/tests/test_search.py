@@ -27,7 +27,7 @@ from pyapprox.statest.strategies import (
 )
 from pyapprox.util.backends.protocols import Array
 from pyapprox.util.backends.torch import TorchBkd
-from pyapprox.util.test_utils import load_tests  # noqa: F401
+from pyapprox.util.test_utils import load_tests, slow_test  # noqa: F401
 
 
 class TestACVSearch(Generic[Array], unittest.TestCase):
@@ -79,6 +79,7 @@ class TestACVSearch(Generic[Array], unittest.TestCase):
         result = search.search(target_cost=10000.0, allow_failures=True)
         self.assertGreater(result.candidates_evaluated(), 1)
 
+    @slow_test
     def test_acv_search_qoi_subset_only(self) -> None:
         """QoI subset search works."""
         stat, costs = self._create_stat_and_costs(nmodels=3, nqoi=3)
@@ -90,6 +91,7 @@ class TestACVSearch(Generic[Array], unittest.TestCase):
         result = search.search(target_cost=1000.0, allow_failures=True)
         self.assertGreater(result.candidates_evaluated(), 1)
 
+    @slow_test
     def test_acv_search_qoi_with_required(self) -> None:
         """QoI subset search with required_qoi works."""
         stat, costs = self._create_stat_and_costs(nmodels=3, nqoi=4)

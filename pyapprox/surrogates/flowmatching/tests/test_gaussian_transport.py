@@ -41,6 +41,7 @@ from pyapprox.surrogates.flowmatching.quad_data import (
 from pyapprox.util.backends.numpy import NumpyBkd
 from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.util.backends.torch import TorchBkd
+from pyapprox.util.test_utils import slow_test
 
 
 def _gaussian_params(d):
@@ -104,6 +105,7 @@ class TestGaussianTransport(Generic[Array], ParametrizedTestCase, unittest.TestC
         self._bkd = self.bkd()
 
     @parametrize("d", [(1,), (2,)])
+    @slow_test
     def test_loss_decreases_with_degree(self, d: int) -> None:
         """Training loss decreases monotonically; degree-4 loss < 1e-4."""
         bkd = self._bkd

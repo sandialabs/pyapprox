@@ -49,7 +49,7 @@ from pyapprox.pde.collocation.time_integration import CollocationModel
 from pyapprox.util.backends.numpy import NumpyBkd
 from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.util.backends.torch import TorchBkd
-from pyapprox.util.test_utils import load_tests  # noqa: F401
+from pyapprox.util.test_utils import load_tests, slow_test  # noqa: F401
 
 
 class PhysicsDerivativeWrapper(Generic[Array]):
@@ -385,6 +385,7 @@ class TestHyperelasticity3D(Generic[Array], unittest.TestCase):
     def bkd(self) -> Backend[Array]:
         raise NotImplementedError
 
+    @slow_test
     def test_residual_polynomial_3d(self):
         """Residual = 0 at exact polynomial solution."""
         bkd = self.bkd()

@@ -30,7 +30,7 @@ from pyapprox.pde.collocation.time_integration import (
     TimeIntegrationConfig,
 )
 from pyapprox.util.backends.numpy import NumpyBkd
-from pyapprox.util.test_utils import load_tests  # noqa: F401
+from pyapprox.util.test_utils import load_tests, slow_test  # noqa: F401
 
 
 class TestShallowShelfVelocityPhysics(PhysicsTestBase):
@@ -167,6 +167,7 @@ class TestShallowShelfVelocityPhysics(PhysicsTestBase):
         residual = physics.residual(state, time=0.0)
         self.assertEqual(residual.shape[0], physics.nstates())
 
+    @slow_test
     def test_residual_at_manufactured_solution(self):
         """Verify residual is near zero at manufactured solution.
 
