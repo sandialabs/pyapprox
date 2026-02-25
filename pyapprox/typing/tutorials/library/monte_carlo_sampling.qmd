@@ -47,7 +47,7 @@ Complete [Random Variables & Distributions](random_variables_distributions.qmd) 
 
 ## Setup: The Beam Model and Prior
 
-Throughout this tutorial we use a **1D Euler--Bernoulli beam** as a fast surrogate for the more expensive 2D finite-element cantilever beam model introduced in the [beam model tutorial](beam_model_introduction.qmd). The 1D simplification captures the essential physics --- spatially varying bending stiffness, tip deflection, stress, and curvature --- while running in about 1 ms per sample, making the Monte Carlo experiments below feasible.
+Throughout this tutorial we use a **1D Euler--Bernoulli beam** as a fast surrogate for a more expensive 2D finite-element cantilever beam model. The 1D simplification captures the essential physics --- spatially varying bending stiffness, tip deflection, stress, and curvature --- while running in about 1 ms per sample, making the Monte Carlo experiments below feasible.
 
 The bending stiffness $EI(x)$ is modeled by a two-term Karhunen--Lo\`eve expansion (KLE). The two uncertain parameters $\xi_1, \xi_2 \sim \mathcal{N}(0,1)$ control the dominant modes of the stiffness field. The model returns three QoIs: tip deflection, integrated bending stress, and maximum curvature.
 
@@ -501,5 +501,4 @@ But we have not yet explained *how fast* the estimates improve or how to predict
 
 Continue with:
 
-- [Surrogate Models](surrogate_models.qmd) --- Replacing the expensive model with a cheap approximation
-- [Sensitivity Analysis](sensitivity_analysis.qmd) --- Identifying which parameters drive output uncertainty
+- [Sensitivity Analysis](sensitivity_analysis_concept.qmd) --- Identifying which parameters drive output uncertainty

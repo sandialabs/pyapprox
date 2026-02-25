@@ -572,7 +572,7 @@ The observation sits right in the middle of the predictive distribution. The inf
 - The **accept/reject** mechanism uses only the *ratio* of posterior densities, so the normalizing constant is never needed
 - The chain's histogram converges to the posterior distribution, which we verified against the exact grid solution in both 1D and 2D
 - The **posterior predictive check** is a simple but powerful diagnostic: if the data is inconsistent with the posterior predictions, something is wrong
-- The chain's behavior depends on choices we haven't addressed: proposal size, burn-in length, number of steps --- these are the subject of the [next tutorial](practical_mcmc.qmd)
+- The chain's behavior depends on choices we haven't addressed: proposal size, burn-in length, number of steps --- these are the subject of the [next tutorial](dram_mcmc.qmd)
 
 
 ## Exercises
@@ -590,5 +590,4 @@ The observation sits right in the middle of the predictive distribution. The inf
 
 Continue with:
 
-- [Practical MCMC: Metropolis-Hastings and DRAM](practical_mcmc.qmd) --- Tuning proposals, adaptive methods, and convergence diagnostics
-- [Surrogate-Accelerated Inference](surrogate_inference.qmd) --- Using PCE to make likelihood evaluations cheap
+- [Practical MCMC: Metropolis-Hastings and DRAM](dram_mcmc.qmd) --- Tuning proposals, adaptive methods, and convergence diagnostics

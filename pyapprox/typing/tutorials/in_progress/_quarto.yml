@@ -16,31 +16,9 @@ website:
       style: "docked"
       search: true
       contents:
-        - section: "Getting Started"
-          contents:
-            - uq_problem_framing.qmd
-        - section: "Forward UQ"
-          contents:
-            - forward_model_definition.qmd
-            - quantities_of_interest.qmd
         - section: "Inverse Problems"
           contents:
             - hamiltonian_mcmc.qmd
-        - section: "FunctionTrain"
-          contents:
-            - functiontrain_pce.qmd
-            - functiontrain_moments_math.qmd
-            - functiontrain_moments.qmd
-        - section: "Multifidelity"
-          contents:
-            - multioutput_statistics.qmd
-            - multioutput_statistics_usage.qmd
-            - pacv_estimators.qmd
-            - pacv_recursion_analysis.qmd
-        - section: "Multi-Fidelity Surrogates"
-          contents:
-            - mfnet_concept.qmd
-            - mfnet_usage.qmd
         - section: "GP Statistics"
           contents:
             - gp_marginalization.qmd
@@ -55,9 +33,7 @@ website:
             - optimal_experimental_design.qmd
             - optimization_under_uncertainty.qmd
             - backend_alternatives.qmd
-            - benchmark_setup.qmd
             - ode_integration.qmd
-            - beam_model_introduction.qmd
 
 format:
   html:

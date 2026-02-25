@@ -414,4 +414,4 @@ The corner plot reveals the full dependence structure at a glance: the strong co
 Continue with:
 
 - [Monte Carlo Sampling](monte_carlo_sampling.qmd) --- Propagating these distributions through the beam model
-- [Sensitivity Analysis](sensitivity_analysis.qmd) --- Determining which parameter drives output uncertainty
+- [Sensitivity Analysis](sensitivity_analysis_concept.qmd) --- Determining which parameter drives output uncertainty

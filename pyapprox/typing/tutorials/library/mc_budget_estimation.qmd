@@ -514,5 +514,4 @@ plt.show()
 
 Continue with:
 
-- [Multi-Fidelity Monte Carlo](multi_fidelity.qmd) --- Using cheap surrogate models to reduce the constant in the $1/M$ rate
-- [Surrogate Models](surrogate_models.qmd) --- Replacing the expensive model with a polynomial or Gaussian process approximation
+- [Multi-Fidelity Monte Carlo](control_variate_concept.qmd) --- Using cheap surrogate models to reduce the constant in the $1/M$ rate

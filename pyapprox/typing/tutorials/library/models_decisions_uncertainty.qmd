@@ -494,5 +494,3 @@ A prediction that ignores this variability is, at best, incomplete — and at wo
 Continue with:
 
 - [Random Variables & Distributions](random_variables_distributions.qmd) -- Specifying parameter uncertainty mathematically
-- [Discretization Error](discretization_error_concept.qmd) -- Mesh refinement and numerical accuracy
-- [Model Misspecification](model_misspecification_concept.qmd) -- When the model itself is wrong

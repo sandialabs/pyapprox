@@ -46,7 +46,7 @@ After completing this tutorial, you will be able to:
 ## Prerequisites
 
 Complete [MLBLUE Concept](mlblue_concept.qmd) before this tutorial.
-The [General ACV Usage](acv_many_models_usage.qmd) tutorial establishes the
+The [General ACV Usage](acv_usage.qmd) tutorial establishes the
 pilot / allocate / generate / evaluate workflow that MLBLUE shares exactly.
 
 

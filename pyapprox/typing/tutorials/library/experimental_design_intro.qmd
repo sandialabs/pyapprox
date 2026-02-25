@@ -619,5 +619,4 @@ print(f"EIG (tip + tip):     {eig_tip_tip:.4f} nats")
 
 Continue with:
 
-- [Bayesian Optimal Experimental Design](bayesian_oed.qmd) --- Systematic optimization of experiments using EIG
-- [Alphabetical Optimal Design](alphabetical_oed.qmd) --- Frequentist approach: A-optimality, D-optimality, and their connections to EIG
+- [Bayesian Optimal Experimental Design](boed_kl_concept.qmd) --- Systematic optimization of experiments using EIG

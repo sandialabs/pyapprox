@@ -526,8 +526,7 @@ The MSE formulas above assume we know the true moments --- $\boldsymbol{\Sigma}$
 Continue with:
 
 - [Monte Carlo Budget Estimation](mc_budget_estimation.qmd) --- Estimating how many samples you need in practice
-- [Surrogate Models](surrogate_models.qmd) --- Replacing the expensive model with a cheap approximation
-- [Multi-Fidelity Methods](multi_fidelity.qmd) --- Combining models of different cost and accuracy
+- [Multi-Fidelity Methods](control_variate_concept.qmd) --- Combining models of different cost and accuracy
 
 
 ## References

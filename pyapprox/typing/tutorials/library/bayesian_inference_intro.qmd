@@ -309,7 +309,7 @@ print(f"Noise std dev:       {sigma_noise}")
 
 ::: {.callout-note}
 ## Inverse crime
-We generated the data from the same model we will use for inference. In a real problem, the model is only an approximation of reality, so the "true" data-generating process differs from the model. Using the same model for both is called an **inverse crime** --- it makes inference look easier than it really is. We use it here for pedagogical clarity, and address model discrepancy in a [later tutorial](model_discrepancy.qmd).
+We generated the data from the same model we will use for inference. In a real problem, the model is only an approximation of reality, so the "true" data-generating process differs from the model. Using the same model for both is called an **inverse crime** --- it makes inference look easier than it really is. We use it here for pedagogical clarity.
 :::
 
 
@@ -737,5 +737,3 @@ For one parameter, grid evaluation with trapezoidal integration gives the exact 
 Continue with:
 
 - [Markov Chain Monte Carlo](mcmc_sampling.qmd) --- Sampling the posterior in higher dimensions
-- [Surrogate-Accelerated Inference](surrogate_inference.qmd) --- Using PCE to make likelihood evaluations cheap
-- [Model Discrepancy](model_discrepancy.qmd) --- What happens when the model is wrong

@@ -43,8 +43,7 @@ After completing this tutorial, you will be able to:
 
 ## Prerequisites
 
-Complete [An Introduction to Function Trains](function_train_intro.qmd) and
-[Fitting a Function Train](function_train_fitting.qmd) before this tutorial.
+Complete [An Introduction to Function Trains](function_train_surrogates.qmd) before this tutorial.
 
 
 ## Setup: Fit a Function Train
@@ -439,9 +438,7 @@ The FT achieves lower error than MC for the same computational budget because:
 
 ## Next Steps
 
-- [Fitting a Function Train](function_train_fitting.qmd) --- Alternating Least Squares
-  (ALS) for fitting an FT to expensive model data
 - [UQ with Polynomial Chaos](uq_with_pce.qmd) --- The same UQ workflow for a standard
   PCE surrogate; compare moment formulas and marginalization approaches
-- [An Introduction to Function Trains](function_train_intro.qmd) --- Build intuition
+- [An Introduction to Function Trains](function_train_surrogates.qmd) --- Build intuition
   for low-rank structure, cores, and the matrix-product representation

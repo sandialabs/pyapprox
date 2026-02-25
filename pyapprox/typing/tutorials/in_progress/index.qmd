@@ -11,48 +11,11 @@ These tutorials have not yet been validated. They may contain errors, incomplete
 
 ## Tutorial Catalog
 
-### Getting Started
-
-| Tutorial | Description | Prerequisites |
-|----------|-------------|---------------|
-| [UQ Problem Framing](uq_problem_framing.qmd) | Core concepts of uncertainty quantification | Setup |
-
-### Forward UQ
-
-| Tutorial | Description | Prerequisites |
-|----------|-------------|---------------|
-| [Forward Model Definition](forward_model_definition.qmd) | Define and evaluate forward models | Setup |
-| [Quantities of Interest](quantities_of_interest.qmd) | Extract meaningful outputs from models | Forward Model |
-
 ### Inverse Problems
 
 | Tutorial | Description | Prerequisites |
 |----------|-------------|---------------|
 | [Hamiltonian MCMC](hamiltonian_mcmc.qmd) | Advanced MCMC sampling | Bayesian Calibration |
-
-### FunctionTrain
-
-| Tutorial | Description | Prerequisites |
-|----------|-------------|---------------|
-| [FunctionTrain PCE](functiontrain_pce.qmd) | FT-based polynomial chaos | FT Intro |
-| [FunctionTrain Moments (Math)](functiontrain_moments_math.qmd) | Theory of moment computation | FT Intro |
-| [FunctionTrain Moments](functiontrain_moments.qmd) | Computing moments with FT | FT Moments Math |
-
-### Multifidelity
-
-| Tutorial | Description | Prerequisites |
-|----------|-------------|---------------|
-| [Multioutput Statistics](multioutput_statistics.qmd) | Statistics for vector QoIs | MC Basics |
-| [Multioutput Statistics Usage](multioutput_statistics_usage.qmd) | Using multioutput statistics | Multioutput Statistics |
-| [PACV Estimators](pacv_estimators.qmd) | Parameterized ACV | ACV Framework |
-| [PACV Recursion Analysis](pacv_recursion_analysis.qmd) | Recursive PACV analysis | PACV |
-
-### Multi-Fidelity Surrogates
-
-| Tutorial | Description | Prerequisites |
-|----------|-------------|---------------|
-| [Multi-Fidelity Networks](mfnet_concept.qmd) | DAG-based multi-fidelity surrogates: concept and theory | Polynomial Chaos |
-| [Multi-Fidelity Networks: Usage](mfnet_usage.qmd) | Build, fit, and evaluate MFNets with the PyApprox API | MFNet Concept |
 
 ### GP Statistics
 
@@ -73,6 +36,4 @@ These tutorials have not yet been validated. They may contain errors, incomplete
 | [Optimal Experimental Design](optimal_experimental_design.qmd) | Information-theoretic design | GP Surrogates |
 | [Optimization Under Uncertainty](optimization_under_uncertainty.qmd) | Risk-aware optimization | MC Basics |
 | [Backend Alternatives](backend_alternatives.qmd) | Using PyTorch backend | Setup |
-| [Benchmark Setup](benchmark_setup.qmd) | Creating custom UQ benchmarks | Forward Model |
 | [ODE Integration](ode_integration.qmd) | ODE integration infrastructure | Forward Model |
-| [Beam Model Introduction](beam_model_introduction.qmd) | Cantilever beam model running example | Setup |

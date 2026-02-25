@@ -665,7 +665,7 @@ Based on what we've seen:
 
 ::: {.callout-note}
 ## When MCMC is too expensive
-Each MCMC step requires one model evaluation. For this 1D cantilever beam with a fast FEM solver, 5,000 evaluations are trivial. But for a 3D FEM model that takes minutes per evaluation, 5,000 evaluations is prohibitive. The [surrogate-accelerated inference](surrogate_inference.qmd) tutorial shows how to replace the expensive model with a PCE inside the MCMC loop, reducing the cost by orders of magnitude.
+Each MCMC step requires one model evaluation. For this 1D cantilever beam with a fast FEM solver, 5,000 evaluations are trivial. But for a 3D FEM model that takes minutes per evaluation, 5,000 evaluations is prohibitive. In such cases, replacing the expensive model with a polynomial chaos surrogate inside the MCMC loop can reduce the cost by orders of magnitude.
 :::
 
 
@@ -690,9 +690,3 @@ Each MCMC step requires one model evaluation. For this 1D cantilever beam with a
 4. **(Challenge)** Add a second observation (stress measurement in addition to deflection) to the 2D problem. How does the posterior shape change? Does DRAM still outperform standard MH?
 
 
-## Next Steps
-
-Continue with:
-
-- [Surrogate-Accelerated Inference](surrogate_inference.qmd) --- Using PCE to make likelihood evaluations cheap
-- [Model Discrepancy](model_discrepancy.qmd) --- Accounting for model error in Bayesian inference

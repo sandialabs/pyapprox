@@ -44,14 +44,12 @@ After completing this tutorial, you will be able to:
 
 ## Prerequisites
 
-Complete [Multi-Output MC Concept](multioutput_mc_concept.qmd) and
-[General ACV Concept](acv_many_models_concept.qmd) before this tutorial.
+Complete [General ACV Concept](acv_many_models_concept.qmd) before this tutorial.
 
 
 ## The Surprising Benefit of Estimating Together
 
-[Multi-Output MC Analysis](multioutput_mc_analysis.qmd) showed that plain joint MC
-does not improve any individual QoI's variance: the $s$-th diagonal entry of the MC
+Plain joint MC does not improve any individual QoI's variance: the $s$-th diagonal entry of the MC
 covariance matrix is $\boldsymbol{\Sigma}_{0,ss}/N$, identical to running scalar MC
 for that QoI alone.
 

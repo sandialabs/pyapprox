@@ -45,7 +45,6 @@ After completing this tutorial, you will be able to:
 Complete:
 
 - [Sobol Sensitivity Analysis](sobol_sensitivity_analysis.qmd)
-- [FunctionTrain Moments (Math)](functiontrain_moments_math.qmd)
 
 ## Sobol Index Definitions
 

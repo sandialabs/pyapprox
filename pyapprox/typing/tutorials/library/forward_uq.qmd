@@ -509,4 +509,4 @@ Continue with:
 
 - [Random Variables & Distributions](random_variables_distributions.qmd) --- Specifying input distributions mathematically
 - [Monte Carlo Sampling](monte_carlo_sampling.qmd) --- The simplest method for estimating push-forward statistics
-- [Sensitivity Analysis](sensitivity_analysis.qmd) --- Identifying which inputs dominate the output uncertainty
+- [Sensitivity Analysis](sensitivity_analysis_concept.qmd) --- Identifying which inputs dominate the output uncertainty

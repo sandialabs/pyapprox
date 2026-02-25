@@ -45,7 +45,7 @@ After completing this tutorial, you will be able to:
 ## Prerequisites
 
 Complete [Pilot Studies Concept](pilot_studies_concept.qmd) before this tutorial.
-The [General ACV Usage](acv_many_models_usage.qmd) tutorial established the
+The [General ACV Usage](acv_usage.qmd) tutorial established the
 `allocate → generate → evaluate → call` pattern; this tutorial adds the pilot stage
 at the beginning.
 

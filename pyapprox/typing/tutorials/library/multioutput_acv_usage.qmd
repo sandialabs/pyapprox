@@ -45,7 +45,7 @@ After completing this tutorial, you will be able to:
 ## Prerequisites
 
 Complete [Multi-Output ACV Concept](multioutput_acv_concept.qmd) and
-[General ACV Usage](acv_many_models_usage.qmd) before this tutorial.
+[General ACV Usage](acv_usage.qmd) before this tutorial.
 The multi-output API is a direct extension of the scalar API established in those tutorials.
 
 

@@ -562,8 +562,7 @@ print(f"Output shape: {values.shape}")
 
 The FT above was initialised with small random coefficients, so its output is
 essentially random noise. In a real workflow we would **fit** the FT to training data
-from an expensive model. The tutorial
-[Fitting a Function Train](function_train_fitting.qmd) covers this step.
+from an expensive model using Alternating Least Squares (ALS).
 :::
 
 
@@ -735,8 +734,6 @@ by the function, not by the dimension**.
 
 ## Next Steps
 
-- [Fitting a Function Train](function_train_fitting.qmd) --- Use Alternating Least
-  Squares (ALS) to fit an FT to a collection of training data from an expensive model.
 - [UQ with Function Trains](uq_with_functiontrain.qmd) --- Exploit the PCE structure
   inside each core to compute means, variances, and Sobol indices analytically.
 - [Building a Polynomial Chaos Surrogate](polynomial_chaos_surrogates.qmd) --- Review
