@@ -1,0 +1,653 @@
+---
+title: "Derivative Checking"
+subtitle: "Validating Jacobians and Hessian-vector products with finite differences"
+format:
+  html:
+    toc: true
+    toc-depth: 3
+    code-fold: false
+---
+
+## Overview
+
+The PyApprox typing module provides a comprehensive derivative checking system to validate analytical derivatives against numerical finite difference approximations. This is essential for ensuring correctness of gradient computations used in optimization and uncertainty quantification.
+
+::: {.callout-important}
+## Why Check Derivatives?
+
+Incorrect derivative implementations are a common source of bugs in scientific computing. The `DerivativeChecker` catches these errors by comparing analytical derivatives to finite differences, which are slow but reliable.
+:::
+
+**What can be checked:**
+
+- **Jacobians** (first-order derivatives): ∇f(x)
+- **Jacobian-vector products (JVPs)**: J(x)·v
+- **Hessian-vector products (HVPs)**: H(x)·v
+- **Weighted HVPs**: w^T H(x) v (for multi-output functions)
+
+## Basic Usage
+
+### Checking a Simple Function
+
+```{python}
+#| eval: false
+from pyapprox.interface.functions.derivative_checks import DerivativeChecker
+from pyapprox.interface.functions.wrappers import (
+    FunctionWithJacobianAndHVPFromCallable
+)
+from pyapprox.util.backends.numpy import NumpyBkd
+import numpy as np
+
+bkd = NumpyBkd()
+
+# Define a simple quadratic function: f(x) = x₀³ + x₁²
+def value_function(x):
+    return bkd.reshape(x[0]**3 + x[1]**2, (1, x.shape[1]))
+
+def jacobian_function(x):
+    return bkd.stack([3 * x[0]**2, 2 * x[1]], axis=1)
+
+def hvp_function(x, v):
+    return bkd.stack([6 * x[0] * v[0], 2 * v[1]], axis=0)
+
+# Wrap the function
+function = FunctionWithJacobianAndHVPFromCallable(
+    nvars=2,
+    fun=value_function,
+    jacobian=jacobian_function,
+    hvp=hvp_function,
+    bkd=bkd
+)
+
+# Create checker
+checker = DerivativeChecker(function)
+
+# Check derivatives at a test point
+sample = bkd.asarray([[2.0, 1.0]]).T
+errors = checker.check_derivatives(sample)
+
+# Analyze results
+jac_error = errors[0]  # Jacobian errors
+hvp_error = errors[1]  # HVP errors
+
+print(f"Jacobian error ratio: {checker.error_ratio(jac_error):.2e}")
+print(f"HVP error ratio: {checker.error_ratio(hvp_error):.2e}")
+```
+
+**Output:**
+```
+Jacobian error ratio: 3.45e-08
+HVP error ratio: 1.12e-08
+```
+
+::: {.callout-tip}
+## Error Ratio
+
+The `error_ratio()` method computes the ratio of minimum error to maximum error across all finite difference step sizes. Values < 1e-6 typically indicate correct derivatives.
+:::
+
+## DerivativeChecker API
+
+### Constructor
+
+```python
+DerivativeChecker(function: FunctionWithJacobianOrJVPProtocol[Array])
+```
+
+**Parameters:**
+
+- `function`: Function object implementing the required protocol (must have `__call__` and either `jacobian` or `jvp` method)
+
+### Main Method: check_derivatives()
+
+```python
+check_derivatives(
+    sample: Array,
+    fd_eps: Optional[Array] = None,
+    direction: Optional[Array] = None,
+    relative: bool = True,
+    verbosity: int = 0,
+    weights: Optional[Array] = None
+) -> List[Array]
+```
+
+**Parameters:**
+
+- **`sample`**: Point at which to check derivatives, shape `(nvars, 1)`
+- **`fd_eps`**: Finite difference step sizes to try (default: 14 values from 10⁰ to 10⁻¹³)
+- **`direction`**: Direction vector for directional derivatives, shape `(nvars, 1)` (default: random unit vector)
+- **`relative`**: If True, compute relative errors normalized by gradient norm (default: True)
+- **`verbosity`**: Verbosity level:
+  - `0`: Silent
+  - `1`: Print error summary
+  - `2`: Print detailed results for each step size
+- **`weights`**: For multi-output functions, weights for weighted HVP, shape `(nqoi, 1)`
+
+**Returns:**
+
+List of error arrays:
+- `errors[0]`: Jacobian/JVP errors, shape `(n_fd_steps,)`
+- `errors[1]`: HVP errors (if function has HVP), shape `(n_fd_steps,)`
+
+Each error array contains the error for each finite difference step size.
+
+### Helper Methods
+
+**`error_ratio(errors: Array) -> float`**
+
+Compute ratio of minimum to maximum error:
+
+$$
+\text{ratio} = \frac{\min(\text{errors})}{\max(\text{errors})}
+$$
+
+Useful for assessing convergence. Good derivatives should achieve ratio < 1e-6.
+
+**`bkd() -> Backend[Array]`**
+
+Get the backend instance from the wrapped function.
+
+## Finite Difference Theory
+
+### Directional Derivative
+
+The checker validates directional derivatives using the **forward difference formula**:
+
+$$
+\nabla f(\mathbf{x}) \cdot \mathbf{v} \approx \frac{f(\mathbf{x} + \epsilon \mathbf{v}) - f(\mathbf{x})}{\epsilon}
+$$
+
+where:
+- $\mathbf{v}$ is a unit direction vector
+- $\epsilon$ is the finite difference step size
+
+### Error Analysis
+
+**Absolute error:**
+$$
+\text{error}_{\text{abs}} = \left\| \nabla f(\mathbf{x}) \cdot \mathbf{v} - \frac{f(\mathbf{x} + \epsilon \mathbf{v}) - f(\mathbf{x})}{\epsilon} \right\|
+$$
+
+**Relative error:**
+$$
+\text{error}_{\text{rel}} = \frac{\text{error}_{\text{abs}}}{\| \nabla f(\mathbf{x}) \cdot \mathbf{v} \|}
+$$
+
+### Optimal Step Size
+
+The optimal step size balances two sources of error:
+
+1. **Truncation error**: $O(\epsilon)$ for forward differences
+2. **Rounding error**: $O(\epsilon_{\text{machine}}/\epsilon)$ from floating point arithmetic
+
+Optimal step size is approximately:
+
+$$
+\epsilon_{\text{opt}} \approx \sqrt{\epsilon_{\text{machine}}} \approx 10^{-8} \text{ for float64}
+$$
+
+The checker tries multiple step sizes (default: 10⁰ to 10⁻¹³) and finds the minimum error.
+
+## Checking Jacobians
+
+### Using check_derivatives()
+
+```{python}
+#| eval: false
+from pyapprox.surrogates.gaussianprocess import ExactGaussianProcess
+from pyapprox.surrogates.kernels import MaternKernel
+
+# Create a Gaussian Process
+bkd = NumpyBkd()
+kernel = MaternKernel(2.5, [1.0, 1.0], (0.1, 10.0), nvars=2, bkd=bkd)
+gp = ExactGaussianProcess(kernel, bkd, noise_variance=0.01)
+
+# Fit to training data
+X_train = bkd.array(np.random.randn(2, 20))
+y_train = bkd.array(np.random.randn(20, 1))
+gp.fit(X_train, y_train)
+
+# Check derivatives
+checker = DerivativeChecker(gp)
+x0 = bkd.array([[0.5], [0.5]])
+
+# Custom step sizes (15 values)
+fd_eps = bkd.flip(bkd.logspace(-14, 0, 15))
+
+errors = checker.check_derivatives(
+    x0,
+    fd_eps=fd_eps,
+    relative=True,
+    verbosity=1  # Print summary
+)
+
+# Verify convergence
+jac_error = errors[0]
+assert checker.error_ratio(jac_error) < 1e-6, "Jacobian check failed!"
+```
+
+### Interpreting Results
+
+**Good convergence:**
+```
+Jacobian errors:
+  Step size 1.0e+00: error = 5.23e-01
+  Step size 1.0e-02: error = 5.12e-03
+  Step size 1.0e-04: error = 5.11e-05
+  Step size 1.0e-06: error = 5.10e-07  ← Minimum
+  Step size 1.0e-08: error = 5.15e-07
+  Step size 1.0e-10: error = 8.42e-06
+
+Error ratio: 5.10e-07 / 5.23e-01 = 9.75e-07 ✓
+```
+
+**Bad implementation (no convergence):**
+```
+Jacobian errors:
+  Step size 1.0e+00: error = 1.23e+02
+  Step size 1.0e-02: error = 1.19e+02
+  Step size 1.0e-04: error = 1.18e+02
+  Step size 1.0e-06: error = 1.18e+02
+
+Error ratio: 1.18e+02 / 1.23e+02 = 9.59e-01 ✗ (should be << 1)
+```
+
+## Checking Hessian-Vector Products
+
+### Single-Output Functions
+
+For functions with scalar output, use `hvp()`:
+
+```{python}
+#| eval: false
+# Function with Hessian
+def value_function(x):
+    return bkd.reshape(x[0]**3 + x[1]**2 + x[0]*x[1], (1, x.shape[1]))
+
+def jacobian_function(x):
+    return bkd.stack([
+        3*x[0]**2 + x[1],
+        2*x[1] + x[0]
+    ], axis=1)
+
+def hvp_function(x, v):
+    # H(x) = [[6*x₀, 1], [1, 2]]
+    return bkd.stack([
+        6*x[0]*v[0] + v[1],
+        v[0] + 2*v[1]
+    ], axis=0)
+
+function = FunctionWithJacobianAndHVPFromCallable(
+    nvars=2,
+    fun=value_function,
+    jacobian=jacobian_function,
+    hvp=hvp_function,
+    bkd=bkd
+)
+
+# Check both Jacobian and HVP
+checker = DerivativeChecker(function)
+errors = checker.check_derivatives(
+    bkd.array([[1.0], [2.0]]),
+    verbosity=2
+)
+
+print(f"Jacobian error: {checker.error_ratio(errors[0]):.2e}")
+print(f"HVP error: {checker.error_ratio(errors[1]):.2e}")
+```
+
+### Multi-Output Functions (Weighted HVP)
+
+For multi-output functions, check weighted HVP: $\mathbf{w}^T H(\mathbf{x}) \mathbf{v}$
+
+```{python}
+#| eval: false
+from pyapprox.interface.functions.wrappers import (
+    FunctionWithJacobianAndWHVPFromCallable
+)
+
+# Multi-output function: f(x) = [x₀², x₁²]
+def value_function(x):
+    return bkd.stack([x[0]**2, x[1]**2], axis=0).T
+
+def jacobian_function(x):
+    # Jacobian is (nsamples, nqoi, nvars)
+    nsamples = x.shape[1]
+    jac = bkd.zeros((nsamples, 2, 2))
+    jac[:, 0, 0] = 2 * x[0]  # ∂f₀/∂x₀
+    jac[:, 1, 1] = 2 * x[1]  # ∂f₁/∂x₁
+    return jac
+
+def whvp_function(x, v, w):
+    # w^T H v where H is block diagonal
+    # H₀ = [[2, 0], [0, 0]], H₁ = [[0, 0], [0, 2]]
+    return bkd.stack([
+        2 * w[0] * v[0],
+        2 * w[1] * v[1]
+    ], axis=0)
+
+function = FunctionWithJacobianAndWHVPFromCallable(
+    nvars=2,
+    nqoi=2,
+    fun=value_function,
+    jacobian=jacobian_function,
+    whvp=whvp_function,
+    bkd=bkd
+)
+
+# Specify weights for WHVP check
+weights = bkd.array([[1.0], [0.5]])
+
+checker = DerivativeChecker(function)
+errors = checker.check_derivatives(
+    bkd.array([[1.0], [2.0]]),
+    weights=weights,
+    verbosity=1
+)
+```
+
+## Advanced Usage
+
+### Custom Finite Difference Steps
+
+Use logarithmically spaced steps covering a wide range:
+
+```{python}
+#| eval: false
+# 20 step sizes from 10^0 to 10^(-15)
+fd_eps = bkd.flip(bkd.logspace(-15, 0, 20))
+
+errors = checker.check_derivatives(sample, fd_eps=fd_eps)
+```
+
+### Custom Direction Vector
+
+Test specific directional derivatives:
+
+```{python}
+#| eval: false
+# Check derivative in coordinate direction
+direction = bkd.array([[1.0], [0.0]])  # x₀ direction
+
+errors = checker.check_derivatives(
+    sample,
+    direction=direction
+)
+```
+
+### Multiple Random Directions
+
+Check multiple random directions for comprehensive validation:
+
+```{python}
+#| eval: false
+import numpy as np
+
+def check_multiple_directions(checker, sample, n_directions=10):
+    bkd = checker.bkd()
+    nvars = sample.shape[0]
+
+    max_error = 0.0
+    for i in range(n_directions):
+        # Random direction
+        direction = bkd.array(np.random.randn(nvars, 1))
+        direction /= bkd.norm(direction)
+
+        errors = checker.check_derivatives(
+            sample,
+            direction=direction,
+            verbosity=0
+        )
+
+        error_ratio = checker.error_ratio(errors[0])
+        max_error = max(max_error, error_ratio)
+
+    print(f"Maximum error ratio over {n_directions} directions: {max_error:.2e}")
+    return max_error
+
+max_error = check_multiple_directions(checker, sample)
+assert max_error < 1e-6, "Derivative check failed!"
+```
+
+### Verbosity Levels
+
+**Level 0 (Silent):**
+```{python}
+#| eval: false
+errors = checker.check_derivatives(sample, verbosity=0)
+# No output
+```
+
+**Level 1 (Summary):**
+```{python}
+#| eval: false
+errors = checker.check_derivatives(sample, verbosity=1)
+```
+Output:
+```
+Checking J derivatives
+  Minimum error: 3.45e-08 at step size 1.00e-06
+  Maximum error: 5.23e-01 at step size 1.00e+00
+  Error ratio: 6.60e-08
+```
+
+**Level 2 (Detailed):**
+```{python}
+#| eval: false
+errors = checker.check_derivatives(sample, verbosity=2)
+```
+Output:
+```
+Checking J derivatives
+  fd_eps = 1.0e+00: error = 5.23e-01
+  fd_eps = 1.0e-01: error = 5.12e-02
+  fd_eps = 1.0e-02: error = 5.11e-03
+  fd_eps = 1.0e-03: error = 5.11e-04
+  fd_eps = 1.0e-04: error = 5.10e-05
+  fd_eps = 1.0e-05: error = 5.10e-06
+  fd_eps = 1.0e-06: error = 5.10e-07
+  fd_eps = 1.0e-07: error = 5.15e-07
+  ...
+```
+
+## Testing Best Practices
+
+### 1. Test in setUp() or Dedicated Test
+
+```{python}
+#| eval: false
+import unittest
+from typing import Any, Generic
+from numpy.typing import NDArray
+import torch
+
+class TestMyKernel(Generic[Array], unittest.TestCase):
+    def bkd(self):
+        raise NotImplementedError
+
+    def setUp(self):
+        self._bkd = self.bkd()
+        self._kernel = MyKernel([1.0, 0.5], (0.1, 10.0), 2, self._bkd)
+
+    def test_jacobian_wrt_params(self):
+        """Check parameter Jacobian using DerivativeChecker."""
+        # Wrap kernel as function of parameters
+        def value_fn(params):
+            self._kernel.hyp_list().set_active_values(params)
+            X = self._bkd.array([[0.0, 0.5, 1.0], [0.0, 0.0, 0.0]])
+            K = self._kernel(X, X)
+            return self._bkd.reshape(K, (1, -1))
+
+        def jac_fn(params):
+            self._kernel.hyp_list().set_active_values(params)
+            X = self._bkd.array([[0.0, 0.5, 1.0], [0.0, 0.0, 0.0]])
+            jac = self._kernel.jacobian_wrt_params(X, X)
+            # Reshape to (nsamples, nparams)
+            return self._bkd.reshape(jac, (9, -1))
+
+        from pyapprox.interface.functions.wrappers import (
+            FunctionWithJacobianFromCallable
+        )
+
+        function = FunctionWithJacobianFromCallable(
+            nvars=self._kernel.hyp_list().nparams(),
+            nqoi=9,  # 3x3 kernel matrix flattened
+            fun=value_fn,
+            jacobian=jac_fn,
+            bkd=self._bkd
+        )
+
+        checker = DerivativeChecker(function)
+
+        # Current parameters
+        params = self._kernel.hyp_list().get_active_values()
+        params = self._bkd.reshape(params, (-1, 1))
+
+        # Check derivatives
+        errors = checker.check_derivatives(params, verbosity=0)
+
+        # Assert convergence
+        self.assertLess(checker.error_ratio(errors[0]), 1e-6)
+
+
+class TestMyKernelNumpy(TestMyKernel[NDArray[Any]]):
+    def bkd(self):
+        return NumpyBkd()
+
+
+class TestMyKernelTorch(TestMyKernel[torch.Tensor]):
+    def bkd(self):
+        return TorchBkd()
+```
+
+### 2. Use Appropriate Tolerances
+
+Different backends have different precision:
+
+```{python}
+#| eval: false
+# NumPy (float64): stricter tolerance
+if isinstance(self._bkd, NumpyBkd):
+    tolerance = 1e-8
+# PyTorch (float32): relaxed tolerance
+else:
+    tolerance = 1e-6
+
+self.assertLess(checker.error_ratio(errors[0]), tolerance)
+```
+
+### 3. Test Multiple Points
+
+```{python}
+#| eval: false
+def test_jacobian_multiple_points(self):
+    """Check Jacobian at multiple random points."""
+    checker = DerivativeChecker(self._function)
+
+    for i in range(5):
+        sample = self._bkd.array(np.random.randn(nvars, 1))
+        errors = checker.check_derivatives(sample, verbosity=0)
+
+        self.assertLess(
+            checker.error_ratio(errors[0]),
+            1e-6,
+            f"Jacobian check failed at point {i}"
+        )
+```
+
+## Common Issues and Debugging
+
+### Issue 1: Large Error Ratio (> 0.1)
+
+**Symptom:** Error ratio close to 1.0, no convergence
+
+**Causes:**
+- Incorrect analytical derivative implementation
+- Wrong array shapes in Jacobian
+- Sign error in derivative
+
+**Solution:**
+- Set `verbosity=2` to see all step sizes
+- Check derivative implementation manually
+- Verify array shapes match conventions
+
+### Issue 2: Moderate Error Ratio (1e-3 to 1e-6)
+
+**Symptom:** Some convergence but not achieving machine precision
+
+**Causes:**
+- Numerical instability in function evaluation
+- Very small or very large function values
+- Discontinuities or kinks
+
+**Solutions:**
+- Scale inputs/outputs to order 1
+- Check for numerical issues (overflow, underflow)
+- Increase `fd_eps` range to find better step sizes
+
+### Issue 3: Errors Increase for Small Step Sizes
+
+**Symptom:** Minimum error at moderate step size (~1e-6), then errors grow
+
+**Cause:** Rounding error dominating for very small step sizes
+
+**Solution:** This is expected! The minimum error is the true error. Use `error_ratio()` to find it.
+
+### Issue 4: Different Errors for Different Directions
+
+**Symptom:** Some directions pass, others fail
+
+**Causes:**
+- Anisotropic scaling in function
+- Derivative correct in some directions only
+- Numerical conditioning issues
+
+**Solution:**
+- Test multiple random directions
+- Check derivative implementation for all variables
+- Scale inputs to similar magnitudes
+
+## Implementation Details
+
+### How HVP Checking Works
+
+The checker validates HVPs by treating the Hessian as a "function":
+
+1. **Wrap gradient as function**: $g(\mathbf{x}) = \nabla f(\mathbf{x})$
+2. **HVP is JVP of gradient**: $H(\mathbf{x}) \mathbf{v} = \nabla g(\mathbf{x}) \cdot \mathbf{v}$
+3. **Check using same FD formula**:
+   $$
+   H(\mathbf{x}) \mathbf{v} \approx \frac{g(\mathbf{x} + \epsilon \mathbf{v}) - g(\mathbf{x})}{\epsilon}
+   $$
+
+This is implemented in `FunctionWithJVPFromHVP` wrapper.
+
+### Default Step Size Selection
+
+The default 14 step sizes are chosen to:
+
+1. Cover wide range: 10⁰ to 10⁻¹³
+2. Find optimal step size for float64 (~10⁻⁸)
+3. Observe both truncation and rounding error regimes
+4. Be logarithmically spaced for better coverage
+
+```{python}
+#| eval: false
+# Default in JVPChecker
+fd_eps = bkd.flip(bkd.logspace(-13, 0, 14))
+# [1e-13, 1e-12, ..., 1e-1, 1e0]
+```
+
+## See Also
+
+- **[Testing Conventions](testing-conventions.qmd)**: Backend-agnostic testing
+- **[Array Conventions](array-conventions.qmd)**: Jacobian shape conventions
+- **[API: Gaussian Processes](../api/gaussianprocess.qmd)**: GP derivative examples
+- **[Theory: Gaussian Processes](../theory/gaussian-processes.qmd)**: Hyperparameter gradients
+
+## References
+
+For the mathematical theory of finite differences and optimal step size selection:
+
+- Nocedal, J., & Wright, S. J. (2006). *Numerical Optimization*. Springer. Chapter 8: Derivative-Free Optimization.
+- Griewank, A., & Walther, A. (2008). *Evaluating Derivatives: Principles and Techniques of Algorithmic Differentiation*. SIAM.

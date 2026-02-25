@@ -1,0 +1,27 @@
+/* PyApprox UQ Tutorials - Custom Styles */
+
+/* Improve code block readability */
+pre code {
+  font-size: 0.9em;
+}
+
+/* Tutorial navigation improvements */
+.sidebar nav[role=doc-toc] ul > li > a.active {
+  border-left: 2px solid var(--bs-primary);
+  font-weight: 600;
+}
+
+/* Exercise styling */
+.callout-exercise {
+  border-left-color: #6c757d;
+}
+
+/* Key takeaway emphasis */
+.callout-tip {
+  border-left-color: #28a745;
+}
+
+/* Prerequisites callout */
+.callout-important {
+  border-left-color: #dc3545;
+}

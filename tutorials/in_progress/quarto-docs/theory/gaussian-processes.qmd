@@ -1,0 +1,369 @@
+---
+title: "Gaussian Processes"
+subtitle: "Fundamentals of Gaussian process regression"
+---
+
+## Introduction
+
+A **Gaussian Process** (GP) is a collection of random variables, any finite number of which have a joint Gaussian distribution. GPs provide a powerful framework for non-parametric Bayesian regression and uncertainty quantification.
+
+## Gaussian Process Definition
+
+### Function Space View
+
+A GP is a distribution over functions:
+
+$$
+f \sim \mathcal{GP}(m(\mathbf{x}), k(\mathbf{x}, \mathbf{x}'))
+$$ {#eq-gp-definition}
+
+specified by:
+
+- **Mean function** m(***x***) = E[f(***x***)]
+- **Kernel function** k(***x***, ***x***′) = Cov[f(***x***), f(***x***′)]
+
+### Finite-Dimensional Distribution
+
+For any finite set of points ***X*** = {***x***₁, ..., ***x***_n}:
+
+$$
+\mathbf{f} = [f(\mathbf{x}_1), \ldots, f(\mathbf{x}_n)]^\top \sim \mathcal{N}(\mathbf{m}, \mathbf{K})
+$$ {#eq-finite-gp}
+
+where:
+
+- ***m*** = [m(***x***₁), ..., m(***x***_n)]^⊤
+- ***K***_{ij} = k(***x***_i, ***x***_j)
+
+::: {.callout-note}
+## Zero Mean Assumption
+
+We typically assume m(***x***) = 0 without loss of generality, since we can always subtract a mean function. In practice, observations are often centered.
+:::
+
+## GP Regression
+
+### Problem Setup
+
+**Given**:
+
+- Training data: 𝒟 = {(***x***_i, y_i)}_{i=1}^n
+- Observations: ***y*** = [y₁, ..., y_n]^⊤
+- Noise model: y_i = f(***x***_i) + ε_i where ε_i ~ 𝒩(0, σ²_n)
+
+**Goal**: Predict f(***x***_*) at test point ***x***_*.
+
+### Prior Distribution
+
+Before seeing data:
+
+$$
+f(\mathbf{x}) \sim \mathcal{GP}(0, k(\mathbf{x}, \mathbf{x}'))
+$$ {#eq-prior}
+
+### Likelihood
+
+The observations ***y*** given function values ***f***:
+
+$$
+\mathbf{y} \mid \mathbf{f} \sim \mathcal{N}(\mathbf{f}, \sigma_n^2 \mathbf{I})
+$$ {#eq-likelihood}
+
+Marginalizing over ***f***:
+
+$$
+\mathbf{y} \sim \mathcal{N}(\mathbf{0}, \mathbf{K} + \sigma_n^2 \mathbf{I})
+$$ {#eq-marginal-likelihood}
+
+### Posterior Distribution
+
+**Key Result**: GP prior + Gaussian likelihood → GP posterior
+
+For test point ***x***_*:
+
+$$
+f_* \mid \mathbf{y}, \mathbf{X} \sim \mathcal{N}(\mu_*, \sigma_*^2)
+$$ {#eq-posterior}
+
+where:
+
+$$
+\begin{aligned}
+\mu_* &= \mathbf{k}_*^\top (\mathbf{K} + \sigma_n^2 \mathbf{I})^{-1} \mathbf{y} \\
+\sigma_*^2 &= k_{**} - \mathbf{k}_*^\top (\mathbf{K} + \sigma_n^2 \mathbf{I})^{-1} \mathbf{k}_*
+\end{aligned}
+$$ {#eq-predictive-mean-var}
+
+with:
+
+- ***k***_* = [k(***x***₁, ***x***_*), ..., k(***x***_n, ***x***_*)]^⊤
+- k_{**} = k(***x***_*, ***x***_*)
+
+::: {.callout-important}
+## Computational Bottleneck
+
+The matrix inverse (***K*** + σ²_n***I***)^{-1} costs O(n³) via Cholesky factorization. This limits GP regression to datasets with n ≲ 10,000 points.
+:::
+
+## Implementation
+
+### Training (Fitting)
+
+```{python}
+#| eval: false
+from pyapprox.surrogates.gaussianprocess import ExactGaussianProcess
+from pyapprox.surrogates.kernels import MaternKernel
+
+# Create kernel and GP
+kernel = MaternKernel(2.5, [1.0], (0.1, 10.0), nvars=1, bkd=bkd)
+gp = ExactGaussianProcess(kernel, bkd, noise_variance=0.01)
+
+# Fit to training data
+# X_train: shape (nvars, n_train)
+# y_train: shape (n_train, 1)
+gp.fit(X_train, y_train)
+```
+
+**Internal operations**:
+
+1. Compute ***K*** = k(***X***, ***X***)
+2. Add noise: ***K*** ← ***K*** + σ²_n***I***
+3. Cholesky: ***K*** = ***LL***^⊤
+4. Solve: ***α*** = ***L***^{-⊤}***L***^{-1}***y***
+5. Store ***L*** and ***α*** for predictions
+
+### Prediction
+
+```{python}
+#| eval: false
+# Predict at test points
+# X_test: shape (nvars, n_test)
+mean = gp.predict(X_test)  # Shape: (n_test, 1)
+
+# With uncertainty
+mean, std = gp.predict(X_test, return_std=True)
+```
+
+**Internal operations**:
+
+1. Compute ***k***_* = k(***X***, ***X***_test)
+2. Mean: ***μ*** = ***k***_*^⊤ ***α***
+3. Variance: ***v*** = ***L***^{-1}***k***_*, then σ² = k_{**} - ∥***v***∥²
+
+## Hyperparameter Optimization
+
+### Marginal Likelihood
+
+The **log marginal likelihood** (evidence):
+
+$$
+\log p(\mathbf{y} \mid \mathbf{X}, \boldsymbol{\theta}) = -\frac{1}{2}\mathbf{y}^\top (\mathbf{K} + \sigma_n^2 \mathbf{I})^{-1} \mathbf{y} - \frac{1}{2}\log|\mathbf{K} + \sigma_n^2 \mathbf{I}| - \frac{n}{2}\log(2\pi)
+$$ {#eq-log-marginal-likelihood}
+
+Using Cholesky ***K*** = ***LL***^⊤:
+
+$$
+\begin{aligned}
+\mathbf{y}^\top \mathbf{K}^{-1} \mathbf{y} &= \|\mathbf{L}^{-1}\mathbf{y}\|^2 \\
+\log|\mathbf{K}| &= 2\sum_{i} \log L_{ii}
+\end{aligned}
+$$ {#eq-log-ml-cholesky}
+
+### Negative Log Marginal Likelihood (NLML)
+
+Maximize likelihood ⟺ Minimize NLML:
+
+$$
+\mathcal{L}(\boldsymbol{\theta}) = \frac{1}{2}\mathbf{y}^\top (\mathbf{K} + \sigma_n^2 \mathbf{I})^{-1} \mathbf{y} + \frac{1}{2}\log|\mathbf{K} + \sigma_n^2 \mathbf{I}| + \frac{n}{2}\log(2\pi)
+$$ {#eq-nlml}
+
+**Terms**:
+
+1. **Data fit**: ***y***^⊤***K***^{-1}***y*** (smaller when model fits data)
+2. **Complexity penalty**: log|***K***| (prevents overfitting)
+3. **Constant**: n log(2π)/2
+
+### Gradient of NLML
+
+For gradient-based optimization:
+
+$$
+\frac{\partial \mathcal{L}}{\partial \theta_i} = \frac{1}{2}\text{Tr}\left[(\boldsymbol{\alpha}\boldsymbol{\alpha}^\top - \mathbf{K}^{-1})\frac{\partial \mathbf{K}}{\partial \theta_i}\right]
+$$ {#eq-nlml-gradient}
+
+where ***α*** = ***K***^{-1}***y***.
+
+**Efficient computation**:
+
+1. Compute ∂***K***/∂θ_i via kernel.jacobian_wrt_params()
+2. Solve ***K***^{-1}∂***K***/∂θ_i using Cholesky factor
+3. Compute trace
+
+### Optimization
+
+```{python}
+#| eval: false
+from pyapprox.surrogates.gaussianprocess.gp_loss import (
+    GPNegativeLogMarginalLikelihoodLoss
+)
+from pyapprox.optimize.scipy_optimizer import ScipyOptimizer
+
+# Create loss function
+loss = GPNegativeLogMarginalLikelihoodLoss(gp, (X_train, y_train))
+
+# Optimize hyperparameters
+optimizer = ScipyOptimizer(method='L-BFGS-B')
+result = optimizer.minimize(loss)
+
+print(f"Initial NLL: {result.fun_initial}")
+print(f"Final NLL: {result.fun}")
+```
+
+## Interpretation
+
+### Predictive Mean
+
+The predictive mean is a weighted sum of training observations:
+
+$$
+\mu_*(\mathbf{x}_*) = \sum_{i=1}^n \alpha_i k(\mathbf{x}_i, \mathbf{x}_*)
+$$ {#eq-predictive-mean-weights}
+
+where ***α*** = (***K*** + σ²_n***I***)^{-1}***y***.
+
+**Interpretation**:
+
+- Nearby points (large k(***x***_i, ***x***_*)) contribute more
+- Weights ***α*** account for noise and correlations
+- Predictions are linear in observations
+
+### Predictive Variance
+
+The predictive variance:
+
+$$
+\sigma_*^2 = k_{**} - \mathbf{k}_*^\top (\mathbf{K} + \sigma_n^2 \mathbf{I})^{-1} \mathbf{k}_*
+$$ {#eq-predictive-variance}
+
+**Interpretation**:
+
+- **Prior variance** k_{**}: Uncertainty before seeing data
+- **Reduction term**: How much data reduces uncertainty
+- **Far from data**: σ²_* ≈ k_{**} (high uncertainty)
+- **On training point**: σ²_* ≈ σ²_n (noise level)
+
+### Confidence Intervals
+
+95% confidence interval:
+
+$$
+[\mu_* - 2\sigma_*, \mu_* + 2\sigma_*]
+$$ {#eq-confidence-interval}
+
+Based on Gaussian assumption: P(f_* ∈ [μ_* ± 2σ_*]) ≈ 0.95.
+
+## Multi-Output GPs
+
+For multiple outputs, use multi-output kernels:
+
+```{python}
+#| eval: false
+from pyapprox.surrogates.gaussianprocess.multioutput import MultiOutputGP
+from pyapprox.surrogates.kernels.multioutput import MultiLevelKernel
+
+# Create multi-level kernel
+ml_kernel = MultiLevelKernel([k0, k1], [rho_0])
+
+# Multi-output GP
+gp = MultiOutputGP(ml_kernel, noise_variance=1e-6)
+
+# Fit with list of inputs per level
+gp.fit(X_train_list, y_train_stacked)
+
+# Predict at all levels
+mean, std = gp.predict_with_uncertainty(X_test_list)
+```
+
+See [Multi-output Kernels](multioutput-kernels.qmd) and [DAG Kernels](dag-kernels.qmd) for details.
+
+## Computational Complexity
+
+### Training (fit)
+
+- **Kernel matrix**: O(n²) kernel evaluations
+- **Cholesky**: O(n³) operations
+- **Solve**: O(n²) operations
+
+**Total**: O(n³)
+
+### Prediction
+
+Per test point:
+
+- **Kernel vector**: O(n) kernel evaluations
+- **Mean**: O(n) operations (dot product)
+- **Variance**: O(n²) operations (quadratic form)
+
+For n_test points: O(n · n_test)
+
+### Hyperparameter Optimization
+
+Per iteration:
+
+- **Refit GP**: O(n³)
+- **Compute gradient**: O(n² · nparams)
+
+Typical optimization: 10-100 iterations
+
+**Total**: O(100 · n³)
+
+## Practical Considerations
+
+### Numerical Stability
+
+Add small **jitter** to diagonal for numerical stability:
+
+$$
+\mathbf{K} \leftarrow \mathbf{K} + \epsilon \mathbf{I}, \quad \epsilon \sim 10^{-6}
+$$ {#eq-jitter}
+
+**Implementation**:
+
+```{python}
+#| eval: false
+gp = ExactGaussianProcess(kernel, bkd, noise_variance=1e-6, jitter=1e-8)
+```
+
+### Hyperparameter Bounds
+
+Constrain hyperparameters to reasonable ranges:
+
+- **Length scale**: [0.1, 10.0] typically
+- **Signal variance**: [0.01, 100.0] typically
+- **Noise variance**: [1e-6, 1.0] typically
+
+**Why**: Prevents numerical issues and unrealistic models.
+
+### Scaling Data
+
+Normalize inputs to [0, 1] or standardize outputs:
+
+```{python}
+#| eval: false
+# Standardize inputs
+X_mean, X_std = bkd.mean(X_train, axis=1), bkd.std(X_train, axis=1)
+X_train_scaled = (X_train - X_mean[:, None]) / X_std[:, None]
+
+# Standardize outputs
+y_mean, y_std = bkd.mean(y_train), bkd.std(y_train)
+y_train_scaled = (y_train - y_mean) / y_std
+```
+
+**Benefits**: Improves conditioning and optimization.
+
+## See Also
+
+- [Kernel Theory](kernel-theory.qmd) - Kernel fundamentals
+- [Multi-output Kernels](multioutput-kernels.qmd) - Multiple correlated outputs
+- [Gallery Examples](../gallery/index.qmd) - Working code examples
+- [API Reference](../api/gaussianprocess.qmd) - Implementation details

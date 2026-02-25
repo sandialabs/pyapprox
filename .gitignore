@@ -11,12 +11,15 @@
 build/
 dist/
 *egg-info/
+__pycache__/
+.DS_Store
 
 pyapprox/cython/*.pyd
 pyapprox/cython/*.c
 .vscode/
 
-pyapprox/__pycache__/
+# Hatch-vcs generated version file
+pyapprox/_version.py
 
 # Patch files
 *.patch

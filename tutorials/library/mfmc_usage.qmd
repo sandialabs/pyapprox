@@ -1,0 +1,354 @@
+---
+title: "Multi-Fidelity Monte Carlo: Usage"
+subtitle: "PyApprox Tutorial Library"
+description: "Using the PyApprox MFMC API end-to-end: setting up a hierarchy, inspecting the nested allocation, comparing against MLMC, and handling validity failures."
+tutorial_type: usage
+topic: multi_fidelity
+difficulty: intermediate
+estimated_time: 10
+prerequisites:
+  - mfmc_concept
+  - mlmc_usage
+tags:
+  - multi-fidelity
+  - mfmc
+  - api
+  - optimal-allocation
+format:
+  html:
+    code-fold: false
+    code-tools: true
+    toc: true
+    fig-dpi: 96
+execute:
+  echo: true
+  warning: false
+jupyter: python3
+---
+
+::: {.callout-tip collapse="true"}
+## Download Notebook
+[Download as Jupyter Notebook](notebooks/mfmc_usage.ipynb)
+:::
+
+## Learning Objectives
+
+After completing this tutorial, you will be able to:
+
+- Run the full MFMC pilot → allocate → generate → evaluate → estimate workflow
+- Visualise and compare MFMC and MLMC allocation matrices side by side
+- Compare MFMC and MLMC variance reductions at equal cost
+- Identify when the validity condition fails and what `allocate_samples` does about it
+
+
+## Prerequisites
+
+Complete [MFMC Concept](mfmc_concept.qmd) before this tutorial.
+[MLMC Usage](mlmc_usage.qmd) introduces the same API pattern.
+
+
+## Quick Recap
+
+MFMC evaluates model $\alpha$ on $N_\alpha = r_\alpha N_0$ samples, with nested sets
+$\mathcal{Z}_0 \subset \mathcal{Z}_1 \subset \cdots \subset \mathcal{Z}_M$. The estimator is
+
+$$
+\hat{\mu}_0^{\text{MFMC}} = \hat{\mu}_0(\mathcal{Z}_0)
++ \sum_{\alpha=1}^{M} \eta_\alpha^*
+  \bigl(\hat{\mu}_\alpha(\mathcal{Z}_{\alpha-1}) - \hat{\mu}_\alpha(\mathcal{Z}_\alpha)\bigr).
+$$
+
+`allocate_samples` computes the optimal ratios $r_\alpha^*$ from the pilot covariance
+and the model costs, then checks the validity condition (see
+[MFMC Analysis](mfmc_analysis.qmd)).
+
+
+## Setup
+
+```{python}
+import numpy as np
+import matplotlib.pyplot as plt
+from pyapprox.util.backends.numpy import NumpyBkd
+from pyapprox.benchmarks.instances.multifidelity.polynomial_ensemble import (
+    polynomial_ensemble_5model,
+)
+from pyapprox.statest.statistics import MultiOutputMean
+from pyapprox.statest.acv import MFMCEstimator, MLMCEstimator
+from pyapprox.statest.mc_estimator import MCEstimator
+
+bkd = NumpyBkd()
+np.random.seed(42)
+
+benchmark = polynomial_ensemble_5model(bkd)
+models    = benchmark.models()   # f_0 (HF) ... f_4 (cheapest)
+variable  = benchmark.prior()
+costs     = benchmark.costs()
+nqoi      = models[0].nqoi()
+M         = len(models) - 1
+
+print(f"Number of models: {len(models)}")
+costs_np = bkd.to_numpy(costs)
+for a, c in enumerate(costs_np):
+    print(f"  model {a}: cost = {c:.4f}")
+```
+
+
+## Stage 1: Pilot Samples
+
+```{python}
+N_pilot = 200
+samples_pilot = variable.rvs(N_pilot)
+vals_pilot = [m(samples_pilot) for m in models]
+
+stat = MultiOutputMean(nqoi, bkd)
+cov_pilot, = stat.compute_pilot_quantities(vals_pilot)
+stat.set_pilot_quantities(cov_pilot)
+
+cov_np = bkd.to_numpy(cov_pilot)
+rho_pilot = np.array([cov_np[0, a] / np.sqrt(cov_np[0, 0] * cov_np[a, a])
+                      for a in range(len(models))])
+print("Pilot correlations rho_{0,alpha}:")
+for a, r in enumerate(rho_pilot):
+    print(f"  alpha={a}: {r:.4f}")
+```
+
+
+## Stage 2: Build Estimators and Allocate Budget
+
+Build both MFMC and MLMC estimators at the same target cost so we can compare them
+throughout the tutorial.
+
+```{python}
+target_cost = 100.0
+
+mfmc_est = MFMCEstimator(stat, costs)
+mfmc_est.allocate_samples(target_cost)
+
+mlmc_est = MLMCEstimator(stat, costs)
+mlmc_est.allocate_samples(target_cost)
+
+N_mfmc = mfmc_est.nsamples_per_model()
+N_mlmc = mlmc_est.nsamples_per_model()
+
+print("Sample allocation:")
+print(f"  {'Model':<10} {'MFMC N_alpha':<18} {'MLMC N_ell':<18}")
+for a in range(len(models)):
+    print(f"  {a:<10} {int(N_mfmc[a]):<18} {int(N_mlmc[a]):<18}")
+
+print(f"\nPredicted MFMC std: {float(mfmc_est.optimized_covariance()[0,0])**0.5:.6f}")
+print(f"Predicted MLMC std: {float(mlmc_est.optimized_covariance()[0,0])**0.5:.6f}")
+```
+
+
+## Allocation Matrix Comparison
+
+The allocation matrix visualises how each sample partition is assigned across models.
+This is the clearest way to see the structural difference between MFMC and MLMC.
+
+```{python}
+#| fig-cap: "Allocation matrices for MLMC (left) and MFMC (right) at budget $P = 100$. Each row is a model; each coloured block is an independent sample partition. Numbers inside blocks show the partition size. MLMC: each level correction uses a separate set of partitions — no overlap between levels. MFMC: model 0 sees partition $p_0$ only; model 1 sees $p_0$ and $p_1$; model 2 sees $p_0$, $p_1$, $p_2$; etc."
+#| label: fig-allocation-matrices
+
+from pyapprox.statest.plotting import plot_allocation
+
+fig, axes = plt.subplots(1, 2, figsize=(12, 4))
+
+plot_allocation(mlmc_est, axes[0], show_partition_sizes=True)
+axes[0].set_title("MLMC allocation matrix", fontsize=11)
+
+plot_allocation(mfmc_est, axes[1], show_partition_sizes=True)
+axes[1].set_title("MFMC allocation matrix", fontsize=11)
+
+plt.tight_layout()
+plt.show()
+```
+
+The allocation matrices expose the defining structural difference between the two
+estimators. In MLMC each level correction occupies its own block column — no sample
+appears in more than one block. In MFMC partition $p_0$ spans **all** model rows (every
+HF sample is evaluated by all models), and each successive partition adds one fewer model.
+The checkerboard pattern is the hallmark of the nested MFMC structure.
+
+
+## Stage 3: Generate Samples and Compute Estimates
+
+```{python}
+samples_per_model = mfmc_est.generate_samples_per_model(variable.rvs)
+values_per_model  = [models[a](samples_per_model[a]) for a in range(len(models))]
+result = mfmc_est(values_per_model)
+
+true_mean = float(bkd.to_numpy(benchmark.ensemble_means()[0, 0]))
+print(f"MFMC estimate: {float(result):.6f}")
+print(f"True mean:     {true_mean:.6f}")
+```
+
+::: {.callout-note}
+## Sample structure inside `generate_samples_per_model`
+`samples_per_model[a]` contains all $N_\alpha$ samples for model $a$. The first
+$N_{\alpha-1}$ columns are **identical** to `samples_per_model[a-1]` — this is the
+nested structure. The estimator uses this overlap internally to compute
+$\hat{\mu}_\alpha(\mathcal{Z}_{\alpha-1})$ vs $\hat{\mu}_\alpha(\mathcal{Z}_\alpha)$.
+:::
+
+
+## MFMC vs MLMC: Side-by-Side Comparison
+
+```{python}
+#| fig-cap: "Distributions of MC, MLMC, and MFMC mean estimates at equal total cost ($P = 100$, 500 independent trials). On the polynomial benchmark both hierarchy estimators achieve similar variance reduction; the MC distribution is visibly wider."
+#| label: fig-three-way
+
+n_trials = 500
+
+# Build MC estimator (single HF model only)
+stat_mc = MultiOutputMean(nqoi, bkd)
+cov_mc, = stat_mc.compute_pilot_quantities([vals_pilot[0]])
+stat_mc.set_pilot_quantities(cov_mc)
+mc_est_obj = MCEstimator(stat_mc, costs=[costs[0]])
+mc_est_obj.allocate_samples(target_cost)
+N_mc = int(mc_est_obj.nsamples_per_model()[0])
+
+mc_ests   = np.empty(n_trials)
+mlmc_ests = np.empty(n_trials)
+mfmc_ests = np.empty(n_trials)
+
+for i in range(n_trials):
+    np.random.seed(i + 5000)
+
+    [s_mc] = mc_est_obj.generate_samples_per_model(variable.rvs)
+    mc_ests[i] = float(bkd.to_numpy(mc_est_obj(models[0](s_mc)))[0])
+
+    s_ml = mlmc_est.generate_samples_per_model(variable.rvs)
+    v_ml = [models[a](s_ml[a]) for a in range(len(models))]
+    mlmc_ests[i] = float(mlmc_est(v_ml))
+
+    s_mf = mfmc_est.generate_samples_per_model(variable.rvs)
+    v_mf = [models[a](s_mf[a]) for a in range(len(models))]
+    mfmc_ests[i] = float(mfmc_est(v_mf))
+
+all_vals = np.concatenate([mc_ests, mlmc_ests, mfmc_ests])
+pad  = 0.04 * (all_vals.max() - all_vals.min())
+xlim = (all_vals.min() - pad, all_vals.max() + pad)
+
+fig, axes = plt.subplots(1, 3, figsize=(13, 4), sharey=True)
+specs = [
+    (mc_ests,   "#aaaaaa", f"MC  (N={N_mc})"),
+    (mlmc_ests, "#2C7FB8", "MLMC  (optimal allocation)"),
+    (mfmc_ests, "#E67E22", "MFMC  (nested allocation)"),
+]
+for ax, (ests, color, label) in zip(axes, specs):
+    ax.hist(ests, bins=40, density=True, color=color, alpha=0.75,
+            edgecolor="k", lw=0.2)
+    ax.axvline(true_mean, color="#C0392B", ls="--", lw=2, label="True mean")
+    ax.set_xlabel(r"Estimate of $\mathbb{E}[f_0]$", fontsize=11)
+    ax.set_title(f"{label}\nStd = {ests.std():.4f}", fontsize=10)
+    ax.set_xlim(xlim)
+    ax.legend(fontsize=9)
+    ax.grid(True, alpha=0.2)
+
+axes[0].set_ylabel("Density", fontsize=11)
+fig.suptitle(f"Equal total cost = {target_cost}  |  {n_trials} trials", fontsize=11)
+plt.tight_layout()
+plt.show()
+```
+
+
+## Handling a Failed Validity Condition
+
+The optimal MFMC allocation requires all $r_\alpha^*$ to be strictly increasing. When
+the validity condition fails for a model, that model does not contribute to variance
+reduction and `allocate_samples` will either warn and drop it, or raise an error.
+
+```{python}
+# Construct a scenario where model 3 violates the validity condition:
+# make it nearly as expensive as model 2 so the cost ratio is too small
+costs_bad = list(costs_np)
+costs_bad[3] = costs_np[2] * 0.95   # model 3 barely cheaper than model 2
+costs_bad_bkd = bkd.asarray(costs_bad)
+
+stat_bad = MultiOutputMean(nqoi, bkd)
+stat_bad.set_pilot_quantities(cov_pilot)
+est_bad = MFMCEstimator(stat_bad, costs_bad_bkd)
+
+try:
+    est_bad.allocate_samples(target_cost)
+    print("Allocation succeeded unexpectedly.")
+except ValueError as e:
+    print(f"Allocation error: {e}")
+    print("Remove models that violate the validity condition and retry.")
+```
+
+::: {.callout-tip}
+## When validity fails in practice
+If validity fails for model $\alpha$, rerun `allocate_samples` with that model excluded.
+This is analogous to removing a weakly correlated LF model from an ACV estimator —
+keeping it would increase cost without reducing variance.
+:::
+
+
+::: {.callout-note}
+## Integer-aware allocation
+An improved integer-aware allocation for small budgets was introduced by
+Gruber et al. [GGLZ2022]. This algorithm is not currently implemented in
+PyApprox.
+:::
+
+
+## Common Errors
+
+**Confusing total and exclusive sample counts.** `nsamples_per_model()` returns
+total $N_\alpha$, not the exclusive partition size $|p_\alpha| = N_\alpha - N_{\alpha-1}$.
+Always use `generate_samples_per_model` to obtain correctly structured sample arrays.
+
+**Wrong model ordering.** Models must be ordered by **decreasing** fidelity and cost
+($f_0$ most expensive). Reversing the order violates the nesting assumption.
+
+**Comparing MFMC and MLMC sample counts directly.** The `N_alpha` values returned by
+MFMC represent *total* nested samples, while MLMC returns *exclusive* partition sizes.
+They are not comparable without adjustment.
+
+
+## Key Takeaways
+
+- The MFMC workflow is identical to MLMC: pilot → allocate → generate → evaluate →
+  call estimator
+- The allocation matrix is the clearest way to see the nested MFMC structure vs MLMC's
+  independent partitions
+- On this benchmark MFMC and MLMC perform similarly; check both on your hierarchy
+- If the validity condition fails, `allocate_samples` raises a `ValueError`;
+  remove violating models and retry
+
+
+## Exercises
+
+1. Replace the polynomial benchmark with `tunable_ensemble_3model` (two models, any
+   `theta1`). Compare the MFMC allocation to the two-model ACV allocation from
+   [ACV Usage](acv_usage.qmd). Are they equivalent?
+
+2. Run the allocation at `target_cost = 1000`. Does the ratio $N_\alpha / N_0$ converge
+   toward the analytical $r_\alpha^*$ from [MFMC Analysis](mfmc_analysis.qmd)?
+
+3. **(Challenge)** Implement the MFMC estimator manually: for each $\alpha$, extract
+   $\hat{\mu}_\alpha(\mathcal{Z}_{\alpha-1})$ and $\hat{\mu}_\alpha(\mathcal{Z}_\alpha)$
+   from `samples_per_model`, apply $\eta_\alpha^* = -\rho_\alpha\sigma_0/\sigma_\alpha$,
+   and sum the corrections. Verify your result against `mfmc_est(values_per_model)`.
+
+
+## Next Steps
+
+- [MFMC Analysis](mfmc_analysis.qmd) --- Derive the variance formula, optimal weights,
+  and sample ratios from first principles
+- [General ACV](acv_many_models_concept.qmd) --- Break the CV-1 ceiling by directly
+  correcting $\hat{\mu}_0$ with all LF models simultaneously
+- [Ensemble Selection](ensemble_selection_concept.qmd) --- Choose which models to
+  include when some violate the validity condition
+
+
+## References
+
+- [PWGSIAM2016] B. Peherstorfer, K. Willcox, M. Gunzburger. *Optimal Model Management
+  for Multifidelity Monte Carlo Estimation.* SIAM Journal on Scientific Computing,
+  38(5):A3163--A3194, 2016. [DOI](https://doi.org/10.1137/15M1046472)
+
+- [GGLZ2022] A. Gruber, M. Gunzburger, L. Ju et al. *A Multifidelity Monte Carlo Method
+  for Realistic Computational Budgets.* Journal of Scientific Computing, 94:2, 2023.
+  [DOI](https://doi.org/10.1007/s10915-022-02051-y)

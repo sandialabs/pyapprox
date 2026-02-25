@@ -1,0 +1,384 @@
+---
+title: "Multi-Fidelity Monte Carlo: Analysis"
+subtitle: "PyApprox Tutorial Library"
+description: "Deriving the MFMC estimator variance from its partition structure, the optimal weights and sample ratios, and the validity condition."
+tutorial_type: analysis
+topic: multi_fidelity
+difficulty: intermediate
+estimated_time: 15
+prerequisites:
+  - mfmc_concept
+  - mlmc_analysis
+tags:
+  - multi-fidelity
+  - mfmc
+  - optimal-allocation
+  - estimator-theory
+format:
+  html:
+    code-fold: false
+    code-tools: true
+    toc: true
+    fig-dpi: 96
+execute:
+  echo: true
+  warning: false
+jupyter: python3
+---
+
+::: {.callout-tip collapse="true"}
+## Download Notebook
+[Download as Jupyter Notebook](notebooks/mfmc_analysis.ipynb)
+:::
+
+## Learning Objectives
+
+After completing this tutorial, you will be able to:
+
+- Decompose the MFMC sample structure into independent partitions and use this to
+  derive the variance of each correction term
+- Derive the optimal weights $\eta_\alpha^*$ and the resulting variance formula
+- Derive the optimal sample ratios $r_\alpha^*$ and state the validity condition
+- Verify the API's predicted variance against empirical trials
+
+
+## Prerequisites
+
+Complete [MFMC Concept](mfmc_concept.qmd) and [MLMC Analysis](mlmc_analysis.qmd)
+before this tutorial.
+
+
+## Setup and Notation
+
+Let $f_0, \ldots, f_M$ be a model hierarchy with per-sample costs $C_0 > \cdots > C_M$.
+Write $\rho_\alpha = \rho_{0,\alpha}$ for the correlation between $f_\alpha$ and the HF
+model ($\rho_0 = 1$, $\rho_{M+1} = 0$ by convention). Let $N_\alpha = r_\alpha N_0$
+be the total number of samples evaluated by model $\alpha$, with $r_0 = 1$ and
+$r_1 \leq r_2 \leq \cdots \leq r_M$ (nested).
+
+Define the **independent sample partitions**
+
+$$
+p_0 = \mathcal{Z}_0,\qquad
+p_\alpha = \mathcal{Z}_\alpha \setminus \mathcal{Z}_{\alpha-1},\quad \alpha = 1,\ldots,M,
+$$
+
+so that $\mathcal{Z}_\alpha = p_0 \cup p_1 \cup \cdots \cup p_\alpha$. Partition $p_\alpha$
+has $N_\alpha - N_{\alpha-1} = (r_\alpha - r_{\alpha-1})N_0$ samples and is independent of
+all other partitions. The total cost is
+
+$$
+C_{\text{tot}} = \sum_{\alpha=0}^M |p_\alpha| C_\alpha
+= N_0 \sum_{\alpha=0}^M (r_\alpha - r_{\alpha-1}) C_\alpha.
+$$ {#eq-cost}
+
+The MFMC estimator is
+
+$$
+\hat{\mu}_0^{\text{MFMC}} = \hat{\mu}_0(\mathcal{Z}_0)
++ \sum_{\alpha=1}^{M} \eta_\alpha
+  \underbrace{\bigl(\hat{\mu}_\alpha(\mathcal{Z}_{\alpha-1}) -
+  \hat{\mu}_\alpha(\mathcal{Z}_\alpha)\bigr)}_{\Delta_\alpha}.
+$$ {#eq-mfmc}
+
+
+## Variance of Each Correction Term
+
+Using the partition decomposition, we can write
+$\hat{\mu}_\alpha(\mathcal{Z}_\alpha) = \frac{N_{\alpha-1}}{N_\alpha}\hat{\mu}_\alpha(\mathcal{Z}_{\alpha-1}) + \frac{|p_\alpha|}{N_\alpha}\hat{\mu}_\alpha(p_\alpha)$, so
+
+$$
+\Delta_\alpha
+= \hat{\mu}_\alpha(\mathcal{Z}_{\alpha-1}) - \hat{\mu}_\alpha(\mathcal{Z}_\alpha)
+= \frac{|p_\alpha|}{N_\alpha}
+  \Bigl(\hat{\mu}_\alpha(\mathcal{Z}_{\alpha-1}) - \hat{\mu}_\alpha(p_\alpha)\Bigr).
+$$
+
+Since $\mathcal{Z}_{\alpha-1}$ and $p_\alpha$ are independent,
+
+$$
+\mathbb{V}[\Delta_\alpha]
+= \frac{|p_\alpha|^2}{N_\alpha^2}
+  \left(\frac{\sigma_\alpha^2}{N_{\alpha-1}} + \frac{\sigma_\alpha^2}{|p_\alpha|}\right)
+= \frac{\sigma_\alpha^2 |p_\alpha|}{N_\alpha^2}
+  \left(\frac{|p_\alpha|}{N_{\alpha-1}} + 1\right).
+$$
+
+Substituting $N_\alpha = r_\alpha N_0$, $N_{\alpha-1} = r_{\alpha-1} N_0$,
+$|p_\alpha| = (r_\alpha - r_{\alpha-1})N_0$:
+
+$$
+\mathbb{V}[\Delta_\alpha]
+= \frac{\sigma_\alpha^2}{N_0}
+  \left(\frac{1}{r_{\alpha-1}} - \frac{1}{r_\alpha}\right).
+$$ {#eq-delta-var}
+
+This mirrors the two-model ACV correction variance from [ACV Analysis](acv_analysis.qmd),
+with the pair $(r_{\alpha-1},\, r_\alpha)$ playing the roles of $(1,\, r)$.
+
+
+## Covariance Between HF Estimator and Each Correction
+
+Since $\mathcal{Z}_0 \subset \mathcal{Z}_{\alpha-1}$, the HF mean $\hat{\mu}_0(\mathcal{Z}_0)$
+shares all $N_0$ samples with $\hat{\mu}_\alpha(\mathcal{Z}_{\alpha-1})$ but shares none
+with $\hat{\mu}_\alpha(p_\alpha)$. Therefore
+
+$$
+\mathrm{Cov}\bigl(\hat{\mu}_0(\mathcal{Z}_0),\; \Delta_\alpha\bigr)
+= \mathrm{Cov}\!\left(\hat{\mu}_0(\mathcal{Z}_0),\; \hat{\mu}_\alpha(\mathcal{Z}_{\alpha-1})\right)
+- \underbrace{\mathrm{Cov}\!\left(\hat{\mu}_0(\mathcal{Z}_0),\; \hat{\mu}_\alpha(p_\alpha)\right)}_{=\,0}.
+$$
+
+The first term has $N_0$ shared samples out of $N_{\alpha-1}$:
+
+$$
+\mathrm{Cov}\bigl(\hat{\mu}_0(\mathcal{Z}_0),\; \hat{\mu}_\alpha(\mathcal{Z}_{\alpha-1})\bigr)
+= \frac{N_0}{N_0 N_{\alpha-1}}\,C_{0\alpha}
+= \frac{C_{0\alpha}}{r_{\alpha-1} N_0},
+$$
+
+where $C_{0\alpha} = \mathrm{Cov}(f_0, f_\alpha)$. Hence
+
+$$
+\mathrm{Cov}\bigl(\hat{\mu}_0(\mathcal{Z}_0),\; \Delta_\alpha\bigr)
+= \frac{C_{0\alpha}}{N_0}\left(\frac{1}{r_{\alpha-1}} - \frac{1}{r_\alpha}\right).
+$$ {#eq-cross-cov}
+
+Note this has the same $(r_{\alpha-1}^{-1} - r_\alpha^{-1})$ factor as the correction
+variance @eq-delta-var, which will produce a clean cancellation when we optimise $\eta_\alpha$.
+
+
+## Optimal Weights and Variance Reduction
+
+Corrections at different levels use different independent exclusive partitions, so
+$\mathrm{Cov}(\Delta_\alpha, \Delta_\beta) = 0$ for $\alpha \neq \beta$ (both corrections
+use the shared $\mathcal{Z}_0$ samples, but after the optimal weight minimisation these
+cross-terms vanish from the variance expression). The full variance is
+
+$$
+\mathbb{V}[\hat{\mu}_0^{\text{MFMC}}]
+= \frac{\sigma_0^2}{N_0}
++ \sum_{\alpha=1}^M \eta_\alpha^2\, \mathbb{V}[\Delta_\alpha]
++ 2\sum_{\alpha=1}^M \eta_\alpha\, \mathrm{Cov}\bigl(\hat{\mu}_0,\, \Delta_\alpha\bigr).
+$$
+
+Substituting @eq-delta-var and @eq-cross-cov and minimising over $\eta_\alpha$
+(each term is independent, so we minimise each separately):
+
+$$
+\eta_\alpha^* = -\frac{\mathrm{Cov}(\hat{\mu}_0,\, \Delta_\alpha)}{\mathbb{V}[\Delta_\alpha]}
+= -\frac{C_{0\alpha}}{\sigma_\alpha^2}
+= -\frac{\rho_\alpha \sigma_0}{\sigma_\alpha}.
+$$ {#eq-eta-star}
+
+Substituting $\eta_\alpha^*$ back and using $C_{0\alpha} = \rho_\alpha \sigma_0 \sigma_\alpha$:
+
+$$
+\boxed{
+\mathbb{V}[\hat{\mu}_0^{\text{MFMC}}]
+= \frac{\sigma_0^2}{N_0}
+  \left(1 - \sum_{\alpha=1}^{M}
+    \left(\frac{1}{r_{\alpha-1}} - \frac{1}{r_\alpha}\right)\rho_\alpha^2
+  \right).
+}
+$$ {#eq-mfmc-var}
+
+The variance reduction relative to MC is $1 - \sum_\alpha (r_{\alpha-1}^{-1} - r_\alpha^{-1})\rho_\alpha^2$.
+As $r_\alpha \to \infty$ for all $\alpha$, this approaches $1 - \rho_1^2$, the CV-1 limit
+identified in the concept tutorial.
+
+
+## Optimal Sample Ratios
+
+Minimise @eq-mfmc-var subject to the cost constraint @eq-cost. Both variance and cost
+depend on $N_0$ and $r_1, \ldots, r_M$. Treating these as continuous variables and
+differentiating with respect to $r_\alpha$ yields the optimal ratios [PWGSIAM2016]:
+
+$$
+\boxed{
+r_\alpha^* = \sqrt{
+  \frac{C_0\,(\rho_\alpha^2 - \rho_{\alpha+1}^2)}
+       {C_\alpha\,(1 - \rho_1^2)}
+},
+\quad \alpha = 1, \ldots, M.
+}
+$$ {#eq-r-star}
+
+The factor $\rho_\alpha^2 - \rho_{\alpha+1}^2$ is the marginal correlation gain from
+adding model $\alpha$: how much additional correlation with $f_0$ model $\alpha$ provides
+over the next cheaper model. A large marginal gain and low cost $C_\alpha$ together produce
+a large $r_\alpha^*$ — many samples are worth allocating to that level.
+
+::: {.callout-important}
+## Validity condition
+The formula @eq-r-star requires the ratios to be strictly increasing
+($r_\alpha^* > r_{\alpha-1}^*$). This holds when
+
+$$
+\frac{C_{\alpha-1}}{C_\alpha}
+> \frac{\rho_{\alpha-1}^2 - \rho_\alpha^2}{\rho_\alpha^2 - \rho_{\alpha+1}^2},
+\quad \alpha = 1, \ldots, M.
+$$ {#eq-validity}
+
+**Interpretation:** The cost ratio between adjacent models must exceed the ratio of their
+marginal correlation gains. If this fails for model $\alpha$, that model does not
+contribute to variance reduction at the optimal allocation and should be removed from the
+hierarchy before solving again.
+:::
+
+
+## Numerical Verification
+
+```{python}
+import numpy as np
+import matplotlib.pyplot as plt
+from pyapprox.util.backends.numpy import NumpyBkd
+from pyapprox.benchmarks.instances.multifidelity.polynomial_ensemble import (
+    polynomial_ensemble_5model,
+)
+from pyapprox.statest.statistics import MultiOutputMean
+from pyapprox.statest.acv import MFMCEstimator, MLMCEstimator
+from pyapprox.statest.mc_estimator import MCEstimator
+
+bkd       = NumpyBkd()
+benchmark = polynomial_ensemble_5model(bkd)
+variable  = benchmark.prior()
+models    = benchmark.models()
+costs_bkd = benchmark.costs()
+costs     = bkd.to_numpy(costs_bkd)
+nqoi      = models[0].nqoi()
+cov_true  = bkd.to_numpy(benchmark.ensemble_covariance())
+sigma2_hf = cov_true[0, 0]
+M         = len(models) - 1
+
+# Correlations rho_{0,alpha}
+rho = np.array([cov_true[0, a] / np.sqrt(cov_true[0, 0] * cov_true[a, a])
+                for a in range(len(models))])
+rho_ext = np.append(rho, 0.0)   # rho_{M+1} = 0
+
+print("Correlations rho_{0,alpha}:")
+for a, r in enumerate(rho):
+    print(f"  alpha={a}: rho = {r:.4f}")
+
+# Analytical optimal ratios from eq-r-star
+r_star = np.array([1.0] + [
+    np.sqrt(costs[0] * (rho_ext[a]**2 - rho_ext[a+1]**2)
+            / (costs[a] * (1 - rho_ext[1]**2)))
+    for a in range(1, M + 1)
+])
+print("\nAnalytical optimal ratios r_alpha*:")
+for a, r in enumerate(r_star):
+    print(f"  alpha={a}: r* = {r:.2f}")
+
+# Validity condition check
+print("\nValidity condition C_{alpha-1}/C_alpha > delta_rho_{alpha-1}/delta_rho_alpha:")
+for a in range(1, M + 1):
+    lhs = costs[a-1] / costs[a]
+    rhs = (rho_ext[a-1]**2 - rho_ext[a]**2) / (rho_ext[a]**2 - rho_ext[a+1]**2)
+    print(f"  alpha={a}: {lhs:.1f} > {rhs:.2f}?  {'✓' if lhs > rhs else '✗'}")
+```
+
+```{python}
+#| fig-cap: "MFMC and MC variance vs total cost: `optimized_covariance()` predictions (lines) compared to empirical variance from 500 independent trials (markers). Close agreement confirms the estimator's variance prediction is accurate."
+#| label: fig-variance-verify
+
+stat = MultiOutputMean(nqoi, bkd)
+stat.set_pilot_quantities(bkd.asarray(cov_true))
+
+stat_mc = MultiOutputMean(nqoi, bkd)
+stat_mc.set_pilot_quantities(bkd.asarray(cov_true[:1, :1]))
+
+target_costs_sweep = [10, 100, 1000, 10000]
+n_trials = 500
+
+mfmc_vars_pred, mc_vars_pred = [], []
+mfmc_vars_emp, mc_vars_emp = [], []
+
+for P_t in target_costs_sweep:
+    # --- Predicted variance from optimized_covariance ---
+    mf_e = MFMCEstimator(stat, costs_bkd)
+    mf_e.allocate_samples(float(P_t))
+    mfmc_vars_pred.append(float(mf_e.optimized_covariance()[0, 0]))
+
+    mc_e = MCEstimator(stat_mc, costs=[costs_bkd[0]])
+    mc_e.allocate_samples(float(P_t))
+    mc_vars_pred.append(float(mc_e.optimized_covariance()[0, 0]))
+
+    # --- Empirical variance from trials ---
+    mc_ests_t = np.empty(n_trials)
+    mfmc_ests_t = np.empty(n_trials)
+    for i in range(n_trials):
+        np.random.seed(i + int(P_t) * 100)
+
+        [s_mc] = mc_e.generate_samples_per_model(variable.rvs)
+        mc_ests_t[i] = bkd.to_numpy(mc_e(models[0](s_mc)))[0]
+
+        s_per_m = mf_e.generate_samples_per_model(variable.rvs)
+        v_per_m = [models[a](s_per_m[a]) for a in range(len(models))]
+        mfmc_ests_t[i] = float(mf_e(v_per_m))
+
+    mc_vars_emp.append(mc_ests_t.var())
+    mfmc_vars_emp.append(mfmc_ests_t.var())
+
+fig, ax = plt.subplots(figsize=(7, 4.5))
+ax.loglog(target_costs_sweep, mc_vars_pred, "-", color="#aaaaaa", lw=2,
+          label="MC (predicted)")
+ax.loglog(target_costs_sweep, mc_vars_emp, "o", color="#aaaaaa", ms=8,
+          label="MC (empirical)")
+ax.loglog(target_costs_sweep, mfmc_vars_pred, "-", color="#E67E22", lw=2,
+          label="MFMC (predicted)")
+ax.loglog(target_costs_sweep, mfmc_vars_emp, "s", color="#E67E22", ms=8,
+          label="MFMC (empirical)")
+ax.set_xlabel("Total cost $P$", fontsize=12)
+ax.set_ylabel(r"Estimator variance", fontsize=12)
+ax.set_title(f"Predicted vs empirical variance  ({n_trials} trials)", fontsize=11)
+ax.legend(fontsize=10)
+ax.grid(True, alpha=0.2, which="both")
+plt.tight_layout()
+plt.show()
+
+for P_t, mp, me, mfp, mfe in zip(
+    target_costs_sweep, mc_vars_pred, mc_vars_emp,
+    mfmc_vars_pred, mfmc_vars_emp,
+):
+    print(f"P={P_t:5d}:  MC pred={mp:.2e} emp={me:.2e}  |  "
+          f"MFMC pred={mfp:.2e} emp={mfe:.2e}")
+```
+
+
+## Key Takeaways
+
+- The partition decomposition makes the variance calculation clean: $\mathbb{V}[\Delta_\alpha] = \frac{\sigma_\alpha^2}{N_0}(r_{\alpha-1}^{-1} - r_\alpha^{-1})$ and $\mathrm{Cov}(\hat{\mu}_0, \Delta_\alpha) = \frac{C_{0\alpha}}{N_0}(r_{\alpha-1}^{-1} - r_\alpha^{-1})$
+- The optimal weight $\eta_\alpha^* = -\rho_\alpha \sigma_0 / \sigma_\alpha$ is the same at every level and matches the two-model ACV formula
+- The MFMC variance reduction is $1 - \sum_\alpha (r_{\alpha-1}^{-1} - r_\alpha^{-1})\rho_\alpha^2$, converging to $1 - \rho_1^2$ as all ratios grow
+- The optimal ratio $r_\alpha^* \propto \sqrt{(\rho_\alpha^2 - \rho_{\alpha+1}^2)/C_\alpha}$ is large when model $\alpha$ is cheap and has a large marginal correlation gain
+- The validity condition must hold for every model; violators should be dropped from the hierarchy
+
+
+## Exercises
+
+1. For $M = 1$, verify that @eq-r-star reduces to the two-model ACV optimal ratio
+   $r^* = \sqrt{C_0\rho_1^2 / (C_1(1-\rho_1^2))}$ from [ACV Analysis](acv_analysis.qmd).
+
+2. Show algebraically that as $r_\alpha \to \infty$ for all $\alpha$, the variance
+   @eq-mfmc-var approaches $\sigma_0^2(1-\rho_1^2)/N_0$ (the CV-1 limit).
+
+3. For the polynomial benchmark, compute the MFMC minimum cost to achieve
+   $\epsilon^2 = 10^{-4}$ and compare it to the MLMC minimum cost from
+   [MLMC Analysis](mlmc_analysis.qmd). Which is smaller?
+
+4. **(Challenge)** Verify the claim that corrections at different levels satisfy
+   $\mathrm{Cov}(\Delta_\alpha, \Delta_\beta) = 0$ for the specific case $\alpha=1$,
+   $\beta=2$ by writing each $\Delta$ in terms of independent partition means and
+   expanding the covariance directly.
+
+
+## References
+
+- [PWGSIAM2016] B. Peherstorfer, K. Willcox, M. Gunzburger. *Optimal Model Management
+  for Multifidelity Monte Carlo Estimation.* SIAM Journal on Scientific Computing,
+  38(5):A3163--A3194, 2016. [DOI](https://doi.org/10.1137/15M1046472)
+
+- [GGLZ2022] A. Gruber, M. Gunzburger, L. Ju et al. *A Multifidelity Monte Carlo Method
+  for Realistic Computational Budgets.* Journal of Scientific Computing, 94:2, 2023.
+  [DOI](https://doi.org/10.1007/s10915-022-02051-y)

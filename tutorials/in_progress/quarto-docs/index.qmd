@@ -1,0 +1,184 @@
+---
+title: "PyApprox Typing Module"
+subtitle: "Type-safe surrogate modeling with dual backend support"
+---
+
+## Overview
+
+The PyApprox Typing Module provides modern, type-safe implementations of surrogate modeling techniques with support for both NumPy and PyTorch backends. Built on rigorous type protocols and with extensive testing, it enables reliable and reproducible uncertainty quantification workflows.
+
+## Key Features
+
+::: {.grid}
+
+::: {.g-col-6}
+### Type Safety
+- Full type annotations with mypy validation
+- Type protocols for extensibility
+- Consistent array shape conventions
+- Runtime type checking
+:::
+
+::: {.g-col-6}
+### Dual Backend Support
+- NumPy backend for standard workflows
+- PyTorch backend for GPU acceleration
+- Backend-agnostic code via protocols
+- Easy switching between backends
+:::
+
+::: {.g-col-6}
+### Gaussian Processes
+- Exact GP regression
+- Multi-output GPs
+- Multi-fidelity modeling
+- DAG-structured dependencies
+:::
+
+::: {.g-col-6}
+### Advanced Kernels
+- Matern, RBF, and polynomial kernels
+- Kernel composition (sum, product)
+- Multi-output kernels (LMC, ICM)
+- Spatially varying correlations
+:::
+
+:::
+
+## Quick Start
+
+### Installation
+
+```bash
+# Install with typing extras
+pip install pyapprox[typing]
+
+# For PyTorch support
+pip install pyapprox[typing,torch]
+```
+
+### First Example
+
+Here's a simple Gaussian Process regression example:
+
+```{python}
+#| eval: false
+from pyapprox.surrogates.kernels import MaternKernel
+from pyapprox.surrogates.gaussianprocess import ExactGaussianProcess
+from pyapprox.util.backends.numpy import NumpyBkd
+import numpy as np
+
+# Set up backend
+bkd = NumpyBkd()
+
+# Create kernel
+kernel = MaternKernel(2.5, [1.0], (0.1, 10.0), nvars=1, bkd=bkd)
+
+# Create GP
+gp = ExactGaussianProcess(kernel, bkd)
+
+# Training data
+X_train = bkd.array(np.linspace(0, 1, 10).reshape(1, -1))
+y_train = bkd.array(np.sin(2 * np.pi * X_train[0, :]).reshape(-1, 1))
+
+# Fit GP
+gp.fit(X_train, y_train)
+
+# Predict
+X_test = bkd.array(np.linspace(0, 1, 100).reshape(1, -1))
+mean, std = gp.predict(X_test, return_std=True)
+```
+
+## Documentation Sections
+
+### [Developer Guide](developer-guide/index.qmd)
+Learn about array conventions, testing standards, type safety, and protocols. Essential reading for contributors and advanced users.
+
+**Key topics:**
+- Array shape conventions for inputs, outputs, and Jacobians
+- Testing best practices with generic base classes
+- Type safety with mypy and protocols
+- Contributing guidelines
+
+### [Tutorials](tutorials/index.qmd)
+Interactive Jupyter notebooks covering common use cases from basics to advanced topics.
+
+**Available tutorials:**
+- Getting Started: Installation and basic usage
+- Kernel Basics: Creating and composing kernels
+- GP Regression: Training and prediction
+- Multi-output GPs: Multi-fidelity modeling
+- DAG-structured GPs: Complex dependencies
+
+### [Theory](theory/index.qmd)
+Mathematical foundations of kernels, Gaussian processes, and multi-output modeling.
+
+**Topics covered:**
+- Kernel theory and positive definiteness
+- Multi-output kernel structures (LMC, ICM)
+- DAG-structured autoregressive kernels
+- Gaussian process regression fundamentals
+
+### [Gallery](gallery/index.qmd)
+Visual examples demonstrating plotting and usage patterns.
+
+**Categories:**
+- Kernel matrix visualizations
+- GP prediction plots
+- Multi-fidelity examples
+- DAG structure examples
+
+### [API Reference](api/index.qmd)
+Comprehensive API documentation with examples.
+
+**Modules:**
+- Kernels (Matern, composition, multi-output)
+- Gaussian Processes (exact, multi-output)
+- Backends (NumPy, PyTorch)
+- Protocols and type interfaces
+
+## Design Philosophy
+
+The typing module is built on three core principles:
+
+1. **Type Safety First**: Every function is fully typed with mypy validation. This catches bugs at development time and enables better IDE support.
+
+2. **Backend Agnostic**: Code once, run anywhere. The same GP code works with NumPy or PyTorch backends without modification.
+
+3. **Convention Over Configuration**: Strict array shape conventions (nvars × nsamples for inputs, nsamples × nqoi for outputs) eliminate ambiguity and reduce bugs.
+
+## Comparison with Main PyApprox
+
+| Feature | Main PyApprox | Typing Module |
+|---------|---------------|---------------|
+| Type annotations | Partial | Complete |
+| Backend support | NumPy only | NumPy + PyTorch |
+| Array conventions | Flexible | Strict (nvars × nsamples) |
+| Testing | Standard | Generic base class pattern |
+| Multi-output GPs | Limited | Full DAG support |
+| Status | Production | Experimental |
+
+The typing module will eventually replace the main implementations once fully validated.
+
+## Getting Help
+
+- **GitHub Issues**: [Report bugs or request features](https://github.com/sandialabs/pyapprox/issues)
+- **Main Documentation**: [PyApprox documentation](https://sandialabs.github.io/pyapprox/)
+- **Examples**: Check the [Gallery](gallery/index.qmd) for working code
+
+## Citation
+
+If you use PyApprox in your research, please cite:
+
+```bibtex
+@software{pyapprox2024,
+  title = {PyApprox: A Python library for approximation and uncertainty quantification},
+  author = {Jakeman, John D. and others},
+  year = {2024},
+  url = {https://github.com/sandialabs/pyapprox}
+}
+```
+
+## License
+
+PyApprox is distributed under the MIT License. See the [LICENSE file](https://github.com/sandialabs/pyapprox/blob/master/LICENSE) for details.

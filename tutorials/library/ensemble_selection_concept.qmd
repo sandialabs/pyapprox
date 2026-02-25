@@ -1,0 +1,368 @@
+---
+title: "Model Ensemble Selection"
+subtitle: "PyApprox Tutorial Library"
+description: "Why adding a poorly-correlated low-fidelity model can *increase* estimator variance relative to using fewer models, and how to automatically identify the best model subset from pilot data alone."
+tutorial_type: concept
+topic: multi_fidelity
+difficulty: intermediate
+estimated_time: 7
+prerequisites:
+  - pacv_concept
+  - mlblue_concept
+tags:
+  - multi-fidelity
+  - ensemble-selection
+  - model-subset
+  - variance-reduction
+format:
+  html:
+    code-fold: false
+    code-tools: true
+    toc: true
+execute:
+  echo: true
+  warning: false
+jupyter: python3
+---
+
+::: {.callout-tip collapse="true"}
+## Download Notebook
+[Download as Jupyter Notebook](notebooks/ensemble_selection_concept.ipynb)
+:::
+
+## Learning Objectives
+
+After completing this tutorial, you will be able to:
+
+- Explain why including a weakly-correlated low-fidelity model can *increase* estimator
+  variance compared to using a smaller ensemble
+- Describe the ensemble selection problem: finding the subset $\mathcal{M}^* \subseteq \{0,\ldots,M\}$
+  that minimises predicted variance at a given budget
+- Interpret a model correlation heatmap to visually identify candidate LF models
+- Sketch the enumeration strategy that PyApprox uses to solve the selection problem
+
+
+## Prerequisites
+
+Complete [PACV Concept](pacv_concept.qmd) or [MLBLUE Concept](mlblue_concept.qmd)
+before this tutorial. Ensemble selection is the final degree of freedom in the
+multi-fidelity design problem: once the estimator family and sample allocation strategy
+are chosen, you still need to decide which models to include.
+
+
+## The Surprising Cost of Useless Models
+
+Adding a cheap LF model seems like it should always help — more data, lower cost,
+nothing to lose. This intuition is wrong. Consider a three-model ensemble
+$\{f_0, f_1, f_2\}$ where $f_1$ is only weakly correlated with $f_0$. The ACV
+estimator must estimate control variate coefficients and allocate budget across all
+models. When a model contributes little variance reduction it absorbs samples that
+would have been better spent on the remaining models, pushing the estimator covariance
+*above* the two-model $\{f_0, f_2\}$.
+
+```{python}
+#| echo: false
+#| fig-cap: "Predicted ACVMF variance (relative to single-fidelity MC) as a function of the HF–LF1 correlation $\\rho_{01}$, controlled by the parameter $\\theta_1$ of the tunable benchmark. When $\\rho_{01}$ is small, the three-model estimator (blue) is *worse* than the best two-model subset (orange dashed). The shaded region marks where using all three models hurts."
+#| label: fig-bad-model
+
+import numpy as np
+import matplotlib.pyplot as plt
+from pyapprox.util.backends.numpy import NumpyBkd
+from pyapprox.benchmarks import tunable_ensemble_3model
+from pyapprox.statest import MultiOutputMean, MCEstimator, GMFEstimator
+
+bkd = NumpyBkd()
+P = 100.0
+
+theta_vals = np.linspace(0.5, 1.5, 40)
+two_model_vars = []
+three_model_vars = []
+rho01_vals = []
+mc_vars = []
+
+for theta1 in theta_vals:
+    bm = tunable_ensemble_3model(bkd, theta1=theta1)
+    cov = bm.ensemble_covariance()
+    costs = bm.costs()
+    cov_np = bkd.to_numpy(cov)
+
+    D = np.diag(1.0 / np.sqrt(np.diag(cov_np)))
+    corr = D @ cov_np @ D
+    rho01_vals.append(corr[0, 1])
+
+    # MC baseline
+    stat_mc = MultiOutputMean(1, bkd)
+    stat_mc.set_pilot_quantities(cov)
+    mc_est = MCEstimator(stat_mc, costs[:1])
+    mc_est.allocate_samples(P)
+    mc_var = float(bkd.to_numpy(mc_est.optimized_covariance())[0, 0])
+    mc_vars.append(mc_var)
+
+    # Best 2-model subset (HF + f1 or HF + f2)
+    best2 = mc_var
+    for idx2 in ([0, 1], [0, 2]):
+        sub_cov = cov_np[np.ix_(idx2, idx2)]
+        sub_costs = bkd.asarray([bkd.to_numpy(costs)[i] for i in idx2])
+        stat2 = MultiOutputMean(1, bkd)
+        stat2.set_pilot_quantities(bkd.array(sub_cov))
+        est2 = GMFEstimator(stat2, sub_costs,
+                            recursion_index=bkd.asarray([0]))
+        est2.allocate_samples(P)
+        v = float(bkd.to_numpy(est2.optimized_covariance())[0, 0])
+        best2 = min(best2, v)
+    two_model_vars.append(best2)
+
+    # 3-model ACVMF: recursion_index=[0,0] means both LF models point to HF
+    stat3 = MultiOutputMean(1, bkd)
+    stat3.set_pilot_quantities(cov)
+    est3 = GMFEstimator(stat3, costs,
+                        recursion_index=bkd.asarray([0, 0]))
+    est3.allocate_samples(P)
+    v3 = float(bkd.to_numpy(est3.optimized_covariance())[0, 0])
+    three_model_vars.append(v3)
+
+rho01_arr = np.array(rho01_vals)
+ratio_2m = np.array(two_model_vars) / np.array(mc_vars)
+ratio_3m = np.array(three_model_vars) / np.array(mc_vars)
+
+fig, ax = plt.subplots(figsize=(9, 4.5))
+ax.plot(rho01_arr, ratio_3m, color="#2C7FB8", lw=2.5,
+        label="Three-model ACVMF  $\\{f_0,f_1,f_2\\}$")
+ax.plot(rho01_arr, ratio_2m, color="#E67E22", ls="--", lw=2,
+        label="Best two-model ACVMF")
+ax.axhline(1.0, color="k", ls=":", lw=1.2, alpha=0.5, label="MC baseline")
+ax.fill_between(rho01_arr, ratio_3m, ratio_2m,
+                where=ratio_3m > ratio_2m,
+                color="#e74c3c", alpha=0.18,
+                label="Region where $f_1$ *hurts*")
+ax.set_xlabel(r"$\rho_{01}$ — correlation of $f_1$ with HF model", fontsize=12)
+ax.set_ylabel("Predicted variance / MC variance", fontsize=12)
+ax.set_title("ACVMF: two-model vs three-model  (tunable benchmark, $P=100$)",
+             fontsize=11)
+ax.legend(fontsize=9)
+ax.grid(True, alpha=0.2)
+plt.tight_layout()
+plt.show()
+```
+
+@fig-bad-model shows the crossover: when $\rho_{01}$ is small the
+three-model estimator is worse than the best two-model subset. As $\rho_{01}$
+increases the three-model estimator eventually overtakes the two-model one.
+
+This is not a corner case. In practice, large model libraries routinely include models
+that are only weakly predictive of the HF output, and naive inclusion degrades
+performance.
+
+
+## The Ensemble Selection Problem
+
+Given a library of $M$ candidate LF models, the ensemble selection problem is:
+
+> Find the subset $\mathcal{M}^* \subseteq \{1, \ldots, M\}$ of LF models (always
+> including $f_0$) such that the estimator using $\{f_0\} \cup \mathcal{M}^*$ achieves
+> the smallest predicted variance at budget $P$.
+
+This is a combinatorial problem: there are $2^M$ possible subsets. For typical
+ensembles ($M \leq 10$) this is tractable — the outer enumeration over subsets is
+cheap because each subset's optimal sample allocation is solved independently.
+
+The full procedure is:
+
+1. **Pilot study**: evaluate all candidate models at $N_\text{pilot}$ shared samples to
+   estimate the joint covariance matrix.
+2. **Enumerate subsets**: for each subset of size $\leq k$ (a user-set cap), build
+   the estimator and optimise its sample allocation at budget $P$.
+3. **Select**: return the subset and estimator with the smallest optimised variance.
+
+Steps 2–3 require no additional model evaluations beyond the pilot.
+
+
+## The Correlation Heatmap
+
+The joint pilot covariance (or its normalised form, the correlation matrix) is the
+primary diagnostic for ensemble design. @fig-heatmap shows the correlation matrices
+for two different configurations of the tunable benchmark, demonstrating how the
+correlation structure controls which models are worth including.
+
+```{python}
+#| echo: false
+#| fig-cap: "Correlation matrices for two configurations of the tunable benchmark. Left ($\\theta_1 = 1.4$): $f_1$ is strongly correlated with $f_0$ ($\\rho_{01} = 0.96$) — both LF models help. Right ($\\theta_1 = 0.6$): $f_1$ is weakly correlated ($\\rho_{01} = 0.55$) — only $f_2$ contributes meaningful variance reduction."
+#| label: fig-heatmap
+
+import numpy as np
+import matplotlib.pyplot as plt
+from pyapprox.util.backends.numpy import NumpyBkd
+from pyapprox.benchmarks import tunable_ensemble_3model
+
+bkd = NumpyBkd()
+nmodels = 3
+
+from mpl_toolkits.axes_grid1 import make_axes_locatable
+
+fig, axes = plt.subplots(1, 2, figsize=(9, 3.8))
+
+for ax, theta1, title in zip(axes, [1.4, 0.6],
+                              [r"$\theta_1 = 1.4$", r"$\theta_1 = 0.6$"]):
+    bm = tunable_ensemble_3model(bkd, theta1=theta1)
+    cov_np = bkd.to_numpy(bm.ensemble_covariance())
+    D_inv = np.diag(1.0 / np.sqrt(np.diag(cov_np)))
+    corr = D_inv @ cov_np @ D_inv
+
+    im = ax.imshow(corr, vmin=-1, vmax=1, cmap="RdBu_r", aspect="equal")
+    labels = [f"$f_{i}$" for i in range(nmodels)]
+    ax.set_xticks(range(nmodels)); ax.set_xticklabels(labels, fontsize=11)
+    ax.set_yticks(range(nmodels)); ax.set_yticklabels(labels, fontsize=11)
+    for i in range(nmodels):
+        for j in range(nmodels):
+            ax.text(j, i, f"{corr[i,j]:.2f}", ha="center", va="center",
+                    fontsize=10,
+                    color="black" if abs(corr[i,j]) < 0.85 else "white")
+    ax.set_title(title, fontsize=11)
+
+# Colorbar attached to the right panel only
+divider = make_axes_locatable(axes[1])
+cax = divider.append_axes("right", size="8%", pad=0.15)
+fig.colorbar(im, cax=cax, label="Correlation")
+plt.tight_layout()
+plt.show()
+```
+
+From @fig-heatmap, the left panel shows a configuration where both LF models are useful
+($\rho_{01} = 0.96$, $\rho_{02} = 0.41$), while the right panel shows a case where
+only $f_2$ provides meaningful correlation. Whether to include one or both LF models
+cannot be answered from the heatmap alone — the optimal decision also depends on model
+costs and the available budget.
+
+
+## How Many Models Is Enough?
+
+@fig-nmodels shows the ACVMF variance ratio (relative to MC) for the best one-LF
+and two-LF subsets across a range of $\rho_{01}$ values. The winner depends on the
+correlation structure: at low $\rho_{01}$, using only $f_2$ is best; at high
+$\rho_{01}$, the full three-model ensemble wins.
+
+```{python}
+#| echo: false
+#| fig-cap: "ACVMF variance ratio for the best one-LF subset (orange) and the two-LF ensemble (blue) across different HF–LF1 correlation strengths. At low $\\rho_{01}$ the single-model subset $\\{f_0, f_2\\}$ outperforms the full ensemble; at high $\\rho_{01}$ the three-model estimator is clearly better. The crossover identifies the correlation threshold below which $f_1$ should be excluded."
+#| label: fig-nmodels
+
+import numpy as np
+import matplotlib.pyplot as plt
+from pyapprox.util.backends.numpy import NumpyBkd
+from pyapprox.benchmarks import tunable_ensemble_3model
+from pyapprox.statest import MultiOutputMean, MCEstimator, GMFEstimator
+
+bkd = NumpyBkd()
+P = 100.0
+
+theta_vals = np.linspace(0.5, 1.5, 30)
+best_1lf = []
+two_lf = []
+rho01_vals = []
+
+for theta1 in theta_vals:
+    bm = tunable_ensemble_3model(bkd, theta1=theta1)
+    cov = bm.ensemble_covariance()
+    costs = bm.costs()
+    cov_np = bkd.to_numpy(cov)
+
+    D = np.diag(1.0 / np.sqrt(np.diag(cov_np)))
+    corr = D @ cov_np @ D
+    rho01_vals.append(corr[0, 1])
+
+    stat_mc = MultiOutputMean(1, bkd)
+    stat_mc.set_pilot_quantities(cov)
+    mc_est = MCEstimator(stat_mc, costs[:1])
+    mc_est.allocate_samples(P)
+    mc_var = float(bkd.to_numpy(mc_est.optimized_covariance())[0, 0])
+
+    # Best 1-LF subset
+    best1 = mc_var
+    for idx2 in ([0, 1], [0, 2]):
+        sub_cov = cov_np[np.ix_(idx2, idx2)]
+        sub_costs = bkd.asarray([bkd.to_numpy(costs)[i] for i in idx2])
+        stat2 = MultiOutputMean(1, bkd)
+        stat2.set_pilot_quantities(bkd.array(sub_cov))
+        est2 = GMFEstimator(stat2, sub_costs,
+                            recursion_index=bkd.asarray([0]))
+        est2.allocate_samples(P)
+        v = float(bkd.to_numpy(est2.optimized_covariance())[0, 0])
+        best1 = min(best1, v)
+    best_1lf.append(best1 / mc_var)
+
+    # 2-LF (all three models) — ACVMF
+    stat3 = MultiOutputMean(1, bkd)
+    stat3.set_pilot_quantities(cov)
+    est3 = GMFEstimator(stat3, costs,
+                        recursion_index=bkd.asarray([0, 0]))
+    est3.allocate_samples(P)
+    v3 = float(bkd.to_numpy(est3.optimized_covariance())[0, 0])
+    two_lf.append(v3 / mc_var)
+
+rho01_arr = np.array(rho01_vals)
+
+fig, ax = plt.subplots(figsize=(9, 4.5))
+ax.plot(rho01_arr, two_lf, color="#2C7FB8", lw=2.5, marker="o", ms=4,
+        label="2 LF models  $\\{f_0,f_1,f_2\\}$")
+ax.plot(rho01_arr, best_1lf, color="#E67E22", lw=2.5, marker="s", ms=4,
+        label="Best 1 LF model")
+ax.axhline(1.0, color="k", ls=":", lw=1.2, alpha=0.5, label="MC baseline")
+ax.set_xlabel(r"$\rho_{01}$ — correlation of $f_1$ with HF model", fontsize=12)
+ax.set_ylabel("Best variance / MC variance", fontsize=11)
+ax.set_title("ACVMF: optimal ensemble size depends on correlation  ($P=100$)",
+             fontsize=11)
+ax.legend(fontsize=9)
+ax.grid(True, alpha=0.2)
+plt.tight_layout()
+plt.show()
+```
+
+In @fig-nmodels, at low $\rho_{01}$ the best strategy is to exclude $f_1$ and use
+only $\{f_0, f_2\}$. As $\rho_{01}$ increases, $f_1$ becomes valuable and the
+three-model ensemble dominates. The crossover point identifies the correlation
+threshold below which $f_1$ should be dropped from the ensemble.
+
+
+## Why This Matters in Practice
+
+Real model libraries are often assembled opportunistically: a HPC simulation suite
+might have a fine-mesh model, two coarse-mesh variants, a surrogate trained on a
+different parameter regime, and an empirical correlation. Not all of these will help.
+The enumeration over subsets itself is cheap (no additional model evaluations beyond the
+pilot), but the pilot cost grows with each model added to the library. Approaches that
+balance exploration of pilot statistics with exploitation of those statistics to compute
+the estimator are needed to determine the right number of pilot samples.
+
+
+## Key Takeaways
+
+- Adding a weakly-correlated LF model can *increase* estimator variance relative to
+  using a smaller ensemble (@fig-bad-model)
+- The ensemble selection problem is: find the best subset of $\leq k$ LF models given
+  the pilot covariance and a target budget
+- The pilot correlation heatmap (@fig-heatmap) is the primary visual diagnostic but
+  is not sufficient alone — cost ratios and budget also drive the decision
+- The optimal ensemble size depends on the correlation structure: stronger correlations
+  favour larger ensembles (@fig-nmodels)
+- Enumeration over subsets is cheap: no additional model evaluations are required
+  beyond the pilot
+
+
+## Exercises
+
+1. From @fig-bad-model, at what approximate $\rho_{01}$ does the three-model
+   estimator break even with the best two-model subset? How does this answer depend
+   on the budget $P$?
+
+2. From @fig-heatmap, in each configuration, which single LF model would you include
+   first, and why? Would your answer change if model costs were equal?
+
+3. From @fig-nmodels, at $\rho_{01} \approx 0.7$, the best one-LF and two-LF
+   ensembles have similar variance. What practical consideration might break the tie
+   in favour of fewer models?
+
+
+## Next Steps
+
+- [Ensemble Selection Usage](ensemble_selection_usage.qmd) — `AllSubsetsStrategy`,
+  `ACVSearch`, and `plot_estimator_variance_reductions` in PyApprox

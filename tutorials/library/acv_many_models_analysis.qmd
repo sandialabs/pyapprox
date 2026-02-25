@@ -1,0 +1,481 @@
+---
+title: "General ACV: Analysis"
+subtitle: "PyApprox Tutorial Library"
+description: "Deriving the optimal ACV weight matrix, the minimum achievable estimator covariance, and the allocation-matrix framework that parametrises all ACV estimators."
+tutorial_type: analysis
+topic: multi_fidelity
+difficulty: intermediate
+estimated_time: 20
+prerequisites:
+  - acv_many_models_concept
+  - mfmc_analysis
+tags:
+  - multi-fidelity
+  - acv
+  - optimal-weights
+  - estimator-theory
+  - allocation-matrix
+format:
+  html:
+    code-fold: false
+    code-tools: true
+    toc: true
+execute:
+  echo: true
+  warning: false
+jupyter: python3
+---
+
+::: {.callout-tip collapse="true"}
+## Download Notebook
+[Download as Jupyter Notebook](notebooks/acv_many_models_analysis.ipynb)
+:::
+
+## Learning Objectives
+
+After completing this tutorial, you will be able to:
+
+- Write the general ACV estimator for a vector-valued statistic with $M$ LF models
+- Derive the optimal weight matrix $\mathbf{H}^* = -\Sigma_{\Delta\Delta}^{-1}\Sigma_{\Delta Q_0}$
+  and the resulting minimum covariance
+- Identify $\Sigma_{\Delta\Delta}$ and $\Sigma_{\Delta Q_0}$ as the two quantities that
+  determine every ACV estimator's variance
+- State how the allocation matrix parameterises the sample-set structure and reduces
+  the optimisation to a tractable form
+- Verify the theoretical variance numerically for MLMC, MFMC, and ACVMF
+
+
+## Prerequisites
+
+Complete [General ACV Concept](acv_many_models_concept.qmd) and
+[MFMC Analysis](mfmc_analysis.qmd) before this tutorial.
+The [ACV Allocation Matrices](acv_allocation_matrices.qmd) reference provides supporting
+detail on how allocation matrices encode sample-set structure.
+
+
+## The General ACV Estimator
+
+Let $f_0, \ldots, f_M$ be models and let $\mathbf{Q}_0 \in \mathbb{R}^S$ be a
+vector-valued statistic of the high-fidelity model (e.g. the mean of $S$ output
+quantities of interest). Each low-fidelity model $f_\alpha$ ($\alpha = 1, \ldots, M$)
+contributes a **correction vector**
+
+$$
+\boldsymbol{\Delta}_\alpha = \mathbf{Q}_\alpha(\mathcal{Z}_\alpha^*) - \mathbf{Q}_\alpha(\mathcal{Z}_\alpha),
+$$
+
+where $\mathcal{Z}_\alpha^*$ and $\mathcal{Z}_\alpha$ are two sample sets that may or
+may not overlap. Each $\boldsymbol{\Delta}_\alpha$ is unbiased for zero
+($\mathbb{E}[\boldsymbol{\Delta}_\alpha] = \mathbf{0}$) regardless of the sample-set
+structure.
+
+Stack the corrections into a single vector
+$\boldsymbol{\Delta} = [\boldsymbol{\Delta}_1^\top, \ldots, \boldsymbol{\Delta}_M^\top]^\top \in \mathbb{R}^{SM}$.
+The **general ACV estimator** is
+
+$$
+\hat{\mathbf{Q}}_0^{\text{ACV}} = \mathbf{Q}_0(\mathcal{Z}_0) + \mathbf{H}\,\boldsymbol{\Delta},
+$$ {#eq-acv-general}
+
+where $\mathbf{H} \in \mathbb{R}^{S \times SM}$ is the weight matrix. Because each
+$\boldsymbol{\Delta}_\alpha$ has zero mean, the estimator is unbiased for any $\mathbf{H}$.
+
+::: {.callout-note}
+## Special cases
+When $S = 1$ (scalar statistic) and $M = 1$ (one LF model), @eq-acv-general reduces to
+the two-model ACV estimator from [ACV Analysis](acv_analysis.qmd). MLMC, MFMC, and ACVMF
+are all instances of @eq-acv-general with different choices of sample-set structure
+(encoded by the allocation matrix) and different $\mathbf{H}$.
+:::
+
+
+## Covariance of the ACV Estimator
+
+Define the covariance blocks
+
+$$
+\Sigma_{\Delta\Delta} = \mathbb{C}\mathrm{ov}(\boldsymbol{\Delta}, \boldsymbol{\Delta}) \in \mathbb{R}^{SM \times SM},
+\qquad
+\Sigma_{\Delta Q_0} = \mathbb{C}\mathrm{ov}(\boldsymbol{\Delta}, \mathbf{Q}_0) \in \mathbb{R}^{SM \times S}.
+$$
+
+Using the variance-of-sums formula (and noting that $\mathbf{Q}_0(\mathcal{Z}_0)$ and
+$\boldsymbol{\Delta}$ may share samples):
+
+$$
+\mathbb{C}\mathrm{ov}(\hat{\mathbf{Q}}_0^{\text{ACV}}) =
+\Sigma_{Q_0 Q_0}
++ \mathbf{H}\,\Sigma_{\Delta\Delta}\,\mathbf{H}^\top
++ \mathbf{H}\,\Sigma_{\Delta Q_0}
++ \Sigma_{Q_0 \Delta}\,\mathbf{H}^\top,
+$$ {#eq-acv-cov}
+
+where $\Sigma_{Q_0 Q_0} = \mathbb{C}\mathrm{ov}(\mathbf{Q}_0(\mathcal{Z}_0))$ and
+$\Sigma_{Q_0\Delta} = \Sigma_{\Delta Q_0}^\top$.
+
+How to compute $\Sigma_{\Delta\Delta}$ and $\Sigma_{\Delta Q_0}$ from model covariances
+and the sample-set intersection sizes is derived in the
+[ACV Covariances](acv_covariances.qmd) reference tutorial.
+
+
+## Optimal Weight Matrix
+
+@eq-acv-cov is a quadratic function of $\mathbf{H}$. To minimise the determinant of the
+estimator covariance, differentiate with respect to $\mathbf{H}$ and set to zero:
+
+$$
+\frac{\partial}{\partial \mathbf{H}}\,
+\det\!\left[\mathbb{C}\mathrm{ov}(\hat{\mathbf{Q}}_0^{\text{ACV}})\right] = \mathbf{0}
+\implies
+\mathbf{H}^* = -\Sigma_{\Delta Q_0}^\top \Sigma_{\Delta\Delta}^{-1}.
+$$ {#eq-eta-star}
+
+This is the direct multi-model generalisation of the scalar two-model optimal weight
+$\eta^* = -C_{0\kappa}/\sigma_\kappa^2$ from [ACV Analysis](acv_analysis.qmd).
+
+Substituting $\mathbf{H}^*$ back into @eq-acv-cov gives the **minimum ACV covariance**:
+
+$$
+\boxed{
+\mathbb{C}\mathrm{ov}(\hat{\mathbf{Q}}_0^{\text{ACV}})
+= \Sigma_{Q_0 Q_0}
+  - \Sigma_{Q_0\Delta}\,\Sigma_{\Delta\Delta}^{-1}\,\Sigma_{\Delta Q_0}.
+}
+$$ {#eq-acv-min-cov}
+
+The variance reduction (compared to plain MC at the same HF sample count) is the
+**Schur complement** $\Sigma_{Q_0\Delta}\,\Sigma_{\Delta\Delta}^{-1}\,\Sigma_{\Delta Q_0}$.
+This is always positive semidefinite, so ACV can never *increase* variance with optimal
+weights. It is zero if and only if every LF correction is uncorrelated with $\mathbf{Q}_0$.
+
+::: {.callout-important}
+## What determines variance reduction
+@eq-acv-min-cov shows that variance reduction depends on two things only:
+$\Sigma_{Q_0\Delta}$ (how well each correction correlates with $\mathbf{Q}_0$) and
+$\Sigma_{\Delta\Delta}$ (how noisy each correction is, and how they covary with each
+other). The allocation matrix controls $\Sigma_{\Delta\Delta}$ and $\Sigma_{\Delta Q_0}$
+through the sample-set intersection sizes — changing which partitions are shared between
+sets changes both matrices simultaneously.
+:::
+
+
+## From Theory to Practice: The Allocation Matrix
+
+For a general sample allocation $\mathcal{A}$ (arbitrary choices of which samples are in
+$\mathcal{Z}_\alpha$ and $\mathcal{Z}_\alpha^*$), computing $\Sigma_{\Delta\Delta}$ and
+$\Sigma_{\Delta Q_0}$ requires knowing all pairwise set intersection sizes
+$|\mathcal{Z}_\alpha \cap \mathcal{Z}_\beta|$, $|\mathcal{Z}_\alpha^* \cap \mathcal{Z}_\beta|$,
+and $|\mathcal{Z}_\alpha^* \cap \mathcal{Z}_\beta^*|$ for all $\alpha, \beta$. Optimising
+over all possible values of these simultaneously is intractable.
+
+All practical ACV methods restrict the search space by requiring sample sets to be unions
+of $M+1$ **independent partitions** $\mathcal{P}_0, \ldots, \mathcal{P}_M$, each of size
+$p_m$. The **allocation matrix** $\mathbf{A} \in \{0,1\}^{(M+1) \times 2(M+1)}$ encodes
+which partitions are included in which sets:
+
+$$
+A_{ij} = 1 \iff \mathcal{P}_i \subseteq
+\begin{cases}
+\mathcal{Z}_\alpha^* & j = 2\alpha - 1 \\
+\mathcal{Z}_\alpha   & j = 2\alpha
+\end{cases}.
+$$
+
+The MFMC allocation matrix for three models ($M = 3$) is
+
+$$
+\mathbf{A}_{\text{MFMC}} =
+\begin{pmatrix}
+0 & 1 & 1 & 1 & 1 & 1 & 1 & 1 \\
+0 & 0 & 0 & 1 & 1 & 1 & 1 & 1 \\
+0 & 0 & 0 & 0 & 0 & 1 & 1 & 1 \\
+0 & 0 & 0 & 0 & 0 & 0 & 0 & 1 \\
+\end{pmatrix}.
+$$
+
+The first column is always all-zeros ($\mathcal{Z}_0^*$ is never used). Given $\mathbf{A}$,
+all intersection sizes are determined by the partition sizes $\mathbf{p}$, and
+$\Sigma_{\Delta\Delta}(\mathbf{p})$ and $\Sigma_{\Delta Q_0}(\mathbf{p})$ can be
+computed analytically (see [ACV Covariances](acv_covariances.qmd)).
+
+The optimal allocation then becomes the tractable problem
+
+$$
+\min_{\mathbf{p}}\;
+\det\!\left[\Sigma_{Q_0 Q_0}
+  - \Sigma_{Q_0\Delta}(\mathbf{p})\,\Sigma_{\Delta\Delta}(\mathbf{p})^{-1}\,\Sigma_{\Delta Q_0}(\mathbf{p})
+\right]
+\quad \text{subject to} \quad
+\sum_{m=0}^M p_m C_{m}(\mathbf{A}) \leq P,
+$$ {#eq-alloc-opt}
+
+where $C_m(\mathbf{A})$ is the cost per sample in partition $\mathcal{P}_m$ determined
+by which models evaluate it. This is solved numerically (typically via quasi-Newton
+methods) by `ACVAllocator` in PyApprox.
+
+
+### Visualising Allocation Matrices
+
+Seeing the allocation matrices side-by-side makes the structural differences between
+estimator types immediately clear. Each row is an independent partition $\mathcal{P}_i$;
+each column pair is a sample set $(\mathcal{Z}_\alpha^*, \mathcal{Z}_\alpha)$. A filled
+cell means that partition is included in that set; numbers show the optimised partition
+sizes at the given budget.
+
+```{python}
+#| fig-cap: "Allocation matrices for MLMC, MFMC, ACVMF, and ACVIS at budget $P = 100$. MLMC and MFMC have chain structures (each model only shares samples with its neighbours). ACVMF and ACVIS share the HF partition $\\mathcal{P}_0$ across all LF corrections, enabling the full Schur complement reduction."
+#| label: fig-allocation-matrices
+
+import numpy as np
+import matplotlib.pyplot as plt
+from pyapprox.util.backends.numpy import NumpyBkd
+from pyapprox.benchmarks.instances.multifidelity.polynomial_ensemble import (
+    polynomial_ensemble_5model,
+)
+from pyapprox.statest.statistics import MultiOutputMean
+from pyapprox.statest import (
+    MCEstimator, MLMCEstimator, MFMCEstimator, GMFEstimator, GISEstimator,
+)
+from pyapprox.statest.acv import (
+    ACVAllocator, default_allocator_factory,
+)
+from pyapprox.optimization.minimize.scipy.diffevol import (
+    ScipyDifferentialEvolutionOptimizer,
+)
+from pyapprox.optimization.minimize.scipy.trust_constr import (
+    ScipyTrustConstrOptimizer,
+)
+from pyapprox.optimization.minimize.chained.chained_optimizer import (
+    ChainedOptimizer,
+)
+
+bkd       = NumpyBkd()
+benchmark = polynomial_ensemble_5model(bkd)
+models    = benchmark.models()
+costs     = benchmark.costs()
+nqoi      = models[0].nqoi()
+n_models  = len(models)
+M         = n_models - 1
+
+stat = MultiOutputMean(nqoi, bkd)
+stat.set_pilot_quantities(bkd.asarray(bkd.to_numpy(benchmark.ensemble_covariance())))
+
+target_cost = 100.0
+ri_zeros = bkd.zeros(M, dtype=int)
+
+optimizer = ChainedOptimizer(
+    ScipyDifferentialEvolutionOptimizer(maxiter=200, raise_on_failure=False),
+    ScipyTrustConstrOptimizer(maxiter=1000),
+)
+
+estimators = {
+    "MLMC":  MLMCEstimator(stat, costs),
+    "MFMC":  MFMCEstimator(stat, costs),
+    "ACVMF": GMFEstimator(stat, costs, recursion_index=ri_zeros),
+    "ACVIS": GISEstimator(stat, costs, recursion_index=ri_zeros),
+}
+for name, est in estimators.items():
+    if name in ("MLMC", "MFMC"):
+        allocator = default_allocator_factory(est)
+    else:
+        allocator = ACVAllocator(est, optimizer=optimizer)
+    est.set_allocation(allocator.allocate(target_cost))
+
+def plot_allocation_matrix(ax, est, bkd, show_sizes=True):
+    A = bkd.to_numpy(est._get_allocation_matrix())
+    p = bkd.to_numpy(est.npartition_samples())
+    nrows, ncols = A.shape
+    ax.imshow(A, cmap="Blues", aspect="auto", vmin=0, vmax=1)
+    if show_sizes:
+        for i in range(nrows):
+            for j in range(ncols):
+                if A[i, j] > 0:
+                    ax.text(j, i, f"{int(p[i])}", ha="center", va="center",
+                            fontsize=7, color="white", fontweight="bold")
+    ax.set_yticks(range(nrows))
+    ax.set_yticklabels([rf"$\mathcal{{P}}_{{{m}}}$" for m in range(nrows)],
+                       fontsize=8)
+    col_labels = []
+    for alpha in range(ncols // 2):
+        col_labels += [rf"$Z_{{{alpha}}}^*$", rf"$Z_{{{alpha}}}$"]
+    ax.set_xticks(range(ncols))
+    ax.set_xticklabels(col_labels, fontsize=7, rotation=45, ha="right")
+
+fig, axes = plt.subplots(1, 4, figsize=(20, 5))
+for ax, (name, est) in zip(axes, estimators.items()):
+    plot_allocation_matrix(ax, est, bkd)
+    ax.set_title(name, fontsize=12, pad=8)
+plt.suptitle(f"Allocation matrices at budget $P = {target_cost}$", fontsize=12, y=1.02)
+plt.tight_layout()
+plt.show()
+```
+
+The key pattern: in ACVMF and ACVIS, partition $\mathcal{P}_0$ (the HF partition) appears
+in the $\mathcal{Z}_\alpha^*$ column of **every** LF model — this is what makes all
+corrections directly correlated with $\hat{\mu}_0(\mathcal{Z}_0)$ and allows the full
+Schur complement reduction. In MLMC and MFMC, each correction only shares samples with
+its immediate neighbour in the chain.
+
+
+## Numerical Verification
+
+We verify @eq-acv-min-cov by comparing the predicted variance from `optimized_covariance()`
+against empirical variance from independent trials, across several budgets. This follows
+the same pattern used in [MFMC Analysis](mfmc_analysis.qmd).
+
+```{python}
+#| fig-cap: "MC, MFMC, and ACVMF variance vs total cost: `optimized_covariance()` predictions (lines) compared to empirical variance from 500 independent trials (markers). Close agreement confirms @eq-acv-min-cov for both estimator types."
+#| label: fig-variance-verify
+
+variable  = benchmark.prior()
+cov_true  = bkd.to_numpy(benchmark.ensemble_covariance())
+
+stat_v = MultiOutputMean(nqoi, bkd)
+stat_v.set_pilot_quantities(bkd.asarray(cov_true))
+
+ri_zeros_v = bkd.zeros(M, dtype=int)
+
+target_costs_sweep = [10, 100, 1000, 10000]
+n_trials = 500
+
+mc_vars_pred, mfmc_vars_pred, acvmf_vars_pred = [], [], []
+mc_vars_emp, mfmc_vars_emp, acvmf_vars_emp = [], [], []
+
+def rvs_int(n):
+    return variable.rvs(int(n))
+
+for P_t in target_costs_sweep:
+    # --- Predicted variance ---
+    mc_e = MCEstimator(stat_v, costs)
+    mc_e.allocate_samples(float(P_t))
+    mc_vars_pred.append(float(mc_e.optimized_covariance()[0, 0]))
+
+    mf_e = MFMCEstimator(stat_v, costs)
+    mf_allocator = default_allocator_factory(mf_e)
+    mf_e.set_allocation(mf_allocator.allocate(float(P_t)))
+    mfmc_vars_pred.append(float(mf_e.optimized_covariance()[0, 0]))
+
+    acv_e = GMFEstimator(stat_v, costs, recursion_index=ri_zeros_v)
+    acv_allocator = ACVAllocator(acv_e, optimizer=optimizer)
+    acv_e.set_allocation(acv_allocator.allocate(float(P_t)))
+    acvmf_vars_pred.append(float(acv_e.optimized_covariance()[0, 0]))
+
+    # --- Empirical variance from trials ---
+    mc_ests_t = np.empty(n_trials)
+    mfmc_ests_t = np.empty(n_trials)
+    acvmf_ests_t = np.empty(n_trials)
+    for i in range(n_trials):
+        np.random.seed(i + int(P_t) * 100)
+
+        [s_mc] = mc_e.generate_samples_per_model(rvs_int)
+        mc_ests_t[i] = float(mc_e(models[0](s_mc)))
+
+        s_mf = mf_e.generate_samples_per_model(rvs_int)
+        v_mf = [models[a](s_mf[a]) for a in range(n_models)]
+        mfmc_ests_t[i] = float(mf_e(v_mf))
+
+        s_acv = acv_e.generate_samples_per_model(rvs_int)
+        v_acv = [models[a](s_acv[a]) for a in range(n_models)]
+        acvmf_ests_t[i] = float(acv_e(v_acv))
+
+    mc_vars_emp.append(mc_ests_t.var())
+    mfmc_vars_emp.append(mfmc_ests_t.var())
+    acvmf_vars_emp.append(acvmf_ests_t.var())
+
+fig, ax = plt.subplots(figsize=(7, 4.5))
+ax.loglog(target_costs_sweep, mc_vars_pred, "-", color="#aaaaaa", lw=2,
+          label="MC (predicted)")
+ax.loglog(target_costs_sweep, mc_vars_emp, "o", color="#aaaaaa", ms=8,
+          label="MC (empirical)")
+ax.loglog(target_costs_sweep, mfmc_vars_pred, "-", color="#E67E22", lw=2,
+          label="MFMC (predicted)")
+ax.loglog(target_costs_sweep, mfmc_vars_emp, "s", color="#E67E22", ms=8,
+          label="MFMC (empirical)")
+ax.loglog(target_costs_sweep, acvmf_vars_pred, "-", color="#8E44AD", lw=2,
+          label="ACVMF (predicted)")
+ax.loglog(target_costs_sweep, acvmf_vars_emp, "D", color="#8E44AD", ms=8,
+          label="ACVMF (empirical)")
+ax.set_xlabel("Total cost $P$", fontsize=12)
+ax.set_ylabel("Estimator variance", fontsize=12)
+ax.set_title(f"Predicted vs empirical variance  ({n_trials} trials)", fontsize=11)
+ax.legend(fontsize=9)
+ax.grid(True, alpha=0.2, which="both")
+plt.tight_layout()
+plt.show()
+
+for P_t, mp, me, mfp, mfe, ap, ae in zip(
+    target_costs_sweep, mc_vars_pred, mc_vars_emp,
+    mfmc_vars_pred, mfmc_vars_emp, acvmf_vars_pred, acvmf_vars_emp,
+):
+    print(f"P={P_t:5d}:  MC pred={mp:.2e} emp={me:.2e}  |  "
+          f"MFMC pred={mfp:.2e} emp={mfe:.2e}  |  "
+          f"ACVMF pred={ap:.2e} emp={ae:.2e}")
+```
+
+
+## ACVMF vs MFMC: What Changes
+
+To make the Schur complement interpretation concrete, consider the scalar single-QoI case
+($S = 1$). @eq-acv-min-cov becomes
+
+$$
+\mathbb{V}[\hat{\mu}_0^{\text{ACV}}]
+= \frac{\sigma_0^2}{N_0}
+  - \boldsymbol{\sigma}_{0\Delta}^\top \Sigma_{\Delta\Delta}^{-1} \boldsymbol{\sigma}_{0\Delta},
+$$
+
+where $\boldsymbol{\sigma}_{0\Delta} \in \mathbb{R}^M$ is the vector of covariances
+between $\hat{\mu}_0(\mathcal{Z}_0)$ and each correction $\Delta_\alpha$.
+
+For **MFMC**, the recursive sample structure means that corrections at different levels
+use different exclusive partitions, making $\Sigma_{\Delta\Delta}$ block-diagonal with
+a specific sparsity pattern. Only $\Delta_1$ has non-zero covariance with
+$\hat{\mu}_0(\mathcal{Z}_0)$ in the limit of large LF sample counts — the other
+corrections are indirectly coupled through the nested sets.
+
+For **ACVMF**, every correction $\Delta_\alpha$ uses the shared partition $\mathcal{P}_0$
+(the HF sample set), so $\boldsymbol{\sigma}_{0\Delta}$ has $M$ non-zero entries. The
+full Schur complement $\boldsymbol{\sigma}_{0\Delta}^\top \Sigma_{\Delta\Delta}^{-1}
+\boldsymbol{\sigma}_{0\Delta}$ then exploits all $M$ correlations simultaneously — which
+is exactly why it achieves a lower floor.
+
+
+## Key Takeaways
+
+- The general ACV estimator @eq-acv-general unifies all multi-model estimators; what
+  differs is the sample-set structure (allocation matrix) and the weight matrix $\mathbf{H}$
+- The optimal weights are $\mathbf{H}^* = -\Sigma_{\Delta Q_0}^\top \Sigma_{\Delta\Delta}^{-1}$,
+  directly generalising the two-model ACV formula
+- The minimum variance is $\Sigma_{Q_0} - \Sigma_{Q_0\Delta}\Sigma_{\Delta\Delta}^{-1}\Sigma_{\Delta Q_0}$
+  — the Schur complement reduction; this is always $\geq 0$
+- Allocation matrices parameterise which partitions enter which sets, making
+  $\Sigma_{\Delta\Delta}(\mathbf{p})$ and $\Sigma_{\Delta Q_0}(\mathbf{p})$ tractable
+  functions of the partition sizes
+- ACVMF achieves larger variance reduction than MFMC because more entries of
+  $\boldsymbol{\sigma}_{0\Delta}$ are non-zero, giving a larger Schur complement
+
+
+## Exercises
+
+1. For $S = 1$ and $M = 1$, show that @eq-eta-star reduces to the two-model ACV optimal
+   weight $\eta^* = -C_{0\kappa}/\sigma_\kappa^2$ from [ACV Analysis](acv_analysis.qmd).
+
+2. Show that @eq-acv-min-cov is always smaller (in the positive-semidefinite sense) than
+   $\Sigma_{Q_0 Q_0}$. (Hint: use the fact that $\Sigma_{\Delta\Delta}$ is positive
+   definite and apply the Schur complement lemma.)
+
+3. If $\boldsymbol{\sigma}_{0\Delta} = \mathbf{0}$ (every correction is uncorrelated
+   with $\mathbf{Q}_0$), what does @eq-acv-min-cov reduce to? What does this tell you
+   about the LF models?
+
+4. **(Challenge)** Write out the $2 \times 2$ case of @eq-eta-star explicitly
+   (one scalar QoI, two LF models). Identify the role of the cross-covariance
+   $\text{Cov}(\Delta_1, \Delta_2)$ in the formula for $\eta_1^*$.
+
+
+## References
+
+- [GGEJJCP2020] A. Gorodetsky, S. Geraci, M. Eldred, J. Jakeman. *A generalized approximate
+  control variate framework for multifidelity uncertainty quantification.* Journal of
+  Computational Physics, 408:109257, 2020.
+  [DOI](https://doi.org/10.1016/j.jcp.2020.109257)

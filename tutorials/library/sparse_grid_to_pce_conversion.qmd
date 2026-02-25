@@ -1,0 +1,534 @@
+---
+title: "From Sparse Grids to PCE: The Mathematics of Basis Conversion"
+subtitle: "PyApprox Tutorial Library"
+description: "Understand the spectral projection that converts Lagrange-based sparse grid interpolants into Polynomial Chaos Expansions, with visual intuition."
+tutorial_type: concept
+topic: surrogate_modeling
+difficulty: advanced
+estimated_time: 20
+prerequisites:
+  - isotropic_sparse_grids
+  - polynomial_chaos_surrogates
+tags:
+  - sparse-grid
+  - polynomial-chaos
+  - spectral-projection
+  - basis-conversion
+format:
+  html:
+    code-fold: false
+    code-tools: true
+    toc: true
+execute:
+  echo: true
+  warning: false
+jupyter: python3
+---
+
+::: {.callout-tip collapse="true"}
+## Download Notebook
+[Download as Jupyter Notebook](notebooks/sparse_grid_to_pce_conversion.ipynb)
+:::
+
+## Learning Objectives
+
+After completing this tutorial, you will be able to:
+
+- Explain why a Lagrange interpolant and a PCE are two representations of the same polynomial space
+- Derive the spectral projection formula that converts a 1D Lagrange basis function to orthonormal polynomial coefficients
+- Visualize the 1D projection: Lagrange basis functions overlaid with their orthonormal polynomial expansions
+- Extend the 1D projection to tensor products via Kronecker structure
+- Describe how the Smolyak combination merges subspace PCEs into a single global PCE
+
+
+## Prerequisites
+
+Complete:
+
+- [Isotropic Sparse Grids](isotropic_sparse_grids.qmd) --- Smolyak combination and sparse grid construction
+- [Building a Polynomial Chaos Surrogate](polynomial_chaos_surrogates.qmd) --- PCE basics and orthonormal polynomial bases
+
+
+## Setup
+
+```{python}
+import numpy as np
+import matplotlib.pyplot as plt
+from pyapprox.util.backends.numpy import NumpyBkd
+from pyapprox.probability.univariate.uniform import UniformMarginal
+from pyapprox.surrogates.affine.univariate import create_bases_1d
+from pyapprox.surrogates.sparsegrids import (
+    IsotropicSparseGridFitter,
+    TensorProductSubspaceFactory,
+    create_basis_factories,
+    SparseGridToPCEConverter,
+    TensorProductSubspaceToPCEConverter,
+)
+from pyapprox.surrogates.affine.indices import LinearGrowthRule
+
+bkd = NumpyBkd()
+np.random.seed(42)
+```
+
+
+## Two Bases for the Same Space
+
+A polynomial of degree $n$ can be expressed equally well in two bases:
+
+- **Lagrange basis** $\{L_j(x)\}_{j=0}^{n-1}$: defined by interpolation nodes $\{x_j\}$. Each $L_j$ peaks at $x_j$ and vanishes at all other nodes. Interpolation is trivial: $\hat{f}(x) = \sum_j f(x_j) L_j(x)$.
+
+- **Orthonormal polynomial basis** $\{P_k(x)\}_{k=0}^{n-1}$: defined by the probability measure $\mu$, satisfying $\int P_i P_j\, d\mu = \delta_{ij}$. Moment computation is trivial: $\mathbb{E}[\hat{f}] = c_0$, $\text{Var}[\hat{f}] = \sum_{k>0} c_k^2$.
+
+Neither is "better" --- they serve different purposes.
+
+```{python}
+#| fig-cap: "Both sets span the space of polynomials of degree 3. Left: four Lagrange basis functions, each peaking at its node. Right: four Legendre polynomials, smooth and oscillatory. The Lagrange basis is defined by interpolation nodes; the orthonormal basis is defined by the probability measure."
+#| label: fig-two-bases
+
+marginal = UniformMarginal(-1.0, 1.0, bkd)
+bases_1d = create_bases_1d([marginal], bkd)
+ortho_basis = bases_1d[0]
+ortho_basis.set_nterms(4)
+
+# Get Gauss-Legendre nodes for n=4
+quad_pts, _ = ortho_basis.gauss_quadrature_rule(4)
+nodes = bkd.to_numpy(quad_pts).flatten()
+
+x_plot = np.linspace(-1, 1, 200)
+x_plot_bkd = bkd.asarray(x_plot.reshape(1, -1))
+
+fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(12, 4.5))
+colors = ["#2C7FB8", "#E67E22", "#27AE60", "#8E44AD"]
+
+# Left: Lagrange basis functions
+for j in range(4):
+    L_j = np.ones_like(x_plot)
+    for k in range(4):
+        if k != j:
+            L_j = L_j * (x_plot - nodes[k]) / (nodes[j] - nodes[k])
+    ax1.plot(x_plot, L_j, color=colors[j], lw=2,
+             label=f"$L_{j}(x)$")
+    ax1.plot(nodes[j], 1.0, "o", color=colors[j], ms=8)
+
+ax1.axhline(0, color="gray", lw=0.5, ls="--")
+ax1.set_xlabel("$x$", fontsize=11)
+ax1.set_ylabel("$L_j(x)$", fontsize=11)
+ax1.set_title("Lagrange basis ($n=4$ nodes)", fontsize=12)
+ax1.legend(fontsize=9)
+ax1.grid(True, alpha=0.2)
+
+# Right: orthonormal Legendre polynomials
+ortho_vals = bkd.to_numpy(ortho_basis(x_plot_bkd))  # (200, 4)
+for k in range(4):
+    ax2.plot(x_plot, ortho_vals[:, k], color=colors[k], lw=2,
+             label=f"$P_{k}(x)$")
+
+ax2.axhline(0, color="gray", lw=0.5, ls="--")
+ax2.set_xlabel("$x$", fontsize=11)
+ax2.set_ylabel("$P_k(x)$", fontsize=11)
+ax2.set_title("Orthonormal Legendre polynomials", fontsize=12)
+ax2.legend(fontsize=9)
+ax2.grid(True, alpha=0.2)
+
+plt.tight_layout()
+plt.show()
+```
+
+
+## Spectral Projection --- the 1D Case
+
+Since both bases span the same polynomial space, we can project each Lagrange basis function onto the orthonormal basis. Given $L_j(x)$ and orthonormal polynomials $\{P_k(x)\}_{k=0}^{n-1}$ satisfying $\int P_i P_j\, d\mu = \delta_{ij}$:
+
+$$
+c_{jk} = \int L_j(x)\, P_k(x)\, d\mu(x) = \sum_{i} w_i\, L_j(x_i^q)\, P_k(x_i^q)
+$$
+
+where $(x_i^q, w_i)$ are Gauss quadrature points and weights. This integral is exact when the quadrature rule has enough points (degree $\geq 2n - 1$).
+
+The full conversion from Lagrange to PCE follows: if $\hat{f}(x) = \sum_j f(x_j)\, L_j(x)$, then
+
+$$
+\hat{f}(x) = \sum_k \hat{c}_k\, P_k(x),
+\qquad
+\hat{c}_k = \sum_j f(x_j)\, c_{jk}
+$$
+
+So the PCE coefficient for $P_k$ is a weighted sum of the function values at the interpolation nodes, where the weights are the projection coefficients $c_{jk}$.
+
+We can compute this projection matrix using PyApprox's internal API:
+
+```{python}
+#| fig-cap: "Projection of a single Lagrange basis function L_2(x). Left: the Lagrange function (solid) and its reconstruction from orthonormal polynomial coefficients (dashed) --- they overlap exactly. Right: bar chart of the projection coefficients c_{2,k}, showing how L_2 decomposes into the orthonormal basis."
+#| label: fig-projection-1d
+
+# Build the converter's 1D projection matrix
+converter_1d = TensorProductSubspaceToPCEConverter(bkd, bases_1d)
+
+# Compute the projection coefficient matrix
+flat_nodes = bkd.asarray(nodes)
+proj_coefs = converter_1d._compute_univariate_projection_coefficients(
+    dim=0, lagrange_nodes=flat_nodes
+)
+proj_coefs_np = bkd.to_numpy(proj_coefs)  # (npts, npts) = (4, 4)
+
+print("Projection coefficient matrix C[j, k] = <L_j, P_k>:")
+print(f"  Shape: {proj_coefs_np.shape}")
+for j in range(4):
+    row = "  ".join(f"{proj_coefs_np[j, k]:+.4f}" for k in range(4))
+    print(f"  j={j}: [{row}]")
+
+# Show one Lagrange function and its reconstruction
+j_show = 2
+fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(12, 4.5))
+
+# Left: L_j and its PCE reconstruction
+L_j_plot = np.ones_like(x_plot)
+for k in range(4):
+    if k != j_show:
+        L_j_plot *= (x_plot - nodes[k]) / (nodes[j_show] - nodes[k])
+
+# Reconstruction from orthonormal expansion
+reconstruction = np.zeros_like(x_plot)
+for k in range(4):
+    reconstruction += proj_coefs_np[j_show, k] * ortho_vals[:, k]
+
+ax1.plot(x_plot, L_j_plot, color="#2C7FB8", lw=2.5,
+         label=f"$L_{j_show}(x)$ (Lagrange)")
+ax1.plot(x_plot, reconstruction, "--", color="#E67E22", lw=2,
+         label=r"$\sum_k c_{" + str(j_show) + r"k}\, P_k(x)$ (reconstruction)")
+ax1.plot(nodes[j_show], 1.0, "o", color="#2C7FB8", ms=10, zorder=5)
+ax1.axhline(0, color="gray", lw=0.5, ls="--")
+ax1.set_xlabel("$x$", fontsize=11)
+ax1.set_title(f"$L_{j_show}(x)$ and its PCE reconstruction", fontsize=12)
+ax1.legend(fontsize=9)
+ax1.grid(True, alpha=0.2)
+
+# Right: bar chart of projection coefficients
+bar_colors = colors[:4]
+ax2.bar(range(4), proj_coefs_np[j_show, :], color=bar_colors,
+        edgecolor="k", lw=0.5)
+ax2.set_xticks(range(4))
+ax2.set_xticklabels([f"$P_{k}$" for k in range(4)])
+ax2.set_ylabel(f"$c_{{{j_show},k}}$", fontsize=12)
+ax2.set_title(f"Projection coefficients for $L_{j_show}$", fontsize=12)
+ax2.axhline(0, color="gray", lw=0.5, ls="--")
+ax2.grid(True, alpha=0.2, axis="y")
+
+plt.tight_layout()
+plt.show()
+```
+
+::: {.callout-tip}
+## Why is the reconstruction exact?
+Both $\{L_j\}$ and $\{P_k\}$ span the space of polynomials of degree $\leq n-1$. The spectral projection computes the coordinates of $L_j$ in the orthonormal basis --- a change of basis within the same space is always exact. The Gauss quadrature integral is exact because $L_j \cdot P_k$ has degree $\leq 2(n-1)$ and the quadrature rule integrates polynomials of degree $2n - 1$ exactly.
+:::
+
+
+## From 1D to Tensor Products
+
+For a tensor product subspace with multi-index $(\ell_1, \ell_2)$, the Lagrange interpolant factorizes:
+
+$$
+\hat{f}(\mathbf{x}) = \sum_{j_1, j_2} f(x_{j_1}, x_{j_2})\, L_{j_1}(x_1)\, L_{j_2}(x_2)
+$$
+
+Each dimension can be projected independently:
+
+$$
+\hat{f}(\mathbf{x}) = \sum_{k_1, k_2} \hat{c}_{k_1 k_2}\, P_{k_1}(x_1)\, P_{k_2}(x_2)
+$$
+
+where $\hat{c}_{k_1 k_2} = \sum_{j_1, j_2} f(x_{j_1}, x_{j_2})\, c^{(1)}_{j_1 k_1}\, c^{(2)}_{j_2 k_2}$.
+
+This is a tensor contraction --- each dimension is projected independently, so no multivariate quadrature is needed.
+
+```{python}
+#| fig-cap: "2D tensor product conversion. Left: function values at the 4x4 tensor product grid. Right: the corresponding PCE multi-indices with color-coded coefficient magnitudes. Each grid point's value is projected through the 1D matrices to produce the PCE coefficients."
+#| label: fig-2d-tp
+
+# Build a 2D example: f(x1, x2) = x1^2 + x1*x2
+marginals_2d = [
+    UniformMarginal(-1.0, 1.0, bkd),
+    UniformMarginal(-1.0, 1.0, bkd),
+]
+factories = create_basis_factories(marginals_2d, bkd, basis_type="gauss")
+growth = LinearGrowthRule(scale=2, shift=1)
+tp_factory = TensorProductSubspaceFactory(bkd, factories, growth)
+
+# Level-1 subspace (3 points per dim = 9 total)
+level = 1
+fitter = IsotropicSparseGridFitter(bkd, tp_factory, level)
+sg_samples = fitter.get_samples()
+
+def fun_2d(samples):
+    x1, x2 = samples[0, :], samples[1, :]
+    return bkd.reshape(x1 ** 2 + x1 * x2, (1, -1))
+
+sg_values = fun_2d(sg_samples)
+result = fitter.fit(sg_values)
+sg_surr = result.surrogate
+
+# Convert to PCE
+bases_1d_2d = create_bases_1d(marginals_2d, bkd)
+converter = SparseGridToPCEConverter(bkd, bases_1d_2d)
+pce_2d = converter.convert(sg_surr)
+
+# Extract PCE info
+pce_indices = bkd.to_numpy(pce_2d.get_basis().get_indices())  # (nvars, nterms)
+pce_coefs = bkd.to_numpy(pce_2d.get_coefficients())  # (nterms, nqoi)
+nterms = pce_indices.shape[1]
+
+fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(12, 5))
+
+# Left: grid points with values
+sg_np = bkd.to_numpy(sg_samples)
+vals_np = bkd.to_numpy(sg_values).flatten()
+sc = ax1.scatter(sg_np[0], sg_np[1], c=vals_np, s=120, cmap="coolwarm",
+                 edgecolor="k", lw=0.5, zorder=5)
+plt.colorbar(sc, ax=ax1, label="$f(x_1, x_2)$")
+ax1.set_xlabel("$x_1$", fontsize=11)
+ax1.set_ylabel("$x_2$", fontsize=11)
+ax1.set_title("Sparse grid sample values", fontsize=12)
+ax1.set_xlim(-1.2, 1.2)
+ax1.set_ylim(-1.2, 1.2)
+ax1.grid(True, alpha=0.3)
+
+# Right: PCE multi-index grid with coefficient magnitudes
+coef_abs = np.abs(pce_coefs[:, 0])
+# Normalize for color mapping
+coef_max = coef_abs.max() if coef_abs.max() > 0 else 1.0
+sc2 = ax2.scatter(pce_indices[0], pce_indices[1], c=coef_abs, s=200,
+                  cmap="YlOrRd", edgecolor="k", lw=0.5, zorder=5,
+                  vmin=0, vmax=coef_max)
+plt.colorbar(sc2, ax=ax2, label="$|\\hat{c}_{k_1 k_2}|$")
+for t in range(nterms):
+    ax2.annotate(f"{pce_coefs[t, 0]:.3f}",
+                 (pce_indices[0, t], pce_indices[1, t]),
+                 textcoords="offset points", xytext=(8, 5),
+                 fontsize=8)
+ax2.set_xlabel("$k_1$ (degree in $x_1$)", fontsize=11)
+ax2.set_ylabel("$k_2$ (degree in $x_2$)", fontsize=11)
+ax2.set_title("PCE multi-indices and coefficients", fontsize=12)
+ax2.set_xlim(-0.5, max(pce_indices[0]) + 0.8)
+ax2.set_ylim(-0.5, max(pce_indices[1]) + 0.8)
+ax2.grid(True, alpha=0.3)
+
+plt.tight_layout()
+plt.show()
+```
+
+For the function $f(x_1, x_2) = x_1^2 + x_1 x_2$, we expect nonzero PCE coefficients only for the multi-indices $(2, 0)$ and $(1, 1)$ (plus the constant term). The conversion reproduces this structure exactly.
+
+
+## Smolyak Combination of Subspace PCEs
+
+A sparse grid surrogate is a weighted sum of tensor product interpolants:
+
+$$
+\hat{f}_{\text{SG}}(\mathbf{x}) = \sum_{\boldsymbol{\ell}} c_{\boldsymbol{\ell}}\, \hat{f}_{\boldsymbol{\ell}}(\mathbf{x})
+$$
+
+After converting each subspace $\hat{f}_{\boldsymbol{\ell}}$ to PCE:
+
+$$
+\hat{f}_{\text{SG}} = \sum_{\boldsymbol{\ell}} c_{\boldsymbol{\ell}} \sum_{\mathbf{k}} \hat{c}^{(\boldsymbol{\ell})}_{\mathbf{k}}\, \Psi_{\mathbf{k}}
+$$
+
+Different subspaces may produce the **same** multi-index $\mathbf{k}$, so their coefficients must be **accumulated** (summed). This merging step is what `SparseGridToPCEConverter` handles.
+
+```{python}
+#| fig-cap: "Smolyak merging for a 2D, level-2 sparse grid with $f(x_1, x_2) = x_1^2 + x_1 x_2$. Each dot is a PCE multi-index $(k_1, k_2)$. Orange dots (subspace panels) or green dots (merged panel) have nonzero Smolyak-weighted coefficients, annotated with the signed value $c_{\\ell} \\hat{c}_{\\mathbf{k}}^{(\\ell)}$. Gray dots have zero coefficients because the function has no component at those polynomial degrees (e.g., there is no pure $x_2$ term, so the $(0,1)$ coefficient is zero). The final panel accumulates overlapping indices: when multiple subspaces contribute to the same $(k_1, k_2)$, their weighted coefficients are summed."
+#| label: fig-smolyak-merge
+
+# Build level-2 SG to have multiple subspaces
+fitter_l2 = IsotropicSparseGridFitter(
+    bkd, TensorProductSubspaceFactory(bkd, factories, growth), 2
+)
+samples_l2 = fitter_l2.get_samples()
+values_l2 = fun_2d(samples_l2)
+result_l2 = fitter_l2.fit(values_l2)
+sg_l2 = result_l2.surrogate
+
+subspaces = sg_l2.subspaces()
+smolyak_coefs = bkd.to_numpy(sg_l2.coefficients())
+
+# Convert each subspace individually
+sub_converter = TensorProductSubspaceToPCEConverter(bkd, bases_1d_2d)
+
+n_subs = len(subspaces)
+ncols = min(n_subs + 1, 4)
+nrows = (n_subs + ncols) // ncols
+fig, axes = plt.subplots(nrows, ncols, figsize=(4 * ncols, 4 * nrows))
+axes_flat = axes.flatten() if hasattr(axes, 'flatten') else [axes]
+
+# Collect merged PCE
+merged = {}
+
+for idx, subspace in enumerate(subspaces):
+    coef = smolyak_coefs[idx]
+    indices, coefficients = sub_converter.convert_subspace(subspace)
+    indices_np = bkd.to_numpy(indices)
+    coefs_np = bkd.to_numpy(coefficients)
+
+    # Merge into global
+    for t in range(indices_np.shape[1]):
+        key = (int(indices_np[0, t]), int(indices_np[1, t]))
+        weighted = coef * coefs_np[0, t]
+        merged[key] = merged.get(key, 0.0) + weighted
+
+    # Plot this subspace
+    ax = axes_flat[idx]
+    for t in range(indices_np.shape[1]):
+        val = coef * coefs_np[0, t]
+        color = "#E67E22" if abs(val) > 1e-10 else "#BDC3C7"
+        ax.scatter(indices_np[0, t], indices_np[1, t], c=color, s=150,
+                   edgecolor="k", lw=0.5, zorder=5)
+        if abs(val) > 1e-10:
+            ax.annotate(f"{val:+.3f}",
+                        (indices_np[0, t], indices_np[1, t]),
+                        textcoords="offset points", xytext=(6, 5),
+                        fontsize=7)
+
+    sub_idx = bkd.to_numpy(subspace.get_index())
+    ax.set_title(
+        f"Subspace ({int(sub_idx[0])},{int(sub_idx[1])}), "
+        f"$c = {coef:+.0f}$",
+        fontsize=10,
+    )
+    ax.set_xlim(-0.5, 5)
+    ax.set_ylim(-0.5, 5)
+    ax.set_xlabel("$k_1$", fontsize=9)
+    ax.set_ylabel("$k_2$", fontsize=9)
+    ax.grid(True, alpha=0.3)
+
+# Plot merged PCE in last panel
+ax_merged = axes_flat[n_subs]
+for (k1, k2), val in merged.items():
+    color = "#27AE60" if abs(val) > 1e-10 else "#BDC3C7"
+    ax_merged.scatter(k1, k2, c=color, s=150, edgecolor="k", lw=0.5, zorder=5)
+    if abs(val) > 1e-10:
+        ax_merged.annotate(f"{val:+.3f}", (k1, k2),
+                           textcoords="offset points", xytext=(6, 5),
+                           fontsize=7)
+ax_merged.set_title("Merged PCE (accumulated)", fontsize=10)
+ax_merged.set_xlim(-0.5, 5)
+ax_merged.set_ylim(-0.5, 5)
+ax_merged.set_xlabel("$k_1$", fontsize=9)
+ax_merged.set_ylabel("$k_2$", fontsize=9)
+ax_merged.grid(True, alpha=0.3)
+
+# Hide unused axes
+for idx in range(n_subs + 1, len(axes_flat)):
+    axes_flat[idx].axis("off")
+
+plt.suptitle("Smolyak combination: subspace PCEs merge into global PCE",
+             fontsize=13, y=1.02)
+plt.tight_layout()
+plt.show()
+```
+
+
+Notice that subspaces $(0,1)$ and $(0,2)$ have **no nonzero coefficients** (all gray dots). The reason is simple: level 0 in $x_1$ means a single Gauss node at $x_1 = 0$. Since $f(0, x_2) = 0^2 + 0 \cdot x_2 = 0$ for all $x_2$, every function value in these subspaces is exactly zero, so the projected PCE coefficients are all zero too.
+
+
+## Putting It All Together --- Worked Example
+
+Let us step through the full conversion on the simple 2D function $f(x_1, x_2) = x_1^2 + x_1 x_2$ with uniform inputs on $[-1, 1]^2$ and verify that the SG interpolant and converted PCE agree everywhere.
+
+```{python}
+#| fig-cap: "Confirmation that the SG interpolant and converted PCE are identical. Left: SG interpolant contours. Right: pointwise absolute difference between SG and PCE evaluations, confirming machine-precision agreement."
+#| label: fig-sg-vs-pce
+
+from pyapprox.interface.functions.plot.plot2d_rectangular import (
+    meshgrid_samples,
+)
+
+# Convert the level-2 SG to PCE
+pce_l2 = converter.convert(sg_l2)
+
+# Evaluate on a dense grid
+npts_plot = 51
+plot_limits = [-1, 1, -1, 1]
+X_mesh, Y_mesh, eval_pts = meshgrid_samples(npts_plot, plot_limits, bkd)
+sg_vals = bkd.to_numpy(sg_l2(eval_pts))
+pce_vals = bkd.to_numpy(pce_l2(eval_pts))
+
+fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(12, 5))
+
+# SG interpolant
+X_np, Y_np = bkd.to_numpy(X_mesh), bkd.to_numpy(Y_mesh)
+cs1 = ax1.contourf(X_np, Y_np,
+                    sg_vals[0].reshape(X_np.shape),
+                    levels=20, cmap="coolwarm")
+plt.colorbar(cs1, ax=ax1)
+ax1.set_xlabel("$x_1$", fontsize=11)
+ax1.set_ylabel("$x_2$", fontsize=11)
+ax1.set_title("SG interpolant", fontsize=12)
+
+# Pointwise error
+error = np.abs(sg_vals[0] - pce_vals[0])
+cs2 = ax2.contourf(X_np, Y_np,
+                    error.reshape(X_np.shape),
+                    levels=20, cmap="Reds")
+plt.colorbar(cs2, ax=ax2)
+ax2.set_xlabel("$x_1$", fontsize=11)
+ax2.set_ylabel("$x_2$", fontsize=11)
+ax2.set_title(f"|SG - PCE| (max = {error.max():.2e})", fontsize=12)
+
+plt.tight_layout()
+plt.show()
+```
+
+The maximum error should be near machine epsilon ($\sim 10^{-15}$), confirming that the conversion is exact for polynomial functions.
+
+```{python}
+# Verify moments match
+sg_mean_l2 = bkd.to_numpy(sg_l2.mean())
+pce_mean_l2 = bkd.to_numpy(pce_l2.mean())
+sg_var_l2 = bkd.to_numpy(sg_l2.variance())
+pce_var_l2 = bkd.to_numpy(pce_l2.variance())
+
+print("Moment comparison:")
+print(f"  SG mean:   {sg_mean_l2[0]:.15f}")
+print(f"  PCE mean:  {pce_mean_l2[0]:.15f}")
+print(f"  |diff|:    {abs(sg_mean_l2[0] - pce_mean_l2[0]):.2e}")
+print(f"  SG var:    {sg_var_l2[0]:.15f}")
+print(f"  PCE var:   {pce_var_l2[0]:.15f}")
+print(f"  |diff|:    {abs(sg_var_l2[0] - pce_var_l2[0]):.2e}")
+```
+
+
+## When Does This Work?
+
+The SG-to-PCE conversion is **exact** when:
+
+1. **Lagrange nodes are in the physical domain.** This is handled automatically by `create_basis_factories()` which transforms canonical quadrature nodes to the marginal's domain. The corresponding orthonormal bases from `create_bases_1d()` use the same domain conventions.
+
+2. **The Gauss quadrature rule has enough points.** A Gauss rule with $n+1$ points integrates polynomials of degree $2n+1$ exactly. Since $L_j \cdot P_k$ has degree at most $2(n-1)$, using $n+1$ quadrature points is always sufficient.
+
+3. **The sparse grid uses polynomial (Lagrange) bases.** If you use piecewise linear or piecewise quadratic bases instead, the projection formula still applies but the result is an *approximation* rather than an exact change of basis, since piecewise polynomials do not live in the global polynomial space.
+
+
+## Key Takeaways
+
+- Lagrange and orthonormal polynomial bases **span the same polynomial space** --- conversion is an exact change of basis
+- The 1D projection uses Gauss quadrature to compute inner products $\langle L_j, P_k \rangle$
+- **Tensor product structure** means each dimension is projected independently (no multivariate quadrature needed)
+- Smolyak coefficients are applied after projection; **overlapping multi-indices** get their coefficients accumulated
+- The converted PCE unlocks all analytical PCE capabilities: covariance, Sobol indices, and marginalization
+
+
+## Exercises
+
+1. Verify that the 1D projection matrix $C$ (with $C_{jk} = \langle L_j, P_k \rangle$) satisfies $C^T C = I$ when nodes are Gauss quadrature points. Why does this hold? (*Hint*: the Lagrange basis functions are orthogonal with respect to the Gauss quadrature inner product.)
+
+2. For a level-3, 1D sparse grid (just 1 variable), manually list all subspaces and their PCE multi-indices. Verify that the Smolyak coefficients produce the correct merged PCE.
+
+3. Try converting a sparse grid built with piecewise linear bases (`basis_type="piecewise_linear"` in `create_basis_factories()`). How does the PCE approximation quality compare to Lagrange-based conversion?
+
+
+## Next Steps
+
+- [UQ with Sparse Grids](uq_with_sparse_grids.qmd) --- Use SG-to-PCE conversion for practical UQ (Sobol indices, marginal densities)
+- [Isotropic Sparse Grids](isotropic_sparse_grids.qmd) --- Review sparse grid construction fundamentals
+- [PCE-Based Sensitivity Analysis](pce_sensitivity.qmd) --- Deeper dive into Sobol index computation from PCE

@@ -1,4 +1,0 @@
-include README.md
-include LICENSE
-include pyapprox/expdesign/sobol_direction_sequence.txt
-global-include *.pyx

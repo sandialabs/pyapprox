@@ -1,0 +1,245 @@
+---
+title: "Morris Screening"
+subtitle: "PyApprox Tutorial Library"
+description: "One-at-a-time elementary effects for cheap parameter screening."
+tutorial_type: usage
+topic: sensitivity_analysis
+difficulty: beginner
+estimated_time: 8
+prerequisites:
+  - sensitivity_analysis_concept
+tags:
+  - sensitivity-analysis
+  - morris-screening
+  - elementary-effects
+format:
+  html:
+    code-fold: false
+    code-tools: true
+    toc: true
+execute:
+  echo: true
+  warning: false
+jupyter: python3
+---
+
+::: {.callout-tip collapse="true"}
+## Download Notebook
+[Download as Jupyter Notebook](notebooks/morris_screening.ipynb)
+:::
+
+## Learning Objectives
+
+After completing this tutorial, you will be able to:
+
+- Explain Morris one-at-a-time (OAT) elementary effects
+- Distinguish $\mu^*$ (importance) from $\sigma$ (nonlinearity/interactions)
+- Use `MorrisSensitivityAnalysis` for parameter screening
+- Interpret the $(\mu^*, \sigma)$ scatter plot to classify parameters
+
+
+## Prerequisites
+
+Complete [Sensitivity Analysis](sensitivity_analysis_concept.qmd) before this tutorial.
+
+
+## Why Screening?
+
+Variance-based Sobol analysis (see [Sobol Sensitivity Analysis](sobol_sensitivity_analysis.qmd)) gives rigorous importance rankings, but requires $O(N(d+2))$ model evaluations where $d$ is the number of parameters. For high-dimensional models ($d \gg 10$), this cost can be prohibitive.
+
+**Morris screening** is a cheaper alternative that identifies *non-influential* parameters using only $O(r(d+1))$ evaluations, where $r$ is the number of trajectories (typically 10--20). It does not provide precise Sobol indices, but efficiently separates parameters into three groups: negligible, linear, and nonlinear/interacting.
+
+
+## Elementary Effects
+
+### Trajectory Construction
+
+Morris screening perturbs one input at a time along random trajectories through the input space. A trajectory has $d+1$ points: a random starting point, then $d$ one-at-a-time steps.
+
+At each step, only one variable $\theta_i$ is perturbed by a fixed step size $\Delta$. The **elementary effect** for variable $\theta_i$ in trajectory $r$ is:
+
+$$
+\text{EE}_i^{(r)} = \frac{f(\theta_1, \ldots, \theta_i + \Delta, \ldots, \theta_d) - f(\theta_1, \ldots, \theta_i, \ldots, \theta_d)}{\Delta}
+$$
+
+### Summary Statistics
+
+From $r$ trajectories, we compute three statistics for each variable:
+
+$$
+\mu_i = \frac{1}{r} \sum_{k=1}^{r} \text{EE}_i^{(k)}, \quad
+\mu_i^* = \frac{1}{r} \sum_{k=1}^{r} |\text{EE}_i^{(k)}|, \quad
+\sigma_i = \sqrt{\frac{1}{r-1} \sum_{k=1}^{r} (\text{EE}_i^{(k)} - \mu_i)^2}
+$$
+
+- $\mu_i^*$ (mean absolute effect): Primary importance measure. Larger $\mu_i^*$ means the variable has more influence.
+- $\sigma_i$ (standard deviation): Indicates nonlinearity or interactions. Large $\sigma_i$ means the elementary effects vary across trajectories.
+- $\mu_i$ (signed mean): Can cancel for non-monotonic functions, so $\mu_i^*$ is preferred.
+
+
+## Setup
+
+We use the Ishigami function, which has three variables with distinct roles:
+
+```{python}
+import numpy as np
+import matplotlib.pyplot as plt
+from pyapprox.util.backends.numpy import NumpyBkd
+from pyapprox.benchmarks import ishigami_3d
+from pyapprox.sensitivity import MorrisSensitivityAnalysis
+
+bkd = NumpyBkd()
+np.random.seed(42)
+
+benchmark = ishigami_3d(bkd)
+func = benchmark.function()
+prior = benchmark.prior()
+
+print(f"Ishigami function: f(x) = sin(x1) + 7*sin^2(x2) + 0.1*x3^4*sin(x1)")
+print(f"Domain: x_i ~ U[-pi, pi], i = 1,2,3")
+```
+
+
+## Basic Usage
+
+The `MorrisSensitivityAnalysis` workflow has three steps: create the analyzer, generate trajectories, evaluate the function, and compute indices.
+
+```{python}
+# Step 1: Create Morris analyzer
+morris = MorrisSensitivityAnalysis(prior, nlevels=4, bkd=bkd)
+
+# Step 2: Generate trajectory samples
+ntrajectories = 20
+samples = morris.generate_samples(ntrajectories)
+
+print(f"Number of trajectories: {ntrajectories}")
+print(f"Samples per trajectory: {prior.nvars() + 1}")
+print(f"Total evaluations: {samples.shape[1]}")
+```
+
+```{python}
+# Step 3: Evaluate the function at trajectory points
+values = func(samples)
+
+# Step 4: Compute sensitivity indices
+morris.compute(values)
+
+# Extract results
+mu_star = bkd.to_numpy(morris.mu_star()).flatten()
+sigma = bkd.to_numpy(morris.sigma()).flatten()
+mu = bkd.to_numpy(morris.mu()).flatten()
+
+print(f"{'Variable':<10}{'mu*':<12}{'sigma':<12}{'mu':<12}")
+print("-" * 46)
+for i in range(3):
+    print(f"x_{i+1:<8}{mu_star[i]:<12.4f}{sigma[i]:<12.4f}{mu[i]:<12.4f}")
+```
+
+
+## The $(\mu^*, \sigma)$ Scatter Plot
+
+The classic Morris visualization plots $\mu_i^*$ (importance) on the x-axis against $\sigma_i$ (nonlinearity/interactions) on the y-axis. The position of each variable in this space reveals its role:
+
+- **Bottom-left**: Negligible variable (small $\mu^*$ and $\sigma$)
+- **Bottom-right**: Important, approximately linear (large $\mu^*$, small $\sigma$)
+- **Top-right**: Important, nonlinear or interacting (large $\mu^*$ and $\sigma$)
+
+```{python}
+from pyapprox.sensitivity.plots import plot_morris_screening
+
+fig, ax = plt.subplots(figsize=(7, 6))
+plot_morris_screening(morris.mu_star(), morris.sigma(), ax, bkd, rv="x")
+
+# Add reference line mu* = sigma (separates linear from nonlinear)
+max_val = max(mu_star.max(), sigma.max()) * 1.1
+ax.plot([0, max_val], [0, max_val], "k--", alpha=0.3, label=r"$\sigma = \mu^*$")
+
+ax.legend(fontsize=9)
+ax.grid(True, alpha=0.2)
+plt.tight_layout()
+plt.show()
+```
+
+For the Ishigami function:
+
+- $x_2$ has large $\mu^*$ because $7\sin^2(x_2)$ is the dominant term
+- $x_1$ and $x_3$ have moderate-to-large $\sigma$, indicating nonlinear effects and/or interactions (the $0.1 x_3^4 \sin(x_1)$ coupling)
+
+
+## Trajectory Optimization
+
+By default, Morris generates random trajectories. For better space-filling coverage, generate candidate trajectories and select the best subset.
+
+```{python}
+# Generate optimized trajectories from a larger candidate pool
+np.random.seed(42)
+morris_opt = MorrisSensitivityAnalysis(prior, nlevels=4, bkd=bkd)
+samples_opt = morris_opt.generate_samples(
+    ntrajectories=10,
+    ncandidate_trajectories=20,  # Select best 10 from 20 candidates
+)
+
+values_opt = func(samples_opt)
+morris_opt.compute(values_opt)
+
+mu_star_opt = bkd.to_numpy(morris_opt.mu_star()).flatten()
+sigma_opt = bkd.to_numpy(morris_opt.sigma()).flatten()
+
+print("Optimized trajectories:")
+print(f"{'Variable':<10}{'mu* (random)':<15}{'mu* (optimized)':<15}")
+print("-" * 40)
+for i in range(3):
+    print(f"x_{i+1:<8}{mu_star[i]:<15.4f}{mu_star_opt[i]:<15.4f}")
+```
+
+The optimized trajectories reduce variability in the estimates by ensuring better coverage of the input space.
+
+
+## Comparison with Sobol Indices
+
+Morris screening provides rankings, not precise indices. Let's verify that the Morris rankings agree with the Sobol ground truth.
+
+```{python}
+gt = benchmark.ground_truth()
+gt_total = bkd.to_numpy(gt.total_effects).flatten()
+
+# Rank by mu* (Morris) and total effect (Sobol)
+morris_rank = np.argsort(mu_star)[::-1]
+sobol_rank = np.argsort(gt_total)[::-1]
+
+print("Importance rankings:")
+print(f"{'Rank':<6}{'Morris (mu*)':<15}{'Sobol (S^T)':<15}")
+print("-" * 36)
+for r in range(3):
+    print(f"{r+1:<6}x_{morris_rank[r]+1:<13}x_{sobol_rank[r]+1:<13}")
+
+print(f"\nRankings {'agree' if np.array_equal(morris_rank, sobol_rank) else 'differ'}")
+```
+
+Morris screening correctly identifies the importance ranking at a fraction of the cost of a full Sobol analysis.
+
+
+## Key Takeaways
+
+- **Morris screening** ranks parameters by importance using cheap one-at-a-time perturbations
+- $\mu_i^*$ measures overall importance; $\sigma_i$ indicates nonlinearity or interactions
+- The $(\mu^*, \sigma)$ scatter plot classifies variables as negligible, linear, or nonlinear/interacting
+- Cost is $O(r(d+1))$ evaluations --- much cheaper than Sobol analysis at $O(N(d+2))$
+- Use Morris as a **pre-screening step** before expensive Sobol analysis to eliminate unimportant variables
+
+
+## Exercises
+
+1. **(Easy)** Change `nlevels` from 4 to 8. How do the $\mu^*$ estimates change? Does the ranking change?
+
+2. **(Medium)** Apply Morris screening to the 4D Sobol G-function (`sobol_g_4d` benchmark) with importance parameters $a = [0, 1, 4.5, 9]$. Does Morris correctly rank variable 0 as most important and variable 3 as least important?
+
+3. **(Challenge)** Perform a convergence study: compute Morris indices for $r = 5, 10, 20, 50$ trajectories. Plot $\mu_i^*$ vs. $r$ for each variable. How many trajectories are needed for stable rankings?
+
+
+## Next Steps
+
+Continue with:
+
+- [Sobol Sensitivity Analysis](sobol_sensitivity_analysis.qmd) --- Monte Carlo estimation of Sobol indices
+- [PCE-Based Sensitivity](pce_sensitivity.qmd) --- Sobol indices from polynomial chaos surrogates

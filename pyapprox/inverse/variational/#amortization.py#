@@ -1,0 +1,81 @@
+"""
+Amortization functions for variational inference.
+
+Maps label vectors to per-sample variational parameters.
+"""
+
+from typing import Generic, Optional, Union, List
+
+from pyapprox.typing.util.backends.protocols import Array, Backend
+from pyapprox.typing.util.hyperparameter import (
+    HyperParameter,
+    HyperParameterList,
+)
+
+
+class ConstantAmortization(Generic[Array]):
+    """Maps any labels to fixed distribution params.
+
+    Default amortization for single-problem VI. Ignores labels and
+    returns the same parameter vector for all 
+    Parameters
+    ----------
+    nparams_out : int
+        Number of output parameters per sample. Should equal
+        ``family.hyp_list().nactive_params()``.
+    bkd : Backend[Array]
+        Computational backend.
+    init_values : list or Array or None
+        Initial parameter values. Defaults to zeros.
+    """
+
+    def __init__(
+        self,
+        nparams_out: int,
+        bkd: Backend[Array],
+        init_values: Optional[Union[List[float], Array]] = None,
+    ) -> None:
+        self._nparams_out = nparams_out
+        self._bkd = bkd
+
+        if init_values is None:
+            init_values = [0.0] * nparams_out
+
+        hyp = HyperParameter(
+            "const_amort", nparams_out, bkd.asarray(init_values),
+            (-1e6, 1e6), bkd,
+        )
+        self._hyp_list = HyperParameterList([hyp])
+
+    def bkd(self) -> Backend[Array]:
+        return self._bkd
+
+    def hyp_list(self) -> HyperParameterList:
+        return self._hyp_list
+
+    def nparams_out(self) -> int:
+        return self._nparams_out
+
+    def __call__(self, labels: Array) -> Array:
+        """Return fixed params broadcast to all samples.
+
+        Parameters
+        ----------
+        labels : Array
+            Label vectors, shape ``(nlabel_dims, nsamples)``.
+            Ignored — output is the same for all samples.
+
+        Returns
+        -------
+        Array
+            Per-sample params, shape ``(nparams_out, nsamples)``.
+        """
+        nsamples = labels.shape[1]
+        values = self._hyp_list.get_active_values()
+        # Broadcast to (nparams_out, nsamples)
+        return self._bkd.reshape(values, (self._nparams_out, 1)) * self._bkd.ones(
+            (1, nsamples)
+        )
+
+    def __repr__(self) -> str:
+        return f"ConstantAmortization(nparams_out={self._nparams_out})"

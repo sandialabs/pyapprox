@@ -1,0 +1,418 @@
+---
+title: "FunctionTrain Sensitivity: Practical Usage"
+subtitle: "PyApprox Tutorial Library"
+description: "Computing Sobol indices analytically with FunctionTrainSensitivity"
+tutorial_type: usage
+topic: sensitivity_analysis
+difficulty: intermediate
+estimated_time: 10
+prerequisites:
+  - functiontrain_sensitivity_math
+tags:
+  - surrogate
+  - tensor-decomposition
+  - sensitivity-analysis
+format:
+  html:
+    code-fold: false
+    code-tools: true
+    toc: true
+execute:
+  echo: true
+  warning: false
+jupyter: python3
+---
+
+::: {.callout-tip collapse="true"}
+## Download Notebook
+[Download as Jupyter Notebook](notebooks/functiontrain_sensitivity.ipynb)
+:::
+
+## Learning Objectives
+
+After completing this tutorial, you will be able to:
+
+- Use the `FunctionTrainSensitivity` class to compute Sobol indices
+- Verify index properties ($\sum S_u = 1$, $\SobolT{k} \geq \Sobol{k}$)
+- Visualize and interpret sensitivity indices
+- Apply FT sensitivity analysis to practical problems
+
+## Prerequisites
+
+Complete [FunctionTrain Sensitivity (Math)](functiontrain_sensitivity_math.qmd) before this tutorial.
+
+## Setup
+
+```{python}
+import numpy as np
+import matplotlib.pyplot as plt
+from itertools import chain, combinations
+from pyapprox.util.backends.numpy import NumpyBkd
+
+bkd = NumpyBkd()
+np.random.seed(42)
+
+def all_nonempty_subsets(n):
+    """Generate all non-empty subsets of {0, ..., n-1}."""
+    return chain.from_iterable(
+        combinations(range(n), r) for r in range(1, n + 1)
+    )
+```
+
+## The FunctionTrainSensitivity Class
+
+```{python}
+from pyapprox.probability import UniformMarginal
+from pyapprox.benchmarks import ishigami_3d
+from pyapprox.surrogates.functiontrain import (
+    create_pce_functiontrain,
+    PCEFunctionTrain,
+    ALSFitter,
+)
+from pyapprox.surrogates.functiontrain.statistics import (
+    FunctionTrainMoments,
+    FunctionTrainSensitivity,
+)
+
+# Create a test FT
+marginals = [UniformMarginal(-1.0, 1.0, bkd) for _ in range(3)]
+ft = create_pce_functiontrain(marginals, max_level=3, ranks=[2, 2], bkd=bkd)
+pce_ft = PCEFunctionTrain(ft)
+
+# Moments must be created first
+moments = FunctionTrainMoments(pce_ft)
+
+# Then sensitivity
+sensitivity = FunctionTrainSensitivity(moments)
+
+print(f"FunctionTrainSensitivity API:")
+print(f"  main_effect_index(k) -> first-order S_k")
+print(f"  total_effect_index(k) -> total-order S_k^T")
+print(f"  all_main_effects() -> array of all S_k")
+print(f"  all_total_effects() -> array of all S_k^T")
+print(f"  sobol_index([i, j, ...]) -> general S_u")
+```
+
+## Complete Workflow Example
+
+### Step 1: Load the Ishigami Benchmark
+
+We use the Ishigami function, a standard benchmark with genuine variable interactions
+and known analytical Sobol indices:
+
+$$
+f(x_1, x_2, x_3) = \sin(x_1) + a\sin^2(x_2) + b\,x_3^4\sin(x_1),
+\quad x_k \sim \mathcal{U}[-\pi, \pi]
+$$
+
+```{python}
+benchmark = ishigami_3d(bkd)
+func = benchmark.function()
+prior = benchmark.prior()
+gt = benchmark.ground_truth()
+marginals = prior.marginals()
+nvars = 3
+
+print(f"Ishigami function (a=7, b=0.1)")
+print(f"  x1: drives sin(x1) and interacts with x3 via b*x3^4*sin(x1)")
+print(f"  x2: drives a*sin^2(x2), no interactions")
+print(f"  x3: only appears through interaction with x1")
+```
+
+### Step 2: Analytical Sobol Indices
+
+The Ishigami function has closed-form variance components:
+
+$$
+D = \frac{a^2}{8} + b\frac{\pi^4}{5} + \frac{b^2 \pi^8}{18} + \frac{1}{2},
+\quad V_1 = \frac{1}{2}\!\left(1 + \frac{b\pi^4}{5}\right)^{\!2},
+\quad V_2 = \frac{a^2}{8},
+\quad V_3 = 0
+$$
+
+Variable $x_3$ has zero main effect but a non-zero total effect through the
+$x_1$--$x_3$ interaction term $V_{13} = 8b^2\pi^8/225$.
+
+```{python}
+S_exact = bkd.to_numpy(gt.main_effects).ravel()
+T_exact = bkd.to_numpy(gt.total_effects).ravel()
+
+print(f"Analytical Sobol indices:")
+for k in range(nvars):
+    print(f"  S_{k} = {S_exact[k]:.4f},  T_{k} = {T_exact[k]:.4f}")
+print(f"\nSum of S_k: {np.sum(S_exact):.4f}  (< 1 due to x1--x3 interaction)")
+```
+
+### Step 3: Create and Fit FunctionTrain
+
+```{python}
+# Rank-3, degree-12 FT with oversampling ratio 5
+ft_init = create_pce_functiontrain(
+    marginals=marginals,
+    max_level=12,
+    ranks=[3, 3],
+    bkd=bkd,
+)
+
+n_train = 5 * ft_init.nparams()
+train_samples = prior.rvs(n_train)
+train_values = func(train_samples)
+
+# Fit
+fitter = ALSFitter(bkd, max_sweeps=50, tol=1e-14)
+result = fitter.fit(ft_init, train_samples, train_values)
+fitted_ft = result.surrogate()
+
+print(f"Fitting result:")
+print(f"  Parameters: {fitted_ft.nparams()}")
+print(f"  Training samples: {n_train} (ratio {n_train / fitted_ft.nparams():.1f})")
+print(f"  Final residual: {result.residual_history()[-1]:.2e}")
+
+# Verify fit quality
+n_test = 5000
+test_samples = prior.rvs(n_test)
+test_values = bkd.to_numpy(func(test_samples)).flatten()
+ft_values = bkd.to_numpy(fitted_ft(test_samples)).flatten()
+rmse = np.sqrt(np.mean((test_values - ft_values)**2))
+rel_rmse = rmse / np.std(test_values)
+print(f"  Test RMSE: {rmse:.2e}")
+print(f"  Relative RMSE: {rel_rmse:.2e}")
+```
+
+### Step 4: Compute Sensitivity Indices
+
+```{python}
+# Create statistics objects
+pce_ft = PCEFunctionTrain(fitted_ft)
+moments = FunctionTrainMoments(pce_ft)
+sensitivity = FunctionTrainSensitivity(moments)
+
+# Get all indices
+S_ft = bkd.to_numpy(sensitivity.all_main_effects())
+T_ft = bkd.to_numpy(sensitivity.all_total_effects())
+
+print(f"FunctionTrain Sobol indices:")
+print(f"{'Var':<6}{'S_k (FT)':<12}{'S_k (exact)':<12}{'T_k (FT)':<12}{'T_k (exact)':<12}")
+print("-" * 54)
+for k in range(nvars):
+    print(f"x_{k:<4}{S_ft[k]:<12.4f}{S_exact[k]:<12.4f}{T_ft[k]:<12.4f}{T_exact[k]:<12.4f}")
+
+print(f"\nSum of S_k: {np.sum(S_ft):.4f} (< 1 due to interactions)")
+```
+
+Note that $S_3 \approx 0$ (no main effect) but $T_3 > 0$ (interaction with $x_1$).
+
+### Step 5: Visualize Results
+
+```{python}
+#| fig-cap: "FunctionTrain vs. analytical Sobol indices for the Ishigami function. Left: first-order indices $S_k$. Center: total-order indices $S_k^T$. Right: main vs. total effect scatter---points above the diagonal indicate variables involved in interactions."
+#| label: fig-ft-sobol
+
+fig, axes = plt.subplots(1, 3, figsize=(14, 4))
+
+# Main effect comparison
+ax = axes[0]
+x = np.arange(nvars)
+width = 0.35
+ax.bar(x - width/2, S_exact, width, label='Exact', alpha=0.8)
+ax.bar(x + width/2, S_ft, width, label='FT', alpha=0.8)
+ax.set_xlabel('Variable')
+ax.set_ylabel('$S_k$')
+ax.set_title('Main Effect Sobol Indices')
+ax.set_xticks(x)
+ax.set_xticklabels([f'$x_{k}$' for k in range(nvars)])
+ax.legend()
+ax.grid(True, alpha=0.3)
+
+# Total effect comparison
+ax = axes[1]
+ax.bar(x - width/2, T_exact, width, label='Exact', alpha=0.8)
+ax.bar(x + width/2, T_ft, width, label='FT', alpha=0.8)
+ax.set_xlabel('Variable')
+ax.set_ylabel('$S_k^T$')
+ax.set_title('Total Effect Sobol Indices')
+ax.set_xticks(x)
+ax.set_xticklabels([f'$x_{k}$' for k in range(nvars)])
+ax.legend()
+ax.grid(True, alpha=0.3)
+
+# First vs total effect (interaction measure)
+ax = axes[2]
+ax.scatter(S_ft, T_ft, s=100, alpha=0.8)
+lim = max(max(T_ft), max(T_exact)) * 1.1
+ax.plot([0, lim], [0, lim], 'k--', label='$S_k = S_k^T$')
+for k in range(nvars):
+    ax.annotate(f'$x_{k}$', (S_ft[k], T_ft[k]), textcoords='offset points',
+                xytext=(5, 5), fontsize=10)
+ax.set_xlabel('Main effect $S_k$')
+ax.set_ylabel('Total effect $S_k^T$')
+ax.set_title('Main vs Total Effects')
+ax.legend()
+ax.grid(True, alpha=0.3)
+ax.set_aspect('equal')
+
+plt.tight_layout()
+plt.show()
+```
+
+## Verifying Sobol Index Properties
+
+### Property 1: Sum of All Indices Equals 1
+
+```{python}
+# Compute all Sobol indices for small d
+all_S = {}
+for u in all_nonempty_subsets(nvars):
+    all_S[u] = float(sensitivity.sobol_index(list(u))[0])
+
+print(f"All Sobol indices (d={nvars}):")
+for u, s in sorted(all_S.items(), key=lambda x: (len(x[0]), x[0])):
+    print(f"  S_{{{','.join(str(i) for i in u)}}}: {s:.4f}")
+
+total_sum = sum(all_S.values())
+print(f"\nSum of all S_u: {total_sum:.6f} (should be 1)")
+```
+
+### Property 2: Total Effect Equals Sum of Containing Subsets
+
+```{python}
+print(f"Verifying T_k = sum of S_u for u containing k:")
+print("-" * 50)
+
+for k in range(nvars):
+    T_k_direct = float(sensitivity.total_effect_index(k)[0])
+    T_k_sum = sum(s for u, s in all_S.items() if k in u)
+    print(f"  T_{k}: direct = {T_k_direct:.4f}, sum = {T_k_sum:.4f}, diff = {abs(T_k_direct - T_k_sum):.2e}")
+```
+
+### Property 3: Total Effect >= Main Effect
+
+```{python}
+print(f"Verifying T_k >= S_k:")
+print("-" * 30)
+
+for k in range(nvars):
+    S_k = S_ft[k]
+    T_k = T_ft[k]
+    diff = T_k - S_k
+    print(f"  x_{k}: S_k = {S_k:.4f}, T_k = {T_k:.4f}, diff = {diff:.4f} {'✓' if diff >= -1e-10 else '✗'}")
+```
+
+## Sobol Index Decomposition
+
+Since the Ishigami function already contains interactions, we can visualize the
+full decomposition. With $d = 3$ there are $2^3 - 1 = 7$ indices.
+
+```{python}
+#| fig-cap: "Full Sobol index decomposition of the Ishigami function computed from the FunctionTrain surrogate. Blue bars are first-order indices, orange are second-order, and green is the third-order interaction. The dominant interaction $S_{0,2}$ reflects the $b\\,x_3^4 \\sin(x_1)$ coupling."
+#| label: fig-ft-decomposition
+
+# Visualize interaction structure
+fig, ax = plt.subplots(figsize=(8, 5))
+
+# Plot as bar chart
+labels = [str(u) for u in sorted(all_S.keys(), key=lambda x: (len(x), x))]
+values = [all_S[u] for u in sorted(all_S.keys(), key=lambda x: (len(x), x))]
+
+colors = ['tab:blue' if len(eval(l)) == 1 else
+          'tab:orange' if len(eval(l)) == 2 else
+          'tab:green' for l in labels]
+
+ax.bar(range(len(values)), values, color=colors, alpha=0.8)
+ax.set_xticks(range(len(labels)))
+ax.set_xticklabels([f'$S_{{{l[1:-1]}}}$' for l in labels])
+ax.set_ylabel('Sobol Index')
+ax.set_title('Sobol Index Decomposition (Ishigami)')
+
+from matplotlib.patches import Patch
+legend_elements = [
+    Patch(facecolor='tab:blue', alpha=0.8, label='First-order'),
+    Patch(facecolor='tab:orange', alpha=0.8, label='Second-order'),
+    Patch(facecolor='tab:green', alpha=0.8, label='Third-order'),
+]
+ax.legend(handles=legend_elements)
+ax.grid(True, alpha=0.3)
+
+plt.tight_layout()
+plt.show()
+
+print(f"Sum of all indices: {sum(values):.4f}")
+```
+
+The dominant interaction index $S_{0,2}$ reflects the $b\,x_3^4 \sin(x_1)$ term.
+Variable $x_1$ ($S_2$) has the largest main effect but also a large interaction
+contribution. Variable $x_2$ ($S_1$) has a large main effect and no interactions.
+
+## Practical Guidelines
+
+### When to Use FT Sensitivity Analysis
+
+**Advantages:**
+
+- **Analytical**: No Monte Carlo sampling needed
+- **All indices**: Efficiently compute main + total effects
+- **Exact** (up to fitting error): No MC variance
+
+**Considerations:**
+
+- Fitting quality affects results
+- All general $S_u$ is exponential in $d$
+- Works best for low-rank structure
+
+### Recommended Workflow
+
+```{python}
+# Recommended workflow for sensitivity analysis
+print("FT Sensitivity Analysis Workflow:")
+print("=" * 50)
+print("""
+1. Fit FunctionTrain to target function
+   - Use sufficient rank and degree
+   - Verify fit quality (residual, test error)
+
+2. Wrap with PCEFunctionTrain
+   - Validates PCE structure
+
+3. Create FunctionTrainMoments
+   - Computes variance (needed for indices)
+
+4. Create FunctionTrainSensitivity
+   - Takes moments object
+
+5. Compute indices
+   - all_main_effects() for S_k
+   - all_total_effects() for S_k^T
+   - sobol_index([i,j,...]) for specific S_u
+
+6. Verify properties
+   - Sum of all S_u should be ~1
+   - T_k >= S_k for all k
+""")
+```
+
+## Key Takeaways
+
+- **FunctionTrainSensitivity** provides `main_effect_index()`, `total_effect_index()`, `sobol_index()`
+- **Workflow**: FT → PCEFunctionTrain → Moments → Sensitivity
+- **Verify properties**: $\sum S_u = 1$ and $\SobolT{k} \geq \Sobol{k}$
+- **Interactions**: $\SobolT{k} - \Sobol{k}$ measures interaction strength
+- **Sum of first-order**: $\sum_k \Sobol{k} < 1$ indicates interactions
+
+## Exercises
+
+1. **(Easy)** Change the Ishigami parameters to $a = 7, b = 0.05$. How do the
+   total effects of $x_1$ and $x_3$ change relative to $b = 0.1$?
+
+2. **(Medium)** Create a 5-variable function where only variables 0 and 1
+   interact. Compute all indices and verify the structure.
+
+3. **(Challenge)** The Sobol g-function
+   $f = \prod_k (|4x_k - 2| + a_k)/(1 + a_k)$ with $x_k \in [0,1]$ has a kink
+   that is hard for polynomials. Fit a FT and measure how many more parameters
+   you need compared to the Ishigami function for the same accuracy.
+
+## Next Steps
+
+Continue with:
+
+- [Sensitivity Analysis (Concept)](sensitivity_analysis_concept.qmd) --- Review variance decomposition fundamentals

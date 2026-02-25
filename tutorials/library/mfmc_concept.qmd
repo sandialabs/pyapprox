@@ -1,0 +1,319 @@
+---
+title: "Multi-Fidelity Monte Carlo"
+subtitle: "PyApprox Tutorial Library"
+description: "A hierarchy estimator using nested sample sets and a recursive correction structure, contrasted with MLMC."
+tutorial_type: concept
+topic: multi_fidelity
+difficulty: beginner
+estimated_time: 7
+prerequisites:
+  - mlmc_concept
+tags:
+  - multi-fidelity
+  - mfmc
+  - variance-reduction
+  - monte-carlo
+format:
+  html:
+    code-fold: false
+    code-tools: true
+    toc: true
+    fig-dpi: 96
+execute:
+  echo: true
+  warning: false
+jupyter: python3
+---
+
+::: {.callout-tip collapse="true"}
+## Download Notebook
+[Download as Jupyter Notebook](notebooks/mfmc_concept.ipynb)
+:::
+
+## Learning Objectives
+
+After completing this tutorial, you will be able to:
+
+- Explain how the MFMC recursive derivation builds the estimator from two-model ACV
+- Describe the nested sample structure $\mathcal{Z}_0 \subset \cdots \subset \mathcal{Z}_M$
+  and contrast it with MLMC's independent sets
+- Explain why only $f_1$ directly reduces HF variance in both MFMC and MLMC
+- Identify settings where MFMC and MLMC perform similarly vs differently
+
+
+## Prerequisites
+
+Complete [Multi-Level Monte Carlo](mlmc_concept.qmd) before this tutorial.
+
+
+## Motivation: A Different Way to Share Samples
+
+MLMC decomposes the HF mean as a telescoping sum and estimates each level correction on
+a completely **independent** sample set. This independence keeps the variance formula
+clean, but it also means every sample drawn at level $\ell$ is used only once, for the
+correction at that level.
+
+Multi-Fidelity Monte Carlo (MFMC) [PWGSIAM2016] takes a different approach. Instead of
+independent sets, it uses **nested** sample sets where each model sees all the samples
+the previous model saw, plus more. Cheaper models accumulate samples, but every HF sample
+propagates through every LF model. This creates a denser web of shared information and,
+crucially, allows the correction weight $\eta_\alpha$ to be **optimised** at each level
+rather than fixed at $-1$.
+
+Before the algebra, @fig-sample-structure makes the structural difference visual.
+
+```{python}
+#| echo: false
+#| fig-cap: "Sample allocation for MLMC (left) and MFMC (right) across three models at equal total cost. Each row is a model; each cell is a sample evaluation. MLMC: each level correction uses a disjoint set — no sample appears in more than one row. MFMC: sets are nested — every HF sample (red) is also evaluated by all LF models, and cheaper models evaluate progressively more exclusive samples (orange, blue)."
+#| label: fig-sample-structure
+
+import numpy as np
+import matplotlib.pyplot as plt
+import matplotlib.patches as mpatches
+
+mlmc_N   = [3, 8, 28]   # independent blocks per level correction
+mfmc_N   = [3, 10, 40]  # total nested samples per model
+n_models = 3
+mnames   = [r"$f_0$  (HF)", r"$f_1$", r"$f_2$  (cheap)"]
+
+fig, axes = plt.subplots(1, 2, figsize=(12, 3.5))
+
+# ── MLMC ──────────────────────────────────────────────────────────────────────
+ax = axes[0]
+mlmc_colors = ["#C0392B", "#E67E22", "#2C7FB8"]
+offset = 0
+for m in range(n_models):
+    N  = mlmc_N[m]
+    xs = np.arange(offset, offset + N)
+    ax.barh([m]*N, [0.88]*N, left=xs, height=0.6,
+            color=mlmc_colors[m], edgecolor="k", lw=0.4, alpha=0.85)
+    offset += N + 1.5
+ax.set_yticks(range(n_models))
+ax.set_yticklabels(mnames, fontsize=11)
+ax.set_xlabel("Sample index", fontsize=11)
+ax.set_title("MLMC: independent sets per level", fontsize=11, pad=8)
+ax.set_xlim(-0.5, offset - 0.5)
+ax.set_ylim(-0.5, n_models - 0.4)
+ax.legend(handles=[mpatches.Patch(color=c, label=f"Level {m} only")
+                   for m, c in enumerate(mlmc_colors)], fontsize=9)
+ax.grid(alpha=0.12, axis="x")
+
+# ── MFMC ──────────────────────────────────────────────────────────────────────
+ax = axes[1]
+n_hf     = mfmc_N[0]
+n_lf1_ex = mfmc_N[1] - mfmc_N[0]
+n_lf2_ex = mfmc_N[2] - mfmc_N[1]
+c_shared = "#C0392B"
+c_lf12   = "#E67E22"
+c_lf2    = "#2C7FB8"
+
+for m in range(n_models):   # all models evaluate the HF samples
+    ax.barh([m]*n_hf, [0.88]*n_hf, left=np.arange(n_hf),
+            height=0.6, color=c_shared, edgecolor="k", lw=0.4, alpha=0.85)
+for m in range(1, n_models):  # LF1 and LF2 see extra samples
+    ax.barh([m]*n_lf1_ex, [0.88]*n_lf1_ex,
+            left=np.arange(n_hf, n_hf + n_lf1_ex),
+            height=0.6, color=c_lf12, edgecolor="k", lw=0.4, alpha=0.85)
+ax.barh([2]*n_lf2_ex, [0.88]*n_lf2_ex,   # only LF2 sees the remaining samples
+        left=np.arange(n_hf + n_lf1_ex, mfmc_N[2]),
+        height=0.6, color=c_lf2, edgecolor="k", lw=0.4, alpha=0.85)
+
+ax.set_yticks(range(n_models))
+ax.set_yticklabels(mnames, fontsize=11)
+ax.set_xlabel("Sample index", fontsize=11)
+ax.set_title("MFMC: nested sets, HF samples always shared", fontsize=11, pad=8)
+ax.set_xlim(-0.5, mfmc_N[-1] + 0.5)
+ax.set_ylim(-0.5, n_models - 0.4)
+ax.legend(handles=[
+    mpatches.Patch(color=c_shared, label=r"$\mathcal{Z}_0$: HF + all LF"),
+    mpatches.Patch(color=c_lf12,   label=r"$\mathcal{Z}_1\!\setminus\!\mathcal{Z}_0$: LF1 + LF2"),
+    mpatches.Patch(color=c_lf2,    label=r"$\mathcal{Z}_2\!\setminus\!\mathcal{Z}_1$: LF2 only"),
+], fontsize=9)
+ax.grid(alpha=0.12, axis="x")
+
+plt.tight_layout()
+plt.show()
+```
+
+
+## Building the Estimator Recursively
+
+MFMC is constructed by starting from the two-model ACV estimator and recursively
+improving each LF mean estimate with the next cheaper model.
+
+**Step 1.** Start with the two-model ACV estimator:
+
+$$
+\hat{\mu}_0 = \hat{\mu}_0(\mathcal{Z}_0)
++ \eta_1\bigl(\hat{\mu}_1(\mathcal{Z}_0) - \hat{\mu}_1(\mathcal{Z}_1)\bigr).
+$$
+
+**Step 2.** Rather than taking $\hat{\mu}_1(\mathcal{Z}_1)$ as a raw mean, improve it
+with $f_2$ using the same ACV pattern, then substitute back:
+
+$$
+\hat{\mu}_0 = \hat{\mu}_0(\mathcal{Z}_0)
++ \eta_1\bigl(\hat{\mu}_1(\mathcal{Z}_0) - \hat{\mu}_1(\mathcal{Z}_1)\bigr)
++ \underbrace{\eta_1 \eta_2}_{\text{weight product}}
+  \bigl(\hat{\mu}_2(\mathcal{Z}_1) - \hat{\mu}_2(\mathcal{Z}_2)\bigr).
+$$
+
+**Step 3.** Repeating this substitution for all $M$ LF models and re-labelling the
+accumulated weight products as a single effective weight $\eta_\alpha$ per level gives
+the compact MFMC estimator:
+
+$$
+\hat{\mu}_0^{\text{MFMC}} = \hat{\mu}_0(\mathcal{Z}_0)
++ \sum_{\alpha=1}^{M} \eta_\alpha
+  \bigl(\hat{\mu}_\alpha(\mathcal{Z}_{\alpha-1}) - \hat{\mu}_\alpha(\mathcal{Z}_\alpha)\bigr).
+$$ {#eq-mfmc}
+
+The nested structure $\mathcal{Z}_0 \subset \mathcal{Z}_1 \subset \cdots \subset
+\mathcal{Z}_M$ ensures that model $f_\alpha$ is evaluated on both $\mathcal{Z}_{\alpha-1}$
+(the shared subset with the model above) and $\mathcal{Z}_\alpha$ (the full set including
+its exclusive samples), mirroring the ACV structure at every level.
+
+The estimator is unbiased for any choice of $\eta_\alpha$, since each correction term
+has mean zero. The weights are then chosen to minimise variance — see
+[MFMC Analysis](mfmc_analysis.qmd) for the full derivation.
+
+
+## Only $f_1$ Directly Reduces HF Variance
+
+The recursive construction reveals a subtle consequence: models $f_\alpha$ with
+$\alpha \geq 2$ reduce the variance of the correction for $f_{\alpha-1}$, not directly
+for $f_0$. The only model that **directly** corrects $\hat{\mu}_0(\mathcal{Z}_0)$ is $f_1$.
+
+This is also true of MLMC: deeper levels only affect $f_0$ indirectly through the
+telescoping chain. As a result, both estimators converge to the idealised one-model CV
+estimator — not to the optimal multi-model CV — as LF sample counts grow.
+@fig-mfmc-cv-limit shows this plateau for the five-level polynomial benchmark.
+
+```{python}
+#| echo: false
+#| fig-cap: "Variance relative to MC (with $N_0 = 1$ HF sample fixed) as LF sample counts grow, for MLMC and MFMC on the five-model polynomial benchmark. Both curves plateau at the CV-1 limit (green dashed), regardless of how many additional cheap samples are added. The CV-2 through CV-4 limits (dashed) are the reductions achievable if all LF means were known exactly — an upper bound neither estimator can reach."
+#| label: fig-mfmc-cv-limit
+
+import copy
+import numpy as np
+import matplotlib.pyplot as plt
+from pyapprox.util.backends.numpy import NumpyBkd
+from pyapprox.benchmarks.instances.multifidelity.polynomial_ensemble import (
+    polynomial_ensemble_5model,
+)
+from pyapprox.statest.statistics import MultiOutputMean
+from pyapprox.statest.acv import MLMCEstimator, MFMCEstimator
+
+bkd       = NumpyBkd()
+benchmark = polynomial_ensemble_5model(bkd)
+models    = benchmark.models()
+costs     = benchmark.costs()
+nqoi      = models[0].nqoi()
+cov_true  = bkd.to_numpy(benchmark.ensemble_covariance())
+sigma2_hf = cov_true[0, 0]
+n_models  = len(models)
+
+# Idealised CV limits: 1 - R^2 for n_lf LF models with known means
+cv_limits = []
+for n_lf in range(1, n_models):
+    sub = cov_true[:n_lf + 1, :n_lf + 1]
+    c0l = sub[0, 1:]
+    Sl  = sub[1:, 1:]
+    r2  = c0l @ np.linalg.solve(Sl, c0l) / sigma2_hf
+    cv_limits.append(1 - r2)
+
+stat = MultiOutputMean(nqoi, bkd)
+stat.set_pilot_quantities(bkd.asarray(cov_true))
+
+# Fix nhf=1 and manually grow LF partition sizes to show the CV-1 plateau.
+# This matches the legacy tutorial: only LF samples increase, HF stays at 1.
+nhf_samples = 1
+mc_var = sigma2_hf / nhf_samples
+npartition_ratio_base = np.array([2, 2, 2, 2])
+factors = np.arange(22)
+
+def compute_ratios(est_template):
+    est_costs, est_ratios = [], []
+    for factor in factors:
+        npartition_samples = bkd.asarray(
+            nhf_samples * np.hstack(
+                (1, npartition_ratio_base[:est_template._npartitions - 1]
+                 * 2**factor)),
+        )
+        est_copy = copy.deepcopy(est_template)
+        nsamples_per_model = est_copy._compute_nsamples_per_model(
+            npartition_samples)
+        est_copy._set_optimized_params_base(
+            npartition_samples, nsamples_per_model,
+            est_copy._estimator_cost(npartition_samples))
+        est_var = float(est_copy._optimized_covariance[0, 0])
+        est_costs.append(float(est_copy._estimator_cost(npartition_samples)))
+        est_ratios.append(est_var / mc_var)
+    return est_costs, est_ratios
+
+mlmc_costs, mlmc_ratio = compute_ratios(MLMCEstimator(stat, costs))
+mfmc_costs, mfmc_ratio = compute_ratios(MFMCEstimator(stat, costs))
+
+fig, ax = plt.subplots(figsize=(7, 4.5))
+ax.loglog(mlmc_costs, mlmc_ratio, "-",  color="#2C7FB8", lw=2, label="MLMC")
+ax.loglog(mfmc_costs, mfmc_ratio, "--", color="#E67E22", lw=2, label="MFMC")
+
+cv_colors = ["#27AE60", "#8E44AD", "#E74C3C", "#16A085"]
+cv_ls     = ["--", "-.", ":", (0, (5, 1))]
+for i, (lim, col, ls) in enumerate(zip(cv_limits, cv_colors, cv_ls)):
+    ax.axhline(lim, color=col, ls=ls, lw=1.5,
+               label=f"CV-{i+1} limit ({i+1} LF)")
+
+ax.axhline(1.0, color="k", lw=1, ls=":", alpha=0.4, label="MC (no reduction)")
+ax.set_xlabel("Total cost", fontsize=11)
+ax.set_ylabel("Variance / MC variance", fontsize=11)
+ax.set_title("MFMC and MLMC plateau at the CV-1 ceiling", fontsize=11)
+ax.legend(fontsize=8, loc="lower left")
+ax.grid(True, alpha=0.2, which="both")
+plt.tight_layout()
+plt.show()
+```
+
+The ceiling is $1 - \rho_{0,1}^2$, set entirely by the correlation between $f_0$ and the
+single most informative LF model. The [General ACV](acv_many_models_concept.qmd)
+tutorial shows how to break this ceiling by directly correcting $\hat{\mu}_0$ with all
+LF models simultaneously.
+
+
+## Key Takeaways
+
+- MFMC builds the estimator recursively: start from two-model ACV and replace each
+  raw LF mean with an improved ACV estimate at the next level
+- The result is a sum of corrections with nested sample sets and optimised weights
+- Both MFMC and MLMC plateau at the one-model CV-1 variance floor
+- MFMC optimises weights; MLMC fixes them at $-1$
+- On typical benchmarks both perform similarly; the General ACV framework breaks the
+  CV-1 ceiling
+
+
+## Exercises
+
+1. Write out the three-model MFMC estimator explicitly using the weight-product form from
+   the recursive derivation. Verify that it matches @eq-mfmc.
+
+2. From @fig-mfmc-cv-limit, what variance ratio does MFMC approach as the LF sample
+   ratio grows large? Which parameter determines this floor?
+
+3. If $\rho_{0,1} = 0.99$ and $\rho_{0,2} = 0.50$, does adding $f_2$ significantly
+   improve variance over using $f_1$ alone in MFMC? Why or why not?
+
+
+## Next Steps
+
+- [MFMC Analysis](mfmc_analysis.qmd) --- Derive the MFMC variance formula and optimal
+  sample ratios $r_\alpha^*$
+- [MFMC Usage](mfmc_usage.qmd) --- Use the PyApprox MFMC API end-to-end
+- [General ACV](acv_many_models_concept.qmd) --- Break the CV-1 ceiling using all LF
+  models simultaneously
+
+
+## References
+
+- [PWGSIAM2016] B. Peherstorfer, K. Willcox, M. Gunzburger. *Optimal Model Management
+  for Multifidelity Monte Carlo Estimation.* SIAM Journal on Scientific Computing,
+  38(5):A3163--A3194, 2016. [DOI](https://doi.org/10.1137/15M1046472)

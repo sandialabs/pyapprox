@@ -1,0 +1,67 @@
+"""Fixed benchmark instances with known ground truth."""
+
+from pyapprox.benchmarks.instances.analytic import (
+    ishigami_3d,
+    sobol_g_6d,
+    sobol_g_4d,
+    rosenbrock_2d,
+    rosenbrock_10d,
+    branin_2d,
+    genz_oscillatory_2d,
+    genz_product_peak_2d,
+    genz_corner_peak_2d,
+    genz_gaussian_peak_2d,
+    genz_oscillatory_5d,
+    genz_gaussian_peak_5d,
+    cantilever_beam_1d_analytical,
+    cantilever_beam_2d_analytical,
+)
+from pyapprox.benchmarks.instances.multifidelity import (
+    polynomial_ensemble_5model,
+    polynomial_ensemble_3model,
+    multioutput_ensemble_3x3,
+    psd_multioutput_ensemble_3x3,
+    tunable_ensemble_3model,
+)
+from pyapprox.benchmarks.instances.ode import (
+    lotka_volterra_3species,
+    coupled_springs_2mass,
+    hastings_ecology_3species,
+    chemical_reaction_surface,
+)
+from pyapprox.benchmarks.instances.pde import (
+    elastic_bar_1d,
+    cantilever_beam_1d,
+    cantilever_beam_2d_linear,
+    cantilever_beam_2d_neohookean,
+)
+
+__all__ = [
+    "ishigami_3d",
+    "sobol_g_6d",
+    "sobol_g_4d",
+    "rosenbrock_2d",
+    "rosenbrock_10d",
+    "branin_2d",
+    "genz_oscillatory_2d",
+    "genz_product_peak_2d",
+    "genz_corner_peak_2d",
+    "genz_gaussian_peak_2d",
+    "genz_oscillatory_5d",
+    "genz_gaussian_peak_5d",
+    "polynomial_ensemble_5model",
+    "polynomial_ensemble_3model",
+    "multioutput_ensemble_3x3",
+    "psd_multioutput_ensemble_3x3",
+    "tunable_ensemble_3model",
+    "lotka_volterra_3species",
+    "coupled_springs_2mass",
+    "hastings_ecology_3species",
+    "chemical_reaction_surface",
+    "elastic_bar_1d",
+    "cantilever_beam_1d",
+    "cantilever_beam_2d_linear",
+    "cantilever_beam_2d_neohookean",
+    "cantilever_beam_1d_analytical",
+    "cantilever_beam_2d_analytical",
+]

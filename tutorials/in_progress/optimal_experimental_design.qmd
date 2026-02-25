@@ -1,0 +1,432 @@
+---
+title: "Optimal Experimental Design"
+subtitle: "PyApprox Tutorial Library"
+description: "Designing experiments to maximize information gain"
+prerequisites:
+  - gaussian_process_surrogates
+tags:
+  - design
+  - optimization
+  - advanced
+format:
+  html:
+    code-fold: false
+    code-tools: true
+    toc: true
+execute:
+  echo: true
+  warning: false
+jupyter: python3
+---
+
+::: {.callout-tip collapse="true"}
+## Download Notebook
+[Download as Jupyter Notebook](notebooks/optimal_experimental_design.ipynb)
+:::
+
+## Learning Objectives
+
+After completing this tutorial, you will be able to:
+
+- Understand why experimental design matters for parameter estimation
+- Apply D-optimal and A-optimal design criteria
+- Compute optimal design weights using PyApprox
+- Interpret optimal designs geometrically
+
+## Prerequisites
+
+Complete [Gaussian Process Surrogates](gaussian_process_surrogates.qmd) before this tutorial.
+
+## Why Design Experiments?
+
+When estimating model parameters from data, not all observations are equally informative.
+
+**Example**: Fitting a line $y = a + bx$ from noisy data
+
+- Observing at $x=0.5$ twice: Poor estimate of slope
+- Observing at $x=0$ and $x=1$: Best estimate of slope
+
+**Optimal experimental design (OED)** chooses where to collect data to minimize parameter uncertainty.
+
+## The Design Problem
+
+### Linear Model Setup
+
+Consider a linear model:
+
+$$
+y(\vc{x}) = \boldsymbol{\phi}(\vc{x})^T \boldsymbol{\beta} + \epsilon
+$$
+
+where:
+
+- $\boldsymbol{\phi}(\vc{x})$ = basis functions evaluated at design point $\vc{x}$
+- $\boldsymbol{\beta}$ = parameters to estimate
+- $\epsilon \sim \mathcal{N}(0, \sigma^2)$ = observation noise
+
+### Information Matrix
+
+The **Fisher information matrix** is:
+
+$$
+M_1(w) = \sum_{k=1}^{K} w_k \boldsymbol{\phi}_k \boldsymbol{\phi}_k^T
+$$
+
+where $w_k$ is the "weight" (fraction of observations) at design point $k$.
+
+The parameter covariance is proportional to $M_1^{-1}$:
+
+$$
+\Cov_\epsilon(\hat{\boldsymbol{\beta}}, \hat{\boldsymbol{\beta}}) \propto M_1(w)^{-1}
+$$
+
+**Goal**: Choose weights $w$ to minimize parameter uncertainty.
+
+## Design Criteria
+
+Different criteria measure "uncertainty" differently:
+
+| Criterion | Objective | Interpretation |
+|-----------|-----------|----------------|
+| D-optimal | $-\log\det(M_1)$ | Volume of confidence ellipsoid |
+| A-optimal | $\text{trace}(M_1^{-1})$ | Sum of parameter variances |
+| C-optimal | $\vc{c}^T M_1^{-1} \vc{c}$ | Variance of linear combination |
+| G-optimal | $\max_k \boldsymbol{\phi}_k^T M_1^{-1} \boldsymbol{\phi}_k$ | Maximum prediction variance |
+
+### D-Optimal Design
+
+D-optimal minimizes the **determinant** of the covariance matrix:
+
+$$
+\min_w -\log\det(M_1(w))
+$$
+
+This is equivalent to minimizing the volume of the parameter confidence ellipsoid.
+
+### A-Optimal Design
+
+A-optimal minimizes the **trace** of the covariance matrix:
+
+$$
+\min_w \text{trace}(M_1(w)^{-1})
+$$
+
+This minimizes the average parameter variance.
+
+## Setup
+
+```{python}
+import numpy as np
+import matplotlib.pyplot as plt
+
+from pyapprox.util.backends.numpy import NumpyBkd
+from pyapprox.expdesign.local.design_matrices import LeastSquaresDesignMatrices
+from pyapprox.expdesign.local.criteria import DOptimalCriterion, AOptimalCriterion
+from pyapprox.expdesign.local.solver import ScipyLocalOEDSolver
+
+bkd = NumpyBkd()
+np.random.seed(42)
+```
+
+## Example: Polynomial Regression
+
+Consider fitting a quadratic: $y = \beta_0 + \beta_1 x + \beta_2 x^2$.
+
+The basis functions are $\phi(x) = [1, x, x^2]$.
+
+```{python}
+# Candidate design points
+n_candidates = 21
+x_candidates = np.linspace(-1, 1, n_candidates)
+
+# Basis functions: [1, x, x^2]
+design_factors = np.column_stack([
+    np.ones(n_candidates),
+    x_candidates,
+    x_candidates**2
+])
+
+print(f"Design factors shape: {design_factors.shape}")
+print("First few rows:")
+print(design_factors[:5].round(3))
+```
+
+## Computing Design Matrices
+
+```{python}
+# Create design matrices object
+dm = LeastSquaresDesignMatrices(
+    design_factors=bkd.asarray(design_factors),
+    bkd=bkd
+)
+
+print(f"Number of design points: {dm.ndesign_pts()}")
+print(f"Number of design variables (basis terms): {dm.ndesign_vars()}")
+```
+
+```{python}
+# Compute information matrix for uniform design
+uniform_weights = bkd.asarray(np.ones((n_candidates, 1)) / n_candidates)
+M1_uniform = dm.M1(uniform_weights)
+
+print("Information matrix (uniform weights):")
+print(bkd.to_numpy(M1_uniform).round(4))
+```
+
+## D-Optimal Design
+
+```{python}
+# Create D-optimal criterion
+d_criterion = DOptimalCriterion(dm, bkd)
+
+# Evaluate at uniform weights
+d_value = d_criterion(uniform_weights)
+print(f"D-optimal criterion (uniform): {float(d_value[0,0]):.4f}")
+```
+
+```{python}
+# Find optimal design
+d_solver = ScipyLocalOEDSolver(d_criterion, bkd, verbosity=0)
+d_optimal_weights = d_solver.construct()
+
+# Extract optimal weights
+d_weights_np = bkd.to_numpy(d_optimal_weights).flatten()
+
+print("\nD-optimal design:")
+print(f"Total weight: {d_weights_np.sum():.4f}")
+
+# Show non-zero weights
+nonzero_idx = np.where(d_weights_np > 0.01)[0]
+print("\nOptimal design points:")
+for idx in nonzero_idx:
+    print(f"  x = {x_candidates[idx]:6.3f}, weight = {d_weights_np[idx]:.4f}")
+```
+
+```{python}
+# Compare criterion values
+d_value_optimal = d_criterion(d_optimal_weights)
+print(f"\nD-optimal criterion:")
+print(f"  Uniform design: {float(d_value[0,0]):.4f}")
+print(f"  Optimal design: {float(d_value_optimal[0,0]):.4f}")
+print(f"  Improvement: {(float(d_value[0,0]) - float(d_value_optimal[0,0])):.4f}")
+```
+
+## Visualizing the D-Optimal Design
+
+```{python}
+fig, axes = plt.subplots(1, 2, figsize=(12, 4))
+
+# Design weights
+ax = axes[0]
+ax.bar(x_candidates, d_weights_np, width=0.08, alpha=0.7)
+ax.set_xlabel('Design point x')
+ax.set_ylabel('Weight')
+ax.set_title('D-Optimal Design Weights')
+ax.grid(True, alpha=0.3)
+
+# Confidence ellipsoid (projected)
+ax = axes[1]
+
+# Compute covariance for both designs
+M1_optimal = dm.M1(d_optimal_weights)
+cov_uniform = np.linalg.inv(bkd.to_numpy(M1_uniform))
+cov_optimal = np.linalg.inv(bkd.to_numpy(M1_optimal))
+
+# Plot 2D projection (beta_1, beta_2)
+theta = np.linspace(0, 2*np.pi, 100)
+
+# Uniform ellipse
+eigvals_u, eigvecs_u = np.linalg.eigh(cov_uniform[1:3, 1:3])
+scale_u = np.sqrt(eigvals_u) * 2.5  # Chi-squared scale
+ellipse_u = eigvecs_u @ (scale_u[:, None] * np.vstack([np.cos(theta), np.sin(theta)]))
+
+# Optimal ellipse
+eigvals_o, eigvecs_o = np.linalg.eigh(cov_optimal[1:3, 1:3])
+scale_o = np.sqrt(eigvals_o) * 2.5
+ellipse_o = eigvecs_o @ (scale_o[:, None] * np.vstack([np.cos(theta), np.sin(theta)]))
+
+ax.plot(ellipse_u[0], ellipse_u[1], 'b-', linewidth=2, label='Uniform')
+ax.plot(ellipse_o[0], ellipse_o[1], 'r-', linewidth=2, label='D-optimal')
+ax.set_xlabel(r'$\beta_1$')
+ax.set_ylabel(r'$\beta_2$')
+ax.set_title('95% Confidence Ellipsoids')
+ax.legend()
+ax.axis('equal')
+ax.grid(True, alpha=0.3)
+
+plt.tight_layout()
+plt.show()
+```
+
+## A-Optimal Design
+
+```{python}
+# Create A-optimal criterion
+a_criterion = AOptimalCriterion(dm, bkd)
+
+# Find optimal design
+a_solver = ScipyLocalOEDSolver(a_criterion, bkd, verbosity=0)
+a_optimal_weights = a_solver.construct()
+
+a_weights_np = bkd.to_numpy(a_optimal_weights).flatten()
+
+print("A-optimal design:")
+nonzero_idx = np.where(a_weights_np > 0.01)[0]
+for idx in nonzero_idx:
+    print(f"  x = {x_candidates[idx]:6.3f}, weight = {a_weights_np[idx]:.4f}")
+```
+
+## Comparing D and A Optimal Designs
+
+```{python}
+fig, axes = plt.subplots(1, 2, figsize=(12, 4))
+
+# D-optimal
+ax = axes[0]
+ax.bar(x_candidates - 0.04, d_weights_np, width=0.08, alpha=0.7, label='D-optimal')
+ax.bar(x_candidates + 0.04, a_weights_np, width=0.08, alpha=0.7, label='A-optimal')
+ax.set_xlabel('Design point x')
+ax.set_ylabel('Weight')
+ax.set_title('D-Optimal vs A-Optimal Designs')
+ax.legend()
+ax.grid(True, alpha=0.3)
+
+# Trace comparison
+ax = axes[1]
+# Compute trace (A-criterion) for both
+M1_a = dm.M1(a_optimal_weights)
+trace_uniform = np.trace(np.linalg.inv(bkd.to_numpy(M1_uniform)))
+trace_d = np.trace(np.linalg.inv(bkd.to_numpy(M1_optimal)))
+trace_a = np.trace(np.linalg.inv(bkd.to_numpy(M1_a)))
+
+bars = ax.bar(['Uniform', 'D-optimal', 'A-optimal'],
+              [trace_uniform, trace_d, trace_a], alpha=0.7)
+ax.set_ylabel(r'Trace$(M_1^{-1})$')
+ax.set_title('A-Criterion (lower is better)')
+ax.grid(True, alpha=0.3)
+
+plt.tight_layout()
+plt.show()
+
+print(f"Trace of covariance:")
+print(f"  Uniform:   {trace_uniform:.4f}")
+print(f"  D-optimal: {trace_d:.4f}")
+print(f"  A-optimal: {trace_a:.4f}")
+```
+
+## Classical Results
+
+For polynomial regression on $[-1, 1]$, optimal designs have known forms:
+
+### Degree-1 (Line)
+
+D-optimal and A-optimal both place weight at endpoints:
+- 50% at $x = -1$
+- 50% at $x = +1$
+
+### Degree-2 (Quadratic)
+
+D-optimal places weight at three points:
+- 25% at $x = -1$
+- 50% at $x = 0$
+- 25% at $x = +1$
+
+```{python}
+# Verify our result matches theory
+print("Theoretical D-optimal for quadratic:")
+print("  x = -1.0, weight = 0.25")
+print("  x =  0.0, weight = 0.50")
+print("  x =  1.0, weight = 0.25")
+
+print("\nOur numerical result:")
+for idx in np.where(d_weights_np > 0.01)[0]:
+    print(f"  x = {x_candidates[idx]:5.2f}, weight = {d_weights_np[idx]:.4f}")
+```
+
+## Heteroscedastic Noise
+
+When noise varies across design points, the optimal design changes.
+
+```{python}
+# Higher noise at boundary
+noise_mult = 1.0 + 0.5 * np.abs(x_candidates)  # More noise at edges
+
+dm_hetero = LeastSquaresDesignMatrices(
+    design_factors=bkd.asarray(design_factors),
+    bkd=bkd,
+    noise_mult=bkd.asarray(noise_mult)
+)
+
+d_criterion_hetero = DOptimalCriterion(dm_hetero, bkd)
+d_solver_hetero = ScipyLocalOEDSolver(d_criterion_hetero, bkd, verbosity=0)
+d_optimal_hetero = d_solver_hetero.construct()
+
+d_weights_hetero = bkd.to_numpy(d_optimal_hetero).flatten()
+```
+
+```{python}
+fig, ax = plt.subplots(figsize=(8, 5))
+
+ax.bar(x_candidates - 0.04, d_weights_np, width=0.08, alpha=0.7, label='Homoscedastic')
+ax.bar(x_candidates + 0.04, d_weights_hetero, width=0.08, alpha=0.7, label='Heteroscedastic')
+ax.plot(x_candidates, noise_mult/10, 'k--', label='Noise level (scaled)', alpha=0.7)
+ax.set_xlabel('Design point x')
+ax.set_ylabel('Weight')
+ax.set_title('D-Optimal Design: Homoscedastic vs Heteroscedastic')
+ax.legend()
+ax.grid(True, alpha=0.3)
+plt.tight_layout()
+plt.show()
+
+print("Heteroscedastic D-optimal design:")
+for idx in np.where(d_weights_hetero > 0.01)[0]:
+    print(f"  x = {x_candidates[idx]:5.2f}, weight = {d_weights_hetero[idx]:.4f}")
+```
+
+## Practical Considerations
+
+### 1. Continuous vs Discrete Designs
+
+- **Continuous designs**: Weights $w_k$ can be any value in $[0,1]$
+- **Discrete designs**: Must allocate integer number of experiments
+
+For small experiments, rounding continuous designs may not be optimal.
+
+### 2. Model Uncertainty
+
+OED assumes the model form is known. If uncertain:
+
+- Use Bayesian model averaging
+- Design for multiple candidate models
+- Consider sequential/adaptive designs
+
+### 3. Computational Cost
+
+For large candidate sets:
+
+- Use exchange algorithms
+- Consider approximations (Fedorov exchange)
+- Leverage problem structure
+
+## Key Takeaways
+
+- **Optimal experimental design** chooses where to observe to minimize parameter uncertainty
+- **D-optimal** minimizes confidence ellipsoid volume (determinant)
+- **A-optimal** minimizes average parameter variance (trace)
+- **Design depends on** basis functions and noise structure
+- **Classical results** exist for polynomial regression on standard intervals
+
+## Exercises
+
+1. **(Easy)** Verify that D-optimal design for linear regression ($y = a + bx$) places 50% weight at each endpoint.
+
+2. **(Medium)** Compare D-optimal and A-optimal designs for cubic regression. Which criterion places more weight at the center?
+
+3. **(Challenge)** Design an experiment for estimating parameters of the Michaelis-Menten model $y = V_{max} x / (K_m + x)$. Hint: Linearize and apply OED, or use nonlinear OED.
+
+## Next Steps
+
+Continue with:
+
+- [Optimization Under Uncertainty](optimization_under_uncertainty.qmd) - Risk-aware optimization
+- [Bayesian Calibration Intro](bayesian_calibration_intro.qmd) - Parameter inference

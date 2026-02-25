@@ -1,0 +1,177 @@
+---
+title: "Developer Guide"
+subtitle: "Conventions, standards, and best practices for PyApprox Typing Module"
+---
+
+## Overview
+
+This developer guide documents the conventions, standards, and best practices used throughout the PyApprox Typing Module. These guidelines ensure code quality, type safety, and maintainability across the codebase.
+
+## Guide Sections
+
+### [Array Shape Conventions](array-conventions.qmd)
+
+Learn the strict array shape conventions used throughout the module:
+
+- **Input arrays**: Always `(nvars, nsamples)` shape
+- **Output arrays**: Always `(nsamples, nqoi)` shape
+- **Jacobians**: Always 2D arrays `(nqoi, nvars)`, even when `nqoi=1` or `nvars=1`
+
+These conventions eliminate ambiguity and prevent shape-related bugs.
+
+**Key topics:**
+- Input/output array shapes
+- Jacobian conventions
+- Kernel matrix shapes
+- Multi-output data structures
+
+### [Testing Conventions](testing-conventions.qmd)
+
+Understand the testing framework built on generic base classes:
+
+- Backend-agnostic test definitions
+- Automatic testing with both NumPy and PyTorch backends
+- Numerical gradient checking
+- Test organization and naming
+
+**Key topics:**
+- Generic base class pattern
+- Writing backend-agnostic tests
+- Using `load_tests` to skip base classes
+- Test discovery and organization
+
+### [Type Safety and Linting](type-safety.qmd)
+
+Learn about the type system and tooling:
+
+- Full type annotations with `mypy`
+- Type protocols for extensibility
+- Linting with `ruff`
+- Type checking in CI/CD
+
+**Key topics:**
+- Type annotation standards
+- Using type protocols
+- Running type checkers
+- Common type patterns
+
+### [Protocols](protocols.qmd)
+
+Explore the protocol-based architecture:
+
+- `Backend[Array]` protocol for NumPy/PyTorch abstraction
+- `Kernel` protocol for kernel implementations
+- `GaussianProcessProtocol` for GP models
+- Creating custom protocol implementations
+
+**Key topics:**
+- Understanding protocols vs inheritance
+- Core protocol definitions
+- Implementing custom backends
+- Protocol composition
+
+### [Derivative Checking](derivative-checking.qmd)
+
+Validate analytical derivatives using finite differences:
+
+- Checking Jacobians and gradients
+- Validating Hessian-vector products (HVPs)
+- Using the `DerivativeChecker` class
+- Interpreting convergence results
+
+**Key topics:**
+- Finite difference theory
+- Testing Jacobians in unit tests
+- Checking parameter derivatives
+- Debugging derivative implementations
+
+### [Contributing Guidelines](contributing.qmd)
+
+Get started contributing to the module:
+
+- Development environment setup
+- Code style requirements
+- Pull request process
+- Documentation standards
+
+**Key topics:**
+- Setting up development environment
+- Running tests and type checkers
+- Code review expectations
+- Documentation requirements
+
+## Quick Reference
+
+### Array Shapes
+
+```python
+# Inputs: (nvars, nsamples)
+X = bkd.array([[0.0, 0.5, 1.0]])  # shape (1, 3)
+
+# Outputs: (nsamples, nqoi)
+y = bkd.array([[1.0], [2.0], [3.0]])  # shape (3, 1)
+
+# Jacobian: (nqoi, nvars)
+jac = bkd.array([[0.5]])  # shape (1, 1)
+```
+
+### Testing Pattern
+
+```python
+from typing import Generic
+from pyapprox.util.backends.protocols import Array
+import unittest
+
+class TestMyKernel(Generic[Array], unittest.TestCase):
+    def bkd(self):
+        raise NotImplementedError
+
+    def setUp(self):
+        self._bkd = self.bkd()
+
+    def test_basic_evaluation(self):
+        # Test works with any backend
+        kernel = MyKernel(params, self._bkd)
+        X = self._bkd.array([[0.0, 1.0]])
+        K = kernel(X, X)
+        assert K.shape == (2, 2)
+
+class TestMyKernelNumpy(TestMyKernel[NDArray[Any]]):
+    def bkd(self):
+        return NumpyBkd()
+
+class TestMyKernelTorch(TestMyKernel[torch.Tensor]):
+    def bkd(self):
+        return TorchBkd()
+```
+
+### Type Annotations
+
+```python
+from typing import Generic
+from pyapprox.util.backends.protocols import Array, Backend
+
+class MyKernel(Generic[Array]):
+    def __init__(self, bkd: Backend[Array]) -> None:
+        self._bkd = bkd
+
+    def __call__(self, X: Array) -> Array:
+        # Fully typed implementation
+        ...
+```
+
+## Why These Conventions?
+
+The strict conventions in this module serve several purposes:
+
+1. **Bug Prevention**: Consistent shapes eliminate common sources of errors
+2. **Type Safety**: Full typing enables compile-time error detection
+3. **Backend Portability**: Protocol-based design allows easy backend swapping
+4. **Maintainability**: Clear conventions make code easier to understand and modify
+5. **Testing**: Backend-agnostic tests ensure correctness across implementations
+
+## Getting Help
+
+- **Issues**: Found a convention that's unclear? [Open an issue](https://github.com/sandialabs/pyapprox/issues)
+- **Questions**: Ask in pull request discussions
+- **Examples**: Check the [Gallery](../gallery/index.qmd) for working code following these conventions

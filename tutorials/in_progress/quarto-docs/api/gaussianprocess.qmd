@@ -1,0 +1,346 @@
+---
+title: "Gaussian Processes"
+subtitle: "GP regression and hyperparameter optimization"
+---
+
+## Overview
+
+The Gaussian Process module provides exact and multi-output GP regression with automatic hyperparameter optimization.
+
+::: {.callout-note}
+## Status: In Development
+
+Full API documentation with quartodoc integration is coming soon. For now, see the examples below and the [Gallery](../gallery/index.qmd) for usage patterns.
+:::
+
+## ExactGaussianProcess
+
+Exact GP regression using Cholesky factorization.
+
+### Basic Usage
+
+```python
+from pyapprox.surrogates.gaussianprocess import ExactGaussianProcess
+from pyapprox.surrogates.kernels import MaternKernel
+from pyapprox.util.backends.numpy import NumpyBkd
+import numpy as np
+
+# Setup
+bkd = NumpyBkd()
+kernel = MaternKernel(2.5, [1.0], (0.1, 10.0), nvars=1, bkd=bkd)
+gp = ExactGaussianProcess(kernel, bkd, noise_variance=1e-6)
+
+# Training data
+X_train = bkd.array(np.linspace(0, 1, 20).reshape(1, -1))
+y_train = bkd.array(np.sin(2 * np.pi * X_train[0, :]).reshape(-1, 1))
+
+# Fit
+gp.fit(X_train, y_train)
+
+# Predict
+X_test = bkd.array(np.linspace(0, 1, 100).reshape(1, -1))
+mean = gp.predict(X_test)  # Shape: (100, 1)
+```
+
+### Prediction with Uncertainty
+
+```python
+# Get predictive mean and standard deviation
+mean, std = gp.predict(X_test, return_std=True)
+
+# 95% confidence interval
+lower = mean - 2 * std
+upper = mean + 2 * std
+```
+
+### Constructor Parameters
+
+- `kernel`: Kernel instance defining covariance structure
+- `bkd`: Backend instance (NumpyBkd or TorchBkd)
+- `noise_variance`: Observation noise variance (default: 1e-6)
+- `jitter`: Numerical stability jitter added to diagonal (default: 1e-8)
+
+### Methods
+
+**`fit(X, y)`**
+
+Fit GP to training data.
+
+- `X`: Input array, shape `(nvars, nsamples)`
+- `y`: Output array, shape `(nsamples, nqoi)`
+
+**`predict(X, return_std=False)`**
+
+Predict at test points.
+
+- `X`: Test inputs, shape `(nvars, ntest)`
+- `return_std`: If True, return (mean, std), otherwise just mean
+- Returns:
+  - `mean`: Shape `(ntest, nqoi)`
+  - `std` (optional): Shape `(ntest, nqoi)`
+
+**See also:**
+- [GP Theory](../theory/gaussian-processes.qmd)
+
+## MultiOutputGP
+
+Multi-output GP with structured kernels.
+
+### Basic Usage
+
+```python
+from pyapprox.surrogates.gaussianprocess.multioutput import MultiOutputGP
+from pyapprox.surrogates.kernels.multioutput import MultiLevelKernel
+
+# Create multi-level kernel
+k0 = MaternKernel(2.5, [1.0], (0.1, 10.0), 1, bkd)
+k1 = MaternKernel(2.5, [1.0], (0.1, 10.0), 1, bkd)
+rho = ConstantScaling([0.9], (0.0, 1.0), bkd)
+
+ml_kernel = MultiLevelKernel([k0, k1], [rho], bkd)
+
+# Create multi-output GP
+gp = MultiOutputGP(ml_kernel, bkd, noise_variance=1e-6)
+
+# Fit with list of inputs per level
+X_train_list = [X0, X1]  # Each Xi: (nvars, nsamples_i)
+y_train = bkd.array([...])  # Shape: (sum(nsamples_i), 1)
+
+gp.fit(X_train_list, y_train)
+
+# Predict at all levels
+X_test_list = [X0_test, X1_test]
+mean, std = gp.predict_with_uncertainty(X_test_list)
+```
+
+### Constructor Parameters
+
+- `kernel`: Multi-output kernel (MultiLevel, DAG, Independent, or LMC)
+- `bkd`: Backend instance
+- `noise_variance`: Observation noise variance (default: 1e-6)
+
+### Methods
+
+**`fit(X_list, y)`**
+
+Fit multi-output GP.
+
+- `X_list`: List of input arrays, one per output
+- `y`: Stacked output array, shape `(sum(nsamples), 1)`
+
+**`predict_with_uncertainty(X_list)`**
+
+Predict with uncertainty at all outputs.
+
+- `X_list`: List of test input arrays
+- Returns: `(mean, std)` tuple
+
+**See also:**
+- [Multi-output Kernels](kernels.qmd#multi-output-kernels)
+- [Multi-output Theory](../theory/multioutput-kernels.qmd)
+- [DAG GP Example](../gallery/usage/dag-gaussian-process.qmd)
+
+## Hyperparameter Optimization
+
+### Negative Log Marginal Likelihood
+
+Optimize GP hyperparameters by minimizing negative log marginal likelihood.
+
+```python
+from pyapprox.surrogates.gaussianprocess.gp_loss import (
+    GPNegativeLogMarginalLikelihoodLoss
+)
+from pyapprox.optimize.scipy_optimizer import ScipyOptimizer
+
+# Create loss function
+loss = GPNegativeLogMarginalLikelihoodLoss(
+    gp=gp,
+    data=(X_train, y_train)
+)
+
+# Optimize using L-BFGS-B
+optimizer = ScipyOptimizer(method='L-BFGS-B')
+result = optimizer.minimize(loss)
+
+print(f"Initial NLL: {result.fun_initial:.4f}")
+print(f"Final NLL: {result.fun:.4f}")
+print(f"Optimized parameters: {result.x}")
+```
+
+### Loss Function API
+
+**`GPNegativeLogMarginalLikelihoodLoss`**
+
+Constructor parameters:
+- `gp`: GP instance to optimize
+- `data`: Tuple of `(X_train, y_train)`
+
+Methods:
+- `__call__(params)`: Evaluate loss at parameters
+- `grad(params)`: Gradient of loss wrt parameters
+- `fun_and_grad(params)`: Compute both loss and gradient
+
+### Optimization Tips
+
+1. **Use bounds**: Constrain parameters to reasonable ranges
+   ```python
+   bounds = gp.kernel().hyp_list().get_bounds()
+   result = optimizer.minimize(loss, bounds=bounds)
+   ```
+
+2. **Multiple restarts**: Try different initializations
+   ```python
+   best_result = None
+   for _ in range(10):
+       # Randomize initial parameters
+       gp.kernel().hyp_list().set_random_values()
+       result = optimizer.minimize(loss)
+       if best_result is None or result.fun < best_result.fun:
+           best_result = result
+   ```
+
+3. **Scale data**: Standardize inputs/outputs for better conditioning
+   ```python
+   X_mean = bkd.mean(X_train, axis=1, keepdims=True)
+   X_std = bkd.std(X_train, axis=1, keepdims=True)
+   X_scaled = (X_train - X_mean) / X_std
+   ```
+
+**See also:**
+- [GP Theory: Hyperparameters](../theory/gaussian-processes.qmd#hyperparameter-optimization)
+
+## Computational Complexity
+
+### Training (`fit`)
+
+- **Kernel matrix**: O(n²) kernel evaluations
+- **Cholesky factorization**: O(n³) operations
+- **Solve**: O(n²) operations
+
+**Total**: O(n³) where n = number of training points
+
+### Prediction (`predict`)
+
+Per test point:
+- **Kernel vector**: O(n) kernel evaluations
+- **Mean**: O(n) operations
+- **Variance**: O(n²) operations
+
+For n_test points: O(n · n_test)
+
+### Hyperparameter Optimization
+
+Per optimization iteration:
+- **Refit GP**: O(n³)
+- **Compute gradient**: O(n² · nparams)
+
+Typical: 10-100 iterations → O(100 · n³)
+
+**Practical limit**: n ≲ 10,000 for exact GPs
+
+**See also:**
+- [GP Theory: Complexity](../theory/gaussian-processes.qmd#computational-complexity)
+
+## Array Shape Conventions
+
+### Single-Output GP
+
+**Training:**
+- `X_train`: `(nvars, ntrain)`
+- `y_train`: `(ntrain, 1)` (always 2D, even for single output)
+
+**Prediction:**
+- `X_test`: `(nvars, ntest)`
+- `mean`: `(ntest, 1)`
+- `std`: `(ntest, 1)`
+
+### Multi-Output GP
+
+**Training:**
+- `X_list`: List of `[(nvars, n0), (nvars, n1), ...]`
+- `y`: `(n0 + n1 + ..., 1)` (stacked outputs)
+
+**Prediction:**
+- `X_list`: List of test inputs per output
+- `mean`: Stacked predictions
+- `std`: Stacked uncertainties
+
+**See also:**
+- [Array Conventions](../developer-guide/array-conventions.qmd)
+
+## GaussianProcessProtocol
+
+All GP models implement the `GaussianProcessProtocol`:
+
+```python
+from typing import Protocol, Generic
+from pyapprox.util.backends.protocols import Array
+
+class GaussianProcessProtocol(Protocol[Array]):
+    def fit(self, X: Array, y: Array) -> None:
+        """Fit GP to training data."""
+        ...
+
+    def predict(
+        self,
+        X: Array,
+        return_std: bool = False
+    ) -> Array | tuple[Array, Array]:
+        """Predict at test points."""
+        ...
+
+    def kernel(self) -> Kernel[Array]:
+        """Get kernel instance."""
+        ...
+
+    def bkd(self) -> Backend[Array]:
+        """Get backend instance."""
+        ...
+```
+
+This enables custom GP implementations.
+
+**See also:**
+- [Protocols Guide](../developer-guide/protocols.qmd)
+
+## Numerical Stability
+
+### Jitter
+
+Add small jitter to diagonal for numerical stability:
+
+```python
+gp = ExactGaussianProcess(
+    kernel,
+    bkd,
+    noise_variance=1e-6,
+    jitter=1e-8  # Added to K + noise_variance * I
+)
+```
+
+**When to increase jitter:**
+- Cholesky factorization fails
+- Kernel matrix is nearly singular
+- Very small length scales
+
+### Noise Variance
+
+Minimum noise variance for stability:
+
+```python
+# Too small - may cause numerical issues
+gp = ExactGaussianProcess(kernel, bkd, noise_variance=1e-12)  # ❌
+
+# Better - ensures numerical stability
+gp = ExactGaussianProcess(kernel, bkd, noise_variance=1e-6)   # ✅
+```
+
+**See also:**
+- [GP Theory: Numerical Stability](../theory/gaussian-processes.qmd#numerical-stability)
+
+## See Also
+
+- **[Kernels API](kernels.qmd)**: Kernel implementations
+- **[Theory: Gaussian Processes](../theory/gaussian-processes.qmd)**: Mathematical foundations
+- **[Gallery](../gallery/index.qmd)**: Visual examples
+- **[Developer Guide](../developer-guide/index.qmd)**: Testing and conventions

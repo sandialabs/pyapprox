@@ -1,638 +1,53 @@
-from typing import List, Optional, Tuple, Any, Union, Sequence
+from typing import Any, Optional, Union, Sequence, List, Tuple, overload, cast
 
+from numpy.typing import NDArray
 import numpy as np
-import scipy  # type: ignore
+import scipy
+from scipy.sparse import csc_matrix
+from scipy.sparse.linalg import spsolve
 
-from pyapprox.util.backends.template import BackendMixin, AxisArg
+from pyapprox.util.backends.protocols import Backend
 
 
-class NumpyMixin(BackendMixin):
+# Implement the NumPy backend
+class NumpyBkd(Backend[NDArray[Any]]):  # Specify NDArray type
     @staticmethod
-    def dot(Amat: np.ndarray, Bmat: np.ndarray) -> np.ndarray:
-        return np.dot(Amat, Bmat)
+    def dot(Amat: NDArray[Any], Bmat: NDArray[Any]) -> NDArray[Any]:
+        # for typing consistancy make sure dot always returns an array
+        return np.asarray(np.dot(Amat, Bmat))
 
     @staticmethod
-    def eye(nrows: int, ncols: Optional[int] = None, dtype=None) -> np.ndarray:
+    def multidot(arrays: List[NDArray[Any]]) -> NDArray[Any]:
+        """Compute the dot product of multiple matrices."""
+        return np.linalg.multi_dot(arrays)
+
+    @staticmethod
+    def eye(
+        nrows: int, ncols: Optional[int] = None, dtype: Optional[Any] = None
+    ) -> NDArray[Any]:
         return np.eye(nrows, ncols, dtype=dtype)
 
     @staticmethod
-    def inv(matrix: np.ndarray) -> np.ndarray:
+    def inv(matrix: NDArray[Any]) -> NDArray[Any]:
         return np.linalg.inv(matrix)
 
     @staticmethod
-    def pinv(matrix: np.ndarray) -> np.ndarray:
+    def pinv(matrix: NDArray[Any]) -> NDArray[Any]:
         return np.linalg.pinv(matrix)
 
     @staticmethod
-    def solve(Amat: np.ndarray, Bmat: np.ndarray) -> np.ndarray:
-        return np.linalg.solve(Amat, Bmat)
-
-    @staticmethod
-    def cholesky(matrix: np.ndarray) -> np.ndarray:
-        return np.linalg.cholesky(matrix)
-
-    @staticmethod
-    def det(matrix: np.ndarray):
-        return np.linalg.det(matrix)
-
-    @staticmethod
-    def cholesky_solve(
-        chol: np.ndarray, bvec: np.ndarray, lower: bool = True
-    ) -> np.ndarray:
-        return scipy.linalg.cho_solve((chol, lower), bvec)
-
-    @staticmethod
-    def qr(mat: np.ndarray, mode="complete"):
-        if mode != "r":
-            return np.linalg.qr(mat, mode=mode)
-        return None, np.linalg.qr(mat, mode=mode)
-
-    @staticmethod
-    def solve_triangular(
-        Amat: np.ndarray, bvec: np.ndarray, lower: bool = True
-    ) -> np.ndarray:
-        return scipy.linalg.solve_triangular(Amat, bvec, lower=lower)
-
-    @staticmethod
-    def full(*args, dtype=None):
-        return np.full(*args, dtype=dtype)
-
-    @staticmethod
-    def zeros(*args, dtype=None):
-        return np.zeros(*args, dtype=dtype)
-
-    @staticmethod
-    def ones(*args, dtype=None):
-        return np.ones(*args, dtype=dtype)
-
-    @staticmethod
-    def empty(*args, dtype=None):
-        return np.empty(*args, dtype=dtype)
-
-    @staticmethod
-    def empty_like(*args, dtype=None):
-        return np.empty_like(*args, dtype=dtype)
-
-    @staticmethod
-    def exp(matrix: np.ndarray) -> np.ndarray:
-        return np.exp(matrix)
-
-    @staticmethod
-    def sqrt(matrix: np.ndarray) -> np.ndarray:
-        return np.sqrt(matrix)
-
-    @staticmethod
-    def cos(matrix: np.ndarray) -> np.ndarray:
-        return np.cos(matrix)
-
-    @staticmethod
-    def arccos(matrix: np.ndarray) -> np.ndarray:
-        return np.arccos(matrix)
-
-    @staticmethod
-    def tan(matrix: np.ndarray) -> np.ndarray:
-        return np.tan(matrix)
-
-    @staticmethod
-    def arctan(matrix: np.ndarray) -> np.ndarray:
-        return np.arctan(matrix)
-
-    @staticmethod
-    def arctan2(matrix1: np.ndarray, matrix2: np.ndarray) -> np.ndarray:
-        return np.arctan2(matrix1, matrix2)
-
-    @staticmethod
-    def sin(matrix: np.ndarray) -> np.ndarray:
-        return np.sin(matrix)
-
-    @staticmethod
-    def arcsin(matrix: np.ndarray) -> np.ndarray:
-        return np.arcsin(matrix)
-
-    @staticmethod
-    def cosh(matrix: np.ndarray) -> np.ndarray:
-        return np.cosh(matrix)
-
-    @staticmethod
-    def sinh(matrix: np.ndarray) -> np.ndarray:
-        return np.sinh(matrix)
-
-    @staticmethod
-    def arccosh(matrix: np.ndarray) -> np.ndarray:
-        return np.arccosh(matrix)
-
-    @staticmethod
-    def arcsinh(matrix: np.ndarray) -> np.ndarray:
-        return np.arcsinh(matrix)
-
-    @staticmethod
-    def log(matrix: np.ndarray) -> np.ndarray:
-        return np.log(matrix)
-
-    @staticmethod
-    def log10(matrix: np.ndarray) -> np.ndarray:
-        return np.log10(matrix)
-
-    @staticmethod
-    def multidot(matrix_list: List[np.ndarray]) -> np.ndarray:
-        return np.linalg.multi_dot(matrix_list)
-
-    @staticmethod
-    def prod(matrix_list: np.ndarray, axis=None) -> np.ndarray:
-        return np.prod(matrix_list, axis=axis)
-
-    @staticmethod
-    def hstack(arrays) -> np.ndarray:
-        return np.hstack(arrays)
-
-    @staticmethod
-    def vstack(arrays) -> np.ndarray:
-        return np.vstack(arrays)
-
-    @staticmethod
-    def stack(arrays, axis=0) -> np.ndarray:
-        return np.stack(arrays, axis=axis)
-
-    @staticmethod
-    def dstack(arrays) -> np.ndarray:
-        return np.dstack(arrays)
-
-    @staticmethod
-    def arange(*args, **kwargs: Any) -> np.ndarray:
-        return np.arange(*args, **kwargs)
-
-    @staticmethod
-    def linspace(*args, **kwargs: Any):
-        return np.linspace(*args, **kwargs)
-
-    @staticmethod
-    def logspace(*args):
-        return np.logspace(*args)
-
-    @staticmethod
-    def ndim(mat: np.ndarray) -> int:
-        return mat.ndim
-
-    @staticmethod
-    def repeat(
-        mat: np.ndarray, nreps: int, axis: Optional[AxisArg] = None
-    ) -> np.ndarray:
-        return np.repeat(mat, nreps, axis=axis)
-
-    @staticmethod
-    def tile(mat: np.ndarray, nreps) -> np.ndarray:
-        return np.tile(mat, nreps)
-
-    @staticmethod
-    def cdist(Amat: np.ndarray, Bmat: np.ndarray) -> np.ndarray:
-        return scipy.spatial.distance.cdist(Amat, Bmat, metric="euclidean")
-
-    @staticmethod
-    def einsum(*args) -> np.ndarray:
-        return np.einsum(*args)
-
-    @staticmethod
-    def trace(mat: np.ndarray) -> float:
-        return np.trace(mat)
-
-    @staticmethod
-    def copy(mat: np.ndarray) -> np.ndarray:
-        return mat.copy()
-
-    @staticmethod
-    def get_diagonal(mat: np.ndarray) -> np.ndarray:
-        return np.diagonal(mat)
-
-    @staticmethod
-    def diag(array, k=0):
-        return np.diag(array, k=k)
-
-    @staticmethod
-    def isnan(mat: np.ndarray) -> np.ndarray:
-        return np.isnan(mat)
-
-    @staticmethod
-    def atleast1d(val) -> np.ndarray:
-        return np.atleast_1d(val)
-
-    @staticmethod
-    def atleast2d(val) -> np.ndarray:
-        return np.atleast_2d(val)
-
-    @staticmethod
-    def reshape(mat: np.ndarray, newshape) -> np.ndarray:
-        return np.reshape(mat, newshape)
-
-    @staticmethod
-    def where(
-        cond: np.ndarray,
-        array1: Optional[np.ndarray] = None,
-        array2: Optional[np.ndarray] = None,
-    ) -> Tuple[Any, ...]:
-        if array1 is not None:
-            return np.where(cond, array1, array2)
-        return np.where(cond)
-
-    @staticmethod
-    def tointeger(mat: np.ndarray) -> np.ndarray:
-        return np.asarray(mat, dtype=int)
-
-    @staticmethod
-    def inf():
-        return np.inf
-
-    @staticmethod
-    def norm(mat: np.ndarray, axis=None) -> np.ndarray:
-        return np.linalg.norm(mat, axis=axis)
-
-    @staticmethod
-    def any(mat: np.ndarray, axis=None) -> np.ndarray:
-        return np.any(mat, axis=axis)
-
-    @staticmethod
-    def all(mat: np.ndarray, axis=None) -> np.ndarray:
-        return np.all(mat, axis=axis)
-
-    @staticmethod
-    def kron(Amat: np.ndarray, Bmat: np.ndarray) -> np.ndarray:
-        return np.kron(Amat, Bmat)
-
-    @staticmethod
-    def slogdet(Amat: np.ndarray) -> Any:
-        return np.linalg.slogdet(Amat)
-
-    @staticmethod
-    def mean(
-        mat: np.ndarray, axis: Optional[AxisArg] = None
-    ) -> Union[Any, np.ndarray]:
-        return np.mean(mat, axis=axis)
-
-    @staticmethod
-    def var(
-        mat: np.ndarray, axis: Optional[AxisArg] = None, ddof: int = 0
-    ) -> Union[Any, np.ndarray]:
-        return np.var(mat, axis=axis, ddof=ddof)
-
-    @staticmethod
-    def std(
-        mat: np.ndarray, axis: Optional[AxisArg] = None, ddof: int = 0
-    ) -> Union[Any, np.ndarray]:
-        return np.std(mat, axis=axis, ddof=ddof)
-
-    @staticmethod
-    def cov(mat: np.ndarray, ddof=0, rowvar=True, aweights=None) -> np.ndarray:
-        return np.cov(mat, ddof=ddof, rowvar=rowvar, aweights=aweights)
-
-    @staticmethod
-    def abs(mat: np.ndarray) -> np.ndarray:
-        return np.absolute(mat)
-
-    @staticmethod
-    def to_numpy(mat: np.ndarray) -> np.ndarray:
-        return mat
-
-    @staticmethod
-    def argsort(mat: np.ndarray, axis: AxisArg = -1) -> np.ndarray:
-        return np.argsort(mat, axis=axis)
-
-    @staticmethod
-    def sort(mat: np.ndarray, axis: AxisArg = -1) -> np.ndarray:
-        return np.sort(mat, axis=axis)
-
-    @staticmethod
-    def flip(mat, axis: Optional[AxisArg] = None):
-        return np.flip(mat, axis=axis)
-
-    @staticmethod
-    def allclose(Amat: np.ndarray, Bmat: np.ndarray, **kwargs: Any) -> bool:
-        return np.allclose(Amat, Bmat, **kwargs)
-
-    @staticmethod
-    def isclose(
-        Amat: np.ndarray, Bmat: np.ndarray, **kwargs: Any
-    ) -> np.ndarray:
-        return np.isclose(Amat, Bmat, **kwargs)
-
-    @staticmethod
-    def lstsq(Amat: np.ndarray, Bmat: np.ndarray):
-        return np.linalg.lstsq(Amat, Bmat, rcond=None)[0]
-
-    @staticmethod
-    def argmax(array: np.ndarray):
-        return np.argmax(array)
-
-    @staticmethod
-    def argmin(array: np.ndarray):
-        return np.argmin(array)
-
-    @staticmethod
-    def max(array: np.ndarray, axis: Optional[AxisArg] = None):
-        return np.max(array, axis=axis)
-
-    @staticmethod
-    def maximum(array1: np.ndarray, array2: np.ndarray):
-        return np.maximum(array1, array2)
-
-    @staticmethod
-    def minimum(array1: np.ndarray, array2: np.ndarray):
-        return np.minimum(array1, array2)
-
-    @staticmethod
-    def min(array: np.ndarray, axis: Optional[AxisArg] = None):
-        return np.min(array, axis=axis)
-
-    @staticmethod
-    def block(blocks: Sequence[Sequence[np.ndarray]]) -> np.ndarray:
-        return np.block(blocks)
-
-    @staticmethod
-    def sum(matrix: np.ndarray, axis: Optional[AxisArg] = None):
-        return np.sum(matrix, axis=axis)
-
-    @staticmethod
-    def count_nonzero(matrix: np.ndarray, axis: Optional[AxisArg] = None):
-        return np.count_nonzero(matrix, axis=axis)
-
-    @staticmethod
-    def array(array: np.ndarray, dtype=None):
-        return np.array(array, dtype=dtype)
-
-    @staticmethod
-    def eigh(matrix: np.ndarray):
-        return np.linalg.eigh(matrix)
-
-    @staticmethod
-    def svd(matrix: np.ndarray, full_matrices=True):
-        return np.linalg.svd(
-            matrix, compute_uv=True, full_matrices=full_matrices
-        )
-
-    @staticmethod
-    def isfinite(matrix: np.ndarray):
-        return np.isfinite(matrix)
-
-    @staticmethod
-    def cond(matrix: np.ndarray):
-        return np.linalg.cond(matrix)
-
-    @staticmethod
-    def rank(matrix: np.ndarray) -> int:
-        return np.linalg.matrix_rank(matrix)
-
-    @staticmethod
-    def up(matrix: np.ndarray, indices, submatrix, axis: AxisArg = 0):
-        if axis == 0:
-            matrix[indices] = submatrix
-            return matrix
-        if axis == 1:
-            matrix[:, indices] = submatrix
-            return matrix
-        if axis == -1:
-            matrix[..., indices] = submatrix
-            return matrix
-        raise ValueError(f"{axis=} but must be in (0, 1, -1)")
-
-    @staticmethod
-    def moveaxis(array: np.ndarray, source, destination):
-        return np.moveaxis(array, source, destination)
-
-    @staticmethod
-    def floor(array: np.ndarray):
-        return np.floor(array)
-
-    @staticmethod
-    def ceil(array: np.ndarray):
-        return np.ceil(array)
-
-    @staticmethod
-    def asarray(array: np.ndarray, dtype=None):
+    def asarray(
+        array: Union[Sequence[Any], NDArray[Any], float, int],
+        dtype: Optional[Any] = None,
+    ) -> NDArray[Any]:
         return np.asarray(array, dtype=dtype)
 
     @staticmethod
-    def unique(array: np.ndarray, **kwargs: Any):
-        return np.unique(array, **kwargs)
-
-    @staticmethod
-    def delete(array: np.ndarray, obj, axis: Optional[AxisArg] = None):
-        return np.delete(array, obj, axis=axis)
-
-    @staticmethod
-    def jacobian_implemented() -> bool:
-        return False
-
-    @staticmethod
-    def hessian_implemented() -> bool:
-        return False
-
-    @staticmethod
-    def hvp_implemented() -> bool:
-        return False
-
-    @staticmethod
-    def jvp_implemented() -> bool:
-        return False
-
-    @staticmethod
-    def meshgrid(*arrays, indexing="xy"):
-        return np.meshgrid(*arrays, indexing=indexing)
-
-    @staticmethod
-    def tanh(array: np.ndarray):
-        return np.tanh(array)
-
-    @staticmethod
-    def diff(array: np.ndarray):
-        return np.diff(array)
-
-    @staticmethod
-    def int_dtype():
-        return int
-
-    @staticmethod
-    def cumsum(array: np.ndarray, axis: AxisArg = 0, **kwargs: Any):
-        assert axis is not None
-        return np.cumsum(array, axis=axis, **kwargs)
-
-    @staticmethod
-    def complex_dtype():
-        return complex
-
-    @staticmethod
-    def array_type():
-        return np.ndarray
-
-    @staticmethod
-    def real(array: np.ndarray):
-        return np.real(array)
-
-    @staticmethod
-    def imag(array: np.ndarray):
-        return np.imag(array)
-
-    @staticmethod
-    def round(array: np.ndarray):
-        return np.round(array)
-
-    @staticmethod
-    def flatten(array: np.ndarray):
-        return array.flatten()
-
-    @staticmethod
-    def double_type():
-        return float
-
-    @staticmethod
-    def bool_type():
-        return bool
-
-    @staticmethod
-    def gammaln(mat: np.ndarray) -> np.ndarray:
-        return scipy.special.gammaln(mat)
-
-    @staticmethod
-    def split(mat: np.ndarray, splits, axis: AxisArg = 0) -> List[np.ndarray]:
-        return np.split(max, splits, axis=axis)
-
-    def chunks(
-        mat: np.ndarray, nchunks: int, axis: AxisArg = 0
-    ) -> List[np.ndarray]:
-        return np.array_split(mat, nchunks, axis=axis)
-
-    @staticmethod
-    def sign(mat: np.ndarray) -> float:
-        return np.sign(mat)
-
-    @staticmethod
-    def is_scalar_array(array: np.ndarray) -> bool:
-        return isinstance(array, np.ndarray) and array.ndim == 0
-
-    @staticmethod
-    def quantile(
-        array: np.ndarray, q: float, axis: Optional[AxisArg] = None
-    ) -> Union[Any, np.ndarray]:
-        return np.quantile(array, q, axis)
-
-    @staticmethod
-    def tril(array: np.ndarray, k: int = 0) -> np.ndarray:
-        return np.tril(array, k)
-
-    @staticmethod
-    def tril_indices(
-        n: int, k: int = 0, m: Optional[int] = None
-    ) -> Tuple[Any, Any]:
-        return np.tril_indices(n, k, m)
-
-    @staticmethod
-    def triu(array: np.ndarray, k: int = 0) -> np.ndarray:
-        return np.triu(array, k)
-
-    @staticmethod
-    def triu_indices(
-        n: int, k: int = 0, m: Optional[int] = None
-    ) -> Tuple[Any, Any]:
-        return np.triu_indices(n, k, m)
-
-    @staticmethod
-    def digamma(array: np.ndarray) -> np.ndarray:
-        return scipy.special.digamma(array)
-
-    @staticmethod
-    def erf(array: np.ndarray) -> np.ndarray:
-        return scipy.special.erf(array)
-
-    @staticmethod
-    def erfinv(array: np.ndarray) -> np.ndarray:
-        return scipy.special.erfinv(array)
-
-    @staticmethod
-    def reshape_fortran(array: np.ndarray, shape) -> np.ndarray:
-        return array.reshape(shape, order="F")
-
-    @staticmethod
-    def gammainc(a: np.ndarray, x: np.ndarray) -> np.ndarray:
-        return scipy.special.gammainc(a, x)
-
-    @staticmethod
-    def factorial(array: np.ndarray) -> np.ndarray:
-        return scipy.special.factorial(array)
-
-    @staticmethod
-    def clip(array: np.ndarray, minval: float, maxval: float) -> np.ndarray:
-        return np.clip(array, minval, maxval)
-
-    @staticmethod
-    def swapaxes(array: np.ndarray, axis1: int, axis2: int) -> np.ndarray:
-        return np.swapaxes(array, axis1, axis2)
-
-    @staticmethod
-    def block_diag(arrays: List[np.ndarray]) -> np.ndarray:
-        return scipy.linalg.block_diag(*arrays)
-
-    @staticmethod
-    def searchsorted(
-        array: np.ndarray, values: np.ndarray, side: str = "left"
-    ) -> np.ndarray:
-        return np.searchsorted(array, values, side=side)
-
-    @staticmethod
-    def fft(mat: np.ndarray, axis=None, **kwargs: Any) -> np.ndarray:
-        if mat.ndim < 3:
-            raise ValueError(
-                "mat must explicitly express channel and sample " "dimensions"
-            )
-        _axis = list(range(mat.ndim - 2)) if axis is None else axis
-        return np.fft.fftn(mat, axes=_axis, **kwargs)
-
-    @staticmethod
-    def ifft(mat: np.ndarray, axis=None, **kwargs: Any) -> np.ndarray:
-        if mat.ndim < 3:
-            raise ValueError(
-                "mat must explicitly express channel and sample " "dimensions"
-            )
-        _axis = list(range(mat.ndim - 2)) if axis is None else axis
-        return np.fft.ifftn(mat, axes=_axis, **kwargs)
-
-    @staticmethod
-    def fftshift(mat: np.ndarray, axis=None, **kwargs: Any) -> np.ndarray:
-        if mat.ndim < 3:
-            raise ValueError(
-                "mat must explicitly express channel and sample " "dimensions"
-            )
-        _axis = list(range(mat.ndim - 2)) if axis is None else axis
-        return np.fft.fftshift(mat, axes=_axis, **kwargs)
-
-    @staticmethod
-    def ifftshift(mat: np.ndarray, axis=None, **kwargs: Any) -> np.ndarray:
-        if mat.ndim < 3:
-            raise ValueError(
-                "mat must explicitly express channel and sample " "dimensions"
-            )
-        _axis = list(range(mat.ndim - 2)) if axis is None else axis
-        return np.fft.ifftshift(mat, axes=_axis, **kwargs)
-
-    @staticmethod
-    def cfloat():
-        return np.complex128
-
-    @staticmethod
-    def transpose(mat: np.ndarray, axis=None) -> np.ndarray:
-        return np.transpose(mat, axes=axis)
-
-    @staticmethod
-    def size(mat: np.ndarray) -> int:
-        return mat.size
-
-    @staticmethod
-    def nan():
-        return np.nan
-
-    @staticmethod
-    def get_slices(mat: np.ndarray, slices: list) -> np.ndarray:
-        return mat[tuple(slices)]
-
-    @staticmethod
-    def concatenate(mats: List[np.ndarray], axis: AxisArg = 0) -> np.ndarray:
-        return np.concatenate(mats, axis=axis)
+    def array(
+        array: Union[Sequence[Any], NDArray[Any], float, int],
+        dtype: Optional[Any] = None,
+    ) -> NDArray[Any]:
+        return np.array(array, dtype=dtype)
 
     @staticmethod
     def assert_allclose(
@@ -653,3 +68,667 @@ class NumpyMixin(BackendMixin):
             verbose=True,
             strict=True,
         )
+
+    @staticmethod
+    def double_dtype() -> Any:
+        return np.float64
+
+    @staticmethod
+    def complex_dtype() -> Any:
+        return np.complex128
+
+    @staticmethod
+    def int64_dtype() -> Any:
+        return np.int64
+
+    @staticmethod
+    def stack(
+        arrays: Union[List[NDArray[Any]], Tuple[NDArray[Any], ...]],
+        axis: int = 0,
+    ) -> NDArray[Any]:
+        return np.stack(arrays, axis=axis)
+
+    @staticmethod
+    def concatenate(
+        arrays: Union[List[NDArray[Any]], Tuple[NDArray[Any], ...]],
+        axis: int = 0,
+    ) -> NDArray[Any]:
+        return np.concatenate(arrays, axis=axis)
+
+    @staticmethod
+    def hstack(
+        arrays: Union[List[NDArray[Any]], Tuple[NDArray[Any], ...]],
+    ) -> NDArray[Any]:
+        return np.hstack(arrays)
+
+    @staticmethod
+    def vstack(
+        arrays: Union[List[NDArray[Any]], Tuple[NDArray[Any], ...]],
+    ) -> NDArray[Any]:
+        return np.vstack(arrays)
+
+    @staticmethod
+    def linspace(start: float, stop: float, num: int) -> NDArray[Any]:
+        return np.linspace(start, stop, num)
+
+    @staticmethod
+    def logspace(start: float, stop: float, num: int) -> NDArray[Any]:
+        return np.logspace(start, stop, num)
+
+    @staticmethod
+    def to_numpy(mat: NDArray[Any]) -> NDArray[Any]:
+        return mat
+
+    @staticmethod
+    def to_float(array: NDArray[Any]) -> float:
+        if array.size != 1:
+            raise ValueError(
+                f"to_float requires a single-element array, got shape {array.shape}"
+            )
+        return float(array.flat[0])
+
+    @staticmethod
+    def flatten(array: NDArray[Any]) -> NDArray[Any]:
+        return array.flatten()
+
+    @staticmethod
+    def ravel(array: NDArray[Any]) -> NDArray[Any]:
+        return np.ravel(array)
+
+    @staticmethod
+    def meshgrid(
+        *arrays: NDArray[Any], indexing: str = "xy"
+    ) -> Tuple[NDArray[Any], ...]:
+        return np.meshgrid(*arrays, indexing=indexing)  # type: ignore
+
+    @staticmethod
+    def reshape(array: NDArray[Any], newshape: Sequence[int]) -> NDArray[Any]:
+        return np.reshape(array, newshape)
+
+    @staticmethod
+    def transpose(array: NDArray[Any], axes: Optional[Sequence[int]] = None) -> NDArray[Any]:
+        return np.transpose(array, axes)
+
+    @staticmethod
+    def sum(
+        array: NDArray[Any],
+        axis: Optional[Union[int, Tuple[int, ...]]] = None,
+        keepdims: bool = False,
+    ) -> NDArray[Any]:
+        return np.asarray(np.sum(array, axis=axis, keepdims=keepdims))
+
+    @staticmethod
+    def cumsum(array: NDArray[Any], axis: Optional[int] = None) -> NDArray[Any]:
+        return np.cumsum(array, axis=axis)
+
+    @staticmethod
+    def sin(array: NDArray[Any]) -> NDArray[Any]:
+        return cast(NDArray[Any], np.sin(array))
+
+    @staticmethod
+    def cos(array: NDArray[Any]) -> NDArray[Any]:
+        return cast(NDArray[Any], np.cos(array))
+
+    @staticmethod
+    def arcsin(array: NDArray[Any]) -> NDArray[Any]:
+        return cast(NDArray[Any], np.arcsin(array))
+
+    @staticmethod
+    def arccos(array: NDArray[Any]) -> NDArray[Any]:
+        return cast(NDArray[Any], np.arccos(array))
+
+    @staticmethod
+    def arctan(array: NDArray[Any]) -> NDArray[Any]:
+        return cast(NDArray[Any], np.arctan(array))
+
+    @staticmethod
+    def arctan2(y: NDArray[Any], x: NDArray[Any]) -> NDArray[Any]:
+        return cast(NDArray[Any], np.arctan2(y, x))
+
+    @staticmethod
+    def sinh(array: NDArray[Any]) -> NDArray[Any]:
+        return cast(NDArray[Any], np.sinh(array))
+
+    @staticmethod
+    def cosh(array: NDArray[Any]) -> NDArray[Any]:
+        return cast(NDArray[Any], np.cosh(array))
+
+    @staticmethod
+    def tanh(array: NDArray[Any]) -> NDArray[Any]:
+        return cast(NDArray[Any], np.tanh(array))
+
+    @staticmethod
+    def arcsinh(array: NDArray[Any]) -> NDArray[Any]:
+        return cast(NDArray[Any], np.arcsinh(array))
+
+    @staticmethod
+    def arccosh(array: NDArray[Any]) -> NDArray[Any]:
+        return cast(NDArray[Any], np.arccosh(array))
+
+    @staticmethod
+    def arctanh(array: NDArray[Any]) -> NDArray[Any]:
+        return cast(NDArray[Any], np.arctanh(array))
+
+    @staticmethod
+    def full(
+        shape: Tuple[int, ...], fill_value: float, dtype: Optional[Any] = None
+    ) -> NDArray[Any]:
+        return np.full(shape, fill_value, dtype=dtype)
+
+    @staticmethod
+    def zeros(
+        shape: Tuple[int, ...], dtype: Optional[Any] = None
+    ) -> NDArray[Any]:
+        return np.zeros(shape, dtype=dtype)
+
+    @staticmethod
+    def ones(
+        shape: Tuple[int, ...], dtype: Optional[Any] = None
+    ) -> NDArray[Any]:
+        return np.ones(shape, dtype=dtype)
+
+    @staticmethod
+    def empty(
+        shape: Tuple[int, ...], dtype: Optional[Any] = None
+    ) -> NDArray[Any]:
+        return np.empty(shape, dtype=dtype)
+
+    @staticmethod
+    def arange(*args: Any, **kwargs: Any) -> NDArray[Any]:
+        return np.arange(*args, **kwargs)
+
+    @staticmethod
+    def prod(
+        array: NDArray[Any],
+        axis: Optional[int] = None,
+        keepdims: bool = False,
+    ) -> NDArray[Any]:
+        return np.asarray(np.prod(array, axis=axis, keepdims=keepdims))
+
+    @staticmethod
+    def any_bool(
+        array: NDArray[Any],
+        keepdims: bool = False,
+    ) -> bool:
+        return cast(bool, np.any(array, axis=None, keepdims=keepdims))
+
+    @staticmethod
+    def any_array(
+        array: NDArray[Any],
+        axis: int,
+        keepdims: bool = False,
+    ) -> NDArray[Any]:
+        return cast(NDArray[Any], np.any(array, axis=axis, keepdims=keepdims))
+
+    @staticmethod
+    def all_bool(
+        array: NDArray[Any],
+        keepdims: bool = False,
+    ) -> bool:
+        return cast(bool, np.all(array, axis=None, keepdims=keepdims))
+
+    @staticmethod
+    def all_array(
+        array: NDArray[Any],
+        axis: int,
+        keepdims: bool = False,
+    ) -> NDArray[Any]:
+        return cast(NDArray[Any], np.all(array, axis=axis, keepdims=keepdims))
+
+    @staticmethod
+    def log(array: NDArray[Any]) -> NDArray[Any]:
+        return cast(NDArray[Any], np.log(array))
+
+    @staticmethod
+    def exp(array: NDArray[Any]) -> NDArray[Any]:
+        return np.asarray(np.exp(array))
+
+    @staticmethod
+    def copy(array: NDArray[Any]) -> NDArray[Any]:
+        return array.copy()
+
+    @staticmethod
+    def erf(array: NDArray[Any]) -> NDArray[Any]:
+        return scipy.special.erf(array)
+
+    @staticmethod
+    def erfinv(array: NDArray[Any]) -> NDArray[Any]:
+        return scipy.special.erfinv(array)
+
+    @staticmethod
+    def isfinite(array: NDArray[Any]) -> NDArray[Any]:
+        return cast(NDArray[Any], np.isfinite(array))
+
+    @staticmethod
+    def nonzero(condition: NDArray[Any]) -> Tuple[NDArray[Any], ...]:
+        return cast(Tuple[NDArray[Any], ...], np.nonzero(condition))
+
+    @staticmethod
+    def norm(
+        array: NDArray[Any],
+        ord: Optional[Union[int, float, str]] = None,
+        axis: Optional[Union[int, Tuple[int, int]]] = None,
+        keepdims: bool = False,
+    ) -> NDArray[Any]:
+        return np.asarray(
+            np.linalg.norm(array, ord=ord, axis=axis, keepdims=keepdims)
+        )
+
+    @staticmethod
+    def sign(array: NDArray[Any]) -> NDArray[Any]:
+        return cast(NDArray[Any], np.sign(array))
+
+    @staticmethod
+    def abs(array: NDArray[Any]) -> NDArray[Any]:
+        return cast(NDArray[Any], np.abs(array))
+
+    @staticmethod
+    def round(array: NDArray[Any]) -> NDArray[Any]:
+        return cast(NDArray[Any], np.round(array))
+
+    @staticmethod
+    def floor(array: NDArray[Any]) -> NDArray[Any]:
+        return cast(NDArray[Any], np.floor(array))
+
+    @staticmethod
+    def ceil(array: NDArray[Any]) -> NDArray[Any]:
+        return cast(NDArray[Any], np.ceil(array))
+
+    @staticmethod
+    def sqrt(array: NDArray[Any]) -> NDArray[Any]:
+        return cast(NDArray[Any], np.sqrt(array))
+
+    @staticmethod
+    def solve(Amat: NDArray[Any], Bmat: NDArray[Any]) -> NDArray[Any]:
+        return np.linalg.solve(Amat, Bmat)
+
+    @staticmethod
+    def solve_sparse(Amat, bvec: NDArray[Any]) -> NDArray[Any]:
+        """Solve A @ x = b where A is a scipy sparse matrix."""
+        from scipy.sparse import issparse as _issparse
+
+        if not _issparse(Amat):
+            raise TypeError(
+                f"solve_sparse requires a scipy sparse matrix, got {type(Amat).__name__}. "
+                "Use solve() for dense matrices."
+            )
+        A_csc = csc_matrix(Amat) if Amat.format != "csc" else Amat
+        return spsolve(A_csc, bvec)
+
+    @staticmethod
+    def flip(
+        array: NDArray[Any], axis: Optional[Tuple[int]] = None
+    ) -> NDArray[Any]:
+        return np.flip(array, axis=axis)
+
+    @staticmethod
+    def sort(
+        array: NDArray[Any], axis: int = -1
+    ) -> NDArray[Any]:
+        return np.sort(array, axis=axis)
+
+    @staticmethod
+    def argsort(
+        array: NDArray[Any], axis: int = -1
+    ) -> NDArray[Any]:
+        return np.argsort(array, axis=axis)
+
+    @staticmethod
+    def searchsorted(
+        sorted_array: NDArray[Any], values: NDArray[Any], side: str = "left"
+    ) -> NDArray[Any]:
+        return np.searchsorted(sorted_array, values, side=side)
+
+    @staticmethod
+    def clip(
+        array: NDArray[Any], a_min: Any, a_max: Any
+    ) -> NDArray[Any]:
+        return np.clip(array, a_min, a_max)
+
+    @staticmethod
+    def min(
+        array: NDArray[Any], axis: Optional[int] = None, keepdims: bool = False
+    ) -> NDArray[Any]:
+        return np.asarray(np.min(array, axis=axis, keepdims=keepdims))
+
+    @staticmethod
+    def max(
+        array: NDArray[Any], axis: Optional[int] = None, keepdims: bool = False
+    ) -> NDArray[Any]:
+        return np.asarray(np.max(array, axis=axis, keepdims=keepdims))
+
+    @staticmethod
+    def einsum(subscripts: str, *operands: NDArray[Any]) -> NDArray[Any]:
+        return np.einsum(subscripts, *operands)
+
+    @staticmethod
+    def moveaxis(
+        array: NDArray[Any],
+        source: Union[int, tuple[int, ...]],
+        destination: Union[int, tuple[int, ...]],
+    ) -> NDArray[Any]:
+        return np.moveaxis(array, source, destination)
+
+    @staticmethod
+    def diag(array: NDArray[Any], k: int = 0) -> NDArray[Any]:
+        return np.diag(array, k)
+
+    @staticmethod
+    def outer(a: NDArray[Any], b: NDArray[Any]) -> NDArray[Any]:
+        return np.outer(a, b)
+
+    @staticmethod
+    def diff(array: NDArray[Any], n: int = 1, axis: int = -1) -> NDArray[Any]:
+        return np.diff(array, n=n, axis=axis)
+
+    @staticmethod
+    def allclose(
+        array1: NDArray[Any],
+        array2: NDArray[Any],
+        rtol: float = 1e-05,
+        atol: float = 1e-08,
+        equal_nan: bool = False,
+    ) -> bool:
+        return np.allclose(
+            array1, array2, rtol=rtol, atol=atol, equal_nan=equal_nan
+        )
+
+    @staticmethod
+    def cholesky(array: NDArray[Any]) -> NDArray[Any]:
+        return np.linalg.cholesky(array)
+
+    @staticmethod
+    def solve_triangular(
+        matrix: NDArray[Any],
+        rhs: NDArray[Any],
+        lower: bool = False,
+        unit_diagonal: bool = False,
+    ) -> NDArray[Any]:
+        return scipy.linalg.solve_triangular(
+            matrix, rhs, lower=lower, unit_diagonal=unit_diagonal
+        )
+
+    @staticmethod
+    def cholesky_solve(
+        matrix: NDArray[Any],
+        rhs: NDArray[Any],
+        lower: bool = True,
+    ) -> NDArray[Any]:
+        return scipy.linalg.cho_solve((matrix, lower), rhs)
+
+    @staticmethod
+    def eigvalsh(array: NDArray[Any]) -> NDArray[Any]:
+        return np.linalg.eigvalsh(array)
+
+    @staticmethod
+    def trace(array: NDArray[Any]) -> NDArray[Any]:
+        return np.asarray(np.linalg.trace(array))
+
+    @staticmethod
+    def atleast_1d(array: NDArray[Any]) -> NDArray[Any]:
+        return np.atleast_1d(array)
+
+    @staticmethod
+    def atleast_2d(array: NDArray[Any]) -> NDArray[Any]:
+        return np.atleast_2d(array)
+
+    @staticmethod
+    def tile(array: NDArray[Any], reps: Tuple[int, ...]) -> NDArray[Any]:
+        return np.tile(array, reps=reps)
+
+    @staticmethod
+    def isnan(array: NDArray[Any]) -> NDArray[Any]:
+        return np.isnan(array)
+
+    @staticmethod
+    def isinf(array: NDArray[Any]) -> NDArray[Any]:
+        return np.isinf(array)
+
+    @staticmethod
+    def unique(array: NDArray[Any]) -> NDArray[Any]:
+        return np.unique(array)
+
+    @staticmethod
+    def get_diagonal(
+        array: NDArray[Any], offset: int = 0, axis1: int = 0, axis2: int = 1
+    ) -> NDArray[Any]:
+        return np.diagonal(array, offset, axis1=axis1, axis2=axis2)
+
+    @staticmethod
+    def cdist(
+        XA: NDArray[Any], XB: NDArray[Any], p: float = 2.0
+    ) -> NDArray[Any]:
+        if p == 1.0:
+            metric = "manhattan"
+        elif p == 2.0:
+            metric = "euclidean"
+        else:
+            raise ValueError("p must be either 1.0 or 2.0")
+        return scipy.spatial.distance.cdist(XA, XB, metric)
+
+    @staticmethod
+    def tril(array: NDArray[Any], k: int = 0) -> NDArray[Any]:
+        return np.tril(array, k)
+
+    @staticmethod
+    def triu(array: NDArray[Any], k: int = 0) -> NDArray[Any]:
+        return np.triu(array, k)
+
+    @staticmethod
+    def kron(a: NDArray[Any], b: NDArray[Any]) -> NDArray[Any]:
+        return np.kron(a, b)
+
+    @staticmethod
+    def repeat(
+        array: NDArray[Any], repeats: int, axis: Optional[int] = None
+    ) -> NDArray[Any]:
+        return np.repeat(array, repeats, axis=axis)
+
+    @staticmethod
+    def eigh(array: NDArray[Any]) -> Tuple[NDArray[Any], NDArray[Any]]:
+        return np.linalg.eigh(array)
+
+    @staticmethod
+    def svd(
+        array: NDArray[Any], full_matrices: bool = True
+    ) -> Tuple[NDArray[Any], NDArray[Any], NDArray[Any]]:
+        return np.linalg.svd(
+            array, compute_uv=True, full_matrices=full_matrices
+        )
+
+    @staticmethod
+    def rank(array: NDArray[Any]) -> int:
+        return int(np.linalg.matrix_rank(array))
+
+    @staticmethod
+    def gammaln(array: NDArray[Any]) -> NDArray[Any]:
+        return scipy.special.gammaln(array)
+
+    @staticmethod
+    def digamma(array: NDArray[Any]) -> NDArray[Any]:
+        return scipy.special.digamma(array)
+
+    @staticmethod
+    def argmin(
+        array: NDArray[Any], axis: Optional[int] = None
+    ) -> NDArray[Any]:
+        return np.asarray(np.argmin(array, axis=axis))
+
+    @staticmethod
+    def argmax(
+        array: NDArray[Any], axis: Optional[int] = None
+    ) -> NDArray[Any]:
+        return np.asarray(np.argmax(array, axis=axis))
+
+    @staticmethod
+    def int64_dtype() -> Any:
+        return np.int64
+
+    @staticmethod
+    def where(
+        condition: NDArray[Any],
+        x: Union[NDArray[Any], float, None] = None,
+        y: Union[NDArray[Any], float, None] = None,
+    ) -> NDArray[Any]:
+        if x is None and y is None:
+            return np.where(condition)
+        return np.where(condition, x, y)
+
+    @staticmethod
+    def lstsq(
+        a: NDArray[Any],
+        b: NDArray[Any],
+        rcond: Optional[float] = None,
+    ) -> NDArray[Any]:
+        result, _, _, _ = np.linalg.lstsq(a, b, rcond=rcond)
+        return result
+
+    @staticmethod
+    def ones_like(
+        array: NDArray[Any], dtype: Optional[Any] = None
+    ) -> NDArray[Any]:
+        return np.ones_like(array, dtype=dtype)
+
+    @staticmethod
+    def zeros_like(
+        array: NDArray[Any], dtype: Optional[Any] = None
+    ) -> NDArray[Any]:
+        return np.zeros_like(array, dtype=dtype)
+
+    @staticmethod
+    def default_dtype() -> Any:
+        return np.float64
+
+    @staticmethod
+    def slogdet(array: NDArray[Any]) -> Tuple[NDArray[Any], NDArray[Any]]:
+        return np.linalg.slogdet(array)
+
+    @staticmethod
+    def det(array: NDArray[Any]) -> NDArray[Any]:
+        return np.linalg.det(array)
+
+    @staticmethod
+    def mean(
+        array: NDArray[Any],
+        axis: Optional[Union[int, Tuple[int, ...]]] = None,
+        keepdims: bool = False,
+    ) -> NDArray[Any]:
+        return np.asarray(np.mean(array, axis=axis, keepdims=keepdims))
+
+    @staticmethod
+    def var(
+        array: NDArray[Any],
+        axis: Optional[Union[int, Tuple[int, ...]]] = None,
+        keepdims: bool = False,
+        ddof: int = 0,
+    ) -> NDArray[Any]:
+        return np.asarray(np.var(array, axis=axis, keepdims=keepdims, ddof=ddof))
+
+    @staticmethod
+    def std(
+        array: NDArray[Any],
+        axis: Optional[Union[int, Tuple[int, ...]]] = None,
+        keepdims: bool = False,
+        ddof: int = 0,
+    ) -> NDArray[Any]:
+        return np.asarray(np.std(array, axis=axis, keepdims=keepdims, ddof=ddof))
+
+    @staticmethod
+    def cov(
+        array: NDArray[Any],
+        rowvar: bool = True,
+        ddof: int = 1,
+    ) -> NDArray[Any]:
+        result = np.cov(array, rowvar=rowvar, ddof=ddof)
+        # Ensure result is always 2D (np.cov returns scalar for 1 variable)
+        return np.atleast_2d(np.asarray(result))
+
+    @staticmethod
+    def maximum(x1: NDArray[Any], x2: NDArray[Any]) -> NDArray[Any]:
+        return np.maximum(x1, x2)
+
+    @staticmethod
+    def minimum(x1: NDArray[Any], x2: NDArray[Any]) -> NDArray[Any]:
+        return np.minimum(x1, x2)
+
+    @staticmethod
+    def qr(
+        array: NDArray[Any], mode: str = "reduced"
+    ) -> Tuple[NDArray[Any], NDArray[Any]]:
+        return np.linalg.qr(array, mode=mode)
+
+    @staticmethod
+    def split(
+        array: NDArray[Any],
+        indices_or_sections: NDArray[Any],
+        axis: int = 0,
+    ) -> List[NDArray[Any]]:
+        return np.split(array, indices_or_sections, axis=axis)
+
+    @staticmethod
+    def lu(
+        array: NDArray[Any],
+    ) -> Tuple[NDArray[Any], NDArray[Any], NDArray[Any]]:
+        """Compute LU factorization with partial pivoting.
+
+        Returns P, L, U such that A = P @ L @ U.
+
+        Parameters
+        ----------
+        array : NDArray
+            Matrix to factorize.
+
+        Returns
+        -------
+        P : NDArray
+            Permutation matrix.
+        L : NDArray
+            Lower triangular matrix with unit diagonal.
+        U : NDArray
+            Upper triangular matrix.
+        """
+        return scipy.linalg.lu(array)
+
+    @staticmethod
+    def index_update(
+        array: NDArray[Any],
+        index: Union[int, Tuple[int, ...]],
+        value: Any,
+    ) -> NDArray[Any]:
+        """Return a copy of array with array[index] = value.
+
+        This provides a functional interface for array updates that
+        is compatible with autograd frameworks.
+
+        Parameters
+        ----------
+        array : NDArray
+            Array to update.
+        index : int or tuple of int
+            Index to update.
+        value : Any
+            Value to set at index.
+
+        Returns
+        -------
+        NDArray
+            Copy of array with updated value.
+        """
+        result = array.copy()
+        result[index] = value
+        return result
+
+    @staticmethod
+    def block(blocks: List[List[NDArray[Any]]]) -> NDArray[Any]:
+        """Create a block matrix from nested list of arrays."""
+        return np.block(blocks)
+
+    @staticmethod
+    def array_type() -> type:
+        """Return the array type class for this backend."""
+        return np.ndarray
+
+    @staticmethod
+    def tril_indices(n: int, k: int = 0) -> Tuple[NDArray[Any], NDArray[Any]]:
+        """Return indices for lower-triangular part of an (n, n) array."""
+        return np.tril_indices(n, k)

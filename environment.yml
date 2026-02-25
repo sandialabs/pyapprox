@@ -1,4 +1,4 @@
-name: pyapprox-base
+name: pyapprox
 channels:
   - pytorch
   - conda-forge
@@ -6,26 +6,22 @@ channels:
 dependencies:
   - python>=3.10
   - numpy>=2.0
-  - matplotlib
-  - scipy
-  - jupyter
-  - pytest
-  - coverage>=6.4
-  - pytest-cov
-  - pip
-  - setuptools
-  - sympy
-  - networkx
+  - scipy>=1.11
+  - matplotlib>=3.7
+  - sympy>=1.12
   - pytorch>=2.5
-  # - numba  # optional: accelerates NumPy dispatch, requires numpy < 2.3
-  - cvxpy
-  # make html in docs folder
-  - sphinx
-  - sphinx-gallery
+  - networkx>=3.0
+  - pytest>=7.4
+  - pytest-cov>=4.1
+  - mypy>=1.8
+  - pip
   - pip:
-    - scikit-fem
-    - sphinx_copybutton
-    - sphinx_rtd_theme
-    - numpydoc
-    - sphinx_automodapi
-    - umbridge
+    - scikit-fem>=9.0
+    - umbridge>=0.7
+    - unittest-parametrize
+    - pytest-timeout>=2.2
+    - ruff>=0.3
+    - hatch
+    - hatch-vcs
+    - jupyter-cache>=1.0
+    - quartodoc>=0.6

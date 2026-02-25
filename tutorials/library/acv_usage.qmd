@@ -1,0 +1,321 @@
+---
+title: "Approximate Control Variate Monte Carlo: Usage"
+subtitle: "PyApprox Tutorial Library"
+description: "Using the PyApprox ACV API to estimate means with optimal sample allocation across a high-fidelity and low-fidelity model."
+tutorial_type: usage
+topic: multi_fidelity
+difficulty: intermediate
+estimated_time: 10
+prerequisites:
+  - acv_concept
+  - control_variate_usage
+tags:
+  - multi-fidelity
+  - approximate-control-variate
+  - api
+  - optimal-allocation
+format:
+  html:
+    code-fold: false
+    code-tools: true
+    toc: true
+execute:
+  echo: true
+  warning: false
+jupyter: python3
+---
+
+::: {.callout-tip collapse="true"}
+## Download Notebook
+[Download as Jupyter Notebook](notebooks/acv_usage.ipynb)
+:::
+
+## Learning Objectives
+
+After completing this tutorial, you will be able to:
+
+- Set up and run an ACV estimator using `MFMCEstimator` and `MultiOutputMean`
+- Let PyApprox choose the optimal ratio $r^*$ for a given budget via `allocate_samples`
+- Interpret the predicted estimator covariance from `optimized_covariance`
+- Compare ACV against plain MC and CVMC at equal total cost
+
+
+## Prerequisites
+
+Complete [ACV Concept](acv_concept.qmd) before this tutorial. The
+[Control Variate Usage](control_variate_usage.qmd) tutorial introduces the same API
+pattern for CVMC.
+
+
+## Quick Recap
+
+The ACV estimator uses $N$ shared samples (HF + LF) and $rN$ LF-only samples:
+
+$$
+\hat{\mu}_\alpha^{\text{ACV}} = \hat{\mu}_\alpha(\mathcal{Z}_N)
++ \eta^* \Bigl(\hat{\mu}_\kappa(\mathcal{Z}_N) - \hat{\mu}_\kappa(\mathcal{Z}_{rN})\Bigr).
+$$
+
+The optimal ratio $r^* = \sqrt{(C_\alpha / C_\kappa)\,\rho^2/(1-\rho^2)}$ is chosen
+automatically by `allocate_samples` given model costs and a pilot covariance estimate.
+Unlike CVMC, no prior knowledge of $\mu_\kappa$ is needed.
+
+
+## Setup
+
+```{python}
+import numpy as np
+import matplotlib.pyplot as plt
+from pyapprox.util.backends.numpy import NumpyBkd
+from pyapprox.benchmarks.instances.multifidelity.tunable_ensemble import (
+    tunable_ensemble_3model,
+)
+from pyapprox.statest.statistics import MultiOutputMean
+from pyapprox.statest.mc_estimator import MCEstimator
+from pyapprox.statest.cv_estimator import CVEstimator
+from pyapprox.statest.acv import MFMCEstimator
+
+bkd = NumpyBkd()
+np.random.seed(42)
+
+benchmark = tunable_ensemble_3model(bkd, theta1=np.pi / 2 * 0.95)
+hf_model  = benchmark.models()[0]
+lf_model  = benchmark.models()[1]
+variable  = benchmark.prior()
+
+cost_hf = 10.0   # high-fidelity cost per sample
+cost_lf = 1.0    # low-fidelity cost per sample
+
+nqoi = hf_model.nqoi()
+print(f"QoIs: {nqoi},  cost_hf: {cost_hf},  cost_lf: {cost_lf}")
+```
+
+
+## Stage 1: Pilot Samples
+
+A small pilot estimates the cross-covariance needed to compute $\eta^*$ and $r^*$.
+
+```{python}
+N_pilot = 50
+samples_pilot = variable.rvs(N_pilot)
+values_hf_pilot = hf_model(samples_pilot)
+values_lf_pilot = lf_model(samples_pilot)
+
+stat = MultiOutputMean(nqoi, bkd)
+cov_pilot, = stat.compute_pilot_quantities(
+    [values_hf_pilot, values_lf_pilot]
+)
+stat.set_pilot_quantities(cov_pilot)
+
+cov_np = bkd.to_numpy(cov_pilot)
+rho_pilot = cov_np[0, 1] / np.sqrt(cov_np[0, 0] * cov_np[1, 1])
+print(f"Pilot cross-covariance matrix:\n{cov_np}")
+print(f"Estimated correlation rho = {rho_pilot:.3f}")
+```
+
+
+## Stage 2: Build the Estimator and Allocate Budget
+
+```{python}
+est = MFMCEstimator(stat, costs=[cost_hf, cost_lf])
+
+target_cost = 500.0
+est.allocate_samples(target_cost)
+
+n_hf, n_lf = est.nsamples_per_model()
+r_actual = n_lf / n_hf
+print(f"Target cost:  {target_cost}")
+print(f"HF samples N: {n_hf}")
+print(f"LF samples rN:{n_lf}  (r = {r_actual:.1f})")
+print(f"Actual cost:  {n_hf * cost_hf + n_lf * cost_lf:.1f}")
+```
+
+::: {.callout-note}
+## What `allocate_samples` optimises
+`allocate_samples` solves for $N$ and $r$ that minimise the predicted estimator variance
+subject to the budget constraint $N C_\alpha + r N C_\kappa \leq P$. The ratio $r$ is
+determined by @eq-r-star from the pilot covariance estimate.
+:::
+
+Inspect the predicted accuracy before running the experiment:
+
+```{python}
+pred_cov = est.optimized_covariance()
+pred_std = float(bkd.sqrt(pred_cov[0, 0]))
+
+# Equivalent MC: spend entire budget on HF only
+stat_mc = MultiOutputMean(nqoi, bkd)
+cov_mc, = stat_mc.compute_pilot_quantities([values_hf_pilot])
+stat_mc.set_pilot_quantities(cov_mc)
+mc_est = MCEstimator(stat_mc, costs=[cost_hf])
+mc_est.allocate_samples(target_cost)
+N_mc = int(mc_est._rounded_nsamples_per_model[0])
+mc_std_equiv = float(bkd.sqrt(mc_est.optimized_covariance()[0, 0]))
+
+print(f"Predicted ACV std:  {pred_std:.6f}")
+print(f"Equivalent MC std:  {mc_std_equiv:.6f}  (N={N_mc})")
+print(f"Predicted variance reduction: {(pred_std / mc_std_equiv)**2:.3f}")
+```
+
+
+## Stage 3: Generate Samples and Evaluate
+
+```{python}
+samples_hf, samples_lf = est.generate_samples_per_model(variable.rvs)
+print(f"HF sample set shape: {samples_hf.shape}")
+print(f"LF sample set shape: {samples_lf.shape}")
+
+values_hf = hf_model(samples_hf)
+values_lf = lf_model(samples_lf)
+
+result = est([values_hf, values_lf])
+print(f"\nACV estimate of mean: {bkd.to_numpy(result)}")
+print(f"True mean:            {bkd.to_numpy(benchmark.ensemble_means()[0:1, 0])}")
+```
+
+::: {.callout-note}
+## Sample set structure
+`generate_samples_per_model` returns `[samples_hf, samples_lf]` where `samples_lf` contains
+all $rN$ samples — the first $N$ rows are the shared set $\mathcal{Z}_N$, the remainder are
+the LF-exclusive set. The estimator handles the splitting internally when called with
+`est([values_hf, values_lf])`.
+:::
+
+
+## Comparing MC, CVMC, and ACV at Equal Cost
+
+Run 500 independent trials of all three estimators at the same total budget to directly
+measure the variance reduction hierarchy.
+
+```{python}
+# --- Build CVMC estimator (known mu_kappa, same total budget) ---
+mu_kappa = benchmark.ensemble_means()[1:2, :]   # shape (1, 1)
+cv_est = CVEstimator(stat, costs=[cost_hf, cost_lf], lowfi_stats=mu_kappa)
+cv_est.allocate_samples(target_cost)
+
+# mc_est and est (ACV) already built above
+
+n_trials  = 500
+mc_ests   = np.empty(n_trials)
+cvmc_ests = np.empty(n_trials)
+acv_ests  = np.empty(n_trials)
+
+for i in range(n_trials):
+    np.random.seed(i + 2000)
+
+    # --- MC: all budget on HF ---
+    [s_mc] = mc_est.generate_samples_per_model(variable.rvs)
+    mc_ests[i] = bkd.to_numpy(mc_est(hf_model(s_mc)))[0]
+
+    # --- CVMC: N shared, mu_kappa known ---
+    s_cv_hf, s_cv_lf = cv_est.generate_samples_per_model(variable.rvs)
+    cvmc_ests[i] = bkd.to_numpy(
+        cv_est([hf_model(s_cv_hf), lf_model(s_cv_lf)])
+    )[0]
+
+    # --- ACV: N shared + rN LF samples ---
+    s_acv_hf, s_acv_lf = est.generate_samples_per_model(variable.rvs)
+    acv_ests[i] = bkd.to_numpy(
+        est([hf_model(s_acv_hf), lf_model(s_acv_lf)])
+    )[0]
+
+true_mean = float(bkd.to_numpy(benchmark.ensemble_means()[0, 0]))
+print(f"MC   std: {mc_ests.std():.5f}")
+print(f"CVMC std: {cvmc_ests.std():.5f}")
+print(f"ACV  std: {acv_ests.std():.5f}")
+```
+
+```{python}
+#| fig-cap: "Distributions of MC, CVMC, and ACV mean estimates at equal total cost. CVMC (middle) outperforms MC by using the known $\\mu_\\kappa$. ACV (right) approaches CVMC by using many cheap LF samples instead, without needing $\\mu_\\kappa$."
+#| label: fig-three-way
+
+all_vals = np.concatenate([mc_ests, cvmc_ests, acv_ests])
+pad = 0.04 * (all_vals.max() - all_vals.min())
+xlim = (all_vals.min() - pad, all_vals.max() + pad)
+
+fig, axes = plt.subplots(1, 3, figsize=(13, 4), sharey=True)
+n_cv = int(cv_est.nsamples_per_model()[0])
+specs = [
+    (mc_ests,   "#2C7FB8", f"MC\n(N={N_mc})"),
+    (cvmc_ests, "#27AE60", f"CVMC\n(N={n_cv}, $\\mu_\\kappa$ known)"),
+    (acv_ests,  "#E67E22", f"ACV\n(N={n_hf}, rN={n_lf})"),
+]
+
+for ax, (ests, color, label) in zip(axes, specs):
+    ax.hist(ests, bins=40, density=True, color=color, alpha=0.75,
+            edgecolor="k", lw=0.2)
+    ax.axvline(true_mean, color="#C0392B", ls="--", lw=2, label="True mean")
+    ax.set_xlabel(r"Estimate of $\mu_\alpha$", fontsize=11)
+    ax.set_title(f"{label}\nStd = {ests.std():.4f}", fontsize=10)
+    ax.set_xlim(xlim)
+    ax.legend(fontsize=9)
+    ax.grid(True, alpha=0.2)
+
+axes[0].set_ylabel("Density", fontsize=11)
+fig.suptitle(
+    f"Equal total cost = {target_cost:.0f}  |  {n_trials} independent trials",
+    fontsize=11,
+)
+plt.tight_layout()
+plt.show()
+```
+
+
+## Interpretation
+
+The three-way comparison illustrates the hierarchy of estimators:
+
+**MC** uses the budget entirely on the HF model. No variance reduction, but no LF model needed.
+
+**CVMC** achieves the maximum variance reduction $(1-\rho^2)$ but requires knowing $\mu_\kappa$
+exactly, which is typically not available in practice.
+
+**ACV** reaches nearly the same variance as CVMC by spending a small fraction of the budget
+on additional LF evaluations. The gap to CVMC shrinks as $r$ grows, and because $C_\kappa \ll C_\alpha$,
+large $r$ is cheap.
+
+
+## Common Errors
+
+**Mismatched sample sizes:** `est([values_hf, values_lf])` expects `values_lf` to have
+$rN$ columns, not $N$. Always use `generate_samples_per_model` to obtain the correctly
+sized sets.
+
+**Swapped model order:** `compute_pilot_quantities([hf_values, lf_values])` must match
+the order of `costs=[cost_hf, cost_lf]`. Swapping produces a negative predicted variance.
+
+**LF cost underestimate:** If `cost_lf` is set too low, `allocate_samples` will request
+a very large $r$ that may be computationally infeasible. Always use realistic cost estimates.
+
+
+## Key Takeaways
+
+- The ACV workflow is: pilot → `compute_pilot_quantities` → `set_pilot_quantities` →
+  `allocate_samples` → `generate_samples_per_model` → evaluate → call estimator
+- `allocate_samples` jointly optimises $N$ and $r$ for a target budget — no manual tuning
+- ACV typically approaches CVMC performance without requiring $\mu_\kappa$ to be known
+- `optimized_covariance` gives a pre-experiment accuracy forecast to check before committing
+  to the full budget
+
+
+## Exercises
+
+1. Set `cost_lf = 5.0` (half the HF cost). Rerun `allocate_samples` and compare the new
+   $r^*$ and predicted variance reduction to the original. Explain the change using @eq-r-star.
+
+2. Set `N_pilot = 10`. Does the predicted std still match the empirical std from 500 trials?
+   What goes wrong with a very small pilot?
+
+3. Vary `theta1` from `0.1` (high correlation) to `np.pi/2 * 0.95` (moderate correlation).
+   For each value, record the optimal $r^*$ returned by `allocate_samples`. Does the trend
+   match the formula in @eq-r-star?
+
+4. **(Challenge)** Replace `MultiOutputMean` with `MultiOutputMeanAndVariance`. How does
+   the sample allocation change when we ask for both statistics simultaneously?
+
+
+## Next Steps
+
+- [General ACV](acv_many_models_concept.qmd) --- Extend ACV to more than one low-fidelity model
+- [Multi-Level Monte Carlo](mlmc_concept.qmd) --- A hierarchical alternative to ACV
+- [Pilot Studies](pilot_studies_concept.qmd) --- Choosing pilot size for reliable allocation

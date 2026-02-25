@@ -1,0 +1,423 @@
+---
+title: "FunctionTrain Sensitivity: Mathematical Derivation"
+subtitle: "PyApprox Tutorial Library"
+description: "Deriving Sobol indices analytically from PCE FunctionTrain structure"
+tutorial_type: analysis
+topic: sensitivity_analysis
+difficulty: advanced
+estimated_time: 15
+prerequisites:
+  - sobol_sensitivity_analysis
+  - functiontrain_moments_math
+tags:
+  - surrogate
+  - tensor-decomposition
+  - sensitivity-analysis
+  - math
+format:
+  html:
+    code-fold: false
+    code-tools: true
+    toc: true
+execute:
+  echo: true
+  warning: false
+jupyter: python3
+---
+
+::: {.callout-tip collapse="true"}
+## Download Notebook
+[Download as Jupyter Notebook](notebooks/functiontrain_sensitivity_math.ipynb)
+:::
+
+## Learning Objectives
+
+After completing this tutorial, you will be able to:
+
+- Derive the main effect Sobol index formula using forward/backward sweeps
+- Understand the total effect formula using Kronecker product structure
+- Derive the general $S_u$ formula for arbitrary variable subsets
+- Work through explicit examples with rank-1 FT
+- Assess the computational complexity of sensitivity analysis
+
+## Prerequisites
+
+Complete:
+
+- [Sobol Sensitivity Analysis](sobol_sensitivity_analysis.qmd)
+
+## Sobol Index Definitions
+
+Recall the Sobol decomposition for variance:
+
+$$
+\Var[f] = \sum_{u \neq \emptyset} V_u
+$$
+
+where $V_u$ is the variance contribution from variable subset $u$.
+
+### First-Order (Main Effect) Variance
+
+$$
+V_k = \Var_{x_k}\left[\E_{x_{\sim k}}[f | x_k]\right]
+$$
+
+This measures how much knowing $x_k$ alone reduces variance.
+
+### Total Effect Variance
+
+$$
+V_k^T = \E_{x_{\sim k}}\left[\Var_{x_k}[f | x_{\sim k}]\right]
+$$
+
+This measures all variance involving $x_k$ (direct + interactions).
+
+### Sobol Indices
+
+$$
+\Sobol{k} = \frac{V_k}{\Var[f]}, \quad \SobolT{k} = \frac{V_k^T}{\Var[f]}
+$$
+
+## Main Effect Derivation
+
+### Conditional Expectation
+
+For FT $f = \mathcal{F}_1 \cdots \mathcal{F}_d$, the conditional expectation given $x_k$:
+
+$$
+\E_{x_{\sim k}}[f | x_k] = \E[\mathcal{F}_1] \cdots \E[\mathcal{F}_{k-1}] \cdot \mathcal{F}_k(x_k) \cdot \E[\mathcal{F}_{k+1}] \cdots \E[\mathcal{F}_d]
+$$
+
+Using $\E[\mathcal{F}_j] = \Theta_j^{(0)}$:
+
+$$
+\E_{x_{\sim k}}[f | x_k] = \underbrace{\Theta_1^{(0)} \cdots \Theta_{k-1}^{(0)}}_{\bar{L}_k} \cdot \mathcal{F}_k(x_k) \cdot \underbrace{\Theta_{k+1}^{(0)} \cdots \Theta_d^{(0)}}_{\bar{R}_k}
+$$
+
+### Forward and Backward Sweeps
+
+Define the **sweep products**:
+
+$$
+\bar{L}_k = \Theta_1^{(0)} \cdot \Theta_2^{(0)} \cdots \Theta_{k-1}^{(0)} \in \mathbb{R}^{1 \times r_{k-1}}
+$$
+
+$$
+\bar{R}_k = \Theta_{k+1}^{(0)} \cdots \Theta_d^{(0)} \in \mathbb{R}^{r_k \times 1}
+$$
+
+So:
+$$
+\E_{x_{\sim k}}[f | x_k] = \bar{L}_k \cdot \mathcal{F}_k(x_k) \cdot \bar{R}_k = \bar{L}_k \cdot \sum_{\ell=0}^{p-1} \Theta_k^{(\ell)} \psi_\ell(x_k) \cdot \bar{R}_k
+$$
+
+This is a **scalar-valued** univariate function of $x_k$.
+
+### Main Effect Variance
+
+$$
+V_k = \Var_{x_k}\left[\bar{L}_k \cdot \mathcal{F}_k(x_k) \cdot \bar{R}_k\right]
+$$
+
+Let $c_\ell = \bar{L}_k \cdot \Theta_k^{(\ell)} \cdot \bar{R}_k$ (a scalar). Then:
+
+$$
+\E_{x_{\sim k}}[f | x_k] = \sum_{\ell=0}^{p-1} c_\ell \psi_\ell(x_k)
+$$
+
+The mean is $c_0$ and variance is:
+
+$$
+\boxed{V_k = \sum_{\ell=1}^{p-1} c_\ell^2 = \sum_{\ell=1}^{p-1} \left(\bar{L}_k \cdot \Theta_k^{(\ell)} \cdot \bar{R}_k\right)^2}
+$$
+
+Only non-constant terms ($\ell \geq 1$) contribute.
+
+## Total Effect Derivation
+
+### Using Kronecker Structure
+
+Recall from the moments tutorial:
+
+$$
+\E[f^2] = M_1 \cdot M_2 \cdots M_d
+$$
+
+where $M_k = \sum_\ell \Theta_k^{(\ell)} \otimes \Theta_k^{(\ell)}$.
+
+### Decomposing $M_k$
+
+We can split:
+
+$$
+M_k = M_k^{(0)} + \Delta M_k
+$$
+
+where:
+
+- $M_k^{(0)} = \Theta_k^{(0)} \otimes \Theta_k^{(0)}$ (constant term only)
+- $\Delta M_k = \sum_{\ell=1}^{p-1} \Theta_k^{(\ell)} \otimes \Theta_k^{(\ell)}$ (non-constant terms)
+
+### Total Effect Formula
+
+The total effect variance is:
+
+$$
+V_k^T = \tilde{L}_k \cdot \Delta M_k \cdot \tilde{R}_k
+$$
+
+where the **Kronecker sweeps** are:
+
+$$
+\tilde{L}_k = M_1 \cdots M_{k-1} \in \mathbb{R}^{1 \times r_{k-1}^2}
+$$
+
+$$
+\tilde{R}_k = M_{k+1} \cdots M_d \in \mathbb{R}^{r_k^2 \times 1}
+$$
+
+This gives:
+
+$$
+\boxed{V_k^T = \tilde{L}_k \cdot \Delta M_k \cdot \tilde{R}_k}
+$$
+
+### Intuition
+
+- $\tilde{L}_k$ and $\tilde{R}_k$ accumulate second moment information from other variables
+- $\Delta M_k$ isolates the non-constant contribution from variable $k$
+- The product gives variance involving $x_k$
+
+## General Sobol Index $S_u$
+
+For arbitrary subset $u \subseteq \{1, \ldots, d\}$:
+
+$$
+V_u = \prod_{k=1}^d N_k^{[u]}
+$$
+
+where:
+
+$$
+N_k^{[u]} = \begin{cases}
+\Delta M_k & \text{if } k \in u \\
+M_k^{(0)} & \text{if } k \notin u
+\end{cases}
+$$
+
+### Intuition
+
+- Variables in $u$: use non-constant contribution $\Delta M_k$
+- Variables not in $u$: use constant contribution $M_k^{(0)}$
+- The product selects exactly the variance component for subset $u$
+
+### Key Properties
+
+1. **Sum equals variance**: $\sum_{u \neq \emptyset} V_u = \Var[f]$
+2. **Main effect**: $V_{\{k\}} = V_k$
+3. **Total effect**: $V_k^T = \sum_{u \ni k} V_u$
+
+## Worked Example: Rank-1, 2D
+
+Consider rank-1 (all $\Theta_k^{(\ell)}$ are scalars $\theta_k^{(\ell)}$):
+
+$$
+f(x_1, x_2) = (\theta_1^{(0)} + \theta_1^{(1)} \psi_1(x_1))(\theta_2^{(0)} + \theta_2^{(1)} \psi_1(x_2))
+$$
+
+### Sweeps
+
+- $\bar{L}_1 = 1$ (empty product)
+- $\bar{R}_1 = \theta_2^{(0)}$
+- $\bar{L}_2 = \theta_1^{(0)}$
+- $\bar{R}_2 = 1$
+
+### Main Effects
+
+$$
+V_1 = (\bar{L}_1 \cdot \theta_1^{(1)} \cdot \bar{R}_1)^2 = (\theta_1^{(1)} \theta_2^{(0)})^2
+$$
+
+$$
+V_2 = (\bar{L}_2 \cdot \theta_2^{(1)} \cdot \bar{R}_2)^2 = (\theta_1^{(0)} \theta_2^{(1)})^2
+$$
+
+### Interaction
+
+$$
+V_{12} = (\theta_1^{(1)})^2 (\theta_2^{(1)})^2
+$$
+
+### Total Variance
+
+$$
+\Var[f] = V_1 + V_2 + V_{12} = (\theta_1^{(1)} \theta_2^{(0)})^2 + (\theta_1^{(0)} \theta_2^{(1)})^2 + (\theta_1^{(1)} \theta_2^{(1)})^2
+$$
+
+### Sobol Indices
+
+$$
+\Sobol{1} = \frac{(\theta_1^{(1)} \theta_2^{(0)})^2}{\Var[f]}, \quad \Sobol{2} = \frac{(\theta_1^{(0)} \theta_2^{(1)})^2}{\Var[f]}
+$$
+
+$$
+S_{12} = \frac{(\theta_1^{(1)} \theta_2^{(1)})^2}{\Var[f]}
+$$
+
+$$
+\SobolT{1} = \Sobol{1} + S_{12}, \quad \SobolT{2} = \Sobol{2} + S_{12}
+$$
+
+## Numerical Verification
+
+```{python}
+import numpy as np
+from pyapprox.util.backends.numpy import NumpyBkd
+
+bkd = NumpyBkd()
+
+# Coefficients
+theta1_0, theta1_1 = 2.0, 1.0
+theta2_0, theta2_1 = 3.0, 0.5
+
+# Analytical formulas
+V_1 = (theta1_1 * theta2_0)**2
+V_2 = (theta1_0 * theta2_1)**2
+V_12 = (theta1_1 * theta2_1)**2
+total_var = V_1 + V_2 + V_12
+
+S_1 = V_1 / total_var
+S_2 = V_2 / total_var
+S_12 = V_12 / total_var
+T_1 = S_1 + S_12
+T_2 = S_2 + S_12
+
+print(f"Analytical Sobol indices:")
+print(f"  S_1 = {S_1:.4f}")
+print(f"  S_2 = {S_2:.4f}")
+print(f"  S_12 = {S_12:.4f}")
+print(f"  T_1 = {T_1:.4f}")
+print(f"  T_2 = {T_2:.4f}")
+print(f"\n  Sum of S_i: {S_1 + S_2 + S_12:.4f} (should be 1)")
+```
+
+```{python}
+# Build and verify with FunctionTrain
+from pyapprox.probability import UniformMarginal
+from pyapprox.surrogates.affine.univariate import create_bases_1d
+from pyapprox.surrogates.affine.indices import compute_hyperbolic_indices
+from pyapprox.surrogates.affine.basis import OrthonormalPolynomialBasis
+from pyapprox.surrogates.affine.expansions import BasisExpansion
+from pyapprox.surrogates.functiontrain.core import FunctionTrainCore
+from pyapprox.surrogates.functiontrain import FunctionTrain, PCEFunctionTrain
+from pyapprox.surrogates.functiontrain.statistics import (
+    FunctionTrainMoments,
+    FunctionTrainSensitivity,
+)
+
+def create_rank1_pce(theta_0: float, theta_1: float):
+    marginals = [UniformMarginal(-1.0, 1.0, bkd)]
+    bases_1d = create_bases_1d(marginals, bkd)
+    indices = compute_hyperbolic_indices(1, 1, 1.0, bkd)
+    basis = OrthonormalPolynomialBasis(bases_1d, bkd, indices)
+    pce = BasisExpansion(basis, bkd, nqoi=1)
+    coef = bkd.asarray([[theta_0], [theta_1]])
+    return pce.with_params(coef)
+
+pce1 = create_rank1_pce(theta1_0, theta1_1)
+pce2 = create_rank1_pce(theta2_0, theta2_1)
+
+core1 = FunctionTrainCore([[pce1]], bkd)
+core2 = FunctionTrainCore([[pce2]], bkd)
+
+ft = FunctionTrain([core1, core2], bkd, nqoi=1)
+pce_ft = PCEFunctionTrain(ft)
+moments = FunctionTrainMoments(pce_ft)
+sensitivity = FunctionTrainSensitivity(moments)
+
+print(f"\nFunctionTrain Sobol indices:")
+print(f"  S_1 = {float(sensitivity.main_effect_index(0)[0]):.4f}")
+print(f"  S_2 = {float(sensitivity.main_effect_index(1)[0]):.4f}")
+print(f"  S_12 = {float(sensitivity.sobol_index([0, 1])[0]):.4f}")
+print(f"  T_1 = {float(sensitivity.total_effect_index(0)[0]):.4f}")
+print(f"  T_2 = {float(sensitivity.total_effect_index(1)[0]):.4f}")
+```
+
+## Computational Complexity
+
+### Main Effects (All Variables)
+
+For each variable $k$:
+1. Compute sweeps $\bar{L}_k$, $\bar{R}_k$: $O(d \cdot r^2)$ total (shared)
+2. Compute $c_\ell = \bar{L}_k \Theta_k^{(\ell)} \bar{R}_k$: $O(r^2)$ per term
+3. Sum $c_\ell^2$: $O(p)$
+
+**Total for all $d$ variables**: $O(d \cdot r^2 \cdot p)$
+
+### Total Effects (All Variables)
+
+For each variable $k$:
+1. Compute Kronecker sweeps $\tilde{L}_k$, $\tilde{R}_k$: $O(d \cdot r^6)$ total
+2. Compute $\Delta M_k$: $O(r^4 \cdot p)$
+3. Matrix products: $O(r^4)$
+
+**Total for all $d$ variables**: $O(d \cdot r^6)$
+
+### General $S_u$
+
+For one subset $u$: $O(d \cdot r^6)$
+
+For all $2^d - 1$ subsets: $O(2^d \cdot d \cdot r^6)$ - exponential in $d$!
+
+### Complexity Summary
+
+| Operation | Complexity |
+|-----------|------------|
+| All main effects | $O(d \cdot r^2 \cdot p)$ |
+| All total effects | $O(d \cdot r^6)$ |
+| One general $S_u$ | $O(d \cdot r^6)$ |
+| All $2^d-1$ indices | $O(2^d \cdot d \cdot r^6)$ |
+
+::: {.callout-note}
+## Practical Guidance
+
+- **Main and total effects** are always efficient: $O(d \cdot r^6)$
+- **All general indices** is exponential in $d$ - only practical for $d \lesssim 15$
+- For large $d$, compute only main + total effects, or selected interaction sets
+:::
+
+## Summary of Formulas
+
+| Index | Formula |
+|-------|---------|
+| Main effect $V_k$ | $\sum_{\ell \geq 1} (\bar{L}_k \Theta_k^{(\ell)} \bar{R}_k)^2$ |
+| Total effect $V_k^T$ | $\tilde{L}_k \cdot \Delta M_k \cdot \tilde{R}_k$ |
+| General $V_u$ | $\prod_{k} N_k^{[u]}$ |
+| Sobol index | $S = V / \Var[f]$ |
+
+Where:
+- $\bar{L}_k = \prod_{j < k} \Theta_j^{(0)}$, $\bar{R}_k = \prod_{j > k} \Theta_j^{(0)}$
+- $\tilde{L}_k = \prod_{j < k} M_j$, $\tilde{R}_k = \prod_{j > k} M_j$
+- $\Delta M_k = \sum_{\ell \geq 1} \Theta_k^{(\ell)} \otimes \Theta_k^{(\ell)}$
+
+## Key Takeaways
+
+- **Main effects** use forward/backward sweeps of constant-term matrices
+- **Total effects** use Kronecker sweeps with non-constant contributions
+- **General $S_u$** selects contributions via Kronecker product structure
+- **Key identity**: $\sum_u S_u = 1$ and $\SobolT{k} = \sum_{u \ni k} S_u$
+- **Complexity**: Main/total effects are polynomial; all indices is exponential
+
+## Exercises
+
+1. **(Easy)** For the 2D example, verify that $\SobolT{1} \geq \Sobol{1}$ algebraically. When does equality hold?
+
+2. **(Medium)** Extend the analytical derivation to a 3D rank-1 FT. Write explicit formulas for all 7 Sobol indices ($S_1, S_2, S_3, S_{12}, S_{13}, S_{23}, S_{123}$).
+
+3. **(Challenge)** Show that for any PCE FunctionTrain, $\sum_k \Sobol{k} \leq 1$ with equality iff there are no interactions. Hint: Use the decomposition $M_k = M_k^{(0)} + \Delta M_k$.
+
+## Next Steps
+
+Continue with:
+
+- [FunctionTrain Sensitivity (Usage)](functiontrain_sensitivity.qmd) - Computing indices in practice

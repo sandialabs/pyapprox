@@ -1,0 +1,254 @@
+---
+title: "Bayesian OED: Verifying Convergence with KLOEDDiagnostics"
+subtitle: "PyApprox Tutorial Library"
+description: "Using KLOEDDiagnostics to measure MSE, decompose bias and variance, and confirm that the outer sample count drives convergence."
+tutorial_type: usage
+topic: experimental_design
+difficulty: intermediate
+estimated_time: 10
+prerequisites:
+  - boed_kl_concept
+  - boed_kl_estimator
+tags:
+  - experimental-design
+  - convergence
+  - monte-carlo
+  - api-usage
+format:
+  html:
+    code-fold: false
+    code-tools: true
+    toc: true
+execute:
+  echo: true
+  warning: false
+jupyter: python3
+---
+
+::: {.callout-tip collapse="true"}
+## Download Notebook
+[Download as Jupyter Notebook](notebooks/boed_kl_usage.ipynb)
+:::
+
+## Learning Objectives
+
+After completing this tutorial, you will be able to:
+
+- Construct a `LinearGaussianOEDBenchmark` and query its exact EIG
+- Use `KLOEDDiagnostics` to decompose total MSE into squared bias and variance
+- Confirm empirically that outer sample count $M$ drives variance while inner
+  count $N_\text{in}$ drives bias
+- Read convergence rates from `compute_convergence_rate` and match them to theory
+
+## Prerequisites
+
+Complete [The Double-Loop Estimator](boed_kl_estimator.qmd) before this tutorial.
+The estimator has two sample budgets: **outer** ($M$) controls variance; **inner**
+($N_\text{in}$) controls the bias from the evidence approximation.
+We verify both empirically here.
+
+## Setup
+
+```{python}
+import numpy as np
+import matplotlib.pyplot as plt
+from pyapprox.util.backends.numpy import NumpyBkd
+from pyapprox.expdesign.benchmarks import LinearGaussianOEDBenchmark
+from pyapprox.expdesign.diagnostics import KLOEDDiagnostics
+
+np.random.seed(1)
+bkd = NumpyBkd()
+```
+
+```{python}
+# Problem parameters — match test_kl_oed_convergence.py for reproducibility
+nobs      = 5
+degree    = 2
+noise_std = 0.5
+prior_std = 0.5
+
+benchmark   = LinearGaussianOEDBenchmark(nobs, degree, noise_std, prior_std, bkd)
+diagnostics = KLOEDDiagnostics(benchmark)
+
+# Uniform design: equal weight on every candidate observation
+weights = bkd.ones((nobs, 1)) / nobs
+```
+
+## Exact EIG as Ground Truth
+
+`LinearGaussianOEDBenchmark` provides a closed-form EIG for any design weights,
+giving us an exact reference against which to measure numerical error.
+
+```{python}
+exact = diagnostics.exact_eig(weights)
+print(f"Exact EIG: {exact:.6f} nats")
+```
+
+A single numerical estimate with moderate sample counts:
+
+```{python}
+approx = diagnostics.compute_numerical_eig(
+    nouter=200,
+    ninner=100,
+    design_weights=weights,
+    seed=42,
+)
+print(f"Numerical EIG (nouter=200, ninner=100): {approx:.6f} nats")
+print(f"Absolute error: {abs(approx - exact):.6f} nats")
+```
+
+::: {.callout-tip}
+## Reproducibility
+
+`compute_numerical_eig` is fully reproducible when called with the same `seed`.
+Always record your seed alongside results so experiments can be re-run exactly.
+:::
+
+## MSE Decomposition: Bias and Variance
+
+`compute_mse` runs `nrealizations` independent estimates and decomposes total
+MSE into squared bias and variance: $\text{MSE} = \text{bias}^2 + \text{variance}$.
+
+```{python}
+bias, variance, mse = diagnostics.compute_mse(
+    nouter=100,
+    ninner=50,
+    nrealizations=20,
+    design_weights=weights,
+    base_seed=0,
+)
+print(f"Bias²:    {bias**2:.2e}")
+print(f"Variance: {variance:.2e}")
+print(f"MSE:      {mse:.2e}  (should ≈ bias² + variance)")
+```
+
+## Outer vs. Inner: Which Budget Matters More?
+
+The two figures below answer this directly. The left panel sweeps $M$ (outer
+samples) with fixed $N_\text{in}$, showing how MSE decays with the outer budget.
+The right panel sweeps $N_\text{in}$ (inner samples) with fixed $M$, showing
+how bias² and variance each respond to the inner budget.
+
+```{python}
+outer_counts = [100, 250, 500, 1000, 2000]
+inner_counts = [50, 200]
+M_fixed      = 500
+inner_sweep  = [5, 10, 25, 50, 100, 200]
+
+# Outer sweep
+values_mc = diagnostics.compute_mse_for_sample_combinations(
+    outer_sample_counts=outer_counts,
+    inner_sample_counts=inner_counts,
+    nrealizations=30,
+    design_weights=weights,
+    base_seed=0,
+)
+
+# Inner sweep: fix M, vary N_in
+values_inner = diagnostics.compute_mse_for_sample_combinations(
+    outer_sample_counts=[M_fixed],
+    inner_sample_counts=inner_sweep,
+    nrealizations=30,
+    design_weights=weights,
+    base_seed=0,
+)
+```
+
+```{python}
+#| echo: false
+#| fig-cap: "Left: MSE vs. outer sample count M for two inner counts (MC quadrature). Both curves nearly collapse and follow O(1/M), confirming that variance — not bias — drives the outer convergence. Right: bias² and variance vs. inner sample count N_in for fixed M=500. Bias² decays rapidly once N_in ≳ 50; variance (set by M) stays flat, confirming the budget separation."
+#| label: fig-convergence-panels
+BLUE   = "#2C7FB8"
+ORANGE = "#E6550D"
+GREEN  = "#31A354"
+GREY   = "#888888"
+
+mse_array = bkd.to_numpy(bkd.vstack(values_mc["mse"]))      # (n_inner, n_outer)
+bias2_arr = bkd.to_numpy(bkd.vstack(values_inner["sqbias"]))   # (n_inner_sweep, 1)
+var_arr   = bkd.to_numpy(bkd.vstack(values_inner["variance"])) # (n_inner_sweep, 1)
+
+fig, axes = plt.subplots(1, 2, figsize=(12, 4.5))
+fig.suptitle("Outer budget drives variance; inner budget drives bias",
+             fontsize=13, fontweight="bold")
+
+# ── Left: MSE vs M ────────────────────────────────────────────────────────
+ax = axes[0]
+colors = [BLUE, ORANGE]
+for ii, ninner in enumerate(inner_counts):
+    ax.loglog(outer_counts, mse_array[ii, :], "o-",
+              color=colors[ii], lw=2, label=f"$N_{{\\mathrm{{in}}}}={ninner}$")
+
+ref_x = np.array([outer_counts[0], outer_counts[-1]])
+ref_y = mse_array[0, 0] * ref_x[0] / ref_x
+ax.loglog(ref_x, ref_y, "k--", lw=1.5, alpha=0.55, label="$O(1/M)$ reference")
+ax.set_xlabel("Outer samples $M$", fontsize=11)
+ax.set_ylabel("MSE", fontsize=11)
+ax.set_title("MSE vs. outer samples  (variance-dominated)", fontsize=10)
+ax.legend(fontsize=10)
+ax.grid(True, alpha=0.25, which="both")
+ax.spines[["top", "right"]].set_visible(False)
+
+# ── Right: bias² and variance vs N_in ────────────────────────────────────
+ax = axes[1]
+ax.loglog(inner_sweep, bias2_arr[:, 0], "s-", color=ORANGE, lw=2,
+          label="bias²  (inner bias)")
+ax.loglog(inner_sweep, var_arr[:, 0],   "o-", color=BLUE,   lw=2,
+          label=f"variance  ($M={M_fixed}$, fixed)")
+ax.set_xlabel("Inner samples $N_{\\mathrm{in}}$", fontsize=11)
+ax.set_ylabel("Error component", fontsize=11)
+ax.set_title("Bias² and variance vs. inner samples", fontsize=10)
+ax.legend(fontsize=10)
+ax.grid(True, alpha=0.25, which="both")
+ax.spines[["top", "right"]].set_visible(False)
+
+plt.tight_layout()
+plt.show()
+```
+
+```{python}
+# Convergence rates
+print("Outer sweep convergence rates:")
+for ii, ninner in enumerate(inner_counts):
+    rate = KLOEDDiagnostics.compute_convergence_rate(
+        outer_counts,
+        bkd.to_numpy(values_mc["mse"][ii]).tolist(),
+    )
+    print(f"  N_in={ninner:4d}: rate = {rate:.3f}  (expected ~1.0 for O(1/M))")
+```
+
+A rate near 1.0 confirms the $O(1/M)$ variance decay. The right panel shows
+bias² falling steeply once $N_\text{in} \gtrsim 50$, after which MSE is
+dominated by variance from the outer loop. Increasing $N_\text{in}$ beyond
+that point yields diminishing returns — invest budget in $M$ instead.
+
+For faster convergence with the same $M$, see
+[MC vs. Halton for EIG Estimation](boed_kl_qmc.qmd).
+
+## Key Takeaways
+
+- `LinearGaussianOEDBenchmark` provides an exact EIG reference for any weights.
+- `KLOEDDiagnostics.compute_mse` decomposes total MSE into squared bias and
+  variance across independent realizations.
+- The outer sample count $M$ controls variance and follows $O(1/M)$; the inner
+  count $N_\text{in}$ controls bias, which becomes negligible once $N_\text{in}
+  \gtrsim 50$ for this problem.
+- Once bias² is small relative to variance, further increasing $N_\text{in}$
+  wastes compute — increase $M$ instead.
+
+## Exercises
+
+1. Run `compute_mse` with `nouter=50, ninner=5` and compare bias² to variance.
+   At this extreme, which term dominates?
+
+2. From the right panel, estimate the convergence rate of bias² with respect to
+   $N_\text{in}$. Is it faster or slower than the $O(1/M)$ outer rate? Why?
+
+3. Try `degree=4` (more parameters). Does the exact EIG increase or decrease
+   relative to `degree=2`? Does the $N_\text{in}$ needed to suppress bias change?
+
+## Next Steps
+
+- [MC vs. Halton for EIG Estimation](boed_kl_qmc.qmd) — achieving faster
+  convergence by replacing Monte Carlo with quasi-random sequences
+- [Goal-Oriented Bayesian OED](boed_pred_concept.qmd) — when prediction
+  accuracy matters more than parameter estimation

@@ -1,0 +1,297 @@
+---
+title: "Multi-Output Kernels"
+subtitle: "Theory of kernels for multiple correlated outputs"
+---
+
+## Introduction
+
+Multi-output kernels model the covariance structure between multiple outputs (quantities of interest) simultaneously. This enables modeling correlations between outputs and can significantly improve predictions when outputs are related.
+
+## Problem Setup
+
+Consider m outputs f₁(***x***), ..., f_m(***x***) where each output is a function of input ***x*** ∈ ℝ^d^.
+
+We observe data at potentially different locations for each output:
+
+- Output j: Data {(***x***_{j,i}, y_{j,i})}_{i=1}^{n_j} for j = 1, ..., m
+
+**Goal**: Model all outputs jointly to exploit correlations.
+
+## Independent Multi-Output Kernel (IMC)
+
+The simplest approach: assume outputs are independent.
+
+### Definition
+
+$$
+k_{IMC}((\mathbf{x}, j), (\mathbf{x}', j')) = \begin{cases}
+k_j(\mathbf{x}, \mathbf{x}') & \text{if } j = j' \\
+0 & \text{if } j \neq j'
+\end{cases}
+$$ {#eq-imc}
+
+**Kernel matrix structure**: Block diagonal
+
+$$
+\mathbf{K} = \begin{bmatrix}
+\mathbf{K}_1 & \mathbf{0} & \cdots & \mathbf{0} \\
+\mathbf{0} & \mathbf{K}_2 & \cdots & \mathbf{0} \\
+\vdots & \vdots & \ddots & \vdots \\
+\mathbf{0} & \mathbf{0} & \cdots & \mathbf{K}_m
+\end{bmatrix}
+$$ {#eq-imc-matrix}
+
+where ***K***_j = k_j(***X***_j, ***X***_j) is the kernel matrix for output j.
+
+**Implementation**:
+
+```{python}
+#| eval: false
+from pyapprox.surrogates.kernels.multioutput import (
+    IndependentMultiOutputKernel
+)
+from pyapprox.surrogates.kernels import MaternKernel
+
+bkd = NumpyBkd()
+
+# Different kernel for each output
+kernels = [
+    MaternKernel(2.5, [1.0], (0.1, 10.0), 1, bkd),  # Output 1
+    MaternKernel(2.5, [0.5], (0.1, 10.0), 1, bkd),  # Output 2
+]
+
+mo_kernel = IndependentMultiOutputKernel(kernels)
+```
+
+::: {.callout-note}
+## When to Use IMC
+
+- Outputs are truly independent
+- Simple baseline for comparison
+- Computational efficiency (m separate GPs)
+:::
+
+## Linear Model of Coregionalization (LMC)
+
+Model outputs as linear combinations of shared latent processes.
+
+### Definition
+
+Each output is a linear combination of q latent processes:
+
+$$
+f_j(\mathbf{x}) = \sum_{i=1}^q a_{ji} u_i(\mathbf{x})
+$$ {#eq-lmc-latent}
+
+where u_i ~ GP(0, k_i) are independent latent GPs.
+
+### Kernel Form
+
+The cross-covariance between outputs j and j' is:
+
+$$
+\text{Cov}[f_j(\mathbf{x}), f_{j'}(\mathbf{x}')] = \sum_{i=1}^q a_{ji} a_{j'i} k_i(\mathbf{x}, \mathbf{x}')
+$$ {#eq-lmc-cov}
+
+**Matrix form**: Let ***A*** be the m × q mixing matrix with entries a_{ji}. Then:
+
+$$
+k_{LMC}((\mathbf{x}, j), (\mathbf{x}', j')) = \sum_{i=1}^q [\mathbf{A} \mathbf{A}^\top]_{jj'} k_i(\mathbf{x}, \mathbf{x}')
+$$ {#eq-lmc}
+
+### Coregionalization Matrix
+
+Define ***B*** = ***AA***^⊤, the **coregionalization matrix**:
+
+$$
+\mathbf{B} = \mathbf{A} \mathbf{A}^\top = \begin{bmatrix}
+b_{11} & b_{12} & \cdots & b_{1m} \\
+b_{21} & b_{22} & \cdots & b_{2m} \\
+\vdots & \vdots & \ddots & \vdots \\
+b_{m1} & b_{m2} & \cdots & b_{mm}
+\end{bmatrix}
+$$ {#eq-coreg-matrix}
+
+Properties:
+
+- Positive semi-definite
+- b_{jj'} controls correlation between outputs j and j'
+- Rank at most q (number of latent processes)
+
+::: {.callout-important}
+## Rank Limitation
+
+The rank of ***B*** cannot exceed q, the number of latent processes. This limits the flexibility of LMC for modeling complex output correlations.
+:::
+
+## Multi-Fidelity Kernels
+
+Multi-fidelity modeling assumes a hierarchical relationship between outputs of different fidelity levels.
+
+### Autoregressive Structure
+
+Model higher fidelities as corrections to lower fidelities:
+
+$$
+\begin{aligned}
+f_0(\mathbf{x}) &\sim \text{GP}(0, k_0(\mathbf{x}, \mathbf{x}')) \\
+f_1(\mathbf{x}) &= \rho_0 f_0(\mathbf{x}) + \delta_1(\mathbf{x}) \\
+f_2(\mathbf{x}) &= \rho_1 f_1(\mathbf{x}) + \delta_2(\mathbf{x}) \\
+&\vdots
+\end{aligned}
+$$ {#eq-autoregressive}
+
+where:
+
+- f_j is the j-th fidelity level
+- ρ_{j-1} is the correlation parameter (scalar or function)
+- δ_j ~ GP(0, k_j) is the discrepancy at level j
+
+### Induced Covariance
+
+For the 2-level case:
+
+$$
+\begin{aligned}
+\text{Cov}[f_0(\mathbf{x}), f_0(\mathbf{x}')] &= k_0(\mathbf{x}, \mathbf{x}') \\
+\text{Cov}[f_0(\mathbf{x}), f_1(\mathbf{x}')] &= \rho_0 k_0(\mathbf{x}, \mathbf{x}') \\
+\text{Cov}[f_1(\mathbf{x}), f_1(\mathbf{x}')] &= \rho_0^2 k_0(\mathbf{x}, \mathbf{x}') + k_1(\mathbf{x}, \mathbf{x}')
+\end{aligned}
+$$ {#eq-2level-cov}
+
+**Kernel matrix**:
+
+$$
+\mathbf{K} = \begin{bmatrix}
+\mathbf{K}_0 & \rho_0 \mathbf{K}_0 \\
+\rho_0 \mathbf{K}_0 & \rho_0^2 \mathbf{K}_0 + \mathbf{K}_1
+\end{bmatrix}
+$$ {#eq-2level-matrix}
+
+### Spatially Varying Scalings
+
+Allow ρ to vary with location: ρ(***x***).
+
+$$
+f_1(\mathbf{x}) = \rho_0(\mathbf{x}) f_0(\mathbf{x}) + \delta_1(\mathbf{x})
+$$ {#eq-spatially-varying}
+
+**Cross-covariance** becomes:
+
+$$
+\text{Cov}[f_0(\mathbf{x}), f_1(\mathbf{x}')] = \rho_0(\mathbf{x}') k_0(\mathbf{x}, \mathbf{x}')
+$$ {#eq-spatially-varying-cov}
+
+**Implementation**:
+
+```{python}
+#| eval: false
+from pyapprox.surrogates.kernels.multioutput import MultiLevelKernel
+from pyapprox.surrogates.kernels import PolynomialScaling
+
+# Create kernels for each level
+k0 = MaternKernel(2.5, [1.0], (0.1, 10.0), 1, bkd)
+k1 = MaternKernel(2.5, [0.5], (0.1, 10.0), 1, bkd)
+
+# Spatially varying scaling: ρ(x) = 0.9 + 0.1*x
+rho_0 = PolynomialScaling([0.9, 0.1], (0.5, 1.5), bkd)
+
+# Create multi-level kernel
+ml_kernel = MultiLevelKernel([k0, k1], [rho_0])
+```
+
+::: {.callout-tip}
+## Why Spatially Varying?
+
+Spatially varying scalings allow the correlation between fidelities to change across the input space. This is realistic when the relationship between models varies with operating conditions.
+:::
+
+## General Multi-Level Formula
+
+For m levels with sequential structure 0 → 1 → ⋯ → m-1:
+
+### Weight Functions
+
+Define weight function w_{jk}(***x***) as the product of scalings from level k to level j:
+
+$$
+w_{jk}(\mathbf{x}) = \begin{cases}
+1 & \text{if } j = k \\
+\prod_{i=k}^{j-1} \rho_i(\mathbf{x}) & \text{if } j > k \\
+0 & \text{if } j < k
+\end{cases}
+$$ {#eq-weight}
+
+### Covariance Formula
+
+The covariance between levels j and j' is:
+
+$$
+\text{Cov}[f_j(\mathbf{x}), f_{j'}(\mathbf{x}')] = \sum_{k=0}^{\min(j,j')} w_{jk}(\mathbf{x}) k_k(\mathbf{x}, \mathbf{x}') w_{j'k}(\mathbf{x}')
+$$ {#eq-multilevel-cov}
+
+**Interpretation**: Sum over all common ancestors in the hierarchy.
+
+## Block Matrix Structure
+
+For m levels with n_j samples at level j, the full kernel matrix has shape (Σn_j, Σn_j):
+
+$$
+\mathbf{K} = \begin{bmatrix}
+\mathbf{K}_{00} & \mathbf{K}_{01} & \cdots & \mathbf{K}_{0,m-1} \\
+\mathbf{K}_{10} & \mathbf{K}_{11} & \cdots & \mathbf{K}_{1,m-1} \\
+\vdots & \vdots & \ddots & \vdots \\
+\mathbf{K}_{m-1,0} & \mathbf{K}_{m-1,1} & \cdots & \mathbf{K}_{m-1,m-1}
+\end{bmatrix}
+$$ {#eq-block-structure}
+
+where ***K***_{jj'} has shape (n_j, n_{j'}).
+
+### Block Computation
+
+Each block is computed using @eq-multilevel-cov:
+
+```{python}
+#| eval: false
+# For block (j, j')
+K_jj_prime = ml_kernel(X_list[j], X_list[j_prime])
+```
+
+## Advantages of Multi-Fidelity Modeling
+
+1. **Data Efficiency**: Use cheap low-fidelity data to improve expensive high-fidelity predictions
+2. **Reduced Variance**: Cross-level correlation reduces predictive uncertainty
+3. **Hierarchical Structure**: Matches physics of multi-scale/multi-physics models
+4. **Computational Savings**: Fewer high-fidelity evaluations needed
+
+## Computational Considerations
+
+### Kernel Matrix Construction
+
+Cost to build full m-level kernel matrix:
+
+- **Independent**: O(Σn_j²) - sum of individual costs
+- **Multi-level**: O((Σn_j)²) - all cross-blocks needed
+
+### Cholesky Factorization
+
+For GP inference, need Cholesky decomposition:
+
+```{python}
+#| eval: false
+K = ml_kernel(X_train_list)  # Full multi-level matrix
+L = bkd.cholesky(K + noise * I)  # Cholesky factor
+```
+
+**Cost**: O((Σn_j)³)
+
+### Sparse Precision
+
+The precision matrix ***K***^{-1} has special structure that can be exploited for efficiency. See [DAG Kernels](dag-kernels.qmd) for details.
+
+## See Also
+
+- [Kernel Theory](kernel-theory.qmd) - Fundamental kernel concepts
+- [DAG Kernels](dag-kernels.qmd) - General autoregressive structures
+- [Multi-output GP Example](../gallery/usage/dag-gaussian-process.qmd) - Implementation
+- [Kernel Matrix Visualization](../gallery/plotting/kernel-matrix-visualization.qmd) - Visual structure

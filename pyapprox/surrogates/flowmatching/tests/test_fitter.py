@@ -1,0 +1,241 @@
+"""Tests for LeastSquaresFitter and OptimizerFitter."""
+
+import copy
+import unittest
+from typing import Any, Generic
+
+import torch
+from numpy.typing import NDArray
+
+from pyapprox.util.backends.numpy import NumpyBkd
+from pyapprox.util.backends.protocols import Array, Backend
+from pyapprox.util.backends.torch import TorchBkd
+
+from pyapprox.probability import UniformMarginal, GaussianMarginal
+from pyapprox.surrogates.affine.univariate import create_bases_1d
+from pyapprox.surrogates.affine.indices import (
+    compute_hyperbolic_indices,
+)
+from pyapprox.surrogates.affine.basis import OrthonormalPolynomialBasis
+from pyapprox.surrogates.affine.expansions import BasisExpansion
+
+from pyapprox.surrogates.flowmatching.linear_path import LinearPath
+from pyapprox.surrogates.flowmatching.cfm_loss import CFMLoss
+from pyapprox.surrogates.flowmatching.quad_data import (
+    FlowMatchingQuadData,
+)
+from pyapprox.surrogates.flowmatching.fitters.results import (
+    FlowMatchingFitResult,
+)
+from pyapprox.surrogates.flowmatching.fitters.least_squares import (
+    LeastSquaresFitter,
+)
+from pyapprox.surrogates.flowmatching.fitters.optimizer import (
+    OptimizerFitter,
+)
+
+
+def _make_vf(bkd, d, degree, m=0):
+    """Create a BasisExpansion VF with input_dim = 1+d+m, nqoi = d."""
+    marginals = [UniformMarginal(0.0, 1.0, bkd)]
+    marginals += [GaussianMarginal(0.0, 1.0, bkd)] * d
+    marginals += [GaussianMarginal(0.0, 1.0, bkd)] * m
+    bases_1d = create_bases_1d(marginals, bkd)
+    nvars = 1 + d + m
+    indices = compute_hyperbolic_indices(nvars, degree, 1.0, bkd)
+    basis = OrthonormalPolynomialBasis(bases_1d, bkd, indices)
+    return BasisExpansion(basis, bkd, nqoi=d)
+
+
+def _make_linear_quad_data(bkd, d, ns, m=0):
+    """Create quad data for a simple linear transport x0 -> x1 = x0 + 1."""
+    import numpy as np
+    np.random.seed(42)
+    t_vals = np.linspace(0.05, 0.95, ns)
+    t = bkd.array([t_vals.tolist()])  # (1, ns)
+    x0_np = np.random.randn(d, ns)
+    x0 = bkd.array(x0_np.tolist())
+    x1 = bkd.array((x0_np + 1.0).tolist())
+    weights = bkd.array([1.0 / ns] * ns)
+    c = bkd.array(np.random.randn(m, ns).tolist()) if m > 0 else None
+    return FlowMatchingQuadData(t, x0, x1, weights, bkd, c)
+
+
+class TestLeastSquaresFitter(Generic[Array], unittest.TestCase):
+    __test__ = False
+
+    def bkd(self) -> Backend[Array]:
+        raise NotImplementedError
+
+    def setUp(self) -> None:
+        self._bkd = self.bkd()
+
+    def test_linear_vf_recovery(self) -> None:
+        """For linear transport x1=x0+1, degree-1 VF should recover exactly."""
+        bkd = self._bkd
+        d, ns = 1, 20
+        vf = _make_vf(bkd, d, degree=1)
+        path = LinearPath(bkd)
+        loss = CFMLoss(bkd)
+        qd = _make_linear_quad_data(bkd, d, ns)
+
+        fitter = LeastSquaresFitter(bkd)
+        result = fitter.fit(vf, path, loss, qd)
+
+        self.assertIsInstance(result, FlowMatchingFitResult)
+        self.assertLess(result.training_loss(), 1e-10)
+
+    def test_deep_clone_isolation(self) -> None:
+        """Original VF should not be modified by fitting."""
+        bkd = self._bkd
+        d, ns = 1, 20
+        vf = _make_vf(bkd, d, degree=1)
+        path = LinearPath(bkd)
+        loss = CFMLoss(bkd)
+        qd = _make_linear_quad_data(bkd, d, ns)
+
+        # Save original coefficients
+        orig_coef = copy.deepcopy(vf.get_coefficients())
+
+        fitter = LeastSquaresFitter(bkd)
+        result = fitter.fit(vf, path, loss, qd)
+
+        # Original should be unchanged
+        bkd.assert_allclose(vf.get_coefficients(), orig_coef, rtol=1e-12)
+
+        # Fitted should be different (nonzero coefficients)
+        fitted_vf = result.surrogate()
+        fitted_coef = fitted_vf.get_coefficients()  # type: ignore[union-attr]
+        norm = float(bkd.to_numpy(
+            bkd.sum(fitted_coef * fitted_coef)
+        ))
+        self.assertGreater(norm, 1e-6)
+
+    def test_surrogate_callable(self) -> None:
+        """Result surrogate should be callable."""
+        bkd = self._bkd
+        d, ns = 1, 20
+        vf = _make_vf(bkd, d, degree=1)
+        path = LinearPath(bkd)
+        loss = CFMLoss(bkd)
+        qd = _make_linear_quad_data(bkd, d, ns)
+
+        fitter = LeastSquaresFitter(bkd)
+        result = fitter.fit(vf, path, loss, qd)
+
+        # Should be callable
+        test_input = bkd.array([[0.5], [0.0]])  # (2, 1) for (t, x)
+        output = result(test_input)
+        self.assertEqual(output.shape[0], d)
+        self.assertEqual(output.shape[1], 1)
+
+    def test_multidim(self) -> None:
+        """Test with d=2."""
+        bkd = self._bkd
+        d, ns = 2, 30
+        vf = _make_vf(bkd, d, degree=1)
+        path = LinearPath(bkd)
+        loss = CFMLoss(bkd)
+        qd = _make_linear_quad_data(bkd, d, ns)
+
+        fitter = LeastSquaresFitter(bkd)
+        result = fitter.fit(vf, path, loss, qd)
+        self.assertLess(result.training_loss(), 1e-10)
+
+    def test_with_conditioning(self) -> None:
+        """Test fitting with conditioning variables."""
+        bkd = self._bkd
+        d, ns, m = 1, 20, 1
+        vf = _make_vf(bkd, d, degree=1, m=m)
+        path = LinearPath(bkd)
+        loss = CFMLoss(bkd)
+        qd = _make_linear_quad_data(bkd, d, ns, m=m)
+
+        fitter = LeastSquaresFitter(bkd)
+        result = fitter.fit(vf, path, loss, qd)
+        self.assertIsInstance(result, FlowMatchingFitResult)
+        # Loss should be small (target field doesn't depend on c,
+        # but the VF has enough capacity)
+        self.assertLess(result.training_loss(), 1e-8)
+
+
+class TestOptimizerFitter(Generic[Array], unittest.TestCase):
+    __test__ = False
+
+    def bkd(self) -> Backend[Array]:
+        raise NotImplementedError
+
+    def setUp(self) -> None:
+        self._bkd = self.bkd()
+
+    def test_linear_vf_recovery(self) -> None:
+        """Optimizer should converge to near-zero loss for linear transport."""
+        bkd = self._bkd
+        d, ns = 1, 20
+        vf = _make_vf(bkd, d, degree=1)
+        path = LinearPath(bkd)
+        loss = CFMLoss(bkd)
+        qd = _make_linear_quad_data(bkd, d, ns)
+
+        fitter = OptimizerFitter(bkd)
+        result = fitter.fit(vf, path, loss, qd)
+
+        self.assertIsInstance(result, FlowMatchingFitResult)
+        self.assertLess(result.training_loss(), 1e-6)
+
+    def test_deep_clone_isolation(self) -> None:
+        """Original VF should not be modified."""
+        bkd = self._bkd
+        d, ns = 1, 20
+        vf = _make_vf(bkd, d, degree=1)
+        path = LinearPath(bkd)
+        loss = CFMLoss(bkd)
+        qd = _make_linear_quad_data(bkd, d, ns)
+
+        orig_coef = copy.deepcopy(vf.get_coefficients())
+
+        fitter = OptimizerFitter(bkd)
+        result = fitter.fit(vf, path, loss, qd)
+
+        bkd.assert_allclose(vf.get_coefficients(), orig_coef, rtol=1e-12)
+
+    def test_lstsq_optimizer_agreement(self) -> None:
+        """Both fitters should produce similar loss for linear transport."""
+        bkd = self._bkd
+        d, ns = 1, 20
+        vf = _make_vf(bkd, d, degree=1)
+        path = LinearPath(bkd)
+        loss = CFMLoss(bkd)
+        qd = _make_linear_quad_data(bkd, d, ns)
+
+        lstsq_result = LeastSquaresFitter(bkd).fit(vf, path, loss, qd)
+        opt_result = OptimizerFitter(bkd).fit(vf, path, loss, qd)
+
+        # Both should achieve very low loss
+        self.assertLess(lstsq_result.training_loss(), 1e-10)
+        self.assertLess(opt_result.training_loss(), 1e-6)
+
+
+class TestLeastSquaresFitterNumpy(TestLeastSquaresFitter[NDArray[Any]]):
+    def bkd(self) -> NumpyBkd:
+        return NumpyBkd()
+
+
+class TestLeastSquaresFitterTorch(TestLeastSquaresFitter[torch.Tensor]):
+    def bkd(self) -> TorchBkd:
+        torch.set_default_dtype(torch.float64)
+        return TorchBkd()
+
+
+class TestOptimizerFitterNumpy(TestOptimizerFitter[NDArray[Any]]):
+    def bkd(self) -> NumpyBkd:
+        return NumpyBkd()
+
+
+class TestOptimizerFitterTorch(TestOptimizerFitter[torch.Tensor]):
+    def bkd(self) -> TorchBkd:
+        torch.set_default_dtype(torch.float64)
+        return TorchBkd()
+
+
+from pyapprox.util.test_utils import load_tests  # noqa: F401

@@ -1,0 +1,263 @@
+---
+title: "Multi-Output Approximate Control Variates"
+subtitle: "PyApprox Tutorial Library"
+description: "Why estimating several quantities of interest jointly with multi-fidelity corrections improves each individual estimate — the key non-obvious insight of multi-output ACV."
+tutorial_type: concept
+topic: multi_fidelity
+difficulty: intermediate
+estimated_time: 7
+prerequisites:
+  - multioutput_mc_concept
+  - acv_many_models_concept
+tags:
+  - multi-fidelity
+  - multi-output
+  - approximate-control-variate
+  - variance-reduction
+format:
+  html:
+    code-fold: false
+    code-tools: true
+    toc: true
+execute:
+  echo: true
+  warning: false
+jupyter: python3
+---
+
+::: {.callout-tip collapse="true"}
+## Download Notebook
+[Download as Jupyter Notebook](notebooks/multioutput_acv_concept.ipynb)
+:::
+
+## Learning Objectives
+
+After completing this tutorial, you will be able to:
+
+- State the key non-obvious insight: estimating QoI $s$ together with other QoIs
+  reduces the variance of the QoI $s$ estimate compared to estimating it alone
+- Explain intuitively why cross-QoI covariances provide additional signal for each
+  individual QoI
+- Identify the regime in which MOACV outperforms SOACV (multiple runs of scalar ACV)
+- Read and interpret an MOACV vs SOACV variance reduction comparison
+
+
+## Prerequisites
+
+Complete [General ACV Concept](acv_many_models_concept.qmd) before this tutorial.
+
+
+## The Surprising Benefit of Estimating Together
+
+Plain joint MC does not improve any individual QoI's variance: the $s$-th diagonal entry of the MC
+covariance matrix is $\boldsymbol{\Sigma}_{0,ss}/N$, identical to running scalar MC
+for that QoI alone.
+
+With multi-fidelity corrections, the situation changes. Estimating all QoIs together
+with ACV corrections can substantially improve each individual QoI's estimate compared
+to running one scalar ACV per QoI independently. This is the central, non-obvious claim
+of multi-output ACV.
+
+**Why?** In scalar ACV, the correction term for QoI $s$ is
+$\eta_s \bigl(\hat{\mu}_{\alpha,s}^* - \hat{\mu}_{\alpha,s}\bigr)$.
+The optimal weight $\eta_s^*$ uses only the covariance between QoI $s$ corrections and
+the QoI $s$ HF estimate.
+
+In multi-output ACV (MOACV), the weight matrix $\mathbf{H}^* \in \mathbb{R}^{S \times SM}$
+couples every QoI's estimate to the corrections of *every* QoI of *every* LF model.
+Specifically, the correction for QoI $s$ can include a term proportional to
+$\hat{\mu}_{\alpha,t}^* - \hat{\mu}_{\alpha,t}$ for $t \neq s$ if those corrections
+are correlated with the QoI $s$ HF estimation error. This cross-QoI covariance is
+free information that scalar ACV leaves on the table.
+
+
+## Intuition with a Two-QoI Example
+
+Suppose model $f_0$ produces outputs $(f_{0,1}, f_{0,2})$ that are highly correlated.
+We have a cheap LF model $f_1$ that closely tracks both outputs.
+
+**SOACV (scalar per QoI):** Estimate $\mu_{0,1}$ using corrections from $f_{1,1}$ only.
+Estimate $\mu_{0,2}$ using corrections from $f_{1,2}$ only. Each scalar ACV uses
+$M\cdot S = 2$ LF outputs (one per model per QoI, but only matching-output corrections).
+
+**MOACV (joint):** Estimate $\mu_{0,1}$ using corrections from *both* $f_{1,1}$ and
+$f_{1,2}$ simultaneously. Because $f_{0,1}$ and $f_{0,2}$ are correlated, the noise in
+estimating $\mu_{0,1}$ carries information about the noise in $f_{1,2}$'s correction.
+The optimal weight matrix $\mathbf{H}^*$ exploits this: if the $f_{1,2}$ correction is
+large and positive, and the two outputs are correlated, this is evidence that the
+$f_{1,1}$ correction is also too large — so downweight it. This extra signal can only
+help, never hurt.
+
+Formally, the MOACV optimal covariance is always $\leq$ the SOACV covariance in the
+positive-semidefinite sense, with equality only when QoI outputs are uncorrelated across
+the hierarchy.
+
+
+## MOACV vs SOACV: The Key Figure
+
+@fig-moacv-soacv shows the estimator variance for QoI 0 under MOACV, SOACV, and plain MC
+across a range of target costs, using the three-model two-QoI benchmark. SOACV runs a
+separate scalar ACV for QoI 0, ignoring the information in QoI 1. MOACV estimates both
+QoIs jointly and is uniformly better for QoI 0.
+
+```{python}
+#| echo: false
+#| fig-cap: "Estimator variance for QoI 0 vs target cost, comparing MOACV (joint estimation of both QoIs), SOACV (independent scalar ACV for each QoI), and plain MC. All three decay with increasing budget; MOACV is uniformly lowest because the QoI 1 corrections carry additional signal for QoI 0."
+#| label: fig-moacv-soacv
+
+import numpy as np
+import matplotlib.pyplot as plt
+from pyapprox.util.backends.numpy import NumpyBkd
+from pyapprox.benchmarks.instances.multifidelity.multioutput_ensemble import (
+    multioutput_ensemble_3x3,
+)
+from pyapprox.statest.statistics import MultiOutputMean
+from pyapprox.statest.acv import GMFEstimator
+from pyapprox.statest.acv.search import ACVSearch
+
+bkd = NumpyBkd()
+np.random.seed(1)
+benchmark = multioutput_ensemble_3x3(bkd)
+costs     = benchmark.costs()
+nqoi      = 2   # use first 2 of the 3 QoIs for cleaner optimization
+nmodels   = benchmark.nmodels()
+full_nqoi = benchmark.models()[0].nqoi()
+
+# Extract the 2-QoI covariance subset from the full 9×9 covariance
+cov_full = benchmark.ensemble_covariance()
+idx = []
+for a in range(nmodels):
+    for q in range(nqoi):
+        idx.append(a * full_nqoi + q)
+cov_true = cov_full[np.ix_(idx, idx)]
+
+# Full multi-output statistic (2 QoIs)
+stat_mo = MultiOutputMean(nqoi, bkd)
+stat_mo.set_pilot_quantities(cov_true)
+search_mo = ACVSearch(stat_mo, costs)
+
+# Single-output statistic for QoI 0
+qoi_idx  = [0]
+(cov_so,) = stat_mo.get_pilot_quantities_subset(nmodels, nqoi, list(range(nmodels)), qoi_idx)
+stat_so  = MultiOutputMean(len(qoi_idx), bkd)
+stat_so.set_pilot_quantities(cov_so)
+search_so = ACVSearch(stat_so, costs)
+
+cov_true_np = bkd.to_numpy(cov_true)
+mc_var_q0   = cov_true_np[0, 0]
+
+target_costs_all = np.logspace(1, 3.5, 50)
+
+target_costs, mo_vars, so_vars, mc_vars = [], [], [], []
+for P in target_costs_all:
+    try:
+        result_mo = search_mo.search(float(P))
+        result_so = search_so.search(float(P))
+    except RuntimeError:
+        continue
+    cov_mo_P = bkd.to_numpy(result_mo.estimator.optimized_covariance())
+    target_costs.append(P)
+    mo_vars.append(cov_mo_P[0, 0])
+    so_vars.append(float(bkd.to_numpy(result_so.estimator.optimized_covariance())[0, 0]))
+    mc_vars.append(mc_var_q0 / float(P))
+
+fig, ax = plt.subplots(figsize=(8, 4.5))
+ax.loglog(target_costs, mo_vars, "-",  color="#8E44AD", lw=2.5,
+          label="MOACV (joint: both QoIs)")
+ax.loglog(target_costs, so_vars, "--", color="#2C7FB8", lw=2.5,
+          label="SOACV (QoI 0 only)")
+ax.loglog(target_costs, mc_vars, ":", color="k", lw=1.5, alpha=0.6,
+          label="MC")
+
+# Annotate the gap
+mid_i = len(target_costs) // 2
+ax.annotate("", xy=(target_costs[mid_i], mo_vars[mid_i]),
+            xytext=(target_costs[mid_i], so_vars[mid_i]),
+            arrowprops=dict(arrowstyle="<->", color="#e74c3c", lw=1.5))
+ax.text(target_costs[mid_i] * 1.15, (mo_vars[mid_i] * so_vars[mid_i]) ** 0.5,
+        "MOACV\ngain", fontsize=9, color="#e74c3c", va="center")
+
+ax.set_xlabel("Target cost $P$", fontsize=12)
+ax.set_ylabel("Estimator variance (QoI 0)", fontsize=12)
+ax.set_title("MOACV vs SOACV: joint estimation improves each QoI", fontsize=11)
+ax.legend(fontsize=10)
+ax.grid(True, alpha=0.2, which="both")
+plt.tight_layout()
+plt.show()
+```
+
+The MOACV curve is uniformly below the SOACV curve. At any budget, estimating QoI 0
+alongside QoI 1 is strictly better for QoI 0 than estimating QoI 0 alone.
+
+
+## When Does MOACV Win Most?
+
+The gain from joint estimation depends on the cross-QoI structure:
+
+| Regime | MOACV gain over SOACV |
+|---|---|
+| QoI outputs are uncorrelated across models | Zero (MOACV = SOACV) |
+| Strong within-model cross-QoI correlation | Large gain |
+| Different LF models better predict different QoIs | Substantial gain |
+| QoIs have very different signal-to-noise ratios | Moderate gain |
+
+The gain is zero only when $[\boldsymbol{\Sigma}]_{\alpha s, \beta t} = 0$ for all
+$s \neq t$ (all cross-QoI covariances vanish). In this case the optimal weight matrix
+$\mathbf{H}^*$ is block-diagonal and MOACV decouples into $S$ independent scalar ACVs.
+In all other cases, there is a strict gain.
+
+
+## A Useful Mental Model
+
+Think of MOACV as extending the Schur complement variance reduction from the general
+ACV formula. In scalar ACV, the reduction is
+$\sigma_{0\Delta}^\top \Sigma_{\Delta\Delta}^{-1} \sigma_{0\Delta}$, which uses
+correlations between $\hat{\mu}_0(\mathcal{Z}_0)$ and each correction $\Delta_\alpha$.
+
+In MOACV, the vector of corrections $\boldsymbol{\Delta}$ now includes corrections for
+*all* QoIs of *all* LF models. This means the Schur complement exploits both cross-model
+(different $\alpha$) and cross-QoI (different $s$) correlations. The expanded $\boldsymbol{\Delta}$
+vector is strictly more informative, so the Schur complement is larger, and the variance
+reduction is at least as large as SOACV.
+
+
+## Key Takeaways
+
+- **The central insight:** jointly estimating multiple QoIs with ACV corrections reduces
+  each individual QoI's variance compared to separate scalar ACVs, whenever
+  cross-QoI corrections are correlated
+- The gain is structural: the MOACV weight matrix $\mathbf{H}^*$ has more non-zero
+  entries than the SOACV weight matrix, enabling it to exploit cross-QoI signal
+- The gain vanishes only when all cross-QoI population covariances are zero — a rare
+  edge case for physically meaningful model ensembles
+- MOACV is always at least as good as SOACV; the choice never hurts
+
+## Exercises
+
+1. Suppose you have two perfectly correlated QoIs: $f_{0,2} = f_{0,1}$ and
+   $f_{1,2} = f_{1,1}$. Does MOACV give any gain over SOACV? Explain using the
+   cross-QoI covariance structure.
+
+2. Suppose the two QoIs are perfectly **anti-correlated**: $f_{0,2} = -f_{0,1}$ and
+   similarly for $f_1$. Does MOACV gain over SOACV? Sketch the structure of $\mathbf{H}^*$.
+
+3. From @fig-moacv-soacv, estimate the percentage improvement in QoI 0 variance at cost
+   $P = 100$. Does the relative improvement grow or shrink as budget increases?
+
+
+## Next Steps
+
+- [Multi-Output ACV Analysis](multioutput_acv_analysis.qmd) — Derive the MOACV
+  optimal weight matrix $\mathbf{H}^*$ and the resulting minimum covariance
+- [Multi-Output ACV Usage](multioutput_acv_usage.qmd) — Run MOACV and SOACV
+  end-to-end and confirm the improvement numerically
+
+
+## References
+
+- [DWBG2024] D. Schaden, E. Ullmann, R. Butler, J. Jakeman. *Multi-output approximate
+  control variates.* 2024.
+  [arXiv:2310.00125](https://doi.org/10.48550/arXiv.2310.00125)
+
+- [RM1985] R. Y. Rubinstein and R. Marcus. *Efficiency of multivariate control variates
+  in Monte Carlo simulation.* Operations Research, 33(3):661–677, 1985.

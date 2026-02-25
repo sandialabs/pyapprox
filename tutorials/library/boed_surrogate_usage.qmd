@@ -1,0 +1,328 @@
+---
+title: "Surrogate-Accelerated Bayesian OED"
+subtitle: "PyApprox Tutorial Library"
+description: "Building a sparse-grid surrogate for an expensive PDE forward model, validating its accuracy, and using it to enable large-sample-budget OED that would be infeasible with the original model."
+tutorial_type: usage
+topic: experimental_design
+difficulty: advanced
+estimated_time: 12
+prerequisites:
+  - boed_data_workflow_usage
+tags:
+  - experimental-design
+  - surrogates
+  - sparse-grids
+  - pde
+  - advection-diffusion
+  - accelerated-oed
+format:
+  html:
+    code-fold: false
+    code-tools: true
+    toc: true
+execute:
+  echo: true
+  warning: false
+jupyter: python3
+---
+
+::: {.callout-tip collapse="true"}
+## Download Notebook
+[Download as Jupyter Notebook](notebooks/boed_surrogate_usage.ipynb)
+:::
+
+## Learning Objectives
+
+After completing this tutorial, you will be able to:
+
+- Build a sparse-grid surrogate for a PDE observation model
+- Validate surrogate accuracy with a held-out test set before using it for OED
+- Swap the true model for the surrogate in `OEDDataGenerator` with no other code change
+- Cache surrogates to disk so rebuilding is only done when needed
+
+## Prerequisites
+
+Complete [Decoupling Data Generation from OED Optimisation](boed_data_workflow_usage.qmd).
+That tutorial demonstrates the two-phase (generate / optimise) workflow; here we
+accelerate the generation phase.
+
+## The Bottleneck: Model Evaluation Cost
+
+In [the data workflow tutorial](boed_data_workflow_usage.qmd), we needed
+$M + N$ forward model evaluations to build the OED dataset. For the
+advection-diffusion PDE, each evaluation involves a full finite-element solve —
+tens of seconds on a workstation. With $M = 10{,}000$ and $N = 10{,}000$, that
+is roughly 56 hours of compute.
+
+A **sparse-grid surrogate** trained on as few as 100--500 evaluations can
+approximate the forward model with errors well below the noise level, reducing
+the per-evaluation cost from seconds to microseconds. We then use the surrogate
+to generate the full $M + N$ dataset in seconds.
+
+::: {.callout-note}
+## When surrogates are appropriate
+Sparse grids exploit smoothness of the parameter-to-output map. They work well
+when the model output varies smoothly with the parameters and the parameter
+dimension is moderate ($d \lesssim 15$). For high-dimensional or discontinuous
+problems, other surrogate types (GP, neural network) may be preferable.
+:::
+
+## Setup
+
+```{python}
+import os
+import pickle
+import numpy as np
+import matplotlib.pyplot as plt
+from pyapprox.util.backends.numpy import NumpyBkd
+from pyapprox.expdesign.benchmarks import (
+    ObstructedAdvectionDiffusionOEDBenchmark,
+)
+from pyapprox.expdesign.data import OEDDataGenerator
+from pyapprox.expdesign import (
+    GaussianOEDInnerLoopLikelihood,
+    StandardDeviationMeasure,
+    SampleAverageMean,
+    solve_prediction_oed,
+    RelaxedOEDConfig,
+)
+
+np.random.seed(1)
+bkd = NumpyBkd()
+```
+
+```{python}
+benchmark  = ObstructedAdvectionDiffusionOEDBenchmark(bkd)
+obs_model  = benchmark.observation_model()
+pred_model = benchmark.prediction_model()
+prior      = benchmark.prior()
+
+print(f"Parameter dimension:      {prior.nvars()}")
+print(f"Observation output dim:   {obs_model.nqoi()}")
+print(f"Prediction output dim:    {pred_model.nqoi()}")
+```
+
+## Building Surrogates
+
+We build one surrogate for the observation model and one for the prediction
+model. The sparse grid refines itself automatically until a sample budget is
+exhausted.
+
+```{python}
+# TODO: verify surrogate paths once pyapprox.surrogates is ready
+from pyapprox.surrogates import (
+    LejaLagrangeAdaptiveCombinationSparseGrid,
+    MaxNSamplesSparseGridAdmissibility,
+)
+
+def build_or_load_surrogate(filename, model, ntrain, ntest, prior, bkd):
+    """Build a sparse-grid surrogate, cache to disk, return surrogate + errors."""
+    if os.path.exists(filename):
+        print(f"Loading surrogate from {filename}")
+        with open(filename, "rb") as f:
+            d = pickle.load(f)
+        return d["sg"], d["test_samples"], d["test_vals"], d["rel_error"]
+
+    print(f"Building surrogate ({ntrain} training samples) ...")
+    sg = LejaLagrangeAdaptiveCombinationSparseGrid(prior, model.nqoi())
+    sg.setup(MaxNSamplesSparseGridAdmissibility(ntrain))
+    sg.build(model)
+
+    test_samples = prior.rvs(ntest)
+    test_vals    = model(test_samples)
+    sg_vals      = sg(test_samples)
+    rel_error    = float(bkd.norm(sg_vals - test_vals) / bkd.norm(test_vals))
+
+    with open(filename, "wb") as f:
+        pickle.dump(
+            {"sg": sg, "test_samples": test_samples,
+             "test_vals": test_vals, "rel_error": rel_error},
+            f,
+        )
+    print(f"  Relative error on {ntest} test samples: {rel_error:.4f}")
+    return sg, test_samples, test_vals, rel_error
+```
+
+```{python}
+ntrain, ntest = 100, 20
+
+obs_sg, obs_test_X, obs_test_Y, obs_err = build_or_load_surrogate(
+    "obs_sg_n100.pkl", obs_model, ntrain, ntest, prior, bkd
+)
+pred_sg, pred_test_X, pred_test_Y, pred_err = build_or_load_surrogate(
+    "pred_sg_n100.pkl", pred_model, ntrain, ntest, prior, bkd
+)
+
+print(f"\nObservation surrogate relative error: {obs_err:.4f}")
+print(f"Prediction surrogate relative error:  {pred_err:.4f}")
+```
+
+A relative error below the noise-to-signal ratio ($\sigma_\text{noise}$
+divided by the typical observation magnitude) means the surrogate introduces
+less error than measurement noise — it is safe to use for OED.
+
+## Validating the Surrogate
+
+```{python}
+#| echo: false
+#| fig-cap: "Parity plot: true model output vs. sparse-grid surrogate output for 20 test samples and the first 5 output dimensions. Points close to the diagonal indicate accurate surrogate predictions."
+#| label: fig-surrogate-parity
+
+fig, axes = plt.subplots(1, 5, figsize=(15, 4), sharey=False)
+obs_sg_vals = bkd.to_numpy(obs_sg(obs_test_X))
+obs_true    = bkd.to_numpy(obs_test_Y)
+
+for ii, ax in enumerate(axes):
+    ax.scatter(obs_true[ii, :], obs_sg_vals[ii, :],
+               s=30, color="#2C7FB8", alpha=0.7, edgecolors="k", lw=0.4)
+    lo = min(obs_true[ii, :].min(), obs_sg_vals[ii, :].min())
+    hi = max(obs_true[ii, :].max(), obs_sg_vals[ii, :].max())
+    ax.plot([lo, hi], [lo, hi], "r--", lw=1.5)
+    ax.set_xlabel("True", fontsize=9)
+    if ii == 0:
+        ax.set_ylabel("Surrogate", fontsize=9)
+    ax.set_title(f"Output {ii+1}", fontsize=9)
+    ax.grid(True, alpha=0.2)
+
+plt.suptitle("Observation surrogate: parity plots", fontsize=11)
+plt.tight_layout()
+plt.show()
+```
+
+## Restricting to Active Observations
+
+The surrogate covers all output dimensions. For the OED we use only a spatial
+subset — the last time-point at each of the first 50 locations.
+
+```{python}
+# TODO: verify path once pyapprox.surrogates is ready
+from pyapprox.util import create_active_set_qoi_model
+
+nobs_active = 50
+obs_surrogate = create_active_set_qoi_model(
+    obs_sg, bkd.arange(obs_sg.nqoi())[2::3][:nobs_active]
+)
+print(f"Active observations after subsetting: {obs_surrogate.nqoi()}")
+```
+
+## Generating OED Data with the Surrogate
+
+The surrogate slots directly into the data generation workflow — the interface is
+identical to the true model.
+
+```{python}
+noise_std      = 1.0
+noise_variances = bkd.full((nobs_active,), noise_std**2)
+data_gen       = OEDDataGenerator(bkd)
+
+# With the surrogate, we can afford large sample budgets
+nout = 100   # use 10_000 in production
+nin  = 100   # use 10_000 in production
+nparams = prior.nvars()
+
+noise_cov_diag = bkd.full((nobs_active,), noise_std**2)
+outerloop_samples, outerloop_weights = data_gen.setup_quadrature_data(
+    quadrature_type="MC",
+    variable=data_gen.joint_prior_noise_variable(prior, noise_cov_diag),
+    nsamples=nout,
+    loop="outer",
+)
+innerloop_samples, innerloop_weights = data_gen.setup_quadrature_data(
+    quadrature_type="MC",
+    variable=prior,
+    nsamples=nin,
+    loop="inner",
+)
+
+# Evaluate surrogate models
+theta_outer = outerloop_samples[:nparams, :]
+outer_shapes = obs_surrogate(theta_outer)        # (nobs_active, nout)
+inner_shapes = obs_surrogate(innerloop_samples)  # (nobs_active, nin)
+latent_samples = outerloop_samples[nparams:nparams + nobs_active, :]
+qoi_vals = pred_sg(innerloop_samples)            # (nqoi, nin)
+```
+
+## Solving the OED with the Surrogate
+
+```{python}
+design_weights, utility = solve_prediction_oed(
+    noise_variances=noise_variances,
+    outer_shapes=outer_shapes,
+    inner_shapes=inner_shapes,
+    latent_samples=latent_samples,
+    qoi_vals=qoi_vals,
+    bkd=bkd,
+    deviation_type="stdev",
+    risk_type="mean",
+    config=RelaxedOEDConfig(maxiter=200, verbose=0),
+)
+print(f"Objective value: {utility:.6f}")
+```
+
+## Visualising the Design
+
+```{python}
+#| fig-cap: "Optimal sensor weights from surrogate-accelerated OED. Circle area is proportional to weight. The high-weight sensors cluster near the inflow region where the concentration profile is most sensitive to the uncertain parameters."
+#| label: fig-surrogate-oed-design
+
+fig, ax = plt.subplots(figsize=(9, 4))
+fe_model = benchmark.observation_model().fe_model()
+fe_model.stokes_model().plot_domain_boundaries(ax)
+
+obs_locs = bkd.to_numpy(benchmark.observation_locations()[:, :nobs_active])
+w        = bkd.to_numpy(design_weights[:, 0])
+w_norm   = w / w.max()
+
+sc = ax.scatter(obs_locs[0], obs_locs[1], c=w, s=w_norm * 80 + 5,
+                cmap="YlOrRd", edgecolors="k", linewidths=0.4, zorder=3)
+plt.colorbar(sc, ax=ax, shrink=0.8, label="Design weight")
+ax.set_title("Surrogate-accelerated OED: optimal sensor placement", fontsize=11)
+plt.tight_layout()
+plt.show()
+```
+
+## Surrogate vs. True Model: Cost Comparison
+
+```{python}
+# Report build cost vs. savings at inference time
+try:
+    obs_calls_surrogate = obs_sg.work_tracker().total_calls()
+    print(f"True model calls to build surrogate: {obs_calls_surrogate}")
+except AttributeError:
+    pass   # work tracker not exposed in this backend
+
+total_oed_calls = nout + nin
+print(f"OED data generation calls (all surrogate): {total_oed_calls}")
+print(f"Equivalent true model calls avoided:        {total_oed_calls}")
+print(f"Speedup estimate (assuming 10s per PDE):    "
+      f"{total_oed_calls * 10 / 60:.0f} minutes saved")
+```
+
+## Key Takeaways
+
+- Sparse-grid surrogates decouple model evaluation cost from OED sample budget,
+  enabling $M, N \sim 10{,}000$ at the cost of $\sim 100$ true model evaluations.
+- The surrogate and the true model share the same call signature; swapping them
+  is a one-line change.
+- Always validate accuracy before use: a relative error below
+  $\sigma_\text{noise} / \bar{y}$ is a practical threshold.
+
+## Exercises
+
+1. Increase `ntrain` from 100 to 200. By how much does the relative test error
+   decrease? Is the improvement worth the extra model evaluations?
+
+2. Run `solve_prediction_oed` with the **true** `obs_model` and
+   `nin = nout = 20`. Compare the resulting design weights to the surrogate
+   design. Do they agree qualitatively?
+
+3. Replace the Leja sparse grid with a Gaussian process surrogate. How does the
+   relative test error compare for the same training budget?
+
+## Next Steps
+
+You now have the full BOED toolkit: analytical verification (linear Gaussian),
+nonlinear usage (ODE models), data workflow decoupling, and surrogate
+acceleration. A natural next step is **design optimisation**: using gradient
+information from the OED objective to efficiently search the weight space for
+large $K$.

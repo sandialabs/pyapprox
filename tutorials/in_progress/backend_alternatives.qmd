@@ -1,0 +1,418 @@
+---
+title: "Backend Alternatives"
+subtitle: "PyApprox Tutorial Library"
+description: "Using PyTorch backend for automatic differentiation and GPU acceleration"
+prerequisites:
+  - setup_environment
+tags:
+  - backends
+  - advanced
+format:
+  html:
+    code-fold: false
+    code-tools: true
+    toc: true
+execute:
+  echo: true
+  warning: false
+jupyter: python3
+---
+
+::: {.callout-tip collapse="true"}
+## Download Notebook
+[Download as Jupyter Notebook](notebooks/backend_alternatives.ipynb)
+:::
+
+## Learning Objectives
+
+After completing this tutorial, you will be able to:
+
+- Understand PyApprox's backend abstraction system
+- Switch between NumPy and PyTorch backends
+- Leverage PyTorch's automatic differentiation
+- Run computations on GPU when available
+- Write backend-agnostic code
+
+## Prerequisites
+
+Complete [Setting Up Your Environment](setup_environment.qmd) before this tutorial.
+
+**Additional requirement:** This tutorial requires PyTorch. Install with:
+
+```bash
+pip install torch
+```
+
+## Why Multiple Backends?
+
+PyApprox supports multiple computational backends:
+
+| Backend | Array Type | Auto-diff | GPU | Best For |
+|---------|------------|-----------|-----|----------|
+| NumPy | `np.ndarray` | No | No | General computation |
+| PyTorch | `torch.Tensor` | Yes | Yes | Gradient-based optimization |
+
+The **backend abstraction** lets you write code once and run it on either backend.
+
+## Setup
+
+```{python}
+import numpy as np
+
+# Check if PyTorch is available
+try:
+    import torch
+    TORCH_AVAILABLE = True
+    print(f"PyTorch version: {torch.__version__}")
+    print(f"CUDA available: {torch.cuda.is_available()}")
+except ImportError:
+    TORCH_AVAILABLE = False
+    print("PyTorch not available - some examples will be skipped")
+```
+
+## The Backend Protocol
+
+All PyApprox computations use the `Backend` protocol, which provides:
+
+- Array creation: `zeros()`, `ones()`, `eye()`, `array()`
+- Math operations: `sum()`, `sqrt()`, `exp()`, `matmul()`
+- Linear algebra: `cholesky()`, `solve_triangular()`, `svd()`
+- Conversions: `to_numpy()`, `asarray()`
+
+```{python}
+from pyapprox.util.backends.numpy import NumpyBkd
+
+# Create NumPy backend
+np_bkd = NumpyBkd()
+
+# Create arrays using the backend
+x = np_bkd.array([[1.0, 2.0, 3.0]])
+y = np_bkd.zeros((3, 3))
+I = np_bkd.eye(3)
+
+print(f"x type: {type(x)}")
+print(f"x = {x}")
+```
+
+## Switching to PyTorch
+
+```{python}
+if TORCH_AVAILABLE:
+    from pyapprox.util.backends.torch import TorchBkd
+
+    # Create PyTorch backend
+    torch_bkd = TorchBkd()
+
+    # Same operations, different backend
+    x_torch = torch_bkd.array([[1.0, 2.0, 3.0]])
+    y_torch = torch_bkd.zeros((3, 3))
+    I_torch = torch_bkd.eye(3)
+
+    print(f"x_torch type: {type(x_torch)}")
+    print(f"x_torch = {x_torch}")
+    print(f"x_torch dtype: {x_torch.dtype}")
+else:
+    print("PyTorch not available")
+```
+
+## Backend-Agnostic Functions
+
+Write functions that work with any backend:
+
+```{python}
+from pyapprox.util.backends.protocols import Array, Backend
+
+def quadratic_form(A: Array, x: Array, bkd: Backend) -> Array:
+    """Compute x^T A x using backend operations."""
+    # Use @ operator (works for both NumPy and PyTorch)
+    return x @ A @ x.T
+
+# Works with NumPy
+A_np = np_bkd.array([[2.0, 0.5], [0.5, 1.0]])
+x_np = np_bkd.array([[1.0, 2.0]])
+result_np = quadratic_form(A_np, x_np, np_bkd)
+print(f"NumPy result: {result_np}")
+
+# Works with PyTorch
+if TORCH_AVAILABLE:
+    A_torch = torch_bkd.array([[2.0, 0.5], [0.5, 1.0]])
+    x_torch = torch_bkd.array([[1.0, 2.0]])
+    result_torch = quadratic_form(A_torch, x_torch, torch_bkd)
+    print(f"PyTorch result: {result_torch}")
+```
+
+## Automatic Differentiation with PyTorch
+
+The main advantage of PyTorch: **automatic differentiation**.
+
+```{python}
+if TORCH_AVAILABLE:
+    # Enable gradient tracking
+    x = torch.tensor([[1.0, 2.0]], requires_grad=True)
+    A = torch.tensor([[2.0, 0.5], [0.5, 1.0]])
+
+    # Forward pass
+    y = x @ A @ x.T
+
+    # Backward pass (compute gradients)
+    y.backward()
+
+    print(f"y = {y.item():.4f}")
+    print(f"dy/dx = {x.grad}")
+
+    # Analytical: d(x^T A x)/dx = 2 A x
+    analytical_grad = 2 * A @ x.T
+    print(f"Analytical gradient: {analytical_grad.T}")
+```
+
+## Using GP with PyTorch Backend
+
+GPs work seamlessly with either backend:
+
+```{python}
+if TORCH_AVAILABLE:
+    # Set default dtype to float64 for numerical stability
+    torch.set_default_dtype(torch.float64)
+
+    from pyapprox.surrogates.kernels import Matern52Kernel
+    from pyapprox.surrogates.gaussianprocess import ExactGaussianProcess
+
+    # Create kernel with PyTorch backend
+    kernel_torch = Matern52Kernel(
+        lenscale=torch_bkd.asarray([0.5]),
+        lenscale_bounds=(0.01, 10.0),
+        nvars=1,
+        bkd=torch_bkd
+    )
+
+    # Create GP
+    gp_torch = ExactGaussianProcess(kernel_torch, nvars=1, bkd=torch_bkd)
+
+    # Generate training data
+    X_train = torch_bkd.array(np.linspace(0, 1, 10).reshape(1, -1))
+    y_train = torch_bkd.array(np.sin(2*np.pi*np.linspace(0, 1, 10)).reshape(-1, 1))
+
+    # Fit GP
+    gp_torch.fit(X_train, y_train)
+
+    # Make predictions
+    X_test = torch_bkd.array(np.linspace(0, 1, 50).reshape(1, -1))
+    y_pred = gp_torch.predict(X_test)
+
+    print(f"GP prediction type: {type(y_pred)}")
+    print(f"Prediction shape: {y_pred.shape}")
+```
+
+## Converting Between Backends
+
+```{python}
+if TORCH_AVAILABLE:
+    # NumPy to PyTorch
+    np_array = np.array([[1.0, 2.0, 3.0]])
+    torch_tensor = torch_bkd.asarray(np_array)
+    print(f"NumPy array: {np_array}")
+    print(f"PyTorch tensor: {torch_tensor}")
+
+    # PyTorch to NumPy
+    back_to_numpy = torch_bkd.to_numpy(torch_tensor)
+    print(f"Back to NumPy: {back_to_numpy}")
+
+    # Note: to_numpy() detaches gradients
+    x_with_grad = torch.tensor([[1.0]], requires_grad=True)
+    x_np = torch_bkd.to_numpy(x_with_grad)  # Safe conversion
+    print(f"Converted without error: {x_np}")
+```
+
+## GPU Acceleration
+
+When CUDA is available, PyTorch can run on GPU:
+
+```{python}
+if TORCH_AVAILABLE and torch.cuda.is_available():
+    # Create GPU backend
+    device = torch.device('cuda')
+
+    # Move tensors to GPU
+    A_gpu = A_torch.to(device)
+    x_gpu = x_torch.to(device)
+
+    # Compute on GPU
+    result_gpu = x_gpu @ A_gpu @ x_gpu.T
+
+    print(f"GPU result: {result_gpu}")
+    print(f"Device: {result_gpu.device}")
+elif TORCH_AVAILABLE:
+    print("CUDA not available - running on CPU")
+else:
+    print("PyTorch not available")
+```
+
+## Example: Gradient-Based Optimization
+
+Using PyTorch's autograd for optimization:
+
+```{python}
+if TORCH_AVAILABLE:
+    def rosenbrock(x, bkd):
+        """Rosenbrock function: f(x,y) = (1-x)^2 + 100(y-x^2)^2"""
+        return (1 - x[0, 0])**2 + 100*(x[0, 1] - x[0, 0]**2)**2
+
+    # Initial point
+    x = torch.tensor([[0.0, 0.0]], requires_grad=True)
+
+    # Gradient descent
+    learning_rate = 0.001
+    history = []
+
+    for i in range(1000):
+        # Forward pass
+        f = rosenbrock(x, torch_bkd)
+        history.append(f.item())
+
+        # Backward pass
+        f.backward()
+
+        # Gradient descent step
+        with torch.no_grad():
+            x -= learning_rate * x.grad
+            x.grad.zero_()
+
+    print(f"Initial f: {history[0]:.4f}")
+    print(f"Final f: {history[-1]:.6f}")
+    print(f"Final x: [{x[0, 0].item():.4f}, {x[0, 1].item():.4f}]")
+    print(f"True minimum: [1, 1]")
+```
+
+```{python}
+if TORCH_AVAILABLE:
+    import matplotlib.pyplot as plt
+
+    fig, ax = plt.subplots(figsize=(8, 5))
+    ax.semilogy(history)
+    ax.set_xlabel('Iteration')
+    ax.set_ylabel('f(x)')
+    ax.set_title('Gradient Descent on Rosenbrock Function')
+    ax.grid(True, alpha=0.3)
+    plt.tight_layout()
+    plt.show()
+```
+
+## Backend-Agnostic Class Design
+
+PyApprox classes follow this pattern:
+
+```{python}
+from typing import Generic
+from pyapprox.util.backends.protocols import Array, Backend
+
+class MyFunction(Generic[Array]):
+    """Example backend-agnostic class."""
+
+    def __init__(self, bkd: Backend[Array]):
+        self._bkd = bkd
+
+    def bkd(self) -> Backend[Array]:
+        """Return the backend."""
+        return self._bkd
+
+    def evaluate(self, x: Array) -> Array:
+        """Evaluate the function."""
+        # Use backend methods, never numpy/torch directly
+        return self._bkd.sum(x**2)
+
+# Works with NumPy
+f_np = MyFunction(np_bkd)
+result = f_np.evaluate(np_bkd.array([[1.0, 2.0, 3.0]]))
+print(f"NumPy result: {result}")
+
+# Works with PyTorch
+if TORCH_AVAILABLE:
+    f_torch = MyFunction(torch_bkd)
+    result = f_torch.evaluate(torch_bkd.array([[1.0, 2.0, 3.0]]))
+    print(f"PyTorch result: {result}")
+```
+
+## When to Use Each Backend
+
+### Use NumPy when:
+
+- No gradients needed
+- Interfacing with scipy or other NumPy-based libraries
+- Simpler debugging (no computational graph)
+
+### Use PyTorch when:
+
+- Gradient-based optimization
+- Training neural networks
+- GPU acceleration needed
+- Large-scale computations
+
+## Common Pitfalls
+
+### 1. Mixing Backends
+
+```{python}
+if TORCH_AVAILABLE:
+    # This will fail:
+    # np_array = np.array([1.0])
+    # torch_tensor = torch.tensor([2.0])
+    # result = np_array + torch_tensor  # TypeError!
+
+    # Correct: convert first
+    np_array = np.array([1.0])
+    torch_array = torch_bkd.asarray(np_array)
+    torch_tensor = torch.tensor([2.0])
+    result = torch_array + torch_tensor  # Works!
+    print(f"Correct addition: {result}")
+```
+
+### 2. In-Place Operations with Gradients
+
+```{python}
+if TORCH_AVAILABLE:
+    # Avoid in-place operations on tensors needing gradients
+    x = torch.tensor([1.0], requires_grad=True)
+
+    # BAD: x += 1 (in-place modification)
+    # GOOD:
+    y = x + 1  # Creates new tensor
+    print(f"Safe operation: {y}")
+```
+
+### 3. Float32 vs Float64
+
+```{python}
+if TORCH_AVAILABLE:
+    # PyTorch defaults to float32
+    x32 = torch.tensor([1.0])
+    print(f"Default dtype: {x32.dtype}")
+
+    # For numerical stability, use float64
+    torch.set_default_dtype(torch.float64)
+    x64 = torch.tensor([1.0])
+    print(f"With float64: {x64.dtype}")
+```
+
+## Key Takeaways
+
+- PyApprox's **backend abstraction** enables code reuse across NumPy and PyTorch
+- **PyTorch backend** provides automatic differentiation and GPU support
+- Write **backend-agnostic code** using the `Backend` protocol
+- Use `bkd.to_numpy()` and `bkd.asarray()` for **safe conversions**
+- Set `torch.float64` for **numerical stability**
+- Choose backend based on your needs: gradients, GPU, or simplicity
+
+## Exercises
+
+1. **(Easy)** Create a simple function $f(x) = x^3 - 2x$ and compute its gradient at $x=2$ using PyTorch autograd. Compare with the analytical derivative.
+
+2. **(Medium)** Implement a backend-agnostic function that computes the Frobenius norm of a matrix. Test it with both backends.
+
+3. **(Challenge)** Use PyTorch's autograd to implement gradient descent for GP hyperparameter optimization. Compare convergence with scipy's L-BFGS-B optimizer.
+
+## Next Steps
+
+Continue with:
+
+- [Benchmark Setup](benchmark_setup.qmd) - Creating custom UQ benchmarks
+- [Bayesian Calibration Intro](bayesian_calibration_intro.qmd) - Parameter inference
